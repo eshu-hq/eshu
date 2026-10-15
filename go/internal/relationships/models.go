@@ -47,9 +47,13 @@ const (
 	// EvidenceKindArgoCDApplicationSetDeploySource is an ApplicationSet deploy-source reference.
 	EvidenceKindArgoCDApplicationSetDeploySource EvidenceKind = "ARGOCD_APPLICATIONSET_DEPLOY_SOURCE"
 	// EvidenceKindArgoCDApplicationSetTemplateSource is an ApplicationSet
-	// template source that names the same repository the generator reads its
-	// config from. It runs from the control repository to that repository,
-	// because a deploy-source fact for it would be a self-loop.
+	// template source recorded from the control repository to the deployed
+	// repository. It covers the self-reference (the template source is the
+	// generator's own config repository, where a deploy-source fact would be
+	// a self-loop) and the control-config case (issue #7778: the generator
+	// reads config from the control repository itself, so the fact names the
+	// control repository as the config repository and carries no
+	// self_reference flag).
 	EvidenceKindArgoCDApplicationSetTemplateSource EvidenceKind = "ARGOCD_APPLICATIONSET_TEMPLATE_SOURCE"
 	// EvidenceKindArgoCDDestinationPlatform is an ApplicationSet destination-platform reference.
 	EvidenceKindArgoCDDestinationPlatform EvidenceKind = "ARGOCD_DESTINATION_PLATFORM"

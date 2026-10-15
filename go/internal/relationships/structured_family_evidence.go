@@ -135,6 +135,28 @@ func discoverStructuredArgoCDEvidence(
 
 	appSets, _ := factschema.DecodeParsedFileDataArgoCDApplicationSets(parsedFileData)
 	for _, appSet := range appSets {
+		evidence = append(evidence, appendStructuredApplicationSetEvidence(
+			sourceRepoID, filePath, appSet, matcher, seen, stats,
+		)...)
+	}
+
+	return evidence
+}
+
+// appendStructuredApplicationSetEvidence resolves one decoded ApplicationSet's
+// generator config sources and template sources into evidence facts, including
+// the #7778 control-repository generator shape (no discovery self-loop, but
+// control-to-deployed template-source evidence).
+func appendStructuredApplicationSetEvidence(
+	sourceRepoID, filePath string,
+	appSet codegraphv1.ArgoCDApplicationSet,
+	matcher *catalogMatcher,
+	seen map[evidenceKey]struct{},
+	stats *DiscoveryStats,
+) []EvidenceFact {
+	var evidence []EvidenceFact
+
+	{
 		appSetName := strings.TrimSpace(appSet.Name)
 		discoveryRepos := csvValues(appSet.GeneratorSourceRepos)
 		discoveryPaths := csvValues(appSet.GeneratorSourcePaths)
@@ -153,18 +175,22 @@ func discoverStructuredArgoCDEvidence(
 			root := firstCSV(discoveryRoots)
 			path := firstCSV(discoveryPaths)
 			for _, configRepo := range matchingCatalogEntries(repoURL, matcher) {
-				if configRepo.RepoID == sourceRepoID {
-					continue
+				// #7778: a generator that reads config from the control
+				// repository itself yields no discovery fact (control ->
+				// control would be a self-loop), but its template sources
+				// still resolve in the loop below.
+				controlConfig := configRepo.RepoID == sourceRepoID
+				if !controlConfig {
+					evidence = append(evidence, appendDiscoveryEvidence(
+						sourceRepoID, configRepo, filePath, path, seen,
+					)...)
+					applyStructuredRefDetails(evidence, EvidenceKindArgoCDApplicationSetDiscovery, configRepo.RepoID, func(details map[string]any) map[string]any {
+						return withFirstPartyRefDetails(
+							mergeDetails(details, map[string]any{"argocd_applicationset_name": appSetName}),
+							"argocd_applicationset_discovery", appSetName, path, root, "", repoURL,
+						)
+					})
 				}
-				evidence = append(evidence, appendDiscoveryEvidence(
-					sourceRepoID, configRepo, filePath, path, seen,
-				)...)
-				applyStructuredRefDetails(evidence, EvidenceKindArgoCDApplicationSetDiscovery, configRepo.RepoID, func(details map[string]any) map[string]any {
-					return withFirstPartyRefDetails(
-						mergeDetails(details, map[string]any{"argocd_applicationset_name": appSetName}),
-						"argocd_applicationset_discovery", appSetName, path, root, "", repoURL,
-					)
-				})
 
 				for _, templateRepoURL := range templateRepos {
 					templatePath := firstCSV(templatePaths)
@@ -176,6 +202,24 @@ func discoverStructuredArgoCDEvidence(
 								ApplicationSetTemplateSourceOutcomeSkippedControlRepo,
 								sourceRepoID, deployedRepo.RepoID, filePath,
 							)
+							continue
+						}
+						if controlConfig {
+							evidence = append(evidence, appendControlConfigEvidence(
+								sourceRepoID, deployedRepo, filePath, path, templateRepoURL,
+								[]argocdDestination{{
+									name:      appSet.DestName,
+									namespace: appSet.DestNamespace,
+									server:    appSet.DestServer,
+								}},
+								seen, stats,
+							)...)
+							applyStructuredRefDetails(evidence, EvidenceKindArgoCDApplicationSetTemplateSource, deployedRepo.RepoID, func(details map[string]any) map[string]any {
+								return withFirstPartyRefDetails(
+									mergeDetails(details, map[string]any{"argocd_applicationset_name": appSetName}),
+									"argocd_applicationset_template_source", appSetName, templatePath, templateRoot, "", templateRepoURL,
+								)
+							})
 							continue
 						}
 						if deployedRepo.RepoID == configRepo.RepoID {

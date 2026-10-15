@@ -47,8 +47,8 @@ func collectApplicationSetTemplateSourcePoints(t *testing.T, reader sdkmetric.Re
 }
 
 // TestRecordArgoCDApplicationSetTemplateSourceStatsEmitsOnePointPerOutcome
-// proves each of the four closed outcome labels increments its own data point
-// by the tallied count (issue #7767).
+// proves each of the five closed outcome labels increments its own data point
+// by the tallied count (issue #7767, extended by #7778).
 func TestRecordArgoCDApplicationSetTemplateSourceStatsEmitsOnePointPerOutcome(t *testing.T) {
 	t.Parallel()
 
@@ -62,6 +62,7 @@ func TestRecordArgoCDApplicationSetTemplateSourceStatsEmitsOnePointPerOutcome(t 
 	recordArgoCDApplicationSetTemplateSourceStats(context.Background(), instruments, relationships.ApplicationSetTemplateSourceStats{
 		DeploySource:                2,
 		SelfReference:               3,
+		ControlConfig:               5,
 		SkippedControlRepo:          1,
 		SkippedTemplatedDestination: 4,
 	})
@@ -70,6 +71,7 @@ func TestRecordArgoCDApplicationSetTemplateSourceStatsEmitsOnePointPerOutcome(t 
 	want := map[string]int64{
 		relationships.ApplicationSetTemplateSourceOutcomeDeploySource:                2,
 		relationships.ApplicationSetTemplateSourceOutcomeSelfReference:               3,
+		relationships.ApplicationSetTemplateSourceOutcomeControlConfig:               5,
 		relationships.ApplicationSetTemplateSourceOutcomeSkippedControlRepo:          1,
 		relationships.ApplicationSetTemplateSourceOutcomeSkippedTemplatedDestination: 4,
 	}
@@ -81,7 +83,7 @@ func TestRecordArgoCDApplicationSetTemplateSourceStatsEmitsOnePointPerOutcome(t 
 	if len(got) != len(want) {
 		t.Errorf("recorded %d distinct outcomes, want %d: %#v", len(got), len(want), got)
 	}
-	for _, outcome := range []string{"deploy_source", "template_source_self_reference", "skipped_control_repo", "skipped_templated_destination"} {
+	for _, outcome := range []string{"deploy_source", "template_source_self_reference", "template_source_control_config", "skipped_control_repo", "skipped_templated_destination"} {
 		if _, ok := got[outcome]; !ok {
 			t.Errorf("literal outcome label %q was not emitted: %#v", outcome, got)
 		}

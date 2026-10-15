@@ -90,6 +90,31 @@ func TestApplicationSetTemplateSourceStatsCountsEachOutcome(t *testing.T) {
 			want: ApplicationSetTemplateSourceStats{SkippedControlRepo: 1},
 		},
 		{
+			name: "yaml control config",
+			envelopes: []facts.Envelope{
+				appSetConfigRepoSet("gitops-repo", appSetLiteralDestination),
+				appSetConfigRepoConfig("repo-gitops", "prod", "other-service"),
+			},
+			want: ApplicationSetTemplateSourceStats{ControlConfig: 1},
+		},
+		{
+			name: "yaml control config templated destination",
+			envelopes: []facts.Envelope{
+				appSetConfigRepoSet("gitops-repo", appSetTemplatedDestination),
+				appSetConfigRepoConfig("repo-gitops", "prod", "other-service"),
+			},
+			want: ApplicationSetTemplateSourceStats{ControlConfig: 1, SkippedTemplatedDestination: 1},
+		},
+		{
+			name: "yaml control config many overlays tallies once",
+			envelopes: []facts.Envelope{
+				appSetConfigRepoSet("gitops-repo", appSetLiteralDestination),
+				appSetConfigRepoConfig("repo-gitops", "prod", "other-service"),
+				appSetConfigRepoConfig("repo-gitops", "staging", "other-service"),
+			},
+			want: ApplicationSetTemplateSourceStats{ControlConfig: 1},
+		},
+		{
 			name: "yaml config only repo counts nothing",
 			envelopes: []facts.Envelope{
 				appSetConfigRepoSet("central-config", appSetLiteralDestination),
@@ -121,6 +146,16 @@ func TestApplicationSetTemplateSourceStatsCountsEachOutcome(t *testing.T) {
 			name:      "structured control repo as template source",
 			envelopes: []facts.Envelope{appSetStructuredEnvelope("central-config", "gitops-repo", literal)},
 			want:      ApplicationSetTemplateSourceStats{SkippedControlRepo: 1},
+		},
+		{
+			name:      "structured control config",
+			envelopes: []facts.Envelope{appSetStructuredEnvelope("gitops-repo", "other-service", literal)},
+			want:      ApplicationSetTemplateSourceStats{ControlConfig: 1},
+		},
+		{
+			name:      "structured control config templated destination",
+			envelopes: []facts.Envelope{appSetStructuredEnvelope("gitops-repo", "other-service", templated)},
+			want:      ApplicationSetTemplateSourceStats{ControlConfig: 1, SkippedTemplatedDestination: 1},
 		},
 	}
 	for _, tc := range cases {

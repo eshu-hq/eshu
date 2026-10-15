@@ -6187,7 +6187,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		"eshu_dp_argocd_applicationset_template_source_total",
 		metric.WithDescription(
 			"Total Argo CD ApplicationSet template sources resolved to a catalog repository by outcome "+
-				"(deploy_source, template_source_self_reference, skipped_control_repo, skipped_templated_destination); "+
+				"(deploy_source, template_source_self_reference, template_source_control_config, skipped_control_repo, skipped_templated_destination); "+
 				"skipped_templated_destination is a per-matched-repository extra, not a partition",
 		),
 	)
