@@ -28,13 +28,17 @@ so no dirgate re-pin.
 
 No-Regression Evidence (#7802): baseline is the pre-fix candidate query,
 which prunes a 100-day base full and a 95-day chain delta under a 90-day
-ceiling (`TestGenerationRetentionDeltaBaseLive` RED: `GenerationsPruned=3`,
-base and chain gone, `Skipped` empty). After is the new query on the same
-two-scope fixture (one delta-active scope with base plus chain, one
-active-full scope with one old generation; params: soft cutoff now-7d,
-min-newer 24, batch limit 10, hard ceiling now-90d) on local PostgreSQL 18.6
-(postgres:18-alpine throwaway): `GenerationsPruned=1` (only the active-full
-scope's old generation), base and chain kept, `Skipped["delta_base"]=2`.
+ceiling (original two-scope `TestGenerationRetentionDeltaBaseLive` RED:
+`GenerationsPruned=3`, base and chain gone, `Skipped` empty). After is the
+new query on the three-scope fixture (one delta-active scope with base plus
+chain, one overlap scope whose chain delta is both uncovered and
+delta-protected, one active-full scope with one old generation; params: soft
+cutoff now-7d, min-newer 24, batch limit 10, hard ceiling now-90d) on local
+PostgreSQL 18.6 (postgres:18-alpine throwaway): `GenerationsPruned=1`
+(only the active-full scope's old generation), bases and chains kept,
+`Skipped["delta_base"]=3` with `Skipped["uncovered_writer"]=1` reported
+exactly once. Reverting the delta-leg uncovered exclusion makes the same
+test FAIL with `Skipped["delta_base"]=4`, proving the overlap arm.
 Plan shape on a five-scope delta-active corpus with identical params:
 `EXPLAIN (ANALYZE, BUFFERS)` shows `delta_base` folded into `eligible` (one
 merge join, no added CTE scan), `fact_work_items` still read exactly once
@@ -48,10 +52,10 @@ scale by the primary key and `scope_generations_scope_latest_lookup_idx`
 
 Observability Evidence (#7802):
 `eshu_dp_generation_retention_skipped_total{reason="delta_base"}` counts
-every kept base and chain row and the `generation retention cycle completed`
-log carries it in `skipped_by_reason`; the regression test asserts the
-`Skipped` map entry and the metrics reference documents the reason in the
-same PR. Post-deploy, a nonzero `delta_base` share means retention is
+every kept base and covered chain row (a both-flags chain row counts once
+as `uncovered_writer` instead) and the cycle log carries both reasons in
+`skipped_by_reason`; the regression test asserts the `Skipped` map entries
+and the metrics reference documents the reason in the same PR. Post-deploy, a nonzero `delta_base` share means retention is
 holding delta-active bases; correlate with the count of delta-active scopes.
 Like the uncovered-writer leg, the report cap makes the count a floor, not a
 census, when protected rows exceed the batch limit.
