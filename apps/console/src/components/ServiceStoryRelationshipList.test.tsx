@@ -50,28 +50,25 @@ function renderList(edges: readonly VisualizationEdge[], nodes: readonly Visuali
 }
 
 describe("ServiceStoryRelationshipList", () => {
-  const source = node("viznode:source", "api-node-boats", "source_repository");
-  const target = node("viznode:target", "trader-web", "workload");
+  const source = node("viznode:source", "api-demo-shop", "source_repository");
+  const target = node("viznode:target", "buyer-web", "workload");
 
   it.each([
     [
       "CONSUMED_BY",
-      "api-node-boats (workload service) is consumed by trader-web (downstream repository)",
+      "api-demo-shop (workload service) is consumed by buyer-web (downstream repository)",
     ],
-    ["DEPENDS_ON", "api-node-boats (source repository) depends on trader-web (workload service)"],
-    [
-      "DEPLOYS_FROM",
-      "api-node-boats (source repository) deploys from trader-web (workload service)",
-    ],
+    ["DEPENDS_ON", "api-demo-shop (source repository) depends on buyer-web (workload service)"],
+    ["DEPLOYS_FROM", "api-demo-shop (source repository) deploys from buyer-web (workload service)"],
     [
       "PROVISIONING_SOURCE_CHAIN",
-      "api-node-boats (source repository) provisions trader-web (workload service)",
+      "api-demo-shop (source repository) provisions buyer-web (workload service)",
     ],
     [
       "READS_CONFIG_FROM",
-      "api-node-boats (source repository) reads config from trader-web (workload service)",
+      "api-demo-shop (source repository) reads config from buyer-web (workload service)",
     ],
-    ["RUNS_AS", "api-node-boats (workload service) runs as trader-web (runtime instance)"],
+    ["RUNS_AS", "api-demo-shop (workload service) runs as buyer-web (runtime instance)"],
   ])("renders the %s relationship as a human narrative", (relationship, expected) => {
     renderList([edge(relationship)], [source, target]);
 

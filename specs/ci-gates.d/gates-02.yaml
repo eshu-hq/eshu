@@ -304,6 +304,54 @@ gates:
     ci_only_reason: ""
     hook_id: no-private-identifiers-content
 
+  - id: answer-demo-fixtures-sanitized
+    name: Answer demo fixtures carry no real repository names
+    category: hygiene
+    layer: hygiene
+    purpose: "Scans fixture-bearing trees for real repository names, machine user paths, and environment or organization identifiers and blocks them."
+    tier: pre-commit
+    blocking: true
+    triggers:
+      # Tree mode scans the fixture-bearing trees whole, so a fixture change
+      # anywhere under them selects this gate. The two go/internal/query file
+      # triggers are literal tracked files (#6055): their directory also
+      # carries #7803 sweep content, so only the fixture files are targets
+      # until that sweep lands.
+      - "apps/console/src/**"
+      - "apps/console/prototype/**"
+      - "go/internal/parser/hcl/**"
+      - "go/internal/parser/rust/**"
+      - "go/internal/query/service/**"
+      - "go/internal/query/visualization/**"
+      - "go/internal/query/entity_resolve_contract_test.go"
+      - "go/internal/query/repository_deployment_evidence_test.go"
+      # The gate's own files, listed beside the content triggers because a
+      # self_test_trigger must also appear in triggers: editing one selects
+      # the test mirror that exercises it.
+      - "scripts/verify-answer-demo-fixtures-sanitized.sh"
+      - "scripts/test-verify-answer-demo-fixtures-sanitized.sh"
+      - ".github/workflows/verify-agent-hygiene.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+    self_test_triggers:
+      - "scripts/verify-answer-demo-fixtures-sanitized.sh"
+      - "scripts/test-verify-answer-demo-fixtures-sanitized.sh"
+      - ".github/workflows/verify-agent-hygiene.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+    local:
+      command: "bash scripts/verify-answer-demo-fixtures-sanitized.sh"
+      pre_push: floor
+      test_command: "bash scripts/test-verify-answer-demo-fixtures-sanitized.sh"
+    ci:
+      # Runs as an "Answer demo fixtures sanitized" step in the same Agent
+      # hygiene gate job as no-private-identifiers.
+      workflow: verify-agent-hygiene.yml
+      job: "Agent hygiene gate"
+    # Pure bash plus rg, like no-private-identifiers: no Go toolchain.
+    requirements: []
+    ci_only_reason: ""
+
   - id: license-header
     name: Go license header verification
     category: hygiene

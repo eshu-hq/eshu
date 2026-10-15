@@ -5,6 +5,7 @@ name: Verify Agent Hygiene
 #   2. No AI attribution in commit messages or added content.
 #   2b. No environment or organization identifiers in commit messages or added
 #       content (the private denylist mode is local-only and never set in CI).
+#   2c. Answer demo fixtures carry no real repository names (#7918).
 #   3. Every repository skill is discoverable by Claude and Codex.
 #   4. OpenCode role shims do not override the root Git policy.
 # Local pre-commit hooks mirror these for fast feedback, but they are bypassable
@@ -77,6 +78,10 @@ jobs:
       - name: Run filename-stutter gate test mirror
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: scripts/test-verify-filename-stutter.sh
+
+      - name: Run answer-demo fixture scrubber test mirror
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
+        run: scripts/test-verify-answer-demo-fixtures-sanitized.sh
 
       - name: Run gitignore-rg-parity gate test mirror
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
@@ -155,6 +160,10 @@ jobs:
         run: |
           set -o pipefail
           scripts/verify-no-private-identifiers.sh
+
+      - name: Answer demo fixtures sanitized
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
+        run: scripts/verify-answer-demo-fixtures-sanitized.sh
 
       - name: No filename or directory stutter in added/renamed paths
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
