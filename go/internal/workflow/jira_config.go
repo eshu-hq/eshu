@@ -35,6 +35,11 @@ type jiraTargetConfiguration struct {
 	UpdatedLookback string `json:"updated_lookback"`
 	ChangelogLimit  int    `json:"changelog_limit"`
 	RemoteLinkLimit int    `json:"remote_link_limit"`
+	// AllowEmptySuccessor is the explicit operator attestation that an
+	// empty or sharply shrunken successor generation is legitimate for
+	// this target. It defaults to false and needs no range validation:
+	// both JSON boolean values are meaningful attestations.
+	AllowEmptySuccessor bool `json:"allow_empty_successor"`
 }
 
 // ValidateJiraCollectorConfiguration checks bounded Jira work-item collector

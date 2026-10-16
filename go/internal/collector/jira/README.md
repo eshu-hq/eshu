@@ -166,6 +166,10 @@ legitimate mass-resolves. The source stamps it onto the generation as
 `TrustedDeletion`; without it the ingestion store's successor-emptiness
 backstop refuses to replace a content-bearing active generation with an
 empty or sharply shrunken successor, keeping the prior generation active.
+Operators set it with the `allow_empty_successor` target key, accepted by
+both the collector runtime configuration and the workflow configuration
+validation. It defaults to false: omit it unless a mass-resolve or JQL
+narrowing makes an empty or sharply shrunken successor legitimate.
 
 No-Regression Evidence: `TestFreshnessHintStableForByteIdenticalRetry`,
 `TestFreshnessHintChangesAcrossWindows`,
