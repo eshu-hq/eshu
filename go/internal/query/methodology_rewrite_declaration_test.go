@@ -74,7 +74,7 @@ func runMethodologyRewriteDeclarationChild(t *testing.T, spec string) {
 		return strings.Split(s, "\x1e")
 	}
 	decl := methodologyRewriteDeclaration{Issue: issue, Reason: "scenario", Paths: split(parts[3])}
-	methodologyVerifySameProductionWithDeclaration(t, parts[0], parts[1], split(parts[2]), decl)
+	methodologyVerifySameProductionWithDeclaration(t, parts[0], parts[1], split(parts[2]), decl, methodologyReaderRewriteDeclarationKind)
 }
 
 func checkMethodologyRewriteDeclarationScenario(t *testing.T, childMarker string, pinned, modify, declare []string, dirty string, wantFailure bool, wantPath string) {

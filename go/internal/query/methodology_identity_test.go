@@ -60,8 +60,23 @@ func methodologyVerifySameProduction(t *testing.T, base, candidate string, paths
 	// guard and the postgres artifact writer) on the byte-identical strict
 	// pin. Only the graph artifact writer passes the committed rewrite
 	// declaration, so a rewrite in one backend never relaxes another.
-	methodologyVerifySameProductionWithDeclaration(t, base, candidate, paths, methodologyRewriteDeclaration{})
+	methodologyVerifySameProductionWithDeclaration(t, base, candidate, paths, methodologyRewriteDeclaration{}, methodologyReaderRewriteDeclarationKind)
 }
+
+// methodologyDeclarationKind names a declaration in the pin's failure and
+// log text, so a message points at the committed variable to edit.
+type methodologyDeclarationKind struct {
+	noun     string
+	variable string
+}
+
+// methodologyReaderRewriteDeclarationKind labels the reader rewrite
+// declaration; methodologySchemaChangeDeclarationKind labels the graph schema
+// change declaration.
+var (
+	methodologyReaderRewriteDeclarationKind = methodologyDeclarationKind{noun: "rewrite declaration", variable: "methodologyCommittedRewriteDeclaration"}
+	methodologySchemaChangeDeclarationKind  = methodologyDeclarationKind{noun: "schema change declaration", variable: "methodologyCommittedSchemaDeclaration"}
+)
 
 // methodologyRewriteDeclaration is the author-side recalibration procedure
 // for a query rewrite PR. The unchanged-query pin below cannot measure a
@@ -99,7 +114,7 @@ var methodologyCommittedRewriteDeclaration = methodologyRewriteDeclaration{
 	},
 }
 
-func methodologyVerifySameProductionWithDeclaration(t *testing.T, base, candidate string, paths []string, decl methodologyRewriteDeclaration) {
+func methodologyVerifySameProductionWithDeclaration(t *testing.T, base, candidate string, paths []string, decl methodologyRewriteDeclaration, kind methodologyDeclarationKind) {
 	t.Helper()
 	root := methodologyRepositoryRoot(t)
 	if len(decl.Paths) == 0 {
@@ -175,7 +190,7 @@ func methodologyVerifySameProductionWithDeclaration(t *testing.T, base, candidat
 	declared := make(map[string]bool)
 	for _, path := range decl.Paths {
 		if !pinned[path] {
-			t.Fatalf("rewrite declaration (issue #%d) names %s which is not a pinned production source", decl.Issue, path)
+			t.Fatalf("%s (issue #%d) names %s which is not a pinned production source; fix %s", kind.noun, decl.Issue, path, kind.variable)
 		}
 		declared[path] = true
 	}
@@ -201,18 +216,18 @@ func methodologyVerifySameProductionWithDeclaration(t *testing.T, base, candidat
 			t.Fatalf("production source %s committed mode or blob differs from base", path)
 		}
 		if len(decl.Paths) != 0 {
-			t.Logf("rewrite declaration issue #%d not triggered: no declared file differs", decl.Issue)
+			t.Logf("%s issue #%d not triggered: no declared file differs", kind.noun, decl.Issue)
 		}
 		return
 	}
 	for path := range differing {
 		if !declared[path] {
-			t.Fatalf("production source %s differs from base and is not covered by the issue #%d rewrite declaration; declare the rewrite or revert the file", path, decl.Issue)
+			t.Fatalf("production source %s differs from base and is not covered by the issue #%d %s; declare it in %s or revert the file", path, decl.Issue, kind.noun, kind.variable)
 		}
 	}
 	for path := range declared {
 		if _, ok := differing[path]; !ok {
-			t.Fatalf("rewrite declaration (issue #%d) names unchanged production source %s; narrow the declaration to the files this change rewrites", decl.Issue, path)
+			t.Fatalf("%s (issue #%d) names unchanged production source %s; narrow %s to the files this change modifies", kind.noun, decl.Issue, path, kind.variable)
 		}
 	}
 	names := make([]string, 0, len(differing))
@@ -222,7 +237,7 @@ func methodologyVerifySameProductionWithDeclaration(t *testing.T, base, candidat
 	sort.Strings(names)
 	for _, path := range names {
 		ids := differing[path]
-		t.Logf("rewrite declaration issue #%d: %s base=%s candidate=%s: %s", decl.Issue, decl.Reason, ids.base, ids.candidate, path)
+		t.Logf("%s issue #%d: %s base=%s candidate=%s: %s", kind.noun, decl.Issue, decl.Reason, ids.base, ids.candidate, path)
 	}
 	// Bind the working tree exactly as the strict pin does: the measured
 	// test binary executes working-tree code, so an uncommitted edit to a
@@ -359,7 +374,7 @@ func methodologyVerifySameProductionTreeWithDeclaration(t *testing.T, base, cand
 	if methodologySchemaDeclarationActive(schema, baseEntries, candidateEntries) && methodologyRewriteDeclarationActive(t, base, candidate, reader) {
 		t.Fatalf("schema change declaration (issue #%d) and reader rewrite declaration (issue #%d) are both active: a run may change pinned graph schema or pinned readers, not both; split the change", schema.Issue, reader.Issue)
 	}
-	methodologyVerifySameProductionWithDeclaration(t, base, candidate, common, schema)
+	methodologyVerifySameProductionWithDeclaration(t, base, candidate, common, schema, methodologySchemaChangeDeclarationKind)
 	methodologyVerifyAddedProductionClean(t, root, candidate, added)
 }
 
