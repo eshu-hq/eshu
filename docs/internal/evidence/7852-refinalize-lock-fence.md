@@ -7,7 +7,7 @@ start the timer when an unrelated `UPDATE fact_work_items` is issued while a
 separate transaction holds `ROW EXCLUSIVE` on that table; stop when the update
 returns, and verify the holder still owns its lock at that point. Before the
 fix, that update waited 1.505412472 seconds and failed the 1.5-second ceiling.
-After the fix, it completed in 1.002287995 seconds while the holder retained its
+After the fix, it completed in 0.998272398 seconds while the holder retained its
 lock. The fence's first 1-second `lock_timeout` raised 55P03, the failed
 transaction rolled back, and a retry completed after the holder was released.
 The 30-second budget is a fence-admission window: it starts at the first table
