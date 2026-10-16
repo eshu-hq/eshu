@@ -54,10 +54,9 @@ At 4MB the three content prunes sort on disk and run slower than they need to; a
 16MB and above they plan a hash aggregate (measured at 5x on a remote host,
 PostgreSQL 18.6). The setting is transaction-local: it does not change the pooled
 connection or the server configuration, and there is no environment variable for
-it. The config-artifact version fence's DELETE transition table (migration 184)
-counts against the same 64MB: a 100,000-row content prune of 1 KiB bodies writes
-about 181 MB of temporary files, visible in `pg_stat_database.temp_bytes` and,
-when enabled, `log_temp_files`.
+it. The version fence's DELETE transition table (migration 184) counts against
+the same 64MB: a 100,000-row prune of 1 KiB bodies writes about 181 MB of temp
+files (`pg_stat_database.temp_bytes`, `log_temp_files`).
 
 `work_mem` is a per-plan-node allowance, not a per-statement budget. Each sort or
 hash node in a retention statement may use up to 64MB, a hash node up to twice that
