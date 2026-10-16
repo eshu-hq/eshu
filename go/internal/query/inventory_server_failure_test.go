@@ -5,6 +5,7 @@ package query
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/failure"
 )
 
@@ -149,8 +151,10 @@ func TestFixedFailureStepsWithoutABackendRead(t *testing.T) {
 		handler failure.Mounter
 	}{
 		{
-			suite:   spanned,
-			route:   failure.Route{Name: "graph entity count decode", Path: "/api/v0/graph/entities", Message: graphEntityKindCountDecodeFailedMessage},
+			suite: spanned,
+			route: failure.Route{Name: "graph entity count decode", Path: "/api/v0/graph/entities", Message: graphEntityKindCountDecodeFailedMessage},
+			// fakeTagHistoryGraphReader stands in as a generic GraphQuery that
+			// answers fixed rows: here one count row with an unknown key.
 			handler: &GraphEntityInventoryHandler{Neo4j: &fakeTagHistoryGraphReader{rows: []map[string]any{{failure.Canary: 1}}}},
 		},
 		{
@@ -186,26 +190,114 @@ func TestFixedFailureStepsWithoutABackendRead(t *testing.T) {
 // described by message and exactly one exception event.
 func assertOneSpanException(t *testing.T, spans []sdktrace.ReadOnlySpan, message string) {
 	t.Helper()
-	var marked sdktrace.ReadOnlySpan
-	for _, span := range spans {
-		if span.Name() != "request" || marked == nil {
-			marked = span
-		}
-	}
-	if marked == nil {
-		t.Fatalf("no span ended")
-	}
+	marked := markedSpan(t, spans)
 	if marked.Status().Code != codes.Error || marked.Status().Description != message {
 		t.Errorf("span %s status = %v %q, want Error %q", marked.Name(), marked.Status().Code, marked.Status().Description, message)
 	}
-	exceptions := 0
-	for _, event := range marked.Events() {
-		if event.Name == "exception" {
-			exceptions++
+	if got := exceptionEvents(marked); got != 1 {
+		t.Errorf("span %s exception events = %d, want 1", marked.Name(), got)
+	}
+}
+
+// markedSpan returns the span directly under the harness's "request" span
+// when the route opened one, else the request span itself. It matches by
+// parent span ID, not by end order, so the pick does not depend on which span
+// the recorder saw end first.
+func markedSpan(t *testing.T, spans []sdktrace.ReadOnlySpan) sdktrace.ReadOnlySpan {
+	t.Helper()
+	var request sdktrace.ReadOnlySpan
+	for _, span := range spans {
+		if span.Name() == "request" {
+			request = span
 		}
 	}
-	if exceptions != 1 {
-		t.Errorf("span %s exception events = %d, want 1", marked.Name(), exceptions)
+	if request == nil {
+		t.Fatalf("no request span among %d ended spans", len(spans))
+	}
+	for _, span := range spans {
+		if span.Parent().SpanID() == request.SpanContext().SpanID() {
+			return span
+		}
+	}
+	return request
+}
+
+// exceptionEvents counts the exception events on span.
+func exceptionEvents(span sdktrace.ReadOnlySpan) int {
+	n := 0
+	for _, event := range span.Events() {
+		if event.Name == "exception" {
+			n++
+		}
+	}
+	return n
+}
+
+// TestGraphEntityGraphVerdictRecordsOnHandlerSpan pins the one span signal
+// GET /api/v0/graph/entities keeps beyond the shared helper: a graph outage
+// answers the retryable 503 through WriteGraphReadError and still records the
+// graph error on the handler span as one exception event, without setting the
+// span status to Error (a verdict, not a server fault). Not parallel: it
+// swaps queryHandlerTracer.
+func TestGraphEntityGraphVerdictRecordsOnHandlerSpan(t *testing.T) {
+	suite := failure.Suite{HandlerTracer: &queryHandlerTracer}
+	route := failure.Route{Name: "graph entity graph outage", Path: "/api/v0/graph/entities"}
+	handler := &GraphEntityInventoryHandler{
+		Neo4j: failingRunSingleGraph{err: fmt.Errorf("%s: %w", failure.Canary, ErrGraphUnavailable)},
+	}
+	rec, spans := failure.Serve(suite, route, handler, false)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503; body = %s", rec.Code, rec.Body.String())
+	}
+	marked := markedSpan(t, spans)
+	if marked.Name() == "request" {
+		t.Fatalf("no handler span opened under the request span")
+	}
+	if got := exceptionEvents(marked); got != 1 {
+		t.Errorf("handler span exception events = %d, want 1 (the graph error)", got)
+	}
+	if marked.Status().Code == codes.Error {
+		t.Errorf("handler span status = Error, want a graph 503 verdict to leave it unset")
+	}
+}
+
+// TestRuntimeDriftReadbackFailureKeepsProfileBlock pins the drift readback
+// failure envelope: a server fault on POST /api/v0/cloud/runtime-drift/findings
+// and on GET /api/v0/investigations/drift/packet still answers the 500
+// internal_error envelope with the profile block the old WriteContractError
+// built, now that writeReadbackFailure builds the envelope itself. Not
+// parallel: it swaps queryHandlerTracer.
+func TestRuntimeDriftReadbackFailureKeepsProfileBlock(t *testing.T) {
+	suite := failure.Suite{HandlerTracer: &queryHandlerTracer}
+	routes := []failure.Route{
+		{Name: "runtime drift findings", Method: http.MethodPost, Path: "/api/v0/cloud/runtime-drift/findings", Body: `{"scope_id":"aws-account-1"}`},
+		{Name: "drift packet", Path: "/api/v0/investigations/drift/packet?scope_id=aws-account-1"},
+	}
+	for _, route := range routes {
+		handler := &CloudRuntimeDriftHandler{Store: fakeMultiCloudRuntimeDriftStore{
+			countErr: errors.New("backend: " + failure.Canary), listErr: errors.New("backend: " + failure.Canary),
+		}}
+		rec, _ := failure.Serve(suite, route, handler, false)
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf("%s: status = %d, want 500; body = %s", route.Name, rec.Code, rec.Body.String())
+			continue
+		}
+		var body struct {
+			Error struct {
+				Code     string            `json:"code"`
+				Profiles map[string]string `json:"profiles"`
+			} `json:"error"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+			t.Errorf("%s: decode body: %v; body = %s", route.Name, err, rec.Body.String())
+			continue
+		}
+		wantRequired := string(querycontract.RequiredProfile(cloudRuntimeDriftReadbackCapability))
+		if body.Error.Code != string(ErrorCodeInternalError) ||
+			body.Error.Profiles["current"] != string(ProfileProduction) || body.Error.Profiles["required"] != wantRequired {
+			t.Errorf("%s: error = %+v, want internal_error with profiles current=%s required=%s",
+				route.Name, body.Error, ProfileProduction, wantRequired)
+		}
 	}
 }
 

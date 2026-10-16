@@ -10,8 +10,11 @@ package query
 // file absent from the map must have zero sites: every file under impact/
 // (first #7674 slice), iac/ and supply/chain/ (second slice), the small
 // packages, package/registry/, and secrets/ (third slice), and codequery/,
-// entity/, and querycontract/ (fourth slice), and repository/ (the
-// repository slice) was converted and is not listed.
+// entity/, and querycontract/ (fourth slice), repository/ (the repository
+// slice), the root status, evidence, and investigation packet files (slice
+// 9), and the root infra, cloud, catalog, graph entity, image, tag-history,
+// admission decision, operator control plane, and surface inventory files
+// (slice 10) was converted and is not listed.
 // Lower a ceiling (or delete the entry) when a change removes sites; never
 // raise one. The final #7674 slice deletes this map.
 var queryErrorTextLeakCeilings = map[string]int{

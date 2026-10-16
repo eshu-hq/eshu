@@ -157,6 +157,8 @@ func TestCloudResourceProjectionMismatchAnswersFixedServerFailure(t *testing.T) 
 	}
 	suite := failure.Suite{HandlerTracer: &queryHandlerTracer}
 	handler := &InfraHandler{
+		// fakeTagHistoryGraphReader is reused only as a generic GraphQuery
+		// that answers fixed rows to every Run; nothing here is tag history.
 		Neo4j:          &fakeTagHistoryGraphReader{rows: []map[string]any{{"uid": "not-selected"}}},
 		CloudResources: oneCloudResourceIdentity(),
 	}
