@@ -3,8 +3,9 @@
 
 These files live in their own table beside the per-domain inventory tables
 (live_postgres_readiness_inventory_{storage,queue,query,surfaces}.py), and
-live_postgres_readiness_records.py merges them into PACKAGES. A package missing from PACKAGES gets nothing merged, so
-an emptied PACKAGES stays empty and still fails closed.
+live_postgres_readiness_records.py merges them into PACKAGES. A package
+missing from PACKAGES gets nothing merged, so an emptied PACKAGES stays empty
+and still fails closed.
 """
 
 from live_postgres_readiness_inventory import ADMIN_PACKAGE, STORAGE_PACKAGE
