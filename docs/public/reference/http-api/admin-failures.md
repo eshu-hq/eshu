@@ -75,6 +75,17 @@ A stale reader on the three bounded reads answers the retryable `503`, not
 decision, and replay-event reads run with no route deadline, so they answer
 the retryable `503` on a reader verdict and `500` otherwise, never `504`.
 
+## Delta-union completeness
+
+`GET /api/v0/admin/delta-union/completeness` (#7797) answers a failed ACTIVE
+or graph read with `500` and the fixed detail `delta-union completeness check
+failed`, or `499` when the client canceled, in its own
+`{"status": "error", "detail": ...}` body (#7674). It has no
+capability-matrix key and maps no reader or graph verdict, so those answer
+that `500` too. A filter past the repository cap keeps its `500` with the
+narrow-the-filter text, which names only the counts and the cap. A missing
+scope filter stays `400`, and an unconfigured check stays `503`.
+
 ## Mutations
 
 These routes write through the writer store. Only the repository reindex
