@@ -434,4 +434,8 @@ var orderedBootstrapDefinitionNames = []string{
 	// Migration 177 (#7975) indexes the stored lowercase copy with a
 	// trigram index so the recheck uses the index.
 	"content_files_content_lower_trgm_index",
+	// Migration 178 (#7765) admits the gitlab_group selector kind to
+	// repository_selection_observations on installs that already applied
+	// migration 166.
+	"repository_selection_observations_gitlab_group",
 }
