@@ -230,7 +230,7 @@ check changes nothing because a NULL pointer scans as an empty string that
 never equals a generation id; the mutant that treats NULL as current is
 killed. Taking the exclusive repository locks unsorted changes nothing for
 today's callers, which both sort the repository ids before batching
-(`backfill/write.go` and `backfill/targeted/write.go`). The structural bounds are as follows. `Ack` gains one insert (`ON CONFLICT ... DO UPDATE ... WHERE state =
+(`backfill/engine.go` and `backfill/targeted/write.go`). The structural bounds are as follows. `Ack` gains one insert (`ON CONFLICT ... DO UPDATE ... WHERE state =
 'obsolete'`) inside its existing transaction, after the scope lock it already
 holds. It costs a primary-key probe, the foreign-key check's KEY SHARE probe on
 `scope_generations`, and maintenance of the primary key and the open partial
