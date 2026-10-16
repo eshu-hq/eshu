@@ -116,6 +116,7 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 		Offset     int    `json:"offset"`
 		Exact      bool   `json:"exact"`
 		SearchType string `json:"search_type"`
+		RankCursor string `json:"rank_cursor"`
 	}
 	if err := ReadJSON(r, &req); err != nil {
 		WriteError(w, http.StatusBadRequest, err.Error())
@@ -135,6 +136,13 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Limit > entity.EntityNameSearchMaxLimit {
 		req.Limit = entity.EntityNameSearchMaxLimit
+	}
+	if req.RankCursor != "" {
+		h.handleRankWalk(w, r, codeRankWalkRequest{
+			query: req.Query, repoID: req.RepoID, language: req.Language, searchType: req.SearchType,
+			limit: req.Limit, offset: req.Offset, exact: req.Exact, token: req.RankCursor,
+		})
+		return
 	}
 	// A page can start inside the ranked window only. The effective limit
 	// shrinks so offset+limit stays within it, which keeps the store probe at

@@ -63,6 +63,13 @@ Read `doc.go` and `README.md` first.
   other route's cursor. Do not add a path that returns a short unscoped page
   without the partial marker; the walk lives in `internal/query/search/unscoped`.
 
+- A request with `rank_cursor` (#7746) never falls back to an offset page.
+  A ranker that cannot score the window, an offset or unscoped cursor, a
+  missing repository, and the file route each answer the typed
+  `rank_cursor_unsupported` 400 (`rank_walk.go`). `rankDocuments` keeps the
+  re-rank's lexical fallback; the walk uses `rankDocumentsErr` so a timeout is
+  a 500, never a window scored as empty.
+
 ## Test doubles that cannot be shared with root
 
 Go never compiles a package's `_test.go` files into anything another package

@@ -23,6 +23,9 @@ type contentSearchRequest struct {
 	// is the cursor a partial result returned (#7730) and is refused on every
 	// other search shape.
 	Cursor *querycontract.SearchCursor `json:"cursor,omitempty"`
+	// RankCursor opens ("start") or resumes a relevance walk over the first
+	// rank.WindowSize lexical rows (#7746). Empty means offset paging.
+	RankCursor string `json:"rank_cursor,omitempty"`
 }
 
 func readContentSearchRequest(r *http.Request) (contentSearchRequest, error) {

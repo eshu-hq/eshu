@@ -12,4 +12,5 @@ const (
 	contentEntityReadFailedMessage   = "content entity read failed"
 	contentFileSearchFailedMessage   = "content file search failed"
 	contentEntitySearchFailedMessage = "content entity search failed"
+	contentEntityRankFailedMessage   = "content entity rank walk failed"
 )

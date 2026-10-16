@@ -281,6 +281,52 @@ ContentHybridRerankRanksAllRowsOfAMaximumPage` covers entity and file pages of
 span with `search.rerank.tool` set to `search_entity_content` or
 `search_file_content`, plus `search.rerank.rows` and `search.rerank.applied`.
 
+### Cross-page relevance walk (`rank_cursor`, #7746)
+
+The re-ranks above order rows inside one offset page. An opt-in `rank_cursor`
+on `find_code` or `search_entity_content` pages a fixed window instead: the
+first 200 rows of one lane of one repository. `find_code` picks the lane on
+page 1 exactly as an offset request does (the graph lane first, the content
+lane when the graph has no rows or no graph is configured), and the cursor
+records it; `search_entity_content` always uses the content lane. The graph
+lane keeps its own order (`graph_name`), so its pages equal the offset pages.
+The content lane is scored with `RankAll` and ordered by score rounded to 8
+significant digits (descending), then `entity_id` (`hybrid`), or keeps its own
+order with `exact=true` or no ranker (`lexical`): without a ranker the walk is
+still a stable exactly-once walk, and `rank_walk.order` says which order. See
+[Relevance walk](http-api/rank-walk.md).
+
+- The stateless cursor holds the lane, the served-row count, a digest of the
+  served ids, and a basis fingerprint (tool, lane, order, ranker, scope, every
+  row id and content). It holds no row data; authorization re-runs per page.
+- Exactly-once does not depend on score bits. A changed basis (including a
+  lane change between pages) answers 409 `basis_changed`. A window whose
+  served rows are no longer the top of this replica's order answers 409
+  `order_changed`. Inside one replica, every row of a page comes after every
+  row served before it.
+- Score bits are stable per CPU architecture only: behind replicas of mixed
+  architectures a `hybrid` walk can answer 409 `order_changed` on every page.
+- Rows past the window are never read (`window_end`, `lexical_truncated`).
+- A positive offset, the unscoped cursor, no single repository, file search,
+  and `search_entity_content` without a ranker answer a typed 400. Without
+  `rank_cursor` the response bytes are unchanged (main-captured goldens).
+
+Performance Evidence: one `hybrid` walk page does the scoring work of one
+`limit=200` ranked offset page, so a walk at page size L pays it about 200/L
+times. The scorer reads full stored bodies, so the cost grows with body size:
+`BenchmarkFindCodeRankWalkPage` measured about 18.8 ms and 23.7 MB per page at
+3 KB bodies and 23.7 ms and 31.6 MB at 4,090 bytes (linux/arm64); the walk
+work alone (all a `graph_name` or `lexical` page pays) is about 0.9 ms and
+2.5 MB. Bounding the scoring input is a possible follow-up. Store reads equal
+the lane's offset page at a 201-row probe; no Cypher, write, queue, or lease.
+
+Observability Evidence: walk requests record
+`eshu_dp_query_rank_cursor_total{tool,outcome,reason}` and the
+`search.rank_cursor.outcome`, `.reason`, `.position`, `.lane`, and `.order`
+request-span attributes; the scoring pass emits
+`query.hybrid_rerank` with `search.rerank.rows` equal to the window size
+([Relevance Walk Telemetry](telemetry/rank-cursor.md)).
+
 ## Persisted Postgres Search Index
 
 `go/internal/storage/postgres/search/index.EshuSearchIndexStore` serves the default public

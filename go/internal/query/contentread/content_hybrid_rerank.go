@@ -203,6 +203,20 @@ func (r *ContentHybridRanker) rankDocuments(
 	docByID map[string]searchdocs.Document,
 	order []string,
 ) ([]searchretrieval.Candidate, bool) {
+	candidates, err := r.rankDocumentsErr(ctx, repoID, query, docByID, order)
+	return candidates, err == nil && len(candidates) > 0
+}
+
+// rankDocumentsErr is rankDocuments with the failure kept: the rank walk
+// must tell a timeout or cancel (an error) from a window with no ranked
+// document (no candidates, nil error), because the first is not a basis.
+func (r *ContentHybridRanker) rankDocumentsErr(
+	ctx context.Context,
+	repoID string,
+	query string,
+	docByID map[string]searchdocs.Document,
+	order []string,
+) ([]searchretrieval.Candidate, error) {
 	docs := make([]searchdocs.Document, 0, len(docByID))
 	for _, id := range order {
 		docs = append(docs, docByID[id])
@@ -220,18 +234,14 @@ func (r *ContentHybridRanker) rankDocuments(
 		VectorRetrieval: searchhybrid.VectorRetrievalAuto,
 	})
 	if err != nil {
-		return nil, false
+		return nil, err
 	}
 
 	// RankAll ranks the whole request-local index. Search would reject a page
 	// larger than the public retrieval limit (100) and leave it in lexical
 	// order (#7746); this page is already bounded by contentHybridRerankLimit.
 	scope := searchretrieval.Scope{RepoID: repoID}
-	candidates, err := (searchhybrid.Backend{Index: index}).RankAll(rankCtx, query, scope)
-	if err != nil || len(candidates) == 0 {
-		return nil, false
-	}
-	return candidates, true
+	return (searchhybrid.Backend{Index: index}).RankAll(rankCtx, query, scope)
 }
 
 // projectEntityContentDocuments builds curated search documents keyed by entity

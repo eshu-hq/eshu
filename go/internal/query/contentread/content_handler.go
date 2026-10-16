@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/search/rank"
 	"github.com/eshu-hq/eshu/go/internal/query/selector"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
@@ -200,6 +201,10 @@ func (h *ContentHandler) searchFiles(w http.ResponseWriter, r *http.Request) {
 		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if req.RankCursor != "" {
+		writeRankError(w, r, rank.ToolSearchFileContent, rank.Unsupported(rank.ReasonFileSearch))
+		return
+	}
 	if err := req.fileCursorError(); err != nil {
 		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
@@ -230,6 +235,23 @@ func (h *ContentHandler) searchFiles(w http.ResponseWriter, r *http.Request) {
 	querycontract.WriteSuccess(w, r, http.StatusOK, contentSearchResponse(results, req, truncated), querycontract.BuildTruthEnvelope(h.profile(), "code_search.content_search", querycontract.TruthBasisContentIndex, "resolved from bounded file content search"))
 }
 
+// writeEntitySearchError answers a failed entity search in the shared order
+// (see AGENTS.md): substring index unavailable, graph read error, the
+// unsupported-paging 400, then a fixed-body server failure.
+func writeEntitySearchError(w http.ResponseWriter, r *http.Request, err error) {
+	if querycontract.WriteContentSubstringIndexUnavailable(w, err) {
+		return
+	}
+	if querycontract.WriteGraphReadError(w, r, err, "code_search.content_search") {
+		return
+	}
+	if errors.Is(err, errUnsupportedPagedEntitySearch) {
+		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, contentEntitySearchFailedMessage)
+}
+
 // searchEntities searches entity source cache by pattern.
 // POST /api/v0/content/entities/search
 // Body: {"repo_id": "...", "query": "...", "limit": 50}
@@ -241,6 +263,10 @@ func (h *ContentHandler) searchEntities(w http.ResponseWriter, r *http.Request) 
 	}
 	if err := req.validate(); err != nil {
 		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if req.RankCursor != "" {
+		h.searchEntitiesRanked(w, r, req)
 		return
 	}
 	if err := req.entityCursorError(); err != nil {
@@ -264,17 +290,7 @@ func (h *ContentHandler) searchEntities(w http.ResponseWriter, r *http.Request) 
 
 	results, truncated, err := h.searchEntitiesByScope(r.Context(), req)
 	if err != nil {
-		if querycontract.WriteContentSubstringIndexUnavailable(w, err) {
-			return
-		}
-		if querycontract.WriteGraphReadError(w, r, err, "code_search.content_search") {
-			return
-		}
-		if errors.Is(err, errUnsupportedPagedEntitySearch) {
-			querycontract.WriteError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, contentEntitySearchFailedMessage)
+		writeEntitySearchError(w, r, err)
 		return
 	}
 
