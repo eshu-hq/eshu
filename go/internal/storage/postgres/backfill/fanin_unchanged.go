@@ -31,11 +31,11 @@ var activeGenerationForRequestedScope = strings.Replace(
 // are the zipped scope and generation arrays; $3 and $4 are the keyspace and
 // phase the fan-in writes (reducer.GraphProjectionKeyspaceCrossRepoEvidence
 // and reducer.GraphProjectionPhaseBackwardEvidenceCommitted), passed as
-// parameters so the check cannot drift from the writer. The readiness probe
-// names every graph_projection_phase_state primary-key column, but it sits in
-// the select list, so the planner picks by cost: one hashed seq scan of the
-// phase table when it is small, primary-key index-only probes when it is
-// large. The generation probe is the scope_generations_scope_latest_lookup_idx
+// parameters so the check cannot drift from the writer. The readiness probe is
+// a NOT EXISTS expression in the inner select list, and its predicates name
+// every graph_projection_phase_state primary-key column, so the planner picks
+// by cost: one hashed seq scan of the phase table when it is small,
+// primary-key index-only probes when it is large. The generation probe is the scope_generations_scope_latest_lookup_idx
 // read LoadActiveGenerationForScope uses. Measured plans and timings are in
 // docs/internal/evidence/8082-fanin-unchanged-partitions.md.
 var ListUnchangedPartitionsNeedingPublicationQuery = `

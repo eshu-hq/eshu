@@ -27,7 +27,7 @@ import (
 // carries every non-timestamp column (scope, acceptance unit, source run,
 // generation, keyspace, phase) and its value is committed_at|updated_at. A
 // memo row's value is catalog_fingerprint|committed_at, so the fingerprint
-// must match.
+// must match and the targeted value must carry exactly one non-empty timestamp.
 func unchangedTimestampOnly(
 	key string,
 	before, whole, targeted targetedDiffState,
@@ -52,8 +52,9 @@ func unchangedTimestampOnly(
 			!strings.Contains(targetedUpdated, "|")
 	case "memo":
 		wholeFingerprint, _, okWhole := strings.Cut(wholeRow.value, "|")
-		targetedFingerprint, _, okTargeted := strings.Cut(targetedRow.value, "|")
-		return okWhole && okTargeted && wholeFingerprint == targetedFingerprint
+		targetedFingerprint, targetedCommitted, okTargeted := strings.Cut(targetedRow.value, "|")
+		return okWhole && okTargeted && wholeFingerprint == targetedFingerprint &&
+			targetedCommitted != "" && !strings.Contains(targetedCommitted, "|")
 	}
 	return false
 }
@@ -167,6 +168,14 @@ func TestTargetedDiffUnchangedToleranceSeededViolations(t *testing.T) {
 		}},
 		{"targeted phase timestamps are empty", func(_, whole, targeted targetedDiffState, p backfill.ScopeGenerationPartition) (map[backfill.ScopeGenerationPartition]struct{}, targetedDiffState, targetedDiffState) {
 			plantTargetedValue(targeted, phaseKey(p.ScopeID, p.GenerationID), "|")
+			return map[backfill.ScopeGenerationPartition]struct{}{p: {}}, whole, targeted
+		}},
+		{"targeted memo timestamp is empty", func(_, whole, targeted targetedDiffState, p backfill.ScopeGenerationPartition) (map[backfill.ScopeGenerationPartition]struct{}, targetedDiffState, targetedDiffState) {
+			plantTargetedValue(targeted, memoKey(p.ScopeID, p.GenerationID), "sha256:fp|")
+			return map[backfill.ScopeGenerationPartition]struct{}{p: {}}, whole, targeted
+		}},
+		{"targeted memo value has three parts", func(_, whole, targeted targetedDiffState, p backfill.ScopeGenerationPartition) (map[backfill.ScopeGenerationPartition]struct{}, targetedDiffState, targetedDiffState) {
+			plantTargetedValue(targeted, memoKey(p.ScopeID, p.GenerationID), "sha256:fp|T2|extra")
 			return map[backfill.ScopeGenerationPartition]struct{}{p: {}}, whole, targeted
 		}},
 		{"partition not declared unchanged", func(_, whole, targeted targetedDiffState, _ backfill.ScopeGenerationPartition) (map[backfill.ScopeGenerationPartition]struct{}, targetedDiffState, targetedDiffState) {
