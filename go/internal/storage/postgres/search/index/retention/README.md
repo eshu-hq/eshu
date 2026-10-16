@@ -83,6 +83,17 @@ See `doc.go` for the contract.
   page is not enough: the re-sweep catches a row inserted behind the cursor.
 - Never run a batch inside the retention prune transaction or under its scope
   locks.
+- Accepted residual (#8276 review): the batch eligibility re-check covers
+  status, `superseded_at`, the active pointer and live work, not the
+  delta-base (#7802) or uncovered-writer (#7903) flags. The store filters
+  both once, at the candidate read. A generation that flips to protected or
+  uncovered mid-drain can lose its search index rows to batches that already
+  committed, and the prune then skips it. No answer changes: every search
+  index reader joins `ingestion_scopes.active_generation_id`
+  (`TestSearchIndexReadersJoinTheActiveGeneration`), a superseded generation
+  is never active again, and neither protection reads search index rows (see
+  the evidence note). Same class as the re-lock's accepted residual: a flip
+  that commits after its snapshot still reaches the prune.
 - In this change the foreign keys stay, so the locked cascade still scans the
   terms leaf (cost follows the leaf, not the generation) until the terms
   foreign key is dropped in a later change.

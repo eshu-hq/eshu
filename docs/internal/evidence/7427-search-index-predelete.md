@@ -248,6 +248,55 @@ cost follows the live work rows, not the table.
   On the PR1 head, with the pre-delete in place, it passed 8 of 8 runs
   (`-count=8`, PostgreSQL 18.6, 2026-10-16).
 
+## Residual: a protection flip during the drain (#8276 review)
+
+The batch eligibility CTE re-checks, in each batch's snapshot, that the
+generation is superseded, has `superseded_at`, is not the active pointer and
+has no claimed, running or retrying work. It does not re-check delta-base
+protection (#7802) or uncovered-writer coverage (#7903). The store filters
+both once, at the pre-delete candidate read. A generation that flips mid-drain
+(a delta activates and makes it a protected base or chain member, or a full
+activates and makes it an uncovered writer) can lose search index rows to
+batches that already committed, and the prune then skips it. The
+consequence was settled from code before choosing to name it rather than
+close it:
+
+- Readers. Every statement outside the lifecycle owners that names
+  `eshu_search_index_terms` or `eshu_search_index_documents` joins
+  `ingestion_scopes.active_generation_id`
+  (`TestSearchIndexReadersJoinTheActiveGeneration` enumerates the module).
+  The readers (`search/index/store.go`, `eshu_search_vector_documents.go`,
+  `eshu_search_vector_scope_state*.go`, `eshu_search_vector_fenced_batch.go`)
+  join that pointer by equality, and superseded is terminal
+  (`TestScopeGenerationStatusNeverLeavesSuperseded`). No query reads a
+  protected generation's rows, so no answer changes.
+- Writers. The reducer projection writer (`reducer/eshusearch`) writes,
+  retires and clears only the generation it projects, by
+  `(scope_id, generation_id)`. It never copies a base or chain generation's
+  rows forward. A superseded generation's projection is abandoned, not
+  re-read (`eshu_search_document_supersede.go`).
+- Delta base (#7802). The protection keeps the newest activated full and its
+  chain so a rebuild from facts keeps its base. The base is the generation's
+  facts and content. Search index rows are a projection the reducer writes
+  from facts for the generation it projects.
+- Uncovered writer (#7903). The reconcile probe
+  (`uncoveredProjectionWritersQuery`) reads `scope_generations` and
+  `fact_work_items` only. It names no search index table.
+
+So the residual deletes only rows nothing reads. It is the same class as the
+re-lock's accepted residual (#7802, #7903): a flip that commits after the
+re-lock's snapshot still reaches the prune, because closing it would
+serialize activation against retention.
+
+Closing it would be cheap if a reader ever needs those rows: add both checks
+to the eligibility CTE as two scope-bounded lookups. The newest activated full
+comes from `scope_generations_scope_latest_lookup_idx`, and the active
+generation from `scope_generations_pkey`. On PostgreSQL 18.6 with 2,000
+scopes (one with 2,000 generations), the eligibility CTE alone ran in 0.015 ms
+(7 shared hits). With both re-checks it ran in 0.034 ms (15 hits), against a
+23 to 40 ms batch. The newest-full lookup walks the scope's newer deltas, so
+its cost grows with the chain length.
+
 ## Observability
 
 Observability Evidence: phases `predelete_search_index` and
