@@ -119,6 +119,11 @@ tests:
     class: scheduled
     reason: "untagged #7389 regression gated by env Skip; needs a disposable PostgreSQL database it resets (ESHU_7389_PROOF_POSTGRES_DSN) and an explicit Neo4j endpoint; three local runs on neo4j community 2026.08.1 took 5.5s-8.5s (overlay pair) and 1.2s-10.6s (Ack refusal) after the write-through fix — promote with CI timing evidence"
     backends: neo4j
+  - file: go/cmd/projector/delta_union_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "untagged #7797 end-to-end union proof gated by env Skip; needs a disposable PostgreSQL database it resets (ESHU_7389_PROOF_POSTGRES_DSN) and an explicit Neo4j endpoint; reuses the superseded_delta_overlay harness; unmeasured cost — promote to blocking with timing evidence"
+    backends: neo4j
   - file: go/cmd/projector/terraform_state_config_match_live_test.go
     tag: ~
     class: scheduled

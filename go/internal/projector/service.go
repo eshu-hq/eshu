@@ -252,6 +252,19 @@ func (s Service) processWork(ctx context.Context, work ScopeGenerationWork, work
 	loadStart := time.Now()
 	factsForGeneration, err := s.FactStore.LoadFacts(projectCtx, work)
 	if err != nil {
+		var baseMissing *DeltaBaseMissingError
+		if errors.As(err, &baseMissing) {
+			if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
+				if s.recordSupersededWork(workCtx, work, start, 0, heartbeatErr, workerID) ||
+					s.recordClaimLostWork(workCtx, work, start, 0, heartbeatErr, "heartbeat", workerID) {
+					return nil
+				}
+				return errors.Join(err, heartbeatErr)
+			}
+			if handled, refuseErr := s.refuseDeltaUnionBaseMissing(workCtx, work, start, workerID, baseMissing); handled {
+				return refuseErr
+			}
+		}
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
 			if s.recordSupersededWork(workCtx, work, start, 0, heartbeatErr, workerID) ||
 				s.recordClaimLostWork(workCtx, work, start, 0, heartbeatErr, "heartbeat", workerID) {
