@@ -20,6 +20,30 @@ import (
 
 const defaultSAMLClockSkew = 3 * time.Minute
 
+// SAMLAssertion is the validated assertion material needed after XML checks.
+type SAMLAssertion struct {
+	ResponseID  string
+	AssertionID string
+	Claims      samlauth.AssertionClaims
+	Window      samlauth.AssertionWindow
+}
+
+// SAMLAssertionVerifier validates SAML responses before Eshu session creation.
+type SAMLAssertionVerifier interface {
+	VerifySAMLResponse(context.Context, SAMLProviderConfig, string, []string) (SAMLAssertion, error)
+}
+
+// SAMLAuthnRequest is an IdP redirect plus the request ID it carries.
+type SAMLAuthnRequest struct {
+	RequestID   string
+	RedirectURL string
+}
+
+// SAMLAuthnRequestBuilder builds SP-initiated SAML login redirects.
+type SAMLAuthnRequestBuilder interface {
+	BuildSAMLRedirect(context.Context, SAMLProviderConfig, string) (SAMLAuthnRequest, error)
+}
+
 // CrewjamSAMLVerifier validates POSTed SAML responses with crewjam/saml.
 type CrewjamSAMLVerifier struct {
 	Now func() time.Time
