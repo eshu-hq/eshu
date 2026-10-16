@@ -150,7 +150,7 @@ func (h *DocumentationHandler) listFacts(w http.ResponseWriter, r *http.Request)
 	}
 	readModel, err := store.DocumentationFacts(r.Context(), filter)
 	if err != nil {
-		writeDocumentationInternalError(w, r)
+		writeDocumentationReadFailure(w, r, err, documentationFactsCapability)
 		return
 	}
 	WriteSuccess(w, r, http.StatusOK, documentationFactsResponse(readModel, page, filter), documentationFactsTruth(h.profile(), readModel))

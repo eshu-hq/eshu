@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -22,6 +23,12 @@ const (
 	semanticDocumentationObservationsCapability = "semantic_evidence.documentation_observations.list"
 	semanticCodeHintsCapability                 = "semantic_evidence.code_hints.list"
 )
+
+// semanticEvidenceReadFailedMessage is the fixed body of a failed semantic
+// evidence read on GET /api/v0/semantic/documentation-observations and GET
+// /api/v0/semantic/code-hints (#7674). The store error can quote SQL and
+// hosts, so it goes on the handler span, never into the body.
+const semanticEvidenceReadFailedMessage = "semantic evidence request failed"
 
 // SemanticEvidenceHandler exposes opt-in semantic observation and code-hint reads.
 type SemanticEvidenceHandler struct {
@@ -173,14 +180,7 @@ func (h *SemanticEvidenceHandler) list(
 	}
 	readModel, err := store.SemanticEvidence(r.Context(), filter)
 	if err != nil {
-		writeSemanticEvidenceError(
-			w,
-			r,
-			http.StatusInternalServerError,
-			ErrorCodeInternalError,
-			"semantic evidence request failed",
-			capability,
-		)
+		writeSemanticEvidenceReadFailure(w, r, err, capability)
 		return
 	}
 	WriteSuccess(w, r, http.StatusOK, semanticEvidenceResponse(responseKey, readModel, page, filter),
@@ -309,19 +309,41 @@ func writeSemanticEvidenceError(
 	message string,
 	capability string,
 ) {
+	WriteJSON(w, status, semanticEvidenceErrorBody(r, code, message, capability))
+}
+
+// writeSemanticEvidenceReadFailure answers a failed semantic evidence read.
+// The store reads through the guarded PostgreSQL reader, so WriteGraphReadError
+// runs first: a stale or timed-out reader answers the retryable 503 with
+// Retry-After and names capability. Anything else goes through
+// tracing.ServerFailureEnvelope, which records err on the handler span and
+// answers 500, or 499 with only the client-cancel event when the caller
+// canceled. The body keeps the route's error shape with the fixed
+// semanticEvidenceReadFailedMessage; err's text never reaches it.
+func writeSemanticEvidenceReadFailure(w http.ResponseWriter, r *http.Request, err error, capability string) {
+	if WriteGraphReadError(w, r, err, capability) {
+		return
+	}
+	status, errEnv := tracing.ServerFailureEnvelope(r.Context(), err, semanticEvidenceReadFailedMessage, capability)
+	WriteJSON(w, status, semanticEvidenceErrorBody(r, errEnv.Code, errEnv.Message, capability))
+}
+
+// semanticEvidenceErrorBody builds the semantic evidence error body: the
+// canonical error envelope when the caller accepts it, else the plain
+// error_code, message, and capability object.
+func semanticEvidenceErrorBody(r *http.Request, code ErrorCode, message, capability string) any {
 	if querycontract.AcceptsEnvelope(r) {
-		WriteJSON(w, status, ResponseEnvelope{Error: &ErrorEnvelope{
+		return ResponseEnvelope{Error: &ErrorEnvelope{
 			Code:       code,
 			Message:    message,
 			Capability: capability,
-		}})
-		return
+		}}
 	}
-	WriteJSON(w, status, map[string]any{
+	return map[string]any{
 		"error_code": code,
 		"message":    message,
 		"capability": capability,
-	})
+	}
 }
 
 // SemanticEvidence returns sanitized semantic evidence rows from fact_records.
