@@ -150,6 +150,40 @@ Service, ServiceMonitor, NetworkPolicy, and PodDisruptionBudget. Runtime
 credentials stay in Secret-backed environment variables referenced from
 `jiraCollector.extraEnv`.
 
+## Multivariate freshness hint (#7926)
+
+`FreshnessHint` is a stable content digest over the collection window bounds
+(`since`, `until`), the sorted digests of the emitted fact envelopes (fact
+kind, stable key, full payload), the applied issue cap, the search-truncation
+marker, and the completeness flags (partial failures, metadata warnings,
+stale windows). Distinct windows store; byte-identical retries share one
+hint and skip as duplicates. The digest covers emitted envelopes and never
+raw provider bodies, and envelope transport metadata (fact and generation
+IDs, fencing token, collection-clock `observed_at`) stays out.
+
+`TargetConfig.AllowEmptySuccessor` is the explicit operator attestation for
+legitimate mass-resolves. The source stamps it onto the generation as
+`TrustedDeletion`; without it the ingestion store's successor-emptiness
+backstop refuses to replace a content-bearing active generation with an
+empty or sharply shrunken successor, keeping the prior generation active.
+Operators set it with the `allow_empty_successor` target key, accepted by
+both the collector runtime configuration and the workflow configuration
+validation. It defaults to false: omit it unless a mass-resolve or JQL
+narrowing makes an empty or sharply shrunken successor legitimate.
+
+No-Regression Evidence: `TestFreshnessHintStableForByteIdenticalRetry`,
+`TestFreshnessHintChangesAcrossWindows`,
+`TestClaimedSourceSetsDistinctHintsAcrossWindows`, and
+`TestClaimedSourceMapsAllowEmptySuccessorToTrustedDeletion` fail on the
+constant-hint source and pass after the fix. Focused Jira, scope, telemetry,
+backfill, and storage tests pass.
+
+No-Observability-Change: the hint is an opaque hex digest, so no issue key,
+summary, user identity, URL, or credential value enters logs, facts, or
+metric labels. Refusals surface through the existing skipped-refresh
+counter under `destructive_successor_refused` with the `refresh_skip_reason`
+log key and an ingestion commit stage.
+
 ## Order-only search regression (#7926)
 
 No-Regression Evidence: `TestBoundedJQLPreservesOrderOnlyTargets` and

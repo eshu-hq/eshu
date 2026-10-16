@@ -75,6 +75,16 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 	return err
 }
 
+// successorPrior carries the scope's current generation past the duplicate
+// check into the commit path, so the post-stream destructive-successor guard
+// can compare without re-reading: the candidate the duplicate check loaded,
+// whether one exists, and its committed fact count.
+type successorPrior struct {
+	candidate backfill.UnchangedGenerationCandidate
+	found     bool
+	factCount int
+}
+
 // skipUnchangedGeneration decides, before any write, whether a snapshot
 // duplicates the scope's current generation (#7978). It returns true when the
 // snapshot was handled without storing a generation: the fact stream is then
@@ -90,7 +100,10 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 // The duplicate decision itself (backfill.DecideUnchangedGeneration) is pure
 // engine logic; this method is the root commit-path orchestration around it:
 // it loads the candidate through the root freshness read, drains the stream,
-// executes the re-projection transaction, and records the skip.
+// executes the re-projection transaction, and records the skip. On the store
+// path it also loads the candidate's committed fact count for the
+// destructive-successor guard, which the commit path evaluates after the
+// fact stream lands.
 func (s IngestionStore) skipUnchangedGeneration(
 	ctx context.Context,
 	mutation workflow.ClaimMutation,
@@ -99,13 +112,13 @@ func (s IngestionStore) skipUnchangedGeneration(
 	generation scope.ScopeGeneration,
 	factStream <-chan facts.Envelope,
 	factStreamErr func() error,
-) (bool, error) {
+) (bool, successorPrior, error) {
 	if !backfill.GenerationNeedsDuplicateCheck(generation) {
-		return false, nil
+		return false, successorPrior{}, nil
 	}
 	candidate, found, err := s.unchangedGeneration(ctx, scopeValue.ScopeID)
 	if err != nil {
-		return true, errors.Join(
+		return true, successorPrior{}, errors.Join(
 			fmt.Errorf("check active generation freshness: %w", err),
 			drainFactsAndCheckStream(factStream, factStreamErr),
 		)
@@ -116,10 +129,17 @@ func (s IngestionStore) skipUnchangedGeneration(
 			s.logCommitStage(ctx, scopeValue, generation, "store_over_"+reason, time.Now(),
 				slog.String("candidate_generation_id", candidate.GenerationID))
 		}
-		return false, nil
+		prior, err := s.successorPriorForGuard(ctx, scopeValue.ScopeID, candidate, found, generation)
+		if err != nil {
+			return true, successorPrior{}, errors.Join(
+				err,
+				drainFactsAndCheckStream(factStream, factStreamErr),
+			)
+		}
+		return false, prior, nil
 	}
 	if err := drainFactsAndCheckStream(factStream, factStreamErr); err != nil {
-		return true, fmt.Errorf("read fact stream: %w", err)
+		return true, successorPrior{}, fmt.Errorf("read fact stream: %w", err)
 	}
 	if streamDropped(generation) {
 		generation.PreparseIdentity = "" // review F-7: a dropped file stamps no identity
@@ -127,11 +147,40 @@ func (s IngestionStore) skipUnchangedGeneration(
 	if action == backfill.UnchangedActionReprojectActive {
 		reason, err = s.reprojectActiveGeneration(ctx, mutation, requireClaimFence, scopeValue, generation, candidate)
 		if err != nil {
-			return true, fmt.Errorf("re-project active generation: %w", err)
+			return true, successorPrior{}, fmt.Errorf("re-project active generation: %w", err)
 		}
 	}
 	s.backfillStore().RecordSkippedRefresh(ctx, scopeValue, generation, candidate.GenerationID, reason)
-	return true, nil
+	return true, successorPrior{}, nil
+}
+
+// successorPriorForGuard reads the candidate generation's committed fact
+// count for the destructive-successor guard. It runs only when the guard
+// can refuse — a found candidate without a trusted-deletion signal — so
+// trusted targets and first writes pay no extra read. The read is a single
+// indexed COUNT(*) over one generation's fact_records rows
+// (fact_records_scope_generation_idx), reusing FactStore.CountFacts, issued
+// on the base connection before the commit transaction opens so it never
+// holds the commit's shared maintenance barrier. A failure fails closed:
+// the commit cannot prove the successor is safe, so the snapshot is dropped
+// with an error and retried rather than stored.
+func (s IngestionStore) successorPriorForGuard(
+	ctx context.Context,
+	scopeID string,
+	candidate backfill.UnchangedGenerationCandidate,
+	found bool,
+	generation scope.ScopeGeneration,
+) (successorPrior, error) {
+	prior := successorPrior{candidate: candidate, found: found}
+	if !found || generation.TrustedDeletion {
+		return prior, nil
+	}
+	count, err := NewFactStore(s.database).CountFacts(ctx, scopeID, candidate.GenerationID)
+	if err != nil {
+		return successorPrior{}, fmt.Errorf("count prior generation facts for scope %s: %w", scopeID, err)
+	}
+	prior.factCount = count
+	return prior, nil
 }
 
 // runPostCommitRelationshipBackfill runs the per-commit new-repository

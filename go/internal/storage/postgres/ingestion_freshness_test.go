@@ -124,9 +124,15 @@ func TestIngestionStoreCommitScopeGenerationContinuesWhenActiveFingerprintDiffer
 	now := time.Date(2026, time.April, 12, 12, 0, 0, 0, time.UTC)
 	db := &fakeTransactionalDB{
 		tx: &fakeTx{},
-		queryResponses: []queueFakeRows{{
-			rows: [][]any{{"generation-active", "fingerprint-old", "", "active", false, true}},
-		}},
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{{"generation-active", "fingerprint-old", "", "active", false, true}}},
+			// The delta-union base probe (#8189) CountFacts issues
+			// before the count: not a delta here, so no union.
+			{rows: [][]any{{false, ""}}},
+			// The destructive-successor guard's prior fact count (#7926):
+			// the empty successor over an empty prior stores.
+			{rows: [][]any{{0}}},
+		},
 	}
 	store := NewIngestionStore(db)
 	store.Now = func() time.Time { return now }
@@ -152,11 +158,13 @@ func TestIngestionStoreCommitScopeGenerationContinuesWhenActiveFingerprintDiffer
 		t.Fatalf("CommitScopeGeneration() error = %v, want nil", err)
 	}
 
-	// One base-connection query: the active-generation freshness check (run on
-	// s.db before the tx opens). The repository catalog cold load now runs on the
-	// OPEN transaction's connection (issue #3521 P1), so it lands in db.tx.queries
-	// and must not add a second base-connection query.
-	if got, want := len(db.queries), 1; got != want {
+	// Three base-connection queries: the active-generation freshness check,
+	// the delta-union base probe, and the destructive-successor guard's
+	// prior fact count (all run on s.db before the tx opens). The repository
+	// catalog cold load now runs on the OPEN transaction's connection
+	// (issue #3521 P1), so it lands in db.tx.queries and must not add a
+	// fourth base-connection query.
+	if got, want := len(db.queries), 3; got != want {
 		t.Fatalf("base query count = %d, want %d", got, want)
 	}
 	if got, want := len(db.tx.queries), 1; got != want {

@@ -285,6 +285,65 @@ func TestHTTPClientCollectWorkItemEvidencePaginatesSearchAndChangelog(t *testing
 	}
 }
 
+func TestHTTPClientCollectWorkItemEvidenceCarriesLimitAndTruncation(t *testing.T) {
+	t.Parallel()
+
+	now := testObservedAt()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/rest/api/3/search/jql":
+			// One issue at the cap with a further page available: the
+			// result must carry the normalized cap and truncated=true.
+			writeJSON(t, w, map[string]any{
+				"isLast":        false,
+				"nextPageToken": "page-2",
+				"issues": []map[string]any{{
+					"id":   "10001",
+					"key":  "OPS-123",
+					"self": serverURL(r) + "/rest/api/3/issue/10001",
+					"fields": map[string]any{
+						"summary":   "Checkout alert",
+						"created":   now.Add(-2 * time.Hour).Format(jiraTimeLayout),
+						"updated":   now.Format(jiraTimeLayout),
+						"issuetype": map[string]any{"id": "10002", "name": "Incident"},
+						"status":    map[string]any{"id": "3", "name": "In Progress"},
+						"project":   map[string]any{"id": "10000", "key": "OPS", "name": "Operations"},
+					},
+				}},
+			})
+		case "/rest/api/3/issue/OPS-123/changelog":
+			writeJSON(t, w, map[string]any{"startAt": 0, "maxResults": 1, "total": 0, "isLast": true})
+		case "/rest/api/3/issue/OPS-123/remotelink":
+			writeJSON(t, w, []map[string]any{})
+		default:
+			if writeEmptyMetadataResponse(t, w, r) {
+				return
+			}
+			t.Fatalf("unexpected request path %q", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	client, err := NewHTTPClient(HTTPClientConfig{BaseURL: server.URL, Token: "jira-token", Client: server.Client()})
+	if err != nil {
+		t.Fatalf("NewHTTPClient() error = %v, want nil", err)
+	}
+	result, err := client.CollectWorkItemEvidence(context.Background(), TargetConfig{
+		IssueLimit:      1,
+		ChangelogLimit:  2,
+		RemoteLinkLimit: 2,
+	}, CollectionWindow{Since: now.Add(-24 * time.Hour), Until: now})
+	if err != nil {
+		t.Fatalf("CollectWorkItemEvidence() error = %v, want nil", err)
+	}
+	if got, want := result.IssueLimit, normalizedLimit(1, defaultIssueLimit, maxIssueLimit); got != want {
+		t.Fatalf("IssueLimit = %d, want %d", got, want)
+	}
+	if !result.SearchTruncated {
+		t.Fatal("SearchTruncated = false with further pages past the cap, want true")
+	}
+}
+
 func TestHTTPClientRecordsRetryAfterForRateLimit(t *testing.T) {
 	t.Parallel()
 

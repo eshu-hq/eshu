@@ -28,6 +28,19 @@ func cloneEvidenceFacts(input map[string]evidenceRecord) map[string]evidenceReco
 	return cloned
 }
 
+// proofFactCount mirrors proofFactRows' filter, returning only the count for
+// the destructive-successor guard's prior-generation read (#7926).
+func proofFactCount(input map[string]facts.Envelope, scopeID, generationID string) int {
+	count := 0
+	for _, envelope := range input {
+		if envelope.ScopeID != scopeID || envelope.GenerationID != generationID {
+			continue
+		}
+		count++
+	}
+	return count
+}
+
 func proofFactRows(input map[string]facts.Envelope, scopeID, generationID string) [][]any {
 	rows := [][]any{}
 	for _, envelope := range input {

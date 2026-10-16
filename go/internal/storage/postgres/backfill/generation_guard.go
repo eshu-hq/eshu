@@ -257,6 +257,46 @@ func DecideUnchangedGeneration(
 	}
 }
 
+// RefuseDestructiveSuccessor is the #7926 successor-emptiness backstop: a
+// pure predicate over the scope's current generation and the incoming
+// successor's fact count. It refuses exactly when storing would retract
+// content-bearing truth with no operator attestation behind the deletion:
+//
+//   - a trusted-deletion signal always stores: the escape hatch for
+//     legitimate mass-resolves;
+//   - with no prior generation, or a prior generation that holds no facts,
+//     there is nothing to retract, so the successor stores;
+//   - an empty successor over a content-bearing prior is refused;
+//   - a successor holding less than half the prior's facts is a sharp
+//     shrink and is refused; exactly half or milder drift stores.
+//
+// Counts are envelope counts on both sides: the prior's committed
+// fact_records rows and the successor's streamed envelopes. The comparison
+// is deliberately coarse — it is a backstop against provider outages and
+// broken queries wiping a scope, not a precision drift detector. A refusal
+// keeps the prior generation active; the caller records it under
+// telemetry.RefreshSkipReasonDestructiveSuccessor and commits nothing.
+func RefuseDestructiveSuccessor(
+	priorFound bool,
+	priorFacts int,
+	successorFacts int,
+	trustedDeletion bool,
+) (refuse bool, reason string) {
+	if trustedDeletion {
+		return false, ""
+	}
+	if !priorFound || priorFacts <= 0 {
+		return false, ""
+	}
+	if successorFacts <= 0 {
+		return true, telemetry.RefreshSkipReasonDestructiveSuccessor
+	}
+	if successorFacts*2 < priorFacts {
+		return true, telemetry.RefreshSkipReasonDestructiveSuccessor
+	}
+	return false, ""
+}
+
 // UnchangedGenerationCandidate is the generation a snapshot is compared with.
 type UnchangedGenerationCandidate struct {
 	GenerationID  string

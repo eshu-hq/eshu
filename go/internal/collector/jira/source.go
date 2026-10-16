@@ -155,7 +155,11 @@ func (s *ClaimedSource) NextClaimed(
 			IngestedAt:    observedAt,
 			Status:        scope.GenerationStatusPending,
 			TriggerKind:   scope.TriggerKindSnapshot,
-			FreshnessHint: "jira_updated_window",
+			FreshnessHint: freshnessHint(window, result, envs),
+			// The escape hatch for legitimate mass-resolves: only a
+			// target that explicitly attests its deletions bypasses the
+			// store's successor-emptiness backstop.
+			TrustedDeletion: target.config.AllowEmptySuccessor,
 		},
 		envs,
 	), true, nil
