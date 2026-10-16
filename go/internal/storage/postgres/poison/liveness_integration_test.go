@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package poison_test
 
 import (
 	"context"
@@ -9,10 +9,13 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/poison"
 )
 
-// TestPoisonLivenessIntegration exercises CountPoisonDeadLetters and
-// RecoverPoisonDeadLetters against a real Postgres instance. Set
+// TestPoisonLivenessIntegration exercises CountDeadLetters and
+// RecoverDeadLetters against a real Postgres instance. Set
 // ESHU_POISON_LIVENESS_PROOF_DSN to a Postgres DSN to run the suite; it is
 // skipped otherwise, matching the sibling generation-liveness proof.
 //
@@ -21,7 +24,7 @@ import (
 // existing generation-liveness gauge (CountActiveGenerationsByAge only counts
 // ACTIVE generations; a poison scope's newest generation is 'failed', not
 // 'active', so it never appears in fresh/aging/stuck at all) — this is the RED
-// proof. The new CountPoisonDeadLetters GREEN-detects exactly the 3 poison
+// proof. The new CountDeadLetters GREEN-detects exactly the 3 poison
 // scopes, while excluding:
 //   - a healed decoy: dead_letter with a newer ACTIVE generation for the same
 //     scope (the scope already recovered on its own).
@@ -45,8 +48,8 @@ func TestPoisonLivenessIntegration(t *testing.T) {
 		// RED proof: the existing generation-liveness gauge does not count any
 		// of the 3 poison scopes because they have no ACTIVE generation at all
 		// (their newest generation status is 'failed', not 'active').
-		livenessStore := NewGenerationLivenessStore(SQLDB{DB: db})
-		activeCounts, err := livenessStore.CountActiveGenerationsByAge(ctx, GenerationLivenessPolicy{
+		livenessStore := postgres.NewGenerationLivenessStore(postgres.SQLDB{DB: db})
+		activeCounts, err := livenessStore.CountActiveGenerationsByAge(ctx, postgres.GenerationLivenessPolicy{
 			ActivationDeadline: 30 * time.Minute,
 		}, now)
 		if err != nil {
@@ -63,10 +66,10 @@ func TestPoisonLivenessIntegration(t *testing.T) {
 		// GREEN proof: the new poison gauge counts exactly the 3 poison scopes
 		// and their 3 poison items (one dead_letter row per scope here), and
 		// excludes the healed decoy.
-		poisonStore := NewPoisonLivenessStore(SQLDB{DB: db})
-		counts, err := poisonStore.CountPoisonDeadLetters(ctx, now)
+		poisonStore := poison.NewStore(postgres.SQLDB{DB: db})
+		counts, err := poisonStore.CountDeadLetters(ctx, now)
 		if err != nil {
-			t.Fatalf("CountPoisonDeadLetters() error = %v", err)
+			t.Fatalf("CountDeadLetters() error = %v", err)
 		}
 		if got, want := counts.PoisonScopes, int64(3); got != want {
 			t.Fatalf("PoisonScopes = %d, want %d", got, want)
@@ -84,15 +87,15 @@ func TestPoisonLivenessIntegration(t *testing.T) {
 	t.Run("BoundedArmIncrementsThenZero", func(t *testing.T) {
 		db := openPoisonLivenessProofDB(t, dsn)
 		provisionPoisonLivenessSchema(t, db, poisonLivenessBoundedArmSeedSQL)
-		store := NewPoisonLivenessStore(SQLDB{DB: db})
+		store := poison.NewStore(postgres.SQLDB{DB: db})
 		ctx := context.Background()
 
-		policy := PoisonLivenessPolicy{MaxRecoverAttempts: 2, BatchLimit: 100}
+		policy := poison.Policy{MaxRecoverAttempts: 2, BatchLimit: 100}
 
 		// Sweep 1: poison_recovery_attempts 0 -> 1, row re-enqueued to pending.
-		result1, err := store.RecoverPoisonDeadLetters(ctx, policy, now)
+		result1, err := store.RecoverDeadLetters(ctx, policy, now)
 		if err != nil {
-			t.Fatalf("sweep 1 RecoverPoisonDeadLetters() error = %v", err)
+			t.Fatalf("sweep 1 RecoverDeadLetters() error = %v", err)
 		}
 		if got, want := result1.Recovered, 1; got != want {
 			t.Fatalf("sweep 1 Recovered = %d, want %d", got, want)
@@ -122,9 +125,9 @@ func TestPoisonLivenessIntegration(t *testing.T) {
 
 		// Sweep 2: poison_recovery_attempts 1 -> 2 (equals ceiling), row
 		// re-enqueued once more (still under the < $2 gate at read time).
-		result2, err := store.RecoverPoisonDeadLetters(ctx, policy, now)
+		result2, err := store.RecoverDeadLetters(ctx, policy, now)
 		if err != nil {
-			t.Fatalf("sweep 2 RecoverPoisonDeadLetters() error = %v", err)
+			t.Fatalf("sweep 2 RecoverDeadLetters() error = %v", err)
 		}
 		if got, want := result2.Recovered, 1; got != want {
 			t.Fatalf("sweep 2 Recovered = %d, want %d", got, want)
@@ -146,9 +149,9 @@ func TestPoisonLivenessIntegration(t *testing.T) {
 		`); err != nil {
 			t.Fatalf("simulate second re-dead-letter: %v", err)
 		}
-		result3, err := store.RecoverPoisonDeadLetters(ctx, policy, now)
+		result3, err := store.RecoverDeadLetters(ctx, policy, now)
 		if err != nil {
-			t.Fatalf("sweep 3 RecoverPoisonDeadLetters() error = %v", err)
+			t.Fatalf("sweep 3 RecoverDeadLetters() error = %v", err)
 		}
 		if got, want := result3.Recovered, 0; got != want {
 			t.Fatalf("sweep 3 (at ceiling) Recovered = %d, want %d (UPDATE 0 at budget ceiling)", got, want)
@@ -196,9 +199,9 @@ func TestPoisonLivenessIntegration(t *testing.T) {
 		}
 		defer func() { _, _ = db.ExecContext(ctx, "SET enable_seqscan = on") }()
 
-		rows, err := db.QueryContext(ctx, "EXPLAIN "+countPoisonDeadLettersQuery, now)
+		rows, err := db.QueryContext(ctx, "EXPLAIN "+poison.CountDeadLettersQuery, now)
 		if err != nil {
-			t.Fatalf("EXPLAIN countPoisonDeadLettersQuery: %v", err)
+			t.Fatalf("EXPLAIN CountDeadLettersQuery: %v", err)
 		}
 		defer func() { _ = rows.Close() }()
 
