@@ -125,7 +125,9 @@ func TestReducerContentionGateRuntimeProducerStatesActiveGenerationOnly(t *testi
 // created_at)). A terminal row and a newer pending generation never move it;
 // a claim, a scheduled retry, a reopen, and a heartbeated lease each do, and
 // a sleeping retry or a live lease anchors in the future. It also pins the
-// newest in-flight claim_until the log line reports.
+// newest in-flight claim_until the log line reports: the mixed repository
+// holds two claimed rows, claimed through the real queue on two clocks, and
+// the column must report the later lease end, not the earlier one.
 func TestReducerContentionGateRuntimeProducerStatesNewestInFlightWorkableAt(t *testing.T) {
 	sqlDB, ctx := runtimeProducerStoreLiveDB(t)
 	suffix := time.Now().UnixNano()
@@ -133,7 +135,56 @@ func TestReducerContentionGateRuntimeProducerStatesNewestInFlightWorkableAt(t *t
 	reopened := fmt.Sprintf("repository:r_anchor_reopened_%d", suffix)
 	sleeping := fmt.Sprintf("repository:r_anchor_sleeping_%d", suffix)
 	heartbeating := fmt.Sprintf("repository:r_anchor_heartbeating_%d", suffix)
-	seedRuntimeProducerScope(t, ctx, sqlDB, mixed, "succeeded", "pending", "pending")
+	// The mixed repository's claimed rows come from the real Claim path, so
+	// they are claimed before any other workload_materialization row exists
+	// in this schema: the scope starts with only its superseded row.
+	seedRuntimeProducerScope(t, ctx, sqlDB, mixed, "succeeded", "", "")
+	mixedScope, mixedGen := "git-repository-scope:"+mixed, mixed+"-gen-1"
+	claimNow := time.Now().UTC()
+	leaseEnds := make([]time.Time, 0, 2)
+	for i, claim := range []struct {
+		owner      string
+		claimedAgo time.Duration
+	}{
+		// Two dead workers: claimed 15 and 13 minutes ago with a 1-minute
+		// lease, so the leases ended 14 and 12 minutes ago.
+		{"store-worker-a", 15 * time.Minute},
+		{"store-worker-b", 13 * time.Minute},
+	} {
+		id := fmt.Sprintf("wm%d-%s", 3+2*i, mixedGen)
+		if _, err := sqlDB.ExecContext(ctx, `INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage,
+		        domain, conflict_domain, conflict_key, status, payload, created_at, updated_at)
+		      VALUES ($1, $2, $3, 'reducer', 'workload_materialization', 'platform_graph', $1, 'pending', '{}'::jsonb, $4, $4)`,
+			id, mixedScope, mixedGen, claimNow.Add(-time.Hour)); err != nil {
+			t.Fatalf("enqueue %s: %v", id, err)
+		}
+		clock := claimNow.Add(-claim.claimedAgo)
+		queue := runtimeFenceQueue(sqlDB, claim.owner, reducercontract.DomainWorkloadMaterialization,
+			func() time.Time { return clock })
+		intent, claimed, err := queue.Claim(ctx)
+		if err != nil || !claimed || intent.IntentID != id {
+			t.Fatalf("%s Claim() = %q, %v, %v, want %s claimed", claim.owner, intent.IntentID, claimed, err, id)
+		}
+		var leaseEnd time.Time
+		if err := sqlDB.QueryRowContext(ctx, `SELECT claim_until FROM fact_work_items WHERE work_item_id = $1`, id).
+			Scan(&leaseEnd); err != nil {
+			t.Fatalf("read %s claim_until: %v", id, err)
+		}
+		leaseEnds = append(leaseEnds, leaseEnd)
+	}
+	if !leaseEnds[1].After(leaseEnds[0]) {
+		t.Fatalf("lease ends = %v, want the second claim's lease to end later", leaseEnds)
+	}
+	// Now the rest of the mixed repository: its active pending row and a row
+	// of a newer pending generation, as the seed would have written them.
+	for _, row := range []struct{ id, gen string }{{"wm-" + mixedGen, mixedGen}, {"wm-" + mixed + "-gen-2", mixed + "-gen-2"}} {
+		if _, err := sqlDB.ExecContext(ctx, `INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage,
+		        domain, conflict_domain, conflict_key, status, payload, created_at, updated_at)
+		      VALUES ($1, $2, $3, 'reducer', 'workload_materialization', 'platform_graph', $1, 'pending', '{}'::jsonb, now(), now())`,
+			row.id, mixedScope, row.gen); err != nil {
+			t.Fatalf("enqueue %s: %v", row.id, err)
+		}
+	}
 	seedRuntimeProducerScope(t, ctx, sqlDB, reopened, "", "pending", "")
 	seedRuntimeProducerScope(t, ctx, sqlDB, sleeping, "", "pending", "")
 	seedRuntimeProducerScope(t, ctx, sqlDB, heartbeating, "", "pending", "")
@@ -145,20 +196,17 @@ func TestReducerContentionGateRuntimeProducerStatesNewestInFlightWorkableAt(t *t
 			t.Fatalf("shape anchor rows: %v", err)
 		}
 	}
-	mixedScope, mixedGen := "git-repository-scope:"+mixed, mixed+"-gen-1"
-	// Seeded active pending row: enqueued 40 minutes ago, never claimed.
+	// Active pending row: enqueued 40 minutes ago, never claimed.
 	exec(`UPDATE fact_work_items SET created_at = $2, updated_at = $2 WHERE work_item_id = $1`,
 		"wm-"+mixedGen, ago(40*time.Minute))
-	// Three more rows at the same generation, shaped like the queue writes
+	// Two more rows at the same generation, shaped like the queue writes
 	// them: a retrying row (claimed 20 min ago, retry visible 10 min ago,
-	// lease cleared), a claimed row (claimed 15 min ago, lease expired 14 min
-	// ago), and a terminal row (1 min ago) that must not count.
+	// lease cleared) and a terminal row (1 min ago) that must not count.
 	for _, row := range []struct {
 		id, status                        string
 		created, attempt, visible, cuntil any
 	}{
 		{"wm2-" + mixedGen, "retrying", ago(50 * time.Minute), ago(20 * time.Minute), ago(10 * time.Minute), nil},
-		{"wm3-" + mixedGen, "claimed", ago(60 * time.Minute), ago(15 * time.Minute), nil, ago(14 * time.Minute)},
 		{"wm4-" + mixedGen, "succeeded", ago(time.Minute), ago(time.Minute), nil, nil},
 	} {
 		exec(`INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage, domain, conflict_domain,
@@ -198,7 +246,7 @@ func TestReducerContentionGateRuntimeProducerStatesNewestInFlightWorkableAt(t *t
 		}
 	}
 	for repoID, want := range map[string]time.Time{
-		mixed:        ago(14 * time.Minute),
+		mixed:        leaseEnds[1],
 		reopened:     {},
 		sleeping:     {},
 		heartbeating: base.Add(time.Minute),
@@ -207,8 +255,8 @@ func TestReducerContentionGateRuntimeProducerStatesNewestInFlightWorkableAt(t *t
 			t.Fatalf("%s newest claim_until = %s, want %s", repoID, got, want)
 		}
 	}
-	if got := states[mixed]; got.Pending != 1 || got.Retrying != 1 || got.Claimed != 1 || got.Total != 4 {
-		t.Fatalf("mixed counts = %+v, want pending 1, retrying 1, claimed 1, total 4", got)
+	if got := states[mixed]; got.Pending != 1 || got.Retrying != 1 || got.Claimed != 2 || got.Total != 5 {
+		t.Fatalf("mixed counts = %+v, want pending 1, retrying 1, claimed 2, total 5", got)
 	}
 }
 
