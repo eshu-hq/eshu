@@ -124,28 +124,30 @@ and each bound overrun at warn, with `scope_id`, `generation_id`,
 `failure_class`, `runtime_readiness_outcome`, `in_flight_repo_count`,
 `in_flight_repo_ids` (first 10), `producer_pending`, `producer_retrying`,
 `producer_claimed`, `producer_running`, `producer_elapsed` (since the oldest
-in-flight repository's workable anchor), `producer_max_wait`, and the catalog
-intent's `elapsed_since_cycle_start` (context only; it does not decide). It
-never logs `attempt_count`, which the non-counting class freezes.
+in-flight repository's workable anchor; negative while that anchor lies in
+the future, during a retry backoff or a live lease), `producer_max_wait`,
+`producer_newest_claim_until` (the latest in-flight lease end, present only
+while some producer row holds a lease), and the catalog intent's
+`elapsed_since_cycle_start` (context only; it does not decide). It never logs
+`attempt_count`, which the non-counting class freezes.
 
 The bound is per in-flight repository. Each repository's elapsed time runs
 from its newest in-flight producer row's last-workable time:
 `GREATEST(COALESCE(reopened_at, created_at), COALESCE(last_attempt_at,
-created_at), COALESCE(visible_at, created_at))`, the latest of the row's cycle
-start, last claim, and scheduled visibility. It never runs from `updated_at`
-(heartbeats and claim bookkeeping move it) and never from the catalog row's
-age (which also counts queue wait and corpus-fence wait). A producer row that
-is polling a non-counting readiness class, such as its own corpus fence
-(`workload_materialization_resolution_not_ready`), refreshes its anchor on
-every attempt and never counts as exceeded while it polls; only a row no
-worker has touched for 30 minutes does.
+created_at), COALESCE(visible_at, created_at), COALESCE(claim_until,
+created_at))`, the latest of the row's cycle start, last claim, scheduled
+visibility, and lease expiry. `claim_until` is non-NULL only on claimed and
+running rows: a claim sets it, a heartbeat extends it, and retry, ack, fail,
+and dead-letter set it NULL. The bound never runs from `updated_at` and never
+from the catalog row's age (which also counts queue wait and corpus-fence
+wait). A producer row that is polling a non-counting readiness class, such as
+its own corpus fence (`workload_materialization_resolution_not_ready`), or
+whose worker heartbeats, refreshes its anchor and never counts as exceeded.
 
-`bound_exceeded` fires when every in-flight producer row of every correlated
-repo has been claimable or held for 30 min with no claim (starved queue,
-expired lease, or a counting backoff past 30 min); it does not fire for
-producers polling the corpus fence or any other non-counting readiness class.
+`bound_exceeded` fires only when every in-flight producer row of every correlated repo has had no claim, no heartbeat, no scheduled visibility, and no cycle start for 30 min (starved pending/retrying row, or a dead worker's lease expired 30 min ago). A heartbeating producer never ages out; a handler that heartbeats forever without finishing holds the catalog, which is the reducer lease policy's gap, tracked in #8211.
 The handler then commits what it reads, possibly an empty family. A reopened
-producer row starts a fresh 30 minutes.
+producer row starts a fresh 30 minutes, and a second owner that reclaims an
+expired lease defers the catalog again.
 
 Facts rejected for a malformed payload feed the shared
 `eshu_dp_reducer_input_invalid_facts_total` counter through `factdecode`
@@ -221,11 +223,12 @@ correlated repository (`readiness/producer.RuntimeProducerStatesQuery`). On a
 1,057,536-row `fact_work_items` table it is an index plan with no sequential
 scan: one repository 0.12 ms, fifty repositories 2.5 ms; `pgbench`, 4
 clients, 283,482 single-repository lookups: p50 0.189 ms, p95 0.298 ms. The
-amendment A2 last-workable aggregate keeps that plan: on a 1,057,631-row
-table, `pgbench` (4 clients, 8 s, three interleaved rounds) measured mean
-latency 0.257 to 0.260 ms for one repository and 1.664 to 1.696 ms for fifty,
-against 0.254 to 0.260 ms and 1.650 to 1.687 ms for the A1 statement on the
-same data (see `readiness/producer/README.md`). A deferral adds the queue's
+amendment A3 four-term last-workable aggregate (with the newest
+`claim_until`) keeps that plan: on a 1,057,631-row table, `pgbench` (4
+clients, 8 s, three interleaved rounds) measured mean latency 0.254 to 0.256
+ms for one repository and 1.579 to 1.599 ms for fifty, against 0.247 to 0.249
+ms and 1.556 to 1.587 ms for the A2 statement on the same data (see
+`readiness/producer/README.md`). A deferral adds the queue's
 retry delay to that pass and writes nothing. The
 runtime graph read moved earlier in the pass (before the correlation write)
 but runs the same number of times per committed pass.

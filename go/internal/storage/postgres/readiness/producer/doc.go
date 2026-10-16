@@ -12,8 +12,10 @@
 // pending, retrying, claimed, or running, so the handler defers instead of
 // committing a runtime family read before the write. It also returns the
 // newest in-flight last-workable time over those rows, the latest of each
-// row's cycle start, last claim, and scheduled visibility, which the
-// handler's 30-minute elapsed bound is measured from. The lookup is one
+// row's cycle start, last claim, scheduled visibility, and lease expiry
+// (claim_until, non-NULL only on claimed and running rows), which the
+// handler's 30-minute elapsed bound is measured from, and the newest
+// in-flight claim_until for the log line. The lookup is one
 // read-only statement, [RuntimeProducerStatesQuery], that reaches
 // fact_work_items only through fact_work_items_scope_generation_idx.
 package producer
