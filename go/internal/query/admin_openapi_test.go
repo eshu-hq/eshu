@@ -34,6 +34,7 @@ func TestOpenAPISpecAdminPathsMatchMountedContract(t *testing.T) {
 	expectedPaths := []string{
 		"/api/v0/admin/refinalize",
 		"/api/v0/admin/reindex",
+		"/api/v0/admin/reindex/progress",
 		"/api/v0/admin/shared-projection/tuning-report",
 		"/api/v0/admin/work-items/query",
 		"/api/v0/admin/decisions/query",

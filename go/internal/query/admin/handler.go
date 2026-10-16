@@ -318,7 +318,10 @@ type Handler struct {
 	// requests (#7620); either nil makes them 503.
 	Repositories        RepositoryCatalogMatcher
 	RepositoryReindexer RepositoryReindexRequester
-	Store               Store
+	// ReindexProgress serves the read-only reindex progress endpoint
+	// (#7620); nil makes it 503.
+	ReindexProgress ReindexProgressReader
+	Store           Store
 	// ReadStore serves inspections; nil preserves legacy single-store wiring.
 	ReadStore ReadStore
 	// Audit records governance audit events for mutating recovery actions.
@@ -363,6 +366,7 @@ func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/admin/refinalize", h.refinalize)
 	mux.HandleFunc("GET /api/v0/admin/shared-projection/tuning-report", h.tuningReport)
 	mux.HandleFunc("POST /api/v0/admin/reindex", h.reindex)
+	mux.HandleFunc("GET /api/v0/admin/reindex/progress", h.reindexProgress)
 	mux.HandleFunc("POST /api/v0/admin/recover-generations", h.recoverGenerations)
 
 	// Fact-inspection endpoints (from admin_facts.py)
