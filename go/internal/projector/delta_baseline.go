@@ -34,6 +34,63 @@ const (
 const (
 	DeltaBaselineMismatchClass                = "projector_delta_baseline_mismatch"
 	DeltaBaselineMismatchAfterProjectionClass = "projector_delta_baseline_mismatch_after_projection"
+	// DeltaBaselineBaseMissingClass is the failure class of a delta refused
+	// because its base full generation is missing (#7797). It is distinct
+	// from the baseline-mismatch classes so operators can tell "the baseline
+	// moved" (re-diff and proceed) from "the base is gone" (a full re-parse
+	// is the only repair).
+	DeltaBaselineBaseMissingClass = "projector_delta_base_missing"
+)
+
+// DeltaBaseMissingError fails a delta fact load closed when no projected
+// base full generation exists at the delta's baseline commit: the generation
+// was never projected or retention pruned it. The service routes it through
+// the delta-baseline fence as DeltaBaselineRefusedBaseMissing, which marks
+// the generation superseded and records a reindex watermark; it must never
+// be treated as a retryable load failure that re-projects a partial delta.
+type DeltaBaseMissingError struct {
+	// ScopeID is the scope the delta belongs to.
+	ScopeID string
+	// GenerationID is the delta generation that cannot project.
+	GenerationID string
+	// BaselineCommitSHA is the commit the delta was diffed from, whose base
+	// full generation is missing. It travels in logs and failure details,
+	// never in metric labels.
+	BaselineCommitSHA string
+}
+
+// Error reports the missing base without embedding the commit SHA: SHAs stay
+// out of error strings that metric classifiers may label.
+func (e *DeltaBaseMissingError) Error() string {
+	return "delta base full generation is missing for scope " + e.ScopeID +
+		" generation " + e.GenerationID + ": refusing delta projection"
+}
+
+// DeltaUnionOutcome is the closed result of one delta-base union read. The
+// values are the outcome label of eshu_dp_projector_delta_union_total.
+type DeltaUnionOutcome string
+
+const (
+	// DeltaUnionBaseFound means the delta overlaid its base full generation.
+	DeltaUnionBaseFound DeltaUnionOutcome = "union_base_found"
+	// DeltaUnionBaseMissingRefused means no projected base full generation
+	// exists at the delta's baseline, so the load refused.
+	DeltaUnionBaseMissingRefused DeltaUnionOutcome = "union_base_missing_refused"
+	// DeltaUnionResolveFailed means the union target/base lookup failed
+	// with an error that is not a missing base (a transient query or scan
+	// failure). The load returns the error and the work retries through
+	// the generic fail path; it must never count as a refusal.
+	DeltaUnionResolveFailed DeltaUnionOutcome = "union_resolve_failed"
+	// DeltaUnionScopeMismatch means the store resolved a union (the
+	// generation row says delta with a baseline) but the loaded delta
+	// carries no delta_generation repository fact, so the overlay ran
+	// additively: base plus delta concatenation with no dedup. The load
+	// proceeds and the divergence is surfaced with a WARN log and this
+	// outcome count. Fail-closed refusal was considered and rejected: it
+	// would turn loads that succeed today into projection stalls on
+	// legacy or mis-marked generations; escalation needs an arbiter
+	// decision with a production occurrence count.
+	DeltaUnionScopeMismatch DeltaUnionOutcome = "union_scope_mismatch"
 )
 
 // DeltaBaselineOutcome is the closed result of one fence decision. The counted
@@ -56,6 +113,14 @@ const (
 	// DeltaBaselineRefusedNoActive is a delta in a scope with no active
 	// generation, so the graph content is unknown.
 	DeltaBaselineRefusedNoActive DeltaBaselineOutcome = "refused_no_active"
+	// DeltaBaselineRefusedBaseMissing is a delta whose base full generation
+	// at its baseline commit was never projected or was retention-pruned, so
+	// the delta-base union (#7797) has no base to overlay. It is produced by
+	// the union read path, never by DecideDeltaBaseline (the fence read does
+	// not fetch the base). The projector refuses it through the fence, which
+	// marks the generation superseded and records a reindex watermark, so the
+	// next selection forces the full re-parse that restores the base.
+	DeltaBaselineRefusedBaseMissing DeltaBaselineOutcome = "refused_base_missing"
 	// DeltaBaselineTargetMissing means the claimed generation row was not
 	// found. The caller fails closed on its own path.
 	DeltaBaselineTargetMissing DeltaBaselineOutcome = "target_missing"
@@ -75,14 +140,16 @@ const (
 
 // Refused reports whether the outcome refuses the delta.
 func (o DeltaBaselineOutcome) Refused() bool {
-	return o == DeltaBaselineRefusedActiveDiffers || o == DeltaBaselineRefusedNoActive
+	return o == DeltaBaselineRefusedActiveDiffers || o == DeltaBaselineRefusedNoActive ||
+		o == DeltaBaselineRefusedBaseMissing
 }
 
 // counted reports whether the outcome is a label of the fence counter.
 func (o DeltaBaselineOutcome) counted() bool {
 	switch o {
 	case DeltaBaselineUnfenced, DeltaBaselineAlreadyActive, DeltaBaselineMatched,
-		DeltaBaselineRefusedActiveDiffers, DeltaBaselineRefusedNoActive:
+		DeltaBaselineRefusedActiveDiffers, DeltaBaselineRefusedNoActive,
+		DeltaBaselineRefusedBaseMissing:
 		return true
 	default:
 		return false
@@ -161,6 +228,9 @@ type DeltaBaselineRefusal struct {
 
 // FailureClass returns the failure_class the refusal writes on the work row.
 func (r DeltaBaselineRefusal) FailureClass() string {
+	if r.Outcome == DeltaBaselineRefusedBaseMissing {
+		return DeltaBaselineBaseMissingClass
+	}
 	if r.Phase == DeltaBaselinePhaseAck {
 		return DeltaBaselineMismatchAfterProjectionClass
 	}

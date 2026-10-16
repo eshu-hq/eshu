@@ -377,3 +377,6 @@ source_coverage:
   - file: supply/chain/kubernetes_runtime_probe_fair.go
     calls:
       - {symbol: "queryKubernetesRuntimeCandidates", count: 1, source_sha256: 6f3266e915bce3687c6862beffedce5e9b23fc69876d5aeb5b34d42177ac009d, entry_ids: [QP-SUPPLY-CHAIN-KUBERNETES-RUNTIME]}
+  - file: admin/delta_union_completeness.go
+    calls:
+      - {symbol: "(*DeltaUnionCompletenessChecker).readGraphRepo", count: 1, non_hot: {class: operator_query, policy: authenticated_read_endpoint, source_sha256: 7ccf8bbcc24ded468ae7627d10ab491a9acca457ca18b92bd7c79e6df9fed829}}

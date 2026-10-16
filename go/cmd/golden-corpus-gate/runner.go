@@ -107,6 +107,11 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 			return fmt.Errorf("demo-answers phase: %w", err)
 		}
 	}
+	if phases["delta-union"] {
+		if err := runDeltaUnion(ctx, getenv, &r); err != nil {
+			return fmt.Errorf("delta-union phase: %w", err)
+		}
+	}
 	if phases["timing"] {
 		if o.budgetSeconds > 0 {
 			EvaluateTiming(
@@ -330,7 +335,7 @@ func runDemoAnswers(ctx context.Context, o options, getenv func(string) string, 
 // excluded from "all": they need capture directories, which a normal
 // single-backend B-7 run never has.
 func phaseSet(raw string) map[string]bool {
-	all := map[string]bool{"drains": true, "graph": true, "query": true, "timing": true, "demo-answers": true}
+	all := map[string]bool{"drains": true, "graph": true, "query": true, "timing": true, "demo-answers": true, "delta-union": true}
 	out := map[string]bool{}
 	for _, p := range strings.Split(raw, ",") {
 		p = strings.TrimSpace(p)
@@ -350,11 +355,12 @@ func phaseSet(raw string) map[string]bool {
 }
 
 // needsSnapshot reports whether any requested phase reads the golden
-// snapshot. backend-diff, statement-coverage, and writer-coverage read capture
-// recordings, so pure invocations of those phases skip the snapshot load.
+// snapshot. backend-diff, statement-coverage, writer-coverage, and
+// delta-union read capture recordings or the live system instead of the
+// snapshot, so pure invocations of those phases skip the snapshot load.
 func needsSnapshot(phases map[string]bool) bool {
 	for p := range phases {
-		if p != "backend-diff" && p != "statement-coverage" && p != "writer-coverage" {
+		if p != "backend-diff" && p != "statement-coverage" && p != "writer-coverage" && p != "delta-union" {
 			return true
 		}
 	}
