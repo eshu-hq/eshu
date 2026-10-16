@@ -1,17 +1,80 @@
 name: Scheduled PostgreSQL Live Proofs
 
-# #7533: exact selected proofs run daily and on manual dispatch. This job is
-# deliberately independent of required PR/merge checks until repeated cost evidence.
+# #7533: exact selected proofs run daily, on manual dispatch, and for PRs
+# changing the enrolled proof. The live job is not a universally required check.
 on:
   schedule:
     - cron: '35 4 * * *'
   workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/postgres-scheduled-live.yml'
+      - 'go/cmd/golden-corpus-gate/drains_residual_breakdown_live_test.go'
+      - 'go/cmd/golden-corpus-gate/testdata/**'
+      - 'go/go.mod'
+      - 'go/go.sum'
+      - 'go/internal/query/*fixture*test.go'
+      - 'go/internal/query/code_topic_path_first_live_test.go'
+      - 'go/internal/query/content_reader_entity_search_plan_live_test.go'
+      - 'go/internal/query/content_reader_fingerprint_metadata_live_test.go'
+      - 'go/internal/query/content_reader_language_inventory_live_test.go'
+      - 'go/internal/query/content_reader_security_secrets_live_test.go'
+      - 'go/internal/query/documentation_facts_generation_live_test.go'
+      - 'go/internal/query/documentation_facts_label_authz_live_test.go'
+      - 'go/internal/query/documentation_related_generation_live_test.go'
+      - 'go/internal/query/documentation_target_facts_differential_live_test.go'
+      - 'go/internal/query/testdata/**'
+      - 'go/internal/storage/postgres/*fixture*test.go'
+      - 'go/internal/storage/postgres/content_file_secret_lines_live_test.go'
+      - 'go/internal/storage/postgres/crossplane/ledger_live_test.go'
+      - 'go/internal/storage/postgres/crossplane/query_plan_live_test.go'
+      - 'go/internal/storage/postgres/crossplane/satisfied_by_redrive_behavior_live_test.go'
+      - 'go/internal/storage/postgres/crossplane/satisfied_by_redrive_catchup_live_test.go'
+      - 'go/internal/storage/postgres/crossplane/satisfied_by_redrive_live_test.go'
+      - 'go/internal/storage/postgres/crossplane/testdata/**'
+      - 'go/internal/storage/postgres/infra/inventory/backfill_live_test.go'
+      - 'go/internal/storage/postgres/infra/inventory/background_live_test.go'
+      - 'go/internal/storage/postgres/infra/inventory/derive_bench_live_test.go'
+      - 'go/internal/storage/postgres/infra/inventory/derive_live_test.go'
+      - 'go/internal/storage/postgres/infra/inventory/fence_backfill_live_test.go'
+      - 'go/internal/storage/postgres/infra/inventory/fence_invariant_live_test.go'
+      - 'go/internal/storage/postgres/infra/inventory/fence_live_test.go'
+      - 'go/internal/storage/postgres/infra/inventory/fence_race_live_test.go'
+      - 'go/internal/storage/postgres/infra/inventory/fence_repair_live_test.go'
+      - 'go/internal/storage/postgres/infra/inventory/fence_session_live_test.go'
+      - 'go/internal/storage/postgres/infra/inventory/fence_shapes_live_test.go'
+      - 'go/internal/storage/postgres/infra/inventory/fence_state_live_test.go'
+      - 'go/internal/storage/postgres/infra/inventory/reader_live_test.go'
+      - 'go/internal/storage/postgres/infra/inventory/reconcile_claim_live_test.go'
+      - 'go/internal/storage/postgres/infra/inventory/reconcile_cursor_live_test.go'
+      - 'go/internal/storage/postgres/infra/inventory/reconcile_live_test.go'
+      - 'go/internal/storage/postgres/infra/inventory/reconcile_plan_live_test.go'
+      - 'go/internal/storage/postgres/infra/inventory/retention_live_test.go'
+      - 'go/internal/storage/postgres/infra/inventory/retention_lock_probe_live_test.go'
+      - 'go/internal/storage/postgres/infra/inventory/testdata/**'
+      - 'go/internal/storage/postgres/testdata/**'
+      - 'go/internal/testutil/postgresproof/**'
+      - 'scripts/ci/go-mod-download-retry.sh'
+      - 'scripts/lib/live_tests_registry.py'
+      - 'scripts/lib/postgres_scheduled_inventory.json'
+      - 'scripts/lib/postgres_scheduled_manifest.py'
+      - 'scripts/lib/postgres_scheduled_runner.py'
+      - 'scripts/lib/reducer_contention_events.py'
+      - 'scripts/lib/verify-live-tests-ledger.py'
+      - 'scripts/test-postgres-scheduled-ledger-policy.py'
+      - 'scripts/test-postgres-scheduled-runner.py'
+      - 'scripts/test-verify-live-tests-ledger.sh'
+      - 'scripts/verify-live-tests-ledger.sh'
+      - 'specs/ci-gates.d/gates-09.yaml'
+      - 'specs/ci-gates.v1.yaml'
+      - 'specs/live-tests.d/**'
+      - 'specs/live-tests.v1.yaml'
 
 permissions:
   contents: read
 
 concurrency:
-  group: postgres-scheduled-live
+  group: postgres-scheduled-live-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -49,6 +112,25 @@ jobs:
           python3 scripts/test-postgres-scheduled-runner.py
           python3 scripts/test-postgres-scheduled-ledger-policy.py
           python3 scripts/lib/postgres_scheduled_runner.py
+      - name: Record hosted proof manifest
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          checkout_sha="$(git rev-parse HEAD)"
+          reviewed_head_sha="${PR_HEAD_SHA:-$checkout_sha}"
+          postgres_identity="$(docker exec "$POSTGRES_CONTAINER" psql -v ON_ERROR_STOP=1 -At -U eshu -d postgres -c 'SELECT version()')"
+          python3 scripts/lib/postgres_scheduled_runner.py \
+            --write-manifest "${RUNNER_TEMP}/manifest.json" \
+            --event "${GITHUB_EVENT_NAME}" \
+            --run-id "${GITHUB_RUN_ID}" \
+            --run-attempt "${GITHUB_RUN_ATTEMPT}" \
+            --run-url "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}" \
+            --reviewed-head-sha "$reviewed_head_sha" \
+            --checkout-sha "$checkout_sha" \
+            --event-sha "${GITHUB_SHA}" \
+            --backend-identity "$postgres_identity"
       - name: Create fresh Crossplane database
         run: docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'CREATE DATABASE eshu_crossplane_scheduled'
       - name: Run Crossplane proofs
@@ -99,3 +181,19 @@ jobs:
           set -o pipefail
           go test -json -race -p=1 -count=1 -timeout=6m ./internal/storage/postgres -run '^(TestContentFileSecretLinesMigrationBackfillsAndReappliesLive|TestContentFileSecretLinesRetentionPruneCascadesLive)$' | tee "${RUNNER_TEMP}/disposable_storage.jsonl"
           python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/disposable_storage.jsonl" --group disposable_storage
+      - name: Verify hosted proof bundle
+        run: python3 scripts/lib/postgres_scheduled_runner.py --verify-proof-bundle "${RUNNER_TEMP}"
+      - name: Retain hosted proof bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgres-scheduled-proof-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/manifest.json
+            ${{ runner.temp }}/crossplane.jsonl
+            ${{ runner.temp }}/infra_inventory.jsonl
+            ${{ runner.temp }}/disposable_gate.jsonl
+            ${{ runner.temp }}/disposable_query.jsonl
+            ${{ runner.temp }}/disposable_storage.jsonl
+          if-no-files-found: error
+          retention-days: 14

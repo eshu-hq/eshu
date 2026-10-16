@@ -1,8 +1,10 @@
 """Contract tests for the PostgreSQL scheduled live proof runner."""
 
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
+import re
 import sys
 import tempfile
 import unittest
@@ -39,6 +41,127 @@ class ScheduledRunnerTest(unittest.TestCase):
             self.assertEqual(len(rows), files)
             self.assertEqual(sum(len(row["tests"]) for row in rows), tests)
         MODULE.verify_inventory(ROOT, inventory)
+
+    def test_pull_request_trigger_covers_exact_enrollment(self) -> None:
+        inventory = MODULE.load_inventory()
+        workflow = (ROOT / MODULE.WORKFLOW).read_text()
+        trigger = re.search(
+            r"(?ms)^  pull_request:\n    paths:\n((?:      - '[^']+'\n)+)",
+            workflow,
+        )
+        self.assertIsNotNone(trigger)
+        paths = re.findall(r"^      - '([^']+)'$", trigger.group(1), re.MULTILINE)
+        self.assertTrue(set(inventory).issubset(paths))
+        self.assertNotIn("go/**", paths)
+        self.assertNotIn("  push:", workflow)
+        self.assertNotIn("  merge_group:", workflow)
+        self.assertIn("github.event_name", workflow)
+
+    def test_trigger_and_active_verification_drift_fail(self) -> None:
+        inventory = MODULE.load_inventory()
+        original = (ROOT / MODULE.WORKFLOW).read_text()
+        first_path = next(iter(sorted(inventory)))
+        changes = (
+            ("  pull_request:\n", "  push:\n", "PR events"),
+            ("  workflow_dispatch:\n", "  workflow_dispatch:\n  merge_group:\n", "PR events"),
+            ("  workflow_dispatch:\n", "  workflow_dispatch:\n  workflow_dispatch:\n", "PR events"),
+            ("    paths:\n", "    paths:\n      - 'go/**'\n", "PR paths"),
+            (f"      - '{first_path}'\n", "", "PR paths"),
+            (
+                "postgres-scheduled-live-${{ github.event_name }}-",
+                "postgres-scheduled-live-", "PR concurrency",
+            ),
+            (
+                "  group: postgres-scheduled-live-",
+                "  # group: postgres-scheduled-live-", "PR concurrency",
+            ),
+            (
+                "          python3 scripts/test-postgres-scheduled-runner.py\n",
+                "          # python3 scripts/test-postgres-scheduled-runner.py\n", "harness",
+            ),
+            (
+                "      - name: Check exact enrollment and negative cases\n",
+                "      - name: Check exact enrollment and negative cases\n        if: false\n",
+                "conditional",
+            ),
+            (
+                "          python3 ../scripts/lib/postgres_scheduled_runner.py --events",
+                "          # python3 ../scripts/lib/postgres_scheduled_runner.py --events",
+                "event verifier",
+            ),
+            (
+                "      - name: Run Crossplane proofs\n",
+                "      - name: Run Crossplane proofs\n        if: false\n", "conditional",
+            ),
+            ("  postgres-scheduled:\n", "  postgres-scheduled:\n    if: false\n", "conditional"),
+            (
+                "  postgres-scheduled:\n",
+                "  postgres-scheduled:\n    continue-on-error: true\n",
+                "continue-on-error",
+            ),
+            (
+                "            --write-manifest \"${RUNNER_TEMP}/manifest.json\"",
+                "            --missing-manifest \"${RUNNER_TEMP}/manifest.json\"",
+                "manifest",
+            ),
+            (
+                "          python3 scripts/lib/postgres_scheduled_runner.py \\\n",
+                "          # python3 scripts/lib/postgres_scheduled_runner.py \\\n",
+                "manifest",
+            ),
+            (
+                "          reviewed_head_sha=\"${PR_HEAD_SHA:-$checkout_sha}\"",
+                "          reviewed_head_sha=\"$checkout_sha\"",
+                "manifest",
+            ),
+            (
+                "          postgres_identity=\"$(docker exec",
+                "          # postgres_identity=\"$(docker exec",
+                "manifest",
+            ),
+            (
+                "run: python3 scripts/lib/postgres_scheduled_runner.py "
+                "--verify-proof-bundle \"${RUNNER_TEMP}\"",
+                "run: echo bundle-verified",
+                "bundle",
+            ),
+            (
+                "uses: actions/upload-artifact@v4",
+                "uses: actions/checkout@v5",
+                "artifact",
+            ),
+            (
+                "      - name: Retain hosted proof bundle\n        if: always()",
+                "      - name: Retain hosted proof bundle\n        if: false",
+                "artifact",
+            ),
+            ("            ${{ runner.temp }}/manifest.json\n", "", "artifact"),
+            (
+                "            ${{ runner.temp }}/manifest.json\n",
+                "            ${{ runner.temp }}/manifest.json\n"
+                "            ${{ runner.temp }}/*.env\n",
+                "artifact",
+            ),
+            (
+                "--verify-proof-bundle \"${RUNNER_TEMP}\"",
+                "--verify-proof-bundle \"${RUNNER_TEMP}\" --allow-local-simulation",
+                "local simulation",
+            ),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for target in inventory:
+                copy = root / target
+                copy.parent.mkdir(parents=True, exist_ok=True)
+                copy.write_text((ROOT / target).read_text())
+            workflow = root / MODULE.WORKFLOW
+            workflow.parent.mkdir(parents=True)
+            for old, new, message in changes:
+                with self.subTest(change=message, old=old):
+                    self.assertIn(old, original)
+                    workflow.write_text(original.replace(old, new, 1))
+                    with self.assertRaisesRegex(ValueError, message):
+                        MODULE.verify_inventory(root, inventory)
 
     def test_source_drift_and_missing_workflow_command_fail(self) -> None:
         inventory = MODULE.load_inventory()
@@ -143,6 +266,72 @@ class ScheduledRunnerTest(unittest.TestCase):
                 ):
                     path.write_text("\n".join(json.dumps(event) for event in altered) + "\n")
                     self.assertFalse(MODULE.verify_events(path, package, expected))
+
+    def test_manifest_and_bundle_fail_closed(self) -> None:
+        inventory = MODULE.load_inventory()
+        manifest = MODULE.build_manifest(
+            inventory=inventory,
+            event="pull_request",
+            run_id="123",
+            run_attempt="2",
+            run_url="https://github.com/eshu-hq/eshu/actions/runs/123/attempts/2",
+            reviewed_head_sha="a" * 40,
+            checkout_sha="b" * 40,
+            backend_identity="PostgreSQL 18.6 on aarch64-linux",
+            local_simulation=True,
+        )
+        self.assertEqual(manifest["proof_origin"], "local_simulation")
+        self.assertEqual(manifest["reviewed_head_sha"], "a" * 40)
+        self.assertEqual(manifest["checkout_sha"], "b" * 40)
+        self.assertEqual(
+            manifest["inventory_sha256"],
+            hashlib.sha256(MODULE.INVENTORY.read_bytes()).hexdigest(),
+        )
+        self.assertEqual(manifest["postgres_image"], MODULE.IMAGE)
+        with self.assertRaisesRegex(ValueError, "backend identity"):
+            MODULE.build_manifest(
+                inventory, "pull_request", "123", "2", manifest["run_url"],
+                "a" * 40, "b" * 40, "PostgreSQL 17.9",
+            )
+        with tempfile.TemporaryDirectory() as directory:
+            bundle = Path(directory)
+            for group, package in MODULE.PACKAGES.items():
+                tests = sorted(
+                    test for row in inventory.values() if row["group"] == group
+                    for test in row["tests"]
+                )
+                events = [
+                    {"Action": action, "Package": package, "Test": test}
+                    for test in tests for action in ("run", "pass")
+                ] + [{"Action": "pass", "Package": package}]
+                (bundle / f"{group}.jsonl").write_text(
+                    "\n".join(json.dumps(event) for event in events) + "\n"
+                )
+            with self.assertRaisesRegex(ValueError, "manifest"):
+                MODULE.verify_proof_bundle(bundle, inventory)
+            (bundle / "manifest.json").write_text(json.dumps(manifest))
+            with self.assertRaisesRegex(ValueError, "local simulation"):
+                MODULE.verify_proof_bundle(bundle, inventory)
+            MODULE.verify_proof_bundle(
+                bundle, inventory, allow_local_simulation=True
+            )
+            (bundle / "disposable_query.jsonl").unlink()
+            with self.assertRaisesRegex(ValueError, "missing.*disposable_query"):
+                MODULE.verify_proof_bundle(
+                    bundle, inventory, allow_local_simulation=True
+                )
+            (bundle / "disposable_query.jsonl").write_text("not-json\n")
+            with self.assertRaisesRegex(ValueError, "event.*disposable_query"):
+                MODULE.verify_proof_bundle(
+                    bundle, inventory, allow_local_simulation=True
+                )
+            (bundle / "manifest.json").write_text(
+                json.dumps({**manifest, "inventory_sha256": "0" * 64})
+            )
+            with self.assertRaisesRegex(ValueError, "inventory"):
+                MODULE.verify_proof_bundle(
+                    bundle, inventory, allow_local_simulation=True
+                )
 
 
 

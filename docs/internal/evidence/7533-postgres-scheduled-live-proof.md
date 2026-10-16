@@ -1,6 +1,6 @@
 # #7533: scheduled PostgreSQL live proof enrollment
 
-The `postgres-scheduled` runner owns 53 exact named tests in 35 live files. The workflow runs daily at 04:35 UTC and supports manual dispatch. It uses one digest-pinned PostgreSQL 18.6 service. Crossplane and infra inventory use separate fresh databases. The three other packages use an administrative DSN to `postgres`, then the shared test helper creates a random disposable database from template0 and cleans it up. These rows have class `verified_scheduled`; they are no longer counted as legacy scheduled exemptions. The runner is not a required PR or merge check while its cost probes lack repeated timing evidence.
+The `postgres-scheduled` runner owns 53 exact named tests in 35 live files. The same job runs daily at 04:35 UTC, on manual dispatch, and for pull requests changing its exact enrolled inputs. It uses one digest-pinned PostgreSQL 18.6 service. Crossplane and infra inventory use separate fresh databases. The three other packages use an administrative DSN to `postgres`, then the shared test helper creates a random disposable database from template0 and cleans it up. These rows have class `verified_scheduled`; they are no longer counted as legacy scheduled exemptions. The hosted PR job must pass before the enrollment merges; it is not a universally required PR or merge check while its cost probes lack repeated timing evidence. Actual cron delivery has not yet been observed.
 
 ## Local enrollment proof
 
@@ -11,10 +11,14 @@ The source baseline was `eac0860933e4124400a7e59056f58954346d4c32`. Go was `go1.
 | `./internal/storage/postgres/crossplane` | 5 | 9 | Nine run and pass events; package pass | 45.186s |
 | `./internal/storage/postgres/infra/inventory` | 19 | 32 | 32 run and pass events; package pass | 109.448s |
 | `./cmd/golden-corpus-gate` | 1 | 1 | One run and pass event; package pass | 15.090s |
-| `./internal/query` | 9 | 9 | Nine run and pass events; package pass | 33.881s |
+| `./internal/query` | 9 | 9 | Nine selected run and pass events; package pass | Not measured for the exact nine-test subset |
 | `./internal/storage/postgres` | 1 | 2 | Two run and pass events; package pass | 40.885s |
 
-No selected test or subtest skipped or failed. The local Go JSON streams are `/tmp/eshu-7533-proof/{crossplane-full,infra_inventory-full,cmd-golden-corpus-gate-disposable-pg,internal-query-disposable-pg,internal-storage-postgres-disposable-pg}.jsonl`; the coordinator recorded exact commands and outcomes in the sibling `pg-full-results.json` and `disposable-pg-results.json` files. These are observed enrollment costs on a shared host, not a controlled speed or budget comparison. The committed inventory checks every Test name against source and workflow selectors; the event verifier rejects missing, duplicate, skipped, failed, malformed, or wrong-package results. The scheduled job runs negative harness tests before the packages.
+No selected test or subtest skipped or failed. The local Go JSON streams are `/tmp/eshu-7533-proof/{crossplane-full,infra_inventory-full,cmd-golden-corpus-gate-disposable-pg,internal-query-disposable-pg,internal-storage-postgres-disposable-pg}.jsonl`; the coordinator recorded exact commands and outcomes in the sibling `pg-full-results.json` and `disposable-pg-results.json` files. The query stream's 33.881s process wall time belongs to an enclosing ten-test run that also included the excluded peer test. Its events prove the selected nine-test subset passed, not its isolated cost. The other listed times are observed enrollment costs on a shared host, not a controlled speed or budget comparison. The committed inventory checks every Test name against source and workflow selectors; the event verifier rejects missing, duplicate, skipped, failed, malformed, or wrong-package results. The scheduled job runs negative harness tests before the packages.
+
+## Hosted proof retention
+
+Every hosted attempt writes `manifest.json` with the run URL, ID, attempt, event, reviewed PR head SHA, actual checkout SHA, event SHA, inventory and selected-source checksums, pinned image, and observed PostgreSQL version identity. A final step rechecks that manifest and all five Go JSON streams. The workflow uploads them together as a 14-day artifact, including after a failing proof step. Before merge, record the passing PR run and artifact URL and verify its reviewed head and checkout SHAs. The local manifest and bundle check used synthetic run metadata with the owned PostgreSQL 18.6 fixture and retained Go streams. Its manifest says `local_simulation`; the hosted verifier rejects that origin, and GitHub Actions forbids the local allowance. This local check is not hosted execution evidence.
 
 ## Boundaries
 
