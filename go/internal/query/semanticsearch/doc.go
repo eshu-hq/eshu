@@ -19,8 +19,9 @@
 // aliases cmd/api and cmd/mcp-server still use.
 //
 // A failed scope resolution or retrieval answers through
-// writeSemanticSearchFailure (failure.go): querycontract.WriteGraphReadError
-// first (reader fence 503 with Retry-After), then
+// writeSemanticSearchFailure (failure.go): the shared reader verdict from
+// querycontract.GraphReadErrorEnvelope first (fence 503 with Retry-After, in
+// the route's own error shape), then
 // tracing.ServerFailureEnvelope with a fixed message (500 internal_error, or
 // 499 for a client cancel), written in the route's own error shape. A missing
 // index or embedder is a configuration 503 with fixed text. Backend error text

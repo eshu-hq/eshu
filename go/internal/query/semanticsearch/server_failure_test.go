@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/failure"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -231,5 +233,81 @@ func assertSemanticSearchInternalError(t *testing.T, rec *httptest.ResponseRecor
 	if envelope.Error.Code != querycontract.ErrorCodeInternalError || envelope.Error.Message != message ||
 		envelope.Error.Capability != Capability {
 		t.Fatalf("error = %+v, want internal_error %q under %s", envelope.Error, message, Capability)
+	}
+}
+
+// semanticSearchFenceHandlers returns one handler per guarded read whose read
+// fails with err: scope resolution, index retrieval, and local hybrid
+// retrieval, each with the request body that reaches it.
+func semanticSearchFenceHandlers(err error) []struct {
+	name    string
+	handler *SemanticSearchHandler
+	body    string
+} {
+	return []struct {
+		name    string
+		handler *SemanticSearchHandler
+		body    string
+	}{
+		{"scope resolution", &SemanticSearchHandler{
+			Index: &fakeSemanticSearchIndexStore{}, ScopeResolver: &fakeSemanticSearchScopeResolver{err: err},
+			Profile: querycontract.ProfileProduction,
+		}, semanticSearchKeywordBody},
+		{"index retrieval", &SemanticSearchHandler{
+			Index: &fakeSemanticSearchIndexStore{err: err}, Profile: querycontract.ProfileProduction,
+		}, semanticSearchKeywordBody},
+		{"local hybrid retrieval", &SemanticSearchHandler{
+			Index: &fakeSemanticSearchIndexStore{}, LocalHybrid: &fakeSemanticSearchIndexStore{err: err},
+			Profile: querycontract.ProfileProduction,
+		}, `{"repo_id":"repo-payments","query":"payment","mode":"hybrid","limit":5,"timeout_ms":250}`},
+	}
+}
+
+// TestSemanticSearchReaderFenceKeepsThePlainShape pins the reader-verdict 503
+// for a caller that does not negotiate the envelope: the route's own
+// {error_code, message, capability} body, byte for byte, with Retry-After.
+// Before #7674 the scope-resolution 503 carried the reader error text and no
+// Retry-After, and the two retrieval reads answered 500.
+func TestSemanticSearchReaderFenceKeepsThePlainShape(t *testing.T) {
+	t.Parallel()
+	want := `{"capability":"semantic_search.curated_retrieval","error_code":"backend_unavailable",` +
+		`"message":"database read temporarily unavailable; retry shortly"}` + "\n"
+	for _, tc := range semanticSearchFenceHandlers(fmt.Errorf("pg: %s: %w", failure.Canary, db.ErrReaderStale)) {
+		rec := serveSemanticSearch(t, tc.handler, tc.body, false)
+		if rec.Code != http.StatusServiceUnavailable {
+			t.Errorf("%s: status = %d, want 503; body = %s", tc.name, rec.Code, rec.Body.String())
+			continue
+		}
+		if got := rec.Header().Get("Retry-After"); got != strconv.Itoa(querycontract.BackendUnavailableRetryAfterSeconds) {
+			t.Errorf("%s: Retry-After = %q, want %d", tc.name, got, querycontract.BackendUnavailableRetryAfterSeconds)
+		}
+		if got := rec.Body.String(); got != want {
+			t.Errorf("%s: body = %q, want %q", tc.name, got, want)
+		}
+	}
+}
+
+// TestSemanticSearchReaderFenceNamesTheRouteCapability pins the envelope of
+// the reader-verdict 503: it names this route's capability and carries the
+// retry_after_seconds detail that MCP callers read, since MCP dispatch does
+// not forward headers.
+func TestSemanticSearchReaderFenceNamesTheRouteCapability(t *testing.T) {
+	t.Parallel()
+	for _, tc := range semanticSearchFenceHandlers(fmt.Errorf("pg: %w", db.ErrReaderStale)) {
+		rec := serveSemanticSearch(t, tc.handler, tc.body, true)
+		var envelope querycontract.ResponseEnvelope
+		if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil || envelope.Error == nil {
+			t.Errorf("%s: body = %s (decode err %v)", tc.name, rec.Body.String(), err)
+			continue
+		}
+		if rec.Code != http.StatusServiceUnavailable || rec.Header().Get("Retry-After") == "" {
+			t.Errorf("%s: status = %d, Retry-After = %q; want 503 with Retry-After", tc.name, rec.Code, rec.Header().Get("Retry-After"))
+		}
+		if envelope.Error.Capability != Capability {
+			t.Errorf("%s: capability = %q, want %q", tc.name, envelope.Error.Capability, Capability)
+		}
+		if _, ok := envelope.Error.Details["retry_after_seconds"]; !ok {
+			t.Errorf("%s: details = %v, want retry_after_seconds", tc.name, envelope.Error.Details)
+		}
 	}
 }
