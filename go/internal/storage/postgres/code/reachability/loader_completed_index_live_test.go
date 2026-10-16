@@ -4,9 +4,13 @@
 package reachabilitystore_test
 
 import (
+	"context"
+	"database/sql"
+	"os"
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	reachabilitystore "github.com/eshu-hq/eshu/go/internal/storage/postgres/code/reachability"
 )
 
@@ -22,7 +26,7 @@ const completedIntentsIndexName = "shared_projection_intents_acceptance_complete
 // It returns the scope id; sibling ids follow seedLoaderGateRun's key scheme.
 func seedCompletedIntentsRun(t *testing.T, suffix, name string, n int) string {
 	t.Helper()
-	ctx, db := openRouteLivenessLiveDB(t)
+	ctx, db := openCompletedIndexLiveDB(t)
 	scope := seedLoaderGateRun(t, ctx, db, suffix, loaderGateRun{name: name, completedAt: loaderGateBase})
 	key := name + "-" + suffix
 	if _, err := db.ExecContext(ctx, `INSERT INTO shared_projection_intents
@@ -47,13 +51,39 @@ func seedCompletedIntentsRun(t *testing.T, suffix, name string, n int) string {
 	return scope
 }
 
+// openCompletedIndexLiveDB opens the disposable PostgreSQL 18 database this
+// proof enrolls in the live-postgres-readiness runner under, skipping
+// without the runner's DSN pair (same convention as the edges-scope proof):
+//
+//	ESHU_REACHABILITY_COMPLETED_INDEX_PROOF_DSN=postgres://user:pass@127.0.0.1:<port>/postgres?sslmode=disable \
+//	ESHU_REACHABILITY_COMPLETED_INDEX_PROOF_DISPOSABLE=1 \
+//	  go test ./internal/storage/postgres/code/reachability/ -run TestCodeReachabilityLoaderUsesCompletedIntentsIndex
+func openCompletedIndexLiveDB(t *testing.T) (context.Context, *sql.DB) {
+	t.Helper()
+	dsn := os.Getenv("ESHU_REACHABILITY_COMPLETED_INDEX_PROOF_DSN")
+	optIn := os.Getenv("ESHU_REACHABILITY_COMPLETED_INDEX_PROOF_DISPOSABLE")
+	if dsn == "" || optIn != "1" {
+		t.Skip("ESHU_REACHABILITY_COMPLETED_INDEX_PROOF_DSN/ESHU_REACHABILITY_COMPLETED_INDEX_PROOF_DISPOSABLE not set")
+	}
+	ctx := context.Background()
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open live db: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: db}); err != nil {
+		t.Fatalf("bootstrap schema: %v", err)
+	}
+	return ctx, db
+}
+
 // TestCodeReachabilityLoaderUsesCompletedIntentsIndex is the #7929 live
 // proof: on a run with thousands of completed intents the shipped candidate
 // statement serves the per-run max(completed_at) probe from the covering
 // index instead of heap-walking every completed intent, and the returned
 // rows still equal the pre-#7547 oracle exactly.
 func TestCodeReachabilityLoaderUsesCompletedIntentsIndex(t *testing.T) {
-	ctx, db := openRouteLivenessLiveDB(t)
+	ctx, db := openCompletedIndexLiveDB(t)
 	suffix := routeLivenessTestSuffix(t)
 	epoch := reachabilitystore.CodeReachabilityVerdictSchemaEpoch
 
