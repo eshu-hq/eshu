@@ -49,6 +49,9 @@ func (h *Handler) listWorkItems(w http.ResponseWriter, r *http.Request) {
 		Limit:        limit,
 	})
 	if err != nil {
+		if querycontract.WriteGraphReadError(w, r, err, "operator.work_items.list") {
+			return
+		}
 		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list work items: %v", err))
 		return
 	}
@@ -97,6 +100,9 @@ func (h *Handler) listDecisions(w http.ResponseWriter, r *http.Request) {
 		Limit:           limit,
 	})
 	if err != nil {
+		if querycontract.WriteGraphReadError(w, r, err, "operator.decisions.list") {
+			return
+		}
 		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list decisions: %v", err))
 		return
 	}
@@ -107,6 +113,9 @@ func (h *Handler) listDecisions(w http.ResponseWriter, r *http.Request) {
 		for _, d := range decisions {
 			rows, evErr := h.readStore().ListEvidence(r.Context(), d.DecisionID)
 			if evErr != nil {
+				if querycontract.WriteGraphReadError(w, r, evErr, "operator.decision_evidence.list") {
+					return
+				}
 				querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list evidence: %v", evErr))
 				return
 			}
@@ -310,6 +319,9 @@ func (h *Handler) listReplayEvents(w http.ResponseWriter, r *http.Request) {
 		Limit:        limit,
 	})
 	if err != nil {
+		if querycontract.WriteGraphReadError(w, r, err, "operator.replay_events.list") {
+			return
+		}
 		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list replay events: %v", err))
 		return
 	}

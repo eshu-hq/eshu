@@ -287,6 +287,11 @@ coverage:
   - {surface: capability:operator.changed_since_poisoned_links.list, scenario: capability_claim, scenario_type: baseline, ref: operator.changed_since_poisoned_links.list, proof_gate: capability-inventory}
   - {surface: capability:operator.dead_letters.list, scenario: capability_claim, scenario_type: baseline, ref: operator.dead_letters.list, proof_gate: capability-inventory}
   - {surface: capability:operator.reducer_input_invalid_facts.list, scenario: capability_claim, scenario_type: baseline, ref: operator.reducer_input_invalid_facts.list, proof_gate: capability-inventory}
+  - {surface: capability:operator.work_items.list, scenario: capability_claim, scenario_type: baseline, ref: operator.work_items.list, proof_gate: capability-inventory}
+  - {surface: capability:operator.decisions.list, scenario: capability_claim, scenario_type: baseline, ref: operator.decisions.list, proof_gate: capability-inventory}
+  - {surface: capability:operator.decision_evidence.list, scenario: capability_claim, scenario_type: baseline, ref: operator.decision_evidence.list, proof_gate: capability-inventory}
+  - {surface: capability:operator.replay_events.list, scenario: capability_claim, scenario_type: baseline, ref: operator.replay_events.list, proof_gate: capability-inventory}
+  - {surface: capability:operator.repository_catalog.lookup, scenario: capability_claim, scenario_type: baseline, ref: operator.repository_catalog.lookup, proof_gate: capability-inventory}
   - {surface: capability:package_registry.packages.aggregate, scenario: capability_claim, scenario_type: baseline, ref: package_registry.packages.aggregate, proof_gate: capability-inventory}
   - {surface: capability:package_registry.packages.list, scenario: capability_claim, scenario_type: baseline, ref: package_registry.packages.list, proof_gate: capability-inventory}
   - {surface: capability:package_registry.versions.list, scenario: capability_claim, scenario_type: baseline, ref: package_registry.versions.list, proof_gate: capability-inventory}
