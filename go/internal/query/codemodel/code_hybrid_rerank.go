@@ -189,9 +189,10 @@ func (r *CodeHybridRanker) rankDocuments(
 var CodeRankerIdentity = fmt.Sprintf("find_code_hybrid/rrf/hash_embedder_%d/v1", searchembed.DefaultDimensions)
 
 // CodeWindowScorer scores a whole find_code rank-walk window (#7746). The
-// find_code handler requires it of its HybridRanker to serve rank_cursor; a
-// ranker without it, or one whose CanScoreWindow is false, answers
-// rank_cursor_unsupported (ranker_disabled), never a silent offset page.
+// find_code handler ranks a content-lane walk (order=hybrid) only through it;
+// a ranker without it, or one whose CanScoreWindow is false, leaves the walk
+// in the lane's own order (order=lexical), still exactly once. The walk is
+// never refused for a missing ranker.
 type CodeWindowScorer interface {
 	// CanScoreWindow reports whether the ranker is on, so a disabled ranker
 	// is refused before the window is read.

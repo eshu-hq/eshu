@@ -29,6 +29,11 @@ of their ids, and a fingerprint of the basis.
 | `find_code` | `content` when the graph search returns no rows, or no graph is configured. | `hybrid` when the hybrid ranker scores the window; `lexical` (the lane's own order) with `exact=true`, with no ranker, or when no row can be scored. |
 | `search_entity_content` | Always `content`. Needs `repo_id` or exactly one `repo_ids` entry. | `hybrid`, or `lexical` when no row can be scored. Needs the hybrid ranker. |
 
+`find_code` never refuses a walk for a missing ranker. With the ranker off,
+or with `exact=true`, `rank_cursor` still gives a stable exactly-once walk in
+the lane's own order (`graph_name` or `lexical`), with no relevance reorder.
+`rank_walk.order` and `rank_walk.ranked` tell the client which order it got.
+
 A `hybrid` order sorts by fused score rounded to 8 significant digits,
 highest first, then by `entity_id` ascending. A row the ranker cannot score
 comes after the scored rows, by `entity_id`. Scored rows carry

@@ -15,9 +15,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
-// TestRecordOutcomeCountsAndTagsTheRequestSpan is not parallel: it installs a
+// TestRecordPageCountsAndTagsTheRequestSpan is not parallel: it installs a
 // process-global meter provider (see testutil.WithPackageMetricReader).
-func TestRecordOutcomeCountsAndTagsTheRequestSpan(t *testing.T) {
+func TestRecordPageCountsAndTagsTheRequestSpan(t *testing.T) {
 	reader := testutil.WithPackageMetricReader(t, resetInstrumentsForTest)
 
 	recorder := tracetest.NewSpanRecorder()

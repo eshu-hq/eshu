@@ -124,7 +124,7 @@ request-span attributes `search.rank_cursor.outcome`, `.reason`, `.position`,
 and on a served page `.lane` and `.order`.
 The scoring pass emits `query.hybrid_rerank` with `search.rerank.rows` equal
 to the window size. No signal carries query text, a repository ID, or a cursor.
-Tests: `TestRecordOutcomeCountsAndTagsTheRequestSpan`,
+Tests: `TestRecordPageCountsAndTagsTheRequestSpan`,
 `TestRecordErrorMapsEveryCodeToItsOutcome`, `TestOutcomeLabelsAreClosed`.
 
 ## Commands

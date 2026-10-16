@@ -61,7 +61,7 @@ const (
 )
 
 var unsupportedMessages = map[string]string{
-	ReasonRankerDisabled:     "relevance walks need the hybrid ranker, which is off in this deployment; page with offset instead",
+	ReasonRankerDisabled:     "search_entity_content walks need the hybrid ranker, which is off in this deployment; page with offset instead",
 	ReasonScopeNotSingleRepo: "a relevance walk needs exactly one repository; set repo_id",
 	ReasonFileSearch:         "search_file_content does not support rank_cursor; page with offset instead",
 	ReasonOffsetConflict:     "rank_cursor and a positive offset are mutually exclusive",

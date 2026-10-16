@@ -292,7 +292,8 @@ records it; `search_entity_content` always uses the content lane. The graph
 lane keeps its own order (`graph_name`), so its pages equal the offset pages.
 The content lane is scored with `RankAll` and ordered by score rounded to 8
 significant digits (descending), then `entity_id` (`hybrid`), or keeps its own
-order with `exact=true` or no ranker (`lexical`). See
+order with `exact=true` or no ranker (`lexical`): without a ranker the walk is
+still a stable exactly-once walk, and `rank_walk.order` says which order. See
 [Relevance walk](http-api/rank-walk.md).
 
 - The stateless cursor holds the lane, the served-row count, a digest of the
@@ -306,10 +307,9 @@ order with `exact=true` or no ranker (`lexical`). See
 - Score bits are stable per CPU architecture only: behind replicas of mixed
   architectures a `hybrid` walk can answer 409 `order_changed` on every page.
 - Rows past the window are never read (`window_end`, `lexical_truncated`).
-- A positive offset, the unscoped cursor, no single repository,
-  `search_file_content`, and `search_entity_content` without a ranker answer a
-  typed 400. A request without `rank_cursor` keeps its response bytes (byte
-  goldens captured on main pin both routes).
+- A positive offset, the unscoped cursor, no single repository, file search,
+  and `search_entity_content` without a ranker answer a typed 400. Without
+  `rank_cursor` the response bytes are unchanged (main-captured goldens).
 
 Performance Evidence: each `hybrid` walk page scores the whole 200-row window:
 `BenchmarkCodeHybridRerank` rows=200 measured 19.32-19.44 ms/op,

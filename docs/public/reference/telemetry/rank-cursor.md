@@ -46,7 +46,7 @@ its duration is the per-page scoring cost.
 sum by (tool, outcome, reason) (rate(eshu_dp_query_rank_cursor_total[5m]))
 ```
 
-Observability Evidence: `TestRecordOutcomeCountsAndTagsTheRequestSpan` and
+Observability Evidence: `TestRecordPageCountsAndTagsTheRequestSpan` and
 `TestRecordErrorMapsEveryCodeToItsOutcome` (`go/internal/query/search/rank`)
 prove the counter labels and the request-span attributes;
 `TestOutcomeLabelsAreClosed` pins the closed outcome and reason sets.
