@@ -18,6 +18,8 @@ func TestCapabilityCatalogLoadFailureAnswersFixedText(t *testing.T) {
 		Name: "capability catalog", Path: "/api/v0/capabilities", Message: catalogUnavailableMessage,
 		Handler: func(err error) failure.Mounter {
 			h := &Handler{}
+			// Spend once so load() keeps this injected error instead of
+			// overwriting it with a real catalog load.
 			h.once.Do(func() { h.loadErr = err })
 			return h
 		},
