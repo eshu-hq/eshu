@@ -134,14 +134,13 @@ and the environment comparison and semantic search routes in
 and the semantic evidence and documentation routes in
 [Semantic Evidence And Documentation Route Failures](../http-api/semantic-and-documentation-failures.md)
 (#7674). The code-flow routes
-answered a cancel with `408` before. A `503` that reports a configuration or
-readiness state, on these routes or the impact code-evidence reads, marks the
-span the same way a fault does, except on the status, evidence, and
-investigation packet routes, the identity admin, provider-config, and local
-identity routes, the auth and session routes, the infra and inventory
-routes, the semantic search routes, and the documentation finding count and
-inventory routes: there a configuration `503` is a plain write and does not
-mark the span. No query route answers a client cancel with `500` (#7674).
+answered a cancel with `408` before. On the code and entity routes and the
+impact code-evidence reads, a `503` that reports a configuration or readiness
+state marks the span the same way a fault does. On the status, evidence,
+investigation packet, identity admin, provider-config, local identity, auth,
+session, infra, inventory, semantic search, and documentation finding count and
+inventory routes a configuration `503` is a plain write and does not mark the
+span. No query route answers a client cancel with `500` (#7674).
 
 Two operator effects follow. Eshu's own `eshu_dp_api_request_errors_total`
 counts only `5xx`, so a canceled read on these routes leaves that counter and
