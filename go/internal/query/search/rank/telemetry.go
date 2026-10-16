@@ -6,6 +6,7 @@ package rank
 import (
 	"context"
 	"errors"
+	"net/http"
 	"sync"
 
 	"go.opentelemetry.io/otel"
@@ -132,6 +133,18 @@ func RecordError(ctx context.Context, tool string, err error) {
 	}
 	trace.SpanFromContext(ctx).SetAttributes(AttrReason.String(rankErr.Reason))
 	RecordOutcome(ctx, tool, errorOutcomes[rankErr.Code], 0)
+}
+
+// Answer records the outcome of a rank-walk failure and answers the
+// request with it (see WriteError). It reports false, recording and writing
+// nothing, when err is not a *Error.
+func Answer(w http.ResponseWriter, r *http.Request, tool string, err error) bool {
+	var rankErr *Error
+	if err == nil || !errors.As(err, &rankErr) {
+		return false
+	}
+	RecordError(r.Context(), tool, rankErr)
+	return WriteError(w, r, rankErr)
 }
 
 // PageOutcome returns the outcome label for a served page.

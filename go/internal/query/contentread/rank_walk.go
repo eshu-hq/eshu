@@ -93,8 +93,7 @@ func (r *ContentHybridRanker) ScoreEntityWindow(
 
 // writeRankError records the rank-walk outcome for err and answers with it.
 func writeRankError(w http.ResponseWriter, r *http.Request, tool string, err *rank.Error) {
-	rank.RecordError(r.Context(), tool, err)
-	rank.WriteError(w, r, err)
+	rank.Answer(w, r, tool, err)
 }
 
 // searchEntitiesRanked serves search_entity_content as a relevance walk over
@@ -148,9 +147,7 @@ func (h *ContentHandler) searchEntitiesRanked(w http.ResponseWriter, r *http.Req
 	}
 
 	page, err := rank.Walk(entityWindow(repoID, req.pattern(), rows, lexicalTruncated), scores, req.RankCursor, req.limit())
-	var rankErr *rank.Error
-	if errors.As(err, &rankErr) {
-		writeRankError(w, r, tool, rankErr)
+	if rank.Answer(w, r, tool, err) {
 		return
 	}
 	if err != nil {

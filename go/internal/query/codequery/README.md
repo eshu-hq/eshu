@@ -31,6 +31,12 @@ surface. The directory is exempt from the dirgate file cap by the existing //nol
 - Repository-scoped code-search fallback asks `ContentStore.SearchCodeCandidates`
   for language and exact-name predicates before each bounded content page.
   The unfiltered fallback keeps its existing name-then-source reads.
+- A `find_code` request with `rank_cursor` (#7746) goes to `handleRankWalk`
+  in `handler.go`: it always reads the repository's content lane (never the
+  graph lane), takes the first 200 rows, scores them through
+  `codemodel.CodeWindowScorer`, and pages them with `search/rank`. Offset,
+  `exact=true`, a missing `repo_id`, or a ranker that cannot score answer a
+  typed 400; a changed window or order answers 409.
 
 ## Contracts (must hold)
 

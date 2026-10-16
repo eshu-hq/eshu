@@ -64,6 +64,7 @@ const (
 	codeSearchContentIndexFailedMessage = "code search failed to read the content entity-name index"
 	codeSearchGraphFailedMessage        = "code search failed to read the graph"
 	codeSearchContentFailedMessage      = "code search failed to read the content store"
+	codeSearchRankFailedMessage         = "code search rank walk failed"
 
 	symbolSearchFailedMessage        = "symbol search failed to read its backend"
 	structuralInventoryFailedMessage = "structural inventory read failed"

@@ -5,6 +5,8 @@ package codemodel
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -137,7 +139,23 @@ func (r *CodeHybridRanker) rerank(
 	if len(docByID) < 2 {
 		return results, false
 	}
+	candidates, err := r.rankDocuments(ctx, repoID, query, docByID, order)
+	if err != nil || len(candidates) == 0 {
+		return results, false
+	}
+	return reorderCodeResultsByCandidates(results, candidates), true
+}
 
+// rankDocuments builds the request-local hybrid index over the projected
+// documents and ranks all of them. It returns the index-build or ranking
+// error (for example the codeHybridRerankTimeout deadline) unchanged.
+func (r *CodeHybridRanker) rankDocuments(
+	ctx context.Context,
+	repoID string,
+	query string,
+	docByID map[string]searchdocs.Document,
+	order []string,
+) ([]searchretrieval.Candidate, error) {
 	docs := make([]searchdocs.Document, 0, len(docByID))
 	for _, id := range order {
 		docs = append(docs, docByID[id])
@@ -155,19 +173,84 @@ func (r *CodeHybridRanker) rerank(
 		VectorRetrieval: searchhybrid.VectorRetrievalAuto,
 	})
 	if err != nil {
-		return results, false
+		return nil, err
 	}
 
 	// RankAll ranks the whole request-local index. Search would reject a page
 	// larger than the public retrieval limit (100) and leave it in lexical
 	// order (#7746); this page is already bounded by codeHybridRerankLimit.
 	scope := searchretrieval.Scope{RepoID: repoID}
-	candidates, err := (searchhybrid.Backend{Index: index}).RankAll(rankCtx, query, scope)
-	if err != nil || len(candidates) == 0 {
-		return results, false
-	}
+	return (searchhybrid.Backend{Index: index}).RankAll(rankCtx, query, scope)
+}
 
-	return reorderCodeResultsByCandidates(results, candidates), true
+// CodeRankerIdentity names the find_code ranker in a rank-walk basis. A
+// change to the fusion, the embedder, or its dimensions must change it, so a
+// walk started on the old ranker answers 409 instead of mixing two orders.
+var CodeRankerIdentity = fmt.Sprintf("find_code_hybrid/rrf/hash_embedder_%d/v1", searchembed.DefaultDimensions)
+
+// CodeWindowScorer scores a whole find_code rank-walk window (#7746). The
+// find_code handler requires it of its HybridRanker to serve rank_cursor; a
+// ranker without it, or one whose CanScoreWindow is false, answers
+// rank_cursor_unsupported (ranker_disabled), never a silent offset page.
+type CodeWindowScorer interface {
+	// CanScoreWindow reports whether the ranker is on, so a disabled ranker
+	// is refused before the window is read.
+	CanScoreWindow() bool
+	// ScoreCodeWindow returns the fused score of every ranked row keyed by
+	// entity_id, or the error that stopped scoring. It never returns a
+	// partial map.
+	ScoreCodeWindow(ctx context.Context, repoID, query string, rows []map[string]any) (map[string]float64, error)
+}
+
+var _ CodeWindowScorer = (*CodeHybridRanker)(nil)
+
+// CanScoreWindow reports whether semantic search is on and the local
+// embedder was built.
+func (r *CodeHybridRanker) CanScoreWindow() bool {
+	return r != nil && r.enabled && r.LocalEmbedder != nil
+}
+
+// ScoreCodeWindow returns the fused BM25+vector score of every projectable
+// window row, keyed by entity_id. Rows that do not project, or that the
+// ranker does not return, have no score; the walk orders them after the
+// scored rows. A pass over two or more rows records one query.hybrid_rerank
+// span (tool find_code) whose search.rerank.rows is the window size.
+func (r *CodeHybridRanker) ScoreCodeWindow(
+	ctx context.Context,
+	repoID string,
+	query string,
+	rows []map[string]any,
+) (map[string]float64, error) {
+	if !r.CanScoreWindow() {
+		return nil, errors.New("find_code hybrid ranker is disabled")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	scores := make(map[string]float64, len(rows))
+	if len(rows) < 2 {
+		return scores, nil
+	}
+	ctx, finish := tracing.StartHybridRerankSpan(ctx, r.stageTracer(), tracing.HybridRerankToolFindCode, len(rows))
+	applied := false
+	defer func() { finish(applied) }()
+
+	docByID, order := projectCodeResultDocuments(repoID, rows)
+	if len(docByID) == 0 {
+		return scores, nil
+	}
+	candidates, err := r.rankDocuments(ctx, repoID, query, docByID, order)
+	if err != nil {
+		return nil, err
+	}
+	for _, candidate := range candidates {
+		id := EntityIDFromDocument(candidate.Document)
+		if _, seen := scores[id]; id != "" && !seen {
+			scores[id] = candidate.Score
+		}
+	}
+	applied = len(scores) > 0
+	return scores, nil
 }
 
 // projectCodeResultDocuments builds curated search documents keyed by entity id

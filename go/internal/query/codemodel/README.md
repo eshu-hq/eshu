@@ -57,6 +57,10 @@ the staying code family still uses.
   reaches the ranking work emits a `query.hybrid_rerank` stage span
   (`search.rerank.tool=find_code`, `search.rerank.rows`,
   `search.rerank.applied`) through `tracing.StartHybridRerankSpan` (#7746).
+  It also implements `CodeWindowScorer` (`CanScoreWindow`,
+  `ScoreCodeWindow`): the find_code `rank_cursor` walk scores its whole
+  200-row window through it, and `CodeRankerIdentity` names the ranker in the
+  walk basis. Change that string whenever the fusion or embedder changes.
 - `code_import_dependencies_{queries,request,response,rows}.go` — the seven
   investigation builders, the request family, plus envelope and row shaping.
   The request type moved to `request.go` when `queries.go` hit the 500-line

@@ -123,3 +123,12 @@ cd go && go test ./internal/queryplan/ -count=1
 git diff --check
 gofmt -l <touched files, repo-relative>
 ```
+
+## find_code rank walk (#7746)
+
+- `handleRankWalk` (`handler.go`) MUST read only the content lane. Reading
+  the graph lane would let the window change lanes between pages.
+- A `rank_cursor` request never falls back to an offset page: every refusal
+  goes through `rank.Answer` with a `rank.Reason*` constant.
+- `handler.go` sits near the 500-line cap. Put new walk logic in
+  `go/internal/query/search/rank` (generic) or `codemodel`, not here.

@@ -11,7 +11,8 @@
 // packages -- querycontract (ports, row types, response and truth envelopes,
 // the paged-searcher seam, readiness errors), selector
 // (repository-selector resolution), codemodel (document-ID recovery for
-// re-rank), and the search* leaf packages for the hybrid ranker. Tests
+// re-rank), the search* leaf packages for the hybrid ranker, and search/rank
+// for the search_entity_content rank_cursor walk (#7746, rank_walk.go). Tests
 // additionally use auth (scoped auth contexts) and testutil (the
 // shared ContentStore double). Nothing here imports root package query
 // itself, which would create an import cycle: root's
