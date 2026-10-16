@@ -375,23 +375,29 @@ class ContractTest(unittest.TestCase):
                 self.assertNotEqual(self.check().returncode, 0)
                 (self.root / "scripts/verify-query-methodology.sh").write_text(original)
 
-    def test_both_tree_guard_roots_are_required_with_guarded_count(self) -> None:
-        """The static and live route must execute both identity regressions."""
+    def test_every_tree_guard_root_is_required_with_guarded_count(self) -> None:
+        """The static and live route must execute every identity regression."""
         runner_path = self.root / "scripts/verify-query-methodology.sh"
         source = runner_path.read_text()
         guard = (
-            "go_test_run_guard 2 "
+            "go_test_run_guard 5 "
             "'^(TestMethodologyProductionTreeRejectsBaseOnlyMigration|"
-            "TestMethodologyCombinedCheckoutUsesIntegratedBase)$' -- "
+            "TestMethodologyCombinedCheckoutUsesIntegratedBase|"
+            "TestMethodologyProductionTreeAdmitsAdditiveGraphSchema|"
+            "TestMethodologyRewriteDeclarationGate|"
+            "TestMethodologySchemaDeclarationGate)$' -- "
             "-tags queryplan_profile_live ./internal/query -count=1 -v"
         )
-        self.assertEqual(source.count(guard), 1, "both tagged guard roots must run")
+        self.assertEqual(source.count(guard), 1, "every tagged guard root must run")
         self.assertEqual(self.check().returncode, 0)
         for replacement in (
-            "true # planted omission of both guard roots",
-            guard.replace("go_test_run_guard 2", "go_test_run_guard 1"),
+            "true # planted omission of every guard root",
+            guard.replace("go_test_run_guard 5", "go_test_run_guard 4"),
             guard.replace("TestMethodologyCombinedCheckoutUsesIntegratedBase", "TestOmittedCombinedCheckout"),
             guard.replace("TestMethodologyProductionTreeRejectsBaseOnlyMigration", "TestOmittedBaseOnlyMigration"),
+            guard.replace("TestMethodologyProductionTreeAdmitsAdditiveGraphSchema", "TestOmittedAdditiveGraphSchema"),
+            guard.replace("TestMethodologyRewriteDeclarationGate", "TestOmittedRewriteDeclaration"),
+            guard.replace("TestMethodologySchemaDeclarationGate", "TestOmittedSchemaDeclaration"),
         ):
             with self.subTest(replacement=replacement):
                 runner_path.write_text(source.replace(guard, replacement, 1))

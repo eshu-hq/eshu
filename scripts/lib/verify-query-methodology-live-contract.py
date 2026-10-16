@@ -146,7 +146,7 @@ def check_static(root: Path) -> None:
         'untracked="$(git -C "$repo_root" ls-files --others --exclude-standard)"',
         'if [[ -n "$untracked" ]]; then',
         static_call,
-        "go_test_run_guard 2 '^(TestMethodologyProductionTreeRejectsBaseOnlyMigration|TestMethodologyCombinedCheckoutUsesIntegratedBase)$' -- -tags queryplan_profile_live ./internal/query -count=1 -v",
+        "go_test_run_guard 5 '^(TestMethodologyProductionTreeRejectsBaseOnlyMigration|TestMethodologyCombinedCheckoutUsesIntegratedBase|TestMethodologyProductionTreeAdmitsAdditiveGraphSchema|TestMethodologyRewriteDeclarationGate|TestMethodologySchemaDeclarationGate)$' -- -tags queryplan_profile_live ./internal/query -count=1 -v",
         "go test ./internal/queryplan -count=1",
         'if [[ "$mode" == --static ]]; then',
         'if ! git -C "$repo_root" diff --cached --quiet --exit-code; then',
