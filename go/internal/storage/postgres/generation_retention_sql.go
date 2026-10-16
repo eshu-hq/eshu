@@ -260,9 +260,9 @@ const (
 	generationRetentionRollbackSavepointStatement = "ROLLBACK TO SAVEPOINT retention_selection"
 )
 
-// generationRetentionTargetedCandidateQuery lives in
-// generation_retention_policy.go beside the eligibility rules it re-checks
-// at lock time; this file keeps the general candidate query it must stay
+// generationRetentionTargetedCandidateQuery is statements.TargetedCandidateLock
+// in the retention/statements leaf; it re-checks this file's eligibility rules
+// at lock time, and this file keeps the general candidate query it must stay
 // in lockstep with.
 
 const deleteSharedProjectionIntentsForGenerationsQuery = `
