@@ -82,8 +82,7 @@ BD adds +0.11 to +0.17 s, so it meets the budget. B2 reads the same or worse,
 so the commit-time move costs nothing; the cost is the `OLD TABLE` capture
 and its 181.1 MB spill past the 64MB `work_mem` (the diagnostics remove the
 spill and recover about 0.05-0.07 s). The diagnostics are not candidates: the
-spill fix needs a retention change and is follow-up issue #NNNN (number from
-the coordinator). The earlier single-session reading (+8.26%, `ScopeLockHold`
+spill fix needs a retention change and is follow-up issue #8268. The earlier single-session reading (+8.26%, `ScopeLockHold`
 +4.04%) is one reading, not the headline.
 
 Production estimate: at most the 100,000-row figure (+0.11 to +0.17 s of
