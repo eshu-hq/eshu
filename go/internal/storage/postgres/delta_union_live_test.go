@@ -204,6 +204,14 @@ func seedDeltaUnionLiveScope(t *testing.T, ctx context.Context, db *sql.DB) {
 			`{"repo_id":"repo-1","relative_path":"other.go"}`,
 		},
 		{
+			"live-base-mod", "gen-live-base", "content_entity", "content_entity:mod",
+			`{"repo_id":"repo-1","relative_path":"other.go","entity_type":"Module","entity_name":"M"}`,
+		},
+		{
+			"live-base-fn", "gen-live-base", "content_entity", "content_entity:fn",
+			`{"repo_id":"repo-1","relative_path":"other.go","entity_type":"function","entity_name":"f"}`,
+		},
+		{
 			"live-delta-repo", "gen-live-delta", "repository", "repository:repo-1",
 			`{"repo_id":"repo-1","local_path":"/repos/alpha","delta_generation":true,"delta_relative_paths":["keep.go","x.go"],"delta_deleted_relative_paths":["w.go"]}`,
 		},
@@ -268,8 +276,8 @@ func TestFactStoreListFactsDeltaUnionLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CountFacts(delta) error = %v, want nil", err)
 	}
-	if got, want := count, 7; got != want {
-		t.Fatalf("CountFacts(delta) = %d, want %d (4 base plus 3 delta)", got, want)
+	if got, want := count, 9; got != want {
+		t.Fatalf("CountFacts(delta) = %d, want %d (6 base plus 3 delta)", got, want)
 	}
 }
 
@@ -317,6 +325,27 @@ func TestFactStoreReadDeltaUnionActiveLive(t *testing.T) {
 	}
 	if _, ok := exp.Files["w.go"]; ok {
 		t.Fatalf("expected files = %v, want no deleted w.go", exp.Files)
+	}
+	// The ACTIVE Entity flag executes per content_entity row: only
+	// function/Function rows flag, so an AND-to-OR slip that flags the
+	// Module row reads back here.
+	byStableKey := make(map[string]goldengate.DeltaUnionActiveRow, len(snapshot.Rows))
+	for _, row := range snapshot.Rows {
+		byStableKey[row.StableKey] = row
+	}
+	fnRow, ok := byStableKey["content_entity:fn"]
+	if !ok {
+		t.Fatalf("active rows are missing content_entity:fn: %v", byStableKey)
+	}
+	if !fnRow.Entity {
+		t.Fatalf("content_entity:fn Entity = %v, want true (function rows must flag)", fnRow.Entity)
+	}
+	modRow, ok := byStableKey["content_entity:mod"]
+	if !ok {
+		t.Fatalf("active rows are missing content_entity:mod: %v", byStableKey)
+	}
+	if modRow.Entity {
+		t.Fatalf("content_entity:mod Entity = %v, want false (Module rows must not flag)", modRow.Entity)
 	}
 }
 
