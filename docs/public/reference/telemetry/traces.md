@@ -118,10 +118,12 @@ AWS runtime drift, and replatforming routes, the supply-chain query routes
 and vulnerability suppression mutation, the package-registry and
 secrets/IAM routes, and the CI/CD, codeowners, dependency, freshness,
 incident, Kubernetes, metrics, observability coverage, service catalog,
-Terraform drift, and work-item routes, and the `POST /api/v0/code/*`
-routes other than `POST /api/v0/code/language-query`, the entity and
-workload routes, the `/api/v0/admin/*` routes, the status, evidence, and
-investigation packet routes in
+Terraform drift, and work-item routes, the `POST /api/v0/code/*` routes
+including `POST /api/v0/code/language-query`, the entity and workload routes,
+the `/api/v0/admin/*` routes, the capability catalog, the identity admin,
+provider-config, and local identity routes in
+[Identity Route Failures](../http-api/identity-failures.md), the status,
+evidence, and investigation packet routes in
 [Status And Evidence Route Failures](../http-api/status-evidence-failures.md),
 the auth and session routes in
 [Auth and session route failures](../http-api/auth-session-failures.md),
@@ -132,9 +134,11 @@ and the environment comparison and semantic search routes in
 (#7674). The code-flow routes
 answered a cancel with `408` before. A `503` that reports a configuration or
 readiness state, on these routes or the impact code-evidence reads, marks the
-span the same way a fault does, except on the status, evidence,
-investigation packet, auth, session, infra, inventory, and semantic search routes: there a
-configuration `503` is a plain write and does not mark the span. Other routes still answer a cancel with `500`
+span the same way a fault does, except on the status, evidence, and
+investigation packet routes, the identity admin, provider-config, and local
+identity routes, the auth and session routes, the infra and inventory
+routes, and the semantic search routes: there a configuration `503` is a plain
+write and does not mark the span. Other routes still answer a cancel with `500`
 until #7674 lands.
 
 Two operator effects follow. Eshu's own `eshu_dp_api_request_errors_total`

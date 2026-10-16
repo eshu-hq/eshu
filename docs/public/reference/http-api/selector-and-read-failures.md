@@ -39,7 +39,10 @@ selector lookup failed`, recorded on the request span (on `POST
 text. The stats route keeps `504`, with the same fixed message, when the
 selector read runs out its 2-second route budget. An unmatched selector stays
 `404`, except on `POST /api/v0/iac/dead`, which keeps its `400`; an ambiguous
-selector stays `400`.
+selector stays `400`. On the content read and search routes, a selector error
+that is none of these answers is a server fault: it answers `500` with
+`repository selector lookup failed`, or `499` on a client cancel, never a
+`400` that echoes its text (#7674).
 
 ## Read failures after the selector resolves
 
@@ -232,15 +235,17 @@ path-comparison selector that matches several entities still answers `400`
 quoting the selector, the repository id, and each candidate's id, path, and
 start line, and a store failure while resolving it answers `500` `call chain
 endpoint resolution failed`. A service that is not found answers `404` with
-only the selector text. `POST /api/v0/code/language-query` is not converted
-yet: its reads still answer a client cancel with `500`.
+only the selector text. `POST /api/v0/code/language-query` answers a failed
+graph or content read with `500` `language query failed` after the reader
+fence and graph verdicts, and a client cancel with `499`.
 
 ## Client cancels
 
 A client that cancels its request while one of the post-selector reads above
 runs, while a selector lookup runs through the shared selector helper, or
-while a read on any route in the sections above runs (except the
-`POST /api/v0/code/language-query` reads), or while a read on the
+while a read on any route in the sections above runs, while
+`GET /api/v0/capabilities` loads its catalog (`capability catalog
+unavailable`), or while a read on the
 [compare and semantic search routes](compare-and-semantic-search-failures.md)
 runs, gets `499` with the same fixed message, and
 the request span is not marked as an error; the span carries an
