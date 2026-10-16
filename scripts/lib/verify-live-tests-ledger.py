@@ -11,6 +11,7 @@
 # deadlocks on heredoc bodies over 512 bytes.
 #
 # Usage: verify-live-tests-ledger.py <ledger_path> <repo_root>
+import ast
 import hashlib
 import os
 from pathlib import Path
@@ -34,6 +35,62 @@ from postgres_scheduled_runner import (
     load_inventory as load_scheduled_inventory,
     verify_inventory as verify_scheduled_inventory,
 )
+
+
+NORNIC_CLI_SOURCE_SHA256 = "df58ba4e0f35fd0cd8308a3a04aee2ce45f1ab0b8e932a15350668a91e6a32fd"
+NORNIC_CLI_MAIN = '''def main() -> int:
+    """Check runner enrollment, then optionally a captured Go event stream."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--source-check", action="store_true")
+    parser.add_argument("--events", type=Path)
+    args = parser.parse_args()
+    try:
+        inventory = load_inventory()
+        verify_source_and_runner(ROOT, inventory)
+        if args.events is None:
+            return 0
+        names = {name for tests in inventory.values() for name in tests}
+        return 0 if verify_events(args.events, names, sys.stderr) else 1
+    except (OSError, ValueError, re.error) as error:
+        print(error, file=sys.stderr)
+        return 1'''
+NORNIC_CLI_DISPATCH = 'if __name__ == "__main__":\n    raise SystemExit(main())\n'
+
+
+def verify_nornic_cli_activation(path: Path) -> None:
+    """Bind the CLI proof path before importing its module."""
+    source = path.read_text(encoding="utf-8")
+    try:
+        tree = ast.parse(source)
+        canonical_main = ast.parse(NORNIC_CLI_MAIN).body[0]
+        canonical_dispatch = ast.parse(NORNIC_CLI_DISPATCH).body[0]
+    except SyntaxError as error:
+        raise ValueError(f"invalid Nornic verifier Python syntax: {error}") from error
+    mains = [node for node in tree.body
+             if isinstance(node, ast.FunctionDef) and node.name == "main"]
+    if len(mains) != 1 or ast.dump(mains[0], include_attributes=False) != ast.dump(
+            canonical_main, include_attributes=False):
+        raise ValueError("Nornic verifier main validation changed")
+    if not tree.body or ast.dump(tree.body[-1], include_attributes=False) != ast.dump(
+            canonical_dispatch, include_attributes=False):
+        raise ValueError("Nornic verifier CLI dispatch changed")
+    for index, node in enumerate(tree.body[:-1]):
+        docstring = (index == 0 and isinstance(node, ast.Expr)
+                     and isinstance(node.value, ast.Constant)
+                     and isinstance(node.value.value, str))
+        if not docstring and not isinstance(node, (
+                ast.Import, ast.ImportFrom, ast.Assign, ast.AnnAssign,
+                ast.FunctionDef)):
+            raise ValueError("Nornic verifier has extra top-level execution")
+    if hashlib.sha256(source.encode()).hexdigest() != NORNIC_CLI_SOURCE_SHA256:
+        raise ValueError("Nornic verifier source changed without reviewed binding")
+
+
+try:
+    verify_nornic_cli_activation(Path(__file__).with_name("nornic_conformance_events.py"))
+except (OSError, ValueError) as error:
+    sys.exit(f"Nornic verifier CLI activation failed: {error}")
+
 from nornic_conformance_events import (
     load_inventory as load_nornic_inventory,
     verify_ledger as verify_nornic_ledger,

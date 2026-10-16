@@ -1,5 +1,6 @@
 """Acceptance tests for exact NornicDB conformance enrollment."""
 
+import ast
 import hashlib
 import importlib.util
 import os
@@ -212,6 +213,121 @@ atexit.register(lambda: print(f"N7_MUTATED_SUBJECT_READS={reads}", file=sys.stde
         )
         self.assertEqual(clean.returncode, 0, clean.stdout + clean.stderr)
         self.assertIn("live-tests ledger ok", clean.stdout)
+
+    def test_ledger_command_rejects_inactive_verifier_cli(self) -> None:
+        """The ledger must reject a verifier whose CLI can falsely succeed."""
+        root = Path(__file__).resolve().parent.parent
+        subject = root / "scripts/lib/nornic_conformance_events.py"
+        source = subject.read_text(encoding="utf-8")
+        entry = 'if __name__ == "__main__":\n    raise SystemExit(main())\n'
+        main = ('def main() -> int:\n'
+                '    """Check runner enrollment, then optionally a captured Go event stream."""\n')
+        self.assertEqual(source.count(entry), 1)
+        self.assertEqual(source.count(main), 1)
+        mutations = (
+            ("constant CLI success", source.replace(entry, entry.replace("main()", "0"), 1)),
+            ("early main return", source.replace(main, main + "    return 0\n", 1)),
+            ("top-level success", source + "raise SystemExit(0)\n"),
+            ("false wrapper", source.replace(entry, entry.replace('__name__ == "__main__"', 'False'), 1)),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            hook = path / "sitecustomize.py"
+            hook.write_text('''from importlib.machinery import SourceFileLoader
+from pathlib import Path
+import atexit
+import os
+import sys
+
+original_read = Path.read_text
+original_data = SourceFileLoader.get_data
+subject = Path(os.environ["N7_CLI_SUBJECT"]).resolve()
+replacement = original_read(Path(os.environ["N7_CLI_REPLACEMENT"]), encoding="utf-8")
+reads = 0
+
+def seeded_read(self, *args, **kwargs):
+    global reads
+    text = original_read(self, *args, **kwargs)
+    if self.resolve() == subject:
+        reads += 1
+        return replacement
+    return text
+
+def seeded_data(self, filename):
+    global reads
+    data = original_data(self, filename)
+    if Path(filename).resolve() == subject:
+        reads += 1
+        return replacement.encode("utf-8")
+    return data
+
+Path.read_text = seeded_read
+SourceFileLoader.get_data = seeded_data
+atexit.register(lambda: print(f"N7_MUTATED_SUBJECT_READS={reads}", file=sys.stderr))
+''')
+            for label, changed in mutations:
+                with self.subTest(label=label):
+                    self.assertNotEqual(changed, source)
+                    replacement = path / "mutated.py"
+                    replacement.write_text(changed, encoding="utf-8")
+                    result = subprocess.run(
+                        ["bash", "scripts/verify-live-tests-ledger.sh"],
+                        cwd=root, capture_output=True, text=True, check=False,
+                        env={**os.environ, "PYTHONPATH": directory,
+                             "PYTHONPYCACHEPREFIX": str(path / "pycache"),
+                             "PYTHONDONTWRITEBYTECODE": "1",
+                             "N7_CLI_SUBJECT": str(subject),
+                             "N7_CLI_REPLACEMENT": str(replacement)},
+                    )
+                    self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertIn("N7_MUTATED_SUBJECT_READS=1", result.stderr)
+                    self.assertIn("CLI activation", result.stderr)
+        clean = subprocess.run(
+            ["bash", "scripts/verify-live-tests-ledger.sh"],
+            cwd=root, capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(clean.returncode, 0, clean.stdout + clean.stderr)
+        self.assertIn("live-tests ledger ok", clean.stdout)
+
+    def test_cli_semantics_survive_hash_repin(self) -> None:
+        """A new digest alone cannot authorize a CLI that skips validation."""
+        root = Path(__file__).resolve().parent.parent
+        ledger_source = (root / "scripts/lib/verify-live-tests-ledger.py").read_text()
+        tree = ast.parse(ledger_source)
+        names = {"NORNIC_CLI_SOURCE_SHA256", "NORNIC_CLI_MAIN",
+                 "NORNIC_CLI_DISPATCH"}
+        definitions = [
+            node for node in tree.body
+            if isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id in names
+                    for target in node.targets)
+        ]
+        functions = [node for node in tree.body
+                     if isinstance(node, ast.FunctionDef)
+                     and node.name == "verify_nornic_cli_activation"]
+        self.assertEqual(len(definitions), 3)
+        self.assertEqual(len(functions), 1)
+        contract = ast.fix_missing_locations(
+            ast.Module(body=definitions + functions, type_ignores=[]))
+        namespace = {"ast": ast, "hashlib": hashlib, "Path": Path}
+        exec(compile(contract, "<production CLI activation>", "exec"), namespace)
+        source = (root / MODULE.__file__).read_text()
+        entry = 'if __name__ == "__main__":\n    raise SystemExit(main())\n'
+        main = ('def main() -> int:\n'
+                '    """Check runner enrollment, then optionally a captured Go event stream."""\n')
+        for changed in (
+            source.replace(entry, entry.replace("main()", "0"), 1),
+            source.replace(main, main + "    return 0\n", 1),
+            source + "raise SystemExit(0)\n",
+            source.replace(entry, entry.replace('__name__ == "__main__"', 'False'), 1),
+        ):
+            with tempfile.TemporaryDirectory() as directory:
+                subject = Path(directory) / "mutated.py"
+                subject.write_text(changed)
+                namespace["NORNIC_CLI_SOURCE_SHA256"] = hashlib.sha256(
+                    changed.encode()).hexdigest()
+                with self.assertRaises(ValueError):
+                    namespace["verify_nornic_cli_activation"](subject)
 
     def test_inventory_cannot_swap_reviewed_files(self) -> None:
         inventory = MODULE.load_inventory()

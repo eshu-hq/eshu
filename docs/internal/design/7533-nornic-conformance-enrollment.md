@@ -17,6 +17,8 @@ wrong-package, and re-pinned-demotion cases.
 The always-run ledger verifier reads the active static workflow and gate
 registry. It binds the complete shell runner, including setup, CORE, the
 NornicDB branch, and the closing tail; an early exit fails the static mirror.
+Before importing the verifier, the ledger binds its source and CLI control
+flow, so a successful early CLI exit cannot bypass source or event checks.
 The E2E PR filter also includes those control files, so an edit that removes
 the static guard still selects the independent conformance job.
 
@@ -38,9 +40,10 @@ package passed with no test skip or failure. The source guard exited 0. The
 worktree stayed clean at the same commit, and eleven source hashes matched
 before and after. The owned container stopped; its unique volume is preserved.
 The local receipt is `nornic7-current-c63c` (`start.json`, `result.json`,
-`nornic-conformance.jsonl`, and `strict-verifier.log`). This is a clean-source
-local proof with the complete-runner guard, not a hosted AMD64 or retained-state
-diagnosis.
+`nornic-conformance.jsonl`, and `strict-verifier.log`). This clean-source
+local run predates the independent CLI activation check. A full-script run on
+the updated guard remains pending. It is not a hosted AMD64 proof or a
+retained-state diagnosis.
 
 Two earlier reused-fixture attempts failed in the unchanged core containment
 readback. In two later parent/candidate pairs,
