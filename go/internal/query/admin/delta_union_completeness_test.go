@@ -163,6 +163,40 @@ func TestDeltaUnionCompletenessCheckNonDeltaSkipsWithoutGraphRead(t *testing.T) 
 	}
 }
 
+// A requested scope with no rows and no delta entry (unknown or typo'd)
+// carries no active generation, so the check reports it skipped with a
+// reason instead of returning an all-clear with no entries (#7797 F1).
+// The erroring graph stub proves no read is issued for it.
+func TestDeltaUnionCompletenessCheckUnknownScopeSkipsWithReason(t *testing.T) {
+	active := &stubDeltaUnionActive{snapshot: pgstatus.DeltaUnionActiveSnapshot{
+		Rows:   nil,
+		Deltas: map[string]goldengate.DeltaUnionDeltaPaths{},
+	}}
+	graph := &stubDeltaUnionGraph{err: errors.New("graph must not be read for a scope with no active generation")}
+	checker := &DeltaUnionCompletenessChecker{Active: active, Graph: graph}
+
+	report, err := checker.Check(context.Background(), []string{"nope-scope"})
+	if err != nil {
+		t.Fatalf("Check() error = %v, want nil (unknown scope skips without a graph read)", err)
+	}
+	if len(report.Repos) != 1 {
+		t.Fatalf("repos = %+v, want exactly one skipped entry for the unknown scope", report.Repos)
+	}
+	entry := report.Repos[0]
+	if entry.Outcome != "skipped" {
+		t.Fatalf("outcome = %q, want skipped: %+v", entry.Outcome, entry)
+	}
+	if entry.ScopeID != "nope-scope" {
+		t.Fatalf("scope = %q, want nope-scope: %+v", entry.ScopeID, entry)
+	}
+	if !strings.Contains(entry.Annotation, "nope-scope") || !strings.Contains(entry.Annotation, "no active generation") {
+		t.Fatalf("annotation = %q, want it to name the scope and the no-active-generation reason", entry.Annotation)
+	}
+	if report.Mismatches != 0 {
+		t.Fatalf("mismatches = %d, want 0", report.Mismatches)
+	}
+}
+
 // A Module content_entity row on a delta-active scope must not drift the
 // per-path count (#7797 P1): the ACTIVE read leaves its Entity flag false
 // (graph readers count only :Function nodes), so the Function-count graph

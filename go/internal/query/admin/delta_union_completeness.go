@@ -161,6 +161,28 @@ func (c *DeltaUnionCompletenessChecker) Check(
 			Annotation:  result.Annotation,
 		})
 	}
+	// A requested scope with no rows and no delta entry assembles no
+	// expectation, so without this it would vanish into an all-clear.
+	// Report each such scope skipped with a reason, in the same shape as
+	// the no-active-generation skips above; skipped entries never count
+	// as mismatches (see SummarizeDeltaUnionCompleteness).
+	seen := make(map[string]struct{}, len(expected))
+	for _, exp := range expected {
+		seen[exp.ScopeID] = struct{}{}
+	}
+	for _, scopeID := range scopes {
+		if _, ok := seen[scopeID]; ok {
+			continue
+		}
+		seen[scopeID] = struct{}{}
+		repos = append(repos, recovery.DeltaUnionRepoReport{
+			ScopeID: scopeID,
+			Outcome: recovery.DeltaUnionRepoSkipped,
+			Active:  recovery.DeltaUnionGeneration{},
+			Annotation: fmt.Sprintf("repo=%s scope=%s: no active generation",
+				"", scopeID),
+		})
+	}
 	return recovery.SummarizeDeltaUnionCompleteness(repos), nil
 }
 
