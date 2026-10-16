@@ -266,7 +266,7 @@ step_live() {
 	# Neo4j because that leg (golden-corpus-gate-neo4j) is the blocking one in CI;
 	# the NornicDB leg is watch-only (#7362).
 	run_or_defer golden-corpus \
-		'^(go/internal/(collector|parser|projector|reducer|query|relationships|storage|demospec|ask|askwiring|answerguardrail|answernarration)/|go/cmd/(bootstrap-index|ingester|projector|reducer|api|golden-corpus-gate|mock-prometheus-mimir|mock-openai-compatible)/|go/cmd/collector-|sdk/go/factschema/|testdata/(golden|cassettes)/|tests/fixtures/ecosystems/|specs/demo-first-answers\.v1\.yaml|scripts/(verify-golden-corpus-gate|test-verify-golden-corpus-gate)\.sh|scripts/lib/(golden-corpus-.+|test-golden-corpus-.+|live-gate-lock)\.sh|\.github/workflows/golden-corpus-gate\.yml)' \
+		'^(go/internal/(collector|parser|projector|reducer|query|relationships|storage|demospec|ask|askwiring|answerguardrail|answernarration)/|go/cmd/(bootstrap-index|ingester|projector|reducer|api|golden-corpus-gate|mock-prometheus-mimir|mock-openai-compatible)/|go/cmd/collector-|sdk/go/factschema/|testdata/(golden|cassettes)/|tests/fixtures/ecosystems/|specs/live-tests(\.v1\.yaml|\.d/)|scripts/(lib/golden_corpus_identity\.py|test-golden-corpus-identity\.py|lib/verify-live-tests-ledger\.py|lib/live_tests_registry\.py|verify-live-tests-ledger\.sh)|specs/demo-first-answers\.v1\.yaml|scripts/(verify-golden-corpus-gate|test-verify-golden-corpus-gate)\.sh|scripts/lib/(golden-corpus-.+|test-golden-corpus-.+|live-gate-lock)\.sh|\.github/workflows/golden-corpus-gate\.yml)' \
 		'docker info' \
 		env ESHU_GRAPH_BACKEND=neo4j bash "${repo_root}/scripts/verify-golden-corpus-gate.sh" || rc=1
 	run_or_defer replay-tier \

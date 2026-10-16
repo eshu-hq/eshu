@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/eshu-hq/eshu/go/internal/query/infra/fulltext"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
@@ -29,6 +30,10 @@ type InfraHandler struct {
 	CloudResources CloudResourceListStore
 	Profile        QueryProfile
 	Instruments    *telemetry.Instruments
+	// SearchKey selects the #7245 infra_search_key_ft read for free-text
+	// searches on Neo4j when ESHU_INFRA_SEARCH_KEY_READ is on and the index is
+	// ready. Nil keeps every search on the legacy per-label statement.
+	SearchKey *fulltext.Reader
 
 	relationshipBreakdownOnce  sync.Once
 	relationshipBreakdownSlots chan struct{}
@@ -393,7 +398,20 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	) {
 		rows, err = h.searchArgoCDCategoryRows(r.Context(), access, req.Limit+1)
 	} else {
-		rows, err = h.Neo4j.Run(r.Context(), cypher, params)
+		searchKeyRequest := fulltext.Request{
+			Neo4j:       h.GraphBackend == querycontract.GraphBackendNeo4j,
+			Query:       query,
+			Labels:      labels,
+			WhereExtra:  whereExtra,
+			Scoped:      neo4jScoped,
+			ReturnExprs: infraSearchReturnExprs(),
+			Legacy:      cypher,
+			Params:      params,
+		}
+		if neo4jScoped {
+			searchKeyRequest.ScopePredicate = infraResourceScopeListPredicate("n")
+		}
+		rows, err = h.SearchKey.Rows(r.Context(), h.Neo4j, searchKeyRequest)
 	}
 	if err != nil {
 		if WriteGraphReadError(w, r, err, "platform_impact.deployment_chain") {

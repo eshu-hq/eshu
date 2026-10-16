@@ -219,6 +219,18 @@
   for the reopen-anchor proof. An unbounded (or unreachably-bounded, or
   no-grace-window-on-reopen) defer would starve a genuine orphan (a resource
   with no Terraform state anywhere, ever) forever.
+- **Package-consumption backfill rebuilds a scope one page per transaction
+  (#7663)** — `PackageManifestConsumptionKeyBackfill.Run` hands each scope to
+  `consumption.Rebuilder`. That rebuilder takes the scope's `ingestion_scopes`
+  row `FOR NO KEY UPDATE` under a 5 s `lock_timeout`, once in the start
+  transaction and once for each 500-fact page. Never fold the pages back into
+  one transaction: that held a 63k-fact scope's row for over an hour and
+  blocked every foreign-key insert for the scope. A writer that sets
+  `eshu.package_manifest_consumption_keys_writer` must take that row lock
+  first, as `upsertIngestionScope` does. Keep
+  `listPackageManifestConsumptionKeyScopeFactsSQL`'s predicate byte-aligned
+  with migration 181's partial index. See `consumption/AGENTS.md` and
+  `docs/internal/evidence/7663-backfill-page-lock.md`.
 
 ## Evidence notes
 

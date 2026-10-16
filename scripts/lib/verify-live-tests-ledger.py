@@ -18,6 +18,11 @@ import re
 import subprocess
 import sys
 
+from golden_corpus_identity import (
+    PROOFS as IDENTITY_PROOFS,
+    verify_inventory as verify_identity,
+    verify_routes as verify_identity_routes,
+)
 from live_tests_registry import load_ledger_text
 from live_postgres_migrations import MIGRATION_PATHS
 from reducer_contention_events import load_inventory, verify_inventory
@@ -51,6 +56,7 @@ contention_ledger_paths = set()
 ifa_scheduled_inventory = load_ifa_scheduled_inventory()
 ifa_scheduled_paths = set(ifa_scheduled_inventory)
 verified_ifa_scheduled_paths = set()
+identity_ledger_paths = set()
 for path, tag, cls, reason, runner, backends in rows:
     if path in seen_files:
         sys.exit(f"duplicate ledger row: {path}")
@@ -72,6 +78,10 @@ for path, tag, cls, reason, runner, backends in rows:
             contention_ledger_paths.add(path)
             if path not in contention_paths or tag.strip() != "~" or backends:
                 sys.exit(f"contention row needs an enrolled untagged PostgreSQL-only file: {path}")
+        elif runner == "golden-corpus-identity":
+            identity_ledger_paths.add(path)
+            if path not in IDENTITY_PROOFS or tag.strip() != "~" or backends:
+                sys.exit(f"B-7 identity row needs an enrolled untagged PostgreSQL-only file: {path}")
         elif runner != "query-methodology":
             sys.exit(f"dedicated CI row needs its verified runner: {path}")
         elif path.endswith("methodology_postgres_live_test.go"):
@@ -139,6 +149,15 @@ try:
     verify_ifa_scheduled_inventory(Path(repo_root), ifa_scheduled_inventory)
 except (OSError, ValueError, re.error) as error:
     sys.exit(f"Ifá scheduled runner enrollment failed: {error}")
+if identity_ledger_paths != set(IDENTITY_PROOFS):
+    sys.exit("B-7 identity inventory/ledger mismatch: "
+             f"missing={sorted(set(IDENTITY_PROOFS) - identity_ledger_paths)} "
+             f"extra={sorted(identity_ledger_paths - set(IDENTITY_PROOFS))}")
+try:
+    verify_identity(Path(repo_root))
+    verify_identity_routes(Path(repo_root))
+except (OSError, ValueError) as error:
+    sys.exit(f"B-7 identity runner enrollment failed: {error}")
 
 # The ledger itself lists the exact grandfathered paths. Bind that readable
 # inventory to a fixed digest so a newly scheduled row cannot inherit an

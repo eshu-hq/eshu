@@ -71,6 +71,7 @@ var registrationSteps = []func(){
 	registerHybridRerank,
 	registerRepositoryRetirementSplit,
 	registerOwnGateWake,
+	registerInfraSearchKey,
 }
 
 func init() {

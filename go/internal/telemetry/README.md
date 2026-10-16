@@ -116,7 +116,7 @@ not read the graph on the collection goroutine; `telemetry/snapshot` refreshes t
 | `SharedAcceptanceUpserts` | `eshu_dp_shared_acceptance_upserts_total` |
 | `SharedAcceptanceLookupErrors` | `eshu_dp_shared_acceptance_lookup_errors_total` |
 | `SharedAcceptanceStaleWrites` | `eshu_dp_shared_acceptance_stale_writes_total` |
-| `PackageManifestBackfillPasses` | `eshu_dp_package_manifest_backfill_passes_total` (bounded `outcome`: contended, failed, incomplete, ready) |
+| `PackageManifestBackfillPasses`, `PackageManifestBackfillScopeRebuilds`, `PackageManifestBackfillPageDuration`, `PackageManifestBackfillScopeLockWait` | `eshu_dp_package_manifest_backfill_passes_total` (bounded `outcome`: contended, failed, incomplete, ready); `eshu_dp_package_manifest_backfill_scope_rebuilds_total` (bounded `phase`: initial, dirty_repair; `outcome`: cleared, left_dirty, skipped, disappeared, lock_timeout, failed); `eshu_dp_package_manifest_backfill_page_duration_seconds` (bounded `outcome`: committed, lock_timeout, failed) and `eshu_dp_package_manifest_backfill_scope_lock_wait_seconds`, one observation per scope-rebuild transaction (#7663) |
 | `GenerationRetentionPruned` | `eshu_dp_generation_retention_generations_pruned_total` |
 | `GenerationRetentionRowsPruned` | `eshu_dp_generation_retention_rows_pruned_total` |
 | `GenerationRetentionFailures` | `eshu_dp_generation_retention_failures_total` |

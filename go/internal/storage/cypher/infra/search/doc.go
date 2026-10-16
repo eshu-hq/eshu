@@ -22,5 +22,7 @@
 //
 // Backfill keys existing nodes label by label in batched transactions and
 // repairs stale keys; CountUnkeyed reports nodes no keying writer has touched;
+// IndexState and CountUnkeyedSearchable (flagless nodes that hold a searched
+// field) are the read cutover's readiness probe;
 // OversizedKeyCount is the pre-index readiness probe. All are Neo4j only.
 package search

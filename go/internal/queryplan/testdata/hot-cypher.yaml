@@ -27,6 +27,7 @@ required_ids:
   - QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE
   - QP-RELATIONSHIPS-EDGES
   - QP-INFRA-RESOURCE-SEARCH
+  - QP-INFRA-RESOURCE-SEARCH-FULLTEXT
   - QP-INFRA-RESOURCE-AGGREGATE
   - QP-INFRA-RESOURCE-AGGREGATE-GRAPH
   - QP-CODEOWNERS-OWNERSHIP-LIST
@@ -771,8 +772,8 @@ entries:
     source:
       file: go/internal/query/infra.go
       symbol: (*InfraHandler).searchResources
-      source_sha256: f261312e577febbae0a05f8eb4f566729e4aa3aeba2e75697a469b9260238185
-      line_hint: 195
+      source_sha256: 879e43a0368f60fd6cd067a1e6edc2189eac4183a2e577fb2b6c65b8ef780de6
+      line_hint: 198
     required_limits:
       - $limit
     requires_order: true
@@ -787,6 +788,34 @@ entries:
         - AllNodesScan
         - CartesianProduct
     cypher_sha256: "7047e6e0961883a760e32a9523cd0d5b6553d572611062e09e4caaafd92151c3"
+  - id: QP-INFRA-RESOURCE-SEARCH-FULLTEXT
+    domain: infra
+    backend: neo4j
+    query_kind: cypher
+    source:
+      file: go/internal/query/infra/fulltext/statement.go
+      symbol: UnscopedStatement
+      source_sha256: ed5752a0c58423fabd54109e779e400883382773e46781925d5d6f5f814f2391
+      line_hint: 29
+    required_schema:
+      - infra_search_key_ft
+    required_limits:
+      - $limit
+    requires_order: true
+    caveats:
+      - Neo4j only (#7245 PR-2). Selected per request by fulltext.Select when ESHU_INFRA_SEARCH_KEY_READ=on, the query is not empty, and the cached readiness reads infra_search_key_ft ONLINE with search.CountUnkeyedSearchable == 0 (no unkeyed infra node that holds a searched field); every other request runs QP-INFRA-RESOURCE-SEARCH unchanged. NornicDB never receives this statement.
+      - The anchor is the keyword FULLTEXT index infra_search_key_ft over infra_search_key and infra_search_ovf on the 27 infra labels (db.index.fulltext.queryNodes with infra_search_key:*<escaped query>* OR infra_search_ovf:T). The index only narrows candidates; the label disjunction and the unchanged twelve-field CONTAINS predicate (or the double-colon equality branch) and filters are re-applied to every candidate, so the row set equals QP-INFRA-RESOURCE-SEARCH. No required_anchors entry is declared because the anchor is a procedure call, not a label-property MATCH. required_schema names infra_search_key_ft; the binding test checks it against the Neo4j schema because NornicDB has no form of this index, and the live PROFILE gate creates it before profiling.
+      - RETURN DISTINCT runs before ORDER BY name LIMIT $limit (no inner top-k), matching the de-duplication of the legacy UNION. The Neo4j scoped form (fulltext.ScopedStatement) keeps per-node rows and the hoisted list-EXISTS grant predicate, matching infraSearchNeo4jScopedCypher.
+    plan:
+      operators:
+        - ProcedureCall
+        - Filter
+        - Distinct
+      forbidden_operators:
+        - AllNodesScan
+        - NodeByLabelScan
+        - CartesianProduct
+    cypher_sha256: "1ff7a1896d803deedc4a34f9c476cb1d243eab7be6b54e41169e44c7d99164d2"
   - id: QP-INFRA-RESOURCE-AGGREGATE
     domain: infra
     backend: nornicdb

@@ -1240,6 +1240,18 @@ type Instruments struct {
 	PackageManifestBackfillCursorUpdated metric.Int64Gauge
 	// PackageManifestBackfillReady is one when both sidecars are ready.
 	PackageManifestBackfillReady metric.Int64Gauge
+	// PackageManifestBackfillPageDuration measures each scope-rebuild
+	// transaction (the start transaction and every fact page) from begin to
+	// commit or rollback, by the closed outcome set committed, lock_timeout,
+	// failed (#7663). Its count is the number of rebuild transactions.
+	PackageManifestBackfillPageDuration metric.Float64Histogram
+	// PackageManifestBackfillScopeLockWait measures how long each
+	// scope-rebuild transaction waited for its ingestion_scopes row lock.
+	PackageManifestBackfillScopeLockWait metric.Float64Histogram
+	// PackageManifestBackfillScopeRebuilds counts scope rebuilds by phase
+	// (initial, dirty_repair) and outcome (cleared, left_dirty, skipped,
+	// disappeared, lock_timeout, failed).
+	PackageManifestBackfillScopeRebuilds metric.Int64Counter
 	// InfraInventoryReconcile counts repositories the reducer's infra read
 	// model reconcile checked, by outcome: match (table equals
 	// content_entities), suspect (it differed once and is re-checked next
@@ -2502,6 +2514,20 @@ type Instruments struct {
 	// row in another repository.
 	// Registered by registerLanguageQueryMetadataInstruments.
 	LanguageQueryMetadataRows metric.Int64Counter
+	// InfraSearchPath counts infra resource searches by the statement that
+	// served them (search_path: fulltext, legacy) and reason (#7245). Registered
+	// by registerInfraSearchKeyInstruments.
+	InfraSearchPath metric.Int64Counter
+	// InfraSearchKeyReady is 1 when the last readiness probe found the
+	// infra_search_key_ft index ONLINE and no unkeyed infra node that holds a
+	// searched field (#7245).
+	InfraSearchKeyReady metric.Int64Gauge
+	// InfraSearchKeyIndexOnline is 1 when the last readiness probe read the
+	// infra_search_key_ft index as ONLINE (#7245).
+	InfraSearchKeyIndexOnline metric.Int64Gauge
+	// InfraSearchKeyUnkeyedNodes is the count of unkeyed infra nodes that hold
+	// a searched field at the last successful readiness probe (#7245).
+	InfraSearchKeyUnkeyedNodes metric.Int64Gauge
 	// ReducerOwnGateWake counts #7597 own-gate wake statements by site
 	// (activation, fail) and outcome (reopened, noop, error), once per
 	// statement. Registered by registerOwnGateWakeInstruments.
@@ -4435,6 +4461,31 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	if err != nil {
 		return nil, fmt.Errorf("register PackageManifestBackfillReady gauge: %w", err)
 	}
+	inst.PackageManifestBackfillPageDuration, err = meter.Float64Histogram(
+		"eshu_dp_package_manifest_backfill_page_duration_seconds",
+		metric.WithDescription("Begin-to-end time of one package-consumption sidecar scope-rebuild transaction (start or fact page), by outcome: committed, lock_timeout, failed"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PackageManifestBackfillPageDuration histogram: %w", err)
+	}
+	inst.PackageManifestBackfillScopeLockWait, err = meter.Float64Histogram(
+		"eshu_dp_package_manifest_backfill_scope_lock_wait_seconds",
+		metric.WithDescription("Time one package-consumption sidecar scope-rebuild transaction waited for its ingestion_scopes row lock"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(0, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 5, 10),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PackageManifestBackfillScopeLockWait histogram: %w", err)
+	}
+	inst.PackageManifestBackfillScopeRebuilds, err = meter.Int64Counter(
+		"eshu_dp_package_manifest_backfill_scope_rebuilds_total",
+		metric.WithDescription("Package-consumption sidecar scope rebuilds by phase (initial, dirty_repair) and outcome: cleared, left_dirty, skipped, disappeared, lock_timeout, failed"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PackageManifestBackfillScopeRebuilds counter: %w", err)
+	}
 
 	inst.InfraInventoryReconcile, err = meter.Int64Counter(
 		"eshu_dp_infra_inventory_reconcile_total",
@@ -5356,6 +5407,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	if err := registerLanguageQueryMetadataInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerInfraSearchKeyInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerOwnGateWakeInstruments(meter, inst); err != nil {

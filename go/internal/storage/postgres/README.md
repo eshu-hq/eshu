@@ -990,6 +990,24 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 No-regression and observability proof for this retry class lives in
 [`evidence-notes.md`](evidence-notes.md#reducer-endpoint-readiness-retry-1391).
 
+- The package-consumption sidecar backfill
+  (`package_manifest_consumption_backfill.go`) rebuilds each scope through
+  `consumption.Rebuilder`. A short start transaction clears the scope's
+  sidecar rows and fences it dirty. Then one transaction per 500-fact page
+  re-derives the keys, and the last page clears the dirty row only when its
+  `xmin` is unchanged. Each transaction holds the scope row `FOR NO KEY
+  UPDATE`, so foreign-key inserts for the scope never wait, and a lock wait
+  over 5 s fails the pass with SQLSTATE 55P03 so the scope retries on the next
+  pass. Per-scope `package_manifest_consumption_keys.backfill.progress` and
+  `.scope_failed` log lines carry pages, facts, transactions, the longest
+  transaction, and scope-row lock wait.
+  `eshu_dp_package_manifest_backfill_page_duration_seconds`,
+  `eshu_dp_package_manifest_backfill_scope_lock_wait_seconds`, and
+  `eshu_dp_package_manifest_backfill_scope_rebuilds_total` carry the same
+  signals as metrics. Migration 181's partial index keeps every page an
+  ordered index range scan. Evidence:
+  `docs/internal/evidence/7663-backfill-page-lock.md`.
+
 ## Extension points
 
 - New store — implement against `db.ExecQueryer`; wrap with `InstrumentedDB` for

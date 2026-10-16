@@ -115,18 +115,27 @@ class IfaLedgerPolicyTest(unittest.TestCase):
         inventory = json.loads(INVENTORY.read_text())
         target = sorted(inventory)[0]
         marker = f"  - file: {target}\n"
+        self.assertTrue(
+            marker in source, f"missing target fixture row: {target}"
+        )
         start = source.index(marker)
         end = source.find("  - file: ", start + len(marker))
         self.assertGreater(end, start)
         row = source[start:end]
         foreign = "go/cmd/reducer/neo4j_write_timeout_live_test.go"
         foreign_marker = f"  - file: {foreign}\n"
+        self.assertTrue(
+            foreign_marker in source, f"missing foreign fixture row: {foreign}"
+        )
         foreign_start = source.index(foreign_marker)
         foreign_end = source.find("  - file: ", foreign_start + len(foreign_marker))
         self.assertGreater(foreign_end, foreign_start)
         foreign_row = source[foreign_start:foreign_end]
         postgres_path = "go/internal/query/content_reader_entity_search_plan_live_test.go"
         postgres_marker = f"  - file: {postgres_path}\n"
+        self.assertTrue(
+            postgres_marker in source, f"missing PostgreSQL fixture row: {postgres_path}"
+        )
         postgres_start = source.index(postgres_marker)
         postgres_end = source.find("  - file: ", postgres_start + len(postgres_marker))
         self.assertGreater(postgres_end, postgres_start)

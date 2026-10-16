@@ -149,6 +149,18 @@ PACKAGES = {
             "TestPackageManifestConsumptionBackfillBoundsTwentyFiveScopePassLive",
             "TestPackageManifestConsumptionBackfillConcurrentPassesAreIdempotentLive",
         ),
+        "go/internal/storage/postgres/package_manifest_consumption_page_lock_live_test.go": (
+            "TestPackageManifestConsumptionScopeRebuildReleasesScopeBetweenPagesLive",
+            "TestPackageManifestConsumptionScopeRebuildLockTimeoutLeavesScopeUnreadyLive",
+            "TestPackageManifestConsumptionScopeRebuildResumesAfterPageFailureAndCancelLive",
+        ),
+        "go/internal/storage/postgres/package_manifest_consumption_page_fence_live_test.go": (
+            "TestPackageManifestConsumptionScopeRebuildKeepsOldWriterDirtyLive",
+            "TestPackageManifestConsumptionScopeRebuildKeepsConcurrentWriterKeysLive",
+        ),
+        "go/internal/storage/postgres/package_manifest_consumption_page_plan_live_test.go": (
+            "TestPackageManifestConsumptionScopeFactsPageUsesBackfillIndexLive",
+        ),
         "go/internal/storage/postgres/generation_retention_hard_ceiling_live_test.go": (
             "TestGenerationRetentionHardCeilingLive",
         ),
@@ -182,6 +194,13 @@ PACKAGES = {
         ),
         "go/internal/storage/postgres/generation_retention_chunk_insert_wait_live_test.go": (
             "TestGenerationRetentionChunkConcurrentInsertWaitsLive",
+        ),
+        "go/internal/storage/postgres/generation_retention_delta_base_live_test.go": (
+            "TestGenerationRetentionDeltaBaseLive",
+            "TestGenerationRetentionDeltaBaseSkipsUnactivatedNewerFullLive",
+        ),
+        "go/internal/storage/postgres/generation_retention_delta_base_relock_live_test.go": (
+            "TestGenerationRetentionRelockKeepsFlippedDeltaChainLive",
         ),
         "go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go": (
             "TestPackageManifestConsumptionMigrationsUpgradeAfterSecretLinesLive",
