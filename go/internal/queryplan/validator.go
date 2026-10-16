@@ -17,7 +17,7 @@ const (
 )
 
 var (
-	createSchemaNamePattern = regexp.MustCompile(`(?i)\bCREATE\s+(?:CONSTRAINT|INDEX)\s+([A-Za-z_][A-Za-z0-9_]*)\b`)
+	createSchemaNamePattern = regexp.MustCompile(`(?i)\bCREATE\s+(?:CONSTRAINT|(?:FULLTEXT\s+)?INDEX)\s+([A-Za-z_][A-Za-z0-9_]*)\b`)
 	unlabeledMatchPattern   = regexp.MustCompile(`(?i)\bMATCH\s*\([A-Za-z_][A-Za-z0-9_]*\s*(?:\)|\{)`)
 	unboundedStarPattern    = regexp.MustCompile(`\[[^\]]*\*\s*\]`)
 	openRangeStarPattern    = regexp.MustCompile(`\[[^\]]*\*\s*\d+\s*\.\.\s*\]`)

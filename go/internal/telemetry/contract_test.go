@@ -108,6 +108,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"direction",
 		"class",
 		"site",
+		"search_path",
 	}
 
 	got := MetricDimensionKeys()
