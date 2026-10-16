@@ -8,6 +8,20 @@ package impact
 // spliced into Routes. The sections enum must equal
 // deployment.SectionNames(); go/internal/mcp tests assert that.
 
+// traceDeploymentNotFoundResponse is the shared 404 response object for the
+// two deployment-trace routes (#7767 Gap 3): trace-deployment-chain and
+// deployment-config-influence answer a nil workload context with the typed
+// service_not_found refusal instead of the generic NotFound shape, so the
+// details.references hint contract is documented once for both.
+const traceDeploymentNotFoundResponse = `{
+            "description": "No workload context resolved for the requested selector: no materialized workload matched and the repository read model held no workload identity for it. error.code is service_not_found. Under the envelope Accept header error.details carries references (the granted ArgoCDApplication, ArgoCDApplicationSet, and HelmChart entities exactly matching the requested name, as repo_id/relative_path/entity_type/entity_name file handles, sorted, at most 20) and truncated (whether further granted records exist); it never names a workload id, and an ungranted name answers exactly like an unknown one. Without the envelope header the body is the historical bare 404.",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+              }
+            }
+          }`
+
 // traceDeploymentSelectionRequestProperties are the evidence_detail and
 // sections request properties, the tail of the request property list.
 const traceDeploymentSelectionRequestProperties = `
