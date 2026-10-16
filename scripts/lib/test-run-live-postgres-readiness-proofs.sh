@@ -67,7 +67,7 @@ check_each_proof() {
       cmp -s "${ev}" "${ev}.clean" && fail "${label} seed changed nothing"
       out="$(python3 "${checker}" verify-results "${ev}" "${pkg}" 2>&1 </dev/null)" &&
         fail "${subject} passed"
-      [[ "${out}" == *"${name}: ${want}"* ]] || fail "${label} not named: ${out}"
+      [[ $'\n'"${out}" == *$'\n'"${name}: ${want}"* ]] || fail "${label} not named: ${out}"
       mv "${ev}.clean" "${ev}"
     done
   done
