@@ -15,7 +15,8 @@ its protocol companion.
 |---|---|
 | PR3b-1a (this package's first version) | migration 170 tables, the encoding check, the read-model port, the walk claim, the dirty join, the version-row guard |
 | PR3b-1b | migration 186: the five fence triggers (four `content_files_version_fence_*` on `content_files` and `config_artifact_fence_pending_commit` on the pending table); migration 187: the version-0 seed |
-| PR3b-2 | the derive in `ContentWriter.Write`, the walker derive, telemetry, env variables |
+| PR3b-2a | `CheckFence`, the start-up check of the five fence triggers (no caller yet) |
+| PR3b-2 | the derive in `ContentWriter.Write`, the walker derive, the start-up wiring of `CheckEncoding` and `CheckFence`, telemetry, env variables |
 | PR3c | the stored reader, the read mode, the `/admin/status` field |
 
 From PR3b-1b on, every `content_files` write bumps
@@ -43,6 +44,8 @@ because each derive rewrites a repository's rows.
 ## Exported surface
 
 - `CheckEncoding`, `Encoding` — the start-up UTF8 check (re-ruling 3)
+- `CheckFence`, `Fence`, `FenceTrigger`, `MissingFenceTrigger` — the
+  start-up check of the five fence triggers (S3 ruling)
 - `Reader`, `Repository`, `Row`, `State`, `Reason`, `Classify` — the
   read-model port and the trust condition
 - `ClaimPage`, `LoadCursor` — the walker's cursor claim over the versions
@@ -56,6 +59,20 @@ because each derive rewrites a repository's rows.
   database's `server_encoding` never changes. A process that finds another
   encoding, or cannot read it, keeps the read model `not_installed`: no
   derive, live reads only.
+- **Fence present.** Stored rows are trusted only while every
+  `content_files` write bumps the version. `CheckFence` reads `pg_trigger`
+  once (one statement, `fenceTriggersSQL`) and requires the four
+  `content_files_version_fence_*` triggers on `content_files` and
+  `config_artifact_fence_pending_commit` on `config_artifact_fence_pending`,
+  each non-internal with `tgenabled` `'O'` or `'A'`. An absent trigger, a
+  same-named trigger on another table, `'D'` (disabled) and `'R'` (replica
+  only) count as missing: the result is reason `version_fence_missing`, the
+  read model stays `not_installed`, and the caller skips every derive with
+  outcome `fence_missing`. A failed catalog read gives
+  `fence_check_failed`. Content Writes and live reads proceed either way.
+  `fenceTriggers` in `fence.go` is the only list of names;
+  `TestFenceTriggersMatchMigration186` parses the embedded migration 186 and
+  fails when its `CREATE TRIGGER` statements diverge.
 - **Version rows.** Delete or reset a version row only in the same
   statement that deletes the repository's state row (the retirement path).
   A version row created again while its state row survives counts up from 1
@@ -167,11 +184,31 @@ round 1 measured 62-65 ms at 300,000 repositories (parallel hash join), so the
 cost is linear in repositories. Both tables are O(repositories) (815 in the QA
 environment on 2026-10-10).
 
-No-Observability-Change: no runtime path calls this package in PR3b-1a, so it
-emits no metric, span, or log in production. When PR3b-2 and PR3c call
-`CheckEncoding`, it logs `event_name=postgres.server_encoding` at INFO or
-ERROR, and every statement here runs through the caller's instrumented
-Postgres wrapper (`eshu_dp_postgres_query_duration_seconds`).
+No-Observability-Change: no runtime path calls this package yet, so it
+emits no metric, span, or log in production. `CheckEncoding` and `CheckFence`
+have no caller (PR3b-2 wires them into the deriving binaries and the API).
+When called, `CheckEncoding` logs `event_name=postgres.server_encoding` at
+INFO or ERROR, and every statement here runs through the caller's
+instrumented Postgres wrapper (`eshu_dp_postgres_query_duration_seconds`).
+
+`CheckFence` logs `event_name=postgres.config_artifact_fence`:
+
+| Level | When | Fields |
+|---|---|---|
+| INFO | all five triggers fire | `fence_triggers=5` |
+| ERROR | a trigger is absent, disabled or replica-only | `missing_triggers` (each `table.trigger=state`, state `absent`, `D` or `R`), `missing_count`, `config_artifacts_status=not_installed`, `reason=version_fence_missing`, `outcome=fence_missing` |
+| ERROR | the `pg_trigger` read failed | `config_artifacts_status=not_installed`, `reason=fence_check_failed`, `error` |
+
+At 3 AM grep for `"event_name":"postgres.config_artifact_fence"` with
+`"level":"ERROR"`; `missing_triggers` names the trigger to restore (re-apply
+migration 186 for a dropped trigger, `ALTER TABLE ... ENABLE TRIGGER` for
+`D` or `R`). `OutcomeFenceMissing` is only a constant here: the
+`eshu_dp_config_artifact_derives_total` counter that carries it is registered
+by a later PR3b-2 slice, so no metric exists yet. The catalog read is one
+statement per process start. On a fully bootstrapped PostgreSQL 18.6 database
+(770 `pg_trigger` rows, 26 non-internal) its plan is a hash join of the five
+requested pairs over a sequential scan of `pg_trigger`: 18 shared buffers,
+0.044-0.063 ms execution over four runs on 2026-10-16.
 
 ## Verification
 

@@ -18,6 +18,11 @@ Scoped instructions for the config-artifact read model (#7126). The root
   re-derive, and update `goRowDigest` in `schema_live_test.go`.
 - Keep the UTF8 start-up check fail-closed: an unreadable or non-UTF8
   `server_encoding` keeps the read model off.
+- Keep the fence start-up check fail-closed: an absent, disabled (`'D'`) or
+  replica-only (`'R'`) fence trigger, or a failed `pg_trigger` read, keeps the
+  read model off. `fenceTriggers` in `fence.go` is the one list of trigger
+  names; when a migration renames, adds or drops a fence trigger, change it
+  in the same PR (`TestFenceTriggersMatchMigration186` parses migration 186).
 - Never delete or reset a `config_artifact_content_versions` row except in
   one statement that also deletes the repository's
   `config_artifact_repo_state` row. The guard test fails the build otherwise.
@@ -51,8 +56,8 @@ Scoped instructions for the config-artifact read model (#7126). The root
 
 ## Tests
 
-- `schema_test.go`, `port_test.go`, `encoding_test.go`,
-  `versions_guard_test.go` run without a database.
+- `schema_test.go`, `port_test.go`, `encoding_test.go`, `fence_test.go`,
+  `fence_migration_test.go`, `versions_guard_test.go` run without a database.
 - `*_live_test.go` need `ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN` (an
   administrative `postgres` database DSN) and
   `ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE=1`; each test creates and drops
