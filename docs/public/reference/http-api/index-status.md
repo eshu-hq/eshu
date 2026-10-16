@@ -31,6 +31,10 @@ without a graph query. The withheld sections are process-global: they cannot be
 attributed to a grant, and a `queue_blockages` row reports `conflict_key` as
 `COALESCE(conflict_key, scope_id)`, a raw scope id. They are withheld whole and
 the status snapshot is not read for a scoped caller, the same posture as the
-scoped `GET /api/v0/status/operations` board. A failed graph count is a `500`
-and an unconfigured graph a `503`, never a silent `0`. `eshu mcp setup
+scoped `GET /api/v0/status/operations` board. The graph count is the scoped
+caller's only read. A graph outage answers the retryable `503` with
+`Retry-After`, a graph read deadline answers `504`, any other failed count
+answers `500` with a fixed message, and an unconfigured graph answers `503`
+with no `Retry-After`, never a silent `0`. See
+[Status And Evidence Route Failures](status-evidence-failures.md). `eshu mcp setup
 --verify` smokes this route and passes on the scoped shape.

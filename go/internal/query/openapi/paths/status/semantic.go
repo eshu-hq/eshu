@@ -12,7 +12,7 @@ const Semantic = `
       "get": {
         "tags": ["status"],
         "summary": "Get semantic extraction status",
-        "description": "Returns optional semantic extraction capability status. No-provider mode is reported as unavailable without changing index, reducer, API, MCP, or documentation fact health.",
+        "description": "Returns optional semantic extraction capability status. No-provider mode is reported as unavailable without changing index, reducer, API, MCP, or documentation fact health. A 503 with Retry-After means a transient condition that is safe to retry: the status snapshot read hit a stale or timed-out PostgreSQL reader; this route has no configuration 503, so every 503 it answers carries Retry-After. No 5xx body carries backend error text. A reader-verdict 503 names capability semantic_extraction.status in its error envelope.",
         "operationId": "getSemanticExtractionStatus",
         "x-scoped-token-support": true,
         "responses": {
@@ -107,7 +107,8 @@ const Semantic = `
               }
             }
           },
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },

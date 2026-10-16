@@ -42,7 +42,7 @@ const Investigations = `
       "get": {
         "tags": ["investigations"],
         "summary": "Export deployable-unit investigation packet",
-        "description": "Returns an investigation_evidence_packet.v2 artifact for deployable-unit admission truth, using reducer-owned admission-decision readback.",
+        "description": "Returns an investigation_evidence_packet.v2 artifact for deployable-unit admission truth, using reducer-owned admission-decision readback. A 503 with Retry-After means a transient condition that is safe to retry: the admission decision read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the Postgres admission decision read model is not configured on this API instance. No 5xx body carries backend error text. A reader-verdict 503 names capability admission_decisions.list in its error envelope.",
         "operationId": "getDeployableUnitPacket",
         "x-scoped-token-support": true,
         "parameters": [
@@ -66,7 +66,7 @@ const Investigations = `
       "get": {
         "tags": ["investigations"],
         "summary": "Export runtime-drift investigation packet",
-        "description": "Returns an investigation_evidence_packet.v2 artifact for bounded provider-neutral runtime drift findings. Scoped tokens must carry an exact AllowedScopeIDs grant for the requested cloud ingestion scope_id -- drift findings have no repository dimension, so there is no repository-to-cloud-scope map on this path -- and receive a scope_not_found refusal packet instead of findings for an ungranted or empty-grant scope_id.",
+        "description": "Returns an investigation_evidence_packet.v2 artifact for bounded provider-neutral runtime drift findings. Scoped tokens must carry an exact AllowedScopeIDs grant for the requested cloud ingestion scope_id -- drift findings have no repository dimension, so there is no repository-to-cloud-scope map on this path -- and receive a scope_not_found refusal packet instead of findings for an ungranted or empty-grant scope_id. A 503 with Retry-After means a transient condition that is safe to retry: the drift finding read hit a stale or timed-out PostgreSQL reader; this route has no configuration 503, so every 503 it answers carries Retry-After. No 5xx body carries backend error text. A reader-verdict 503 names capability cloud_runtime_drift.readback.list in its error envelope.",
         "operationId": "getDriftPacket",
         "x-scoped-token-support": true,
         "parameters": [
@@ -83,7 +83,8 @@ const Investigations = `
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "501": {"$ref": "#/components/responses/NotImplemented"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },

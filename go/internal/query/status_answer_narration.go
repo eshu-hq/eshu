@@ -4,12 +4,15 @@
 package query
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
+
+// answerNarrationStatusReadFailedMessage is the fixed body of a failed status
+// snapshot read on GET /api/v0/status/answer-narration (#7674).
+const answerNarrationStatusReadFailedMessage = "answer narration status read failed"
 
 const answerNarrationStatusCapability = "answer_narration.status"
 
@@ -35,7 +38,7 @@ func (h *StatusHandler) getAnswerNarrationStatus(w http.ResponseWriter, r *http.
 	if h != nil && h.StatusReader != nil {
 		_, loaded, err := loadStatusReportFiltered(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions(), operatorStatusSelection())
 		if err != nil {
-			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load status: %v", err))
+			writeReadFailure(w, r, err, answerNarrationStatusCapability, answerNarrationStatusReadFailedMessage)
 			return
 		}
 		report = loaded

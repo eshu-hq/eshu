@@ -186,6 +186,9 @@ the fixed message `repository selector lookup failed` (#7626).
 The repository-selector lookup failure, post-selector read failure, and
 client-cancel contracts are in
 [Selector And Read Failures](http-api/selector-and-read-failures.md).
+The status, evidence, and investigation packet routes are listed with their
+fixed messages in
+[Status And Evidence Route Failures](http-api/status-evidence-failures.md).
 Routes outside the dead-code and
 dead-IaC lanes and `GET /api/v0/supply-chain/impact/findings` that write a
 store error straight into a `500` do not yet map a reader fence failure and

@@ -8,7 +8,19 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
+
+// Fixed bodies of the failure steps on GET
+// /api/v0/investigations/deployable-unit/packet (#7674): the admission
+// decision read, the packet build, and the scope-not-found refusal packet
+// build. The read error can quote SQL and hosts, and a build error quotes
+// packet contents, so neither reaches the body; each goes on the request span.
+const (
+	deployableUnitPacketReadFailedMessage    = "deployable-unit packet admission decision read failed"
+	deployableUnitPacketBuildFailedMessage   = "deployable-unit packet build failed"
+	deployableUnitRefusalPacketFailedMessage = "deployable-unit refusal packet build failed"
 )
 
 func (h *EvidenceHandler) getDeployableUnitPacket(w http.ResponseWriter, r *http.Request) {
@@ -58,7 +70,7 @@ func (h *EvidenceHandler) getDeployableUnitPacket(w http.ResponseWriter, r *http
 	}
 	rows, err := h.AdmissionDecisions.ListAdmissionDecisions(r.Context(), filter)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeReadFailure(w, r, err, admissionDecisionCapability, deployableUnitPacketReadFailedMessage)
 		return
 	}
 	decisions := make([]AdmissionDecisionResult, 0, len(rows))
@@ -73,7 +85,7 @@ func (h *EvidenceHandler) getDeployableUnitPacket(w http.ResponseWriter, r *http
 	)
 	packet, err := BuildDeployableUnitPacket(decisions, subject, truth, packetBoundsFromRequest(r))
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, deployableUnitPacketBuildFailedMessage)
 		return
 	}
 	writeInvestigationPacket(w, r, packet)
@@ -111,7 +123,7 @@ func deployableUnitPacketFilterFromRequest(
 func (h *EvidenceHandler) writeEmptyDeployableUnitPacket(w http.ResponseWriter, r *http.Request) {
 	packet, err := refusalPacketForAPI(InvestigationFamilyDeployableUnit, PacketRefusalScopeNotFound)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, deployableUnitRefusalPacketFailedMessage)
 		return
 	}
 	writeInvestigationPacket(w, r, packet)

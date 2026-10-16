@@ -4,7 +4,6 @@
 package query
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
@@ -14,6 +13,10 @@ import (
 )
 
 const semanticExtractionStatusCapability = "semantic_extraction.status"
+
+// semanticExtractionStatusReadFailedMessage is the fixed body of a failed
+// status snapshot read on GET /api/v0/status/semantic-extraction (#7674).
+const semanticExtractionStatusReadFailedMessage = "semantic extraction status read failed"
 
 func (h *StatusHandler) profile() QueryProfile {
 	if h == nil || h.Profile == "" {
@@ -27,7 +30,7 @@ func (h *StatusHandler) getSemanticExtractionStatus(w http.ResponseWriter, r *ht
 	if h != nil && h.StatusReader != nil {
 		loaded, err := status.LoadSemanticExtractionStatus(r.Context(), h.StatusReader, time.Now())
 		if err != nil {
-			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load status: %v", err))
+			writeReadFailure(w, r, err, semanticExtractionStatusCapability, semanticExtractionStatusReadFailedMessage)
 			return
 		}
 		semanticStatus = loaded

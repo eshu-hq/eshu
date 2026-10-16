@@ -12,7 +12,7 @@ const AnswerNarration = `
       "get": {
         "tags": ["status"],
         "summary": "Get answer narration status",
-        "description": "Returns optional governed answer narration posture. The default is unavailable with deterministic answer packets still available as the canonical fallback; the response never includes prompts, provider responses, credentials, private paths, or source identifiers.",
+        "description": "Returns optional governed answer narration posture. The default is unavailable with deterministic answer packets still available as the canonical fallback; the response never includes prompts, provider responses, credentials, private paths, or source identifiers. A 503 with Retry-After means a transient condition that is safe to retry: the status snapshot read hit a stale or timed-out PostgreSQL reader; this route has no configuration 503, so every 503 it answers carries Retry-After. No 5xx body carries backend error text. A reader-verdict 503 names capability answer_narration.status in its error envelope.",
         "operationId": "getAnswerNarrationStatus",
         "x-scoped-token-support": true,
         "responses": {
@@ -45,7 +45,8 @@ const AnswerNarration = `
               }
             }
           },
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },

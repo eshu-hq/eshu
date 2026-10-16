@@ -15,6 +15,20 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/admin/audit"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
+)
+
+// Fixed client-facing messages for the two audit reads (#7674). The store
+// error can quote SQL and hosts, so it goes on the request span and the
+// error log, never into the body. Both reads go through the guarded
+// PostgreSQL reader, so each failure site first answers a stale or timed-out
+// reader with the retryable 503. The routes have no capability-matrix key yet
+// (#8227), so each site passes querycontract.NoCapability and the envelope
+// carries no capability field. A client cancel answers 499 and is not logged
+// as a failure.
+const (
+	auditEventsListFailedMessage = "failed to list audit events"
+	auditSummaryFailedMessage    = "failed to summarize audit events"
 )
 
 func (h *ReadHandler) handleListAuditEvents(w http.ResponseWriter, r *http.Request) {
@@ -52,8 +66,13 @@ func (h *ReadHandler) handleListAuditEvents(w http.ResponseWriter, r *http.Reque
 	}
 	events, err := h.Audit.ListAuditEvents(r.Context(), query)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "admin list audit events failed", "err", err)
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to list audit events")
+		if !tracing.ClientCanceled(r.Context(), err) {
+			slog.ErrorContext(r.Context(), "admin list audit events failed", "err", err)
+		}
+		if querycontract.WriteGraphReadError(w, r, err, querycontract.NoCapability) {
+			return
+		}
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, auditEventsListFailedMessage)
 		return
 	}
 	out := make([]map[string]any, 0, len(events))
@@ -91,8 +110,13 @@ func (h *ReadHandler) handleAuditSummary(w http.ResponseWriter, r *http.Request)
 		summary, err = h.Audit.SummarizeAuditEvents(r.Context())
 	}
 	if err != nil {
-		slog.ErrorContext(r.Context(), "admin audit summary failed", "err", err)
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to summarize audit events")
+		if !tracing.ClientCanceled(r.Context(), err) {
+			slog.ErrorContext(r.Context(), "admin audit summary failed", "err", err)
+		}
+		if querycontract.WriteGraphReadError(w, r, err, querycontract.NoCapability) {
+			return
+		}
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, auditSummaryFailedMessage)
 		return
 	}
 	querycontract.WriteJSON(w, http.StatusOK, auditSummaryJSON(summary))

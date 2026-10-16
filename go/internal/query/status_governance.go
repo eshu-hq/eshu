@@ -5,7 +5,6 @@ package query
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -17,6 +16,13 @@ import (
 )
 
 const hostedGovernanceStatusCapability = "hosted_governance.status"
+
+// Fixed bodies of the two failed reads on GET /api/v0/status/governance
+// (#7674): the status snapshot and the governance audit summary.
+const (
+	governanceStatusReadFailedMessage       = "governance status read failed"
+	governanceAuditSummaryReadFailedMessage = "governance audit summary read failed"
+)
 
 // GovernanceStatusConfig carries redacted operator-visible governance readback
 // settings.
@@ -51,7 +57,7 @@ func (h *StatusHandler) getGovernanceStatus(w http.ResponseWriter, r *http.Reque
 	if h != nil && h.StatusReader != nil {
 		_, loaded, err := loadStatusReportFiltered(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions(), operatorStatusSelection())
 		if err != nil {
-			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load status: %v", err))
+			writeReadFailure(w, r, err, hostedGovernanceStatusCapability, governanceStatusReadFailedMessage)
 			return
 		}
 		report = loaded
@@ -60,7 +66,7 @@ func (h *StatusHandler) getGovernanceStatus(w http.ResponseWriter, r *http.Reque
 	if h != nil && h.GovernanceAudit != nil {
 		summary, err := h.GovernanceAudit.Summary(r.Context())
 		if err != nil {
-			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load governance audit summary: %v", err))
+			writeReadFailure(w, r, err, hostedGovernanceStatusCapability, governanceAuditSummaryReadFailedMessage)
 			return
 		}
 		if governanceAuditSummaryHasValues(summary) {
