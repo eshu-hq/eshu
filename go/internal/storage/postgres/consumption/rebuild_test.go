@@ -22,10 +22,14 @@ import (
 
 // fakeScope scripts the statements a rebuild sends. Each Begin opens one
 // transaction; lockErrAt fails the scope lock of that transaction number
-// (1-based), and clearAffected is what the compare-and-delete reports.
+// (1-based), scopeGoneAt makes the scope row missing for that transaction
+// number (the lock query returns no row), dirtyAbsent reports the dirty row as
+// already cleared, and clearAffected is what the compare-and-delete reports.
 type fakeScope struct {
 	lockErrAt     int
 	lockErr       error
+	scopeGoneAt   int
+	dirtyAbsent   bool
 	clearAffected int64
 	begins        int
 	commits       int
@@ -51,9 +55,12 @@ func (tx *fakeTx) QueryContext(_ context.Context, query string, _ ...any) (db.Ro
 		if tx.number == tx.scope.lockErrAt {
 			return nil, tx.scope.lockErr
 		}
+		if tx.number == tx.scope.scopeGoneAt {
+			return &fakeRows{}, nil
+		}
 		return &fakeRows{values: []any{"scope-a"}}, nil
 	case dirtyScopePresentSQL:
-		return &fakeRows{values: []any{true}}, nil
+		return &fakeRows{values: []any{!tx.scope.dirtyAbsent}}, nil
 	case fenceDirtyScopeSQL:
 		return &fakeRows{values: []any{"4242"}}, nil
 	default:
@@ -213,6 +220,50 @@ func TestRebuildScopeLockTimeoutRollsBackOnlyThatPage(t *testing.T) {
 	}
 	if got := metrics["eshu_dp_package_manifest_backfill_scope_rebuilds_total|outcome=lock_timeout,phase=initial"]; got != 1 {
 		t.Fatalf("lock_timeout rebuilds = %d, want 1", got)
+	}
+}
+
+func TestRebuildScopeDisappearedMidRebuildCountsNoCommittedPage(t *testing.T) {
+	scope := &fakeScope{scopeGoneAt: 3, clearAffected: 1}
+	rebuilder, reader := newTestRebuilder(t, scope, 7)
+
+	result, err := rebuilder.RebuildScope(context.Background(), "scope-a", PhaseInitial)
+	if err != nil {
+		t.Fatalf("RebuildScope() error = %v", err)
+	}
+	if result.Outcome != OutcomeDisappeared || result.Pages != 1 || result.Facts != 3 || result.Transactions != 3 {
+		t.Fatalf("RebuildScope() = %+v, want disappeared after 1 committed page of 3 facts in 3 transactions (the cleanup transaction is not a page)", result)
+	}
+	if scope.commits != 3 || scope.rollbacks != 0 {
+		t.Fatalf("committed/rolled back = %d/%d, want 3/0", scope.commits, scope.rollbacks)
+	}
+	if got := collectMetrics(t, reader)["eshu_dp_package_manifest_backfill_scope_rebuilds_total|outcome=disappeared,phase=initial"]; got != 1 {
+		t.Fatalf("disappeared rebuilds = %d, want 1", got)
+	}
+}
+
+func TestRebuildScopeRepairSkipsAScopeWhoseDirtyRowIsAlreadyGone(t *testing.T) {
+	scope := &fakeScope{dirtyAbsent: true, clearAffected: 1}
+	rebuilder, reader := newTestRebuilder(t, scope, 7)
+
+	result, err := rebuilder.RebuildScope(context.Background(), "scope-a", PhaseDirtyRepair)
+	if err != nil {
+		t.Fatalf("RebuildScope() error = %v", err)
+	}
+	if result.Outcome != OutcomeSkipped || result.Pages != 0 || result.Facts != 0 || result.Transactions != 1 {
+		t.Fatalf("RebuildScope() = %+v, want skipped with 0 pages, 0 facts and only the start transaction", result)
+	}
+	for _, statement := range scope.statements {
+		switch statement {
+		case deleteManifestKeysSQL, deleteRegistryKeysSQL, fenceDirtyScopeSQL, clearDirtyScopeIfUnchangedSQL, deleteDirtyScopeSQL:
+			t.Fatalf("skipped repair sent a rebuild statement: %q", statement)
+		}
+	}
+	if scope.begins != 1 || scope.commits != 1 || scope.rollbacks != 0 {
+		t.Fatalf("transactions begun/committed/rolled back = %d/%d/%d, want 1/1/0", scope.begins, scope.commits, scope.rollbacks)
+	}
+	if got := collectMetrics(t, reader)["eshu_dp_package_manifest_backfill_scope_rebuilds_total|outcome=skipped,phase=dirty_repair"]; got != 1 {
+		t.Fatalf("skipped repair rebuilds = %d, want 1", got)
 	}
 }
 

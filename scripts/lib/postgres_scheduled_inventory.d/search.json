@@ -1,0 +1,40 @@
+{
+  "go/internal/storage/postgres/eshu_search_index_bm25_partition_live_test.go": {
+    "group": "search",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestEshuSearchIndexBM25PartitionedTermsPrunedAndOrderEquivalentLive"
+    ]
+  },
+  "go/internal/storage/postgres/eshu_search_index_bm25_plan_stability_live_test.go": {
+    "group": "search",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestEshuSearchIndexBM25ScoreStableAcrossPlansLive"
+    ]
+  },
+  "go/internal/storage/postgres/eshu_search_index_bm25_posting_plan_live_test.go": {
+    "group": "search",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestEshuSearchIndexBM25PostingLookupUsesCoveringIndexLive"
+    ]
+  },
+  "go/internal/storage/postgres/eshu_search_index_partition_contention_live_test.go": {
+    "group": "search",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestEshuSearchIndexTermCopyPartitionedParentContentionLive"
+    ]
+  },
+  "go/internal/storage/postgres/eshu_search_index_partition_live_test.go": {
+    "group": "search",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestCopySearchIndexTermsRoutesThroughPartitionedParentLive",
+      "TestEshuSearchIndexTermsFreshBootstrapPartitionedLive",
+      "TestEshuSearchIndexTermsGenerationClearPrunesScopePartitionLive",
+      "TestEshuSearchIndexTermsPartitionCutoverMigrationLive"
+    ]
+  }
+}

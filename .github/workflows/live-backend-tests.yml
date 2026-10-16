@@ -31,6 +31,8 @@ on:
       - 'go/**'
       - 'specs/live-tests.v1.yaml'
       - 'specs/live-tests.d/**'
+      - 'specs/ci-gates.v1.yaml'
+      - 'specs/ci-gates.d/gates-09.yaml'
       - 'scripts/run-live-backend-tests.sh'
       - 'scripts/test-run-live-backend-tests.sh'
       - 'scripts/lib/ci_image_pins.py'
@@ -50,6 +52,16 @@ on:
       - 'scripts/lib/reducer_contention_inventory.json'
       - 'scripts/test-reducer-contention-events.py'
       - 'scripts/test-reducer-contention-ledger-policy.py'
+      - 'scripts/lib/postgres_scheduled_runner.py'
+      - 'scripts/lib/postgres_scheduled_workflow.py'
+      - 'scripts/lib/postgres_scheduled_contract.py'
+      - 'scripts/lib/postgres_scheduled_manifest.py'
+      - 'scripts/lib/postgres_scheduled_inventory.json'
+      - 'scripts/lib/postgres_scheduled_inventory.d/**'
+      - 'scripts/lib/postgres_scheduled_fragments.py'
+      - 'scripts/test-postgres-scheduled-fragments.py'
+      - 'scripts/test-postgres-scheduled-runner.py'
+      - 'scripts/test-postgres-scheduled-ledger-policy.py'
       - 'scripts/lib/ifa_scheduled_events.py'
       - 'scripts/lib/ifa_scheduled_inventory.json'
       - 'scripts/lib/ifa_scheduled_manifest.py'
@@ -62,6 +74,7 @@ on:
       - '.github/workflows/ifa-scheduled-proofs.yml'
       - 'specs/ci-gates.v1.yaml'
       - 'specs/ci-gates.d/gates-09.yaml'
+      - '.github/workflows/postgres-scheduled-live.yml'
       - '.github/workflows/reducer-contention-gate.yml'
       - 'scripts/test-live-tests-registry.py'
       - 'scripts/lib/live-gate-lock.sh'
@@ -130,6 +143,9 @@ jobs:
           python3 scripts/test-live-backend-shards.py
           python3 scripts/test-live-backend-lifecycle.py
           python3 scripts/test-live-backend-workflow.py
+          python3 scripts/test-postgres-scheduled-runner.py
+          python3 scripts/test-postgres-scheduled-fragments.py
+          python3 scripts/test-postgres-scheduled-ledger-policy.py
           python3 scripts/test-ifa-scheduled-events.py
           python3 scripts/test-ifa-scheduled-manifest.py
           python3 scripts/test-ifa-scheduled-bundle.py

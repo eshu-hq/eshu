@@ -55,6 +55,44 @@ gates:
       - docker
       - postgres
     ci_only_reason: "needs fresh hosted NornicDB and PostgreSQL services; the blocking live-backend static mirror runs its source, route, event, and ledger guards locally"
+  # ─── REPO-WIDE SWEEP TESTS (#7111 F5) ──────────────────────────────────────
+  # Each of these Go tests reads source far outside its own package, so the
+  # floor's changed-package `go test` never runs it when only an input changes.
+  # CI runs them inside go-core's `go test ./...`; these rows select them
+  # locally from their real inputs. Triggers are derived from what each test
+  # reads (named in its comment) plus its own package, which it compiles.
+
+  - id: index-key-guard-sweep
+    name: Production indexed-write Cypher literals are guarded (#7058)
+    category: exactness
+    layer: contract
+    purpose: "Scans production Cypher literals across storage, reducer, projector, collector, and cmd code to keep indexed writes schema-guarded."
+    tier: pre-pr
+    blocking: true
+    # TestProductionCypherLiteralsAreGuarded scans the non-test Go literals
+    # under sweepDirs (go/internal/graph/index_key_guard_sweep_test.go):
+    # internal/storage, internal/reducer, internal/projector,
+    # internal/collector, and cmd. The analyzer and schema it checks against
+    # live in internal/graph.
+    triggers:
+      - "go/internal/graph/**"
+      - "go/internal/storage/**"
+      - "go/internal/reducer/**"
+      - "go/internal/projector/**"
+      - "go/internal/collector/**"
+      - "go/cmd/**"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+    local:
+      command: "cd go && go test ./internal/graph -run '^TestProductionCypherLiteralsAreGuarded$' -count=1"
+      test_command: "cd go && go test ./internal/graph -run '^(TestSweepFlagsSeededViolations|TestSweepReadsJoinedLabelTemplateWhole)$' -count=1"
+      pre_push: floor
+    ci:
+      workflow: test.yml
+      job: "go-core"
+    requirements:
+      - go
+    ci_only_reason: ""
 
   - id: fips-md5-sql-sweep
     name: Production SQL has no md5() calls (FIPS, #6753)

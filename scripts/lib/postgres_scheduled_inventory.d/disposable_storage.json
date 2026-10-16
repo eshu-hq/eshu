@@ -1,0 +1,10 @@
+{
+  "go/internal/storage/postgres/content_file_secret_lines_live_test.go": {
+    "group": "disposable_storage",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestContentFileSecretLinesMigrationBackfillsAndReappliesLive",
+      "TestContentFileSecretLinesRetentionPruneCascadesLive"
+    ]
+  }
+}

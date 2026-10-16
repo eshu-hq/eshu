@@ -30,6 +30,10 @@ from ifa_scheduled_events import (
     load_inventory as load_ifa_scheduled_inventory,
     verify_inventory as verify_ifa_scheduled_inventory,
 )
+from postgres_scheduled_runner import (
+    load_inventory as load_scheduled_inventory,
+    verify_inventory as verify_scheduled_inventory,
+)
 
 if len(sys.argv) != 3:
     sys.exit(f"usage: {sys.argv[0]} <ledger_path> <repo_root>")
@@ -53,6 +57,9 @@ legacy_scheduled = []
 contention_inventory = load_inventory()
 contention_paths = set(contention_inventory)
 contention_ledger_paths = set()
+scheduled_inventory = load_scheduled_inventory()
+scheduled_paths = set(scheduled_inventory)
+verified_scheduled_paths = set()
 ifa_scheduled_inventory = load_ifa_scheduled_inventory()
 ifa_scheduled_paths = set(ifa_scheduled_inventory)
 verified_ifa_scheduled_paths = set()
@@ -90,11 +97,18 @@ for path, tag, cls, reason, runner, backends in rows:
         elif backends != "neo4j":
             sys.exit(f"Neo4j dedicated row needs its truthful backend pin: {path}")
     elif cls == "verified_scheduled":
-        if (runner != "ifa-scheduled" or path not in ifa_scheduled_paths
-                or tag.strip() != ifa_scheduled_inventory[path]["tag"]
-                or backends != "nornicdb"):
-            sys.exit(f"Ifá scheduled row needs its exact runner, tag, and NornicDB backend: {path}")
-        verified_ifa_scheduled_paths.add(path)
+        if runner == "ifa-scheduled":
+            if (path not in ifa_scheduled_paths
+                    or tag.strip() != ifa_scheduled_inventory[path]["tag"]
+                    or backends != "nornicdb"):
+                sys.exit(f"Ifá scheduled row needs its exact runner, tag, and NornicDB backend: {path}")
+            verified_ifa_scheduled_paths.add(path)
+        else:
+            if runner != "postgres-scheduled" or tag.strip() != "~":
+                sys.exit(f"verified scheduled row needs its named runner and untagged file: {path}")
+            if backends:
+                sys.exit(f"verified scheduled row must be PostgreSQL-only: {path}")
+            verified_scheduled_paths.add(path)
     elif runner:
         sys.exit(f"unexpected runner {runner!r} for {cls} row: {path}")
     if cls == "scheduled":
@@ -138,6 +152,16 @@ try:
     verify_inventory(Path(repo_root), contention_inventory)
 except (OSError, ValueError, re.error) as error:
     sys.exit(f"reducer contention runner enrollment failed: {error}")
+if verified_scheduled_paths != scheduled_paths:
+    sys.exit(
+        "verified scheduled rows differ from exact inventory: "
+        f"missing={sorted(scheduled_paths - verified_scheduled_paths)}, "
+        f"extra={sorted(verified_scheduled_paths - scheduled_paths)}"
+    )
+try:
+    verify_scheduled_inventory(Path(repo_root), scheduled_inventory)
+except (OSError, ValueError, re.error) as error:
+    sys.exit(f"PostgreSQL scheduled runner enrollment failed: {error}")
 
 if verified_ifa_scheduled_paths != ifa_scheduled_paths:
     sys.exit(
