@@ -142,8 +142,7 @@ pkg_key() { set_key "$1"; printf '%s' "${key}"; }
 events_of() { set_key "$1"; printf '%s/%s.jsonl' "${fake}" "${key}"; }
 
 # proof_records prints "package<TAB>test<TAB>snapshot events file" per proof.
-proof_records() {
-  local entry key
+proof_records() { local entry key
   for entry in "${proofs[@]}"; do
     set_key "${entry%%|*}"
     printf '%s\t%s\t%s\n' "${entry%%|*}" "${entry##*|}" "${snapshot}/${key}.jsonl"
@@ -154,7 +153,7 @@ write_events() {
   rm -f "${fake}"/*.jsonl "${fake}"/*.names "${fake}"/*.exit "${fake}"/*.bak
   [[ -d "${snapshot}" ]] || { mkdir "${snapshot}" && proof_records | python3 "${cases_lib}" snapshot; } ||
     fail "event snapshot build failed"
-  cp "${snapshot}"/* "${fake}/"
+  cp "${snapshot}"/* "${fake}/" || fail "event snapshot ${snapshot} is empty or unreadable"
 }
 
 run_runner() { bash "${runner}" 2>&1; }
@@ -199,19 +198,20 @@ for pkg in "${packages[@]}"; do
   out="$(run_runner)" && fail "go nonzero exit in ${pkg} passed"
   [[ "${out}" == *"${pkg}: go test exited 1"* ]] || fail "go exit in ${pkg} not reported: ${out}"
 done
-# Through the runner every package names its own failed first and skipped last
-# proof, so no package's per-test reporting is lost or hidden by another's.
-write_events
-for pkg in "${packages[@]}"; do
-  sed -i.bak -e "s/\"Action\":\"pass\",\"Test\":\"${pfirst[${pkg}]}\"/\"Action\":\"fail\",\"Test\":\"${pfirst[${pkg}]}\"/" \
-    -e "s/\"Action\":\"pass\",\"Test\":\"${plast[${pkg}]}\"/\"Action\":\"skip\",\"Test\":\"${plast[${pkg}]}\"/" "$(events_of "${pkg}")"
-done
-out="$(run_runner)" && fail "failures in every package passed"
-for pkg in "${packages[@]}"; do
-  [[ $'\n'"${out}" == *$'\n'"${pfirst[${pkg}]}: FAIL"* ]] || fail "runner fail in ${pkg} not named: ${out}"
-  [[ "${pfirst[${pkg}]}" == "${plast[${pkg}]}" || $'\n'"${out}" == *$'\n'"${plast[${pkg}]}: SKIP"* ]] ||
-    fail "runner skip in ${pkg} not named: ${out}"
-  [[ "${out}" == *"${pkg}: expected tests did not all pass"* ]] || fail "failed ${pkg} not reported: ${out}"
+# Through the runner every package names its own failed and skipped proofs, in
+# both orientations (single-proof packages too), and none hides another's.
+for flip in fail:skip skip:fail; do
+  a="${flip%%:*}" b="${flip##*:}" && write_events
+  for pkg in "${packages[@]}"; do
+    sed -i.bak -e "s/\"Action\":\"pass\",\"Test\":\"${pfirst[${pkg}]}\"/\"Action\":\"${a}\",\"Test\":\"${pfirst[${pkg}]}\"/" \
+      -e "s/\"Action\":\"pass\",\"Test\":\"${plast[${pkg}]}\"/\"Action\":\"${b}\",\"Test\":\"${plast[${pkg}]}\"/" "$(events_of "${pkg}")"
+  done
+  out=$'\n'"$(run_runner)" && fail "${a} and ${b} events in every package passed"
+  for pkg in "${packages[@]}"; do
+    [[ "${out}" == *$'\n'"${pfirst[${pkg}]}: ${a^^}"* ]] || fail "runner ${a} in ${pkg} not named: ${out}"
+    [[ "${pfirst[${pkg}]}" == "${plast[${pkg}]}" || "${out}" == *$'\n'"${plast[${pkg}]}: ${b^^}"* ]] || fail "runner ${b} in ${pkg} not named: ${out}"
+    [[ "${out}" == *$'\n'"live-postgres-readiness: ${pkg}: expected tests did not all pass"* ]] || fail "failed ${pkg} not reported: ${out}"
+  done
 done
 
 # A failing test prints the TAIL of its output stream: a long test's early
