@@ -325,26 +325,25 @@ Arm 3, on the real retention statement:
   on `prune_content_files` and in two on `ScopeLockHold`): added
   `ScopeLockHold` at most +0.25 s per 100,000 doomed rows, mean of at least 5
   rounds, both classes. 1 KiB: +0.11 to +0.17 s of both, 181.1 MB temp per
-  prune (`8155-content-version-fence.md`). 8 KiB pending.
+  prune (#8268). 8 KiB: +0.12 s pooled over 25 rounds, PASS by arb-8155-c3;
+  tail and tables in `8155-content-version-fence.md`.
 - The arm 3 write probe of section 6 (a Write of a pruned repository waits
   for the prune commit) is informational. It is not part of the rerun bar.
 
 Arm 5, attributed:
 
-- Sampler first, as its own shim commit: add `wait_event` to the sample SQL.
-  For `transactionid` and `tuple` waits, add the blocking pid
-  (`pg_blocking_pids`) and the waiter's query prefix. Classify each episode:
-  `version_row` (the waiter runs a content INSERT, UPDATE or DELETE and the
-  blocker runs a content statement of the other writer), `advisory`,
-  `extend`, `other`. Report the maximum and the total per round, per class
-  and mode, including A.
-- Runs: modes A, B-last and B-first, 20 measured rounds, with disjoint keys
-  (default). Then the same with the shim's overlap switch (two scopes
-  writing the same paths: the production shape), 20 rounds.
-- Bars: per Write at most A + 10%. `version_row`: A must be 0. The B-last
-  maximum is at most one contended batch (B-last per-Write median / 10). The
-  B-first maximum is at least the B-last maximum. If it is not, the
-  classification is wrong and the run is void. `advisory` and `extend` are
+- Sampler: `wait_event`, the blocking pid and the waiter's query prefix;
+  classes `version_row` (waiter and blocker both run a content statement),
+  `advisory`, `extend`, `other`; maximum and total per round, class and mode.
+- Runs: modes A, B-last and B-first, 20 rounds with disjoint keys, then 20
+  with overlapping keys (two scopes writing the same paths).
+- Bars: per Write at most A + 10%. `version_row` in A = 0 holds for the
+  disjoint run; in overlap it is an upper bound that includes duplicate-key
+  content-row waits, and the bar is B minus A within one tick (arb-8155-c2).
+  B-last maximum at most one contended batch (B-last per-Write median / 10).
+  B-first and B-last maxima agree within one sampler tick (5 ms) under the
+  commit-time design; a larger gap returns to the arbiter (retires the
+  immediate-bump "B-first >= B-last else void"). `advisory` and `extend`
   equal between A and B within the A spread. 0 deadlocks in 20 rounds.
 - Add arm 1 (5 rounds, default sizes) to the same session to confirm Q1.
 
