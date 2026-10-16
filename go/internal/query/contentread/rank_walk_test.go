@@ -478,14 +478,3 @@ func TestSearchEntitiesRankWalkTreatsNonFiniteScoresAsUnscored(t *testing.T) {
 		}
 	}
 }
-
-// TestEntityPageRowsSkipsAnIDWithNoRow mirrors rank.MapPage's fail-closed
-// contract: an id with no row emits nothing, never an empty row.
-func TestEntityPageRowsSkipsAnIDWithNoRow(t *testing.T) {
-	t.Parallel()
-	rows := []querycontract.EntityContent{{EntityID: "a"}}
-	page := entityPageRows(rows, map[string]float64{"a": 1}, []string{"ghost", "a"})
-	if len(page) != 1 || page[0].EntityID != "a" || page[0].SearchBackend != "hybrid" {
-		t.Fatalf("page = %+v, want only row a, labelled hybrid", page)
-	}
-}

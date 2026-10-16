@@ -87,7 +87,7 @@ func (r *ContentHybridRanker) ScoreEntityWindow(
 			scores[id] = candidate.Score
 		}
 	}
-	applied = len(scores) > 0
+	applied = rank.AnyScored(scores)
 	return scores, nil
 }
 
@@ -154,9 +154,23 @@ func (h *ContentHandler) searchEntitiesRanked(w http.ResponseWriter, r *http.Req
 		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, contentEntityRankFailedMessage)
 		return
 	}
-	rank.RecordPage(r.Context(), tool, page)
+	h.writeEntityRankWalkPage(w, r, req, rows, scores, page)
+}
 
-	response := entityContentSearchResponse(entityPageRows(rows, scores, page.IDs), req, !page.WindowEnd || page.LexicalTruncated)
+// writeEntityRankWalkPage shapes and writes a served walk page. A page id with
+// no row is a server fault: it answers the fixed 500 with no row data and
+// records no walk outcome, because serving a short page would lose the row.
+func (h *ContentHandler) writeEntityRankWalkPage(
+	w http.ResponseWriter, r *http.Request, req contentSearchRequest,
+	rows []querycontract.EntityContent, scores map[string]float64, page rank.Page,
+) {
+	pageRows, err := entityPageRows(rows, scores, page.IDs)
+	if err != nil {
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, contentEntityRankFailedMessage)
+		return
+	}
+	rank.RecordPage(r.Context(), rank.ToolSearchEntityContent, page)
+	response := entityContentSearchResponse(pageRows, req, !page.WindowEnd || page.LexicalTruncated)
 	response[rank.BlockKey] = page.Block()
 	querycontract.WriteSuccess(w, r, http.StatusOK, response, querycontract.BuildTruthEnvelope(
 		h.profile(), "code_search.content_search", querycontract.TruthBasisContentIndex,
@@ -192,10 +206,11 @@ func entityWindow(repoID, pattern string, rows []querycontract.EntityContent, sc
 	return window
 }
 
-// entityPageRows returns the page's rows in walk order. A rank.Scored row
-// carries SearchBackend="hybrid"; an unscored row keeps the lexical basis. No row
+// entityPageRows returns the page's rows in walk order, or
+// rank.ErrPageRowMissing and no rows when a page id has no row (the
+// rank.MapPage contract). A rank.Scored row carries SearchBackend="hybrid"; an unscored row keeps the lexical basis. No row
 // carries page_position: a walk page is not a window of the offset order.
-func entityPageRows(rows []querycontract.EntityContent, scores map[string]float64, ids []string) []querycontract.EntityContent {
+func entityPageRows(rows []querycontract.EntityContent, scores map[string]float64, ids []string) ([]querycontract.EntityContent, error) {
 	byID := make(map[string]querycontract.EntityContent, len(rows))
 	for _, row := range rows {
 		if _, seen := byID[row.EntityID]; !seen {
@@ -206,9 +221,7 @@ func entityPageRows(rows []querycontract.EntityContent, scores map[string]float6
 	for _, id := range ids {
 		row, ok := byID[id]
 		if !ok {
-			// Unreachable for ids Walk derived from these rows; skip rather
-			// than emit an empty row (the rank.MapPage contract).
-			continue
+			return nil, fmt.Errorf("%w: %q", rank.ErrPageRowMissing, id)
 		}
 		row.PagePosition = nil
 		if rank.Scored(scores, id) {
@@ -216,5 +229,5 @@ func entityPageRows(rows []querycontract.EntityContent, scores map[string]float6
 		}
 		page = append(page, row)
 	}
-	return page
+	return page, nil
 }

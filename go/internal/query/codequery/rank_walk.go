@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/search/rank"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // codeRankWalkRequest is the find_code request a rank walk serves.
@@ -110,15 +111,23 @@ func (h *CodeHandler) handleRankWalk(w http.ResponseWriter, r *http.Request, req
 		writeCodeReadFailure(w, r, err, capability, codeSearchRankFailedMessage)
 		return
 	}
-	rank.RecordPage(ctx, rank.ToolFindCode, page)
-	h.writeRankWalkPage(w, r, req, page, rank.MapPage(byID, scores, page.IDs), capability)
+	h.writeRankWalkPage(w, r, req, page, byID, scores, capability)
 }
 
 // writeRankWalkPage shapes a walk page like the offset page of its lane and
-// adds the rank_walk block.
+// adds the rank_walk block. A page id with no row is a server fault: it
+// answers the fixed 500 with no row data and records no walk outcome,
+// because serving a short page would lose the row.
 func (h *CodeHandler) writeRankWalkPage(
-	w http.ResponseWriter, r *http.Request, req codeRankWalkRequest, page rank.Page, rows []map[string]any, capability string,
+	w http.ResponseWriter, r *http.Request, req codeRankWalkRequest, page rank.Page,
+	byID map[string]map[string]any, scores map[string]float64, capability string,
 ) {
+	rows, err := rank.MapPage(byID, scores, page.IDs)
+	if err != nil {
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, codeSearchRankFailedMessage)
+		return
+	}
+	rank.RecordPage(r.Context(), rank.ToolFindCode, page)
 	truncated := !page.WindowEnd || page.LexicalTruncated
 	source, sourceBackend, basis := "content", "postgres_content_store", TruthBasisContentIndex
 	detail := "resolved from content index fallback, walked in its own order over the first 200 rows"

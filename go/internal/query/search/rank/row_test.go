@@ -4,6 +4,7 @@
 package rank_test
 
 import (
+	"errors"
 	"math"
 	"slices"
 	"testing"
@@ -46,7 +47,10 @@ func TestMapRowsAndMapPageKeepTheFirstRowPerID(t *testing.T) {
 	if len(windowRows) != 3 || windowRows[2].ID != "a" {
 		t.Fatalf("window rows = %v, want all three in lexical order", windowRows)
 	}
-	page := rank.MapPage(byID, map[string]float64{"a": 1}, []string{"b", "a"})
+	page, err := rank.MapPage(byID, map[string]float64{"a": 1}, []string{"b", "a"})
+	if err != nil {
+		t.Fatalf("MapPage error = %v", err)
+	}
 	if ids := []any{page[0]["entity_id"], page[1]["entity_id"]}; !slices.Equal(ids, []any{"b", "a"}) {
 		t.Fatalf("page ids = %v, want [b a]", ids)
 	}
@@ -61,14 +65,17 @@ func TestMapRowsAndMapPageKeepTheFirstRowPerID(t *testing.T) {
 	}
 }
 
-// TestMapPageSkipsAnIDWithNoRow pins the fail-closed contract: a page id
-// absent from byID emits no row and does not panic.
-func TestMapPageSkipsAnIDWithNoRow(t *testing.T) {
+// TestMapPageRefusesAnIDWithNoRow pins that MapPage refuses a page id with
+// no row: no rows, ErrPageRowMissing, and no nil-map write. A short page
+// would count the missing row as served and lose it from the walk.
+func TestMapPageRefusesAnIDWithNoRow(t *testing.T) {
 	t.Parallel()
-	byID := map[string]map[string]any{"a": {"entity_id": "a"}}
-	page := rank.MapPage(byID, map[string]float64{"a": 1, "ghost": 1}, []string{"ghost", "a"})
-	if len(page) != 1 || page[0]["entity_id"] != "a" {
-		t.Fatalf("page = %v, want only row a", page)
+	byID := map[string]map[string]any{"a": {"entity_id": "a"}, "nil": nil}
+	for _, ids := range [][]string{{"ghost", "a"}, {"a", "nil"}} {
+		page, err := rank.MapPage(byID, map[string]float64{"a": 1, "ghost": 1, "nil": 1}, ids)
+		if !errors.Is(err, rank.ErrPageRowMissing) || page != nil {
+			t.Fatalf("MapPage(%v) = %v, %v; want no rows and ErrPageRowMissing", ids, page, err)
+		}
 	}
 }
 
@@ -78,7 +85,10 @@ func TestMapPageSkipsAnIDWithNoRow(t *testing.T) {
 func TestMapPageLabelsOnlyFinitelyScoredRows(t *testing.T) {
 	t.Parallel()
 	byID := map[string]map[string]any{"a": {"entity_id": "a"}, "b": {"entity_id": "b"}, "c": {"entity_id": "c"}}
-	page := rank.MapPage(byID, map[string]float64{"a": 0.5, "b": math.NaN(), "c": math.Inf(1)}, []string{"a", "b", "c"})
+	page, err := rank.MapPage(byID, map[string]float64{"a": 0.5, "b": math.NaN(), "c": math.Inf(1)}, []string{"a", "b", "c"})
+	if err != nil {
+		t.Fatalf("MapPage error = %v", err)
+	}
 	if page[0]["search_backend"] != "hybrid" {
 		t.Fatalf("row a = %v, want search_backend=hybrid", page[0])
 	}

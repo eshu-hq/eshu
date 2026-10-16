@@ -4,6 +4,7 @@
 package rank
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -37,24 +38,31 @@ func MapRows(rows []map[string]any, contentKeys ...string) ([]Row, map[string]ma
 	return windowRows, byID
 }
 
+// ErrPageRowMissing reports a page id with no row to serve. Walk counts every
+// page id as served (Position, NextCursor), so serving a page without it
+// would lose that row from the walk. Callers answer it as a server fault.
+var ErrPageRowMissing = errors.New("rank walk: page id has no row")
+
 // MapPage returns the page's rows in walk order from byID. A row Scored by
 // scores gets search_backend="hybrid"; every row loses page_position, because
 // a walk page is not a window of the offset order. The rows are modified in
-// place and must be request-local. An id with no row in byID is skipped, never
-// a nil-map write: it cannot happen for ids Walk derived from the same rows,
-// and a caller that breaks that gets a short page rather than a panic.
-func MapPage(byID map[string]map[string]any, scores map[string]float64, ids []string) []map[string]any {
+// place and must be request-local. MapPage refuses a page id with no row (or
+// a nil row) with ErrPageRowMissing and no rows, before it modifies any row:
+// it never writes to a nil map and never returns a short page.
+func MapPage(byID map[string]map[string]any, scores map[string]float64, ids []string) ([]map[string]any, error) {
 	page := make([]map[string]any, 0, len(ids))
 	for _, id := range ids {
 		row, ok := byID[id]
 		if !ok || row == nil {
-			continue
-		}
-		delete(row, "page_position")
-		if Scored(scores, id) {
-			row["search_backend"] = "hybrid"
+			return nil, fmt.Errorf("%w: %q", ErrPageRowMissing, id)
 		}
 		page = append(page, row)
 	}
-	return page
+	for i, row := range page {
+		delete(row, "page_position")
+		if Scored(scores, ids[i]) {
+			row["search_backend"] = "hybrid"
+		}
+	}
+	return page, nil
 }

@@ -12,6 +12,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/query/search/rank"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchembed"
@@ -250,7 +251,7 @@ func (r *CodeHybridRanker) ScoreCodeWindow(
 			scores[id] = candidate.Score
 		}
 	}
-	applied = len(scores) > 0
+	applied = rank.AnyScored(scores)
 	return scores, nil
 }
 

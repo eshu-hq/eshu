@@ -86,7 +86,9 @@ func benchmarkRankWalkPage(b *testing.B, suffix string, rows []map[string]any) {
 		if err != nil || len(page.IDs) != 50 {
 			b.Fatalf("Walk served %d rows, err = %v", len(page.IDs), err)
 		}
-		_ = rank.MapPage(byID, scores, page.IDs)
+		if _, err := rank.MapPage(byID, scores, page.IDs); err != nil {
+			b.Fatalf("MapPage error = %v", err)
+		}
 	}
 	b.Run("page"+suffix, func(b *testing.B) {
 		b.ReportAllocs()
