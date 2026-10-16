@@ -15,11 +15,16 @@ import unittest
 ROOT = Path(__file__).resolve().parent.parent
 VALIDATOR = ROOT / "scripts/lib/verify-live-tests-ledger.py"
 MANIFEST = ROOT / "specs/live-tests.v1.yaml"
-FRAGMENT = "live-tests-03.yaml"
+FRAGMENT = "live-tests-03b.yaml"
 
 
 class ReplayTierLedgerPolicyTest(unittest.TestCase):
     """Exercise the production ledger validator, including a repinned digest."""
+
+    def test_enrolled_fragment_stays_under_file_cap(self) -> None:
+        """Keep the enrollment readable within the repository file limit."""
+        fragment = ROOT / "specs/live-tests.d" / FRAGMENT
+        self.assertLess(len(fragment.read_text().splitlines()), 500)
 
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
