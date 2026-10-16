@@ -5,9 +5,13 @@ package query
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/failure"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // semanticDocumentationFailureRoutes lists every route #7674 slice 14 moved
@@ -140,4 +144,40 @@ func (s failingDocumentationAggregateStore) DocumentationFindingInventory(
 	context.Context, DocumentationFindingAggregateFilter, DocumentationFindingInventoryDimension, int, int,
 ) ([]DocumentationFindingInventoryRow, error) {
 	return nil, s.err
+}
+
+// TestDocumentationAggregatesUnconfiguredLeaveTheSpanUnmarked pins that the
+// configuration 503 the count and inventory routes answer with no aggregate
+// store is a plain write: the handler span stays Unset with no exception and
+// no client-cancel event, unlike the server-failure helper's 500. The
+// telemetry traces page states this. Not parallel: it swaps
+// queryHandlerTracer.
+func TestDocumentationAggregatesUnconfiguredLeaveTheSpanUnmarked(t *testing.T) {
+	suite := failure.Suite{HandlerTracer: &queryHandlerTracer}
+	for _, path := range []string{"/api/v0/documentation/findings/count", "/api/v0/documentation/findings/inventory"} {
+		route := failure.Route{
+			Name: path, Path: path,
+			Handler: func(error) failure.Mounter { return &DocumentationHandler{} },
+		}
+		rec, ended := failure.Serve(suite, route, route.Handler(nil), false)
+		if rec.Code != http.StatusServiceUnavailable {
+			t.Errorf("%s: status = %d, want 503", path, rec.Code)
+		}
+		var handlerSpans int
+		for _, span := range ended {
+			if span.Name() != telemetry.SpanQueryDocumentationAggregate {
+				continue
+			}
+			handlerSpans++
+			if span.Status().Code != codes.Unset {
+				t.Errorf("%s: span status = %v, want Unset", path, span.Status().Code)
+			}
+			if events := len(span.Events()); events != 0 {
+				t.Errorf("%s: span events = %d, want 0", path, events)
+			}
+		}
+		if handlerSpans != 1 {
+			t.Errorf("%s: handler spans = %d, want 1", path, handlerSpans)
+		}
+	}
 }
