@@ -450,7 +450,7 @@ tests:
   - file: go/internal/storage/postgres/backfill/targeted/terminal_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#7584 activation obligation repo_id collision loser retired inapplicable against the shipped active-repository read (kept in the root package because that read is unexported) on the full bootstrap schema in an isolated disposable PostgreSQL schema"
+    reason: "#7584 activation obligation repo_id collision loser retired inapplicable after one callback against exported backfill.ActiveRepositoryGenerationsQuery from the targeted package external proof, on the full bootstrap schema in an isolated disposable PostgreSQL schema"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/activation/consumer_live_test.go
     tag: ~

@@ -22,11 +22,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
-// This file keeps in the root package the one activation obligation proof
-// that asserts the shipped active-repository read (backfill.ActiveRepositoryGenerationsQuery,
-// unexported here): a repo_id collision loser is retired inapplicable. The
-// other activation live proofs live in the activation package's external
-// tests; the fixtures below are copies of theirs.
+// This external targeted-package proof checks the shipped active-repository
+// read through backfill.ActiveRepositoryGenerationsQuery. A repo_id collision
+// loser is retired inapplicable. The other activation live proofs remain in
+// the activation package's external tests.
 
 // TestActivationObligationInapplicableCollisionLoserLive (#7584):
 // two repository scopes share one repo_id; the shipped active-repository read
