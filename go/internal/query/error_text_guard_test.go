@@ -25,13 +25,18 @@ import (
 // last #7674 slice reached zero sites.
 //
 // Known gaps, not caught without type resolution: a message computed into a
-// local first (`msg := err.Error()` then WriteError(w, 500, msg)); a helper
-// that takes err itself and writes its text; a writer reached through a
-// function value, an interface, or a function literal; and a local error whose
-// name follows the sentinel convention (`errResp.Error()`), because
-// `errFoo.Error()` and `pkg.ErrFoo.Error()` are treated as fixed sentinel
-// text. TestQueryErrorTextLeakSitesShapes pins each gap as uncaught.
-// Assertion B still fails the first gap when its status is a literal 500.
+// local first (`msg := err.Error()` then WriteError(w, 500, msg)); a local
+// error whose name follows the sentinel convention (`errResp.Error()`),
+// because `errFoo.Error()` and `pkg.ErrFoo.Error()` are treated as fixed
+// sentinel text; error text formatted by fmt from a variable whose name is
+// not err and does not end in err or Err (`cause`); error text behind a
+// literal 1xx-3xx status; a raw body write (w.Write, Encode) in the handler
+// itself, which A follows only inside a writer it derives; and a writer
+// reached through a function value, a method value, an interface method, a
+// function literal, a method promoted from an embedded field, or a helper
+// declared nowhere in the tree. TestQueryErrorTextLeakSitesShapes pins the
+// first two as uncaught. Assertion B still fails the first gap when its status
+// is a literal 500.
 func TestNoNewQueryErrorTextLeakSites(t *testing.T) {
 	t.Parallel()
 

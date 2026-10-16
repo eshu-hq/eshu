@@ -254,14 +254,24 @@ unavailable`), or while a read on the
 runs, gets `499` with the same fixed message, and
 the request span is not marked as an error; the span carries an
 `eshu.request.client_canceled` event instead. No route documents `499` in the
-OpenAPI spec, because the client has already gone. The query guard tests
-fail the build on a direct `500`, `502`, `504`, or `408` write, or backend
-error text in a server-failure body, through any writer they can resolve: a
-named function, or a method whose receiver type is evident or matched by
-name. Calls through function values, method values, interfaces, function
-literals, and methods promoted from embedded fields are outside the guard
-(#7674). The server-failure helper is the only writer of that `499`. The
-telemetry effects are in
+OpenAPI spec, because the client has already gone. The server-failure helper
+is the only writer of that `499`. The query guard tests (#7674) check writers
+they can resolve: a named function, or a method whose receiver type is
+evident or matched by name. Through those writers they fail the build on a
+direct `500`, `502`, `504`, or `408` write, and on a server-failure body that
+takes `err.Error()` or an `fmt` call formatting an `err`-named variable
+straight from the call. Outside the guard:
+
+- calls through function values, method values, interfaces, function
+  literals, and methods promoted from embedded fields;
+- the second status parameter of a writer that forwards two;
+- error text first stored in a local (`msg := err.Error()`), read from a
+  local named like a sentinel (`errResp.Error()`), or formatted from a
+  variable whose name does not end in `err` or `Err`;
+- error text behind a literal `1xx`-`3xx` status, and a raw body write
+  (`w.Write`, `Encode`) in the handler itself.
+
+The telemetry effects are in
 [Failed and canceled query reads](../telemetry/traces.md#failed-and-canceled-query-reads-7626).
 
 ## Supply-chain read failures
