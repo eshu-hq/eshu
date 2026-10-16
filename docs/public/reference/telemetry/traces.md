@@ -141,8 +141,7 @@ investigation packet routes, the identity admin, provider-config, and local
 identity routes, the auth and session routes, the infra and inventory
 routes, the semantic search routes, and the documentation finding count and
 inventory routes: there a configuration `503` is a plain write and does not
-mark the span. Other routes still answer a cancel with `500`
-until #7674 lands.
+mark the span. No query route answers a client cancel with `500` (#7674).
 
 Two operator effects follow. Eshu's own `eshu_dp_api_request_errors_total`
 counts only `5xx`, so a canceled read on these routes leaves that counter and
