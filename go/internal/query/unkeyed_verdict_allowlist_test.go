@@ -37,6 +37,8 @@ var noCapabilityAllowedFiles = map[string]string{
 		"status snapshot with no matrix key (#8227)",
 	"status_collector_readiness.go": "GET /api/v0/status/collector-readiness and GET " +
 		"/api/v0/collector-readiness read the status snapshot with no matrix key (#8227)",
+	"evidence_bundle_live.go": "GET /api/v0/evidence/bundle reads the status snapshot " +
+		"with no matrix key (#8227)",
 }
 
 // noCapabilityConstName is the querycontract constant the sweep recognizes.

@@ -14,6 +14,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+// relationshipEvidenceReadFailedMessage is the fixed body of a failed read on
+// GET /api/v0/evidence/relationships/{resolved_id} (#7674). The store error
+// can quote SQL and hosts, so it goes on the request span, never into the
+// body.
+const relationshipEvidenceReadFailedMessage = "relationship evidence read failed"
+
 const relationshipEvidenceCapability = "relationship_evidence.drilldown"
 
 // EvidenceHandler exposes drilldown endpoints for compact evidence pointers
@@ -141,7 +147,7 @@ func (h *EvidenceHandler) getRelationshipEvidence(w http.ResponseWriter, r *http
 	}
 	readModel, err := store.RelationshipEvidenceByResolvedID(r.Context(), resolvedID)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeReadFailure(w, r, err, relationshipEvidenceCapability, relationshipEvidenceReadFailedMessage)
 		return
 	}
 	if !readModel.Available || len(readModel.Row) == 0 {
