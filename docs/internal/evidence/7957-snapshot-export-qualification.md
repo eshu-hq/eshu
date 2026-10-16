@@ -192,7 +192,7 @@ Access-opening sites outside `runtime/postgres` and `query`:
 | `go/cmd/api/postgres_error_wire_test.go:102` (`wireAPI`, gated by `ESHU_AUTH_QUALIFIED_DSN`) | no | It reads only `GET /api/v0/status/index` (line 108), which uses the single status snapshot, not a set. |
 | `go/cmd/mcp-server/postgres_error_wire_test.go:105` (`wireAPI`, gated by `ESHU_AUTH_QUALIFIED_DSN`) | no | It calls only the `get_index_status` MCP tool (line 112), the same status read. |
 | `go/cmd/api/issue7033_canary_startup_live_test.go:62` (`wireAPI`) | no | It posts `{"topic":"issue7033canary","limit":1}` to `/api/v0/code/topics/investigate` (line 75). `CodeTopicSearchTerms` expands that to one term (measured: `["issue7033canary"]`), so `Eligible` is false and the single fenced statement runs. |
-| `go/internal/scopedtoken/identity_postgres_restart_test.go:60` (`pgaccess.Open`, gated by `ESHU_IDENTITY_RESTART_TEST=1`) | no | It opens a full Access and reads `GET /api/v0/repositories` (line 84) through the reader, which is not a code-topic read. |
+| `go/internal/scopedtoken/identity_postgres_restart_test.go` (`TestIdentityTokenRecoversAfterPostgresRestart`: its `pgaccess.Open`, gated by `ESHU_IDENTITY_RESTART_TEST=1`) | no | It opens a full Access and reads `GET /api/v0/repositories` through the reader, which is not a code-topic read. |
 
 The other `wireAPI` callers in `go/cmd/api` (`wiring_test.go:27,36,51,66,81,455`
 and `semantic_search_wiring_test.go:238`) and in `go/cmd/mcp-server`
