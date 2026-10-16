@@ -99,8 +99,9 @@ What is not guaranteed: the same `hybrid` order on every replica. Score bits
 are stable per CPU architecture only: raw scores differ by up to 4 ulp
 between arm64 and amd64, and approximate vector retrieval can pick a
 different candidate set on another architecture. Behind replicas of mixed
-architectures a `hybrid` walk can therefore answer 409 `order_changed` on
-every page. A difference that stays inside the served rows, or inside the
+architectures any `hybrid` walk, on either route (`find_code` content lane or
+`search_entity_content`), can therefore answer 409 `order_changed` on every
+page. A difference that stays inside the served rows, or inside the
 unserved rows, is not visible and does no harm. `graph_name` and `lexical`
 walks read no scores.
 
