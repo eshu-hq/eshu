@@ -4,10 +4,10 @@
 # or the runner inside a throwaway copy of scripts/ and specs/. The self-test
 # run against that copy must exit nonzero, and its first failure line must
 # name the broken property. The deep seed stops the verifier from checking
-# one proof that is not the first proof of its package. Only the per-proof
-# direct verifier check in the self-test catches that seed, so a self-test
-# that checks only sampled proofs fails here. The clean-tree GREEN run is the
-# self-test itself (the step before this one in the hermetic job).
+# one proof deep in the list; the per-proof direct check must reach it. The
+# runner-truncates seed hides most proof names of a large package from the
+# runner output; the all-names runner check must notice. The clean-tree GREEN
+# run is the self-test itself (the step before this one in the hermetic job).
 set -euo pipefail
 
 command -v rg >/dev/null 2>&1 || {
@@ -20,6 +20,8 @@ selftest="test-run-live-postgres-readiness-tests.sh"
 prefix="test-run-live-postgres-readiness-tests: "
 events_py="scripts/lib/live_postgres_readiness_events.py"
 runner_sh="scripts/run-live-postgres-readiness-tests.sh"
+# tail_keep is how many verifier output lines the runner-truncates seed keeps.
+tail_keep=60
 work="$(mktemp -d)"
 trap 'rm -rf "${work}"' EXIT
 
@@ -37,10 +39,16 @@ ln -s "${repo_root}/go" "${tree}/go"
 #                  package (the first one a verifier that checks only the
 #                  sorted-first name misses);
 #   deep_name      the sorted-last test of the last package whose first
-#                  proof is a different test (the runner never sees it).
+#                  proof is a different test (deep in the direct phase);
+#   first_pkg      the first package (the first runner-phase check);
+#   big_pkg        the first package with more proofs than the runner
+#                  output keeps under the runner-truncates seed;
+#   hidden_name    the first proof of big_pkg, in list order, that the
+#                  truncated output drops.
 python3 "${repo_root}/scripts/lib/live_postgres_readiness_results.py" list-packages >"${work}/packages.tsv" ||
   fail "list-packages rejected"
-read -r first_proof unsorted_proof deep_pkg deep_name < <(python3 - "${work}/packages.tsv" <<'PY'
+read -r first_proof unsorted_proof deep_pkg deep_name first_pkg big_pkg hidden_name < <(
+  python3 - "${work}/packages.tsv" "${tail_keep}" <<'PY'
 import sys
 
 rows = []
@@ -51,10 +59,14 @@ with open(sys.argv[1], encoding="utf-8") as listing:
 first = rows[0][1][0]
 unsorted = next(name for _, names in rows for name in names if name != min(names))
 deep_package, deep_names = [row for row in rows if max(row[1]) != row[1][0]][-1]
-print(first, unsorted, deep_package, max(deep_names))
+keep = int(sys.argv[2])
+big_package, big_names = next(row for row in rows if len(row[1]) > keep)
+shown = set(sorted(big_names)[-keep:])
+hidden = next(name for name in big_names if name not in shown)
+print(first, unsorted, deep_package, max(deep_names), rows[0][0], big_package, hidden)
 PY
 )
-[[ -n "${deep_name:-}" ]] || fail "no package has a proof the runner check does not reach"
+[[ -n "${hidden_name:-}" ]] || fail "package listing yielded no seed targets"
 
 # apply_seed restores the clean verifier and runner in the tree, then makes
 # one exact source replacement. A seed whose anchor is gone fails here, so a
@@ -115,7 +127,19 @@ expect_failure unnamed "${first_proof} skip not named: " prefix
 apply_seed "${runner_sh}" '  elif [[ "${results_status}" -ne 0 ]]; then
 ' '  elif false; then
 '
-expect_failure runner-ignores-results "${first_proof} skip event passed the runner"
+expect_failure runner-ignores-results "${first_pkg} skip events passed the runner"
+
+apply_seed "${runner_sh}" ' </dev/null; then
+    results_status=0
+' " </dev/null | if [[ \"\${shard}\" == all ]]; then tail -n ${tail_keep}; else cat; fi; then
+    results_status=0
+"
+expect_failure runner-truncates "${big_pkg} skip events: ${hidden_name} not named by the runner: " prefix
+
+apply_seed "${events_py}" '        if action != "pass":
+' '        if action not in ("pass", "fail"):
+'
+expect_failure fail-as-pass "${first_proof} fail event passed"
 
 apply_seed "${events_py}" '    for name in sorted(expected_tests):
 ' "    for name in (sorted(expected_tests)[:-1] if package == \"${deep_pkg}\" else sorted(expected_tests)):
