@@ -75,6 +75,18 @@ type FullReconcileState struct {
 	// generation since its content was last parsed (the valve, ruling a9-143
 	// D3).
 	ActivePreparseSkips int
+	// ActiveStreamDroppedPaths are the repository-relative paths the active
+	// generation's fact stream dropped because it could not read them (#8185).
+	// Empty when the active generation dropped nothing. The skip probe
+	// re-checks each path before skipping an equal snapshot: a path that
+	// opens now means the next parse would emit facts this generation lacks,
+	// so the scope parses instead of skipping.
+	ActiveStreamDroppedPaths []string
+	// ActiveStreamDroppedTruncated reports that the active generation dropped
+	// more files than ActiveStreamDroppedPaths records (#8185). Unrecorded
+	// drops cannot be re-checked, so the skip probe refuses and the scope
+	// parses instead of skipping.
+	ActiveStreamDroppedTruncated bool
 }
 
 // ActiveReprojection asks the store to re-project the scope's active

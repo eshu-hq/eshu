@@ -325,7 +325,7 @@ func (s IngestionStore) commitScopeGeneration(
 	}
 	if streamDropped(generation) {
 		markStart := time.Now()
-		if err := clearDroppedPreparseIdentity(ctx, tx, generation); err != nil {
+		if err := recordDroppedPreparseIdentity(ctx, tx, generation); err != nil {
 			return err
 		}
 		s.logCommitStage(ctx, scopeValue, generation, "mark_stream_dropped", markStart, slog.Bool("stream_dropped", true))

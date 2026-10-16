@@ -89,7 +89,7 @@ func TestFullReconcileStateLive(t *testing.T) {
 					want.LatestFullSourceCommitSHA = tc.latest.sha
 				}
 			}
-			if got != want {
+			if !fullReconcileStatesEqual(got, want) {
 				t.Fatalf("FullReconcileState() = %+v, want %+v", got, want)
 			}
 		})
@@ -102,7 +102,7 @@ func TestFullReconcileStateLive(t *testing.T) {
 		if err != nil {
 			t.Fatalf("FullReconcileState() error = %v", err)
 		}
-		if got != (scope.FullReconcileState{}) {
+		if !fullReconcileStatesEqual(got, scope.FullReconcileState{}) {
 			t.Fatalf("FullReconcileState() = %+v, want zero state", got)
 		}
 	})

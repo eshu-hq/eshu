@@ -6,8 +6,10 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sync/atomic"
 	"testing"
 
@@ -343,10 +345,57 @@ SELECT COALESCE((payload ->> 'stream_dropped')::boolean, false) FROM scope_gener
 	return marked, true
 }
 
+// streamDroppedPaths reads a generation row's recorded stream_dropped_paths
+// (#8185), or nil when the row carries none.
+func (p *reprojectProof) streamDroppedPaths(generation string) []string {
+	p.t.Helper()
+	var raw string
+	if err := p.db.QueryRowContext(context.Background(), `
+SELECT COALESCE(payload ->> 'stream_dropped_paths', '[]') FROM scope_generations WHERE generation_id = $1`,
+		generation).Scan(&raw); err != nil {
+		p.t.Fatalf("read %s stream_dropped_paths: %v", generation, err)
+	}
+	var paths []string
+	if err := json.Unmarshal([]byte(raw), &paths); err != nil {
+		p.t.Fatalf("decode %s stream_dropped_paths %q: %v", generation, raw, err)
+	}
+	return paths
+}
+
+// streamDroppedTruncated reports whether a generation row carries a
+// truncated stream_dropped_paths set (#8185).
+func (p *reprojectProof) streamDroppedTruncated(generation string) bool {
+	p.t.Helper()
+	var truncated bool
+	if err := p.db.QueryRowContext(context.Background(), `
+SELECT COALESCE((payload ->> 'stream_dropped_truncated')::boolean, false) FROM scope_generations WHERE generation_id = $1`,
+		generation).Scan(&truncated); err != nil {
+		p.t.Fatalf("read %s stream_dropped_truncated: %v", generation, err)
+	}
+	return truncated
+}
+
+// dropPathsGeneration is p.identityGeneration with recorded stream-drop paths
+// (#8185): the collector notes each path it cannot read, and the store
+// persists them next to the stream_dropped mark.
+func (p *reprojectProof) dropPathsGeneration(id, hint, sha, reason, identity string, paths ...string) scope.ScopeGeneration {
+	generation := p.identityGeneration(id, hint, sha, reason, identity)
+	if len(paths) > 0 {
+		recorded := new(scope.StreamDroppedPaths)
+		for _, path := range paths {
+			recorded.Note(path)
+		}
+		generation.PreparseIdentityDroppedPaths = recorded
+	}
+	return generation
+}
+
 // TestPreparseIdentityDroppedByTheStreamLive (#7978 review F-7, F7-3, rulings
-// a9-143.18 and a9-143.19): the producer sets the drop flag after its last
-// send, so the store must read it after the drain. The stored path then keeps
-// the identity off its own row and marks it stream_dropped; the equal-hint
+// a9-143.18 and a9-143.19, revised by #8185): the producer sets the drop flag
+// after its last send, so the store must read it after the drain. The stored
+// path then keeps the identity on its own row and records the dropped paths
+// next to the stream_dropped mark, so the next equal snapshot can verify the
+// drop still applies instead of re-parsing unconditionally; the equal-hint
 // re-open stamps nothing and keeps the skip count. No hook, or a flag that
 // stays false, changes nothing.
 func TestPreparseIdentityDroppedByTheStreamLive(t *testing.T) {
@@ -356,11 +405,17 @@ func TestPreparseIdentityDroppedByTheStreamLive(t *testing.T) {
 			hook, drop bool
 		}{{"drop", true, true}, {"no drop", true, false}, {"no hook", false, false}} {
 			p := openReprojectProof(t)
-			p.commitStreamed(p.identityGeneration("gen-b", "hint-b", "sha-b", "", preparseIdentityB), cell.hook, cell.drop)
+			generation := p.identityGeneration("gen-b", "hint-b", "sha-b", "", preparseIdentityB)
+			if cell.drop {
+				generation = p.dropPathsGeneration("gen-b", "hint-b", "sha-b", "", preparseIdentityB, "gone.yml")
+			}
+			p.commitStreamed(generation, cell.hook, cell.drop)
 			identity, _ := p.preparseStamp("gen-b")
 			marked, _ := p.streamDroppedMark("gen-b")
-			if cell.drop && (identity != "" || !marked) {
-				t.Fatalf("%s: gen-b identity %q marked %v after a stream drop, want no identity and stream_dropped", cell.name, identity, marked)
+			paths := p.streamDroppedPaths("gen-b")
+			truncated := p.streamDroppedTruncated("gen-b")
+			if cell.drop && (identity != preparseIdentityB || !marked || truncated || !slices.Equal(paths, []string{"gone.yml"})) {
+				t.Fatalf("%s: gen-b identity %q marked %v truncated %v paths %q after a stream drop, want %q, marked, untruncated, and [gone.yml]", cell.name, identity, marked, truncated, paths, preparseIdentityB)
 			}
 			if !cell.drop && (identity != preparseIdentityB || marked) {
 				t.Fatalf("%s: gen-b identity %q marked %v, want %q and unmarked", cell.name, identity, marked, preparseIdentityB)
@@ -383,19 +438,24 @@ func TestPreparseIdentityDroppedByTheStreamLive(t *testing.T) {
 	})
 }
 
-// TestStreamDroppedGenerationHealsLive (#7978 review F7-4, ruling a9-143.20):
-// a stored generation whose stream dropped a file is marked, so the next equal
-// snapshot stores a NEW generation that carries the facts and the identity
-// instead of re-opening the marked one; the run after that re-opens the new
-// generation.
+// TestStreamDroppedGenerationHealsLive (#7978 review F7-4, ruling a9-143.20,
+// revised by #8185): a stored generation whose stream dropped a file is
+// marked with its identity kept and its dropped paths recorded, so the next
+// equal snapshot still stores a NEW generation (the marked row's facts are
+// incomplete) instead of re-opening it; the run after that re-opens the new
+// generation. The kept identity is what lets a later equal snapshot skip the
+// parse once the skip probe verifies the recorded paths still fail.
 func TestStreamDroppedGenerationHealsLive(t *testing.T) {
 	p := openReprojectProof(t)
-	p.commitStreamed(p.identityGeneration("gen-1", "hint-b", "sha-b", "", preparseIdentityB), true, true)
-	if identity, _ := p.preparseStamp("gen-1"); identity != "" {
-		t.Fatalf("run 1: gen-1 identity = %q, want none after a drop", identity)
+	p.commitStreamed(p.dropPathsGeneration("gen-1", "hint-b", "sha-b", "", preparseIdentityB, "gone.yml"), true, true)
+	if identity, _ := p.preparseStamp("gen-1"); identity != preparseIdentityB {
+		t.Fatalf("run 1: gen-1 identity = %q, want %q kept across the drop", identity, preparseIdentityB)
 	}
 	if marked, _ := p.streamDroppedMark("gen-1"); !marked {
 		t.Fatal("run 1: gen-1 is not marked stream_dropped")
+	}
+	if paths := p.streamDroppedPaths("gen-1"); !slices.Equal(paths, []string{"gone.yml"}) {
+		t.Fatalf("run 1: gen-1 dropped paths = %q, want [gone.yml]", paths)
 	}
 	p.project()
 	p.commitStreamed(p.identityGeneration("gen-2", "hint-b", "sha-b", "interval_elapsed", preparseIdentityB), true, false)
