@@ -116,7 +116,10 @@ slcap_evaluate_file() {
 # slcap_verify_ledger HARD-FAILS on a stale, duplicate or malformed ledger row.
 # A row is stale when its file no longer exists or is back under the cap; the
 # change that fixed the file must delete the row so it cannot rot into a
-# permanent exemption for a path some later commit reuses.
+# permanent exemption for a path some later commit reuses. A rename does not
+# carry the row: the new path has no pin, and a row added for it is refused by
+# slcap_verify_ledger_growth as NEW, so a renamed file over the cap must be
+# split below it.
 slcap_verify_ledger() {
 	local repo_root="$1" path pinned exit_status=0 seen="" count
 	[[ -f "${TOOLING_LINE_CAP_TSV}" ]] || return 0
@@ -150,7 +153,7 @@ slcap_verify_ledger() {
 		fi
 
 		if [[ ! -f "${repo_root}/${path}" ]]; then
-			printf '%s: STALE ledger row %s -- file no longer exists; remove this row in the same change that moved/renamed/removed it\n' \
+			printf '%s: STALE ledger row %s -- file no longer exists; remove this row in the same change that removed the file or brought it under the cap (a renamed file that still exceeds the cap cannot take over the row: split it below the cap)\n' \
 				"${TOOLING_LINE_CAP_NAME}" "${path}" >&2
 			exit_status=1
 			continue

@@ -233,6 +233,28 @@ test_stale_row_for_missing_file_is_red() {
 	ledger="$(write_ledger "${repo}" "scripts/gone.sh${TAB}600")"
 	run_gate "${repo}" "${ledger}" --all
 	assert "ledger row for a missing file is stale" 1 "file no longer exists"
+	assert "stale-row message names the two real fixes" 1 "removed the file or brought it under the cap"
+	assert "stale-row message does not promise a rename fix" 1 "cannot take over the row"
+}
+
+# Renaming a grandfathered file that still exceeds the cap is red whichever way
+# the ledger is edited, so no edit but splitting the file can turn it green.
+test_renamed_over_cap_file_is_red_either_way() {
+	local repo
+	repo="$(seed_baseline_repo)"
+	git -C "${repo}" mv scripts/old.sh scripts/renamed.sh
+	commit_all "${repo}" "rename, ledger untouched"
+	run_growth "${repo}"
+	assert "a rename that leaves the old row is red on the stale row" 1 "STALE ledger row scripts/old.sh"
+	assert "a rename that leaves the old row is red on the unpinned new path" 1 "scripts/renamed.sh has 600 lines"
+	printf '# ledger\nscripts/other.sh\t700\n' > "${repo}/scripts/lib/tooling-line-cap-grandfather.tsv"
+	commit_all "${repo}" "rename, row removed"
+	run_growth "${repo}"
+	assert "a rename with the row removed is red on the unpinned new path" 1 "scripts/renamed.sh has 600 lines"
+	printf '# ledger\nscripts/renamed.sh\t600\nscripts/other.sh\t700\n' > "${repo}/scripts/lib/tooling-line-cap-grandfather.tsv"
+	commit_all "${repo}" "rename, row renamed"
+	run_growth "${repo}"
+	assert "a rename with the row renamed is refused as a NEW row" 1 "NEW ledger row scripts/renamed.sh"
 }
 
 test_malformed_rows_are_red() {
@@ -424,6 +446,7 @@ main() {
 	test_grandfathered_file_that_shrinks_notes_repin
 	test_stale_row_for_file_under_cap_is_red
 	test_stale_row_for_missing_file_is_red
+	test_renamed_over_cap_file_is_red_either_way
 	test_malformed_rows_are_red
 	test_duplicate_and_invalid_rows_are_red
 	test_new_ledger_row_is_rejected
