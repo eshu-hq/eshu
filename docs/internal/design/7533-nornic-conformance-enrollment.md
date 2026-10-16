@@ -35,15 +35,15 @@ not a speedup or scale claim.
 
 On 2026-10-16, a fresh pinned Linux ARM64 fixture ran the unchanged complete
 conformance script at clean commit
-`b6a20257b9465c7033457184a735101d2468f368` based on main
-`aa81b9f6e8b89e688d75a95b70fca0c8be8963d6`, including the independent CLI
-activation check. The script exited 0 in 5.224674 seconds (5.22 seconds).
+`d77533212c6fbd24a95ca843d64709e8e7f40a6f` based on main
+`650e9663768a1643df9ebabd99352385e7dfb18c`, including the independent CLI
+activation check. The script exited 0 in 8.397968 seconds (8.40 seconds).
 The core test ran and passed once. Strict Go events showed one run and pass for each of the nine selected declarations:
 seven backend tests and two hermetic helpers. The package passed with no test
 skip or failure. The source and event guards exited 0. The worktree stayed
-clean at the same commit, and twelve source hashes matched before and after.
+clean at the same commit, and twenty-four source hashes matched before and after.
 The owned container stopped; its unique volume is preserved. The local receipt
-is `nornic7-current-b6a` (`start.json`, `result.json`, `runner.log`, and
+is `nornic7-current-d775` (`start.json`, `result.json`, `runner.log`, and
 `nornic-conformance.jsonl`). This is not a hosted AMD64 proof or a
 retained-state diagnosis.
 
