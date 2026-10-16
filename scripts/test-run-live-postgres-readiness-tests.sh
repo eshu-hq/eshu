@@ -138,21 +138,9 @@ count_in() { local e n=0; for e in "${proofs[@]}"; do [[ "${e%%|*}" == "$1" ]] &
 pkg_key() { printf '%s' "${1//[^a-z]/_}"; }
 events_of() { printf '%s/%s.jsonl' "${fake}" "$(pkg_key "$1")"; }
 
-write_events() {
-  local entry pkg name
-  rm -f "${fake}"/*.jsonl "${fake}"/*.names "${fake}"/*.exit "${fake}"/*.bak
-  for entry in "${proofs[@]}"; do
-    pkg="${entry%%|*}"
-    name="${entry##*|}"
-    printf '%s\n' "${name}" >>"${fake}/$(pkg_key "${pkg}").names"
-    printf '{"Action":"run","Test":"%s"}\n' "${name}" >>"$(events_of "${pkg}")"
-    printf '{"Action":"pass","Test":"%s","Elapsed":0.25}\n' "${name}" >>"$(events_of "${pkg}")"
-  done
-  for pkg in "${packages[@]}"; do
-    printf '{"Action":"pass","Package":"github.com/eshu-hq/eshu/go/%s","Elapsed":1.0}\n' \
-      "${pkg#./}" >>"$(events_of "${pkg}")"
-  done
-}
+# write_events and check_each_proof live in the sourced proofs lib.
+# shellcheck source=lib/test-run-live-postgres-readiness-proofs.sh
+source "${repo_root}/scripts/lib/test-run-live-postgres-readiness-proofs.sh"
 
 run_runner() { bash "${runner}" 2>&1; }
 
@@ -167,21 +155,7 @@ done
 
 # Every enrolled proof needs its own pass event in its own package: a skip, a
 # failure, or a missing event for any one of them fails the run.
-for entry in "${proofs[@]}"; do
-  pkg="${entry%%|*}"
-  name="${entry##*|}"
-  for action in skip fail; do
-    write_events
-    sed -i.bak "s/\"Action\":\"pass\",\"Test\":\"${name}\"/\"Action\":\"${action}\",\"Test\":\"${name}\"/" "$(events_of "${pkg}")"
-    out="$(run_runner)" && fail "${name} ${action} event passed"
-    want="$(printf '%s' "${action}" | tr '[:lower:]' '[:upper:]')"
-    [[ "${out}" == *"${name}: ${want}"* ]] || fail "${name} ${action} not named: ${out}"
-  done
-  write_events
-  sed -i.bak "/\"Test\":\"${name}\"/d" "$(events_of "${pkg}")"
-  out="$(run_runner)" && fail "missing ${name} events passed"
-  [[ "${out}" == *"${name}: missing"* ]] || fail "missing ${name} events not named: ${out}"
-done
+check_each_proof
 
 # A stale -run expression must not allow zero matched tests in any package.
 for pkg in "${packages[@]}"; do
