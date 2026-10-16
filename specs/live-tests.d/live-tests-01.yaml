@@ -145,8 +145,10 @@ tests:
     backends: neo4j
   - file: go/cmd/reducer/ifa_group_retry_live_test.go
     tag: ifafaultinjection
-    class: scheduled
-    reason: covered by the dedicated Ifá fault-injection/determinism lanes; the live-backend job does not duplicate them
+    class: verified_scheduled
+    reason: linuxdynasty owns this exact tagged daily Ifá live proof on NornicDB and PostgreSQL; eight named tests passed locally with race detection
+    runner: ifa-scheduled
+    backends: nornicdb
   - file: go/cmd/reducer/neo4j_write_timeout_live_test.go
     tag: ~
     class: scheduled

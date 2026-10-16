@@ -398,28 +398,40 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/replay/offlinetier/repo_dependency_ifa_cleanup_live_test.go
     tag: ifarepodependencyproof
-    class: scheduled
-    reason: covered by the dedicated Ifá fault-injection/determinism lanes; the live-backend job does not duplicate them
+    class: verified_scheduled
+    reason: linuxdynasty owns this exact tagged daily Ifá live proof on NornicDB and PostgreSQL; eight named tests passed locally with race detection
+    runner: ifa-scheduled
+    backends: nornicdb
   - file: go/internal/replay/offlinetier/repo_dependency_ifa_concurrency_live_test.go
     tag: ifarepodependencyproof
-    class: scheduled
-    reason: covered by the dedicated Ifá fault-injection/determinism lanes; the live-backend job does not duplicate them
+    class: verified_scheduled
+    reason: linuxdynasty owns this exact tagged daily Ifá live proof on NornicDB and PostgreSQL; eight named tests passed locally with race detection
+    runner: ifa-scheduled
+    backends: nornicdb
   - file: go/internal/replay/offlinetier/repo_dependency_ifa_database_guard_live_test.go
     tag: ifarepodependencyproof
-    class: scheduled
-    reason: covered by the dedicated Ifá fault-injection/determinism lanes; the live-backend job does not duplicate them
+    class: verified_scheduled
+    reason: linuxdynasty owns this exact tagged daily Ifá live proof on NornicDB and PostgreSQL; eight named tests passed locally with race detection
+    runner: ifa-scheduled
+    backends: nornicdb
   - file: go/internal/replay/offlinetier/repo_dependency_ifa_process_death_live_test.go
     tag: ifarepodependencyproof
-    class: scheduled
-    reason: covered by the dedicated Ifá fault-injection/determinism lanes; the live-backend job does not duplicate them
+    class: verified_scheduled
+    reason: linuxdynasty owns this exact tagged daily Ifá live proof on NornicDB and PostgreSQL; eight named tests passed locally with race detection
+    runner: ifa-scheduled
+    backends: nornicdb
   - file: go/internal/replay/offlinetier/repo_dependency_ifa_quarantine_live_test.go
     tag: ifarepodependencyproof
-    class: scheduled
-    reason: covered by the dedicated Ifá fault-injection/determinism lanes; the live-backend job does not duplicate them
+    class: verified_scheduled
+    reason: linuxdynasty owns this exact tagged daily Ifá live proof on NornicDB and PostgreSQL; eight named tests passed locally with race detection
+    runner: ifa-scheduled
+    backends: nornicdb
   - file: go/internal/replay/offlinetier/repo_dependency_ifa_replay_coordinates_live_test.go
     tag: ifarepodependencyproof
-    class: scheduled
-    reason: covered by the dedicated Ifá fault-injection/determinism lanes; the live-backend job does not duplicate them
+    class: verified_scheduled
+    reason: linuxdynasty owns this exact tagged daily Ifá live proof on NornicDB and PostgreSQL; eight named tests passed locally with race detection
+    runner: ifa-scheduled
+    backends: nornicdb
   - file: go/internal/replay/offlinetier/repo_dependency_keyed_concurrency_prove_live_test.go
     tag: ~
     class: scheduled
