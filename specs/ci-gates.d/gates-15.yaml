@@ -315,10 +315,7 @@ gates:
       - "scripts/lib/ci-gates-resolved-fixtures.sh"
       - "go/cmd/ingester/**"
       - "go/cmd/projector/**"
-      # internal/query carries the sql_table blast-radius branch proof (#5409),
-      # which this gate runs and nothing else does (#6182). Without this
-      # trigger a PR editing only the blast-radius query would not select the
-      # gate that proves its UNION branches still match.
+      # The query path carries the sql_table blast-radius branch proof.
       - "go/internal/query/**"
       - "go/internal/replay/**"
       - "go/internal/reducer/**"
@@ -331,6 +328,12 @@ gates:
       - "testdata/cassettes/replaydelta/**"
       - "scripts/verify-replay-tier.sh"
       - "scripts/test-verify-replay-tier.sh"
+      - "scripts/lib/replay_tier_*"
+      - "scripts/lib/verify-live-tests-ledger.py"
+      - "scripts/test-replay-tier-*.py"
+      - "specs/live-tests.v1.yaml"
+      - "specs/live-tests.d/**"
+      - "specs/ci-gates.d/gates-15.yaml"
       - "scripts/dev/pre-pr.sh"
       - "scripts/ci/install-apt-packages.sh"
       - "scripts/ci/go-mod-download-retry.sh"
