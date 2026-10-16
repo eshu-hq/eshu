@@ -15,18 +15,20 @@ legacy_scheduled_exemptions:
   baseline_main: 101cd4f6ab7b72ff01f018ad52112e3a9955168b
   steward: linuxdynasty
   tracking_issue: 7533
-  count: 530
-  sha256: c7a341cbbb70e75cccbd180b018d24e0891aedab06b67117e7d5984c878d46ac
+  count: 506
+  sha256: 362d245a6cf5999c8495fe0ac81a8eeaab80660af02694b26dd97663b2a1aa9c
 
 purpose: >
   Classify every live backend proof in go/ as graph CI, PostgreSQL CI,
-  dedicated CI, legacy-scheduled exemption, or retired with
+  dedicated CI, verified scheduled PostgreSQL proof, legacy-scheduled
+  exemption, or retired with
   a reason and explicit execution or exemption ownership. The graph
   live-backend CI job runs every ci-class row on its selected backend; the
   PostgreSQL readiness job runs its untagged postgres_ci rows; the
   migration job runs only its exact integration-tagged postgres_ci rows. The
   reducer contention job verifies each enrolled PostgreSQL-only dedicated_ci
-  test from Go JSON events in its expected package. The
+  test from Go JSON events in its expected package. The postgres-scheduled
+  job checks exact Crossplane and infra inventory tests daily on PostgreSQL. The
   ledger validator (scripts/verify-live-tests-ledger.sh) fails on any live test
   file this ledger does not name, so a new unclassified live test can never
   pass as clean. A live test is any *_live_test.go file plus any
@@ -40,7 +42,8 @@ design: >
   job, selected backends), postgres_ci (the named PostgreSQL runner;
   integration-tagged migration proofs have their own exact-file runner),
   dedicated_ci (a verified named runner: query-methodology or
-  reducer-contention),
+  reducer-contention), verified_scheduled (an exact-file, daily or manual
+  PostgreSQL runner with strict Go event accounting),
   scheduled (an exact-file legacy exemption from this ledger's verified
   runner mapping, tracked by issue 7533; independently owned blocking
   runners may exist, but a reason does not prove execution), or retired (a

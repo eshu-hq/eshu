@@ -1,0 +1,71 @@
+name: Scheduled PostgreSQL Live Proofs
+
+# #7533: exact selected proofs run daily and on manual dispatch. This job is
+# deliberately independent of required PR/merge checks until repeated cost evidence.
+on:
+  schedule:
+    - cron: '35 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: postgres-scheduled-live
+  cancel-in-progress: false
+
+jobs:
+  postgres-scheduled:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+        env:
+          POSTGRES_DB: eshu
+          POSTGRES_USER: eshu
+          POSTGRES_PASSWORD: change-me
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd "pg_isready -U eshu -d eshu"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+      - name: Check exact enrollment and negative cases
+        run: |
+          python3 scripts/test-postgres-scheduled-runner.py
+          python3 scripts/test-postgres-scheduled-ledger-policy.py
+          python3 scripts/lib/postgres_scheduled_runner.py
+      - name: Create fresh Crossplane database
+        run: docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'CREATE DATABASE eshu_crossplane_scheduled'
+      - name: Run Crossplane proofs
+        working-directory: go
+        env:
+          ESHU_CROSSPLANE_REDRIVE_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu_crossplane_scheduled?sslmode=disable
+        run: |
+          set -o pipefail
+          go test -json -race -p=1 -count=1 -timeout=7m ./internal/storage/postgres/crossplane -run '^(TestCrossplaneRedriveDeadLetteredTargetIsNotPermanentlySuppressedLive|TestCrossplaneRedriveStateConcurrentClaimConvergesLive|TestCrossplaneRedriveStateCrashRecoveryLive|TestCrossplaneRedriveSuccessfulMaterializationWritesLedgerThenSkipsLive|TestCrossplaneRedriveSweepMidFanOutFailureRecoveredByCatchUpLive|TestCrossplaneRedriveSweepXRDLookupFailureRecoveredByCatchUpLive|TestCrossplaneRedriveTargetDiscoveryQueryPlanLive|TestCrossplaneRedriveUnconfirmedEdgeNotLedgeredAndReenqueuedLive|TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive)$' | tee "${RUNNER_TEMP}/crossplane.jsonl"
+          python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/crossplane.jsonl" --group crossplane
+      - name: Create fresh inventory database
+        run: docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'CREATE DATABASE eshu_inventory_scheduled'
+      - name: Run infra inventory proofs
+        working-directory: go
+        env:
+          ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu_inventory_scheduled?sslmode=disable
+        run: |
+          set -o pipefail
+          go test -json -race -p=1 -count=1 -timeout=7m ./internal/storage/postgres/infra/inventory -run '^(TestBackfillLiveClearsEveryFenceMarkOnAFreshInstall|TestBackfillLiveCoversEveryRepositoryThenMarksComplete|TestBackfillLiveFailureLeavesNoMarker|TestMirrorLiveTombstoneWithStalePathDeletesByEntityID|TestMirrorPathsLiveDeltaTouchesOnlyItsPathsAndTombstonesConverge|TestMirrorPathsLiveDerivesOnlyEntityDerivedLabelsWithCanonicalValues|TestMirrorPathsLiveLargeRepositoryCost|TestMirrorRepoLiveRederivesWholeRepoAndDropsStaleRows|TestReadFenceStateLiveReportsMarksAndReadiness|TestReaderLiveCountBucketsGroupsLabelProviderEnvironment|TestReaderLiveDimensionBucketsAndFiltersMirrorGraphClauses|TestReconcileCycleLiveBudgetBoundsEachCycle|TestReconcileCycleLiveDoesNotCountAnInFlightWriteAsRepaired|TestReconcileCycleLivePersistsAndResumesTheWalkCursor|TestReconcileCycleLiveReplicasClaimDisjointPages|TestReconcileCycleLiveReportsReadyOnceTheMarkerExists|TestReconcileCycleLiveWrapsOnlyWhenTheWalkReachesTheEnd|TestReconcileRepoLiveConcurrentDeriveDoesNotDeadlock|TestReconcileRepoLiveLeavesMatchingRepoUntouched|TestReconcileRepoLiveRepairsInjectedDrift|TestReconcileRepositoriesLivePageStopsAtBudget|TestRetentionLiveDeletesOnlyOrphansOfAffectedRepositories|TestRetentionLiveLockHoldAndDeriveWaitCost|TestRetentionLiveLocksBlockConcurrentDeriveOfSameRepository|TestRunBackgroundLiveRetriesUntilTheMarkerIsRecorded|TestVerifyWriterSessionLiveFlagsAnUnfencedConnection|TestWriterFenceLiveInvariantUnderConcurrentWritesAndRepairs|TestWriterFenceLiveMarksOnlyUnawareInfraWrites|TestWriterFenceLiveOnlyWholeRepoDerivesDischargeMarks|TestWriterFenceLiveRepairWaitsForAnOpenUnawareWrite|TestWriterFenceLiveStatementShapes|TestWriterFenceLiveTwoReplicasRepairAMarkOnce)$' | tee "${RUNNER_TEMP}/infra_inventory.jsonl"
+          python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/infra_inventory.jsonl" --group infra_inventory

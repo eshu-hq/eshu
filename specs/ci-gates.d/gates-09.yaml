@@ -32,6 +32,11 @@ gates:
       - "scripts/lib/reducer_contention_inventory.json"
       - "scripts/test-reducer-contention-events.py"
       - "scripts/test-reducer-contention-ledger-policy.py"
+      - "scripts/lib/postgres_scheduled_runner.py"
+      - "scripts/lib/postgres_scheduled_inventory.json"
+      - "scripts/test-postgres-scheduled-runner.py"
+      - "scripts/test-postgres-scheduled-ledger-policy.py"
+      - ".github/workflows/postgres-scheduled-live.yml"
       - ".github/workflows/reducer-contention-gate.yml"
       - "scripts/lib/live-gate-lock.sh"
       - "scripts/ci/install-apt-packages.sh"
@@ -43,7 +48,7 @@ gates:
       - ".github/workflows/live-backend-tests.yml"
     local:
       command: "bash scripts/verify-live-tests-ledger.sh"
-      test_command: "bash scripts/test-verify-live-tests-ledger.sh && bash scripts/test-run-live-backend-tests.sh && python3 scripts/test-live-backend-shards.py && python3 scripts/test-live-backend-lifecycle.py && python3 scripts/test-live-backend-workflow.py"
+      test_command: "bash scripts/test-verify-live-tests-ledger.sh && bash scripts/test-run-live-backend-tests.sh && python3 scripts/test-live-backend-shards.py && python3 scripts/test-live-backend-lifecycle.py && python3 scripts/test-live-backend-workflow.py && python3 scripts/test-postgres-scheduled-runner.py && python3 scripts/test-postgres-scheduled-ledger-policy.py"
     ci:
       workflow: live-backend-tests.yml
       job: "static-mirror (ledger and runner probes)"

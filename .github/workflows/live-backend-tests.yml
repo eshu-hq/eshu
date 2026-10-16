@@ -50,6 +50,11 @@ on:
       - 'scripts/lib/reducer_contention_inventory.json'
       - 'scripts/test-reducer-contention-events.py'
       - 'scripts/test-reducer-contention-ledger-policy.py'
+      - 'scripts/lib/postgres_scheduled_runner.py'
+      - 'scripts/lib/postgres_scheduled_inventory.json'
+      - 'scripts/test-postgres-scheduled-runner.py'
+      - 'scripts/test-postgres-scheduled-ledger-policy.py'
+      - '.github/workflows/postgres-scheduled-live.yml'
       - '.github/workflows/reducer-contention-gate.yml'
       - 'scripts/test-live-tests-registry.py'
       - 'scripts/lib/live-gate-lock.sh'
@@ -118,6 +123,8 @@ jobs:
           python3 scripts/test-live-backend-shards.py
           python3 scripts/test-live-backend-lifecycle.py
           python3 scripts/test-live-backend-workflow.py
+          python3 scripts/test-postgres-scheduled-runner.py
+          python3 scripts/test-postgres-scheduled-ledger-policy.py
 
   live-backend-shards:
     needs: queue-selection
