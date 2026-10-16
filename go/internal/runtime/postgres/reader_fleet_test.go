@@ -93,6 +93,7 @@ func TestFleetHealthySetupGetsFairShareOfReplayWindow(t *testing.T) {
 				replayTimeout: 450 * time.Millisecond,
 				lineage:       newWriterLineage(physicalIdentity{systemID: "1", database: "postgres", incarnation: "1"}, lineageObservation{}, nil),
 			}
+			qualifySnapshotExport(access)
 			ctx := context.WithValue(t.Context(), checkpointKey{}, checkpoint{
 				owner: access, lsn: "0/1", systemID: "1", database: "postgres", incarnation: "1",
 			})

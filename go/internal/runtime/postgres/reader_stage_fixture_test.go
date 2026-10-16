@@ -44,7 +44,7 @@ func (c *stageFixtureConn) QueryContext(_ context.Context, statement string, _ [
 	switch {
 	case strings.Contains(statement, "pg_control_system()"):
 		time.Sleep(c.delays.identity)
-		return &queryIdentityRows{columns: []string{"read_only", "recovery", "system_id", "database"}, values: []driver.Value{"on", true, "7", "eshu"}}, nil
+		return &queryIdentityRows{columns: []string{"read_only", "recovery", "system_id", "database", "server_version", "server_version_num"}, values: []driver.Value{"on", true, "7", "eshu", "18.7", int64(180007)}}, nil
 	case strings.Contains(statement, "pg_last_wal_replay_lsn()"):
 		time.Sleep(c.delays.replay)
 		return &queryIdentityRows{columns: []string{"caught_up"}, values: []driver.Value{true}}, nil

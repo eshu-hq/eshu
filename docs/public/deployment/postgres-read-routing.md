@@ -219,6 +219,104 @@ the API/MCP deliberately. The log event `postgres.writer.lineage` reports
 standby listed in `ESHU_POSTGRES_READ_MEMBERS` stays ineligible until the
 process restarts; that is a known limitation.
 
+## Shared-snapshot export qualification
+
+Code-topic investigation (and the change-planning routes that read code-topic
+evidence) runs a 16-term search as four probes that share one exported
+snapshot: one reader runs `pg_export_snapshot()` and three run
+`SET TRANSACTION SNAPSHOT`. Two upstream PostgreSQL 18 defects make that unsafe
+on an unpatched build: a snapshot exported during recovery could omit
+subtransaction XIDs (fixed by `ef89c839cdc8`, backpatched to `REL_18_STABLE` as
+`74c9832ca610`), and an importing session's xmin could race VACUUM (fixed by
+`ca99016f939d`, backpatched as `3977cde272bc`; this one also affects
+primaries). PostgreSQL 18.6 was tagged before both backpatches.
+
+Eshu therefore refuses shared-snapshot export by default on every reader
+topology (the same-primary pool, a single standby pool, and every fleet
+member) unless the reader build is qualified:
+
+- **Version floor.** A reader whose `server_version_num` is `180007` or higher
+  on major 18 qualifies with no configuration.
+- **Declared build.** `ESHU_POSTGRES_READ_SNAPSHOT_EXPORT_BUILDS` is a
+  nonempty JSON array such as
+  `[{"server_version":"18.6 (eshu-pg 18.6-r2)","evidence":"sha256:<image digest>"}]`.
+  `server_version` must equal `current_setting('server_version')` exactly: no
+  trimming, case folding, or prefix match. `evidence` is required text of at
+  most 256 characters that ties the build to its fix (image digest, package
+  revision, or recipe reference). An empty array, a missing or empty field, a
+  duplicate `server_version`, or malformed JSON fails startup.
+
+A patched rebuild of 18.6 still reports `18.6` unless the image is built with
+`--with-extra-version`, so set an extra-version suffix on the qualified image
+and declare that full string. A bare label such as `18.6` is accepted but logs
+a startup WARN (`event_name=postgres.reader.snapshot_export_declaration`)
+because it matches every build with that label, patched or not, and cannot
+detect an image pin that regresses.
+
+Eshu reads `server_version` and `server_version_num` on the identity statement
+every reader dial and borrow already runs, so the check adds no query. Every
+refusal happens before any transaction begins or any snapshot is exported or
+imported, so no business SQL runs. A reader already known to be unqualified is
+refused without borrowing a connection; a borrowed snapshot connection whose
+own identity check reports an unqualified build is released before its
+`BEGIN`. In fleet mode an unqualified
+member is skipped for snapshot sets and a qualified member serves them. The
+client receives a permanent HTTP `503` `backend_unavailable` with
+`error.details.reason: "snapshot_export_unqualified"` and no `Retry-After`
+(see [HTTP API](../reference/http-api.md#postgresql-reader-fence-failures)).
+There is no single-statement fallback, and ordinary fenced reads and single
+snapshots keep working.
+
+**Breaking change.** Any undeclared reader below 18.7 now answers every
+code-topic and change-surface request whose topic expands to 16 terms with
+that `503` until the operator upgrades the reader or declares the build. The
+CI standby mirror of `postgres:18.6-bookworm` is one, and so is the local
+Compose `postgres:18-alpine` tag while it resolves below 18.7 (the tag floats;
+check `SHOW server_version`).
+
+For local Compose, read `SELECT current_setting('server_version')` on the
+Compose database and, only if you accept the risk on local data, declare that
+exact string for the `eshu` and `mcp-server` services, for example in a
+`docker-compose.override.yaml`:
+
+```yaml
+services:
+  eshu:
+    environment:
+      ESHU_POSTGRES_READ_SNAPSHOT_EXPORT_BUILDS: '[{"server_version":"<exact server_version>","evidence":"local compose; unpatched"}]'
+  mcp-server:
+    environment:
+      ESHU_POSTGRES_READ_SNAPSHOT_EXPORT_BUILDS: '[{"server_version":"<exact server_version>","evidence":"local compose; unpatched"}]'
+```
+
+At 3 AM, check in this order:
+
+1. `eshu_dp_postgres_reader_snapshot_export_qualified` (0 or 1; one series
+   per `member_ordinal` in fleet mode, unlabeled for a single pool). `0` means
+   that reader will refuse every shared-snapshot request.
+2. `eshu_dp_postgres_reader_snapshot_export_denials_total{reason}`:
+   `no_declaration` means no build is declared; `undeclared_build` means a
+   declaration exists but none equals the running reader's `server_version`
+   (usually an image change or a missing extra-version suffix).
+3. The startup log `postgres.reader.snapshot_export_qualification` (INFO when
+   qualified, WARN when not) and the per-request WARN
+   `postgres.reader.snapshot_export_denied`. Both carry `server_version`,
+   `server_version_num`, `in_recovery`, `reason`, the matched `evidence`, and
+   `member_ordinal` in fleet mode; neither carries a DSN, SQL, or credential.
+   The denial WARN is not rate-limited: it fires once per refused request for
+   the single pool, or once per member per refused request in fleet mode, so
+   a busy unqualified reader logs at request rate. Silence it by declaring the
+   build or upgrading the reader to 18.7 or later, not by filtering the log.
+4. The request span `postgres.query` with `db.operation=investigate_code_topic`
+   records `code_topic.execution_mode=denied` and
+   `code_topic.denial_reason=snapshot_export_unqualified`.
+
+Upgrading the PostgreSQL package does not repair data already damaged by the
+defect: a standby or primary that ran the unpatched build may hold wrong hint
+bits or visibility state that the fixed build will not rewrite. Follow the
+operator checklist tracked in #7033 and the image recipe in the infrastructure
+repository before declaring a rebuilt image.
+
 ## Aurora and scaling limits
 
 The two-role configuration can represent Aurora's writer and reader endpoint

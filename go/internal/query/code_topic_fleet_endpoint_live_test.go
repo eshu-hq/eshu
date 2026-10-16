@@ -154,8 +154,14 @@ FROM generate_series(1, 251) AS i`)
 	if err != nil {
 		t.Fatalf("encode reader member: %v", err)
 	}
+	// The CI standby is an unpatched postgres:18.6 mirror. Declaring its exact
+	// build lets this capacity proof keep exercising the shared snapshot; it
+	// proves nothing about build safety (#7957).
+	exportBuilds := codeTopicFixtureSnapshotExportEnv(t, readerDSN)
 	cfg, err := runtimepostgres.LoadConfig(func(key string) string {
 		switch key {
+		case "ESHU_POSTGRES_READ_SNAPSHOT_EXPORT_BUILDS":
+			return exportBuilds
 		case "ESHU_POSTGRES_DSN":
 			return writerDSN
 		case "ESHU_POSTGRES_READ_DSN":

@@ -100,6 +100,12 @@ on the same span.
   expires with a live request and clean partial release, the caller makes one
   single-statement attempt through that same fenced store. Fencing, snapshot
   setup, probe, assembly, and caller-cancellation errors remain failures.
+- A shared-snapshot refusal (`db.ErrSnapshotExportUnqualified`, #7957: the
+  reader build is not qualified for snapshot export) is permanent and never
+  takes the single statement. `RecordSnapshotExportDenial` marks the caller's
+  `postgres.query` span `code_topic.execution_mode=denied` with
+  `code_topic.denial_reason=snapshot_export_unqualified` and Error status.
+  `IsReaderMemberLoss` is the only error the caller's whole-read retry accepts.
 - Preserve the SQL `ORDER BY` and `string_agg(DISTINCT ...)` rules. Go string
   sorting is not a replacement for database collation.
 

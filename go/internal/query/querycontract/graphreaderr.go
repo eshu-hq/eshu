@@ -9,6 +9,9 @@ import (
 	"fmt"
 	"net/http"
 
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -37,7 +40,18 @@ var (
 	// caller may show a client; the sentinel the reader returned stays
 	// reachable through errors.Is for classification and operator logs (#7523).
 	ErrReaderRetryable = errors.New("database read temporarily unavailable; retry shortly")
+	// ErrSnapshotExportRefused is the public, fixed-text face of
+	// db.ErrSnapshotExportUnqualified (#7957): the PostgreSQL reader build is
+	// not qualified for shared-snapshot export, so a read that needs one
+	// shared snapshot is refused before it starts. It is permanent until the
+	// operator upgrades or declares the reader build, so it never carries a
+	// retry hint.
+	ErrSnapshotExportRefused = errors.New("shared-snapshot read refused: the PostgreSQL reader build is not qualified for snapshot export")
 )
+
+// SnapshotExportUnqualifiedReason is the closed details.reason value of the
+// permanent 503 for an unqualified shared-snapshot reader (#7957).
+const SnapshotExportUnqualifiedReason = "snapshot_export_unqualified"
 
 // BackendUnavailableRetryAfterSeconds is the Retry-After value, in seconds,
 // sent with the transient 503 backend_unavailable graph-read verdicts (graph
@@ -135,10 +149,20 @@ type graphReadHTTPError struct {
 // It returns false without touching the response when err
 // is not one of the shared graph-read errors, leaving the caller's own mapping
 // in place.
+//
+// A shared-snapshot refusal (db.ErrSnapshotExportUnqualified, #7957) is a
+// permanent 503 with no hint. It is a server-side configuration fault an
+// operator must fix, so it is also recorded on the request span with Error
+// status, as the route's own 500 path would.
 func WriteGraphReadError(w http.ResponseWriter, r *http.Request, err error, capability string) bool {
 	status, errEnv, ok := GraphReadErrorEnvelope(err, capability)
 	if !ok {
 		return false
+	}
+	if errors.Is(err, db.ErrSnapshotExportUnqualified) {
+		span := trace.SpanFromContext(r.Context())
+		span.RecordError(err)
+		span.SetStatus(codes.Error, SnapshotExportUnqualifiedReason)
 	}
 	WriteErrorEnvelope(w, r, status, errEnv)
 	return true
@@ -175,6 +199,18 @@ var mapGraphReadError = mapGraphReadHTTPError
 
 func mapGraphReadHTTPError(err error) (graphReadHTTPError, bool) {
 	switch {
+	case errors.Is(err, db.ErrSnapshotExportUnqualified):
+		// Checked first, before the deadline and fence verdicts: the refusal
+		// happened before any transaction began or any snapshot was exported,
+		// so it is the cause even if the bounded budget expired afterward. It
+		// is permanent until the reader build is upgraded or declared: no
+		// retryable marker, no hint.
+		return graphReadHTTPError{
+			status:  http.StatusServiceUnavailable,
+			code:    ErrorCodeBackendUnavailable,
+			message: ErrSnapshotExportRefused.Error(),
+			details: map[string]any{"reason": SnapshotExportUnqualifiedReason},
+		}, true
 	case errors.Is(err, ErrGraphUnavailable):
 		return graphReadHTTPError{
 			status:    http.StatusServiceUnavailable,

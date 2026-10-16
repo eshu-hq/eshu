@@ -8,5 +8,7 @@
 // The package preserves nullable probe columns in JSON and delegates text
 // grouping, distinct-term scoring, cap detection, and page ordering to SQL.
 // Any probe or assembly error cancels sibling reads and closes the guarded
-// snapshot set after workers have joined.
+// snapshot set after workers have joined. RecordSnapshotExportDenial and
+// IsReaderMemberLoss classify the two errors the caller treats specially: a
+// permanent shared-snapshot refusal (#7957) and a lost reader member.
 package codetopicparallel

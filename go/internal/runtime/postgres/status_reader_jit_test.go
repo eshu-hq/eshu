@@ -160,7 +160,7 @@ func (c *jitControlConn) ExecContext(_ context.Context, statement string, _ []dr
 func (c *jitControlConn) QueryContext(_ context.Context, statement string, _ []driver.NamedValue) (driver.Rows, error) {
 	switch {
 	case strings.Contains(statement, "pg_control_system()"):
-		return &queryIdentityRows{columns: []string{"read_only", "recovery", "system_id", "database"}, values: []driver.Value{"on", false, "7", "eshu"}}, nil
+		return &queryIdentityRows{columns: []string{"read_only", "recovery", "system_id", "database", "server_version", "server_version_num"}, values: []driver.Value{"on", false, "7", "eshu", "18.7", int64(180007)}}, nil
 	case statement == "SELECT $1::int":
 		return &queryIdentityRows{columns: []string{"value"}, values: []driver.Value{int64(42)}}, nil
 	case statement == statusSnapshotJITOffSQL:

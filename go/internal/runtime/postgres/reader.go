@@ -25,8 +25,12 @@ type readerConnection struct {
 	permits     chan struct{}
 	reservation *readerReservation
 	member      *physicalReaderMember
-	once        sync.Once
-	err         error
+	// snapshotExportQualified is this exact connection's #7957 verdict, from
+	// the build its own identity check reported. A snapshot set checks it on
+	// every connection before any transaction or export.
+	snapshotExportQualified bool
+	once                    sync.Once
+	err                     error
 }
 
 func (c *readerConnection) Close() error {
@@ -95,7 +99,8 @@ func (a *Access) borrowFreshFrom(ctx context.Context, pool *sql.DB, member *phys
 		}
 		return nil, privateFailure(failureReaderBorrow, errors.Join(ErrReaderUnavailable, err))
 	}
-	if err := a.checkReader(fenceCtx, conn, point, member); err != nil {
+	exportQualified, err := a.checkReader(fenceCtx, conn, point, member)
+	if err != nil {
 		if errors.Is(err, ErrWrongTopology) {
 			// sql.Conn.Close returns healthy connections to the pool. This
 			// physical connection failed its borrowed-session identity check.
@@ -107,36 +112,56 @@ func (a *Access) borrowFreshFrom(ctx context.Context, pool *sql.DB, member *phys
 		}
 		return nil, err
 	}
-	return &readerConnection{Conn: conn, permits: a.readerPermits, member: member}, nil
+	return &readerConnection{Conn: conn, permits: a.readerPermits, member: member, snapshotExportQualified: exportQualified}, nil
 }
 
-func (a *Access) checkReader(ctx context.Context, conn *sql.Conn, point checkpoint, member *physicalReaderMember) error {
+// Borrow identity statements. The server_version columns ride the same round
+// trip as the fence (#7957): every borrow already pays this one statement, so
+// the snapshot-export verdict costs no extra query.
+const (
+	readerIdentitySQL = `SELECT current_setting('default_transaction_read_only'), pg_is_in_recovery(), system_identifier::text, current_database(), current_setting('server_version'), current_setting('server_version_num')::int FROM pg_control_system()`
+	memberIdentitySQL = `SELECT current_setting('default_transaction_read_only'), pg_is_in_recovery(), system_identifier::text, current_database(), (extract(epoch from pg_postmaster_start_time())*1000000)::bigint::text, host(inet_server_addr()), current_setting('server_version'), current_setting('server_version_num')::int FROM pg_control_system()`
+)
+
+// checkReader fences one borrowed connection and reports whether its build may
+// export a shared snapshot. An accepted identity refreshes the pool or member
+// verdict that the snapshot-set fast path and the qualification gauge read.
+func (a *Access) checkReader(ctx context.Context, conn *sql.Conn, point checkpoint, member *physicalReaderMember) (exportQualified bool, err error) {
 	started := time.Now()
-	var readOnly, systemID, database string
-	var recovery bool
-	var err error
-	var incarnation, serverAddress string
+	// One value holds every scan destination, so the identity scan costs one
+	// heap object however many columns it reads. The build number scans into
+	// int64, which database/sql assigns without a string round trip.
+	var id struct {
+		readOnly, systemID, database, incarnation, serverAddress, serverVersion string
+		recovery                                                                bool
+		serverVersionNum                                                        int64
+	}
 	if member == nil {
-		err = conn.QueryRowContext(ctx, `SELECT current_setting('default_transaction_read_only'), pg_is_in_recovery(), system_identifier::text, current_database() FROM pg_control_system()`).Scan(&readOnly, &recovery, &systemID, &database)
+		err = conn.QueryRowContext(ctx, readerIdentitySQL).Scan(&id.readOnly, &id.recovery, &id.systemID, &id.database, &id.serverVersion, &id.serverVersionNum)
 	} else {
-		err = conn.QueryRowContext(ctx, `SELECT current_setting('default_transaction_read_only'), pg_is_in_recovery(), system_identifier::text, current_database(), (extract(epoch from pg_postmaster_start_time())*1000000)::bigint::text, host(inet_server_addr()) FROM pg_control_system()`).Scan(&readOnly, &recovery, &systemID, &database, &incarnation, &serverAddress)
+		err = conn.QueryRowContext(ctx, memberIdentitySQL).Scan(&id.readOnly, &id.recovery, &id.systemID, &id.database, &id.incarnation, &id.serverAddress, &id.serverVersion, &id.serverVersionNum)
 	}
 	writer := a.lineage.identity()
-	if err == nil && (readOnly != "on" || systemID != point.systemID || database != point.database || systemID != writer.systemID || database != writer.database || recovery == a.samePrimary) {
+	if err == nil && (id.readOnly != "on" || id.systemID != point.systemID || id.database != point.database || id.systemID != writer.systemID || id.database != writer.database || id.recovery == a.samePrimary) {
 		err = ErrWrongTopology
 	}
-	if err == nil && member != nil && (incarnation != member.incarnation || !addressMatches(serverAddress, member.addresses)) {
+	if err == nil && member != nil && (id.incarnation != member.incarnation || !addressMatches(id.serverAddress, member.addresses)) {
 		err = memberLocalTopology{}
 	}
 	a.observe(ctx, "reader", StageReaderIdentity, started, err)
 	if err != nil {
 		if errors.Is(err, ErrWrongTopology) {
-			return privateFailure(failureReaderIdentity, err)
+			return false, privateFailure(failureReaderIdentity, err)
 		}
-		return privateFailure(failureReaderIdentity, errors.Join(ErrReaderUnavailable, err))
+		return false, privateFailure(failureReaderIdentity, errors.Join(ErrReaderUnavailable, err))
 	}
+	holder := a.snapshotExport
+	if member != nil {
+		holder = member.snapshotExport
+	}
+	exportQualified = holder.observe(id.serverVersion, int(id.serverVersionNum), id.recovery)
 	if a.samePrimary {
-		return nil
+		return exportQualified, nil
 	}
 	replayStarted := time.Now()
 	defer func() { a.observe(ctx, "reader", StageReaderReplay, replayStarted, err) }()
@@ -148,18 +173,18 @@ func (a *Access) checkReader(ctx context.Context, conn *sql.Conn, point checkpoi
 		if err != nil {
 			if ctx.Err() != nil {
 				err = replayContextError(ctx.Err())
-				return err
+				return false, err
 			}
 			err = errors.Join(ErrReaderUnavailable, err)
-			return privateFailure(failureReaderReplay, err)
+			return false, privateFailure(failureReaderReplay, err)
 		}
 		if caughtUp {
-			return nil
+			return exportQualified, nil
 		}
 		select {
 		case <-ctx.Done():
 			err = replayContextError(ctx.Err())
-			return err
+			return false, err
 		case <-ticker.C:
 		}
 	}

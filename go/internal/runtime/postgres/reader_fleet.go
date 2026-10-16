@@ -129,10 +129,17 @@ func runFleet[T any](access *Access, ctx context.Context, count int, attempt fun
 	bounded, cancel := context.WithTimeout(ctx, access.replayTimeout)
 	defer cancel()
 	order := access.memberOrder(count)
+	if count > 1 {
+		// Only a snapshot set exports (#7957): drop members whose verdict is
+		// unqualified. Filtering here keeps memberOrder inlinable, so the
+		// single-connection borrow path pays nothing for it.
+		order = access.snapshotExportMembers(order)
+	}
 	excluded := make(map[int]bool)
 	tried := make(map[int]bool)
 	var failures error
 	capacityTimeout := false
+	exportExcluded := 0
 	for bounded.Err() == nil {
 		eligible := make([]int, 0, len(order))
 		for _, member := range order {
@@ -182,6 +189,17 @@ func runFleet[T any](access *Access, ctx context.Context, count int, attempt fun
 			return result, nil
 		}
 		reservation.Release()
+		var unqualified memberSnapshotExportUnqualified
+		if errors.As(attemptErr, &unqualified) {
+			// The member's own connection reported an unqualified build
+			// (#7957); a qualified sibling may still serve this set. The
+			// exclusion is not a setup failure of a qualified member, so it
+			// stays out of failures and a later sibling admission wait keeps
+			// its capacity classification.
+			excluded[reservation.member] = true
+			exportExcluded++
+			continue
+		}
 		failures = errors.Join(failures, attemptErr)
 		if sharedFleetFailure(bounded, attemptErr) {
 			return zero, attemptErr
@@ -200,6 +218,11 @@ func runFleet[T any](access *Access, ctx context.Context, count int, attempt fun
 	}
 	if ctx.Err() != nil {
 		return zero, ctx.Err()
+	}
+	if count > 1 && exportExcluded == len(order) {
+		// No member may export: either memberOrder admitted none, or every
+		// admitted member's connection reported an unqualified build.
+		return zero, access.refuseSnapshotExport(ctx)
 	}
 	if failures == nil {
 		failures = ErrReaderUnavailable
@@ -222,7 +245,8 @@ func (a *Access) borrowReserved(ctx context.Context, point checkpoint, reservati
 		reservation.ReleaseOne()
 		return nil, privateFailure(failureReaderBorrow, errors.Join(ErrReaderUnavailable, err))
 	}
-	if err := a.checkReader(ctx, conn, point, member); err != nil {
+	exportQualified, err := a.checkReader(ctx, conn, point, member)
+	if err != nil {
 		if errors.Is(err, ErrWrongTopology) {
 			_ = conn.Raw(func(any) error { return driver.ErrBadConn })
 		}
@@ -230,7 +254,7 @@ func (a *Access) borrowReserved(ctx context.Context, point checkpoint, reservati
 		reservation.ReleaseOne()
 		return nil, err
 	}
-	return &readerConnection{Conn: conn, reservation: reservation, member: member}, nil
+	return &readerConnection{Conn: conn, reservation: reservation, member: member, snapshotExportQualified: exportQualified}, nil
 }
 
 func (a *Access) borrowFleet(ctx context.Context) (*readerConnection, error) {
@@ -285,6 +309,11 @@ func (a *Access) beginSnapshotSetReserved(setupCtx, ownerCtx context.Context, co
 			return nil, borrowErr
 		}
 		connections = append(connections, conn)
+		if !conn.snapshotExportQualified {
+			// checkReader flipped this member's verdict; runFleet excludes it
+			// for this call and tries a qualified sibling.
+			return nil, memberSnapshotExportUnqualified{}
+		}
 	}
 	exporter, err := beginReadTransactionOwned(txCtx, connections[0], a)
 	if err != nil {
