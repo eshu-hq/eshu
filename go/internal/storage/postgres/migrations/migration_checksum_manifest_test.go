@@ -229,8 +229,8 @@ var migrationShippedChecksums = map[string]string{
 	"179_shared_projection_intents_acceptance_completed_idx.sql":             "1108819d30633e645bf7287534a2a6fc91400cf11ff8fabae8037a3dcc36cf16",
 	"180_fact_records_terraform_state_resource_arn_idx.sql":                  "0eb89b9d851fc731224c80b3fa8674fa722d3ef3a3ac7937d6bc6dd8952bb9e2",
 	"181_fact_records_package_manifest_consumption_backfill_idx.sql":         "d9ba71b20022cfb321d77181aa465754187bac17c5a1076d6432e562b25076f8",
-	"181_package_manifest_consumption_keys_partition_idx.sql":                "08b852822dae0555f3475966981c6a6aef64efdd3eb4d3823437ad72b62413d0",
-	"182_package_registry_identity_keys_partition_idx.sql":                   "f3a2b2b52911641153d148cdb57f481c060ed207330286c6d7e0669d9cab6bc3",
+	"182_package_manifest_consumption_keys_partition_idx.sql":                "08b852822dae0555f3475966981c6a6aef64efdd3eb4d3823437ad72b62413d0",
+	"183_package_registry_identity_keys_partition_idx.sql":                   "dc784b6459fb47fc0dd7314a78147f73a69dfea5d66e863d5ea9a13ace4a7087",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

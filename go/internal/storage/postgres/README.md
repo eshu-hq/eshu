@@ -1054,7 +1054,7 @@ sidecars (`relationship_reference_candidate_keys`,
 `package_manifest_consumption_keys`, `package_registry_identity_keys`)
 explicitly, in that order, keyed by `(scope_id, generation_id)` and, on the
 over-limit chunk path, the page's fact ids
-(`facts/keys`, migrations 181 and 182 for the package
+(`facts/keys`, migrations 182 and 183 for the package
 key partition indexes). `TestFactRecordDeleteSitesAreKeySidecarSafe` fails
 on an unclassified or unpaired fact delete. Retention refuses the cycle with
 `ErrGenerationRetentionKeyIndexUnavailable` when a partition index is missing,

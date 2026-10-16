@@ -77,9 +77,9 @@ import (
 // 179_shared_projection_intents_acceptance_completed_idx.sql; #7666 adds
 // 180_fact_records_terraform_state_resource_arn_idx.sql; #7663 adds
 // 181_fact_records_package_manifest_consumption_backfill_idx.sql; #7420 adds
-// 181_package_manifest_consumption_keys_partition_idx.sql and
-// 182_package_registry_identity_keys_partition_idx.sql.
-const goldenBootstrapDefinitionsDigest = "842eb960e896d3d3fc618ba794166dd03990ab75d02e304ae6f1b3245fa448ab"
+// 182_package_manifest_consumption_keys_partition_idx.sql and
+// 183_package_registry_identity_keys_partition_idx.sql.
+const goldenBootstrapDefinitionsDigest = "d55540f2d2d644fa3bed33d62f2f3df5bb821a1c47d83e132167b2d372ab7367"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or

@@ -9,7 +9,7 @@ fires one referential-integrity trigger per deleted fact per foreign key.
 
 This PR is the prerequisite for dropping those foreign keys (PR2). It adds:
 
-- migrations 181 and 182: `(scope_id, generation_id, fact_id)` partition
+- migrations 182 and 183: `(scope_id, generation_id, fact_id)` partition
   indexes on pmck and prik (rrck has had one since migration 058);
 - explicit child deletes at both retention fact delete sites, in the table
   order rrck, pmck, prik, before the facts go;
@@ -172,7 +172,11 @@ dropped in its isolated schema only (PR2's end state):
   fails with `deadlock detected (SQLSTATE 40P01)`
   (`TestRetentionFactKeyReversedOrderDeadlocksLive`). In production,
   retention, ingestion and the rebuild all lock the `ingestion_scopes` row
-  first, so the child order is a second line of defense.
+  first, so the child order is a second line of defense. Since #7663 the
+  rebuild runs one start transaction and one transaction per fact page, and
+  each takes the scope row `FOR NO KEY UPDATE`, which conflicts with
+  retention's `FOR UPDATE`. The start transaction keeps the
+  manifest-then-registry scope clear.
 
 Index refusal (#7279 extension): the deletes depend on the three partition
 indexes, and migrations run in a separate bootstrap job, so a reducer can run

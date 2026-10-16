@@ -201,7 +201,7 @@ func TestGenerationRetentionChunkDrainLeavesNoOrphanFactKeysLive(t *testing.T) {
 // #7279 refusal to the #7420 key sidecar deletes: they run under the scope
 // lock and probe each table's (scope_id, generation_id, fact_id) partition
 // index, so a dropped index, an INVALID one (what a failed concurrent build
-// of migration 181 or 182 leaves) and a valid index of the right name but
+// of migration 182 or 183 leaves) and a valid index of the right name but
 // the wrong shape each refuse the cycle, name the index, and prune nothing.
 // Restoring the index lets the next cycle run.
 func TestGenerationRetentionRefusesWithoutValidFactKeyIndexLive(t *testing.T) {

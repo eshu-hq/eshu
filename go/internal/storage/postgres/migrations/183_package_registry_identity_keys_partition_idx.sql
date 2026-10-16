@@ -5,7 +5,7 @@
 -- package_registry_identity_keys.
 -- Evidence: docs/internal/evidence/7420-key-sidecar-explicit-deletes.md.
 --
--- WHAT GOES WRONG TODAY. Same shape as migration 181: the table reaches
+-- WHAT GOES WRONG TODAY. Same shape as migration 182: the table reaches
 -- fact_records only through its per-fact fact_id foreign key, so a retention
 -- prune fires one referential-integrity trigger per deleted fact. #7420 PR1
 -- adds explicit deletes keyed by (scope_id, generation_id), plus the page's
@@ -19,7 +19,7 @@
 -- is one bitmap index range and the page delete one index range with the page
 -- ids as the third-column array, with buffers that track the generation, not
 -- the table. Build cost 0.8 s and 21 MB at 374k rows; the insert tax has the
--- same per-row shape as migration 181.
+-- same per-row shape as migration 182.
 --
 -- CONCURRENTLY so bootstrap never blocks the key writers; IF NOT EXISTS so
 -- every later bootstrap over an install that has it is a no-op. The lone

@@ -37,7 +37,7 @@ type Delete struct {
 // manifest keys before registry keys, so both writers take those row locks in
 // one order; the reversed order deadlocks against it. Every statement leads
 // with (scope_id, generation_id), the prefix of each table's (scope_id,
-// generation_id, fact_id) partition index (migrations 058, 181 and 182): the
+// generation_id, fact_id) partition index (migrations 058, 182 and 183): the
 // measured plans stay on that index at 5% and 20% generation shares, under
 // stale statistics and under a forced generic plan, with buffers that track
 // the generation instead of the table. A fact_id-only page delete was

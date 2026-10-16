@@ -111,7 +111,7 @@ provider-native identifiers stay in spans, structured logs, or durable facts.
 
 A cleanup cycle checks that `fact_records_content_entity_key_idx`,
 `fact_records_file_key_idx` (migrations 146, 147) and the three key sidecar
-`*_partition_idx` indexes (058, 181, 182; #7420) are valid before it locks
+`*_partition_idx` indexes (058, 182, 183; #7420) are valid before it locks
 anything; without them each probe or key delete scans its table under the scope
 locks. When any is missing, invalid (a failed concurrent build), or a different
 shape, the cycle is refused: `eshu_dp_generation_retention_failures_total{reason="key_index_unavailable"}`

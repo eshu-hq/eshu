@@ -56,11 +56,13 @@ SQLSTATE 55P03. That included reducer writes to `fact_records` and
 
 ## Known cost
 
-The two scope-wide sidecar deletes are sequential scans: neither table has a
-scope-leading index yet (#7420). Their cost tracks the table, not the scope.
-On the #7663 fixture each one took 61-85 ms at 1M rows and 252-449 ms at 5M
-rows. They run once per rebuild, in the start transaction, which blocks only
-the ingester for that scope.
+The two scope-wide sidecar deletes run once per rebuild, in the start
+transaction, which blocks only the ingester for that scope. Before #7420 they
+were sequential scans: neither table had a scope-leading index, and their cost
+tracked the table, not the scope. On the #7663 fixture each one took 61-85 ms
+at 1M rows and 252-449 ms at 5M rows. Migrations 182 and 183 (#7420) add
+`(scope_id, generation_id, fact_id)` indexes that lead with `scope_id`; those
+timings predate them.
 
 ## Progress limit
 

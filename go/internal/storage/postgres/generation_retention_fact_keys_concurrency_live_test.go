@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/consumption"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 
@@ -208,7 +209,7 @@ func TestRetentionFactKeyDeletesBesideBackfillRebuildLive(t *testing.T) {
 			defer cancel()
 			rebuilt := make(chan error, 1)
 			go func() {
-				rebuilt <- rebuildPackageManifestConsumptionKeyScope(rebuildCtx, SQLDB{DB: database}, factKeyConcurrencyScope, false)
+				rebuilt <- rebuildFactKeyConcurrencyScope(rebuildCtx, database)
 			}()
 			waitForLockWaiter(t, ctx, database)
 			execRetention(t, ctx, retention, factkeys.Deletes()[2].Generation, factKeyConcurrencyScope, factKeyConcurrencyOld)
@@ -237,6 +238,15 @@ func TestRetentionFactKeyDeletesBesideBackfillRebuildLive(t *testing.T) {
 	}
 }
 
+// rebuildFactKeyConcurrencyScope runs the production paged package key scope
+// rebuild (#7663) on the concurrency scope. Its start transaction locks the
+// scope row FOR NO KEY UPDATE, then clears manifest keys and then registry
+// keys for the scope, the order the retention key deletes must match.
+func rebuildFactKeyConcurrencyScope(ctx context.Context, database *sql.DB) error {
+	_, err := PackageManifestConsumptionKeyBackfill{}.rebuildScope(ctx, SQLDB{DB: database}, factKeyConcurrencyScope, consumption.PhaseInitial)
+	return err
+}
+
 func execRetention(t *testing.T, ctx context.Context, tx db.Transaction, statement string, args ...any) {
 	t.Helper()
 	if _, err := tx.ExecContext(ctx, statement, args...); err != nil {
@@ -260,7 +270,7 @@ func TestRetentionFactKeyReversedOrderDeadlocksLive(t *testing.T) {
 	defer cancel()
 	rebuilt := make(chan error, 1)
 	go func() {
-		rebuilt <- rebuildPackageManifestConsumptionKeyScope(rebuildCtx, SQLDB{DB: database}, factKeyConcurrencyScope, false)
+		rebuilt <- rebuildFactKeyConcurrencyScope(rebuildCtx, database)
 	}()
 	waitForLockWaiter(t, ctx, database)
 	_, retentionErr := retention.ExecContext(ctx, factkeys.Deletes()[1].Generation, factKeyConcurrencyScope, factKeyConcurrencyOld)

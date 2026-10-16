@@ -232,19 +232,10 @@
   with migration 181's partial index. See `consumption/AGENTS.md` and
   `docs/internal/evidence/7663-backfill-page-lock.md`.
 - **Key sidecar deletes (#7420).** A new statement that deletes
-  `fact_records` (or `scope_generations` / `ingestion_scopes`, which cascade
-  to it) must either be scoped to fact kinds that own no rows in
-  `relationship_reference_candidate_keys`, `package_manifest_consumption_keys`
-  or `package_registry_identity_keys`, or first call the explicit key sidecar
-  delete (`facts/keys`) in the same transaction, then
-  be classified in `factDeleteSites` (`fact_delete_key_guard_test.go`). Keep
-  the table order relationship, manifest, registry: the package key backfill
-  clears manifest then registry keys, and the reversed order deadlocks
-  (`TestRetentionFactKeyReversedOrderDeadlocksLive`). Keep every delete on
-  the `(scope_id, generation_id, fact_id)` partition index; a fact_id-only
-  page delete plans as a sequential scan. A new sidecar's partition index
-  joins `factkeys.UnavailablePartitionIndexesSQL`, so retention refuses
-  rather than scan when it is missing or invalid.
+  `fact_records` (directly, or through a `scope_generations` or
+  `ingestion_scopes` cascade) runs the `facts/keys` delete first in the same
+  transaction, or touches only fact kinds that own no key rows, and is
+  classified in `factDeleteSites`. Read `facts/keys/AGENTS.md` first.
 
 ## Evidence notes
 
