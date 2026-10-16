@@ -12,9 +12,9 @@ live in `7932-storage-attribution.sql`; the seeded fixture that checks them is
 
 | Claim | Status |
 |---|---|
-| Relation sizes, row estimates, generation counts, and the retention settings of the deployment | Reported in #7932 and its comments on 2026-10-10 and 2026-10-11. Not re-measured here: this work has no access to that database. |
+| Relation sizes, row estimates, generation counts, and the retention settings of the deployment | Reported in #7932 and its comments on 2026-10-10 and 2026-10-11. Not re-measured here, except by the single QA replica run recorded below. |
 | The lifecycle categories the attribution query assigns | Proved here on a seeded fixture (below). |
-| Bytes by lifecycle category on the deployment | NOT_CHECKED. The query is ready; it has not run against the deployment. |
+| Bytes by lifecycle category on the deployment | Run on the QA environment read replica on 2026-10-16 (section below): generation counts and sampled row footprints are measured. Bytes by category are derived from planner row estimates, not measured. |
 | Cleanup cost per generation (rows, buffers, WAL, lock hold) | Measured on a scratch PostgreSQL 18.6 with the production schema, at fixture scale, by the #7420 and #7427 leaves (both unmerged when this audit was written; some raw output was not retained). This audit did not re-run them. Production scale is labelled as such. |
 | Physical reclaimable bytes | NOT_CHECKED. A DELETE returns space to the table, not to the filesystem. No bloat measurement exists. |
 
@@ -26,7 +26,7 @@ live in `7932-storage-attribution.sql`; the seeded fixture that checks them is
 1. Relation bytes by family: heap, indexes and TOAST, partitions rolled up to
    their root. Catalog and file-size reads only.
 2. One row per generation lifecycle category, with a deterministic sample
-   (`md5(generation_id)` order, `:sample` per category) of exact row counts in
+   (`sha256(generation_id)` order, `:sample` per category) of exact row counts in
    `fact_records`, `eshu_search_index_documents`, and `eshu_search_index_terms`.
    A category total is the sample mean times the category size, so it carries
    sampling error; `sd_*` shows the spread.
@@ -104,6 +104,50 @@ Two arithmetic facts follow from those numbers; neither is a byte measurement:
 - Terms are hash-partitioned by `scope_id` across 64 leaves, not by generation,
   so no partition can be dropped to reclaim a generation's terms.
 
+## Deployment run: QA environment read replica, 2026-10-16
+
+The script ran with `sample=40`, `soft_hours=87600`, `hard_hours=87600`,
+`min_newer=24` against the QA environment read replica (PostgreSQL 18.3, in recovery,
+so the session could not write). It took 22 s. The first attempt failed in
+section 2 with `could not compute MD5 hash: unsupported`, because that server
+runs FIPS-mode OpenSSL. The sampler now orders by `sha256` instead of `md5`; the
+fixture census did not change. The run appears to read the same database as
+the issue's figures (827 scopes in both, and the superseded range starts on 17
+September in both), but sizes are live, so the two sets of numbers differ by the
+growth between 11 and 16 October.
+
+| Measured | Value |
+|---|---|
+| `eshu_search_index_terms` (64 leaves) | 2,715 GiB: heap 953, indexes 1,762 (64.9%); planner estimate 3.45 billion rows |
+| `fact_records` | 608 GiB: heap 342, indexes 127, TOAST 138; estimate 245 million rows |
+| `eshu_search_index_documents` | 271 GiB; estimate 109 million rows |
+| Generations | 833 active; 35,098 superseded and retained (827 scopes, 17 September to 16 October); 1 failed; 0 eligible, 0 pinned |
+| Retention events, last 14 days | 0 rows: nothing was pruned |
+| Sampled footprint per active generation | 3,666 facts, 1,584 documents, 45,311 terms (sd 81,677; max 332,478) |
+| Sampled footprint per superseded generation | 5,946 facts, 3,463 documents, 114,171 terms (sd 383,339; max 2,050,569) |
+
+What follows from these numbers, with its limits:
+
+- Active generations hold about 833 x 45,311 = 38 million terms rows, about 1.1%
+  of the planner's 3.45 billion estimate (standard error of the active mean:
+  about 29%, so 0.8% to 1.4%). The other 98.6% to 99.2% of terms rows belong to
+  superseded generations, because the failed generation has no terms. At the
+  relation's 2,715 GiB that is about 2.6 TiB of derived search-index storage
+  that no reader touches. This assumes rows are about the same size in both
+  groups and takes `reltuples` as given.
+- The superseded sample cannot give the total directly: 35,098 x 114,171 is 4.0
+  billion rows. The superseded sizes are heavy-tailed (sd 3.4 times the mean),
+  so the standard error of the 40-generation mean is about 53%, which puts the
+  product anywhere from about 1.9 to 6.1 billion rows. That range contains the
+  3.45 billion estimate, so the sample neither confirms nor contradicts it. Use
+  the complement above, not that product.
+- Facts follow the same shape: 833 x 3,666 is 3.1 million rows, about 1.2% of
+  245 million. History is the other 98.8%, and the hold keeps it on purpose.
+- Bloat, the byte split inside a leaf, and the dead-tuple share are not
+  measured: dead-tuple counters were not queried (they are per server, and a
+  replica does not carry the primary's), and `pgstattuple` was not used. The
+  one-standard-error ranges above are rough: the sampled sizes are heavy-tailed.
+
 ## Who reads search-index rows
 
 Every reader of `eshu_search_index_terms`, `eshu_search_index_documents`,
@@ -152,7 +196,7 @@ None of these is applied here. They are ordered by what must be known first.
    deployment differs from 24) and record the category counts and sampled
    footprint. With `soft_hours` left at its default of 168, the run would count
    as eligible every superseded generation older than a week past the rank
-   window, which the deployed hold retains. Until then the byte shares above are arithmetic, not measurement.
+   window, which the deployed hold retains. The 2026-10-16 QA run above is that measurement for the generation counts and sampled footprints; byte shares stay derived from row estimates.
 2. Keep the fact-history hold. The history exists to keep exact diff and
    provenance, and the retention predicate already refuses pinned work and
    uncovered writers. Any change to the 10-year hold belongs to #7585 and #7399
@@ -160,7 +204,7 @@ None of these is applied here. They are ordered by what must be known first.
 3. Treat the derived search index as a separate lifecycle from fact history.
    For a superseded generation it has no reader and is derived from facts that
    the history hold keeps anyway, so a hold that is right for history also keeps
-   an estimated share of unread index bytes (the estimate above; not measured, direction unknown). The batch
+   about 99% of the terms rows and an estimated 2.6 TiB (the QA run above). The batch
    pre-delete measured above is the mechanism; it does not need to wait for the
    history policy to change. This needs an owner decision and its own issue:
    retention only deletes eligible generations, so with the current hold even
@@ -178,16 +222,17 @@ None of these is applied here. They are ordered by what must be known first.
 - Does exact historical diff need the facts of a pruned superseded generation
   beyond the delta-base case that #7802 and PR #8139 cover? The retention
   predicate on main checks neither.
-- What are the real bytes of `superseded_eligible`, `superseded_retained` and
-  `superseded_pinned_live_work` on the deployment? The script answers it.
+- What are the real bytes of `superseded_retained` on the deployment? Rows are
+  measured (above); bytes per row by group are not.
 - How much of the 2 TiB is dead tuples and bloat today? No measurement exists.
 - Whether the deployed binary matches current source; only the configuration was
   read.
 
 ## Limits
 
-- This work had no database access to the deployment. Every deployment number is
-  quoted from the issue and labelled as such.
+- The first sections quote the issue's deployment numbers. The QA section is
+  a single run on one replica; the replica does not show the primary's
+  dead-tuple or bloat counters.
 - The fixture is small and has uniform generation sizes; sampling error on a real
   database will be larger. Read `sd_terms` before trusting a category mean.
 - Cleanup costs are from a scratch instance with other work running on the same
