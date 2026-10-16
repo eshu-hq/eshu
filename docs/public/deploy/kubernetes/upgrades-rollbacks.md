@@ -17,6 +17,48 @@ schema, graph schema, and worker behavior move together.
    completeness.
 6. Write an upgrade-state declaration for durable Postgres state, queue state,
    graph rebuild assumptions, and preserved volumes.
+7. Check the release range for Postgres schema changes in two places: new
+   numbered migration files, and DDL that Go code applies at startup. The
+   schema Job (`eshu-bootstrap-data-plane`) applies only the numbered files
+   in `go/internal/storage/postgres/migrations/`. Some stores also run their
+   own DDL from `EnsureSchema`, but only in the binaries that own them
+   (`webhook-listener`, `workflow-coordinator`). Schema that a release adds
+   only in that Go DDL is missing for every other binary until an owner
+   starts. For each Go file the second command lists, confirm that a
+   numbered migration at or before the target tag makes the same change. If
+   one is missing, hold the upgrade.
+
+   Since #7792 a unit test fails the build when Go DDL declares a column,
+   index name, table, named constraint, trigger, function, sequence, view,
+   materialized view, procedure, type, or domain that no numbered migration
+   declares, or any `ALTER INDEX`, `ALTER SEQUENCE`, `ALTER TYPE`,
+   `ALTER DOMAIN`, or `ALTER [MATERIALIZED] VIEW` that is not allowlisted.
+   It does not compare extensions, `ALTER COLUMN` changes, other statement
+   kinds, or definitions (column types and defaults, index columns,
+   constraint, trigger, function, view, and type bodies), and it does not
+   apply a later `DROP` or `RENAME` in the migrations. It can also miss a
+   clause that sits in a separate Go constant from the statement it ends.
+   Read the diff of each listed file for those. The `-G` pattern is
+   case-sensitive and Eshu's Go DDL is upper case; rerun it in lower case
+   if a release adds lower-case SQL. It also lists Go files with changed
+   Cypher graph-schema lines (`CREATE INDEX`, `CREATE FULLTEXT INDEX`, and
+   so on) in code or comments, such as under `go/internal/graph`; those
+   need no migration.
+
+```bash
+# Placeholders: use real release tags (they look like v0.0.3-pre-release-18).
+FROM=<tag the cluster runs now>
+TO=<tag you are upgrading to>
+
+# New numbered migrations the schema Job will apply.
+git diff --name-status --diff-filter=A "$FROM..$TO" -- \
+  go/internal/storage/postgres/migrations/
+
+# Go files whose Postgres DDL changed; each needs a matching migration.
+git diff --stat "$FROM..$TO" \
+  -G'ADD (COLUMN|IF NOT EXISTS|CONSTRAINT)|ADD [a-z_]+ [A-Z]|CREATE ([A-Z]+ )*(TABLE|INDEX|SEQUENCE|VIEW|TRIGGER|FUNCTION|PROCEDURE|TYPE|DOMAIN|EXTENSION)|ALTER (COLUMN|INDEX|SEQUENCE|TYPE|DOMAIN|VIEW|MATERIALIZED VIEW)' -- \
+  'go/*.go' ':!*_test.go' ':!go/internal/storage/postgres/migrations/'
+```
 
 When the release has the legacy `<release>-nornicdb-data` PVC, stop graph
 writers and protect that volume before rendering the v1.3.3 upgrade. The chart

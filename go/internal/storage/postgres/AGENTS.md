@@ -32,6 +32,22 @@
 - **Idempotency** — all INSERT paths use `ON CONFLICT DO NOTHING` or
   `ON CONFLICT DO UPDATE`; schema DDL uses `IF NOT EXISTS`. Do not add
   non-idempotent INSERTs or CREATE TABLE without IF NOT EXISTS.
+- **Go DDL never outruns the migrations (#7777, #7792)** — a column, index,
+  table, named constraint (table-level or inline), trigger, function,
+  sequence, view, materialized view, procedure, type, or domain added to a
+  store's Go DDL (`EnsureSchema`, `*SchemaSQL`) needs a numbered migration
+  in `migrations/` in the same change; the schema Job applies only those
+  files. `TestDDLMigrationParity` checks those names. It fails on Postgres
+  DDL it cannot read, including an ALTER TABLE action outside
+  `ddlAlterForms` and every `ALTER INDEX`, `ALTER SEQUENCE`, `ALTER TYPE`,
+  `ALTER DOMAIN`, or `ALTER [MATERIALIZED] VIEW`, unless
+  `ddlParityDynamicDDL` lists it with a reason, and it fails on stale
+  allowlist entries. Review these by hand, because the test does not:
+  definitions and `ALTER COLUMN` changes; any other statement kind
+  (`CREATE EXTENSION`, `CREATE SCHEMA`, `CREATE POLICY`, `DROP`, and so
+  on); a trailing clause in a separate constant or `strings.Join` element
+  after a complete first literal; and a later `DROP` or `RENAME` in the
+  migrations, which the test does not apply.
 - **Fact deduplication before batching** — `upsertFacts` calls
   `deduplicateEnvelopes` before each batch to prevent `SQLSTATE 21000` on
   `ON CONFLICT DO UPDATE` when the same `fact_id` appears twice in one batch
