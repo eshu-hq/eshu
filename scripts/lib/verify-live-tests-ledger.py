@@ -48,7 +48,7 @@ REPLAY_PROOF_SOURCE_SHA256 = {
         "9a588e169c81abc96b363adced5c60918b76b9ac7bfdcda210939121880d6822"
     ),
     "scripts/lib/replay_tier_routes.py": (
-        "001c09fd9d21b615b71287ab27c16a2317ce73517cdc0be188cf015e404438e1"
+        "63fe0db747ce2039cb0cb6412cfd88bd6ec91dc1b869080d5ca41ef3dbbc75b4"
     ),
 }
 replay_sources: dict[str, str] = {}

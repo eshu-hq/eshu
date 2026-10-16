@@ -24,6 +24,7 @@ ROUTED_PATHS = (
 INDEPENDENT_SUBJECTS = (
     "scripts/verify-replay-tier.sh",
     "scripts/lib/replay_tier_enrollment.py",
+    "scripts/lib/replay_tier_routes.py",
     "scripts/lib/replay_tier_inventory.json",
     "scripts/test-replay-tier-source-integrity.py",
 )
