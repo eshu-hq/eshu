@@ -124,8 +124,9 @@ func TestBrowserSessionStepFailuresAnswerFixedText(t *testing.T) {
 
 // TestListSessionsStoreFailureAnswersFixedText drives GET
 // /api/v0/auth/sessions through a failing session store with a backend
-// fault, a client cancel, and an inner cancel (#7674). A client cancel is
-// not logged as a failure.
+// fault, a client cancel, and an inner cancel (#7674).
+// TestLoginRouteFailuresLogOnlyServerFaults proves a client cancel is not
+// logged as a failure.
 func TestListSessionsStoreFailureAnswersFixedText(t *testing.T) {
 	routes := []failure.Route{{
 		Name: "session list", Path: "/api/v0/auth/sessions",

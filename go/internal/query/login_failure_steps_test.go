@@ -18,6 +18,14 @@ import (
 // cancel of the request, and an inner cancel on a live request (#7674). The
 // auth and session routes read and write through the writer store, never the
 // guarded PostgreSQL reader, so the reader-fence case never applies.
+//
+// A store or login-service call sees the request context, so all three
+// cases are real for it. A NewSecret generator does not: crypto/rand never
+// returns context.Canceled, so in production a generator failure answers 500.
+// The generator steps still run all three cases, because the injected
+// generator double returns the case error and so proves the step answers
+// through tracing.WriteServerFailure rather than a direct write. The render
+// and entropy steps have no such double, so they run faultOnlyKinds.
 var errorFlowKinds = []failure.Kind{failure.Fault, failure.ClientCancel, failure.InnerCancel}
 
 // faultOnlyKinds is the kind a step handles when no request-context error can

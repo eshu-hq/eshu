@@ -130,9 +130,10 @@ func TestSetupRecoveryCodeFailureAnswersFixedText(t *testing.T) {
 
 // TestSetupMFAFailureAfterSessionKeepsTheIssuedSession pins what a failed
 // final step has already committed: the browser session is issued before the
-// MFA factor id and the atomic completion, so a 500 (or a 499) from either
-// still carries the session cookie and leaves the session row in place, while
-// the wizard stays open for a retry (#7674 docs: auth-session-failures.md).
+// MFA factor id and the atomic completion, so a 500 from the completion
+// still carries the session cookie and leaves the session row in place
+// (#7674 docs: auth-session-failures.md). The test drives the 500 path only;
+// a 499 takes the same branch with a different status.
 func TestSetupMFAFailureAfterSessionKeepsTheIssuedSession(t *testing.T) {
 	t.Parallel()
 

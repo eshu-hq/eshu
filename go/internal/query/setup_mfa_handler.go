@@ -137,9 +137,10 @@ func (h *SetupHandler) handleCompleteMFA(w http.ResponseWriter, r *http.Request)
 }
 
 // generateRecoveryCodes returns setupRecoveryCodeCount fresh crypto/rand
-// recovery codes. It does not use h.newSecret (which tests may override to a
-// deterministic sequence for session-secret assertions) so recovery-code
-// generation stays unconditionally random even under test doubles.
+// recovery codes. It does not use h.newSecret, which tests override with a
+// deterministic sequence for session-secret assertions, so a NewSecret double
+// never makes recovery codes predictable. Production always reads
+// crypto/rand; only package tests set readEntropy, to drive the failure step.
 func (h *SetupHandler) generateRecoveryCodes() ([]string, error) {
 	readEntropy := h.readEntropy
 	if readEntropy == nil {

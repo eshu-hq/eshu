@@ -26,15 +26,19 @@ route does.
   SAML request id or relay state that hashed to empty, a resolved SAML
   principal with no tenant or workspace, a session secret that hashed to
   empty, and a login service that returned no redirect URL. A metadata
-  render failure and a recovery-code entropy failure never see the request
-  context, so they answer `500` and never `499`.
+  render failure, a recovery-code entropy failure, and a failure of the
+  session, CSRF, relay-state, or setup identifier generator never see the
+  request context, so in production they answer `500` and never `499`.
 - These routes read and write through the PostgreSQL writer, not the guarded
   reader, so no step answers the retryable reader-fence `503`.
 - The existing `400`, `401`, `403`, `404`, `409`, and `410` answers, and the
   `503` answers for a store, service, or verifier that is not wired, do not
   change.
 - The browser-session list, profile, and admin sign-in policy read and update
-  routes log the failure at ERROR. They do not log a client cancel.
+  routes log their own failure line at ERROR for a server fault, and not for
+  a client cancel. On the sign-in policy update, a client cancel still logs
+  `governance audit append failed` at ERROR: see
+  [The audit trail on a 499](#the-audit-trail-on-a-499).
 
 ## SAML
 
@@ -91,8 +95,9 @@ or `499` when it is a cancel of the request.
 | `POST /api/v0/auth/setup/mfa` | recovery-code generation | `failed to generate recovery codes` |
 | `POST /api/v0/auth/setup/mfa` | MFA factor id generation, completion | `failed to complete setup` |
 
-The bootstrap credential check answers `500` only for a store error. A wrong,
-expired, or consumed credential answers the same `401` for every cause. The
+The bootstrap credential check answers `500` only when the check itself
+fails: a store error, or a bootstrap decryption key that is not configured. A
+wrong, expired, or consumed credential answers the same `401` for every cause. The
 session issuance inside `POST /api/v0/auth/setup/mfa` answers
 `failed to create local identity session`, owned by the local identity
 routes.
@@ -118,9 +123,14 @@ are the writes, and what a retry does:
 
 - SAML login: the pending AuthnRequest row can commit with no redirect sent.
   It is never used and expires after five minutes. A retried login is safe.
-- SAML ACS: the request consume runs first and spends the AuthnRequest. After
-  a `500` or `499` at the consume or any later step, a retried ACS post
-  answers `401`: start the login again. When the failure is at the session
+- SAML ACS: the request consume runs first, as one update. A consume that
+  committed spends the AuthnRequest. Every later step runs only after a
+  committed consume, so after a `500` or `499` at a later step, a retried ACS
+  post answers `401`: start the login again. A `500` or `499` at the consume
+  step itself does not say whether the update committed. If it did not, the
+  AuthnRequest stays pending until it expires, and a retried post within five
+  minutes can complete the login. If it did, the retry answers `401`. When
+  the failure is at the session
   write, an allowed `sso_login_authenticated` audit event was already
   written, and a session row can commit whose secret never reached the
   client. That session cannot be used.
@@ -149,9 +159,12 @@ are the writes, and what a retry does:
 
 ## The audit trail on a 499
 
-The SAML ACS, the OIDC and GitHub callbacks, the setup steps, and the sign-in
-policy update write a governance audit event for a failed step on the request
-context. On a `499` that context is canceled, so the audit store rejects the
+These failed steps write a governance audit event on the request context:
+the SAML ACS provider lookup, consume, replay reserve, and principal resolve;
+the OIDC and GitHub callback service errors; the setup bootstrap credential
+check and owner resolve; and the sign-in policy update. The other setup
+failures, such as the admin password write and the MFA completion, record
+only the setup outcome metric. On a `499` that context is canceled, so the audit store rejects the
 event, unless the append ran before the cancel landed. The sign-in policy
 update then logs `governance audit append failed`
 at ERROR. The SAML, SSO callback, and setup audits discard the append error,
