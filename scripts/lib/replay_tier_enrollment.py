@@ -88,6 +88,7 @@ def verify_inventory(root: Path, inventory: dict[str, object]) -> None:
     verify_source_guard_activation(
         (root / "scripts/lib/replay_tier_enrollment.py").read_text(encoding="utf-8")
     )
+    verify_routes(root)
 
 
 def verify_reviewed_source(root: Path) -> None:
@@ -293,9 +294,83 @@ ROUTED_PATHS = (
 )
 
 
+def verify_workflow_liveness(workflow: str) -> None:
+    """Require the existing CI job to execute every reviewed proof step."""
+    if (not all(re.search(pattern, workflow, re.M) for pattern in (
+        r"^  merge_group:\n    types: \[checks_requested\]$",
+        r"^  push:\n    branches: \[ main \]$",
+        r"^  pull_request:\n    branches: \[ main \]$",
+    )) or any(len(re.findall(pattern, workflow, re.M)) != 1 for pattern in (
+        r"^on:.*$", r"^jobs:.*$", r"^  merge_group:.*$",
+        r"^  push:.*$", r"^  pull_request:.*$",
+    ))):
+        raise ValueError("workflow events no longer select the replay gate")
+    sections = workflow.split("\njobs:\n", 1)
+    if len(sections) != 2:
+        raise ValueError("workflow jobs block is missing")
+    job_rows = re.findall(
+        r"(?ms)^  ([a-z][a-z0-9-]*):\n(.*?)(?=^  [a-z][a-z0-9-]*:\n|\Z)",
+        sections[1],
+    )
+    if [name for name, _ in job_rows] != ["queue-selection", "replay-tier"]:
+        raise ValueError("workflow queue or replay job is missing or replaced")
+    queue, replay = (body for _, body in job_rows)
+    queue_fields = re.findall(r"(?m)^    ([a-z][a-z0-9-]*):(?: ([^\n]+))?$", queue)
+    replay_fields = re.findall(r"(?m)^    ([a-z][a-z0-9-]*):(?: ([^\n]+))?$", replay)
+    if (queue_fields != [("uses", "./.github/workflows/queue-selection.yml"),
+                         ("with", "")]
+            or re.findall(r"(?m)^      ([a-z][a-z0-9-]*):(?: ([^\n]+))?$",
+                          queue) != [("workflow", "verify-replay-tier.yml")]
+            or replay_fields != [
+                ("needs", "queue-selection"),
+                ("name", "Offline replay tier vs real NornicDB"),
+                ("runs-on", "ubuntu-latest"),
+                ("timeout-minutes", "15"),
+                ("steps", ""),
+            ]):
+        raise ValueError("workflow replay job or queue selection is disabled")
+    steps_text = replay.split("    steps:\n", 1)[1]
+    steps = re.findall(r"(?ms)^      - name: ([^\n]+)\n(.*?)(?=^      - |\Z)",
+                       steps_text)
+    if len(steps) != 7 or len(re.findall(r"(?m)^      - ", steps_text)) != 7:
+        raise ValueError("workflow proof steps are missing or replaced")
+    selection = ("${{ github.event_name != 'merge_group' || "
+                 "(contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), "
+                 "'Offline replay tier vs real NornicDB')) }}")
+    expected = (
+        ("Require queue selection to succeed",
+         "${{ always() && github.event_name == 'merge_group' }}",
+         "run", 'test "${{ needs.queue-selection.result }}" = success'),
+        ("Check out code", selection, "uses", "actions/checkout@v5"),
+        ("Set up Go", selection, "uses", "actions/setup-go@v6"),
+        ("Install contract dependencies", selection, "run",
+         "scripts/ci/install-apt-packages.sh ripgrep"),
+        ("Pre-warm Go modules", selection, "run",
+         "scripts/ci/go-mod-download-retry.sh"),
+        ("Verify replay tier contract", selection, "run",
+         "bash scripts/test-verify-replay-tier.sh"),
+        ("Run offline replay tier against real NornicDB", selection, "run",
+         "bash scripts/verify-replay-tier.sh"),
+    )
+    for (name, body), (want_name, want_if, command_key, command) in zip(steps, expected):
+        fields = re.findall(r"(?m)^        ([a-z][a-z0-9-]*):(?: ([^\n]+))?$",
+                            body)
+        want_fields = [("if", want_if), (command_key, command)]
+        if name == "Set up Go":
+            want_fields.append(("with", ""))
+            if re.findall(
+                r"(?m)^          ([a-z][a-z0-9-]*):(?: ([^\n]+))?$", body
+            ) != [("go-version-file", "go/go.mod"),
+                  ("cache-dependency-path", "go/go.sum")]:
+                raise ValueError("workflow Go setup no longer uses reviewed module")
+        if name != want_name or fields != want_fields:
+            raise ValueError(f"workflow proof step disabled or altered: {want_name}")
+
+
 def verify_routes(root: Path) -> None:
     """Require metadata-only PRs to select the existing blocking replay job."""
     workflow = (root / ".github/workflows/verify-replay-tier.yml").read_text()
+    verify_workflow_liveness(workflow)
     registry = (root / "specs/ci-gates.d/gates-15.yaml").read_text()
     prepr = (root / "scripts/dev/pre-pr.sh").read_text()
     if "  pull_request:" not in workflow or "\nconcurrency:" not in workflow:
