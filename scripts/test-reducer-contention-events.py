@@ -59,7 +59,12 @@ class EventProofTest(unittest.TestCase):
             workflow = root / MODULE.WORKFLOW
             workflow.parent.mkdir(parents=True)
             workflow.write_text(
-                "run: go test ./internal/query/ -run '^TestStoryLive$' -json\n"
+                "      - name: Run story proof\n"
+                "        run: |\n"
+                "          set -o pipefail\n"
+                "          go test ./internal/query/ -run '^TestStoryLive$' -json | tee events.jsonl\n"
+                "          python3 ../scripts/lib/reducer_contention_events.py --events events.jsonl "
+                "--package github.com/eshu-hq/eshu/go/internal/query\n"
             )
             inventory = {
                 "go/internal/query/proof_live_test.go": {
@@ -75,6 +80,18 @@ class EventProofTest(unittest.TestCase):
                 "TestNewLive", "TestStoryLive"
             ]
             with self.assertRaisesRegex(ValueError, "unselected tests"):
+                MODULE.verify_inventory(root, inventory)
+            inventory["go/internal/query/proof_live_test.go"]["tests"] = [
+                "TestStoryLive"
+            ]
+            source.write_text("package query\nfunc TestStoryLive(t *testing.T) {}\n")
+            workflow.write_text(
+                workflow.read_text().replace(
+                    "python3 ../scripts/lib/reducer_contention_events.py",
+                    "echo event verifier removed",
+                )
+            )
+            with self.assertRaisesRegex(ValueError, "missing event verifier"):
                 MODULE.verify_inventory(root, inventory)
 
 

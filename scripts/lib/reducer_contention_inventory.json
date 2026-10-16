@@ -166,6 +166,32 @@
       "TestReplayedFailedGenerationWritesAndActivatesLive"
     ]
   },
+  "go/internal/storage/postgres/readiness/wait/store_clear_fence_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/wait",
+    "tests": [
+      "TestReadinessWaitStaleClearCannotTombstoneNewerWriteLive"
+    ]
+  },
+  "go/internal/storage/postgres/readiness/wait/store_fence_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/wait",
+    "tests": [
+      "TestReadinessWaitStaleWriterCannotResurrectClearedWaitLive",
+      "TestReadinessWaitStaleWriterCannotUndoResetLive"
+    ]
+  },
+  "go/internal/storage/postgres/readiness/wait/store_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/wait",
+    "tests": [
+      "TestReadinessWaitConcurrentUpsertsKeepEarliestAnchorLive",
+      "TestReadinessWaitResetAnchorSettleAndClearLive"
+    ]
+  },
+  "go/internal/storage/postgres/readiness/wait/store_settle_fence_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/wait",
+    "tests": [
+      "TestReadinessWaitStaleWriterCannotUnsettleLive"
+    ]
+  },
   "go/internal/storage/postgres/reducer_queue_workload_replay_live_test.go": {
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
     "tests": [

@@ -405,6 +405,17 @@ jobs:
           set -o pipefail
           go test ./internal/query/ -run '^TestServiceStoryTargetSupportSQLSemanticsLive$' -json -race -count=1 -timeout 180s -v | tee "${RUNNER_TEMP}/contention-query_story.jsonl"
           python3 ../scripts/lib/reducer_contention_events.py --events "${RUNNER_TEMP}/contention-query_story.jsonl" --package github.com/eshu-hq/eshu/go/internal/query
+      - name: Run readiness wait ledger proofs
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'reducer contention gate')) }}
+        working-directory: go
+        env:
+          ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
+        # Six named tests cover the wait ledger's row, epoch, clear, and settle
+        # fences against the same disposable PostgreSQL service.
+        run: |
+          set -o pipefail
+          go test ./internal/storage/postgres/readiness/wait/ -run '^TestReadinessWait.*Live$' -json -race -count=1 -timeout 120s | tee "${RUNNER_TEMP}/contention-readiness_wait.jsonl"
+          python3 ../scripts/lib/reducer_contention_events.py --events "${RUNNER_TEMP}/contention-readiness_wait.jsonl" --package github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/wait
       - name: Run status summary store proofs
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'reducer contention gate')) }}
         working-directory: go

@@ -1,9 +1,7 @@
 """Exercise the dedicated contention ledger policy with a seeded promotion."""
 
-import hashlib
 import os
 from pathlib import Path
-import re
 import subprocess
 import tempfile
 import unittest
@@ -14,7 +12,7 @@ TARGET = "go/internal/query/service_story_target_support_live_test.go"
 
 
 def promoted_ledger() -> str:
-    """Move one real scheduled row while keeping the exemption digest honest."""
+    """Read the real promoted ledger for the seeded backend mutation."""
     text = subprocess.check_output(
         [
             "python3",
@@ -24,32 +22,13 @@ def promoted_ledger() -> str:
         ],
         text=True,
     )
-    old = (
+    enrolled = (
         f"  - file: {TARGET}\n"
         "    tag: ~\n"
-        "    class: scheduled\n"
-        "    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence\n"
+        "    class: dedicated_ci\n"
     )
-    new = old.replace("class: scheduled", "class: dedicated_ci").replace(
-        "timing evidence\n", "timing evidence\n    runner: reducer-contention\n"
-    )
-    if text.count(old) != 1:
+    if text.count(enrolled) != 1 or text.count("    runner: reducer-contention\n") < 1:
         raise ValueError("fixture target changed")
-    text = text.replace(old, new)
-    paths = sorted(
-        path
-        for path, cls in re.findall(
-            r"^  - file: (\S+)\n    tag: .*\n    class: (\S+)", text, re.M
-        )
-        if cls == "scheduled"
-    )
-    digest = hashlib.sha256(
-        "".join(f"{path}\n" for path in paths).encode("utf-8")
-    ).hexdigest()
-    text = re.sub(r"^  count: \d+$", f"  count: {len(paths)}", text, count=1, flags=re.M)
-    text = re.sub(
-        r"^  sha256: [0-9a-f]{64}$", f"  sha256: {digest}", text, count=1, flags=re.M
-    )
     return text
 
 
@@ -65,13 +44,17 @@ class LedgerPolicyTest(unittest.TestCase):
             path.write_text(text)
             result = subprocess.run([str(script)], env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
-            path.write_text(
-                text.replace(
-                    "    runner: reducer-contention\n",
-                    "    runner: reducer-contention\n    backends: neo4j\n",
-                    1,
-                )
+            marker = f"  - file: {TARGET}\n"
+            start = text.index(marker)
+            next_row = text.find("  - file: ", start + len(marker))
+            end = len(text) if next_row < 0 else next_row
+            row = text[start:end]
+            self.assertEqual(row.count("    runner: reducer-contention\n"), 1)
+            row = row.replace(
+                "    runner: reducer-contention\n",
+                "    runner: reducer-contention\n    backends: neo4j\n",
             )
+            path.write_text(text[:start] + row + text[end:])
             result = subprocess.run([str(script)], env=env, capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("PostgreSQL-only", result.stderr)

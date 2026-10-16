@@ -13,7 +13,7 @@ INVENTORY = Path(__file__).with_name("reducer_contention_inventory.json")
 WORKFLOW = Path(".github/workflows/reducer-contention-gate.yml")
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
 SELECTOR_PATTERN = re.compile(
-    r"go test (\./internal/(?:storage/postgres|query)/) -run '([^']+)'"
+    r"(?m)^[ \t]*go test (\./internal/(?:storage/postgres/readiness/wait|storage/postgres|query)/) -run '([^']+)'"
 )
 
 
@@ -29,11 +29,27 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
     """Reject source or workflow drift from the reviewed enrollment."""
     workflow = (root / WORKFLOW).read_text(encoding="utf-8")
     selectors: dict[str, re.Pattern[str]] = {}
-    for relative_package, expression in SELECTOR_PATTERN.findall(workflow):
-        package = "github.com/eshu-hq/eshu/go/" + relative_package[2:].rstrip("/")
-        if package in selectors:
-            raise ValueError(f"duplicate contention selector for {package}")
-        selectors[package] = re.compile(expression)
+    for step in re.split(r"(?m)^      - name:", workflow):
+        for match in SELECTOR_PATTERN.finditer(step):
+            relative_package, expression = match.groups()
+            package = "github.com/eshu-hq/eshu/go/" + relative_package[2:].rstrip("/")
+            if package in selectors:
+                raise ValueError(f"duplicate contention selector for {package}")
+            command = step[match.start():].splitlines()[0]
+            verifier = re.search(
+                r"(?m)^[ \t]+python3 ../scripts/lib/reducer_contention_events\.py "
+                r"--events \S+ --package " + re.escape(package) + r"[ \t]*$",
+                step,
+            )
+            if not verifier:
+                raise ValueError(f"missing event verifier for {package}")
+            if (
+                "-json" not in command.split()
+                or "| tee " not in command
+                or not re.search(r"(?m)^[ \t]+set -o pipefail[ \t]*$", step)
+            ):
+                raise ValueError(f"missing fail-closed Go event capture for {package}")
+            selectors[package] = re.compile(expression)
     for relative, row in inventory.items():
         package = row["package"]
         tests = row["tests"]

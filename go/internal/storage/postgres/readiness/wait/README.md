@@ -78,5 +78,7 @@ class. A retention sweep would need to prove that no straggler can still
 write, which a lease timeout alone does not guarantee, so there is none.
 
 No statement touches `fact_work_items` or holds a lock past its own statement.
-The live proofs are `store_live_test.go` and `store_fence_live_test.go` (set
-`ESHU_POSTGRES_DSN`).
+The live proofs are `store_live_test.go`, `store_fence_live_test.go`,
+`store_clear_fence_live_test.go`, and `store_settle_fence_live_test.go` (set
+`ESHU_POSTGRES_DSN`). The reducer contention CI job requires a pass event for
+each named test in these files.

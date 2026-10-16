@@ -33,8 +33,9 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/installed_advisory_targets_paging_live_test.go
     tag: ~
-    class: scheduled
-    reason: "#7154 narrowed OS-package drain proofs (paging to completion, purl forms against the Go matcher, plan at 50,000 rows, generation flip mid-drain), untagged and gated by the ESHU_POSTGRES_TEST_DSN env Skip; about 12s locally under -race, 10s of it the 50,000-row plan proof; Postgres only; enrolled in the blocking reducer contention gate workflow, not the live-backend job, where ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF=1 turns the unset-DSN skip into a failure (#7141)"
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 4/4 named Go test passes with -json -race (summed test elapsed 21.88s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/infra/inventory/backfill_live_test.go
     tag: ~
     class: scheduled
@@ -158,8 +159,9 @@ tests:
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/ingestion_published_generation_recommit_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 0.35s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/ingestion_scope_source_key_live_test.go
     tag: ~
     class: scheduled
@@ -234,12 +236,14 @@ tests:
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/projector_heartbeat_refusal_lock_order_live_test.go
     tag: ~
-    class: scheduled
-    reason: "#7389 heartbeat vs delta-baseline refusal lock-order proof (a sleep trigger holds the refusal on the work row), untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; Postgres only; about 1.6s locally and enrolled in the blocking reducer contention gate workflow, not the live-backend job"
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 1.60s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/projector_heartbeat_write_marker_interleave_live_test.go
     tag: ~
-    class: scheduled
-    reason: "#7389 marker-vs-heartbeat exclusion proof (1,000 interleaved races), untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; Postgres only; about 1s locally (1.3s under -race) and enrolled in the blocking reducer contention gate workflow, not the live-backend job"
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 3.44s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/projector_marked_write_age_live_test.go
     tag: ~
     class: postgres_ci
@@ -247,8 +251,9 @@ tests:
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/projector_queue_ack_scope_wait_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.09s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/projector_queue_ack_superseded_live_test.go
     tag: ~
     class: scheduled
@@ -260,12 +265,14 @@ tests:
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/projector_queue_attempt_fence_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 0.27s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/projector_queue_attempt_reclaim_contention_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 0.34s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/projector_queue_claim_deadlock_live_test.go
     tag: ~
     class: scheduled
@@ -370,24 +377,28 @@ tests:
     reason: "#7319 delta-baseline fence proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; unmeasured in CI — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/projector_queue_heartbeat_scope_lock_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 0.09s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/projector_queue_heartbeat_superseded_live_test.go
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/projector_queue_ingestion_lock_order_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 0.18s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/projector_queue_supersession_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 0.31s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/projector_queue_write_marker_live_test.go
     tag: ~
-    class: scheduled
-    reason: "#7389 write-through proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; Postgres only; under 0.3s locally and enrolled in the blocking reducer contention gate workflow, not the live-backend job"
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 0.90s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/projector_queue_zombie_heal_graph_live_test.go
     tag: ~
     class: postgres_ci
@@ -400,8 +411,9 @@ tests:
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/projector_write_marker_replay_live_test.go
     tag: ~
-    class: scheduled
-    reason: "#7389 replayed failed generation and latest-write-start proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; Postgres only (migrated private schema); about 5s locally and enrolled in the blocking reducer contention gate workflow, not the live-backend job"
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 6.84s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/provenance_edge_identity_upgrade_performance_live_test.go
     tag: ~
     class: scheduled
