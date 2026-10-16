@@ -82,7 +82,7 @@ func TestAdminHandler_RecoverGenerations_ClaimFenceBusyReturnsConflict(t *testin
 	}
 }
 
-func TestAdminHandler_RecoverGenerations_PrefixesRefinalizeErrors(t *testing.T) {
+func TestAdminHandler_RecoverGenerations_UsesFixedRefinalizeFailureText(t *testing.T) {
 	const cause = "database connection failed"
 	h := &Handler{
 		Recovery: &stubRecoveryHandler{refinalizeErr: errors.New(cause)},
@@ -96,8 +96,11 @@ func TestAdminHandler_RecoverGenerations_PrefixesRefinalizeErrors(t *testing.T) 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusInternalServerError, w.Body.String())
 	}
-	if !strings.Contains(w.Body.String(), "recover-generations: "+cause) {
-		t.Fatalf("body = %s, want recover-generations error prefix", w.Body.String())
+	if !strings.Contains(w.Body.String(), recoverGenerationsFailedMessage) {
+		t.Fatalf("body = %s, want fixed recover-generations failure text", w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), cause) {
+		t.Fatalf("body = %s, backend error leaked to the client", w.Body.String())
 	}
 }
 
