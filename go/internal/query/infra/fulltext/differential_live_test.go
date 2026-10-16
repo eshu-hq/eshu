@@ -435,3 +435,62 @@ func itoa(i int) string {
 	b, _ := json.Marshal(i)
 	return string(b)
 }
+
+// TestLiveInfraSearchFulltextTiming times the real handler end to end on the
+// legacy and full-text paths, through the production Neo4jReader and a live
+// readiness probe. It runs only with ESHU_INFRA_SEARCH_FULLTEXT_TIMING=1
+// against a seeded, fully keyed store (the #7245 QA-shaped fixture) and
+// logs timings; it asserts only that the store is ready.
+func TestLiveInfraSearchFulltextTiming(t *testing.T) {
+	if os.Getenv("ESHU_INFRA_SEARCH_FULLTEXT_TIMING") != "1" {
+		t.Skip("set ESHU_INFRA_SEARCH_FULLTEXT_TIMING=1 to time a seeded store")
+	}
+	g := openLiveFulltextGraph(t)
+	reader := query.NewNeo4jReader(g.driver, g.database)
+	readiness := fulltext.NewReadiness(reader, nil, nil)
+	if st := readiness.Refresh(context.Background()); !st.Ready {
+		t.Fatalf("store not ready for the full-text path: %+v", st)
+	}
+	paths := []struct {
+		name    string
+		handler *query.InfraHandler
+	}{
+		{"legacy", &query.InfraHandler{GraphBackend: querycontract.GraphBackendNeo4j, Neo4j: reader}},
+		{"fulltext", &query.InfraHandler{
+			GraphBackend: querycontract.GraphBackendNeo4j, Neo4j: reader,
+			SearchKey: &fulltext.Reader{Enabled: true, Readiness: readiness},
+		}},
+	}
+	terms := []string{
+		"aws_iam_role", "aws_sns_topic", "aws_sqs_queue", "aws_cloudwatch_event_rule", "sweep",
+		"svc-1", "arn:aws:iam::123456789012:role/svc-7", strings.Repeat("aws_iam_role_", 9), "e",
+	}
+	for _, q := range terms {
+		body, _ := json.Marshal(map[string]any{"query": q, "limit": 16})
+		for _, p := range paths {
+			mux := http.NewServeMux()
+			p.handler.Mount(mux)
+			serve := func() time.Duration {
+				req := httptest.NewRequest(http.MethodPost, "/api/v0/infra/resources/search", strings.NewReader(string(body)))
+				rec := httptest.NewRecorder()
+				start := time.Now()
+				mux.ServeHTTP(rec, req)
+				if rec.Code != http.StatusOK {
+					t.Fatalf("%s %q: status %d %.200s", p.name, q, rec.Code, rec.Body.String())
+				}
+				return time.Since(start)
+			}
+			g.mustWrite(t, "CALL db.clearQueryCaches()", nil)
+			cold := serve()
+			warm := make([]time.Duration, 20)
+			for i := range warm {
+				warm[i] = serve()
+			}
+			sort.Slice(warm, func(i, j int) bool { return warm[i] < warm[j] })
+			t.Logf("TIMING %-8s q=%-42.42q cold=%8.1fms warm_p50=%7.1fms warm_p95=%7.1fms max=%7.1fms",
+				p.name, q, liveMS(cold), liveMS(warm[len(warm)/2]), liveMS(warm[int(float64(len(warm)-1)*0.95)]), liveMS(warm[len(warm)-1]))
+		}
+	}
+}
+
+func liveMS(d time.Duration) float64 { return float64(d.Microseconds()) / 1000 }
