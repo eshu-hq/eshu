@@ -340,8 +340,10 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/container_image_identity_cloud_reopen_ordering_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: dedicated_ci
+    reason: "B-7 exact package and Go event proof; evidence in docs/internal/evidence/7533-golden-corpus-identity-proof.md"
+    runner: golden-corpus-identity
+
   - file: go/internal/storage/postgres/container_image_identity_cutover_backfill_live_test.go
     tag: ~
     class: scheduled

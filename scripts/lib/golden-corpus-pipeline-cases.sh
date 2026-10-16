@@ -75,10 +75,12 @@ rm -f "${demotion_command_fixture}"
 . "${demotion_lib}"
 demotion_event_fixture="$(mktemp -t golden-corpus-demotion-events.XXXXXX)"
 demotion_test_name="TestContainerImageIdentitySupportWriterRetiresPromotedDecisionOnDemotionLive"
+demotion_package="github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 printf '%s\n' \
-	"{\"Action\":\"run\",\"Test\":\"${demotion_test_name}\"}" \
-	"{\"Action\":\"pass\",\"Test\":\"${demotion_test_name}\"}" \
-	>"${demotion_event_fixture}"
+    "{\"Action\":\"run\",\"Package\":\"${demotion_package}\",\"Test\":\"${demotion_test_name}\"}" \
+    "{\"Action\":\"pass\",\"Package\":\"${demotion_package}\",\"Test\":\"${demotion_test_name}\"}" \
+    "{\"Action\":\"pass\",\"Package\":\"${demotion_package}\"}" \
+    >"${demotion_event_fixture}"
 golden_corpus_exact_test_passed "${demotion_event_fixture}" "${demotion_test_name}" ||
 	fail "demotion event validator rejected one run and one pass"
 printf '%s\n' '{"Action":"pass","Package":"example.invalid/no-tests"}' >"${demotion_event_fixture}"
@@ -113,7 +115,7 @@ fi
 rm -f "${demotion_event_fixture}"
 unset demotion_block_pattern demotion_command demotion_command_fixture demotion_command_pattern
 unset demotion_event_count_pattern
-unset demotion_event_fixture demotion_lib demotion_test_name
+unset demotion_event_fixture demotion_lib demotion_test_name demotion_package
 
 cloud_reopen_lib="${repo_root}/scripts/lib/golden-corpus-container-image-demotion.sh"
 require_invocation "cloud image reopen ordering proof invocation" \
@@ -131,6 +133,9 @@ require_matches "cloud image reopen ordering event-count validation" \
 	"${cloud_reopen_lib}" "${cloud_reopen_event_count_pattern}"
 unset cloud_reopen_block_pattern cloud_reopen_command_pattern cloud_reopen_event_count_pattern
 unset cloud_reopen_lib
+python3 "${repo_root}/scripts/lib/golden_corpus_identity.py" || fail "B-7 identity source inventory failed"
+python3 "${repo_root}/scripts/test-golden-corpus-identity.py" || fail "B-7 identity guard regressions failed"
+bash "${repo_root}/scripts/verify-live-tests-ledger.sh" || fail "B-7 identity ledger mapping failed"
 
 replay_lib="${repo_root}/scripts/lib/golden-corpus-cassette-replay.sh"
 metrics_source_lib="${repo_root}/scripts/lib/golden-corpus-metrics-source.sh"
@@ -212,5 +217,24 @@ bash -n "${timing_lib}" || fail "phase-timing lib has a syntax error"
 dead_code_lib="${repo_root}/scripts/lib/golden-corpus-dead-code-fixtures.sh"
 [[ -f "${dead_code_lib}" ]] || fail "missing dead-code fixture lib: ${dead_code_lib}"
 bash -n "${dead_code_lib}" || fail "dead-code fixture lib has a syntax error"
+
+
+# Metadata edits must select the real B-7 cells and their existing mirror,
+# including merge-group selection through each gate's own registry row.
+for identity_path in \
+    'scripts/lib/golden_corpus_identity.py' \
+    'scripts/test-golden-corpus-identity.py' \
+    'scripts/lib/verify-live-tests-ledger.py' \
+    'scripts/lib/live_tests_registry.py' \
+    'scripts/verify-live-tests-ledger.sh' \
+    'specs/live-tests.v1.yaml' \
+    'specs/live-tests.d/**'; do
+    require_workflow_path "B-7 identity input ${identity_path}" "${identity_path}"
+    for identity_gate in golden-corpus-mirror golden-corpus-gate golden-corpus-gate-neo4j; do
+        require_in_region "${identity_gate} identity input ${identity_path}" "${ci_gates}" \
+            "/^  - id: ${identity_gate}\$/,/^    local:/" "- \"${identity_path}\""
+    done
+done
+unset identity_path identity_gate
 
 pipeline_cases_completed=1
