@@ -5,6 +5,7 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -412,7 +413,7 @@ func (h *Handler) refinalize(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Refinalize runs in one transaction, so a client cancel rolls it back
 		// unless it lands while the commit itself runs.
-		writeMutationFailure(w, r, err, refinalizeFailedMessage)
+		writeRefinalizeFailure(w, r, err, refinalizeFailedMessage)
 		return
 	}
 
@@ -430,6 +431,14 @@ func (h *Handler) refinalize(w http.ResponseWriter, r *http.Request) {
 		"delta_active_scopes":                  result.DeltaActive.Report(),
 		"reindex_requests_written":             result.DeltaActive.ReindexRequestsWritten(),
 	})
+}
+
+func writeRefinalizeFailure(w http.ResponseWriter, r *http.Request, err error, failureMessage string) {
+	if errors.Is(err, recovery.ErrRefinalizeClaimFenceBusy) {
+		querycontract.WriteError(w, http.StatusConflict, "blocked/claim_fence_busy")
+		return
+	}
+	writeMutationFailure(w, r, err, failureMessage)
 }
 
 // tuningReport returns shared-projection tuning information.

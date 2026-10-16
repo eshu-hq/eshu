@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/inheritance"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 )
@@ -74,10 +74,10 @@ func TestInheritanceCypherTemplatesAreParameterized(t *testing.T) {
 	t.Parallel()
 
 	templates := map[string]string{
-		"inherits":         sourcecypher.BatchCanonicalInheritanceEdgeUpsertCypher,
-		"overrides":        sourcecypher.BatchCanonicalInheritanceOverrideUpsertCypher,
-		"aliases":          sourcecypher.BatchCanonicalInheritanceAliasUpsertCypher,
-		"implements":       sourcecypher.BatchCanonicalImplementsEdgeUpsertCypher,
+		"inherits":         inheritance.BatchUpsertCypher,
+		"overrides":        inheritance.BatchOverrideUpsertCypher,
+		"aliases":          inheritance.BatchAliasUpsertCypher,
+		"implements":       inheritance.BatchImplementsUpsertCypher,
 		"label-inherits":   buildLabelScopedInheritanceCypher("Class", "Class", "INHERITS"),
 		"label-implements": buildLabelScopedInheritanceCypher("Class", "Interface", "IMPLEMENTS"),
 	}

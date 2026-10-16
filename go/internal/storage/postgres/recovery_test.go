@@ -442,11 +442,11 @@ func TestRecoveryStoreRefinalizeScopeProjections(t *testing.T) {
 		t.Fatalf("result.Skipped.ByReason[unknown_scope] = %d, want 1 (scope-3); Skipped = %+v", got, result.Skipped)
 	}
 
-	if len(db.queries) != 4 {
-		t.Fatalf("query count = %d, want 4 (generation read, drain poll, post-lock recheck, enqueue)", len(db.queries))
+	if len(db.queries) != 5 {
+		t.Fatalf("query count = %d, want 5 (generation read, lock timeout read, drain poll, post-lock recheck, enqueue)", len(db.queries))
 	}
-	if !strings.Contains(db.queries[3].query, "INSERT INTO fact_work_items") {
-		t.Fatalf("refinalize query missing INSERT: %s", db.queries[3].query)
+	if !strings.Contains(db.queries[4].query, "INSERT INTO fact_work_items") {
+		t.Fatalf("refinalize query missing INSERT: %s", db.queries[4].query)
 	}
 }
 

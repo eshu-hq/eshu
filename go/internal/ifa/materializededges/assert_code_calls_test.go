@@ -75,9 +75,9 @@ func TestCodeCallsDomainEdgeTypesComeFromTheWriterRegistry(t *testing.T) {
 // family unblocked for live baseline proof (#5996).
 //
 // Four types again, and again a naive read scores it as one: only INHERITS is
-// written by the first template in canonical_inheritance_edges.go, with
+// written by the first template in canonical/inheritance/edges.go, with
 // OVERRIDES and ALIASES further down the same file and IMPLEMENTS in
-// canonical_implements_edges.go. Two families examined, two that a
+// canonical/inheritance/implements.go. Two families examined, two that a
 // first-template reading undercounts fourfold — which is why every remaining
 // #5543 family gets its set derived from the writer registry and pinned against
 // the retract, never eyeballed.

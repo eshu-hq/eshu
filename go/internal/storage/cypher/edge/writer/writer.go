@@ -10,6 +10,7 @@ import (
 	"time"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/inheritance"
 
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -322,7 +323,7 @@ func batchCypherForDomain(domain string) (string, error) {
 	case reducer.DomainCodeCalls:
 		return sourcecypher.BatchCanonicalCodeCallUpsertCypher, nil
 	case reducer.DomainInheritanceEdges:
-		return sourcecypher.BatchCanonicalInheritanceEdgeUpsertCypher, nil
+		return inheritance.BatchUpsertCypher, nil
 	case reducer.DomainDocumentationEdges:
 		return sourcecypher.BatchCanonicalDocumentationEntityEdgeCypher, nil
 	case reducer.DomainRationaleEdges:

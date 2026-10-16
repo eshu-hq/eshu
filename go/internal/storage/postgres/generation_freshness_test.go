@@ -108,11 +108,32 @@ func TestGenerationFreshnessCheck(t *testing.T) {
 			wantRetryable: true,
 		},
 		{
-			name:         "missing first generation keeps legacy current result",
+			// #7427 c3: with the scope's active pointer NULL (its active
+			// generation failed) and the intent's generation row gone (pruned
+			// by retention), the writer must abandon: once the terms
+			// generation foreign key is dropped nothing else rejects its rows.
+			name:         "missing generation row with NULL active pointer fails closed",
 			scopeID:      "scope-123",
 			generationID: "gen-missing",
 			database: &generationFreshnessTestDB{freshness: map[string]freshnessRow{
 				"scope-123": row("", "", false),
+			}},
+		},
+		{
+			name:         "active generation behind a NULL pointer keeps the legacy current result",
+			scopeID:      "scope-123",
+			generationID: "gen-abc",
+			database: &generationFreshnessTestDB{freshness: map[string]freshnessRow{
+				"scope-123": row("", "active", false),
+			}},
+			wantCurrent: true,
+		},
+		{
+			name:         "completed generation behind a NULL pointer keeps the legacy current result",
+			scopeID:      "scope-123",
+			generationID: "gen-abc",
+			database: &generationFreshnessTestDB{freshness: map[string]freshnessRow{
+				"scope-123": row("", "completed", false),
 			}},
 			wantCurrent: true,
 		},

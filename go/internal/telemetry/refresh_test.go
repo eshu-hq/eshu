@@ -41,6 +41,7 @@ func TestSkippedRefreshCountByReasonIsClosed(t *testing.T) {
 	RecordSkippedRefresh(RefreshSkipReasonReconcileReprojectionPending)
 	RecordSkippedRefresh(RefreshSkipReasonFinalizedGenerationReplay)
 	RecordSkippedRefresh(RefreshSkipReasonReconcileSuperseded)
+	RecordSkippedRefresh(RefreshSkipReasonDestructiveSuccessor)
 	RecordSkippedRefresh("repo-specific-free-text")
 
 	want := map[string]uint64{
@@ -50,6 +51,7 @@ func TestSkippedRefreshCountByReasonIsClosed(t *testing.T) {
 		RefreshSkipReasonReconcileReprojectionPending: 1,
 		RefreshSkipReasonFinalizedGenerationReplay:    1,
 		RefreshSkipReasonReconcileSuperseded:          1,
+		RefreshSkipReasonDestructiveSuccessor:         1,
 		RefreshSkipReasonOther:                        1,
 	}
 	reasons := RefreshSkipReasons()
@@ -67,8 +69,8 @@ func TestSkippedRefreshCountByReasonIsClosed(t *testing.T) {
 	if got := SkippedRefreshCountByReason("repo-specific-free-text"); got != 0 {
 		t.Fatalf("SkippedRefreshCountByReason(unknown) = %d, want 0", got)
 	}
-	if got := SkippedRefreshCount(); got != 8 {
-		t.Fatalf("SkippedRefreshCount() = %d, want 8", got)
+	if got := SkippedRefreshCount(); got != 9 {
+		t.Fatalf("SkippedRefreshCount() = %d, want 9", got)
 	}
 	if !slices.Contains(LogKeys(), LogKeyRefreshSkipReason) {
 		t.Fatalf("LogKeys() missing %q", LogKeyRefreshSkipReason)

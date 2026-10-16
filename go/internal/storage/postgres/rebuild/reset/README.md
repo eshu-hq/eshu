@@ -62,11 +62,13 @@ refinalize is rebuilding, so ordinary indexing pays nothing for it.
   `recovery.SkippedScopes` report built from the same statement; a named scope id
   with no `ingestion_scopes` row is reported as `unknown_scope`.
 - `WaitForReducerDrain`,
-  `EnqueueProjectorWork`, `AcquireReducerClaimFence`, and
+  `AcquireReducerClaimFence`, `EnqueueProjectorWork`, and
   `AssertRetirementFenced` — the ordered coordination the caller runs in its
   transaction around `Apply`: read the set once, wait out in-flight reducer
-  leases (bounded), re-enqueue projector work, then confirm the retirement
-  actually committed. `InflightReducersError` is the abort signal.
+  leases (bounded), fence claims, re-enqueue projector work, then confirm the
+  retirement actually committed. `InflightReducersError` is the abort signal.
+  `retry.go` bounds retries until `LOCK TABLE` succeeds, then leaves the caller's
+  transaction context in control through commit.
   `Queryer`/`Rows` are narrow local interfaces so this package never imports
   its caller.
 - `Counts` — how many rows each reset touched, surfaced to the operator in the

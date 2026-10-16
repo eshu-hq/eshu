@@ -91,7 +91,6 @@ type ProviderFailure struct {
 	operation    string
 	failureClass FailureClass
 	terminal     bool
-	statusCode   int
 	cause        error
 }
 
@@ -157,9 +156,6 @@ func (f ProviderFailure) FailureOperation() string {
 // from the wrapped HTTPError, or 0 when no HTTP status is known. Only
 // 100-599 survives; anything else is reported as unknown.
 func (f ProviderFailure) FailureStatusCode() int {
-	if f.statusCode >= 100 && f.statusCode <= 599 {
-		return f.statusCode
-	}
 	var httpErr HTTPError
 	if errors.As(f.cause, &httpErr) {
 		if httpErr.StatusCode >= 100 && httpErr.StatusCode <= 599 {

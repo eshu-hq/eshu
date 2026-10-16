@@ -8,7 +8,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -120,12 +122,16 @@ func (s IngestionStore) CurrentScopeGeneration(
 //
 // Outcomes:
 //   - the intent generation is active, the scope is unknown, or the scope has
-//     no active generation and the intent is neither pending nor terminal:
-//     (true, nil), and the handler runs;
+//     no active generation and the intent's row exists but is neither pending
+//     nor terminal: (true, nil), and the handler runs. An unknown scope keeps
+//     this legacy result; it cannot leave search index orphans because
+//     eshu_search_index_terms and eshu_search_index_documents keep their
+//     scope_id foreign key, which rejects the row (#7427);
 //   - the scope has no active generation and the intent is pending:
 //     (false, reducercontract.GenerationNotYetActiveError) until first Ack;
-//   - the scope has no active generation and the intent is failed or superseded:
-//     (false, nil), and the intent is terminally superseded;
+//   - the scope has no active generation and the intent is failed or
+//     superseded, or its generation row is missing (retention pruned it,
+//     #7427): (false, nil), and the intent is terminally superseded;
 //   - the intent generation is still pending and sorts after the active
 //     generation: (false, reducercontract.GenerationNotYetActiveError). Its
 //     projector has enqueued reducer work but not yet acknowledged, so the
@@ -165,8 +171,11 @@ func NewGenerationFreshnessCheck(database db.ExecQueryer) reducer.GenerationFres
 					GenerationID: generationID,
 				}
 			}
-			if intentStatus.Valid && (intentStatus.String == string(scope.GenerationStatusFailed) ||
-				intentStatus.String == string(scope.GenerationStatusSuperseded)) {
+			if !intentStatus.Valid || intentStatus.String == string(scope.GenerationStatusFailed) ||
+				intentStatus.String == string(scope.GenerationStatusSuperseded) {
+				// A missing row fails closed (#7427): retention pruned the
+				// generation, and with the terms generation foreign key
+				// gone nothing else would reject the writer's rows.
 				return false, nil
 			}
 			// Preserve the legacy result for every other no-active state.
@@ -338,6 +347,47 @@ WHERE generation_id = $1`
 // applies instead of re-parsing unconditionally. A truncated set forces the
 // next parse, since unrecorded drops cannot be re-checked. It runs a
 // statement only on a drop.
+// refuseDestructiveSuccessor evaluates the #7926 successor-emptiness
+// backstop after the fact stream lands, when the successor's size is known,
+// and before any projector work is enqueued; commitScopeGeneration is the
+// only caller. A refusal rolls the commit transaction back — mirroring the
+// finalized-generation replay — so the prior generation stays active,
+// records the refusal under the destructive-successor reason, and reports
+// handled: the next scheduled collection recollects and is re-evaluated,
+// instead of retrying a successor the store will never accept. The
+// projector never sees the refused generation, so observation-preserving
+// projection behavior is unchanged.
+//
+// It acquires no locks and issues no queries: the prior generation and its
+// fact count arrive in prior, loaded before the transaction opened. The
+// caller marks its transaction closed and returns success on a refusal.
+func (s IngestionStore) refuseDestructiveSuccessor(
+	ctx context.Context,
+	tx db.Transaction,
+	scopeValue scope.IngestionScope,
+	generation scope.ScopeGeneration,
+	prior successorPrior,
+	successorFacts int,
+) (bool, error) {
+	refuse, reason := backfill.RefuseDestructiveSuccessor(
+		prior.found, prior.factCount, successorFacts, generation.TrustedDeletion,
+	)
+	if !refuse {
+		return false, nil
+	}
+	guardStart := time.Now()
+	if rollbackErr := tx.Rollback(); rollbackErr != nil {
+		return false, fmt.Errorf("rollback destructive successor: %w", rollbackErr)
+	}
+	s.backfillStore().RecordSkippedRefresh(ctx, scopeValue, generation, prior.candidate.GenerationID, reason)
+	s.logCommitStage(ctx, scopeValue, generation, "refuse_destructive_successor", guardStart,
+		slog.String("candidate_generation_id", prior.candidate.GenerationID),
+		slog.Int("prior_fact_count", prior.factCount),
+		slog.Int("successor_fact_count", successorFacts),
+	)
+	return true, nil
+}
+
 func recordDroppedPreparseIdentity(ctx context.Context, database db.ExecQueryer, generation scope.ScopeGeneration) error {
 	if !streamDropped(generation) {
 		return nil

@@ -4,11 +4,11 @@
 
 1. `README.md` in this directory — why the package exists and what each reset is
    for
-2. `reset.go` — the five reset templates, `AffectedGenerationsQuery`, `Apply`;
-   `refinalize.go` — the ordered coordination (read once, drain-wait, enqueue,
-   fence check) the caller runs before `Apply`
+2. `reset.go` — the five reset templates, `AffectedGenerationsQuery`, and
+   `Apply`; `refinalize.go` — ordered reads, drain, enqueue, and lease checks;
+   `retry.go` — bounded claim-fence admission retries
 3. `../recovery.go` — `RecoveryStore.RefinalizeScopeProjections`, the only
-   caller, which orchestrates the `refinalize.go` prelude in its transaction
+   caller, which owns the transaction and runs the reset operations
 4. `docs/internal/evidence/4594-graph-rebuild-from-facts.md` — the measured
    before/after, and the failures that are still open
 5. `docs/public/operate/graph-rebuild-from-facts.md` — the operator runbook
@@ -56,11 +56,10 @@ generation through its newest non-superseded generation when that generation is
 failed (#7116), and it returns every other scope with a `skip_reason` from the
 closed `recovery.SkipReason*` set. Keep the covered set and the skip report in
 that one statement: a second read would let the report disagree with the set the
-enqueue and resets bound. The projector
-re-enqueue, the drain poll, and the five resets (all in this package; the
-transaction owner in `../recovery.go` only orchestrates) bind the `Generations`
-it returned. Change a guard and every statement follows, because none of them
-selects anything.
+enqueue and resets bound. The projector re-enqueue, drain poll, and five resets
+bind the `Generations` it returned. `retry.go` bounds fence admission. The
+transaction owner in `../recovery.go` keeps the lock through commit. Change a
+guard and every statement follows, because none of them selects anything.
 
 If you find yourself adding a `FROM ingestion_scopes` to any other statement,
 stop: that is the defect this shape exists to prevent.

@@ -282,8 +282,10 @@ func errRepoDependencyFencedReplayNotScheduled(request workloadMaterializationFe
 // recover-generations retires the generation, so an accepted generation can
 // name a retired one and its workload replay is then nothing to replay.
 //
-// It wraps [GenerationFreshnessCheck], the runtime's own guard: a scope with no
-// active generation or an unknown scope reads as current, and a newer pending
+// It wraps [GenerationFreshnessCheck], the runtime's own guard: an unknown
+// scope, or a scope with no active generation whose generation row still
+// exists and is not terminal, reads as current (a missing row is retired,
+// #7427), and a newer pending
 // generation reports [reducercontract.GenerationNotYetActiveError], which is
 // not retired because the replay is still owed once it activates. Any other
 // lookup error is returned and fails the cycle closed. Answers are cached per

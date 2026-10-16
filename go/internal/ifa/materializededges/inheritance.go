@@ -50,7 +50,7 @@ func inheritanceRowsToExpectedEdges(rows []map[string]any) []ExpectedEdge {
 }
 
 // missingInheritanceExpectedTypes reports which of registry's relationship
-// types (cypher.InheritanceMaterializedEdgeTypes(), read through
+// types (inheritance.MaterializedEdgeTypes(), read through
 // MaterializedEdgeDomainEdgeTypes so the check stays registry-derived) have no
 // edge at all in expected -- the exhaustiveness half of the vacuity guard: a
 // fifth writer type added later with no matching expected-set entry flips this

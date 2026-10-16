@@ -24,6 +24,11 @@ type scriptedDB struct {
 
 func (d *scriptedDB) Begin(context.Context) (db.Transaction, error) { return &scriptedTx{db: d}, nil }
 
+// QueryContext answers a statement outside a transaction, as the census runs.
+func (d *scriptedDB) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return (&scriptedTx{db: d}).QueryContext(ctx, query, args...)
+}
+
 type scriptedTx struct{ db *scriptedDB }
 
 func (tx *scriptedTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
@@ -63,6 +68,12 @@ func (r *scriptedRows) Scan(dest ...any) error {
 			*target = value.(int64)
 		case *string:
 			*target = value.(string)
+		case *sql.NullString:
+			if value == nil {
+				*target = sql.NullString{}
+			} else {
+				*target = sql.NullString{String: value.(string), Valid: true}
+			}
 		default:
 			return fmt.Errorf("unsupported scan target %T", dest[i])
 		}

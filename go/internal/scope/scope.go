@@ -313,6 +313,15 @@ type ScopeGeneration struct {
 	// generation, even when its hint and commit equal the active generation's,
 	// so the repository fact's default branch re-projects.
 	DefaultBranchChanged bool
+	// TrustedDeletion is the collector's explicit attestation that an empty
+	// or sharply shrunken successor is legitimate (for example a Jira
+	// target mid mass-resolve, set from explicit operator configuration).
+	// The ingestion store's successor-emptiness backstop (#7926) refuses to
+	// replace a content-bearing generation with such a successor unless this
+	// is set, keeping the prior generation active. It defaults to false,
+	// is never persisted to scope_generations, and travels only in memory
+	// from the collector to the commit that evaluates it.
+	TrustedDeletion bool
 	// PreparseIdentity is the pre-parse identity of the snapshot this
 	// generation came from (#7978 follow-up, ruling a9-143): the content
 	// version, commit, default branch, and configuration that determine its

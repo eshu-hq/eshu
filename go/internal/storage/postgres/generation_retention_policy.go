@@ -60,7 +60,8 @@ type GenerationRetentionPolicy struct {
 	// SearchIndexPredeleteRowCap bounds the eshu_search_index_terms and
 	// eshu_search_index_documents rows one pass deletes in its committed
 	// pre-delete batches before the prune transaction (#7427). The first
-	// batch of a pass always runs. Unset resolves to 2,000,000.
+	// batch of a pass always runs. Unset resolves to 2,000,000. The retention
+	// runner passes the same cap to the orphan sweep (#8281 review).
 	SearchIndexPredeleteRowCap int64
 	// SearchIndexPredeleteDeadline bounds the pre-delete's wall time per pass;
 	// no batch starts after it. Unset resolves to 15 minutes; the retention

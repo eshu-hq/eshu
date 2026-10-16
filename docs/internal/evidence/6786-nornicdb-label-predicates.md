@@ -144,7 +144,7 @@ driven on both backends.
 | --- | --- | --- | --- |
 | `repository/infrastructure.go` `QueryRepoInfrastructureFromGraph`: two-hop `WHERE infra:K8sResource OR …` (20 labels) | both backends; the `repository` story, context and `entity/workload_context.go` fallback when the content read model is missing | **affected** | The Go `isRepositoryInfrastructureType` gate hid it for small repos. With 5,001 code entities in the file, NornicDB returned `[]`, `truncated=true`, while Neo4j returned all 4 infra rows. The `ORDER BY type LIMIT 5001` ran over unfiltered `Function` rows. |
 | `impact/change_surface_legacy.go` unscoped traversal: `any(label IN labels(impacted) …)` | both backends; `FindChangeSurfaceImpactRows` and the investigate path through `changeSurfaceTraversalRows` | **affected** | Repo with 3 `File`s named ahead of 1 `Workload`, limit 2. NornicDB returned impacted `[]`, `truncated=true`. Neo4j returned `[workload]`. |
-| `codequery/relationships/story/class.go` `OverrideRowsCypher`: pair of `any(label IN labels(x) …)` | both backends; `relationshipStoryOverrideRows` | **affected shape; not observable today** | A seeded out-of-contract `OVERRIDES` to a `Variable` leaked on NornicDB (2 rows, Neo4j 1). The canonical writer only writes `OVERRIDES` between the seven override labels (`canonical_inheritance_edges.go`), so production data cannot reach the leak. |
+| `codequery/relationships/story/class.go` `OverrideRowsCypher`: pair of `any(label IN labels(x) …)` | both backends; `relationshipStoryOverrideRows` | **affected shape; not observable today** | A seeded out-of-contract `OVERRIDES` to a `Variable` leaked on NornicDB (2 rows, Neo4j 1). The canonical writer only writes `OVERRIDES` between the seven override labels (`canonical/inheritance/edges.go`), so production data cannot reach the leak. |
 | `impact/change_surface_traversal.go:39` scoped traversal: `WITH path, impacted WHERE impacted:Workload OR …` | both backends; scoped callers | not affected | Live scoped subtest: `[workload]` on both. The WITH-attached positive label test is evaluated on v1.3.3. |
 | `entity/handler.go` `BuildResolveGraphQuery`: `AND $type IN labels(e)` after a two-hop MATCH | both backends | not affected | Live: `Function` + `Class` both named `dup` → `[x11-na:fn]` on both. |
 | `infra_argocd_search.go` `AND NOT n:ArgoCDApplication` on single-node `MATCH (n:ArgoCDApplicationSet)` | both backends | not affected | Live: dual-labelled node returned once; `[app, dual, set]` on both. |
@@ -324,7 +324,7 @@ to operate these reads.
 - Label disjunction in a pattern, `(n:A|B)`, still returns zero rows on
   v1.3.3 (K01–K08). About 35 production statements use it, mostly
   `UNWIND … MATCH (x:A|B {uid: row.x})` writers such as
-  `canonical_inheritance_edges.go`. Those were not re-audited here; the
+  `canonical/inheritance/edges.go`. Those were not re-audited here; the
   inheritance writer prefers a label-scoped statement when both labels are
   known.
 - In a managed transaction, v1.3.3 rejects `CALL { … }`. Production reads are

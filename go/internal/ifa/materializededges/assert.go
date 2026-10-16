@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/inheritance"
 	materialized "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/materialized"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
@@ -278,7 +279,7 @@ func MaterializedEdgeDomainEdgeTypes(domain string) (map[string]struct{}, error)
 	case "code_calls":
 		return edgeTypeSet(cypher.CodeCallMaterializedEdgeTypes()), nil
 	case "inheritance_edges":
-		return edgeTypeSet(cypher.InheritanceMaterializedEdgeTypes()), nil
+		return edgeTypeSet(inheritance.MaterializedEdgeTypes()), nil
 	case "repo_dependency":
 		return edgeTypeSet(materialized.RepoDependencyMaterializedEdgeTypes()), nil
 	default:

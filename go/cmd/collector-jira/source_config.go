@@ -31,6 +31,10 @@ type targetJSON struct {
 	ChangelogLimit  int    `json:"changelog_limit"`
 	RemoteLinkLimit int    `json:"remote_link_limit"`
 	MetadataLimit   int    `json:"metadata_limit"`
+	// AllowEmptySuccessor is the explicit operator attestation that an
+	// empty or sharply shrunken successor generation is legitimate for
+	// this target. It defaults to false.
+	AllowEmptySuccessor bool `json:"allow_empty_successor"`
 }
 
 func loadJiraSourceConfig(
@@ -89,6 +93,9 @@ func mapTarget(target targetJSON, getenv func(string) string) (jira.TargetConfig
 		ChangelogLimit:  target.ChangelogLimit,
 		RemoteLinkLimit: target.RemoteLinkLimit,
 		MetadataLimit:   target.MetadataLimit,
+		// Only an explicitly attested target bypasses the ingestion
+		// store's successor-emptiness backstop.
+		AllowEmptySuccessor: target.AllowEmptySuccessor,
 	}, nil
 }
 

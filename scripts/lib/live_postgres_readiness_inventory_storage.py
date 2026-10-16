@@ -210,6 +210,7 @@ STORAGE_PACKAGES = {
             "TestGenerationRetentionAdmitsOnlyDrainedGenerationsLive",
             "TestGenerationRetentionAdmitSkipsAGenerationWhoseLockIsHeldLive",
             "TestGenerationRetentionCandidateReadQueryPreparesLive",
+            "TestGenerationFreshnessFailsClosedForAPrunedGenerationLive",
         ),
         "go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go": (
             "TestPackageManifestConsumptionMigrationsUpgradeAfterSecretLinesLive",
@@ -313,6 +314,17 @@ STORAGE_PACKAGES = {
             "TestRefinalizeDeltaActiveRollsBackReindexWithTheTransaction",
             "TestRefinalizeDeltaActiveReindexLockContention",
         ),
+        "go/internal/storage/postgres/recovery_refinalize_fence_admission_live_test.go": (
+            "TestRefinalizeFenceAdmissionBoundsRetryBegin",
+            "TestRefinalizeFenceAdmissionCallerCancellation",
+            "TestRefinalizeFenceAdmissionDeadlineStopsAfterFenceAcquire",
+            "TestRefinalizeFenceAdmissionPersistentHolderExhaustsWithoutConvoy",
+            "TestRefinalizeFenceAdmissionWriteAndCommitFailuresKeepTheirCauses",
+        ),
+        "go/internal/storage/postgres/recovery_refinalize_lock_convoy_live_test.go": (
+            "TestRefinalizeFenceDoesNotConvoyUnrelatedQueueWrite",
+            "TestRefinalizeFenceRetryBudgetIncludesReducerDrain",
+        ),
         "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_interleave_live_test.go": (
             "TestReducerContentionGateServiceCatalogRuntimeFenceProducerCompletesMidCheck",
             "TestReducerContentionGateServiceCatalogRuntimeFenceConcurrentWorkers",
@@ -371,6 +383,14 @@ STORAGE_PACKAGES = {
             "TestDrainLiveCancelledMidLoopConverges",
             "TestDrainLiveResweepRemovesARowInsertedBehindTheCursor",
             "TestDrainLiveSkipsAGenerationAnotherSessionHolds",
+        ),
+        "go/internal/storage/postgres/search/index/retention/orphan_live_test.go": (
+            "TestOrphanCensusLiveReadsZeroWithTheForeignKeysPresent",
+            "TestOrphanSweepLiveRemovesOnlyMissingGenerations",
+            "TestOrphanSweepLiveNeverDeletesAnExistingGeneration",
+            "TestOrphanSweepLiveConcurrentSweepsDeleteOnce",
+            "TestOrphanSweepLiveSweepsALateWriter",
+            "TestOrphanLiveUnknownScopeWriteIsRejected",
         ),
     },
 }
