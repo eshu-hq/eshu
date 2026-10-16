@@ -18,7 +18,8 @@ side-runner startup loop in the reducer root.
 ## Exported surface
 
 - `Runner`, `Config` — the drain loop and its bounds
-- `Policy` — retained count/age bounds and batch limits
+- `Policy` — retained count/age bounds, batch limits, and the #7427
+  search index pre-delete deadline (a quarter of the poll interval when unset)
 - `Result` — pruned counts, skips, ledger share, lock hold
 - `Pruner` — storage port (`PruneSupersededGenerations`)
 - `ErrKeyIndexUnavailable` — pruner refusal marker
@@ -43,10 +44,12 @@ Never `internal/reducer`.
   `eshu_dp_generation_retention_oldest_eligible_age_seconds`,
   `eshu_dp_generation_retention_phase_duration_seconds{phase}`,
   `eshu_dp_generation_retention_scope_lock_hold_seconds`,
-  `eshu_dp_generation_retention_over_limit_batches_total`
+  `eshu_dp_generation_retention_over_limit_batches_total`,
+  `eshu_dp_generation_retention_search_index_batches` (#7427 pre-delete
+  batches committed per pass)
 - Spans: none; the drain runs inline in the side-runner goroutine
 - Logs: `generation retention cycle completed` (pruned/skipped totals,
-  ledger share, lock hold); WARN when the ledger delete differs from
+  ledger share, lock hold, `search_index_batches`); WARN when the ledger delete differs from
   its pre-count
 
 ## Gotchas / invariants

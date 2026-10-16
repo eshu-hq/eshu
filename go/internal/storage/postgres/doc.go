@@ -84,6 +84,11 @@
 // explicitly, by (scope_id, generation_id) before the generation delete and
 // by the page's fact ids on the over-limit chunk path, in that table order
 // (#7420), so no fact delete relies on their per-fact foreign key cascade.
+// Before that transaction opens, each pass pre-deletes its candidates' search
+// index terms and documents in committed batches through the
+// search/index/retention leaf (#7427) and admits only generations that
+// drained and whose per-generation advisory lock it takes, so the FK cascade
+// under the scope lock finds no search index row.
 // FactStore kind-filtered reads use bounded, stable keyset pages and scan the
 // same facts.Envelope metadata shape as full fact loads. Fact writes remove
 // JSONB-incompatible U+0000 characters without changing literal source text

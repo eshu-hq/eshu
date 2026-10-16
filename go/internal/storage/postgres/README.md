@@ -596,6 +596,15 @@ Primary groups:
 - Generation retention store for bounded superseded-generation cleanup,
   hashed retention events, changed-since expiry proof, identity-safe content
   pruning, and the pruned generations' changed-since ledger rows (#7127).
+  Each pass first pre-deletes its candidates' `eshu_search_index_terms` and
+  `eshu_search_index_documents` rows in committed 20,000-row batches through
+  `search/index/retention` (#7427), bounded by
+  `GenerationRetentionPolicy.SearchIndexPredeleteRowCap` (default 2,000,000)
+  and `SearchIndexPredeleteDeadline`, and admits to its prune only drained
+  generations whose advisory lock (class 7427) it takes; the rest are skipped
+  as `search_index_undrained` or `advisory_lock_busy`. The FK cascade still
+  runs under the scope lock (foreign keys unchanged), now over an empty
+  search index.
 - Service-scoped incident evidence loader for the incidents service-evidence
   family. It resolves PagerDuty provider service ids to catalog service ids
   through active exact/derived reducer correlation facts and fails closed for

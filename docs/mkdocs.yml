@@ -331,6 +331,7 @@ nav:
       - Unscoped Content Search Signals: reference/telemetry/unscoped-file-search.md
       - Deferred Backfill Block Timing: reference/telemetry/deferred-backfill-blocks.md
       - Package Manifest Backfill Page Timing: reference/telemetry/package-manifest-backfill.md
+      - Generation Retention Search Index Pre-Delete: reference/telemetry/generation-retention-search-index.md
       - Metrics: reference/telemetry/metrics.md
       - Ingestion And Collector Metrics: reference/telemetry/metrics-ingestion-collectors.md
       - Reducer And Storage Metrics: reference/telemetry/metrics-reducer-storage.md

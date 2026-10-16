@@ -416,3 +416,13 @@ tests:
     class: verified_scheduled
     reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
     runner: postgres-scheduled
+  - file: go/internal/storage/postgres/generation_retention_search_index_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7427 disposable PostgreSQL 18 proof that the retention pass pre-deletes a superseded generation's search index terms and documents in committed batches before its targeted re-lock (0 rows at the re-lock, 45000 on main), admits only drained generations (search_index_undrained otherwise), skips a candidate whose advisory lock another session holds (advisory_lock_busy), and that the marked candidate read prepares against the migrated schema; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed all 4 tests in 10.4s wall with the migrated-schema setup on PostgreSQL 18.6 on 2026-10-15"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/search/index/retention/drain_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7427 disposable PostgreSQL 18 proof of the search index pre-delete batches: only the superseded generation loses rows while the active generation's re-minted document ids survive, pending, active and still-pointed-at generations lose none, running eshu_search_document work blocks the drain, a drain cancelled mid-loop converges on rerun, the from-start re-sweep removes a row inserted behind the cursor, and a held advisory lock makes a drain skip while two concurrent drains delete each row once without deadlock; enrolled in the live-postgres-readiness runner; reads ESHU_GENERATION_RETENTION_PROOF_DSN (with its DISPOSABLE flag) and creates one isolated bootstrapped schema per test. local run passed all 6 tests in 15.3s wall on PostgreSQL 18.6 on 2026-10-15"
+    runner: live-postgres-readiness

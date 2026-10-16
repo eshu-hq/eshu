@@ -1772,6 +1772,9 @@ type Instruments struct {
 	// held its ingestion_scopes row locks: the wait a concurrent fact insert
 	// into one of those scopes can see (#7279).
 	GenerationRetentionScopeLockHold metric.Float64Histogram
+	// GenerationRetentionSearchIndexBatches is the search index pre-delete
+	// batch transactions one retention pass committed before its prune (#7427).
+	GenerationRetentionSearchIndexBatches metric.Int64Histogram
 	// ChangedSinceLinkDuration, ChangedSinceLinkDeltaRows and
 	// ChangedSinceLinkKeys describe committed links by link_kind.
 	ChangedSinceLinkDuration  metric.Float64Histogram

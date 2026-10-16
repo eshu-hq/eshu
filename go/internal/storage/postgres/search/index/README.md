@@ -15,6 +15,8 @@ query against the persisted `eshu_search_index_terms` / `_documents` /
 no write path for those tables (the reducer's projection writes them) and no
 document-fixture or vector-search concerns; those stay with the parent
 package until their own `search/document/` and `search/vector/` moves.
+Deleting a superseded generation's rows before retention prunes it lives in
+the `retention/` subpackage (#7427), not here.
 
 ## Exported surface
 

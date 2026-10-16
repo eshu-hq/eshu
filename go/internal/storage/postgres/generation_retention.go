@@ -50,6 +50,7 @@ const generationRetentionWorkMemStatement = "SET LOCAL work_mem = '64MB'"
 type GenerationRetentionStore struct {
 	database db.ExecQueryer
 	Now      func() time.Time
+	generationRetentionStoreOptions
 	generationRetentionTestHooks
 }
 
@@ -80,15 +81,15 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 	}
 
 	policy = policy.normalize()
-	// An explicit hard ceiling below the soft window promises retention the
-	// ceiling denies (#7585): fail closed before locking anything.
-	if policy.HardMaxSupersededAge < policy.MaxSupersededAge {
-		return GenerationRetentionResult{}, fmt.Errorf(
-			"generation retention: hard max superseded age (%v) must not be below max superseded age (%v)",
-			policy.HardMaxSupersededAge, policy.MaxSupersededAge)
+	if err := policy.validate(); err != nil { // fail closed before locking anything (#7585)
+		return GenerationRetentionResult{}, err
 	}
-	start := time.Now()
 	now := s.now()
+	searchIndex, err := s.predeleteSearchIndex(ctx, beginner, now, policy) // committed batches, before Begin (#7427)
+	if err != nil {
+		return GenerationRetentionResult{}, err
+	}
+	start := time.Now() // Duration is the prune transaction; the pre-delete has its own phases
 	tx, err := beginner.Begin(ctx)
 	if err != nil {
 		return GenerationRetentionResult{}, fmt.Errorf("generation retention: begin: %w", err)
@@ -104,11 +105,7 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 		return GenerationRetentionResult{}, fmt.Errorf("generation retention: set transaction work_mem: %w", err)
 	}
 
-	result := GenerationRetentionResult{
-		RowsPruned:     make(map[string]int64),
-		Skipped:        make(map[string]int),
-		PhaseDurations: make(map[string]time.Duration),
-	}
+	result := newGenerationRetentionResult()
 	phaseStart := time.Now()
 	if err := checkGenerationRetentionKeyIndexes(ctx, tx); err != nil {
 		return GenerationRetentionResult{}, err
@@ -124,6 +121,9 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 	}
 	candidates, rowCounts, eventRowCounts, chunkTarget, err := s.selectPrunableCandidates(ctx, tx, now, policy, &result)
 	if err != nil {
+		return GenerationRetentionResult{}, err
+	}
+	if candidates, chunkTarget, err = searchIndex.admit(ctx, tx, candidates, chunkTarget, &result); err != nil {
 		return GenerationRetentionResult{}, err
 	}
 	// ScopeLockHold spans the re-lock, its recount and the prune, and is
@@ -147,7 +147,7 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 		}
 	}
 	if len(candidates) > 0 {
-		if err := s.pruneCandidates(ctx, tx, candidates, rowCounts, eventRowCounts, policy, now, &result); err != nil {
+		if err := s.pruneCandidates(ctx, tx, candidates, rowCounts, searchIndex.eventCounts(eventRowCounts), policy, now, &result); err != nil {
 			return GenerationRetentionResult{}, err
 		}
 	}
@@ -156,6 +156,7 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 		// the chunk's counts merge after it, never before.
 		mergeChunkProgress(&result, *chunkTarget, chunk, now)
 	}
+	searchIndex.finish(ctx, s.logger, &result, candidates)
 
 	phaseStart = time.Now()
 	if err := tx.Commit(); err != nil {

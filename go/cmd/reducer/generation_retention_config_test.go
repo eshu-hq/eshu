@@ -132,13 +132,13 @@ func TestLoadGenerationRetentionConfigAllowsLocalDisable(t *testing.T) {
 }
 
 func TestGenerationRetentionRunnerForConfig(t *testing.T) {
-	disabled := generationRetentionRunnerFor(&fakeReducerDB{}, generationRetentionConfig{})
+	disabled := generationRetentionRunnerFor(&fakeReducerDB{}, generationRetentionConfig{}, nil)
 	require.Nil(t, disabled)
 
 	enabled := generationRetentionRunnerFor(&fakeReducerDB{}, generationRetentionConfig{
 		Enabled: true,
 		Runner:  loadGenerationRetentionConfig(func(string) string { return "" }).Runner,
-	})
+	}, nil)
 	require.NotNil(t, enabled)
 	require.Equal(t, time.Hour, enabled.Config.PollInterval)
 }
