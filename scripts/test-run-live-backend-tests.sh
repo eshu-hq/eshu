@@ -202,11 +202,11 @@ EOF
 # names, so a left-anchored split silently dropped multi-Test files)
 # (#7324: +1 neo4j ledger row for repository_path_conflict_split_live_test.go)
 mapfile -t plan < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend both)
-[[ "${#plan[@]}" == "67" ]] || fail "planned runs ${#plan[@]}, want 67 (31 nornicdb + 36 neo4j)"
+[[ "${#plan[@]}" == "69" ]] || fail "planned runs ${#plan[@]}, want 69 (31 nornicdb + 38 neo4j)"
 mapfile -t plan_nornicdb < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend nornicdb)
 [[ "${#plan_nornicdb[@]}" == "31" ]] || fail "nornicdb planned runs ${#plan_nornicdb[@]}, want 31"
 mapfile -t plan_neo4j < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend neo4j)
-[[ "${#plan_neo4j[@]}" == "36" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 36"
+[[ "${#plan_neo4j[@]}" == "38" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 38"
 printf '%s\n' "${plan_neo4j[@]}" | rg -q '^neo4j\|[^|]*\|.*repository_context_workload_count_neo4j_live_test' ||
 	fail "materialized workload-count regression missing from neo4j plan"
 assert_workload_count_neo4j_only() {

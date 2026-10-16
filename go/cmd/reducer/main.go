@@ -41,7 +41,7 @@ func buildReducerService(
 	logger *slog.Logger,
 	identityCache *postgres.IdentityEpochCache,
 ) (reducer.Service, error) {
-	graphBackend, err := runtimecfg.LoadGraphBackend(getenv)
+	graphBackend, searchKey, err := loadReducerGraphBackend(getenv)
 	if err != nil {
 		return reducer.Service{}, err
 	}
@@ -93,9 +93,7 @@ func buildReducerService(
 
 	edgeWriterForHandlers := newHandlerEdgeWriter(neo4jExec, neo4jBatchSize(getenv), instruments, logger, inheritanceEdgeGroupBatchSize, sqlRelationshipEdgeGroupBatchSize)
 	edgeWriterForHandlers.SQLRelationshipSequentialWrites = graphBackend == runtimecfg.GraphBackendNornicDB
-	// #5007/#5062: owner-ledger and lock-only gates for the canonical node writers.
-	ownerGate, lockGate := newGraphOwnerGates(database, instruments)
-	graphWriters := newCanonicalGraphWriters(neo4jExec, graphReader, neo4jBatchSize(getenv), ownerGate, lockGate)
+	graphWriters := newReducerCanonicalGraphWriters(neo4jExec, graphReader, neo4jBatchSize(getenv), database, instruments, searchKey)
 	secretsIAMGraphWriter, err := secretsIAMGraphProjectionWriter(getenv, neo4jExec, neo4jBatchSize(getenv), logger)
 	if err != nil {
 		return reducer.Service{}, err

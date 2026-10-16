@@ -232,7 +232,7 @@ func TestRunAdoptionOnlyHandlesCompleteAndUnavailableCatalog(t *testing.T) {
 				func(context.Context, func(string) string) (bootstrapDB, error) { return database, nil },
 				func(context.Context, bootstrapExecutor) error { return nil },
 				func(context.Context, func(string) string) (neo4jDeps, error) {
-					deps := neo4jDeps{executor: &fakeNeo4jExecutor{}, close: func() error { return nil }}
+					deps := neo4jDeps{executor: &fakeNeo4jExecutor{}, runner: &fakeGraphRunner{events: new([]string)}, close: func() error { return nil }}
 					if tc.inspector != nil {
 						deps.inspector = tc.inspector
 					}

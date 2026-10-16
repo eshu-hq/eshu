@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
 )
 
 func canonicalEntityRowsByLabel(mat canonical.CanonicalMaterialization) map[string][]map[string]any {
@@ -172,7 +173,7 @@ func (w *CanonicalNodeWriter) buildEntityStatements(mat canonical.CanonicalMater
 			)
 			stmts = append(stmts, Statement{
 				Operation: OperationCanonicalUpsert,
-				Cypher:    fmt.Sprintf(canonicalNodeEntityUpsertTemplate, label),
+				Cypher:    search.Statement(w.searchKey, label, "n", fmt.Sprintf(canonicalNodeEntityUpsertTemplate, label)),
 				Parameters: map[string]any{
 					"rows":                           append([]map[string]any(nil), batchRows...),
 					StatementMetadataPhaseKey:        CanonicalPhaseEntities,
@@ -190,7 +191,7 @@ func (w *CanonicalNodeWriter) buildEntityStatements(mat canonical.CanonicalMater
 				mode := canonicalEntitySingletonFallbackMode(label, row)
 				stmts = append(stmts, Statement{
 					Operation: OperationCanonicalUpsert,
-					Cypher:    fmt.Sprintf(canonicalNodeEntitySingletonUpsertTemplate, label),
+					Cypher:    search.Statement(w.searchKey, label, "n", fmt.Sprintf(canonicalNodeEntitySingletonUpsertTemplate, label)),
 					Parameters: map[string]any{
 						"entity_id":                        row["entity_id"],
 						"props":                            row["props"],
@@ -260,7 +261,7 @@ func (w *CanonicalNodeWriter) buildEntityStatementsWithContainment(mat canonical
 				)
 				stmts = append(stmts, Statement{
 					Operation: OperationCanonicalUpsert,
-					Cypher:    fmt.Sprintf(canonicalNodeEntityFileScopedUpsertWithContainmentTemplate, label),
+					Cypher:    search.Statement(w.searchKey, label, "n", fmt.Sprintf(canonicalNodeEntityFileScopedUpsertWithContainmentTemplate, label)),
 					Parameters: map[string]any{
 						"file_path":                      filePath,
 						"rows":                           append([]map[string]any(nil), batchRows...),
@@ -278,6 +279,7 @@ func (w *CanonicalNodeWriter) buildEntityStatementsWithContainment(mat canonical
 					flushBatch()
 					mode := canonicalEntitySingletonFallbackMode(label, row)
 					stmts = append(stmts, canonicalNodeEntitySingletonWithContainmentStatement(
+						w.searchKey,
 						label,
 						filePath,
 						row,
@@ -340,7 +342,7 @@ func (w *CanonicalNodeWriter) buildEntityStatementsWithBatchedContainment(mat ca
 			)
 			stmts = append(stmts, Statement{
 				Operation: OperationCanonicalUpsert,
-				Cypher:    fmt.Sprintf(canonicalNodeEntityUpsertWithContainmentTemplate, label),
+				Cypher:    search.Statement(w.searchKey, label, "n", fmt.Sprintf(canonicalNodeEntityUpsertWithContainmentTemplate, label)),
 				Parameters: map[string]any{
 					"rows":                           append([]map[string]any(nil), batchRows...),
 					StatementMetadataPhaseKey:        CanonicalPhaseEntities,
@@ -358,6 +360,7 @@ func (w *CanonicalNodeWriter) buildEntityStatementsWithBatchedContainment(mat ca
 				filePath, _ := row["file_path"].(string)
 				mode := canonicalEntitySingletonFallbackMode(label, row)
 				stmts = append(stmts, canonicalNodeEntitySingletonWithContainmentStatement(
+					w.searchKey,
 					label,
 					filePath,
 					row,

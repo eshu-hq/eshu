@@ -61,6 +61,12 @@ drift/extraction, and query-stage timing events. Examples include:
 - `bootstrap.schema.started`
 - `bootstrap.postgres.applied`
 - `bootstrap.graph.applied`
+- `bootstrap.graph.infra_search_key.readiness`
+- `bootstrap.graph.infra_search_key.oversized`
+- `bootstrap.graph.infra_search_key.label_backfilled`
+- `bootstrap.graph.infra_search_key.backfilled`
+- `bootstrap.graph.infra_search_key.index_state`
+- `bootstrap.graph.infra_search_key.index_failed`
 - `documentation.drift.completed`
 - `documentation.extraction.completed`
 - `service_query.stage_started`

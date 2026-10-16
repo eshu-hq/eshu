@@ -47,7 +47,12 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			// DDL text to the modern form for the same two indexes (same
 			// names, labels, properties); no write identity changes, so the
 			// #7095 tip stays admitted, and NornicDB is again unchanged.
+			// #7245 adds the Neo4j-only infra_search_key_ft FULLTEXT index;
+			// no write identity changes and nothing reads the key in that
+			// release, so the #7675 tip stays admitted, and NornicDB is again
+			// unchanged.
 			compatible: []string{
+				graphSchemaNeo4jPreInfraSearchKeyIndexesFingerprint,
 				graphSchemaNeo4jPreFulltextModernFormFingerprint,
 				graphSchemaNeo4jPreRetiredNarrowConstraintsFingerprint,
 				graphSchemaNeo4jPreUnconstrainedUIDIndexFingerprint,

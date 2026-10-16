@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
 )
 
 const canonicalPhaseTerraformState = "terraform_state"
@@ -274,7 +275,7 @@ func (w *CanonicalNodeWriter) buildTerraformStateStatements(mat canonical.Canoni
 	statements = append(
 		statements,
 		tfstateBatchedStatements(
-			canonicalTerraformStateResourceUpsertCypher,
+			search.Statement(w.searchKey, "TerraformStateResource", "r", canonicalTerraformStateResourceUpsertCypher),
 			terraformStateResourceRows(mat),
 			w.batchSize,
 			"TerraformStateResource",
@@ -285,7 +286,7 @@ func (w *CanonicalNodeWriter) buildTerraformStateStatements(mat canonical.Canoni
 	statements = append(
 		statements,
 		tfstateBatchedStatements(
-			canonicalTerraformStateModuleUpsertCypher,
+			search.Statement(w.searchKey, "TerraformModule", "m", canonicalTerraformStateModuleUpsertCypher),
 			terraformStateModuleRows(mat),
 			w.batchSize,
 			"TerraformModule",
@@ -295,7 +296,7 @@ func (w *CanonicalNodeWriter) buildTerraformStateStatements(mat canonical.Canoni
 	statements = append(
 		statements,
 		tfstateBatchedStatements(
-			canonicalTerraformStateOutputUpsertCypher,
+			search.Statement(w.searchKey, "TerraformOutput", "o", canonicalTerraformStateOutputUpsertCypher),
 			terraformStateOutputRows(mat),
 			w.batchSize,
 			"TerraformOutput",

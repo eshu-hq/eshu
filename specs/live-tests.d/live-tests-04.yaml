@@ -113,6 +113,16 @@ tests:
     tag: live_nornicdb_answer_truth
     class: ci
     reason: "#7711 deterministic seeded proof that the provenance count reads deliver tied groups in tiebreaker order on each backend leg (exact row sequence asserted); local run 0.03 s on NornicDB, 0.52 s on Neo4j"
+  - file: go/internal/storage/cypher/search_key_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "#7245 seeded Neo4j proof that the real CloudResource and canonical writers cap the infra search key at 8,000 code points: a 40 KB name and a 70 KB config_path write with infra_search_ovf 'T' and no key, an 8,000-code-point 4-byte key is stored with 'F', infra_search_key_ft stays ONLINE and finds the overflowed nodes, and the backfill repairs a dropped key then writes nothing; NornicDB cannot evaluate the clause, so the file is Neo4j-only; local run 9.1 s on a loaded shared host"
+    backends: neo4j
+  - file: go/internal/storage/cypher/search_key_scale_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "#7245 backfill and writer-overhead measurement on the 181,929-node infra label shape measured in the QA environment; skips unless ESHU_INFRA_SEARCH_KEY_SCALE=1, so the CI leg only compiles and skips it (0.0 s); timings are logged, never asserted"
+    backends: neo4j
   - file: go/internal/storage/cypher/retrying_executor_live_test.go
     tag: ~
     class: scheduled

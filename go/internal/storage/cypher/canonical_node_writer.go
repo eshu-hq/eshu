@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -41,6 +42,10 @@ type CanonicalNodeWriter struct {
 	// node in steady state (#8173). The default (false) keeps the
 	// attributed shape, which is Neo4j-only.
 	repositoryRetirementBare bool
+	// searchKey decides whether infra-label writes append the #7245 infra
+	// search key clause. NewCanonicalNodeWriter sets search.On; production
+	// wiring passes the backend dialect to NewCanonicalNodeWriterWithDialect.
+	searchKey search.Dialect
 }
 
 type canonicalWritePhase struct {
@@ -50,7 +55,37 @@ type canonicalWritePhase struct {
 
 // NewCanonicalNodeWriter constructs a writer backed by the given Executor.
 // batchSize defaults to DefaultBatchSize (500) if <= 0. instruments may be nil.
+//
+// It emits the default Neo4j-keyed shape (search.On): infra-label writes carry
+// the #7245 infra search key clause, so a writer built here can never leave a
+// stale key on Neo4j. It is for tests and fixtures; production wiring must use
+// NewCanonicalNodeWriterWithDialect with the dialect resolved from the
+// configured graph backend (TestProductionWiringUsesDialectConstructors).
 func NewCanonicalNodeWriter(executor Executor, batchSize int, instruments *telemetry.Instruments) *CanonicalNodeWriter {
+	return newCanonicalNodeWriter(executor, batchSize, instruments, search.On)
+}
+
+// NewCanonicalNodeWriterWithDialect constructs a writer whose infra-label
+// writes follow searchKey: search.On (Neo4j) appends the infra search key
+// clause, search.Off (NornicDB) emits each statement byte for byte as it was
+// before the key existed. It panics on an invalid dialect, because a wiring
+// that cannot name its backend must fail before it writes.
+func NewCanonicalNodeWriterWithDialect(
+	executor Executor,
+	batchSize int,
+	instruments *telemetry.Instruments,
+	searchKey search.Dialect,
+) *CanonicalNodeWriter {
+	search.MustDialect(searchKey, "NewCanonicalNodeWriterWithDialect")
+	return newCanonicalNodeWriter(executor, batchSize, instruments, searchKey)
+}
+
+func newCanonicalNodeWriter(
+	executor Executor,
+	batchSize int,
+	instruments *telemetry.Instruments,
+	searchKey search.Dialect,
+) *CanonicalNodeWriter {
 	if batchSize <= 0 {
 		batchSize = DefaultBatchSize
 	}
@@ -59,6 +94,7 @@ func NewCanonicalNodeWriter(executor Executor, batchSize int, instruments *telem
 		batchSize:            batchSize,
 		instruments:          instruments,
 		packageRegistryLocks: newPackageRegistryIdentityLocks(),
+		searchKey:            searchKey,
 	}
 }
 
