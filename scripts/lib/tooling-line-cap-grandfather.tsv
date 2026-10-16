@@ -1,0 +1,39 @@
+# Line-count-pinned grandfather ledger for the 500-line file cap on tracked
+# files under scripts/ (issue #8221), the scripts/ sibling of
+# markdown-line-cap-grandfather.tsv: a closed list of the files that already
+# exceeded the cap when the gate landed, so the gate lands green on today's tree
+# and new or growing files fail immediately. These files are reported, not
+# approved: each is debt to split by responsibility, and each row should be
+# deleted by the change that brings its file to 500 lines or fewer.
+#
+# scripts/lib/tooling-line-cap-core.sh reads this file directly. Nothing
+# regenerates it; edit it by hand, using
+# `bash scripts/verify-tooling-line-cap.sh --pin <path>` to measure a row.
+#
+# "Closed list" is enforced: the gate compares this file against its committed
+# baseline (TOOLING_LINE_CAP_BASE_REF, default origin/main) and accepts only
+# REMOVING a row or LOWERING a pin. Adding a row or raising one is refused,
+# because a change could otherwise add an over-cap file together with the row
+# exempting it. If you are here to add a row for a new file, split the file
+# instead.
+#
+# Columns (tab-separated): path<TAB>line_count
+#   path       - repo-root-relative path of the file.
+#   line_count - the file's exact line count (awk NR) when it was pinned.
+#
+# The pin is checked as `live <= line_count`. A file that grows past it fails.
+# A file below it passes with a NOTE asking for a re-pin. A row is STALE, and
+# the gate hard-fails on it, once its file no longer exists or is at or under
+# 500 lines; the list only shrinks.
+scripts/dev/precommit-go.sh	544
+scripts/lib/golden-corpus-lock-cases.sh	503
+scripts/lib/live-gate-lock.sh	503
+scripts/test-agent-hooks.sh	750
+scripts/test-context-stories-doc-split.sh	566
+scripts/test-run-live-postgres-readiness-tests.sh	547
+scripts/test-verify-docs-build-changed.sh	638
+scripts/test-verify-filename-stutter.sh	638
+scripts/test-verify-route-coverage.sh	657
+scripts/verify-openapi.sh	541
+scripts/verify-performance-evidence.sh	631
+scripts/verify_relationship_platform_compose.sh	525

@@ -267,6 +267,17 @@ pr_wide_gates="$(
 [[ "${pr_wide_gates}" -ge 1 ]] ||
 	fail "no PR-wide gates found; the counts below would assert nothing"
 
+# A path under scripts/ also selects scripts-file-cap (#8221), so script-tree
+# fixtures select their surface gate plus every PR-wide gate plus that one.
+scripts_tree_gates="$(
+	printf 'scripts/zz-scripts-tree-probe.unmatched\n' |
+		(cd "${repo_root}/go" && go run ./cmd/ci-gates select \
+			--registry "${registry}" --tier pre-push --paths-from - --explain) |
+		rg --count '^SELECTED[[:space:]]+' || true
+)"
+[[ "${scripts_tree_gates}" -gt "${pr_wide_gates}" ]] ||
+	fail "a scripts/ path must select more gates than a PR-wide path (scripts-file-cap)"
+
 for sql_fixture in \
 	'scripts/lib/console-retained-create-proof-schema.sql' \
 	'scripts/lib/console-retained-verify-public-identity.sql'; do
@@ -278,8 +289,8 @@ for sql_fixture in \
 			(cd "${repo_root}/go" && go run ./cmd/ci-gates select \
 				--registry "${registry}" --tier pre-push --paths-from - --explain)
 	)"
-	[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "$((1 + pr_wide_gates))" ]] ||
-		fail "retained SQL fixture must select its surface gate plus the ${pr_wide_gates} PR-wide gate(s) (${sql_fixture})"
+	[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "$((1 + scripts_tree_gates))" ]] ||
+		fail "retained SQL fixture must select its surface gate plus the ${scripts_tree_gates} scripts-tree gate(s) (${sql_fixture})"
 	printf '%s\n' "${selection}" |
 		rg '^SELECTED[[:space:]]+frontend-console-checks[[:space:]]' >/dev/null ||
 		fail "retained SQL fixture did not select frontend-console-checks (${sql_fixture})"
@@ -354,9 +365,9 @@ for bundle_input in \
 	fi
 
 	selection="$(select_explain "${bundle_input}")"
-	expected_with_pr_wide="$((expected_gates + pr_wide_gates))"
+	expected_with_pr_wide="$((expected_gates + scripts_tree_gates))"
 	[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "${expected_with_pr_wide}" ]] ||
-		fail "console bundle-budget input must select ${expected_gates} surface gate(s) plus the ${pr_wide_gates} PR-wide gate(s) (${bundle_input})"
+		fail "console bundle-budget input must select ${expected_gates} surface gate(s) plus the ${scripts_tree_gates} scripts-tree gate(s) (${bundle_input})"
 	printf '%s\n' "${selection}" |
 		rg '^SELECTED[[:space:]]+frontend-console-checks[[:space:]]' >/dev/null ||
 		fail "console bundle-budget input did not select frontend-console-checks (${bundle_input})"
@@ -385,8 +396,8 @@ for marketing_input in \
 		"frontend-site registry triggers omit marketing-review input"
 
 	selection="$(select_explain "${marketing_input}")"
-	[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "$((2 + pr_wide_gates))" ]] ||
-		fail "marketing-review input must select two surface gates plus the ${pr_wide_gates} PR-wide gate(s) (${marketing_input})"
+	[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "$((2 + scripts_tree_gates))" ]] ||
+		fail "marketing-review input must select two surface gates plus the ${scripts_tree_gates} scripts-tree gate(s) (${marketing_input})"
 	printf '%s\n' "${selection}" |
 		rg '^SELECTED[[:space:]]+frontend-site[[:space:]]' >/dev/null ||
 		fail "marketing-review input did not select frontend-site (${marketing_input})"
