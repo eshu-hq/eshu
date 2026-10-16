@@ -276,6 +276,22 @@ func (database *proofDomainDB) QueryContext(_ context.Context, query string, arg
 		// (issue #3481 shared cache) instead of the per-commit transaction, so
 		// the outer harness connection must serve the catalog read too.
 		return newProofRows(proofRepositoryCatalogRows(database.state.facts)), nil
+	case strings.Contains(query, "COALESCE(delta_baseline_commit_sha, '')"):
+		// Delta-base union target read (#7797): serve the generation's delta
+		// identity from harness state. Proof generations are full, so the
+		// union never engages past this read; the route exists so the read
+		// resolves instead of failing the script.
+		if len(args) != 2 {
+			return nil, fmt.Errorf("union target args = %d, want 2", len(args))
+		}
+		scopeID, _ := args[0].(string)
+		generationID, _ := args[1].(string)
+		for id, generation := range database.state.generations {
+			if id == generationID && generation.ScopeID == scopeID {
+				return newProofRows([][]any{{generation.IsDelta, generation.DeltaBaselineCommitSHA}}), nil
+			}
+		}
+		return newProofRows(nil), nil
 	case strings.Contains(query, "FROM fact_records"):
 		if len(args) != 2 {
 			return nil, fmt.Errorf("list facts args = %d, want 2", len(args))

@@ -15,6 +15,7 @@ buckets.
 | query  | B-7(c)    | each HTTP/MCP response carries its required fields, minimum results, and declared deep values; Ask executes a credential-free deployed provider/tool loop | — |
 | demo-answers | #4776 | each of the five `specs/demo-first-answers.v1.yaml` questions, executed live with its **specific** pinned arguments (a playbook via its `surface.execute` target), returns a populated answer (required fields present, `minimum_results` met) | — |
 | timing | B-7(d)    | total pipeline wall time ≤ `budget-multiplier` × baseline; with `-phase-timings-file` (B-11 / #3804) each **gated** phase ≤ baseline band/slack in `e2e-baseline.json` | per-phase findings are advisory under `-phase-regression-advisory` (shared CI) |
+| delta-union | #7797 | for every scope with an active generation, the graph's file set matches the ACTIVE set (base-full overlaid with the active delta, read through independent SQL); scopes with no active generation skip with a reason | — |
 
 **Node/edge count tolerances are required (#3866):** the gate runs the full
 20-repo corpus with `-graph-required-only=false`, so every snapshot
@@ -272,6 +273,10 @@ scans an entire response.
 - `demoanswers.go` — the demo-answers phase: load `specs/demo-first-answers.v1.yaml`
   via `go/internal/demospec`, execute each question live (its `surface` or, for a
   playbook, its `surface.execute` target), and assert a populated answer (#4776).
+- `delta_union.go` — the delta-union phase: the ACTIVE side through the
+  independent SQL (`FactStore.ReadDeltaUnionActive`), the GRAPH side through
+  Bolt, compared by the pure `goldengate` core; a mismatch is a required
+  failure (#7797).
 - `report.go` — finding aggregation, severity, and rendering.
 - `backenddiff.go` — the backend-diff phase: compare two backends'
   differential capture directories against the divergence allowlist (#6782),

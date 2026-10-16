@@ -125,6 +125,10 @@ func LogDeltaBaselineRefusal(
 		telemetry.PhaseAttr(telemetry.PhaseProjection),
 		telemetry.FailureClassAttr(refusal.FailureClass()),
 	)
+	if refusal.Outcome == DeltaBaselineRefusedBaseMissing {
+		logger.WarnContext(ctx, "projector delta refused before projection: base full generation is missing", attrs...)
+		return
+	}
 	if refusal.Phase == DeltaBaselinePhaseAck {
 		logger.ErrorContext(ctx, "projector delta refused at ack after projection: baseline is not the active commit", attrs...)
 		return
@@ -155,6 +159,54 @@ func (s Service) preflightDeltaBaseline(
 	}
 }
 
+// refuseDeltaUnionBaseMissing routes a delta-base union base-missing load
+// failure through the fence. The load already failed closed (the graph is
+// untouched and nothing was projected), so this only retires the work: the
+// fence marks the work and generation superseded with refused_base_missing
+// and records a reindex watermark, and the next selection forces the full
+// re-parse that restores the base. A refused delta drops (nil); a lost claim
+// drops; a mark failure routes to Fail so the queue retries it. It always
+// reports handled: the load error must never reach the generic fail path,
+// which would retry a projection that can never succeed without a base.
+func (s Service) refuseDeltaUnionBaseMissing(
+	ctx context.Context,
+	work ScopeGenerationWork,
+	start time.Time,
+	workerID int,
+	missing *DeltaBaseMissingError,
+) (bool, error) {
+	state := DeltaBaselineState{
+		TargetFound:       true,
+		IsDelta:           true,
+		BaselineCommitSHA: missing.BaselineCommitSHA,
+	}
+	if s.DeltaBaselineFence != nil {
+		if read, readErr := s.DeltaBaselineFence.ReadDeltaBaseline(ctx, work); readErr == nil {
+			state.ActiveGenerationID = read.ActiveGenerationID
+			state.ActiveCommitSHA = read.ActiveCommitSHA
+		}
+	}
+	refusal := DeltaBaselineRefusal{
+		Phase:   DeltaBaselinePhasePreflight,
+		Outcome: DeltaBaselineRefusedBaseMissing,
+		State:   state,
+	}
+	if s.DeltaBaselineFence == nil {
+		return true, s.failWork(ctx, work, start, 0, missing, workerID)
+	}
+	markErr := s.DeltaBaselineFence.RefuseDeltaBaseline(ctx, work, refusal)
+	switch {
+	case errors.Is(markErr, failure.ErrWorkSuperseded):
+		RecordDeltaBaselineFence(ctx, s.Instruments, refusal.Phase, refusal.Outcome)
+		LogDeltaBaselineRefusal(ctx, s.Logger, work, refusal)
+		return true, nil
+	case s.recordClaimLostWork(ctx, work, start, 0, markErr, "delta_union", workerID):
+		return true, nil
+	default:
+		return true, s.failWork(ctx, work, start, 0, markErr, workerID)
+	}
+}
+
 // IsDeltaBaselineRefusal reports whether err is a delta-baseline refusal from
 // either fence phase: a superseded outcome whose failure class is one of the
 // #7319 classes. Loops use it to avoid logging a refusal as "superseded by
@@ -164,5 +216,6 @@ func IsDeltaBaselineRefusal(err error) bool {
 		return false
 	}
 	class := supersededFailureClass(err)
-	return class == DeltaBaselineMismatchClass || class == DeltaBaselineMismatchAfterProjectionClass
+	return class == DeltaBaselineMismatchClass || class == DeltaBaselineMismatchAfterProjectionClass ||
+		class == DeltaBaselineBaseMissingClass
 }

@@ -133,6 +133,12 @@ PACKAGES = {
             "TestMarkProjectionWriteStartedFenceSync",
             "TestMarkProjectionWriteStartedMissingFenceRefuses",
         ),
+        "go/internal/storage/postgres/delta_union_live_test.go": (
+            "TestFactStoreListFactsDeltaUnionLive",
+            "TestFactStoreListFactsDeltaBaseMissingLive",
+            "TestFactStoreReadDeltaUnionActiveLive",
+            "TestFactStoreListFactsPrunedBaseRefusesLive",
+        ),
         "go/internal/storage/postgres/drifted_bucket_skip_live_test.go": (
             "TestDriftedPathologicalBucketSkippedLive",
         ),
