@@ -12,8 +12,32 @@ from typing import TextIO
 INVENTORY = Path(__file__).with_name("reducer_contention_inventory.json")
 WORKFLOW = Path(".github/workflows/reducer-contention-gate.yml")
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
-SELECTOR_PATTERN = re.compile(
-    r"(?m)^[ \t]*go test (\./internal/(?:storage/postgres/readiness/wait|storage/postgres|query)/) -run '([^']+)'"
+OWNER_JOB = re.compile(
+    r"(?ms)^  contention-gate:\n(?P<body>.*?)(?=^  [A-Za-z][\w-]*:\n|\Z)"
+)
+STEP_NAME = re.compile(r"(?m)^      - name: ([^\n]+)\n")
+ACTIVE_CONDITION = (
+    "        if: ${{ github.event_name != 'merge_group' || "
+    "(contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), "
+    "'reducer contention gate')) }}"
+)
+PROOF_STEPS = {
+    "github.com/eshu-hq/eshu/go/internal/storage/postgres": "Run reducer contention gate",
+    "github.com/eshu-hq/eshu/go/internal/query": "Run story target-support semantics proof",
+    "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/wait":
+        "Run readiness wait ledger proofs",
+}
+CONTRACT_STEP = "Verify contention runner contract"
+GO_CAPTURE = re.compile(
+    r"^go test (\./internal/(?:storage/postgres/readiness/wait|storage/postgres|query)/) "
+    r"-run '([^']+)' -json -race -count=1 -timeout [0-9]+s(?: -v)? "
+    r'\| tee "(\$\{RUNNER_TEMP\}/contention-[\w-]+\.jsonl)"$'
+)
+CONTRACT_COMMANDS = (
+    "python3 scripts/lib/reducer_contention_events.py",
+    "python3 scripts/test-reducer-contention-events.py",
+    "python3 scripts/test-reducer-contention-ledger-policy.py",
+    "bash scripts/verify-live-tests-ledger.sh",
 )
 
 
@@ -25,31 +49,71 @@ def load_inventory(path: Path = INVENTORY) -> dict[str, dict[str, object]]:
     return value
 
 
+def workflow_steps(workflow: str) -> dict[str, str]:
+    """Read the owner job and reject enclosing skip or failure suppression."""
+    jobs = list(OWNER_JOB.finditer(workflow))
+    if len(re.findall(r"(?m)^jobs:$", workflow)) != 1 or len(jobs) != 1:
+        raise ValueError("inactive contention owner job: missing job")
+    body = jobs[0].group("body")
+    if (
+        re.search(r"(?m)^    (?:if|continue-on-error|defaults):", body)
+        or re.search(r"(?m)^defaults:", workflow)
+        or len(re.findall(r"(?m)^    needs: queue-selection$", body)) != 1
+    ):
+        raise ValueError("inactive or non-fail-closed contention owner job")
+    matches = list(STEP_NAME.finditer(body))
+    steps: dict[str, str] = {}
+    for index, match in enumerate(matches):
+        name = match.group(1)
+        if name in steps:
+            raise ValueError(f"duplicate contention step: {name}")
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(body)
+        steps[name] = body[match.start():end]
+    return steps
+
+
+def active_commands(steps: dict[str, str], name: str) -> list[str]:
+    """Require an active, failing Actions step with literal shell commands."""
+    step = steps.get(name, "")
+    conditions = re.findall(r"(?m)^        if: .*?$", step)
+    if conditions != [ACTIVE_CONDITION]:
+        raise ValueError(f"inactive contention step: {name}")
+    if re.search(r"(?m)^        (?:continue-on-error|shell):", step):
+        raise ValueError(f"non-fail-closed contention step: {name}")
+    run = re.search(r"(?m)^        run: \|\n", step)
+    if run is None:
+        raise ValueError(f"non-fail-closed contention step body: {name}")
+    lines = step[run.end():].rstrip("\n").splitlines()
+    if not lines or any(not line.startswith("          ") for line in lines):
+        raise ValueError(f"non-fail-closed contention step body: {name}")
+    return [line[10:] for line in lines]
+
+
 def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> None:
     """Reject source or workflow drift from the reviewed enrollment."""
     workflow = (root / WORKFLOW).read_text(encoding="utf-8")
+    steps = workflow_steps(workflow)
+    if tuple(active_commands(steps, CONTRACT_STEP)) != CONTRACT_COMMANDS:
+        raise ValueError("non-fail-closed contention runner contract")
     selectors: dict[str, re.Pattern[str]] = {}
-    for step in re.split(r"(?m)^      - name:", workflow):
-        for match in SELECTOR_PATTERN.finditer(step):
-            relative_package, expression = match.groups()
-            package = "github.com/eshu-hq/eshu/go/" + relative_package[2:].rstrip("/")
-            if package in selectors:
-                raise ValueError(f"duplicate contention selector for {package}")
-            command = step[match.start():].splitlines()[0]
-            verifier = re.search(
-                r"(?m)^[ \t]+python3 ../scripts/lib/reducer_contention_events\.py "
-                r"--events \S+ --package " + re.escape(package) + r"[ \t]*$",
-                step,
-            )
-            if not verifier:
-                raise ValueError(f"missing event verifier for {package}")
-            if (
-                "-json" not in command.split()
-                or "| tee " not in command
-                or not re.search(r"(?m)^[ \t]+set -o pipefail[ \t]*$", step)
-            ):
-                raise ValueError(f"missing fail-closed Go event capture for {package}")
-            selectors[package] = re.compile(expression)
+    for package, name in PROOF_STEPS.items():
+        commands = active_commands(steps, name)
+        if len(commands) != 3 or commands[0] != "set -o pipefail":
+            raise ValueError(f"non-fail-closed Go event capture for {package}")
+        capture = GO_CAPTURE.fullmatch(commands[1])
+        if capture is None:
+            raise ValueError(f"non-fail-closed Go event capture for {package}")
+        relative_package, expression, events = capture.groups()
+        selected_package = "github.com/eshu-hq/eshu/go/" + relative_package[2:].rstrip("/")
+        if selected_package != package:
+            raise ValueError(f"no workflow selector for {package}")
+        verifier = (
+            "python3 ../scripts/lib/reducer_contention_events.py "
+            f'--events "{events}" --package {package}'
+        )
+        if commands[2] != verifier:
+            raise ValueError(f"missing event verifier for {package}")
+        selectors[package] = re.compile(expression)
     for relative, row in inventory.items():
         package = row["package"]
         tests = row["tests"]
