@@ -51,6 +51,7 @@ on:
       - 'scripts/test-reducer-contention-events.py'
       - 'scripts/test-reducer-contention-ledger-policy.py'
       - 'scripts/lib/postgres_scheduled_runner.py'
+      - 'scripts/lib/postgres_scheduled_workflow.py'
       - 'scripts/lib/postgres_scheduled_manifest.py'
       - 'scripts/lib/postgres_scheduled_inventory.json'
       - 'scripts/test-postgres-scheduled-runner.py'

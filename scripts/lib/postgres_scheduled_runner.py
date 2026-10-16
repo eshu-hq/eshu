@@ -10,6 +10,7 @@ import sys
 
 from reducer_contention_events import verify_events as verify_go_events
 from postgres_scheduled_manifest import build_manifest as build_source_bound_manifest
+from postgres_scheduled_workflow import verify_canonical_workflow
 
 
 INVENTORY = Path(__file__).with_name("postgres_scheduled_inventory.json")
@@ -55,6 +56,7 @@ PR_PATHS = {
     "scripts/ci/go-mod-download-retry.sh",
     "scripts/lib/postgres_scheduled_inventory.json",
     "scripts/lib/postgres_scheduled_manifest.py",
+    "scripts/lib/postgres_scheduled_workflow.py",
     "scripts/lib/postgres_scheduled_runner.py",
     "scripts/lib/reducer_contention_events.py",
     "scripts/lib/live_tests_registry.py",
@@ -72,6 +74,7 @@ PR_PATHS = {
 
 def verify_trigger(workflow: str, inventory: dict[str, dict[str, object]]) -> None:
     """Keep the same daily job enrolled for narrowly selected PR changes."""
+    verify_canonical_workflow(workflow)
     match = re.search(r"(?ms)^on:\n(.*?)(?=^permissions:)", workflow)
     if not match:
         raise ValueError("scheduled workflow event block missing")

@@ -75,12 +75,17 @@ class ScheduledRunnerTest(unittest.TestCase):
         inventory = MODULE.load_inventory()
         original = (ROOT / MODULE.WORKFLOW).read_text()
         first_path = next(iter(sorted(inventory)))
+        ack_path = next(
+            path for path in sorted(inventory)
+            if inventory[path]["group"] == "ack_family"
+        )
         changes = (
             ("  pull_request:\n", "  push:\n", "PR events"),
             ("  workflow_dispatch:\n", "  workflow_dispatch:\n  merge_group:\n", "PR events"),
             ("  workflow_dispatch:\n", "  workflow_dispatch:\n  workflow_dispatch:\n", "PR events"),
             ("    paths:\n", "    paths:\n      - 'go/**'\n", "PR paths"),
             (f"      - '{first_path}'\n", "", "PR paths"),
+            (f"      - '{ack_path}'\n", "", "PR paths"),
             (
                 "postgres-scheduled-live-${{ github.event_name }}-",
                 "postgres-scheduled-live-", "PR concurrency",
@@ -112,6 +117,66 @@ class ScheduledRunnerTest(unittest.TestCase):
                 "  postgres-scheduled:\n",
                 "  postgres-scheduled:\n    continue-on-error: true\n",
                 "continue-on-error",
+            ),
+            (
+                "  postgres-scheduled:\n",
+                "  postgres-scheduled:\n    continue-on-error : true\n",
+                "non-fail-closed",
+            ),
+            (
+                "  postgres-scheduled:\n",
+                "  postgres-scheduled:\n    'continue-on-error': true\n",
+                "non-fail-closed",
+            ),
+            (
+                "  postgres-scheduled:\n",
+                "  postgres-scheduled:\n    if : false\n",
+                "non-fail-closed",
+            ),
+            (
+                "\njobs:\n",
+                "\ndefaults :\n  run:\n    shell: bash {0} || true\n\njobs:\n",
+                "non-fail-closed",
+            ),
+            (
+                "permissions:\n  contents: read",
+                "permissions:\n  contents: write",
+                "non-fail-closed",
+            ),
+            (
+                "  contents: read\n",
+                "  contents: read\n  contents: write\n",
+                "non-fail-closed",
+            ),
+            (
+                "  cancel-in-progress: false\n",
+                "  group : postgres-scheduled-live\n"
+                "  cancel-in-progress: false\n",
+                "non-fail-closed",
+            ),
+            (
+                "      - name: Check exact enrollment and negative cases\n",
+                "      - name: Check exact enrollment and negative cases\n"
+                "        continue-on-error : true\n",
+                "non-fail-closed",
+            ),
+            (
+                "      - name: Check exact enrollment and negative cases\n",
+                "      - name: Check exact enrollment and negative cases\n"
+                "        'if': ${{ false }}\n",
+                "non-fail-closed",
+            ),
+            (
+                "      - name: Check exact enrollment and negative cases\n",
+                "      - name: Check exact enrollment and negative cases\n"
+                "        shell : bash {0} || true\n",
+                "non-fail-closed",
+            ),
+            (
+                "      - name: Check exact enrollment and negative cases\n",
+                "      - name: Check exact enrollment and negative cases\n"
+                "        <<: *soft_failure\n",
+                "non-fail-closed",
             ),
             (
                 "            --write-manifest \"${RUNNER_TEMP}/manifest.json\"",
@@ -223,6 +288,11 @@ class ScheduledRunnerTest(unittest.TestCase):
                     "CREATE DATABASE eshu_ack_scheduled",
                     "CREATE DATABASE eshu_crossplane_scheduled",
                     "fresh database",
+                ),
+                (
+                    "--group ack_family",
+                    "--group disposable_storage",
+                    "event verifier",
                 ),
                 (
                     "ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/"
@@ -342,6 +412,14 @@ class ScheduledRunnerTest(unittest.TestCase):
             MODULE.verify_proof_bundle(
                 bundle, inventory, allow_local_simulation=True
             )
+            ack_stream = bundle / "ack_family.jsonl"
+            saved_ack = ack_stream.read_text()
+            ack_stream.unlink()
+            with self.assertRaisesRegex(ValueError, "missing.*ack_family"):
+                MODULE.verify_proof_bundle(
+                    bundle, inventory, allow_local_simulation=True
+                )
+            ack_stream.write_text(saved_ack)
             (bundle / "disposable_query.jsonl").unlink()
             with self.assertRaisesRegex(ValueError, "missing.*disposable_query"):
                 MODULE.verify_proof_bundle(
@@ -356,6 +434,13 @@ class ScheduledRunnerTest(unittest.TestCase):
                 json.dumps({**manifest, "inventory_sha256": "0" * 64})
             )
             with self.assertRaisesRegex(ValueError, "inventory"):
+                MODULE.verify_proof_bundle(
+                    bundle, inventory, allow_local_simulation=True
+                )
+            (bundle / "manifest.json").write_text(
+                json.dumps({**manifest, "source_sha256": "0" * 64})
+            )
+            with self.assertRaisesRegex(ValueError, "source checksum"):
                 MODULE.verify_proof_bundle(
                     bundle, inventory, allow_local_simulation=True
                 )
