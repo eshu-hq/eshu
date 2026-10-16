@@ -5,8 +5,9 @@ second #7746 change. The first change (PR #8183, merged as `8f188353f`) made
 BM25 score bits stable and added `searchhybrid.Backend.RankAll`; see
 [7746-ranker-determinism.md](7746-ranker-determinism.md).
 
-Branch `feat/7746-rank-cursor`, base `8f188353f`. Commits are named by
-subject line, because a rebase rewrites SHAs.
+Branch `feat/7746-rank-cursor`, branched from `8f188353f` and rebased onto
+`711ed3122`. Commits are named by subject line, because a rebase rewrites
+SHAs; a ledger row cites a commit that is on the branch.
 
 ## Problem
 
@@ -55,9 +56,11 @@ Deviations from the claim comment, each forced by a repository gate:
   `dispatch_budget.go` that calls `rank.TrimWalk`, not a new file.
 - `codemodel/code_hybrid_rerank.go` gains `CodeWindowScorer`, because the
   find_code projection is unexported there.
-- `codequery/handler.go` was at the 500-line cap, so the find_code walk and
-  the lane seam live in a new `codequery/rank_walk.go` (the directory is
-  exempt from the dirgate cap by its `doc.go` nolint).
+- The find_code walk and the lane seam live in a new
+  `codequery/rank_walk.go` (the directory is exempt from the dirgate cap by
+  its `doc.go` nolint). An earlier version inlined the walk in `handler.go`
+  and pushed it to 498 lines; `handler.go` is 410 lines with the dispatch
+  only.
 
 ## Theory proof (before implementation)
 
@@ -80,13 +83,24 @@ the run, so the figures are non-gating. The Postgres read of a 201-row window
 was not measured (no database here); it is the same probe as a `limit=200`
 request.
 
-Performance Evidence: a `hybrid` walk page costs one 200-row window score (about 19 ms
-CPU and 22 MB transient allocation on linux/arm64, ledger rows above) plus one
-201-row lexical probe. It adds no Cypher, graph write, SQL shape, queue,
-lease, lock, or goroutine; a `graph_name` or `lexical` page scores nothing
-and reads the same lane query as its offset page. A request without
-`rank_cursor` runs the unchanged
-offset path; byte goldens captured on main pin both routes.
+Performance Evidence: the scoring theory above covers only the score. The
+whole hybrid page, measured with `BenchmarkFindCodeRankWalkPage/page`
+(`ScoreCodeWindow`, `MapRows`, `Walk`, and `MapPage` over 200 rows of about
+3 KB), costs 18801708 ns/op (ledger:7746-rankcursor-page-200-ns) and
+23662388 B/op with 14462 allocs/op (ledger:7746-rankcursor-page-200-bytes).
+That is inside the 25 ms and 25 MB threshold. The walk work alone
+(`walk_only`) is 901265 ns/op (ledger:7746-rankcursor-walk-only-200-ns) and
+2477631 B/op with 3427 allocs/op (ledger:7746-rankcursor-walk-only-200-bytes),
+mostly the per-row content strings and the basis hash inputs. A `graph_name`
+or `lexical` page scores nothing and pays only the walk work.
+
+Store reads per walk page match the offset page of the same lane at a
+201-row probe: `find_code` reads the graph lane (one graph query), and when it
+is empty the content lane (a name search and a source search, each with a
+201-row limit); `search_entity_content` reads one 201-row lexical probe. The
+walk adds no Cypher shape, graph write, SQL shape, queue, lease, lock, or
+goroutine. A request without `rank_cursor` runs the unchanged offset path;
+byte goldens captured on main pin both routes.
 
 ## Cross-architecture tolerance
 
@@ -143,7 +157,7 @@ go test ./internal/searchhybrid/ -run '^$' -bench BenchmarkRankAll -benchmem -co
 
 ## Not checked
 
-- Deployed latency, and the Postgres cost of the 201-row probe on a real
+- Deployed latency, and the store cost of the 201-row reads on a real
   corpus.
 - A walk across real arm64 and amd64 replicas. The tolerance is proven with
   simulated ulp noise only.

@@ -114,9 +114,11 @@ It never adds `next_offset` to a walk page.
 
 ## Cost and signals
 
-A `hybrid` page scores the whole window on every request: about 19.4 ms CPU
-and 22 MB of transient allocation at 200 rows on linux/arm64, the same as one
-`limit=200` ranked page. A `graph_name` or `lexical` page scores nothing. The
+A whole `hybrid` page (scoring the 200-row window, mapping its rows, the
+walk, and page shaping) measured about 18.8 ms CPU, 23.7 MB of transient
+allocation, and 14,500 allocations on linux/arm64. A `graph_name` or
+`lexical` page scores nothing and costs about 0.9 ms and 2.5 MB for the walk
+work. Store reads equal the same lane's offset page with a 201-row limit. The
 scoring pass emits the `query.hybrid_rerank` span with `search.rerank.rows`
 equal to the window size. Each walk request records
 `eshu_dp_query_rank_cursor_total{tool,outcome,reason}` and the request-span

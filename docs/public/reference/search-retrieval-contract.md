@@ -311,14 +311,14 @@ still a stable exactly-once walk, and `rank_walk.order` says which order. See
   and `search_entity_content` without a ranker answer a typed 400. Without
   `rank_cursor` the response bytes are unchanged (main-captured goldens).
 
-Performance Evidence: each `hybrid` walk page scores the whole 200-row window:
-`BenchmarkCodeHybridRerank` rows=200 measured 19.32-19.44 ms/op,
-22,176,478-22,176,556 B/op, and 11,591 allocs/op on linux/arm64, against
-9.66-9.71 ms/op at 100 rows. That is the cost of one existing `limit=200`
-ranked page. `BenchmarkRankAll` at 200 documents is 0.53-0.55 ms of it. The
-walk adds no Cypher, graph write, queue, lease, or goroutine; its store read
-is one 201-row probe of the same lexical query. See
-`docs/internal/evidence/7746-rank-cursor.md`.
+Performance Evidence: a whole `hybrid` walk page at 200 rows (score, row
+mapping, walk, page shaping; `BenchmarkFindCodeRankWalkPage/page`) measured
+about 18.8 ms/op, 23.66 MB/op, and 14,462 allocs/op on linux/arm64, inside the
+25 ms and 25 MB per-page threshold; the walk work alone is about 0.9 ms and
+2.48 MB. A `graph_name` or `lexical` page pays only the walk work. Store
+reads equal the same lane's offset page at a 201-row probe (`find_code`: the
+graph query, then on an empty graph a name and a source content read); no
+Cypher shape, write, queue, or lease is added (`docs/internal/evidence/7746-rank-cursor.md`).
 
 Observability Evidence: walk requests record
 `eshu_dp_query_rank_cursor_total{tool,outcome,reason}` and the

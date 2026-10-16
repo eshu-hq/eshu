@@ -42,10 +42,11 @@ Errors: 400 `rank_cursor_invalid`, 400 `rank_cursor_unsupported`, and 409
 
 ## Cost
 
-A hybrid walk page scores the whole 200-row window on every request: about
-19.4 ms CPU and 22 MB transient allocation on linux/arm64, the same as one
-`limit=200` ranked page (see `docs/internal/evidence/7746-rank-cursor.md`).
-A `graph_name` or `lexical` page scores nothing.
+A whole hybrid walk page at 200 rows (score, `MapRows`, `Walk`, `MapPage`)
+measured about 18.8 ms CPU, 23.7 MB, and 14.5k allocations on linux/arm64
+(`BenchmarkFindCodeRankWalkPage` in `query/codequery`). The walk work alone,
+which is all a `graph_name` or `lexical` page pays, is about 0.9 ms and
+2.5 MB. See `docs/internal/evidence/7746-rank-cursor.md`.
 
 ## Telemetry
 
