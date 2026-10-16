@@ -35,8 +35,11 @@ on:
       - "scripts/lib/reducer_contention_*"
       - "scripts/test-reducer-contention-*.py"
       - "scripts/lib/verify-live-tests-ledger.py"
+      - "scripts/verify-live-tests-ledger.sh"
+      - "scripts/test-verify-live-tests-ledger.sh"
       - "specs/live-tests*.yaml"
       - "specs/live-tests.d/**"
+      - "specs/ci-gates.d/gates-05.yaml"
       - ".github/workflows/reducer-contention-gate.yml"
   workflow_dispatch:
 
@@ -89,6 +92,14 @@ jobs:
       - name: Checkout repository
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'reducer contention gate')) }}
         uses: actions/checkout@v5
+
+      - name: Verify contention runner contract
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'reducer contention gate')) }}
+        run: |
+          python3 scripts/lib/reducer_contention_events.py
+          python3 scripts/test-reducer-contention-events.py
+          python3 scripts/test-reducer-contention-ledger-policy.py
+          bash scripts/verify-live-tests-ledger.sh
 
       - name: Set up Go
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'reducer contention gate')) }}

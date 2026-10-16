@@ -85,14 +85,48 @@ class EventProofTest(unittest.TestCase):
                 "TestStoryLive"
             ]
             source.write_text("package query\nfunc TestStoryLive(t *testing.T) {}\n")
+            valid_workflow = workflow.read_text()
             workflow.write_text(
-                workflow.read_text().replace(
+                valid_workflow.replace(
                     "python3 ../scripts/lib/reducer_contention_events.py",
                     "echo event verifier removed",
                 )
             )
             with self.assertRaisesRegex(ValueError, "missing event verifier"):
                 MODULE.verify_inventory(root, inventory)
+            workflow.write_text(valid_workflow.replace("go test ./", "# go test ./"))
+            with self.assertRaisesRegex(ValueError, "no workflow selector"):
+                MODULE.verify_inventory(root, inventory)
+
+    def test_ci_wiring_selects_harness_changes(self) -> None:
+        """A harness-only change must select the owner job and its self-tests."""
+        root = Path(__file__).resolve().parent.parent
+        registry = (root / "specs/ci-gates.d/gates-05.yaml").read_text()
+        owner = registry.split("  - id: reducer-contention\n", 1)[1].split(
+            "\n  - id:", 1
+        )[0]
+        workflow = (root / MODULE.WORKFLOW).read_text()
+        required = (
+            "scripts/lib/reducer_contention_events.py",
+            "scripts/lib/reducer_contention_inventory.json",
+            "scripts/test-reducer-contention-events.py",
+            "scripts/test-reducer-contention-ledger-policy.py",
+            "scripts/lib/verify-live-tests-ledger.py",
+            "specs/live-tests.v1.yaml",
+            "specs/live-tests.d/**",
+            ".github/workflows/reducer-contention-gate.yml",
+        )
+        for path in required:
+            with self.subTest(path=path):
+                self.assertIn(path, owner)
+        for command in (
+            "python3 scripts/test-reducer-contention-events.py",
+            "python3 scripts/test-reducer-contention-ledger-policy.py",
+            "python3 scripts/lib/reducer_contention_events.py",
+            "bash scripts/verify-live-tests-ledger.sh",
+        ):
+            with self.subTest(command=command):
+                self.assertIn(command, workflow)
 
 
 if __name__ == "__main__":
