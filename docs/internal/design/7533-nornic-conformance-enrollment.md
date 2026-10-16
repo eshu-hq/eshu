@@ -17,8 +17,10 @@ wrong-package, and re-pinned-demotion cases.
 The always-run ledger verifier reads the active static workflow and gate
 registry. It binds the complete shell runner, including setup, CORE, the
 NornicDB branch, and the closing tail; an early exit fails the static mirror.
-Before importing the verifier, the ledger binds its source and CLI control
-flow, so a successful early CLI exit cannot bypass source or event checks.
+Before importing the verifier, the ledger binds its allowed imports,
+import-safe declarations and function signatures, then the canonical CLI
+control flow. A digest update alone cannot admit an import-time successful
+exit that bypasses source or event checks.
 The E2E PR filter also includes those control files, so an edit that removes
 the static guard still selects the independent conformance job.
 
