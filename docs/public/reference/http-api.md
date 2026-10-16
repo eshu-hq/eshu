@@ -193,6 +193,8 @@ The infrastructure, relationship catalog, cloud resource, graph entity,
 container image, admission decision, runtime drift, operator control plane,
 and surface inventory routes are listed in
 [Infra And Inventory Route Failures](http-api/infra-and-inventory-failures.md).
+Environment comparison and semantic search failures are in
+[Compare And Semantic Search Failures](http-api/compare-and-semantic-search-failures.md).
 Routes outside the dead-code and
 dead-IaC lanes and `GET /api/v0/supply-chain/impact/findings` that write a
 store error straight into a `500` do not yet map a reader fence failure and
