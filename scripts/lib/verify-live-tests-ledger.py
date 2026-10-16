@@ -34,6 +34,8 @@ from postgres_scheduled_runner import (
     load_inventory as load_scheduled_inventory,
     verify_inventory as verify_scheduled_inventory,
 )
+from replay_tier_enrollment import load_inventory as load_replay_inventory
+from replay_tier_enrollment import verify_ledger as verify_replay_ledger
 
 if len(sys.argv) != 3:
     sys.exit(f"usage: {sys.argv[0]} <ledger_path> <repo_root>")
@@ -55,6 +57,10 @@ seen_files = set()
 classes = {}
 legacy_scheduled = []
 contention_inventory = load_inventory()
+try:
+    replay_inventory = load_replay_inventory(Path(repo_root))
+except (OSError, ValueError) as error:
+    sys.exit(f"replay-tier enrollment failed: {error}")
 contention_paths = set(contention_inventory)
 contention_ledger_paths = set()
 scheduled_inventory = load_scheduled_inventory()
@@ -89,6 +95,9 @@ for path, tag, cls, reason, runner, backends in rows:
             identity_ledger_paths.add(path)
             if path not in IDENTITY_PROOFS or tag.strip() != "~" or backends:
                 sys.exit(f"B-7 identity row needs an enrolled untagged PostgreSQL-only file: {path}")
+        elif runner == "replay-tier":
+            if path not in replay_inventory["files"] or tag.strip() != "~" or backends != "nornicdb":
+                sys.exit(f"replay-tier row needs an enrolled untagged NornicDB file: {path}")
         elif runner != "query-methodology":
             sys.exit(f"dedicated CI row needs its verified runner: {path}")
         elif path.endswith("methodology_postgres_live_test.go"):
@@ -140,6 +149,11 @@ for path, tag, cls, reason, runner, backends in rows:
         claimed = ""
     if claimed != actual:
         sys.exit(f"tag mismatch for {path}: ledger {tag!r} vs file {actual!r}")
+
+try:
+    verify_replay_ledger(rows, replay_inventory)
+except ValueError as error:
+    sys.exit(str(error))
 
 missing_contention = sorted(contention_paths - contention_ledger_paths)
 extra_contention = sorted(contention_ledger_paths - contention_paths)
