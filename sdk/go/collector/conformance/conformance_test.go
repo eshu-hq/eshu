@@ -243,6 +243,65 @@ func TestManifestContractDerivesDeclaredFacts(t *testing.T) {
 	}
 }
 
+// TestRunAdmitsExplicitCollectorSDKAlpha2 proves an explicitly configured
+// collector-sdk/v1alpha2 runtime passes the out-of-tree conformance mirror,
+// including a padded protocol variant that must normalize rather than bypass
+// the allowlist. The v1alpha1 default is unchanged, and unknown protocols
+// stay rejected with the raw configured value in the finding.
+func TestRunAdmitsExplicitCollectorSDKAlpha2(t *testing.T) {
+	t.Parallel()
+
+	for _, protocol := range []string{collector.ProtocolVersionV1Alpha2, " " + collector.ProtocolVersionV1Alpha2 + " "} {
+		manifest := validManifest()
+		manifest.Spec.Runtime.SDKProtocol = protocol
+		result := validResult()
+		result.ProtocolVersion = collector.ProtocolVersionV1Alpha2
+		report := conformance.Run(conformance.Request{
+			Manifest: manifest,
+			Fixtures: []collector.Result{result},
+			Mode:     conformance.ModeFixture,
+		})
+		if !report.OK() {
+			t.Fatalf("protocol %q: findings = %#v, want passed", protocol, report.Findings)
+		}
+	}
+
+	report := conformance.Run(conformance.Request{
+		Manifest: validManifest(),
+		Fixtures: []collector.Result{validResult()},
+		Mode:     conformance.ModeFixture,
+	})
+	if !report.OK() {
+		t.Fatalf("v1alpha1 findings = %#v, want passed for unchanged default", report.Findings)
+	}
+
+	for _, protocol := range []string{"collector-sdk/v9", " collector-sdk/v9 ", ""} {
+		manifest := validManifest()
+		manifest.Spec.Runtime.SDKProtocol = protocol
+		report := conformance.Run(conformance.Request{
+			Manifest: manifest,
+			Fixtures: []collector.Result{validResult()},
+			Mode:     conformance.ModeFixture,
+		})
+		if report.OK() {
+			t.Fatalf("protocol %q: report OK = true, want rejection", protocol)
+		}
+		assertFinding(t, report, conformance.FindingManifestInvalid)
+		if protocol == "" {
+			continue
+		}
+		found := false
+		for _, finding := range report.Findings {
+			if finding.Code == conformance.FindingManifestInvalid && strings.Contains(finding.Message, protocol) {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("protocol %q: no manifest_invalid finding carries the raw value in %#v", protocol, report.Findings)
+		}
+	}
+}
+
 func assertFinding(t *testing.T, report conformance.Report, code conformance.FindingCode) {
 	t.Helper()
 
