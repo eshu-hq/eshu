@@ -24,3 +24,8 @@ const SpanQueryGraphSummaryPacket = "query.graph_summary_packet"
 // SpanQueryGraphEntityInventory wraps the graph entity facet-count and
 // optional bounded-list route.
 const SpanQueryGraphEntityInventory = "query.graph_entity_inventory"
+
+// SpanQueryHybridRerank times the in-request hybrid (BM25 plus vector) re-rank
+// of one find_code, search_entity_content, or search_file_content page: row
+// projection, request-local index build, and ranking (#7746).
+const SpanQueryHybridRerank = "query.hybrid_rerank"

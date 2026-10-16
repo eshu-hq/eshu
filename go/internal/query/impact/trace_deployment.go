@@ -164,7 +164,7 @@ func (h *Handler) TraceDeploymentChain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if ctx == nil {
-		querycontract.WriteError(w, http.StatusNotFound, "service not found")
+		deployment.WriteServiceNotFound(w, r, "platform_impact.deployment_chain", req.ServiceName, h.Content)
 		return
 	}
 	if workloadID := querycontract.SafeStr(ctx, "id"); workloadID != "" {

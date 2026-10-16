@@ -202,13 +202,19 @@ order. The exact-match (`exact=true`) symbol path is left lexical because it is
 an identity lookup, not a relevance ranking.
 
 Performance Evidence: the re-rank is CPU-only over at most the request limit of
-request-local documents (default 50, hard cap 100 in the ranker), with BM25
-served from an inverted index and vector cosine exact below the staged ANN
-threshold of 256 documents. It adds no Cypher, graph write, queue, lease, or
-goroutine, and runs after the Postgres/graph round-trips it reorders, so it
-introduces no new hot-path scan. `go test ./internal/query -run CodeSearch...`
-proves a known fixture is reordered by hybrid relevance and that the lexical
-fallback edges are byte-stable.
+request-local documents (default 50, maximum 200, the `find_code` page ceiling
+`CodeSearchRankedWindow`), with BM25 served from an inverted index and vector
+cosine exact below the staged ANN threshold of 256 documents. The ranker ranks
+the whole page through `searchhybrid.Backend.RankAll`, which is bounded by that
+index cap rather than the public retrieval limit of 100. Before #7746 a page of
+101 to 200 projectable rows failed that limit and stayed in lexical order. A
+200-row page now costs about twice a 100-row page (see
+`docs/internal/evidence/7746-ranker-determinism.md`). It adds no Cypher, graph
+write, queue, lease, or goroutine, and runs after the Postgres/graph
+round-trips it reorders, so it introduces no new hot-path scan.
+`go test ./internal/query -run CodeSearch...` proves a known fixture is
+reordered by hybrid relevance and that the lexical fallback edges are
+byte-stable.
 
 No-Regression Evidence: `cd go && go test ./internal/query ./internal/mcp
 ./internal/searchhybrid ./internal/searchretrieval ./internal/searchembed
@@ -219,8 +225,14 @@ path when the ranker is nil or reports a no-op.
 Observability Evidence: reordered rows carry a `search_backend=hybrid` marker
 and the response `source_backend` switches to `hybrid_content_store` only when
 the hybrid pass changed the ranking, so an operator can confirm from the
-response envelope whether vector retrieval participated. The bounded request
-reuses the `searchretrieval` request-validation contract.
+response envelope whether vector retrieval participated. The ranker does not go
+through `searchretrieval` request validation, whose limit of 100 is the public
+retrieval cap. `searchhybrid.Backend.RankAll` rejects a blank query, a missing
+scope or index, and a done context, and the ranker keeps the lexical order on
+any of those errors. Each pass that reaches the ranking work emits a
+`query.hybrid_rerank` span with `search.rerank.tool=find_code`,
+`search.rerank.rows`, and `search.rerank.applied`, so the stage's duration is
+visible inside a slow request (#7746).
 
 ### search_entity_content / search_file_content Hybrid Re-rank
 
@@ -257,6 +269,63 @@ deployments keep the lexical content order. `go test ./internal/query -run
 'SearchEntityContentResultsAreHybridReranked|SearchFileContentResultsAreHybridReranked|ContentHybridRerank'`
 proves a known fixture is reordered by hybrid relevance and that the lexical
 fallback edges preserve order, basis, and length.
+
+The ranker ranks every row of a page up to the 200-row cap through
+`searchhybrid.Backend.RankAll`, which is bounded by the request-local index
+cap instead of the public retrieval limit of 100. Before #7746 a page of 101 to
+200 projectable rows failed that limit and kept its whole lexical order with no
+`search_backend` or `page_position` markers; such a page is now reordered and
+marked like any smaller page. `go test ./internal/query/contentread -run
+ContentHybridRerankRanksAllRowsOfAMaximumPage` covers entity and file pages of
+200 rows. Each pass that reaches the ranking work emits a `query.hybrid_rerank`
+span with `search.rerank.tool` set to `search_entity_content` or
+`search_file_content`, plus `search.rerank.rows` and `search.rerank.applied`.
+
+### Cross-page relevance walk (`rank_cursor`, #7746)
+
+The re-ranks above order rows inside one offset page. An opt-in `rank_cursor`
+on `find_code` or `search_entity_content` pages a fixed window instead: the
+first 200 rows of one lane of one repository. `find_code` picks the lane on
+page 1 exactly as an offset request does (the graph lane first, the content
+lane when the graph has no rows or no graph is configured), and the cursor
+records it; `search_entity_content` always uses the content lane. The graph
+lane keeps its own order (`graph_name`), so its pages equal the offset pages.
+The content lane is scored with `RankAll` and ordered by score rounded to 8
+significant digits (descending), then `entity_id` (`hybrid`), or keeps its own
+order with `exact=true` or no ranker (`lexical`): without a ranker the walk is
+still a stable exactly-once walk, and `rank_walk.order` says which order. See
+[Relevance walk](http-api/rank-walk.md).
+
+- The stateless cursor holds the lane, the served-row count, a digest of the
+  served ids, and a basis fingerprint (tool, lane, order, ranker, scope, every
+  row id and content). It holds no row data; authorization re-runs per page.
+- Exactly-once does not depend on score bits. A changed basis (including a
+  lane change between pages) answers 409 `basis_changed`. A window whose
+  served rows are no longer the top of this replica's order answers 409
+  `order_changed`. Inside one replica, every row of a page comes after every
+  row served before it.
+- Score bits are stable per CPU architecture only: behind replicas of mixed
+  architectures a `hybrid` walk can answer 409 `order_changed` on every page.
+- Rows past the window are never read (`window_end`, `lexical_truncated`).
+- A positive offset, the unscoped cursor, no single repository, file search,
+  and `search_entity_content` without a ranker answer a typed 400. Without
+  `rank_cursor` the response bytes are unchanged (main-captured goldens).
+
+Performance Evidence: one `hybrid` walk page does the scoring work of one
+`limit=200` ranked offset page, so a walk at page size L pays it about 200/L
+times. The scorer reads full stored bodies, so the cost grows with body size:
+`BenchmarkFindCodeRankWalkPage` measured about 18.8 ms and 23.7 MB per page at
+3 KB bodies and 23.7 ms and 31.6 MB at 4,090 bytes (linux/arm64); the walk
+work alone (all a `graph_name` or `lexical` page pays) is about 0.9 ms and
+2.5 MB. Bounding the scoring input is a possible follow-up. Store reads equal
+the lane's offset page at a 201-row probe; no Cypher, write, queue, or lease.
+
+Observability Evidence: walk requests record
+`eshu_dp_query_rank_cursor_total{tool,outcome,reason}` and the
+`search.rank_cursor.outcome`, `.reason`, `.position`, `.lane`, and `.order`
+request-span attributes; the scoring pass emits
+`query.hybrid_rerank` with `search.rerank.rows` equal to the window size
+([Relevance Walk Telemetry](telemetry/rank-cursor.md)).
 
 ## Persisted Postgres Search Index
 

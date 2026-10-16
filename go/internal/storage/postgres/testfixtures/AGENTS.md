@@ -21,7 +21,8 @@ duplicated per test package for exactly this reason).
   copies with the difference recorded in the README.
 - A helper used by exactly one test package belongs in that
   package's own test files, not here. Hoist only on the second
-  consumer.
+  consumer. The targeted pair is shared by root and external
+  `backfill/targeted` tests; retain one seed and comparison implementation.
 - Do not migrate the `ApplyBootstrap` helpers out of their owning
   packages here; each schema owner keeps its own bootstrap helper.
 

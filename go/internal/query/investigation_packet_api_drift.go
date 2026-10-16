@@ -7,7 +7,18 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
+
+// Fixed bodies of the failure steps on GET /api/v0/investigations/drift/packet
+// (#7674): the drift finding readback, the packet build, and the
+// scope-not-found refusal packet build. No error text reaches the body; each
+// error goes on the request span.
+const (
+	driftPacketReadFailedMessage    = "drift packet readback failed"
+	driftPacketBuildFailedMessage   = "drift packet build failed"
+	driftRefusalPacketFailedMessage = "drift refusal packet build failed"
 )
 
 func (h *CloudRuntimeDriftHandler) getDriftPacket(w http.ResponseWriter, r *http.Request) {
@@ -56,7 +67,7 @@ func (h *CloudRuntimeDriftHandler) getDriftPacket(w http.ResponseWriter, r *http
 	if access.Scoped() && !access.AllowsDirectScopeID(filter.ScopeID) {
 		packet, err := refusalPacketForAPI(InvestigationFamilyDrift, PacketRefusalScopeNotFound)
 		if err != nil {
-			WriteError(w, http.StatusInternalServerError, err.Error())
+			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, driftRefusalPacketFailedMessage)
 			return
 		}
 		writeInvestigationPacket(w, r, packet)
@@ -73,7 +84,7 @@ func (h *CloudRuntimeDriftHandler) getDriftPacket(w http.ResponseWriter, r *http
 	}
 	rows, err := h.Store.ListActiveMultiCloudRuntimeDriftFindings(r.Context(), filter)
 	if err != nil {
-		h.writeContractError(w, r, http.StatusInternalServerError, "drift packet readback failed", ErrorCodeInternalError)
+		h.writeReadbackFailure(w, r, err, driftPacketReadFailedMessage)
 		return
 	}
 	truth := BuildTruthEnvelope(
@@ -87,7 +98,7 @@ func (h *CloudRuntimeDriftHandler) getDriftPacket(w http.ResponseWriter, r *http
 	addSubjectKey(subject, "cloud_resource_uid", filter.CloudResourceUID)
 	packet, err := BuildDriftPacket(cloudRuntimeDriftFindingViews(rows), subject, truth, packetBoundsFromRequest(r))
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, driftPacketBuildFailedMessage)
 		return
 	}
 	writeInvestigationPacket(w, r, packet)

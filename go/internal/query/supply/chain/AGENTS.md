@@ -46,6 +46,10 @@ Read `doc.go` and `README.md` first.
   `timer.Failed` beside it, or the span gets two `exception` events and a
   client cancel logs at ERROR. A selector 404/400 renders the unwrapped
   `selector.NotFoundError`/`AmbiguousError`, never the wrapped `err`.
+- The cloud and Kubernetes runtime probe child spans call `RecordError` only
+  when `tracing.ClientCanceled` is false, so a client cancel leaves them free
+  of an `exception` the same way the request span is (#7674,
+  `runtime_probe_cancel_test.go`).
 - Every handler-owned 500 store-read branch on every sibling route MUST call
   `querycontract.WriteGraphReadError` first and return before
   `writeStageFailure` when it reports true (#7548 for the findings route, #7549 for all nineteen

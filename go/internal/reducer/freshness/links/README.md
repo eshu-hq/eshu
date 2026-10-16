@@ -22,7 +22,12 @@ Each cycle does the following:
    `ESHU_CHANGED_SINCE_LINK_BACKFILL_SCOPES_PER_CYCLE`). It then adds a
    `sweeper` row with an unknown prior for every active generation that has
    none. The pass is exclusive across replicas through a try-only advisory
-   lock.
+   lock. A projector Ack holds the same key shared while it journals its own
+   activation (#7127 PR-3b), so a pass also skips while an Ack runs. A
+   skipped pass journals nothing; the cycle still links what is journaled
+   and the next cycle tries again. The chance that one try misses is the Ack
+   duty cycle, and the pass starves only while Ack windows cover all time;
+   see "Ack writer" in the ledger store's README.
 2. It deletes the ledger rows of scopes that no longer exist.
 3. It links the backlog. Up to `ESHU_CHANGED_SINCE_LINK_WORKERS` scopes run at
    once, and each scope drains up to 16 activations per cycle. A retry or a
@@ -55,7 +60,8 @@ known gap).
 - `eshu_dp_changed_since_links_total{link_kind, outcome}`
 - `eshu_dp_changed_since_link_retries_total{reason}` (non-counting misses:
   `cursor_locked`, `generation_locked`, `generation_lock_timeout`,
-  `slot_busy`)
+  `slot_busy`, and `journal_busy` for a journal pass that skipped because an
+  Ack or another replica's pass held the journal key)
 - `eshu_dp_changed_since_link_failures_total{failure_class}`
 - `eshu_dp_changed_since_chain_breaks_total{reason}` (`prior_pruned` is a
   rebase: it comes with a `root` link, not instead of one)
@@ -86,8 +92,13 @@ known gap).
   fails.
 - `changed-since journal pass gave way on a generation lock; nothing
   journaled, retried next cycle` (WARN, with `reason` and `sqlstate`).
+- `changed-since journal pass skipped: ...` (INFO, with
+  `journal_skipped=true`, `reason=journal_busy`, `skipped_cycles` and
+  `skipped_seconds`) when a skip streak starts and at most once a minute
+  while it lasts; `changed-since journal pass resumed after skips` (INFO,
+  with the same two counts) when a pass runs again.
 - One `changed-since link cycle completed` log line is written per non-idle
-  cycle.
+  cycle; it carries `journal_skipped`.
 
 No metric label carries a scope or generation identifier.
 
@@ -101,6 +112,14 @@ At 3 AM, read the signals this way:
   `wait_event_type = 'Lock'` on the link's lock statement and at `pg_blocking_pids` of that backend. The
   usual holder is a generation retention batch; the other is a migration holding a table lock. The backlog
   and lag gauges show whether links are falling behind.
+- `reason="journal_busy"` means a journal pass skipped. A few are normal:
+  Acks and other replicas hold the key for short windows. A rate equal to
+  the cycle rate on every replica, or a skip log line whose
+  `skipped_seconds` keeps growing with no resume line, means the pass is
+  starved (Acks hold the key all the time, for example in a bootstrap
+  burst). Acks still journal their own activations then, but the backfill
+  and the sweeper wait, and the backlog and lag gauges do not count the
+  scopes that wait for them.
 - `retrying_scopes` above zero means links are failing now;
   `poisoned_scopes` above zero means those scopes skipped an activation and
   answer from the fallback until their next full generation.

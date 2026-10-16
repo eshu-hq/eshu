@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -125,7 +126,9 @@ SELECT
     COALESCE(active.is_delta, false) AS active_is_delta,
     COALESCE(active.source_commit_sha, '') AS active_commit_sha,
     COALESCE(active.payload ->> 'preparse_identity', '') AS active_preparse_identity,
-    COALESCE((active.payload ->> 'preparse_skips')::int, 0) AS active_preparse_skips
+    COALESCE((active.payload ->> 'preparse_skips')::int, 0) AS active_preparse_skips,
+    COALESCE(active.payload ->> 'stream_dropped_paths', '[]') AS active_stream_dropped_paths,
+    COALESCE((active.payload ->> 'stream_dropped_truncated')::boolean, false) AS active_stream_dropped_truncated
 FROM (SELECT 1) AS one
 LEFT JOIN LATERAL (
     SELECT GREATEST(projected.ingested_at, reconcile.projected_at) AS last_projected_full_at,
@@ -210,13 +213,15 @@ func (s IngestionStore) FullReconcileState(ctx context.Context, scopeID string) 
 		latestFullProjected     bool
 		latestFullCommit        string
 		latestFullWorkLive      bool
+		activeStreamDropped     string
 		active                  scope.FullReconcileState
 	)
 	if err := rows.Scan(
 		&lastProjectedFullAt, &lastStoredFullAt, &reconcileRequestedAt, &reconcileProjectedAt, &reconcileDeadLetteredAt,
 		&latestFullAt, &latestFullStatus, &latestFullProjected, &latestFullCommit, &latestFullWorkLive,
 		&active.ActiveGenerationID, &active.ActiveIsDelta, &active.ActiveCommitSHA,
-		&active.ActivePreparseIdentity, &active.ActivePreparseSkips,
+		&active.ActivePreparseIdentity, &active.ActivePreparseSkips, &activeStreamDropped,
+		&active.ActiveStreamDroppedTruncated,
 	); err != nil {
 		return scope.FullReconcileState{}, err
 	}
@@ -255,6 +260,13 @@ func (s IngestionStore) FullReconcileState(ctx context.Context, scopeID string) 
 	state.ActiveCommitSHA = strings.TrimSpace(active.ActiveCommitSHA)
 	state.ActivePreparseIdentity = strings.TrimSpace(active.ActivePreparseIdentity)
 	state.ActivePreparseSkips = active.ActivePreparseSkips
+	// A malformed stream_dropped_paths payload degrades to no recorded drops
+	// rather than failing the sweep's state read; the snapshot then follows
+	// the normal identity rules.
+	var dropped []string
+	if err := json.Unmarshal([]byte(activeStreamDropped), &dropped); err == nil {
+		state.ActiveStreamDroppedPaths = scope.NormalizeStreamDroppedPaths(dropped)
+	}
 	return state, nil
 }
 

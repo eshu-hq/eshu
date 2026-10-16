@@ -26,6 +26,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	linksfreshnessstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -142,6 +143,10 @@ func buildBootstrapProjector(
 	// The queue owns the claim-conflict retry counter; without instruments a
 	// bootstrap claim conflict is invisible to operators (#7122).
 	projectorQueue.Instruments = instruments
+	// #7127 PR-3b: with ESHU_CHANGED_SINCE_LINK_ENABLED on, Ack journals the
+	// activation it commits into the changed-since ledger, as the ingester's
+	// does; off (the default) Ack sends no ledger SQL.
+	projectorQueue.ChangedSinceJournalEnabled = linksfreshnessstore.Enabled(getenv)
 	reducerQueue := postgres.NewReducerQueue(instrumentedDB, "bootstrap-index", time.Minute)
 	contentConfig, err := content.LoadWriterConfig(getenv)
 	if err != nil {
@@ -164,7 +169,7 @@ func buildBootstrapProjector(
 
 	return projectorDeps{
 		workSource:        projectorQueue,
-		factStore:         postgres.NewFactStore(instrumentedDB),
+		factStore:         postgres.NewFactStore(instrumentedDB).WithInstruments(instruments).WithLogger(logger),
 		runner:            runtime,
 		workSink:          projectorQueue,
 		heartbeater:       projectorQueue,
@@ -276,11 +281,12 @@ func openBootstrapCanonicalWriter(
 		return nil, nil, err
 	}
 
-	writer := sourcecypher.NewCanonicalNodeWriter(
-		executor,
-		neo4jBatchSize(getenv),
-		instruments,
-	).WithTracer(tracer).WithTerraformStateOwnershipResolver(
+	writer, err := newBootstrapCanonicalNodeWriter(executor, graphBackend, neo4jBatchSize(getenv), instruments)
+	if err != nil {
+		_ = closeBootstrapNeo4jDriver(driver)
+		return nil, nil, err
+	}
+	writer = writer.WithTracer(tracer).WithTerraformStateOwnershipResolver(
 		bootstrapTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.PostgresTerraformBackendQuery{DB: database})},
 	).WithTerraformStateConfigMatchResolver(
 		bootstrapTerraformStateConfigMatchResolver{driver: driver, databaseName: cfg.DatabaseName},
@@ -358,12 +364,13 @@ func (e bootstrapNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []source
 			if runErr != nil {
 				return runErr
 			}
+			dropped := sourcecypher.CollectRetiredRelationships(ctx, stmt.Cypher, result)
 			summary, consumeErr := result.Consume(ctx)
 			if consumeErr != nil {
 				return consumeErr
 			}
 			counts = append(counts, bootstrapStatementRetractionCounts(stmt, summary))
-			sourcecypher.ReportWriteCounts(ctx, stmt.Cypher, stmt.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()))
+			sourcecypher.ReportWriteCountsWithDropped(ctx, stmt.Cypher, stmt.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()), dropped)
 			return nil
 		}, e.ProfileGroupStatements, nil)
 		if err != nil {
@@ -397,6 +404,7 @@ func (e bootstrapNeo4jExecutor) Execute(ctx context.Context, statement sourcecyp
 	if err != nil {
 		return err
 	}
+	dropped := sourcecypher.CollectRetiredRelationships(ctx, statement.Cypher, result)
 	summary, err := result.Consume(ctx)
 	if err == nil {
 		sourcecypher.RecordReconciliationDriftRetractions(
@@ -406,7 +414,7 @@ func (e bootstrapNeo4jExecutor) Execute(ctx context.Context, statement sourcecyp
 			int64(summary.Counters().NodesDeleted()),
 			int64(summary.Counters().RelationshipsDeleted()),
 		)
-		sourcecypher.ReportWriteCounts(ctx, statement.Cypher, statement.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()))
+		sourcecypher.ReportWriteCountsWithDropped(ctx, statement.Cypher, statement.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()), dropped)
 	}
 	return err
 }

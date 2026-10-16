@@ -59,7 +59,9 @@ func (h *Handler) reindexRepositories(w http.ResponseWriter, r *http.Request, re
 	for _, selector := range req.Repositories {
 		matches, err := h.Repositories.MatchRepositories(r.Context(), strings.TrimSpace(selector))
 		if err != nil {
-			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("resolve repository %q: %v", selector, err))
+			// Nothing is recorded before every selector resolves, so a
+			// cancel here is exact.
+			writeInspectionFailure(w, r, err, repositoryCatalogLookupCapability, repositoryReindexLookupFailedMessage)
 			return
 		}
 		entry, problem := gitDefaultScopeMatch(matches)
@@ -84,7 +86,10 @@ func (h *Handler) reindexRepositories(w http.ResponseWriter, r *http.Request, re
 	slices.Sort(scopeIDs)
 	stored, err := h.RepositoryReindexer.RequestRepositoryReindex(r.Context(), scopeIDs)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		// One upsert for every scope, never lowering a watermark: a cancel
+		// observed after it committed answers 499 with the watermarks
+		// recorded, and a re-run only moves them forward.
+		writeMutationFailure(w, r, err, repositoryReindexRequestFailedMessage)
 		return
 	}
 	repositories := make([]map[string]any, 0, len(stored))

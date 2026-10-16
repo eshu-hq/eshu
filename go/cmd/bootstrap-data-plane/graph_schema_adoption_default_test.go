@@ -163,6 +163,7 @@ func TestRunDoesNotDefaultAdoptNeo4jGraphSchema(t *testing.T) {
 			return neo4jDeps{
 				executor:  &fakeNeo4jExecutor{},
 				inspector: inspector,
+				runner:    &fakeGraphRunner{events: new([]string)},
 				close:     func() error { return nil },
 			}, nil
 		},

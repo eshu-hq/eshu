@@ -674,7 +674,7 @@ Infra search (`POST /api/v0/infra/resources/search`, MCP `find_infra_resources`)
 relationships (`POST /api/v0/infra/relationships`, MCP `analyze_infra_relationships`)
 and the count/inventory aggregates reuse `infraResourceScopePredicate` on NornicDB;
 on Neo4j (`InfraHandler.GraphBackend`) they use the hoisted list-EXISTS dialect
-in `infra_scope.go`, same admission and cap (#7215, aggregates #7231). Search filters its
+in `infra_scope.go`, same admission and cap (#7215, aggregates #7231; the flagged Neo4j full-text search read lives in `infra/fulltext`, #7245). Search filters its
 label branches so rows, `count`, `limit`, and `truncated` cover only granted
 resources; an empty-grant scoped token returns the bounded empty page without a
 graph read.

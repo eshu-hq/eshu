@@ -46,13 +46,31 @@ func validateClaimedGeneration(item workflow.WorkItem, collected CollectedGenera
 	return nil
 }
 
-// withFailure stamps a failure class and message onto a claim mutation so the
-// control store records why the claim failed.
-func withFailure(mutation workflow.ClaimMutation, failureClass string, err error) workflow.ClaimMutation {
+// withFailure stamps a failure class and message plus the bounded structured
+// classification (operation, status code, terminal flag) onto a claim
+// mutation so the control store records why the claim failed in queryable
+// form. operation is the claim-stage fallback (for example "collect_failure"
+// or "identity_mismatch"); an error-carried operation token wins when
+// present. failureClass is the already-resolved class. terminal is the route
+// truth (true for FailClaimTerminal callers); the error's own terminal flag
+// is OR-ed in so the persisted flag never understates a terminal cause.
+// Only bounded values persist: the sanitized operation token, the numeric
+// status, the class, and the message from err.Error, which stays bounded for
+// provider failures. No URL, response body, or credential is added here.
+func withFailure(
+	mutation workflow.ClaimMutation,
+	operation string,
+	failureClass string,
+	terminal bool,
+	err error,
+) workflow.ClaimMutation {
 	mutation.FailureClass = failureClass
 	if err != nil {
 		mutation.FailureMessage = err.Error()
 	}
+	mutation.FailureOperation = failureOperationOf(err, operation)
+	mutation.FailureStatusCode = failureStatusCodeOf(err)
+	mutation.FailureTerminal = terminal || isTerminalFailure(err)
 	return mutation
 }
 
@@ -67,6 +85,23 @@ type classifiedFailure interface {
 type terminalFailure interface {
 	TerminalFailure() bool
 }
+
+// failureOperation is implemented by errors that carry their own bounded
+// provider operation token. It is matched structurally so the collector
+// package does not import the SDK that defines the concrete failure type.
+type failureOperation interface {
+	FailureOperation() string
+}
+
+// failureStatusCode is implemented by errors that carry their own bounded
+// provider HTTP status code. It is matched structurally for the same reason.
+type failureStatusCode interface {
+	FailureStatusCode() int
+}
+
+// maxFailureOperationLength bounds a claim-stage operation before it is
+// persisted, mirroring the SDK token bound.
+const maxFailureOperationLength = 64
 
 // classifiedFailureClass returns the error's own failure class when it
 // implements classifiedFailure with a non-blank value, otherwise the fallback.
@@ -85,6 +120,66 @@ func classifiedFailureClass(err error, fallback string) string {
 func isTerminalFailure(err error) bool {
 	var terminal terminalFailure
 	return errors.As(err, &terminal) && terminal.TerminalFailure()
+}
+
+// failureOperationOf returns the error's own bounded operation token when it
+// implements failureOperation with a non-blank value, otherwise the
+// sanitized claim-stage fallback. The result is always safe for status rows:
+// a sanitized [a-z0-9_] token of bounded length.
+func failureOperationOf(err error, fallback string) string {
+	var carried failureOperation
+	if errors.As(err, &carried) {
+		if value := sanitizeFailureOperation(carried.FailureOperation()); value != "" {
+			return value
+		}
+	}
+	return sanitizeFailureOperation(fallback)
+}
+
+// failureStatusCodeOf returns the error's bounded HTTP status code when it
+// implements failureStatusCode, otherwise 0 for unknown. Only 100-599
+// survives; anything else is reported as unknown.
+func failureStatusCodeOf(err error) int {
+	var carried failureStatusCode
+	if errors.As(err, &carried) {
+		if status := carried.FailureStatusCode(); status >= 100 && status <= 599 {
+			return status
+		}
+	}
+	return 0
+}
+
+// sanitizeFailureOperation reduces an operation token to lowercase [a-z0-9_]
+// of bounded length so claim-stage fallbacks obey the same redaction bound
+// as error-carried tokens: no URLs, response bodies, or credentials. Blank
+// input stays blank (unrecorded); non-blank input with no surviving token
+// becomes "unknown_operation".
+func sanitizeFailureOperation(operation string) string {
+	trimmed := strings.TrimSpace(operation)
+	if trimmed == "" {
+		return ""
+	}
+	lowered := strings.ToLower(trimmed)
+	var builder strings.Builder
+	builder.Grow(len(lowered))
+	for _, r := range lowered {
+		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '_' {
+			builder.WriteRune(r)
+		} else {
+			builder.WriteByte('_')
+		}
+	}
+	token := strings.Trim(builder.String(), "_")
+	if token == "" {
+		return "unknown_operation"
+	}
+	if len(token) > maxFailureOperationLength {
+		token = strings.Trim(token[:maxFailureOperationLength], "_")
+		if token == "" {
+			return "unknown_operation"
+		}
+	}
+	return token
 }
 
 // drainHeartbeatError non-blockingly reads a pending heartbeat-loop error, if

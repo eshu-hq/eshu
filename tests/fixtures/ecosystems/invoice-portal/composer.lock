@@ -1,0 +1,27 @@
+{
+  "_readme": [
+    "Synthetic lock for the #7601 golden corpus fixture."
+  ],
+  "content-hash": "00000000000000000000000000000000",
+  "packages": [
+    {
+      "name": "acme/ledger-kit",
+      "version": "1.0.0",
+      "type": "library",
+      "autoload": {
+        "psr-4": {
+          "Acme\\LedgerKit\\": "src/"
+        }
+      },
+      "license": [
+        "MIT"
+      ]
+    }
+  ],
+  "packages-dev": [],
+  "minimum-stability": "stable",
+  "prefer-stable": false,
+  "platform": {},
+  "platform-dev": {},
+  "plugin-api-version": "2.6.0"
+}

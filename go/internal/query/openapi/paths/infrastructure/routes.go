@@ -11,7 +11,7 @@ const Routes = `
       "post": {
         "tags": ["infrastructure"],
         "summary": "Search infrastructure resources",
-        "description": "Searches graph-backed infrastructure resources by name, ID, resource type, cloud ARN, cloud resource ID, or bounded structured filters. Provide query or at least one structured filter.",
+        "description": "Searches graph-backed infrastructure resources by name, ID, resource type, cloud ARN, cloud resource ID, or bounded structured filters. Provide query or at least one structured filter. A 503 with Retry-After means a transient condition that is safe to retry: the graph backend is unavailable; this route has no configuration 503, so every 503 it answers carries Retry-After. A graph read that exceeds its deadline answers 504. No 5xx body carries backend error text. A graph or reader verdict 503 names capability platform_impact.deployment_chain in its error envelope.",
         "operationId": "searchInfraResources",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -88,7 +88,7 @@ const Routes = `
       "post": {
         "tags": ["infrastructure"],
         "summary": "Get infrastructure relationships",
-        "description": "Returns the relationships for an infrastructure entity. relationship_type is optional: when omitted every relationship is returned in both directions; when set the read is bounded to the matching edge types. Accepts a semantic alias (what_deploys, what_provisions, who_consumes_xrd, module_consumers, what_runs_image, what_runs_lambda_image) or a canonical edge type (e.g. DEPLOYS_FROM, USES_MODULE, RUNS_IMAGE, AWS_lambda_function_uses_image). The what_deploys alias spans the full deployment topology (DEPLOYS_FROM, DEPLOYMENT_SOURCE, HAS_DEPLOYMENT_EVIDENCE) so runtime deployment-source edges are not dropped. An unrecognized value is rejected with 400.",
+        "description": "Returns the relationships for an infrastructure entity. relationship_type is optional: when omitted every relationship is returned in both directions; when set the read is bounded to the matching edge types. Accepts a semantic alias (what_deploys, what_provisions, who_consumes_xrd, module_consumers, what_runs_image, what_runs_lambda_image) or a canonical edge type (e.g. DEPLOYS_FROM, USES_MODULE, RUNS_IMAGE, AWS_lambda_function_uses_image). The what_deploys alias spans the full deployment topology (DEPLOYS_FROM, DEPLOYMENT_SOURCE, HAS_DEPLOYMENT_EVIDENCE) so runtime deployment-source edges are not dropped. An unrecognized value is rejected with 400. A 503 with Retry-After means a transient condition that is safe to retry: the graph backend is unavailable; this route has no configuration 503, so every 503 it answers carries Retry-After. A graph read that exceeds its deadline answers 504. No 5xx body carries backend error text. A graph or reader verdict 503 names capability platform_impact.deployment_chain in its error envelope.",
         "operationId": "getInfraRelationships",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -141,7 +141,7 @@ const Routes = `
       "get": {
         "tags": ["infrastructure"],
         "summary": "Get ecosystem overview",
-        "description": "Returns high-level entity counts from the graph. Scoped tokens receive counts restricted to entities reachable from the caller's granted repositories via DEFINES/INSTANCE_OF/RUNS_ON; a scoped caller with no grants receives all-zero counts without a graph read.",
+        "description": "Returns high-level entity counts from the graph. Scoped tokens receive counts restricted to entities reachable from the caller's granted repositories via DEFINES/INSTANCE_OF/RUNS_ON; a scoped caller with no grants receives all-zero counts without a graph read. A 503 with Retry-After means a transient condition that is safe to retry: the graph backend is unavailable; this route has no configuration 503, so every 503 it answers carries Retry-After. A graph read that exceeds its deadline answers 504. No 5xx body carries backend error text. A graph or reader verdict 503 names capability platform_impact.context_overview in its error envelope.",
         "operationId": "getEcosystemOverview",
         "x-scoped-token-support": true,
         "responses": {
@@ -172,7 +172,7 @@ const Routes = `
       "post": {
         "tags": ["infrastructure"],
         "summary": "Get graph summary packet",
-        "description": "Returns a bounded, summary-first graph packet: hot entities (most-connected functions by call degree), key relationship type counts, and a per-scope ecosystem map. With repo_id the packet is repo-scoped; without repo_id only bounded ecosystem-wide label counts plus a needs-repo note are returned. Never runs a whole-graph hot-entity scan. Scoped tokens must supply a granted repo_id (not_found otherwise); the ecosystem-wide packet's counts are restricted to the caller's granted repositories, matching getEcosystemOverview.",
+        "description": "Returns a bounded, summary-first graph packet: hot entities (most-connected functions by call degree), key relationship type counts, and a per-scope ecosystem map. With repo_id the packet is repo-scoped; without repo_id only bounded ecosystem-wide label counts plus a needs-repo note are returned. Never runs a whole-graph hot-entity scan. Scoped tokens must supply a granted repo_id (not_found otherwise); the ecosystem-wide packet's counts are restricted to the caller's granted repositories, matching getEcosystemOverview. A 503 with Retry-After means a transient condition that is safe to retry: the graph backend is unavailable; a 503 without Retry-After means a configuration state, such as no graph backend configured on this API instance. A graph read that exceeds its deadline answers 504. No 5xx body carries backend error text. A graph or reader verdict 503 names capability platform_impact.graph_summary_packet in its error envelope.",
         "operationId": "getGraphSummaryPacket",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -223,7 +223,7 @@ const Routes = `
       "post": {
         "tags": ["infrastructure"],
         "summary": "List the typed-edge relationship verb catalog",
-        "description": "Returns the fixed catalog of typed-edge relationship verbs across the code-to-cloud graph, each with its layer, a bounded whole-graph edge count, and an evidence/source label. Each verb is counted with its own bounded relationship-type aggregate that the graph backend answers from the relationship-type index; no source-label population scan and no unlabeled-node all-node scan is run. The count is the whole-graph edge population for the verb across all source labels; it may exceed the edge-slice count when a relationship type is written by more than one source label (the edge slice is anchored on the catalog entry's primary source label).",
+        "description": "Returns the fixed catalog of typed-edge relationship verbs across the code-to-cloud graph, each with its layer, a bounded whole-graph edge count, and an evidence/source label. Each verb is counted with its own bounded relationship-type aggregate that the graph backend answers from the relationship-type index; no source-label population scan and no unlabeled-node all-node scan is run. The count is the whole-graph edge population for the verb across all source labels; it may exceed the edge-slice count when a relationship type is written by more than one source label (the edge slice is anchored on the catalog entry's primary source label). A 503 with Retry-After means a transient condition that is safe to retry: the graph backend is unavailable; a 503 without Retry-After means a configuration state, such as no graph backend configured on this API instance. A graph read that exceeds its deadline answers 504. No 5xx body carries backend error text. A graph or reader verdict 503 names capability platform_impact.relationships_catalog in its error envelope.",
         "operationId": "getRelationshipsCatalog",
         "requestBody": {
           "required": false,
@@ -274,7 +274,7 @@ const Routes = `
       "post": {
         "tags": ["infrastructure"],
         "summary": "List concrete edges for one relationship verb",
-        "description": "Returns a bounded slice of concrete typed edges for one catalog verb, each with its source and target endpoints plus evidence. The verb must be one of the catalog verbs; the query is anchored on that verb's source-node label, ordered by the indexed source-anchor property, and always carries a LIMIT, so the index-ordered scan short-circuits at the page boundary and the slice is bounded. Scoped tokens receive edges whose source endpoint is attributable to a granted repository/ingestion scope, and whose target endpoint is additionally grant-checked for verbs whose target carries its own tenant attribution (repository-to-repository and workload-family verbs); a scoped caller with no grants receives an empty page without a graph read.",
+        "description": "Returns a bounded slice of concrete typed edges for one catalog verb, each with its source and target endpoints plus evidence. The verb must be one of the catalog verbs; the query is anchored on that verb's source-node label, ordered by the indexed source-anchor property, and always carries a LIMIT, so the index-ordered scan short-circuits at the page boundary and the slice is bounded. Scoped tokens receive edges whose source endpoint is attributable to a granted repository/ingestion scope, and whose target endpoint is additionally grant-checked for verbs whose target carries its own tenant attribution (repository-to-repository and workload-family verbs); a scoped caller with no grants receives an empty page without a graph read. A 503 with Retry-After means a transient condition that is safe to retry: the graph backend is unavailable; a 503 without Retry-After means a configuration state, such as no graph backend configured on this API instance. A graph read that exceeds its deadline answers 504. No 5xx body carries backend error text. A graph or reader verdict 503 names capability platform_impact.relationships_catalog in its error envelope.",
         "operationId": "getRelationshipEdges",
         "x-scoped-token-support": true,
         "requestBody": {

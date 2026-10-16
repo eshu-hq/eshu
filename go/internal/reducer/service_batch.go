@@ -408,7 +408,12 @@ func (s Service) executeAndReport(ctx context.Context, intent Intent, workerID i
 	}()
 
 	execCtx = WithQuarantineWriter(execCtx, s.QuarantineWriter)
-	result, err := s.Executor.Execute(execCtx, intent)
+	execStart := time.Now()
+	result, err, abandoned := s.executeHandler(execCtx, ctx, intent)
+	if abandoned {
+		return s.failAbandonedBatchHandler(ctx, intent, err, start, execStart, queueWait, workerID, stopHeartbeat)
+	}
+	s.recordReducerHandlerDuration(ctx, intent, time.Since(execStart).Seconds())
 	duration := time.Since(start).Seconds()
 	if err != nil {
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {

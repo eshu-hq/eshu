@@ -139,6 +139,7 @@ func TestWriteGraphReadErrorCapabilitiesExistInMatrix(t *testing.T) {
 		findings = append(findings, fileFindings...)
 		totalMatched += matched
 	}
+	findings = append(findings, staleNoCapabilityEntries(noCapabilityAllowedFiles, sweep.noCapabilitySiteFiles(parsed))...)
 	sort.Strings(findings)
 	for _, finding := range findings {
 		t.Error(finding)

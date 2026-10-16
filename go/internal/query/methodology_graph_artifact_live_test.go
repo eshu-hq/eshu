@@ -38,8 +38,10 @@ func methodologyWriteGraphArtifact(t *testing.T, ctx context.Context, driver neo
 	baseCommit, candidateCommit := identity.Base, identity.Candidate
 	// A rewrite PR declares its pinned reader diff; every other caller keeps
 	// the strict pin, so the declaration never relaxes another backend.
-	methodologyVerifySameProductionWithDeclaration(t, baseCommit, candidateCommit, methodologyGraphProductionFiles, methodologyCommittedRewriteDeclaration)
-	methodologyVerifySameProductionTree(t, baseCommit, candidateCommit, "go/internal/graph", "schema*.go")
+	methodologyVerifySameProductionWithDeclaration(t, baseCommit, candidateCommit, methodologyGraphProductionFiles, methodologyCommittedRewriteDeclaration, methodologyReaderRewriteDeclarationKind)
+	// The graph schema tree takes the committed schema change declaration;
+	// it fails closed when the reader declaration is active in the same run.
+	methodologyVerifySameProductionTreeWithDeclaration(t, baseCommit, candidateCommit, "go/internal/graph", "schema*.go", methodologyCommittedSchemaDeclaration, methodologyCommittedRewriteDeclaration)
 	schema, indexes := methodologyGraphProductionDDL(t)
 	methodologyCheckGraphSchema(t, ctx, driver, database)
 	config := methodologyGraphConfig(t, ctx, driver, database)

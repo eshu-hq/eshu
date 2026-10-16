@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
@@ -301,10 +300,12 @@ func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		if resolution.ambiguous {
-			writeSemanticSearchError(w, r, http.StatusConflict, querycontract.ErrorCodeAmbiguous, err.Error())
+			// The sentinel's own text, never err's: a resolver that wraps it
+			// can add backend detail.
+			writeSemanticSearchError(w, r, http.StatusConflict, querycontract.ErrorCodeAmbiguous, ErrSemanticSearchScopeAmbiguous.Error())
 			return
 		}
-		writeSemanticSearchError(w, r, http.StatusServiceUnavailable, querycontract.ErrorCodeBackendUnavailable, err.Error())
+		writeSemanticSearchFailure(w, r, err, semanticSearchScopeResolutionFailedMessage)
 		return
 	}
 	if resolution.scopeID == "" {
@@ -322,12 +323,14 @@ func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 		&indexResult,
 	)
 	if err != nil {
+		// semanticSearchBackend fails only with
+		// errSemanticSearchIndexNotConfigured: a configuration 503.
 		writeSemanticSearchError(
 			w,
 			r,
 			http.StatusServiceUnavailable,
 			querycontract.ErrorCodeBackendUnavailable,
-			err.Error(),
+			semanticSearchIndexNotConfiguredMessage,
 		)
 		return
 	}
@@ -337,8 +340,7 @@ func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 	}).Retrieve(r.Context(), req)
 	if err != nil {
 		annotateSemanticSearchDegradedError(r.Context(), span, err)
-		status, code := semanticSearchRetrievalError(err)
-		writeSemanticSearchError(w, r, status, code, err.Error())
+		writeSemanticSearchRetrievalFailure(w, r, err)
 		return
 	}
 
@@ -379,7 +381,7 @@ func (h *SemanticSearchHandler) semanticSearchBackend(
 		}, nil
 	}
 	if h.Index == nil {
-		return nil, errors.New("semantic search requires the persisted search index")
+		return nil, errSemanticSearchIndexNotConfigured
 	}
 	return semanticSearchIndexBackend{
 		Index:  h.Index,
@@ -400,7 +402,7 @@ func (backend semanticSearchIndexBackend) Search(
 	req searchretrieval.Request,
 ) ([]searchretrieval.Candidate, error) {
 	if req.Mode == searchbench.ModeSemantic && !backend.AllowSemantic {
-		return nil, errors.New("semantic mode requires an embedder")
+		return nil, errSemanticModeRequiresEmbedder
 	}
 	query := backend.Query
 	query.Request = req
@@ -417,15 +419,27 @@ func (backend semanticSearchIndexBackend) Search(
 	return result.Candidates, nil
 }
 
-func semanticSearchRetrievalError(err error) (int, querycontract.ErrorCode) {
-	message := err.Error()
-	if strings.Contains(message, "semantic mode requires an embedder") {
-		return http.StatusServiceUnavailable, querycontract.ErrorCodeBackendUnavailable
+// writeSemanticSearchRetrievalFailure answers a failed retrieval. Semantic
+// mode with no embedder wired is a configuration 503 with fixed text and no
+// Retry-After. Every other error is the server's: the handler validated the
+// request with searchretrieval.ValidateRequest before it resolved the scope,
+// and the canonical anchor rewrite only swaps in a non-empty repository id,
+// so the runner's own validation cannot fail here. What remains is the index
+// read (the reader fence, a backend fault, or a cancel) and a stored
+// candidate that fails response normalization, all answered through
+// writeSemanticSearchFailure with one fixed message.
+func writeSemanticSearchRetrievalFailure(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, errSemanticModeRequiresEmbedder) {
+		writeSemanticSearchError(
+			w,
+			r,
+			http.StatusServiceUnavailable,
+			querycontract.ErrorCodeBackendUnavailable,
+			semanticSearchEmbedderRequiredMessage,
+		)
+		return
 	}
-	if strings.Contains(message, "search retrieval backend") {
-		return http.StatusInternalServerError, querycontract.ErrorCodeInternalError
-	}
-	return http.StatusBadRequest, querycontract.ErrorCodeInvalidArgument
+	writeSemanticSearchFailure(w, r, err, semanticSearchRetrievalFailedMessage)
 }
 
 func (h *SemanticSearchHandler) truth() *querycontract.TruthEnvelope {

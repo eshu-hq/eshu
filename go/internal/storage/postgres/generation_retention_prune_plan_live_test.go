@@ -438,6 +438,10 @@ func (p *workMemProbeDB) Begin(ctx context.Context) (db.Transaction, error) {
 type workMemProbeTx struct {
 	db.Transaction
 	probe *workMemProbeDB
+	// retention marks the transaction that set the retention work_mem; the
+	// #7427 pre-delete's batch transactions never do, so their commits are
+	// not observed.
+	retention bool
 }
 
 func (tx *workMemProbeTx) observe(ctx context.Context) error {
@@ -459,12 +463,16 @@ func (tx *workMemProbeTx) observe(ctx context.Context) error {
 func (tx *workMemProbeTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	result, err := tx.Transaction.ExecContext(ctx, query, args...)
 	if err == nil && query == generationRetentionWorkMemStatement {
+		tx.retention = true
 		err = tx.observe(ctx)
 	}
 	return result, err
 }
 
 func (tx *workMemProbeTx) Commit() error {
+	if !tx.retention {
+		return tx.Transaction.Commit()
+	}
 	if err := tx.observe(context.Background()); err != nil {
 		return err
 	}

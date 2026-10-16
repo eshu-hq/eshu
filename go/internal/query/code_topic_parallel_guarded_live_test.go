@@ -87,6 +87,10 @@ VALUES
 	if err != nil {
 		t.Fatalf("load guarded reader config: %v", err)
 	}
+	// The disposable fixture is usually an unpatched PostgreSQL 18.x; declaring
+	// its exact build keeps this parity proof on the shared-snapshot path and
+	// proves nothing about build safety (#7957).
+	cfg.SnapshotExportBuilds = codeTopicFixtureSnapshotExportBuilds(t, targetDSN)
 	observer := new(codeTopicGuardedReadObserver)
 	access, err := runtimepostgres.Open(ctx, cfg, observer)
 	if err != nil {

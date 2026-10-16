@@ -153,11 +153,10 @@ func runGenerationRetentionRaceCase(t *testing.T, ctx context.Context, database 
 		for rows.Next() {
 			var scopeID, gotGenerationID, scopeKind string
 			var supersededAt, observedAt time.Time
-			var uncovered bool
+			var uncovered, isDelta, deltaProtected bool
 			var sourceCommitSHA, freshnessHint string
-			var isDelta bool
 			if err := rows.Scan(&scopeID, &gotGenerationID, &scopeKind, &supersededAt, &observedAt, &uncovered,
-				&sourceCommitSHA, &isDelta, &freshnessHint); err != nil {
+				&sourceCommitSHA, &isDelta, &freshnessHint, &deltaProtected); err != nil {
 				lockErr = err
 				return
 			}

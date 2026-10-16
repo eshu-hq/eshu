@@ -9,13 +9,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // GetResolvedRelationshipsForRepos returns active resolved relationships that
@@ -223,25 +227,218 @@ func (s *RelationshipStore) ActivateResolutionGenerationForClaim(
 	claimedAt time.Time,
 ) error {
 	now := time.Now().UTC()
-	result, err := s.database.ExecContext(
-		ctx,
-		activateResolutionGenerationForClaimSQL,
-		generationID,
-		scopeID,
-		now,
-		now,
-		workItemID,
-		claimedAt.UTC(),
-	)
+	affected, err := s.activateWithConsumerWake(ctx, activateResolutionGenerationForClaimSQL,
+		[]any{generationID, scopeID, now, now, workItemID, claimedAt.UTC()},
+		scopeID, generationID, now)
 	if err != nil {
 		return fmt.Errorf("activate resolution generation for reducer claim: %w", err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("activate resolution generation for reducer claim: rows affected: %w", err)
 	}
 	if affected == 0 {
 		return reducercontract.ErrExecutionClaimRejected
 	}
 	return nil
+}
+
+// defaultActivationWakeLockTimeout bounds how long the activation transaction
+// waits on an in-flight consumer row lock (#7597), like the projector Ack's
+// lock_timeout (#6738). A 55P03 fails the activation retryably; the
+// deployment_mapping item re-runs and activation is idempotent.
+const defaultActivationWakeLockTimeout = 2 * time.Second
+
+// activationWakeSetClause is the SET list of the #7597 consumer wake: the
+// recovery replay reset list (replayFailedWorkItemsTemplate, kept in lockstep
+// by TestActivationWakeSetClauseMatchesReplayReset) plus reopened_at, so a
+// woken consumer keeps its retry evidence and its elapsed-time readiness
+// bounds start a fresh window. $1 is the wake timestamp.
+const activationWakeSetClause = `status = 'pending',
+        attempt_count = GREATEST(attempt_count, 1),
+        container_image_identity_v2_authorized_status = CASE
+            WHEN container_image_identity_v2_required THEN 'pending'
+            ELSE ''
+        END,
+        container_image_identity_v3_authorized_status = CASE
+            WHEN container_image_identity_v3_required THEN 'pending'
+            ELSE ''
+        END,
+        lease_owner = NULL,
+        claim_until = NULL,
+        visible_at = $1,
+        next_attempt_at = NULL,
+        failure_class = NULL,
+        failure_message = NULL,
+        failure_details = NULL,
+        updated_at = $1,
+        reopened_at = $1`
+
+// lockInflightOwnGateConsumersSQL waits for, then holds, every in-flight
+// own-gate consumer row of the activated scope generation (#7597), in the
+// byte order (COLLATE "C") every multi-row reducer locker uses, the batch ack
+// included, so the two cannot form a lock cycle. A consumer
+// whose final counted Fail is committing finishes first, so the wake
+// statement that follows (a fresh snapshot) sees it dead-lettered; a Fail that
+// starts later waits for this transaction and then sees the active generation
+// through its own post-dead-letter wake (wakeAfterProducerTerminalDeadLetter).
+// It is the only statement here that waits on a consumer row. Zero rows in
+// the common case: no own-gate consumer is claimed or running.
+var lockInflightOwnGateConsumersSQL = `
+SELECT work_item_id
+FROM fact_work_items
+WHERE scope_id = $1
+  AND generation_id = $2
+  AND stage = 'reducer'
+  AND status IN ('claimed', 'running')
+  AND domain IN (` + sqlStringList(ownGateConsumerDomainStrings()) + `)
+ORDER BY work_item_id COLLATE "C"
+FOR UPDATE
+`
+
+// wakeProducerTerminalConsumersSQL reopens the own-gate consumers of one scope
+// generation that dead-lettered in an own-gate counting class
+// (ownGateCountingClasses) once its relationship generation is active
+// (#7597). It runs inside every activation transaction (after the
+// generation write, which the EXISTS then sees) and after a consumer's own
+// producer-terminal dead letter. The scan uses fact_work_items_scope_generation_idx
+// (scope_id, generation_id, status) and touches zero rows in the common case.
+// Dead-lettered rows are locked SKIP LOCKED: their only other writers reopen
+// or retire them (recovery and admin replay, the claim-time supersede sweep, a
+// concurrent wake), so the wake never waits on them. $1 timestamp, $2 scope,
+// $3 generation.
+var wakeProducerTerminalConsumersSQL = `
+UPDATE fact_work_items
+SET ` + activationWakeSetClause + `
+WHERE status = 'dead_letter'
+  AND work_item_id IN (
+    SELECT consumer.work_item_id
+    FROM fact_work_items AS consumer
+    WHERE consumer.scope_id = $2
+      AND consumer.generation_id = $3
+      AND consumer.stage = 'reducer'
+      AND consumer.status = 'dead_letter'
+      AND consumer.failure_class IN (` + sqlStringList(ownGateCountingClasses()) + `)
+      AND EXISTS (
+        SELECT 1 FROM relationship_generations AS rg
+        WHERE rg.generation_id = $3 AND rg.scope = $2 AND rg.status = 'active'
+      )
+    ORDER BY consumer.work_item_id COLLATE "C"
+    FOR UPDATE OF consumer SKIP LOCKED
+  )
+`
+
+// ActivationWakeContentionError reports an activation transaction that hit
+// lock_timeout (55P03) or a deadlock (40P01) and rolled back (#7597). It is
+// Retryable with no class, so the deployment_mapping item re-runs on its
+// ordinary counted budget; activation is idempotent.
+type ActivationWakeContentionError struct {
+	err error
+}
+
+// Error names the contention.
+func (e ActivationWakeContentionError) Error() string {
+	return fmt.Sprintf("activate relationship generation: lock contention, retrying: %v", e.err)
+}
+
+// Unwrap exposes the driver error.
+func (e ActivationWakeContentionError) Unwrap() error { return e.err }
+
+// Retryable opts the rolled-back activation into the counted retry path.
+func (ActivationWakeContentionError) Retryable() bool { return true }
+
+// activateWithConsumerWake runs one relationship_generations activation
+// statement and the #7597 consumer wake in one transaction: activation, then
+// SET LOCAL lock_timeout, then lockInflightOwnGateConsumersSQL, then
+// wakeProducerTerminalConsumersSQL. Lock order: claimant work row (claim
+// variant) -> relationship_generations -> in-flight consumer rows (ordered by
+// work_item_id) -> dead-lettered consumer rows (SKIP LOCKED). It returns the
+// activation statement's affected rows; zero rolls back with no wake.
+// TestEveryRelationshipActivationWakesConsumers enumerates the module source
+// so no activation statement can run outside this function.
+func (s *RelationshipStore) activateWithConsumerWake(
+	ctx context.Context,
+	activationSQL string,
+	args []any,
+	scopeID, generationID string,
+	now time.Time,
+) (int64, error) {
+	beginner, ok := s.database.(db.Beginner)
+	if !ok {
+		return 0, errors.New("relationship store database must support Begin to activate a generation")
+	}
+	tx, err := beginner.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("begin activation: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	result, err := tx.ExecContext(ctx, activationSQL, args...)
+	if err != nil {
+		return 0, classifyActivationError(err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("activation rows affected: %w", err)
+	}
+	if affected == 0 {
+		return 0, nil
+	}
+	timeout := s.activationLockTimeout
+	if timeout <= 0 {
+		timeout = defaultActivationWakeLockTimeout
+	}
+	if _, err := tx.ExecContext(ctx, "SELECT set_config('lock_timeout', $1, true)",
+		fmt.Sprintf("%dms", timeout.Milliseconds())); err != nil {
+		return 0, fmt.Errorf("activation wake: set lock timeout: %w", err)
+	}
+	woken, err := s.lockAndWake(ctx, tx, scopeID, generationID, now)
+	if err != nil {
+		recordOwnGateWake(ctx, s.instruments, telemetry.OwnGateWakeSiteActivation, telemetry.OwnGateWakeOutcomeError)
+		return 0, classifyActivationError(err)
+	}
+	if err := tx.Commit(); err != nil {
+		recordOwnGateWake(ctx, s.instruments, telemetry.OwnGateWakeSiteActivation, telemetry.OwnGateWakeOutcomeError)
+		return 0, classifyActivationError(err)
+	}
+	committed = true
+	recordOwnGateWake(ctx, s.instruments, telemetry.OwnGateWakeSiteActivation, wakeOutcome(woken))
+	if n := woken; n > 0 {
+		slog.Default().InfoContext(ctx, "relationship generation activation reopened own-gate consumers",
+			"scope_id", scopeID, "generation_id", generationID, "woken_consumers", n)
+	}
+	return affected, nil
+}
+
+// lockAndWake runs the activation wake's in-flight lock and wake statements
+// inside tx and returns how many consumers the wake reopened.
+func (s *RelationshipStore) lockAndWake(
+	ctx context.Context, tx db.Transaction, scopeID, generationID string, now time.Time,
+) (int64, error) {
+	rows, err := tx.QueryContext(ctx, lockInflightOwnGateConsumersSQL, scopeID, generationID)
+	if err != nil {
+		return 0, err
+	}
+	for rows.Next() {
+	}
+	rowsErr := rows.Err()
+	_ = rows.Close()
+	if rowsErr != nil {
+		return 0, rowsErr
+	}
+	result, err := tx.ExecContext(ctx, wakeProducerTerminalConsumersSQL, now, scopeID, generationID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+// classifyActivationError makes lock_timeout and deadlock retryable and
+// returns every other error unchanged.
+func classifyActivationError(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && (pgErr.Code == "55P03" || pgErr.Code == "40P01") {
+		return ActivationWakeContentionError{err: err}
+	}
+	return err
 }

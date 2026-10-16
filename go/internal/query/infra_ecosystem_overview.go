@@ -11,6 +11,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
+// ecosystemOverviewReadFailedMessage is the fixed body of a failed graph count
+// on GET /api/v0/ecosystem/overview (#7674). The graph error can quote Cypher
+// and hosts, so it goes on the request span, never into the body.
+const ecosystemOverviewReadFailedMessage = "ecosystem overview read failed"
+
 // ecosystemOverviewCounts lists the labels summarized by the ecosystem overview
 // and the response field each populates. Each is counted with its own bounded
 // single-label count query (see getEcosystemOverview for why). repoAlias names
@@ -113,10 +118,7 @@ func (h *InfraHandler) getEcosystemOverview(w http.ResponseWriter, r *http.Reque
 	recordScopeGrantInlineCap(r.Context(), h.Instruments, access, "infra_ecosystem_overview")
 	counts, err := runEcosystemOverviewCounts(r.Context(), h.Neo4j, access)
 	if err != nil {
-		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
-			return
-		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeReadFailure(w, r, err, "platform_impact.context_overview", ecosystemOverviewReadFailedMessage)
 		return
 	}
 

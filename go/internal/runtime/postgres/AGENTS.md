@@ -52,6 +52,17 @@ Snapshot sets reserve all requested reader connections behind a per-Access
 context-cancelable gate, fence every connection before any transaction, and
 retain the exporter through assembly. Failure and cancellation release every
 reserved connection and transaction.
+Shared-snapshot export is deny-by-default (#7957). `BeginReadOnlySnapshotSet`
+returns `db.ErrSnapshotExportUnqualified` before any borrow, gate wait, or
+allocator reservation unless a pool or member verdict is qualified (PostgreSQL
+18 at or above `snapshotExportQualifiedVersionNum`, or an exact declared
+`server_version`), and rechecks every borrowed set connection before `BEGIN`.
+Keep the build columns on the existing identity statements (no new round trip)
+and out of `writerLineage` comparisons. Never add a fallback (single
+statement, independent snapshots, writer route) and never zero
+`MaxReadConnections` to hide a refusal. Unit tests of other set mechanics seed
+a qualified verdict with `qualifySnapshotExport`; live suites declare the
+fixture build with `declareFixtureSnapshotExport`.
 Snapshot cursor Scan must reject any `*sql.RawBytes` destination before touching
 other destinations, close through its public Close, and preserve Close errors.
 Opt-in `ESHU_POSTGRES_READ_MEMBERS` is credential-free and contains only stable

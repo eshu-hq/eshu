@@ -1,0 +1,475 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package targeted
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"strings"
+	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
+
+// CatalogBaselineQuery reports whether any memo row exists (the
+// baseline the catalog guard needs) and whether any memo row records a
+// catalog fingerprint other than $1. Each arm reads the active partitions
+// first and falls back to the owed scopes' own latest memo, any generation
+// ($2, DISTINCT scope_ids): a quiet generation that advanced past its memo
+// still proves catalog currency when its scope's latest memo carries the
+// current fingerprint (#7638 item 9). The latest memo is the greatest
+// committed_at (generation_id breaks ties). committed_at records a memo's
+// first publication, in activation order, not observation recency: memos are
+// written only for the scope's active generation under its lock, a superseded
+// generation never becomes active again (#7130), so a newer generation's
+// first memo commits after every memo of an older one. The whole pass does
+// not re-stamp a partition it did not change (#8082), which keeps a memo at
+// its first publication and keeps that order. If a future path ever writes
+// memos for non-active generations, this ordering argument must be
+// revisited.
+const CatalogBaselineQuery = backfill.LatestGenerationCTE + `,
+owed_latest_memo AS (
+    SELECT DISTINCT ON (memo.scope_id)
+        memo.scope_id,
+        memo.catalog_fingerprint
+    FROM deferred_backfill_partition_memo AS memo
+    WHERE memo.scope_id = ANY($2)
+    ORDER BY memo.scope_id, memo.committed_at DESC, memo.generation_id DESC
+)
+SELECT
+    EXISTS (
+        SELECT 1
+        FROM deferred_backfill_partition_memo AS memo
+        JOIN latest_generations AS latest
+          ON latest.scope_id = memo.scope_id
+         AND latest.generation_id = memo.generation_id
+    ) OR EXISTS (
+        SELECT 1 FROM owed_latest_memo
+    ),
+    EXISTS (
+        SELECT 1
+        FROM deferred_backfill_partition_memo AS memo
+        JOIN latest_generations AS latest
+          ON latest.scope_id = memo.scope_id
+         AND latest.generation_id = memo.generation_id
+        WHERE memo.catalog_fingerprint <> $1
+    ) OR EXISTS (
+        SELECT 1 FROM owed_latest_memo WHERE catalog_fingerprint <> $1
+    )
+`
+
+// TargetedMaintenanceResult reports one partition-scoped pass.
+type TargetedMaintenanceResult struct {
+	// Outcomes holds one result per requested owed partition, in (scope_id,
+	// generation_id) order. It is filled on refusal too, so a superseded or
+	// inapplicable owed partition is never reported as refused.
+	Outcomes []TargetedMaintenanceOutcome
+	// Promoted are dependent partitions processed as owed because they had no
+	// committed backward_evidence phase.
+	Promoted []OwedPartition
+	// Loaded are the partitions handed to the memo-gated fact loader.
+	Loaded []OwedPartition
+	// Affected are the partitions whose evidence was written, whose phase was
+	// published, and whose dependents were reopened.
+	Affected []OwedPartition
+	// SnapshotConflicts are scopes whose generation advanced between the
+	// closure reads; their repositories were skipped this pass.
+	SnapshotConflicts []string
+	// EvidenceFacts counts evidence facts handed to the batch writer.
+	EvidenceFacts int
+	// Published counts phase rows the fan-in published.
+	Published int
+	// Reopened counts reopened work items per reducer domain.
+	Reopened map[string]int
+	// SkipSetUnavailable is true when the memo gate failed and every
+	// relationship-domain candidate was reopened.
+	SkipSetUnavailable bool
+	// SuppressedRefusal is the catalog guard's refusal reason when every
+	// active owed partition was inapplicable: the pass returned nil, but the
+	// evidence work their relations would have written was not done and
+	// waits for the next whole pass.
+	SuppressedRefusal string
+}
+
+// RunDeferredRelationshipMaintenanceForPartitions runs deferred relationship
+// maintenance for the owed (scope_id, generation_id) partitions only. It is
+// composed from the whole pass's own pieces so that, for every partition it
+// touches, the committed relationship_evidence_facts rows, the
+// graph_projection_phase_state and memo rows, and the reopened fact_work_items
+// equal what RunDeferredRelationshipMaintenance produces for that partition:
+//
+//   - owed classification: a partition whose scope moved on is not_active; an
+//     active partition with no repository in the shipped active-repository
+//     read is inapplicable (no pass can publish its phase). Both are decided
+//     before the catalog guard, so neither is reported as a refusal.
+//   - catalog guard: refuse with ErrTargetedMaintenanceNoMemoBaseline when
+//     neither an active partition nor an owed scope holds a memo row, and
+//     with ErrTargetedMaintenanceCatalogChanged when one records another
+//     catalog fingerprint. An owed scope's own latest memo, any generation,
+//     proves currency when it carries the current fingerprint (#7638). The
+//     epoch whole pass completes refused obligations.
+//   - affected set: resolveTargetedMaintenanceClosure, which adds inbound and
+//     cross-scope sources found by backfill.LoadAnchorScopedRelationshipFacts.
+//   - fact load, writes and publication: the whole pass's memo-gated loader,
+//     batch writer (with a repo-bounded under-lock read derived from the
+//     shipped query) and unchanged fan-in, all with instruments off so the
+//     whole pass's eshu_dp_deferred_backfill_* series stay its own.
+//   - reopen: reopenTargetedMaintenanceWorkItems over the exact affected
+//     partitions. Correlation reopen is partition-scoped here: the fleet-wide
+//     replay of the cross-scope correlation domains stays on the epoch whole
+//     pass, and is not part of the activation obligation (#7584).
+//
+// Partitions outside the affected set are not written, published or reopened.
+// Per-owed results are in TargetedMaintenanceResult.Outcomes; the returned
+// error is a pass-level refusal (match with errors.Is) or an operational
+// failure.
+func (s Store) RunDeferredRelationshipMaintenanceForPartitions(
+	ctx context.Context,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+	owed []OwedPartition,
+) (result TargetedMaintenanceResult, err error) {
+	if s.Backfill.DB == nil {
+		return result, fmt.Errorf("ingestion store db is required")
+	}
+	if s.Backfill.Beginner == nil {
+		return result, fmt.Errorf("transaction beginner is required for partition-scoped maintenance")
+	}
+	requested := normalizeOwedPartitions(owed)
+	if len(requested) == 0 {
+		return result, fmt.Errorf("partition-scoped maintenance requires at least one owed partition")
+	}
+	if err := s.validatePassConfig(); err != nil {
+		return result, err
+	}
+
+	start := time.Now()
+	ctx, span, endSpan := startTargetedMaintenanceSpan(ctx, tracer)
+	defer endSpan()
+	outcomes := make(map[backfill.ScopeGenerationPartition]TargetedMaintenanceOutcomeKind, len(requested))
+	defer func() {
+		result.Outcomes = orderedOutcomes(requested, outcomes)
+		recordTargetedMaintenance(ctx, span, instruments, start, requested, result, err)
+	}()
+
+	// Classify before any corpus read, so a superseded or inapplicable owed
+	// partition is reported as such even when the catalog guard would refuse.
+	active := make(map[backfill.ScopeGenerationPartition]struct{}, len(requested))
+	for _, partition := range requested {
+		generationID, err := backfill.LoadActiveGenerationForScope(ctx, s.Backfill.DB, partition.ScopeID)
+		if err != nil {
+			return result, fmt.Errorf("read active generation for owed scope %q: %w", partition.ScopeID, err)
+		}
+		if generationID != partition.GenerationID {
+			outcomes[partition] = TargetedMaintenanceNotActive
+			continue
+		}
+		active[partition] = struct{}{}
+	}
+	if len(active) == 0 {
+		return result, nil
+	}
+	owedRepos, err := loadActiveRepositoryGenerationsForPartitions(ctx, s.Backfill.DB, sortedPartitions(active))
+	if err != nil {
+		return result, fmt.Errorf("load owed repository generations: %w", err)
+	}
+	applicable := partitionsOfRepos(owedRepos)
+	for partition := range active {
+		if _, ok := applicable[partition]; !ok {
+			outcomes[partition] = TargetedMaintenanceInapplicable
+		}
+	}
+
+	catalog, _, err := backfill.LoadRepositoryCatalog(ctx, s.Backfill.DB)
+	if err != nil {
+		return result, fmt.Errorf("load repository catalog for partition-scoped maintenance: %w", err)
+	}
+	params, hasAnchors := backfill.BuildDeferredScopedFactQueryParams(catalog)
+	catalogFingerprint := backfill.DeferredCatalogFingerprint(params)
+	switch refusal := s.targetedCatalogRefusal(ctx, catalogFingerprint, owedScopeIDs(requested)); {
+	case refusal == nil:
+	case errors.Is(refusal, ErrTargetedMaintenanceCatalogChanged), errors.Is(refusal, ErrTargetedMaintenanceNoMemoBaseline):
+		if len(applicable) == 0 {
+			// Every active owed partition is inapplicable: no phase is owed,
+			// so there is nothing to refuse. The refusal still suppressed the
+			// evidence work these partitions' relations would have written
+			// for other repositories; that waits for the next whole pass,
+			// so say so.
+			result.SuppressedRefusal = TargetedMaintenanceReason(refusal)
+			log.Printf("deferred_backfill_targeted_suppressed reason=%q inapplicable=%d",
+				result.SuppressedRefusal, len(active))
+			return result, nil
+		}
+		for _, partition := range sortedPartitions(applicable) {
+			log.Printf("deferred_backfill_targeted_refused reason=%q scope_id=%q generation_id=%q",
+				TargetedMaintenanceReason(refusal), partition.ScopeID, partition.GenerationID)
+		}
+		return result, refusal
+	default:
+		return result, refusal
+	}
+
+	closure, err := s.resolveTargetedMaintenanceClosure(ctx, catalog, params, hasAnchors, active)
+	if err != nil {
+		return result, err
+	}
+	result.Promoted = owedPartitionsOf(closure.promoted)
+	result.Loaded = owedPartitionsOf(sortedPartitions(closure.load))
+	affected := closure.affectedPartitions()
+	affectedList := sortedPartitions(affected)
+	result.Affected = owedPartitionsOf(affectedList)
+
+	var snapshot map[string]string
+	var discovered []relationships.EvidenceFact
+	skipped := map[backfill.ScopeGenerationPartition]struct{}{}
+	if hasAnchors {
+		snapshot, result.SnapshotConflicts = buildTargetedMaintenanceSnapshot(closure.load, affected)
+		loaded, loadSkipped, err := s.Backfill.LoadDeferredScopedFactsAcrossPartitions(
+			ctx, s.Backfill.DB, params, sortedPartitions(closure.load), nil)
+		if err != nil {
+			return result, fmt.Errorf("load partition-scoped deferred facts: %w", err)
+		}
+		if len(loaded) > 0 {
+			loaded, err = s.Backfill.AppendArgoCDGeneratorConfigFacts(ctx, s.Backfill.DB, catalog, loaded)
+			if err != nil {
+				return result, err
+			}
+		}
+		discovered = relationships.DedupeEvidenceFacts(relationships.DiscoverEvidence(loaded, catalog))
+		skipped = s.targetedMaintenanceSkipSet(ctx, catalogFingerprint, loadSkipped, closure.load, affected)
+		result.SkipSetUnavailable = skipped == nil
+	}
+
+	evidenceBySourceRepo := make(map[string][]relationships.EvidenceFact)
+	for _, evidence := range discovered {
+		if strings.TrimSpace(evidence.SourceRepoID) == "" || strings.TrimSpace(evidence.TargetRepoID) == "" {
+			continue
+		}
+		if _, ok := closure.affectedRepos[evidence.SourceRepoID]; !ok {
+			continue
+		}
+		evidenceBySourceRepo[evidence.SourceRepoID] = append(evidenceBySourceRepo[evidence.SourceRepoID], evidence)
+		result.EvidenceFacts++
+	}
+
+	var insertedRows map[backfill.ScopeGenerationPartition]int64
+	if result.Published, insertedRows, err = s.writeTargetedMaintenanceEvidence(
+		ctx, closure, evidenceBySourceRepo, snapshot, catalogFingerprint,
+	); err != nil {
+		return result, err
+	}
+	// Revise the pass-start memo-hit set with what the backfill actually wrote:
+	// a skipped partition that received new evidence this pass must reopen
+	// (issue #7636). A nil skipped (gate failure) stays nil, preserving the
+	// reopen-all fallback and the SkipSetUnavailable flag set above.
+	skipped = backfill.ExcludePartitionsWithNewEvidence(skipped, insertedRows)
+	if result.Reopened, err = s.ReopenTargetedMaintenanceWorkItems(ctx, tracer, affectedList, skipped); err != nil {
+		return result, err
+	}
+
+	for partition := range applicable {
+		committed, err := s.PhaseCommitted(ctx, s.Backfill.DB, partition)
+		if err != nil {
+			return result, err
+		}
+		if committed {
+			outcomes[partition] = TargetedMaintenancePublished
+		} else {
+			outcomes[partition] = TargetedMaintenanceRetry
+		}
+	}
+	return result, nil
+}
+
+// targetedCatalogRefusal returns ErrTargetedMaintenanceNoMemoBaseline when
+// neither an active partition nor an owed scope holds a memo row,
+// ErrTargetedMaintenanceCatalogChanged when one records another
+// fingerprint, nil when the catalog is unchanged, and the query error
+// otherwise. owedScopeIDs carries the distinct scope_ids of the normalized
+// requested owed partitions; it must be non-empty.
+func (s Store) targetedCatalogRefusal(ctx context.Context, fingerprint string, owedScopeIDs []string) error {
+	rows, err := s.Backfill.DB.QueryContext(ctx, CatalogBaselineQuery, fingerprint, array.StringArray(owedScopeIDs))
+	if err != nil {
+		return fmt.Errorf("check catalog fingerprint for partition-scoped maintenance: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	hasBaseline, stale := false, false
+	if rows.Next() {
+		if err := rows.Scan(&hasBaseline, &stale); err != nil {
+			return fmt.Errorf("scan catalog fingerprint check: %w", err)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("check catalog fingerprint for partition-scoped maintenance: %w", err)
+	}
+	switch {
+	case !hasBaseline:
+		return ErrTargetedMaintenanceNoMemoBaseline
+	case stale:
+		return ErrTargetedMaintenanceCatalogChanged
+	}
+	return nil
+}
+
+// recordTargetedMaintenance emits the pass's metrics, span status and
+// completion log. The pass outcome is "completed" or the error's reason.
+// startTargetedMaintenanceSpan opens the pass span. Without a tracer it
+// installs a non-recording span, so the pass never writes status or
+// attributes onto a span its caller's context carries.
+func startTargetedMaintenanceSpan(ctx context.Context, tracer trace.Tracer) (context.Context, trace.Span, func()) {
+	if tracer == nil {
+		span := trace.SpanFromContext(context.Background())
+		return trace.ContextWithSpan(ctx, span), span, func() {}
+	}
+	ctx, span := tracer.Start(ctx, "relationship.backfill_deferred_targeted")
+	return ctx, span, func() { span.End() }
+}
+
+func recordTargetedMaintenance(
+	ctx context.Context,
+	span trace.Span,
+	instruments *telemetry.Instruments,
+	start time.Time,
+	requested []backfill.ScopeGenerationPartition,
+	result TargetedMaintenanceResult,
+	err error,
+) {
+	duration := time.Since(start).Seconds()
+	passOutcome := "completed"
+	switch {
+	case err != nil:
+		passOutcome = TargetedMaintenanceReason(err)
+		// A typed refusal is a designed hold the consumer retries, not a
+		// trace error; only an untyped failure is.
+		if passOutcome == "error" {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, passOutcome)
+		}
+	case result.SuppressedRefusal != "":
+		passOutcome = "suppressed"
+	}
+	counts := make(map[TargetedMaintenanceOutcomeKind]int)
+	for _, outcome := range result.Outcomes {
+		if err != nil && outcome.Kind == TargetedMaintenanceRetry {
+			// A refused pass holds its applicable owed partitions; they are
+			// not retries of a pass that ran.
+			continue
+		}
+		counts[outcome.Kind]++
+	}
+	if instruments != nil {
+		// The duration histogram carries the pass outcome (its count is the
+		// pass count); outcomes_total counts owed partitions only.
+		instruments.DeferredBackfillTargetedDuration.Record(ctx, duration,
+			metric.WithAttributes(telemetry.AttrOutcome(passOutcome)))
+		for kind, count := range counts {
+			instruments.DeferredBackfillTargetedOutcomes.Add(ctx, int64(count),
+				metric.WithAttributes(telemetry.AttrOutcome(string(kind))))
+		}
+		for domain, count := range result.Reopened {
+			instruments.DeferredBackfillTargetedReopened.Add(ctx, int64(count),
+				metric.WithAttributes(telemetry.AttrDomain(domain)))
+		}
+	}
+	span.SetAttributes(
+		attribute.String("outcome", passOutcome),
+		attribute.Int("owed_partition_count", len(requested)),
+		attribute.Int("published_owed_count", counts[TargetedMaintenancePublished]),
+		attribute.Int("not_active_owed_count", counts[TargetedMaintenanceNotActive]),
+		attribute.Int("inapplicable_owed_count", counts[TargetedMaintenanceInapplicable]),
+		attribute.Int("retry_owed_count", counts[TargetedMaintenanceRetry]),
+		attribute.Int("promoted_partition_count", len(result.Promoted)),
+		attribute.Int("loaded_partition_count", len(result.Loaded)),
+		attribute.Int("affected_partition_count", len(result.Affected)),
+		attribute.Int("evidence_fact_count", result.EvidenceFacts),
+		attribute.Int("published_count", result.Published),
+	)
+	log.Printf(
+		"deferred_backfill_targeted_completed outcome=%s owed=%d published_owed=%d not_active=%d inapplicable=%d retry=%d promoted=%d loaded_partitions=%d affected_partitions=%d snapshot_conflicts=%d evidence_facts=%d published=%d skip_set_unavailable=%t duration_s=%.2f",
+		passOutcome, len(requested), counts[TargetedMaintenancePublished], counts[TargetedMaintenanceNotActive],
+		counts[TargetedMaintenanceInapplicable], counts[TargetedMaintenanceRetry], len(result.Promoted),
+		len(result.Loaded), len(result.Affected), len(result.SnapshotConflicts), result.EvidenceFacts,
+		result.Published, result.SkipSetUnavailable, duration,
+	)
+}
+
+// owedScopeIDs returns the distinct scope_ids of normalized owed partitions,
+// in first-seen order. The catalog guard's $2.
+func owedScopeIDs(requested []backfill.ScopeGenerationPartition) []string {
+	seen := make(map[string]struct{}, len(requested))
+	scopeIDs := make([]string, 0, len(requested))
+	for _, partition := range requested {
+		if _, ok := seen[partition.ScopeID]; ok {
+			continue
+		}
+		seen[partition.ScopeID] = struct{}{}
+		scopeIDs = append(scopeIDs, partition.ScopeID)
+	}
+	return scopeIDs
+}
+
+// normalizeOwedPartitions trims, drops blank, de-duplicates and sorts owed.
+func normalizeOwedPartitions(owed []OwedPartition) []backfill.ScopeGenerationPartition {
+	set := make(map[backfill.ScopeGenerationPartition]struct{}, len(owed))
+	for _, partition := range owed {
+		key := backfill.ScopeGenerationPartition{
+			ScopeID:      strings.TrimSpace(partition.ScopeID),
+			GenerationID: strings.TrimSpace(partition.GenerationID),
+		}
+		if key.ScopeID == "" || key.GenerationID == "" {
+			continue
+		}
+		set[key] = struct{}{}
+	}
+	return sortedPartitions(set)
+}
+
+// orderedOutcomes returns one outcome per requested partition, in request
+// order; a partition the pass never classified (an operational error stopped
+// it first) reports retry.
+func orderedOutcomes(
+	requested []backfill.ScopeGenerationPartition,
+	kinds map[backfill.ScopeGenerationPartition]TargetedMaintenanceOutcomeKind,
+) []TargetedMaintenanceOutcome {
+	outcomes := make([]TargetedMaintenanceOutcome, 0, len(requested))
+	for _, partition := range requested {
+		kind, ok := kinds[partition]
+		if !ok {
+			kind = TargetedMaintenanceRetry
+		}
+		outcomes = append(outcomes, TargetedMaintenanceOutcome{
+			Partition: OwedPartition(partition),
+			Kind:      kind,
+		})
+	}
+	return outcomes
+}
+
+// partitionsOfRepos returns the distinct partitions of identities.
+func partitionsOfRepos(identities map[string]backfill.RepositoryGenerationIdentity) map[backfill.ScopeGenerationPartition]struct{} {
+	partitions := make(map[backfill.ScopeGenerationPartition]struct{}, len(identities))
+	for _, identity := range identities {
+		partitions[backfill.ScopeGenerationPartition{ScopeID: identity.ScopeID, GenerationID: identity.GenerationID}] = struct{}{}
+	}
+	return partitions
+}
+
+// owedPartitionsOf converts internal partitions to the exported shape.
+func owedPartitionsOf(partitions []backfill.ScopeGenerationPartition) []OwedPartition {
+	out := make([]OwedPartition, 0, len(partitions))
+	for _, partition := range partitions {
+		out = append(out, OwedPartition(partition))
+	}
+	return out
+}

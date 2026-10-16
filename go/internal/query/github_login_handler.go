@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/authsafe"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // GitHub sign-in errors (issue #5166, F-5) let the connector map fail-closed
@@ -24,6 +25,19 @@ var (
 	ErrGitHubLoginInvalidRequest = errors.New("github login invalid request")
 	ErrGitHubLoginDenied         = errors.New("github login denied")
 )
+
+// Fixed messages for GitHub login failures the sentinels above do not classify
+// (#7674), answered through tracing.WriteServerFailure: 500 with the cause on
+// the request span, or 499 on a client cancel. The cause can quote an IdP
+// response or provider config, so it never reaches the body.
+const (
+	githubLoginFailedMessage     = "github login failed"
+	githubLoginNoRedirectMessage = "github login did not return a redirect URL"
+)
+
+// errGitHubLoginRedirectEmpty is the span cause when the login service returned
+// an empty redirect URL with no error of its own.
+var errGitHubLoginRedirectEmpty = errors.New("github login service returned an empty redirect URL")
 
 // GitHubLoginService resolves GitHub Authorization Code login requests into
 // Eshu browser-session authorization contexts.
@@ -132,12 +146,12 @@ func (h *GitHubLoginHandler) handleStart(w http.ResponseWriter, r *http.Request)
 	}
 	start, err := h.Service.StartGitHubLogin(r.Context(), req)
 	if err != nil {
-		writeGitHubLoginError(w, err)
+		writeGitHubLoginError(w, r, err)
 		return
 	}
 	redirectURL := strings.TrimSpace(start.RedirectURL)
 	if redirectURL == "" {
-		WriteError(w, http.StatusInternalServerError, "github login did not return a redirect URL")
+		tracing.WriteServerFailure(w, r, errGitHubLoginRedirectEmpty, http.StatusInternalServerError, githubLoginNoRedirectMessage)
 		return
 	}
 	http.Redirect(w, r, redirectURL, http.StatusFound)
@@ -154,7 +168,7 @@ func (h *GitHubLoginHandler) handleCallback(w http.ResponseWriter, r *http.Reque
 	complete, err := h.Service.CompleteGitHubLogin(r.Context(), req)
 	if err != nil {
 		auditGitHubSSOLogin(r, h.Audit, h.SessionIssuer.now(), err, "", "", "")
-		writeGitHubLoginError(w, err)
+		writeGitHubLoginError(w, r, err)
 		return
 	}
 	auditGitHubSSOLogin(r, h.Audit, h.SessionIssuer.now(), nil, complete.ProviderSubjectID, complete.Auth.TenantID, complete.Auth.WorkspaceID)
@@ -206,7 +220,10 @@ func (h *GitHubLoginHandler) sessionRefreshWindow() time.Duration {
 	return DefaultGitHubSessionRefreshWindow
 }
 
-func writeGitHubLoginError(w http.ResponseWriter, err error) {
+// writeGitHubLoginError answers a login service error: each sentinel keeps its
+// fixed 503, 400, or 403, and any other error answers githubLoginFailedMessage
+// through tracing.WriteServerFailure.
+func writeGitHubLoginError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, ErrGitHubLoginUnavailable):
 		WriteError(w, http.StatusServiceUnavailable, "github login is unavailable")
@@ -215,6 +232,6 @@ func writeGitHubLoginError(w http.ResponseWriter, err error) {
 	case errors.Is(err, ErrGitHubLoginDenied):
 		WriteError(w, http.StatusForbidden, "github login denied")
 	default:
-		WriteError(w, http.StatusInternalServerError, "github login failed")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, githubLoginFailedMessage)
 	}
 }

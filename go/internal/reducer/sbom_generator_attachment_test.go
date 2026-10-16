@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker/sbomgenerator"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -36,12 +36,12 @@ func TestScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment(t *testing.T
 			{PURL: "pkg:npm/bar@2.0.0", Name: "bar", Version: "2.0.0", Type: "library"},
 		},
 	})
-	decisionsWithSubject := reducer.BuildSBOMAttestationAttachmentDecisions(withSubject)
+	decisionsWithSubject := sbomattest.BuildSBOMAttestationAttachmentDecisions(withSubject)
 	if got, want := len(decisionsWithSubject), 1; got != want {
 		t.Fatalf("decisions = %d, want %d for one generator document", got, want)
 	}
 	withSubjectDecision := decisionsWithSubject[0]
-	if got, want := withSubjectDecision.AttachmentStatus, reducer.SBOMAttachmentAttachedParseOnly; got != want {
+	if got, want := withSubjectDecision.AttachmentStatus, sbomattest.SBOMAttachmentAttachedParseOnly; got != want {
 		t.Fatalf("AttachmentStatus = %q, want %q (subject digest present, no verification evidence)", got, want)
 	}
 	if got, want := withSubjectDecision.SubjectDigest, generatorSubjectDigest; got != want {
@@ -68,12 +68,12 @@ func TestScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment(t *testing.T
 			{PURL: "pkg:pypi/baz@9.9.9", Name: "baz", Version: "9.9.9", Type: "library"},
 		},
 	})
-	decisionsMissingSubject := reducer.BuildSBOMAttestationAttachmentDecisions(missingSubject)
+	decisionsMissingSubject := sbomattest.BuildSBOMAttestationAttachmentDecisions(missingSubject)
 	if got, want := len(decisionsMissingSubject), 1; got != want {
 		t.Fatalf("missing-subject decisions = %d, want %d", got, want)
 	}
 	missingDecision := decisionsMissingSubject[0]
-	if got, want := missingDecision.AttachmentStatus, reducer.SBOMAttachmentUnknownSubject; got != want {
+	if got, want := missingDecision.AttachmentStatus, sbomattest.SBOMAttachmentUnknownSubject; got != want {
 		t.Fatalf("missing-subject AttachmentStatus = %q, want %q", got, want)
 	}
 	if missingDecision.CanonicalWrites != 0 {
@@ -106,12 +106,12 @@ func TestScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment(t *testing.T
 			ExtractionReason: "lockfile_malformed",
 		}},
 	})
-	decisionsWithLockfileEvidence := reducer.BuildSBOMAttestationAttachmentDecisions(withLockfileEvidence)
+	decisionsWithLockfileEvidence := sbomattest.BuildSBOMAttestationAttachmentDecisions(withLockfileEvidence)
 	if got, want := len(decisionsWithLockfileEvidence), 1; got != want {
 		t.Fatalf("lockfile-evidence decisions = %d, want %d", got, want)
 	}
 	lockfileDecision := decisionsWithLockfileEvidence[0]
-	if got, want := lockfileDecision.AttachmentStatus, reducer.SBOMAttachmentAttachedParseOnly; got != want {
+	if got, want := lockfileDecision.AttachmentStatus, sbomattest.SBOMAttachmentAttachedParseOnly; got != want {
 		t.Fatalf("lockfile-evidence AttachmentStatus = %q, want %q", got, want)
 	}
 	if got, want := len(lockfileDecision.ComponentEvidence), 1; got != want {
@@ -148,7 +148,7 @@ func TestScannerWorkerGeneratedSBOMAggregatedWarningCountFlowsThroughReducerAtta
 		SubjectDigest: generatorSubjectDigest,
 		Components:    components,
 	})
-	decisions := reducer.BuildSBOMAttestationAttachmentDecisions(envelopes)
+	decisions := sbomattest.BuildSBOMAttestationAttachmentDecisions(envelopes)
 	if got, want := len(decisions), 1; got != want {
 		t.Fatalf("decisions = %d, want %d for one generator document", got, want)
 	}

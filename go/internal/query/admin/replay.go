@@ -5,7 +5,6 @@ package admin
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -104,7 +103,10 @@ func (h *Handler) replay(w http.ResponseWriter, r *http.Request) {
 	fingerprint := replayRequestFingerprint(req.WorkItemIDs, req.ScopeID, req.Stage, req.FailureClass, req.limit(), req.Force)
 	claim, err := h.Store.ClaimReplayIdempotency(r.Context(), req.IdempotencyKey, fingerprint, h.now())
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("replay idempotency: %v", err))
+		// One INSERT ... ON CONFLICT DO NOTHING: a cancel observed after the
+		// insert committed leaves the key in_progress with nothing replayed,
+		// so a retry with the same key answers 409 and needs a new key.
+		writeMutationFailure(w, r, err, replayClaimFailedMessage)
 		return
 	}
 	if !claim.Claimed {
@@ -131,21 +133,27 @@ func (h *Handler) replay(w http.ResponseWriter, r *http.Request) {
 		// Leave the ledger row in_progress rather than abandoning it: deleting it
 		// would let a retry with the same key claim a fresh row, observe zero
 		// terminal items, and lose the prior outcome. A retry instead gets a
-		// 409 so an operator inspects what was replayed.
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("replay: %v", err))
+		// 409 so an operator inspects what was replayed. A client cancel
+		// answers 499 under the same rule: work items may already be pending.
+		writeMutationFailure(w, r, err, replayFailedMessage)
 		return
 	}
 
 	ids := workItemIDList(items)
-	if err := h.Store.CompleteReplayIdempotency(r.Context(), req.IdempotencyKey, len(items), ids, h.now()); err != nil {
-		// The replay already committed; only the ledger finalize failed. Leave the
-		// row in_progress (retry returns 409) so the durable outcome is never
-		// erased by a reclaim.
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("replay record: %v", err))
+	// The replay committed: record it on a context a client cancel cannot
+	// abort, so the key never strands in_progress (finalizeContext).
+	finalizeCtx, cancelFinalize := h.finalizeContext(r)
+	defer cancelFinalize()
+	if err := h.Store.CompleteReplayIdempotency(finalizeCtx, req.IdempotencyKey, len(items), ids, h.now()); err != nil {
+		// Only the ledger finalize failed. Leave the row in_progress (retry
+		// returns 409) so the durable outcome is never erased by a reclaim.
+		// This is always a server fault, client cancel or not.
+		writeFinalizeFailure(w, r, finalizeCtx, err, replayRecordFailedMessage)
 		return
 	}
+	logFinalizeAfterClientCancel(r, finalizeCtx, "replay", correlationID)
 
-	h.recordRecoveryAction(r.Context(), governanceaudit.DecisionAllowed, "replay_accepted", authCtx, correlationID)
+	h.recordRecoveryAction(finalizeCtx, governanceaudit.DecisionAllowed, "replay_accepted", authCtx, correlationID)
 	querycontract.WriteJSON(w, http.StatusOK, map[string]any{
 		"status":          "replayed",
 		"replayed_count":  len(items),

@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	linksfreshnessstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
+	indexretention "github.com/eshu-hq/eshu/go/internal/storage/postgres/search/index/retention"
 )
 
 // advisoryCall matches the start of any advisory-lock function call.
@@ -326,6 +327,40 @@ func TestSlotLockClassDiffersFromTreeKeys(t *testing.T) {
 	}
 	t.Logf("checked %d two-integer advisory lock classes", len(classes))
 }
+
+// TestSearchIndexRetentionLockClassDiffersFromTreeKeys runs the same scan for
+// the #7427 search index pre-delete class: its own sites must resolve to
+// indexretention.LockClass, and no other two-integer site in the module may
+// evaluate to it.
+func TestSearchIndexRetentionLockClassDiffersFromTreeKeys(t *testing.T) {
+	l := openLedgerDB(t)
+	root, self := goModuleRoot(t)
+	classes, unresolved := scanAdvisoryClasses(t, root, self)
+	if len(unresolved) > 0 {
+		t.Fatalf("advisory lock sites the scan cannot resolve:\n%s", strings.Join(unresolved, "\n"))
+	}
+	leaf := filepath.Join(root, "internal", "storage", "postgres", "search", "index", "retention") + string(filepath.Separator)
+	var others []lockClass
+	own := 0
+	for _, c := range classes {
+		if strings.HasPrefix(c.site, leaf) {
+			if c.integer == nil || *c.integer != indexretention.LockClass {
+				t.Fatalf("search index pre-delete site %s does not take class %d", c.site, indexretention.LockClass)
+			}
+			own++
+			continue
+		}
+		others = append(others, c)
+	}
+	if own < 2 {
+		t.Fatalf("scan found %d search index pre-delete lock sites, want the batch and the prune try-locks", own)
+	}
+	if hits := l.collisions(t, append(others, lockClass{site: "links slot class", integer: ptrInt64(linksfreshnessstore.SlotLockClass)}), indexretention.LockClass); len(hits) > 0 {
+		t.Fatalf("search index pre-delete lock class %d collides with %v", indexretention.LockClass, hits)
+	}
+}
+
+func ptrInt64(v int64) *int64 { return &v }
 
 // TestSlotLockClassScanSeesAPlantedCollision is the seeded RED of the check
 // above: a scratch tree with a SQL file and a Go file that each take the

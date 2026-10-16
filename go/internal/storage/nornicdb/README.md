@@ -34,7 +34,11 @@ and writer phase order remain in `internal/storage/cypher`.
   (backpressure, timeout, `InstrumentedExecutor`, `RetryingExecutor`) every
   other canonical write goes through.
 - `WriterConfig`, `DefaultWriterConfig`, and `ConfigureCanonicalWriter` apply
-  the production file/entity/per-label row caps and containment shape.
+  the production file/entity/per-label row caps and containment shape. It
+  also calls `WithoutInfraSearchKey`, so a NornicDB canonical writer never
+  carries the #7245 infra search key clause (NornicDB stores it unevaluated)
+  and emits its statements byte for byte as before the key existed. This seam
+  is the only production caller of `WithoutInfraSearchKey`.
 - The exported default constants and `DefaultEntityPhaseConcurrency` define the shared
   evidence-backed defaults consumed by ingester and standalone projector.
 

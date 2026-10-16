@@ -18,7 +18,7 @@ func collectPHPImports(state *phpParseState, node *tree_sitter.Node) {
 		return
 	}
 
-	importType := phpImportKind(node, state.source)
+	importType := phpImportKind(node)
 	fullImportName := phpUseStatementText(node, state.source)
 	lineNumber := shared.NodeLine(node)
 	prefix := phpUseGroupPrefix(node, state.source)
@@ -30,6 +30,9 @@ func collectPHPImports(state *phpParseState, node *tree_sitter.Node) {
 		}
 		if importType == "use" && alias != "" {
 			state.importAliases[alias] = normalizePHPTypeName(name)
+		}
+		if importType == "use" && !phpUseClauseHasKindKeyword(clause) {
+			state.packageKeys.recordUse(name, alias)
 		}
 		shared.AppendBucket(state.payload, "imports", map[string]any{
 			"name":             name,
@@ -132,17 +135,66 @@ func phpUseClauseAliasNode(clause *tree_sitter.Node, nameNode *tree_sitter.Node)
 	return nil
 }
 
+// phpUseClauseHasKindKeyword reports whether one use clause carries its own
+// `function` or `const` keyword, as in the mixed group
+// `use A\{B, function c, const D}`. The statement-level phpImportKind reads
+// such a declaration as a class import, so the package-key binding checks the
+// clause itself: a function or constant clause binds no class name.
+func phpUseClauseHasKindKeyword(clause *tree_sitter.Node) bool {
+	for index := uint(0); index < clause.ChildCount(); index++ {
+		child := clause.Child(index)
+		if child == nil || child.IsNamed() {
+			continue
+		}
+		switch child.Kind() {
+		case "function", "const":
+			return true
+		}
+	}
+	return false
+}
+
 // phpImportKind returns "function", "const", or "use" for a use declaration.
-func phpImportKind(node *tree_sitter.Node, source []byte) string {
-	text := strings.ToLower(strings.TrimSpace(shared.NodeText(node, source)))
-	switch {
-	case strings.HasPrefix(text, "use function"):
-		return "function"
-	case strings.HasPrefix(text, "use const"):
-		return "const"
-	default:
+// It reads the grammar's `type` field, the `function` or `const` kind token,
+// never the statement text: a namespace such as `Functional\Collection` or
+// `Constraint\Rule` only looks like a kind keyword as a text prefix (#8222).
+// A grouped declaration (`use function A\{b, c}`) carries the token on the
+// declaration; an ungrouped one carries it on its first clause, which PHP
+// applies to every clause of `use function a\b, c\d;`. A mixed group such as
+// `use A\{B, function c}` has no declaration-level token and stays "use".
+func phpImportKind(node *tree_sitter.Node) string {
+	kindNode := node.ChildByFieldName("type")
+	if kindNode == nil {
+		kindNode = phpFirstUseClauseKindNode(node)
+	}
+	if kindNode == nil {
 		return "use"
 	}
+	switch kindNode.Kind() {
+	case "function":
+		return "function"
+	case "const":
+		return "const"
+	}
+	return "use"
+}
+
+// phpFirstUseClauseKindNode returns the kind token of the first direct
+// namespace_use_clause of an ungrouped use declaration, or nil when it has none
+// or the declaration is grouped (a group's kind lives on the declaration).
+func phpFirstUseClauseKindNode(node *tree_sitter.Node) *tree_sitter.Node {
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		switch child.Kind() {
+		case "namespace_use_group":
+			return nil
+		case "namespace_use_clause":
+			return child.ChildByFieldName("type")
+		}
+	}
+	return nil
 }
 
 // phpUseGroupPrefix returns the namespace prefix shared by a grouped use

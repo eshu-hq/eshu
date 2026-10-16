@@ -466,19 +466,16 @@ WHERE work_item_id = $1
 			database: SQLDB{DB: db}, LeaseOwner: leaseOwner,
 			LeaseDuration: time.Minute, Now: func() time.Time { return now },
 		}
-		err := queue.AckBatch(ctx, []reducer.Intent{
-			{
-				IntentID: workItemID, Domain: reducer.DomainContainerImageIdentity,
-				AttemptCount: 1, ClaimEpoch: 1, ClaimedAt: &staleClaimedAt,
-			},
-			{
-				IntentID: workItemID, Domain: reducer.DomainContainerImageIdentity,
-				AttemptCount: 2, ClaimEpoch: latestEpoch, ClaimedAt: &latestClaimedAt,
-			},
-		}, nil)
-		if !errors.Is(err, ErrReducerClaimRejected) {
-			t.Fatalf("superseded duplicate AckBatch error = %v, want superseded-claim rejection", err)
+		stale := reducer.Intent{
+			IntentID: workItemID, Domain: reducer.DomainContainerImageIdentity,
+			AttemptCount: 1, ClaimEpoch: 1, ClaimedAt: &staleClaimedAt,
 		}
+		latest := reducer.Intent{
+			IntentID: workItemID, Domain: reducer.DomainContainerImageIdentity,
+			AttemptCount: 2, ClaimEpoch: latestEpoch, ClaimedAt: &latestClaimedAt,
+		}
+		err := queue.AckBatch(ctx, []reducer.Intent{stale, latest}, nil)
+		assertCommittedSupersededClaim(t, err, stale, latest)
 		assertContainerImageIdentityAckWorkItemState(
 			t, ctx, db, workItemID, "succeeded", "",
 		)

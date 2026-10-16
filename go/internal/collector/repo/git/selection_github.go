@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"net/http"
 	"slices"
@@ -19,6 +20,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/membership"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/rest"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/gitlab"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // RepositorySelectionObserver evaluates one selector's listing against the
@@ -49,6 +52,8 @@ func (s NativeRepositorySelector) observeSelection(
 	switch s.Config.SourceMode {
 	case "githubOrg":
 		s.SelectionObserver.Observe(ctx, githubOrgSelectionRequest(s.Config, discovered, observedAt))
+	case "gitlabGroup":
+		s.SelectionObserver.Observe(ctx, gitlabGroupSelectionRequest(s.Config, discovered, observedAt))
 	case "explicit":
 		for _, request := range explicitSelectionRequests(s.Config, discovered.RepositoryIDs, observedAt) {
 			s.SelectionObserver.Observe(ctx, request)
@@ -153,6 +158,62 @@ func githubOrgSelectionRequest(
 	}
 }
 
+// gitlabGroupSelectionRequest maps a gitlabGroup discovery result to an
+// observation request. Each listed repository gets the scope id and stored
+// slug a git sync of it would write, so listed records join stored scopes
+// without a checkout. The selector carries the listing host and the
+// resolved group full path.
+func gitlabGroupSelectionRequest(
+	config RepoSyncConfig,
+	discovered RepositorySelection,
+	observedAt time.Time,
+) membership.Request {
+	archived := make(map[string]struct{}, len(discovered.ArchivedRepositoryIDs))
+	for _, repoID := range discovered.ArchivedRepositoryIDs {
+		archived[repoID] = struct{}{}
+	}
+	ruleExcluded := make(map[string]struct{}, len(discovered.RuleExcludedRepositoryIDs))
+	for _, repoID := range discovered.RuleExcludedRepositoryIDs {
+		ruleExcluded[repoID] = struct{}{}
+	}
+	listed := make([]membership.ListedRepository, 0, len(discovered.ListedRepositories))
+	for _, record := range discovered.ListedRepositories {
+		state := membership.StateSelected
+		if _, ok := archived[record.RepoID]; ok {
+			state = membership.StateArchivedExcluded
+		} else if _, ok := ruleExcluded[record.RepoID]; ok {
+			state = membership.StateRuleExcluded
+		}
+		scopeID, slug := gitScopeIdentityForRepositoryID(config, record.RepoID)
+		if slug == "" {
+			slug = record.RepoID
+		}
+		listed = append(listed, membership.ListedRepository{
+			ScopeID:  scopeID,
+			Slug:     slug,
+			GitHubID: record.GitHubID,
+			State:    state,
+		})
+	}
+	rules := make([]membership.Rule, 0, len(config.RepositoryRules))
+	for _, rule := range config.RepositoryRules {
+		rules = append(rules, membership.Rule{Kind: rule.Kind, Value: rule.Value})
+	}
+	return membership.Request{
+		Selector:       membership.NewGitLabGroupSelector(config.SourceMode, repoProviderHost(config, "gitlab"), discovered.GroupFullPath, rules, config.IncludeArchivedRepos, selectionPrincipal(config)),
+		SourceMode:     config.SourceMode,
+		RepoShardCount: config.RepoShardCount,
+		RepoLimit:      config.RepoLimit,
+		Now:            observedAt,
+		LivenessWindow: config.SelectionLivenessWindow,
+		Listing: membership.Listing{
+			Complete:     discovered.ListingComplete,
+			Repositories: listed,
+		},
+		SweepExpired: true,
+	}
+}
+
 // selectionPrincipal names the credential the collector selected with,
 // following resolveGitToken's choice: the GitHub App installation for
 // githubApp auth, otherwise the salted token hash of the configured token, or
@@ -172,6 +233,7 @@ func discoverSelection(
 	ctx context.Context,
 	config RepoSyncConfig,
 	token string,
+	newGitLabClient func(apiBase, token string) (*gitlab.Client, error),
 ) (RepositorySelection, error) {
 	switch strings.TrimSpace(config.SourceMode) {
 	case "filesystem":
@@ -204,8 +266,49 @@ func discoverSelection(
 		selection := selectGitHubRepositoryIDs(repositories, config.RepositoryRules, config.IncludeArchivedRepos)
 		selection.ListingComplete = complete
 		return selection, nil
+	case "gitlabGroup":
+		if strings.TrimSpace(config.GitlabGroup) == "" {
+			return RepositorySelection{}, fmt.Errorf("gitlabGroup source mode requires ESHU_GITLAB_GROUP")
+		}
+		if strings.TrimSpace(token) == "" {
+			return RepositorySelection{}, fmt.Errorf("gitlabGroup source mode requires ESHU_GIT_TOKEN")
+		}
+		if newGitLabClient == nil {
+			return RepositorySelection{}, fmt.Errorf("gitlabGroup source mode requires a GitLab client factory")
+		}
+		apiBase := "https://" + repoProviderHost(config, "gitlab") + "/api/v4"
+		client, err := newGitLabClient(apiBase, token)
+		if err != nil {
+			return RepositorySelection{}, err
+		}
+		group, err := client.ResolveGroup(ctx, config.GitlabGroup)
+		if err != nil {
+			return RepositorySelection{}, err
+		}
+		if err := gitlab.CheckExactRules(group.FullPath, exactRuleIDs(config.RepositoryRules)); err != nil {
+			return RepositorySelection{}, err
+		}
+		listing, err := client.ListGroupProjects(ctx, group.FullPath, config.RepoLimit)
+		if err != nil {
+			return RepositorySelection{}, err
+		}
+		selection := selectGitLabRepositoryIDs(listing.Projects, config.RepositoryRules, config.IncludeArchivedRepos)
+		selection.ListingComplete = listing.Complete
+		selection.GroupFullPath = group.FullPath
+		return selection, nil
 	default:
 		return RepositorySelection{}, fmt.Errorf("unsupported ESHU_REPO_SOURCE_MODE=%q", config.SourceMode)
+	}
+}
+
+// defaultDiscoverSelection returns the production discovery function, with
+// gitlabGroup listing through a live client.
+func defaultDiscoverSelection(inst *telemetry.Instruments, logger *slog.Logger) func(context.Context, RepoSyncConfig, string) (RepositorySelection, error) {
+	live := func(apiBase, token string) (*gitlab.Client, error) {
+		return gitlab.NewClient(nil, apiBase, token, inst, logger)
+	}
+	return func(ctx context.Context, config RepoSyncConfig, token string) (RepositorySelection, error) {
+		return discoverSelection(ctx, config, token, live)
 	}
 }
 
@@ -288,7 +391,7 @@ func listGitHubOrgRepositoriesFromWithRetry(
 		}
 		payload := fetched.items
 		if len(payload) == 0 {
-			complete = !linkHeaderHasNext(fetched.linkNext)
+			complete = !gitlab.HasNextLink(fetched.linkNext)
 			break
 		}
 		for _, item := range payload {
@@ -310,27 +413,6 @@ func listGitHubOrgRepositoriesFromWithRetry(
 		repositories = repositories[:repoLimit]
 	}
 	return repositories, complete, nil
-}
-
-// linkHeaderHasNext reports whether any RFC 8288 Link header value names a
-// rel="next" target.
-func linkHeaderHasNext(values []string) bool {
-	for _, value := range values {
-		for _, link := range strings.Split(value, ",") {
-			for _, param := range strings.Split(link, ";")[1:] {
-				name, rel, ok := strings.Cut(strings.TrimSpace(param), "=")
-				if !ok || !strings.EqualFold(strings.TrimSpace(name), "rel") {
-					continue
-				}
-				for _, relType := range strings.Fields(strings.Trim(strings.TrimSpace(rel), `"`)) {
-					if strings.EqualFold(relType, "next") {
-						return true
-					}
-				}
-			}
-		}
-	}
-	return false
 }
 
 // mintGitHubAppToken exchanges the configured GitHub App credentials for an

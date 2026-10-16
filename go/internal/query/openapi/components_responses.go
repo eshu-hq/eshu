@@ -36,6 +36,14 @@ const componentsResponses = `    "responses": {
           }
         }
       },
+      "RankCursorConflict": {
+        "description": "rank_cursor_basis_mismatch (#7746): the walk's lane, window, or ranked order changed since the cursor was returned. error.details carries reason (basis_changed or order_changed) and restart_with=\"start\"; see the RankCursorError schema.",
+        "content": {
+          "application/json": {
+            "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+          }
+        }
+      },
       "Conflict": {
         "description": "Ambiguous request or conflicting scope",
         "content": {
@@ -61,7 +69,7 @@ const componentsResponses = `    "responses": {
         }
       },
       "ServiceUnavailable": {
-        "description": "Service unavailable. A graph backend outage, or a PostgreSQL read replica that has not replayed to the writer checkpoint, or whose connection acquisition (pool wait or dial) or identity check timed out inside the replay window, answers with the stable backend_unavailable error code, a fixed message, and a Retry-After hint; those graph-read availability verdicts are transient and the request is safe to retry. Any other 503 backend_unavailable, such as a route that needs a graph backend the deployment did not configure, is a configuration state and carries no Retry-After. A PostgreSQL reader failure that is not a timeout (authentication or TLS failure, connection refused, permission denied) answers 500.",
+        "description": "Service unavailable. A graph backend outage, or a PostgreSQL read replica that has not replayed to the writer checkpoint, or whose connection acquisition (pool wait or dial) or identity check timed out inside the replay window, answers with the stable backend_unavailable error code, a fixed message, and a Retry-After hint; those graph-read availability verdicts are transient and the request is safe to retry. Any other 503 backend_unavailable, such as a route that needs a graph backend the deployment did not configure, is a configuration state and carries no Retry-After. A PostgreSQL reader build that is not qualified for shared-snapshot export (#7957) answers a permanent backend_unavailable with error.details.reason=snapshot_export_unqualified and no Retry-After on the routes that would run a read on one shared snapshot; it is a configuration state and retrying does not help. A PostgreSQL reader failure that is not a timeout (authentication or TLS failure, connection refused, permission denied) answers 500.",
         "headers": {
           "Retry-After": {
             "description": "Seconds to wait before retrying. Present only on the transient graph-read availability 503 verdicts (graph unavailable, stale or timed-out PostgreSQL reader) and a failed checkpoint step's 503; absent from a permanent 503 backend_unavailable, including a checkpoint source that was never configured.",

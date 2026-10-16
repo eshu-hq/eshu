@@ -238,8 +238,9 @@ func TestRelationshipStoreActivateResolutionGenerationSupersedesOlderActiveGener
 func TestRelationshipStoreClaimFencedActivationRejectsLostClaim(t *testing.T) {
 	t.Parallel()
 
-	database := &fakeExecQueryer{execResults: []sql.Result{zeroRowsResult{}}}
-	store := NewRelationshipStore(database)
+	beginner := &fakeBeginnerExecQueryer{fakeExecQueryer: fakeExecQueryer{execResults: []sql.Result{zeroRowsResult{}}}}
+	database := &beginner.fakeExecQueryer
+	store := NewRelationshipStore(beginner)
 	claimedAt := time.Date(2026, time.September, 14, 12, 0, 0, 0, time.UTC)
 	err := store.ActivateResolutionGenerationForClaim(
 		context.Background(), "gen-stale", "scope-stale", "intent-stale", claimedAt,

@@ -10,8 +10,25 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
+)
+
+// Fixed client-facing messages for status snapshot read failures (#7674).
+// Each route has its own constant, so the body alone says which read failed.
+// A status reader error can quote SQL, relation names, hosts, and connection
+// settings, so it goes on the request span, never into the body. These routes
+// have no capability-matrix key (#8227): the status snapshot reads through the
+// guarded PostgreSQL reader, so each failure site first answers a stale or
+// timed-out reader with the retryable 503 under querycontract.NoCapability,
+// whose envelope carries no capability field.
+const (
+	pipelineStatusReadFailedMessage  = "pipeline status read failed"
+	collectorStatusReadFailedMessage = "collector status read failed"
+	ingesterStatusReadFailedMessage  = "ingester status read failed"
+	indexStatusReadFailedMessage     = "index status read failed"
 )
 
 // StatusHandler provides HTTP endpoints for pipeline status queries.
@@ -72,7 +89,10 @@ func (h *StatusHandler) getPipelineStatus(w http.ResponseWriter, r *http.Request
 	opts := status.DefaultOptions()
 	raw, report, err := loadStatusReport(r.Context(), h.StatusReader, time.Now(), opts)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load status: %v", err))
+		if WriteGraphReadError(w, r, err, querycontract.NoCapability) {
+			return
+		}
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, pipelineStatusReadFailedMessage)
 		return
 	}
 
@@ -88,7 +108,10 @@ func (h *StatusHandler) listCollectors(w http.ResponseWriter, r *http.Request) {
 
 	_, report, err := loadStatusReportFiltered(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions(), operatorStatusSelection())
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load status: %v", err))
+		if WriteGraphReadError(w, r, err, querycontract.NoCapability) {
+			return
+		}
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, collectorStatusReadFailedMessage)
 		return
 	}
 
@@ -175,7 +198,10 @@ func (h *StatusHandler) getIngesterStatus(w http.ResponseWriter, r *http.Request
 		ingesterStatusSelection(),
 	)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load status: %v", err))
+		if WriteGraphReadError(w, r, err, querycontract.NoCapability) {
+			return
+		}
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, ingesterStatusReadFailedMessage)
 		return
 	}
 
@@ -219,7 +245,10 @@ func (h *StatusHandler) getIndexStatus(w http.ResponseWriter, r *http.Request) {
 		selection,
 	)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load status: %v", err))
+		if WriteGraphReadError(w, r, err, querycontract.NoCapability) {
+			return
+		}
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, indexStatusReadFailedMessage)
 		return
 	}
 

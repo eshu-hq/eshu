@@ -44,6 +44,11 @@ tests:
     class: postgres_ci
     reason: "#7088 disposable PostgreSQL 18 package-scope proof, enrolled in the #7529 readiness runner; local run passed in 0.61s of test time on postgres:18.6-bookworm on 2026-10-02"
     runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/readiness_orphan_package_keys_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7420 disposable PostgreSQL proof that orphan package manifest consumption and registry identity key rows (foreign keys dropped in an isolated schema) change no readiness evidence or ownership, with a live-owner sensitivity check, enrolled in the live-postgres-readiness runner; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in. local run passed in 1.70s of test time on PostgreSQL 18.6 on 2026-10-15"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/readiness_package_manifest_repo_scope_live_test.go
     tag: ~
     class: postgres_ci
@@ -151,16 +156,19 @@ tests:
     reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
   - file: go/internal/reducer/containerimage/container_image_identity_cutover_cache_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/reducer/containerimage/container_image_identity_cutover_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/reducer/containerimage/container_image_identity_held_cutover_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/reducer/containerimage/container_image_identity_legacy_cutover_performance_helpers_live_test.go
     tag: perf5854_legacy
     class: scheduled
@@ -171,32 +179,39 @@ tests:
     reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
   - file: go/internal/reducer/containerimage/container_image_identity_support_writer_demotion_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: dedicated_ci
+    reason: "B-7 exact package and Go event proof; evidence in docs/internal/evidence/7533-golden-corpus-identity-proof.md"
+    runner: golden-corpus-identity
+
   - file: go/internal/reducer/containerimage/container_image_identity_support_writer_postgres_live_test.go
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/reducer/containerimage/container_image_identity_unmapped_config_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/reducer/containerimage/container_image_identity_writer_atomic_multichunk_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/reducer/containerimage/container_image_identity_writer_atomic_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/reducer/containerimage/container_image_identity_writer_deadlock_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/reducer/containerimage/container_image_identity_writer_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/reducer/deployable_unit_retract_scope_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
@@ -232,7 +247,12 @@ tests:
   - file: go/internal/reducer/repository_path_conflict_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
-    reason: "deterministic nonce-scoped #7324 proof that the canonical writer's path-conflict Repository retirement reports what it deleted (the canonical repository retired WARN and eshu_dp_canonical_repository_retirements_total{outcome=dropped_relationships}, relationships_deleted equal to the retired node's full degree, 11 seeded incoming plus 9 projector edges) under the atomic-group and phase-group executors, that a steady-state retry records nothing, and (#7446, helpers in repository_stub_live_test.go) that the stub the edge writers then re-create under the retired id is counted and the harness cleanup removes it (#7445); it reads Bolt summary delete counters, which NornicDB is measured not to report reliably, so it is pinned to Neo4j, the supported graph backend; local neo4j:2026-community runs took 6.7s-8.7s for the test on a shared host"
+    reason: "deterministic nonce-scoped #7324 proof that the canonical writer's path-conflict Repository retirement reports what it deleted (the canonical repository retired WARN and eshu_dp_canonical_repository_retirements_total{outcome=dropped_relationships}, relationships_deleted equal to the retired node's full degree, 11 seeded incoming plus 9 projector edges, with the per-direction/per-type split attributed exactly: dropped_incoming 11, dropped_outgoing 9, direction totals summing to relationships_deleted, and eshu_dp_canonical_repository_retired_relationships_total{direction=incoming,class=reducer} 11 plus {direction=outgoing,class=projector} 9) under the atomic-group and phase-group executors, that a steady-state retry records nothing, and (#7446, helpers in repository_stub_live_test.go) that the stub the edge writers then re-create under the retired id is counted and the harness cleanup removes it (#7445); it reads Bolt summary delete counters, which NornicDB is measured not to report reliably, so it is pinned to Neo4j, the supported graph backend; local neo4j:2026-community runs took 6.7s-8.7s for the test on a shared host"
+    backends: neo4j
+  - file: go/internal/reducer/repository_path_conflict_split_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "deterministic nonce-scoped #7324 negative and ambiguous retirement-split proof under the atomic-group and phase-group executors: an edgeless old-id Repository retires clean at INFO with an attributed empty split (attribution=true, zero direction totals, only the outcome counter moves), and four writers racing the retirement hold the floor on every path (dropped_incoming >= 11 seeded edges, relationships_deleted >= 20) while the sum stays unasserted because a racing edge can commit between the statement's pre-delete collection and its delete (measured atomic 13 + 9 vs 24, phase-group 14 + 9 vs 28); pinned to Neo4j with the retirement proof file; local neo4j:2026-community runs took under 1s for the file warm on a shared host"
     backends: neo4j
   - file: go/internal/reducer/repository_retry_concurrency_live_test.go
     tag: live_nornicdb_answer_truth
@@ -393,28 +413,40 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/replay/offlinetier/repo_dependency_ifa_cleanup_live_test.go
     tag: ifarepodependencyproof
-    class: scheduled
-    reason: covered by the dedicated Ifá fault-injection/determinism lanes; the live-backend job does not duplicate them
+    class: verified_scheduled
+    reason: linuxdynasty owns this exact tagged daily Ifá live proof on NornicDB and PostgreSQL; eight named tests passed locally with race detection
+    runner: ifa-scheduled
+    backends: nornicdb
   - file: go/internal/replay/offlinetier/repo_dependency_ifa_concurrency_live_test.go
     tag: ifarepodependencyproof
-    class: scheduled
-    reason: covered by the dedicated Ifá fault-injection/determinism lanes; the live-backend job does not duplicate them
+    class: verified_scheduled
+    reason: linuxdynasty owns this exact tagged daily Ifá live proof on NornicDB and PostgreSQL; eight named tests passed locally with race detection
+    runner: ifa-scheduled
+    backends: nornicdb
   - file: go/internal/replay/offlinetier/repo_dependency_ifa_database_guard_live_test.go
     tag: ifarepodependencyproof
-    class: scheduled
-    reason: covered by the dedicated Ifá fault-injection/determinism lanes; the live-backend job does not duplicate them
+    class: verified_scheduled
+    reason: linuxdynasty owns this exact tagged daily Ifá live proof on NornicDB and PostgreSQL; eight named tests passed locally with race detection
+    runner: ifa-scheduled
+    backends: nornicdb
   - file: go/internal/replay/offlinetier/repo_dependency_ifa_process_death_live_test.go
     tag: ifarepodependencyproof
-    class: scheduled
-    reason: covered by the dedicated Ifá fault-injection/determinism lanes; the live-backend job does not duplicate them
+    class: verified_scheduled
+    reason: linuxdynasty owns this exact tagged daily Ifá live proof on NornicDB and PostgreSQL; eight named tests passed locally with race detection
+    runner: ifa-scheduled
+    backends: nornicdb
   - file: go/internal/replay/offlinetier/repo_dependency_ifa_quarantine_live_test.go
     tag: ifarepodependencyproof
-    class: scheduled
-    reason: covered by the dedicated Ifá fault-injection/determinism lanes; the live-backend job does not duplicate them
+    class: verified_scheduled
+    reason: linuxdynasty owns this exact tagged daily Ifá live proof on NornicDB and PostgreSQL; eight named tests passed locally with race detection
+    runner: ifa-scheduled
+    backends: nornicdb
   - file: go/internal/replay/offlinetier/repo_dependency_ifa_replay_coordinates_live_test.go
     tag: ifarepodependencyproof
-    class: scheduled
-    reason: covered by the dedicated Ifá fault-injection/determinism lanes; the live-backend job does not duplicate them
+    class: verified_scheduled
+    reason: linuxdynasty owns this exact tagged daily Ifá live proof on NornicDB and PostgreSQL; eight named tests passed locally with race detection
+    runner: ifa-scheduled
+    backends: nornicdb
   - file: go/internal/replay/offlinetier/repo_dependency_keyed_concurrency_prove_live_test.go
     tag: ~
     class: scheduled

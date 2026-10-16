@@ -13,6 +13,10 @@
 # calls it) prove the #7601 cross-repository JS call keys end to end through
 # the cross-repo dead-code query shape keyed golden_scope=format-kit.
 #
+# ledger-kit (publisher of acme/ledger-kit) + invoice-portal (locks and calls
+# it) prove the #7601 cross-repository PHP call keys end to end through the
+# cross-repo dead-code query shape keyed golden_scope=ledger-kit.
+#
 # cloudformation_comprehensive (#5954) existed on disk for the CloudFormation
 # line-truth tests (go/internal/parser/cloudformation/engine_yaml_cloudformation_lines_test.go,
 # relocated from the parser root in #6062) but
@@ -36,6 +40,8 @@ corpus_fixtures=(
 	orders-api
 	format-kit
 	storefront-web
+	ledger-kit
+	invoice-portal
 	deployable-source
 	deployable-config
 	kustomize-deployable-overlay

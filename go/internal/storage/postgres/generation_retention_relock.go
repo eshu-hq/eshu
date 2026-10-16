@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	factkeys "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/keys"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 )
 
@@ -136,10 +137,16 @@ func (s GenerationRetentionStore) relockRetentionSelection(
 	// Members the re-lock reports as uncovered flipped coverage after the
 	// selection; they were never locked, so they leave the batch here with
 	// a skip tally instead of flowing into the recount and the prune.
+	// Members it reports as delta-protected flipped the same way (#7802):
+	// their scope turned delta-active after the selection.
 	covered := locked[:0]
 	for _, candidate := range locked {
 		if candidate.uncovered {
 			result.Skipped["uncovered_writer"]++
+			continue
+		}
+		if candidate.deltaProtected {
+			result.Skipped["delta_base"]++
 			continue
 		}
 		covered = append(covered, candidate)
@@ -183,7 +190,8 @@ func (s GenerationRetentionStore) relockRetentionSelection(
 // every selected row in deterministic order; the locked set splits into the
 // chunk target and the normal subset. The chunk drains first so the recount
 // already reflects the removed page. A missed chunk target drops silently; a
-// flipped-uncovered one counts as an uncovered skip. A short page (fewer
+// flipped-uncovered one counts as an uncovered skip, a flipped delta-base
+// one as a delta_base skip (#7802). A short page (fewer
 // rows than the bound, including empty) folds back into the normal subset
 // and prunes whole. It returns the fitted batch with its counts, the drained
 // chunk, whether a chunk drained, and whether anything locked.
@@ -225,6 +233,11 @@ func (s GenerationRetentionStore) relockChunkedBatch(
 		switch {
 		case candidate.uncovered:
 			result.Skipped["uncovered_writer"]++
+		case candidate.deltaProtected:
+			// A scope that turned delta-active after selection (#7802):
+			// the member, chunk target included, is a protected base or
+			// chain row, never locked, so the skip tally stands in for it.
+			result.Skipped["delta_base"]++
 		case candidate.generationID == chunkTarget.generationID:
 			target := candidate
 			lockedChunk = &target
@@ -234,6 +247,9 @@ func (s GenerationRetentionStore) relockChunkedBatch(
 	}
 	if lockedChunk == nil && len(normal) == 0 {
 		return nil, nil, nil, generationRetentionChunk{}, false, false, nil
+	}
+	if lockedChunk != nil && s.afterChunkTargetLocked != nil {
+		s.afterChunkTargetLocked()
 	}
 	// No second #7981 witness on the normal subset either: planning retained
 	// each group's newest outside the lock set, so this subset is safe to
@@ -388,6 +404,7 @@ type generationRetentionChunk struct {
 	referencesPruned int64
 	entitiesPruned   int64
 	mirrorPruned     int64
+	factKeysPruned   map[string]int64 // #7420 key sidecar rows, by table
 }
 
 // retentionChunkPage is one fact page: the ids to delete and the live
@@ -406,8 +423,8 @@ type retentionChunkPage struct {
 // oldest facts through the keyset index, delete exactly that page by primary
 // key, prune content rows whose only live fact was in the page, and clean
 // their new mirror orphans. The generation row is never touched, so a crash
-// resumes on the still-superseded row with no progress table. Per-fact
-// children follow by FK cascade; generation-scoped rows (work items, ledger,
+// resumes on the still-superseded row with no progress table. The page's key
+// sidecar rows go first (#7420); generation-scoped rows (work items, ledger,
 // search state) wait for the final whole-generation prune with its
 // ledger-before-generations order. It returns full when the page holds fewer
 // rows than the bound: the remainder fits, so the caller folds it back into
@@ -439,6 +456,9 @@ func pruneChunkedCandidate(
 			return generationRetentionChunk{}, false, fmt.Errorf(
 				"generation retention: lock chunk repositories: %w", err)
 		}
+	}
+	if chunk.factKeysPruned, err = factkeys.DeletePage(ctx, tx, candidate.scopeID, candidate.generationID, page.ids); err != nil {
+		return generationRetentionChunk{}, false, fmt.Errorf("generation retention: %w", err)
 	}
 	deleted, err := execRowsAffected(ctx, tx, generationRetentionChunkDeleteFactsQuery, page.ids)
 	if err != nil {

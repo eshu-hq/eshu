@@ -358,10 +358,24 @@ are marked, never a verdict merely because its status is `503`. `GraphReadErrorE
 envelope as an unexported flag, and
 `WriteErrorEnvelope` sets `Retry-After` (`BackendUnavailableRetryAfterSeconds`,
 a fixed constant, no clock read) only for a marked envelope, so every seam that
-writes an envelope from `GraphReadErrorEnvelope` keeps the header. A `503`
+writes an envelope from `GraphReadErrorEnvelope` keeps the header.
+`ErrorEnvelope.Retryable` exposes the marker read-only, for a route that writes
+the verdict in its own body shape and sets the same header itself (semantic
+search, #7674). A `503`
 `backend_unavailable` built by hand, such as an unconfigured graph backend, is
 permanent and carries no `Retry-After`. Handlers that write a store
 error as a 500 must call `WriteGraphReadError` first for this contract to apply.
+
+The `capability` argument is a capability-matrix key, checked by the root
+`TestWriteGraphReadErrorCapabilitiesExistInMatrix` sweep. `NoCapability` is the
+one named exception: a route that reads through the guarded reader but has no
+matrix row passes it, and the envelope then omits the `capability` field while
+the status, `Retry-After`, code, and message stay the same. The sweep accepts
+it only from the files in its `noCapabilityAllowedFiles` allowlist, matched by
+exact path (today eight files: the status read routes, the operator control
+plane, the live evidence bundle, and the admin audit reads, until #8227
+registers those keys). A bare `""` literal always fails, and an
+allowlisted file with no `NoCapability` call site fails as a stale entry.
 
 `K8sSelectCandidate` carries selector presence separately from selector value.
 Family code must preserve absent, present-empty, and present-nonempty states

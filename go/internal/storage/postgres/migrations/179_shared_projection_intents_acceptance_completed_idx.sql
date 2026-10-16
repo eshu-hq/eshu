@@ -1,0 +1,75 @@
+-- SPDX-License-Identifier: MIT
+-- Copyright (c) 2025-2026 eshu-hq
+
+-- Back the pending-code-reachability loader's per-run max(completed_at)
+-- LATERAL probe on shared_projection_intents (#7929).
+-- Evidence: docs/internal/evidence/7929-polling-elimination.md.
+--
+-- WHAT GOES WRONG TODAY. The probe filters on scope_id,
+-- acceptance_unit_id, source_run_id, generation_id, a two-value
+-- projection_domain IN list, and completed_at IS NOT NULL, then takes
+-- max(completed_at). The migration-008 acceptance_lookup_idx leads with
+-- (scope_id, acceptance_unit_id, source_run_id, projection_domain,
+-- created_at): it lacks generation_id and completed_at, so every probe
+-- degrades to a bitmap heap walk over the run's whole completed-intent set
+-- with generation_id as a heap Filter. Throwaway PostgreSQL 18 container,
+-- 660,000 completed code_calls and inheritance_edges rows across 40 ready
+-- runs, watermarks current so the poll returns 0 rows, VACUUM ANALYZEd,
+-- three warm EXPLAIN (ANALYZE, BUFFERS) runs of the exact shipped
+-- candidate statement at LIMIT 10:
+--
+--   Bitmap Heap Scan on shared_projection_intents intent, 16500 rows by 40 loops
+--     Recheck Cond: scope_id, acceptance_unit_id, source_run_id, domain IN list
+--     Filter: completed_at IS NOT NULL AND generation_id = ready generation
+--     Heap Blocks: exact=463160, Buffers: shared hit=464858
+--     Execution Time: 638 to 696 ms, 0 rows
+--
+-- THE INDEX. (scope_id, acceptance_unit_id, source_run_id, generation_id)
+-- are the probe's equality columns and projection_domain carries its
+-- two-value IN list, so each domain value gets its own bounded range and
+-- completed_at trails so the aggregate reads newest-first without touching
+-- the heap. The partial predicate repeats the probe's own completed_at IS
+-- NOT NULL filter, which also keeps pending rows (served by migration
+-- 108's generation_pending_idx) out of this index. The edge loaders in
+-- code/reachability read the same completed-only shape with single-domain
+-- equality, so they share the probe path. Same container, same corpus,
+-- same storage state, VACUUM ANALYZEd after the build, three warm runs:
+--
+--   Index Only Scan using this index, Heap Fetches: 0, Buffers: shared hit=1390
+--     Execution Time: 66 to 67 ms, 0 rows
+--
+-- The eligible set is unchanged: at a stale verdict epoch both shapes
+-- return the same 40 runs byte-identical, and at the current epoch both
+-- return 0 rows. The remaining 66 ms is the aggregate itself visiting one
+-- index-only entry per completed intent of each run (16500 by 40 loops):
+-- max() over a two-value IN list does not short-circuit to a backward
+-- limit scan, so a further rewrite of the probe (one LIMIT 1 scan per
+-- domain) is a query change for a follow-up, not this index.
+--
+-- COST. 5544 kB on the 660k-row corpus, built CONCURRENTLY in 1.64 s. The
+-- corpus reuses a small timestamp pool so btree dedup flatters the size:
+-- size it at roughly one narrow six-column entry per completed intent row.
+-- Write path, from EXPLAIN (ANALYZE, WAL) over 10,000-row completed-intent
+-- inserts into the corpus table, one arm each with CHECKPOINT before each:
+-- 50,799 WAL records and 5,351,382 bytes without, against 61,062 records
+-- and 6,386,325 bytes with, about 1.03 extra WAL records and 103 extra
+-- bytes per row. Marking intents completed (UPDATE of completed_at) pays
+-- the entry once the row qualifies for the predicate.
+--
+-- COORDINATION. This migration keeps the migration-008 lookup index (no
+-- DROP in this file): the pending-acceptance readers still order by
+-- created_at on its key, and the replay guard forbids drop-plus-recreate
+-- under one name, so a replacement would need its own owner review with
+-- plan evidence first. The old key is a strict prefix of no other index,
+-- and this key shares no prefix with the pending indexes, so each hot
+-- read keeps exactly one seeking index.
+--
+-- CONCURRENTLY so bootstrap never blocks the reducer's intent writes.
+-- IF NOT EXISTS so every later bootstrap over an install that has it is a
+-- no-op. The lone statement in this file so the migration coordinator can
+-- run it outside a transaction
+-- (coordination.IsSoleConcurrentIndexStatement). A new file per issue
+-- #7002: never edit an applied migration.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS shared_projection_intents_acceptance_completed_idx
+    ON shared_projection_intents (scope_id, acceptance_unit_id, source_run_id, generation_id, projection_domain, completed_at)
+    WHERE completed_at IS NOT NULL;

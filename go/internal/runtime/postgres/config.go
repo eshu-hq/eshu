@@ -44,6 +44,11 @@ type Config struct {
 	PingTimeout        time.Duration
 	ReplayTimeout      time.Duration
 	ExpectedSystemID   string
+	// SnapshotExportBuilds declares PostgreSQL reader builds an operator has
+	// qualified for shared-snapshot export below the compiled version floor
+	// (#7957). Empty means deny-by-default: only a reader at or above the
+	// floor may export a snapshot.
+	SnapshotExportBuilds []SnapshotExportBuild
 	// Logger receives the postgres.store.error record for a failed writer-pool
 	// driver call. A nil Logger uses slog.Default.
 	Logger *slog.Logger
@@ -92,6 +97,10 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 		}
 	}
 	members, err := parseReaderMembers(strings.TrimSpace(getenv("ESHU_POSTGRES_READ_MEMBERS")))
+	if err != nil {
+		return Config{}, err
+	}
+	exportBuilds, err := parseSnapshotExportBuilds(getenv(snapshotExportBuildsEnv))
 	if err != nil {
 		return Config{}, err
 	}
@@ -148,7 +157,7 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 		WriterMaxIdleConns: base.MaxIdleConns - readIdle, ReadMaxIdleConns: readIdle,
 		ConnMaxLifetime: base.ConnMaxLifetime, ConnMaxIdleTime: base.ConnMaxIdleTime,
 		PingTimeout: base.PingTimeout, ReplayTimeout: 2 * time.Second,
-		ExpectedSystemID: expectedSystemID,
+		ExpectedSystemID: expectedSystemID, SnapshotExportBuilds: exportBuilds,
 	}, nil
 }
 

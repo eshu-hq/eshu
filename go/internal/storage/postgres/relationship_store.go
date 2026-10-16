@@ -14,12 +14,27 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // RelationshipStore persists relationship evidence, assertions, candidates,
 // and resolved relationships in PostgreSQL.
 type RelationshipStore struct {
 	database db.ExecQueryer
+	// activationLockTimeout bounds the #7597 activation wake's wait on an
+	// in-flight consumer row; zero uses defaultActivationWakeLockTimeout.
+	// Tests shorten it.
+	activationLockTimeout time.Duration
+	// instruments records eshu_dp_reducer_own_gate_wake_total for the
+	// activation wake (#7597). Nil is a no-op.
+	instruments *telemetry.Instruments
+}
+
+// WithInstruments attaches the telemetry instruments the activation wake
+// records on (#7597) and returns the store. Nil keeps it uninstrumented.
+func (s *RelationshipStore) WithInstruments(instruments *telemetry.Instruments) *RelationshipStore {
+	s.instruments = instruments
+	return s
 }
 
 // NewRelationshipStore constructs a Postgres-backed relationship store.
@@ -134,8 +149,8 @@ func (s *RelationshipStore) CommitGeneration(
 	scopeID string,
 ) error {
 	now := time.Now().UTC()
-	_, err := s.database.ExecContext(ctx, activateGenerationSQL, now, generationID, scopeID)
-	if err != nil {
+	if _, err := s.activateWithConsumerWake(ctx, activateGenerationSQL,
+		[]any{now, generationID, scopeID}, scopeID, generationID, now); err != nil {
 		return fmt.Errorf("commit generation: %w", err)
 	}
 	return nil
@@ -150,11 +165,8 @@ func (s *RelationshipStore) ActivateResolutionGeneration(
 	scopeID string,
 ) error {
 	now := time.Now().UTC()
-	_, err := s.database.ExecContext(
-		ctx, activateResolutionGenerationSQL,
-		generationID, scopeID, now, now,
-	)
-	if err != nil {
+	if _, err := s.activateWithConsumerWake(ctx, activateResolutionGenerationSQL,
+		[]any{generationID, scopeID, now, now}, scopeID, generationID, now); err != nil {
 		return fmt.Errorf("activate resolution generation: %w", err)
 	}
 	return nil

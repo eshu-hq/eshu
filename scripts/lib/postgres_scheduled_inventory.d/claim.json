@@ -1,0 +1,116 @@
+{
+  "go/internal/storage/postgres/failure_text_bound_live_test.go": {
+    "group": "claim",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestFailBoundsWideDetailsAndSupersedeFoldCopiesTheStoredString"
+    ]
+  },
+  "go/internal/storage/postgres/projector_queue_claim_deadlock_live_test.go": {
+    "group": "claim",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestProjectorClaimConcurrentLoadHasNoDeadlock"
+    ]
+  },
+  "go/internal/storage/postgres/projector_queue_claim_fence_lifecycle_live_test.go": {
+    "group": "claim",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestProjectorClaimFenceRowLifecycle",
+      "TestProjectorClaimSkipsScopeWithoutFenceRow",
+      "TestProjectorScopeClaimFenceMigrationBackfills"
+    ]
+  },
+  "go/internal/storage/postgres/projector_queue_claim_generation_chain_live_test.go": {
+    "group": "claim",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestProjectorClaimDoesNotWaitOnGenerationUpdateChain"
+    ]
+  },
+  "go/internal/storage/postgres/projector_queue_claim_lock_skip_live_test.go": {
+    "group": "claim",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestProjectorClaimDoesNotWaitOnLockedMaintenanceRows",
+      "TestProjectorClaimLockRechecksRowsChangedAfterSnapshot"
+    ]
+  },
+  "go/internal/storage/postgres/projector_queue_claim_maintenance_live_test.go": {
+    "group": "claim",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestProjectorClaimMaintenanceSemantics"
+    ]
+  },
+  "go/internal/storage/postgres/projector_queue_claim_scope_chain_live_test.go": {
+    "group": "claim",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestProjectorClaimDoesNotWaitOnScopeUpdateChain",
+      "TestProjectorClaimFenceRowNeverMakesClaimersWait"
+    ]
+  },
+  "go/internal/storage/postgres/projector_queue_claim_scope_fence_live_test.go": {
+    "group": "claim",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestProjectorClaimIgnoresIngestionHoldingScopeRow",
+      "TestProjectorClaimLeavesFenceUnlockedWhenWorkRowBusy",
+      "TestProjectorClaimScopeFenceExcludesCrossSnapshotClaim",
+      "TestProjectorClaimSkipsBusyScopeWithoutWaiting",
+      "TestQueueObserverCountsProjectorScopesWithMultipleLiveLeases"
+    ]
+  },
+  "go/internal/storage/postgres/projector_queue_claim_sorted_lock_live_test.go": {
+    "group": "claim",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestProjectorClaimSortedLockStepMatchesWholePool",
+      "TestProjectorClaimSortedLockStepStopsAtFirstLockableRow"
+    ]
+  },
+  "go/internal/storage/postgres/projector_queue_claim_superseded_generation_live_test.go": {
+    "group": "claim",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestProjectorClaimStillClaimsLiveGenerations",
+      "TestProjectorClaimSupersededSweepDropsLeaseRenewedAfterSnapshot",
+      "TestProjectorClaimSweepsSupersededGenerationRow"
+    ]
+  },
+  "go/internal/storage/postgres/projector_queue_reclaim_evidence_live_test.go": {
+    "group": "claim",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestProjectorClaimReclaimDoesNotNestAnAlreadyReclaimedRow",
+      "TestProjectorClaimReclaimKeepsPriorFailureDuplicate",
+      "TestProjectorClaimReclaimKeepsPriorFailureSibling",
+      "TestProjectorClaimReclaimThenSupersedeKeepsTheRealCause"
+    ]
+  },
+  "go/internal/storage/postgres/supersede_prior_failure_fidelity_live_test.go": {
+    "group": "claim",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestSupersedeFoldsPriorFailureSeesConcurrentCommit",
+      "TestSupersedeFoldsPriorFailureTextFidelity",
+      "TestSupersedeIsTerminalForPriorFailure"
+    ]
+  },
+  "go/internal/storage/postgres/supersede_prior_failure_live_test.go": {
+    "group": "claim",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestSupersedeFoldsPriorFailureAck",
+      "TestSupersedeFoldsPriorFailureAckRefusal",
+      "TestSupersedeFoldsPriorFailureClaimSupersededGeneration",
+      "TestSupersedeFoldsPriorFailureClaimSweep",
+      "TestSupersedeFoldsPriorFailureHeartbeat",
+      "TestSupersedeFoldsPriorFailureReducerClaim",
+      "TestSupersedeNoCandidateClaimRunsSamePlanAndWritesNothing",
+      "TestSupersedeNoCandidateProofRejectsAStaleRow"
+    ]
+  }
+}

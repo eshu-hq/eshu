@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/search/rank"
 )
 
 // defaultToolResponseByteBudget caps the serialized mcpToolResult, excluding
@@ -312,8 +313,12 @@ type budgetPage struct {
 // handler re-ranked the page, each row carries page_position, its place in the
 // offset order, and the cut keeps the rows with the smallest positions: the
 // cursor is a position in the offset order, so the kept rows must be a prefix
-// of it, not a prefix of the re-ranked order (#7725). The cut is a binary
-// search over whole rows; a row is never split.
+// of it, not a prefix of the re-ranked order (#7725). A rank-walk page
+// (data.rank_walk, #7746) is the exception: its rows are already in walk
+// order, so the cut keeps rows[:keep], emits no next_offset, and re-mints
+// rank_walk.next_cursor through rank.TrimWalk; a walk block that cannot
+// prove that cursor keeps the error envelope. The cut is a binary search over
+// whole rows; a row is never split.
 func trimToBudgetPage(result *dispatchResult, toolName string, budget int) (budgetPage, bool) {
 	maxOffset, paged := budgetPagedTools[toolName]
 	if !paged || result == nil || result.IsError {
@@ -331,13 +336,25 @@ func trimToBudgetPage(result *dispatchResult, toolName string, budget int) (budg
 	if !ok || len(rows) < 2 {
 		return budgetPage{}, false
 	}
+	_, rankWalk := data[rank.BlockKey]
 	positions, ok := rowPagePositions(rows)
 	if !ok {
 		return budgetPage{}, false
 	}
 	offset := pageOffset(data["offset"])
+	cutFailed := false
 	candidate := func(keep int) *dispatchResult {
-		page := budgetPageEnvelope(envelope, data, offsetPrefix(rows, positions, keep), len(rows), keep, offset, maxOffset, budget)
+		if !rankWalk {
+			page := budgetPageEnvelope(envelope, data, offsetPrefix(rows, positions, keep), len(rows), keep, offset, maxOffset, budget)
+			return &dispatchResult{Value: page, Envelope: page, ToolName: toolName, ResourceOnly: true}
+		}
+		// A #7746 rank-walk page is cut to a prefix of its walk order, and the
+		// walk block is re-minted so next_cursor resumes at the first
+		// dropped row. It never carries next_offset.
+		walk, ok := rank.TrimWalk(data[rank.BlockKey], rows[:keep])
+		cutFailed = cutFailed || !ok
+		page := budgetPageEnvelope(envelope, data, rows[:keep], len(rows), keep, offset, -1, budget)
+		page.Data.(map[string]any)[rank.BlockKey] = walk
 		return &dispatchResult{Value: page, Envelope: page, ToolName: toolName, ResourceOnly: true}
 	}
 	if size := estimateResponseBytes(candidate(1)); size <= 0 || size > budget {
@@ -355,6 +372,9 @@ func trimToBudgetPage(result *dispatchResult, toolName string, budget int) (budg
 		}
 	}
 	page := candidate(keep)
+	if cutFailed {
+		return budgetPage{}, false
+	}
 	return budgetPage{
 		result:        page,
 		rowsReturned:  keep,
@@ -424,7 +444,7 @@ func budgetPageEnvelope(
 	page["results"] = kept
 	page["count"] = keep
 	page["truncated"] = true
-	if maxOffset == 0 || offset+keep <= maxOffset {
+	if maxOffset >= 0 && (maxOffset == 0 || offset+keep <= maxOffset) {
 		page["next_offset"] = offset + keep
 	}
 	page["budget_page"] = map[string]any{

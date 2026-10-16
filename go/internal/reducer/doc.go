@@ -69,6 +69,11 @@
 // CorpusFencedResolvedRelationshipLoader returns the verdict from the same
 // statement snapshot as the rows (#6740); other stores fall back to a
 // pre-read fence plus a post-read recheck (#6730).
+// Their own-generation gate is crossrepo.EvaluateOwnGate: an inactive own
+// generation whose deployment_mapping producer is dead-lettered returns a
+// counting producer-terminal failure instead of the non-counting deferral
+// (#7597), and Service.IsDeferredFailureClass records non-counting failures as
+// status "deferred" rather than "failed".
 // Repo-wide shared-projection refresh fences are generation-local: an exact
 // same-generation retry reuses completed deterministic intent IDs, while a
 // later generation must complete its own refresh before its edge rows write.
@@ -299,7 +304,10 @@
 // families from one bounded load read before any write, deferring with
 // service_catalog_correlation_resolution_not_ready while the relationship
 // corpus fence is open (#7258), an
-// optional RuntimeInstanceLoader for the runtime family, an optional
+// optional RuntimeInstanceLoader for the runtime family, wired only with the
+// RuntimeProducerReadiness fence that defers with
+// service_catalog_correlation_runtime_not_ready while a correlated
+// repository's workload_materialization work is in flight (#7816), an optional
 // DocumentationEvidenceLoader for the docs family, and an optional
 // IncidentEvidenceLoader for the incidents family) so the existing
 // reducer_service_catalog_correlation fact contract is unchanged.

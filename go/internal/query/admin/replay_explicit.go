@@ -46,7 +46,9 @@ func (h *Handler) refuseUnsafeExplicitReplay(
 		UnsafeFailureClasses: unsafeReplayFailureClassList(),
 	})
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, "replay unsafe-target check: "+err.Error())
+		// A read before the claim: nothing was replayed and the key is not
+		// consumed, so a 499 on a client cancel is exact.
+		writeMutationFailure(w, r, err, replayUnsafeCheckFailedMessage)
 		return true
 	}
 	if len(targets) == 0 {
@@ -97,7 +99,8 @@ func (h *Handler) refuseSupersededExplicitReplay(
 		FailureClass: req.FailureClass,
 	})
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, "replay superseded-generation check: "+err.Error())
+		// A read before the claim, like the unsafe-target check above.
+		writeMutationFailure(w, r, err, replaySupersededCheckFailedMessage)
 		return true
 	}
 	if len(targets) == 0 {

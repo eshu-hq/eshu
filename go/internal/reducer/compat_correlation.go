@@ -184,6 +184,11 @@ const (
 // [servicecatalog.RepositoryScopedRuntimeInstanceLoader].
 type RepositoryScopedRuntimeInstanceLoader = servicecatalog.RepositoryScopedRuntimeInstanceLoader
 
+// ServiceRuntimeProducerReadiness fences the runtime instance read on
+// in-flight workload_materialization work (#7816). See
+// [servicecatalog.RuntimeProducerReadiness].
+type ServiceRuntimeProducerReadiness = servicecatalog.RuntimeProducerReadiness
+
 // ServiceRuntimeInstance is one materialized runtime instance of a service's
 // workload. See [servicecatalog.ServiceRuntimeInstance].
 type ServiceRuntimeInstance = servicecatalog.ServiceRuntimeInstance
@@ -316,23 +321,10 @@ func ExtractRepoDependencyIntentRows(
 // spelling; each entry is deleted once its last caller has moved into a family
 // subpackage.
 
-// SBOMAttachmentStatus names the reducer decision for one SBOM or attestation
-// document attachment. See [sbomattest.SBOMAttachmentStatus].
-type SBOMAttachmentStatus = sbomattest.SBOMAttachmentStatus
-
 const (
 	// SBOMAttachmentAttachedVerified forwards to
 	// [sbomattest.SBOMAttachmentAttachedVerified].
 	SBOMAttachmentAttachedVerified = sbomattest.SBOMAttachmentAttachedVerified
-	// SBOMAttachmentAttachedParseOnly forwards to
-	// [sbomattest.SBOMAttachmentAttachedParseOnly].
-	SBOMAttachmentAttachedParseOnly = sbomattest.SBOMAttachmentAttachedParseOnly
-	// SBOMAttachmentUnknownSubject forwards to
-	// [sbomattest.SBOMAttachmentUnknownSubject].
-	SBOMAttachmentUnknownSubject = sbomattest.SBOMAttachmentUnknownSubject
-	// SBOMAttachmentUnparseable forwards to
-	// [sbomattest.SBOMAttachmentUnparseable].
-	SBOMAttachmentUnparseable = sbomattest.SBOMAttachmentUnparseable
 )
 
 // SBOMAttestationAttachmentDecision records one reducer attachment decision.
@@ -356,12 +348,6 @@ type SBOMAttestationAttachmentHandler = sbomattest.SBOMAttestationAttachmentHand
 // attestation attachment decisions in the shared fact store. See
 // [sbomattest.PostgresSBOMAttestationAttachmentWriter].
 type PostgresSBOMAttestationAttachmentWriter = sbomattest.PostgresSBOMAttestationAttachmentWriter
-
-// BuildSBOMAttestationAttachmentDecisions forwards to
-// [sbomattest.BuildSBOMAttestationAttachmentDecisions].
-func BuildSBOMAttestationAttachmentDecisions(envelopes []facts.Envelope) []SBOMAttestationAttachmentDecision {
-	return sbomattest.BuildSBOMAttestationAttachmentDecisions(envelopes)
-}
 
 // MaxSBOMAttachmentComponentEvidenceRows, ComponentEvidence,
 // ComponentEvidenceLess, and ComponentEvidenceTupleEqual were retired once

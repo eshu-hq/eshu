@@ -83,6 +83,7 @@ func TestSnapshotSetControlStatementsDoNotEmitBusinessStart(t *testing.T) {
 				snapshotSetGate: make(chan struct{}, 1), readerPermits: make(chan struct{}, 2),
 			}
 			access.snapshotSetGate <- struct{}{}
+			qualifySnapshotExport(access)
 			for range 2 {
 				access.readerPermits <- struct{}{}
 			}

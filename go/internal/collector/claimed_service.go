@@ -242,11 +242,11 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 	if err != nil {
 		if isTerminalFailure(err) {
 			runOutcome = telemetry.CollectorRunOutcomeFailTerminal
-			return s.failTerminal(ctx, mutation, "collect_failure", err)
+			return s.failTerminal(ctx, mutation, "collect_failure", "collect_failure", err)
 		}
 		if s.attemptBudgetExhausted(item) {
 			runOutcome = telemetry.CollectorRunOutcomeFailTerminal
-			return s.failTerminal(ctx, mutation, FailureClassAttemptBudgetExhausted, s.budgetExhaustedError(ctx, item, err))
+			return s.failTerminal(ctx, mutation, "collect_failure", FailureClassAttemptBudgetExhausted, s.budgetExhaustedError(ctx, item, err))
 		}
 		runOutcome = telemetry.CollectorRunOutcomeFailRetryable
 		return s.failRetryable(ctx, mutation, item, "collect_failure", err)
@@ -263,7 +263,7 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 		completeMutation, err := s.resolvedCompletionMutation(mutation, collected)
 		if err != nil {
 			runOutcome = telemetry.CollectorRunOutcomeFailTerminal
-			if failErr := s.ControlStore.FailClaimTerminal(ctx, withFailure(mutation, "identity_mismatch", err)); failErr != nil {
+			if failErr := s.ControlStore.FailClaimTerminal(ctx, withFailure(mutation, "identity_mismatch", "identity_mismatch", true, err)); failErr != nil {
 				return fmt.Errorf("terminal-fail mismatched %s claim: %w", s.claimedKindLabel(), failErr)
 			}
 			return err
@@ -284,7 +284,7 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 			err = errors.Join(err, cleanupErr)
 		}
 		runOutcome = telemetry.CollectorRunOutcomeFailTerminal
-		if failErr := s.ControlStore.FailClaimTerminal(ctx, withFailure(mutation, "identity_mismatch", err)); failErr != nil {
+		if failErr := s.ControlStore.FailClaimTerminal(ctx, withFailure(mutation, "identity_mismatch", "identity_mismatch", true, err)); failErr != nil {
 			return fmt.Errorf("terminal-fail mismatched %s claim: %w", s.claimedKindLabel(), failErr)
 		}
 		return err
@@ -299,11 +299,11 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 		// opened to break cannot resurface through the commit path.
 		if isTerminalFailure(err) {
 			runOutcome = telemetry.CollectorRunOutcomeFailTerminal
-			return s.failTerminal(ctx, mutation, "commit_failure", err)
+			return s.failTerminal(ctx, mutation, "commit_failure", "commit_failure", err)
 		}
 		if s.attemptBudgetExhausted(item) {
 			runOutcome = telemetry.CollectorRunOutcomeFailTerminal
-			return s.failTerminal(ctx, mutation, FailureClassAttemptBudgetExhausted, s.budgetExhaustedError(ctx, item, err))
+			return s.failTerminal(ctx, mutation, "commit_failure", FailureClassAttemptBudgetExhausted, s.budgetExhaustedError(ctx, item, err))
 		}
 		runOutcome = telemetry.CollectorRunOutcomeFailRetryable
 		return s.failRetryable(ctx, mutation, item, "commit_failure", err)
@@ -318,7 +318,7 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 	completeMutation, err := s.resolvedCompletionMutation(mutation, collected)
 	if err != nil {
 		runOutcome = telemetry.CollectorRunOutcomeFailTerminal
-		if failErr := s.ControlStore.FailClaimTerminal(ctx, withFailure(mutation, "identity_mismatch", err)); failErr != nil {
+		if failErr := s.ControlStore.FailClaimTerminal(ctx, withFailure(mutation, "identity_mismatch", "identity_mismatch", true, err)); failErr != nil {
 			return fmt.Errorf("terminal-fail mismatched %s claim: %w", s.claimedKindLabel(), failErr)
 		}
 		return err
@@ -436,11 +436,11 @@ func (s ClaimedService) failRetryable(
 	ctx context.Context,
 	mutation workflow.ClaimMutation,
 	item workflow.WorkItem,
-	failureClass string,
+	operation string,
 	err error,
 ) error {
-	failureClass = classifiedFailureClass(err, failureClass)
-	failed := withFailure(mutation, failureClass, err)
+	failureClass := classifiedFailureClass(err, operation)
+	failed := withFailure(mutation, operation, failureClass, false, err)
 	if failed.VisibleAt.IsZero() {
 		failed.VisibleAt = s.retryableVisibleAt(err)
 	}
@@ -452,14 +452,20 @@ func (s ClaimedService) failRetryable(
 	return errors.Join(errRetryableClaimRecorded, fmt.Errorf("%s: %w", failureClass, err))
 }
 
+// failTerminal persists a terminal claim failure. operation is the
+// claim-stage token recorded in the operation column (for example
+// "collect_failure"); classFallback seeds the class column only when the
+// error chain carries no class of its own. The two stay separate so a class
+// constant never leaks into the operation taxonomy.
 func (s ClaimedService) failTerminal(
 	ctx context.Context,
 	mutation workflow.ClaimMutation,
-	failureClass string,
+	operation string,
+	classFallback string,
 	err error,
 ) error {
-	failureClass = classifiedFailureClass(err, failureClass)
-	failed := withFailure(mutation, failureClass, err)
+	failureClass := classifiedFailureClass(err, classFallback)
+	failed := withFailure(mutation, operation, failureClass, true, err)
 	if failErr := s.ControlStore.FailClaimTerminal(ctx, failed); failErr != nil {
 		return fmt.Errorf("terminal-fail claimed %s work item: %w", s.claimedKindLabel(), failErr)
 	}

@@ -97,12 +97,13 @@ def check_static(root: Path) -> None:
         ledger,
         re.M,
     )
-    paths = [row[0] for row in rows]
+    methodology_rows = [row for row in rows if row[3] == "query-methodology"]
+    paths = [row[0] for row in methodology_rows]
     require(
         len(paths) == len(set(paths)) and set(paths) == set(EXPECTED),
         "dedicated file set differs from methodology contract",
     )
-    for path, tag, reason, runner, backends in rows:
+    for path, tag, reason, runner, backends in methodology_rows:
         wanted_tag, wanted_package, wanted_root, wanted_backend = EXPECTED[path]
         require(
             tag == wanted_tag
@@ -146,7 +147,7 @@ def check_static(root: Path) -> None:
         'untracked="$(git -C "$repo_root" ls-files --others --exclude-standard)"',
         'if [[ -n "$untracked" ]]; then',
         static_call,
-        "go_test_run_guard 2 '^(TestMethodologyProductionTreeRejectsBaseOnlyMigration|TestMethodologyCombinedCheckoutUsesIntegratedBase)$' -- -tags queryplan_profile_live ./internal/query -count=1 -v",
+        "go_test_run_guard 5 '^(TestMethodologyProductionTreeRejectsBaseOnlyMigration|TestMethodologyCombinedCheckoutUsesIntegratedBase|TestMethodologyProductionTreeAdmitsAdditiveGraphSchema|TestMethodologyRewriteDeclarationGate|TestMethodologySchemaDeclarationGate)$' -- -tags queryplan_profile_live ./internal/query -count=1 -v",
         "go test ./internal/queryplan -count=1",
         'if [[ "$mode" == --static ]]; then',
         'if ! git -C "$repo_root" diff --cached --quiet --exit-code; then',

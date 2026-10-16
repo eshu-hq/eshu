@@ -99,6 +99,36 @@ func (w lockedWriter) Write(p []byte) (int, error) {
 	return w.buf.Write(p)
 }
 
+// counterValue2 sums the int64 counter name over points carrying both
+// key1=value1 and key2=value2, for two-dimensional counters.
+func counterValue2(t *testing.T, reader *sdkmetric.ManualReader, name, key1, value1, key2, value2 string) int64 {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("collect metrics: %v", err)
+	}
+	var total int64
+	for _, scope := range rm.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name != name {
+				continue
+			}
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if !ok {
+				t.Fatalf("%s data = %T, want Sum[int64]", name, m.Data)
+			}
+			for _, point := range sum.DataPoints {
+				first, ok1 := point.Attributes.Value(attribute.Key(key1))
+				second, ok2 := point.Attributes.Value(attribute.Key(key2))
+				if ok1 && ok2 && first.AsString() == value1 && second.AsString() == value2 {
+					total += point.Value
+				}
+			}
+		}
+	}
+	return total
+}
+
 // counterValue sums the int64 counter name over points carrying key=value.
 func counterValue(t *testing.T, reader *sdkmetric.ManualReader, name, key, value string) int64 {
 	t.Helper()
@@ -124,6 +154,61 @@ func counterValue(t *testing.T, reader *sdkmetric.ManualReader, name, key, value
 		}
 	}
 	return total
+}
+
+// assertRetirementSplit checks the attributed retirement's log split: the
+// direction totals equal the measured incoming/projector composition and
+// sum to the backend's relationships-deleted count, and the capped per-type
+// map names every dropped type with the overflow beyond the top-10 cap.
+func assertRetirementSplit(t *testing.T, entry map[string]any, incoming, projectorOutgoing, degree int64) {
+	t.Helper()
+	if entry["attribution"] != true {
+		t.Fatalf("retirement log attribution = %#v, want true; entry = %v", entry["attribution"], entry)
+	}
+	if entry["dropped_incoming"] != float64(incoming) {
+		t.Fatalf("retirement log dropped_incoming = %#v, want %d; entry = %v", entry["dropped_incoming"], incoming, entry)
+	}
+	if entry["dropped_outgoing"] != float64(projectorOutgoing) {
+		t.Fatalf("retirement log dropped_outgoing = %#v, want %d; entry = %v", entry["dropped_outgoing"], projectorOutgoing, entry)
+	}
+	if float64(incoming+projectorOutgoing) != float64(degree) {
+		t.Fatalf("split direction sum = %d, want degree %d", incoming+projectorOutgoing, degree)
+	}
+	byType, ok := entry["dropped_by_type"].(map[string]any)
+	if !ok {
+		t.Fatalf("retirement log dropped_by_type = %#v, want a per-type map; entry = %v", entry["dropped_by_type"], entry)
+	}
+	// Thirteen distinct direction:type keys (eleven seeded incoming families
+	// plus the two projector edge types) exceed the top-10 log cap: the two
+	// projector aggregates must be present with their exact counts, every
+	// seeded incoming family must account for its edge somewhere in the map
+	// or the overflow, and the overflow must close the count.
+	want := map[string]float64{"outgoing:REPO_CONTAINS": 6, "outgoing:CONTAINS": 3}
+	for _, edgeType := range []string{
+		"DEPENDS_ON", "DEPLOYS_FROM", "DISCOVERS_CONFIG_IN", "PROVISIONS_DEPENDENCY_FOR",
+		"USES_MODULE", "READS_CONFIG_FROM", "EVIDENCES_REPOSITORY_RELATIONSHIP", "DEPLOYMENT_SOURCE",
+		"CORRELATES_DEPLOYABLE_UNIT", "PINS_SUBMODULE", "BUILT_FROM",
+	} {
+		want["incoming:"+edgeType] = 1
+	}
+	var named int64
+	for key, count := range want {
+		got, present := byType[key]
+		if !present {
+			continue // capped out of the top 10; the overflow must cover it
+		}
+		if got != count {
+			t.Fatalf("dropped_by_type[%s] = %#v, want %v; map = %v", key, got, count, byType)
+		}
+		named++
+	}
+	overflow, ok := byType["overflow_n"].(float64)
+	if !ok {
+		t.Fatalf("dropped_by_type[overflow_n] = %#v, want a count; map = %v", byType["overflow_n"], byType)
+	}
+	if named+int64(overflow) != int64(len(want)) {
+		t.Fatalf("named %d + overflow %v != %d distinct dropped types; map = %v", named, overflow, len(want), byType)
+	}
 }
 
 // TestLiveRepositoryPathConflictRetirementReportsDroppedIncomingEdges is the
@@ -220,12 +305,41 @@ func TestLiveRepositoryPathConflictRetirementReportsDroppedIncomingEdges(t *test
 				t.Fatalf("%s{outcome=clean} = %d, want 0", metricName, got)
 			}
 
+			// #7324 item: the per-direction/per-type split. The statement
+			// collects the dropped edges before it deletes, so the direction
+			// totals sum to the backend's relationships-deleted count, and
+			// the class follows the evidence_source (test/7324 seeds class
+			// as reducer, the node's own projector/canonical edges as
+			// projector). Direct graph checks above pinned the composition
+			// (11 + 9 = 20); the split must say the same thing.
+			assertRetirementSplit(t, entry, incoming, projectorOutgoing, degree)
+			const splitMetric = "eshu_dp_canonical_repository_retired_relationships_total"
+			if got := counterValue2(t, reader, splitMetric, "direction", "incoming", "class", "reducer"); got != incoming {
+				t.Fatalf("%s{direction=incoming,class=reducer} = %d, want %d", splitMetric, got, incoming)
+			}
+			if got := counterValue2(t, reader, splitMetric, "direction", "outgoing", "class", "projector"); got != projectorOutgoing {
+				t.Fatalf("%s{direction=outgoing,class=projector} = %d, want %d", splitMetric, got, projectorOutgoing)
+			}
+			splitTotal := counterValue2(t, reader, splitMetric, "direction", "incoming", "class", "reducer") +
+				counterValue2(t, reader, splitMetric, "direction", "incoming", "class", "projector") +
+				counterValue2(t, reader, splitMetric, "direction", "incoming", "class", "other") +
+				counterValue2(t, reader, splitMetric, "direction", "outgoing", "class", "reducer") +
+				counterValue2(t, reader, splitMetric, "direction", "outgoing", "class", "projector") +
+				counterValue2(t, reader, splitMetric, "direction", "outgoing", "class", "other")
+			if splitTotal != degree {
+				t.Fatalf("%s bucket sum = %d, want %d (the split must sum to relationships_deleted)", splitMetric, splitTotal, degree)
+			}
+
 			// A steady-state retry of the same generation matches nothing:
 			// no log line and no counter increment.
 			live.write(ctx, t, writer, live.materialization(retryFixtureRepo, "gen-2", false))
 			if got := counterValue(t, reader, metricName, "outcome", "dropped_relationships") +
 				counterValue(t, reader, metricName, "outcome", "clean"); got != 1 {
 				t.Fatalf("%s after a steady-state retry = %d, want still 1", metricName, got)
+			}
+			if got := counterValue2(t, reader, splitMetric, "direction", "incoming", "class", "reducer") +
+				counterValue2(t, reader, splitMetric, "direction", "outgoing", "class", "projector"); got != degree {
+				t.Fatalf("%s after a steady-state retry = %d, want still %d", splitMetric, got, degree)
 			}
 
 			live.assertStubRecreation(ctx, t, stubProof{

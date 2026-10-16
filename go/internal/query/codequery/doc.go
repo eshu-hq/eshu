@@ -20,7 +20,7 @@
 // selector, testutil, contentread, entitysemantics, codeshaping,
 // codeprovenance, facts, facts/code, parser, reducer, the internal/search*
 // ranking
-// packages, telemetry, and package/registry (only its exported
+// packages, search/rank (the find_code rank_cursor walk, #7746), telemetry, and package/registry (only its exported
 // VersionCountsByPackageID, which the bundles read reuses for its page's
 // version counts; package/registry imports no codequery) -- but NEVER root
 // package query itself, which would

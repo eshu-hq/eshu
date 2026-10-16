@@ -33,6 +33,9 @@ func reducerQueueWaitSeconds(start time.Time, availableAt time.Time) float64 {
 }
 
 func (s Service) recordReducerResult(ctx context.Context, intent Intent, result Result, duration float64, queueWait float64, status string, workerID int, execErr error) {
+	if status == "failed" && s.isDeferredFailure(execErr) {
+		status = executionStatusDeferred
+	}
 	if s.Instruments != nil {
 		attrs := metric.WithAttributes(
 			telemetry.AttrDomain(string(intent.Domain)),
@@ -93,6 +96,14 @@ func (s Service) recordReducerResult(ctx context.Context, intent Intent, result 
 				logAttrs = append(logAttrs, log.Err(execErr))
 			}
 			s.Logger.ErrorContext(ctx, message, logAttrs...)
+		case executionStatusDeferred:
+			// A readiness wait the queue retries without spending the budget:
+			// visible, but not an error (#7597).
+			logAttrs = append(logAttrs, telemetry.FailureClassAttr(reducerExecutionFailureClass(execErr)))
+			if execErr != nil {
+				logAttrs = append(logAttrs, log.Err(execErr))
+			}
+			s.Logger.WarnContext(ctx, "reducer execution deferred", logAttrs...)
 		case "superseded":
 			logAttrs = append(logAttrs, telemetry.FailureClassAttr("generation_superseded"))
 			s.Logger.InfoContext(ctx, "reducer intent superseded", logAttrs...)
@@ -124,6 +135,19 @@ func (s Service) recordReducerResult(ctx context.Context, intent Intent, result 
 			s.Logger.InfoContext(ctx, "reducer execution succeeded", logAttrs...)
 		}
 	}
+}
+
+// executionStatusDeferred is the eshu_dp_reducer_executions_total status of a
+// failure whose class the queue exempts from the retry budget (#7597).
+const executionStatusDeferred = "deferred"
+
+// isDeferredFailure mirrors the queue's retry decision for a non-counting
+// class: the error is Retryable and self-classifies into a class the injected
+// IsDeferredFailureClass names. A producer-terminal or any other counting
+// class, and a non-retryable error, stay "failed".
+func (s Service) isDeferredFailure(execErr error) bool {
+	return execErr != nil && s.IsDeferredFailureClass != nil && IsRetryable(execErr) &&
+		s.IsDeferredFailureClass(reducerExecutionFailureClass(execErr))
 }
 
 const (

@@ -56,8 +56,9 @@ type Options struct {
 	// present, NewIndex uses these vectors instead of embedding documents while
 	// still using Embedder for query vectors.
 	PrecomputedDocumentVectors map[string][]float64
-	// VectorRetrieval selects the semantic vector retrieval strategy. Auto and
-	// Exact use exact cosine; Approximate must be selected explicitly.
+	// VectorRetrieval selects the semantic vector retrieval strategy. Exact uses
+	// exact cosine; Auto uses exact cosine below approximateVectorAutoMinDocuments
+	// (256) indexed documents and the approximate retriever at or above it.
 	VectorRetrieval VectorRetrievalMode
 	// K1 and B are BM25 parameters. Zero selects the standard 1.2 and 0.75.
 	K1 float64
@@ -201,12 +202,15 @@ func (index *Index) documentVector(
 // bm25Score scores one document against the query terms using the precomputed
 // corpus statistics. It is kept for direct single-document scoring and tests;
 // retrieval uses bm25ScoredInScope, which is driven by the inverted index.
+// Contributions are summed in sorted term order (see sortedQueryTerms), so the
+// score bits match bm25ScoredInScope and are stable across requests served by
+// one binary (see sortedQueryTerms for the cross-architecture limit).
 func (index *Index) bm25Score(queryTerms map[string]int, entry indexedDocument) float64 {
 	if index.count == 0 || index.averageLen == 0 {
 		return 0
 	}
 	score := 0.0
-	for term := range queryTerms {
+	for _, term := range sortedQueryTerms(queryTerms) {
 		tf, ok := entry.termFrequency[term]
 		if !ok {
 			continue
@@ -220,13 +224,15 @@ func (index *Index) bm25Score(queryTerms map[string]int, entry indexedDocument) 
 // visiting only postings of the query terms and accumulating a score per
 // in-scope document. inScope reports whether a document index is inside the
 // resolved request scope. The result contains only documents with at least one
-// matching term, so zero-overlap documents never appear.
+// matching term, so zero-overlap documents never appear. Each document's
+// contributions are added in sorted term order, never map-iteration order, so
+// its score bits are identical on every request served by one binary.
 func (index *Index) bm25ScoredInScope(queryTerms map[string]int, inScope func(int) bool) map[int]float64 {
 	scores := make(map[int]float64)
 	if index.count == 0 || index.averageLen == 0 {
 		return scores
 	}
-	for term := range queryTerms {
+	for _, term := range sortedQueryTerms(queryTerms) {
 		for _, p := range index.postings[term] {
 			if !inScope(p.docIndex) {
 				continue
@@ -242,6 +248,35 @@ func (index *Index) vectorScoresInScope(queryVector []float64, inScope func(int)
 		return make(map[int]float64)
 	}
 	return index.vector.Score(queryVector, inScope)
+}
+
+// sortedQueryTerms returns the query terms in ascending byte order. Float
+// addition is not associative, so a BM25 sum taken in Go's randomized
+// map-iteration order yields different score bits, and different tie order,
+// from one request to the next once three or more terms match a document
+// (#7746). This is the in-process form of the rule the persisted Postgres
+// keyword index applies with its ordered SUM (#7737). The two paths order on
+// different keys (term here, (term_key, term) there) and associate the BM25
+// formula differently, so their score bits are each stable but not equal to
+// each other.
+//
+// The fixed order makes score bits stable per binary, which means per process
+// and per architecture. It does not make them equal across architectures: Go
+// may fuse a multiply and add into one FMA instruction on arm64 but not on
+// amd64 at the default GOAMD64=v1 (on arm64 the compiler fuses the
+// termContribution denominator into FMADDD), so the same BM25 score can differ
+// by a few ulp between an arm64 and an amd64 replica (4 ulp observed), and two
+// scores that close can tie-break differently. The README lists the other
+// fused sites, including the approximate vector signature, where a flipped
+// bucket bit can change the candidate set itself. Nothing that crosses
+// processes, such as a cursor, may depend on exact score bits.
+func sortedQueryTerms(queryTerms map[string]int) []string {
+	terms := make([]string, 0, len(queryTerms))
+	for term := range queryTerms {
+		terms = append(terms, term)
+	}
+	sort.Strings(terms)
+	return terms
 }
 
 // termContribution is one term's BM25 contribution to a document's score.

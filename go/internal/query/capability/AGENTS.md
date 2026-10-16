@@ -52,3 +52,11 @@ lives here — exported, and spelled without the package-name stutter that
 `capabilities_test.go` exercises the handler through root's `APIRouter`, so it
 cannot move here without cycling. Add handler-internal tests here; add
 routing-level tests beside the router.
+
+## A failed catalog load answers fixed text
+
+`list` answers a failed catalog load through `tracing.WriteServerFailure`
+with `catalogUnavailableMessage` from `failure.go` (#7674): 500 with the load
+error on the request span, or 499 on a client cancel. The catalog is embedded,
+not read through the guarded reader, so there is no reader-fence step.
+`server_failure_test.go` pins it through `testutil/failure`.

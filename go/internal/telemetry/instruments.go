@@ -165,6 +165,12 @@ type Instruments struct {
 	// lease store and the intent's lease may be reclaimed and re-executed by
 	// another worker.
 	ReducerHeartbeatMissed metric.Int64Counter
+	// ReducerHandlerAbandoned counts reducer intents whose handler never
+	// returned before shutdown arrived, so the worker stopped the lease
+	// heartbeat and failed the intent for retry (#8211). Labeled by domain
+	// only (a bounded closed set). A non-zero rate means handlers are
+	// wedging past process shutdown instead of observing their context.
+	ReducerHandlerAbandoned metric.Int64Counter
 	// ProjectorRetrySurge counts every projector work-item retry scheduled
 	// via ProjectorQueue.Fail's retry path (#4450), labeled by failure_class
 	// only (a bounded closed set from queuestore.QueueFailureMetadata/
@@ -344,9 +350,17 @@ type Instruments struct {
 	// ChangedSinceLinks counts link attempts by link_kind (root,
 	// incremental, none) and outcome (linked, break, failed, poisoned, canceled).
 	ChangedSinceLinks metric.Int64Counter
+	// ChangedSinceAckJournal counts committed projector Acks that ran with the
+	// changed-since journal on (#7127 PR-3b), by outcome: journaled (the Ack
+	// wrote its activation row), exists (the generation already had one), and
+	// gate_skipped (a journal pass held its key, so the Ack wrote nothing and
+	// did not wait; the sweeper journals the generation later).
+	ChangedSinceAckJournal metric.Int64Counter
 	// ChangedSinceLinkRetries counts non-counting link outcomes by reason
-	// (cursor_locked, generation_locked, generation_lock_timeout, slot_busy);
-	// a journal pass that gives way on a generation lock counts here too.
+	// (cursor_locked, generation_locked, generation_lock_timeout, slot_busy,
+	// journal_busy); a journal pass that gives way on a generation lock counts
+	// here too, and journal_busy counts a journal pass that skipped because a
+	// projector Ack or another replica's pass held the journal key.
 	ChangedSinceLinkRetries metric.Int64Counter
 	// ChangedSinceLinkFailures counts counting link failures by
 	// failure_class (statement_timeout, connection_lost, sql_error,
@@ -476,13 +490,19 @@ type Instruments struct {
 	ReconcileParseSkipDecisions metric.Int64Counter
 	// PreparseIdentityDropped counts snapshots and fact streams that kept the
 	// pre-parse identity off a generation, by closed reason (review F-2, F-7).
-	PreparseIdentityDropped        metric.Int64Counter
-	ReconciliationDriftRetractions metric.Int64Counter
-	ReconciliationConvergence      metric.Int64Counter
-	DocumentationEntityMentions    metric.Int64Counter
-	DocumentationClaimCandidates   metric.Int64Counter
-	DocumentationClaimsSuppressed  metric.Int64Counter
-	DocumentationDriftFindings     metric.Int64Counter
+	PreparseIdentityDropped metric.Int64Counter
+	// ReconcileParseSkipPersistentDrops counts forced reconciles that skipped
+	// the parse while carrying the active generation's recorded stream drops
+	// (#8185): every recorded path still failed to open, so the skip replays
+	// the same incomplete facts. One increment per skip, no labels — the
+	// per-interval rate is the operator's count of scopes in drop debt.
+	ReconcileParseSkipPersistentDrops metric.Int64Counter
+	ReconciliationDriftRetractions    metric.Int64Counter
+	ReconciliationConvergence         metric.Int64Counter
+	DocumentationEntityMentions       metric.Int64Counter
+	DocumentationClaimCandidates      metric.Int64Counter
+	DocumentationClaimsSuppressed     metric.Int64Counter
+	DocumentationDriftFindings        metric.Int64Counter
 	// CodeFingerprintEntities counts function entities fingerprinted or
 	// skipped by outcome, skip reason, and language (#6835).
 	CodeFingerprintEntities                   metric.Int64Counter
@@ -601,6 +621,10 @@ type Instruments struct {
 	// It stays separate from ServiceCatalogCorrelations so decision outcomes
 	// remain limited to the admission decision enum.
 	ServiceCatalogCorrelationGuardrails metric.Int64Counter
+	// ServiceCatalogRuntimeReadiness counts the #7816 runtime readiness fence
+	// decisions of the service catalog correlation handler by reducer domain and
+	// closed outcome: ready, no_producer, deferred, bound_exceeded.
+	ServiceCatalogRuntimeReadiness metric.Int64Counter
 	// IncidentRepositoryCorrelations counts reducer-owned durable
 	// incident-routing-to-repository correlation decisions by reducer domain and
 	// outcome (exact, derived, ambiguous, unresolved, rejected). Only exact and
@@ -1016,6 +1040,15 @@ type Instruments struct {
 	// reindex_unsupported). Never carries scope ids. Registered in
 	// instruments_recovery_delta_active.go.
 	RecoveryDeltaActiveScopes metric.Int64Counter
+	// ProjectorDeltaUnion counts delta-base union fact-load decisions by the
+	// closed outcome set (union_base_found, union_base_missing_refused,
+	// union_resolve_failed, union_scope_mismatch),
+	// and ProjectorDeltaUnionFacts carries the base, delta, and union fact
+	// counts behind each decision as histogram values (#7797). Labels never
+	// carry scope ids, generation ids, or commit SHAs. Registered in
+	// instruments_delta_union.go.
+	ProjectorDeltaUnion      metric.Int64Counter
+	ProjectorDeltaUnionFacts metric.Int64Histogram
 	// ConfigArtifactCandidates counts the config-artifact candidates of the
 	// deployment-artifact load of the repository story, repository context
 	// and service story or context routes (issue #7951), by outcome:
@@ -1213,6 +1246,18 @@ type Instruments struct {
 	PackageManifestBackfillCursorUpdated metric.Int64Gauge
 	// PackageManifestBackfillReady is one when both sidecars are ready.
 	PackageManifestBackfillReady metric.Int64Gauge
+	// PackageManifestBackfillPageDuration measures each scope-rebuild
+	// transaction (the start transaction and every fact page) from begin to
+	// commit or rollback, by the closed outcome set committed, lock_timeout,
+	// failed (#7663). Its count is the number of rebuild transactions.
+	PackageManifestBackfillPageDuration metric.Float64Histogram
+	// PackageManifestBackfillScopeLockWait measures how long each
+	// scope-rebuild transaction waited for its ingestion_scopes row lock.
+	PackageManifestBackfillScopeLockWait metric.Float64Histogram
+	// PackageManifestBackfillScopeRebuilds counts scope rebuilds by phase
+	// (initial, dirty_repair) and outcome (cleared, left_dirty, skipped,
+	// disappeared, lock_timeout, failed).
+	PackageManifestBackfillScopeRebuilds metric.Int64Counter
 	// InfraInventoryReconcile counts repositories the reducer's infra read
 	// model reconcile checked, by outcome: match (table equals
 	// content_entities), suspect (it differed once and is re-checked next
@@ -1709,7 +1754,14 @@ type Instruments struct {
 	ProjectorStageDuration                 metric.Float64Histogram
 	ReducerRunDuration                     metric.Float64Histogram
 	ReducerQueueWaitDuration               metric.Float64Histogram
-	SearchIndexWriteDuration               metric.Float64Histogram
+	// ReducerHandlerDuration records reducer handler wall time, from
+	// Executor.Execute entry to return, labeled by domain (#8211). It is the
+	// non-enforcing measurement behind the future handler deadline: only
+	// handlers that return are recorded, so a stuck handler that is
+	// abandoned at shutdown lands on ReducerHandlerAbandoned instead and its
+	// elapsed time is visible on the abandonment log line.
+	ReducerHandlerDuration   metric.Float64Histogram
+	SearchIndexWriteDuration metric.Float64Histogram
 	// GCPMaterializationDuration measures GCP resource and relationship
 	// materialization stages by reducer domain and write_phase.
 	GCPMaterializationDuration metric.Float64Histogram
@@ -1729,6 +1781,9 @@ type Instruments struct {
 	// held its ingestion_scopes row locks: the wait a concurrent fact insert
 	// into one of those scopes can see (#7279).
 	GenerationRetentionScopeLockHold metric.Float64Histogram
+	// GenerationRetentionSearchIndexBatches is the search index pre-delete
+	// batch transactions one retention pass committed before its prune (#7427).
+	GenerationRetentionSearchIndexBatches metric.Int64Histogram
 	// ChangedSinceLinkDuration, ChangedSinceLinkDeltaRows and
 	// ChangedSinceLinkKeys describe committed links by link_kind.
 	ChangedSinceLinkDuration  metric.Float64Histogram
@@ -1815,6 +1870,15 @@ type Instruments struct {
 	// record nothing.
 	CanonicalRepositoryRetirements metric.Int64Counter
 
+	// CanonicalRepositoryRetiredRelationships counts the relationships the
+	// canonical writer's path-conflict retirement dropped with the retired
+	// Repository (#7324 item: per-direction/per-type split), by closed
+	// direction (incoming, outgoing) and owner class (reducer, projector,
+	// other). It moves only when the executor consumed the statement's
+	// RETURN dropped record; unattributed retirements move only
+	// CanonicalRepositoryRetirements.
+	CanonicalRepositoryRetiredRelationships metric.Int64Counter
+
 	// RepositorySelectionEvaluations counts git collector repository
 	// selection evaluations (#7625) by collector_kind and a closed outcome
 	// (evaluated, listing_truncated, guard_tripped, store_error).
@@ -1830,6 +1894,12 @@ type Instruments struct {
 	// repository_selection_observations rows the git collector's sweep
 	// deleted (#7774), by collector_kind.
 	RepositorySelectionObservationsDeleted metric.Int64Counter
+
+	// RepositoryListingRequests counts git collector repository listing
+	// requests (#7765) by collector_kind, provider, and a closed outcome
+	// (success, retried, rate_limited, http_error, transport_error,
+	// decode_error). Only the GitLab group client records it today.
+	RepositoryListingRequests metric.Int64Counter
 
 	// CanonicalRepositoryStubsCreated counts Repository nodes the
 	// repo_dependency and submodule_pin shared-edge writers MERGE-created by
@@ -2083,7 +2153,7 @@ type Instruments struct {
 
 	// ProducerManifestTagOutcomes counts code-call producer manifest rows by
 	// generation-tag outcome (#7760), labeled by a closed kind
-	// (package|gomod) and outcome
+	// (package|composer|gomod) and outcome
 	// (clean|null_tag|dangling_tag|unactivated_tag|manifest_less). A nonzero
 	// dirty rate is normal during migration convergence (legacy NULL tags);
 	// a sustained unactivated_tag rate afterwards means ahead writes keep
@@ -2460,6 +2530,24 @@ type Instruments struct {
 	// row in another repository.
 	// Registered by registerLanguageQueryMetadataInstruments.
 	LanguageQueryMetadataRows metric.Int64Counter
+	// InfraSearchPath counts infra resource searches by the statement that
+	// served them (search_path: fulltext, legacy) and reason (#7245). Registered
+	// by registerInfraSearchKeyInstruments.
+	InfraSearchPath metric.Int64Counter
+	// InfraSearchKeyReady is 1 when the last readiness probe found the
+	// infra_search_key_ft index ONLINE and no unkeyed infra node that holds a
+	// searched field (#7245).
+	InfraSearchKeyReady metric.Int64Gauge
+	// InfraSearchKeyIndexOnline is 1 when the last readiness probe read the
+	// infra_search_key_ft index as ONLINE (#7245).
+	InfraSearchKeyIndexOnline metric.Int64Gauge
+	// InfraSearchKeyUnkeyedNodes is the count of unkeyed infra nodes that hold
+	// a searched field at the last successful readiness probe (#7245).
+	InfraSearchKeyUnkeyedNodes metric.Int64Gauge
+	// ReducerOwnGateWake counts #7597 own-gate wake statements by site
+	// (activation, fail) and outcome (reopened, noop, error), once per
+	// statement. Registered by registerOwnGateWakeInstruments.
+	ReducerOwnGateWake metric.Int64Counter
 	// OIDCBearerValidationTotal counts every IdP bearer-token (Authorization:
 	// Bearer <access_token>) validation outcome the internal/oidcbearer
 	// resolver reaches (issue #5162, epic #5161), by bounded outcome value:
@@ -2580,6 +2668,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ReducerHeartbeatMissed counter: %w", err)
+	}
+
+	inst.ReducerHandlerAbandoned, err = meter.Int64Counter(
+		"eshu_dp_reducer_handler_abandoned_total",
+		metric.WithDescription("Total reducer intents abandoned at shutdown because the handler never returned"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReducerHandlerAbandoned counter: %w", err)
 	}
 
 	inst.ProjectorRetrySurge, err = meter.Int64Counter(
@@ -4389,6 +4485,31 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	if err != nil {
 		return nil, fmt.Errorf("register PackageManifestBackfillReady gauge: %w", err)
 	}
+	inst.PackageManifestBackfillPageDuration, err = meter.Float64Histogram(
+		"eshu_dp_package_manifest_backfill_page_duration_seconds",
+		metric.WithDescription("Begin-to-end time of one package-consumption sidecar scope-rebuild transaction (start or fact page), by outcome: committed, lock_timeout, failed"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PackageManifestBackfillPageDuration histogram: %w", err)
+	}
+	inst.PackageManifestBackfillScopeLockWait, err = meter.Float64Histogram(
+		"eshu_dp_package_manifest_backfill_scope_lock_wait_seconds",
+		metric.WithDescription("Time one package-consumption sidecar scope-rebuild transaction waited for its ingestion_scopes row lock"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(0, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 5, 10),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PackageManifestBackfillScopeLockWait histogram: %w", err)
+	}
+	inst.PackageManifestBackfillScopeRebuilds, err = meter.Int64Counter(
+		"eshu_dp_package_manifest_backfill_scope_rebuilds_total",
+		metric.WithDescription("Package-consumption sidecar scope rebuilds by phase (initial, dirty_repair) and outcome: cleared, left_dirty, skipped, disappeared, lock_timeout, failed"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PackageManifestBackfillScopeRebuilds counter: %w", err)
+	}
 
 	inst.InfraInventoryReconcile, err = meter.Int64Counter(
 		"eshu_dp_infra_inventory_reconcile_total",
@@ -5212,6 +5333,16 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register ReducerRunDuration histogram: %w", err)
 	}
 
+	inst.ReducerHandlerDuration, err = meter.Float64Histogram(
+		"eshu_dp_reducer_handler_duration_seconds",
+		metric.WithDescription("Reducer handler execution wall time by domain"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(reducerRunBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReducerHandlerDuration histogram: %w", err)
+	}
+
 	reducerWaitBuckets := []float64{0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900, 1800, 3600, 21600}
 	inst.ReducerQueueWaitDuration, err = meter.Float64Histogram(
 		"eshu_dp_reducer_queue_wait_seconds",
@@ -5312,6 +5443,12 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	if err := registerLanguageQueryMetadataInstruments(meter, inst); err != nil {
 		return nil, err
 	}
+	if err := registerInfraSearchKeyInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerOwnGateWakeInstruments(meter, inst); err != nil {
+		return nil, err
+	}
 
 	if err := registerReconcileParseSkipDecisions(meter, inst); err != nil {
 		return nil, err
@@ -5348,6 +5485,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	if err := registerRecoveryDeltaActiveScopes(meter, inst); err != nil {
 		return nil, err
 	}
+	if err := registerProjectorDeltaUnion(meter, inst); err != nil {
+		return nil, err
+	}
 	if err := registerConfigArtifactCandidates(meter, inst); err != nil {
 		return nil, err
 	}
@@ -5358,6 +5498,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerProducerActivationInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerServiceCatalogRuntimeReadiness(meter, inst); err != nil {
 		return nil, err
 	}
 
@@ -5887,7 +6030,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.ProducerManifestTagOutcomes, err = meter.Int64Counter(
 		"eshu_dp_producer_manifest_tag_outcomes_total",
-		metric.WithDescription("Code-call producer manifest rows by generation-tag outcome, labeled by kind (package|gomod) and outcome (clean|null_tag|dangling_tag|unactivated_tag|manifest_less) (#7760)"),
+		metric.WithDescription("Code-call producer manifest rows by generation-tag outcome, labeled by kind (package|composer|gomod) and outcome (clean|null_tag|dangling_tag|unactivated_tag|manifest_less) (#7760)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ProducerManifestTagOutcomes counter: %w", err)
@@ -6086,7 +6229,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.DeferredBackfillFanInSkipped, err = meter.Int64Counter(
 		"eshu_dp_deferred_backfill_fanin_skipped_total",
-		metric.WithDescription("Total partitions the fan-in declined to publish because the scope's active generation moved between the evidence batch and the publication transaction, labeled by reason (generation_advanced_since_batch when the under-lock re-read disagrees, generation_advanced_since_snapshot when the fact-load snapshot does). Sustained non-zero means ingestion is outrunning the maintenance pass, not that anything failed."),
+		metric.WithDescription("Total partitions the fan-in did not publish, labeled by reason: generation_advanced_since_batch when the under-lock re-read disagrees with the batch, generation_advanced_since_snapshot when the fact-load snapshot does, and unchanged_since_memo when the whole pass did not change the partition's evidence, its scope is still on that generation, and its readiness row already exists (#8082). A generation that advances after that unlocked check can still land in unchanged_since_memo; one that advances before it keeps generation_advanced_since_batch. Sustained non-zero for the two generation reasons means ingestion is outrunning the maintenance pass; unchanged_since_memo is the normal steady state."),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register DeferredBackfillFanInSkipped counter: %w", err)

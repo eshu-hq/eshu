@@ -80,7 +80,7 @@ func (h *Handler) investigateDeploymentConfigInfluence(w http.ResponseWriter, r 
 		return
 	}
 	if ctx == nil {
-		querycontract.WriteError(w, http.StatusNotFound, "service not found")
+		deployment.WriteServiceNotFound(w, r, deploymentConfigInfluenceCapability, selector, h.Content)
 		return
 	}
 	if workloadID := querycontract.SafeStr(ctx, "id"); workloadID != "" {

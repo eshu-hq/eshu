@@ -117,7 +117,45 @@ DETACH DELETE p`
 // There is deliberately no by-id Repository delete here (#7285): the node is
 // MERGEd in place so edges owned by other writers survive re-projection.
 
+// canonicalNodeRepositoryPathCleanupCypher retires a DIFFERENT-id
+// Repository still holding the projected path (#7324). The incident-edge
+// collection runs in the SAME statement, before the delete, so the
+// attribution describes exactly the relationships the delete drops: a
+// separate pre-read would race a concurrent writer between the read and the
+// delete, and the Executor interfaces (writer.go) cannot return records.
+//
+// Shape notes: the OPTIONAL MATCH keeps the one-row-per-edge fanout off the
+// delete (an edgeless node still yields its single row, so the delete still
+// runs); the CASE keeps NULL rels out of the collection (collect skips
+// NULL), so an edgeless retirement reports an empty dropped list rather
+// than one junk entry; startNode decides direction from the stored edge,
+// not from a pattern arrow. RETURN dropped yields exactly one record when a
+// node matched, zero when the MATCH matched nothing (steady state).
+//
+// Neo4j-only: NornicDB routes this multi-clause composition into an
+// interpreter that drops the WHERE guard and deletes the path-matched live
+// node in steady state, and corrupts the RETURN projection to the literal
+// "dropped" (live probe #8173: steady state deleted 1 node + 1
+// relationship, record value "dropped"). Writers targeting NornicDB MUST
+// emit canonicalNodeRepositoryPathCleanupBareCypher instead (see
+// WithBareRepositoryRetirement): the bare shape is correct on both
+// backends, and its entries report through the unattributed
+// (attribution=false) path.
 const canonicalNodeRepositoryPathCleanupCypher = `MATCH (r:Repository {path: $path})
+WHERE r.id <> $repo_id
+OPTIONAL MATCH (r)-[rel]-(other)
+WITH r, collect(CASE WHEN rel IS NULL THEN NULL ELSE {t: type(rel), dir: CASE WHEN startNode(rel) = r THEN 'out' ELSE 'in' END, src: rel.evidence_source} END) AS dropped
+DETACH DELETE r
+RETURN dropped`
+
+// canonicalNodeRepositoryPathCleanupBareCypher is the pre-split retirement
+// shape: the same path anchor and id guard, no incident-edge collection, no
+// RETURN record. It is correct on both backends (live probe: steady state
+// deletes 0 nodes on NornicDB and Neo4j) and is the shape every
+// NornicDB-targeted writer emits. Its entries carry no Dropped collection,
+// so the report logs attribution=false and moves only
+// eshu_dp_canonical_repository_retirements_total.
+const canonicalNodeRepositoryPathCleanupBareCypher = `MATCH (r:Repository {path: $path})
 WHERE r.id <> $repo_id
 DETACH DELETE r`
 

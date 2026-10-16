@@ -67,6 +67,9 @@ type schemaDialect struct {
 	includeMergeLookupIndexes bool
 	// includeNeo4jUIDLookupIndexes adds neo4jUIDLookupIndexes (#7057).
 	includeNeo4jUIDLookupIndexes bool
+	// includeInfraSearchKeyIndex adds the #7245 infra search key FULLTEXT
+	// index (neo4jInfraSearchKeyIndexes).
+	includeInfraSearchKeyIndex bool
 	// retiredConstraints names the uniqueness constraints narrower than the
 	// canonical uid identity that this dialect drops (DROP CONSTRAINT ... IF
 	// EXISTS) before any other statement (#7095, #7097).
@@ -87,6 +90,7 @@ func schemaDialectForBackend(backend SchemaBackend) (schemaDialect, error) {
 			backend:                      normalized,
 			constraint:                   neo4jSchemaConstraint,
 			includeNeo4jUIDLookupIndexes: true,
+			includeInfraSearchKeyIndex:   true,
 			retiredConstraints:           neo4jRetiredUniqueConstraints,
 			retiredConstraintPathIndexes: neo4jRetiredConstraintPathIndexes,
 		}, nil

@@ -113,6 +113,26 @@ tests:
     tag: live_nornicdb_answer_truth
     class: ci
     reason: "#7711 deterministic seeded proof that the provenance count reads deliver tied groups in tiebreaker order on each backend leg (exact row sequence asserted); local run 0.03 s on NornicDB, 0.52 s on Neo4j"
+  - file: go/internal/storage/cypher/search_key_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "#7245 seeded Neo4j proof that the real CloudResource and canonical writers cap the infra search key at 8,000 code points: a 40 KB name and a 70 KB config_path write with infra_search_ovf 'T' and no key, an 8,000-code-point 4-byte key is stored with 'F', infra_search_key_ft stays ONLINE and finds the overflowed nodes, and the backfill repairs a dropped key then writes nothing; NornicDB cannot evaluate the clause, so the file is Neo4j-only; local run 9.1 s on a loaded shared host"
+    backends: neo4j
+  - file: go/internal/storage/cypher/search_key_scale_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "#7245 backfill and writer-overhead measurement on the 181,929-node infra label shape measured in the QA environment; skips unless ESHU_INFRA_SEARCH_KEY_SCALE=1, so the CI leg only compiles and skips it (0.0 s); timings are logged, never asserted"
+    backends: neo4j
+  - file: go/internal/query/infra/fulltext/differential_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "#7245 PR-2 seeded Neo4j differential: for 67 request bodies, unscoped and under a scoped grant, the full-text statement the real handler emits returns the same fixture rows as the legacy statement (key overflow, 8,000/8,001 code-point keys, case, Lucene specials, whitespace, unicode, U+001F, duplicate rows, multi-label, non-string fields, data_type fallback, :: equality, categories, kind filters, USES and MATCHES_STATE grants), and queries past fulltext.MaxQueryRunes keep the legacy statement; NornicDB has no infra_search_key_ft, so the file is Neo4j-only; local run 15.9 s"
+    backends: neo4j
+  - file: go/internal/query/infra/fulltext/readiness_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "#7245 PR-2 seeded Neo4j proof of the readiness probe: a CloudResource or KustomizeOverlay node a posture or base_refs writer creates with no searched field, and an overflow-marked node, do not hold readiness off, while an unkeyed node with any one of the twelve searched fields (string or not) does; CountUnkeyed still counts every flagless node; Neo4j-only; local run 2.9 s"
+    backends: neo4j
   - file: go/internal/storage/cypher/retrying_executor_live_test.go
     tag: ~
     class: scheduled
@@ -242,6 +262,11 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/code/reachability/loader_completed_index_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7929 disposable PostgreSQL 18 proof that the loader's per-run max(completed_at) probe serves from the acceptance-completed covering index and returns exactly the pre-#7547 oracle rows; enrolled in the live-postgres-readiness runner. Upper-bound timing: 7.3s cold including one-time schema bootstrap and the 200k-row fixture, on local postgres:18"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/code/reachability/loader_edges_scope_live_test.go
     tag: ~
     class: postgres_ci
@@ -257,20 +282,24 @@ tests:
     reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
   - file: go/internal/storage/postgres/container_image_identity_ack_attempt_fencing_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_ack_batch_exactness_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_ack_capability_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_ack_capability_reset_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_ack_fixed_schema_performance_live_test.go
     tag: perf5854_ack
     class: scheduled
@@ -285,8 +314,9 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/container_image_identity_ack_ordering_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_ack_performance_helpers_live_test.go
     tag: perf5854_ack
     class: scheduled
@@ -297,8 +327,9 @@ tests:
     reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
   - file: go/internal/storage/postgres/container_image_identity_claim_epoch_fencing_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_claim_fixed_schema_performance_live_test.go
     tag: perf5854_ack
     class: scheduled
@@ -309,8 +340,9 @@ tests:
     reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
   - file: go/internal/storage/postgres/container_image_identity_claim_latch_service_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_claim_legacy_performance_helpers_live_test.go
     tag: perf5854_ack
     class: scheduled
@@ -321,12 +353,15 @@ tests:
     reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
   - file: go/internal/storage/postgres/container_image_identity_claim_trigger_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_cloud_reopen_ordering_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: dedicated_ci
+    reason: "B-7 exact package and Go event proof; evidence in docs/internal/evidence/7533-golden-corpus-identity-proof.md"
+    runner: golden-corpus-identity
+
   - file: go/internal/storage/postgres/container_image_identity_cutover_backfill_live_test.go
     tag: ~
     class: scheduled
@@ -341,8 +376,9 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/container_image_identity_cutover_migration_rerun_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_cutover_work_item_lock_live_test.go
     tag: ~
     class: scheduled
@@ -364,16 +400,18 @@ tests:
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/container_image_identity_failure_fencing_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_held_support_postgres_live_test.go
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/container_image_identity_legacy_cleanup_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_marker_lock_performance_live_test.go
     tag: perf5854_ack
     class: scheduled
@@ -424,8 +462,9 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/content_file_secret_lines_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; disposable template0 database; 2 storage tests in 1 file, 40.885s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/content_file_secret_lines_writebench_live_test.go
     tag: ~
     class: scheduled
@@ -438,3 +477,13 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/manifest_less_dirty_rule_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8243 disposable PostgreSQL 18 proof of the narrowed manifest-less dirty rule: every lifecycle fixture that can still need a producer (pending, uncovered writer, the supersede-then-delta hole, rows without a marked full) stays in the real loader's producer set on all three manifest reads, only covered superseded or failed generations leave it, and the rule agrees with UncoveredProjectionWriters; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/manifest_less_dirty_rule_answer_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8243 disposable PostgreSQL 18 same-answer proof: the real loader returns the identical fact ids under the previous and the narrowed manifest-less rule while binding fewer producer scopes, and the rejected naive superseded rule loses the hole scope; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness

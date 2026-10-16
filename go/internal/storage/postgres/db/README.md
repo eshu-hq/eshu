@@ -56,6 +56,14 @@ transaction, or a raw connection.
   permit reservation with a live caller and completed partial cleanup. Callers
   may choose a separately fenced single-statement path; setup or query errors
   do not carry this marker.
+- `ErrSnapshotExportUnqualified` -- marks a snapshot set refused because the
+  PostgreSQL reader build is not qualified for shared-snapshot export (#7957).
+  It is raised before any transaction begins or any snapshot is exported, so
+  no business SQL runs: the pre-borrow check borrows nothing, and the
+  per-connection recheck releases the connections it fenced.
+  It is permanent until the operator upgrades or declares the build: callers
+  must not retry, fall back to a single statement, or open independent
+  snapshots. The query layer answers it as a non-retryable 503.
 - `ReadStore` -- combines cursor, row, and snapshot reads.
 - `SearchIndexTermCopyUnsupportedError` -- typed error a driver-capability
   check returns; satisfies `UnsupportedSearchIndexTermCopy() bool` for

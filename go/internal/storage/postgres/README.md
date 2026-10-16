@@ -66,6 +66,40 @@ in `internal/reducer`.
 High-signal invariants for this package:
 
 - Bootstrap DDL is idempotent and ordered through `BootstrapDefinitions`.
+- The schema Job applies only the numbered `migrations/*.sql`. Go DDL that a
+  store's `EnsureSchema` applies at runtime (webhook-listener,
+  workflow-coordinator) must never be the only place schema exists.
+  `TestDDLMigrationParity` (`ddl_migration_parity_test.go`, #7792) scans
+  non-test Go string literals under `internal/storage/postgres` and `cmd`
+  and fails when Go DDL declares a column, index name, named constraint
+  (table-level or inline on a column), trigger, function, sequence, view,
+  materialized view, procedure, type, domain, or table that no migration
+  declares under the same name and kind. It fails on Postgres DDL it cannot
+  read (fmt verb, a name joined on at runtime, or an ALTER TABLE action
+  outside `ddlAlterForms`) unless `ddlParityDynamicDDL` lists it, and on
+  allowlist entries that match nothing. Every `ALTER INDEX`,
+  `ALTER SEQUENCE`, `ALTER TYPE`, `ALTER DOMAIN`, and
+  `ALTER [MATERIALIZED] VIEW` counts as unreadable, because none is
+  compared. It does not read any other statement kind (`CREATE EXTENSION`,
+  `CREATE SCHEMA`, `CREATE POLICY`, `ALTER FUNCTION`, `DROP`, `GRANT`, and
+  so on). It parses `ALTER COLUMN` but does not compare it or any
+  definition (types, defaults, index columns, constraint, trigger,
+  function, view, and type bodies), so a readable name followed by a
+  definition joined on at runtime passes. It misses a trailing clause kept
+  in a separate constant or `strings.Join` element after a first literal
+  that is complete on its own. It does not apply a later `DROP` or
+  `RENAME` in the migrations: a dropped name still counts as declared, and
+  Go DDL that uses a renamed column, table, or constraint fails until a
+  migration states the new name. It keeps the first site of each index
+  name, so a second Go declaration of that name on another table is not
+  compared. Name-only comparison also collapses function schemas and
+  overloads to one name and reports a Go
+  `ADD CONSTRAINT <table>_pkey` against a migration's unnamed `PRIMARY KEY`
+  as a gap no allowlist can exempt; name the constraint in the migration.
+  A constraint keyword counts only with the token its grammar needs next
+  (`CHECK (`, `PRIMARY KEY (`, `EXCLUDE USING`, `NOT NULL <column>`, and so
+  on). `EXCLUDE` is not reserved, so a column named `exclude` is read as a
+  column in CREATE TABLE and in ALTER TABLE, including a bare `ADD exclude`.
 - Cold-bootstrap content search indexing has a separate durable lifecycle in
   `content_substring_index_state`. Deferred schema creates the content tables
   without the four exact trigram GINs for file content, file relative path,
@@ -112,6 +146,22 @@ High-signal invariants for this package:
   terminal same-scope generations, activating the target generation, updating
   the scope pointer, and marking work succeeded. A superseded generation is terminal (#7130): Claim sweeps,
   Heartbeat stops and Ack refuses it; see `docs/internal/evidence/7130-ack-superseded-generation-guard.md`. Every supersede of a work row (four projector writers and the reducer inactive-generation sweep) keeps `failure_class` and `failure_message` as the supersede marker and folds the old row's failure into `failure_details.prior_failure` through the `priorFailureStaleSQL` and `priorFailureWorkSQL` constants (#7320; its `updated_at` is the old row's own, the claim or heartbeat time for a claimed or running row); see `docs/internal/evidence/7320-supersede-prior-failure.md`. The fold is a measured cost: about 7 to 8 microseconds, 986 bytes of WAL and 0.14 heap pages per superseded row that carries 800 bytes of details, paid once per row. #7319: Ack also runs `deltaBaselineFenceQuery` as its own statement after the scope-row lock and the work update, and refuses a delta whose `delta_baseline_commit_sha` is not the active commit (rollback, then `markProjectorDeltaBaselineRefusedQuery`); `ReadDeltaBaseline`/`RefuseDeltaBaseline` serve the preflight; see `docs/internal/evidence/7319-delta-baseline-fence.md`. #7389: `MarkProjectionWriteStarted` sets `scope_generations.projection_write_started_at` to the latest write start, also on a replayed `failed` generation (migration 149; migration 150 sets fillfactor 90 so the update is HOT), and the heartbeat supersede carries its whole predicate on the `locked_generation` CTE (`FOR NO KEY UPDATE OF generation SKIP LOCKED`) so a committed marker is seen by the EvalPlanQual recheck; `IngestionStore.UncoveredProjectionWriters` feeds the collector's `graph_dirty` full snapshot; see `docs/internal/evidence/7389-superseded-writer-overlay.md`. #7469: the claim sweep's first branch and Ack's obsolete-generation supersede spare a generation that started writing (`projection_write_started_at IS NULL`), and the oldest-ready subquery holds a newer row behind an older same-scope marked generation with waiting (`pending`, `retrying`) work, reading both the snapshot and the sweep's lock-time `marker_spared` flag, so the marked retry runs first; terminal marked rows never hold (they heal through `graph_dirty`); see `docs/internal/evidence/7469-marked-supersede-guard.md`. #7473: the claim sweep's first branch spares a full generation (`is_delta` false) unless a newer full exists, and the oldest-ready subquery holds a newer delta behind an older same-scope full with waiting (`pending`, `retrying`) work, so the full projects first; terminal fulls never hold; Ack's obsolete-generation supersede deliberately stays full-blind as the misordering backstop; see `docs/internal/evidence/7473-full-survives-delta.md`.
+- #7127 PR-3b (dark): with `ProjectorQueue.ChangedSinceJournalEnabled` (the
+  ingester and bootstrap-index set it from `ESHU_CHANGED_SINCE_LINK_ENABLED`)
+  Ack also journals the activation into `changed_since_activations`
+  (`source = 'ack'`) in its own transaction. The active supersede gains
+  `RETURNING generation_id` (exactly one row is the prior, otherwise NULL)
+  and the activate statement becomes one CTE that also inserts the row,
+  only while it holds the shared side of the journal pass's try-only key
+  (`linksfreshnessstore.AckJournalGateSQL`); a missed gate writes nothing and
+  does not wait. Both statements are derived from the shipped ones; off, Ack
+  sends exactly the statements it sent before. Nothing reads the ledger yet.
+  Each committed flag-on Ack counts `eshu_dp_changed_since_ack_journal_total`
+  by `outcome` (`journaled`, `exists`, `gate_skipped`); a gate skip also logs
+  INFO with `scope_id` and `generation_id`, sampled: the first skip in the
+  process, then at most one a minute, with `gate_skipped_since_last_log`.
+  See `freshness/links/README.md` ("Ack writer") and
+  `docs/internal/evidence/7127-changed-since-ack-journal.md`.
 - Generation liveness reopens `source_local` only for blockage that replay can
   advance. Exact cross-repository `repo_dependency` source runs stay owned by
   the shared resolver before and after backward evidence commits; the stuck-age
@@ -546,6 +596,15 @@ Primary groups:
 - Generation retention store for bounded superseded-generation cleanup,
   hashed retention events, changed-since expiry proof, identity-safe content
   pruning, and the pruned generations' changed-since ledger rows (#7127).
+  Each pass first pre-deletes its candidates' `eshu_search_index_terms` and
+  `eshu_search_index_documents` rows in committed 20,000-row batches through
+  `search/index/retention` (#7427), bounded by
+  `GenerationRetentionPolicy.SearchIndexPredeleteRowCap` (default 2,000,000)
+  and `SearchIndexPredeleteDeadline`, and admits to its prune only drained
+  generations whose advisory lock (class 7427) it takes; the rest are skipped
+  as `search_index_undrained` or `advisory_lock_busy`. The FK cascade still
+  runs under the scope lock (foreign keys unchanged), now over an empty
+  search index.
 - Service-scoped incident evidence loader for the incidents service-evidence
   family. It resolves PagerDuty provider service ids to catalog service ids
   through active exact/derived reducer correlation facts and fails closed for
@@ -629,6 +688,13 @@ Primary groups:
 - `awsstore.AWSPaginationCheckpointStore` records AWS checkpoint load, save,
   resume, expiry, and failure events through
   `eshu_dp_aws_pagination_checkpoint_events_total`.
+- `PostgresAWSCloudRuntimeDriftEvidenceLoader` labels its two reads on the
+  `postgres.query` span as `db.query.summary=aws_runtime_drift_resources` and
+  `db.query.summary=aws_runtime_drift_active_state_by_arn`, so a slow
+  `reducer.aws_runtime_drift_evidence_load` span names the statement that held
+  it (#7666). The state join probes
+  `fact_records_terraform_state_resource_arn_idx` (migration 180) once per AWS
+  ARN; see `docs/internal/evidence/7666-aws-drift-arn-index.md`.
 - `PostgresAWSCloudRuntimeDriftEvidenceLoader` logs malformed AWS runtime
   resource rows with `resource.fingerprint`, `resource.identity_kind`, and
   `resource.type`; it does not put raw ARNs, Terraform addresses, or
@@ -893,6 +959,41 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 - Dead-letter items accumulate in `fact_work_items` when `attempt_count >=
   MaxAttempts`; use `RecoveryStore` to replay after investigating
   `failure_class`.
+- An unbounded `ReplayFailedWorkItems` (no `Limit`) locks its rows first in
+  `work_item_id COLLATE "C"` order (`locked` CTE, `FOR NO KEY UPDATE`), the
+  order of `AckBatch`, the own-gate wake and the admin replay, then updates
+  them by primary key (#8205). Before this, two overlapping replays locked
+  rows in index-scan order and Postgres aborted one with 40P01. A bounded
+  replay (`Limit > 0`) still uses `SKIP LOCKED` and never waits. The reducer
+  claim-time supersede sweep (`supersedeInactiveReducerGenerationsCTE`, in both
+  `claimReducerWorkQuery` and `claimReducerWorkBatchQuery`) takes the same
+  order: its `superseded_stale_reducer_locked` step applies the whole sweep
+  predicate (generation guard and readiness gate) with `FOR NO KEY UPDATE OF
+  stale`, and the UPDATE touches only those ids. It blocks and never skips, so
+  no inactive-generation row escapes the sweep. A replay that fails with
+  40P01 returns the error to its caller (HTTP 422 from the runtime recovery
+  route, 500 from the admin replay); rerun it. A claim error ends the reducer
+  service's run. Keep the sort, both status checks and the blocking lock step,
+  and rerun the `TestRecoveryReplay*`, `TestReducerClaimSweep*` and admin
+  `*Replay*` proofs after any edit to these statements. See
+  `docs/internal/evidence/8205-replay-lock-order.md`.
+- A `*_producer_dead_lettered` or `*_producer_missing` dead letter on
+  `deployable_unit_correlation` or `workload_materialization` means the scope
+  generation's `deployment_mapping` item is dead-lettered or absent (#7597).
+  Replay or re-enqueue that producer first. If the scope's relationship
+  generation is already active and the consumer is still dead-lettered (a
+  replay held the row and rolled back, or the Fail-side check logged an
+  error), replay the consumer by `failure_class`. Every
+  relationship-generation activation (`RelationshipStore`
+  `activateWithConsumerWake`) reopens those consumers of the same
+  `(scope_id, generation_id)` in the activation transaction and logs INFO
+  `relationship generation activation reopened own-gate consumers`
+  (`woken_consumers`). A consumer whose final Fail lands after the activation
+  is reopened at once by its own post-dead-letter check (INFO `own-gate dead
+  letter reopened: relationship generation already active`). Both count on
+  `eshu_dp_reducer_own_gate_wake_total{site, outcome}`. Operator replays
+  do not stamp `reopened_at`; only the wake does. See
+  `docs/internal/evidence/7597-own-gate-producer-terminal.md`.
 - `ErrProjectorClaimRejected` or `ErrReducerClaimRejected` in logs means a
   heartbeat or ack arrived after lease expiry; the original worker must stop and
   not retry the ack.
@@ -915,6 +1016,24 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 
 No-regression and observability proof for this retry class lives in
 [`evidence-notes.md`](evidence-notes.md#reducer-endpoint-readiness-retry-1391).
+
+- The package-consumption sidecar backfill
+  (`package_manifest_consumption_backfill.go`) rebuilds each scope through
+  `consumption.Rebuilder`. A short start transaction clears the scope's
+  sidecar rows and fences it dirty. Then one transaction per 500-fact page
+  re-derives the keys, and the last page clears the dirty row only when its
+  `xmin` is unchanged. Each transaction holds the scope row `FOR NO KEY
+  UPDATE`, so foreign-key inserts for the scope never wait, and a lock wait
+  over 5 s fails the pass with SQLSTATE 55P03 so the scope retries on the next
+  pass. Per-scope `package_manifest_consumption_keys.backfill.progress` and
+  `.scope_failed` log lines carry pages, facts, transactions, the longest
+  transaction, and scope-row lock wait.
+  `eshu_dp_package_manifest_backfill_page_duration_seconds`,
+  `eshu_dp_package_manifest_backfill_scope_lock_wait_seconds`, and
+  `eshu_dp_package_manifest_backfill_scope_rebuilds_total` carry the same
+  signals as metrics. Migration 181's partial index keeps every page an
+  ordered index range scan. Evidence:
+  `docs/internal/evidence/7663-backfill-page-lock.md`.
 
 ## Extension points
 
@@ -954,6 +1073,22 @@ lock timeout now fails the schema bootstrap instead of letting startup wait
 indefinitely behind corpus reads.
 
 ## Gotchas / invariants
+
+Key sidecar deletes (#7420): every statement that deletes `fact_records`
+rows, directly or through the `scope_generations` cascade, either deletes
+only kinds that own no key sidecar rows or first deletes the three key
+sidecars (`relationship_reference_candidate_keys`,
+`package_manifest_consumption_keys`, `package_registry_identity_keys`)
+explicitly, in that order, keyed by `(scope_id, generation_id)` and, on the
+over-limit chunk path, the page's fact ids
+(`facts/keys`, migrations 182 and 183 for the package
+key partition indexes). `TestFactRecordDeleteSitesAreKeySidecarSafe` fails
+on an unclassified or unpaired fact delete. Retention refuses the cycle with
+`ErrGenerationRetentionKeyIndexUnavailable` when a partition index is missing,
+invalid or misshapen, as for the #7279 key indexes. This is the prerequisite for
+dropping the per-fact foreign keys, whose one-trigger-per-fact cascade
+dominates a large generation prune. Evidence:
+`docs/internal/evidence/7420-key-sidecar-explicit-deletes.md`.
 
 Detailed query, queue, fact-readback, runtime, and fencing invariants live in
 [`gotchas-and-invariants.md`](gotchas-and-invariants.md). Keep that companion
@@ -1586,7 +1721,10 @@ The contract the fan-in provides:
 
 Operators see `deferred_backfill_fanin_completed partitions=N published=P
 skipped=S duration_s=D workers=W` once per pass. `skipped=S` counts partitions
-whose generation advanced under the fan-in; the absence of the line after a
+whose generation advanced under the fan-in, plus, on the whole pass, the
+partitions left untouched because the pass did not change them (#8082; the
+`deferred_backfill_fanin_unchanged_checked` line gives that part, see
+`backfill/README.md`). The absence of the line after a
 batch phase means the fan-in never ran, which is distinguishable from a fan-in
 that ran and published nothing (`published=0`).
 

@@ -145,6 +145,19 @@ func (l *repoRetryLive) writerShapes() map[string]*cypher.CanonicalNodeWriter {
 	return l.instrumentedWriterShapes(nil)
 }
 
+// backendWriter applies the production writer configuration for the live
+// backend under test. Non-Neo4j backends select the bare path-conflict
+// retirement shape, exactly as the production NornicDB wirings do: the
+// attributed shape's OPTIONAL MATCH + WITH collect composition drops its id
+// guard on NornicDB and deletes the live node in steady state (#8173). An
+// untuned writer on NornicDB is not a production configuration.
+func (l *repoRetryLive) backendWriter(writer *cypher.CanonicalNodeWriter) *cypher.CanonicalNodeWriter {
+	if l.backend != "neo4j" {
+		writer = writer.WithBareRepositoryRetirement()
+	}
+	return writer
+}
+
 // instrumentedWriterShapes is writerShapes with the writer's telemetry
 // instruments wired, so a test can read the writer's own counters (#7324).
 func (l *repoRetryLive) instrumentedWriterShapes(instruments *telemetry.Instruments) map[string]*cypher.CanonicalNodeWriter {
@@ -164,8 +177,8 @@ func (l *repoRetryLive) instrumentedWriterShapes(instruments *telemetry.Instrume
 		phaseWriter = storagenornicdb.ConfigureCanonicalWriter(phaseWriter, storagenornicdb.DefaultWriterConfig())
 	}
 	return map[string]*cypher.CanonicalNodeWriter{
-		"atomic_group": cypher.NewCanonicalNodeWriter(l.exec, 500, instruments),
-		"phase_group":  phaseWriter,
+		"atomic_group": l.backendWriter(cypher.NewCanonicalNodeWriter(l.exec, 500, instruments)),
+		"phase_group":  l.backendWriter(phaseWriter),
 	}
 }
 

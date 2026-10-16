@@ -51,6 +51,7 @@ func benchmarkFleetAccess(b *testing.B) (*Access, context.Context) {
 	cfg.ReadMaxOpenConns = 8
 	cfg.ReadMaxIdleConns = 8
 	cfg.ReplayTimeout = 2 * time.Second
+	declareFixtureSnapshotExport(b, &cfg)
 	access, err := Open(context.Background(), cfg, nil)
 	if err != nil {
 		b.Fatal(err)

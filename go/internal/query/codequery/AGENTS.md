@@ -123,3 +123,14 @@ cd go && go test ./internal/queryplan/ -count=1
 git diff --check
 gofmt -l <touched files, repo-relative>
 ```
+
+## find_code rank walk (#7746)
+
+- `handleRankWalk` (`rank_walk.go`) MUST pick its lane through
+  `selectCodeSearchLane`, the same graph-first choice an offset request
+  makes (fork-6 ruling). Never force a lane: the cursor records the lane, and
+  a lane change between pages must surface as 409 `basis_changed`.
+- A `rank_cursor` request never falls back to an offset page: every refusal
+  goes through `rank.Answer` with a `rank.Reason*` constant.
+- Keep walk logic in `rank_walk.go` or the generic
+  `go/internal/query/search/rank`, not in `handler.go`.

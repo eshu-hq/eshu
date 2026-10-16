@@ -72,6 +72,26 @@ same `WriteSuccess`/`WriteError` envelopes (now via `querycontract`) under
 the unchanged `code_search.content_search` capability and
 `content_index` truth basis, so existing dashboards are unaffected.
 
+`ContentHybridRanker` emits one `query.hybrid_rerank` stage span per re-rank
+pass that reaches the ranking work (#7746), through
+`tracing.StartHybridRerankSpan`. It carries `search.rerank.tool`
+(`search_entity_content` or `search_file_content`), `search.rerank.rows`, and
+`search.rerank.applied`.
+
+## Rank walk (`rank_walk.go`, #7746)
+
+A `search_entity_content` request with `rank_cursor` reads the first 200
+lexical rows of one named repository, scores the whole window through
+`EntityWindowScorer` (implemented by `ContentHybridRanker`), and pages it with
+`search/rank`. The response carries a `rank_walk` block; rows carry
+`search_backend=hybrid` when scored and never `page_position`. The lane is
+always `content`; the order is `hybrid`, or `lexical` when no window row
+could be scored. The walk records
+`eshu_dp_query_rank_cursor_total{tool,outcome,reason}` and the
+`search.rank_cursor.*` request-span attributes, and the scoring pass emits a
+`query.hybrid_rerank` span with `search.rerank.rows` equal to the window size.
+`search_file_content` refuses `rank_cursor` with a typed 400.
+
 ## Selector errors
 
 The file read, file lines, and file/entity search routes answer a

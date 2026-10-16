@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/auth/session"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -153,12 +154,12 @@ func IssueSessionCookies(
 	}
 	sessionSecret, err := newSecret()
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to create local identity session")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, sessionCreateFailedMessage)
 		return SessionIssued{}, false
 	}
 	csrfSecret, err := newSecret()
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to create local identity session")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, sessionCreateFailedMessage)
 		return SessionIssued{}, false
 	}
 	idleExpiresAt := now.Add(idleTimeout)
@@ -195,7 +196,7 @@ func IssueSessionCookies(
 		AbsoluteExpiresAt:            absoluteExpiresAt,
 		UpdatedAt:                    now,
 	}); err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to create local identity session")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, sessionCreateFailedMessage)
 		return SessionIssued{}, false
 	}
 	session.WriteBrowserSessionCookies(w, r, cookieSecure, sessionSecret, csrfSecret, absoluteExpiresAt, int(absoluteTimeout.Seconds()))

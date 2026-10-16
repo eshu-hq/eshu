@@ -227,6 +227,41 @@ gates:
     ci_only_reason: ""
     hook_id: markdown-file-cap
 
+  - id: scripts-file-cap
+    name: scripts/ 500-line file cap
+    category: hygiene
+    layer: hygiene
+    purpose: "Fails when a tracked file under scripts/ exceeds the 500-line cap, or a pinned grandfather row grows (#8221)."
+    tier: pre-commit
+    blocking: true
+    triggers:
+      - "scripts/**"
+      - ".github/workflows/test.yml"
+      - ".pre-commit-config.yaml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - "scripts/verify-tooling-line-cap.sh"
+      - "scripts/test-verify-tooling-line-cap.sh"
+      - "scripts/lib/tooling-line-cap-*"
+      - "scripts/lib/test-verify-tooling-line-cap-*"
+    self_test_triggers:
+      - ".github/workflows/test.yml"
+      - "scripts/verify-tooling-line-cap.sh"
+      - "scripts/test-verify-tooling-line-cap.sh"
+      - "scripts/lib/tooling-line-cap-*"
+      - "scripts/lib/test-verify-tooling-line-cap-*"
+    local:
+      command: "bash scripts/verify-tooling-line-cap.sh --all"
+      pre_push: floor
+      test_command: "bash scripts/test-verify-tooling-line-cap.sh"
+    ci:
+      workflow: test.yml
+      job: "scripts-file-cap"
+    # Pure bash plus git and awk, like markdown-file-cap: no Go toolchain.
+    requirements: []
+    ci_only_reason: ""
+    hook_id: scripts-file-cap
+
   - id: package-docs
     name: Go package docs coverage
     category: hygiene

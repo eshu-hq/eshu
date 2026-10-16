@@ -1,9 +1,11 @@
 # Partition-Scoped Deferred Relationship Maintenance (#7584)
 
-Proof-branch note for the partition-scoped maintenance pass of #7584. The entry point
-`IngestionStore.RunDeferredRelationshipMaintenanceForPartitions`
-(`go/internal/storage/postgres/ingestion_targeted_maintenance.go`) runs deferred
-relationship maintenance for owed `(scope_id, generation_id)` partitions only.
+Proof-branch note for the partition-scoped maintenance pass of #7584. The
+`IngestionStore.RunDeferredRelationshipMaintenanceForPartitions` entry point
+in `go/internal/storage/postgres/ingestion_backfill_seam.go` delegates to
+`go/internal/storage/postgres/backfill/targeted/pass.go`. The pass runs
+deferred relationship maintenance for owed `(scope_id, generation_id)`
+partitions only.
 Its only production caller is the activation-obligation consumer
 (`go/internal/reducer/maintenance`) through `postgres.ActivationMaintainer`,
 which runs only when `ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED` is set.

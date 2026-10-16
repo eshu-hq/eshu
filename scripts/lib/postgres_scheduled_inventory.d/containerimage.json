@@ -1,0 +1,65 @@
+{
+  "go/internal/reducer/containerimage/container_image_identity_cutover_cache_postgres_live_test.go": {
+    "group": "containerimage",
+    "package": "github.com/eshu-hq/eshu/go/internal/reducer/containerimage",
+    "tests": [
+      "TestPostgresContainerImageIdentityCutoverCacheFollowsTransactionBoundaries",
+      "TestPostgresContainerImageIdentityCutoverCacheRechecksAlternatingKeys",
+      "TestPostgresContainerImageIdentityMarkerInvalidatesOpenTransactionCache"
+    ]
+  },
+  "go/internal/reducer/containerimage/container_image_identity_cutover_postgres_live_test.go": {
+    "group": "containerimage",
+    "package": "github.com/eshu-hq/eshu/go/internal/reducer/containerimage",
+    "tests": [
+      "TestPostgresContainerImageIdentityCutoverFenceKeepsOtherScopeConcurrent",
+      "TestPostgresContainerImageIdentityLegacyWriterFailsClosedAboveReadCommitted"
+    ]
+  },
+  "go/internal/reducer/containerimage/container_image_identity_held_cutover_postgres_live_test.go": {
+    "group": "containerimage",
+    "package": "github.com/eshu-hq/eshu/go/internal/reducer/containerimage",
+    "tests": [
+      "TestPostgresContainerImageIdentityHeldCanonicalStillCreatesCutover"
+    ]
+  },
+  "go/internal/reducer/containerimage/container_image_identity_unmapped_config_postgres_live_test.go": {
+    "group": "containerimage",
+    "package": "github.com/eshu-hq/eshu/go/internal/reducer/containerimage",
+    "tests": [
+      "TestPostgresContainerImageIdentityHandlerKeepsUnmappedConfigWarningRepository"
+    ]
+  },
+  "go/internal/reducer/containerimage/container_image_identity_writer_atomic_multichunk_postgres_live_test.go": {
+    "group": "containerimage",
+    "package": "github.com/eshu-hq/eshu/go/internal/reducer/containerimage",
+    "tests": [
+      "TestPostgresContainerImageIdentityMultiChunkFailureRollsBackAndRetryConverges",
+      "TestPostgresContainerImageIdentityMultiChunkWriterSerializesMatchingKeyAndCleansInterleavedLegacyWrite"
+    ]
+  },
+  "go/internal/reducer/containerimage/container_image_identity_writer_atomic_postgres_live_test.go": {
+    "group": "containerimage",
+    "package": "github.com/eshu-hq/eshu/go/internal/reducer/containerimage",
+    "tests": [
+      "TestPostgresContainerImageIdentityCompletedCutoverMultiChunkKeepsHeartbeatLive",
+      "TestPostgresContainerImageIdentityCompletedCutoverRejectsLaterLegacyWriter",
+      "TestPostgresContainerImageIdentityCompletedCutoverRejectsStaleClaimEpoch"
+    ]
+  },
+  "go/internal/reducer/containerimage/container_image_identity_writer_deadlock_postgres_live_test.go": {
+    "group": "containerimage",
+    "package": "github.com/eshu-hq/eshu/go/internal/reducer/containerimage",
+    "tests": [
+      "TestPostgresContainerImageIdentityFirstCutoverRetriesExistingLegacyUpsertWithoutDeadlock"
+    ]
+  },
+  "go/internal/reducer/containerimage/container_image_identity_writer_postgres_live_test.go": {
+    "group": "containerimage",
+    "package": "github.com/eshu-hq/eshu/go/internal/reducer/containerimage",
+    "tests": [
+      "TestPostgresContainerImageIdentityFactFenceSerializesOnlyMatchingLogicalKey",
+      "TestPostgresContainerImageIdentityTombstoneFencePreventsStaleResurrection"
+    ]
+  }
+}

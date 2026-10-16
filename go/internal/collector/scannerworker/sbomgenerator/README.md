@@ -149,7 +149,7 @@ iterations at `907289 ns/op`, `3187948 B/op`, and `294 allocs/op`.
 Reducer Path Evidence:
 `go test ./internal/reducer -run 'TestScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment' -count=1`
 proves the analyzer-emitted document and component facts feed
-`reducer.BuildSBOMAttestationAttachmentDecisions` and produce
+`sbomattest.BuildSBOMAttestationAttachmentDecisions` and produce
 `attached_parse_only` when a subject digest is present and
 `unknown_subject` when it is not. It also proves lockfile component evidence
 and malformed lockfile warning summaries flow through reducer attachment
@@ -158,7 +158,7 @@ without letting scanner workers short-circuit attachment truth.
 Reducer Path Evidence:
 `go test ./internal/reducer -run TestScannerWorkerGeneratedSBOMAggregatedWarningCountFlowsThroughReducerAttachment -count=1`
 proves aggregate `component_missing_identity` warning counts flow through
-`reducer.BuildSBOMAttestationAttachmentDecisions` into
+`sbomattest.BuildSBOMAttestationAttachmentDecisions` into
 `WarningSummaryCount` without expanding raw warning summaries.
 
 Observability Evidence: this package reuses `scanner_worker.*` claim metrics

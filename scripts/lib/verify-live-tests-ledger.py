@@ -18,8 +18,22 @@ import re
 import subprocess
 import sys
 
+from golden_corpus_identity import (
+    PROOFS as IDENTITY_PROOFS,
+    verify_inventory as verify_identity,
+    verify_routes as verify_identity_routes,
+)
 from live_tests_registry import load_ledger_text
 from live_postgres_migrations import MIGRATION_PATHS
+from reducer_contention_events import load_inventory, verify_inventory
+from ifa_scheduled_events import (
+    load_inventory as load_ifa_scheduled_inventory,
+    verify_inventory as verify_ifa_scheduled_inventory,
+)
+from postgres_scheduled_runner import (
+    load_inventory as load_scheduled_inventory,
+    verify_inventory as verify_scheduled_inventory,
+)
 
 if len(sys.argv) != 3:
     sys.exit(f"usage: {sys.argv[0]} <ledger_path> <repo_root>")
@@ -40,12 +54,22 @@ if not rows:
 seen_files = set()
 classes = {}
 legacy_scheduled = []
+contention_inventory = load_inventory()
+contention_paths = set(contention_inventory)
+contention_ledger_paths = set()
+scheduled_inventory = load_scheduled_inventory()
+scheduled_paths = set(scheduled_inventory)
+verified_scheduled_paths = set()
+ifa_scheduled_inventory = load_ifa_scheduled_inventory()
+ifa_scheduled_paths = set(ifa_scheduled_inventory)
+verified_ifa_scheduled_paths = set()
+identity_ledger_paths = set()
 for path, tag, cls, reason, runner, backends in rows:
     if path in seen_files:
         sys.exit(f"duplicate ledger row: {path}")
     seen_files.add(path)
     classes[path] = cls
-    if cls not in ("ci", "postgres_ci", "dedicated_ci", "scheduled", "retired"):
+    if cls not in ("ci", "postgres_ci", "dedicated_ci", "verified_scheduled", "scheduled", "retired"):
         sys.exit(f"invalid class {cls!r} for {path}")
     if cls == "postgres_ci":
         readiness = runner == "live-postgres-readiness" and tag.strip() == "~"
@@ -57,13 +81,34 @@ for path, tag, cls, reason, runner, backends in rows:
         if not (readiness or migration) or backends:
             sys.exit(f"PostgreSQL CI row needs its verified runner and tag: {path}")
     elif cls == "dedicated_ci":
-        if runner != "query-methodology":
+        if runner == "reducer-contention":
+            contention_ledger_paths.add(path)
+            if path not in contention_paths or tag.strip() != "~" or backends:
+                sys.exit(f"contention row needs an enrolled untagged PostgreSQL-only file: {path}")
+        elif runner == "golden-corpus-identity":
+            identity_ledger_paths.add(path)
+            if path not in IDENTITY_PROOFS or tag.strip() != "~" or backends:
+                sys.exit(f"B-7 identity row needs an enrolled untagged PostgreSQL-only file: {path}")
+        elif runner != "query-methodology":
             sys.exit(f"dedicated CI row needs its verified runner: {path}")
-        if path.endswith("methodology_postgres_live_test.go"):
+        elif path.endswith("methodology_postgres_live_test.go"):
             if backends:
                 sys.exit(f"PostgreSQL dedicated row cannot claim graph backends: {path}")
         elif backends != "neo4j":
             sys.exit(f"Neo4j dedicated row needs its truthful backend pin: {path}")
+    elif cls == "verified_scheduled":
+        if runner == "ifa-scheduled":
+            if (path not in ifa_scheduled_paths
+                    or tag.strip() != ifa_scheduled_inventory[path]["tag"]
+                    or backends != "nornicdb"):
+                sys.exit(f"Ifá scheduled row needs its exact runner, tag, and NornicDB backend: {path}")
+            verified_ifa_scheduled_paths.add(path)
+        else:
+            if runner != "postgres-scheduled" or tag.strip() != "~":
+                sys.exit(f"verified scheduled row needs its named runner and untagged file: {path}")
+            if backends:
+                sys.exit(f"verified scheduled row must be PostgreSQL-only: {path}")
+            verified_scheduled_paths.add(path)
     elif runner:
         sys.exit(f"unexpected runner {runner!r} for {cls} row: {path}")
     if cls == "scheduled":
@@ -95,6 +140,48 @@ for path, tag, cls, reason, runner, backends in rows:
         claimed = ""
     if claimed != actual:
         sys.exit(f"tag mismatch for {path}: ledger {tag!r} vs file {actual!r}")
+
+missing_contention = sorted(contention_paths - contention_ledger_paths)
+extra_contention = sorted(contention_ledger_paths - contention_paths)
+if missing_contention or extra_contention:
+    sys.exit(
+        "contention inventory/ledger mismatch: "
+        f"missing={missing_contention[:5]} extra={extra_contention[:5]}"
+    )
+try:
+    verify_inventory(Path(repo_root), contention_inventory)
+except (OSError, ValueError, re.error) as error:
+    sys.exit(f"reducer contention runner enrollment failed: {error}")
+if verified_scheduled_paths != scheduled_paths:
+    sys.exit(
+        "verified scheduled rows differ from exact inventory: "
+        f"missing={sorted(scheduled_paths - verified_scheduled_paths)}, "
+        f"extra={sorted(verified_scheduled_paths - scheduled_paths)}"
+    )
+try:
+    verify_scheduled_inventory(Path(repo_root), scheduled_inventory)
+except (OSError, ValueError, re.error) as error:
+    sys.exit(f"PostgreSQL scheduled runner enrollment failed: {error}")
+
+if verified_ifa_scheduled_paths != ifa_scheduled_paths:
+    sys.exit(
+        "Ifá scheduled rows differ from exact inventory: "
+        f"missing={sorted(ifa_scheduled_paths - verified_ifa_scheduled_paths)}, "
+        f"extra={sorted(verified_ifa_scheduled_paths - ifa_scheduled_paths)}"
+    )
+try:
+    verify_ifa_scheduled_inventory(Path(repo_root), ifa_scheduled_inventory)
+except (OSError, ValueError, re.error) as error:
+    sys.exit(f"Ifá scheduled runner enrollment failed: {error}")
+if identity_ledger_paths != set(IDENTITY_PROOFS):
+    sys.exit("B-7 identity inventory/ledger mismatch: "
+             f"missing={sorted(set(IDENTITY_PROOFS) - identity_ledger_paths)} "
+             f"extra={sorted(identity_ledger_paths - set(IDENTITY_PROOFS))}")
+try:
+    verify_identity(Path(repo_root))
+    verify_identity_routes(Path(repo_root))
+except (OSError, ValueError) as error:
+    sys.exit(f"B-7 identity runner enrollment failed: {error}")
 
 # The ledger itself lists the exact grandfathered paths. Bind that readable
 # inventory to a fixed digest so a newly scheduled row cannot inherit an

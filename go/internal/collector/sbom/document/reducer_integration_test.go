@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/sbom/document"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
 )
 
 // TestParserFeedsReducerAttachmentTruth proves the parser's emitted facts
@@ -22,43 +22,43 @@ func TestParserFeedsReducerAttachmentTruth(t *testing.T) {
 		name       string
 		fixture    string
 		parser     func(raw []byte, ctx document.FixtureContext) ([]parserEnvelopes, error)
-		wantStatus reducer.SBOMAttachmentStatus
+		wantStatus sbomattest.SBOMAttachmentStatus
 	}{
 		{
 			name:       "cyclonedx subject -> parse-only",
 			fixture:    "testdata/cyclonedx_image_subject.json",
 			parser:     cycloneDXParserAdapter,
-			wantStatus: reducer.SBOMAttachmentAttachedParseOnly,
+			wantStatus: sbomattest.SBOMAttachmentAttachedParseOnly,
 		},
 		{
 			name:       "spdx subject -> parse-only",
 			fixture:    "testdata/spdx_image_subject.json",
 			parser:     spdxParserAdapter,
-			wantStatus: reducer.SBOMAttachmentAttachedParseOnly,
+			wantStatus: sbomattest.SBOMAttachmentAttachedParseOnly,
 		},
 		{
 			name:       "cyclonedx missing subject -> unknown_subject",
 			fixture:    "testdata/cyclonedx_missing_subject.json",
 			parser:     cycloneDXParserAdapter,
-			wantStatus: reducer.SBOMAttachmentUnknownSubject,
+			wantStatus: sbomattest.SBOMAttachmentUnknownSubject,
 		},
 		{
 			name:       "spdx missing subject -> unknown_subject",
 			fixture:    "testdata/spdx_missing_subject.json",
 			parser:     spdxParserAdapter,
-			wantStatus: reducer.SBOMAttachmentUnknownSubject,
+			wantStatus: sbomattest.SBOMAttachmentUnknownSubject,
 		},
 		{
 			name:       "cyclonedx malformed -> unparseable",
 			fixture:    "testdata/cyclonedx_malformed.json",
 			parser:     cycloneDXParserAdapter,
-			wantStatus: reducer.SBOMAttachmentUnparseable,
+			wantStatus: sbomattest.SBOMAttachmentUnparseable,
 		},
 		{
 			name:       "spdx malformed -> unparseable",
 			fixture:    "testdata/spdx_malformed.json",
 			parser:     spdxParserAdapter,
-			wantStatus: reducer.SBOMAttachmentUnparseable,
+			wantStatus: sbomattest.SBOMAttachmentUnparseable,
 		},
 	}
 
@@ -76,7 +76,7 @@ func TestParserFeedsReducerAttachmentTruth(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parser error: %v", err)
 			}
-			decisions := reducer.BuildSBOMAttestationAttachmentDecisions(unwrap(adapter))
+			decisions := sbomattest.BuildSBOMAttestationAttachmentDecisions(unwrap(adapter))
 			if len(decisions) != 1 {
 				t.Fatalf("decisions = %d, want 1: %#v", len(decisions), decisions)
 			}

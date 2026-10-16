@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -239,7 +240,7 @@ func (h *Handler) handleLanguageQuery(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			h.logQueryFailure(r.Context(), "language_query.guard", req.Language, req.EntityType, err)
-			querycontract.WriteError(w, http.StatusInternalServerError, "language query failed")
+			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, languageQueryFailedMessage)
 			return
 		}
 
@@ -260,7 +261,7 @@ func (h *Handler) handleLanguageQuery(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			h.logQueryFailure(r.Context(), "language_query.graph_backed", req.Language, req.EntityType, err)
-			querycontract.WriteError(w, http.StatusInternalServerError, "language query failed")
+			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, languageQueryFailedMessage)
 			return
 		}
 
@@ -284,7 +285,7 @@ func (h *Handler) handleLanguageQuery(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			h.logQueryFailure(r.Context(), "language_query.graph_first_content_backed", req.Language, req.EntityType, err)
-			querycontract.WriteError(w, http.StatusInternalServerError, "language query failed")
+			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, languageQueryFailedMessage)
 			return
 		}
 
@@ -300,7 +301,7 @@ func (h *Handler) handleLanguageQuery(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			h.logQueryFailure(r.Context(), "language_query.content_backed", req.Language, req.EntityType, err)
-			querycontract.WriteError(w, http.StatusInternalServerError, "language query failed")
+			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, languageQueryFailedMessage)
 			return
 		}
 

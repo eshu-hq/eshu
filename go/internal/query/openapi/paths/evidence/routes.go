@@ -11,7 +11,7 @@ const Routes = `
       "get": {
         "tags": ["evidence"],
         "summary": "Get relationship evidence",
-        "description": "Dereferences a compact relationship evidence pointer from repository context by resolved_id and returns the durable Postgres evidence row, preview details, and source/target metadata. Scoped tokens always require the source repository to be attributable to a granted repository/ingestion scope. The target repository is required too UNLESS the relationship's verb has a shared/global target with no tenant attribution of its own (IMPORTS -> Module, RUNS_ON -> Platform, QUERIES_TABLE -> SqlTable, INVOKES_CLOUD_ACTION -> CloudAction; see relationshipVerbEntry.targetAttributable), in which case an in-grant source alone is sufficient. Otherwise the relationship is served as not_found, disclosing neither its existence nor either endpoint's identity.",
+        "description": "Dereferences a compact relationship evidence pointer from repository context by resolved_id and returns the durable Postgres evidence row, preview details, and source/target metadata. Scoped tokens always require the source repository to be attributable to a granted repository/ingestion scope. The target repository is required too UNLESS the relationship's verb has a shared/global target with no tenant attribution of its own (IMPORTS -> Module, RUNS_ON -> Platform, QUERIES_TABLE -> SqlTable, INVOKES_CLOUD_ACTION -> CloudAction; see relationshipVerbEntry.targetAttributable), in which case an in-grant source alone is sufficient. Otherwise the relationship is served as not_found, disclosing neither its existence nor either endpoint's identity. A 503 with Retry-After means a transient condition that is safe to retry: the relationship evidence read hit a stale or timed-out PostgreSQL reader; this route has no configuration 503, so every 503 it answers carries Retry-After. No 5xx body carries backend error text. A reader-verdict 503 names capability relationship_evidence.drilldown in its error envelope.",
         "operationId": "getRelationshipEvidence",
         "x-scoped-token-support": true,
         "parameters": [
@@ -58,6 +58,7 @@ const Routes = `
           "403": {"$ref": "#/components/responses/Forbidden"},
           "404": {"$ref": "#/components/responses/NotFound"},
           "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "501": {
             "description": "Postgres relationship read model is unavailable",
             "content": {
@@ -73,7 +74,7 @@ const Routes = `
       "get": {
         "tags": ["evidence"],
         "summary": "List correlation admission decisions",
-        "description": "Lists reducer-owned correlation admission decisions for one domain, scope, and generation. Rows explain admitted, rejected, ambiguous, stale, missing-evidence, permission-hidden, unsupported, and unsafe candidates before or beside canonical graph edges. The route is bounded, scoped-token safe, and returns source handles plus recommended next calls. local_lightweight returns unsupported_capability.",
+        "description": "Lists reducer-owned correlation admission decisions for one domain, scope, and generation. Rows explain admitted, rejected, ambiguous, stale, missing-evidence, permission-hidden, unsupported, and unsafe candidates before or beside canonical graph edges. The route is bounded, scoped-token safe, and returns source handles plus recommended next calls. local_lightweight returns unsupported_capability. A 503 with Retry-After means a transient condition that is safe to retry: the admission decision read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state, such as a Postgres admission decision read model that is not configured on this API instance. No 5xx body carries backend error text. A graph or reader verdict 503 names capability admission_decisions.list in its error envelope.",
         "operationId": "listAdmissionDecisions",
         "x-scoped-token-support": true,
         "parameters": [
@@ -113,14 +114,7 @@ const Routes = `
           "403": {"$ref": "#/components/responses/Forbidden"},
           "501": {"$ref": "#/components/responses/UnsupportedCapability"},
           "500": {"$ref": "#/components/responses/InternalError"},
-          "503": {
-            "description": "Postgres admission decision read model is unavailable",
-            "content": {
-              "application/json": {
-                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
-              }
-            }
-          }
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -128,7 +122,7 @@ const Routes = `
       "post": {
         "tags": ["evidence"],
         "summary": "Build evidence citation packet",
-        "description": "Hydrates bounded file and entity handles from story, investigation, search, or drilldown responses into ranked source, documentation, manifest, and deployment citations without graph traversal. Each citation carries the unified evidence contract (#3489): a confidence score, a byte-level citation (line range plus byte_offset/byte_length, content_hash, commit_sha), and typed provenance.",
+        "description": "Hydrates bounded file and entity handles from story, investigation, search, or drilldown responses into ranked source, documentation, manifest, and deployment citations without graph traversal. Each citation carries the unified evidence contract (#3489): a confidence score, a byte-level citation (line range plus byte_offset/byte_length, content_hash, commit_sha), and typed provenance. A 503 with Retry-After means a transient condition that is safe to retry: the file or entity content read hit a stale or timed-out PostgreSQL reader; this route has no configuration 503, so every 503 it answers carries Retry-After. No 5xx body carries backend error text. A reader-verdict 503 names capability evidence_citation.packet in its error envelope.",
         "operationId": "buildEvidenceCitationPacket",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -218,6 +212,7 @@ const Routes = `
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "501": {
             "description": "Postgres content store is unavailable",
             "content": {

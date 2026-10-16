@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package main //nolint:filelength // 503 lines: reducer service assembly; the #8211 handler-timeout wiring tipped it over the cap.
 
 import (
 	"context"
@@ -23,6 +23,7 @@ import (
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	producerreadiness "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/producer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -41,7 +42,7 @@ func buildReducerService(
 	logger *slog.Logger,
 	identityCache *postgres.IdentityEpochCache,
 ) (reducer.Service, error) {
-	graphBackend, err := runtimecfg.LoadGraphBackend(getenv)
+	graphBackend, searchKey, err := loadReducerGraphBackend(getenv)
 	if err != nil {
 		return reducer.Service{}, err
 	}
@@ -93,15 +94,13 @@ func buildReducerService(
 
 	edgeWriterForHandlers := newHandlerEdgeWriter(neo4jExec, neo4jBatchSize(getenv), instruments, logger, inheritanceEdgeGroupBatchSize, sqlRelationshipEdgeGroupBatchSize)
 	edgeWriterForHandlers.SQLRelationshipSequentialWrites = graphBackend == runtimecfg.GraphBackendNornicDB
-	// #5007/#5062: owner-ledger and lock-only gates for the canonical node writers.
-	ownerGate, lockGate := newGraphOwnerGates(database, instruments)
-	graphWriters := newCanonicalGraphWriters(neo4jExec, graphReader, neo4jBatchSize(getenv), ownerGate, lockGate)
+	graphWriters := newReducerCanonicalGraphWriters(neo4jExec, graphReader, neo4jBatchSize(getenv), database, instruments, searchKey)
 	secretsIAMGraphWriter, err := secretsIAMGraphProjectionWriter(getenv, neo4jExec, neo4jBatchSize(getenv), logger)
 	if err != nil {
 		return reducer.Service{}, err
 	}
 	presence := newEndpointPresenceWirings(getenv, secretsIAMGraphWriter != nil, database)
-	relationshipStore := postgres.NewRelationshipStore(database)
+	relationshipStore := postgres.NewRelationshipStore(database).WithInstruments(instruments)
 	relationshipGenerationActive := postgres.NewRelationshipGenerationActiveLookup(relationshipStore)
 	// Corpus-wide fence for derivation that merges foreign resolved reads
 	// (workload materialization, deployable-unit correlation): those loaders
@@ -110,6 +109,8 @@ func buildReducerService(
 	resolutionsComplete := postgres.NewRelationshipGenerationsCompleteLookup(relationshipStore)
 	// Best-effort holder list for fence deferral errors (#6730).
 	incompleteScopes := postgres.NewRelationshipGenerationsIncompleteScopesLookup(relationshipStore)
+	// #7597: a closed own gate reads its deployment_mapping producer.
+	resolutionProducer := postgres.NewResolutionProducerLookup(database)
 	factStore := postgres.NewFactStore(database).WithInstruments(instruments)
 	if identityCache != nil {
 		factStore = postgres.NewFactStoreWithIdentityCache(database, identityCache).WithInstruments(instruments)
@@ -123,7 +124,7 @@ func buildReducerService(
 	graphProjectionRepairQueue := configureGraphProjectionRepairQueue(database, clk)
 	graphProjectionReadinessLookup := postgres.NewGraphProjectionReadinessLookup(database)
 	graphProjectionReadinessPrefetch := postgres.NewGraphProjectionReadinessPrefetch(database)
-	generationRetentionRunner := generationRetentionRunnerFor(database, generationRetentionCfg)
+	generationRetentionRunner := generationRetentionRunnerFor(database, generationRetentionCfg, logger)
 	if generationRetentionRunner != nil {
 		generationRetentionRunner.Instruments = instruments
 		generationRetentionRunner.Logger = logger
@@ -203,6 +204,21 @@ func buildReducerService(
 	if err != nil {
 		return reducer.Service{}, fmt.Errorf("load reducer claim domains: %w", err)
 	}
+	handlerTimeout, err := loadReducerHandlerTimeout(getenv)
+	if err != nil {
+		return reducer.Service{}, fmt.Errorf("load reducer handler timeout: %w", err)
+	}
+	handlerTimeoutOverrides, err := loadReducerHandlerTimeoutOverrides(getenv)
+	if err != nil {
+		return reducer.Service{}, fmt.Errorf("load reducer handler timeout overrides: %w", err)
+	}
+	if (handlerTimeout > 0 || len(handlerTimeoutOverrides) > 0) && logger != nil {
+		logger.Warn(
+			"reducer handler timeouts are recorded but not enforced yet",
+			"default", handlerTimeout.String(),
+			"overrides", len(handlerTimeoutOverrides),
+		)
+	}
 	if len(claimDomains) > 0 && logger != nil {
 		logger.Info(
 			"reducer claims restricted to domains",
@@ -221,6 +237,7 @@ func buildReducerService(
 			ResolutionActiveLookup:    relationshipGenerationActive,
 			ResolutionsCompleteLookup: resolutionsComplete,
 			IncompleteScopesLookup:    incompleteScopes,
+			ResolutionProducerLookup:  resolutionProducer,
 			CanonicalQuiescence:       postgres.NewReducerGraphDrain(database),
 			Logger:                    logger,
 		},
@@ -231,6 +248,7 @@ func buildReducerService(
 			ResolutionActiveLookup:    relationshipGenerationActive,
 			ResolutionsCompleteLookup: resolutionsComplete,
 			IncompleteScopesLookup:    incompleteScopes,
+			ResolutionProducerLookup:  resolutionProducer,
 		},
 		WorkloadDependencyLookup:           neo4jWorkloadDependencyLookup{reader: graphReader},
 		InstanceRetractionLookup:           neo4jWorkloadInstanceRetractionLookup{reader: graphReader},
@@ -350,6 +368,9 @@ func buildReducerService(
 		// ServiceMaterializationWriter so the runtime family stays additive; it
 		// anchors on workload_instance_repo_id, once per correlation intent.
 		ServiceRuntimeInstanceLoader: reducer.GraphServiceRuntimeInstanceLoader{Graph: graphReader},
+		// ServiceRuntimeProducerReadiness fences that read on in-flight
+		// workload_materialization work at each repository's active generation (#7816).
+		ServiceRuntimeProducerReadiness: producerreadiness.Store{DB: database},
 		// ServiceVulnerabilityAdvisoryLoader sources the vulnerabilities evidence
 		// family (#1990, #2127) from active reducer_supply_chain_impact_finding facts
 		// on each correlated service's repository (repository_id-scoped, additive).
@@ -392,6 +413,8 @@ func buildReducerService(
 		WorkSink:                   workQueue,
 		Heartbeater:                workQueue,
 		HeartbeatInterval:          reducerHeartbeatInterval,
+		HandlerTimeout:             handlerTimeout,
+		HandlerTimeoutOverrides:    handlerTimeoutOverrides,
 		SharedProjectionEdgeWriter: edgeWriter,
 		SharedProjectionRunner: &reducer.SharedProjectionRunner{
 			IntentReader:        intentStore,
@@ -477,12 +500,13 @@ func buildReducerService(
 			LeaseOwner: defaultCrossScopeCompletionLeaseOwner(),
 			Logger:     logger,
 		},
-		QuarantineWriter: postgres.NewReducerInputInvalidFactStore(database),
-		Workers:          workers,
-		BatchClaimSize:   loadReducerBatchClaimSize(getenv, workers, graphBackend),
-		Tracer:           tracer,
-		Instruments:      instruments,
-		Logger:           logger,
+		QuarantineWriter:       postgres.NewReducerInputInvalidFactStore(database),
+		IsDeferredFailureClass: postgres.IsNonCountingReducerRetryFailureClass,
+		Workers:                workers,
+		BatchClaimSize:         loadReducerBatchClaimSize(getenv, workers, graphBackend),
+		Tracer:                 tracer,
+		Instruments:            instruments,
+		Logger:                 logger,
 	}, nil
 }
 

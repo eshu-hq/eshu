@@ -53,11 +53,10 @@ func TestGenerationRetentionLockSetMatchesEligibleScopesLive(t *testing.T) {
 	for rows.Next() {
 		var scopeID, generationID, scopeKind string
 		var supersededAt, observedAt time.Time
-		var uncovered bool
+		var uncovered, isDelta, deltaProtected bool
 		var sourceCommitSHA, freshnessHint string
-		var isDelta bool
 		if err := rows.Scan(&scopeID, &generationID, &scopeKind, &supersededAt, &observedAt, &uncovered,
-			&sourceCommitSHA, &isDelta, &freshnessHint); err != nil {
+			&sourceCommitSHA, &isDelta, &freshnessHint, &deltaProtected); err != nil {
 			_ = rows.Close()
 			t.Fatalf("scan candidate: %v", err)
 		}

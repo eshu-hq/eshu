@@ -382,8 +382,10 @@ func TestEnsureSchemaFulltextFallback(t *testing.T) {
 			fallbackCount++
 		}
 	}
-	if fallbackCount != len(schemaFulltextIndexes) {
-		t.Fatalf("fallback fulltext calls = %d, want %d", fallbackCount, len(schemaFulltextIndexes))
+	// EnsureSchema is the Neo4j dialect, which also creates the Neo4j-only
+	// #7245 infra_search_key_ft index.
+	if want := len(schemaFulltextIndexes) + len(neo4jInfraSearchKeyIndexes); fallbackCount != want {
+		t.Fatalf("fallback fulltext calls = %d, want %d", fallbackCount, want)
 	}
 }
 

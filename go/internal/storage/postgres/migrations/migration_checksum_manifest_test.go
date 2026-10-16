@@ -225,6 +225,14 @@ var migrationShippedChecksums = map[string]string{
 	"175_eshu_search_index_documents_bm25_posting_idx.sql":                   "db91a5836b145873d46eb21d839182971b5bca2584f0fd9eeee1cabdd70bcc4f",
 	"176_content_files_content_lower.sql":                                    "339ef82a041efb0db7ba973f4115b620b7a67ea9c8eaa490cf4ebb1d177ba06d",
 	"177_content_files_content_lower_trgm_index.sql":                         "726c1596f048f184811f10164ed3d46b9b68399502787fc66d0585d294bec27b",
+	"178_repository_selection_observations_gitlab_group.sql":                 "70ce8056bd1856d9b4a27a3772984802b2d99b805f8f7aaa09576b3b5b9cac5c",
+	"179_shared_projection_intents_acceptance_completed_idx.sql":             "1108819d30633e645bf7287534a2a6fc91400cf11ff8fabae8037a3dcc36cf16",
+	"180_fact_records_terraform_state_resource_arn_idx.sql":                  "0eb89b9d851fc731224c80b3fa8674fa722d3ef3a3ac7937d6bc6dd8952bb9e2",
+	"181_fact_records_package_manifest_consumption_backfill_idx.sql":         "d9ba71b20022cfb321d77181aa465754187bac17c5a1076d6432e562b25076f8",
+	"182_package_manifest_consumption_keys_partition_idx.sql":                "08b852822dae0555f3475966981c6a6aef64efdd3eb4d3823437ad72b62413d0",
+	"183_package_registry_identity_keys_partition_idx.sql":                   "dc784b6459fb47fc0dd7314a78147f73a69dfea5d66e863d5ea9a13ace4a7087",
+	"184_workflow_claims_failure_classification.sql":                         "cc8b7756dbc15bfd0d95c71b2f9fd8745606c1db714f16ba286ee5bfc3ecf3a2",
+	"185_workflow_work_items_failure_classification.sql":                     "7e1e00a2ea37f2d6c05617a1056ccd256d99c877ec24d108fa96896c8a020922",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

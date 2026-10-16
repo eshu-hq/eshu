@@ -9,7 +9,8 @@ Imports point strictly downward:
 
     reducer root  ->  family packages  ->  shared-core tiers  ->  contract
 
-This package is a family. It may import `reducer/contract`, `reducer/gpphase`,
+This package is a family. It may import `reducer/contract`,
+`reducer/crossscope`, `reducer/factload` (the #7597 own gate), `reducer/gpphase`,
 `reducer/payloadcore`, `reducer/sharedintent`, `internal/environment`,
 `internal/ghactionsref`, `internal/relationships`, `internal/telemetry` and
 `pkg/log`. It must **never** import the parent `internal/reducer` package,
@@ -105,3 +106,18 @@ test.
   This package sits one level deeper than the reducer root, and
   `cross_repo_source_tool_snapshot_test.go`'s golden-snapshot path needed a
   fourth `..` after the move.
+
+## The own gate (#7597)
+
+`own_gate.go` decides what a closed own-generation gate returns for
+`deployable_unit_correlation` and `workload_materialization`. Keep its
+producer read inside the branch that already defers (own generation inactive,
+candidates present, lookup wired). Keep `ProducerDeadLetteredError` and
+`ProducerMissingError` free of any `Unwrap` to the root deferral types, and
+keep their classes out of `nonCountingReducerRetryFailureClasses`
+(`TestDeliberatelyCountingClassesAreNeverEnrolled` pins it). Every class and
+consumer domain comes from `ownGateClassesByDomain`; the Postgres activation
+wake selects consumers by `ProducerDeadLetteredFailureClasses()` and
+`ProducerMissingFailureClasses()`, so add a consumer there only. A
+`relationship_generations` row that exists and is not active means
+re-resolution is in progress and must keep deferring without a bound.

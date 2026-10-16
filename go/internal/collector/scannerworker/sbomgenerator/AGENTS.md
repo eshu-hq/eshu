@@ -7,7 +7,7 @@
   image, or artifact target stay here.
 - Scanner workers emit source facts only. Do not add reducer finding facts,
   graph projection ownership, or attachment truth here. The
-  `reducer.BuildSBOMAttestationAttachmentDecisions` path is the only place
+  `sbomattest.BuildSBOMAttestationAttachmentDecisions` path is the only place
   that admits scanner-generated documents.
 - Always emit at least one source or warning fact per completed claim. The
   analyzer guarantees a document fact plus a `no_components_found` warning

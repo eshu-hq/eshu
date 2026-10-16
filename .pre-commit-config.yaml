@@ -197,6 +197,17 @@ repos:
         files: '^((go|docs)/.*\.md|scripts/(test-)?verify-markdown-line-cap\.sh|scripts/lib/(test-verify-)?markdown-line-cap-.*)$'
         pass_filenames: true
 
+      # Same shape as markdown-file-cap: `files:` rather than `types:` so an edit
+      # to the gate's own ledger or scripts fires it too. The script filters the
+      # paths it is handed to scripts/** and verifies the pinned ledger on every
+      # run, so a ledger-only commit is checked rather than exiting 0.
+      - id: scripts-file-cap
+        name: 500-line file cap (scripts/)
+        entry: scripts/verify-tooling-line-cap.sh --files
+        language: script
+        files: '^scripts/'
+        pass_filenames: true
+
       - id: go-package-docs
         name: Go package docs (doc.go/README.md/AGENTS.md)
         entry: scripts/verify-package-docs.sh

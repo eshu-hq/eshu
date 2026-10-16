@@ -84,6 +84,24 @@ jobs:
         run: |
           scripts/test-verify-markdown-line-cap.sh
           MARKDOWN_LINE_CAP_REQUIRE_BASE=1 scripts/verify-markdown-line-cap.sh --all
+  scripts-file-cap:
+    needs: queue-selection
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
+      - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'scripts-file-cap')) }}
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+      - name: Verify scripts/ file cap
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'scripts-file-cap')) }}
+        run: |
+          scripts/test-verify-tooling-line-cap.sh
+          TOOLING_LINE_CAP_REQUIRE_BASE=1 scripts/verify-tooling-line-cap.sh --all
   verify-contracts:
     needs: [queue-selection, changes]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}

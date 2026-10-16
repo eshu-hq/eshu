@@ -453,10 +453,10 @@ telemetry, Postgres, or graph setup begins.
 | ESHU_REPO_SHARD_COUNT | 1 | Deterministic repository shard count. Helm sets this from `ingester.replicas` when replicas are greater than one. |
 | ESHU_REPO_SHARD_INDEX | 0 | Deterministic zero-based repository shard index. Helm sets this from the StatefulSet pod ordinal when replicas are greater than one. |
 | ESHU_PPROF_ADDR | unset (disabled) | Opt-in `net/http/pprof` endpoint via `runtime.NewPprofServer`; port-only inputs bind to `127.0.0.1` |
+| ESHU_CHANGED_SINCE_LINK_ENABLED | false | Dark (#7127 PR-3b): the projector Ack journals each activation it commits into `changed_since_activations` (`source = 'ack'`), gated on the shared side of the reducer journal pass's try-only key so it never waits; off, Ack sends no ledger SQL. Same switch and parse as the reducer's link runner (`linksfreshnessstore.Enabled`). Nothing reads the ledger yet; do not enable it on the ingester in any environment, the QA environment in dark mode included, until the #7401 built-binary run passes. |
 
-Per-label NornicDB tuning knobs (ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES,
-ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS, and the file/function/struct
-batch overrides) are documented in `docs/public/reference/nornicdb-tuning.md`.
+Per-label NornicDB tuning knobs (ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES, ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS,
+and the file/function/struct batch overrides) are documented in `docs/public/reference/nornicdb-tuning.md`.
 
 ## Dependencies
 

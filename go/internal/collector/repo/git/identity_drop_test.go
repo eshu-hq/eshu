@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -146,6 +147,34 @@ func TestStreamDropMarksTheGeneration(t *testing.T) {
 				t.Errorf("log %q lacks the relative path %s", logs.String(), cell.path)
 			}
 		})
+	}
+}
+
+// TestStreamDropRecordsTheDroppedPaths (#8185): when the fact stream skips
+// files it cannot read, the generation records their repository-relative
+// paths next to the drop flag, so the store can persist them and the next
+// skip can verify they still fail. The record is sorted and deduplicated.
+func TestStreamDropRecordsTheDroppedPaths(t *testing.T) {
+	repoRoot := t.TempDir() // no file exists on disk: every body read fails
+	snapshot := RepositorySnapshot{RepoPath: repoRoot, HeadCommitSHA: "c", PreparseIdentity: "preparse:v1:x"}
+	snapshot.ContentFileMetas = []model.ContentFileMeta{
+		{RelativePath: "b.py", Digest: "d", Language: "python", CommitSHA: "c"},
+		{RelativePath: "a.py", Digest: "d", Language: "python", CommitSHA: "c"},
+		{RelativePath: "a.py", Digest: "d", Language: "python", CommitSHA: "c"},
+	}
+	snapshot.WorkflowImageFileMetas = []model.ContentFileMeta{
+		{RelativePath: ".github/workflows/ci.yml", Digest: "d", CommitSHA: "c"},
+	}
+	source, _, _ := dropRecordingSource(t)
+	collected := buildStreamingGenerationWithContext(source.withStreamDropRecorder(context.Background()),
+		repoRoot, testCollectorRepositoryMetadata(repoRoot), "run", time.Now().UTC(), snapshot, false, "")
+	drainFactChannel(collected.Facts)
+	if collected.Generation.PreparseIdentityDroppedPaths == nil {
+		t.Fatal("PreparseIdentityDroppedPaths is nil after stream drops, want the dropped paths")
+	}
+	want := []string{".github/workflows/ci.yml", "a.py", "b.py"}
+	if got := collected.Generation.PreparseIdentityDroppedPaths.Sorted(); !slices.Equal(got, want) {
+		t.Fatalf("dropped paths = %q, want %q", got, want)
 	}
 }
 

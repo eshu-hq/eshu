@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+	linksfreshnessstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -72,6 +73,56 @@ SET status = 'active',
 WHERE scope_id = $2
   AND generation_id = $3
   AND status <> 'superseded'
+`
+
+// supersedeProjectorActiveGenerationReturningQuery is
+// supersedeProjectorActiveGenerationQuery plus the ids it superseded. Ack
+// sends it instead only with ChangedSinceJournalEnabled (#7127 PR-3b), to
+// name the prior of its 'ack' activation row: exactly one row is the prior,
+// none (a first activation) or several give a NULL prior, as the sweeper
+// writes. TestAckJournalStatementsDeriveFromShippedQueries pins the prefix.
+const supersedeProjectorActiveGenerationReturningQuery = supersedeProjectorActiveGenerationQuery + `RETURNING generation_id
+`
+
+// activateAndJournalProjectorGenerationQuery is activateProjectorGenerationQuery
+// folded into one statement with the 'ack' activation row of #7127 PR-3b; Ack
+// sends it instead only with ChangedSinceJournalEnabled. $4 is the prior (empty is
+// NULL).
+//
+//   - activated: the shipped activate statement, unchanged, with RETURNING.
+//     Zero rows means a superseded target: no lock is tried, no row written,
+//     and Ack takes its refusal path.
+//   - gate: AckJournalGateSQL, the shared side of the journal pass's
+//     try-only advisory key, evaluated once (MATERIALIZED) for the activated
+//     row. It never waits, and the pass, which takes the key exclusively,
+//     cannot run between this insert and the Ack's commit, so a pass can
+//     never give an older generation of the scope a higher activation_seq
+//     that commits first.
+//   - journaled: the activation row, only when the gate was acquired.
+//     activated_at is the generation's own activation time. The scope row
+//     the Ack already holds orders Acks of one scope; ON CONFLICT keeps a
+//     re-acked or already journaled generation's row unchanged.
+//
+// It returns one row: activated (0 or 1), journaled (0 or 1) and gated (the
+// gate was acquired). A missed gate writes nothing and the sweeper journals
+// the generation on a later pass. TestAckJournalStatementsDeriveFromShippedQueries
+// pins the prefix and the gate.
+const activateAndJournalProjectorGenerationQuery = `
+WITH activated AS (` + activateProjectorGenerationQuery + `RETURNING scope_id, generation_id, activated_at
+), gate AS MATERIALIZED (
+    SELECT ` + linksfreshnessstore.AckJournalGateSQL + ` AS acquired
+    FROM activated
+), journaled AS (
+    INSERT INTO changed_since_activations (scope_id, generation_id, prior_generation_id, source, activated_at)
+    SELECT activated.scope_id, activated.generation_id, NULLIF($4, ''), '` + linksfreshnessstore.SourceAck + `', activated.activated_at
+    FROM activated
+    JOIN gate ON gate.acquired
+    ON CONFLICT (scope_id, generation_id) DO NOTHING
+    RETURNING 1
+)
+SELECT (SELECT count(*) FROM activated) AS activated,
+       (SELECT count(*) FROM journaled) AS journaled,
+       COALESCE((SELECT bool_and(gate.acquired) FROM gate), FALSE) AS gated
 `
 
 const updateProjectorScopeGenerationQuery = `
@@ -323,12 +374,30 @@ const replaySkippedNoneCTE = `SELECT 0::bigint AS n`
 // replaySkippedNoneCTE). $1 is the replay timestamp; the predicate
 // placeholders start at $2.
 //
+// The locked CTE takes every row lock first, ordered by work_item_id COLLATE
+// "C" like the batch ack and the own-gate wake (#8205, #7597): this replay
+// waits on locks, and in index-scan order two overlapping replays took shared
+// rows in opposite orders (40P01). FOR NO KEY UPDATE is the UPDATE's own lock.
+// Both CTE and UPDATE recheck terminal status, which the EvalPlanQual recheck
+// of a waited lock re-reads on the newest row version, so a row another
+// transaction made pending or claimed is dropped, not reset twice. The UPDATE
+// reads the ids through = ANY(ARRAY(...)) to probe the primary key; IN (SELECT
+// ...) planned a scan of every terminal row. AS MATERIALIZED measured no plan
+// change. See docs/internal/evidence/8205-replay-lock-order.md.
+//
 // The result carries one skip count per row, and a replay that moved nothing
 // still returns one row with a NULL work_item_id, so the count commits or
 // fails together with the replay (#7130 review).
 const replayFailedWorkItemsTemplate = `
 WITH skipped AS (
     %[2]s
+), locked AS (
+    SELECT work_item_id
+    FROM fact_work_items
+    WHERE status IN ('dead_letter', 'failed')
+      %[1]s
+    ORDER BY work_item_id COLLATE "C"
+    FOR NO KEY UPDATE
 ), replayed AS (
     UPDATE fact_work_items
     SET status = 'pending',
@@ -349,8 +418,8 @@ WITH skipped AS (
         failure_message = NULL,
         failure_details = NULL,
         updated_at = $1
-    WHERE status IN ('dead_letter', 'failed')
-      %[1]s
+    WHERE work_item_id = ANY(ARRAY(SELECT work_item_id FROM locked))
+      AND status IN ('dead_letter', 'failed')
     RETURNING work_item_id
 )
 SELECT replayed.work_item_id, skipped.n

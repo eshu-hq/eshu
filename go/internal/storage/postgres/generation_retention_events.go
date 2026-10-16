@@ -73,17 +73,18 @@ ON CONFLICT (event_id) DO NOTHING
 
 // ErrGenerationRetentionKeyIndexUnavailable reports that a retention cycle was
 // refused because fact_records_content_entity_key_idx or
-// fact_records_file_key_idx (migrations 146 and 147) is missing, invalid, or
-// not the expected shape. The retention statements probe those indexes once per
-// candidate key; without them each probe scans fact_records while the batch
-// holds its scope locks (the #6809 cliff), so the store refuses rather than run
-// that shape. The cycle is retried on the runner's next poll.
+// fact_records_file_key_idx (migrations 146 and 147), or a key sidecar
+// partition index (#7420: migrations 058, 182, 183), is missing, invalid, or
+// not the expected shape. The retention statements probe those indexes per
+// candidate; without them each probe scans its table while the batch holds
+// its scope locks (the #6809 cliff), so the store refuses rather than run that
+// shape. The cycle is retried on the runner's next poll.
 var ErrGenerationRetentionKeyIndexUnavailable = errors.New("generation retention key index unavailable")
 
 // checkGenerationRetentionKeyIndexes returns an error wrapping
 // ErrGenerationRetentionKeyIndexUnavailable that names each unusable key index,
-// or nil when both are valid.
-func checkGenerationRetentionKeyIndexes(ctx context.Context, tx db.Transaction) error {
+// or nil when all are valid.
+func checkGenerationRetentionKeyIndexes(ctx context.Context, tx db.Queryer) error {
 	rows, err := tx.QueryContext(ctx, generationRetentionKeyIndexesQuery)
 	if err != nil {
 		return fmt.Errorf("generation retention: check key indexes: %w", err)
@@ -376,15 +377,15 @@ func generationRetentionRowsTotal(rows map[string]int64) int64 {
 // scanRetentionCandidates scans candidate rows from a query whose column
 // order matches the selection queries: scope id, generation id, scope kind,
 // superseded at, observed at, uncovered, then the #7981 same-identity triple
-// (source commit SHA, is_delta, freshness hint, already COALESCE'd to ”).
-// Six-column rows from older fixtures keep scanning with zero identity
-// values, which never match an identity group. The caller wraps the error
-// with its query context.
+// (source commit SHA, is_delta, freshness hint, already COALESCE'd to an
+// empty string), then delta_protected (#7802). Six-column rows from older
+// fixtures keep scanning with zero identity values, which never match an
+// identity group. The caller wraps the error with its query context.
 func scanRetentionCandidates(rows db.Rows) ([]generationRetentionCandidate, error) {
 	var candidates []generationRetentionCandidate
 	for rows.Next() {
 		var candidate generationRetentionCandidate
-		if err := rows.Scan(&candidate.scopeID, &candidate.generationID, &candidate.scopeKind, &candidate.supersededAt, &candidate.observedAt, &candidate.uncovered, &candidate.sourceCommitSHA, &candidate.isDelta, &candidate.freshnessHint); err != nil {
+		if err := rows.Scan(&candidate.scopeID, &candidate.generationID, &candidate.scopeKind, &candidate.supersededAt, &candidate.observedAt, &candidate.uncovered, &candidate.sourceCommitSHA, &candidate.isDelta, &candidate.freshnessHint, &candidate.deltaProtected); err != nil {
 			_ = rows.Close()
 			return nil, fmt.Errorf("generation retention: scan candidate: %w", err)
 		}
@@ -448,6 +449,9 @@ func mergeChunkProgress(
 	result.RowsPruned["content_file_references"] += chunk.referencesPruned
 	result.RowsPruned["content_entities"] += chunk.entitiesPruned
 	result.RowsPruned["infra_resource_entities"] += chunk.mirrorPruned
+	for table, rows := range chunk.factKeysPruned {
+		result.RowsPruned[table] += rows // #7420 key sidecars
+	}
 	result.Skipped[generationRetentionChunkedProgressSkippedReason]++
 	if age := now.Sub(target.supersededAt); age > result.OldestEligibleAge {
 		result.OldestEligibleAge = age

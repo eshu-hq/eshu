@@ -1,0 +1,51 @@
+{
+  "go/cmd/reducer/ifa_group_retry_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/cmd/reducer",
+    "tag": "ifafaultinjection",
+    "tests": [
+      "TestReducerGroupedRetrySeamLiveNornicDB"
+    ]
+  },
+  "go/internal/replay/offlinetier/repo_dependency_ifa_cleanup_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/replay/offlinetier",
+    "tag": "ifarepodependencyproof",
+    "tests": [
+      "TestRepoDependencyIfaCleanupPreservesUnrelatedArtifact"
+    ]
+  },
+  "go/internal/replay/offlinetier/repo_dependency_ifa_concurrency_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/replay/offlinetier",
+    "tag": "ifarepodependencyproof",
+    "tests": [
+      "TestRepoDependencyIfaConcurrencyLive"
+    ]
+  },
+  "go/internal/replay/offlinetier/repo_dependency_ifa_database_guard_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/replay/offlinetier",
+    "tag": "ifarepodependencyproof",
+    "tests": [
+      "TestRepoDependencyIfaProofCleansAmbiguousCommittedLock",
+      "TestRepoDependencyIfaProofRejectsMismatchedHTTPBackend",
+      "TestRepoDependencyIfaProofRejectsNonDisposableDatabase"
+    ]
+  },
+  "go/internal/replay/offlinetier/repo_dependency_ifa_process_death_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/replay/offlinetier",
+    "tag": "ifarepodependencyproof",
+    "tests": [
+      "TestRepoDependencyIfaProcessDeathLive"
+    ]
+  },
+  "go/internal/replay/offlinetier/repo_dependency_ifa_quarantine_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/replay/offlinetier",
+    "tag": "ifarepodependencyproof",
+    "tests": [
+      "TestRepoDependencyIfaQuarantineLive"
+    ]
+  },
+  "go/internal/replay/offlinetier/repo_dependency_ifa_replay_coordinates_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/replay/offlinetier",
+    "tag": "ifarepodependencyproof",
+    "tests": []
+  }
+}

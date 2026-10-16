@@ -30,6 +30,12 @@ const (
 	// interval, so a permanently-blocked backlog converges back to the
 	// configured cadence instead of retrying hot forever.
 	defaultGenerationRetentionSkippedRetryBaseInterval = time.Minute
+
+	// generationRetentionSearchIndexDeadlineDivisor sets the search index
+	// pre-delete's per-pass wall deadline (#7427) to a quarter of the poll
+	// interval when the policy sets none, so one pass's committed batches
+	// always end well before the next poll.
+	generationRetentionSearchIndexDeadlineDivisor = 4
 )
 
 // Policy bounds automated cleanup of superseded source
@@ -45,6 +51,10 @@ type Policy struct {
 	BatchRowLimit            int
 	PolicyScope              string
 	PolicyRevision           string
+	// SearchIndexPredeleteDeadline bounds the wall time of one pass's search
+	// index pre-delete batches (#7427). RunOnce sets a quarter of the poll
+	// interval when it is unset.
+	SearchIndexPredeleteDeadline time.Duration
 }
 
 // Result summarizes one bounded cleanup transaction.
@@ -76,6 +86,9 @@ type Result struct {
 	// full lock set; when the under-lock refit skips re-locked members,
 	// those stay held through the commit but uncounted here.
 	LockedScopeRows int
+	// SearchIndexBatches is the search index pre-delete batch transactions
+	// the pass committed before its prune transaction opened (#7427).
+	SearchIndexBatches int
 }
 
 // ErrKeyIndexUnavailable marks a cycle the pruner refused
@@ -180,7 +193,11 @@ func (r *Runner) RunOnce(ctx context.Context) (Result, error) {
 		return Result{}, err
 	}
 
-	result, err := r.Pruner.PruneSupersededGenerations(ctx, r.Config.Policy)
+	policy := r.Config.Policy
+	if policy.SearchIndexPredeleteDeadline <= 0 {
+		policy.SearchIndexPredeleteDeadline = r.Config.pollInterval() / generationRetentionSearchIndexDeadlineDivisor
+	}
+	result, err := r.Pruner.PruneSupersededGenerations(ctx, policy)
 	if err != nil {
 		return Result{}, fmt.Errorf("prune superseded generations: %w", err)
 	}
@@ -240,6 +257,9 @@ func (r *Runner) recordResult(ctx context.Context, result Result) {
 		if result.ScopeLockHold > 0 {
 			r.Instruments.GenerationRetentionScopeLockHold.Record(ctx, result.ScopeLockHold.Seconds())
 		}
+		if result.SearchIndexBatches > 0 {
+			r.Instruments.GenerationRetentionSearchIndexBatches.Record(ctx, int64(result.SearchIndexBatches))
+		}
 		for reason, count := range result.Skipped {
 			if count <= 0 {
 				continue
@@ -268,6 +288,8 @@ func (r *Runner) recordResult(ctx context.Context, result Result) {
 		slog.Int64("rows_over_batch_row_limit", result.RowsOverLimit),
 		// Scope rows the re-locked batch held: the pass's full lock set (#7334).
 		slog.Int("locked_scope_rows", result.LockedScopeRows),
+		// Search index pre-delete batches committed before the prune (#7427).
+		slog.Int("search_index_batches", result.SearchIndexBatches),
 		telemetry.PhaseAttr(telemetry.PhaseReduction),
 	)
 	if !maps.Equal(result.LedgerRowsPruned, result.LedgerRowsCounted) {

@@ -3,21 +3,25 @@
 
 package status
 
-// Admin is the OpenAPI path fragment documenting the 14 `/api/v0/admin/*`
+// Admin is the OpenAPI path fragment documenting the 15 `/api/v0/admin/*`
 // routes. openapi.Spec concatenates it into the published document; keep it in
-// lockstep with the handlers and docs/public/reference/http-api.md.
+// lockstep with the handlers and docs/public/reference/http-api.md. The
+// fifteenth admin route (reindex progress) lives in reindex_progress.go,
+// split out under the same file cap the compare.go precedent sets.
 const Admin = `
     "/api/v0/admin/refinalize": {
       "post": {
         "tags": ["admin"],
         "summary": "Refinalize scopes",
+        "description": "A 503 with Retry-After means the request checkpoint step failed, a transient condition that is safe to retry; a 503 without Retry-After means a configuration state: the recovery handler or the checkpoint source is not configured on this API instance. No 503 body carries backend error text.",
         "responses": {
           "200": {
             "description": "Refinalize request accepted. Alongside status, enqueued, scope_ids, and the five dedup counters it carries skipped_scopes, the scopes named in the request that were considered but not re-enqueued, by reason, delta_active_scopes, the re-enqueued scopes whose generation is a delta and whose graph stays incomplete until a full generation activates, and reindex_requests_written, the per-repository reindex watermarks written for them in the same transaction.",
             "content": {"application/json": {"schema": {"type": "object", "properties": {"skipped_scopes": {"$ref": "#/components/schemas/SkippedScopesReport"}, "delta_active_scopes": {"$ref": "#/components/schemas/DeltaActiveScopesReport"}, "reindex_requests_written": {"$ref": "#/components/schemas/ReindexRequestsWrittenReport"}}}}}
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -25,7 +29,7 @@ const Admin = `
       "post": {
         "tags": ["admin"],
         "summary": "Request a fleet-wide or per-repository reindex",
-        "description": "Records a reindex watermark, stamped by Postgres and never moved backward. With scope workspace (the default) it records the fleet watermark, returned as requested_at: on each sync cycle every git ingester shard forces a full re-parse (reconcile reason reindex_requested) of each repository it owns whose newest activated full generation was ingested before requested_at. With scope repository it resolves each repositories selector to exactly one git default-branch repository scope and records a watermark for each, returned per repository; the owning shard forces a full re-parse (reconcile reason repository_reindex_requested) and syncs requested repositories first. A repository-scoped request is all or nothing: any selector that matches no repository, matches several, or is not a git default-branch scope fails the request with 400 naming every such selector, and nothing is recorded. Both share the reconciliation sweep's per-cycle budget (ESHU_REPO_RECONCILE_MAX_PER_CYCLE) and its in-flight and retry-backoff throttle. A request is satisfied repository by repository as those full generations activate; it is never claimed and has no completion status. Webhook-only ingesters reach only the repositories they are triggered for, and filesystem source mode does not read either watermark. Send the request only after every git ingester runs the target binary: the watermark records when a full generation was ingested, not which parser produced it. Unknown body fields are rejected.",
+        "description": "Records a reindex watermark, stamped by Postgres and never moved backward. With scope workspace (the default) it records the fleet watermark, returned as requested_at: on each sync cycle every git ingester shard forces a full re-parse (reconcile reason reindex_requested) of each repository it owns whose newest activated full generation was ingested before requested_at. With scope repository it resolves each repositories selector to exactly one git default-branch repository scope and records a watermark for each, returned per repository; the owning shard forces a full re-parse (reconcile reason repository_reindex_requested) and syncs requested repositories first. A repository-scoped request is all or nothing: any selector that matches no repository, matches several, or is not a git default-branch scope fails the request with 400 naming every such selector, and nothing is recorded. Both share the reconciliation sweep's per-cycle budget (ESHU_REPO_RECONCILE_MAX_PER_CYCLE) and its in-flight and retry-backoff throttle. A request is satisfied repository by repository as those full generations activate; it is never claimed and has no completion status. Webhook-only ingesters reach only the repositories they are triggered for, and filesystem source mode does not read either watermark. Send the request only after every git ingester runs the target binary: the watermark records when a full generation was ingested, not which parser produced it. Unknown body fields are rejected. A 503 with Retry-After means a transient condition that is safe to retry, and nothing was recorded: the repository catalog lookup hit a stale or timed-out PostgreSQL reader, or the request checkpoint step failed; a 503 without Retry-After means a configuration state: reindex requests, repository-scoped reindex requests, or the checkpoint source are not configured on this API instance. No 503 body carries backend error text. The lookup runs with no route deadline, so the route never answers 504. A reader-verdict 503 names capability operator.repository_catalog.lookup in its error envelope.",
         "requestBody": {
           "required": true,
           "content": {
@@ -82,7 +86,7 @@ const Admin = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "500": {"$ref": "#/components/responses/InternalError"},
-          "503": {"description": "Reindex requests, or repository-scoped reindex requests, are not configured on this API instance."}
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -90,7 +94,7 @@ const Admin = `
       "post": {
         "tags": ["admin"],
         "summary": "Recover wedged generations",
-        "description": "Operator escape hatch for generations that wedge active without advancing past canonical-nodes-committed, and the disaster-recovery entry point for rebuilding the graph from preserved Postgres facts. Durably re-enqueues projector work through the same Go work queue refinalize uses (re-driving reduce -> readiness -> projection over existing facts, no re-clone) and records the action in the admin_replay_requests ledger. Send either scope_ids or all_scopes, never both. all_scopes re-enqueues every recoverable scope, which is what a graph rebuild after a Postgres restore or a graph-backend swap needs: each active scope through its active generation, and each failed scope with no active generation through its newest failed generation (a named failed scope in scope_ids is recovered the same way). Scopes it cannot re-enqueue are reported in skipped_scopes, by reason, so a partial rebuild is visible. Requires an explicit reason and idempotency_key and an admin (all-scopes) token. Duplicate delivery of the same idempotency_key returns the prior outcome (duplicate=true) instead of re-enqueuing; a key reused across the two modes conflicts. In the same transaction it clears the dedup state for exactly those generations - succeeded reducer work items, completed shared projection intents, graph projection phase rows, active relationship generations, and shared projection acceptance rows - because all five outlive a graph wipe and would otherwise tell the pipeline the work is already done, leaving the rebuild stuck at source-local structure.",
+        "description": "Operator escape hatch for generations that wedge active without advancing past canonical-nodes-committed, and the disaster-recovery entry point for rebuilding the graph from preserved Postgres facts. Durably re-enqueues projector work through the same Go work queue refinalize uses (re-driving reduce -> readiness -> projection over existing facts, no re-clone) and records the action in the admin_replay_requests ledger. Send either scope_ids or all_scopes, never both. all_scopes re-enqueues every recoverable scope, which is what a graph rebuild after a Postgres restore or a graph-backend swap needs: each active scope through its active generation, and each failed scope with no active generation through its newest failed generation (a named failed scope in scope_ids is recovered the same way). Scopes it cannot re-enqueue are reported in skipped_scopes, by reason, so a partial rebuild is visible. Requires an explicit reason and idempotency_key and an admin (all-scopes) token. Duplicate delivery of the same idempotency_key returns the prior outcome (duplicate=true) instead of re-enqueuing; a key reused across the two modes conflicts. In the same transaction it clears the dedup state for exactly those generations - succeeded reducer work items, completed shared projection intents, graph projection phase rows, active relationship generations, and shared projection acceptance rows - because all five outlive a graph wipe and would otherwise tell the pipeline the work is already done, leaving the rebuild stuck at source-local structure. A 503 with Retry-After means the request checkpoint step failed, a transient condition that is safe to retry; a 503 without Retry-After means a configuration state: the recovery handler, the admin store, or the checkpoint source is not configured on this API instance. No 503 body carries backend error text.",
         "requestBody": {
           "required": true,
           "content": {
@@ -159,7 +163,8 @@ const Admin = `
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"description": "Recovery requires an admin (all-scopes) token"},
           "409": {"description": "Idempotency key already in progress or reused with different scope_ids"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -176,10 +181,12 @@ const Admin = `
       "post": {
         "tags": ["admin"],
         "summary": "Query fact work items",
+        "description": "A 503 with Retry-After means a transient condition that is safe to retry: the read hit a stale or timed-out PostgreSQL reader, or the request checkpoint step failed; a 503 without Retry-After means a configuration state: the admin store or the checkpoint source is not configured on this API instance. No 503 body carries backend error text. The read runs with no route deadline, so it never answers 504. A reader-verdict 503 names capability operator.work_items.list in its error envelope.",
         "responses": {
           "200": {"description": "Admin work-item query results"},
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -187,10 +194,12 @@ const Admin = `
       "post": {
         "tags": ["admin"],
         "summary": "Query projection decisions",
+        "description": "A 503 with Retry-After means a transient condition that is safe to retry: the read hit a stale or timed-out PostgreSQL reader, or the request checkpoint step failed; a 503 without Retry-After means a configuration state: the admin store or the checkpoint source is not configured on this API instance. No 503 body carries backend error text. The read runs with no route deadline, so it never answers 504. A reader-verdict 503 names capability operator.decisions.list, or operator.decision_evidence.list for the include_evidence read in its error envelope.",
         "responses": {
           "200": {"description": "Projection decision query results"},
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -198,7 +207,7 @@ const Admin = `
       "post": {
         "tags": ["admin"],
         "summary": "Query dead-letter work items",
-        "description": "Returns a bounded deterministic page of durable fact_work_items dead letters. Requires limit and timeout_ms, supports failure_class, domain, scope_id, collector_kind, and updated_at window filters, and returns truncated=true when more rows matched than the requested limit. Scoped tokens are restricted to their granted component scopes.",
+        "description": "Returns a bounded deterministic page of durable fact_work_items dead letters. Requires limit and timeout_ms, supports failure_class, domain, scope_id, collector_kind, and updated_at window filters, and returns truncated=true when more rows matched than the requested limit. Scoped tokens are restricted to their granted component scopes. A 503 with Retry-After means a transient condition that is safe to retry: the read hit a stale or timed-out PostgreSQL reader, or the request checkpoint step failed; a 503 without Retry-After means a configuration state: the admin store or the checkpoint source is not configured on this API instance. No 503 body carries backend error text. A reader-verdict 503 names capability operator.dead_letters.list in its error envelope.",
         "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
@@ -225,8 +234,9 @@ const Admin = `
           "200": {"description": "Bounded dead-letter page with schema_version, limit, count, truncated, and items"},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
-          "504": {"description": "Dead-letter query timed out"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "504": {"description": "Dead-letter query exceeded its timeout_ms budget while the read ran (fixed message dead-letter query timed out). If the budget expires during reader setup instead, the status depends on the reader topology: a single PostgreSQL reader answers the retryable 503 reader verdict; with reader fleet members, a budget that expires while the reader waits for a member slot or between member attempts answers this 504, and one that expires inside a member attempt answers the retryable 503. Keep timeout_ms well above reader setup latency."},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -234,7 +244,7 @@ const Admin = `
       "post": {
         "tags": ["admin"],
         "summary": "Query durable input_invalid quarantine facts",
-        "description": "Returns a bounded deterministic page of durable reducer_input_invalid_facts rows (issue #4630): facts the reducer quarantined during typed-payload decode because a required field was missing or null. Requires scope_id, generation_id, limit, and timeout_ms, supports optional domain and fact_kind filters, and returns truncated=true when more rows matched than the requested limit. Scoped tokens are restricted to their granted component scopes.",
+        "description": "Returns a bounded deterministic page of durable reducer_input_invalid_facts rows (issue #4630): facts the reducer quarantined during typed-payload decode because a required field was missing or null. Requires scope_id, generation_id, limit, and timeout_ms, supports optional domain and fact_kind filters, and returns truncated=true when more rows matched than the requested limit. Scoped tokens are restricted to their granted component scopes. A 503 with Retry-After means a transient condition that is safe to retry: the read hit a stale or timed-out PostgreSQL reader, or the request checkpoint step failed; a 503 without Retry-After means a configuration state: the admin store or the checkpoint source is not configured on this API instance. No 503 body carries backend error text. A reader-verdict 503 names capability operator.reducer_input_invalid_facts.list in its error envelope.",
         "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
@@ -259,8 +269,9 @@ const Admin = `
           "200": {"description": "Bounded input_invalid quarantine page with schema_version, limit, count, truncated, and items"},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
-          "504": {"description": "Input-invalid-facts query timed out"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "504": {"description": "Input-invalid-facts query exceeded its timeout_ms budget while the read ran (fixed message input-invalid-facts query timed out). If the budget expires during reader setup instead, the status depends on the reader topology: a single PostgreSQL reader answers the retryable 503 reader verdict; with reader fleet members, a budget that expires while the reader waits for a member slot or between member attempts answers this 504, and one that expires inside a member attempt answers the retryable 503. Keep timeout_ms well above reader setup latency."},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -268,7 +279,7 @@ const Admin = `
       "post": {
         "tags": ["admin"],
         "summary": "Query poisoned and retrying changed-since links",
-        "description": "Returns a bounded deterministic page of durable changed_since_scope_cursor rows that are poisoned (the link hit its counting-failure limit, #7127 ruling 8.10) or retrying (a counted failure is pending on the scope's head activation). The changed-since link writer (go/internal/storage/postgres/freshness/links) is a runner over its own ledger, not a fact_work_items queue domain, so this state never appears in the dead-letter or reducer_input_invalid_facts surfaces (#7290). Requires limit and timeout_ms; supports optional status (poisoned|retrying), scope_id, and a forward keyset cursor (the last scope_id of a prior page). Returns truncated=true and next_cursor when more rows matched than the requested limit. Scoped tokens are restricted to their granted component scopes.",
+        "description": "Returns a bounded deterministic page of durable changed_since_scope_cursor rows that are poisoned (the link hit its counting-failure limit, #7127 ruling 8.10) or retrying (a counted failure is pending on the scope's head activation). The changed-since link writer (go/internal/storage/postgres/freshness/links) is a runner over its own ledger, not a fact_work_items queue domain, so this state never appears in the dead-letter or reducer_input_invalid_facts surfaces (#7290). Requires limit and timeout_ms; supports optional status (poisoned|retrying), scope_id, and a forward keyset cursor (the last scope_id of a prior page). Returns truncated=true and next_cursor when more rows matched than the requested limit. Scoped tokens are restricted to their granted component scopes. A 503 with Retry-After means a transient condition that is safe to retry: the read hit a stale or timed-out PostgreSQL reader, or the request checkpoint step failed; a 503 without Retry-After means a configuration state: the admin store or the checkpoint source is not configured on this API instance. No 503 body carries backend error text. A reader-verdict 503 names capability operator.changed_since_poisoned_links.list in its error envelope.",
         "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
@@ -292,8 +303,9 @@ const Admin = `
           "200": {"description": "Bounded changed-since poisoned/retrying link page with schema_version, limit, count, truncated, next_cursor, and items"},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
-          "504": {"description": "Changed-since poisoned-links query timed out"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "504": {"description": "Changed-since poisoned-links query exceeded its timeout_ms budget while the read ran (fixed message changed-since poisoned-links query timed out). If the budget expires during reader setup instead, the status depends on the reader topology: a single PostgreSQL reader answers the retryable 503 reader verdict; with reader fleet members, a budget that expires while the reader waits for a member slot or between member attempts answers this 504, and one that expires inside a member attempt answers the retryable 503. Keep timeout_ms well above reader setup latency."},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -301,10 +313,12 @@ const Admin = `
       "post": {
         "tags": ["admin"],
         "summary": "Dead-letter work items",
+        "description": "A 503 with Retry-After means the request checkpoint step failed, a transient condition that is safe to retry; a 503 without Retry-After means a configuration state: the admin store or the checkpoint source is not configured on this API instance. No 503 body carries backend error text.",
         "responses": {
           "200": {"description": "Dead-letter request results"},
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -312,12 +326,13 @@ const Admin = `
       "post": {
         "tags": ["admin"],
         "summary": "Skip repository work items",
-        "description": "Dead-letters at most 100 pending, retrying, or failed work items for a repository or scope. Claimed, running, succeeded, superseded, and already dead-lettered items are left unchanged. The response count includes only rows transitioned by this call. The repository_id accepts a scope id or a source key; a selector matching more than one scope fails closed with 409, naming the matched scopes.",
+        "description": "Dead-letters at most 100 pending, retrying, or failed work items for a repository or scope. Claimed, running, succeeded, superseded, and already dead-lettered items are left unchanged. The response count includes only rows transitioned by this call. The repository_id accepts a scope id or a source key; a selector matching more than one scope fails closed with 409, naming the matched scopes. A 503 with Retry-After means the request checkpoint step failed, a transient condition that is safe to retry; a 503 without Retry-After means a configuration state: the admin store or the checkpoint source is not configured on this API instance. No 503 body carries backend error text.",
         "responses": {
           "200": {"description": "Skip request results"},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "409": {"$ref": "#/components/responses/Conflict"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -325,7 +340,7 @@ const Admin = `
       "post": {
         "tags": ["admin"],
         "summary": "Replay failed work items",
-        "description": "Safely replays terminal work items. Requires an explicit reason and idempotency_key, an admin (all-scopes) token, and refuses unsafe failure classes (input_invalid, unsafe_payload, and the manual-review dead-letter triage classes projection_bug and resource_exhausted) unless force is set, whether they arrive as the failure_class selector or as explicit work_item_ids. A 200 with replayed_count 0 means nothing matched. Duplicate delivery of the same idempotency_key returns the prior outcome instead of replaying again.",
+        "description": "Safely replays terminal work items. Requires an explicit reason and idempotency_key, an admin (all-scopes) token, and refuses unsafe failure classes (input_invalid, unsafe_payload, and the manual-review dead-letter triage classes projection_bug and resource_exhausted) unless force is set, whether they arrive as the failure_class selector or as explicit work_item_ids. A 200 with replayed_count 0 means nothing matched. Duplicate delivery of the same idempotency_key returns the prior outcome instead of replaying again. A 503 with Retry-After means the request checkpoint step failed, a transient condition that is safe to retry; a 503 without Retry-After means a configuration state: the admin store or the checkpoint source is not configured on this API instance. No 503 body carries backend error text.",
         "requestBody": {
           "required": true,
           "content": {
@@ -384,7 +399,8 @@ const Admin = `
               }
             }
           },
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -392,7 +408,7 @@ const Admin = `
       "post": {
         "tags": ["admin"],
         "summary": "Reopen completed work items",
-        "description": "Reopens completed reducer or shared-projection work for one domain and scope, the admin surface for the #7285 hand-SQL repair. Requires an explicit domain, scope_id, reason and idempotency_key, and an admin (all-scopes) token. Only repo_dependency (one completed intent row per acceptance unit, at the accepted source run), workload_materialization and submodule_pin (succeeded reducer rows) reopen; every other domain is refused. The store resolves the scope's active generation at run time and locks with SKIP LOCKED under a lock_timeout. A 200 with reopened_total_count 0 means nothing matched. Duplicate delivery of the same idempotency_key returns the prior outcome (duplicate=true, totals without the reducer/intent split) instead of reopening again. A scope_id matching more than one scope fails closed with 409, naming the matched scopes.",
+        "description": "Reopens completed reducer or shared-projection work for one domain and scope, the admin surface for the #7285 hand-SQL repair. Requires an explicit domain, scope_id, reason and idempotency_key, and an admin (all-scopes) token. Only repo_dependency (one completed intent row per acceptance unit, at the accepted source run), workload_materialization and submodule_pin (succeeded reducer rows) reopen; every other domain is refused. The store resolves the scope's active generation at run time and locks with SKIP LOCKED under a lock_timeout. A 200 with reopened_total_count 0 means nothing matched. Duplicate delivery of the same idempotency_key returns the prior outcome (duplicate=true, totals without the reducer/intent split) instead of reopening again. A scope_id matching more than one scope fails closed with 409, naming the matched scopes. A 503 with Retry-After means the request checkpoint step failed, a transient condition that is safe to retry; a 503 without Retry-After means a configuration state: the admin store or the checkpoint source is not configured on this API instance. No 503 body carries backend error text.",
         "requestBody": {
           "required": true,
           "content": {
@@ -434,7 +450,8 @@ const Admin = `
               }
             }
           },
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -442,10 +459,12 @@ const Admin = `
       "post": {
         "tags": ["admin"],
         "summary": "Request a backfill",
+        "description": "A 503 with Retry-After means the request checkpoint step failed, a transient condition that is safe to retry; a 503 without Retry-After means a configuration state: the admin store or the checkpoint source is not configured on this API instance. No 503 body carries backend error text.",
         "responses": {
           "200": {"description": "Backfill request results"},
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -453,10 +472,28 @@ const Admin = `
       "post": {
         "tags": ["admin"],
         "summary": "Query replay events",
+        "description": "A 503 with Retry-After means a transient condition that is safe to retry: the read hit a stale or timed-out PostgreSQL reader, or the request checkpoint step failed; a 503 without Retry-After means a configuration state: the admin store or the checkpoint source is not configured on this API instance. No 503 body carries backend error text. The read runs with no route deadline, so it never answers 504. A reader-verdict 503 names capability operator.replay_events.list in its error envelope.",
         "responses": {
           "200": {"description": "Replay-event query results"},
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
+    "/api/v0/admin/delta-union/completeness": {
+      "get": {
+        "tags": ["admin"],
+        "summary": "Check delta-union graph completeness",
+        "description": "Read-only prod completeness check (#7797): per repository, the graph's file set against the ACTIVE set (base-full overlaid with the active delta). Repeat the scope query parameter to name scopes; at least one scope is required (an empty filter fans out and is rejected). Past the repository cap the call fails loudly instead of paging silently. A mismatch names the diff and the generations to re-parse; it never repairs. 503 when the check is not configured on the instance.",
+        "parameters": [
+          {"name": "scope", "in": "query", "description": "Scope id filter, repeatable, at least one required.", "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {"description": "Completeness report: one entry per checked repository with outcome complete, mismatch, or skipped."},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"description": "The completeness check is not configured on this API instance"}
         }
       }
     },

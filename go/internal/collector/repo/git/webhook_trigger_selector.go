@@ -39,6 +39,10 @@ const (
 	webhookTriggerFailureNoRepositoryID      = "no_repository_id"
 	webhookTriggerFailureSyncGit             = "sync_git_failed"
 	webhookTriggerFailureUnsupportedProvider = "unsupported_provider"
+	// webhookTriggerFailureProviderNotSelected marks a trigger whose provider
+	// is not selected in gitlabGroup mode (#7765): cloning it would send the
+	// GitLab token to another host.
+	webhookTriggerFailureProviderNotSelected = "provider_not_selected"
 	// webhookTriggerFailureIgnoredDecision marks a claimed trigger whose
 	// decision is not accepted: a tag or non-default-branch event that
 	// can never complete the git handoff, terminated in the claiming
@@ -183,6 +187,10 @@ func (s WebhookTriggerRepositorySelector) SelectRepositories(ctx context.Context
 		if err := s.Store.MarkTriggersFailed(ctx, unsupportedTriggers, observedAt, webhookTriggerFailureUnsupportedProvider, "webhook provider is not supported by the git collector handoff"); err != nil {
 			return SelectionBatch{}, fmt.Errorf("mark unsupported webhook triggers failed: %w", err)
 		}
+	}
+	syncableTriggers, err = s.dropTriggersOutsideGitLabGroup(ctx, syncableTriggers, observedAt)
+	if err != nil {
+		return SelectionBatch{}, err
 	}
 
 	repositoryIDs := repositoryIDsFromWebhookTriggers(syncableTriggers)
@@ -392,6 +400,36 @@ func rehomeFlippedWebhookRefreshTriggers(claimed, failed []webhook.StoredTrigger
 		kept = append(kept, trigger)
 	}
 	return kept
+}
+
+// dropTriggersOutsideGitLabGroup marks every accepted non-GitLab trigger
+// failed with provider_not_selected in gitlabGroup mode, before it builds a
+// repository ID: a bare org/repo would resolve to the github provider and
+// clone from another host with the GitLab token. Other modes keep every
+// trigger.
+func (s WebhookTriggerRepositorySelector) dropTriggersOutsideGitLabGroup(
+	ctx context.Context,
+	triggers []webhook.StoredTrigger,
+	observedAt time.Time,
+) ([]webhook.StoredTrigger, error) {
+	if strings.TrimSpace(s.Config.SourceMode) != "gitlabGroup" {
+		return triggers, nil
+	}
+	kept := make([]webhook.StoredTrigger, 0, len(triggers))
+	dropped := make([]webhook.StoredTrigger, 0)
+	for _, trigger := range triggers {
+		if trigger.Provider == webhook.ProviderGitLab {
+			kept = append(kept, trigger)
+			continue
+		}
+		dropped = append(dropped, trigger)
+	}
+	if len(dropped) > 0 {
+		if err := s.Store.MarkTriggersFailed(ctx, dropped, observedAt, webhookTriggerFailureProviderNotSelected, "webhook provider is not selected in gitlabGroup mode"); err != nil {
+			return nil, fmt.Errorf("mark non-gitlab webhook triggers failed: %w", err)
+		}
+	}
+	return kept, nil
 }
 
 func supportedWebhookRefreshTriggers(triggers []webhook.StoredTrigger) ([]webhook.StoredTrigger, []webhook.StoredTrigger) {

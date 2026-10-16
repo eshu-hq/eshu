@@ -4,7 +4,10 @@ Dashboard sessions are separate from explicit bearer tokens for CLI, MCP, and
 automation clients. Programmatic clients should continue to send
 `Authorization: Bearer ...`; they do not need CSRF headers.
 
-The Console browser flow uses these `/api/v0` routes:
+The Console browser flow uses these `/api/v0` routes. A failed step on the
+identity admin, provider-config, and local identity routes answers a fixed
+message, never backend error text: see
+[Identity route failures](identity-failures.md).
 
 | Route | Purpose |
 | --- | --- |
@@ -65,6 +68,11 @@ The Console browser flow uses these `/api/v0` routes:
 | `GET /api/v0/auth/saml/providers/{provider_id}/metadata` | Returns public SAML service-provider metadata for a configured provider. |
 | `GET /api/v0/auth/saml/providers/{provider_id}/login` | Starts SP-initiated SAML login by storing a RelayState hash and redirecting to the IdP. Accepts an optional `return_to` query parameter (same-origin path only; absolute URLs and protocol-relative paths are silently discarded). |
 | `POST /api/v0/auth/saml/providers/{provider_id}/acs` | Completes SAML login from IdP POST binding after RelayState, signature, replay, clock, NameID, and group-claim validation. Returns `201` with a JSON session body when no return path was stored, or `303` redirecting to the stored same-origin path when one was. |
+
+A failed step on the SAML, OIDC, GitHub, browser-session, first-run setup,
+provider discovery, admin sign-in policy, and profile routes answers a fixed
+message, never backend error text, and a client cancel answers `499`: see
+[Auth and session route failures](auth-session-failures.md).
 
 A GitHub provider configured only through the admin API
 (`POST /api/v0/auth/admin/provider-configs`) needs a second activation step

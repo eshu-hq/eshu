@@ -59,7 +59,7 @@ const IncidentContext = `
           "403": {"$ref": "#/components/responses/Forbidden"},
           "404": {"$ref": "#/components/responses/NotFound"},
           "409": {"description": "Incident id matched multiple active provider scopes; retry with scope_id."},
-          "503": {"description": "Postgres incident source fact read model unavailable"}
+          "503": {"description": "A 503 with Retry-After means a transient condition that is safe to retry: the incident context read or the scoped-token authorization read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the Postgres incident source fact read model is not configured on this API instance. No 5xx body carries backend error text. A reader-verdict 503 names capability incident.context.read in its error envelope.", "headers": {"Retry-After": {"description": "Seconds to wait before retrying. Present only on the reader-verdict 503.", "schema": {"type": "integer", "minimum": 1}}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}}}
         }
       }
     },

@@ -61,9 +61,9 @@ source_coverage:
   - file: entity/workload_runtime_topology.go
     calls:
       - {symbol: "FetchWorkloadRuntimeTopology", count: 1, source_sha256: fba1d35021a684db7c0a543bd189b33ffe9b77f9d82d79119242cb1ca0f08619, entry_ids: [QP-SVC-RUNTIME-TOPOLOGY]}
-  - file: infra.go
+  - file: infra/fulltext/reader.go
     calls:
-      - {symbol: "(*InfraHandler).searchResources", count: 1, source_sha256: f261312e577febbae0a05f8eb4f566729e4aa3aeba2e75697a469b9260238185, entry_ids: [QP-INFRA-RESOURCE-SEARCH]}
+      - {symbol: "(*Reader).Rows", count: 2, source_sha256: dbb158b35141c0c85aa3ed30708e92dd7029e55137e3b78d7c216f5d03274603, entry_ids: [QP-INFRA-RESOURCE-SEARCH, QP-INFRA-RESOURCE-SEARCH-FULLTEXT]}
   - file: infra_argocd_search.go
     calls:
       - symbol: "(*InfraHandler).searchArgoCDCategoryRows"
@@ -101,7 +101,7 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: c3380c4b14542a70ec4867fffbd3660a7d46342bf2b0c21b264832240996ef39
+          source_sha256: 94dd51247efefd7a4b3bd720e1c812ea738bda51d69ff9f113c7b74d892079bc
           key_bound: single_key
           max_results: 1
   - file: infra_scope.go
@@ -359,7 +359,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 1faf653e9eea80eb2262f224f5a1ff7a580184314c87cd6d6d934cc08849ace2
+          source_sha256: e65fefe0c7e20e0b988c41380bdd386dce668ee0366dd29e09d09e5998cde09f
           label: "Repository"
           max_results: 1
   - file: status_hosted_readiness.go
@@ -371,9 +371,12 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: b634b2e8f96c09fd06a0710e27e1f039ae4c8230f96cf1e273b8b936503f7071
+          source_sha256: ffe2537bc1d71430ef9cc4993c87472138e9dfc9382ff3d3e47c58264cf74f4e
           label: "Repository"
           max_results: 1
   - file: supply/chain/kubernetes_runtime_probe_fair.go
     calls:
       - {symbol: "queryKubernetesRuntimeCandidates", count: 1, source_sha256: 6f3266e915bce3687c6862beffedce5e9b23fc69876d5aeb5b34d42177ac009d, entry_ids: [QP-SUPPLY-CHAIN-KUBERNETES-RUNTIME]}
+  - file: admin/delta_union_completeness.go
+    calls:
+      - {symbol: "(*DeltaUnionCompletenessChecker).readGraphRepo", count: 1, non_hot: {class: operator_query, policy: authenticated_read_endpoint, source_sha256: 7ccf8bbcc24ded468ae7627d10ab491a9acca457ca18b92bd7c79e6df9fed829}}

@@ -212,7 +212,7 @@ func (h *overlayHarness) buildService(ctx context.Context) (projector.Service, r
 	if testing.Verbose() {
 		logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	}
-	svc, err := buildProjectorService(h.pgDB, writer, h.getenv, nil, nil, logger)
+	svc, err := buildProjectorService(h.pgDB, writer, h.getenv, nil, h.instruments, logger)
 	if err != nil {
 		h.t.Fatalf("build production projector service: %v", err)
 	}

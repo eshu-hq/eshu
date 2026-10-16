@@ -18,6 +18,7 @@ import (
 	adminaudit "github.com/eshu-hq/eshu/go/internal/query/admin/audit"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -213,9 +214,11 @@ func (h *SignInPolicyMutationHandler) handleUpdateError(w http.ResponseWriter, r
 		h.audit(r, governanceaudit.DecisionDenied, "sign_in_policy_invalid_timeout", "")
 		WriteError(w, http.StatusBadRequest, "invalid sign-in policy request: "+ErrSignInPolicyTimeoutOrdering.Error())
 	default:
-		slog.ErrorContext(r.Context(), "admin sign-in policy update failed", "err", err)
+		if !tracing.ClientCanceled(r.Context(), err) {
+			slog.ErrorContext(r.Context(), "admin sign-in policy update failed", "err", err)
+		}
 		h.audit(r, governanceaudit.DecisionDenied, "sign_in_policy_update_failed", "")
-		WriteError(w, http.StatusInternalServerError, "failed to update sign-in policy")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, signInPolicyUpdateFailedMessage)
 	}
 }
 

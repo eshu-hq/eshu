@@ -60,7 +60,7 @@ func TestObservationStoreLive(t *testing.T) {
 	seedScope(ctx, t, sqlDB, "scope:acme-ref", "repository_ref", "git", "acme/repo-00")
 	seedScope(ctx, t, sqlDB, "scope:acme-webhook", "repository", "github_webhook", "acme/repo-00")
 
-	known, err := store.KnownScopes(ctx, "ACME", membership.KnownScopeHost(membership.KindGitHubOrg))
+	known, err := store.KnownScopes(ctx, membership.Partition{Owner: "ACME", Host: membership.KnownScopeHost(membership.KindGitHubOrg)})
 	if err != nil {
 		t.Fatalf("KnownScopes() error = %v", err)
 	}

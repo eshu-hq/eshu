@@ -7,14 +7,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"slices"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // RelationshipGenerationActiveChecker reports whether a relationship generation
@@ -117,6 +123,63 @@ func (s *RelationshipStore) IncompleteActiveScopeRelationshipGenerations(
 		return nil, fmt.Errorf("iterate incomplete scope relationship generations: %w", err)
 	}
 	return scopeIDs, nil
+}
+
+// resolutionProducerStateSQL reads the scope's active generation, the
+// generation's relationship_generations status, and the newest
+// deployment_mapping work item of one scope generation (#7597). It runs only
+// when an own-gate consumer already defers, and every read is an index scan:
+// ingestion_scopes_pkey, relationship_generations_pkey, and
+// fact_work_items_scope_generation_idx (scope_id, generation_id, ...),
+// filtering the generation's few reducer rows on stage and domain. Evidence:
+// docs/internal/evidence/7597-own-gate-producer-terminal.md.
+const resolutionProducerStateSQL = `
+SELECT COALESCE(s.active_generation_id, ''),
+       COALESCE(w.work_item_id, ''), COALESCE(w.status, ''), COALESCE(w.failure_class, ''),
+       COALESCE(rg.status, '')
+FROM ingestion_scopes AS s
+LEFT JOIN relationship_generations AS rg
+  ON rg.generation_id = $2
+ AND rg.scope = s.scope_id
+LEFT JOIN LATERAL (
+    SELECT d.work_item_id, d.status, d.failure_class
+    FROM fact_work_items AS d
+    WHERE d.scope_id = s.scope_id
+      AND d.generation_id = $2
+      AND d.stage = 'reducer'
+      AND d.domain = 'deployment_mapping'
+    ORDER BY d.updated_at DESC, d.work_item_id DESC
+    LIMIT 1
+) AS w ON TRUE
+WHERE s.scope_id = $1
+`
+
+// NewResolutionProducerLookup reads the own-gate producer state the
+// deployable-unit and workload consumers consult when their own relationship
+// generation is inactive (crossrepo.EvaluateOwnGate). A missing scope row
+// reads as an empty state, which the gate treats as "scope moved on" and
+// defers. A query error is returned for the gate to classify.
+func NewResolutionProducerLookup(database db.Queryer) crossrepo.ProducerLookup {
+	return func(ctx context.Context, scopeID, generationID string) (crossrepo.ProducerState, error) {
+		rows, err := database.QueryContext(ctx, resolutionProducerStateSQL, scopeID, generationID)
+		if err != nil {
+			return crossrepo.ProducerState{}, fmt.Errorf("query resolution producer state: %w", err)
+		}
+		defer func() { _ = rows.Close() }()
+		var state crossrepo.ProducerState
+		if rows.Next() {
+			if err := rows.Scan(
+				&state.ScopeActiveGenerationID, &state.WorkItemID, &state.Status, &state.FailureClass,
+				&state.RelationshipGenerationStatus,
+			); err != nil {
+				return crossrepo.ProducerState{}, fmt.Errorf("scan resolution producer state: %w", err)
+			}
+		}
+		if err := rows.Err(); err != nil {
+			return crossrepo.ProducerState{}, fmt.Errorf("iterate resolution producer state: %w", err)
+		}
+		return state, nil
+	}
 }
 
 // NewAcceptedGenerationLookup creates an exact bounded-unit acceptance lookup
@@ -326,4 +389,85 @@ func (s *SharedProjectionAcceptanceStore) lookupAcceptanceChunk(
 		return fmt.Errorf("iterate shared projection acceptance batch (%d keys): %w", len(chunk), err)
 	}
 	return nil
+}
+
+// ownGateCountingClasses is every own-gate counting class: the consumers
+// dead-lettered because their producer was dead-lettered or missing. An
+// activation satisfies the wait of both, so the wake reopens both.
+func ownGateCountingClasses() []string {
+	return append(crossrepo.ProducerDeadLetteredFailureClasses(), crossrepo.ProducerMissingFailureClasses()...)
+}
+
+// ownGateConsumerDomainStrings renders crossrepo.OwnGateConsumerDomains.
+func ownGateConsumerDomainStrings() []string {
+	domains := crossrepo.OwnGateConsumerDomains()
+	out := make([]string, 0, len(domains))
+	for _, domain := range domains {
+		out = append(out, string(domain))
+	}
+	return out
+}
+
+// sqlStringList renders compile-time constant names as a SQL literal list. It
+// is only for constants owned by this repository, never input.
+func sqlStringList(values []string) string {
+	quoted := make([]string, 0, len(values))
+	for _, value := range values {
+		quoted = append(quoted, "'"+strings.ReplaceAll(value, "'", "''")+"'")
+	}
+	return strings.Join(quoted, ", ")
+}
+
+// wakeAfterProducerTerminalDeadLetter closes the one interleave the
+// activation wake alone cannot: a consumer whose final counted Fail waited on
+// an activation's in-flight lock, then dead-lettered after that activation
+// committed (#7597). This fresh-snapshot statement sees the active generation
+// and reopens the row at once; it is a no-op while the generation is
+// inactive. It runs only for an own-gate counting dead letter. The dead letter
+// already committed, so a wake failure is logged at ERROR, not returned: the
+// row stays dead-lettered and a later activation or replay reopens it.
+func (q ReducerQueue) wakeAfterProducerTerminalDeadLetter(
+	ctx context.Context,
+	intent reducer.Intent,
+	failureClass string,
+	now time.Time,
+) {
+	if !slices.Contains(ownGateCountingClasses(), failureClass) {
+		return
+	}
+	result, err := q.database.ExecContext(ctx, wakeProducerTerminalConsumersSQL, now,
+		intent.ScopeID, intent.GenerationID)
+	if err != nil {
+		recordOwnGateWake(ctx, q.Instruments, telemetry.OwnGateWakeSiteFail, telemetry.OwnGateWakeOutcomeError)
+		slog.Default().ErrorContext(ctx, "own-gate dead letter could not check for an active generation",
+			"work_item_id", intent.IntentID, "scope_id", intent.ScopeID,
+			"generation_id", intent.GenerationID, "failure_class", failureClass, "error", err)
+		return
+	}
+	n, _ := result.RowsAffected()
+	recordOwnGateWake(ctx, q.Instruments, telemetry.OwnGateWakeSiteFail, wakeOutcome(n))
+	if n > 0 {
+		slog.Default().InfoContext(ctx, "own-gate dead letter reopened: relationship generation already active",
+			"work_item_id", intent.IntentID, "scope_id", intent.ScopeID,
+			"generation_id", intent.GenerationID, "failure_class", failureClass, "woken_consumers", n)
+	}
+}
+
+// wakeOutcome maps a wake statement's affected rows to its outcome label.
+func wakeOutcome(reopened int64) string {
+	if reopened > 0 {
+		return telemetry.OwnGateWakeOutcomeReopened
+	}
+	return telemetry.OwnGateWakeOutcomeNoop
+}
+
+// recordOwnGateWake counts one wake statement on
+// eshu_dp_reducer_own_gate_wake_total (#7597). Nil instruments are a no-op.
+func recordOwnGateWake(ctx context.Context, instruments *telemetry.Instruments, site, outcome string) {
+	if instruments == nil || instruments.ReducerOwnGateWake == nil {
+		return
+	}
+	instruments.ReducerOwnGateWake.Add(ctx, 1, metric.WithAttributes(
+		telemetry.AttrOwnGateWakeSite(site), telemetry.AttrOutcome(outcome),
+	))
 }

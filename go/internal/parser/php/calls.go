@@ -10,6 +10,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
+// appendUniquePHPCall appends one call row unless a row with the same
+// full_name already sits on the same line, and returns the appended row (nil
+// when it was a duplicate or had no name).
 func appendUniquePHPCall(
 	payload map[string]any,
 	seen map[string]struct{},
@@ -21,13 +24,13 @@ func appendUniquePHPCall(
 	contextKind string,
 	contextLine int,
 	inferredObjType string,
-) {
+) map[string]any {
 	if strings.TrimSpace(fullName) == "" {
-		return
+		return nil
 	}
 	seenKey := fullName + "#" + strconv.Itoa(lineNumber)
 	if _, ok := seen[seenKey]; ok {
-		return
+		return nil
 	}
 	seen[seenKey] = struct{}{}
 	item := map[string]any{
@@ -50,6 +53,7 @@ func appendUniquePHPCall(
 		item["class_context"] = []any{nil, nil}
 	}
 	shared.AppendBucket(payload, "function_calls", item)
+	return item
 }
 
 func normalizePHPMethodCall(raw string) string {

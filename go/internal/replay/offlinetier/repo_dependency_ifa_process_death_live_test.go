@@ -245,7 +245,8 @@ func openRepoDependencyProcessDeathProofDB(
 		_ = bootstrapDB.Close()
 		t.Fatalf("open scoped process-death database: %v", err)
 	}
-	if err := postgres.NewSharedIntentStore(postgres.SQLDB{DB: db}).EnsureSchema(ctx); err != nil {
+	// Replay coordinates and acceptance fences need the ingestion tables too.
+	if err := postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: db}); err != nil {
 		_ = db.Close()
 		_ = bootstrapDB.Close()
 		t.Fatalf("ensure process-death schema: %v", err)

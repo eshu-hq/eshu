@@ -90,9 +90,10 @@ func TestGraphReadVerdictRetryabilityIsPerVerdictNotPerStatus(t *testing.T) {
 		err        error
 		retryAfter bool
 	}{
-		"unmarked 503 verdict": {synthetic, false},
-		"graph unavailable":    {ErrGraphUnavailable, true},
-		"reader stale":         {db.ErrReaderStale, true},
+		"unmarked 503 verdict":        {synthetic, false},
+		"graph unavailable":           {ErrGraphUnavailable, true},
+		"reader stale":                {db.ErrReaderStale, true},
+		"snapshot export unqualified": {db.ErrSnapshotExportUnqualified, false},
 	} {
 		status, env, ok := GraphReadErrorEnvelope(tc.err, "cap")
 		if !ok || status != http.StatusServiceUnavailable {
@@ -130,9 +131,10 @@ func TestRetryableVerdictsAreExactlyGraphUnavailableAndReaderFence(t *testing.T)
 		status    int
 		retryable bool
 	}{
-		"graph unavailable": {ErrGraphUnavailable, http.StatusServiceUnavailable, true},
-		"reader stale":      {db.ErrReaderStale, http.StatusServiceUnavailable, true},
-		"graph deadline":    {ErrGraphReadDeadline, http.StatusGatewayTimeout, false},
+		"graph unavailable":           {ErrGraphUnavailable, http.StatusServiceUnavailable, true},
+		"reader stale":                {db.ErrReaderStale, http.StatusServiceUnavailable, true},
+		"graph deadline":              {ErrGraphReadDeadline, http.StatusGatewayTimeout, false},
+		"snapshot export unqualified": {db.ErrSnapshotExportUnqualified, http.StatusServiceUnavailable, false},
 	} {
 		status, env, ok := GraphReadErrorEnvelope(tc.err, "cap")
 		if !ok || status != tc.status {

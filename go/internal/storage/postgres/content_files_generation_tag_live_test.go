@@ -37,6 +37,11 @@ func openContentGenerationTagSchema(t *testing.T) (context.Context, *sql.DB) {
 	if _, err := database.ExecContext(ctx, MigrationSQL("content_files_generation_id")); err != nil {
 		t.Fatalf("apply content_files_generation_id migration: %v", err)
 	}
+	// The manifest reads compare write-start markers (#8243), so the schema
+	// carries migration 149's projection_write_started_at.
+	if _, err := database.ExecContext(ctx, MigrationSQL("scope_generations_projection_write_started_at")); err != nil {
+		t.Fatalf("apply projection_write_started_at migration: %v", err)
+	}
 	// The writer reaps fingerprint side rows on every Write, so the writer
 	// stamp test needs the table to exist even with no function entities.
 	if _, err := database.ExecContext(ctx, MigrationSQL("code_function_fingerprint")); err != nil {

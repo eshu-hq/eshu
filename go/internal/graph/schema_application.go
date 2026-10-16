@@ -83,8 +83,9 @@ const (
 	// graph -- it merely reads that one route more slowly.
 	// The #6793 tf_module/tf_output evidence_source indexes and the Neo4j-only
 	// #7057 Rationale/DocumentationSection uid indexes are additive too, as are
-	// the #7095/#7097 constraint retirements; see schema_predecessors.go.
-	graphSchemaNeo4jFingerprint    = "ac31ec4947f1586093c5518a8b2edb31ddc0e2e462e2091e551af776aeee9c3e"
+	// the #7095/#7097 constraint retirements and the Neo4j-only #7245
+	// infra_search_key_ft index; see schema_predecessors.go.
+	graphSchemaNeo4jFingerprint    = "3e957407c08d6cf2d6cc28c47ab4272b60044d87de7abd47860f2ffc2fb039b9"
 	graphSchemaNornicDBFingerprint = "8dfe89b1768205432074d1bf45730f897f11515391a80968178d4956b8103944"
 
 	// graphSchemaNeo4jPreDirectoryRepoIDIndexFingerprint and its NornicDB peer

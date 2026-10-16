@@ -434,4 +434,28 @@ var orderedBootstrapDefinitionNames = []string{
 	// Migration 177 (#7975) indexes the stored lowercase copy with a
 	// trigram index so the recheck uses the index.
 	"content_files_content_lower_trgm_index",
+	// Migration 178 (#7765) admits the gitlab_group selector kind to
+	// repository_selection_observations on installs that already applied
+	// migration 166.
+	"repository_selection_observations_gitlab_group",
+	// Migration 179 (#7929) covers the reachability loader's per-run
+	// max(completed_at) probe with the probe's equality columns plus the
+	// domain IN list and trailing completed_at, partial to completed rows,
+	// so each probe is an index-only scan instead of a heap walk.
+	"shared_projection_intents_acceptance_completed_idx",
+	// Migration 180 (#7666) is the partial ARN expression index the
+	// aws_cloud_runtime_drift state join probes once per AWS ARN.
+	"fact_records_terraform_state_resource_arn_idx",
+	// Migration 181 (#7663) gives the package-consumption backfill's page
+	// query a partial (scope_id, fact_id) index on its own fact predicate.
+	"fact_records_package_manifest_consumption_backfill_idx",
+	// Migrations 182 and 183 (#7420) add the (scope_id, generation_id,
+	// fact_id) indexes the explicit retention key sidecar deletes probe.
+	"package_manifest_consumption_keys_partition_idx",
+	"package_registry_identity_keys_partition_idx",
+	// Migrations 184-185 (#7926) persist the bounded structured failure
+	// classification (operation, status code, terminal flag) on
+	// workflow_claims and workflow_work_items alongside the message.
+	"workflow_claims_failure_classification",
+	"workflow_work_items_failure_classification",
 }

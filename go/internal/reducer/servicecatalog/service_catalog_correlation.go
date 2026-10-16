@@ -6,8 +6,10 @@ package servicecatalog
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
+	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
@@ -117,6 +119,21 @@ type ServiceCatalogCorrelationHandler struct {
 	// as ownership and deployment. It is optional: a nil loader leaves the
 	// generation without runtime rows, preserving the ownership/deployment contract.
 	RuntimeInstanceLoader RepositoryScopedRuntimeInstanceLoader
+	// RuntimeProducerReadiness, when set alongside RuntimeInstanceLoader,
+	// fences the runtime read on the correlated repositories' in-flight
+	// workload_materialization work (#7816): while a producer is pending,
+	// retrying, claimed, or running at its repository's active generation the
+	// intent defers with RuntimeNotReadyFailureClass before any write, bounded
+	// by crossscope.ProducerReadinessMaxWait. The reducer's default wiring
+	// never wires RuntimeInstanceLoader without it; nil leaves the read
+	// unfenced, which only direct test wiring does.
+	RuntimeProducerReadiness RuntimeProducerReadiness
+	// Now is the clock the runtime fence measures its elapsed bound against.
+	// Nil means time.Now.
+	Now func() time.Time
+	// Logger receives the runtime fence's defer and bound-overrun lines. Nil
+	// means slog.Default(); the reducer wires its structured logger.
+	Logger *slog.Logger
 	// DocumentationEvidenceLoader, when set alongside MaterializationWriter,
 	// supplies the documentation facts that reference each correlated service so
 	// the docs evidence family (#1988) is materialized into the same generation as
@@ -221,9 +238,10 @@ func (h ServiceCatalogCorrelationHandler) Handle(ctx context.Context, intent red
 }
 
 // prepareServiceMaterializations builds the per-service ownership writes and
-// attaches the corpus-fenced deployment and dependency families. It performs
-// reads only, so Handle runs it before any write; an open corpus fence returns
-// the retryable deferral unwrapped. It returns nil writes when
+// attaches the corpus-fenced deployment and dependency families and the
+// readiness-fenced runtime family. It performs reads only, so Handle runs it
+// before any write; an open corpus fence or runtime fence returns its
+// retryable deferral unwrapped. It returns nil writes when
 // MaterializationWriter is nil, preserving the existing correlation contract.
 func (h ServiceCatalogCorrelationHandler) prepareServiceMaterializations(
 	ctx context.Context,
@@ -237,6 +255,15 @@ func (h ServiceCatalogCorrelationHandler) prepareServiceMaterializations(
 	if err := h.attachServiceRelationshipEvidence(ctx, intent.ScopeID, intent.GenerationID, writes, decisions); err != nil {
 		return nil, err
 	}
+	// The runtime fence and read run after the corpus fence and before any
+	// write (#7816): an in-flight WorkloadInstance producer defers the intent
+	// with nothing written, and the read never runs while the fence is open.
+	if err := h.checkServiceRuntimeReadiness(ctx, intent, writes, decisions); err != nil {
+		return nil, err
+	}
+	if err := h.attachServiceRuntimeEvidence(ctx, writes, decisions); err != nil {
+		return nil, err
+	}
 	return writes, nil
 }
 
@@ -248,8 +275,10 @@ func (h ServiceCatalogCorrelationHandler) prepareServiceMaterializations(
 // wired) were already attached by prepareServiceMaterializations from the
 // corpus-fenced resolved cross-repo relationships of each service's repository,
 // partitioned by relationship type; runtime evidence (when
-// RuntimeInstanceLoader is wired) is sourced from the materialized runtime
-// instances of each service's repository; docs evidence (when
+// RuntimeInstanceLoader is wired) was likewise attached by
+// prepareServiceMaterializations, behind the #7816 runtime readiness fence,
+// from the materialized runtime instances of each service's repository; docs
+// evidence (when
 // DocumentationEvidenceLoader is wired) is sourced from the documentation facts
 // that reference each service; incidents evidence (when IncidentEvidenceLoader is
 // wired) is sourced from the exact PagerDuty incident-routing evidence that routes
@@ -264,9 +293,6 @@ func (h ServiceCatalogCorrelationHandler) commitServiceGenerations(
 ) error {
 	if h.MaterializationWriter == nil {
 		return nil
-	}
-	if err := h.attachServiceRuntimeEvidence(ctx, writes, decisions); err != nil {
-		return err
 	}
 	if err := h.attachServiceDocumentationEvidence(ctx, writes); err != nil {
 		return err
@@ -291,7 +317,10 @@ func (h ServiceCatalogCorrelationHandler) commitServiceGenerations(
 // decision carries a repository, so the runtime family is purely additive. The
 // instances are loaded once for all repositories in a single bounded call, then
 // partitioned per service by repository id; a service whose repository has no
-// runtime instances simply carries no runtime rows.
+// runtime instances simply carries no runtime rows. prepareServiceMaterializations
+// calls it only after checkServiceRuntimeReadiness passed and before any write,
+// so an empty read is never committed while a WorkloadInstance producer is in
+// flight inside the elapsed bound (#7816).
 func (h ServiceCatalogCorrelationHandler) attachServiceRuntimeEvidence(
 	ctx context.Context,
 	writes []ServiceMaterializationWrite,

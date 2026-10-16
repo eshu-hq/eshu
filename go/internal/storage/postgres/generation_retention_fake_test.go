@@ -8,8 +8,11 @@ import (
 	"database/sql"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
+	factkeys "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/keys"
 )
 
 type generationRetentionFakeDB struct {
@@ -62,6 +65,64 @@ type generationRetentionFakeDB struct {
 	// statement that execs and execResults deliberately skip so the positional
 	// exec scripts stay aligned with the retention deletes.
 	statements []string
+	// factKeyRows answers the #7420 key sidecar deletes by table name, and
+	// factKeyExecs records them; they bypass the positional exec scripts.
+	factKeyRows  map[string]int64
+	factKeyExecs []fakeExecCall
+	// predeleteStatements records the #7427 search index pre-delete's
+	// statements (the key-index check, the candidate read, its batch
+	// transactions and
+	// the prune transaction's per-generation try-lock) apart from statements,
+	// so the prune transaction's positional scripts and order assertions are
+	// unchanged. Every batch answers as eligible and empty (drained) unless
+	// predeleteBatchRows supplies rows, answered in order.
+	predeleteStatements []string
+	predeleteBatchRows  [][]any
+	// predeleteLockBusy names generations whose advisory lock the fake
+	// reports as held by another session.
+	predeleteLockBusy []string
+	// predeleteBatchDelay makes every pre-delete batch statement take this
+	// long, so a test can tell pre-delete time from prune time.
+	predeleteBatchDelay time.Duration
+}
+
+// isSearchIndexPredeleteStatement reports whether a statement belongs to the
+// #7427 pre-delete rather than to the prune transaction's own scripts.
+func isSearchIndexPredeleteStatement(query string) bool {
+	return strings.Contains(query, generationRetentionSearchIndexReadMarker) ||
+		strings.Contains(query, "pre-delete batch") ||
+		strings.Contains(query, "pg_try_advisory_xact_lock(7427") ||
+		strings.HasPrefix(query, "SELECT set_config('lock_timeout'")
+}
+
+// answerSearchIndexPredelete answers one pre-delete statement.
+func (database *generationRetentionFakeDB) answerSearchIndexPredelete(query string, args []any) (db.Rows, error) {
+	database.predeleteStatements = append(database.predeleteStatements, query)
+	switch {
+	case strings.Contains(query, "ranked_superseded_generations"):
+		return &queueFakeRows{rows: generationRetentionCandidateFakeRows(database.candidateRows, args)}, nil
+	case strings.Contains(query, "search index generation try-lock"):
+		ids, _ := args[0].([]string)
+		locked := make([][]any, 0, len(ids))
+		for _, id := range ids {
+			if !slices.Contains(database.predeleteLockBusy, id) {
+				locked = append(locked, []any{id})
+			}
+		}
+		return &queueFakeRows{rows: locked}, nil
+	case strings.Contains(query, "pg_try_advisory_xact_lock(7427"):
+		id, _ := args[0].(string)
+		return &queueFakeRows{rows: [][]any{{!slices.Contains(database.predeleteLockBusy, id)}}}, nil
+	case strings.Contains(query, "pre-delete batch"):
+		time.Sleep(database.predeleteBatchDelay)
+		if len(database.predeleteBatchRows) > 0 {
+			row := database.predeleteBatchRows[0]
+			database.predeleteBatchRows = database.predeleteBatchRows[1:]
+			return &queueFakeRows{rows: [][]any{row}}, nil
+		}
+		return &queueFakeRows{rows: [][]any{{true, int64(0), int64(0), "", ""}}}, nil
+	}
+	return nil, sql.ErrNoRows
 }
 
 func (database *generationRetentionFakeDB) Begin(context.Context) (db.Transaction, error) {
@@ -72,7 +133,19 @@ func (database *generationRetentionFakeDB) ExecContext(context.Context, string, 
 	return nil, sql.ErrConnDone
 }
 
-func (database *generationRetentionFakeDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+// QueryContext answers the statement the store issues on the pool, outside
+// any transaction: the #7427 pre-delete's key-index check, recorded in
+// predeleteStatements only.
+func (database *generationRetentionFakeDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	database.predeleteStatements = append(database.predeleteStatements, query)
+	switch {
+	case strings.Contains(query, "generation_retention_key_indexes"):
+		rows := make([][]any, 0, len(database.missingKeyIndexes))
+		for _, name := range database.missingKeyIndexes {
+			rows = append(rows, []any{name})
+		}
+		return &queueFakeRows{rows: rows}, nil
+	}
 	return nil, sql.ErrConnDone
 }
 
@@ -81,6 +154,9 @@ type generationRetentionFakeTx struct {
 }
 
 func (tx *generationRetentionFakeTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	if isSearchIndexPredeleteStatement(query) {
+		return tx.database.answerSearchIndexPredelete(query, args)
+	}
 	tx.database.queries = append(tx.database.queries, fakeQueryCall{query: query, args: args})
 	tx.database.statements = append(tx.database.statements, query)
 	switch {
@@ -224,6 +300,10 @@ func generationRetentionCandidateFakeRows(rows [][]any, args []any) [][]any {
 }
 
 func (tx *generationRetentionFakeTx) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+	if isSearchIndexPredeleteStatement(query) {
+		tx.database.predeleteStatements = append(tx.database.predeleteStatements, query)
+		return fakeResult{}, nil
+	}
 	tx.database.statements = append(tx.database.statements, query)
 	// Transaction-local settings and savepoints are recorded in statements
 	// but skip the positional exec scripts, which follow the deletes.
@@ -231,6 +311,15 @@ func (tx *generationRetentionFakeTx) ExecContext(_ context.Context, query string
 		if strings.HasPrefix(query, prefix) {
 			return fakeResult{}, nil
 		}
+	}
+	if strings.HasPrefix(query, factkeys.DeleteMarker) {
+		tx.database.factKeyExecs = append(tx.database.factKeyExecs, fakeExecCall{query: query, args: args})
+		for table, rows := range tx.database.factKeyRows {
+			if strings.Contains(query, "DELETE FROM "+table+"\n") {
+				return fakeRowsAffected{n: rows}, nil
+			}
+		}
+		return fakeRowsAffected{}, nil
 	}
 	tx.database.execs = append(tx.database.execs, fakeExecCall{query: query, args: args})
 	if len(tx.database.execResults) == 0 {

@@ -16,6 +16,23 @@ fail() {
 	exit 1
 }
 
+pin_fixture_legacy() {
+	python3 - "$1" <<'EOF'
+import hashlib
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text()
+scheduled = sorted(re.findall(r"(?m)^  - file: (\S+)\n    tag: .*\n    class: scheduled$", text))
+digest = hashlib.sha256("".join(f"{name}\n" for name in scheduled).encode()).hexdigest()
+text = re.sub(r"(?m)^  count: \d+$", f"  count: {len(scheduled)}", text, count=1)
+text = re.sub(r"(?m)^  sha256: [0-9a-f]{64}$", f"  sha256: {digest}", text, count=1)
+path.write_text(text)
+EOF
+}
+
 [[ "$(wc -l <"${BASH_SOURCE[0]}" | tr -d '[:space:]')" -lt 500 ]] ||
 	fail "test script must stay under 500 lines"
 [[ -x "${script}" ]] || fail "verify script missing or not executable"
@@ -188,53 +205,30 @@ if REPO_ROOT="${repo_root}" LEDGER_PATH="${fixture}/ledger-retired-live.yaml" "$
 fi
 
 # ── GREEN: a retired row naming an existing, repaired file passes ─────────
-calm="$(mktemp -d)"
+calm="$(mktemp -d "${repo_root}/go/ledger-calm-XXXXXX")"
+calm_rel="${calm#${repo_root}/}"
 trap 'rm -rf "${fixture}" "${calm}"; rm -f "${flat_ledger}"' EXIT
-mkdir -p "${calm}/go/calm"
-printf 'package calm\n' >"${calm}/go/calm/calm_live_test.go"
-printf 'package calm\n\nimport "testing"\n\nfunc TestCalm(t *testing.T) {}\n' >"${calm}/go/calm/calm_test.go"
-git -C "${calm}" init -q && git -C "${calm}" add go/calm/calm_live_test.go go/calm/calm_test.go
-cat >"${calm}/ledger.yaml" <<'EOF'
-version: live-tests/v1
-updated_at: 2026-09-23
-issue: 6784
-parent_issue: 6788
-owners:
-  - graph
-legacy_scheduled_exemptions:
-  baseline_main: 0000000000000000000000000000000000000000
-  steward: fixture-owner
-  tracking_issue: 7533
-  count: 1
-  sha256: 5034469d7413342fc776d519828de61f90ec4497f6d6635d8f47856ad89d7937
-purpose: fixture
-design: fixture
-EOF
-cat >>"${calm}/ledger.yaml" <<'EOF'
-tests:
-  - file: go/calm/calm_live_test.go
-    tag: ~
-    class: scheduled
-    reason: fixture live proof
-  - file: go/calm/calm_test.go
-    tag: ~
-    class: retired
-    reason: repaired in fixture commit; live gate removed so it is no longer a live proof
-EOF
-REPO_ROOT="${calm}" LEDGER_PATH="${calm}/ledger.yaml" "${script}" >/dev/null 2>&1 ||
+printf 'package calm\n' >"${calm}/calm_live_test.go"
+printf 'package calm\n\nimport "testing"\n\nfunc TestCalm(t *testing.T) {}\n' >"${calm}/calm_test.go"
+cp "${ledger}" "${calm}/ledger.yaml"
+printf '  - file: %s/calm_live_test.go\n    tag: ~\n    class: scheduled\n    reason: fixture live proof\n' "${calm_rel}" >>"${calm}/ledger.yaml"
+printf '  - file: %s/calm_test.go\n    tag: ~\n    class: retired\n    reason: repaired in fixture commit; live gate removed so it is no longer a live proof\n' "${calm_rel}" >>"${calm}/ledger.yaml"
+pin_fixture_legacy "${calm}/ledger.yaml"
+REPO_ROOT="${repo_root}" LEDGER_PATH="${calm}/ledger.yaml" "${script}" >/dev/null 2>&1 ||
 	fail "validator failed on a repaired-file retired row"
 
 # ── RED: a row naming a missing file fails ───────────────────────────────
 cp "${calm}/ledger.yaml" "${fixture}/ledger-stale.yaml"
-python3 - "${fixture}/ledger-stale.yaml" <<'EOF'
+python3 - "${fixture}/ledger-stale.yaml" "${calm_rel}" <<'EOF'
 import sys
 path = sys.argv[1]
+root = sys.argv[2]
 text = open(path).read()
-anchor = "tests:\n"
-assert anchor in text, "tests anchor not found"
-open(path, "w").write(text.replace(anchor, "tests:\n  - file: go/calm/gone_live_test.go\n    tag: ~\n    class: scheduled\n    reason: planted stale row\n", 1))
+text += f"  - file: {root}/gone_live_test.go\n    tag: ~\n    class: scheduled\n    reason: planted stale row\n"
+open(path, "w").write(text)
 EOF
-if REPO_ROOT="${calm}" LEDGER_PATH="${fixture}/ledger-stale.yaml" "${script}" >/dev/null 2>&1; then
+pin_fixture_legacy "${fixture}/ledger-stale.yaml"
+if REPO_ROOT="${repo_root}" LEDGER_PATH="${fixture}/ledger-stale.yaml" "${script}" >/dev/null 2>&1; then
 	fail "validator passed with a row naming a missing file"
 fi
 
@@ -298,73 +292,57 @@ fi
 
 # ── RED: a non-retired row for a repaired file fails ─────────────────────
 cp "${calm}/ledger.yaml" "${fixture}/ledger-extra.yaml"
-python3 - "${fixture}/ledger-extra.yaml" <<'EOF'
+python3 - "${fixture}/ledger-extra.yaml" "${calm_rel}" <<'EOF'
 import sys
 path = sys.argv[1]
+root = sys.argv[2]
 text = open(path).read()
-old = "    class: retired"
+old = f"  - file: {root}/calm_test.go\n    tag: ~\n    class: retired"
 assert text.count(old) == 1, "anchor retired row not found"
-open(path, "w").write(text.replace(old, "    class: scheduled", 1))
+open(path, "w").write(text.replace(old, old.replace("class: retired", "class: scheduled"), 1))
 EOF
-if REPO_ROOT="${calm}" LEDGER_PATH="${fixture}/ledger-extra.yaml" "${script}" >/dev/null 2>&1; then
+pin_fixture_legacy "${fixture}/ledger-extra.yaml"
+if REPO_ROOT="${repo_root}" LEDGER_PATH="${fixture}/ledger-extra.yaml" "${script}" >/dev/null 2>&1; then
 	fail "validator passed with a non-retired row naming a non-live file"
 fi
 
 # ── RED: a live-tagged Test func outside *_live_test.go fails ────────────
-wild="$(mktemp -d)"
+wild="$(mktemp -d "${repo_root}/go/ledger-wild-XXXXXX")"
+wild_rel="${wild#${repo_root}/}"
 trap 'rm -rf "${fixture}" "${calm}" "${wild}"; rm -f "${flat_ledger}"' EXIT
-mkdir -p "${wild}/go/wild"
-printf 'package wild\n' >"${wild}/go/wild/wild_live_test.go"
-printf '//go:build live_wild_probe\n\npackage wild\n\nimport "testing"\n\nfunc TestWild(t *testing.T) {}\n' >"${wild}/go/wild/wild_test.go"
-git -C "${wild}" init -q && git -C "${wild}" add go/wild/wild_live_test.go go/wild/wild_test.go
-cat >"${wild}/ledger.yaml" <<'EOF'
-version: live-tests/v1
-updated_at: 2026-09-23
-issue: 6784
-parent_issue: 6788
-owners:
-  - graph
-legacy_scheduled_exemptions:
-  baseline_main: 0000000000000000000000000000000000000000
-  steward: fixture-owner
-  tracking_issue: 7533
-  count: 1
-  sha256: 6eca53a4977543a9fab078095bf3a5b99acd480d365f9aeb1bbff439fc91f0c8
-purpose: fixture
-design: fixture
-tests:
-  - file: go/wild/wild_live_test.go
-    tag: ~
-    class: scheduled
-    reason: fixture live proof
-EOF
-if REPO_ROOT="${wild}" LEDGER_PATH="${wild}/ledger.yaml" "${script}" >/dev/null 2>&1; then
+printf 'package wild\n' >"${wild}/wild_live_test.go"
+printf '//go:build live_wild_probe\n\npackage wild\n\nimport "testing"\n\nfunc TestWild(t *testing.T) {}\n' >"${wild}/wild_test.go"
+cp "${calm}/ledger.yaml" "${wild}/ledger.yaml"
+printf '  - file: %s/wild_live_test.go\n    tag: ~\n    class: scheduled\n    reason: fixture live proof\n' "${wild_rel}" >>"${wild}/ledger.yaml"
+pin_fixture_legacy "${wild}/ledger.yaml"
+if REPO_ROOT="${repo_root}" LEDGER_PATH="${wild}/ledger.yaml" "${script}" >/dev/null 2>&1; then
 	fail "validator passed with an unclassified nonstandard live file"
 fi
+rm -r "${wild}"
 
 # A new proof with explicit PostgreSQL ownership is permitted without
 # expanding the closed legacy exemption set.
-printf 'package calm\n' >"${calm}/go/calm/new_live_test.go"
-git -C "${calm}" add go/calm/new_live_test.go
+printf 'package calm\n' >"${calm}/new_live_test.go"
 cp "${calm}/ledger.yaml" "${calm}/owned.yaml"
-printf '  - file: go/calm/new_live_test.go\n    tag: ~\n    class: postgres_ci\n    reason: fixture PostgreSQL proof with verified runner\n    runner: live-postgres-readiness\n' >>"${calm}/owned.yaml"
-REPO_ROOT="${calm}" LEDGER_PATH="${calm}/owned.yaml" "${script}" >/dev/null 2>&1 ||
+printf '  - file: %s/new_live_test.go\n    tag: ~\n    class: postgres_ci\n    reason: fixture PostgreSQL proof with verified runner\n    runner: live-postgres-readiness\n' "${calm_rel}" >>"${calm}/owned.yaml"
+REPO_ROOT="${repo_root}" LEDGER_PATH="${calm}/owned.yaml" "${script}" >/dev/null 2>&1 ||
 	fail "validator rejected a newly owned PostgreSQL proof"
 
 # A deliberate promotion removes the former legacy file from the frozen
 # inventory and re-pins its count/digest; it must keep its own runner.
-awk '
-    /^  count: 1$/ { print "  count: 0"; next }
-    /^  sha256: 5034469d7413342fc776d519828de61f90ec4497f6d6635d8f47856ad89d7937$/ {
-        print "  sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"; next
-    }
-    /^    class: scheduled$/ { print "    class: postgres_ci"; promoted = 1; next }
-    /^    reason: fixture live proof$/ && promoted {
-        print; print "    runner: live-postgres-readiness"; promoted = 0; next
-    }
-    { print }
-' "${calm}/owned.yaml" >"${calm}/promoted.yaml"
-REPO_ROOT="${calm}" LEDGER_PATH="${calm}/promoted.yaml" "${script}" >/dev/null 2>&1 ||
+python3 - "${calm}/owned.yaml" "${calm}/promoted.yaml" "${calm_rel}" <<'EOF'
+from pathlib import Path
+import sys
+
+source, target, root = map(Path, sys.argv[1:])
+text = source.read_text()
+old = f"  - file: {root}/calm_live_test.go\n    tag: ~\n    class: scheduled\n    reason: fixture live proof\n"
+new = old.replace("class: scheduled", "class: postgres_ci") + "    runner: live-postgres-readiness\n"
+assert text.count(old) == 1
+target.write_text(text.replace(old, new))
+EOF
+pin_fixture_legacy "${calm}/promoted.yaml"
+REPO_ROOT="${repo_root}" LEDGER_PATH="${calm}/promoted.yaml" "${script}" >/dev/null 2>&1 ||
 	fail "validator rejected a reviewed shrink of the legacy exemption set"
 
 printf 'test-verify-live-tests-ledger: RED/GREEN pair passed\n'

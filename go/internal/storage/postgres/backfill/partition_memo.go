@@ -99,13 +99,17 @@ func (s *deferredBackfillPartitionMemoStore) EnsureSchema(ctx context.Context) e
 //
 // The phase is the subject deliberately, not a count of evidence rows. It names
 // reducer.GraphProjectionPhaseBackwardEvidenceCommitted, whose key is exactly
-// this row's (ScopeID, GenerationID). A pass publishes that phase and stamps this
-// memo for a partition even when it wrote no new evidence rows for it, which is
-// the intended steady state once the partition's evidence is already complete
-// (writeDeferredBackfillBatch records a partition contribution whether or not the
-// repository had evidence to persist). Reading this field as "the fingerprint at
-// the partition's last evidence INSERT" would therefore be wrong. The memo row
-// and the phase row commit together in the fan-in transaction, so the fingerprint
+// this row's (ScopeID, GenerationID). A pass can publish that phase and stamp
+// this memo for a partition even when it wrote no new evidence rows for it
+// (writeDeferredBackfillBatch records a partition contribution whether or not
+// the repository had evidence to persist): a memo miss, a partition that gained
+// evidence, and every partition of the partition-scoped pass publish. The whole
+// pass does not republish a partition that was a memo hit at pass start and got
+// no inserted evidence row (#8082), so its CommittedAt stays at the
+// publication that last changed it. Reading this field as "the fingerprint at
+// the partition's last evidence INSERT" would be wrong, and so would reading
+// CommittedAt as the last pass that saw the partition. The memo row and the
+// phase row commit together in the fan-in transaction, so the fingerprint
 // recorded here is always the one in effect at that publication.
 type deferredBackfillPartitionMemoRow struct {
 	ScopeID            string

@@ -41,7 +41,9 @@ Read `doc.go` and `README.md` first.
 - Every selector-resolution error goes through `writeContentSelectorError`,
   which keeps the shared order (#7626): `querycontract.WriteGraphReadError`
   (503), then `selector.WriteLookupFailure` (500, fixed body, span error), then
-  404 for not-found and 400 otherwise. Pass the capability as a plain string
+  404 for a `selector.NotFoundError` and 400 for a `selector.AmbiguousError`,
+  each with the typed answer's text, then `tracing.WriteServerFailure` with
+  `selector.LookupFailureMessage` for anything else (#7674). Pass the capability as a plain string
   argument at each call site: root's `TestWriteGraphReadErrorCapabilitiesExistInMatrix`
   resolves it through callers, not through a struct field. Never write a
   `selector.LookupError`'s `err.Error()` to a body.
@@ -62,6 +64,13 @@ Read `doc.go` and `README.md` first.
   the entity route (#7009). Never let one route silently honor part of the
   other route's cursor. Do not add a path that returns a short unscoped page
   without the partial marker; the walk lives in `internal/query/search/unscoped`.
+
+- A request with `rank_cursor` (#7746) never falls back to an offset page.
+  A ranker that cannot score the window, an offset or unscoped cursor, a
+  missing repository, and the file route each answer the typed
+  `rank_cursor_unsupported` 400 (`rank_walk.go`). `rankDocuments` keeps the
+  re-rank's lexical fallback; the walk uses `rankDocumentsErr` so a timeout is
+  a 500, never a window scored as empty.
 
 ## Test doubles that cannot be shared with root
 

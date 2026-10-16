@@ -1330,7 +1330,13 @@
           "properties": {
             "mode": {
               "type": "string",
-              "enum": ["githubOrg", "explicit", "filesystem"]
+              "enum": ["githubOrg", "explicit", "filesystem", "gitlabGroup"]
+            },
+            "gitlabGroup": {
+              "type": "string"
+            },
+            "gitlabHost": {
+              "type": "string"
             },
             "repositories": {
               "type": "array",

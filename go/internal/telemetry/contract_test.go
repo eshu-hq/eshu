@@ -105,6 +105,10 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"host",
 		"scope",
 		"block",
+		"direction",
+		"class",
+		"site",
+		"search_path",
 	}
 
 	got := MetricDimensionKeys()
@@ -179,6 +183,7 @@ func TestSpanNames(t *testing.T) {
 		"query.semantic_search",
 		"query.semantic_search.persisted_index",
 		"query.semantic_search.vector_ready",
+		"query.hybrid_rerank",
 		"query.documentation_aggregate",
 		"query.dead_iac",
 		"query.iac_unmanaged_resources",

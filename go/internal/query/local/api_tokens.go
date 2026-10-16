@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 const (
@@ -136,7 +137,7 @@ func (h *IdentityHandler) handleListAPITokens(w http.ResponseWriter, r *http.Req
 	items, err := h.Store.ListAPITokensBySubject(r.Context(), authCtx.SubjectIDHash, now)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "list api tokens by subject failed", "err", err)
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to list api tokens")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, apiAccessKeyListFailedMessage)
 		return
 	}
 	// display_label (issue #3708) is the real, non-secret operator-facing
@@ -199,7 +200,7 @@ func (h *IdentityHandler) handleCreateAPIToken(w http.ResponseWriter, r *http.Re
 		// an explicit user_id mints a token for another user.
 		if err := h.resolveSelfServiceAPITokenUserID(r, &req); err != nil {
 			slog.ErrorContext(r.Context(), "resolve self-service api token user id failed", "err", err)
-			querycontract.WriteError(w, http.StatusInternalServerError, "failed to create local identity api token")
+			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, apiAccessKeyCreateFailedMessage)
 			return
 		}
 	} else if !h.enforceSelfServiceTokenCreateScope(w, r, &req, authCtx) {
@@ -212,7 +213,7 @@ func (h *IdentityHandler) handleCreateAPIToken(w http.ResponseWriter, r *http.Re
 	var err error
 	apiToken, err = h.newSecret()
 	if tokenID == "" || err != nil || apiToken == "" {
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to create local identity api token")
+		tracing.WriteServerFailure(w, r, generatedValueFailure(err), http.StatusInternalServerError, apiAccessKeyCreateFailedMessage)
 		return
 	}
 	record := h.buildAPITokenCreateRecord(r, req, tokenID, apiToken, now)
@@ -307,7 +308,7 @@ func (h *IdentityHandler) handleRotateAPIToken(w http.ResponseWriter, r *http.Re
 	var err error
 	apiToken, err = h.newSecret()
 	if tokenID == "" || err != nil || apiToken == "" {
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to rotate local identity api token")
+		tracing.WriteServerFailure(w, r, generatedValueFailure(err), http.StatusInternalServerError, apiAccessKeyRotateFailedMessage)
 		return
 	}
 	tenantID, workspaceID := localIdentityAPITokenScope(req.TenantID, req.WorkspaceID, authCtx)

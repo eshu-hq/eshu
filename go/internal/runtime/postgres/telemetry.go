@@ -18,14 +18,16 @@ import (
 )
 
 type otelObserver struct {
-	duration       metric.Float64Histogram
-	memberAttempts metric.Int64Counter
-	tracer         trace.Tracer
+	duration        metric.Float64Histogram
+	memberAttempts  metric.Int64Counter
+	snapshotDenials metric.Int64Counter
+	tracer          trace.Tracer
 }
 
 var (
-	_ Observer        = (*otelObserver)(nil)
-	_ ContextObserver = (*otelObserver)(nil)
+	_ Observer                     = (*otelObserver)(nil)
+	_ ContextObserver              = (*otelObserver)(nil)
+	_ snapshotExportDenialObserver = (*otelObserver)(nil)
 )
 
 // NewObserver emits a bounded stage duration histogram and a stage span for
@@ -47,7 +49,26 @@ func NewObserver(meter metric.Meter, tracer trace.Tracer) (Observer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("register PostgreSQL reader member attempts: %w", err)
 	}
-	return &otelObserver{duration: duration, memberAttempts: memberAttempts, tracer: tracer}, nil
+	snapshotDenials, err := meter.Int64Counter("eshu_dp_postgres_reader_snapshot_export_denials_total",
+		metric.WithDescription("Shared-snapshot reader sets refused because no reader build is qualified for snapshot export, by closed reason"))
+	if err != nil {
+		return nil, fmt.Errorf("register PostgreSQL reader snapshot export denials: %w", err)
+	}
+	return &otelObserver{duration: duration, memberAttempts: memberAttempts, snapshotDenials: snapshotDenials, tracer: tracer}, nil
+}
+
+// ObserveSnapshotExportDenial counts one refused snapshot set (#7957) under a
+// closed reason; any other value collapses to unknown.
+func (o *otelObserver) ObserveSnapshotExportDenial(ctx context.Context, reason string) {
+	if o == nil {
+		return
+	}
+	switch reason {
+	case snapshotExportReasonNoDeclaration, snapshotExportReasonUndeclared:
+	default:
+		reason = readerUnknown
+	}
+	o.snapshotDenials.Add(ctx, 1, metric.WithAttributes(attribute.String(readerAttributeReason, reason)))
 }
 
 // ObserveMemberAttempt records a closed outcome under the member's original
@@ -204,6 +225,11 @@ func RegisterPoolMetrics(meter metric.Meter, access *Access) (metric.Registratio
 	if err != nil {
 		return nil, fmt.Errorf("register PostgreSQL reader member waiters: %w", err)
 	}
+	exportQualified, err := meter.Int64ObservableGauge("eshu_dp_postgres_reader_snapshot_export_qualified",
+		metric.WithDescription("PostgreSQL reader build qualified for shared-snapshot export (0 or 1); per member_ordinal in fleet mode"))
+	if err != nil {
+		return nil, fmt.Errorf("register PostgreSQL reader snapshot export qualification: %w", err)
+	}
 	registration, err := meter.RegisterCallback(func(_ context.Context, observer metric.Observer) error {
 		writer, reader := access.Stats()
 		for _, pool := range []struct {
@@ -227,6 +253,9 @@ func RegisterPoolMetrics(meter metric.Meter, access *Access) (metric.Registratio
 			observer.ObserveInt64(waits, pool.stats.WaitCount, metric.WithAttributes(roleAttr))
 			observer.ObserveFloat64(waitTime, pool.stats.WaitDuration.Seconds(), metric.WithAttributes(roleAttr))
 		}
+		if len(access.readerMembers) == 0 {
+			observer.ObserveInt64(exportQualified, boolGauge(access.snapshotExport.qualified()))
+		}
 		if access.allocator != nil {
 			observed := make([]bool, access.readerInventoryCount)
 			reserved, waiting := access.allocator.pressure()
@@ -246,6 +275,7 @@ func RegisterPoolMetrics(meter metric.Meter, access *Access) (metric.Registratio
 				}
 				observer.ObserveInt64(reservations, int64(reserved[index]), metric.WithAttributes(ordinal))
 				observer.ObserveInt64(waiters, int64(waiting[index]), metric.WithAttributes(ordinal))
+				observer.ObserveInt64(exportQualified, boolGauge(access.readerMembers[index].snapshotExport.qualified()), metric.WithAttributes(ordinal))
 			}
 			for index, present := range observed {
 				value := int64(0)
@@ -256,9 +286,17 @@ func RegisterPoolMetrics(meter metric.Meter, access *Access) (metric.Registratio
 			}
 		}
 		return nil
-	}, connections, waits, waitTime, qualified, memberConnections, reservations, waiters)
+	}, connections, waits, waitTime, qualified, memberConnections, reservations, waiters, exportQualified)
 	if err != nil {
 		return nil, fmt.Errorf("register PostgreSQL reader pool callback: %w", err)
 	}
 	return registration, nil
+}
+
+// boolGauge encodes a verdict as a 0 or 1 gauge sample.
+func boolGauge(value bool) int64 {
+	if value {
+		return 1
+	}
+	return 0
 }

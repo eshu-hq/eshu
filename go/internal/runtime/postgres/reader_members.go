@@ -29,6 +29,10 @@ type physicalReaderMember struct {
 	serverIP    net.IP
 	addresses   []net.IP
 	maxOpen     int
+	// snapshotExport is this member's #7957 snapshot-export verdict: seeded
+	// from the bootstrap identity read and refreshed by every borrow's
+	// identity check. It is a pointer so member copies share one holder.
+	snapshotExport *snapshotExportQualification
 }
 
 func openReaderMembers(ctx context.Context, stageBudget time.Duration, cfg Config, template *pgx.ConnConfig, writer physicalIdentity) ([]physicalReaderMember, error) {
@@ -102,7 +106,9 @@ func qualifyReaderMember(ctx context.Context, cfg Config, template *pgx.ConnConf
 	pool.SetMaxIdleConns(maxIdle)
 	pool.SetConnMaxLifetime(cfg.ConnMaxLifetime)
 	pool.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
-	return physicalReaderMember{ordinal: index, id: member.ID, host: member.Host, pool: pool, incarnation: id.incarnation, serverIP: net.ParseIP(serverAddress), addresses: physicalAddresses, maxOpen: maxOpen}, nil
+	exportQualification := newSnapshotExportQualification(cfg.SnapshotExportBuilds)
+	exportQualification.observe(id.serverVersion, id.serverVersionNum, id.recovery == "true")
+	return physicalReaderMember{ordinal: index, id: member.ID, host: member.Host, pool: pool, incarnation: id.incarnation, serverIP: net.ParseIP(serverAddress), addresses: physicalAddresses, maxOpen: maxOpen, snapshotExport: exportQualification}, nil
 }
 
 func awaitPGXCleanup(ctx context.Context, cleanupDone <-chan struct{}, forceClose func() error) error {
@@ -283,7 +289,7 @@ func readerFailureClass(err error) readerFailureKind {
 }
 
 func memberValidator(writer physicalIdentity, incarnation string, addresses []net.IP) pgconn.ValidateConnectFunc {
-	base := readerValidator(writer)
+	base := readerValidator(writer, nil)
 	return func(ctx context.Context, conn *pgconn.PgConn) error {
 		if err := base(ctx, conn); err != nil {
 			return err

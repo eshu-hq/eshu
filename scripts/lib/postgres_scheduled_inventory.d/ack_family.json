@@ -1,0 +1,177 @@
+{
+  "go/internal/storage/postgres/container_image_identity_ack_attempt_fencing_live_test.go": {
+    "group": "ack_family",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestContainerImageIdentityAckAttemptFenceSurvivesSameOwnerReclaimAndReplayLive"
+    ]
+  },
+  "go/internal/storage/postgres/container_image_identity_ack_batch_exactness_live_test.go": {
+    "group": "ack_family",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestContainerImageIdentityAckBatchAttemptExactnessLive"
+    ]
+  },
+  "go/internal/storage/postgres/container_image_identity_ack_capability_live_test.go": {
+    "group": "ack_family",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestContainerImageIdentityAckAttemptFenceMixedVersionLive"
+    ]
+  },
+  "go/internal/storage/postgres/container_image_identity_ack_capability_reset_live_test.go": {
+    "group": "ack_family",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundariesLive"
+    ]
+  },
+  "go/internal/storage/postgres/container_image_identity_ack_ordering_postgres_live_test.go": {
+    "group": "ack_family",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestContainerImageIdentityAckMarkerOrderingLive"
+    ]
+  },
+  "go/internal/storage/postgres/container_image_identity_claim_epoch_fencing_live_test.go": {
+    "group": "ack_family",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestContainerImageIdentityCapablePreCutoverClaimSkipsTriggerFunctionLive",
+      "TestContainerImageIdentityClaimRejectsInvalidEpochJumpLive",
+      "TestContainerImageIdentityCurrentBatchClaimAdvancesAndSucceedsLive"
+    ]
+  },
+  "go/internal/storage/postgres/container_image_identity_claim_latch_service_live_test.go": {
+    "group": "ack_family",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestContainerImageIdentityClaimLatchSurvivesServiceRetryAndFencesLegacyCallbacksLive"
+    ]
+  },
+  "go/internal/storage/postgres/container_image_identity_claim_trigger_live_test.go": {
+    "group": "ack_family",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestContainerImageIdentityCapableClaimQueriesLatchV2AndAdvanceEpochExplicitly",
+      "TestContainerImageIdentityClaimEpochAdvancesOnceUnderCompetingClaimersLive",
+      "TestContainerImageIdentityClaimEpochTriggerCatalogLive",
+      "TestContainerImageIdentityClaimEpochTriggerSkipsUnrelatedRowsLive",
+      "TestContainerImageIdentityLegacyReclaimFencesExpiredSameOwnerAttemptLive",
+      "TestContainerImageIdentityPostCutoverLegacyClaimFailsUnchangedLive"
+    ]
+  },
+  "go/internal/storage/postgres/container_image_identity_cutover_migration_rerun_live_test.go": {
+    "group": "ack_family",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestContainerImageIdentityCutoverMigrationAcceptsDurableClaimLatchWithoutMarkerLive"
+    ]
+  },
+  "go/internal/storage/postgres/container_image_identity_failure_fencing_live_test.go": {
+    "group": "ack_family",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestContainerImageIdentityFailureStatusAuthorizationLive"
+    ]
+  },
+  "go/internal/storage/postgres/container_image_identity_legacy_cleanup_live_test.go": {
+    "group": "ack_family",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestContainerImageIdentityLegacyCleanupProbeHonorsMarkerPresentRowsLive"
+    ]
+  },
+  "go/internal/storage/postgres/cross_scope_completion_ack_atomic_postgres_live_test.go": {
+    "group": "ack_family",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestReducerAckCoalescesPendingCompletionEventsPerDomainLive",
+      "TestReducerAckEventInsertFailureRollsBackProducerSuccessLive"
+    ]
+  },
+  "go/internal/storage/postgres/cross_scope_completion_concurrency_postgres_live_test.go": {
+    "group": "ack_family",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestCrossScopeCompletionConcurrentClaimHasOneLiveOwnerPerDomain",
+      "TestCrossScopeCompletionExpiredLeaseIsRootOfBoundedFanoutLive",
+      "TestCrossScopeCompletionFanoutRollsBackEventAndIntentTogetherLive",
+      "TestCrossScopeCompletionRetryMergesPendingAndStaysBoundedLive",
+      "TestReducerAckBatchAppendsOneCompletionEventPerProducerDomainLive"
+    ]
+  },
+  "go/internal/storage/postgres/cross_scope_completion_index_lifecycle_postgres_live_test.go": {
+    "group": "ack_family",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestCrossScopeCompletionQueueMigrationLifecycleLive",
+      "TestCrossScopeCompletionSourceIndexLifecycleLive"
+    ]
+  },
+  "go/internal/storage/postgres/cross_scope_completion_postgres_live_test.go": {
+    "group": "ack_family",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestCrossScopeCompletionFanoutSchedulesOnlyEligibleConsumerStatesLive",
+      "TestCrossScopeCompletionIdentityThenCICDConvergesLive"
+    ]
+  },
+  "go/internal/storage/postgres/cross_scope_completion_snapshot_postgres_live_test.go": {
+    "group": "ack_family",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestCrossScopeCompletionEventAfterFanoutSnapshotRemainsPendingLive"
+    ]
+  },
+  "go/internal/storage/postgres/cross_scope_completion_upgrade_postgres_live_test.go": {
+    "group": "ack_family",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestCrossScopeCompletionLegacyRetryAndFailClearDirtyReplayLive",
+      "TestCrossScopeCompletionQuietUpgradeSeedsCanonicalReplayOnceLive"
+    ]
+  },
+  "go/internal/storage/postgres/cross_scope_completion_workflow_image_postgres_live_test.go": {
+    "group": "ack_family",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestWorkflowImageCompletionForcedOrderConvergesLive"
+    ]
+  },
+  "go/internal/storage/postgres/provenance_edge_identity_upgrade_postgres_live_test.go": {
+    "group": "ack_family",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestProvenanceEdgeIdentityUpgradeSeedsCurrentReplayOnceLive"
+    ]
+  },
+  "go/internal/storage/postgres/reducer_queue_ack_lock_order_postgres_live_test.go": {
+    "group": "ack_family",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestReducerContentionGateAckBatchDeadlockRetryLive",
+      "TestReducerContentionGateAckFanoutLockOrderLive"
+    ]
+  },
+  "go/internal/storage/postgres/value_flow_refresh_ack_live_test.go": {
+    "group": "ack_family",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestValueFlowRefreshAckBatchEmitsOnlyForGatedItemsLive",
+      "TestValueFlowRefreshAckEmitsEventWhenGatePassesLive",
+      "TestValueFlowRefreshAckFailsOpenWithoutSignalLive",
+      "TestValueFlowRefreshAckSuppressesEventOnExplicitZeroLive"
+    ]
+  },
+  "go/internal/storage/postgres/value_flow_refresh_fanout_live_test.go": {
+    "group": "ack_family",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestValueFlowRefreshFanoutReopensSingletonLive",
+      "TestValueFlowRefreshGlobalScopeDoesNotHoldCanonicalLaneLive",
+      "TestValueFlowRefreshSeedMigrationSeedsGlobalSingletonLive"
+    ]
+  }
+}

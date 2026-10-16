@@ -103,6 +103,7 @@ func Spec() string {
 			catalog.Capabilities+
 			catalog.SurfaceInventory+
 			status.Admin+
+			status.ReindexProgress+
 			infrastructure.Routes+
 			search.GraphEntities+
 			infrastructure.ResourceAggregate+

@@ -8,6 +8,10 @@ import "time"
 const (
 	// ProtocolVersionV1Alpha1 is the first collector extension wire contract.
 	ProtocolVersionV1Alpha1 = "collector-sdk/v1alpha1"
+	// ProtocolVersionV1Alpha2 is the second collector extension wire
+	// contract. Hosts admit it only when explicitly configured; the v1alpha1
+	// default is unchanged.
+	ProtocolVersionV1Alpha2 = "collector-sdk/v1alpha2"
 )
 
 const (

@@ -81,6 +81,13 @@ const (
 	// also cause it. Nothing was written and no attempt is counted (arbiter
 	// ruling arb-7127-3e-wait).
 	RetryGenerationLockTimeout RetryReason = "generation_lock_timeout"
+	// RetryJournalBusy means a journal pass skipped because its try of the
+	// exclusive journal key missed: a projector Ack held the key shared
+	// (#7127 PR-3b) or another replica's pass held it. JournalStore.Journal
+	// reports it as JournalResult.Skipped, not as a RetryError; the runner
+	// counts it under this reason. The pass wrote nothing and the next cycle
+	// tries again.
+	RetryJournalBusy RetryReason = "journal_busy"
 )
 
 // RetryError reports a retryable link outcome. It satisfies the reducer's

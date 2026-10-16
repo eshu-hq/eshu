@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // BuildSupplyChainImpactPacket maps a reducer-owned supply-chain impact
@@ -353,6 +354,15 @@ func packetFirstNonEmpty(values ...string) string {
 
 // === Lane-B packet responder (formerly chain_impact_packet_responder.go) ===
 
+// Fixed bodies of the two packet build steps behind GET
+// /api/v0/investigations/supply-chain/impact/packet (#7674). Neither builds
+// from a read: a build error quotes packet contents, so it goes on the request
+// span, never into the body.
+const (
+	supplyChainImpactPacketBuildFailedMessage   = "supply-chain impact packet build failed"
+	supplyChainImpactRefusalPacketFailedMessage = "supply-chain impact refusal packet build failed"
+)
+
 // supplyChainImpactPacketResponder implements
 // supplychain.ImpactPacketResponder from the lane-B packet
 // envelope. It lives in root because the envelope types
@@ -381,7 +391,7 @@ func (supplyChainImpactPacketResponder) RespondSupplyChainImpactPacket(
 ) {
 	packet, err := BuildSupplyChainImpactPacket(body, truth, packetBoundsFromRequest(r))
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, supplyChainImpactPacketBuildFailedMessage)
 		return
 	}
 	writeInvestigationPacket(w, r, packet)
@@ -395,7 +405,7 @@ func (supplyChainImpactPacketResponder) RespondSupplyChainImpactScopeRefusal(
 ) {
 	packet, err := refusalPacketForAPI(InvestigationFamilySupplyChainImpact, PacketRefusalScopeNotFound)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, supplyChainImpactRefusalPacketFailedMessage)
 		return
 	}
 	writeInvestigationPacket(w, r, packet)

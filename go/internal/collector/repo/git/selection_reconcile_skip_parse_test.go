@@ -424,6 +424,106 @@ func TestSkipParseSpendsTheBudgetSlot(t *testing.T) {
 	}
 }
 
+// TestSkipParseReparsesWhenARecordedDropReturns (#8185): the active
+// generation kept its identity across a stream drop and recorded the dropped
+// path. When that path opens again, the next parse would emit facts the
+// active generation lacks, so the scope parses instead of skipping.
+func TestSkipParseReparsesWhenARecordedDropReturns(t *testing.T) {
+	w := newSkipParseWorld(t, "", "big")
+	state := w.overdue(w.identity(), 0)
+	state.ActiveStreamDroppedPaths = []string{"gone.yml"}
+	w.resolver.fallback = state
+	writeCollectorTestFile(t, filepath.Join(w.repoPath("big"), "gone.yml"), "jobs: {}\n")
+	synced := w.sync(7, nil, "big")
+	if len(synced.SelectedRepoPaths) != 1 || len(w.resolver.reprojected) != 0 {
+		t.Fatalf("selected %d and reprojected %d, want a parse: gone.yml opens again", len(synced.SelectedRepoPaths), len(w.resolver.reprojected))
+	}
+}
+
+// TestSkipParseParsesWhenRecordedDropsOverflow (#8185): a recorded set that
+// overflowed its cap cannot prove every drop still applies, so the scope
+// parses instead of risking a skip over a healed file.
+func TestSkipParseParsesWhenRecordedDropsOverflow(t *testing.T) {
+	w := newSkipParseWorld(t, "", "big")
+	state := w.overdue(w.identity(), 0)
+	state.ActiveStreamDroppedPaths = []string{"gone.yml"}
+	state.ActiveStreamDroppedTruncated = true
+	w.resolver.fallback = state
+	synced := w.sync(7, nil, "big")
+	if len(synced.SelectedRepoPaths) != 1 || len(w.resolver.reprojected) != 0 {
+		t.Fatalf("selected %d and reprojected %d, want a parse: the recorded set overflowed", len(synced.SelectedRepoPaths), len(w.resolver.reprojected))
+	}
+}
+
+// TestSkipParseSkipsWhenRecordedDropsPersist (#8185): a persistent read
+// failure on one path no longer defeats the skip. The recorded drop still
+// fails, the identity is equal, so the scope skips, and the skip counts on
+// the persistent-drops counter the operator watches per interval.
+func TestSkipParseSkipsWhenRecordedDropsPersist(t *testing.T) {
+	w := newSkipParseWorld(t, "", "big")
+	state := w.overdue(w.identity(), 0)
+	state.ActiveStreamDroppedPaths = []string{"gone.yml"}
+	w.resolver.fallback = state
+	synced := w.sync(7, nil, "big")
+	if len(synced.SelectedRepoPaths) != 0 || len(w.resolver.reprojected) != 1 {
+		t.Fatalf("selected %d and reprojected %d, want a skipped parse", len(synced.SelectedRepoPaths), len(w.resolver.reprojected))
+	}
+	if got := persistentDropSkips(t, w.reader); got != 1 {
+		t.Fatalf("persistent-drop skips = %d, want 1", got)
+	}
+}
+
+// TestRecordedDropsStillFail (#8185): the skip probe reports persistence
+// only when every checkable recorded path still fails to open. A path that
+// opens — a file back, or a directory, which opens for reading — ends
+// persistence, and blanks never count as evidence.
+func TestRecordedDropsStillFail(t *testing.T) {
+	root := t.TempDir()
+	writeCollectorTestFile(t, filepath.Join(root, "back.yml"), "jobs: {}\n")
+	if err := os.MkdirAll(filepath.Join(root, "adir"), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	for _, cell := range []struct {
+		name  string
+		paths []string
+		want  bool
+	}{
+		{name: "missing persists", paths: []string{"gone.yml"}, want: true},
+		{name: "returned file ends it", paths: []string{"gone.yml", "back.yml"}, want: false},
+		{name: "directory opens", paths: []string{"adir"}, want: false},
+		{name: "blanks are not evidence", paths: []string{"", "  "}, want: false},
+		{name: "empty is not evidence", paths: nil, want: false},
+	} {
+		t.Run(cell.name, func(t *testing.T) {
+			if got := recordedDropsStillFail(root, cell.paths); got != cell.want {
+				t.Fatalf("recordedDropsStillFail(%q) = %v, want %v", cell.paths, got, cell.want)
+			}
+		})
+	}
+}
+
+// persistentDropSkips reads
+// eshu_dp_collector_reconcile_parse_skip_persistent_drops_total.
+func persistentDropSkips(t *testing.T, reader *sdkmetric.ManualReader) int64 {
+	t.Helper()
+	var collected metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &collected); err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	var total int64
+	for _, scopeMetrics := range collected.ScopeMetrics {
+		for _, m := range scopeMetrics.Metrics {
+			if m.Name != "eshu_dp_collector_reconcile_parse_skip_persistent_drops_total" {
+				continue
+			}
+			for _, point := range m.Data.(metricdata.Sum[int64]).DataPoints {
+				total += point.Value
+			}
+		}
+	}
+	return total
+}
+
 // TestPreparseReasonsMatchTheSweepReasons pins the two eligible reason
 // strings to the sweep's own constants.
 func TestPreparseReasonsMatchTheSweepReasons(t *testing.T) {

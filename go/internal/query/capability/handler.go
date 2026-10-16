@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 const (
@@ -99,7 +100,7 @@ func (h *Handler) Mount(mux *http.ServeMux) {
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	catalog, err := h.load()
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, "capability catalog unavailable")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, catalogUnavailableMessage)
 		return
 	}
 

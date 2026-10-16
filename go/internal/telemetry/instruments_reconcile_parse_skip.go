@@ -33,6 +33,12 @@ func registerReconcileParseSkipDecisions(meter metric.Meter, inst *Instruments) 
 	); err != nil {
 		return fmt.Errorf("register PreparseIdentityDropped counter: %w", err)
 	}
+	if inst.ReconcileParseSkipPersistentDrops, err = meter.Int64Counter(
+		"eshu_dp_collector_reconcile_parse_skip_persistent_drops_total",
+		metric.WithDescription("Forced git reconciles that skipped the parse while carrying recorded stream drops (#8185)"),
+	); err != nil {
+		return fmt.Errorf("register ReconcileParseSkipPersistentDrops counter: %w", err)
+	}
 	return nil
 }
 

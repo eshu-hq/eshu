@@ -146,6 +146,17 @@ gates:
       - "schema/data-plane/postgres/**"
       - "go/internal/query/service_story_target_support*.go"
       - "scripts/ci/go-mod-download-retry.sh"
+      - "scripts/lib/reducer_contention_events.py"
+      - "scripts/lib/reducer_contention_inventory.json"
+      - "scripts/test-reducer-contention-events.py"
+      - "scripts/test-reducer-contention-ledger-policy.py"
+      - "scripts/lib/verify-live-tests-ledger.py"
+      - "scripts/verify-live-tests-ledger.sh"
+      - "scripts/test-verify-live-tests-ledger.sh"
+      - "specs/live-tests.v1.yaml"
+      - "specs/live-tests.d/**"
+      - "specs/ci-gates.d/gates-05.yaml"
+      - ".github/workflows/reducer-contention-gate.yml"
     ci:
       workflow: reducer-contention-gate.yml
       job: "reducer contention gate"

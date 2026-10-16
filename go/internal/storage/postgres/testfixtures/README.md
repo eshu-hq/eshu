@@ -6,6 +6,10 @@ Shares the fixture helpers the `postgres` and `activation_test` test
 packages need in common. Created under #7648 by merging proven twin
 helpers that each side had duplicated.
 
+The targeted maintenance differential uses this package for one schema and
+seed implementation, paired snapshots, row comparisons, and transaction hooks.
+Root and `backfill/targeted` provide thin entry-point wrappers.
+
 ## Ownership boundary
 
 Owns the merged twin helpers only. Does not own production storage

@@ -6,92 +6,20 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"testing"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
-// deferredPartitionMemoProofSchemaSQL extends deferredPartitionProofSchemaSQL
-// (the scope/generation/fact tables) with the tables the FULL deferred backfill
-// write path touches: relationship_evidence_facts (evidence persistence),
-// graph_projection_phase_state (readiness), and the new
-// deferred_backfill_partition_memo (issue #3624 Track 1 / B'). This lets the
-// tests in this package drive the REAL BackfillAllRelationshipEvidence end to
-// end, exercising both the read-side memo gate and the write-side memo commit
-// in one pass, not just the fact-load half.
-const deferredPartitionMemoProofSchemaSQL = deferredPartitionProofSchemaSQL + `
-CREATE TABLE relationship_evidence_facts (
-    evidence_id TEXT PRIMARY KEY,
-    generation_id TEXT NOT NULL,
-    evidence_kind TEXT NOT NULL,
-    relationship_type TEXT NOT NULL,
-    source_repo_id TEXT,
-    target_repo_id TEXT,
-    source_entity_id TEXT,
-    target_entity_id TEXT,
-    confidence DOUBLE PRECISION NOT NULL,
-    rationale TEXT NOT NULL,
-    details JSONB NOT NULL,
-    observed_at TIMESTAMPTZ NOT NULL
-);
-
-CREATE TABLE graph_projection_phase_state (
-    scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
-    acceptance_unit_id TEXT NOT NULL,
-    source_run_id TEXT NOT NULL,
-    generation_id TEXT NOT NULL REFERENCES scope_generations(generation_id) ON DELETE CASCADE,
-    keyspace TEXT NOT NULL,
-    phase TEXT NOT NULL,
-    committed_at TIMESTAMPTZ NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (scope_id, acceptance_unit_id, source_run_id, generation_id, keyspace, phase)
-);
-
-CREATE TABLE deferred_backfill_partition_memo (
-    scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
-    generation_id TEXT NOT NULL REFERENCES scope_generations(generation_id) ON DELETE CASCADE,
-    catalog_fingerprint TEXT NOT NULL,
-    committed_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (scope_id, generation_id)
-);
-`
+const deferredPartitionMemoProofSchemaSQL = testfixtures.DeferredPartitionMemoProofSchemaSQL
 
 func openDeferredPartitionMemoProofDB(t *testing.T, dsn string) *sql.DB {
-	t.Helper()
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("open postgres: %v", err)
-	}
-	// Single connection, matching the #3710 partition-source proof
-	// (openDeferredPartitionProofDB): the proof schema's search_path is set on
-	// this one connection below, so every subsequent query — including the
-	// deferred backfill's concurrent per-partition fan-out — must reuse that
-	// same connection to see the proof schema rather than "public".
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	t.Cleanup(func() { _ = db.Close() })
-	return db
+	return testfixtures.OpenDeferredPartitionMemoProofDB(t, dsn)
 }
 
 func provisionDeferredPartitionMemoSchema(t *testing.T, db *sql.DB) string {
-	t.Helper()
-	ctx := context.Background()
-	schemaName := fmt.Sprintf("deferred_partition_memo_proof_%d", time.Now().UnixNano())
-	if _, err := db.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
-		t.Fatalf("create proof schema: %v", err)
-	}
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
-	})
-	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName+", public"); err != nil {
-		t.Fatalf("set search_path: %v", err)
-	}
-	if _, err := db.ExecContext(ctx, deferredPartitionMemoProofSchemaSQL); err != nil {
-		t.Fatalf("create proof tables: %v", err)
-	}
-	return schemaName
+	return testfixtures.ProvisionDeferredPartitionMemoSchema(t, db)
 }
 
 // memoProofFixture is one scope/generation/repository triple the tests below
@@ -103,60 +31,17 @@ type memoProofFixture struct {
 	repoName string
 }
 
-func seedMemoProofScopesAndFacts(
-	t *testing.T,
-	ctx context.Context,
-	db *sql.DB,
-	fixtures []memoProofFixture,
-	crossRefs map[string]string, // sourceRepoID -> target repo alias referenced in content
-	base time.Time,
+func seedMemoProofScopesAndFacts(t *testing.T, ctx context.Context, db *sql.DB,
+	fixtures []memoProofFixture, crossRefs map[string]string, base time.Time,
 ) {
-	t.Helper()
-
-	for _, fx := range fixtures {
-		if _, err := db.ExecContext(ctx,
-			"INSERT INTO ingestion_scopes (scope_id, active_generation_id) VALUES ($1, NULL) ON CONFLICT DO NOTHING",
-			fx.scopeID); err != nil {
-			t.Fatalf("seed scope %q: %v", fx.scopeID, err)
-		}
-		if _, err := db.ExecContext(ctx,
-			"INSERT INTO scope_generations (generation_id, scope_id, ingested_at) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
-			fx.genID, fx.scopeID, base); err != nil {
-			t.Fatalf("seed generation %q: %v", fx.genID, err)
-		}
-		if _, err := db.ExecContext(ctx, `
-INSERT INTO fact_records
-  (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key, observed_at, ingested_at, payload)
-VALUES ($1, $2, $3, 'repository', $1, 'git', $1, $4, $4, $5::jsonb)
-ON CONFLICT DO NOTHING`,
-			"repo-fact-"+fx.repoID, fx.scopeID, fx.genID, base,
-			fmt.Sprintf(`{"repo_id":%q,"name":%q}`, fx.repoID, fx.repoName)); err != nil {
-			t.Fatalf("seed repository fact for %q: %v", fx.repoID, err)
+	shared := make([]testfixtures.MemoProofFixture, len(fixtures))
+	for i, fixture := range fixtures {
+		shared[i] = testfixtures.MemoProofFixture{
+			ScopeID: fixture.scopeID, GenID: fixture.genID,
+			RepoID: fixture.repoID, RepoName: fixture.repoName,
 		}
 	}
-
-	for sourceRepoID, targetAlias := range crossRefs {
-		var scopeID, genID string
-		for _, fx := range fixtures {
-			if fx.repoID == sourceRepoID {
-				scopeID, genID = fx.scopeID, fx.genID
-			}
-		}
-		if scopeID == "" {
-			t.Fatalf("no fixture for source repo %q", sourceRepoID)
-		}
-		factID := "content-" + sourceRepoID
-		content := fmt.Sprintf(`{"repo_id":%q,"artifact_type":"terraform","relative_path":"main.tf","content":"app_repo = \"%s\""}`,
-			sourceRepoID, targetAlias)
-		if _, err := db.ExecContext(ctx, `
-INSERT INTO fact_records
-  (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key, observed_at, ingested_at, payload)
-VALUES ($1, $2, $3, 'content', $1, 'git', $1, $4, $4, $5::jsonb)
-ON CONFLICT DO NOTHING`,
-			factID, scopeID, genID, base, content); err != nil {
-			t.Fatalf("seed content fact for %q: %v", sourceRepoID, err)
-		}
-	}
+	testfixtures.SeedMemoProofScopesAndFacts(t, ctx, db, shared, crossRefs, base)
 }
 
 func countMemoRows(t *testing.T, ctx context.Context, db *sql.DB) int {

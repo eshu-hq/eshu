@@ -191,4 +191,21 @@ CREATE INDEX IF NOT EXISTS workflow_claims_active_expiry_idx
     ON workflow_claims (status, lease_expires_at ASC);
 CREATE INDEX IF NOT EXISTS workflow_claims_work_item_idx
     ON workflow_claims (work_item_id, updated_at DESC);
+
+-- #7926 structured terminal failure classification: bounded operation token,
+-- HTTP status code, and terminal flag persisted alongside failure_class and
+-- failure_message so consecutive terminal failures stay distinguishable.
+-- Nullable with no backfill: legacy rows read as unknown. Placed after both
+-- tables exist so fresh EnsureSchema runs succeed. Rollback drops the six
+-- columns with ALTER TABLE ... DROP COLUMN IF EXISTS; no index, predicate,
+-- or unique constraint depends on them.
+ALTER TABLE workflow_work_items
+    ADD COLUMN IF NOT EXISTS last_failure_operation TEXT,
+    ADD COLUMN IF NOT EXISTS last_failure_status_code INTEGER,
+    ADD COLUMN IF NOT EXISTS last_failure_terminal BOOLEAN;
+
+ALTER TABLE workflow_claims
+    ADD COLUMN IF NOT EXISTS failure_operation TEXT,
+    ADD COLUMN IF NOT EXISTS failure_status_code INTEGER,
+    ADD COLUMN IF NOT EXISTS failure_terminal BOOLEAN;
 `

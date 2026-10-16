@@ -36,7 +36,14 @@ class FanInTest(unittest.TestCase):
                     "scripts/test-run-live-backend-tests.sh",
                     "scripts/test-live-backend-shards.py",
                     "scripts/test-live-backend-lifecycle.py",
-                    "scripts/test-live-backend-workflow.py"]
+                    "scripts/test-live-backend-workflow.py",
+                    "scripts/test-postgres-scheduled-runner.py",
+                    "scripts/test-postgres-scheduled-fragments.py",
+                    "scripts/test-postgres-scheduled-ledger-policy.py",
+                    "scripts/test-ifa-scheduled-events.py",
+                    "scripts/test-ifa-scheduled-manifest.py",
+                    "scripts/test-ifa-scheduled-bundle.py",
+                    "scripts/test-ifa-scheduled-ledger-policy.py"]
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
             calls = root / "calls"

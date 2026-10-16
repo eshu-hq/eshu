@@ -52,7 +52,7 @@ MCP all-repository substring searches return `503` while the durable lifecycle
 is `not_built`, `building`, or `failed`; repository-scoped content reads remain
 available. Existing indexes are never dropped, so preserved-volume restarts
 and upgrades keep their steady-state read path. A failed or interrupted final
-build is retried idempotently by the next `bootstrap-index` run.
+build is retried idempotently by the next `bootstrap-index` run. The default `postgres:18-alpine` tag floats and is below PostgreSQL 18.7 at the time of writing (check `SHOW server_version`); while it is, a code-topic or change-surface request whose topic expands to 16 search terms answers a permanent `503` (`snapshot_export_unqualified`, #7957) until you declare the exact build; see [Shared-snapshot export qualification](../deployment/postgres-read-routing.md#shared-snapshot-export-qualification).
 
 ## Bootstrap Admin Credential
 

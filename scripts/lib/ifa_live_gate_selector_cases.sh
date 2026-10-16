@@ -97,7 +97,7 @@ ifa_live_gate_common_seams=(
 	'go/internal/relationships/**|go/internal/relationships/tfstatebackend/resolver.go'
 	'go/internal/runtime/data_stores.go|go/internal/runtime/data_stores.go'
 	'go/internal/runtime/retry_policy.go|go/internal/runtime/retry_policy.go'
-	'go/internal/storage/postgres/projector_queue_crossplane_redrive_hook.go|go/internal/storage/postgres/projector_queue_crossplane_redrive_hook.go'
+	'go/internal/storage/postgres/projector_queue_ack.go|go/internal/storage/postgres/projector_queue_ack.go'
 	'go/internal/storage/postgres/projector_queue_config_state_drift_trigger_hook.go|go/internal/storage/postgres/projector_queue_config_state_drift_trigger_hook.go'
 	'go/go.mod|go/go.mod'
 	'go/go.sum|go/go.sum'

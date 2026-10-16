@@ -20,14 +20,20 @@ import "github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 func Route(toolName string, args routecontract.Arguments) (routecontract.Request, bool) {
 	switch toolName {
 	case "find_code":
-		return routecontract.Request{Method: "POST", Path: "/api/v0/code/search", Body: map[string]any{
+		body := map[string]any{
 			"query":    args.String("query"),
 			"repo_id":  args.String("repo_id"),
 			"language": args.String("language"),
 			"limit":    args.IntOr("limit", 10),
 			"offset":   args.IntOr("offset", 0),
 			"exact":    args.BoolOr("exact", false),
-		}}, true
+		}
+		// The #7746 relevance-walk cursor is sent only when set, so a call
+		// without it keeps its exact wire body.
+		if rankCursor := args.String("rank_cursor"); rankCursor != "" {
+			body["rank_cursor"] = rankCursor
+		}
+		return routecontract.Request{Method: "POST", Path: "/api/v0/code/search", Body: body}, true
 	case "find_symbol":
 		return routecontract.Request{Method: "POST", Path: "/api/v0/code/symbols/search", Body: map[string]any{
 			"symbol":       args.String("symbol"),

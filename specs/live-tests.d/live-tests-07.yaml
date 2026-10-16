@@ -31,20 +31,24 @@ tests:
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/readiness/wait/store_clear_fence_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.27s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/readiness/wait/store_fence_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 1.61s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/readiness/wait/store_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 1.50s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/readiness/wait/store_settle_fence_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 0.68s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/readiness_wait_supersession_live_test.go
     tag: ~
     class: scheduled
@@ -57,6 +61,31 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/reducer_queue_producer_terminal_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7597 own gate bounded by its deployment_mapping producer through the real ReducerQueue claim/Fail SQL and the production Postgres lookups: a dead-lettered producer dead-letters the deployable-unit and workload consumers within MaxAttempts in the counting producer-terminal class, a producer retrying on backward evidence keeps them non-counting with attempt_count frozen; isolated schema per subtest, about 6 s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/relationship_activation_wake_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7597 each relationship-generation activation writer (claim-fenced, plain, CommitGeneration) reopens in the same transaction only the same scope-generation consumers dead-lettered in an own-gate counting class, keeps retry evidence and stamps reopened_at; the repo-dependency workload replay flips from NotScheduled to Scheduled and the woken workload item succeeds; isolated schema per subtest, about 4 s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/relationship_activation_wake_race_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7597 activation-wake races: an activation waits for an in-flight final Fail and wakes it, a final Fail that waited on the activation lock is reopened by its own post-dead-letter wake, and a held consumer row makes the activation fail with a retryable 55P03 that rolls back and the retry wakes; isolated schema per test, about 5 s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_queue_producer_refinalize_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7597 a refinalize (real reset statements) retires the relationship generation and deletes the succeeded producer; the deferring consumer keeps the non-counting class through re-resolution, and the re-run producer's activation reopens an already dead-lettered consumer and lets the other succeed; isolated schema, about 2 s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/query/admin/activation_wake_interleave_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7597 200-iteration interleave of the claim-fenced activation wake, a concurrent final Fail, the public admin replay (retried on 40P01) and a claim-time supersede sweep on independent connections: zero 40P01 on the activation, zero lost wakes, every consumer reopened exactly once; about 4 s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/recovery_refinalize_delta_active_fence_live_test.go
     tag: ~
     class: postgres_ci
@@ -77,8 +106,9 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/recovery_replay_superseded_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL liveness proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/reducer_fact_batch_insert_fence_live_test.go
     tag: ~
     class: scheduled
@@ -97,16 +127,19 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/reducer_queue_ack_eligible_epq_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL fanout proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/reducer_queue_ack_fk_compatibility_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL fanout proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/reducer_queue_ack_lock_order_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/reducer_queue_batch_ack_reclaim_live_test.go
     tag: ~
     class: postgres_ci
@@ -118,24 +151,44 @@ tests:
     reason: "untagged live proof gated by env Skip (ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN); #7285 re-projection re-enqueue contract, about 1s on a disposable schema"
   - file: go/internal/storage/postgres/reducer_queue_cross_scope_readiness_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL readiness proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/reducer_queue_pre_activation_exits_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live Postgres proof gated by env Skip (#6686); its TestReducerContentionGate prefix already runs it on every claim-path PR in reducer-contention-gate.yml, but it is not in the live-backend graph job; promote to ci with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL readiness proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/reducer_queue_pre_activation_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live Postgres proof gated by env Skip (#6686); its TestReducerContentionGate prefix already runs it on every claim-path PR in reducer-contention-gate.yml, but it is not in the live-backend graph job; promote to ci with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL readiness proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
+  - file: go/internal/storage/postgres/reducer_queue_service_catalog_runtime_bound_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7816 disposable PostgreSQL 18 proof that the runtime fence bound is measured from the producer row's last-workable time (GREATEST of COALESCE(reopened_at, created_at), COALESCE(last_attempt_at, created_at), COALESCE(visible_at, created_at), COALESCE(claim_until, created_at)), not the catalog row's age: a 45-minute-old catalog row defers on a one-minute-old producer; a producer enqueued 45 minutes ago that is polling its corpus fence, sleeping in a counting backoff, claimed one minute ago, holding a lease that expired 29 minutes ago, heartbeating a run claimed 31 minutes ago, or reclaimed by a second owner keeps a young catalog row deferring, and a retry leaves claim_until NULL; a producer with no claim, heartbeat, scheduled visibility, or cycle start for 31 minutes (never claimed, corpus-fence retry starved, counting retry visible and unclaimed, lease expired 31 minutes ago) lets the catalog row commit and ack; and a producer reopened through ReopenSucceeded waits a fresh bound; every producer row is shaped by the real Claim, Heartbeat, Fail, and ReopenSucceeded SQL; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local runs about 1s to 6s each on postgres:18; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_queue_service_catalog_runtime_interleave_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7816 disposable PostgreSQL 18 proof that a workload_materialization producer acking between the runtime fence check and the read still defers the catalog intent, and that three catalog workers racing one producer on separate connections never commit an empty runtime family; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local runs about 1s each on postgres:18; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_queue_service_catalog_runtime_readiness_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7816 disposable PostgreSQL 18 proof that the service_catalog_correlation_runtime_not_ready deferral keeps attempt_count frozen at 1 past MaxAttempts on the real queue and commits both runtime rows once the producer acks; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local run about 2s on postgres:18; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_queue_shared_edge_target_readiness_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live Postgres proof gated by env Skip (#7268); its TestReducerContentionGate prefix already runs it on every claim-path PR in reducer-contention-gate.yml, but it is not in the live-backend graph job; promote to ci with timing evidence (about 0.4 s against a local postgres:16)
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL readiness proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/reducer_queue_workload_replay_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 6/6 named Go test passes with -json -race (summed test elapsed 16.33s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/resolved_corpus_fence_snapshot_live_test.go
     tag: ~
     class: scheduled
@@ -196,72 +249,91 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/service_catalog_corpus_fence_live_test.go
     tag: ~
-    class: scheduled
-    reason: "runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_SERVICE_LINEAGE_SCOPE_PROOF, #7258)"
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 5.17s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/service_catalog_runtime_producer_store_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7816 disposable PostgreSQL 18 proof that readiness/producer.Store counts only the active generation's workload_materialization rows (older, newer pending, and sibling-domain rows never count), returns the newest in-flight last-workable time, max(GREATEST(COALESCE(reopened_at, created_at), COALESCE(last_attempt_at, created_at), COALESCE(visible_at, created_at), COALESCE(claim_until, created_at))), and the newest claim_until over in-flight rows only, and that its plan reaches fact_work_items through fact_work_items_scope_generation_idx with no sequential scan; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local run about 2.5s on postgres:18; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/service_changed_since_scope_live_test.go
     tag: ~
-    class: scheduled
-    reason: "runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_SERVICE_LINEAGE_SCOPE_PROOF, #6475)"
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.37s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/service_materialization_scope_replay_live_test.go
     tag: ~
-    class: scheduled
-    reason: "runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_SERVICE_LINEAGE_SCOPE_PROOF, #6475)"
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 6.44s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/service_materialization_scope_writer_live_test.go
     tag: ~
-    class: scheduled
-    reason: "runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_SERVICE_LINEAGE_SCOPE_PROOF, #6475)"
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 4.65s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/shared_intents_generation_pending_index_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 0.09s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/shared_intents_refresh_fence_live_test.go
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/shared_intents_upsert_created_at_live_test.go
     tag: ~
-    class: scheduled
-    reason: runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_ACCEPTANCE_MONOTONIC_PROOF)
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.29s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/shared_projection_acceptance_contention_live_test.go
     tag: ~
-    class: scheduled
-    reason: runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_ACCEPTANCE_MONOTONIC_PROOF)
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 6/6 named Go test passes with -json -race (summed test elapsed 16.44s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/shared_projection_acceptance_healed_key_live_test.go
     tag: ~
-    class: scheduled
-    reason: runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_ACCEPTANCE_MONOTONIC_PROOF)
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.45s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/shared_projection_acceptance_monotonic_live_test.go
     tag: ~
-    class: scheduled
-    reason: runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_ACCEPTANCE_MONOTONIC_PROOF)
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 3/3 named Go test passes with -json -race (summed test elapsed 11.36s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/status_active_work_semantics_live_test.go
     tag: ~
-    class: scheduled
-    reason: "runs in the blocking reducer-contention-gate workflow against its own PostgreSQL service; the #7009 active-work projection proof fails on an unset DSN when ESHU_REQUIRE_ACTIVE_WORK_PROJECTION_PROOF is set"
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 8/8 named Go test passes with -json -race (summed test elapsed 25.26s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/status_blockage_leases_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 15.24s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supersede_prior_failure_cost_live_test.go
     tag: ~
     class: scheduled
     reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN; the cost proof also needs ESHU_7320_COST_PROOF=1); #7320 supersede prior-failure fold, unmeasured cost — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/failure_text_bound_live_test.go
     tag: ~
-    class: scheduled
-    reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN); #7407 Fail-time failure_details bound and the #7320 fold copying the stored string byte for byte; about 2 s on Postgres 18 — promote to blocking with timing evidence"
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL claim proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/projector_queue_reclaim_cost_live_test.go
     tag: ~
     class: scheduled
     reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN plus ESHU_7320_COST_PROOF=1, pg_stat_statements preloaded); #7388 WAL and page cost of the reclaim fold per reclaimed row, before derived from the shipped constant; the derivation self-check runs without a database — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/projector_queue_reclaim_evidence_live_test.go
     tag: ~
-    class: scheduled
-    reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN); #7388 both projector_stale_scope_reclaim UPDATEs keep the prior failure, no nesting, and the reclaim-then-supersede chain; about 8 s on Postgres 18 — promote to blocking with timing evidence"
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL claim proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/supersede_prior_failure_fidelity_live_test.go
     tag: ~
-    class: scheduled
-    reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN; the cost proof also needs ESHU_7320_COST_PROOF=1); #7320 supersede prior-failure fold, unmeasured cost — promote to blocking with timing evidence"
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL claim proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/supersede_prior_failure_memory_live_test.go
     tag: ~
     class: scheduled
@@ -272,32 +344,37 @@ tests:
     reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN; the cost proof also needs ESHU_7320_COST_PROOF=1); #7320 supersede prior-failure fold, unmeasured cost — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/supersede_prior_failure_live_test.go
     tag: ~
-    class: scheduled
-    reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN; the cost proof also needs ESHU_7320_COST_PROOF=1); #7320 supersede prior-failure fold, unmeasured cost — promote to blocking with timing evidence"
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL claim proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/supersede_prior_failure_wal_live_test.go
     tag: ~
     class: scheduled
     reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN and ESHU_7320_COST_PROOF=1, plus a server preloading pg_stat_statements); #7320 supersede prior-failure per-row WAL, buffer and TOAST cost, unmeasured cost — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/supply_chain_impact_capped_scope_live_test.go
     tag: ~
-    class: scheduled
-    reason: "#7154 capped-scope convergence proof (bootstraps an isolated schema and runs the real handler over 1203 OS-package targets), untagged and gated by the ESHU_POSTGRES_TEST_DSN env Skip; about 2s locally (2.3s under -race); Postgres only; enrolled in the blocking reducer contention gate workflow, not the live-backend job, where ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF=1 turns the unset-DSN skip into a failure (#7141)"
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.36s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fencing_live_test.go
     tag: ~
-    class: scheduled
-    reason: "#7142 fencing proofs (a stale pass resuming after reclaim, an empty fresher pass, legacy rows, the upsert guard, the sequence issuer, the migration seed), untagged and gated by the ESHU_POSTGRES_TEST_DSN env Skip; about 1s locally; Postgres only; enrolled in the blocking reducer contention gate workflow, not the live-backend job, where ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF=1 turns the unset-DSN skip into a failure (#7141)"
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 6/6 named Go test passes with -json -race (summed test elapsed 18.66s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_replace_set_concurrency_live_test.go
     tag: ~
-    class: scheduled
-    reason: "#6831 overlapping-pass serialization and concurrent-convergence proofs under the advisory lock, untagged and gated by the ESHU_POSTGRES_TEST_DSN env Skip; about 1.5s locally; Postgres only; enrolled in the blocking reducer contention gate workflow, not the live-backend job, where ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF=1 turns the unset-DSN skip into a failure (#7141)"
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 7.98s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_replace_set_helpers_live_test.go
     tag: ~
     class: scheduled
     reason: "helper-only file for the #6831 replace-set live proofs; rides with supply_chain_impact_replace_set_live_test.go in the blocking reducer contention gate workflow (#7141)"
   - file: go/internal/storage/postgres/supply_chain_impact_replace_set_live_test.go
     tag: ~
-    class: scheduled
-    reason: "#6831 replace-set proofs (retraction of superseded findings, idempotence, boundary, partial-evidence skip), untagged and gated by the ESHU_POSTGRES_TEST_DSN env Skip; about 0.5s locally; Postgres only; enrolled in the blocking reducer contention gate workflow, not the live-backend job, where ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF=1 turns the unset-DSN skip into a failure (#7141)"
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 4/4 named Go test passes with -json -race (summed test elapsed 12.50s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_suppression_migration_live_test.go
     tag: ~
     class: scheduled
@@ -306,7 +383,7 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/storage/postgres/targeted_partition_evidence_theory_live_test.go
+  - file: go/internal/storage/postgres/backfill/targeted/closure_theory_live_test.go
     tag: ~
     class: postgres_ci
     reason: "#7584 disposable PostgreSQL 18 read-side parity proof that the target-catalog inbound load plus the exact owed partition load equals the full deferred loader for evidence touching the owed repository; enrolled in the live-postgres-readiness runner; local run passed in 0.30s of test time on the pinned postgres:18 image (2 CPUs, 1 GiB) on 2026-10-05; wall time is logged, not gated"
@@ -331,58 +408,21 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/value_flow_refresh_ack_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/value_flow_refresh_fanout_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/storage/postgres/vulnerability_suppression_advisory_e2e_live_test.go
-    tag: ~
-    class: scheduled
-    reason: "#5465 advisory-only suppression proof (runs the live supply-chain impact reducer over an advisory-only suppression) plus the #7493 isolated-schema derivation guard, untagged and gated by the ESHU_POSTGRES_TEST_DSN env Skip; about 3s for the proof and 6s for the guard locally (3.5s and 6.6s under -race); Postgres only; enrolled in the blocking reducer contention gate workflow, not the live-backend job, where ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF=1 turns the unset-DSN skip into a failure (#7141)"
-  - file: go/internal/storage/postgres/vulnerability_suppression_lineage_index_upgrade_live_test.go
-    tag: integration
-    class: scheduled
-    reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
-  - file: go/internal/storage/postgres/vulnerability_suppression_store_live_test.go
-    tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/storage/postgres/vulnerability_suppression_store_mixed_failure_live_test.go
-    tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/storage/postgres/webhook/ignored_decision_live_test.go
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
+  - file: go/internal/storage/postgres/generation_retention_search_index_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#7795 disposable PostgreSQL proof that an ignored redelivery demotes the queued row to ignored, that a stale claimed row with an ignored decision fails with the ignored_decision class instead of requeueing and stays terminal across reaps, and that the same-tick ignored-decision fail is decision-guarded and returns only the rows it terminated; runs in isolated disposable schemas gated by the ESHU_WEBHOOK_CLAIM_LEASE_PROOF_DSN env Skip; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    reason: "#7427 disposable PostgreSQL 18 proof that the retention pass pre-deletes a superseded generation's search index terms and documents in committed batches before its targeted re-lock (0 rows at the re-lock, 45000 on main), admits only drained generations (search_index_undrained otherwise), skips a candidate whose advisory lock another session holds (advisory_lock_busy), and that the marked candidate read prepares against the migrated schema; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed all 4 tests in 10.4s wall with the migrated-schema setup on PostgreSQL 18.6 on 2026-10-15"
     runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/workflow_control_open_targets_lock_live_test.go
-    tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/testutil/postgresproof/database_live_test.go
-    tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/storage/postgres/config/artifacts/dirty_live_test.go
+  - file: go/internal/storage/postgres/search/index/retention/drain_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#7126 disposable PostgreSQL 18 proof of the config-artifact walker's dirty join: never-derived (failed) and retry repositories and old extractor versions first, then missing state, then moved content, skipped repositories last; exact rows and every newer-extractor row (exact, moved, failing) excluded; and over the cross product of the state inputs every listed repository carries Classify's label (retry excepted) and every untrusted repository in the walk universe is listed; enrolled in the live-postgres-readiness runner; nine proofs took 0.88-1.15s each and 9.1s for the package (disposable database plus full bootstrap per test) on a local PostgreSQL 18.6 on 2026-10-11; wall time is logged, not gated"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/config/artifacts/encoding_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7126 disposable PostgreSQL 18 proof that the config-artifact start-up encoding check accepts the UTF8 bootstrapped database and refuses a SQL_ASCII database on the same server; enrolled in the live-postgres-readiness runner; nine proofs took 0.88-1.15s each and 9.1s for the package (disposable database plus full bootstrap per test) on a local PostgreSQL 18.6 on 2026-10-11; wall time is logged, not gated"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/config/artifacts/schema_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7126 disposable PostgreSQL 18 proof of migration 170: row_digest equals a Go and a SQL recomputation over separators, multi-byte text, empty fields and a 20,000-character path; the digest key rejects a duplicate row; the wrapper is IMMUTABLE; autovacuum 0.02; no content_files trigger; the migration re-runs; enrolled in the live-postgres-readiness runner; nine proofs took 0.88-1.15s each and 9.1s for the package (disposable database plus full bootstrap per test) on a local PostgreSQL 18.6 on 2026-10-11; wall time is logged, not gated"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/config/artifacts/walk_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7126 disposable PostgreSQL 18 proof of the config-artifact walker cursor claim: consecutive pages, wrap at a short page and at an exact page boundary, and disjoint pages for five concurrent claimers; enrolled in the live-postgres-readiness runner; nine proofs took 0.88-1.15s each and 9.1s for the package (disposable database plus full bootstrap per test) on a local PostgreSQL 18.6 on 2026-10-11; wall time is logged, not gated"
+    reason: "#7427 disposable PostgreSQL 18 proof of the search index pre-delete batches: only the superseded generation loses rows while the active generation's re-minted document ids survive, pending, active and still-pointed-at generations lose none, running eshu_search_document work blocks the drain, a drain cancelled mid-loop converges on rerun, the from-start re-sweep removes a row inserted behind the cursor, and a held advisory lock makes a drain skip while two concurrent drains delete each row once without deadlock; enrolled in the live-postgres-readiness runner; reads ESHU_GENERATION_RETENTION_PROOF_DSN (with its DISPOSABLE flag) and creates one isolated bootstrapped schema per test. local run passed all 6 tests in 15.3s wall on PostgreSQL 18.6 on 2026-10-15"
     runner: live-postgres-readiness

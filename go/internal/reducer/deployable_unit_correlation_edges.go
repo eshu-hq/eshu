@@ -27,10 +27,6 @@ import (
 // intent is waiting on an upstream phase, not failing on its own merits.
 const DeployableUnitCorrelationResolutionNotReadyFailureClass = "deployable_unit_correlation_resolution_not_ready"
 
-// DeployableUnitCorrelationCanonicalNodesNotReadyFailureClass classifies a
-// deferral while a code repository can still be detached and re-projected.
-const DeployableUnitCorrelationCanonicalNodesNotReadyFailureClass = "deployable_unit_correlation_canonical_nodes_not_ready"
-
 // deployableUnitCorrelationResolutionNotReadyError defers an intent until its
 // own relationship generation activates.
 type deployableUnitCorrelationResolutionNotReadyError struct {
@@ -43,6 +39,9 @@ type deployableUnitCorrelationResolutionNotReadyError struct {
 	// holdingScopeIDs names the scopes holding the corpus fence, best
 	// effort; empty when the holder lookup is unwired or failed.
 	holdingScopeIDs []string
+	// producerDetail names the own deployment_mapping producer state on an
+	// own-gate deferral (#7597); empty otherwise.
+	producerDetail string
 }
 
 func (e deployableUnitCorrelationResolutionNotReadyError) Error() string {
@@ -57,6 +56,9 @@ func (e deployableUnitCorrelationResolutionNotReadyError) Error() string {
 	if len(e.holdingScopeIDs) > 0 {
 		msg += fmt.Sprintf("; holding scopes: %s", strings.Join(e.holdingScopeIDs, ","))
 	}
+	if e.producerDetail != "" {
+		msg += "; " + e.producerDetail
+	}
 	return msg
 }
 
@@ -70,51 +72,6 @@ func (deployableUnitCorrelationResolutionNotReadyError) Retryable() bool { retur
 
 func (deployableUnitCorrelationResolutionNotReadyError) FailureClass() string {
 	return DeployableUnitCorrelationResolutionNotReadyFailureClass
-}
-
-// deployableUnitCorrelationCanonicalNodesNotReadyError holds an edge-producing
-// intent until repository projection has committed for every active code repo.
-type deployableUnitCorrelationCanonicalNodesNotReadyError struct {
-	scopeID      string
-	generationID string
-}
-
-func (e deployableUnitCorrelationCanonicalNodesNotReadyError) Error() string {
-	return fmt.Sprintf(
-		"canonical repository projection is not quiescent for scope %s generation %s; deferring deployable unit correlation before graph writes",
-		e.scopeID,
-		e.generationID,
-	)
-}
-
-func (deployableUnitCorrelationCanonicalNodesNotReadyError) Retryable() bool { return true }
-
-func (deployableUnitCorrelationCanonicalNodesNotReadyError) FailureClass() string {
-	return DeployableUnitCorrelationCanonicalNodesNotReadyFailureClass
-}
-
-// deployableUnitCanonicalReposReady holds edge-producing work until no active
-// code repository can run canonical Repository cleanup after the edge write.
-func deployableUnitCanonicalReposReady(
-	ctx context.Context,
-	checker CanonicalCodeQuiescenceChecker,
-	intent Intent,
-	hasCandidates bool,
-) error {
-	if checker == nil || !hasCandidates {
-		return nil
-	}
-	uncommitted, err := checker.HasUncommittedCanonicalCodeScopes(ctx)
-	if err != nil {
-		return fmt.Errorf("check canonical repository quiescence: %w", err)
-	}
-	if !uncommitted {
-		return nil
-	}
-	return deployableUnitCorrelationCanonicalNodesNotReadyError{
-		scopeID:      intent.ScopeID,
-		generationID: intent.GenerationID,
-	}
 }
 
 // deployableUnitCorpusFenceDeferral defers the intent while the corpus fence

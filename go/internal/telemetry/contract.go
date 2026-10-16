@@ -59,18 +59,32 @@ const (
 	MetricDimensionWritePhase = "write_phase"
 	MetricDimensionOutcome    = "outcome"
 	// MetricDimensionPhase labels the delta-baseline fence counter (#7319)
-	// with the closed phase that decided: preflight or ack.
+	// with the closed phase that decided: preflight or ack. The
+	// package-consumption scope-rebuild counter (#7663) uses it for its
+	// closed pass phase: initial or dirty_repair.
 	MetricDimensionPhase = "phase"
 	// MetricDimensionWriter labels the Repository stub-creation counter
 	// (#7446) with the closed shared-edge writer: repo_dependency or
 	// submodule_pin.
 	MetricDimensionWriter = "writer"
+	// MetricDimensionDirection labels the retired-relationship counter
+	// (#7324 item: per-direction split) with the closed direction of the
+	// dropped edge from the retired Repository: incoming or outgoing.
+	// Producers must never use raw relationship types here; those stay in
+	// the log's capped per-type map.
+	MetricDimensionDirection = "direction"
+	// MetricDimensionEdgeClass labels the retired-relationship counter
+	// (#7324 item: per-type split) with the closed owner family derived
+	// from the dropped edge's evidence_source: projector (projector/*),
+	// reducer (any other present source), or other (missing source).
+	MetricDimensionEdgeClass = "class"
 	// MetricDimensionState labels the repository selection scope gauge
 	// (#7625) with the closed selection state: selected, not_listed_pending,
 	// not_listed, archived_excluded, or rule_excluded.
 	MetricDimensionState = "state"
 	// MetricDimensionSelectorKind labels the repository selection evaluation
-	// counter (#7625) with the closed selector kind: github_org or explicit.
+	// counter (#7625, #7765) with the closed selector kind: github_org,
+	// explicit, or gitlab_group.
 	MetricDimensionSelectorKind = "selector_kind"
 	// MetricDimensionGuardrail labels counters for bounded guardrail classes
 	// that are not admission or correlation outcomes.

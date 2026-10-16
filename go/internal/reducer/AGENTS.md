@@ -37,7 +37,7 @@ before touching any file in this directory.
   `DomainDeploymentMapping` handler consumes relationships that do not exist
   until Phase 3 of the bootstrap pipeline. Any domain added as a consumer of
   `resolved_relationships` must have a post-Phase-3 reopen mechanism. See
-  `bootstrap-index/main.go:273`.
+  `bootstrap-index/main.go:273`. Its consumers' own gate (`crossrepo.EvaluateOwnGate`, #7597) fails a dead-lettered producer in the counting `*_producer_dead_lettered` classes and a missing one in `*_producer_missing` (never enroll them as non-counting); the producer's relationship-generation activation reopens those consumers in the same transaction.
 - **Phase publications and graph writes are not atomic** — if a write
   commits but the publication fails, `GraphProjectionPhaseRepairQueue`
   captures the retry. Do not skip enqueueing to the repair queue when a

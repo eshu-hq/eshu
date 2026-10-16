@@ -93,6 +93,17 @@ func StringAttr(key, value string) BlockAttr {
 	return BlockAttr{key: key, kind: blockAttrString, s: value}
 }
 
+// ReopenBlockAttrs returns a fresh, ordered attribute set for one reopen
+// domain: its name, reopened work-item count, then memo-skipped count. Both
+// whole and targeted passes use this shape for spans and completion logs.
+func ReopenBlockAttrs(domain string, reopened, skippedByMemo int) []BlockAttr {
+	return []BlockAttr{
+		StringAttr("domain", domain),
+		IntAttr("reopened", reopened),
+		IntAttr("skipped_by_memo", skippedByMemo),
+	}
+}
+
 // BoolAttr builds a boolean block attribute, logged as true or false.
 func BoolAttr(key string, value bool) BlockAttr {
 	attr := BlockAttr{key: key, kind: blockAttrBool}

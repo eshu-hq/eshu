@@ -7,9 +7,11 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/engine"
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
@@ -61,6 +63,9 @@ type workloadMaterializationResolutionNotReadyError struct {
 	// holdingScopeIDs names the scopes holding the corpus fence, best
 	// effort; empty when the holder lookup is unwired or failed.
 	holdingScopeIDs []string
+	// producerDetail names the own generation's deployment_mapping producer
+	// state on an own-gate deferral (#7597); empty otherwise.
+	producerDetail string
 }
 
 func (e workloadMaterializationResolutionNotReadyError) Error() string {
@@ -74,6 +79,9 @@ func (e workloadMaterializationResolutionNotReadyError) Error() string {
 	}
 	if len(e.holdingScopeIDs) > 0 {
 		msg += fmt.Sprintf("; holding scopes: %s", strings.Join(e.holdingScopeIDs, ","))
+	}
+	if e.producerDetail != "" {
+		msg += "; " + e.producerDetail
 	}
 	return msg
 }
@@ -116,6 +124,11 @@ type CorrelatedWorkloadProjectionInputLoader struct {
 	// on a deferral, so the error is actionable instead of opaque (#6730).
 	// Nil-safe: a nil lookup or a lookup error simply omits the holder list.
 	IncompleteScopesLookup accepted.RelationshipGenerationsIncompleteScopesLookup
+	// ResolutionProducerLookup reads the own generation's deployment_mapping
+	// producer when the own gate is closed (#7597), so a dead-lettered
+	// producer counts instead of deferring forever. Nil keeps the plain
+	// deferral for test wiring; see crossrepo.EvaluateOwnGate.
+	ResolutionProducerLookup crossrepo.ProducerLookup
 }
 
 // LoadWorkloadProjectionInputs loads workload candidates, enriches them with
@@ -165,10 +178,16 @@ func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionScopeInpu
 	// reopened (#6184). The own-scope check is deliberately own-scope only
 	// (foreign scopes are undiscoverable before the read itself); the
 	// corpus-wide fence below covers the foreign side.
-	if !ownResolutionGenerationReady(l.ResolutionActiveLookup, intent, candidates) {
+	// A closed gate reads the own deployment_mapping producer (#7597): a
+	// dead-lettered producer returns a counting error, never this deferral.
+	gate := crossrepo.EvaluateOwnGate(ctx, l.ResolutionActiveLookup, l.ResolutionProducerLookup,
+		intent, len(candidates) > 0, time.Now().UTC())
+	if gate.Err != nil {
+		return WorkloadProjectionInputs{}, gate.Err
+	}
+	if !gate.Ready {
 		return WorkloadProjectionInputs{}, workloadMaterializationResolutionNotReadyError{
-			scopeID:      intent.ScopeID,
-			generationID: intent.GenerationID,
+			scopeID: intent.ScopeID, generationID: intent.GenerationID, producerDetail: gate.ProducerDetail,
 		}
 	}
 	// The own-scope check cannot see foreign scopes, whose retired-or-pending
@@ -434,37 +453,6 @@ func correlatedWorkloadName(
 		}
 	}
 	return candidateWorkloadName(candidate)
-}
-
-// resolutionGenerationReady reports whether the relationship generation has
-// activated. Lookup errors fail closed; nil preserves isolated test wiring.
-func resolutionGenerationReady(
-	lookup accepted.RelationshipGenerationActiveLookup,
-	generationID string,
-) bool {
-	if lookup == nil {
-		return true
-	}
-	active, err := lookup(generationID)
-	return err == nil && active
-}
-
-// ownResolutionGenerationReady requires the intent's own relationship
-// generation before a resolved-relationship read. An inactive own generation
-// means both feeds of that read are partial, and a success on that partial
-// input is never reopened (#6184), so the intent defers instead. Foreign
-// scopes are not knowable until that read, so gating on them would be
-// circular. Empty candidate sets are vacuous and do not wait on work they do
-// not consume.
-func ownResolutionGenerationReady(
-	lookup accepted.RelationshipGenerationActiveLookup,
-	intent Intent,
-	candidates []WorkloadCandidate,
-) bool {
-	if len(candidates) == 0 {
-		return true
-	}
-	return resolutionGenerationReady(lookup, intent.GenerationID)
 }
 
 // corpusResolutionsComplete requires every active scope's current relationship

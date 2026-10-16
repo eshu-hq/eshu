@@ -116,6 +116,39 @@ active_fact_work_items AS (
 )
 `
 
+// supersedeInactiveReducerGenerationsJoin is the FROM list the sweep joins
+// fact_work_items AS stale against, shared by its lock step and its UPDATE.
+const supersedeInactiveReducerGenerationsJoin = `ingestion_scopes AS scope,
+         scope_generations AS stale_generation,
+         scope_generations AS active_generation`
+
+// supersedeInactiveReducerGenerationsPredicate selects the unleased rows of an
+// older, inactive generation the sweep may supersede: the generation guard
+// (never the scope's active generation, only an older one) and the readiness
+// gate described on supersedeInactiveReducerGenerationsCTE. The sweep's lock
+// step applies it, so a waited lock rechecks it on the newest row version.
+var supersedeInactiveReducerGenerationsPredicate = `stale.stage = 'reducer'
+      AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
+      AND ($2::text[] IS NULL OR stale.domain = ANY($2::text[]))
+      AND scope.scope_id = stale.scope_id
+      AND stale_generation.scope_id = stale.scope_id
+      AND stale_generation.generation_id = stale.generation_id
+      AND scope.active_generation_id = active_generation.generation_id
+      AND active_generation.scope_id = stale.scope_id
+      AND stale.generation_id <> scope.active_generation_id
+      AND (
+        stale_generation.ingested_at < active_generation.ingested_at
+        OR (
+          stale_generation.ingested_at = active_generation.ingested_at
+          AND stale_generation.generation_id < active_generation.generation_id
+        )
+      )
+      AND (
+        ` + reducerClaimReadinessGateSQL("stale", "supersede_readiness_req", "supersede_readiness_phase") + `
+        OR ` + reducerClaimReadinessGateForGenerationSQL("stale", "scope.active_generation_id", "supersede_active_readiness_req", "supersede_active_readiness_phase") + `
+      )
+`
+
 // supersedeInactiveReducerGenerationsCTE terminalizes unleased older-generation
 // reducer rows during claim so audit history remains durable without letting
 // obsolete work keep readiness in progress forever.
@@ -139,12 +172,35 @@ active_fact_work_items AS (
 // requirement row are unaffected — the NOT EXISTS is vacuously true for them,
 // preserving today's generation-ordering-only behavior.
 //
+// The sweep is a blocking write over terminal and waiting rows that operator
+// replays also lock, so it takes its locks first, in work_item_id COLLATE "C"
+// order (#8205): the superseded_stale_reducer_locked step locks only the
+// fact_work_items rows (OF stale; scopes and generations stay unlocked), and
+// the UPDATE then touches exactly those ids by primary key. In scan order it
+// formed a lock cycle with an ordered replay and one of them died with 40P01.
+// The lock step carries the whole predicate, generation guard and readiness
+// gate included, and a waited row lock rechecks it on the newest row version
+// (EvalPlanQual), so a row a worker claimed meanwhile is dropped. The UPDATE
+// rechecks the row's own stage and status and joins the scope only for the
+// failure details: once locked, no other transaction can change the row, and
+// re-running the readiness gate there measured +16 % on a 2,118-row sweep. It
+// does not use SKIP LOCKED: a skipped row would leave an older generation's
+// work unsuperseded by this claim, weakening the guard the sweep exists for.
+//
 // This CTE must be declared AFTER reducerClaimReadinessRequirementsCTE in the
 // enclosing WITH clause so the readiness-gate predicate below can reference
 // reducer_claim_readiness_requirements; Postgres CTEs may only reference
 // earlier siblings in the same WITH list (barring RECURSIVE, which is not
 // used here).
 var supersedeInactiveReducerGenerationsCTE = `
+superseded_stale_reducer_locked AS (
+    SELECT stale.work_item_id
+    FROM fact_work_items AS stale,
+         ` + supersedeInactiveReducerGenerationsJoin + `
+    WHERE ` + supersedeInactiveReducerGenerationsPredicate + `
+    ORDER BY stale.work_item_id COLLATE "C"
+    FOR NO KEY UPDATE OF stale
+),
 superseded_stale_reducer_generations AS (
     UPDATE fact_work_items AS stale
     SET status = 'superseded',
@@ -168,29 +224,11 @@ superseded_stale_reducer_generations AS (
             'active_generation_id', scope.active_generation_id,
             'domain', stale.domain
         ) || ` + priorFailureStaleSQL + `)::text
-    FROM ingestion_scopes AS scope,
-         scope_generations AS stale_generation,
-         scope_generations AS active_generation
-    WHERE stale.stage = 'reducer'
-      AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
-      AND ($2::text[] IS NULL OR stale.domain = ANY($2::text[]))
+    FROM ingestion_scopes AS scope
+    WHERE stale.work_item_id = ANY(ARRAY(SELECT work_item_id FROM superseded_stale_reducer_locked))
       AND scope.scope_id = stale.scope_id
-      AND stale_generation.scope_id = stale.scope_id
-      AND stale_generation.generation_id = stale.generation_id
-      AND scope.active_generation_id = active_generation.generation_id
-      AND active_generation.scope_id = stale.scope_id
-      AND stale.generation_id <> scope.active_generation_id
-      AND (
-        stale_generation.ingested_at < active_generation.ingested_at
-        OR (
-          stale_generation.ingested_at = active_generation.ingested_at
-          AND stale_generation.generation_id < active_generation.generation_id
-        )
-      )
-      AND (
-        ` + reducerClaimReadinessGateSQL("stale", "supersede_readiness_req", "supersede_readiness_phase") + `
-        OR ` + reducerClaimReadinessGateForGenerationSQL("stale", "scope.active_generation_id", "supersede_active_readiness_req", "supersede_active_readiness_phase") + `
-      )
+      AND stale.stage = 'reducer'
+      AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
     RETURNING stale.work_item_id
 )
 `

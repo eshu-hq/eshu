@@ -163,7 +163,8 @@ const Content = `
                       "repo_id": {"type": "string"},
                       "relative_path": {"type": "string"}
                     }
-                  }
+                  },
+                  "rank_cursor": {"type": "string", "description": "Not supported on file search: any value answers 400 rank_cursor_unsupported (reason file_search). The relevance walk (#7746) is on POST /api/v0/content/entities/search and POST /api/v0/code/search."}
                 }
               }
             }
@@ -256,7 +257,8 @@ const Content = `
                       "start_line": {"type": "integer"},
                       "entity_id": {"type": "string"}
                     }
-                  }
+                  },
+                  "rank_cursor": {"type": "string", "description": "Opt-in relevance walk (#7746). \"start\" ranks the first 200 lexical rows of one repository (repo_id, or exactly one repo_ids entry) by hybrid BM25+vector relevance and returns the first page; pass rank_walk.next_cursor to read the next page. Needs the hybrid ranker, and refuses a positive offset and cursor (400 rank_cursor_unsupported). A changed window or ranked order answers 409 rank_cursor_basis_mismatch (schema RankCursorError); restart with \"start\". A malformed cursor answers 400 rank_cursor_invalid."}
                 }
               }
             }
@@ -274,6 +276,7 @@ const Content = `
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "404": {"$ref": "#/components/responses/NotFound"},
+          "409": {"$ref": "#/components/responses/RankCursorConflict"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }

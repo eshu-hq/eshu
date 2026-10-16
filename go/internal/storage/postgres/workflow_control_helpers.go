@@ -197,6 +197,9 @@ func (s *WorkflowControlStore) execTerminalClaimMutation(
 		mutation.WorkItemID,
 		mutation.FailureClass,
 		mutation.FailureMessage,
+		mutation.FailureOperation,
+		mutation.FailureStatusCode,
+		mutation.FailureTerminal,
 	)
 	result, err := s.database.ExecContext(ctx, query, args...)
 	if err != nil {

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/collisions"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/preparse"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/rest"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -41,8 +42,8 @@ type NativeRepositorySelector struct {
 	// reads it.
 	RepositoryReindexWatermark RepositoryReindexWatermarkReader
 	// SelectionObserver records which known repository scopes the githubOrg
-	// listing or the explicit configured list still selects (#7625). Nil
-	// disables observation; only shard 0 in githubOrg or explicit mode calls
+	// or gitlabGroup listing, or the explicit configured list, still
+	// selects (#7625, #7765). Nil disables observation; only shard 0 calls
 	// it.
 	SelectionObserver RepositorySelectionObserver
 	// Preparse returns the configuration the pre-parse identity folds (#7978
@@ -98,13 +99,13 @@ func (s *NativeRepositorySelector) selectRepositories(
 	}
 	observedAt := s.now()
 	token, err := resolveGitToken(ctx, s.Config)
-	if err != nil && s.Config.SourceMode == "githubOrg" {
+	if err != nil && (s.Config.SourceMode == "githubOrg" || s.Config.SourceMode == "gitlabGroup") {
 		return SelectionBatch{}, err
 	}
 
 	discoverSelectionFn := s.DiscoverSelection
 	if discoverSelectionFn == nil {
-		discoverSelectionFn = discoverSelection
+		discoverSelectionFn = defaultDiscoverSelection(s.Instruments, s.Logger)
 	}
 	selection, err := discoverSelectionFn(ctx, s.Config, token)
 	if err != nil {
@@ -165,7 +166,7 @@ func (s *NativeRepositorySelector) selectRepositories(
 		//    unsharded default this is equivalent to the old len(repoPaths) > 0
 		//    gate, since shard 0 then owns the full set.
 		if s.Config.RepoShardIndex == 0 && synced.CorpusChanged {
-			reportRepositoryBasenameCollisions(ctx, selection.RepositoryIDs, s.Logger, s.Instruments)
+			collisions.ReportRepositoryBasenameCollisions(ctx, selection.RepositoryIDs, s.Logger, s.Instruments)
 		}
 		// A forced run re-indexes from scratch through the same reason-recording
 		// path as the other forced fulls (#7982): every selected repository
@@ -195,7 +196,7 @@ func (s *NativeRepositorySelector) selectRepositories(
 		)
 		attachFilesystemGitTreePaths(s.Config, selection.RepositoryIDs, repositories)
 		return SelectionBatch{ObservedAt: observedAt, Repositories: repositories}, nil
-	case "explicit", "githubOrg":
+	case "explicit", "githubOrg", "gitlabGroup":
 		syncGitFn := s.SyncGit
 		if syncGitFn == nil {
 			reindexRequestedAt := resolveReindexWatermark(ctx, s.ReindexWatermark, observedAt, s.Config, s.Logger)

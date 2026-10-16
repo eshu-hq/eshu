@@ -7,6 +7,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/membership"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
@@ -34,7 +35,7 @@ func TestKnownScopesHostFilterLive(t *testing.T) {
 		{host: "github.com", want: []string{"scope:gh-https", "scope:gh-ssh"}},
 		{host: "", want: []string{"scope:gh-https", "scope:gh-ssh", "scope:ghe", "scope:gitlab", "scope:no-remote"}},
 	} {
-		known, err := store.KnownScopes(ctx, "acme", tc.host)
+		known, err := store.KnownScopes(ctx, membership.Partition{Owner: "acme", Host: tc.host})
 		if err != nil {
 			t.Fatalf("KnownScopes(acme, %q) error = %v", tc.host, err)
 		}

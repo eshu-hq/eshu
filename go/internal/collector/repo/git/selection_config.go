@@ -16,8 +16,10 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/deadline"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/env"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/membership"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/rest"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/gitlab"
 )
 
 // RepoSyncRepositoryRule constrains repository selection for one sync cycle.
@@ -51,7 +53,10 @@ type RepoSyncConfig struct {
 	GithubOrg     string
 	// GitlabHost is the provider host for gitlab/ IDs from ESHU_GITLAB_HOST
 	// (#7764); empty keeps the gitlab.com default.
-	GitlabHost             string
+	GitlabHost string
+	// GitlabGroup is the GitLab group full path or numeric ID from
+	// ESHU_GITLAB_GROUP (#7765); only the gitlabGroup source mode reads it.
+	GitlabGroup            string
 	Repositories           []string
 	FilesystemRoot         string
 	FilesystemDirect       bool
@@ -156,11 +161,20 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 		return RepoSyncConfig{}, err
 	}
 
-	reposDir := firstNonEmpty(getenv("ESHU_REPOS_DIR"), "/data/repos")
-	gitAuthMethod := firstNonEmpty(getenv("ESHU_GIT_AUTH_METHOD"), "githubApp")
+	reposDir := env.FirstNonEmpty(getenv("ESHU_REPOS_DIR"), "/data/repos")
+	gitAuthMethod := env.FirstNonEmpty(getenv("ESHU_GIT_AUTH_METHOD"), "githubApp")
 	gitlabHost, err := normalizeGitlabHost(getenv("ESHU_GITLAB_HOST"))
 	if err != nil {
 		return RepoSyncConfig{}, err
+	}
+	gitlabGroup := strings.TrimSpace(getenv("ESHU_GITLAB_GROUP"))
+	gitToken := strings.TrimSpace(getenv("ESHU_GIT_TOKEN"))
+	if sourceMode == "gitlabGroup" {
+		if err := gitlab.ValidateConfig(gitAuthMethod, gitlabGroup, gitToken, getenv("GITHUB_TOKEN"), exactRuleIDs(repositoryRules)); err != nil {
+			return RepoSyncConfig{}, err
+		}
+	} else {
+		gitToken = env.FirstNonEmpty(gitToken, getenv("GITHUB_TOKEN"))
 	}
 	repoShardCount, repoShardIndex, err := loadRepoShardConfig(getenv)
 	if err != nil {
@@ -173,21 +187,22 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 		GitAuthMethod:                      gitAuthMethod,
 		GithubOrg:                          strings.TrimSpace(getenv("ESHU_GITHUB_ORG")),
 		GitlabHost:                         gitlabHost,
+		GitlabGroup:                        gitlabGroup,
 		Repositories:                       extractExactRepositoryIDs(sourceMode, repositoryRules),
 		FilesystemRoot:                     strings.TrimSpace(getenv("ESHU_FILESYSTEM_ROOT")),
-		FilesystemDirect:                   boolFromEnv(getenv("ESHU_FILESYSTEM_DIRECT")),
+		FilesystemDirect:                   env.BoolFromEnv(getenv("ESHU_FILESYSTEM_DIRECT")),
 		CloneDepth:                         intFromEnv(getenv, "ESHU_CLONE_DEPTH", 1),
 		RepoLimit:                          intFromEnv(getenv, "ESHU_REPO_LIMIT", 4000),
 		Component:                          component,
 		RepositoryRules:                    repositoryRules,
-		IncludeArchivedRepos:               boolFromEnv(getenv("ESHU_INCLUDE_ARCHIVED_REPOS")),
-		GitToken:                           firstNonEmpty(getenv("ESHU_GIT_TOKEN"), getenv("GITHUB_TOKEN")),
-		GitHubAppID:                        firstNonEmpty(getenv("GITHUB_APP_ID"), getenv("ESHU_GITHUB_APP_ID")),
-		GitHubAppInstallation:              firstNonEmpty(getenv("GITHUB_APP_INSTALLATION_ID"), getenv("ESHU_GITHUB_APP_INSTALLATION_ID")),
-		GitHubAppPrivateKey:                firstNonEmpty(getenv("GITHUB_APP_PRIVATE_KEY"), getenv("ESHU_GITHUB_APP_PRIVATE_KEY")),
+		IncludeArchivedRepos:               env.BoolFromEnv(getenv("ESHU_INCLUDE_ARCHIVED_REPOS")),
+		GitToken:                           gitToken,
+		GitHubAppID:                        env.FirstNonEmpty(getenv("GITHUB_APP_ID"), getenv("ESHU_GITHUB_APP_ID")),
+		GitHubAppInstallation:              env.FirstNonEmpty(getenv("GITHUB_APP_INSTALLATION_ID"), getenv("ESHU_GITHUB_APP_INSTALLATION_ID")),
+		GitHubAppPrivateKey:                env.FirstNonEmpty(getenv("GITHUB_APP_PRIVATE_KEY"), getenv("ESHU_GITHUB_APP_PRIVATE_KEY")),
 		SSHPrivateKeyPath:                  strings.TrimSpace(getenv("ESHU_SSH_PRIVATE_KEY_PATH")),
 		SSHKnownHostsPath:                  strings.TrimSpace(getenv("ESHU_SSH_KNOWN_HOSTS_PATH")),
-		DependencyMode:                     boolFromEnv(getenv("ESHU_BOOTSTRAP_IS_DEPENDENCY")),
+		DependencyMode:                     env.BoolFromEnv(getenv("ESHU_BOOTSTRAP_IS_DEPENDENCY")),
 		DependencyName:                     strings.TrimSpace(getenv("ESHU_BOOTSTRAP_PACKAGE_NAME")),
 		DependencyLanguage:                 strings.TrimSpace(getenv("ESHU_BOOTSTRAP_PACKAGE_LANGUAGE")),
 		SnapshotWorkers:                    snapshotWorkerCount(getenv),
@@ -200,7 +215,7 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 		ReconcileInterval:                  reconcileIntervalFromEnv(getenv),
 		ReconcileMaxPerCycle:               reconcileMaxPerCycleFromEnv(getenv),
 		ReconcileParseMaxSkips:             reconcileParseMaxSkips,
-		ReconcileStampIdentityWithoutParse: boolFromEnv(getenv("ESHU_REPO_RECONCILE_STAMP_IDENTITY_WITHOUT_PARSE")),
+		ReconcileStampIdentityWithoutParse: env.BoolFromEnv(getenv("ESHU_REPO_RECONCILE_STAMP_IDENTITY_WITHOUT_PARSE")),
 		PinnedRefsByRepoID:                 pinnedRefsByRepoID,
 		PinnedRefPerRepoCap:                pinnedRefCap,
 		PinnedRefFleetCap:                  pinnedRefFleetCap,
@@ -249,6 +264,18 @@ func normalizeFilesystemConfig(config *RepoSyncConfig) {
 
 	config.FileTargets = []string{absoluteRoot}
 	config.FilesystemRoot = filepath.Dir(absoluteRoot)
+}
+
+// exactRuleIDs returns the normalized exact repository rule values, the
+// input to the gitlabGroup prefix check.
+func exactRuleIDs(rules []RepoSyncRepositoryRule) []string {
+	ids := make([]string, 0, len(rules))
+	for _, rule := range rules {
+		if strings.EqualFold(strings.TrimSpace(rule.Kind), "exact") {
+			ids = append(ids, rule.Value)
+		}
+	}
+	return ids
 }
 
 func extractExactRepositoryIDs(
@@ -370,12 +397,12 @@ func repositoryRuleFromMap(raw map[string]any) (RepoSyncRepositoryRule, error) {
 		return RepoSyncRepositoryRule{Kind: "regex", Value: strings.TrimSpace(fmt.Sprint(regexValue))}, nil
 	}
 
-	kind := firstNonEmpty(
-		stringValue(raw["type"]),
-		stringValue(raw["kind"]),
-		stringValue(raw["match"]),
+	kind := env.FirstNonEmpty(
+		env.StringValue(raw["type"]),
+		env.StringValue(raw["kind"]),
+		env.StringValue(raw["match"]),
 	)
-	value := firstNonEmpty(stringValue(raw["value"]), stringValue(raw["pattern"]))
+	value := env.FirstNonEmpty(env.StringValue(raw["value"]), env.StringValue(raw["pattern"]))
 	kind = strings.ToLower(strings.TrimSpace(kind))
 	switch kind {
 	case "exact":
@@ -433,32 +460,6 @@ func intFromEnv(getenv func(string) string, key string, defaultValue int) int {
 		return defaultValue
 	}
 	return value
-}
-
-func boolFromEnv(raw string) bool {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "1", "true", "yes", "on":
-		return true
-	default:
-		return false
-	}
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value != "" {
-			return value
-		}
-	}
-	return ""
-}
-
-func stringValue(raw any) string {
-	if raw == nil {
-		return ""
-	}
-	return strings.TrimSpace(fmt.Sprint(raw))
 }
 
 func sortUniqueStrings(values []string) []string {

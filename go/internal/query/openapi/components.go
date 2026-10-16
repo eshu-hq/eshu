@@ -76,7 +76,7 @@ const components = `  "components": {
           "refusal": {"type": "string"}
         }
       },
-` + componentsReplatforming + componentsProviderConfigs + componentsSignInPolicy + componentsActiveWorkSource + componentsTerraformStateSource + componentsEntitySearch + `      "CollectorReadinessEnvelope": {
+` + componentsReplatforming + componentsProviderConfigs + componentsSignInPolicy + componentsActiveWorkSource + componentsTerraformStateSource + componentsEntitySearch + componentsRankWalk + `      "CollectorReadinessEnvelope": {
         "type": "object",
         "description": "Per-collector readiness signal for a gated supply-chain list response. It distinguishes an empty page produced by an unconfigured feeding collector (not_configured) from a genuinely empty page produced by a configured-but-zero collector (ready_zero_results), so an empty page is never ambiguous. readiness_unavailable means the configured probe itself failed; the page is still returned but its emptiness cannot be classified.",
         "properties": {
@@ -374,7 +374,8 @@ const components = `  "components": {
           "source_cache_clip_bytes": {"type": "integer", "description": "Read-time source_cache ceiling in bytes (4096) applied to every row of this response; always present."},
           "source_cache_clipped_rows": {"type": "integer", "description": "Number of returned rows whose source_cache was clipped to source_cache_clip_bytes; 0 when none. Clipped rows carry source_cache_clipped, source_cache_clip_bytes, and source_cache_total_bytes."},
           "docstring_clip_bytes": {"type": "integer", "description": "Read-time docstring ceiling in bytes (512) applied to every row of this response; always present."},
-          "docstring_clipped_rows": {"type": "integer", "description": "Number of returned rows whose docstring was clipped; 0 when none."}
+          "docstring_clipped_rows": {"type": "integer", "description": "Number of returned rows whose docstring was clipped; 0 when none."},
+          "rank_walk": {"$ref": "#/components/schemas/RankWalk"}
         }
       },
       "SymbolSearchResult": {

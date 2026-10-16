@@ -11,7 +11,7 @@ const Routes = `
       "get": {
         "tags": ["status"],
         "summary": "Get pipeline status",
-        "description": "Returns the full pipeline status report.",
+        "description": "Returns the full pipeline status report. A 503 with Retry-After means a transient condition that is safe to retry: the status snapshot read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the status reader is not configured on this API instance. No 5xx body carries backend error text. This route has no capability-matrix key yet, so a reader-verdict 503 error envelope carries no capability field (#8227).",
         "operationId": "getPipelineStatus",
         "responses": {
           "200": {
@@ -59,7 +59,7 @@ const Routes = `
       "get": {
         "tags": ["status"],
         "summary": "List collectors",
-        "description": "Returns collector runtime status classified by workflow coordinator registration, direct status evidence, and persisted source or reducer fact evidence.",
+        "description": "Returns collector runtime status classified by workflow coordinator registration, direct status evidence, and persisted source or reducer fact evidence. A 503 with Retry-After means a transient condition that is safe to retry: the status snapshot read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the status reader is not configured on this API instance. No 5xx body carries backend error text. This route has no capability-matrix key yet, so a reader-verdict 503 error envelope carries no capability field (#8227).",
         "operationId": "listCollectors",
         "x-scoped-token-support": true,
         "responses": {
@@ -113,7 +113,7 @@ const Routes = `
       "get": {
         "tags": ["status"],
         "summary": "Get ingester status",
-        "description": "Returns detailed status for a specific ingester.",
+        "description": "Returns detailed status for a specific ingester. A 503 with Retry-After means a transient condition that is safe to retry: the status snapshot read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the status reader is not configured on this API instance. No 5xx body carries backend error text. This route has no capability-matrix key yet, so a reader-verdict 503 error envelope carries no capability field (#8227).",
         "operationId": "getIngesterStatus",
         "x-scoped-token-support": true,
         "parameters": [
@@ -172,7 +172,7 @@ const Routes = `
       "get": {
         "tags": ["status"],
         "summary": "List collectors",
-        "description": "Legacy compatibility alias for collector runtime status.",
+        "description": "Legacy compatibility alias for collector runtime status. A 503 with Retry-After means a transient condition that is safe to retry: the status snapshot read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the status reader is not configured on this API instance. No 5xx body carries backend error text. This route has no capability-matrix key yet, so a reader-verdict 503 error envelope carries no capability field (#8227).",
         "operationId": "listCollectorsLegacy",
         "responses": {
           "200": {
@@ -192,7 +192,7 @@ const Routes = `
       "get": {
         "tags": ["status"],
         "summary": "Get ingester status",
-        "description": "Legacy compatibility alias for the Go-owned ingester status detail route.",
+        "description": "Legacy compatibility alias for the Go-owned ingester status detail route. A 503 with Retry-After means a transient condition that is safe to retry: the status snapshot read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the status reader is not configured on this API instance. No 5xx body carries backend error text. This route has no capability-matrix key yet, so a reader-verdict 503 error envelope carries no capability field (#8227).",
         "operationId": "getIngesterStatusLegacy",
         "parameters": [
           {
@@ -223,7 +223,7 @@ const Routes = `
       "get": {
         "tags": ["status"],
         "summary": "Get index status",
-        "description": "Returns the index status summary. Scoped tokens are admitted and receive a scoped shape instead of the deployment-wide report: only version, scoped=true, repository_count (counted over the caller's granted repositories and ingestion scopes inside the graph query, never an unfiltered count), completeness_state=scoped_repository_count_only, and withheld_sections naming status, reasons, queue, queue_blockages, coordinator, scope_activity, aws_materialization, semantic_extraction, and terraform_state. Those sections are process-global and cannot be attributed to a grant, and a queue_blockages row reports conflict_key as COALESCE(conflict_key, scope_id), a raw scope id, so they are withheld rather than redacted and the status snapshot is not read for a scoped caller. A scoped caller with no granted repository or ingestion scope receives repository_count 0 without a graph query. A failed or unavailable graph count returns 500 or 503 rather than 0. Callers holding the shared key receive the full report unchanged. A hosted BrowserSessionRoutePolicy that refuses all-scope callers on grant-bound routes refuses them here with a 403.",
+        "description": "Returns the index status summary. Scoped tokens are admitted and receive a scoped shape instead of the deployment-wide report: only version, scoped=true, repository_count (counted over the caller's granted repositories and ingestion scopes inside the graph query, never an unfiltered count), completeness_state=scoped_repository_count_only, and withheld_sections naming status, reasons, queue, queue_blockages, coordinator, scope_activity, aws_materialization, semantic_extraction, and terraform_state. Those sections are process-global and cannot be attributed to a grant, and a queue_blockages row reports conflict_key as COALESCE(conflict_key, scope_id), a raw scope id, so they are withheld rather than redacted and the status snapshot is not read for a scoped caller. A scoped caller with no granted repository or ingestion scope receives repository_count 0 without a graph query. A failed graph count returns 500, an unavailable graph backend 503, and a graph read deadline 504, never 0. Callers holding the shared key receive the full report unchanged. A hosted BrowserSessionRoutePolicy that refuses all-scope callers on grant-bound routes refuses them here with a 403. A 503 with Retry-After means a transient condition that is safe to retry: for an unscoped caller the status snapshot read hit a stale or timed-out PostgreSQL reader, and for a scoped caller, whose only read is the granted-repository count in the graph (the status snapshot is not read), the graph backend is unavailable; a 503 without Retry-After means a configuration state: the status reader (unscoped caller) or the graph backend (scoped caller) is not configured on this API instance. A scoped caller's graph count that exceeds its read deadline answers 504. No 5xx body carries backend error text. This route has no capability-matrix key yet, so a reader-verdict 503 error envelope carries no capability field (#8227).",
         "operationId": "getIndexStatus",
         "x-scoped-token-support": true,
         "responses": {
@@ -338,6 +338,7 @@ const Routes = `
           },
           "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
@@ -346,7 +347,7 @@ const Routes = `
       "get": {
         "tags": ["status"],
         "summary": "Get index status",
-        "description": "Legacy compatibility alias for the Go-owned index status summary; it shares the handler with GET /api/v0/status/index. Scoped tokens are admitted and receive a scoped shape instead of the deployment-wide report: only version, scoped=true, repository_count (counted over the caller's granted repositories and ingestion scopes inside the graph query, never an unfiltered count), completeness_state=scoped_repository_count_only, and withheld_sections naming status, reasons, queue, queue_blockages, coordinator, scope_activity, aws_materialization, semantic_extraction, and terraform_state. Those sections are process-global and cannot be attributed to a grant, and a queue_blockages row reports conflict_key as COALESCE(conflict_key, scope_id), a raw scope id, so they are withheld rather than redacted and the status snapshot is not read for a scoped caller. A scoped caller with no granted repository or ingestion scope receives repository_count 0 without a graph query. A failed or unavailable graph count returns 500 or 503 rather than 0. Callers holding the shared key receive the full report unchanged. A hosted BrowserSessionRoutePolicy that refuses all-scope callers on grant-bound routes refuses them here with a 403.",
+        "description": "Legacy compatibility alias for the Go-owned index status summary; it shares the handler with GET /api/v0/status/index. Scoped tokens are admitted and receive a scoped shape instead of the deployment-wide report: only version, scoped=true, repository_count (counted over the caller's granted repositories and ingestion scopes inside the graph query, never an unfiltered count), completeness_state=scoped_repository_count_only, and withheld_sections naming status, reasons, queue, queue_blockages, coordinator, scope_activity, aws_materialization, semantic_extraction, and terraform_state. Those sections are process-global and cannot be attributed to a grant, and a queue_blockages row reports conflict_key as COALESCE(conflict_key, scope_id), a raw scope id, so they are withheld rather than redacted and the status snapshot is not read for a scoped caller. A scoped caller with no granted repository or ingestion scope receives repository_count 0 without a graph query. A failed graph count returns 500, an unavailable graph backend 503, and a graph read deadline 504, never 0. Callers holding the shared key receive the full report unchanged. A hosted BrowserSessionRoutePolicy that refuses all-scope callers on grant-bound routes refuses them here with a 403. A 503 with Retry-After means a transient condition that is safe to retry: for an unscoped caller the status snapshot read hit a stale or timed-out PostgreSQL reader, and for a scoped caller, whose only read is the granted-repository count in the graph (the status snapshot is not read), the graph backend is unavailable; a 503 without Retry-After means a configuration state: the status reader (unscoped caller) or the graph backend (scoped caller) is not configured on this API instance. A scoped caller's graph count that exceeds its read deadline answers 504. No 5xx body carries backend error text. This route has no capability-matrix key yet, so a reader-verdict 503 error envelope carries no capability field (#8227).",
         "operationId": "getIndexStatusLegacy",
         "x-scoped-token-support": true,
         "responses": {
@@ -438,6 +439,7 @@ const Routes = `
           },
           "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }

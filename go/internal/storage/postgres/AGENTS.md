@@ -8,7 +8,8 @@
    `Executor`, `ExecQueryer`, `Transaction`, `Beginner`,
    `ReadOnlyRepeatableReadBeginner` (adapters and bootstrap lock stay in root)
 3. `go/internal/storage/postgres/projector_queue.go` — `ProjectorQueue.Claim`
-   (bounded 40P01/40001 retry; helpers in `projector_queue_scan.go`) and `Ack`; the atomic, lock-timeout-bounded ack transaction is the most sensitive path
+   (bounded 40P01/40001 retry; helpers in `projector_queue_scan.go`), and
+   `projector_queue_ack.go` — `Ack`; the atomic, lock-timeout-bounded ack transaction is the most sensitive path
    in this package
 4. `go/internal/storage/postgres/projector_queue_sql.go` — projector claim,
    stale-generation coalescing, duplicate-lease reclaim, and lifecycle SQL
@@ -32,6 +33,22 @@
 - **Idempotency** — all INSERT paths use `ON CONFLICT DO NOTHING` or
   `ON CONFLICT DO UPDATE`; schema DDL uses `IF NOT EXISTS`. Do not add
   non-idempotent INSERTs or CREATE TABLE without IF NOT EXISTS.
+- **Go DDL never outruns the migrations (#7777, #7792)** — a column, index,
+  table, named constraint (table-level or inline), trigger, function,
+  sequence, view, materialized view, procedure, type, or domain added to a
+  store's Go DDL (`EnsureSchema`, `*SchemaSQL`) needs a numbered migration
+  in `migrations/` in the same change; the schema Job applies only those
+  files. `TestDDLMigrationParity` checks those names. It fails on Postgres
+  DDL it cannot read, including an ALTER TABLE action outside
+  `ddlAlterForms` and every `ALTER INDEX`, `ALTER SEQUENCE`, `ALTER TYPE`,
+  `ALTER DOMAIN`, or `ALTER [MATERIALIZED] VIEW`, unless
+  `ddlParityDynamicDDL` lists it with a reason, and it fails on stale
+  allowlist entries. Review these by hand, because the test does not:
+  definitions and `ALTER COLUMN` changes; any other statement kind
+  (`CREATE EXTENSION`, `CREATE SCHEMA`, `CREATE POLICY`, `DROP`, and so
+  on); a trailing clause in a separate constant or `strings.Join` element
+  after a complete first literal; and a later `DROP` or `RENAME` in the
+  migrations, which the test does not apply.
 - **Fact deduplication before batching** — `upsertFacts` calls
   `deduplicateEnvelopes` before each batch to prevent `SQLSTATE 21000` on
   `ON CONFLICT DO UPDATE` when the same `fact_id` appears twice in one batch
@@ -61,6 +78,20 @@
   under a local `lock_timeout` (55P03 → `projector.ErrWorkAckDeferred`; retry via
   `AckWhenScopeFree`). Scope precedes generation/work everywhere; Heartbeat uses
   `FOR NO KEY UPDATE SKIP LOCKED`, never waiting on ingestion. Else 40P01.
+- **Ack journal (#7127 PR-3b, dark)** — with `ChangedSinceJournalEnabled`
+  false, Ack sends exactly the statements it sent before
+  (`TestProjectorAckWithJournalOffSendsTheShippedStatements`). On, only two
+  statements change, both derived from the shipped constants (prefix guard
+  `TestAckJournalStatementsDeriveFromShippedQueries`): the active supersede
+  gains `RETURNING generation_id`, and the activate statement becomes the
+  gated CTE `activateAndJournalProjectorGenerationQuery`. Keep the gate
+  `AS MATERIALIZED`, keep it on `linksfreshnessstore.AckJournalGateSQL`
+  (never an advisory literal in this package), keep it a try-lock, and never
+  move the insert out of the activate statement or drop the gate: both
+  invert `activation_seq` against commit order
+  (`TestProjectorAckJournalInversion`). A missed gate writes no row and
+  does not wait. Run the `TestProjectorAckJournal*` live proofs after any
+  change to Ack.
 - **Lease fencing** — projector Heartbeat/Ack/Fail match `lease_owner` and
   `attempt_count`; zero rows is `ErrProjectorClaimRejected` (wraps
   `projector.ErrWorkClaimLost`; drop the attempt). `WorkflowControlStore` checks
@@ -115,6 +146,17 @@
   `PostgresAWSCloudRuntimeDriftEvidenceLoader` must load AWS rows from one
   `(scope_id, generation_id)` and must join Terraform state through the current
   AWS ARN allowlist. Do not scan all active Terraform state to discover matches.
+  The state join probes `fact_records_terraform_state_resource_arn_idx`
+  (migration 180) once per ARN through an `OFFSET 0` LATERAL inside a
+  `MATERIALIZED` CTE, and joins `ingestion_scopes` only after that fence.
+  Keep both fences and keep the probe's predicate identical to the index
+  predicate (#7666): without them the planner looped the active-scope join per
+  ARN (11.16M buffers) or walked the whole index on stale statistics. The
+  plan proof is `aws_cloud_runtime_drift_state_arn_plan_live_test.go`; the row
+  differential against the pre-#7666 join is
+  `aws_cloud_runtime_drift_state_arn_differential_live_test.go`. Do not add an
+  expression statistics object to fix a plan here; a stale one left the
+  unchanged statement 2,358x slower than a fresh one.
   If backend ownership is missing or ambiguous, suppress unmanaged
   classification for that state-backed ARN; unknown config is not proof of
   absent config.
@@ -177,6 +219,23 @@
   for the reopen-anchor proof. An unbounded (or unreachably-bounded, or
   no-grace-window-on-reopen) defer would starve a genuine orphan (a resource
   with no Terraform state anywhere, ever) forever.
+- **Package-consumption backfill rebuilds a scope one page per transaction
+  (#7663)** — `PackageManifestConsumptionKeyBackfill.Run` hands each scope to
+  `consumption.Rebuilder`. That rebuilder takes the scope's `ingestion_scopes`
+  row `FOR NO KEY UPDATE` under a 5 s `lock_timeout`, once in the start
+  transaction and once for each 500-fact page. Never fold the pages back into
+  one transaction: that held a 63k-fact scope's row for over an hour and
+  blocked every foreign-key insert for the scope. A writer that sets
+  `eshu.package_manifest_consumption_keys_writer` must take that row lock
+  first, as `upsertIngestionScope` does. Keep
+  `listPackageManifestConsumptionKeyScopeFactsSQL`'s predicate byte-aligned
+  with migration 181's partial index. See `consumption/AGENTS.md` and
+  `docs/internal/evidence/7663-backfill-page-lock.md`.
+- **Key sidecar deletes (#7420).** A new statement that deletes
+  `fact_records` (directly, or through a `scope_generations` or
+  `ingestion_scopes` cascade) runs the `facts/keys` delete first in the same
+  transaction, or touches only fact kinds that own no key rows, and is
+  classified in `factDeleteSites`. Read `facts/keys/AGENTS.md` first.
 
 ## Evidence notes
 
@@ -520,6 +579,22 @@ shared-intent backlog/status queries and reducer code-call cycle logs.
 
 - Symptom: `dead_letter` items accumulating → check `failure_class` in
   `fact_work_items`; replay via `RecoveryStore` after root-cause investigation.
+
+- Activation wake (#7597) → every statement that sets a
+  `relationship_generations` row active runs through `activateWithConsumerWake`
+  (`TestEveryRelationshipActivationWakesConsumers` enumerates the module): one
+  transaction of activation, `SET LOCAL lock_timeout`, a plain `FOR UPDATE` on
+  the in-flight own-gate consumers, then the wake UPDATE (dead letters locked
+  `SKIP LOCKED`). Lock order: claimant work row, relationship generation,
+  in-flight consumers by `work_item_id COLLATE "C"` (the `AckBatch` order; `TestOwnGateLocksShareTheBatchAckOrder`), dead-lettered consumers. Keep both the
+  in-flight lock and `wakeAfterProducerTerminalDeadLetter` in the Fail path:
+  dropping either produced lost wakes in `TestActivationWakeInterleaveLive`
+  (go/internal/query/admin). Keep the wake SET list in lockstep with the replay
+  reset list (`TestActivationWakeSetClauseMatchesReplayReset`). Do not enroll
+  the own-gate counting classes as non-counting
+  (`TestDeliberatelyCountingClassesAreNeverEnrolled`).
+
+- Replay and claim-sweep row locks (#8205): keep the sort and status checks, and keep the ordered lock steps blocking (never `SKIP LOCKED` there; the bounded drain's `SKIP LOCKED` is intentional); see README.
 
 - Symptom: `graph_projection_phase_state` rows missing for a scope generation →
   projector `publish_phases` stage failed; check `GraphProjectionPhaseRepairQueueStore`
@@ -973,19 +1048,21 @@ container-image identity facts, reloaded under singleflight on epoch mismatch.
     does. The probe reads the heap (the partial index holds only
     `(observed_at, fact_id)`): ~120-135 ms on the 1.0M-fact shim, not an Index
     Only Scan. The all-generations / ~51 ms description is superseded.
-  * `active_fingerprint` — SHA-256 hex digest of
-    `COALESCE(string_agg(scope_id::text || ':' ||
-    active_generation_id::text, '|' ORDER BY scope_id), '') FROM
-    ingestion_scopes`, encoded as UTF-8 before hashing. This avoids MD5,
-    which is unavailable on FIPS-configured PostgreSQL, and detects a
-    supersession (active_generation_id flip) that changes the active identity
-    set without changing the active fact count or max observed_at.
+  * `active_fingerprint` — SHA-256 hex digest of the DISTINCT active
+    `(scope_id, generation_id)` pairs in the filtered identity set
+    (`string_agg(DISTINCT fact.scope_id::text || ':' || fact.generation_id::text,
+    '|' ORDER BY ...)` over the same active-generation filter count/max use).
+    This avoids MD5, unavailable on FIPS-configured PostgreSQL, and detects an
+    identity-bearing supersession (active_generation_id flip) that leaves count
+    and max observed_at unchanged. A flip in a scope with no identity facts
+    leaves the pair set unchanged and does not move the epoch (#7825). An empty
+    identity set digests the empty string, so the digest is always 64 hex.
   * **Collision resistance**: with only (count, max), a supersession to a new
     generation of equal cardinality would false-hit. The fingerprint hashes the
-    full ordered mapping (`ORDER BY scope_id`, joined with `'|'`) with SHA-256,
-    so any change to any scope's active generation changes the digest input. The
-    earlier `sum(hashtext(...))` fingerprint could miss a 32-bit collision or
-    offsetting per-scope deltas; a digest of the ordered mapping cannot.
+    full ordered pair set (ordered, joined with `'|'`) with SHA-256, so any
+    change to the covered pair set changes the digest input. The earlier
+    `sum(hashtext(...))` fingerprint could miss a 32-bit collision or
+    offsetting per-scope deltas; a digest of the ordered set cannot.
 - **Cap behavior**: `ESHU_IDENTITY_CACHE_MAX_BYTES` (default 500 MiB, measured).
   Loaded set exceeding the cap is served DIRECTLY (passthrough, never partial,
   never cached) and increments `eshu_dp_identity_cache_passthrough_total`.

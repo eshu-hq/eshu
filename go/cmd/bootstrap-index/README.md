@@ -423,6 +423,7 @@ Failure-class log keys emitted via `telemetry.FailureClassAttr`:
 | `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY` | `NumCPU`, clamped to `16` | Parallel canonical `entities` and `entity_containment` phase chunk dispatch on NornicDB |
 | `ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT` | `true` | Fold entity containment into row-scoped entity upserts; set `false` only for measured fallback comparisons |
 | `ESHU_PPROF_ADDR` | unset (disabled) | Opt-in `net/http/pprof` endpoint via `runtime.NewPprofServer`; port-only inputs bind to `127.0.0.1` |
+| `ESHU_CHANGED_SINCE_LINK_ENABLED` | `false` | Dark (#7127 PR-3b): the projector Ack journals each activation it commits into `changed_since_activations` (`source = 'ack'`), as the ingester's does, gated so it never waits on the reducer's journal pass; off, Ack sends no ledger SQL. Same parse as the reducer (`linksfreshnessstore.Enabled`). |
 
 Full NornicDB tuning reference: `docs/public/reference/nornicdb-tuning.md`.
 
@@ -461,8 +462,7 @@ exposing repository paths or raw parameters.
 - **Version probes do not touch stores.** Keep `printBootstrapIndexVersionFlag`
   at the top of `main` so install checks can inspect the binary without a
   running graph or Postgres instance.
-- **No admin surface.** `/healthz`, `/readyz`, `/metrics`, and `/admin/status`
-  are not mounted. Monitor via OTEL traces and structured logs.
+- **No admin surface.** `/healthz`, `/readyz`, `/metrics`, and `/admin/status` are not mounted. Monitor via OTEL traces and structured logs.
 - **Graph schema marker.** Deployment flows should run
   `eshu-bootstrap-data-plane` first. Bootstrap-index still checks the latest
   marker before opening its projection writer. A missing marker triggers one

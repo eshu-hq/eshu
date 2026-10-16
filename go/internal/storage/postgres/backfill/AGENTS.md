@@ -29,9 +29,8 @@
 - **Differentials derive, never copy** — root proofs bind the shipped
   constants and exported arg builders. Do not freeze SQL by hand.
 - **Test placement** — fake-driven engine tests stay `package backfill`
-  with local doubles (`fakes_test.go`); anything needing root
-  collaborators (`IngestionStore`, commit path, live DSN) lives in the
-  root package.
+  with local doubles (`fakes_test.go`); targeted engine proofs live in the `targeted` child package. External
+  child tests may call root `IngestionStore` entry points.
 
 - **Block telemetry is a closed set** — the `Block*` constants in
   `block_telemetry.go` are the nine blocks of #8082. A failed block ends its
@@ -43,6 +42,15 @@
   repository ID on a block. The pass tracer reaches helpers through the
   context (`withBlockTelemetry`), so helpers called from the targeted pass
   stay silent.
+
+- **Unchanged partitions are not republished** (#8082) — the whole-pass fan-in
+  skips a partition only when it was a start-of-pass memo hit, got no inserted
+  evidence row, its scope is still on that generation, and it still has its
+  readiness row. Keep all four conditions; a moved generation must reach the
+  locked path so it keeps `generation_advanced_since_batch`.
+  Keep `PublishDeferredBackfillPartitions` (the partition-scoped pass's entry)
+  publishing every partition. A failed readiness check must fall back to
+  publishing all partitions, never to skipping them.
 
 ## Change guidance
 

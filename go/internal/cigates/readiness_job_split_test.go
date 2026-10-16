@@ -107,6 +107,9 @@ const (
 	readinessShardTimeout  = 30
 	readinessShardRunner   = `bash scripts/run-live-postgres-readiness-tests.sh --shard "${{ matrix.shard }}/4" --report readiness-shard-report.json`
 	readinessShardContract = "python3 scripts/test-live-postgres-readiness-shards.py"
+	// readinessSelfTestSeeds plants verifier and runner defects and requires
+	// the hermetic self-test to catch each one (#8241).
+	readinessSelfTestSeeds = "bash scripts/test-run-live-postgres-readiness-selftest-seeds.sh"
 	readinessFixtureStart  = "bash scripts/ci/live-postgres-standby-fixture.sh start '${{ job.services.postgres.id }}' '${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}'"
 	readinessFixtureStop   = "bash scripts/ci/live-postgres-standby-fixture.sh stop '${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}'"
 	readinessAggregateJob  = "live-postgres-readiness"
@@ -223,6 +226,7 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 		for _, step := range job.Steps {
 			for _, script := range []string{
 				"scripts/test-run-live-postgres-readiness-tests.sh",
+				readinessSelfTestSeeds[len("bash "):],
 				readinessShardContract,
 				readinessShardRunner,
 			} {
@@ -240,10 +244,12 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 		}
 	}
 	if counts["scripts/test-run-live-postgres-readiness-tests.sh"] != 1 ||
+		counts[readinessSelfTestSeeds[len("bash "):]] != 1 ||
 		counts[readinessShardContract] != 1 || counts[readinessShardRunner] != 1 {
 		return "hermetic and shard proof runners must each execute exactly once"
 	}
 	if !jobRuns(hermetic.Steps, "scripts/test-run-live-postgres-readiness-tests.sh") ||
+		!jobRuns(hermetic.Steps, readinessSelfTestSeeds[len("bash "):]) ||
 		!jobRuns(shards.Steps, readinessShardRunner[len("bash "):]) {
 		return "proof runners must be in their designated jobs"
 	}

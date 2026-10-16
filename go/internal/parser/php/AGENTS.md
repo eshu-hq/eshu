@@ -13,6 +13,7 @@
 9. returns.go - return chain and parenthesized-receiver helpers
 10. dead_code_roots.go - AST dead-code facts and root classification
 11. support.go - base, type, parameter, and return-type AST helpers
+12. package_keys.go and composer/ - #7601 cross-repository package keys
 
 ## Invariants this package enforces
 
@@ -48,6 +49,15 @@
   visiting `attribute` nodes for `observePHPAttribute`; it does not walk the
   tree itself. Do not reintroduce a dedicated route walk — extend the phase 1
   `attribute` case and the post-walk resolution instead.
+
+- Package keys (#7601) fail closed: a producer key needs a named composer.json
+  whose `autoload.psr-4` maps the class to exactly its file; a consumer key
+  needs a `use`-bound or fully qualified class and a composer.lock that names
+  its package. Bind consumer calls from the raw class node and the `use` rows
+  (`phpPackageKeys.useTargets`), never from `importAliases` or the normalized
+  receiver: those keep only the last segment, which the public-corpus
+  measurement showed binds `new \InvalidArgumentException` and
+  `ResendEmail::from` to the wrong imports.
 
 ## Common changes and how to scope them
 

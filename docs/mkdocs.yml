@@ -102,9 +102,16 @@ nav:
         - Status And Admin: reference/http-api/status-admin.md
         - Service Changed-Since: reference/http-api/service-changed-since.md
         - Admin Replay Refusals: reference/http-api/admin-replay-refusals.md
+        - Admin Route Failures: reference/http-api/admin-failures.md
+        - Status And Evidence Route Failures: reference/http-api/status-evidence-failures.md
+        - Auth And Session Route Failures: reference/http-api/auth-session-failures.md
+        - Infra And Inventory Route Failures: reference/http-api/infra-and-inventory-failures.md
+        - Compare And Semantic Search Failures: reference/http-api/compare-and-semantic-search-failures.md
+        - Identity Route Failures: reference/http-api/identity-failures.md
         - Selector And Read Failures: reference/http-api/selector-and-read-failures.md
         - Completed Work Reopen: reference/http-api/status-admin-reopen.md
         - Admin Scope Selector: reference/http-api/status-admin-scope-selector.md
+        - Reindex Progress: reference/http-api/status-admin-reindex-progress.md
         - Index Status: reference/http-api/index-status.md
         - Active Work Source: reference/http-api/active-work-source.md
         - Dashboard Browser Sessions: reference/http-api/dashboard-sessions.md
@@ -125,6 +132,7 @@ nav:
         - Source Cache Read Clip: reference/http-api/source-cache-clip.md
         - IaC, Content, And Infra: reference/http-api/iac-content-infra.md
         - Unscoped File Search: reference/http-api/unscoped-file-search.md
+        - Relevance Walk: reference/http-api/rank-walk.md
         - Infrastructure Resource Aggregates: reference/http-api/infra-resource-aggregates.md
         - Repositories: reference/http-api/repositories-ingesters-bundles.md
         - Repository Stats And Story Coverage: reference/http-api/repository-coverage.md
@@ -323,6 +331,8 @@ nav:
       - Secret-Line Finalizer Signals: reference/telemetry/secret-lines.md
       - Unscoped Content Search Signals: reference/telemetry/unscoped-file-search.md
       - Deferred Backfill Block Timing: reference/telemetry/deferred-backfill-blocks.md
+      - Package Manifest Backfill Page Timing: reference/telemetry/package-manifest-backfill.md
+      - Generation Retention Search Index Pre-Delete: reference/telemetry/generation-retention-search-index.md
       - Metrics: reference/telemetry/metrics.md
       - Ingestion And Collector Metrics: reference/telemetry/metrics-ingestion-collectors.md
       - Reducer And Storage Metrics: reference/telemetry/metrics-reducer-storage.md
@@ -339,6 +349,7 @@ nav:
       - Streaming And Memory: reference/telemetry/streaming-memory.md
       - Code Divergence Signals: reference/telemetry/code-divergence.md
       - MCP Response Budget: reference/telemetry/mcp-response-budget.md
+      - Relevance Walk Signals: reference/telemetry/rank-cursor.md
     - Observability:
       - Telemetry Coverage Contract: observability/telemetry-coverage.md
       - Telemetry Coverage Notes: observability/telemetry-coverage-notes.md
@@ -403,6 +414,7 @@ nav:
     - Hosted Ops Alert Pack: operate/hosted-ops-alert-pack.md
     - Tuning Playbook: operate/tuning-playbook.md
     - Rebuild the Graph From Facts: operate/graph-rebuild-from-facts.md
+    - Delta-Base Union: operate/graph-delta-union.md
     - Troubleshooting: operate/troubleshooting.md
     - Park-Holder Runbook: operate/park-holder-runbook.md
     - "3 AM Operator Runbook": operate/3am-operator-runbook.md

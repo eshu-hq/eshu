@@ -50,10 +50,13 @@ package's tests use in 37 places.
 
 The godoc contract is in doc.go. Current exports are `Parse` and `PreScan`,
 both of which take a `*tree_sitter.Parser` configured for the PHP grammar.
+`Parse` also takes the repository root, which bounds the composer reads behind
+the cross-repository package keys below; an empty root stamps no keys.
 
 ## Dependencies
 
-This package imports the Go standard library, `internal/parser/shared`, and
+This package imports the Go standard library, `internal/parser/shared`,
+`internal/parser/php/composer` (composer.json and composer.lock reads), and
 `github.com/tree-sitter/go-tree-sitter`. The grammar is
 `github.com/tree-sitter/tree-sitter-php` (LanguagePHP), wired into the parent
 runtime loader. Production code and the in-package tests must not import the
@@ -61,6 +64,31 @@ parent `internal/parser` package. The external `php_test` files are the one
 exception: they import the parent parser only to reach `DefaultEngine` and
 `Options`, and `internal/parser/parsertest` for the bucket and field assertions
 shared with the other language packages.
+
+## Cross-repository package keys (#7601)
+
+`package_keys.go` writes both halves of the `package:<package_id>#<export_name>`
+key the reducer already resolves:
+
+- Producer: a class or interface gets `package_id` (the nearest
+  `composer.json` name in the composer grammar) and `export_name` (its fully
+  qualified name) only when an `autoload.psr-4` prefix of that manifest maps the
+  class to exactly its file. A public static class method gets
+  `export_name = <FQCN>::<method>`. No key under `vendor/`, for `autoload-dev`,
+  `classmap`, `psr-0`, the empty fallback prefix, traits, enums (not emitted),
+  free functions, or in a file with more than one namespace declaration.
+- Consumer: `new X(` and `X::method(` get `package_export_symbol` when `X` is
+  bound by a `use` import (alias and group use included) or written as a fully
+  qualified literal, and a `composer.lock` between the file and the repository
+  root names the providing package through the longest covering psr-4 prefix.
+  An own autoload prefix of the consumer at least as long as that locked
+  prefix suppresses the key, and a `function` or `const` clause in a mixed group
+  use binds no class.
+  Not keyed: `self`/`static`/`parent`, `$var::`, `new $var`, relative qualified
+  names, instance calls, free functions, `use function`/`use const`, type
+  references, `X::class`, and constants.
+
+See `composer/README.md` and `docs/internal/evidence/7601-php-package-keys.md`.
 
 ## Telemetry
 

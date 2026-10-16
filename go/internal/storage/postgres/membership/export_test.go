@@ -11,6 +11,10 @@ const SchemaSQL = schemaSQL
 // its partition predicates.
 const KnownScopesQuery = knownScopesQuery
 
+// KnownScopesPrefixQuery exposes knownScopesPrefixQuery so external tests
+// can assert on its prefix partition predicates.
+const KnownScopesPrefixQuery = knownScopesPrefixQuery
+
 // UpsertObservationsQuery exposes upsertObservationsQuery so external tests
 // can assert on its shape.
 const UpsertObservationsQuery = upsertObservationsQuery

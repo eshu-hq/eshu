@@ -346,9 +346,13 @@ test_ifa_fault_graph_manifest_timeout_fails_closed() (
 	mkdir -p "${fake_bin}"
 	printf '{"edges":[],"nodes":[]}\n' >"${case_dir}/graph-baseline.dump"
 	printf 'cell_baseline\n' >"${case_dir}/current-cell"
+	# The stub must exec the sleep. ifa_fault_sha256_file pipes the bounded
+	# command into awk, and `timeout -s KILL` kills only the direct child on
+	# uutils coreutils (Ubuntu 25.10+), where GNU timeout also kills the process
+	# group. A forked `sleep` would keep the pipe open and outlast the timeout.
 	cat >"${fake_bin}/shasum" <<'STUB'
 #!/usr/bin/env bash
-sleep 5
+exec sleep 5
 STUB
 	cat >"${fake_bin}/psql" <<'STUB'
 #!/usr/bin/env bash

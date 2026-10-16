@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/deadline"
-	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/preparse"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 )
 
@@ -41,7 +40,7 @@ func syncGitRepositoriesWithLogger(
 	}
 	ctx = deadline.WithSweep(deadline.WithMetrics(ctx, baseline.Instruments), config.GitDeadlines, logger)
 	token, err := resolveGitToken(ctx, config)
-	if err != nil && config.SourceMode == "githubOrg" {
+	if err != nil && (config.SourceMode == "githubOrg" || config.SourceMode == "gitlabGroup") {
 		return GitSyncSelection{}, err
 	}
 
@@ -445,56 +444,6 @@ func gitRevParse(
 	return strings.TrimSpace(output), nil
 }
 
-// skipParse runs the pre-parse decision after the fetch (#7978 follow-up,
-// ruling a9-143). It reports true when the store re-projected the active
-// generation, so the caller selects nothing for repoPath. A resolver without
-// preparse.Reprojector, a refusal, or a store error reports false and the
-// repository is parsed as before. It also reports the attempt's clean-tree
-// observation for the identity stamp: nil when the decision never reached
-// the check or the check errored (#8038 item 2).
-func (b gitDeltaBaseline) skipParse(
-	ctx context.Context, logger *slog.Logger, config RepoSyncConfig, token, repoPath string,
-	decision reconcileDecision, sourceSHA string, refs []GitRef,
-) (bool, *bool) {
-	reprojector, ok := b.Resolver.(preparse.Reprojector)
-	if b.Preparse == nil || !ok {
-		return false, nil
-	}
-	var observed *bool
-	clean := func() (bool, error) {
-		isClean, err := gitTreeClean(ctx, config, token, repoPath)
-		if err == nil {
-			observed = &isClean
-		}
-		return isClean, err
-	}
-	skipped := preparse.Run(ctx, preparse.Attempt{
-		ScopeID: decision.ScopeID, Reason: decision.Reason, State: decision.State, RemoteCommit: sourceSHA,
-		Identity:      preparse.Identity(GenerationContentVersion(), sourceSHA, repositoryDefaultBranch(refs), *b.Preparse),
-		HasSubmodules: regularFileExists(filepath.Join(repoPath, ".gitmodules")),
-		MaxSkips:      b.ParseMaxSkips, ConfigDigest: preparse.ConfigDigest(*b.Preparse),
-		StampWithoutParse: b.StampWithoutParse, StampProven: false, // unproven: no store proof producer yet (#8095)
-	}, clean, reprojector,
-		preparse.Recorder{Instruments: b.Instruments, Logger: logger})
-	return skipped, observed
-}
-
-// snapshotIdentity returns the pre-parse identity a full snapshot of repoPath
-// at sourceSHA will carry, or an empty string when the feature is off or the
-// checkout is not clean (the identity describes the commit's tree only).
-// knownClean reuses the skip attempt's observation for the same cycle
-// instead of running git status again; nil checks the tree itself. Nothing
-// touches the checkout between the attempt and the stamp.
-func (b gitDeltaBaseline) snapshotIdentity(ctx context.Context, config RepoSyncConfig, token, repoPath, sourceSHA string, refs []GitRef, knownClean *bool) string {
-	if b.Preparse == nil {
-		return ""
-	}
-	if knownClean != nil {
-		if !*knownClean {
-			return ""
-		}
-	} else if clean, err := gitTreeClean(ctx, config, token, repoPath); err != nil || !clean {
-		return ""
-	}
-	return preparse.Identity(GenerationContentVersion(), sourceSHA, repositoryDefaultBranch(refs), *b.Preparse)
-}
+// skipParse and snapshotIdentity live in selection_skip.go: the file owns the
+// forced-reconcile skip attempt, the recorded-drop probe (#8185), and the
+// identity stamp.

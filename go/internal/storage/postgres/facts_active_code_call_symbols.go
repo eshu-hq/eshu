@@ -152,7 +152,8 @@ const listAnchoredActiveCodeCallSymbolDefinitionFactsQuery = codeCallSymbolDefin
 // the scan reads only those repositories' active file facts:
 //
 //   - package:<package_id>#<export_name> keys, on the repositories whose stored
-//     package.json manifests name that package (#7601);
+//     package.json manifests name that npm package, or whose composer.json
+//     manifests name that composer package (#7601);
 //   - scip-go gomod <import path> <symbol> keys, on the repositories whose
 //     stored go.mod module path is that import path or a prefix of it (#7623).
 //     The Go parser builds a definition's import path from its nearest go.mod

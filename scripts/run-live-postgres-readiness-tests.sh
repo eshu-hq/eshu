@@ -3,7 +3,7 @@
 # quiet-generation, activation obligation, #7584 targeted-maintenance,
 # reindex watermark plan/correctness, container image identity epoch-gate,
 # #7209 projector zombie-heal, and #7471 marked-write-age signal proofs
-# listed in scripts/lib/live_postgres_readiness_inventory.py on disposable
+# listed in scripts/lib/live_postgres_readiness_inventory*.py on disposable
 # PostgreSQL 18
 # (plus a disposable Neo4j for the zombie-heal graph proof when its env is
 # configured; without one the graph proofs are excused and named in the
@@ -75,6 +75,7 @@ for name in \
   ESHU_CONTENT_SEARCH_PROOF_DSN \
   ESHU_SCOPED_SEARCH_PROOF_DSN \
   ESHU_IDENTITY_EPOCH_PROOF_DSN \
+  ESHU_AWS_DRIFT_ARN_PROOF_DSN \
   ESHU_WEBHOOK_CLAIM_LEASE_PROOF_DSN; do
   [[ -n "${!name:-}" ]] || die "${name} must name the administrative postgres database"
   [[ "${!name}" == */postgres\?* || "${!name}" == */postgres ]] ||
@@ -108,7 +109,8 @@ for name in \
   ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE \
   ESHU_CONTENT_SEARCH_PROOF_DISPOSABLE \
   ESHU_SCOPED_SEARCH_PROOF_DISPOSABLE \
-  ESHU_IDENTITY_EPOCH_PROOF_DISPOSABLE; do
+  ESHU_IDENTITY_EPOCH_PROOF_DISPOSABLE \
+  ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE; do
   [[ "${!name:-}" == "1" ]] || die "${name} must be 1"
 done
 # Only the Neo4j graph proofs need a backend; everything else runs on plain

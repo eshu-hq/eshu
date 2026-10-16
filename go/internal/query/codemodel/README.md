@@ -53,7 +53,14 @@ the staying code family still uses.
 - `code_flow_postgres.go` — Postgres flow reader plus the flow store
   contract it implements.
 - `code_graph_search_query.go` — bounded entity-search builder.
-- `code_hybrid_rerank.go` — in-process hybrid re-ranker.
+- `code_hybrid_rerank.go` — in-process hybrid re-ranker. Each pass that
+  reaches the ranking work emits a `query.hybrid_rerank` stage span
+  (`search.rerank.tool=find_code`, `search.rerank.rows`,
+  `search.rerank.applied`) through `tracing.StartHybridRerankSpan` (#7746).
+  It also implements `CodeWindowScorer` (`CanScoreWindow`,
+  `ScoreCodeWindow`): the find_code `rank_cursor` walk scores its whole
+  200-row window through it, and `CodeRankerIdentity` names the ranker in the
+  walk basis. Change that string whenever the fusion or embedder changes.
 - `code_import_dependencies_{queries,request,response,rows}.go` — the seven
   investigation builders, the request family, plus envelope and row shaping.
   The request type moved to `request.go` when `queries.go` hit the 500-line

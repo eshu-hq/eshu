@@ -178,12 +178,30 @@ type Service struct {
 	// counter and structured error log are unaffected.
 	QuarantineWriter QuarantinedFactWriter
 
+	// IsDeferredFailureClass reports whether a failure class is one the queue
+	// exempts from the retry budget (a readiness wait). Such a failure records
+	// status "deferred" and logs WARN "reducer execution deferred" instead of
+	// "failed"/ERROR. cmd/reducer wires
+	// postgres.IsNonCountingReducerRetryFailureClass; nil keeps every failure
+	// "failed". Injected so this package never restates the class list.
+	IsDeferredFailureClass func(failureClass string) bool
+
 	// Telemetry fields (optional)
 	Tracer         trace.Tracer
 	Instruments    *telemetry.Instruments
 	Logger         *slog.Logger
 	Workers        int // concurrent worker count; 0 or 1 means sequential
 	BatchClaimSize int // items per ClaimBatch call; 0 uses default (Workers * 4, max 64)
+
+	// HandlerTimeout is the operator-configured default bound on one handler
+	// execution, and HandlerTimeoutOverrides replaces it per domain. Zero
+	// (the default) means no bound is configured. Step (a) of #8211 records
+	// the slot and measures handler durations only: nothing enforces these
+	// values yet, because worst-case handler durations are still unmeasured.
+	// The enforcing deadline is a later step; until then the only release
+	// for a stuck handler is abandonment at shutdown (see executeHandler).
+	HandlerTimeout          time.Duration
+	HandlerTimeoutOverrides map[Domain]time.Duration
 
 	// ackRetryBase is the first backoff between transient ack retries, batch or
 	// single-item; zero uses defaultAckRetryBase. Tests shrink it.
@@ -417,7 +435,12 @@ func (s Service) executeWithTelemetry(ctx context.Context, intent Intent, worker
 	}
 
 	execCtx = WithQuarantineWriter(execCtx, s.QuarantineWriter)
-	result, err := s.Executor.Execute(execCtx, intent)
+	execStart := time.Now()
+	result, err, abandoned := s.executeHandler(execCtx, ctx, intent)
+	if abandoned {
+		return s.failAbandonedHandler(ctx, intent, err, start, execStart, queueWait, workerID, stopHeartbeatOnce)
+	}
+	s.recordReducerHandlerDuration(ctx, intent, time.Since(execStart).Seconds())
 	duration := time.Since(start).Seconds()
 	status := "succeeded"
 

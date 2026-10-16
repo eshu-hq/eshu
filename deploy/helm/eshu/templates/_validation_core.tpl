@@ -67,6 +67,12 @@
 {{- if and (eq .Values.repoSync.auth.method "ssh") (eq .Values.repoSync.source.mode "githubOrg") -}}
 {{- fail "repoSync.auth.method=ssh requires repoSync.source.mode=explicit or filesystem" -}}
 {{- end -}}
+{{- if and (eq .Values.repoSync.source.mode "gitlabGroup") (not .Values.repoSync.source.gitlabGroup) -}}
+{{- fail "repoSync.source.mode=gitlabGroup requires a non-empty repoSync.source.gitlabGroup" -}}
+{{- end -}}
+{{- if and (eq .Values.repoSync.source.mode "gitlabGroup") (ne .Values.repoSync.auth.method "token") -}}
+{{- fail "repoSync.source.mode=gitlabGroup requires repoSync.auth.method=token" -}}
+{{- end -}}
 {{- if and .Values.repoSync.enabled (gt (.Values.ingester.replicas | int) 1) -}}
 {{- if not (semverCompare ">=1.32.0-0" .Capabilities.KubeVersion.Version) -}}
 {{- fail "ingester.replicas greater than 1 requires Kubernetes 1.32 or newer for the stable StatefulSet apps.kubernetes.io/pod-index label" -}}

@@ -226,40 +226,6 @@ func firstRepoDependencyQuarantineDSN() string {
 	return ""
 }
 
-func openRepoDependencyQuarantineProofDB(ctx context.Context, t *testing.T, dsn string) (*sql.DB, func()) {
-	t.Helper()
-	bootstrapDB, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("open quarantine proof bootstrap database: %v", err)
-	}
-	schemaName := fmt.Sprintf("repo_dependency_odu_quarantine_%d", time.Now().UnixNano())
-	if _, err := bootstrapDB.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
-		_ = bootstrapDB.Close()
-		t.Fatalf("create quarantine proof schema: %v", err)
-	}
-	separator := "?"
-	if strings.Contains(dsn, "?") {
-		separator = "&"
-	}
-	database, err := sql.Open("pgx", dsn+separator+"search_path="+schemaName)
-	if err != nil {
-		_ = bootstrapDB.Close()
-		t.Fatalf("open scoped quarantine proof database: %v", err)
-	}
-	if err := postgres.NewSharedIntentStore(postgres.SQLDB{DB: database}).EnsureSchema(ctx); err != nil {
-		_ = database.Close()
-		_ = bootstrapDB.Close()
-		t.Fatalf("ensure quarantine proof schema: %v", err)
-	}
-	return database, func() {
-		_ = database.Close()
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cleanupCancel()
-		_, _ = bootstrapDB.ExecContext(cleanupCtx, "DROP SCHEMA "+schemaName+" CASCADE")
-		_ = bootstrapDB.Close()
-	}
-}
-
 func prepareRepoDependencyQuarantinePhase(ctx context.Context, t *testing.T, database *sql.DB, store *postgres.SharedIntentStore, exec liveExecutor, odu ifa.Odu, artifactIDs []string, rows []reducer.SharedProjectionIntentRow) {
 	t.Helper()
 	repoDependencyQuarantineDatabases.Store(store, postgres.SQLDB{DB: database})

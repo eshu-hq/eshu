@@ -335,6 +335,7 @@ func (q ReducerQueue) failIntent(
 			telemetry.AttrFailureClass(queuestore.BoundedFailureClassLabel(failureClass)),
 		))
 	}
+	q.wakeAfterProducerTerminalDeadLetter(ctx, intent, failureClass, now)
 
 	return nil
 }

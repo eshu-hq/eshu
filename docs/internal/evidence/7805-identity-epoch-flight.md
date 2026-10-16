@@ -237,6 +237,12 @@ generation activation in any scope, identity-relevant or not, moves the epoch
 and can tear an in-flight load. Two kinds of caller fail with
 `identity_epoch_unstable`, and both are counted in the churn table above.
 
+Addendum 2026-10-12 (#7825): the fingerprint above is the pre-narrowing shape.
+The probe now digests only the DISTINCT active (scope_id, generation_id) pairs
+present in the filtered identity set, so an activation in a scope with no
+identity facts no longer moves the epoch. See
+docs/internal/evidence/7825-identity-epoch-narrow.md.
+
 - A leader fails when the epoch moves during both of its two load attempts. Let q
   be the chance that one flight fails (both of its load attempts tore). An
   item dead-letters only after three failures in a row, which is about q cubed.

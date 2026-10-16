@@ -7,6 +7,8 @@ import (
 	"context"
 
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
 )
 
 // This file holds CanonicalNodeWriter's With* builder options, split out of
@@ -147,6 +149,29 @@ func (w *CanonicalNodeWriter) WithEntityLabelBatchSize(label string, batchSize i
 	return w
 }
 
+// WithoutInfraSearchKey switches the writer to the NornicDB statement shape
+// for the #7245 infra search key: every statement is emitted byte for byte as
+// it was before the key existed. It exists for the NornicDB writer seam
+// (storage/nornicdb.ConfigureCanonicalWriter), which turns a writer into the
+// NornicDB shape after construction; TestProductionWiringUsesDialectConstructors
+// fails if any other production package calls it. A Neo4j writer must never
+// call it: its keys would go stale.
+func (w *CanonicalNodeWriter) WithoutInfraSearchKey() *CanonicalNodeWriter {
+	if w == nil {
+		return nil
+	}
+	w.searchKey = search.Off
+	return w
+}
+
+// InfraSearchKeyDialect reports the writer's infra search key dialect.
+func (w *CanonicalNodeWriter) InfraSearchKeyDialect() search.Dialect {
+	if w == nil {
+		return 0
+	}
+	return w.searchKey
+}
+
 // WithEntityContainmentInEntityUpsert keeps entity node and file containment
 // writes in the same statement. Use only for backends whose batch MERGE support
 // requires the file MATCH context to preserve row-bound entity identity.
@@ -169,5 +194,23 @@ func (w *CanonicalNodeWriter) WithBatchedEntityContainmentInEntityUpsert() *Cano
 	}
 	w.entityContainmentInEntityUpsert = true
 	w.entityContainmentBatchAcrossFiles = true
+	return w
+}
+
+// WithBareRepositoryRetirement emits the bare path-conflict retirement
+// shape (no pre-delete edge collection, no RETURN record) instead of the
+// attributed one. REQUIRED on every writer targeting NornicDB: the
+// attributed shape's OPTIONAL MATCH + WITH collect composition drops the
+// id guard there and DETACH DELETEs the live node in steady state, losing
+// reducer edges no writer re-arms (#8173). The bare shape is correct on
+// both backends; its retirements report through the unattributed
+// (attribution=false) path, moving only
+// eshu_dp_canonical_repository_retirements_total. The default (no call)
+// keeps the attributed shape, which is Neo4j-only.
+func (w *CanonicalNodeWriter) WithBareRepositoryRetirement() *CanonicalNodeWriter {
+	if w == nil {
+		return nil
+	}
+	w.repositoryRetirementBare = true
 	return w
 }

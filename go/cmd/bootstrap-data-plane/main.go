@@ -25,6 +25,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/graphschemacompat"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -42,7 +43,10 @@ type bootstrapDB interface {
 type neo4jDeps struct {
 	executor  graph.CypherExecutor
 	inspector graphSchemaInspector
-	close     func() error
+	// runner reads and writes in auto-commit transactions for the Neo4j
+	// infra search key readiness probe and backfill (#7245).
+	runner search.Runner
+	close  func() error
 }
 
 type (
@@ -220,6 +224,8 @@ func run(
 		executor: nd.executor,
 		timeout:  statementTimeout,
 	})
+	keyRunner := infraSearchKeyRunner(nd.runner, statementTimeout)
+	awaitSeconds := infraSearchKeyAwaitSeconds(statementTimeout)
 	adoptionMode := graphSchemaAdoptionModeFromEnv(getenv, backend)
 	if adoptOnly {
 		adoptionMode = graphSchemaAdoptionRequired
@@ -234,9 +240,8 @@ func run(
 				return fmt.Errorf("%s requires graph schema inspection support", graphSchemaAdoptExistingEnv)
 			}
 		} else {
-			adoptionCtx, cancel := context.WithTimeout(ctx, statementTimeout)
-			defer cancel()
-			adopted, actualNames, err := adoptExistingGraphSchema(adoptionCtx, database, nd.inspector, logger, schemaApplication)
+			adopted, actualNames, err := adoptExistingGraphSchema(ctx, statementTimeout, database, nd.inspector, logger, schemaApplication,
+				infraSearchKeyAdoptionGate(ctx, backend, keyRunner, logger, awaitSeconds))
 			if err != nil {
 				return err
 			}
@@ -255,8 +260,18 @@ func run(
 			existingNames: existingSchemaNames,
 		}
 	}
+	if backend == graph.SchemaBackendNeo4j {
+		if err = checkInfraSearchKeyReadiness(ctx, keyRunner, logger); err != nil {
+			return err
+		}
+	}
 	if err = applyNeo4jFn(ctx, graphExecutor, logger, backend); err != nil {
 		return err
+	}
+	if backend == graph.SchemaBackendNeo4j {
+		if err = backfillInfraSearchKeys(ctx, keyRunner, logger, awaitSeconds); err != nil {
+			return err
+		}
 	}
 	if err = markGraphSchemaApplied(ctx, database, schemaApplication); err != nil {
 		return err
@@ -390,6 +405,10 @@ func openNeo4j(ctx context.Context, getenv func(string) string) (neo4jDeps, erro
 			databaseName: cfg.DatabaseName,
 		},
 		inspector: &neo4jSchemaExecutor{
+			driver:       driver,
+			databaseName: cfg.DatabaseName,
+		},
+		runner: &neo4jSchemaExecutor{
 			driver:       driver,
 			databaseName: cfg.DatabaseName,
 		},

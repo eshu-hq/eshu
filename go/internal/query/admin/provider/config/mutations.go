@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/admin/audit"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // Sentinel errors an MutationStore implementation (in
@@ -184,14 +185,14 @@ func (h *MutationHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		providerConfigID, err = newProviderConfigID()
 		if err != nil {
 			h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_id_generation_failed", "")
-			querycontract.WriteError(w, http.StatusInternalServerError, "failed to generate provider config id")
+			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, providerConfigIDFailedMessage)
 			return
 		}
 	}
 	revisionID, err := newProviderConfigRevisionID()
 	if err != nil {
 		h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_revision_id_generation_failed", "")
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to generate provider config revision id")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, providerConfigRevisionIDFailedMessage)
 		return
 	}
 
@@ -213,7 +214,7 @@ func (h *MutationHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		h.audit(r, eventType, governanceaudit.DecisionDenied, providerConfigWriteErrorReason(err), "")
-		writeProviderConfigWriteError(w, err)
+		writeProviderConfigWriteError(w, r, err)
 		return
 	}
 	h.audit(r, eventType, governanceaudit.DecisionAllowed, "provider_config_created", "")
@@ -253,7 +254,7 @@ func (h *MutationHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	revisionID, err := newProviderConfigRevisionID()
 	if err != nil {
 		h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_revision_id_generation_failed", "")
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to generate provider config revision id")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, providerConfigRevisionIDFailedMessage)
 		return
 	}
 
@@ -270,7 +271,7 @@ func (h *MutationHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		h.audit(r, eventType, governanceaudit.DecisionDenied, providerConfigWriteErrorReason(err), "")
-		writeProviderConfigWriteError(w, err)
+		writeProviderConfigWriteError(w, r, err)
 		return
 	}
 	if !result.Found {
@@ -315,7 +316,7 @@ func (h *MutationHandler) handleRevert(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		h.audit(r, eventType, governanceaudit.DecisionDenied, providerConfigWriteErrorReason(err), "")
-		writeProviderConfigWriteError(w, err)
+		writeProviderConfigWriteError(w, r, err)
 		return
 	}
 	if !result.Found {
@@ -403,7 +404,7 @@ func (h *MutationHandler) handleStatusChange(w http.ResponseWriter, r *http.Requ
 	}
 	if err != nil {
 		h.audit(r, eventType, governanceaudit.DecisionDenied, providerConfigWriteErrorReason(err), "")
-		writeProviderConfigWriteError(w, err)
+		writeProviderConfigWriteError(w, r, err)
 		return
 	}
 	if !result.Found {
@@ -461,7 +462,7 @@ func (h *MutationHandler) handleTestConnection(w http.ResponseWriter, r *http.Re
 	result, err := h.Tester.TestProviderConnection(r.Context(), providerConfigID, tenantID)
 	if err != nil {
 		h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_test_connection_error", "")
-		querycontract.WriteError(w, http.StatusInternalServerError, "connection test failed to run")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, connectionTestRunFailedMessage)
 		return
 	}
 	reason := "provider_config_test_connection_passed"

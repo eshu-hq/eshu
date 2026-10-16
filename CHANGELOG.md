@@ -9,6 +9,24 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Shared-snapshot export refused on unqualified PostgreSQL readers (breaking)
+
+- **Code-topic shared-snapshot reads now refuse an unqualified PostgreSQL
+  reader build with a permanent `503`** ([#7957](https://github.com/eshu-hq/eshu/issues/7957)).
+  Two PostgreSQL 18 defects (standby `pg_export_snapshot` missing
+  subtransaction XIDs, and an import xmin race with VACUUM) are fixed only
+  after 18.6. The API and MCP now export a shared snapshot only on PostgreSQL
+  18.7 or later, or on a build whose exact `server_version` is declared in
+  `ESHU_POSTGRES_READ_SNAPSHOT_EXPORT_BUILDS` with evidence. **Breaking:** on
+  any undeclared reader below 18.7, including the CI standby mirror and local
+  Compose while its floating `postgres:18-alpine` tag resolves below 18.7, a
+  code-topic or change-surface request whose topic expands to 16 terms answers
+  `503` `backend_unavailable` with `details.reason=snapshot_export_unqualified`
+  and no `Retry-After` until the reader is upgraded or declared. There is no
+  single-statement fallback. Watch
+  `eshu_dp_postgres_reader_snapshot_export_qualified` and
+  `eshu_dp_postgres_reader_snapshot_export_denials_total`.
+
 ### Unscoped file search rechecks the stored lowercase copy
 
 - **Unscoped file-content search tests `content_lower` with `LIKE` instead of

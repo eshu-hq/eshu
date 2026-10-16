@@ -48,8 +48,8 @@ func (*fleetStageConn) QueryContext(_ context.Context, statement string, _ []dri
 	switch {
 	case strings.Contains(statement, "pg_control_system()"):
 		return &queryIdentityRows{
-			columns: []string{"read_only", "recovery", "system_id", "database", "incarnation", "server_address"},
-			values:  []driver.Value{"on", true, "7", "eshu", "inc-1", "127.0.0.1"},
+			columns: []string{"read_only", "recovery", "system_id", "database", "incarnation", "server_address", "server_version", "server_version_num"},
+			values:  []driver.Value{"on", true, "7", "eshu", "inc-1", "127.0.0.1", "18.7", int64(180007)},
 		}, nil
 	case strings.Contains(statement, "pg_last_wal_replay_lsn()"):
 		return &queryIdentityRows{columns: []string{"caught_up"}, values: []driver.Value{true}}, nil
@@ -77,6 +77,7 @@ func newFleetStageFixtureAccess(tb testing.TB, observer Observer) (*Access, cont
 		replayTimeout: time.Second,
 		lineage:       newWriterLineage(physicalIdentity{systemID: "7", database: "eshu", incarnation: "inc-1"}, lineageObservation{}, nil),
 	}
+	qualifySnapshotExport(access)
 	ctx := context.WithValue(context.Background(), checkpointKey{}, checkpoint{
 		owner: access, systemID: "7", database: "eshu", incarnation: "inc-1", lsn: "0/10",
 	})

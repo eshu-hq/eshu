@@ -107,16 +107,20 @@ type postgresGenerationRetentionPruner struct {
 	store postgres.GenerationRetentionStore
 }
 
+// generationRetentionRunnerFor builds the retention runner, or nil when
+// retention is disabled. logger receives the store's per-generation search
+// index pre-delete lines (#7427); the caller sets the runner's own logger.
 func generationRetentionRunnerFor(
 	database db.ExecQueryer,
 	cfg generationRetentionConfig,
+	logger *slog.Logger,
 ) *retention.Runner {
 	if !cfg.Enabled {
 		return nil
 	}
 	return &retention.Runner{
 		Pruner: postgresGenerationRetentionPruner{
-			store: postgres.NewGenerationRetentionStore(database),
+			store: postgres.NewGenerationRetentionStore(database).WithLogger(logger),
 		},
 		Config: cfg.Runner,
 	}
@@ -134,6 +138,9 @@ func (p postgresGenerationRetentionPruner) PruneSupersededGenerations(
 		BatchRowLimit:            policy.BatchRowLimit,
 		PolicyScope:              policy.PolicyScope,
 		PolicyRevision:           policy.PolicyRevision,
+		// The row cap keeps the store default; the deadline follows the
+		// runner's poll interval (#7427).
+		SearchIndexPredeleteDeadline: policy.SearchIndexPredeleteDeadline,
 	})
 	if errors.Is(err, postgres.ErrGenerationRetentionKeyIndexUnavailable) {
 		// Carry the storage refusal into the runner's contract so it reports
@@ -145,24 +152,25 @@ func (p postgresGenerationRetentionPruner) PruneSupersededGenerations(
 		return retention.Result{}, err
 	}
 	return retention.Result{
-		GenerationsPruned: result.GenerationsPruned,
-		RowsPruned:        result.RowsPruned,
-		Skipped:           result.Skipped,
-		OldestEligibleAge: result.OldestEligibleAge,
-		Duration:          result.Duration,
-		PhaseDurations:    result.PhaseDurations,
-		ScopeLockHold:     result.ScopeLockHold,
-		LedgerRowsPruned:  result.LedgerRowsPruned,
-		LedgerRowsCounted: result.LedgerRowsCounted,
-		RowsOverLimit:     result.RowsOverLimit,
-		LockedScopeRows:   result.LockedScopeRows,
+		GenerationsPruned:  result.GenerationsPruned,
+		RowsPruned:         result.RowsPruned,
+		Skipped:            result.Skipped,
+		OldestEligibleAge:  result.OldestEligibleAge,
+		Duration:           result.Duration,
+		PhaseDurations:     result.PhaseDurations,
+		ScopeLockHold:      result.ScopeLockHold,
+		LedgerRowsPruned:   result.LedgerRowsPruned,
+		LedgerRowsCounted:  result.LedgerRowsCounted,
+		RowsOverLimit:      result.RowsOverLimit,
+		LockedScopeRows:    result.LockedScopeRows,
+		SearchIndexBatches: result.SearchIndexBatches,
 	}, nil
 }
 
 // Changed-since link domain knobs (#7127 PR-3a). The domain is dark: it is
 // off by default, and with the switch off it issues no SQL.
 const (
-	changedSinceLinkEnabledEnv          = "ESHU_CHANGED_SINCE_LINK_ENABLED"
+	changedSinceLinkEnabledEnv          = linkstore.EnabledEnv
 	changedSinceLinkSlotsEnv            = "ESHU_CHANGED_SINCE_LINK_SLOTS"
 	changedSinceLinkStatementTimeoutEnv = "ESHU_CHANGED_SINCE_LINK_STATEMENT_TIMEOUT"
 	changedSinceLinkPollIntervalEnv     = "ESHU_CHANGED_SINCE_LINK_POLL_INTERVAL"
@@ -182,7 +190,9 @@ type changedSinceLinkConfig struct {
 // value uses the default, as the other reducer maintenance knobs do.
 func loadChangedSinceLinkConfig(getenv func(string) string) changedSinceLinkConfig {
 	return changedSinceLinkConfig{
-		Enabled:          loadBoolOrDefault(getenv, changedSinceLinkEnabledEnv, false),
+		// One parse for every binary: the ingester and bootstrap-index read
+		// the same switch for the Ack journal (#7127 PR-3b).
+		Enabled:          linkstore.Enabled(getenv),
 		Slots:            loadPositiveIntOrDefault(getenv, changedSinceLinkSlotsEnv, linkstore.DefaultSlots),
 		StatementTimeout: loadDurationOrDefault(getenv, changedSinceLinkStatementTimeoutEnv, linkstore.DefaultStatementTimeout),
 		Runner: links.Config{

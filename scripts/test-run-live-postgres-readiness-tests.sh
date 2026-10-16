@@ -78,7 +78,8 @@ for var in ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF ESHU_PACKAGE_MANIFEST_REPO_SCOPE_
   ESHU_CONTENT_FILES_LANGUAGE_PROOF \
   ESHU_CONTENT_SEARCH_PROOF \
   ESHU_SCOPED_SEARCH_PROOF \
-  ESHU_IDENTITY_EPOCH_PROOF; do
+  ESHU_IDENTITY_EPOCH_PROOF \
+  ESHU_AWS_DRIFT_ARN_PROOF; do
   printf '%s_DSN\n%s_DISPOSABLE\n' "${var}" "${var}" >>"${fake}/envs"
 done
 printf '%s\n' ESHU_TEST_CONTENT_INDEX_POSTGRES_READ_DSN >>"${fake}/envs"
@@ -137,21 +138,9 @@ count_in() { local e n=0; for e in "${proofs[@]}"; do [[ "${e%%|*}" == "$1" ]] &
 pkg_key() { printf '%s' "${1//[^a-z]/_}"; }
 events_of() { printf '%s/%s.jsonl' "${fake}" "$(pkg_key "$1")"; }
 
-write_events() {
-  local entry pkg name
-  rm -f "${fake}"/*.jsonl "${fake}"/*.names "${fake}"/*.exit "${fake}"/*.bak
-  for entry in "${proofs[@]}"; do
-    pkg="${entry%%|*}"
-    name="${entry##*|}"
-    printf '%s\n' "${name}" >>"${fake}/$(pkg_key "${pkg}").names"
-    printf '{"Action":"run","Test":"%s"}\n' "${name}" >>"$(events_of "${pkg}")"
-    printf '{"Action":"pass","Test":"%s","Elapsed":0.25}\n' "${name}" >>"$(events_of "${pkg}")"
-  done
-  for pkg in "${packages[@]}"; do
-    printf '{"Action":"pass","Package":"github.com/eshu-hq/eshu/go/%s","Elapsed":1.0}\n' \
-      "${pkg#./}" >>"$(events_of "${pkg}")"
-  done
-}
+# write_events and check_each_proof live in the sourced proofs lib.
+# shellcheck source=lib/test-run-live-postgres-readiness-proofs.sh
+source "${repo_root}/scripts/lib/test-run-live-postgres-readiness-proofs.sh"
 
 run_runner() { bash "${runner}" 2>&1; }
 
@@ -166,21 +155,7 @@ done
 
 # Every enrolled proof needs its own pass event in its own package: a skip, a
 # failure, or a missing event for any one of them fails the run.
-for entry in "${proofs[@]}"; do
-  pkg="${entry%%|*}"
-  name="${entry##*|}"
-  for action in skip fail; do
-    write_events
-    sed -i.bak "s/\"Action\":\"pass\",\"Test\":\"${name}\"/\"Action\":\"${action}\",\"Test\":\"${name}\"/" "$(events_of "${pkg}")"
-    out="$(run_runner)" && fail "${name} ${action} event passed"
-    want="$(printf '%s' "${action}" | tr '[:lower:]' '[:upper:]')"
-    [[ "${out}" == *"${name}: ${want}"* ]] || fail "${name} ${action} not named: ${out}"
-  done
-  write_events
-  sed -i.bak "/\"Test\":\"${name}\"/d" "$(events_of "${pkg}")"
-  out="$(run_runner)" && fail "missing ${name} events passed"
-  [[ "${out}" == *"${name}: missing"* ]] || fail "missing ${name} events not named: ${out}"
-done
+check_each_proof
 
 # A stale -run expression must not allow zero matched tests in any package.
 for pkg in "${packages[@]}"; do
@@ -340,20 +315,29 @@ mkdir -p "${tree}/scripts/lib" "${tree}/specs"
 cp "${runner}" "${tree}/scripts/"
 cp "${repo_root}/scripts/lib/live_postgres_readiness_events.py" "${tree}/scripts/lib/"
 cp "${repo_root}/scripts/lib/live_tests_registry.py" "${tree}/scripts/lib/"
-cp "${repo_root}/scripts/lib/live_postgres_readiness_inventory.py" "${tree}/scripts/lib/"
+# The inventory is a set of sibling modules (the assembler, the package-path
+# names, and one table per domain), so the throwaway tree takes every one.
+cp "${repo_root}"/scripts/lib/live_postgres_readiness_inventory*.py "${tree}/scripts/lib/"
 cp "${repo_root}/scripts/lib/live_postgres_readiness_records.py" "${tree}/scripts/lib/"
 cp "${checker}" "${tree}/scripts/lib/"
 ln -s "${repo_root}/go" "${tree}/go"
 tree_runner="${tree}/scripts/$(basename "${runner}")"
 tree_checker="${tree}/scripts/lib/$(basename "${checker}")"
-tree_inventory="${tree}/scripts/lib/live_postgres_readiness_inventory.py"
+# The seeded edits below land in the domain table that carries the last
+# enrolled proof, found by content so a table move cannot silently turn the
+# seed into a no-op.
+last_proof_module="$(rg -lF -- "\"${last_proof}\"" "${repo_root}"/scripts/lib/live_postgres_readiness_inventory_*.py)" ||
+  fail "no inventory module carries ${last_proof}"
+[[ "$(printf '%s\n' "${last_proof_module}" | wc -l | tr -d '[:space:]')" -eq 1 ]] ||
+  fail "expected exactly one inventory module to carry ${last_proof}: ${last_proof_module}"
+tree_inventory="${tree}/scripts/lib/$(basename "${last_proof_module}")"
 cp "${flat_ledger}" "${tree}/specs/live-tests.v1.yaml"
 # Remove the last PACKAGES entry (from its "    NAME: {" line through the
 # next "    }," line) and list the test files it carried in dropped-files.
 awk -v list="${seed_dir}/dropped-files" '
   { line[NR] = $0 }
-  /^PACKAGES = \{/ { inpkg = 1 }
-  /^EXPECTED = / { inpkg = 0 }
+  /^[A-Z_]+_PACKAGES = \{/ { inpkg = 1 }
+  /^\}$/ { inpkg = 0 }
   inpkg && /^    [A-Z_]+: \{$/ { from = NR }
   END {
     for (i = 1; i <= NR; i++) {
@@ -365,7 +349,7 @@ awk -v list="${seed_dir}/dropped-files" '
       print line[i]
     }
   }
-' "${repo_root}/scripts/lib/live_postgres_readiness_inventory.py" >"${tree_inventory}.seed"
+'  "${last_proof_module}" >"${tree_inventory}.seed"
 mv "${tree_inventory}.seed" "${tree_inventory}"
 [[ -s "${seed_dir}/dropped-files" ]] || fail "seeded verifier dropped no package files"
 load_proofs "${tree_checker}"
@@ -410,22 +394,8 @@ fi
 runner="${repo_root}/scripts/run-live-postgres-readiness-tests.sh"
 load_proofs "${checker}"
 
-# list-packages fails closed on an empty or malformed PACKAGES.
-mkdir -p "${seed_dir}/empty" "${seed_dir}/malformed"
-for location in empty malformed; do
-  cp "${checker}" "${seed_dir}/${location}/live_postgres_readiness_results.py"
-  cp "${repo_root}/scripts/lib/live_postgres_readiness_events.py" "${seed_dir}/${location}/"
-  cp "${repo_root}/scripts/lib/live_tests_registry.py" "${seed_dir}/${location}/"
-  cp "${repo_root}/scripts/lib/live_postgres_readiness_records.py" "${seed_dir}/${location}/"
-done
-awk '/^PACKAGES = \{/ { print "PACKAGES = {}"; skip = 1; next } skip && /^\}$/ { skip = 0; next } !skip' \
-  "${repo_root}/scripts/lib/live_postgres_readiness_inventory.py" >"${seed_dir}/empty/live_postgres_readiness_inventory.py"
-out="$(python3 "${seed_dir}/empty/live_postgres_readiness_results.py" list-packages 2>&1)" && fail "empty PACKAGES listed"
-[[ "${out}" == *"PACKAGES is empty"* ]] || fail "empty PACKAGES not named: ${out}"
-sed "s/\"${last_proof}\"/\"not a test\"/" "${repo_root}/scripts/lib/live_postgres_readiness_inventory.py" >"${seed_dir}/malformed/live_postgres_readiness_inventory.py"
-cmp -s "${repo_root}/scripts/lib/live_postgres_readiness_inventory.py" "${seed_dir}/malformed/live_postgres_readiness_inventory.py" && fail "malformed seed changed nothing"
-out="$(python3 "${seed_dir}/malformed/live_postgres_readiness_results.py" list-packages 2>&1)" && fail "malformed test name listed"
-[[ "${out}" == *"malformed test"* ]] || fail "malformed test not named: ${out}"
+# shellcheck source=lib/test-run-live-postgres-readiness-seed-cases.sh
+source "${repo_root}/scripts/lib/test-run-live-postgres-readiness-seed-cases.sh"
 
 # Sharded execution selects a pinned quarter of the enrolled proofs through
 # the shards planner (the same pipe the CI matrix uses), runs only those

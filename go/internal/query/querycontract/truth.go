@@ -102,8 +102,9 @@ type TruthEnvelope struct {
 // identity keys, "omitted" when the section key is absent, and
 // "response_byte_budget" when the MCP dispatch response budget dropped rows
 // from the end of the section so the answer is a page (the response then
-// carries data.next_offset to resume from); Total is the row count the route
-// held for that section before the cut.
+// carries data.next_offset to resume from, or, on a rank-walk page,
+// data.rank_walk.next_cursor); Total is the row count the route held for
+// that section before the cut.
 type TruthOmission struct {
 	Section string `json:"section"`
 	Detail  string `json:"detail"`
@@ -157,6 +158,15 @@ type ErrorEnvelope struct {
 	// GraphReadErrorEnvelope for the graph-read verdicts, and
 	// IdentityStoreUnavailableEnvelope for an unreachable identity store (#7586).
 	retryable bool
+}
+
+// Retryable reports whether e is a verdict marked transient: the marker
+// WriteErrorEnvelope reads to set Retry-After on a 503. A route that writes a
+// GraphReadErrorEnvelope verdict in its own body shape, instead of through
+// WriteErrorEnvelope, reads it to send the same Retry-After header. A nil
+// envelope, a hand-built one, and a permanent verdict report false.
+func (e *ErrorEnvelope) Retryable() bool {
+	return e != nil && e.retryable
 }
 
 // ResponseEnvelope is the negotiated query response wire contract.

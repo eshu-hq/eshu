@@ -118,12 +118,27 @@ AWS runtime drift, and replatforming routes, the supply-chain query routes
 and vulnerability suppression mutation, the package-registry and
 secrets/IAM routes, and the CI/CD, codeowners, dependency, freshness,
 incident, Kubernetes, metrics, observability coverage, service catalog,
-Terraform drift, and work-item routes, and the `POST /api/v0/code/*`
-routes other than `POST /api/v0/code/language-query`, and the entity and
-workload routes (#7674). The code-flow routes
+Terraform drift, and work-item routes, the `POST /api/v0/code/*` routes
+including `POST /api/v0/code/language-query`, the entity and workload routes,
+the `/api/v0/admin/*` routes, the capability catalog, the identity admin,
+provider-config, and local identity routes in
+[Identity Route Failures](../http-api/identity-failures.md), the status,
+evidence, and investigation packet routes in
+[Status And Evidence Route Failures](../http-api/status-evidence-failures.md),
+the auth and session routes in
+[Auth and session route failures](../http-api/auth-session-failures.md),
+and the infra and inventory routes in
+[Infra And Inventory Route Failures](../http-api/infra-and-inventory-failures.md),
+and the environment comparison and semantic search routes in
+[Compare And Semantic Search Failures](../http-api/compare-and-semantic-search-failures.md)
+(#7674). The code-flow routes
 answered a cancel with `408` before. A `503` that reports a configuration or
 readiness state, on these routes or the impact code-evidence reads, marks the
-span the same way a fault does. Other routes still answer a cancel with `500`
+span the same way a fault does, except on the status, evidence, and
+investigation packet routes, the identity admin, provider-config, and local
+identity routes, the auth and session routes, the infra and inventory
+routes, and the semantic search routes: there a configuration `503` is a plain
+write and does not mark the span. Other routes still answer a cancel with `500`
 until #7674 lands.
 
 Two operator effects follow. Eshu's own `eshu_dp_api_request_errors_total`
@@ -158,6 +173,22 @@ When a vector-ready reader is configured, semantic and hybrid modes emit
 A configured reader returning no signal uses `not_signaled`, matching the fresh
 no-op truth envelope. Keyword mode skips that probe. These child spans do not record query text,
 repository or scope IDs, document IDs, user IDs, or vector identity.
+
+### In-request hybrid re-rank (#7746)
+
+`find_code`, `search_entity_content`, and `search_file_content` emit
+`query.hybrid_rerank` as a child of the request span when the in-request hybrid
+re-rank runs. The span covers row projection, the request-local index build,
+and ranking. It carries `search.rerank.tool` (`find_code`,
+`search_entity_content`, or `search_file_content`), `search.rerank.rows` (the
+page row count, at most 200), and `search.rerank.applied` (`true` when the page
+was reordered, `false` when it kept the lexical order). It is not emitted when
+the ranker is disabled, the request has no single repository scope, or the page
+has fewer than two rows. It records no query text, repository ID, or row
+identity. A `hybrid` `rank_cursor` walk page (#7746) scores its whole 200-row
+window, so there `search.rerank.rows` is the window size, and the request span
+carries `search.rank_cursor.outcome`, `.reason`, `.position`, `.lane`, and
+`.order` ([Relevance Walk Telemetry](rank-cursor.md)).
 
 ### Search-stage instrumentation cost (#7243)
 
@@ -220,7 +251,10 @@ handler instead of once per read. `POST /api/v0/infra/relationships`'s own
 request span also carries `eshu.entity_anchor_labels_tried`, and the infra
 search, relationships, count and inventory spans carry
 `eshu.infra_scope_dialect` plus, on the Neo4j scoped loop,
-`eshu.entity_anchor_probes` and `eshu.entity_anchor_scoped_reads`. These spans
+`eshu.entity_anchor_probes` and `eshu.entity_anchor_scoped_reads`. The infra
+search span also carries `eshu.infra_search_path` (`fulltext` or `legacy`) and,
+on the legacy path, `eshu.infra_search_fallback_reason` with the same values as
+the `reason` label of `eshu_dp_infra_search_path_total` (#7245). These spans
 deliberately omit Cypher text and raw driver errors. See
 [Graph-read safety](graph-read-safety.md) for the matching API, MCP, metric,
 and warning contract.
@@ -269,6 +303,7 @@ or URLs.
 | Reducer relationship work is slow | `eshu_dp_reducer_run_duration_seconds` and reducer queue age | `reducer.run`, relationship materialization spans, `canonical.write` |
 | Graph writes are slow | `eshu_dp_canonical_write_duration_seconds` | `canonical.write` and nested `neo4j.execute` |
 | Read path is slow | API/MCP request latency or query handler span | `postgres.query`, `neo4j.query`, `neo4j.query.single`, caller shaping code |
+| Code or content search is slow | API/MCP request latency and the query handler span | `query.hybrid_rerank` duration, `search.rerank.rows`, and `search.rerank.applied`; on a `rank_cursor` walk, `search.rank_cursor.outcome` |
 | Semantic search is slow | API/MCP request latency and `query.semantic_search` | `query.semantic_search.persisted_index` stage events; `query.semantic_search.vector_ready` outcome for vector-backed modes; separate PostgreSQL plan inspection for BM25 |
 | Webhook intake is rejected or slow | `eshu_dp_webhook_requests_total` and webhook duration metrics | `webhook.handle`, provider verification, normalization, `webhook.store` |
 

@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -318,24 +319,44 @@ func streamDropped(generation scope.ScopeGeneration) bool {
 	return generation.PreparseIdentityDropped != nil && generation.PreparseIdentityDropped.Load()
 }
 
-// clearPreparseIdentityQuery removes the pre-parse identity the stored path
-// wrote with the generation row before it drained the fact stream, and marks
-// the row stream_dropped (ruling a9-143.20), so the next equal snapshot stores
-// a new generation instead of re-opening this incomplete one. Idempotent.
-const clearPreparseIdentityQuery = `UPDATE scope_generations
-SET payload = (payload - 'preparse_identity') || '{"stream_dropped": true}'::jsonb
+// recordStreamDroppedPathsQuery persists the recorded stream-drop paths next
+// to the stream_dropped mark, keeping the pre-parse identity on the row
+// (#8185). A persistent drop recurs identically, so the next equal snapshot
+// may still skip once the skip probe re-checks the recorded paths; clearing
+// the identity instead (ruling a9-143.20) re-parses in full forever without
+// ever emitting different facts. The update still targets one row by primary
+// key, so the plan is unchanged. Idempotent.
+const recordStreamDroppedPathsQuery = `UPDATE scope_generations
+SET payload = payload || '{"stream_dropped": true}'::jsonb || jsonb_build_object('stream_dropped_paths', $2::jsonb, 'stream_dropped_truncated', $3::boolean)
 WHERE generation_id = $1`
 
-// clearDroppedPreparseIdentity keeps the identity off a stored generation
-// whose fact stream dropped a file (review F-7): the row was written before
-// the drain, so the identity is removed in the same transaction, before the
-// commit. It runs a statement only on a drop.
-func clearDroppedPreparseIdentity(ctx context.Context, database db.ExecQueryer, generation scope.ScopeGeneration) error {
+// recordDroppedPreparseIdentity records a stored generation's fact-stream
+// drop in its payload (review F-7, #8185): the row was written before the
+// drain, so the mark, the normalized dropped paths, and the truncation flag
+// land in the same transaction, before the commit. The pre-parse identity
+// stays: the recorded paths let the next equal snapshot verify the drop still
+// applies instead of re-parsing unconditionally. A truncated set forces the
+// next parse, since unrecorded drops cannot be re-checked. It runs a
+// statement only on a drop.
+func recordDroppedPreparseIdentity(ctx context.Context, database db.ExecQueryer, generation scope.ScopeGeneration) error {
 	if !streamDropped(generation) {
 		return nil
 	}
-	if _, err := database.ExecContext(ctx, clearPreparseIdentityQuery, generation.GenerationID); err != nil {
-		return fmt.Errorf("clear dropped pre-parse identity: %w", err)
+	paths := []string{}
+	truncated := false
+	if generation.PreparseIdentityDroppedPaths != nil {
+		paths = generation.PreparseIdentityDroppedPaths.Sorted()
+		truncated = generation.PreparseIdentityDroppedPaths.Truncated()
+	}
+	if paths == nil {
+		paths = []string{}
+	}
+	pathsJSON, err := json.Marshal(paths)
+	if err != nil {
+		return fmt.Errorf("marshal dropped pre-parse paths: %w", err)
+	}
+	if _, err := database.ExecContext(ctx, recordStreamDroppedPathsQuery, generation.GenerationID, string(pathsJSON), truncated); err != nil {
+		return fmt.Errorf("record dropped pre-parse identity: %w", err)
 	}
 	return nil
 }

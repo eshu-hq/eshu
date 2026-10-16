@@ -5,7 +5,6 @@ package admin
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -109,11 +108,7 @@ func (h *Handler) listDeadLetters(w http.ResponseWriter, r *http.Request) {
 
 	items, err := h.readStore().ListDeadLetterWorkItems(ctx, filter)
 	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			querycontract.WriteError(w, http.StatusGatewayTimeout, "dead-letter query timed out")
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list dead letters: %v", err))
+		writeBoundedReadFailure(w, r, ctx, err, deadLetterListCapability, deadLetterListTimeoutMessage, deadLetterListFailedMessage)
 		return
 	}
 	truncated := len(items) > req.Limit

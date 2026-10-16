@@ -146,7 +146,7 @@ func (c *queryIdentityConn) QueryContext(_ context.Context, statement string, ar
 		if c.spy.starts != 0 {
 			return nil, errors.New("identity query followed a business start event")
 		}
-		return &queryIdentityRows{columns: []string{"read_only", "recovery", "system_id", "database"}, values: []driver.Value{"on", false, "7", "eshu"}}, nil
+		return &queryIdentityRows{columns: []string{"read_only", "recovery", "system_id", "database", "server_version", "server_version_num"}, values: []driver.Value{"on", false, "7", "eshu", "18.7", int64(180007)}}, nil
 	}
 	if statement != "SELECT $1::int" || len(args) != 1 || args[0].Value != int64(42) || c.spy.starts != 1 {
 		return nil, fmt.Errorf("business query or start order changed: statement=%q args=%v starts=%d", statement, args, c.spy.starts)

@@ -318,7 +318,10 @@ type Handler struct {
 	// requests (#7620); either nil makes them 503.
 	Repositories        RepositoryCatalogMatcher
 	RepositoryReindexer RepositoryReindexRequester
-	Store               Store
+	// ReindexProgress serves the read-only reindex progress endpoint
+	// (#7620); nil makes it 503.
+	ReindexProgress ReindexProgressReader
+	Store           Store
 	// ReadStore serves inspections; nil preserves legacy single-store wiring.
 	ReadStore ReadStore
 	// Audit records governance audit events for mutating recovery actions.
@@ -327,10 +330,20 @@ type Handler struct {
 	// Clock supplies the current time for idempotency bookkeeping; nil uses
 	// time.Now().UTC().
 	Clock func() time.Time
+	// FinalizeTimeout bounds the idempotency finalize and the accepted audit
+	// append that run after a replay, reopen, or recover-generations mutation
+	// committed. They run on a context detached from the request's cancel, so
+	// a client leaving cannot strand the ledger row in_progress; this bound
+	// keeps a hung finalize from holding the handler. Zero uses the 2s
+	// package default.
+	FinalizeTimeout time.Duration
 	// Instruments records query duration and error telemetry for
 	// listInputInvalidFacts (issue #4630). Nil disables that telemetry; the
 	// route itself is unaffected.
 	Instruments *telemetry.Instruments
+	// Completeness serves the read-only delta-union completeness report
+	// (#7797); nil makes the route 503.
+	Completeness *DeltaUnionCompletenessChecker
 }
 
 // readStore chooses the configured inspection port before any query runs.
@@ -356,6 +369,8 @@ func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/admin/refinalize", h.refinalize)
 	mux.HandleFunc("GET /api/v0/admin/shared-projection/tuning-report", h.tuningReport)
 	mux.HandleFunc("POST /api/v0/admin/reindex", h.reindex)
+	mux.HandleFunc("GET /api/v0/admin/delta-union/completeness", h.deltaUnionCompleteness)
+	mux.HandleFunc("GET /api/v0/admin/reindex/progress", h.reindexProgress)
 	mux.HandleFunc("POST /api/v0/admin/recover-generations", h.recoverGenerations)
 
 	// Fact-inspection endpoints (from admin_facts.py)
@@ -395,7 +410,9 @@ func (h *Handler) refinalize(w http.ResponseWriter, r *http.Request) {
 		ScopeIDs: req.ScopeIDs,
 	})
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		// Refinalize runs in one transaction, so a client cancel rolls it back
+		// unless it lands while the commit itself runs.
+		writeMutationFailure(w, r, err, refinalizeFailedMessage)
 		return
 	}
 

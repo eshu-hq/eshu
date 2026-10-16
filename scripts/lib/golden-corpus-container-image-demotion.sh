@@ -3,16 +3,9 @@
 # provides repo_root, log_dir, ESHU_POSTGRES_DSN, log(), and die().
 
 golden_corpus_exact_test_passed() {
-	local json_log="$1" test_name="$2" counts run_count pass_count skip_count
-	counts="$(jq -r --arg test_name "${test_name}" -s '
-    [
-      ([.[] | select(.Test == $test_name and .Action == "run")] | length),
-      ([.[] | select(.Test == $test_name and .Action == "pass")] | length),
-      ([.[] | select(.Test == $test_name and .Action == "skip")] | length)
-    ] | @tsv
-  ' "${json_log}")" || return 1
-	IFS=$'\t' read -r run_count pass_count skip_count <<<"${counts}"
-	[[ "${run_count}" -eq 1 && "${pass_count}" -eq 1 && "${skip_count}" -eq 0 ]]
+	local verifier_dir
+	verifier_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || return 1
+	python3 "${verifier_dir}/golden_corpus_identity.py" --events "$1" --test "$2"
 }
 
 golden_corpus_render_test_output() {

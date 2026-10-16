@@ -257,6 +257,9 @@ func wireAPI(
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("new router: %w", err)
 	}
+	if err := startInfraSearchKeyRead(ctx, getenv, router.Infra, graphBackend, driver != nil, graphReader, logger, instruments); err != nil {
+		return nil, nil, nil, err
+	}
 	// Provider-config secret keyring (#4966, epic #4962). ErrKeyNotConfigured
 	// is non-fatal at boot: a deployment that never creates a DB-backed
 	// provider config with a secret does not need a DEK. Any OTHER error

@@ -23,6 +23,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/workflow/image"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -132,6 +133,10 @@ func buildStreamingGenerationWithContext(
 	// identity-less generation must still mark it stream_dropped.
 	dropped := new(atomic.Bool)
 	generation.PreparseIdentityDropped = dropped
+	// droppedPaths accumulates the skipped files' paths (#8185) for the
+	// stream_dropped mark, so the next equal snapshot can verify the drop.
+	droppedPaths := new(scope.StreamDroppedPaths)
+	generation.PreparseIdentityDroppedPaths = droppedPaths
 	factCh := make(chan facts.Envelope, factStreamBuffer)
 	go streamFacts(
 		ctx,
@@ -147,6 +152,7 @@ func buildStreamingGenerationWithContext(
 		factCountAtomic,
 		ref,
 		dropped,
+		droppedPaths,
 	)
 
 	return collector.CollectedGeneration{
@@ -185,6 +191,7 @@ func streamFacts(
 	count *atomic.Int64,
 	ref string,
 	dropped *atomic.Bool,
+	droppedPaths *scope.StreamDroppedPaths,
 ) {
 	defer close(ch)
 
@@ -240,9 +247,9 @@ func streamFacts(
 			body, err := streamContentBodyReadFile(filepath.Join(repoPath, filepath.FromSlash(meta.RelativePath))) // #nosec G304 -- reads indexed repo content file at a path derived from the scan target, not user-supplied input
 			if err != nil {
 				// The file disappeared or became unreadable between parse and
-				// emit: skip it, and keep the pre-parse identity off this
-				// generation (review F-7).
+				// emit: skip it and record the drop (review F-7, #8185).
 				dropped.Store(true)
+				droppedPaths.Note(meta.RelativePath)
 				recordStreamDrop(ctx, identityDrop{
 					Reason: telemetry.PreparseDropContentReadFailed, RepositoryID: repo.ID, ScopeID: scopeID,
 					GenerationID: generationID, RelativePath: meta.RelativePath, Err: err,
@@ -340,6 +347,7 @@ func streamFacts(
 		body, err := streamContentBodyReadFile(filepath.Join(repoPath, filepath.FromSlash(meta.RelativePath))) // #nosec G304 -- reads an admitted workflow path from repository discovery
 		if err != nil {
 			dropped.Store(true)
+			droppedPaths.Note(meta.RelativePath)
 			recordStreamDrop(ctx, identityDrop{
 				Reason: telemetry.PreparseDropWorkflowReadFailed, RepositoryID: repo.ID, ScopeID: scopeID,
 				GenerationID: generationID, RelativePath: meta.RelativePath, Err: err,
@@ -371,6 +379,7 @@ func streamFacts(
 		if !ok {
 			if readErr != nil { // an unsupported format is deterministic and drops nothing
 				dropped.Store(true)
+				droppedPaths.Note(meta.RelativePath)
 				recordStreamDrop(ctx, identityDrop{
 					Reason: telemetry.PreparseDropDocsBodyReadFailed, RepositoryID: repo.ID, ScopeID: scopeID,
 					GenerationID: generationID, RelativePath: meta.RelativePath, Err: readErr,

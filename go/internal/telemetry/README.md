@@ -116,7 +116,7 @@ not read the graph on the collection goroutine; `telemetry/snapshot` refreshes t
 | `SharedAcceptanceUpserts` | `eshu_dp_shared_acceptance_upserts_total` |
 | `SharedAcceptanceLookupErrors` | `eshu_dp_shared_acceptance_lookup_errors_total` |
 | `SharedAcceptanceStaleWrites` | `eshu_dp_shared_acceptance_stale_writes_total` |
-| `PackageManifestBackfillPasses` | `eshu_dp_package_manifest_backfill_passes_total` (bounded `outcome`: contended, failed, incomplete, ready) |
+| `PackageManifestBackfillPasses`, `PackageManifestBackfillScopeRebuilds`, `PackageManifestBackfillPageDuration`, `PackageManifestBackfillScopeLockWait` | `eshu_dp_package_manifest_backfill_passes_total` (bounded `outcome`: contended, failed, incomplete, ready); `eshu_dp_package_manifest_backfill_scope_rebuilds_total` (bounded `phase`: initial, dirty_repair; `outcome`: cleared, left_dirty, skipped, disappeared, lock_timeout, failed); `eshu_dp_package_manifest_backfill_page_duration_seconds` (bounded `outcome`: committed, lock_timeout, failed) and `eshu_dp_package_manifest_backfill_scope_lock_wait_seconds`, one observation per scope-rebuild transaction (#7663) |
 | `GenerationRetentionPruned` | `eshu_dp_generation_retention_generations_pruned_total` |
 | `GenerationRetentionRowsPruned` | `eshu_dp_generation_retention_rows_pruned_total` |
 | `GenerationRetentionFailures` | `eshu_dp_generation_retention_failures_total` |
@@ -291,8 +291,8 @@ not read the graph on the collection goroutine; `telemetry/snapshot` refreshes t
 | `EntityContextResolution` | `eshu_dp_entity_context_resolution_total` (label: `resolved_by` = `anchor` \| `fallback` \| `content` \| `none`; #7212; emitted by `GET /api/v0/entities/{entity_id}/context` in `go/internal/query/entity/context_resolution.go`; an errored request is not counted) |
 | `LanguageQueryMetadataRows` | `eshu_dp_language_query_metadata_rows_total` (labels: `metadata_path` = `anchored` \| `page_read`, `outcome` = `enriched` \| `missing`; #7247; emitted by `POST /api/v0/code/language-query` content-metadata enrichment in `go/internal/query/language/metadata_anchored.go`) |
 | `QueryImpactScopedPathsWithheld`, `QueryImpactOwnershipCheckDuration` | `eshu_dp_query_impact_scoped_paths_withheld_total` (labels: `route`, `reason` = `ungranted_node` \| `unchecked_over_cap` \| `withheld_sink_class` \| `anchor_ungranted`) and `eshu_dp_query_impact_ownership_check_duration_seconds` (labels: `route`, `node_label`, `outcome`; one ownership statement chunk); #5167 impact/ownership |
-| `InfraInventoryReads` | `eshu_dp_infra_inventory_reads_total` |
-| `InfraInventoryDerives` | `eshu_dp_infra_inventory_derives_total` |
+| `InfraInventoryReads`, `InfraInventoryDerives` | `eshu_dp_infra_inventory_reads_total`; `eshu_dp_infra_inventory_derives_total` |
+| `ReducerOwnGateWake` | `eshu_dp_reducer_own_gate_wake_total` (labels: `site` = `activation` \| `fail`, `outcome` = `reopened` \| `noop` \| `error`; #7597; emitted once per wake statement by `go/internal/storage/postgres` `activateWithConsumerWake` and `wakeAfterProducerTerminalDeadLetter`) |
 | `InfraInventoryBackfillRuns` | `eshu_dp_infra_inventory_backfill_runs_total` |
 | `InfraInventoryReconcile` | `eshu_dp_infra_inventory_reconcile_total` |
 | `InfraInventoryReconcileDuration` | `eshu_dp_infra_inventory_reconcile_duration_seconds` |

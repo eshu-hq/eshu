@@ -76,15 +76,16 @@ func TestIdentityEpochIndexPredicateMatchesIdentityFactFilter(t *testing.T) {
 }
 
 // TestProbeIdentityEpochQueryUsesCollisionResistantFingerprint locks the
-// active_fingerprint subquery in probeIdentityEpochQuery
+// active_fingerprint expression in probeIdentityEpochQuery
 // (facts_active_container_image_identity.go) to the collision-resistant
-// SHA-256-digest-of-ordered-mapping shape (issue #5438 P1-B). The prior shape,
+// SHA-256-digest-of-ordered-pair-set shape (issue #5438 P1-B, narrowed to
+// identity-bearing scopes by #7825). The prior shape,
 // `sum(hashtext(scope_id || ':' || active_generation_id))`, could silently
 // fail to detect a real active-generation supersession — either via a
 // 32-bit hashtext collision between two different active mappings, or via
 // two offsetting per-scope deltas that cancel out in the sum — leaving the
 // cache serving stale identity facts with no self-heal, since the
-// fingerprint is deterministic for a given active mapping. This is a pure
+// fingerprint is deterministic for a given covered set. This is a pure
 // SQL-shape assertion (no DB required); TestIdentityEpochProbeDetectsSupersessionLive
 // in identity_epoch_cache_live_test.go proves the fix against real Postgres.
 func TestProbeIdentityEpochQueryUsesCollisionResistantFingerprint(t *testing.T) {
@@ -92,8 +93,8 @@ func TestProbeIdentityEpochQueryUsesCollisionResistantFingerprint(t *testing.T) 
 
 	for _, want := range []string{
 		"encode(sha256(convert_to(",
-		"string_agg(",
-		"ORDER BY scope_id",
+		"string_agg(DISTINCT",
+		"ORDER BY fact.scope_id",
 	} {
 		if !strings.Contains(probeIdentityEpochQuery, want) {
 			t.Fatalf("probeIdentityEpochQuery missing %q:\n%s", want, probeIdentityEpochQuery)
@@ -105,6 +106,35 @@ func TestProbeIdentityEpochQueryUsesCollisionResistantFingerprint(t *testing.T) 
 	}
 	if strings.Contains(probeIdentityEpochQuery, "md5(") {
 		t.Fatalf("probeIdentityEpochQuery uses MD5, which fails under PostgreSQL FIPS mode:\n%s", probeIdentityEpochQuery)
+	}
+}
+
+// TestProbeIdentityEpochFingerprintCoversIdentityScopesOnly locks the #7825
+// narrowing at the SQL-shape level: the fingerprint must digest the DISTINCT
+// (scope_id, generation_id) pairs of the filtered fact rows, not the
+// ingestion_scopes mapping. The active-generation IN subquery keeps its single
+// ingestion_scopes read (it restricts count/max to the active set); a second
+// ingestion_scopes read for the fingerprint would re-broaden the epoch to
+// identity-empty scopes. This is a pure SQL-shape assertion (no DB required);
+// TestIdentityEpochProbeIgnoresIdentityEmptySupersessionLive proves the
+// behavior against real Postgres.
+func TestProbeIdentityEpochFingerprintCoversIdentityScopesOnly(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(probeIdentityEpochQuery, "string_agg(DISTINCT fact.scope_id") {
+		t.Fatalf("probe fingerprint no longer digests the DISTINCT fact (scope_id, generation_id) pairs:\n%s", probeIdentityEpochQuery)
+	}
+	if !strings.Contains(probeIdentityEpochQuery, "fact.generation_id::text") {
+		t.Fatalf("probe fingerprint no longer covers fact.generation_id, so an identity-bearing supersession keeps a stale set:\n%s", probeIdentityEpochQuery)
+	}
+	if strings.Contains(probeIdentityEpochQuery, "CROSS JOIN") {
+		t.Fatalf("probe still carries the ingestion_scopes CROSS JOIN fingerprint, so identity-empty activations move the epoch:\n%s", probeIdentityEpochQuery)
+	}
+	if n := strings.Count(probeIdentityEpochQuery, "FROM ingestion_scopes"); n != 1 {
+		t.Fatalf("probe reads FROM ingestion_scopes %d times, want exactly 1 (the active-set IN filter):\n%s", n, probeIdentityEpochQuery)
+	}
+	if strings.Contains(probeIdentityEpochQuery, "active_generation_id::text") {
+		t.Fatalf("probe fingerprint still digests active_generation_id from ingestion_scopes instead of the fact pairs:\n%s", probeIdentityEpochQuery)
 	}
 }
 

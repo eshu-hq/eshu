@@ -24,9 +24,29 @@
 - The package, Go, and other keys run as separate scans in the loader. Do not
   merge them into one scan over the union of producer scopes: a manifest that
   matches one kind would widen another.
-- Keep the two manifest statements MATERIALIZED and unfiltered by path for
-  go.mod (discovery already prunes `vendor/`).
+- Keep the three manifest statements MATERIALIZED. go.mod stays unfiltered by
+  path (discovery already prunes `vendor/`); composer.json excludes `vendor/`
+  and fixture-style directories, and package.json excludes `node_modules*`.
+- `ComposerManifestName` must stay a thin call to
+  `internal/parser/php/composer.ManifestName`, the rule the PHP parser stamps
+  `package_id` with. `TestComposerManifestNameMatchesThePackageIDTheParserStamps`
+  drives the parser to pin it.
+- The composer fixture exclusion in `ComposerManifestsQuery` is
+  `composer.FixtureDirPattern`, concatenated into the SQL, never retyped. The
+  parser's `ProducerPackage` applies the same constant, so the anchor and the
+  `package_id` stamp agree. Keep it a row filter: it needs no index
+  (`docs/internal/evidence/8223-composer-fixture-manifests.md`).
+- Composer names and npm names must stay disjoint (`composer.ValidPackageName`
+  requires one `/` and no leading `@`); `PackageScopeIDs` routes on it.
 - Never import the parent `postgres` package from non-test code.
+- The three manifest reads end with the one `ManifestLessLeg` constant; do not
+  copy or fork it per manifest kind. Its generation rule must stay the
+  complement of the uncovered-writer definition in the parent package
+  (`uncoveredProjectionWritersQuery` and both retention statements):
+  `TestUncoveredWriterDefinitionsAgree` fails when one copy changes alone, so
+  change all four together. A full generation without a write-start marker
+  covers nothing. Never narrow the leg to pending generations, an age, or a
+  generation count: each loses the supersede-then-delta hole (#7609, #8243).
 
 ## Common changes
 
@@ -49,6 +69,12 @@ From `go/`, run:
 ```bash
 go test ./internal/storage/postgres/code/producers/... -count=1
 go test ./internal/storage/postgres -run 'ActiveCodeCallSymbol|LoadActiveCodeCall' -count=1
+go test ./internal/storage/postgres -run 'UncoveredWriterDefinitionsAgree|ManifestLess' -count=1
 ```
+
+The `TestReducerContentionGateManifestLessDirtyRule*` and
+`TestReducerContentionGateActiveCodeCallSymbol*` proofs need
+`ESHU_POSTGRES_DSN` set to a disposable PostgreSQL 18 database; without it
+they skip.
 
 Run `scripts/verify-package-docs.sh` from the repository root.

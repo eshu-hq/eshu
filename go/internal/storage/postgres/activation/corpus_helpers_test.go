@@ -24,9 +24,9 @@ func reopenDomains() []string {
 }
 
 // corpus seeds one fully bootstrapped schema. It copies the single-arm half
-// of the root targeted-maintenance differential seeders
-// (ingestion_targeted_maintenance_harness_test.go), which stay with the
-// partition-scoped pass's own proofs in the root package.
+// of the shared targeted-maintenance differential seeders
+// (postgres/testfixtures/targeted_pair.go), which serve the
+// partition-scoped pass proofs.
 type corpus struct {
 	t   *testing.T
 	ctx context.Context

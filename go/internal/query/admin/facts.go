@@ -5,7 +5,6 @@ package admin
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -49,7 +48,7 @@ func (h *Handler) listWorkItems(w http.ResponseWriter, r *http.Request) {
 		Limit:        limit,
 	})
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list work items: %v", err))
+		writeInspectionFailure(w, r, err, workItemListCapability, workItemQueryFailedMessage)
 		return
 	}
 
@@ -97,7 +96,7 @@ func (h *Handler) listDecisions(w http.ResponseWriter, r *http.Request) {
 		Limit:           limit,
 	})
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list decisions: %v", err))
+		writeInspectionFailure(w, r, err, decisionListCapability, decisionQueryFailedMessage)
 		return
 	}
 
@@ -107,7 +106,7 @@ func (h *Handler) listDecisions(w http.ResponseWriter, r *http.Request) {
 		for _, d := range decisions {
 			rows, evErr := h.readStore().ListEvidence(r.Context(), d.DecisionID)
 			if evErr != nil {
-				querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list evidence: %v", evErr))
+				writeInspectionFailure(w, r, evErr, decisionEvidenceListCapability, evidenceQueryFailedMessage)
 				return
 			}
 			evidenceByDecision[d.DecisionID] = evidenceRowsToSlice(rows)
@@ -172,7 +171,11 @@ func (h *Handler) deadLetter(w http.ResponseWriter, r *http.Request) {
 		Limit:        limit,
 	})
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("dead-letter: %v", err))
+		// One autocommit UPDATE ... RETURNING: a cancel observed while the
+		// returned rows are read can follow a committed update, so a 499 here
+		// does not mean nothing was dead-lettered. Re-running the request is
+		// safe: it sets the same dead_letter state again.
+		writeMutationFailure(w, r, err, deadLetterMutationFailedMessage)
 		return
 	}
 
@@ -215,7 +218,10 @@ func (h *Handler) skip(w http.ResponseWriter, r *http.Request) {
 			querycontract.WriteError(w, http.StatusConflict, ambiguous.Error())
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("skip: %v", err))
+		// Same shape as dead-letter: a cancel can follow the committed
+		// UPDATE, and a re-run touches only rows still pending, retrying,
+		// or failed.
+		writeMutationFailure(w, r, err, skipFailedMessage)
 		return
 	}
 
@@ -255,7 +261,9 @@ func (h *Handler) backfill(w http.ResponseWriter, r *http.Request) {
 		OperatorNote: strings.TrimSpace(req.OperatorNote),
 	})
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("backfill: %v", err))
+		// One INSERT: a cancel observed after the server committed it still
+		// answers 499, and a re-run records a second backfill request.
+		writeMutationFailure(w, r, err, backfillFailedMessage)
 		return
 	}
 
@@ -310,7 +318,7 @@ func (h *Handler) listReplayEvents(w http.ResponseWriter, r *http.Request) {
 		Limit:        limit,
 	})
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list replay events: %v", err))
+		writeInspectionFailure(w, r, err, replayEventListCapability, replayEventQueryFailedMessage)
 		return
 	}
 

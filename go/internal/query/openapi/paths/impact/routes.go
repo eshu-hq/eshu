@@ -287,7 +287,7 @@ const Routes = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "409": {"$ref": "#/components/responses/Conflict"},
-          "404": {"$ref": "#/components/responses/NotFound"},
+          "404": ` + traceDeploymentNotFoundResponse + `,
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }

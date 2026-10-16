@@ -1,5 +1,5 @@
 version: live-tests/v1
-updated_at: 2026-10-10
+updated_at: 2026-10-16
 issue: 6784
 parent_issue: 6788
 owners:
@@ -15,16 +15,24 @@ legacy_scheduled_exemptions:
   baseline_main: 101cd4f6ab7b72ff01f018ad52112e3a9955168b
   steward: linuxdynasty
   tracking_issue: 7533
-  count: 577
-  sha256: dfb291a39698d4d15df095421a06fd8058e0bcbaac7da363b6756108b36f3d85
+  count: 425
+  sha256: be84b52dce1f82b4e18d1c2f1f637c0b21067dbf8d4b09a325007d5373038f28
 
 purpose: >
   Classify every live backend proof in go/ as graph CI, PostgreSQL CI,
-  dedicated CI, legacy-scheduled exemption, or retired with
+  dedicated CI, verified scheduled PostgreSQL or Ifá proof, legacy-scheduled
+  exemption, or retired with
   a reason and explicit execution or exemption ownership. The graph
   live-backend CI job runs every ci-class row on its selected backend; the
   PostgreSQL readiness job runs its untagged postgres_ci rows; the
   migration job runs only its exact integration-tagged postgres_ci rows. The
+  reducer contention job verifies each enrolled PostgreSQL-only dedicated_ci
+  test from Go JSON events in its expected package. The B-7 identity runner
+  verifies its two PostgreSQL proofs through the existing golden corpus job.
+  The postgres-scheduled job checks exact tests in twelve groups daily on
+  PostgreSQL. The ifa-scheduled job checks eight exact tagged tests daily and
+  on scoped PRs on disposable NornicDB and PostgreSQL, with a second NornicDB
+  identity endpoint. The
   ledger validator (scripts/verify-live-tests-ledger.sh) fails on any live test
   file this ledger does not name, so a new unclassified live test can never
   pass as clean. A live test is any *_live_test.go file plus any
@@ -37,7 +45,10 @@ design: >
   One row per *_live_test.go file. class is ci (graph live-backend CI
   job, selected backends), postgres_ci (the named PostgreSQL runner;
   integration-tagged migration proofs have their own exact-file runner),
-  dedicated_ci (the closed query-methodology isolated runner contract),
+  dedicated_ci (a verified named runner: query-methodology or
+  reducer-contention, or golden-corpus-identity), verified_scheduled (an
+  exact-file, daily or manual PostgreSQL or Ifá runner with strict Go event
+  accounting; the Ifá job also runs on scoped pull requests),
   scheduled (an exact-file legacy exemption from this ledger's verified
   runner mapping, tracked by issue 7533; independently owned blocking
   runners may exist, but a reason does not prove execution), or retired (a
@@ -51,7 +62,7 @@ design: >
   "nornic" database pin nornicdb so the runner never schedules them
   against Neo4j. CI-class rows must be fast and deterministic: seeded
   fixtures, unique seed prefixes, cleanup on both pass and fail paths.
-  Promotion from scheduled to CI needs measured timing evidence cited
+  Promotion from scheduled to a CI class needs measured timing evidence cited
   in the reason.
 
 fragments:
@@ -61,4 +72,7 @@ fragments:
   - live-tests.d/live-tests-04.yaml
   - live-tests.d/live-tests-05.yaml
   - live-tests.d/live-tests-06.yaml
+  - live-tests.d/live-tests-06b.yaml
   - live-tests.d/live-tests-07.yaml
+  - live-tests.d/live-tests-07b.yaml
+  - live-tests.d/live-tests-08.yaml

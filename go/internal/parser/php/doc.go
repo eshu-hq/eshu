@@ -24,9 +24,18 @@
 // trait methods, route-backed controller actions, ZF1 convention-dispatched
 // actions, literal route handlers, Symfony route attributes, and WordPress
 // hook callbacks; broader autoload,
-// reflection, and dynamic-dispatch behavior stays non-exact. The package is
-// deterministic and depends only on shared parser helpers and the tree-sitter
-// runtime.
+// reflection, and dynamic-dispatch behavior stays non-exact.
+//
+// For the cross-repository call keys of #7601, a psr-4-autoloaded class or
+// interface carries package_id (its composer.json name) and export_name (its
+// fully qualified name), a public static class method carries export_name
+// <FQCN>::<method>, and a `new X(` or `X::method(` call whose class a `use`
+// import or a fully qualified literal names carries package_export_symbol
+// package:<locked package>#<FQCN>[::<method>] when a composer.lock names the
+// package that provides it. Every rule leaves the key off when it cannot be
+// proven; see package_keys.go and the composer subpackage. The package is
+// deterministic and depends only on shared parser helpers, the composer
+// subpackage, and the tree-sitter runtime.
 //
 // The payload contract is pinned by the php_*_test.go files in this directory,
 // which compile as the external package php_test and drive

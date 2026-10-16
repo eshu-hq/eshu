@@ -8,9 +8,11 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/searchbench"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchembed"
 	"github.com/eshu-hq/eshu/go/internal/searchhybrid"
@@ -18,10 +20,13 @@ import (
 )
 
 // contentHybridRerankLimit caps the candidate set the in-process hybrid index
-// ranks for one content-search request. The handler already bounds its lexical
-// result set to the request limit (default 50, hard maximum 200), so the index
-// is built over a small, request-local document set and never the whole corpus.
-const contentHybridRerankLimit = 200
+// ranks for one content-search request. It equals ContentSearchMaxLimit, the
+// largest page the handler passes in (default 50, maximum 200 rows), so a
+// maximum page is ranked in full and the index is still built over a small,
+// request-local document set, never the whole corpus. RankAll ranks every row
+// of a page up to this cap; before #7746 a page of more than 100 rows failed
+// the public retrieval limit and stayed lexical.
+const contentHybridRerankLimit = ContentSearchMaxLimit
 
 // contentHybridRerankTimeout bounds the in-process re-rank pass. It guards the
 // embedder and cosine scoring against a pathological corpus; the work is
@@ -80,6 +85,9 @@ type ContentHybridRanker struct {
 	// injectable, so a governed provider embedder can never embed source text on
 	// this path.
 	localEmbedder searchhybrid.Embedder
+	// tracer records the query.hybrid_rerank stage span. Nil means the shared
+	// query tracer; in-package tests set a recording tracer here.
+	tracer trace.Tracer
 }
 
 // NewContentHybridRanker builds a content-search hybrid re-ranker. It owns a
@@ -106,7 +114,8 @@ func NewContentHybridRanker(enabled bool) *ContentHybridRanker {
 // into a scoped document keep their lexical position appended after the ranked
 // set, so the response never drops a row the lexical path returned. Reordered
 // rows carry SearchBackend="hybrid"; on applied=false the rows are returned
-// untouched.
+// untouched. A pass that reaches the ranking work records one
+// query.hybrid_rerank span (tool search_entity_content, rows, applied).
 func (r *ContentHybridRanker) RerankEntities(
 	ctx context.Context,
 	repoID string,
@@ -116,6 +125,9 @@ func (r *ContentHybridRanker) RerankEntities(
 	if !r.canRerank(ctx, repoID, len(rows)) {
 		return rows, false
 	}
+	ctx, finish := tracing.StartHybridRerankSpan(ctx, r.stageTracer(), tracing.HybridRerankToolSearchEntityContent, len(rows))
+	applied := false
+	defer func() { finish(applied) }()
 
 	docByID, order := projectEntityContentDocuments(repoID, rows)
 	if len(docByID) < 2 {
@@ -127,12 +139,13 @@ func (r *ContentHybridRanker) RerankEntities(
 		return rows, false
 	}
 
+	applied = true
 	return reorderEntityRowsByCandidates(rows, candidates), true
 }
 
 // RerankFiles reorders file-content rows by fused BM25+vector rank. It mirrors
 // RerankEntities over content_files projections; see RerankEntities for the
-// fallback and truth-basis contract.
+// fallback, truth-basis, and stage-span contract (tool search_file_content).
 func (r *ContentHybridRanker) RerankFiles(
 	ctx context.Context,
 	repoID string,
@@ -142,6 +155,9 @@ func (r *ContentHybridRanker) RerankFiles(
 	if !r.canRerank(ctx, repoID, len(rows)) {
 		return rows, false
 	}
+	ctx, finish := tracing.StartHybridRerankSpan(ctx, r.stageTracer(), tracing.HybridRerankToolSearchFileContent, len(rows))
+	applied := false
+	defer func() { finish(applied) }()
 
 	docByID, order := projectFileContentDocuments(repoID, rows)
 	if len(docByID) < 2 {
@@ -153,7 +169,17 @@ func (r *ContentHybridRanker) RerankFiles(
 		return rows, false
 	}
 
+	applied = true
 	return reorderFileRowsByCandidates(rows, candidates), true
+}
+
+// stageTracer returns the tracer for the re-rank stage span: the ranker's own
+// when a test set one, otherwise the shared query tracer.
+func (r *ContentHybridRanker) stageTracer() trace.Tracer {
+	if r.tracer != nil {
+		return r.tracer
+	}
+	return tracing.HandlerTracer()
 }
 
 // canRerank reports whether the bounded re-rank may run for this request. It
@@ -168,7 +194,7 @@ func (r *ContentHybridRanker) canRerank(ctx context.Context, repoID string, rowC
 
 // rankDocuments builds the request-local hybrid index over the projected
 // documents and returns the fused candidates. It returns ok=false on any bounded
-// failure (index build, request validation, search error, or empty result) so
+// failure (index build, invalid query or scope, ranking error, or empty result) so
 // callers fall back to the lexical order.
 func (r *ContentHybridRanker) rankDocuments(
 	ctx context.Context,
@@ -177,6 +203,20 @@ func (r *ContentHybridRanker) rankDocuments(
 	docByID map[string]searchdocs.Document,
 	order []string,
 ) ([]searchretrieval.Candidate, bool) {
+	candidates, err := r.rankDocumentsErr(ctx, repoID, query, docByID, order)
+	return candidates, err == nil && len(candidates) > 0
+}
+
+// rankDocumentsErr is rankDocuments with the failure kept: the rank walk
+// must tell a timeout or cancel (an error) from a window with no ranked
+// document (no candidates, nil error), because the first is not a basis.
+func (r *ContentHybridRanker) rankDocumentsErr(
+	ctx context.Context,
+	repoID string,
+	query string,
+	docByID map[string]searchdocs.Document,
+	order []string,
+) ([]searchretrieval.Candidate, error) {
 	docs := make([]searchdocs.Document, 0, len(docByID))
 	for _, id := range order {
 		docs = append(docs, docByID[id])
@@ -194,25 +234,14 @@ func (r *ContentHybridRanker) rankDocuments(
 		VectorRetrieval: searchhybrid.VectorRetrievalAuto,
 	})
 	if err != nil {
-		return nil, false
+		return nil, err
 	}
 
-	req := searchretrieval.Request{
-		Query:   query,
-		Scope:   searchretrieval.Scope{RepoID: repoID},
-		Mode:    searchbench.ModeHybrid,
-		Limit:   len(docs),
-		Timeout: contentHybridRerankTimeout,
-	}
-	if err := searchretrieval.ValidateRequest(req); err != nil {
-		return nil, false
-	}
-
-	candidates, err := (searchhybrid.Backend{Index: index}).Search(rankCtx, req)
-	if err != nil || len(candidates) == 0 {
-		return nil, false
-	}
-	return candidates, true
+	// RankAll ranks the whole request-local index. Search would reject a page
+	// larger than the public retrieval limit (100) and leave it in lexical
+	// order (#7746); this page is already bounded by contentHybridRerankLimit.
+	scope := searchretrieval.Scope{RepoID: repoID}
+	return (searchhybrid.Backend{Index: index}).RankAll(rankCtx, query, scope)
 }
 
 // projectEntityContentDocuments builds curated search documents keyed by entity

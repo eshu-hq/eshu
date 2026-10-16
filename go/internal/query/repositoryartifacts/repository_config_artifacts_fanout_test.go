@@ -74,9 +74,11 @@ func (s *fanoutLatencyStore) NonBlankRepoFilePaths(_ context.Context, _ string, 
 
 // TestConfigArtifactLoadFansOutAcrossRepositories proves the cross-repo walk
 // overlaps repository loads: eight repositories at 50ms of list latency each
-// must finish well under the ~400ms a serial walk needs. It fails on the
-// serial loader and passes on the bounded fan-out, and it pins the bound
-// from both sides (parallel, never more than eight lists at once).
+// must overlap in flight. It fails on the serial loader and passes on the
+// bounded fan-out, and it pins the bound from both sides (parallel, never
+// more than eight lists at once). It asserts no wall-clock bound: the
+// peak-concurrency counter proves overlap without depending on host load
+// (#8178).
 func TestConfigArtifactLoadFansOutAcrossRepositories(t *testing.T) {
 	t.Parallel()
 
@@ -87,17 +89,12 @@ func TestConfigArtifactLoadFansOutAcrossRepositories(t *testing.T) {
 		sources = append(sources, repositoryArtifactSource{RepoID: id, RepoName: "name-" + id})
 	}
 	var stats ConfigArtifactReadStats
-	started := time.Now()
 	got, err := loadRepositoryConfigArtifactsForSources(context.Background(), store, sources, &stats)
-	elapsed := time.Since(started)
 	if err != nil {
 		t.Fatalf("load error = %v", err)
 	}
 	if rows := querycontract.MapSliceValue(got, "config_paths"); len(rows) == 0 {
-		t.Fatal("fixture produced no rows; the timing proves nothing")
-	}
-	if elapsed >= 300*time.Millisecond {
-		t.Fatalf("eight repositories at 50ms list latency took %v, want under 300ms (serial takes ~400ms)", elapsed)
+		t.Fatal("fixture produced no rows; the overlap proves nothing")
 	}
 	if peak := store.peak.Load(); peak < 2 {
 		t.Fatalf("peak concurrent lists = %d, want at least 2 (no overlap observed)", peak)
