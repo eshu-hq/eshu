@@ -2,7 +2,7 @@ name: Live PostgreSQL Readiness
 
 # The readiness, dead-code incoming, status route-selection, quiet-generation,
 # activation obligation, targeted-maintenance, reindex watermark and #7209
-# projector zombie-heal proofs listed in scripts/lib/live_postgres_readiness_inventory.py
+# projector zombie-heal proofs listed in scripts/lib/live_postgres_readiness_inventory*.py
 # use EXPLAIN and correctness assertions against separately created disposable
 # databases. The merge queue retains the check and selects payload from the
 # registry; PR and main-push events use their existing path filters.
@@ -41,7 +41,7 @@ on:
       - 'scripts/run-live-postgres-readiness-tests.sh'
       - 'scripts/test-run-live-postgres-readiness-tests.sh'
       - 'scripts/lib/live_postgres_readiness_results.py'
-      - 'scripts/lib/live_postgres_readiness_inventory.py'
+      - 'scripts/lib/live_postgres_readiness_inventory*.py'
       - 'scripts/lib/live_postgres_readiness_records.py'
       - 'scripts/lib/live_postgres_readiness_shards.py'
       - 'scripts/test-live-postgres-readiness-shards.py'
@@ -91,7 +91,7 @@ on:
       - 'scripts/run-live-postgres-readiness-tests.sh'
       - 'scripts/test-run-live-postgres-readiness-tests.sh'
       - 'scripts/lib/live_postgres_readiness_results.py'
-      - 'scripts/lib/live_postgres_readiness_inventory.py'
+      - 'scripts/lib/live_postgres_readiness_inventory*.py'
       - 'scripts/lib/live_postgres_readiness_records.py'
       - 'scripts/lib/live_postgres_readiness_shards.py'
       - 'scripts/test-live-postgres-readiness-shards.py'

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Own-gate (#7597) live PostgreSQL readiness proofs, kept beside the inventory.
 
-live_postgres_readiness_inventory.py is over the 500-line cap and must not
-grow, so these files live here and live_postgres_readiness_records.py merges
-them into PACKAGES. A package missing from PACKAGES gets nothing merged, so
+These files live in their own table beside the per-domain inventory tables
+(live_postgres_readiness_inventory_{storage,queue,query,surfaces}.py), and
+live_postgres_readiness_records.py merges them into PACKAGES. A package missing from PACKAGES gets nothing merged, so
 an emptied PACKAGES stays empty and still fails closed.
 """
 

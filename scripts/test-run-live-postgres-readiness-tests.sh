@@ -315,21 +315,29 @@ mkdir -p "${tree}/scripts/lib" "${tree}/specs"
 cp "${runner}" "${tree}/scripts/"
 cp "${repo_root}/scripts/lib/live_postgres_readiness_events.py" "${tree}/scripts/lib/"
 cp "${repo_root}/scripts/lib/live_tests_registry.py" "${tree}/scripts/lib/"
-cp "${repo_root}/scripts/lib/live_postgres_readiness_inventory.py" "${tree}/scripts/lib/"
-cp "${repo_root}/scripts/lib/live_postgres_readiness_inventory_own_gate.py" "${tree}/scripts/lib/"
+# The inventory is a set of sibling modules (the assembler, the package-path
+# names, and one table per domain), so the throwaway tree takes every one.
+cp "${repo_root}"/scripts/lib/live_postgres_readiness_inventory*.py "${tree}/scripts/lib/"
 cp "${repo_root}/scripts/lib/live_postgres_readiness_records.py" "${tree}/scripts/lib/"
 cp "${checker}" "${tree}/scripts/lib/"
 ln -s "${repo_root}/go" "${tree}/go"
 tree_runner="${tree}/scripts/$(basename "${runner}")"
 tree_checker="${tree}/scripts/lib/$(basename "${checker}")"
-tree_inventory="${tree}/scripts/lib/live_postgres_readiness_inventory.py"
+# The seeded edits below land in the domain table that carries the last
+# enrolled proof, found by content so a table move cannot silently turn the
+# seed into a no-op.
+last_proof_module="$(rg -lF -- "\"${last_proof}\"" "${repo_root}"/scripts/lib/live_postgres_readiness_inventory_*.py)" ||
+  fail "no inventory module carries ${last_proof}"
+[[ "$(printf '%s\n' "${last_proof_module}" | wc -l | tr -d '[:space:]')" -eq 1 ]] ||
+  fail "expected exactly one inventory module to carry ${last_proof}: ${last_proof_module}"
+tree_inventory="${tree}/scripts/lib/$(basename "${last_proof_module}")"
 cp "${flat_ledger}" "${tree}/specs/live-tests.v1.yaml"
 # Remove the last PACKAGES entry (from its "    NAME: {" line through the
 # next "    }," line) and list the test files it carried in dropped-files.
 awk -v list="${seed_dir}/dropped-files" '
   { line[NR] = $0 }
-  /^PACKAGES = \{/ { inpkg = 1 }
-  /^EXPECTED = / { inpkg = 0 }
+  /^[A-Z_]+_PACKAGES = \{/ { inpkg = 1 }
+  /^\}$/ { inpkg = 0 }
   inpkg && /^    [A-Z_]+: \{$/ { from = NR }
   END {
     for (i = 1; i <= NR; i++) {
@@ -341,7 +349,7 @@ awk -v list="${seed_dir}/dropped-files" '
       print line[i]
     }
   }
-' "${repo_root}/scripts/lib/live_postgres_readiness_inventory.py" >"${tree_inventory}.seed"
+'  "${last_proof_module}" >"${tree_inventory}.seed"
 mv "${tree_inventory}.seed" "${tree_inventory}"
 [[ -s "${seed_dir}/dropped-files" ]] || fail "seeded verifier dropped no package files"
 load_proofs "${tree_checker}"
@@ -393,14 +401,15 @@ for location in empty malformed; do
   cp "${repo_root}/scripts/lib/live_postgres_readiness_events.py" "${seed_dir}/${location}/"
   cp "${repo_root}/scripts/lib/live_tests_registry.py" "${seed_dir}/${location}/"
   cp "${repo_root}/scripts/lib/live_postgres_readiness_records.py" "${seed_dir}/${location}/"
-  cp "${repo_root}/scripts/lib/live_postgres_readiness_inventory_own_gate.py" "${seed_dir}/${location}/"
+  cp "${repo_root}"/scripts/lib/live_postgres_readiness_inventory*.py "${seed_dir}/${location}/"
 done
-awk '/^PACKAGES = \{/ { print "PACKAGES = {}"; skip = 1; next } skip && /^\}$/ { skip = 0; next } !skip' \
-  "${repo_root}/scripts/lib/live_postgres_readiness_inventory.py" >"${seed_dir}/empty/live_postgres_readiness_inventory.py"
+sed 's/^PACKAGES = .*/PACKAGES = {}/' "${repo_root}/scripts/lib/live_postgres_readiness_inventory.py" \
+  >"${seed_dir}/empty/live_postgres_readiness_inventory.py"
+cmp -s "${repo_root}/scripts/lib/live_postgres_readiness_inventory.py" "${seed_dir}/empty/live_postgres_readiness_inventory.py" && fail "empty seed changed nothing"
 out="$(python3 "${seed_dir}/empty/live_postgres_readiness_results.py" list-packages 2>&1)" && fail "empty PACKAGES listed"
 [[ "${out}" == *"PACKAGES is empty"* ]] || fail "empty PACKAGES not named: ${out}"
-sed "s/\"${last_proof}\"/\"not a test\"/" "${repo_root}/scripts/lib/live_postgres_readiness_inventory.py" >"${seed_dir}/malformed/live_postgres_readiness_inventory.py"
-cmp -s "${repo_root}/scripts/lib/live_postgres_readiness_inventory.py" "${seed_dir}/malformed/live_postgres_readiness_inventory.py" && fail "malformed seed changed nothing"
+sed "s/\"${last_proof}\"/\"not a test\"/" "${last_proof_module}" >"${seed_dir}/malformed/$(basename "${last_proof_module}")"
+cmp -s "${last_proof_module}" "${seed_dir}/malformed/$(basename "${last_proof_module}")" && fail "malformed seed changed nothing"
 out="$(python3 "${seed_dir}/malformed/live_postgres_readiness_results.py" list-packages 2>&1)" && fail "malformed test name listed"
 [[ "${out}" == *"malformed test"* ]] || fail "malformed test not named: ${out}"
 

@@ -49,7 +49,7 @@ Scoped instructions for the config-artifact read model (#7126). The root
   administrative `postgres` database DSN) and
   `ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE=1`; each test creates and drops
   its own database. They are enrolled in the `live-postgres-readiness` runner
-  (`scripts/lib/live_postgres_readiness_inventory.py`,
+  (`scripts/lib/live_postgres_readiness_inventory*.py`,
   `specs/live-tests.d/`).
 
 ## Gates that will fire on your change
