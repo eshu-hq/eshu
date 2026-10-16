@@ -67,13 +67,6 @@ func TestLoadRepoSyncConfigGitLabGroupRejections(t *testing.T) {
 			},
 			"gitlab/acme/platform/",
 		},
-		{
-			"path-form group with a wrong-case rule",
-			func(vars map[string]string) {
-				vars["ESHU_REPOSITORY_RULES_JSON"] = `[{"exact": "gitlab/Acme/Platform/a"}]`
-			},
-			"gitlab/acme/platform/",
-		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

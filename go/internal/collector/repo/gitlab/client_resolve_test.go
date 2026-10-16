@@ -87,11 +87,13 @@ func TestValidateConfig(t *testing.T) {
 	if err := gitlab.ValidateConfig("token", "acme/platform", "glpat", "", []string{"gitlab/acme/platform/a"}); err != nil {
 		t.Fatalf("ValidateConfig() error = %v, want nil", err)
 	}
-	// The config-time check lowercases a path-form group: the discovery-time
-	// check runs against the canonical server case, so a configured-case
-	// rule that matches there must not fail at startup.
+	// Both gates fold case, so a server-case rule passes config load and
+	// discovery alike; downstream exact matching stays case-sensitive.
 	if err := gitlab.ValidateConfig("token", "Acme/Platform", "glpat", "", []string{"gitlab/acme/platform/a"}); err != nil {
 		t.Fatalf("ValidateConfig() error = %v, want nil for a rule matching the resolved group", err)
+	}
+	if err := gitlab.CheckExactRules("acme/platform", []string{"gitlab/Acme/Platform/a"}); err != nil {
+		t.Fatalf("CheckExactRules() error = %v, want nil for a server-case rule under a folded gate", err)
 	}
 	for _, tc := range []struct {
 		name                                 string
@@ -135,13 +137,17 @@ func TestCheckExactRules(t *testing.T) {
 	if err := gitlab.CheckExactRules("acme/platform", []string{"gitlab/acme/platform/a", "gitlab/acme/platform/sub/b"}); err != nil {
 		t.Fatalf("CheckExactRules() error = %v, want nil", err)
 	}
+	// A server-case rule passes the folded gate; downstream exact matching
+	// still excludes it against lowercase repositories.
+	if err := gitlab.CheckExactRules("acme/platform", []string{"gitlab/acme/platform/a", "gitlab/Acme/Platform/a"}); err != nil {
+		t.Fatalf("CheckExactRules() error = %v, want nil under the folded gate", err)
+	}
 	for _, tc := range []struct {
 		name string
 		rule string
 	}{
 		{"outside the group", "gitlab/acme/other/x"},
 		{"lookalike prefix", "gitlab/acme/platformer/y"},
-		{"wrong case", "gitlab/Acme/Platform/a"},
 		{"missing provider", "acme/platform/a"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -169,6 +169,31 @@ func TestDiscoverSelectionGitLabGroupRejectsExactRuleOutsideResolvedGroup(t *tes
 	}
 }
 
+// TestDiscoverSelectionGitLabGroupMixedCaseGroup proves the two exact-rule
+// gates agree for a mixed-case canonical path: a server-case rule passes
+// config load and discovery alike and selects end to end.
+func TestDiscoverSelectionGitLabGroupMixedCaseGroup(t *testing.T) {
+	t.Parallel()
+
+	api := newGitLabAPI(t)
+	api.resolveGroup = `{"id":42,"full_path":"Acme/Platform"}`
+	api.pages[1] = "[" + gitlabProject(101, "Acme/Platform/a", false) + "]"
+	config := gitlabDiscoveryConfig()
+	config.GitlabGroup = "42"
+	config.RepositoryRules = []RepoSyncRepositoryRule{{Kind: "exact", Value: "gitlab/Acme/Platform/a"}}
+
+	selection, err := discoverSelection(context.Background(), config, "glpat-test", api.clientFactory())
+	if err != nil {
+		t.Fatalf("discoverSelection() error = %v, want nil for a server-case rule", err)
+	}
+	if len(selection.RepositoryIDs) != 1 || selection.RepositoryIDs[0] != "gitlab/Acme/Platform/a" {
+		t.Fatalf("RepositoryIDs = %v, want [gitlab/Acme/Platform/a]", selection.RepositoryIDs)
+	}
+	if selection.GroupFullPath != "Acme/Platform" {
+		t.Fatalf("GroupFullPath = %q, want the server case", selection.GroupFullPath)
+	}
+}
+
 // TestGitLabGroupSelectionRequestMapsScopeIdentity proves listed projects
 // map to the scope IDs and slugs a git sync of them would write, with the
 // configured host.

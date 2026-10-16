@@ -196,9 +196,7 @@ func ValidateConfig(authMethod, group, gitToken, githubToken string, exactRuleID
 		return errors.New("gitlabGroup source mode requires ESHU_GIT_TOKEN")
 	}
 	if !isNumericGroup(group) {
-		// Lowercase for this check only; discovery re-checks the canonical
-		// server case, so fail-closed is preserved.
-		if err := CheckExactRules(strings.ToLower(group), exactRuleIDs); err != nil {
+		if err := CheckExactRules(group, exactRuleIDs); err != nil {
 			return err
 		}
 	}
@@ -220,13 +218,16 @@ func isNumericGroup(group string) bool {
 }
 
 // CheckExactRules fails with config_invalid unless every exact rule ID
-// lives under the resolved group prefix ("gitlab/<fullPath>/"), compared
-// case-sensitively like every exact rule. A rule outside the prefix could
-// never match, so every project would silently read rule_excluded.
+// lives under the group prefix ("gitlab/<fullPath>/"), compared
+// case-insensitively on both sides so the config-load and discovery gates
+// agree for any server case. A rule outside the prefix could never match,
+// so every project would silently read rule_excluded. Downstream exact
+// matching stays case-sensitive: a lowercase rule passes this gate but
+// still reads rule_excluded against server-case repositories.
 func CheckExactRules(fullPath string, exactRuleIDs []string) error {
-	prefix := "gitlab/" + fullPath + "/"
+	prefix := "gitlab/" + strings.ToLower(fullPath) + "/"
 	for _, id := range exactRuleIDs {
-		if !strings.HasPrefix(id, prefix) {
+		if !strings.HasPrefix(strings.ToLower(id), prefix) {
 			return classified(FailureClassConfigInvalid, "invalid exact rule %q: gitlabGroup %q selects only %q*", id, fullPath, prefix)
 		}
 	}
