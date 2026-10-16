@@ -120,6 +120,7 @@ gates:
       - "scripts/test-live-postgres-standby-fixture.sh"
       - "scripts/lib/live_postgres_readiness_results.py"
       - "scripts/lib/live_postgres_readiness_events.py"
+      - "scripts/lib/live_postgres_readiness_proof_cases.py"
       - "scripts/lib/live_postgres_readiness_shards.py"
       - "scripts/test-live-postgres-readiness-shards.py"
       - "scripts/lib/verify-live-tests-ledger.py"
