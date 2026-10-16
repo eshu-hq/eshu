@@ -609,6 +609,10 @@ type Instruments struct {
 	// It stays separate from ServiceCatalogCorrelations so decision outcomes
 	// remain limited to the admission decision enum.
 	ServiceCatalogCorrelationGuardrails metric.Int64Counter
+	// ServiceCatalogRuntimeReadiness counts the #7816 runtime readiness fence
+	// decisions of the service catalog correlation handler by reducer domain and
+	// closed outcome: ready, no_producer, deferred, bound_exceeded.
+	ServiceCatalogRuntimeReadiness metric.Int64Counter
 	// IncidentRepositoryCorrelations counts reducer-owned durable
 	// incident-routing-to-repository correlation decisions by reducer domain and
 	// outcome (exact, derived, ambiguous, unresolved, rejected). Only exact and
@@ -5388,6 +5392,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerProducerActivationInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerServiceCatalogRuntimeReadiness(meter, inst); err != nil {
 		return nil, err
 	}
 

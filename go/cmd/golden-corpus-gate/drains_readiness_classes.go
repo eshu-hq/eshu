@@ -59,6 +59,10 @@ const (
 	toleratedCloudRelationshipEndpoint = "returned by the USES and CAN_PERFORM cloud relationship writers, " +
 		"which no pre-maintenance cell asserts absent; USES waits on its WorkloadInstance endpoint, which can " +
 		"itself wait on the maintenance pass, and CAN_PERFORM on sibling-scope target nodes (#6785)"
+	toleratedServiceRuntimeFence = "returned by service catalog correlation before any write while a correlated " +
+		"repository's workload_materialization work is in flight; the family writes only service-catalog " +
+		"correlations and service evidence lineage, which no pre-maintenance cell asserts absent, and the " +
+		"awaited workload work can itself wait on the maintenance pass (#7816)"
 )
 
 // preMaintenanceToleratedFailureClasses maps each failure class that
@@ -88,6 +92,8 @@ var preMaintenanceToleratedFailureClasses = map[string]string{
 	"workload_materialization_resolution_not_ready":         toleratedOwnFence,
 	// #7258: service catalog correlation deferred on the relationship corpus fence.
 	"service_catalog_correlation_resolution_not_ready": toleratedOwnFence,
+	// #7816: service catalog correlation deferred on its runtime producer fence.
+	"service_catalog_correlation_runtime_not_ready": toleratedServiceRuntimeFence,
 	// #6759 and #7268: waiting on a graph target of an already-resolved write.
 	"workload_materialization_deployment_source_target_not_ready": toleratedResolvedTarget,
 	"shared_edge_target_not_ready":                                toleratedResolvedTarget,

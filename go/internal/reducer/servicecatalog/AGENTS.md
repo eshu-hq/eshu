@@ -12,7 +12,7 @@ Imports point strictly downward:
 This package is a family. It may import `reducer/contract`,
 `reducer/factload`, `reducer/factdecode`, `reducer/factwrite`,
 `reducer/payloadcore`, `reducer/schemadecode`, `reducer/packages/source`,
-`internal/facts`, `internal/relationships`, `internal/telemetry`,
+`reducer/crossscope`, `internal/facts`, `internal/relationships`, `internal/telemetry`,
 `internal/truth`, and the factschema SDK. It must **never** import the parent
 `internal/reducer` package, directly or transitively.
 
@@ -91,6 +91,34 @@ root copy needs the same change — nothing enforces they stay in sync.
   `verify-dirgate.sh --digest internal/reducer` and regenerate the mirror with
   `generate-dirgate-grandfather-go.sh`. Never hand-edit either, and never
   grandfather a count upward.
+
+## The runtime readiness fence (#7816)
+
+`prepareServiceMaterializations` runs the corpus fence, then
+`checkServiceRuntimeReadiness`, then `attachServiceRuntimeEvidence`, all
+before any write. Keep that order. A new writer of `WorkloadInstance` nodes
+or `RUNS_ON` edges must be added to `runtimeProducerDomains` (if its queue is
+`fact_work_items`) or classified in `runtimeWriterClasses`
+(`service_catalog_runtime_producer_guard_test.go`) with a reason; the guard
+fails otherwise. This package imports `reducer/crossscope` for the elapsed
+bound and the cycle anchor the log line reports; that is a downward import to
+a shared tier.
+
+The bound is measured per in-flight repository from
+`RuntimeProducerState.NewestInFlightWorkableAt` (the producer row's
+last-workable time, `GREATEST(COALESCE(reopened_at, created_at),
+COALESCE(last_attempt_at, created_at), COALESCE(visible_at, created_at),
+COALESCE(claim_until, created_at))`), and the handler proceeds only when every
+in-flight repository is past it. Do not bound on the catalog intent's
+`crossscope.ReadinessCycleAnchor`: it counts queue and corpus-fence wait, so a
+one-minute-old producer would commit an empty family (#7816 amendment A1). Do
+not bound on the cycle start alone: the producer's non-counting corpus-fence
+retries never move it, so every producer would read as exceeded when a long
+corpus fence closes (amendment A2). Do not drop `claim_until`: heartbeat
+writes only `claim_until` and `updated_at`, so a live producer run longer than
+30 minutes would read as exceeded (amendment A3). A handler that heartbeats
+forever holds the catalog; that gap is #8211. Never anchor on `updated_at`,
+and keep a zero anchor deferring.
 
 ## Do not
 

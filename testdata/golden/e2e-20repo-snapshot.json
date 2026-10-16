@@ -5630,7 +5630,17 @@
               },
               "unavailable": false
             },
-            {"category": "runtime"},
+            {
+              "category": "runtime",
+              "counts": {
+                "added": 0,
+                "updated": 0,
+                "unchanged": 2,
+                "retired": 0,
+                "superseded": 0
+              },
+              "unavailable": false
+            },
             {"category": "dependencies"},
             {"category": "docs"},
             {"category": "incidents"},
