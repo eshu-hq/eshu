@@ -167,7 +167,10 @@ applies it. The migrations tree keeps the strict pin. The declared files must
 be pinned schema files present at both revisions, the diff must equal the
 declared set exactly, and the working tree must match the committed candidate.
 A committed new schema file needs no declaration, because the additive
-admission already covers it. A run in which both the schema declaration and the
+admission already covers it. Deleting a pinned schema file is out of scope:
+the tree inventory check fails first (`inventory differs: base=true
+candidate=false`), even when the deleted file is declared, so a deletion needs
+its own change to the pin. A run in which both the schema declaration and the
 reader declaration are active fails closed: one PR may change pinned schema or
 pinned readers, not both. After merge the declared files agree with base and
 the declaration goes inert, like the reader declaration.
