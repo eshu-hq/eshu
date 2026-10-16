@@ -172,7 +172,11 @@ func (r Rebuilder) page(ctx context.Context, result *Result, token, cursor strin
 	if err != nil {
 		return "", false, err
 	}
-	result.Pages++
+	// The disappeared-scope cleanup transaction loads no page; only
+	// Transactions counts it.
+	if loaded > 0 {
+		result.Pages++
+	}
 	result.Facts += loaded
 	return last, done, nil
 }

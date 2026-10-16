@@ -218,3 +218,28 @@ At 3 AM:
   scope row. The `scope_failed` error text names which.
 - The page size and the page query LIMIT are one constant, pinned by
   `TestPackageManifestConsumptionPageLimitEqualsRebuilderPageSize`.
+
+## Follow-up: Result.Pages counts committed fact pages (review of #8248)
+
+No-Regression Evidence: this follow-up changes one counter and adds tests; it
+does not touch a lock, a transaction, a statement, a batch size, or a worker.
+Baseline and after are the same code path on the same inputs: PostgreSQL 18.6,
+the 7-fact, page-size-3 unit fixture (3 + 3 + 1 facts), and the 31,836-fact
+scope above (63 full pages and one of 336, so 64 pages and 65 transactions).
+Terminal counts are unchanged for both: 3 pages and 4 transactions for the unit
+fixture, 64 pages and 65 transactions for the scope.
+
+What changed: `Result.Pages` no longer counts the cleanup transaction that runs
+when the scope row has disappeared mid-rebuild, because that transaction loads
+no page. Before the change, the new test
+`TestRebuildScopeDisappearedMidRebuildCountsNoCommittedPage` reported
+`Pages:2` for one committed page; after, it reports 1. An empty scope now
+reports 0 pages and 2 transactions with outcome `cleared`. A second test,
+`TestRebuildScopeRepairSkipsAScopeWhoseDirtyRowIsAlreadyGone`, covers the
+`skipped` outcome: one start transaction, no rebuild statement.
+
+Observability Evidence: `Pages` feeds only the progress and `scope_failed` log
+lines in `package_manifest_consumption_backfill.go`, where it now matches the
+documented meaning (committed fact pages). `Transactions`, the duration and
+lock-wait histograms, and the outcome counter are unchanged, so every metric an
+operator uses at 3 AM reads the same.
