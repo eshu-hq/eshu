@@ -18,7 +18,8 @@ handlers, so they get the same answers.
   `backend_unavailable` with `Retry-After`. On the compare route, the service
   evidence read goes through the guarded reader, and an unavailable graph
   backend answers the same retryable `503`. On the semantic search route, the
-  scope resolution and the index read go through the guarded reader.
+  scope resolution, the index read, and the local hybrid read go through the
+  guarded reader.
 - A compare graph read that exceeds its deadline answers `504`, as before.
 - Any other failed read answers `500` with the fixed message in the tables
   below.
@@ -58,8 +59,10 @@ The `500` and `499` bodies keep the route's own error shape: the
 `internal_error` envelope when the caller asks for
 `application/eshu.envelope+json`, else
 `{"error_code": ..., "message": ..., "capability": ...}`. A reader-verdict
-`503` uses the shared verdict shape: the envelope when negotiated, else
-`{"error": ..., "detail": ...}`.
+`503` keeps the same split. The envelope also carries
+`details.retry_after_seconds` for MCP callers, which do not see headers. The
+plain body is the route's own shape with code `backend_unavailable` and the
+fixed message `database read temporarily unavailable; retry shortly`.
 
 Two configuration states answer `503` `backend_unavailable` with fixed text
 and no `Retry-After`, because a retry does not help until an operator wires
@@ -76,21 +79,25 @@ answers `409` with the fixed text
 `semantic search repository scope is ambiguous`, never the text of an error
 that wraps it.
 
-### Status changes
+## Status changes
 
-Two failures changed status in #7674:
+Five answers changed in #7674. Each is pinned by a test that rejects the old
+answer.
 
-- A scope-resolver fault that is neither a reader verdict nor an ambiguity
-  answered `503` `backend_unavailable` with the resolver's error text. It now
-  answers `500` `internal_error`.
-- A stored result that fails response normalization (for example, a document
-  with no graph handles) answered `400` `invalid_argument` and quoted the
-  stored document id. The document comes from the server's own index, not
-  from the request. It now answers `500` `internal_error`.
+| Route and failure | Before | After |
+| --- | --- | --- |
+| compare: service evidence read on a stale or timed-out reader | `500` with the reader error text | retryable `503` `backend_unavailable` with `Retry-After` |
+| semantic search: index or local hybrid read on a stale or timed-out reader | `500` `internal_error` with the wrapped reader error text | retryable `503` `backend_unavailable` with `Retry-After` |
+| semantic search: scope resolution on a stale or timed-out reader | `503` `backend_unavailable` with the reader error text, no `Retry-After` | the same status with the fixed message and `Retry-After` |
+| semantic search: any other scope-resolver fault (not a reader verdict, not an ambiguity) | `503` `backend_unavailable` with the resolver error text | `500` `internal_error` |
+| semantic search: a stored result that fails response normalization (for example, a document with no graph handles) | `400` `invalid_argument`, quoting the stored document id | `500` `internal_error` |
 
-A server-side fault must not read as an availability signal or as a caller
-error. The HTTP reference, the OpenAPI spec, and the MCP tool descriptions
-named neither old status for these failures.
+The stored document comes from the server's own index, not from the request,
+so the last row is not request validation. A stale reader is transient, so it
+answers the retryable `503`. Any other server-side fault answers `500`: it
+must not read as an availability signal or as a caller error. The HTTP
+reference, the OpenAPI spec, and the MCP tool descriptions named none of the
+old answers for these failures.
 
 ## What does not change
 

@@ -167,7 +167,8 @@ or replay query are not transient, so the API does not tell the client to
 retry them. A client disconnect is not retried either: a post-selector read or
 shared-helper selector lookup covered in
 [Selector And Read Failures](http-api/selector-and-read-failures.md#client-cancels)
-answers `499`, and so does every supply-chain query route; other routes still
+answers `499`, and so does every supply-chain query route and the compare and
+semantic search routes; other routes still
 answer `500` until #7674 lands. Every
 supply-chain query route sends its store reads through the shared helper first
 (#7549): a stale or timed-out guarded reader answers the retryable `503` with `Retry-After` above, while any other
