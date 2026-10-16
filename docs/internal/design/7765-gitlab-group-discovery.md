@@ -149,9 +149,9 @@ compose note are listed on
 ## GitLab listing client
 
 **Location.** A new leaf package, `go/internal/collector/repo/git/gitlab`
-(`git -> leaf`, never the reverse). The git directory sits in the dirgate ratchet
-at exactly 66 files (`scripts/lib/dirgate-grandfather.tsv:79`), so a new file
-there fails `go-dir-gate`. Its nearby files are close to the 500-line cap: 422
+(`git -> leaf`, never the reverse). The git directory sits over the dirgate cap
+at exactly 66 files (pinned in a ledger row when this was written, derived from
+git now), so a new file there needs a growth trailer or `go-dir-gate` fails. Its nearby files are close to the 500-line cap: 422
 in `selection_github.go`, 499 in `selection_discovery.go`, 498 in
 `selection_config.go`. The leaf needs `doc.go`, `README.md` and `AGENTS.md`.
 

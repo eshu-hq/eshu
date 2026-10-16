@@ -377,9 +377,9 @@ covered by the reducer AWS/IAM/EC2/S3/security-group telemetry rows.
 ## This Directory Is Over The File Cap And Will Be Restructured
 
 The one-file-per-service constants layout puts this directory well above the
-`dirgate` cap, held open by a stopgap grandfather row rather than by a decision
-that the shape is right. It is in scope for restructure under epic #6053, which
-targets zero grandfathered directories. Do not read the current layout as
+`dirgate` cap, tolerated only through a baseline row (growing it needs a `Dirgate-Growth:` trailer) rather than
+by a decision that the shape is right. It is in scope for restructure under epic
+#6053, which targets zero directories over the cap. Do not read the current layout as
 settled.
 
 `AGENTS.md`, under the heading of the same name, carries the measurements a

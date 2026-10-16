@@ -13,7 +13,7 @@ child package that owns it.
   (naming.md rule 4).
 - A facts-root file named `supply.go` or `supply_*.go` collides with this
   directory under dirgate's sibling-subpackage naming rule
-  (`scripts/lib/dirgate-core.sh`, `dirgate_naming_violation_subpkg`). The
+  (`go/cmd/dirgate`). The
   root's compatibility surface for this family is `compat_supply_chain.go`
   for exactly that reason; keep new root additions off the `supply_` prefix.
 - Moves into or within this tree are behavior-preserving: prove them with

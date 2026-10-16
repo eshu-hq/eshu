@@ -84,8 +84,8 @@ case "/$REL" in
   */internal/mcp/*|*/internal/query/*)           IDS="eshu-mcp-call-rigor"
                                                  NOTE="for tool contracts";;
   *.github/workflows/*|*/scripts/verify-*)       IDS="generator-script-discipline";;
-  */tools/golangci-lint-dirgate/*|*dirgate-grandfather*) IDS="golang-engineering"
-                                                 NOTE="dirgate: RECOMPUTE the pin, never side-pick; a count match is not a digest match";;
+  */cmd/dirgate/*|*/verify-dirgate.sh)           IDS="golang-engineering"
+                                                 NOTE="dirgate: no ledger; growth past max(40, base count) needs a Dirgate-Growth trailer in the commit message";;
   */cmd/eshu/*|*/internal/cli/*)                 IDS="golang-engineering eshu-folder-doc-keeper"
                                                  NOTE="cobra wrapper vs package split; doc.go/README/AGENTS lockstep";;
   */doc.go|*/AGENTS.md|*/README.md)              IDS="eshu-folder-doc-keeper";;

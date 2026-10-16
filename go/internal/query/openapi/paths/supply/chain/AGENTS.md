@@ -33,8 +33,8 @@ alongside them.
 ## Directory size
 
 At 16 files this package is the largest leaf under `paths/` and the
-closest to the 40-non-test-file-per-directory cap the `dirgate` linter
-enforces (`tools/golangci-lint-dirgate/`). Before adding another fragment
+closest to the 40-non-test-file-per-directory cap the dirgate gate
+enforces (`go/cmd/dirgate`). Before adding another fragment
 file here, run a file count and, if it is getting close to the cap,
 consider whether a further split (e.g. by supply-chain subject) is due
 before it becomes mandatory.

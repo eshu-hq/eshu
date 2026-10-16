@@ -241,10 +241,11 @@ writer contract.
   `docs/`, before a PR is ready.
 - **Every new directory carries `doc.go`, `README.md` and `AGENTS.md`** with real
   content.
-- **The dirgate ledger is re-derived, never hand-edited.** On every sibling merge,
-  take `origin/main`'s copy of the ledger and its generated mirror, recompute count
-  and digest for the real tree, and check the arithmetic. A clean line-merge of that
-  file is the dangerous case.
+- **Dirgate is derived from git; there is no ledger to merge.** A move or shrink
+  needs no dirgate action. A PR that grows a directory past `max(40, its count at
+  the base)` carries a `Dirgate-Growth:` trailer in the commit that adds the
+  files. The two baselines (`go/cmd/dirgate/baseline-*.tsv`) are write-once: never
+  edit them. See [Dirgate-Growth trailer](../../public/reference/local-testing/dirgate-growth-trailer.md).
 - **Watch for new security findings.** Moving the openapi files out of `internal/query`
   let gosec analyse the smaller package, and it found a live open redirect. Smaller
   packages expose findings that were always there. Fix them where they surface.

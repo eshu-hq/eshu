@@ -4,8 +4,6 @@
 # plus the skip rules and --files routing around them. Sourced by that
 # driver, which provides new_scratch_repo, write_md_lines, write_ledger,
 # run_mdcap and the assert_*/record_* helpers. Not runnable on its own.
-#
-# Sibling of scripts/lib/test-verify-dirgate-cap-naming-cases.sh.
 
 # ─── the three directions #6187 requires ────────────────────────────────────
 

@@ -139,7 +139,7 @@ cd go && go vet ./internal/query/ ./internal/query/codemodel/
 cd go && go test ./internal/query/ ./internal/query/codemodel/ -count=1
 cd go && go test ./internal/queryplan/ -count=1
 bash scripts/verify-route-coverage.sh
-bash scripts/verify-dirgate.sh --digest internal/query
+bash scripts/verify-dirgate.sh --pre-push
 git diff --check
 gofmt -l <touched files, repo-relative>
 ```

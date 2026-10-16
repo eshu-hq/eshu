@@ -19,8 +19,8 @@ import (
 // This file holds the retention policy and, since #7427, the search index
 // pre-delete hooks the policy bounds. The pre-delete loop itself lives in the
 // storage/postgres/search/index/retention leaf; only the glue that needs
-// root-private retention state stays here, because this directory is at its
-// dirgate pin (scripts/lib/dirgate-grandfather.tsv) and takes no new file.
+// root-private retention state stays here, because this directory is over the
+// dirgate cap, so a new file here needs a Dirgate-Growth trailer.
 
 const (
 	// defaultGenerationRetentionSearchIndexPredeleteRowCap bounds the rows one

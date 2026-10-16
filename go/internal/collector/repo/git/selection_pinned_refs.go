@@ -155,7 +155,7 @@ func validateGitRefName(ref string) error {
 // small repo-sync env readers (its interval and per-cycle siblings live in
 // selection_reconcile_config.go) so selection_config.go stays under the
 // filelength cap without growing this directory's file count (the dirgate
-// ledger forbids a count bump for a file this change would add).
+// gate forbids growth without a trailer for a file this change would add).
 
 // defaultReconcileParseMaxSkips parses an unchanged repository at least once a
 // week at the default daily interval (ruling a9-143 D3).

@@ -34,8 +34,9 @@ Read `doc.go` and `README.md` first.
 - `TestFileRouteGolden` and `TestEntityRouteGolden` must stay byte-identical
   for any change that is not an intended contract change of that route. Never
   regenerate them to make a refactor pass.
-- The root `query` directory is dirgate-pinned: new non-test code for this
-  feature belongs here, not in `go/internal/query/*.go`.
+- The root `query` directory is over the dirgate cap and may not grow without a
+  `Dirgate-Growth:` trailer: new non-test code for this feature belongs here, not
+  in `go/internal/query/*.go`.
 
 ## Verification
 
