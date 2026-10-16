@@ -17,14 +17,15 @@ status is Error with the fixed message as its description. The
 - On the steps that read through the guarded PostgreSQL reader, a reader
   that missed the writer checkpoint, or whose connection or identity check
   timed out, answers the retryable `503` `backend_unavailable` with
-  `Retry-After`. These steps answer the shared graph-read deadline verdict
-  with `504` `backend_timeout` too.
-- The bounded reads answer `504` with their timeout text when their own
-  `timeout_ms` budget expires.
+  `Retry-After`.
+- The three bounded reads answer `504` with their timeout text when their
+  own `timeout_ms` budget expires. No other admin route answers `504`, and
+  the OpenAPI spec declares `504` on those three only.
 - Any other failed step answers `500` with the fixed message below.
 
-A failed step checks the reader verdict first, then the route timeout, then
-answers `500`.
+A failed step checks the reader verdict first, then the route timeout on the
+bounded reads, then answers `500`. A `503` without `Retry-After` is always
+the configuration state, never a reader verdict.
 
 A client that cancels its request gets `499` with the same fixed message,
 except at the ledger finalize described below. The
@@ -56,13 +57,17 @@ The status, `Retry-After`, code, and message are the same.
 | `POST /api/v0/admin/changed-since/poisoned-links/query` | link read | `changed-since poisoned-links query failed`; `504` `changed-since poisoned-links query timed out` |
 
 A stale reader on the three bounded reads answers the retryable `503`, not
-`504`, even though the reader's verdict wraps a deadline.
+`504`, even though the reader's verdict wraps a deadline. The work-item,
+decision, and replay-event reads run with no route deadline, so they answer
+the retryable `503` on a reader verdict and `500` otherwise, never `504`.
 
 ## Mutations
 
 These routes write through the writer store. Only the repository reindex
 selector lookup reads through the guarded reader, so it alone can answer the
-retryable `503` or the graph-read `504`.
+retryable `503` with `Retry-After`. It runs with no route deadline and never
+answers `504`. Every other mutation `503` is the configuration state and
+carries no `Retry-After`.
 
 | Route | Failed step | Fixed message |
 | --- | --- | --- |

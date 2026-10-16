@@ -66,8 +66,11 @@ const (
 // capability: work items, decisions and their evidence, replay events, and
 // the repository reindex catalog lookup. These reads go through the guarded
 // PostgreSQL reader, so a stale or timed-out reader first gets the shared
-// retryable 503 with Retry-After (and a graph-read deadline its 504) from
-// querycontract.WriteGraphReadError. The routes are operator tooling not in
+// retryable 503 with Retry-After from querycontract.WriteGraphReadError.
+// These reads run with no route deadline and the guarded reader never
+// returns querycontract.ErrGraphReadDeadline, so they never answer 504, and
+// the OpenAPI spec declares no 504 for them; the call stays for its
+// reachable 503 fence verdicts. The routes are operator tooling not in
 // the capability matrix, so the verdict names querycontract.NoCapability and
 // its envelope carries no capability field (#8176 registers their keys).
 // Anything else answers message through tracing.WriteServerFailure: 500 with

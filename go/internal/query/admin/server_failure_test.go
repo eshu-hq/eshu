@@ -42,16 +42,15 @@ const (
 	// with Retry-After. Only steps that read through the guarded reader get it.
 	adminFailureStale
 	// adminFailureTimeout is the route's own read budget expiring: 504 with the
-	// route's fixed timeout message. Only bounded inspection reads get it.
+	// route's fixed timeout message. Only bounded inspection reads get it. No
+	// admin step meets querycontract.ErrGraphReadDeadline: the guarded
+	// PostgreSQL reader never returns it, so it has no kind here and no admin
+	// route outside the three bounded reads declares 504.
 	adminFailureTimeout
-	// adminFailureGraphDeadline is the shared bounded-read deadline sentinel:
-	// querycontract.WriteGraphReadError answers 504 backend_timeout with its
-	// fixed text. Every guarded-reader step meets it with the reader verdict.
-	adminFailureGraphDeadline
 )
 
 func (k adminFailureKind) String() string {
-	return [...]string{"backend failure", "client cancel", "reader stale", "route timeout", "graph read deadline"}[k]
+	return [...]string{"backend failure", "client cancel", "reader stale", "route timeout"}[k]
 }
 
 // adminFailureError builds the error a failing step returns for kind.
@@ -66,8 +65,6 @@ func adminFailureError(kind adminFailureKind) error {
 		return fmt.Errorf("%s: %w", adminFailureCanary, errors.Join(db.ErrReaderStale, context.DeadlineExceeded))
 	case adminFailureTimeout:
 		return fmt.Errorf("%s: %w", adminFailureCanary, context.DeadlineExceeded)
-	case adminFailureGraphDeadline:
-		return fmt.Errorf("%s: %w", adminFailureCanary, querycontract.ErrGraphReadDeadline)
 	default:
 		return errors.New(adminFailureCanary)
 	}
@@ -104,7 +101,7 @@ func runAdminFailureSteps(t *testing.T, steps []adminFailureStep) {
 			kinds = append(kinds, adminFailureCancel)
 		}
 		if step.reader {
-			kinds = append(kinds, adminFailureStale, adminFailureGraphDeadline)
+			kinds = append(kinds, adminFailureStale)
 		}
 		if step.timeoutMessage != "" {
 			kinds = append(kinds, adminFailureTimeout)
@@ -166,8 +163,6 @@ func assertAdminFailure(
 		wantStatus = http.StatusServiceUnavailable
 	case adminFailureTimeout:
 		wantStatus, wantMessage = http.StatusGatewayTimeout, step.timeoutMessage
-	case adminFailureGraphDeadline:
-		wantStatus, wantMessage = http.StatusGatewayTimeout, querycontract.ErrGraphReadDeadline.Error()
 	}
 	if rec.Code != wantStatus {
 		t.Fatalf("status = %d, want %d; body = %s", rec.Code, wantStatus, body)
@@ -183,9 +178,6 @@ func assertAdminFailure(
 	}
 	if got := adminFailureBodyMessage(t, rec); got != wantMessage {
 		t.Fatalf("body message = %q, want the fixed %q; body = %s", got, wantMessage, body)
-	}
-	if kind == adminFailureGraphDeadline {
-		return
 	}
 	assertAdminFailureSpan(t, wantMessage, kind == adminFailureCancel, ended)
 }
