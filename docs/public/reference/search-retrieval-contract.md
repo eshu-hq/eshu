@@ -281,6 +281,49 @@ ContentHybridRerankRanksAllRowsOfAMaximumPage` covers entity and file pages of
 span with `search.rerank.tool` set to `search_entity_content` or
 `search_file_content`, plus `search.rerank.rows` and `search.rerank.applied`.
 
+### Cross-page relevance walk (`rank_cursor`, #7746)
+
+The re-ranks above order rows inside one offset page. An opt-in `rank_cursor`
+on `find_code` or `search_entity_content` orders a fixed window instead: the
+first 200 lexical rows of one repository (for `find_code`, its content lane).
+Each request re-reads the window, scores all of it with `RankAll`, orders it
+by score rounded to 8 significant digits (descending), then `entity_id`
+(ascending), and serves the next `limit` rows. `go/internal/query/search/rank`
+owns the order and the cursor. The full wire contract is in
+[Relevance walk](http-api/rank-walk.md).
+
+- The cursor is stateless. It holds the served-row count, an
+  order-independent digest of the served ids, and a fingerprint of the window
+  (tool, scope, ranker identity, every row id and its content in lexical
+  order). It never holds row data.
+- Exactly-once does not depend on score bits. A changed window answers 409
+  `candidate_set_changed`. A window whose served rows are no longer the top
+  of this replica's order (for example a cross-architecture flip) answers 409
+  `rank_order_changed`. Inside one replica, every row of a page ranks after
+  every row served before it. Two replicas may order a window differently.
+- Rows past the window are never read. The walk ends with `window_end=true`;
+  `lexical_truncated=true` says more lexical matches exist.
+- A disabled ranker, `exact=true`, no single repository, an offset, the
+  unscoped cursor, and `search_file_content` answer a typed 400. A request
+  without `rank_cursor` keeps its response bytes (byte goldens captured on
+  main pin both routes).
+
+Performance Evidence: each walk page scores the whole 200-row window:
+`BenchmarkCodeHybridRerank` rows=200 measured 19.32-19.44 ms/op,
+22,176,478-22,176,556 B/op, and 11,591 allocs/op on linux/arm64, against
+9.66-9.71 ms/op at 100 rows. That is the cost of one existing `limit=200`
+ranked page. `BenchmarkRankAll` at 200 documents is 0.53-0.55 ms of it. The
+walk adds no Cypher, graph write, queue, lease, or goroutine; its store read
+is one 201-row probe of the same lexical query. See
+`docs/internal/evidence/7746-rank-cursor.md`.
+
+Observability Evidence: walk requests record
+`eshu_dp_query_rank_cursor_total{tool,outcome}` and the
+`search.rank_cursor.outcome`, `search.rank_cursor.served`, and
+`search.rank_cursor.reason` request-span attributes; the scoring pass emits
+`query.hybrid_rerank` with `search.rerank.rows` equal to the window size
+([Relevance Walk Telemetry](telemetry/rank-cursor.md)).
+
 ## Persisted Postgres Search Index
 
 `go/internal/storage/postgres/search/index.EshuSearchIndexStore` serves the default public

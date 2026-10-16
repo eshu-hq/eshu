@@ -578,7 +578,7 @@ registered routes, so cardinality stays bounded; concrete request paths with ide
 labels. Requests that match no route are labeled `route="unmatched"`. The admin surface (probes, `/metrics`)
 is served by a separate mux and is intentionally not counted. MCP `tools/call` adds
 `eshu_dp_mcp_response_bytes`, `eshu_dp_mcp_response_resource_fallback_total`, `eshu_dp_mcp_response_budget_page_total`, and `eshu_dp_mcp_response_over_budget_total`
-with bounded `tool` labels; see [MCP Response-Budget Telemetry](mcp-response-budget.md).
+with bounded `tool` labels; see [MCP Response-Budget Telemetry](mcp-response-budget.md). A `rank_cursor` walk on `find_code` or `search_entity_content` adds `eshu_dp_query_rank_cursor_total{tool,outcome}`; see [Relevance Walk Telemetry](rank-cursor.md).
 
 Cloud resource paging also emits route-specific, label-safe signals:
 

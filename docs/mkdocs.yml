@@ -125,6 +125,7 @@ nav:
         - Source Cache Read Clip: reference/http-api/source-cache-clip.md
         - IaC, Content, And Infra: reference/http-api/iac-content-infra.md
         - Unscoped File Search: reference/http-api/unscoped-file-search.md
+        - Relevance Walk: reference/http-api/rank-walk.md
         - Infrastructure Resource Aggregates: reference/http-api/infra-resource-aggregates.md
         - Repositories: reference/http-api/repositories-ingesters-bundles.md
         - Repository Stats And Story Coverage: reference/http-api/repository-coverage.md
@@ -339,6 +340,7 @@ nav:
       - Streaming And Memory: reference/telemetry/streaming-memory.md
       - Code Divergence Signals: reference/telemetry/code-divergence.md
       - MCP Response Budget: reference/telemetry/mcp-response-budget.md
+      - Relevance Walk Signals: reference/telemetry/rank-cursor.md
     - Observability:
       - Telemetry Coverage Contract: observability/telemetry-coverage.md
       - Telemetry Coverage Notes: observability/telemetry-coverage-notes.md

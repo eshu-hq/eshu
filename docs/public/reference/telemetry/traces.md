@@ -170,7 +170,10 @@ page row count, at most 200), and `search.rerank.applied` (`true` when the page
 was reordered, `false` when it kept the lexical order). It is not emitted when
 the ranker is disabled, the request has no single repository scope, or the page
 has fewer than two rows. It records no query text, repository ID, or row
-identity.
+identity. A `rank_cursor` walk page (#7746) scores its whole 200-row window, so
+there `search.rerank.rows` is the window size, and the request span carries
+`search.rank_cursor.outcome`, `search.rank_cursor.served`, and on an error
+`search.rank_cursor.reason` ([Relevance Walk Telemetry](rank-cursor.md)).
 
 ### Search-stage instrumentation cost (#7243)
 
@@ -282,7 +285,7 @@ or URLs.
 | Reducer relationship work is slow | `eshu_dp_reducer_run_duration_seconds` and reducer queue age | `reducer.run`, relationship materialization spans, `canonical.write` |
 | Graph writes are slow | `eshu_dp_canonical_write_duration_seconds` | `canonical.write` and nested `neo4j.execute` |
 | Read path is slow | API/MCP request latency or query handler span | `postgres.query`, `neo4j.query`, `neo4j.query.single`, caller shaping code |
-| Code or content search is slow | API/MCP request latency and the query handler span | `query.hybrid_rerank` duration, `search.rerank.rows`, and `search.rerank.applied` |
+| Code or content search is slow | API/MCP request latency and the query handler span | `query.hybrid_rerank` duration, `search.rerank.rows`, and `search.rerank.applied`; on a `rank_cursor` walk, `search.rank_cursor.outcome` |
 | Semantic search is slow | API/MCP request latency and `query.semantic_search` | `query.semantic_search.persisted_index` stage events; `query.semantic_search.vector_ready` outcome for vector-backed modes; separate PostgreSQL plan inspection for BM25 |
 | Webhook intake is rejected or slow | `eshu_dp_webhook_requests_total` and webhook duration metrics | `webhook.handle`, provider verification, normalization, `webhook.store` |
 
