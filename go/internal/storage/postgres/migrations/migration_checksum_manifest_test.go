@@ -233,6 +233,7 @@ var migrationShippedChecksums = map[string]string{
 	"183_package_registry_identity_keys_partition_idx.sql":                   "dc784b6459fb47fc0dd7314a78147f73a69dfea5d66e863d5ea9a13ace4a7087",
 	"184_workflow_claims_failure_classification.sql":                         "cc8b7756dbc15bfd0d95c71b2f9fd8745606c1db714f16ba286ee5bfc3ecf3a2",
 	"185_workflow_work_items_failure_classification.sql":                     "7e1e00a2ea37f2d6c05617a1056ccd256d99c877ec24d108fa96896c8a020922",
+	"182_content_files_version_fence.sql":                                    "171bdfecd410c68b927a0a3aab86c66bf4e3292cbc931a6de7b5a70d3667b1d1",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
