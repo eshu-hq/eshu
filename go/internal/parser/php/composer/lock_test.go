@@ -156,18 +156,26 @@ func TestLocksOwnFallbackPrefixNeverOutranksALockedPrefix(t *testing.T) {
 
 // TestLockPSR4PrefixWithoutTrailingBackslashOnlyBlocks: Composer refuses a
 // psr-4 prefix that does not end in '\' and the producer rule drops it, so a
-// lock entry like "Acme" must never key a class (it would match AcmeOther\
-// off a namespace boundary); it still blocks a shorter prefix.
+// lock entry like "Acme" must never key a class: it would match AcmeOther\
+// off a namespace boundary, and for Acme\Thing it is the longest covering
+// prefix (Acm\ does not cover it). Such an entry still competes in the
+// longest-match rule, so "A\B" blocks the shorter valid A\ for A\Bee\Thing,
+// while A\Cee\Thing, which "A\B" does not cover, keys to acme/a.
 func TestLockPSR4PrefixWithoutTrailingBackslashOnlyBlocks(t *testing.T) {
 	t.Parallel()
 
 	index := parseLock([]byte(`{"packages": [
 		{"name": "acme/noslash", "autoload": {"psr-4": {"Acme": "src/"}}},
-		{"name": "acme/root", "autoload": {"psr-4": {"Acm\\": "src/"}}}
+		{"name": "acme/root", "autoload": {"psr-4": {"Acm\\": "src/"}}},
+		{"name": "acme/a", "autoload": {"psr-4": {"A\\": "src/"}}},
+		{"name": "acme/ab", "autoload": {"psr-4": {"A\\B": "src/"}}}
 	]}`))
-	for _, fqcn := range []string{`AcmeOther\Thing`, `Acme\Thing`} {
+	for _, fqcn := range []string{`AcmeOther\Thing`, `Acme\Thing`, `A\Bee\Thing`} {
 		if name, covered := index.lookup(fqcn); name != "" || !covered {
 			t.Errorf("lookup(%s) = (%q, %v), want (\"\", true)", fqcn, name, covered)
 		}
+	}
+	if name, covered := index.lookup(`A\Cee\Thing`); name != "acme/a" || !covered {
+		t.Errorf("lookup(A\\Cee\\Thing) = (%q, %v), want (\"acme/a\", true)", name, covered)
 	}
 }

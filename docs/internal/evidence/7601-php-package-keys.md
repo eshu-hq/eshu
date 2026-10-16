@@ -31,10 +31,13 @@ API, OpenAPI, or MCP code changed.
   (alias and group use included) or a fully qualified literal. The name is
   bound from the raw class node and the `use` rows, never from the parser's
   last-segment alias map, and a clause with its own `function` or `const`
-  keyword (`use A\{B, function c}`) binds nothing. The locked name comes from every `composer.lock` from
-  the file's directory up to the repository root, nearest first. The first lock
-  whose `packages` or `packages-dev` autoload a covering prefix decides. The
-  longest prefix wins. A tie, a psr-0 prefix, a psr-4 prefix without the
+  keyword (`use A\{B, function c}`) binds nothing. The locked name comes from
+  every `composer.lock` from the file's directory up to the repository root,
+  nearest first. Tie rule: the first lock in that chain whose `packages` or
+  `packages-dev` autoload a covering psr-4 prefix decides; inside that lock the
+  longest covering prefix wins; two packages tied on that prefix give no key
+  (pinned by `TestLockLookupLongestPrefixTiesAndBlockers` in
+  `go/internal/parser/php/composer/lock_test.go`). A psr-0 prefix, a psr-4 prefix without the
   trailing `\`, or a name outside the grammar gives no key. The consumer's
   own `composer.json` files (autoload and autoload-dev, psr-4 and psr-0) can
   claim the class too. An own
@@ -145,8 +148,9 @@ Scripts and outputs are in the session scratchpad, not committed.
 | Positive | `TestExtractRowsResolvesParsedPHPComposerImportAcrossRepositories`: `new Logger()` and `Logger::create()` give `CALLS` rows with `resolution_method=import_binding` into the producer | Checked |
 | Negative | Edge-case table; `TestExtractRowsKeepsLaravelStyleOwnClassOutOfAnotherRepository` | Checked |
 | Ambiguous | Two producers of one composer name give no row | Checked |
-| Graph | B-7 query shape `POST /api/v0/code/dead-code/cross-repo?golden_scope=ledger-kit` | NOT_CHECKED locally (live Neo4j gate) |
-| Query | Same shape: `formatAmount` must be `live_by_consumer` | NOT_CHECKED locally |
+| Graph | `ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh` exit 0 at head `0d865355767f8eff22891289ee26b93c4054cdf7` (the docs-only commit that follows changes no fixture or code): Repository node count 35, the `>= 1` checks pass, 0 FAIL; `bash scripts/test-verify-golden-corpus-gate.sh` exit 0 | Checked |
+| Query | Same run: the new shape `POST /api/v0/code/dead-code/cross-repo?golden_scope=ledger-kit` (`formatAmount` must be `live_by_consumer`) PASS | Checked |
+| RED | The same gate without the parser keys, to show the shape fails without the edge | NOT_CHECKED (not run) |
 
 ## Performance
 
@@ -204,6 +208,14 @@ because #7978 owns it. Production discovery already prunes `vendor/`
 - An unresolved PHP key still falls through to the repository-unique name
   fallback, as an unkeyed call did before. The JS-family barrier (#7610) has no
   PHP equivalent yet.
+- A class whose namespace begins with `Function` or `Const` (any case), such as
+  `use Functional\Collection;`, gets no Composer key and a wrong `import_type`,
+  because `phpImportKind` reads the statement prefix. This is pre-existing and
+  a missed key, never a false link (#8222).
+- Nested test-fixture `composer.json` files: a fixture manifest that reuses a
+  real package name and maps a class at the same path can capture an edge only
+  when the real producer is not indexed; when both are indexed, the unique rule
+  leaves the key unresolved. The JS leg shares this exposure (#8223).
 
 ## NOT_CHECKED
 
@@ -212,5 +224,5 @@ because #7978 owns it. Production discovery already prunes `vendor/`
   `composer.lock`, and duplicate `name` values across stored `composer.json`).
 - `packages-dev` autoload presence in real locks (packages-dev is read the same
   way as packages).
-- Live B-7 on Neo4j for the new query shape, and the replica EXPLAIN of
-  `ComposerManifestsQuery`.
+- The B-7 RED run (the gate without the parser keys), and the replica EXPLAIN
+  of `ComposerManifestsQuery`.

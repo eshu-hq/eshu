@@ -33,7 +33,8 @@ and `internal/parser/go_package_module_import_path.go`.
   (`vendor/name` in the composer grammar) to the composer.json read, which
   skips manifests under `vendor/`, and every other name to the package.json
   read; the two name spaces are disjoint, and a request with both unions the
-  two reads. Both reads bind stored content to the writing
+  two reads. All three manifest reads (package.json, composer.json, go.mod)
+  bind stored content to the writing
   generation through the `content_files` generation tag (#7760): a row whose
   tag names no activated generation returns as a NULL row, so the producer
   set never drops a candidate; scopes with no stored manifest but a
