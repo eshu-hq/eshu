@@ -103,9 +103,12 @@ Retention prune, 8 KiB TOAST class: +0.12 s mean added ScopeLockHold per
 100,000-row cycle (25 interleaved rounds, three sessions; budget +0.25 s per
 arb-8155-c1). Tail: 1 of 12 paired fence rounds was +1.0 s or more over the
 control (control 0 of 12); +1.1 to +1.9 s events were seen in 4 of 20 earlier
-fence rounds and 0 of 17 control rounds; cause not attributed, per-backend
-first use ruled out. The 8 KiB class passes c1 1.4a by the arb-8155-c3
-binding rule (pooled S2 = +0.1202 s over 25 rounds, at most +0.25 s).
+fence rounds and 0 of 17 control rounds (counted as rounds more than +1.0 s
+over the arm's own steady state, excluding session 1 round 5, where both arms
+spiked by about +1.9 s (control 16.54 s); that exclusion is the definition in
+arb-8155-c3 1.4); cause not attributed, per-backend first use ruled out. The
+8 KiB class passes c1 1.4a by the arb-8155-c3 binding rule (pooled S2 =
++0.1202 s over 25 rounds, at most +0.25 s).
 
 `prune_temp_bytes` = 0 in both arms in all 8 KiB rounds (the `OLD TABLE`
 keeps TOAST pointers; the 181 MB spill is the 1 KiB class, #8268).
