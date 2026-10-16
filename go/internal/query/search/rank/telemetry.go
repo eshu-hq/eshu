@@ -174,8 +174,10 @@ func RecordError(ctx context.Context, tool string, err error) {
 }
 
 // Answer records the outcome of a rank-walk failure and answers the
-// request with it (see WriteError). It reports false, recording and writing
-// nothing, when err is not a *Error.
+// request with it (see WriteError). It reports false when it wrote nothing:
+// err is not a *Error (nothing is recorded either), or a *Error with a code
+// outside ErrorCodes (recorded under OutcomeInvalid, then left unwritten). On
+// false the caller must answer through its own failure path.
 func Answer(w http.ResponseWriter, r *http.Request, tool string, err error) bool {
 	var rankErr *Error
 	if err == nil || !errors.As(err, &rankErr) {

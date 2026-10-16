@@ -92,8 +92,15 @@ func (r *ContentHybridRanker) ScoreEntityWindow(
 }
 
 // writeRankError records the rank-walk outcome for err and answers with it.
+// rank.Answer writes nothing for a *rank.Error whose code rank.WriteError
+// does not answer; that falls through to the fixed rank failure 500 (499 for
+// a client cancel), the same answer the walk's own failure branch gives, so
+// the request never ends without a body.
 func writeRankError(w http.ResponseWriter, r *http.Request, tool string, err *rank.Error) {
-	rank.Answer(w, r, tool, err)
+	if rank.Answer(w, r, tool, err) {
+		return
+	}
+	tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, contentEntityRankFailedMessage)
 }
 
 // searchEntitiesRanked serves search_entity_content as a relevance walk over

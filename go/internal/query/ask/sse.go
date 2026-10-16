@@ -13,7 +13,17 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/answerguardrail"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
+
+// sseFlushUnsupportedMessage is the fixed detail of the 500 the SSE variant
+// answers when the response writer cannot flush (#7674).
+const sseFlushUnsupportedMessage = "streaming not supported by this server configuration"
+
+// errSSEFlushUnsupported is the package sentinel recorded on the request span
+// when the response writer has no http.Flusher. No backend error exists at
+// that step, so the sentinel stands in for one (#7674).
+var errSSEFlushUnsupported = errors.New("ask sse: response writer does not implement http.Flusher")
 
 // acceptsSSE reports whether the request's Accept header indicates the caller
 // wants a Server-Sent Events stream.
@@ -89,11 +99,16 @@ func (h *Handler) handleAskSSE(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify the ResponseWriter supports flushing before committing SSE headers.
+	// No header is written yet, so this answers plain JSON. The sentinel goes
+	// on the request span through tracing.ServerFailureEnvelope; it is never a
+	// context.Canceled, so this step always answers 500, never 499. The body
+	// keeps its error/detail shape with the fixed message.
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		querycontract.WriteJSON(w, http.StatusInternalServerError, map[string]string{
-			"error":  "internal_error",
-			"detail": "streaming not supported by this server configuration",
+		status, errEnv := tracing.ServerFailureEnvelope(r.Context(), errSSEFlushUnsupported, sseFlushUnsupportedMessage, Capability)
+		querycontract.WriteJSON(w, status, map[string]string{
+			"error":  string(errEnv.Code),
+			"detail": errEnv.Message,
 		})
 		return
 	}

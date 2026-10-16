@@ -12,7 +12,7 @@ const SemanticEvidence = `
       "get": {
         "tags": ["semantic"],
         "summary": "List semantic documentation observations",
-        "description": "Lists opt-in LLM-assisted documentation observations from durable semantic evidence facts. Rows include truth basis, freshness, provider profile, prompt version, redaction version, and policy state without raw prompt payloads, credentials, or private provider responses.",
+        "description": "Lists opt-in LLM-assisted documentation observations from durable semantic evidence facts. Rows include truth basis, freshness, provider profile, prompt version, redaction version, and policy state without raw prompt payloads, credentials, or private provider responses. A 503 with Retry-After means a transient condition that is safe to retry: the semantic evidence read hit a stale or timed-out PostgreSQL reader; this route has no configuration 503, so every 503 it answers carries Retry-After. No 5xx body carries backend error text. A reader-verdict 503 names capability semantic_evidence.documentation_observations.list in its error envelope.",
         "operationId": "listSemanticDocumentationObservations",
         "x-scoped-token-support": true,
         "parameters": [
@@ -46,7 +46,16 @@ const SemanticEvidence = `
           "200": {"description": "Semantic documentation observation page", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SemanticObservationList"}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {
+            "description": "Not implemented. With no Postgres fact read model wired, the route answers error code documentation_read_model_unavailable: the plain body carries error_code, message, and capability, and the envelope carries code, message, and capability. A runtime profile that does not support the capability answers error code unsupported_capability: the plain body carries error and detail, and the envelope carries code, message, capability, and the current and required profiles. Every runtime profile supports this capability today.",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+              }
+            }
+          },
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -54,7 +63,7 @@ const SemanticEvidence = `
       "get": {
         "tags": ["semantic"],
         "summary": "List semantic code hints",
-        "description": "Lists opt-in non-canonical code hints from durable semantic evidence facts. Code hints remain separate from deterministic code, graph, and relationship routes unless callers request this surface explicitly.",
+        "description": "Lists opt-in non-canonical code hints from durable semantic evidence facts. Code hints remain separate from deterministic code, graph, and relationship routes unless callers request this surface explicitly. A 503 with Retry-After means a transient condition that is safe to retry: the semantic evidence read hit a stale or timed-out PostgreSQL reader; this route has no configuration 503, so every 503 it answers carries Retry-After. No 5xx body carries backend error text. A reader-verdict 503 names capability semantic_evidence.code_hints.list in its error envelope.",
         "operationId": "listSemanticCodeHints",
         "x-scoped-token-support": true,
         "parameters": [
@@ -89,7 +98,16 @@ const SemanticEvidence = `
           "200": {"description": "Semantic code hint page", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SemanticCodeHintList"}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {
+            "description": "Not implemented. With no Postgres fact read model wired, the route answers error code documentation_read_model_unavailable: the plain body carries error_code, message, and capability, and the envelope carries code, message, and capability. A runtime profile that does not support the capability answers error code unsupported_capability: the plain body carries error and detail, and the envelope carries code, message, capability, and the current and required profiles. Every runtime profile supports this capability today.",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+              }
+            }
+          },
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },

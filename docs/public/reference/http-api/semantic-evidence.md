@@ -55,6 +55,10 @@ returned. The `freshness_state`, `admission_state`, `corroboration_state`,
 `missing_evidence`, and `unsupported_reason` truth labels (#2138) are preserved
 on a withheld row and never collapsed into the access marker.
 
+A failed read answers a fixed message, a stale or timed-out PostgreSQL
+reader answers the retryable `503`, and a client cancel answers `499`; see
+[Semantic Evidence And Documentation Route Failures](semantic-and-documentation-failures.md).
+
 `semantic.code_hint` rows remain opt-in. Deterministic code, relationship,
 documentation finding, and graph-truth routes do not mix in code hints unless a
 caller requests the semantic code-hints route directly.

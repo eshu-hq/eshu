@@ -61,10 +61,10 @@ func (h *CodeHandler) handleRankWalk(w http.ResponseWriter, r *http.Request, req
 	}
 	switch {
 	case req.offset > 0:
-		rank.Answer(w, r, rank.ToolFindCode, rank.Unsupported(rank.ReasonOffsetConflict))
+		answerCodeRankRefusal(w, r, rank.Unsupported(rank.ReasonOffsetConflict), capability)
 		return
 	case req.repoID == "":
-		rank.Answer(w, r, rank.ToolFindCode, rank.Unsupported(rank.ReasonScopeNotSingleRepo))
+		answerCodeRankRefusal(w, r, rank.Unsupported(rank.ReasonScopeNotSingleRepo), capability)
 		return
 	}
 
@@ -104,14 +104,24 @@ func (h *CodeHandler) handleRankWalk(w http.ResponseWriter, r *http.Request, req
 	windowRows, byID := rank.MapRows(rows, codeRankWalkContentKeys...)
 	window.Rows = windowRows
 	page, err := rank.Walk(window, scores, req.token, req.limit)
-	if rank.Answer(w, r, rank.ToolFindCode, err) {
-		return
-	}
 	if err != nil {
-		writeCodeReadFailure(w, r, err, capability, codeSearchRankFailedMessage)
+		answerCodeRankRefusal(w, r, err, capability)
 		return
 	}
 	h.writeRankWalkPage(w, r, req, page, byID, scores, capability)
+}
+
+// answerCodeRankRefusal answers a failed find_code rank walk. A *rank.Error
+// with a code rank.WriteError answers gets its 400 or 409 from rank.Answer.
+// Anything else, including a *rank.Error with an unlisted code that
+// rank.Answer leaves unwritten, answers the fixed rank failure through
+// writeCodeReadFailure: the reader fence 503 first, then 500, or 499 for a
+// client cancel. The request never ends without a body.
+func answerCodeRankRefusal(w http.ResponseWriter, r *http.Request, err error, capability string) {
+	if rank.Answer(w, r, rank.ToolFindCode, err) {
+		return
+	}
+	writeCodeReadFailure(w, r, err, capability, codeSearchRankFailedMessage)
 }
 
 // writeRankWalkPage shapes a walk page like the offset page of its lane and

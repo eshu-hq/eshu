@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -20,6 +21,13 @@ const (
 	documentationEvidencePacketCapability  = "documentation_evidence_packet.read"
 	documentationPacketFreshnessCapability = "documentation_evidence_packet.freshness"
 )
+
+// documentationReadFailedMessage is the fixed body of a failed documentation
+// store read on the documentation findings, facts, evidence packet, packet
+// freshness, findings count, and findings inventory routes (#7674). The store
+// error can quote SQL and hosts, so it goes on the handler span, never into
+// the body.
+const documentationReadFailedMessage = "documentation evidence request failed"
 
 // DocumentationHandler exposes documentation truth findings and evidence packets.
 type DocumentationHandler struct {
@@ -52,7 +60,7 @@ type documentationReadModelStore interface {
 
 // Mount registers documentation truth routes.
 func (h *DocumentationHandler) Mount(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/v0/documentation/findings", h.listFindings)
+	mux.HandleFunc("GET /api/v0/documentation/findings", h.listDocumentationFindings)
 	mux.HandleFunc("GET /api/v0/documentation/facts", h.listFacts)
 	mux.HandleFunc("GET /api/v0/documentation/findings/{finding_id}/evidence-packet", h.getEvidencePacket)
 	mux.HandleFunc("GET /api/v0/documentation/evidence-packets/{packet_id}/freshness", h.getPacketFreshness)
@@ -66,7 +74,7 @@ func (h *DocumentationHandler) profile() QueryProfile {
 	return h.Profile
 }
 
-func (h *DocumentationHandler) listFindings(w http.ResponseWriter, r *http.Request) {
+func (h *DocumentationHandler) listDocumentationFindings(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryDocumentationFindings,
@@ -121,7 +129,7 @@ func (h *DocumentationHandler) listFindings(w http.ResponseWriter, r *http.Reque
 	}
 	readModel, err := store.DocumentationFindings(r.Context(), filter)
 	if err != nil {
-		writeDocumentationInternalError(w, r)
+		writeDocumentationReadFailure(w, r, err, documentationFindingsCapability)
 		return
 	}
 	WriteSuccess(w, r, http.StatusOK, documentationFindingsResponse(readModel, filter), documentationFindingsTruth(h.profile(), readModel))
@@ -164,7 +172,7 @@ func (h *DocumentationHandler) getEvidencePacket(w http.ResponseWriter, r *http.
 	}
 	readModel, err := store.DocumentationEvidencePacketWithFilter(r.Context(), filter)
 	if err != nil {
-		writeDocumentationInternalError(w, r)
+		writeDocumentationReadFailure(w, r, err, documentationEvidencePacketCapability)
 		return
 	}
 	if readModel.Denied {
@@ -216,7 +224,7 @@ func (h *DocumentationHandler) getPacketFreshness(w http.ResponseWriter, r *http
 	}
 	readModel, err := store.DocumentationEvidencePacketFreshnessWithFilter(r.Context(), filter)
 	if err != nil {
-		writeDocumentationInternalError(w, r)
+		writeDocumentationReadFailure(w, r, err, documentationPacketFreshnessCapability)
 		return
 	}
 	if readModel.Denied {
@@ -344,15 +352,21 @@ func documentationUpdatedSince(w http.ResponseWriter, r *http.Request) (*time.Ti
 	return &parsed, true
 }
 
-func writeDocumentationInternalError(w http.ResponseWriter, r *http.Request) {
-	writeDocumentationError(
-		w,
-		r,
-		http.StatusInternalServerError,
-		ErrorCodeInternalError,
-		"documentation evidence request failed",
-		"",
-	)
+// writeDocumentationReadFailure answers a failed documentation store read.
+// Both stores behind the documentation routes read through the guarded
+// PostgreSQL reader, so WriteGraphReadError runs first: a stale or timed-out
+// reader answers the retryable 503 with Retry-After and names capability.
+// Anything else goes through tracing.ServerFailureEnvelope, which records err
+// on the handler span and answers 500, or 499 with only the client-cancel
+// event when the caller canceled. The body keeps the documentation error
+// shape (error code, fixed documentationReadFailedMessage, correlation id, no
+// capability field); err's text never reaches it.
+func writeDocumentationReadFailure(w http.ResponseWriter, r *http.Request, err error, capability string) {
+	if WriteGraphReadError(w, r, err, capability) {
+		return
+	}
+	status, errEnv := tracing.ServerFailureEnvelope(r.Context(), err, documentationReadFailedMessage, capability)
+	WriteJSON(w, status, documentationErrorBody(r, errEnv.Code, errEnv.Message, ""))
 }
 
 func writeDocumentationPermissionDenied(w http.ResponseWriter, r *http.Request, reason string) {
@@ -381,15 +395,21 @@ func writeDocumentationError(
 	message string,
 	capability string,
 ) {
+	WriteJSON(w, status, documentationErrorBody(r, code, message, capability))
+}
+
+// documentationErrorBody builds the documentation error body: the canonical
+// error envelope when the caller accepts it, else the plain error_code,
+// message, and correlation_id object. An empty capability is left out of both.
+func documentationErrorBody(r *http.Request, code ErrorCode, message, capability string) any {
 	correlationID := documentationCorrelationID(r)
 	if querycontract.AcceptsEnvelope(r) {
-		WriteJSON(w, status, ResponseEnvelope{Error: &ErrorEnvelope{
+		return ResponseEnvelope{Error: &ErrorEnvelope{
 			Code:          code,
 			Message:       message,
 			Capability:    capability,
 			CorrelationID: correlationID,
-		}})
-		return
+		}}
 	}
 	body := map[string]any{
 		"error_code":     code,
@@ -399,7 +419,7 @@ func writeDocumentationError(
 	if capability != "" {
 		body["capability"] = capability
 	}
-	WriteJSON(w, status, body)
+	return body
 }
 
 func writeDocumentationCapabilityError(

@@ -12,6 +12,7 @@ const DocumentationFindingAggregate = `
     "/api/v0/documentation/findings/count": {
       "get": {
         "summary": "Count durable documentation findings without paging the list endpoint",
+        "description": "Counts durable documentation findings by status, truth level, and freshness state. A 503 with Retry-After means a transient condition that is safe to retry: the aggregate read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the documentation finding aggregate store is not configured on this API instance. No 5xx body carries backend error text. A reader-verdict 503 names capability documentation_findings.aggregate in its error envelope.",
         "operationId": "countDocumentationFindings",
         "x-scoped-token-support": true,
         "parameters": [
@@ -41,13 +42,24 @@ const DocumentationFindingAggregate = `
               }
             }
           },
-          "403": {"$ref": "#/components/responses/Forbidden"}
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {
+            "description": "Not implemented: the runtime profile does not support documentation_findings.aggregate (local_lightweight does not). The route answers error code unsupported_capability: the plain body carries error_code, message, capability, and correlation_id, and the envelope carries the same fields plus the current and required profiles.",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+              }
+            }
+          },
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
     "/api/v0/documentation/findings/inventory": {
       "get": {
         "summary": "Group durable documentation findings by one dimension without paging the list endpoint",
+        "description": "Groups durable documentation findings into count buckets by one dimension. A 503 with Retry-After means a transient condition that is safe to retry: the aggregate read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the documentation finding aggregate store is not configured on this API instance. No 5xx body carries backend error text. A reader-verdict 503 names capability documentation_findings.aggregate in its error envelope.",
         "operationId": "getDocumentationFindingInventory",
         "x-scoped-token-support": true,
         "parameters": [
@@ -93,7 +105,17 @@ const DocumentationFindingAggregate = `
               }
             }
           },
-          "403": {"$ref": "#/components/responses/Forbidden"}
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {
+            "description": "Not implemented: the runtime profile does not support documentation_findings.aggregate (local_lightweight does not). The route answers error code unsupported_capability: the plain body carries error_code, message, capability, and correlation_id, and the envelope carries the same fields plus the current and required profiles.",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+              }
+            }
+          },
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
