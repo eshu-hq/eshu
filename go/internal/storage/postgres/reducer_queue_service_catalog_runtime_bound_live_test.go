@@ -5,22 +5,25 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
+	producerreadiness "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/producer"
 )
 
-// Real-queue elapsed-bound proofs for the #7816 runtime fence (amendments A1
-// and A2). The bound runs per repository from the newest in-flight producer
-// row's last-workable time, GREATEST(COALESCE(reopened_at, created_at),
-// COALESCE(last_attempt_at, created_at), COALESCE(visible_at, created_at)),
-// as the real producer readiness store reads it; the catalog row's age never
-// decides. Every producer row here is shaped by production SQL only: Claim
-// (on a clock set in the past), Fail through the real retry path (counting
-// and non-counting classes), ReopenSucceeded, and Ack.
+// Real-queue elapsed-bound proofs for the #7816 runtime fence (amendments A1,
+// A2, and A3). The bound runs per repository from the newest in-flight
+// producer row's last-workable time, GREATEST(COALESCE(reopened_at,
+// created_at), COALESCE(last_attempt_at, created_at), COALESCE(visible_at,
+// created_at), COALESCE(claim_until, created_at)), as the real producer
+// readiness store reads it; the catalog row's age never decides. Every
+// producer row here is shaped by production SQL only: Claim (on a clock set
+// in the past), Heartbeat, Fail through the real retry path (counting and
+// non-counting classes), ReopenSucceeded, and Ack.
 
 // runtimeFenceRetryError is a retryable, counting producer failure, the shape
 // a workload_materialization handler returns on a transient graph error.
@@ -57,7 +60,7 @@ func setRuntimeFenceProducerCreated(t *testing.T, ctx context.Context, p *runtim
 // enqueued createdAgo, claimed claimedAgo on a clock set that far back, then,
 // when cause is non-nil, failed through the real retry path with a backoff of
 // exactly retryDelay. A nil cause leaves the row claimed with a lease of
-// lease, measured from the claim. Fail checks the lease against the database
+// lease, measured from the claim, and returns the claimed intent. Fail checks the lease against the database
 // clock, so a failing case claimed far in the past needs a lease that still
 // holds now; the retry clears it.
 func runtimeFenceProducerAttempt(
@@ -66,7 +69,7 @@ func runtimeFenceProducerAttempt(
 	p *runtimeFenceProof,
 	createdAgo, claimedAgo, retryDelay, lease time.Duration,
 	cause error,
-) {
+) reducer.Intent {
 	t.Helper()
 	setRuntimeFenceProducerCreated(t, ctx, p, createdAgo, "pending")
 	claimClock := time.Now().UTC().Add(-claimedAgo)
@@ -79,13 +82,41 @@ func runtimeFenceProducerAttempt(
 		t.Fatalf("producer Claim() = %v, %v", claimed, err)
 	}
 	if cause == nil {
-		return
+		return intent
 	}
 	if err := producerQueue.Fail(ctx, intent, cause); err != nil {
 		t.Fatalf("producer Fail() error = %v", err)
 	}
 	if status, _, _ := readRuntimeFenceItem(t, ctx, p.db, runtimeFenceProducerItem); status != "retrying" {
 		t.Fatalf("producer row status = %s, want retrying", status)
+	}
+	requireRuntimeFenceRetryAnchor(t, ctx, p)
+	return intent
+}
+
+// requireRuntimeFenceRetryAnchor is amendment A3 proof c: a retry leaves no
+// stale lease behind. claim_until is NULL after the real retry path, so the
+// store's anchor is the later of the last claim and the scheduled
+// visibility.
+func requireRuntimeFenceRetryAnchor(t *testing.T, ctx context.Context, p *runtimeFenceProof) {
+	t.Helper()
+	var claimUntil sql.NullTime
+	var want time.Time
+	if err := p.db.QueryRowContext(ctx,
+		`SELECT claim_until, GREATEST(last_attempt_at, visible_at) FROM fact_work_items WHERE work_item_id = $1`,
+		runtimeFenceProducerItem).Scan(&claimUntil, &want); err != nil {
+		t.Fatalf("read retried producer row: %v", err)
+	}
+	if claimUntil.Valid {
+		t.Fatalf("retried producer claim_until = %s, want NULL", claimUntil.Time)
+	}
+	states, err := producerreadiness.Store{DB: SQLDB{DB: p.db}}.RuntimeProducerStates(ctx,
+		[]string{runtimeFenceRepoID}, []reducer.Domain{reducer.DomainWorkloadMaterialization})
+	if err != nil {
+		t.Fatalf("RuntimeProducerStates() error = %v", err)
+	}
+	if got := states[runtimeFenceRepoID].NewestInFlightWorkableAt; !got.Equal(want) {
+		t.Fatalf("retried producer anchor = %s, want max(last_attempt_at, visible_at) = %s", got, want)
 	}
 }
 
@@ -183,6 +214,8 @@ func TestReducerContentionGateServiceCatalogRuntimeFenceDefersWhileProducerIsWor
 		{"counting backoff until now+10 min", time.Minute, 11 * time.Minute, 10 * time.Minute, runtimeFenceRetryError{}},
 		// d: claimed 1 min ago, lease still live.
 		{"claimed 1 min ago", time.Minute, time.Second, 10 * time.Minute, nil},
+		// A3 b: claimed 30 min ago, lease expired 29 min ago, no heartbeat.
+		{"lease expired 29 min ago", 30 * time.Minute, time.Second, time.Minute, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := newRuntimeFenceProof(t, ctx, dsn, time.Minute)
@@ -224,9 +257,9 @@ func TestReducerContentionGateServiceCatalogRuntimeFenceConvergesAtTheElapsedBou
 			name: "counting retry visible 31 min unclaimed", createdAgo: 45 * time.Minute, claimedAgo: 32 * time.Minute,
 			delay: time.Minute, lease: time.Hour, cause: runtimeFenceRetryError{},
 		},
-		// d: claimed 31 min ago, lease long expired.
+		// A3 b: claimed 32 min ago, lease expired 31 min ago, no heartbeat.
 		{
-			name: "claimed 31 min expired lease", createdAgo: 40 * time.Minute, claimedAgo: 31 * time.Minute,
+			name: "lease expired 31 min ago", createdAgo: 40 * time.Minute, claimedAgo: 32 * time.Minute,
 			delay: time.Second, lease: time.Minute,
 		},
 	} {
@@ -242,6 +275,75 @@ func TestReducerContentionGateServiceCatalogRuntimeFenceConvergesAtTheElapsedBou
 			requireRuntimeFenceCommit(t, ctx, p, queue, intent, handleErr)
 		})
 	}
+}
+
+// runtimeFenceProducerLease reads the producer row's last claim and lease.
+func runtimeFenceProducerLease(t *testing.T, ctx context.Context, p *runtimeFenceProof) (time.Time, time.Time) {
+	t.Helper()
+	var lastAttempt, claimUntil time.Time
+	if err := p.db.QueryRowContext(ctx,
+		`SELECT last_attempt_at, claim_until FROM fact_work_items WHERE work_item_id = $1`,
+		runtimeFenceProducerItem).Scan(&lastAttempt, &claimUntil); err != nil {
+		t.Fatalf("read producer lease: %v", err)
+	}
+	return lastAttempt, claimUntil
+}
+
+// TestReducerContentionGateServiceCatalogRuntimeFenceDefersWhileProducerLeaseIsLive
+// is amendment A3 proofs a and d. Heartbeat writes only claim_until and
+// updated_at, so a producer run that started 31 minutes ago and still
+// heartbeats has last_attempt_at 31 minutes old; the A2 anchor read it as
+// past the bound and committed an empty family. claim_until is the fourth
+// anchor term: a live lease keeps the catalog deferring. A second owner that
+// reclaims an expired lease refreshes last_attempt_at and claim_until, so it
+// defers again.
+func TestReducerContentionGateServiceCatalogRuntimeFenceDefersWhileProducerLeaseIsLive(t *testing.T) {
+	dsn := reducerDomainFairnessDSN()
+	if dsn == "" {
+		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the contention gate")
+	}
+	ctx := context.Background()
+
+	t.Run("claimed 31 min ago, heartbeated now", func(t *testing.T) {
+		p := newRuntimeFenceProof(t, ctx, dsn, time.Minute)
+		// The lease must still be live for the heartbeat to be accepted, as
+		// it is for a worker that heartbeats every 30 s.
+		claimClock := time.Now().UTC().Add(-31 * time.Minute)
+		producerIntent := runtimeFenceProducerAttempt(t, ctx, p, 45*time.Minute, 31*time.Minute, time.Second,
+			31*time.Minute+30*time.Second, nil)
+		heartbeat := runtimeFenceQueue(p.db, "workload-worker", reducer.DomainWorkloadMaterialization, nil)
+		if err := heartbeat.Heartbeat(ctx, producerIntent); err != nil {
+			t.Fatalf("producer Heartbeat() error = %v", err)
+		}
+		lastAttempt, claimUntil := runtimeFenceProducerLease(t, ctx, p)
+		if lastAttempt.After(claimClock.Add(time.Minute)) || time.Until(claimUntil) < 30*time.Second {
+			t.Fatalf("producer row last_attempt_at %s ago, claim_until in %s; want about 31 min ago and about 1 min ahead",
+				time.Since(lastAttempt), time.Until(claimUntil))
+		}
+		queue := runtimeFenceQueue(p.db, "catalog-young", reducer.DomainServiceCatalogCorrelation, nil)
+		intent, handleErr := claimAndHandleRuntimeFence(t, ctx, p, queue)
+		requireRuntimeFenceDeferral(t, ctx, p, queue, intent, handleErr)
+	})
+
+	t.Run("reclaimed by a second owner after the lease expired", func(t *testing.T) {
+		p := newRuntimeFenceProof(t, ctx, dsn, time.Minute)
+		// The first owner claimed 40 min ago and died: its lease expired 39
+		// min ago.
+		runtimeFenceProducerAttempt(t, ctx, p, 45*time.Minute, 40*time.Minute, time.Second, time.Minute, nil)
+		second := runtimeFenceQueue(p.db, "workload-worker-b", reducer.DomainWorkloadMaterialization, nil)
+		second.LeaseDuration = 10 * time.Minute
+		if _, claimed, err := second.Claim(ctx); err != nil || !claimed {
+			t.Fatalf("second owner Claim() = %v, %v, want the expired lease reclaimed", claimed, err)
+		}
+		lastAttempt, claimUntil := runtimeFenceProducerLease(t, ctx, p)
+		if time.Since(lastAttempt) > time.Minute || time.Until(claimUntil) < 9*time.Minute {
+			t.Fatalf("reclaimed producer last_attempt_at %s ago, claim_until in %s; want now and about 10 min ahead",
+				time.Since(lastAttempt), time.Until(claimUntil))
+		}
+		queue := runtimeFenceQueue(p.db, "catalog-young", reducer.DomainServiceCatalogCorrelation, nil)
+		intent, handleErr := claimAndHandleRuntimeFence(t, ctx, p, queue)
+		requireRuntimeFenceDeferral(t, ctx, p, queue, intent, handleErr)
+	})
 }
 
 // TestReducerContentionGateServiceCatalogRuntimeFenceReopenedProducerWaits is

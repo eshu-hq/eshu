@@ -33,13 +33,19 @@ import (
 // The wait is bounded by crossscope.ProducerReadinessMaxWait, measured per
 // in-flight repository from the newest in-flight producer row's last-workable
 // time, GREATEST(COALESCE(reopened_at, created_at), COALESCE(last_attempt_at,
-// created_at), COALESCE(visible_at, created_at)). The handler proceeds only
-// when every in-flight repository is past the bound; it then commits the
-// runtime evidence it reads, which can be an empty family. The catalog
-// intent's own cycle anchor is log-only: it also counts queue wait and
-// corpus-fence wait. A producer row that is polling a non-counting readiness
-// class refreshes its anchor on every attempt and never counts as exceeded
-// while it polls; only a row no worker has touched for 30 minutes does. A
+// created_at), COALESCE(visible_at, created_at), COALESCE(claim_until,
+// created_at)): the latest of its cycle start, last claim, scheduled
+// visibility, and lease expiry. claim_until is non-NULL only on claimed and
+// running rows: a claim sets it, a heartbeat extends it, and retry, ack,
+// fail, and dead-letter set it NULL. The handler proceeds only when every
+// in-flight repository is past the bound; it then commits the runtime
+// evidence it reads, which can be an empty family. The catalog intent's own
+// cycle anchor is log-only: it also counts queue wait and corpus-fence wait.
+// A producer row that is polling a non-counting readiness class, or whose
+// worker heartbeats, refreshes its anchor and never counts as exceeded; only
+// a starved row or a dead worker's row whose lease expired 30 minutes ago
+// does. A handler that heartbeats forever without finishing therefore holds
+// the catalog: that is the reducer lease policy's gap, tracked in #8211. A
 // zero producer anchor means elapsed time is unknown and keeps deferring.
 const RuntimeNotReadyFailureClass = "service_catalog_correlation_runtime_not_ready"
 
@@ -57,8 +63,9 @@ const (
 	// and the intent deferred with nothing written.
 	RuntimeReadinessDeferred = "deferred"
 	// RuntimeReadinessBoundExceeded means every in-flight producer row had
-	// gone at least crossscope.ProducerReadinessMaxWait with no worker
-	// attempt, measured from its last-workable time, and the handler
+	// gone at least crossscope.ProducerReadinessMaxWait with no claim,
+	// heartbeat, scheduled visibility, or cycle start, measured from its
+	// last-workable time, and the handler
 	// proceeded with the runtime evidence it could read, possibly an empty
 	// family.
 	RuntimeReadinessBoundExceeded = "bound_exceeded"
@@ -93,11 +100,16 @@ type RuntimeProducerState struct {
 	// NewestInFlightWorkableAt is the latest last-workable time across the
 	// repository's in-flight producer rows. A row's last-workable time is
 	// GREATEST(COALESCE(reopened_at, created_at), COALESCE(last_attempt_at,
-	// created_at), COALESCE(visible_at, created_at)): the latest of its cycle
-	// start, its last claim, and its scheduled visibility. It can lie in the
-	// future while a retry backoff sleeps. It is zero when no producer row is
-	// in flight.
+	// created_at), COALESCE(visible_at, created_at), COALESCE(claim_until,
+	// created_at)): the latest of its cycle start, last claim, scheduled
+	// visibility, and lease expiry. It can lie in the future while a retry
+	// backoff sleeps or a lease is live. It is zero when no producer row is in
+	// flight.
 	NewestInFlightWorkableAt time.Time
+	// NewestInFlightClaimUntil is the latest lease end (claim_until) across
+	// the repository's in-flight producer rows. claim_until is set only on
+	// claimed and running rows, so it is zero when none holds a lease.
+	NewestInFlightClaimUntil time.Time
 }
 
 // InFlight reports how many producer work items are not yet terminal.
@@ -225,7 +237,9 @@ func runtimeProducerBound(
 }
 
 // runtimeReadinessInFlight returns the repositories with in-flight producer
-// work, in repoIDs order, and the summed state across every repository.
+// work, in repoIDs order, and the summed state across every repository. The
+// summed state's NewestInFlightClaimUntil is the latest lease end of any
+// repository, for the log line; its NewestInFlightWorkableAt stays zero.
 func runtimeReadinessInFlight(
 	repoIDs []string,
 	states map[string]RuntimeProducerState,
@@ -239,6 +253,9 @@ func runtimeReadinessInFlight(
 		totals.Claimed += state.Claimed
 		totals.Running += state.Running
 		totals.Total += state.Total
+		if state.NewestInFlightClaimUntil.After(totals.NewestInFlightClaimUntil) {
+			totals.NewestInFlightClaimUntil = state.NewestInFlightClaimUntil
+		}
 		if state.InFlight() > 0 {
 			inFlight = append(inFlight, repoID)
 		}
@@ -271,9 +288,12 @@ func (h ServiceCatalogCorrelationHandler) recordRuntimeReadiness(ctx context.Con
 }
 
 // logRuntimeReadiness writes the defer or bound-exceeded line. It carries
-// producer_elapsed (since the oldest in-flight repository's workable anchor)
-// against producer_max_wait, which is the pair the decision uses, and
-// elapsed_since_cycle_start of the catalog intent for context only. It never
+// producer_elapsed (since the oldest in-flight repository's workable anchor;
+// negative when that anchor lies in the future, as during a retry backoff or
+// a live lease) against producer_max_wait, which is the pair the decision
+// uses, producer_newest_claim_until (the latest in-flight lease end, when any
+// producer holds a lease), and elapsed_since_cycle_start of the catalog
+// intent for context only. It never
 // carries attempt_count, which the non-counting class freezes. Producer states
 // are summed counts; the in-flight repository ids are bounded to the first
 // runtimeReadinessLogRepoSample.
@@ -309,6 +329,9 @@ func logRuntimeReadiness(
 	}
 	if !oldestProducerWorkable.IsZero() {
 		attrs = append(attrs, slog.Duration("producer_elapsed", now.Sub(oldestProducerWorkable)))
+	}
+	if !totals.NewestInFlightClaimUntil.IsZero() {
+		attrs = append(attrs, slog.Time("producer_newest_claim_until", totals.NewestInFlightClaimUntil))
 	}
 	if anchor := crossscope.ReadinessCycleAnchor(intent); !anchor.IsZero() {
 		attrs = append(attrs, slog.Duration("elapsed_since_cycle_start", now.Sub(anchor)))

@@ -117,22 +117,26 @@ func TestReducerContentionGateRuntimeProducerStatesActiveGenerationOnly(t *testi
 }
 
 // TestReducerContentionGateRuntimeProducerStatesNewestInFlightWorkableAt pins
-// the elapsed-bound anchor the fence reads (#7816 amendment A2): per
+// the elapsed-bound anchor the fence reads (#7816 amendments A2 and A3): per
 // repository, the latest last-workable time across in-flight
 // active-generation producer rows, where a row's last-workable time is
 // GREATEST(COALESCE(reopened_at, created_at), COALESCE(last_attempt_at,
-// created_at), COALESCE(visible_at, created_at)). A terminal row and a newer
-// pending generation never move it; a claim, a scheduled retry, and a reopen
-// each do, and a retry still sleeping anchors in the future.
+// created_at), COALESCE(visible_at, created_at), COALESCE(claim_until,
+// created_at)). A terminal row and a newer pending generation never move it;
+// a claim, a scheduled retry, a reopen, and a heartbeated lease each do, and
+// a sleeping retry or a live lease anchors in the future. It also pins the
+// newest in-flight claim_until the log line reports.
 func TestReducerContentionGateRuntimeProducerStatesNewestInFlightWorkableAt(t *testing.T) {
 	sqlDB, ctx := runtimeProducerStoreLiveDB(t)
 	suffix := time.Now().UnixNano()
 	mixed := fmt.Sprintf("repository:r_anchor_mixed_%d", suffix)
 	reopened := fmt.Sprintf("repository:r_anchor_reopened_%d", suffix)
 	sleeping := fmt.Sprintf("repository:r_anchor_sleeping_%d", suffix)
+	heartbeating := fmt.Sprintf("repository:r_anchor_heartbeating_%d", suffix)
 	seedRuntimeProducerScope(t, ctx, sqlDB, mixed, "succeeded", "pending", "pending")
 	seedRuntimeProducerScope(t, ctx, sqlDB, reopened, "", "pending", "")
 	seedRuntimeProducerScope(t, ctx, sqlDB, sleeping, "", "pending", "")
+	seedRuntimeProducerScope(t, ctx, sqlDB, heartbeating, "", "pending", "")
 	base := time.Now().UTC().Truncate(time.Microsecond)
 	ago := func(d time.Duration) time.Time { return base.Add(-d) }
 	exec := func(query string, args ...any) {
@@ -146,21 +150,21 @@ func TestReducerContentionGateRuntimeProducerStatesNewestInFlightWorkableAt(t *t
 	exec(`UPDATE fact_work_items SET created_at = $2, updated_at = $2 WHERE work_item_id = $1`,
 		"wm-"+mixedGen, ago(40*time.Minute))
 	// Three more rows at the same generation, shaped like the queue writes
-	// them: a retrying row (claimed 20 min ago, retry visible 10 min ago), a
-	// claimed row (claimed 15 min ago), and a terminal row (1 min ago) that
-	// must not count.
+	// them: a retrying row (claimed 20 min ago, retry visible 10 min ago,
+	// lease cleared), a claimed row (claimed 15 min ago, lease expired 14 min
+	// ago), and a terminal row (1 min ago) that must not count.
 	for _, row := range []struct {
-		id, status                string
-		created, attempt, visible any
+		id, status                        string
+		created, attempt, visible, cuntil any
 	}{
-		{"wm2-" + mixedGen, "retrying", ago(50 * time.Minute), ago(20 * time.Minute), ago(10 * time.Minute)},
-		{"wm3-" + mixedGen, "claimed", ago(60 * time.Minute), ago(15 * time.Minute), nil},
-		{"wm4-" + mixedGen, "succeeded", ago(time.Minute), ago(time.Minute), nil},
+		{"wm2-" + mixedGen, "retrying", ago(50 * time.Minute), ago(20 * time.Minute), ago(10 * time.Minute), nil},
+		{"wm3-" + mixedGen, "claimed", ago(60 * time.Minute), ago(15 * time.Minute), nil, ago(14 * time.Minute)},
+		{"wm4-" + mixedGen, "succeeded", ago(time.Minute), ago(time.Minute), nil, nil},
 	} {
 		exec(`INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage, domain, conflict_domain,
-		        conflict_key, status, payload, created_at, updated_at, last_attempt_at, visible_at)
-		      VALUES ($1, $2, $3, 'reducer', 'workload_materialization', 'platform_graph', $1, $4, '{}'::jsonb, $5, $5, $6, $7)`,
-			row.id, mixedScope, mixedGen, row.status, row.created, row.attempt, row.visible)
+		        conflict_key, status, payload, created_at, updated_at, last_attempt_at, visible_at, claim_until)
+		      VALUES ($1, $2, $3, 'reducer', 'workload_materialization', 'platform_graph', $1, $4, '{}'::jsonb, $5, $5, $6, $7, $8)`,
+			row.id, mixedScope, mixedGen, row.status, row.created, row.attempt, row.visible, row.cuntil)
 	}
 	// The reopened repository's row was enqueued two hours ago, last claimed
 	// 90 minutes ago, and reopened (reopened_at and visible_at) 5 minutes ago.
@@ -172,19 +176,35 @@ func TestReducerContentionGateRuntimeProducerStatesNewestInFlightWorkableAt(t *t
 	exec(`UPDATE fact_work_items SET status = 'retrying', created_at = $2, last_attempt_at = $3, visible_at = $4,
 	        next_attempt_at = $4, updated_at = $3 WHERE work_item_id = $1`,
 		"wm-"+sleeping+"-gen-1", ago(45*time.Minute), ago(time.Minute), base.Add(10*time.Minute))
+	// The heartbeating repository's row was claimed 45 minutes ago and its
+	// worker still heartbeats: the lease ends 1 minute from now.
+	exec(`UPDATE fact_work_items SET status = 'running', lease_owner = 'worker', created_at = $2, last_attempt_at = $3,
+	        claim_until = $4, updated_at = $3 WHERE work_item_id = $1`,
+		"wm-"+heartbeating+"-gen-1", ago(time.Hour), ago(45*time.Minute), base.Add(time.Minute))
 
 	states, err := producerreadiness.Store{DB: SQLDB{DB: sqlDB}}.RuntimeProducerStates(ctx,
-		[]string{mixed, reopened, sleeping}, []reducercontract.Domain{reducercontract.DomainWorkloadMaterialization})
+		[]string{mixed, reopened, sleeping, heartbeating}, []reducercontract.Domain{reducercontract.DomainWorkloadMaterialization})
 	if err != nil {
 		t.Fatalf("RuntimeProducerStates() error = %v", err)
 	}
 	for repoID, want := range map[string]time.Time{
-		mixed:    ago(10 * time.Minute),
-		reopened: ago(5 * time.Minute),
-		sleeping: base.Add(10 * time.Minute),
+		mixed:        ago(10 * time.Minute),
+		reopened:     ago(5 * time.Minute),
+		sleeping:     base.Add(10 * time.Minute),
+		heartbeating: base.Add(time.Minute),
 	} {
 		if got := states[repoID].NewestInFlightWorkableAt; !got.Equal(want) {
 			t.Fatalf("%s anchor = %s, want %s (state %+v)", repoID, got, want, states[repoID])
+		}
+	}
+	for repoID, want := range map[string]time.Time{
+		mixed:        ago(14 * time.Minute),
+		reopened:     {},
+		sleeping:     {},
+		heartbeating: base.Add(time.Minute),
+	} {
+		if got := states[repoID].NewestInFlightClaimUntil; !got.Equal(want) {
+			t.Fatalf("%s newest claim_until = %s, want %s", repoID, got, want)
 		}
 	}
 	if got := states[mixed]; got.Pending != 1 || got.Retrying != 1 || got.Claimed != 1 || got.Total != 4 {

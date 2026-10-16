@@ -58,15 +58,17 @@ func TestServiceCatalogRuntimeReadinessCounterRecordsEveryOutcome(t *testing.T) 
 // TestServiceCatalogRuntimeFenceLogsDeferral pins the operator log line: the
 // deferral goes to the wired logger with the in-flight repository ids
 // (bounded sample), summed producer state counts, the producer's elapsed time
-// against the bound the decision uses, and the catalog cycle's elapsed time
-// for context, and never attempt_count, which the non-counting class freezes.
+// against the bound the decision uses, the newest in-flight producer lease
+// end (amendment A3), and the catalog cycle's elapsed time for context, and
+// never attempt_count, which the non-counting class freezes.
 func TestServiceCatalogRuntimeFenceLogsDeferral(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
-	h := newRuntimeFenceHarness(map[string]RuntimeProducerState{
-		"repo-checkout": producerInFlight(RuntimeProducerState{Claimed: 1, Pending: 2, Total: 3}, 2*time.Minute),
-	}, nil)
+	state := producerInFlight(RuntimeProducerState{Claimed: 1, Pending: 2, Total: 3}, 2*time.Minute)
+	leaseEnd := runtimeFenceNow.Add(-90 * time.Second)
+	state.NewestInFlightClaimUntil = leaseEnd
+	h := newRuntimeFenceHarness(map[string]RuntimeProducerState{"repo-checkout": state}, nil)
 	h.handler.Logger = slog.New(slog.NewJSONHandler(&buf, nil))
 	if _, err := h.handler.Handle(context.Background(), runtimeFenceIntent(45*time.Minute)); err == nil {
 		t.Fatal("Handle() error = nil, want a deferral")
@@ -88,6 +90,9 @@ func TestServiceCatalogRuntimeFenceLogsDeferral(t *testing.T) {
 		if got := line[key]; got != want {
 			t.Errorf("log %s = %#v, want %#v", key, got, want)
 		}
+	}
+	if got, want := line["producer_newest_claim_until"], leaseEnd.Format(time.RFC3339Nano); got != want {
+		t.Errorf("log producer_newest_claim_until = %#v, want %#v", got, want)
 	}
 	if ids, _ := line["in_flight_repo_ids"].([]any); len(ids) != 1 || ids[0] != "repo-checkout" {
 		t.Errorf("log in_flight_repo_ids = %#v, want [repo-checkout]", line["in_flight_repo_ids"])

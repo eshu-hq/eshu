@@ -73,9 +73,10 @@ func TestRuntimeProducerStatesMapsRepositoriesToScopesAndBack(t *testing.T) {
 	t.Parallel()
 
 	workableAt := time.Date(2026, time.October, 15, 11, 59, 0, 0, time.UTC)
+	leaseEnd := workableAt.Add(time.Minute)
 	fake := &fakeQueryer{rows: [][]any{
-		{"git-repository-scope:repository:r_a", 1, 0, 2, 0, 4, workableAt},
-		{"git-repository-scope:repository:r_c", 0, 0, 0, 0, 2, nil},
+		{"git-repository-scope:repository:r_a", 1, 0, 2, 0, 4, workableAt, leaseEnd},
+		{"git-repository-scope:repository:r_c", 0, 0, 0, 0, 2, nil, nil},
 	}}
 	states, err := Store{DB: fake}.RuntimeProducerStates(context.Background(),
 		[]string{"repository:r_a", " repository:r_b ", "repository:r_a", "", "repository:r_c"}, workloadProducer)
@@ -89,7 +90,7 @@ func TestRuntimeProducerStatesMapsRepositoriesToScopesAndBack(t *testing.T) {
 		t.Fatalf("domains = %v, want %v", got, want)
 	}
 	want := map[string]servicecatalog.RuntimeProducerState{
-		"repository:r_a": {Pending: 1, Claimed: 2, Total: 4, NewestInFlightWorkableAt: workableAt},
+		"repository:r_a": {Pending: 1, Claimed: 2, Total: 4, NewestInFlightWorkableAt: workableAt, NewestInFlightClaimUntil: leaseEnd},
 		"repository:r_c": {Total: 2},
 	}
 	if !reflect.DeepEqual(states, want) {
@@ -99,7 +100,9 @@ func TestRuntimeProducerStatesMapsRepositoriesToScopesAndBack(t *testing.T) {
 		"work.generation_id = scope.active_generation_id",
 		"max(GREATEST(COALESCE(work.reopened_at, work.created_at),",
 		"COALESCE(work.last_attempt_at, work.created_at),",
-		"COALESCE(work.visible_at, work.created_at)))",
+		"COALESCE(work.visible_at, work.created_at),",
+		"COALESCE(work.claim_until, work.created_at)))",
+		"max(work.claim_until)",
 		"FILTER (WHERE work.status IN ('pending', 'retrying', 'claimed', 'running'))",
 	} {
 		if !strings.Contains(fake.query, fragment) {
@@ -136,7 +139,7 @@ func TestRuntimeProducerStatesReturnsErrorsNeverEmptyState(t *testing.T) {
 		context.Background(), []string{"repository:r_a"}, workloadProducer); err == nil {
 		t.Fatal("query error swallowed; a store that cannot answer must return an error")
 	}
-	unrequested := &fakeQueryer{rows: [][]any{{"git-repository-scope:repository:r_z", 0, 0, 0, 0, 1, nil}}}
+	unrequested := &fakeQueryer{rows: [][]any{{"git-repository-scope:repository:r_z", 0, 0, 0, 0, 1, nil, nil}}}
 	if _, err := (Store{DB: unrequested}).RuntimeProducerStates(
 		context.Background(), []string{"repository:r_a"}, workloadProducer); err == nil {
 		t.Fatal("row for an unrequested scope accepted")

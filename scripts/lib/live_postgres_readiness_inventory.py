@@ -294,6 +294,7 @@ PACKAGES = {
         "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_bound_live_test.go": (
             "TestReducerContentionGateServiceCatalogRuntimeFenceBoundsOnProducerNotCatalogAge",
             "TestReducerContentionGateServiceCatalogRuntimeFenceDefersWhileProducerIsWorked",
+            "TestReducerContentionGateServiceCatalogRuntimeFenceDefersWhileProducerLeaseIsLive",
             "TestReducerContentionGateServiceCatalogRuntimeFenceConvergesAtTheElapsedBound",
             "TestReducerContentionGateServiceCatalogRuntimeFenceReopenedProducerWaits",
         ),
