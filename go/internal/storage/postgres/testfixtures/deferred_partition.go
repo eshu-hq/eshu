@@ -120,6 +120,9 @@ CREATE TABLE deferred_backfill_partition_memo (
 );
 `
 
+// OpenDeferredPartitionMemoProofDB creates a pool for the PostgreSQL DSN and
+// closes it at test cleanup. Its single connection preserves the proof schema's
+// session search_path across fixture queries and backfill callbacks.
 func OpenDeferredPartitionMemoProofDB(t *testing.T, dsn string) *sql.DB {
 	t.Helper()
 	db, err := sql.Open("pgx", dsn)
@@ -137,6 +140,10 @@ func OpenDeferredPartitionMemoProofDB(t *testing.T, dsn string) *sql.DB {
 	return db
 }
 
+// ProvisionDeferredPartitionMemoSchema creates an isolated proof schema, sets
+// the connection's search_path, and installs the memo tables. It returns the
+// schema name and registers its removal before the test closes the connection.
+// Any schema or table setup error fails the test.
 func ProvisionDeferredPartitionMemoSchema(t *testing.T, db *sql.DB) string {
 	t.Helper()
 	ctx := context.Background()
@@ -227,6 +234,10 @@ type MemoProofFixture struct {
 	RepoName string
 }
 
+// SeedMemoProofScopesAndFacts inserts scopes, generations, repository facts,
+// and content references for the supplied fixtures. Repeated inserts preserve
+// existing rows; crossRefs maps each source repository ID to a target alias.
+// Unknown source repository IDs and insert errors fail the test.
 func SeedMemoProofScopesAndFacts(
 	t *testing.T,
 	ctx context.Context,
