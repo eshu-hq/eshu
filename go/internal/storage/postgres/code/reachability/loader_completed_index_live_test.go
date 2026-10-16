@@ -82,6 +82,8 @@ WHERE c.relname = $1`, completedIntentsIndexName).Scan(&valid, &ready)
 		t.Fatalf("begin explain transaction: %v", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	// Staged planner: this checks the query predicate is servable by the new
+	// index, not natural planner choice (proven separately at corpus scale).
 	if _, err := tx.ExecContext(ctx, `SET LOCAL enable_seqscan = off`); err != nil {
 		t.Fatalf("disable sequential scan for plan proof: %v", err)
 	}
