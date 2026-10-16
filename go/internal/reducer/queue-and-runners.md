@@ -35,11 +35,37 @@ States: `pending` → `claimed` → `running` → `succeeded` / `failed`.
 - **Heartbeat**: `startHeartbeat` (`service.go:409`) spawns a goroutine
   that calls `Heartbeat` at `HeartbeatInterval`; the heartbeat is stopped
   before `Ack` or `Fail` to avoid lease extension after the transaction
-  commits.
+  commits. A handler that never returns is abandoned at shutdown instead of
+  holding its item (see below).
 
 `Service.Run` also starts `SharedProjectionRunner`, `CodeCallProjectionRunner`,
 `RepoDependencyProjectionRunner`, and `GraphProjectionPhaseRepairer` as
 concurrent goroutines. Any runner error cancels the shared context.
+
+### Handler abandonment at shutdown (#8211, step a)
+
+The worker runs `Executor.Execute` in a goroutine (`executeHandler` in
+`service_heartbeat.go`) and waits for either its return or shutdown. When
+shutdown arrives first with no handler outcome available, the worker stops
+the lease heartbeat and then fails the intent through the normal `Fail`
+triage, under the counting retryable class
+`reducer_handler_abandoned_at_shutdown`: the item is retried under the normal
+attempt budget, never dead-lettered on the spot. A handler outcome that is
+already available when shutdown lands still wins over abandonment, so work
+that already succeeded is never failed into a duplicate retry. There is
+deliberately no deadline branch yet — worst-case handler durations are still
+unmeasured — so shutdown is the only release; completed executions are timed
+on `eshu_dp_reducer_handler_duration_seconds` by domain to set the future
+per-domain bound (`ESHU_REDUCER_HANDLER_TIMEOUT`,
+`ESHU_REDUCER_HANDLER_TIMEOUT_OVERRIDES`, recorded but not enforced).
+
+Residual risk: an abandoned handler that later returns may still commit graph
+writes after `Fail` released the item. Queue mutations are rejected by the
+lease fence (#7142), but graph writes are only safe when the handler writes
+idempotently (MERGE).
+
+The #7816 runtime fence is untouched: it still treats a heartbeating producer
+row as live, and this step adds no deadline that would change its bound.
 
 ## Cross-scope producer completion
 
