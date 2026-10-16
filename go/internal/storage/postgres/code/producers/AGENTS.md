@@ -26,11 +26,16 @@
   matches one kind would widen another.
 - Keep the three manifest statements MATERIALIZED. go.mod stays unfiltered by
   path (discovery already prunes `vendor/`); composer.json excludes `vendor/`
-  and package.json excludes `node_modules*`.
+  and fixture-style directories, and package.json excludes `node_modules*`.
 - `ComposerManifestName` must stay a thin call to
   `internal/parser/php/composer.ManifestName`, the rule the PHP parser stamps
   `package_id` with. `TestComposerManifestNameMatchesThePackageIDTheParserStamps`
   drives the parser to pin it.
+- The composer fixture exclusion in `ComposerManifestsQuery` is
+  `composer.FixtureDirPattern`, concatenated into the SQL, never retyped. The
+  parser's `ProducerPackage` applies the same constant, so the anchor and the
+  `package_id` stamp agree. Keep it a row filter: it needs no index
+  (`docs/internal/evidence/8223-composer-fixture-manifests.md`).
 - Composer names and npm names must stay disjoint (`composer.ValidPackageName`
   requires one `/` and no leading `@`); `PackageScopeIDs` routes on it.
 - Never import the parent `postgres` package from non-test code.

@@ -12,6 +12,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/php/composer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -82,7 +83,9 @@ func TestPackageScopeIDsReadsOnlyComposerManifestsForComposerKeys(t *testing.T) 
 
 // TestComposerManifestsQueryShape pins the statement's load-bearing parts: the
 // MATERIALIZED CTE (one content_files read), the composer.json path
-// predicates, the vendor/ exclusion, and the generation-tag columns.
+// predicates, the vendor/ exclusion, the fixture-directory exclusion (#8223,
+// the pattern the parser's ProducerPackage shares), and the generation-tag
+// columns.
 func TestComposerManifestsQueryShape(t *testing.T) {
 	t.Parallel()
 
@@ -90,6 +93,7 @@ func TestComposerManifestsQueryShape(t *testing.T) {
 		"WITH manifest AS MATERIALIZED (",
 		"relative_path = 'composer.json' OR relative_path LIKE '%/composer.json'",
 		"relative_path !~ '(^|/)vendor/'",
+		"relative_path !~* '" + composer.FixtureDirPattern + "'",
 		"WHEN tagged.tag_activated_at IS NOT NULL THEN 'clean'",
 		"SELECT scope.scope_id, NULL, 'manifest_less'",
 	} {

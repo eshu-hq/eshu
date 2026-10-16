@@ -20,7 +20,8 @@ API, OpenAPI, or MCP code changed.
   fully qualified name. This needs an `autoload.psr-4` prefix of that manifest
   that covers the class with the file at exactly the mapped directory plus the
   namespace remainder plus `.php`. A public static class method gets
-  `export_name` `<FQCN>::<method>`. Nothing is keyed under `vendor/`, for
+  `export_name` `<FQCN>::<method>`. Nothing is keyed under `vendor/` or under a tests, fixtures, testdata, or
+  examples directory (#8223), for
   `autoload-dev` (composer loads it for the root package only), classmap,
   psr-0, or the empty fallback prefix, for traits, enums (the adapter emits no
   enum entities), or free functions, or in a file with more than one namespace
