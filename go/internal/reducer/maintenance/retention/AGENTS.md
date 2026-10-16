@@ -25,11 +25,17 @@ transitively.
   of the poll interval when the policy sets none (#7427), so one pass's
   committed pre-delete batches end well before the next poll. Keep the
   configured policy unchanged; copy it per pass.
+- `RunOnce` runs the search index orphan sweep (#7427 PR2) only after
+  `PruneSupersededGenerations` returns, never inside it, so the sweep never
+  holds or waits on a retention scope lock. Keep the poll-interval cadence
+  gate (`TestGenerationRetentionRunnerSweepsOrphansOncePerPollInterval`).
 
 ## Gates that will fire on your change
 
-- **`verify-telemetry-coverage.sh`** — `runner.go` needs its row in
-  `docs/public/observability/telemetry-coverage.md`, keyed by file path.
+- **`verify-telemetry-coverage.sh`** — every non-test file here is covered
+  by the `generation retention` row in
+  `docs/public/observability/telemetry-coverage.md`, keyed by the glob
+  `go/internal/reducer/maintenance/retention/*.go`.
 - **`verify-performance-evidence.sh`** — fires on this path (batching,
   retention transaction). Markers must be unbolded and line-initial in
   a tracked note.

@@ -6,9 +6,11 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	indexretention "github.com/eshu-hq/eshu/go/internal/storage/postgres/search/index/retention"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
@@ -232,5 +234,57 @@ func TestGenerationRetentionCandidateReadQueryPreparesLive(t *testing.T) {
 	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.ExecContext(ctx, generationRetentionSearchIndexReadWorkMemStatement); err != nil {
 		t.Fatalf("search index candidate read work_mem statement: %v", err)
+	}
+}
+
+// TestGenerationFreshnessFailsClosedForAPrunedGenerationLive is the #7427 c3
+// proof against the migrated schema. A scope whose active generation failed
+// has a NULL active pointer; retention then removes one of its superseded
+// generations. A late search-document writer for that generation must
+// abandon: the freshness check returns (false, nil). On main it returned
+// (true, nil) and only the terms generation foreign key, which #7427 PR3
+// drops, rejected the write. The other branches keep their contract: the
+// active generation is current, a pending first generation defers with the
+// not-yet-active error, a pruned generation of a scope with an active
+// pointer is superseded, and an unknown scope stays current (its write is
+// rejected by the scope_id foreign key, TestOrphanLiveUnknownScopeWriteIsRejected).
+func TestGenerationFreshnessFailsClosedForAPrunedGenerationLive(t *testing.T) {
+	bridgeRetentionFamilyDSN(t)
+	database, ctx := openGenerationRetentionMigratedSchema(t)
+	now := time.Now().UTC()
+	scopeID := "scope-7427c3-" + now.Format("150405.000000000")
+	activeID, oldID, prunedID := scopeID+"-active", scopeID+"-old", scopeID+"-pruned"
+	testfixtures.SeedScope(t, ctx, database, scopeID)
+	testfixtures.SeedSupersededGeneration(t, ctx, database, scopeID, oldID, now.Add(-10*24*time.Hour))
+	testfixtures.SeedSupersededGeneration(t, ctx, database, scopeID, prunedID, now.Add(-20*24*time.Hour))
+	check := NewGenerationFreshnessCheck(SQLDB{DB: database})
+	assertCheck := func(name, generationID string, wantCurrent, wantNotYetActive bool) {
+		t.Helper()
+		current, err := check(ctx, scopeID, generationID)
+		if current != wantCurrent || errors.Is(err, reducercontract.ErrGenerationNotYetActive) != wantNotYetActive ||
+			(err != nil) != wantNotYetActive {
+			t.Fatalf("%s: check(%s) = (%v, %v), want current=%v not-yet-active=%v",
+				name, generationID, current, err, wantCurrent, wantNotYetActive)
+		}
+	}
+
+	assertCheck("active generation", activeID, true, false)
+	execRetentionSeed(t, ctx, database, `DELETE FROM scope_generations WHERE generation_id = $1`, prunedID)
+	assertCheck("pruned generation behind an active pointer", prunedID, false, false)
+
+	// The active generation fails: failProjectorWorkQuery marks it failed
+	// and clears the pointer.
+	execRetentionSeed(t, ctx, database, `UPDATE scope_generations SET status = 'failed' WHERE generation_id = $1`, activeID)
+	execRetentionSeed(t, ctx, database, `UPDATE ingestion_scopes SET active_generation_id = NULL WHERE scope_id = $1`, scopeID)
+	assertCheck("pruned generation behind a NULL pointer", prunedID, false, false)
+	assertCheck("superseded generation behind a NULL pointer", oldID, false, false)
+
+	pendingID := scopeID + "-pending"
+	execRetentionSeed(t, ctx, database, `INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status)
+VALUES ($1, $2, 'snapshot', now(), now(), 'pending')`, pendingID, scopeID)
+	assertCheck("pending first generation", pendingID, false, true)
+
+	if current, err := check(ctx, "scope-unknown-7427c3", prunedID); !current || err != nil {
+		t.Fatalf("check(unknown scope) = (%v, %v), want (true, nil)", current, err)
 	}
 }

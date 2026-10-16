@@ -34,9 +34,10 @@ const (
 	// OutcomeLockBusy: another pass or a prune transaction holds the
 	// generation's advisory lock; this pass leaves it alone.
 	OutcomeLockBusy Outcome = "advisory_lock_busy"
-	// OutcomeIneligible: the generation is no longer a superseded,
-	// non-active generation without live work, so the batch deleted
-	// nothing.
+	// OutcomeIneligible: for Drain, the generation is no longer a
+	// superseded, non-active generation without live work; for SweepOrphan,
+	// the generation exists or the scope's active pointer names it. The
+	// batch deleted nothing.
 	OutcomeIneligible Outcome = "ineligible"
 	// OutcomeLockYield: a batch hit lock_timeout or a deadlock and rolled
 	// back with nothing applied; a writer holds rows of the generation.
@@ -117,22 +118,34 @@ type table struct {
 	add func(*Report, int64)
 }
 
-var tables = [...]table{
-	{
-		query: deleteTermsBatchQuery,
-		args: func(g Generation, c cursor) []any {
-			return []any{g.ScopeID, g.GenerationID, c.first, c.second, BatchRows}
+// tableSet builds the drain order (terms, then documents) for one pair of
+// batch statements that share the termsBatchBody and documentsBatchBody
+// argument shapes.
+func tableSet(termsQuery, documentsQuery string) [2]table {
+	return [2]table{
+		{
+			query: termsQuery,
+			args: func(g Generation, c cursor) []any {
+				return []any{g.ScopeID, g.GenerationID, c.first, c.second, BatchRows}
+			},
+			add: func(r *Report, n int64) { r.TermsDeleted += n },
 		},
-		add: func(r *Report, n int64) { r.TermsDeleted += n },
-	},
-	{
-		query: deleteDocumentsBatchQuery,
-		args: func(g Generation, c cursor) []any {
-			return []any{g.ScopeID, g.GenerationID, c.first, BatchRows}
+		{
+			query: documentsQuery,
+			args: func(g Generation, c cursor) []any {
+				return []any{g.ScopeID, g.GenerationID, c.first, BatchRows}
+			},
+			add: func(r *Report, n int64) { r.DocumentsDeleted += n },
 		},
-		add: func(r *Report, n int64) { r.DocumentsDeleted += n },
-	},
+	}
 }
+
+// predeleteTables drains a superseded generation; orphanTables drains a
+// generation scope_generations no longer holds (#7427 PR2).
+var (
+	predeleteTables = tableSet(deleteTermsBatchQuery, deleteDocumentsBatchQuery)
+	orphanTables    = tableSet(sweepTermsBatchQuery, sweepDocumentsBatchQuery)
+)
 
 // batchResult is one committed batch.
 type batchResult struct {
@@ -161,8 +174,24 @@ type batchResult struct {
 // so far with an empty Outcome; a rerun converges because every batch is
 // idempotent and committed batches stay deleted.
 func Drain(ctx context.Context, database db.Beginner, generation Generation, budget *Budget) (Report, error) {
+	return drain(ctx, database, generation, budget, predeleteTables)
+}
+
+// SweepOrphan is Drain for an orphan generation (#7427 PR2): the same
+// committed keyset batches, re-sweep, advisory lock, lock_timeout and budget,
+// but each batch deletes only while the (scope_id, generation_id) pair is
+// absent from scope_generations and the scope's active pointer does not name
+// it, re-checked in the batch's own snapshot. A generation that exists, in
+// any status, ends OutcomeIneligible with no row deleted.
+func SweepOrphan(ctx context.Context, database db.Beginner, generation Generation, budget *Budget) (Report, error) {
+	return drain(ctx, database, generation, budget, orphanTables)
+}
+
+// drain runs one generation's batches over a table set for Drain and
+// SweepOrphan.
+func drain(ctx context.Context, database db.Beginner, generation Generation, budget *Budget, specs [2]table) (Report, error) {
 	report := Report{Generation: generation, Outcome: OutcomeDrained}
-	for _, spec := range tables {
+	for _, spec := range specs {
 		if outcome, err := drainTable(ctx, database, spec, &report, budget); err != nil || outcome != OutcomeDrained {
 			report.Outcome = outcome
 			return report, err

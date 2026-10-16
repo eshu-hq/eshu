@@ -23,6 +23,9 @@ side-runner startup loop in the reducer root.
 - `Result` — pruned counts, skips, ledger share, lock hold
 - `Pruner` — storage port (`PruneSupersededGenerations`)
 - `ErrKeyIndexUnavailable` — pruner refusal marker
+- `OrphanSweeper`, `OrphanSweepResult` — the #7427 PR2 search index orphan
+  census and sweep port; `Runner.OrphanSweeper` and `Runner.Now` (sweep
+  cadence clock)
 
 See `doc.go` for the full contract.
 
@@ -46,13 +49,26 @@ Never `internal/reducer`.
   `eshu_dp_generation_retention_scope_lock_hold_seconds`,
   `eshu_dp_generation_retention_over_limit_batches_total`,
   `eshu_dp_generation_retention_search_index_batches` (#7427 pre-delete
-  batches committed per pass)
+  batches committed per pass),
+  `eshu_dp_search_index_orphan_generations{table}` and
+  `eshu_dp_search_index_orphan_rows_swept_total{table}` (#7427 PR2 orphan
+  census and sweep; phases `census_search_index_orphans` and
+  `sweep_search_index_orphans`; failure reason `search_index_orphan_sweep`)
 - Spans: none; the drain runs inline in the side-runner goroutine
 - Logs: `generation retention cycle completed` (pruned/skipped totals,
   ledger share, lock hold, `search_index_batches`); WARN when the ledger delete differs from
-  its pre-count
+  its pre-count; `generation retention search index orphan sweep completed`
+  (pairs_scanned, orphan_generations, rows_swept, batches committed,
+  unswept_generations) and ERROR `generation retention search index orphan
+  sweep failed`
 
 ## Gotchas / invariants
+
+- The orphan sweep runs after the prune transaction ends, at most once per
+  poll interval per reducer replica (a draining backlog runs passes back to back and the census
+  walks every search index pair), and also when the prune failed. A sweep
+  failure does not fail the pass. `Policy.SearchIndexPredeleteRowCap` bounds
+  both the pre-delete and the sweep (unset: 2,000,000 each).
 
 - A skipped-only pass retries soon (1m doubling per consecutive
   skipped-only pass, capped at the poll interval) instead of sleeping

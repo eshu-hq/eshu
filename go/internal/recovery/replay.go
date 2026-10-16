@@ -13,6 +13,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 )
 
+// ErrRefinalizeClaimFenceBusy reports that a refinalize could not acquire the
+// reducer claim fence within its bounded retry window.
+var ErrRefinalizeClaimFenceBusy = errors.New("blocked/claim_fence_busy")
+
 // DrainableClass is a durable failure_class that the dead-letter backlog drain
 // is allowed to replay without operator force. The drain path defaults to the
 // transient bucket so an unscoped drain never touches a manual-review (poison)

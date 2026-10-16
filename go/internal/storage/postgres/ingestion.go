@@ -171,7 +171,7 @@ func (s IngestionStore) commitScopeGeneration(
 	if err := backfill.ValidateGenerationInput(scopeValue, generation); err != nil {
 		return errors.Join(err, drainFactsAndCheckStream(factStream, factStreamErr))
 	}
-	handled, err := s.skipUnchangedGeneration(ctx, mutation, requireClaimFence, scopeValue, generation, factStream, factStreamErr)
+	handled, prior, err := s.skipUnchangedGeneration(ctx, mutation, requireClaimFence, scopeValue, generation, factStream, factStreamErr)
 	if handled || err != nil {
 		return err
 	}
@@ -354,6 +354,15 @@ func (s IngestionStore) commitScopeGeneration(
 		slog.Int("fact_count", factStats.Rows),
 		slog.Int("batch_count", factStats.Batches),
 	)
+	// The #7926 successor-emptiness backstop; see refuseDestructiveSuccessor.
+	refused, err := s.refuseDestructiveSuccessor(ctx, tx, scopeValue, generation, prior, factStats.Rows)
+	if err != nil {
+		return err
+	}
+	if refused {
+		transactionClosed = true
+		return nil
+	}
 	queue := ProjectorQueue{database: tx, Now: s.now}
 	stageStart = time.Now()
 	if err := queue.Enqueue(ctx, scopeValue.ScopeID, generation.GenerationID); err != nil {

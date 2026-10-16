@@ -26,10 +26,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry/contract"
 )
 
-// countDeadLetterBacklogTemplate counts the terminal rows a replay with the same
-// filter would touch, before any mutation. It shares the predicate builder with
-// the replay so the count reflects exactly the rows the drain is allowed to
-// move; the predicate placeholders start at $1 because there is no timestamp.
+// countDeadLetterBacklogTemplate counts terminal rows matching a replay filter.
 const countDeadLetterBacklogTemplate = `
 SELECT COUNT(*) FROM fact_work_items
 WHERE status IN ('dead_letter', 'failed')
@@ -44,8 +41,9 @@ type RecoveryStore struct {
 	// RefinalizeScopeProjections; refinalizeDrainPoll is the poll interval.
 	// Zero means the reset defaults apply. They are set with
 	// RecoveryStoreOption so existing constructors keep working.
-	refinalizeDrainTimeout time.Duration
-	refinalizeDrainPoll    time.Duration
+	refinalizeDrainTimeout          time.Duration
+	refinalizeDrainPoll             time.Duration
+	refinalizeClaimFenceRetryBudget time.Duration
 
 	// instruments records the superseded-generation replay fence counter.
 	// Nil is a no-op.
@@ -56,8 +54,7 @@ type RecoveryStore struct {
 	logger *slog.Logger
 }
 
-// resetQueryer adapts Transaction to reset.Queryer. The row
-// interfaces already match, so only the entrypoint needs adapting.
+// resetQueryer adapts a transaction to reset.Queryer.
 type resetQueryer struct {
 	db.Transaction
 }
@@ -138,9 +135,7 @@ func buildReplayPredicate(filter recovery.ReplayFilter, startPlaceholder int) re
 	return predicate
 }
 
-// buildUnfencedReplayPredicate renders the filter predicates without the
-// superseded-generation fence; replaySkippedProjectorCTE adds the fence in its
-// positive form to count what the replay skipped.
+// buildUnfencedReplayPredicate renders replay filters without the generation fence.
 func buildUnfencedReplayPredicate(filter recovery.ReplayFilter, startPlaceholder int) replayPredicate {
 	var (
 		clauses = []string{fmt.Sprintf("AND stage = $%d", startPlaceholder)}
@@ -171,8 +166,7 @@ func buildUnfencedReplayPredicate(filter recovery.ReplayFilter, startPlaceholder
 	return replayPredicate{clause: strings.Join(clauses, "\n      "), args: args}
 }
 
-// nonEmptyClasses returns classes with blank entries dropped so an accidental
-// empty string never becomes a meaningless exclusion predicate.
+// nonEmptyClasses drops blank failure-class entries.
 func nonEmptyClasses(classes []string) []string {
 	out := make([]string, 0, len(classes))
 	for _, class := range classes {
@@ -183,18 +177,9 @@ func nonEmptyClasses(classes []string) []string {
 	return out
 }
 
-// buildReplayFailedWorkItemsQuery renders the replay SQL and its positional
-// args for one filter. When filter.Limit is positive it selects the bounded
-// template so the UPDATE mutates at most Limit rows via a LIMIT/FOR UPDATE SKIP
-// LOCKED subquery ($1 timestamp, $2 limit, predicate from $3). When Limit is
-// zero it uses the unbounded template ($1 timestamp, predicate from $2). The
-// bound lives in SQL, not the Go scan loop, so a drain never resets more rows to
-// pending than it reports (#3652 P3).
-//
-// The same statement counts the fenced rows the replay leaves terminal, so a
-// failed count can never turn a committed replay into an error (#7130). The
-// skipped CTE reuses the replay's placeholders, and a non-projector stage gets
-// a constant zero instead of a scan.
+// buildReplayFailedWorkItemsQuery renders bounded or unbounded replay SQL and args.
+// Its single statement also counts skipped fenced rows, so reporting cannot fail
+// after the replay commits; non-projector stages return a constant zero.
 func buildReplayFailedWorkItemsQuery(filter recovery.ReplayFilter, now time.Time) (string, []any) {
 	template, args, start := replayFailedWorkItemsTemplate, []any{now.UTC()}, 2
 	if filter.Limit > 0 {
@@ -285,8 +270,7 @@ func (s RecoveryStore) CountDeadLetterBacklog(
 	return depth, nil
 }
 
-// queryCount runs a single-row COUNT query and scans it into out. An empty
-// result leaves out at zero.
+// queryCount scans a single-row COUNT result into out.
 func queryCount(ctx context.Context, database db.ExecQueryer, query string, args []any, out *int) error {
 	rows, err := database.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -328,31 +312,27 @@ func (s RecoveryStore) ReplayCollectorGenerations(
 	}, nil
 }
 
-// RefinalizeScopeProjections re-enqueues projector work by inserting new pending
-// work items: for the given scope IDs, or for every recoverable scope when the
-// filter sets AllScopes. An active scope is re-enqueued through its active
-// generation; a failed scope with no active generation through its newest
-// failed generation (#7116). Scopes it cannot re-enqueue are reported by reason
-// in the result's Skipped field rather than dropped silently.
-//
-// It also clears the downstream dedup state that would otherwise stop the
-// re-projection at source-local structure; the reset subpackage says
-// which state and why each piece blocks a rebuild.
-//
-// For each re-enqueued generation that is a delta it also records a
-// per-repository reindex watermark when the scope is a git default-branch scope
-// and reports every such scope in the result's DeltaActive field (#7797): a
-// delta restores only its changed files onto a wiped graph, so the full
-// re-parse the watermark forces is what restores the rest.
-//
-// Every statement runs in one transaction so a refinalize cannot leave the
-// queue re-enqueued while its downstream state still says the work is done, or
-// a delta re-projected without its repair request; that half-applied state is
-// invisible until the graph comes back short. They all bind one generation set,
-// read once at the top -- see reset.ReadAffectedGenerations for why re-deriving
-// it per statement is unsafe.
+// RefinalizeScopeProjections re-enqueues selected scopes and clears dedup state.
+// The reset package retries claim-fence admission; after acquisition, the caller
+// context governs this transaction through commit.
 func (s RecoveryStore) RefinalizeScopeProjections(
 	ctx context.Context,
+	filter recovery.RefinalizeFilter,
+	now time.Time,
+) (recovery.RefinalizeResult, error) {
+	return reset.RefinalizeClaimFenceWithRetry(
+		ctx,
+		s.refinalizeClaimFenceRetryBudget,
+		s.logger,
+		func(attemptCtx context.Context, admission *reset.FenceAdmissionBudget) (recovery.RefinalizeResult, error) {
+			return s.refinalizeScopeProjectionsAttempt(attemptCtx, admission, filter, now)
+		},
+	)
+}
+
+func (s RecoveryStore) refinalizeScopeProjectionsAttempt(
+	ctx context.Context,
+	admission *reset.FenceAdmissionBudget,
 	filter recovery.RefinalizeFilter,
 	now time.Time,
 ) (recovery.RefinalizeResult, error) {
@@ -375,12 +355,9 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 		}
 	}()
 
-	// Coordination (read once, drain-wait, enqueue, fence check) lives in
-	// reset; the drain wait runs after the authoritative read and
-	// before any write so a resolver that claimed first cannot get its
-	// generation retired mid-flight. A resolver whose lease expires while it
-	// is still executing is fenced at relationship-generation activation by
-	// its exact queue claim (#6184 P1 review).
+	// Read, drain, enqueue and fence coordination lives in reset. The drain
+	// precedes writes; activation also fences a resolver whose lease expires
+	// while it runs (#6184).
 	rq := resetQueryer{Transaction: tx}
 
 	generations, skipped, err := reset.ReadAffectedGenerations(ctx, rq, filter)
@@ -391,7 +368,7 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 	if err := reset.WaitForReducerDrain(ctx, rq, generations, s.refinalizeDrainTimeout, s.refinalizeDrainPoll); err != nil {
 		return recovery.RefinalizeResult{}, err
 	}
-	if err := reset.AcquireReducerClaimFence(ctx, rq, generations); err != nil {
+	if err := reset.AcquireReducerClaimFenceWithAdmission(ctx, rq, generations, admission); err != nil {
 		return recovery.RefinalizeResult{}, err
 	}
 

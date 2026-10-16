@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/inheritance"
 )
 
 // inheritanceRetractDisjunction is the relationship-type alternation the
@@ -35,10 +37,10 @@ func inheritanceRetractDisjunction(t *testing.T) string {
 }
 
 // TestInheritanceRegistryMatchesRetractDisjunction binds
-// inheritanceMaterializedEdgeTypes to what the retract actually deletes (#5996).
+// inheritance.MaterializedEdgeTypes to what the retract actually deletes (#5996).
 //
 // The write side spans two files (INHERITS/OVERRIDES/ALIASES here, IMPLEMENTS in
-// canonical_implements_edges.go) while the retract names all four in one
+// canonical/inheritance/implements.go) while the retract names all four in one
 // alternation. Nothing else stops those from drifting, and drift is silent in
 // both directions: a written-but-not-retracted type survives reprojection as a
 // stale edge, and a retracted type missing from this registry is one the Ifá
@@ -55,7 +57,7 @@ func TestInheritanceRegistryMatchesRetractDisjunction(t *testing.T) {
 		retractSet[relType] = struct{}{}
 	}
 
-	registry := InheritanceMaterializedEdgeTypes()
+	registry := inheritance.MaterializedEdgeTypes()
 	var missingFromRegistry, missingFromRetract []string
 	for relType := range retractSet {
 		if _, ok := registry[relType]; !ok {
@@ -71,27 +73,11 @@ func TestInheritanceRegistryMatchesRetractDisjunction(t *testing.T) {
 	sort.Strings(missingFromRetract)
 
 	if len(missingFromRegistry) > 0 {
-		t.Errorf("retract deletes %v but InheritanceMaterializedEdgeTypes() omits them; the Ifá baseline gate would ignore those edges while calling inheritance_edges exhaustive",
+		t.Errorf("retract deletes %v but MaterializedEdgeTypes() omits them; the Ifá baseline gate would ignore those edges while calling inheritance_edges exhaustive",
 			missingFromRegistry)
 	}
 	if len(missingFromRetract) > 0 {
-		t.Errorf("InheritanceMaterializedEdgeTypes() names %v but the retract does not delete them; those edges would survive every reprojection as stale truth",
+		t.Errorf("MaterializedEdgeTypes() names %v but the retract does not delete them; those edges would survive every reprojection as stale truth",
 			missingFromRetract)
-	}
-}
-
-// TestInheritanceRegistryIsACopy proves the accessor hands out a copy, so a
-// caller cannot shrink what the live gate asserts for the rest of the process.
-func TestInheritanceRegistryIsACopy(t *testing.T) {
-	t.Parallel()
-
-	first := InheritanceMaterializedEdgeTypes()
-	if len(first) == 0 {
-		t.Fatal("registry is empty; an empty type set makes any graph vacuously pass the live gate")
-	}
-	delete(first, "INHERITS")
-
-	if _, ok := InheritanceMaterializedEdgeTypes()["INHERITS"]; !ok {
-		t.Error("deleting from a returned map mutated the package registry; the accessor must return a copy")
 	}
 }

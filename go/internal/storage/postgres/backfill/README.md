@@ -43,6 +43,9 @@ consumers. The child derives bounded listings once from those strings.
 - `DecideUnchangedGeneration`, `UnchangedGenerationCandidate`,
   `GenerationNeedsDuplicateCheck`, `RecordSkippedRefresh` — the duplicate
   decision and its skip accounting
+- `RefuseDestructiveSuccessor` — the #7926 successor-emptiness backstop
+  predicate: refuses an empty or sharply shrunken successor over a
+  content-bearing prior unless the generation carries trusted deletion
 - `BuildDeferredScopedFactQueryParams`, `DeferredScopedFactQueryParams`,
   `BuildDeferredRepoIDRegex`, `DeferredRepoIDReferenceKeys`,
   `DeferredCatalogFingerprint`, `NewDeferredBackfillPartitionMemoStore`,

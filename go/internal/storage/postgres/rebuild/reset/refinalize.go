@@ -56,16 +56,6 @@ type ClaimFenceQueryer interface {
 	Execer
 }
 
-// refinalizeReducerClaimFenceQuery is deliberately EXCLUSIVE, not SHARE ROW
-// EXCLUSIVE. Claim UPDATEs take ROW EXCLUSIVE and claim-fenced relationship
-// activation takes ROW SHARE through SELECT FOR UPDATE; EXCLUSIVE conflicts
-// with both while still permitting ordinary ACCESS SHARE reads. Recovery takes
-// it immediately after the lock-free drain and before any transaction write,
-// avoiding lock upgrades when two recoveries overlap.
-const refinalizeReducerClaimFenceQuery = `
-LOCK TABLE fact_work_items IN EXCLUSIVE MODE
-`
-
 // refinalizeScopeProjectionsQuery re-enqueues projector work by inserting one
 // pending work item per generation in the set the refinalize already
 // materialized. $1 is the timestamp; $2 and $3 are the index-aligned scope-id
@@ -364,32 +354,6 @@ func WaitForReducerDrain(
 		case <-timer.C:
 		}
 	}
-}
-
-// AcquireReducerClaimFence closes the last-poll-to-commit window for both new
-// claims and expired workers attempting claim-fenced publication. The lock is
-// transaction-scoped; callers acquire it after the lock-free drain and before
-// any write, then retain it through the atomic enqueue, reset, retirement, and
-// commit sequence.
-func AcquireReducerClaimFence(
-	ctx context.Context,
-	q ClaimFenceQueryer,
-	generations Generations,
-) error {
-	if generations.Len() == 0 {
-		return nil
-	}
-	if _, err := q.ExecContext(ctx, refinalizeReducerClaimFenceQuery); err != nil {
-		return fmt.Errorf("refinalize reducer claim fence: %w", err)
-	}
-	inflight, err := countInflightReducers(ctx, q, generations)
-	if err != nil {
-		return fmt.Errorf("refinalize reducer claim fence recheck: %w", err)
-	}
-	if inflight == 0 {
-		return nil
-	}
-	return newInflightReducersError(ctx, q, generations, inflight, 0, 0)
 }
 
 // AssertRetirementFenced distinguishes a tripped retirement guard from

@@ -572,7 +572,7 @@ console or API defect.
 
 - A failed step on these routes answers a fixed message, never backend error text: [Admin route failures](admin-failures.md).
 - `POST /api/v0/admin/refinalize` re-enqueues scope generations for projection
-  through the durable Go work queue and reports `skipped_scopes`, `delta_active_scopes`, and `reindex_requests_written` (see below).
+  through the durable Go work queue and reports `skipped_scopes`, `delta_active_scopes`, and `reindex_requests_written` (see below). For claim-fence busy responses, see [Admin route failures](admin-failures.md#claim-fence-busy-responses).
 - `POST /api/v0/admin/reindex` records a fleet or per-repository reindex watermark
   for the git ingesters: [Reindex requests](../reconciliation-sweep.md#reindex-requests).
 - `POST /api/v0/admin/recover-generations` is the operator escape hatch for

@@ -21,16 +21,18 @@ Names are proposals. The migration number is chosen at build time.
 | `config_artifact_repo_state` | `repo_id` | `content_version` (the version the derive read before its list), `extractor_version` (integer), `row_count` (NULL until the first success), `files_listed`, `candidate_count`, `candidates_read`, `list_truncated`, `scope_id` and `generation_id` (advisory), `derived_at`, `failure_count`, `last_error_class`, `last_failure_at`. **Proposed** for the walker's skip rule: `last_failure_extractor_version` |
 | `config_artifact_paths` | `(repo_id, row_digest)` | `raw_path`, `relative_path`, `evidence_kind`, `name_scoped`, `row_digest` (generated) |
 | `config_artifact_backfill_markers`, `config_artifact_reconcile_cursor` | name | as in migration 109 |
+| `config_artifact_fence_pending` (UNLOGGED, migration 186) | `(bumped_xid, repo_id)` | none: repositories staged by the fence triggers, bumped and deleted at COMMIT (arb-8155-f1) |
 
-- The trigger migration (PR3b-1b, after the table migration) seeds one
-  version row with `version = 0` for each `SELECT DISTINCT repo_id FROM
-  content_files`, as migration 169 does its backfill. The walker's universe is
-  then O(repositories), not a scan of `content_files`. Order (S3 ruling):
-  create the four triggers first, then seed with `ON CONFLICT DO NOTHING`, in
-  one transaction. `CREATE TRIGGER` blocks content writes until that
-  transaction commits, so no write can land between the seed scan and the
-  trigger. The seed scan duration is then a content-write stall, and the
-  migration proof must time it.
+- PR3b-1b seeds one version row with `version = 0` for each `SELECT
+  DISTINCT repo_id FROM content_files` in `repo_id` order (F2), as migration 169 does its backfill.
+  The walker's universe is then O(repositories), not a scan of
+  `content_files`. Order (S3 ruling): the fence first (migration 186: four `content_files`
+  triggers and the pending-table commit trigger),
+  then the seed with `ON CONFLICT DO NOTHING` (migration 187). The #7961
+  lock-shape gate refuses both in one file, so a write can land between them;
+  its trigger creates or bumps the row first and the seed keeps it. Timed on
+  1,000,000 rows, final statement order: 186 0.0025 s, 187 0.1154 s (evidence note
+  `8155-content-version-fence.md`).
 - **Proposed** rule: delete or reset a version row only together with the
   repository's state row, in one transaction. A version row re-created while
   a state row survives would count up from 1 again. After enough bumps it
@@ -97,7 +99,8 @@ Names are proposals. The migration number is chosen at build time.
   `UTF8` they log at ERROR, skip every derive with
   `derives_total{outcome=encoding_unsupported}`, and report
   `config_artifacts = not_installed` with the reason in `/admin/status`. The
-  same check tests the four fence triggers (section 2): a missing one gives
+  same check tests the five fence triggers (section 2: the four on
+  `content_files` and `config_artifact_fence_pending_commit`): a missing one gives
   outcome `fence_missing` and reason `version_fence_missing`. The content
   Write proceeds, and reads stay live.
 - Autovacuum (re-ruling 2): each derive deletes and re-inserts a
@@ -110,101 +113,68 @@ Names are proposals. The migration number is chosen at build time.
 
 ## 2. The content-version trigger
 
-Triggers on `content_files` fire for every session. No session setting, no
-pre-write mark and no mark table exist.
+Ruling arb-8155-f1 (2026-10-16) moved the bump to COMMIT. Migration 186
+holds the fence; review findings F1-F4 shaped it.
 
-- INSERT and UPDATE: statement-level, `REFERENCING NEW TABLE`. An `INSERT ...
-  ON CONFLICT DO UPDATE` fires both. The guard below makes the second a no-op.
-- DELETE: row-level, with the same guard. S3 may replace it with a
-  statement-level `REFERENCING OLD TABLE` trigger.
-- TRUNCATE: statement-level, bumps every version row through the same
-  once-per-transaction guard.
-- Names and order (S3 ruling). PostgreSQL fires the triggers of one event on
-  one relation in alphabetical order by name, and row-level AFTER triggers
-  before statement-level AFTER triggers (PostgreSQL 18 documentation, trigger
-  definition). The fence triggers are `content_files_version_fence_insert`,
-  `_update`, `_delete` and `_truncate`, with that prefix. Each sorts after
-  the migration 138 triggers `content_files_secret_lines_insert` and
-  `content_files_secret_lines_update` ('v' follows 's'), so the fence fires
-  last. The version row lock lasts from the bump to the commit. Firing last
-  makes that hold a commit, so two writers of one `repo_id` overlap their
-  secret-line derivation and do not serialize it on the version row. The
-  foreign key of migration 138 uses row-level `RI_ConstraintTrigger_*`
-  triggers, which sort first, so its cascade runs before the bump. A schema
-  test reads `pg_trigger` for `content_files` ordered by `tgname`. It asserts
-  that the fence is the last statement-level AFTER trigger for INSERT and for
-  UPDATE, and that the migration 138 names are present.
-
-The body bumps each repository once per transaction. Re-ruling 2 accepted
-the `ORDER BY`:
+- Staging. Four statement-level triggers on `content_files` insert the
+  touched repositories into the UNLOGGED `config_artifact_fence_pending
+  (bumped_xid xid8, repo_id, PRIMARY KEY (bumped_xid, repo_id))`, `ON
+  CONFLICT DO NOTHING`. INSERT and UPDATE use `REFERENCING NEW TABLE` (an
+  `INSERT ... ON CONFLICT DO UPDATE` fires both), DELETE uses `REFERENCING OLD
+  TABLE` (S3 arm 3), TRUNCATE stages every repository with a version row.
+- Commit. One deferred constraint trigger, `config_artifact_fence_pending_commit`
+  (AFTER INSERT, FOR EACH ROW, DEFERRABLE INITIALLY DEFERRED; constraint
+  triggers cannot use transition tables, so the staging table carries the
+  deferral), runs the upsert below over the transaction's pending rows and
+  deletes them. Its first firing bumps every staged repository; the rest find
+  nothing. The pending table is empty after every commit and rollback.
 
 ```sql
 INSERT INTO config_artifact_content_versions AS v (repo_id, version, bumped_xid, bumped_at)
-SELECT r.repo_id, 1, pg_current_xact_id(), now()
-FROM (SELECT DISTINCT repo_id FROM new_rows) AS r
-ORDER BY r.repo_id
+SELECT p.repo_id, 1, pg_current_xact_id(), now()
+FROM config_artifact_fence_pending AS p
+WHERE p.bumped_xid = pg_current_xact_id()
+ORDER BY p.repo_id
 ON CONFLICT (repo_id) DO UPDATE
 SET version = v.version + 1, bumped_xid = EXCLUDED.bumped_xid, bumped_at = EXCLUDED.bumped_at
 WHERE v.bumped_xid IS DISTINCT FROM EXCLUDED.bumped_xid
+   OR v.bumped_at IS DISTINCT FROM EXCLUDED.bumped_at  -- survives an xid restart
 ```
 
-- The trigger runs inside the content statement's transaction, so the bump
-  and the content commit together. The first fence lacked this property.
-- `pg_current_xact_id()` is 64-bit, so the guard has no wraparound. It needs
-  PostgreSQL 13 or later.
-- Lock order (re-ruling 2): a statement-level trigger takes the version row
-  locks of a multi-repository statement in the order of its `SELECT`. `ORDER
-  BY r.repo_id` makes that order ascending, so two statement-level
-  multi-repository statements cannot deadlock on version rows.
-- Trigger timing (re-ruling 3): a row-level AFTER trigger fires at the end
-  of the statement, after the statement has locked every row it touches. So
-  every path that bumps a version row, under either DELETE shape, locks
-  content rows first and the version row last. A session that waits on a
-  version row holds only content rows. No cross-table cycle through a
-  version row exists for a prune against a Write, with or without a shared
-  doomed key. This does not exclude a cycle on content rows alone: two
-  multi-row statements that lock overlapping `content_files` rows in opposite
-  order can deadlock, as they can today without the trigger.
-- Surviving hazard: two concurrent multi-repository statements that bump
-  through row-level triggers take version rows in their own row order, so
-  opposite orders can deadlock. PostgreSQL aborts one, and the loser retries
-  (a prune at its next cycle, a Write through the projector's retry of the
-  generation). The `ORDER BY` prevents this on every statement-level path.
-  The multi-repository deleters in production are the retention prune (one
-  wiring in `go/cmd/reducer/generation_retention_wiring.go`), TRUNCATE
-  (statement-level, so the `ORDER BY` applies) and manual SQL. The retention
-  runner (`go/internal/reducer/maintenance/retention/runner.go`) has no lock
-  or lease. Its candidate selection uses `FOR UPDATE ... SKIP LOCKED` in
-  `generation_retention_sql.go`, so two reducer replicas run concurrent
-  prunes over disjoint scope sets. Two scopes can share one `repo_id`
-  (migration 169), so with more than one reducer the hazard is reachable.
-- The DELETE shape is a cost choice only: S3 arm 3, at most 5% of the
-  `prune_content_files` phase on the real retention store. At equal cost
-  prefer the `OLD TABLE` shape, because the `ORDER BY` then covers the prune
-  too.
-- The row lock lasts until the content transaction ends. For a Write that is
-  one 500-row batch. For retention it lasts from the end of the prune's
-  `content_files` DELETE statement to the end of the retention transaction.
-  AFTER row triggers fire at the end of the statement, and the retention
-  transaction deletes `content_files` in one statement, so it takes the
-  version row locks after all its content row locks. A Write batch of a
-  pruned repository waits for the retention commit, which also runs the
-  ledger and `scope_generations` deletes. That wait sits inside the existing
-  `eshu_dp_generation_retention_scope_lock_hold_seconds` contract. PR #7910
-  is merged (`ba95c9a973`) and was re-checked on 2026-10-11: the content
-  prune is still one DELETE statement, after the infra advisory locks and
-  before the ledger and `scope_generations` deletes, so this section holds.
-- `content_files` upserts and deletes run one after another inside one Write
-  (`upsertContentFileBatches` in `content_writer_upserts.go`,
-  `deleteContentFilesBatch`), so one Write touches the version row from one
-  transaction at a time. Entity batches (`upsertContentEntityBatches`) run
-  concurrently, but they never write `content_files`. Two concurrent Writes
-  of one `repo_id` (two scopes) wait on each other per batch. S3 arm 5
-  measures this.
-- Generation retention's prune fires the DELETE trigger. Retention needs no
-  explicit code, unless the arm 3 rerun fails both shapes (fallback below).
-  Every writer, including an older binary or manual SQL, bumps the version,
-  so no rollout rule exists.
+- Once per transaction: the guard compares `(bumped_xid, bumped_at)`, so a
+  second firing, a staged row after `SET CONSTRAINTS ALL IMMEDIATE`, or a
+  savepoint retry never bumps twice. `pg_current_xact_id()` is 64-bit; the
+  pair also survives a logical restore that restarts the id counter.
+- Lock window (F1). A content transaction holds its content rows from its
+  first statement and takes version rows only inside COMMIT, after its last
+  content lock, in `repo_id` order. No session waits on a version row while
+  another needs its content rows. The premise "retention deletes
+  `content_files` in one statement" is false: a chunk cycle
+  (`generationRetentionChunkPruneFilesQuery` in
+  `generation_retention_relock.go`, then `pruneContentFilesForGenerationsQuery`)
+  deletes twice in one transaction; the immediate fence deadlocked there, the
+  commit-time fence cannot. A Write waits only on content rows, and on a
+  version row only inside the other side's COMMIT, bounded by that COMMIT
+  (upsert plus WAL flush): observed at most 16 ms disjoint and 21 ms overlap,
+  7x under the contended-batch bar (arm 5, arb-8155-c2). `SET CONSTRAINTS ALL
+  IMMEDIATE` runs the bump early and gives this up for the rest of that
+  transaction; no Eshu code issues it.
+- Names and order. Row-level AFTER triggers fire before statement-level ones,
+  then by name: `content_files_version_fence_*` sorts after the migration 138
+  `content_files_secret_lines_*` triggers and its row-level RI triggers, so
+  staging runs last. A schema test reads `pg_trigger` for all five.
+- Who bumps (F3, F4). The triggers fire for every session in replication role
+  origin or local (`tgenabled 'O'`). `session_replication_role = replica`
+  (superuser or SET privilege; logical-replication apply workers) skips them
+  as it skips every ordinary trigger; no Eshu binary sets it, and a source
+  guard fails on a non-test Go use. `ENABLE ALWAYS` is rejected: a logical
+  subscriber would double-bump. An UPDATE that changes `repo_id` bumps only
+  the new repository; production never does it (a guard pins both upsert SET
+  lists and every Go `UPDATE content_files`).
+- `content_files` upserts and deletes run one after another inside one Write,
+  each autocommit, so one Write bumps once per batch transaction. Every
+  writer, an older binary and manual SQL included, bumps, so no rollout rule
+  exists.
 
 **Fallback (Proposed).** It applies only if the arm 3 rerun fails both
 shapes, and it needs an F2 amendment by ruling (without it, retention pays
@@ -412,9 +382,9 @@ today. Ownership, not a cycle, is the reason for the neutral package.
    |---|---|---|
    | 1 | Full Write, 5,000 files, 500-row batches, production-width content. The derive's row insert includes the generated `row_digest` | B at most A + 5% on Write wall time. A primary-key-only micro-shim at most 0.5 us per row |
    | 2 | Delta Write, 1 file changed, 3 tombstones | B at most A + 5% |
-   | 3 | Retention prune, 100,000 rows over 50 repositories, one transaction | Row-level and `OLD TABLE` shapes. Denominator: `PhaseDurations["prune_content_files"]` of the real `GenerationRetentionStore` statement, under its `SET LOCAL work_mem = '64MB'`, at 1 KiB inline and 8 KiB TOASTed bodies, both required. The chosen shape at most +5% on both classes. Else the other shape. Else the Proposed fallback of section 2 (needs an F2 amendment by ruling. Without it retention pays the trigger). `ScopeLockHold` delta is informational, against the QA-environment p95 of `eshu_dp_generation_retention_scope_lock_hold_seconds` (**Proposed**). Binding rerun spec: evidence appendix, section 7 |
+   | 3 | Retention prune, 100,000 rows over 50 repositories, one transaction | Row-level and `OLD TABLE` shapes. Denominator: `PhaseDurations["prune_content_files"]` of the real `GenerationRetentionStore` statement, under its `SET LOCAL work_mem = '64MB'`, at 1 KiB inline and 8 KiB TOASTed bodies, both required. The chosen shape at most +5% on both classes. Else the other shape. Else the Proposed fallback of section 2 (needs an F2 amendment by ruling. Without it retention pays the trigger). `ScopeLockHold` delta is informational, against the QA-environment p95 of `eshu_dp_generation_retention_scope_lock_hold_seconds` (**Proposed**). Binding rerun spec: evidence appendix, section 7 **Bar (ruling arb-8155-c1, 2026-10-16)**: added `ScopeLockHold` at most +0.25 s per 100,000 doomed rows, mean of at least 5 interleaved rounds after 1 discard, load1 under 9, both classes; report `prune_content_files` and wall deltas and `prune_temp_bytes`. By session means the +10%/+5% bar of arb-8155-s3 was missed in one of three sessions (S2); by session medians it was missed in all three on `prune_content_files` and in two on `ScopeLockHold`; replaced by arb-8155-c1. 1 KiB commit-time fence: `ScopeLockHold` +0.11 to +0.17 s, `prune_content_files` +0.11 to +0.17 s (+9 to +14%), 181.1 MB temp per prune (the spill, #8268); 1 KiB meets the budget in three sessions. Retention prune, 8 KiB TOAST class: +0.12 s mean added ScopeLockHold per 100,000-row cycle (25 interleaved rounds, three sessions; budget +0.25 s per arb-8155-c1). Tail: 1 of 12 paired fence rounds was +1.0 s or more over the control (control 0 of 12); +1.1 to +1.9 s events were seen in 4 of 20 earlier fence rounds and 0 of 17 control rounds; cause not attributed, per-backend first use ruled out. Verdict: 8 KiB passes c1 1.4a by the arb-8155-c3 binding rule (pooled S2 +0.1202 s over 25 rounds). Tables: evidence note `8155-content-version-fence.md` |
    | 4 | One 50,000-row single-statement insert | B at most A + 5% |
-   | 5 | Two concurrent Writes, one `repo_id`, 5,000 files each | B at most A + 10% per Write. The `version_row` lock wait at most one contended batch (B-last per-Write median / 10), with A as control, by wait class, plus an overlapping-keys run. 0 deadlocks in 20 rounds. Slower of the pair is informational. Binding rerun spec, with every bar: evidence appendix, section 7 |
+   | 5 | Two concurrent Writes, one `repo_id`, 5,000 files each | B at most A + 10% per Write. The `version_row` lock wait at most one contended batch (B-last per-Write median / 10), with A as control, by wait class, plus an overlapping-keys run. 0 deadlocks in 20 rounds. Slower of the pair is informational. Binding rerun spec, with every bar: evidence appendix, section 7. Ran 2026-10-16 on the commit-time fence: per Write B-last +0.20% / +0.02%, B-first +0.06% / +0.18% (disjoint / overlap); `version_row` max B-last 0.0156 / 0.0209 s against the contended-batch bar 0.1125 / 0.1140 s; 0 deadlocks in 20 rounds twice; arm 1 -0.24%. PASS (arb-8155-c2 section 4; the B-first vs B-last and the overlap A clauses are restated there) |
    | 6 | Version-row churn, counted by `xmin` changes or `n_tup_upd` | One rewrite per repository per content transaction, never per Write (re-ruling 2). A Write sends tombstones and reaped paths through one delete list, chunked at 500. It expects ceil((tombstones + reaped paths) / 500) delete transactions. It adds one per 500-row upsert batch. Arm 1 = 10. Arm 2 = 2 (one delete chunk, one upsert batch). Arm 3 = 1 per affected repository. Arm 4 = 1 |
 
    The protocol needs two things only: every transaction that changes

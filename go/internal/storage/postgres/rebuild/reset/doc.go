@@ -38,23 +38,25 @@
 // path, in the same transaction as the projector re-enqueue.
 //
 // ApplyPreRetirement and RetireResolutionGenerations are the reset entry
-// points; Counts reports what they cleared. The ordered
-// coordination around it — ReadAffectedGenerations, WaitForReducerDrain,
-// EnqueueProjectorWork, AcquireReducerClaimFence, and AssertRetirementFenced in
-// refinalize.go — is part of the same contract: the caller runs the sequence in
+// points; Counts reports what they cleared. The ordered coordination around it
+// — ReadAffectedGenerations, WaitForReducerDrain,
+// AcquireReducerClaimFence in claim_fence.go, EnqueueProjectorWork, and
+// AssertRetirementFenced in refinalize.go — is part of the same contract: the caller runs the sequence in
 // its transaction around Apply, so every statement binds the one generation set
 // read first. That one read also classifies every scope it could not cover
 // (recovery.SkipReason*), so the skipped-scope report describes the same
-// snapshot as the covered set. It also returns is_delta for each covered
-// generation (#7797): a delta carries only the files that changed since its
-// baseline, so re-projecting it onto a wiped graph restores only those files.
-// Generations.DeltaActive classifies those pairs with
+// snapshot as the covered set. The generation read also returns is_delta for
+// each covered generation (#7797): a delta carries only the files that changed
+// since its baseline, so re-projecting it onto a wiped graph restores only
+// those files. Generations.DeltaActive classifies those pairs with
 // recovery.IsGitDefaultBranchScope, and RequestReindex records a
 // per-repository reindex watermark for each git default-branch scope among
 // them, in the same transaction, so a git ingester's scheduled selection forces
-// a full re-parse when it next syncs the repository. The late EXCLUSIVE queue lock blocks both claim UPDATEs and the
-// SELECT FOR UPDATE used by exact-claim relationship publication for only the
-// final recheck, retirement, and commit window (#6184 P1 review).
+// a full re-parse when it next syncs the repository. retry.go applies the
+// bounded claim-fence retry policy; after acquisition, the caller context
+// governs commit. The late EXCLUSIVE queue lock blocks both claim UPDATEs and
+// the SELECT FOR UPDATE used by exact-claim relationship publication for only
+// the final recheck, retirement, and commit window (#6184 P1 review).
 //
 // A refinalize transaction runs at Postgres's default READ COMMITTED
 // isolation, so a statement that re-derived the generation set would get its

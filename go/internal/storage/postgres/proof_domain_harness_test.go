@@ -292,6 +292,23 @@ func (database *proofDomainDB) QueryContext(_ context.Context, query string, arg
 			}
 		}
 		return newProofRows(nil), nil
+	case query == countFactsQuery:
+		// The destructive-successor guard's prior fact count (#7926):
+		// matched by identity with the production constant so it cannot
+		// fall through to the generic fact-listing branch below, whose
+		// 16-column rows do not scan into a count.
+		if len(args) != 2 {
+			return nil, fmt.Errorf("count facts args = %d, want 2", len(args))
+		}
+		scopeID, ok := args[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("count facts scope_id type = %T, want string", args[0])
+		}
+		generationID, ok := args[1].(string)
+		if !ok {
+			return nil, fmt.Errorf("count facts generation_id type = %T, want string", args[1])
+		}
+		return newProofRows([][]any{{proofFactCount(database.state.facts, scopeID, generationID)}}), nil
 	case strings.Contains(query, "FROM fact_records"):
 		if len(args) != 2 {
 			return nil, fmt.Errorf("list facts args = %d, want 2", len(args))
@@ -439,4 +456,13 @@ func (database *proofDomainDB) claimReducerWork(now time.Time, leaseOwner string
 	}
 
 	return newProofRows(nil), nil
+}
+
+func TestProofDomainHarnessCountFactsRejectsNonStringArgs(t *testing.T) {
+	t.Parallel()
+
+	database := newProofDomainDB(t, time.Now())
+	if _, err := database.QueryContext(context.Background(), countFactsQuery, 123, 456); err == nil {
+		t.Fatal("QueryContext(countFactsQuery, non-string args) error = nil, want a type error: silent empty strings would read as an empty prior")
+	}
 }

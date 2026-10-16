@@ -134,6 +134,8 @@ type fakeExecQueryer struct {
 	execErrors                       []error
 	execResults                      []sql.Result
 	queries                          []fakeQueryCall
+	callOrder                        []string
+	recordCallOrder                  bool
 	queryResponses                   []queueFakeRows
 	beginReadOnlyRepeatableReadCalls int
 	transactionQueryCalls            int
@@ -190,6 +192,9 @@ func (f *fakeExecQueryer) ExecContext(
 ) (sql.Result, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.recordCallOrder {
+		f.callOrder = append(f.callOrder, "exec:"+query)
+	}
 	f.execs = append(f.execs, fakeExecCall{query: query, args: args})
 	if len(f.execErrors) > 0 {
 		err := f.execErrors[0]
@@ -211,6 +216,9 @@ func (f *fakeExecQueryer) QueryContext(
 ) (db.Rows, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.recordCallOrder {
+		f.callOrder = append(f.callOrder, "query:"+query)
+	}
 	f.queries = append(f.queries, fakeQueryCall{query: query, args: args})
 
 	// Route the per-scope deferred backfill fact query to a scope-keyed response

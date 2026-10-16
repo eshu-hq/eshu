@@ -458,4 +458,10 @@ var orderedBootstrapDefinitionNames = []string{
 	// workflow_claims and workflow_work_items alongside the message.
 	"workflow_claims_failure_classification",
 	"workflow_work_items_failure_classification",
+	// Migration 186 (#8155, #7126 PR3b-1b) adds the four content_files
+	// version-fence triggers of the config-artifact read model.
+	"content_files_version_fence",
+	// Migration 187 seeds one version-0 row per repository with content,
+	// in its own file so no table lock is held through the scan (#7961).
+	"config_artifact_content_versions_seed",
 }

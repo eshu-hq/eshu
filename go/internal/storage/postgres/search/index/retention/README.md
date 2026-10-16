@@ -9,6 +9,13 @@ then deletes the `scope_generations` row with the search index already empty,
 so the foreign-key cascade it runs under the scope row lock has nothing to
 remove for those tables.
 
+It also takes the orphan census and runs the orphan sweep (#7427 PR2): it
+finds search index `(scope_id, generation_id)` pairs whose
+`scope_generations` row is gone and deletes their rows with the same batch
+loop. With the generation foreign keys present (PR2) the census reads 0;
+after PR3 drops the terms generation foreign key, it removes rows a late
+writer leaves behind.
+
 ## Ownership boundary
 
 This leaf owns the batch loop, its SQL, and the per-generation advisory lock
@@ -44,6 +51,15 @@ sequenceDiagram
 - `Generation`, `Report`, `Outcome` and its closed constants
 - `TryLockGenerations(ctx, db.Queryer, ids)` for the prune transaction
 - `BatchRows` (20,000) and `LockClass` (7427)
+- Orphans: `TakeCensus(ctx, db.Queryer) (Census, error)`,
+  `SweepOrphan(ctx, db.Beginner, Generation, *Budget)`,
+  `SweepOrphans(ctx, Database, deadline, rowCap, logger) (OrphanSweep, error)`,
+  `NewOrphanPass`, `Database`, `TermsTable`, `DocumentsTable`,
+  `OrphanListLimit` (1,000 per relation), `OrphanSweepRowCap` (2,000,000,
+  the fallback when the caller's row cap is not positive; the retention
+  runner passes the policy's `SearchIndexPredeleteRowCap`, so one cap bounds
+  the pre-delete and the sweep). `OrphanSweep.Unswept` adds
+  `Census.Unlisted`, the orphans counted past the list limit.
 
 See `doc.go` for the contract.
 
@@ -56,19 +72,54 @@ See `doc.go` for the contract.
 - Tests only: `internal/storage/postgres` (`ApplyBootstrap`) and
   `internal/testutil/postgresproof` for the live proofs.
 
+## Orphan census and sweep
+
+```mermaid
+sequenceDiagram
+    participant Runner as retention runner
+    participant Sweep as indexretention.SweepOrphans
+    participant PG as Postgres
+    Runner->>Sweep: after the pass, at most once per poll interval
+    loop each terms leaf, then documents
+        Sweep->>PG: loose index scan over (scope_id, generation_id), anti-join scope_generations
+    end
+    loop each listed orphan, within the budget
+        Sweep->>PG: BEGIN; try advisory lock; keyset batch DELETE if the pair is still missing; COMMIT
+    end
+```
+
+- The census walks each relation's primary-key prefix with a recursive
+  seek, one index descent per pair. A `SELECT DISTINCT` over the table
+  read the whole 10M-row leaf (104,476 buffers, 26 s); the shipped walk read
+  2,443 buffers on that leaf once vacuumed, and 365,199-486,545 buffers over
+  all 64 leaves and the documents table at 31,021 pairs
+  (`docs/internal/evidence/7427-search-index-orphan-guard.md`).
+- Dead index entries a pre-delete left (before VACUUM) are walked once per
+  census: 2,800,330 heap fetches on the first walk, then 33,141 buffers for
+  the shipped census statement on that leaf once their kill bits are set.
+- A sweep batch deletes only while the pair is absent from
+  `scope_generations` and the scope's active pointer does not name it,
+  re-checked in the batch's snapshot. A generation that exists, in any
+  status, loses no row.
+
 ## Telemetry
 
 - Logs: `generation retention search index pre-delete completed` per
   generation (scope_id, generation_id, outcome, drained, batches, rows per
   table, duration, sweep seconds); info when rows were deleted or the
   generation did not drain, debug for an empty drained generation.
+- Logs: `generation retention search index orphan generation swept` per
+  orphan generation, same fields.
 - Metrics are emitted by the retention runner from the store's result:
   phases `predelete_search_index` and `sweep_search_index` on
   `eshu_dp_generation_retention_phase_duration_seconds`, rows on
   `eshu_dp_generation_retention_rows_pruned_total{table}`, skip reasons
   `search_index_undrained` and `advisory_lock_busy` on
   `eshu_dp_generation_retention_skipped_total`, and
-  `eshu_dp_generation_retention_search_index_batches`.
+  `eshu_dp_generation_retention_search_index_batches`. The orphan sweep's
+  signals are `eshu_dp_search_index_orphan_generations{table}`,
+  `eshu_dp_search_index_orphan_rows_swept_total{table}` and phases
+  `census_search_index_orphans` and `sweep_search_index_orphans`.
 
 ## Gotchas / invariants
 
@@ -94,6 +145,10 @@ See `doc.go` for the contract.
   is never active again, and neither protection reads search index rows (see
   the evidence note). Same class as the re-lock's accepted residual: a flip
   that commits after its snapshot still reaches the prune.
-- In this change the foreign keys stay, so the locked cascade still scans the
-  terms leaf (cost follows the leaf, not the generation) until the terms
-  foreign key is dropped in a later change.
+- The foreign keys stay through PR2, so the locked cascade still scans the
+  terms leaf (cost follows the leaf, not the generation) until PR3 drops the
+  terms generation foreign key. Orphan tests drop the keys only inside their
+  isolated test schema.
+- The census interpolates a relation name; it comes only from
+  `pg_inherits` as regclass text (PostgreSQL quotes it) or a fixed table
+  name, never from input.

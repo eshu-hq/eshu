@@ -215,7 +215,7 @@ gates:
       - "go/internal/storage/cypher/edge/writer/sql.go"
       - "go/internal/storage/cypher/materialized_edge_*.go"
       - "go/internal/storage/cypher/canonical_code_call_edges.go"
-      - "go/internal/storage/cypher/canonical_inheritance_edges.go"
+      - "go/internal/storage/cypher/canonical/inheritance/edges.go"
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
       - ".github/static-contract-filters.yml"

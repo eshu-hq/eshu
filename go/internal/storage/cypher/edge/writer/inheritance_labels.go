@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/inheritance"
 )
 
 var inheritanceEndpointLabels = map[string]struct{}{
@@ -47,13 +48,13 @@ func buildInheritanceRowMap(
 
 	switch relationshipType {
 	case "OVERRIDES":
-		return sourcecypher.BatchCanonicalInheritanceOverrideUpsertCypher, rowMap, true
+		return inheritance.BatchOverrideUpsertCypher, rowMap, true
 	case "ALIASES":
-		return sourcecypher.BatchCanonicalInheritanceAliasUpsertCypher, rowMap, true
+		return inheritance.BatchAliasUpsertCypher, rowMap, true
 	case "IMPLEMENTS":
-		return sourcecypher.BatchCanonicalImplementsEdgeUpsertCypher, rowMap, true
+		return inheritance.BatchImplementsUpsertCypher, rowMap, true
 	case "", "INHERITS":
-		return sourcecypher.BatchCanonicalInheritanceEdgeUpsertCypher, rowMap, true
+		return inheritance.BatchUpsertCypher, rowMap, true
 	default:
 		return "", nil, false
 	}

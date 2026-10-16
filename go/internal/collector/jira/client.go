@@ -151,17 +151,19 @@ func (c HTTPClient) CollectWorkItemEvidence(
 	window CollectionWindow,
 ) (CollectionResult, error) {
 	stats := CollectionStats{}
-	issues, err := c.searchIssues(ctx, target, window, &stats)
+	issues, searchTruncated, err := c.searchIssues(ctx, target, window, &stats)
 	if err != nil {
 		return CollectionResult{}, err
 	}
 	stats.IssuesEmitted = len(issues)
 	result := CollectionResult{
-		Issues:        issues,
-		Transitions:   make(map[string][]Transition, len(issues)),
-		ExternalLinks: make(map[string][]ExternalLink, len(issues)),
-		ObservedAt:    window.Until.UTC(),
-		Stats:         stats,
+		Issues:          issues,
+		Transitions:     make(map[string][]Transition, len(issues)),
+		ExternalLinks:   make(map[string][]ExternalLink, len(issues)),
+		ObservedAt:      window.Until.UTC(),
+		Stats:           stats,
+		IssueLimit:      normalizedLimit(target.IssueLimit, defaultIssueLimit, maxIssueLimit),
+		SearchTruncated: searchTruncated,
 	}
 	if result.ObservedAt.IsZero() {
 		result.ObservedAt = time.Now().UTC()
@@ -220,7 +222,7 @@ func (c HTTPClient) searchIssues(
 	target TargetConfig,
 	window CollectionWindow,
 	stats *CollectionStats,
-) ([]Issue, error) {
+) ([]Issue, bool, error) {
 	limit := normalizedLimit(target.IssueLimit, defaultIssueLimit, maxIssueLimit)
 	issues := make([]Issue, 0, limit)
 	nextPageToken := ""
@@ -233,7 +235,7 @@ func (c HTTPClient) searchIssues(
 		}
 		var response searchResponse
 		if err := c.doJSON(ctx, http.MethodPost, jiraSearchEndpoint, nil, body, &response); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		stats.SearchPages++
 		for _, raw := range response.Issues {
@@ -257,11 +259,16 @@ func (c HTTPClient) searchIssues(
 			})
 		}
 		nextPageToken = strings.TrimSpace(response.NextPageToken)
+		if len(issues) >= limit {
+			// The cap, not the provider, ended the walk: further pages
+			// exist exactly when the provider says so.
+			return issues, nextPageToken != "" && !response.IsLast, nil
+		}
 		if response.IsLast || nextPageToken == "" || len(response.Issues) == 0 {
 			break
 		}
 	}
-	return issues, nil
+	return issues, false, nil
 }
 
 func (c HTTPClient) issueChangelog(ctx context.Context, issue Issue, limit int, stats *CollectionStats) ([]Transition, error) {

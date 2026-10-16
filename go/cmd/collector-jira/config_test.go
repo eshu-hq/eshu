@@ -186,6 +186,56 @@ func TestLoadClaimedRuntimeConfigRejectsUnresolvedCredential(t *testing.T) {
 	}
 }
 
+func TestLoadJiraSourceConfigRoundTripsAllowEmptySuccessor(t *testing.T) {
+	t.Parallel()
+
+	load := func(t *testing.T, targetJSON string) bool {
+		t.Helper()
+		instance := workflow.DesiredCollectorInstance{
+			InstanceID:    "jira-primary",
+			Configuration: `{"targets":[` + targetJSON + `]}`,
+		}
+		config, err := loadJiraSourceConfig(instance, func(key string) string {
+			if key == "JIRA_API_TOKEN" {
+				return "secret-token"
+			}
+			return ""
+		})
+		if err != nil {
+			t.Fatalf("loadJiraSourceConfig() error = %v, want nil", err)
+		}
+		if len(config.Targets) != 1 {
+			t.Fatalf("len(Targets) = %d, want 1", len(config.Targets))
+		}
+		return config.Targets[0].AllowEmptySuccessor
+	}
+
+	attested := `{
+		"provider":"jira_cloud",
+		"scope_id":"jira:site:example",
+		"site_id":"example.atlassian.net",
+		"base_url":"https://example.atlassian.net",
+		"token_env":"JIRA_API_TOKEN",
+		"jql":"project = OPS ORDER BY updated ASC",
+		"allow_empty_successor":true
+	}`
+	if got := load(t, attested); !got {
+		t.Fatal("AllowEmptySuccessor = false with allow_empty_successor:true, want true")
+	}
+
+	unattested := `{
+		"provider":"jira_cloud",
+		"scope_id":"jira:site:example",
+		"site_id":"example.atlassian.net",
+		"base_url":"https://example.atlassian.net",
+		"token_env":"JIRA_API_TOKEN",
+		"jql":"project = OPS ORDER BY updated ASC"
+	}`
+	if got := load(t, unattested); got {
+		t.Fatal("AllowEmptySuccessor = true without allow_empty_successor, want false default")
+	}
+}
+
 func testJiraGetenv(key string) string {
 	switch key {
 	case envCollectorInstances:

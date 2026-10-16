@@ -41,6 +41,7 @@ on:
       - 'scripts/run-live-postgres-readiness-tests.sh'
       - 'scripts/test-run-live-postgres-readiness-tests.sh'
       - 'scripts/lib/test-run-live-postgres-readiness-seed-cases.sh'
+      - 'scripts/lib/test-run-live-postgres-readiness-shards.sh'
       - 'scripts/lib/live_postgres_readiness_results.py'
       - 'scripts/lib/live_postgres_readiness_inventory*.py'
       - 'scripts/lib/live_postgres_readiness_records.py'
@@ -92,6 +93,7 @@ on:
       - 'scripts/run-live-postgres-readiness-tests.sh'
       - 'scripts/test-run-live-postgres-readiness-tests.sh'
       - 'scripts/lib/test-run-live-postgres-readiness-seed-cases.sh'
+      - 'scripts/lib/test-run-live-postgres-readiness-shards.sh'
       - 'scripts/lib/live_postgres_readiness_results.py'
       - 'scripts/lib/live_postgres_readiness_inventory*.py'
       - 'scripts/lib/live_postgres_readiness_records.py'
@@ -246,6 +248,7 @@ jobs:
       - name: Run live readiness proofs
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         env:
+          ESHU_POSTGRES_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DISPOSABLE: '1'
           ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable

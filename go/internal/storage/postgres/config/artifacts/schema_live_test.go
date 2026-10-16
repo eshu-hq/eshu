@@ -140,9 +140,9 @@ VALUES ($1, 'deploy/app', 'kustomization.yaml', 'kustomize_resource', $2)`
 
 // TestReadModelCatalogLive checks what the migration installs beyond column
 // shape: the wrapper is IMMUTABLE (the generated column needs it), the rows
-// table carries the 2% autovacuum threshold, and no trigger on content_files
-// calls a config_artifact function, because PR3b-1a must not change
-// content_files behavior.
+// table carries the 2% autovacuum threshold, and exactly the four migration
+// 186 fence triggers on content_files call a config_artifact function
+// (PR3b-1b); their firing order is TestVersionFenceTriggersFireLastLive.
 func TestReadModelCatalogLive(t *testing.T) {
 	ctx, db := openDatabase(t)
 
@@ -171,8 +171,8 @@ JOIN pg_proc p ON p.oid = tg.tgfoid
 WHERE tg.tgrelid = 'content_files'::regclass AND p.proname LIKE 'config_artifact%'`).Scan(&fenceTriggers); err != nil {
 		t.Fatalf("read content_files triggers: %v", err)
 	}
-	if fenceTriggers != 0 {
-		t.Fatalf("content_files has %d config_artifact triggers, want 0 in PR3b-1a", fenceTriggers)
+	if fenceTriggers != len(fenceTriggerNames) {
+		t.Fatalf("content_files has %d config_artifact triggers, want the %d version-fence triggers", fenceTriggers, len(fenceTriggerNames))
 	}
 
 	for _, table := range []string{
@@ -184,7 +184,7 @@ WHERE tg.tgrelid = 'content_files'::regclass AND p.proname LIKE 'config_artifact
 			t.Fatalf("read %s: %v", table, err)
 		}
 		if rows != 0 {
-			t.Fatalf("%s has %d rows after bootstrap, want 0: PR3b-1a seeds nothing", table, rows)
+			t.Fatalf("%s has %d rows after bootstrap, want 0: the seed of an empty content_files is empty", table, rows)
 		}
 	}
 }

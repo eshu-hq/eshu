@@ -35,5 +35,14 @@
 // next; that is safe because superseded is terminal and every reader joins
 // the scope's active generation.
 //
+// TakeCensus and SweepOrphans find and delete orphan rows (#7427 PR2): search
+// index rows whose (scope_id, generation_id) pair scope_generations no longer
+// holds. The census walks each terms leaf's and the documents table's
+// primary-key prefix with a loose index scan; SweepOrphan drains one orphan
+// generation with Drain's batches, but each batch deletes only while the pair
+// is still missing and the scope's active pointer does not name it. The
+// retention runner calls SweepOrphans after its pass, outside any retention
+// transaction.
+//
 // This package must not import the parent postgres package.
 package indexretention

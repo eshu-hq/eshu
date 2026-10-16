@@ -4,7 +4,9 @@
 package admin
 
 import (
+	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/recovery"
@@ -59,6 +61,46 @@ func TestAdminHandler_RecoverGenerations_DurablyEnqueuesAndRecordsLedger(t *test
 	}
 	if store.claimKey != "recover-key-1" {
 		t.Errorf("claimKey = %q, want recover-key-1", store.claimKey)
+	}
+}
+
+func TestAdminHandler_RecoverGenerations_ClaimFenceBusyReturnsConflict(t *testing.T) {
+	h := &Handler{
+		Recovery: &stubRecoveryHandler{refinalizeErr: recovery.ErrRefinalizeClaimFenceBusy},
+		Store:    &stubAdminStore{claim: ReplayIdempotencyClaim{Claimed: true}},
+	}
+	w := postJSON(newAdminMux(h), "/api/v0/admin/recover-generations", map[string]any{
+		"scope_ids":       []string{"scope-1"},
+		"reason":          "queue contention",
+		"idempotency_key": "recover-busy-key",
+	})
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusConflict, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "blocked/claim_fence_busy") {
+		t.Fatalf("body = %s, want blocked/claim_fence_busy", w.Body.String())
+	}
+}
+
+func TestAdminHandler_RecoverGenerations_UsesFixedRefinalizeFailureText(t *testing.T) {
+	const cause = "database connection failed"
+	h := &Handler{
+		Recovery: &stubRecoveryHandler{refinalizeErr: errors.New(cause)},
+		Store:    &stubAdminStore{claim: ReplayIdempotencyClaim{Claimed: true}},
+	}
+	w := postJSON(newAdminMux(h), "/api/v0/admin/recover-generations", map[string]any{
+		"scope_ids":       []string{"scope-1"},
+		"reason":          "operator recovery",
+		"idempotency_key": "recover-error-key",
+	})
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusInternalServerError, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), recoverGenerationsFailedMessage) {
+		t.Fatalf("body = %s, want fixed recover-generations failure text", w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), cause) {
+		t.Fatalf("body = %s, backend error leaked to the client", w.Body.String())
 	}
 }
 

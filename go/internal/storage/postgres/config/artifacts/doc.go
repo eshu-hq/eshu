@@ -12,8 +12,10 @@
 // content version per repository), config_artifact_repo_state (one derive
 // state per repository), config_artifact_paths (the rows, keyed on repo_id
 // and a generated row_digest), config_artifact_backfill_markers, and
-// config_artifact_reconcile_cursor. PR3b-1a adds no trigger, seed, derive or
-// reader, so nothing here changes content_files behavior yet.
+// config_artifact_reconcile_cursor. Migration 186 adds the content_files
+// version fence, which bumps a repository's version once per content
+// transaction at COMMIT, and migration 187 seeds one version-0 row per
+// repository. No derive or reader exists yet.
 //
 // This package defines the contracts the later PRs build on:
 //
