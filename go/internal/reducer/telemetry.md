@@ -8,7 +8,7 @@ lives here; `README.md` keeps a short pointer.
 Spans emitted:
 
 - `SpanReducerRun` — wraps each `executeWithTelemetry` call
-  (`service.go:308`).
+  (`service.go:397`).
 - `SpanCanonicalWrite` — wraps each `processPartitionWithTelemetry`
   call in `SharedProjectionRunner` (`shared_projection_runner.go:284`).
 

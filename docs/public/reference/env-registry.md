@@ -442,10 +442,10 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_REDUCER_BATCH_CLAIM_SIZE` | int | — | Work items claimed per cycle (default adaptive to workers and backend). |
 | `ESHU_REDUCER_CLAIM_DOMAIN` | string | — | Single reducer claim domain. Deprecated; use `ESHU_REDUCER_CLAIM_DOMAINS`. |
 | `ESHU_REDUCER_CLAIM_DOMAINS` | string | — | Comma-separated reducer domains for multi-domain claims. |
+| `ESHU_REDUCER_HANDLER_TIMEOUT` | duration | — | Default bound on one reducer handler execution. Recorded but not enforced yet (#8211 step a). |
+| `ESHU_REDUCER_HANDLER_TIMEOUT_OVERRIDES` | string | — | Per-domain reducer handler bounds as domain=duration,... . Recorded but not enforced yet (#8211 step a). |
 | `ESHU_REDUCER_MAX_ATTEMPTS` | int | `3` | Maximum retry attempts for reducer work items. |
 | `ESHU_REDUCER_RETRY_DELAY` | duration | `30s` | Delay between reducer work-item retries. |
-| `ESHU_REDUCER_HANDLER_TIMEOUT` | duration | unset (no bound) | Default bound on one handler execution. Recorded but not enforced yet (#8211 step a). |
-| `ESHU_REDUCER_HANDLER_TIMEOUT_OVERRIDES` | string | unset | Per-domain handler bounds as `domain=duration,...`. Recorded but not enforced yet (#8211 step a). |
 | `ESHU_REDUCER_WORKERS` | int | — | Concurrent reducer workers (default derived from CPU count and backend). |
 | `ESHU_SHARED_PROJECTION_LEASE_OWNER` | string | `shared-projection-runner` | Prefix for the shared-projection partition lease owner. The reducer appends hostname, PID, and a boot nonce so replicas and restarted processes never share one active owner identity. |
 | `ESHU_SHARED_PROJECTION_PARTITION_BACKOFF_MAX` | duration | `30s` | T_max for per-partition shared-projection backoff: the longest a persistently unproductive (domain, partition) waits between visits, and the pickup bound for work arriving during backoff (within T_max plus one global poll interval, at most 5s). Clamped to 5m; empty or invalid values fall back to the default. |

@@ -19,7 +19,7 @@ States: `pending` → `claimed` → `running` → `succeeded` / `failed`.
 
 ## Queue claim / execute / ack loop
 
-`Service` (declared in `service.go:54`) coordinates the main loop:
+`Service` (declared in `service.go:69`) coordinates the main loop:
 
 - **Sequential** (`Workers <= 1`): `Claim` → `executeWithTelemetry` →
   `Ack` or `Fail` in order.
@@ -32,7 +32,7 @@ States: `pending` → `claimed` → `running` → `succeeded` / `failed`.
   (`retryTransientAck` in `service_observability.go`). An exhausted budget is
   recorded as `ack_abandoned_to_lease_expiry` and leaves the claim to expire
   for reclaim without ending the run; any other ack error still ends it.
-- **Heartbeat**: `startHeartbeat` (`service.go:409`) spawns a goroutine
+- **Heartbeat**: `startHeartbeat` (`service.go:401`) spawns a goroutine
   that calls `Heartbeat` at `HeartbeatInterval`; the heartbeat is stopped
   before `Ack` or `Fail` to avoid lease extension after the transaction
   commits. A handler that never returns is abandoned at shutdown instead of
