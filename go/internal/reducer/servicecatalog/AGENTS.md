@@ -101,7 +101,16 @@ or `RUNS_ON` edges must be added to `runtimeProducerDomains` (if its queue is
 `fact_work_items`) or classified in `runtimeWriterClasses`
 (`service_catalog_runtime_producer_guard_test.go`) with a reason; the guard
 fails otherwise. This package imports `reducer/crossscope` for the elapsed
-bound and cycle anchor; that is a downward import to a shared tier.
+bound and the cycle anchor the log line reports; that is a downward import to
+a shared tier.
+
+The bound is measured per in-flight repository from
+`RuntimeProducerState.NewestInFlightCycleStartedAt` (the producer row's
+`COALESCE(reopened_at, created_at)`), and the handler proceeds only when every
+in-flight repository is past it. Do not bound on the catalog intent's
+`crossscope.ReadinessCycleAnchor`: it counts queue and corpus-fence wait, so a
+one-minute-old producer would commit an empty family (#7816 amendment A1).
+Never anchor on `updated_at`, and keep a zero anchor deferring.
 
 ## Do not
 

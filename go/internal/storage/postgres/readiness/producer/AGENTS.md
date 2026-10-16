@@ -12,6 +12,9 @@ Scoped instructions for this package. The root `AGENTS.md` still applies.
   (parent package) is the guard.
   Re-measure on a populated table (see README.md) before changing the join or
   predicates.
+- The cycle-start column is `max(COALESCE(reopened_at, created_at))`
+  filtered to in-flight statuses. Never use `updated_at`: a retry or re-claim
+  moves it, and the fence would never reach its bound for a wedged producer.
 - Return an error, never an empty map, when the database cannot answer. An
   empty answer reads as ready and commits runtime evidence read before the
   producer's write.

@@ -81,8 +81,8 @@ prefix is a historical artifact of the flat root, not a package boundary.
 Imports point strictly downward. This package reaches `reducer/contract`,
 `reducer/factload`, `reducer/factdecode`, `reducer/factwrite`,
 `reducer/payloadcore`, `reducer/schemadecode`, `reducer/packages/source`,
-`reducer/crossscope` (the #7816 runtime fence's elapsed bound and cycle
-anchor), `internal/facts`, `internal/relationships`, `internal/telemetry`,
+`reducer/crossscope` (the #7816 runtime fence's elapsed bound, and the
+cycle anchor its log line reports), `internal/facts`, `internal/relationships`, `internal/telemetry`,
 `internal/truth`, and the factschema SDK, and it never imports the parent
 `internal/reducer` package. The dependency runs the other way: the root keeps
 compatibility aliases in the service-catalog stanza of `compat_correlation.go` so its own
@@ -123,9 +123,21 @@ deferred: workload materialization in flight for a correlated repository")
 and each bound overrun at warn, with `scope_id`, `generation_id`,
 `failure_class`, `runtime_readiness_outcome`, `in_flight_repo_count`,
 `in_flight_repo_ids` (first 10), `producer_pending`, `producer_retrying`,
-`producer_claimed`, `producer_running`, `elapsed_since_cycle_start`, and
-`max_wait`. It never logs `attempt_count`, which the non-counting class
-freezes.
+`producer_claimed`, `producer_running`, `producer_elapsed` (since the oldest
+known in-flight producer cycle start), `producer_max_wait`, and the catalog
+intent's `elapsed_since_cycle_start` (context only; it does not decide). It
+never logs `attempt_count`, which the non-counting class freezes.
+
+The bound is per in-flight repository: each repository's elapsed time runs
+from its newest in-flight producer row's own cycle start,
+`COALESCE(reopened_at, created_at)`, never from `updated_at` (a retry or
+re-claim moves it) and never from the catalog row's age (which also counts
+queue wait and corpus-fence wait). `bound_exceeded` fires only when every
+in-flight repository's producer has been in flight for at least 30 minutes;
+the handler then commits what it reads, possibly an empty family. A reopened
+producer row starts a fresh 30 minutes. The only shape that defers forever is
+producer progress: a new in-flight producer row for a correlated repository
+appearing every less than 30 minutes, visible as a steady `deferred` rate.
 
 Facts rejected for a malformed payload feed the shared
 `eshu_dp_reducer_input_invalid_facts_total` counter through `factdecode`
@@ -200,8 +212,12 @@ per service catalog pass that has a runtime loader and at least one
 correlated repository (`readiness/producer.RuntimeProducerStatesQuery`). On a
 1,057,536-row `fact_work_items` table it is an index plan with no sequential
 scan: one repository 0.12 ms, fifty repositories 2.5 ms; `pgbench`, 4
-clients, 283,482 single-repository lookups: p50 0.189 ms, p95 0.298 ms. A
-deferral adds the queue's retry delay to that pass and writes nothing. The
+clients, 283,482 single-repository lookups: p50 0.189 ms, p95 0.298 ms. The
+amendment A1 producer cycle-start aggregate keeps that plan: on a
+1,057,631-row table, one repository 0.08 ms and fifty 1.4 ms, against 0.07 ms
+and 1.45 ms for the unextended statement on the same data (see
+`readiness/producer/README.md`). A deferral adds the queue's retry delay to
+that pass and writes nothing. The
 runtime graph read moved earlier in the pass (before the correlation write)
 but runs the same number of times per committed pass.
 
@@ -215,7 +231,9 @@ fence adds no measurable drain time at this scale. Correctness on the same
 runs: the base's first runtime read returned 0 rows (digest e3b0c442) before
 the WorkloadInstance MERGE; with the fence every read returned the 2 rows
 (digest 1aefe225), and one run logged the deferral with
-`producer_retrying=2`.
+`producer_retrying=2`. These runs predate amendment A1, which changes only
+the anchor of the 30-minute bound; no producer in a run that drains in about
+two minutes reaches it, so the A1 change was not rerun on the gate.
 
 Observability Evidence (#7816): `eshu_dp_service_catalog_runtime_readiness_total`
 by outcome, the defer and bound-overrun logs above, and the durable
