@@ -44,7 +44,10 @@ func liveDB(t *testing.T) (*sql.DB, context.Context) {
 	if err := postgres.ApplyBootstrap(schemaCtx, postgres.SQLDB{DB: sqlDB}); err != nil {
 		t.Fatalf("apply bootstrap schema: %v", err)
 	}
-	ctx, cancelTest := context.WithTimeout(context.Background(), 90*time.Second)
+	// The budget must cover the heaviest user (the lock-hold probe runs 3
+	// rounds of seed/prune/racing-derive, ~30s each and growing with the
+	// schema corpus); the probe asserts correctness only, never latency.
+	ctx, cancelTest := context.WithTimeout(context.Background(), 10*time.Minute)
 	t.Cleanup(cancelTest)
 	return sqlDB, ctx
 }

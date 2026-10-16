@@ -77,6 +77,13 @@ FROM generate_series(1, $2::int) g, generate_series(1, $3::int) e`,
 	if _, err := inventory.MirrorRepo(ctx, postgres.SQLDB{DB: sqlDB}, repo); err != nil {
 		t.Fatalf("MirrorRepo(%s) error = %v", repo, err)
 	}
+	// The retention counts query is tuned for planned shapes (its arms were
+	// landed with EXPLAIN ANALYZE evidence), and production always has
+	// autovacuum stats. A freshly seeded probe database has none, so plan
+	// the counts on analyzed tables instead of default estimates.
+	if _, err := sqlDB.ExecContext(ctx, `ANALYZE ingestion_scopes, scope_generations, fact_records, content_entities, content_files, infra_resource_entities`); err != nil {
+		t.Fatalf("analyze probe tables: %v", err)
+	}
 }
 
 // watchAdvisoryLockHold polls pg_locks on its own connection until stop closes
