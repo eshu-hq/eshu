@@ -113,6 +113,26 @@ or log, and no operator signal moves.
   at most 100 scope IDs, so unlike the bulk read above it never scans the
   table. It only reads.
 
+No-Regression Evidence (#7620, progress read): the progress endpoint's only
+new statement is that point read. Measured on PostgreSQL 18.6 (Homebrew,
+aarch64) over 10,000 seeded rows with the request's maximum input shape of
+100 scope IDs: `Index Scan using repository_reindex_requests_pkey`, 100 rows
+returned, 173 shared buffers hit, execution 1.4-14.5 ms across repeated runs
+on a noisy shared host (the buffers and row count are constant; the spread
+is host noise, not query work). No new index: the primary key serves the
+read, and the rows it touches are bounded by the request, not the table.
+The per-scope `FullReconcileState` reads reuse `fullReconcileStateQuery`
+byte-identical (one indexed probe per scope, at most 100 sequential reads on
+an operator-polled admin route); the collector's per-cycle bulk read and
+every other statement in this package are untouched.
+
+No-Observability-Change (#7620, progress endpoint): the endpoint emits no
+metric, span, or log of its own. Like the sibling admin reads, its faults
+ride the request span through `tracing.WriteServerFailure` (500 with the
+exception recorded, 499 with only the client-cancel event), pinned by
+`TestAdminHandler_ReindexProgressFailures`; success and latency stay visible
+on the existing HTTP server metrics for the route.
+
 Performance Evidence (#7620, per-repository): measured on PostgreSQL 18
 (`postgres:18`, full bootstrap schema). The bulk read took 0.99 ms over
 10,000 rows (134 buffers) and 9.45 ms over 100,000 rows. Upserting 100 new
