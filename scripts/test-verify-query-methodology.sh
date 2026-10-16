@@ -15,10 +15,10 @@ run_shim() {
 run_shim static --static
 [[ ! -e "$work/static-artifacts/identity.json" ]] || { printf 'static proof claimed a committed paired identity\n' >&2; exit 1; }
 [[ -s "$work/static-artifacts/coverage.json" ]] || { printf 'static proof omitted inventory coverage\n' >&2; exit 1; }
-guard_pattern='^(TestMethodologyProductionTreeRejectsBaseOnlyMigration|TestMethodologyCombinedCheckoutUsesIntegratedBase)$'
-rg -Fq -- "-list $guard_pattern" "$work/static.log" || { printf 'static proof omitted both identity guard roots\n' >&2; exit 1; }
-rg -Fq -- "-run $guard_pattern" "$work/static.log" || { printf 'static proof did not execute both identity guard roots\n' >&2; exit 1; }
-for omitted in TestMethodologyProductionTreeRejectsBaseOnlyMigration TestMethodologyCombinedCheckoutUsesIntegratedBase; do
+guard_pattern='^(TestMethodologyProductionTreeRejectsBaseOnlyMigration|TestMethodologyCombinedCheckoutUsesIntegratedBase|TestMethodologyProductionTreeAdmitsAdditiveGraphSchema|TestMethodologyRewriteDeclarationGate|TestMethodologySchemaDeclarationGate)$'
+rg -Fq -- "-list $guard_pattern" "$work/static.log" || { printf 'static proof omitted an identity guard root\n' >&2; exit 1; }
+rg -Fq -- "-run $guard_pattern" "$work/static.log" || { printf 'static proof did not execute every identity guard root\n' >&2; exit 1; }
+for omitted in TestMethodologyProductionTreeRejectsBaseOnlyMigration TestMethodologyCombinedCheckoutUsesIntegratedBase TestMethodologyProductionTreeAdmitsAdditiveGraphSchema TestMethodologyRewriteDeclarationGate TestMethodologySchemaDeclarationGate; do
  if SHIM_OMIT_TREE_GUARD="$omitted" run_shim "missing-$omitted" --static; then
   printf 'static proof accepted missing guarded root %s\n' "$omitted" >&2
   exit 1

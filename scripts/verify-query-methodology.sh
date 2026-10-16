@@ -33,7 +33,7 @@ cd "$repo_root/go"
 # shellcheck source=scripts/lib/go-test-run-guard.sh
 . "$repo_root/scripts/lib/go-test-run-guard.sh"
 python3 "$repo_root/scripts/lib/verify-query-methodology-live-contract.py" --root "$repo_root"
-go_test_run_guard 2 '^(TestMethodologyProductionTreeRejectsBaseOnlyMigration|TestMethodologyCombinedCheckoutUsesIntegratedBase)$' -- -tags queryplan_profile_live ./internal/query -count=1 -v
+go_test_run_guard 5 '^(TestMethodologyProductionTreeRejectsBaseOnlyMigration|TestMethodologyCombinedCheckoutUsesIntegratedBase|TestMethodologyProductionTreeAdmitsAdditiveGraphSchema|TestMethodologyRewriteDeclarationGate|TestMethodologySchemaDeclarationGate)$' -- -tags queryplan_profile_live ./internal/query -count=1 -v
 # These tests need no backend but sit behind build tags, so a plain go test never
 # compiles them. Run them here and count them so a rename cannot drop one.
 go_test_run_guard 9 '^(TestMethodologyEmptyGrantHTTPDoesNotReadGraph|TestMethodologyRequestQueryCountBudget|TestMethodologyGraphStatementOracle|TestMethodologyCycleEdgeOracleKeepsDirectionalCandidates|TestMethodologyGraphOracleEmptyPagesOnPopulatedFixture|TestMethodologyGraphStatementCapturePreservesExtraColumn|TestMethodologyProfileMetricsRequireRawCounters|TestMethodologyPlanOmitsUnavailableOptionalMetrics|TestMethodologyScratchGitIgnoresAmbientTrace)$' -- -tags queryplan_profile_live ./internal/query -count=1 -v
