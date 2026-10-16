@@ -18,17 +18,28 @@ var queryVerdictStatusSources = map[string]bool{
 
 // returnerIndex returns the result index at which call yields an allowed
 // status: 0 for a queryVerdictStatusSources function, or the index derived
-// for a tree function (deriveReturners).
+// for a tree function (deriveReturners). When the receiver type is not
+// evident, every same-named method must be a returner with the same index.
 func (tree *queryGuardTree) returnerIndex(f *queryGuardFile, call *ast.CallExpr) (int, bool) {
-	_, base, dir, ok := queryCallee(f, call)
+	target, ok := tree.target(f, call)
 	if !ok {
 		return 0, false
 	}
-	if queryVerdictStatusSources[base] {
+	if queryVerdictStatusSources[target.base] {
 		return 0, true
 	}
-	index, ok := tree.returners[dir][base]
-	return index, ok
+	if len(target.keys) == 0 {
+		return 0, false
+	}
+	index := -1
+	for _, key := range target.keys {
+		got, ok := tree.returners[target.dir][key]
+		if !ok || (index >= 0 && got != index) {
+			return 0, false
+		}
+		index = got
+	}
+	return index, true
 }
 
 // deriveReturners computes the fixed point of status returners: a function
@@ -48,7 +59,7 @@ func (tree *queryGuardTree) deriveReturners() {
 				if !ok || fn.Body == nil || fn.Type.Results == nil {
 					continue
 				}
-				if _, known := tree.returners[f.dir][fn.Name.Name]; known {
+				if _, known := tree.returners[f.dir][queryFuncKey(fn)]; known {
 					continue
 				}
 				index, ok := tree.statusResultIndex(f, fn)
@@ -58,7 +69,7 @@ func (tree *queryGuardTree) deriveReturners() {
 				if tree.returners[f.dir] == nil {
 					tree.returners[f.dir] = map[string]int{}
 				}
-				tree.returners[f.dir][fn.Name.Name] = index
+				tree.returners[f.dir][queryFuncKey(fn)] = index
 				changed = true
 			}
 		}

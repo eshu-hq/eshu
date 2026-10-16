@@ -46,15 +46,21 @@ import (
 // are a fixed point over every package under go/internal/query, so a renamed
 // wrapper chain (compare's writeCompareError -> writeCompareJSON ->
 // WriteHeader) is followed at any depth, across packages for an exported
-// wrapper. A call to a function that itself writes a disallowed literal
-// status, at any depth, also fails, so each caller of a fixed-500 helper is
-// named.
+// wrapper. Writers are keyed by package, receiver type, and name, so two
+// types' same-named methods stay apart; a method call resolves through its
+// receiver's evident type (the method receiver, a typed parameter or local,
+// or a field of a struct of known type), else through the union of the
+// package's same-named methods, and the finding then says so. A call to a
+// function that itself writes a disallowed literal status, at any depth,
+// also fails, so each caller of a fixed-500 helper is named.
 //
 // Any other status fails: a literal 500, 502, 504, or 408, a named constant,
 // a field, or a call. No struct field is ever allowed. The walk does not
 // resolve types, so a writer reached through a function value, an interface,
-// a function literal, or another package's method is not seen.
-// TestQueryDirectServerStatusSitesShapes and TestQueryWriterWrapperShapes pin
+// a function literal, or a method promoted from an embedded field is not
+// seen.
+// TestQueryDirectServerStatusSitesShapes, TestQueryWriterWrapperShapes, and
+// TestQueryWriterReceiverShapes pin
 // the shapes and the gaps; TestQueryErrorGuardsSeeded is the seeded RED/GREEN
 // pair over a planted tree.
 func TestNoDirectServerStatusWrites(t *testing.T) {

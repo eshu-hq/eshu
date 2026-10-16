@@ -37,7 +37,11 @@ type queryGuardTree struct {
 	fset      *token.FileSet
 	files     []*queryGuardFile
 	writers   map[string]map[string]queryWriterSpec
-	returners map[string]map[string]int // dir -> function -> result index of an allowed status
+	returners map[string]map[string]int // dir -> function key -> result index of an allowed status
+	// methodsByName maps dir -> method name -> every "Recv.name" key, and
+	// fields maps a struct type to its named field types (indexTypes).
+	methodsByName map[string]map[string][]string
+	fields        map[queryTypeRef]map[string]queryTypeRef
 }
 
 // loadQueryGuardTree parses every non-test .go file under root, skipping
@@ -75,6 +79,7 @@ func loadQueryGuardTree(t *testing.T, root, importRoot string) *queryGuardTree {
 	if walkErr != nil {
 		t.Fatalf("walk %s: %v", root, walkErr)
 	}
+	tree.indexTypes()
 	tree.deriveReturners()
 	tree.deriveWriters()
 	return tree
@@ -154,51 +159,40 @@ var queryBaseWriters = map[string]queryWriterSpec{
 // queryHTTPErrorWriter is http.Error(w, message, status).
 var queryHTTPErrorWriter = queryWriterSpec{status: 2, messages: 1 << 1, messageMode: queryMessageStatusArg}
 
-// queryCallee names the function call invokes: name as written (pkg.Name for
-// a qualified call), base its last element, and dir the package directory a
-// tree function would live in ("" for an import outside the walk root).
-// http.Error reports dir "http".
-func queryCallee(f *queryGuardFile, call *ast.CallExpr) (name, base, dir string, ok bool) {
-	switch fun := call.Fun.(type) {
-	case *ast.Ident:
-		return fun.Name, fun.Name, f.dir, true
-	case *ast.SelectorExpr:
-		name, dir = fun.Sel.Name, f.dir
-		if x, isIdent := fun.X.(*ast.Ident); isIdent {
-			if x.Name == "http" && name == "Error" {
-				return "http.Error", "Error", "http", true
-			}
-			if importDir, imported := f.imports[x.Name]; imported {
-				return x.Name + "." + name, name, importDir, true
-			}
-		}
-		return name, name, dir, true
-	default:
-		return "", "", "", false
-	}
-}
-
 // resolve returns the spec of the writer call invokes, the name it is called
-// by, and whether it is a writer. A base sink matches by name; a bare name or
-// a method selector resolves in f's own package; pkg.Name resolves in the
-// imported package when it is under the walk root.
+// by, and whether it is a writer. A base sink matches by name under any
+// qualifier or receiver; anything else resolves through target, and a
+// conservative union of same-named methods merges their specs and carries
+// the ambiguity in the returned name.
 func (tree *queryGuardTree) resolve(f *queryGuardFile, call *ast.CallExpr) (queryWriterSpec, string, bool) {
-	name, base, dir, ok := queryCallee(f, call)
+	target, ok := tree.target(f, call)
 	switch {
 	case !ok:
 		return queryWriterSpec{}, "", false
-	case dir == "http":
-		return queryHTTPErrorWriter, name, true
+	case target.dir == "http":
+		return queryHTTPErrorWriter, target.name, true
 	}
-	if spec, ok := queryBaseWriters[base]; ok {
-		return spec, name, true
+	if spec, ok := queryBaseWriters[target.base]; ok {
+		return spec, target.name, true
 	}
-	if dir == "" {
+	if target.dir == "" {
 		return queryWriterSpec{}, "", false
 	}
-	spec, ok := tree.writers[dir][base]
-	spec.fromTree = ok
-	return spec, name, ok
+	var merged queryWriterSpec
+	found := false
+	for _, key := range target.keys {
+		spec, ok := tree.writers[target.dir][key]
+		if !ok {
+			continue
+		}
+		if found {
+			merged = queryMergeWriterSpec(merged, spec)
+		} else {
+			merged, found = spec, true
+		}
+	}
+	merged.fromTree = found
+	return merged, target.name + target.ambiguityNote(), found
 }
 
 // deriveWriters computes the fixed point of writer specs over every function
@@ -223,13 +217,14 @@ func (tree *queryGuardTree) deriveWriters() {
 					pkg = map[string]queryWriterSpec{}
 					tree.writers[f.dir] = pkg
 				}
-				current, had := pkg[fn.Name.Name]
+				key := queryFuncKey(fn)
+				current, had := pkg[key]
 				merged := derived
 				if had {
 					merged = queryMergeWriterSpec(current, derived)
 				}
 				if !had || merged != current {
-					pkg[fn.Name.Name] = merged
+					pkg[key] = merged
 					changed = true
 				}
 			}
@@ -261,6 +256,7 @@ func queryGuardTreeFromSource(t *testing.T, name, src string) (*queryGuardTree, 
 	if len(tree.files) != 1 {
 		t.Fatalf("parse synthetic source %s:\n%s", name, src)
 	}
+	tree.indexTypes()
 	tree.deriveReturners()
 	tree.deriveWriters()
 	return tree, tree.files[0]
