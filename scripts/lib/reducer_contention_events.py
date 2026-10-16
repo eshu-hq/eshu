@@ -39,6 +39,28 @@ CONTRACT_COMMANDS = (
     "python3 scripts/test-reducer-contention-ledger-policy.py",
     "bash scripts/verify-live-tests-ledger.sh",
 )
+ROOT_KEYS = frozenset({"name", "on", "concurrency", "permissions", "jobs"})
+JOB_KEYS = frozenset({"needs", "name", "runs-on", "timeout-minutes", "services", "steps"})
+
+
+def canonical_keys(text: str, indent: int, allowed: frozenset[str]) -> dict[str, str]:
+    """Accept only literal mapping keys at one workflow indentation level.
+
+    This is the owned workflow's restricted YAML grammar. An alternate YAML
+    spelling or merge key could change activation without matching a text probe.
+    """
+    entries: dict[str, str] = {}
+    for line in text.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        depth = len(line) - len(line.lstrip(" "))
+        if depth != indent:
+            continue
+        match = re.fullmatch(rf" {{{indent}}}([a-z][a-z-]*):(?: .*)?", line)
+        if match is None or match.group(1) not in allowed or match.group(1) in entries:
+            raise ValueError(f"non-fail-closed workflow key: {line}")
+        entries[match.group(1)] = line
+    return entries
 
 
 def load_inventory(path: Path = INVENTORY) -> dict[str, dict[str, object]]:
@@ -51,16 +73,31 @@ def load_inventory(path: Path = INVENTORY) -> dict[str, dict[str, object]]:
 
 def workflow_steps(workflow: str) -> dict[str, str]:
     """Read the owner job and reject enclosing skip or failure suppression."""
+    root = canonical_keys(workflow, 0, ROOT_KEYS)
+    if set(root) != ROOT_KEYS or root["jobs"] != "jobs:":
+        raise ValueError("inactive contention owner job: noncanonical root")
+    job_ids = [
+        line for line in workflow.split("jobs:\n", 1)[1].splitlines()
+        if line.startswith("  ") and not line.startswith("   ")
+        and line.strip() and not line.lstrip().startswith("#")
+    ]
+    if job_ids != ["  queue-selection:", "  contention-gate:"]:
+        raise ValueError("inactive contention owner job: noncanonical jobs")
     jobs = list(OWNER_JOB.finditer(workflow))
     if len(re.findall(r"(?m)^jobs:$", workflow)) != 1 or len(jobs) != 1:
         raise ValueError("inactive contention owner job: missing job")
     body = jobs[0].group("body")
-    if (
-        re.search(r"(?m)^    (?:if|continue-on-error|defaults):", body)
-        or re.search(r"(?m)^defaults:", workflow)
-        or len(re.findall(r"(?m)^    needs: queue-selection$", body)) != 1
-    ):
+    job_keys = canonical_keys(body, 4, JOB_KEYS)
+    if (set(job_keys) != JOB_KEYS or job_keys["needs"] != "    needs: queue-selection"
+            or job_keys["services"] != "    services:"
+            or job_keys["steps"] != "    steps:"):
         raise ValueError("inactive or non-fail-closed contention owner job")
+    step_list = body.split("    steps:\n", 1)[1]
+    for line in step_list.splitlines():
+        if (line.startswith("      ") and not line.startswith("       ")
+                and line.strip() and not line.lstrip().startswith("#")
+                and STEP_NAME.fullmatch(line + "\n") is None):
+            raise ValueError(f"non-fail-closed contention step header: {line}")
     matches = list(STEP_NAME.finditer(body))
     steps: dict[str, str] = {}
     for index, match in enumerate(matches):
@@ -75,6 +112,14 @@ def workflow_steps(workflow: str) -> dict[str, str]:
 def active_commands(steps: dict[str, str], name: str) -> list[str]:
     """Require an active, failing Actions step with literal shell commands."""
     step = steps.get(name, "")
+    allowed = frozenset({"if", "run"}) if name == CONTRACT_STEP else frozenset(
+        {"if", "working-directory", "env", "run"}
+    )
+    keys = canonical_keys(step, 8, allowed)
+    if set(keys) != allowed or ("env" in keys and keys["env"] != "        env:"):
+        raise ValueError(f"non-fail-closed contention step properties: {name}")
+    if "working-directory" in keys and keys["working-directory"] != "        working-directory: go":
+        raise ValueError(f"non-fail-closed contention step directory: {name}")
     conditions = re.findall(r"(?m)^        if: .*?$", step)
     if conditions != [ACTIVE_CONDITION]:
         raise ValueError(f"inactive contention step: {name}")
@@ -83,6 +128,12 @@ def active_commands(steps: dict[str, str], name: str) -> list[str]:
     run = re.search(r"(?m)^        run: \|\n", step)
     if run is None:
         raise ValueError(f"non-fail-closed contention step body: {name}")
+    before_run = step[:run.start()]
+    for line in before_run.splitlines():
+        if (line.startswith("          ") and not line.startswith("           ")
+                and line.strip() and not line.lstrip().startswith("#")
+                and re.fullmatch(r"          ESHU_[A-Z0-9_]+: .+", line) is None):
+            raise ValueError(f"non-fail-closed contention step environment: {name}")
     lines = step[run.end():].rstrip("\n").splitlines()
     if not lines or any(not line.startswith("          ") for line in lines):
         raise ValueError(f"non-fail-closed contention step body: {name}")

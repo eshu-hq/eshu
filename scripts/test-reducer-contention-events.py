@@ -175,6 +175,28 @@ class EventProofTest(unittest.TestCase):
                     change_step(name, condition, condition + "        continue-on-error: true\n"),
                 )
             )
+            for spelling in (
+                "continue-on-error : true",
+                "'continue-on-error': true",
+                '"continue-on-error": true',
+                "if : ${{ false }}",
+                "'if': ${{ false }}",
+                "shell : bash {0} || true",
+            ):
+                mutations.append(
+                    (
+                        f"alternate {name} {spelling}",
+                        change_step(name, condition, condition + f"        {spelling}\n"),
+                    )
+                )
+            mutations.append(
+                (
+                    f"folded condition {name}",
+                    change_step(
+                        name, condition, condition + "        if : >-\n          ${{ false }}\n"
+                    ),
+                )
+            )
         job = "  contention-gate:\n"
         self.assertIn(job, original)
         mutations.extend(
@@ -201,6 +223,45 @@ class EventProofTest(unittest.TestCase):
                         "defaults:\n  run:\n    shell: bash {0} || true\n\njobs:\n",
                         1,
                     ),
+                ),
+            )
+        )
+        for spelling in (
+            "continue-on-error : true",
+            "'continue-on-error': true",
+            '"continue-on-error": true',
+            "if : ${{ false }}",
+            "'if': ${{ false }}",
+            "defaults :",
+        ):
+            mutations.append(
+                (f"alternate job {spelling}", original.replace(job, job + f"    {spelling}\n", 1))
+            )
+        mutations.append(
+            (
+                "alternate workflow defaults",
+                original.replace(
+                    "jobs:\n",
+                    "defaults :\n  run:\n    shell: bash {0} || true\n\njobs:\n",
+                    1,
+                ),
+            )
+        )
+        anchor = "      - name: Checkout repository\n"
+        self.assertIn(anchor, original)
+        alias_workflow = original.replace(
+            anchor,
+            anchor + "        env: &soft_failure\n          continue-on-error: true\n",
+            1,
+        )
+        mutations.append(
+            (
+                "merged step failure suppression",
+                alias_workflow.replace(
+                    f"      - name: {proof_steps[2]}\n" + condition,
+                    f"      - name: {proof_steps[2]}\n" + condition
+                    + "        <<: *soft_failure\n",
+                    1,
                 ),
             )
         )
