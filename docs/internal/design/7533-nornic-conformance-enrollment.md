@@ -15,16 +15,22 @@ independently of the legacy exemption count and digest. The static mirror
 plants disabled, suppressed, unselected, missing, skipped, duplicate,
 wrong-package, and re-pinned-demotion cases.
 
-At source `a7623da9c98b564c35627f46fd9b79b0aa30fbb1`, all nine tests passed
-a local race run on the pinned NornicDB 1.3.3 fixture: package 1.342 seconds,
-process 2.367 seconds. These shared-host figures are not a speedup or scale
-claim. The modified full script passed core conformance and all nine tests once
-on a fresh Linux ARM64 fixture, taking 3.571 seconds. Two earlier attempts on
-a reused fixture failed in the unchanged core containment readback before the
-nine-test step. A bounded diagnostic confirmed the File and Function existed
-when a typed relationship count returned zero, but it did not prove why. The
-retained-state failure remains open. Hosted AMD64 execution is not checked.
-Neither local result by itself establishes enrollment acceptance.
+All nine tests passed a local race run on pinned NornicDB 1.3.3: package
+1.342 seconds, process 2.367 seconds. The fresh Linux ARM64 fixture ran the
+whole modified conformance script successfully (core plus all nine tests) in
+3.571 seconds. That run used commit `a7623da9c98b564c35627f46fd9b79b0aa30fbb1`
+plus an uncommitted diff with SHA-256
+`3be01d898311c15f2a0bbce9af5f9a9240b16f2018bf0c274a55c76f8b3f4764`;
+the receipt records eleven source-file hashes. These shared-host figures are
+not a speedup or scale claim. Two earlier reused-fixture attempts failed in
+the unchanged core containment readback. In two later parent/candidate pairs,
+both arms had already run all nine tests before a subsequent core readback
+returned zero containment rows. Those pairs exclude the final selector switch
+as a necessary cause under that history; they do not isolate the earlier five
+tests or prove a graph write versus read defect. The retained-state cause
+remains unproven. Hosted AMD64 execution is not checked. The hosted full
+same-fixture core, nine tests, bootstrap, API health, and teardown are required
+for enrollment acceptance.
 
 The semantic concurrency test retains eight repository writers. Its cleanup
 ignores errors, so a green test does not prove cleanup success. The hosted job
