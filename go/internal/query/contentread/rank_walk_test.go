@@ -15,6 +15,9 @@ import (
 	"sync"
 	"testing"
 
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/search/rank"
@@ -358,4 +361,58 @@ func walkEntitiesQuiet(h *ContentHandler, limit int) []string {
 		token = next
 	}
 	return nil
+}
+
+// failingWindowScorer is an enabled ranker whose window score fails with err.
+type failingWindowScorer struct{ err error }
+
+func (f failingWindowScorer) RerankEntities(_ context.Context, _, _ string, rows []querycontract.EntityContent) ([]querycontract.EntityContent, bool) {
+	return rows, false
+}
+
+func (f failingWindowScorer) RerankFiles(_ context.Context, _, _ string, rows []querycontract.FileContent) ([]querycontract.FileContent, bool) {
+	return rows, false
+}
+
+func (f failingWindowScorer) CanScoreWindow() bool { return true }
+
+func (f failingWindowScorer) ScoreEntityWindow(context.Context, string, string, []querycontract.EntityContent) (map[string]float64, error) {
+	return nil, f.err
+}
+
+// TestSearchEntitiesRankWalkScoringFailureIsAFixedServerError pins the
+// scoring-failure branch: a timed-out window score answers 500 with the fixed
+// message, carries no rank_walk block, and records no served outcome.
+func TestSearchEntitiesRankWalkScoringFailureIsAFixedServerError(t *testing.T) {
+	t.Parallel()
+	h := &ContentHandler{
+		Content:      &staticEntityStore{rows: walkRows(20)},
+		Profile:      querycontract.ProfileLocalAuthoritative,
+		HybridRanker: failingWindowScorer{err: context.DeadlineExceeded},
+	}
+	encoded, _ := json.Marshal(map[string]any{
+		"query": "payment refund", "repo_id": walkRepoID, "limit": 5, "rank_cursor": rank.StartToken,
+	})
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	ctx, span := provider.Tracer("test").Start(walkContext(), "request")
+	mux := http.NewServeMux()
+	h.Mount(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/v0/content/entities/search", bytes.NewReader(encoded)).WithContext(ctx))
+	span.End()
+	body := rec.Body.String()
+	if rec.Code != http.StatusInternalServerError || !strings.Contains(body, contentEntityRankFailedMessage) {
+		t.Fatalf("status = %d body = %s, want 500 %q", rec.Code, body, contentEntityRankFailedMessage)
+	}
+	if strings.Contains(body, "rank_walk") || strings.Contains(body, "deadline") {
+		t.Fatalf("body = %s, want the fixed message only", body)
+	}
+	for _, ended := range recorder.Ended() {
+		for _, kv := range ended.Attributes() {
+			if kv.Key == rank.AttrOutcome && (kv.Value.AsString() == rank.OutcomeServed || kv.Value.AsString() == rank.OutcomeWindowEnd) {
+				t.Fatalf("span recorded %s=%s on a failed walk", kv.Key, kv.Value.AsString())
+			}
+		}
+	}
 }

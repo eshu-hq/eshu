@@ -15,6 +15,9 @@ import (
 	"strings"
 	"testing"
 
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/search/rank"
 )
@@ -25,6 +28,9 @@ type windowRanker struct {
 	reversingRanker
 	disabled bool
 	calls    *int
+	// err, when set, is what ScoreCodeWindow returns, so a test can drive
+	// the scoring-failure branch.
+	err error
 }
 
 func (r windowRanker) CanScoreWindow() bool { return !r.disabled }
@@ -32,6 +38,9 @@ func (r windowRanker) CanScoreWindow() bool { return !r.disabled }
 func (r windowRanker) ScoreCodeWindow(_ context.Context, _, _ string, rows []map[string]any) (map[string]float64, error) {
 	if r.calls != nil {
 		*r.calls++
+	}
+	if r.err != nil {
+		return nil, r.err
 	}
 	scores := make(map[string]float64, len(rows))
 	for i, row := range rows {
@@ -370,3 +379,54 @@ func TestCodeSearchOffsetPathBytesUnchanged(t *testing.T) {
 }
 
 const codeOffsetPathGolden = `{"count":3,"docstring_clip_bytes":512,"docstring_clipped_rows":0,"limit":3,"offset":3,"query":"decode","repo_id":"repo-a","results":[{"end_line":0,"entity_id":"entity-005","entity_name":"decode","entity_type":"Function","file_path":"","language":"","metadata":null,"page_position":2,"repo_id":"repo-a","source_cache":"","start_line":0},{"end_line":0,"entity_id":"entity-004","entity_name":"decode","entity_type":"Function","file_path":"","language":"","metadata":null,"page_position":1,"repo_id":"repo-a","source_cache":"","start_line":0},{"end_line":0,"entity_id":"entity-003","entity_name":"decode","entity_type":"Function","file_path":"","language":"","metadata":null,"page_position":0,"repo_id":"repo-a","source_cache":"","start_line":0}],"source":"content","source_backend":"hybrid_content_store","source_cache_clip_bytes":4096,"source_cache_clipped_rows":0,"truncated":true}` + "\n"
+
+// TestCodeSearchRankWalkScoringFailureIsAFixedServerError pins the
+// scoring-failure branch: a timed-out window score answers 500 with the fixed
+// message, carries no rank_walk block, and records no served outcome. It
+// never falls back to a lexical page, which would change the walk's order
+// between pages.
+func TestCodeSearchRankWalkScoringFailureIsAFixedServerError(t *testing.T) {
+	t.Parallel()
+	handler, _ := walkCodeHandler(20, windowRanker{reversingRanker: reversingRanker{applied: true}, err: context.DeadlineExceeded})
+	recorder, spans := postCodeSearchTraced(t, handler, map[string]any{
+		"query": "decode", "repo_id": "repo-a", "limit": 5, "rank_cursor": rank.StartToken,
+	})
+	body := recorder.Body.String()
+	if recorder.Code != http.StatusInternalServerError || !strings.Contains(body, codeSearchRankFailedMessage) {
+		t.Fatalf("status = %d body = %s, want 500 %q", recorder.Code, body, codeSearchRankFailedMessage)
+	}
+	if strings.Contains(body, "rank_walk") || strings.Contains(body, "deadline") {
+		t.Fatalf("body = %s, want the fixed message only", body)
+	}
+	assertNoServedOutcome(t, spans)
+}
+
+// postCodeSearchTraced runs one find_code request under a recording request
+// span and returns the ended spans.
+func postCodeSearchTraced(t *testing.T, handler *CodeHandler, body map[string]any) (*httptest.ResponseRecorder, []sdktrace.ReadOnlySpan) {
+	t.Helper()
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	ctx, span := provider.Tracer("test").Start(context.Background(), "request")
+	response := httptest.NewRecorder()
+	handler.handleSearch(response, httptest.NewRequest(http.MethodPost, "/api/v0/code/search", bytes.NewReader(encoded)).WithContext(ctx))
+	span.End()
+	return response, recorder.Ended()
+}
+
+// assertNoServedOutcome fails when the request span recorded a served or
+// window_end rank-walk outcome.
+func assertNoServedOutcome(t *testing.T, spans []sdktrace.ReadOnlySpan) {
+	t.Helper()
+	for _, span := range spans {
+		for _, kv := range span.Attributes() {
+			if kv.Key == rank.AttrOutcome && (kv.Value.AsString() == rank.OutcomeServed || kv.Value.AsString() == rank.OutcomeWindowEnd) {
+				t.Fatalf("span %s recorded %s=%s on a failed walk", span.Name(), kv.Key, kv.Value.AsString())
+			}
+		}
+	}
+}
