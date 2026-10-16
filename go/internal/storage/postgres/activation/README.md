@@ -129,8 +129,8 @@ disposable PostgreSQL (`ESHU_DEFERRED_PARTITION_PROOF_DSN`,
   the consumer protocol.
 - `retention_live_test.go` — FK cascade and prune.
 - `terminal_live_test.go` — `inapplicable` (cloud scope, fenced retire),
-  catalog-changed hold, NULL pointer. The repo_id collision-loser proof stays
-  in `backfill/targeted/terminal_live_test.go` with the
+  catalog-changed hold, NULL pointer. The repo_id collision-loser proof now
+  lives in `backfill/targeted/terminal_live_test.go` with the
   partition-scoped engine proofs.
 - `targeted_live_test.go` — the production maintainer: real `catalog_changed`
   and `no_memo_baseline` holds that complete after the epoch pass, and a real

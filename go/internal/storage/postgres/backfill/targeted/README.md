@@ -22,8 +22,8 @@ passes nil instruments to the memo gate.
 
 ## Move evidence (#7648)
 
-No-Regression Evidence: the baseline is `ccd5e023`, before the family moved;
-the after source is this package on PostgreSQL 18.6 with isolated bootstrap
+No-Regression Evidence: the baseline is `ccd5e023`, before the family moved.
+Baseline and moved proofs ran on PostgreSQL 18.6 with isolated bootstrap
 schemas. Both arms use the real root entry points and the existing batch size
 and worker settings of each fixture. In 21 final race-enabled differential
 summaries, there were zero whole-only rows in compared partitions, zero
