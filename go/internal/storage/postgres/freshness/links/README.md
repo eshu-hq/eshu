@@ -175,8 +175,11 @@ the link writer holds.
 
 Telemetry: `eshu_dp_changed_since_ack_journal_total{outcome}` (`journaled`,
 `exists`, `gate_skipped`), counted by the projector queue after the Ack
-commits, and an INFO log with `scope_id` and `generation_id` on each gate
-skip.
+commits, and an INFO log with `scope_id` and `generation_id` for a gate
+skip. The log is sampled: the first skip in the process logs, then at most
+one a minute, each line with `gate_skipped_since_last_log` (the skips not
+logged since the last line). The counter counts every skip; read rates from
+it, not from the log.
 
 ## Retention
 

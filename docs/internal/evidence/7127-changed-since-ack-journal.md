@@ -109,6 +109,7 @@ live-postgres-readiness runner) and `go/internal/storage/postgres/freshness/link
 | Equivalence | `TestProjectorAckJournalEquivalence` | the G1 fixture activated by three Acks and the same history as backfill rows give byte-equal digests: deltas `5bb07c40…`(14), links `32160a21…`(3), buckets `ad773603…`(12), state `47b0e495…`(9); the Ack journal is `g0 NULL`, `g1<-g0`, `g2<-g1`; 0 oracle mismatches |
 | Cost gate | `TestProjectorAckJournalCost` | see below |
 | Telemetry | `TestProjectorAckJournalRecordsOutcome` | one count per outcome after commit; the gate-skip log carries `scope_id`, `generation_id`, `outcome`; flag off records nothing |
+| Gate-skip log sampling | `TestProjectorAckGateSkipLogIsSampled`, `TestLogSamplerAdmitsOnePerIntervalUnderConcurrency` (`-race`) | 5 skips in one minute: 5 `gate_skipped` counts, 1 log line with `gate_skipped_since_last_log` 0; the next minute's skip logs with 4; 64 concurrent skips admit 1 line, the next carries 63 |
 | Wiring | `TestBuildIngesterProjectorServiceWiresChangedSinceJournal`, `TestBuildBootstrapProjectorWiresChangedSinceJournal`, `TestEnabledParsesTheSwitchOnce` | off by default and for `false`, on for `true`; one parse for the three binaries |
 
 ### Contention
@@ -187,7 +188,9 @@ Observability Evidence: `eshu_dp_changed_since_ack_journal_total{outcome}`
 (`journaled`, `exists`, `gate_skipped`), recorded once per committed flag-on
 Ack, and the INFO log "changed-since ack journal skipped while a journal pass
 held its key; the sweeper journals the generation" with `scope_id`,
-`generation_id` and `outcome`. A journal pass now also skips while an Ack
+`generation_id` and `outcome`. The log is sampled: the first skip in the
+process, then at most one a minute, each line with
+`gate_skipped_since_last_log`; the counter counts every skip. A journal pass now also skips while an Ack
 holds the key shared, so a skip can mean that no pass ran. The chance that
 one try misses is the Ack duty cycle; the pass starves only while Ack windows
 cover all time, and each Ack still journals its own activation then. The

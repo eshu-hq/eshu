@@ -124,7 +124,8 @@ High-signal invariants for this package:
   sends exactly the statements it sent before. Nothing reads the ledger yet.
   Each committed flag-on Ack counts `eshu_dp_changed_since_ack_journal_total`
   by `outcome` (`journaled`, `exists`, `gate_skipped`); a gate skip also logs
-  INFO with `scope_id` and `generation_id`.
+  INFO with `scope_id` and `generation_id`, sampled: the first skip in the
+  process, then at most one a minute, with `gate_skipped_since_last_log`.
   See `freshness/links/README.md` ("Ack writer") and
   `docs/internal/evidence/7127-changed-since-ack-journal.md`.
 - Generation liveness reopens `source_local` only for blockage that replay can
