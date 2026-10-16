@@ -71,3 +71,47 @@ func TestReducerWiringResolvesInfraSearchKeyFromGraphBackend(t *testing.T) {
 		}
 	}
 }
+
+// TestReducerCanonicalGraphWritersCarryInfraSearchKeyDialect proves the
+// dialect buildReducerService resolves reaches the gated cloudResourceNode and
+// ec2InstanceNode writers through newReducerCanonicalGraphWriters: both key on
+// Neo4j and neither keys on NornicDB.
+func TestReducerCanonicalGraphWritersCarryInfraSearchKeyDialect(t *testing.T) {
+	t.Parallel()
+
+	rows := []map[string]any{{"uid": "u1", "name": "n"}}
+	for _, tc := range []struct {
+		env   string
+		keyed int
+	}{{"neo4j", 2}, {"nornicdb", 0}} {
+		_, searchKey, err := loadReducerGraphBackend(func(key string) string {
+			if key == "ESHU_GRAPH_BACKEND" {
+				return tc.env
+			}
+			return ""
+		})
+		if err != nil {
+			t.Fatalf("loadReducerGraphBackend(%s) error = %v", tc.env, err)
+		}
+		rec := &infraSearchKeyRecorder{}
+		writers := newReducerCanonicalGraphWriters(rec, nil, 0, nil, nil, searchKey)
+		if err := writers.cloudResourceNode.WriteCloudResourceNodes(context.Background(), rows, "x"); err != nil {
+			t.Fatal(err)
+		}
+		if err := writers.ec2InstanceNode.WriteEC2InstanceNodes(context.Background(), rows, "x"); err != nil {
+			t.Fatal(err)
+		}
+		if len(rec.calls) != 2 {
+			t.Fatalf("%s executed %d statements, want 2", tc.env, len(rec.calls))
+		}
+		keyed := 0
+		for _, call := range rec.calls {
+			if strings.Contains(call.Cypher, search.Clause("r")) {
+				keyed++
+			}
+		}
+		if keyed != tc.keyed {
+			t.Errorf("%s keyed statements = %d, want %d", tc.env, keyed, tc.keyed)
+		}
+	}
+}
