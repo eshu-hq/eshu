@@ -60,8 +60,11 @@
 -- transaction, bounded by the migrator's lock_timeout and retry budget. This
 -- file holds no DML: the version-0 seed is migration 185.
 --
--- Re-runnable: IF NOT EXISTS, CREATE OR REPLACE, and DROP IF EXISTS before
--- the constraint trigger (CREATE OR REPLACE does not apply to it).
+-- Re-runnable, also while writers run (review finding N1): IF NOT EXISTS and
+-- CREATE OR REPLACE throughout, and DDL takes its locks in the order writers
+-- do: the four content_files triggers first, the pending table's constraint
+-- trigger last and only when it is missing, so a re-run never holds the
+-- pending table while it waits on content_files.
 
 CREATE UNLOGGED TABLE IF NOT EXISTS config_artifact_fence_pending (
     bumped_xid xid8 NOT NULL,
@@ -127,13 +130,6 @@ BEGIN
 END;
 $fn$;
 
-DROP TRIGGER IF EXISTS config_artifact_fence_pending_commit ON config_artifact_fence_pending;
-CREATE CONSTRAINT TRIGGER config_artifact_fence_pending_commit
-    AFTER INSERT ON config_artifact_fence_pending
-    DEFERRABLE INITIALLY DEFERRED
-    FOR EACH ROW
-    EXECUTE FUNCTION config_artifact_version_fence_commit();
-
 CREATE OR REPLACE TRIGGER content_files_version_fence_insert
     AFTER INSERT ON content_files
     REFERENCING NEW TABLE AS fence_new_rows
@@ -156,3 +152,24 @@ CREATE OR REPLACE TRIGGER content_files_version_fence_truncate
     AFTER TRUNCATE ON content_files
     FOR EACH STATEMENT
     EXECUTE FUNCTION config_artifact_version_fence_stage_all();
+
+-- Last, and only when missing: a re-run must not take ACCESS EXCLUSIVE on the
+-- pending table while a writer that already holds content_files waits to
+-- stage into it (review finding N1). CREATE OR REPLACE does not apply to a
+-- constraint trigger, so an existing one is left in place; it is bound to
+-- the function above by OID, which CREATE OR REPLACE FUNCTION keeps.
+DO $create_commit_trigger$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger
+        WHERE tgrelid = 'config_artifact_fence_pending'::regclass
+          AND tgname = 'config_artifact_fence_pending_commit'
+    ) THEN
+        CREATE CONSTRAINT TRIGGER config_artifact_fence_pending_commit
+            AFTER INSERT ON config_artifact_fence_pending
+            DEFERRABLE INITIALLY DEFERRED
+            FOR EACH ROW
+            EXECUTE FUNCTION config_artifact_version_fence_commit();
+    END IF;
+END
+$create_commit_trigger$;
