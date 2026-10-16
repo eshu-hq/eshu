@@ -71,6 +71,7 @@ fragments:
   - live-tests.d/live-tests-02.yaml
   - live-tests.d/live-tests-03.yaml
   - live-tests.d/live-tests-04.yaml
+  - live-tests.d/live-tests-04b.yaml
   - live-tests.d/live-tests-05.yaml
   - live-tests.d/live-tests-06.yaml
   - live-tests.d/live-tests-06b.yaml
