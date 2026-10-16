@@ -14,6 +14,9 @@ The live-test ledger classifies the seven files as `dedicated_ci` with runner
 independently of the legacy exemption count and digest. The static mirror
 plants disabled, suppressed, unselected, missing, skipped, duplicate,
 wrong-package, and re-pinned-demotion cases.
+The always-run ledger verifier reads the active static workflow and gate
+registry. The E2E PR filter also includes those control files, so an edit
+that removes the static guard still selects the independent conformance job.
 
 All nine tests passed a local race run on pinned NornicDB 1.3.3: package
 1.342 seconds, process 2.367 seconds. The fresh Linux ARM64 fixture ran the
