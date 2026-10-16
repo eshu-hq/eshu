@@ -23,7 +23,7 @@ import (
 // key because the whole arm left a declared-unchanged partition alone. All of
 // these must hold: the row exists in before, whole and targeted; its partition
 // is in unchanged; it is a phase or memo row; the whole row is identical to
-// before; and the targeted row differs only in timestamps. A phase row's key
+// before; and the targeted row differs only in timestamps: a phase value must be exactly two non-empty timestamps. A phase row's key
 // carries every non-timestamp column (scope, acceptance unit, source run,
 // generation, keyspace, phase) and its value is committed_at|updated_at. A
 // memo row's value is catalog_fingerprint|committed_at, so the fingerprint
@@ -47,7 +47,9 @@ func unchangedTimestampOnly(
 	}
 	switch wholeRow.table {
 	case "phase":
-		return len(strings.Split(targetedRow.value, "|")) == 2
+		targetedCommitted, targetedUpdated, okTargeted := strings.Cut(targetedRow.value, "|")
+		return okTargeted && targetedCommitted != "" && targetedUpdated != "" &&
+			!strings.Contains(targetedUpdated, "|")
 	case "memo":
 		wholeFingerprint, _, okWhole := strings.Cut(wholeRow.value, "|")
 		targetedFingerprint, _, okTargeted := strings.Cut(targetedRow.value, "|")
@@ -97,6 +99,13 @@ func unchangedDiffFixture() (before, whole, targeted targetedDiffState, partitio
 		memo:  row("memo", memo, "sha256:fp|T2"),
 	}
 	return before, whole, targeted, partition
+}
+
+// plantTargetedValue overwrites the value of the targeted row at key.
+func plantTargetedValue(targeted targetedDiffState, key, value string) {
+	row := targeted[key]
+	row.value = value
+	targeted[key] = row
 }
 
 // TestTargetedDiffUnchangedToleranceSeededViolations is the seeded-violation
@@ -150,6 +159,14 @@ func TestTargetedDiffUnchangedToleranceSeededViolations(t *testing.T) {
 			row := whole[key]
 			row.value = "T3|T3"
 			whole[key] = row
+			return map[backfill.ScopeGenerationPartition]struct{}{p: {}}, whole, targeted
+		}},
+		{"targeted phase value has three parts", func(_, whole, targeted targetedDiffState, p backfill.ScopeGenerationPartition) (map[backfill.ScopeGenerationPartition]struct{}, targetedDiffState, targetedDiffState) {
+			plantTargetedValue(targeted, phaseKey(p.ScopeID, p.GenerationID), "T2|T2|T2")
+			return map[backfill.ScopeGenerationPartition]struct{}{p: {}}, whole, targeted
+		}},
+		{"targeted phase timestamps are empty", func(_, whole, targeted targetedDiffState, p backfill.ScopeGenerationPartition) (map[backfill.ScopeGenerationPartition]struct{}, targetedDiffState, targetedDiffState) {
+			plantTargetedValue(targeted, phaseKey(p.ScopeID, p.GenerationID), "|")
 			return map[backfill.ScopeGenerationPartition]struct{}{p: {}}, whole, targeted
 		}},
 		{"partition not declared unchanged", func(_, whole, targeted targetedDiffState, _ backfill.ScopeGenerationPartition) (map[backfill.ScopeGenerationPartition]struct{}, targetedDiffState, targetedDiffState) {
