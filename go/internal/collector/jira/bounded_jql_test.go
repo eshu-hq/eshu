@@ -84,6 +84,87 @@ func TestSearchIssuesAcceptsOrderOnlyTarget(t *testing.T) {
 	}
 }
 
+// TestSearchIssuesTruncationReflectsProviderPages proves the cap signal: a
+// stubbed provider that fills the issue cap while further pages exist (a
+// next page token with IsLast=false) reports truncated, while reaching the
+// exact limit on the last page does not. A token alone is not enough —
+// IsLast decides.
+func TestSearchIssuesTruncationReflectsProviderPages(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		nextPageToken string
+		isLast        bool
+		wantTruncated bool
+	}{
+		{"cap hit with further pages", "page-2", false, true},
+		{"exact limit on last page", "", true, false},
+		{"stale token on last page", "page-2", true, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			now := testObservedAt()
+			searchCalls := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodPost || r.URL.Path != jiraSearchEndpoint {
+					t.Errorf("request = %s %s, want POST %s", r.Method, r.URL.Path, jiraSearchEndpoint)
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				searchCalls++
+				issue := func(id, key, summary string) map[string]any {
+					return map[string]any{
+						"id":   id,
+						"key":  key,
+						"self": serverURL(r) + "/rest/api/3/issue/" + id,
+						"fields": map[string]any{
+							"summary":   summary,
+							"created":   now.Add(-2 * time.Hour).Format(jiraTimeLayout),
+							"updated":   now.Format(jiraTimeLayout),
+							"issuetype": map[string]any{"id": "10002", "name": "Incident"},
+							"status":    map[string]any{"id": "3", "name": "In Progress"},
+							"project":   map[string]any{"id": "10000", "key": "OPS", "name": "Operations"},
+						},
+					}
+				}
+				writeJSON(t, w, map[string]any{
+					"isLast":        tt.isLast,
+					"nextPageToken": tt.nextPageToken,
+					"issues": []map[string]any{
+						issue("10001", "OPS-123", "Checkout alert"),
+						issue("10002", "OPS-124", "Recovery follow-up"),
+					},
+				})
+			}))
+			defer server.Close()
+			client, err := NewHTTPClient(HTTPClientConfig{BaseURL: server.URL, Token: "fixture-token", Client: server.Client()})
+			if err != nil {
+				t.Fatal(err)
+			}
+			window := CollectionWindow{Since: now.Add(-time.Hour), Until: now}
+			var stats CollectionStats
+			issues, truncated, err := client.searchIssues(context.Background(), TargetConfig{IssueLimit: 2}, window, &stats)
+			if err != nil {
+				t.Fatalf("searchIssues() error = %v", err)
+			}
+			if len(issues) != 2 {
+				t.Fatalf("len(issues) = %d, want 2", len(issues))
+			}
+			if truncated != tt.wantTruncated {
+				t.Fatalf("searchIssues() truncated = %v, want %v (nextPageToken=%q isLast=%v)", truncated, tt.wantTruncated, tt.nextPageToken, tt.isLast)
+			}
+			if searchCalls != 1 {
+				t.Fatalf("search requests = %d, want 1: the cap must end the walk without a follow-up page", searchCalls)
+			}
+			if stats.SearchPages != 1 {
+				t.Fatalf("SearchPages = %d, want 1", stats.SearchPages)
+			}
+		})
+	}
+}
+
 // Compare existing filtered targets without adding provider or network work.
 func BenchmarkBoundedJQLFilteredTarget(b *testing.B) {
 	window := CollectionWindow{Since: testObservedAt().Add(-time.Hour), Until: testObservedAt()}

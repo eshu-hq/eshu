@@ -70,7 +70,7 @@ func TestSkippedRefreshCountByReasonIsClosed(t *testing.T) {
 		t.Fatalf("SkippedRefreshCountByReason(unknown) = %d, want 0", got)
 	}
 	if got := SkippedRefreshCount(); got != 9 {
-		t.Fatalf("SkippedRefreshCount() = %d, want 8", got)
+		t.Fatalf("SkippedRefreshCount() = %d, want 9", got)
 	}
 	if !slices.Contains(LogKeys(), LogKeyRefreshSkipReason) {
 		t.Fatalf("LogKeys() missing %q", LogKeyRefreshSkipReason)

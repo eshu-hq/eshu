@@ -40,6 +40,13 @@ func freshnessHint(window CollectionWindow, result CollectionResult, envs []fact
 		}
 		raw, err := json.Marshal(entry)
 		if err != nil {
+			// Fail open on purpose: a blank hint disables duplicate
+			// detection, so the generation always stores instead of
+			// risking a skipped write. That is the safe direction —
+			// an extra stored generation, never lost evidence — at
+			// the cost of one missed dedup. There is no logger on
+			// this pure path, so the choice stays a comment rather
+			// than a log line or metric.
 			return ""
 		}
 		encoded = append(encoded, string(raw))
