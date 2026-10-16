@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // setupRecoveryCodeCount is the number of one-time MFA recovery codes the
@@ -60,7 +61,7 @@ func (h *SetupHandler) handleCompleteMFA(w http.ResponseWriter, r *http.Request)
 	codes, err := h.generateRecoveryCodes()
 	if err != nil {
 		h.recordOutcome(r, "mfa_error")
-		WriteError(w, http.StatusInternalServerError, "failed to generate recovery codes")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, setupRecoveryCodesFailedMessage)
 		return
 	}
 	now := h.now()
@@ -86,7 +87,7 @@ func (h *SetupHandler) handleCompleteMFA(w http.ResponseWriter, r *http.Request)
 	mfaFactorID, err := h.newID()
 	if err != nil {
 		h.recordOutcome(r, "mfa_error")
-		WriteError(w, http.StatusInternalServerError, "failed to complete setup")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, setupCompleteFailedMessage)
 		return
 	}
 
@@ -101,8 +102,12 @@ func (h *SetupHandler) handleCompleteMFA(w http.ResponseWriter, r *http.Request)
 		Now:                now,
 	})
 	if err != nil {
+		// The session issued above stays valid and this answer carries its
+		// cookie. A 499 says only that the client left: a cancel that lands
+		// while CompleteSetupMFA commits can seal setup with these recovery
+		// codes never shown, and a retry then answers 410.
 		h.recordOutcome(r, "mfa_error")
-		WriteError(w, http.StatusInternalServerError, "failed to complete setup")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, setupCompleteFailedMessage)
 		return
 	}
 	if !completed {
@@ -136,10 +141,14 @@ func (h *SetupHandler) handleCompleteMFA(w http.ResponseWriter, r *http.Request)
 // deterministic sequence for session-secret assertions) so recovery-code
 // generation stays unconditionally random even under test doubles.
 func (h *SetupHandler) generateRecoveryCodes() ([]string, error) {
+	readEntropy := h.readEntropy
+	if readEntropy == nil {
+		readEntropy = rand.Read
+	}
 	codes := make([]string, 0, setupRecoveryCodeCount)
 	for i := 0; i < setupRecoveryCodeCount; i++ {
 		var buf [setupRecoveryCodeBytes]byte
-		if _, err := rand.Read(buf[:]); err != nil {
+		if _, err := readEntropy(buf[:]); err != nil {
 			return nil, err
 		}
 		codes = append(codes, base64.RawURLEncoding.EncodeToString(buf[:]))
