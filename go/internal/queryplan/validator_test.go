@@ -181,6 +181,28 @@ func TestValidateManifestRejectsMissingSchemaEvidence(t *testing.T) {
 	}
 }
 
+// TestValidateManifestAcceptsFulltextSchemaEvidence proves a FULLTEXT index
+// counts as schema evidence (#7245 infra_search_key_ft), and that an entry
+// naming it still fails when the statements do not create it.
+func TestValidateManifestAcceptsFulltextSchemaEvidence(t *testing.T) {
+	manifest := singleCypherManifest(`
+		MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)
+		RETURN f.path AS path
+		ORDER BY path
+		LIMIT $limit
+	`)
+	manifest.Entries[0].RequiredSchema = []string{"infra_search_key_ft"}
+	fulltext := "CREATE FULLTEXT INDEX infra_search_key_ft IF NOT EXISTS FOR (n:A|B) ON EACH [n.k]"
+
+	if err := ValidateManifest(manifest, append(schemaStatements(), fulltext)); err != nil {
+		t.Fatalf("ValidateManifest() with the FULLTEXT index error = %v, want nil", err)
+	}
+	err := ValidateManifest(manifest, schemaStatements())
+	if err == nil || !strings.Contains(err.Error(), "missing schema evidence infra_search_key_ft") {
+		t.Fatalf("ValidateManifest() without the index error = %v, want missing schema evidence", err)
+	}
+}
+
 func singleCypherManifest(cypher string) Manifest {
 	return Manifest{
 		Version:     1,

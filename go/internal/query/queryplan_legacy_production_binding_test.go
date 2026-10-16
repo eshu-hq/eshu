@@ -39,12 +39,40 @@ func TestLegacyQueryplanManifestBindsProductionQueries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SchemaStatementsForBackend() error = %v", err)
 	}
-	if err := queryplan.ValidateManifest(manifest, statements); err != nil {
+	// Neo4j-only entries (#7245 QP-INFRA-RESOURCE-SEARCH-FULLTEXT) name
+	// schema NornicDB never gets, so their required_schema is checked against
+	// the Neo4j schema and every other entry stays checked against NornicDB.
+	nornicManifest, neo4jManifest := splitQueryplanManifestByNeo4jSchema(manifest)
+	if err := queryplan.ValidateManifest(nornicManifest, statements); err != nil {
 		t.Fatalf("ValidateManifest() error = %v", err)
+	}
+	neo4jStatements, err := graph.SchemaStatementsForBackend(graph.SchemaBackendNeo4j)
+	if err != nil {
+		t.Fatalf("SchemaStatementsForBackend(neo4j) error = %v", err)
+	}
+	if err := queryplan.ValidateManifest(neo4jManifest, neo4jStatements); err != nil {
+		t.Fatalf("ValidateManifest(neo4j entries) error = %v", err)
 	}
 	if err := queryplan.ValidateManifestSources(manifest, "../../.."); err != nil {
 		t.Fatalf("ValidateManifestSources() error = %v", err)
 	}
+}
+
+// splitQueryplanManifestByNeo4jSchema returns the manifest with the
+// required_schema of backend "neo4j" entries cleared, and a manifest holding
+// only those entries, so each is validated against its own backend schema.
+func splitQueryplanManifestByNeo4jSchema(manifest queryplan.Manifest) (queryplan.Manifest, queryplan.Manifest) {
+	nornic := manifest
+	nornic.Entries = append([]queryplan.Entry(nil), manifest.Entries...)
+	neo4j := queryplan.Manifest{Version: manifest.Version}
+	for i := range nornic.Entries {
+		if nornic.Entries[i].Backend != "neo4j" {
+			continue
+		}
+		neo4j.Entries = append(neo4j.Entries, nornic.Entries[i])
+		nornic.Entries[i].RequiredSchema = nil
+	}
+	return nornic, neo4j
 }
 
 func legacyQueryplanProductionCypher(t *testing.T) map[string]string {

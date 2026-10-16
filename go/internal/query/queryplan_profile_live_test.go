@@ -295,6 +295,11 @@ func applyQueryplanProfileSchema(
 	}
 	for _, statement := range statements {
 		fields := strings.Fields(statement)
+		// CREATE FULLTEXT INDEX <name> (#7245 infra_search_key_ft) carries
+		// its name one field later than CREATE INDEX|CONSTRAINT <name>.
+		if len(fields) > 3 && strings.EqualFold(fields[1], "FULLTEXT") {
+			fields = append(fields[:1], fields[2:]...)
+		}
 		if len(fields) < 3 || strings.ToUpper(fields[0]) != "CREATE" {
 			continue
 		}
