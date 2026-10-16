@@ -39,6 +39,14 @@
 - Composer names and npm names must stay disjoint (`composer.ValidPackageName`
   requires one `/` and no leading `@`); `PackageScopeIDs` routes on it.
 - Never import the parent `postgres` package from non-test code.
+- The three manifest reads end with the one `ManifestLessLeg` constant; do not
+  copy or fork it per manifest kind. Its generation rule must stay the
+  complement of the uncovered-writer definition in the parent package
+  (`uncoveredProjectionWritersQuery` and both retention statements):
+  `TestUncoveredWriterDefinitionsAgree` fails when one copy changes alone, so
+  change all four together. A full generation without a write-start marker
+  covers nothing. Never narrow the leg to pending generations, an age, or a
+  generation count: each loses the supersede-then-delta hole (#7609, #8243).
 
 ## Common changes
 
@@ -61,6 +69,12 @@ From `go/`, run:
 ```bash
 go test ./internal/storage/postgres/code/producers/... -count=1
 go test ./internal/storage/postgres -run 'ActiveCodeCallSymbol|LoadActiveCodeCall' -count=1
+go test ./internal/storage/postgres -run 'UncoveredWriterDefinitionsAgree|ManifestLess' -count=1
 ```
+
+The `TestReducerContentionGateManifestLessDirtyRule*` and
+`TestReducerContentionGateActiveCodeCallSymbol*` proofs need
+`ESHU_POSTGRES_DSN` set to a disposable PostgreSQL 18 database; without it
+they skip.
 
 Run `scripts/verify-package-docs.sh` from the repository root.

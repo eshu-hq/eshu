@@ -31,8 +31,10 @@
 // dangling, empty, never-activated) reads as a NULL manifest that always
 // joins the producer set, because a dropped candidate would let a
 // same-named producer resolve alone and bypass the ambiguity rule. Scopes
-// with no stored manifest but a never-activated generation resolve dirty
-// through a manifest-less leg, since per-row tags cannot see row-less
-// scopes. WithInstruments counts every row each read sees by kind and tag
-// outcome for the operator.
+// with no stored manifest resolve dirty through the shared ManifestLessLeg,
+// since per-row tags cannot see row-less scopes: a generation that never
+// activated keeps the scope dirty unless it is superseded or failed and the
+// newest activated full generation started writing at or after it (#8243).
+// WithInstruments counts every row each read sees by kind and tag outcome
+// for the operator.
 package producerstore

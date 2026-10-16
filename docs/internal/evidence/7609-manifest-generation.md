@@ -32,6 +32,13 @@ supersede-then-delta hole. Do not compare `superseded_at` to `activated_at`:
 Ack stamps the prior active with the same clock, which would dirty every
 scope with two activations.
 
+Update (#8243): the manifest-less generation leg is now the shared
+`ManifestLessLeg`. It still keeps a refused generation that wrote after the
+scope's newest activated full generation (the hole above), and skips only a
+superseded or failed generation that such a full covers. Generation retention
+keeps those uncovered writers at any age (#7472), so the hole's signal row
+survives retention. See [8243-narrow-dirty-rule.md](8243-narrow-dirty-rule.md).
+
 Residuals (also in the query comment): a manifest deleted by a write with no
 generation row leaves no `indexed_at` trace and is uncatchable (second-order:
 crash-window write plus ambiguity-relevant load). Retention prunes

@@ -303,6 +303,15 @@ PACKAGES = {
             "TestReducerContentionGateActiveCodeCallSymbolLoaderSupersedeThenDeltaHole",
             "TestReducerContentionGateActiveCodeCallSymbolLoaderDirtyNonProducerStaysGated",
         ),
+        "go/internal/storage/postgres/manifest_less_dirty_rule_live_test.go": (
+            "TestReducerContentionGateManifestLessDirtyRuleKeepsEveryScopeThatCanNeedAProducer",
+            "TestReducerContentionGateManifestLessDirtyRuleMatchesUncoveredProjectionWriters",
+        ),
+        "go/internal/storage/postgres/manifest_less_dirty_rule_answer_live_test.go": (
+            "TestReducerContentionGateManifestLessDirtyRuleReturnsTheSameDefinitions",
+            "TestReducerContentionGateManifestLessDirtyRuleNaiveRuleLosesTheHole",
+            "TestReducerContentionGateManifestLessDirtyRuleSeededRedGreen",
+        ),
         "go/internal/storage/postgres/recovery_refinalize_delta_active_live_test.go": (
             "TestRefinalizeDeltaActiveRequestsFullReindex",
             "TestRefinalizeDeltaActiveConvergesAcrossTwoCalls",
