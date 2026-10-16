@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+	"github.com/eshu-hq/eshu/go/internal/query/infra/fulltext"
 	"github.com/eshu-hq/eshu/go/internal/query/language"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -224,6 +225,7 @@ func queryplanProfileParams() map[string]any {
 		"allowed_scope_ids":            []string{"proof-scope"},
 		"artifact_ids":                 []string{"proof-artifact"},
 		"cycle_language":               "python",
+		"infra_search_lucene":          fulltext.Lucene("proof"),
 		"edge_scan_limit":              codequery.CallGraphMetricsEdgeScanLimit + 1,
 		"rank_limit":                   graphSummaryMaxHotLimit + 1,
 		"ecosystem":                    "proof-ecosystem",

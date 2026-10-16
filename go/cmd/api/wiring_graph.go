@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graph/capture"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/infra/fulltext"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -79,4 +80,31 @@ func openQueryGraph(
 		logger.Info("neo4j connected", telemetry.EventAttr("runtime.neo4j.connected"), slog.String("neo4j_uri", cfg.URI))
 	}
 	return driver, cfg.DatabaseName, nil
+}
+
+// startInfraSearchKeyRead wires the #7245 infra search full-text read onto
+// the infra handler: it parses ESHU_INFRA_SEARCH_KEY_READ (an invalid value
+// fails startup) and, on a driven Neo4j graph, starts the readiness refresher
+// for the life of ctx. NornicDB and graph-free profiles get a Reader that
+// always serves the legacy statement.
+func startInfraSearchKeyRead(
+	ctx context.Context,
+	getenv func(string) string,
+	infra *query.InfraHandler,
+	graphBackend query.GraphBackend,
+	graphDriven bool,
+	graphReader query.GraphQuery,
+	logger *slog.Logger,
+	instruments *telemetry.Instruments,
+) error {
+	if infra == nil {
+		return nil
+	}
+	reader, err := fulltext.Start(ctx, getenv(fulltext.ReadEnv),
+		graphBackend == query.GraphBackendNeo4j && graphDriven, graphReader, logger, instruments)
+	if err != nil {
+		return fmt.Errorf("configure infra search key read: %w", err)
+	}
+	infra.SearchKey = reader
+	return nil
 }

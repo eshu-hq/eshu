@@ -43,6 +43,7 @@ func TestQueryplanBoundedAnchorOperatorPolicyIsClosed(t *testing.T) {
 		"QP-INFRA-RESOURCE-SEARCH":                        {"NodeByLabelScan"},
 		"QP-INFRA-RESOURCE-AGGREGATE":                     {"NodeByLabelScan"},
 		"QP-INFRA-RESOURCE-AGGREGATE-GRAPH":               {"NodeByLabelScan", "NodeIndexSeek"},
+		"QP-INFRA-RESOURCE-SEARCH-FULLTEXT":               {"ProcedureCall"},
 		"unregistered-or-indexed-production-path":         {"NodeIndexSeek", "NodeUniqueIndexSeek", "NodeCountFromCountStore"},
 	}
 	for entryID, want := range tests {
@@ -424,6 +425,10 @@ func queryplanBoundedAnchorOperators(entryID string) []string {
 		return []string{"NodeByLabelScan", "DirectedRelationshipTypeScan"}
 	case "QP-INFRA-RESOURCE-AGGREGATE-GRAPH":
 		return []string{"NodeByLabelScan", "NodeIndexSeek"}
+	case "QP-INFRA-RESOURCE-SEARCH-FULLTEXT":
+		// The #7245 full-text read anchors on the infra_search_key_ft
+		// FULLTEXT index through db.index.fulltext.queryNodes.
+		return []string{"ProcedureCall"}
 	case "QP-RELATIONSHIPS-EDGES":
 		// The unscoped CALLS probe requires s.uid IS NOT NULL and orders by
 		// that indexed key, so its bounded anchor is a node index walk.

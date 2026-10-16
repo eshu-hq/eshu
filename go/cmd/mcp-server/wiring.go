@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/governanceauditasync"
 	"github.com/eshu-hq/eshu/go/internal/graph/capture"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/infra/fulltext"
 	"github.com/eshu-hq/eshu/go/internal/query/search/unscoped"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
 	pgaccess "github.com/eshu-hq/eshu/go/internal/runtime/postgres"
@@ -316,6 +317,18 @@ func wireAPI(
 		governanceAudit,
 		readImpactFromWinners,
 	)
+
+	// #7245: the infra search full-text read; an invalid
+	// ESHU_INFRA_SEARCH_KEY_READ fails startup. The readiness refresher runs
+	// only on a driven Neo4j graph, for the life of ctx.
+	infraSearchKey, err := fulltext.Start(ctx, getenv(fulltext.ReadEnv),
+		graphBackend == query.GraphBackendNeo4j && driver != nil, graphReader, logger, instruments)
+	if err != nil {
+		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("configure infra search key read: %w", err)
+	}
+	if router.Infra != nil {
+		router.Infra.SearchKey = infraSearchKey
+	}
 
 	// Wire the tag-history cursor sealer resolved in the pre-datastore
 	// validation block above (#6564). The nil guard is required, not defensive:

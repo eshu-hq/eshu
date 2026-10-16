@@ -187,6 +187,24 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		}
 		return nil
 	})
+	infraSearchFulltext := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
+		handler := &InfraHandler{
+			GraphBackend: querycontract.GraphBackendNeo4j,
+			Neo4j:        graphQuery,
+			SearchKey:    readySearchKeyReader(t, true),
+		}
+		request := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v0/infra/resources/search",
+			bytes.NewBufferString(`{"query":"proof","category":"cloud","limit":10}`),
+		)
+		response := httptest.NewRecorder()
+		handler.searchResources(response, request)
+		if response.Code != http.StatusOK {
+			return fmt.Errorf("infra full-text search status %d: %s", response.Code, response.Body.String())
+		}
+		return nil
+	})
 	sourceToolQueries := relationshipSourceToolBreakdownCyphers()
 	if len(sourceToolQueries) != 2 {
 		t.Fatalf("source-tool query count = %d, want 2", len(sourceToolQueries))
@@ -225,6 +243,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY": sourceToolQueries[0],
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE":   sourceToolQueries[1],
 		"QP-INFRA-RESOURCE-SEARCH":                        infraSearch,
+		"QP-INFRA-RESOURCE-SEARCH-FULLTEXT":               infraSearchFulltext,
 		"QP-INFRA-RESOURCE-AGGREGATE": infraResourceAggregatePerLabelCypher(
 			[]string{"CloudResource"},
 			"",
