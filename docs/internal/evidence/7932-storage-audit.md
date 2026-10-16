@@ -111,9 +111,10 @@ The script ran with `sample=40`, `soft_hours=87600`, `hard_hours=87600`,
 so the session could not write). It took 22 s. The first attempt failed in
 section 2 with `could not compute MD5 hash: unsupported`, because that server
 runs FIPS-mode OpenSSL. The sampler now orders by `sha256` instead of `md5`; the
-fixture census did not change. The run reads the same database family as the
-issue's figures (827 scopes with superseded generations in both), but sizes are
-live, so the two sets of numbers differ by a month of growth.
+fixture census did not change. The run appears to read the same database as
+the issue's figures (827 scopes in both, and the superseded range starts on 17
+September in both), but sizes are live, so the two sets of numbers differ by the
+growth between 11 and 16 October.
 
 | Measured | Value |
 |---|---|
