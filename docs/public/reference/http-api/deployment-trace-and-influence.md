@@ -283,3 +283,32 @@ fixed text asking the caller to retry with a workload id; the response never
 reports how many workloads matched. This applies to both deployment-trace and
 deployment-config-influence requests. Rendered targets and
 image sources are derived only from rows that survived the published bounds.
+
+### Deployment-trace typed 404
+
+The `trace-deployment-chain` and `deployment-config-influence` routes (see the
+route map above) answer a selector that
+resolves to no workload context (no materialized workload matched and the
+repository read model held no workload identity for it) with `404` and error
+code `service_not_found`. Under the envelope `Accept` header `error.details`
+carries `references` (the granted `ArgoCDApplication`, `ArgoCDApplicationSet`,
+and `HelmChart` entities exactly matching the requested name, as
+`repo_id`/`relative_path`/`entity_type`/`entity_name` file handles, sorted, at
+most 20) and `truncated` (whether further granted records exist). The list
+never names a workload id, and an ungranted name answers exactly like an
+unknown one: an empty grant probes nothing, every hint is bound to the
+caller's grant, and a reader failure fails closed to the empty list. Without
+the envelope header the body is the historical bare 404, byte for byte.
+
+No-Regression Evidence (#7767): only the two nil-workload 404 branches change; the
+200 and 409 branches are untouched. Baseline: bare `WriteError(404)` per miss. After:
+one shared helper plus at most 3x21 bounded same-name probes, skipped entirely for plain
+clients and empty grants. Backend: no graph or store version dependency (response shape
+only). Input shape: release-name-mismatched service with no workload context. Proof:
+`go test -count=1 -race ./internal/query/impact/...` green with 9 new tests and
+`go vet ./...` exit 0. Safe because probes run on the error path alone with per-type
+fail-closed and deny-by-default grant filtering.
+
+No-Observability-Change (#7767): no new metric, span, or log line. The operator signal is
+the existing per-route 404 status counter plus the `service_not_found` code in the envelope
+body.
