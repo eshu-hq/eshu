@@ -64,15 +64,28 @@ func TestOpenAPICompareAndSemanticSearchDeclareTheirFailureStatuses(t *testing.T
 	}
 }
 
-// TestOpenAPISemanticSearchDescribesItsStatusChanges pins the sentence that
-// tells a client which failures moved to 500 in #7674 slice 13.
-func TestOpenAPISemanticSearchDescribesItsStatusChanges(t *testing.T) {
+// TestOpenAPIDescriptionsListEveryStatusChange pins the sentences that tell a
+// client which failures changed status in #7674 slice 13, one per move.
+func TestOpenAPIDescriptionsListEveryStatusChange(t *testing.T) {
 	t.Parallel()
 
-	op := testutil.MustMapField(t, testutil.MustMapField(t, adminSpecPaths(t), "/api/v0/search/semantic"), "post")
-	description, _ := op["description"].(string)
-	const want = "A scope-resolver fault and a stored result that fails normalization answer 500"
-	if !strings.Contains(description, want) {
-		t.Fatalf("description lacks %q: %q", want, description)
+	paths := adminSpecPaths(t)
+	for path, wants := range map[string][]string{
+		"/api/v0/search/semantic": {
+			"A scope-resolver fault and a stored result that fails normalization answer 500",
+			"A failed index or local hybrid read on a stale or timed-out reader answers the retryable 503 (it answered 500 before #7674)",
+			"a scope-resolution 503 on such a reader now carries Retry-After",
+		},
+		"/api/v0/compare/environments": {
+			"The service evidence read on a stale or timed-out reader answers the retryable 503 (it answered 500 before #7674)",
+		},
+	} {
+		op := testutil.MustMapField(t, testutil.MustMapField(t, paths, path), "post")
+		description, _ := op["description"].(string)
+		for _, want := range wants {
+			if !strings.Contains(description, want) {
+				t.Errorf("post %s: description lacks %q: %q", path, want, description)
+			}
+		}
 	}
 }

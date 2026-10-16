@@ -5,12 +5,15 @@ package compare
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/failure"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -123,6 +126,31 @@ func TestCompareEnvironmentsValidationStays400(t *testing.T) {
 		}
 		if got := rec.Header().Get("Content-Type"); got != "application/json; charset=utf-8" {
 			t.Errorf("%s: Content-Type = %q", tc.name, got)
+		}
+	}
+}
+
+// TestCompareEnvironmentsReaderFenceNamesTheRouteCapability pins the
+// reader-verdict 503 envelope on every read: it names this route's capability,
+// not another route's, and carries Retry-After. The service evidence read
+// answered 500 with the reader error text before #7674.
+func TestCompareEnvironmentsReaderFenceNamesTheRouteCapability(t *testing.T) {
+	t.Parallel()
+	stale := fmt.Errorf("pg: %w", db.ErrReaderStale)
+	for _, step := range []failingCompareStep{failWorkloadLookup, failServiceEvidence, failLeftSnapshot, failRightSnapshot} {
+		rec, _ := failure.Serve(failure.Suite{},
+			failure.Route{Method: http.MethodPost, Path: compareEnvironmentsPath, Body: compareEnvironmentsBody},
+			compareFailureHandler(step, stale), false)
+		var envelope querycontract.ResponseEnvelope
+		if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil || envelope.Error == nil {
+			t.Errorf("step %d: body = %s (decode err %v)", step, rec.Body.String(), err)
+			continue
+		}
+		if rec.Code != http.StatusServiceUnavailable || rec.Header().Get("Retry-After") == "" {
+			t.Errorf("step %d: status = %d, Retry-After = %q; want 503 with Retry-After", step, rec.Code, rec.Header().Get("Retry-After"))
+		}
+		if envelope.Error.Capability != Capability {
+			t.Errorf("step %d: capability = %q, want %q", step, envelope.Error.Capability, Capability)
 		}
 	}
 }
