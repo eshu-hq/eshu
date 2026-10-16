@@ -63,6 +63,22 @@ for a client cancel). Every error body, the 400s included, is written by
 proves it with the shared `testutil/failure` harness. See
 [Compare And Semantic Search Failures](../../../../docs/public/reference/http-api/compare-and-semantic-search-failures.md).
 
+No-Regression Evidence (#7674): only the error branches of
+`compareEnvironments` changed. `fetchWorkload` and `environmentSnapshot`, their
+Cypher text, parameters, list bounds, and the number of graph reads per
+request are byte-identical to the base, so the success path sends Neo4j the
+same reads with the same row limits. The queryplan source digests for both
+reads did not move (`go test ./internal/queryplan/...` exit 0), and the
+existing handler, story, and golden-fixture tests pass unchanged. The only
+added work is on a failed read: one `errors.Is` chain in
+`querycontract.WriteGraphReadError` and one span mark, both constant time.
+
+Observability Evidence (#7674): a failed read records one `exception` event
+and Error status, described by its fixed message, on the request span; a
+client cancel leaves the span Unset and adds only
+`eshu.request.client_canceled`. `TestCompareEnvironmentsAnswersFixedServerFailures`
+proves both for every read through the shared harness.
+
 ## Move evidence (#6642)
 
 `compare.go`, `compare_evidence.go`, `compare_story.go` and their tests moved
