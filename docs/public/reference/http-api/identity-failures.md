@@ -83,3 +83,9 @@ not apply. Each admin identity and provider-config write is one store call:
 a cancel that lands while it commits can leave it applied. Re-read the
 affected list before you retry. Grants, revokes, and mapping writes are
 idempotent, so a retry is safe.
+
+A `499` also leaves a gap in the governance audit trail. The failed step's
+denied audit event is written on the canceled request context, so the audit
+store rejects it and only the ERROR log `governance audit append failed`
+remains. If the cancel lands while the write commits, the applied write has no
+audit event at all.
