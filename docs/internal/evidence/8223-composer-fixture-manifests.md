@@ -107,8 +107,9 @@ package.json rows sit under a fixture-style path. #8244 owns it.
 `git-collector.v5`. The parser now stamps no `package_id` on a class under a
 fixture manifest, which changes the stored output for unchanged PHP source, and
 the store keeps an equal hint and commit as a duplicate. The pin fixture
-(`testdata/content_version/php-lib/`) holds a real root manifest with one class
-and a same-named manifest with one class under `tests/fixtures/app/`. Seeded
+(the `php-lib` directory of the content-version pin fixture in
+`go/internal/collector/repo/git`) holds a real root manifest with one class and a same-named manifest with one class in a
+nested `app` directory below a tests and fixtures path. Seeded
 RED: with the fixture grown and the constant still at v4, the pin test fails
 ("252 facts ... pinned 238 facts ... gitGenerationContentVersion is still
 git-collector.v4"). After the bump and `-update-content-version-pin`, the pin

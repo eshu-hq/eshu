@@ -195,8 +195,8 @@ composer change was therefore not caught by the pin at v3. Later bumps:
 `git-collector.v4` (#8222, PHP import kind) and `git-collector.v5` (#8223,
 fixture-directory composer manifests no longer stamp `package_id`). The
 `content_version` fixture now carries `php-lib/` with a real root
-`composer.json` and class plus a same-named manifest and class under
-`php-lib/tests/fixtures/app/`, so a change to the composer producer rule moves
+`composer.json` and class plus a same-named manifest and class in a nested
+`app` directory below a tests and fixtures path, so a change to the composer producer rule moves
 the pinned digest (252 facts at v5). Production discovery already prunes `vendor/`
 (`go/internal/collector/repo/git/snapshot_discovery.go`); the parser and loader
 `vendor/` guards stay as defense in depth.
