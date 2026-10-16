@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	factkeys "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/keys"
 )
 
 // generationRetentionCandidateQuery selects up to BatchGenerationLimit
@@ -395,7 +396,8 @@ WHERE generation_id = ANY($1::text[])
 
 // generationRetentionKeyIndexesQuery returns the name of every retention key
 // index that is not a valid, ready, non-unique two-column btree over the
-// expected key expressions with the retention statements' partial predicate.
+// expected key expressions with the retention statements' partial predicate,
+// plus each unusable key sidecar partition index (#7420, factkeys).
 // It reads only pg_catalog, so it takes no lock on fact_records. to_regclass
 // resolves both names through the session's search_path, as the retention
 // statements do.
@@ -425,8 +427,8 @@ WHERE NOT EXISTS (
       AND pg_get_expr(index_state.indpred, index_state.indrelid)
           = format('((fact_kind = %L::text) AND (is_tombstone = false))', expected.fact_kind)
 )
-ORDER BY expected.index_name
-`
+UNION ALL
+` + factkeys.UnavailablePartitionIndexesSQL
 
 // execRowsAffected runs one retention statement and returns its affected row
 // count.

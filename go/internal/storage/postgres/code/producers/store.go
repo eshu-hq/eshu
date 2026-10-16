@@ -35,9 +35,11 @@ import (
 // so each manifest resolves by its tag: content is used only when the tag's
 // generation row exists with activated_at set. Any other tag state (NULL
 // legacy, dangling or retention-pruned, empty, or never-activated) fails safe
-// to a dirty NULL row. Per-row tags cannot see row-less scopes, so the
-// manifest-less leg keeps the never-activated-generation signal for repository
-// scopes with no stored manifest. Extra scopes only add candidates the anchored
+// to a dirty NULL row. Per-row tags cannot see row-less scopes, so the shared
+// manifest-less leg (ManifestLessLeg) keeps a never-activated-generation
+// signal for repository scopes with no stored manifest; since #8243 it skips a
+// superseded or failed generation that the newest activated full generation's
+// write start covers. Extra scopes only add candidates the anchored
 // scan still gates on each definition's own package_id, so dirty rows keep the
 // ambiguity rule exact while a dropped scope would bypass it. UNION ALL is safe:
 // the consumer sorts and compacts scope ids in Go, and NULL dirty rows can never
@@ -95,33 +97,15 @@ JOIN scope_generations AS generation
   ON generation.scope_id = scope.scope_id
  AND generation.generation_id = scope.active_generation_id
  AND generation.status = 'active'
-UNION ALL
-SELECT scope.scope_id, NULL, 'manifest_less'
-FROM ingestion_scopes AS scope
-JOIN scope_generations AS active
-  ON active.scope_id = scope.scope_id
- AND active.generation_id = scope.active_generation_id
- AND active.status = 'active'
-WHERE scope.scope_kind = 'repository'
-  AND NOT EXISTS (
-    SELECT 1
-    FROM manifest
-    WHERE manifest.repo_id = scope.source_key
-  )
-  AND EXISTS (
-    SELECT 1
-    FROM scope_generations AS pending
-    WHERE pending.scope_id = scope.scope_id
-      AND pending.activated_at IS NULL
-  )
-`
+` + ManifestLessLeg
 
 // GoModuleManifestsQuery reads every stored go.mod manifest
 // of a repository scope that has an active generation. It mirrors the
 // package.json manifest read, including the MATERIALIZED CTE and the
 // generation-tag rule (#7760): content resolves only when the writing
 // generation activated, and any other tag state fails safe to a dirty NULL
-// row the anchored scan always visits. Unlike the package.json read it
+// row the anchored scan always visits; it ends with the same ManifestLessLeg.
+// Unlike the package.json read it
 // excludes no path: discovery already prunes vendor/ trees, and the
 // reducer's Go module index honors every remaining module root, so every
 // stored go.mod is a candidate producer. Behavior change versus the blind
@@ -153,26 +137,7 @@ JOIN scope_generations AS generation
   ON generation.scope_id = scope.scope_id
  AND generation.generation_id = scope.active_generation_id
  AND generation.status = 'active'
-UNION ALL
-SELECT scope.scope_id, NULL, 'manifest_less'
-FROM ingestion_scopes AS scope
-JOIN scope_generations AS active
-  ON active.scope_id = scope.scope_id
- AND active.generation_id = scope.active_generation_id
- AND active.status = 'active'
-WHERE scope.scope_kind = 'repository'
-  AND NOT EXISTS (
-    SELECT 1
-    FROM manifest
-    WHERE manifest.repo_id = scope.source_key
-  )
-  AND EXISTS (
-    SELECT 1
-    FROM scope_generations AS pending
-    WHERE pending.scope_id = scope.scope_id
-      AND pending.activated_at IS NULL
-  )
-`
+` + ManifestLessLeg
 
 // ComposerManifestsQuery reads every stored composer.json manifest of a
 // repository scope that has an active generation, for package:<vendor>/<name>#
@@ -180,10 +145,20 @@ WHERE scope.scope_kind = 'repository'
 // MATERIALIZED manifest CTE (one content_files read, not one probe per scope)
 // and the generation-tag rule (#7760), where content resolves only when the
 // writing generation activated and every other tag state fails safe to a dirty
-// NULL row the anchored scan always visits, plus the manifest-less leg for
-// scopes with a never-activated generation. A manifest under a vendor/
+// NULL row the anchored scan always visits, plus the shared ManifestLessLeg
+// for scopes with no candidate composer.json (vendor/ and fixture-directory
+// manifests do not count). A manifest under a vendor/
 // directory is excluded: it is an installed copy of a dependency, not a
-// publisher, and the parser never stamps package_id there. Nested manifests
+// publisher, and the parser never stamps package_id there. A manifest under a
+// fixture-style directory (test, tests, fixtures, testdata, examples; whole
+// segments, any ASCII case) is excluded for the same reason (#8223): it is test
+// scaffolding that can reuse a real package name. The predicate is
+// composer.FixtureDirPattern, the constant the parser's ProducerPackage
+// applies. It spells the case folding as ASCII classes, so no case fold or
+// locale differs between the two dialects and the anchor and the package_id
+// stamp agree. It is a row filter on the one bitmap scan the path predicate
+// already drives, not a new index
+// (docs/internal/evidence/8223-composer-fixture-manifests.md). Nested manifests
 // (monorepo packages) are included, because the parser stamps each class with
 // its nearest composer.json name.
 const ComposerManifestsQuery = `
@@ -192,6 +167,7 @@ WITH manifest AS MATERIALIZED (
     FROM content_files
     WHERE (relative_path = 'composer.json' OR relative_path LIKE '%/composer.json')
       AND relative_path !~ '(^|/)vendor/'
+      AND relative_path !~ '` + composer.FixtureDirPattern + `'
 ),
 tagged AS (
     SELECT manifest.repo_id, manifest.content, manifest.generation_id AS tag,
@@ -214,26 +190,7 @@ JOIN scope_generations AS generation
   ON generation.scope_id = scope.scope_id
  AND generation.generation_id = scope.active_generation_id
  AND generation.status = 'active'
-UNION ALL
-SELECT scope.scope_id, NULL, 'manifest_less'
-FROM ingestion_scopes AS scope
-JOIN scope_generations AS active
-  ON active.scope_id = scope.scope_id
- AND active.generation_id = scope.active_generation_id
- AND active.status = 'active'
-WHERE scope.scope_kind = 'repository'
-  AND NOT EXISTS (
-    SELECT 1
-    FROM manifest
-    WHERE manifest.repo_id = scope.source_key
-  )
-  AND EXISTS (
-    SELECT 1
-    FROM scope_generations AS pending
-    WHERE pending.scope_id = scope.scope_id
-      AND pending.activated_at IS NULL
-  )
-`
+` + ManifestLessLeg
 
 // Store reads the producer manifests over an injected database handle.
 type Store struct {

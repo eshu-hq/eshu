@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -16,6 +17,16 @@ const (
 	cloudResourceListCapability   = "platform_impact.cloud_resource_list"
 	cloudResourceListMaxLimit     = 200
 	cloudResourceListDefaultLimit = 50
+)
+
+// Fixed bodies of the three failure steps on GET /api/v0/cloud/resources
+// (#7674): the owner-ledger page selection (PostgreSQL, through the guarded
+// reader), the graph hydration read, and the parity check between the two.
+// No error text reaches the body; each error goes on the handler span.
+const (
+	cloudResourcePageSelectionFailedMessage   = "cloud resource page selection failed"
+	cloudResourceGraphHydrationFailedMessage  = "cloud resource graph hydration failed"
+	cloudResourceGraphProjectionFailedMessage = "cloud resource graph projection is inconsistent"
 )
 
 // CloudResourceRow is one bounded cloud-provider resource projected from a
@@ -132,7 +143,7 @@ func (h *InfraHandler) listCloudResources(w http.ResponseWriter, r *http.Request
 	})
 	if err != nil {
 		recordCloudResourceList(r.Context(), start, 0, 0, false, "store_error")
-		WriteError(w, http.StatusInternalServerError, "cloud resource page selection failed")
+		writeReadFailure(w, r, err, cloudResourceListCapability, cloudResourcePageSelectionFailedMessage)
 		return
 	}
 
@@ -154,16 +165,13 @@ func (h *InfraHandler) listCloudResources(w http.ResponseWriter, r *http.Request
 		// HTTP status (500 vs. the bounded-availability 503/504 below), so it
 		// keeps recording before the guard runs.
 		recordCloudResourceList(r.Context(), start, selectedRows, 0, truncated, "graph_error")
-		if WriteGraphReadError(w, r, err, cloudResourceListCapability) {
-			return
-		}
-		WriteError(w, http.StatusInternalServerError, "cloud resource graph hydration failed")
+		writeReadFailure(w, r, err, cloudResourceListCapability, cloudResourceGraphHydrationFailedMessage)
 		return
 	}
 	results, err := hydrateCloudResourcePage(identities, rows)
 	if err != nil {
 		recordCloudResourceList(r.Context(), start, selectedRows, 0, truncated, "parity_error")
-		WriteError(w, http.StatusInternalServerError, "cloud resource graph projection is inconsistent")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, cloudResourceGraphProjectionFailedMessage)
 		return
 	}
 	recordCloudResourceList(r.Context(), start, selectedRows, len(results), truncated, "ok")

@@ -78,6 +78,46 @@ func (p GenerationRetentionPolicy) normalize() GenerationRetentionPolicy {
 	return p
 }
 
+// GenerationRetentionResult reports the work a cleanup transaction completed.
+// RowsPruned is keyed by bounded table/data-class names, never raw scope or
+// generation identifiers. Each event's row_counts charges a content row shared
+// by several pruned generations to the newest of them, so the events sum per
+// table to the deletes (recounted after a row-limit skip).
+//
+// PhaseDurations is keyed by the closed GenerationRetentionPhase* set.
+// ScopeLockHold is the time from the targeted re-lock of the provisionally
+// selected set, which locks only the batch's ingestion_scopes and
+// scope_generations rows, to the end of the commit that releases them: the
+// window a concurrent fact insert into one of those scopes waits out. The
+// candidate selection, pre-screen and row counts run before it, unlocked
+// (#7334). It is zero when the pass locks nothing.
+type GenerationRetentionResult struct {
+	GenerationsPruned int
+	RowsPruned        map[string]int64
+	Skipped           map[string]int
+	OldestEligibleAge time.Duration
+	Duration          time.Duration
+	PhaseDurations    map[string]time.Duration
+	ScopeLockHold     time.Duration
+	// LedgerRowsPruned and LedgerRowsCounted are the changed-since ledger's
+	// deleted rows and the batch's pre-count of them, by ledger table
+	// (#7127). They differ only when a link committed between the two.
+	LedgerRowsPruned  map[string]int64
+	LedgerRowsCounted map[string]int64
+	// RowsOverLimit is the batch's counted rows minus BatchRowLimit when the
+	// batch is one generation over the limit (admitted alone because only its
+	// changed-since ledger rows push it over), else 0. It comes from the
+	// pre-count, so a link that commits after the count and names the
+	// generation on its prior side is deleted uncounted: it can understate.
+	RowsOverLimit int64
+	// LockedScopeRows is the distinct scopes of the pruned batch. Since
+	// every pass releases the selection's locks before planning and
+	// re-locks only the selected set (#7334), this is usually the pass's
+	// full lock set; when the under-lock refit skips re-locked members,
+	// those stay held through the commit but uncounted here.
+	LockedScopeRows int
+}
+
 // generationRetentionTestHooks are the ordering points the live retention
 // proofs use to put another session at an exact place inside one prune
 // pass. The fields are unexported and only same-package tests set them;

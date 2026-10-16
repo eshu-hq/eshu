@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	factkeys "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/keys"
 	linksfreshnessstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 )
@@ -44,46 +45,6 @@ const (
 // the server setting.
 const generationRetentionWorkMemStatement = "SET LOCAL work_mem = '64MB'"
 
-// GenerationRetentionResult reports the work a cleanup transaction completed.
-// RowsPruned is keyed by bounded table/data-class names, never raw scope or
-// generation identifiers. Each event's row_counts charges a content row shared
-// by several pruned generations to the newest of them, so the events sum per
-// table to the deletes (recounted after a row-limit skip).
-//
-// PhaseDurations is keyed by the closed GenerationRetentionPhase* set.
-// ScopeLockHold is the time from the targeted re-lock of the provisionally
-// selected set, which locks only the batch's ingestion_scopes and
-// scope_generations rows, to the end of the commit that releases them: the
-// window a concurrent fact insert into one of those scopes waits out. The
-// candidate selection, pre-screen and row counts run before it, unlocked
-// (#7334). It is zero when the pass locks nothing.
-type GenerationRetentionResult struct {
-	GenerationsPruned int
-	RowsPruned        map[string]int64
-	Skipped           map[string]int
-	OldestEligibleAge time.Duration
-	Duration          time.Duration
-	PhaseDurations    map[string]time.Duration
-	ScopeLockHold     time.Duration
-	// LedgerRowsPruned and LedgerRowsCounted are the changed-since ledger's
-	// deleted rows and the batch's pre-count of them, by ledger table
-	// (#7127). They differ only when a link committed between the two.
-	LedgerRowsPruned  map[string]int64
-	LedgerRowsCounted map[string]int64
-	// RowsOverLimit is the batch's counted rows minus BatchRowLimit when the
-	// batch is one generation over the limit (admitted alone because only its
-	// changed-since ledger rows push it over), else 0. It comes from the
-	// pre-count, so a link that commits after the count and names the
-	// generation on its prior side is deleted uncounted: it can understate.
-	RowsOverLimit int64
-	// LockedScopeRows is the distinct scopes of the pruned batch. Since
-	// every pass releases the selection's locks before planning and
-	// re-locks only the selected set (#7334), this is usually the pass's
-	// full lock set; when the under-lock refit skips re-locked members,
-	// those stay held through the commit but uncounted here.
-	LockedScopeRows int
-}
-
 // GenerationRetentionStore prunes superseded source-local generation history in
 // bounded transactions while preserving active reads and changed-since truth.
 type GenerationRetentionStore struct {
@@ -100,11 +61,12 @@ func NewGenerationRetentionStore(database db.ExecQueryer) GenerationRetentionSto
 
 // PruneSupersededGenerations deletes one bounded batch of superseded
 // generations outside the retained window. It records safe retention events
-// before deletion and removes generation-owned rows through FK cascades.
+// before deletion, deletes the per-fact key sidecars explicitly (#7420), and
+// removes the other generation-owned rows through FK cascades.
 //
-// Before it locks anything it checks that both retention key indexes are
-// valid; if either is not, it refuses the cycle with an error wrapping
-// ErrGenerationRetentionKeyIndexUnavailable and changes nothing (#7279).
+// Before it locks anything it checks that all five retention key indexes
+// (migrations 146, 147, 058, 182, 183) are valid; if any is not, it refuses
+// with ErrGenerationRetentionKeyIndexUnavailable, changing nothing (#7279).
 func (s GenerationRetentionStore) PruneSupersededGenerations(
 	ctx context.Context,
 	policy GenerationRetentionPolicy,
@@ -390,6 +352,7 @@ const (
 	GenerationRetentionPhaseDeleteInfraOrphans    = "delete_infra_orphans"
 	GenerationRetentionPhasePruneFiles            = "prune_content_files"
 	GenerationRetentionPhaseDeleteLedger          = "delete_changed_since_ledger"
+	GenerationRetentionPhaseDeleteFactKeys        = "delete_fact_keys" // #7420 key sidecars, before the generations
 	GenerationRetentionPhaseDeleteGenerations     = "delete_scope_generations"
 	GenerationRetentionPhasePruneChunkedFacts     = "prune_chunked_facts"
 	GenerationRetentionPhaseCommit                = "commit"
@@ -462,6 +425,9 @@ func (s GenerationRetentionStore) pruneCandidates(
 			result.LedgerRowsPruned = ledgerRows
 			maps.Copy(result.RowsPruned, ledgerRows)
 			return 0, nil
+		}},
+		{GenerationRetentionPhaseDeleteFactKeys, "", func() (int64, error) {
+			return 0, factkeys.DeleteGenerations(ctx, tx, retentionScopeIDs(candidates), generationIDs, result.RowsPruned)
 		}},
 		{GenerationRetentionPhaseDeleteGenerations, "scope_generations", deleteWith(deleteScopeGenerationsForRetentionQuery)},
 	}

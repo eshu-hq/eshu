@@ -29,6 +29,15 @@ const (
 
 var errGraphSummaryScopeTooBroad = errors.New("graph summary scope exceeds internal edge scan limit")
 
+// Fixed bodies of the two failed reads on POST /api/v0/ecosystem/graph-summary
+// (#7674): the ecosystem-wide packet (no repo_id) and the repository packet.
+// The graph error can quote Cypher and hosts, so it goes on the handler span,
+// never into the body. The 422 for an over-broad scope keeps its own text.
+const (
+	graphSummaryEcosystemReadFailedMessage  = "graph summary ecosystem read failed"
+	graphSummaryRepositoryReadFailedMessage = "graph summary repository read failed"
+)
+
 type graphSummaryPacketRequest struct {
 	RepoID string `json:"repo_id"`
 	Limit  *int   `json:"limit"`
@@ -107,10 +116,7 @@ func (h *InfraHandler) getGraphSummaryPacket(w http.ResponseWriter, r *http.Requ
 	if req.repoID() == "" {
 		data, err := h.graphSummaryEcosystemPacket(r.Context(), access)
 		if err != nil {
-			if WriteGraphReadError(w, r, err, graphSummaryPacketCapability) {
-				return
-			}
-			WriteError(w, http.StatusInternalServerError, err.Error())
+			writeReadFailure(w, r, err, graphSummaryPacketCapability, graphSummaryEcosystemReadFailedMessage)
 			return
 		}
 		WriteSuccess(w, r, http.StatusOK, data, ecosystemOverviewTruth(h.profile(), access))
@@ -135,10 +141,7 @@ func (h *InfraHandler) getGraphSummaryPacket(w http.ResponseWriter, r *http.Requ
 			WriteError(w, http.StatusUnprocessableEntity, err.Error())
 			return
 		}
-		if WriteGraphReadError(w, r, err, graphSummaryPacketCapability) {
-			return
-		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeReadFailure(w, r, err, graphSummaryPacketCapability, graphSummaryRepositoryReadFailedMessage)
 		return
 	}
 	WriteSuccess(w, r, http.StatusOK, data, h.graphSummaryEnvelope())

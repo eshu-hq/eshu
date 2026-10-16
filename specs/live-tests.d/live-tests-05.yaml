@@ -442,6 +442,26 @@ tests:
     class: postgres_ci
     reason: "#8206 disposable PostgreSQL 18 proof that five fact inserts started after the chunked re-lock holds the over-limit chunk target all wait on its row locks (counted in pg_stat_activity), then commit after the one bounded page drains, enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed 50 of 50 with -count=50 on postgres:18.6 on 2026-10-16"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/generation_retention_fact_keys_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7420 disposable PostgreSQL proof that, with the three per-fact key foreign keys dropped in an isolated migrated schema, the whole-generation prune and every over-limit chunk cycle leave zero orphan key sidecar rows and report the explicit deletes in RowsPruned, and that a dropped, INVALID or misshapen key sidecar partition index refuses the cycle, enrolled in the live-postgres-readiness runner; bridges ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN. local run passed all 3 tests in 4.15s of test time on PostgreSQL 18.6 on 2026-10-15"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/generation_retention_fact_keys_plan_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7420 disposable PostgreSQL proof that every key sidecar delete prepares against the migrated schema and plans on its (scope_id, generation_id, fact_id) partition index under no statistics, ANALYZE, custom and forced-generic plans, with executed buffers bounded by rows deleted and seeded REDs for the fact_id-only form and a dropped index, enrolled in the live-postgres-readiness runner; bridges ESHU_GENERATION_RETENTION_PROOF_DSN. local run passed both tests in 6.93s of test time on PostgreSQL 18.6 on 2026-10-15"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/generation_retention_fact_keys_accuracy_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7420 disposable PostgreSQL proof that orphan relationship keys are invisible to the deferred relationship fact load, that the key writers replace an orphan key by fact_id, and that a fact insert into a pruned generation fails before any key write, enrolled in the live-postgres-readiness runner; reads ESHU_GENERATION_RETENTION_PROOF_DSN and ESHU_DEFERRED_PARTITION_PROOF_DSN. local run passed all 3 tests in 4.55s of test time on PostgreSQL 18.6 on 2026-10-15"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/generation_retention_fact_keys_concurrency_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7420 disposable PostgreSQL two-session proof that retention key deletes overlap an ingestion-shaped key writer without blocking it, are idempotent on retry, and run beside the package key scope rebuild without deadlock in lock order while the reversed order deadlocks (seeded RED), enrolled in the live-postgres-readiness runner; bridges ESHU_GENERATION_RETENTION_PROOF_DSN. local run passed all 3 tests in 9.97s of test time on PostgreSQL 18.6 on 2026-10-15"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/generation_retention_fairness_live_test.go
     tag: ~
     class: dedicated_ci

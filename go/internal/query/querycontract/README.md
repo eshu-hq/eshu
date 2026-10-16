@@ -369,8 +369,9 @@ one named exception: a route that reads through the guarded reader but has no
 matrix row passes it, and the envelope then omits the `capability` field while
 the status, `Retry-After`, code, and message stay the same. The sweep accepts
 it only from the files in its `noCapabilityAllowedFiles` allowlist, matched by
-exact path (today seven files: the status read routes, the live evidence
-bundle, and the admin audit reads, until #8227 registers those keys). A bare `""` literal always fails, and an
+exact path (today eight files: the status read routes, the operator control
+plane, the live evidence bundle, and the admin audit reads, until #8227
+registers those keys). A bare `""` literal always fails, and an
 allowlisted file with no `NoCapability` call site fails as a stale entry.
 
 `K8sSelectCandidate` carries selector presence separately from selector value.

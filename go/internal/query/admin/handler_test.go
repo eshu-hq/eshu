@@ -357,6 +357,7 @@ func TestAdminHandler_Mount_RegistersAllRoutes(t *testing.T) {
 		{http.MethodPost, "/api/v0/admin/refinalize"},
 		{http.MethodGet, "/api/v0/admin/shared-projection/tuning-report"},
 		{http.MethodPost, "/api/v0/admin/reindex"},
+		{http.MethodGet, "/api/v0/admin/reindex/progress"},
 		{http.MethodPost, "/api/v0/admin/work-items/query"},
 		{http.MethodPost, "/api/v0/admin/decisions/query"},
 		{http.MethodPost, "/api/v0/admin/dead-letters/query"},

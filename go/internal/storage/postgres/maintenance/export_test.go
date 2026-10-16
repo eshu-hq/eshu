@@ -14,3 +14,7 @@ const RepositoryReindexSchemaSQL = repositoryReindexSchemaSQL
 // RequestRepositoryReindexQuery exposes requestRepositoryReindexQuery so
 // external tests can assert on its shape.
 const RequestRepositoryReindexQuery = requestRepositoryReindexQuery
+
+// RepositoryReindexRequestedAtQuery exposes repositoryReindexRequestedAtQuery
+// so external tests can assert on its shape.
+const RepositoryReindexRequestedAtQuery = repositoryReindexRequestedAtQuery

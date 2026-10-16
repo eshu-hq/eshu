@@ -5,10 +5,13 @@ package query
 
 import (
 	"context"
+	"net/http"
 	"sync"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/taghistory"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -235,4 +238,34 @@ func recordTagHistoryError(ctx context.Context, reason string) {
 			attribute.String("reason", reason),
 		),
 	)
+}
+
+// Fixed bodies of the two server failure steps on GET
+// /api/v0/images/tag-history (#7674): a failed graph read (the tag read or the
+// scoped BUILT_FROM lookup) and a continuation that could not be sealed. The
+// graph error can quote Cypher and hosts, and the sealing error describes the
+// deployment's key state, so each goes on the handler span, never into the
+// body.
+const (
+	tagHistoryReadFailedMessage             = "container image tag history read failed"
+	tagHistoryContinuationSealFailedMessage = "query failed: the tag-history continuation could not be sealed"
+)
+
+// writeTagHistoryReadError writes the response for a failed graph read, shared
+// by the tag read and the scoped BUILT_FROM lookup. A raw DeadlineExceeded from
+// a GraphQuery that bypasses Neo4jReader (#6705), or any read error once the
+// request ctx has expired (#7353), maps to ErrGraphReadDeadline. Any other
+// failure answers tagHistoryReadFailedMessage through
+// tracing.WriteServerFailure: 500 with err on the handler span, or 499 when
+// the caller canceled the request (#7674).
+func writeTagHistoryReadError(w http.ResponseWriter, r *http.Request, start time.Time, err error) {
+	err = querycontract.ClassifyBoundedGraphReadError(r.Context(), err)
+	if WriteGraphReadError(w, r, err, tagHistoryCapability) {
+		recordTagHistoryError(r.Context(), "backend_unavailable")
+		recordTagHistoryDuration(r.Context(), start, "backend_unavailable")
+		return
+	}
+	recordTagHistoryError(r.Context(), "query_error")
+	recordTagHistoryDuration(r.Context(), start, "query_error")
+	tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, tagHistoryReadFailedMessage)
 }

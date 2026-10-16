@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package main //nolint:filelength // 503 lines: reducer service assembly; the #8211 handler-timeout wiring tipped it over the cap.
 
 import (
 	"context"
@@ -204,6 +204,21 @@ func buildReducerService(
 	if err != nil {
 		return reducer.Service{}, fmt.Errorf("load reducer claim domains: %w", err)
 	}
+	handlerTimeout, err := loadReducerHandlerTimeout(getenv)
+	if err != nil {
+		return reducer.Service{}, fmt.Errorf("load reducer handler timeout: %w", err)
+	}
+	handlerTimeoutOverrides, err := loadReducerHandlerTimeoutOverrides(getenv)
+	if err != nil {
+		return reducer.Service{}, fmt.Errorf("load reducer handler timeout overrides: %w", err)
+	}
+	if (handlerTimeout > 0 || len(handlerTimeoutOverrides) > 0) && logger != nil {
+		logger.Warn(
+			"reducer handler timeouts are recorded but not enforced yet",
+			"default", handlerTimeout.String(),
+			"overrides", len(handlerTimeoutOverrides),
+		)
+	}
 	if len(claimDomains) > 0 && logger != nil {
 		logger.Info(
 			"reducer claims restricted to domains",
@@ -398,6 +413,8 @@ func buildReducerService(
 		WorkSink:                   workQueue,
 		Heartbeater:                workQueue,
 		HeartbeatInterval:          reducerHeartbeatInterval,
+		HandlerTimeout:             handlerTimeout,
+		HandlerTimeoutOverrides:    handlerTimeoutOverrides,
 		SharedProjectionEdgeWriter: edgeWriter,
 		SharedProjectionRunner: &reducer.SharedProjectionRunner{
 			IntentReader:        intentStore,

@@ -11,8 +11,8 @@ facts instead of every file fact in the corpus (#7601, #7623).
 
 This package owns the key classification (`Split`), the Go key and module
 rules, the three manifest statements (`PackageManifestsQuery`,
-`ComposerManifestsQuery`, `GoModuleManifestsQuery`), and the `Store` that
-runs them. The parent `postgres`
+`ComposerManifestsQuery`, `GoModuleManifestsQuery`) with their shared
+`ManifestLessLeg`, and the `Store` that runs them. The parent `postgres`
 package owns `LoadActiveCodeCallSymbolDefinitionFacts`, the definition scan and
 its keyset paging, and the load log line. The Go parser owns the key shape and
 the import-path rule this package mirrors: `internal/parser/golang/scip_symbols.go`
@@ -31,16 +31,23 @@ and `internal/parser/go_package_module_import_path.go`.
 - `New(db.Queryer)` returns a `Store` with `PackageScopeIDs` and
   `GoModuleScopeIDs`. `PackageScopeIDs` sends a composer name
   (`vendor/name` in the composer grammar) to the composer.json read, which
-  skips manifests under `vendor/`, and every other name to the package.json
+  skips manifests under `vendor/` and under a test, tests, fixtures, testdata,
+  or examples directory (whole segments, any ASCII case; `composer.FixtureDirPattern`,
+  #8223), and every other name to the package.json
   read; the two name spaces are disjoint, and a request with both unions the
   two reads. All three manifest reads (package.json, composer.json, go.mod)
   bind stored content to the writing
   generation through the `content_files` generation tag (#7760): a row whose
   tag names no activated generation returns as a NULL row, so the producer
-  set never drops a candidate; scopes with no stored manifest but a
-  never-activated generation resolve dirty through a manifest-less leg. See
-  `docs/internal/evidence/7760-generation-tag.md` (and its predecessor,
-  `docs/internal/evidence/7609-manifest-generation.md`).
+  set never drops a candidate; scopes with no stored manifest resolve dirty
+  through the shared manifest-less leg (`ManifestLessLeg`) when a generation
+  never activated and could still describe content the active generation
+  does not. Since #8243 that leg skips a superseded or failed generation whose
+  write start is at or before the write start of the scope's newest activated
+  full generation; a full without a write-start marker covers nothing. See
+  `docs/internal/evidence/8243-narrow-dirty-rule.md`,
+  `docs/internal/evidence/7760-generation-tag.md`, and
+  `docs/internal/evidence/7609-manifest-generation.md`.
 - `WithInstruments` counts every row each read sees into
   `eshu_dp_producer_manifest_tag_outcomes_total` by `kind`
   (`package|composer|gomod`) and `outcome`.

@@ -10,21 +10,13 @@ package query
 // file absent from the map must have zero sites: every file under impact/
 // (first #7674 slice), iac/ and supply/chain/ (second slice), the small
 // packages, package/registry/, and secrets/ (third slice), and codequery/,
-// entity/, and querycontract/ (fourth slice), and repository/ (the
-// repository slice) was converted and is not listed.
+// entity/, and querycontract/ (fourth slice), repository/ (the repository
+// slice), the root status, evidence, and investigation packet files (slice
+// 9), and the root infra, cloud, catalog, graph entity, image, tag-history,
+// admission decision, operator control plane, and surface inventory files
+// (slice 10) was converted and is not listed.
 // Lower a ceiling (or delete the entry) when a change removes sites; never
 // raise one. The final #7674 slice deletes this map.
 var queryErrorTextLeakCeilings = map[string]int{
-	"admission_decisions.go":               2,
-	"contentread/selector_error.go":        1,
-	"graph_entity_inventory.go":            3,
-	"images.go":                            1,
-	"infra_ecosystem_overview.go":          1,
-	"infra_graph_summary_packet.go":        2,
-	"infra_relationship_filter.go":         1,
-	"infra_resource_aggregates_handler.go": 2,
-	"infra.go":                             1,
-	"operator_control_plane.go":            1,
-	"relationships_catalog.go":             2,
-	"tag_history.go":                       1,
+	"contentread/selector_error.go": 1,
 }

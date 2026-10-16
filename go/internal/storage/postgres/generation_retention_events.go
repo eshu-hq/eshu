@@ -73,16 +73,17 @@ ON CONFLICT (event_id) DO NOTHING
 
 // ErrGenerationRetentionKeyIndexUnavailable reports that a retention cycle was
 // refused because fact_records_content_entity_key_idx or
-// fact_records_file_key_idx (migrations 146 and 147) is missing, invalid, or
-// not the expected shape. The retention statements probe those indexes once per
-// candidate key; without them each probe scans fact_records while the batch
-// holds its scope locks (the #6809 cliff), so the store refuses rather than run
-// that shape. The cycle is retried on the runner's next poll.
+// fact_records_file_key_idx (migrations 146 and 147), or a key sidecar
+// partition index (#7420: migrations 058, 182, 183), is missing, invalid, or
+// not the expected shape. The retention statements probe those indexes per
+// candidate; without them each probe scans its table while the batch holds
+// its scope locks (the #6809 cliff), so the store refuses rather than run that
+// shape. The cycle is retried on the runner's next poll.
 var ErrGenerationRetentionKeyIndexUnavailable = errors.New("generation retention key index unavailable")
 
 // checkGenerationRetentionKeyIndexes returns an error wrapping
 // ErrGenerationRetentionKeyIndexUnavailable that names each unusable key index,
-// or nil when both are valid.
+// or nil when all are valid.
 func checkGenerationRetentionKeyIndexes(ctx context.Context, tx db.Transaction) error {
 	rows, err := tx.QueryContext(ctx, generationRetentionKeyIndexesQuery)
 	if err != nil {
@@ -448,6 +449,9 @@ func mergeChunkProgress(
 	result.RowsPruned["content_file_references"] += chunk.referencesPruned
 	result.RowsPruned["content_entities"] += chunk.entitiesPruned
 	result.RowsPruned["infra_resource_entities"] += chunk.mirrorPruned
+	for table, rows := range chunk.factKeysPruned {
+		result.RowsPruned[table] += rows // #7420 key sidecars
+	}
 	result.Skipped[generationRetentionChunkedProgressSkippedReason]++
 	if age := now.Sub(target.supersededAt); age > result.OldestEligibleAge {
 		result.OldestEligibleAge = age

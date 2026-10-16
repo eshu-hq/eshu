@@ -78,7 +78,12 @@
 // since queries use those events to report retention_expired instead of a false
 // empty delta when a prior generation has aged out. The same transaction
 // prunes the changed-since link ledger rows of the pruned generations through
-// linksfreshnessstore, whose row counts join BatchRowLimit.
+// linksfreshnessstore, whose row counts join BatchRowLimit. It deletes the
+// three per-fact key sidecars (relationship_reference_candidate_keys,
+// package_manifest_consumption_keys, package_registry_identity_keys)
+// explicitly, by (scope_id, generation_id) before the generation delete and
+// by the page's fact ids on the over-limit chunk path, in that table order
+// (#7420), so no fact delete relies on their per-fact foreign key cascade.
 // FactStore kind-filtered reads use bounded, stable keyset pages and scan the
 // same facts.Envelope metadata shape as full fact loads. Fact writes remove
 // JSONB-incompatible U+0000 characters without changing literal source text

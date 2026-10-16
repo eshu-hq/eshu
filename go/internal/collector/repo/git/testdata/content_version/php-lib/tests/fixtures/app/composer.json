@@ -1,0 +1,4 @@
+{
+  "name": "acme/fixture-lib",
+  "autoload": {"psr-4": {"Acme\\FixtureLib\\": "src/"}}
+}

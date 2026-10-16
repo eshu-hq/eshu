@@ -5,7 +5,9 @@ package status
 
 // Admin is the OpenAPI path fragment documenting the 15 `/api/v0/admin/*`
 // routes. openapi.Spec concatenates it into the published document; keep it in
-// lockstep with the handlers and docs/public/reference/http-api.md.
+// lockstep with the handlers and docs/public/reference/http-api.md. The
+// fifteenth admin route (reindex progress) lives in reindex_progress.go,
+// split out under the same file cap the compare.go precedent sets.
 const Admin = `
     "/api/v0/admin/refinalize": {
       "post": {

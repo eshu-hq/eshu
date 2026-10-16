@@ -147,6 +147,8 @@ All env vars parsed in `config.go` and `neo4j_wiring.go`.
 | --- | --- | --- |
 | `ESHU_REDUCER_RETRY_DELAY` | `30s` | Base delay before a failed intent becomes re-claimable; the actual delay grows exponentially with attempt count (#4450) |
 | `ESHU_REDUCER_MAX_ATTEMPTS` | `3` | Terminal failure threshold |
+| `ESHU_REDUCER_HANDLER_TIMEOUT` | unset (no bound) | Default bound on one handler execution (Go duration, e.g. `10m`). Recorded but not enforced yet (#8211 step a): handler durations are measured on `eshu_dp_reducer_handler_duration_seconds` so the enforcing default can be set from data. Invalid values fail startup |
+| `ESHU_REDUCER_HANDLER_TIMEOUT_OVERRIDES` | unset | Per-domain handler bounds as `domain=duration,domain=duration` (e.g. `workload_materialization=10m`). Unknown domains and non-positive durations fail startup. Recorded but not enforced yet, like the default |
 | `ESHU_REDUCER_MAX_RETRY_DELAY` | `1h` | Caps the exponential backoff term so a high attempt count cannot grow the delay unboundedly (#4450) |
 | `ESHU_REDUCER_RETRY_JITTER_FRACTION` | `0.1` | Fraction of `ESHU_REDUCER_RETRY_DELAY` used as the random jitter window added on top of the backoff term, breaking same-instant retry storms (#4450); `0` disables jitter |
 | `ESHU_REDUCER_WORKERS` | `NumCPU` NornicDB / `min(NumCPU,4)` Neo4j | Concurrent intent workers |

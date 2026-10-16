@@ -124,7 +124,10 @@ func readManifest(path string) (manifest, bool) {
 // repoRoot decides; it must carry a name in the composer grammar, and one of its
 // autoload psr-4 prefixes must cover fqcn with the file sitting exactly at the
 // mapped directory plus the remaining namespace segments plus ".php". A file
-// under a vendor/ directory is a vendored copy, never a publisher. The path
+// under a vendor/ directory is a vendored copy, never a publisher, and a
+// manifest under a test, tests, fixtures, testdata, or examples directory
+// (FixtureDirPattern) is test scaffolding: the walk stops there with no key
+// instead of falling through to an outer manifest (#8223). The path
 // comparison is case-sensitive: PHP class names are case-insensitive, so a
 // class whose declared case differs from its file name is a miss, never a false
 // link.
@@ -139,7 +142,7 @@ func ProducerPackage(repoRoot string, path string, fqcn string) string {
 		if !ok {
 			continue
 		}
-		if parsed.name == "" {
+		if parsed.name == "" || manifestInFixtureDir(repoRoot, dir) {
 			return ""
 		}
 		for _, mapping := range parsed.psr4 {
@@ -190,4 +193,12 @@ func underVendor(repoRoot string, path string) bool {
 		}
 	}
 	return false
+}
+
+// manifestInFixtureDir reports whether the composer.json in dir sits under a
+// fixture-style directory relative to repoRoot, the same predicate the
+// producer anchor applies to a stored manifest path.
+func manifestInFixtureDir(repoRoot string, dir string) bool {
+	relative, ok := project.RelativeSlashPath(repoRoot, filepath.Join(dir, "composer.json"))
+	return ok && InFixtureDir(relative)
 }

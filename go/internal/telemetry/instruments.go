@@ -165,6 +165,12 @@ type Instruments struct {
 	// lease store and the intent's lease may be reclaimed and re-executed by
 	// another worker.
 	ReducerHeartbeatMissed metric.Int64Counter
+	// ReducerHandlerAbandoned counts reducer intents whose handler never
+	// returned before shutdown arrived, so the worker stopped the lease
+	// heartbeat and failed the intent for retry (#8211). Labeled by domain
+	// only (a bounded closed set). A non-zero rate means handlers are
+	// wedging past process shutdown instead of observing their context.
+	ReducerHandlerAbandoned metric.Int64Counter
 	// ProjectorRetrySurge counts every projector work-item retry scheduled
 	// via ProjectorQueue.Fail's retry path (#4450), labeled by failure_class
 	// only (a bounded closed set from queuestore.QueueFailureMetadata/
@@ -1748,7 +1754,14 @@ type Instruments struct {
 	ProjectorStageDuration                 metric.Float64Histogram
 	ReducerRunDuration                     metric.Float64Histogram
 	ReducerQueueWaitDuration               metric.Float64Histogram
-	SearchIndexWriteDuration               metric.Float64Histogram
+	// ReducerHandlerDuration records reducer handler wall time, from
+	// Executor.Execute entry to return, labeled by domain (#8211). It is the
+	// non-enforcing measurement behind the future handler deadline: only
+	// handlers that return are recorded, so a stuck handler that is
+	// abandoned at shutdown lands on ReducerHandlerAbandoned instead and its
+	// elapsed time is visible on the abandonment log line.
+	ReducerHandlerDuration   metric.Float64Histogram
+	SearchIndexWriteDuration metric.Float64Histogram
 	// GCPMaterializationDuration measures GCP resource and relationship
 	// materialization stages by reducer domain and write_phase.
 	GCPMaterializationDuration metric.Float64Histogram
@@ -2652,6 +2665,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ReducerHeartbeatMissed counter: %w", err)
+	}
+
+	inst.ReducerHandlerAbandoned, err = meter.Int64Counter(
+		"eshu_dp_reducer_handler_abandoned_total",
+		metric.WithDescription("Total reducer intents abandoned at shutdown because the handler never returned"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReducerHandlerAbandoned counter: %w", err)
 	}
 
 	inst.ProjectorRetrySurge, err = meter.Int64Counter(
@@ -5307,6 +5328,16 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ReducerRunDuration histogram: %w", err)
+	}
+
+	inst.ReducerHandlerDuration, err = meter.Float64Histogram(
+		"eshu_dp_reducer_handler_duration_seconds",
+		metric.WithDescription("Reducer handler execution wall time by domain"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(reducerRunBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReducerHandlerDuration histogram: %w", err)
 	}
 
 	reducerWaitBuckets := []float64{0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900, 1800, 3600, 21600}

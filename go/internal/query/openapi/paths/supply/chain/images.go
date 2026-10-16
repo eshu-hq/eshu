@@ -11,7 +11,7 @@ const Images = `
       "get": {
         "tags": ["images"],
         "summary": "List container images (OCI)",
-        "description": "Lists container images observed by the OCI registry collector over the authoritative (:ContainerImage) graph. The list is bounded by limit+1 with deterministic ordering by digest then uid, and exposes offset-based continuation via next_cursor when truncated. Optional filters narrow on digest, registry/repository_id, and tag. This is the console Images browse surface; source-to-image provenance is exposed by the supply-chain container image identity endpoints.",
+        "description": "Lists container images observed by the OCI registry collector over the authoritative (:ContainerImage) graph. The list is bounded by limit+1 with deterministic ordering by digest then uid, and exposes offset-based continuation via next_cursor when truncated. Optional filters narrow on digest, registry/repository_id, and tag. This is the console Images browse surface; source-to-image provenance is exposed by the supply-chain container image identity endpoints. A 503 with Retry-After means a transient condition that is safe to retry: the graph backend is unavailable; a 503 without Retry-After means a configuration state, such as no graph backend configured on this API instance. A graph read that exceeds its deadline answers 504. No 5xx body carries backend error text. A graph or reader verdict 503 names capability platform_impact.container_image_list in its error envelope.",
         "operationId": "listContainerImages",
         "parameters": [
           {"name": "digest", "in": "query", "schema": {"type": "string"}, "description": "Exact image digest such as sha256:... to anchor lookup."},

@@ -26,6 +26,14 @@ Layout:
   500 (`repository reindex selector lookup failed`), or the retryable 503
   for a stale reader, not a 400. Distinct scopes are recorded in one
   `RepositoryReindexRequester` call and returned per repository.
+- `reindex_progress.go` — `GET /api/v0/admin/reindex/progress`. Read-only:
+  it evaluates 1 to 100 `scope_id` parameters against the fleet watermark
+  (live `GetReindexState`, or the `fleet_requested_at` override) and each
+  scope's per-repository watermark through `ReindexProgressReader`, applying
+  the collector's GREATEST-subsumption and satisfied rules to the sweep's
+  own `FullReconcileState` read. Counts cover every scope; `scopes` samples
+  at most 10, unfinished first. A store fault is a 500
+  (`reindex progress query failed`); an unwired reader is a 503.
 - `server_failure.go` — the fixed failure messages, one per failing route
   step, and the three helpers every 5xx goes through (#7674). Inspection
   reads answer the shared reader verdict (503 with `Retry-After`) first,

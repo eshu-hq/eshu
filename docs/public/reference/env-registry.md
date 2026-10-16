@@ -442,6 +442,8 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_REDUCER_BATCH_CLAIM_SIZE` | int | — | Work items claimed per cycle (default adaptive to workers and backend). |
 | `ESHU_REDUCER_CLAIM_DOMAIN` | string | — | Single reducer claim domain. Deprecated; use `ESHU_REDUCER_CLAIM_DOMAINS`. |
 | `ESHU_REDUCER_CLAIM_DOMAINS` | string | — | Comma-separated reducer domains for multi-domain claims. |
+| `ESHU_REDUCER_HANDLER_TIMEOUT` | duration | — | Default bound on one reducer handler execution. Recorded but not enforced yet (#8211 step a). Invalid values fail startup. |
+| `ESHU_REDUCER_HANDLER_TIMEOUT_OVERRIDES` | string | — | Per-domain reducer handler bounds as domain=duration,... . Recorded but not enforced yet (#8211 step a). Bad entries and duplicate domains fail startup. |
 | `ESHU_REDUCER_MAX_ATTEMPTS` | int | `3` | Maximum retry attempts for reducer work items. |
 | `ESHU_REDUCER_RETRY_DELAY` | duration | `30s` | Delay between reducer work-item retries. |
 | `ESHU_REDUCER_WORKERS` | int | — | Concurrent reducer workers (default derived from CPU count and backend). |

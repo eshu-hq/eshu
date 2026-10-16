@@ -231,6 +231,11 @@
   `listPackageManifestConsumptionKeyScopeFactsSQL`'s predicate byte-aligned
   with migration 181's partial index. See `consumption/AGENTS.md` and
   `docs/internal/evidence/7663-backfill-page-lock.md`.
+- **Key sidecar deletes (#7420).** A new statement that deletes
+  `fact_records` (directly, or through a `scope_generations` or
+  `ingestion_scopes` cascade) runs the `facts/keys` delete first in the same
+  transaction, or touches only fact kinds that own no key rows, and is
+  classified in `factDeleteSites`. Read `facts/keys/AGENTS.md` first.
 
 ## Evidence notes
 

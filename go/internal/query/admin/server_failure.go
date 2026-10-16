@@ -23,6 +23,7 @@ const (
 	reindexFailedMessage                  = "reindex request failed"
 	repositoryReindexLookupFailedMessage  = "repository reindex selector lookup failed"
 	repositoryReindexRequestFailedMessage = "repository reindex request failed"
+	reindexProgressFailedMessage          = "reindex progress query failed"
 
 	recoverGenerationsClaimFailedMessage  = "recover-generations idempotency claim failed"
 	recoverGenerationsFailedMessage       = "recover-generations failed"

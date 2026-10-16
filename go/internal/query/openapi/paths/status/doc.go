@@ -4,7 +4,8 @@
 // Package status holds the OpenAPI 3.0 path fragments for Eshu's status,
 // admin, and operator surfaces: pipeline/collector/ingester/index status
 // and OpenAPI serving routes (routes.go), environment comparison
-// (compare.go), admin mutations and queries (admin.go), answer narration
+// (compare.go), admin mutations and queries (admin.go) with reindex
+// progress (reindex_progress.go), answer narration
 // (answer_narration.go), collector and collector-extraction readiness
 // (collector_readiness.go and collector_extraction_readiness.go),
 // governance (governance.go), hosted readiness (hosted_readiness.go),
