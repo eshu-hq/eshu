@@ -39,9 +39,12 @@ func TestPageBlockCarriesTheWalkState(t *testing.T) {
 	}
 	block := page.Block()
 	for key, want := range map[string]any{
+		"lane":              rank.LaneContent,
+		"order":             rank.OrderHybrid,
+		"ranked":            true,
 		"page_cursor":       page.PageCursor,
-		"next_rank_cursor":  page.NextCursor,
-		"served":            10,
+		"next_cursor":       page.NextCursor,
+		"position":          10,
 		"window_rows":       30,
 		"window_size":       rank.WindowSize,
 		"window_end":        false,
@@ -61,10 +64,10 @@ func TestPageBlockOmitsTheNextCursorAtWindowEnd(t *testing.T) {
 		t.Fatalf("Walk error = %v", err)
 	}
 	block := page.Block()
-	if _, present := block["next_rank_cursor"]; present {
-		t.Fatalf("block carries next_rank_cursor at window end: %v", block)
+	if _, present := block["next_cursor"]; present {
+		t.Fatalf("block carries next_cursor at window end: %v", block)
 	}
-	if block["window_end"] != true {
+	if block["window_end"] != true || block["ranked"] != true {
 		t.Fatalf("window_end = %v, want true", block["window_end"])
 	}
 }
@@ -82,9 +85,9 @@ func TestTrimWalkResumesAfterTheKeptRows(t *testing.T) {
 	if !ok {
 		t.Fatal("TrimWalk not ok")
 	}
-	next, _ := trimmed["next_rank_cursor"].(string)
-	if next == "" || trimmed["served"] != 15 || trimmed["window_end"] != false {
-		t.Fatalf("trimmed block = %v, want served 15 with a next cursor", trimmed)
+	next, _ := trimmed["next_cursor"].(string)
+	if next == "" || trimmed["position"] != 15 || trimmed["window_end"] != false {
+		t.Fatalf("trimmed block = %v, want position 15 with a next cursor", trimmed)
 	}
 	resumed, err := rank.Walk(window, scores, next, 40)
 	if err != nil {

@@ -32,11 +32,13 @@ surface. The directory is exempt from the dirgate file cap by the existing //nol
   for language and exact-name predicates before each bounded content page.
   The unfiltered fallback keeps its existing name-then-source reads.
 - A `find_code` request with `rank_cursor` (#7746) goes to `handleRankWalk`
-  in `handler.go`: it always reads the repository's content lane (never the
-  graph lane), takes the first 200 rows, scores them through
-  `codemodel.CodeWindowScorer`, and pages them with `search/rank`. Offset,
-  `exact=true`, a missing `repo_id`, or a ranker that cannot score answer a
-  typed 400; a changed window or order answers 409.
+  (`rank_walk.go`). `selectCodeSearchLane` picks the lane as an offset
+  request does (graph first; content when the graph has no rows or `Neo4j`
+  is nil), and the cursor pins it. The graph lane keeps its own order
+  (`graph_name`); the content lane is ranked through
+  `codemodel.CodeWindowScorer` (`hybrid`) unless `exact=true` or no ranker
+  can score (`lexical`). A positive offset or a missing `repo_id` answers a
+  typed 400; a changed lane, window, or order answers 409.
 
 ## Contracts (must hold)
 

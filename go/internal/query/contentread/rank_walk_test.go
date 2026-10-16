@@ -100,7 +100,7 @@ func walkEntities(t *testing.T, h *ContentHandler, limit int) []string {
 		for _, row := range resp.Results {
 			served = append(served, row.EntityID)
 		}
-		next, _ := resp.Walk["next_rank_cursor"].(string)
+		next, _ := resp.Walk["next_cursor"].(string)
 		if next == "" {
 			if resp.Walk["window_end"] != true {
 				t.Fatalf("page %d: walk ended without window_end; block = %v", page, resp.Walk)
@@ -157,8 +157,11 @@ func TestSearchEntitiesRankWalkMarksRowsAndReportsTheWindow(t *testing.T) {
 			t.Fatalf("row %s backend %q position %v, want hybrid and no page_position", row.EntityID, row.SearchBackend, row.PagePosition)
 		}
 	}
-	if resp.Walk["served"] != float64(10) || resp.Walk["window_rows"] != float64(30) || resp.Walk["lexical_truncated"] != false {
-		t.Fatalf("rank_walk = %v, want served 10 of 30, not lexically truncated", resp.Walk)
+	if resp.Walk["position"] != float64(10) || resp.Walk["window_rows"] != float64(30) || resp.Walk["lexical_truncated"] != false {
+		t.Fatalf("rank_walk = %v, want position 10 of 30, not lexically truncated", resp.Walk)
+	}
+	if resp.Walk["lane"] != rank.LaneContent || resp.Walk["order"] != rank.OrderHybrid || resp.Walk["ranked"] != true {
+		t.Fatalf("rank_walk = %v, want lane content, order hybrid, ranked", resp.Walk)
 	}
 	if calls := store.entityRepoCalls; len(calls) != 1 {
 		t.Fatalf("store calls = %v, want one window read", calls)
@@ -191,15 +194,15 @@ func TestSearchEntitiesRankWalkBasisChangeIsConflict(t *testing.T) {
 	_, first := postWalk(t, h, "/api/v0/content/entities/search", map[string]any{
 		"query": "payment refund", "repo_id": walkRepoID, "limit": 10, "rank_cursor": rank.StartToken,
 	})
-	next, _ := first.Walk["next_rank_cursor"].(string)
+	next, _ := first.Walk["next_cursor"].(string)
 	store.byEntityRepo[walkRepoID][3].SourceCache = "rewritten between pages"
 
 	rec, _ := postWalk(t, h, "/api/v0/content/entities/search", map[string]any{
 		"query": "payment refund", "repo_id": walkRepoID, "limit": 10, "rank_cursor": next,
 	})
 	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), string(rank.ErrorCodeBasisMismatch)) ||
-		!strings.Contains(rec.Body.String(), rank.ReasonCandidateSetChanged) {
-		t.Fatalf("status = %d body = %s, want 409 %s %s", rec.Code, rec.Body.String(), rank.ErrorCodeBasisMismatch, rank.ReasonCandidateSetChanged)
+		!strings.Contains(rec.Body.String(), rank.ReasonBasisChanged) {
+		t.Fatalf("status = %d body = %s, want 409 %s %s", rec.Code, rec.Body.String(), rank.ErrorCodeBasisMismatch, rank.ReasonBasisChanged)
 	}
 }
 
@@ -348,7 +351,7 @@ func walkEntitiesQuiet(h *ContentHandler, limit int) []string {
 		for _, row := range resp.Results {
 			served = append(served, row.EntityID)
 		}
-		next, _ := resp.Walk["next_rank_cursor"].(string)
+		next, _ := resp.Walk["next_cursor"].(string)
 		if next == "" {
 			return served
 		}

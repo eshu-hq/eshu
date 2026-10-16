@@ -33,7 +33,7 @@ func rankWalkBudgetMux(store pagedBudgetStore) http.Handler {
 
 // TestRankWalkBudgetPagesKeepTheCursorIntact is the MCP half of #7746: a rank
 // walk whose pages exceed the response budget is cut to a prefix of the
-// ranked page, and the trimmed reply's next_rank_cursor resumes at the first
+// ranked page, and the trimmed reply's next_cursor resumes at the first
 // dropped row. Every window row is read exactly once and the trim never
 // emits next_offset, which would mix offset paging into the walk.
 func TestRankWalkBudgetPagesKeepTheCursorIntact(t *testing.T) {
@@ -69,7 +69,7 @@ func TestRankWalkBudgetPagesKeepTheCursorIntact(t *testing.T) {
 				if !ok {
 					t.Fatalf("page %d has no rank_walk block: %v", pages, data)
 				}
-				next, _ := walk["next_rank_cursor"].(string)
+				next, _ := walk["next_cursor"].(string)
 				if next == "" {
 					break
 				}

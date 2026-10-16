@@ -20,6 +20,10 @@ Read `doc.go` and `README.md` first.
 - The package does no I/O and imports no ranker. Fetching and scoring the
   window belong to the route handlers.
 - A change to the cursor layout bumps the `rc1.` prefix and `cursorVersion`.
+- A `graph_name` or `lexical` window keeps its own row order. Never sort it:
+  its pages must equal the offset pages of the same lane.
+- The lane enters both the cursor and the basis. A route must pick the lane
+  the way its offset request does; a walk must never force a lane.
 
 ## Verification
 

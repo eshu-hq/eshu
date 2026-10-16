@@ -110,6 +110,12 @@ func TestAdvanceRejectsMalformedCursors(t *testing.T) {
 	assertRankError(t, err, http.StatusBadRequest, rank.ErrorCodeInvalid, rank.ReasonMalformed)
 	_, err = rank.Advance(rank.StartToken, []string{"a"})
 	assertRankError(t, err, http.StatusBadRequest, rank.ErrorCodeInvalid, rank.ReasonMalformed)
+	page, err := rank.Walk(testWindow(10), nil, rank.StartToken, 5)
+	if err != nil {
+		t.Fatalf("Walk error = %v", err)
+	}
+	_, err = rank.Advance(page.PageCursor, []string{page.IDs[0], page.IDs[0]})
+	assertRankError(t, err, http.StatusBadRequest, rank.ErrorCodeInvalid, rank.ReasonMalformed)
 }
 
 func TestQuantizeKeepsEightSignificantDigits(t *testing.T) {
@@ -169,7 +175,7 @@ func TestWalkAcrossArchitecturesNeverSkipsOrRepeats(t *testing.T) {
 			seen[id] = true
 		}
 		if err != nil {
-			assertRankError(t, err, http.StatusConflict, rank.ErrorCodeBasisMismatch, rank.ReasonRankOrderChanged)
+			assertRankError(t, err, http.StatusConflict, rank.ErrorCodeBasisMismatch, rank.ReasonOrderChanged)
 			conflicts++
 			continue
 		}

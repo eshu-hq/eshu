@@ -23,16 +23,16 @@ func TestRecordOutcomeCountsAndTagsTheRequestSpan(t *testing.T) {
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 	ctx, span := provider.Tracer("test").Start(context.Background(), "request")
-	RecordOutcome(ctx, ToolFindCode, OutcomeServed, 3)
-	RecordOutcome(ctx, ToolFindCode, OutcomeBasisMismatch, 0)
-	RecordOutcome(ctx, ToolSearchEntityContent, OutcomeServed, 1)
+	RecordPage(ctx, ToolFindCode, Page{Position: 3, Lane: LaneGraph, Order: OrderGraphName})
+	RecordError(ctx, ToolFindCode, mismatch(ReasonOrderChanged, "m"))
+	RecordPage(ctx, ToolSearchEntityContent, Page{Position: 1, Lane: LaneContent, Order: OrderHybrid})
 	span.End()
 
 	var rm metricdata.ResourceMetrics
 	if err := reader.Collect(context.Background(), &rm); err != nil {
 		t.Fatalf("collect: %v", err)
 	}
-	counts := map[[2]string]int64{}
+	counts := map[[3]string]int64{}
 	for _, scope := range rm.ScopeMetrics {
 		for _, m := range scope.Metrics {
 			if m.Name != CursorOutcomeMetric {
@@ -45,14 +45,15 @@ func TestRecordOutcomeCountsAndTagsTheRequestSpan(t *testing.T) {
 			for _, point := range sum.DataPoints {
 				tool, _ := point.Attributes.Value(attribute.Key("tool"))
 				outcome, _ := point.Attributes.Value(attribute.Key("outcome"))
-				counts[[2]string{tool.AsString(), outcome.AsString()}] += point.Value
+				reason, _ := point.Attributes.Value(attribute.Key("reason"))
+				counts[[3]string{tool.AsString(), outcome.AsString(), reason.AsString()}] += point.Value
 			}
 		}
 	}
-	want := map[[2]string]int64{
-		{ToolFindCode, OutcomeServed}:            1,
-		{ToolFindCode, OutcomeBasisMismatch}:     1,
-		{ToolSearchEntityContent, OutcomeServed}: 1,
+	want := map[[3]string]int64{
+		{ToolFindCode, OutcomeServed, ReasonNone}:                1,
+		{ToolFindCode, OutcomeBasisMismatch, ReasonOrderChanged}: 1,
+		{ToolSearchEntityContent, OutcomeServed, ReasonNone}:     1,
 	}
 	for key, value := range want {
 		if counts[key] != value {
@@ -68,11 +69,14 @@ func TestRecordOutcomeCountsAndTagsTheRequestSpan(t *testing.T) {
 	for _, kv := range spans[0].Attributes() {
 		attrs[kv.Key] = kv.Value
 	}
+	if got := attrs[AttrLane].AsString(); got != LaneContent {
+		t.Fatalf("span %s = %q, want the last page's lane %q", AttrLane, got, LaneContent)
+	}
 	if got := attrs[AttrOutcome].AsString(); got != OutcomeServed {
 		t.Fatalf("span %s = %q, want the last outcome %q", AttrOutcome, got, OutcomeServed)
 	}
-	if got := attrs[AttrServed].AsInt64(); got != 1 {
-		t.Fatalf("span %s = %d, want 1", AttrServed, got)
+	if got := attrs[AttrPosition].AsInt64(); got != 1 {
+		t.Fatalf("span %s = %d, want 1", AttrPosition, got)
 	}
 }
 
@@ -91,6 +95,14 @@ func TestOutcomeLabelsAreClosed(t *testing.T) {
 	if got := boundedOutcome("free text"); got != OutcomeInvalid {
 		t.Fatalf("boundedOutcome(free text) = %q, want %q", got, OutcomeInvalid)
 	}
+	if got := boundedReason("free text"); got != ReasonNone {
+		t.Fatalf("boundedReason(free text) = %q, want %q", got, ReasonNone)
+	}
+	for _, reason := range []string{ReasonBasisChanged, ReasonOrderChanged, ReasonMalformed, ReasonRankerDisabled} {
+		if got := boundedReason(reason); got != reason {
+			t.Fatalf("boundedReason(%q) = %q", reason, got)
+		}
+	}
 }
 
 // TestRecordErrorMapsEveryCodeToItsOutcome is not parallel: it installs a
@@ -98,7 +110,7 @@ func TestOutcomeLabelsAreClosed(t *testing.T) {
 func TestRecordErrorMapsEveryCodeToItsOutcome(t *testing.T) {
 	reader := testutil.WithPackageMetricReader(t, resetInstrumentsForTest)
 	ctx := context.Background()
-	RecordError(ctx, ToolFindCode, mismatch(ReasonRankOrderChanged, "m"))
+	RecordError(ctx, ToolFindCode, mismatch(ReasonOrderChanged, "m"))
 	RecordError(ctx, ToolFindCode, invalid(ReasonMalformed, "m"))
 	RecordError(ctx, ToolFindCode, Unsupported(ReasonRankerDisabled))
 	var rm metricdata.ResourceMetrics

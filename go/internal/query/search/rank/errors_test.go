@@ -41,8 +41,8 @@ func TestWriteErrorEmitsTheTypedEnvelope(t *testing.T) {
 	if envelope.Error == nil || envelope.Error.Code != rank.ErrorCodeBasisMismatch {
 		t.Fatalf("envelope error = %+v, want code %q", envelope.Error, rank.ErrorCodeBasisMismatch)
 	}
-	if envelope.Error.Details["reason"] != rank.ReasonCandidateSetChanged {
-		t.Fatalf("details = %v, want reason %q", envelope.Error.Details, rank.ReasonCandidateSetChanged)
+	if envelope.Error.Details["reason"] != rank.ReasonBasisChanged {
+		t.Fatalf("details = %v, want reason %q", envelope.Error.Details, rank.ReasonBasisChanged)
 	}
 	if envelope.Error.Details["restart_with"] != rank.StartToken {
 		t.Fatalf("details = %v, want restart_with %q", envelope.Error.Details, rank.StartToken)
@@ -74,5 +74,27 @@ func TestWriteErrorIgnoresOtherErrors(t *testing.T) {
 	}
 	if rank.WriteError(rec, req, nil) {
 		t.Fatal("WriteError handled a nil error")
+	}
+}
+
+// TestErrorReasonsListEveryReasonAnErrorCarries pins ErrorReasons against the
+// reasons the package can emit, so the OpenAPI enum built from it is whole.
+func TestErrorReasonsListEveryReasonAnErrorCarries(t *testing.T) {
+	t.Parallel()
+	listed := map[string]bool{}
+	for _, reason := range rank.ErrorReasons() {
+		listed[reason] = true
+	}
+	for _, reason := range []string{
+		rank.ReasonMalformed, rank.ReasonToolMismatch, rank.ReasonInvalidLimit, rank.ReasonBasisChanged,
+		rank.ReasonOrderChanged, rank.ReasonRankerDisabled, rank.ReasonScopeNotSingleRepo,
+		rank.ReasonFileSearch, rank.ReasonOffsetConflict, rank.ReasonCursorConflict,
+	} {
+		if !listed[reason] {
+			t.Fatalf("ErrorReasons lacks %q", reason)
+		}
+	}
+	if listed[rank.ReasonNone] {
+		t.Fatal("ErrorReasons lists the served-page label none")
 	}
 }

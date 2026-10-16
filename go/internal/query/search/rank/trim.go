@@ -9,12 +9,15 @@ const BlockKey = "rank_walk"
 // RowIDKey is the row field a walk keys rows by on both routes.
 const RowIDKey = "entity_id"
 
-// Block returns the response rank_walk block for the page. next_rank_cursor
-// is absent at the window end.
+// Block returns the response rank_walk block for the page. next_cursor is
+// absent at the window end. ranked is true only for OrderHybrid.
 func (p Page) Block() map[string]any {
 	block := map[string]any{
+		"lane":              p.Lane,
+		"order":             p.Order,
+		"ranked":            p.Order == OrderHybrid,
 		"page_cursor":       p.PageCursor,
-		"served":            p.Served,
+		"position":          p.Position,
 		"window_rows":       p.WindowRows,
 		"window_size":       WindowSize,
 		"window_end":        p.WindowEnd,
@@ -22,15 +25,15 @@ func (p Page) Block() map[string]any {
 		"excluded_rows":     p.Excluded,
 	}
 	if p.NextCursor != "" {
-		block["next_rank_cursor"] = p.NextCursor
+		block["next_cursor"] = p.NextCursor
 	}
 	return block
 }
 
 // TrimWalk returns a copy of a decoded rank_walk block for a page cut to
-// kept, the first rows of the page in walk order. The copy's
-// next_rank_cursor resumes at the first dropped row, served counts only the
-// kept rows, and window_end is false. It reports false when the block or a
+// kept, the first rows of the page in walk order. The copy's next_cursor
+// resumes at the first dropped row, position counts only the kept rows, and
+// window_end is false. It reports false when the block or a
 // kept row cannot prove that cursor (a missing or malformed page cursor, a
 // row without a string entity_id); the caller must then refuse the page
 // rather than hand out a cursor that would skip rows.
@@ -61,8 +64,8 @@ func TrimWalk(walk any, kept []any) (map[string]any, bool) {
 	for key, value := range block {
 		trimmed[key] = value
 	}
-	trimmed["next_rank_cursor"] = next
-	trimmed["served"] = state.count + len(ids)
+	trimmed["next_cursor"] = next
+	trimmed["position"] = state.count + len(ids)
 	trimmed["window_end"] = false
 	return trimmed, true
 }

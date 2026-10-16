@@ -40,7 +40,7 @@ func TestOpenAPIDocumentsTheRankCursorWalk(t *testing.T) {
 		if field(properties, "rank_cursor", "type") != "string" {
 			t.Fatalf("%s request has no string rank_cursor", path)
 		}
-		if field(post, "responses", "409", "$ref") != "#/components/responses/Conflict" {
+		if field(post, "responses", "409", "$ref") != "#/components/responses/RankCursorConflict" {
 			t.Fatalf("%s does not document the 409 basis mismatch", path)
 		}
 		if field(spec, "components", "schemas", response, "properties", "rank_walk", "$ref") != "#/components/schemas/RankWalk" {
@@ -48,7 +48,10 @@ func TestOpenAPIDocumentsTheRankCursorWalk(t *testing.T) {
 		}
 	}
 	walk := field(spec, "components", "schemas", "RankWalk", "properties")
-	page, err := rank.Walk(rank.Window{Tool: rank.ToolFindCode, Rows: []rank.Row{{ID: "a"}, {ID: "b"}}}, nil, rank.StartToken, 1)
+	page, err := rank.Walk(rank.Window{
+		Tool: rank.ToolFindCode, Lane: rank.LaneGraph, Order: rank.OrderGraphName,
+		Rows: []rank.Row{{ID: "a"}, {ID: "b"}},
+	}, nil, rank.StartToken, 1)
 	if err != nil {
 		t.Fatalf("Walk error = %v", err)
 	}
@@ -59,6 +62,27 @@ func TestOpenAPIDocumentsTheRankCursorWalk(t *testing.T) {
 	}
 	if field(walk, "window_size", "maximum") != float64(rank.WindowSize) {
 		t.Fatalf("RankWalk.window_size maximum = %v, want %d", field(walk, "window_size", "maximum"), rank.WindowSize)
+	}
+	errorSchema := field(spec, "components", "schemas", "RankCursorError", "properties")
+	codes := field(errorSchema, "code", "enum").([]any)
+	wantCodes := rank.ErrorCodes()
+	if len(codes) != len(wantCodes) {
+		t.Fatalf("RankCursorError.code enum = %v, want %v", codes, wantCodes)
+	}
+	for i, code := range wantCodes {
+		if codes[i] != string(code) {
+			t.Fatalf("RankCursorError.code enum = %v, want %v", codes, wantCodes)
+		}
+	}
+	reasons := field(errorSchema, "reason", "enum").([]any)
+	wantReasons := rank.ErrorReasons()
+	if len(reasons) != len(wantReasons) {
+		t.Fatalf("RankCursorError.reason enum = %v, want %v", reasons, wantReasons)
+	}
+	for i, reason := range wantReasons {
+		if reasons[i] != reason {
+			t.Fatalf("RankCursorError.reason enum = %v, want %v", reasons, wantReasons)
+		}
 	}
 	if file := field(spec, "paths", "/api/v0/content/files/search", "post", "requestBody", "content", "application/json", "schema", "properties"); field(file, "rank_cursor") == nil {
 		t.Fatal("the file search request must document rank_cursor as refused, so a client learns it is not ignored")

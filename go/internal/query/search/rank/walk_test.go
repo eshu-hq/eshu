@@ -25,6 +25,8 @@ func testWindow(count int) rank.Window {
 	}
 	return rank.Window{
 		Tool:  rank.ToolFindCode,
+		Lane:  rank.LaneContent,
+		Order: rank.OrderHybrid,
 		Scope: []string{"repo-1", "handler", ""},
 		Rows:  rows,
 	}
@@ -109,8 +111,8 @@ func TestWalkFirstPageHoldsTheGloballyBestRows(t *testing.T) {
 			t.Fatalf("first page holds %s, want only r070..r119", id)
 		}
 	}
-	if page.Served != 50 || page.WindowRows != 120 || page.WindowEnd {
-		t.Fatalf("page = served %d rows %d end %v, want 50 120 false", page.Served, page.WindowRows, page.WindowEnd)
+	if page.Position != 50 || page.WindowRows != 120 || page.WindowEnd {
+		t.Fatalf("page = position %d rows %d end %v, want 50 120 false", page.Position, page.WindowRows, page.WindowEnd)
 	}
 }
 
@@ -181,13 +183,21 @@ func TestWalkCandidateSetChangeBetweenPagesIsConflict(t *testing.T) {
 			w.Scope = []string{"repo-1", "other", ""}
 			return w
 		},
+		"ranker changed": func(w rank.Window) rank.Window {
+			w.Ranker = "another-ranker"
+			return w
+		},
+		"order changed": func(w rank.Window) rank.Window {
+			w.Order = rank.OrderLexical
+			return w
+		},
 	}
 	for name, change := range changes {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			changed := change(base)
 			_, err := rank.Walk(changed, reverseScores(changed), first.NextCursor, 30)
-			assertRankError(t, err, http.StatusConflict, rank.ErrorCodeBasisMismatch, rank.ReasonCandidateSetChanged)
+			assertRankError(t, err, http.StatusConflict, rank.ErrorCodeBasisMismatch, rank.ReasonBasisChanged)
 		})
 	}
 }
@@ -205,7 +215,7 @@ func TestWalkOrderFlipAcrossServedBoundaryIsConflict(t *testing.T) {
 	flipped := cloneScores(scores)
 	flipped[first.IDs[19]], flipped["r000"] = flipped["r000"], flipped[first.IDs[19]]
 	_, err = rank.Walk(window, flipped, first.NextCursor, 20)
-	assertRankError(t, err, http.StatusConflict, rank.ErrorCodeBasisMismatch, rank.ReasonRankOrderChanged)
+	assertRankError(t, err, http.StatusConflict, rank.ErrorCodeBasisMismatch, rank.ReasonOrderChanged)
 }
 
 func TestWalkOrderFlipInsideServedRowsIsHarmless(t *testing.T) {
@@ -244,6 +254,61 @@ func TestWalkRejectsANonPositiveLimit(t *testing.T) {
 	t.Parallel()
 	_, err := rank.Walk(testWindow(3), nil, rank.StartToken, 0)
 	assertRankError(t, err, http.StatusBadRequest, rank.ErrorCodeInvalid, rank.ReasonInvalidLimit)
+}
+
+func TestWalkLaneFlipBetweenPagesIsBasisChanged(t *testing.T) {
+	t.Parallel()
+	graph := testWindow(40)
+	graph.Lane, graph.Order = rank.LaneGraph, rank.OrderGraphName
+	first, err := rank.Walk(graph, nil, rank.StartToken, 10)
+	if err != nil {
+		t.Fatalf("first page error = %v", err)
+	}
+	content := testWindow(40)
+	_, err = rank.Walk(content, reverseScores(content), first.NextCursor, 10)
+	assertRankError(t, err, http.StatusConflict, rank.ErrorCodeBasisMismatch, rank.ReasonBasisChanged)
+	_, err = rank.Walk(graph, nil, first.NextCursor, 10)
+	if err != nil {
+		t.Fatalf("same-lane page error = %v", err)
+	}
+}
+
+// TestWalkUnrankedOrdersKeepTheWindowOrder pins that a graph_name or lexical
+// walk serves rows in the window's own order, ignoring scores, so its pages
+// equal the plain offset pages.
+func TestWalkUnrankedOrdersKeepTheWindowOrder(t *testing.T) {
+	t.Parallel()
+	for _, order := range []string{rank.OrderGraphName, rank.OrderLexical} {
+		window := testWindow(30)
+		window.Order = order
+		if order == rank.OrderGraphName {
+			window.Lane = rank.LaneGraph
+		}
+		window.Rows[0], window.Rows[29] = window.Rows[29], window.Rows[0]
+		got, err := walkAll(t, window, 7, func(int) map[string]float64 { return reverseScores(window) })
+		if err != nil {
+			t.Fatalf("%s walk error = %v", order, err)
+		}
+		if want := windowIDs(window); !slices.Equal(got, want) {
+			t.Fatalf("%s walk = %v, want the window order %v", order, got, want)
+		}
+	}
+}
+
+func TestWalkRejectsAnUnknownLaneOrOrder(t *testing.T) {
+	t.Parallel()
+	for _, change := range []func(*rank.Window){
+		func(w *rank.Window) { w.Lane = "global" },
+		func(w *rank.Window) { w.Order = "random" },
+		func(w *rank.Window) { w.Lane, w.Order = rank.LaneContent, rank.OrderGraphName },
+	} {
+		window := testWindow(3)
+		change(&window)
+		var rankErr *rank.Error
+		if _, err := rank.Walk(window, nil, rank.StartToken, 2); err == nil || errors.As(err, &rankErr) {
+			t.Fatalf("Walk(%s/%s) error = %v, want a non-rank programming error", window.Lane, window.Order, err)
+		}
+	}
 }
 
 func cloneScores(scores map[string]float64) map[string]float64 {

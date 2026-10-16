@@ -35,19 +35,18 @@ const (
 	ReasonToolMismatch = "tool_mismatch"
 	// ReasonInvalidLimit: the page limit is not positive.
 	ReasonInvalidLimit = "invalid_limit"
-	// ReasonCandidateSetChanged: the 200-row lexical window, its row
-	// content, the query scope, or the ranker identity changed.
-	ReasonCandidateSetChanged = "candidate_set_changed"
-	// ReasonRankOrderChanged: the window is the same, but the rows already
-	// served are no longer the top of this replica's order, for example
-	// after a cross-architecture score flip.
-	ReasonRankOrderChanged = "rank_order_changed"
-	// ReasonRankerDisabled: the deployment has no hybrid ranker (the
-	// semantic-search embedder runtime is off).
+	// ReasonBasisChanged: the walk's basis changed: the lane, the 200-row
+	// lexical window, its row content, the query scope, the order, or the
+	// ranker identity.
+	ReasonBasisChanged = "basis_changed"
+	// ReasonOrderChanged: the basis is the same, but the rows already served
+	// are no longer the top of this replica's order, for example after a
+	// cross-architecture score flip.
+	ReasonOrderChanged = "order_changed"
+	// ReasonRankerDisabled: search_entity_content needs the hybrid ranker,
+	// and the deployment has none (the semantic-search embedder runtime is
+	// off). find_code walks without it in lexical order.
 	ReasonRankerDisabled = "ranker_disabled"
-	// ReasonExactSearch: find_code exact=true is an identity lookup and is
-	// not ranked.
-	ReasonExactSearch = "exact_search"
 	// ReasonScopeNotSingleRepo: a walk needs exactly one repository.
 	ReasonScopeNotSingleRepo = "scope_not_single_repo"
 	// ReasonFileSearch: search_file_content does not support rank walks.
@@ -57,11 +56,12 @@ const (
 	// ReasonCursorConflict: rank_cursor was sent with the unscoped search
 	// cursor.
 	ReasonCursorConflict = "cursor_conflict"
+	// ReasonNone labels a served page in the outcome counter.
+	ReasonNone = "none"
 )
 
 var unsupportedMessages = map[string]string{
 	ReasonRankerDisabled:     "relevance walks need the hybrid ranker, which is off in this deployment; page with offset instead",
-	ReasonExactSearch:        "exact=true is an identity lookup and is not ranked; page with offset instead",
 	ReasonScopeNotSingleRepo: "a relevance walk needs exactly one repository; set repo_id",
 	ReasonFileSearch:         "search_file_content does not support rank_cursor; page with offset instead",
 	ReasonOffsetConflict:     "rank_cursor and a positive offset are mutually exclusive",
@@ -125,4 +125,20 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error) bool {
 		Details: details,
 	})
 	return true
+}
+
+// ErrorCodes returns the rank-walk error codes in a fixed order. The OpenAPI
+// RankCursorError schema enumerates exactly these.
+func ErrorCodes() []querycontract.ErrorCode {
+	return []querycontract.ErrorCode{ErrorCodeInvalid, ErrorCodeUnsupported, ErrorCodeBasisMismatch}
+}
+
+// ErrorReasons returns every details.reason a rank-walk error can carry, in
+// a fixed order. The OpenAPI RankCursorError schema enumerates exactly these.
+func ErrorReasons() []string {
+	return []string{
+		ReasonMalformed, ReasonToolMismatch, ReasonInvalidLimit,
+		ReasonBasisChanged, ReasonOrderChanged,
+		ReasonRankerDisabled, ReasonScopeNotSingleRepo, ReasonFileSearch, ReasonOffsetConflict, ReasonCursorConflict,
+	}
 }

@@ -36,6 +36,14 @@ const componentsResponses = `    "responses": {
           }
         }
       },
+      "RankCursorConflict": {
+        "description": "rank_cursor_basis_mismatch (#7746): the walk's lane, window, or ranked order changed since the cursor was returned. error.details carries reason (basis_changed or order_changed) and restart_with=\"start\"; see the RankCursorError schema.",
+        "content": {
+          "application/json": {
+            "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+          }
+        }
+      },
       "Conflict": {
         "description": "Ambiguous request or conflicting scope",
         "content": {

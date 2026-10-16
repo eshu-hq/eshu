@@ -84,8 +84,10 @@ A `search_entity_content` request with `rank_cursor` reads the first 200
 lexical rows of one named repository, scores the whole window through
 `EntityWindowScorer` (implemented by `ContentHybridRanker`), and pages it with
 `search/rank`. The response carries a `rank_walk` block; rows carry
-`search_backend=hybrid` when scored and never `page_position`. The walk
-records `eshu_dp_query_rank_cursor_total{tool,outcome}` and the
+`search_backend=hybrid` when scored and never `page_position`. The lane is
+always `content`; the order is `hybrid`, or `lexical` when no window row
+could be scored. The walk records
+`eshu_dp_query_rank_cursor_total{tool,outcome,reason}` and the
 `search.rank_cursor.*` request-span attributes, and the scoring pass emits a
 `query.hybrid_rerank` span with `search.rerank.rows` equal to the window size.
 `search_file_content` refuses `rank_cursor` with a typed 400.

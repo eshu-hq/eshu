@@ -126,9 +126,11 @@ gofmt -l <touched files, repo-relative>
 
 ## find_code rank walk (#7746)
 
-- `handleRankWalk` (`handler.go`) MUST read only the content lane. Reading
-  the graph lane would let the window change lanes between pages.
+- `handleRankWalk` (`rank_walk.go`) MUST pick its lane through
+  `selectCodeSearchLane`, the same graph-first choice an offset request
+  makes (fork-6 ruling). Never force a lane: the cursor records the lane, and
+  a lane change between pages must surface as 409 `basis_changed`.
 - A `rank_cursor` request never falls back to an offset page: every refusal
   goes through `rank.Answer` with a `rank.Reason*` constant.
-- `handler.go` sits near the 500-line cap. Put new walk logic in
-  `go/internal/query/search/rank` (generic) or `codemodel`, not here.
+- Keep walk logic in `rank_walk.go` or the generic
+  `go/internal/query/search/rank`, not in `handler.go`.

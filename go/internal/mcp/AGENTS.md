@@ -134,7 +134,7 @@
   (#7725 review).
 - **A rank-walk page is never offset-paged** — a page with `data.rank_walk`
   (#7746) is cut to `rows[:keep]` in walk order, and `rank.TrimWalk` re-mints
-  `rank_walk.next_rank_cursor` for the first dropped row. Never add
+  `rank_walk.next_cursor` for the first dropped row. Never add
   `next_offset` to it, and keep the over-budget error when `TrimWalk` refuses.
 
 - **SSE buffer drop / closed session is non-fatal** — `sseSession.send`

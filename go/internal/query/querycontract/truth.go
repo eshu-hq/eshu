@@ -103,7 +103,7 @@ type TruthEnvelope struct {
 // "response_byte_budget" when the MCP dispatch response budget dropped rows
 // from the end of the section so the answer is a page (the response then
 // carries data.next_offset to resume from, or, on a rank-walk page,
-// data.rank_walk.next_rank_cursor); Total is the row count the route held for
+// data.rank_walk.next_cursor); Total is the row count the route held for
 // that section before the cut.
 type TruthOmission struct {
 	Section string `json:"section"`

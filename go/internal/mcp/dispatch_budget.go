@@ -316,7 +316,7 @@ type budgetPage struct {
 // of it, not a prefix of the re-ranked order (#7725). A rank-walk page
 // (data.rank_walk, #7746) is the exception: its rows are already in walk
 // order, so the cut keeps rows[:keep], emits no next_offset, and re-mints
-// rank_walk.next_rank_cursor through rank.TrimWalk; a walk block that cannot
+// rank_walk.next_cursor through rank.TrimWalk; a walk block that cannot
 // prove that cursor keeps the error envelope. The cut is a binary search over
 // whole rows; a row is never split.
 func trimToBudgetPage(result *dispatchResult, toolName string, budget int) (budgetPage, bool) {
@@ -349,7 +349,7 @@ func trimToBudgetPage(result *dispatchResult, toolName string, budget int) (budg
 			return &dispatchResult{Value: page, Envelope: page, ToolName: toolName, ResourceOnly: true}
 		}
 		// A #7746 rank-walk page is cut to a prefix of its walk order, and the
-		// walk block is re-minted so next_rank_cursor resumes at the first
+		// walk block is re-minted so next_cursor resumes at the first
 		// dropped row. It never carries next_offset.
 		walk, ok := rank.TrimWalk(data[rank.BlockKey], rows[:keep])
 		cutFailed = cutFailed || !ok

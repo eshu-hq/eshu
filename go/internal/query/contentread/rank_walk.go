@@ -146,7 +146,7 @@ func (h *ContentHandler) searchEntitiesRanked(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	page, err := rank.Walk(entityWindow(repoID, req.pattern(), rows, lexicalTruncated), scores, req.RankCursor, req.limit())
+	page, err := rank.Walk(entityWindow(repoID, req.pattern(), rows, scores, lexicalTruncated), scores, req.RankCursor, req.limit())
 	if rank.Answer(w, r, tool, err) {
 		return
 	}
@@ -154,7 +154,7 @@ func (h *ContentHandler) searchEntitiesRanked(w http.ResponseWriter, r *http.Req
 		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, contentEntityRankFailedMessage)
 		return
 	}
-	rank.RecordOutcome(r.Context(), tool, rank.PageOutcome(page), page.Served)
+	rank.RecordPage(r.Context(), tool, page)
 
 	response := entityContentSearchResponse(entityPageRows(rows, scores, page.IDs), req, !page.WindowEnd || page.LexicalTruncated)
 	response[rank.BlockKey] = page.Block()
@@ -166,12 +166,20 @@ func (h *ContentHandler) searchEntitiesRanked(w http.ResponseWriter, r *http.Req
 
 // entityWindow builds the walk window from the lexical rows. Each row's
 // content covers every field the ranker projects, so an edit between pages
-// changes the basis.
-func entityWindow(repoID, pattern string, rows []querycontract.EntityContent, lexicalTruncated bool) rank.Window {
+// changes the basis. The order is hybrid when at least one row was scored,
+// else lexical (window order); the ranker identity enters the basis only for
+// a hybrid order.
+func entityWindow(repoID, pattern string, rows []querycontract.EntityContent, scores map[string]float64, lexicalTruncated bool) rank.Window {
+	order, ranker := rank.OrderLexical, ""
+	if len(scores) > 0 {
+		order, ranker = rank.OrderHybrid, contentRankerIdentity
+	}
 	window := rank.Window{
 		Tool:             rank.ToolSearchEntityContent,
+		Lane:             rank.LaneContent,
+		Order:            order,
 		Scope:            []string{repoID, pattern},
-		Ranker:           contentRankerIdentity,
+		Ranker:           ranker,
 		Rows:             make([]rank.Row, 0, len(rows)),
 		LexicalTruncated: lexicalTruncated,
 	}

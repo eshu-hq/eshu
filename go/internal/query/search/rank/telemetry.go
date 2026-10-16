@@ -54,12 +54,24 @@ var errorOutcomes = map[querycontract.ErrorCode]string{
 const (
 	// AttrOutcome is the outcome label value.
 	AttrOutcome attribute.Key = "search.rank_cursor.outcome"
-	// AttrReason is the error reason, set only on a 400 or 409.
+	// AttrReason is the reason label value: ReasonNone on a served page, the
+	// error reason on a 400 or 409.
 	AttrReason attribute.Key = "search.rank_cursor.reason"
-	// AttrServed is the number of rows the walk has served through this
-	// page.
-	AttrServed attribute.Key = "search.rank_cursor.served"
+	// AttrPosition is the number of rows the walk has served through this
+	// page (0 on an error).
+	AttrPosition attribute.Key = "search.rank_cursor.position"
+	// AttrLane is the lane that served the page; set on served pages only.
+	AttrLane attribute.Key = "search.rank_cursor.lane"
+	// AttrOrder is the order of the served page; set on served pages only.
+	AttrOrder attribute.Key = "search.rank_cursor.order"
 )
+
+// reasons is the closed reason label set.
+var reasons = map[string]struct{}{
+	ReasonNone: {}, ReasonMalformed: {}, ReasonToolMismatch: {}, ReasonInvalidLimit: {},
+	ReasonBasisChanged: {}, ReasonOrderChanged: {}, ReasonRankerDisabled: {},
+	ReasonScopeNotSingleRepo: {}, ReasonFileSearch: {}, ReasonOffsetConflict: {}, ReasonCursorConflict: {},
+}
 
 var (
 	instrumentsOnce sync.Once
@@ -75,7 +87,7 @@ func initInstruments() {
 		// telemetry-coverage gate reads to prove the metric is registered.
 		counter, err := otel.Meter("eshu/go/internal/query").Int64Counter(
 			"eshu_dp_query_rank_cursor_total",
-			metric.WithDescription("Rank-walk (rank_cursor) requests on find_code and search_entity_content by tool and outcome: served, window_end, basis_mismatch (409), invalid (400), unsupported (400)"),
+			metric.WithDescription("Rank-walk (rank_cursor) requests on find_code and search_entity_content by tool, outcome (served, window_end, basis_mismatch, invalid, unsupported), and reason (none, basis_changed, order_changed, or the 400 reason)"),
 		)
 		if err == nil {
 			outcomeCounter = counter
@@ -97,6 +109,13 @@ func boundedOutcome(outcome string) string {
 	return OutcomeInvalid
 }
 
+func boundedReason(reason string) string {
+	if _, ok := reasons[reason]; ok {
+		return reason
+	}
+	return ReasonNone
+}
+
 // ToolSearchFileContent labels a refused rank_cursor on search_file_content.
 // It is a telemetry label only: the file route cannot walk.
 const ToolSearchFileContent = "search_file_content"
@@ -108,12 +127,13 @@ func boundedTool(tool string) string {
 	return "unknown"
 }
 
-// RecordOutcome counts one rank-walk request and tags the request span in
-// ctx with the outcome and the rows served so far. It never records the
-// query text or a cursor value.
-func RecordOutcome(ctx context.Context, tool, outcome string, servedRows int) {
-	outcome = boundedOutcome(outcome)
-	trace.SpanFromContext(ctx).SetAttributes(AttrOutcome.String(outcome), AttrServed.Int(servedRows))
+// record counts one rank-walk request and tags the request span in ctx. It
+// never records the query text, a repository ID, or a cursor value.
+func record(ctx context.Context, tool, outcome, reason string, position int, attrs ...attribute.KeyValue) {
+	outcome, reason = boundedOutcome(outcome), boundedReason(reason)
+	span := trace.SpanFromContext(ctx)
+	span.SetAttributes(AttrOutcome.String(outcome), AttrReason.String(reason), AttrPosition.Int(position))
+	span.SetAttributes(attrs...)
 	initInstruments()
 	if outcomeCounter == nil {
 		return
@@ -121,20 +141,36 @@ func RecordOutcome(ctx context.Context, tool, outcome string, servedRows int) {
 	outcomeCounter.Add(ctx, 1, metric.WithAttributes(
 		attribute.String("tool", boundedTool(tool)),
 		attribute.String("outcome", outcome),
+		attribute.String("reason", reason),
 	))
 }
 
-// RecordError records the outcome for a failed rank-walk request: the
-// outcome derived from err's code, and the reason on the request span. A
-// non-rank error records nothing; the route's own failure telemetry covers
-// it.
+// RecordPage records a served page: outcome served or window_end, reason
+// none, and the page's position, lane, and order on the request span.
+func RecordPage(ctx context.Context, tool string, page Page) {
+	outcome := OutcomeServed
+	if page.WindowEnd {
+		outcome = OutcomeWindowEnd
+	}
+	lane, order := page.Lane, page.Order
+	if _, ok := laneCodes[lane]; !ok {
+		lane = "unknown"
+	}
+	if order != OrderGraphName && order != OrderHybrid && order != OrderLexical {
+		order = "unknown"
+	}
+	record(ctx, tool, outcome, ReasonNone, page.Position, AttrLane.String(lane), AttrOrder.String(order))
+}
+
+// RecordError records a failed rank-walk request: the outcome derived from
+// err's code and err's reason. A non-rank error records nothing; the route's
+// own failure telemetry covers it.
 func RecordError(ctx context.Context, tool string, err error) {
 	var rankErr *Error
 	if !errors.As(err, &rankErr) {
 		return
 	}
-	trace.SpanFromContext(ctx).SetAttributes(AttrReason.String(rankErr.Reason))
-	RecordOutcome(ctx, tool, errorOutcomes[rankErr.Code], 0)
+	record(ctx, tool, errorOutcomes[rankErr.Code], rankErr.Reason, 0)
 }
 
 // Answer records the outcome of a rank-walk failure and answers the
@@ -147,12 +183,4 @@ func Answer(w http.ResponseWriter, r *http.Request, tool string, err error) bool
 	}
 	RecordError(r.Context(), tool, rankErr)
 	return WriteError(w, r, rankErr)
-}
-
-// PageOutcome returns the outcome label for a served page.
-func PageOutcome(page Page) string {
-	if page.WindowEnd {
-		return OutcomeWindowEnd
-	}
-	return OutcomeServed
 }

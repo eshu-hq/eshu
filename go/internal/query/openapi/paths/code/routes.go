@@ -27,7 +27,7 @@ const Routes = `
                   "limit": {"type": "integer", "description": "Maximum returned page size (default 50, maximum 200)", "default": 50, "minimum": 1, "maximum": 200},
                   "offset": {"type": "integer", "description": "Zero-based start of the page inside the first 200 ranked matches; the effective limit shrinks so offset plus limit stays within 200.", "default": 0, "minimum": 0, "maximum": 199},
                   "exact": {"type": "boolean", "description": "When true, require a complete case-sensitive entity-name match. Exact global searches may be shorter than 3 characters.", "default": false},
-                  "rank_cursor": {"type": "string", "description": "Opt-in relevance walk (#7746). \"start\" ranks the first 200 rows of the repository's content lane by hybrid BM25+vector relevance and returns the first page; pass rank_walk.next_rank_cursor to read the next page. Needs repo_id and the hybrid ranker, and refuses exact=true and a positive offset (400 rank_cursor_unsupported). A changed window or ranked order answers 409 rank_cursor_basis_mismatch; restart with \"start\". A malformed cursor answers 400 rank_cursor_invalid."}
+                  "rank_cursor": {"type": "string", "description": "Opt-in walk (#7746, schema RankWalk). \"start\" reads the first 200 rows of the lane a plain request would read (graph first; content when the graph has no rows) and returns the first page; pass rank_walk.next_cursor for the next page. The graph lane keeps its own order; the content lane is ranked by hybrid BM25+vector relevance unless exact=true or no ranker is configured. Needs repo_id and refuses a positive offset (400 rank_cursor_unsupported). A changed lane, window, or ranked order answers 409 rank_cursor_basis_mismatch (schema RankCursorError); restart with \"start\". A malformed cursor answers 400 rank_cursor_invalid."}
                 }
               }
             }
@@ -45,7 +45,7 @@ const Routes = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "409": {"$ref": "#/components/responses/Conflict"},
+          "409": {"$ref": "#/components/responses/RankCursorConflict"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }

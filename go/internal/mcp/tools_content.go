@@ -213,7 +213,7 @@ func contentTools() []ToolDefinition {
 					},
 					"rank_cursor": map[string]any{
 						"type":        "string",
-						"description": "Opt-in relevance walk (needs the hybrid ranker and exactly one repository in repo_ids; not with offset or cursor). Pass \"start\" to rank the first 200 lexical matches by hybrid BM25+vector relevance, then pass rank_walk.next_rank_cursor from each reply until it is absent (rank_walk.window_end=true). Each row is read once. A 409 rank_cursor_basis_mismatch means the matches or their order changed: restart with \"start\". rank_walk.lexical_truncated=true means more than 200 matches exist; the walk does not read them.",
+						"description": "Opt-in relevance walk (needs the hybrid ranker and exactly one repository in repo_ids; not with offset or cursor). Pass \"start\" to rank the first 200 lexical matches by hybrid BM25+vector relevance, then pass rank_walk.next_cursor from each reply until it is absent (rank_walk.window_end=true). Each row is read once. A 409 rank_cursor_basis_mismatch means the matches or their order changed (details.reason basis_changed or order_changed; mixed-architecture replicas can answer order_changed on every page): restart with \"start\". rank_walk.lexical_truncated=true means more than 200 matches exist; the walk does not read them.",
 					},
 				},
 				"required": []string{"pattern"},

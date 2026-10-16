@@ -16,7 +16,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
-	"github.com/eshu-hq/eshu/go/internal/query/search/rank"
 )
 
 // CodeHandler provides HTTP routes for code-level queries: search, relationships,
@@ -238,93 +237,6 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	WriteSuccess(w, r, http.StatusOK, codemodel.CodeSearchPagePayloadFromPage(
 		"content", sourceBackend, req.Query, req.RepoID, page, truncated, req.Limit, offset,
 	), BuildTruthEnvelope(h.profile(), capability, TruthBasisContentIndex, truthDetail))
-}
-
-// codeRankWalkRequest is the find_code request a rank walk serves.
-type codeRankWalkRequest struct {
-	query, repoID, language, searchType, token string
-	limit, offset                              int
-	exact                                      bool
-}
-
-// codeRankWalkContentKeys are the row fields the hybrid ranker projects; they
-// enter the walk basis so an edit between pages answers 409.
-var codeRankWalkContentKeys = []string{
-	"repo_id", "file_path", "entity_type", "entity_name", "name", "language", "source_cache", "start_line", "end_line",
-}
-
-// codeRankWalkRefusal returns the rank_cursor_unsupported reason for a walk
-// the request cannot take, or "".
-func codeRankWalkRefusal(req codeRankWalkRequest, canScore bool) string {
-	switch {
-	case req.offset > 0:
-		return rank.ReasonOffsetConflict
-	case req.exact:
-		return rank.ReasonExactSearch
-	case !canScore:
-		return rank.ReasonRankerDisabled
-	case req.repoID == "":
-		return rank.ReasonScopeNotSingleRepo
-	}
-	return ""
-}
-
-// handleRankWalk serves find_code as a relevance walk over the first
-// rank.WindowSize rows of the repository's content lane (#7746). It always
-// reads the content lane, never the graph lane, so the window cannot switch
-// lanes between pages. Each request re-reads and re-scores the window, and
-// rank.Walk refuses a cursor whose window or served rows changed.
-func (h *CodeHandler) handleRankWalk(w http.ResponseWriter, r *http.Request, req codeRankWalkRequest) {
-	ctx := r.Context()
-	capability := "code_search.fuzzy_symbol"
-	if strings.EqualFold(strings.TrimSpace(req.searchType), "variable") {
-		capability = "code_search.variable_lookup"
-	}
-	scorer, ok := h.HybridRanker.(codemodel.CodeWindowScorer)
-	if reason := codeRankWalkRefusal(req, ok && scorer.CanScoreWindow()); reason != "" {
-		rank.Answer(w, r, rank.ToolFindCode, rank.Unsupported(reason))
-		return
-	}
-
-	rows, err := h.searchEntityContentWithExact(ctx, req.repoID, req.query, req.language, rank.WindowSize+1, false)
-	if err != nil {
-		if writeCodeUnavailable(w, r, err, ErrContentSubstringIndexesNotReady, capability) {
-			return
-		}
-		writeCodeReadFailure(w, r, err, capability, codeSearchContentFailedMessage)
-		return
-	}
-	rows, lexicalTruncated := codemodel.CodeSearchPageRows(rows, rank.WindowSize, 0)
-	scores, err := scorer.ScoreCodeWindow(ctx, req.repoID, req.query, rows)
-	if err != nil {
-		writeCodeReadFailure(w, r, err, capability, codeSearchRankFailedMessage)
-		return
-	}
-	windowRows, byID := rank.MapRows(rows, codeRankWalkContentKeys...)
-	page, err := rank.Walk(rank.Window{
-		Tool: rank.ToolFindCode, Scope: []string{req.repoID, req.query, req.language},
-		Ranker: codemodel.CodeRankerIdentity, Rows: windowRows, LexicalTruncated: lexicalTruncated,
-	}, scores, req.token, req.limit)
-	if rank.Answer(w, r, rank.ToolFindCode, err) {
-		return
-	}
-	if err != nil {
-		writeCodeReadFailure(w, r, err, capability, codeSearchRankFailedMessage)
-		return
-	}
-	rank.RecordOutcome(ctx, rank.ToolFindCode, rank.PageOutcome(page), page.Served)
-
-	sourceBackend := "postgres_content_store"
-	if len(scores) > 0 {
-		sourceBackend = "hybrid_content_store"
-	}
-	payload := codemodel.CodeSearchPagePayloadFromPage(
-		"content", sourceBackend, req.query, req.repoID, rank.MapPage(byID, scores, page.IDs),
-		!page.WindowEnd || page.LexicalTruncated, req.limit, 0,
-	)
-	payload[rank.BlockKey] = page.Block()
-	WriteSuccess(w, r, http.StatusOK, payload, BuildTruthEnvelope(h.profile(), capability, TruthBasisContentIndex,
-		"resolved from the content index, walked in hybrid BM25+vector relevance order over the first 200 content rows"))
 }
 
 // searchGraphEntities finds entities by name pattern in the Neo4j graph.
