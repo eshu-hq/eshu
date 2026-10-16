@@ -14,7 +14,7 @@
 -- Variables (defaults are the shipped retention defaults, go/cmd/reducer
 -- config.go; pass the deployed values, for example hard_hours=87600):
 --   sample      generations sampled per category for the row-count probe (40)
---   soft_hours  ESHU_GENERATION_RETENTION_MAX_SUPERSEDED_AGE in hours (168)
+--   soft_hours  ESHU_GENERATION_RETENTION_MAX_SUPERSEDED_AGE in whole hours (168)
 --   min_newer   ESHU_GENERATION_RETENTION_MIN_SUPERSEDED_GENERATIONS (24)
 --   hard_hours  ESHU_GENERATION_RETENTION_HARD_MAX_SUPERSEDED_AGE in hours (2160)
 --
@@ -23,7 +23,9 @@
 -- for at most (sample x categories) generations, each through its
 -- (scope_id, generation_id) index prefix; that count is the only part whose
 -- cost grows with generation size. Lower `sample` before running it on a
--- loaded primary.
+-- loaded primary. If the 60 s timeout aborts section 2, lower `sample` and rerun;
+-- section 1 has already printed. Needs psql 13+ (`\if :{?var}`) and server 13+
+-- (`pg_partition_root`).
 --
 -- The category predicate mirrors generationRetentionCandidateQuery
 -- (go/internal/storage/postgres/generation_retention_sql.go, ranked_superseded_
@@ -197,8 +199,10 @@ JOIN footprint f USING (category)
 ORDER BY c.generations DESC;
 
 -- 3. Retention history already recorded: pruned generations and cascaded rows
--- per day and reason, from the event ledger (hashed ids only). Bounded by the
--- ledger's own pruned_at index range.
+-- per day and reason, from the event ledger (hashed ids only). The ledger has no
+-- index that leads with pruned_at (reason_idx is (reason, pruned_at)), so this may
+-- scan it; it stays cheap while retention is held and the statement timeout
+-- bounds it.
 \echo '== 3. retention events, last 14 days'
 SELECT date_trunc('day', pruned_at) AS day,
        reason,

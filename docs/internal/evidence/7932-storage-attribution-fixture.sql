@@ -8,6 +8,8 @@
 -- script with the shipped defaults (sample=40 soft_hours=168 min_newer=24
 -- hard_hours=2160).
 --
+-- One-shot: rerunning it on the same database fails on duplicate keys.
+--
 -- Expected census (generations per category):
 --   active 7 (6 seeded + the schema's own eshu:global genesis scope) | superseded_eligible 13 | superseded_retained 29
 --   superseded_pinned_live_work 2 | superseded_uncovered_writer 2
