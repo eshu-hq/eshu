@@ -89,9 +89,11 @@ FULLTEXT term over Lucene's limit and fail `infra_search_key_ft`, so a
 non-zero count stops the run before any DDL and before the marker. After the
 DDL and before the marker, `backfillInfraSearchKeys` runs `search.Backfill`
 over every infra label in batched transactions, waits with `db.awaitIndex`,
-and reads the index state and population. Anything but `ONLINE` (a failed
-label, a `FAILED` index, an index still populating) returns an error and
-leaves the marker unset; the next run retries, and the backfill resumes after
+and reads the index state and population. The state read decides: `ONLINE`
+passes even if the wait itself errored (it timed out while population
+finished, or its session dropped); that error is logged as `await_error`.
+Anything else (a failed label, a failed state read, a `FAILED` index, an
+index still populating) returns an error and leaves the marker unset; the next run retries, and the backfill resumes after
 the nodes already keyed. Schema adoption (`ESHU_GRAPH_SCHEMA_ADOPT_EXISTING`)
 runs the same probe, backfill, and `ONLINE` check before it writes the
 adoption marker, so adopting an existing `infra_search_key_ft` by name never
@@ -99,8 +101,10 @@ trusts a `FAILED` index or a backfill that never ran. Each gate statement is
 bounded by `ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT` on its own: the probe, each
 label's backfill, the `db.awaitIndex` wait (90% of that timeout), and the
 state read. The gate as a whole has no single deadline, so a large graph is
-not cut off by the adoption inspection's budget. A statement that times out
-fails the run with an error naming its stage and the variable to raise.
+not cut off by the adoption inspection's budget. A probe, backfill, or state
+read that times out fails the run with an error naming its stage and the
+variable to raise; a wait that times out fails it only when the state read
+does not show `ONLINE`.
 NornicDB runs none of this. Recovery:
 the runbook in `go/internal/graph/README.md`.
 
@@ -124,7 +128,7 @@ probe refuses, `bootstrap.graph.infra_search_key.label_backfilled` per label
 (`label`, `nodes_keyed`, `overflow_count`, `batch_size`, `duration_seconds`),
 `bootstrap.graph.infra_search_key.backfilled` once, and
 `bootstrap.graph.infra_search_key.index_state` (`state`,
-`population_percent`), plus `bootstrap.graph.infra_search_key.index_failed`
+`population_percent`, and `await_error` when the wait errored), plus `bootstrap.graph.infra_search_key.index_failed`
 (ERROR) for a `FAILED` index.
 With adoption-only enabled, an incomplete catalog also returns a bounded
 refusal error; `runtime.startup.failed` records that error at the top level.

@@ -20,6 +20,9 @@ type fakeGraphRunner struct {
 	events     *[]string
 	oversized  int64
 	indexState string
+	// awaitErr and stateErr make db.awaitIndex or the state read fail.
+	awaitErr error
+	stateErr error
 }
 
 func (r *fakeGraphRunner) Run(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
@@ -32,9 +35,12 @@ func (r *fakeGraphRunner) Run(_ context.Context, cypher string, _ map[string]any
 		return []map[string]any{{"keyed": int64(1), "overflowed": int64(0)}}, nil
 	case strings.HasPrefix(cypher, "CALL db.awaitIndex("):
 		*r.events = append(*r.events, "await_index")
-		return nil, nil
+		return nil, r.awaitErr
 	case strings.HasPrefix(cypher, "SHOW FULLTEXT INDEXES"):
 		*r.events = append(*r.events, "index_state")
+		if r.stateErr != nil {
+			return nil, r.stateErr
+		}
 		state := r.indexState
 		if state == "" {
 			state = "ONLINE"

@@ -28,7 +28,8 @@ moves the Neo4j search onto the key after a cold-plan check.
   from `runtimecfg.LoadGraphBackend`.
 - Bootstrap (Neo4j only): an oversized-key probe before graph DDL, then a
   batched, idempotent backfill, a `db.awaitIndex` wait, and a required
-  `ONLINE` state before the schema marker. Schema adoption runs the same gate
+  `ONLINE` state (read after the wait, and decisive even when the wait
+  errored) before the schema marker. Schema adoption runs the same gate
   before its marker.
 
 ## Design decisions

@@ -113,20 +113,24 @@ func TestAdoptionGateMayOutlastOneStatementTimeout(t *testing.T) {
 // TestAdoptionGateThatHangsFailsClosedAndNamesTheCause keeps the fail-closed
 // behavior: a gate stage that never returns is cut off by its own statement
 // timeout, the marker stays unset, and the error names the stage and the
-// timeout variable an operator would raise.
+// timeout variable an operator would raise. A wait hangs because the index
+// is not ONLINE yet, so that case's state read reports POPULATING; a wait
+// that times out on an index the state read then shows ONLINE passes
+// (TestIndexStateDecidesAfterAnAwaitError).
 func TestAdoptionGateThatHangsFailsClosedAndNamesTheCause(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
 		stage  string
 		hangOn func(string) bool
+		state  string
 	}{
-		{"readiness probe", func(c string) bool { return strings.Contains(c, "RETURN count(n) AS oversized") }},
-		{"backfill", func(c string) bool { return strings.Contains(c, "IN TRANSACTIONS") }},
-		{"index wait", func(c string) bool { return strings.HasPrefix(c, "CALL db.awaitIndex(") }},
+		{"readiness probe", func(c string) bool { return strings.Contains(c, "RETURN count(n) AS oversized") }, ""},
+		{"backfill", func(c string) bool { return strings.Contains(c, "IN TRANSACTIONS") }, ""},
+		{"index wait", func(c string) bool { return strings.HasPrefix(c, "CALL db.awaitIndex(") }, "POPULATING"},
 	} {
 		var events []string
-		runner := &slowGraphRunner{inner: &fakeGraphRunner{events: &events}, hangOn: tc.hangOn}
+		runner := &slowGraphRunner{inner: &fakeGraphRunner{events: &events, indexState: tc.state}, hangOn: tc.hangOn}
 		db, _, err := runNeo4jAdoptionWithTimeout(t, runner, "100ms")
 		if err == nil {
 			t.Fatalf("%s hang: run() error = nil, want a refusal", tc.stage)

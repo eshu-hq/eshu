@@ -65,10 +65,11 @@ func checkInfraSearchKeyReadiness(ctx context.Context, runner search.Runner, log
 
 // backfillInfraSearchKeys runs after the Neo4j graph DDL (or after a complete
 // adoption) and before the schema marker: it keys every existing infra node,
-// waits for the index, and requires it ONLINE. A failed label, a FAILED index,
-// or an index still populating when the wait ends leaves the marker unset, so
-// the next bootstrap retries; the backfill skips nodes already keyed, so a
-// retry resumes.
+// waits for the index, and requires it ONLINE. The state read after the wait
+// decides: ONLINE passes even when the wait itself errored. A failed label, a
+// failed state read, a FAILED index, or an index in any other state leaves the
+// marker unset, so the next bootstrap retries; the backfill skips nodes
+// already keyed, so a retry resumes.
 func backfillInfraSearchKeys(ctx context.Context, runner search.Runner, logger *slog.Logger, awaitSeconds int) error {
 	if runner == nil {
 		return errors.New("infra search key backfill requires a graph query runner")
@@ -91,12 +92,16 @@ func backfillInfraSearchKeys(ctx context.Context, runner search.Runner, logger *
 	}
 	state, _ := rows[0]["state"].(string)
 	population, _ := rows[0]["populationPercent"].(float64)
-	logger.InfoContext(ctx, "infra search key index state",
+	stateAttrs := []any{
 		telemetry.EventAttr("bootstrap.graph.infra_search_key.index_state"),
 		"index", graph.InfraSearchKeyIndexName,
 		"state", state,
 		"population_percent", population,
-	)
+	}
+	if awaitErr != nil {
+		stateAttrs = append(stateAttrs, "await_error", awaitErr.Error())
+	}
+	logger.InfoContext(ctx, "infra search key index state", stateAttrs...)
 	switch {
 	case state == "FAILED":
 		logger.ErrorContext(ctx, "infra search key index is FAILED",
@@ -109,7 +114,10 @@ func backfillInfraSearchKeys(ctx context.Context, runner search.Runner, logger *
 		return errors.Join(fmt.Errorf("%s is %s after waiting %ds, want ONLINE; rerun bootstrap once it is populated",
 			graph.InfraSearchKeyIndexName, state, awaitSeconds), awaitErr)
 	}
-	return awaitErr
+	// The state read succeeded and says ONLINE, so the index is ready. A wait
+	// that errored first (it timed out while population finished, or its
+	// session dropped) adds nothing; it stays visible as await_error above.
+	return nil
 }
 
 // infraSearchKeyAdoptionGate returns the step adoption runs before it writes
