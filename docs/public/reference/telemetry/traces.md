@@ -140,7 +140,9 @@ state marks the span the same way a fault does. On the status, evidence,
 investigation packet, identity admin, provider-config, local identity, auth,
 session, infra, inventory, semantic search, and documentation finding count and
 inventory routes a configuration `503` is a plain write and does not mark the
-span. No query route answers a client cancel with `500` (#7674).
+span. The query
+guard tests reject any direct `500` write that skips the helper behind this
+`499` (#7674).
 
 Two operator effects follow. Eshu's own `eshu_dp_api_request_errors_total`
 counts only `5xx`, so a canceled read on these routes leaves that counter and

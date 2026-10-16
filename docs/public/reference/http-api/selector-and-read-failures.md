@@ -254,8 +254,10 @@ unavailable`), or while a read on the
 runs, gets `499` with the same fixed message, and
 the request span is not marked as an error; the span carries an
 `eshu.request.client_canceled` event instead. No route documents `499` in the
-OpenAPI spec, because the client has already gone. No query route answers a
-client cancel with `500` (#7674). The telemetry effects are in
+OpenAPI spec, because the client has already gone. The query guard tests
+reject any direct `500`, `502`, `504`, or `408` write that skips the
+server-failure helper, the only writer of that `499` (#7674). The telemetry
+effects are in
 [Failed and canceled query reads](../telemetry/traces.md#failed-and-canceled-query-reads-7626).
 
 ## Supply-chain read failures

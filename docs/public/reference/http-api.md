@@ -168,8 +168,8 @@ retry them. A client disconnect is not retried either: a post-selector read or
 shared-helper selector lookup covered in
 [Selector And Read Failures](http-api/selector-and-read-failures.md#client-cancels)
 answers `499`, and so does every supply-chain query route and the compare and
-semantic search routes; no query route answers a client cancel with `500`
-(#7674). Every
+semantic search routes; the query guard
+tests reject any direct `500` write that would bypass that `499` (#7674). Every
 supply-chain query route sends its store reads through the shared helper first
 (#7549): a stale or timed-out guarded reader answers the retryable `503` with `Retry-After` above, while any other
 store failure stays a handler-owned `500` with a fixed message per route and
