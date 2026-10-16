@@ -1,0 +1,65 @@
+{
+  "go/internal/query/code_topic_path_first_live_test.go": {
+    "group": "disposable_query",
+    "package": "github.com/eshu-hq/eshu/go/internal/query",
+    "tests": [
+      "TestInvestigateCodeTopicPathFirstPostgresLive"
+    ]
+  },
+  "go/internal/query/content_reader_entity_search_plan_live_test.go": {
+    "group": "disposable_query",
+    "package": "github.com/eshu-hq/eshu/go/internal/query",
+    "tests": [
+      "TestSearchEntitiesSingleRepoAvoidsNamedPreparedStatementLive"
+    ]
+  },
+  "go/internal/query/content_reader_fingerprint_metadata_live_test.go": {
+    "group": "disposable_query",
+    "package": "github.com/eshu-hq/eshu/go/internal/query",
+    "tests": [
+      "TestContentReaderOmitsFingerprintKeysAfterStorageWriteLive"
+    ]
+  },
+  "go/internal/query/content_reader_language_inventory_live_test.go": {
+    "group": "disposable_query",
+    "package": "github.com/eshu-hq/eshu/go/internal/query",
+    "tests": [
+      "TestRepositoryLanguageInventoryTwoStageLive"
+    ]
+  },
+  "go/internal/query/content_reader_security_secrets_live_test.go": {
+    "group": "disposable_query",
+    "package": "github.com/eshu-hq/eshu/go/internal/query",
+    "tests": [
+      "TestHardcodedSecretSideTableDifferentialLive"
+    ]
+  },
+  "go/internal/query/documentation_facts_generation_live_test.go": {
+    "group": "disposable_query",
+    "package": "github.com/eshu-hq/eshu/go/internal/query",
+    "tests": [
+      "TestDocumentationFactsBindActiveGenerationLive"
+    ]
+  },
+  "go/internal/query/documentation_facts_label_authz_live_test.go": {
+    "group": "disposable_query",
+    "package": "github.com/eshu-hq/eshu/go/internal/query",
+    "tests": [
+      "TestDocumentationFactsLabelsHonorScopedGrantsLive"
+    ]
+  },
+  "go/internal/query/documentation_related_generation_live_test.go": {
+    "group": "disposable_query",
+    "package": "github.com/eshu-hq/eshu/go/internal/query",
+    "tests": [
+      "TestDocumentationRelatedReadsBindActiveGenerationLive"
+    ]
+  },
+  "go/internal/query/documentation_target_facts_differential_live_test.go": {
+    "group": "disposable_query",
+    "package": "github.com/eshu-hq/eshu/go/internal/query",
+    "tests": [
+      "TestDocumentationTargetFactsSplitReadMatchesLegacyLive"
+    ]
+  }
+}

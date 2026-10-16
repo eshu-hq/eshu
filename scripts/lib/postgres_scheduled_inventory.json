@@ -1,0 +1,16 @@
+{
+  "version": "postgres-scheduled-inventory/v1",
+  "fragments": [
+    "postgres_scheduled_inventory.d/ack_family.json",
+    "postgres_scheduled_inventory.d/claim.json",
+    "postgres_scheduled_inventory.d/crossplane.json",
+    "postgres_scheduled_inventory.d/disposable_gate.json",
+    "postgres_scheduled_inventory.d/disposable_query.json",
+    "postgres_scheduled_inventory.d/disposable_storage.json",
+    "postgres_scheduled_inventory.d/fanout.json",
+    "postgres_scheduled_inventory.d/infra_inventory.json",
+    "postgres_scheduled_inventory.d/liveness.json",
+    "postgres_scheduled_inventory.d/readiness.json",
+    "postgres_scheduled_inventory.d/search.json"
+  ]
+}

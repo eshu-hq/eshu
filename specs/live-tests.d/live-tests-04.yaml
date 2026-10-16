@@ -282,20 +282,24 @@ tests:
     reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
   - file: go/internal/storage/postgres/container_image_identity_ack_attempt_fencing_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_ack_batch_exactness_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_ack_capability_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_ack_capability_reset_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_ack_fixed_schema_performance_live_test.go
     tag: perf5854_ack
     class: scheduled
@@ -310,8 +314,9 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/container_image_identity_ack_ordering_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_ack_performance_helpers_live_test.go
     tag: perf5854_ack
     class: scheduled
@@ -322,8 +327,9 @@ tests:
     reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
   - file: go/internal/storage/postgres/container_image_identity_claim_epoch_fencing_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_claim_fixed_schema_performance_live_test.go
     tag: perf5854_ack
     class: scheduled
@@ -334,8 +340,9 @@ tests:
     reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
   - file: go/internal/storage/postgres/container_image_identity_claim_latch_service_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_claim_legacy_performance_helpers_live_test.go
     tag: perf5854_ack
     class: scheduled
@@ -346,8 +353,9 @@ tests:
     reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
   - file: go/internal/storage/postgres/container_image_identity_claim_trigger_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_cloud_reopen_ordering_postgres_live_test.go
     tag: ~
     class: dedicated_ci
@@ -368,8 +376,9 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/container_image_identity_cutover_migration_rerun_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_cutover_work_item_lock_live_test.go
     tag: ~
     class: scheduled
@@ -391,16 +400,18 @@ tests:
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/container_image_identity_failure_fencing_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_held_support_postgres_live_test.go
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/container_image_identity_legacy_cleanup_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_marker_lock_performance_live_test.go
     tag: perf5854_ack
     class: scheduled
@@ -451,8 +462,9 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/content_file_secret_lines_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; disposable template0 database; 2 storage tests in 1 file, 40.885s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/content_file_secret_lines_writebench_live_test.go
     tag: ~
     class: scheduled

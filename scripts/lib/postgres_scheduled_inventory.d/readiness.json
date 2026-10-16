@@ -1,0 +1,32 @@
+{
+  "go/internal/storage/postgres/reducer_queue_cross_scope_readiness_live_test.go": {
+    "group": "readiness",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestReducerContentionGateCrossScopeReadinessConvergesAtTheElapsedBound",
+      "TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget"
+    ]
+  },
+  "go/internal/storage/postgres/reducer_queue_pre_activation_exits_live_test.go": {
+    "group": "readiness",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestReducerContentionGatePreActivationDeferralExits"
+    ]
+  },
+  "go/internal/storage/postgres/reducer_queue_pre_activation_live_test.go": {
+    "group": "readiness",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestReducerContentionGateOlderGenerationSupersessionStaysTerminal",
+      "TestReducerContentionGatePreActivationGenerationRunsAfterActivation"
+    ]
+  },
+  "go/internal/storage/postgres/reducer_queue_shared_edge_target_readiness_live_test.go": {
+    "group": "readiness",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestReducerContentionGateSharedEdgeTargetDeferralKeepsItsAttemptBudget"
+    ]
+  }
+}

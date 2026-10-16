@@ -90,3 +90,7 @@ non_gate_workflows:
     reason: "Discord invite bot post, not a review gate"
   - file: refresh-cassettes.yml
     reason: "scheduled/manual cassette refresh, not a PR gate"
+  - file: postgres-scheduled-live.yml
+    reason: "daily/manual PostgreSQL live proof enrollment; scheduled verification, not a PR or merge gate pending repeated cost evidence"
+  - file: ifa-scheduled-proofs.yml
+    reason: "daily/manual and scoped-PR tagged Ifá live proof enrollment on NornicDB and PostgreSQL; hosted PR pass required for enrollment, no universal live gate"
