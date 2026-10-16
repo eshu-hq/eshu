@@ -33,6 +33,8 @@ gates:
       - "scripts/lib/reducer_contention_events.py"
       - "scripts/lib/reducer_contention_inventory.json"
       - "scripts/lib/nornic_conformance_events.py"
+      - "scripts/verify_backend_conformance_live.sh"
+      - ".github/workflows/e2e-tests.yml"
       - "scripts/lib/nornic_conformance_inventory.json"
       - "scripts/test-nornic-conformance-events.py"
       - "scripts/test-reducer-contention-events.py"

@@ -33,6 +33,7 @@ class FanInTest(unittest.TestCase):
         command = re.search(r'      test_command: "([^"\n]+)"', gate)
         self.assertIsNotNone(command)
         expected = ["scripts/test-verify-live-tests-ledger.sh",
+                    "scripts/test-nornic-conformance-events.py",
                     "scripts/test-run-live-backend-tests.sh",
                     "scripts/test-live-backend-shards.py",
                     "scripts/test-live-backend-lifecycle.py",

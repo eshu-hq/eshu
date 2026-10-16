@@ -65,10 +65,47 @@ class NornicConformanceTest(unittest.TestCase):
                 ("            database: nornic", "            database: neo4j"),
                 ("          ESHU_GRAPH_BACKEND: ${{ matrix.graph_backend }}", "          ESHU_GRAPH_BACKEND: neo4j"),
                 ("          DEFAULT_DATABASE: ${{ matrix.database }}", "          DEFAULT_DATABASE: neo4j"),
+                ("    branches: [ main ]\n    # Path-filtered", "    branches: [ develop ]\n    # Path-filtered"),
+                ('      - "go/**"\n', ''),
+                ('      - "go/**"\n', '      - "go/**"\n      - "!go/internal/storage/cypher/**"\n'),
+                ("          - graph_backend: nornicdb\n            compose_file: docker-compose.yaml\n            graph_service: nornicdb\n            database: nornic\n",
+                 "        exclude:\n          - graph_backend: nornicdb\n            compose_file: docker-compose.yaml\n            graph_service: nornicdb\n            database: nornic\n"),
+                ("jobs:\n", '"jobs": {}\njobs:\n'),
+                ("  pull_request:\n", "  pull_request :\n"),
             ):
                 with self.subTest(old=old):
                     with self.assertRaises(ValueError):
                         MODULE.verify_workflow_text(workflow.replace(old, new, 1))
+
+    def test_active_metadata_routes_and_static_owner(self) -> None:
+        """A source edit must select both hosted jobs and their local mirror."""
+        root = Path(__file__).resolve().parent.parent
+        e2e = (root / MODULE.WORKFLOW).read_text()
+        live = (root / ".github/workflows/live-backend-tests.yml").read_text()
+        registry = (root / "specs/ci-gates.d/gates-09.yaml").read_text()
+        MODULE.verify_routing_text(e2e, live, registry)
+        for changed, subject in (
+            (e2e.replace('      - "scripts/verify_backend_conformance_live.sh"\n', '', 1), "e2e"),
+            (live.replace("      - 'scripts/verify_backend_conformance_live.sh'\n", "", 1), "live"),
+            (registry.replace('      - "scripts/verify_backend_conformance_live.sh"\n', '', 1), "registry"),
+            (registry.replace('      - "scripts/lib/nornic_conformance_events.py"\n', '', 1), "registry"),
+            (registry.replace('      - "specs/live-tests.d/**"\n',
+                              '      - "specs/live-tests.d/live-tests-04.yaml"\n', 1), "registry"),
+            (registry.replace("    triggers:\n", "    triggers :\n", 1), "registry"),
+            (registry.replace("    triggers:\n", "    triggers: []\n    triggers:\n", 1), "registry"),
+            (live.replace("    branches: [ main ]\n    paths:",
+                          "    branches: [ other ]\n    paths:", 1), "live"),
+            (live.replace("      - 'specs/live-tests.d/**'\n", "", 1), "live"),
+            (live.replace("        run: python3 scripts/test-nornic-conformance-events.py",
+                          "        run: true\n        # run: python3 scripts/test-nornic-conformance-events.py", 1), "live"),
+            (live.replace("  static-mirror:\n", "  static-mirror :\n", 1), "live"),
+        ):
+            with self.subTest(subject=subject, changed=changed):
+                subjects = {"e2e": e2e, "live": live, "registry": registry}
+                self.assertNotEqual(changed, subjects[subject])
+                subjects[subject] = changed
+                with self.assertRaises(ValueError):
+                    MODULE.verify_routing_text(**subjects)
 
     def test_inventory_cannot_swap_reviewed_files(self) -> None:
         inventory = MODULE.load_inventory()
