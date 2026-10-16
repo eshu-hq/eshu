@@ -3,7 +3,7 @@
 Scope: classification persistence ONLY (this lane). Claim mutations now carry
 the bounded structured classification (operation, status code, failure class,
 terminal flag) alongside the message, persisted on `workflow_claims` and
-`workflow_work_items` (migrations 181-182). No freshness-hint or snapshot
+`workflow_work_items` (migrations 182-183). No freshness-hint or snapshot
 change; the separate diagnosis lane owns that.
 
 No-Regression Evidence:
@@ -17,7 +17,7 @@ stale classification never survives completion or release. No index was
 added (predicates unchanged; low-cardinality status/terminal columns alone
 do not justify one), no worker count, batch size, lease TTL, heartbeat, or
 `visible_at` computation changed, and nothing was serialized.
-Baseline: base `24940caf7`. After: the #7926 classification commit.
+Baseline: base `f61d9e91a`. After: the #7926 classification commits.
 Backend: hermetic `fakeExecQueryer` (no live Postgres locally;
 `ESHU_POSTGRES_DSN` unset, so the live round-trip test
 `mustWorkflowStructuredFailure` skips here and runs in CI).
