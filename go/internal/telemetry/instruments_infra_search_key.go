@@ -31,7 +31,7 @@ func registerInfraSearchKeyInstruments(meter metric.Meter, inst *Instruments) er
 		"eshu_dp_infra_search_path_total",
 		metric.WithDescription("Infra resource searches by the statement that served them (search_path: fulltext "+
 			"or legacy) and why (reason: ready, flag_off, not_ready, index_not_online, unkeyed, ft_error, "+
-			"backend, no_query). legacy/ft_error means the infra_search_key_ft read failed and the legacy "+
+			"backend, no_query, query_too_long). legacy/ft_error means the infra_search_key_ft read failed and the legacy "+
 			"statement answered that request (#7245)"),
 	); err != nil {
 		return fmt.Errorf("register InfraSearchPath counter: %w", err)

@@ -4,6 +4,7 @@
 package fulltext_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/infra/fulltext"
@@ -45,6 +46,9 @@ func TestSelectMatrix(t *testing.T) {
 		{"index populating", true, true, "x", fulltext.State{Index: fulltext.IndexPopulating, Reason: fulltext.ReasonIndexNotOnline}, fulltext.PathLegacy, fulltext.ReasonIndexNotOnline},
 		{"unkeyed", true, true, "x", fulltext.State{Index: fulltext.IndexOnline, Unkeyed: 3, Reason: fulltext.ReasonUnkeyed}, fulltext.PathLegacy, fulltext.ReasonUnkeyed},
 		{"nornicdb wins over flag", false, false, "x", ready, fulltext.PathLegacy, fulltext.ReasonBackend},
+		{"query at the bound", true, true, strings.Repeat("😀", fulltext.MaxQueryRunes), ready, fulltext.PathFulltext, fulltext.ReasonReady},
+		{"query past the bound", true, true, strings.Repeat("a", fulltext.MaxQueryRunes+1), ready, fulltext.PathLegacy, fulltext.ReasonQueryTooLong},
+		{"long query with flag off", false, true, strings.Repeat("a", fulltext.MaxQueryRunes+1), ready, fulltext.PathLegacy, fulltext.ReasonFlagOff},
 	}
 	for _, c := range cases {
 		path, reason := fulltext.Select(c.enabled, c.neo4j, c.query, c.state)
