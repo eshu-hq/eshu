@@ -1,122 +1,149 @@
 # Content-version fence for the config-artifact read model (#8155, PR3b-1b)
 
 Refs #8155, #7126. This note records the proof for migrations 184 and 185:
-the four `content_files_version_fence_*` triggers and the version-0 seed of
+the commit-time content-version fence and the version-0 seed of
 `config_artifact_content_versions`. The design is
 [Derive repository config artifacts when content is written](../design/7126-ingest-time-config-artifacts.md)
-and its protocol companion, section 2. PR3b-1b adds no reader, no derive and
-no read-path change, so it removes no read time.
+and its protocol companion, section 2. Rulings: arb-8155-s3, arb-8155-f1
+(the commit-time redesign after review finding F1) and arb-8155-c1 (the arm 3
+bar). PR3b-1b adds no reader, no derive and no read-path change, so it
+removes no read time.
 
 ## What ships
 
 | File | Content |
 |---|---|
-| `184_content_files_version_fence.sql` | Three plpgsql functions and four triggers. INSERT and UPDATE are statement-level with a `NEW TABLE`, DELETE is statement-level with an `OLD TABLE`, TRUNCATE bumps every version row. Each bumps a touched repository once per transaction, in `repo_id` order |
-| `185_config_artifact_content_versions_seed.sql` | `INSERT ... SELECT DISTINCT repo_id FROM content_files ... ON CONFLICT DO NOTHING`, version 0, `bumped_xid` `'0'::xid8` |
+| `184_content_files_version_fence.sql` | The UNLOGGED `config_artifact_fence_pending (bumped_xid, repo_id)` table. Four statement-level triggers on `content_files` (INSERT and UPDATE with `NEW TABLE`, DELETE with `OLD TABLE`, TRUNCATE) stage touched repositories. One deferred constraint trigger, `config_artifact_fence_pending_commit`, runs the ordered upsert with the `(bumped_xid, bumped_at)` guard at COMMIT and clears the stage |
+| `185_config_artifact_content_versions_seed.sql` | One version-0 row per repository with content, `bumped_xid` `'0'::xid8`, in `repo_id` order, `ON CONFLICT DO NOTHING` |
 
-Two deviations from the S3 ruling text:
+Decisions beyond the arb-8155-s3 text:
 
-1. **Two files, not one transaction.** Ruling section 4 keeps the ADR order
-   "triggers, then seed, one transaction". The #7961 lock-shape gate
-   (`scripts/lib/migration_lock_shape.py`, no allowlist) refuses `CREATE
-   TRIGGER` and `INSERT ... SELECT` in one file. Reproduced on a one-file
-   draft: "table-locking DDL (CREATE TRIGGER) and bulk DML (INSERT ...
-   SELECT) in one file hold the lock through the DML", exit 1. The split is
-   the arbiter's own two-step form, made unconditional by the gate (coordinator
-   ruling, 2026-10-16). It is correct because no reader or derive
-   exists before PR3b-2: a write between the two files creates its row at
-   version 1 through the trigger, and the seed keeps it
-   (`TestVersionFenceMigrationsOnExistingContentLive`,
-   `TestVersionFenceSeedRacesAFencedWriteLive`). Every repository ends with
-   one row. `TestFenceMigrationsApplyTriggersBeforeSeed` pins 170, then 184,
-   then 185. The content-write stall is now the `CREATE TRIGGER` catalog
-   lock only (184 took 0.0033 s on 1,000,000 rows); the seed holds ACCESS
-   SHARE and blocks no write.
-2. **Guard on `(bumped_xid, bumped_at)`.** The ruled guard compares
-   `bumped_xid` only. The PR3b-1a review left a forward note (package
-   README): a logical restore restarts the transaction id counter while stored
-   `bumped_xid` values survive, so a later transaction can receive an id a row
-   holds and skip its bump. `TestVersionFenceSurvivesATransactionIDRestartLive`
-   reproduced it (version 0, want 1) on the xid-only guard and passes on the
-   pair. `now()` is fixed within a transaction, so the guard still bumps once
-   per transaction. Reviewers: the seed's `bumped_xid` `'0'::xid8` is the
-   value the ruling flagged; no real transaction id is 0.
+1. **Two files, not one transaction** (coordinator ruling, 2026-10-16). The
+   #7961 lock-shape gate (`scripts/lib/migration_lock_shape.py`, no allowlist)
+   refuses `CREATE TRIGGER` and `INSERT ... SELECT` in one file. No reader or
+   derive exists before PR3b-2, which must deploy after this PR, so the order
+   is safe: a write between the files creates its row at version 1 and the
+   seed keeps it. Every repository ends with one row. The remaining
+   content-write stall is the `CREATE TRIGGER` catalog lock (184: 0.0030 s on
+   1,000,000 rows); the seed holds ACCESS SHARE and blocks no write.
+2. **Guard on `(bumped_xid, bumped_at)`.** A logical restore restarts the
+   transaction id counter while stored `bumped_xid` values survive, so an
+   id-only guard can skip a bump (the PR3b-1a review forward note).
+   `TestVersionFenceSurvivesATransactionIDRestartLive` was RED on the id-only
+   guard and is GREEN on the pair. No real transaction id is 0, so the seed's
+   `'0'::xid8` never blocks the first bump.
+3. **Commit-time bump** (arb-8155-f1, finding F1). The first shape bumped
+   inside each content statement and held the version row to commit. A
+   retention chunk cycle deletes `content_files` twice in one transaction
+   (`generationRetentionChunkPruneFilesQuery`, then
+   `pruneContentFilesForGenerationsQuery`), so a Write that locked a doomed
+   row and then waited on that version row closed a cycle:
+   `TestVersionFenceChunkCycleRacingAWriteDoesNotDeadlockLive` deadlocked in
+   20 of 20 rounds at `8f99ebf57` and passes 20 of 20 now. Version rows are
+   taken only inside COMMIT, after every content lock, in `repo_id` order. A
+   Write waits only on content rows, and on a version row only inside the
+   other side's COMMIT. This replaces ruling 3e of arb-8155-s3 ("waits on the
+   version row until the retention commit").
+4. **F2-F4.** The seed inserts in `repo_id` order (F2). The 184 header states
+   that `session_replication_role = replica` skips the triggers as it skips
+   every ordinary trigger (F3) and that an UPDATE moving `repo_id` bumps only
+   the new repository (F4); hermetic guards keep both out of Eshu's Go code.
 
 ## Performance Evidence
 
-Performance Evidence: S3 arm 3 on the real `PruneSupersededGenerations`
-(`prune_content_files` phase, 100,000 rows over 50 repositories, 1 KiB inline
-bodies, n=6, load1 2.19-3.34, 2026-10-16): `OLD TABLE` +8.26%, +0.1105 s per
-100,000-row cycle, `ScopeLockHold` +4.04%. The amended arm 3 bar (ruling
-arb-8155-s3) is at most +10% of `prune_content_files` and at most +5% of
-`ScopeLockHold` on both body classes, so the 1 KiB class passes. Write cost
-from S3 (appendix section 6): arms 1, 2 and 4 at +0.71%, +1.47% and +1.07%.
+Performance Evidence: private PostgreSQL 18.6 in Docker, default server
+configuration, retention `SET LOCAL work_mem = '64MB'`. Every run below was
+gated: load1 under 9 for 20 s before the run, voided if the 1 s in-run sampler
+reached 9. 1 discarded round, 5 measured, interleaved with the first mover
+rotating. Arm 3 runs the real `PruneSupersededGenerations` over 100,000 doomed
+1 KiB rows in 50 repositories (GIN indexes dropped, as in the accepted shim).
+BD is the migration 184 body, byte-identical to the measured SQL.
 
-Seed timing, whole PR3b-1b, on the migration 169 fixture shape (1,000,000
-`content_files` rows over 3,000 repositories, all 10 `content_files` indexes,
-PostgreSQL 18.6 in Docker, `TestVersionFenceSeedTimingLive` with
-`ESHU_CONFIG_ARTIFACT_SEED_TIMING_ROWS=1000000`, 2026-10-16 13:39-13:41 UTC):
+Arm 3 at 1 KiB, means (the arb-8155-c1 statistic), delta from A in seconds and
+percent:
 
-| Migration | Wall | Bar |
-|---|---|---|
-| 184 triggers | 0.0033 s | at most 1 s |
-| 185 seed | 0.1329 s | at most 1 s |
+| Session (UTC, load1 start/end/max) | Arm | `prune_content_files` | `ScopeLockHold` | Wall | Temp bytes per prune |
+|---|---|---|---|---|---|
+| S1 15:00-15:03 (5.67/5.12/5.81) | A | 1.1821 s | 2.7454 s | 3.5159 s | 0 |
+| | BD | +0.1149 s (+9.72%) | +0.1086 s (+3.96%) | +0.0891 s (+2.53%) | 181,100,000 |
+| S2 15:21-15:26 (3.84/4.99/6.73) | A | 1.2026 s | 2.7598 s | 3.5304 s | 0 |
+| | B2 (immediate fence) | +0.1693 s (+14.07%) | +0.2392 s (+8.67%) | +0.2403 s (+6.81%) | 181,100,000 |
+| | BD | +0.1674 s (+13.92%) | +0.1715 s (+6.21%) | +0.1712 s (+4.85%) | 181,100,000 |
+| S3 15:41-15:46 (4.35/5.40/8.06) | A | 1.2115 s | 2.7572 s | 3.5257 s | 0 |
+| | BD | +0.1118 s (+9.23%) | +0.1331 s (+4.83%) | +0.1341 s (+3.80%) | 181,100,000 |
+| | BDW256 (diagnostic, `work_mem` 256MB) | +0.0619 s (+5.11%) | +0.0760 s (+2.76%) | +0.0750 s (+2.13%) | 0 |
+| | BDW (diagnostic, `work_mem` 2GB) | +0.0490 s (+4.04%) | +0.0667 s (+2.42%) | +0.0689 s (+1.95%) | 0 |
 
-Host load1 was 45.28 at the start and 28.43 at the end (other sessions), so
-both figures are upper bounds. The default 30,000-row run measured 0.0035 s
-and 0.0199 s. The loose-index-scan and two-step amendments of ruling section
-4 are not needed for time; the split above is needed for the gate.
+The medians read +10.2%, +12.5% and +15.4% for BD `prune_content_files`.
+The +10%/+5% bar of arb-8155-s3 was missed in two of three sessions; replaced
+by arb-8155-c1: added `ScopeLockHold` at most +0.25 s per 100,000 doomed rows.
+BD adds +0.11 to +0.17 s, so it meets the budget. B2 reads the same or worse,
+so the commit-time move costs nothing; the cost is the `OLD TABLE` capture
+and its 181.1 MB spill past the 64MB `work_mem` (the diagnostics remove the
+spill and recover about 0.05-0.07 s). The diagnostics are not candidates: the
+spill fix needs a retention change and is follow-up issue #NNNN (number from
+the coordinator). The earlier single-session reading (+8.26%, `ScopeLockHold`
++4.04%) is one reading, not the headline.
 
-Mechanism probe (not merge evidence, load1 about 11): on 20,000 8 KiB TOASTed
-rows, an `OLD TABLE` trigger with the shipped bump body added about 4 ms per
-DELETE (68.3-77.2 ms without, 72.4-73.2 ms with) and 0 temp bytes, so the
-transition table keeps TOAST pointers and does not detoast. A one-round shim
-debug run of arm 3 at 2,000 rows read +220% for 8 KiB; one round at that size
-under load is noise-level and is not a result.
+Production estimate: at most the 100,000-row figure (+0.11 to +0.17 s of
+`ScopeLockHold`) per retention cycle per reducer replica, hourly by default,
+and usually far less, since most cycles prune fewer content rows.
 
-Pending for the merge, on a quiet host (load1 under 9), with the harnesses in
-the coordinator's kit: the 8 KiB class, arms A and B2, 1 discard plus at least
-5 interleaved rounds, with `prune_temp_bytes`; and arm 5 attributed (modes A,
-B-last, B-first; 20 rounds disjoint, 20 overlapping) plus the arm 1
-confirmation (5 rounds). Both measure the shipped migration 184 functions,
-including the `(bumped_xid, bumped_at)` guard. NOT_CHECKED until then.
+Arms 1, 2 and 4 (A vs BD, 14:58:01-14:59:39 UTC, load1 7.54/6.33/8.53), the
+S3 statistic (medians with ranges; bar +5%): full Write of 5,000 files
+1.3444 s vs 1.3610 s (+1.24%); delta Write 2.204 ms vs 2.199 ms (-0.23%);
+one 50,000-row INSERT 6.2555 s vs 6.1923 s (-1.01%). All PASS. Means are
++5.02%, +22.66% and +1.20%, pulled up by round 3, where BD read high on all
+three arms at once.
+
+Seed timing on the migration 169 fixture shape (1,000,000 rows over 3,000
+repositories, all 10 `content_files` indexes, 16:11 UTC, load1 3.32 to 3.20):
+184 0.0030 s, 185 0.1150 s, against the 1 s bar.
 
 ## No-Regression Evidence
 
 No-Regression Evidence: the live tests in
 `go/internal/storage/postgres/config/artifacts/fence_*_live_test.go` run the
 production `ContentWriter.Write` and `GenerationRetentionStore` against the
-shipped migrations:
+shipped migrations (`go test ./internal/storage/postgres/config/artifacts/`,
+exit 0):
 
 | Proof | Result |
 |---|---|
-| Arm 6 churn (`TestVersionFenceChurnIsOnePerTransactionLive`) | full 10, delta 2, reap 4, bulk 1, prune 1 per repository, exact |
-| Seeded RED: per-row unguarded fence | full 5,000, delta 4, reap 1,700, bulk 50,000, prune 700: fails the counts |
-| Arm 7 cases 1a and 1b (20 rounds each, a held middle version row forces overlap) | 0 deadlocks, every repository bumped exactly twice per round |
-| Seeded RED: row-level fence on the same rounds | deadlocks in 1a and in 1b |
-| 3a: DELETE fence plan (auto_explain) | `Insert` over `Unique` over `Sort` on `fence_old_rows.repo_id`, no reordering node between |
-| 3b, case 1c: two real prunes, scope sets sharing 6 repositories, 3 rounds | 0 deadlocks, each shared version row bumped twice |
-| 3c: concurrent first Writes of an unseeded repository, 10 rounds | one row, no error, version 2 |
-| 3d: firing order from `pg_trigger` | fence last per event, after `content_files_secret_lines_*`, and for DELETE after the row-level RI triggers |
-| Cases 2 and 3: Write during an open prune | waits on the version row's tuple lock (disjoint keys) or the prune's transaction (shared doomed key), then lands; version +2 |
-| R-1, two-scope and prune interleavings | a derive read before the last commit classifies `stale_version` through `artifacts.Classify`; a read after it is trusted |
+| F1 chunk cycle raced with a Write, 20 rounds | RED at `8f99ebf57` (20 deadlocks), now 0 deadlocks, exactly 3 bumps per round |
+| F1 SQL two-statement transaction vs an autocommit DELETE, 10 rounds | RED at `8f99ebf57`, now 0 deadlocks, 2 bumps per round |
+| Arm 6 churn | full 10, delta 2, reap 4, bulk 1, prune 1 per repository; a seeded per-row fence fails the counts |
+| Arm 7 cases 1a and 1b, 20 rounds each, a held middle version row forcing overlap | 0 deadlocks, exact bumps; a seeded row-level fence deadlocks |
+| 3a: plan of the commit upsert (auto_explain) | `Insert` over `Sort` on `p.repo_id` |
+| Case 1c: two real prunes sharing 6 repositories, 3 rounds | 0 deadlocks, each version row bumped twice |
+| Cases 2 and 3: Write during an open prune parked in its COMMIT | waits on the version row's tuple lock inside that COMMIT (disjoint keys) or on the prune's transaction (shared doomed key), then lands; version +2 |
+| R-1, two-scope and prune interleavings | a derive read before the last commit classifies `stale_version` through `artifacts.Classify` |
+| Commit contract | bump visible only after COMMIT; rollback, rolled-back savepoint, `SET CONSTRAINTS ALL IMMEDIATE` plus more writes, and COPY bump once or not at all; pending table empty after every transaction |
+| Firing order (`pg_trigger`) | four content triggers last per event, after `content_files_secret_lines_*` and the RI triggers; the fifth is a row-level deferrable, initially deferred constraint trigger, `tgenabled 'O'` |
+| Seed | existing content, a write between 184 and 185, re-apply, the race with an in-flight write (commit and rollback), and F2: a writer holding a low row while the seed runs, 3 rounds over 200 repositories, 0 deadlocks |
 
 ## Observability Evidence
 
-No-Observability-Change: PR3b-1b adds no metric, span or log (ruling
-addition 3e). A Write of a repository whose prune is open waits on the
-version row, or on a doomed content row, until the retention commit. That
-wait lies inside the existing
-`eshu_dp_generation_retention_scope_lock_hold_seconds` window. The prune's
-added work shows in `eshu_dp_generation_retention_phase_duration_seconds`
-(phase `prune_content_files`) and
-`eshu_dp_generation_retention_duration_seconds`. The migrations log
-`bootstrap.postgres.migration.applying` and
-`bootstrap.postgres.migration.recorded` with `duration_ms`. `CREATE TRIGGER`
-queues behind a running retention or content transaction; the migrator's
-`lock_timeout` retry covers that wait. A deadlock would surface as SQLSTATE
-40P01 in the projector's retry and in
+No-Observability-Change: PR3b-1b adds no metric, span or log. The added
+retention work shows in `eshu_dp_generation_retention_phase_duration_seconds`
+(phases `prune_content_files` and `commit`),
+`eshu_dp_generation_retention_scope_lock_hold_seconds` and
+`eshu_dp_generation_retention_duration_seconds`; the spill shows in
+`pg_stat_database.temp_bytes` and, when enabled, `log_temp_files`. A Write
+waits on content rows, and on a version row only inside another
+transaction's COMMIT. The migrations log `bootstrap.postgres.migration.applying`
+and `bootstrap.postgres.migration.recorded` with `duration_ms`. A deadlock
+would surface as SQLSTATE 40P01 in the projector's retry and in
 `eshu_dp_generation_retention_failures_total`.
+
+## NOT_CHECKED
+
+- The 8 KiB class at 100,000 rows (arb-8155-c1 1.4a) and the attributed arm 5
+  with the arm 1 confirmation (1.4b), on the commit-time shape.
+- The spill cost on production storage (these runs had a warm page cache).
+- The QA p95 of `eshu_dp_generation_retention_scope_lock_hold_seconds`.
+- That 181.1 MB is the transition tuplestore alone (inferred from the
+  diagnostics, not measured in isolation).
 
 ## Commands
 

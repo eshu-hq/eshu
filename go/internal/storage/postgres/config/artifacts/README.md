@@ -102,28 +102,36 @@ because each derive rewrites a repository's rows.
 
 ## The version fence (PR3b-1b)
 
-Migration 184 adds four triggers on `content_files`: statement-level INSERT
-and UPDATE with a `NEW TABLE`, statement-level DELETE with an `OLD TABLE` (the
-shape S3 arm 3 chose), and TRUNCATE, which bumps every version row. Each bumps
-a touched repository once per transaction, inside the content statement's
-transaction, taking version rows in `repo_id` order; the `content_files_version_fence_`
-prefix makes them fire after the migration 138 secret-lines triggers and the
-row-level RI triggers. The once-per-transaction guard compares the pair
-`(bumped_xid, bumped_at)`, not `bumped_xid` alone: a logical restore restarts
-the transaction id counter while stored `bumped_xid` values survive (the
-PR3b-1a review forward note), and `now()` still differs for that later
-transaction (`TestVersionFenceSurvivesATransactionIDRestartLive`).
+Migration 184 is a commit-time fence (ruling arb-8155-f1). Four
+statement-level triggers on `content_files` (INSERT and UPDATE with a `NEW
+TABLE`, DELETE with an `OLD TABLE`, TRUNCATE) stage the touched repositories in
+the UNLOGGED `config_artifact_fence_pending`. One deferred constraint trigger,
+`config_artifact_fence_pending_commit`, bumps them at COMMIT in `repo_id`
+order and clears the stage, so a transaction takes version rows only after
+its last content lock. A retention chunk cycle deletes `content_files` twice
+in one transaction; with a bump inside each statement it deadlocked with a
+concurrent Write (`TestVersionFenceChunkCycleRacingAWriteDoesNotDeadlockLive`).
+The once-per-transaction guard compares `(bumped_xid, bumped_at)`, not
+`bumped_xid` alone, because a logical restore restarts the transaction id
+counter while stored values survive
+(`TestVersionFenceSurvivesATransactionIDRestartLive`).
+
+Limits, each pinned by a guard test: `session_replication_role = replica`
+skips the triggers as it skips every ordinary trigger, and no Eshu binary sets
+it; an UPDATE that changes `repo_id` bumps only the new repository, and no Go
+statement changes `repo_id` (`fence_guard_test.go`).
 
 Migration 185 seeds one version-0 row (`bumped_xid` `'0'::xid8`) per
-repository with content. It is a separate file because the #7961 lock-shape
-gate refuses `CREATE TRIGGER` and bulk DML in one file; it holds ACCESS SHARE
-on `content_files` only, and `ON CONFLICT DO NOTHING` keeps a row a fenced
-write created first. The design and the evidence are in
+repository with content, in `repo_id` order. It is a separate file because the
+#7961 lock-shape gate refuses `CREATE TRIGGER` and bulk DML in one file; it
+holds ACCESS SHARE on `content_files` only, and `ON CONFLICT DO NOTHING` keeps
+a row a fenced write created first. The evidence is in
 `docs/internal/evidence/8155-content-version-fence.md`.
 
-A Write of a repository whose retention prune is open waits on the version
-row (or on a doomed content row) until the retention commit, inside the
-existing `eshu_dp_generation_retention_scope_lock_hold_seconds` window.
+A Write waits on content rows, and on a version row only inside another
+transaction's COMMIT. The retention cost is the `OLD TABLE` capture: +0.11 to
++0.17 s of `eshu_dp_generation_retention_scope_lock_hold_seconds` per
+100,000-row prune, inside the arb-8155-c1 budget of +0.25 s.
 
 ## Telemetry
 

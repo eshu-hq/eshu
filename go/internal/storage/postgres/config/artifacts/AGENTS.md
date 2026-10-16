@@ -41,10 +41,13 @@ Scoped instructions for the config-artifact read model (#7126). The root
   walker owning a repository.
 - Migrations 184 and 185 are the fence. Every `content_files` writer must
   bump; never add a session setting or `WHEN` clause that skips the fence
-  triggers (an F2 amendment by ruling is required). Keep the trigger names
-  sorting after `content_files_secret_lines_*` and the bump `ORDER BY
-  repo_id`; `TestVersionFenceTriggersFireLastLive` and the arm 7 tests fail
-  otherwise. Keep the guard on `(bumped_xid, bumped_at)`.
+  triggers (an F2 amendment by ruling is required). Keep the bump at COMMIT
+  (the deferred `config_artifact_fence_pending_commit` trigger): a bump inside
+  a content statement deadlocks the retention chunk cycle (arb-8155-f1). Keep
+  the trigger names sorting after `content_files_secret_lines_*`, the commit
+  upsert `ORDER BY repo_id`, the seed `ORDER BY repo_id`, and the guard on
+  `(bumped_xid, bumped_at)`. Never set `session_replication_role` or change
+  `content_files.repo_id` in Go; `fence_guard_test.go` fails otherwise.
 
 ## Tests
 
