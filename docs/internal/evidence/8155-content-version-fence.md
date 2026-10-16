@@ -58,7 +58,10 @@ gated: load1 under 9 for 20 s before the run, voided if the 1 s in-run sampler
 reached 9. 1 discarded round, 5 measured, interleaved with the first mover
 rotating. Arm 3 runs the real `PruneSupersededGenerations` over 100,000 doomed
 1 KiB rows in 50 repositories (GIN indexes dropped, as in the accepted shim).
-BD is the migration 184 body, byte-identical to the measured SQL.
+BD is the measured SQL: migration 184's four functions and pending-table DDL
+are byte-identical to it; 184 differs only in DDL order and in creating the
+constraint trigger when missing (review finding N1), which runs once at
+migration time, not per write.
 
 Arm 3 at 1 KiB, means (the arb-8155-c1 statistic), delta from A in seconds and
 percent:
