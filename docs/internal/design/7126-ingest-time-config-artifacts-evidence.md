@@ -65,7 +65,7 @@ function and the `content_files` statements to `go/internal/content/artifacts/`
 | Migration 109 uses statement-level INSERT and UPDATE triggers with transition tables and a row-level DELETE trigger | `109_infra_resource_entities.sql` |
 | Triggers of one event on one relation fire in alphabetical order by name. Row-level AFTER triggers fire before statement-level AFTER triggers | PostgreSQL 18 documentation, trigger definition. The names of the migration 138 triggers are in `138_content_file_secret_lines.sql` |
 | The retention transaction sets `work_mem` to 64 MB, times named phases, and runs the content prune as one DELETE in the phase `prune_content_files`. The row limit 100,000 counts facts and content rows together | `generationRetentionWorkMemStatement`, `GenerationRetentionPhasePruneFiles`, `defaultGenerationRetentionRowLimit` in `go/internal/storage/postgres/generation_retention.go` |
-| Row-level AFTER triggers fire at the end of the statement. Retention deletes `content_files` in one statement per transaction | PostgreSQL trigger documentation, and the retention step list of `GenerationRetentionStore` in `go/internal/storage/postgres/generation_retention.go` |
+| Row-level AFTER triggers fire at the end of the statement. Retention deletes `content_files` once per transaction, or twice in a chunk cycle (`generationRetentionChunkPruneFilesQuery`, then the normal prune; review finding F1, arb-8155-f1) | PostgreSQL trigger documentation, and the retention step list of `GenerationRetentionStore` in `go/internal/storage/postgres/generation_retention.go` |
 | No import cycle blocks a shared package | `go list -deps` on `./internal/query/querycontract`, `./internal/query/repositoryartifacts`, `./internal/content` and `./internal/storage/postgres` at `b7ca5f2f0a` |
 | The newest migration on `origin/main` | `169_content_files_generation_id.sql`. No open PR adds a migration (checked with `gh pr list --state open` on 2026-10-10) |
 
@@ -320,31 +320,30 @@ Arm 3, on the real retention statement:
   one discarded round (the shim's `versionFenceInterleave`).
 - Body classes, both required and reported separately: 1 KiB inline and 8 KiB
   TOASTed.
-- Pass: the chosen shape at most +5% of `prune_content_files` on both
-  classes. At equal cost prefer `OLD TABLE`. Report the `ScopeLockHold` delta
-  in seconds as informational. Fail: both shapes over 5% on either class.
-  The fallback of the protocol companion then becomes available as the
-  Proposed fallback, which needs an F2 amendment by ruling. Without it,
-  retention pays the trigger.
+- Pass (ruling arb-8155-c1, replacing arb-8155-s3's +10%/+5%, missed by
+  session means in one of three sessions (S2), by session medians in all three
+  on `prune_content_files` and in two on `ScopeLockHold`): added
+  `ScopeLockHold` at most +0.25 s per 100,000 doomed rows, mean of at least 5
+  rounds, both classes. 1 KiB: +0.11 to +0.17 s of both, 181.1 MB temp per
+  prune (#8268). 8 KiB: +0.12 s pooled over 25 rounds, PASS by arb-8155-c3;
+  tail and tables in `8155-content-version-fence.md`.
 - The arm 3 write probe of section 6 (a Write of a pruned repository waits
   for the prune commit) is informational. It is not part of the rerun bar.
 
 Arm 5, attributed:
 
-- Sampler first, as its own shim commit: add `wait_event` to the sample SQL.
-  For `transactionid` and `tuple` waits, add the blocking pid
-  (`pg_blocking_pids`) and the waiter's query prefix. Classify each episode:
-  `version_row` (the waiter runs a content INSERT, UPDATE or DELETE and the
-  blocker runs a content statement of the other writer), `advisory`,
-  `extend`, `other`. Report the maximum and the total per round, per class
-  and mode, including A.
-- Runs: modes A, B-last and B-first, 20 measured rounds, with disjoint keys
-  (default). Then the same with the shim's overlap switch (two scopes
-  writing the same paths: the production shape), 20 rounds.
-- Bars: per Write at most A + 10%. `version_row`: A must be 0. The B-last
-  maximum is at most one contended batch (B-last per-Write median / 10). The
-  B-first maximum is at least the B-last maximum. If it is not, the
-  classification is wrong and the run is void. `advisory` and `extend` are
+- Sampler: `wait_event`, the blocking pid and the waiter's query prefix;
+  classes `version_row` (waiter and blocker both run a content statement),
+  `advisory`, `extend`, `other`; maximum and total per round, class and mode.
+- Runs: modes A, B-last and B-first, 20 rounds with disjoint keys, then 20
+  with overlapping keys (two scopes writing the same paths).
+- Bars: per Write at most A + 10%. `version_row` in A = 0 holds for the
+  disjoint run; in overlap it is an upper bound that includes duplicate-key
+  content-row waits, and the bar is B minus A within one tick (arb-8155-c2).
+  B-last maximum at most one contended batch (B-last per-Write median / 10).
+  B-first and B-last maxima agree within one sampler tick (5 ms) under the
+  commit-time design; a larger gap returns to the arbiter (retires the
+  immediate-bump "B-first >= B-last else void"). `advisory` and `extend`
   equal between A and B within the A spread. 0 deadlocks in 20 rounds.
 - Add arm 1 (5 rounds, default sizes) to the same session to confirm Q1.
 
@@ -357,7 +356,7 @@ bumps itself.
 
 | Path | Shape | Fence under the fallback |
 |---|---|---|
-| `pruneContentFilesForGenerationsQuery` in `generation_retention_sql.go` (reducer only) | one statement per transaction | self-bump in the statement. The trigger is gated off by `SET LOCAL` |
+| `pruneContentFilesForGenerationsQuery` in `generation_retention_sql.go`, and `generationRetentionChunkPruneFilesQuery` before it in a chunk cycle (reducer only) | one or two statements per transaction | self-bump in the statement. The trigger is gated off by `SET LOCAL` |
 | `deleteContentFilesChunk` in `content_writer_delete_batch.go`: tombstones and the full-snapshot reap, autocommit, chunks of 500 | row-level trigger, at most 500 rows (500 x 2.893 us is about 1.45 ms, an extrapolation from the non-final arm 3 proxy) | trigger. One bump per chunk. Arm 6 counts 4 in the reap case (1,200 reaped paths plus 3 tombstones) |
 | `deleteContentFileQuery` through `ContentStore.Write` (`content_writer_sql.go`, `content_store_writes.go`) | one row per statement | trigger. `NewContentStore` has no caller outside tests (`rg`, not a build-graph query), and it stays fenced |
 | `TRUNCATE content_files` | no production path (a note in `go/internal/storage/postgres/secret/lines/README.md`) | the statement-level TRUNCATE trigger bumps every version row |

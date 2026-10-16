@@ -2,7 +2,8 @@
 """Derived views and checks over the live PostgreSQL readiness inventory.
 
 PACKAGES lives in live_postgres_readiness_inventory.py (data only), plus the
-sibling live_postgres_readiness_inventory_own_gate.py merged below. This
+siblings live_postgres_readiness_inventory_own_gate.py and
+live_postgres_readiness_inventory_config_fence.py merged below. This
 module derives EXPECTED and TOTAL_TESTS from it and owns the fail-closed
 checks the runner relies on; it is the one import site for callers.
 """
@@ -10,13 +11,15 @@ checks the runner relies on; it is the one import site for callers.
 import re
 
 from live_postgres_readiness_inventory import PACKAGES
+from live_postgres_readiness_inventory_config_fence import CONFIG_FENCE_PACKAGES
 from live_postgres_readiness_inventory_own_gate import OWN_GATE_PACKAGES
 
-# Merge the sibling table into its existing packages only, so an emptied or
+# Merge the sibling tables into their existing packages only, so an emptied or
 # partial PACKAGES never gains a package from here.
-for _package, _files in OWN_GATE_PACKAGES.items():
-    if _package in PACKAGES:
-        PACKAGES[_package] = {**PACKAGES[_package], **_files}
+for _sibling in (OWN_GATE_PACKAGES, CONFIG_FENCE_PACKAGES):
+    for _package, _files in _sibling.items():
+        if _package in PACKAGES:
+            PACKAGES[_package] = {**PACKAGES[_package], **_files}
 
 __all__ = ["EXPECTED", "PACKAGES", "TOTAL_TESTS", "neo4j_tests", "package_records"]
 
