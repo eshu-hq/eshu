@@ -21,7 +21,7 @@
   `unicode.IsSpace` rune. Add a table row in `lucene_test.go` for any change.
 - NornicDB, empty-query searches, and the ArgoCD category-only read never use
   the index. The root golden tests
-  (`infra_search_legacy_golden_test.go`) pin their statements byte for byte.
+  (`resource_search_golden_test.go`) pin their statements byte for byte.
 - Requests read the cached readiness only. Never probe per request:
   `CountUnkeyed` runs one count per infra label.
 - A fallback runs the legacy statement with the caller's params unchanged.
