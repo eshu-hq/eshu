@@ -28,10 +28,10 @@ IFA_FAMILY_PIN_WAIT_STAGE="handler"
 # string is the correct one.
 IFA_FAMILY_PIN_WAIT_KEY="inheritance_materialization"
 
-# go/internal/storage/cypher/canonical_inheritance_edges.go:48 is the INHERITS
+# go/internal/storage/cypher/canonical/inheritance/edges.go:48 is the INHERITS
 # write template. The family writes FOUR relationship types across two files --
 # INHERITS, OVERRIDES and ALIASES here (:48, :58, :68) and IMPLEMENTS in
-# canonical_implements_edges.go:13 -- and the anchor names one of them on
+# canonical/inheritance/implements.go:13 -- and the anchor names one of them on
 # purpose: the once-fault decorator fails a single write and the cell then
 # proves recovery against the full expected set, so the other three types are
 # covered by the assertion rather than by the injection. That same file's header

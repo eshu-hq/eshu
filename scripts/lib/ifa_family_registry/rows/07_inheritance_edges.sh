@@ -27,9 +27,9 @@ IFA_FAMILY_ASSERT_FN[inheritance_edges]="ifa_inheritance_assert"
 IFA_FAMILY_CASSETTE_VAR[inheritance_edges]="inheritance_cassette"
 IFA_FAMILY_EXPECTED_VAR[inheritance_edges]="inheritance_expected_edges"
 
-# go/internal/storage/cypher/canonical_inheritance_edges.go:48. The family
+# go/internal/storage/cypher/canonical/inheritance/edges.go:48. The family
 # writes four relationship types across two files -- INHERITS, OVERRIDES and
-# ALIASES here, IMPLEMENTS in canonical_implements_edges.go:13 -- and this
+# ALIASES here, IMPLEMENTS in canonical/inheritance/implements.go:13 -- and this
 # anchor deliberately targets ONE of them. That is the correct scope for a
 # fault anchor: the cell fails a single write and then proves recovery against
 # the FULL five-edge exact set, so the other three types are covered by the

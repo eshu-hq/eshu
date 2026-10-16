@@ -399,7 +399,7 @@ ifa_live_gate_common_seams=(
 	'go/internal/ifa/testdata/rationale/**|go/internal/ifa/testdata/rationale/ifa-rationale-family-expected-edges.json'
 	'go/internal/ifa/testdata/rationale/**|go/internal/ifa/testdata/rationale/ifa-rationale-family-delta-live-expected-records.json'
 	'scripts/lib/ifa_*_live*.sh|scripts/lib/ifa_rationale_live.sh'
-	'go/internal/storage/cypher/canonical_implements_edges.go|go/internal/storage/cypher/canonical_implements_edges.go'
+	'go/internal/storage/cypher/canonical/inheritance/implements.go|go/internal/storage/cypher/canonical/inheritance/implements.go'
 	'go/internal/storage/cypher/canonical_inheritance_retract.go|go/internal/storage/cypher/canonical_inheritance_retract.go'
 	'go/internal/storage/cypher/edge/writer/inheritance_labels.go|go/internal/storage/cypher/edge/writer/inheritance_labels.go'
 	'go/internal/storage/cypher/edge/writer/shell_exec.go|go/internal/storage/cypher/edge/writer/shell_exec.go'
