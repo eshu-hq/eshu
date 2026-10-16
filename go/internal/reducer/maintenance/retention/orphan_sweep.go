@@ -36,8 +36,8 @@ type OrphanSweepResult struct {
 	PairsScanned      map[string]int64
 	OrphanGenerations map[string]int64
 	RowsSwept         map[string]int64
-	// Batches is the sweep's batch transactions; Unswept the listed orphan
-	// generations it did not drain (the next sweep retries them).
+	// Batches is the sweep's committed batch transactions; Unswept the listed
+	// orphan generations it did not drain (the next sweep retries them).
 	Batches        int
 	Unswept        int
 	CensusDuration time.Duration

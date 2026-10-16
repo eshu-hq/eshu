@@ -30,7 +30,8 @@ type OrphanSweep struct {
 	Census Census
 	// RowsSwept is the rows the sweep deleted, by table.
 	RowsSwept map[string]int64
-	// Batches is the batch transactions the sweep ran.
+	// Batches is the batch transactions the sweep committed; a busy, yielded
+	// or ineligible attempt rolls back and is not counted.
 	Batches int
 	// Unswept is the listed orphans the sweep did not drain (busy lock,
 	// lock yield, stalled page, spent budget, or the generation exists

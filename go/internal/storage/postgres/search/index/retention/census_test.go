@@ -99,3 +99,28 @@ func TestSweepOrphansReturnsTheCensusWhenABatchFails(t *testing.T) {
 		t.Fatalf("failed census = (%v, %v), want an error and no table counts", sweep.Census.OrphanGenerations, err)
 	}
 }
+
+// TestSweepOrphansCountsOnlyCommittedBatches pins OrphanSweep.Batches after
+// #8276 review thread A: a listed orphan whose advisory lock another session
+// holds rolls back and adds no batch, while a drained orphan adds its two
+// committed empty pages (one per table).
+func TestSweepOrphansCountsOnlyCommittedBatches(t *testing.T) {
+	database := &scriptedDB{answer: func(query string, args []any) ([][]any, error) {
+		switch {
+		case query == termsLeavesQuery:
+			return nil, nil
+		case strings.Contains(query, "orphan census"):
+			return [][]any{{int64(4), int64(2), "scope-a", "gen-busy"}, {int64(4), int64(2), "scope-a", "gen-free"}}, nil
+		case isTryLock(query):
+			return [][]any{{args[0] != "gen-busy"}}, nil
+		}
+		return page(true, 0, 0, "", ""), nil
+	}}
+	sweep, err := SweepOrphans(context.Background(), database, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("SweepOrphans() error = %v", err)
+	}
+	if sweep.Batches != 2 || database.commits != 2 || sweep.Unswept != 1 {
+		t.Fatalf("Batches = %d, commits = %d, Unswept = %d; want 2 committed batches and gen-busy unswept", sweep.Batches, database.commits, sweep.Unswept)
+	}
+}

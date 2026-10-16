@@ -185,7 +185,7 @@ phases `census_search_index_orphans` and `sweep_search_index_orphans` on
 `eshu_dp_generation_retention_phase_duration_seconds`, failure reason
 `search_index_orphan_sweep` on `eshu_dp_generation_retention_failures_total`,
 logs `generation retention search index orphan sweep completed`
-(pairs_scanned, orphan_generations, rows_swept, batches,
+(pairs_scanned, orphan_generations, rows_swept, batches committed,
 unswept_generations, census and sweep seconds), per generation
 `generation retention search index orphan generation swept`, and ERROR
 `generation retention search index orphan sweep failed`
