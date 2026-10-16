@@ -57,15 +57,15 @@ reads, chosen by the caller:
 - An unscoped caller reads the status snapshot through the guarded
   PostgreSQL reader. A stale or timed-out reader answers the retryable `503`
   with `Retry-After`. Any other failure answers `500`
-  `index status read failed`. No status reader answers `503`
+  `index status read failed`. An unconfigured status reader answers `503`
   `status reader not configured` with no `Retry-After`.
 - A scoped caller does not read the status snapshot. Its only read is the
   granted-repository count in the graph, and a caller with no grant makes no
   read. A graph outage answers the retryable `503` with `Retry-After`. A graph
   read that exceeds its deadline answers `504`. A count that fails any other
   way, or that returns no row, answers `500`
-  `scoped index status repository count failed`. No graph backend answers
-  `503` `graph backend not configured` with no `Retry-After`.
+  `scoped index status repository count failed`. An unconfigured graph backend
+  answers `503` `graph backend not configured` with no `Retry-After`.
 
 ## Fixed messages
 
@@ -111,9 +111,9 @@ read the governance audit store through the guarded PostgreSQL reader. A stale
 or timed-out reader answers the retryable `503` with `Retry-After`, and the
 envelope carries no `capability` field. Any other failure answers `500` with
 `failed to list audit events` or `failed to summarize audit events`, and a
-client cancel answers `499` with the same text and no error log line. No audit
-reader answers `503` `admin audit reader is unavailable` with no
-`Retry-After`.
+client cancel answers `499` with the same text and no error log line. An
+unconfigured audit reader answers `503` `admin audit reader is unavailable`
+with no `Retry-After`.
 
 ## Related
 
