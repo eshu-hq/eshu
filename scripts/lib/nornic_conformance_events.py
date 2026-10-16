@@ -12,6 +12,45 @@ from typing import TextIO
 ROOT = Path(__file__).resolve().parents[2]
 INVENTORY = Path(__file__).with_name("nornic_conformance_inventory.json")
 RUNNER = Path("scripts/verify_backend_conformance_live.sh")
+RUNNER_PREFIX = """#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+GRAPH_BACKEND="${ESHU_GRAPH_BACKEND:-nornicdb}"
+case "$GRAPH_BACKEND" in
+    nornicdb)
+        DEFAULT_GRAPH_DATABASE="nornic"
+        ;;
+    neo4j)
+        DEFAULT_GRAPH_DATABASE="neo4j"
+        ;;
+    *)
+        echo "Unsupported ESHU_GRAPH_BACKEND for backend conformance: $GRAPH_BACKEND" >&2
+        exit 1
+        ;;
+esac
+
+export ESHU_GRAPH_BACKEND="$GRAPH_BACKEND"
+export ESHU_BACKEND_CONFORMANCE_LIVE=1
+export ESHU_NEO4J_URI="${ESHU_NEO4J_URI:-${NEO4J_URI:-bolt://localhost:7687}}"
+export ESHU_NEO4J_USERNAME="${ESHU_NEO4J_USERNAME:-${NEO4J_USERNAME:-neo4j}}"
+export ESHU_NEO4J_PASSWORD="${ESHU_NEO4J_PASSWORD:-${NEO4J_PASSWORD:-change-me}}"
+export ESHU_NEO4J_DATABASE="${ESHU_NEO4J_DATABASE:-${NEO4J_DATABASE:-${DEFAULT_DATABASE:-$DEFAULT_GRAPH_DATABASE}}}"
+export NEO4J_URI="$ESHU_NEO4J_URI"
+export NEO4J_USERNAME="$ESHU_NEO4J_USERNAME"
+export NEO4J_PASSWORD="$ESHU_NEO4J_PASSWORD"
+export NEO4J_DATABASE="$ESHU_NEO4J_DATABASE"
+export DEFAULT_DATABASE="$ESHU_NEO4J_DATABASE"
+
+echo "Running live backend conformance for $ESHU_GRAPH_BACKEND on $ESHU_NEO4J_URI database $ESHU_NEO4J_DATABASE"
+
+cd "$REPO_ROOT/go"
+go test ./internal/backendconformance -run '^TestLiveBackendConformance$' -count=1 -v
+
+"""
 WORKFLOW = Path(".github/workflows/e2e-tests.yml")
 STATIC_WORKFLOW = Path(".github/workflows/live-backend-tests.yml")
 REGISTRY = Path("specs/ci-gates.d/gates-09.yaml")
@@ -238,12 +277,7 @@ def verify_ledger(
 
 def verify_runner_text(text: str, inventory: dict[str, list[str]]) -> None:
     """Require the exact Nornic-only call and shell failure propagation."""
-    if not text.startswith("#!/usr/bin/env bash\n\nset -euo pipefail\n"):
-        raise ValueError("Nornic runner must propagate failures")
     marker = 'if [ "$ESHU_GRAPH_BACKEND" = "nornicdb" ]; then\n'
-    if text.count(marker) != 1 or text.count("go test ./internal/storage/cypher") != 1:
-        raise ValueError("missing or duplicate Nornic-only runner branch")
-    block = text.split(marker, 1)[1].rsplit("\nfi", 1)[0]
     names = sorted(name for tests in inventory.values() for name in tests)
     selector = "|".join(names)
     continuation = chr(92)
@@ -261,8 +295,8 @@ def verify_runner_text(text: str, inventory: dict[str, list[str]]) -> None:
         '    python3 ../scripts/lib/nornic_conformance_events.py --events '
         '"${RUNNER_TEMP:-/tmp}/nornic-conformance.jsonl"',
     ))
-    if block != expected:
-        raise ValueError("Nornic conformance runner activation or selector drift")
+    if text != RUNNER_PREFIX + marker + expected + "\nfi\n":
+        raise ValueError("Nornic runner preamble, CORE, activation, or tail drift")
 
 
 def verify_workflow_text(text: str) -> None:
