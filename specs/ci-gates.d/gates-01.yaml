@@ -243,11 +243,13 @@ gates:
       - "scripts/verify-tooling-line-cap.sh"
       - "scripts/test-verify-tooling-line-cap.sh"
       - "scripts/lib/tooling-line-cap-*"
+      - "scripts/lib/test-verify-tooling-line-cap-*"
     self_test_triggers:
       - ".github/workflows/test.yml"
       - "scripts/verify-tooling-line-cap.sh"
       - "scripts/test-verify-tooling-line-cap.sh"
       - "scripts/lib/tooling-line-cap-*"
+      - "scripts/lib/test-verify-tooling-line-cap-*"
     local:
       command: "bash scripts/verify-tooling-line-cap.sh --all"
       pre_push: floor

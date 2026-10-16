@@ -136,10 +136,11 @@ gates:
       - "scripts/test-run-live-postgres-readiness-selftest-seeds.sh"
       - "scripts/test-run-live-postgres-readiness-tests.sh"
       - "scripts/lib/test-run-live-postgres-readiness-proofs.sh"
+      - "scripts/lib/test-run-live-postgres-readiness-seed-cases.sh"
       - "scripts/lib/live_postgres_readiness_events.py"
       - "scripts/lib/live_postgres_readiness_results.py"
       - "scripts/lib/live_postgres_readiness_records.py"
-      - "scripts/lib/live_postgres_readiness_inventory.py"
+      - "scripts/lib/live_postgres_readiness_inventory*.py"
       - "scripts/run-live-postgres-readiness-tests.sh"
     local:
       command: "bash scripts/test-run-live-postgres-readiness-tests.sh"

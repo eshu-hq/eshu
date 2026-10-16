@@ -10,6 +10,8 @@
 # cannot be shown to fail on a planted violation, and to pass on the clean
 # tree, is not a gate. Everything else guards the edges around them.
 #
+# The scripts-file-cap CI job is pinned by the sourced workflow cases below.
+#
 # Usage: scripts/test-verify-tooling-line-cap.sh
 set -uo pipefail
 
@@ -109,6 +111,9 @@ assert() {
 
 TAB=$'\t'
 
+# shellcheck source=lib/test-verify-tooling-line-cap-workflow-cases.sh
+source "${script_root}/lib/test-verify-tooling-line-cap-workflow-cases.sh"
+
 test_planted_501_line_file_is_red() {
 	local repo ledger
 	repo="$(new_scratch_repo)"
@@ -173,6 +178,22 @@ test_grandfathered_file_at_pin_is_green() {
 	ledger="$(write_ledger "${repo}" "scripts/old.sh${TAB}600")"
 	run_gate "${repo}" "${ledger}" --all
 	assert "grandfathered file at its pin is green" 0
+}
+
+# A ledger row matches a file by exact path. A row for scripts/a.sh.long must
+# neither grandfather scripts/a.sh nor collide with a row for scripts/a.sh.
+test_ledger_path_prefix_is_exact() {
+	local repo ledger
+	repo="$(new_scratch_repo)"
+	write_lines "${repo}/scripts/a.sh" 600
+	write_lines "${repo}/scripts/a.sh.long" 700
+	commit_all "${repo}"
+	ledger="$(write_ledger "${repo}" "scripts/a.sh.long${TAB}700")"
+	run_gate "${repo}" "${ledger}" --all
+	assert "a row for scripts/a.sh.long does not grandfather scripts/a.sh" 1 "scripts/a.sh has 600 lines"
+	ledger="$(write_ledger "${repo}" "scripts/a.sh${TAB}600" "scripts/a.sh.long${TAB}700")"
+	run_gate "${repo}" "${ledger}" --all
+	assert "rows for a path and its extension each match their own file" 0
 }
 
 test_grandfathered_file_that_grows_is_red() {
@@ -317,11 +338,18 @@ test_files_mode() {
 	repo="$(new_scratch_repo)"
 	write_lines "${repo}/scripts/big.sh" 501
 	write_lines "${repo}/scripts/small.sh" 5
+	write_lines "${repo}/docs/readme.md" 900
 	ledger="$(write_ledger "${repo}")"
 	run_gate "${repo}" "${ledger}" --files scripts/small.sh
 	assert "--files on an under-cap file is green" 0 "evaluated 1 file(s) from 1 path(s)"
+	run_gate "${repo}" "${ledger}" --files scripts/small.sh docs/readme.md
+	assert "--files skips an over-cap path outside scripts/" 0 "evaluated 1 file(s) from 2 path(s)"
 	run_gate "${repo}" "${ledger}" --files scripts/small.sh scripts/big.sh docs/readme.md
-	assert "--files red on the over-cap path, ignoring paths outside scripts/" 1 "scripts/big.sh has 501 lines"
+	assert "--files red on the over-cap path, ignoring paths outside scripts/" 1 "evaluated 2 file(s) from 3 path(s)"
+	assert "--files names only the scripts/ violation" 1 "scripts/big.sh has 501 lines"
+	[[ "${out}" != *"docs/readme.md"* ]] \
+		&& record_pass "--files never reports the path outside scripts/" \
+		|| record_fail "--files never reports the path outside scripts/" "${out}"
 	ledger="$(write_ledger "${repo}" "scripts/gone.sh${TAB}600")"
 	run_gate "${repo}" "${ledger}" --files
 	assert "--files with no paths still verifies the ledger" 1 "STALE ledger row scripts/gone.sh"
@@ -373,7 +401,7 @@ test_clean_real_tree_is_green() {
 test_gate_sources_are_under_the_cap() {
 	local path bad=""
 	for path in scripts/verify-tooling-line-cap.sh scripts/test-verify-tooling-line-cap.sh \
-		scripts/lib/tooling-line-cap-core.sh; do
+		scripts/lib/tooling-line-cap-core.sh scripts/lib/test-verify-tooling-line-cap-workflow-cases.sh; do
 		[[ -f "${real_root}/${path}" ]] || { bad="${bad} ${path}(missing)"; continue; }
 		if (( $(awk 'END { print NR }' "${real_root}/${path}") > 500 )); then
 			bad="${bad} ${path}"
@@ -391,6 +419,7 @@ main() {
 	test_any_extension_is_governed
 	test_outside_scripts_is_ignored
 	test_grandfathered_file_at_pin_is_green
+	test_ledger_path_prefix_is_exact
 	test_grandfathered_file_that_grows_is_red
 	test_grandfathered_file_that_shrinks_notes_repin
 	test_stale_row_for_file_under_cap_is_red
@@ -404,6 +433,7 @@ main() {
 	test_files_mode
 	test_pin_mode
 	test_hook_env_git_dir_does_not_blind_the_gate
+	test_workflow_job_is_wired
 	test_clean_real_tree_is_green
 	test_gate_sources_are_under_the_cap
 	printf '\n%d passed, %d failed\n' "${pass_count}" "${fail_count}"
