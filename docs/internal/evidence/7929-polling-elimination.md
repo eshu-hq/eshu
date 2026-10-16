@@ -4,7 +4,7 @@ Scope: the pending-code-reachability loader's candidate statement
 (`listPendingCodeReachabilityInputsSQL` in
 `go/internal/storage/postgres/code/reachability/loader_candidates_sql.go`).
 The fix is one index, migration
-`178_shared_projection_intents_acceptance_completed_idx.sql`:
+`179_shared_projection_intents_acceptance_completed_idx.sql`:
 `shared_projection_intents (scope_id, acceptance_unit_id, source_run_id,
 generation_id, projection_domain, completed_at) WHERE completed_at IS NOT
 NULL`. No Go SQL changes. Quiescence, projector-claim, and reducer-drain
