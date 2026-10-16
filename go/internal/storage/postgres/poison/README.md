@@ -53,8 +53,10 @@ sweep outcome.
 - The attempt budget lives in the row's JSONB payload and is capped with
   `LEAST`; there is no schema column. A row at or past the ceiling is
   excluded by the candidate CTE, never retried.
-- `defaultBatchLimit` (200) deliberately matches the generation-liveness sweep
-  batch default; changing one does not change the other.
+- `DefaultBatchLimit` (200) deliberately matches the generation-liveness sweep
+  batch default; the parent package pins the equality in
+  `poison_batch_default_parity_test.go`, so changing one without the other
+  fails loudly.
 - `"Strictly newer"` is `(ingested_at, generation_id)` compared
   lexicographically, mirroring the generation supersede comparator. A scope
   with any newer generation has moved on: its dead-letter row is historical,

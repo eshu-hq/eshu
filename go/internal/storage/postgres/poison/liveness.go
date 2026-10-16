@@ -14,11 +14,12 @@ import (
 
 const (
 	defaultMaxRecoverAttempts = 1
-	// defaultBatchLimit matches the generation-liveness sweep batch default
+	// DefaultBatchLimit matches the generation-liveness sweep batch default
 	// (defaultGenerationLivenessBatchLimit in the parent postgres package):
-	// one sweep re-drives at most this many dead-letter rows. Same value, so
-	// the move changes no behavior.
-	defaultBatchLimit = 200
+	// one sweep re-drives at most this many dead-letter rows. Exported so
+	// the parent package pins the equality in a test without production
+	// code on either side importing the other.
+	DefaultBatchLimit = 200
 )
 
 // Policy bounds the poison dead-letter recovery arm. Unlike
@@ -32,7 +33,7 @@ type Policy struct {
 	// dead_letter for an operator to inspect. Defaults to 1 when <= 0.
 	MaxRecoverAttempts int
 	// BatchLimit caps how many dead-letter rows one sweep re-drives. Defaults to
-	// defaultBatchLimit (200) when <= 0.
+	// DefaultBatchLimit (200) when <= 0.
 	BatchLimit int
 }
 
@@ -42,7 +43,7 @@ func (p Policy) Normalize() Policy {
 		p.MaxRecoverAttempts = defaultMaxRecoverAttempts
 	}
 	if p.BatchLimit <= 0 {
-		p.BatchLimit = defaultBatchLimit
+		p.BatchLimit = DefaultBatchLimit
 	}
 	return p
 }
