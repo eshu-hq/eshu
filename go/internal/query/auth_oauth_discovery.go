@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // DefaultOAuthChallengeScope is the space-delimited OAuth scope string
@@ -201,7 +202,7 @@ func (h *OAuthProtectedResourceHandler) serveMetadata(w http.ResponseWriter, r *
 	}
 	posture, err := DeriveAuthPosture(r.Context(), h.Providers, h.Policy, h.TenantID)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "failed to derive auth posture")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, authPostureFailedMessage)
 		return
 	}
 	if len(posture.Providers) == 0 {

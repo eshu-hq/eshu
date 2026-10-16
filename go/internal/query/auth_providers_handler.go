@@ -6,6 +6,16 @@ package query //nolint:dirgate // #6818 move 4b: root auth surface (aliases, for
 import (
 	"context"
 	"net/http"
+
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
+)
+
+// Fixed messages for the two auth-posture discovery routes (#7674), answered
+// through tracing.WriteServerFailure: 500 with the store error on the request
+// span, or 499 on a client cancel.
+const (
+	loginProvidersListFailedMessage = "failed to list login providers"
+	authPostureFailedMessage        = "failed to derive auth posture"
 )
 
 // AuthProviderItem is a single configured login provider safe to expose
@@ -87,7 +97,7 @@ func (h *AuthProviderListHandler) handleList(w http.ResponseWriter, r *http.Requ
 	tenantID := QueryParam(r, "tenant_id")
 	posture, err := DeriveAuthPosture(r.Context(), h.Store, h.Policy, tenantID)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "failed to list login providers")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, loginProvidersListFailedMessage)
 		return
 	}
 	WriteJSON(w, http.StatusOK, authPostureJSON(posture))

@@ -7,7 +7,15 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
+
+// profileMFAStatusFailedMessage is the fixed message for a failed MFA status
+// read (#7674), answered through tracing.WriteServerFailure: 500 with the
+// store error on the request span, or 499 on a client cancel, which is not
+// logged as a failure.
+const profileMFAStatusFailedMessage = "failed to fetch mfa status"
 
 // ProfileHandler serves GET /api/v0/auth/profile, returning an aggregated
 // read-only view of the caller's identity, active context, MFA state, and
@@ -61,8 +69,10 @@ func (h *ProfileHandler) handleProfile(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			// Do not emit has_active_mfa:false on store error — that would be a
 			// false security assertion. Return 500 so the caller retries.
-			slog.ErrorContext(r.Context(), "get local identity mfa status failed", "err", err)
-			WriteError(w, http.StatusInternalServerError, "failed to fetch mfa status")
+			if !tracing.ClientCanceled(r.Context(), err) {
+				slog.ErrorContext(r.Context(), "get local identity mfa status failed", "err", err)
+			}
+			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, profileMFAStatusFailedMessage)
 			return
 		}
 		mfa.HasActiveMFA = status.HasActiveMFA
