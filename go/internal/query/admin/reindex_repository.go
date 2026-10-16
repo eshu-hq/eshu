@@ -61,7 +61,7 @@ func (h *Handler) reindexRepositories(w http.ResponseWriter, r *http.Request, re
 		if err != nil {
 			// Nothing is recorded before every selector resolves, so a
 			// cancel here is exact.
-			writeInspectionFailure(w, r, err, repositoryReindexLookupFailedMessage)
+			writeInspectionFailure(w, r, err, repositoryCatalogLookupCapability, repositoryReindexLookupFailedMessage)
 			return
 		}
 		entry, problem := gitDefaultScopeMatch(matches)

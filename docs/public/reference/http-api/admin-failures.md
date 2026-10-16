@@ -48,24 +48,18 @@ client has already gone. See
 ## Inspection reads
 
 These routes read through `Handler.ReadStore`, the guarded reader, so they
-can answer the retryable `503`. The three bounded reads name their
-capability-matrix row (`operator.dead_letters.list`,
-`operator.reducer_input_invalid_facts.list`, and
-`operator.changed_since_poisoned_links.list`) in an error envelope. The work-item,
-decision, and replay-event reads, and the repository reindex selector lookup
-below, are operator tooling with no capability-matrix row yet, so their error
-envelope carries no `capability` field (`querycontract.NoCapability`, #8176).
-The status, `Retry-After`, code, and message are the same.
+can answer the retryable `503`. Its error envelope names the read's
+capability-matrix key in `capability`, listed per step below (#8176).
 
-| Route | Failed step | Fixed message |
-| --- | --- | --- |
-| `POST /api/v0/admin/work-items/query` | work-item read | `work-item query failed` |
-| `POST /api/v0/admin/decisions/query` | decision read | `projection decision query failed` |
-| `POST /api/v0/admin/decisions/query` | evidence read (`include_evidence`) | `projection decision evidence query failed` |
-| `POST /api/v0/admin/replay-events/query` | replay-event read | `replay-event query failed` |
-| `POST /api/v0/admin/dead-letters/query` | dead-letter read | `dead-letter query failed`; `504` `dead-letter query timed out` |
-| `POST /api/v0/admin/input-invalid-facts/query` | quarantine read | `input-invalid-facts query failed`; `504` `input-invalid-facts query timed out` |
-| `POST /api/v0/admin/changed-since/poisoned-links/query` | link read | `changed-since poisoned-links query failed`; `504` `changed-since poisoned-links query timed out` |
+| Route | Failed step | Capability | Fixed message |
+| --- | --- | --- | --- |
+| `POST /api/v0/admin/work-items/query` | work-item read | `operator.work_items.list` | `work-item query failed` |
+| `POST /api/v0/admin/decisions/query` | decision read | `operator.decisions.list` | `projection decision query failed` |
+| `POST /api/v0/admin/decisions/query` | evidence read (`include_evidence`) | `operator.decision_evidence.list` | `projection decision evidence query failed` |
+| `POST /api/v0/admin/replay-events/query` | replay-event read | `operator.replay_events.list` | `replay-event query failed` |
+| `POST /api/v0/admin/dead-letters/query` | dead-letter read | `operator.dead_letters.list` | `dead-letter query failed`; `504` `dead-letter query timed out` |
+| `POST /api/v0/admin/input-invalid-facts/query` | quarantine read | `operator.reducer_input_invalid_facts.list` | `input-invalid-facts query failed`; `504` `input-invalid-facts query timed out` |
+| `POST /api/v0/admin/changed-since/poisoned-links/query` | link read | `operator.changed_since_poisoned_links.list` | `changed-since poisoned-links query failed`; `504` `changed-since poisoned-links query timed out` |
 
 A stale reader on the three bounded reads answers the retryable `503`, not
 `504`, even though the reader's verdict wraps a deadline. The work-item,

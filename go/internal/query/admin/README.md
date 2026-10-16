@@ -29,9 +29,8 @@ Layout:
 - `server_failure.go` — the fixed failure messages, one per failing route
   step, and the three helpers every 5xx goes through (#7674). Inspection
   reads answer the shared reader verdict (503 with `Retry-After`) first,
-  the bounded reads under their capability-matrix
-  row and the rest under `querycontract.NoCapability` (no `capability`
-  field; #8176 registers their rows), the bounded reads then their
+  each under its capability-matrix key (the five unbounded reads'
+  keys are registered by #8176), the bounded reads then their
   `timeout_ms` 504, and everything else a 500
   with the step's fixed message through `tracing.WriteServerFailure`; a
   client cancel answers 499 with no span error. Only the three bounded

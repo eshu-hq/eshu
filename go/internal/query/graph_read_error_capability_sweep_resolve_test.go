@@ -235,10 +235,6 @@ func (s *capabilitySweep) findCallSites(file *ast.File) ([]string, int) {
 				}
 			}
 			matched++
-			if s.isNoCapabilityArg(node.Args[capIdx]) { // allowlist: unkeyed_verdict_allowlist_test.go
-				findings = append(findings, s.noCapabilityFindings(node.Pos())...)
-				break
-			}
 			values, resolved := s.resolveCapabilityArg(node.Args[capIdx], enclosing, map[string]bool{})
 			if !resolved {
 				findings = append(findings, "unresolvable WriteGraphReadError capability argument at "+

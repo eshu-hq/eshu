@@ -48,7 +48,7 @@ func (h *Handler) listWorkItems(w http.ResponseWriter, r *http.Request) {
 		Limit:        limit,
 	})
 	if err != nil {
-		writeInspectionFailure(w, r, err, workItemQueryFailedMessage)
+		writeInspectionFailure(w, r, err, workItemListCapability, workItemQueryFailedMessage)
 		return
 	}
 
@@ -96,7 +96,7 @@ func (h *Handler) listDecisions(w http.ResponseWriter, r *http.Request) {
 		Limit:           limit,
 	})
 	if err != nil {
-		writeInspectionFailure(w, r, err, decisionQueryFailedMessage)
+		writeInspectionFailure(w, r, err, decisionListCapability, decisionQueryFailedMessage)
 		return
 	}
 
@@ -106,7 +106,7 @@ func (h *Handler) listDecisions(w http.ResponseWriter, r *http.Request) {
 		for _, d := range decisions {
 			rows, evErr := h.readStore().ListEvidence(r.Context(), d.DecisionID)
 			if evErr != nil {
-				writeInspectionFailure(w, r, evErr, evidenceQueryFailedMessage)
+				writeInspectionFailure(w, r, evErr, decisionEvidenceListCapability, evidenceQueryFailedMessage)
 				return
 			}
 			evidenceByDecision[d.DecisionID] = evidenceRowsToSlice(rows)
@@ -318,7 +318,7 @@ func (h *Handler) listReplayEvents(w http.ResponseWriter, r *http.Request) {
 		Limit:        limit,
 	})
 	if err != nil {
-		writeInspectionFailure(w, r, err, replayEventQueryFailedMessage)
+		writeInspectionFailure(w, r, err, replayEventListCapability, replayEventQueryFailedMessage)
 		return
 	}
 

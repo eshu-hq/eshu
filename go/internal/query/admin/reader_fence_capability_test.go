@@ -150,20 +150,22 @@ func postEnvelopeJSON(mux *http.ServeMux, path string, body any) *httptest.Respo
 	return w
 }
 
-// TestAdminReadNonFenceErrorKeepsStatus500 pins the unchanged behavior for a
-// permanent store failure on every converted route: #8176 only adds the
-// fenced-reader 503 with a capability. Backend-text removal stays with the
-// #7674 slice.
+// TestAdminReadNonFenceErrorKeepsStatus500 pins a permanent store failure
+// on every converted route: #8176 adds only the fenced-reader 503 with a
+// capability, so a non-fence error stays a 500, and its body is the step's
+// fixed message with no backend text (#7674).
 func TestAdminReadNonFenceErrorKeepsStatus500(t *testing.T) {
 	t.Parallel()
 
 	nonFenceErr := errors.New("postgres down")
 	cases := []struct {
-		name  string
-		serve func() *httptest.ResponseRecorder
+		name    string
+		message string
+		serve   func() *httptest.ResponseRecorder
 	}{
 		{
-			name: "work-items query",
+			name:    "work-items query",
+			message: workItemQueryFailedMessage,
 			serve: func() *httptest.ResponseRecorder {
 				return postJSON(newAdminMux(&Handler{Store: &stubAdminStore{workItemsErr: nonFenceErr}}),
 					"/api/v0/admin/work-items/query",
@@ -171,7 +173,8 @@ func TestAdminReadNonFenceErrorKeepsStatus500(t *testing.T) {
 			},
 		},
 		{
-			name: "decisions query",
+			name:    "decisions query",
+			message: decisionQueryFailedMessage,
 			serve: func() *httptest.ResponseRecorder {
 				return postJSON(newAdminMux(&Handler{Store: &stubAdminStore{decisionsErr: nonFenceErr}}),
 					"/api/v0/admin/decisions/query",
@@ -179,7 +182,8 @@ func TestAdminReadNonFenceErrorKeepsStatus500(t *testing.T) {
 			},
 		},
 		{
-			name: "decision evidence read",
+			name:    "decision evidence read",
+			message: evidenceQueryFailedMessage,
 			serve: func() *httptest.ResponseRecorder {
 				store := &stubAdminStore{
 					decisions: []DecisionRow{{
@@ -201,7 +205,8 @@ func TestAdminReadNonFenceErrorKeepsStatus500(t *testing.T) {
 			},
 		},
 		{
-			name: "replay-events query",
+			name:    "replay-events query",
+			message: replayEventQueryFailedMessage,
 			serve: func() *httptest.ResponseRecorder {
 				return postJSON(newAdminMux(&Handler{Store: &stubAdminStore{replayEvtErr: nonFenceErr}}),
 					"/api/v0/admin/replay-events/query",
@@ -209,7 +214,8 @@ func TestAdminReadNonFenceErrorKeepsStatus500(t *testing.T) {
 			},
 		},
 		{
-			name: "repository-reindex catalog lookup",
+			name:    "repository-reindex catalog lookup",
+			message: repositoryReindexLookupFailedMessage,
 			serve: func() *httptest.ResponseRecorder {
 				h := &Handler{
 					Reindexer:           &stubReindexRequester{},
@@ -224,8 +230,15 @@ func TestAdminReadNonFenceErrorKeepsStatus500(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if w := tc.serve(); w.Code != http.StatusInternalServerError {
+			w := tc.serve()
+			if w.Code != http.StatusInternalServerError {
 				t.Fatalf("status = %d, want 500; body: %s", w.Code, w.Body.String())
+			}
+			if strings.Contains(w.Body.String(), "postgres down") {
+				t.Fatalf("body leaked backend error text: %s", w.Body.String())
+			}
+			if got := adminFailureBodyMessage(t, w); got != tc.message {
+				t.Fatalf("body message = %q, want the fixed %q", got, tc.message)
 			}
 		})
 	}

@@ -41,14 +41,14 @@ adapters; the root `admin_alias.go` keeps every old exported spelling.
 
 - A failed step never writes `err.Error()` or `%v` of an error into a
   response body. Use the helpers in `server_failure.go`, each with a fixed
-  package constant per step: `writeInspectionFailure` for a read through
-  `ReadStore` or the repository catalog with no capability-matrix row (reader
-  verdict under `querycontract.NoCapability` first), `writeBoundedReadFailure`
-  for a read under its own `timeout_ms` and its real capability (reader
-  verdict, then 504, then 500), and `writeMutationFailure` for a writer
-  step. `querycontract.NoCapability` is allowlisted for this directory only
-  (`noCapabilityAllowedDirs` in the root capability sweep, #8176); a new
-  admin read with a matrix row passes its key instead. Keep 400 echoes of caller input, the 409/422 refusals, and the
+  package constant per step: `writeInspectionFailure` for an unbounded read
+  through `ReadStore` or the repository catalog (reader verdict under its
+  capability-matrix key, then 500), `writeBoundedReadFailure` for a read
+  under its own `timeout_ms` (reader verdict under its key, then 504, then
+  500), and `writeMutationFailure` for a writer step. Every reader verdict
+  names a registered capability-matrix key; a new admin read registers its
+  key in `specs/capability-matrix.v1.yaml` first, and the root capability
+  sweep fails an unregistered one. Keep 400 echoes of caller input, the 409/422 refusals, and the
   configuration 503s as they are.
 - The replay, reopen, and recover-generations idempotency finalize and
   their accepted audit append run on `Handler.finalizeContext` (detached

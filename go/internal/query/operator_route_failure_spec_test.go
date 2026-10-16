@@ -82,6 +82,17 @@ func TestOpenAPIAdminRoutesDeclareTheirFailureStatuses(t *testing.T) {
 		"/api/v0/admin/input-invalid-facts/query":          true,
 		"/api/v0/admin/changed-since/poisoned-links/query": true,
 	}
+	// readerCapabilities is the capability-matrix key each reader route's
+	// 503 envelope names (#8176).
+	readerCapabilities := map[string]string{
+		"/api/v0/admin/reindex":                            "operator.repository_catalog.lookup",
+		"/api/v0/admin/work-items/query":                   "operator.work_items.list",
+		"/api/v0/admin/decisions/query":                    "operator.decisions.list",
+		"/api/v0/admin/replay-events/query":                "operator.replay_events.list",
+		"/api/v0/admin/dead-letters/query":                 "operator.dead_letters.list",
+		"/api/v0/admin/input-invalid-facts/query":          "operator.reducer_input_invalid_facts.list",
+		"/api/v0/admin/changed-since/poisoned-links/query": "operator.changed_since_poisoned_links.list",
+	}
 	routes := []string{
 		"/api/v0/admin/refinalize",
 		"/api/v0/admin/reindex",
@@ -105,6 +116,9 @@ func TestOpenAPIAdminRoutesDeclareTheirFailureStatuses(t *testing.T) {
 			if !strings.Contains(description, phrase) {
 				t.Errorf("%s: description does not contain %q", route, phrase)
 			}
+		}
+		if capability, ok := readerCapabilities[route]; ok && !strings.Contains(description, "names capability "+capability) {
+			t.Errorf("%s: description does not name the reader-verdict capability %q", route, capability)
 		}
 		if strings.Contains(description, "no other 503") {
 			t.Errorf("%s: description claims no other 503, but the checkpoint middleware answers 503 on every admin route", route)

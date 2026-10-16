@@ -53,31 +53,36 @@ const (
 	reopenRecordFailedMessage          = "reopen applied but recording its idempotency outcome failed"
 )
 
-// Capabilities of the three bounded operator reads. These are the
-// capability-matrix rows the matching MCP tools answer under, so the reader
-// verdict envelope names them.
+// Capability-matrix keys of the admin reads, so the reader verdict envelope
+// names the read that failed. The first three are the bounded operator
+// reads the matching MCP tools answer under; the rest are the unbounded
+// inspection reads and the repository reindex catalog lookup (#8176).
 const (
 	deadLetterListCapability       = "operator.dead_letters.list"
 	inputInvalidFactListCapability = "operator.reducer_input_invalid_facts.list"
 	poisonedLinkListCapability     = "operator.changed_since_poisoned_links.list"
+
+	workItemListCapability            = "operator.work_items.list"
+	decisionListCapability            = "operator.decisions.list"
+	decisionEvidenceListCapability    = "operator.decision_evidence.list"
+	replayEventListCapability         = "operator.replay_events.list"
+	repositoryCatalogLookupCapability = "operator.repository_catalog.lookup"
 )
 
-// writeInspectionFailure answers a failed admin read that has no registered
-// capability: work items, decisions and their evidence, replay events, and
-// the repository reindex catalog lookup. These reads go through the guarded
-// PostgreSQL reader, so a stale or timed-out reader first gets the shared
-// retryable 503 with Retry-After from querycontract.WriteGraphReadError.
-// These reads run with no route deadline and the guarded reader never
-// returns querycontract.ErrGraphReadDeadline, so they never answer 504, and
-// the OpenAPI spec declares no 504 for them; the call stays for its
-// reachable 503 fence verdicts. The routes are operator tooling not in
-// the capability matrix, so the verdict names querycontract.NoCapability and
-// its envelope carries no capability field (#8176 registers their keys).
-// Anything else answers message through tracing.WriteServerFailure: 500 with
-// err recorded on the request span, or 499 with only the client-cancel event
-// when the caller canceled.
-func writeInspectionFailure(w http.ResponseWriter, r *http.Request, err error, message string) {
-	if querycontract.WriteGraphReadError(w, r, err, querycontract.NoCapability) {
+// writeInspectionFailure answers a failed unbounded admin read: work items,
+// decisions and their evidence, replay events, and the repository reindex
+// catalog lookup. These reads go through the guarded PostgreSQL reader, so a
+// stale or timed-out reader first gets the shared retryable 503 with
+// Retry-After from querycontract.WriteGraphReadError, whose envelope names
+// capability, the read's capability-matrix key. These reads run with no
+// route deadline and the guarded reader never returns
+// querycontract.ErrGraphReadDeadline, so they never answer 504, and the
+// OpenAPI spec declares no 504 for them; the call stays for its reachable
+// 503 fence verdicts. Anything else answers message through
+// tracing.WriteServerFailure: 500 with err recorded on the request span, or
+// 499 with only the client-cancel event when the caller canceled.
+func writeInspectionFailure(w http.ResponseWriter, r *http.Request, err error, capability, message string) {
+	if querycontract.WriteGraphReadError(w, r, err, capability) {
 		return
 	}
 	tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, message)
