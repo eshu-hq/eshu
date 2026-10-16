@@ -142,7 +142,7 @@ func ProvisionDeferredPartitionMemoSchema(t *testing.T, db *sql.DB) string {
 	ctx := context.Background()
 	schemaName := fmt.Sprintf("deferred_partition_memo_proof_%d", time.Now().UnixNano())
 	if _, err := db.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
-		t.Fatalf("create proof schema: %v", err)
+		t.Fatalf("provision proof schema: %v", err)
 	}
 	t.Cleanup(func() {
 		_, _ = db.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
@@ -151,7 +151,7 @@ func ProvisionDeferredPartitionMemoSchema(t *testing.T, db *sql.DB) string {
 		t.Fatalf("set search_path: %v", err)
 	}
 	if _, err := db.ExecContext(ctx, DeferredPartitionMemoProofSchemaSQL); err != nil {
-		t.Fatalf("create proof tables: %v", err)
+		t.Fatalf("provision proof tables: %v", err)
 	}
 	return schemaName
 }
