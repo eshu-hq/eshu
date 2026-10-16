@@ -141,6 +141,49 @@ func TestManifestValidateRejectsUnsupportedCollectorSDKProtocol(t *testing.T) {
 	}
 }
 
+// TestManifestValidateAdmitsExplicitCollectorSDKAlpha2 proves an explicitly
+// configured collector-sdk/v1alpha2 runtime passes manifest validation,
+// including a padded protocol variant that must normalize rather than bypass
+// the allowlist. The v1alpha1 default is unchanged, and unknown protocols
+// stay rejected with the raw configured value in the error.
+func TestManifestValidateAdmitsExplicitCollectorSDKAlpha2(t *testing.T) {
+	t.Parallel()
+
+	for _, protocol := range []string{
+		CollectorSDKProtocolV1Alpha2,
+		" " + CollectorSDKProtocolV1Alpha2 + " ",
+	} {
+		manifest := validManifest()
+		manifest.Spec.Runtime.SDKProtocol = protocol
+
+		if err := manifest.Validate(); err != nil {
+			t.Fatalf("Validate() error = %v, want nil for protocol %q", err, protocol)
+		}
+	}
+
+	manifest := validManifest()
+	manifest.Spec.Runtime.SDKProtocol = CollectorSDKProtocolV1Alpha1
+	if err := manifest.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want nil for unchanged v1alpha1 default", err)
+	}
+
+	for _, protocol := range []string{"collector-sdk/v9", " collector-sdk/v9 ", ""} {
+		manifest := validManifest()
+		manifest.Spec.Runtime.SDKProtocol = protocol
+
+		err := manifest.Validate()
+		if err == nil {
+			t.Fatalf("Validate() error = nil, want rejection for protocol %q", protocol)
+		}
+		if !strings.Contains(err.Error(), "spec.runtime.sdkProtocol") {
+			t.Fatalf("Validate() error = %v, want SDK protocol error for %q", err, protocol)
+		}
+		if protocol != "" && !strings.Contains(err.Error(), protocol) {
+			t.Fatalf("Validate() error = %v, want raw protocol value %q", err, protocol)
+		}
+	}
+}
+
 func TestManifestValidateRejectsUnsupportedRuntimeAdapter(t *testing.T) {
 	t.Parallel()
 

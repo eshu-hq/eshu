@@ -1,7 +1,9 @@
 # Collector Extension Host
 
 `extensionhost` adapts public `collector-sdk/v1alpha1` extension results into
-the core `collector.ClaimedService` path.
+the core `collector.ClaimedService` path. A manifest that explicitly configures
+`collector-sdk/v1alpha2` handshakes on the alpha2 protocol instead; the
+v1alpha1 default is unchanged.
 
 The package owns only the intake boundary:
 
