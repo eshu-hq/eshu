@@ -1,0 +1,329 @@
+{
+  "go/internal/query/service_story_target_support_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/query",
+    "tests": [
+      "TestServiceStoryTargetSupportSQLSemanticsLive"
+    ]
+  },
+  "go/internal/storage/postgres/generation_retention_candidate_plan_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestGenerationRetentionCandidatePlanNeverLoopsFactWorkItemsLive"
+    ]
+  },
+  "go/internal/storage/postgres/generation_retention_evalplanqual_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestGenerationRetentionEvalPlanQualDropsRacedCandidatesLive"
+    ]
+  },
+  "go/internal/storage/postgres/generation_retention_fairness_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestGenerationRetentionFairnessAcrossScopesLive",
+      "TestGenerationRetentionSkipsHeldScopeAndReplacesLive"
+    ]
+  },
+  "go/internal/storage/postgres/generation_retention_key_index_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestGenerationRetentionRefusesWithoutValidKeyIndexLive",
+      "TestGenerationRetentionScopeMismatchedFactNeverOverDeletesLive"
+    ]
+  },
+  "go/internal/storage/postgres/generation_retention_lock_set_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestGenerationRetentionFirstCountRunsWithoutScopeLocksLive",
+      "TestGenerationRetentionLockSetMatchesEligibleScopesLive"
+    ]
+  },
+  "go/internal/storage/postgres/generation_retention_migrated_schema_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestGenerationRetentionPrunesMigratedSchemaLive",
+      "TestGenerationRetentionStatementsPrepareAgainstMigratedSchemaLive"
+    ]
+  },
+  "go/internal/storage/postgres/generation_retention_narrow_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestGenerationRetentionNarrowedCandidateTakenElsewhereLive"
+    ]
+  },
+  "go/internal/storage/postgres/generation_retention_probe_exact_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestGenerationRetentionProbeMatchesGroupedPassLive"
+    ]
+  },
+  "go/internal/storage/postgres/generation_retention_probe_plan_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestGenerationRetentionProbePlansStayOnKeyIndexesLive"
+    ]
+  },
+  "go/internal/storage/postgres/generation_retention_prune_plan_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestGenerationRetentionContentPrunesDeleteExactRowsLive",
+      "TestGenerationRetentionContentPrunesFinishWithoutPlannerStatisticsLive"
+    ]
+  },
+  "go/internal/storage/postgres/generation_retention_row_attribution_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestGenerationRetentionRowCountsAttributeSharedRowsOnceLive"
+    ]
+  },
+  "go/internal/storage/postgres/generation_retention_selects_eligible_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestGenerationRetentionSelectsEligibleGenerationsAcrossScopesLive"
+    ]
+  },
+  "go/internal/storage/postgres/generation_uncovered_writers_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestUncoveredProjectionWritersLive"
+    ]
+  },
+  "go/internal/storage/postgres/ingestion_published_generation_recommit_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestFinalizedGenerationRecommitSkipsFactsLive",
+      "TestPublishedGenerationRecommitIsIdempotentLive"
+    ]
+  },
+  "go/internal/storage/postgres/installed_advisory_targets_paging_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestListOSPackageAdvisoryFactEnvelopesGenerationFlipMidDrainLive",
+      "TestListOSPackageAdvisoryFactEnvelopesNarrowedPagesToCompletionLive",
+      "TestListOSPackageAdvisoryFactEnvelopesPURLFormsMatchTheGoMatcherLive",
+      "TestOSPackageNarrowedQueryUsesTheIndexAtScaleLive"
+    ]
+  },
+  "go/internal/storage/postgres/projector_heartbeat_refusal_lock_order_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestProjectorHeartbeatNeverDeadlocksWithBaselineRefusal"
+    ]
+  },
+  "go/internal/storage/postgres/projector_heartbeat_write_marker_interleave_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestProjectorHeartbeatWriteMarkerInterleave"
+    ]
+  },
+  "go/internal/storage/postgres/projector_queue_ack_scope_wait_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestProjectorAckDefersWhileIngestionHoldsScope"
+    ]
+  },
+  "go/internal/storage/postgres/projector_queue_attempt_fence_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestProjectorQueueRejectsReclaimedSameOwnerAttempt"
+    ]
+  },
+  "go/internal/storage/postgres/projector_queue_attempt_reclaim_contention_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestProjectorQueueRejectsAttemptReclaimedDuringLockWait"
+    ]
+  },
+  "go/internal/storage/postgres/projector_queue_heartbeat_scope_lock_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestProjectorHeartbeatRenewsLeaseWhileIngestionHoldsScope"
+    ]
+  },
+  "go/internal/storage/postgres/projector_queue_ingestion_lock_order_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestProjectorCompletionDoesNotDeadlockSameGenerationCommit"
+    ]
+  },
+  "go/internal/storage/postgres/projector_queue_supersession_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestProjectorHeartbeatSupersessionPreservesActivePointer"
+    ]
+  },
+  "go/internal/storage/postgres/projector_queue_write_marker_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestProjectorHeartbeatWriteGateRowsLive",
+      "TestProjectorWriteMarkerHeartbeatOrderingLive"
+    ]
+  },
+  "go/internal/storage/postgres/projector_write_marker_replay_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestReplayAfterFullRecordsLatestWriteStartLive",
+      "TestReplayedFailedGenerationWritesAndActivatesLive"
+    ]
+  },
+  "go/internal/storage/postgres/readiness/wait/store_clear_fence_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/wait",
+    "tests": [
+      "TestReadinessWaitStaleClearCannotTombstoneNewerWriteLive"
+    ]
+  },
+  "go/internal/storage/postgres/readiness/wait/store_fence_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/wait",
+    "tests": [
+      "TestReadinessWaitStaleWriterCannotResurrectClearedWaitLive",
+      "TestReadinessWaitStaleWriterCannotUndoResetLive"
+    ]
+  },
+  "go/internal/storage/postgres/readiness/wait/store_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/wait",
+    "tests": [
+      "TestReadinessWaitConcurrentUpsertsKeepEarliestAnchorLive",
+      "TestReadinessWaitResetAnchorSettleAndClearLive"
+    ]
+  },
+  "go/internal/storage/postgres/readiness/wait/store_settle_fence_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/wait",
+    "tests": [
+      "TestReadinessWaitStaleWriterCannotUnsettleLive"
+    ]
+  },
+  "go/internal/storage/postgres/reducer_queue_workload_replay_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestWorkloadFencedReplaySupersedesOnlyOlderInFlightToken",
+      "TestWorkloadReplayAndBatchAckContentionConvergesToPending",
+      "TestWorkloadReplayClaimAfterAckToleratesSkewedAppClock",
+      "TestWorkloadReplayConcurrentFirstScheduleReportsSuccess",
+      "TestWorkloadReplayDuringClaimReturnsAckToPending",
+      "TestWorkloadReplayOutcomeReportsSupersededStableItem"
+    ]
+  },
+  "go/internal/storage/postgres/service_catalog_corpus_fence_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestServiceCatalogCorpusFenceDefersAndPreservesEvidenceLive",
+      "TestServiceCatalogCorpusFenceUnfencedReadReportsSpuriousRemovalLive"
+    ]
+  },
+  "go/internal/storage/postgres/service_changed_since_scope_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestServiceChangedSinceBindsGrantToLineageScopeLive"
+    ]
+  },
+  "go/internal/storage/postgres/service_materialization_scope_replay_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestServiceMaterializationActiveIndexReplayConvergesLive"
+    ]
+  },
+  "go/internal/storage/postgres/service_materialization_scope_writer_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestServiceChangedSinceResolvePicksAttributedNewestActiveLive",
+      "TestServiceMaterializationWriterKeepsScopedLineagesLive"
+    ]
+  },
+  "go/internal/storage/postgres/shared_intents_generation_pending_index_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestSharedIntentGenerationPendingIndexLifecycleLive"
+    ]
+  },
+  "go/internal/storage/postgres/shared_intents_upsert_created_at_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestSharedIntentUpsertCreatedAtLastWriterWinsLive"
+    ]
+  },
+  "go/internal/storage/postgres/shared_projection_acceptance_contention_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestSharedIntentAcceptanceWriterReversedBatchesDoNotDeadlockLive",
+      "TestSharedIntentAcceptanceWriterStaleWriteCounterLive",
+      "TestSharedProjectionAcceptanceLegacyNullKeyAdvancesLive",
+      "TestSharedProjectionAcceptanceLegacyNullKeyInvisibleGenerationAdvancesLive",
+      "TestSharedProjectionAcceptanceLegacyNullKeyRejectsStaleLive",
+      "TestSharedProjectionAcceptanceOrdersByIngestedAtLive"
+    ]
+  },
+  "go/internal/storage/postgres/shared_projection_acceptance_healed_key_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestSharedProjectionAcceptanceSameGenerationRetryKeepsHealedKeyLive"
+    ]
+  },
+  "go/internal/storage/postgres/shared_projection_acceptance_monotonic_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestSharedProjectionAcceptanceConcurrentOutOfOrderLive",
+      "TestSharedProjectionAcceptancePostSnapshotStoredGenerationLive",
+      "TestSharedProjectionAcceptanceSequentialStaleWriteLive"
+    ]
+  },
+  "go/internal/storage/postgres/status_active_work_semantics_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestActiveFactWorkItemsFormsSelectTheSameRows",
+      "TestActiveWorkSummaryDropsTerminalTextFromMaterializedRows",
+      "TestActiveWorkSummaryGateMutationsAgainstOracle",
+      "TestActiveWorkSummaryGateResolvesTableByRegclass",
+      "TestActiveWorkSummaryMatchesPreHistoryGroupsOracle",
+      "TestActiveWorkSummaryMatchesStandaloneReads",
+      "TestActiveWorkSummaryOracleCatchesSeededHistoryMutations",
+      "TestStatusActiveWorkQueriesPreserveSemantics"
+    ]
+  },
+  "go/internal/storage/postgres/status_blockage_leases_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestActiveWorkSummaryBlockageHashesLeasesOnce",
+      "TestReducerConflictBlockageLeaseMixMatchesPreChangeJoin"
+    ]
+  },
+  "go/internal/storage/postgres/supply_chain_impact_capped_scope_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestSupplyChainImpactCappedScopeConvergesLive"
+    ]
+  },
+  "go/internal/storage/postgres/supply_chain_impact_fencing_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestSupplyChainImpactEmptyFresherPassStillFencesOlderPassLive",
+      "TestSupplyChainImpactFencingTokenIssuerIssuesStrictlyIncreasingValuesLive",
+      "TestSupplyChainImpactRetractsLegacyZeroRowsAndStampsTokenLive",
+      "TestSupplyChainImpactSeedAdvancesAnUncalledSequenceEqualToTheWatermarkLive",
+      "TestSupplyChainImpactStalePassResumingAfterReclaimCannotRetractFresherSetLive",
+      "TestSupplyChainImpactUpsertGuardRefusesAStaleReviveLive"
+    ]
+  },
+  "go/internal/storage/postgres/supply_chain_impact_replace_set_concurrency_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestSupplyChainImpactWriterConcurrentPassesConvergeLive",
+      "TestSupplyChainImpactWriterSerializesOverlappingPassesLive"
+    ]
+  },
+  "go/internal/storage/postgres/supply_chain_impact_replace_set_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestSupplyChainImpactWriterPartialEvidenceSkipsRetractionLive",
+      "TestSupplyChainImpactWriterRetractionHonorsBoundaryLive",
+      "TestSupplyChainImpactWriterRetractionIsIdempotentLive",
+      "TestSupplyChainImpactWriterRetractsSupersededFindingsLive"
+    ]
+  },
+  "go/internal/storage/postgres/vulnerability_suppression_advisory_e2e_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestAdvisoryOnlySuppressionHTTPStoreReducerQueryLive",
+      "TestAdvisorySuppressionIsolatedSchemaDerivesFromBootstrapLive"
+    ]
+  }
+}

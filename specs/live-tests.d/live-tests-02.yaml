@@ -410,8 +410,9 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/query/service_story_target_support_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 1.94s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/query/service_story_target_support_writer_matrix_live_test.go
     tag: ~
     class: scheduled

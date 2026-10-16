@@ -34,7 +34,9 @@ var verifyScriptRE = regexp.MustCompile(`scripts/verify-[\w.-]+\.sh`)
 // there is exactly one place it can go stale. Update this constant (and
 // re-run that test) whenever a registry or workflow change moves the count;
 // do not hand-edit it without doing so.
-const scriptWorkflowSoundSubsetCount = 55
+// The contention workflow also invokes verify-live-tests-ledger.sh, which
+// already runs in the live-backend workflow, so that gate leaves this subset.
+const scriptWorkflowSoundSubsetCount = 54
 
 // runStep is the minimal shape needed to read a step's executable command.
 type runStep struct {
