@@ -43,6 +43,7 @@ gate_fragments:
   - ci-gates.d/gates-12.yaml
   - ci-gates.d/gates-13.yaml
   - ci-gates.d/gates-14.yaml
+  - ci-gates.d/gates-16.yaml
   - ci-gates.d/gates-15.yaml
 
 hygiene_hooks:
