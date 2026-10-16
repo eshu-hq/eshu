@@ -17,64 +17,77 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/cross_scope_completion_ack_atomic_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/cross_scope_completion_ack_horizon_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL fanout proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/cross_scope_completion_concurrency_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/cross_scope_completion_index_lifecycle_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/cross_scope_completion_performance_live_test.go
     tag: perf5854_ack && perf5740_completion
     class: scheduled
     reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
   - file: go/internal/storage/postgres/cross_scope_completion_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/cross_scope_completion_scale_postgres_live_test.go
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/cross_scope_completion_snapshot_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/cross_scope_completion_upgrade_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/cross_scope_completion_workflow_image_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/crossplane/satisfied_by_redrive_behavior_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; Crossplane 9 named tests in 5 files, 45.186s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/crossplane/satisfied_by_redrive_catchup_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; Crossplane 9 named tests in 5 files, 45.186s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/crossplane/ledger_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; Crossplane 9 named tests in 5 files, 45.186s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/crossplane/satisfied_by_redrive_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; Crossplane 9 named tests in 5 files, 45.186s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/crossplane/query_plan_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; Crossplane 9 named tests in 5 files, 45.186s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/documentation_facts_write_index_live_test.go
     tag: ~
     class: scheduled
@@ -93,24 +106,29 @@ tests:
     reason: "env-gated (ESHU_POSTGRES_TEST_DSN, or ESHU_POSTGRES_DSN as a fallback) forced-interleave proof for #7458, run on demand when the search-document fence changes; seeds and drops its own schema, streams 600 files through the real loader, needs a live Postgres so it stays scheduled until a hermetic lane hosts it"
   - file: go/internal/storage/postgres/eshu_search_index_bm25_partition_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL search proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/eshu_search_index_bm25_plan_stability_live_test.go
     tag: ~
-    class: scheduled
-    reason: "env-gated (ESHU_SEARCH_INDEX_PARTITION_LIVE=1 and ESHU_POSTGRES_DSN) cross-plan byte-identity proof for #7737, measured ~2 s on a scratch PG 16; seeds and drops its own isolated schema, needs a live Postgres so it stays scheduled until a hermetic lane hosts it"
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL search proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/eshu_search_index_bm25_posting_plan_live_test.go
     tag: ~
-    class: scheduled
-    reason: "env-gated (ESHU_SEARCH_INDEX_PARTITION_LIVE=1 and ESHU_POSTGRES_DSN) covering-index plan proof for #7727, measured ~4 s on a scratch PG 18; seeds and drops its own isolated schema, needs a live Postgres so it stays scheduled until a hermetic lane hosts it"
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL search proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/eshu_search_index_partition_contention_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL search proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/eshu_search_index_partition_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL search proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/eshu_search_index_term_copy_bench_live_test.go
     tag: ~
     class: scheduled
@@ -320,8 +338,9 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/generation_projected_commit_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL liveness proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/generation_reconcile_state_live_test.go
     tag: ~
     class: scheduled
@@ -471,28 +490,3 @@ tests:
     class: postgres_ci
     reason: "#7805 disposable PostgreSQL 18 proof, on the migrated schema in a private schema, that deleting superseded-generation identity facts leaves the epoch unchanged while an active-generation insert or delete moves it, and that the identity page serves only non-tombstone identity facts of a scope's active generation; timing evidence: the same page query loads the 546k-row active set in 4.7s (docs/internal/evidence/7805-identity-epoch-flight.md)"
     runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/identity_page_plan_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7805 disposable PostgreSQL 18 plan guard: EXPLAIN (FORMAT JSON) of the identity page query on the migrated schema must ride the ordered identity index with a hashed SubPlan active-generation filter, the keyset comparison as an Index Cond on a mid-load page, no Sort and no Seq Scan on fact_records; timing evidence: the guarded plan loads the 546k-row active set in 4.7s versus 589s to 724s for the JOIN plan (docs/internal/evidence/7805-identity-epoch-flight.md)"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/identity_epoch_cache_live_test.go
-    tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/storage/postgres/identity_epoch_index_replay_live_test.go
-    tag: integration
-    class: scheduled
-    reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
-  - file: go/internal/storage/postgres/identity_local_failed_attempt_live_test.go
-    tag: ~
-    class: scheduled
-    reason: "untagged Postgres-only failed-attempt upsert proof for #7498 gated by ESHU_POSTGRES_DSN Skip; ~4.5s locally including full bootstrap migration; promote to blocking with timing evidence"
-  - file: go/internal/storage/postgres/identity_local_rotate_single_connection_live_test.go
-    tag: ~
-    class: scheduled
-    reason: "untagged Postgres-only single-connection rotation proof for #7499 gated by ESHU_POSTGRES_DSN Skip; ~4.3s locally including full bootstrap migration; promote to blocking with timing evidence"
-  - file: go/internal/storage/postgres/identity_mapping_pagination_live_test.go
-    tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence

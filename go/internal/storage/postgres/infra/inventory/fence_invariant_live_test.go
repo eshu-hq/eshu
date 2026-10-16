@@ -18,6 +18,57 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 )
 
+// fenceRaceWorkers joins all admitted operations before final verification.
+type fenceRaceWorkers struct {
+	wg      sync.WaitGroup
+	mu      sync.Mutex
+	failure error
+}
+
+func (workers *fenceRaceWorkers) fail(err error) {
+	workers.mu.Lock()
+	defer workers.mu.Unlock()
+	if workers.failure == nil {
+		workers.failure = err
+	}
+}
+
+// start admits another operation only while admission is open. An admitted
+// operation keeps the independently bounded database context through exit.
+func (workers *fenceRaceWorkers) start(
+	admissionCtx, operationCtx context.Context, operation func(context.Context) error,
+) {
+	workers.wg.Add(1)
+	go func() {
+		defer workers.wg.Done()
+		for admissionCtx.Err() == nil {
+			if err := operation(operationCtx); err != nil {
+				workers.fail(err)
+				return
+			}
+		}
+	}()
+}
+
+func (workers *fenceRaceWorkers) finish() error {
+	workers.wg.Wait()
+	workers.mu.Lock()
+	defer workers.mu.Unlock()
+	return workers.failure
+}
+
+func fenceBatchError(batch inventory.ReconcileBatch, requireReady bool) error {
+	if requireReady && !batch.Ready {
+		return fmt.Errorf("final reconcile cycle was not ready")
+	}
+	for _, result := range batch.Repos {
+		if result.Outcome == inventory.ReconcileError || result.Err != nil {
+			return fmt.Errorf("reconcile repository %s: %v", result.RepoID, result.Err)
+		}
+	}
+	return nil
+}
+
 // TestWriterFenceLiveInvariantUnderConcurrentWritesAndRepairs is the fence's
 // concurrency proof. For several seconds an unfenced writer upserts and
 // deletes infra rows of one repository, a reconcile loop drains fence marks,
@@ -36,78 +87,67 @@ func TestWriterFenceLiveInvariantUnderConcurrentWritesAndRepairs(t *testing.T) {
 	runCtx, stop := context.WithTimeout(ctx, 6*time.Second)
 	defer stop()
 	var (
-		wg         sync.WaitGroup
+		workers    fenceRaceWorkers
 		writes     atomic.Int64
 		repairs    atomic.Int64
 		checks     atomic.Int64
 		unmarked   atomic.Int64
 		violations atomic.Int64
-		failure    atomic.Value
 	)
-	fail := func(err error) {
-		if runCtx.Err() == nil {
-			failure.CompareAndSwap(nil, err)
-		}
-	}
-	wg.Add(3)
-	go func() { // unfenced writer
-		defer wg.Done()
-		for runCtx.Err() == nil {
-			k := rand.IntN(20)
-			var err error
-			if rand.IntN(3) == 0 {
-				_, err = legacyDB.ExecContext(runCtx, `DELETE FROM content_entities WHERE entity_id = $1`,
-					fmt.Sprintf("%s/k%d", repo, k))
-			} else {
-				_, err = legacyDB.ExecContext(runCtx, `
+	workers.start(runCtx, ctx, func(operationCtx context.Context) error { // unfenced writer
+		k := rand.IntN(20)
+		var err error
+		if rand.IntN(3) == 0 {
+			_, err = legacyDB.ExecContext(operationCtx, `DELETE FROM content_entities WHERE entity_id = $1`,
+				fmt.Sprintf("%s/k%d", repo, k))
+		} else {
+			_, err = legacyDB.ExecContext(operationCtx, `
 INSERT INTO content_entities (entity_id, repo_id, relative_path, entity_type, entity_name,
     start_line, end_line, source_cache, metadata, indexed_at)
 VALUES ($1, $2, $3, 'TerraformResource', $4, 1, 2, '', '{}'::jsonb, now())
 ON CONFLICT (entity_id) DO UPDATE SET entity_name = EXCLUDED.entity_name`,
-					fmt.Sprintf("%s/k%d", repo, k), repo, fmt.Sprintf("k%d.tf", k), fmt.Sprintf("n%d", rand.IntN(1000)))
-			}
-			if err != nil {
-				fail(fmt.Errorf("unfenced write: %w", err))
-				return
-			}
-			writes.Add(1)
+				fmt.Sprintf("%s/k%d", repo, k), repo, fmt.Sprintf("k%d.tf", k), fmt.Sprintf("n%d", rand.IntN(1000)))
 		}
-	}()
-	go func() { // reconcile loop
-		defer wg.Done()
-		for runCtx.Err() == nil {
-			batch, err := inventory.ReconcileCycle(runCtx, database, inventory.ReconcileRequest{Budget: 10})
-			if err != nil {
-				fail(fmt.Errorf("reconcile: %w", err))
-				return
-			}
-			for _, r := range batch.Repos {
-				if r.Outcome == inventory.ReconcileFenced {
-					repairs.Add(1)
-				}
+		if err != nil {
+			return fmt.Errorf("unfenced write: %w", err)
+		}
+		writes.Add(1)
+		return nil
+	})
+	workers.start(runCtx, ctx, func(operationCtx context.Context) error { // reconcile loop
+		batch, err := inventory.ReconcileCycle(operationCtx, database, inventory.ReconcileRequest{Budget: 10})
+		if err != nil {
+			return fmt.Errorf("reconcile: %w", err)
+		}
+		if err := fenceBatchError(batch, false); err != nil {
+			return err
+		}
+		for _, result := range batch.Repos {
+			if result.Outcome == inventory.ReconcileFenced {
+				repairs.Add(1)
 			}
 		}
-	}()
-	go func() { // snapshot reader
-		defer wg.Done()
-		for runCtx.Err() == nil {
-			dirty, equal, err := snapshotInvariant(runCtx, awareDB, repo)
-			if err != nil {
-				fail(fmt.Errorf("snapshot read: %w", err))
-				return
-			}
-			checks.Add(1)
-			if !dirty {
-				unmarked.Add(1)
-				if !equal {
-					violations.Add(1)
-				}
+		return nil
+	})
+	workers.start(runCtx, ctx, func(operationCtx context.Context) error { // snapshot reader
+		dirty, equal, err := snapshotInvariant(operationCtx, awareDB, repo)
+		if err != nil {
+			return fmt.Errorf("snapshot read: %w", err)
+		}
+		checks.Add(1)
+		if !dirty {
+			unmarked.Add(1)
+			if !equal {
+				violations.Add(1)
 			}
 		}
-	}()
-	wg.Wait()
-	if err, _ := failure.Load().(error); err != nil {
+		return nil
+	})
+	if err := workers.finish(); err != nil {
 		t.Fatalf("race proof worker failed: %v", err)
+	}
+	if err := ctx.Err(); err != nil {
+		t.Fatalf("race proof operation budget expired: %v", err)
 	}
 	t.Logf("unfenced writes=%d fenced repairs=%d snapshot checks=%d (unmarked=%d)",
 		writes.Load(), repairs.Load(), checks.Load(), unmarked.Load())
@@ -118,8 +158,12 @@ ON CONFLICT (entity_id) DO UPDATE SET entity_name = EXCLUDED.entity_name`,
 		t.Fatalf("%d snapshots saw no mark with a stale table", violations.Load())
 	}
 
-	if _, err := inventory.ReconcileCycle(ctx, database, inventory.ReconcileRequest{Budget: 10}); err != nil {
+	finalBatch, err := inventory.ReconcileCycle(ctx, database, inventory.ReconcileRequest{Budget: 10})
+	if err != nil {
 		t.Fatalf("final ReconcileCycle() error = %v", err)
+	}
+	if err := fenceBatchError(finalBatch, true); err != nil {
+		t.Fatalf("final ReconcileCycle() incomplete: %v", err)
 	}
 	dirty, equal, err := snapshotInvariant(ctx, awareDB, repo)
 	if err != nil {

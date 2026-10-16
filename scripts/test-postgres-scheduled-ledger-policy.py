@@ -1,0 +1,104 @@
+"""Exercise the verified scheduled PostgreSQL ledger policy with planted errors."""
+
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import tempfile
+import unittest
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import postgres_scheduled_runner as scheduled_runner  # noqa: E402
+
+
+ROOT = Path(__file__).resolve().parent.parent
+TARGET = "go/internal/storage/postgres/crossplane/ledger_live_test.go"
+
+
+def flattened_ledger() -> str:
+    """Return the exact committed ledger rows with metadata."""
+    return subprocess.check_output(
+        ["python3", str(ROOT / "scripts/lib/live_tests_registry.py"), "flatten",
+         str(ROOT / "specs/live-tests.v1.yaml")], text=True
+    )
+
+
+class LedgerPolicyTest(unittest.TestCase):
+    """A verified scheduled row needs exact enrollment and PostgreSQL only."""
+
+    def test_committed_policy_and_seeded_wrong_runner_backend(self) -> None:
+        text = flattened_ledger()
+        marker = f"  - file: {TARGET}\n"
+        self.assertEqual(text.count(marker), 1)
+        start = text.index(marker)
+        end = text.find("  - file: ", start + len(marker))
+        if end < 0:
+            end = len(text)
+        row = text[start:end]
+        self.assertIn("    class: verified_scheduled\n", row)
+        self.assertIn("    runner: postgres-scheduled\n", row)
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = Path(directory) / "ledger.yaml"
+            env = {**os.environ, "REPO_ROOT": str(ROOT), "LEDGER_PATH": str(ledger)}
+            script = ROOT / "scripts/verify-live-tests-ledger.sh"
+            ledger.write_text(text)
+            result = subprocess.run([str(script)], env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for changed, error in (
+                (
+                    row.replace("runner: postgres-scheduled", "runner: missing-runner"),
+                    "verified scheduled",
+                ),
+                (
+                    row.replace(
+                        "runner: postgres-scheduled\n",
+                        "runner: postgres-scheduled\n    backends: neo4j\n",
+                    ),
+                    "PostgreSQL-only",
+                ),
+            ):
+                ledger.write_text(text[:start] + changed + text[end:])
+                result = subprocess.run([str(script)], env=env, capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(error, result.stderr)
+
+            demoted = text
+            inventory = scheduled_runner.load_inventory()
+            for enrolled in inventory:
+                marker = f"  - file: {enrolled}\n"
+                beginning = demoted.index(marker)
+                following = demoted.find("  - file: ", beginning + len(marker))
+                if following < 0:
+                    following = len(demoted)
+                enrolled_row = demoted[beginning:following]
+                self.assertIn("    runner: postgres-scheduled\n", enrolled_row)
+                enrolled_row = enrolled_row.replace(
+                    "    class: verified_scheduled\n", "    class: scheduled\n"
+                ).replace("    runner: postgres-scheduled\n", "")
+                demoted = demoted[:beginning] + enrolled_row + demoted[following:]
+            paths = re.findall(
+                r"^  - file: (\S+)\n    tag: .*\n    class: scheduled$",
+                demoted,
+                re.MULTILINE,
+            )
+            digest = hashlib.sha256(
+                "".join(f"{path}\n" for path in sorted(paths)).encode()
+            ).hexdigest()
+            demoted = re.sub(
+                r"(?m)^  count: [0-9]+\n  sha256: [0-9a-f]{64}$",
+                f"  count: {len(paths)}\n  sha256: {digest}",
+                demoted,
+            )
+            ledger.write_text(demoted)
+            result = subprocess.run(
+                [str(script)], env=env, capture_output=True, text=True
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("verified scheduled rows differ", result.stderr)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -162,3 +162,34 @@ telemetry-coverage rows point at changed.
 - [Reducer package](../README.md)
 - [Package restructure design](../../../../docs/internal/design/package-restructure.md)
 - [Telemetry coverage](../../../../docs/public/observability/telemetry-coverage.md)
+
+## Disposable identity-writer proofs
+
+The unmapped-config live proof uses an external test wrapper to provide the
+real PostgreSQL activation lookup. Its internal test-only helper keeps the
+original handler, warning, legacy-row and tombstone assertions. The fixture
+sets its active-generation pointer through the canonical trigger, which assigns
+the epoch; it does not invent an epoch or copy the lookup query.
+
+The package test binary can bootstrap an explicitly owned, empty database with
+`-args -containerimage-bootstrap=1 -containerimage-database=NAME`. `NAME` must
+start with `eshu_containerimage_` and match `ESHU_POSTGRES_DSN`. The connected
+schema must be `public`, and the database must contain no user tables. The
+bootstrap calls `postgres.ApplyBootstrap` with a two-minute context before any
+test runs. Missing opt-in, identity mismatch, connection failure and a nonempty
+database fail before execution. Ordinary test runs perform no automatic schema
+bootstrap; their existing no-DSN skip behavior remains intact.
+
+No-Regression Evidence: #7533 changes test fixtures only. The first real
+15-test race run passed 14 cases and failed the unmapped-config fixture on its
+missing activation lookup. After supplying the real lookup and canonical
+activation, all 15 selected tests passed with no skips on a fresh PostgreSQL
+18.6 database bootstrapped by this test binary. Package tests and the bootstrap
+configuration/failure contracts passed. These are execution observations, not a
+performance comparison. Production writers, SQL, pool sizes and concurrency
+are unchanged.
+
+No-Observability-Change: these test-only helpers add no runtime stage or
+instrument. The handler's existing decision and retirement counters and reducer
+execution signals remain unchanged. Bootstrap failures are printed before the
+test binary exits nonzero.

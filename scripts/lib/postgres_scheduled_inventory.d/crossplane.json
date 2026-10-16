@@ -1,0 +1,41 @@
+{
+  "go/internal/storage/postgres/crossplane/ledger_live_test.go": {
+    "group": "crossplane",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane",
+    "tests": [
+      "TestCrossplaneRedriveDeadLetteredTargetIsNotPermanentlySuppressedLive",
+      "TestCrossplaneRedriveSuccessfulMaterializationWritesLedgerThenSkipsLive",
+      "TestCrossplaneRedriveUnconfirmedEdgeNotLedgeredAndReenqueuedLive"
+    ]
+  },
+  "go/internal/storage/postgres/crossplane/query_plan_live_test.go": {
+    "group": "crossplane",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane",
+    "tests": [
+      "TestCrossplaneRedriveTargetDiscoveryQueryPlanLive"
+    ]
+  },
+  "go/internal/storage/postgres/crossplane/satisfied_by_redrive_behavior_live_test.go": {
+    "group": "crossplane",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane",
+    "tests": [
+      "TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive"
+    ]
+  },
+  "go/internal/storage/postgres/crossplane/satisfied_by_redrive_catchup_live_test.go": {
+    "group": "crossplane",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane",
+    "tests": [
+      "TestCrossplaneRedriveSweepMidFanOutFailureRecoveredByCatchUpLive",
+      "TestCrossplaneRedriveSweepXRDLookupFailureRecoveredByCatchUpLive"
+    ]
+  },
+  "go/internal/storage/postgres/crossplane/satisfied_by_redrive_live_test.go": {
+    "group": "crossplane",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane",
+    "tests": [
+      "TestCrossplaneRedriveStateConcurrentClaimConvergesLive",
+      "TestCrossplaneRedriveStateCrashRecoveryLive"
+    ]
+  }
+}

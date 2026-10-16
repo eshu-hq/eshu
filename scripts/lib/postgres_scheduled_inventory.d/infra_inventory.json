@@ -1,0 +1,148 @@
+{
+  "go/internal/storage/postgres/infra/inventory/backfill_live_test.go": {
+    "group": "infra_inventory",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
+    "tests": [
+      "TestBackfillLiveCoversEveryRepositoryThenMarksComplete",
+      "TestBackfillLiveFailureLeavesNoMarker"
+    ]
+  },
+  "go/internal/storage/postgres/infra/inventory/background_live_test.go": {
+    "group": "infra_inventory",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
+    "tests": [
+      "TestRunBackgroundLiveRetriesUntilTheMarkerIsRecorded"
+    ]
+  },
+  "go/internal/storage/postgres/infra/inventory/derive_bench_live_test.go": {
+    "group": "infra_inventory",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
+    "tests": [
+      "TestMirrorPathsLiveLargeRepositoryCost"
+    ]
+  },
+  "go/internal/storage/postgres/infra/inventory/derive_live_test.go": {
+    "group": "infra_inventory",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
+    "tests": [
+      "TestMirrorLiveTombstoneWithStalePathDeletesByEntityID",
+      "TestMirrorPathsLiveDeltaTouchesOnlyItsPathsAndTombstonesConverge",
+      "TestMirrorPathsLiveDerivesOnlyEntityDerivedLabelsWithCanonicalValues",
+      "TestMirrorRepoLiveRederivesWholeRepoAndDropsStaleRows"
+    ]
+  },
+  "go/internal/storage/postgres/infra/inventory/fence_backfill_live_test.go": {
+    "group": "infra_inventory",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
+    "tests": [
+      "TestBackfillLiveClearsEveryFenceMarkOnAFreshInstall"
+    ]
+  },
+  "go/internal/storage/postgres/infra/inventory/fence_invariant_live_test.go": {
+    "group": "infra_inventory",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
+    "tests": [
+      "TestWriterFenceLiveInvariantUnderConcurrentWritesAndRepairs"
+    ]
+  },
+  "go/internal/storage/postgres/infra/inventory/fence_live_test.go": {
+    "group": "infra_inventory",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
+    "tests": [
+      "TestWriterFenceLiveMarksOnlyUnawareInfraWrites"
+    ]
+  },
+  "go/internal/storage/postgres/infra/inventory/fence_race_live_test.go": {
+    "group": "infra_inventory",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
+    "tests": [
+      "TestWriterFenceLiveRepairWaitsForAnOpenUnawareWrite"
+    ]
+  },
+  "go/internal/storage/postgres/infra/inventory/fence_repair_live_test.go": {
+    "group": "infra_inventory",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
+    "tests": [
+      "TestWriterFenceLiveOnlyWholeRepoDerivesDischargeMarks",
+      "TestWriterFenceLiveTwoReplicasRepairAMarkOnce"
+    ]
+  },
+  "go/internal/storage/postgres/infra/inventory/fence_session_live_test.go": {
+    "group": "infra_inventory",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
+    "tests": [
+      "TestVerifyWriterSessionLiveFlagsAnUnfencedConnection"
+    ]
+  },
+  "go/internal/storage/postgres/infra/inventory/fence_shapes_live_test.go": {
+    "group": "infra_inventory",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
+    "tests": [
+      "TestWriterFenceLiveStatementShapes"
+    ]
+  },
+  "go/internal/storage/postgres/infra/inventory/fence_state_live_test.go": {
+    "group": "infra_inventory",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
+    "tests": [
+      "TestReadFenceStateLiveReportsMarksAndReadiness"
+    ]
+  },
+  "go/internal/storage/postgres/infra/inventory/reader_live_test.go": {
+    "group": "infra_inventory",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
+    "tests": [
+      "TestReaderLiveCountBucketsGroupsLabelProviderEnvironment",
+      "TestReaderLiveDimensionBucketsAndFiltersMirrorGraphClauses"
+    ]
+  },
+  "go/internal/storage/postgres/infra/inventory/reconcile_claim_live_test.go": {
+    "group": "infra_inventory",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
+    "tests": [
+      "TestReconcileCycleLiveReplicasClaimDisjointPages",
+      "TestReconcileCycleLiveWrapsOnlyWhenTheWalkReachesTheEnd"
+    ]
+  },
+  "go/internal/storage/postgres/infra/inventory/reconcile_cursor_live_test.go": {
+    "group": "infra_inventory",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
+    "tests": [
+      "TestReconcileCycleLivePersistsAndResumesTheWalkCursor"
+    ]
+  },
+  "go/internal/storage/postgres/infra/inventory/reconcile_live_test.go": {
+    "group": "infra_inventory",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
+    "tests": [
+      "TestReconcileCycleLiveBudgetBoundsEachCycle",
+      "TestReconcileCycleLiveDoesNotCountAnInFlightWriteAsRepaired",
+      "TestReconcileCycleLiveReportsReadyOnceTheMarkerExists",
+      "TestReconcileRepoLiveConcurrentDeriveDoesNotDeadlock",
+      "TestReconcileRepoLiveLeavesMatchingRepoUntouched",
+      "TestReconcileRepoLiveRepairsInjectedDrift"
+    ]
+  },
+  "go/internal/storage/postgres/infra/inventory/reconcile_plan_live_test.go": {
+    "group": "infra_inventory",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
+    "tests": [
+      "TestReconcileRepositoriesLivePageStopsAtBudget"
+    ]
+  },
+  "go/internal/storage/postgres/infra/inventory/retention_live_test.go": {
+    "group": "infra_inventory",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
+    "tests": [
+      "TestRetentionLiveDeletesOnlyOrphansOfAffectedRepositories",
+      "TestRetentionLiveLocksBlockConcurrentDeriveOfSameRepository"
+    ]
+  },
+  "go/internal/storage/postgres/infra/inventory/retention_lock_probe_live_test.go": {
+    "group": "infra_inventory",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
+    "tests": [
+      "TestRetentionLiveLockHoldAndDeriveWaitCost"
+    ]
+  }
+}
