@@ -22,7 +22,7 @@ schema, Cypher, worker count, batch size, or retry-policy default changed.
 The #7816 runtime fence is untouched.
 
 No-Regression Evidence (#8211 step a): baseline is the unpatched tree at
-`origin/main` (commit `900cba4`): the two stuck-handler regression tests
+`origin/main` (commit `900cba4`, the pre-rebase base): the two stuck-handler regression tests
 (`TestServiceRunAbandonsStuckHandlerAtShutdown` per-item,
 `TestServiceRunBatchAbandonsStuckHandlerAtShutdown` batch) fail there —
 `Run`/`runMainLoop` never return within the 10 s bound and `Fail` is never
