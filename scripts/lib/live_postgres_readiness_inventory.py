@@ -519,6 +519,9 @@ PACKAGES = {
         ),
     },
     REACHABILITY_PACKAGE: {
+        "go/internal/storage/postgres/code/reachability/loader_completed_index_live_test.go": (
+            "TestCodeReachabilityLoaderUsesCompletedIntentsIndex",
+        ),
         "go/internal/storage/postgres/code/reachability/loader_edges_scope_live_test.go": (
             "TestLoadCodeReachabilityEdgesReadsConsumerScopeOnly",
         ),
