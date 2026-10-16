@@ -12,7 +12,7 @@ code runs only the unwrap. Both are O(1) with no allocation, I/O,
 lock, or retry change, and the status resolution runs once per
 failure construction, never per row, scope, or generation, so there
 is no corpus scaling term. Baseline: `go test
-./internal/collector/sdk/ -count=1` wall 0.130s at HEAD `778d077e5`
+./internal/collector/sdk/ -count=1` wall 0.206s at HEAD `e5337e4c7`
 (GOTOOLCHAIN=go1.26.9, darwin/arm64 dev harness, not a production
 backend). After measurement equals the baseline shape: the same suite
 with the dead branch removed, all tests passing unmodified. Input
