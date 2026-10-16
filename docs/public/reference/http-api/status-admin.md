@@ -614,8 +614,8 @@ console or API defect.
 - `POST /api/v0/admin/decisions/query`
 - `POST /api/v0/admin/replay-events/query`
 - `GET /api/v0/admin/delta-union/completeness` returns the read-only delta-union completeness
-  report: per repository, the graph's file set against the ACTIVE set (repeat `scope` to filter;
-  empty covers every active generation). Past the cap it fails loudly; a mismatch names the diff
+  report: per repository, the graph's file set against the ACTIVE set (repeat `scope` to name
+  at least one scope; an empty filter is rejected with 400). Past the cap it fails loudly; a mismatch names the diff
   for a forced full re-parse. The check never repairs; `503` when unconfigured. See [Delta-base union](../../operate/graph-delta-union.md).
 
 The recovery handler owns replay, dead-letter, skip, backfill, and decisions;
