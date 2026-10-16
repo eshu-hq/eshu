@@ -60,6 +60,11 @@ func (r *Runner) sweepOrphansIfDue(ctx context.Context, deadline time.Duration) 
 	r.lastOrphanSweep = now
 	result, err := r.OrphanSweeper.SweepSearchIndexOrphans(ctx, deadline)
 	if err != nil {
+		// A census that succeeded before a batch failed still sets the
+		// gauge, so it never keeps a stale value (such as 0) while orphans
+		// exist, and rows the committed batches swept stay counted. A failed
+		// census reports no table and leaves the gauge as it was.
+		r.recordOrphanSweepMetrics(ctx, result)
 		r.recordOrphanSweepFailure(ctx, err)
 		return
 	}
@@ -74,6 +79,28 @@ func (r *Runner) now() time.Time {
 }
 
 func (r *Runner) recordOrphanSweep(ctx context.Context, result OrphanSweepResult) {
+	r.recordOrphanSweepMetrics(ctx, result)
+	if r.Logger == nil {
+		return
+	}
+	r.Logger.InfoContext(
+		ctx,
+		"generation retention search index orphan sweep completed",
+		slog.Any("pairs_scanned", result.PairsScanned),
+		slog.Any("orphan_generations", result.OrphanGenerations),
+		slog.Any("rows_swept", result.RowsSwept),
+		slog.Int("batches", result.Batches),
+		slog.Int("unswept_generations", result.Unswept),
+		slog.Float64("census_seconds", result.CensusDuration.Seconds()),
+		slog.Float64("sweep_seconds", result.SweepDuration.Seconds()),
+		telemetry.PhaseAttr(telemetry.PhaseReduction),
+	)
+}
+
+// recordOrphanSweepMetrics records the census gauge for each table the result
+// reports, the swept rows and the phase times. A failed census reports no
+// table, so the gauge keeps its last census value.
+func (r *Runner) recordOrphanSweepMetrics(ctx context.Context, result OrphanSweepResult) {
 	if r.Instruments != nil {
 		for table, orphans := range result.OrphanGenerations {
 			r.Instruments.SearchIndexOrphanGenerations.Record(ctx, orphans, metric.WithAttributes(
@@ -96,21 +123,6 @@ func (r *Runner) recordOrphanSweep(ctx context.Context, result OrphanSweepResult
 			))
 		}
 	}
-	if r.Logger == nil {
-		return
-	}
-	r.Logger.InfoContext(
-		ctx,
-		"generation retention search index orphan sweep completed",
-		slog.Any("pairs_scanned", result.PairsScanned),
-		slog.Any("orphan_generations", result.OrphanGenerations),
-		slog.Any("rows_swept", result.RowsSwept),
-		slog.Int("batches", result.Batches),
-		slog.Int("unswept_generations", result.Unswept),
-		slog.Float64("census_seconds", result.CensusDuration.Seconds()),
-		slog.Float64("sweep_seconds", result.SweepDuration.Seconds()),
-		telemetry.PhaseAttr(telemetry.PhaseReduction),
-	)
 }
 
 func (r *Runner) recordOrphanSweepFailure(ctx context.Context, err error) {

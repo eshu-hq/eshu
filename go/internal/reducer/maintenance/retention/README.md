@@ -65,7 +65,7 @@ Never `internal/reducer`.
 ## Gotchas / invariants
 
 - The orphan sweep runs after the prune transaction ends, at most once per
-  poll interval (a draining backlog runs passes back to back and the census
+  poll interval per reducer replica (a draining backlog runs passes back to back and the census
   walks every search index pair), and also when the prune failed. A sweep
   failure does not fail the pass.
 

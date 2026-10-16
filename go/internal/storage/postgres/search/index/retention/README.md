@@ -91,8 +91,8 @@ sequenceDiagram
   all 64 leaves and the documents table at 31,021 pairs
   (`docs/internal/evidence/7427-search-index-orphan-guard.md`).
 - Dead index entries a pre-delete left (before VACUUM) are walked once per
-  census: 2,800,330 heap fetches on the first walk, 32,140 buffers after
-  their kill bits are set.
+  census: 2,800,330 heap fetches on the first walk, then 33,141 buffers for
+  the shipped census statement on that leaf once their kill bits are set.
 - A sweep batch deletes only while the pair is absent from
   `scope_generations` and the scope's active pointer does not name it,
   re-checked in the batch's snapshot. A generation that exists, in any

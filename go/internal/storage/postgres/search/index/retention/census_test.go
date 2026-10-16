@@ -5,9 +5,11 @@ package indexretention
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestTakeCensusSumsLeavesAndDeduplicatesOrphans walks two terms leaves and
@@ -65,5 +67,35 @@ func TestTakeCensusFallsBackToAnUnpartitionedTermsTable(t *testing.T) {
 	}
 	if census.OrphanGenerations[TermsTable] != 0 || census.OrphanGenerations[DocumentsTable] != 0 || len(census.Orphans) != 0 {
 		t.Fatalf("census = %+v, want a clean census", census)
+	}
+}
+
+// TestSweepOrphansReturnsTheCensusWhenABatchFails is review finding F1: a
+// census that succeeded is returned with the batch error, so the runner can
+// set the gauge from it; a census that failed returns no table counts.
+func TestSweepOrphansReturnsTheCensusWhenABatchFails(t *testing.T) {
+	database := &scriptedDB{answer: func(query string, _ []any) ([][]any, error) {
+		switch {
+		case query == termsLeavesQuery:
+			return nil, nil
+		case strings.Contains(query, "orphan census"):
+			return [][]any{{int64(4), int64(1), "scope-a", "gen-a"}}, nil
+		case isTryLock(query):
+			return [][]any{{true}}, nil
+		}
+		return nil, errors.New("connection reset")
+	}}
+	sweep, err := SweepOrphans(context.Background(), database, time.Time{}, nil)
+	if err == nil {
+		t.Fatal("SweepOrphans() error = nil, want the batch error")
+	}
+	if sweep.Census.OrphanGenerations[TermsTable] != 1 || sweep.Census.OrphanGenerations[DocumentsTable] != 1 {
+		t.Fatalf("census = %v, want 1 orphan per table returned with the error", sweep.Census.OrphanGenerations)
+	}
+
+	failing := &scriptedDB{answer: func(string, []any) ([][]any, error) { return nil, errors.New("census down") }}
+	sweep, err = SweepOrphans(context.Background(), failing, time.Time{}, nil)
+	if err == nil || sweep.Census.OrphanGenerations != nil {
+		t.Fatalf("failed census = (%v, %v), want an error and no table counts", sweep.Census.OrphanGenerations, err)
 	}
 }

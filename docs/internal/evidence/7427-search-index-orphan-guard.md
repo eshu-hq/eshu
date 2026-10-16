@@ -108,11 +108,13 @@ with the shipped statement text (PREPARE, `EXPLAIN (ANALYZE, BUFFERS)`):
 | 2, warm | same | 62,042 | 80 | hit 455,971 | 877.1 ms |
 | 3, after VACUUM | same | 62,042 | 80 | hit 365,199 | 825.8 ms |
 
-On the big leaf alone (331 pairs): 1,787 buffers before the deletes; 33,141
-buffers and 44 ms with 2,800,000 dead index entries whose kill bits were
-set; 2,443 buffers and 6.1 ms after VACUUM. The first walk over the
-unkilled dead entries cost 2,800,330 heap fetches, 2,833,138 buffers and
-7,060 ms, once; in production the pre-delete's from-start re-sweep walks
+On the big leaf alone (331 pairs), the shipped census statement read 33,141
+buffers in 44 ms with 2,800,000 dead index entries whose kill bits were set,
+and 2,443 buffers in 6.1 ms after VACUUM. The scratch loose-scan query (the
+same recursive walk and anti-join, without the orphan listing) read 1,787
+buffers in its walk before the deletes, and its first walk over the unkilled
+dead entries cost 2,800,330 heap fetches, 2,833,138 buffers and 7,060 ms,
+once (its walk read 32,145 buffers on the next run); in production the pre-delete's from-start re-sweep walks
 those entries first. The census cost follows pairs (about 6 to 8 buffers
 per pair, half of it the anti-join probe) plus dead index entries until
 VACUUM, not leaf rows. It runs at most once per retention poll interval
@@ -188,9 +190,19 @@ unswept_generations, census and sweep seconds), per generation
 `generation retention search index orphan generation swept`, and ERROR
 `generation retention search index orphan sweep failed`
 (`failure_class=generation_retention_search_index_orphan_sweep_error`).
-`TestGenerationRetentionRunnerRecordsOrphanSweep` pins them. At 3 AM: a gauge
+`TestGenerationRetentionRunnerRecordsOrphanSweep` pins them. When the census
+succeeds and a sweep batch then fails, the gauge still takes the census
+value and the committed batches' rows stay counted; a failed census leaves
+the gauge at its last value
+(`TestGenerationRetentionRunnerRecordsTheCensusWhenTheSweepFails`, RED before
+the fix: `expected: 3 actual: 0`). At 3 AM: a gauge
 above 0 on two consecutive hours means the sweep cannot drain; the log's
-`unswept_generations` and the per-generation outcome say why.
+`unswept_generations` and the per-generation outcome say why. One named
+cause is a dangling active pointer: the generation row is missing but
+`ingestion_scopes.active_generation_id` still names it, so readers can see
+those rows and the sweep leaves them; the per-generation line reads
+`outcome=ineligible`. The census runs once per poll interval per reducer
+replica.
 
 ## Not checked
 

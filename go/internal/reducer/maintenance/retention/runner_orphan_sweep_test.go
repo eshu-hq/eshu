@@ -20,17 +20,19 @@ import (
 )
 
 // fakeOrphanSweeper records each sweep's deadline and returns results in
-// order.
+// order; with err set it returns partial and err, as a sweep whose census
+// succeeded but whose batch failed does.
 type fakeOrphanSweeper struct {
 	deadlines []time.Duration
 	results   []OrphanSweepResult
+	partial   OrphanSweepResult
 	err       error
 }
 
 func (s *fakeOrphanSweeper) SweepSearchIndexOrphans(_ context.Context, deadline time.Duration) (OrphanSweepResult, error) {
 	s.deadlines = append(s.deadlines, deadline)
 	if s.err != nil {
-		return OrphanSweepResult{}, s.err
+		return s.partial, s.err
 	}
 	if len(s.results) == 0 {
 		return OrphanSweepResult{}, nil
@@ -124,4 +126,61 @@ func TestGenerationRetentionRunnerRecordsOrphanSweep(t *testing.T) {
 	require.Equal(t, int64(1), testutil.CounterValue(t, rm, "eshu_dp_generation_retention_failures_total",
 		map[string]string{"reason": "search_index_orphan_sweep"}))
 	require.Contains(t, logs.String(), `"failure_class":"generation_retention_search_index_orphan_sweep_error"`)
+}
+
+// TestGenerationRetentionRunnerRecordsTheCensusWhenTheSweepFails is review
+// finding F1 (#7427 PR2): the census succeeded and counted orphans, then a
+// sweep batch failed. The gauge must show the census, not keep a stale value
+// such as 0, and the rows the committed batches swept stay counted. A census
+// that failed reports no tables and leaves the gauge alone.
+func TestGenerationRetentionRunnerRecordsTheCensusWhenTheSweepFails(t *testing.T) {
+	reader := metric.NewManualReader()
+	instruments, err := telemetry.NewInstruments(metric.NewMeterProvider(metric.WithReader(reader)).Meter("test"))
+	require.NoError(t, err)
+	now := time.Date(2026, 10, 16, 0, 0, 0, 0, time.UTC)
+	sweeper := &fakeOrphanSweeper{results: []OrphanSweepResult{{
+		OrphanGenerations: map[string]int64{"eshu_search_index_terms": 0, "eshu_search_index_documents": 0},
+	}}}
+	runner := &Runner{
+		Pruner:        &fakeGenerationRetentionPruner{},
+		OrphanSweeper: sweeper,
+		Config:        Config{PollInterval: time.Hour},
+		Instruments:   instruments,
+		Now:           func() time.Time { return now },
+	}
+	_, err = runner.RunOnce(context.Background())
+	require.NoError(t, err)
+
+	sweeper.partial = OrphanSweepResult{
+		OrphanGenerations: map[string]int64{"eshu_search_index_terms": 3, "eshu_search_index_documents": 1},
+		RowsSwept:         map[string]int64{"eshu_search_index_terms": 20000, "eshu_search_index_documents": 0},
+		CensusDuration:    time.Second,
+	}
+	sweeper.err = errors.New("batch failed")
+	now = now.Add(time.Hour)
+	_, err = runner.RunOnce(context.Background())
+	require.NoError(t, err)
+
+	var rm metricdata.ResourceMetrics
+	require.NoError(t, reader.Collect(context.Background(), &rm))
+	require.Equal(t, int64(3), testutil.GaugeValue(t, rm, "eshu_dp_search_index_orphan_generations",
+		map[string]string{"table": "eshu_search_index_terms"}))
+	require.Equal(t, int64(1), testutil.GaugeValue(t, rm, "eshu_dp_search_index_orphan_generations",
+		map[string]string{"table": "eshu_search_index_documents"}))
+	require.Equal(t, int64(20000), testutil.CounterValue(t, rm, "eshu_dp_search_index_orphan_rows_swept_total",
+		map[string]string{"table": "eshu_search_index_terms"}))
+	require.Equal(t, int64(1), testutil.CounterValue(t, rm, "eshu_dp_generation_retention_failures_total",
+		map[string]string{"reason": "search_index_orphan_sweep"}))
+
+	// A failed census reports no tables: the gauge keeps the last census.
+	sweeper.partial = OrphanSweepResult{}
+	now = now.Add(time.Hour)
+	_, err = runner.RunOnce(context.Background())
+	require.NoError(t, err)
+	rm = metricdata.ResourceMetrics{}
+	require.NoError(t, reader.Collect(context.Background(), &rm))
+	require.Equal(t, int64(3), testutil.GaugeValue(t, rm, "eshu_dp_search_index_orphan_generations",
+		map[string]string{"table": "eshu_search_index_terms"}))
+	require.Equal(t, int64(2), testutil.CounterValue(t, rm, "eshu_dp_generation_retention_failures_total",
+		map[string]string{"reason": "search_index_orphan_sweep"}))
 }
