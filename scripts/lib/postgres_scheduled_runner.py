@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import sys
 
+from postgres_scheduled_contract import ADMIN_ENVS, DATABASES, DSNS, IMAGE, PACKAGES, PR_PATHS
 from reducer_contention_events import verify_events as verify_go_events
 from postgres_scheduled_fragments import load_inventory as load_fragments, inventory_digest
 from postgres_scheduled_manifest import build_manifest as build_source_bound_manifest
@@ -19,86 +20,9 @@ from postgres_scheduled_workflow import (
 
 INVENTORY = Path(__file__).with_name("postgres_scheduled_inventory.json")
 WORKFLOW = Path(".github/workflows/postgres-scheduled-live.yml")
-WORKFLOW_SHA256 = "1e52574d4193bba24a524a5b12c9cc7f663e14a8887033084ba8ba12c3a0b166"
+WORKFLOW_SHA256 = "7360bc846cd78102d21c889089c53e2723c6113d0ddb63a128326e449e7e41d9"
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
-PACKAGES = {
-    "crossplane": "github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane",
-    "infra_inventory": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
-    "disposable_gate": "github.com/eshu-hq/eshu/go/cmd/golden-corpus-gate",
-    "disposable_query": "github.com/eshu-hq/eshu/go/internal/query",
-    "disposable_storage": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
-    "ack_family": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
-    **{group: "github.com/eshu-hq/eshu/go/internal/storage/postgres"
-       for group in ("claim", "liveness", "fanout", "search", "readiness")},
-}
-DSNS = {
-    "crossplane": "ESHU_CROSSPLANE_REDRIVE_PROOF_DSN",
-    "infra_inventory": "ESHU_POSTGRES_DSN",
-    "ack_family": "ESHU_POSTGRES_TEST_DSN",
-    "claim": "ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN",
-    "liveness": "ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN",
-    "fanout": "ESHU_POSTGRES_DSN",
-    "search": "ESHU_POSTGRES_DSN",
-    "readiness": "ESHU_REDUCER_FAIRNESS_PROOF_DSN",
-}
-DATABASES = {
-    "crossplane": "eshu_crossplane_scheduled",
-    "infra_inventory": "eshu_inventory_scheduled",
-    "ack_family": "eshu_ack_scheduled",
-    **{group: f"eshu_{group}_scheduled"
-       for group in ("claim", "liveness", "fanout", "search", "readiness")},
-}
 
-ADMIN_ENVS = {
-    "disposable_gate": ("ESHU_TEST_DRAIN_RESIDUAL_POSTGRES",),
-    "disposable_query": (
-        "ESHU_TEST_CONTENT_INDEX_POSTGRES",
-        "ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES",
-    ),
-    "disposable_storage": ("ESHU_TEST_CONTENT_INDEX_POSTGRES",),
-}
-IMAGE = (
-    "ghcr.io/eshu-hq/ci-postgres-alpine@sha256:"
-    "77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873"
-)
-PR_PATHS = {
-    ".github/workflows/postgres-scheduled-live.yml",
-    "go/go.mod",
-    "go/go.sum",
-    "go/internal/testutil/postgresproof/**",
-    "go/internal/query/testdata/**",
-    "go/internal/query/*fixture*test.go",
-    "go/internal/storage/postgres/testdata/**",
-    "go/internal/storage/postgres/*fixture*test.go",
-    "go/internal/storage/postgres/ack_supersession_assertions_test.go",
-    "go/internal/storage/postgres/projector_queue_supersession_live_test.go",
-    "go/internal/storage/postgres/queue_observer_test.go",
-    "go/internal/storage/postgres/reducer_queue_cross_scope_readiness_gate_coverage_test.go",
-    "go/internal/storage/postgres/reducer_queue_domain_fairness_test.go",
-    "go/internal/storage/postgres/reducer_queue_supersede_readiness_test.go",
-    "go/internal/storage/postgres/crossplane/testdata/**",
-    "go/internal/storage/postgres/infra/inventory/testdata/**",
-    "go/cmd/golden-corpus-gate/testdata/**",
-    "scripts/ci/go-mod-download-retry.sh",
-    "scripts/lib/postgres_scheduled_inventory.json",
-    "scripts/lib/postgres_scheduled_inventory.d/**",
-    "scripts/lib/postgres_scheduled_fragments.py",
-    "scripts/test-postgres-scheduled-fragments.py",
-    "scripts/lib/postgres_scheduled_manifest.py",
-    "scripts/lib/postgres_scheduled_workflow.py",
-    "scripts/lib/postgres_scheduled_runner.py",
-    "scripts/lib/reducer_contention_events.py",
-    "scripts/lib/live_tests_registry.py",
-    "scripts/lib/verify-live-tests-ledger.py",
-    "scripts/test-postgres-scheduled-runner.py",
-    "scripts/test-postgres-scheduled-ledger-policy.py",
-    "scripts/test-verify-live-tests-ledger.sh",
-    "scripts/verify-live-tests-ledger.sh",
-    "specs/live-tests.v1.yaml",
-    "specs/live-tests.d/**",
-    "specs/ci-gates.d/gates-09.yaml",
-    "specs/ci-gates.v1.yaml",
-}
 
 
 def verify_trigger(workflow: str, inventory: dict[str, dict[str, object]]) -> None:
@@ -182,11 +106,17 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
             timeout = "7m"
         else:
             timeout = "6m"
+        arguments = (
+            " -args -containerimage-bootstrap=1"
+            " -containerimage-database=eshu_containerimage_scheduled"
+            if group == "containerimage" else ""
+        )
         pattern = re.compile(
             r"(?m)^\s*go test -json -race -p=1 -count=1 -timeout="
             + timeout + " "
             + re.escape(package_path)
-            + r" -run '([^']+)' \| tee \"\$\{RUNNER_TEMP\}/"
+            + r" -run '([^']+)'" + re.escape(arguments)
+            + r" \| tee \"\$\{RUNNER_TEMP\}/"
             + re.escape(group)
             + r"\.jsonl\"$"
         )

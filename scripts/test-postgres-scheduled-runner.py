@@ -28,8 +28,8 @@ class ScheduledRunnerTest(unittest.TestCase):
     def test_ack_family_integration_requires_exact_sixth_stream(self) -> None:
         """The combined enrollment keeps ACK in the hosted proof bundle."""
         inventory = MODULE.load_inventory()
-        self.assertEqual(len(inventory), 89)
-        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 167)
+        self.assertEqual(len(inventory), 97)
+        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 182)
         self.assertIn("ack_family", MODULE.PACKAGES)
         self.assertEqual(
             sum(row["group"] == "ack_family" for row in inventory.values()), 22
@@ -38,8 +38,8 @@ class ScheduledRunnerTest(unittest.TestCase):
 
     def test_committed_inventory_and_workflow(self) -> None:
         inventory = MODULE.load_inventory()
-        self.assertEqual(len(inventory), 89)
-        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 167)
+        self.assertEqual(len(inventory), 97)
+        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 182)
         self.assertNotIn(
             "go/internal/query/code_topic_parallel_guarded_live_test.go", inventory
         )
@@ -55,6 +55,7 @@ class ScheduledRunnerTest(unittest.TestCase):
             ("fanout", 3, 3),
             ("search", 5, 8),
             ("readiness", 4, 6),
+            ("containerimage", 8, 15),
         ):
             rows = [row for row in inventory.values() if row["group"] == group]
             self.assertEqual(len(rows), files)

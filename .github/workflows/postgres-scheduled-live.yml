@@ -24,6 +24,15 @@ on:
       - 'go/internal/query/documentation_related_generation_live_test.go'
       - 'go/internal/query/documentation_target_facts_differential_live_test.go'
       - 'go/internal/query/testdata/**'
+      - 'go/internal/reducer/containerimage/*.go'
+      - 'go/internal/reducer/containerimage/container_image_identity_cutover_cache_postgres_live_test.go'
+      - 'go/internal/reducer/containerimage/container_image_identity_cutover_postgres_live_test.go'
+      - 'go/internal/reducer/containerimage/container_image_identity_held_cutover_postgres_live_test.go'
+      - 'go/internal/reducer/containerimage/container_image_identity_unmapped_config_postgres_live_test.go'
+      - 'go/internal/reducer/containerimage/container_image_identity_writer_atomic_multichunk_postgres_live_test.go'
+      - 'go/internal/reducer/containerimage/container_image_identity_writer_atomic_postgres_live_test.go'
+      - 'go/internal/reducer/containerimage/container_image_identity_writer_deadlock_postgres_live_test.go'
+      - 'go/internal/reducer/containerimage/container_image_identity_writer_postgres_live_test.go'
       - 'go/internal/storage/postgres/*fixture*test.go'
       - 'go/internal/storage/postgres/ack_supersession_assertions_test.go'
       - 'go/internal/storage/postgres/container_image_identity_ack_attempt_fencing_live_test.go'
@@ -116,6 +125,7 @@ on:
       - 'go/internal/testutil/postgresproof/**'
       - 'scripts/ci/go-mod-download-retry.sh'
       - 'scripts/lib/live_tests_registry.py'
+      - 'scripts/lib/postgres_scheduled_contract.py'
       - 'scripts/lib/postgres_scheduled_fragments.py'
       - 'scripts/lib/postgres_scheduled_inventory.d/**'
       - 'scripts/lib/postgres_scheduled_inventory.json'
@@ -332,6 +342,22 @@ jobs:
           python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/readiness.jsonl" --group readiness
           proof_status="$(git -C .. status --porcelain --untracked-files=all -- go scripts .github/workflows)"
           test -z "$proof_status"
+      - name: Create fresh containerimage database
+        run: docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'CREATE DATABASE eshu_containerimage_scheduled'
+      - name: Run containerimage proofs
+        working-directory: go
+        env:
+          ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu_containerimage_scheduled?sslmode=disable
+        run: |
+          set -euo pipefail
+          test -z "${GOFLAGS:-}"
+          test -z "${GOWORK:-}"
+          proof_status="$(git -C .. status --porcelain --untracked-files=all -- go scripts .github/workflows)"
+          test -z "$proof_status"
+          go test -json -race -p=1 -count=1 -timeout=6m ./internal/reducer/containerimage -run '^(TestPostgresContainerImageIdentityCompletedCutoverMultiChunkKeepsHeartbeatLive|TestPostgresContainerImageIdentityCompletedCutoverRejectsLaterLegacyWriter|TestPostgresContainerImageIdentityCompletedCutoverRejectsStaleClaimEpoch|TestPostgresContainerImageIdentityCutoverCacheFollowsTransactionBoundaries|TestPostgresContainerImageIdentityCutoverCacheRechecksAlternatingKeys|TestPostgresContainerImageIdentityCutoverFenceKeepsOtherScopeConcurrent|TestPostgresContainerImageIdentityFactFenceSerializesOnlyMatchingLogicalKey|TestPostgresContainerImageIdentityFirstCutoverRetriesExistingLegacyUpsertWithoutDeadlock|TestPostgresContainerImageIdentityHandlerKeepsUnmappedConfigWarningRepository|TestPostgresContainerImageIdentityHeldCanonicalStillCreatesCutover|TestPostgresContainerImageIdentityLegacyWriterFailsClosedAboveReadCommitted|TestPostgresContainerImageIdentityMarkerInvalidatesOpenTransactionCache|TestPostgresContainerImageIdentityMultiChunkFailureRollsBackAndRetryConverges|TestPostgresContainerImageIdentityMultiChunkWriterSerializesMatchingKeyAndCleansInterleavedLegacyWrite|TestPostgresContainerImageIdentityTombstoneFencePreventsStaleResurrection)$' -args -containerimage-bootstrap=1 -containerimage-database=eshu_containerimage_scheduled | tee "${RUNNER_TEMP}/containerimage.jsonl"
+          python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/containerimage.jsonl" --group containerimage
+          proof_status="$(git -C .. status --porcelain --untracked-files=all -- go scripts .github/workflows)"
+          test -z "$proof_status"
       - name: Run disposable golden corpus residual proof
         working-directory: go
         env:
@@ -399,5 +425,6 @@ jobs:
             ${{ runner.temp }}/fanout.jsonl
             ${{ runner.temp }}/search.jsonl
             ${{ runner.temp }}/readiness.jsonl
+            ${{ runner.temp }}/containerimage.jsonl
           if-no-files-found: error
           retention-days: 14

@@ -20,13 +20,13 @@ class InventoryFragmentTest(unittest.TestCase):
     """The index and every listed fragment form one closed source contract."""
 
     def test_committed_index_and_all_five_new_groups(self) -> None:
-        """The reviewed inventory contains all 167 tests in 89 files."""
+        """The reviewed inventory contains all 182 tests in 97 files."""
         index = json.loads(runner.INVENTORY.read_text(encoding="utf-8"))
         self.assertEqual(index["version"], "postgres-scheduled-inventory/v1")
-        self.assertEqual(len(index["fragments"]), 11)
+        self.assertEqual(len(index["fragments"]), 12)
         inventory = runner.load_inventory()
-        self.assertEqual(len(inventory), 89)
-        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 167)
+        self.assertEqual(len(inventory), 97)
+        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 182)
         for group, files, tests in (
             ("claim", 13, 36), ("liveness", 7, 18), ("fanout", 3, 3),
             ("search", 5, 8), ("readiness", 4, 6),
@@ -34,6 +34,38 @@ class InventoryFragmentTest(unittest.TestCase):
             rows = [row for row in inventory.values() if row["group"] == group]
             self.assertEqual((len(rows), sum(len(row["tests"]) for row in rows)),
                              (files, tests))
+
+    def test_containerimage_has_real_bootstrap_and_exact_source_closure(self) -> None:
+        """Keep the complete identity-writer family and its bootstrap route."""
+        inventory = runner.load_inventory()
+        rows = {path: row for path, row in inventory.items()
+                if row["group"] == "containerimage"}
+        self.assertEqual(len(rows), 8)
+        self.assertEqual(sum(len(row["tests"]) for row in rows.values()), 15)
+        workflow = (ROOT / runner.WORKFLOW).read_text()
+        self.assertIn("go/internal/reducer/containerimage/*.go", workflow)
+        args = ("-args -containerimage-bootstrap=1 "
+                "-containerimage-database=eshu_containerimage_scheduled")
+        self.assertIn(args, workflow)
+        runner.verify_inventory(ROOT, inventory)
+        for old, new in (
+            ("-containerimage-bootstrap=1", "-containerimage-bootstrap=0"),
+            ("-containerimage-database=eshu_containerimage_scheduled",
+             "-containerimage-database=eshu_existing"),
+            ("CREATE DATABASE eshu_containerimage_scheduled",
+             "CREATE DATABASE eshu_existing"),
+            ("containerimage.jsonl", "missing-containerimage.jsonl"),
+        ):
+            with self.subTest(old=old):
+                mutated = workflow.replace(old, new)
+                original_read = Path.read_text
+                def read(path: Path, *args: object, **kwargs: object) -> str:
+                    if path == ROOT / runner.WORKFLOW:
+                        return mutated
+                    return original_read(path, *args, **kwargs)
+                with mock.patch.object(Path, "read_text", read):
+                    with self.assertRaises(ValueError):
+                        runner.verify_inventory(ROOT, inventory)
 
     def test_bad_fragment_index_rejected(self) -> None:
         """Missing, duplicate, and traversal fragments fail before enrollment."""

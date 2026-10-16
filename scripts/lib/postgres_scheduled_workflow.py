@@ -29,6 +29,8 @@ STEP_NAMES = (
     "Create fresh readiness database",
     "Run readiness proofs",
 
+    "Create fresh containerimage database",
+    "Run containerimage proofs",
     "Run disposable golden corpus residual proof",
     "Run disposable query proofs",
     "Run disposable storage proofs",
