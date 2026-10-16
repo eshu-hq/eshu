@@ -45,10 +45,13 @@ REPLAY_PROOF_SOURCE_SHA256 = {
         "c444a52095236b608cda143bf4bdbbedc9302e9ed23f4980bcdefeac8f81056b"
     ),
     "scripts/lib/replay_tier_enrollment.py": (
-        "c4d991bd52ff3617d368335a532f6b9b332f1580c4292154cf8f4d6374c3d544"
+        "9a588e169c81abc96b363adced5c60918b76b9ac7bfdcda210939121880d6822"
+    ),
+    "scripts/lib/replay_tier_routes.py": (
+        "001c09fd9d21b615b71287ab27c16a2317ce73517cdc0be188cf015e404438e1"
     ),
 }
-replay_cli_source = ""
+replay_sources: dict[str, str] = {}
 for name, expected_digest in REPLAY_PROOF_SOURCE_SHA256.items():
     try:
         source = (Path(repo_root) / name).read_bytes()
@@ -57,28 +60,98 @@ for name, expected_digest in REPLAY_PROOF_SOURCE_SHA256.items():
     actual_digest = hashlib.sha256(source).hexdigest()
     if actual_digest != expected_digest:
         sys.exit(f"replay proof source integrity mismatch: {name}")
-    if name == "scripts/lib/replay_tier_enrollment.py":
-        replay_cli_source = source.decode("utf-8")
+    if name.endswith(".py"):
+        replay_sources[name] = source.decode("utf-8")
 
-# The source hash binds exact reviewed bytes; the AST check independently
-# rejects a repinned import-time exit or a CLI that returns before validation.
-try:
-    replay_tree = ast.parse(replay_cli_source)
-except SyntaxError as error:
-    sys.exit(f"replay proof source integrity syntax error: {error}")
-for node in replay_tree.body[:-1]:
-    if isinstance(node, (ast.Import, ast.ImportFrom)):
-        continue
-    if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant):
-        continue
-    if isinstance(node, ast.FunctionDef) and not node.decorator_list:
-        continue
-    if (isinstance(node, ast.Assign)
-            and all(isinstance(target, ast.Name) and target.id.isupper()
-                    for target in node.targets)
-            and not any(isinstance(child, ast.Call) for child in ast.walk(node.value))):
-        continue
-    sys.exit("replay proof source integrity has executable top-level code")
+# Importing the CLI also imports its local route checker. Both modules must
+# have inert declarations before either can run and vacate the ledger check.
+def _safe_replay_value(node: ast.AST, declared: set[str]) -> bool:
+    """Allow only import-time inert constants and reviewed string splitting."""
+    if isinstance(node, ast.Constant):
+        return True
+    if isinstance(node, ast.Name):
+        return node.id in declared
+    if isinstance(node, ast.BinOp):
+        return (isinstance(node.op, ast.Add)
+                and _safe_replay_value(node.left, declared)
+                and _safe_replay_value(node.right, declared))
+    if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+        return all(_safe_replay_value(item, declared) for item in node.elts)
+    if isinstance(node, ast.Dict):
+        return all(key is not None and _safe_replay_value(key, declared)
+                   and _safe_replay_value(value, declared)
+                   for key, value in zip(node.keys, node.values))
+    # The route module's two table constants split a literal, not a computed
+    # object. No other call is allowed during import.
+    if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+            and not node.args and not node.keywords):
+        inner = node.func.value
+        if (node.func.attr == "splitlines" and isinstance(inner, ast.Call)
+                and isinstance(inner.func, ast.Attribute)
+                and inner.func.attr == "strip"
+                and isinstance(inner.func.value, ast.Constant)
+                and isinstance(inner.func.value.value, str)
+                and len(inner.args) == 1 and not inner.keywords
+                and isinstance(inner.args[0], ast.Constant)
+                and inner.args[0].value == "\n"):
+            return True
+    return False
+
+
+def _verified_replay_tree(
+    source: str, expected_imports: str, has_dispatch: bool
+) -> ast.Module:
+    """Reject imports and declarations that can execute before validation."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as error:
+        sys.exit(f"replay proof source integrity syntax error: {error}")
+    imports = ast.parse(expected_imports).body
+    prefix = tree.body[:len(imports) + 1]
+    if (len(prefix) != len(imports) + 1
+            or not isinstance(prefix[0], ast.Expr)
+            or not isinstance(prefix[0].value, ast.Constant)
+            or not isinstance(prefix[0].value.value, str)
+            or [ast.dump(node) for node in prefix[1:]]
+            != [ast.dump(node) for node in imports]):
+        sys.exit("replay proof source integrity imports are not closed")
+    declarations = tree.body[len(prefix):-1] if has_dispatch else tree.body[len(prefix):]
+    declared = set()
+    for node in declarations:
+        if isinstance(node, ast.FunctionDef):
+            if (node.decorator_list or node.args.defaults
+                    or any(value is not None for value in node.args.kw_defaults)
+                    or getattr(node, "type_params", ())):
+                sys.exit("replay proof source integrity has executable function signature")
+            continue
+        if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+                and node.targets[0].id.isupper()
+                and _safe_replay_value(node.value, declared)):
+            declared.add(node.targets[0].id)
+            continue
+        sys.exit("replay proof source integrity has executable top-level code")
+    return tree
+
+
+_verified_replay_tree(replay_sources["scripts/lib/replay_tier_routes.py"], """
+from __future__ import annotations
+from pathlib import Path
+import re
+""", False)
+replay_tree = _verified_replay_tree(
+    replay_sources["scripts/lib/replay_tier_enrollment.py"], """
+from __future__ import annotations
+import ast
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+from replay_tier_routes import verify_routes
+""", True)
 dispatch = replay_tree.body[-1]
 expected_test = ast.parse('__name__ == "__main__"', mode="eval").body
 expected_exit = ast.parse("SystemExit(main())", mode="eval").body

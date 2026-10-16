@@ -36,6 +36,7 @@ BLAST_TESTS = {
 SOURCE_PATH = "go/internal/replay/offlinetier/"
 RUNNER_PATH = "scripts/verify-replay-tier.sh"
 ENROLLMENT_PATH = "scripts/lib/replay_tier_enrollment.py"
+ROUTES_PATH = "scripts/lib/replay_tier_routes.py"
 
 
 def load_inventory(root: Path) -> dict[str, object]:
@@ -88,7 +89,7 @@ def verify_inventory(root: Path, inventory: dict[str, object]) -> None:
         raise ValueError("replay selector does not name exactly the enrolled and retained tests")
     source_pins = inventory.get("proof_source_sha256")
     if (not isinstance(source_pins, dict)
-            or set(source_pins) != {RUNNER_PATH, ENROLLMENT_PATH}):
+            or set(source_pins) != {RUNNER_PATH, ENROLLMENT_PATH, ROUTES_PATH}):
         raise ValueError("replay proof source integrity pins are missing")
     for name, expected_digest in source_pins.items():
         if (not isinstance(expected_digest, str)

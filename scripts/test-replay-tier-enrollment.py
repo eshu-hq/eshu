@@ -334,7 +334,8 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
             copy_route_sources(fixture)
             for name in (*inventory["files"],
                          "scripts/verify-replay-tier.sh",
-                         "scripts/lib/replay_tier_enrollment.py"):
+                         "scripts/lib/replay_tier_enrollment.py",
+                         "scripts/lib/replay_tier_routes.py"):
                 target = fixture / name
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(ROOT / name, target)
@@ -352,6 +353,8 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
                     "\nexit 0\npython3 scripts/lib/replay_tier_enrollment.py --root"),
                 "scripts/lib/replay_tier_enrollment.py": (
                     "raise SystemExit(main())", "raise SystemExit(0)"),
+                "scripts/lib/replay_tier_routes.py": (
+                    "ROUTED_PATHS = (", "ROUTED_PATHS = (\n    \"disabled\","),
             }
             for name, (before, after) in subjects.items():
                 subject = fixture / name

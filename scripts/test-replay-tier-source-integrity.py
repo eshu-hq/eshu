@@ -113,8 +113,21 @@ class ReplayTierSourceIntegrityTest(unittest.TestCase):
         ledger_source = (ROOT / "scripts/lib/verify-live-tests-ledger.py").read_text()
         cli_digest = hashlib.sha256(cli_source.encode()).hexdigest()
         self.assertEqual(ledger_source.count(cli_digest), 1)
+        annotation_exit = cli_source.replace(
+            "from __future__ import annotations\n", "", 1).replace(
+                'if __name__ == "__main__":',
+                'def import_time_annotation(value: sys.exit(0)):\n'
+                '    return value\n\nif __name__ == "__main__":', 1)
         cases = (
             ("raise SystemExit(main())", "raise SystemExit(0)"),
+            ('if __name__ == "__main__":',
+             'def import_time_default(value=sys.exit(0)):\n'
+             '    return value\n\nif __name__ == "__main__":'),
+            ('if __name__ == "__main__":',
+             'def import_time_keyword(*, value=sys.exit(0)):\n'
+             '    return value\n\nif __name__ == "__main__":'),
+            ("import ast\n", "import import_time_exit\nimport ast\n"),
+            (cli_source, annotation_exit),
             ('if __name__ == "__main__":',
              'raise SystemExit(0)\n\nif __name__ == "__main__":'),
             ('if __name__ == "__main__":',
@@ -128,11 +141,15 @@ class ReplayTierSourceIntegrityTest(unittest.TestCase):
             fixture = Path(temporary)
             lib = fixture / "scripts/lib"
             lib.mkdir(parents=True)
+            (lib / "import_time_exit.py").write_text("raise SystemExit(0)\n")
             (fixture / "scripts/verify-replay-tier.sh").write_bytes(
                 (ROOT / "scripts/verify-replay-tier.sh").read_bytes())
+            (lib / "replay_tier_routes.py").write_bytes(
+                (ROOT / "scripts/lib/replay_tier_routes.py").read_bytes())
             cli = lib / "replay_tier_enrollment.py"
             ledger = lib / "verify-live-tests-ledger.py"
-            env = {**os.environ, "PYTHONPATH": str(ROOT / "scripts/lib")}
+            env = {**os.environ, "PYTHONPATH": str(lib) + os.pathsep
+                   + str(ROOT / "scripts/lib")}
             for before, after in cases:
                 with self.subTest(after=after.splitlines()[0]):
                     self.assertIn(before, cli_source)
@@ -146,6 +163,34 @@ class ReplayTierSourceIntegrityTest(unittest.TestCase):
                         env=env, capture_output=True, text=True, check=False)
                     self.assertEqual(result.returncode, 1, result.stderr)
                     self.assertIn("source integrity", result.stderr)
+
+    def test_ledger_checks_imported_route_before_import_with_repinned_route(self) -> None:
+        """A route helper cannot exit before the ledger classifies its rows."""
+        route = ROOT / "scripts/lib/replay_tier_routes.py"
+        source = route.read_text()
+        changed = source + "\ndef import_time_default(value=exit(0)):\n    return value\n"
+        digest = hashlib.sha256(source.encode()).hexdigest()
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = Path(temporary)
+            lib = fixture / "scripts/lib"
+            lib.mkdir(parents=True)
+            (fixture / "scripts/verify-replay-tier.sh").write_bytes(
+                (ROOT / "scripts/verify-replay-tier.sh").read_bytes())
+            (lib / "replay_tier_enrollment.py").write_bytes(
+                (ROOT / "scripts/lib/replay_tier_enrollment.py").read_bytes())
+            (lib / "replay_tier_routes.py").write_text(changed)
+            ledger_source = (ROOT / "scripts/lib/verify-live-tests-ledger.py").read_text()
+            ledger = lib / "verify-live-tests-ledger.py"
+            ledger.write_text(ledger_source.replace(
+                digest, hashlib.sha256(changed.encode()).hexdigest()))
+            env = {**os.environ, "PYTHONPATH": str(lib) + os.pathsep
+                   + str(ROOT / "scripts/lib")}
+            result = subprocess.run(
+                (sys.executable, str(ledger),
+                 str(ROOT / "specs/live-tests.v1.yaml"), str(fixture)),
+                env=env, capture_output=True, text=True, check=False)
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("source integrity", result.stderr)
 
 if __name__ == "__main__":
     unittest.main()
