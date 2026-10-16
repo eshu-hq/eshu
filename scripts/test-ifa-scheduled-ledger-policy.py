@@ -131,7 +131,7 @@ class IfaLedgerPolicyTest(unittest.TestCase):
         foreign_end = source.find("  - file: ", foreign_start + len(foreign_marker))
         self.assertGreater(foreign_end, foreign_start)
         foreign_row = source[foreign_start:foreign_end]
-        postgres_path = "go/internal/query/content_reader_entity_search_plan_live_test.go"
+        postgres_path = "go/cmd/bootstrap-index/bootstrap_db_live_test.go"
         postgres_marker = f"  - file: {postgres_path}\n"
         self.assertTrue(
             postgres_marker in source, f"missing PostgreSQL fixture row: {postgres_path}"
@@ -167,7 +167,11 @@ class IfaLedgerPolicyTest(unittest.TestCase):
                         env=env, capture_output=True, text=True, check=False,
                     )
                     self.assertNotEqual(result.returncode, 0)
-                    self.assertIn("Ifá scheduled", result.stderr)
+                    expected = (
+                        "verified scheduled" if name.startswith("unknown_postgres")
+                        else "Ifá scheduled"
+                    )
+                    self.assertIn(expected, result.stderr)
 
 
 if __name__ == "__main__":

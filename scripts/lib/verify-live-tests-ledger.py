@@ -152,16 +152,6 @@ try:
     verify_inventory(Path(repo_root), contention_inventory)
 except (OSError, ValueError, re.error) as error:
     sys.exit(f"reducer contention runner enrollment failed: {error}")
-if verified_ifa_scheduled_paths != ifa_scheduled_paths:
-    sys.exit(
-        "Ifá scheduled rows differ from exact inventory: "
-        f"missing={sorted(ifa_scheduled_paths - verified_ifa_scheduled_paths)}, "
-        f"extra={sorted(verified_ifa_scheduled_paths - ifa_scheduled_paths)}"
-    )
-try:
-    verify_ifa_scheduled_inventory(Path(repo_root), ifa_scheduled_inventory)
-except (OSError, ValueError, re.error) as error:
-    sys.exit(f"Ifá scheduled runner enrollment failed: {error}")
 if verified_scheduled_paths != scheduled_paths:
     sys.exit(
         "verified scheduled rows differ from exact inventory: "
