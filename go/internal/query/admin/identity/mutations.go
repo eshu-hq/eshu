@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/admin/audit"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // MutationHandler serves tenant-scoped admin write endpoints for the
@@ -134,7 +135,7 @@ func (h *MutationHandler) handleRevokeInvitation(w http.ResponseWriter, r *http.
 	if err != nil {
 		slog.ErrorContext(r.Context(), "admin revoke invitation failed", "err", err)
 		h.audit(r, eventType, governanceaudit.DecisionDenied, "invitation_revoke_failed", "")
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to revoke invitation")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, invitationRevokeFailedMessage)
 		return
 	}
 	if !result.Found {
@@ -200,7 +201,7 @@ func (h *MutationHandler) handleGrantRoleAssignment(w http.ResponseWriter, r *ht
 	if err != nil {
 		slog.ErrorContext(r.Context(), "admin grant role assignment failed", "err", err)
 		h.audit(r, eventType, governanceaudit.DecisionDenied, "role_assignment_grant_failed", "")
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to grant role assignment")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, roleAssignmentGrantFailedMessage)
 		return
 	}
 	if !result.RoleValid {
@@ -265,7 +266,7 @@ func (h *MutationHandler) handleRevokeRoleAssignment(w http.ResponseWriter, r *h
 	if err != nil {
 		slog.ErrorContext(r.Context(), "admin revoke role assignment failed", "err", err)
 		h.audit(r, eventType, governanceaudit.DecisionDenied, "role_assignment_revoke_failed", "")
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to revoke role assignment")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, roleAssignmentRevokeFailedMessage)
 		return
 	}
 	reason := "role_assignment_revoked"
@@ -335,7 +336,7 @@ func (h *MutationHandler) handleCreateIdPGroupMapping(w http.ResponseWriter, r *
 	if err != nil {
 		slog.ErrorContext(r.Context(), "admin create idp group mapping failed", "err", err)
 		h.audit(r, eventType, governanceaudit.DecisionDenied, "idp_group_mapping_create_failed", "")
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to create idp group mapping")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, idpGroupMappingCreateFailedMessage)
 		return
 	}
 	if !result.ProviderValid {
@@ -392,7 +393,7 @@ func (h *MutationHandler) handleDeleteIdPGroupMapping(w http.ResponseWriter, r *
 	if err != nil {
 		slog.ErrorContext(r.Context(), "admin delete idp group mapping failed", "err", err)
 		h.audit(r, eventType, governanceaudit.DecisionDenied, "idp_group_mapping_delete_failed", "")
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to delete idp group mapping")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, idpGroupMappingDeleteFailedMessage)
 		return
 	}
 	reason := "idp_group_mapping_deleted"
