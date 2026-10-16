@@ -132,6 +132,10 @@
   new paged tool whose handler reorders rows inside a page must stamp
   `page_position` the same way, or it loses and repeats rows across pages
   (#7725 review).
+- **A rank-walk page is never offset-paged** — a page with `data.rank_walk`
+  (#7746) is cut to `rows[:keep]` in walk order, and `rank.TrimWalk` re-mints
+  `rank_walk.next_rank_cursor` for the first dropped row. Never add
+  `next_offset` to it, and keep the over-budget error when `TrimWalk` refuses.
 
 - **SSE buffer drop / closed session is non-fatal** — `sseSession.send`
   (`server_sse.go`) returns false when the session channel is full OR the

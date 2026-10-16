@@ -139,7 +139,7 @@ embedded resource holding the complete canonical envelope or plain JSON. When
 the duplicate copies exceed the budget but the complete resource-only result
 fits, dispatch omits `structuredContent` and returns `isError=false`; clients
 must parse the resource's JSON `text` when the structured copy is absent. When
-the resource-only result also exceeds the budget, `find_code` and `search_entity_content` (budgetPagedTools) answer with the largest first run of whole rows that fits (`truncated=true`, `next_offset`, `budget_page`, `truth.truncated`, `truth.omissions`; #7725); every other tool, and a first row that is over budget alone, gets a small bounded canonical envelope (`error.code=mcp_response_over_budget`)
+the resource-only result also exceeds the budget, `find_code` and `search_entity_content` (budgetPagedTools) answer with the largest first run of whole rows that fits (`truncated=true`, `next_offset`, `budget_page`, `truth.truncated`, `truth.omissions`; #7725), except that a `rank_cursor` walk page keeps the first rows of its walk order and re-mints `rank_walk.next_rank_cursor` through `rank.TrimWalk` instead of setting `next_offset` (#7746); every other tool, and a first row that is over budget alone, gets a small bounded canonical envelope (`error.code=mcp_response_over_budget`)
 carrying `response_bytes`, `budget_bytes`, `estimated_tokens`, the tool name,
 and narrowing guidance. Per-route token budgets such as the relationship-story
 `token_budget` still apply first; this is the outer, tool-agnostic guard, the
