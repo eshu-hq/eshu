@@ -309,7 +309,10 @@ SET status = 'completed',
     last_completed_at = $1,
     updated_at = $1,
     last_failure_class = NULL,
-    last_failure_message = NULL
+    last_failure_message = NULL,
+    last_failure_operation = NULL,
+    last_failure_status_code = NULL,
+    last_failure_terminal = NULL
 FROM candidate
 WHERE item.work_item_id = candidate.work_item_id
   AND EXISTS (SELECT 1 FROM updated_claim)
@@ -338,6 +341,9 @@ updated_claim AS (
         finished_at = $1,
         failure_class = NULLIF($7, ''),
         failure_message = NULLIF($8, ''),
+        failure_operation = NULLIF($9, ''),
+        failure_status_code = NULLIF($10, 0),
+        failure_terminal = $11,
         updated_at = $1
     FROM candidate
     WHERE claim.claim_id = $5
@@ -352,7 +358,10 @@ SET status = 'pending',
     visible_at = $2,
     updated_at = $1,
     last_failure_class = NULLIF($7, ''),
-    last_failure_message = NULLIF($8, '')
+    last_failure_message = NULLIF($8, ''),
+    last_failure_operation = NULLIF($9, ''),
+    last_failure_status_code = NULLIF($10, 0),
+    last_failure_terminal = $11
 FROM candidate
 WHERE item.work_item_id = candidate.work_item_id
   AND EXISTS (SELECT 1 FROM updated_claim)
@@ -381,6 +390,9 @@ updated_claim AS (
         finished_at = $1,
         failure_class = NULLIF($6, ''),
         failure_message = NULLIF($7, ''),
+        failure_operation = NULLIF($8, ''),
+        failure_status_code = NULLIF($9, 0),
+        failure_terminal = $10,
         updated_at = $1
     FROM candidate
     WHERE claim.claim_id = $4
@@ -394,7 +406,10 @@ SET status = 'failed_terminal',
     lease_expires_at = NULL,
     updated_at = $1,
     last_failure_class = NULLIF($6, ''),
-    last_failure_message = NULLIF($7, '')
+    last_failure_message = NULLIF($7, ''),
+    last_failure_operation = NULLIF($8, ''),
+    last_failure_status_code = NULLIF($9, 0),
+    last_failure_terminal = $10
 FROM candidate
 WHERE item.work_item_id = candidate.work_item_id
   AND EXISTS (SELECT 1 FROM updated_claim)

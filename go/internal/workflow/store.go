@@ -36,7 +36,20 @@ type ClaimMutation struct {
 	PolicyRevisionHash string
 	FailureClass       string
 	FailureMessage     string
-	VisibleAt          time.Time
+	// FailureOperation is the bounded claim-stage or provider operation that
+	// failed (for example "collect_failure"). It carries only a sanitized
+	// [a-z0-9_] token: never a URL, response body, or credential. Blank
+	// means the operation was not recorded (legacy rows).
+	FailureOperation string
+	// FailureStatusCode is the bounded provider HTTP status preserved from
+	// the failure cause, or 0 when no HTTP status is known.
+	FailureStatusCode int
+	// FailureTerminal records whether the failure stops retries for the
+	// claim. It mirrors the FailClaimTerminal (true) versus
+	// FailClaimRetryable (false) route alongside the error's own terminal
+	// flag, so terminal rows stay queryable without joining status.
+	FailureTerminal bool
+	VisibleAt       time.Time
 	// Resolved* fields optionally replace a planned work-item phase identity
 	// when a collector can only know the final reducer checkpoint tuple after
 	// opening the source. Terraform-state work uses this to move from candidate

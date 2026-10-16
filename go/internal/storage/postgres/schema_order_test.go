@@ -453,4 +453,9 @@ var orderedBootstrapDefinitionNames = []string{
 	// fact_id) indexes the explicit retention key sidecar deletes probe.
 	"package_manifest_consumption_keys_partition_idx",
 	"package_registry_identity_keys_partition_idx",
+	// Migrations 184-185 (#7926) persist the bounded structured failure
+	// classification (operation, status code, terminal flag) on
+	// workflow_claims and workflow_work_items alongside the message.
+	"workflow_claims_failure_classification",
+	"workflow_work_items_failure_classification",
 }
