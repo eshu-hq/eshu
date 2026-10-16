@@ -10,8 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/graph"
-	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
 )
@@ -24,8 +22,9 @@ func (r *infraSearchKeyRecorder) Execute(_ context.Context, stmt sourcecypher.St
 }
 
 // TestReducerWiringResolvesInfraSearchKeyFromGraphBackend proves the reducer
-// resolves the #7245 dialect from the configured graph backend (the same
-// runtimecfg.LoadGraphBackend value main.go passes) and that the two writers
+// resolves the #7245 dialect from the configured graph backend through
+// loadReducerGraphBackend, the helper buildReducerService calls, and that the
+// two writers
 // it builds for searched CloudResource fields key on Neo4j only, emitting
 // main's statement on NornicDB.
 func TestReducerWiringResolvesInfraSearchKeyFromGraphBackend(t *testing.T) {
@@ -38,18 +37,17 @@ func TestReducerWiringResolvesInfraSearchKeyFromGraphBackend(t *testing.T) {
 		env   string
 		keyed bool
 	}{{"neo4j", true}, {"nornicdb", false}} {
-		backend, err := runtimecfg.LoadGraphBackend(func(key string) string {
+		backend, searchKey, err := loadReducerGraphBackend(func(key string) string {
 			if key == "ESHU_GRAPH_BACKEND" {
 				return tc.env
 			}
 			return ""
 		})
 		if err != nil {
-			t.Fatalf("LoadGraphBackend(%s) error = %v", tc.env, err)
+			t.Fatalf("loadReducerGraphBackend(%s) error = %v", tc.env, err)
 		}
-		searchKey, err := search.DialectForBackend(graph.SchemaBackend(backend))
-		if err != nil {
-			t.Fatalf("DialectForBackend(%s) error = %v", backend, err)
+		if string(backend) != tc.env {
+			t.Fatalf("loadReducerGraphBackend(%s) backend = %q", tc.env, backend)
 		}
 		rec := &infraSearchKeyRecorder{}
 		cloud, ec2 := newSearchKeyedCloudNodeWriters(rec, 0, searchKey)
