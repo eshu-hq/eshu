@@ -4,8 +4,6 @@
 package query
 
 import (
-	"go/parser"
-	"go/token"
 	"strings"
 	"testing"
 )
@@ -38,7 +36,18 @@ func TestQueryDirectServerStatusSitesShapes(t *testing.T) {
 		{"writeContractError_502", `h.writeContractError(w, r, 502, msg, code)`, 1},
 		{"http_Error_500", `http.Error(w, "fixed", http.StatusInternalServerError)`, 1},
 		{"http_Error_unknown_const", `http.Error(w, "fixed", http.StatusHTTPVersionNotSupported)`, 1},
-		{"local_var_status", `status := http.StatusServiceUnavailable; WriteError(w, status, msg)`, 1},
+		{"local_var_disallowed_literal", `status := http.StatusOK; if bad { status = http.StatusBadGateway }; WriteJSON(w, status, body)`, 1},
+		{"local_var_from_call", `status := statusFor(err); WriteError(w, status, msg)`, 1},
+		{"local_var_declared_only", `var status int; WriteError(w, status, msg)`, 1},
+		{"verdict_local_reassigned", `status, env := tracing.ServerFailureEnvelope(ctx, err, m, c); status = http.StatusInternalServerError; WriteErrorEnvelope(w, r, status, env)`, 1},
+		{"verdict_local_other_call", `status, env := buildFailure(err); WriteErrorEnvelope(w, r, status, env)`, 1},
+		{"verdict_local_wrong_position", `env, status := tracing.ServerFailureEnvelope(ctx, err, m, c); WriteErrorEnvelope(w, r, status, env)`, 1},
+		{"WriteJSON_500", `querycontract.WriteJSON(w, http.StatusInternalServerError, body)`, 1},
+		{"WriteErrorEnvelope_504", `WriteErrorEnvelope(w, r, http.StatusGatewayTimeout, env)`, 1},
+		{"WriteSuccess_500", `WriteSuccess(w, r, 500, data, truth)`, 1},
+		{"WriteHeader_500", `w.WriteHeader(http.StatusInternalServerError)`, 1},
+		{"WriteHeader_zero", `w.WriteHeader(0)`, 1},
+		{"field_status", `querycontract.WriteErrorEnvelope(w, r, rankErr.Status, env)`, 1},
 		{"named_const_status", `WriteError(w, statusUnavailable, msg)`, 1},
 		{"computed_status", `WriteError(w, statusFor(err), msg)`, 1},
 		{"qualified_499_const", `WriteError(w, querycontract.StatusClientClosedRequest, msg)`, 1},
@@ -64,12 +73,16 @@ func TestQueryDirectServerStatusSitesShapes(t *testing.T) {
 		{"pure_forwarder_literal", `func f(w http.ResponseWriter) { g := func(status int) { WriteError(w, status, "m") }; g(400) }`, 0},
 		{"helper_WriteServerFailure", `tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, msg)`, 0},
 		{"too_few_args", `WriteError(w)`, 0},
+		{"200_WriteJSON", `WriteJSON(w, http.StatusOK, body)`, 0},
+		{"204_WriteHeader", `w.WriteHeader(http.StatusNoContent)`, 0},
+		{"local_var_allowed_literals", `status := http.StatusCreated; if same { status = http.StatusOK }; WriteJSON(w, status, body)`, 0},
+		{"local_var_503", `status := http.StatusServiceUnavailable; WriteError(w, status, msg)`, 0},
+		{"verdict_local_server_failure", `status, env := tracing.ServerFailureEnvelope(ctx, err, m, c); WriteErrorEnvelope(w, r, status, env)`, 0},
+		{"verdict_local_graph_read", `status, env, ok := querycontract.GraphReadErrorEnvelope(err, c); if ok { WriteErrorEnvelope(w, r, status, env) }`, 0},
 
-		// Known gaps: writers outside the guarded set, seen by neither assertion.
-		{"gap_wrapper_helper", `writeFailure(w, http.StatusInternalServerError)`, 0},
-		{"gap_WriteJSON", `querycontract.WriteJSON(w, http.StatusInternalServerError, body)`, 0},
-		{"gap_WriteErrorEnvelope", `WriteErrorEnvelope(w, r, http.StatusInternalServerError, env)`, 0},
-		{"gap_WriteHeader", `w.WriteHeader(http.StatusInternalServerError)`, 0},
+		// Known gap: a callee declared nowhere in the tree (a function value,
+		// an interface method, or another package's method) is not a writer.
+		{"gap_unresolved_callee", `writeFailure(w, http.StatusInternalServerError)`, 0},
 	}
 
 	for _, tc := range cases {
@@ -80,12 +93,8 @@ func TestQueryDirectServerStatusSitesShapes(t *testing.T) {
 				decl = "func f() {\n" + tc.body + "\n}"
 			}
 			src := "package p\n\n" + decl + "\n"
-			fset := token.NewFileSet()
-			file, err := parser.ParseFile(fset, tc.name+".go", src, 0)
-			if err != nil {
-				t.Fatalf("parse synthetic source: %v\n%s", err, src)
-			}
-			if got := len(queryDirectServerStatusSites(fset, file)); got != tc.want {
+			tree, file := queryGuardTreeFromSource(t, tc.name+".go", src)
+			if got := len(queryDirectServerStatusSites(tree, file)); got != tc.want {
 				t.Fatalf("queryDirectServerStatusSites() found %d sites, want %d\nsource: %s", got, tc.want, src)
 			}
 		})

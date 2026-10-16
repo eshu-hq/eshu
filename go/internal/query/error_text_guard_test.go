@@ -5,14 +5,8 @@ package query
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
-	"io/fs"
-	"net/http"
-	"os"
-	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 )
@@ -26,27 +20,23 @@ import (
 // 500/502/504/408 writes themselves.
 //
 // It walks every non-test .go file under go/internal/query and fails on any
-// leak site found by queryErrorTextLeakSites: a call to WriteError,
-// WriteContractError, writeContractError (any qualifier or receiver), or
-// http.Error whose status is not a literal 4xx and whose message carries error
-// text, plus the Message field of an ErrorEnvelope literal that carries error
-// text outside a literal 4xx context. A variable or computed status counts as
-// a server status, because most such statuses can be 5xx.
-// queryErrorTextLeakSites documents the exact shapes. There is no allowlist:
-// the per-file ceiling ratchet that tracked the conversion was deleted when
-// the last #7674 slice reached zero sites.
+// leak site found by queryErrorTextLeakSites. There is no allowlist: the
+// per-file ceiling ratchet that tracked the conversion was deleted when the
+// last #7674 slice reached zero sites.
 //
 // Known gaps, not caught without type resolution: a message computed into a
-// local first (`msg := err.Error()` then WriteError(w, 500, msg)); a wrapper
-// helper that takes err and writes it; and a local error whose name follows
-// the sentinel convention (`errResp.Error()`), because `errFoo.Error()` and
-// `pkg.ErrFoo.Error()` are treated as fixed sentinel text.
-// TestQueryErrorTextLeakSitesShapes pins each gap as uncaught. Assertion B
-// still fails the first gap when its status is a literal 500.
+// local first (`msg := err.Error()` then WriteError(w, 500, msg)); a helper
+// that takes err itself and writes its text; a writer reached through a
+// function value, an interface, or a function literal; and a local error whose
+// name follows the sentinel convention (`errResp.Error()`), because
+// `errFoo.Error()` and `pkg.ErrFoo.Error()` are treated as fixed sentinel
+// text. TestQueryErrorTextLeakSitesShapes pins each gap as uncaught.
+// Assertion B still fails the first gap when its status is a literal 500.
 func TestNoNewQueryErrorTextLeakSites(t *testing.T) {
 	t.Parallel()
 
-	for _, finding := range queryErrorTextLeakFindings(t, queryPackageDir(t)) {
+	tree := loadQueryGuardTree(t, queryPackageDir(t), queryImportRoot)
+	for _, finding := range queryErrorTextLeakFindings(tree) {
 		t.Errorf("%s: %d error-text leak site(s); answer server failures with "+
 			"tracing.WriteServerFailure and a fixed message (#7674):\n%s",
 			finding.file, len(finding.sites), formatQueryErrorTextLeakSites(finding.sites))
@@ -59,60 +49,16 @@ type queryGuardFinding struct {
 	sites []queryErrorTextLeakSite
 }
 
-// queryErrorTextLeakFindings is assertion A over root: every non-test file
-// with an error-text leak site, keyed by path relative to root.
-func queryErrorTextLeakFindings(t *testing.T, root string) []queryGuardFinding {
-	t.Helper()
-
+// queryErrorTextLeakFindings is assertion A over tree: every file with an
+// error-text leak site.
+func queryErrorTextLeakFindings(tree *queryGuardTree) []queryGuardFinding {
 	var findings []queryGuardFinding
-	walkQueryNonTestFiles(t, root, func(rel string, fset *token.FileSet, file *ast.File) {
-		if sites := queryErrorTextLeakSites(fset, file); len(sites) > 0 {
-			findings = append(findings, queryGuardFinding{file: rel, sites: sites})
+	for _, f := range tree.files {
+		if sites := queryErrorTextLeakSites(tree, f); len(sites) > 0 {
+			findings = append(findings, queryGuardFinding{file: f.rel, sites: sites})
 		}
-	})
-	return findings
-}
-
-// walkQueryNonTestFiles parses every non-test .go file under root (the guards
-// pass go/internal/query), skipping testdata and dot directories, and calls
-// visit in lexical order with the path relative to root in slash form. A file
-// that does not parse fails t.
-func walkQueryNonTestFiles(t *testing.T, root string, visit func(rel string, fset *token.FileSet, file *ast.File)) {
-	t.Helper()
-
-	fset := token.NewFileSet()
-	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() {
-			if path != root && (strings.HasPrefix(entry.Name(), ".") || entry.Name() == "testdata") {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if filepath.Ext(path) != ".go" || hasTestSuffix(path) {
-			return nil
-		}
-		contents, readErr := os.ReadFile(path)
-		if readErr != nil {
-			return readErr
-		}
-		file, parseErr := parser.ParseFile(fset, path, contents, 0)
-		if parseErr != nil {
-			t.Errorf("parse %s: %v", path, parseErr)
-			return nil
-		}
-		rel, relErr := filepath.Rel(root, path)
-		if relErr != nil {
-			return relErr
-		}
-		visit(filepath.ToSlash(rel), fset, file)
-		return nil
-	})
-	if walkErr != nil {
-		t.Fatalf("walk %s: %v", root, walkErr)
 	}
+	return findings
 }
 
 // queryErrorTextLeakSite is one site found by queryErrorTextLeakSites or
@@ -130,49 +76,46 @@ func formatQueryErrorTextLeakSites(sites []queryErrorTextLeakSite) string {
 	return strings.Join(lines, "\n")
 }
 
-// queryErrorTextWriterArgs maps each guarded writer name to the index of its
-// status and message arguments.
-var queryErrorTextWriterArgs = map[string]struct{ status, message int }{
-	"WriteError":         {status: 1, message: 2},
-	"WriteContractError": {status: 2, message: 3},
-	"writeContractError": {status: 2, message: 3},
-}
-
-// queryErrorTextLeakSites returns every error-text leak site in file:
+// queryErrorTextLeakSites returns every error-text leak site in f:
 //
-//   - a call to WriteError(w, status, message), WriteContractError(w, r,
-//     status, message, ...), or writeContractError(w, r, status, message, ...)
-//     under any qualifier or receiver (querycontract.WriteError,
-//     a.deps.WriteError, h.writeContractError), or http.Error(w, message,
-//     status), whose status is not a literal 4xx and whose message carries
-//     error text;
+//   - a call to a message writer whose message argument carries error text
+//     and whose body the status makes a server failure. A message writer is a
+//     base sink with a message (WriteError, WriteContractError,
+//     writeContractError, and WriteJSON's body under any qualifier or
+//     receiver, and http.Error), or a function whose never-assigned parameter
+//     reaches a message writer's message, directly or through locals
+//     (queryGuardTree). The status makes it a server failure unless it is a
+//     literal in [100, 499]: the call's own status argument for a forwarder,
+//     or the status the writer passes inside;
 //   - the Message field of an ErrorEnvelope or pkg.ErrorEnvelope composite
 //     literal that carries error text, unless the nearest enclosing call or
-//     return statement has a literal 4xx status operand.
+//     return statement has a literal 4xx status operand, or the literal sits
+//     inside a call already reported.
 //
 // A message carries error text when it contains a no-argument .Error() call
 // on anything other than a sentinel-named receiver (errFoo, ErrFoo,
 // pkg.ErrFoo), or a fmt.Sprintf, fmt.Sprint, fmt.Sprintln, or fmt.Errorf call
 // whose arguments mention an identifier that is err or ends in err or Err.
-// A literal 4xx is an int literal in [400, 499] or a net/http Status constant
-// in that range.
-func queryErrorTextLeakSites(fset *token.FileSet, file *ast.File) []queryErrorTextLeakSite {
+func queryErrorTextLeakSites(tree *queryGuardTree, f *queryGuardFile) []queryErrorTextLeakSite {
 	var sites []queryErrorTextLeakSite
 	var stack []ast.Node
-	ast.Inspect(file, func(node ast.Node) bool {
+	var reported []ast.Node
+	ast.Inspect(f.file, func(node ast.Node) bool {
 		if node == nil {
 			stack = stack[:len(stack)-1]
 			return true
 		}
 		switch n := node.(type) {
 		case *ast.CallExpr:
-			if kind, leaks := queryErrorTextWriterLeak(n); leaks {
-				sites = append(sites, queryErrorTextLeakSite{pos: fset.Position(n.Pos()), kind: kind})
+			if kind, leaks := queryErrorTextWriterLeak(tree, f, n); leaks {
+				sites = append(sites, queryErrorTextLeakSite{pos: tree.fset.Position(n.Pos()), kind: kind})
+				reported = append(reported, n)
 			}
 		case *ast.CompositeLit:
 			if message := queryErrorEnvelopeMessage(n); message != nil &&
-				queryErrorTextCarriesErr(message) && !queryErrorTextClientContext(stack) {
-				sites = append(sites, queryErrorTextLeakSite{pos: fset.Position(message.Pos()), kind: "ErrorEnvelope.Message"})
+				queryErrorTextCarriesErr(message) && !queryErrorTextClientContext(stack) &&
+				!slices.ContainsFunc(reported, func(call ast.Node) bool { return call.Pos() <= n.Pos() && n.End() <= call.End() }) {
+				sites = append(sites, queryErrorTextLeakSite{pos: tree.fset.Position(message.Pos()), kind: "ErrorEnvelope.Message"})
 			}
 		}
 		stack = append(stack, node)
@@ -181,42 +124,26 @@ func queryErrorTextLeakSites(fset *token.FileSet, file *ast.File) []queryErrorTe
 	return sites
 }
 
-// queryErrorTextWriterLeak reports whether call is a guarded writer with a
-// server status and an error-text message, and names the writer.
-func queryErrorTextWriterLeak(call *ast.CallExpr) (string, bool) {
-	name, args, ok := queryGuardedWriter(call)
-	if !ok || len(call.Args) <= max(args.status, args.message) {
+// queryErrorTextWriterLeak reports whether call is a message writer whose
+// message carries error text behind a server-failure status, and names the
+// writer chain.
+func queryErrorTextWriterLeak(tree *queryGuardTree, f *queryGuardFile, call *ast.CallExpr) (string, bool) {
+	spec, name, ok := tree.resolve(f, call)
+	if !ok || !queryCarriesErrAt(call.Args, spec.messages) {
 		return "", false
 	}
-	if queryErrorTextIsClientStatus(call.Args[args.status]) || !queryErrorTextCarriesErr(call.Args[args.message]) {
+	switch spec.messageMode {
+	case queryMessageClient, queryMessageNone:
 		return "", false
+	case queryMessageStatusArg:
+		if spec.status < 0 || spec.status >= len(call.Args) || queryIsNonFailureStatus(call.Args[spec.status]) {
+			return "", false
+		}
+	}
+	if spec.chain != "" {
+		name += " -> " + spec.chain
 	}
 	return name, true
-}
-
-// queryGuardedWriter reports whether call is a guarded writer (WriteError,
-// WriteContractError, or writeContractError under any qualifier or receiver,
-// or http.Error) and returns its name and argument indexes. It does not check
-// the argument count.
-func queryGuardedWriter(call *ast.CallExpr) (string, struct{ status, message int }, bool) {
-	var name string
-	switch fun := call.Fun.(type) {
-	case *ast.Ident:
-		name = fun.Name
-	case *ast.SelectorExpr:
-		name = fun.Sel.Name
-		if name == "Error" {
-			pkg, ok := fun.X.(*ast.Ident)
-			if !ok || pkg.Name != "http" {
-				return "", struct{ status, message int }{}, false
-			}
-			return "http.Error", struct{ status, message int }{status: 2, message: 1}, true
-		}
-	default:
-		return "", struct{ status, message int }{}, false
-	}
-	args, ok := queryErrorTextWriterArgs[name]
-	return name, args, ok
 }
 
 // queryErrorEnvelopeMessage returns the Message value of an ErrorEnvelope
@@ -334,50 +261,13 @@ func queryErrorTextIsClientStatus(expr ast.Expr) bool {
 	return ok && value >= 400 && value <= 499
 }
 
-// queryIntLiteral returns the value of a decimal int literal.
-func queryIntLiteral(lit *ast.BasicLit) (int, bool) {
-	if lit.Kind != token.INT {
-		return 0, false
+// queryCarriesErrAt reports whether any argument whose bit is set in messages
+// carries error text.
+func queryCarriesErrAt(args []ast.Expr, messages uint64) bool {
+	for i, arg := range args {
+		if i < 64 && messages&(1<<i) != 0 && queryErrorTextCarriesErr(arg) {
+			return true
+		}
 	}
-	value, err := strconv.Atoi(lit.Value)
-	return value, err == nil
-}
-
-// queryErrorTextHTTPStatusValues maps net/http status constant names to their
-// values, so the 4xx test reads the real constants rather than a name list.
-var queryErrorTextHTTPStatusValues = map[string]int{
-	"StatusBadRequest":                   http.StatusBadRequest,
-	"StatusUnauthorized":                 http.StatusUnauthorized,
-	"StatusPaymentRequired":              http.StatusPaymentRequired,
-	"StatusForbidden":                    http.StatusForbidden,
-	"StatusNotFound":                     http.StatusNotFound,
-	"StatusMethodNotAllowed":             http.StatusMethodNotAllowed,
-	"StatusNotAcceptable":                http.StatusNotAcceptable,
-	"StatusProxyAuthRequired":            http.StatusProxyAuthRequired,
-	"StatusRequestTimeout":               http.StatusRequestTimeout,
-	"StatusConflict":                     http.StatusConflict,
-	"StatusGone":                         http.StatusGone,
-	"StatusLengthRequired":               http.StatusLengthRequired,
-	"StatusPreconditionFailed":           http.StatusPreconditionFailed,
-	"StatusRequestEntityTooLarge":        http.StatusRequestEntityTooLarge,
-	"StatusRequestURITooLong":            http.StatusRequestURITooLong,
-	"StatusUnsupportedMediaType":         http.StatusUnsupportedMediaType,
-	"StatusRequestedRangeNotSatisfiable": http.StatusRequestedRangeNotSatisfiable,
-	"StatusExpectationFailed":            http.StatusExpectationFailed,
-	"StatusTeapot":                       http.StatusTeapot,
-	"StatusMisdirectedRequest":           http.StatusMisdirectedRequest,
-	"StatusUnprocessableEntity":          http.StatusUnprocessableEntity,
-	"StatusLocked":                       http.StatusLocked,
-	"StatusFailedDependency":             http.StatusFailedDependency,
-	"StatusTooEarly":                     http.StatusTooEarly,
-	"StatusUpgradeRequired":              http.StatusUpgradeRequired,
-	"StatusPreconditionRequired":         http.StatusPreconditionRequired,
-	"StatusTooManyRequests":              http.StatusTooManyRequests,
-	"StatusRequestHeaderFieldsTooLarge":  http.StatusRequestHeaderFieldsTooLarge,
-	"StatusUnavailableForLegalReasons":   http.StatusUnavailableForLegalReasons,
-	"StatusInternalServerError":          http.StatusInternalServerError,
-	"StatusServiceUnavailable":           http.StatusServiceUnavailable,
-	"StatusGatewayTimeout":               http.StatusGatewayTimeout,
-	"StatusBadGateway":                   http.StatusBadGateway,
-	"StatusNotImplemented":               http.StatusNotImplemented,
+	return false
 }
