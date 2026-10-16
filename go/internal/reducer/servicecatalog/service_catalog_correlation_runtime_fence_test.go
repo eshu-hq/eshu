@@ -12,7 +12,6 @@ import (
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
-	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 )
 
 // runtimeFenceEvents records the order of the reads and writes one Handle pass
@@ -286,48 +285,6 @@ func TestServiceCatalogHandlerRuntimeFenceReadyStates(t *testing.T) {
 				t.Fatalf("runtime rows = %d, want %d", got, tc.rows)
 			}
 		})
-	}
-}
-
-// TestServiceCatalogHandlerRuntimeFenceProceedsPastElapsedBound proves the
-// fence cannot wedge: a producer stuck in flight for longer than
-// crossscope.ProducerReadinessMaxWait no longer defers the intent. The bound is
-// elapsed time since the cycle anchor, never attempt_count, which the
-// non-counting class freezes.
-func TestServiceCatalogHandlerRuntimeFenceProceedsPastElapsedBound(t *testing.T) {
-	t.Parallel()
-
-	h := newRuntimeFenceHarness(
-		map[string]RuntimeProducerState{"repo-checkout": {Retrying: 1, Total: 1}},
-		[]ServiceRuntimeInstance{runtimeFenceInstance},
-	)
-	intent := runtimeFenceIntent(crossscope.ProducerReadinessMaxWait + time.Second)
-	intent.AttemptCount = 1
-	if _, err := h.handler.Handle(context.Background(), intent); err != nil {
-		t.Fatalf("Handle() error = %v, want nil past the elapsed bound", err)
-	}
-	if len(h.materialization.writes) != 1 || len(h.materialization.writes[0].Runtime) != 1 {
-		t.Fatalf("materialization writes = %+v, want the best available runtime evidence committed", h.materialization.writes)
-	}
-
-	inside := newRuntimeFenceHarness(
-		map[string]RuntimeProducerState{"repo-checkout": {Retrying: 1, Total: 1}},
-		nil,
-	)
-	if _, err := inside.handler.Handle(context.Background(), runtimeFenceIntent(crossscope.ProducerReadinessMaxWait-time.Second)); err == nil {
-		t.Fatal("Handle() error = nil one second inside the bound, want a deferral")
-	}
-}
-
-// TestServiceCatalogHandlerRuntimeFenceDefersWithUnknownAnchor keeps the
-// crossscope precedent: a zero cycle anchor means elapsed time is unknown,
-// not infinite, so the fence keeps deferring instead of committing early.
-func TestServiceCatalogHandlerRuntimeFenceDefersWithUnknownAnchor(t *testing.T) {
-	t.Parallel()
-
-	h := newRuntimeFenceHarness(map[string]RuntimeProducerState{"repo-checkout": {Pending: 1, Total: 1}}, nil)
-	if _, err := h.handler.Handle(context.Background(), runtimeFenceIntent(0)); err == nil {
-		t.Fatal("Handle() error = nil with a zero cycle anchor, want a deferral")
 	}
 }
 

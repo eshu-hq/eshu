@@ -5,6 +5,7 @@ package producer
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 
@@ -15,21 +16,31 @@ import (
 )
 
 // RuntimeProducerStatesQuery counts each repository scope's producer work
-// items at its ACTIVE generation, by status. It joins ingestion_scopes on its
-// primary key to fact_work_items through fact_work_items_scope_generation_idx
-// (scope_id, generation_id, ...), so it reads only the active generation's
-// rows of each requested scope and filters stage and domain on that small
-// set. A newer pending generation's rows and an older generation's rows never
-// match, and a scope with no active generation or no producer row returns no
-// row. Measured on 1,057,536 fact_work_items rows: one scope 0.12 ms, fifty
-// scopes 2.5 ms, never a sequential scan (see README.md).
+// items at its ACTIVE generation, by status, and returns the newest in-flight
+// producer cycle start: max(COALESCE(reopened_at, created_at)) over the
+// pending, retrying, claimed, and running rows (NULL when none is in flight).
+// That timestamp is the fence's elapsed-bound anchor. It never uses
+// updated_at, which a retry or a re-claim moves; created_at and reopened_at
+// mark the start of a producer cycle.
+//
+// It joins ingestion_scopes on its primary key to fact_work_items through
+// fact_work_items_scope_generation_idx (scope_id, generation_id, ...), so it
+// reads only the active generation's rows of each requested scope and filters
+// stage and domain on that small set. A newer pending generation's rows and an
+// older generation's rows never match, and a scope with no active generation
+// or no producer row returns no row. Measured on 1,057,631 fact_work_items
+// rows: one scope 0.08 ms, fifty scopes 1.4 ms, never a sequential scan (see
+// README.md).
 const RuntimeProducerStatesQuery = `
 SELECT scope.scope_id,
        count(*) FILTER (WHERE work.status = 'pending')  AS pending_count,
        count(*) FILTER (WHERE work.status = 'retrying') AS retrying_count,
        count(*) FILTER (WHERE work.status = 'claimed')  AS claimed_count,
        count(*) FILTER (WHERE work.status = 'running')  AS running_count,
-       count(*)                                          AS producer_count
+       count(*)                                          AS producer_count,
+       max(COALESCE(work.reopened_at, work.created_at))
+           FILTER (WHERE work.status IN ('pending', 'retrying', 'claimed', 'running'))
+                                                         AS newest_in_flight_cycle_started_at
 FROM ingestion_scopes AS scope
 JOIN fact_work_items AS work
   ON work.scope_id = scope.scope_id
@@ -47,7 +58,9 @@ type Store struct {
 }
 
 // RuntimeProducerStates returns, per repository id, the counts of the
-// producer domains' work items at the repository scope's active generation.
+// producer domains' work items at the repository scope's active generation
+// and the start of the newest in-flight producer cycle (zero when none is in
+// flight).
 // A repository with no producer row there is absent from the result. A
 // repository id maps to the git-repository-scope:<repo_id> scope the git
 // collector registers, which is where the WorkloadInstance producer runs.
@@ -92,8 +105,13 @@ func (s Store) RuntimeProducerStates(
 	for rows.Next() {
 		var scopeID string
 		var state servicecatalog.RuntimeProducerState
-		if err := rows.Scan(&scopeID, &state.Pending, &state.Retrying, &state.Claimed, &state.Running, &state.Total); err != nil {
+		var cycleStart sql.NullTime
+		if err := rows.Scan(&scopeID, &state.Pending, &state.Retrying, &state.Claimed, &state.Running, &state.Total,
+			&cycleStart); err != nil {
 			return nil, fmt.Errorf("scan runtime producer state: %w", err)
+		}
+		if cycleStart.Valid {
+			state.NewestInFlightCycleStartedAt = cycleStart.Time
 		}
 		repoID, ok := repoByScope[scopeID]
 		if !ok {

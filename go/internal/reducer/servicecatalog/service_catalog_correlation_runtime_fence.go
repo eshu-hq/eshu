@@ -28,8 +28,19 @@ import (
 // waits on upstream materialization, not on its own merits. Without the fence
 // the handler read zero WorkloadInstance rows before the producer's MERGE and
 // committed a service generation with an empty runtime family that nothing
-// later repairs. The wait is bounded by crossscope.ProducerReadinessMaxWait
-// measured from crossscope.ReadinessCycleAnchor, so it cannot wedge.
+// later repairs.
+//
+// The wait is bounded per in-flight repository by
+// crossscope.ProducerReadinessMaxWait, measured from that repository's newest
+// in-flight producer cycle start (COALESCE(reopened_at, created_at) of the
+// producer row), never from the catalog intent's own cycle anchor, which also
+// counts queue wait and corpus-fence wait. The handler proceeds only when
+// every in-flight repository has been in flight for at least the bound; it
+// then commits the runtime evidence it reads, which can be an empty family.
+// A zero producer anchor means elapsed time is unknown and keeps deferring.
+// The one shape that can defer forever is producer progress itself: a new
+// in-flight producer row appearing for a correlated repository every less
+// than 30 minutes, visible on the deferred outcome and its log line.
 const RuntimeNotReadyFailureClass = "service_catalog_correlation_runtime_not_ready"
 
 // Runtime readiness outcomes recorded on
@@ -45,9 +56,10 @@ const (
 	// RuntimeReadinessDeferred means a producer is in flight inside the bound
 	// and the intent deferred with nothing written.
 	RuntimeReadinessDeferred = "deferred"
-	// RuntimeReadinessBoundExceeded means a producer was still in flight past
-	// crossscope.ProducerReadinessMaxWait and the handler proceeded with the
-	// runtime evidence it could read.
+	// RuntimeReadinessBoundExceeded means every in-flight producer had been in
+	// flight for at least crossscope.ProducerReadinessMaxWait from its own
+	// cycle start, and the handler proceeded with the runtime evidence it
+	// could read, possibly an empty family.
 	RuntimeReadinessBoundExceeded = "bound_exceeded"
 )
 
@@ -77,6 +89,11 @@ type RuntimeProducerState struct {
 	Claimed  int
 	Running  int
 	Total    int
+	// NewestInFlightCycleStartedAt is the latest
+	// COALESCE(reopened_at, created_at) across the repository's in-flight
+	// producer rows: the start of the newest producer cycle still running. It
+	// is zero when no producer row is in flight.
+	NewestInFlightCycleStartedAt time.Time
 }
 
 // InFlight reports how many producer work items are not yet terminal.
@@ -126,8 +143,9 @@ const runtimeReadinessLogRepoSample = 10
 // read and before any write. It is a no-op when no runtime loader or readiness
 // port is wired, or no service carries a repository, because then there is no
 // runtime read to fence. When a correlated repository's producer is in flight
-// it returns runtimeNotReadyError inside the elapsed bound and proceeds past
-// it, recording the outcome either way.
+// it returns runtimeNotReadyError, unless every in-flight repository's
+// producer has been in flight past the bound from its own cycle start; then
+// it proceeds. It records the outcome either way.
 func (h ServiceCatalogCorrelationHandler) checkServiceRuntimeReadiness(
 	ctx context.Context,
 	intent reducercontract.Intent,
@@ -158,19 +176,48 @@ func (h ServiceCatalogCorrelationHandler) checkServiceRuntimeReadiness(
 		return nil
 	}
 	now := h.now()
-	anchor := crossscope.ReadinessCycleAnchor(intent)
-	if !anchor.IsZero() && now.Sub(anchor) >= crossscope.ProducerReadinessMaxWait {
+	allExceeded, oldestStart := runtimeProducerBound(inFlight, states, now)
+	if allExceeded {
 		h.recordRuntimeReadiness(ctx, RuntimeReadinessBoundExceeded)
 		logRuntimeReadiness(ctx, h.logger(), slog.LevelWarn,
 			"service catalog runtime readiness bound exceeded; committing the runtime evidence read now",
-			intent, now, RuntimeReadinessBoundExceeded, inFlight, totals)
+			intent, now, oldestStart, RuntimeReadinessBoundExceeded, inFlight, totals)
 		return nil
 	}
 	h.recordRuntimeReadiness(ctx, RuntimeReadinessDeferred)
 	logRuntimeReadiness(ctx, h.logger(), slog.LevelInfo,
 		"service catalog correlation deferred: workload materialization in flight for a correlated repository",
-		intent, now, RuntimeReadinessDeferred, inFlight, totals)
+		intent, now, oldestStart, RuntimeReadinessDeferred, inFlight, totals)
 	return runtimeNotReadyError{scopeID: intent.ScopeID, generationID: intent.GenerationID, repoIDs: inFlight}
+}
+
+// runtimeProducerBound reports whether every in-flight repository's producer
+// has been in flight for at least crossscope.ProducerReadinessMaxWait,
+// measured from its own NewestInFlightCycleStartedAt. A zero anchor is
+// unknown elapsed time, not infinite, so it is never exceeded. It also
+// returns the oldest known anchor across the in-flight repositories, for the
+// log line; that is zero when no anchor is known.
+func runtimeProducerBound(
+	inFlight []string,
+	states map[string]RuntimeProducerState,
+	now time.Time,
+) (bool, time.Time) {
+	allExceeded := len(inFlight) > 0
+	var oldest time.Time
+	for _, repoID := range inFlight {
+		start := states[repoID].NewestInFlightCycleStartedAt
+		if start.IsZero() {
+			allExceeded = false
+			continue
+		}
+		if oldest.IsZero() || start.Before(oldest) {
+			oldest = start
+		}
+		if now.Sub(start) < crossscope.ProducerReadinessMaxWait {
+			allExceeded = false
+		}
+	}
+	return allExceeded, oldest
 }
 
 // runtimeReadinessInFlight returns the repositories with in-flight producer
@@ -220,9 +267,12 @@ func (h ServiceCatalogCorrelationHandler) recordRuntimeReadiness(ctx context.Con
 }
 
 // logRuntimeReadiness writes the defer or bound-exceeded line. It carries
-// elapsed time since the cycle anchor against the bound, never attempt_count,
-// which the non-counting class freezes. Producer states are counts only; the
-// repository ids are bounded to runtimeReadinessLogRepoSample.
+// producer_elapsed (since the oldest known in-flight producer cycle start)
+// against producer_max_wait, which is the pair the decision uses, and
+// elapsed_since_cycle_start of the catalog intent for context only. It never
+// carries attempt_count, which the non-counting class freezes. Producer states
+// are summed counts; the in-flight repository ids are bounded to the first
+// runtimeReadinessLogRepoSample.
 func logRuntimeReadiness(
 	ctx context.Context,
 	logger *slog.Logger,
@@ -230,6 +280,7 @@ func logRuntimeReadiness(
 	message string,
 	intent reducercontract.Intent,
 	now time.Time,
+	oldestProducerStart time.Time,
 	outcome string,
 	inFlight []string,
 	totals RuntimeProducerState,
@@ -250,7 +301,10 @@ func logRuntimeReadiness(
 		slog.Int("producer_retrying", totals.Retrying),
 		slog.Int("producer_claimed", totals.Claimed),
 		slog.Int("producer_running", totals.Running),
-		slog.Duration("max_wait", crossscope.ProducerReadinessMaxWait),
+		slog.Duration("producer_max_wait", crossscope.ProducerReadinessMaxWait),
+	}
+	if !oldestProducerStart.IsZero() {
+		attrs = append(attrs, slog.Duration("producer_elapsed", now.Sub(oldestProducerStart)))
 	}
 	if anchor := crossscope.ReadinessCycleAnchor(intent); !anchor.IsZero() {
 		attrs = append(attrs, slog.Duration("elapsed_since_cycle_start", now.Sub(anchor)))

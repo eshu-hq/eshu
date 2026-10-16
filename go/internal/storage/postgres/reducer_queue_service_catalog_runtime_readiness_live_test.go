@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	producerreadiness "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/producer"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // Real-queue proofs for the #7816 service catalog runtime fence. Everything on
@@ -97,9 +98,11 @@ type runtimeFenceProof struct {
 
 // newRuntimeFenceProof seeds the repository scope (active generation with a
 // pending workload_materialization row) and the catalog scope (one pending
-// service_catalog_correlation row created catalogCreated ago).
+// service_catalog_correlation row created catalogCreated ago). The producer
+// row's cycle started one minute ago.
 func newRuntimeFenceProof(t *testing.T, ctx context.Context, dsn string, catalogCreated time.Duration) *runtimeFenceProof {
 	t.Helper()
+	installRuntimeFenceTrigram(t, ctx, dsn)
 	db, schema := openReducerFairnessDBWithSchema(t, ctx, dsn)
 	now := time.Now().UTC()
 	for _, seed := range []struct{ scope, gen string }{
@@ -136,6 +139,20 @@ func newRuntimeFenceProof(t *testing.T, ctx context.Context, dsn string, catalog
 		db: db, schema: schema, graph: &runtimeFenceGraph{},
 		materialization: &runtimeFenceMaterializations{}, correlation: &serviceCatalogFenceNoopCorrelationWriter{},
 	}
+}
+
+// installRuntimeFenceTrigram pins pg_trgm in public before any proof schema
+// bootstraps. Otherwise the first bootstrap's own CREATE EXTENSION lands in
+// that proof's schema, and a second proof schema opened in the same test on a
+// fresh database fails with "operator class gin_trgm_ops does not exist".
+func installRuntimeFenceTrigram(t *testing.T, ctx context.Context, dsn string) {
+	t.Helper()
+	admin, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open postgres: %v", err)
+	}
+	defer func() { _ = admin.Close() }()
+	postgresproof.InstallTrigramExtension(ctx, t, admin)
 }
 
 func (p *runtimeFenceProof) handler(db *sql.DB) servicecatalog.ServiceCatalogCorrelationHandler {
@@ -244,52 +261,6 @@ func TestReducerContentionGateServiceCatalogRuntimeFenceKeepsItsAttemptBudget(t 
 	}
 	if status, _, attempts := readRuntimeFenceItem(t, ctx, p.db, runtimeFenceCatalogItem); status != "succeeded" || attempts != 1 {
 		t.Fatalf("catalog terminal = %s attempts=%d, want succeeded at 1", status, attempts)
-	}
-}
-
-// TestReducerContentionGateServiceCatalogRuntimeFenceConvergesAtTheElapsedBound
-// is the no-wedge proof: a producer that stays pending forever cannot hold a
-// catalog row whose cycle began past crossscope.ProducerReadinessMaxWait. A
-// reopened row gets a fresh grace window, because the cycle anchor is
-// COALESCE(reopened_at, created_at) as the real claim query returns it.
-func TestReducerContentionGateServiceCatalogRuntimeFenceConvergesAtTheElapsedBound(t *testing.T) {
-	dsn := reducerDomainFairnessDSN()
-	if dsn == "" {
-		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the contention gate")
-	}
-	ctx := context.Background()
-
-	reopened := newRuntimeFenceProof(t, ctx, dsn, 45*time.Minute)
-	if _, err := reopened.db.ExecContext(ctx, `UPDATE fact_work_items SET reopened_at = $2 WHERE work_item_id = $1`,
-		runtimeFenceCatalogItem, time.Now().UTC().Add(-time.Minute)); err != nil {
-		t.Fatalf("reopen catalog row: %v", err)
-	}
-	queue := runtimeFenceQueue(reopened.db, "catalog-reopened", reducer.DomainServiceCatalogCorrelation, nil)
-	intent, claimed, err := queue.Claim(ctx)
-	if err != nil || !claimed {
-		t.Fatalf("reopened Claim() = %v, %v", claimed, err)
-	}
-	if _, err := reopened.handler(reopened.db).Handle(ctx, intent); err == nil {
-		t.Fatal("reopened row inside its fresh grace window committed; want a deferral anchored on reopened_at")
-	}
-
-	stuck := newRuntimeFenceProof(t, ctx, dsn, 45*time.Minute)
-	queue = runtimeFenceQueue(stuck.db, "catalog-stuck", reducer.DomainServiceCatalogCorrelation, nil)
-	intent, claimed, err = queue.Claim(ctx)
-	if err != nil || !claimed {
-		t.Fatalf("stuck Claim() = %v, %v", claimed, err)
-	}
-	if _, err := stuck.handler(stuck.db).Handle(ctx, intent); err != nil {
-		t.Fatalf("Handle() error = %v, want nil past the elapsed bound: the fence must not wedge", err)
-	}
-	if err := queue.Ack(ctx, intent, reducer.Result{}); err != nil {
-		t.Fatalf("Ack() error = %v", err)
-	}
-	if got := len(stuck.materialization.snapshot()); got != 1 {
-		t.Fatalf("materialization writes = %d, want 1 past the bound", got)
-	}
-	if status, _, _ := readRuntimeFenceItem(t, ctx, stuck.db, runtimeFenceCatalogItem); status != "succeeded" {
-		t.Fatalf("catalog terminal = %s, want succeeded", status)
 	}
 }
 

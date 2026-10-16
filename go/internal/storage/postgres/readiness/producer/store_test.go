@@ -5,10 +5,12 @@ package producer
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
@@ -49,6 +51,12 @@ func (r *fakeRows) Scan(dest ...any) error {
 			*target = value.(string)
 		case *int:
 			*target = value.(int)
+		case *sql.NullTime:
+			if value == nil {
+				*target = sql.NullTime{}
+			} else {
+				*target = sql.NullTime{Time: value.(time.Time), Valid: true}
+			}
 		default:
 			return errors.New("unexpected scan target")
 		}
@@ -64,28 +72,40 @@ var _ servicecatalog.RuntimeProducerReadiness = Store{}
 func TestRuntimeProducerStatesMapsRepositoriesToScopesAndBack(t *testing.T) {
 	t.Parallel()
 
+	cycleStart := time.Date(2026, time.October, 15, 11, 59, 0, 0, time.UTC)
 	fake := &fakeQueryer{rows: [][]any{
-		{"git-repository-scope:repository:r_a", 1, 0, 2, 0, 4},
+		{"git-repository-scope:repository:r_a", 1, 0, 2, 0, 4, cycleStart},
+		{"git-repository-scope:repository:r_c", 0, 0, 0, 0, 2, nil},
 	}}
 	states, err := Store{DB: fake}.RuntimeProducerStates(context.Background(),
-		[]string{"repository:r_a", " repository:r_b ", "repository:r_a", ""}, workloadProducer)
+		[]string{"repository:r_a", " repository:r_b ", "repository:r_a", "", "repository:r_c"}, workloadProducer)
 	if err != nil {
 		t.Fatalf("RuntimeProducerStates() error = %v", err)
 	}
-	if got, want := fake.args[0], []string{"git-repository-scope:repository:r_a", "git-repository-scope:repository:r_b"}; !reflect.DeepEqual(got, want) {
+	if got, want := fake.args[0], []string{"git-repository-scope:repository:r_a", "git-repository-scope:repository:r_b", "git-repository-scope:repository:r_c"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("scope ids = %v, want %v (deduped, trimmed, blank dropped)", got, want)
 	}
 	if got, want := fake.args[1], []string{"workload_materialization"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("domains = %v, want %v", got, want)
 	}
 	want := map[string]servicecatalog.RuntimeProducerState{
-		"repository:r_a": {Pending: 1, Claimed: 2, Total: 4},
+		"repository:r_a": {Pending: 1, Claimed: 2, Total: 4, NewestInFlightCycleStartedAt: cycleStart},
+		"repository:r_c": {Total: 2},
 	}
 	if !reflect.DeepEqual(states, want) {
-		t.Fatalf("states = %+v, want %+v (r_b absent: no producer row)", states, want)
+		t.Fatalf("states = %+v, want %+v (r_b absent: no producer row; r_c NULL anchor reads zero)", states, want)
 	}
-	if !strings.Contains(fake.query, "work.generation_id = scope.active_generation_id") {
-		t.Fatalf("query must pin the active generation:\n%s", fake.query)
+	for _, fragment := range []string{
+		"work.generation_id = scope.active_generation_id",
+		"max(COALESCE(work.reopened_at, work.created_at))",
+		"FILTER (WHERE work.status IN ('pending', 'retrying', 'claimed', 'running'))",
+	} {
+		if !strings.Contains(fake.query, fragment) {
+			t.Fatalf("query missing %q:\n%s", fragment, fake.query)
+		}
+	}
+	if strings.Contains(fake.query, "updated_at") {
+		t.Fatalf("query reads updated_at, which a retry or re-claim moves; the anchor is the cycle start:\n%s", fake.query)
 	}
 }
 
@@ -114,7 +134,7 @@ func TestRuntimeProducerStatesReturnsErrorsNeverEmptyState(t *testing.T) {
 		context.Background(), []string{"repository:r_a"}, workloadProducer); err == nil {
 		t.Fatal("query error swallowed; a store that cannot answer must return an error")
 	}
-	unrequested := &fakeQueryer{rows: [][]any{{"git-repository-scope:repository:r_z", 0, 0, 0, 0, 1}}}
+	unrequested := &fakeQueryer{rows: [][]any{{"git-repository-scope:repository:r_z", 0, 0, 0, 0, 1, nil}}}
 	if _, err := (Store{DB: unrequested}).RuntimeProducerStates(
 		context.Background(), []string{"repository:r_a"}, workloadProducer); err == nil {
 		t.Fatal("row for an unrequested scope accepted")
