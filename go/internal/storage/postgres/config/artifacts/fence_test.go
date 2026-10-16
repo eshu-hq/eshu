@@ -273,6 +273,7 @@ func assertMissingLog(t *testing.T, buf *bytes.Buffer, wantMissing []string) {
 		record["config_artifacts_status"] != StatusNotInstalled ||
 		record["reason"] != ReasonVersionFenceMissing ||
 		record["outcome"] != string(OutcomeFenceMissing) ||
+		record["missing_count"] != float64(len(wantMissing)) ||
 		!reflect.DeepEqual(missing, wantMissing) {
 		t.Fatalf("log record = %v, want ERROR %s not_installed %s missing_triggers=%v",
 			record, fenceEventName, ReasonVersionFenceMissing, wantMissing)

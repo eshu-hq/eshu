@@ -215,7 +215,8 @@ binary calls it yet, so no hot path changes. Backend: PostgreSQL 18.6
 database, 770 `pg_trigger` rows (26 non-internal), five requested pairs, five
 rows returned. `EXPLAIN (ANALYZE, BUFFERS)` of `fenceTriggersSQL`: a hash
 join of the five pairs over a sequential scan of `pg_trigger`, 18 shared
-buffers, 0.044-0.063 ms execution over four runs on 2026-10-16. The cost
+buffers on the scan, 0.043-0.064 ms execution over four runs on 2026-10-16
+(schema at origin/main 26be17f76). The cost
 grows with catalog triggers, not with content rows. It is safe because it
 reads only `pg_trigger`, takes no lock beyond the catalog's ACCESS SHARE, and
 never fails or blocks the caller.
