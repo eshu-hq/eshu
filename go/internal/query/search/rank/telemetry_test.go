@@ -122,3 +122,12 @@ func TestRecordErrorMapsEveryCodeToItsOutcome(t *testing.T) {
 		}
 	}
 }
+
+// TestCursorOutcomeMetricMatchesTheRegisteredName pins the exported name to
+// the literal the counter registers under.
+func TestCursorOutcomeMetricMatchesTheRegisteredName(t *testing.T) {
+	t.Parallel()
+	if CursorOutcomeMetric != "eshu_dp_query_rank_cursor_total" {
+		t.Fatalf("CursorOutcomeMetric = %q", CursorOutcomeMetric)
+	}
+}

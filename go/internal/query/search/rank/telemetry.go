@@ -71,8 +71,10 @@ var (
 // telemetry fault never fails a read.
 func initInstruments() {
 	instrumentsOnce.Do(func() {
+		// The literal name, not CursorOutcomeMetric, is what the
+		// telemetry-coverage gate reads to prove the metric is registered.
 		counter, err := otel.Meter("eshu/go/internal/query").Int64Counter(
-			CursorOutcomeMetric,
+			"eshu_dp_query_rank_cursor_total",
 			metric.WithDescription("Rank-walk (rank_cursor) requests on find_code and search_entity_content by tool and outcome: served, window_end, basis_mismatch (409), invalid (400), unsupported (400)"),
 		)
 		if err == nil {
