@@ -32,8 +32,10 @@ transitively.
 
 ## Gates that will fire on your change
 
-- **`verify-telemetry-coverage.sh`** — `runner.go` needs its row in
-  `docs/public/observability/telemetry-coverage.md`, keyed by file path.
+- **`verify-telemetry-coverage.sh`** — every non-test file here is covered
+  by the `generation retention` row in
+  `docs/public/observability/telemetry-coverage.md`, keyed by the glob
+  `go/internal/reducer/maintenance/retention/*.go`.
 - **`verify-performance-evidence.sh`** — fires on this path (batching,
   retention transaction). Markers must be unbolded and line-initial in
   a tracked note.
