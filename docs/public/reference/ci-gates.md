@@ -39,7 +39,7 @@ An **Odù** is one of its scenarios: a set of recorded facts whose expected
 results are derived from the inputs rather than written by hand. See
 [the Ifá conformance platform](../concepts/ifa-conformance-platform.md).
 
-### Hygiene: Is the change well-formed? (49 gates)
+### Hygiene: Is the change well-formed? (50 gates)
 
 - `go-fmt` (blocking): Checks Go source is formatted with gofumpt so diffs stay consistent.
 - `go-lint` (blocking): Runs golangci-lint across the Go module to catch style and correctness issues.
@@ -48,6 +48,7 @@ results are derived from the inputs rather than written by hand. See
 - `go-file-cap` (blocking): Fails when a Go file exceeds the 500-line cap, keeping files split and readable.
 - `go-dir-gate` (blocking): Fails when a Go directory holds too many files or a package name breaks the naming rules.
 - `markdown-file-cap` (blocking): Fails when a Markdown file under go/ or docs/ exceeds the 500-line cap.
+- `scripts-file-cap` (blocking): Fails when a tracked file under scripts/ exceeds the 500-line cap, or a pinned grandfather row grows (#8221).
 - `package-docs` (blocking): Fails when a Go package is missing its doc.go, README.md or AGENTS.md.
 - `migration-immutability` (blocking): Fails when a shipped Postgres migration is edited instead of added as a new one, or an added one combines table-locking DDL with bulk DML (#7961).
 - `gitignore-rg-parity` (blocking): Fails when an anchored .gitignore line (e.g. go/<binary>) relativizes under a subdirectory search root and hides tracked files from rg (#7750).
@@ -215,6 +216,7 @@ results are derived from the inputs rather than written by hand. See
 | `go-file-cap` | Go 500-line file cap | hygiene | pre-commit | true | `bash scripts/dev/precommit-go.sh filecap-all`<br>then self-test: `bash scripts/test-precommit-go-filecap.sh && cd tools/golangci-lint-filelength && env -u GOROOT go test -count=1 .` | test.yml / go-core | 5 path(s): go/**, scripts/dev/precommit-go.sh, scripts/test-precommit-go-filecap.sh, … |
 | `go-dir-gate` | Go directory-size and naming gate | hygiene | pre-commit | true | `bash scripts/dev/precommit-go.sh dirgate-all`<br>then self-test: `bash scripts/test-verify-dirgate.sh && bash scripts/test-generate-dirgate-grandfather-go.sh` | test.yml / go-core | 8 path(s): go/**, scripts/dev/precommit-go.sh, scripts/verify-dirgate.sh, … |
 | `markdown-file-cap` | Markdown 500-line file cap (go/ and docs/) | hygiene | pre-commit | true | `bash scripts/verify-markdown-line-cap.sh --all`<br>then self-test: `bash scripts/test-verify-markdown-line-cap.sh` | test.yml / markdown-file-cap | 10 path(s): go/**/*.md, docs/**/*.md, .github/workflows/test.yml, … |
+| `scripts-file-cap` | scripts/ 500-line file cap | hygiene | pre-commit | true | `bash scripts/verify-tooling-line-cap.sh --all`<br>then self-test: `bash scripts/test-verify-tooling-line-cap.sh` | test.yml / scripts-file-cap | 8 path(s): scripts/**, .github/workflows/test.yml, .pre-commit-config.yaml, … |
 | `package-docs` | Go package docs coverage | hygiene | pre-pr | true | `bash scripts/verify-package-docs.sh`<br>then self-test: `bash scripts/test-verify-package-docs.sh` | test.yml / verify-contracts | 3 path(s): go/**, scripts/test-verify-package-docs.sh, scripts/verify-package-docs.sh |
 | `migration-immutability` | Shipped Postgres migration immutability and lock shape | hygiene | pre-push | true | `bash scripts/verify-migration-immutability.sh`<br>then self-test: `bash scripts/test-verify-migration-immutability.sh` | test.yml / verify-contracts | 6 path(s): go/internal/storage/postgres/migrations/*.sql, scripts/lib/migration_lock_shape.py, scripts/test-migration-lock-shape.py, … |
 | `gitignore-rg-parity` | Tracked files visible to ripgrep from every search root | hygiene | pre-push | true | `bash scripts/verify-gitignore-rg-parity.sh`<br>then self-test: `bash scripts/test-verify-gitignore-rg-parity.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 4 path(s): .gitignore, **/.gitignore, scripts/test-verify-gitignore-rg-parity.sh, … |
