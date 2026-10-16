@@ -4,7 +4,6 @@
 package postgres
 
 import (
-	"bytes"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -200,17 +199,14 @@ func goStringLiteralSources(goRoot string, roots []string) ([]ddlSource, error) 
 
 // goFileStringLiterals returns the string literals of one Go file, with
 // literal-only + chains folded and each tagged with the top-level
-// declaration that holds it. A file that never mentions TABLE, INDEX,
-// TRIGGER, or FUNCTION in any case cannot hold DDL and is not parsed.
+// declaration that holds it. Every file is parsed: a keyword prefilter on
+// the raw bytes would skip a file whose only DDL is a kind the prefilter
+// does not name, or a statement split across a + chain or an escape such
+// as "CREATE\tSEQUENCE".
 func goFileStringLiterals(fset *token.FileSet, goRoot, path string) ([]ddlSource, error) {
 	src, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
-	}
-	lower := bytes.ToLower(src)
-	if !bytes.Contains(lower, []byte("table")) && !bytes.Contains(lower, []byte("index")) &&
-		!bytes.Contains(lower, []byte("trigger")) && !bytes.Contains(lower, []byte("function")) {
-		return nil, nil
 	}
 	file, err := parser.ParseFile(fset, path, src, parser.SkipObjectResolution)
 	if err != nil {

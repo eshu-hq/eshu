@@ -34,14 +34,16 @@ schema, graph schema, and worker behavior move together.
    declares, or any `ALTER INDEX`, `ALTER SEQUENCE`, `ALTER TYPE`,
    `ALTER DOMAIN`, or `ALTER [MATERIALIZED] VIEW` that is not allowlisted.
    It does not compare extensions, `ALTER COLUMN` changes, other statement
-   kinds, or
-   definitions (column types and defaults, index columns, constraint,
-   trigger, function, view, and type bodies), and it does not apply a later
-   `DROP` or `RENAME` in the migrations. It can also miss a clause that
-   sits in a separate Go constant from the statement it ends. Read the diff
-   of each listed file for those. The `-G` pattern is case-sensitive and
-   Eshu's Go DDL is upper case; rerun it in lower case if a release adds
-   lower-case SQL.
+   kinds, or definitions (column types and defaults, index columns,
+   constraint, trigger, function, view, and type bodies), and it does not
+   apply a later `DROP` or `RENAME` in the migrations. It can also miss a
+   clause that sits in a separate Go constant from the statement it ends.
+   Read the diff of each listed file for those. The `-G` pattern is
+   case-sensitive and Eshu's Go DDL is upper case; rerun it in lower case
+   if a release adds lower-case SQL. It also lists Go files with changed
+   Cypher graph-schema lines (`CREATE INDEX`, `CREATE FULLTEXT INDEX`, and
+   so on) in code or comments, such as under `go/internal/graph`; those
+   need no migration.
 
 ```bash
 # Placeholders: use real release tags (they look like v0.0.3-pre-release-18).
