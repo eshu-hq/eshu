@@ -12,19 +12,19 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 )
 
-// Elapsed-bound proofs for the #7816 runtime fence (amendment A1). The bound
-// is measured per in-flight repository from the newest in-flight producer
-// row's own cycle start (COALESCE(reopened_at, created_at)), never from the
-// catalog intent's cycle anchor. The catalog anchor counts queue wait and
-// corpus-fence wait, so bounding on it committed an empty runtime family for
-// a producer that had been running for one minute.
+// Elapsed-bound proofs for the #7816 runtime fence (amendments A1 and A2).
+// The bound is measured per in-flight repository from the newest in-flight
+// producer row's last-workable time (the store's NewestInFlightWorkableAt),
+// never from the catalog intent's cycle anchor. The catalog anchor counts
+// queue wait and corpus-fence wait, so bounding on it committed an empty
+// runtime family for a producer that had been running for one minute. The
+// store computes the last-workable time; these tests take it as given.
 
-// producerInFlight is one in-flight producer row whose cycle started
-// startedAgo before runtimeFenceNow. A zero startedAgo leaves the anchor
-// unknown.
-func producerInFlight(state RuntimeProducerState, startedAgo time.Duration) RuntimeProducerState {
-	if startedAgo > 0 {
-		state.NewestInFlightCycleStartedAt = runtimeFenceNow.Add(-startedAgo)
+// producerInFlight is one in-flight producer row last workable idleFor before
+// runtimeFenceNow. A zero idleFor leaves the anchor unknown.
+func producerInFlight(state RuntimeProducerState, idleFor time.Duration) RuntimeProducerState {
+	if idleFor > 0 {
+		state.NewestInFlightWorkableAt = runtimeFenceNow.Add(-idleFor)
 	}
 	return state
 }
@@ -86,17 +86,17 @@ func TestServiceCatalogHandlerRuntimeFenceBoundsOnProducerNotCatalogCycle(t *tes
 }
 
 // TestServiceCatalogHandlerRuntimeFenceProceedsForWedgedProducer is proof 4b:
-// a producer stuck in flight past crossscope.ProducerReadinessMaxWait from its
-// own cycle start no longer defers a young catalog intent. A retrying row's
-// updated_at moves on every retry, so the anchor is its created_at (31
-// minutes), not the one-minute-old update.
+// a producer row no worker has touched for longer than
+// crossscope.ProducerReadinessMaxWait (pending and never claimed, or retrying
+// with its retry visible and unclaimed for 31 minutes) no longer defers a
+// young catalog intent.
 func TestServiceCatalogHandlerRuntimeFenceProceedsForWedgedProducer(t *testing.T) {
 	t.Parallel()
 
 	wedged := crossscope.ProducerReadinessMaxWait + time.Minute
 	for name, state := range map[string]RuntimeProducerState{
-		"pending 31 min":                     producerInFlight(RuntimeProducerState{Pending: 1, Total: 1}, wedged),
-		"retrying created 31 min, updated 1": producerInFlight(RuntimeProducerState{Retrying: 1, Total: 1}, wedged),
+		"pending never claimed 31 min":           producerInFlight(RuntimeProducerState{Pending: 1, Total: 1}, wedged),
+		"retrying visible 31 min, never claimed": producerInFlight(RuntimeProducerState{Retrying: 1, Total: 1}, wedged),
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -147,7 +147,8 @@ func TestServiceCatalogHandlerRuntimeFenceMixedRepositoriesDefer(t *testing.T) {
 
 // TestServiceCatalogHandlerRuntimeFenceReopenedProducerWaitsAFreshBound is
 // proof 4d: a succeeded producer row reopened one minute ago (created two
-// hours ago) is a new producer cycle. Its anchor is reopened_at, so it defers.
+// hours ago) is a new producer cycle. Its workable anchor is the reopen, so
+// it defers.
 func TestServiceCatalogHandlerRuntimeFenceReopenedProducerWaitsAFreshBound(t *testing.T) {
 	t.Parallel()
 

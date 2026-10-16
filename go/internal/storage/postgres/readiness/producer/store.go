@@ -17,20 +17,28 @@ import (
 
 // RuntimeProducerStatesQuery counts each repository scope's producer work
 // items at its ACTIVE generation, by status, and returns the newest in-flight
-// producer cycle start: max(COALESCE(reopened_at, created_at)) over the
-// pending, retrying, claimed, and running rows (NULL when none is in flight).
-// That timestamp is the fence's elapsed-bound anchor. It never uses
-// updated_at, which a retry or a re-claim moves; created_at and reopened_at
-// mark the start of a producer cycle.
+// last-workable time: the max over the pending, retrying, claimed, and running
+// rows of GREATEST(COALESCE(reopened_at, created_at), COALESCE(last_attempt_at,
+// created_at), COALESCE(visible_at, created_at)), NULL when none is in flight.
+// That timestamp is the fence's elapsed-bound anchor. A row's last-workable
+// time is the latest of its cycle start (enqueue or reopen), its last claim,
+// and its scheduled visibility (a retry's next attempt). Every real attempt,
+// including a non-counting readiness retry that never touches created_at or
+// reopened_at, moves last_attempt_at and visible_at, so a producer a worker
+// keeps touching never reaches the bound; only a row no worker has touched
+// for the bound does. It never uses updated_at, which heartbeats and claim
+// bookkeeping move.
 //
 // It joins ingestion_scopes on its primary key to fact_work_items through
 // fact_work_items_scope_generation_idx (scope_id, generation_id, ...), so it
 // reads only the active generation's rows of each requested scope and filters
-// stage and domain on that small set. A newer pending generation's rows and an
+// stage and domain on that small set; last_attempt_at and visible_at are heap
+// columns of rows already fetched. A newer pending generation's rows and an
 // older generation's rows never match, and a scope with no active generation
 // or no producer row returns no row. Measured on 1,057,631 fact_work_items
-// rows: one scope 0.08 ms, fifty scopes 1.4 ms, never a sequential scan (see
-// README.md).
+// rows: pgbench mean latency one scope 0.26 ms and fifty scopes 1.7 ms,
+// within 3% of the previous anchor on the same data, never a sequential scan
+// (see README.md).
 const RuntimeProducerStatesQuery = `
 SELECT scope.scope_id,
        count(*) FILTER (WHERE work.status = 'pending')  AS pending_count,
@@ -38,9 +46,11 @@ SELECT scope.scope_id,
        count(*) FILTER (WHERE work.status = 'claimed')  AS claimed_count,
        count(*) FILTER (WHERE work.status = 'running')  AS running_count,
        count(*)                                          AS producer_count,
-       max(COALESCE(work.reopened_at, work.created_at))
+       max(GREATEST(COALESCE(work.reopened_at, work.created_at),
+                    COALESCE(work.last_attempt_at, work.created_at),
+                    COALESCE(work.visible_at, work.created_at)))
            FILTER (WHERE work.status IN ('pending', 'retrying', 'claimed', 'running'))
-                                                         AS newest_in_flight_cycle_started_at
+                                                         AS newest_in_flight_workable_at
 FROM ingestion_scopes AS scope
 JOIN fact_work_items AS work
   ON work.scope_id = scope.scope_id
@@ -59,8 +69,7 @@ type Store struct {
 
 // RuntimeProducerStates returns, per repository id, the counts of the
 // producer domains' work items at the repository scope's active generation
-// and the start of the newest in-flight producer cycle (zero when none is in
-// flight).
+// and the newest in-flight last-workable time (zero when none is in flight).
 // A repository with no producer row there is absent from the result. A
 // repository id maps to the git-repository-scope:<repo_id> scope the git
 // collector registers, which is where the WorkloadInstance producer runs.
@@ -105,13 +114,13 @@ func (s Store) RuntimeProducerStates(
 	for rows.Next() {
 		var scopeID string
 		var state servicecatalog.RuntimeProducerState
-		var cycleStart sql.NullTime
+		var workableAt sql.NullTime
 		if err := rows.Scan(&scopeID, &state.Pending, &state.Retrying, &state.Claimed, &state.Running, &state.Total,
-			&cycleStart); err != nil {
+			&workableAt); err != nil {
 			return nil, fmt.Errorf("scan runtime producer state: %w", err)
 		}
-		if cycleStart.Valid {
-			state.NewestInFlightCycleStartedAt = cycleStart.Time
+		if workableAt.Valid {
+			state.NewestInFlightWorkableAt = workableAt.Time
 		}
 		repoID, ok := repoByScope[scopeID]
 		if !ok {

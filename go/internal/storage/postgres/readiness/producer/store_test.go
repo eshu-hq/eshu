@@ -72,9 +72,9 @@ var _ servicecatalog.RuntimeProducerReadiness = Store{}
 func TestRuntimeProducerStatesMapsRepositoriesToScopesAndBack(t *testing.T) {
 	t.Parallel()
 
-	cycleStart := time.Date(2026, time.October, 15, 11, 59, 0, 0, time.UTC)
+	workableAt := time.Date(2026, time.October, 15, 11, 59, 0, 0, time.UTC)
 	fake := &fakeQueryer{rows: [][]any{
-		{"git-repository-scope:repository:r_a", 1, 0, 2, 0, 4, cycleStart},
+		{"git-repository-scope:repository:r_a", 1, 0, 2, 0, 4, workableAt},
 		{"git-repository-scope:repository:r_c", 0, 0, 0, 0, 2, nil},
 	}}
 	states, err := Store{DB: fake}.RuntimeProducerStates(context.Background(),
@@ -89,7 +89,7 @@ func TestRuntimeProducerStatesMapsRepositoriesToScopesAndBack(t *testing.T) {
 		t.Fatalf("domains = %v, want %v", got, want)
 	}
 	want := map[string]servicecatalog.RuntimeProducerState{
-		"repository:r_a": {Pending: 1, Claimed: 2, Total: 4, NewestInFlightCycleStartedAt: cycleStart},
+		"repository:r_a": {Pending: 1, Claimed: 2, Total: 4, NewestInFlightWorkableAt: workableAt},
 		"repository:r_c": {Total: 2},
 	}
 	if !reflect.DeepEqual(states, want) {
@@ -97,7 +97,9 @@ func TestRuntimeProducerStatesMapsRepositoriesToScopesAndBack(t *testing.T) {
 	}
 	for _, fragment := range []string{
 		"work.generation_id = scope.active_generation_id",
-		"max(COALESCE(work.reopened_at, work.created_at))",
+		"max(GREATEST(COALESCE(work.reopened_at, work.created_at),",
+		"COALESCE(work.last_attempt_at, work.created_at),",
+		"COALESCE(work.visible_at, work.created_at)))",
 		"FILTER (WHERE work.status IN ('pending', 'retrying', 'claimed', 'running'))",
 	} {
 		if !strings.Contains(fake.query, fragment) {
@@ -105,7 +107,7 @@ func TestRuntimeProducerStatesMapsRepositoriesToScopesAndBack(t *testing.T) {
 		}
 	}
 	if strings.Contains(fake.query, "updated_at") {
-		t.Fatalf("query reads updated_at, which a retry or re-claim moves; the anchor is the cycle start:\n%s", fake.query)
+		t.Fatalf("query reads updated_at, which heartbeats and claim bookkeeping move; the anchor is the last-workable time:\n%s", fake.query)
 	}
 }
 
