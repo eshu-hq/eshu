@@ -60,7 +60,11 @@ type DeltaUnionActiveRow struct {
 	StableKey string
 	Path      string
 	Tombstone bool
-	// Entity counts one content_entity row toward its path.
+	// Entity counts one Function content_entity row toward its path. The
+	// ACTIVE read sets it only for entity_type function/Function, the
+	// entity types the projection writes as :Function nodes under the
+	// file, so the want side counts the same population the graph
+	// readers count ((f)-[:CONTAINS]->(e:Function)).
 	Entity bool
 }
 
@@ -244,9 +248,8 @@ type DeltaUnionRepoResult struct {
 // ACTIVE side: pass when the file sets and per-path entity counts agree,
 // mismatch on any missing, extra, or count-drifted path, skip when the scope
 // has no active generation or its active generation is not a delta (the
-// want side counts every content_entity fact row per file while the graph
-// side counts only :Function nodes, so a full active generation is out of
-// this comparison's scope). Empty delta-active repositories pass.
+// check covers delta-active scopes; a full active generation is out of this
+// comparison's scope). Empty delta-active repositories pass.
 func CompareDeltaUnionRepo(exp DeltaUnionExpectation, obs DeltaUnionObservation) DeltaUnionRepoResult {
 	result := DeltaUnionRepoResult{
 		RepoID:  exp.RepoID,

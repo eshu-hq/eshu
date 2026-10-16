@@ -64,7 +64,7 @@ New bounded telemetry, all covered in
 pass):
 
 - Counter `eshu_dp_projector_delta_union_total` by closed `outcome`
-  (`union_base_found`/`union_base_missing_refused`); no SHAs, scope
+  (`union_base_found`/`union_base_missing_refused`/`union_resolve_failed`/`union_scope_mismatch`); no SHAs, scope
   ids, or generation ids in labels.
 - Histogram `eshu_dp_projector_delta_union_facts` carrying
   base/delta/union fact counts as values by `outcome` and `kind`.

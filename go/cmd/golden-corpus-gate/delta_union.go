@@ -100,10 +100,9 @@ func evaluateDeltaUnionSnapshot(
 	observations := make([]gg.DeltaUnionObservation, 0, len(expected))
 	for _, exp := range expected {
 		observation := gg.DeltaUnionObservation{RepoID: exp.RepoID, Files: map[string]int64{}}
-		// Only delta-active scopes are compared: the want side counts
-		// every content_entity fact row per file while the graph side
-		// counts only :Function nodes, so a full active generation is out
-		// of this comparison's scope and skips without a graph read.
+		// Only delta-active scopes are compared: the check covers
+		// delta-active scopes, so a full active generation is out of
+		// this comparison's scope and skips without a graph read.
 		if exp.ActiveGenerationID != "" && exp.ActiveIsDelta && exp.RepoID != "" {
 			files, err := graph.DeltaUnionRepoFiles(ctx, exp.RepoID)
 			if err != nil {

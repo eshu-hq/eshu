@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"regexp"
@@ -172,7 +173,15 @@ func (s FactStore) ListFacts(
 	}
 	baseGenerationID, baselineSHA, wantUnion, err := s.resolveDeltaUnionBase(ctx, scopeID, generationID)
 	if err != nil {
-		s.recordDeltaUnionRefused(ctx, scopeID, generationID, len(loaded))
+		// Only a missing base refuses downstream: any other resolve
+		// error retries through the generic fail path, so it counts a
+		// distinct resolve-failed outcome instead of the refused one.
+		var baseMissing *projector.DeltaBaseMissingError
+		if errors.As(err, &baseMissing) {
+			s.recordDeltaUnionRefused(ctx, scopeID, generationID, len(loaded))
+		} else {
+			s.recordDeltaUnion(ctx, scopeID, generationID, projector.DeltaUnionResolveFailed, 0, len(loaded), 0)
+		}
 		return nil, err
 	}
 	if !wantUnion {

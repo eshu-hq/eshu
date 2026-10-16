@@ -195,7 +195,31 @@ func (s FactStore) listFactsUnion(
 		s.recordDeltaUnionRefused(ctx, scopeID, generationID, len(delta))
 		return nil, deltaBaseMissing(scopeID, generationID, baselineSHA)
 	}
-	merged := facts.OverlayDeltaBase(base, delta, facts.ParseDeltaScope(delta))
+	scope := facts.ParseDeltaScope(delta)
+	if !scope.IsDelta {
+		// The store resolved a union but the delta carries no
+		// delta_generation repository fact, so the overlay below runs
+		// additively (base plus delta concatenation, no dedup): the
+		// DB-versus-payload divergence needs a signal, and the load
+		// proceeds. Fail-closed refusal was considered and rejected
+		// here: it would stall projections that succeed today on
+		// legacy or mis-marked generations (see the outcome contract
+		// on projector.DeltaUnionScopeMismatch).
+		merged := facts.OverlayDeltaBase(base, delta, scope)
+		if s.logger != nil {
+			s.logger.WarnContext(ctx, "projector delta union scope mismatch: generation resolves as delta with a baseline but carries no delta_generation repository fact; loading base plus delta additively",
+				log.ScopeID(scopeID),
+				slog.String("generation_id", generationID),
+				slog.Int("base_fact_count", len(base)),
+				slog.Int("delta_fact_count", len(delta)),
+				slog.Int("union_fact_count", len(merged)),
+			)
+		}
+		s.recordDeltaUnion(ctx, scopeID, generationID, projector.DeltaUnionScopeMismatch,
+			len(base), len(delta), len(merged))
+		return merged, nil
+	}
+	merged := facts.OverlayDeltaBase(base, delta, scope)
 	s.recordDeltaUnion(ctx, scopeID, generationID, projector.DeltaUnionBaseFound,
 		len(base), len(delta), len(merged))
 	return merged, nil

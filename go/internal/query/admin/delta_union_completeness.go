@@ -67,9 +67,10 @@ type DeltaUnionCompletenessChecker struct {
 var ErrDeltaUnionScopeRequired = errors.New("delta union completeness requires at least one explicit scope filter")
 
 // Check runs the completeness check over an explicit scope filter: at
-// least one scope is required (see ErrDeltaUnionScopeRequired). Scopes
-// with no active generation, or whose active generation is not a delta,
-// are reported skipped without a graph read; delta-active scopes past
+// least one scope is required (see ErrDeltaUnionScopeRequired). A filter
+// wider than MaxRepos fails before the ACTIVE fact fan-out; scopes with
+// no active generation, or whose active generation is not a delta, are
+// reported skipped without a graph read; delta-active scopes past
 // MaxRepos fail loudly instead of paging silently.
 func (c *DeltaUnionCompletenessChecker) Check(
 	ctx context.Context,
@@ -92,6 +93,15 @@ func (c *DeltaUnionCompletenessChecker) Check(
 	if maxRepos <= 0 {
 		maxRepos = defaultDeltaUnionMaxRepos
 	}
+	// Reject an over-cap filter before the ACTIVE fact fan-out: the read
+	// loads every fact of every in-filter generation plus their bases, so
+	// a filter wider than the cap must fail before that work, not after.
+	// The post-assembly cap check below stays as defense in depth for the
+	// delta-active subset.
+	if len(scopes) > maxRepos {
+		return recovery.DeltaUnionCompletenessReport{}, fmt.Errorf(
+			"delta union completeness covers %d scopes, past the %d cap: narrow the scope filter", len(scopes), maxRepos)
+	}
 	snapshot, err := c.Active.ReadDeltaUnionActive(ctx, scopes)
 	if err != nil {
 		return recovery.DeltaUnionCompletenessReport{}, fmt.Errorf("read delta union active: %w", err)
@@ -99,10 +109,9 @@ func (c *DeltaUnionCompletenessChecker) Check(
 	expected := goldengate.AssembleDeltaUnionExpectations(snapshot.Rows, snapshot.Deltas)
 	var comparable []goldengate.DeltaUnionExpectation
 	for _, exp := range expected {
-		// Only delta-active scopes issue graph reads: the want side
-		// counts every content_entity fact row per file while the graph
-		// side counts only :Function nodes, so a full active generation
-		// is out of this comparison's scope.
+		// Only delta-active scopes issue graph reads: the check covers
+		// delta-active scopes, so a full active generation is out of
+		// this comparison's scope and skips without a graph read.
 		if exp.ActiveGenerationID == "" || !exp.ActiveIsDelta {
 			continue
 		}
