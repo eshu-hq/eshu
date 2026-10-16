@@ -16,6 +16,8 @@ Layout:
   (backfill, dead-letter, decisions, input-invalid-facts, recover-generations,
   refinalize, reindex, replay, replay-events, shared-projection tuning
   report, skip, work-items).
+- `delta_union_completeness.go` — `DeltaUnionCompleteness`:
+  `GET /api/v0/admin/delta-union/completeness`.
 - `answer_narration.go` — `AnswerNarration`:
   `GET /api/v0/status/answer-narration`.
 - `collector_readiness.go` — `CollectorReadiness`:
