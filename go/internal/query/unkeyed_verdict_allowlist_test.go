@@ -42,12 +42,14 @@ var noCapabilityAllowedFiles = map[string]string{
 	"admin/identity/audit.go": "GET /api/v0/auth/admin/audit/events and GET " +
 		"/api/v0/auth/admin/audit/summary read the governance audit store with no " +
 		"matrix key (#8227)",
+	"operator_control_plane.go": "GET /api/v0/status/operator-control-plane reads the " +
+		"status snapshot with no matrix key (#8227)",
 }
 
 // noCapabilityAllowedFileCount pins how many files may pass
 // querycontract.NoCapability, so adding or dropping one is a visible,
 // reviewed change to this constant as well as to the map (#8227 removes them).
-const noCapabilityAllowedFileCount = 7
+const noCapabilityAllowedFileCount = 8
 
 // noCapabilityConstName is the querycontract constant the sweep recognizes.
 const noCapabilityConstName = "NoCapability"

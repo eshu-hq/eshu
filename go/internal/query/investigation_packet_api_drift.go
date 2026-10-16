@@ -84,7 +84,7 @@ func (h *CloudRuntimeDriftHandler) getDriftPacket(w http.ResponseWriter, r *http
 	}
 	rows, err := h.Store.ListActiveMultiCloudRuntimeDriftFindings(r.Context(), filter)
 	if err != nil {
-		h.writeDriftPacketReadFailure(w, r, err)
+		h.writeReadbackFailure(w, r, err, driftPacketReadFailedMessage)
 		return
 	}
 	truth := BuildTruthEnvelope(
@@ -102,24 +102,4 @@ func (h *CloudRuntimeDriftHandler) getDriftPacket(w http.ResponseWriter, r *http
 		return
 	}
 	writeInvestigationPacket(w, r, packet)
-}
-
-// writeDriftPacketReadFailure answers a failed drift finding readback. The
-// store reads through the guarded PostgreSQL reader, so WriteGraphReadError
-// runs first: a stale or timed-out reader answers the retryable 503 with
-// Retry-After. Anything else keeps the route's contract envelope, now through
-// tracing.ServerFailureEnvelope: 500 internal_error with err on the request
-// span, or 499 for a client cancel, with the fixed message either way.
-func (h *CloudRuntimeDriftHandler) writeDriftPacketReadFailure(w http.ResponseWriter, r *http.Request, err error) {
-	if WriteGraphReadError(w, r, err, cloudRuntimeDriftReadbackCapability) {
-		return
-	}
-	status, errEnv := tracing.ServerFailureEnvelope(
-		r.Context(), err, driftPacketReadFailedMessage, cloudRuntimeDriftReadbackCapability,
-	)
-	errEnv.Profiles = &querycontract.ErrorProfiles{
-		Current:  h.profile(),
-		Required: querycontract.RequiredProfile(cloudRuntimeDriftReadbackCapability),
-	}
-	WriteErrorEnvelope(w, r, status, errEnv)
 }

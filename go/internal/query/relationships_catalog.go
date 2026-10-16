@@ -27,6 +27,14 @@ const (
 	relationshipBreakdownMaxConcurrency = 4
 )
 
+// Fixed bodies of the failed graph reads on POST /api/v0/relationships/catalog
+// and POST /api/v0/relationships/edges (#7674). The graph error can quote
+// Cypher and hosts, so it goes on the request span, never into the body.
+const (
+	relationshipsCatalogReadFailedMessage = "relationships catalog read failed"
+	relationshipEdgesReadFailedMessage    = "relationship edges read failed"
+)
+
 // relationshipVerbTile is one entry in the relationships catalog: a typed-edge
 // verb with its layer, whole-graph edge count, evidence/source label, and an
 // optional per-source-tool breakdown for Tier-2 verbs that carry source_tool.
@@ -101,10 +109,7 @@ func (h *InfraHandler) getRelationshipsCatalog(w http.ResponseWriter, r *http.Re
 
 	tiles, err := h.relationshipVerbTiles(r.Context())
 	if err != nil {
-		if WriteGraphReadError(w, r, err, relationshipsCatalogCapability) {
-			return
-		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeReadFailure(w, r, err, relationshipsCatalogCapability, relationshipsCatalogReadFailedMessage)
 		return
 	}
 
@@ -350,10 +355,7 @@ func (h *InfraHandler) getRelationshipEdges(w http.ResponseWriter, r *http.Reque
 		var err error
 		edges, truncated, err = h.relationshipEdges(r.Context(), entry, tool, limit, access)
 		if err != nil {
-			if WriteGraphReadError(w, r, err, relationshipsCatalogCapability) {
-				return
-			}
-			WriteError(w, http.StatusInternalServerError, err.Error())
+			writeReadFailure(w, r, err, relationshipsCatalogCapability, relationshipEdgesReadFailedMessage)
 			return
 		}
 	}

@@ -34,7 +34,7 @@ source_coverage:
           max_results: 500
   - file: cloud_resources.go
     calls:
-      - {symbol: "(*InfraHandler).listCloudResources", count: 1, source_sha256: c25d41311b734d359fd6d690dc0f5b956ba6b07280fe031d1801e7db75782ca2, entry_ids: [QP-CLOUD-RESOURCE-LIST-HYDRATION]}
+      - {symbol: "(*InfraHandler).listCloudResources", count: 1, source_sha256: 0c14d8079b66bf854cc6cb943fa3c87b6f036cbf6e05bdd0c1f43a6f63b9639b, entry_ids: [QP-CLOUD-RESOURCE-LIST-HYDRATION]}
   - file: codequery/handler.go
     calls:
       - {symbol: "(*CodeHandler).runComplexityQuery", count: 1, non_hot_reason: "unlabeled complexity-by-id branch is inventoried but cannot be admitted until its production anchor is typed"}
@@ -256,7 +256,7 @@ source_coverage:
       - {symbol: "(*Handler).exposurePathCandidates", count: 1, non_hot: {class: keyed_support, source_sha256: 220883b3e7f898b1b3fc15614cf17e387675a8c7540e71011fd5dc53932822c0, key_bound: single_key, max_results: 25}}
   - file: graph_entity_inventory.go
     calls:
-      - {symbol: "(*GraphEntityInventoryHandler).listEntities", count: 2, source_sha256: b93c881f8233899acf3753d24a85e87ec2b313885fd4e25ff752d6831a3c4a48, entry_ids: [QP-GRAPH-ENTITY-COUNT, QP-GRAPH-ENTITY-LIST]}
+      - {symbol: "(*GraphEntityInventoryHandler).listEntities", count: 2, source_sha256: bfc4a0973d0e11ac35d7fc11a2c5eebeb7a37bf09945d5f80c8953cec24f7fd1, entry_ids: [QP-GRAPH-ENTITY-COUNT, QP-GRAPH-ENTITY-LIST]}
   - file: iac/resources.go
     calls:
       - symbol: "(*Handler).listResources"
@@ -273,7 +273,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 3f17d8c373facba94a9ed253b458d64382eaeeda966ba85d1449068850638945
+          source_sha256: db4b495c5fc171ae35e59ec9a02873abd91e6bc23142e8cba7f9639012f51cec
           label: ContainerImage
           max_results: 201
   - file: taghistory/page.go

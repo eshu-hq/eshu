@@ -18,6 +18,16 @@ const (
 	admissionDecisionEvidenceLimit = 20
 )
 
+// Fixed bodies of the two failed reads on GET /api/v0/evidence/admission-decisions
+// (#7674): the decision page and one decision's evidence. Both read the
+// admission decision read model through the guarded PostgreSQL reader, so a
+// stale or timed-out reader answers the retryable 503 first. The store error
+// can quote SQL and hosts, so it goes on the handler span, never into the body.
+const (
+	admissionDecisionReadFailedMessage         = "admission decision read failed"
+	admissionDecisionEvidenceReadFailedMessage = "admission decision evidence read failed"
+)
+
 func (h *EvidenceHandler) listAdmissionDecisions(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
@@ -66,7 +76,7 @@ func (h *EvidenceHandler) listAdmissionDecisions(w http.ResponseWriter, r *http.
 	}
 	rows, err := h.AdmissionDecisions.ListAdmissionDecisions(r.Context(), filter)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeReadFailure(w, r, err, admissionDecisionCapability, admissionDecisionReadFailedMessage)
 		return
 	}
 	truncated := len(rows) > limit
@@ -83,7 +93,7 @@ func (h *EvidenceHandler) listAdmissionDecisions(w http.ResponseWriter, r *http.
 				admissionDecisionEvidenceLimit+1,
 			)
 			if err != nil {
-				WriteError(w, http.StatusInternalServerError, err.Error())
+				writeReadFailure(w, r, err, admissionDecisionCapability, admissionDecisionEvidenceReadFailedMessage)
 				return
 			}
 			result.Evidence, result.EvidenceTruncated = boundedAdmissionDecisionEvidence(evidence)

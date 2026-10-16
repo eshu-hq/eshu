@@ -19,6 +19,17 @@ import (
 
 const infraResourceAggregateCapability = "platform_impact.infra_resource_aggregate"
 
+// Fixed bodies of the failed aggregate reads on GET /api/v0/infra/resources/count
+// and GET /api/v0/infra/resources/inventory (#7674). The aggregate store reads
+// the PostgreSQL read model through the guarded reader and falls back to the
+// graph, so a stale or timed-out reader or a graph outage answers its 503 or
+// 504 first. No error text reaches the body; each error goes on the handler
+// span.
+const (
+	infraResourceCountFailedMessage     = "infra resource count failed"
+	infraResourceInventoryFailedMessage = "infra resource inventory read failed"
+)
+
 // infraResourceAggregateRoutes registers the cheap-summary aggregate routes
 // alongside the existing infra search route.
 func (h *InfraHandler) infraResourceAggregateRoutes(mux *http.ServeMux) {
@@ -76,10 +87,7 @@ func (h *InfraHandler) countInfraResources(w http.ResponseWriter, r *http.Reques
 	filter = applyInfraResourceAggregateAccess(filter, access, h.scopeUsesNeo4jDialect(access))
 	count, err := h.Aggregates.CountInfraResources(r.Context(), filter)
 	if err != nil {
-		if WriteGraphReadError(w, r, err, infraResourceAggregateCapability) {
-			return
-		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeReadFailure(w, r, err, infraResourceAggregateCapability, infraResourceCountFailedMessage)
 		return
 	}
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
@@ -159,10 +167,7 @@ func (h *InfraHandler) infraResourceInventory(w http.ResponseWriter, r *http.Req
 
 	rows, source, err := h.Aggregates.InfraResourceInventory(r.Context(), filter, dimension, limit+1, offset)
 	if err != nil {
-		if WriteGraphReadError(w, r, err, infraResourceAggregateCapability) {
-			return
-		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeReadFailure(w, r, err, infraResourceAggregateCapability, infraResourceInventoryFailedMessage)
 		return
 	}
 	truncated := len(rows) > limit

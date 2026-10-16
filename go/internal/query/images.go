@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -18,6 +19,11 @@ const (
 	imageListCapability = "platform_impact.container_image_list"
 	imageListMaxLimit   = 200
 	imageListDefaultLim = 50
+
+	// imageListReadFailedMessage is the fixed body of a failed graph read
+	// on GET /api/v0/images (#7674). The graph error can quote Cypher and
+	// hosts, so it goes on the handler span, never into the body.
+	imageListReadFailedMessage = "container image list read failed"
 )
 
 // imageListCypher lists container images over the authoritative graph.
@@ -173,7 +179,7 @@ func (h *ImageHandler) listImages(w http.ResponseWriter, r *http.Request) {
 		}
 		recordImageListError(r.Context(), "query_error")
 		recordImageListDuration(r.Context(), start, "query_error")
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, imageListReadFailedMessage)
 		return
 	}
 
