@@ -151,16 +151,82 @@ func postEnvelopeJSON(mux *http.ServeMux, path string, body any) *httptest.Respo
 }
 
 // TestAdminReadNonFenceErrorKeepsStatus500 pins the unchanged behavior for a
-// permanent store failure: #8176 only adds the fenced-reader 503 with a
-// capability. Backend-text removal stays with the #7674 slice.
+// permanent store failure on every converted route: #8176 only adds the
+// fenced-reader 503 with a capability. Backend-text removal stays with the
+// #7674 slice.
 func TestAdminReadNonFenceErrorKeepsStatus500(t *testing.T) {
 	t.Parallel()
 
-	store := &stubAdminStore{workItemsErr: errors.New("postgres down")}
-	w := postJSON(newAdminMux(&Handler{Store: store}),
-		"/api/v0/admin/work-items/query",
-		map[string]any{"statuses": []string{"failed"}})
-	if w.Code != http.StatusInternalServerError {
-		t.Fatalf("status = %d, want 500", w.Code)
+	nonFenceErr := errors.New("postgres down")
+	cases := []struct {
+		name  string
+		serve func() *httptest.ResponseRecorder
+	}{
+		{
+			name: "work-items query",
+			serve: func() *httptest.ResponseRecorder {
+				return postJSON(newAdminMux(&Handler{Store: &stubAdminStore{workItemsErr: nonFenceErr}}),
+					"/api/v0/admin/work-items/query",
+					map[string]any{"statuses": []string{"failed"}})
+			},
+		},
+		{
+			name: "decisions query",
+			serve: func() *httptest.ResponseRecorder {
+				return postJSON(newAdminMux(&Handler{Store: &stubAdminStore{decisionsErr: nonFenceErr}}),
+					"/api/v0/admin/decisions/query",
+					map[string]any{"repository_id": "repository:r_ok", "source_run_id": "run-1"})
+			},
+		},
+		{
+			name: "decision evidence read",
+			serve: func() *httptest.ResponseRecorder {
+				store := &stubAdminStore{
+					decisions: []DecisionRow{{
+						DecisionID:   "d-1",
+						DecisionType: "admit",
+						RepositoryID: "repository:r_ok",
+						SourceRunID:  "run-1",
+						CreatedAt:    time.Now().UTC(),
+					}},
+					evidenceErr: nonFenceErr,
+				}
+				return postJSON(newAdminMux(&Handler{Store: store}),
+					"/api/v0/admin/decisions/query",
+					map[string]any{
+						"repository_id":    "repository:r_ok",
+						"source_run_id":    "run-1",
+						"include_evidence": true,
+					})
+			},
+		},
+		{
+			name: "replay-events query",
+			serve: func() *httptest.ResponseRecorder {
+				return postJSON(newAdminMux(&Handler{Store: &stubAdminStore{replayEvtErr: nonFenceErr}}),
+					"/api/v0/admin/replay-events/query",
+					map[string]any{})
+			},
+		},
+		{
+			name: "repository-reindex catalog lookup",
+			serve: func() *httptest.ResponseRecorder {
+				h := &Handler{
+					Reindexer:           &stubReindexRequester{},
+					Repositories:        stubRepositoryCatalog{err: nonFenceErr},
+					RepositoryReindexer: &stubRepositoryReindexer{},
+				}
+				return postRawReindex(h, `{"scope":"repository","repositories":["payments"]}`)
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if w := tc.serve(); w.Code != http.StatusInternalServerError {
+				t.Fatalf("status = %d, want 500; body: %s", w.Code, w.Body.String())
+			}
+		})
 	}
 }
