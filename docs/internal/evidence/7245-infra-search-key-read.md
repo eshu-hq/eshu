@@ -156,6 +156,39 @@ or raw driver errors. Both reads keep `eshu_dp_neo4j_query_duration_seconds`.
 Unit tests read the counter and span attributes from an SDK manual reader and
 a span recorder.
 
+## Verification
+
+All of these ran at head `dfaf4c0bc` on the branch rebased onto origin/main
+`d2dcdea53`. The only later commit adds this section. Exit codes were captured
+directly (`cmd; echo $?`).
+
+| Command | Exit |
+| --- | ---: |
+| `cd go && go test ./internal/query/... ./internal/queryplan ./internal/telemetry ./internal/storage/cypher/infra/search ./internal/envregistry ./cmd/api ./cmd/mcp-server -count=1` | 0 |
+| `cd go && go test -race ./internal/query/infra/fulltext ./internal/storage/cypher/infra/search -count=1` | 0 |
+| `cd go && go vet ./...` | 0 |
+| `cd go && golangci-lint run` on the touched packages (default tags, and `--build-tags live_nornicdb_answer_truth` for `infra/fulltext`) | 0 |
+| `ESHU_NEO4J_URI=... ESHU_LIVE_GRAPH_BACKEND=neo4j go test ./internal/query/infra/fulltext -tags live_nornicdb_answer_truth -run 'TestLiveInfraSearch(Readiness\|FulltextDifferential)'` (134 shapes, 91 with fixture rows) | 0 |
+| `bash scripts/dev/run-selected-gates.sh --base origin/main --tier pre-pr --category exactness,telemetry,hygiene,docs --self-tests changed --blocking-only --pre-push` (27 PASS, 0 FAIL) | 0 |
+| `bash scripts/dev/precommit-go.sh dirgate-all` | 0 |
+| `bash scripts/dev/precommit-go.sh filecap-all` | 0 |
+| `ESHU_TELEMETRY_COVERAGE_BASE=origin/main bash scripts/verify-telemetry-coverage.sh` | 0 |
+| `bash scripts/verify-env-registry-doc.sh` | 0 |
+| `bash scripts/verify-package-docs.sh` | 0 |
+| `ESHU_PERFORMANCE_EVIDENCE_BASE=origin/main bash scripts/verify-performance-evidence.sh` | 0 |
+| `bash scripts/verify-live-tests-ledger.sh` | 0 |
+| `bash scripts/test-run-live-backend-tests.sh` (71 planned runs) | 0 |
+| `bash scripts/verify-filename-stutter.sh --range origin/main` and `--files` on the added and renamed paths | 0 |
+| `bash scripts/verify-docs-build-changed.sh` | 0 |
+| `bash scripts/verify-measurement-citations.sh` | 0 |
+| `bash scripts/verify-query-plan-profile.sh` (isolated Neo4j container) | 0 |
+| `bash scripts/verify-query-plan-regression.sh` | 0 |
+| `git diff --check origin/main..HEAD` | 0 |
+
+`verify-query-plan-regression.sh` calls `verify-query-methodology.sh`, which
+takes the shared live-gate lock (`<git common dir>/eshu-live-gate.lock`). It
+ran only after a check showed the lock free, and it released the lock.
+
 ## Rollout
 
 1. Run the PR-1 image on every graph writer.
