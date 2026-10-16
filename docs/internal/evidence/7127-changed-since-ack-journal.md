@@ -17,8 +17,11 @@ does not wait for the reducer's sweeper. It is dark:
   and retention all running must pass in BIN1 (#7401). This note records that
   condition; #7401 is not edited here.
 
-Source binding: branch `perf/7127-pr3b-ack-journal` on `origin/main`
-`eef372440`. PostgreSQL 18.6 (`postgres:18`, aarch64) in two disposable
+Source binding: branch `perf/7127-pr3b-ack-journal`, rebased on `origin/main`
+`8f188353f` (Merge pull request #8183). The runs below were taken on main at
+`eef372440` (Merge pull request #8170); main changed no projector queue,
+ledger store, reducer freshness or schema file between the two
+(`git diff --stat eef372440 8f188353f` over those paths is empty). PostgreSQL 18.6 (`postgres:18`, aarch64) in two disposable
 containers: one with `pg_stat_statements` preloaded (`track = all`), one
 without it, as the CI readiness service runs. The host had 16 CPUs and load1
 between 13 and 70 during the runs, so no wall time below is a result.
@@ -183,8 +186,20 @@ Observability Evidence: `eshu_dp_changed_since_ack_journal_total{outcome}`
 (`journaled`, `exists`, `gate_skipped`), recorded once per committed flag-on
 Ack, and the INFO log "changed-since ack journal skipped while a journal pass
 held its key; the sweeper journals the generation" with `scope_id`,
-`generation_id` and `outcome`. The reducer's journal pass skip, backlog, lag
-and orphan signals (`eshu_dp_changed_since_link_backlog`,
+`generation_id` and `outcome`. A journal pass now also skips while an Ack
+holds the key shared, so a skip can mean that no pass ran. The chance that
+one try misses is the Ack duty cycle; the pass starves only while Ack windows
+cover all time, and each Ack still journals its own activation then. The
+reducer counts each skipped pass as
+`eshu_dp_changed_since_link_retries_total{reason="journal_busy"}` and logs
+the skip streak at INFO ("changed-since journal pass skipped", with
+`journal_skipped`, `skipped_cycles` and `skipped_seconds`, at most once a
+minute; "changed-since journal pass resumed after skips" when a pass runs
+again). `TestSkippedJournalPassIsCountedAndLinkingContinues`,
+`TestRanJournalPassIsNotCountedAsBusy` and
+`TestSkipStreakLogsOnceThenOnResume` pin it. The backlog, lag and orphan
+gauges (`eshu_dp_changed_since_link_backlog`,
 `eshu_dp_changed_since_link_lag_seconds`,
-`eshu_dp_changed_since_ledger_orphans`) show whether skipped activations are
-journaled later.
+`eshu_dp_changed_since_ledger_orphans`) count only journaled rows, so they
+show whether gate-skipped Ack activations are journaled later, but not the
+scopes that wait for a starved backfill or sweeper.

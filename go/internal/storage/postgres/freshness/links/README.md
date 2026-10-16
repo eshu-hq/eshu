@@ -136,7 +136,25 @@ running) writes no row and does not wait; the next pass's sweeper journals
 the generation with a `NULL` prior. That is accuracy-neutral: a full link is
 computed from the cursor state, and the prior only feeds the delta break
 reasons. A pass that misses the key skips its cycle, as it does when another
-replica holds it.
+replica holds it, and returns `JournalResult{Skipped: true}`.
+
+**Skip bound.** A pass tries the key once per cycle and never waits. So the
+chance that one try misses is the Ack duty cycle: the share of time that at
+least one Ack transaction holds the key shared. A projector that acks often
+makes skips more frequent, but each poll is a new try. The pass starves only
+while Ack windows cover all time, for example during a bootstrap burst. While
+the pass is starved, each Ack still journals its own activation, so the link
+writer keeps up with new activations. The work that waits is the backfill of
+retained chains and the sweeper's rows for generations activated without an
+Ack row (switch off, or before the switch was on). The backlog and lag gauges
+count only journaled rows, so they do not show that waiting work. The runner
+counts each skip as `eshu_dp_changed_since_link_retries_total{reason="journal_busy"}`
+and logs the skip streak (`changed-since journal pass skipped`, with
+`skipped_cycles` and `skipped_seconds`, at most once a minute, then
+`changed-since journal pass resumed after skips`). With one replica, a
+`journal_busy` rate equal to the cycle rate, or a skip line whose
+`skipped_seconds` keeps growing with no resume line, means the pass is
+starved. With several replicas, check that the streak grows on every one.
 
 Why the gate. Without it, a pass can run between an Ack's insert and its
 commit. If the scope's active generation has no journal row (it was
