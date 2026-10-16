@@ -43,7 +43,7 @@ classes = {}
 legacy_scheduled = []
 contention_inventory = load_inventory()
 contention_paths = set(contention_inventory)
-has_contention_row = False
+contention_ledger_paths = set()
 for path, tag, cls, reason, runner, backends in rows:
     if path in seen_files:
         sys.exit(f"duplicate ledger row: {path}")
@@ -62,7 +62,7 @@ for path, tag, cls, reason, runner, backends in rows:
             sys.exit(f"PostgreSQL CI row needs its verified runner and tag: {path}")
     elif cls == "dedicated_ci":
         if runner == "reducer-contention":
-            has_contention_row = True
+            contention_ledger_paths.add(path)
             if path not in contention_paths or tag.strip() != "~" or backends:
                 sys.exit(f"contention row needs an enrolled untagged PostgreSQL-only file: {path}")
         elif runner != "query-methodology":
@@ -104,11 +104,17 @@ for path, tag, cls, reason, runner, backends in rows:
     if claimed != actual:
         sys.exit(f"tag mismatch for {path}: ledger {tag!r} vs file {actual!r}")
 
-if has_contention_row:
-    try:
-        verify_inventory(Path(repo_root), contention_inventory)
-    except (OSError, ValueError, re.error) as error:
-        sys.exit(f"reducer contention runner enrollment failed: {error}")
+missing_contention = sorted(contention_paths - contention_ledger_paths)
+extra_contention = sorted(contention_ledger_paths - contention_paths)
+if missing_contention or extra_contention:
+    sys.exit(
+        "contention inventory/ledger mismatch: "
+        f"missing={missing_contention[:5]} extra={extra_contention[:5]}"
+    )
+try:
+    verify_inventory(Path(repo_root), contention_inventory)
+except (OSError, ValueError, re.error) as error:
+    sys.exit(f"reducer contention runner enrollment failed: {error}")
 
 # The ledger itself lists the exact grandfathered paths. Bind that readable
 # inventory to a fixed digest so a newly scheduled row cannot inherit an
