@@ -46,6 +46,16 @@ FROM repository_reindex_requests
 WHERE requested_at > $1
 `
 
+// repositoryReindexRequestedAtQuery reads the stored watermark of exactly
+// the named scopes. It is a point read on the primary key, bounded by the
+// request, so the progress endpoint can echo the exact row each scope is
+// compared against, including rows the fleet watermark already subsumes.
+const repositoryReindexRequestedAtQuery = `
+SELECT scope_id, requested_at
+FROM repository_reindex_requests
+WHERE scope_id = ANY($1::text[])
+`
+
 // RepositoryReindexStore persists per-repository reindex watermarks in
 // repository_reindex_requests (#7620).
 type RepositoryReindexStore struct {
@@ -127,6 +137,44 @@ func (s RepositoryReindexStore) RepositoryReindexWatermarks(
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("read repository reindex watermarks: %w", err)
+	}
+	return watermarks, nil
+}
+
+// RepositoryReindexRequestedAt returns the stored per-repository watermark
+// of every named scope in UTC, keyed by scope ID (#7620). Scopes with no
+// request row are absent from the map; the caller compares those scopes
+// against the fleet watermark. Scope IDs are trimmed, sorted, and
+// deduplicated; an empty list or a blank scope ID is rejected before
+// anything is read. It only reads.
+func (s RepositoryReindexStore) RepositoryReindexRequestedAt(
+	ctx context.Context,
+	scopeIDs []string,
+) (map[string]time.Time, error) {
+	if s.database == nil {
+		return nil, errors.New("repository reindex store database is required")
+	}
+	normalized, err := normalizeReindexScopeIDs(scopeIDs)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.database.QueryContext(ctx, repositoryReindexRequestedAtQuery, normalized)
+	if err != nil {
+		return nil, fmt.Errorf("read repository reindex requested at: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	watermarks := make(map[string]time.Time, len(normalized))
+	for rows.Next() {
+		var scopeID string
+		var requestedAt time.Time
+		if err := rows.Scan(&scopeID, &requestedAt); err != nil {
+			return nil, fmt.Errorf("read repository reindex requested at: %w", err)
+		}
+		watermarks[scopeID] = requestedAt.UTC()
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read repository reindex requested at: %w", err)
 	}
 	return watermarks, nil
 }

@@ -12,9 +12,10 @@
 // RepositoryReindexStore holds the per-repository reindex watermarks in
 // repository_reindex_requests, one row per git scope ID. RequestRepositoryReindex
 // stamps each row monotonically from the database clock, taking row locks in
-// scope ID order so concurrent overlapping requests cannot deadlock, and
-// RepositoryReindexWatermarks reads the rows later than the fleet watermark.
-// Rows are never claimed or deleted.
+// scope ID order so concurrent overlapping requests cannot deadlock,
+// RepositoryReindexWatermarks reads the rows later than the fleet watermark,
+// and RepositoryReindexRequestedAt reads the stored watermark of exactly the
+// named scopes for the progress endpoint. Rows are never claimed or deleted.
 //
 // StatusRequestStore implements runtime.StatusRequestStore over an injected
 // db.ExecQueryer. It carries no queue leasing, no fencing token, and no

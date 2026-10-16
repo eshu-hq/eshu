@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log/slog"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/admin"
 	adminstore "github.com/eshu-hq/eshu/go/internal/query/admin/store"
 	"github.com/eshu-hq/eshu/go/internal/query/capability"
 	"github.com/eshu-hq/eshu/go/internal/query/cicd"
@@ -26,6 +28,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/terraform/drift"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -325,6 +328,11 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 	router.Admin.Reindexer = reindexer
 	router.Admin.Repositories = contentReader
 	router.Admin.RepositoryReindexer = maintenancestore.NewRepositoryReindexStore(pgstatus.SQLDB{DB: writer})
+	router.Admin.ReindexProgress = reindexProgressSource{
+		state:   maintenancestore.NewStatusRequestStore(pgstatus.SQLDB{DB: writer}),
+		perRepo: maintenancestore.NewRepositoryReindexStore(pgstatus.SQLDB{DB: writer}),
+		scopes:  pgstatus.NewIngestionStore(pgstatus.SQLDB{DB: writer}),
+	}
 	return router, nil
 }
 
@@ -361,6 +369,37 @@ func deprecationHeadersMiddleware(next http.Handler, sunset string) http.Handler
 		next.ServeHTTP(w, r)
 	})
 }
+
+// reindexProgressSource fans the reindex progress endpoint's three read-only
+// inputs out to the stores that own them (#7620): the fleet watermark from
+// the status request store, the named scopes' per-repository watermarks
+// from the repository reindex store, and each scope's full-generation
+// state from the ingestion store. It only reads.
+type reindexProgressSource struct {
+	state   maintenancestore.StatusRequestStore
+	perRepo maintenancestore.RepositoryReindexStore
+	scopes  pgstatus.IngestionStore
+}
+
+// GetReindexState returns the current fleet reindex watermark state.
+func (s reindexProgressSource) GetReindexState(ctx context.Context, ingester string) (internalruntime.ReindexRequest, error) {
+	return s.state.GetReindexState(ctx, ingester)
+}
+
+// RepositoryReindexRequestedAt returns the stored per-repository watermark
+// of every named scope.
+func (s reindexProgressSource) RepositoryReindexRequestedAt(ctx context.Context, scopeIDs []string) (map[string]time.Time, error) {
+	return s.perRepo.RepositoryReindexRequestedAt(ctx, scopeIDs)
+}
+
+// FullReconcileState returns the reconciliation-sweep view of scopeID's
+// full generations, the same state the sweep decides on.
+func (s reindexProgressSource) FullReconcileState(ctx context.Context, scopeID string) (scope.FullReconcileState, error) {
+	return s.scopes.FullReconcileState(ctx, scopeID)
+}
+
+// Ensure reindexProgressSource satisfies the admin progress port.
+var _ admin.ReindexProgressReader = reindexProgressSource{}
 
 // readSunsetDate returns the date for the Sunset response header, read from
 // ESHU_API_V0_SUNSET_DATE. If set, the value is validated against RFC 1123

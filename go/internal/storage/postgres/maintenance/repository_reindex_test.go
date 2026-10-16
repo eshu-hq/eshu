@@ -151,6 +151,9 @@ func TestRepositoryReindexStoreRequiresDatabase(t *testing.T) {
 	if _, err := store.RepositoryReindexWatermarks(context.Background(), time.Time{}); err == nil {
 		t.Fatal("RepositoryReindexWatermarks() error = nil, want non-nil without a database")
 	}
+	if _, err := store.RepositoryReindexRequestedAt(context.Background(), []string{"git-repository-scope:a"}); err == nil {
+		t.Fatal("RepositoryReindexRequestedAt() error = nil, want non-nil without a database")
+	}
 }
 
 func TestRepositoryReindexSchemaMatchesEmbeddedMigration(t *testing.T) {
@@ -177,5 +180,92 @@ func TestRequestRepositoryReindexQueryMatchesRefinalize(t *testing.T) {
 	if reset.RequestReindexQuery != maintenancestore.RequestRepositoryReindexQuery {
 		t.Fatalf("refinalize reindex upsert drifted from the admin reindex upsert:\nrefinalize:%s\nadmin:%s",
 			reset.RequestReindexQuery, maintenancestore.RequestRepositoryReindexQuery)
+	}
+}
+
+// TestRepositoryReindexStoreRequestedAtReadsNamedScopes pins the #7620
+// progress read: one statement returns the stored watermark of every named
+// scope in UTC, keyed by scope ID, with the input trimmed, sorted, and
+// deduplicated before it is bound.
+func TestRepositoryReindexStoreRequestedAtReadsNamedScopes(t *testing.T) {
+	t.Parallel()
+
+	stored := time.Date(2026, 10, 7, 12, 0, 0, 0, time.FixedZone("EDT", -4*3600))
+	database := &fake.ExecQueryer{
+		QueryResponses: []fake.Rows{{Data: [][]any{
+			{"git-repository-scope:a", stored},
+			{"git-repository-scope:b", stored},
+		}}},
+	}
+	store := maintenancestore.NewRepositoryReindexStore(database)
+
+	got, err := store.RepositoryReindexRequestedAt(context.Background(), []string{
+		"git-repository-scope:b", " git-repository-scope:a ", "git-repository-scope:b",
+	})
+	if err != nil {
+		t.Fatalf("RepositoryReindexRequestedAt() error = %v, want nil", err)
+	}
+	want := map[string]time.Time{
+		"git-repository-scope:a": stored.UTC(),
+		"git-repository-scope:b": stored.UTC(),
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("watermarks = %v, want %v", got, want)
+	}
+	for scopeID, requestedAt := range got {
+		if requestedAt.Location() != time.UTC {
+			t.Fatalf("watermark %q location = %v, want UTC", scopeID, requestedAt.Location())
+		}
+	}
+	if gotLen, wantLen := len(database.Queries), 1; gotLen != wantLen {
+		t.Fatalf("query count = %d, want %d (one statement per read)", gotLen, wantLen)
+	}
+	query := database.Queries[0]
+	if args, ok := query.Args[0].([]string); !ok || !reflect.DeepEqual(args, []string{"git-repository-scope:a", "git-repository-scope:b"}) {
+		t.Fatalf("bound scope ids = %#v, want trimmed, sorted, and deduplicated", query.Args[0])
+	}
+}
+
+// TestRepositoryReindexStoreRequestedAtQueryIsScopedPointRead pins the
+// progress read's shape: a point read on the primary key for exactly the
+// named scopes, never a fleet-filtered scan.
+func TestRepositoryReindexStoreRequestedAtQueryIsScopedPointRead(t *testing.T) {
+	t.Parallel()
+
+	query := maintenancestore.RepositoryReindexRequestedAtQuery
+	for _, want := range []string{
+		"FROM repository_reindex_requests",
+		"scope_id = ANY($1",
+		"requested_at",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("requested-at query missing %q: %s", want, query)
+		}
+	}
+	if strings.Contains(query, "requested_at >") {
+		t.Fatalf("requested-at query must not carry the fleet filter; it reads the exact rows compared:\n%s", query)
+	}
+}
+
+// TestRepositoryReindexStoreRequestedAtRejectsEmptyAndBlankScopes pins that
+// the progress read rejects an empty or blank scope list before querying.
+func TestRepositoryReindexStoreRequestedAtRejectsEmptyAndBlankScopes(t *testing.T) {
+	t.Parallel()
+
+	for name, scopeIDs := range map[string][]string{
+		"empty": nil,
+		"blank": {"git-repository-scope:a", "  "},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			database := &fake.ExecQueryer{}
+			store := maintenancestore.NewRepositoryReindexStore(database)
+			if _, err := store.RepositoryReindexRequestedAt(context.Background(), scopeIDs); err == nil {
+				t.Fatal("RepositoryReindexRequestedAt() error = nil, want non-nil")
+			}
+			if got := len(database.Queries); got != 0 {
+				t.Fatalf("query count = %d, want 0 (nothing may be read)", got)
+			}
+		})
 	}
 }

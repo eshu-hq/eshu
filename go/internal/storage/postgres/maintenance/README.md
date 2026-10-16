@@ -107,6 +107,11 @@ or log, and no operator signal moves.
 - `RepositoryReindexWatermarks` returns the rows later than the given fleet
   watermark. The table has no secondary index: it holds one row per
   repository ever requested, and the read is a sequential scan.
+- `RepositoryReindexRequestedAt` returns the stored watermark of exactly the
+  named scopes for the progress endpoint (#7620). It is a point read on the
+  primary key (`repository_reindex_requests_pkey`), bounded by the request's
+  at most 100 scope IDs, so unlike the bulk read above it never scans the
+  table. It only reads.
 
 Performance Evidence (#7620, per-repository): measured on PostgreSQL 18
 (`postgres:18`, full bootstrap schema). The bulk read took 0.99 ms over
