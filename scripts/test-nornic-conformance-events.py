@@ -329,6 +329,77 @@ atexit.register(lambda: print(f"N7_MUTATED_SUBJECT_READS={reads}", file=sys.stde
                 with self.assertRaises(ValueError):
                     namespace["verify_nornic_cli_activation"](subject)
 
+    def test_ledger_rejects_repin_of_import_time_exit(self) -> None:
+        """A digest update cannot admit an import that exits before validation."""
+        root = Path(__file__).resolve().parent.parent
+        source = LIB.read_text(encoding="utf-8")
+        ledger = (root / "scripts/lib/verify-live-tests-ledger.py").read_text()
+        digest_line = re.search(r'^NORNIC_CLI_SOURCE_SHA256 = "[0-9a-f]{64}"$',
+                                ledger, re.M)
+        self.assertIsNotNone(digest_line)
+        entry = 'if __name__ == "__main__":\n'
+        self.assertEqual(source.count(entry), 1)
+        mutations = {
+            "assignment": "BYPASS = sys.exit(0)\n",
+            "default": "def import_time_default(value=sys.exit(0)) -> None:\n    pass\n",
+            "decorator": "@sys.exit(0)\ndef import_time_decorator() -> None:\n    pass\n",
+            "annotation": "sys.exit(0).bypass: int = None\n",
+            "import": "import n7_import_exit_module\n",
+            "import_from": "from n7_import_exit_module import marker\n",
+        }
+        changed_sources = {
+            label: source.replace(entry, payload + "\n" + entry, 1)
+            for label, payload in mutations.items()
+        }
+        changed_sources.update({
+            "path_call": source.replace('RUNNER = Path("scripts/verify_backend_conformance_live.sh")',
+                                        'RUNNER = Path(sys.exit(0))', 1),
+            "regex_call": source.replace('TEST_PATTERN = re.compile(',
+                                         'TEST_PATTERN = re.compile(sys.exit(0), ', 1),
+            "set_call": source.replace('EXPECTED_FILES = frozenset({',
+                                       'EXPECTED_FILES = frozenset({sys.exit(0), ', 1),
+        })
+        for label, changed in changed_sources.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
+                copied = Path(directory)
+                (copied / "n7_import_exit_module.py").write_text(
+                    "import sys\nsys.exit(0)\n", encoding="utf-8")
+                (copied / LIB.name).write_text(changed, encoding="utf-8")
+                repinned = ledger.replace(
+                    digest_line.group(0),
+                    f'NORNIC_CLI_SOURCE_SHA256 = "{hashlib.sha256(changed.encode()).hexdigest()}"',
+                    1,
+                )
+                verifier = copied / "verify-live-tests-ledger.py"
+                verifier.write_text(repinned, encoding="utf-8")
+                env = {**os.environ, "PYTHONPATH": str(LIB.parent),
+                       "PYTHONDONTWRITEBYTECODE": "1"}
+                missing = copied / "missing-events.jsonl"
+                seeded_cli = subprocess.run(
+                    ["python3", str(copied / LIB.name), "--events", str(missing)],
+                    capture_output=True, text=True, check=False, env=env,
+                )
+                self.assertEqual(seeded_cli.returncode, 0, seeded_cli.stderr)
+                seeded_ledger = subprocess.run(
+                    ["python3", str(verifier), str(root / "specs/live-tests.v1.yaml"),
+                     str(root)],
+                    capture_output=True, text=True, check=False, env=env,
+                )
+                self.assertNotEqual(seeded_ledger.returncode, 0,
+                                    seeded_ledger.stdout + seeded_ledger.stderr)
+                self.assertIn("CLI activation", seeded_ledger.stderr)
+        clean_cli = subprocess.run(
+            ["python3", str(LIB), "--events", "/nonexistent/nornic-events.jsonl"],
+            capture_output=True, text=True, check=False,
+        )
+        self.assertNotEqual(clean_cli.returncode, 0)
+        clean_ledger = subprocess.run(
+            ["bash", "scripts/verify-live-tests-ledger.sh"], cwd=root,
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(clean_ledger.returncode, 0,
+                         clean_ledger.stdout + clean_ledger.stderr)
+
     def test_inventory_cannot_swap_reviewed_files(self) -> None:
         inventory = MODULE.load_inventory()
         first = next(iter(inventory))
