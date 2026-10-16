@@ -311,6 +311,12 @@ PACKAGES = {
             "TestReducerQueueAckBatchFencesSupersededClaimLive",
             "TestReducerQueueExpiryInterleaveLive",
         ),
+        "go/internal/storage/postgres/aws_cloud_runtime_drift_state_arn_plan_live_test.go": (
+            "TestAWSCloudRuntimeDriftStateARNJoinProbesARNIndexLive",
+        ),
+        "go/internal/storage/postgres/aws_cloud_runtime_drift_state_arn_differential_live_test.go": (
+            "TestAWSCloudRuntimeDriftStateARNJoinMatchesReferenceLive",
+        ),
     },
     WEBHOOK_PACKAGE: {
         "go/internal/storage/postgres/webhook/ignored_decision_live_test.go": (
