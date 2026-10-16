@@ -64,3 +64,28 @@ sweep outcome.
 
 - `go/internal/reducer/recovery-runners.md` (poison dead-letter section)
 - `docs/internal/design/6693-postgres-target-tree/control-plane.md`
+
+## Performance and observability evidence
+
+No-Regression Evidence: the #6693 move from the parent `postgres` package
+changed Go identifiers only (`PoisonLivenessStore` to `Store`,
+`CountPoisonDeadLetters` to `CountDeadLetters`,
+`RecoverPoisonDeadLetters` to `RecoverDeadLetters`, and the same de-stutter
+for `Policy`, `StuckCounts`, `RecoveryResult`, the constructor, and the two
+query constants). Both shipped SQL statements are byte-identical and both
+defaults are unchanged (`MaxRecoverAttempts` 1, `BatchLimit` 200), so every
+query plan, lock target (`work_item_id`), and budget gate is the same.
+Baseline `eac0860933` (pre-move) against the moved tree on local Docker
+Postgres (`postgres:18-alpine`, isolated proof schemas, minimal seed: 3
+poison scopes plus a healed decoy, one bounded-arm row, one race row):
+`DetectionGapAndGauge` PASS and `GaugeUsesPartialIndex` PASS on both trees;
+`BoundedArmIncrementsThenZero` and the write-time race FAIL identically on
+both trees with SQLSTATE 42703 because the minimal proof schema predates the
+`container_image_identity_*` columns the shipped UPDATE requires
+(pre-existing, reported separately — not a move regression). No new query,
+index, worker, batch, or lease change, so there is nothing left to measure.
+
+No-Observability-Change: this package emits no metrics, spans, or logs. The
+`eshu_dp_poison_dead_letter_*` and `eshu_dp_poison_liveness_*` gauges are
+registered by `cmd/reducer` from the counts returned here, and that wiring is
+identifier-only in this move.
