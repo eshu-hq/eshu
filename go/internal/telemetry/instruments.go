@@ -2493,6 +2493,19 @@ type Instruments struct {
 	// row in another repository.
 	// Registered by registerLanguageQueryMetadataInstruments.
 	LanguageQueryMetadataRows metric.Int64Counter
+	// InfraSearchPath counts infra resource searches by the statement that
+	// served them (search_path: fulltext, legacy) and reason (#7245). Registered
+	// by registerInfraSearchKeyInstruments.
+	InfraSearchPath metric.Int64Counter
+	// InfraSearchKeyReady is 1 when the last readiness probe found the
+	// infra_search_key_ft index ONLINE and no unkeyed infra node (#7245).
+	InfraSearchKeyReady metric.Int64Gauge
+	// InfraSearchKeyIndexOnline is 1 when the last readiness probe read the
+	// infra_search_key_ft index as ONLINE (#7245).
+	InfraSearchKeyIndexOnline metric.Int64Gauge
+	// InfraSearchKeyUnkeyedNodes is the unkeyed infra node count at the last
+	// successful readiness probe (#7245).
+	InfraSearchKeyUnkeyedNodes metric.Int64Gauge
 	// ReducerOwnGateWake counts #7597 own-gate wake statements by site
 	// (activation, fail) and outcome (reopened, noop, error), once per
 	// statement. Registered by registerOwnGateWakeInstruments.
@@ -5347,6 +5360,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	if err := registerLanguageQueryMetadataInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerInfraSearchKeyInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerOwnGateWakeInstruments(meter, inst); err != nil {
