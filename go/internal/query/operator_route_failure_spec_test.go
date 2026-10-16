@@ -63,10 +63,11 @@ func TestOpenAPIUnboundedAdminReadsDeclareNo504(t *testing.T) {
 // TestOpenAPIAdminRoutesDeclareTheirFailureStatuses pins the #7674 admin
 // failure contract in the published spec: every admin route that answers a
 // fixed-text server failure declares 500, and every route declares 503
-// through the shared ServiceUnavailable response. Every admin route can
-// answer 503: the request-checkpoint middleware runs in front of all of them
+// through the shared ServiceUnavailable response. Every admin POST route can
+// answer 503: the request-checkpoint middleware runs in front of each of them
 // (Retry-After on a failed checkpoint step, none when no checkpoint source is
-// wired), an unwired store, recovery handler, or reindex requester answers a
+// wired; the GET tuning report is exempt and is not in this list), an unwired
+// store, recovery handler, or reindex requester answers a
 // configuration 503, and the inspection reads and the repository reindex
 // catalog lookup answer a stale PostgreSQL reader. Each description says what
 // a 503 with and without Retry-After means, names the checkpoint, and never

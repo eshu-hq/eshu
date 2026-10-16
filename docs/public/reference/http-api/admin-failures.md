@@ -12,7 +12,8 @@ status is Error with the fixed message as its description. The
 - A configuration `503` when the route's store, recovery handler, or
   reindex requester is not wired on this API instance, with its own fixed
   text such as `admin store not configured` and no `Retry-After`.
-- The request-checkpoint step runs in front of every admin route. A failed
+- The request-checkpoint step runs in front of every admin `POST` route,
+  that is, every route on this page. A failed
   checkpoint step answers `503` `database read unavailable` with
   `Retry-After`. A checkpoint source that is not wired answers the same
   `503` with no `Retry-After`.
@@ -23,12 +24,20 @@ status is Error with the fixed message as its description. The
   timed out, answers the retryable `503` `backend_unavailable` with
   `Retry-After`.
 - The three bounded reads answer `504` with their timeout text when their
-  own `timeout_ms` budget expires while the read itself runs. A budget that
-  expires earlier, while the guarded reader still borrows or checks its
-  connection or waits for the replica to reach the checkpoint, is a reader
-  verdict and answers the retryable `503`, not `504`. A very small
-  `timeout_ms` can reach that path. No other admin route answers `504`, and
-  the OpenAPI spec declares `504` on those three only.
+  own `timeout_ms` budget expires while the read itself runs. If the budget
+  expires earlier, during reader setup (a connection borrow, the identity
+  check, or the wait for the replica to reach the checkpoint), the status
+  depends on the reader topology. With a single PostgreSQL reader, the
+  reader returns its own verdict and the route answers the retryable `503`.
+  With reader fleet members, it depends on where the budget expires. While
+  the reader waits for a member slot or between member attempts, the reader
+  returns the bare deadline and the route answers the `504` timeout. Inside
+  a member attempt, the route answers that attempt's reader verdict, the
+  retryable `503`. On both paths, a reader replay window that expires while
+  the route budget is still live is a reader verdict and answers the
+  retryable `503`. Keep `timeout_ms` well above reader setup latency. No
+  other admin route answers `504`, and the OpenAPI spec declares `504` on
+  those three only.
 - Any other failed step answers `500` with the fixed message below.
 
 A failed step checks the reader verdict first, then the route timeout on the

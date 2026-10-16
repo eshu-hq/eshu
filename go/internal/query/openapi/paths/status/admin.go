@@ -232,7 +232,7 @@ const Admin = `
           "200": {"description": "Bounded dead-letter page with schema_version, limit, count, truncated, and items"},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
-          "504": {"description": "Dead-letter query exceeded its timeout_ms budget while the read ran (fixed message dead-letter query timed out); a budget that expires while the guarded reader still borrows or checks its connection answers the retryable 503 instead"},
+          "504": {"description": "Dead-letter query exceeded its timeout_ms budget while the read ran (fixed message dead-letter query timed out). If the budget expires during reader setup instead, the status depends on the reader topology: a single PostgreSQL reader answers the retryable 503 reader verdict; with reader fleet members, a budget that expires while the reader waits for a member slot or between member attempts answers this 504, and one that expires inside a member attempt answers the retryable 503. Keep timeout_ms well above reader setup latency."},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
@@ -267,7 +267,7 @@ const Admin = `
           "200": {"description": "Bounded input_invalid quarantine page with schema_version, limit, count, truncated, and items"},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
-          "504": {"description": "Input-invalid-facts query exceeded its timeout_ms budget while the read ran (fixed message input-invalid-facts query timed out); a budget that expires while the guarded reader still borrows or checks its connection answers the retryable 503 instead"},
+          "504": {"description": "Input-invalid-facts query exceeded its timeout_ms budget while the read ran (fixed message input-invalid-facts query timed out). If the budget expires during reader setup instead, the status depends on the reader topology: a single PostgreSQL reader answers the retryable 503 reader verdict; with reader fleet members, a budget that expires while the reader waits for a member slot or between member attempts answers this 504, and one that expires inside a member attempt answers the retryable 503. Keep timeout_ms well above reader setup latency."},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
@@ -301,7 +301,7 @@ const Admin = `
           "200": {"description": "Bounded changed-since poisoned/retrying link page with schema_version, limit, count, truncated, next_cursor, and items"},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
-          "504": {"description": "Changed-since poisoned-links query exceeded its timeout_ms budget while the read ran (fixed message changed-since poisoned-links query timed out); a budget that expires while the guarded reader still borrows or checks its connection answers the retryable 503 instead"},
+          "504": {"description": "Changed-since poisoned-links query exceeded its timeout_ms budget while the read ran (fixed message changed-since poisoned-links query timed out). If the budget expires during reader setup instead, the status depends on the reader topology: a single PostgreSQL reader answers the retryable 503 reader verdict; with reader fleet members, a budget that expires while the reader waits for a member slot or between member attempts answers this 504, and one that expires inside a member attempt answers the retryable 503. Keep timeout_ms well above reader setup latency."},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
