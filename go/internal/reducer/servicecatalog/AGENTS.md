@@ -105,12 +105,16 @@ bound and the cycle anchor the log line reports; that is a downward import to
 a shared tier.
 
 The bound is measured per in-flight repository from
-`RuntimeProducerState.NewestInFlightCycleStartedAt` (the producer row's
-`COALESCE(reopened_at, created_at)`), and the handler proceeds only when every
-in-flight repository is past it. Do not bound on the catalog intent's
-`crossscope.ReadinessCycleAnchor`: it counts queue and corpus-fence wait, so a
-one-minute-old producer would commit an empty family (#7816 amendment A1).
-Never anchor on `updated_at`, and keep a zero anchor deferring.
+`RuntimeProducerState.NewestInFlightWorkableAt` (the producer row's
+last-workable time, `GREATEST(COALESCE(reopened_at, created_at),
+COALESCE(last_attempt_at, created_at), COALESCE(visible_at, created_at))`),
+and the handler proceeds only when every in-flight repository is past it. Do
+not bound on the catalog intent's `crossscope.ReadinessCycleAnchor`: it counts
+queue and corpus-fence wait, so a one-minute-old producer would commit an
+empty family (#7816 amendment A1). Do not bound on the cycle start alone: the
+producer's non-counting corpus-fence retries never move it, so every producer
+would read as exceeded when a long corpus fence closes (amendment A2). Never
+anchor on `updated_at`, and keep a zero anchor deferring.
 
 ## Do not
 

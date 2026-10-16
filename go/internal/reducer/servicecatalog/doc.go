@@ -77,13 +77,16 @@
 // generation. Any pending, retrying, claimed, or running row defers the intent
 // with RuntimeNotReadyFailureClass (non-counting); absent or terminal rows are
 // ready, so a repository without workloads never waits. The wait is bounded
-// per in-flight repository by crossscope.ProducerReadinessMaxWait, measured
-// from that repository's newest in-flight producer cycle start
-// (COALESCE(reopened_at, created_at) of the producer row), never from the
-// catalog intent's own cycle anchor. Only when every in-flight repository's
-// producer has been in flight for at least the bound does the handler proceed
-// and commit what it reads, possibly an empty runtime family; a zero producer
-// anchor keeps deferring. The producer set is pinned
+// by crossscope.ProducerReadinessMaxWait, measured per in-flight repository
+// from the newest in-flight producer row's last-workable time,
+// GREATEST(COALESCE(reopened_at, created_at), COALESCE(last_attempt_at,
+// created_at), COALESCE(visible_at, created_at)); the catalog intent's own
+// cycle anchor is log-only. Only when every in-flight repository is past the
+// bound does the handler proceed and commit what it reads, possibly an empty
+// runtime family; a zero producer anchor keeps deferring. A producer row that
+// is polling a non-counting readiness class refreshes its anchor on every
+// attempt and never counts as exceeded while it polls; only a row no worker
+// has touched for 30 minutes does. The producer set is pinned
 // against every WorkloadInstance and RUNS_ON writer in source by
 // TestRuntimeProducerSetCoversEveryRuntimeWriter. The repo_dependency shared
 // projection's RUNS_ON writer is enumerated there but not fenced: a read

@@ -124,20 +124,28 @@ and each bound overrun at warn, with `scope_id`, `generation_id`,
 `failure_class`, `runtime_readiness_outcome`, `in_flight_repo_count`,
 `in_flight_repo_ids` (first 10), `producer_pending`, `producer_retrying`,
 `producer_claimed`, `producer_running`, `producer_elapsed` (since the oldest
-known in-flight producer cycle start), `producer_max_wait`, and the catalog
+in-flight repository's workable anchor), `producer_max_wait`, and the catalog
 intent's `elapsed_since_cycle_start` (context only; it does not decide). It
 never logs `attempt_count`, which the non-counting class freezes.
 
-The bound is per in-flight repository: each repository's elapsed time runs
-from its newest in-flight producer row's own cycle start,
-`COALESCE(reopened_at, created_at)`, never from `updated_at` (a retry or
-re-claim moves it) and never from the catalog row's age (which also counts
-queue wait and corpus-fence wait). `bound_exceeded` fires only when every
-in-flight repository's producer has been in flight for at least 30 minutes;
-the handler then commits what it reads, possibly an empty family. A reopened
-producer row starts a fresh 30 minutes. The only shape that defers forever is
-producer progress: a new in-flight producer row for a correlated repository
-appearing every less than 30 minutes, visible as a steady `deferred` rate.
+The bound is per in-flight repository. Each repository's elapsed time runs
+from its newest in-flight producer row's last-workable time:
+`GREATEST(COALESCE(reopened_at, created_at), COALESCE(last_attempt_at,
+created_at), COALESCE(visible_at, created_at))`, the latest of the row's cycle
+start, last claim, and scheduled visibility. It never runs from `updated_at`
+(heartbeats and claim bookkeeping move it) and never from the catalog row's
+age (which also counts queue wait and corpus-fence wait). A producer row that
+is polling a non-counting readiness class, such as its own corpus fence
+(`workload_materialization_resolution_not_ready`), refreshes its anchor on
+every attempt and never counts as exceeded while it polls; only a row no
+worker has touched for 30 minutes does.
+
+`bound_exceeded` fires when every in-flight producer row of every correlated
+repo has been claimable or held for 30 min with no claim (starved queue,
+expired lease, or a counting backoff past 30 min); it does not fire for
+producers polling the corpus fence or any other non-counting readiness class.
+The handler then commits what it reads, possibly an empty family. A reopened
+producer row starts a fresh 30 minutes.
 
 Facts rejected for a malformed payload feed the shared
 `eshu_dp_reducer_input_invalid_facts_total` counter through `factdecode`
@@ -213,11 +221,12 @@ correlated repository (`readiness/producer.RuntimeProducerStatesQuery`). On a
 1,057,536-row `fact_work_items` table it is an index plan with no sequential
 scan: one repository 0.12 ms, fifty repositories 2.5 ms; `pgbench`, 4
 clients, 283,482 single-repository lookups: p50 0.189 ms, p95 0.298 ms. The
-amendment A1 producer cycle-start aggregate keeps that plan: on a
-1,057,631-row table, one repository 0.08 ms and fifty 1.4 ms, against 0.07 ms
-and 1.45 ms for the unextended statement on the same data (see
-`readiness/producer/README.md`). A deferral adds the queue's retry delay to
-that pass and writes nothing. The
+amendment A2 last-workable aggregate keeps that plan: on a 1,057,631-row
+table, `pgbench` (4 clients, 8 s, three interleaved rounds) measured mean
+latency 0.257 to 0.260 ms for one repository and 1.664 to 1.696 ms for fifty,
+against 0.254 to 0.260 ms and 1.650 to 1.687 ms for the A1 statement on the
+same data (see `readiness/producer/README.md`). A deferral adds the queue's
+retry delay to that pass and writes nothing. The
 runtime graph read moved earlier in the pass (before the correlation write)
 but runs the same number of times per committed pass.
 
@@ -231,9 +240,9 @@ fence adds no measurable drain time at this scale. Correctness on the same
 runs: the base's first runtime read returned 0 rows (digest e3b0c442) before
 the WorkloadInstance MERGE; with the fence every read returned the 2 rows
 (digest 1aefe225), and one run logged the deferral with
-`producer_retrying=2`. These runs predate amendment A1, which changes only
-the anchor of the 30-minute bound; no producer in a run that drains in about
-two minutes reaches it, so the A1 change was not rerun on the gate.
+`producer_retrying=2`. These runs, including the digest `1aefe225` reads,
+predate amendments A1 and A2, which change only the anchor of the 30-minute
+bound; the gate was not rerun for either.
 
 Observability Evidence (#7816): `eshu_dp_service_catalog_runtime_readiness_total`
 by outcome, the defer and bound-overrun logs above, and the durable

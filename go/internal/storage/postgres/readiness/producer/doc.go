@@ -11,9 +11,9 @@
 // fact_work_items rows at the repository scope's active generation are
 // pending, retrying, claimed, or running, so the handler defers instead of
 // committing a runtime family read before the write. It also returns the
-// newest in-flight producer cycle start, max(COALESCE(reopened_at,
-// created_at)) over those rows, which the handler's 30-minute elapsed bound
-// is measured from. The lookup is one
+// newest in-flight last-workable time over those rows, the latest of each
+// row's cycle start, last claim, and scheduled visibility, which the
+// handler's 30-minute elapsed bound is measured from. The lookup is one
 // read-only statement, [RuntimeProducerStatesQuery], that reaches
 // fact_work_items only through fact_work_items_scope_generation_idx.
 package producer

@@ -12,9 +12,13 @@ Scoped instructions for this package. The root `AGENTS.md` still applies.
   (parent package) is the guard.
   Re-measure on a populated table (see README.md) before changing the join or
   predicates.
-- The cycle-start column is `max(COALESCE(reopened_at, created_at))`
-  filtered to in-flight statuses. Never use `updated_at`: a retry or re-claim
-  moves it, and the fence would never reach its bound for a wedged producer.
+- The anchor column is `max(GREATEST(COALESCE(reopened_at, created_at),
+  COALESCE(last_attempt_at, created_at), COALESCE(visible_at, created_at)))`
+  filtered to in-flight statuses. Do not drop `last_attempt_at` or
+  `visible_at`: the producer's non-counting corpus-fence retries move only
+  those, so without them every producer reads as past the bound when a long
+  corpus fence closes. Never use `updated_at`: heartbeats move it, so a
+  claimed producer with an expired lease would never reach the bound.
 - Return an error, never an empty map, when the database cannot answer. An
   empty answer reads as ready and commits runtime evidence read before the
   producer's write.
