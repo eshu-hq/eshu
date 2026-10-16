@@ -60,6 +60,25 @@ and the span changed.
 The reader-fence `503` uses the shared `backend_unavailable` envelope, the
 same as on the [status and evidence routes](status-evidence-failures.md).
 
+## Not implemented
+
+The OpenAPI spec now declares the `501` these routes already answered. The
+bodies do not change.
+
+- The two semantic evidence routes answer `501`
+  `documentation_read_model_unavailable` when no Postgres fact read model is
+  wired. The plain body carries `error_code`, `message`, and `capability`.
+- They answer `501` `unsupported_capability` on a runtime profile that does
+  not support the capability. The plain body carries `error` and `detail`,
+  and the envelope adds the current and required profiles. Every runtime
+  profile supports both capabilities today.
+- The count and inventory routes answer `501` `unsupported_capability` on a
+  runtime profile that does not support `documentation_findings.aggregate`,
+  such as `local_lightweight`. The plain body carries `error_code`, `message`,
+  `capability`, and `correlation_id`, and the envelope adds the current and
+  required profiles.
+- The four other documentation routes already declared their `501`.
+
 ## Ask SSE without a flusher
 
 `POST /api/v0/ask` with `Accept: text/event-stream` needs a response writer
@@ -68,13 +87,15 @@ plain JSON body
 `{"error":"internal_error","detail":"streaming not supported by this server configuration"}`.
 This happens before any event-stream header is written and before any engine
 call. The request span now gets status Error with that message and one
-`exception` event. No read runs before this step, so it has no cancel error
-to detect: a canceled request still answers `500` here, never `499`. The
+`exception` event. No store or engine read runs before this step, so it has
+no cancel error to detect: a canceled request still answers `500` here, never
+`499`. The
 status, the body, and the headers do not change.
 
 ## What does not change
 
-- The existing `400`, `403`, `404`, and `501` answers on these routes.
+- The existing `400`, `403`, `404`, and `501` answers on these routes; the
+  `501` is now declared on all eight.
 - The fixed messages: these routes already answered these exact strings.
 - The rank-cursor errors on the search routes that accept `rank_cursor`.
   They keep their statuses and bodies byte for byte: `400` for
