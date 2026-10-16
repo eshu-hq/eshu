@@ -6,7 +6,6 @@ package admin
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -17,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -159,12 +159,12 @@ func (h *Handler) listChangedSincePoisonedLinks(w http.ResponseWriter, r *http.R
 	items, err := h.readStore().ListChangedSincePoisonedLinks(ctx, filter)
 	h.recordChangedSincePoisonedLinksQuery(ctx, start, err)
 	if err != nil {
-		span.RecordError(err)
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			querycontract.WriteError(w, http.StatusGatewayTimeout, "changed-since poisoned-links query timed out")
-			return
+		// A client cancel is not a fault of this read: keep the child span
+		// free of the exception the same way the request span is.
+		if !tracing.ClientCanceled(r.Context(), err) {
+			span.RecordError(err)
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list changed-since poisoned links: %v", err))
+		writeBoundedReadFailure(w, r, ctx, err, poisonedLinkListCapability, poisonedLinkListTimeoutMessage, poisonedLinkListFailedMessage)
 		return
 	}
 	truncated := len(items) > req.Limit

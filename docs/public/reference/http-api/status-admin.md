@@ -570,6 +570,7 @@ console or API defect.
 
 ## Durable Admin Controls
 
+- A failed step on these routes answers a fixed message, never backend error text: [Admin route failures](admin-failures.md).
 - `POST /api/v0/admin/refinalize` re-enqueues scope generations for projection
   through the durable Go work queue and reports `skipped_scopes`, `delta_active_scopes`, and `reindex_requests_written` (see below).
 - `POST /api/v0/admin/reindex` records a fleet or per-repository reindex watermark

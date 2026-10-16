@@ -119,8 +119,8 @@ and vulnerability suppression mutation, the package-registry and
 secrets/IAM routes, and the CI/CD, codeowners, dependency, freshness,
 incident, Kubernetes, metrics, observability coverage, service catalog,
 Terraform drift, and work-item routes, and the `POST /api/v0/code/*`
-routes other than `POST /api/v0/code/language-query`, and the entity and
-workload routes (#7674). The code-flow routes
+routes other than `POST /api/v0/code/language-query`, the entity and
+workload routes, and the `/api/v0/admin/*` routes (#7674). The code-flow routes
 answered a cancel with `408` before. A `503` that reports a configuration or
 readiness state, on these routes or the impact code-evidence reads, marks the
 span the same way a fault does. Other routes still answer a cancel with `500`

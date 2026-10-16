@@ -6,7 +6,6 @@ package admin
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -115,11 +114,7 @@ func (h *Handler) listInputInvalidFacts(w http.ResponseWriter, r *http.Request) 
 	items, err := h.readStore().ListReducerInputInvalidFacts(ctx, filter)
 	h.recordInputInvalidFactsQuery(ctx, start, err)
 	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			querycontract.WriteError(w, http.StatusGatewayTimeout, "input-invalid-facts query timed out")
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list input invalid facts: %v", err))
+		writeBoundedReadFailure(w, r, ctx, err, inputInvalidFactListCapability, inputInvalidFactListTimeoutMessage, inputInvalidFactListFailedMessage)
 		return
 	}
 	truncated := len(items) > req.Limit

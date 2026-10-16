@@ -71,6 +71,7 @@ drift/extraction, and query-stage timing events. Examples include:
 - `supply_chain_query.stage_completed`
 - `supply_chain_query.stage_failed`
 - `supply_chain_query.stage_canceled`
+- `admin_recovery.finalize_after_client_cancel`
 
 `supply_chain_query.stage_failed` is an ERROR event emitted once when any
 supply-chain query route answers HTTP 500 from its own store-read code. It is
@@ -90,6 +91,13 @@ error wraps `context.Canceled` and the request context is canceled). The route
 answers HTTP 499. It carries `operation`, `stage`, `repo_id`, and
 `duration_seconds`, and no error text or error classes, so a canceled stage
 still has a terminal line after its `stage_started` without paging at ERROR.
+
+`admin_recovery.finalize_after_client_cancel` is an INFO event emitted once
+when `POST /api/v0/admin/replay`, `/reopen`, or `/recover-generations`
+recorded its idempotency outcome after the caller had already canceled the
+request (#7674). The mutation applied, the route answered `200` to a client
+that was gone, and a retry with the same key returns that outcome. It carries
+`operation`, `route`, and `correlation_id`, and no identifiers or error text.
 
 The `supply_chain_query.stage_completed` event for stage `impact_findings_query`
 also carries `reader_borrow_seconds`, `reader_identity_seconds`,

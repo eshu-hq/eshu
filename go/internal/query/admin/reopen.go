@@ -164,14 +164,19 @@ func (h *Handler) reopen(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("reopen resolve: %v", err))
+		// A read before the claim: nothing was reopened and the key is not
+		// consumed, so a 499 on a client cancel is exact.
+		writeMutationFailure(w, r, err, reopenResolveFailedMessage)
 		return
 	}
 
 	fingerprint := reopenRequestFingerprint(req.Domain, req.ScopeID, req.limit())
 	claim, err := h.Store.ClaimReplayIdempotency(r.Context(), req.IdempotencyKey, fingerprint, h.now())
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("reopen idempotency: %v", err))
+		// One INSERT ... ON CONFLICT DO NOTHING, as for replay: a cancel
+		// after the insert committed leaves the key in_progress with nothing
+		// reopened, and a retry with the same key answers 409.
+		writeMutationFailure(w, r, err, reopenClaimFailedMessage)
 		return
 	}
 	if !claim.Claimed {
@@ -211,20 +216,29 @@ func (h *Handler) reopen(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("reopen: %v", err))
+		// A client cancel rolls the transaction back unless it lands while
+		// the commit itself runs, so a 499 here almost always means nothing
+		// was reopened; the in_progress key keeps the commit-race case
+		// visible as a 409 on retry.
+		writeMutationFailure(w, r, err, reopenFailedMessage)
 		return
 	}
 
 	combined := append(append([]string{}, res.ReducerWorkItemIDs...), res.IntentIDs...)
-	if err := h.Store.CompleteReplayIdempotency(r.Context(), req.IdempotencyKey, len(combined), combined, h.now()); err != nil {
-		// The reopen already committed; only the ledger finalize failed.
-		// Leave the row in_progress (retry returns 409) so the durable
-		// outcome is never erased by a reclaim.
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("reopen record: %v", err))
+	// The reopen committed: record it on a context a client cancel cannot
+	// abort, so the key never strands in_progress (finalizeContext).
+	finalizeCtx, cancelFinalize := h.finalizeContext(r)
+	defer cancelFinalize()
+	if err := h.Store.CompleteReplayIdempotency(finalizeCtx, req.IdempotencyKey, len(combined), combined, h.now()); err != nil {
+		// Only the ledger finalize failed. Leave the row in_progress (retry
+		// returns 409) so the durable outcome is never erased by a reclaim.
+		// This is always a server fault, client cancel or not.
+		writeFinalizeFailure(w, r, finalizeCtx, err, reopenRecordFailedMessage)
 		return
 	}
+	logFinalizeAfterClientCancel(r, finalizeCtx, "reopen", correlationID)
 
-	h.recordRecoveryAction(r.Context(), governanceaudit.DecisionAllowed, "reopen_accepted", authCtx, correlationID)
+	h.recordRecoveryAction(finalizeCtx, governanceaudit.DecisionAllowed, "reopen_accepted", authCtx, correlationID)
 	querycontract.WriteJSON(w, http.StatusOK, map[string]any{
 		"status":                 "reopened",
 		"domain":                 req.Domain,
