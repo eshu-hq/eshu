@@ -6,8 +6,9 @@ BM25 score bits stable and added `searchhybrid.Backend.RankAll`; see
 [7746-ranker-determinism.md](7746-ranker-determinism.md).
 
 Branch `feat/7746-rank-cursor`, branched from `8f188353f` and rebased onto
-`711ed3122`. Commits are named by subject line, because a rebase rewrites
-SHAs; a ledger row cites a commit that is on the branch.
+`067f59bf3`. Commits are named by subject line, because a rebase rewrites
+SHAs. A ledger row cites a main commit; a row measured on branch code cites
+the main base and names the branch commit by subject in its note.
 
 ## Problem
 
