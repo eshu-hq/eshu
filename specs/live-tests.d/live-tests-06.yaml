@@ -445,7 +445,7 @@ tests:
   - file: go/internal/storage/postgres/activation/terminal_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#7584 activation obligation terminal states on the full bootstrap schema in an isolated disposable PostgreSQL schema: cloud scope retires inapplicable with no callback and no reclaim, repo_id collision loser retires inapplicable after one callback, catalog-changed refusal is held at lease cadence with no consumer pass, and a NULL active pointer from the real projector Fail retires obsolete with no wake"
+    reason: "#7584 activation obligation terminal states on the full bootstrap schema in an isolated disposable PostgreSQL schema: cloud scope retires inapplicable with no callback and no reclaim, catalog-changed refusal is held at lease cadence with no consumer pass, and a NULL active pointer from the real projector Fail retires obsolete with no wake"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/backfill/targeted/terminal_live_test.go
     tag: ~
