@@ -158,3 +158,98 @@ func TestDocumentationAggregatesUnconfiguredAnswer503WithoutRetryAfter(t *testin
 		}
 	}
 }
+
+// TestSemanticAndDocumentationNotImplementedBodies pins the 501 bodies the
+// OpenAPI spec now declares for the two semantic evidence routes and the two
+// aggregate routes. A semantic evidence route with no fact read model answers
+// read_model_unavailable with error_code, message, and capability. An
+// aggregate route on a profile that does not support
+// documentation_findings.aggregate answers unsupported_capability with
+// error_code, message, capability, and correlation_id; its envelope also
+// carries the current and required profiles.
+func TestSemanticAndDocumentationNotImplementedBodies(t *testing.T) {
+	t.Parallel()
+
+	const correlationID = "corr-7674-s14-501"
+	type notImplementedCase struct {
+		path         string
+		handler      failure.Mounter
+		plain        map[string]any
+		envelope     map[string]any
+		wantProfiles bool
+	}
+	var cases []notImplementedCase
+	for path, capability := range map[string]string{
+		"/api/v0/semantic/documentation-observations?scope_id=scope-1": semanticDocumentationObservationsCapability,
+		"/api/v0/semantic/code-hints?scope_id=scope-1":                 semanticCodeHintsCapability,
+	} {
+		const message = "semantic evidence routes require the Postgres fact read model"
+		cases = append(cases, notImplementedCase{
+			path: path, handler: &SemanticEvidenceHandler{},
+			plain:    map[string]any{"error_code": "documentation_read_model_unavailable", "message": message, "capability": capability},
+			envelope: map[string]any{"code": "documentation_read_model_unavailable", "message": message, "capability": capability},
+		})
+	}
+	for _, path := range []string{"/api/v0/documentation/findings/count", "/api/v0/documentation/findings/inventory"} {
+		const message = "documentation routes require durable documentation facts"
+		capability := documentationFindingAggregateCapability
+		cases = append(cases, notImplementedCase{
+			path: path, handler: &DocumentationHandler{Profile: ProfileLocalLightweight},
+			plain: map[string]any{
+				"error_code": "unsupported_capability", "message": message,
+				"capability": capability, "correlation_id": correlationID,
+			},
+			envelope: map[string]any{
+				"code": "unsupported_capability", "message": message,
+				"capability": capability, "correlation_id": correlationID,
+				"profiles": map[string]any{
+					"current":  string(ProfileLocalLightweight),
+					"required": string(querycontract.RequiredProfile(capability)),
+				},
+			},
+			wantProfiles: true,
+		})
+	}
+	for _, tc := range cases {
+		for _, envelope := range []bool{false, true} {
+			label := fmt.Sprintf("%s / envelope=%v", tc.path, envelope)
+			mux := http.NewServeMux()
+			tc.handler.Mount(mux)
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			req.Header.Set("X-Correlation-ID", correlationID)
+			want := tc.plain
+			if envelope {
+				req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+				want = tc.envelope
+			}
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, req)
+			if rec.Code != http.StatusNotImplemented {
+				t.Errorf("%s: status = %d, want 501; body = %s", label, rec.Code, rec.Body.String())
+				continue
+			}
+			if got := decodeFailureBody(t, label, rec.Body.Bytes(), envelope); !reflect.DeepEqual(got, want) {
+				t.Errorf("%s: body = %v, want %v", label, got, want)
+			}
+		}
+	}
+}
+
+// TestSemanticEvidenceCapabilitiesSupportedOnEveryProfile backs the OpenAPI
+// 501 description's last sentence: every runtime profile supports both
+// semantic evidence capabilities today, so their unsupported_capability 501
+// is not reachable through a profile. If a profile drops one, this fails and
+// the description must change with it.
+func TestSemanticEvidenceCapabilitiesSupportedOnEveryProfile(t *testing.T) {
+	t.Parallel()
+
+	for _, capability := range []string{semanticDocumentationObservationsCapability, semanticCodeHintsCapability} {
+		for _, profile := range []QueryProfile{
+			ProfileLocalLightweight, ProfileLocalAuthoritative, ProfileLocalFullStack, ProfileProduction,
+		} {
+			if querycontract.CapabilityUnsupported(profile, capability) {
+				t.Errorf("%s is unsupported on %s; update the 501 description in openapi/paths/search/semantic_evidence.go", capability, profile)
+			}
+		}
+	}
+}

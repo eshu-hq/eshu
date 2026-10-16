@@ -17,15 +17,19 @@ import (
 var semanticDocumentationSpecRoutes = []struct {
 	statusSpecRoute
 	configuration503 bool
+	// notImplemented lists the error codes the route's 501 answers; each must
+	// appear in its 501 description. Empty means the route's existing 501
+	// declaration is not part of this slice.
+	notImplemented []string
 }{
-	{statusSpecRoute: statusSpecRoute{path: "/api/v0/semantic/documentation-observations", method: "get", capability: "semantic_evidence.documentation_observations.list"}},
-	{statusSpecRoute: statusSpecRoute{path: "/api/v0/semantic/code-hints", method: "get", capability: "semantic_evidence.code_hints.list"}},
+	{statusSpecRoute: statusSpecRoute{path: "/api/v0/semantic/documentation-observations", method: "get", capability: "semantic_evidence.documentation_observations.list"}, notImplemented: []string{"unsupported_capability", "documentation_read_model_unavailable"}},
+	{statusSpecRoute: statusSpecRoute{path: "/api/v0/semantic/code-hints", method: "get", capability: "semantic_evidence.code_hints.list"}, notImplemented: []string{"unsupported_capability", "documentation_read_model_unavailable"}},
 	{statusSpecRoute: statusSpecRoute{path: "/api/v0/documentation/findings", method: "get", capability: "documentation_findings.list"}},
 	{statusSpecRoute: statusSpecRoute{path: "/api/v0/documentation/facts", method: "get", capability: "documentation_facts.list"}},
 	{statusSpecRoute: statusSpecRoute{path: "/api/v0/documentation/findings/{finding_id}/evidence-packet", method: "get", capability: "documentation_evidence_packet.read"}},
 	{statusSpecRoute: statusSpecRoute{path: "/api/v0/documentation/evidence-packets/{packet_id}/freshness", method: "get", capability: "documentation_evidence_packet.freshness"}},
-	{statusSpecRoute: statusSpecRoute{path: "/api/v0/documentation/findings/count", method: "get", capability: "documentation_findings.aggregate"}, configuration503: true},
-	{statusSpecRoute: statusSpecRoute{path: "/api/v0/documentation/findings/inventory", method: "get", capability: "documentation_findings.aggregate"}, configuration503: true},
+	{statusSpecRoute: statusSpecRoute{path: "/api/v0/documentation/findings/count", method: "get", capability: "documentation_findings.aggregate"}, configuration503: true, notImplemented: []string{"unsupported_capability"}},
+	{statusSpecRoute: statusSpecRoute{path: "/api/v0/documentation/findings/inventory", method: "get", capability: "documentation_findings.aggregate"}, configuration503: true, notImplemented: []string{"unsupported_capability"}},
 }
 
 // TestOpenAPISemanticAndDocumentationRoutesDeclareTheirFailureStatuses pins
@@ -35,7 +39,9 @@ var semanticDocumentationSpecRoutes = []struct {
 // declared neither before. Each operation description says what a 503 with
 // Retry-After means, says either what a 503 without it means (the aggregate
 // routes) or that the route has no configuration 503, and names the
-// capability its reader-verdict envelope carries. 499 is never declared.
+// capability its reader-verdict envelope carries. The two semantic evidence
+// routes and the two aggregate routes also declare the 501 they answer, with
+// each error code named. 499 is never declared.
 func TestOpenAPISemanticAndDocumentationRoutesDeclareTheirFailureStatuses(t *testing.T) {
 	t.Parallel()
 
@@ -53,6 +59,19 @@ func TestOpenAPISemanticAndDocumentationRoutesDeclareTheirFailureStatuses(t *tes
 		}
 		if _, ok := responses["499"]; ok {
 			t.Errorf("%s %s: declares 499; a client cancel is never declared", route.method, route.path)
+		}
+		if len(route.notImplemented) > 0 {
+			notImplemented, ok := responses["501"].(map[string]any)
+			if !ok {
+				t.Errorf("%s %s: no 501 declared; the route answers one", route.method, route.path)
+			} else {
+				text, _ := notImplemented["description"].(string)
+				for _, code := range route.notImplemented {
+					if !strings.Contains(text, code) {
+						t.Errorf("%s %s: 501 description lacks error code %q: %q", route.method, route.path, code, text)
+					}
+				}
+			}
 		}
 		description, _ := op["description"].(string)
 		noRetryAfter := "every 503 it answers carries Retry-After"

@@ -44,6 +44,14 @@ const DocumentationFindingAggregate = `
           },
           "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {
+            "description": "Not implemented: the runtime profile does not support documentation_findings.aggregate (local_lightweight does not). The route answers error code unsupported_capability: the plain body carries error_code, message, capability, and correlation_id, and the envelope carries the same fields plus the current and required profiles.",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+              }
+            }
+          },
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
@@ -99,6 +107,14 @@ const DocumentationFindingAggregate = `
           },
           "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {
+            "description": "Not implemented: the runtime profile does not support documentation_findings.aggregate (local_lightweight does not). The route answers error code unsupported_capability: the plain body carries error_code, message, capability, and correlation_id, and the envelope carries the same fields plus the current and required profiles.",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+              }
+            }
+          },
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }

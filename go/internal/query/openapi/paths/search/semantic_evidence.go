@@ -47,6 +47,14 @@ const SemanticEvidence = `
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {
+            "description": "Not implemented. With no Postgres fact read model wired, the route answers error code documentation_read_model_unavailable: the plain body carries error_code, message, and capability, and the envelope carries code, message, and capability. A runtime profile that does not support the capability answers error code unsupported_capability: the plain body carries error and detail, and the envelope carries code, message, capability, and the current and required profiles. Every runtime profile supports this capability today.",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+              }
+            }
+          },
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
@@ -91,6 +99,14 @@ const SemanticEvidence = `
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {
+            "description": "Not implemented. With no Postgres fact read model wired, the route answers error code documentation_read_model_unavailable: the plain body carries error_code, message, and capability, and the envelope carries code, message, and capability. A runtime profile that does not support the capability answers error code unsupported_capability: the plain body carries error and detail, and the envelope carries code, message, capability, and the current and required profiles. Every runtime profile supports this capability today.",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+              }
+            }
+          },
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
