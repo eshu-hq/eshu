@@ -42,11 +42,14 @@ Errors: 400 `rank_cursor_invalid`, 400 `rank_cursor_unsupported`, and 409
 
 ## Cost
 
-A whole hybrid walk page at 200 rows (score, `MapRows`, `Walk`, `MapPage`)
-measured about 18.8 ms CPU, 23.7 MB, and 14.5k allocations on linux/arm64
-(`BenchmarkFindCodeRankWalkPage` in `query/codequery`). The walk work alone,
-which is all a `graph_name` or `lexical` page pays, is about 0.9 ms and
-2.5 MB. See `docs/internal/evidence/7746-rank-cursor.md`.
+A hybrid walk page does the scoring work of one `limit=200` ranked offset
+page, once per page, so a walk at page size L pays it about 200/L times. The
+scorer reads full stored bodies, so the cost grows with body size:
+`BenchmarkFindCodeRankWalkPage` (`query/codequery`) measured a whole page at
+about 18.8 ms and 23.7 MB with 3 KB bodies, and 23.7 ms and 31.6 MB with
+4,090-byte bodies, on linux/arm64. The walk work alone, all a `graph_name` or
+`lexical` page pays, is about 0.9 ms and 2.5 MB. Bounding the scoring input
+is a possible follow-up. See `docs/internal/evidence/7746-rank-cursor.md`.
 
 ## Telemetry
 

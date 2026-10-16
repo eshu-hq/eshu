@@ -114,11 +114,15 @@ It never adds `next_offset` to a walk page.
 
 ## Cost and signals
 
-A whole `hybrid` page (scoring the 200-row window, mapping its rows, the
-walk, and page shaping) measured about 18.8 ms CPU, 23.7 MB of transient
-allocation, and 14,500 allocations on linux/arm64. A `graph_name` or
-`lexical` page scores nothing and costs about 0.9 ms and 2.5 MB for the walk
-work. Store reads equal the same lane's offset page with a 201-row limit. The
+A `hybrid` page scores the whole 200-row window, the same scoring work as one
+`limit=200` ranked offset page. A walk pays it once per page, so a walk at
+page size L does about 200/L scoring passes (4 at `limit=50`). The scorer
+reads the full stored body, so the cost grows with body size: on linux/arm64
+a whole page measured about 18.8 ms and 23.7 MB at 3 KB bodies, and 23.7 ms
+and 31.6 MB at 4,090-byte bodies. A `graph_name` or `lexical` page scores
+nothing and costs about 0.9 ms and 2.5 MB for the walk work. Bounding the
+scoring input is a possible follow-up, not part of this change. Store reads
+equal the same lane's offset page with a 201-row limit. The
 scoring pass emits the `query.hybrid_rerank` span with `search.rerank.rows`
 equal to the window size. Each walk request records
 `eshu_dp_query_rank_cursor_total{tool,outcome,reason}` and the request-span

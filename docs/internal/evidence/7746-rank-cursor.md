@@ -66,9 +66,10 @@ Deviations from the claim comment, each forced by a repository gate:
 ## Theory proof (before implementation)
 
 Decision: is scoring the whole 200-row window on every page affordable?
-Threshold: at most 25 ms CPU and 25 MB allocation per page at 200 rows on
-this host, which is no worse than one `limit=200` ranked page that already
-ships.
+Threshold: one walk page does no more scoring work than one `limit=200`
+ranked offset page, which already ships. The 25 ms and 25 MB figures in the
+first theory message were this host's measurement of that page, not the
+contract.
 
 | Benchmark | Rows | ns/op (median of 5) | Ledger |
 | --- | --- | --- | --- |
@@ -77,7 +78,8 @@ ships.
 | `BenchmarkRankAll` | 200 | 536699 | ledger:7746-rankcursor-rankall-200-ns |
 
 Allocation at 200 rows: 22176553 B/op (ledger:7746-rankcursor-window-score-200-bytes).
-Result: within the threshold, so the design went ahead. `RankAll` is about
+Result: the walk page runs the same scoring call over the same 200 rows, so
+it meets the threshold, and the design went ahead. `RankAll` is about
 2.8% of the cost; `searchhybrid.NewIndex` (double tokenization) dominates, as
 the PR-A evidence found. The host load average was 11 to 19 on 16 cores during
 the run, so the figures are non-gating. The Postgres read of a 201-row window
@@ -85,15 +87,29 @@ was not measured (no database here); it is the same probe as a `limit=200`
 request.
 
 Performance Evidence: the scoring theory above covers only the score. The
-whole hybrid page, measured with `BenchmarkFindCodeRankWalkPage/page`
-(`ScoreCodeWindow`, `MapRows`, `Walk`, and `MapPage` over 200 rows of about
-3 KB), costs 18801708 ns/op (ledger:7746-rankcursor-page-200-ns) and
-23662388 B/op with 14462 allocs/op (ledger:7746-rankcursor-page-200-bytes).
-That is inside the 25 ms and 25 MB threshold. The walk work alone
-(`walk_only`) is 901265 ns/op (ledger:7746-rankcursor-walk-only-200-ns) and
-2477631 B/op with 3427 allocs/op (ledger:7746-rankcursor-walk-only-200-bytes),
-mostly the per-row content strings and the basis hash inputs. A `graph_name`
-or `lexical` page scores nothing and pays only the walk work.
+whole hybrid page is measured with `BenchmarkFindCodeRankWalkPage`
+(`ScoreCodeWindow`, `MapRows`, `Walk`, and `MapPage` over 200 rows). The
+scorer reads the full stored body (the `source_cache` read clip runs after
+it), so the cost grows with stored body size:
+
+| Bodies | ns/op | B/op | allocs/op | Ledger |
+| --- | --- | --- | --- | --- |
+| about 3 KB | 18801708 | 23662388 | 14462 | ledger:7746-rankcursor-page-200-ns, ledger:7746-rankcursor-page-200-bytes |
+| 4,090 bytes | 23711846 | 31555819 | 14792 | ledger:7746-rankcursor-page-200-body4090-ns, ledger:7746-rankcursor-page-200-body4090-bytes |
+
+The bound that holds is the threshold's: one hybrid walk page does the same
+scoring work as one `limit=200` ranked offset page. A walk at page size L
+pays that once per page, about 200/L times over the whole walk, so a 4-page
+walk at `limit=50` runs 4 scoring passes where one `limit=200` offset page
+runs 1. The walk work alone (`walk_only`) is 901265 ns/op
+(ledger:7746-rankcursor-walk-only-200-ns) and 2477631 B/op with 3427
+allocs/op (ledger:7746-rankcursor-walk-only-200-bytes) at about 3 KB, and
+945991 ns/op (ledger:7746-rankcursor-walk-only-200-body4090-ns) and 2119647
+B/op with 3226 allocs/op (ledger:7746-rankcursor-walk-only-200-body4090-bytes)
+at 4,090 bytes. A `graph_name` or `lexical` page scores nothing and pays only
+the walk work. Bounding the scoring input (clip each body before scoring, or
+cache the window score across pages) is a possible follow-up, not part of
+this change.
 
 Store reads per walk page match the offset page of the same lane at a
 201-row probe: `find_code` reads the graph lane (one graph query), and when it
