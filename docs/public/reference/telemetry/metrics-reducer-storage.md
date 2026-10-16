@@ -485,8 +485,7 @@ artifact identifiers stay in logs, traces, or durable facts.
 | `eshu_dp_documentation_drift_findings_total` | counter | Read-only documentation drift findings by outcome. |
 | `eshu_dp_documentation_drift_generation_duration_seconds` | histogram | Documentation drift finding generation latency. |
 
-Ambiguous or unmatched mention outcomes usually point to catalog or alias
-problems, not writer problems.
+Ambiguous or unmatched mention outcomes usually point to catalog or alias problems, not writer problems.
 
 ## Capacity And Memory
 
