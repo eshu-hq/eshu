@@ -59,11 +59,12 @@ type MissingFenceTrigger struct {
 }
 
 // Fence is the result of the start-up fence check (S3 ruling, arb-8155-f1).
-// When Supported is false the caller skips every derive (outcome
-// OutcomeFenceMissing) and reports the read model as StatusNotInstalled with
-// Reason; content Writes and live reads proceed unchanged. Missing lists the
-// absent or non-firing triggers in fenceTriggers order; it is empty when the
-// catalog could not be read (ReasonFenceCheckFailed).
+// When Supported is false the caller skips every derive and reports the read
+// model as StatusNotInstalled with Reason; content Writes and live reads
+// proceed unchanged. A missing or non-firing trigger records outcome
+// OutcomeFenceMissing; the failed-catalog path (ReasonFenceCheckFailed) has no
+// outcome constant yet. Missing lists the absent or non-firing triggers in
+// fenceTriggers order; it is empty when the catalog could not be read.
 type Fence struct {
 	Supported bool
 	Reason    string
