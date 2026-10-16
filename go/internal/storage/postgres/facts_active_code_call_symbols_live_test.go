@@ -316,6 +316,11 @@ func openActiveCodeCallSymbolContentSchema(t *testing.T) (context.Context, *sql.
 	if _, err := database.ExecContext(ctx, MigrationSQL("content_files_generation_id")); err != nil {
 		t.Fatalf("apply content_files_generation_id migration: %v", err)
 	}
+	// The manifest reads compare write-start markers (#8243), so the schema
+	// carries migration 149's projection_write_started_at.
+	if _, err := database.ExecContext(ctx, MigrationSQL("scope_generations_projection_write_started_at")); err != nil {
+		t.Fatalf("apply projection_write_started_at migration: %v", err)
+	}
 	return ctx, database
 }
 
