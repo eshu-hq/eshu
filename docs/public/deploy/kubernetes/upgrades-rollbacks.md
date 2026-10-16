@@ -29,13 +29,19 @@ schema, graph schema, and worker behavior move together.
    one is missing, hold the upgrade.
 
    Since #7792 a unit test fails the build when Go DDL declares a column,
-   index name, table, named constraint, trigger, or function that no
-   numbered migration declares. It does not compare extensions,
-   `ALTER COLUMN` changes, or definitions (column types and defaults, index
-   columns, constraint, trigger, and function bodies). Read the diff of each
-   listed file for those. The `-G` pattern is case-sensitive and Eshu's Go
-   DDL is upper case; rerun it in lower case if a release adds lower-case
-   SQL.
+   index name, table, named constraint, trigger, function, sequence, view,
+   materialized view, procedure, type, or domain that no numbered migration
+   declares, or any `ALTER INDEX`, `ALTER SEQUENCE`, `ALTER TYPE`,
+   `ALTER DOMAIN`, or `ALTER [MATERIALIZED] VIEW` that is not allowlisted.
+   It does not compare extensions, `ALTER COLUMN` changes, other statement
+   kinds, or
+   definitions (column types and defaults, index columns, constraint,
+   trigger, function, view, and type bodies), and it does not apply a later
+   `DROP` or `RENAME` in the migrations. It can also miss a clause that
+   sits in a separate Go constant from the statement it ends. Read the diff
+   of each listed file for those. The `-G` pattern is case-sensitive and
+   Eshu's Go DDL is upper case; rerun it in lower case if a release adds
+   lower-case SQL.
 
 ```bash
 # Placeholders: use real release tags (they look like v0.0.3-pre-release-18).
@@ -48,7 +54,7 @@ git diff --name-status --diff-filter=A "$FROM..$TO" -- \
 
 # Go files whose Postgres DDL changed; each needs a matching migration.
 git diff --stat "$FROM..$TO" \
-  -G'ADD COLUMN|ADD IF NOT EXISTS|CREATE (UNIQUE )?INDEX|CREATE TABLE|ADD CONSTRAINT|CREATE (OR REPLACE )?(TRIGGER|FUNCTION)|CREATE EXTENSION|ALTER COLUMN' -- \
+  -G'ADD (COLUMN|IF NOT EXISTS|CONSTRAINT)|ADD [a-z_]+ [A-Z]|CREATE ([A-Z]+ )*(TABLE|INDEX|SEQUENCE|VIEW|TRIGGER|FUNCTION|PROCEDURE|TYPE|DOMAIN|EXTENSION)|ALTER (COLUMN|INDEX|SEQUENCE|TYPE|DOMAIN|VIEW|MATERIALIZED VIEW)' -- \
   'go/*.go' ':!*_test.go' ':!go/internal/storage/postgres/migrations/'
 ```
 

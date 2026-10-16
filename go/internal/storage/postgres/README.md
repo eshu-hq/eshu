@@ -71,16 +71,29 @@ High-signal invariants for this package:
   workflow-coordinator) must never be the only place schema exists.
   `TestDDLMigrationParity` (`ddl_migration_parity_test.go`, #7792) scans
   non-test Go string literals under `internal/storage/postgres` and `cmd`
-  and fails when Go DDL declares a column, index name, named constraint,
-  trigger, function, or table that no migration declares. It fails on
-  Postgres DDL it cannot read (fmt verb, a name joined on at runtime, or an
-  ALTER TABLE action outside `ddlAlterForms`) unless `ddlParityDynamicDDL` lists it, and
-  on allowlist entries that match nothing. It does not compare
-  `CREATE EXTENSION`, `ALTER COLUMN`, or any definition (types, defaults,
-  index columns, constraint, trigger, and function bodies), so a readable
-  name followed by a definition joined on at runtime passes. Name-only
-  comparison also collapses function schemas and overloads to one name
-  and reports a Go
+  and fails when Go DDL declares a column, index name, named constraint
+  (table-level or inline on a column), trigger, function, sequence, view,
+  materialized view, procedure, type, domain, or table that no migration
+  declares under the same name and kind. It fails on Postgres DDL it cannot
+  read (fmt verb, a name joined on at runtime, or an ALTER TABLE action
+  outside `ddlAlterForms`) unless `ddlParityDynamicDDL` lists it, and on
+  allowlist entries that match nothing. Every `ALTER INDEX`,
+  `ALTER SEQUENCE`, `ALTER TYPE`, `ALTER DOMAIN`, and
+  `ALTER [MATERIALIZED] VIEW` counts as unreadable, because none is
+  compared. It does not read any other statement kind (`CREATE EXTENSION`,
+  `CREATE SCHEMA`, `CREATE POLICY`, `ALTER FUNCTION`, `DROP`, `GRANT`, and
+  so on). It parses `ALTER COLUMN` but does not compare it or any
+  definition (types, defaults, index columns, constraint, trigger,
+  function, view, and type bodies), so a readable name followed by a
+  definition joined on at runtime passes. It misses a trailing clause kept
+  in a separate constant or `strings.Join` element after a first literal
+  that is complete on its own. It does not apply a later `DROP` or
+  `RENAME` in the migrations: a dropped name still counts as declared, and
+  Go DDL that uses a renamed column, table, or constraint fails until a
+  migration states the new name. It keeps the first site of each index
+  name, so a second Go declaration of that name on another table is not
+  compared. Name-only comparison also collapses function schemas and
+  overloads to one name and reports a Go
   `ADD CONSTRAINT <table>_pkey` against a migration's unnamed `PRIMARY KEY`
   as a gap no allowlist can exempt; name the constraint in the migration.
   A constraint keyword counts only with the token its grammar needs next

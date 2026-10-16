@@ -56,15 +56,25 @@ var ddlParityDynamicDDL = map[string]string{
 //  2. an index name no migration creates, or one a migration puts on
 //     another table;
 //  3. a table no migration creates, unless ddlParityGoOnlyTables lists it;
-//  4. a named constraint or trigger on a migration-created table, or a
-//     function, that no migration declares;
+//  4. a named constraint (table-level or inline on a column) or trigger on a
+//     migration-created table, or a function, sequence, view, materialized
+//     view, procedure, type, or domain, that no migration declares under the
+//     same name and kind;
 //  5. a statement the scan cannot read, including an ALTER TABLE action that
 //     matches no form in ddlAlterForms, unless ddlParityDynamicDDL lists it.
+//     Every ALTER INDEX, ALTER SEQUENCE, ALTER TYPE, ALTER DOMAIN, and ALTER
+//     [MATERIALIZED] VIEW counts as unreadable, since none is compared.
 //
 // A stale entry in either allowlist also fails. The guard compares names
-// only. It does not see CREATE EXTENSION or ALTER COLUMN, and it does not
-// compare definitions: column types and defaults, index columns and
-// predicates, or constraint, trigger, and function bodies.
+// only. It parses ALTER TABLE ... ALTER COLUMN (and fails on a truncated
+// one) but does not compare it, and it does not compare definitions: column
+// types and defaults, index columns and predicates, or constraint, trigger,
+// function, view, and type bodies. It does not read any other statement
+// kind, such as CREATE EXTENSION, CREATE SCHEMA, CREATE POLICY, ALTER
+// FUNCTION, DROP, or GRANT. It also misses a trailing clause kept in a
+// separate constant or strings.Join element after a first literal that is
+// complete on its own, and it does not apply a later DROP or RENAME in the
+// migrations, so a name a migration drops still counts as declared.
 func TestDDLMigrationParity(t *testing.T) {
 	t.Parallel()
 
@@ -114,6 +124,11 @@ func assertDDLParityFloor(t *testing.T, migInv, goInv ddlInventory) {
 		{"migration constraints", migKinds["constraint"], 10},
 		{"migration triggers", migKinds["trigger"], 3},
 		{"migration functions", migKinds["function"], 3},
+		// Migrations 089, 092, and 154 create one sequence each and 092a
+		// one view. No Go DDL creates either kind today, so there is no
+		// Go-side floor for them.
+		{"migration sequences", migKinds["sequence"], 3},
+		{"migration views", migKinds["view"], 1},
 		// The Go-side object floors sit just under today's counts (6
 		// constraints, 4 triggers, 3 functions). Every trigger and function
 		// comes from the container image identity DDL

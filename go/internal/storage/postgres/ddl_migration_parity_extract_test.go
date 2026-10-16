@@ -44,8 +44,9 @@ type ddlIndex struct {
 	site  ddlSite
 }
 
-// ddlObject is a named constraint or trigger (scoped to its table) or a
-// function (table empty).
+// ddlObject is a named constraint or trigger (scoped to its table), or a
+// function, sequence, view, materialized view, procedure, type, or domain
+// (table empty).
 type ddlObject struct{ kind, table, name string }
 
 // ddlTempTable scopes a temporary table to the file that creates it, since a
@@ -76,8 +77,9 @@ type ddlInventory struct {
 }
 
 var (
-	// ddlHeadPattern finds every statement start the guard reads.
-	ddlHeadPattern = regexp.MustCompile(`(?i)\b(?:create\s+(?:(?:global|local)\s+)?(?:(?:temp|temporary|unlogged)\s+)?table|create\s+(?:unique\s+)?index|alter\s+table|create\s+(?:or\s+replace\s+)?(?:constraint\s+)?trigger|create\s+(?:or\s+replace\s+)?function)\b`)
+	// ddlHeadPattern finds every statement start the guard reads, including
+	// the object kinds in ddlObjectHeads.
+	ddlHeadPattern = regexp.MustCompile(`(?i)\b(?:create\s+(?:(?:global|local)\s+)?(?:(?:temp|temporary|unlogged)\s+)?table|create\s+(?:unique\s+)?index|alter\s+table|create\s+(?:or\s+replace\s+)?(?:constraint\s+)?trigger|create\s+(?:or\s+replace\s+)?function|` + ddlObjectHeads + `)\b`)
 	// ddlCreateTablePattern is anchored at a CREATE TABLE head. Group 1 marks
 	// a temporary or unlogged table, group 2 is the name, and group 3 the
 	// body opener: a column list, PARTITION OF, AS, or OF a composite type.
@@ -103,9 +105,9 @@ var ddlTableConstraintElement = regexp.MustCompile(`(?is)^(?:constraint\s+(?P<co
 	strings.ReplaceAll(ddlUnnamedConstraint, "NAME", ddlActionName) + `|like\s+(?P<like>` + ddlActionName + `))`)
 
 // extractDDLInventory scans every source for CREATE TABLE, ALTER TABLE ...
-// ADD [COLUMN] / ADD CONSTRAINT, CREATE INDEX, CREATE TRIGGER, and CREATE
-// FUNCTION statements. SQL comments are removed first, so DDL that appears
-// only in a comment never counts.
+// ADD [COLUMN] / ADD CONSTRAINT, CREATE INDEX, CREATE TRIGGER, CREATE
+// FUNCTION, and the ddlObjectHeads statements. SQL comments are removed
+// first, so DDL that appears only in a comment never counts.
 func extractDDLInventory(sources []ddlSource) ddlInventory {
 	inv := ddlInventory{
 		tables:     map[string]ddlSite{},
@@ -121,6 +123,8 @@ func extractDDLInventory(sources []ddlSource) ddlInventory {
 			head := strings.ToLower(sql[loc[0]:loc[1]])
 			rest := sql[loc[0]:]
 			switch {
+			case ddlObjectHeadPattern.MatchString(head):
+				inv.addSchemaObject(head, rest, site)
 			case strings.HasSuffix(head, "trigger"):
 				inv.addNamedOn(ddlCreateTriggerPattern, "trigger", rest, site)
 			case strings.HasSuffix(head, "function"):
