@@ -13,8 +13,9 @@ messages are in
 
 ## No-Regression Evidence
 
-No-Regression Evidence: baseline `0f599d78c` (the slice 9 branch head this
-branch is stacked on) versus this branch. No SQL, Cypher, transaction, lock,
+No-Regression Evidence: baseline is the base of this branch on main (the
+merge base with `origin/main`, slice 9 included), measured against this
+branch's head. No SQL, Cypher, transaction, lock,
 queue, lease, or batching path changed. Input shape, statement text,
 statement count, and row counts are the same as the baseline: only the error
 branches of the handlers changed. The queryplan source digests of five
