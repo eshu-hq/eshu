@@ -281,6 +281,33 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, target):
                         verify_routes(fixture)
 
+    def test_prepr_comment_decoy_cannot_hide_inactive_selector(self) -> None:
+        """Read the active replay command, not a commented old selector."""
+        source = (ROOT / "scripts/dev/pre-pr.sh").read_text()
+        marker = "\t" + "run_or_defer replay-tier " + chr(92) + "\n"
+        prefix, separator, suffix = source.partition(marker)
+        self.assertTrue(separator)
+        selector, newline, remainder = suffix.partition("\n")
+        self.assertTrue(newline)
+        target = r"|specs/live-tests(\.v1\.yaml|\.d/)"
+        self.assertIn(target, selector)
+        decoy = "\t# " + separator.lstrip() + "\t# " + selector.lstrip() + "\n"
+        changed = prefix + decoy + separator + selector.replace(target, "", 1)
+        changed += newline + remainder
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = Path(temporary)
+            for name in (
+                ".github/workflows/verify-replay-tier.yml",
+                "specs/ci-gates.d/gates-15.yaml",
+                "scripts/dev/pre-pr.sh",
+            ):
+                path = fixture / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(ROOT / name, path)
+            (fixture / "scripts/dev/pre-pr.sh").write_text(changed)
+            with self.assertRaisesRegex(ValueError, "pre-pr"):
+                verify_routes(fixture)
+
     def test_workflow_proof_steps_must_stay_live(self) -> None:
         """Reject disabled or replaced CI proof even when PR paths stay intact."""
         workflow_source = (ROOT / ".github/workflows/verify-replay-tier.yml").read_text()
@@ -308,6 +335,14 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
             "backend error ignored": workflow_source.replace(
                 f"      - name: {backend}\n",
                 f"      - name: {backend}\n        continue-on-error: true\n", 1),
+            "backend quoted error ignored": workflow_source.replace(
+                f"      - name: {backend}\n",
+                f'      - name: {backend}\n        "continue-on-error": true\n', 1),
+            "job quoted if disabled": workflow_source.replace(
+                "  replay-tier:\n", '  replay-tier:\n    "if": false\n', 1),
+            "quoted jobs override": workflow_source + '\n"jobs": {}\n',
+            "quoted replay job override": workflow_source +
+            '\n  "replay-tier": {if: false}\n',
             "checkout replaced": workflow_source.replace(
                 "uses: actions/checkout@v5", "run: true", 1),
             "Go setup replaced": workflow_source.replace(
