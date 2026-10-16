@@ -48,9 +48,12 @@ func methodologySchemaDeclarationActive(schema methodologyRewriteDeclaration, ba
 }
 
 // methodologyRewriteDeclarationActive reports whether any declared reader
-// path differs from base, using the same per-file rule as
-// methodologyVerifySameProductionWithDeclaration. A non-zero reader
-// declaration whose files all agree with base is inert.
+// path differs from base: present at one revision only, or present at both
+// with a different mode or blob. A path absent at both revisions cannot be
+// a real rewrite; it is skipped here so the reader file-list pin reports it
+// as not a pinned production source instead of a misleading exclusivity
+// failure. A non-zero reader declaration whose files all agree with base is
+// inert.
 func methodologyRewriteDeclarationActive(t *testing.T, base, candidate string, reader methodologyRewriteDeclaration) bool {
 	t.Helper()
 	for _, path := range reader.Paths {
@@ -62,7 +65,10 @@ func methodologyRewriteDeclarationActive(t *testing.T, base, candidate string, r
 		if err != nil {
 			t.Fatalf("read candidate reader entry %s: %v", path, err)
 		}
-		if len(baseEntry) == 0 || !bytes.Equal(baseEntry, candidateEntry) {
+		if len(baseEntry) == 0 && len(candidateEntry) == 0 {
+			continue
+		}
+		if !bytes.Equal(baseEntry, candidateEntry) {
 			return true
 		}
 	}
@@ -83,10 +89,13 @@ type methodologySchemaDeclarationCase struct {
 	remove       string
 	dirtyModify  string
 	modifyReader bool
-	declare      []string
-	declareRead  bool
-	wantFailure  bool
-	wantText     string
+	// addReader commits a new reader file at this repository-relative path.
+	addReader string
+	declare   []string
+	// declareReaders are the repository-relative reader declaration paths.
+	declareReaders []string
+	wantFailure    bool
+	wantText       string
 }
 
 // TestMethodologySchemaDeclarationGate is the RED/GREEN contract for the
@@ -111,12 +120,15 @@ func TestMethodologySchemaDeclarationGate(t *testing.T) {
 		{name: "inert declaration does not excuse another edit", modify: []string{"schema_base_only.go"}, declare: []string{"schema_unchanged.go"}, wantFailure: true, wantText: "schema_base_only.go"},
 		{name: "declared modify with dirty worktree", modify: []string{"schema_unchanged.go"}, dirtyModify: "schema_unchanged.go", declare: []string{"schema_unchanged.go"}, wantFailure: true, wantText: "schema_unchanged.go"},
 		{name: "undeclared schema file with dirty worktree", modify: []string{"schema_unchanged.go"}, dirtyModify: "schema_base_only.go", declare: []string{"schema_unchanged.go"}, wantFailure: true, wantText: "schema_base_only.go"},
-		{name: "declared modify with base only deletion", modify: []string{"schema_unchanged.go"}, remove: "schema_base_only.go", declare: []string{"schema_unchanged.go"}, wantFailure: true, wantText: "schema_base_only.go"},
+		{name: "declared modify with base only deletion", modify: []string{"schema_unchanged.go"}, remove: "schema_base_only.go", declare: []string{"schema_unchanged.go"}, wantFailure: true, wantText: "production source go/internal/graph/schema_base_only.go inventory differs: base=true candidate=false"},
+		{name: "declared deletion fails at inventory", remove: "schema_base_only.go", declare: []string{"schema_base_only.go"}, wantFailure: true, wantText: "production source go/internal/graph/schema_base_only.go inventory differs: base=true candidate=false"},
 		{name: "declared path outside pinned schema set", modify: []string{"schema_unchanged.go"}, declare: []string{"schema_unchanged.go", "go/internal/graph/builder.go"}, wantFailure: true, wantText: "builder.go"},
 		{name: "declared added file is not a pinned base source", add: "schema_candidate_only.go", declare: []string{"schema_candidate_only.go"}, wantFailure: true, wantText: "schema_candidate_only.go"},
-		{name: "schema and reader declarations both active", modify: []string{"schema_unchanged.go"}, modifyReader: true, declare: []string{"schema_unchanged.go"}, declareRead: true, wantFailure: true, wantText: "reader rewrite declaration"},
-		{name: "inert reader declaration beside active schema declaration", modify: []string{"schema_unchanged.go"}, declare: []string{"schema_unchanged.go"}, declareRead: true},
-		{name: "active reader declaration beside inert schema declaration", modifyReader: true, declare: []string{"schema_unchanged.go"}, declareRead: true},
+		{name: "schema and reader declarations both active", modify: []string{"schema_unchanged.go"}, modifyReader: true, declare: []string{"schema_unchanged.go"}, declareReaders: []string{methodologySchemaDeclarationReader}, wantFailure: true, wantText: "reader rewrite declaration"},
+		{name: "added reader path is active beside active schema declaration", modify: []string{"schema_unchanged.go"}, addReader: "go/internal/query/codemodel/reader_added.go", declare: []string{"schema_unchanged.go"}, declareReaders: []string{"go/internal/query/codemodel/reader_added.go"}, wantFailure: true, wantText: "reader rewrite declaration"},
+		{name: "mistyped reader path beside active schema declaration", modify: []string{"schema_unchanged.go"}, declare: []string{"schema_unchanged.go"}, declareReaders: []string{"go/internal/query/codemodel/missing.go"}, wantFailure: true, wantText: "rewrite declaration (issue #7347) names go/internal/query/codemodel/missing.go which is not a pinned production source"},
+		{name: "inert reader declaration beside active schema declaration", modify: []string{"schema_unchanged.go"}, declare: []string{"schema_unchanged.go"}, declareReaders: []string{methodologySchemaDeclarationReader}},
+		{name: "active reader declaration beside inert schema declaration", modifyReader: true, declare: []string{"schema_unchanged.go"}, declareReaders: []string{methodologySchemaDeclarationReader}},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			checkMethodologySchemaDeclarationScenario(t, childMarker, testCase)
@@ -127,6 +139,9 @@ func TestMethodologySchemaDeclarationGate(t *testing.T) {
 // runMethodologySchemaDeclarationChild runs one scenario inside the
 // re-executed test binary, where CWD is the scratch repository. The spec
 // carries base, candidate, declared schema paths, and declared reader paths.
+// It runs the pins in live-run order: the schema tree pin first (as
+// TestMethodologyProductionSourceTreesMatchBase does), then the reader
+// file-list pin over the scratch reader (as the graph artifact writer does).
 func runMethodologySchemaDeclarationChild(t *testing.T, spec string) {
 	t.Helper()
 	parts := strings.Split(spec, "\x1f")
@@ -142,6 +157,7 @@ func runMethodologySchemaDeclarationChild(t *testing.T, spec string) {
 	schema := methodologyRewriteDeclaration{Issue: 8073, Reason: "scenario schema change", Paths: split(parts[2])}
 	reader := methodologyRewriteDeclaration{Issue: 7347, Reason: "scenario reader rewrite", Paths: split(parts[3])}
 	methodologyVerifySameProductionTreeWithDeclaration(t, parts[0], parts[1], "go/internal/graph", "schema*.go", schema, reader)
+	methodologyVerifySameProductionWithDeclaration(t, parts[0], parts[1], []string{methodologySchemaDeclarationReader}, reader, methodologyReaderRewriteDeclarationKind)
 }
 
 // checkMethodologySchemaDeclarationScenario seeds the graph schema guard tree
@@ -203,6 +219,9 @@ func checkMethodologySchemaDeclarationScenario(t *testing.T, childMarker string,
 	if testCase.modifyReader {
 		write(readerPath, "package codemodel\n// rewritten\n")
 	}
+	if testCase.addReader != "" {
+		write(filepath.Join(root, filepath.FromSlash(testCase.addReader)), "package codemodel\n// added\n")
+	}
 	runGit("add", "-A")
 	runGit("commit", "--quiet", "--allow-empty", "-m", "candidate schema change")
 	candidate := runGit("rev-parse", "HEAD")
@@ -218,11 +237,7 @@ func checkMethodologySchemaDeclarationScenario(t *testing.T, childMarker string,
 			declared = append(declared, scenario.directory+"/"+name)
 		}
 	}
-	readers := ""
-	if testCase.declareRead {
-		readers = methodologySchemaDeclarationReader
-	}
-	spec := strings.Join([]string{base, candidate, strings.Join(declared, "\x1e"), readers}, "\x1f")
+	spec := strings.Join([]string{base, candidate, strings.Join(declared, "\x1e"), strings.Join(testCase.declareReaders, "\x1e")}, "\x1f")
 
 	binary, err := os.Executable()
 	if err != nil {
