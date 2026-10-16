@@ -12,11 +12,13 @@ import (
 	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/search/rank"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 const walkRepoID = "repo-walk"
@@ -289,3 +291,68 @@ func TestSearchEntitiesOffsetPathBytesUnchanged(t *testing.T) {
 }
 
 const offsetPathGolden = `{"count":3,"docstring_clip_bytes":512,"docstring_clipped_rows":0,"limit":3,"offset":0,"results":[{"end_line":0,"entity_id":"entity-020","entity_name":"handler020","entity_type":"function","language":"go","page_position":1,"relative_path":"svc/handler_020.go","repo_id":"repo-walk","search_backend":"hybrid","source_cache":"func body order invoice payment refund payment refund ","source_handle":{"end_line":0,"file_path":"svc/handler_020.go","repo_id":"repo-walk","start_line":0},"start_line":0},{"end_line":0,"entity_id":"entity-010","entity_name":"handler010","entity_type":"function","language":"go","page_position":2,"relative_path":"svc/handler_010.go","repo_id":"repo-walk","search_backend":"hybrid","source_cache":"func body order invoice payment refund ","source_handle":{"end_line":0,"file_path":"svc/handler_010.go","repo_id":"repo-walk","start_line":0},"start_line":0},{"end_line":0,"entity_id":"entity-000","entity_name":"handler000","entity_type":"function","language":"go","page_position":0,"relative_path":"svc/handler_000.go","repo_id":"repo-walk","search_backend":"hybrid","source_cache":"func body order invoice ","source_handle":{"end_line":0,"file_path":"svc/handler_000.go","repo_id":"repo-walk","start_line":0},"start_line":0}],"source_backend":"postgres_content_store","source_cache_clip_bytes":4096,"source_cache_clipped_rows":0,"truncated":true}` + "\n"
+
+// TestSearchEntitiesRankWalksRunConcurrently runs eight full walks at once
+// through one handler and one shared ranker. Under -race it proves the walk
+// keeps no shared mutable state; every walk must read the same order.
+func TestSearchEntitiesRankWalksRunConcurrently(t *testing.T) {
+	t.Parallel()
+	h := walkHandler(&staticEntityStore{rows: walkRows(120)})
+	want := walkEntities(t, h, 200)
+	var wg sync.WaitGroup
+	results := make([][]string, 8)
+	for i := range results {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			results[i] = walkEntitiesQuiet(h, 30)
+		}()
+	}
+	wg.Wait()
+	for i, got := range results {
+		if !slices.Equal(got, want) {
+			t.Fatalf("concurrent walk %d order differs:\n got %v\nwant %v", i, got, want)
+		}
+	}
+}
+
+// staticEntityStore serves fixed entity rows and records nothing, so
+// concurrent walks share no mutable test state.
+type staticEntityStore struct {
+	content.FakePortContentStore
+	rows []querycontract.EntityContent
+}
+
+func (s *staticEntityStore) SearchEntityContent(_ context.Context, _ string, _ string, limit int) ([]querycontract.EntityContent, error) {
+	return limitEntityContentAuthzRows(s.rows, limit), nil
+}
+
+// walkEntitiesQuiet is walkEntities without testing.T calls, for goroutines.
+// It returns nil on any failure, which the caller's comparison reports.
+func walkEntitiesQuiet(h *ContentHandler, limit int) []string {
+	mux := http.NewServeMux()
+	h.Mount(mux)
+	var served []string
+	token := rank.StartToken
+	for page := 0; page < 100; page++ {
+		encoded, _ := json.Marshal(map[string]any{
+			"query": "payment refund", "repo_id": walkRepoID, "limit": limit, "rank_cursor": token,
+		})
+		req := httptest.NewRequest(http.MethodPost, "/api/v0/content/entities/search", bytes.NewReader(encoded)).WithContext(walkContext())
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		var resp walkResponse
+		if rec.Code != http.StatusOK || json.Unmarshal(rec.Body.Bytes(), &resp) != nil {
+			return nil
+		}
+		for _, row := range resp.Results {
+			served = append(served, row.EntityID)
+		}
+		next, _ := resp.Walk["next_rank_cursor"].(string)
+		if next == "" {
+			return served
+		}
+		token = next
+	}
+	return nil
+}
