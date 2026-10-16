@@ -240,8 +240,8 @@ by `TestImpactFindingsServerFailures`, `TestSiblingRoutesServerFailures`,
 No-Regression Evidence (#7674 slice 8, runtime probes): the cloud and
 Kubernetes runtime probes changed only which errors their child spans record.
 The probe Cypher, its parameters, the per-digest limits, and the fan-out bound
-(`KubernetesRuntimeProbeMaxConcurrency`) are unchanged from the branch base
-`f8e880895`, so the backend (Neo4j for candidates, PostgreSQL for the
+(`KubernetesRuntimeProbeMaxConcurrency`) are unchanged from `main` before this
+change, so the backend (Neo4j for candidates, PostgreSQL for the
 ledgers), input shape, query count, and row counts are the same. Measured
 with fakes and no live backend: `go test ./internal/query/supply/chain/`
 passes and `go test ./internal/queryplan/...` keeps every query-source digest.
