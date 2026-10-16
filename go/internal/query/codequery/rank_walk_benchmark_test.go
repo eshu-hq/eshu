@@ -25,24 +25,31 @@ var walkBenchmarkVocabulary = []string{
 	"retry", "backoff", "timeout", "deadline", "cancel", "span", "metric",
 }
 
-// walkBenchmarkRows builds count content-lane rows with about 3 KB bodies,
-// the shape of BenchmarkCodeHybridRerank's rows.
-func walkBenchmarkRows(count int) []map[string]any {
+// walkBenchmarkRows builds count content-lane rows. bodyBytes=3000 with
+// exact=false gives about 3 KB bodies, the shape of
+// BenchmarkCodeHybridRerank's rows. exact=true cuts each body to bodyBytes
+// before the closing brace, so 4087 gives 4,090-byte bodies, just under the
+// 4,096-byte source_cache read clip.
+func walkBenchmarkRows(count, bodyBytes int, exact bool) []map[string]any {
 	rows := make([]map[string]any, 0, count)
 	seed := uint32(7746)
 	for i := 0; i < count; i++ {
 		var body strings.Builder
 		fmt.Fprintf(&body, "func handler%03d(ctx context.Context) error {\n", i)
-		for body.Len() < 3000 {
+		for body.Len() < bodyBytes {
 			seed = seed*1664525 + 1013904223
 			body.WriteString(walkBenchmarkVocabulary[int(seed>>8)%len(walkBenchmarkVocabulary)])
 			body.WriteByte(' ')
 		}
-		body.WriteString("\n}\n")
+		text := body.String()
+		if exact {
+			text = text[:bodyBytes]
+		}
+		text += "\n}\n"
 		rows = append(rows, map[string]any{
 			"entity_id": fmt.Sprintf("entity-%03d", i), "repo_id": "repo-bench",
 			"file_path": fmt.Sprintf("service/handler_%03d.go", i), "entity_type": "function",
-			"entity_name": fmt.Sprintf("handler%03d", i), "language": "go", "source_cache": body.String(),
+			"entity_name": fmt.Sprintf("handler%03d", i), "language": "go", "source_cache": text,
 		})
 	}
 	return rows
@@ -53,10 +60,17 @@ func walkBenchmarkRows(count int) []map[string]any {
 // "page" is ScoreCodeWindow + MapRows + Walk + MapPage, the work
 // handleRankWalk does per request; "walk_only" is MapRows + Walk + MapPage
 // over precomputed scores, the cost the walk adds on top of scoring (#7746).
+// The plain names use about 3 KB bodies; the _body4090 variants use 4,090-byte
+// bodies. The scorer reads the full stored body (the source_cache read clip
+// runs after it), so the cost grows with stored body size.
 func BenchmarkFindCodeRankWalkPage(b *testing.B) {
+	benchmarkRankWalkPage(b, "", walkBenchmarkRows(rank.WindowSize, 3000, false))
+	benchmarkRankWalkPage(b, "_body4090", walkBenchmarkRows(rank.WindowSize, 4087, true))
+}
+
+func benchmarkRankWalkPage(b *testing.B, suffix string, rows []map[string]any) {
 	const query = "payment refund ledger"
 	ranker := codemodel.NewCodeHybridRanker(true)
-	rows := walkBenchmarkRows(rank.WindowSize)
 	ctx := context.Background()
 	scores, err := ranker.ScoreCodeWindow(ctx, "repo-bench", query, rows)
 	if err != nil || len(scores) != rank.WindowSize {
@@ -74,7 +88,7 @@ func BenchmarkFindCodeRankWalkPage(b *testing.B) {
 		}
 		_ = rank.MapPage(byID, scores, page.IDs)
 	}
-	b.Run("page", func(b *testing.B) {
+	b.Run("page"+suffix, func(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
 			pageScores, err := ranker.ScoreCodeWindow(ctx, "repo-bench", query, rows)
@@ -84,7 +98,7 @@ func BenchmarkFindCodeRankWalkPage(b *testing.B) {
 			walkPage(pageScores)
 		}
 	})
-	b.Run("walk_only", func(b *testing.B) {
+	b.Run("walk_only"+suffix, func(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
 			walkPage(scores)
