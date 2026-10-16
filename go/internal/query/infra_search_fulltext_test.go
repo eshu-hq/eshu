@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/infra/fulltext"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -103,6 +104,19 @@ func TestInfraSearchFulltextSelectedOnNeo4jWhenReady(t *testing.T) {
 				}
 			} else if !strings.Contains(cypher, "RETURN DISTINCT") || strings.Contains(cypher, "allowed_repository_ids") {
 				t.Fatalf("%s: unscoped statement must be DISTINCT with no grant predicate:\n%s", body, cypher)
+			}
+		}
+	}
+}
+
+// Every label a category search can read must be on infra_search_key_ft, or
+// the full-text read would never return its nodes.
+func TestInfraSearchCategoryLabelsAreIndexed(t *testing.T) {
+	t.Parallel()
+	for category, labels := range infraCategoryLabels {
+		for _, label := range labels {
+			if !graph.IsInfraSearchKeyLabel(label) {
+				t.Errorf("category %s label %s is not an infra_search_key_ft label", category, label)
 			}
 		}
 	}
