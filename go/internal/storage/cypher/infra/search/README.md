@@ -57,13 +57,13 @@ flag disagrees with their fields and writes them with `Clause` in
 property, and a second run writes nothing. `eshu-bootstrap-data-plane` runs it
 on Neo4j after graph DDL and before the schema marker.
 
-`CountUnkeyed` returns the per-label count of nodes without the flag. PR-2
-gates its readiness marker on that count and a fresh backfill.
-
-PR-2 handoff: the reader must also check, at read time, that
-`infra_search_key_ft` is `ONLINE` before it uses the key. A write that
-bypasses the clause can leave the index `FAILED`, and nothing in Eshu reports
-that until the next bootstrap runs its index-state check.
+`CountUnkeyed` returns the per-label count of nodes without the flag, and
+`IndexState` returns the state of `infra_search_key_ft` (`""` when it does not
+exist). The read cutover (`go/internal/query/infra/fulltext`, #7245 PR-2)
+probes both at API and MCP start and every 5 minutes, and uses the index only
+while it is `ONLINE` and every count is zero. A write that bypasses the clause
+can leave the index `FAILED`; the probe then keeps every search on the legacy
+statement and `eshu_dp_infra_search_key_index_online` reads 0.
 
 `OversizedKeyCount` (statement: `OversizedKeyCountCypher`) counts keys longer
 than the cap. Bootstrap runs it before the index DDL and stops when it is not

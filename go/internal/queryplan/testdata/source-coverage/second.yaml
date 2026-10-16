@@ -63,7 +63,7 @@ source_coverage:
       - {symbol: "FetchWorkloadRuntimeTopology", count: 1, source_sha256: fba1d35021a684db7c0a543bd189b33ffe9b77f9d82d79119242cb1ca0f08619, entry_ids: [QP-SVC-RUNTIME-TOPOLOGY]}
   - file: infra/fulltext/reader.go
     calls:
-      - {symbol: "(*Reader).Rows", count: 2, source_sha256: 24c3905f3c8be2516ee3a32feb1b80b1f34065c36914035c1dfc054086dbd8fb, entry_ids: [QP-INFRA-RESOURCE-SEARCH, QP-INFRA-RESOURCE-SEARCH-FULLTEXT]}
+      - {symbol: "(*Reader).Rows", count: 2, source_sha256: dbb158b35141c0c85aa3ed30708e92dd7029e55137e3b78d7c216f5d03274603, entry_ids: [QP-INFRA-RESOURCE-SEARCH, QP-INFRA-RESOURCE-SEARCH-FULLTEXT]}
   - file: infra_argocd_search.go
     calls:
       - symbol: "(*InfraHandler).searchArgoCDCategoryRows"

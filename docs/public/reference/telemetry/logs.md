@@ -107,6 +107,16 @@ graph-read outcomes. It carries `pipeline_phase="query"`, a bounded
 `failure_class`, and `duration_seconds`; it deliberately omits Cypher text,
 graph addresses, and raw driver errors.
 
+`query.infra_search_key.readiness_changed` (#7245) is logged by the API and
+MCP server when the infra search readiness probe result changes: at the first
+probe and on each flip. It carries `ready`, `index_state` (`online`,
+`populating`, `failed`, `missing`, `unknown`), `unkeyed_nodes`, `reason`, the
+previous `previous_ready` and `previous_reason`, and `probe_failed` (WARN) when
+the probe read failed. `query.infra_search_key.fulltext_fallback` is a WARN for
+one search whose full-text read failed and was answered by the legacy
+statement. Neither carries Cypher text or raw driver errors; the failed graph
+read's own `query.graph_read.*` record carries its class.
+
 `query.graph_read.error` is a record for a graph read the backend failed
 outside the deadline and availability classes. It is ERROR level, except that a
 statement the backend rejects as malformed (`Neo.ClientError.Statement.*`) is

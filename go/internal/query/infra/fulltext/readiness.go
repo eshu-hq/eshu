@@ -183,7 +183,9 @@ func (r *Readiness) logTransition(ctx context.Context, prev *State, st State) {
 		attrs = append(attrs, "previous_ready", prev.Ready, "previous_reason", string(prev.Reason))
 	}
 	if st.Err != nil {
-		attrs = append(attrs, "error", st.Err.Error())
+		// The probe read's own graph-read log carries the bounded failure
+		// class; the raw driver error can echo statement text.
+		attrs = append(attrs, "probe_failed", true)
 		r.logger.WarnContext(ctx, "infra search key readiness changed", attrs...)
 		return
 	}

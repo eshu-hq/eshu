@@ -241,7 +241,10 @@ handler instead of once per read. `POST /api/v0/infra/relationships`'s own
 request span also carries `eshu.entity_anchor_labels_tried`, and the infra
 search, relationships, count and inventory spans carry
 `eshu.infra_scope_dialect` plus, on the Neo4j scoped loop,
-`eshu.entity_anchor_probes` and `eshu.entity_anchor_scoped_reads`. These spans
+`eshu.entity_anchor_probes` and `eshu.entity_anchor_scoped_reads`. The infra
+search span also carries `eshu.infra_search_path` (`fulltext` or `legacy`) and,
+on the legacy path, `eshu.infra_search_fallback_reason` with the same values as
+the `reason` label of `eshu_dp_infra_search_path_total` (#7245). These spans
 deliberately omit Cypher text and raw driver errors. See
 [Graph-read safety](graph-read-safety.md) for the matching API, MCP, metric,
 and warning contract.

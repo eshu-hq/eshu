@@ -80,10 +80,13 @@ func (r *Reader) Rows(ctx context.Context, run Runner, req Request) ([]map[strin
 			r.observe(ctx, PathFulltext, ReasonFTError)
 			return nil, err
 		}
+		// No raw driver error here: it can echo statement text. The graph
+		// reader already logged the failed read with its bounded class.
 		if r.Logger != nil {
 			r.Logger.WarnContext(ctx, "infra search full-text read failed; serving the legacy statement",
 				telemetry.EventAttr("query.infra_search_key.fulltext_fallback"),
-				"error", err.Error(),
+				"search_path", string(PathLegacy),
+				"reason", string(ReasonFTError),
 			)
 		}
 		path, reason = PathLegacy, ReasonFTError
