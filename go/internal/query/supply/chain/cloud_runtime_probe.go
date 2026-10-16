@@ -18,6 +18,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -160,7 +161,11 @@ func (h *Handler) probeSupplyChainCloudRuntimeResources(
 		access.GrantedScopeIDs(),
 	)
 	if err != nil {
-		span.RecordError(err)
+		// A client cancel is not a fault of this read: keep the child span
+		// free of the exception the same way the request span is (#7674).
+		if !tracing.ClientCanceled(ctx, err) {
+			span.RecordError(err)
+		}
 		return nil, err
 	}
 

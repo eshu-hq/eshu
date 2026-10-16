@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/admin/audit"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // maxAuditEventLimit bounds the audit-event read window an admin may
@@ -129,7 +130,7 @@ func (h *ReadHandler) handleListInvitations(w http.ResponseWriter, r *http.Reque
 	items, err := h.Store.ListAdminInvitations(r.Context(), tenantID, workspaceID)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "admin list invitations failed", "err", err)
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to list invitations")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, invitationListFailedMessage)
 		return
 	}
 	out := make([]map[string]any, 0, len(items))
@@ -169,7 +170,7 @@ func (h *ReadHandler) handleListRoleAssignments(w http.ResponseWriter, r *http.R
 	items, err := h.Store.ListAdminRoleAssignments(r.Context(), tenantID, workspaceID, userID)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "admin list role assignments failed", "err", err)
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to list role assignments")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, roleAssignmentListFailedMessage)
 		return
 	}
 	out := make([]map[string]any, 0, len(items))
@@ -206,7 +207,7 @@ func (h *ReadHandler) handleListRoles(w http.ResponseWriter, r *http.Request) {
 	items, grantsTruncated, err := h.Store.ListAdminRoles(r.Context(), tenantID)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "admin list roles failed", "err", err)
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to list roles")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, roleListFailedMessage)
 		return
 	}
 	out := make([]map[string]any, 0, len(items))
@@ -251,7 +252,7 @@ func (h *ReadHandler) handleListIdPProviders(w http.ResponseWriter, r *http.Requ
 	items, err := h.Store.ListAdminIdPProviders(r.Context(), tenantID)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "admin list idp providers failed", "err", err)
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to list idp providers")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, idpProviderListFailedMessage)
 		return
 	}
 	out := make([]map[string]any, 0, len(items))
@@ -286,7 +287,7 @@ func (h *ReadHandler) handleListIdPGroupMappings(w http.ResponseWriter, r *http.
 	items, err := h.Store.ListAdminIdPGroupMappings(r.Context(), tenantID, workspaceID, afterRef)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "admin list idp group mappings failed", "err", err)
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to list idp group mappings")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, idpGroupMappingListFailedMessage)
 		return
 	}
 	out := make([]map[string]any, 0, len(items))
@@ -328,7 +329,7 @@ func (h *ReadHandler) handleListAPITokens(w http.ResponseWriter, r *http.Request
 	items, err := h.Store.ListAdminAPITokens(r.Context(), tenantID, workspaceID)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "admin list api tokens failed", "err", err)
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to list api tokens")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, apiAccessKeyListFailedMessage)
 		return
 	}
 	out := make([]map[string]any, 0, len(items))

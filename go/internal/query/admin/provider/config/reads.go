@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/admin/audit"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // providerConfigListLimit bounds the provider-config list response, same
@@ -69,7 +70,7 @@ func (h *ReadHandler) handleList(w http.ResponseWriter, r *http.Request) {
 	items, err := h.Store.ListProviderConfigDetails(r.Context(), tenantID)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "admin list provider configs failed", "err", err)
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to list provider configs")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, providerConfigListFailedMessage)
 		return
 	}
 	out := make([]map[string]any, 0, len(items))
@@ -101,7 +102,7 @@ func (h *ReadHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 	detail, found, err := h.Store.GetProviderConfigDetail(r.Context(), providerConfigID, tenantID)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "admin get provider config failed", "err", err)
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to read provider config")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, providerConfigReadFailedMessage)
 		return
 	}
 	if !found {
@@ -130,7 +131,7 @@ func (h *ReadHandler) handleListRevisions(w http.ResponseWriter, r *http.Request
 	items, err := h.Store.ListProviderConfigRevisions(r.Context(), providerConfigID, tenantID)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "admin list provider config revisions failed", "err", err)
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to list provider config revisions")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, providerConfigRevisionListFailedMessage)
 		return
 	}
 	out := make([]map[string]any, 0, len(items))

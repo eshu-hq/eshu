@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -140,7 +141,11 @@ func (h *Handler) applySupplyChainKubernetesRuntimeEvidence(
 
 	fanout, err := queryKubernetesRuntimeCandidates(ctx, h.Neo4j, plans)
 	if err != nil {
-		span.RecordError(err)
+		// A client cancel is not a fault of this read: keep the child span
+		// free of the exception the same way the request span is (#7674).
+		if !tracing.ClientCanceled(ctx, err) {
+			span.RecordError(err)
+		}
 		return err
 	}
 	candidates := fanout.candidates
@@ -166,7 +171,9 @@ func (h *Handler) applySupplyChainKubernetesRuntimeEvidence(
 			access.GrantedScopeIDs(),
 		)
 		if err != nil {
-			span.RecordError(err)
+			if !tracing.ClientCanceled(ctx, err) {
+				span.RecordError(err)
+			}
 			return fmt.Errorf("filter current authorized kubernetes runtime workloads: %w", err)
 		}
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/totp"
 )
 
@@ -84,7 +85,7 @@ func (h *IdentityHandler) handleBeginTOTPEnrollment(w http.ResponseWriter, r *ht
 	userID, found, err := h.Store.ResolveLocalIdentityUserID(r.Context(), authCtx.SubjectIDHash)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "resolve local identity user id failed", "err", err)
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to begin totp enrollment")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, totpEnrollBeginFailedMessage)
 		return
 	}
 	if !found {
@@ -94,12 +95,12 @@ func (h *IdentityHandler) handleBeginTOTPEnrollment(w http.ResponseWriter, r *ht
 	secret, err := totp.GenerateSecret()
 	if err != nil {
 		slog.ErrorContext(r.Context(), "generate totp secret failed", "err", err)
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to begin totp enrollment")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, totpEnrollBeginFailedMessage)
 		return
 	}
 	factorID := h.newID()
 	if factorID == "" {
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to begin totp enrollment")
+		tracing.WriteServerFailure(w, r, errGeneratedValueEmpty, http.StatusInternalServerError, totpEnrollBeginFailedMessage)
 		return
 	}
 	uri, err := totp.ProvisioningURI(totp.ProvisioningURIParams{
@@ -109,7 +110,7 @@ func (h *IdentityHandler) handleBeginTOTPEnrollment(w http.ResponseWriter, r *ht
 	})
 	if err != nil {
 		slog.ErrorContext(r.Context(), "build totp provisioning uri failed", "err", err)
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to begin totp enrollment")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, totpEnrollBeginFailedMessage)
 		return
 	}
 	if err := h.Store.BeginLocalIdentityTOTPEnrollment(r.Context(), IdentityTOTPEnrollmentBegin{
@@ -151,7 +152,7 @@ func (h *IdentityHandler) handleConfirmTOTPEnrollment(w http.ResponseWriter, r *
 	userID, found, err := h.Store.ResolveLocalIdentityUserID(r.Context(), authCtx.SubjectIDHash)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "resolve local identity user id failed", "err", err)
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to confirm totp enrollment")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, totpEnrollConfirmFailedMessage)
 		return
 	}
 	if !found {

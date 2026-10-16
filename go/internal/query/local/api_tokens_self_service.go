@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // This file holds the self-service authorization helpers for the generated
@@ -94,7 +95,7 @@ func (h *IdentityHandler) enforceSelfServiceTokenCreateScope(
 	userID, found, err := h.Store.ResolveLocalIdentityUserID(r.Context(), authCtx.SubjectIDHash)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "resolve self-service api token user id failed", "err", err)
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to create local identity api token")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, apiAccessKeyCreateFailedMessage)
 		return false
 	}
 	if !found {

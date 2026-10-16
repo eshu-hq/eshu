@@ -17,6 +17,4 @@ package query
 // (slice 10) was converted and is not listed.
 // Lower a ceiling (or delete the entry) when a change removes sites; never
 // raise one. The final #7674 slice deletes this map.
-var queryErrorTextLeakCeilings = map[string]int{
-	"contentread/selector_error.go": 1,
-}
+var queryErrorTextLeakCeilings = map[string]int{}

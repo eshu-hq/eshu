@@ -44,10 +44,12 @@ type fakeStore struct {
 	// apiTokens accumulates every CreateLocalIdentityAPIToken call so
 	// ListAPITokensBySubject can prove real create-then-list wiring instead of
 	// always returning nil.
-	apiTokens      []IdentityAPITokenCreate
-	rotation       IdentityPasswordRotation
-	rotationResult IdentityAuthenticationResult
-	rotationError  error
+	apiTokens []IdentityAPITokenCreate
+	// apiTokenListError fails ListAPITokensBySubject (#7674 failure tests).
+	apiTokenListError error
+	rotation          IdentityPasswordRotation
+	rotationResult    IdentityAuthenticationResult
+	rotationError     error
 
 	resolvedUserID      string
 	resolvedUserIDFound bool
@@ -141,6 +143,9 @@ func (s *fakeStore) ListAPITokensBySubject(
 	_ string,
 	_ time.Time,
 ) ([]IdentityAPITokenListItem, error) {
+	if s.apiTokenListError != nil {
+		return nil, s.apiTokenListError
+	}
 	if len(s.apiTokens) == 0 {
 		return nil, nil
 	}

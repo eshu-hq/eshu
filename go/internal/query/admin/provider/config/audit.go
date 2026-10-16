@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/admin/audit"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // audit emits one governance audit event for a mutation decision, deriving
@@ -93,10 +94,12 @@ func providerConfigWriteErrorReason(err error) string {
 }
 
 // writeProviderConfigWriteError maps a store error to an HTTP response. It
-// never includes the underlying error text in the response body (only in the
-// server log via the caller's slog.ErrorContext, which callers should add for
-// unmapped errors) — see individual handlers.
-func writeProviderConfigWriteError(w http.ResponseWriter, err error) {
+// never includes the underlying error text in the response body. A classified
+// store error answers its 4xx or 503; any other error is a server fault that
+// answers providerConfigWriteFailedMessage through tracing.WriteServerFailure
+// (500 with err on the request span, or 499 when the caller canceled), and is
+// also logged.
+func writeProviderConfigWriteError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, ErrDuplicateKey):
 		querycontract.WriteError(w, http.StatusConflict, "a provider config already exists for this tenant, kind, and identity key")
@@ -111,7 +114,7 @@ func writeProviderConfigWriteError(w http.ResponseWriter, err error) {
 	case errors.Is(err, ErrManagedByEnvironment):
 		querycontract.WriteError(w, http.StatusBadRequest, "managed by environment; edit in your IaC, not here")
 	default:
-		slog.Error("admin provider config write failed", "err", err)
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to write provider config")
+		slog.ErrorContext(r.Context(), "admin provider config write failed", "err", err)
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, providerConfigWriteFailedMessage)
 	}
 }

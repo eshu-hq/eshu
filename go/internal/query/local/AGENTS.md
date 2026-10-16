@@ -112,11 +112,18 @@ for the full file layout and Move evidence.
   add a second read site for either route (see #5001/#4976 in that file's
   doc comments for why a TOCTOU-shaped second read is the specific bug this
   guards against).
-- No route here calls `startQueryHandlerSpan` or any `tracing` helper
-  today. Do not add a `handler_tracing.go` speculatively; if a future route
-  genuinely needs a span, follow the freshness/language precedent
-  (`tracing.HandlerTracer()` seeded into a package-local var) then, not
-  before.
+- A failed store or generator step answers through
+  `tracing.WriteServerFailure` with a fixed message constant from
+  `failure.go` (#7674): 500 with the error on the request span, or 499 on a
+  client cancel. A generator that returned an empty value with no error
+  passes `errGeneratedValueEmpty` (through `generatedValueFailure` when an
+  error may or may not exist), so the span still records a cause.
+  `server_failure_test.go` drives every step through `testutil/failure`.
+  Store failures this family already answers as fixed-text 400s keep them.
+- No route here calls `startQueryHandlerSpan`. Do not add a
+  `handler_tracing.go` speculatively; if a future route genuinely needs a
+  span, follow the freshness/language precedent (`tracing.HandlerTracer()`
+  seeded into a package-local var) then, not before.
 
 ## Test fixtures (no testutil hoist)
 

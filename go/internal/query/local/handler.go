@@ -4,7 +4,6 @@
 package local
 
 import (
-	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/auth/session"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -79,10 +79,10 @@ func (h *IdentityHandler) handleBootstrap(w http.ResponseWriter, r *http.Request
 	}
 	userID, factorID, err := h.newID(), h.newID(), error(nil)
 	if userID == "" || factorID == "" {
-		err = errors.New("local identity id generation failed")
+		err = errGeneratedValueEmpty
 	}
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to create local identity bootstrap")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, bootstrapCreateFailedMessage)
 		return
 	}
 	record := IdentityBootstrapRecord{
@@ -235,7 +235,7 @@ func (h *IdentityHandler) handleCreateInvitation(w http.ResponseWriter, r *http.
 		UpdatedAt:            now,
 	}
 	if record.InviteID == "" || inviteCode == "" {
-		querycontract.WriteError(w, http.StatusInternalServerError, "failed to create local identity invitation")
+		tracing.WriteServerFailure(w, r, errGeneratedValueEmpty, http.StatusInternalServerError, invitationCreateFailedMessage)
 		return
 	}
 	if err := h.Store.CreateLocalIdentityInvitation(r.Context(), record); err != nil {

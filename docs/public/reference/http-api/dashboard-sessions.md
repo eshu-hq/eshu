@@ -4,7 +4,10 @@ Dashboard sessions are separate from explicit bearer tokens for CLI, MCP, and
 automation clients. Programmatic clients should continue to send
 `Authorization: Bearer ...`; they do not need CSRF headers.
 
-The Console browser flow uses these `/api/v0` routes:
+The Console browser flow uses these `/api/v0` routes. A failed step on the
+identity admin, provider-config, and local identity routes answers a fixed
+message, never backend error text: see
+[Identity route failures](identity-failures.md).
 
 | Route | Purpose |
 | --- | --- |
