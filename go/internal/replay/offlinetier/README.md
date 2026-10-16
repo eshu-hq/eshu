@@ -218,3 +218,20 @@ name instead of flagging it.
   checks and the env-gated real-backend retraction/supersession/idempotency tests.
 - `executor_test.go` — the driver-backed executor adapters (singleton + the
   phase-group write path that mirrors production NornicDB).
+
+## Ifá isolated PostgreSQL fixtures
+
+The tagged repository-dependency process-death and quarantine proofs use the
+full `postgres.ApplyBootstrap` schema inside their disposable PostgreSQL
+schema. The shared-intent DDL alone does not create the ingestion scopes and
+generations that the replay-coordinate seed and acceptance fences require.
+Each proof drops its schema on exit and uses a dedicated disposable NornicDB
+backend; the database-identity mismatch test needs a second clean endpoint.
+
+No-Regression Evidence (#7533 fixture setup): the real tagged tests first
+failed with SQLSTATE 42P01 while seeding `ingestion_scopes`. After the fixture
+bootstrap change, all seven repository-dependency proofs and the reducer
+grouped-retry proof passed with `-race -count=1` on pinned NornicDB and
+PostgreSQL 18.6, with no named-test skips. This changes test setup only.
+No-Observability-Change: no production metric, span, log or runtime setting
+changes; the existing fault assertions and graph readbacks remain intact.

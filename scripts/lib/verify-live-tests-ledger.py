@@ -21,6 +21,10 @@ import sys
 from live_tests_registry import load_ledger_text
 from live_postgres_migrations import MIGRATION_PATHS
 from reducer_contention_events import load_inventory, verify_inventory
+from ifa_scheduled_events import (
+    load_inventory as load_ifa_scheduled_inventory,
+    verify_inventory as verify_ifa_scheduled_inventory,
+)
 
 if len(sys.argv) != 3:
     sys.exit(f"usage: {sys.argv[0]} <ledger_path> <repo_root>")
@@ -44,12 +48,15 @@ legacy_scheduled = []
 contention_inventory = load_inventory()
 contention_paths = set(contention_inventory)
 contention_ledger_paths = set()
+ifa_scheduled_inventory = load_ifa_scheduled_inventory()
+ifa_scheduled_paths = set(ifa_scheduled_inventory)
+verified_ifa_scheduled_paths = set()
 for path, tag, cls, reason, runner, backends in rows:
     if path in seen_files:
         sys.exit(f"duplicate ledger row: {path}")
     seen_files.add(path)
     classes[path] = cls
-    if cls not in ("ci", "postgres_ci", "dedicated_ci", "scheduled", "retired"):
+    if cls not in ("ci", "postgres_ci", "dedicated_ci", "verified_scheduled", "scheduled", "retired"):
         sys.exit(f"invalid class {cls!r} for {path}")
     if cls == "postgres_ci":
         readiness = runner == "live-postgres-readiness" and tag.strip() == "~"
@@ -72,6 +79,12 @@ for path, tag, cls, reason, runner, backends in rows:
                 sys.exit(f"PostgreSQL dedicated row cannot claim graph backends: {path}")
         elif backends != "neo4j":
             sys.exit(f"Neo4j dedicated row needs its truthful backend pin: {path}")
+    elif cls == "verified_scheduled":
+        if (runner != "ifa-scheduled" or path not in ifa_scheduled_paths
+                or tag.strip() != ifa_scheduled_inventory[path]["tag"]
+                or backends != "nornicdb"):
+            sys.exit(f"Ifá scheduled row needs its exact runner, tag, and NornicDB backend: {path}")
+        verified_ifa_scheduled_paths.add(path)
     elif runner:
         sys.exit(f"unexpected runner {runner!r} for {cls} row: {path}")
     if cls == "scheduled":
@@ -115,6 +128,17 @@ try:
     verify_inventory(Path(repo_root), contention_inventory)
 except (OSError, ValueError, re.error) as error:
     sys.exit(f"reducer contention runner enrollment failed: {error}")
+
+if verified_ifa_scheduled_paths != ifa_scheduled_paths:
+    sys.exit(
+        "Ifá scheduled rows differ from exact inventory: "
+        f"missing={sorted(ifa_scheduled_paths - verified_ifa_scheduled_paths)}, "
+        f"extra={sorted(verified_ifa_scheduled_paths - ifa_scheduled_paths)}"
+    )
+try:
+    verify_ifa_scheduled_inventory(Path(repo_root), ifa_scheduled_inventory)
+except (OSError, ValueError, re.error) as error:
+    sys.exit(f"Ifá scheduled runner enrollment failed: {error}")
 
 # The ledger itself lists the exact grandfathered paths. Bind that readable
 # inventory to a fixed digest so a newly scheduled row cannot inherit an

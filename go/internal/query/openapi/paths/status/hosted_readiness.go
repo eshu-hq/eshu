@@ -12,7 +12,7 @@ const HostedReadiness = `
       "get": {
         "tags": ["status"],
         "summary": "Get hosted operator readiness",
-        "description": "Returns a fail-closed hosted readiness report across status snapshot loading, queue drain, collector completion, shared projection backlog, and API/MCP query readback.",
+        "description": "Returns a fail-closed hosted readiness report across status snapshot loading, queue drain, collector completion, shared projection backlog, and API/MCP query readback. A 503 with Retry-After means a transient condition that is safe to retry: the status snapshot read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the status reader is not configured on this API instance. No 5xx body carries backend error text. This route has no capability-matrix key yet, so a reader-verdict 503 error envelope carries no capability field (#8227).",
         "operationId": "getHostedReadiness",
         "x-scoped-token-support": true,
         "parameters": [

@@ -51,6 +51,13 @@ const (
 
 const operationsStatusCapability = "operations.status"
 
+// Fixed bodies of the two failed reads on GET /api/v0/status/operations
+// (#7674): the status snapshot and the bounded live-activity read.
+const (
+	operationsStatusReadFailedMessage       = "operations status read failed"
+	operationsLiveActivityReadFailedMessage = "operations live activity read failed"
+)
+
 // scopedOperationsRoute reports whether the request targets the live
 // operations board. The handler restricts live_activity rows to the caller's
 // granted repositories/ingestion scopes (returning zero rows without
@@ -101,7 +108,7 @@ func (h *StatusHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 
 	_, report, err := loadStatusReportFiltered(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions(), operatorStatusSelection())
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load status: %v", err))
+		writeReadFailure(w, r, err, operationsStatusCapability, operationsStatusReadFailedMessage)
 		return
 	}
 
@@ -120,7 +127,7 @@ func (h *StatusHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 			r.Context(), limit, !access.Scoped(), access.GrantedRepositoryIDs(), access.GrantedScopeIDs(),
 		)
 		if err != nil {
-			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("read live activity: %v", err))
+			writeReadFailure(w, r, err, operationsStatusCapability, operationsLiveActivityReadFailedMessage)
 			return
 		}
 	}

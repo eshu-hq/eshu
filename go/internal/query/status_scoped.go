@@ -5,14 +5,25 @@ package query
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
+
+// scopedRepositoryCountFailedMessage is the fixed body of a failed scoped
+// index-status repository count (#7674). The graph error can quote Cypher and
+// hosts, so it goes on the request span, never into the body.
+const scopedRepositoryCountFailedMessage = "scoped index status repository count failed"
+
+// errScopedRepositoryCountNoRow is the server fault recorded on the request
+// span when the scoped repository count answers no row. It has no backend
+// error of its own, so this sentinel stands in for one.
+var errScopedRepositoryCountNoRow = errors.New("scoped repository count query returned no row")
 
 func scopedAuthContext(ctx context.Context) bool {
 	return auth.ScopedAuthContext(ctx)
@@ -118,11 +129,20 @@ func (h *StatusHandler) getScopedIndexStatus(
 			access.GraphParams(nil),
 		)
 		if err != nil {
-			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("count granted repositories: %v", err))
+			// A graph outage answers the retryable 503 and a graph read
+			// deadline the 504, through WriteGraphReadError. The route has
+			// no capability-matrix key (#8227), so the envelope carries no
+			// capability field.
+			if WriteGraphReadError(w, r, err, querycontract.NoCapability) {
+				return
+			}
+			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, scopedRepositoryCountFailedMessage)
 			return
 		}
 		if row == nil {
-			WriteError(w, http.StatusInternalServerError, "count granted repositories: count query returned no row")
+			tracing.WriteServerFailure(
+				w, r, errScopedRepositoryCountNoRow, http.StatusInternalServerError, scopedRepositoryCountFailedMessage,
+			)
 			return
 		}
 		repoCount = IntVal(row, "count")

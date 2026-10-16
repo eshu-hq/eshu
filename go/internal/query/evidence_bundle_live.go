@@ -4,14 +4,27 @@
 package query
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/evidencebundle"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/status/queue"
+)
+
+// Fixed bodies of the two failure steps on GET /api/v0/evidence/bundle
+// (#7674): the status snapshot read and the bundle validation. The route has
+// no capability-matrix key (#8227): the status snapshot reads through the
+// guarded PostgreSQL reader, so a stale or timed-out reader answers the
+// retryable 503 under querycontract.NoCapability, whose envelope carries no
+// capability field. Neither error reaches the body; each goes on the request
+// span.
+const (
+	liveEvidenceBundleStatusReadFailedMessage = "live evidence bundle status read failed"
+	liveEvidenceBundleComposeFailedMessage    = "live evidence bundle composition failed"
 )
 
 // getLiveEvidenceBundle composes and returns a live evidence_bundle.v1
@@ -59,7 +72,10 @@ func (h *EvidenceHandler) getLiveEvidenceBundle(w http.ResponseWriter, r *http.R
 	selection.SkipTerraformStateEvidence = true
 	_, report, err := loadStatusReportFiltered(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions(), selection)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load status: %v", err))
+		if WriteGraphReadError(w, r, err, querycontract.NoCapability) {
+			return
+		}
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, liveEvidenceBundleStatusReadFailedMessage)
 		return
 	}
 
@@ -70,7 +86,7 @@ func (h *EvidenceHandler) getLiveEvidenceBundle(w http.ResponseWriter, r *http.R
 	if err := evidencebundle.Validate(bundle); err != nil {
 		// This is a composition bug on our own inputs, never on caller input,
 		// so it is a 500, not a 400.
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("compose live evidence bundle: %v", err))
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, liveEvidenceBundleComposeFailedMessage)
 		return
 	}
 	bundle = evidencebundle.StampValidation(bundle)

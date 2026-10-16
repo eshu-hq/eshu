@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/evidencebundle"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
@@ -138,14 +139,17 @@ func TestEvidenceBundleSelectsAllExceptTerraformState(t *testing.T) {
 
 func TestEvidenceBundleSelectedReadPreservesFailures(t *testing.T) {
 	for _, tc := range []struct {
-		name    string
-		reader  *bundleSelectionReader
-		cancel  bool
-		expired bool
+		name       string
+		reader     *bundleSelectionReader
+		cancel     bool
+		expired    bool
+		wantStatus int
 	}{
-		{name: "retained read", reader: &bundleSelectionReader{retainedErr: errors.New("queue read unavailable")}},
-		{name: "cancelled context", reader: &bundleSelectionReader{}, cancel: true},
-		{name: "expired deadline", reader: &bundleSelectionReader{}, expired: true},
+		{name: "retained read", reader: &bundleSelectionReader{retainedErr: errors.New("queue read unavailable")}, wantStatus: http.StatusInternalServerError},
+		// A canceled request context is the client walking away: 499, not a
+		// server fault (#7674).
+		{name: "cancelled context", reader: &bundleSelectionReader{}, cancel: true, wantStatus: querycontract.StatusClientClosedRequest},
+		{name: "expired deadline", reader: &bundleSelectionReader{}, expired: true, wantStatus: http.StatusInternalServerError},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			mux := http.NewServeMux()
@@ -168,8 +172,8 @@ func TestEvidenceBundleSelectedReadPreservesFailures(t *testing.T) {
 			mux.ServeHTTP(rec, req)
 			want := statuspkg.FullSnapshotSelection()
 			want.SkipTerraformStateEvidence = true
-			if rec.Code != http.StatusInternalServerError || tc.reader.calls != 1 || tc.reader.selection != want {
-				t.Fatalf("status/selection/calls = %d/%+v/%d, want 500/%+v/1", rec.Code, tc.reader.selection, tc.reader.calls, want)
+			if rec.Code != tc.wantStatus || tc.reader.calls != 1 || tc.reader.selection != want {
+				t.Fatalf("status/selection/calls = %d/%+v/%d, want %d/%+v/1", rec.Code, tc.reader.selection, tc.reader.calls, tc.wantStatus, want)
 			}
 		})
 	}

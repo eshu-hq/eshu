@@ -26,6 +26,14 @@ const (
 	evidenceCitationMaxExcerptLines = 40
 )
 
+// Fixed bodies of the two failed content reads on POST
+// /api/v0/evidence/citations (#7674). The content store error can quote SQL
+// and hosts, so it goes on the request span, never into the body.
+const (
+	evidenceCitationFileReadFailedMessage   = "evidence citation file read failed"
+	evidenceCitationEntityReadFailedMessage = "evidence citation entity read failed"
+)
+
 type evidenceCitationRequest struct {
 	Subject  map[string]any                    `json:"subject,omitempty"`
 	Question string                            `json:"question,omitempty"`
@@ -74,12 +82,12 @@ func (h *EvidenceHandler) buildEvidenceCitations(w http.ResponseWriter, r *http.
 
 	files, err := h.evidenceCitationFileContents(r.Context(), handles)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeReadFailure(w, r, err, evidenceCitationCapability, evidenceCitationFileReadFailedMessage)
 		return
 	}
 	entities, err := h.evidenceCitationEntityContents(r.Context(), handles)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeReadFailure(w, r, err, evidenceCitationCapability, evidenceCitationEntityReadFailedMessage)
 		return
 	}
 

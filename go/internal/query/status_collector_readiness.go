@@ -4,12 +4,13 @@
 package query
 
 import (
-	"fmt"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
@@ -75,6 +76,15 @@ type collectorReadinessEntry struct {
 	UpdatedAt             any      `json:"updated_at,omitempty"`
 }
 
+// collectorReadinessStatusReadFailedMessage is the fixed body of a failed
+// status snapshot read on GET /api/v0/status/collector-readiness and GET
+// /api/v0/collector-readiness (#7674). The route has no capability-matrix
+// key (#8227): the status snapshot reads through the guarded PostgreSQL
+// reader, so a stale or timed-out reader answers the retryable 503 under
+// querycontract.NoCapability, whose envelope carries no capability field. The
+// reader error goes on the request span, never into the body.
+const collectorReadinessStatusReadFailedMessage = "collector readiness status read failed"
+
 // getCollectorReadiness serves the per-collector-family promotion readiness read
 // model over the full collector fleet. It loads the same status report the rest
 // of the status surface uses and projects collector.PromotionProofs so API
@@ -121,7 +131,10 @@ func (h *StatusHandler) getCollectorReadiness(w http.ResponseWriter, r *http.Req
 	asOf := time.Now()
 	_, report, err := loadStatusReportFiltered(r.Context(), h.StatusReader, asOf, status.DefaultOptions(), operatorStatusSelection())
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load status: %v", err))
+		if WriteGraphReadError(w, r, err, querycontract.NoCapability) {
+			return
+		}
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, collectorReadinessStatusReadFailedMessage)
 		return
 	}
 

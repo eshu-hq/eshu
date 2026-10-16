@@ -12,7 +12,7 @@ const Governance = `
       "get": {
         "tags": ["status"],
         "summary": "Get hosted governance status",
-        "description": "Returns redacted hosted governance policy mode, state, readiness, and aggregate reason-code readbacks without raw policy bodies, subjects, tenants, source identifiers, credentials, provider endpoints, prompts, or provider responses.",
+        "description": "Returns redacted hosted governance policy mode, state, readiness, and aggregate reason-code readbacks without raw policy bodies, subjects, tenants, source identifiers, credentials, provider endpoints, prompts, or provider responses. A 503 with Retry-After means a transient condition that is safe to retry: the status snapshot read or the governance audit summary read hit a stale or timed-out PostgreSQL reader; this route has no configuration 503, so every 503 it answers carries Retry-After. No 5xx body carries backend error text. A reader-verdict 503 names capability hosted_governance.status in its error envelope.",
         "operationId": "getHostedGovernanceStatus",
         "x-scoped-token-support": true,
         "responses": {
@@ -66,7 +66,8 @@ const Governance = `
               }
             }
           },
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
