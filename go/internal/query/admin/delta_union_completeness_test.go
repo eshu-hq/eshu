@@ -128,9 +128,9 @@ func TestDeltaUnionCompletenessCheckMismatchListsDiff(t *testing.T) {
 }
 
 // A scope whose active generation is a full generation, not a delta, is
-// reported skipped without touching the graph (#7797): the want side counts
-// every content_entity fact row per file while the graph side counts only
-// :Function nodes. The erroring graph stub proves no read is issued.
+// reported skipped without touching the graph (#7797): the check covers
+// delta-active scopes only. The erroring graph stub proves no read is
+// issued.
 func TestDeltaUnionCompletenessCheckNonDeltaSkipsWithoutGraphRead(t *testing.T) {
 	active := &stubDeltaUnionActive{snapshot: pgstatus.DeltaUnionActiveSnapshot{
 		Rows: []goldengate.DeltaUnionActiveRow{
@@ -163,10 +163,75 @@ func TestDeltaUnionCompletenessCheckNonDeltaSkipsWithoutGraphRead(t *testing.T) 
 	}
 }
 
+// A Module content_entity row on a delta-active scope must not drift the
+// per-path count (#7797 P1): the ACTIVE read leaves its Entity flag false
+// (graph readers count only :Function nodes), so the Function-count graph
+// still compares complete.
+func TestDeltaUnionCompletenessCheckIgnoresNonFunctionEntities(t *testing.T) {
+	active := &stubDeltaUnionActive{snapshot: pgstatus.DeltaUnionActiveSnapshot{
+		Rows: []goldengate.DeltaUnionActiveRow{
+			{
+				RepoID: "repo-1", ScopeID: "scope-1", GenerationID: "gen-base", GenerationStatus: "superseded",
+				Kind: "file", StableKey: "file:repo-1:other.go", Path: "other.go",
+			},
+			{
+				RepoID: "repo-1", ScopeID: "scope-1", GenerationID: "gen-base", GenerationStatus: "superseded",
+				Kind: "content_entity", StableKey: "content_entity:other-fn", Path: "other.go", Entity: true,
+			},
+			{
+				RepoID: "repo-1", ScopeID: "scope-1", GenerationID: "gen-base", GenerationStatus: "superseded",
+				Kind: "content_entity", StableKey: "content_entity:other-mod", Path: "other.go", Entity: false,
+			},
+			{
+				RepoID: "repo-1", ScopeID: "scope-1", GenerationID: "gen-delta", GenerationStatus: "active", IsDelta: true,
+				Kind: "file", StableKey: "file:repo-1:keep.go", Path: "keep.go",
+			},
+		},
+		Deltas: map[string]goldengate.DeltaUnionDeltaPaths{
+			"scope-1": {BaselineCommit: "commit-a", Changed: []string{"keep.go"}},
+		},
+	}}
+	graph := &stubDeltaUnionGraph{rows: map[string][]map[string]any{
+		"repo-1": {
+			{"rel": "keep.go", "entities": int64(0)},
+			{"rel": "other.go", "entities": int64(1)},
+		},
+	}}
+	checker := &DeltaUnionCompletenessChecker{Active: active, Graph: graph}
+
+	report, err := checker.Check(context.Background(), []string{"scope-1"})
+	if err != nil {
+		t.Fatalf("Check() error = %v, want nil", err)
+	}
+	if len(report.Repos) != 1 || report.Repos[0].Outcome != "complete" {
+		t.Fatalf("report = %+v, want one complete repo", report)
+	}
+}
+
 func TestDeltaUnionCompletenessCheckRequiresConfiguration(t *testing.T) {
 	checker := &DeltaUnionCompletenessChecker{}
 	if _, err := checker.Check(context.Background(), nil); err == nil {
 		t.Fatal("Check() error = nil, want configuration error")
+	}
+}
+
+// Past the repository cap the call must fail before the ACTIVE fact
+// fan-out (#7797 P2): the fan-out reads every fact of every in-filter
+// generation plus their bases, so rejecting after it always pays the
+// expensive reads first. The erroring ACTIVE stub proves no read is issued.
+func TestDeltaUnionCompletenessCheckCapsFilterBeforeActiveRead(t *testing.T) {
+	active := &stubDeltaUnionActive{err: errors.New("active must not fan out past the cap")}
+	graph := &stubDeltaUnionGraph{}
+	checker := &DeltaUnionCompletenessChecker{Active: active, Graph: graph, MaxRepos: 1}
+
+	_, err := checker.Check(context.Background(), []string{"scope-1", "scope-2"})
+	if err == nil {
+		t.Fatal("Check() error = nil, want repo cap error")
+	} else if got := err.Error(); !strings.Contains(got, "scope filter") {
+		t.Fatalf("Check() error = %q, want a narrow-the-filter error", got)
+	}
+	if active.scopes != nil {
+		t.Fatalf("active scopes = %v, want no ACTIVE read past the cap", active.scopes)
 	}
 }
 

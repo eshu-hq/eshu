@@ -78,10 +78,9 @@ func TestEvaluateDeltaUnionSnapshotMismatchFails(t *testing.T) {
 }
 
 // A scope whose active generation is a full generation, not a delta, skips
-// the delta-union phase without touching the graph (#7797): the want side
-// counts every content_entity fact row per file while the graph side counts
-// only :Function nodes, so comparing it would fail on the label gap. The
-// erroring graph stub proves the phase issues no read for such scopes.
+// the delta-union phase without touching the graph (#7797): the check
+// covers delta-active scopes only. The erroring graph stub proves the
+// phase issues no read for such scopes.
 func TestEvaluateDeltaUnionSnapshotNonDeltaSkips(t *testing.T) {
 	snapshot := pgstatus.DeltaUnionActiveSnapshot{
 		Rows: []gg.DeltaUnionActiveRow{
@@ -112,6 +111,46 @@ func TestEvaluateDeltaUnionSnapshotNonDeltaSkips(t *testing.T) {
 	}
 	if got := r.Findings[0].Detail; !strings.Contains(got, "skip:") {
 		t.Fatalf("finding detail = %q, want a skip-with-reason check", got)
+	}
+}
+
+// A Module content_entity row on a delta-active scope must not drift the
+// per-path count (#7797 P1): the ACTIVE read leaves its Entity flag false
+// (graph readers count only :Function nodes), so the Function-count graph
+// still passes the phase.
+func TestEvaluateDeltaUnionSnapshotIgnoresNonFunctionEntities(t *testing.T) {
+	snapshot := pgstatus.DeltaUnionActiveSnapshot{
+		Rows: []gg.DeltaUnionActiveRow{
+			{
+				RepoID: "repo-1", ScopeID: "scope-1", GenerationID: "gen-base", GenerationStatus: "superseded",
+				Kind: "file", StableKey: "file:repo-1:other.go", Path: "other.go",
+			},
+			{
+				RepoID: "repo-1", ScopeID: "scope-1", GenerationID: "gen-base", GenerationStatus: "superseded",
+				Kind: "content_entity", StableKey: "content_entity:other-fn", Path: "other.go", Entity: true,
+			},
+			{
+				RepoID: "repo-1", ScopeID: "scope-1", GenerationID: "gen-base", GenerationStatus: "superseded",
+				Kind: "content_entity", StableKey: "content_entity:other-mod", Path: "other.go", Entity: false,
+			},
+			{
+				RepoID: "repo-1", ScopeID: "scope-1", GenerationID: "gen-delta", GenerationStatus: "active", IsDelta: true,
+				Kind: "file", StableKey: "file:repo-1:keep.go", Path: "keep.go",
+			},
+		},
+		Deltas: map[string]gg.DeltaUnionDeltaPaths{
+			"scope-1": {BaselineCommit: "commit-a", Changed: []string{"keep.go"}},
+		},
+	}
+	var r Report
+	graph := &stubDeltaUnionGraphFiles{files: map[string]map[string]int64{
+		"repo-1": {"keep.go": 0, "other.go": 1},
+	}}
+	if err := evaluateDeltaUnionSnapshot(context.Background(), snapshot, graph, &r); err != nil {
+		t.Fatalf("evaluate() error = %v, want nil", err)
+	}
+	if r.Failed() {
+		t.Fatalf("report failed, want pass: %+v", r)
 	}
 }
 

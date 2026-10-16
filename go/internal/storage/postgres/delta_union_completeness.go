@@ -45,7 +45,13 @@ ORDER BY a.scope_id, (g.status IN ('active', 'completed')) DESC, g.ingested_at D
 
 // deltaUnionActiveFactsQuery reads every fact of the wanted generations with
 // the per-row file attribution the assembly needs. Tombstones ride along
-// with their flag; the assembly excludes them from both sides.
+// with their flag; the assembly excludes them from both sides. The Entity
+// flag counts only the entity types the graph readers count: both readers
+// count (f)-[:CONTAINS]->(e:Function) nodes, and the projection writes only
+// function/Function content_entity rows as :Function nodes under the file
+// (Module, Parameter, and Variable skip the generic phase-E entity write),
+// so flagging every content_entity row would read correct graphs as Drifted.
+// Both payload casings ride along: collectors emit function and Function.
 const deltaUnionActiveFactsQuery = `
 SELECT fr.scope_id,
        NULLIF(fr.payload ->> 'repo_id', ''),
@@ -58,7 +64,7 @@ SELECT fr.scope_id,
             WHEN fr.fact_kind = 'content' THEN COALESCE(fr.payload ->> 'content_path', '')
             ELSE '' END,
        fr.is_tombstone,
-       (fr.fact_kind = 'content_entity')
+       (fr.fact_kind = 'content_entity' AND COALESCE(fr.payload ->> 'entity_type', '') IN ('function', 'Function'))
 FROM (SELECT unnest($1::text[]) AS scope_id, unnest($2::text[]) AS generation_id) AS wanted
 JOIN scope_generations AS g USING (scope_id, generation_id)
 JOIN fact_records AS fr USING (scope_id, generation_id)

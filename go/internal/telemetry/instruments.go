@@ -1031,7 +1031,8 @@ type Instruments struct {
 	// instruments_recovery_delta_active.go.
 	RecoveryDeltaActiveScopes metric.Int64Counter
 	// ProjectorDeltaUnion counts delta-base union fact-load decisions by the
-	// closed outcome set (union_base_found, union_base_missing_refused),
+	// closed outcome set (union_base_found, union_base_missing_refused,
+	// union_resolve_failed, union_scope_mismatch),
 	// and ProjectorDeltaUnionFacts carries the base, delta, and union fact
 	// counts behind each decision as histogram values (#7797). Labels never
 	// carry scope ids, generation ids, or commit SHAs. Registered in

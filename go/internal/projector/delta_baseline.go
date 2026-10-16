@@ -76,6 +76,21 @@ const (
 	// DeltaUnionBaseMissingRefused means no projected base full generation
 	// exists at the delta's baseline, so the load refused.
 	DeltaUnionBaseMissingRefused DeltaUnionOutcome = "union_base_missing_refused"
+	// DeltaUnionResolveFailed means the union target/base lookup failed
+	// with an error that is not a missing base (a transient query or scan
+	// failure). The load returns the error and the work retries through
+	// the generic fail path; it must never count as a refusal.
+	DeltaUnionResolveFailed DeltaUnionOutcome = "union_resolve_failed"
+	// DeltaUnionScopeMismatch means the store resolved a union (the
+	// generation row says delta with a baseline) but the loaded delta
+	// carries no delta_generation repository fact, so the overlay ran
+	// additively: base plus delta concatenation with no dedup. The load
+	// proceeds and the divergence is surfaced with a WARN log and this
+	// outcome count. Fail-closed refusal was considered and rejected: it
+	// would turn loads that succeed today into projection stalls on
+	// legacy or mis-marked generations; escalation needs an arbiter
+	// decision with a production occurrence count.
+	DeltaUnionScopeMismatch DeltaUnionOutcome = "union_scope_mismatch"
 )
 
 // DeltaBaselineOutcome is the closed result of one fence decision. The counted

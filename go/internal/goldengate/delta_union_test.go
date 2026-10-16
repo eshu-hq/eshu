@@ -83,10 +83,8 @@ func TestEvaluateDeltaUnionCompletenessNoActiveGenerationSkips(t *testing.T) {
 }
 
 // A scope whose active generation is a full generation, not a delta, is
-// out of the delta-union comparison's scope (#7797): the want side counts
-// every content_entity fact row per file while the graph side counts only
-// :Function nodes, so comparing a full active generation would fail on the
-// label gap rather than on a real repair signal. Such scopes skip.
+// out of the delta-union comparison's scope (#7797): the check covers
+// delta-active scopes only, so such scopes skip without comparing.
 func TestCompareDeltaUnionRepoNonDeltaActiveSkips(t *testing.T) {
 	expected := DeltaUnionExpectation{
 		RepoID: "repo-1", ScopeID: "scope-1",
@@ -149,6 +147,49 @@ func TestAssembleDeltaUnionExpectationOverlaysBaseWithDelta(t *testing.T) {
 	}
 	if _, ok := exp.Files["w.go"]; ok {
 		t.Fatalf("expected files = %v, want no deleted w.go", exp.Files)
+	}
+}
+
+// Only Function entity rows count toward a path (#7797 P1): a Module
+// content_entity row rides the same file but the ACTIVE read leaves its
+// Entity flag false (the graph readers count only :Function nodes), so a
+// correct graph with the Function count still compares complete.
+func TestAssembleDeltaUnionExpectationIgnoresNonFunctionEntities(t *testing.T) {
+	rows := []DeltaUnionActiveRow{
+		{
+			RepoID: "repo-1", ScopeID: "scope-1", GenerationID: "gen-base", GenerationStatus: "superseded", IsDelta: false,
+			Kind: "file", StableKey: "file:repo-1:other.go", Path: "other.go",
+		},
+		{
+			RepoID: "repo-1", ScopeID: "scope-1", GenerationID: "gen-base", GenerationStatus: "superseded", IsDelta: false,
+			Kind: "content_entity", StableKey: "content_entity:other-fn", Path: "other.go", Entity: true,
+		},
+		{
+			RepoID: "repo-1", ScopeID: "scope-1", GenerationID: "gen-base", GenerationStatus: "superseded", IsDelta: false,
+			Kind: "content_entity", StableKey: "content_entity:other-mod", Path: "other.go", Entity: false,
+		},
+		{
+			RepoID: "repo-1", ScopeID: "scope-1", GenerationID: "gen-delta", GenerationStatus: "active", IsDelta: true,
+			Kind: "file", StableKey: "file:repo-1:keep.go", Path: "keep.go",
+		},
+	}
+	got := AssembleDeltaUnionExpectations(rows, map[string]DeltaUnionDeltaPaths{
+		"scope-1": {BaselineCommit: "commit-a", Changed: []string{"keep.go"}},
+	})
+	if len(got) != 1 {
+		t.Fatalf("expectations = %d, want 1", len(got))
+	}
+	// other.go is untouched so both its entity rows survive the merge, but
+	// only the Function row counts: the Module row's Entity flag is false.
+	if got[0].Files["other.go"] != 1 {
+		t.Fatalf("expected other.go entities = %d, want 1 (Module row must not count)", got[0].Files["other.go"])
+	}
+	result := CompareDeltaUnionRepo(got[0], DeltaUnionObservation{
+		RepoID: "repo-1", Files: map[string]int64{"keep.go": 0, "other.go": 1},
+	})
+	if result.Outcome != DeltaUnionRepoComplete {
+		t.Fatalf("CompareDeltaUnionRepo() outcome = %q, want %q (missing=%v extra=%v drifted=%v)",
+			result.Outcome, DeltaUnionRepoComplete, result.Missing, result.Extra, result.Drifted)
 	}
 }
 

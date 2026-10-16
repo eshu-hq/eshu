@@ -26,7 +26,11 @@ failure self-heals.
 ## Operator signals
 
 - `eshu_dp_projector_delta_union_total` by closed `outcome`
-  (`union_base_found`, `union_base_missing_refused`).
+  (`union_base_found`, `union_base_missing_refused`, `union_resolve_failed`,
+  `union_scope_mismatch`). A non-refusal lookup error counts
+  `union_resolve_failed` and retries through the generic fail path; a
+  resolved union whose delta carries no `delta_generation` fact loads
+  additively with a WARN and counts `union_scope_mismatch`.
 - `eshu_dp_projector_delta_union_facts` histogram of base/delta/union fact
   counts by `outcome` and `kind`. Counts are values, never labels; commit
   SHAs, scope ids, and generation ids never become labels.
@@ -39,7 +43,9 @@ failure self-heals.
   parameter to name scopes; at least one scope is required, and an empty
   filter is rejected with 400 instead of fanning out over every active
   generation. Past the repository cap the call fails loudly instead of
-  paging silently. A mismatch names the diff for a forced full re-parse;
+  paging silently, and a filter wider than the cap fails before the ACTIVE
+  fact fan-out. Per-path counts cover Function entities only, matching the
+  graph readers. A mismatch names the diff for a forced full re-parse;
   the check never repairs. Empty delta-active repositories pass, scopes
   without an active generation skip with a reason, scopes whose active
   generation is not a delta skip without a graph read, and
