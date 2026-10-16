@@ -36,6 +36,8 @@ ROUTED_PATHS = frozenset({
     "specs/live-tests.v1.yaml",
     "specs/live-tests.d/**",
     ".github/workflows/e2e-tests.yml",
+    ".github/workflows/live-backend-tests.yml",
+    "specs/ci-gates.d/gates-09.yaml",
 })
 
 

@@ -40,8 +40,11 @@ from nornic_conformance_events import (
     verify_runner_text as verify_nornic_runner,
     verify_source as verify_nornic_source,
     verify_workflow_text as verify_nornic_workflow,
+    verify_routing_text as verify_nornic_routes,
     RUNNER as NORNIC_RUNNER,
     WORKFLOW as NORNIC_WORKFLOW,
+    STATIC_WORKFLOW as NORNIC_STATIC_WORKFLOW,
+    REGISTRY as NORNIC_REGISTRY,
 )
 
 if len(sys.argv) != 3:
@@ -202,6 +205,11 @@ try:
     verify_nornic_source(Path(repo_root), nornic_inventory)
     verify_nornic_runner((Path(repo_root) / NORNIC_RUNNER).read_text(), nornic_inventory)
     verify_nornic_workflow((Path(repo_root) / NORNIC_WORKFLOW).read_text())
+    verify_nornic_routes(
+        (Path(repo_root) / NORNIC_WORKFLOW).read_text(),
+        (Path(repo_root) / NORNIC_STATIC_WORKFLOW).read_text(),
+        (Path(repo_root) / NORNIC_REGISTRY).read_text(),
+    )
 except (OSError, ValueError, re.error) as error:
     sys.exit(f"Nornic conformance runner enrollment failed: {error}")
 
