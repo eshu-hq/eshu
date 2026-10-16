@@ -173,6 +173,11 @@ a span recorder.
   writes such a node.
 - The first requests after start, before the first probe finishes, use the
   legacy statement (`not_ready`).
+- Both statements order by `name` only, as before. Rows that tie on `name`
+  at the page edge can differ between calls and between the two paths, as
+  they can today between two legacy calls; the full result sets are equal.
+  Adding `, id` to `ORDER BY` would change the NornicDB statement bytes, which
+  this PR keeps unchanged, so it is left out.
 
 ## Not checked
 
