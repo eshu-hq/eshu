@@ -127,9 +127,9 @@ evidence, and investigation packet routes in
 [Status And Evidence Route Failures](../http-api/status-evidence-failures.md),
 the auth and session routes in
 [Auth and session route failures](../http-api/auth-session-failures.md),
-and the infra and inventory routes in
+the infra and inventory routes in
 [Infra And Inventory Route Failures](../http-api/infra-and-inventory-failures.md),
-and the environment comparison and semantic search routes in
+the environment comparison and semantic search routes in
 [Compare And Semantic Search Failures](../http-api/compare-and-semantic-search-failures.md),
 and the semantic evidence and documentation routes in
 [Semantic Evidence And Documentation Route Failures](../http-api/semantic-and-documentation-failures.md)
@@ -140,12 +140,8 @@ state marks the span the same way a fault does. On the status, evidence,
 investigation packet, identity admin, provider-config, local identity, auth,
 session, infra, inventory, semantic search, and documentation finding count and
 inventory routes a configuration `503` is a plain write and does not mark the
-span. The query
-guard tests reject any direct `500` write that skips the helper behind this
-`499` (#7674).
-The query
-guard tests catch a direct `500` write that skips the helper behind this
-`499` when they can resolve the writer; the
+span. The query guard tests catch a direct `500` write that skips the helper
+behind this `499` when they can resolve the writer; the
 [client-cancel rules](../http-api/selector-and-read-failures.md#client-cancels)
 list what they cannot see (#7674).
 
