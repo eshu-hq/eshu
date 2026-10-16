@@ -60,8 +60,8 @@ func TestGenerationRetentionSkipsUndrainedAndBusyCandidates(t *testing.T) {
 	if result.Skipped[searchIndexUndrainedSkippedReason] != 1 {
 		t.Fatalf("Skipped = %v, want gen-b skipped as search_index_undrained", result.Skipped)
 	}
-	if result.SearchIndexBatches != 3 {
-		t.Fatalf("SearchIndexBatches = %d, want 3 (gen-a: one empty page per table; gen-b: one busy try)", result.SearchIndexBatches)
+	if result.SearchIndexBatches != 2 {
+		t.Fatalf("SearchIndexBatches = %d, want 2 (gen-a: one empty page per table; gen-b's busy try rolled back and is not counted, #8276 review)", result.SearchIndexBatches)
 	}
 	for _, call := range database.queries {
 		if strings.Contains(call.query, "retention: targeted candidate lock") {

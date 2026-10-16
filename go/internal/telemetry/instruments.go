@@ -1773,7 +1773,7 @@ type Instruments struct {
 	// into one of those scopes can see (#7279).
 	GenerationRetentionScopeLockHold metric.Float64Histogram
 	// GenerationRetentionSearchIndexBatches is the search index pre-delete
-	// batch transactions one retention pass ran before its prune (#7427).
+	// batch transactions one retention pass committed before its prune (#7427).
 	GenerationRetentionSearchIndexBatches metric.Int64Histogram
 	// ChangedSinceLinkDuration, ChangedSinceLinkDeltaRows and
 	// ChangedSinceLinkKeys describe committed links by link_kind.

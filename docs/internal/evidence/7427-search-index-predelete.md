@@ -254,7 +254,7 @@ Observability Evidence: phases `predelete_search_index` and
 `sweep_search_index` on `eshu_dp_generation_retention_phase_duration_seconds`;
 rows on `eshu_dp_generation_retention_rows_pruned_total{table="eshu_search_index_terms"|"eshu_search_index_documents"}`;
 skip reasons `search_index_undrained` and `advisory_lock_busy` on
-`eshu_dp_generation_retention_skipped_total`; batches per pass on
+`eshu_dp_generation_retention_skipped_total`; committed batches per pass on
 `eshu_dp_generation_retention_search_index_batches`; the per-generation log
 `generation retention search index pre-delete completed` (scope_id,
 generation_id, outcome, drained, batches, rows per table, duration); the

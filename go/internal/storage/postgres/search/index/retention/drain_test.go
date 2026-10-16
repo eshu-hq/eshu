@@ -240,3 +240,68 @@ func TestBudgetExhausted(t *testing.T) {
 		t.Fatal("rows under the cap before the deadline must not exhaust the budget")
 	}
 }
+
+// TestDrainCountsOnlyCommittedBatches pins #8276 review thread A: Batches
+// (and so SearchIndexBatches and the search_index_batches histogram) counts
+// the batch transactions that committed. A busy lock, an ineligible
+// generation or a lock yield rolls back and is not counted, but it still
+// spends the pass's first-batch allowance, so a pass past its deadline does
+// not try one generation after another.
+func TestDrainCountsOnlyCommittedBatches(t *testing.T) {
+	busy := func(query string, _ []any) ([][]any, error) {
+		if isTryLock(query) {
+			return [][]any{{false}}, nil
+		}
+		return nil, errors.New("unexpected statement: " + query)
+	}
+	yield := func(query string, _ []any) ([][]any, error) {
+		if isTryLock(query) {
+			return [][]any{{true}}, nil
+		}
+		return nil, &pgconn.PgError{Code: "55P03"}
+	}
+	committedThenYield := func() func(string, []any) ([][]any, error) {
+		terms := 0
+		return func(query string, _ []any) ([][]any, error) {
+			switch {
+			case isTryLock(query):
+				return [][]any{{true}}, nil
+			case isTermsBatch(query) && terms == 0:
+				terms++
+				return page(true, BatchRows, BatchRows, "a", "b"), nil
+			}
+			return nil, &pgconn.PgError{Code: "40P01"}
+		}
+	}
+	for _, tc := range []struct {
+		name    string
+		answer  func(string, []any) ([][]any, error)
+		outcome Outcome
+		want    int
+	}{
+		{"lock-busy", busy, OutcomeLockBusy, 0},
+		{"ineligible", scriptByTable([][][]any{page(false, 0, 0, "", "")}, nil), OutcomeIneligible, 0},
+		{"lock-yield", yield, OutcomeLockYield, 0},
+		{"one-commit-then-yield", committedThenYield(), OutcomeLockYield, 1},
+	} {
+		database := &scriptedDB{answer: tc.answer}
+		budget := &Budget{RowCap: 1 << 40}
+		report, err := Drain(context.Background(), database, testGeneration, budget)
+		if err != nil {
+			t.Fatalf("%s: Drain() error = %v", tc.name, err)
+		}
+		if report.Outcome != tc.outcome || report.Batches != tc.want || budget.Batches() != tc.want || database.commits != tc.want {
+			t.Fatalf("%s: outcome %s, report batches %d, budget batches %d, commits %d; want %s and %d committed",
+				tc.name, report.Outcome, report.Batches, budget.Batches(), database.commits, tc.outcome, tc.want)
+		}
+	}
+
+	late := &Budget{RowCap: 1 << 40, Deadline: time.Now().Add(-time.Second)}
+	if report, err := Drain(context.Background(), &scriptedDB{answer: busy}, testGeneration, late); err != nil || report.Outcome != OutcomeLockBusy {
+		t.Fatalf("first attempt past the deadline: report %+v err %v, want one busy attempt", report, err)
+	}
+	report, err := Drain(context.Background(), &scriptedDB{answer: busy}, Generation{ScopeID: "scope-b", GenerationID: "gen-b"}, late)
+	if err != nil || report.Outcome != OutcomeBudget {
+		t.Fatalf("second generation past the deadline: report %+v err %v, want budget exhausted by the rolled-back attempt", report, err)
+	}
+}

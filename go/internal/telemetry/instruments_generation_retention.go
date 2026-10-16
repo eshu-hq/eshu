@@ -42,7 +42,7 @@ func registerGenerationRetentionPhaseInstruments(meter metric.Meter, inst *Instr
 	}
 	if inst.GenerationRetentionSearchIndexBatches, err = meter.Int64Histogram(
 		"eshu_dp_generation_retention_search_index_batches",
-		metric.WithDescription("Search index pre-delete batch transactions one generation retention pass ran before its prune"),
+		metric.WithDescription("Search index pre-delete batch transactions one generation retention pass committed before its prune"),
 		metric.WithUnit("{batch}"),
 		metric.WithExplicitBucketBoundaries(generationRetentionSearchIndexBatchBuckets...),
 	); err != nil {

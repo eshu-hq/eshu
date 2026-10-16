@@ -46,7 +46,7 @@ Never `internal/reducer`.
   `eshu_dp_generation_retention_scope_lock_hold_seconds`,
   `eshu_dp_generation_retention_over_limit_batches_total`,
   `eshu_dp_generation_retention_search_index_batches` (#7427 pre-delete
-  batches per pass)
+  batches committed per pass)
 - Spans: none; the drain runs inline in the side-runner goroutine
 - Logs: `generation retention cycle completed` (pruned/skipped totals,
   ledger share, lock hold, `search_index_batches`); WARN when the ledger delete differs from

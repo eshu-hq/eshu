@@ -53,7 +53,7 @@ const (
 type Report struct {
 	Generation
 	Outcome          Outcome
-	Batches          int
+	Batches          int // committed batch transactions; a rolled-back attempt is not counted
 	TermsDeleted     int64
 	DocumentsDeleted int64
 	// KeysetDuration is the forward keyset walk; SweepDuration is every
@@ -81,14 +81,19 @@ type Budget struct {
 	// time means no deadline.
 	Deadline time.Time
 
-	rows    int64
-	batches int
-	// afterBatch, set only by tests, runs after each committed batch.
+	rows int64
+	// batches counts every batch attempt, rolled back or committed, so the
+	// first-batch allowance in Exhausted is spent once per pass; committed
+	// counts only the batches that committed (#8276 review).
+	batches   int
+	committed int
+	// afterBatch, set only by tests, runs after each batch attempt.
 	afterBatch func()
 }
 
-// Batches is the batch transactions the pass committed or rolled back so far.
-func (b *Budget) Batches() int { return b.batches }
+// Batches is the batch transactions the pass committed so far. A busy lock,
+// an ineligible generation or a lock yield rolls back and is not counted.
+func (b *Budget) Batches() int { return b.committed }
 
 // Rows is the rows the pass deleted so far.
 func (b *Budget) Rows() int64 { return b.rows }
@@ -184,7 +189,6 @@ func drainTable(ctx context.Context, database db.Beginner, spec table, report *R
 		} else {
 			report.KeysetDuration += time.Since(started)
 		}
-		report.Batches++
 		budget.batches++
 		if err != nil {
 			return "", err
@@ -195,6 +199,8 @@ func drainTable(ctx context.Context, database db.Beginner, spec table, report *R
 		if outcome != "" {
 			return outcome, nil
 		}
+		report.Batches++ // committed batches only (#8276 review)
+		budget.committed++
 		spec.add(report, result.deleted)
 		budget.rows += result.deleted
 		switch {

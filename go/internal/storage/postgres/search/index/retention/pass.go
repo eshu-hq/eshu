@@ -80,8 +80,8 @@ func (p *Pass) Report(generationID string) (Report, bool) {
 	return report, ok
 }
 
-// Totals sums the pass: rows deleted per table, batch transactions, and the
-// keyset and re-sweep wall time.
+// Totals sums the pass: rows deleted per table, committed batch transactions,
+// and the keyset and re-sweep wall time.
 func (p *Pass) Totals() (terms, documents int64, batches int, keyset, sweep time.Duration) {
 	if p == nil {
 		return 0, 0, 0, 0, 0
@@ -92,7 +92,7 @@ func (p *Pass) Totals() (terms, documents int64, batches int, keyset, sweep time
 		keyset += report.KeysetDuration
 		sweep += report.SweepDuration
 	}
-	return terms, documents, p.budget.batches, keyset, sweep
+	return terms, documents, p.budget.Batches(), keyset, sweep
 }
 
 // log writes one generation's completion line. A generation that drained

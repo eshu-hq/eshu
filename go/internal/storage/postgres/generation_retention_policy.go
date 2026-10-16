@@ -163,7 +163,7 @@ type GenerationRetentionResult struct {
 	// full lock set; when the under-lock refit skips re-locked members,
 	// those stay held through the commit but uncounted here.
 	LockedScopeRows    int
-	SearchIndexBatches int // #7427 pre-delete batch transactions this pass
+	SearchIndexBatches int // #7427 pre-delete batches committed this pass
 }
 
 // generationRetentionTestHooks are the ordering points the live retention
