@@ -210,7 +210,7 @@ A trimmed reply past the offset cap has `budget_page` and no `next_offset`:
 repeat the call with a `limit` no larger than `budget_page.rows_returned`
 ([Unscoped entity search](http-api/unscoped-entity-search.md)). A
 `rank_cursor` walk page is cut to the first rows of its walk order instead:
-the reply sets `budget_page` and a new `rank_walk.next_rank_cursor` that
+the reply sets `budget_page` and a new `rank_walk.next_cursor` that
 resumes at the first dropped row, and never `next_offset`
 ([Relevance walk](http-api/rank-walk.md)). Every other
 tool, and a request whose first row alone exceeds the budget, returns the

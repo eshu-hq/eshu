@@ -284,31 +284,34 @@ span with `search.rerank.tool` set to `search_entity_content` or
 ### Cross-page relevance walk (`rank_cursor`, #7746)
 
 The re-ranks above order rows inside one offset page. An opt-in `rank_cursor`
-on `find_code` or `search_entity_content` orders a fixed window instead: the
-first 200 lexical rows of one repository (for `find_code`, its content lane).
-Each request re-reads the window, scores all of it with `RankAll`, orders it
-by score rounded to 8 significant digits (descending), then `entity_id`
-(ascending), and serves the next `limit` rows. `go/internal/query/search/rank`
-owns the order and the cursor. The full wire contract is in
+on `find_code` or `search_entity_content` pages a fixed window instead: the
+first 200 rows of one lane of one repository. `find_code` picks the lane on
+page 1 exactly as an offset request does (the graph lane first, the content
+lane when the graph has no rows or no graph is configured), and the cursor
+records it; `search_entity_content` always uses the content lane. The graph
+lane keeps its own order (`graph_name`), so its pages equal the offset pages.
+The content lane is scored with `RankAll` and ordered by score rounded to 8
+significant digits (descending), then `entity_id` (`hybrid`), or keeps its own
+order with `exact=true` or no ranker (`lexical`). See
 [Relevance walk](http-api/rank-walk.md).
 
-- The cursor is stateless. It holds the served-row count, an
-  order-independent digest of the served ids, and a fingerprint of the window
-  (tool, scope, ranker identity, every row id and its content in lexical
-  order). It never holds row data.
-- Exactly-once does not depend on score bits. A changed window answers 409
-  `candidate_set_changed`. A window whose served rows are no longer the top
-  of this replica's order (for example a cross-architecture flip) answers 409
-  `rank_order_changed`. Inside one replica, every row of a page ranks after
-  every row served before it. Two replicas may order a window differently.
-- Rows past the window are never read. The walk ends with `window_end=true`;
-  `lexical_truncated=true` says more lexical matches exist.
-- A disabled ranker, `exact=true`, no single repository, an offset, the
-  unscoped cursor, and `search_file_content` answer a typed 400. A request
-  without `rank_cursor` keeps its response bytes (byte goldens captured on
-  main pin both routes).
+- The stateless cursor holds the lane, the served-row count, a digest of the
+  served ids, and a basis fingerprint (tool, lane, order, ranker, scope, every
+  row id and content). It holds no row data; authorization re-runs per page.
+- Exactly-once does not depend on score bits. A changed basis (including a
+  lane change between pages) answers 409 `basis_changed`. A window whose
+  served rows are no longer the top of this replica's order answers 409
+  `order_changed`. Inside one replica, every row of a page comes after every
+  row served before it.
+- Score bits are stable per CPU architecture only: behind replicas of mixed
+  architectures a `hybrid` walk can answer 409 `order_changed` on every page.
+- Rows past the window are never read (`window_end`, `lexical_truncated`).
+- A positive offset, the unscoped cursor, no single repository,
+  `search_file_content`, and `search_entity_content` without a ranker answer a
+  typed 400. A request without `rank_cursor` keeps its response bytes (byte
+  goldens captured on main pin both routes).
 
-Performance Evidence: each walk page scores the whole 200-row window:
+Performance Evidence: each `hybrid` walk page scores the whole 200-row window:
 `BenchmarkCodeHybridRerank` rows=200 measured 19.32-19.44 ms/op,
 22,176,478-22,176,556 B/op, and 11,591 allocs/op on linux/arm64, against
 9.66-9.71 ms/op at 100 rows. That is the cost of one existing `limit=200`
@@ -318,9 +321,9 @@ is one 201-row probe of the same lexical query. See
 `docs/internal/evidence/7746-rank-cursor.md`.
 
 Observability Evidence: walk requests record
-`eshu_dp_query_rank_cursor_total{tool,outcome}` and the
-`search.rank_cursor.outcome`, `search.rank_cursor.served`, and
-`search.rank_cursor.reason` request-span attributes; the scoring pass emits
+`eshu_dp_query_rank_cursor_total{tool,outcome,reason}` and the
+`search.rank_cursor.outcome`, `.reason`, `.position`, `.lane`, and `.order`
+request-span attributes; the scoring pass emits
 `query.hybrid_rerank` with `search.rerank.rows` equal to the window size
 ([Relevance Walk Telemetry](telemetry/rank-cursor.md)).
 

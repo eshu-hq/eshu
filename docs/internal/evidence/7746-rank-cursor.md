@@ -18,26 +18,33 @@ per page loses or repeats rows (#7725 review).
 ## Design
 
 Option A from the arbiter ruling: a stateless opt-in `rank_cursor` over a
-fixed 200-row lexical window, scored per request.
+fixed 200-row window, read and ordered per request. The fork-6 ruling
+(option B) set the lane rule.
 
-- `"start"` opens a walk. The handler reads the first 200 lexical rows of one
-  repository (`find_code`: its content lane, never the graph lane), scores all
-  of them with `RankAll`, and `rank.Walk` returns the next `limit` rows.
-- Order: fused score rounded to 8 significant digits (descending), then
-  `entity_id` (ascending); unscored rows last, by `entity_id`.
-- The cursor (`rc1.` + base64url of 44 bytes) holds the served count, a
-  served-set digest (two 64-bit lanes of per-id SHA-256, added modulo 2^64),
-  a 16-byte window fingerprint, the tool, and an 8-byte checksum.
-- Each page checks the fingerprint (else 409 `candidate_set_changed`) and that
-  the digest of the top `served` rows of this replica's order equals the
-  cursor digest (else 409 `rank_order_changed`). With both checks passing, a
-  page can neither repeat nor skip a row. Exactly-once does not rest on score
-  bits.
+- `"start"` opens a walk. `find_code` picks the lane on page 1 exactly as an
+  offset request does (`selectCodeSearchLane`: the graph lane first, the
+  content lane when the graph has no rows or no graph is configured).
+  `search_entity_content` always uses the content lane. The handler reads the
+  first 200 rows of that lane and `rank.Walk` returns the next `limit` rows.
+- Orders: `graph_name` (the graph lane's own order, so its pages equal the
+  offset pages), `hybrid` (fused score rounded to 8 significant digits,
+  descending, then `entity_id`; unscored rows last), and `lexical` (the
+  content lane's own order with `exact=true`, no ranker, or no scorable row).
+- The cursor (`rc1.` + base64url of 45 bytes) holds the version, the tool,
+  the lane, the served count, a 16-byte basis fingerprint, a served-set
+  digest (two 64-bit lanes from disjoint byte ranges of per-id SHA-256, added
+  modulo 2^64), and an 8-byte checksum. Advance refuses a repeated id.
+- Each page checks the lane and the basis fingerprint (tool, lane, order,
+  ranker identity, scope, every row id and content), else 409
+  `basis_changed`, and that the digest of the top `position` rows of this
+  replica's order equals the cursor digest, else 409 `order_changed`. With
+  both checks passing, a page can neither repeat nor skip a row. Exactly-once
+  does not rest on score bits.
 - The digest is additive, so the MCP response budget can cut a page to a
   prefix and mint the cursor for it (`rank.Advance`, `rank.TrimWalk`) without
   the window.
 - Past the window the walk ends (`window_end=true`); `lexical_truncated=true`
-  reports more lexical matches. There is no fallback to offset rows.
+  reports more matches. There is no fallback to offset rows.
 
 Deviations from the claim comment, each forced by a repository gate:
 
@@ -48,6 +55,9 @@ Deviations from the claim comment, each forced by a repository gate:
   `dispatch_budget.go` that calls `rank.TrimWalk`, not a new file.
 - `codemodel/code_hybrid_rerank.go` gains `CodeWindowScorer`, because the
   find_code projection is unexported there.
+- `codequery/handler.go` was at the 500-line cap, so the find_code walk and
+  the lane seam live in a new `codequery/rank_walk.go` (the directory is
+  exempt from the dirgate cap by its `doc.go` nolint).
 
 ## Theory proof (before implementation)
 
@@ -70,10 +80,12 @@ the run, so the figures are non-gating. The Postgres read of a 201-row window
 was not measured (no database here); it is the same probe as a `limit=200`
 request.
 
-Performance Evidence: a walk page costs one 200-row window score (about 19 ms
+Performance Evidence: a `hybrid` walk page costs one 200-row window score (about 19 ms
 CPU and 22 MB transient allocation on linux/arm64, ledger rows above) plus one
 201-row lexical probe. It adds no Cypher, graph write, SQL shape, queue,
-lease, lock, or goroutine. A request without `rank_cursor` runs the unchanged
+lease, lock, or goroutine; a `graph_name` or `lexical` page scores nothing
+and reads the same lane query as its offset page. A request without
+`rank_cursor` runs the unchanged
 offset path; byte goldens captured on main pin both routes.
 
 ## Cross-architecture tolerance
@@ -83,7 +95,8 @@ simulated replica: every score nudged by up to 4 ulp (the measured arm64 vs
 amd64 FMA difference), with random row swaps on some seeds. Over 300 fixed
 seeds, 257 walks served every row exactly once
 (ledger:7746-rankcursor-arch-walks-completed) and 43 stopped with a typed 409
-(ledger:7746-rankcursor-arch-walks-conflict). None repeated or skipped a row.
+(ledger:7746-rankcursor-arch-walks-conflict) with `order_changed`. None
+repeated or skipped a row.
 
 `TestWalkUlpNoiseAloneDoesNotChangeTheOrder` uses exact Reciprocal Rank Fusion
 ties (rows with swapped rank pairs). With 8-digit quantization, ulp noise
@@ -95,17 +108,20 @@ committed), the test failed: ulp noise broke the ties.
 - Guaranteed: every walkable window row is served exactly once, or the walk
   stops with a 409. On the replica that serves page k, every row of page k
   ranks after every row served before it.
-- Not guaranteed: the same order on every replica. A difference that crosses
-  the served boundary is a 409; one inside the served or the unserved rows is
-  not visible and does no harm.
+- Not guaranteed: the same `hybrid` order on every replica. Score bits are
+  stable per CPU architecture only, so replicas of mixed architectures can
+  answer `order_changed` on every page. A difference inside the served or the
+  unserved rows is not visible and does no harm. `graph_name` and `lexical`
+  walks read no scores.
 
 ## Observability Evidence
 
 Observability Evidence: each walk request records
-`eshu_dp_query_rank_cursor_total{tool,outcome}` (closed sets; outcome is
-`served`, `window_end`, `basis_mismatch`, `invalid`, or `unsupported`) and the
-request-span attributes `search.rank_cursor.outcome`,
-`search.rank_cursor.served`, and on a 400 or 409 `search.rank_cursor.reason`.
+`eshu_dp_query_rank_cursor_total{tool,outcome,reason}` (closed sets; outcome
+is `served`, `window_end`, `basis_mismatch`, `invalid`, or `unsupported`;
+reason is `none`, `basis_changed`, `order_changed`, or a 400 reason) and the
+request-span attributes `search.rank_cursor.outcome`, `.reason`, `.position`,
+and on a served page `.lane` and `.order`.
 The scoring pass emits `query.hybrid_rerank` with `search.rerank.rows` equal
 to the window size. No signal carries query text, a repository ID, or a cursor.
 Tests: `TestRecordOutcomeCountsAndTagsTheRequestSpan`,
@@ -118,7 +134,7 @@ From `go/` with an isolated `GOCACHE`:
 ```bash
 go test ./internal/query/search/rank/ -count=1 -race
 go test ./internal/query/search/rank/ -run TestWalkAcrossArchitecturesNeverSkipsOrRepeats -count=1 -v
-go test ./internal/query/contentread/ ./internal/query/codequery/ -run 'RankWalk|OffsetPathBytes' -count=1 -race
+go test ./internal/query/contentread/ ./internal/query/codequery/ -run 'RankWalk|OffsetPathBytes|LaneFlip' -count=1 -race
 go test ./internal/mcp/ -run 'RankWalk|RankCursor' -count=1
 go test ./internal/query/ -run TestOpenAPIDocumentsTheRankCursorWalk -count=1
 go test ./internal/query/codemodel/ -run '^$' -bench BenchmarkCodeHybridRerank -benchmem -count=5

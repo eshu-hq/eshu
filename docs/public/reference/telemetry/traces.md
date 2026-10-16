@@ -170,10 +170,10 @@ page row count, at most 200), and `search.rerank.applied` (`true` when the page
 was reordered, `false` when it kept the lexical order). It is not emitted when
 the ranker is disabled, the request has no single repository scope, or the page
 has fewer than two rows. It records no query text, repository ID, or row
-identity. A `rank_cursor` walk page (#7746) scores its whole 200-row window, so
-there `search.rerank.rows` is the window size, and the request span carries
-`search.rank_cursor.outcome`, `search.rank_cursor.served`, and on an error
-`search.rank_cursor.reason` ([Relevance Walk Telemetry](rank-cursor.md)).
+identity. A `hybrid` `rank_cursor` walk page (#7746) scores its whole 200-row
+window, so there `search.rerank.rows` is the window size, and the request span
+carries `search.rank_cursor.outcome`, `.reason`, `.position`, `.lane`, and
+`.order` ([Relevance Walk Telemetry](rank-cursor.md)).
 
 ### Search-stage instrumentation cost (#7243)
 
