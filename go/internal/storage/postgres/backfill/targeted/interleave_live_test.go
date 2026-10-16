@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package targeted_test
 
 import (
 	"database/sql"
@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
@@ -23,9 +25,9 @@ func TestTargetedMaintenanceInterleavingsMatchWholePass(t *testing.T) {
 	t.Run("generation_advances_between_read_and_evidence_commit", func(t *testing.T) {
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
-		p.prepass()
-		p.quietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
-		outcome := p.run("generation_advances_between_read_and_evidence_commit", targetedDiffCase{
+		p.Prepass()
+		p.QuietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
+		outcome := runTargetedDiff(p, "generation_advances_between_read_and_evidence_commit", targetedDiffCase{
 			owed:     owedPartitions("git:tgt", "tgt-2"),
 			compared: partitionSet("git:tgt", "tgt-2"),
 			// tgt-3 activates before the first batch: the batch guard skips
@@ -33,9 +35,9 @@ func TestTargetedMaintenanceInterleavingsMatchWholePass(t *testing.T) {
 			// correlation items are all below the replay floor in both
 			// arms (#7637 extended the floor to the relationship
 			// listings), so nothing reopens.
-			outcomes: map[string]TargetedMaintenanceOutcomeKind{"git:tgt/tgt-2": TargetedMaintenanceRetry},
+			outcomes: map[string]postgres.TargetedMaintenanceOutcomeKind{"git:tgt/tgt-2": postgres.TargetedMaintenanceRetry},
 			hooks: func(_ string, database *sql.DB) *hookBeginner {
-				return &hookBeginner{onBegin: func(n int) error {
+				return &hookBeginner{OnBegin: func(n int) error {
 					if n == 1 {
 						return activateSuccessor(database, "tgt-3")
 					}
@@ -49,18 +51,18 @@ func TestTargetedMaintenanceInterleavingsMatchWholePass(t *testing.T) {
 	t.Run("generation_advances_between_evidence_commit_and_phase", func(t *testing.T) {
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
-		p.prepass()
-		p.quietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
-		outcome := p.run("generation_advances_between_evidence_commit_and_phase", targetedDiffCase{
+		p.Prepass()
+		p.QuietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
+		outcome := runTargetedDiff(p, "generation_advances_between_evidence_commit_and_phase", targetedDiffCase{
 			owed:        owedPartitions("git:tgt", "tgt-2"),
 			compared:    partitionSet("git:tgt", "tgt-2"),
 			newEvidence: []string{"repo-tgt->repo-dep"},
 			// tgt-2 is superseded mid-pass: its relationship items stay
 			// succeeded under the #7637 replay floor, so nothing reopens.
-			outcomes: map[string]TargetedMaintenanceOutcomeKind{"git:tgt/tgt-2": TargetedMaintenanceRetry},
+			outcomes: map[string]postgres.TargetedMaintenanceOutcomeKind{"git:tgt/tgt-2": postgres.TargetedMaintenanceRetry},
 			hooks: func(_ string, database *sql.DB) *hookBeginner {
 				fired := false
-				return &hookBeginner{onQuery: func(query string, args []any) error {
+				return &hookBeginner{OnQuery: func(query string, args []any) error {
 					if fired || query != backfill.ActiveScopeGenerationQuery || len(args) == 0 || args[0] != "git:tgt" {
 						return nil
 					}
@@ -75,15 +77,15 @@ func TestTargetedMaintenanceInterleavingsMatchWholePass(t *testing.T) {
 	t.Run("successor_activation", func(t *testing.T) {
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
-		p.prepass()
-		p.quietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
-		p.exec(`UPDATE scope_generations SET ingested_at = ingested_at - interval '30 minutes' WHERE generation_id = 'tgt-2'`)
-		p.quietGeneration("git:tgt", "tgt-3", "repo-tgt", "payments-service", "orders-api")
+		p.Prepass()
+		p.QuietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
+		p.Exec(`UPDATE scope_generations SET ingested_at = ingested_at - interval '30 minutes' WHERE generation_id = 'tgt-2'`)
+		p.QuietGeneration("git:tgt", "tgt-3", "repo-tgt", "payments-service", "orders-api")
 		// The obligation for the superseded tgt-2 must do nothing at all.
-		outcome := p.run("successor_activation_superseded_owed", targetedDiffCase{
+		outcome := runTargetedDiff(p, "successor_activation_superseded_owed", targetedDiffCase{
 			owed:     owedPartitions("git:tgt", "tgt-2"),
 			compared: map[backfill.ScopeGenerationPartition]struct{}{},
-			outcomes: map[string]TargetedMaintenanceOutcomeKind{"git:tgt/tgt-2": TargetedMaintenanceNotActive},
+			outcomes: map[string]postgres.TargetedMaintenanceOutcomeKind{"git:tgt/tgt-2": postgres.TargetedMaintenanceNotActive},
 		})
 		if _, ok := outcome.whole[phaseKey("git:tgt", "tgt-3")]; !ok {
 			t.Fatal("whole arm did not publish the successor tgt-3")
@@ -93,11 +95,11 @@ func TestTargetedMaintenanceInterleavingsMatchWholePass(t *testing.T) {
 	t.Run("successor_activation_owed", func(t *testing.T) {
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
-		p.prepass()
-		p.quietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
-		p.exec(`UPDATE scope_generations SET ingested_at = ingested_at - interval '30 minutes' WHERE generation_id = 'tgt-2'`)
-		p.quietGeneration("git:tgt", "tgt-3", "repo-tgt", "payments-service", "orders-api")
-		p.run("successor_activation_owed", targetedDiffCase{
+		p.Prepass()
+		p.QuietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
+		p.Exec(`UPDATE scope_generations SET ingested_at = ingested_at - interval '30 minutes' WHERE generation_id = 'tgt-2'`)
+		p.QuietGeneration("git:tgt", "tgt-3", "repo-tgt", "payments-service", "orders-api")
+		runTargetedDiff(p, "successor_activation_owed", targetedDiffCase{
 			owed:        owedPartitions("git:tgt", "tgt-3"),
 			compared:    partitionSet("git:tgt", "tgt-3"),
 			newEvidence: []string{"repo-tgt->repo-dep"},
@@ -109,22 +111,22 @@ func TestTargetedMaintenanceInterleavingsMatchWholePass(t *testing.T) {
 	t.Run("failed_sibling_batch_then_retry", func(t *testing.T) {
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
-		p.gitRepo("git:mono", "mono-1", "repo-m1", "mono-alpha")
-		p.repo("git:mono", "mono-1", "repo-m2", "mono-beta")
-		p.workItems("git:mono", "mono-1")
-		p.prepass()
+		p.GitRepo("git:mono", "mono-1", "repo-m1", "mono-alpha")
+		p.Repo("git:mono", "mono-1", "repo-m2", "mono-beta")
+		p.WorkItems("git:mono", "mono-1")
+		p.Prepass()
 		seedTargetedMonoGeneration(p)
 		// repo-m2's batch fails after repo-m1's batch committed: no phase may
 		// be published for the shared partition and nothing is reopened.
-		p.run("failed_sibling_batch", targetedDiffCase{
+		runTargetedDiff(p, "failed_sibling_batch", targetedDiffCase{
 			owed:        owedPartitions("git:mono", "mono-2"),
 			compared:    partitionSet("git:mono", "mono-2"),
 			newEvidence: []string{"repo-m1->repo-dep"},
 			batchSize:   1,
 			wantErr:     true,
-			outcomes:    map[string]TargetedMaintenanceOutcomeKind{"git:mono/mono-2": TargetedMaintenanceRetry},
+			outcomes:    map[string]postgres.TargetedMaintenanceOutcomeKind{"git:mono/mono-2": postgres.TargetedMaintenanceRetry},
 			hooks: func(_ string, _ *sql.DB) *hookBeginner {
-				return &hookBeginner{onExec: func(query string, args []any) error {
+				return &hookBeginner{OnExec: func(query string, args []any) error {
 					if strings.HasPrefix(strings.TrimSpace(query), "INSERT INTO relationship_evidence_facts") &&
 						argsContain(args, "repo-m2") {
 						return errors.New("injected sibling batch failure")
@@ -135,7 +137,7 @@ func TestTargetedMaintenanceInterleavingsMatchWholePass(t *testing.T) {
 		})
 		// The retry is a clean pass: the phase lands only now, after both
 		// sibling evidence commits.
-		p.run("failed_sibling_batch_retry", targetedDiffCase{
+		runTargetedDiff(p, "failed_sibling_batch_retry", targetedDiffCase{
 			owed:        owedPartitions("git:mono", "mono-2"),
 			compared:    partitionSet("git:mono", "mono-2"),
 			newEvidence: []string{"repo-m2->repo-dep"},
@@ -148,13 +150,13 @@ func TestTargetedMaintenanceInterleavingsMatchWholePass(t *testing.T) {
 	t.Run("unprocessed_inbound_source_is_promoted", func(t *testing.T) {
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
-		p.gitRepo("git:in", "in-1", "repo-in", "billing-ui")
-		p.terraformRef("in-1-ref", "git:in", "in-1", "repo-in", "in.tf", "payments-service")
-		p.workItems("git:in", "in-1")
-		p.prepass()
-		p.quietGeneration("git:in", "in-2", "repo-in", "billing-ui", "payments-service")
-		p.quietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
-		outcome := p.run("unprocessed_inbound_source_is_promoted", targetedDiffCase{
+		p.GitRepo("git:in", "in-1", "repo-in", "billing-ui")
+		p.TerraformRef("in-1-ref", "git:in", "in-1", "repo-in", "in.tf", "payments-service")
+		p.WorkItems("git:in", "in-1")
+		p.Prepass()
+		p.QuietGeneration("git:in", "in-2", "repo-in", "billing-ui", "payments-service")
+		p.QuietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
+		outcome := runTargetedDiff(p, "unprocessed_inbound_source_is_promoted", targetedDiffCase{
 			owed:        owedPartitions("git:tgt", "tgt-2"),
 			compared:    partitionSet("git:tgt", "tgt-2", "git:in", "in-2"),
 			newEvidence: []string{"repo-in->repo-tgt", "repo-tgt->repo-dep"},
@@ -169,20 +171,20 @@ func TestTargetedMaintenanceInterleavingsMatchWholePass(t *testing.T) {
 	t.Run("catalog_change_is_refused", func(t *testing.T) {
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
-		p.prepass()
-		p.gitRepo("git:new", "new-1", "repo-new", "inventory-svc")
-		p.terraformRef("new-1-ref", "git:new", "new-1", "repo-new", "main.tf", "orders-api")
-		p.workItems("git:new", "new-1")
-		before := p.capture(p.targeted)
-		store := targetedDiffStore(p.targeted, targetedDiffArmsAt)
-		result, err := store.RunDeferredRelationshipMaintenanceForPartitions(p.ctx, nil, nil, owedPartitions("git:new", "new-1"))
-		if !errors.Is(err, ErrTargetedMaintenanceCatalogChanged) {
-			t.Fatalf("partition-scoped pass after onboarding error = %v, want ErrTargetedMaintenanceCatalogChanged", err)
+		p.Prepass()
+		p.GitRepo("git:new", "new-1", "repo-new", "inventory-svc")
+		p.TerraformRef("new-1-ref", "git:new", "new-1", "repo-new", "main.tf", "orders-api")
+		p.WorkItems("git:new", "new-1")
+		before := p.Capture(p.Targeted)
+		store := targetedDiffStore(p.Targeted, targetedDiffArmsAt)
+		result, err := store.RunDeferredRelationshipMaintenanceForPartitions(p.Ctx, nil, nil, owedPartitions("git:new", "new-1"))
+		if !errors.Is(err, postgres.ErrTargetedMaintenanceCatalogChanged) {
+			t.Fatalf("partition-scoped pass after onboarding error = %v, want postgres.ErrTargetedMaintenanceCatalogChanged", err)
 		}
-		if want := []TargetedMaintenanceOutcome{{Partition: OwedPartition{ScopeID: "git:new", GenerationID: "new-1"}, Kind: TargetedMaintenanceRetry}}; !reflect.DeepEqual(result.Outcomes, want) {
+		if want := []postgres.TargetedMaintenanceOutcome{{Partition: postgres.OwedPartition{ScopeID: "git:new", GenerationID: "new-1"}, Kind: postgres.TargetedMaintenanceRetry}}; !reflect.DeepEqual(result.Outcomes, want) {
 			t.Fatalf("refused pass outcomes = %v, want %v", result.Outcomes, want)
 		}
-		if changed := diffStates(before, before, p.capture(p.targeted), nil, nil).targetedChangedOutside; len(changed) > 0 {
+		if changed := diffStates(before, before, p.Capture(p.Targeted), nil, nil).TargetedChangedOutside; len(changed) > 0 {
 			t.Fatalf("refused pass changed rows: %v", changed)
 		}
 	})

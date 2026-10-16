@@ -45,11 +45,11 @@
 
 ```bash
 cd go && go test ./internal/storage/postgres/activation -count=1
-# The live proofs: all 37 in this package, then the one that stays in the
-# parent (the repo_id collision loser).
+# Run the activation package's live proofs, then the collision-loser proof
+# in backfill/targeted. The targeted command prints the selected test name.
 ESHU_DEFERRED_PARTITION_PROOF_DSN=<admin dsn> ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 \
   go test ./internal/storage/postgres/activation -count=1
 ESHU_DEFERRED_PARTITION_PROOF_DSN=<admin dsn> ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 \
-  go test ./internal/storage/postgres \
+  go test -v ./internal/storage/postgres/backfill/targeted \
   -run '^TestActivationObligationInapplicableCollisionLoserLive$' -count=1
 ```

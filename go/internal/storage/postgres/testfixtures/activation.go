@@ -15,7 +15,7 @@ import (
 // ActivationRepositoryFact builds a repository fact envelope for the
 // activation obligation proofs. It merges the identical
 // activationRepositoryFact twins from
-// ingestion_targeted_maintenance_terminal_live_test.go and
+// backfill/targeted/terminal_live_test.go and
 // activation/helpers_test.go (#7648).
 func ActivationRepositoryFact(factID, scopeID, generationID, repoID, remote string) facts.Envelope {
 	return facts.Envelope{
@@ -30,7 +30,7 @@ func ActivationRepositoryFact(factID, scopeID, generationID, repoID, remote stri
 // AssertObligationStateToken asserts one obligation row's state, claim
 // token, and finished marker. It merges the identical
 // assertObligationStateToken twins from
-// ingestion_targeted_maintenance_terminal_live_test.go and
+// backfill/targeted/terminal_live_test.go and
 // activation/terminal_live_test.go (#7648).
 func AssertObligationStateToken(t *testing.T, ctx context.Context, database *sql.DB,
 	scopeID, generationID, wantState string, wantToken int64,

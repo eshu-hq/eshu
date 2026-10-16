@@ -5,7 +5,7 @@
 // (#7584). It runs only against the disposable PostgreSQL named by
 // ESHU_TARGETED_MAINTENANCE_PROOF_DSN with
 // ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE=1.
-package postgres
+package targeted_test
 
 import (
 	"context"
@@ -14,11 +14,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // TestTheoryExactPartitionEvidenceClosure compares a bounded candidate read
@@ -28,18 +31,18 @@ func TestTheoryExactPartitionEvidenceClosure(t *testing.T) {
 	dsn := targetedMaintenanceProofDSN(t)
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
-	database := openDeferredPartitionMemoProofDB(t, dsn)
-	schemaName := provisionDeferredPartitionMemoSchema(t, database)
+	database := testfixtures.OpenDeferredPartitionMemoProofDB(t, dsn)
+	schemaName := testfixtures.ProvisionDeferredPartitionMemoSchema(t, database)
 	t.Logf("private proof schema=%s", schemaName)
-	seedDeferredPartitionFixture(t, ctx, database)
-	seedMemoProofScopesAndFacts(t, ctx, database, []memoProofFixture{
+	testfixtures.SeedDeferredPartitionFixture(t, ctx, database)
+	testfixtures.SeedMemoProofScopesAndFacts(t, ctx, database, []testfixtures.MemoProofFixture{
 		{
-			scopeID: "git:theory-gcp-source", genID: "gen-theory-gcp-source",
-			repoID: "repo-gcp-source", repoName: "order-gateway",
+			ScopeID: "git:theory-gcp-source", GenID: "gen-theory-gcp-source",
+			RepoID: "repo-gcp-source", RepoName: "order-gateway",
 		},
 		{
-			scopeID: "git:theory-gcp-target", genID: "gen-theory-gcp-target",
-			repoID: "repo-gcp-target", repoName: "payments-service",
+			ScopeID: "git:theory-gcp-target", GenID: "gen-theory-gcp-target",
+			RepoID: "repo-gcp-target", RepoName: "payments-service",
 		},
 	}, map[string]string{"repo-gcp-target": "shared-id"},
 		time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC))
@@ -79,8 +82,8 @@ WHERE generation.scope_id = scope.scope_id`); err != nil {
 		t.Fatalf("seed active statuses: %v", err)
 	}
 
-	adapter := SQLDB{DB: database}
-	engine := NewIngestionStore(adapter).backfillStore()
+	adapter := postgres.SQLDB{DB: database}
+	engine := backfill.NewStore(adapter)
 	engine.Workers = 1
 	catalog, _, err := backfill.LoadRepositoryCatalog(ctx, adapter)
 	if err != nil {
@@ -110,7 +113,7 @@ WHERE generation.scope_id = scope.scope_id`); err != nil {
 	ownFacts, _, err := engine.LoadDeferredScopedFactsAcrossPartitions(
 		ctx, adapter, params, []backfill.ScopeGenerationPartition{exactPartition}, nil)
 	if err != nil {
-		t.Fatalf("load exact target partition: %v", err)
+		t.Fatalf("load exact target Partition: %v", err)
 	}
 	if len(ownFacts) == 0 {
 		t.Fatal("exact target partition loaded no outgoing source facts")
@@ -169,7 +172,7 @@ WHERE generation.scope_id = scope.scope_id`); err != nil {
 		return result
 	}
 	fullEvidence := relationships.DedupeEvidenceFacts(relationships.DiscoverEvidence(fullFacts, catalog))
-	if !evidenceHasEdge(fullEvidence, "repo-gcp-source", targetRepoID) {
+	if !theoryEvidenceHasEdge(fullEvidence, "repo-gcp-source", targetRepoID) {
 		t.Fatal("full loader missed cloud-scope GCP evidence; fixture is invalid")
 	}
 	expected := []struct {
@@ -206,4 +209,13 @@ WHERE generation.scope_id = scope.scope_id`); err != nil {
 	if !reflect.DeepEqual(candidate, full) {
 		t.Fatalf("target evidence differs: candidate=%v full=%v", candidate, full)
 	}
+}
+
+func theoryEvidenceHasEdge(evidence []relationships.EvidenceFact, source, target string) bool {
+	for _, fact := range evidence {
+		if fact.SourceRepoID == source && fact.TargetRepoID == target {
+			return true
+		}
+	}
+	return false
 }

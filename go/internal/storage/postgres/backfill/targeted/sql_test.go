@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package targeted
 
 import (
 	"strings"
@@ -35,23 +35,23 @@ func TestTargetedMaintenanceQueriesDeriveFromShippedQueries(t *testing.T) {
 		},
 		{
 			name:     "deployment_mapping reopen bounded by partition",
-			shipped:  listSucceededDeploymentMappingWorkItemsQuery,
-			derived:  listSucceededDeploymentMappingWorkItemsForPartitionsQuery,
-			marker:   correlationReopenStageMarker,
+			shipped:  backfill.ListSucceededDeploymentMappingWorkItemsQuery,
+			derived:  ProductionQueries.DeploymentMapping,
+			marker:   CorrelationReopenStageMarker,
 			conjunct: relationshipReopenPartitionConjunct,
 		},
 		{
 			name:     "code_import_repo_edge reopen bounded by partition",
-			shipped:  listSucceededCodeImportRepoEdgeWorkItemsQuery,
-			derived:  listSucceededCodeImportRepoEdgeWorkItemsForPartitionsQuery,
-			marker:   correlationReopenStageMarker,
+			shipped:  backfill.ListSucceededCodeImportRepoEdgeWorkItemsQuery,
+			derived:  ProductionQueries.CodeImportRepoEdge,
+			marker:   CorrelationReopenStageMarker,
 			conjunct: relationshipReopenPartitionConjunct,
 		},
 		{
 			name:     "correlation reopen bounded by partition",
-			shipped:  listSucceededReducerWorkItemsByDomainQuery,
-			derived:  listSucceededReducerWorkItemsByDomainForPartitionsQuery,
-			marker:   correlationReopenStageMarker,
+			shipped:  backfill.ListSucceededReducerWorkItemsByDomainQuery,
+			derived:  ProductionQueries.Correlation,
+			marker:   CorrelationReopenStageMarker,
 			conjunct: "  AND (work.scope_id, work.generation_id) IN (SELECT * FROM unnest($2::text[], $3::text[]))\n",
 		},
 	}
@@ -92,14 +92,14 @@ func TestDeriveQueryAtMarkerRefusesMissingOrRepeatedMarker(t *testing.T) {
 		func() {
 			defer func() {
 				if recover() == nil {
-					t.Fatalf("deriveQueryAtMarker(%q) did not panic", shipped)
+					t.Fatalf("DeriveQueryAtMarker(%q) did not panic", shipped)
 				}
 			}()
-			_ = deriveQueryAtMarker(shipped, "WHERE a\n", "  AND b\n")
+			_ = DeriveQueryAtMarker(shipped, "WHERE a\n", "  AND b\n")
 		}()
 	}
-	if got, want := deriveQueryAtMarker("x\nWHERE a\ny\n", "WHERE a\n", "  AND b\n"), "x\nWHERE a\n  AND b\ny\n"; got != want {
-		t.Fatalf("deriveQueryAtMarker() = %q, want %q", got, want)
+	if got, want := DeriveQueryAtMarker("x\nWHERE a\ny\n", "WHERE a\n", "  AND b\n"), "x\nWHERE a\n  AND b\ny\n"; got != want {
+		t.Fatalf("DeriveQueryAtMarker() = %q, want %q", got, want)
 	}
 }
 
@@ -114,9 +114,9 @@ func TestTargetedMaintenanceMarkersOpenAnAndOnlyWhereClause(t *testing.T) {
 
 	for name, tc := range map[string]struct{ shipped, marker string }{
 		"active repository generations": {backfill.ActiveRepositoryGenerationsQuery, activeRepositoryGenerationsRepoMarker},
-		"deployment_mapping reopen":     {listSucceededDeploymentMappingWorkItemsQuery, correlationReopenStageMarker},
-		"code_import_repo_edge reopen":  {listSucceededCodeImportRepoEdgeWorkItemsQuery, correlationReopenStageMarker},
-		"correlation reopen":            {listSucceededReducerWorkItemsByDomainQuery, correlationReopenStageMarker},
+		"deployment_mapping reopen":     {backfill.ListSucceededDeploymentMappingWorkItemsQuery, CorrelationReopenStageMarker},
+		"code_import_repo_edge reopen":  {backfill.ListSucceededCodeImportRepoEdgeWorkItemsQuery, CorrelationReopenStageMarker},
+		"correlation reopen":            {backfill.ListSucceededReducerWorkItemsByDomainQuery, CorrelationReopenStageMarker},
 	} {
 		start := strings.Index(tc.shipped, tc.marker)
 		if start < 0 {

@@ -133,45 +133,11 @@ LIMIT 1
 // backfill.ActiveRepositoryGenerationsQuery and
 // backfill.ActiveScopeGenerationPartitionsQuery (issue #7794).
 
-// listSucceededDeploymentMappingWorkItemsQuery selects succeeded
-// deployment_mapping reducer work items, including their (scope_id,
-// generation_id) partition columns (issue #4770). The reopen
-// partition-memo gate (applyReopenPartitionMemoGate) uses these to skip
-// reopening a work item whose partition already committed backward evidence
-// under the CURRENT catalog fingerprint, mirroring
-// backfill.ApplyDeferredPartitionMemoGate's read-side logic for the deferred
-// backfill's own fact load.
-//
-// The listing carries the same per-scope replay floor and failed-generation
-// exclusion as listSucceededReducerWorkItemsByDomainQuery (issue #7637),
-// composed from the shared scopeReplayFloor fragments — each scope
-// contributes only its active generation or newer, or its latest generation
-// when it has no usable active generation. Without the floor the pass
-// reopened every succeeded row in the store on every drain, including dead
-// history on superseded generations. See that query's doc comment for the
-// bound's rationale, the three no-active-generation shapes, and the
-// measurement.
-const listSucceededDeploymentMappingWorkItemsQuery = scopeReplayFloorCTE +
-	scopeReplayFloorSelectWorkItemRefs +
-	scopeReplayFloorJoinsAndStage +
-	`  AND work.domain = 'deployment_mapping'
-` +
-	scopeReplayFloorBound
-
-// listSucceededCodeImportRepoEdgeWorkItemsQuery selects the code-import
-// repo-edge reducer work items that already succeeded, including their
-// (scope_id, generation_id) partition columns (issue #4770 — see
-// listSucceededDeploymentMappingWorkItemsQuery). They are replayed after
-// deferred maintenance so the projection re-runs once the cross-scope
-// package-registry ownership facts it joins against are present — the same
-// after-the-fact dependency the deployment_mapping reopen handles. It
-// carries the same replay floor, composed from the same shared fragments.
-const listSucceededCodeImportRepoEdgeWorkItemsQuery = scopeReplayFloorCTE +
-	scopeReplayFloorSelectWorkItemRefs +
-	scopeReplayFloorJoinsAndStage +
-	`  AND work.domain = 'code_import_repo_edge'
-` +
-	scopeReplayFloorBound
+// Whole-pass reopen SQL is owned with the deferred-backfill engine.
+const (
+	listSucceededDeploymentMappingWorkItemsQuery  = backfill.ListSucceededDeploymentMappingWorkItemsQuery
+	listSucceededCodeImportRepoEdgeWorkItemsQuery = backfill.ListSucceededCodeImportRepoEdgeWorkItemsQuery
+)
 
 func upsertIngestionScope(
 	ctx context.Context,

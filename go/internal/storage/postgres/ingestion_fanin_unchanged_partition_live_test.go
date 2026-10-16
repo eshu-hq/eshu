@@ -46,17 +46,17 @@ var fanInUnchangedPassAt = targetedDiffArmsAt
 func seedFanInUnchangedCorpus(t *testing.T) *targetedDiffPair {
 	t.Helper()
 	p := newTargetedDiffPair(t)
-	p.gitRepo("git:tgt", "tgt-1", "repo-tgt", "payments-service")
-	p.workItems("git:tgt", "tgt-1")
-	p.gitRepo("git:gsrc", "gsrc-1", "repo-gsrc", "order-gateway")
-	p.workItems("git:gsrc", "gsrc-1")
-	p.gitRepo("git:miss", "miss-1", "repo-miss", "ledger-service")
-	p.scope(targetedGCPScope)
-	p.generation(targetedGCPScope, "gcp-1", 0, true)
-	p.prepass()
-	p.generation(targetedGCPScope, "gcp-2", 90*time.Minute, true)
-	p.gcpRelation("gcp-2-edge", "gcp-2", "order-gateway", "payments-service")
-	p.exec(`DELETE FROM deferred_backfill_partition_memo WHERE scope_id = 'git:miss'`)
+	p.GitRepo("git:tgt", "tgt-1", "repo-tgt", "payments-service")
+	p.WorkItems("git:tgt", "tgt-1")
+	p.GitRepo("git:gsrc", "gsrc-1", "repo-gsrc", "order-gateway")
+	p.WorkItems("git:gsrc", "gsrc-1")
+	p.GitRepo("git:miss", "miss-1", "repo-miss", "ledger-service")
+	p.Scope(targetedGCPScope)
+	p.Generation(targetedGCPScope, "gcp-1", 0, true)
+	p.Prepass()
+	p.Generation(targetedGCPScope, "gcp-2", 90*time.Minute, true)
+	p.GCPRelation("gcp-2-edge", "gcp-2", "order-gateway", "payments-service")
+	p.Exec(`DELETE FROM deferred_backfill_partition_memo WHERE scope_id = 'git:miss'`)
 	return p
 }
 
@@ -73,8 +73,8 @@ func runFanInUnchangedPass(t *testing.T, p *targetedDiffPair) (string, *sdkmetri
 	t.Cleanup(func() { log.SetOutput(original) })
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
-	store := targetedDiffStore(p.whole, fanInUnchangedPassAt)
-	if err := store.RunDeferredRelationshipMaintenance(p.ctx, nil, instruments); err != nil {
+	store := targetedDiffStore(p.Whole, fanInUnchangedPassAt)
+	if err := store.RunDeferredRelationshipMaintenance(p.Ctx, nil, instruments); err != nil {
 		log.SetOutput(original)
 		t.Fatalf("RunDeferredRelationshipMaintenance() error = %v", err)
 	}
@@ -87,7 +87,7 @@ func runFanInUnchangedPass(t *testing.T, p *targetedDiffPair) (string, *sdkmetri
 func fanInPhaseUpdatedAt(t *testing.T, ctx context.Context, p *targetedDiffPair, scopeID, generationID string) (time.Time, bool) {
 	t.Helper()
 	var updatedAt time.Time
-	err := p.whole.QueryRowContext(ctx, `
+	err := p.Whole.QueryRowContext(ctx, `
 SELECT updated_at FROM graph_projection_phase_state
 WHERE scope_id = $1 AND acceptance_unit_id = $1 AND source_run_id = $2 AND generation_id = $2
   AND keyspace = 'cross_repo_evidence' AND phase = 'backward_evidence_committed'`,
@@ -105,7 +105,7 @@ WHERE scope_id = $1 AND acceptance_unit_id = $1 AND source_run_id = $2 AND gener
 func fanInMemoCommittedAt(t *testing.T, ctx context.Context, p *targetedDiffPair, scopeID, generationID string) time.Time {
 	t.Helper()
 	var committedAt time.Time
-	if err := p.whole.QueryRowContext(ctx,
+	if err := p.Whole.QueryRowContext(ctx,
 		`SELECT committed_at FROM deferred_backfill_partition_memo WHERE scope_id = $1 AND generation_id = $2`,
 		scopeID, generationID).Scan(&committedAt); err != nil {
 		t.Fatalf("read memo row %s/%s: %v", scopeID, generationID, err)
@@ -151,24 +151,24 @@ func fanInSkippedByReason(t *testing.T, reader *sdkmetric.ManualReader, reason s
 func TestWholePassFanInSkipsUnchangedMemoHitPartitionsLive(t *testing.T) {
 	p := seedFanInUnchangedCorpus(t)
 	prepassAt := targetedDiffBase.Add(time.Hour)
-	if got, ok := fanInPhaseUpdatedAt(t, p.ctx, p, "git:tgt", "tgt-1"); !ok || !got.Equal(prepassAt) {
+	if got, ok := fanInPhaseUpdatedAt(t, p.Ctx, p, "git:tgt", "tgt-1"); !ok || !got.Equal(prepassAt) {
 		t.Fatalf("precondition: A phase updated_at = %v (present=%v), want %v", got, ok, prepassAt)
 	}
 
 	logs, reader := runFanInUnchangedPass(t, p)
 
-	if got, ok := fanInPhaseUpdatedAt(t, p.ctx, p, "git:tgt", "tgt-1"); !ok || !got.Equal(prepassAt) {
+	if got, ok := fanInPhaseUpdatedAt(t, p.Ctx, p, "git:tgt", "tgt-1"); !ok || !got.Equal(prepassAt) {
 		t.Fatalf("A (unchanged memo hit) phase updated_at = %v (present=%v), want %v: the fan-in republished a partition whose evidence this pass did not change", got, ok, prepassAt)
 	}
-	if got := fanInMemoCommittedAt(t, p.ctx, p, "git:tgt", "tgt-1"); !got.Equal(prepassAt) {
+	if got := fanInMemoCommittedAt(t, p.Ctx, p, "git:tgt", "tgt-1"); !got.Equal(prepassAt) {
 		t.Fatalf("A (unchanged memo hit) memo committed_at = %v, want %v", got, prepassAt)
 	}
 	for _, partition := range [][2]string{{"git:gsrc", "gsrc-1"}, {"git:miss", "miss-1"}} {
-		if got, ok := fanInPhaseUpdatedAt(t, p.ctx, p, partition[0], partition[1]); !ok || !got.Equal(fanInUnchangedPassAt) {
+		if got, ok := fanInPhaseUpdatedAt(t, p.Ctx, p, partition[0], partition[1]); !ok || !got.Equal(fanInUnchangedPassAt) {
 			t.Fatalf("%s phase updated_at = %v (present=%v), want %v (published this pass)", partition[1], got, ok, fanInUnchangedPassAt)
 		}
 	}
-	if got := fanInMemoCommittedAt(t, p.ctx, p, "git:miss", "miss-1"); !got.Equal(fanInUnchangedPassAt) {
+	if got := fanInMemoCommittedAt(t, p.Ctx, p, "git:miss", "miss-1"); !got.Equal(fanInUnchangedPassAt) {
 		t.Fatalf("C (memo miss) memo committed_at = %v, want %v", got, fanInUnchangedPassAt)
 	}
 	if !strings.Contains(logs, "deferred_backfill_fanin_unchanged_checked candidates=1 skipped_unchanged=1 republished_missing_phase=0 generation_advanced=0\n") ||
@@ -183,10 +183,10 @@ func TestWholePassFanInSkipsUnchangedMemoHitPartitionsLive(t *testing.T) {
 	}
 	// The reopen gate consumes the same revised set: A's relationship items stay
 	// succeeded and B's reopen (the pre-existing #7636 contract).
-	if status := memoHitReopenWorkStatus(t, p, p.whole, "tgt-1/deployment_mapping"); status != "succeeded" {
+	if status := memoHitReopenWorkStatus(t, p, p.Whole, "tgt-1/deployment_mapping"); status != "succeeded" {
 		t.Fatalf("tgt-1/deployment_mapping = %q, want succeeded", status)
 	}
-	if status := memoHitReopenWorkStatus(t, p, p.whole, "gsrc-1/deployment_mapping"); status != "pending" {
+	if status := memoHitReopenWorkStatus(t, p, p.Whole, "gsrc-1/deployment_mapping"); status != "pending" {
 		t.Fatalf("gsrc-1/deployment_mapping = %q, want pending", status)
 	}
 }
@@ -197,12 +197,12 @@ func TestWholePassFanInSkipsUnchangedMemoHitPartitionsLive(t *testing.T) {
 // readiness missing.
 func TestWholePassFanInRepublishesUnchangedPartitionMissingPhaseRowLive(t *testing.T) {
 	p := seedFanInUnchangedCorpus(t)
-	p.exec(`DELETE FROM graph_projection_phase_state
+	p.Exec(`DELETE FROM graph_projection_phase_state
 WHERE scope_id = 'git:tgt' AND keyspace = 'cross_repo_evidence' AND phase = 'backward_evidence_committed'`)
 
 	logs, reader := runFanInUnchangedPass(t, p)
 
-	if got, ok := fanInPhaseUpdatedAt(t, p.ctx, p, "git:tgt", "tgt-1"); !ok || !got.Equal(fanInUnchangedPassAt) {
+	if got, ok := fanInPhaseUpdatedAt(t, p.Ctx, p, "git:tgt", "tgt-1"); !ok || !got.Equal(fanInUnchangedPassAt) {
 		t.Fatalf("A phase updated_at = %v (present=%v), want %v: an unchanged partition missing its phase row must be republished", got, ok, fanInUnchangedPassAt)
 	}
 	if !strings.Contains(logs, "deferred_backfill_fanin_unchanged_checked candidates=1 skipped_unchanged=0 republished_missing_phase=1 generation_advanced=0\n") ||
@@ -225,36 +225,36 @@ WHERE scope_id = 'git:tgt' AND keyspace = 'cross_repo_evidence' AND phase = 'bac
 func TestWholePassFanInKeepsTargetedBaselineOnActiveMemoLive(t *testing.T) {
 	p := newTargetedDiffPair(t)
 	seedTargetedCorpus(p)
-	p.prepass()
-	p.quietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
+	p.Prepass()
+	p.QuietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
 
 	pass2At, pass3At := targetedDiffBase.Add(2*time.Hour), targetedDiffBase.Add(3*time.Hour)
 	for _, at := range []time.Time{pass2At, pass3At} {
-		if err := targetedDiffStore(p.whole, at).RunDeferredRelationshipMaintenance(p.ctx, nil, nil); err != nil {
+		if err := targetedDiffStore(p.Whole, at).RunDeferredRelationshipMaintenance(p.Ctx, nil, nil); err != nil {
 			t.Fatalf("RunDeferredRelationshipMaintenance(%v) error = %v", at, err)
 		}
 	}
-	if got := fanInMemoCommittedAt(t, p.ctx, p, "git:tgt", "tgt-2"); !got.Equal(pass2At) {
+	if got := fanInMemoCommittedAt(t, p.Ctx, p, "git:tgt", "tgt-2"); !got.Equal(pass2At) {
 		t.Fatalf("tgt-2 memo committed_at = %v, want %v (pass 3 must skip the unchanged partition)", got, pass2At)
 	}
-	if got := fanInMemoCommittedAt(t, p.ctx, p, "git:tgt", "tgt-1"); !got.Before(pass2At) {
+	if got := fanInMemoCommittedAt(t, p.Ctx, p, "git:tgt", "tgt-1"); !got.Before(pass2At) {
 		t.Fatalf("tgt-1 memo committed_at = %v, want before %v", got, pass2At)
 	}
 
 	var fingerprint string
-	if err := p.whole.QueryRowContext(p.ctx,
+	if err := p.Whole.QueryRowContext(p.Ctx,
 		`SELECT catalog_fingerprint FROM deferred_backfill_partition_memo WHERE scope_id = 'git:tgt' AND generation_id = 'tgt-2'`,
 	).Scan(&fingerprint); err != nil {
 		t.Fatalf("read tgt-2 fingerprint: %v", err)
 	}
-	if _, err := p.whole.ExecContext(p.ctx,
+	if _, err := p.Whole.ExecContext(p.Ctx,
 		`UPDATE deferred_backfill_partition_memo SET catalog_fingerprint = 'sha256:stale' WHERE scope_id = 'git:tgt' AND generation_id = 'tgt-1'`,
 	); err != nil {
 		t.Fatalf("stale tgt-1 fingerprint: %v", err)
 	}
 
 	var hasBaseline, stale bool
-	if err := p.whole.QueryRowContext(p.ctx, targetedCatalogBaselineQuery, fingerprint, array.StringArray([]string{"git:tgt"})).
+	if err := p.Whole.QueryRowContext(p.Ctx, targetedCatalogBaselineQuery, fingerprint, array.StringArray([]string{"git:tgt"})).
 		Scan(&hasBaseline, &stale); err != nil {
 		t.Fatalf("targetedCatalogBaselineQuery: %v", err)
 	}

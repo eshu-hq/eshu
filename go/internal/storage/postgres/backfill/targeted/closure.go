@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package targeted
 
 import (
 	"context"
@@ -9,10 +9,8 @@ import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // targetedMaintenanceMaxClosureRounds bounds how many times the closure may
@@ -72,7 +70,7 @@ func (c targetedMaintenanceClosure) affectedPartitions() map[backfill.ScopeGener
 // claim evidence that was never derived. Such a partition is promoted into the
 // owed set and the closure is recomputed, at most
 // targetedMaintenanceMaxClosureRounds times.
-func (s IngestionStore) resolveTargetedMaintenanceClosure(
+func (s Store) resolveTargetedMaintenanceClosure(
 	ctx context.Context,
 	catalog []relationships.CatalogEntry,
 	params backfill.DeferredScopedFactQueryParams,
@@ -89,7 +87,7 @@ func (s IngestionStore) resolveTargetedMaintenanceClosure(
 			return closure, fmt.Errorf("%w: %d rounds, owed=%d",
 				ErrTargetedMaintenanceClosureTooDeep, targetedMaintenanceMaxClosureRounds, len(closure.owed))
 		}
-		owedRepos, err := loadActiveRepositoryGenerationsForPartitions(ctx, s.database, sortedPartitions(closure.owed))
+		owedRepos, err := loadActiveRepositoryGenerationsForPartitions(ctx, s.Backfill.DB, sortedPartitions(closure.owed))
 		if err != nil {
 			return closure, fmt.Errorf("load owed repository generations: %w", err)
 		}
@@ -106,13 +104,13 @@ func (s IngestionStore) resolveTargetedMaintenanceClosure(
 		// it is affected, including a source repository that a cloud-scope fact
 		// in an owed partition resolves to.
 		if hasAnchors && len(closure.owed) > 0 {
-			ownFacts, _, err := s.backfillStore().LoadDeferredScopedFactsAcrossPartitions(
-				ctx, s.database, params, sortedPartitions(closure.owed), nil)
+			ownFacts, _, err := s.Backfill.LoadDeferredScopedFactsAcrossPartitions(
+				ctx, s.Backfill.DB, params, sortedPartitions(closure.owed), nil)
 			if err != nil {
 				return closure, fmt.Errorf("load owed partition facts for closure: %w", err)
 			}
 			if len(ownFacts) > 0 {
-				ownFacts, err = s.backfillStore().AppendArgoCDGeneratorConfigFacts(ctx, s.database, catalog, ownFacts)
+				ownFacts, err = s.Backfill.AppendArgoCDGeneratorConfigFacts(ctx, s.Backfill.DB, catalog, ownFacts)
 				if err != nil {
 					return closure, err
 				}
@@ -138,7 +136,7 @@ func (s IngestionStore) resolveTargetedMaintenanceClosure(
 			ids = append(ids, repoID)
 		}
 		sort.Strings(ids)
-		affected, err := loadActiveRepositoryGenerationsForRepos(ctx, s.database, ids)
+		affected, err := loadActiveRepositoryGenerationsForRepos(ctx, s.Backfill.DB, ids)
 		if err != nil {
 			return closure, fmt.Errorf("load affected repository generations: %w", err)
 		}
@@ -149,7 +147,7 @@ func (s IngestionStore) resolveTargetedMaintenanceClosure(
 			if _, owed := closure.owed[partition]; owed {
 				continue
 			}
-			committed, err := backwardEvidencePhaseCommitted(ctx, s.database, partition)
+			committed, err := s.PhaseCommitted(ctx, s.Backfill.DB, partition)
 			if err != nil {
 				return closure, err
 			}
@@ -190,7 +188,7 @@ func (s IngestionStore) resolveTargetedMaintenanceClosure(
 // ApplicationSet evidence kind targets the config repository (relationships
 // appendDiscoveryEvidence and appendDeploySourceEvidence), so the control
 // repository's group touches it.
-func (s IngestionStore) addInboundTargetedMaintenanceSources(
+func (s Store) addInboundTargetedMaintenanceSources(
 	ctx context.Context,
 	catalog []relationships.CatalogEntry,
 	owedRepos map[string]backfill.RepositoryGenerationIdentity,
@@ -202,7 +200,7 @@ func (s IngestionStore) addInboundTargetedMaintenanceSources(
 		owedRepoIDs[repoID] = struct{}{}
 	}
 	inbound, err := backfill.LoadAnchorScopedRelationshipFacts(
-		ctx, s.database, backfill.RepositoryScopedCatalog(catalog, owedRepoIDs), catalog)
+		ctx, s.Backfill.DB, backfill.RepositoryScopedCatalog(catalog, owedRepoIDs), catalog)
 	if err != nil {
 		return fmt.Errorf("load inbound facts for owed repositories: %w", err)
 	}
@@ -220,7 +218,7 @@ func (s IngestionStore) addInboundTargetedMaintenanceSources(
 			for _, ref := range refs {
 				configRepoIDs = append(configRepoIDs, ref.ConfigRepoID)
 			}
-			configFacts, err = backfill.LoadArgoCDGeneratorConfigFacts(ctx, s.database, configRepoIDs)
+			configFacts, err = backfill.LoadArgoCDGeneratorConfigFacts(ctx, s.Backfill.DB, configRepoIDs)
 			if err != nil {
 				return fmt.Errorf("load argocd config facts for closure group %q: %w", partition.ScopeID, err)
 			}
@@ -245,27 +243,6 @@ func (s IngestionStore) addInboundTargetedMaintenanceSources(
 		}
 	}
 	return nil
-}
-
-// backwardEvidencePhaseCommitted reports whether partition already carries the
-// backward_evidence_committed readiness row publishDeferredBackfillPartition
-// writes.
-func backwardEvidencePhaseCommitted(
-	ctx context.Context,
-	database db.ExecQueryer,
-	partition backfill.ScopeGenerationPartition,
-) (bool, error) {
-	ready, found, err := NewGraphProjectionPhaseStateStore(database).Lookup(ctx, reducer.GraphProjectionPhaseKey{
-		ScopeID:          partition.ScopeID,
-		AcceptanceUnitID: partition.ScopeID,
-		SourceRunID:      partition.GenerationID,
-		GenerationID:     partition.GenerationID,
-		Keyspace:         reducer.GraphProjectionKeyspaceCrossRepoEvidence,
-	}, reducer.GraphProjectionPhaseBackwardEvidenceCommitted)
-	if err != nil {
-		return false, fmt.Errorf("read backward evidence phase for %q/%q: %w", partition.ScopeID, partition.GenerationID, err)
-	}
-	return found && ready, nil
 }
 
 // sortedPartitionsOf returns the keys of groups in (scope_id, generation_id)

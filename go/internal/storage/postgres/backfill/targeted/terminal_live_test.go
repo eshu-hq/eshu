@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package targeted_test
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector"
@@ -20,11 +22,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
-// This file keeps in the root package the one activation obligation proof
-// that asserts the shipped active-repository read (backfill.ActiveRepositoryGenerationsQuery,
-// unexported here): a repo_id collision loser is retired inapplicable. The
-// other activation live proofs live in the activation package's external
-// tests; the fixtures below are copies of theirs.
+// This external targeted-package proof checks the shipped active-repository
+// read through backfill.ActiveRepositoryGenerationsQuery. A repo_id collision
+// loser is retired inapplicable. The other activation live proofs remain in
+// the activation package's external tests.
 
 // TestActivationObligationInapplicableCollisionLoserLive (#7584):
 // two repository scopes share one repo_id; the shipped active-repository read
@@ -34,9 +35,9 @@ import (
 // and completes.
 func TestActivationObligationInapplicableCollisionLoserLive(t *testing.T) {
 	ctx, database := openActivationObligationProofDB(t, "activation_collision")
-	store := NewIngestionStore(SQLDB{DB: database})
+	store := postgres.NewIngestionStore(postgres.SQLDB{DB: database})
 	store.SkipRelationshipBackfill = true
-	queue := NewProjectorQueue(SQLDB{DB: database}, "7584-collision-projector", time.Minute)
+	queue := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "7584-collision-projector", time.Minute)
 	for _, r := range []struct {
 		scope, generation string
 		later             time.Duration
@@ -58,7 +59,7 @@ func TestActivationObligationInapplicableCollisionLoserLive(t *testing.T) {
 		if !mapped {
 			return fmt.Errorf("owed partition %s/%s: %w", work.ScopeID, work.GenerationID, obligation.ErrInapplicable)
 		}
-		return NewIngestionStore(SQLDB{DB: database}).RunDeferredRelationshipMaintenance(ctx, nil, nil)
+		return postgres.NewIngestionStore(postgres.SQLDB{DB: database}).RunDeferredRelationshipMaintenance(ctx, nil, nil)
 	}}
 	runner := newLiveActivationRunner(database, maintainer, 300*time.Millisecond)
 	if _, err := runner.RunOnce(ctx); err != nil {
@@ -111,7 +112,7 @@ func openActivationObligationProofDB(t *testing.T, prefix string) (context.Conte
 	return ctx, database
 }
 
-func commitActivationRepository(t *testing.T, ctx context.Context, store IngestionStore,
+func commitActivationRepository(t *testing.T, ctx context.Context, store postgres.IngestionStore,
 	envelope facts.Envelope, repoID string,
 ) {
 	t.Helper()
@@ -126,7 +127,7 @@ func commitActivationRepository(t *testing.T, ctx context.Context, store Ingesti
 
 // claimActivationProjectorWork claims through the same queue (and therefore
 // the same lease owner) the caller later Acks with; Ack fences on the owner.
-func claimActivationProjectorWork(t *testing.T, ctx context.Context, queue ProjectorQueue,
+func claimActivationProjectorWork(t *testing.T, ctx context.Context, queue postgres.ProjectorQueue,
 	wantScope, wantGeneration string,
 ) projector.ScopeGenerationWork {
 	t.Helper()
@@ -163,7 +164,7 @@ func (m *countingActivationMaintainer) callsFor(generationID string) int {
 
 func newLiveActivationRunner(database *sql.DB, maintainer obligation.Maintainer, lease time.Duration) *obligation.Runner {
 	return &obligation.Runner{
-		Store:      activation.RunnerStore{Store: activation.NewStore(SQLDB{DB: database})},
+		Store:      activation.RunnerStore{Store: activation.NewStore(postgres.SQLDB{DB: database})},
 		Maintainer: maintainer,
 		Config:     obligation.Config{Owner: "7584-terminal-consumer", Lease: lease},
 	}

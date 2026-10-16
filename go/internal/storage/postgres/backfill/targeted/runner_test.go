@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package targeted_test
 
 import (
 	"database/sql"
@@ -10,6 +10,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
@@ -17,10 +20,10 @@ import (
 // targetedDiffCase states one fixture's owed partitions and, independently of
 // either arm's output, the exact tuples the partition-scoped arm must produce.
 type targetedDiffCase struct {
-	owed []OwedPartition
+	owed []postgres.OwedPartition
 	// outcomes is the expected per-owed outcome keyed "scope/generation";
 	// nil means every owed partition is published.
-	outcomes map[string]TargetedMaintenanceOutcomeKind
+	outcomes map[string]postgres.TargetedMaintenanceOutcomeKind
 	// compared is the expected affected set; the arms must agree on it exactly.
 	compared map[backfill.ScopeGenerationPartition]struct{}
 	// newEvidence is "source->target" per evidence row the targeted arm newly
@@ -50,7 +53,7 @@ type targetedDiffCase struct {
 
 // targetedDiffOutcome is what run observed, for fixtures with extra checks.
 type targetedDiffOutcome struct {
-	result   TargetedMaintenanceResult
+	result   postgres.TargetedMaintenanceResult
 	before   targetedDiffState
 	whole    targetedDiffState
 	targeted targetedDiffState
@@ -62,133 +65,133 @@ type targetedDiffOutcome struct {
 // memo and work-item rows are set-equal (0/0 both directions); outside them
 // the targeted arm changed nothing; and the targeted arm's writes equal the
 // fixture's independently stated tuples.
-func (p *targetedDiffPair) run(name string, c targetedDiffCase) targetedDiffOutcome {
-	p.t.Helper()
+func runTargetedDiff(p *targetedDiffPair, name string, c targetedDiffCase) targetedDiffOutcome {
+	p.T.Helper()
 	var outcome targetedDiffOutcome
-	outcome.before = p.capture(p.targeted)
-	if mismatch := firstSeedMismatch(stripXmin(p.capture(p.whole)), stripXmin(outcome.before)); mismatch != "" {
-		p.t.Fatalf("%s: arms were not seeded identically: %s", name, mismatch)
+	outcome.before = p.Capture(p.Targeted)
+	if mismatch := firstSeedMismatch(stripXmin(p.Capture(p.Whole)), stripXmin(outcome.before)); mismatch != "" {
+		p.T.Fatalf("%s: arms were not seeded identically: %s", name, mismatch)
 	}
 
-	wholeStore := targetedDiffStore(p.whole, targetedDiffArmsAt)
-	targetedStore := targetedDiffStore(p.targeted, targetedDiffArmsAt)
-	if c.batchSize > 0 {
-		wholeStore.maintenanceBatchSize = c.batchSize
-		targetedStore.maintenanceBatchSize = c.batchSize
-	}
+	wholeDB := postgres.SQLDB{DB: p.Whole}
+	targetedDB := postgres.SQLDB{DB: p.Targeted}
+	var wholeHandle db.ExecQueryer = wholeDB
+	var targetedHandle db.ExecQueryer = targetedDB
 	if c.hooks != nil {
-		if hook := c.hooks("whole", p.whole); hook != nil {
-			hook.inner = wholeStore.beginner
-			wholeStore.beginner = hook
+		if hook := c.hooks("whole", p.Whole); hook != nil {
+			hook.Inner = wholeDB
+			wholeHandle = hookedDB{SQLDB: wholeDB, hook: hook}
 		}
-		if hook := c.hooks("targeted", p.targeted); hook != nil {
-			hook.inner = targetedStore.beginner
-			targetedStore.beginner = hook
+		if hook := c.hooks("targeted", p.Targeted); hook != nil {
+			hook.Inner = targetedDB
+			targetedHandle = hookedDB{SQLDB: targetedDB, hook: hook}
 		}
 	}
-	wholeErr := wholeStore.RunDeferredRelationshipMaintenance(p.ctx, nil, nil)
-	result, targetedErr := targetedStore.RunDeferredRelationshipMaintenanceForPartitions(p.ctx, nil, nil, c.owed)
+	wholeStore := targetedDiffStoreWithConfig(wholeHandle, targetedDiffArmsAt, c.batchSize)
+	targetedStore := targetedDiffStoreWithConfig(targetedHandle, targetedDiffArmsAt, c.batchSize)
+	wholeErr := wholeStore.RunDeferredRelationshipMaintenance(p.Ctx, nil, nil)
+	result, targetedErr := targetedStore.RunDeferredRelationshipMaintenanceForPartitions(p.Ctx, nil, nil, c.owed)
 	outcome.result = result
 	if c.wantErr {
 		if wholeErr == nil || targetedErr == nil {
-			p.t.Fatalf("%s: want both arms to fail, whole=%v targeted=%v", name, wholeErr, targetedErr)
+			p.T.Fatalf("%s: want both arms to fail, whole=%v targeted=%v", name, wholeErr, targetedErr)
 		}
 	} else if wholeErr != nil || targetedErr != nil {
-		p.t.Fatalf("%s: whole=%v targeted=%v", name, wholeErr, targetedErr)
+		p.T.Fatalf("%s: whole=%v targeted=%v", name, wholeErr, targetedErr)
 	}
 	if !c.wantErr {
 		if got := owedSet(result.Affected); !reflect.DeepEqual(got, c.compared) {
-			p.t.Fatalf("%s: affected partitions = %v, want %v", name, result.Affected, sortedPartitions(c.compared))
+			p.T.Fatalf("%s: affected partitions = %v, want %v", name, result.Affected, sortedPartitions(c.compared))
 		}
 	}
 	wantOutcomes := c.outcomes
 	if wantOutcomes == nil {
-		wantOutcomes = map[string]TargetedMaintenanceOutcomeKind{}
+		wantOutcomes = map[string]postgres.TargetedMaintenanceOutcomeKind{}
 		for _, owed := range c.owed {
-			wantOutcomes[owed.ScopeID+"/"+owed.GenerationID] = TargetedMaintenancePublished
+			wantOutcomes[owed.ScopeID+"/"+owed.GenerationID] = postgres.TargetedMaintenancePublished
 		}
 	}
-	gotOutcomes := map[string]TargetedMaintenanceOutcomeKind{}
+	gotOutcomes := map[string]postgres.TargetedMaintenanceOutcomeKind{}
 	for _, outcome := range result.Outcomes {
 		gotOutcomes[outcome.Partition.ScopeID+"/"+outcome.Partition.GenerationID] = outcome.Kind
 	}
 	if !reflect.DeepEqual(gotOutcomes, wantOutcomes) {
-		p.t.Fatalf("%s: per-owed outcomes = %v, want %v", name, gotOutcomes, wantOutcomes)
+		p.T.Fatalf("%s: per-owed outcomes = %v, want %v", name, gotOutcomes, wantOutcomes)
 	}
 
-	outcome.whole = p.capture(p.whole)
-	outcome.targeted = p.capture(p.targeted)
+	outcome.whole = p.Capture(p.Whole)
+	outcome.targeted = p.Capture(p.Targeted)
 	if rewritten := wholeRewroteUnchanged(outcome.before, outcome.whole, c.unchanged); len(rewritten) > 0 {
-		p.t.Fatalf("%s: whole arm rewrote unchanged-since-memo rows: %v", name, rewritten)
+		p.T.Fatalf("%s: whole arm rewrote unchanged-since-memo rows: %v", name, rewritten)
 	}
 	outcome.report = diffStates(outcome.before, outcome.whole, outcome.targeted, c.compared, c.unchanged)
 	report := outcome.report
-	if len(report.wholeOnlyInScope) > 0 || len(report.targetedOnlyInScope) > 0 {
-		p.t.Fatalf("%s: compared partitions differ: whole-only=%v targeted-only=%v",
-			name, report.wholeOnlyInScope, report.targetedOnlyInScope)
+	if len(report.WholeOnlyInScope) > 0 || len(report.TargetedOnlyInScope) > 0 {
+		p.T.Fatalf("%s: compared partitions differ: whole-only=%v targeted-only=%v",
+			name, report.WholeOnlyInScope, report.TargetedOnlyInScope)
 	}
-	if len(report.targetedChangedOutside) > 0 {
-		p.t.Fatalf("%s: targeted arm changed rows outside the compared partitions: %v", name, report.targetedChangedOutside)
+	if len(report.TargetedChangedOutside) > 0 {
+		p.T.Fatalf("%s: targeted arm changed rows outside the compared partitions: %v", name, report.TargetedChangedOutside)
 	}
-	if c.wholeOutside != nil && !reflect.DeepEqual(report.wholeChangedOutside, c.wholeOutside) {
-		p.t.Fatalf("%s: whole arm changed outside = %v, want %v", name, report.wholeChangedOutside, c.wholeOutside)
+	if c.wholeOutside != nil && !reflect.DeepEqual(report.WholeChangedOutside, c.wholeOutside) {
+		p.T.Fatalf("%s: whole arm changed outside = %v, want %v", name, report.WholeChangedOutside, c.wholeOutside)
 	}
 
-	if got := p.newEvidenceEdges(p.targeted, changedRows(outcome.before, outcome.targeted, "evidence")); !sameStringMultiset(got, c.newEvidence) {
-		p.t.Fatalf("%s: targeted new evidence = %v, want %v", name, got, c.newEvidence)
+	if got := newEvidenceEdges(p, p.Targeted, changedRows(outcome.before, outcome.targeted, "evidence")); !sameStringMultiset(got, c.newEvidence) {
+		p.T.Fatalf("%s: targeted new evidence = %v, want %v", name, got, c.newEvidence)
 	}
 	gotPublished := map[backfill.ScopeGenerationPartition]struct{}{}
 	for key, row := range outcome.targeted {
-		if row.table != "phase" {
+		if row.Table != "phase" {
 			continue
 		}
-		if prior, ok := outcome.before[key]; !ok || prior.value != row.value {
-			gotPublished[row.partition] = struct{}{}
+		if prior, ok := outcome.before[key]; !ok || prior.Value != row.Value {
+			gotPublished[row.Partition] = struct{}{}
 		}
 	}
 	if !reflect.DeepEqual(gotPublished, nonNilSet(c.published)) {
-		p.t.Fatalf("%s: targeted published = %v, want %v", name, sortedPartitions(gotPublished), sortedPartitions(c.published))
+		p.T.Fatalf("%s: targeted published = %v, want %v", name, sortedPartitions(gotPublished), sortedPartitions(c.published))
 	}
 	if got := changedRows(outcome.before, outcome.targeted, "work"); !sameStringMultiset(got, c.reopened) {
-		p.t.Fatalf("%s: targeted reopened = %v, want %v", name, got, c.reopened)
+		p.T.Fatalf("%s: targeted reopened = %v, want %v", name, got, c.reopened)
 	}
-	assertPhaseCommittedAfterEvidence(p.t, "whole", outcome.before, outcome.whole)
-	assertPhaseCommittedAfterEvidence(p.t, "targeted", outcome.before, outcome.targeted)
+	assertPhaseCommittedAfterEvidence(p.T, "whole", outcome.before, outcome.whole)
+	assertPhaseCommittedAfterEvidence(p.T, "targeted", outcome.before, outcome.targeted)
 
 	summary, _ := json.Marshal(map[string]any{
 		"fixture":                  name,
 		"compared":                 len(c.compared),
-		"whole_only_in_scope":      len(report.wholeOnlyInScope),
-		"targeted_only_in_scope":   len(report.targetedOnlyInScope),
-		"targeted_changed_outside": len(report.targetedChangedOutside),
-		"whole_changed_outside":    report.wholeChangedOutside,
+		"whole_only_in_scope":      len(report.WholeOnlyInScope),
+		"targeted_only_in_scope":   len(report.TargetedOnlyInScope),
+		"targeted_changed_outside": len(report.TargetedChangedOutside),
+		"whole_changed_outside":    report.WholeChangedOutside,
 		"targeted_new_evidence":    c.newEvidence,
 		"targeted_reopened":        len(c.reopened),
 		"loaded":                   result.Loaded,
 		"promoted":                 result.Promoted,
 		"outcomes":                 gotOutcomes,
 	})
-	p.t.Logf("DIFFERENTIAL %s", summary)
+	p.T.Logf("DIFFERENTIAL %s", summary)
 	return outcome
 }
 
 // newEvidenceEdges returns "source->target" for the given evidence ids.
-func (p *targetedDiffPair) newEvidenceEdges(database *sql.DB, evidenceIDs []string) []string {
-	p.t.Helper()
+func newEvidenceEdges(p *targetedDiffPair, database *sql.DB, evidenceIDs []string) []string {
+	p.T.Helper()
 	if len(evidenceIDs) == 0 {
 		return nil
 	}
-	rows, err := database.QueryContext(p.ctx, `SELECT COALESCE(source_repo_id, '') || '->' || COALESCE(target_repo_id, '')
+	rows, err := database.QueryContext(p.Ctx, `SELECT COALESCE(source_repo_id, '') || '->' || COALESCE(target_repo_id, '')
 FROM relationship_evidence_facts WHERE evidence_id = ANY($1)`, array.StringArray(evidenceIDs))
 	if err != nil {
-		p.t.Fatalf("read new evidence: %v", err)
+		p.T.Fatalf("read new evidence: %v", err)
 	}
 	defer func() { _ = rows.Close() }()
 	var edges []string
 	for rows.Next() {
 		var edge string
 		if err := rows.Scan(&edge); err != nil {
-			p.t.Fatalf("scan new evidence: %v", err)
+			p.T.Fatalf("scan new evidence: %v", err)
 		}
 		edges = append(edges, edge)
 	}
@@ -200,18 +203,18 @@ FROM relationship_evidence_facts WHERE evidence_id = ANY($1)`, array.StringArray
 func stripXmin(state targetedDiffState) map[string]string {
 	values := make(map[string]string, len(state))
 	for key, row := range state {
-		values[key] = row.value
+		values[key] = row.Value
 	}
 	return values
 }
 
 // owedPartitions builds a sorted owed list from scope/generation pairs.
-func owedPartitions(pairs ...string) []OwedPartition {
+func owedPartitions(pairs ...string) []postgres.OwedPartition {
 	return owedPartitionsOf(sortedPartitions(partitionSet(pairs...)))
 }
 
 // owedSet converts exported owed partitions into an internal partition set.
-func owedSet(owed []OwedPartition) map[backfill.ScopeGenerationPartition]struct{} {
+func owedSet(owed []postgres.OwedPartition) map[backfill.ScopeGenerationPartition]struct{} {
 	set := make(map[backfill.ScopeGenerationPartition]struct{}, len(owed))
 	for _, partition := range owed {
 		set[backfill.ScopeGenerationPartition(partition)] = struct{}{}
@@ -263,7 +266,7 @@ func workIDs(generationID string, domains ...string) []string {
 
 // correlationIDs is workIDs for the correlation domains only.
 func correlationIDs(generationID string) []string {
-	return workIDs(generationID, CrossScopeCorrelationReopenDomains()...)
+	return workIDs(generationID, postgres.CrossScopeCorrelationReopenDomains()...)
 }
 
 // concatIDs joins id lists.
@@ -324,4 +327,12 @@ func firstSeedMismatch(whole, targeted map[string]string) string {
 		}
 	}
 	return ""
+}
+
+func owedPartitionsOf(partitions []backfill.ScopeGenerationPartition) []postgres.OwedPartition {
+	result := make([]postgres.OwedPartition, len(partitions))
+	for i, partition := range partitions {
+		result[i] = postgres.OwedPartition{ScopeID: partition.ScopeID, GenerationID: partition.GenerationID}
+	}
+	return result
 }

@@ -21,6 +21,11 @@ with all seams supplied (`backfillStore`), the post-commit transaction,
 the skip orchestration, the reproject transaction, and the catalog cache.
 The engine never imports the parent postgres package.
 
+The `targeted` child owns partition-scoped maintenance and its reopen
+transaction. Three shipped whole-pass reopen listings and shared replay-floor
+fragments live in `reopen_sql.go`; root keeps constant aliases for existing
+consumers. The child derives bounded listings once from those strings.
+
 ## Exported surface
 
 - `Store`, `NewStore` — engine handles plus the two seams the engine must
@@ -75,9 +80,12 @@ See `doc.go` for the full contract.
   package (#8082). Each ends with one log line:
   `deferred_backfill_block_completed`, or `deferred_backfill_block_failed`
   when it fails the pass, or `deferred_backfill_block_degraded` when it
-  errored but the pass fell back (the memo gate). See `block_telemetry.go`; the `Block*` constants are the closed
-  set, and `docs/public/reference/telemetry/deferred-backfill-blocks.md`
-  lists the attributes.
+  errored but the pass fell back (the memo gate). `ReopenBlockAttrs` supplies
+  one fresh ordered domain/count attribute slice to both whole and targeted
+  reopen blocks; the targeted block appends `pass=targeted`. See
+  `block_telemetry.go`; the `Block*` constants are the closed set, and
+  `docs/public/reference/telemetry/deferred-backfill-blocks.md` lists the
+  attributes.
 - Metrics: served through the `Instruments` the root supplies on `Store`.
   `eshu_dp_deferred_backfill_block_duration_seconds{block}` records one
   sample per block per whole pass (#8082); the partition-scoped pass passes

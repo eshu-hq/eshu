@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package targeted_test
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -31,22 +33,22 @@ func TestTargetedMaintenanceOutcomesMatchWholePass(t *testing.T) {
 	t.Run("superseded_owed_reports_not_active_under_catalog_change", func(t *testing.T) {
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
-		p.prepass()
-		p.quietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
-		p.exec(`UPDATE scope_generations SET ingested_at = ingested_at - interval '30 minutes' WHERE generation_id = 'tgt-2'`)
-		p.quietGeneration("git:tgt", "tgt-3", "repo-tgt", "payments-service", "orders-api")
-		p.gitRepo("git:new", "new-1", "repo-new", "inventory-svc")
-		before := p.capture(p.targeted)
-		result, err := targetedDiffStore(p.targeted, targetedDiffArmsAt).RunDeferredRelationshipMaintenanceForPartitions(
-			p.ctx, nil, nil, owedPartitions("git:tgt", "tgt-2"))
+		p.Prepass()
+		p.QuietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
+		p.Exec(`UPDATE scope_generations SET ingested_at = ingested_at - interval '30 minutes' WHERE generation_id = 'tgt-2'`)
+		p.QuietGeneration("git:tgt", "tgt-3", "repo-tgt", "payments-service", "orders-api")
+		p.GitRepo("git:new", "new-1", "repo-new", "inventory-svc")
+		before := p.Capture(p.Targeted)
+		result, err := targetedDiffStore(p.Targeted, targetedDiffArmsAt).RunDeferredRelationshipMaintenanceForPartitions(
+			p.Ctx, nil, nil, owedPartitions("git:tgt", "tgt-2"))
 		if err != nil {
 			t.Fatalf("superseded owed under a catalog change: error = %v, want nil (not_active, not a refusal)", err)
 		}
-		want := []TargetedMaintenanceOutcome{{Partition: OwedPartition{ScopeID: "git:tgt", GenerationID: "tgt-2"}, Kind: TargetedMaintenanceNotActive}}
+		want := []postgres.TargetedMaintenanceOutcome{{Partition: postgres.OwedPartition{ScopeID: "git:tgt", GenerationID: "tgt-2"}, Kind: postgres.TargetedMaintenanceNotActive}}
 		if !reflect.DeepEqual(result.Outcomes, want) {
 			t.Fatalf("outcomes = %v, want %v", result.Outcomes, want)
 		}
-		if changed := diffStates(before, before, p.capture(p.targeted), nil, nil).targetedChangedOutside; len(changed) > 0 {
+		if changed := diffStates(before, before, p.Capture(p.Targeted), nil, nil).TargetedChangedOutside; len(changed) > 0 {
 			t.Fatalf("not-active pass changed rows: %v", changed)
 		}
 	})
@@ -54,26 +56,26 @@ func TestTargetedMaintenanceOutcomesMatchWholePass(t *testing.T) {
 	t.Run("no_memo_baseline_refuses_until_a_whole_pass", func(t *testing.T) {
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
-		p.quietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
-		store := targetedDiffStore(p.targeted, targetedDiffArmsAt)
-		before := p.capture(p.targeted)
-		result, err := store.RunDeferredRelationshipMaintenanceForPartitions(p.ctx, nil, nil, owedPartitions("git:tgt", "tgt-2"))
-		if !errors.Is(err, ErrTargetedMaintenanceNoMemoBaseline) {
-			t.Fatalf("pass with no active memo row: error = %v, want ErrTargetedMaintenanceNoMemoBaseline", err)
+		p.QuietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
+		store := targetedDiffStore(p.Targeted, targetedDiffArmsAt)
+		before := p.Capture(p.Targeted)
+		result, err := store.RunDeferredRelationshipMaintenanceForPartitions(p.Ctx, nil, nil, owedPartitions("git:tgt", "tgt-2"))
+		if !errors.Is(err, postgres.ErrTargetedMaintenanceNoMemoBaseline) {
+			t.Fatalf("pass with no active memo row: error = %v, want postgres.ErrTargetedMaintenanceNoMemoBaseline", err)
 		}
-		if result.Outcomes[0].Kind != TargetedMaintenanceRetry {
+		if result.Outcomes[0].Kind != postgres.TargetedMaintenanceRetry {
 			t.Fatalf("refused owed outcome = %v, want retry", result.Outcomes)
 		}
-		if changed := diffStates(before, before, p.capture(p.targeted), nil, nil).targetedChangedOutside; len(changed) > 0 {
+		if changed := diffStates(before, before, p.Capture(p.Targeted), nil, nil).TargetedChangedOutside; len(changed) > 0 {
 			t.Fatalf("refused pass changed rows: %v", changed)
 		}
 		// The epoch whole pass writes the memo baseline; the targeted pass is
 		// then admitted.
-		if err := store.RunDeferredRelationshipMaintenance(p.ctx, nil, nil); err != nil {
+		if err := store.RunDeferredRelationshipMaintenance(p.Ctx, nil, nil); err != nil {
 			t.Fatalf("whole pass: %v", err)
 		}
-		result, err = store.RunDeferredRelationshipMaintenanceForPartitions(p.ctx, nil, nil, owedPartitions("git:tgt", "tgt-2"))
-		if err != nil || result.Outcomes[0].Kind != TargetedMaintenancePublished {
+		result, err = store.RunDeferredRelationshipMaintenanceForPartitions(p.Ctx, nil, nil, owedPartitions("git:tgt", "tgt-2"))
+		if err != nil || result.Outcomes[0].Kind != postgres.TargetedMaintenancePublished {
 			t.Fatalf("pass after the baseline: outcomes=%v err=%v, want published", result.Outcomes, err)
 		}
 	})
@@ -84,18 +86,18 @@ func TestTargetedMaintenanceOutcomesMatchWholePass(t *testing.T) {
 		// baseline must refuse catalog_changed, not admit and not report
 		// no_memo_baseline.
 		p := newTargetedDiffPair(t)
-		p.gitRepo("git:only", "only-1", "repo-only", "solo-service")
-		p.workItems("git:only", "only-1")
-		p.prepass()
-		p.quietGeneration("git:only", "only-2", "repo-only", "solo-service")
-		p.gitRepo("git:new", "new-1", "repo-new", "inventory-svc")
-		p.workItems("git:new", "new-1")
-		result, err := targetedDiffStore(p.targeted, targetedDiffArmsAt).RunDeferredRelationshipMaintenanceForPartitions(
-			p.ctx, nil, nil, owedPartitions("git:only", "only-2"))
-		if !errors.Is(err, ErrTargetedMaintenanceCatalogChanged) {
-			t.Fatalf("stale owed memo: error = %v, want ErrTargetedMaintenanceCatalogChanged", err)
+		p.GitRepo("git:only", "only-1", "repo-only", "solo-service")
+		p.WorkItems("git:only", "only-1")
+		p.Prepass()
+		p.QuietGeneration("git:only", "only-2", "repo-only", "solo-service")
+		p.GitRepo("git:new", "new-1", "repo-new", "inventory-svc")
+		p.WorkItems("git:new", "new-1")
+		result, err := targetedDiffStore(p.Targeted, targetedDiffArmsAt).RunDeferredRelationshipMaintenanceForPartitions(
+			p.Ctx, nil, nil, owedPartitions("git:only", "only-2"))
+		if !errors.Is(err, postgres.ErrTargetedMaintenanceCatalogChanged) {
+			t.Fatalf("stale owed memo: error = %v, want postgres.ErrTargetedMaintenanceCatalogChanged", err)
 		}
-		if result.Outcomes[0].Kind != TargetedMaintenanceRetry {
+		if result.Outcomes[0].Kind != postgres.TargetedMaintenanceRetry {
 			t.Fatalf("refused owed outcome = %v, want retry", result.Outcomes)
 		}
 	})
@@ -104,14 +106,14 @@ func TestTargetedMaintenanceOutcomesMatchWholePass(t *testing.T) {
 		// #7638 negative (ii): no memo anywhere and the owed scope has
 		// none either, so the owed arm must not conjure a baseline.
 		p := newTargetedDiffPair(t)
-		p.gitRepo("git:only", "only-1", "repo-only", "solo-service")
-		p.workItems("git:only", "only-1")
-		result, err := targetedDiffStore(p.targeted, targetedDiffArmsAt).RunDeferredRelationshipMaintenanceForPartitions(
-			p.ctx, nil, nil, owedPartitions("git:only", "only-1"))
-		if !errors.Is(err, ErrTargetedMaintenanceNoMemoBaseline) {
-			t.Fatalf("memoless owed scope: error = %v, want ErrTargetedMaintenanceNoMemoBaseline", err)
+		p.GitRepo("git:only", "only-1", "repo-only", "solo-service")
+		p.WorkItems("git:only", "only-1")
+		result, err := targetedDiffStore(p.Targeted, targetedDiffArmsAt).RunDeferredRelationshipMaintenanceForPartitions(
+			p.Ctx, nil, nil, owedPartitions("git:only", "only-1"))
+		if !errors.Is(err, postgres.ErrTargetedMaintenanceNoMemoBaseline) {
+			t.Fatalf("memoless owed scope: error = %v, want postgres.ErrTargetedMaintenanceNoMemoBaseline", err)
 		}
-		if result.Outcomes[0].Kind != TargetedMaintenanceRetry {
+		if result.Outcomes[0].Kind != postgres.TargetedMaintenanceRetry {
 			t.Fatalf("refused owed outcome = %v, want retry", result.Outcomes)
 		}
 	})
@@ -121,21 +123,21 @@ func TestTargetedMaintenanceOutcomesMatchWholePass(t *testing.T) {
 		// their memos; git:a's latest memo is fresh but git:b's is
 		// stale, so the pass must refuse catalog_changed.
 		p := newTargetedDiffPair(t)
-		p.gitRepo("git:a", "a-1", "repo-a", "alpha-svc")
-		p.workItems("git:a", "a-1")
-		p.gitRepo("git:b", "b-1", "repo-b", "beta-svc")
-		p.workItems("git:b", "b-1")
-		p.prepass()
-		p.quietGeneration("git:a", "a-2", "repo-a", "alpha-svc")
-		p.quietGeneration("git:b", "b-2", "repo-b", "beta-svc")
-		p.exec(`UPDATE deferred_backfill_partition_memo SET catalog_fingerprint = 'stale-fingerprint' WHERE scope_id = 'git:b'`)
-		result, err := targetedDiffStore(p.targeted, targetedDiffArmsAt).RunDeferredRelationshipMaintenanceForPartitions(
-			p.ctx, nil, nil, owedPartitions("git:a", "a-2", "git:b", "b-2"))
-		if !errors.Is(err, ErrTargetedMaintenanceCatalogChanged) {
-			t.Fatalf("one stale owed memo: error = %v, want ErrTargetedMaintenanceCatalogChanged", err)
+		p.GitRepo("git:a", "a-1", "repo-a", "alpha-svc")
+		p.WorkItems("git:a", "a-1")
+		p.GitRepo("git:b", "b-1", "repo-b", "beta-svc")
+		p.WorkItems("git:b", "b-1")
+		p.Prepass()
+		p.QuietGeneration("git:a", "a-2", "repo-a", "alpha-svc")
+		p.QuietGeneration("git:b", "b-2", "repo-b", "beta-svc")
+		p.Exec(`UPDATE deferred_backfill_partition_memo SET catalog_fingerprint = 'stale-fingerprint' WHERE scope_id = 'git:b'`)
+		result, err := targetedDiffStore(p.Targeted, targetedDiffArmsAt).RunDeferredRelationshipMaintenanceForPartitions(
+			p.Ctx, nil, nil, owedPartitions("git:a", "a-2", "git:b", "b-2"))
+		if !errors.Is(err, postgres.ErrTargetedMaintenanceCatalogChanged) {
+			t.Fatalf("one stale owed memo: error = %v, want postgres.ErrTargetedMaintenanceCatalogChanged", err)
 		}
 		for _, outcome := range result.Outcomes {
-			if outcome.Kind != TargetedMaintenanceRetry {
+			if outcome.Kind != postgres.TargetedMaintenanceRetry {
 				t.Fatalf("refused owed outcomes = %v, want all retry", result.Outcomes)
 			}
 		}
@@ -144,16 +146,16 @@ func TestTargetedMaintenanceOutcomesMatchWholePass(t *testing.T) {
 	t.Run("null_active_pointer_after_projector_fail", func(t *testing.T) {
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
-		p.prepass()
-		p.quietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
-		p.exec(`INSERT INTO fact_work_items
+		p.Prepass()
+		p.QuietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
+		p.Exec(`INSERT INTO fact_work_items
   (work_item_id, scope_id, generation_id, stage, domain, status, attempt_count, lease_owner, claim_until, visible_at, created_at, updated_at)
 VALUES ('tgt-2/projector', 'git:tgt', 'tgt-2', 'projector', 'source_local', 'running', 1, 'proof-worker', $1, $1, $1, $1)`,
 			targetedDiffBase.Add(3*time.Hour))
-		for _, database := range []*sql.DB{p.whole, p.targeted} {
-			failGenerationThroughProjector(t, p.ctx, database, "git:tgt", "tgt-2")
+		for _, database := range []*sql.DB{p.Whole, p.Targeted} {
+			failGenerationThroughProjector(t, p.Ctx, database, "git:tgt", "tgt-2")
 		}
-		p.run("null_active_pointer_after_projector_fail", targetedDiffCase{
+		runTargetedDiff(p, "null_active_pointer_after_projector_fail", targetedDiffCase{
 			owed:        owedPartitions("git:tgt", "tgt-2"),
 			compared:    partitionSet("git:tgt", "tgt-2"),
 			newEvidence: []string{"repo-tgt->repo-dep"},
@@ -172,17 +174,17 @@ VALUES ('tgt-2/projector', 'git:tgt', 'tgt-2', 'projector', 'source_local', 'run
 	t.Run("owed_repo_id_collision_loser", func(t *testing.T) {
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
-		p.gitRepo("git:b", "b-1", "shared", "beta-svc")
-		p.workItems("git:b", "b-1")
-		p.prepass()
+		p.GitRepo("git:b", "b-1", "shared", "beta-svc")
+		p.WorkItems("git:b", "b-1")
+		p.Prepass()
 		// git:a derives the same repo_id with an identical payload, so the
 		// catalog is unchanged; DISTINCT ON keeps git:b (fact_id DESC).
-		p.scope("git:a")
-		p.generation("git:a", "a-1", 90*time.Minute, true)
-		p.repo("git:a", "a-1", "shared", "beta-svc")
-		p.terraformRef("a-1-ref", "git:a", "a-1", "shared", "a.tf", "orders-api")
-		p.workItems("git:a", "a-1")
-		p.run("owed_repo_id_collision_loser", targetedDiffCase{
+		p.Scope("git:a")
+		p.Generation("git:a", "a-1", 90*time.Minute, true)
+		p.Repo("git:a", "a-1", "shared", "beta-svc")
+		p.TerraformRef("a-1-ref", "git:a", "a-1", "shared", "a.tf", "orders-api")
+		p.WorkItems("git:a", "a-1")
+		runTargetedDiff(p, "owed_repo_id_collision_loser", targetedDiffCase{
 			owed:     owedPartitions("git:a", "a-1"),
 			compared: partitionSet("git:b", "b-1"),
 			// The new shared->repo-dep evidence (from a-1's terraform fact)
@@ -194,20 +196,20 @@ VALUES ('tgt-2/projector', 'git:tgt', 'tgt-2', 'projector', 'source_local', 'run
 			newEvidence: []string{"shared->repo-dep"},
 			published:   partitionSet("git:b", "b-1"),
 			reopened:    workIDs("b-1"),
-			outcomes:    map[string]TargetedMaintenanceOutcomeKind{"git:a/a-1": TargetedMaintenanceInapplicable},
+			outcomes:    map[string]postgres.TargetedMaintenanceOutcomeKind{"git:a/a-1": postgres.TargetedMaintenanceInapplicable},
 		})
 	})
 
 	t.Run("no_anchor_empty_catalog", func(t *testing.T) {
 		p := newTargetedDiffPair(t)
-		p.scope(targetedGCPScope)
-		p.generation(targetedGCPScope, "gcp-1", 0, true)
-		p.gcpRelation("gcp-1-edge", "gcp-1", "order-gateway", "payments-service")
-		p.workItems(targetedGCPScope, "gcp-1")
-		p.run("no_anchor_empty_catalog", targetedDiffCase{
+		p.Scope(targetedGCPScope)
+		p.Generation(targetedGCPScope, "gcp-1", 0, true)
+		p.GCPRelation("gcp-1-edge", "gcp-1", "order-gateway", "payments-service")
+		p.WorkItems(targetedGCPScope, "gcp-1")
+		runTargetedDiff(p, "no_anchor_empty_catalog", targetedDiffCase{
 			owed:     owedPartitions(targetedGCPScope, "gcp-1"),
 			compared: map[backfill.ScopeGenerationPartition]struct{}{},
-			outcomes: map[string]TargetedMaintenanceOutcomeKind{targetedGCPScope + "/gcp-1": TargetedMaintenanceInapplicable},
+			outcomes: map[string]postgres.TargetedMaintenanceOutcomeKind{targetedGCPScope + "/gcp-1": postgres.TargetedMaintenanceInapplicable},
 		})
 	})
 
@@ -217,20 +219,20 @@ VALUES ('tgt-2/projector', 'git:tgt', 'tgt-2', 'projector', 'source_local', 'run
 		// but it must say that its refusal suppressed the evidence work.
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
-		p.prepass()
-		p.scope(targetedGCPScope)
-		p.generation(targetedGCPScope, "gcp-1", 0, true)
-		p.gcpRelation("gcp-1-edge", "gcp-1", "order-gateway", "payments-service")
-		p.workItems(targetedGCPScope, "gcp-1")
-		p.exec(`INSERT INTO deferred_backfill_partition_memo (scope_id, generation_id, catalog_fingerprint, committed_at)
+		p.Prepass()
+		p.Scope(targetedGCPScope)
+		p.Generation(targetedGCPScope, "gcp-1", 0, true)
+		p.GCPRelation("gcp-1-edge", "gcp-1", "order-gateway", "payments-service")
+		p.WorkItems(targetedGCPScope, "gcp-1")
+		p.Exec(`INSERT INTO deferred_backfill_partition_memo (scope_id, generation_id, catalog_fingerprint, committed_at)
 VALUES ('git:dep', 'dep-1', 'stale-fingerprint', $1) ON CONFLICT (scope_id, generation_id) DO UPDATE SET catalog_fingerprint = EXCLUDED.catalog_fingerprint`, targetedDiffBase)
 		reader := sdkmetric.NewManualReader()
 		instruments, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("tgt7584-suppressed"))
 		if err != nil {
 			t.Fatalf("NewInstruments: %v", err)
 		}
-		result, err := targetedDiffStore(p.targeted, targetedDiffArmsAt).RunDeferredRelationshipMaintenanceForPartitions(
-			p.ctx, nil, instruments, owedPartitions(targetedGCPScope, "gcp-1"))
+		result, err := targetedDiffStore(p.Targeted, targetedDiffArmsAt).RunDeferredRelationshipMaintenanceForPartitions(
+			p.Ctx, nil, instruments, owedPartitions(targetedGCPScope, "gcp-1"))
 		if err != nil {
 			t.Fatalf("all-inapplicable pass: error = %v, want nil", err)
 		}
@@ -252,21 +254,21 @@ VALUES ('git:dep', 'dep-1', 'stale-fingerprint', $1) ON CONFLICT (scope_id, gene
 	t.Run("telemetry_counts_targeted_only", func(t *testing.T) {
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
-		p.prepass()
-		p.quietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
+		p.Prepass()
+		p.QuietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
 		reader := sdkmetric.NewManualReader()
 		instruments, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("tgt7584"))
 		if err != nil {
 			t.Fatalf("NewInstruments: %v", err)
 		}
-		store := targetedDiffStore(p.targeted, targetedDiffArmsAt)
-		if _, err := store.RunDeferredRelationshipMaintenanceForPartitions(p.ctx, nil, instruments, owedPartitions("git:tgt", "tgt-2")); err != nil {
+		store := targetedDiffStore(p.Targeted, targetedDiffArmsAt)
+		if _, err := store.RunDeferredRelationshipMaintenanceForPartitions(p.Ctx, nil, instruments, owedPartitions("git:tgt", "tgt-2")); err != nil {
 			t.Fatalf("targeted pass: %v", err)
 		}
-		p.exec(`INSERT INTO deferred_backfill_partition_memo (scope_id, generation_id, catalog_fingerprint, committed_at)
+		p.Exec(`INSERT INTO deferred_backfill_partition_memo (scope_id, generation_id, catalog_fingerprint, committed_at)
 VALUES ('git:dep', 'dep-1', 'stale-fingerprint', $1) ON CONFLICT (scope_id, generation_id) DO UPDATE SET catalog_fingerprint = EXCLUDED.catalog_fingerprint`, targetedDiffBase)
-		if _, err := store.RunDeferredRelationshipMaintenanceForPartitions(p.ctx, nil, instruments, owedPartitions("git:tgt", "tgt-2")); !errors.Is(err, ErrTargetedMaintenanceCatalogChanged) {
-			t.Fatalf("stale memo: error = %v, want ErrTargetedMaintenanceCatalogChanged", err)
+		if _, err := store.RunDeferredRelationshipMaintenanceForPartitions(p.Ctx, nil, instruments, owedPartitions("git:tgt", "tgt-2")); !errors.Is(err, postgres.ErrTargetedMaintenanceCatalogChanged) {
+			t.Fatalf("stale memo: error = %v, want postgres.ErrTargetedMaintenanceCatalogChanged", err)
 		}
 		var rm metricdata.ResourceMetrics
 		if err := reader.Collect(context.Background(), &rm); err != nil {
@@ -311,12 +313,12 @@ VALUES ('git:dep', 'dep-1', 'stale-fingerprint', $1) ON CONFLICT (scope_id, gene
 }
 
 // failGenerationThroughProjector fails the running projector item of
-// (scopeID, generationID) through the real ProjectorQueue.Fail path, which
+// (scopeID, generationID) through the real postgres.ProjectorQueue.Fail path, which
 // nulls the scope's active pointer when the failed generation is the active
 // one, and asserts the pointer is NULL afterwards.
 func failGenerationThroughProjector(t *testing.T, ctx context.Context, database *sql.DB, scopeID, generationID string) {
 	t.Helper()
-	queue := NewProjectorQueue(SQLDB{DB: database}, "proof-worker", time.Minute)
+	queue := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "proof-worker", time.Minute)
 	queue.Now = func() time.Time { return targetedDiffBase.Add(100 * time.Minute) }
 	work := projector.ScopeGenerationWork{
 		Scope:        scope.IngestionScope{ScopeID: scopeID},
@@ -324,7 +326,7 @@ func failGenerationThroughProjector(t *testing.T, ctx context.Context, database 
 		AttemptCount: 1,
 	}
 	if err := queue.Fail(ctx, work, errors.New("injected terminal projection failure")); err != nil {
-		t.Fatalf("ProjectorQueue.Fail: %v", err)
+		t.Fatalf("postgres.ProjectorQueue.Fail: %v", err)
 	}
 	var pointer sql.NullString
 	if err := database.QueryRowContext(ctx,
