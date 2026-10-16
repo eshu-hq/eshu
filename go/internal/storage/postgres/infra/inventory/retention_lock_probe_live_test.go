@@ -130,6 +130,32 @@ func newRetentionProbeRoundContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), 90*time.Second)
 }
 
+// retentionPhaseTrace records test-side phase boundaries against the original
+// round context. Its logger only observes time and context state.
+type retentionPhaseTrace struct {
+	ctx          context.Context
+	round        int
+	roundStarted time.Time
+	logf         func(string, ...any)
+}
+
+func (trace retentionPhaseTrace) mark(phase, boundary string, phaseStarted time.Time, outcome string) {
+	now := time.Now()
+	deadline, _ := trace.ctx.Deadline()
+	trace.logf("RETENTION_PHASE round=%d phase=%s boundary=%s outcome=%s utc=%s round_elapsed=%s phase_elapsed=%s original_ctx_deadline_utc=%s original_ctx_remaining=%s ctx_err=%v",
+		trace.round, phase, boundary, outcome, now.UTC().Format(time.RFC3339Nano),
+		now.Sub(trace.roundStarted), now.Sub(phaseStarted),
+		deadline.UTC().Format(time.RFC3339Nano), deadline.Sub(now), trace.ctx.Err())
+}
+
+func (trace retentionPhaseTrace) finish(activePhase string, failed bool) {
+	outcome := "ok"
+	if failed {
+		outcome = "failed_in_" + activePhase
+	}
+	trace.mark("round", "end", trace.roundStarted, outcome)
+}
+
 // TestRetentionLiveLockHoldAndDeriveWaitCost measures what the #6793 retention
 // locks cost the content writer. Each round prunes one
 // batch of 10 superseded generations (50,000 content_entity facts, all infra
@@ -165,34 +191,77 @@ func runRetentionProbeRound(t *testing.T, sqlDB *sql.DB, other string, round int
 	t.Helper()
 	ctx, cancel := newRetentionProbeRoundContext()
 	defer cancel()
+	trace := retentionPhaseTrace{ctx: ctx, round: round, roundStarted: time.Now(), logf: t.Logf}
+	activePhase := "round"
+	trace.mark("round", "start", trace.roundStarted, "running")
+	defer func() { trace.finish(activePhase, t.Failed() || ctx.Err() != nil) }()
 	database := postgres.SQLDB{DB: sqlDB}
 	store := postgres.NewGenerationRetentionStore(database)
+	activePhase = "drain"
+	phaseStarted := time.Now()
+	trace.mark(activePhase, "start", phaseStarted, "running")
 	drainRetention(t, ctx, store)
+	trace.mark(activePhase, "end", phaseStarted, "ok")
+	activePhase = "round"
 	// Retention alone, to sample the lock hold.
 	repo := uniqueRepo(t)
+	activePhase = "seed_first"
+	phaseStarted = time.Now()
+	trace.mark(activePhase, "start", phaseStarted, "running")
 	seedRetentionProbeRepo(t, ctx, sqlDB, repo)
+	trace.mark(activePhase, "end", phaseStarted, "ok")
+	activePhase = "round"
 	stop := make(chan struct{})
 	hold, err := watchAdvisoryLockHold(ctx, sqlDB, stop)
 	if err != nil {
 		t.Fatalf("watch locks: %v", err)
 	}
+	activePhase = "prune_first"
+	phaseStarted = time.Now()
+	trace.mark(activePhase, "start", phaseStarted, "running")
 	result, err := store.PruneSupersededGenerations(ctx, probeRetentionPolicy())
+	outcome := "ok"
+	if err != nil {
+		outcome = "error"
+	}
+	trace.mark(activePhase, "end", phaseStarted, outcome)
 	close(stop)
 	lockHold := <-hold
 	if err != nil {
 		t.Fatalf("PruneSupersededGenerations() error = %v", err)
 	}
+	activePhase = "check_first"
+	phaseStarted = time.Now()
+	trace.mark(activePhase, "start", phaseStarted, "running")
 	if got := result.RowsPruned["infra_resource_entities"]; got != wantPruned {
 		t.Fatalf("round %d infra_resource_entities pruned = %d, want %d", round, got, wantPruned)
 	}
+	trace.mark(activePhase, "end", phaseStarted, "ok")
+	activePhase = "round"
 
 	// A derive of the same repository racing retention.
 	repo = uniqueRepo(t)
+	activePhase = "seed_second"
+	phaseStarted = time.Now()
+	trace.mark(activePhase, "start", phaseStarted, "running")
 	seedRetentionProbeRepo(t, ctx, sqlDB, repo)
+	trace.mark(activePhase, "end", phaseStarted, "ok")
+	activePhase = "baseline_derive"
+	phaseStarted = time.Now()
+	trace.mark(activePhase, "start", phaseStarted, "running")
 	baseline := timedDerive(t, ctx, database, repo)
+	trace.mark(activePhase, "end", phaseStarted, "ok")
+	activePhase = "round"
 	retentionDone := make(chan error, 1)
 	go func() {
+		started := time.Now()
+		trace.mark("prune_second", "start", started, "running")
 		_, err := store.PruneSupersededGenerations(ctx, probeRetentionPolicy())
+		outcome := "ok"
+		if err != nil {
+			outcome = "error"
+		}
+		trace.mark("prune_second", "end", started, outcome)
 		retentionDone <- err
 	}()
 	joined := false
@@ -202,17 +271,38 @@ func runRetentionProbeRound(t *testing.T, sqlDB *sql.DB, other string, round int
 			<-retentionDone
 		}
 	}()
+	activePhase = "wait_lock"
+	phaseStarted = time.Now()
+	trace.mark(activePhase, "start", phaseStarted, "running")
 	waitForAdvisoryLock(t, ctx, sqlDB)
+	trace.mark(activePhase, "end", phaseStarted, "ok")
+	activePhase = "other_derive"
+	phaseStarted = time.Now()
+	trace.mark(activePhase, "start", phaseStarted, "running")
 	otherWait := timedDerive(t, ctx, database, other)
+	trace.mark(activePhase, "end", phaseStarted, "ok")
+	activePhase = "same_derive"
+	phaseStarted = time.Now()
+	trace.mark(activePhase, "start", phaseStarted, "running")
 	deriveWait := timedDerive(t, ctx, database, repo)
+	trace.mark(activePhase, "end", phaseStarted, "ok")
+	activePhase = "join_prune_second"
+	phaseStarted = time.Now()
+	trace.mark(activePhase, "start", phaseStarted, "running")
 	retentionErr := <-retentionDone
+	trace.mark(activePhase, "end", phaseStarted, "ok")
 	joined = true
+	activePhase = "check_final"
+	phaseStarted = time.Now()
+	trace.mark(activePhase, "start", phaseStarted, "running")
 	if retentionErr != nil {
 		t.Fatalf("PruneSupersededGenerations() error = %v", retentionErr)
 	}
 	if rows := tableRows(t, ctx, sqlDB, repo); len(rows) != 0 {
 		t.Fatalf("round %d: %d read-model rows survived retention, want 0", round, len(rows))
 	}
+	trace.mark(activePhase, "end", phaseStarted, "ok")
+	activePhase = "round"
 	t.Logf("No-Regression Evidence: round=%d retention_duration=%s lock_hold=%s derive_baseline=%s derive_wait=%s other_repo=%s",
 		round, result.Duration, lockHold, baseline, deriveWait, otherWait)
 }

@@ -5,6 +5,9 @@ package inventory_test
 
 import (
 	"context"
+	"fmt"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -28,5 +31,50 @@ func TestRetentionProbeRoundContextIsFreshAndBounded(t *testing.T) {
 	cancelSecond()
 	if second.Err() != context.Canceled {
 		t.Fatalf("current round cancellation = %v, want canceled", second.Err())
+	}
+}
+
+func TestRetentionPhaseTraceRecordsOriginalBudgetAndFailure(t *testing.T) {
+	ctx, cancel := newRetentionProbeRoundContext()
+	defer cancel()
+	var records []string
+	trace := retentionPhaseTrace{
+		ctx:          ctx,
+		round:        2,
+		roundStarted: time.Now(),
+		logf: func(format string, args ...any) {
+			records = append(records, fmt.Sprintf(format, args...))
+		},
+	}
+	started := time.Now()
+	trace.mark("seed_first", "start", started, "running")
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		defer trace.finish("seed_first", true)
+		runtime.Goexit()
+	}()
+	<-done
+	if len(records) != 2 {
+		t.Fatalf("phase records = %d, want start and failed round end", len(records))
+	}
+	for _, record := range records {
+		for _, field := range []string{
+			"round=2", "utc=", "round_elapsed=", "original_ctx_deadline_utc=",
+			"original_ctx_remaining=", "ctx_err=<nil>",
+		} {
+			if !strings.Contains(record, field) {
+				t.Errorf("record %q missing %q", record, field)
+			}
+		}
+	}
+	if !strings.Contains(records[0], "phase=seed_first boundary=start outcome=running") {
+		t.Errorf("start record = %q", records[0])
+	}
+	if !strings.Contains(records[1], "phase=round boundary=end outcome=failed_in_seed_first") {
+		t.Errorf("failure record = %q", records[1])
+	}
+	if ctx.Err() != nil {
+		t.Fatalf("tracing changed original context: %v", ctx.Err())
 	}
 }
