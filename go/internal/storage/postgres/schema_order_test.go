@@ -438,4 +438,9 @@ var orderedBootstrapDefinitionNames = []string{
 	// repository_selection_observations on installs that already applied
 	// migration 166.
 	"repository_selection_observations_gitlab_group",
+	// Migration 179 (#7929) covers the reachability loader's per-run
+	// max(completed_at) probe with the probe's equality columns plus the
+	// domain IN list and trailing completed_at, partial to completed rows,
+	// so each probe is an index-only scan instead of a heap walk.
+	"shared_projection_intents_acceptance_completed_idx",
 }
