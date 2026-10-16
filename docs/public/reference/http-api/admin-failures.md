@@ -83,6 +83,15 @@ reader-verdict `503` with `Retry-After`. It runs with no route deadline and
 never answers `504`. Every mutation can still answer the checkpoint `503`
 and its configuration `503`, as described in [Statuses](#statuses).
 
+### Claim-fence busy responses
+
+`POST /api/v0/admin/refinalize` and `POST /api/v0/admin/recover-generations`
+make bounded attempts to admit work through the reducer claim fence. If the
+fence stays busy, the route answers `409` with `blocked/claim_fence_busy`;
+retry after queue contention subsides. For recover-generations, the failed
+transaction is rolled back while the idempotency ledger remains `in_progress`,
+so retry with a fresh `idempotency_key`.
+
 | Route | Failed step | Fixed message |
 | --- | --- | --- |
 | `POST /api/v0/admin/refinalize` | refinalize | `refinalize failed` |
