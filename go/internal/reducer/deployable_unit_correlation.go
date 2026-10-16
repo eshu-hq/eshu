@@ -15,6 +15,7 @@ import (
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 )
@@ -53,6 +54,11 @@ type DeployableUnitCorrelationHandler struct {
 	ResolutionProducerLookup crossrepo.ProducerLookup
 	// CanonicalQuiescence keeps graph writes behind repository projection.
 	CanonicalQuiescence CanonicalCodeQuiescenceChecker
+	// ReopenFingerprintRecorder stores the fenced read's input fingerprint
+	// on success, after every graph write, so the deferred-maintenance reopen
+	// leaves an unchanged item succeeded (#8283). Nil records nothing and
+	// every success keeps its unconditional reopen.
+	ReopenFingerprintRecorder reducercontract.DeployableUnitReopenFingerprintRecorder
 	// Logger receives the bound-expiry WARN emitted when a shared-edge target
 	// stays absent past the wait bound (#7268). main.go wires the reducer's
 	// structured logger so the WARN carries its trace and service fields; nil
@@ -117,7 +123,7 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	}
 	// The corpus fence and the foreign read share one statement snapshot when
 	// the store offers it (#6740); see the workload loader for the rationale.
-	read, err := readCorpusFencedResolvedRelationships(ctx, h.ResolvedLoader, h.ResolutionsCompleteLookup, intent, candidates)
+	read, err := readDeployableUnitResolvedInput(ctx, h.ResolvedLoader, h.ResolutionsCompleteLookup, intent, candidates)
 	if err != nil {
 		return Result{}, fmt.Errorf("load resolved relationships for deployable unit correlation: %w", err)
 	}
@@ -160,6 +166,9 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		); err != nil {
 			return Result{}, err
 		}
+		if err := h.recordReopenFingerprint(ctx, intent, read); err != nil {
+			return Result{}, err
+		}
 		// Refine the raw filter reason before logging so a foreign-key zero
 		// reads as foreign_key_expected, mirroring the workload-materialization
 		// path (#7384 Q4): the filter itself reports no_key_match and only a
@@ -191,6 +200,9 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		GraphProjectionPhaseDeployableUnitCorrelation,
 		time.Now().UTC(),
 	); err != nil {
+		return Result{}, err
+	}
+	if err := h.recordReopenFingerprint(ctx, intent, read); err != nil {
 		return Result{}, err
 	}
 
@@ -436,4 +448,25 @@ func deployableUnitStructuralEvidence(
 		})
 	}
 	return evidence
+}
+
+// recordReopenFingerprint stores the input fingerprint of a run that is about
+// to succeed, fenced on its exact claim (#8283). It runs after every graph
+// write, so a crash before it leaves the previous row, which no longer
+// matches and re-opens the item. An unclaimed run (no ClaimedAt) records
+// nothing: without a claim there is nothing to fence the write on.
+func (h DeployableUnitCorrelationHandler) recordReopenFingerprint(
+	ctx context.Context,
+	intent Intent,
+	read corpusFencedResolvedRead,
+) error {
+	if h.ReopenFingerprintRecorder == nil || !read.fingerprinted || intent.ClaimedAt == nil {
+		return nil
+	}
+	if err := h.ReopenFingerprintRecorder.RecordDeployableUnitReopenFingerprint(
+		ctx, intent.IntentID, intent.ClaimedAt.UTC(), read.fingerprint,
+	); err != nil {
+		return fmt.Errorf("record deployable unit reopen fingerprint: %w", err)
+	}
+	return nil
 }

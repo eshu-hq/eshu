@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/engine"
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
@@ -274,11 +275,14 @@ type CorpusFencedResolvedRelationshipLoader interface {
 // and the corpus fence verdict it was admitted under. fenceErr carries a
 // separate-statement fence lookup failure (a deferral cause, not a read
 // failure); it is always nil on the fused path, whose query error is a read
-// error.
+// error. fingerprint and fingerprinted are set only by
+// readDeployableUnitResolvedInput (#8283).
 type corpusFencedResolvedRead struct {
-	resolved []relationships.ResolvedRelationship
-	complete bool
-	fenceErr error
+	resolved      []relationships.ResolvedRelationship
+	complete      bool
+	fenceErr      error
+	fingerprint   reducercontract.ResolvedReadFingerprint
+	fingerprinted bool
 }
 
 // readCorpusFencedResolvedRelationships loads the resolved relationships a
@@ -309,21 +313,7 @@ func readCorpusFencedResolvedRelationships(
 		if err != nil {
 			return corpusFencedResolvedRead{}, err
 		}
-		if !complete {
-			return corpusFencedResolvedRead{}, nil
-		}
-		// The own-scope read is pinned to the intent's active generation,
-		// whose rows are immutable once active, so reading it after the
-		// verdict loses nothing and a deferral never pays for it (#6740
-		// review F1).
-		resolved, err := loadResolvedRelationshipsForIntent(ctx, loader, intent)
-		if err != nil {
-			return corpusFencedResolvedRead{}, err
-		}
-		return corpusFencedResolvedRead{
-			resolved: mergeResolvedRelationships(resolved, repoResolved),
-			complete: true,
-		}, nil
+		return finishFusedResolvedRead(ctx, loader, intent, repoResolved, complete)
 	}
 	complete, err := corpusResolutionsComplete(ctx, completeLookup, candidates)
 	if err != nil || !complete || loader == nil {
@@ -340,6 +330,31 @@ func readCorpusFencedResolvedRelationships(
 		return corpusFencedResolvedRead{fenceErr: err}, nil
 	}
 	return corpusFencedResolvedRead{resolved: resolved, complete: true}, nil
+}
+
+// finishFusedResolvedRead completes a fused corpus-fenced read: an incomplete
+// verdict returns before the own-scope read, otherwise the own-scope rows are
+// merged with the by-repos rows the verdict admitted. The own-scope read is
+// pinned to the intent's generation, so reading it after the verdict loses
+// nothing and a deferral never pays for it (#6740 review F1).
+func finishFusedResolvedRead(
+	ctx context.Context,
+	loader ResolvedRelationshipLoader,
+	intent Intent,
+	repoResolved []relationships.ResolvedRelationship,
+	complete bool,
+) (corpusFencedResolvedRead, error) {
+	if !complete {
+		return corpusFencedResolvedRead{}, nil
+	}
+	resolved, err := loadResolvedRelationshipsForIntent(ctx, loader, intent)
+	if err != nil {
+		return corpusFencedResolvedRead{}, err
+	}
+	return corpusFencedResolvedRead{
+		resolved: mergeResolvedRelationships(resolved, repoResolved),
+		complete: true,
+	}, nil
 }
 
 func loadWorkloadResolvedRelationships(

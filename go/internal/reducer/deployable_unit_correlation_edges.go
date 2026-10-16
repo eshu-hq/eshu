@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
@@ -72,6 +73,46 @@ func (deployableUnitCorrelationResolutionNotReadyError) Retryable() bool { retur
 
 func (deployableUnitCorrelationResolutionNotReadyError) FailureClass() string {
 	return DeployableUnitCorrelationResolutionNotReadyFailureClass
+}
+
+// FingerprintedCorpusFencedResolvedRelationshipLoader is the fused
+// corpus-fenced by-repos read that also returns the input fingerprint its
+// statement computed over the rows it returned (#8283). The deployable-unit
+// handler prefers it so its success write records exactly what it read.
+type FingerprintedCorpusFencedResolvedRelationshipLoader interface {
+	GetFingerprintedResolvedRelationshipsForReposWithCorpusFence(
+		ctx context.Context,
+		repoIDs []string,
+	) ([]relationships.ResolvedRelationship, bool, reducercontract.ResolvedReadFingerprint, error)
+}
+
+// readDeployableUnitResolvedInput is readCorpusFencedResolvedRelationships
+// plus the input fingerprint the reopen gate compares (#8283). A run with no
+// candidate reads no by-repos input, so its output cannot change with
+// resolution and it is fingerprinted with an empty repository set. A loader
+// without the fingerprinted read yields an unfingerprinted read, which records
+// nothing and keeps the item's unconditional reopen.
+func readDeployableUnitResolvedInput(
+	ctx context.Context,
+	loader ResolvedRelationshipLoader,
+	completeLookup accepted.RelationshipGenerationsCompleteLookup,
+	intent Intent,
+	candidates []WorkloadCandidate,
+) (corpusFencedResolvedRead, error) {
+	fingerprinted, ok := loader.(FingerprintedCorpusFencedResolvedRelationshipLoader)
+	if !ok || len(candidates) == 0 {
+		read, err := readCorpusFencedResolvedRelationships(ctx, loader, completeLookup, intent, candidates)
+		read.fingerprinted = err == nil && read.complete && len(candidates) == 0
+		return read, err
+	}
+	repoResolved, complete, fingerprint, err := fingerprinted.
+		GetFingerprintedResolvedRelationshipsForReposWithCorpusFence(ctx, workloadCandidateRepoIDs(candidates))
+	if err != nil {
+		return corpusFencedResolvedRead{}, err
+	}
+	read, err := finishFusedResolvedRead(ctx, loader, intent, repoResolved, complete)
+	read.fingerprint, read.fingerprinted = fingerprint, err == nil && read.complete
+	return read, err
 }
 
 // deployableUnitCorpusFenceDeferral defers the intent while the corpus fence
