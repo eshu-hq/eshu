@@ -275,7 +275,7 @@ The arbiter ruling on #7601 (2026-10-05) accepted each of these deviations.
 ## Fixture-directory manifests (#8244)
 
 The nearest-`package.json` rule above now stops at a manifest under a test,
-tests, fixtures, testdata, or examples directory: `project.NearestPackageName`
+tests, fixtures, testdata, or examples directory: `project.ProducerPackageName`
 returns no name there and does not fall through to an outer manifest, and the
 package.json producer read excludes the same stored paths. See
 [8244-package-json-fixture-manifests.md](8244-package-json-fixture-manifests.md).

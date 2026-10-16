@@ -35,7 +35,7 @@
 - The fixture exclusion in `ComposerManifestsQuery` and
   `PackageManifestsQuery` is `shared.FixtureDirPattern`, concatenated into the
   SQL, never retyped (`composer.FixtureDirPattern` is an alias of it). The
-  parsers' `ProducerPackage` and `NearestPackageName` apply the same constant,
+  parsers' `ProducerPackage` and `ProducerPackageName` apply the same constant,
   so each anchor and its `package_id` stamp agree. Keep it a row filter: it
   needs no index
   (`docs/internal/evidence/8223-composer-fixture-manifests.md`,

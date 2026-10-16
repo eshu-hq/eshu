@@ -27,10 +27,22 @@ Two places apply it for package.json:
 - `PackageManifestsQuery` (loader anchor) filters with
   `relative_path !~ '<pattern>'`, built from the constant. The `node_modules`
   exclusion (`!~*`, segment prefix) is unchanged.
-- `project.NearestPackageName` (parser stamp) returns no name when the nearest
-  manifest sits under a fixture segment, relative to the repository root. It
-  does not fall through to an outer manifest, so a fixture class never
-  inherits the root package name.
+- `project.ProducerPackageName` (parser stamp, read for `package_id` and
+  `export_name`) returns no name when the nearest manifest sits under a
+  fixture segment, relative to the repository root. It does not fall through to
+  an outer manifest, so a fixture class never inherits the root package name.
+
+`node_package_name` is intentionally ungated. `project.NearestPackageName`
+still returns the nearest manifest's name for a file under a fixture manifest.
+That field records which package owns the file, not that the package is
+published. Two consumers read it: the reducer's same-repository workspace
+fallback (`nodePackageNamesByRepo`, #7610) and the `source_package` stamp on
+`IMPORTS` edges for `file_import_cycles` (#7348). Both are placement questions
+that are accurate for a fixture package, and neither is a producer claim, so
+gating them would silently change same-repository fallback and cycle collapsing
+for fixture files. The parser reads both names from one walk
+(`project.PackageNames`) and uses the gated one only for `package_id` and
+`export_name`.
 
 Both sides must agree. If only the anchor excluded fixtures, a repository with a
 real root manifest and a same-named fixture manifest would still stamp both
@@ -62,6 +74,11 @@ Read-only counts on the QA replica (counts only, no repository names or ids),
   5 names equals the name of a manifest outside the fixture set. The name test
   is a regular-expression read of the first `"name"` key, so the collision count
   is approximate; the 5 and 462 are exact.
+
+These counts differ from the 4 of 470 recorded in #8223 and the issue because
+the stored corpus changed between the two measurements (462 rows now against
+470 then); the numbers are two readings of a moving corpus, not a discrepancy
+in the filter.
 
 So the exposure is real but small: one name could bind a consumer import to a
 fixture manifest's repository (or make two repositories look like producers of
@@ -98,7 +115,7 @@ afterwards): the live loader test seeds a real manifest next to a same-named
 fixture manifest, six scaffold-only repositories, and a `packages/testing`
 look-alike. It fails on the unfixed predicate (the five fixture-only scopes
 load) and passes with it. A second live test evaluates the one constant with
-PostgreSQL `~` and with Go on 28 paths, including the long s (U+017F) cases
+PostgreSQL `~` and with Go on 29 paths, including the long s (U+017F) cases
 where a flag-based pattern disagrees, and the results are equal on every path.
 
 No-Observability-Change: the loader still counts every row the read returns in
@@ -130,10 +147,11 @@ isolates the parser change.
 - `go/internal/parser/shared/fixture_dir_test.go`: segment, case, substring, and
   long-s table.
 - `go/internal/parser/javascript/project/package_name_fixture_test.go`:
-  `NearestPackageName` across a directory table, the no-fall-through walk, and
-  the manifest-location limit.
+  `ProducerPackageName` across a directory table, the no-fall-through walk, the
+  manifest-location limit, and that `NearestPackageName` stays ungated.
 - `go/internal/parser/javascript/engine_package_fixture_manifest_test.go`: the
-  real engine stamps no key under a fixture manifest.
+  real engine stamps no `package_id` or `export_name` under a fixture manifest
+  and keeps `node_package_name`.
 - `TestPackageManifestsQueryShape` and
   `TestFixtureDirPatternIsOneConstantAcrossEcosystems` (producers package): the
   SQL embeds the shared constant with `!~`, and the composer and package.json

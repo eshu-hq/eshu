@@ -31,7 +31,7 @@ import (
 // (test, tests, fixtures, testdata, examples; whole segments, any ASCII case) is
 // excluded the same way for the same reason (#8244): it is test scaffolding that
 // can reuse a real package name. The predicate is shared.FixtureDirPattern, the
-// constant the parser's NearestPackageName applies and the composer read embeds.
+// constant the parser's ProducerPackageName applies and the composer read embeds.
 // Its case folding is ASCII classes with !~, never ~*, so no fold or locale
 // differs between the two dialects. It is a row filter on the bitmap scan the
 // path predicate already drives, not a new index

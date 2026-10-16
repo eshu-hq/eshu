@@ -193,7 +193,8 @@ has no composer files, so the re-pin moves only
 `content_version`; the digest and the 238-fact count are unchanged. A PHP
 composer change was therefore not caught by the pin at v3. Later bumps:
 `git-collector.v4` (#8222, PHP import kind) and `git-collector.v5` (#8223,
-fixture-directory composer manifests no longer stamp `package_id`). The
+fixture-directory composer manifests no longer stamp `package_id`), and
+`git-collector.v6` (#8244, the same rule for package.json). The
 `content_version` fixture now carries `php-lib/` with a real root
 `composer.json` and class plus a same-named manifest and class in a nested
 `app` directory below a tests and fixtures path, so a change to the composer producer rule moves
