@@ -1,7 +1,7 @@
 -- SPDX-License-Identifier: MIT
 -- Copyright (c) 2025-2026 eshu-hq
 
--- #7926: work-item mirror of migration 182. workflow_work_items carries the
+-- #7926: work-item mirror of migration 184. workflow_work_items carries the
 -- last failure per item (last_failure_class/last_failure_message) so
 -- operators can read terminal classification without joining workflow_claims;
 -- this adds the same bounded operation token, HTTP status code, and terminal
