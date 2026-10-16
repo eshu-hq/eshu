@@ -16,12 +16,15 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 )
 
-// TestVersionFenceDeletePlanSortsUnderModifyTableLive is ruling addition 3a.
-// The ascending lock order of the DELETE fence is executor behavior, not a
-// documented guarantee, so this test records the plan the trigger statement
-// actually runs: auto_explain logs the nested statement as a notice, and the
-// Insert on config_artifact_content_versions must read its rows through a
-// Sort on r.repo_id.
+// TestVersionFenceDeletePlanSortsUnderModifyTableLive is ruling addition 3a,
+// on the commit-time fence (arb-8155-f1). The ascending lock order is
+// executor behavior, not a documented guarantee, so this test records the
+// plan the commit statement actually runs: auto_explain logs the deferred
+// trigger's upsert as a notice at COMMIT, and the Insert on
+// config_artifact_content_versions must read the staged rows in repo_id
+// order, either through a Sort on p.repo_id or through the pending table's
+// (bumped_xid, repo_id) primary key with bumped_xid fixed, with no
+// reordering node between.
 func TestVersionFenceDeletePlanSortsUnderModifyTableLive(t *testing.T) {
 	ctx, db := openDatabase(t)
 	insertContentRows(ctx, t, db, "plan", 20, "repo-plan-a", "repo-plan-b", "repo-plan-c")
@@ -48,31 +51,34 @@ func TestVersionFenceDeletePlanSortsUnderModifyTableLive(t *testing.T) {
 	defer mu.Unlock()
 	for _, n := range notices {
 		insertAt := strings.Index(n, "Insert on config_artifact_content_versions")
-		if insertAt < 0 || !strings.Contains(n, "fence_old_rows") {
+		if insertAt < 0 || !strings.Contains(n, "config_artifact_fence_pending") {
 			continue
 		}
-		// The Sort must feed the Insert with nothing that reorders in
-		// between: the planner may sort fence_old_rows for the DISTINCT and
-		// reuse that order for ORDER BY r.repo_id (Unique over Sort), or
-		// sort r after a HashAggregate.
 		plan := n[insertAt:]
 		sortAt := strings.Index(plan, "->  Sort")
-		if sortAt < 0 {
-			t.Fatalf("DELETE fence plan has no Sort under the Insert:\n%s", n)
+		scanAt := strings.Index(plan, "Index Scan using config_artifact_fence_pending_pkey")
+		switch {
+		case sortAt >= 0:
+			key := plan[sortAt:]
+			key = key[strings.Index(key, "Sort Key:")+len("Sort Key:"):]
+			key = strings.TrimSpace(key[:strings.IndexByte(key, '\n')])
+			if key != "p.repo_id" {
+				t.Fatalf("commit fence Sort Key = %q, want p.repo_id:\n%s", key, n)
+			}
+			if above := plan[:sortAt]; strings.Contains(above, "Aggregate") || strings.Contains(above, "Hash") {
+				t.Fatalf("a reordering node sits between the Insert and the Sort:\n%s", n)
+			}
+		case scanAt >= 0:
+			if above := plan[:scanAt]; strings.Contains(above, "Aggregate") || strings.Contains(above, "Hash") || strings.Contains(above, "Bitmap") {
+				t.Fatalf("a reordering node sits between the Insert and the pending-key scan:\n%s", n)
+			}
+		default:
+			t.Fatalf("commit fence plan reads the staged rows in no repo_id order:\n%s", n)
 		}
-		key := plan[sortAt:]
-		key = key[strings.Index(key, "Sort Key:")+len("Sort Key:"):]
-		key = strings.TrimSpace(key[:strings.IndexByte(key, '\n')])
-		if key != "r.repo_id" && key != "fence_old_rows.repo_id" {
-			t.Fatalf("DELETE fence Sort Key = %q, want repo_id:\n%s", key, n)
-		}
-		if above := plan[:sortAt]; strings.Contains(above, "Aggregate") || strings.Contains(above, "Hash") {
-			t.Fatalf("a reordering node sits between the Insert and the Sort:\n%s", n)
-		}
-		t.Logf("DELETE fence trigger plan:\n%s", n)
+		t.Logf("commit fence plan:\n%s", n)
 		return
 	}
-	t.Fatalf("auto_explain logged no plan for the DELETE fence statement; notices: %q", notices)
+	t.Fatalf("auto_explain logged no plan for the commit fence statement; notices: %q", notices)
 }
 
 // noticeConn opens a pgx connection to db's database that reports notices.
@@ -148,10 +154,10 @@ func TestVersionFenceConcurrentPrunesShareRepositoriesLive(t *testing.T) {
 			}()
 		}
 		run(0)
-		waitForLockWaiters(ctx, t, db, "DELETE FROM content_files AS t", 1)
+		waitForLockWaiters(ctx, t, db, retentionCommitWaiter, 1)
 		ySet.release(t)
 		run(1)
-		waitForLockWaiters(ctx, t, db, "DELETE FROM content_files AS t", 2)
+		waitForLockWaiters(ctx, t, db, retentionCommitWaiter, 2)
 		version.release(t)
 		wg.Wait()
 

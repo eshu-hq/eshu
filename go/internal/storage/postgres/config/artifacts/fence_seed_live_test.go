@@ -108,10 +108,11 @@ func TestVersionFenceMigrationsOnExistingContentLive(t *testing.T) {
 }
 
 // TestVersionFenceSeedRacesAFencedWriteLive runs the seed while a fenced
-// write of a repository with pre-fence content and no version row is open.
-// The seed's insert waits on the write's speculative version row; when the
-// write commits the seed does nothing, and when it rolls back the seed
-// inserts version 0. Either way: one row, no error.
+// write of a repository with pre-fence content and no version row has its
+// version insert in flight (SET CONSTRAINTS ALL IMMEDIATE runs the
+// commit-time bump early). The seed's insert waits on that uncommitted row;
+// when the write commits the seed does nothing, and when it rolls back the
+// seed inserts version 0. Either way: one row, no error.
 func TestVersionFenceSeedRacesAFencedWriteLive(t *testing.T) {
 	for _, outcome := range []string{"commit", "rollback"} {
 		t.Run(outcome, func(t *testing.T) {
@@ -125,6 +126,9 @@ func TestVersionFenceSeedRacesAFencedWriteLive(t *testing.T) {
 				t.Fatal(err)
 			}
 			if _, err := write.ExecContext(ctx, `UPDATE content_files SET content = 'w' WHERE repo_id = 'repo-race'`); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := write.ExecContext(ctx, "SET CONSTRAINTS ALL IMMEDIATE"); err != nil {
 				t.Fatal(err)
 			}
 			seed := "/* fence-seed-race */ " + migrationSQL(t, fenceMigrations[1])
@@ -152,5 +156,65 @@ func TestVersionFenceSeedRacesAFencedWriteLive(t *testing.T) {
 				t.Fatalf("after the race: %v, want one repo-race row at version %d", rows, want)
 			}
 		})
+	}
+}
+
+// TestVersionFenceSeedOrderDoesNotDeadlockWithAWriterLive is the closing
+// proof of review finding F2: a writer holds the version row of a low
+// repository (its bump run early by SET CONSTRAINTS ALL IMMEDIATE) and then
+// commits a write of a higher one while the seed runs. The seed inserts in
+// repo_id order, so it waits at the low row before it reaches the high one;
+// the writer's commit takes the high row unopposed. 3 rounds over 200
+// repositories: 0 deadlocks, one row per repository.
+func TestVersionFenceSeedOrderDoesNotDeadlockWithAWriterLive(t *testing.T) {
+	ctx, db := openDatabase(t)
+	repos := make([]string, 200)
+	for i := range repos {
+		repos[i] = fmt.Sprintf("repo-order-%03d", i)
+	}
+	for round := range 3 {
+		rewindToPreFence(ctx, t, db)
+		mustExec(ctx, t, db, "TRUNCATE content_files CASCADE")
+		insertContentRows(ctx, t, db, "src", 2, repos...)
+		mustExec(ctx, t, db, migrationSQL(t, fenceMigrations[0]))
+		low, high := repos[20+round], repos[180-round]
+
+		write, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, statement := range []string{
+			"UPDATE content_files SET content = 'w' WHERE repo_id = '" + low + "'",
+			"SET CONSTRAINTS ALL IMMEDIATE",
+		} {
+			if _, err := write.ExecContext(ctx, statement); err != nil {
+				t.Fatal(err)
+			}
+		}
+		seed := "/* fence-seed-order */ " + migrationSQL(t, fenceMigrations[1])
+		seedDone := make(chan error, 1)
+		go func() {
+			_, err := db.ExecContext(ctx, seed)
+			seedDone <- err
+		}()
+		waitForLockWaiters(ctx, t, db, "fence-seed-order", 1)
+		if _, err := write.ExecContext(ctx, "UPDATE content_files SET content = 'w' WHERE repo_id = '"+high+"'"); err != nil {
+			t.Fatal(err)
+		}
+		writeErr := write.Commit()
+		seedErr := <-seedDone
+		for name, err := range map[string]error{"writer": writeErr, "seed": seedErr} {
+			if isDeadlock(err) {
+				t.Fatalf("round %d: %s lost a deadlock: %v", round, name, err)
+			}
+			if err != nil {
+				t.Fatalf("round %d %s: %v", round, name, err)
+			}
+		}
+		rows := versionRows(ctx, t, db)
+		if len(rows) != len(repos) || rows[low].version != 1 || rows[high].version != 1 {
+			t.Fatalf("round %d: %d rows, low %v, high %v; want %d rows, both written repositories at 1",
+				round, len(rows), rows[low], rows[high], len(repos))
+		}
 	}
 }

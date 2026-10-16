@@ -100,8 +100,10 @@ func TestVersionFenceCreatesMissingRowOnFirstWriteLive(t *testing.T) {
 
 // TestVersionFenceConcurrentFirstWritesConvergeLive is ruling addition 3c:
 // two sessions write a repository that has no version row at the same time.
-// The second insert of the version row waits on the first's speculative
-// insert and resolves through ON CONFLICT: one row, no error, version 2.
+// The fence inserts the version row at COMMIT, so the first session runs SET
+// CONSTRAINTS ALL IMMEDIATE to put its insert in flight before the second
+// commits. The second's commit-time insert waits on the first's uncommitted
+// row and resolves through ON CONFLICT: one row, no error, version 2.
 func TestVersionFenceConcurrentFirstWritesConvergeLive(t *testing.T) {
 	ctx, db := openDatabase(t)
 	for round := range 10 {
@@ -111,6 +113,9 @@ func TestVersionFenceConcurrentFirstWritesConvergeLive(t *testing.T) {
 			t.Fatal(err)
 		}
 		if _, err := first.ExecContext(ctx, insertSQL(repo, "x/1")); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := first.ExecContext(ctx, "SET CONSTRAINTS ALL IMMEDIATE"); err != nil {
 			t.Fatal(err)
 		}
 		var wg sync.WaitGroup

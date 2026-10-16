@@ -165,7 +165,7 @@ func TestVersionFencePruneAfterDeriveReadLive(t *testing.T) {
 	var pruneErr error
 	wg.Add(1)
 	go func() { defer wg.Done(); _, pruneErr = prune(ctx, db) }()
-	waitForLockWaiters(ctx, t, db, "DELETE FROM content_files AS t", 1)
+	waitForLockWaiters(ctx, t, db, retentionCommitWaiter, 1)
 
 	mid := readForDerive(ctx, t, db, repo)
 	if mid.v0 != start || mid.files != 55 {

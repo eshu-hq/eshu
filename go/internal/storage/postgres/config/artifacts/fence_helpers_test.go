@@ -27,6 +27,12 @@ var fenceTriggerNames = []string{
 	"content_files_version_fence_update",
 }
 
+// retentionCommitWaiter is the pg_stat_activity query text of a retention
+// pass parked on a held version row: the commit-time fence (migration 184)
+// takes version rows inside COMMIT, after every content DELETE. The pgx
+// driver sends the commit in lower case.
+const retentionCommitWaiter = "commit"
+
 // mustExec runs each statement and fails the test on the first error.
 func mustExec(ctx context.Context, t *testing.T, db *sql.DB, statements ...string) {
 	t.Helper()
@@ -164,6 +170,19 @@ WHERE datname = current_database() AND wait_event_type = 'Lock'
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+	rows, err := db.QueryContext(ctx, `
+SELECT pid, state, coalesce(wait_event_type, ''), coalesce(wait_event, ''), left(query, 80)
+FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid()`)
+	if err == nil {
+		for rows.Next() {
+			var pid int
+			var state, waitType, waitEvent, query string
+			if rows.Scan(&pid, &state, &waitType, &waitEvent, &query) == nil {
+				t.Logf("activity pid=%d state=%s wait=%s/%s query=%q", pid, state, waitType, waitEvent, query)
+			}
+		}
+		_ = rows.Close()
 	}
 	t.Fatalf("timed out waiting for %d lock waiters on %q", want, fragment)
 }

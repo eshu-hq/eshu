@@ -49,6 +49,11 @@ CONFIG_FENCE_PACKAGES = {
         f"{_FENCE_DIR}/fence_seed_live_test.go": (
             "TestVersionFenceMigrationsOnExistingContentLive",
             "TestVersionFenceSeedRacesAFencedWriteLive",
+            "TestVersionFenceSeedOrderDoesNotDeadlockWithAWriterLive",
+        ),
+        f"{_FENCE_DIR}/fence_commit_live_test.go": (
+            "TestVersionFenceCommitTriggerIsDeferredLive",
+            "TestVersionFenceBumpsOnceAtCommitLive",
         ),
         f"{_FENCE_DIR}/fence_seed_timing_live_test.go": (
             "TestVersionFenceSeedTimingLive",

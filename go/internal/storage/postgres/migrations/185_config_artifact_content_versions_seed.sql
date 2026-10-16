@@ -15,10 +15,12 @@
 -- the trigger's SHARE ROW EXCLUSIVE lock on content_files through the scan.
 -- This file takes ACCESS SHARE on content_files only, so content reads and
 -- writes run during the seed. The triggers commit first, so every content
--- write from then on bumps through them: a write that lands before this scan
--- creates its row at version 1 and the seed leaves it alone (ON CONFLICT DO
--- NOTHING, after waiting out an uncommitted insert of the same row); a write
--- that lands after the seed bumps the seeded row. No reader or derive exists
+-- write from then on bumps through them at its commit: a write that commits
+-- before this scan creates its row at version 1 and the seed leaves it alone
+-- (ON CONFLICT DO NOTHING, after waiting out an uncommitted insert of the
+-- same row); a write that commits after the seed bumps the seeded row. The
+-- seed inserts in repo_id order, the order every fence commit takes version
+-- rows in, so the two cannot deadlock (review finding F2). No reader or derive exists
 -- before PR3b-2, which must deploy after this file, so no state row can trust
 -- a version this ordering produces.
 --
@@ -29,6 +31,7 @@
 -- Re-runnable: ON CONFLICT DO NOTHING never resets or rewrites a version row.
 
 INSERT INTO config_artifact_content_versions (repo_id, version, bumped_xid, bumped_at)
-SELECT DISTINCT repo_id, 0, '0'::xid8, now()
-FROM content_files
+SELECT d.repo_id, 0, '0'::xid8, now()
+FROM (SELECT DISTINCT repo_id FROM content_files) AS d
+ORDER BY d.repo_id
 ON CONFLICT (repo_id) DO NOTHING;

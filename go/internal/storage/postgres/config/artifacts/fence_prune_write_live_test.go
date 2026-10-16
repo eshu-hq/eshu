@@ -14,10 +14,11 @@ import (
 
 // Arm 7 cases 2 and 3 (protocol companion section 6): a retention prune and
 // a content Write of one repository. A holder keeps the repository's version
-// row locked, so the prune stalls after its content DELETE with its content
-// row locks held, and the Write arrives while the prune is open. Ruling
-// addition 3e: the Write waits for the retention commit, inside the existing
-// scope-lock-hold window, and then proceeds; nothing deadlocks.
+// row locked, so the prune parks inside its COMMIT (the commit-time fence)
+// with its content row locks held, and the Write arrives while the prune is
+// open. Ruling arb-8155-f1 (superseding addition 3e of arb-8155-s3): the
+// Write waits only on content rows, and on the version row only inside the
+// other side's COMMIT; nothing deadlocks.
 
 type pruneWriteCase struct {
 	repo        string
@@ -38,7 +39,7 @@ func runPruneWrite(ctx context.Context, t *testing.T, db *sql.DB, c pruneWriteCa
 	var pruneErr error
 	wg.Add(1)
 	go func() { defer wg.Done(); _, pruneErr = prune(ctx, db) }()
-	waitForLockWaiters(ctx, t, db, "DELETE FROM content_files AS t", 1)
+	waitForLockWaiters(ctx, t, db, retentionCommitWaiter, 1)
 
 	mat := content.Materialization{RepoID: c.repo, ScopeID: "scope-writer", GenerationID: "gen-writer"}
 	for _, p := range c.writePaths {
