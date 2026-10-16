@@ -62,6 +62,6 @@ adapters; the root `admin_alias.go` keeps every old exported spelling.
   in step.
 - The root `query` guards fail on a new leak site here
   (`TestNoNewQueryErrorTextLeakSites`) or a direct 500/502/504/408 write
-  (`TestNoDirectServerStatusWrites`). The route tables in
+  (`TestNoDirectServerStatusWrites`) through any writer they can resolve. The route tables in
   `server_failure_routes_test.go` pin each step's message, 499, and reader
   503; add a row for every new failing step.

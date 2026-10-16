@@ -143,6 +143,11 @@ inventory routes a configuration `503` is a plain write and does not mark the
 span. The query
 guard tests reject any direct `500` write that skips the helper behind this
 `499` (#7674).
+The query
+guard tests catch a direct `500` write that skips the helper behind this
+`499` when they can resolve the writer; the
+[client-cancel rules](../http-api/selector-and-read-failures.md#client-cancels)
+list what they cannot see (#7674).
 
 Two operator effects follow. Eshu's own `eshu_dp_api_request_errors_total`
 counts only `5xx`, so a canceled read on these routes leaves that counter and

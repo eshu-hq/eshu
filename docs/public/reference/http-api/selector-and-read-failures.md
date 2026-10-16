@@ -255,9 +255,13 @@ runs, gets `499` with the same fixed message, and
 the request span is not marked as an error; the span carries an
 `eshu.request.client_canceled` event instead. No route documents `499` in the
 OpenAPI spec, because the client has already gone. The query guard tests
-reject any direct `500`, `502`, `504`, or `408` write that skips the
-server-failure helper, the only writer of that `499` (#7674). The telemetry
-effects are in
+fail the build on a direct `500`, `502`, `504`, or `408` write, or backend
+error text in a server-failure body, through any writer they can resolve: a
+named function, or a method whose receiver type is evident or matched by
+name. Calls through function values, method values, interfaces, function
+literals, and methods promoted from embedded fields are outside the guard
+(#7674). The server-failure helper is the only writer of that `499`. The
+telemetry effects are in
 [Failed and canceled query reads](../telemetry/traces.md#failed-and-canceled-query-reads-7626).
 
 ## Supply-chain read failures
