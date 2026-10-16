@@ -104,9 +104,9 @@ func NewGenerationRetentionStore(database db.ExecQueryer) GenerationRetentionSto
 // before deletion, deletes the per-fact key sidecars explicitly (#7420), and
 // removes the other generation-owned rows through FK cascades.
 //
-// Before it locks anything it checks that both retention key indexes are
-// valid; if either is not, it refuses the cycle with an error wrapping
-// ErrGenerationRetentionKeyIndexUnavailable and changes nothing (#7279).
+// Before it locks anything it checks that all five retention key indexes
+// (migrations 146, 147, 058, 182, 183) are valid; if any is not, it refuses
+// with ErrGenerationRetentionKeyIndexUnavailable, changing nothing (#7279).
 func (s GenerationRetentionStore) PruneSupersededGenerations(
 	ctx context.Context,
 	policy GenerationRetentionPolicy,
