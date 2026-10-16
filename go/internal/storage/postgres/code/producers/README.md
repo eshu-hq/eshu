@@ -10,8 +10,9 @@ facts instead of every file fact in the corpus (#7601, #7623).
 ## Ownership boundary
 
 This package owns the key classification (`Split`), the Go key and module
-rules, the two manifest statements (`PackageManifestsQuery`,
-`GoModuleManifestsQuery`), and the `Store` that runs them. The parent `postgres`
+rules, the three manifest statements (`PackageManifestsQuery`,
+`ComposerManifestsQuery`, `GoModuleManifestsQuery`), and the `Store` that
+runs them. The parent `postgres`
 package owns `LoadActiveCodeCallSymbolDefinitionFacts`, the definition scan and
 its keyset paging, and the load log line. The Go parser owns the key shape and
 the import-path rule this package mirrors: `internal/parser/golang/scip_symbols.go`
@@ -24,9 +25,16 @@ and `internal/parser/go_package_module_import_path.go`.
   that could declare it: the import path and each of its `/`-prefixes.
 - `GoModuleName` reads a go.mod `module` line exactly as the parser does.
 - `PackageName` and `PackageManifestName` do the same for `package:` keys and
-  package.json manifests.
+  package.json manifests. `ComposerManifestName` reads a composer.json name
+  through the PHP adapter's own rule (`internal/parser/php/composer`), so the
+  anchor and the parser's `package_id` stamp share one grammar (#7601).
 - `New(db.Queryer)` returns a `Store` with `PackageScopeIDs` and
-  `GoModuleScopeIDs`. Both reads bind stored content to the writing
+  `GoModuleScopeIDs`. `PackageScopeIDs` sends a composer name
+  (`vendor/name` in the composer grammar) to the composer.json read, which
+  skips manifests under `vendor/`, and every other name to the package.json
+  read; the two name spaces are disjoint, and a request with both unions the
+  two reads. All three manifest reads (package.json, composer.json, go.mod)
+  bind stored content to the writing
   generation through the `content_files` generation tag (#7760): a row whose
   tag names no activated generation returns as a NULL row, so the producer
   set never drops a candidate; scopes with no stored manifest but a
@@ -34,7 +42,8 @@ and `internal/parser/go_package_module_import_path.go`.
   `docs/internal/evidence/7760-generation-tag.md` (and its predecessor,
   `docs/internal/evidence/7609-manifest-generation.md`).
 - `WithInstruments` counts every row each read sees into
-  `eshu_dp_producer_manifest_tag_outcomes_total` by `kind` and `outcome`.
+  `eshu_dp_producer_manifest_tag_outcomes_total` by `kind`
+  (`package|composer|gomod`) and `outcome`.
 
 ## Why the Go rule is exact
 

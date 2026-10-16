@@ -5,6 +5,7 @@ package php_test
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -63,5 +64,67 @@ func generateRouteHeavyPHPSource(methodCount int) string {
 		b.WriteString("    }\n\n")
 	}
 	b.WriteString("}\n")
+	return b.String()
+}
+
+// BenchmarkParsePathPHPWithComposerLock parses a consumer file that imports 40
+// classes from locked packages and calls each through `new` and a static
+// method, under a composer.lock with 120 packages, the size of a Symfony
+// application's lock (symfony/demo locks 121 psr-4 prefixes). It is the #7601
+// regression gate for the package-key rules: the lock is decoded once per
+// (path, stat), so the per-file cost is the directory walk and the prefix
+// lookups. On a revision without the key rules the lock is simply ignored, so
+// the same benchmark measures the before side.
+func BenchmarkParsePathPHPWithComposerLock(b *testing.B) {
+	repoRoot := b.TempDir()
+	writeBenchFile(b, filepath.Join(repoRoot, "composer.json"), `{"name": "acme/app", "autoload": {"psr-4": {"App\\": "src/"}}}`)
+	writeBenchFile(b, filepath.Join(repoRoot, "composer.lock"), generateComposerLock(120))
+	sourceDir := filepath.Join(repoRoot, "src", "Http")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		b.Fatalf("mkdir: %v", err)
+	}
+	filePath := filepath.Join(sourceDir, "Consumer.php")
+	writeBenchFile(b, filePath, generateLockConsumerPHPSource(40))
+
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		b.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
+	}
+	for b.Loop() {
+		if _, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{}); err != nil {
+			b.Fatalf("ParsePath() error = %v, want nil", err)
+		}
+	}
+}
+
+// generateComposerLock returns a composer.lock with packageCount packages,
+// each autoloading one psr-4 prefix Vendor<i>\Package\.
+func generateComposerLock(packageCount int) string {
+	var b strings.Builder
+	b.WriteString(`{"packages": [`)
+	for i := range packageCount {
+		if i > 0 {
+			b.WriteString(",")
+		}
+		fmt.Fprintf(&b, `{"name": "vendor%d/package", "version": "1.%d.0", "autoload": {"psr-4": {"Vendor%d\\Package\\": "src/"}}}`, i, i, i)
+	}
+	b.WriteString(`], "packages-dev": []}`)
+	return b.String()
+}
+
+// generateLockConsumerPHPSource returns a class that imports importCount
+// locked classes and calls each through `new` and a static method.
+func generateLockConsumerPHPSource(importCount int) string {
+	var b strings.Builder
+	b.WriteString("<?php\nnamespace App\\Http;\n\n")
+	for i := range importCount {
+		fmt.Fprintf(&b, "use Vendor%d\\Package\\Service%d;\n", i, i)
+	}
+	b.WriteString("\nfinal class Consumer {\n    public function run(): void {\n")
+	for i := range importCount {
+		fmt.Fprintf(&b, "        $a%d = new Service%d();\n", i, i)
+		fmt.Fprintf(&b, "        $b%d = Service%d::create($a%d);\n", i, i, i)
+	}
+	b.WriteString("    }\n}\n")
 	return b.String()
 }

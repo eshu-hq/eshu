@@ -1,0 +1,10 @@
+{
+  "name": "acme/ledger-kit",
+  "description": "Money formatting helpers consumed by invoice-portal (#7601 cross-repository PHP call keys).",
+  "license": "MIT",
+  "autoload": {
+    "psr-4": {
+      "Acme\\LedgerKit\\": "src/"
+    }
+  }
+}

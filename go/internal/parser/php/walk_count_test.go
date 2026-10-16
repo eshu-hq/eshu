@@ -68,7 +68,7 @@ final class ReportController {
 	restore := shared.SetWalkNamedHookForTest(func() { walkNamedCalls++ })
 	defer restore()
 
-	if _, err := Parse(path, false, shared.Options{}, parser); err != nil {
+	if _, err := Parse("", path, false, shared.Options{}, parser); err != nil {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
 

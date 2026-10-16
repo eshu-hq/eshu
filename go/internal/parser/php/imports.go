@@ -31,6 +31,9 @@ func collectPHPImports(state *phpParseState, node *tree_sitter.Node) {
 		if importType == "use" && alias != "" {
 			state.importAliases[alias] = normalizePHPTypeName(name)
 		}
+		if importType == "use" && !phpUseClauseHasKindKeyword(clause) {
+			state.packageKeys.recordUse(name, alias)
+		}
 		shared.AppendBucket(state.payload, "imports", map[string]any{
 			"name":             name,
 			"full_import_name": fullImportName,
@@ -130,6 +133,25 @@ func phpUseClauseAliasNode(clause *tree_sitter.Node, nameNode *tree_sitter.Node)
 		return last
 	}
 	return nil
+}
+
+// phpUseClauseHasKindKeyword reports whether one use clause carries its own
+// `function` or `const` keyword, as in the mixed group
+// `use A\{B, function c, const D}`. The statement-level phpImportKind reads
+// such a declaration as a class import, so the package-key binding checks the
+// clause itself: a function or constant clause binds no class name.
+func phpUseClauseHasKindKeyword(clause *tree_sitter.Node) bool {
+	for index := uint(0); index < clause.ChildCount(); index++ {
+		child := clause.Child(index)
+		if child == nil || child.IsNamed() {
+			continue
+		}
+		switch child.Kind() {
+		case "function", "const":
+			return true
+		}
+	}
+	return false
 }
 
 // phpImportKind returns "function", "const", or "use" for a use declaration.

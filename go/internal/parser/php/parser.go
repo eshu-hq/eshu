@@ -87,6 +87,9 @@ type phpParseState struct {
 	slimRouteCandidates    []*tree_sitter.Node
 	slimReceiverVars       map[string]struct{}
 	laravelRouteCandidates []*tree_sitter.Node
+	// packageKeys stamps the #7601 composer package keys; nil when the file
+	// declares more than one namespace.
+	packageKeys *phpPackageKeys
 	// fpStats/fpHasError carry the #6833 code-divergence fingerprint
 	// state (exact-only tier). fpHasError is set in Parse from the live
 	// root; declaration nodes stay live through phase 1.
@@ -104,8 +107,10 @@ type phpParseState struct {
 }
 
 // Parse extracts PHP declarations, imports, variables, and calls from the
-// tree-sitter AST and emits the parser payload buckets.
-func Parse(path string, isDependency bool, options shared.Options, parser *tree_sitter.Parser) (map[string]any, error) {
+// tree-sitter AST and emits the parser payload buckets. repoRoot bounds the
+// composer.json and composer.lock reads behind the #7601 package keys; an
+// empty repoRoot stamps no keys.
+func Parse(repoRoot string, path string, isDependency bool, options shared.Options, parser *tree_sitter.Parser) (map[string]any, error) {
 	source, err := shared.ReadSource(path)
 	if err != nil {
 		return nil, err
@@ -149,6 +154,7 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 	parents := buildPHPParentLookup(root)
 	state.fpStats = &fingerprint.Stats{}
 	state.fpHasError = root.HasError()
+	state.packageKeys = newPHPPackageKeys(repoRoot, path, root)
 
 	// Phase 1: collect declarations, imports, type evidence, dead-code facts,
 	// and candidate route attributes so call and variable inference in phase 2
@@ -207,9 +213,11 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 		}
 	}
 
-	if namespace := phpNamespaceName(root, source); namespace != "" {
+	namespace := phpNamespaceName(root, source)
+	if namespace != "" {
 		payload["namespace"] = namespace
 	}
+	state.packageKeys.stampProducers(namespace)
 	if semantics := buildPHPFrameworkSemantics(state.routeAttributes, state.slimRouteCandidates, state.slimReceiverVars, state.laravelRouteCandidates, source, state.payload); len(semantics["frameworks"].([]string)) > 0 {
 		payload["framework_semantics"] = semantics
 	}

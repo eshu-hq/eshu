@@ -24,8 +24,15 @@
 - The package, Go, and other keys run as separate scans in the loader. Do not
   merge them into one scan over the union of producer scopes: a manifest that
   matches one kind would widen another.
-- Keep the two manifest statements MATERIALIZED and unfiltered by path for
-  go.mod (discovery already prunes `vendor/`).
+- Keep the three manifest statements MATERIALIZED. go.mod stays unfiltered by
+  path (discovery already prunes `vendor/`); composer.json excludes `vendor/`
+  and package.json excludes `node_modules*`.
+- `ComposerManifestName` must stay a thin call to
+  `internal/parser/php/composer.ManifestName`, the rule the PHP parser stamps
+  `package_id` with. `TestComposerManifestNameMatchesThePackageIDTheParserStamps`
+  drives the parser to pin it.
+- Composer names and npm names must stay disjoint (`composer.ValidPackageName`
+  requires one `/` and no leading `@`); `PackageScopeIDs` routes on it.
 - Never import the parent `postgres` package from non-test code.
 
 ## Common changes

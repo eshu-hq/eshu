@@ -422,7 +422,7 @@ func (e *Engine) parseDefinition(
 	case "perl":
 		return e.parsePerl(resolvedPath, isDependency, options)
 	case "php":
-		return e.parsePHP(resolvedPath, isDependency, options)
+		return e.parsePHP(repoRoot, resolvedPath, isDependency, options)
 	case "python":
 		return e.parsePython(repoRoot, resolvedPath, isDependency, options)
 	case "python_requirements":

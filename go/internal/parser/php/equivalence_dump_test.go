@@ -89,7 +89,7 @@ func TestDumpPHPParseCorpus(t *testing.T) {
 	lines := make([]string, 0, len(paths)*len(phpEquivalenceVariants))
 	for _, path := range paths {
 		for _, variant := range phpEquivalenceVariants {
-			payload, err := Parse(path, false, variant.options, parser)
+			payload, err := Parse("", path, false, variant.options, parser)
 			if err != nil {
 				t.Fatalf("Parse(%q, variant=%q) error = %v, want nil", path, variant.name, err)
 			}
