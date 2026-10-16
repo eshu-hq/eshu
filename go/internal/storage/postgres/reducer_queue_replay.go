@@ -11,7 +11,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 )
 
 // ReopenSucceededReducerSetClause is the SET list every succeeded-to-pending
@@ -41,54 +40,6 @@ const ReopenSucceededReducerSetClause = `status = 'pending',
     failure_class = NULL,
     failure_message = NULL,
     failure_details = NULL`
-
-// replayWakeProducerConsumersCTE is the woken CTE of a reducer-stage
-// ReplayFailedWorkItems (#7597). When the replay reopens a deployment_mapping
-// row, the same statement reopens the dead-lettered consumers of the same
-// (scope_id, generation_id) whose failure class is a producer-terminal class:
-// they counted out only because that producer was dead. It uses the replay's
-// own SET list (replayResetSetClause), so a woken consumer is reopened exactly
-// like a replayed one: retry evidence kept, reopened_at = $1.
-//
-// Ordering and locks: the DISTINCT producer set and the hashed NOT IN read the
-// whole replayed CTE before any consumer row is locked, and consumers are
-// locked FOR UPDATE SKIP LOCKED, so the wake never waits on a lock and adds no
-// deadlock edge to a concurrent replay or claim (dead_letter rows are never
-// claimed). A consumer another statement holds is skipped; that holder is a
-// concurrent replay reopening it or a supersede retiring it. A consumer the
-// replay predicate already selected is left to the replayed CTE, so no row is
-// updated twice in one statement. Evidence:
-// docs/internal/evidence/7597-own-gate-producer-terminal.md.
-var replayWakeProducerConsumersCTE = `UPDATE fact_work_items
-    SET ` + replayResetSetClause + `
-    WHERE status = 'dead_letter'
-      AND work_item_id IN (
-        SELECT consumer.work_item_id
-        FROM fact_work_items AS consumer
-        JOIN (
-            SELECT DISTINCT scope_id, generation_id FROM replayed
-            WHERE domain = 'deployment_mapping'
-        ) AS producer
-          ON producer.scope_id = consumer.scope_id
-         AND producer.generation_id = consumer.generation_id
-        WHERE consumer.stage = 'reducer'
-          AND consumer.status = 'dead_letter'
-          AND consumer.failure_class IN (` + sqlStringList(crossrepo.ProducerDeadLetteredFailureClasses()) + `)
-          AND consumer.work_item_id NOT IN (SELECT work_item_id FROM replayed)
-        ORDER BY consumer.work_item_id
-        FOR UPDATE OF consumer SKIP LOCKED
-    )
-    RETURNING work_item_id`
-
-// sqlStringList renders compile-time constant class names as a SQL literal
-// list. It is only for constants owned by this repository, never input.
-func sqlStringList(values []string) string {
-	quoted := make([]string, 0, len(values))
-	for _, value := range values {
-		quoted = append(quoted, "'"+strings.ReplaceAll(value, "'", "''")+"'")
-	}
-	return strings.Join(quoted, ", ")
-}
 
 // reopenSucceededReducerWorkQuery resets a succeeded row to pending for
 // replay. It resets reopened_at to the reopen timestamp ($1) alongside

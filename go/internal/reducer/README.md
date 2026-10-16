@@ -367,15 +367,18 @@ values each counter carries.
 - **The own gate is bounded by its producer** — when the own relationship
   generation is inactive, `crossrepo.EvaluateOwnGate` reads the newest
   `deployment_mapping` row of the same scope generation
-  (`ResolutionProducerLookup`). A live, superseded, or succeeded producer, or
-  a scope that moved on, keeps the non-counting deferral, now naming the
-  producer. A dead-lettered producer returns the counting
-  `deployable_unit_correlation_producer_dead_lettered` or
-  `workload_materialization_producer_dead_lettered` class, so the retry
-  budget dead-letters the consumer; replaying the producer
-  (`RecoveryStore.ReplayFailedWorkItems`) reopens it in the same statement. A
-  missing producer defers for `crossscope.ProducerReadinessMaxWait`, then
-  counts. See `docs/internal/evidence/7597-own-gate-producer-terminal.md`.
+  (`ResolutionProducerLookup`) and its `relationship_generations` status. A
+  live, superseded, or succeeded producer, a scope that moved on, or a
+  relationship generation that exists but is not active (re-resolution, for
+  example after a refinalize) keeps the non-counting deferral without a time
+  bound, now naming the producer. A dead-lettered producer returns the
+  counting `*_producer_dead_lettered` class, so the retry budget dead-letters
+  the consumer. Only when neither the producer row nor the generation row
+  exists does it defer for `crossscope.ProducerReadinessMaxWait`, then count in
+  `*_producer_missing`. When the producer later activates the generation, the
+  activation transaction reopens those dead letters (storage/postgres
+  `RelationshipStore`). See
+  `docs/internal/evidence/7597-own-gate-producer-terminal.md`.
 - **Non-counting failures record `deferred`** — `Service.IsDeferredFailureClass`
   (wired to `postgres.IsNonCountingReducerRetryFailureClass`) turns a
   retryable failure in a non-counting class into

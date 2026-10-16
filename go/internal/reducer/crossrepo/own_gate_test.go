@@ -118,8 +118,32 @@ func TestEvaluateOwnGateProducerMatrix(t *testing.T) {
 			state: ProducerState{ScopeActiveGenerationID: "gen-1"}, wantDetail: []string{"no deployment_mapping"},
 		},
 		{
-			name: "missing producer counts past the bound", domain: wm, cycleStart: stale,
+			name: "missing producer counts past the bound on wm", domain: wm, cycleStart: stale,
 			state: ProducerState{ScopeActiveGenerationID: "gen-1"}, wantCount: true,
+			wantClass: WorkloadMaterializationProducerMissingFailureClass,
+		},
+		{
+			name: "missing producer counts past the bound on duc", domain: duc, cycleStart: stale,
+			state: ProducerState{ScopeActiveGenerationID: "gen-1"}, wantCount: true,
+			wantClass: DeployableUnitCorrelationProducerMissingFailureClass,
+		},
+		{
+			name: "re-resolution in progress defers without a bound", domain: duc, cycleStart: stale,
+			state:      ProducerState{ScopeActiveGenerationID: "gen-1", RelationshipGenerationStatus: "superseded"},
+			wantDetail: []string{"re-resolution in progress", "status=superseded"},
+		},
+		{
+			name: "pending relationship generation defers without a bound", domain: wm, cycleStart: stale,
+			state:      ProducerState{ScopeActiveGenerationID: "gen-1", RelationshipGenerationStatus: "pending"},
+			wantDetail: []string{"re-resolution in progress"},
+		},
+		{
+			name: "dead producer counts even while re-resolution is pending", domain: wm, cycleStart: fresh,
+			state: ProducerState{
+				ScopeActiveGenerationID: "gen-1", WorkItemID: "dm-1", Status: "dead_letter",
+				RelationshipGenerationStatus: "superseded",
+			},
+			wantCount: true, wantClass: WorkloadMaterializationProducerDeadLetteredFailureClass,
 		},
 		{
 			name: "transient lookup error is classified", domain: duc, cycleStart: fresh,
@@ -220,15 +244,27 @@ func TestEvaluateOwnGateSkipsProducerReadOutsideTheDeferringBranch(t *testing.T)
 	}
 }
 
-func TestProducerDeadLetteredFailureClassesAreDistinct(t *testing.T) {
+func TestOwnGateCountingClassesAreDistinctAndOneSourced(t *testing.T) {
 	t.Parallel()
-	classes := ProducerDeadLetteredFailureClasses()
-	if len(classes) != 2 || classes[0] == classes[1] {
-		t.Fatalf("ProducerDeadLetteredFailureClasses() = %v, want two distinct classes", classes)
-	}
-	for _, class := range classes {
+	seen := map[string]bool{}
+	all := append(ProducerDeadLetteredFailureClasses(), ProducerMissingFailureClasses()...)
+	for _, class := range all {
+		if seen[class] {
+			t.Fatalf("class %q appears twice in %v", class, all)
+		}
+		seen[class] = true
 		if strings.HasSuffix(class, "_not_ready") {
 			t.Fatalf("%q ends in _not_ready; the enrollment guard would demand it be non-counting", class)
+		}
+	}
+	domains := OwnGateConsumerDomains()
+	if len(all) != 2*len(domains) || len(domains) != 2 {
+		t.Fatalf("classes %v for domains %v, want two per own-gate consumer", all, domains)
+	}
+	for _, domain := range domains {
+		classes := ownGateClassesByDomain[domain]
+		if !strings.HasPrefix(classes.deadLettered, string(domain)+"_") || !strings.HasPrefix(classes.missing, string(domain)+"_") {
+			t.Fatalf("domain %s classes %+v do not name the domain", domain, classes)
 		}
 	}
 }

@@ -31,9 +31,11 @@
 // the deployment_mapping work item this package's handler runs (#7597). When
 // the own relationship generation is inactive it reads that producer through a
 // ProducerLookup: a dead-lettered producer returns the counting
-// ProducerDeadLetteredError, a missing one defers for
-// crossscope.ProducerReadinessMaxWait and then returns ProducerMissingError,
-// and every other state keeps the caller's non-counting deferral.
+// ProducerDeadLetteredError; when neither the producer row nor a
+// relationship_generations row exists it defers for
+// crossscope.ProducerReadinessMaxWait and then returns ProducerMissingError;
+// every other state, including a non-active generation row (re-resolution),
+// keeps the caller's non-counting deferral.
 //
 // # Package boundary
 //

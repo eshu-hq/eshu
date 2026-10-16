@@ -15,16 +15,16 @@ import (
 )
 
 // replayRows builds the single-statement replay response: one row per replayed
-// work item, each carrying the superseded-generation skip count and a false
-// woken flag. A replay that moved nothing still returns one row with a NULL
-// work_item_id so the count is never lost (#7130).
+// work item, each carrying the superseded-generation skip count. A replay that
+// moved nothing still returns one row with a NULL work_item_id so the count is
+// never lost (#7130).
 func replayRows(skipped int, ids ...string) queueFakeRows {
 	if len(ids) == 0 {
-		return queueFakeRows{rows: [][]any{{sql.NullString{}, skipped, false}}}
+		return queueFakeRows{rows: [][]any{{sql.NullString{}, skipped}}}
 	}
 	rows := make([][]any, 0, len(ids))
 	for _, id := range ids {
-		rows = append(rows, []any{sql.NullString{String: id, Valid: true}, skipped, false})
+		rows = append(rows, []any{sql.NullString{String: id, Valid: true}, skipped})
 	}
 	return queueFakeRows{rows: rows}
 }

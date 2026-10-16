@@ -19,7 +19,7 @@ else in the reducer depends on its internals.
 | retraction rows | `cross_repo_resolution_retract.go` | the rows emitted for a source repo that resolved to no edges, so a stale edge is withdrawn rather than left standing |
 | evidence artifacts | `cross_repo_evidence_artifacts.go` | the bounded `EvidenceArtifact` summaries an edge carries, including citation fields and the `GITHUB_ACTIONS_*` ref/pinned classification |
 | evidence type and source tool | `cross_repo_evidence_type.go` | the pure evidence-kind to `evidence_type` / `source_tool` classifier |
-| own gate (#7597) | `own_gate.go` | `EvaluateOwnGate`, the own-generation gate of `deployable_unit_correlation` and `workload_materialization`, bounded by this handler's own `deployment_mapping` work item: `ProducerLookup`/`ProducerState`, the counting `ProducerDeadLetteredError` and `ProducerMissingError`, and the two `*_producer_dead_lettered` classes |
+| own gate (#7597) | `own_gate.go` | `EvaluateOwnGate`, the own-generation gate of `deployable_unit_correlation` and `workload_materialization`, bounded by this handler's own `deployment_mapping` work item: `ProducerLookup`/`ProducerState`, the counting `ProducerDeadLetteredError` and `ProducerMissingError`, and the `*_producer_dead_lettered` and `*_producer_missing` classes, all derived from one per-domain map |
 
 `CrossRepoEvidenceSource` is exported on purpose. Workload materialization
 writes the identical `(WorkloadInstance)-[:RUNS_ON]->(Platform)` shape under a
@@ -126,10 +126,12 @@ telemetry-coverage rows cite changed.
   detail.
 - **The own gate counts a dead producer, never defers on it forever.** When
   a consumer's own relationship generation is inactive, `EvaluateOwnGate`
-  reads the newest `deployment_mapping` row of the same scope generation. Only
-  `dead_letter` (or legacy `failed`) counts; live, superseded and succeeded
-  producers and a moved scope keep the caller's non-counting deferral; a
-  missing row counts only after `crossscope.ProducerReadinessMaxWait`. The
+  reads the newest `deployment_mapping` row of the same scope generation and
+  the generation's `relationship_generations` status. Only `dead_letter` (or
+  legacy `failed`) counts; live, superseded and succeeded producers, a moved
+  scope, and a non-active generation row (re-resolution) keep the caller's
+  non-counting deferral without a bound; only when neither row exists does it
+  count, after `crossscope.ProducerReadinessMaxWait`. The
   counting errors must never wrap the deferral (errors.As would find its
   non-counting class), and their classes must never be enrolled as
   non-counting. A lookup error goes through `factload.ClassifyFactLoadError`.

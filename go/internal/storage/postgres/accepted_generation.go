@@ -120,17 +120,22 @@ func (s *RelationshipStore) IncompleteActiveScopeRelationshipGenerations(
 	return scopeIDs, nil
 }
 
-// resolutionProducerStateSQL reads the scope's active generation and the
-// newest deployment_mapping work item of one scope generation (#7597). It runs
-// only when an own-gate consumer already defers, and both reads are index
-// scans: ingestion_scopes_pkey and fact_work_items_scope_generation_idx
-// (scope_id, generation_id, ...), filtering the generation's few reducer rows
-// on stage and domain. Evidence:
+// resolutionProducerStateSQL reads the scope's active generation, the
+// generation's relationship_generations status, and the newest
+// deployment_mapping work item of one scope generation (#7597). It runs only
+// when an own-gate consumer already defers, and every read is an index scan:
+// ingestion_scopes_pkey, relationship_generations_pkey, and
+// fact_work_items_scope_generation_idx (scope_id, generation_id, ...),
+// filtering the generation's few reducer rows on stage and domain. Evidence:
 // docs/internal/evidence/7597-own-gate-producer-terminal.md.
 const resolutionProducerStateSQL = `
 SELECT COALESCE(s.active_generation_id, ''),
-       COALESCE(w.work_item_id, ''), COALESCE(w.status, ''), COALESCE(w.failure_class, '')
+       COALESCE(w.work_item_id, ''), COALESCE(w.status, ''), COALESCE(w.failure_class, ''),
+       COALESCE(rg.status, '')
 FROM ingestion_scopes AS s
+LEFT JOIN relationship_generations AS rg
+  ON rg.generation_id = $2
+ AND rg.scope = s.scope_id
 LEFT JOIN LATERAL (
     SELECT d.work_item_id, d.status, d.failure_class
     FROM fact_work_items AS d
@@ -158,7 +163,10 @@ func NewResolutionProducerLookup(database db.Queryer) crossrepo.ProducerLookup {
 		defer func() { _ = rows.Close() }()
 		var state crossrepo.ProducerState
 		if rows.Next() {
-			if err := rows.Scan(&state.ScopeActiveGenerationID, &state.WorkItemID, &state.Status, &state.FailureClass); err != nil {
+			if err := rows.Scan(
+				&state.ScopeActiveGenerationID, &state.WorkItemID, &state.Status, &state.FailureClass,
+				&state.RelationshipGenerationStatus,
+			); err != nil {
 				return crossrepo.ProducerState{}, fmt.Errorf("scan resolution producer state: %w", err)
 			}
 		}

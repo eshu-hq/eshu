@@ -115,6 +115,9 @@ producer read inside the branch that already defers (own generation inactive,
 candidates present, lookup wired). Keep `ProducerDeadLetteredError` and
 `ProducerMissingError` free of any `Unwrap` to the root deferral types, and
 keep their classes out of `nonCountingReducerRetryFailureClasses`
-(`TestDeliberatelyCountingClassesAreNeverEnrolled` pins it). The Postgres
-replay wake selects consumers by `ProducerDeadLetteredFailureClasses()`, so a
-new consumer class goes there and in the domain map together.
+(`TestDeliberatelyCountingClassesAreNeverEnrolled` pins it). Every class and
+consumer domain comes from `ownGateClassesByDomain`; the Postgres activation
+wake selects consumers by `ProducerDeadLetteredFailureClasses()` and
+`ProducerMissingFailureClasses()`, so add a consumer there only. A
+`relationship_generations` row that exists and is not active means
+re-resolution is in progress and must keep deferring without a bound.

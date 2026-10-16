@@ -314,29 +314,24 @@ const replaySkippedProjectorCTE = `SELECT COUNT(*) AS n FROM fact_work_items
 // fence is projector-only, so the count is a constant and costs no scan.
 const replaySkippedNoneCTE = `SELECT 0::bigint AS n`
 
-// replayWakeNoneCTE is the woken CTE body for a projector replay: only a
-// reducer deployment_mapping replay wakes consumers.
-const replayWakeNoneCTE = `SELECT NULL::text AS work_item_id WHERE false`
-
-// replayResultSelectSQL returns every replayed row (woken = false; NULL id when
-// nothing moved) and every woken consumer (woken = true), each with the skip
-// count, so the scan loop reads all three outcomes from one statement.
-const replayResultSelectSQL = `SELECT replayed.work_item_id, skipped.n, false AS woken
-FROM skipped
-LEFT JOIN replayed ON true
-UNION ALL
-SELECT woken.work_item_id, skipped.n, true AS woken
-FROM skipped
-JOIN woken ON true
-ORDER BY 3, 1
-`
-
-// replayResetSetClause is the SET list every terminal-row replay shares: both
-// replay templates and the #7597 consumer wake. It keeps retry evidence
-// (attempt_count stays at least 1, never reset to 0), so a replayed row gets
-// one more attempt, and stamps reopened_at = $1 so the row's elapsed-time
-// readiness bounds (CycleStartedAt) start a fresh window.
-const replayResetSetClause = `status = 'pending',
+// replayFailedWorkItemsTemplate resets matching terminal rows to pending. The
+// first %s is replaced by the dynamic predicate built from the replay filter
+// (scope, failure class, the manual-review exclusion, and the superseded-
+// generation fence), so every replay variant shares one UPDATE body and the
+// exclusion can never be dropped by a missing hand-written variant. The second
+// %s is the skipped CTE body (replaySkippedProjectorCTE or
+// replaySkippedNoneCTE). $1 is the replay timestamp; the predicate
+// placeholders start at $2.
+//
+// The result carries one skip count per row, and a replay that moved nothing
+// still returns one row with a NULL work_item_id, so the count commits or
+// fails together with the replay (#7130 review).
+const replayFailedWorkItemsTemplate = `
+WITH skipped AS (
+    %[2]s
+), replayed AS (
+    UPDATE fact_work_items
+    SET status = 'pending',
         attempt_count = GREATEST(attempt_count, 1),
         container_image_identity_v2_authorized_status = CASE
             WHEN container_image_identity_v2_required THEN 'pending'
@@ -353,37 +348,16 @@ const replayResetSetClause = `status = 'pending',
         failure_class = NULL,
         failure_message = NULL,
         failure_details = NULL,
-        updated_at = $1,
-        reopened_at = $1`
-
-// replayFailedWorkItemsTemplate resets matching terminal rows to pending. The
-// first %s is replaced by the dynamic predicate built from the replay filter
-// (scope, failure class, the manual-review exclusion, and the superseded-
-// generation fence), so every replay variant shares one UPDATE body and the
-// exclusion can never be dropped by a missing hand-written variant. The second
-// %s is the skipped CTE body (replaySkippedProjectorCTE or
-// replaySkippedNoneCTE). $1 is the replay timestamp; the predicate
-// placeholders start at $2.
-//
-// The result carries one skip count per row, and a replay that moved nothing
-// still returns one row with a NULL work_item_id, so the count commits or
-// fails together with the replay (#7130 review). The third %s is the woken CTE
-// body (replayWakeProducerConsumersCTE for the reducer stage, #7597), and
-// every row the statement reopens gets reopened_at = $1 so its elapsed-time
-// readiness bounds start a fresh window.
-const replayFailedWorkItemsTemplate = `
-WITH skipped AS (
-    %[2]s
-), replayed AS (
-    UPDATE fact_work_items
-    SET ` + replayResetSetClause + `
+        updated_at = $1
     WHERE status IN ('dead_letter', 'failed')
       %[1]s
-    RETURNING work_item_id, scope_id, generation_id, domain
-), woken AS (
-    %[3]s
+    RETURNING work_item_id
 )
-` + replayResultSelectSQL
+SELECT replayed.work_item_id, skipped.n
+FROM skipped
+LEFT JOIN replayed ON true
+ORDER BY replayed.work_item_id
+`
 
 // replayFailedWorkItemsBoundedTemplate is the limited replay variant for the
 // dead-letter backlog drain (#3560, #3652 P3). It mutates at most $2 terminal
@@ -398,17 +372,32 @@ WITH skipped AS (
 // serialization point. ORDER BY work_item_id makes the selected set
 // deterministic across calls so repeated bounded drains make forward progress.
 //
-// The first %s is the shared replay predicate, the second the skipped CTE
-// body and the third the woken CTE body, exactly as in
-// replayFailedWorkItemsTemplate. $1 is the replay timestamp; $2 is the row
-// limit; the predicate placeholders start at $3. Woken consumers are not
-// counted against $2.
+// The first %s is the shared replay predicate and the second is the skipped
+// CTE body, exactly as in replayFailedWorkItemsTemplate. $1 is the replay
+// timestamp; $2 is the row limit; the predicate placeholders start at $3.
 const replayFailedWorkItemsBoundedTemplate = `
 WITH skipped AS (
     %[2]s
 ), replayed AS (
     UPDATE fact_work_items
-    SET ` + replayResetSetClause + `
+    SET status = 'pending',
+        attempt_count = GREATEST(attempt_count, 1),
+        container_image_identity_v2_authorized_status = CASE
+            WHEN container_image_identity_v2_required THEN 'pending'
+            ELSE ''
+        END,
+        container_image_identity_v3_authorized_status = CASE
+            WHEN container_image_identity_v3_required THEN 'pending'
+            ELSE ''
+        END,
+        lease_owner = NULL,
+        claim_until = NULL,
+        visible_at = $1,
+        next_attempt_at = NULL,
+        failure_class = NULL,
+        failure_message = NULL,
+        failure_details = NULL,
+        updated_at = $1
     WHERE work_item_id IN (
         SELECT work_item_id FROM fact_work_items
         WHERE status IN ('dead_letter', 'failed')
@@ -417,8 +406,10 @@ WITH skipped AS (
         LIMIT $2
         FOR UPDATE SKIP LOCKED
     )
-    RETURNING work_item_id, scope_id, generation_id, domain
-), woken AS (
-    %[3]s
+    RETURNING work_item_id
 )
-` + replayResultSelectSQL
+SELECT replayed.work_item_id, skipped.n
+FROM skipped
+LEFT JOIN replayed ON true
+ORDER BY replayed.work_item_id
+`

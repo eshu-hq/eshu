@@ -17,8 +17,10 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
+	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/rebuild/reset"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/telemetry/contract"
@@ -200,14 +202,11 @@ func buildReplayFailedWorkItemsQuery(filter recovery.ReplayFilter, now time.Time
 	}
 
 	predicate := buildReplayPredicate(filter, start)
-	skipped, woken := replaySkippedNoneCTE, replayWakeNoneCTE
+	skipped := replaySkippedNoneCTE
 	if filter.Stage == recovery.StageProjector {
 		skipped = fmt.Sprintf(replaySkippedProjectorCTE, buildUnfencedReplayPredicate(filter, start).clause)
 	}
-	if filter.Stage == recovery.StageReducer {
-		woken = replayWakeProducerConsumersCTE
-	}
-	return fmt.Sprintf(template, predicate.clause, skipped, woken), append(args, predicate.args...)
+	return fmt.Sprintf(template, predicate.clause, skipped), append(args, predicate.args...)
 }
 
 // ReplayFailedWorkItems resets terminal work items to pending for the given
@@ -220,10 +219,7 @@ func buildReplayFailedWorkItemsQuery(filter recovery.ReplayFilter, now time.Time
 // One statement both replays and counts the superseded-generation projector
 // rows it left terminal, so the two commit or fail together. Each result row
 // carries the skip count; work_item_id is NULL on the single row a replay that
-// moved nothing returns. A reducer replay that reopens a deployment_mapping row
-// also reopens, in the same statement, that scope generation's consumers
-// dead-lettered in a producer-terminal class (#7597); they are reported in
-// WokenConsumerIDs, not in Replayed.
+// moved nothing returns.
 func (s RecoveryStore) ReplayFailedWorkItems(
 	ctx context.Context,
 	filter recovery.ReplayFilter,
@@ -242,20 +238,15 @@ func (s RecoveryStore) ReplayFailedWorkItems(
 	defer func() { _ = rows.Close() }()
 
 	var (
-		workItemIDs, wokenIDs []string
-		skipped               int
+		workItemIDs []string
+		skipped     int
 	)
 	for rows.Next() {
 		var id sql.NullString
-		var woken bool
-		if scanErr := rows.Scan(&id, &skipped, &woken); scanErr != nil {
+		if scanErr := rows.Scan(&id, &skipped); scanErr != nil {
 			return recovery.ReplayResult{}, fmt.Errorf("replay failed work items: %w", scanErr)
 		}
-		switch {
-		case !id.Valid:
-		case woken:
-			wokenIDs = append(wokenIDs, id.String)
-		default:
+		if id.Valid {
 			workItemIDs = append(workItemIDs, id.String)
 		}
 	}
@@ -264,30 +255,13 @@ func (s RecoveryStore) ReplayFailedWorkItems(
 	}
 
 	recordSupersededGenerationFence(ctx, s.instruments, failure.ReplayGenerationSupersededClass, skipped)
-	s.logWokenProducerConsumers(ctx, wokenIDs)
 
 	return recovery.ReplayResult{
 		Stage:                       filter.Stage,
 		Replayed:                    len(workItemIDs),
 		WorkItemIDs:                 workItemIDs,
 		SkippedSupersededGeneration: skipped,
-		WokenConsumerIDs:            wokenIDs,
 	}, nil
-}
-
-// logWokenProducerConsumers records the #7597 wake: one INFO line with the
-// count and the first ten consumer work item ids. Nothing logs when the
-// replay woke nobody.
-func (s RecoveryStore) logWokenProducerConsumers(ctx context.Context, wokenIDs []string) {
-	if len(wokenIDs) == 0 {
-		return
-	}
-	logger := s.logger
-	if logger == nil {
-		logger = slog.Default()
-	}
-	logger.InfoContext(ctx, "replay reopened producer-terminal consumers of replayed deployment_mapping work",
-		"woken_consumers", len(wokenIDs), "sample_work_item_ids", wokenIDs[:min(len(wokenIDs), 10)])
 }
 
 // CountDeadLetterBacklog reports how many terminal rows match the filter before
@@ -325,6 +299,33 @@ func queryCount(ctx context.Context, database db.ExecQueryer, query string, args
 		}
 	}
 	return rows.Err()
+}
+
+// ReplayCollectorGenerations marks collector generation commit failures for
+// source-level replay.
+func (s RecoveryStore) ReplayCollectorGenerations(
+	ctx context.Context,
+	filter recovery.CollectorGenerationReplayFilter,
+	now time.Time,
+) (recovery.CollectorGenerationReplayResult, error) {
+	if s.database == nil {
+		return recovery.CollectorGenerationReplayResult{}, fmt.Errorf("recovery store database is required")
+	}
+
+	result, err := NewCollectorGenerationDeadLetterStore(s.database).ReplayGenerationDeadLetters(ctx, collector.GenerationDeadLetterReplayFilter{
+		ScopeIDs:      filter.ScopeIDs,
+		FailureClass:  filter.FailureClass,
+		CollectorKind: scope.CollectorKind(filter.CollectorKind),
+		Limit:         filter.Limit,
+	}, now)
+	if err != nil {
+		return recovery.CollectorGenerationReplayResult{}, err
+	}
+
+	return recovery.CollectorGenerationReplayResult{
+		Replayed:      result.Replayed,
+		GenerationIDs: result.GenerationIDs,
+	}, nil
 }
 
 // RefinalizeScopeProjections re-enqueues projector work by inserting new pending

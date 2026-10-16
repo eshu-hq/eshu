@@ -106,11 +106,6 @@ type ReplayResult struct {
 	// superseded (#7130). Replaying one would let Ack try to re-activate a
 	// retired generation.
 	SkippedSupersededGeneration int
-	// WokenConsumerIDs lists the dead-lettered reducer consumers the same
-	// statement reopened because their deployment_mapping producer was
-	// replayed (#7597). They are not counted in Replayed and do not count
-	// against the filter's Limit.
-	WokenConsumerIDs []string
 }
 
 // DrainFilter constrains a dead-letter backlog drain. Unlike a raw ReplayFilter,

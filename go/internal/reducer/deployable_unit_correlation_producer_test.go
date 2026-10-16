@@ -30,6 +30,7 @@ func stubProducerLookup(state crossrepo.ProducerState, err error) crossrepo.Prod
 type ownGateCase struct {
 	name           string
 	deadLetterCls  string
+	missingCls     string
 	isDeferral     func(error) bool
 	runWithProduce func(crossrepo.ProducerLookup, time.Time) error
 }
@@ -39,6 +40,7 @@ func ownGateCases() []ownGateCase {
 		{
 			name:          "deployable_unit_correlation",
 			deadLetterCls: crossrepo.DeployableUnitCorrelationProducerDeadLetteredFailureClass,
+			missingCls:    crossrepo.DeployableUnitCorrelationProducerMissingFailureClass,
 			isDeferral: func(err error) bool {
 				var deferral deployableUnitCorrelationResolutionNotReadyError
 				return errors.As(err, &deferral)
@@ -59,6 +61,7 @@ func ownGateCases() []ownGateCase {
 		{
 			name:          "workload_materialization",
 			deadLetterCls: crossrepo.WorkloadMaterializationProducerDeadLetteredFailureClass,
+			missingCls:    crossrepo.WorkloadMaterializationProducerMissingFailureClass,
 			isDeferral: func(err error) bool {
 				var deferral workloadMaterializationResolutionNotReadyError
 				return errors.As(err, &deferral)
@@ -124,9 +127,10 @@ func TestOwnGateNonTerminalProducerKeepsTheDeferral(t *testing.T) {
 		}
 		stale := time.Now().Add(-crossscope.ProducerReadinessMaxWait - time.Hour)
 		for name, state := range map[string]crossrepo.ProducerState{
-			"retrying":    ownGateProducer(gen, "retrying", crossrepo.CrossRepoBackwardEvidenceNotReadyFailureClass),
-			"superseded":  ownGateProducer(gen, "superseded", ""),
-			"scope moved": {ScopeActiveGenerationID: "generation-newer", WorkItemID: "dm-7597", Status: "dead_letter"},
+			"retrying":                  ownGateProducer(gen, "retrying", crossrepo.CrossRepoBackwardEvidenceNotReadyFailureClass),
+			"superseded":                ownGateProducer(gen, "superseded", ""),
+			"scope moved":               {ScopeActiveGenerationID: "generation-newer", WorkItemID: "dm-7597", Status: "dead_letter"},
+			"re-resolution in progress": {ScopeActiveGenerationID: gen, RelationshipGenerationStatus: "superseded"},
 		} {
 			t.Run(tc.name+"/"+name, func(t *testing.T) {
 				t.Parallel()
@@ -161,9 +165,9 @@ func TestOwnGateMissingProducerIsBoundedByElapsedTime(t *testing.T) {
 			if err == nil || tc.isDeferral(err) {
 				t.Fatalf("error = %v (%T), want a counting failure past the bound", err, err)
 			}
-			if !IsRetryable(err) || reducerExecutionFailureClass(err) != "reducer_failure" {
-				t.Fatalf("error %v: retryable=%v class=%q, want retryable and classless",
-					err, IsRetryable(err), reducerExecutionFailureClass(err))
+			if !IsRetryable(err) || reducerExecutionFailureClass(err) != tc.missingCls {
+				t.Fatalf("error %v: retryable=%v class=%q, want retryable in %q",
+					err, IsRetryable(err), reducerExecutionFailureClass(err), tc.missingCls)
 			}
 		})
 	}

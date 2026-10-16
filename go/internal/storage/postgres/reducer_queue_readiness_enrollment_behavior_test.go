@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -122,18 +123,22 @@ func TestReducerQueueFailDeadLettersAnUnenrolledClassPastAttemptBudget(t *testin
 	}
 }
 
-// deliberatelyCountingReducerFailureClasses is the explicit exemption list for
-// TestEveryReadinessFailureClassIsEnrolled: classes the reducer returns from a
-// Retryable() readiness-shaped error that MUST count toward the retry budget,
-// with the reason. They are never enrolled in
-// nonCountingReducerRetryFailureClasses.
+// deliberatelyCountingReducerFailureClasses lists the classes the reducer
+// returns from a Retryable() readiness-shaped error that MUST count toward the
+// retry budget, with the reason. They are never enrolled in
+// nonCountingReducerRetryFailureClasses. TestEveryReadinessFailureClassIsEnrolled
+// cannot see them (it scans only *_not_ready classes), so
+// TestDeliberatelyCountingClassesAreNeverEnrolled below is their real guard.
 var deliberatelyCountingReducerFailureClasses = map[string]string{
 	// #7597: the own deployment_mapping producer is dead-lettered, so the own
-	// relationship generation can never activate. Deferring would wait
-	// forever; counting dead-letters the consumer loudly, and replaying the
-	// producer reopens it in the same statement (recovery.go wake).
+	// relationship generation cannot activate until it is replayed. Counting
+	// dead-letters the consumer loudly; the producer's activation reopens it.
 	crossrepo.DeployableUnitCorrelationProducerDeadLetteredFailureClass: "own producer dead-lettered (#7597)",
 	crossrepo.WorkloadMaterializationProducerDeadLetteredFailureClass:   "own producer dead-lettered (#7597)",
+	// #7597: neither a deployment_mapping row nor a relationship generation
+	// row exists past crossscope.ProducerReadinessMaxWait.
+	crossrepo.DeployableUnitCorrelationProducerMissingFailureClass: "own producer missing past the bound (#7597)",
+	crossrepo.WorkloadMaterializationProducerMissingFailureClass:   "own producer missing past the bound (#7597)",
 }
 
 // TestDeliberatelyCountingClassesAreNeverEnrolled pins the exemption list
@@ -148,13 +153,17 @@ func TestDeliberatelyCountingClassesAreNeverEnrolled(t *testing.T) {
 			t.Fatalf("%q (%s) is enrolled as non-counting; it would retry forever on a dead producer", class, reason)
 		}
 	}
-	for _, class := range crossrepo.ProducerDeadLetteredFailureClasses() {
+	gateClasses := append(crossrepo.ProducerDeadLetteredFailureClasses(), crossrepo.ProducerMissingFailureClasses()...)
+	for _, class := range gateClasses {
 		if _, ok := deliberatelyCountingReducerFailureClasses[class]; !ok {
-			t.Fatalf("producer-terminal class %q is missing from the deliberate-counting exemption list", class)
+			t.Fatalf("own-gate counting class %q is missing from the deliberate-counting list", class)
+		}
+		if strings.HasSuffix(class, "_not_ready") {
+			t.Fatalf("%q ends in _not_ready, so TestEveryReadinessFailureClassIsEnrolled would demand it be non-counting", class)
 		}
 	}
-	if got, want := len(crossrepo.ProducerDeadLetteredFailureClasses()), len(deliberatelyCountingReducerFailureClasses); got != want {
-		t.Fatalf("producer gate returns %d classes, exemption list holds %d", got, want)
+	if got, want := len(gateClasses), len(deliberatelyCountingReducerFailureClasses); got != want {
+		t.Fatalf("own gate returns %d counting classes, the deliberate-counting list holds %d", got, want)
 	}
 	// The deferrals the same gate keeps returning stay non-counting.
 	for _, class := range []string{
@@ -186,8 +195,16 @@ func TestReducerQueueFailDeadLettersProducerTerminalClassesPastAttemptBudget(t *
 			if err := queue.Fail(context.Background(), intent, readinessMissError{class: class}); err != nil {
 				t.Fatalf("Fail() error = %v, want nil", err)
 			}
-			if got, want := len(db.execs), 1; got != want {
-				t.Fatalf("exec count = %d, want %d", got, want)
+			// The dead letter, then the post-dead-letter wake check (#7597).
+			wantExecs := 1
+			if slices.Contains(ownGateCountingClasses(), class) {
+				wantExecs = 2
+			}
+			if got := len(db.execs); got != wantExecs {
+				t.Fatalf("exec count = %d, want %d", got, wantExecs)
+			}
+			if wantExecs == 2 && db.execs[1].query != wakeProducerTerminalConsumersSQL {
+				t.Fatalf("second exec is not the post-dead-letter wake:\n%s", db.execs[1].query)
 			}
 			if query := db.execs[0].query; strings.Contains(query, "status = 'retrying'") {
 				t.Fatalf("producer-terminal class %q past the budget was deferred:\n%s", class, query)

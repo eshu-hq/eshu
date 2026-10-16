@@ -521,15 +521,19 @@ shared-intent backlog/status queries and reducer code-call cycle logs.
 - Symptom: `dead_letter` items accumulating → check `failure_class` in
   `fact_work_items`; replay via `RecoveryStore` after root-cause investigation.
 
-- Replay wake (#7597) → `ReplayFailedWorkItems` of a reducer
-  `deployment_mapping` row also reopens that scope generation's dead-lettered
-  `*_producer_dead_lettered` consumers in the SAME statement. Keep the woken
-  CTE's consumer lock `FOR UPDATE ... SKIP LOCKED` (dropping it deadlocked
-  concurrent replays with 40P01 in `TestReplayWakeConcurrentReplaysAreIdempotentLive`),
-  keep the `NOT IN (SELECT work_item_id FROM replayed)` exclusion (no row is
-  updated twice in one statement), and keep both templates and the wake on the
-  shared `replayResetSetClause`. Do not enroll the producer-terminal classes
-  as non-counting (`TestDeliberatelyCountingClassesAreNeverEnrolled`).
+- Activation wake (#7597) → every statement that sets a
+  `relationship_generations` row active runs through `activateWithConsumerWake`
+  (`TestEveryRelationshipActivationWakesConsumers` enumerates the module): one
+  transaction of activation, `SET LOCAL lock_timeout`, a plain `FOR UPDATE` on
+  the in-flight own-gate consumers, then the wake UPDATE (dead letters locked
+  `SKIP LOCKED`). Lock order: claimant work row, relationship generation,
+  in-flight consumers by work_item_id, dead-lettered consumers. Keep both the
+  in-flight lock and `wakeAfterProducerTerminalDeadLetter` in the Fail path:
+  dropping either produced lost wakes in `TestActivationWakeInterleaveLive`
+  (go/internal/query/admin). Keep the wake SET list in lockstep with the replay
+  reset list (`TestActivationWakeSetClauseMatchesReplayReset`). Do not enroll
+  the own-gate counting classes as non-counting
+  (`TestDeliberatelyCountingClassesAreNeverEnrolled`).
 
 - Symptom: `graph_projection_phase_state` rows missing for a scope generation →
   projector `publish_phases` stage failed; check `GraphProjectionPhaseRepairQueueStore`

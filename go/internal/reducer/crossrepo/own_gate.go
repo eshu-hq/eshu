@@ -6,6 +6,7 @@ package crossrepo
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
@@ -20,8 +21,9 @@ import (
 //
 // It is deliberately NOT a non-counting class: it counts toward MaxAttempts so
 // the ordinary budget dead-letters the consumer loudly instead of letting it
-// defer forever. Replaying the dead-lettered producer reopens the consumer in
-// the same statement (ReplayFailedWorkItems in internal/storage/postgres).
+// defer forever. When the producer later activates the relationship
+// generation, the activation transaction reopens the consumer
+// (RelationshipStore in internal/storage/postgres).
 const DeployableUnitCorrelationProducerDeadLetteredFailureClass = "deployable_unit_correlation_producer_dead_lettered"
 
 // WorkloadMaterializationProducerDeadLetteredFailureClass is the
@@ -29,27 +31,74 @@ const DeployableUnitCorrelationProducerDeadLetteredFailureClass = "deployable_un
 // DeployableUnitCorrelationProducerDeadLetteredFailureClass (#7597).
 const WorkloadMaterializationProducerDeadLetteredFailureClass = "workload_materialization_producer_dead_lettered"
 
-// producerDeadLetteredClassByDomain maps each own-gate consumer to its
-// producer-terminal class. A domain outside this map never counts.
-var producerDeadLetteredClassByDomain = map[reducercontract.Domain]string{
-	reducercontract.DomainDeployableUnitCorrelation: DeployableUnitCorrelationProducerDeadLetteredFailureClass,
-	reducercontract.DomainWorkloadMaterialization:   WorkloadMaterializationProducerDeadLetteredFailureClass,
+// DeployableUnitCorrelationProducerMissingFailureClass classifies a
+// deployable_unit_correlation pass whose scope generation has had neither a
+// deployment_mapping work item nor a relationship_generations row for longer
+// than crossscope.ProducerReadinessMaxWait (#7597). Counting, like the
+// dead-lettered class, and distinct from retry_exhausted in a dead letter.
+const DeployableUnitCorrelationProducerMissingFailureClass = "deployable_unit_correlation_producer_missing"
+
+// WorkloadMaterializationProducerMissingFailureClass is the
+// workload_materialization twin of
+// DeployableUnitCorrelationProducerMissingFailureClass (#7597).
+const WorkloadMaterializationProducerMissingFailureClass = "workload_materialization_producer_missing"
+
+// ownGateClasses names the two counting classes of one own-gate consumer.
+type ownGateClasses struct {
+	deadLettered string
+	missing      string
 }
 
-// ProducerDeadLetteredFailureClasses returns every producer-terminal class in
-// a stable order. The Postgres replay wake selects consumer rows by exactly
-// this set, and the queue's enrollment tests pin that none of them is
-// non-counting.
+// ownGateClassesByDomain is the single source of the own-gate consumers and
+// their counting classes. A domain outside this map never counts.
+var ownGateClassesByDomain = map[reducercontract.Domain]ownGateClasses{
+	reducercontract.DomainDeployableUnitCorrelation: {
+		deadLettered: DeployableUnitCorrelationProducerDeadLetteredFailureClass,
+		missing:      DeployableUnitCorrelationProducerMissingFailureClass,
+	},
+	reducercontract.DomainWorkloadMaterialization: {
+		deadLettered: WorkloadMaterializationProducerDeadLetteredFailureClass,
+		missing:      WorkloadMaterializationProducerMissingFailureClass,
+	},
+}
+
+// ProducerDeadLetteredFailureClasses returns every producer-dead-lettered
+// class, sorted, derived from ownGateClassesByDomain. The Postgres activation
+// wake selects consumer rows by exactly this set, and the queue's enrollment
+// tests pin that none of them is non-counting.
 func ProducerDeadLetteredFailureClasses() []string {
-	return []string{
-		DeployableUnitCorrelationProducerDeadLetteredFailureClass,
-		WorkloadMaterializationProducerDeadLetteredFailureClass,
+	return sortedClasses(func(c ownGateClasses) string { return c.deadLettered })
+}
+
+// ProducerMissingFailureClasses returns every producer-missing class, sorted,
+// derived from ownGateClassesByDomain.
+func ProducerMissingFailureClasses() []string {
+	return sortedClasses(func(c ownGateClasses) string { return c.missing })
+}
+
+// OwnGateConsumerDomains returns the own-gate consumer domains, sorted.
+func OwnGateConsumerDomains() []reducercontract.Domain {
+	domains := make([]reducercontract.Domain, 0, len(ownGateClassesByDomain))
+	for domain := range ownGateClassesByDomain {
+		domains = append(domains, domain)
 	}
+	slices.Sort(domains)
+	return domains
+}
+
+func sortedClasses(pick func(ownGateClasses) string) []string {
+	classes := make([]string, 0, len(ownGateClassesByDomain))
+	for _, c := range ownGateClassesByDomain {
+		classes = append(classes, pick(c))
+	}
+	slices.Sort(classes)
+	return classes
 }
 
 // ProducerState is the newest deployment_mapping work item of one scope
-// generation, plus the scope's current active generation. WorkItemID and
-// Status are empty when the generation has no deployment_mapping row.
+// generation, plus the scope's current active generation and the
+// generation's relationship_generations status. WorkItemID and Status are
+// empty when the generation has no deployment_mapping row.
 type ProducerState struct {
 	// ScopeActiveGenerationID is ingestion_scopes.active_generation_id, empty
 	// when the scope row is missing or has no active generation.
@@ -57,6 +106,10 @@ type ProducerState struct {
 	WorkItemID              string
 	Status                  string
 	FailureClass            string
+	// RelationshipGenerationStatus is relationship_generations.status for the
+	// intent's generation, empty when no row exists. A row that exists and is
+	// not active means re-resolution is in progress (a refinalize retired it).
+	RelationshipGenerationStatus string
 }
 
 // ProducerLookup reads the ProducerState of one scope generation. The
@@ -90,8 +143,12 @@ type OwnGateVerdict struct {
 //     (a live producer's own retry budget already bounds it);
 //   - producer dead_letter (or legacy failed): ProducerDeadLetteredError,
 //     which counts toward the retry budget;
-//   - no producer row: deferral bounded by crossscope.ProducerReadinessMaxWait
-//     from crossscope.ReadinessCycleAnchor, then ProducerMissingError;
+//   - no producer row but a relationship_generations row that is not active
+//     (re-resolution in progress, e.g. after a refinalize): plain deferral,
+//     no time bound;
+//   - neither a producer row nor a relationship generation row: deferral
+//     bounded by crossscope.ProducerReadinessMaxWait from
+//     crossscope.ReadinessCycleAnchor, then ProducerMissingError;
 //   - lookup error: factload.ClassifyFactLoadError, never a deferral.
 //
 // now must be the caller's clock reading for this pass.
@@ -127,23 +184,30 @@ func EvaluateOwnGate(
 func producerVerdict(intent reducercontract.Intent, state ProducerState, now time.Time) OwnGateVerdict {
 	if state.ScopeActiveGenerationID != intent.GenerationID {
 		return OwnGateVerdict{ProducerDetail: fmt.Sprintf(
-			"scope active generation is %q, not this generation; the claim path retires it",
+			"scope active generation is %q, not this generation; if this generation is older, the claim path retires it",
 			state.ScopeActiveGenerationID,
 		)}
 	}
-	switch state.Status {
-	case "":
-		return missingProducerVerdict(intent, now)
-	case "dead_letter", "failed":
-		class, ok := producerDeadLetteredClassByDomain[intent.Domain]
-		if !ok {
+	classes, counted := ownGateClassesByDomain[intent.Domain]
+	switch {
+	case state.Status == "dead_letter" || state.Status == "failed":
+		if !counted {
 			return OwnGateVerdict{ProducerDetail: state.detail()}
 		}
 		return OwnGateVerdict{Err: ProducerDeadLetteredError{
-			failureClass: class, consumer: intent, producer: state,
+			failureClass: classes.deadLettered, consumer: intent, producer: state,
 		}}
-	default:
+	case state.Status != "":
 		return OwnGateVerdict{ProducerDetail: state.detail()}
+	case state.RelationshipGenerationStatus != "":
+		return OwnGateVerdict{ProducerDetail: fmt.Sprintf(
+			"no deployment_mapping work item yet and relationship generation status=%s; re-resolution in progress",
+			state.RelationshipGenerationStatus,
+		)}
+	case !counted:
+		return OwnGateVerdict{ProducerDetail: "no deployment_mapping work item exists for this generation yet"}
+	default:
+		return missingProducerVerdict(intent, classes.missing, now)
 	}
 }
 
@@ -151,12 +215,12 @@ func producerVerdict(intent reducercontract.Intent, state ProducerState, now tim
 // bound and counts once it is not. A zero anchor means elapsed time is
 // unknown, not infinite, so it keeps deferring (see
 // crossscope.ReadinessCycleAnchor).
-func missingProducerVerdict(intent reducercontract.Intent, now time.Time) OwnGateVerdict {
+func missingProducerVerdict(intent reducercontract.Intent, class string, now time.Time) OwnGateVerdict {
 	anchor := crossscope.ReadinessCycleAnchor(intent)
 	if anchor.IsZero() || now.Sub(anchor) < crossscope.ProducerReadinessMaxWait {
-		return OwnGateVerdict{ProducerDetail: "no deployment_mapping work item exists for this generation yet"}
+		return OwnGateVerdict{ProducerDetail: "no deployment_mapping work item or relationship generation exists for this generation yet"}
 	}
-	return OwnGateVerdict{Err: ProducerMissingError{consumer: intent, elapsed: now.Sub(anchor)}}
+	return OwnGateVerdict{Err: ProducerMissingError{failureClass: class, consumer: intent, elapsed: now.Sub(anchor)}}
 }
 
 // detail renders the producer evidence appended to a deferral message.
@@ -166,7 +230,7 @@ func (s ProducerState) detail() string {
 }
 
 // ProducerDeadLetteredError fails an own-gate pass whose deployment_mapping
-// producer is dead-lettered. Retryable() keeps it on the ordinary counted
+// producer is dead-lettered (or legacy failed). Retryable() keeps it on the ordinary counted
 // retry path and FailureClass() returns an unenrolled class, so attempt_count
 // advances and MaxAttempts dead-letters the consumer.
 //
@@ -183,7 +247,7 @@ type ProducerDeadLetteredError struct {
 // Error names the producer work item and its failure class.
 func (e ProducerDeadLetteredError) Error() string {
 	return fmt.Sprintf(
-		"own relationship generation for scope %s generation %s can never activate: deployment_mapping producer %s is %s (failure_class=%s); counting this %s failure toward the retry budget, replay the producer to reopen it",
+		"own relationship generation for scope %s generation %s cannot activate while deployment_mapping producer %s is %s (failure_class=%s); counting this %s failure toward the retry budget; replay the producer, and its activation reopens this item",
 		e.consumer.ScopeID, e.consumer.GenerationID, e.producer.WorkItemID, e.producer.Status,
 		e.producer.FailureClass, e.consumer.Domain,
 	)
@@ -196,18 +260,20 @@ func (ProducerDeadLetteredError) Retryable() bool { return true }
 func (e ProducerDeadLetteredError) FailureClass() string { return e.failureClass }
 
 // ProducerMissingError fails an own-gate pass whose scope generation has had
-// no deployment_mapping row for longer than crossscope.ProducerReadinessMaxWait.
-// Retryable with no FailureClass, so it counts like the other elapsed-time
-// bounds (#6759, #7268) and dead-letters under the generic triage class.
+// neither a deployment_mapping row nor a relationship_generations row for
+// longer than crossscope.ProducerReadinessMaxWait. Retryable with an
+// unenrolled *_producer_missing class, so it counts toward MaxAttempts and its
+// dead letter is distinguishable from retry_exhausted.
 type ProducerMissingError struct {
-	consumer reducercontract.Intent
-	elapsed  time.Duration
+	failureClass string
+	consumer     reducercontract.Intent
+	elapsed      time.Duration
 }
 
 // Error reports the elapsed wait against the bound.
 func (e ProducerMissingError) Error() string {
 	return fmt.Sprintf(
-		"own relationship generation for scope %s generation %s still inactive and no deployment_mapping work item exists after %s (bound %s); counting this %s failure toward the retry budget",
+		"own relationship generation for scope %s generation %s still inactive and neither a deployment_mapping work item nor a relationship generation exists after %s (bound %s); counting this %s failure toward the retry budget",
 		e.consumer.ScopeID, e.consumer.GenerationID, e.elapsed.Round(time.Second),
 		crossscope.ProducerReadinessMaxWait, e.consumer.Domain,
 	)
@@ -215,3 +281,6 @@ func (e ProducerMissingError) Error() string {
 
 // Retryable opts the bounded failure into the normal counted queue retries.
 func (ProducerMissingError) Retryable() bool { return true }
+
+// FailureClass returns the consumer domain's producer-missing class.
+func (e ProducerMissingError) FailureClass() string { return e.failureClass }
