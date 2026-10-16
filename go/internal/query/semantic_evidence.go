@@ -99,14 +99,14 @@ func (h *SemanticEvidenceHandler) profile() QueryProfile {
 }
 
 func (h *SemanticEvidenceHandler) listDocumentationObservations(w http.ResponseWriter, r *http.Request) {
-	h.list(w, r, semanticDocumentationObservationsCapability, facts.SemanticDocumentationObservationFactKind, "observations")
+	h.listSemanticEvidence(w, r, semanticDocumentationObservationsCapability, facts.SemanticDocumentationObservationFactKind, "observations")
 }
 
 func (h *SemanticEvidenceHandler) listCodeHints(w http.ResponseWriter, r *http.Request) {
-	h.list(w, r, semanticCodeHintsCapability, facts.SemanticCodeHintFactKind, "code_hints")
+	h.listSemanticEvidence(w, r, semanticCodeHintsCapability, facts.SemanticCodeHintFactKind, "code_hints")
 }
 
-func (h *SemanticEvidenceHandler) list(
+func (h *SemanticEvidenceHandler) listSemanticEvidence(
 	w http.ResponseWriter,
 	r *http.Request,
 	capability string,

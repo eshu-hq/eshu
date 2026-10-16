@@ -15,7 +15,7 @@ import (
 // TestSemanticEvidenceHandlerListsCodeHintsWithTruthMetadata proves the
 // semantic_evidence.code_hints.list capability end to end through the real
 // GET /api/v0/semantic/code-hints route. The only committed coverage of
-// SemanticEvidenceHandler.list
+// SemanticEvidenceHandler.listSemanticEvidence
 // (TestSemanticEvidenceHandlerListsDocumentationObservationsWithTruthMetadata)
 // drives it through the documentation-observations route with fact kind
 // facts.SemanticDocumentationObservationFactKind; the code-hints route

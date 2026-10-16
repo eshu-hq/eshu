@@ -60,7 +60,7 @@ type documentationReadModelStore interface {
 
 // Mount registers documentation truth routes.
 func (h *DocumentationHandler) Mount(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/v0/documentation/findings", h.listFindings)
+	mux.HandleFunc("GET /api/v0/documentation/findings", h.listDocumentationFindings)
 	mux.HandleFunc("GET /api/v0/documentation/facts", h.listFacts)
 	mux.HandleFunc("GET /api/v0/documentation/findings/{finding_id}/evidence-packet", h.getEvidencePacket)
 	mux.HandleFunc("GET /api/v0/documentation/evidence-packets/{packet_id}/freshness", h.getPacketFreshness)
@@ -74,7 +74,7 @@ func (h *DocumentationHandler) profile() QueryProfile {
 	return h.Profile
 }
 
-func (h *DocumentationHandler) listFindings(w http.ResponseWriter, r *http.Request) {
+func (h *DocumentationHandler) listDocumentationFindings(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryDocumentationFindings,
