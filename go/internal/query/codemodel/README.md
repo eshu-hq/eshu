@@ -53,7 +53,10 @@ the staying code family still uses.
 - `code_flow_postgres.go` — Postgres flow reader plus the flow store
   contract it implements.
 - `code_graph_search_query.go` — bounded entity-search builder.
-- `code_hybrid_rerank.go` — in-process hybrid re-ranker.
+- `code_hybrid_rerank.go` — in-process hybrid re-ranker. Each pass that
+  reaches the ranking work emits a `query.hybrid_rerank` stage span
+  (`search.rerank.tool=find_code`, `search.rerank.rows`,
+  `search.rerank.applied`) through `tracing.StartHybridRerankSpan` (#7746).
 - `code_import_dependencies_{queries,request,response,rows}.go` — the seven
   investigation builders, the request family, plus envelope and row shaping.
   The request type moved to `request.go` when `queries.go` hit the 500-line

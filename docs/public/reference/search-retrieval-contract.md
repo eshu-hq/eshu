@@ -202,13 +202,19 @@ order. The exact-match (`exact=true`) symbol path is left lexical because it is
 an identity lookup, not a relevance ranking.
 
 Performance Evidence: the re-rank is CPU-only over at most the request limit of
-request-local documents (default 50, hard cap 100 in the ranker), with BM25
-served from an inverted index and vector cosine exact below the staged ANN
-threshold of 256 documents. It adds no Cypher, graph write, queue, lease, or
-goroutine, and runs after the Postgres/graph round-trips it reorders, so it
-introduces no new hot-path scan. `go test ./internal/query -run CodeSearch...`
-proves a known fixture is reordered by hybrid relevance and that the lexical
-fallback edges are byte-stable.
+request-local documents (default 50, maximum 200, the `find_code` page ceiling
+`CodeSearchRankedWindow`), with BM25 served from an inverted index and vector
+cosine exact below the staged ANN threshold of 256 documents. The ranker ranks
+the whole page through `searchhybrid.Backend.RankAll`, which is bounded by that
+index cap rather than the public retrieval limit of 100. Before #7746 a page of
+101 to 200 projectable rows failed that limit and stayed in lexical order. A
+200-row page now costs about twice a 100-row page (see
+`docs/internal/evidence/7746-ranker-determinism.md`). It adds no Cypher, graph
+write, queue, lease, or goroutine, and runs after the Postgres/graph
+round-trips it reorders, so it introduces no new hot-path scan.
+`go test ./internal/query -run CodeSearch...` proves a known fixture is
+reordered by hybrid relevance and that the lexical fallback edges are
+byte-stable.
 
 No-Regression Evidence: `cd go && go test ./internal/query ./internal/mcp
 ./internal/searchhybrid ./internal/searchretrieval ./internal/searchembed
@@ -219,8 +225,14 @@ path when the ranker is nil or reports a no-op.
 Observability Evidence: reordered rows carry a `search_backend=hybrid` marker
 and the response `source_backend` switches to `hybrid_content_store` only when
 the hybrid pass changed the ranking, so an operator can confirm from the
-response envelope whether vector retrieval participated. The bounded request
-reuses the `searchretrieval` request-validation contract.
+response envelope whether vector retrieval participated. The ranker does not go
+through `searchretrieval` request validation, whose limit of 100 is the public
+retrieval cap. `searchhybrid.Backend.RankAll` rejects a blank query, a missing
+scope or index, and a done context, and the ranker keeps the lexical order on
+any of those errors. Each pass that reaches the ranking work emits a
+`query.hybrid_rerank` span with `search.rerank.tool=find_code`,
+`search.rerank.rows`, and `search.rerank.applied`, so the stage's duration is
+visible inside a slow request (#7746).
 
 ### search_entity_content / search_file_content Hybrid Re-rank
 
@@ -257,6 +269,17 @@ deployments keep the lexical content order. `go test ./internal/query -run
 'SearchEntityContentResultsAreHybridReranked|SearchFileContentResultsAreHybridReranked|ContentHybridRerank'`
 proves a known fixture is reordered by hybrid relevance and that the lexical
 fallback edges preserve order, basis, and length.
+
+The ranker ranks every row of a page up to the 200-row cap through
+`searchhybrid.Backend.RankAll`, which is bounded by the request-local index
+cap instead of the public retrieval limit of 100. Before #7746 a page of 101 to
+200 projectable rows failed that limit and kept its whole lexical order with no
+`search_backend` or `page_position` markers; such a page is now reordered and
+marked like any smaller page. `go test ./internal/query/contentread -run
+ContentHybridRerankRanksAllRowsOfAMaximumPage` covers entity and file pages of
+200 rows. Each pass that reaches the ranking work emits a `query.hybrid_rerank`
+span with `search.rerank.tool` set to `search_entity_content` or
+`search_file_content`, plus `search.rerank.rows` and `search.rerank.applied`.
 
 ## Persisted Postgres Search Index
 

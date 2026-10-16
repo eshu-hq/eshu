@@ -10,6 +10,10 @@
 // instrumentation-scope name stays "eshu/go/internal/query" regardless of where
 // the code sits, because saved span queries and dashboards match on that name.
 //
+// StartHybridRerankSpan opens the query.hybrid_rerank stage span for the
+// in-request hybrid re-rank of a find_code or content-search page, with the
+// closed tool value, the page row count, and whether the page was reordered.
+//
 // Callers pass their own tracer to StartHandlerSpanWith rather than the package
 // reading a shared one. That keeps a test's recording provider private to the
 // package that installed it: a swap in one family cannot change what another

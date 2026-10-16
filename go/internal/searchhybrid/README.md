@@ -32,7 +32,10 @@ See `doc.go` for the godoc-rendered package contract.
 - `Index` / `NewIndex` — a bounded in-memory index with `Size`, `Overflow`, and
   `HasEmbedder` accessors.
 - `Backend` — implements `searchretrieval.Backend` for keyword, semantic, and
-  hybrid retrieval.
+  hybrid retrieval. `Backend.RankAll` ranks every in-scope indexed document in
+  hybrid mode for request-local re-rankers (`find_code`, content search) whose
+  page can exceed the public retrieval limit of 100; it is bounded by the
+  index's `MaxDocuments` cap instead (#7746).
 - `DocumentText` / `DocumentContentHash` — shared searchable-text and hash
   helpers for persisted vector builders.
 - `DocumentTerms` / `QueryTerms` — shared lexical tokenizers used by the
@@ -50,15 +53,47 @@ See `doc.go` for the godoc-rendered package contract.
 - **semantic** — cosine similarity over local embedding vectors through the
   index-owned vector retriever. Requires an embedder; without one the mode
   returns an error. Exact cosine scans every valid in-scope vector and is the
-  deterministic zero-value correctness baseline. Approximate retrieval must be
-  selected explicitly.
+  deterministic zero-value correctness baseline. Approximate retrieval runs
+  when selected explicitly, or under `VectorRetrievalAuto` once the index holds
+  256 or more documents.
 - **hybrid** — Reciprocal Rank Fusion of the BM25 and vector rankings. Without an
   embedder it degenerates to the BM25 ranking and reports `search_method=bm25`.
 
 Each backend resolves the smallest request scope first, ranks only in-scope
 documents, and returns up to `limit+1` candidates so the runner can detect and
 report truncation. Ordering is deterministic for fixed inputs: ties break by
-document id, matching the runner's normalization.
+document id, matching the runner's normalization. BM25 sums each document's
+per-term contributions in sorted term order, never Go map-iteration order, so
+score bits are identical on every request served by one binary (#7746).
+`RankAll` shares the same
+ranking core with a fusion pool of the whole index and returns every ranked
+in-scope document, not `limit+1`.
+
+## Results across architectures
+
+Results are deterministic per binary, which means per process and per
+architecture. They are not guaranteed equal across architectures. Go may fuse a
+multiply and add into one FMA instruction on arm64 but not on amd64 at the
+default `GOAMD64=v1`, so these sites can round differently between an arm64
+and an amd64 replica (fused sites found with `go build -gcflags=-S` on arm64):
+
+- **BM25** (`termContribution` denominator): a score can differ by a few ulp
+  (4 observed), and two scores that close can tie-break differently.
+- **Cosine** (`cosineSimilarity`): with the shipped hash embedder every vector
+  component is an integer, so products and sums are exact and the score is the
+  same on both. With provider or precomputed float vectors it can differ by a
+  few ulp.
+- **Approximate vector retrieval** (`angularVectorSignature`): the projection
+  `dot` is inexact even for hash-embedder vectors, and its sign sets a bucket
+  bit. A projection near zero can flip a bit, so approximate retrieval
+  (`VectorRetrievalApproximate`, or `VectorRetrievalAuto` at 256 or more
+  documents) can select a different candidate set, not only different scores.
+  The request-local `find_code` and content re-rankers stay below 256 documents
+  and use exact cosine.
+
+The hash embedder (`sign * count`, with `sign` = ±1) and the projection weights
+(`unit*2 - 1`) are fused on arm64 too, but their products are exact, so fusion
+does not change them.
 
 ## Bounded memory and overflow
 
@@ -80,8 +115,10 @@ Postgres and read back.
 
 ## Vector retrieval
 
-`VectorRetrievalAuto` and `VectorRetrievalExact` score every finite, non-zero,
-same-dimension vector in the resolved request scope. Vectors that are empty,
+`VectorRetrievalExact`, and `VectorRetrievalAuto` below 256 indexed documents,
+score every finite, non-zero, same-dimension vector in the resolved request
+scope. `VectorRetrievalAuto` switches to the approximate retriever at 256 or
+more documents. Vectors that are empty,
 zero, dimension-mismatched, or non-finite are skipped before ranking, and query
 vectors with the same malformed states produce an empty vector result set.
 

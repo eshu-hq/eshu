@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/searchbench"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
@@ -35,6 +36,53 @@ func (backend Backend) Search(
 	if backend.Index == nil {
 		return nil, errors.New("searchhybrid backend requires an index")
 	}
+	return backend.rank(ctx, req, candidatePoolSize(req.Limit), req.Limit+1)
+}
+
+// RankAll ranks every in-scope indexed document for query in hybrid mode (BM25
+// fused with vector cosine by Reciprocal Rank Fusion, or BM25 alone when the
+// index has no embedder). It is for request-local re-ranking of a result set
+// the caller already bounded and authorized: the bound is the index's
+// MaxDocuments cap, not the public retrieval limit Search enforces, so a page
+// larger than that limit is ranked in full instead of being rejected (#7746).
+//
+// The fusion pool is the whole index, so no in-scope document is cut before
+// fusion. Documents with no lexical overlap and no usable vector are not
+// returned; callers keep such rows in their original order. Candidates carry
+// the same metadata and index-overflow failure signal as Search. RankAll
+// returns an error for a blank query, a missing scope or index, or a done
+// context, and callers fall back to their lexical order on any error.
+func (backend Backend) RankAll(
+	ctx context.Context,
+	query string,
+	scope searchretrieval.Scope,
+) ([]searchretrieval.Candidate, error) {
+	if strings.TrimSpace(query) == "" {
+		return nil, errors.New("searchhybrid rank-all requires a query")
+	}
+	if scope.Anchor().Kind == "" {
+		return nil, errors.New("searchhybrid rank-all requires a scope")
+	}
+	if backend.Index == nil {
+		return nil, errors.New("searchhybrid backend requires an index")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	req := searchretrieval.Request{Query: query, Scope: scope, Mode: searchbench.ModeHybrid}
+	size := backend.Index.count
+	return backend.rank(ctx, req, size, size)
+}
+
+// rank is the ranking core shared by Search and RankAll. pool bounds each
+// ranker's list before hybrid fusion and maxCandidates bounds the returned
+// candidates; req.Limit is not read.
+func (backend Backend) rank(
+	ctx context.Context,
+	req searchretrieval.Request,
+	pool int,
+	maxCandidates int,
+) ([]searchretrieval.Candidate, error) {
 	index := backend.Index
 
 	anchor := req.Scope.Anchor()
@@ -63,7 +111,7 @@ func (backend Backend) Search(
 		}
 	}
 
-	ordered, finalScores, method := backend.rankForMode(req, index, modeInputs{
+	ordered, finalScores, method := backend.rankForMode(req.Mode, pool, index, modeInputs{
 		bm25Ranked:   bm25Ranked,
 		bm25Scores:   bm25Scores,
 		vectorRanked: vectorRanked,
@@ -73,9 +121,8 @@ func (backend Backend) Search(
 
 	bm25Positions := rankPositions(bm25Ranked)
 	vectorPositions := rankPositions(vectorRanked)
-	limit := req.Limit + 1
-	candidates := make([]searchretrieval.Candidate, 0, limit)
-	for _, idx := range truncate(ordered, limit) {
+	candidates := make([]searchretrieval.Candidate, 0, min(len(ordered), maxCandidates))
+	for _, idx := range truncate(ordered, maxCandidates) {
 		candidates = append(candidates, searchretrieval.Candidate{
 			Document: index.documents[idx].doc,
 			Score:    finalScores[idx],
@@ -100,19 +147,20 @@ type modeInputs struct {
 }
 
 // rankForMode produces the final ordering, the score used for each document,
-// and the reported search method for the request mode.
+// and the reported search method for the request mode. pool bounds each
+// ranker's list before hybrid fusion.
 func (backend Backend) rankForMode(
-	req searchretrieval.Request,
+	mode searchbench.Mode,
+	pool int,
 	index *Index,
 	in modeInputs,
 ) ([]int, map[int]float64, string) {
-	switch req.Mode {
+	switch mode {
 	case searchbench.ModeKeyword:
 		return in.bm25Ranked, in.bm25Scores, "bm25"
 	case searchbench.ModeSemantic:
 		return in.vectorRanked, in.vectorScores, "vector"
 	default: // hybrid
-		pool := candidatePoolSize(req.Limit)
 		lists := [][]int{truncate(in.bm25Ranked, pool)}
 		method := "bm25"
 		if in.useVector {

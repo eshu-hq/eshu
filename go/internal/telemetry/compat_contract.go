@@ -139,6 +139,7 @@ const (
 	SpanQueryCallGraphMetrics              = contract.SpanQueryCallGraphMetrics
 	SpanQueryGraphSummaryPacket            = contract.SpanQueryGraphSummaryPacket
 	SpanQueryGraphEntityInventory          = contract.SpanQueryGraphEntityInventory
+	SpanQueryHybridRerank                  = contract.SpanQueryHybridRerank
 )
 
 // S3 external-principal grant materialization span (from

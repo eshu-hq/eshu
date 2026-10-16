@@ -21,7 +21,9 @@ failure message and decides the call order around the helpers.
 
 `HandlerTracer`, `StartHandlerSpanWith`, `WriteServerFailure`,
 `ServerFailureEnvelope`, `ClientCanceled`, and `ClientCanceledEvent`,
-described in [doc.go](doc.go).
+described in [doc.go](doc.go). `StartHybridRerankSpan`, the
+`HybridRerankTool*` values, and the `HybridRerankAttr*` keys form the
+in-request hybrid re-rank stage span (#7746).
 
 ## Dependencies
 
@@ -41,6 +43,14 @@ inherit OpenTelemetry whether it starts a span or not.
 that directory, because that name is what saved span queries and dashboards
 match on. The row in
 `docs/public/observability/telemetry-coverage.md` points at `handler.go`.
+
+`StartHybridRerankSpan` starts the `query.hybrid_rerank` stage span as a child
+of the request span. It carries `search.rerank.tool` (a closed set:
+`find_code`, `search_entity_content`, `search_file_content`),
+`search.rerank.rows` (at most one 200-row page), and `search.rerank.applied`,
+set when the caller finishes the span. The code and content rankers call it;
+its row in `docs/public/observability/telemetry-coverage.md` points at
+`hybrid_rerank.go`.
 
 `WriteServerFailure` and `ServerFailureEnvelope` mark the span already in the
 request context; they start no span. A server fault adds the standard

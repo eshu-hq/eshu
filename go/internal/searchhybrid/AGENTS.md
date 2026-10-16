@@ -43,7 +43,21 @@
 - Symptom: non-deterministic order - a new ranking path likely lacks the id
   tie-break; route it through `rankByScore`.
 - Symptom: unexpectedly many candidates - retrieval returns at most `limit+1`;
-  the runner truncates to `limit`.
+  the runner truncates to `limit`. `RankAll` returns every ranked in-scope
+  document by design; it is only for request-local re-rankers whose input the
+  caller already bounded.
+- Symptom: score bits or tie order change between identical requests - a sum
+  over a map is iterating in map order; sum in a sorted key order
+  (`sortedQueryTerms`).
+- Symptom: a test pinning raw score bits passes on arm64 and fails on amd64
+  (or the reverse) by a few ulp - Go may fuse multiply-add (FMA) on arm64 but
+  not on amd64 at the default `GOAMD64=v1`. Pin scores to a fixed number of
+  significant digits (see `searchGoldenScoreDigits`), never raw bits across
+  architectures.
+- Symptom: approximate vector retrieval returns a different candidate set on
+  an arm64 and an amd64 replica - `angularVectorSignature`'s projection is a
+  fused multiply-add on arm64, and a near-zero projection can flip a bucket
+  bit. See the README section "Results across architectures".
 
 ## Anti-patterns specific to this package
 

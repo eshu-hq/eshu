@@ -97,7 +97,7 @@ func TestRRFDegradedToBM25(t *testing.T) {
 	bm25Ranked := positiveScored(index.rankByScore(bm25Scores), bm25Scores)
 
 	req := request("payment refund", "repo-1", searchbench.ModeHybrid, 5)
-	ordered, _, method := backend.rankForMode(req, index, modeInputs{
+	ordered, _, method := backend.rankForMode(req.Mode, candidatePoolSize(req.Limit), index, modeInputs{
 		bm25Ranked:   bm25Ranked,
 		bm25Scores:   bm25Scores,
 		vectorRanked: nil,
@@ -114,7 +114,7 @@ func TestRRFDegradedToBM25(t *testing.T) {
 
 	// Ordering must match BM25-only ordering.
 	bm25Req := request("payment refund", "repo-1", searchbench.ModeKeyword, 5)
-	bm25Only, _, bm25Method := backend.rankForMode(bm25Req, index, modeInputs{
+	bm25Only, _, bm25Method := backend.rankForMode(bm25Req.Mode, candidatePoolSize(bm25Req.Limit), index, modeInputs{
 		bm25Ranked:   bm25Ranked,
 		bm25Scores:   bm25Scores,
 		vectorRanked: nil,

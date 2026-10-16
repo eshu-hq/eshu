@@ -159,6 +159,19 @@ A configured reader returning no signal uses `not_signaled`, matching the fresh
 no-op truth envelope. Keyword mode skips that probe. These child spans do not record query text,
 repository or scope IDs, document IDs, user IDs, or vector identity.
 
+### In-request hybrid re-rank (#7746)
+
+`find_code`, `search_entity_content`, and `search_file_content` emit
+`query.hybrid_rerank` as a child of the request span when the in-request hybrid
+re-rank runs. The span covers row projection, the request-local index build,
+and ranking. It carries `search.rerank.tool` (`find_code`,
+`search_entity_content`, or `search_file_content`), `search.rerank.rows` (the
+page row count, at most 200), and `search.rerank.applied` (`true` when the page
+was reordered, `false` when it kept the lexical order). It is not emitted when
+the ranker is disabled, the request has no single repository scope, or the page
+has fewer than two rows. It records no query text, repository ID, or row
+identity.
+
 ### Search-stage instrumentation cost (#7243)
 
 Benchmark Evidence: a pre-implementation local synthetic shim compared
@@ -269,6 +282,7 @@ or URLs.
 | Reducer relationship work is slow | `eshu_dp_reducer_run_duration_seconds` and reducer queue age | `reducer.run`, relationship materialization spans, `canonical.write` |
 | Graph writes are slow | `eshu_dp_canonical_write_duration_seconds` | `canonical.write` and nested `neo4j.execute` |
 | Read path is slow | API/MCP request latency or query handler span | `postgres.query`, `neo4j.query`, `neo4j.query.single`, caller shaping code |
+| Code or content search is slow | API/MCP request latency and the query handler span | `query.hybrid_rerank` duration, `search.rerank.rows`, and `search.rerank.applied` |
 | Semantic search is slow | API/MCP request latency and `query.semantic_search` | `query.semantic_search.persisted_index` stage events; `query.semantic_search.vector_ready` outcome for vector-backed modes; separate PostgreSQL plan inspection for BM25 |
 | Webhook intake is rejected or slow | `eshu_dp_webhook_requests_total` and webhook duration metrics | `webhook.handle`, provider verification, normalization, `webhook.store` |
 
