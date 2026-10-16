@@ -159,6 +159,19 @@ the differing base/candidate commits, so the paired sides are never mistaken
 for a same-code comparison. The uncalibrated proof (request shapes, fixture
 oracle, statement registry, query-count budgets) still runs in full and still
 binds the rewrite.
+A PR that changes existing graph schema files on purpose follows the same
+procedure with `methodologyCommittedSchemaDeclaration`
+(`go/internal/query/methodology_schema_declaration_test.go`, issue + reason +
+exact `go/internal/graph/schema*.go` paths). Only the graph schema tree pin
+applies it. The migrations tree keeps the strict pin. The declared files must
+be pinned schema files present at both revisions, the diff must equal the
+declared set exactly, and the working tree must match the committed candidate.
+A committed new schema file needs no declaration, because the additive
+admission already covers it. A run in which both the schema declaration and the
+reader declaration are active fails closed: one PR may change pinned schema or
+pinned readers, not both. After merge the declared files agree with base and
+the declaration goes inert, like the reader declaration.
+`TestMethodologySchemaDeclarationGate` holds the seeded RED/GREEN arms.
 PostgreSQL cold preparation discards plans; it does not evict operating-system
 or shared-buffer caches. Neo4j records first-pass and warm samples separately.
 The graph runner records actual calls for each of the 488 request shapes and
