@@ -88,6 +88,15 @@ func h(w http.ResponseWriter, r *http.Request, err error) {
 	WriteErrorEnvelope(w, r, status, env)
 }`, 0, 0},
 
+		// Declared after their callers: only a fixed point finds these.
+		{"forwarder_declared_after_its_wrapper", `func h(w http.ResponseWriter) { outer(w, http.StatusBadGateway) }
+func outer(w http.ResponseWriter, status int) { inner(w, status) }
+func inner(w http.ResponseWriter, status int) { WriteError(w, status, "failed") }`, 0, 1},
+		{"fixed_chain_declared_in_reverse", `func h(w http.ResponseWriter) { a(w) }
+func a(w http.ResponseWriter) { b(w) }
+func b(w http.ResponseWriter) { c(w) }
+func c(w http.ResponseWriter) { WriteError(w, http.StatusInternalServerError, "failed") }`, 0, 4},
+
 		// Near misses that must still fail.
 		{"returner_with_500_branch", `func build(err error) (int, *ErrorEnvelope) {
 	if err == nil {

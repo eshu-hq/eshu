@@ -33,7 +33,7 @@ func (tree *queryGuardTree) returnerIndex(f *queryGuardFile, call *ast.CallExpr)
 	}
 	index := -1
 	for _, key := range target.keys {
-		got, ok := tree.returners[target.dir][key]
+		got, ok := tree.returners[key.dir][key.key]
 		if !ok || (index >= 0 && got != index) {
 			return 0, false
 		}

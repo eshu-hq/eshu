@@ -15,6 +15,21 @@ type queryTypeRef struct {
 	dir, name string
 }
 
+// queryWriterKey names a function declaration in the walk: its package
+// directory and its writer key (queryFuncKey).
+type queryWriterKey struct {
+	dir, key string
+}
+
+// String renders the key for a finding: "Recv.name" in the walk root,
+// "dir/Recv.name" elsewhere.
+func (k queryWriterKey) String() string {
+	if k.dir == "." {
+		return k.key
+	}
+	return k.dir + "/" + k.key
+}
+
 // queryFuncKey is the writer key of a function declaration: "Recv.name" for a
 // method on the named type Recv, "name" for a plain function.
 func queryFuncKey(fn *ast.FuncDecl) string {
@@ -66,33 +81,27 @@ func queryTypeRefOf(f *queryGuardFile, expr ast.Expr) (queryTypeRef, bool) {
 	return queryTypeRef{}, false
 }
 
-// indexTypes records, before any derivation, every method name per package
-// (methodsByName) and the named field types of every struct type (fields), so
-// a method call can be resolved to its receiver type.
+// indexTypes records, before any derivation, every method of the tree by
+// name across all packages (methodsByName) and the named field types of every
+// struct type (fields), so a method call can be resolved to its receiver type.
 func (tree *queryGuardTree) indexTypes() {
-	tree.methodsByName = map[string]map[string][]string{}
+	tree.methodsByName = map[string][]queryWriterKey{}
 	tree.fields = map[queryTypeRef]map[string]queryTypeRef{}
 	for _, f := range tree.files {
 		for _, decl := range f.file.Decls {
 			switch d := decl.(type) {
 			case *ast.FuncDecl:
-				if d.Recv == nil {
-					continue
+				if d.Recv != nil {
+					tree.methodsByName[d.Name.Name] = append(tree.methodsByName[d.Name.Name], queryWriterKey{dir: f.dir, key: queryFuncKey(d)})
 				}
-				if tree.methodsByName[f.dir] == nil {
-					tree.methodsByName[f.dir] = map[string][]string{}
-				}
-				tree.methodsByName[f.dir][d.Name.Name] = append(tree.methodsByName[f.dir][d.Name.Name], queryFuncKey(d))
 			case *ast.GenDecl:
 				tree.indexStructFields(f, d)
 			}
 		}
 	}
-	for _, pkg := range tree.methodsByName {
-		for name, keys := range pkg {
-			sort.Strings(keys)
-			pkg[name] = keys
-		}
+	for name, keys := range tree.methodsByName {
+		sort.Slice(keys, func(i, j int) bool { return keys[i].String() < keys[j].String() })
+		tree.methodsByName[name] = keys
 	}
 }
 
@@ -209,40 +218,46 @@ func queryIdentType(f *queryGuardFile, fn *ast.FuncDecl, name string) (queryType
 }
 
 // queryCallTarget is the function a call may invoke: the name as written
-// (pkg.Name for a qualified call), the bare name, the package directory a
-// tree function lives in ("" for an import outside the walk root, "http" for
-// http.Error), and the candidate writer keys in that directory. ambiguous
-// lists every candidate when a method call's receiver type is not evident and
-// the package declares more than one method by that name.
+// (pkg.Name for a qualified call), the bare name, http for http.Error, and
+// the candidate declarations. unresolved is set when a method call's
+// receiver type is not evident and keys is every method of that name in the
+// tree, in any package.
 type queryCallTarget struct {
-	name, base, dir string
-	keys            []string
-	ambiguous       bool
+	name, base string
+	http       bool
+	keys       []queryWriterKey
+	unresolved bool
 }
 
 // target resolves call. A bare name is a plain function of f's package;
-// pkg.Name a plain function of the imported package; x.name a method, keyed
-// by x's type when exprType finds it, else by every method named name in f's
-// package (the conservative union).
+// pkg.Name a plain function of the imported package (no key for an import
+// outside the walk root); x.name a method, keyed by x's type when exprType
+// finds it, else by every method named name in every package of the tree
+// (the conservative union).
 func (tree *queryGuardTree) target(f *queryGuardFile, call *ast.CallExpr) (queryCallTarget, bool) {
 	switch fun := call.Fun.(type) {
 	case *ast.Ident:
-		return queryCallTarget{name: fun.Name, base: fun.Name, dir: f.dir, keys: []string{fun.Name}}, true
+		return queryCallTarget{name: fun.Name, base: fun.Name, keys: []queryWriterKey{{dir: f.dir, key: fun.Name}}}, true
 	case *ast.SelectorExpr:
 		name := fun.Sel.Name
 		if x, isIdent := fun.X.(*ast.Ident); isIdent {
 			if x.Name == "http" && name == "Error" {
-				return queryCallTarget{name: "http.Error", base: "Error", dir: "http"}, true
+				return queryCallTarget{name: "http.Error", base: "Error", http: true}, true
 			}
 			if importDir, imported := f.imports[x.Name]; imported {
-				return queryCallTarget{name: x.Name + "." + name, base: name, dir: importDir, keys: []string{name}}, true
+				target := queryCallTarget{name: x.Name + "." + name, base: name}
+				if importDir != "" {
+					target.keys = []queryWriterKey{{dir: importDir, key: name}}
+				}
+				return target, true
 			}
 		}
 		if ref, ok := tree.exprType(f, queryEnclosingFunc(f, call), fun.X); ok {
-			return queryCallTarget{name: ref.name + "." + name, base: name, dir: ref.dir, keys: []string{ref.name + "." + name}}, true
+			key := queryWriterKey{dir: ref.dir, key: ref.name + "." + name}
+			return queryCallTarget{name: ref.name + "." + name, base: name, keys: []queryWriterKey{key}}, true
 		}
-		keys := tree.methodsByName[f.dir][name]
-		return queryCallTarget{name: name, base: name, dir: f.dir, keys: keys, ambiguous: len(keys) > 1}, true
+		keys := tree.methodsByName[name]
+		return queryCallTarget{name: name, base: name, keys: keys, unresolved: len(keys) > 0}, true
 	default:
 		return queryCallTarget{}, false
 	}
@@ -251,8 +266,12 @@ func (tree *queryGuardTree) target(f *queryGuardFile, call *ast.CallExpr) (query
 // ambiguityNote is the text a finding carries when its writer was matched by
 // the conservative union of same-named methods.
 func (target queryCallTarget) ambiguityNote() string {
-	if !target.ambiguous {
+	if !target.unresolved {
 		return ""
 	}
-	return " [receiver type unresolved; matched " + strings.Join(target.keys, ", ") + "]"
+	names := make([]string, 0, len(target.keys))
+	for _, key := range target.keys {
+		names = append(names, key.String())
+	}
+	return " [receiver type unresolved; matched " + strings.Join(names, ", ") + "]"
 }

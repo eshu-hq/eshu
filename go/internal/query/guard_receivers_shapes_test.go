@@ -122,3 +122,56 @@ func read(w http.ResponseWriter) {
 		t.Fatalf("a/a.go sites = %d, want 2 (the 500 and its caller):\n%s", got, formatQueryErrorTextLeakSites(findings[0].sites))
 	}
 }
+
+// TestQueryWriterUnresolvedReceiverAcrossPackages pins the union fallback
+// across packages: a receiver from a constructor call in another package has
+// no evident type, so x.Relay matches every method named Relay in the tree,
+// and the finding carries the unresolved-receiver note.
+func TestQueryWriterUnresolvedReceiverAcrossPackages(t *testing.T) {
+	t.Parallel()
+
+	files := map[string]string{
+		"relay/relay.go": `package relay
+
+type PlantRelay struct{}
+
+func NewPlantRelay() *PlantRelay { return &PlantRelay{} }
+
+func (r *PlantRelay) Relay(w http.ResponseWriter, status int, message string) {
+	WriteError(w, status, message)
+}
+`,
+		"caller.go": `package q
+
+import "example.test/q/relay"
+
+func read(w http.ResponseWriter) {
+	r := relay.NewPlantRelay()
+	r.Relay(w, http.StatusInternalServerError, "failed")
+}
+
+func reject(w http.ResponseWriter) {
+	r := relay.NewPlantRelay()
+	r.Relay(w, http.StatusBadRequest, "bad request")
+}
+`,
+	}
+	root := t.TempDir()
+	for rel, src := range files {
+		path := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("mkdir for %s: %v", rel, err)
+		}
+		if err := os.WriteFile(path, []byte(src), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+	findings := queryDirectServerStatusFindings(loadQueryGuardTree(t, root, queryGuardSeedImportRoot))
+	if got := queryGuardFindingFiles(findings); !slices.Equal(got, []string{"caller.go"}) {
+		t.Fatalf("assertion B findings = %v, want [caller.go]", got)
+	}
+	report := formatQueryErrorTextLeakSites(findings[0].sites)
+	if len(findings[0].sites) != 1 || !strings.Contains(report, "receiver type unresolved; matched relay/PlantRelay.Relay") {
+		t.Fatalf("caller.go sites want exactly the 500 relay call with the unresolved note:\n%s", report)
+	}
+}

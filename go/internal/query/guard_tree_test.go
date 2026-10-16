@@ -38,9 +38,10 @@ type queryGuardTree struct {
 	files     []*queryGuardFile
 	writers   map[string]map[string]queryWriterSpec
 	returners map[string]map[string]int // dir -> function key -> result index of an allowed status
-	// methodsByName maps dir -> method name -> every "Recv.name" key, and
-	// fields maps a struct type to its named field types (indexTypes).
-	methodsByName map[string]map[string][]string
+	// methodsByName maps a method name to every method of that name in the
+	// tree, and fields maps a struct type to its named field types
+	// (indexTypes).
+	methodsByName map[string][]queryWriterKey
 	fields        map[queryTypeRef]map[string]queryTypeRef
 }
 
@@ -169,19 +170,16 @@ func (tree *queryGuardTree) resolve(f *queryGuardFile, call *ast.CallExpr) (quer
 	switch {
 	case !ok:
 		return queryWriterSpec{}, "", false
-	case target.dir == "http":
+	case target.http:
 		return queryHTTPErrorWriter, target.name, true
 	}
 	if spec, ok := queryBaseWriters[target.base]; ok {
 		return spec, target.name, true
 	}
-	if target.dir == "" {
-		return queryWriterSpec{}, "", false
-	}
 	var merged queryWriterSpec
 	found := false
 	for _, key := range target.keys {
-		spec, ok := tree.writers[target.dir][key]
+		spec, ok := tree.writers[key.dir][key.key]
 		if !ok {
 			continue
 		}
