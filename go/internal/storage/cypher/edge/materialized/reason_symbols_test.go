@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -28,6 +29,8 @@ var inheritanceCitation = regexp.MustCompile(`\binheritance\.([A-Za-z_]\w*)\b`)
 var parenthesizedInheritanceCitation = regexp.MustCompile(`\(\s*inheritance[^)]*\)`)
 
 var qualifiedInheritanceCitation = regexp.MustCompile(`\(\s*inheritance\.([A-Za-z_]\w*)\s*\)`)
+
+var cypherRelationshipType = regexp.MustCompile(`-\[\w+:([A-Z][A-Z0-9_]*)\]->`)
 
 // inheritanceStringConstants parses string constants declared by the owning
 // inheritance package. It intentionally does not include test files or symbols
@@ -102,6 +105,70 @@ func validateInheritanceCitations(registry map[string]string, declared map[strin
 		}
 	}
 	return missing
+}
+
+func validateInheritanceTemplateEdges(registry map[string]string, templateEdges map[string]string) []string {
+	var mismatches []string
+	for edgeType, reason := range registry {
+		citations := qualifiedInheritanceCitation.FindAllStringSubmatch(reason, -1)
+		if len(citations) != 1 {
+			continue
+		}
+		symbol := citations[0][1]
+		if actual, ok := templateEdges[symbol]; !ok {
+			mismatches = append(mismatches, edgeType+" cites inheritance."+symbol+" without a parsed relationship type")
+		} else if actual != edgeType {
+			mismatches = append(mismatches, edgeType+" cites inheritance."+symbol+", which writes "+actual)
+		}
+	}
+	return mismatches
+}
+
+func inheritanceTemplateEdges(t *testing.T, dir string) map[string]string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read inheritance package dir: %v", err)
+	}
+	fset := token.NewFileSet()
+	edges := map[string]string{}
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, filepath.Join(dir, name), nil, parser.AllErrors)
+		if err != nil {
+			t.Fatalf("parse %s: %v", name, err)
+		}
+		for _, decl := range file.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok || gen.Tok != token.CONST {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				value, ok := spec.(*ast.ValueSpec)
+				if !ok || !isStringConstant(value) || len(value.Names) != len(value.Values) {
+					continue
+				}
+				for index, name := range value.Names {
+					literal, ok := value.Values[index].(*ast.BasicLit)
+					if !ok || literal.Kind != token.STRING {
+						continue
+					}
+					query, err := strconv.Unquote(literal.Value)
+					if err != nil {
+						t.Fatalf("unquote %s: %v", name.Name, err)
+					}
+					matches := cypherRelationshipType.FindAllStringSubmatch(query, -1)
+					if len(matches) == 1 {
+						edges[name.Name] = matches[0][1]
+					}
+				}
+			}
+		}
+	}
+	return edges
 }
 
 func TestValidateInheritanceCitationsRejectsBrokenReasons(t *testing.T) {
@@ -231,9 +298,24 @@ func TestInheritanceRegistryReasonsCiteOwningPackage(t *testing.T) {
 	if len(registry) != 4 {
 		t.Fatalf("inheritance registry has %d entries, want all four relationship types", len(registry))
 	}
-	declared := inheritanceStringConstants(t, filepath.Join("..", "..", "canonical", "inheritance"), "inheritance")
+	dir := filepath.Join("..", "..", "canonical", "inheritance")
+	declared := inheritanceStringConstants(t, dir, "inheritance")
 	if missing := validateInheritanceCitations(registry, declared); len(missing) > 0 {
 		sort.Strings(missing)
 		t.Fatalf("inheritance registry reasons cite missing or malformed owning-package symbols:\n  %s", strings.Join(missing, "\n  "))
+	}
+	if mismatches := validateInheritanceTemplateEdges(registry, inheritanceTemplateEdges(t, dir)); len(mismatches) > 0 {
+		t.Fatalf("inheritance registry reasons cite templates for different edge types:\n  %s", strings.Join(mismatches, "\n  "))
+	}
+}
+
+func TestInheritanceCitationGuardRejectsWrongExistingTemplate(t *testing.T) {
+	t.Parallel()
+
+	registry := inheritance.MaterializedEdgeTypes()
+	registry["INHERITS"] = "class/type inheritance (inheritance.BatchOverrideUpsertCypher)"
+	templateEdges := inheritanceTemplateEdges(t, filepath.Join("..", "..", "canonical", "inheritance"))
+	if got := validateInheritanceTemplateEdges(registry, templateEdges); len(got) == 0 {
+		t.Fatal("wrong existing template citation passed; want edge/template mismatch")
 	}
 }
