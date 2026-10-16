@@ -20,8 +20,10 @@ API, OpenAPI, or MCP code changed.
   fully qualified name. This needs an `autoload.psr-4` prefix of that manifest
   that covers the class with the file at exactly the mapped directory plus the
   namespace remainder plus `.php`. A public static class method gets
-  `export_name` `<FQCN>::<method>`. Nothing is keyed under `vendor/`, for
-  `autoload-dev` (composer loads it for the root package only), classmap,
+  `export_name` `<FQCN>::<method>`. Nothing is keyed from a `composer.json`
+  under `vendor/` or under a test, tests, fixtures, testdata, or examples
+  directory
+  (#8223), and nothing is keyed for `autoload-dev` (composer loads it for the root package only), classmap,
   psr-0, or the empty fallback prefix, for traits, enums (the adapter emits no
   enum entities), or free functions, or in a file with more than one namespace
   declaration.
@@ -189,8 +191,13 @@ keyless facts until their next commit. The pin fixture (the
 `content_version` fixture tree beside `snapshot_content_version_gate_test.go`)
 has no composer files, so the re-pin moves only
 `content_version`; the digest and the 238-fact count are unchanged. A PHP
-composer change is therefore not caught by the pin; the fixture was left alone
-because #7978 owns it. Production discovery already prunes `vendor/`
+composer change was therefore not caught by the pin at v3. Later bumps:
+`git-collector.v4` (#8222, PHP import kind) and `git-collector.v5` (#8223,
+fixture-directory composer manifests no longer stamp `package_id`). The
+`content_version` fixture now carries `php-lib/` with a real root
+`composer.json` and class plus a same-named manifest and class in a nested
+`app` directory below a tests and fixtures path, so a change to the composer producer rule moves
+the pinned digest (252 facts at v5). Production discovery already prunes `vendor/`
 (`go/internal/collector/repo/git/snapshot_discovery.go`); the parser and loader
 `vendor/` guards stay as defense in depth.
 

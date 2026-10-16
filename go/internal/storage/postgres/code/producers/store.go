@@ -183,7 +183,16 @@ WHERE scope.scope_kind = 'repository'
 // NULL row the anchored scan always visits, plus the manifest-less leg for
 // scopes with a never-activated generation. A manifest under a vendor/
 // directory is excluded: it is an installed copy of a dependency, not a
-// publisher, and the parser never stamps package_id there. Nested manifests
+// publisher, and the parser never stamps package_id there. A manifest under a
+// fixture-style directory (test, tests, fixtures, testdata, examples; whole
+// segments, any ASCII case) is excluded for the same reason (#8223): it is test
+// scaffolding that can reuse a real package name. The predicate is
+// composer.FixtureDirPattern, the constant the parser's ProducerPackage
+// applies. It spells the case folding as ASCII classes, so no case fold or
+// locale differs between the two dialects and the anchor and the package_id
+// stamp agree. It is a row filter on the one bitmap scan the path predicate
+// already drives, not a new index
+// (docs/internal/evidence/8223-composer-fixture-manifests.md). Nested manifests
 // (monorepo packages) are included, because the parser stamps each class with
 // its nearest composer.json name.
 const ComposerManifestsQuery = `
@@ -192,6 +201,7 @@ WITH manifest AS MATERIALIZED (
     FROM content_files
     WHERE (relative_path = 'composer.json' OR relative_path LIKE '%/composer.json')
       AND relative_path !~ '(^|/)vendor/'
+      AND relative_path !~ '` + composer.FixtureDirPattern + `'
 ),
 tagged AS (
     SELECT manifest.repo_id, manifest.content, manifest.generation_id AS tag,
