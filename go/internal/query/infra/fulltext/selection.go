@@ -37,7 +37,8 @@ const (
 	ReasonNotReady Reason = "not_ready"
 	// ReasonIndexNotOnline means the index is missing or not ONLINE.
 	ReasonIndexNotOnline Reason = "index_not_online"
-	// ReasonUnkeyed means at least one infra node has no search key flag.
+	// ReasonUnkeyed means at least one infra node that holds a searched
+	// field has no search key flag.
 	ReasonUnkeyed Reason = "unkeyed"
 	// ReasonFTError means the full-text read failed and the legacy
 	// statement answered the request.

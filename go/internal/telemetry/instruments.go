@@ -2498,7 +2498,8 @@ type Instruments struct {
 	// by registerInfraSearchKeyInstruments.
 	InfraSearchPath metric.Int64Counter
 	// InfraSearchKeyReady is 1 when the last readiness probe found the
-	// infra_search_key_ft index ONLINE and no unkeyed infra node (#7245).
+	// infra_search_key_ft index ONLINE and no unkeyed infra node that holds a
+	// searched field (#7245).
 	InfraSearchKeyReady metric.Int64Gauge
 	// InfraSearchKeyIndexOnline is 1 when the last readiness probe read the
 	// infra_search_key_ft index as ONLINE (#7245).

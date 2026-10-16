@@ -39,7 +39,8 @@ func registerInfraSearchKeyInstruments(meter metric.Meter, inst *Instruments) er
 	if inst.InfraSearchKeyReady, err = meter.Int64Gauge(
 		"eshu_dp_infra_search_key_ready",
 		metric.WithDescription("1 when the last infra search key readiness probe found infra_search_key_ft "+
-			"ONLINE and no unkeyed infra node, else 0 (#7245). Only a ready process can serve the full-text search"),
+			"ONLINE and no unkeyed infra node that holds a searched field, else 0 (#7245). Only a ready process "+
+			"can serve the full-text search"),
 	); err != nil {
 		return fmt.Errorf("register InfraSearchKeyReady gauge: %w", err)
 	}

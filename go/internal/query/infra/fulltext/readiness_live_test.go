@@ -58,8 +58,13 @@ func TestLiveInfraSearchReadinessIgnoresNodesWithNoSearchedField(t *testing.T) {
 		t.Fatalf("CountUnkeyed = %d, want %d: it still counts every node without a flag", got, baseAll+2)
 	}
 	readiness := fulltext.NewReadiness(g, nil, nil)
-	if st := readiness.Refresh(context.Background()); st.Unkeyed != baseSearchable || st.Err != nil {
+	st := readiness.Refresh(context.Background())
+	if st.Unkeyed != baseSearchable || st.Err != nil {
 		t.Fatalf("readiness with bare nodes = %+v, want unkeyed %d", st, baseSearchable)
+	}
+	// On a store the backfill keyed fully, the bare nodes leave it ready.
+	if baseSearchable == 0 && (!st.Ready || st.Reason != fulltext.ReasonReady) {
+		t.Fatalf("readiness with only bare and overflow nodes unkeyed = %+v, want ready", st)
 	}
 
 	// Each searched field alone makes an unkeyed node count, string or not.

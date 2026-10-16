@@ -45,11 +45,13 @@ type Runner interface {
 
 // State is one readiness probe result. Its zero value is not ready.
 type State struct {
-	// Ready is true only when the index is ONLINE and no node is unkeyed.
+	// Ready is true only when the index is ONLINE and no unkeyed node holds a
+	// searched field.
 	Ready bool
 	// Index is the index state the probe read.
 	Index IndexState
-	// Unkeyed is the number of infra nodes without a search key flag.
+	// Unkeyed is the number of infra nodes without a search key flag that
+	// hold a searched field (search.CountUnkeyedSearchable).
 	Unkeyed int64
 	// Reason is ReasonReady when ready, else why not.
 	Reason Reason
