@@ -191,11 +191,15 @@ error text (#7674):
 - `POST /api/v0/terraform/config-state-drift/findings`: `count Terraform
   config-vs-state drift findings failed` or `list Terraform config-vs-state
   drift findings failed`.
+- `GET /api/v0/cloud/inventory`: `cloud inventory readback failed`, in the
+  route's `internal_error` contract envelope with the profile block. Its text
+  was already fixed; a stale reader used to answer this `500`, and a client
+  cancel used to read as a server fault.
 
 A reader fence on these reads answers the retryable `503` with `Retry-After`.
 The metrics route reads Prometheus, which cannot produce a fence, so it
 declares no `503`. The OpenAPI spec now declares that `503` on the CI/CD,
-service catalog, and Terraform drift routes. An incident that is not found
+service catalog, Terraform drift, and cloud inventory routes. An incident that is not found
 answers `404` with the fixed not-found text, not the wrapped lookup error.
 
 A shared selector helper error that is neither an unmatched nor an ambiguous
