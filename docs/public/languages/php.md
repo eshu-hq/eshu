@@ -158,6 +158,14 @@ Not claimed today:
   public surfaces, include/require resolution, namespace alias breadth, broader
   framework route resolution, and arbitrary whole-program alias flow remain
   outside the documented contract.
+- The kind of a `use` import (`use`, `use function`, `use const`) is read from
+  the grammar's kind token, not from the statement text, so a class imported from
+  a namespace that only begins with `Function` or `Const` (`Functional\Collection`,
+  `Constraint\Rule`) is a class import and can bind a package key (#8222). A
+  namespace whose first segment is exactly `Function` or `Const` (`use
+  Function\Foo;`) is still read by the vendored tree-sitter PHP grammar as a kind
+  keyword: the segment is dropped from the name and the class gets no package key.
+  That is a missed key, never a false link.
 - A PHP file larger than 1 MiB has its tree-sitter parse skipped entirely in
   the normal parse stage, to bound superlinear tree-sitter parse cost on very
   large generated files such as CID font maps or bundled library sources
