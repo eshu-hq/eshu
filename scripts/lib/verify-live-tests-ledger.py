@@ -11,6 +11,7 @@
 # deadlocks on heredoc bodies over 512 bytes.
 #
 # Usage: verify-live-tests-ledger.py <ledger_path> <repo_root>
+import ast
 import hashlib
 import os
 from pathlib import Path
@@ -34,12 +35,90 @@ from postgres_scheduled_runner import (
     load_inventory as load_scheduled_inventory,
     verify_inventory as verify_scheduled_inventory,
 )
-from replay_tier_enrollment import load_inventory as load_replay_inventory
-from replay_tier_enrollment import verify_ledger as verify_replay_ledger
-
 if len(sys.argv) != 3:
     sys.exit(f"usage: {sys.argv[0]} <ledger_path> <repo_root>")
 ledger_path, repo_root = sys.argv[1], sys.argv[2]
+# Check the proof subjects before importing their module. A top-level successful
+# exit in that module must not bypass the ledger's independent source read.
+REPLAY_PROOF_SOURCE_SHA256 = {
+    "scripts/verify-replay-tier.sh": (
+        "c444a52095236b608cda143bf4bdbbedc9302e9ed23f4980bcdefeac8f81056b"
+    ),
+    "scripts/lib/replay_tier_enrollment.py": (
+        "c4d991bd52ff3617d368335a532f6b9b332f1580c4292154cf8f4d6374c3d544"
+    ),
+}
+replay_cli_source = ""
+for name, expected_digest in REPLAY_PROOF_SOURCE_SHA256.items():
+    try:
+        source = (Path(repo_root) / name).read_bytes()
+    except OSError as error:
+        sys.exit(f"replay proof source integrity read failed: {name}: {error}")
+    actual_digest = hashlib.sha256(source).hexdigest()
+    if actual_digest != expected_digest:
+        sys.exit(f"replay proof source integrity mismatch: {name}")
+    if name == "scripts/lib/replay_tier_enrollment.py":
+        replay_cli_source = source.decode("utf-8")
+
+# The source hash binds exact reviewed bytes; the AST check independently
+# rejects a repinned import-time exit or a CLI that returns before validation.
+try:
+    replay_tree = ast.parse(replay_cli_source)
+except SyntaxError as error:
+    sys.exit(f"replay proof source integrity syntax error: {error}")
+for node in replay_tree.body[:-1]:
+    if isinstance(node, (ast.Import, ast.ImportFrom)):
+        continue
+    if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant):
+        continue
+    if isinstance(node, ast.FunctionDef) and not node.decorator_list:
+        continue
+    if (isinstance(node, ast.Assign)
+            and all(isinstance(target, ast.Name) and target.id.isupper()
+                    for target in node.targets)
+            and not any(isinstance(child, ast.Call) for child in ast.walk(node.value))):
+        continue
+    sys.exit("replay proof source integrity has executable top-level code")
+dispatch = replay_tree.body[-1]
+expected_test = ast.parse('__name__ == "__main__"', mode="eval").body
+expected_exit = ast.parse("SystemExit(main())", mode="eval").body
+if (not isinstance(dispatch, ast.If) or dispatch.orelse
+        or ast.dump(dispatch.test) != ast.dump(expected_test)
+        or len(dispatch.body) != 1 or not isinstance(dispatch.body[0], ast.Raise)
+        or not isinstance(dispatch.body[0].exc, ast.Call)
+        or ast.dump(dispatch.body[0].exc) != ast.dump(expected_exit)):
+    sys.exit("replay proof source integrity CLI dispatch is inactive")
+main_functions = [node for node in replay_tree.body
+                  if isinstance(node, ast.FunctionDef) and node.name == "main"]
+if (len(main_functions) != 1 or len(main_functions[0].body) < 2
+        or not isinstance(main_functions[0].body[-2], ast.Try)
+        or not isinstance(main_functions[0].body[-1], ast.Return)
+        or not isinstance(main_functions[0].body[-1].value, ast.Constant)
+        or main_functions[0].body[-1].value.value != 0
+        or any(isinstance(node, (ast.If, ast.For, ast.While, ast.With,
+                                 ast.Return, ast.Raise, ast.Try))
+               for node in main_functions[0].body[:-2])):
+    sys.exit("replay proof source integrity main returns before validation")
+for statement in main_functions[0].body[:-2]:
+    if (isinstance(statement, ast.Import)
+            and [alias.name for alias in statement.names] == ["argparse"]):
+        continue
+    if isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Constant):
+        continue
+    if isinstance(statement, (ast.Expr, ast.Assign)) and isinstance(statement.value, ast.Call):
+        call = statement.value
+        if (isinstance(call.func, ast.Attribute)
+                and isinstance(call.func.value, ast.Name)
+                and (call.func.value.id, call.func.attr) in {
+                    ("argparse", "ArgumentParser"), ("parser", "add_argument"),
+                    ("parser", "parse_args")
+                }):
+            continue
+    sys.exit("replay proof source integrity main has an early exit")
+
+from replay_tier_enrollment import load_inventory as load_replay_inventory  # noqa: E402
+from replay_tier_enrollment import verify_ledger as verify_replay_ledger  # noqa: E402
+
 try:
     text = load_ledger_text(Path(ledger_path))
 except ValueError as error:

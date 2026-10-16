@@ -40,6 +40,7 @@ on:
       - 'scripts/lib/replay_tier_routes.py'
       - 'scripts/lib/replay_tier_inventory.json'
       - 'scripts/test-replay-tier-enrollment.py'
+      - 'scripts/test-replay-tier-source-integrity.py'
       - 'scripts/test-replay-tier-ledger-policy.py'
       - 'scripts/lib/verify-live-tests-ledger.py'
       - 'specs/live-tests.v1.yaml'
