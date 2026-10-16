@@ -14,7 +14,7 @@ no read-path change, so it removes no read time.
 | `182_content_files_version_fence.sql` | Three plpgsql functions and four triggers. INSERT and UPDATE are statement-level with a `NEW TABLE`, DELETE is statement-level with an `OLD TABLE`, TRUNCATE bumps every version row. Each bumps a touched repository once per transaction, in `repo_id` order |
 | `183_config_artifact_content_versions_seed.sql` | `INSERT ... SELECT DISTINCT repo_id FROM content_files ... ON CONFLICT DO NOTHING`, version 0, `bumped_xid` `'0'::xid8` |
 
-Two deviations from the S3 ruling text need review:
+Two deviations from the S3 ruling text:
 
 1. **Two files, not one transaction.** Ruling section 4 keeps the ADR order
    "triggers, then seed, one transaction". The #7961 lock-shape gate
@@ -22,12 +22,16 @@ Two deviations from the S3 ruling text need review:
    TRIGGER` and `INSERT ... SELECT` in one file. Reproduced on a one-file
    draft: "table-locking DDL (CREATE TRIGGER) and bulk DML (INSERT ...
    SELECT) in one file hold the lock through the DML", exit 1. The split is
-   the arbiter's own two-step form. It is correct because no reader or derive
+   the arbiter's own two-step form, made unconditional by the gate (coordinator
+   ruling, 2026-10-16). It is correct because no reader or derive
    exists before PR3b-2: a write between the two files creates its row at
    version 1 through the trigger, and the seed keeps it
    (`TestVersionFenceMigrationsOnExistingContentLive`,
-   `TestVersionFenceSeedRacesAFencedWriteLive`). The content-write stall is now
-   the `CREATE TRIGGER` catalog change only.
+   `TestVersionFenceSeedRacesAFencedWriteLive`). Every repository ends with
+   one row. `TestFenceMigrationsApplyTriggersBeforeSeed` pins 170, then 182,
+   then 183. The content-write stall is now the `CREATE TRIGGER` catalog
+   lock only (182 took 0.0033 s on 1,000,000 rows); the seed holds ACCESS
+   SHARE and blocks no write.
 2. **Guard on `(bumped_xid, bumped_at)`.** The ruled guard compares
    `bumped_xid` only. The PR3b-1a review left a forward note (package
    README): a logical restore restarts the transaction id counter while stored
