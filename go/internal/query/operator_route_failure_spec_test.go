@@ -122,7 +122,7 @@ func TestOpenAPIAdminRoutesDeclareTheirFailureStatuses(t *testing.T) {
 			t.Errorf("%s: description does not name the reader-verdict capability %q", route, capability)
 		}
 		if strings.Contains(description, "no other 503") {
-			t.Errorf("%s: description claims no other 503, but the checkpoint middleware answers 503 on every admin route", route)
+			t.Errorf("%s: description claims no other 503, but the checkpoint middleware answers 503 on every admin POST route", route)
 		}
 		responses := testutil.MustMapField(t, post, "responses")
 		if _, ok := responses["500"]; !ok {
