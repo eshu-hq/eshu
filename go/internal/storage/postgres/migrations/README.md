@@ -153,6 +153,72 @@ On the production index set, the backfill costs about 0.65 to 0.89 ms and
 (`../migration_169_reader_bound_live_test.go`) are in
 `docs/internal/evidence/7760-generation-tag.md`.
 
+## Migrations 188 to 190 deployment note (#7420)
+
+188, 189 and 190 drop the per-fact foreign key
+`fact_id REFERENCES fact_records(fact_id) ON DELETE CASCADE` from
+`relationship_reference_candidate_keys`, `package_manifest_consumption_keys`
+and `package_registry_identity_keys`. Read these facts before rollout:
+
+- Deploy the #7420 PR1 image first (explicit key deletes at both retention
+  fact delete sites, migrations 182 and 183). After the drop, those deletes
+  are the only thing that removes key rows with their facts. The census
+  `factkeys.OrphanCensusSQL` reads zero while they hold. If one release
+  carries both PRs, a reducer from the older image that still runs retention
+  after `db-migrate` leaves the key rows of the generations it prunes: run
+  the census after the rollout and clear what it reports with
+  `factkeys.OrphanCleanupSQL` (both quoted in the 3 AM runbook).
+- Locks, measured on PostgreSQL 18.6: `DROP CONSTRAINT` takes ACCESS
+  EXCLUSIVE on the key table and on `fact_records`. It is catalog-only (3.4 to
+  17.6 ms on a 3M-fact fixture). A plain `ALTER TABLE ... DROP CONSTRAINT`
+  locks the key table first, then waits for `fact_records` while it holds
+  that lock. Ingestion writes a fact, then its keys, so the plain form
+  deadlocks it (SQLSTATE 40P01). The migrator does not retry 40P01. Each file
+  is therefore one `DO` block: it takes `LOCK TABLE fact_records IN ACCESS
+  EXCLUSIVE MODE` (it waits while it holds nothing, bounded by the 5 s
+  `lock_timeout`), then `LOCK TABLE <key table> IN ACCESS EXCLUSIVE MODE
+  NOWAIT`, then the drop. It never waits while it holds a lock, so it cannot
+  deadlock. If the key table is busy, the block fails at once with 55P03.
+- While the block waits for `fact_records`, new readers and writers of
+  `fact_records` queue behind it for up to 5 s per attempt, as with 169's
+  `add_column` phase. Roll out when no long transaction holds `fact_records`.
+- Each 55P03 is retried with backoff within the 3-minute lock retry budget
+  (`schema_bootstrap_lock.go`). Each attempt logs a WARN `postgres schema
+  migration waiting for a lock held by another session`
+  (`event_name=bootstrap.postgres.migration.lock_wait`). If the budget runs
+  out, `db-migrate` fails with
+  `apply <name>: lock retry budget 3m0s for this bootstrap run exhausted after
+  N attempts on <path> (...): ERROR: could not obtain lock on relation
+  "<key table>" (SQLSTATE 55P03)`. It records nothing in the ledger and keeps
+  the foreign key, so the next run retries; nothing is skipped
+  (`TestFactKeyForeignKeyDropFailsLoudlyWhenKeyTableStaysBusyLive`).
+- The local supervisor re-applies every definition at each start. The block
+  finds no foreign key in `pg_constraint` and takes no table lock
+  (`TestFactKeyForeignKeyDropMigrationsAreDeadlockFreeLive`). A plain
+  `DROP CONSTRAINT IF EXISTS` would still take ACCESS EXCLUSIVE on the key
+  table at every start.
+- `migration_lock_shape.py check` classes `LOCK` as table-locking DDL. The
+  files hold no DML, so each exits 0.
+- Rollback: after the drop, a code-only rollback is safe only to the PR1
+  image, which deletes the key rows explicitly. An image older than PR1
+  relies on the cascade and would leave orphan key rows after each prune.
+  Before rolling back that far, put the keys back with
+  `docs/internal/evidence/7420-drop-key-sidecar-fks-reverse.sql` in psql.
+  It starts with `SET lock_timeout = '5s';`: psql sets none, and without it
+  a waiting lock request stalls every new writer of `fact_records` behind it
+  until it is granted. Then census at zero, then `ADD ... NOT VALID` (SHARE
+  ROW EXCLUSIVE on both tables, same lock order; held for the catalog change
+  once granted, rerun the block on 55P03), then `VALIDATE CONSTRAINT` (SHARE
+  UPDATE EXCLUSIVE on the key table, ROW SHARE on `fact_records`; one
+  anti-join scan, 1.1 s for 3M key rows on the fixture, so size it from the
+  table). Do not run the reverse procedure while an image with 188 to 190 can
+  start the local supervisor, which drops the keys again. To roll forward
+  later, run its step 4 (it deletes the 188 to 190 rows from
+  `eshu_schema_migrations`) first: the tracked migrator skips recorded
+  migrations, so without it the keys silently stay.
+
+Evidence: `docs/internal/evidence/7420-drop-key-sidecar-fks.md`.
+
 ## Verification
 
 ```bash

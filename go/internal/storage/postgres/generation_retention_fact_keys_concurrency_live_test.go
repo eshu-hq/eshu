@@ -31,7 +31,7 @@ func seedFactKeyConcurrency(t *testing.T) (*sql.DB, context.Context) {
 	t.Helper()
 	bridgeRetentionFamilyDSN(t)
 	database, ctx := openGenerationRetentionMigratedSchema(t)
-	dropFactKeyForeignKeys(t, ctx, database)
+	requireFactKeyForeignKeysDropped(t, ctx, database)
 	testfixtures.SeedScope(t, ctx, database, factKeyConcurrencyScope)
 	testfixtures.SeedSupersededGeneration(t, ctx, database, factKeyConcurrencyScope, factKeyConcurrencyOld, time.Now().Add(-10*24*time.Hour))
 	exec := SQLDB{DB: database}
@@ -45,8 +45,8 @@ func seedFactKeyConcurrency(t *testing.T) (*sql.DB, context.Context) {
 
 func factKeyCounts(t *testing.T, ctx context.Context, database *sql.DB, generationID string) map[string]int64 {
 	t.Helper()
-	counts := make(map[string]int64, len(factKeyForeignKeys))
-	for table := range factKeyForeignKeys {
+	counts := make(map[string]int64, len(factKeyTables))
+	for _, table := range factKeyTables {
 		counts[table] = factKeyRowsFor(t, ctx, database, table, factKeyConcurrencyScope, generationID)
 	}
 	return counts

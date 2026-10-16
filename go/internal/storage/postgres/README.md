@@ -1085,10 +1085,10 @@ over-limit chunk path, the page's fact ids
 key partition indexes). `TestFactRecordDeleteSitesAreKeySidecarSafe` fails
 on an unclassified or unpaired fact delete. Retention refuses the cycle with
 `ErrGenerationRetentionKeyIndexUnavailable` when a partition index is missing,
-invalid or misshapen, as for the #7279 key indexes. This is the prerequisite for
-dropping the per-fact foreign keys, whose one-trigger-per-fact cascade
-dominates a large generation prune. Evidence:
-`docs/internal/evidence/7420-key-sidecar-explicit-deletes.md`.
+invalid or misshapen, as for the #7279 key indexes. Migrations 188 to 190 drop
+the per-fact foreign keys, so these deletes alone remove key rows with their
+facts; `factkeys.OrphanCensusSQL` counts any orphan (see `facts/keys/README.md`).
+Evidence: `docs/internal/evidence/7420-drop-key-sidecar-fks.md`.
 
 Detailed query, queue, fact-readback, runtime, and fencing invariants live in
 [`gotchas-and-invariants.md`](gotchas-and-invariants.md). Keep that companion

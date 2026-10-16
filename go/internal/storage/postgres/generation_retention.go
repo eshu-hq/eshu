@@ -428,7 +428,10 @@ func (s GenerationRetentionStore) pruneCandidates(
 			return 0, nil
 		}},
 		{GenerationRetentionPhaseDeleteFactKeys, "", func() (int64, error) {
-			return 0, factkeys.DeleteGenerations(ctx, tx, retentionScopeIDs(candidates), generationIDs, result.RowsPruned)
+			result.FactKeyRowsCounted, result.FactKeyRowsPruned = factkeys.TableCounts(rowCounts), map[string]int64{}
+			err := factkeys.DeleteGenerations(ctx, tx, retentionScopeIDs(candidates), generationIDs, result.FactKeyRowsPruned)
+			maps.Copy(result.RowsPruned, result.FactKeyRowsPruned)
+			return 0, err
 		}},
 		{GenerationRetentionPhaseDeleteGenerations, "scope_generations", deleteWith(deleteScopeGenerationsForRetentionQuery)},
 	}

@@ -184,6 +184,94 @@ A release gate or audit needs a proof artifact that is not present.
   proof commands actually run; an explanation alone is not proof. See
   [Local Testing](../reference/local-testing.md) for the proof gates.
 
+## Symptom: key sidecar tables keep growing
+
+`relationship_reference_candidate_keys`, `package_manifest_consumption_keys`
+or `package_registry_identity_keys` grows while retention prunes facts.
+
+- **Census:** since #7420 no foreign key removes these rows with their facts;
+  retention deletes them explicitly. Run the read-only census below
+  (`OrphanCensusSQL` in `go/internal/storage/postgres/facts/keys/census.go`).
+  It returns one row per table, scope and generation with orphan key rows and
+  nothing on a healthy database. It scans `fact_records` once per table, so run
+  it off-peak or on a replica.
+- **Metric:** `eshu_dp_generation_retention_rows_pruned_total` with the three
+  table values should move with the `fact_records` value while generations
+  carry keys.
+- **Log:** the reducer WARN `generation retention fact key delete differs
+  from its pre-count` names a pruned batch whose key delete removed more or
+  fewer rows than the batch counted (`fact_key_rows_pruned`,
+  `fact_key_rows_counted`). The pre-count joins keys to their facts, so extra
+  deleted rows were orphans. Run the census.
+- **Rollout check:** if one release carries both #7420 changes (the explicit
+  key deletes and migrations 188 to 190), a retention pod from the older image
+  that still runs after `db-migrate` prunes generations without deleting their
+  keys. Run the census once the rollout completes.
+- **Safe remediation:** queries never read an orphan key row, so answers stay
+  correct; the cost is storage. Run the cleanup below once per reported scope
+  (`$1`) and generation (`$2`), rerun the census, then find the fact delete
+  that skipped the key deletes. Do not shorten the cleanup to a `fact_id`-only
+  anti-join: it misses keys that point at a fact of another generation.
+
+```sql
+SELECT 'relationship_reference_candidate_keys' AS table_name,
+    keys.scope_id, keys.generation_id, count(*) AS orphan_rows
+FROM relationship_reference_candidate_keys AS keys
+WHERE NOT EXISTS (
+    SELECT 1 FROM fact_records AS fact
+    WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id
+)
+GROUP BY keys.scope_id, keys.generation_id
+UNION ALL
+SELECT 'package_manifest_consumption_keys', keys.scope_id, keys.generation_id, count(*)
+FROM package_manifest_consumption_keys AS keys
+WHERE NOT EXISTS (
+    SELECT 1 FROM fact_records AS fact
+    WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id
+)
+GROUP BY keys.scope_id, keys.generation_id
+UNION ALL
+SELECT 'package_registry_identity_keys', keys.scope_id, keys.generation_id, count(*)
+FROM package_registry_identity_keys AS keys
+WHERE NOT EXISTS (
+    SELECT 1 FROM fact_records AS fact
+    WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id
+)
+GROUP BY keys.scope_id, keys.generation_id
+ORDER BY 1, 2, 3
+```
+
+```sql
+WITH relationship AS (
+    DELETE FROM relationship_reference_candidate_keys AS keys
+    WHERE keys.scope_id = $1 AND keys.generation_id = $2
+      AND NOT EXISTS (
+          SELECT 1 FROM fact_records AS fact
+          WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id
+      )
+    RETURNING 1
+), manifest AS (
+    DELETE FROM package_manifest_consumption_keys AS keys
+    WHERE keys.scope_id = $1 AND keys.generation_id = $2
+      AND NOT EXISTS (
+          SELECT 1 FROM fact_records AS fact
+          WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id
+      )
+    RETURNING 1
+), registry AS (
+    DELETE FROM package_registry_identity_keys AS keys
+    WHERE keys.scope_id = $1 AND keys.generation_id = $2
+      AND NOT EXISTS (
+          SELECT 1 FROM fact_records AS fact
+          WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id
+      )
+    RETURNING 1
+)
+SELECT (SELECT count(*) FROM relationship) AS relationship_reference_candidate_keys,
+    (SELECT count(*) FROM manifest) AS package_manifest_consumption_keys,
+    (SELECT count(*) FROM registry) AS package_registry_identity_keys
+```
+
 ## Escalation and proof
 
 - For freshness causality across many scopes, the console **Freshness** dashboard
