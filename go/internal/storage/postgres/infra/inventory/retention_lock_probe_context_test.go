@@ -78,3 +78,18 @@ func TestRetentionPhaseTraceRecordsOriginalBudgetAndFailure(t *testing.T) {
 		t.Fatalf("tracing changed original context: %v", ctx.Err())
 	}
 }
+
+func TestRetentionPhaseTraceUsesCapturedPruneEndTime(t *testing.T) {
+	ctx, cancel := newRetentionProbeRoundContext()
+	defer cancel()
+	var record string
+	trace := retentionPhaseTrace{
+		ctx: ctx, round: 1, roundStarted: time.Now(),
+		logf: func(format string, args ...any) { record = fmt.Sprintf(format, args...) },
+	}
+	captured := time.Now().UTC()
+	trace.markAt("prune_first", "end", captured.Add(-time.Millisecond), "ok", captured)
+	if !strings.Contains(record, "utc="+captured.Format(time.RFC3339Nano)) {
+		t.Fatalf("record %q did not use captured prune end", record)
+	}
+}

@@ -140,7 +140,10 @@ type retentionPhaseTrace struct {
 }
 
 func (trace retentionPhaseTrace) mark(phase, boundary string, phaseStarted time.Time, outcome string) {
-	now := time.Now()
+	trace.markAt(phase, boundary, phaseStarted, outcome, time.Now())
+}
+
+func (trace retentionPhaseTrace) markAt(phase, boundary string, phaseStarted time.Time, outcome string, now time.Time) {
 	deadline, _ := trace.ctx.Deadline()
 	trace.logf("RETENTION_PHASE round=%d phase=%s boundary=%s outcome=%s utc=%s round_elapsed=%s phase_elapsed=%s original_ctx_deadline_utc=%s original_ctx_remaining=%s ctx_err=%v",
 		trace.round, phase, boundary, outcome, now.UTC().Format(time.RFC3339Nano),
@@ -220,13 +223,14 @@ func runRetentionProbeRound(t *testing.T, sqlDB *sql.DB, other string, round int
 	phaseStarted = time.Now()
 	trace.mark(activePhase, "start", phaseStarted, "running")
 	result, err := store.PruneSupersededGenerations(ctx, probeRetentionPolicy())
+	pruneEnded := time.Now()
+	close(stop)
+	lockHold := <-hold
 	outcome := "ok"
 	if err != nil {
 		outcome = "error"
 	}
-	trace.mark(activePhase, "end", phaseStarted, outcome)
-	close(stop)
-	lockHold := <-hold
+	trace.markAt(activePhase, "end", phaseStarted, outcome, pruneEnded)
 	if err != nil {
 		t.Fatalf("PruneSupersededGenerations() error = %v", err)
 	}
