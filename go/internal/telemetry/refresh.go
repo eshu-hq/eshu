@@ -39,6 +39,13 @@ const (
 	// RefreshSkipReasonFinalizedGenerationReplay means a retry tried to
 	// re-commit a generation that is already finalized.
 	RefreshSkipReasonFinalizedGenerationReplay = "finalized_generation_replay"
+	// RefreshSkipReasonDestructiveSuccessor means the store refused an
+	// empty or sharply shrunken successor over a content-bearing prior
+	// generation without a trusted-deletion signal (#7926): nothing was
+	// stored, so the prior generation stays active. A rising count with no
+	// matching operator attestation means a collector is emitting
+	// suspiciously empty observations.
+	RefreshSkipReasonDestructiveSuccessor = "destructive_successor_refused"
 	// RefreshSkipReasonOther counts a record with a reason outside this set.
 	RefreshSkipReasonOther = "other"
 )
@@ -52,6 +59,7 @@ var refreshSkipReasons = [...]string{
 	RefreshSkipReasonReconcileReprojectionPending,
 	RefreshSkipReasonReconcileSuperseded,
 	RefreshSkipReasonFinalizedGenerationReplay,
+	RefreshSkipReasonDestructiveSuccessor,
 	RefreshSkipReasonOther,
 }
 

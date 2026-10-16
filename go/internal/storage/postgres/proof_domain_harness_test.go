@@ -292,6 +292,17 @@ func (database *proofDomainDB) QueryContext(_ context.Context, query string, arg
 			}
 		}
 		return newProofRows(nil), nil
+	case query == countFactsQuery:
+		// The destructive-successor guard's prior fact count (#7926):
+		// matched by identity with the production constant so it cannot
+		// fall through to the generic fact-listing branch below, whose
+		// 16-column rows do not scan into a count.
+		if len(args) != 2 {
+			return nil, fmt.Errorf("count facts args = %d, want 2", len(args))
+		}
+		scopeID, _ := args[0].(string)
+		generationID, _ := args[1].(string)
+		return newProofRows([][]any{{proofFactCount(database.state.facts, scopeID, generationID)}}), nil
 	case strings.Contains(query, "FROM fact_records"):
 		if len(args) != 2 {
 			return nil, fmt.Errorf("list facts args = %d, want 2", len(args))

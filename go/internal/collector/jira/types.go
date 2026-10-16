@@ -264,6 +264,15 @@ type CollectionResult struct {
 	MetadataWarnings []MetadataWarning
 	ObservedAt       time.Time
 	Stats            CollectionStats
+	// IssueLimit is the effective issue cap the search applied after
+	// normalization. It is part of the freshness identity: the same issues
+	// under a wider limit are a different observation.
+	IssueLimit int
+	// SearchTruncated reports that more provider pages existed past
+	// IssueLimit, so the issue set is capped rather than complete. It is
+	// part of the freshness identity: a capped set must not skip as
+	// unchanged against a complete one.
+	SearchTruncated bool
 }
 
 // CollectionStats carries bounded collection counters for telemetry and tests.
@@ -322,4 +331,12 @@ type TargetConfig struct {
 	ChangelogLimit  int
 	RemoteLinkLimit int
 	MetadataLimit   int
+	// AllowEmptySuccessor is the explicit operator attestation that an
+	// empty or sharply shrunken successor generation is legitimate for
+	// this target (for example a mass-resolve). The source stamps it onto
+	// the generation as TrustedDeletion, which bypasses the ingestion
+	// store's successor-emptiness backstop. It defaults to false: without
+	// it the store refuses to replace a content-bearing active generation
+	// with an empty or sharply shrunken one.
+	AllowEmptySuccessor bool
 }

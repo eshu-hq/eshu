@@ -72,12 +72,15 @@ func TestSearchIssuesAcceptsOrderOnlyTarget(t *testing.T) {
 		t.Fatal(err)
 	}
 	var stats CollectionStats
-	issues, err := client.searchIssues(context.Background(), TargetConfig{JQL: "ORDER BY updated DESC", IssueLimit: 1}, window, &stats)
+	issues, truncated, err := client.searchIssues(context.Background(), TargetConfig{JQL: "ORDER BY updated DESC", IssueLimit: 1}, window, &stats)
 	if err != nil {
 		t.Fatalf("searchIssues() error = %v", err)
 	}
 	if len(issues) != 0 || stats.SearchPages != 1 {
 		t.Fatalf("issues = %d, search pages = %d; want 0 and 1", len(issues), stats.SearchPages)
+	}
+	if truncated {
+		t.Fatal("searchIssues() truncated = true for an exhausted provider, want false")
 	}
 }
 
