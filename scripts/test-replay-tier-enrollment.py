@@ -196,6 +196,91 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "pre-pr"):
                 verify_routes(fixture)
 
+    def test_metadata_routes_reject_inactive_and_overridden_paths(self) -> None:
+        """Only effective workflow and replay-gate path lists may route changes."""
+        workflow_source = (ROOT / ".github/workflows/verify-replay-tier.yml").read_text()
+        registry_source = (ROOT / "specs/ci-gates.d/gates-15.yaml").read_text()
+        workflow_path = "      - 'specs/live-tests.d/**'\n"
+        registry_path = '      - "specs/live-tests.d/**"\n'
+        self.assertIn(workflow_path, workflow_source)
+        self.assertIn(registry_path, registry_source)
+        cases = {
+            "workflow commented": ("workflow", workflow_source.replace(
+                workflow_path, "      # - 'specs/live-tests.d/**'\n", 1)),
+            "workflow wrong list": ("workflow", workflow_source.replace(
+                workflow_path, "", 1).replace(
+                "\nconcurrency:\n",
+                "    paths-ignore:\n      - 'specs/live-tests.d/**'\n\nconcurrency:\n", 1)),
+            "workflow duplicate paths override": ("workflow", workflow_source.replace(
+                "\nconcurrency:\n",
+                "    paths:\n      - 'go/internal/replay/**'\n\nconcurrency:\n", 1)),
+            "workflow duplicate on override": ("workflow", workflow_source.replace(
+                "\nconcurrency:\n",
+                "\non:\n  pull_request:\n    paths:\n"
+                "      - 'go/internal/replay/**'\n\nconcurrency:\n", 1)),
+            "workflow duplicate pull_request override": (
+                "workflow", workflow_source.replace(
+                    "\nconcurrency:\n",
+                    "  pull_request:\n    paths:\n"
+                    "      - 'go/internal/replay/**'\n\nconcurrency:\n", 1)),
+            "workflow quoted duplicate on override": (
+                "workflow", workflow_source.replace(
+                    "\nconcurrency:\n",
+                    '\n"on":\n  pull_request:\n    paths:\n'
+                    "      - 'go/internal/replay/**'\n\nconcurrency:\n", 1)),
+            "registry commented": ("registry", registry_source.replace(
+                registry_path, '      # - "specs/live-tests.d/**"\n', 1)),
+            "registry wrong list": ("registry", registry_source.replace(
+                registry_path, "", 1).replace(
+                "    requirements:\n      - go\n      - docker\n    ci_only_reason:",
+                '    requirements:\n      - go\n      - docker\n'
+                '      - "specs/live-tests.d/**"\n    ci_only_reason:', 1)),
+            "registry duplicate triggers override": ("registry", registry_source.replace(
+                '      - ".github/workflows/verify-replay-tier.yml"\n    local:',
+                '      - ".github/workflows/verify-replay-tier.yml"\n'
+                '    triggers:\n      - "go/internal/replay/**"\n    local:', 1)),
+            "registry duplicate replay gate": ("registry", registry_source.replace(
+                "  - id: go-test-race\n",
+                '  - id: replay-tier\n    triggers:\n'
+                '      - "go/internal/replay/**"\n\n  - id: go-test-race\n', 1)),
+            "registry duplicate gates override": ("registry", registry_source +
+                                                  '\ngates:\n  - id: replay-tier\n'
+                                                  '    triggers:\n'
+                                                  '      - "go/internal/replay/**"\n'),
+            "registry quoted duplicate gates override": (
+                "registry", registry_source +
+                '\n"gates":\n  - id: replay-tier\n'
+                '    triggers:\n      - "go/internal/replay/**"\n'),
+            "registry duplicate replay gate with comment": (
+                "registry", registry_source.replace(
+                    "  - id: go-test-race\n",
+                    '  - id: replay-tier # duplicate\n    triggers:\n'
+                    '      - "go/internal/replay/**"\n\n'
+                    '  - id: go-test-race\n', 1)),
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = Path(temporary)
+            for name in (
+                ".github/workflows/verify-replay-tier.yml",
+                "specs/ci-gates.d/gates-15.yaml",
+                "scripts/dev/pre-pr.sh",
+            ):
+                target = fixture / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(ROOT / name, target)
+            workflow = fixture / ".github/workflows/verify-replay-tier.yml"
+            registry = fixture / "specs/ci-gates.d/gates-15.yaml"
+            verify_routes(fixture)
+            for case, (target, changed) in cases.items():
+                with self.subTest(case=case):
+                    self.assertNotEqual(changed, workflow_source if target == "workflow"
+                                        else registry_source)
+                    workflow.write_text(workflow_source)
+                    registry.write_text(registry_source)
+                    (workflow if target == "workflow" else registry).write_text(changed)
+                    with self.assertRaisesRegex(ValueError, target):
+                        verify_routes(fixture)
+
     def test_workflow_proof_steps_must_stay_live(self) -> None:
         """Reject disabled or replaced CI proof even when PR paths stay intact."""
         workflow_source = (ROOT / ".github/workflows/verify-replay-tier.yml").read_text()

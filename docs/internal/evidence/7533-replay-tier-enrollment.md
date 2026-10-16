@@ -41,10 +41,17 @@ non-vacuity checks, and 33 top-level passes across its two invocations. The
 added governance check was not selected in that baseline. This is a measured
 verification cost, not a speedup or a general NornicDB support claim.
 
-The changed complete runner and hosted reviewed-checkout gate are required
-before this enrollment can merge. Their results are NOT_CHECKED in this
-implementation record. The retained-state NornicDB conformance investigation
-is separate and remains held. #7533 remains open for the other legacy rows.
+The full changed runner on candidate `42dc57c8325b6fd8e8a859555e56711676230bfd`
+exited 0 in 245.684093 seconds (4m 5.68s). Its first invocation passed 31
+selected top-level tests, including all 27 enrolled declarations (25 live and
+two hermetic); the separate blast-radius invocation passed all three selected
+top-level tests. The reviewed-source guard passed, the disposable fixture was
+clean, and the owned backend container was removed after the run. This is a
+candidate verification result; the workflow and hosted reviewed-checkout gate
+are still NOT_CHECKED. The baseline above selects a different test set, so
+these durations are not a speedup comparison. The retained-state NornicDB
+conformance investigation is separate and remains held. #7533 remains open
+for the other legacy rows.
 
 No-Observability-Change: this CI-only change adds no production metric, span,
 log key, status, worker, or graph write. Its operator signal is the existing
