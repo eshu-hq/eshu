@@ -1,6 +1,6 @@
 # Content-version fence for the config-artifact read model (#8155, PR3b-1b)
 
-Refs #8155, #7126. This note records the proof for migrations 184 and 185:
+Refs #8155, #7126. This note records the proof for migrations 186 and 187:
 the commit-time content-version fence and the version-0 seed of
 `config_artifact_content_versions`. The design is
 [Derive repository config artifacts when content is written](../design/7126-ingest-time-config-artifacts.md)
@@ -13,8 +13,8 @@ removes no read time.
 
 | File | Content |
 |---|---|
-| `184_content_files_version_fence.sql` | The UNLOGGED `config_artifact_fence_pending (bumped_xid, repo_id)` table. Four statement-level triggers on `content_files` (INSERT and UPDATE with `NEW TABLE`, DELETE with `OLD TABLE`, TRUNCATE) stage touched repositories. One deferred constraint trigger, `config_artifact_fence_pending_commit`, runs the ordered upsert with the `(bumped_xid, bumped_at)` guard at COMMIT and clears the stage |
-| `185_config_artifact_content_versions_seed.sql` | One version-0 row per repository with content, `bumped_xid` `'0'::xid8`, in `repo_id` order, `ON CONFLICT DO NOTHING` |
+| `186_content_files_version_fence.sql` | The UNLOGGED `config_artifact_fence_pending (bumped_xid, repo_id)` table. Four statement-level triggers on `content_files` (INSERT and UPDATE with `NEW TABLE`, DELETE with `OLD TABLE`, TRUNCATE) stage touched repositories. One deferred constraint trigger, `config_artifact_fence_pending_commit`, runs the ordered upsert with the `(bumped_xid, bumped_at)` guard at COMMIT and clears the stage |
+| `187_config_artifact_content_versions_seed.sql` | One version-0 row per repository with content, `bumped_xid` `'0'::xid8`, in `repo_id` order, `ON CONFLICT DO NOTHING` |
 
 Decisions beyond the arb-8155-s3 text:
 
@@ -24,7 +24,7 @@ Decisions beyond the arb-8155-s3 text:
    derive exists before PR3b-2, which must deploy after this PR, so the order
    is safe: a write between the files creates its row at version 1 and the
    seed keeps it. Every repository ends with one row. The remaining
-   content-write stall is the `CREATE TRIGGER` catalog lock (184 in its final
+   content-write stall is the `CREATE TRIGGER` catalog lock (186 in its final
    statement order: 0.0025 s on 1,000,000 rows); the seed holds ACCESS SHARE
    and blocks no write.
 2. **Guard on `(bumped_xid, bumped_at)`.** A logical restore restarts the
@@ -48,7 +48,7 @@ Decisions beyond the arb-8155-s3 text:
    observed at most 16 ms disjoint and 21 ms overlap, 7x under the
    contended-batch bar (arm 5 below). This replaces ruling 3e of arb-8155-s3
    ("waits on the version row until the retention commit").
-4. **F2-F4.** The seed inserts in `repo_id` order (F2). The 184 header states
+4. **F2-F4.** The seed inserts in `repo_id` order (F2). The 186 header states
    that `session_replication_role = replica` skips the triggers as it skips
    every ordinary trigger (F3) and that an UPDATE moving `repo_id` bumps only
    the new repository (F4); hermetic guards keep both out of Eshu's Go code.
@@ -61,8 +61,8 @@ gated: load1 under 9 for 20 s before the run, voided if the 1 s in-run sampler
 reached 9. 1 discarded round, 5 measured, interleaved with the first mover
 rotating. Arm 3 runs the real `PruneSupersededGenerations` over 100,000 doomed
 1 KiB rows in 50 repositories (GIN indexes dropped, as in the accepted shim).
-BD is the measured SQL: migration 184's four functions and pending-table DDL
-are byte-identical to it; 184 differs only in DDL order and in creating the
+BD is the measured SQL: migration 186's four functions and pending-table DDL
+are byte-identical to it; 186 differs only in DDL order and in creating the
 constraint trigger when missing (review finding N1), which runs once at
 migration time, not per write.
 
@@ -230,11 +230,11 @@ one 50,000-row INSERT 6.2555 s vs 6.1923 s (-1.01%). All PASS. Means are
 three arms at once.
 
 Seed timing on the migration 169 fixture shape (1,000,000 rows over 3,000
-repositories, all 10 `content_files` indexes), against the 1 s bar: 184
-0.0030 s and 185 0.1150 s at 16:11 UTC (load1 3.32 to 3.20), measured BEFORE
+repositories, all 10 `content_files` indexes), against the 1 s bar: 186
+0.0030 s and 187 0.1150 s at 16:11 UTC (load1 3.32 to 3.20), measured BEFORE
 the N1 statement reorder; re-timed on the final statement order with
-`TestVersionFenceSeedTimingLive` at 18:30 UTC (load1 1.19 to 1.29): 184
-0.0025 s, 185 0.1154 s.
+`TestVersionFenceSeedTimingLive` at 18:30 UTC (load1 1.19 to 1.29): 186
+0.0025 s, 187 0.1154 s.
 
 ### Arm 5 and the arm 1 confirmation (commit-time fence)
 
@@ -311,7 +311,7 @@ exit 0):
 | R-1, two-scope and prune interleavings | a derive read before the last commit classifies `stale_version` through `artifacts.Classify` |
 | Commit contract | bump visible only after COMMIT; rollback, rolled-back savepoint, `SET CONSTRAINTS ALL IMMEDIATE` plus more writes, and COPY bump once or not at all; pending table empty after every transaction |
 | Firing order (`pg_trigger`) | four content triggers last per event, after `content_files_secret_lines_*` and the RI triggers; the fifth is a row-level deferrable, initially deferred constraint trigger, `tgenabled 'O'` |
-| Seed | existing content, a write between 184 and 185, re-apply, the race with an in-flight write (commit and rollback), and F2: a writer holding a low row while the seed runs, 3 rounds over 200 repositories, 0 deadlocks |
+| Seed | existing content, a write between 186 and 187, re-apply, the race with an in-flight write (commit and rollback), and F2: a writer holding a low row while the seed runs, 3 rounds over 200 repositories, 0 deadlocks |
 
 ## Observability Evidence
 
@@ -330,11 +330,11 @@ would surface as SQLSTATE 40P01 in the projector's retry and in
 
 ## Known limits
 
-- A re-run of 184 checks the commit trigger by name only (review R3-a), so
+- A re-run of 186 checks the commit trigger by name only (review R3-a), so
   it leaves an existing `config_artifact_fence_pending_commit` that is
   disabled (`'D'`) or replica-only (`'R'`) as it is. The PR3b-2 startup check
   counts `'D'` and `'R'` as missing (ADR 3.1 item 7), so the read model
-  reports `not_installed` and no stale row is trusted. The 184 SQL and its
+  reports `not_installed` and no stale row is trusted. The 186 SQL and its
   checksum stay as measured.
 
 ## NOT_CHECKED

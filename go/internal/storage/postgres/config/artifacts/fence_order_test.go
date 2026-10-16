@@ -36,7 +36,7 @@ func fenceOrderError(names []string) error {
 }
 
 // TestFenceMigrationsApplyTriggersBeforeSeed pins the PR3b-1b order in the
-// shipped bootstrap definitions: 170 tables, then 184 triggers, then 185 seed.
+// shipped bootstrap definitions: 170 tables, then 186 triggers, then 187 seed.
 func TestFenceMigrationsApplyTriggersBeforeSeed(t *testing.T) {
 	var names []string
 	for _, def := range migrations.BootstrapDefinitions() {

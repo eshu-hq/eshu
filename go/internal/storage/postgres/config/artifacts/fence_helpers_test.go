@@ -19,7 +19,7 @@ import (
 )
 
 // fenceTriggerNames are the four content_files version-fence triggers of
-// migration 184 (#7126 protocol companion, section 2).
+// migration 186 (#7126 protocol companion, section 2).
 var fenceTriggerNames = []string{
 	"content_files_version_fence_delete",
 	"content_files_version_fence_insert",
@@ -28,7 +28,7 @@ var fenceTriggerNames = []string{
 }
 
 // retentionCommitWaiter is the pg_stat_activity query text of a retention
-// pass parked on a held version row: the commit-time fence (migration 184)
+// pass parked on a held version row: the commit-time fence (migration 186)
 // takes version rows inside COMMIT, after every content DELETE. The pgx
 // driver sends the commit in lower case.
 const retentionCommitWaiter = "commit"
@@ -68,7 +68,7 @@ func versionsOf(ctx context.Context, t *testing.T, db *sql.DB, repoIDs []string)
 	return out
 }
 
-// seedZeroVersions sets version 0 for each repository, the shape migration 185
+// seedZeroVersions sets version 0 for each repository, the shape migration 187
 // seeds.
 func seedZeroVersions(ctx context.Context, t *testing.T, db *sql.DB, repoIDs ...string) {
 	t.Helper()

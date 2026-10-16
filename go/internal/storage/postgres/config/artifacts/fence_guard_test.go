@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-// Source guards for three limits of the migration 184 fence (ruling
+// Source guards for three limits of the migration 186 fence (ruling
 // arb-8155-f1, findings F3 and F4, and the #8282 review):
 //
 //   - session_replication_role = replica skips every ordinary trigger, the

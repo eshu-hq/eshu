@@ -10,13 +10,13 @@ import (
 
 // TestVersionFenceMigrationReRunsUnderAConcurrentWriterLive is review finding
 // N1. The migrator records a receipt after the file commits, so a crash
-// between the two replays migration 184 while other replicas keep writing
+// between the two replays migration 186 while other replicas keep writing
 // through the live triggers. A content statement holds RowExclusive on
 // content_files from its start and takes RowExclusive on the pending table
 // only when its staging trigger fires at its end. A re-run that locks the
 // pending table before it waits on content_files closes a cycle with that
 // writer. The file must lock content_files first and leave an existing
-// pending table alone. 10 rounds, each re-applying 184 while a writer sleeps
+// pending table alone. 10 rounds, each re-applying 186 while a writer sleeps
 // mid-statement: 0 deadlocks, and the writer's commit still bumps once.
 func TestVersionFenceMigrationReRunsUnderAConcurrentWriterLive(t *testing.T) {
 	ctx, db := openDatabase(t)

@@ -14,7 +14,7 @@ its protocol companion.
 | PR | Adds |
 |---|---|
 | PR3b-1a (this package's first version) | migration 170 tables, the encoding check, the read-model port, the walk claim, the dirty join, the version-row guard |
-| PR3b-1b | migration 184: the five fence triggers (four `content_files_version_fence_*` on `content_files` and `config_artifact_fence_pending_commit` on the pending table); migration 185: the version-0 seed |
+| PR3b-1b | migration 186: the five fence triggers (four `content_files_version_fence_*` on `content_files` and `config_artifact_fence_pending_commit` on the pending table); migration 187: the version-0 seed |
 | PR3b-2 | the derive in `ContentWriter.Write`, the walker derive, telemetry, env variables |
 | PR3c | the stored reader, the read mode, the `/admin/status` field |
 
@@ -26,7 +26,7 @@ PR3b-2.
 
 | Table | Key | Holds |
 |---|---|---|
-| `config_artifact_content_versions` | `repo_id` | `version`, `bumped_xid` (xid8), `bumped_at`. Bumped once per content transaction by the migration 184 triggers; seeded at version 0 by migration 185 |
+| `config_artifact_content_versions` | `repo_id` | `version`, `bumped_xid` (xid8), `bumped_at`. Bumped once per content transaction by the migration 186 triggers; seeded at version 0 by migration 187 |
 | `config_artifact_repo_state` | `repo_id` | the version and extractor version the last successful derive read, `row_count` (NULL until a success), list and candidate counts, failure count and class, and `last_failure_extractor_version` for the walker's skip rule |
 | `config_artifact_paths` | `(repo_id, row_digest)` | `raw_path`, `relative_path`, `evidence_kind`, `name_scoped`; `row_digest` is a stored generated SHA-256 |
 | `config_artifact_backfill_markers` | `marker_name` | when the first full walk finished |
@@ -102,7 +102,7 @@ because each derive rewrites a repository's rows.
 
 ## The version fence (PR3b-1b)
 
-Migration 184 is a commit-time fence (ruling arb-8155-f1). Four
+Migration 186 is a commit-time fence (ruling arb-8155-f1). Four
 statement-level triggers on `content_files` (INSERT and UPDATE with a `NEW
 TABLE`, DELETE with an `OLD TABLE`, TRUNCATE) stage the touched repositories in
 the UNLOGGED `config_artifact_fence_pending`. One deferred constraint trigger,
@@ -121,7 +121,7 @@ skips the triggers as it skips every ordinary trigger, and no Eshu binary sets
 it; an UPDATE that changes `repo_id` bumps only the new repository, and no Go
 statement changes `repo_id` (`fence_guard_test.go`).
 
-Migration 185 seeds one version-0 row (`bumped_xid` `'0'::xid8`) per
+Migration 187 seeds one version-0 row (`bumped_xid` `'0'::xid8`) per
 repository with content, in `repo_id` order. It is a separate file because the
 #7961 lock-shape gate refuses `CREATE TRIGGER` and bulk DML in one file; it
 holds ACCESS SHARE on `content_files` only, and `ON CONFLICT DO NOTHING` keeps

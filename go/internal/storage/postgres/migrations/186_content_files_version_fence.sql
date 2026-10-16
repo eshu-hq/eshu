@@ -58,7 +58,7 @@
 -- Lock window. CREATE TRIGGER takes SHARE ROW EXCLUSIVE on content_files until
 -- this file commits; it waits behind a running content or retention
 -- transaction, bounded by the migrator's lock_timeout and retry budget. This
--- file holds no DML: the version-0 seed is migration 185.
+-- file holds no DML: the version-0 seed is migration 187.
 --
 -- Re-runnable, also while writers run (review finding N1): IF NOT EXISTS and
 -- CREATE OR REPLACE throughout, and DDL takes its locks in the order writers

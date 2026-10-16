@@ -21,17 +21,17 @@ Names are proposals. The migration number is chosen at build time.
 | `config_artifact_repo_state` | `repo_id` | `content_version` (the version the derive read before its list), `extractor_version` (integer), `row_count` (NULL until the first success), `files_listed`, `candidate_count`, `candidates_read`, `list_truncated`, `scope_id` and `generation_id` (advisory), `derived_at`, `failure_count`, `last_error_class`, `last_failure_at`. **Proposed** for the walker's skip rule: `last_failure_extractor_version` |
 | `config_artifact_paths` | `(repo_id, row_digest)` | `raw_path`, `relative_path`, `evidence_kind`, `name_scoped`, `row_digest` (generated) |
 | `config_artifact_backfill_markers`, `config_artifact_reconcile_cursor` | name | as in migration 109 |
-| `config_artifact_fence_pending` (UNLOGGED, migration 184) | `(bumped_xid, repo_id)` | none: repositories staged by the fence triggers, bumped and deleted at COMMIT (arb-8155-f1) |
+| `config_artifact_fence_pending` (UNLOGGED, migration 186) | `(bumped_xid, repo_id)` | none: repositories staged by the fence triggers, bumped and deleted at COMMIT (arb-8155-f1) |
 
 - PR3b-1b seeds one version row with `version = 0` for each `SELECT
   DISTINCT repo_id FROM content_files` in `repo_id` order (F2), as migration 169 does its backfill.
   The walker's universe is then O(repositories), not a scan of
-  `content_files`. Order (S3 ruling): the fence first (migration 184: four `content_files`
+  `content_files`. Order (S3 ruling): the fence first (migration 186: four `content_files`
   triggers and the pending-table commit trigger),
-  then the seed with `ON CONFLICT DO NOTHING` (migration 185). The #7961
+  then the seed with `ON CONFLICT DO NOTHING` (migration 187). The #7961
   lock-shape gate refuses both in one file, so a write can land between them;
   its trigger creates or bumps the row first and the seed keeps it. Timed on
-  1,000,000 rows, final statement order: 184 0.0025 s, 185 0.1154 s (evidence note
+  1,000,000 rows, final statement order: 186 0.0025 s, 187 0.1154 s (evidence note
   `8155-content-version-fence.md`).
 - **Proposed** rule: delete or reset a version row only together with the
   repository's state row, in one transaction. A version row re-created while
@@ -113,7 +113,7 @@ Names are proposals. The migration number is chosen at build time.
 
 ## 2. The content-version trigger
 
-Ruling arb-8155-f1 (2026-10-16) moved the bump to COMMIT. Migration 184
+Ruling arb-8155-f1 (2026-10-16) moved the bump to COMMIT. Migration 186
 holds the fence; review findings F1-F4 shaped it.
 
 - Staging. Four statement-level triggers on `content_files` insert the

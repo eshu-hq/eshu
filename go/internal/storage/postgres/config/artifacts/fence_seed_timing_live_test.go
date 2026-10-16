@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// TestVersionFenceSeedTimingLive times migrations 184 and 185 on the
+// TestVersionFenceSeedTimingLive times migrations 186 and 187 on the
 // migration 169 fixture shape: 1,000,000 content_files rows over 3,000
 // repositories with every content_files index and trigger present. The
 // ruling bar is at most 1 s of content-write stall; this test logs the
