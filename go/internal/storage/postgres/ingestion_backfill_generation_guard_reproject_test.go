@@ -231,6 +231,9 @@ func TestCommitStoresGenerationWhenIdentityDiffers(t *testing.T) {
 			if tc.wantCandidateQuery {
 				db.queryResponses = []queueFakeRows{
 					{rows: [][]any{{"generation-active", "hint-same", "sha-same", "active", false, true}}},
+					// The delta-union base probe (#8189) CountFacts issues
+					// before the count: not a delta here, so no union.
+					{rows: [][]any{{false, ""}}},
 					// The destructive-successor guard's prior fact count:
 					// three streamed facts over three prior facts stores.
 					{rows: [][]any{{3}}},

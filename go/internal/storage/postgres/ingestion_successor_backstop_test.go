@@ -35,6 +35,9 @@ func successorBackstopFixture(generationID string, trusted bool) (scope.Ingestio
 func successorBackstopDB(tx *fakeTx, priorFacts int) *fakeTransactionalDB {
 	return &fakeTransactionalDB{tx: tx, queryResponses: []queueFakeRows{
 		{rows: [][]any{{"generation-active", "hint-prior", "", "active", false, false}}},
+		// The delta-union base probe (#8189) CountFacts issues before the
+		// count: not a delta here, so no union.
+		{rows: [][]any{{false, ""}}},
 		{rows: [][]any{{priorFacts}}},
 	}}
 }
