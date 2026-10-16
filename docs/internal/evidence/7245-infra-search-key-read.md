@@ -83,7 +83,8 @@ TerraformLocal 30,414, CloudResource 180, 2,220 on each other label, plus the
 adversarial rows), full Neo4j schema, `infra_search_key_ft` ONLINE, every node
 keyed (the live readiness probe read ready). Harness:
 `TestLiveInfraSearchFulltextTiming` drives the real handler end to end through
-the production `Neo4jReader`, `limit` 16, unscoped, at commit db910a815. Cold
+the production `Neo4jReader`, `limit` 16, unscoped, at the commit "test(query):
+opt-in live timing of the infra search on both paths". Cold
 is the first call after `db.clearQueryCaches()`; warm is p95 of 20 calls. Host
 load average was 2.2. Second run shown; the first run after container start
 measured warm p95 within 25 ms of these and a cold `aws_iam_role` of
@@ -158,9 +159,14 @@ a span recorder.
 
 ## Verification
 
-All of these ran at head `dfaf4c0bc` on the branch rebased onto origin/main
-`d2dcdea53`. The only later commit adds this section. Exit codes were captured
-directly (`cmd; echo $?`).
+All of these ran at the commit "docs(query): correct the #7245 readiness and
+selection docs", on the branch based on origin/main `d2dcdea53`, before the
+branch was rebased onto origin/main `180e4275c`. The commits after it change
+only text and one live-test assertion. After the rebase, `cd go && go build
+./...` and `go vet` on the touched packages (`./internal/query/...
+./internal/queryplan ./internal/telemetry ./internal/storage/cypher/infra/search
+./internal/envregistry ./cmd/api ./cmd/mcp-server`) were re-run: both exit 0.
+Exit codes were captured directly (`cmd; echo $?`).
 
 | Command | Exit |
 | --- | ---: |
