@@ -19,7 +19,7 @@ The identity fact epoch cache counters (`eshu_dp_identity_cache_*`) and the
 | `eshu_dp_reducer_run_duration_seconds` | histogram | Handler execution window after a worker starts a work item. |
 | `eshu_dp_reducer_queue_wait_seconds` | histogram | Time visible in the reducer queue before handler start. |
 | `eshu_dp_reducer_batch_claim_size` | histogram | Batch claim size where batched reducer claiming is used. |
-| `eshu_dp_reducer_heartbeat_missed_total` | counter | Reducer lease heartbeat failures by domain, including the immediate pre-heartbeat emitted at claim time. A non-zero rate means a worker's lease may be reclaimed and re-executed by another worker. |
+| `eshu_dp_reducer_heartbeat_missed_total` | counter | Reducer lease heartbeat failures by domain, including the immediate pre-heartbeat emitted at claim time. A non-zero rate means a worker's lease may be reclaimed and re-executed by another worker. Completed handler wall time lands on `eshu_dp_reducer_handler_duration_seconds` by domain (the non-enforcing #8211 measurement behind the future handler deadline); handlers abandoned at shutdown never return, so they count on `eshu_dp_reducer_handler_abandoned_total` by domain instead, with an ERROR `reducer execution failed` log line (`failure_class="reducer_handler_abandoned_at_shutdown"`). |
 
 `eshu_dp_reducer_executions_total{status="succeeded"}` means the reducer ACK
 completed. `ack_claim_rejected` marks a rejected single-item ACK, and each

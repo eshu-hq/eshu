@@ -182,6 +182,8 @@ var coreEntries = []Entry{
 	{Name: "ESHU_REDUCER_BATCH_CLAIM_SIZE", Type: VarInt, Subsystem: "reducer", Description: "Work items claimed per cycle (default adaptive to workers and backend)."},
 	{Name: "ESHU_REDUCER_CLAIM_DOMAIN", Type: VarString, Subsystem: "reducer", Deprecated: true, ReplacedBy: "ESHU_REDUCER_CLAIM_DOMAINS", Description: "Single reducer claim domain."},
 	{Name: "ESHU_REDUCER_CLAIM_DOMAINS", Type: VarString, Subsystem: "reducer", Description: "Comma-separated reducer domains for multi-domain claims."},
+	{Name: "ESHU_REDUCER_HANDLER_TIMEOUT", Type: VarDuration, Subsystem: "reducer", Description: "Default bound on one reducer handler execution. Recorded but not enforced yet (#8211 step a). Invalid values fail startup."},
+	{Name: "ESHU_REDUCER_HANDLER_TIMEOUT_OVERRIDES", Type: VarString, Subsystem: "reducer", Description: "Per-domain reducer handler bounds as domain=duration,... . Recorded but not enforced yet (#8211 step a). Bad entries and duplicate domains fail startup."},
 	{Name: "ESHU_REDUCER_MAX_ATTEMPTS", Type: VarInt, Default: "3", Subsystem: "reducer", Description: "Maximum retry attempts for reducer work items."},
 	{Name: "ESHU_REDUCER_RETRY_DELAY", Type: VarDuration, Default: "30s", Subsystem: "reducer", Description: "Delay between reducer work-item retries."},
 	{Name: "ESHU_REDUCER_WORKERS", Type: VarInt, Subsystem: "reducer", Description: "Concurrent reducer workers (default derived from CPU count and backend)."},
