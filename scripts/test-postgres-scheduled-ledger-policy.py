@@ -1,6 +1,7 @@
 """Exercise the verified scheduled PostgreSQL ledger policy with planted errors."""
 
 import hashlib
+import json
 import os
 from pathlib import Path
 import re
@@ -60,9 +61,22 @@ class LedgerPolicyTest(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(error, result.stderr)
 
-            demoted = text.replace(
-                "    class: verified_scheduled\n", "    class: scheduled\n"
-            ).replace("    runner: postgres-scheduled\n", "")
+            demoted = text
+            inventory = json.loads(
+                (ROOT / "scripts/lib/postgres_scheduled_inventory.json").read_text()
+            )
+            for enrolled in inventory:
+                marker = f"  - file: {enrolled}\n"
+                beginning = demoted.index(marker)
+                following = demoted.find("  - file: ", beginning + len(marker))
+                if following < 0:
+                    following = len(demoted)
+                enrolled_row = demoted[beginning:following]
+                self.assertIn("    runner: postgres-scheduled\n", enrolled_row)
+                enrolled_row = enrolled_row.replace(
+                    "    class: verified_scheduled\n", "    class: scheduled\n"
+                ).replace("    runner: postgres-scheduled\n", "")
+                demoted = demoted[:beginning] + enrolled_row + demoted[following:]
             paths = re.findall(
                 r"^  - file: (\S+)\n    tag: .*\n    class: scheduled$",
                 demoted,

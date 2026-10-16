@@ -23,11 +23,17 @@ class ScheduledRunnerTest(unittest.TestCase):
 
     def test_committed_inventory_and_workflow(self) -> None:
         inventory = MODULE.load_inventory()
-        self.assertEqual(len(inventory), 24)
-        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 41)
+        self.assertEqual(len(inventory), 35)
+        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 53)
+        self.assertNotIn(
+            "go/internal/query/code_topic_parallel_guarded_live_test.go", inventory
+        )
         for group, files, tests in (
             ("crossplane", 5, 9),
             ("infra_inventory", 19, 32),
+            ("disposable_gate", 1, 1),
+            ("disposable_query", 9, 9),
+            ("disposable_storage", 1, 2),
         ):
             rows = [row for row in inventory.values() if row["group"] == group]
             self.assertEqual(len(rows), files)
@@ -81,9 +87,33 @@ class ScheduledRunnerTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, error):
                     MODULE.verify_inventory(root, inventory)
 
+    def test_each_disposable_step_has_its_own_admin_env(self) -> None:
+        inventory = MODULE.load_inventory()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for target in inventory:
+                copy = root / target
+                copy.parent.mkdir(parents=True, exist_ok=True)
+                copy.write_text((ROOT / target).read_text())
+            workflow = root / MODULE.WORKFLOW
+            workflow.parent.mkdir(parents=True)
+            original = (ROOT / MODULE.WORKFLOW).read_text()
+            removed = (
+                "          ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN: "
+                "postgres://eshu:change-me@localhost:15432/"
+                "postgres?sslmode=disable\n"
+            )
+            self.assertEqual(original.count(removed), 2)
+            workflow.write_text(original.replace(removed, "", 1))
+            with self.assertRaisesRegex(ValueError, "missing admin DSN"):
+                MODULE.verify_inventory(root, inventory)
+
     def test_events_require_each_run_and_pass(self) -> None:
         inventory = MODULE.load_inventory()
-        for group in ("crossplane", "infra_inventory"):
+        for group in (
+            "crossplane", "infra_inventory", "disposable_gate",
+            "disposable_query", "disposable_storage",
+        ):
             rows = [row for row in inventory.values() if row["group"] == group]
             package = rows[0]["package"]
             expected = {test for row in rows for test in row["tests"]}

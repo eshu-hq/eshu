@@ -424,8 +424,9 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/content_file_secret_lines_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; disposable template0 database; 2 storage tests in 1 file, 40.885s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/content_file_secret_lines_writebench_live_test.go
     tag: ~
     class: scheduled

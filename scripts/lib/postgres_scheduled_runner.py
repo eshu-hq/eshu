@@ -16,10 +16,21 @@ TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
 PACKAGES = {
     "crossplane": "github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane",
     "infra_inventory": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
+    "disposable_gate": "github.com/eshu-hq/eshu/go/cmd/golden-corpus-gate",
+    "disposable_query": "github.com/eshu-hq/eshu/go/internal/query",
+    "disposable_storage": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
 }
 DSNS = {
     "crossplane": "ESHU_CROSSPLANE_REDRIVE_PROOF_DSN",
     "infra_inventory": "ESHU_POSTGRES_DSN",
+}
+ADMIN_ENVS = {
+    "disposable_gate": ("ESHU_TEST_DRAIN_RESIDUAL_POSTGRES",),
+    "disposable_query": (
+        "ESHU_TEST_CONTENT_INDEX_POSTGRES",
+        "ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES",
+    ),
+    "disposable_storage": ("ESHU_TEST_CONTENT_INDEX_POSTGRES",),
 }
 IMAGE = (
     "ghcr.io/eshu-hq/ci-postgres-alpine@sha256:"
@@ -44,35 +55,50 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
         raise ValueError("pinned PostgreSQL backend missing")
     if workflow.count(IMAGE) != 1:
         raise ValueError("pinned PostgreSQL service must appear once")
+    steps = re.split(r"(?m)^      - name:", workflow)
     for group, package in PACKAGES.items():
         package_path = "./" + package.split("/go/", 1)[1]
+        timeout = "7m" if group in DSNS else "6m"
         pattern = re.compile(
-            r"(?m)^\s*go test -json -race -p=1 -count=1 -timeout=7m "
+            r"(?m)^\s*go test -json -race -p=1 -count=1 -timeout="
+            + timeout + " "
             + re.escape(package_path)
             + r" -run '([^']+)' \| tee \"\$\{RUNNER_TEMP\}/"
             + re.escape(group)
             + r"\.jsonl\"$"
         )
-        selectors = pattern.findall(workflow)
-        if len(selectors) != 1:
+        selected_steps = [step for step in steps if pattern.search(step)]
+        if len(selected_steps) != 1:
             raise ValueError(f"missing or duplicate selector for {group}")
-        selected = selectors[0]
+        step = selected_steps[0]
+        selected = pattern.search(step).group(1)
         expected = sorted(
             name for row in inventory.values() if row.get("group") == group
             for name in row.get("tests", [])
         )
         if selected != "^(" + "|".join(expected) + ")$":
             raise ValueError(f"selector does not equal exact inventory for {group}")
-        if workflow.count(f"{DSNS[group]}: postgres://") != 1:
-            raise ValueError(f"missing or duplicate DSN for {group}")
+        if group in DSNS:
+            if step.count(f"{DSNS[group]}: postgres://") != 1:
+                raise ValueError(f"missing or duplicate DSN for {group}")
+        else:
+            for prefix in ADMIN_ENVS[group]:
+                dsn = (
+                    f"{prefix}_DSN: postgres://eshu:change-me@localhost:15432/"
+                    "postgres?sslmode=disable"
+                )
+                if step.count(dsn) != 1 or step.count(f'{prefix}_DISPOSABLE: "1"') != 1:
+                    raise ValueError(f"missing admin DSN or disposable opt-in for {group}")
         verifier = (
             f"python3 ../scripts/lib/postgres_scheduled_runner.py --events "
             f'"${{RUNNER_TEMP}}/{group}.jsonl" --group {group}'
         )
-        if workflow.count(verifier) != 1:
+        if step.count(verifier) != 1:
             raise ValueError(f"missing event verifier for {group}")
-    if workflow.count("set -o pipefail") != 2:
-        raise ValueError("both scheduled package steps require pipefail")
+        if step.count("set -o pipefail") != 1:
+            raise ValueError(f"missing pipefail for {group}")
+    if workflow.count("set -o pipefail") != len(PACKAGES):
+        raise ValueError("every scheduled package step requires pipefail")
     for group, database in (("crossplane", "eshu_crossplane_scheduled"),
                             ("infra_inventory", "eshu_inventory_scheduled")):
         create = f"-c 'CREATE DATABASE {database}'"
