@@ -176,6 +176,7 @@ func TestWalkAcrossArchitecturesNeverSkipsOrRepeats(t *testing.T) {
 		assertExactlyOnce(t, served, windowIDs(window))
 		completed++
 	}
+	t.Logf("cross-architecture walks: %d/300 completed exactly once, %d/300 stopped with 409, 0 repeated or skipped a row", completed, conflicts)
 	if completed == 0 || conflicts == 0 {
 		t.Fatalf("completed %d walks and stopped %d with 409; want both outcomes exercised", completed, conflicts)
 	}
