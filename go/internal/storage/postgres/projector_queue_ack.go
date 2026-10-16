@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel/metric"
@@ -244,9 +245,12 @@ func (q ProjectorQueue) activateAndJournalAckGeneration(
 }
 
 // recordAckJournal counts a committed flag-on Ack's journal outcome on
-// eshu_dp_changed_since_ack_journal_total and logs a gate skip with the scope
-// and generation, so an operator can see which activations the sweeper still
-// owes. An empty outcome (journal off) records nothing.
+// eshu_dp_changed_since_ack_journal_total, the exact signal: every gate skip
+// counts. The gate-skip INFO line is a sampled audit line: the first skip in
+// the process logs, then at most one per ackSkipLogInterval, each with the
+// scope, generation and outcome of the skip it logs and
+// gate_skipped_since_last_log, the skips it did not log since the last line.
+// An empty outcome (journal off) records nothing.
 func (q ProjectorQueue) recordAckJournal(ctx context.Context, work projector.ScopeGenerationWork, outcome string) {
 	if outcome == "" {
 		return
@@ -255,13 +259,63 @@ func (q ProjectorQueue) recordAckJournal(ctx context.Context, work projector.Sco
 		q.Instruments.ChangedSinceAckJournal.Add(context.WithoutCancel(ctx), 1,
 			metric.WithAttributes(telemetry.AttrOutcome(outcome)))
 	}
-	if outcome == ackJournalOutcomeGateSkipped {
-		slog.InfoContext(ctx, "changed-since ack journal skipped while a journal pass held its key; the sweeper journals the generation",
-			slog.String(telemetry.LogKeyScopeID, work.Scope.ScopeID),
-			slog.String(telemetry.LogKeyGenerationID, work.Generation.GenerationID),
-			slog.String(telemetry.LogKeyOutcome, outcome),
-		)
+	if outcome != ackJournalOutcomeGateSkipped {
+		return
 	}
+	sampler := q.ackSkipLog
+	if sampler == nil {
+		sampler = processAckSkipLog
+	}
+	logged, suppressed := sampler.admit()
+	if !logged {
+		return
+	}
+	slog.InfoContext(ctx, "changed-since ack journal skipped while a journal pass held its key; the sweeper journals the generation",
+		slog.String(telemetry.LogKeyScopeID, work.Scope.ScopeID),
+		slog.String(telemetry.LogKeyGenerationID, work.Generation.GenerationID),
+		slog.String(telemetry.LogKeyOutcome, outcome),
+		slog.Int64("gate_skipped_since_last_log", suppressed),
+	)
+}
+
+// ackSkipLogInterval bounds how often the Ack's gate-skip line logs in one
+// process. During a bootstrap burst every Ack that lands while a journal pass
+// holds the key skips, so a line per skip would flood.
+const ackSkipLogInterval = time.Minute
+
+// processAckSkipLog samples the gate-skip line for every ProjectorQueue in
+// the process; ProjectorQueue is copied by value, so the state lives here.
+var processAckSkipLog = newLogSampler(ackSkipLogInterval, time.Now)
+
+// logSampler admits one log line per interval and counts the lines it
+// suppressed in between. It is safe for concurrent use.
+type logSampler struct {
+	interval time.Duration
+	now      func() time.Time
+
+	mu         sync.Mutex
+	last       time.Time
+	suppressed int64
+}
+
+func newLogSampler(interval time.Duration, now func() time.Time) *logSampler {
+	return &logSampler{interval: interval, now: now}
+}
+
+// admit reports whether this event logs and, when it does, how many events
+// it suppressed since the last line it admitted.
+func (s *logSampler) admit() (bool, int64) {
+	now := s.now()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.last.IsZero() && now.Sub(s.last) < s.interval {
+		s.suppressed++
+		return false, 0
+	}
+	suppressed := s.suppressed
+	s.last = now
+	s.suppressed = 0
+	return true, suppressed
 }
 
 // CrossplaneRedriveSweeper is the narrow surface ProjectorQueue.Ack calls to

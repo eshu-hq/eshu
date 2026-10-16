@@ -83,6 +83,10 @@ type ProjectorQueue struct {
 	// when set. Only tests set it, to run a variant derived from the shipped
 	// statement (the ungated RED of the inversion proof).
 	ackJournalActivateQuery string
+	// ackSkipLog samples the Ack's gate-skip log line. Nil uses
+	// processAckSkipLog, shared by every queue in the process; only tests set
+	// it, to own the clock.
+	ackSkipLog *logSampler
 }
 
 // defaultProjectorAckLockTimeout leaves room inside the projector service's

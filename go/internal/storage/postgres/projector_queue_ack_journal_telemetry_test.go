@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"strings"
 	"testing"
+	"time"
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -45,7 +46,8 @@ func ajJournalCounts(t *testing.T, reader sdkmetric.Reader) map[string]int64 {
 
 // TestProjectorAckJournalRecordsOutcome proves each committed flag-on Ack
 // counts its journal outcome once on eshu_dp_changed_since_ack_journal_total,
-// a gate skip also logs the scope and generation for the operator, and a
+// a gate skip also logs the scope and generation for the operator (a sampled
+// line: TestProjectorAckGateSkipLogIsSampled), and a
 // flag-off Ack records nothing (#7127 PR-3b).
 func TestProjectorAckJournalRecordsOutcome(t *testing.T) {
 	var logs bytes.Buffer
@@ -71,6 +73,9 @@ func TestProjectorAckJournalRecordsOutcome(t *testing.T) {
 		}
 		q := ackJournalQueue(&ackStatementDB{journalRow: tc.row}, tc.journal)
 		q.Instruments = instruments
+		// A fresh sampler per case: the process sampler may have logged a
+		// gate skip from another test inside its interval.
+		q.ackSkipLog = newLogSampler(ackSkipLogInterval, time.Now)
 		if err := q.Ack(context.Background(), ackWorkForLockTimeoutTest(), runtime.Result{}); err != nil {
 			t.Fatalf("Ack: %v", err)
 		}
