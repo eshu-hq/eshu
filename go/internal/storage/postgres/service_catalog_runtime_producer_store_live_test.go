@@ -97,7 +97,7 @@ func TestReducerContentionGateRuntimeProducerStatesActiveGenerationOnly(t *testi
 		t.Fatalf("RuntimeProducerStates() error = %v", err)
 	}
 	if states[inFlight].NewestInFlightWorkableAt.IsZero() {
-		t.Fatalf("in-flight repository has no producer cycle anchor: %+v", states[inFlight])
+		t.Fatalf("in-flight repository has no producer workable anchor: %+v", states[inFlight])
 	}
 	if anchor := states[terminal].NewestInFlightWorkableAt; !anchor.IsZero() {
 		t.Fatalf("terminal-only repository anchor = %s, want zero (NULL): no row is in flight", anchor)

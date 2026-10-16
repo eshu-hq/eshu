@@ -6,6 +6,8 @@ package servicecatalog
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -169,4 +171,38 @@ func TestServiceCatalogHandlerRuntimeFenceDefersWithUnknownProducerAnchor(t *tes
 	h := newRuntimeFenceHarness(map[string]RuntimeProducerState{"repo-checkout": {Pending: 1, Total: 1}}, nil)
 	_, err := h.handler.Handle(context.Background(), runtimeFenceIntent(45*time.Minute))
 	assertRuntimeDeferral(t, h, err)
+}
+
+// TestRuntimeNotReadyErrorBoundsTheRepositoryList keeps the deferral error
+// small: the queue persists it on the work item every non-counting cycle, so
+// a wide catalog scope must not grow it without bound. It names the first
+// runtimeReadinessLogRepoSample repositories, the total, and how many more
+// there are; a short list prints in full. The struct keeps every id.
+func TestRuntimeNotReadyErrorBoundsTheRepositoryList(t *testing.T) {
+	t.Parallel()
+
+	many := make([]string, 25)
+	for i := range many {
+		many[i] = fmt.Sprintf("repo-%02d", i)
+	}
+	wide := runtimeNotReadyError{scopeID: "scope", generationID: "gen", repoIDs: many}
+	msg := wide.Error()
+	if !strings.Contains(msg, "25 correlated repositor(ies)") || !strings.Contains(msg, "and 15 more") {
+		t.Fatalf("Error() = %q, want the total 25 and %q", msg, "and 15 more")
+	}
+	if !strings.Contains(msg, "repo-09") || strings.Contains(msg, "repo-10") {
+		t.Fatalf("Error() = %q, want exactly the first %d ids (repo-00 to repo-09)", msg, runtimeReadinessLogRepoSample)
+	}
+	if len(wide.repoIDs) != 25 {
+		t.Fatalf("repoIDs = %d, want the full list of 25 kept on the struct", len(wide.repoIDs))
+	}
+
+	short := runtimeNotReadyError{scopeID: "scope", generationID: "gen", repoIDs: many[:runtimeReadinessLogRepoSample]}
+	msg = short.Error()
+	if !strings.Contains(msg, "repo-00") || !strings.Contains(msg, "repo-09") || strings.Contains(msg, "more") {
+		t.Fatalf("Error() = %q, want all %d ids and no truncation note", msg, runtimeReadinessLogRepoSample)
+	}
+	if !wide.Retryable() || wide.FailureClass() != RuntimeNotReadyFailureClass {
+		t.Fatal("the bounded message must keep the retryable non-counting class")
+	}
 }

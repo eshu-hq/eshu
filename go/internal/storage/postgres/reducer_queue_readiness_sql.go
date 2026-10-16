@@ -182,7 +182,8 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// generation. Reading runtime evidence then returns no WorkloadInstance
 	// rows and commits an empty runtime family nothing reopens. Counting the
 	// deferral would dead-letter the intent; the handler bounds the wait by
-	// elapsed time since the repair cycle began, not by this budget.
+	// elapsed time past crossscope.ProducerReadinessMaxWait from each in-flight
+	// repository's own producer last-workable time, not by this budget.
 	servicecatalog.RuntimeNotReadyFailureClass,
 }
 

@@ -139,10 +139,19 @@ type runtimeNotReadyError struct {
 	repoIDs      []string
 }
 
+// Error names the total and at most the first runtimeReadinessLogRepoSample
+// repository ids. The queue persists this message on the work item on every
+// non-counting deferral cycle, so a wide catalog scope must not grow it; the
+// struct keeps the full list.
 func (e runtimeNotReadyError) Error() string {
+	sample, more := e.repoIDs, ""
+	if extra := len(sample) - runtimeReadinessLogRepoSample; extra > 0 {
+		sample = sample[:runtimeReadinessLogRepoSample]
+		more = fmt.Sprintf(" and %d more", extra)
+	}
 	return fmt.Sprintf(
-		"workload materialization in flight for %d correlated repositor(ies) %v of service catalog scope %s generation %s; deferring service catalog correlation rather than committing runtime evidence read before the WorkloadInstance write",
-		len(e.repoIDs), e.repoIDs, e.scopeID, e.generationID,
+		"workload materialization in flight for %d correlated repositor(ies) %v%s of service catalog scope %s generation %s; deferring service catalog correlation rather than committing runtime evidence read before the WorkloadInstance write",
+		len(e.repoIDs), sample, more, e.scopeID, e.generationID,
 	)
 }
 

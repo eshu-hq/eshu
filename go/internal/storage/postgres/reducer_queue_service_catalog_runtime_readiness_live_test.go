@@ -99,7 +99,7 @@ type runtimeFenceProof struct {
 // newRuntimeFenceProof seeds the repository scope (active generation with a
 // pending workload_materialization row) and the catalog scope (one pending
 // service_catalog_correlation row created catalogCreated ago). The producer
-// row's cycle started one minute ago.
+// row was enqueued one minute ago.
 func newRuntimeFenceProof(t *testing.T, ctx context.Context, dsn string, catalogCreated time.Duration) *runtimeFenceProof {
 	t.Helper()
 	installRuntimeFenceTrigram(t, ctx, dsn)
