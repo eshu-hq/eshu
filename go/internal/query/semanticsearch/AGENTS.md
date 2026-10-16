@@ -21,6 +21,12 @@ Read `doc.go` and `README.md` first.
   always run there. `go test ./internal/query/semanticsearch` never runs
   root's `init()` functions (the cycle above), so `main_test.go`'s
   `TestMain` registers it for this package's tests.
+- A failed read MUST answer through `writeSemanticSearchFailure`
+  (`failure.go`), never `writeSemanticSearchError` with `err.Error()` or a
+  computed status. Only the status `tracing.ServerFailureEnvelope` returns may
+  reach `writeSemanticSearchError` as a non-literal (#7674). A new failure
+  step adds its fixed message to `failure.go` and a route to
+  `server_failure_test.go`.
 - `Support()` (`capability.go`) is the ONLY declaration of the support row. Both
   registrations above read that one var. MUST NOT re-inline the five fields on
   either side. The previous shape had a copy in `main_test.go` under a "keep in

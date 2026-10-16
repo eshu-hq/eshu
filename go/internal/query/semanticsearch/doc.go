@@ -18,6 +18,14 @@
 // root's semantic_search_alias.go imports this package for the compatibility
 // aliases cmd/api and cmd/mcp-server still use.
 //
+// A failed scope resolution or retrieval answers through
+// writeSemanticSearchFailure (failure.go): querycontract.WriteGraphReadError
+// first (reader fence 503 with Retry-After), then
+// tracing.ServerFailureEnvelope with a fixed message (500 internal_error, or
+// 499 for a client cancel), written in the route's own error shape. A missing
+// index or embedder is a configuration 503 with fixed text. Backend error text
+// never reaches a body (#7674).
+//
 // Two contracts callers must hold. A store implementing
 // SemanticSearchIndexStore must filter on both SemanticSearchIndexQuery.ScopeID
 // and RepoID; those differ after a repository is re-ingested under a new scope,

@@ -95,6 +95,22 @@ and `WithPackageMetricReader`.
   span with `missing`, `present`, `not_signaled`, or `error` outcome. Neither records query
   text, repository identity, or vector identity.
 
+## Failure answers (#7674)
+
+`failure.go` holds the fixed messages and `writeSemanticSearchFailure`. A
+failed scope resolution or retrieval runs `querycontract.WriteGraphReadError`
+first, so a stale or timed-out guarded reader answers the retryable 503 with
+`Retry-After` under `Capability`. Anything else goes through
+`tracing.ServerFailureEnvelope`: 500 `internal_error` with the error recorded
+on the `query.semantic_search` span, or 499 with only the client-cancel event,
+written in the route's own error shape. A missing persisted index and semantic
+mode with no embedder are configuration 503s with fixed text and no
+`Retry-After`; the 409 names only the ambiguity sentinel. A scope-resolver
+fault (once 503) and a stored result that fails normalization (once 400) now
+answer 500. `server_failure_test.go` proves it with the shared
+`testutil/failure` harness. See
+[Compare And Semantic Search Failures](../../../../docs/public/reference/http-api/compare-and-semantic-search-failures.md).
+
 ## Move evidence (#6060)
 
 This package was created by moving files out of root package `query`. No
