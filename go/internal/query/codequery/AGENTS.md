@@ -131,6 +131,8 @@ gofmt -l <touched files, repo-relative>
   makes (fork-6 ruling). Never force a lane: the cursor records the lane, and
   a lane change between pages must surface as 409 `basis_changed`.
 - A `rank_cursor` request never falls back to an offset page: every refusal
-  goes through `rank.Answer` with a `rank.Reason*` constant.
+  goes through `answerCodeRankRefusal`, which calls `rank.Answer` with a
+  `rank.Reason*` constant and answers the fixed rank failure when
+  `rank.Answer` writes nothing. Never call `rank.Answer` and drop its result.
 - Keep walk logic in `rank_walk.go` or the generic
   `go/internal/query/search/rank`, not in `handler.go`.
