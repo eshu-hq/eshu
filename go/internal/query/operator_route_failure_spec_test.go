@@ -62,13 +62,17 @@ func TestOpenAPIUnboundedAdminReadsDeclareNo504(t *testing.T) {
 
 // TestOpenAPIAdminRoutesDeclareTheirFailureStatuses pins the #7674 admin
 // failure contract in the published spec: every admin route that answers a
-// fixed-text server failure declares 500, every route that can answer 503
-// (an unconfigured store or recovery handler, or a stale PostgreSQL reader on
-// the inspection reads and the repository reindex catalog lookup) declares
-// 503 through the shared ServiceUnavailable response, and says in its own
-// description that a 503 without Retry-After is the configuration state
-// (#7674 review F2). Only the three bounded reads declare 504, for their
-// timeout_ms budget. 499 is never declared: the client has already gone.
+// fixed-text server failure declares 500, and every route declares 503
+// through the shared ServiceUnavailable response. Every admin route can
+// answer 503: the request-checkpoint middleware runs in front of all of them
+// (Retry-After on a failed checkpoint step, none when no checkpoint source is
+// wired), an unwired store, recovery handler, or reindex requester answers a
+// configuration 503, and the inspection reads and the repository reindex
+// catalog lookup answer a stale PostgreSQL reader. Each description says what
+// a 503 with and without Retry-After means, names the checkpoint, and never
+// claims the route has no other 503 (#7674 review F2). Only the three bounded
+// reads declare 504, for their timeout_ms budget. 499 is never declared: the
+// client has already gone.
 func TestOpenAPIAdminRoutesDeclareTheirFailureStatuses(t *testing.T) {
 	t.Parallel()
 
@@ -96,8 +100,14 @@ func TestOpenAPIAdminRoutesDeclareTheirFailureStatuses(t *testing.T) {
 	}
 	for _, route := range routes {
 		post := adminRoutePost(t, paths, route)
-		if description, _ := post["description"].(string); !strings.Contains(description, "A 503 without Retry-After means") {
-			t.Errorf("%s: description does not say what a 503 without Retry-After means", route)
+		description, _ := post["description"].(string)
+		for _, phrase := range []string{"A 503 with Retry-After means", "a 503 without Retry-After means", "checkpoint"} {
+			if !strings.Contains(description, phrase) {
+				t.Errorf("%s: description does not contain %q", route, phrase)
+			}
+		}
+		if strings.Contains(description, "no other 503") {
+			t.Errorf("%s: description claims no other 503, but the checkpoint middleware answers 503 on every admin route", route)
 		}
 		responses := testutil.MustMapField(t, post, "responses")
 		if _, ok := responses["500"]; !ok {

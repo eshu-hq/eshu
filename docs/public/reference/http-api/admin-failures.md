@@ -12,6 +12,10 @@ status is Error with the fixed message as its description. The
 - A configuration `503` when the route's store, recovery handler, or
   reindex requester is not wired on this API instance, with its own fixed
   text such as `admin store not configured` and no `Retry-After`.
+- The request-checkpoint step runs in front of every admin route. A failed
+  checkpoint step answers `503` `database read unavailable` with
+  `Retry-After`. A checkpoint source that is not wired answers the same
+  `503` with no `Retry-After`.
 - Request validation answers `400`, and the existing `403`, `404`, `409`,
   and `422` answers do not change.
 - On the steps that read through the guarded PostgreSQL reader, a reader
@@ -24,8 +28,11 @@ status is Error with the fixed message as its description. The
 - Any other failed step answers `500` with the fixed message below.
 
 A failed step checks the reader verdict first, then the route timeout on the
-bounded reads, then answers `500`. A `503` without `Retry-After` is always
-the configuration state, never a reader verdict.
+bounded reads, then answers `500`. A `503` with `Retry-After` is a transient
+reader or checkpoint condition and is safe to retry. A `503` without
+`Retry-After` is a configuration state: a store, recovery handler, reindex
+requester, or checkpoint source that is not wired. No `503` body carries
+backend error text.
 
 A client that cancels its request gets `499` with the same fixed message,
 except at the ledger finalize described below. The
@@ -65,9 +72,9 @@ the retryable `503` on a reader verdict and `500` otherwise, never `504`.
 
 These routes write through the writer store. Only the repository reindex
 selector lookup reads through the guarded reader, so it alone can answer the
-retryable `503` with `Retry-After`. It runs with no route deadline and never
-answers `504`. Every other mutation `503` is the configuration state and
-carries no `Retry-After`.
+reader-verdict `503` with `Retry-After`. It runs with no route deadline and
+never answers `504`. Every mutation can still answer the checkpoint `503`
+and its configuration `503`, as described in [Statuses](#statuses).
 
 | Route | Failed step | Fixed message |
 | --- | --- | --- |

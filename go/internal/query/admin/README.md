@@ -98,11 +98,14 @@ key) and the accepted audit append now run on a context detached from the
 request's cancel and bounded at 2s (`finalize.go`), so a client cancel no
 longer strands the ledger row in_progress; a finalize failure is always a
 500. Measured with stub stores, no live backend: `go test
-./internal/query/... -count=1` passes 76 packages (143 live tests skip
-without a backend). `server_failure_routes_test.go` has 68 route subtests
-and `finalize_test.go` 15; the route subtests failed on the baseline
-handlers (71 before the three finalize cancel variants moved to
-`finalize_test.go`), and the finalize cancel and bound subtests (6) failed
+./internal/query/... -count=1` passes 77 packages (137 top-level tests
+skip without a live backend or an opt-in environment variable).
+`server_failure_routes_test.go` has 60 route subtests (24 inspection, 20
+mutation, 16 idempotent mutation) and `finalize_test.go` 15. The route
+subtests all failed first on the baseline handlers. Three finalize cancel
+variants later moved to `finalize_test.go`, and eight synthetic
+graph-deadline variants were dropped because no admin step can meet that
+sentinel. The finalize cancel and bound subtests (6) failed
 before the finalize was detached.
 
 No-Observability-Change: no instrument was added or renamed, and the routes
