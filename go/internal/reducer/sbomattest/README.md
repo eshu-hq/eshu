@@ -102,6 +102,26 @@ are the same before and after the move.
 
 ## Evidence
 
+No-Regression Evidence (#6626 document importer batch): baseline
+`eac086093` exposed five reducer-root aliases used by the document parser
+integration test and scannerworker generator attachment test. The after commit
+removes those aliases and points both tests at the same `sbomattest` types,
+constants, and builder. With the aliases removed before caller edits, recursive
+`go test ./internal/collector/sbom/document/... ./internal/reducer/... -run
+'^(TestParserFeedsReducerAttachmentTruth|TestScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment)$'
+-count=1` failed to compile at those caller references (exit 1). After the
+import edits, unfiltered recursive tests over those two trees passed (exit 0),
+as did recursive `go build` and `go vet`. The backend is in-memory Go
+1.26.9 linux/arm64; inputs are the existing CycloneDX/SPDX subject, missing
+subject, and malformed fixtures plus scannerworker-generated SBOM facts.
+There are no queue or graph writes in this batch, so terminal queue and row
+counts are not applicable. The removed wrapper had no runtime caller; tests
+now invoke the identical leaf implementation directly. No runtime speedup is
+claimed.
+No-Observability-Change: this batch changes no metric, span, log, status,
+worker, queue, or runtime setting. The existing attachment and reducer
+execution counters described above still cover the same production path.
+
 No-Regression Evidence (#6626 batch 2): this change moves the last callers
 of `ComponentEvidence` (type alias), `ComponentEvidenceLess` and
 `ComponentEvidenceTupleEqual` (thin forwarders with identical signatures),
