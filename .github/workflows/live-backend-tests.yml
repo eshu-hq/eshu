@@ -50,6 +50,7 @@ on:
       - 'scripts/lib/verify-live-tests-ledger.py'
       - 'scripts/verify-replay-tier.sh'
       - 'scripts/lib/replay_tier_enrollment.py'
+      - 'scripts/lib/replay_tier_routes.py'
       - 'scripts/lib/replay_tier_inventory.json'
       - 'scripts/test-replay-tier-source-integrity.py'
       - 'scripts/lib/reducer_contention_events.py'
