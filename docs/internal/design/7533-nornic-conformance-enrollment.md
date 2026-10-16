@@ -28,13 +28,13 @@ the receipt records eleven source-file hashes. These shared-host figures are
 not a speedup or scale claim.
 
 On 2026-10-16, a fresh pinned Linux ARM64 fixture ran the unchanged complete
-conformance script at clean commit `2f14c9e2d82758a97cc02c4f3795d49ed2d1e03d`.
-The script exited 0 in 15.576095 seconds (15.58 seconds). The core test ran
+conformance script at clean commit `ea5ff093ddd54a9323c2c4317409b732717812c7`.
+The script exited 0 in 8.512838 seconds (8.51 seconds). The core test ran
 and passed once. Strict Go events showed one run and pass for each of the nine
 selected declarations: seven backend tests and two hermetic helpers. The
 package passed with no test skip or failure. The source guard exited 0, and
 the worktree stayed clean at the same commit. The local receipt is
-`nornic7-current-2f14` (`start.json`, `result.json`,
+`nornic7-current-ea5f` (`start.json`, `result.json`,
 `nornic-conformance.jsonl`, and `strict-verifier.log`). This is a current-source
 local proof, not a hosted AMD64 or retained-state diagnosis.
 
