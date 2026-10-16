@@ -61,10 +61,10 @@ func (h *CodeHandler) handleRankWalk(w http.ResponseWriter, r *http.Request, req
 	}
 	switch {
 	case req.offset > 0:
-		rank.Answer(w, r, rank.ToolFindCode, rank.Unsupported(rank.ReasonOffsetConflict))
+		answerCodeRankRefusal(w, r, rank.Unsupported(rank.ReasonOffsetConflict))
 		return
 	case req.repoID == "":
-		rank.Answer(w, r, rank.ToolFindCode, rank.Unsupported(rank.ReasonScopeNotSingleRepo))
+		answerCodeRankRefusal(w, r, rank.Unsupported(rank.ReasonScopeNotSingleRepo))
 		return
 	}
 
@@ -112,6 +112,12 @@ func (h *CodeHandler) handleRankWalk(w http.ResponseWriter, r *http.Request, req
 		return
 	}
 	h.writeRankWalkPage(w, r, req, page, byID, scores, capability)
+}
+
+// answerCodeRankRefusal answers a find_code rank-walk refusal through
+// rank.Answer.
+func answerCodeRankRefusal(w http.ResponseWriter, r *http.Request, err error) {
+	rank.Answer(w, r, rank.ToolFindCode, err)
 }
 
 // writeRankWalkPage shapes a walk page like the offset page of its lane and
