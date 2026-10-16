@@ -125,7 +125,7 @@ func readManifest(path string) (manifest, bool) {
 // autoload psr-4 prefixes must cover fqcn with the file sitting exactly at the
 // mapped directory plus the remaining namespace segments plus ".php". A file
 // under a vendor/ directory is a vendored copy, never a publisher, and a
-// manifest under a tests, fixtures, testdata, or examples directory
+// manifest under a test, tests, fixtures, testdata, or examples directory
 // (FixtureDirPattern) is test scaffolding: the walk stops there with no key
 // instead of falling through to an outer manifest (#8223). The path
 // comparison is case-sensitive: PHP class names are case-insensitive, so a

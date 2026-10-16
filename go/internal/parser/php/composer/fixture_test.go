@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestInFixtureDirMatchesWholeSegmentsCaseInsensitively(t *testing.T) {
+func TestInFixtureDirMatchesWholeSegmentsInAnyASCIICase(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -26,6 +26,9 @@ func TestInFixtureDirMatchesWholeSegmentsCaseInsensitively(t *testing.T) {
 		{"TestData/pkg/composer.json", true},
 		{"docs/examples/demo/composer.json", true},
 		{"Examples/composer.json", true},
+		// Laminas and Zend components keep their PHPUnit trees under test/.
+		{"test/assets/app/composer.json", true},
+		{"packages/core/Test/composer.json", true},
 		// A substring of a segment is not a segment.
 		{"packages/testing/composer.json", false},
 		{"packages/attestation/composer.json", false},
@@ -33,6 +36,13 @@ func TestInFixtureDirMatchesWholeSegmentsCaseInsensitively(t *testing.T) {
 		{"packages/contest/composer.json", false},
 		{"packages/fixtures-lib/composer.json", false},
 		{"packages/my-examples/composer.json", false},
+		{"packages/latest/composer.json", false},
+		{"packages/tester/composer.json", false},
+		// The match is ASCII-exact in both dialects: Go's (?i) would fold the
+		// long s (U+017F) to s, while PostgreSQL's ~* would not, so the
+		// pattern uses explicit ASCII classes and no case-fold flag.
+		{"a/te\u017fts/composer.json", false},
+		{"a/TE\u017fTS/composer.json", false},
 		// The file name is never a directory segment.
 		{"packages/tests", false},
 	} {

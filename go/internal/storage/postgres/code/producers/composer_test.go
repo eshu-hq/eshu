@@ -93,7 +93,7 @@ func TestComposerManifestsQueryShape(t *testing.T) {
 		"WITH manifest AS MATERIALIZED (",
 		"relative_path = 'composer.json' OR relative_path LIKE '%/composer.json'",
 		"relative_path !~ '(^|/)vendor/'",
-		"relative_path !~* '" + composer.FixtureDirPattern + "'",
+		"relative_path !~ '" + composer.FixtureDirPattern + "'",
 		"WHEN tagged.tag_activated_at IS NOT NULL THEN 'clean'",
 		"SELECT scope.scope_id, NULL, 'manifest_less'",
 	} {
