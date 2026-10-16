@@ -185,9 +185,14 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
                 verify_routes(fixture)
             shutil.copy2(ROOT / "specs/ci-gates.d/gates-15.yaml", registry)
             prepr = fixture / "scripts/dev/pre-pr.sh"
-            prepr.write_text(prepr.read_text().replace(
-                "|specs/live-tests(\\.v1\\.yaml|\\.d/)", "", 1
-            ))
+            original = prepr.read_text()
+            prefix, marker, suffix = original.partition("run_or_defer replay-tier ")
+            self.assertTrue(marker)
+            route = "|specs/live-tests(\\.v1\\.yaml|\\.d/)"
+            self.assertIn(route, prefix)  # Keep the earlier golden-corpus route.
+            self.assertIn(route, suffix.split("\n", 2)[1])
+            prepr.write_text(prefix + marker + suffix.replace(route, "", 1))
+            self.assertIn(route, prepr.read_text().partition(marker)[0])
             with self.assertRaisesRegex(ValueError, "pre-pr"):
                 verify_routes(fixture)
 
