@@ -12,49 +12,74 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"testing"
 )
 
-// TestNoNewQueryErrorTextLeakSites is the #7674 ratchet against error text
-// in server-failure response bodies. Backend errors quote SQL, Cypher, hosts,
-// and credentials, so a 5xx body built from err leaks them to every caller.
-// The fix shape is tracing.WriteServerFailure (fixed message, 499 for a client
-// cancel) after querycontract.WriteGraphReadError (fence and graph 503s).
+// TestNoNewQueryErrorTextLeakSites is assertion A of the #7674 guard: no
+// server-failure response body carries error text. Backend errors quote SQL,
+// Cypher, hosts, and credentials, so a 5xx body built from err leaks them to
+// every caller. The fix shape is tracing.WriteServerFailure (fixed message,
+// 499 for a client cancel) after querycontract.WriteGraphReadError (fence and
+// graph 503s). Assertion B, TestNoDirectServerStatusWrites, forbids the direct
+// 500/502/504/408 writes themselves.
 //
-// It walks every non-test .go file under go/internal/query and counts leak
-// sites with queryErrorTextLeakSites: a call to WriteError, WriteContractError,
-// writeContractError (any qualifier or receiver), or http.Error whose status
-// is not a literal 4xx and whose message carries error text, plus the Message
-// field of an ErrorEnvelope literal that carries error text outside a literal
-// 4xx context. A variable or computed status counts as a server status,
-// because most such statuses can be 5xx. queryErrorTextLeakSites documents the
-// exact shapes.
-//
-// The ratchet: queryErrorTextLeakCeilings pins each file's count. A file over
-// its ceiling, or an unlisted file with any site, fails. A file under its
-// ceiling, or a listed file with no sites or no longer present, only logs a
-// "tighten ceiling" note. Stale entries never fail because other PRs remove
-// sites in these packages concurrently; a hard stale failure would force each
-// of them to edit this allowlist. Each #7674 slice sets exact ceilings for the
-// packages it converts, and review enforces that.
+// It walks every non-test .go file under go/internal/query and fails on any
+// leak site found by queryErrorTextLeakSites: a call to WriteError,
+// WriteContractError, writeContractError (any qualifier or receiver), or
+// http.Error whose status is not a literal 4xx and whose message carries error
+// text, plus the Message field of an ErrorEnvelope literal that carries error
+// text outside a literal 4xx context. A variable or computed status counts as
+// a server status, because most such statuses can be 5xx.
+// queryErrorTextLeakSites documents the exact shapes. There is no allowlist:
+// the per-file ceiling ratchet that tracked the conversion was deleted when
+// the last #7674 slice reached zero sites.
 //
 // Known gaps, not caught without type resolution: a message computed into a
 // local first (`msg := err.Error()` then WriteError(w, 500, msg)); a wrapper
 // helper that takes err and writes it; and a local error whose name follows
 // the sentinel convention (`errResp.Error()`), because `errFoo.Error()` and
 // `pkg.ErrFoo.Error()` are treated as fixed sentinel text.
-// TestQueryErrorTextLeakSitesShapes pins each gap as uncaught.
-//
-// The final #7674 slice deletes queryErrorTextLeakCeilings and asserts zero
-// sites everywhere.
+// TestQueryErrorTextLeakSitesShapes pins each gap as uncaught. Assertion B
+// still fails the first gap when its status is a literal 500.
 func TestNoNewQueryErrorTextLeakSites(t *testing.T) {
 	t.Parallel()
 
-	root := queryPackageDir(t)
-	counts := map[string][]queryErrorTextLeakSite{}
+	for _, finding := range queryErrorTextLeakFindings(t, queryPackageDir(t)) {
+		t.Errorf("%s: %d error-text leak site(s); answer server failures with "+
+			"tracing.WriteServerFailure and a fixed message (#7674):\n%s",
+			finding.file, len(finding.sites), formatQueryErrorTextLeakSites(finding.sites))
+	}
+}
+
+// queryGuardFinding is one file that holds sites for a guard assertion.
+type queryGuardFinding struct {
+	file  string
+	sites []queryErrorTextLeakSite
+}
+
+// queryErrorTextLeakFindings is assertion A over root: every non-test file
+// with an error-text leak site, keyed by path relative to root.
+func queryErrorTextLeakFindings(t *testing.T, root string) []queryGuardFinding {
+	t.Helper()
+
+	var findings []queryGuardFinding
+	walkQueryNonTestFiles(t, root, func(rel string, fset *token.FileSet, file *ast.File) {
+		if sites := queryErrorTextLeakSites(fset, file); len(sites) > 0 {
+			findings = append(findings, queryGuardFinding{file: rel, sites: sites})
+		}
+	})
+	return findings
+}
+
+// walkQueryNonTestFiles parses every non-test .go file under root (the guards
+// pass go/internal/query), skipping testdata and dot directories, and calls
+// visit in lexical order with the path relative to root in slash form. A file
+// that does not parse fails t.
+func walkQueryNonTestFiles(t *testing.T, root string, visit func(rel string, fset *token.FileSet, file *ast.File)) {
+	t.Helper()
+
 	fset := token.NewFileSet()
 	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -78,48 +103,20 @@ func TestNoNewQueryErrorTextLeakSites(t *testing.T) {
 			t.Errorf("parse %s: %v", path, parseErr)
 			return nil
 		}
-		if sites := queryErrorTextLeakSites(fset, file); len(sites) > 0 {
-			rel, relErr := filepath.Rel(root, path)
-			if relErr != nil {
-				return relErr
-			}
-			counts[filepath.ToSlash(rel)] = sites
+		rel, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			return relErr
 		}
+		visit(filepath.ToSlash(rel), fset, file)
 		return nil
 	})
 	if walkErr != nil {
 		t.Fatalf("walk %s: %v", root, walkErr)
 	}
-
-	files := make([]string, 0, len(counts))
-	for file := range counts {
-		files = append(files, file)
-	}
-	sort.Strings(files)
-	for _, file := range files {
-		sites := counts[file]
-		ceiling, listed := queryErrorTextLeakCeilings[file]
-		switch {
-		case !listed:
-			t.Errorf("%s: %d error-text leak site(s) in a file with no ceiling; "+
-				"answer server failures with tracing.WriteServerFailure and a fixed "+
-				"message (#7674):\n%s", file, len(sites), formatQueryErrorTextLeakSites(sites))
-		case len(sites) > ceiling:
-			t.Errorf("%s: %d error-text leak site(s), ceiling %d; a new site was "+
-				"added. Answer server failures with tracing.WriteServerFailure and a "+
-				"fixed message (#7674):\n%s", file, len(sites), ceiling, formatQueryErrorTextLeakSites(sites))
-		case len(sites) < ceiling:
-			t.Logf("%s: %d error-text leak site(s), ceiling %d; tighten ceiling", file, len(sites), ceiling)
-		}
-	}
-	for file, ceiling := range queryErrorTextLeakCeilings {
-		if _, found := counts[file]; !found && ceiling > 0 {
-			t.Logf("%s: no error-text leak sites, ceiling %d; tighten ceiling (remove the entry)", file, ceiling)
-		}
-	}
 }
 
-// queryErrorTextLeakSite is one leak site found by queryErrorTextLeakSites.
+// queryErrorTextLeakSite is one site found by queryErrorTextLeakSites or
+// queryDirectServerStatusSites.
 type queryErrorTextLeakSite struct {
 	pos  token.Position
 	kind string
@@ -187,6 +184,21 @@ func queryErrorTextLeakSites(fset *token.FileSet, file *ast.File) []queryErrorTe
 // queryErrorTextWriterLeak reports whether call is a guarded writer with a
 // server status and an error-text message, and names the writer.
 func queryErrorTextWriterLeak(call *ast.CallExpr) (string, bool) {
+	name, args, ok := queryGuardedWriter(call)
+	if !ok || len(call.Args) <= max(args.status, args.message) {
+		return "", false
+	}
+	if queryErrorTextIsClientStatus(call.Args[args.status]) || !queryErrorTextCarriesErr(call.Args[args.message]) {
+		return "", false
+	}
+	return name, true
+}
+
+// queryGuardedWriter reports whether call is a guarded writer (WriteError,
+// WriteContractError, or writeContractError under any qualifier or receiver,
+// or http.Error) and returns its name and argument indexes. It does not check
+// the argument count.
+func queryGuardedWriter(call *ast.CallExpr) (string, struct{ status, message int }, bool) {
 	var name string
 	switch fun := call.Fun.(type) {
 	case *ast.Ident:
@@ -196,24 +208,15 @@ func queryErrorTextWriterLeak(call *ast.CallExpr) (string, bool) {
 		if name == "Error" {
 			pkg, ok := fun.X.(*ast.Ident)
 			if !ok || pkg.Name != "http" {
-				return "", false
+				return "", struct{ status, message int }{}, false
 			}
-			name = "http.Error"
+			return "http.Error", struct{ status, message int }{status: 2, message: 1}, true
 		}
 	default:
-		return "", false
+		return "", struct{ status, message int }{}, false
 	}
 	args, ok := queryErrorTextWriterArgs[name]
-	if name == "http.Error" {
-		args, ok = struct{ status, message int }{status: 2, message: 1}, true
-	}
-	if !ok || len(call.Args) <= max(args.status, args.message) {
-		return "", false
-	}
-	if queryErrorTextIsClientStatus(call.Args[args.status]) || !queryErrorTextCarriesErr(call.Args[args.message]) {
-		return "", false
-	}
-	return name, true
+	return name, args, ok
 }
 
 // queryErrorEnvelopeMessage returns the Message value of an ErrorEnvelope
@@ -327,23 +330,17 @@ func queryErrorTextIsSentinel(receiver ast.Expr) bool {
 // queryErrorTextIsClientStatus reports whether expr is a literal 4xx status:
 // an int literal in [400, 499] or http.StatusXxx with a 4xx value.
 func queryErrorTextIsClientStatus(expr ast.Expr) bool {
-	switch e := expr.(type) {
-	case *ast.BasicLit:
-		if e.Kind != token.INT {
-			return false
-		}
-		value, err := strconv.Atoi(e.Value)
-		return err == nil && value >= 400 && value <= 499
-	case *ast.SelectorExpr:
-		pkg, ok := e.X.(*ast.Ident)
-		if !ok || pkg.Name != "http" {
-			return false
-		}
-		value, ok := queryErrorTextHTTPStatusValues[e.Sel.Name]
-		return ok && value >= 400 && value <= 499
-	default:
-		return false
+	value, ok := queryStatusLiteral(expr)
+	return ok && value >= 400 && value <= 499
+}
+
+// queryIntLiteral returns the value of a decimal int literal.
+func queryIntLiteral(lit *ast.BasicLit) (int, bool) {
+	if lit.Kind != token.INT {
+		return 0, false
 	}
+	value, err := strconv.Atoi(lit.Value)
+	return value, err == nil
 }
 
 // queryErrorTextHTTPStatusValues maps net/http status constant names to their
