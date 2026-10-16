@@ -35,13 +35,24 @@ top-k returned 13 rows where 17 are correct.
 
 ## Selection
 
-`Select` picks the full-text read only when the backend is Neo4j, the query
-is not empty, `ESHU_INFRA_SEARCH_KEY_READ=on`, and `Readiness` is ready.
-`Readiness` is ready only when `SHOW INDEXES` reports the index `ONLINE` and
-`search.CountUnkeyed` sums to zero. An unkeyed node is invisible to the index,
-so a non-zero count keeps the legacy statement. `Readiness.Run` probes at
-start and every five minutes; requests never probe. A probe error is not
-ready.
+`Select` picks the full-text read only when all of these hold:
+
+1. The backend is Neo4j.
+2. The query is not empty.
+3. `ESHU_INFRA_SEARCH_KEY_READ=on`.
+4. The query has at most `MaxQueryRunes` (256) code points. Lucene refuses to
+   determinize a longer `*<query>*` wildcard for some inputs (a repeated
+   character fails at 315), so a longer query keeps the legacy statement
+   (`query_too_long`).
+5. `Readiness` is ready: `search.IndexState` reads the index `ONLINE` and
+   `search.CountUnkeyedSearchable` sums to zero.
+
+An unkeyed node is invisible to the index, so a node the search could match
+must not be unkeyed. `CountUnkeyedSearchable` counts only flagless nodes that
+hold at least one of the twelve searched fields: a node a posture writer
+created with none of them can never match a search, so it does not hold
+readiness off. `Readiness.Watch` probes at start and every five minutes;
+requests never probe. A probe error is not ready.
 
 `Reader.Rows` falls back to the legacy statement for one request when the
 full-text read fails while the request context is live.
@@ -58,7 +69,9 @@ full-text read fails while the request context is live.
 
 ## Known limits
 
-`CountUnkeyed` finds nodes with no flag. It cannot find a stale key: a key
-whose node fields a writer without the clause changed later. The rollout runs
-the backfill after the last pre-#7245 writer is gone, which repairs stale
-keys, before the flag goes on.
+`CountUnkeyedSearchable` finds nodes with no flag. It cannot find a stale key:
+a key whose node fields a writer without the clause changed later. The rollout
+runs the backfill after the last pre-#7245 writer is gone, which repairs stale
+keys, before the flag goes on. A searchable node written unkeyed after a probe
+stays invisible to the index until the next probe turns readiness off (at most
+five minutes).

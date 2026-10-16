@@ -25,9 +25,10 @@ The full-text read is selected only when all of these hold:
    the legacy statement).
 3. The flag is on.
 4. The query has at most 256 code points (`fulltext.MaxQueryRunes`).
-5. The cached readiness reads the index `ONLINE` and `search.CountUnkeyed`
-   sums to 0. The probe runs at start and every 5 minutes, never per request.
-   A probe error is not ready.
+5. The cached readiness reads the index `ONLINE` and
+   `search.CountUnkeyedSearchable` sums to 0: no flagless node holds any of the
+   twelve searched fields. The probe runs at start and every 5 minutes, never
+   per request. A probe error is not ready.
 
 ## Query shape
 
@@ -140,7 +141,8 @@ AllNodesScan, NodeByLabelScan or CartesianProduct.
 ## Observability Evidence
 
 Observability Evidence: `eshu_dp_infra_search_path_total{search_path, reason}`
-counts every graph search by path (`fulltext`, `legacy`) and reason (`ready`,
+counts every graph search except the Argo CD category-only read by path
+(`fulltext`, `legacy`) and reason (`ready`,
 `flag_off`, `not_ready`, `index_not_online`, `unkeyed`, `ft_error`,
 `backend`, `no_query`, `query_too_long`). The gauges
 `eshu_dp_infra_search_key_ready`, `eshu_dp_infra_search_key_index_online` and
@@ -158,18 +160,31 @@ a span recorder.
 
 1. Run the PR-1 image on every graph writer.
 2. After the last pre-PR-1 writer is gone, run the bootstrap backfill. It
-   also repairs stale keys.
+   keys every node and repairs stale keys. Readiness then needs no new
+   backfill for nodes the posture and identity writers create later: they
+   hold no searched field, and the readiness count skips them.
 3. Deploy this PR with the flag off and confirm
    `eshu_dp_infra_search_key_ready` reads 1.
 4. Set `ESHU_INFRA_SEARCH_KEY_READ=on` on the API and MCP server and measure.
 
 ## Known limits
 
-- `CountUnkeyed` finds nodes with no flag, not stale keys (a key whose fields
+- The readiness count finds flagless nodes, not stale keys (a key whose fields
   a writer without the clause changed later). Step 2 of the rollout covers
   them.
-- A node written unkeyed after a probe is invisible to the index until the
-  next probe (at most 5 minutes) turns readiness off. Only a pre-PR-1 writer
+- Several current writers MERGE infra nodes by uid without the key clause:
+  `ec2_block_device_kms_posture_node_writer.go`,
+  `ec2_internet_exposure_node_writer.go`, `ec2_instance_identity_node_writer.go`,
+  `s3_internet_exposure_node_writer.go` and `rds_posture_node_writer.go`
+  (CloudResource), and the `base_refs` write in `canonical_kustomize_edges.go`
+  (KustomizeOverlay), all under `go/internal/storage/cypher/`. When one runs
+  before the canonical upsert, or with no canonical node, it leaves a flagless
+  node that holds none of the twelve searched fields. No search can match such
+  a node, so the readiness count (`search.CountUnkeyedSearchable`) skips it;
+  `search.CountUnkeyed` still counts it. `readiness_live_test.go` proves both.
+- A searchable node written unkeyed after a probe is invisible to the index
+  until the next probe (at most 5 minutes) turns readiness off. Only a writer
+  that sets a searched field without the clause, today a pre-PR-1 writer,
   writes such a node.
 - The first requests after start, before the first probe finishes, use the
   legacy statement (`not_ready`).

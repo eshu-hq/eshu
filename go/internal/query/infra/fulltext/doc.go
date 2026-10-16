@@ -15,8 +15,10 @@
 // rows, so the result set equals the legacy one.
 //
 // Select decides the statement per request. The full-text read runs only on
-// Neo4j, for a non-empty query, when ESHU_INFRA_SEARCH_KEY_READ is on, and
-// when the cached Readiness reports the index ONLINE and no unkeyed node.
+// Neo4j, for a non-empty query of at most MaxQueryRunes (256) code points,
+// when ESHU_INFRA_SEARCH_KEY_READ is on, and when the cached Readiness reports
+// the index ONLINE and no unkeyed node that holds a searched field
+// (search.CountUnkeyedSearchable).
 // Readiness is probed at start and on an interval, never per request.
 // Reader.Rows falls back to the legacy statement for one request when the
 // full-text read fails, and counts it. NornicDB, the structured (empty-query)

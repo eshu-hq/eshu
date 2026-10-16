@@ -57,11 +57,20 @@ flag disagrees with their fields and writes them with `Clause` in
 property, and a second run writes nothing. `eshu-bootstrap-data-plane` runs it
 on Neo4j after graph DDL and before the schema marker.
 
-`CountUnkeyed` returns the per-label count of nodes without the flag, and
-`IndexState` returns the state of `infra_search_key_ft` (`""` when it does not
-exist). The read cutover (`go/internal/query/infra/fulltext`, #7245 PR-2)
-probes both at API and MCP start and every 5 minutes, and uses the index only
-while it is `ONLINE` and every count is zero. A write that bypasses the clause
+`CountUnkeyed` returns the per-label count of nodes without the flag.
+`CountUnkeyedSearchable` counts only those that also hold at least one of the
+twelve searched fields, and `IndexState` returns the state of
+`infra_search_key_ft` (`""` when it does not exist). The read cutover
+(`go/internal/query/infra/fulltext`, #7245 PR-2) probes `IndexState` and
+`CountUnkeyedSearchable` at API and MCP start and every 5 minutes, and uses
+the index only while it is `ONLINE` and every count is zero. The narrower count
+exists because the posture and identity writers
+(`ec2_block_device_kms_posture_node_writer.go`,
+`ec2_internet_exposure_node_writer.go`, `ec2_instance_identity_node_writer.go`,
+`s3_internet_exposure_node_writer.go`, `rds_posture_node_writer.go`) and the
+KustomizeOverlay `base_refs` write (`canonical_kustomize_edges.go`) MERGE infra
+nodes by uid without the clause; a node they create first holds no searched
+field, so no search can match it. A write that bypasses the clause
 can leave the index `FAILED`; the probe then keeps every search on the legacy
 statement and `eshu_dp_infra_search_key_index_online` reads 0.
 
