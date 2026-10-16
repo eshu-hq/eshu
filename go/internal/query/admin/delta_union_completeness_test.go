@@ -6,6 +6,7 @@ package admin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -107,7 +108,7 @@ func TestDeltaUnionCompletenessCheckMismatchListsDiff(t *testing.T) {
 		{"rel": "w.go", "entities": int64(0)},
 	}
 
-	report, err := checker.Check(context.Background(), nil)
+	report, err := checker.Check(context.Background(), []string{"scope-1"})
 	if err != nil {
 		t.Fatalf("Check() error = %v, want nil", err)
 	}
@@ -126,6 +127,42 @@ func TestDeltaUnionCompletenessCheckMismatchListsDiff(t *testing.T) {
 	}
 }
 
+// A scope whose active generation is a full generation, not a delta, is
+// reported skipped without touching the graph (#7797): the want side counts
+// every content_entity fact row per file while the graph side counts only
+// :Function nodes. The erroring graph stub proves no read is issued.
+func TestDeltaUnionCompletenessCheckNonDeltaSkipsWithoutGraphRead(t *testing.T) {
+	active := &stubDeltaUnionActive{snapshot: pgstatus.DeltaUnionActiveSnapshot{
+		Rows: []goldengate.DeltaUnionActiveRow{
+			{
+				RepoID: "repo-1", ScopeID: "scope-1", GenerationID: "gen-full", GenerationStatus: "active",
+				Kind: "file", StableKey: "file:repo-1:config.yaml", Path: "config.yaml",
+			},
+			{
+				RepoID: "repo-1", ScopeID: "scope-1", GenerationID: "gen-full", GenerationStatus: "active",
+				Kind: "content_entity", StableKey: "content_entity:cfg-a", Path: "config.yaml",
+			},
+		},
+		Deltas: map[string]goldengate.DeltaUnionDeltaPaths{},
+	}}
+	graph := &stubDeltaUnionGraph{err: errors.New("graph must not be read for a non-delta scope")}
+	checker := &DeltaUnionCompletenessChecker{Active: active, Graph: graph}
+
+	report, err := checker.Check(context.Background(), []string{"scope-1"})
+	if err != nil {
+		t.Fatalf("Check() error = %v, want nil (non-delta scope skips without a graph read)", err)
+	}
+	if len(report.Repos) != 1 {
+		t.Fatalf("repos = %+v, want one skipped repo", report.Repos)
+	}
+	if report.Repos[0].Outcome != "skipped" {
+		t.Fatalf("outcome = %q, want skipped: %+v", report.Repos[0].Outcome, report.Repos[0])
+	}
+	if report.Mismatches != 0 {
+		t.Fatalf("mismatches = %d, want 0", report.Mismatches)
+	}
+}
+
 func TestDeltaUnionCompletenessCheckRequiresConfiguration(t *testing.T) {
 	checker := &DeltaUnionCompletenessChecker{}
 	if _, err := checker.Check(context.Background(), nil); err == nil {
@@ -136,15 +173,42 @@ func TestDeltaUnionCompletenessCheckRequiresConfiguration(t *testing.T) {
 func TestDeltaUnionCompletenessCheckCapsRepos(t *testing.T) {
 	checker, active := deltaUnionChecker()
 	checker.MaxRepos = 1
+	// A second delta-active scope: non-delta scopes skip without a graph
+	// read and stay outside the cap, so the cap fixture must be delta.
 	active.snapshot.Rows = append(active.snapshot.Rows,
 		goldengate.DeltaUnionActiveRow{
-			RepoID: "repo-2", ScopeID: "scope-2", GenerationID: "gen-full",
-			GenerationStatus: "active", Kind: "file", StableKey: "file:repo-2:a.go", Path: "a.go",
+			RepoID: "repo-2", ScopeID: "scope-2", GenerationID: "gen-delta-2",
+			GenerationStatus: "active", IsDelta: true,
+			Kind: "file", StableKey: "file:repo-2:a.go", Path: "a.go",
 		})
-	if _, err := checker.Check(context.Background(), nil); err == nil {
+	if _, err := checker.Check(context.Background(), []string{"scope-1", "scope-2"}); err == nil {
 		t.Fatal("Check() error = nil, want repo cap error")
 	} else if got := err.Error(); !strings.Contains(got, "scope filter") {
 		t.Fatalf("Check() error = %q, want a narrow-the-filter error", got)
+	}
+}
+
+// An empty scope filter fans out over every active generation plus one
+// anchored graph query per repository (#7797: p95 1.648s past the 1.5s
+// default budget), so the route requires at least one explicit ?scope=.
+func TestDeltaUnionCompletenessCheckRequiresScope(t *testing.T) {
+	checker, _ := deltaUnionChecker()
+	if _, err := checker.Check(context.Background(), nil); err == nil {
+		t.Fatal("Check() error = nil, want scope-required error")
+	} else if got := err.Error(); !strings.Contains(got, "scope") {
+		t.Fatalf("Check() error = %q, want a pass-a-scope error", got)
+	}
+}
+
+func TestDeltaUnionCompletenessHandlerRequiresScope(t *testing.T) {
+	checker, _ := deltaUnionChecker()
+	handler := &Handler{Completeness: checker}
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v0/admin/delta-union/completeness", nil)
+	recorder := httptest.NewRecorder()
+	handler.deltaUnionCompleteness(recorder, request)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for an empty scope filter", recorder.Code)
 	}
 }
 

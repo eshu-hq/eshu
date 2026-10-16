@@ -20,8 +20,9 @@ const (
 	// DeltaUnionRepoMismatch means the graph differs from the ACTIVE set and
 	// names the diff for repair.
 	DeltaUnionRepoMismatch DeltaUnionRepoOutcome = "mismatch"
-	// DeltaUnionRepoSkipped means the scope carries no active generation, so
-	// there is nothing to compare.
+	// DeltaUnionRepoSkipped means the scope carries no active generation,
+	// or its active generation is not a delta, so the delta-union
+	// comparison does not apply to it.
 	DeltaUnionRepoSkipped DeltaUnionRepoOutcome = "skipped"
 )
 

@@ -23,8 +23,10 @@ import (
 )
 
 // Live proof for the #7797 delta-base union read path: ListFacts and
-// CountFacts against a real Postgres. Opt-in via ESHU_POSTGRES_TEST_DSN; the
-// schema is isolated per test and drops with it. Trees: base full generation
+// CountFacts against a real Postgres. Opt-in via ESHU_POSTGRES_TEST_DSN, or
+// via the live-postgres-readiness runner's ESHU_GENERATION_RETENTION_PROOF_DSN
+// pair (bridged in openDeltaUnionLiveDB); the schema is isolated per test and
+// drops with it. Trees: base full generation
 // A {keep.go, w.go} at commit A (activated), then delta generation B diffed
 // from A {keep.go modified, w.go deleted}.
 const deltaUnionLiveSchema = `
@@ -81,6 +83,20 @@ CREATE TABLE generation_retention_events (
 func openDeltaUnionLiveDB(t *testing.T) (context.Context, *sql.DB) {
 	t.Helper()
 
+	// Bridge the live-postgres-readiness runner's family DSN onto the shared
+	// helper's generic variable, as TestGenerationRetentionHardCeilingLive
+	// does. The runner enrolls these delta-union tests but sets no
+	// delta-specific DSN (ESHU_RECOVERY_DELTA_ACTIVE_PROOF_DSN belongs to
+	// the refinalize proofs, which bridge onto ESHU_POSTGRES_DSN instead),
+	// so without this bridge the tests skip in CI. Each test still uses an
+	// isolated schema it drops, so sharing the disposable database is safe.
+	// Local runs keep using ESHU_POSTGRES_TEST_DSN directly.
+	if dsn := strings.TrimSpace(os.Getenv("ESHU_GENERATION_RETENTION_PROOF_DSN")); dsn != "" {
+		if os.Getenv("ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE") != "1" {
+			t.Fatal("ESHU_GENERATION_RETENTION_PROOF_DSN is set without ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE=1")
+		}
+		t.Setenv("ESHU_POSTGRES_TEST_DSN", dsn)
+	}
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
 	if dsn == "" {
 		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live delta-union proof")

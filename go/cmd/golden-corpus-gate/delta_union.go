@@ -61,12 +61,13 @@ func (b *boltGraphCounter) DeltaUnionRepoFiles(ctx context.Context, repoID strin
 }
 
 // runDeltaUnion is the delta-union phase (#7797): for every scope with an
-// active generation, compare the graph's file set against the ACTIVE set
-// (base-full overlaid with the active delta, read through the independent
-// SQL, never through the projection's union function) and hard-fail on any
-// mismatch. Scopes with no active generation skip with a reason; the current
-// corpus carries no delta-active scopes, so the phase passes vacuously until
-// a delta scenario lands, and then it guards the repair.
+// active delta generation, compare the graph's file set against the ACTIVE
+// set (base-full overlaid with the active delta, read through the
+// independent SQL, never through the projection's union function) and
+// hard-fail on any mismatch. Scopes with no active generation, or whose
+// active generation is not a delta, skip with a reason; the current corpus
+// carries no delta-active scopes, so the phase passes vacuously until a
+// delta scenario lands, and then it guards the repair.
 func runDeltaUnion(ctx context.Context, getenv func(string) string, r *Report) error {
 	pgdb, err := runtimecfg.OpenPostgres(ctx, getenv)
 	if err != nil {
@@ -99,7 +100,11 @@ func evaluateDeltaUnionSnapshot(
 	observations := make([]gg.DeltaUnionObservation, 0, len(expected))
 	for _, exp := range expected {
 		observation := gg.DeltaUnionObservation{RepoID: exp.RepoID, Files: map[string]int64{}}
-		if exp.ActiveGenerationID != "" && exp.RepoID != "" {
+		// Only delta-active scopes are compared: the want side counts
+		// every content_entity fact row per file while the graph side
+		// counts only :Function nodes, so a full active generation is out
+		// of this comparison's scope and skips without a graph read.
+		if exp.ActiveGenerationID != "" && exp.ActiveIsDelta && exp.RepoID != "" {
 			files, err := graph.DeltaUnionRepoFiles(ctx, exp.RepoID)
 			if err != nil {
 				return fmt.Errorf("delta-union phase: read graph for repo %s: %w", exp.RepoID, err)
