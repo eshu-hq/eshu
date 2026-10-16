@@ -24,7 +24,20 @@ import (
 // exactly: never a directory, a subdirectory, or a same-named file elsewhere.
 // A bare "" literal is never accepted, and an entry whose file has no
 // NoCapability call site fails as stale.
-var noCapabilityAllowedFiles = map[string]string{}
+var noCapabilityAllowedFiles = map[string]string{
+	"status.go": "GET /api/v0/status/pipeline, GET /api/v0/status/collectors, " +
+		"GET /api/v0/collectors, GET /api/v0/status/ingesters/{ingester}, " +
+		"GET /api/v0/ingesters/{ingester}, and the unscoped GET /api/v0/status/index " +
+		"and GET /api/v0/index-status read the status snapshot with no matrix key (#8227)",
+	"status_scoped.go": "the scoped GET /api/v0/status/index and GET /api/v0/index-status " +
+		"graph repository count has no matrix key (#8227)",
+	"status_hosted_readiness.go": "GET /api/v0/status/hosted-readiness reads the status " +
+		"snapshot with no matrix key (#8227)",
+	"status_freshness_causality.go": "GET /api/v0/status/freshness-causality reads the " +
+		"status snapshot with no matrix key (#8227)",
+	"status_collector_readiness.go": "GET /api/v0/status/collector-readiness and GET " +
+		"/api/v0/collector-readiness read the status snapshot with no matrix key (#8227)",
+}
 
 // noCapabilityConstName is the querycontract constant the sweep recognizes.
 const noCapabilityConstName = "NoCapability"
