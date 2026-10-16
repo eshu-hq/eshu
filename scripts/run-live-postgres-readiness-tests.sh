@@ -75,6 +75,7 @@ for name in \
   ESHU_CONTENT_SEARCH_PROOF_DSN \
   ESHU_SCOPED_SEARCH_PROOF_DSN \
   ESHU_IDENTITY_EPOCH_PROOF_DSN \
+  ESHU_AWS_DRIFT_ARN_PROOF_DSN \
   ESHU_WEBHOOK_CLAIM_LEASE_PROOF_DSN; do
   [[ -n "${!name:-}" ]] || die "${name} must name the administrative postgres database"
   [[ "${!name}" == */postgres\?* || "${!name}" == */postgres ]] ||
@@ -108,7 +109,8 @@ for name in \
   ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE \
   ESHU_CONTENT_SEARCH_PROOF_DISPOSABLE \
   ESHU_SCOPED_SEARCH_PROOF_DISPOSABLE \
-  ESHU_IDENTITY_EPOCH_PROOF_DISPOSABLE; do
+  ESHU_IDENTITY_EPOCH_PROOF_DISPOSABLE \
+  ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE; do
   [[ "${!name:-}" == "1" ]] || die "${name} must be 1"
 done
 # Only the Neo4j graph proofs need a backend; everything else runs on plain

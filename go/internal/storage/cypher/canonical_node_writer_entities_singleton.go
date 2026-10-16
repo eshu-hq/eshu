@@ -5,6 +5,8 @@ package cypher
 
 import (
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
 )
 
 // canonicalEntityRowNeedsSingletonFallback decides whether a canonical entity
@@ -53,6 +55,7 @@ func canonicalEntitySingletonFallbackName(mode string) string {
 }
 
 func canonicalNodeEntitySingletonWithContainmentStatement(
+	searchKey search.Dialect,
 	label string,
 	filePath string,
 	row map[string]any,
@@ -71,7 +74,7 @@ func canonicalNodeEntitySingletonWithContainmentStatement(
 	}
 	return Statement{
 		Operation: OperationCanonicalUpsert,
-		Cypher:    fmt.Sprintf(canonicalNodeEntitySingletonUpsertWithContainmentTemplate, label),
+		Cypher:    search.Statement(searchKey, label, "n", fmt.Sprintf(canonicalNodeEntitySingletonUpsertWithContainmentTemplate, label)),
 		Parameters: map[string]any{
 			"file_path":                        filePath,
 			"entity_id":                        row["entity_id"],

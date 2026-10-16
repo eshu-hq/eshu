@@ -90,7 +90,7 @@ LIMIT 25;
 --   superseded_retained          superseded, none of the above: kept by policy
 --
 -- The footprint columns come from a deterministic sample (ordered by
--- md5(generation_id)) of at most :sample generations per category, counted in
+-- sha256(generation_id)) of at most :sample generations per category, counted in
 -- the three generation-keyed tables that dominate storage. Counts are exact for
 -- the sampled generations; a category total is sample mean x category size and
 -- carries sampling error (sd_* shows the spread). A category with fewer
@@ -167,7 +167,7 @@ picked AS (
     SELECT category, scope_id, generation_id
     FROM (
         SELECT c.category, c.scope_id, c.generation_id,
-               ROW_NUMBER() OVER (PARTITION BY c.category ORDER BY md5(c.generation_id)) AS n
+               ROW_NUMBER() OVER (PARTITION BY c.category ORDER BY sha256(convert_to(c.generation_id, 'UTF8'))) AS n
         FROM categorized c
     ) x
     WHERE n <= :sample

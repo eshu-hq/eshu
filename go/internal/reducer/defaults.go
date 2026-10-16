@@ -51,8 +51,7 @@ type DefaultHandlers struct {
 	// RepositoryEdgeReader guards the #7285 stale DEFINES/EXPOSES_ENDPOINT retract.
 	RepositoryEdgeReader retract.Reader
 
-	// FactLoader loads fact envelopes for workload and infrastructure
-	// platform materialization.
+	// FactLoader loads fact envelopes for workload and platform materialization.
 	FactLoader FactLoader
 
 	// AdmissionDecisionWriter persists shared explainability decisions for
@@ -413,11 +412,12 @@ type DefaultHandlers struct {
 	// is optional; when nil the existing service-catalog contract is unchanged.
 	ServiceMaterializationWriter ServiceMaterializationWriter
 
-	// ServiceRuntimeInstanceLoader, when set alongside ServiceMaterializationWriter,
-	// supplies the materialized runtime instances for a service's repository so the
-	// runtime evidence family (#1986) is snapshotted into each service generation.
-	// It is optional; when nil the generation simply carries no runtime rows.
-	ServiceRuntimeInstanceLoader RepositoryScopedRuntimeInstanceLoader
+	// ServiceRuntimeInstanceLoader (with ServiceMaterializationWriter) sources the
+	// runtime evidence family (#1986); nil leaves generations without runtime rows.
+	// It is wired only with ServiceRuntimeProducerReadiness, the #7816 fence on
+	// in-flight workload_materialization work (serviceCatalogRuntimeInstanceLoader).
+	ServiceRuntimeInstanceLoader    RepositoryScopedRuntimeInstanceLoader
+	ServiceRuntimeProducerReadiness ServiceRuntimeProducerReadiness
 
 	// ServiceDocumentationEvidenceLoader, when set alongside
 	// ServiceMaterializationWriter, supplies the documentation facts that reference

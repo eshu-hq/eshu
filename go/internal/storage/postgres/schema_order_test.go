@@ -443,4 +443,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// domain IN list and trailing completed_at, partial to completed rows,
 	// so each probe is an index-only scan instead of a heap walk.
 	"shared_projection_intents_acceptance_completed_idx",
+	// Migration 180 (#7666) is the partial ARN expression index the
+	// aws_cloud_runtime_drift state join probes once per AWS ARN.
+	"fact_records_terraform_state_resource_arn_idx",
 }

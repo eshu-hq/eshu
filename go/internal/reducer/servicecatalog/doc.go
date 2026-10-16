@@ -67,6 +67,35 @@
 // generation is committed from a partial resolved set. The class is enrolled
 // as a non-counting reducer retry class in internal/storage/postgres.
 //
+// The runtime family is fenced the same way (#7816). Nothing orders
+// service_catalog_correlation after workload_materialization, so on a first
+// drain the runtime read could return zero WorkloadInstance rows just before
+// the producer's MERGE, and the handler committed an empty runtime family that
+// nothing repairs. Before the runtime read and before any write the handler
+// asks RuntimeProducerReadiness for each correlated repository's
+// RuntimeProducerDomains work items at the repository scope's active
+// generation. Any pending, retrying, claimed, or running row defers the intent
+// with RuntimeNotReadyFailureClass (non-counting); absent or terminal rows are
+// ready, so a repository without workloads never waits. The wait is bounded
+// by crossscope.ProducerReadinessMaxWait, measured per in-flight repository
+// from the newest in-flight producer row's last-workable time,
+// GREATEST(COALESCE(reopened_at, created_at), COALESCE(last_attempt_at,
+// created_at), COALESCE(visible_at, created_at), COALESCE(claim_until,
+// created_at)); the catalog intent's own cycle anchor is log-only.
+// claim_until is non-NULL only on claimed and running rows. Only when every
+// in-flight repository is past the bound does the handler proceed and commit
+// what it reads, possibly an empty runtime family; a zero producer anchor
+// keeps deferring. A producer row that is polling a non-counting readiness
+// class, or whose worker heartbeats, refreshes its anchor and never counts as
+// exceeded; only a starved row or a dead worker's row whose lease expired 30
+// minutes ago does. A handler that heartbeats forever without finishing holds
+// the catalog: the reducer lease policy's gap, tracked in #8211. The producer
+// set is pinned
+// against every WorkloadInstance and RUNS_ON writer in source by
+// TestRuntimeProducerSetCoversEveryRuntimeWriter. The repo_dependency shared
+// projection's RUNS_ON writer is enumerated there but not fenced: a read
+// while that intent is still pending can miss a platform row (#8169).
+//
 // Telemetry: the correlation handler increments
 // eshu_dp_service_catalog_correlations_total (labeled by domain and outcome)
 // for every correlation decision, and
@@ -74,6 +103,12 @@
 // guardrail) whenever the candidate_fanout, dropped_ambiguous_candidate, or
 // missing_anchor_entity guardrail fires -- kept separate from the decision
 // counter so a guardrail event is never miscounted as a decision outcome.
+// The runtime fence records one eshu_dp_service_catalog_runtime_readiness_total
+// (domain, outcome = ready, no_producer, deferred, bound_exceeded) per fenced
+// pass and logs every deferral and bound overrun with summed producer state
+// counts, up to 10 in-flight repository ids, producer_elapsed against
+// producer_max_wait (negative while the anchor lies in the future),
+// producer_newest_claim_until, and the catalog's elapsed_since_cycle_start.
 // Facts rejected for a malformed payload feed the shared
 // eshu_dp_reducer_input_invalid_facts_total counter through factdecode
 // instead of a family-specific one. The service-materialization evidence

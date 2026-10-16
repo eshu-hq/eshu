@@ -146,6 +146,17 @@
   `PostgresAWSCloudRuntimeDriftEvidenceLoader` must load AWS rows from one
   `(scope_id, generation_id)` and must join Terraform state through the current
   AWS ARN allowlist. Do not scan all active Terraform state to discover matches.
+  The state join probes `fact_records_terraform_state_resource_arn_idx`
+  (migration 180) once per ARN through an `OFFSET 0` LATERAL inside a
+  `MATERIALIZED` CTE, and joins `ingestion_scopes` only after that fence.
+  Keep both fences and keep the probe's predicate identical to the index
+  predicate (#7666): without them the planner looped the active-scope join per
+  ARN (11.16M buffers) or walked the whole index on stale statistics. The
+  plan proof is `aws_cloud_runtime_drift_state_arn_plan_live_test.go`; the row
+  differential against the pre-#7666 join is
+  `aws_cloud_runtime_drift_state_arn_differential_live_test.go`. Do not add an
+  expression statistics object to fix a plan here; a stale one left the
+  unchanged statement 2,358x slower than a fresh one.
   If backend ownership is missing or ambiguous, suppress unmanaged
   classification for that state-backed ARN; unknown config is not proof of
   absent config.

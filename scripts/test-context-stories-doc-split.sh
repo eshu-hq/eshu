@@ -216,6 +216,7 @@ verify_layout() {
     '## Answer-narration status seam — hot-path evidence|http-api/ask.md'
     '## Cloud Inventory Readback|http-api/cloud-inventory.md'
     '## Cloud Resource Graph Paging|http-api/cloud-inventory.md'
+    '### Deployment-trace typed 404|http-api/deployment-trace-and-influence.md'
   )
   for stub in "${hub_stubs[@]}"; do
     heading="${stub%%|*}"

@@ -7,6 +7,8 @@ import (
 	"context"
 
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
 )
 
 // This file holds CanonicalNodeWriter's With* builder options, split out of
@@ -145,6 +147,29 @@ func (w *CanonicalNodeWriter) WithEntityLabelBatchSize(label string, batchSize i
 	}
 	w.entityLabelBatchSizes[label] = batchSize
 	return w
+}
+
+// WithoutInfraSearchKey switches the writer to the NornicDB statement shape
+// for the #7245 infra search key: every statement is emitted byte for byte as
+// it was before the key existed. It exists for the NornicDB writer seam
+// (storage/nornicdb.ConfigureCanonicalWriter), which turns a writer into the
+// NornicDB shape after construction; TestProductionWiringUsesDialectConstructors
+// fails if any other production package calls it. A Neo4j writer must never
+// call it: its keys would go stale.
+func (w *CanonicalNodeWriter) WithoutInfraSearchKey() *CanonicalNodeWriter {
+	if w == nil {
+		return nil
+	}
+	w.searchKey = search.Off
+	return w
+}
+
+// InfraSearchKeyDialect reports the writer's infra search key dialect.
+func (w *CanonicalNodeWriter) InfraSearchKeyDialect() search.Dialect {
+	if w == nil {
+		return 0
+	}
+	return w.searchKey
 }
 
 // WithEntityContainmentInEntityUpsert keeps entity node and file containment

@@ -9,13 +9,16 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
+	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/graphowner"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
+	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/code/taint"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -103,9 +106,12 @@ func newGraphOwnerGates(database db.ExecQueryer, instruments *telemetry.Instrume
 // exists via a separate read before running a MERGE-anchored write) — it is
 // typically the same query.GraphQuery graph-read port already wired for other
 // reducer read paths.
-func newCanonicalGraphWriters(exec sourcecypher.Executor, reader sourcecypher.PostureExistenceReader, batchSize int, ownerGate *graphowner.Gate, lockGate *graphowner.LockOnlyGate) canonicalGraphWriters {
-	rawCloudResourceNode := sourcecypher.NewCloudResourceNodeWriter(exec, batchSize)
-	rawEC2InstanceNode := sourcecypher.NewEC2InstanceNodeWriter(exec, batchSize)
+//
+// searchKey is the #7245 infra search key dialect resolved from the configured
+// graph backend (search.DialectForBackend): the two writers that set
+// searched CloudResource fields append the key clause on Neo4j only.
+func newCanonicalGraphWriters(exec sourcecypher.Executor, reader sourcecypher.PostureExistenceReader, batchSize int, ownerGate *graphowner.Gate, lockGate *graphowner.LockOnlyGate, searchKey search.Dialect) canonicalGraphWriters {
+	rawCloudResourceNode, rawEC2InstanceNode := newSearchKeyedCloudNodeWriters(exec, batchSize, searchKey)
 	rawKubernetesWorkloadNode := sourcecypher.NewKubernetesWorkloadNodeWriter(exec, batchSize)
 	kubernetesNamespaceNode := sourcecypher.NewKubernetesNamespaceNodeWriter(exec, batchSize)
 	rawRDSPostureNode := sourcecypher.NewRDSPostureNodeWriter(exec, reader, batchSize)
@@ -224,4 +230,45 @@ func seedReducerProjectedSourceLedgers(database db.ExecQueryer, graphReader quer
 		return postgres.ProjectedSourceEdgeStore{}, fmt.Errorf("projected source edge backfill: %w", err)
 	}
 	return projectedSourceEdgeStore, nil
+}
+
+// newSearchKeyedCloudNodeWriters builds the two reducer writers that set
+// searched CloudResource fields, with the #7245 infra search key dialect.
+func newSearchKeyedCloudNodeWriters(
+	exec sourcecypher.Executor,
+	batchSize int,
+	searchKey search.Dialect,
+) (*sourcecypher.CloudResourceNodeWriter, *sourcecypher.EC2InstanceNodeWriter) {
+	return sourcecypher.NewCloudResourceNodeWriterWithDialect(exec, batchSize, searchKey),
+		sourcecypher.NewEC2InstanceNodeWriterWithDialect(exec, batchSize, searchKey)
+}
+
+// loadReducerGraphBackend loads the configured graph backend and the #7245
+// infra search key dialect it implies (search.DialectForBackend), so
+// buildReducerService resolves both where it already loads the backend.
+func loadReducerGraphBackend(getenv func(string) string) (runtimecfg.GraphBackend, search.Dialect, error) {
+	backend, err := runtimecfg.LoadGraphBackend(getenv)
+	if err != nil {
+		return "", 0, err
+	}
+	searchKey, err := search.DialectForBackend(graph.SchemaBackend(backend))
+	if err != nil {
+		return "", 0, err
+	}
+	return backend, searchKey, nil
+}
+
+// newReducerCanonicalGraphWriters builds the #5007/#5062 owner-ledger and
+// lock-only gates for the canonical node writers, then the writers, with the
+// #7245 infra search key dialect.
+func newReducerCanonicalGraphWriters(
+	exec sourcecypher.Executor,
+	reader sourcecypher.PostureExistenceReader,
+	batchSize int,
+	database db.ExecQueryer,
+	instruments *telemetry.Instruments,
+	searchKey search.Dialect,
+) canonicalGraphWriters {
+	ownerGate, lockGate := newGraphOwnerGates(database, instruments)
+	return newCanonicalGraphWriters(exec, reader, batchSize, ownerGate, lockGate, searchKey)
 }

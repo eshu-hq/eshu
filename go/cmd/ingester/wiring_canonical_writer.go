@@ -4,9 +4,12 @@
 package main
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/graph"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
 	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // ingesterCanonicalWriterConfig captures backend-neutral canonical writer
@@ -46,4 +49,20 @@ func configureIngesterCanonicalWriter(
 		})
 	}
 	return writer
+}
+
+// newIngesterCanonicalNodeWriter builds the canonical writer with the #7245
+// infra search key dialect resolved from the configured graph backend: Neo4j
+// writes the key, NornicDB keeps its statements byte for byte.
+func newIngesterCanonicalNodeWriter(
+	executor sourcecypher.Executor,
+	graphBackend runtimecfg.GraphBackend,
+	batchSize int,
+	instruments *telemetry.Instruments,
+) (*sourcecypher.CanonicalNodeWriter, error) {
+	searchKey, err := search.DialectForBackend(graph.SchemaBackend(graphBackend))
+	if err != nil {
+		return nil, err
+	}
+	return sourcecypher.NewCanonicalNodeWriterWithDialect(executor, batchSize, instruments, searchKey), nil
 }

@@ -84,6 +84,16 @@ func ensureSchemaWithBackend(
 			}
 		}
 	}
+	if dialect.includeInfraSearchKeyIndex {
+		for _, cypher := range neo4jInfraSearchKeyIndexes {
+			if err := state.execute(ctx, executor, "neo4j_infra_search_key_index", cypher); err != nil {
+				if isSchemaContextFailure(err) {
+					return err
+				}
+				failed++
+			}
+		}
+	}
 	for _, cypher := range dialect.retiredConstraintPathIndexes {
 		if err := state.execute(ctx, executor, string(dialect.backend)+"_retired_constraint_path_indexes", cypher); err != nil {
 			if isSchemaContextFailure(err) {
@@ -209,6 +219,9 @@ func schemaStatementTotal(dialect schemaDialect) int {
 	total += len(schemaPerformanceIndexes)
 	if dialect.includeNeo4jUIDLookupIndexes {
 		total += len(neo4jUIDLookupIndexes)
+	}
+	if dialect.includeInfraSearchKeyIndex {
+		total += len(neo4jInfraSearchKeyIndexes)
 	}
 	if dialect.includeMergeLookupIndexes {
 		total += len(nornicDBMergeLookupIndexes)

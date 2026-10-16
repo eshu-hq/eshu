@@ -281,11 +281,12 @@ func openBootstrapCanonicalWriter(
 		return nil, nil, err
 	}
 
-	writer := sourcecypher.NewCanonicalNodeWriter(
-		executor,
-		neo4jBatchSize(getenv),
-		instruments,
-	).WithTracer(tracer).WithTerraformStateOwnershipResolver(
+	writer, err := newBootstrapCanonicalNodeWriter(executor, graphBackend, neo4jBatchSize(getenv), instruments)
+	if err != nil {
+		_ = closeBootstrapNeo4jDriver(driver)
+		return nil, nil, err
+	}
+	writer = writer.WithTracer(tracer).WithTerraformStateOwnershipResolver(
 		bootstrapTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.PostgresTerraformBackendQuery{DB: database})},
 	).WithTerraformStateConfigMatchResolver(
 		bootstrapTerraformStateConfigMatchResolver{driver: driver, databaseName: cfg.DatabaseName},

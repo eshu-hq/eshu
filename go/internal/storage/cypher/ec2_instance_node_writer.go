@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
@@ -82,15 +83,34 @@ DETACH DELETE n`
 type EC2InstanceNodeWriter struct {
 	executor  Executor
 	batchSize int
+	// searchKey decides whether the upsert appends the #7245 infra search key
+	// clause.
+	searchKey search.Dialect
 }
 
 // NewEC2InstanceNodeWriter returns an EC2InstanceNodeWriter backed by the given
 // Executor. A batchSize of 0 or less uses DefaultBatchSize (500).
+//
+// It emits the default Neo4j-keyed shape (search.On), for tests and fixtures;
+// production wiring must use NewEC2InstanceNodeWriterWithDialect.
 func NewEC2InstanceNodeWriter(executor Executor, batchSize int) *EC2InstanceNodeWriter {
+	return newEC2InstanceNodeWriter(executor, batchSize, search.On)
+}
+
+// NewEC2InstanceNodeWriterWithDialect returns an EC2InstanceNodeWriter whose
+// upsert follows searchKey: search.On (Neo4j) appends the infra search key
+// clause, search.Off (NornicDB) emits the statement byte for byte as before
+// the key existed. It panics on an invalid dialect.
+func NewEC2InstanceNodeWriterWithDialect(executor Executor, batchSize int, searchKey search.Dialect) *EC2InstanceNodeWriter {
+	search.MustDialect(searchKey, "NewEC2InstanceNodeWriterWithDialect")
+	return newEC2InstanceNodeWriter(executor, batchSize, searchKey)
+}
+
+func newEC2InstanceNodeWriter(executor Executor, batchSize int, searchKey search.Dialect) *EC2InstanceNodeWriter {
 	if batchSize <= 0 {
 		batchSize = DefaultBatchSize
 	}
-	return &EC2InstanceNodeWriter{executor: executor, batchSize: batchSize}
+	return &EC2InstanceNodeWriter{executor: executor, batchSize: batchSize, searchKey: searchKey}
 }
 
 // WriteEC2InstanceNodes upserts EC2 instance CloudResource nodes for the given
@@ -120,7 +140,11 @@ func (w *EC2InstanceNodeWriter) WriteEC2InstanceNodes(
 		annotated = append(annotated, cloned)
 	}
 
-	stmts := BuildBatchedStatements(canonicalEC2InstanceUpsertCypher, annotated, w.batchSize)
+	stmts := BuildBatchedStatements(
+		search.Statement(w.searchKey, "CloudResource", "r", canonicalEC2InstanceUpsertCypher),
+		annotated,
+		w.batchSize,
+	)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Operation = OperationCanonicalUpsert

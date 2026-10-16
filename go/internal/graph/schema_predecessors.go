@@ -60,6 +60,20 @@ const graphSchemaNornicDBPreRetiredNarrowConstraintsFingerprint = "f957752df4f61
 // move and needs no predecessor.
 const graphSchemaNeo4jPreFulltextModernFormFingerprint = "675dafc901ff633999440f0e02cbefa7c3ff80231832f5a67330aafe565f8d54"
 
+// graphSchemaNeo4jPreInfraSearchKeyIndexesFingerprint is the Neo4j digest
+// immediately before #7245 added the infra_search_key_ft FULLTEXT index over
+// infra_search_key and infra_search_ovf (the #7675 tip above). The bump is
+// additive and lists it as compatible: the index changes no MERGE or MATCH
+// identity, and in this release nothing reads the key, so a writer on the
+// previous schema writes a graph every reader still answers correctly. Such a
+// writer does not maintain the key, so the read cutover (#7245 PR-2) must not
+// rely on keys written while it ran: it re-runs the key backfill, which
+// rewrites any key that disagrees with the node's current fields, before it
+// trusts them. NornicDB gets no such index, so its fingerprint does not move.
+// A writer on the previous schema never writes the key, so it can never write
+// a key past the index term limit either.
+const graphSchemaNeo4jPreInfraSearchKeyIndexesFingerprint = "ac31ec4947f1586093c5518a8b2edb31ddc0e2e462e2091e551af776aeee9c3e"
+
 // graphSchemaCompatibleFingerprints lists additive predecessor schema
 // fingerprints that older graph writers may safely use after bootstrap records
 // the current marker. The key is the schema fingerprint that was applied; the
@@ -78,6 +92,7 @@ const graphSchemaNeo4jPreFulltextModernFormFingerprint = "675dafc901ff633999440f
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	SchemaBackendNeo4j: {
 		graphSchemaNeo4jFingerprint: {
+			graphSchemaNeo4jPreInfraSearchKeyIndexesFingerprint,
 			graphSchemaNeo4jPreFulltextModernFormFingerprint,
 			graphSchemaNeo4jPreRetiredNarrowConstraintsFingerprint,
 			graphSchemaNeo4jPreUnconstrainedUIDIndexFingerprint,

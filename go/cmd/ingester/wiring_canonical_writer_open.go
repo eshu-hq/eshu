@@ -175,11 +175,11 @@ func openIngesterCanonicalWriter(
 		instruments,
 		newIngesterCanonicalGate(getenv, instruments),
 	)
-	writer := sourcecypher.NewCanonicalNodeWriter(
-		canonicalExecutor,
-		neo4jBatchSize(getenv),
-		instruments,
-	).WithTracer(tracer).WithTerraformStateOwnershipResolver(
+	writer, err := newIngesterCanonicalNodeWriter(canonicalExecutor, graphBackend, neo4jBatchSize(getenv), instruments)
+	if err != nil {
+		return failAfterDriverOpen(err)
+	}
+	writer = writer.WithTracer(tracer).WithTerraformStateOwnershipResolver(
 		ingesterTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.PostgresTerraformBackendQuery{DB: database})},
 	).WithTerraformStateConfigMatchResolver(
 		ingesterTerraformStateConfigMatchResolver{driver: driver, databaseName: cfg.DatabaseName},

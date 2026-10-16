@@ -17,6 +17,12 @@ Tags for this module use the Go subdirectory-module format:
 
 ## [Unreleased]
 
+### Added
+
+- `ProtocolVersionV1Alpha2` (`collector-sdk/v1alpha2`): second collector
+  extension wire contract, admitted only when explicitly configured;
+  v1alpha1 default unchanged.
+
 ## [0.2.0] - 2026-09-16
 
 Additive post-`v0.1.0` changes only. Verified against tag

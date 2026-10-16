@@ -23,6 +23,7 @@ import (
 func noopNeo4j(_ context.Context, _ func(string) string) (neo4jDeps, error) {
 	return neo4jDeps{
 		executor: &fakeNeo4jExecutor{},
+		runner:   &fakeGraphRunner{events: new([]string)},
 		close:    func() error { return nil },
 	}, nil
 }

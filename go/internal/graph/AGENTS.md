@@ -38,6 +38,14 @@
   drops the row so the graph holds no corrupted identity. `MaxIndexKeyBytes`
   is measured against the pinned Neo4j; re-measure before raising it.
 
+- **Infra search key index is Neo4j-only and capped by the writer** —
+  `infra_search_key_ft` lives in `neo4jInfraSearchKeyIndexes`, never in
+  `schemaFulltextIndexes`, so NornicDB gets no form of it. Its keyword terms
+  have no guard here: `InfraSearchKeyMaxChars` is enforced by the writer
+  clause in `internal/storage/cypher/infra/search`. Do not raise the cap or
+  write the key anywhere else; a term past 32,766 bytes fails the index. See
+  the README runbook (#7245).
+
 - **Cypher-safe labels and property keys** — `ValidateCypherLabel` at
   `entity.go:38` accepts `[a-zA-Z_][a-zA-Z0-9_]*`. `ValidateCypherLabel` and
   `ValidateCypherPropertyKeys` must be called on any dynamic input; the

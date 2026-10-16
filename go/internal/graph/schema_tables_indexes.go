@@ -347,6 +347,12 @@ var neo4jUIDLookupIndexes = []string{
 	"CREATE INDEX documentation_section_uid IF NOT EXISTS FOR (s:DocumentationSection) ON (s.uid)",
 }
 
+// neo4jInfraSearchKeyIndexes is the Neo4j-only #7245 FULLTEXT index over the
+// infra search key and overflow flag (neo4jInfraSearchKeyIndex). It is not in
+// schemaFulltextIndexes: NornicDB gets no form of it. It is also not folded
+// into infra_search_index, which has a different label set and no reader.
+var neo4jInfraSearchKeyIndexes = []string{neo4jInfraSearchKeyIndex()}
+
 // schemaFulltextIndexes lists full-text index creation statements in both
 // syntaxes. Each dialect executes one form (#7675): Neo4j runs the modern
 // CREATE FULLTEXT INDEX form (the procedure API was removed in Neo4j 5.0);

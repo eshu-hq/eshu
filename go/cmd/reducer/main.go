@@ -23,6 +23,7 @@ import (
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	producerreadiness "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/producer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -41,7 +42,7 @@ func buildReducerService(
 	logger *slog.Logger,
 	identityCache *postgres.IdentityEpochCache,
 ) (reducer.Service, error) {
-	graphBackend, err := runtimecfg.LoadGraphBackend(getenv)
+	graphBackend, searchKey, err := loadReducerGraphBackend(getenv)
 	if err != nil {
 		return reducer.Service{}, err
 	}
@@ -93,9 +94,7 @@ func buildReducerService(
 
 	edgeWriterForHandlers := newHandlerEdgeWriter(neo4jExec, neo4jBatchSize(getenv), instruments, logger, inheritanceEdgeGroupBatchSize, sqlRelationshipEdgeGroupBatchSize)
 	edgeWriterForHandlers.SQLRelationshipSequentialWrites = graphBackend == runtimecfg.GraphBackendNornicDB
-	// #5007/#5062: owner-ledger and lock-only gates for the canonical node writers.
-	ownerGate, lockGate := newGraphOwnerGates(database, instruments)
-	graphWriters := newCanonicalGraphWriters(neo4jExec, graphReader, neo4jBatchSize(getenv), ownerGate, lockGate)
+	graphWriters := newReducerCanonicalGraphWriters(neo4jExec, graphReader, neo4jBatchSize(getenv), database, instruments, searchKey)
 	secretsIAMGraphWriter, err := secretsIAMGraphProjectionWriter(getenv, neo4jExec, neo4jBatchSize(getenv), logger)
 	if err != nil {
 		return reducer.Service{}, err
@@ -354,6 +353,9 @@ func buildReducerService(
 		// ServiceMaterializationWriter so the runtime family stays additive; it
 		// anchors on workload_instance_repo_id, once per correlation intent.
 		ServiceRuntimeInstanceLoader: reducer.GraphServiceRuntimeInstanceLoader{Graph: graphReader},
+		// ServiceRuntimeProducerReadiness fences that read on in-flight
+		// workload_materialization work at each repository's active generation (#7816).
+		ServiceRuntimeProducerReadiness: producerreadiness.Store{DB: database},
 		// ServiceVulnerabilityAdvisoryLoader sources the vulnerabilities evidence
 		// family (#1990, #2127) from active reducer_supply_chain_impact_finding facts
 		// on each correlated service's repository (repository_id-scoped, additive).

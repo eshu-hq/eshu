@@ -113,6 +113,8 @@ func appendCorrelationCoreAdditiveDomains(definitions []DomainDefinition, handle
 			MaterializationWriter:        handlers.ServiceMaterializationWriter,
 			DeploymentRelationshipLoader: serviceCatalogDeploymentRelationshipLoader(handlers),
 			RuntimeInstanceLoader:        serviceCatalogRuntimeInstanceLoader(handlers),
+			RuntimeProducerReadiness:     handlers.ServiceRuntimeProducerReadiness,
+			Logger:                       handlers.CrossScopeReadinessLogger,
 			DocumentationEvidenceLoader:  serviceCatalogDocumentationEvidenceLoader(handlers),
 			IncidentEvidenceLoader:       serviceCatalogIncidentEvidenceLoader(handlers),
 			VulnerabilityEvidenceLoader:  serviceCatalogVulnerabilityEvidenceLoader(handlers),

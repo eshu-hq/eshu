@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/cpubudget"
+	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/graph/capture"
 	"github.com/eshu-hq/eshu/go/internal/graphschemacompat"
 	"github.com/eshu-hq/eshu/go/internal/projector"
@@ -24,6 +25,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
 	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane"
@@ -236,11 +238,12 @@ func openProjectorCanonicalWriter(
 		instruments,
 		captureSession,
 	)
-	writer := sourcecypher.NewCanonicalNodeWriter(
-		executor,
-		neo4jBatchSize(getenv),
-		instruments,
-	).WithTracer(tracer).WithTerraformStateOwnershipResolver(
+	writer, err := newProjectorCanonicalNodeWriter(executor, graphBackend, neo4jBatchSize(getenv), instruments)
+	if err != nil {
+		_ = projectorNeo4jDriverCloser{Driver: driver, captureSession: captureSession}.Close()
+		return nil, nil, err
+	}
+	writer = writer.WithTracer(tracer).WithTerraformStateOwnershipResolver(
 		projectorTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.PostgresTerraformBackendQuery{DB: database})},
 	).WithTerraformStateConfigMatchResolver(
 		projectorTerraformStateConfigMatchResolver{driver: driver, databaseName: cfg.DatabaseName},
@@ -252,6 +255,22 @@ func openProjectorCanonicalWriter(
 	return writer,
 		projectorNeo4jDriverCloser{Driver: driver, captureSession: captureSession},
 		nil
+}
+
+// newProjectorCanonicalNodeWriter builds the canonical writer with the #7245
+// infra search key dialect resolved from the configured graph backend: Neo4j
+// writes the key, NornicDB keeps its statements byte for byte.
+func newProjectorCanonicalNodeWriter(
+	executor sourcecypher.Executor,
+	graphBackend runtimecfg.GraphBackend,
+	batchSize int,
+	instruments *telemetry.Instruments,
+) (*sourcecypher.CanonicalNodeWriter, error) {
+	searchKey, err := search.DialectForBackend(graph.SchemaBackend(graphBackend))
+	if err != nil {
+		return nil, err
+	}
+	return sourcecypher.NewCanonicalNodeWriterWithDialect(executor, batchSize, instruments, searchKey), nil
 }
 
 func projectorNornicDBCanonicalWriteTimeout(getenv func(string) string) time.Duration {

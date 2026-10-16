@@ -140,7 +140,19 @@ func TestGoldenSnapshotServiceChangedSinceIsNonVacuous(t *testing.T) {
 			"unavailable": false,
 		},
 	}
-	for _, category := range []string{"runtime", "dependencies", "docs", "incidents", "vulnerabilities"} {
+	// #7816: the owner mutation changes nothing about the deployable-config
+	// workloads, so both generations carry the same two WorkloadInstance rows.
+	// added=0 pins that the prior generation was not committed from a runtime
+	// read taken before the producer's WorkloadInstance MERGE.
+	wantMatches = append(wantMatches, map[string]any{
+		"category": "runtime",
+		"counts": map[string]any{
+			"added": float64(0), "updated": float64(0), "unchanged": float64(2),
+			"retired": float64(0), "superseded": float64(0),
+		},
+		"unavailable": false,
+	})
+	for _, category := range []string{"dependencies", "docs", "incidents", "vulnerabilities"} {
 		wantMatches = append(wantMatches, map[string]any{"category": category})
 	}
 	if got := shape.RequiredJSONObjectMatches["data.categories[]"]; !reflect.DeepEqual(got, wantMatches) {
