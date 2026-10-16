@@ -6,6 +6,8 @@ package postgres
 import (
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/poison"
 )
 
 func TestContainerImageIdentityV3CapabilityLatchCoversQueueLifecycle(t *testing.T) {
@@ -20,7 +22,7 @@ func TestContainerImageIdentityV3CapabilityLatchCoversQueueLifecycle(t *testing.
 		"reopen":       reopenSucceededReducerWorkQuery,
 		"replay":       replaySucceededReducerDomainQuery,
 		"recovery":     replayFailedWorkItemsTemplate,
-		"poison":       recoverPoisonDeadLettersQuery,
+		"poison":       poison.RecoverDeadLettersQuery,
 		"supersede":    supersedeInactiveReducerGenerationsCTE,
 	}
 	for name, query := range queries {

@@ -86,9 +86,9 @@ path. Such a scope can never self-heal without an operator or a dedicated
 bounded arm.
 
 `PoisonLivenessRunner` closes that gap. It delegates to
-`storage/postgres.PoisonLivenessStore`, which runs two bounded, read-only-safe
-statements: `CountPoisonDeadLetters` (an aggregate query) and, only when
-bounded auto-retry is enabled, `RecoverPoisonDeadLetters` (the re-enqueue
+`storage/postgres/poison.Store`, which runs two bounded, read-only-safe
+statements: `CountDeadLetters` (an aggregate query) and, only when
+bounded auto-retry is enabled, `RecoverDeadLetters` (the re-enqueue
 UPDATE). The poison class is: a `fact_work_items` row with `status =
 'dead_letter'` whose scope has no strictly-newer `scope_generations` row (same
 "strictly newer" `(ingested_at, generation_id)` comparator the
@@ -126,18 +126,18 @@ table.
 No-Regression Evidence: `go test ./internal/storage/postgres/...
 ./internal/reducer/... ./cmd/reducer ./cmd/ingester -count=1` passes
 (4281 tests). Against a throwaway `postgres:16-alpine` instance (set
-`ESHU_POISON_LIVENESS_PROOF_DSN`), `go test ./internal/storage/postgres -run
+`ESHU_POISON_LIVENESS_PROOF_DSN`), `go test ./internal/storage/postgres/poison -run
 'TestPoisonLivenessIntegration|TestRecoverPoisonDeadLettersQueryDoesNotClobberConcurrentReclaim'
 -count=1` proves all four required behaviors: (1) RED — the existing
 generation-liveness gauge (`CountActiveGenerationsByAge`) counts 0 of 3 seeded
 poison scopes because their newest generation is `failed`, not `active`; GREEN
-— `CountPoisonDeadLetters` counts exactly the 3 poison scopes/items and excludes
+— `CountDeadLetters` counts exactly the 3 poison scopes/items and excludes
 a healed decoy (`dead_letter` with a newer `active` generation for the same
 scope); (2) the bounded arm increments `poison_recovery_attempts` 0->1->2 across
 two re-dead-lettered sweeps, then a third sweep at the ceiling affects 0 rows
 and leaves the row `dead_letter` for an operator; (3)
 `GaugeUsesPartialIndex` forces `enable_seqscan=off` and asserts the
-`countPoisonDeadLettersQuery` EXPLAIN plan references
+`CountDeadLettersQuery` EXPLAIN plan references
 `fact_work_items_dead_letter_poison_idx`, proving the index is usable for this
 exact query shape; (4)
 `TestRecoverPoisonDeadLettersQueryDoesNotClobberConcurrentReclaim` races a real

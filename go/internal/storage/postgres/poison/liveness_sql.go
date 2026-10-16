@@ -1,15 +1,19 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package poison
 
-// countPoisonDeadLettersQuery detects the dead-letter/poison class the #4727
+// CountDeadLettersQuery detects the dead-letter/poison class the #4727
 // projector-claimer fix and the generation-liveness sweep do not reach: a
 // fact_work_items row whose status is 'dead_letter' with no strictly-newer
 // scope_generations row for the same scope. dead_letter is a terminal status
 // (never re-claimed by the normal claim path), so once a scope's newest
 // generation lands in this state the scope can never self-heal without an
-// operator or this bounded arm.
+// operator or this bounded arm. It is exported alongside
+// RecoverDeadLettersQuery so the pair stays addressable as one contract: the
+// parent postgres package pins the recovery statement in its container-image
+// capability latch, and the in-package EXPLAIN test derives its plan from
+// this constant.
 //
 // "Strictly newer" mirrors the existing generation-ordering comparator used by
 // supersedeOrphanedActiveGenerationsQuery: (ingested_at, generation_id) compared
@@ -28,7 +32,7 @@ package postgres
 // Parameter order:
 //
 //	$1 now (oldest_poison_age_seconds anchor)
-const countPoisonDeadLettersQuery = `
+const CountDeadLettersQuery = `
 SELECT
     count(DISTINCT dead.scope_id) AS poison_scopes,
     count(*) AS poison_items,
@@ -51,9 +55,9 @@ WHERE dead.status = 'dead_letter'
   )
 `
 
-// recoverPoisonDeadLettersQuery bounds-recovers the poison dead-letter class by
+// RecoverDeadLettersQuery bounds-recovers the poison dead-letter class by
 // re-enqueuing a fresh pending attempt for each row selected by
-// countPoisonDeadLettersQuery's same predicate, gated by a per-item
+// CountDeadLettersQuery's same predicate, gated by a per-item
 // poison_recovery_attempts budget carried in the JSONB payload (mirroring
 // recoverWedgedActiveGenerationsQuery's liveness_recovery_attempts idiom — no
 // new schema column). This statement only runs when the operator has opted
@@ -77,7 +81,12 @@ WHERE dead.status = 'dead_letter'
 //	$1 now              (updated_at / visible_at stamp)
 //	$2 max recover attempts (poison_recovery_attempts budget ceiling)
 //	$3 batch limit       (max rows re-driven per sweep)
-const recoverPoisonDeadLettersQuery = `
+//
+// RecoverDeadLettersQuery is exported because the parent postgres package
+// pins this statement in its container-image capability latch
+// (TestContainerImageIdentityV3CapabilityLatchCoversQueueLifecycle): the
+// latch asserts the recovery UPDATE advances digest-v3 authorization.
+const RecoverDeadLettersQuery = `
 WITH poison AS (
     SELECT dead.work_item_id
     FROM fact_work_items AS dead

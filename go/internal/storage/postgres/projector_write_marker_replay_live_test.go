@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/poison"
 )
 
 // replayProofDB returns a fully migrated private schema holding scope s-rp.
@@ -102,8 +103,8 @@ func TestReplayedFailedGenerationWritesAndActivatesLive(t *testing.T) {
 			return err
 		}},
 		{name: "poison_auto_retry", replay: func(ctx context.Context, database *sql.DB) error {
-			_, err := NewPoisonLivenessStore(SQLDB{DB: database}).RecoverPoisonDeadLetters(ctx,
-				PoisonLivenessPolicy{MaxRecoverAttempts: 1, BatchLimit: 10}, time.Now().UTC())
+			_, err := poison.NewStore(SQLDB{DB: database}).RecoverDeadLetters(ctx,
+				poison.Policy{MaxRecoverAttempts: 1, BatchLimit: 10}, time.Now().UTC())
 			return err
 		}},
 	} {

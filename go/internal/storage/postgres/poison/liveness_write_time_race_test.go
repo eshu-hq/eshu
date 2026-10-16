@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package poison_test
 
 import (
 	"context"
@@ -9,19 +9,24 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/poison"
 )
 
 // TestRecoverPoisonDeadLettersQueryDoesNotClobberConcurrentReclaim proves the
 // #4464-grade write-time re-verify guard against a real Postgres instance, not
 // just the SQL text. Set ESHU_POISON_LIVENESS_PROOF_DSN to run it; skipped
-// otherwise, mirroring generation_liveness_write_time_race_test.go.
+// otherwise, mirroring generation_liveness_write_time_race_test.go. The test
+// keeps its name (it pins the shipped RecoverDeadLettersQuery statement); the
+// method under proof is now Store.RecoverDeadLetters.
 //
 // The poison candidate CTE reads a snapshot of dead_letter rows before the
 // UPDATE executes. Between that snapshot and the UPDATE's row lock, a
 // concurrent worker can reclaim the exact same row (dead_letter -> claimed) —
 // for example a manual operator replay, or another liveness sweep instance.
 // The write-time "AND target.status = 'dead_letter'" guard in
-// recoverPoisonDeadLettersQuery must re-check that condition at write time so
+// RecoverDeadLettersQuery must re-check that condition at write time so
 // this concurrently-reclaimed row is NOT clobbered back to pending.
 //
 // This is proven by racing two real transactions against the same row:
@@ -29,11 +34,11 @@ import (
 //  1. A "reclaim" transaction BEGINs, UPDATEs the row's status to 'claimed'
 //     (simulating a concurrent worker or operator reclaim), and blocks before
 //     COMMIT.
-//  2. RecoverPoisonDeadLetters runs concurrently. Postgres's own row-level
+//  2. RecoverDeadLetters runs concurrently. Postgres's own row-level
 //     locking forces its UPDATE to block on the row lock the reclaim
 //     transaction holds.
 //  3. The reclaim transaction commits.
-//  4. RecoverPoisonDeadLetters's write-time WHERE guard re-evaluates against
+//  4. RecoverDeadLetters's write-time WHERE guard re-evaluates against
 //     the now-committed, now-claimed row (EvalPlanQual recheck) and must skip
 //     it — affects zero rows for that row, final state is claimed, not
 //     clobbered back to pending.
@@ -93,17 +98,17 @@ func TestRecoverPoisonDeadLettersQueryDoesNotClobberConcurrentReclaim(t *testing
 
 	// Step 2: start the sweep on the other connection. It must block on the
 	// row lock the reclaim transaction holds.
-	store := NewPoisonLivenessStore(SQLDB{DB: sweepDB})
-	policy := PoisonLivenessPolicy{MaxRecoverAttempts: 1, BatchLimit: 100}
+	store := poison.NewStore(postgres.SQLDB{DB: sweepDB})
+	policy := poison.Policy{MaxRecoverAttempts: 1, BatchLimit: 100}
 	now := time.Now().UTC()
 
 	type sweepOutcome struct {
-		result PoisonRecoveryResult
+		result poison.RecoveryResult
 		err    error
 	}
 	sweepDone := make(chan sweepOutcome, 1)
 	go func() {
-		result, err := store.RecoverPoisonDeadLetters(ctx, policy, now)
+		result, err := store.RecoverDeadLetters(ctx, policy, now)
 		sweepDone <- sweepOutcome{result: result, err: err}
 	}()
 
@@ -132,7 +137,7 @@ func TestRecoverPoisonDeadLettersQueryDoesNotClobberConcurrentReclaim(t *testing
 		t.Fatal("sweep did not complete within 5s after reclaim commit")
 	}
 	if outcome.err != nil {
-		t.Fatalf("RecoverPoisonDeadLetters() error = %v", outcome.err)
+		t.Fatalf("RecoverDeadLetters() error = %v", outcome.err)
 	}
 
 	// Step 4: the row must be untouched by the sweep — still claimed by

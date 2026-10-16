@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package poison_test
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 )
 
 // poisonLivenessProofSchemaSQL creates the table set needed by
-// countPoisonDeadLettersQuery and recoverPoisonDeadLettersQuery
+// CountDeadLettersQuery and RecoverDeadLettersQuery
 // (ingestion_scopes, scope_generations, fact_work_items) plus the two extra
 // tables CountActiveGenerationsByAge references (shared_projection_intents,
 // graph_projection_phase_state), so the detection-gap proof can run both the

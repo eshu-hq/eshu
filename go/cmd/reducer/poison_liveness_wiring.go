@@ -10,13 +10,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/poison"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	pgpoison "github.com/eshu-hq/eshu/go/internal/storage/postgres/poison"
 )
 
 // postgresPoisonLivenessRecoverer adapts the Postgres poison-liveness store to
 // the poison.Recoverer contract (#4740).
 type postgresPoisonLivenessRecoverer struct {
-	store postgres.PoisonLivenessStore
+	store pgpoison.Store
 }
 
 // poisonLivenessRunnerFor constructs the bounded poison-recovery runner only
@@ -33,7 +33,7 @@ func poisonLivenessRunnerFor(
 	}
 	return &poison.Runner{
 		Recoverer: postgresPoisonLivenessRecoverer{
-			store: postgres.NewPoisonLivenessStore(database),
+			store: pgpoison.NewStore(database),
 		},
 		Config: cfg.Runner,
 	}
@@ -44,7 +44,7 @@ func (r postgresPoisonLivenessRecoverer) RecoverPoisonDeadLetters(
 	policy poison.Policy,
 	now time.Time,
 ) (poison.Result, error) {
-	result, err := r.store.RecoverPoisonDeadLetters(ctx, postgres.PoisonLivenessPolicy{
+	result, err := r.store.RecoverDeadLetters(ctx, pgpoison.Policy{
 		MaxRecoverAttempts: policy.MaxRecoverAttempts,
 		BatchLimit:         policy.BatchLimit,
 	}, now)
@@ -61,16 +61,16 @@ func (r postgresPoisonLivenessRecoverer) RecoverPoisonDeadLetters(
 // (unlike the runner) so the stuck-gauge always reports the poison class
 // regardless of whether bounded auto-retry is enabled.
 type poisonLivenessObserver struct {
-	store postgres.PoisonLivenessStore
+	store pgpoison.Store
 }
 
 func poisonLivenessObserverFor(database db.ExecQueryer) poisonLivenessObserver {
-	return poisonLivenessObserver{store: postgres.NewPoisonLivenessStore(database)}
+	return poisonLivenessObserver{store: pgpoison.NewStore(database)}
 }
 
 // PoisonDeadLetterCounts implements telemetry.PoisonLivenessObserver.
 func (o poisonLivenessObserver) PoisonDeadLetterCounts(ctx context.Context) (int64, int64, float64, error) {
-	counts, err := o.store.CountPoisonDeadLetters(ctx, time.Now().UTC())
+	counts, err := o.store.CountDeadLetters(ctx, time.Now().UTC())
 	if err != nil {
 		return 0, 0, 0, err
 	}
