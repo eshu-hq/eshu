@@ -15,8 +15,8 @@ legacy_scheduled_exemptions:
   baseline_main: 101cd4f6ab7b72ff01f018ad52112e3a9955168b
   steward: linuxdynasty
   tracking_issue: 7533
-  count: 523
-  sha256: 5e6d51bc060fd4837244fad683b26b09502dd7d6518085f09c851274e82b1b4b
+  count: 521
+  sha256: 11ccdaf9b225c37d5055c3893b5eb9bc665f3b1a8256a39687feb87f018a7373
 
 purpose: >
   Classify every live backend proof in go/ as graph CI, PostgreSQL CI,
@@ -26,7 +26,8 @@ purpose: >
   PostgreSQL readiness job runs its untagged postgres_ci rows; the
   migration job runs only its exact integration-tagged postgres_ci rows. The
   reducer contention job verifies each enrolled PostgreSQL-only dedicated_ci
-  test from Go JSON events in its expected package. The
+  test from Go JSON events in its expected package. The B-7 identity runner
+  verifies its two PostgreSQL proofs through the existing golden corpus job. The
   ledger validator (scripts/verify-live-tests-ledger.sh) fails on any live test
   file this ledger does not name, so a new unclassified live test can never
   pass as clean. A live test is any *_live_test.go file plus any
@@ -40,7 +41,8 @@ design: >
   job, selected backends), postgres_ci (the named PostgreSQL runner;
   integration-tagged migration proofs have their own exact-file runner),
   dedicated_ci (a verified named runner: query-methodology or
-  reducer-contention), verified_scheduled (the exact seven-file Ifá runner),
+  reducer-contention, or golden-corpus-identity), verified_scheduled (the exact
+  seven-file Ifá runner),
   scheduled (an exact-file legacy exemption from this ledger's verified
   runner mapping, tracked by issue 7533; independently owned blocking
   runners may exist, but a reason does not prove execution), or retired (a
