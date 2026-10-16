@@ -32,6 +32,9 @@ gates:
       - "scripts/lib/verify-live-tests-ledger.py"
       - "scripts/lib/reducer_contention_events.py"
       - "scripts/lib/reducer_contention_inventory.json"
+      - "scripts/lib/nornic_conformance_events.py"
+      - "scripts/lib/nornic_conformance_inventory.json"
+      - "scripts/test-nornic-conformance-events.py"
       - "scripts/test-reducer-contention-events.py"
       - "scripts/test-reducer-contention-ledger-policy.py"
       - "scripts/lib/postgres_scheduled_runner.py"
@@ -68,7 +71,7 @@ gates:
       - ".github/workflows/live-backend-tests.yml"
     local:
       command: "bash scripts/verify-live-tests-ledger.sh"
-      test_command: "bash scripts/test-verify-live-tests-ledger.sh && bash scripts/test-run-live-backend-tests.sh && python3 scripts/test-live-backend-shards.py && python3 scripts/test-live-backend-lifecycle.py && python3 scripts/test-live-backend-workflow.py && python3 scripts/test-postgres-scheduled-runner.py && python3 scripts/test-postgres-scheduled-fragments.py && python3 scripts/test-postgres-scheduled-ledger-policy.py && python3 scripts/test-ifa-scheduled-events.py && python3 scripts/test-ifa-scheduled-manifest.py && python3 scripts/test-ifa-scheduled-bundle.py && python3 scripts/test-ifa-scheduled-ledger-policy.py"
+      test_command: "bash scripts/test-verify-live-tests-ledger.sh && python3 scripts/test-nornic-conformance-events.py && bash scripts/test-run-live-backend-tests.sh && python3 scripts/test-live-backend-shards.py && python3 scripts/test-live-backend-lifecycle.py && python3 scripts/test-live-backend-workflow.py && python3 scripts/test-postgres-scheduled-runner.py && python3 scripts/test-postgres-scheduled-fragments.py && python3 scripts/test-postgres-scheduled-ledger-policy.py && python3 scripts/test-ifa-scheduled-events.py && python3 scripts/test-ifa-scheduled-manifest.py && python3 scripts/test-ifa-scheduled-bundle.py && python3 scripts/test-ifa-scheduled-ledger-policy.py"
     ci:
       workflow: live-backend-tests.yml
       job: "static-mirror (ledger and runner probes)"
