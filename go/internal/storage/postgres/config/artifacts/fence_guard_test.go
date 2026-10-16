@@ -13,11 +13,15 @@ import (
 	"testing"
 )
 
-// Source guards for two limits of the migration 184 fence (ruling
-// arb-8155-f1, findings F3 and F4):
+// Source guards for three limits of the migration 184 fence (ruling
+// arb-8155-f1, findings F3 and F4, and the #8282 review):
 //
 //   - session_replication_role = replica skips every ordinary trigger, the
 //     fence included. No Eshu binary may set it.
+//   - SET CONSTRAINTS ... IMMEDIATE runs the deferred commit trigger early, so
+//     a transaction takes version rows before its later content locks and
+//     reopens the deadlock cycle the commit-time fence closed. No Eshu binary
+//     may issue SET CONSTRAINTS.
 //   - The UPDATE trigger reads NEW TABLE only, so an UPDATE that changes
 //     repo_id bumps the new repository and not the old one. No Go statement
 //     may change content_files.repo_id: both content_files upserts must leave
@@ -26,6 +30,9 @@ import (
 var (
 	// replicaRolePattern finds any mention of the setting in Go source.
 	replicaRolePattern = regexp.MustCompile(`(?i)session_replication_role`)
+	// immediateConstraintsPattern finds a SET CONSTRAINTS statement in Go
+	// source.
+	immediateConstraintsPattern = regexp.MustCompile(`(?i)\bSET\s+CONSTRAINTS\b`)
 	// contentFilesUpdatePattern is an UPDATE of content_files.
 	contentFilesUpdatePattern = regexp.MustCompile(`(?i)\bUPDATE\s+(?:ONLY\s+)?` + tableRef("content_files"))
 	// contentFilesUpsertPattern is the content_files conflict target with a DO
@@ -114,6 +121,37 @@ func TestNoGoCodeSetsSessionReplicationRole(t *testing.T) {
 	}
 }
 
+// setConstraintsStatements reports each SQL text, read from one Go literal
+// expression as the F4 guard reads it, that issues SET CONSTRAINTS once SQL
+// comments are stripped. A Go comment never reaches it.
+func setConstraintsStatements(origin string, texts []string) []string {
+	var hits []string
+	for _, text := range texts {
+		text = statementWhitespace.ReplaceAllString(sqlCommentPattern.ReplaceAllString(text, " "), " ")
+		if immediateConstraintsPattern.MatchString(text) {
+			hits = append(hits, fmt.Sprintf("%s: %.160s", origin, strings.TrimSpace(text)))
+		}
+	}
+	return hits
+}
+
+// TestNoGoCodeSetsConstraintsImmediate fails on any non-test Go statement that
+// issues SET CONSTRAINTS, which would run the fence's deferred commit trigger
+// before the transaction's last content lock (#8282 review).
+func TestNoGoCodeSetsConstraintsImmediate(t *testing.T) {
+	var hits []string
+	nonTestGoFiles(t, func(path, src string) {
+		if !strings.Contains(strings.ToUpper(src), "CONSTRAINTS") {
+			return
+		}
+		hits = append(hits, setConstraintsStatements(path, goLiteralSQL(t, path, src))...)
+	})
+	if len(hits) > 0 {
+		t.Fatalf("non-test Go statements issue SET CONSTRAINTS, which voids the fence's commit-time lock order:\n%s",
+			strings.Join(hits, "\n"))
+	}
+}
+
 // TestNoGoStatementChangesContentFilesRepoID fails on a Go statement that
 // changes content_files.repo_id (F4), and requires that the scan saw both
 // content_files upserts (the single-row and the batch suffix).
@@ -164,5 +202,24 @@ func TestFenceSourceGuardSeededViolations(t *testing.T) {
 	}
 	if !replicaRolePattern.MatchString(`db.Exec("SET session_replication_role = replica")`) {
 		t.Error("replica-role pattern misses a SET")
+	}
+	constraintsRed := map[string]string{
+		"literal":      "package p\nconst q = \"SET CONSTRAINTS ALL IMMEDIATE\"\n",
+		"concatenated": "package p\nconst q = \"set \" + \"constraints config_artifact_fence_pending_commit immediate\"\n",
+	}
+	for name, src := range constraintsRed {
+		if len(setConstraintsStatements(name, goLiteralSQL(t, name+".go", src))) == 0 {
+			t.Errorf("SET CONSTRAINTS %s: not reported", name)
+		}
+	}
+	constraintsGreen := map[string]string{
+		"go comment":  "package p\n// Never SET CONSTRAINTS ALL IMMEDIATE here.\nconst q = \"SELECT 1\"\n",
+		"sql comment": "package p\nconst q = \"-- SET CONSTRAINTS ALL IMMEDIATE\\nSELECT 1\"\n",
+		"column name": "package p\nconst q = \"UPDATE t SET constraint_name = $1\"\n",
+	}
+	for name, src := range constraintsGreen {
+		if found := setConstraintsStatements(name, goLiteralSQL(t, name+".go", src)); len(found) != 0 {
+			t.Errorf("SET CONSTRAINTS %s: reported %v", name, found)
+		}
 	}
 }
