@@ -56,7 +56,10 @@ and superseding keeps it). The test asserts `GenerationsPruned == 2`: the
 active-full scope's old generation and the same-SHA scope's older copy,
 which prunes against the protected base as its witness. Bases and chains
 stay, `Skipped["delta_base"] == 3`, and `Skipped["uncovered_writer"] == 1`
-reports the overlap row once.
+reports the overlap row once. Reverting the delta-leg uncovered exclusion
+(`AND NOT eligible.uncovered` on `reported_delta_bases`) makes
+`TestGenerationRetentionDeltaBaseLive` fail with `Skipped["delta_base"] = 4`,
+want 3, proving the overlap arm is load-bearing.
 
 `TestGenerationRetentionDeltaBaseSkipsUnactivatedNewerFullLive` (F1) adds
 a newer full in status `failed` and in status `pending`. Before the
