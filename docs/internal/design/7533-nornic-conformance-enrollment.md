@@ -32,17 +32,16 @@ the receipt records eleven source-file hashes. These shared-host figures are
 not a speedup or scale claim.
 
 On 2026-10-16, a fresh pinned Linux ARM64 fixture ran the unchanged complete
-conformance script at clean commit `c63c6c43047a6a8e71269535907fb9236ad6764a`.
-The script exited 0 in 4.007027 seconds (4.01 seconds). The core test ran
-and passed once. Strict Go events showed one run and pass for each of the nine
-selected declarations: seven backend tests and two hermetic helpers. The
-package passed with no test skip or failure. The source guard exited 0. The
-worktree stayed clean at the same commit, and eleven source hashes matched
-before and after. The owned container stopped; its unique volume is preserved.
-The local receipt is `nornic7-current-c63c` (`start.json`, `result.json`,
-`nornic-conformance.jsonl`, and `strict-verifier.log`). This clean-source
-local run predates the independent CLI activation check. A full-script run on
-the updated guard remains pending. It is not a hosted AMD64 proof or a
+conformance script at clean commit `ccac1b5d365d892d0d850c79a5da0a4c322f9496`,
+including the independent CLI activation check. The script exited 0 in
+3.646986 seconds (3.65 seconds). The core test ran and passed once. Strict Go
+events showed one run and pass for each of the nine selected declarations:
+seven backend tests and two hermetic helpers. The package passed with no test
+skip or failure. The source and event guards exited 0. The worktree stayed
+clean at the same commit, and twelve source hashes matched before and after.
+The owned container stopped; its unique volume is preserved. The local receipt
+is `nornic7-current-ccac` (`start.json`, `result.json`, `runner.log`, and
+`nornic-conformance.jsonl`). This is not a hosted AMD64 proof or a
 retained-state diagnosis.
 
 Two earlier reused-fixture attempts failed in the unchanged core containment
