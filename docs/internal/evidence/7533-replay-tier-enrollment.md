@@ -21,6 +21,18 @@ Go invocation, and after each event check. It rejects shell or effective Go
 `GOFLAGS` and `GOWORK` overrides, including an ignored `go.work`, so compiled
 code stays bound to the reviewed commit.
 
+The ledger reads the replay runner before importing the replay CLI and compares
+its SHA-256 against an independent accepted hash. The production ledger command
+passes on the clean source. In a disposable checkout, adding `exit 0` before
+the first `--reviewed-source` call and updating only the inventory runner hash
+fails the same command with `replay proof source integrity mismatch`.
+Updating the independent accepted runner hash as well changes the trusted
+review policy: that three-file edit previously made the ledger command pass,
+so it requires review and affected runner execution proof. The runner's
+literal-call checks establish the required calls and their order, not arbitrary
+Bash control-flow liveness. Separate pre-import structural checks reject the
+specified Python import and CLI activation bypasses after digest updates.
+
 Both invocations emit Go JSON events to files distinct from stderr and copy
 those raw streams to runner stdout before temporary cleanup. The
 verifier requires one ordered run/pass pair for every selected top-level test

@@ -4,10 +4,13 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import unittest
 from unittest import mock
@@ -19,6 +22,38 @@ from replay_tier_enrollment import (  # noqa: E402
 )
 
 ROOT = Path(__file__).resolve().parent.parent
+RUNNER_PATH = "scripts/verify-replay-tier.sh"
+INVENTORY_PATH = "scripts/lib/replay_tier_inventory.json"
+LEDGER_CHECKER_PATH = "scripts/lib/verify-live-tests-ledger.py"
+
+
+def production_ledger_fixture(parent: Path) -> Path:
+    """Copy a full tracked checkout and current proof sources for the ledger."""
+    checkout = parent / "checkout"
+    checkout.mkdir()
+    archive = parent / "checkout.tar"
+    subprocess.run(("git", "archive", "--format=tar", "HEAD", "-o", str(archive)),
+                   cwd=ROOT, check=True, capture_output=True)
+    with tarfile.open(archive) as source:
+        source.extractall(checkout, filter="data")
+    for name in ("scripts/verify-live-tests-ledger.sh", LEDGER_CHECKER_PATH,
+                 RUNNER_PATH, INVENTORY_PATH,
+                 "scripts/lib/replay_tier_enrollment.py",
+                 "scripts/lib/replay_tier_routes.py", "specs/live-tests.v1.yaml"):
+        shutil.copy2(ROOT / name, checkout / name)
+    subprocess.run(("git", "init", "-q"), cwd=checkout,
+                   check=True, capture_output=True)
+    subprocess.run(("git", "add", "-f", "go/"), cwd=checkout,
+                   check=True, capture_output=True)
+    return checkout
+
+
+def production_ledger_result(checkout: Path) -> subprocess.CompletedProcess[str]:
+    """Run the production shell command against a disposable checkout."""
+    return subprocess.run(
+        ("bash", "scripts/verify-live-tests-ledger.sh"), cwd=checkout,
+        env={**os.environ, "REPO_ROOT": str(checkout)},
+        capture_output=True, text=True, check=False)
 
 
 def committed_fixture(root: Path) -> None:
@@ -191,6 +226,34 @@ class ReplayTierSourceIntegrityTest(unittest.TestCase):
                 env=env, capture_output=True, text=True, check=False)
             self.assertEqual(result.returncode, 1, result.stderr)
             self.assertIn("source integrity", result.stderr)
+
+    def test_production_ledger_rejects_inventory_only_runner_repin(self) -> None:
+        """The independent hash rejects an early exit after inventory re-pin."""
+        with tempfile.TemporaryDirectory() as temporary:
+            checkout = production_ledger_fixture(Path(temporary))
+            clean = production_ledger_result(checkout)
+            self.assertEqual(clean.returncode, 0, clean.stdout + clean.stderr)
+            self.assertIn("live-tests ledger ok:", clean.stdout)
+
+            runner = checkout / RUNNER_PATH
+            source = runner.read_text(encoding="utf-8")
+            guard = ('python3 scripts/lib/replay_tier_enrollment.py '
+                     '--root "${repo_root}" --reviewed-source')
+            self.assertEqual(source.count(guard), 5)
+            runner.write_text(source.replace(guard, "exit 0\n" + guard, 1),
+                              encoding="utf-8")
+            inventory = checkout / INVENTORY_PATH
+            manifest = json.loads(inventory.read_text(encoding="utf-8"))
+            manifest["proof_source_sha256"][RUNNER_PATH] = hashlib.sha256(
+                runner.read_bytes()).hexdigest()
+            inventory.write_text(json.dumps(manifest, indent=2) + "\n",
+                                 encoding="utf-8")
+
+            rejected = production_ledger_result(checkout)
+            self.assertEqual(rejected.returncode, 1,
+                             rejected.stdout + rejected.stderr)
+            self.assertIn("replay proof source integrity mismatch: " + RUNNER_PATH,
+                          rejected.stderr)
 
 if __name__ == "__main__":
     unittest.main()
