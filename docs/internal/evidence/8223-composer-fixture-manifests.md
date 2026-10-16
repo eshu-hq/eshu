@@ -60,6 +60,20 @@ JavaScript project scope, nearest `package.json`) and a different prune
 Measured exposure on the same replica: 4 of 470 non-`node_modules`
 package.json rows sit under a fixture-style path. A follow-up issue owns it.
 
+## Content version
+
+`gitGenerationContentVersion` moves from `git-collector.v4` to
+`git-collector.v5`. The parser now stamps no `package_id` on a class under a
+fixture manifest, which changes the stored output for unchanged PHP source, and
+the store keeps an equal hint and commit as a duplicate. The pin fixture
+(`testdata/content_version/php-lib/`) holds a real root manifest with one class
+and a same-named manifest with one class under `tests/fixtures/app/`. Seeded
+RED: with the fixture grown and the constant still at v4, the pin test fails
+("252 facts ... pinned 238 facts ... gitGenerationContentVersion is still
+git-collector.v4"). After the bump and `-update-content-version-pin`, the pin
+test passes. In the fixture the root class carries `package_id` `acme/fixture-lib`
+and the fixture class carries none.
+
 ## Tests
 
 - `go/internal/parser/php/composer/fixture_test.go`: segment matching (case and
