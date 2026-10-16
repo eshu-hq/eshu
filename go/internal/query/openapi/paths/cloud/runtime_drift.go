@@ -29,7 +29,7 @@ const RuntimeDrift = `
       "post": {
         "tags": ["cloud"],
         "summary": "List runtime drift findings across aws, gcp, and azure",
-        "description": "Lists active reducer-materialized runtime drift findings for a bounded canonical scope, aggregated across all three providers: reducer_multi_cloud_runtime_drift_finding (gcp, azure) and reducer_aws_cloud_runtime_drift_finding (aws) in one query. Filterable by provider, canonical cloud_resource_uid, and finding_kind; cloud_resource_uid filtering matches only gcp/azure findings (an AWS finding's canonical identity is resolved for display but is not a stored, filterable column on its fact kind). Each finding carries its provider-neutral source_state and safety gate; unsafe findings are reported as rejected with a refused action rather than omitted. local_lightweight returns unsupported_capability. Scoped tokens must supply a scope_id (or account_id/project_id/subscription_id alias) that resolves to a granted repository or ingestion scope; a scoped caller with no grants or an out-of-grant scope_id receives an empty page.",
+        "description": "Lists active reducer-materialized runtime drift findings for a bounded canonical scope, aggregated across all three providers: reducer_multi_cloud_runtime_drift_finding (gcp, azure) and reducer_aws_cloud_runtime_drift_finding (aws) in one query. Filterable by provider, canonical cloud_resource_uid, and finding_kind; cloud_resource_uid filtering matches only gcp/azure findings (an AWS finding's canonical identity is resolved for display but is not a stored, filterable column on its fact kind). Each finding carries its provider-neutral source_state and safety gate; unsafe findings are reported as rejected with a refused action rather than omitted. local_lightweight returns unsupported_capability. Scoped tokens must supply a scope_id (or account_id/project_id/subscription_id alias) that resolves to a granted repository or ingestion scope; a scoped caller with no grants or an out-of-grant scope_id receives an empty page. A 503 with Retry-After means a transient condition that is safe to retry: the drift finding count or page read hit a stale or timed-out PostgreSQL reader; this route has no configuration 503, so every 503 it answers carries Retry-After (a missing drift finding read model answers 501). No 5xx body carries backend error text. A graph or reader verdict 503 names capability cloud_runtime_drift.readback.list in its error envelope.",
         "operationId": "listCloudRuntimeDriftFindings",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -135,7 +135,8 @@ const RuntimeDrift = `
               }
             }
           },
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },

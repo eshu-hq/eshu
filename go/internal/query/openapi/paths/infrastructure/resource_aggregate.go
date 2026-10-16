@@ -11,7 +11,7 @@ const ResourceAggregate = `
     "/api/v0/infra/resources/count": {
       "get": {
         "summary": "Count graph-backed infrastructure resources without paging the search endpoint",
-        "description": "Counts the canonical graph population of the infrastructure labels. Once the infra read model backfill has completed and no repository waits for a repair after a write from an older binary, unscoped reads count content-derived nodes from the Postgres infra_resource_entities table, and CloudResource, TerraformStateResource, and the Terraform state projector's TerraformModule and TerraformOutput nodes from the graph, and report truth basis hybrid. A category that needs no graph read (category=argocd, crossplane, helm, or k8s) is served from the table alone and reports truth basis content_index; category=cloud needs only the graph and reports truth basis authoritative_graph. Scoped tokens, and every other read (before the backfill completes, or while a repository waits for that repair), read only the graph and report truth basis authoritative_graph.",
+        "description": "Counts the canonical graph population of the infrastructure labels. Once the infra read model backfill has completed and no repository waits for a repair after a write from an older binary, unscoped reads count content-derived nodes from the Postgres infra_resource_entities table, and CloudResource, TerraformStateResource, and the Terraform state projector's TerraformModule and TerraformOutput nodes from the graph, and report truth basis hybrid. A category that needs no graph read (category=argocd, crossplane, helm, or k8s) is served from the table alone and reports truth basis content_index; category=cloud needs only the graph and reports truth basis authoritative_graph. Scoped tokens, and every other read (before the backfill completes, or while a repository waits for that repair), read only the graph and report truth basis authoritative_graph. A 503 with Retry-After means a transient condition that is safe to retry: the graph backend is unavailable, or a stale or timed-out PostgreSQL reader failed together with the graph leg (a failed read model leg alone falls back to the graph); a 503 without Retry-After means a configuration state, such as an aggregate store that is not configured on this API instance. A graph read that exceeds its deadline answers 504. No 5xx body carries backend error text. A graph or reader verdict 503 names capability platform_impact.infra_resource_aggregate in its error envelope.",
         "operationId": "countInfraResources",
         "x-scoped-token-support": true,
         "parameters": [
@@ -25,6 +25,7 @@ const ResourceAggregate = `
         ],
         "responses": {
           "403": {"$ref": "#/components/responses/Forbidden"},
+          "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
@@ -50,7 +51,7 @@ const ResourceAggregate = `
     "/api/v0/infra/resources/inventory": {
       "get": {
         "summary": "Group graph-backed infrastructure resources by one dimension without paging the search endpoint",
-        "description": "Groups the canonical graph population of the infrastructure labels by one dimension. Uses the same serving rules as countInfraResources: unscoped reads after the infra read model backfill are truth basis hybrid, except a category that needs no graph read (category=argocd, crossplane, helm, or k8s), which is content_index, and category=cloud, which reads only the graph and is authoritative_graph. Scoped reads, and reads before the backfill or while a repository waits for a repair, are authoritative_graph.",
+        "description": "Groups the canonical graph population of the infrastructure labels by one dimension. Uses the same serving rules as countInfraResources: unscoped reads after the infra read model backfill are truth basis hybrid, except a category that needs no graph read (category=argocd, crossplane, helm, or k8s), which is content_index, and category=cloud, which reads only the graph and is authoritative_graph. Scoped reads, and reads before the backfill or while a repository waits for a repair, are authoritative_graph. A 503 with Retry-After means a transient condition that is safe to retry: the graph backend is unavailable, or a stale or timed-out PostgreSQL reader failed together with the graph leg (a failed read model leg alone falls back to the graph); a 503 without Retry-After means a configuration state, such as an aggregate store that is not configured on this API instance. A graph read that exceeds its deadline answers 504. No 5xx body carries backend error text. A graph or reader verdict 503 names capability platform_impact.infra_resource_aggregate in its error envelope.",
         "operationId": "getInfraResourceInventory",
         "x-scoped-token-support": true,
         "parameters": [
@@ -67,6 +68,7 @@ const ResourceAggregate = `
         ],
         "responses": {
           "403": {"$ref": "#/components/responses/Forbidden"},
+          "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
