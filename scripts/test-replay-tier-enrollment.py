@@ -42,6 +42,16 @@ def committed_fixture(root: Path) -> None:
         subprocess.run(command, cwd=root, check=True, capture_output=True)
 
 
+def copy_route_sources(destination: Path) -> None:
+    """Copy the production route inputs for controlled mutations."""
+    for name in (".github/workflows/verify-replay-tier.yml",
+                 "specs/ci-gates.d/gates-15.yaml", "scripts/dev/pre-pr.sh"):
+        target = destination / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / name, target)
+    shutil.copytree(ROOT / "specs/live-tests.d", destination / "specs/live-tests.d")
+
+
 class ReplayTierEnrollmentTest(unittest.TestCase):
     """Check the exact source set and successful top-level Go events."""
 
@@ -162,14 +172,7 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
         verify_routes(ROOT)
         with tempfile.TemporaryDirectory() as temporary:
             fixture = Path(temporary)
-            for name in (
-                ".github/workflows/verify-replay-tier.yml",
-                "specs/ci-gates.d/gates-15.yaml",
-                "scripts/dev/pre-pr.sh",
-            ):
-                target = fixture / name
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(ROOT / name, target)
+            copy_route_sources(fixture)
             workflow = fixture / ".github/workflows/verify-replay-tier.yml"
             workflow.write_text(workflow.read_text().replace(
                 "      - 'specs/live-tests.d/**'\n", "", 1
@@ -260,14 +263,7 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as temporary:
             fixture = Path(temporary)
-            for name in (
-                ".github/workflows/verify-replay-tier.yml",
-                "specs/ci-gates.d/gates-15.yaml",
-                "scripts/dev/pre-pr.sh",
-            ):
-                target = fixture / name
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(ROOT / name, target)
+            copy_route_sources(fixture)
             workflow = fixture / ".github/workflows/verify-replay-tier.yml"
             registry = fixture / "specs/ci-gates.d/gates-15.yaml"
             verify_routes(fixture)
@@ -296,14 +292,7 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
         changed += newline + remainder
         with tempfile.TemporaryDirectory() as temporary:
             fixture = Path(temporary)
-            for name in (
-                ".github/workflows/verify-replay-tier.yml",
-                "specs/ci-gates.d/gates-15.yaml",
-                "scripts/dev/pre-pr.sh",
-            ):
-                path = fixture / name
-                path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(ROOT / name, path)
+            copy_route_sources(fixture)
             (fixture / "scripts/dev/pre-pr.sh").write_text(changed)
             with self.assertRaisesRegex(ValueError, "pre-pr"):
                 verify_routes(fixture)
@@ -364,14 +353,7 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as temporary:
             fixture = Path(temporary)
-            for name in (
-                ".github/workflows/verify-replay-tier.yml",
-                "specs/ci-gates.d/gates-15.yaml",
-                "scripts/dev/pre-pr.sh",
-            ):
-                target = fixture / name
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(ROOT / name, target)
+            copy_route_sources(fixture)
             workflow = fixture / ".github/workflows/verify-replay-tier.yml"
             verify_routes(fixture)
             for case, changed in cases.items():
@@ -381,17 +363,59 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, "workflow"):
                         verify_routes(fixture)
 
+    def test_active_yaml_controls_and_all_fragment_routes(self) -> None:
+        """Reject valid YAML overrides and selectors that only cover one fragment."""
+        names = (".github/workflows/verify-replay-tier.yml",
+                 "specs/ci-gates.d/gates-15.yaml", "scripts/dev/pre-pr.sh")
+        original = [(ROOT / name).read_text() for name in names]
+        gate_step = "      - name: Run offline replay tier against real NornicDB\n"
+        workflow_cases = (
+            original[0].replace("  replay-tier:\n",
+                                "  replay-tier:\n    if : false\n", 1),
+            original[0].replace(gate_step,
+                                gate_step + "        continue-on-error : true\n", 1),
+            original[0] + "\njobs : {}\n",
+        )
+        registry_case = original[1].replace(
+            '      - ".github/workflows/verify-replay-tier.yml"\n    local:',
+            '      - ".github/workflows/verify-replay-tier.yml"\n'
+            '    triggers : []\n    local:', 1)
+        target = r"|specs/live-tests(\.v1\.yaml|\.d/)"
+        before, command, after = original[2].partition("run_or_defer replay-tier " + chr(92) + "\n")
+        self.assertTrue(command)
+        selector, newline, tail = after.partition("\n")
+        self.assertIn(target, selector)
+        prepr_cases = tuple(before + command + selector.replace(target, narrowed)
+                            + newline + tail for narrowed in (
+            r"|specs/live-tests(\.v1\.yaml|\.d/live-tests-03\.yaml)",
+            r"|specs/live-tests(\.v1\.yaml|\.d/live-tests-0[1-7]\.yaml)",
+            r"|specs/live-tests(\.v1\.yaml|\.d/live-tests-(?!02))",
+        ))
+        live_step = 'run_step "path-triggered live lane" step_live'
+        self.assertIn(live_step, original[2])
+        prepr_cases += (original[2].replace(live_step, live_step + "_disabled", 1),)
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = Path(temporary)
+            copy_route_sources(fixture)
+            verify_routes(fixture)
+            for index, cases in enumerate((workflow_cases, (registry_case,), prepr_cases)):
+                path = fixture / names[index]
+                for case, changed in enumerate(cases):
+                    with self.subTest(file=names[index], case=case):
+                        path.write_text(changed)
+                        with self.assertRaises(ValueError):
+                            verify_routes(fixture)
+                        path.write_text(original[index])
+
     def test_inventory_closes_workflow_liveness_for_ledger_gate(self) -> None:
         """The independent ledger inventory rejects a disabled replay job."""
         inventory = json.loads(INVENTORY.read_text(encoding="utf-8"))
         with tempfile.TemporaryDirectory() as temporary:
             fixture = Path(temporary)
+            copy_route_sources(fixture)
             for name in (*inventory["files"],
                          "scripts/verify-replay-tier.sh",
-                         "scripts/lib/replay_tier_enrollment.py",
-                         ".github/workflows/verify-replay-tier.yml",
-                         "specs/ci-gates.d/gates-15.yaml",
-                         "scripts/dev/pre-pr.sh"):
+                         "scripts/lib/replay_tier_enrollment.py"):
                 target = fixture / name
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(ROOT / name, target)
