@@ -23,3 +23,12 @@ speedup is claimed.
 Verification: `go test ./cmd/reducer ./internal/telemetry -run
 'TestPackageManifestBackfillPassTelemetry|TestNewInstrumentsNoError|TestSecondsHistogramsHaveExplicitBuckets'
 -count=1` exercises the four emitted pass outcomes and instrument registration.
+
+Update (#7663): a pass no longer rebuilds a scope in one transaction. Each
+scope gets a start transaction plus one transaction per 500-fact page. The
+storage per-scope log lines now carry `outcome`, `pages`, `facts`,
+`transactions`, `max_transaction_ms`, `lock_wait_ms`, `max_lock_wait_ms`, and
+`duration_ms`, and a failed scope logs
+`package_manifest_consumption_keys.backfill.scope_failed`. Three metrics
+cover rebuild transactions, scope-row lock wait, and per-scope outcomes. See
+[7663-backfill-page-lock.md](7663-backfill-page-lock.md).

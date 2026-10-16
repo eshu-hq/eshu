@@ -446,4 +446,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// Migration 180 (#7666) is the partial ARN expression index the
 	// aws_cloud_runtime_drift state join probes once per AWS ARN.
 	"fact_records_terraform_state_resource_arn_idx",
+	// Migration 181 (#7663) gives the package-consumption backfill's page
+	// query a partial (scope_id, fact_id) index on its own fact predicate.
+	"fact_records_package_manifest_consumption_backfill_idx",
 }

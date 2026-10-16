@@ -64,6 +64,7 @@ func TestPackageManifestConsumptionBackfillPagesHeavyScopeLive(t *testing.T) {
 	elapsed := time.Since(started)
 	assertPackageManifestConsumptionReady(t, ctx, database, true)
 	assertPackageManifestConsumptionKeyCount(t, ctx, database, factCount)
+	assertPackageManifestConsumptionSidecarsMatchFacts(t, ctx, database)
 	log.Printf("event_name=package_manifest_consumption_keys.backfill.measurement facts=%d pages=%d scope_rebuild_elapsed_ms=%d", factCount, factCount/packageManifestConsumptionKeyBackfillBatchSize, elapsed.Milliseconds())
 }
 
