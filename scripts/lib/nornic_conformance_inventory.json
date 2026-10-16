@@ -1,0 +1,25 @@
+{
+  "go/internal/storage/cypher/cloud_resource_node_writer_heterogeneous_batch_live_test.go": [
+    "TestCloudResourceNodeWriterLiveHeterogeneousBatchNeverPersistsLiteral"
+  ],
+  "go/internal/storage/cypher/retrying_executor_live_test.go": [
+    "TestRunLiveRetryWritesConcurrentlyOverlapsBothWrites",
+    "TestBuildLiveRetryContractRowsMirrorProductionPlatformBatch",
+    "TestLiveNornicDBRetryConflictClassificationContract"
+  ],
+  "go/internal/storage/cypher/retrying_executor_relationship_snapshot_live_test.go": [
+    "TestLiveNornicDBRelationshipSnapshotConflictRetryContract"
+  ],
+  "go/internal/storage/cypher/semantic_entity_full_repo_retract_live_test.go": [
+    "TestSemanticEntityWriterLiveNornicDBFullRepoRetractRecreatesSameUID"
+  ],
+  "go/internal/storage/cypher/semantic_entity_live_test.go": [
+    "TestSemanticEntityWriterLiveNornicDBConcurrentDistinctRepos"
+  ],
+  "go/internal/storage/cypher/semantic_entity_variable_nornicdb_live_test.go": [
+    "TestSemanticEntityWriterLiveNornicDBMaterializesVariableNodes"
+  ],
+  "go/internal/storage/cypher/tfstate_canonical_writer_stale_attrs_live_test.go": [
+    "TestTerraformResourceWriterLiveClearsStaleAttributeOnRefresh"
+  ]
+}

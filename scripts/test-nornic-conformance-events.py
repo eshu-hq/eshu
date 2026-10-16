@@ -1,0 +1,156 @@
+"""Acceptance tests for exact NornicDB conformance enrollment."""
+
+import hashlib
+import importlib.util
+import os
+import io
+import json
+from pathlib import Path
+import re
+import subprocess
+import tempfile
+import unittest
+
+
+LIB = Path(__file__).parent / "lib" / "nornic_conformance_events.py"
+SPEC = importlib.util.spec_from_file_location("nornic_conformance_events", LIB)
+assert SPEC and SPEC.loader
+MODULE = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(MODULE)
+
+
+class NornicConformanceTest(unittest.TestCase):
+    """The hosted owner must execute every enrolled test exactly once."""
+
+    def test_source_and_runner_are_bound(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        inventory = MODULE.load_inventory()
+        self.assertEqual(len(inventory), 7)
+        self.assertEqual(sum(len(tests) for tests in inventory.values()), 9)
+        MODULE.verify_source_and_runner(root, inventory)
+        runner = (root / MODULE.RUNNER).read_text()
+        self.assertIn("python3 ../scripts/lib/nornic_conformance_events.py --source-check", runner)
+        self.assertIn("ESHU_SEMANTIC_ENTITY_NORNICDB_LIVE=1", runner)
+
+        with tempfile.TemporaryDirectory() as directory:
+            copied = Path(directory)
+            source = root / next(iter(inventory))
+            target = copied / source.relative_to(root)
+            target.parent.mkdir(parents=True)
+            target.write_text(source.read_text() + "\nfunc TestUnselected(t *testing.T) {}\n")
+            with self.assertRaises(ValueError):
+                MODULE.verify_source(copied, inventory)
+
+            script = (root / MODULE.RUNNER).read_text()
+            for old, new in (
+                ("python3 ../scripts/lib/nornic_conformance_events.py", "# python3 ../scripts/lib/nornic_conformance_events.py"),
+                ("set -o pipefail", "set +o pipefail"),
+                ("TestBuildLiveRetryContractRowsMirrorProductionPlatformBatch", "TestMissingHelper"),
+                ("    set -o pipefail", "    if false; then\n    set -o pipefail"),
+                ("set -euo pipefail", "set +e"),
+            ):
+                with self.subTest(old=old):
+                    with self.assertRaises(ValueError):
+                        MODULE.verify_runner_text(script.replace(old, new, 1), inventory)
+
+            workflow = (root / MODULE.WORKFLOW).read_text()
+            for old, new in (
+                ("run: ./scripts/verify_backend_conformance_live.sh", "run: true"),
+                ("      - name: Run live backend conformance", "      - name: Disabled conformance"),
+                ("        run: ./scripts/verify_backend_conformance_live.sh", "        continue-on-error : true\n        run: ./scripts/verify_backend_conformance_live.sh"),
+                ("        run: ./scripts/verify_backend_conformance_live.sh", "        if: ${{ false }}\n        run: ./scripts/verify_backend_conformance_live.sh"),
+                ("    steps:", "    continue-on-error : true\n    steps:"),
+                ("    steps:", "    'continue-on-error': true\n    steps:"),
+                ("          - graph_backend: nornicdb", "          - graph_backend: neo4j"),
+                ("            database: nornic", "            database: neo4j"),
+                ("          ESHU_GRAPH_BACKEND: ${{ matrix.graph_backend }}", "          ESHU_GRAPH_BACKEND: neo4j"),
+                ("          DEFAULT_DATABASE: ${{ matrix.database }}", "          DEFAULT_DATABASE: neo4j"),
+            ):
+                with self.subTest(old=old):
+                    with self.assertRaises(ValueError):
+                        MODULE.verify_workflow_text(workflow.replace(old, new, 1))
+
+    def test_inventory_cannot_swap_reviewed_files(self) -> None:
+        inventory = MODULE.load_inventory()
+        first = next(iter(inventory))
+        swapped = dict(inventory)
+        swapped[first + ".other"] = swapped.pop(first)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "inventory.json"
+            path.write_text(json.dumps(swapped))
+            with self.assertRaises(ValueError):
+                MODULE.load_inventory(path)
+
+    def test_ledger_rows_close_even_with_recomputed_digest(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        inventory = MODULE.load_inventory()
+        ledger = MODULE.read_ledger_rows(root)
+        MODULE.verify_ledger(inventory, ledger)
+        first = next(iter(inventory))
+        wrong = dict(ledger)
+        wrong[first] = ("scheduled", "", "")
+        with self.assertRaises(ValueError):
+            MODULE.verify_ledger(inventory, wrong)
+
+    def test_validator_rejects_demoted_row_with_recomputed_digest(self) -> None:
+        """A ledger checksum update cannot hide an unenrolled owner row."""
+        root = Path(__file__).resolve().parent.parent
+        inventory = MODULE.load_inventory()
+        path = next(iter(inventory))
+        flattened = subprocess.run(
+            ["python3", "scripts/lib/live_tests_registry.py", "flatten",
+             "specs/live-tests.v1.yaml"], cwd=root, capture_output=True,
+            text=True, check=True,
+        ).stdout
+        marker = f"  - file: {path}\n"
+        start = flattened.index(marker)
+        end = flattened.index("  - file: ", start + len(marker))
+        body = flattened[start:end]
+        body = body.replace("    class: dedicated_ci", "    class: scheduled", 1)
+        body = body.replace("    runner: backend-conformance-nornicdb\n", "", 1)
+        flattened = flattened[:start] + body + flattened[end:]
+        scheduled = sorted(re.findall(
+            r"(?m)^  - file: (\S+)\n    tag: .*\n    class: scheduled$",
+            flattened,
+        ))
+        digest = hashlib.sha256(
+            "".join(f"{name}\n" for name in scheduled).encode("utf-8")
+        ).hexdigest()
+        flattened = re.sub(r"(?m)^  count: \d+$", f"  count: {len(scheduled)}", flattened, count=1)
+        flattened = re.sub(r"(?m)^  sha256: [0-9a-f]{64}$", f"  sha256: {digest}", flattened, count=1)
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory) / "ledger.yaml"
+            fixture.write_text(flattened)
+            process = subprocess.run(
+                ["bash", "scripts/verify-live-tests-ledger.sh"], cwd=root,
+                env={**os.environ, "LEDGER_PATH": str(fixture)},
+                capture_output=True, text=True, check=False,
+            )
+        self.assertNotEqual(process.returncode, 0)
+        self.assertIn("Nornic conformance runner enrollment failed", process.stderr)
+
+    def test_go_events_reject_missing_skip_duplicate_and_wrong_package(self) -> None:
+        inventory = MODULE.load_inventory()
+        names = {name for tests in inventory.values() for name in tests}
+        package = MODULE.PACKAGE
+        good = [item for name in sorted(names) for item in (
+            {"Action": "run", "Package": package, "Test": name},
+            {"Action": "pass", "Package": package, "Test": name},
+        )] + [{"Action": "pass", "Package": package}]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "events.jsonl"
+            for events, passes in (
+                (good, True),
+                (good[1:], False),
+                (good[:-2] + [{**good[-2], "Action": "skip"}, good[-1]], False),
+                (good + [good[1]], False),
+                ([{**item, "Package": package + "x"} for item in good], False),
+                (good[:-1], False),
+            ):
+                path.write_text("".join(json.dumps(item) + "\n" for item in events))
+                with self.subTest(events=events):
+                    self.assertEqual(MODULE.verify_events(path, names, io.StringIO()), passes)
+
+
+if __name__ == "__main__":
+    unittest.main()

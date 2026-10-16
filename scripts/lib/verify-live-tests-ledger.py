@@ -34,6 +34,15 @@ from postgres_scheduled_runner import (
     load_inventory as load_scheduled_inventory,
     verify_inventory as verify_scheduled_inventory,
 )
+from nornic_conformance_events import (
+    load_inventory as load_nornic_inventory,
+    verify_ledger as verify_nornic_ledger,
+    verify_runner_text as verify_nornic_runner,
+    verify_source as verify_nornic_source,
+    verify_workflow_text as verify_nornic_workflow,
+    RUNNER as NORNIC_RUNNER,
+    WORKFLOW as NORNIC_WORKFLOW,
+)
 
 if len(sys.argv) != 3:
     sys.exit(f"usage: {sys.argv[0]} <ledger_path> <repo_root>")
@@ -53,6 +62,7 @@ if not rows:
 
 seen_files = set()
 classes = {}
+nornic_rows = {}
 legacy_scheduled = []
 contention_inventory = load_inventory()
 contention_paths = set(contention_inventory)
@@ -69,6 +79,7 @@ for path, tag, cls, reason, runner, backends in rows:
         sys.exit(f"duplicate ledger row: {path}")
     seen_files.add(path)
     classes[path] = cls
+    nornic_rows[path] = (cls, runner, backends)
     if cls not in ("ci", "postgres_ci", "dedicated_ci", "verified_scheduled", "scheduled", "retired"):
         sys.exit(f"invalid class {cls!r} for {path}")
     if cls == "postgres_ci":
@@ -81,7 +92,10 @@ for path, tag, cls, reason, runner, backends in rows:
         if not (readiness or migration) or backends:
             sys.exit(f"PostgreSQL CI row needs its verified runner and tag: {path}")
     elif cls == "dedicated_ci":
-        if runner == "reducer-contention":
+        if runner == "backend-conformance-nornicdb":
+            if tag.strip() != "~" or backends != "nornicdb":
+                sys.exit(f"Nornic conformance row needs untagged NornicDB file: {path}")
+        elif runner == "reducer-contention":
             contention_ledger_paths.add(path)
             if path not in contention_paths or tag.strip() != "~" or backends:
                 sys.exit(f"contention row needs an enrolled untagged PostgreSQL-only file: {path}")
@@ -182,6 +196,14 @@ try:
     verify_identity_routes(Path(repo_root))
 except (OSError, ValueError) as error:
     sys.exit(f"B-7 identity runner enrollment failed: {error}")
+try:
+    nornic_inventory = load_nornic_inventory()
+    verify_nornic_ledger(nornic_inventory, nornic_rows)
+    verify_nornic_source(Path(repo_root), nornic_inventory)
+    verify_nornic_runner((Path(repo_root) / NORNIC_RUNNER).read_text(), nornic_inventory)
+    verify_nornic_workflow((Path(repo_root) / NORNIC_WORKFLOW).read_text())
+except (OSError, ValueError, re.error) as error:
+    sys.exit(f"Nornic conformance runner enrollment failed: {error}")
 
 # The ledger itself lists the exact grandfathered paths. Bind that readable
 # inventory to a fixed digest so a newly scheduled row cannot inherit an
