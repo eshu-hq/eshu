@@ -149,6 +149,11 @@ with `retrieval_state=hybrid_degraded`; with the setting, ready BM25 and vector
 candidates are fused with Reciprocal Rank Fusion and results can report
 `search_method=rrf_hybrid` plus `retrieval_state=hybrid_active`.
 
+A failed scope resolution or retrieval answers a fixed message, never backend
+error text. The statuses, the configuration `503`s, and the two failures that
+moved to `500` are in
+[Compare And Semantic Search Failures](compare-and-semantic-search-failures.md).
+
 ## Authorization
 
 Repository scoped tokens are intersected before any search-document read:

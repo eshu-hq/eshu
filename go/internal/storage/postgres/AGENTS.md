@@ -594,6 +594,8 @@ shared-intent backlog/status queries and reducer code-call cycle logs.
   the own-gate counting classes as non-counting
   (`TestDeliberatelyCountingClassesAreNeverEnrolled`).
 
+- Replay and claim-sweep row locks (#8205): keep the sort and status checks, and keep the ordered lock steps blocking (never `SKIP LOCKED` there; the bounded drain's `SKIP LOCKED` is intentional); see README.
+
 - Symptom: `graph_projection_phase_state` rows missing for a scope generation →
   projector `publish_phases` stage failed; check `GraphProjectionPhaseRepairQueueStore`
   depth; check projector structured logs for `stage=canonical_write` error fields.

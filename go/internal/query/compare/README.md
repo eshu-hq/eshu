@@ -16,6 +16,8 @@ and the response story. List bounds and row trimming come from
 
 ## Layout
 
+- `failure.go` — the fixed per-read failure messages and
+  `writeCompareReadFailure` (#7674).
 - `handler.go` — `Handler`, request validation, access scoping, the two graph
   reads, the resource diff and the confidence score.
 - `story.go` — the response shape: summary, coverage, evidence rows and
@@ -35,6 +37,9 @@ evidence shape). Neither imports this package, so there is no cycle.
 
 The handler opens no span of its own; its graph reads go through whatever
 `GraphQuery` the caller wires in. Unchanged by the #6642 move.
+A failed read records its error on the request span (exception event, Error
+status with the fixed message), or only the `eshu.request.client_canceled`
+event for a client cancel (#7674).
 
 ## Gotchas / invariants
 
@@ -45,6 +50,34 @@ The handler opens no span of its own; its graph reads go through whatever
   and update the entry in the same change.
 - An empty grant, or a grant that does not cover the workload's `repo_id`,
   must produce the same response as a workload that does not exist.
+
+## Failure answers (#7674)
+
+`failure.go` holds one fixed message per read and `writeCompareReadFailure`.
+`querycontract.WriteGraphReadError` runs first (graph outage or reader fence:
+503 with `Retry-After`; graph deadline: 504), then
+`tracing.WriteServerFailure` (500 with the error on the request span, or 499
+for a client cancel). Every error body, the 400s included, is written by
+`querycontract.WriteError`, so the route keeps its plain
+`{"error", "detail"}` shape and has no private writer. `server_failure_test.go`
+proves it with the shared `testutil/failure` harness. See
+[Compare And Semantic Search Failures](../../../../docs/public/reference/http-api/compare-and-semantic-search-failures.md).
+
+No-Regression Evidence (#7674): only the error branches of
+`compareEnvironments` changed. `fetchWorkload` and `environmentSnapshot`, their
+Cypher text, parameters, list bounds, and the number of graph reads per
+request are byte-identical to the base, so the success path sends Neo4j the
+same reads with the same row limits. The queryplan source digests for both
+reads did not move (`go test ./internal/queryplan/...` exit 0), and the
+existing handler, story, and golden-fixture tests pass unchanged. The only
+added work is on a failed read: one `errors.Is` chain in
+`querycontract.WriteGraphReadError` and one span mark, both constant time.
+
+Observability Evidence (#7674): a failed read records one `exception` event
+and Error status, described by its fixed message, on the request span; a
+client cancel leaves the span Unset and adds only
+`eshu.request.client_canceled`. `TestCompareEnvironmentsAnswersFixedServerFailures`
+proves both for every read through the shared harness.
 
 ## Move evidence (#6642)
 

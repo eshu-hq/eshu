@@ -1,0 +1,26 @@
+tests:
+  - file: go/internal/storage/postgres/recovery_replay_lock_order_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8205 150 rounds of three concurrent recovery replays (scoped plus failure class, stage-only, bounded per scope in reverse) over 400,000 analyzed background rows, with an EXPLAIN check that the scoped and stage-only replays reach their rows through different indexes and never seq-scan fact_work_items; requires 0 x 40P01 and every row replayed exactly once (main: 145 of 150 rounds deadlocked); isolated schema from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; about 17-19 s locally including a 10 s seed; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/recovery_replay_lock_order_interleave_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8205 deterministic two-session proofs with a test-schema-only pg_sleep BEFORE UPDATE trigger: a scoped and a stage-only recovery replay wait one way on pg_blocking_pids and both succeed with exact accounting (main: mutual block, then 40P01), the held-middle-row race of the same pair completes (main: 40P01), and the EvalPlanQual case drops a row another session made pending or claimed before the replay could lock it; isolated schemas; about 15 s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/query/admin/replay_lock_order_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8205 admin replay lock order: admin stage-only versus scoped recovery replay in both start orders and admin versus admin wait one way on pg_blocking_pids with exact accounting (main: admin versus recovery deadlocks), and the EvalPlanQual case keeps a row claimed before the admin lock step; isolated schemas; about 22 s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_claim_sweep_lock_order_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8205 reducer claim-time supersede sweep lock order over 400,000 analyzed background rows: two-session sweep against scoped and stage-only recovery replays in both start orders waits one way and the held-middle-row race of the same pairs completes (main: mutual block, then 40P01), 150 rounds of a claim racing scoped, stage-only and bounded replays with 0 x 40P01 and every stale row superseded exactly once (main: 111 of 150 deadlocked), the active-generation guard keeps every active-generation row, and the EvalPlanQual case keeps a row claimed before the sweep's lock step; isolated schemas; about 60 s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/query/admin/replay_claim_sweep_lock_order_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8205 admin replay against the reducer claim-time supersede sweep in both start orders waits one way and survives the held-middle-row race (main: 40P01), and 150 rounds of a claim, a scoped and a stage-only recovery replay and an admin replay started together over the same stale rows give 0 x 40P01 with exact accounting (main: 212 x 40P01); isolated schemas; about 60-90 s locally including two 400,000-row seeds; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness

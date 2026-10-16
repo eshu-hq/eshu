@@ -126,12 +126,14 @@ investigation packet routes in
 the auth and session routes in
 [Auth and session route failures](../http-api/auth-session-failures.md),
 and the infra and inventory routes in
-[Infra And Inventory Route Failures](../http-api/infra-and-inventory-failures.md)
+[Infra And Inventory Route Failures](../http-api/infra-and-inventory-failures.md),
+and the environment comparison and semantic search routes in
+[Compare And Semantic Search Failures](../http-api/compare-and-semantic-search-failures.md)
 (#7674). The code-flow routes
 answered a cancel with `408` before. A `503` that reports a configuration or
 readiness state, on these routes or the impact code-evidence reads, marks the
 span the same way a fault does, except on the status, evidence,
-investigation packet, auth, session, infra, and inventory routes: there a
+investigation packet, auth, session, infra, inventory, and semantic search routes: there a
 configuration `503` is a plain write and does not mark the span. Other routes still answer a cancel with `500`
 until #7674 lands.
 

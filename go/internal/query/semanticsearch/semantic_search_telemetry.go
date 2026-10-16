@@ -5,7 +5,7 @@ package semanticsearch
 
 import (
 	"context"
-	"strings"
+	"errors"
 	"sync"
 
 	"github.com/eshu-hq/eshu/go/internal/searchbench"
@@ -100,9 +100,11 @@ func semanticSearchQueryType(mode searchbench.Mode) string {
 // semanticSearchDegradationForError classifies the semantic-mode no-embedder
 // failure (a 503 served before any retrieval_state is produced) as a degradation
 // so the signal also captures the provider-unavailable path, not only the
-// hybrid-degraded success path.
+// hybrid-degraded success path. It matches errSemanticModeRequiresEmbedder with
+// errors.Is, the same test the handler uses to answer that 503, so the counter
+// and the status always agree.
 func semanticSearchDegradationForError(err error) (degraded bool, queryType, reason string) {
-	if err != nil && strings.Contains(err.Error(), "requires an embedder") {
+	if errors.Is(err, errSemanticModeRequiresEmbedder) {
 		return true, "semantic", semanticSearchDegradedReasonNoEmbedder
 	}
 	return false, "", ""

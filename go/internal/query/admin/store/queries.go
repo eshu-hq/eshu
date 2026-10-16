@@ -18,12 +18,34 @@ const supersededProjectorGenerationFence = `      AND NOT (stage = 'projector' A
             AND fenced_generation.status = 'superseded'))
 `
 
+// lockSelectedWorkItemsCTE locks the selected rows that are still terminal,
+// in work_item_id COLLATE "C" order, before the UPDATE touches any (#8205).
+// The status predicate is rechecked on the newest row version when a lock
+// waits (EvalPlanQual): another worker may claim a row after the selection CTE
+// read it as terminal but before it can be locked, and the recheck drops it.
+const lockSelectedWorkItemsCTE = `), locked AS (
+    SELECT work_item_id
+    FROM fact_work_items
+    WHERE work_item_id IN (SELECT work_item_id FROM selected)
+      AND status IN ('dead_letter', 'failed')
+    ORDER BY work_item_id COLLATE "C"
+    FOR NO KEY UPDATE
+`
+
 // buildMutatingWorkItemsQuery renders a bounded select-then-update over
 // terminal work items. fenceSupersededProjector adds the #7130 fence; the
 // replay sets it and the dead-letter mutation does not. returnPriorFailure
 // appends the selection-time failure_class to RETURNING so the replay can
 // record what a row had failed with (#7387) even though its update clears the
 // class; the shared work columns still carry post-update truth.
+//
+// The selected CTE picks the rows (newest first, LIMIT) without locking them.
+// The locked CTE then locks the selected rows that are still terminal in
+// work_item_id COLLATE "C" order (#8205), the order the recovery replay, the
+// batch ack and the own-gate wake share. Without it the UPDATE locked rows in
+// its own join order, so an admin replay and a concurrent recovery or admin
+// replay over shared rows could lock them in opposite orders and deadlock
+// (40P01). FOR NO KEY UPDATE is the lock the UPDATE takes anyway.
 func buildMutatingWorkItemsQuery(
 	workItemIDs []string,
 	scopeID, stage, failureClass string,
@@ -71,15 +93,17 @@ WITH selected AS (
 	}
 	args = append(args, limit)
 	_, _ = fmt.Fprintf(&builder, "    ORDER BY updated_at DESC, work_item_id ASC LIMIT $%d\n", len(args)+baseArgCount)
+	builder.WriteString(lockSelectedWorkItemsCTE)
 	builder.WriteString(`), updated AS (
     UPDATE fact_work_items AS work
 `)
 	builder.WriteString(updateClause)
-	// Recheck the locked target row: another worker may claim a row after the
-	// selection CTE reads its terminal status but before this UPDATE can lock it.
+	// The UPDATE's own status recheck repeats the locked CTE's for the same
+	// reason; both read the newest row version.
 	builder.WriteString(`
-    FROM selected
-    WHERE work.work_item_id = selected.work_item_id
+    FROM locked
+    JOIN selected ON selected.work_item_id = locked.work_item_id
+    WHERE work.work_item_id = locked.work_item_id
       AND work.status IN ('dead_letter', 'failed')
     RETURNING
         work.work_item_id,
