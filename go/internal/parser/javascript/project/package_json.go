@@ -80,19 +80,40 @@ func NearestPackageRoot(repoRoot string, path string) (string, bool) {
 // NearestPackageName returns the trimmed "name" of the nearest package.json
 // that owns path, bounded by repoRoot. It returns "" when no manifest owns the
 // path or the nearest one has no usable string name; an outer manifest is not
-// consulted, because the nearest manifest is the package that publishes path.
-// A nearest manifest under a test, tests, fixtures, testdata, or examples
-// directory (shared.FixtureDirPattern, relative to repoRoot) is test
-// scaffolding and publishes nothing: the answer is "" there too, never the
+// consulted, because the nearest manifest is the package that owns path. It is
+// package placement (node_package_name), not a producer claim, so a manifest
+// under a test or fixture directory still answers; ProducerPackageName is the
+// gated twin the producer stamp uses.
+func NearestPackageName(repoRoot string, path string) string {
+	nearest, _ := PackageNames(repoRoot, path)
+	return nearest
+}
+
+// ProducerPackageName returns the package name the nearest package.json
+// publishes for path: NearestPackageName, except "" when that manifest sits
+// under a test, tests, fixtures, testdata, or examples directory
+// (shared.FixtureDirPattern, relative to repoRoot). Such a manifest is test
+// scaffolding and publishes nothing, and the answer is "" there too, never the
 // outer manifest's name (#8244). The producer anchor applies the same pattern
 // to the stored manifest path.
-func NearestPackageName(repoRoot string, path string) string {
+func ProducerPackageName(repoRoot string, path string) string {
+	_, producer := PackageNames(repoRoot, path)
+	return producer
+}
+
+// PackageNames returns NearestPackageName and ProducerPackageName from one
+// nearest-manifest walk, for a caller that needs both per file.
+func PackageNames(repoRoot string, path string) (nearest string, producer string) {
 	manifest, packageRoot, ok := nearestPackageManifest(repoRoot, path)
-	if !ok || manifestInFixtureDir(repoRoot, packageRoot) {
-		return ""
+	if !ok {
+		return "", ""
 	}
 	name, _ := manifest.Name.(string)
-	return strings.TrimSpace(name)
+	nearest = strings.TrimSpace(name)
+	if manifestInFixtureDir(repoRoot, packageRoot) {
+		return nearest, ""
+	}
+	return nearest, nearest
 }
 
 // DeclaredDependencies returns the package names declared in the

@@ -31,4 +31,11 @@ func TestDefaultEngineParsePathStampsNoProducerKeyUnderFixtureManifest(t *testin
 	if fixtureID != "" || fixtureExport != "" {
 		t.Fatalf("fixture class keys = (%q, %q), want none", fixtureID, fixtureExport)
 	}
+	// node_package_name is package placement, not a producer claim: the file
+	// stays owned by its nearest manifest even though that manifest publishes
+	// nothing (#7610 same-repository fallback, #7348 import-cycle source package).
+	fixtureParsed := parsePackageKeyFixture(t, repoRoot, fixturePath)
+	if got, _ := fixtureParsed["node_package_name"].(string); got != "acme-lib" {
+		t.Fatalf("fixture file node_package_name = %q, want acme-lib", got)
+	}
 }
