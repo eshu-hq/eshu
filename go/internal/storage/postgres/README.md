@@ -1047,6 +1047,22 @@ indefinitely behind corpus reads.
 
 ## Gotchas / invariants
 
+Key sidecar deletes (#7420): every statement that deletes `fact_records`
+rows, directly or through the `scope_generations` cascade, either deletes
+only kinds that own no key sidecar rows or first deletes the three key
+sidecars (`relationship_reference_candidate_keys`,
+`package_manifest_consumption_keys`, `package_registry_identity_keys`)
+explicitly, in that order, keyed by `(scope_id, generation_id)` and, on the
+over-limit chunk path, the page's fact ids
+(`facts/keys`, migrations 182 and 183 for the package
+key partition indexes). `TestFactRecordDeleteSitesAreKeySidecarSafe` fails
+on an unclassified or unpaired fact delete. Retention refuses the cycle with
+`ErrGenerationRetentionKeyIndexUnavailable` when a partition index is missing,
+invalid or misshapen, as for the #7279 key indexes. This is the prerequisite for
+dropping the per-fact foreign keys, whose one-trigger-per-fact cascade
+dominates a large generation prune. Evidence:
+`docs/internal/evidence/7420-key-sidecar-explicit-deletes.md`.
+
 Detailed query, queue, fact-readback, runtime, and fencing invariants live in
 [`gotchas-and-invariants.md`](gotchas-and-invariants.md). Keep that companion
 note current when changing storage behavior that touches those contracts.

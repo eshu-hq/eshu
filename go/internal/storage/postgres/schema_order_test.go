@@ -449,4 +449,8 @@ var orderedBootstrapDefinitionNames = []string{
 	// Migration 181 (#7663) gives the package-consumption backfill's page
 	// query a partial (scope_id, fact_id) index on its own fact predicate.
 	"fact_records_package_manifest_consumption_backfill_idx",
+	// Migrations 182 and 183 (#7420) add the (scope_id, generation_id,
+	// fact_id) indexes the explicit retention key sidecar deletes probe.
+	"package_manifest_consumption_keys_partition_idx",
+	"package_registry_identity_keys_partition_idx",
 }

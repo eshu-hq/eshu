@@ -38,6 +38,9 @@ PACKAGES = {
         "go/internal/query/supply/chain/impact/readiness_package_consumption_scope_live_test.go": (
             "TestSupplyChainImpactReadinessPackageConsumptionScopeLive",
         ),
+        "go/internal/query/supply/chain/impact/readiness_orphan_package_keys_live_test.go": (
+            "TestReadinessIgnoresOrphanPackageKeysLive",
+        ),
         "go/internal/query/supply/chain/impact/runtime_environment_store_live_test.go": (
             "TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive",
             "TestRuntimeEnvironmentEvidenceCurrentAuthorizedTruthMatrixLive",
@@ -195,6 +198,25 @@ PACKAGES = {
         ),
         "go/internal/storage/postgres/generation_retention_delta_base_relock_live_test.go": (
             "TestGenerationRetentionRelockKeepsFlippedDeltaChainLive",
+        ),
+        "go/internal/storage/postgres/generation_retention_fact_keys_live_test.go": (
+            "TestGenerationRetentionNormalPruneLeavesNoOrphanFactKeysLive",
+            "TestGenerationRetentionChunkDrainLeavesNoOrphanFactKeysLive",
+            "TestGenerationRetentionRefusesWithoutValidFactKeyIndexLive",
+        ),
+        "go/internal/storage/postgres/generation_retention_fact_keys_plan_live_test.go": (
+            "TestGenerationRetentionFactKeyStatementsPrepareLive",
+            "TestGenerationRetentionFactKeyPlansStayOnPartitionIndexLive",
+        ),
+        "go/internal/storage/postgres/generation_retention_fact_keys_accuracy_live_test.go": (
+            "TestKeyWritersReplaceOrphanFactKeysLive",
+            "TestOrphanRelationshipKeysAreInvisibleToDeferredLoadLive",
+            "TestOrphanFactKeysCannotBeWrittenForAPrunedGenerationLive",
+        ),
+        "go/internal/storage/postgres/generation_retention_fact_keys_concurrency_live_test.go": (
+            "TestRetentionFactKeyDeletesBesideKeyWriterLive",
+            "TestRetentionFactKeyDeletesBesideBackfillRebuildLive",
+            "TestRetentionFactKeyReversedOrderDeadlocksLive",
         ),
         "go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go": (
             "TestPackageManifestConsumptionMigrationsUpgradeAfterSecretLinesLive",

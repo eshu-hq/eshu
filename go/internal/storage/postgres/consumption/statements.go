@@ -59,10 +59,12 @@ const deleteDirtyScopeSQL = `
 DELETE FROM package_manifest_consumption_key_dirty_scopes WHERE scope_id = $1
 `
 
-// The two sidecar deletes have no scope-leading index (#7420 owns adding one),
-// so each is a sequential scan whose cost tracks the sidecar table, not the
-// scope: 61-85 ms at 1M rows and 252-449 ms at 5M rows on the #7663 fixture.
-// They run once per rebuild, in the short start transaction.
+// The two sidecar deletes run once per rebuild, in the short start
+// transaction. Before #7420 they had no scope-leading index, so each was a
+// sequential scan whose cost tracked the sidecar table, not the scope: 61-85
+// ms at 1M rows and 252-449 ms at 5M rows on the #7663 fixture. Migrations 182
+// and 183 (#7420) add (scope_id, generation_id, fact_id) indexes that lead
+// with scope_id; those timings predate them.
 const deleteManifestKeysSQL = `
 DELETE FROM package_manifest_consumption_keys WHERE scope_id = $1
 `
