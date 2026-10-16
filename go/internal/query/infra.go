@@ -172,6 +172,11 @@ func infraSearchReturnExprs() []string {
 	return exprs
 }
 
+// infraResourceSearchFailedMessage is the fixed body of a failed graph read on
+// POST /api/v0/infra/resources/search (#7674). The graph error can quote
+// Cypher and hosts, so it goes on the handler span, never into the body.
+const infraResourceSearchFailedMessage = "infra resource search failed"
+
 // Mount registers infrastructure query routes on the given mux.
 func (h *InfraHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/infra/resources/search", h.searchResources)
@@ -414,10 +419,7 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 		rows, err = h.SearchKey.Rows(r.Context(), h.Neo4j, searchKeyRequest)
 	}
 	if err != nil {
-		if WriteGraphReadError(w, r, err, "platform_impact.deployment_chain") {
-			return
-		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeReadFailure(w, r, err, "platform_impact.deployment_chain", infraResourceSearchFailedMessage)
 		return
 	}
 

@@ -9,8 +9,10 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // graphEntityInventoryCapability gates the graph entity inventory readback. It
@@ -22,6 +24,16 @@ const graphEntityInventoryCapability = "platform_impact.context_overview"
 const (
 	graphEntityInventoryDefaultLimit = 50
 	graphEntityInventoryMaxLimit     = 200
+)
+
+// Fixed bodies of the three failure steps on GET /api/v0/graph/entities
+// (#7674): the per-kind count read, the decode of that count row, and the
+// per-kind entity list read. The graph error and the decode error (which
+// quotes graph-returned keys) go on the handler span, never into the body.
+const (
+	graphEntityKindCountReadFailedMessage   = "graph entity kind count read failed"
+	graphEntityKindCountDecodeFailedMessage = "graph entity kind count decode failed"
+	graphEntityListReadFailedMessage        = "graph entity list read failed"
 )
 
 // graphEntityKind describes one browsable node-kind facet on the Nodes page.
@@ -169,18 +181,13 @@ func (h *GraphEntityInventoryHandler) listEntities(w http.ResponseWriter, r *htt
 	countRows, err := h.Neo4j.Run(r.Context(), graphEntityKindCountsCypher(graphEntityKinds), nil)
 	roundTrips++
 	if err != nil {
-		span.RecordError(err)
-		if WriteGraphReadError(w, r, err, graphEntityInventoryCapability) {
-			return
-		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeGraphEntityReadFailure(w, r, span, err, graphEntityKindCountReadFailedMessage)
 		return
 	}
 	facetRows = len(countRows)
 	kindCounts, total, err := decodeGraphEntityKindCounts(countRows)
 	if err != nil {
-		span.RecordError(err)
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, graphEntityKindCountDecodeFailedMessage)
 		return
 	}
 
@@ -196,11 +203,7 @@ func (h *GraphEntityInventoryHandler) listEntities(w http.ResponseWriter, r *htt
 		rows, err := h.Neo4j.Run(r.Context(), graphEntityKindListCypher(*selected, search != ""), params)
 		roundTrips++
 		if err != nil {
-			span.RecordError(err)
-			if WriteGraphReadError(w, r, err, graphEntityInventoryCapability) {
-				return
-			}
-			WriteError(w, http.StatusInternalServerError, err.Error())
+			writeGraphEntityReadFailure(w, r, span, err, graphEntityListReadFailedMessage)
 			return
 		}
 		for _, row := range rows {
@@ -264,4 +267,19 @@ func graphEntityInventoryOffset(r *http.Request) int {
 		return 0
 	}
 	return n
+}
+
+// writeGraphEntityReadFailure answers a failed graph read on GET
+// /api/v0/graph/entities.
+// A graph outage or read deadline answers its 503 or 504 through
+// WriteGraphReadError and still records err on span, as the route always did,
+// so a graph verdict stays visible on the handler span. Anything else answers
+// message through tracing.WriteServerFailure, which records err on the span
+// for a server fault and only the client-cancel event for a client cancel.
+func writeGraphEntityReadFailure(w http.ResponseWriter, r *http.Request, span trace.Span, err error, message string) {
+	if WriteGraphReadError(w, r, err, graphEntityInventoryCapability) {
+		span.RecordError(err)
+		return
+	}
+	tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, message)
 }

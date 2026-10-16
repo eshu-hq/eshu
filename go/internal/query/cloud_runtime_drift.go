@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -288,12 +289,12 @@ func (h *CloudRuntimeDriftHandler) listFindings(w http.ResponseWriter, r *http.R
 
 	total, err := h.Store.CountActiveMultiCloudRuntimeDriftFindings(r.Context(), filter)
 	if err != nil {
-		h.writeContractError(w, r, http.StatusInternalServerError, "cloud runtime drift readback failed", ErrorCodeInternalError)
+		h.writeReadbackFailure(w, r, err, cloudRuntimeDriftReadbackFailedMessage)
 		return
 	}
 	rows, err := h.Store.ListActiveMultiCloudRuntimeDriftFindings(r.Context(), filter)
 	if err != nil {
-		h.writeContractError(w, r, http.StatusInternalServerError, "cloud runtime drift readback failed", ErrorCodeInternalError)
+		h.writeReadbackFailure(w, r, err, cloudRuntimeDriftReadbackFailedMessage)
 		return
 	}
 	h.writeCloudRuntimeDriftFindings(w, r, filter, rows, total)
@@ -343,6 +344,29 @@ func (h *CloudRuntimeDriftHandler) writeCloudRuntimeDriftFindings(
 		"resolved from active reducer-materialized runtime drift findings, aggregated across "+
 			"reducer_multi_cloud_runtime_drift_finding and reducer_aws_cloud_runtime_drift_finding",
 	))
+}
+
+// cloudRuntimeDriftReadbackFailedMessage is the fixed body of a failed count
+// or page read on POST /api/v0/cloud/runtime-drift/findings (#7674).
+const cloudRuntimeDriftReadbackFailedMessage = "cloud runtime drift readback failed"
+
+// writeReadbackFailure answers a failed drift finding read with message. The
+// store reads through the guarded PostgreSQL reader, so WriteGraphReadError
+// runs first: a stale or timed-out reader answers the retryable 503 with
+// Retry-After. Anything else keeps the readback contract envelope, through
+// tracing.ServerFailureEnvelope: 500 internal_error with err on the handler
+// span, or 499 for a client cancel, with message either way. err's text never
+// reaches the body.
+func (h *CloudRuntimeDriftHandler) writeReadbackFailure(w http.ResponseWriter, r *http.Request, err error, message string) {
+	if WriteGraphReadError(w, r, err, cloudRuntimeDriftReadbackCapability) {
+		return
+	}
+	status, errEnv := tracing.ServerFailureEnvelope(r.Context(), err, message, cloudRuntimeDriftReadbackCapability)
+	errEnv.Profiles = &querycontract.ErrorProfiles{
+		Current:  h.profile(),
+		Required: querycontract.RequiredProfile(cloudRuntimeDriftReadbackCapability),
+	}
+	WriteErrorEnvelope(w, r, status, errEnv)
 }
 
 func (h *CloudRuntimeDriftHandler) writeContractError(

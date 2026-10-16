@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/taghistory"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -262,8 +263,8 @@ func (h *TagHistoryHandler) completeTagHistoryPage(
 		recordTagHistoryDuration(r.Context(), start, "query_error")
 		// The message is fixed: a sealing failure is an operator fault, and
 		// echoing the crypto error would describe the deployment's key state
-		// to a caller.
-		WriteError(w, http.StatusInternalServerError, "query failed: the tag-history continuation could not be sealed")
+		// to a caller. The error goes on the handler span instead.
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, tagHistoryContinuationSealFailedMessage)
 		return
 	}
 	outcome := "ok"
@@ -348,22 +349,6 @@ func (h *TagHistoryHandler) writeTagHistoryPage(
 		TruthBasisAuthoritativeGraph,
 		reason,
 	))
-}
-
-// writeTagHistoryReadError writes the response for a failed graph read, shared
-// by the tag read and the scoped BUILT_FROM lookup. A raw DeadlineExceeded from
-// a GraphQuery that bypasses Neo4jReader (#6705), or any read error once the
-// request ctx has expired (#7353), maps to ErrGraphReadDeadline.
-func writeTagHistoryReadError(w http.ResponseWriter, r *http.Request, start time.Time, err error) {
-	err = querycontract.ClassifyBoundedGraphReadError(r.Context(), err)
-	if WriteGraphReadError(w, r, err, tagHistoryCapability) {
-		recordTagHistoryError(r.Context(), "backend_unavailable")
-		recordTagHistoryDuration(r.Context(), start, "backend_unavailable")
-		return
-	}
-	recordTagHistoryError(r.Context(), "query_error")
-	recordTagHistoryDuration(r.Context(), start, "query_error")
-	WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 }
 
 // tagHistoryBounds parses and validates the page selectors: the required

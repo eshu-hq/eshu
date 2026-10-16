@@ -30,6 +30,11 @@ import (
 // Workload id).
 var impactRelationshipAnchorLabels = strings.Split(deployment.ImpactAnchorLabelDisjunction, "|")
 
+// infraRelationshipsReadFailedMessage is the fixed body of a failed graph read
+// on POST /api/v0/infra/relationships (#7674). The graph error can quote
+// Cypher and hosts, so it goes on the handler span, never into the body.
+const infraRelationshipsReadFailedMessage = "infra relationships read failed"
+
 // getRelationships returns the relationships for a given entity, optionally
 // filtered to a single relationship kind.
 // POST /api/v0/infra/relationships
@@ -209,10 +214,7 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 		// too, since a read that outlives the budget can return a driver
 		// ConnectivityError that does not wrap context.DeadlineExceeded.
 		err = querycontract.ClassifyBoundedGraphReadError(ctx, err)
-		if WriteGraphReadError(w, r, err, "platform_impact.deployment_chain") {
-			return
-		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeReadFailure(w, r, err, "platform_impact.deployment_chain", infraRelationshipsReadFailedMessage)
 		return
 	}
 	if row == nil {

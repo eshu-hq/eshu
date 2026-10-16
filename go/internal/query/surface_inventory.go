@@ -9,12 +9,19 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 const (
 	surfaceInventoryDefaultLimit = 200
 	surfaceInventoryMaxLimit     = 1000
 )
+
+// surfaceInventoryUnavailableMessage is the fixed body of a failed embedded
+// inventory load on GET /api/v0/surface-inventory (#7674). The load reads a
+// compiled-in artifact, not a store, so there is no reader verdict to map; the
+// decode error goes on the request span, never into the body.
+const surfaceInventoryUnavailableMessage = "surface inventory unavailable"
 
 // SurfaceInventoryHandler serves the generated surface inventory at
 // GET /api/v0/surface-inventory. The inventory is the embedded, generated
@@ -57,7 +64,7 @@ func (h *SurfaceInventoryHandler) Mount(mux *http.ServeMux) {
 func (h *SurfaceInventoryHandler) list(w http.ResponseWriter, r *http.Request) {
 	inventory, err := h.load()
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "surface inventory unavailable")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, surfaceInventoryUnavailableMessage)
 		return
 	}
 

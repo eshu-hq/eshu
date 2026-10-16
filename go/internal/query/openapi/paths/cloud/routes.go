@@ -11,7 +11,7 @@ const Routes = `
     "/api/v0/cloud/resources": {
       "get": {
         "summary": "List cloud provider resources from the authoritative graph (bounded, filterable, keyset-paged)",
-        "description": "Selects an authorized, current page from the graph owner ledger before hydrating only those resource IDs from the authoritative graph. Scoped tokens are filtered by repository and ingestion-scope grants before the page limit.",
+        "description": "Selects an authorized, current page from the graph owner ledger before hydrating only those resource IDs from the authoritative graph. Scoped tokens are filtered by repository and ingestion-scope grants before the page limit. A 503 with Retry-After means a transient condition that is safe to retry: the owner-ledger page selection hit a stale or timed-out PostgreSQL reader, or the graph backend is unavailable for the hydration read; a 503 without Retry-After means a configuration state, such as a graph backend or owner-ledger store that is not configured on this API instance. A graph hydration read that exceeds its deadline answers 504. No 5xx body carries backend error text. A graph or reader verdict 503 names capability platform_impact.cloud_resource_list in its error envelope.",
         "operationId": "listCloudResources",
         "x-scoped-token-support": true,
         "parameters": [
@@ -68,8 +68,9 @@ const Routes = `
             }
           },
           "400": {"description": "Invalid limit or incomplete cursor"},
+          "500": {"$ref": "#/components/responses/InternalError"},
           "501": {"description": "Capability unsupported by the active query profile"},
-          "503": {"description": "Authoritative graph backend unavailable"}
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
