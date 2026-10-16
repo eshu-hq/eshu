@@ -21,6 +21,8 @@ func TestMapRowKeysTheIDAndEveryNamedField(t *testing.T) {
 		{"entity_id": "e1", "source_cache": "body2", "start_line": 3},
 		{"entity_id": "e1", "source_cache": "body", "start_line": 4},
 		{"entity_id": "e1", "source_cache": "body", "start_line": 3, "language": ""},
+		// A field present as JSON null differs from an absent field.
+		{"entity_id": "e1", "source_cache": "body", "start_line": 3, "language": nil},
 	}
 	for _, variant := range variants {
 		if rank.MapRow(variant, "source_cache", "start_line", "language").Content == row.Content {
