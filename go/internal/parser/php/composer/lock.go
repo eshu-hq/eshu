@@ -142,7 +142,7 @@ func readLock(path string) (lockIndex, bool) {
 		return lockIndex{}, false
 	}
 	return lockCache.Get(path, stat, func() lockIndex {
-		content, err := os.ReadFile(path)
+		content, err := os.ReadFile(path) // #nosec G304 -- reads an indexed repository composer.lock at a path found by the nearest-file walk under the scan target
 		if err != nil {
 			return lockIndex{}
 		}

@@ -110,7 +110,7 @@ func readManifest(path string) (manifest, bool) {
 		return manifest{}, false
 	}
 	return manifestCache.Get(path, stat, func() manifest {
-		content, err := os.ReadFile(path)
+		content, err := os.ReadFile(path) // #nosec G304 -- reads an indexed repository composer.json at a path found by the nearest-file walk under the scan target
 		if err != nil {
 			return manifest{}
 		}
