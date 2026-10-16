@@ -26,7 +26,7 @@ tests:
   - file: go/internal/storage/postgres/config/artifacts/fence_trigger_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8155 (#7126 PR3b-1b) disposable PostgreSQL 18 proof of the migration 182 content_files version fence: INSERT, UPDATE, upsert, DELETE and TRUNCATE each bump a touched repository once per transaction and leave others alone; a rolled-back write leaves no version row; two concurrent first writes of an unseeded repository converge on one row at version 2 with no error (10 rounds); a transaction whose id a restored version row already holds still bumps once (the (bumped_xid, bumped_at) guard); the fence is the last statement-level AFTER trigger per event, after the migration 138 secret-lines triggers and, for DELETE, after the row-level RI triggers; enrolled in the live-postgres-readiness runner; 0.7-1.5 s per proof on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated"
+    reason: "#8155 (#7126 PR3b-1b) disposable PostgreSQL 18 proof of the migration 184 content_files version fence: INSERT, UPDATE, upsert, DELETE and TRUNCATE each bump a touched repository once per transaction and leave others alone; a rolled-back write leaves no version row; two concurrent first writes of an unseeded repository converge on one row at version 2 with no error (10 rounds); a transaction whose id a restored version row already holds still bumps once (the (bumped_xid, bumped_at) guard); the fence is the last statement-level AFTER trigger per event, after the migration 138 secret-lines triggers and, for DELETE, after the row-level RI triggers; enrolled in the live-postgres-readiness runner; 0.7-1.5 s per proof on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/config/artifacts/fence_churn_live_test.go
     tag: ~
@@ -56,10 +56,10 @@ tests:
   - file: go/internal/storage/postgres/config/artifacts/fence_seed_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8155 migrations 182 and 183 on a database that already holds content: one version-0 row per repository with bumped_xid 0, a row a fenced write created between the two files kept, a re-apply changes nothing, and the first write bumps 0 to 1; the seed racing an open fenced write converges on one row (commit: version 1, rollback: version 0); enrolled in the live-postgres-readiness runner; about 1-2 s per proof on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated"
+    reason: "#8155 migrations 184 and 185 on a database that already holds content: one version-0 row per repository with bumped_xid 0, a row a fenced write created between the two files kept, a re-apply changes nothing, and the first write bumps 0 to 1; the seed racing an open fenced write converges on one row (commit: version 1, rollback: version 0); enrolled in the live-postgres-readiness runner; about 1-2 s per proof on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/config/artifacts/fence_seed_timing_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8155 seed timing proof: migrations 182 and 183 on a content_files fixture over 3,000 repositories with every index present, then exactly one version-0 row per repository; 30,000 rows by default (ESHU_CONFIG_ARTIFACT_SEED_TIMING_ROWS=1000000 for the ruling size: 182 0.0033 s, 183 0.1329 s, fixture load 74 s, load1 45 on 2026-10-16); enrolled in the live-postgres-readiness runner; SEED_TIMING wall is logged, never gated"
+    reason: "#8155 seed timing proof: migrations 184 and 185 on a content_files fixture over 3,000 repositories with every index present, then exactly one version-0 row per repository; 30,000 rows by default (ESHU_CONFIG_ARTIFACT_SEED_TIMING_ROWS=1000000 for the ruling size: 184 0.0033 s, 185 0.1329 s, fixture load 74 s, load1 45 on 2026-10-16); enrolled in the live-postgres-readiness runner; SEED_TIMING wall is logged, never gated"
     runner: live-postgres-readiness

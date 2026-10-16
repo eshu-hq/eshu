@@ -19,7 +19,7 @@ import (
 )
 
 // fenceTriggerNames are the four content_files version-fence triggers of
-// migration 182 (#7126 protocol companion, section 2).
+// migration 184 (#7126 protocol companion, section 2).
 var fenceTriggerNames = []string{
 	"content_files_version_fence_delete",
 	"content_files_version_fence_insert",
@@ -62,7 +62,7 @@ func versionsOf(ctx context.Context, t *testing.T, db *sql.DB, repoIDs []string)
 	return out
 }
 
-// seedZeroVersions sets version 0 for each repository, the shape migration 183
+// seedZeroVersions sets version 0 for each repository, the shape migration 185
 // seeds.
 func seedZeroVersions(ctx context.Context, t *testing.T, db *sql.DB, repoIDs ...string) {
 	t.Helper()

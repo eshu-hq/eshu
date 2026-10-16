@@ -39,7 +39,7 @@ Scoped instructions for the config-artifact read model (#7126). The root
   same reason for every state; test it against `Classify`, not a copy.
 - The walk claim is not a lease. Do not make correctness depend on a single
   walker owning a repository.
-- Migrations 182 and 183 are the fence. Every `content_files` writer must
+- Migrations 184 and 185 are the fence. Every `content_files` writer must
   bump; never add a session setting or `WHEN` clause that skips the fence
   triggers (an F2 amendment by ruling is required). Keep the trigger names
   sorting after `content_files_secret_lines_*` and the bump `ORDER BY

@@ -141,7 +141,7 @@ VALUES ($1, 'deploy/app', 'kustomization.yaml', 'kustomize_resource', $2)`
 // TestReadModelCatalogLive checks what the migration installs beyond column
 // shape: the wrapper is IMMUTABLE (the generated column needs it), the rows
 // table carries the 2% autovacuum threshold, and exactly the four migration
-// 182 fence triggers on content_files call a config_artifact function
+// 184 fence triggers on content_files call a config_artifact function
 // (PR3b-1b); their firing order is TestVersionFenceTriggersFireLastLive.
 func TestReadModelCatalogLive(t *testing.T) {
 	ctx, db := openDatabase(t)

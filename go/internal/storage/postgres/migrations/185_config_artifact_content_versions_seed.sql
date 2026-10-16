@@ -9,7 +9,7 @@
 -- content_files. The PR3b-2 walker then walks O(repositories) version rows
 -- instead of scanning content_files.
 --
--- Why a separate file from the migration 182 triggers. The #7961 lock-shape
+-- Why a separate file from the migration 184 triggers. The #7961 lock-shape
 -- gate refuses table-locking DDL (CREATE TRIGGER) and bulk DML in one file,
 -- because the migrator sends a file as one message and PostgreSQL would hold
 -- the trigger's SHARE ROW EXCLUSIVE lock on content_files through the scan.

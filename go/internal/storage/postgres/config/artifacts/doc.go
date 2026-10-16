@@ -12,9 +12,9 @@
 // content version per repository), config_artifact_repo_state (one derive
 // state per repository), config_artifact_paths (the rows, keyed on repo_id
 // and a generated row_digest), config_artifact_backfill_markers, and
-// config_artifact_reconcile_cursor. Migration 182 adds the content_files
+// config_artifact_reconcile_cursor. Migration 184 adds the content_files
 // version-fence triggers, which bump a repository's version once per content
-// transaction, and migration 183 seeds one version-0 row per repository. No
+// transaction, and migration 185 seeds one version-0 row per repository. No
 // derive or reader exists yet.
 //
 // This package defines the contracts the later PRs build on:

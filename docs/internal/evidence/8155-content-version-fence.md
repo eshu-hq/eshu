@@ -1,6 +1,6 @@
 # Content-version fence for the config-artifact read model (#8155, PR3b-1b)
 
-Refs #8155, #7126. This note records the proof for migrations 182 and 183:
+Refs #8155, #7126. This note records the proof for migrations 184 and 185:
 the four `content_files_version_fence_*` triggers and the version-0 seed of
 `config_artifact_content_versions`. The design is
 [Derive repository config artifacts when content is written](../design/7126-ingest-time-config-artifacts.md)
@@ -11,8 +11,8 @@ no read-path change, so it removes no read time.
 
 | File | Content |
 |---|---|
-| `182_content_files_version_fence.sql` | Three plpgsql functions and four triggers. INSERT and UPDATE are statement-level with a `NEW TABLE`, DELETE is statement-level with an `OLD TABLE`, TRUNCATE bumps every version row. Each bumps a touched repository once per transaction, in `repo_id` order |
-| `183_config_artifact_content_versions_seed.sql` | `INSERT ... SELECT DISTINCT repo_id FROM content_files ... ON CONFLICT DO NOTHING`, version 0, `bumped_xid` `'0'::xid8` |
+| `184_content_files_version_fence.sql` | Three plpgsql functions and four triggers. INSERT and UPDATE are statement-level with a `NEW TABLE`, DELETE is statement-level with an `OLD TABLE`, TRUNCATE bumps every version row. Each bumps a touched repository once per transaction, in `repo_id` order |
+| `185_config_artifact_content_versions_seed.sql` | `INSERT ... SELECT DISTINCT repo_id FROM content_files ... ON CONFLICT DO NOTHING`, version 0, `bumped_xid` `'0'::xid8` |
 
 Two deviations from the S3 ruling text:
 
@@ -28,9 +28,9 @@ Two deviations from the S3 ruling text:
    version 1 through the trigger, and the seed keeps it
    (`TestVersionFenceMigrationsOnExistingContentLive`,
    `TestVersionFenceSeedRacesAFencedWriteLive`). Every repository ends with
-   one row. `TestFenceMigrationsApplyTriggersBeforeSeed` pins 170, then 182,
-   then 183. The content-write stall is now the `CREATE TRIGGER` catalog
-   lock only (182 took 0.0033 s on 1,000,000 rows); the seed holds ACCESS
+   one row. `TestFenceMigrationsApplyTriggersBeforeSeed` pins 170, then 184,
+   then 185. The content-write stall is now the `CREATE TRIGGER` catalog
+   lock only (184 took 0.0033 s on 1,000,000 rows); the seed holds ACCESS
    SHARE and blocks no write.
 2. **Guard on `(bumped_xid, bumped_at)`.** The ruled guard compares
    `bumped_xid` only. The PR3b-1a review left a forward note (package
@@ -59,8 +59,8 @@ PostgreSQL 18.6 in Docker, `TestVersionFenceSeedTimingLive` with
 
 | Migration | Wall | Bar |
 |---|---|---|
-| 182 triggers | 0.0033 s | at most 1 s |
-| 183 seed | 0.1329 s | at most 1 s |
+| 184 triggers | 0.0033 s | at most 1 s |
+| 185 seed | 0.1329 s | at most 1 s |
 
 Host load1 was 45.28 at the start and 28.43 at the end (other sessions), so
 both figures are upper bounds. The default 30,000-row run measured 0.0035 s
@@ -78,7 +78,7 @@ Pending for the merge, on a quiet host (load1 under 9), with the harnesses in
 the coordinator's kit: the 8 KiB class, arms A and B2, 1 discard plus at least
 5 interleaved rounds, with `prune_temp_bytes`; and arm 5 attributed (modes A,
 B-last, B-first; 20 rounds disjoint, 20 overlapping) plus the arm 1
-confirmation (5 rounds). Both measure the shipped migration 182 functions,
+confirmation (5 rounds). Both measure the shipped migration 184 functions,
 including the `(bumped_xid, bumped_at)` guard. NOT_CHECKED until then.
 
 ## No-Regression Evidence

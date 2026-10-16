@@ -41,7 +41,7 @@
 -- this file commits, which waits behind a running retention or content
 -- transaction and blocks content writes (not reads) for the catalog change
 -- only; the migrator's lock_timeout and retry budget bound the wait. This file
--- holds no DML: the version-0 seed is migration 183.
+-- holds no DML: the version-0 seed is migration 185.
 --
 -- Re-runnable: CREATE OR REPLACE for every function and trigger.
 

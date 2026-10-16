@@ -25,11 +25,11 @@ Names are proposals. The migration number is chosen at build time.
 - PR3b-1b seeds one version row with `version = 0` for each `SELECT
   DISTINCT repo_id FROM content_files`, as migration 169 does its backfill.
   The walker's universe is then O(repositories), not a scan of
-  `content_files`. Order (S3 ruling): the four triggers first (migration 182),
-  then the seed with `ON CONFLICT DO NOTHING` (migration 183). The #7961
+  `content_files`. Order (S3 ruling): the four triggers first (migration 184),
+  then the seed with `ON CONFLICT DO NOTHING` (migration 185). The #7961
   lock-shape gate refuses both in one file, so a write can land between them;
   its trigger creates or bumps the row first and the seed keeps it. Timed on
-  1,000,000 rows: 182 0.0033 s, 183 0.1329 s (evidence note
+  1,000,000 rows: 184 0.0033 s, 185 0.1329 s (evidence note
   `8155-content-version-fence.md`).
 - **Proposed** rule: delete or reset a version row only together with the
   repository's state row, in one transaction. A version row re-created while

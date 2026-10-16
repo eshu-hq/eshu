@@ -28,7 +28,7 @@ func migrationSQL(t *testing.T, name string) string {
 }
 
 // rewindToPreFence returns a bootstrapped database to its state before
-// migration 182: no fence trigger and no version row.
+// migration 184: no fence trigger and no version row.
 func rewindToPreFence(ctx context.Context, t *testing.T, db *sql.DB) {
 	t.Helper()
 	dropFence(ctx, t, db)
@@ -62,8 +62,8 @@ func versionRows(ctx context.Context, t *testing.T, db *sql.DB) map[string]versi
 	return out
 }
 
-// TestVersionFenceMigrationsOnExistingContentLive applies migrations 182 and
-// 183 to a database that already holds content: every repository with
+// TestVersionFenceMigrationsOnExistingContentLive applies migrations 184 and
+// 185 to a database that already holds content: every repository with
 // content gets one version-0 row with bumped_xid 0, a version row that a
 // fenced write created before the seed is kept, a re-apply of both files
 // changes nothing, and the first write after the seed bumps 0 to 1 (no real
@@ -78,7 +78,7 @@ func TestVersionFenceMigrationsOnExistingContentLive(t *testing.T) {
 	}
 
 	mustExec(ctx, t, db, migrationSQL(t, fenceMigrations[0]))
-	insertContentRows(ctx, t, db, "late", 2, "repo-between") // a write between 182 and 183
+	insertContentRows(ctx, t, db, "late", 2, "repo-between") // a write between 184 and 185
 	mustExec(ctx, t, db, migrationSQL(t, fenceMigrations[1]))
 
 	seeded := versionRows(ctx, t, db)
