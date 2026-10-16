@@ -463,7 +463,7 @@ gates:
       - "specs/live-tests.d/**"
       - "scripts/lib/live_tests_registry.py"
       - "scripts/test-live-tests-registry.py"
-      - "scripts/lib/live_postgres_readiness_inventory.py"
+      - "scripts/lib/live_postgres_readiness_inventory*.py"
       - "scripts/lib/live_postgres_readiness_records.py"
       - "scripts/run-live-backend-tests.sh"
       - "scripts/test-run-live-backend-tests.sh"
