@@ -29,7 +29,10 @@ selected skips and failures, including child skips and failures. It renders Go
 `Output` events only after the structured check passes, so the six previous
 PASS-line checks still run on their actual output. The workflow, registry, and
 pre-PR selector route changes to the inventory, validator, ledger fragments,
-runner, and mirrors to the same blocking job.
+runner, and mirrors to the same blocking job. The independent ledger
+inventory also checks that queue selection, checkout, Go setup, contract
+verification, and backend execution remain active in that job with the
+existing merge-group selection condition and direct proof commands.
 
 The unchanged complete runner passed on baseline
 `e0e7f03f9763b25e7f5b1163e2bdafb4f5100f24` in 607.443545 seconds

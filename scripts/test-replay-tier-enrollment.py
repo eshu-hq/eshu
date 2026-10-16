@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 from pathlib import Path
 import subprocess
@@ -189,6 +190,93 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
             ))
             with self.assertRaisesRegex(ValueError, "pre-pr"):
                 verify_routes(fixture)
+
+    def test_workflow_proof_steps_must_stay_live(self) -> None:
+        """Reject disabled or replaced CI proof even when PR paths stay intact."""
+        workflow_source = (ROOT / ".github/workflows/verify-replay-tier.yml").read_text()
+
+        def disabled_step(name: str) -> str:
+            pattern = rf"(?m)(^      - name: {re.escape(name)}\n)        if: [^\n]+"
+            changed, count = re.subn(pattern, r"\1        if: false", workflow_source,
+                                     count=1)
+            self.assertEqual(count, 1, name)
+            return changed
+
+        backend = "Run offline replay tier against real NornicDB"
+        contract = "Verify replay tier contract"
+        cases = {
+            "job disabled": workflow_source.replace(
+                "  replay-tier:\n", "  replay-tier:\n    if: false\n", 1),
+            "queue selection disabled": workflow_source.replace(
+                "  queue-selection:\n", "  queue-selection:\n    if: false\n", 1),
+            "backend step disabled": disabled_step(backend),
+            "contract step disabled": disabled_step(contract),
+            "backend command no-op": workflow_source.replace(
+                "run: bash scripts/verify-replay-tier.sh", "run: true", 1),
+            "contract command no-op": workflow_source.replace(
+                "run: bash scripts/test-verify-replay-tier.sh", "run: true", 1),
+            "backend error ignored": workflow_source.replace(
+                f"      - name: {backend}\n",
+                f"      - name: {backend}\n        continue-on-error: true\n", 1),
+            "checkout replaced": workflow_source.replace(
+                "uses: actions/checkout@v5", "run: true", 1),
+            "Go setup replaced": workflow_source.replace(
+                "uses: actions/setup-go@v6", "run: true", 1),
+            "queue condition changed": workflow_source.replace(
+                "github.event_name != 'merge_group'", "github.event_name == 'push'", 1),
+            "duplicate PR trigger overrides paths": workflow_source.replace(
+                "\nconcurrency:\n",
+                "\n  pull_request:\n    branches: [ main ]\n\nconcurrency:\n", 1),
+            "duplicate jobs disables gate": workflow_source + "\njobs: {}\n",
+            "queue target overridden": workflow_source.replace(
+                "      workflow: verify-replay-tier.yml\n",
+                "      workflow: verify-replay-tier.yml\n"
+                "      workflow: other.yml\n", 1),
+            "Go module overridden": workflow_source.replace(
+                "          go-version-file: go/go.mod\n",
+                "          go-version-file: go/go.mod\n"
+                "          go-version-file: other/go.mod\n", 1),
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = Path(temporary)
+            for name in (
+                ".github/workflows/verify-replay-tier.yml",
+                "specs/ci-gates.d/gates-15.yaml",
+                "scripts/dev/pre-pr.sh",
+            ):
+                target = fixture / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(ROOT / name, target)
+            workflow = fixture / ".github/workflows/verify-replay-tier.yml"
+            verify_routes(fixture)
+            for case, changed in cases.items():
+                with self.subTest(case=case):
+                    self.assertNotEqual(changed, workflow_source)
+                    workflow.write_text(changed)
+                    with self.assertRaisesRegex(ValueError, "workflow"):
+                        verify_routes(fixture)
+
+    def test_inventory_closes_workflow_liveness_for_ledger_gate(self) -> None:
+        """The independent ledger inventory rejects a disabled replay job."""
+        inventory = json.loads(INVENTORY.read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = Path(temporary)
+            for name in (*inventory["files"],
+                         "scripts/verify-replay-tier.sh",
+                         "scripts/lib/replay_tier_enrollment.py",
+                         ".github/workflows/verify-replay-tier.yml",
+                         "specs/ci-gates.d/gates-15.yaml",
+                         "scripts/dev/pre-pr.sh"):
+                target = fixture / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(ROOT / name, target)
+            verify_inventory(fixture, inventory)
+            workflow = fixture / ".github/workflows/verify-replay-tier.yml"
+            workflow.write_text(workflow.read_text().replace(
+                "  replay-tier:\n", "  replay-tier:\n    if: false\n", 1
+            ))
+            with self.assertRaisesRegex(ValueError, "workflow"):
+                verify_inventory(fixture, inventory)
 
     def test_old_guard_output_cannot_replace_json_test_events(self) -> None:
         package = "github.com/eshu-hq/eshu/go/internal/replay/offlinetier"
