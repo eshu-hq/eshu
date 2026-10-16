@@ -35,9 +35,11 @@ the lane's own order (`graph_name` or `lexical`), with no relevance reorder.
 `rank_walk.order` and `rank_walk.ranked` tell the client which order it got.
 
 A `hybrid` order sorts by fused score rounded to 8 significant digits,
-highest first, then by `entity_id` ascending. A row the ranker cannot score
-comes after the scored rows, by `entity_id`. Scored rows carry
-`search_backend=hybrid`. Walk rows never carry `page_position`.
+highest first, then by `entity_id` ascending. A row the ranker cannot score,
+or scores as NaN or infinite, is unscored: it comes after the scored rows, by
+`entity_id`, and carries no `search_backend` label. Only finitely scored rows
+carry `search_backend=hybrid`, and a window with no finite score walks in
+`lexical` order. Walk rows never carry `page_position`.
 
 ## Response
 

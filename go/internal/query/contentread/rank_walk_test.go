@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -414,5 +415,77 @@ func TestSearchEntitiesRankWalkScoringFailureIsAFixedServerError(t *testing.T) {
 				t.Fatalf("span recorded %s=%s on a failed walk", kv.Key, kv.Value.AsString())
 			}
 		}
+	}
+}
+
+// fixedWindowScorer is an enabled ranker whose window score is scores.
+type fixedWindowScorer struct{ scores map[string]float64 }
+
+func (f fixedWindowScorer) RerankEntities(_ context.Context, _, _ string, rows []querycontract.EntityContent) ([]querycontract.EntityContent, bool) {
+	return rows, false
+}
+
+func (f fixedWindowScorer) RerankFiles(_ context.Context, _, _ string, rows []querycontract.FileContent) ([]querycontract.FileContent, bool) {
+	return rows, false
+}
+
+func (f fixedWindowScorer) CanScoreWindow() bool { return true }
+
+func (f fixedWindowScorer) ScoreEntityWindow(context.Context, string, string, []querycontract.EntityContent) (map[string]float64, error) {
+	return f.scores, nil
+}
+
+// TestSearchEntitiesRankWalkTreatsNonFiniteScoresAsUnscored pins one
+// definition of scored on the content route: NaN or infinite scores walk in
+// the unscored tail with no hybrid label, and a window with no finite score
+// is a lexical walk in window order.
+func TestSearchEntitiesRankWalkTreatsNonFiniteScoresAsUnscored(t *testing.T) {
+	t.Parallel()
+	walk := func(scores map[string]float64) walkResponse {
+		h := &ContentHandler{
+			Content:      &staticEntityStore{rows: walkRows(4)},
+			Profile:      querycontract.ProfileLocalAuthoritative,
+			HybridRanker: fixedWindowScorer{scores: scores},
+		}
+		rec, resp := postWalk(t, h, "/api/v0/content/entities/search", map[string]any{
+			"query": "payment refund", "repo_id": walkRepoID, "limit": 10, "rank_cursor": rank.StartToken,
+		})
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
+		}
+		return resp
+	}
+	mixed := walk(map[string]float64{"entity-003": 0.9, "entity-000": math.NaN(), "entity-002": math.Inf(1)})
+	if mixed.Walk["order"] != rank.OrderHybrid {
+		t.Fatalf("mixed order = %v, want hybrid", mixed.Walk["order"])
+	}
+	wantIDs := []string{"entity-003", "entity-000", "entity-001", "entity-002"}
+	for i, row := range mixed.Results {
+		if row.EntityID != wantIDs[i] {
+			t.Fatalf("mixed walk row %d = %s, want order %v", i, row.EntityID, wantIDs)
+		}
+		if wantLabel := row.EntityID == "entity-003"; (row.SearchBackend == "hybrid") != wantLabel {
+			t.Fatalf("row %s search_backend = %q, want hybrid only on the finitely scored row", row.EntityID, row.SearchBackend)
+		}
+	}
+	none := walk(map[string]float64{"entity-000": math.NaN(), "entity-001": math.Inf(-1)})
+	if none.Walk["order"] != rank.OrderLexical || none.Walk["ranked"] != false {
+		t.Fatalf("all non-finite rank_walk = %v, want order lexical, not ranked", none.Walk)
+	}
+	for i, row := range none.Results {
+		if row.EntityID != fmt.Sprintf("entity-%03d", i) || row.SearchBackend != "" {
+			t.Fatalf("all non-finite row %d = %s (%q), want window order with no label", i, row.EntityID, row.SearchBackend)
+		}
+	}
+}
+
+// TestEntityPageRowsSkipsAnIDWithNoRow mirrors rank.MapPage's fail-closed
+// contract: an id with no row emits nothing, never an empty row.
+func TestEntityPageRowsSkipsAnIDWithNoRow(t *testing.T) {
+	t.Parallel()
+	rows := []querycontract.EntityContent{{EntityID: "a"}}
+	page := entityPageRows(rows, map[string]float64{"a": 1}, []string{"ghost", "a"})
+	if len(page) != 1 || page[0].EntityID != "a" || page[0].SearchBackend != "hybrid" {
+		t.Fatalf("page = %+v, want only row a, labelled hybrid", page)
 	}
 }

@@ -166,12 +166,12 @@ func (h *ContentHandler) searchEntitiesRanked(w http.ResponseWriter, r *http.Req
 
 // entityWindow builds the walk window from the lexical rows. Each row's
 // content covers every field the ranker projects, so an edit between pages
-// changes the basis. The order is hybrid when at least one row was scored,
-// else lexical (window order); the ranker identity enters the basis only for
+// changes the basis. The order is hybrid when at least one row is
+// rank.Scored (a finite score), else lexical (window order); the ranker identity enters the basis only for
 // a hybrid order.
 func entityWindow(repoID, pattern string, rows []querycontract.EntityContent, scores map[string]float64, lexicalTruncated bool) rank.Window {
 	order, ranker := rank.OrderLexical, ""
-	if len(scores) > 0 {
+	if rank.AnyScored(scores) {
 		order, ranker = rank.OrderHybrid, contentRankerIdentity
 	}
 	window := rank.Window{
@@ -192,8 +192,8 @@ func entityWindow(repoID, pattern string, rows []querycontract.EntityContent, sc
 	return window
 }
 
-// entityPageRows returns the page's rows in walk order. A scored row carries
-// SearchBackend="hybrid"; an unscored row keeps the lexical basis. No row
+// entityPageRows returns the page's rows in walk order. A rank.Scored row
+// carries SearchBackend="hybrid"; an unscored row keeps the lexical basis. No row
 // carries page_position: a walk page is not a window of the offset order.
 func entityPageRows(rows []querycontract.EntityContent, scores map[string]float64, ids []string) []querycontract.EntityContent {
 	byID := make(map[string]querycontract.EntityContent, len(rows))
@@ -204,9 +204,14 @@ func entityPageRows(rows []querycontract.EntityContent, scores map[string]float6
 	}
 	page := make([]querycontract.EntityContent, 0, len(ids))
 	for _, id := range ids {
-		row := byID[id]
+		row, ok := byID[id]
+		if !ok {
+			// Unreachable for ids Walk derived from these rows; skip rather
+			// than emit an empty row (the rank.MapPage contract).
+			continue
+		}
 		row.PagePosition = nil
-		if _, scored := scores[id]; scored {
+		if rank.Scored(scores, id) {
 			row.SearchBackend = "hybrid"
 		}
 		page = append(page, row)

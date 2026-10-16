@@ -37,16 +37,21 @@ func MapRows(rows []map[string]any, contentKeys ...string) ([]Row, map[string]ma
 	return windowRows, byID
 }
 
-// MapPage returns the page's rows in walk order from byID. A scored row gets
-// search_backend="hybrid"; every row loses page_position, because a walk page
-// is not a window of the offset order. The rows are modified in place and
-// must be request-local.
+// MapPage returns the page's rows in walk order from byID. A row Scored by
+// scores gets search_backend="hybrid"; every row loses page_position, because
+// a walk page is not a window of the offset order. The rows are modified in
+// place and must be request-local. An id with no row in byID is skipped, never
+// a nil-map write: it cannot happen for ids Walk derived from the same rows,
+// and a caller that breaks that gets a short page rather than a panic.
 func MapPage(byID map[string]map[string]any, scores map[string]float64, ids []string) []map[string]any {
 	page := make([]map[string]any, 0, len(ids))
 	for _, id := range ids {
-		row := byID[id]
+		row, ok := byID[id]
+		if !ok || row == nil {
+			continue
+		}
 		delete(row, "page_position")
-		if _, scored := scores[id]; scored {
+		if Scored(scores, id) {
 			row["search_backend"] = "hybrid"
 		}
 		page = append(page, row)

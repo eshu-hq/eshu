@@ -4,6 +4,7 @@
 package rank_test
 
 import (
+	"math"
 	"slices"
 	"testing"
 
@@ -57,5 +58,49 @@ func TestMapRowsAndMapPageKeepTheFirstRowPerID(t *testing.T) {
 	}
 	if _, present := page[0]["search_backend"]; present {
 		t.Fatalf("unscored row b marked: %v", page[0])
+	}
+}
+
+// TestMapPageSkipsAnIDWithNoRow pins the fail-closed contract: a page id
+// absent from byID emits no row and does not panic.
+func TestMapPageSkipsAnIDWithNoRow(t *testing.T) {
+	t.Parallel()
+	byID := map[string]map[string]any{"a": {"entity_id": "a"}}
+	page := rank.MapPage(byID, map[string]float64{"a": 1, "ghost": 1}, []string{"ghost", "a"})
+	if len(page) != 1 || page[0]["entity_id"] != "a" {
+		t.Fatalf("page = %v, want only row a", page)
+	}
+}
+
+// TestMapPageLabelsOnlyFinitelyScoredRows pins one definition of scored:
+// a NaN or infinite score orders a row in the unscored tail (rank.Order), so
+// it must not carry search_backend=hybrid either.
+func TestMapPageLabelsOnlyFinitelyScoredRows(t *testing.T) {
+	t.Parallel()
+	byID := map[string]map[string]any{"a": {"entity_id": "a"}, "b": {"entity_id": "b"}, "c": {"entity_id": "c"}}
+	page := rank.MapPage(byID, map[string]float64{"a": 0.5, "b": math.NaN(), "c": math.Inf(1)}, []string{"a", "b", "c"})
+	if page[0]["search_backend"] != "hybrid" {
+		t.Fatalf("row a = %v, want search_backend=hybrid", page[0])
+	}
+	for _, row := range page[1:] {
+		if _, labelled := row["search_backend"]; labelled {
+			t.Fatalf("non-finite row %v carries search_backend", row)
+		}
+	}
+}
+
+func TestScoredMeansFinitelyScored(t *testing.T) {
+	t.Parallel()
+	scores := map[string]float64{"a": 0.5, "b": math.NaN(), "c": math.Inf(-1)}
+	for id, want := range map[string]bool{"a": true, "b": false, "c": false, "missing": false} {
+		if got := rank.Scored(scores, id); got != want {
+			t.Fatalf("Scored(%q) = %v, want %v", id, got, want)
+		}
+	}
+	if rank.AnyScored(map[string]float64{"b": math.NaN(), "c": math.Inf(1)}) {
+		t.Fatal("AnyScored(all non-finite) = true, want false")
+	}
+	if !rank.AnyScored(scores) || rank.AnyScored(nil) {
+		t.Fatal("AnyScored mismatch")
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -31,6 +32,8 @@ type windowRanker struct {
 	// err, when set, is what ScoreCodeWindow returns, so a test can drive
 	// the scoring-failure branch.
 	err error
+	// fixed, when set, is the score map ScoreCodeWindow returns.
+	fixed map[string]float64
 }
 
 func (r windowRanker) CanScoreWindow() bool { return !r.disabled }
@@ -41,6 +44,9 @@ func (r windowRanker) ScoreCodeWindow(_ context.Context, _, _ string, rows []map
 	}
 	if r.err != nil {
 		return nil, r.err
+	}
+	if r.fixed != nil {
+		return r.fixed, nil
 	}
 	scores := make(map[string]float64, len(rows))
 	for i, row := range rows {
@@ -428,5 +434,43 @@ func assertNoServedOutcome(t *testing.T, spans []sdktrace.ReadOnlySpan) {
 				t.Fatalf("span %s recorded %s=%s on a failed walk", span.Name(), kv.Key, kv.Value.AsString())
 			}
 		}
+	}
+}
+
+// TestCodeSearchRankWalkTreatsNonFiniteScoresAsUnscored mirrors the content
+// route: NaN or infinite scores walk in the unscored tail with no hybrid
+// label, and a window with no finite score is a lexical walk.
+func TestCodeSearchRankWalkTreatsNonFiniteScoresAsUnscored(t *testing.T) {
+	t.Parallel()
+	walk := func(scores map[string]float64) map[string]any {
+		handler, _ := walkCodeHandler(4, windowRanker{reversingRanker: reversingRanker{applied: true}, fixed: scores})
+		recorder, response := postCodeSearch(t, handler, map[string]any{
+			"query": "decode", "repo_id": "repo-a", "limit": 10, "rank_cursor": rank.StartToken,
+		})
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+		}
+		return response
+	}
+	mixed := walk(map[string]float64{"entity-003": 0.9, "entity-000": math.NaN(), "entity-002": math.Inf(1)})
+	if mixed["rank_walk"].(map[string]any)["order"] != rank.OrderHybrid {
+		t.Fatalf("mixed rank_walk = %v, want hybrid", mixed["rank_walk"])
+	}
+	if got, want := resultIDs(t, mixed), []string{"entity-003", "entity-000", "entity-001", "entity-002"}; !slices.Equal(got, want) {
+		t.Fatalf("mixed rows = %v, want %v", got, want)
+	}
+	for _, item := range mixed["results"].([]any) {
+		row := item.(map[string]any)
+		if wantLabel := row["entity_id"] == "entity-003"; (row["search_backend"] == "hybrid") != wantLabel {
+			t.Fatalf("row %v search_backend = %v, want hybrid only on the finitely scored row", row["entity_id"], row["search_backend"])
+		}
+	}
+	none := walk(map[string]float64{"entity-000": math.NaN(), "entity-001": math.Inf(-1)})
+	walkBlock := none["rank_walk"].(map[string]any)
+	if walkBlock["order"] != rank.OrderLexical || walkBlock["ranked"] != false || none["source_backend"] != "postgres_content_store" {
+		t.Fatalf("all non-finite: rank_walk %v source_backend %v, want lexical, postgres_content_store", walkBlock, none["source_backend"])
+	}
+	if got, want := resultIDs(t, none), []string{"entity-000", "entity-001", "entity-002", "entity-003"}; !slices.Equal(got, want) {
+		t.Fatalf("all non-finite rows = %v, want window order %v", got, want)
 	}
 }

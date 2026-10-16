@@ -96,7 +96,7 @@ func (h *CodeHandler) handleRankWalk(w http.ResponseWriter, r *http.Request, req
 				return
 			}
 		}
-		if len(scores) > 0 {
+		if rank.AnyScored(scores) {
 			window.Order, window.Ranker = rank.OrderHybrid, codemodel.CodeRankerIdentity
 		}
 	}
