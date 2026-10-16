@@ -105,6 +105,13 @@ def _active_lines(source: str, label: str) -> list[tuple[int, str]]:
     return active
 
 
+def _reject_quoted_workflow_keys(lines: list[tuple[int, str]]) -> None:
+    """Reject quoted mapping keys outside the reviewed workflow subset."""
+    for _, content in lines:
+        if re.match(r"^(['\"])[^'\"]+\1\s*:", content):
+            raise ValueError("workflow uses unsupported quoted mapping key")
+
+
 def _only_block(lines: list[tuple[int, str]], key: str, indent: int,
                 label: str) -> list[tuple[int, str]]:
     """Return the one block for an active mapping key at its exact depth."""
@@ -138,6 +145,7 @@ def _paths(lines: list[tuple[int, str]], indent: int, quote: str,
 def workflow_paths(workflow: str) -> set[str]:
     """Read effective on.pull_request.paths in the supported workflow shape."""
     lines = _active_lines(workflow, "workflow")
+    _reject_quoted_workflow_keys(lines)
     events = _only_block(lines, "on", 0, "workflow")
     pull_request = _only_block(events, "pull_request", 2, "workflow")
     if any(content.startswith("<<:") for _, content in pull_request):
@@ -166,6 +174,26 @@ def replay_gate_triggers(registry: str) -> set[str]:
     return _paths(triggers, 6, '"', "registry replay-tier.triggers")
 
 
+def _prepr_selector(prepr: str) -> re.Pattern[str]:
+    """Extract the one active replay command's literal path regex."""
+    lines = prepr.splitlines()
+    starts = [index for index, line in enumerate(lines)
+              if re.fullmatch(r"[ \t]*run_or_defer replay-tier \\", line)]
+    if len(starts) != 1 or starts[0] + 3 >= len(lines):
+        raise ValueError("pre-pr needs one active replay-tier command")
+    index = starts[0]
+    selector = re.fullmatch(r"[ \t]*'([^']+)' \\", lines[index + 1])
+    if (selector is None
+            or re.fullmatch(r"[ \t]*'docker info' \\", lines[index + 2]) is None
+            or re.fullmatch(r'[ \t]*bash "\$\{repo_root\}/scripts/verify-replay-tier\.sh" \|\| rc=1',
+                            lines[index + 3]) is None):
+        raise ValueError("pre-pr replay-tier command has unsupported arguments")
+    try:
+        return re.compile(selector.group(1))
+    except re.error as error:
+        raise ValueError("pre-pr replay-tier selector is invalid") from error
+
+
 def verify_routes(root: Path) -> None:
     """Require metadata-only PRs to select the existing blocking replay job."""
     workflow = (root / ".github/workflows/verify-replay-tier.yml").read_text()
@@ -174,28 +202,23 @@ def verify_routes(root: Path) -> None:
     prepr = (root / "scripts/dev/pre-pr.sh").read_text()
     workflow_triggers = workflow_paths(workflow)
     registry_triggers = replay_gate_triggers(registry)
-    if "run_or_defer replay-tier " not in prepr:
-        raise ValueError("pre-pr lacks replay-tier selector")
-    selector = prepr.split("run_or_defer replay-tier ", 1)[1].split("\n", 2)[1]
+    selector = _prepr_selector(prepr)
     for path in ROUTED_PATHS:
         if path not in workflow_triggers:
             raise ValueError(f"workflow lacks replay metadata trigger: {path}")
         if path.startswith("scripts/lib/replay_tier_"):
             registry_path = "scripts/lib/replay_tier_*"
-            prepr_path = "scripts/lib/(replay_tier_"
         elif path == "scripts/lib/verify-live-tests-ledger.py":
             registry_path = "scripts/lib/verify-live-tests-ledger.py"
-            prepr_path = "verify-live-tests-ledger"
         elif path.startswith("scripts/test-replay-tier-"):
             registry_path = "scripts/test-replay-tier-*.py"
-            prepr_path = "scripts/test-replay-tier-.*"
         elif path.startswith("specs/live-tests"):
             registry_path = path
-            prepr_path = "specs/live-tests"
         else:
             registry_path = path
-            prepr_path = "specs/ci-gates"
         if registry_path not in registry_triggers:
             raise ValueError(f"registry lacks replay metadata trigger: {path}")
-        if prepr_path not in selector:
+        sample = ("specs/live-tests.d/live-tests-03.yaml"
+                  if path == "specs/live-tests.d/**" else path)
+        if selector.match(sample) is None:
             raise ValueError(f"pre-pr lacks replay metadata trigger: {path}")
