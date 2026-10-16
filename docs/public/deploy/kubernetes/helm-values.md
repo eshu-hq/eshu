@@ -52,6 +52,8 @@ workloads:
 - `backend: mcp` requires `mcpServer.enabled=true`.
 - `repoSync.auth.method=ssh` cannot be used with
   `repoSync.source.mode=githubOrg`.
+- `repoSync.source.mode=gitlabGroup` requires a non-empty
+  `repoSync.source.gitlabGroup` and `repoSync.auth.method=token`.
 - Helm-hook schema bootstrap cannot run with chart-managed NornicDB.
 - Claim-driven collectors require active workflow coordination and collector
   instances.

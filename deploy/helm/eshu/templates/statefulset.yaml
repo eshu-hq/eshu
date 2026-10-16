@@ -88,6 +88,12 @@ spec:
               value: {{ .Values.repoSync.auth.method | quote }}
             - name: ESHU_GITHUB_ORG
               value: {{ .Values.repoSync.source.githubOrg | quote }}
+            - name: ESHU_GITLAB_GROUP
+              value: {{ .Values.repoSync.source.gitlabGroup | quote }}
+            {{- if .Values.repoSync.source.gitlabHost }}
+            - name: ESHU_GITLAB_HOST
+              value: {{ .Values.repoSync.source.gitlabHost | quote }}
+            {{- end }}
             - name: ESHU_REPOSITORIES
               value: {{ join "," .Values.repoSync.source.repositories | quote }}
             - name: ESHU_REPOSITORY_RULES_JSON

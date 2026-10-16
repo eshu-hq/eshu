@@ -50,6 +50,7 @@ var NonOutputEnvKeys = map[string]string{
 	"ESHU_SSH_PRIVATE_KEY_PATH":       "credential",
 
 	"ESHU_GITHUB_ORG":             "repository selection",
+	"ESHU_GITLAB_GROUP":           "repository selection",
 	"ESHU_INCLUDE_ARCHIVED_REPOS": "repository selection",
 	"ESHU_REPO_LIMIT":             "repository selection",
 	"ESHU_REPOSITORY_RULES_JSON":  "repository selection",

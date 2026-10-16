@@ -1840,6 +1840,12 @@ type Instruments struct {
 	// deleted (#7774), by collector_kind.
 	RepositorySelectionObservationsDeleted metric.Int64Counter
 
+	// RepositoryListingRequests counts git collector repository listing
+	// requests (#7765) by collector_kind, provider, and a closed outcome
+	// (success, retried, rate_limited, http_error, transport_error,
+	// decode_error). Only the GitLab group client records it today.
+	RepositoryListingRequests metric.Int64Counter
+
 	// CanonicalRepositoryStubsCreated counts Repository nodes the
 	// repo_dependency and submodule_pin shared-edge writers MERGE-created by
 	// id because no node held that id (#7446): a path-less stub, typically

@@ -19,9 +19,10 @@ sync -> discover -> parse -> emit facts -> enqueue -> reducer -> projection -> q
 ```
 
 `git.NativeRepositorySelector` calls `Observer.Observe` right after githubOrg
-discovery, with the full pre-shard listing, on shard 0 only. Every shard lists
-the same org, so a single writer avoids N-way races on the same rows. The
-webhook selector never observes: a webhook batch is not a listing.
+or gitlabGroup discovery, with the full pre-shard listing, on shard 0 only.
+Every shard lists the same org or group, so a single writer avoids N-way races
+on the same rows. The webhook selector never observes: a webhook batch is not
+a listing.
 
 In explicit mode the selector calls `Observe` once per owner of the full
 pre-shard configured list, also on shard 0 only, with a complete listing in
@@ -34,15 +35,20 @@ sample the scope gauge. Filesystem mode and bootstrap-index never observe.
 
 ## Exported surface
 
-- `NewGitHubOrgSelector`, `NewExplicitSelector`, `Selector`, `Rule`,
-  `GitHubAppPrincipal`, `TokenPrincipal`: the selector identity. The id hashes
-  the kind, source mode, lowercased owner, sorted normalized rules, and the
-  include-archived flag, then appends the credential principal, so two
-  configurations or credentials on one owner never share rows.
+- `NewGitHubOrgSelector`, `NewGitLabGroupSelector`, `NewExplicitSelector`,
+  `Selector`, `Rule`, `GitHubAppPrincipal`, `TokenPrincipal`: the selector
+  identity. The id hashes the kind, source mode, lowercased owner, sorted
+  normalized rules, and the include-archived flag, then appends the credential
+  principal, so two configurations or credentials on one owner never share
+  rows. A `gitlab_group` selector also hashes its host (`Host`, omitempty, so
+  `github_org` and `explicit` ids are unchanged); its owner is the lowercased
+  group full path and may contain slashes.
 - `Evaluate`, `Input`, `Result`, `Counts`, `ScopeCounts`: the pure evaluation.
 - `Observer`, `Store`, `Request`: the per-cycle wrapper and its storage port.
 - `KnownScopeHost`: the remote host a selector kind's known scopes must carry
-  (`github.com` for `github_org`, none for explicit).
+  (`github.com` for `github_org`, none for explicit). A `gitlab_group`
+  selector carries its host on `Selector.Host` instead (`knownHost`); a blank
+  host fails closed with `store_error` and never reads.
   The Postgres implementation is
   `go/internal/storage/postgres/membership`.
 - `Observation`, `Row`, `Batch`, `State`, `Confirmed`: the row contract.
@@ -55,7 +61,7 @@ sample the scope gauge. Filesystem mode and bootstrap-index never observe.
 | Rule | Behavior |
 | --- | --- |
 | Complete listing only | `Listing.Complete == false` writes nothing; outcome `listing_truncated`. |
-| Owner partition | Known scopes are the org's `repository` scopes, matched case-insensitively on the repo slug org. A `github_org` selector also requires the stored `remote_url` host to be `github.com` (`KnownScopeHost`), so a gitlab.com or GitHub Enterprise scope with the same slug owner is never judged by a github.com listing. Explicit selectors use no host filter. `repository_ref` scopes are excluded. |
+| Owner partition | Known scopes are one partition's `repository` scopes. A `github_org` selector matches the repo slug org case-insensitively and requires the stored `remote_url` host to be `github.com` (`KnownScopeHost`), so a gitlab.com or GitHub Enterprise scope with the same slug owner is never judged by a github.com listing. A `gitlab_group` selector matches the path prefix instead: the slug equals the group path or starts with it plus `/`, case-insensitively, with the selector host, so a nested group never mass-marks its siblings or lookalikes (`acme/other`, `acme/platformer`) `not_listed`. Explicit selectors use no host filter. `repository_ref` scopes are excluded. |
 | Mass-miss guard | More newly unlisted scopes than `max(10, ceil(0.10 * known))`, or an empty listing while known scopes exist, writes nothing; outcome `guard_tripped`. |
 | State tracking | Each row stores `state_since` and `state_cycle_count`. The same state as the stored row keeps `state_since` and adds one to the count; a different state, or a new row, sets `state_since` to this evaluation and the count to 1. |
 | Confirmation | Any state other than `selected` (`not_listed`, `archived_excluded`, `rule_excluded`) is `Confirmed` only when `state_cycle_count >= 2` and `evaluated_at - state_since >= ConfirmationMinSpan` (5 minutes). A first evaluation never confirms anything. |
@@ -123,14 +129,15 @@ To confirm the cause, check the `not_listed_sample` slugs on GitHub:
 ## Telemetry
 
 - Counter `eshu_dp_collector_repository_selection_evaluations_total`
-  `{collector_kind="git",selector_kind,outcome}`, selector kinds `github_org`
-  and `explicit`, outcomes `evaluated`, `listing_truncated`, `guard_tripped`,
-  `store_error`. The `explicit` kind only reports `evaluated` and
-  `store_error`.
+  `{collector_kind="git",selector_kind,outcome}`, selector kinds `github_org`,
+  `explicit`, and `gitlab_group`, outcomes `evaluated`, `listing_truncated`,
+  `guard_tripped`, `store_error`. The `explicit` kind only reports `evaluated`
+  and `store_error`.
 - Gauge `eshu_dp_collector_repository_selection_scopes`
   `{collector_kind="git",state}`, states `selected`, `not_listed_pending`,
   `not_listed`, `archived_excluded`, `rule_excluded`. Sampled only on
-  `evaluated` cycles.
+  `evaluated` cycles of a `github_org` or `gitlab_group` selector; explicit
+  selectors would overwrite the sample with a partial count.
 - Logs: INFO `git_repository_selection_evaluated` every cycle, carrying the
   outcome and counts; plus WARN `git_repository_selection_guard_tripped`,
   `git_repository_selection_listing_truncated`, or
@@ -151,8 +158,8 @@ To confirm the cause, check the `not_listed_sample` slugs on GitHub:
 ## Expired-row sweep
 
 In a cycle that issues any request, the collector marks exactly one with
-`Request.SweepExpired`: the githubOrg request, or the last owner's request in
-explicit mode. A cycle
+`Request.SweepExpired`: the githubOrg or gitlabGroup request, or the last
+owner's request in explicit mode. A cycle
 that issues no request (filesystem mode, an explicit list with no owners, a
 failed discovery, or no observer wired) sweeps nothing. After that
 request's `evaluated`, `guard_tripped`, or `listing_truncated` outcome, `Observer` calls

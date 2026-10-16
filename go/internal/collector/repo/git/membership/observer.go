@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/metric"
@@ -41,11 +42,12 @@ const (
 // one statement and only advances rows older than the batch;
 // DeleteExpiredObservations deletes long-expired rows in bounded batches.
 type Store interface {
-	// KnownScopes returns the git default-branch repository scopes whose
-	// stored repo slug belongs to owner, case-insensitively. A non-empty
+	// KnownScopes returns the git default-branch repository scopes in
+	// partition: first-segment owner match, or path-prefix match for a
+	// nested group partition, compared case-insensitively. A non-empty
 	// host also requires the scope's stored remote_url host to equal it; a
 	// scope without a remote then never matches.
-	KnownScopes(ctx context.Context, owner, host string) ([]KnownScope, error)
+	KnownScopes(ctx context.Context, partition Partition) ([]KnownScope, error)
 	// Observations returns every stored observation for selectorID.
 	Observations(ctx context.Context, selectorID string) ([]Observation, error)
 	// UpsertObservations writes batch.
@@ -162,9 +164,12 @@ func (o Observer) evaluate(ctx context.Context, req Request) (Result, string, er
 	if o.Store == nil {
 		return listingOnly, FailureClassStoreMissing, errors.New("repository selection store is not configured")
 	}
-	known, err := o.Store.KnownScopes(ctx, req.Selector.Owner, KnownScopeHost(req.Selector.Kind))
+	if req.Selector.Kind == KindGitLabGroup && strings.TrimSpace(req.Selector.knownHost()) == "" {
+		return listingOnly, FailureClassKnownScopesRead, errors.New("gitlab_group selector has no host")
+	}
+	known, err := o.Store.KnownScopes(ctx, req.Selector.Partition())
 	if err != nil {
-		return listingOnly, FailureClassKnownScopesRead, fmt.Errorf("read known repository scopes for org %q: %w", req.Selector.Owner, err)
+		return listingOnly, FailureClassKnownScopesRead, fmt.Errorf("read known repository scopes for owner %q: %w", req.Selector.Owner, err)
 	}
 	prior, err := o.Store.Observations(ctx, req.Selector.ID)
 	if err != nil {
@@ -217,10 +222,11 @@ func (o Observer) record(ctx context.Context, selectorKind string, result Result
 			telemetry.AttrOutcome(string(result.Outcome)),
 		))
 	}
-	// The gauge describes an org's known scopes; an explicit selector writes
-	// only selected rows for its own list, so it would overwrite the org's
-	// sample with a partial count.
-	if result.Outcome != OutcomeEvaluated || selectorKind != KindGitHubOrg || o.Instruments.RepositorySelectionScopes == nil {
+	// The gauge describes one selector's known scopes; an explicit selector
+	// writes only selected rows for its own list, so it would overwrite the
+	// selector's sample with a partial count. One collector process runs one
+	// source mode, so no two kinds share a series.
+	if result.Outcome != OutcomeEvaluated || (selectorKind != KindGitHubOrg && selectorKind != KindGitLabGroup) || o.Instruments.RepositorySelectionScopes == nil {
 		return
 	}
 	for state, value := range map[string]int{

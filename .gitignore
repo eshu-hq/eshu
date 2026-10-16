@@ -46,7 +46,7 @@ dist/
 .env.remote-e2e
 .envrc
 .venv
-env/
+/env/
 venv/
 
 # IDEs and editors

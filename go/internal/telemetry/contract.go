@@ -81,7 +81,8 @@ const (
 	// not_listed, archived_excluded, or rule_excluded.
 	MetricDimensionState = "state"
 	// MetricDimensionSelectorKind labels the repository selection evaluation
-	// counter (#7625) with the closed selector kind: github_org or explicit.
+	// counter (#7625, #7765) with the closed selector kind: github_org,
+	// explicit, or gitlab_group.
 	MetricDimensionSelectorKind = "selector_kind"
 	// MetricDimensionGuardrail labels counters for bounded guardrail classes
 	// that are not admission or correlation outcomes.

@@ -119,10 +119,12 @@ type Result struct {
 //
 // A github_org selector writes one row per known scope: the listed state, or
 // not_listed when the complete listing missed it, held back by the mass-miss
-// guard. An explicit selector writes a selected row only for each listed
-// repository that already has a scope, never not_listed or excluded rows, so
-// it skips the guard. Every row carries the liveness window truncated to
-// whole seconds, the stored precision.
+// guard. A gitlab_group selector writes the same full row set, but only for
+// the scopes under its group path prefix. An explicit selector writes a
+// selected row only for each listed repository that already has a scope,
+// never not_listed or excluded rows, so it skips the guard. Every row
+// carries the liveness window truncated to whole seconds, the stored
+// precision.
 func Evaluate(in Input) Result {
 	var result Result
 	listed := indexListing(in.Listing.Repositories, &result.Counts)
@@ -131,7 +133,7 @@ func Evaluate(in Input) Result {
 		return result
 	}
 	now := in.Now.UTC().Truncate(time.Microsecond)
-	known := partitionKnown(in.Known, in.Selector.Owner)
+	known := partitionKnown(in.Known, in.Selector.Partition())
 	result.Counts.Known = len(known)
 	prior := make(map[string]Observation, len(in.Prior))
 	for _, observation := range in.Prior {
@@ -226,14 +228,17 @@ func stateRank(state State) int {
 	}
 }
 
-// partitionKnown keeps the distinct known scopes whose slug's org equals
-// owner case-insensitively, sorted by scope id. The store already filters by
-// org; this keeps the evaluator from ever writing another org's scope.
-func partitionKnown(known []KnownScope, owner string) []KnownScope {
+// partitionKnown keeps the distinct known scopes in partition, sorted by
+// scope id. In first-segment mode it keeps the scopes whose slug's org
+// equals the owner case-insensitively; in prefix mode it keeps the scopes
+// whose slug equals the owner or starts with owner+"/", compared
+// case-insensitively. The store already filters by partition; this keeps the
+// evaluator from ever writing a scope outside it.
+func partitionKnown(known []KnownScope, partition Partition) []KnownScope {
 	kept := make([]KnownScope, 0, len(known))
 	seen := make(map[string]struct{}, len(known))
 	for _, scope := range known {
-		if scope.ScopeID == "" || !strings.EqualFold(slugOwner(scope.Slug), owner) {
+		if scope.ScopeID == "" || !inPartition(scope.Slug, partition) {
 			continue
 		}
 		if _, ok := seen[scope.ScopeID]; ok {
@@ -249,6 +254,19 @@ func partitionKnown(known []KnownScope, owner string) []KnownScope {
 func slugOwner(slug string) string {
 	owner, _, _ := strings.Cut(strings.TrimSpace(slug), "/")
 	return owner
+}
+
+// inPartition reports whether slug belongs to partition. First-segment mode
+// compares the slug's org to the owner case-insensitively; prefix mode keeps
+// the scopes whose slug equals the owner or starts with owner+"/",
+// case-insensitively. The owner is the lowercased selector owner, and the
+// trailing slash keeps acme/platform from matching acme/platformer.
+func inPartition(slug string, partition Partition) bool {
+	if !partition.PathPrefix {
+		return strings.EqualFold(slugOwner(slug), partition.Owner)
+	}
+	lowered := strings.ToLower(slug)
+	return lowered == partition.Owner || strings.HasPrefix(lowered, partition.Owner+"/")
 }
 
 // evaluateExplicit fills result for an explicit selector: one selected row per

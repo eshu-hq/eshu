@@ -381,6 +381,9 @@ PACKAGES = {
         "go/internal/storage/postgres/membership/known_scopes_live_test.go": (
             "TestKnownScopesHostFilterLive",
         ),
+        "go/internal/storage/postgres/membership/known_scopes_prefix_live_test.go": (
+            "TestKnownScopesPathPrefixLive",
+        ),
         "go/internal/storage/postgres/membership/live_read_live_test.go": (
             "TestLiveFilterParityLive",
         ),
