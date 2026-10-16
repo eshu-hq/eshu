@@ -18,7 +18,8 @@ type statusSpecRoute struct {
 }
 
 // statusSliceSpecRoutes lists every route whose read failure #7674 slice 9
-// moved onto a fixed message behind the reader-fence 503.
+// moved onto a fixed message behind the reader-fence 503, including the two
+// admin audit reads in admin/identity.
 var statusSliceSpecRoutes = []statusSpecRoute{
 	{path: "/api/v0/status/pipeline", method: "get"},
 	{path: "/api/v0/status/collectors", method: "get"},
@@ -32,6 +33,8 @@ var statusSliceSpecRoutes = []statusSpecRoute{
 	{path: "/api/v0/status/collector-readiness", method: "get"},
 	{path: "/api/v0/collector-readiness", method: "get"},
 	{path: "/api/v0/evidence/bundle", method: "get"},
+	{path: "/api/v0/auth/admin/audit/events", method: "get"},
+	{path: "/api/v0/auth/admin/audit/summary", method: "get"},
 	{path: "/api/v0/status/semantic-extraction", method: "get", capability: "semantic_extraction.status"},
 	{path: "/api/v0/status/operations", method: "get", capability: "operations.status"},
 	{path: "/api/v0/status/governance", method: "get", capability: "hosted_governance.status"},

@@ -39,7 +39,15 @@ var noCapabilityAllowedFiles = map[string]string{
 		"/api/v0/collector-readiness read the status snapshot with no matrix key (#8227)",
 	"evidence_bundle_live.go": "GET /api/v0/evidence/bundle reads the status snapshot " +
 		"with no matrix key (#8227)",
+	"admin/identity/audit.go": "GET /api/v0/auth/admin/audit/events and GET " +
+		"/api/v0/auth/admin/audit/summary read the governance audit store with no " +
+		"matrix key (#8227)",
 }
+
+// noCapabilityAllowedFileCount pins how many files may pass
+// querycontract.NoCapability, so adding or dropping one is a visible,
+// reviewed change to this constant as well as to the map (#8227 removes them).
+const noCapabilityAllowedFileCount = 7
 
 // noCapabilityConstName is the querycontract constant the sweep recognizes.
 const noCapabilityConstName = "NoCapability"
@@ -121,6 +129,16 @@ func staleNoCapabilityEntries(allowed map[string]string, seen map[string]bool) [
 	}
 	sort.Strings(findings)
 	return findings
+}
+
+// TestNoCapabilityAllowlistHasThePinnedSize fails when the allowlist grows or
+// shrinks without noCapabilityAllowedFileCount moving with it.
+func TestNoCapabilityAllowlistHasThePinnedSize(t *testing.T) {
+	t.Parallel()
+
+	if got := len(noCapabilityAllowedFiles); got != noCapabilityAllowedFileCount {
+		t.Fatalf("noCapabilityAllowedFiles has %d entries, want %d (noCapabilityAllowedFileCount)", got, noCapabilityAllowedFileCount)
+	}
 }
 
 // TestCapabilitySweepNoCapabilityIsAllowlistedByFile is the seeded RED/GREEN

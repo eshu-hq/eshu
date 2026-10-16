@@ -39,8 +39,9 @@ capability-matrix key yet, so their reader-verdict error envelope carries no
 `GET /api/v0/status/index`, `GET /api/v0/index-status`,
 `GET /api/v0/status/hosted-readiness`, `GET /api/v0/status/freshness-causality`,
 `GET /api/v0/status/collector-readiness`, `GET /api/v0/collector-readiness`,
-and `GET /api/v0/evidence/bundle`. The status, `Retry-After`, code, and message
-are the same as on a keyed route. #8227 registers their keys.
+`GET /api/v0/evidence/bundle`, and the two admin audit reads below. The
+status, `Retry-After`, code, and message are the same as on a keyed route.
+#8227 registers their keys.
 
 ## Index status for a scoped caller
 
@@ -96,6 +97,17 @@ The packet build and bundle validation steps do not read a store. They
 answer `500` with the fixed message, because a build error can quote packet
 contents. The drift packet readback keeps its `internal_error` contract
 envelope with the profile block.
+
+## Admin audit reads
+
+`GET /api/v0/auth/admin/audit/events` and `GET /api/v0/auth/admin/audit/summary`
+read the governance audit store through the guarded PostgreSQL reader. A stale
+or timed-out reader answers the retryable `503` with `Retry-After`, and the
+envelope carries no `capability` field. Any other failure answers `500` with
+`failed to list audit events` or `failed to summarize audit events`, and a
+client cancel answers `499` with the same text and no error log line. No audit
+reader answers `503` `admin audit reader is unavailable` with no
+`Retry-After`.
 
 ## Related
 
