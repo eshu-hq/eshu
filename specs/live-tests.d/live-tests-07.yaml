@@ -437,3 +437,33 @@ tests:
     class: postgres_ci
     reason: "#8082 disposable PostgreSQL 18 proof that the whole-pass fan-in leaves an unchanged memo-hit partition's phase and memo rows untouched, publishes a memo hit that gained evidence and a memo miss, republishes an unchanged partition whose readiness row is missing, and keeps the targeted catalog baseline on the active generation's memo after a skipped re-stamp; reuses the #7584 targeted-maintenance proof DSN; enrolled in the live-postgres-readiness runner (scripts/lib/live_postgres_readiness_inventory.py); three proofs took 2.8-3.7s each (two bootstrapped schemas each, two runs) on a local PostgreSQL 18.6 on 2026-10-15; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_ack_journal_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7127 PR-3b Ack journal atomicity (success, planted abort after the insert, deferred commit failure, superseded target, re-ack), prior (superseded, first activation NULL, ambiguous NULL) and the flag-off Ack writing no ledger SQL; one disposable database per test created from the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN admin DSN (env Skip); Postgres only; about 3 s locally on PostgreSQL 18.6; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_ack_journal_inversion_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7127 PR-3b seeded RED/GREEN of the Ack journal gate: the ungated statement (derived from the shipped one) plants the activation_seq inversion through the backfill and the sweeper, the gated one does not; a journal pass holding its key makes the Ack write no row and not wait, and the next sweeper journals it; disposable database from ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN (env Skip); about 6 s locally on PostgreSQL 18.6; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_ack_journal_fence_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7127 PR-3b pg_locks fences: a flag-on Ack paused after its insert holds only the shared (7127, 0) key besides its row locks, and the link writer, a journal pass and retention return without waiting; link-writer locks held do not stop the Ack; with retention holding the scope row the Ack waits on the same transactionid lock with the journal on and off; disposable database from ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN (env Skip); about 2 s locally; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_ack_journal_contention_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7127 PR-3b contention: 16 Ack workers x 24 scopes x 10 rounds (480 Acks), uniform and mixed flag, with the journal loop, four link writers and retention running; 0 deadlocks, 0 commit-order violations from a deferred audit trigger, 0 duplicates, 0 orphans, link state on the active generation; disposable database from ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN (env Skip); about 30 s locally on a loaded host; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_ack_journal_equivalence_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7127 PR-3b equivalence: the G1 fixture's history activated by three flag-on Acks links to byte-equal deltas, links, bucket counts and key state as the same history journaled as backfill rows, and matches the classification oracle; disposable database from ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN (env Skip); about 2 s locally; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_ack_journal_cost_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7127 PR-3b deterministic cost gate: one backend, journal off and on over 4 rounds of 200 Acks; statements per Ack equal, WAL records per Ack at most +6 and buffer hits at most +40 from pg_stat_get_backend_wal and pg_stat_get_backend_io (pg_stat_statements also gated when preloaded), with a seeded RED that writes three extra rows; disposable database from ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN (env Skip); PostgreSQL 18 required; about 10 s locally; enrolled in the live-postgres-readiness runner; wall ratio logged with mean and SD, never gated"
+    runner: live-postgres-readiness

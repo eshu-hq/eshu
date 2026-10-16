@@ -41,6 +41,19 @@
 - `RebaseLinkSQL` and `IncrementalLinkSQL` share `stateDiffCTE` and
   `stateMoveCTEs`. Change them together, and keep the rebase's row-count
   invariant.
+- The projector Ack is a ledger writer (PR-3b, `source = 'ack'`). The
+  journal key `(SlotLockClass, journalLockSlot)` is shared with the Ack
+  (`AckJournalGateSQL`, `pg_try_advisory_xact_lock_shared`) and exclusive for
+  the journal pass (`trySlotQuery`), and neither side waits: an Ack that
+  misses the gate writes no row and the sweeper journals that generation
+  later; a pass that misses the key skips. Never make either side a blocking
+  lock, never move the gate to another key, and never let the pass insert
+  without the exclusive key, or a pass can insert an older generation between
+  an Ack's insert and its commit and invert `activation_seq` against commit
+  order (arbiter ruling of 2026-10-15; `TestProjectorAckJournalInversion`).
+  The gate expression stays in this package so the lock-class scan, which
+  skips this directory, never sees class 7127 elsewhere; the parent package
+  only concatenates it. `TestAckJournalGateUsesTheJournalKey` derives it.
 - The sweeper insert (`journalActiveGenerationsQuery`) is the one ledger
   writer exempt from the lock rule: it names only a generation that is
   active at its snapshot, and retention prunes only generations superseded

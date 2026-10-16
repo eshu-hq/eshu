@@ -467,7 +467,8 @@ Start with:
   `eshu_dp_changed_since_link_backlog`, `eshu_dp_changed_since_link_lag_seconds`,
   `eshu_dp_changed_since_ledger_orphans{kind}`, span `reducer.changed_since_link`
   (retry reasons: `cursor_locked`, `generation_locked`,
-  `generation_lock_timeout`, `slot_busy`; chain-break reason `prior_pruned` is
+  `generation_lock_timeout`, `slot_busy`, `journal_busy` for a skipped
+  journal pass; chain-break reason `prior_pruned` is
   a rebase that also counts as a linked root)
 - activation obligations (#7584, consumer off by default):
   `eshu_dp_activation_obligations{status}`,

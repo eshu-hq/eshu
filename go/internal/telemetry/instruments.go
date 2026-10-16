@@ -344,9 +344,17 @@ type Instruments struct {
 	// ChangedSinceLinks counts link attempts by link_kind (root,
 	// incremental, none) and outcome (linked, break, failed, poisoned, canceled).
 	ChangedSinceLinks metric.Int64Counter
+	// ChangedSinceAckJournal counts committed projector Acks that ran with the
+	// changed-since journal on (#7127 PR-3b), by outcome: journaled (the Ack
+	// wrote its activation row), exists (the generation already had one), and
+	// gate_skipped (a journal pass held its key, so the Ack wrote nothing and
+	// did not wait; the sweeper journals the generation later).
+	ChangedSinceAckJournal metric.Int64Counter
 	// ChangedSinceLinkRetries counts non-counting link outcomes by reason
-	// (cursor_locked, generation_locked, generation_lock_timeout, slot_busy);
-	// a journal pass that gives way on a generation lock counts here too.
+	// (cursor_locked, generation_locked, generation_lock_timeout, slot_busy,
+	// journal_busy); a journal pass that gives way on a generation lock counts
+	// here too, and journal_busy counts a journal pass that skipped because a
+	// projector Ack or another replica's pass held the journal key.
 	ChangedSinceLinkRetries metric.Int64Counter
 	// ChangedSinceLinkFailures counts counting link failures by
 	// failure_class (statement_timeout, connection_lost, sql_error,

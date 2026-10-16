@@ -121,6 +121,52 @@ func (r *Runner) journalRetry(ctx context.Context, err error) bool {
 	return true
 }
 
+// journalSkipLogInterval bounds how often one skip streak logs. An idle
+// runner polls every PollInterval, so a log per skip would flood.
+const journalSkipLogInterval = time.Minute
+
+// observeJournalPass reports a journal pass that skipped (#7127 PR-3b,
+// review F1). The pass's try of the exclusive journal key missed because a
+// projector Ack held it shared or another replica's pass held it, so it
+// journaled nothing: no backfill, no sweeper rows. Each skip counts on
+// retries_total{reason="journal_busy"}. A skip streak logs one INFO line
+// when it starts, at most one more per journalSkipLogInterval while it lasts,
+// and one INFO line when a pass runs again. The streak length and age are on
+// each line. The cycle still links the rows already journaled, and a skip is
+// not a link retry, so it does not slow the drain. Only the goroutine running
+// cycles calls this.
+func (r *Runner) observeJournalPass(ctx context.Context, result store.JournalResult) {
+	now := time.Now()
+	if !result.Skipped {
+		if r.journalSkips > 0 && r.Logger != nil {
+			r.Logger.InfoContext(ctx, "changed-since journal pass resumed after skips",
+				slog.Int("skipped_cycles", r.journalSkips),
+				slog.Float64("skipped_seconds", now.Sub(r.journalSkipSince).Seconds()),
+				telemetry.PhaseAttr(telemetry.PhaseReduction))
+		}
+		r.journalSkips = 0
+		return
+	}
+	if r.Instruments != nil {
+		r.Instruments.ChangedSinceLinkRetries.Add(ctx, 1, metric.WithAttributes(
+			attribute.String(telemetry.MetricDimensionReason, string(store.RetryJournalBusy))))
+	}
+	if r.journalSkips == 0 {
+		r.journalSkipSince = now
+	}
+	r.journalSkips++
+	if r.Logger == nil || (r.journalSkips > 1 && now.Sub(r.lastJournalSkipLog) < journalSkipLogInterval) {
+		return
+	}
+	r.lastJournalSkipLog = now
+	r.Logger.InfoContext(ctx, "changed-since journal pass skipped: a projector Ack or another replica's pass holds the journal key; nothing journaled, retried next cycle",
+		slog.Bool("journal_skipped", true),
+		slog.String("reason", string(store.RetryJournalBusy)),
+		slog.Int("skipped_cycles", r.journalSkips),
+		slog.Float64("skipped_seconds", now.Sub(r.journalSkipSince).Seconds()),
+		telemetry.PhaseAttr(telemetry.PhaseReduction))
+}
+
 // recordCanceled reports a link the runner's shutdown cut short, during the
 // link or during the record of its failure: an INFO log and
 // outcome=canceled, with no cursor record and no ERROR.
@@ -296,6 +342,7 @@ func (r *Runner) logCycle(ctx context.Context, result CycleResult) {
 		return
 	}
 	r.Logger.InfoContext(ctx, "changed-since link cycle completed",
+		slog.Bool("journal_skipped", result.Journal.Skipped),
 		slog.Int64("journaled_sweeper", result.Journal.SweeperRows),
 		slog.Int64("journaled_backfill", result.Journal.BackfillRows),
 		slog.Int("linked", result.Linked),

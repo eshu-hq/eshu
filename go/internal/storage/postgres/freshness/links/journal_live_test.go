@@ -4,6 +4,7 @@
 package linksfreshnessstore_test
 
 import (
+	"database/sql"
 	"strings"
 	"testing"
 	"time"
@@ -158,5 +159,50 @@ func TestStatsReportsBacklogAndLag(t *testing.T) {
 	mustLink(t, linksfreshnessstore.NewLinkWriter(l.store), l, "s")
 	if stats, err = store.Stats(l.ctx); err != nil || stats.BacklogRows != 0 || stats.LagSeconds != 0 {
 		t.Fatalf("Stats after link = %+v, %v", stats, err)
+	}
+}
+
+// TestAckJournalGateAndJournalPassExcludeEachOther proves the PR-3b key
+// sharing (#7127): an Ack holding AckJournalGateSQL makes a journal pass skip,
+// a second Ack still gets the gate, and a running pass makes the gate return
+// false. Every side is a try-lock, so nothing here can wait.
+func TestAckJournalGateAndJournalPassExcludeEachOther(t *testing.T) {
+	l := openLedgerDB(t)
+	gate := func(tx *sql.Tx) bool {
+		t.Helper()
+		var got bool
+		if err := tx.QueryRowContext(l.ctx, `SELECT `+linksfreshnessstore.AckJournalGateSQL).Scan(&got); err != nil {
+			t.Fatalf("gate: %v", err)
+		}
+		return got
+	}
+	begin := func() *sql.Tx {
+		t.Helper()
+		tx, err := l.raw.BeginTx(l.ctx, nil)
+		if err != nil {
+			t.Fatalf("begin: %v", err)
+		}
+		t.Cleanup(func() { _ = tx.Rollback() })
+		return tx
+	}
+	ackA, ackB := begin(), begin()
+	if !gate(ackA) || !gate(ackB) {
+		t.Fatal("two Acks must share the gate")
+	}
+	result, err := linksfreshnessstore.NewJournalStore(l.store).Journal(l.ctx, 10)
+	if err != nil || !result.Skipped {
+		t.Fatalf("Journal with an Ack holding the gate = %+v, %v; want skipped", result, err)
+	}
+	_ = ackA.Rollback()
+	_ = ackB.Rollback()
+
+	pass := begin()
+	var locked bool
+	if err := pass.QueryRowContext(l.ctx, linksfreshnessstore.TrySlotQueryForTest,
+		linksfreshnessstore.SlotLockClass, linksfreshnessstore.JournalLockSlotForTest).Scan(&locked); err != nil || !locked {
+		t.Fatalf("take the journal key: %v %v", locked, err)
+	}
+	if gate(begin()) {
+		t.Fatal("the gate must miss while a journal pass holds its key")
 	}
 }

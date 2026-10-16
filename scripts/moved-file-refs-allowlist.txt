@@ -315,3 +315,9 @@ docs/internal/evidence/5709-quiescence-probe.md:go/internal/storage/postgres/sco
 # compat file itself, so any repoint would make the sentence wrong, not
 # merely stale; the fixture must keep naming the path as filed.
 .agents/skills/eshu-publish/scripts/testdata/pr-bad.md:go/internal/facts/compat_docs.go
+
+# #7127 PR-3b folded projector_queue_crossplane_redrive_hook.go into
+# projector_queue_ack.go (the Ack and its post-commit hook) to keep the
+# storage/postgres dirgate count at 321. The #6693 crossplane-leaf note lists
+# the files that move touched at the time; repointing would falsify that record.
+docs/internal/evidence/6693-crossplane-leaf.md:go/internal/storage/postgres/projector_queue_crossplane_redrive_hook.go

@@ -146,6 +146,22 @@ High-signal invariants for this package:
   terminal same-scope generations, activating the target generation, updating
   the scope pointer, and marking work succeeded. A superseded generation is terminal (#7130): Claim sweeps,
   Heartbeat stops and Ack refuses it; see `docs/internal/evidence/7130-ack-superseded-generation-guard.md`. Every supersede of a work row (four projector writers and the reducer inactive-generation sweep) keeps `failure_class` and `failure_message` as the supersede marker and folds the old row's failure into `failure_details.prior_failure` through the `priorFailureStaleSQL` and `priorFailureWorkSQL` constants (#7320; its `updated_at` is the old row's own, the claim or heartbeat time for a claimed or running row); see `docs/internal/evidence/7320-supersede-prior-failure.md`. The fold is a measured cost: about 7 to 8 microseconds, 986 bytes of WAL and 0.14 heap pages per superseded row that carries 800 bytes of details, paid once per row. #7319: Ack also runs `deltaBaselineFenceQuery` as its own statement after the scope-row lock and the work update, and refuses a delta whose `delta_baseline_commit_sha` is not the active commit (rollback, then `markProjectorDeltaBaselineRefusedQuery`); `ReadDeltaBaseline`/`RefuseDeltaBaseline` serve the preflight; see `docs/internal/evidence/7319-delta-baseline-fence.md`. #7389: `MarkProjectionWriteStarted` sets `scope_generations.projection_write_started_at` to the latest write start, also on a replayed `failed` generation (migration 149; migration 150 sets fillfactor 90 so the update is HOT), and the heartbeat supersede carries its whole predicate on the `locked_generation` CTE (`FOR NO KEY UPDATE OF generation SKIP LOCKED`) so a committed marker is seen by the EvalPlanQual recheck; `IngestionStore.UncoveredProjectionWriters` feeds the collector's `graph_dirty` full snapshot; see `docs/internal/evidence/7389-superseded-writer-overlay.md`. #7469: the claim sweep's first branch and Ack's obsolete-generation supersede spare a generation that started writing (`projection_write_started_at IS NULL`), and the oldest-ready subquery holds a newer row behind an older same-scope marked generation with waiting (`pending`, `retrying`) work, reading both the snapshot and the sweep's lock-time `marker_spared` flag, so the marked retry runs first; terminal marked rows never hold (they heal through `graph_dirty`); see `docs/internal/evidence/7469-marked-supersede-guard.md`. #7473: the claim sweep's first branch spares a full generation (`is_delta` false) unless a newer full exists, and the oldest-ready subquery holds a newer delta behind an older same-scope full with waiting (`pending`, `retrying`) work, so the full projects first; terminal fulls never hold; Ack's obsolete-generation supersede deliberately stays full-blind as the misordering backstop; see `docs/internal/evidence/7473-full-survives-delta.md`.
+- #7127 PR-3b (dark): with `ProjectorQueue.ChangedSinceJournalEnabled` (the
+  ingester and bootstrap-index set it from `ESHU_CHANGED_SINCE_LINK_ENABLED`)
+  Ack also journals the activation into `changed_since_activations`
+  (`source = 'ack'`) in its own transaction. The active supersede gains
+  `RETURNING generation_id` (exactly one row is the prior, otherwise NULL)
+  and the activate statement becomes one CTE that also inserts the row,
+  only while it holds the shared side of the journal pass's try-only key
+  (`linksfreshnessstore.AckJournalGateSQL`); a missed gate writes nothing and
+  does not wait. Both statements are derived from the shipped ones; off, Ack
+  sends exactly the statements it sent before. Nothing reads the ledger yet.
+  Each committed flag-on Ack counts `eshu_dp_changed_since_ack_journal_total`
+  by `outcome` (`journaled`, `exists`, `gate_skipped`); a gate skip also logs
+  INFO with `scope_id` and `generation_id`, sampled: the first skip in the
+  process, then at most one a minute, with `gate_skipped_since_last_log`.
+  See `freshness/links/README.md` ("Ack writer") and
+  `docs/internal/evidence/7127-changed-since-ack-journal.md`.
 - Generation liveness reopens `source_local` only for blockage that replay can
   advance. Exact cross-repository `repo_dependency` source runs stay owned by
   the shared resolver before and after backward evidence commits; the stuck-age

@@ -8,7 +8,8 @@
    `Executor`, `ExecQueryer`, `Transaction`, `Beginner`,
    `ReadOnlyRepeatableReadBeginner` (adapters and bootstrap lock stay in root)
 3. `go/internal/storage/postgres/projector_queue.go` — `ProjectorQueue.Claim`
-   (bounded 40P01/40001 retry; helpers in `projector_queue_scan.go`) and `Ack`; the atomic, lock-timeout-bounded ack transaction is the most sensitive path
+   (bounded 40P01/40001 retry; helpers in `projector_queue_scan.go`), and
+   `projector_queue_ack.go` — `Ack`; the atomic, lock-timeout-bounded ack transaction is the most sensitive path
    in this package
 4. `go/internal/storage/postgres/projector_queue_sql.go` — projector claim,
    stale-generation coalescing, duplicate-lease reclaim, and lifecycle SQL
@@ -77,6 +78,20 @@
   under a local `lock_timeout` (55P03 → `projector.ErrWorkAckDeferred`; retry via
   `AckWhenScopeFree`). Scope precedes generation/work everywhere; Heartbeat uses
   `FOR NO KEY UPDATE SKIP LOCKED`, never waiting on ingestion. Else 40P01.
+- **Ack journal (#7127 PR-3b, dark)** — with `ChangedSinceJournalEnabled`
+  false, Ack sends exactly the statements it sent before
+  (`TestProjectorAckWithJournalOffSendsTheShippedStatements`). On, only two
+  statements change, both derived from the shipped constants (prefix guard
+  `TestAckJournalStatementsDeriveFromShippedQueries`): the active supersede
+  gains `RETURNING generation_id`, and the activate statement becomes the
+  gated CTE `activateAndJournalProjectorGenerationQuery`. Keep the gate
+  `AS MATERIALIZED`, keep it on `linksfreshnessstore.AckJournalGateSQL`
+  (never an advisory literal in this package), keep it a try-lock, and never
+  move the insert out of the activate statement or drop the gate: both
+  invert `activation_seq` against commit order
+  (`TestProjectorAckJournalInversion`). A missed gate writes no row and
+  does not wait. Run the `TestProjectorAckJournal*` live proofs after any
+  change to Ack.
 - **Lease fencing** — projector Heartbeat/Ack/Fail match `lease_owner` and
   `attempt_count`; zero rows is `ErrProjectorClaimRejected` (wraps
   `projector.ErrWorkClaimLost`; drop the attempt). `WorkflowControlStore` checks

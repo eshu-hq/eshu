@@ -6,8 +6,28 @@ package linksfreshnessstore
 // journalLockSlot is the second key of the advisory lock that makes one
 // journal pass exclusive across reducer replicas. It is slot 0 of
 // SlotLockClass; full-link slots start at 1, so the two never collide. A
-// pass that misses the lock skips the cycle: it never waits.
+// pass that misses the lock skips the cycle: it never waits. The projector
+// Ack takes the shared side of the same key (AckJournalGateSQL).
 const journalLockSlot = 0
+
+// AckJournalGateSQL is the SQL expression the projector Ack evaluates, in
+// the statement that activates a generation, before it writes a source
+// 'ack' activation row (#7127 PR-3b): the shared side of the journal pass's
+// key, pg_try_advisory_xact_lock_shared(SlotLockClass, journalLockSlot). It
+// is true when the Ack holds the key until it commits.
+//
+// The journal pass takes the same key exclusively, and both sides only try,
+// so an Ack's ledger insert and a journal pass never overlap and neither
+// waits. Without the gate a pass could insert an older, unjournaled
+// generation of the scope between the Ack's insert and its commit, with a
+// higher activation_seq than the Ack's row, and commit first; the cursor
+// would then end on the superseded generation (arbiter ruling of
+// 2026-10-15). An Ack that misses the gate writes no row and does not wait:
+// the sweeper journals that generation on a later pass, with a NULL prior.
+// Acks share the key with each other; the scope row orders Acks of one
+// scope. TestAckJournalGateUsesTheJournalKey derives the literal from
+// SlotLockClass and journalLockSlot.
+const AckJournalGateSQL = "pg_try_advisory_xact_lock_shared(7127, 0)"
 
 // backfillChainsQuery lists, for at most $1 scopes that have an active
 // generation and no activation row yet, the chain of retained generations

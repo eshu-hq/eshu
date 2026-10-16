@@ -62,6 +62,13 @@
   path) stays unreported, as in the projector.
 - **Signal-driven shutdown** — `signal.NotifyContext(SIGINT, SIGTERM)` is the
   only supported shutdown path. Do not add alternate shutdown mechanisms.
+- **Ack journal switch (#7127 PR-3b)** — `buildIngesterProjectorService` sets
+  `ProjectorQueue.ChangedSinceJournalEnabled` from
+  `linksfreshnessstore.Enabled(getenv)`, the parse the reducer uses for the
+  same `ESHU_CHANGED_SINCE_LINK_ENABLED`, so the two never disagree. Never
+  parse the variable here, and never default it on: no environment may turn
+  it on for the ingester until the #7401 built-binary run passes.
+  `TestBuildIngesterProjectorServiceWiresChangedSinceJournal` pins it.
 
 ## Common changes and how to scope them
 

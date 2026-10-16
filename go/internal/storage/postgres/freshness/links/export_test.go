@@ -29,3 +29,10 @@ const LockGenerationQueryForTest = lockGenerationQuery
 // generation locks (arbiter ruling arb-7127-3e-wait), so the chain-walk test
 // runs its derived lock under the production bound.
 var SetGenerationLockTimeoutStatementForTest = setGenerationLockTimeoutStatement
+
+// JournalLockSlotForTest and TrySlotQueryForTest let the gate test derive the
+// Ack's gate key from the journal pass's own key (#7127 PR-3b).
+const (
+	JournalLockSlotForTest = journalLockSlot
+	TrySlotQueryForTest    = trySlotQuery
+)

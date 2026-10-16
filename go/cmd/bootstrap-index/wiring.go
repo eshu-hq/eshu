@@ -26,6 +26,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	linksfreshnessstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -142,6 +143,10 @@ func buildBootstrapProjector(
 	// The queue owns the claim-conflict retry counter; without instruments a
 	// bootstrap claim conflict is invisible to operators (#7122).
 	projectorQueue.Instruments = instruments
+	// #7127 PR-3b: with ESHU_CHANGED_SINCE_LINK_ENABLED on, Ack journals the
+	// activation it commits into the changed-since ledger, as the ingester's
+	// does; off (the default) Ack sends no ledger SQL.
+	projectorQueue.ChangedSinceJournalEnabled = linksfreshnessstore.Enabled(getenv)
 	reducerQueue := postgres.NewReducerQueue(instrumentedDB, "bootstrap-index", time.Minute)
 	contentConfig, err := content.LoadWriterConfig(getenv)
 	if err != nil {

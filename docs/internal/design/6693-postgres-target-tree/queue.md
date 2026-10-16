@@ -26,7 +26,7 @@ projected_source_edge_store.go -> queue/projector/source_edge.go
 projector_queue.go -> queue/projector/projector.go
 projector_queue_claim_sql.go -> queue/projector/claim_sql.go
 projector_queue_config_state_drift_trigger_hook.go -> queue/projector/config_state_drift_trigger_hook.go
-projector_queue_crossplane_redrive_hook.go -> queue/projector/crossplane_redrive_hook.go
+projector_queue_ack.go -> queue/projector/ack.go
 projector_queue_scan.go -> queue/projector/scan.go
 projector_queue_sql.go -> queue/projector/sql.go
 ```

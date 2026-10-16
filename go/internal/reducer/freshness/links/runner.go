@@ -134,6 +134,12 @@ type Runner struct {
 	// lastOrphanProbe is when recordGauges last ran the orphan probe. Only
 	// the goroutine running cycles touches it.
 	lastOrphanProbe time.Time
+	// journalSkips counts the journal passes skipped in a row, since
+	// journalSkipSince; lastJournalSkipLog is when that streak last logged.
+	// Only the goroutine running cycles touches them (observeJournalPass).
+	journalSkips       int
+	journalSkipSince   time.Time
+	lastJournalSkipLog time.Time
 }
 
 // Run runs cycles until ctx is cancelled. A cycle that linked or broke a
@@ -181,6 +187,7 @@ func (r *Runner) RunOnce(ctx context.Context) (CycleResult, error) {
 		return result, fmt.Errorf("journal activations: %w", err)
 	}
 	result.Journal = journal
+	r.observeJournalPass(ctx, journal)
 	result.Orphans = r.deleteOrphans(ctx)
 
 	scopes, err := r.Journal.BacklogScopes(ctx, r.Config.workers()*8)
