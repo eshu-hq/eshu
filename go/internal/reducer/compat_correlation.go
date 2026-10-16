@@ -184,6 +184,11 @@ const (
 // [servicecatalog.RepositoryScopedRuntimeInstanceLoader].
 type RepositoryScopedRuntimeInstanceLoader = servicecatalog.RepositoryScopedRuntimeInstanceLoader
 
+// ServiceRuntimeProducerReadiness fences the runtime instance read on
+// in-flight workload_materialization work (#7816). See
+// [servicecatalog.RuntimeProducerReadiness].
+type ServiceRuntimeProducerReadiness = servicecatalog.RuntimeProducerReadiness
+
 // ServiceRuntimeInstance is one materialized runtime instance of a service's
 // workload. See [servicecatalog.ServiceRuntimeInstance].
 type ServiceRuntimeInstance = servicecatalog.ServiceRuntimeInstance

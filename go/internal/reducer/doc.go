@@ -304,7 +304,10 @@
 // families from one bounded load read before any write, deferring with
 // service_catalog_correlation_resolution_not_ready while the relationship
 // corpus fence is open (#7258), an
-// optional RuntimeInstanceLoader for the runtime family, an optional
+// optional RuntimeInstanceLoader for the runtime family, wired only with the
+// RuntimeProducerReadiness fence that defers with
+// service_catalog_correlation_runtime_not_ready while a correlated
+// repository's workload_materialization work is in flight (#7816), an optional
 // DocumentationEvidenceLoader for the docs family, and an optional
 // IncidentEvidenceLoader for the incidents family) so the existing
 // reducer_service_catalog_correlation fact contract is unchanged.

@@ -270,6 +270,25 @@ PACKAGES = {
             "TestRefinalizeDeltaActiveRollsBackReindexWithTheTransaction",
             "TestRefinalizeDeltaActiveReindexLockContention",
         ),
+        "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_interleave_live_test.go": (
+            "TestReducerContentionGateServiceCatalogRuntimeFenceProducerCompletesMidCheck",
+            "TestReducerContentionGateServiceCatalogRuntimeFenceConcurrentWorkers",
+        ),
+        "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_bound_live_test.go": (
+            "TestReducerContentionGateServiceCatalogRuntimeFenceBoundsOnProducerNotCatalogAge",
+            "TestReducerContentionGateServiceCatalogRuntimeFenceDefersWhileProducerIsWorked",
+            "TestReducerContentionGateServiceCatalogRuntimeFenceDefersWhileProducerLeaseIsLive",
+            "TestReducerContentionGateServiceCatalogRuntimeFenceConvergesAtTheElapsedBound",
+            "TestReducerContentionGateServiceCatalogRuntimeFenceReopenedProducerWaits",
+        ),
+        "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_readiness_live_test.go": (
+            "TestReducerContentionGateServiceCatalogRuntimeFenceKeepsItsAttemptBudget",
+        ),
+        "go/internal/storage/postgres/service_catalog_runtime_producer_store_live_test.go": (
+            "TestReducerContentionGateRuntimeProducerStatesActiveGenerationOnly",
+            "TestReducerContentionGateRuntimeProducerStatesNewestInFlightWorkableAt",
+            "TestReducerContentionGateRuntimeProducerStatesPlanUsesScopeGenerationIndex",
+        ),
         "go/internal/storage/postgres/content_files_generation_tag_live_test.go": (
             "TestReducerContentionGateContentGenerationTagAheadWriteReadsDirty",
             "TestReducerContentionGateContentGenerationTagActivatedTagReadsClean",

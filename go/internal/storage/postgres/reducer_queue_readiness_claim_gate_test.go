@@ -235,6 +235,11 @@ var readinessClassOwningDomain = map[string]string{
 	// domain explicitly because the name does not follow the
 	// <domain>_nodes_not_ready convention.
 	servicecatalog.ServiceCatalogCorrelationResolutionNotReadyFailureClass: string(reducer.DomainServiceCatalogCorrelation),
+	// #7816: the awaited producer is another domain's fact_work_items row
+	// (workload_materialization at each correlated repository's active
+	// generation), which no claim-time phase row expresses. The handler
+	// defer is bounded instead.
+	servicecatalog.RuntimeNotReadyFailureClass: string(reducer.DomainServiceCatalogCorrelation),
 	// #6785: cross-scope waits inside handlers that already carry their own
 	// scope's cloud_resource_uid claim row. The awaited endpoint lives in
 	// another scope (sibling-service targets, repository WorkloadInstance), so

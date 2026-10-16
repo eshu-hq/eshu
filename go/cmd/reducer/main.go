@@ -23,6 +23,7 @@ import (
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	producerreadiness "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/producer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -352,6 +353,9 @@ func buildReducerService(
 		// ServiceMaterializationWriter so the runtime family stays additive; it
 		// anchors on workload_instance_repo_id, once per correlation intent.
 		ServiceRuntimeInstanceLoader: reducer.GraphServiceRuntimeInstanceLoader{Graph: graphReader},
+		// ServiceRuntimeProducerReadiness fences that read on in-flight
+		// workload_materialization work at each repository's active generation (#7816).
+		ServiceRuntimeProducerReadiness: producerreadiness.Store{DB: database},
 		// ServiceVulnerabilityAdvisoryLoader sources the vulnerabilities evidence
 		// family (#1990, #2127) from active reducer_supply_chain_impact_finding facts
 		// on each correlated service's repository (repository_id-scoped, additive).

@@ -57,13 +57,18 @@ func serviceCatalogDeploymentRelationshipLoader(
 // serviceCatalogRuntimeInstanceLoader returns the repository-scoped runtime
 // instance loader used to materialize the service runtime evidence family
 // (#1986), or nil when the family cannot be sourced. The family is only wired
-// when both the service generation lineage writer is present and a runtime
-// instance loader is configured, so runtime evidence is purely additive and never
-// blocks the ownership/deployment lineage.
+// when the service generation lineage writer, a runtime instance loader, and
+// the runtime producer readiness fence are all configured, so runtime evidence
+// is purely additive and never blocks the ownership/deployment lineage. A
+// loader without the fence is deliberately NOT wired (#7816): read while the
+// repository's workload_materialization work is in flight, it returns no
+// WorkloadInstance rows and the handler commits an empty runtime family that
+// nothing repairs.
 func serviceCatalogRuntimeInstanceLoader(
 	handlers DefaultHandlers,
 ) RepositoryScopedRuntimeInstanceLoader {
-	if handlers.ServiceMaterializationWriter == nil || handlers.ServiceRuntimeInstanceLoader == nil {
+	if handlers.ServiceMaterializationWriter == nil || handlers.ServiceRuntimeInstanceLoader == nil ||
+		handlers.ServiceRuntimeProducerReadiness == nil {
 		return nil
 	}
 	return handlers.ServiceRuntimeInstanceLoader
