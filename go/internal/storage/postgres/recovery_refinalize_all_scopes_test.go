@@ -14,13 +14,13 @@ import (
 )
 
 // refinalizeFakeDB returns a fake transaction-capable database primed with the
-// four result sets a refinalize reads: the materialized (scope_id,
-// generation_id) set, the drain poll's zero live-lease count, the post-lock
-// zero live-lease count, then the scope ids the projector re-enqueue returns.
-// The fake exec result reports one row
-// affected, so the retirement count is nonzero and the post-Apply fence check
-// short-circuits without a fourth read, exactly as production does when the
-// retirement guard did not trip.
+// five result sets a refinalize reads: the materialized (scope_id,
+// generation_id) set, the drain poll's zero live-lease count, the current
+// lock_timeout, the post-lock zero live-lease count, and the scope ids the
+// projector re-enqueue returns. The fake exec result reports one row affected,
+// so the retirement count is nonzero and the post-Apply fence check skips its
+// follow-up live-lease read, as production does when the retirement guard did
+// not trip.
 //
 // The generation read returns (scope_id, generation_id, skip_reason,
 // is_delta). A two-column pair row is a covered full generation, so it gains
@@ -78,7 +78,7 @@ func TestRecoveryStoreRefinalizeScopeProjectionsAllScopes(t *testing.T) {
 	}
 
 	if len(db.queries) != 5 {
-		t.Fatalf("query count = %d, want 5 (generation read, lock timeout read, drain poll, post-lock recheck, enqueue)", len(db.queries))
+		t.Fatalf("query count = %d, want 5 (generation read, drain poll, lock timeout read, post-lock recheck, enqueue)", len(db.queries))
 	}
 	selectQuery := db.queries[0].query
 	if strings.Contains(selectQuery, "scope.scope_id = ANY(") {
@@ -152,6 +152,7 @@ func TestRefinalizeReadsIngestionScopesExactlyOnce(t *testing.T) {
 		[][]any{{"scope-1", "gen-1"}, {"scope-2", "gen-2"}},
 		[][]any{{"scope-1"}, {"scope-2"}},
 	)
+	db.recordCallOrder = true
 
 	store := NewRecoveryStore(db)
 	if _, err := store.RefinalizeScopeProjections(context.Background(), recovery.RefinalizeFilter{
@@ -171,15 +172,15 @@ func TestRefinalizeReadsIngestionScopesExactlyOnce(t *testing.T) {
 			"every extra read gets its own READ COMMITTED snapshot and can select a generation "+
 			"the other statements never saw:\n%s", len(readers), strings.Join(readers, "\n---\n"))
 	}
-	if !strings.HasPrefix(strings.TrimSpace(refinalizeStatements(db)[0]), "SELECT") {
-		t.Fatalf("the ingestion_scopes read is not the first statement in the transaction, so the "+
-			"statements before it bind a different snapshot:\n%s", refinalizeStatements(db)[0])
+	if len(db.callOrder) == 0 || !strings.HasPrefix(db.callOrder[0], "query:") ||
+		!strings.Contains(db.callOrder[0], "ingestion_scopes") {
+		t.Fatalf("the ingestion_scopes read is not the first statement in the transaction: %v", db.callOrder)
 	}
 }
 
-// refinalizeStatements returns every statement a refinalize issued, in order:
-// the queries first (generation read, drain poll, post-lock recheck, enqueue),
-// then the claim-fence lock and five reset execs.
+// refinalizeStatements returns captured queries followed by captured execs; it
+// does not preserve their interleaved execution order. The five queries are
+// generation read, drain poll, lock-timeout read, post-lock recheck, and enqueue.
 func refinalizeStatements(db *fakeBeginnerExecQueryer) []string {
 	statements := make([]string, 0, len(db.queries)+len(db.execs))
 	for _, query := range db.queries {
@@ -208,7 +209,7 @@ func assertRefinalizeBindsOneGenerationSet(
 	t.Helper()
 
 	if len(db.queries) != 5 {
-		t.Fatalf("query count = %d, want 5 (generation read, lock timeout read, drain poll, post-lock recheck, enqueue)", len(db.queries))
+		t.Fatalf("query count = %d, want 5 (generation read, drain poll, lock timeout read, post-lock recheck, enqueue)", len(db.queries))
 	}
 	poll := db.queries[1]
 	if !strings.Contains(poll.query, "fact_work_items") || !strings.Contains(poll.query, "claim_until > clock_timestamp()") {
