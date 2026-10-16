@@ -16,6 +16,11 @@ R-5 projection and provenance checks. The separate query invocation keeps all
 three SQL-table blast-radius checks. Both commands retain their package order,
 `-p=1`, `-count=1`, and the same timeout and fixture configuration.
 
+The runner checks a clean Git checkout before container startup, before each
+Go invocation, and after each event check. It rejects shell or effective Go
+`GOFLAGS` and `GOWORK` overrides, including an ignored `go.work`, so compiled
+code stays bound to the reviewed commit.
+
 Both invocations emit Go JSON events to files distinct from stderr and copy
 those raw streams to runner stdout before temporary cleanup. The
 verifier requires one ordered run/pass pair for every selected top-level test
