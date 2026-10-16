@@ -12,7 +12,8 @@
 --        -v hard_hours=2160 -f 7932-storage-attribution.sql
 --
 -- Variables (defaults are the shipped retention defaults, go/cmd/reducer
--- config.go; pass the deployed values, for example hard_hours=87600):
+-- config.go; pass the deployed values, for example soft_hours=87600 and
+-- hard_hours=87600):
 --   sample      generations sampled per category for the row-count probe (40)
 --   soft_hours  ESHU_GENERATION_RETENTION_MAX_SUPERSEDED_AGE in whole hours (168)
 --   min_newer   ESHU_GENERATION_RETENTION_MIN_SUPERSEDED_GENERATIONS (24)
@@ -48,7 +49,8 @@ SET LOCAL idle_in_transaction_session_timeout = '120s';
 
 -- 1. Relation bytes by family: heap, indexes and TOAST, partitions rolled up to
 -- their root. Catalog and file-size reads only. reltuples is a planner
--- estimate; a negative value means "never analyzed" and is reported as NULL.
+-- estimate; a negative value means "never analyzed" and counts as 0 here, so a
+-- family with unanalyzed relations under-counts est_rows.
 \echo '== 1. relation bytes by family (top 25)'
 WITH rel AS (
     SELECT c.oid,

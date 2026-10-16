@@ -148,8 +148,11 @@ audit does not duplicate their fixes.
 None of these is applied here. They are ordered by what must be known first.
 
 1. Run `7932-storage-attribution.sql` on a read replica with the deployed
-   settings (`hard_hours=87600`) and record the category counts and sampled
-   footprint. Until then the byte shares above are arithmetic, not measurement.
+   settings (`soft_hours=87600`, `hard_hours=87600`, and `min_newer` if the
+   deployment differs from 24) and record the category counts and sampled
+   footprint. With `soft_hours` left at its default of 168, the run would count
+   as eligible every superseded generation older than a week past the rank
+   window, which the deployed hold retains. Until then the byte shares above are arithmetic, not measurement.
 2. Keep the fact-history hold. The history exists to keep exact diff and
    provenance, and the retention predicate already refuses pinned work and
    uncovered writers. Any change to the 10-year hold belongs to #7585 and #7399
