@@ -39,7 +39,8 @@ Decisions beyond the arb-8155-s3 text:
    `pruneContentFilesForGenerationsQuery`), so a Write that locked a doomed
    row and then waited on that version row closed a cycle:
    `TestVersionFenceChunkCycleRacingAWriteDoesNotDeadlockLive` deadlocked in
-   20 of 20 rounds at `8f99ebf57` and passes 20 of 20 now. Version rows are
+   20 of 20 rounds on the RED commit ("RED for the retention chunk-cycle
+   fence deadlock") and passes 20 of 20 now. Version rows are
    taken only inside COMMIT, after every content lock, in `repo_id` order. A
    Write waits only on content rows, and on a version row only inside the
    other side's COMMIT. This replaces ruling 3e of arb-8155-s3 ("waits on the
@@ -110,8 +111,8 @@ exit 0):
 
 | Proof | Result |
 |---|---|
-| F1 chunk cycle raced with a Write, 20 rounds | RED at `8f99ebf57` (20 deadlocks), now 0 deadlocks, exactly 3 bumps per round |
-| F1 SQL two-statement transaction vs an autocommit DELETE, 10 rounds | RED at `8f99ebf57`, now 0 deadlocks, 2 bumps per round |
+| F1 chunk cycle raced with a Write, 20 rounds | RED on the RED commit (20 deadlocks), now 0 deadlocks, exactly 3 bumps per round |
+| F1 SQL two-statement transaction vs an autocommit DELETE, 10 rounds | RED on the RED commit, now 0 deadlocks, 2 bumps per round |
 | Arm 6 churn | full 10, delta 2, reap 4, bulk 1, prune 1 per repository; a seeded per-row fence fails the counts |
 | Arm 7 cases 1a and 1b, 20 rounds each, a held middle version row forcing overlap | 0 deadlocks, exact bumps; a seeded row-level fence deadlocks |
 | 3a: plan of the commit upsert (auto_explain) | `Insert` over `Sort` on `p.repo_id` |
