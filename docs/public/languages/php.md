@@ -141,7 +141,9 @@ Not claimed today:
   dispatch remain outside the exactness boundary.
 - Composer/autoload public surfaces remain outside the exactness boundary,
   except the bounded psr-4 and `composer.lock` package-key rule in the
-  capability table (#7601).
+  capability table (#7601). A `composer.json` under a directory named `tests`,
+  `fixtures`, `testdata`, or `examples` (whole path segment, any case) is test
+  data, not a published package: it is not read as a package producer (#8223).
 - Laravel `Route::resource()` expansion and non-literal group prefixes are
   deferred. Literal `Controller@method` string callables are supported through
   exact short-class-qualified resolution. Fully-qualified
