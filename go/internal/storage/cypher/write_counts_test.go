@@ -80,6 +80,57 @@ func TestWriteCountersFromSummaryMapsAllFields(t *testing.T) {
 	}
 }
 
+func TestParseDroppedEdgesConvertsDriverRows(t *testing.T) {
+	got := ParseDroppedEdges([]any{
+		map[string]any{"t": "DEPENDS_ON", "dir": "in", "src": "test/7324"},
+		map[string]any{"t": "REPO_CONTAINS", "dir": "out", "src": "projector/canonical"},
+		// A missing evidence_source becomes "": the writer classes it other.
+		map[string]any{"t": "BUILT_FROM", "dir": "in", "src": nil},
+		// Malformed rows are driver-shape drift, not dropped edges.
+		"not-a-map",
+		map[string]any{"t": "CORRELATES_DEPLOYABLE_UNIT", "src": "test/7324"},
+		map[string]any{"dir": "in", "src": "test/7324"},
+	})
+	want := []DroppedEdge{
+		{Direction: "in", Type: "DEPENDS_ON", EvidenceSource: "test/7324"},
+		{Direction: "out", Type: "REPO_CONTAINS", EvidenceSource: "projector/canonical"},
+		{Direction: "in", Type: "BUILT_FROM", EvidenceSource: ""},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("ParseDroppedEdges() = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("ParseDroppedEdges()[%d] = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+func TestParseDroppedEdgesKeepsEmptyListAttributed(t *testing.T) {
+	got := ParseDroppedEdges([]any{})
+	if got == nil || len(got) != 0 {
+		t.Fatalf("ParseDroppedEdges([]) = %#v, want a non-nil empty slice (an attributed edgeless retirement)", got)
+	}
+	if got := ParseDroppedEdges(nil); got != nil {
+		t.Fatalf("ParseDroppedEdges(nil) = %#v, want nil", got)
+	}
+	if got := ParseDroppedEdges("dropped"); got != nil {
+		t.Fatalf("ParseDroppedEdges(string) = %#v, want nil", got)
+	}
+}
+
+func TestIsRepositoryPathCleanupCypherMatchesTheConstantOnly(t *testing.T) {
+	if !IsRepositoryPathCleanupCypher(canonicalNodeRepositoryPathCleanupCypher) {
+		t.Fatal("IsRepositoryPathCleanupCypher(constant) = false, want true")
+	}
+	if IsRepositoryPathCleanupCypher("MATCH (r:Repository {path: $path})\nWHERE r.id <> $repo_id\nDETACH DELETE r") {
+		t.Fatal("IsRepositoryPathCleanupCypher(old text) = true, want false after the RETURN dropped rewrite")
+	}
+	if IsRepositoryPathCleanupCypher(canonicalNodeRepositoryUpsertCypher) {
+		t.Fatal("IsRepositoryPathCleanupCypher(upsert) = true, want false")
+	}
+}
+
 func TestWriteCountersAddSums(t *testing.T) {
 	got := WriteCounters{NodesCreated: 1, LabelsRemoved: 2}.Add(WriteCounters{NodesCreated: 3, PropertiesSet: 4})
 	want := WriteCounters{NodesCreated: 4, LabelsRemoved: 2, PropertiesSet: 4}

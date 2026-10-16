@@ -27,7 +27,13 @@ func DefaultWriterConfig() WriterConfig {
 	}
 }
 
-// ConfigureCanonicalWriter applies NornicDB row and containment tuning.
+// ConfigureCanonicalWriter applies NornicDB row and containment tuning. It
+// also selects the bare path-conflict retirement shape, unconditionally:
+// the attributed shape's OPTIONAL MATCH + WITH collect composition drops
+// the id guard on NornicDB and DETACH DELETEs the live node in steady
+// state, losing reducer edges no writer re-arms (#8173). Every production
+// NornicDB canonical writer (projector, ingester) funnels through here;
+// cmd/bootstrap-index mirrors the call in its own NornicDB branch.
 func ConfigureCanonicalWriter(
 	writer *sourcecypher.CanonicalNodeWriter,
 	config WriterConfig,
@@ -37,7 +43,8 @@ func ConfigureCanonicalWriter(
 	}
 	writer = writer.WithEntityContainmentInEntityUpsert().
 		WithFileBatchSize(config.FileBatchSize).
-		WithEntityBatchSize(config.EntityBatchSize)
+		WithEntityBatchSize(config.EntityBatchSize).
+		WithBareRepositoryRetirement()
 	if config.BatchedEntityContainment {
 		writer = writer.WithBatchedEntityContainmentInEntityUpsert()
 	}

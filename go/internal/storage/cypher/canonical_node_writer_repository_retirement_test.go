@@ -27,13 +27,19 @@ import (
 
 const retirementMetric = "eshu_dp_canonical_repository_retirements_total"
 
+const retirementSplitMetric = "eshu_dp_canonical_repository_retired_relationships_total"
+
 // retirementReportingExecutor reports cleanupCounters for the path-conflict
 // statement (and zero counters for every other statement) through
 // ReportWriteCounts, as the production Bolt executors do. reportsPerStatement
 // > 1 simulates a driver retry of a managed transaction function, which
 // re-runs and re-reports every statement before the final commit.
+// cleanupDropped is the canned RETURN dropped collection: nil leaves the
+// entry unattributed (an executor that never consumed the record), non-nil
+// (even empty) marks it attributed, as CollectRetiredRelationships does.
 type retirementReportingExecutor struct {
 	cleanupCounters     WriteCounters
+	cleanupDropped      []DroppedEdge
 	reportsPerStatement int
 	failCleanup         bool
 	// failAfterCleanup fails the repository upsert, the statement right after
@@ -52,15 +58,17 @@ func (e *retirementReportingExecutor) report(ctx context.Context, stmt Statement
 		return errors.New("injected failure after the cleanup reported")
 	}
 	counters := WriteCounters{}
+	var dropped []DroppedEdge
 	if stmt.Cypher == canonicalNodeRepositoryPathCleanupCypher {
 		counters = e.cleanupCounters
+		dropped = e.cleanupDropped
 	}
 	reports := e.reportsPerStatement
 	if reports < 1 {
 		reports = 1
 	}
 	for i := 0; i < reports; i++ {
-		ReportWriteCounts(ctx, stmt.Cypher, stmt.Parameters, counters)
+		ReportWriteCountsWithDropped(ctx, stmt.Cypher, stmt.Parameters, counters, dropped)
 	}
 	return nil
 }
@@ -158,6 +166,32 @@ func (h retirementHarness) counter(t *testing.T, outcome string) int64 {
 	return total
 }
 
+// splitCounter returns the retired-relationship counter for one closed
+// (direction, class) bucket, 0 when absent.
+func (h retirementHarness) splitCounter(t *testing.T, direction, class string) int64 {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := h.reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	var total int64
+	for _, scope := range rm.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name != retirementSplitMetric {
+				continue
+			}
+			for _, point := range m.Data.(metricdata.Sum[int64]).DataPoints {
+				directionValue, hasDirection := point.Attributes.Value(telemetry.MetricDimensionDirection)
+				classValue, hasClass := point.Attributes.Value(telemetry.MetricDimensionEdgeClass)
+				if hasDirection && hasClass && directionValue.AsString() == direction && classValue.AsString() == class {
+					total += point.Value
+				}
+			}
+		}
+	}
+	return total
+}
+
 func retirementMaterialization(first, delta bool) canonical.CanonicalMaterialization {
 	return canonical.CanonicalMaterialization{
 		ScopeID: "scope-1", GenerationID: "gen-2", RepoID: "repository:r_new", RepoPath: "/repos/service",
@@ -201,12 +235,31 @@ func TestCanonicalNodeWriterReportsRetirementThatDroppedRelationshipsOnceAcrossD
 	assertRetirementLog(t, logs[0], map[string]any{
 		"level": "WARN", "nodes_deleted": float64(1), "relationships_deleted": float64(20),
 		"deletes_counted": true, "outcome": telemetry.RepositoryRetirementOutcomeDroppedRelationships,
+		"attribution": false,
 	})
+	if _, ok := logs[0]["dropped_incoming"]; ok {
+		t.Fatalf("unattributed retirement log carries dropped_incoming: %v", logs[0])
+	}
 	if got := h.counter(t, telemetry.RepositoryRetirementOutcomeDroppedRelationships); got != 1 {
 		t.Fatalf("%s{outcome=dropped_relationships} = %d, want 1", retirementMetric, got)
 	}
 	if got := h.counter(t, telemetry.RepositoryRetirementOutcomeClean); got != 0 {
 		t.Fatalf("%s{outcome=clean} = %d, want 0", retirementMetric, got)
+	}
+	// No RETURN dropped collection reached the writer, so the split counter
+	// stays dark on every bucket.
+	for _, bucket := range [][2]string{
+		{"incoming", "reducer"},
+		{"incoming", "projector"},
+		{"incoming", "other"},
+		{"outgoing", "reducer"},
+		{"outgoing", "projector"},
+		{"outgoing", "other"},
+	} {
+		if got := h.splitCounter(t, bucket[0], bucket[1]); got != 0 {
+			t.Fatalf("%s{direction=%s,class=%s} = %d, want 0 for an unattributed retirement",
+				retirementSplitMetric, bucket[0], bucket[1], got)
+		}
 	}
 }
 
@@ -264,13 +317,17 @@ func TestCanonicalNodeWriterSaysDeletesWereNotCountedWithoutAWriteSummary(t *tes
 	if len(logs) != 1 {
 		t.Fatalf("uncounted-retirement DEBUG lines = %d, want 1; logs = %s", len(logs), h.logs.String())
 	}
-	assertRetirementLog(t, logs[0], map[string]any{"level": "DEBUG", "deletes_counted": false})
+	assertRetirementLog(t, logs[0], map[string]any{"level": "DEBUG", "deletes_counted": false, "attribution": false})
 	if _, ok := logs[0]["relationships_deleted"]; ok {
 		t.Fatalf("uncounted retirement log carries relationships_deleted: %v", logs[0])
 	}
 	if got := h.counter(t, telemetry.RepositoryRetirementOutcomeClean) +
 		h.counter(t, telemetry.RepositoryRetirementOutcomeDroppedRelationships); got != 0 {
 		t.Fatalf("%s = %d, want 0 when deletes were not counted", retirementMetric, got)
+	}
+	if got := h.splitCounter(t, "incoming", "reducer") +
+		h.splitCounter(t, "outgoing", "projector"); got != 0 {
+		t.Fatalf("%s = %d, want 0 when deletes were not counted", retirementSplitMetric, got)
 	}
 }
 
@@ -315,7 +372,12 @@ func TestCanonicalNodeWriterDoesNotReportAFailedRetirement(t *testing.T) {
 func TestCanonicalNodeWriterDoesNotReportARolledBackAtomicRetirement(t *testing.T) {
 	h := newRetirementHarness(t)
 	exec := &retirementGroupExecutor{retirementReportingExecutor{
-		cleanupCounters: WriteCounters{NodesDeleted: 1, RelationshipsDeleted: 3}, failAfterCleanup: true,
+		cleanupCounters: WriteCounters{NodesDeleted: 1, RelationshipsDeleted: 3},
+		cleanupDropped: []DroppedEdge{
+			{Direction: DroppedEdgeIncoming, Type: "DEPENDS_ON", EvidenceSource: "test/7324"},
+			{Direction: DroppedEdgeOutgoing, Type: "REPO_CONTAINS", EvidenceSource: "projector/canonical"},
+		},
+		failAfterCleanup: true,
 	}}
 	if err := NewCanonicalNodeWriter(exec, 500, h.instruments).Write(context.Background(), retirementMaterialization(false, false)); err == nil {
 		t.Fatal("Write() error = nil, want the injected failure after the cleanup")
@@ -329,6 +391,12 @@ func TestCanonicalNodeWriterDoesNotReportARolledBackAtomicRetirement(t *testing.
 	if got := h.counter(t, telemetry.RepositoryRetirementOutcomeClean) +
 		h.counter(t, telemetry.RepositoryRetirementOutcomeDroppedRelationships); got != 0 {
 		t.Fatalf("%s = %d, want 0 for a rolled-back atomic group", retirementMetric, got)
+	}
+	// The rolled-back attribution is dropped with the group: the split
+	// counter carries no partial direction or class.
+	if got := h.splitCounter(t, "incoming", "reducer") +
+		h.splitCounter(t, "outgoing", "projector"); got != 0 {
+		t.Fatalf("%s = %d, want 0 for a rolled-back atomic group", retirementSplitMetric, got)
 	}
 }
 

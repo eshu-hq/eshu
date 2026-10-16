@@ -40,6 +40,11 @@ func configureBootstrapCanonicalWriter(
 		writer = writer.WithBatchedEntityContainmentInEntityUpsert()
 	}
 	if config.GraphBackend == runtimecfg.GraphBackendNornicDB {
+		// The attributed retirement shape drops its id guard on NornicDB
+		// and deletes the live node in steady state (#8173): same bare
+		// selection storagenornicdb.ConfigureCanonicalWriter applies for
+		// the projector and ingester NornicDB paths.
+		writer = writer.WithBareRepositoryRetirement()
 		if !config.DisableNornicDBBatchedContainment {
 			writer = writer.WithBatchedEntityContainmentInEntityUpsert()
 		}

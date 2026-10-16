@@ -36,9 +36,10 @@ import (
 // source_tool, supply_chain, vaultlive, vulnerability_intelligence,
 // z_incident_context, z_observability_coverage, z_secrets_iam,
 // zz_work_item_evidence, zzz_generation_lifecycle, zzzz_changed_since,
-// zzzz_service_changed_since) exactly, then appends producer_grant (#6726)
-// last; do not resort it alphabetically by Go function name or reflow it
-// without re-running the order tests.
+// zzzz_service_changed_since) exactly, then appends producer_grant (#6726),
+// code-topic partition, git-command retry, deferred backfill block, and the
+// repository-retirement split last; do not resort it alphabetically by Go
+// function name or reflow it without re-running the order tests.
 var registrationSteps = []func(){
 	registerAdmissionDecisions,
 	registerBootstrapIngestion,
@@ -68,6 +69,7 @@ var registrationSteps = []func(){
 	registerGitCommandRetry,
 	registerDeferredBackfillBlock,
 	registerHybridRerank,
+	registerRepositoryRetirementSplit,
 }
 
 func init() {
@@ -259,4 +261,16 @@ func registerS3ExternalPrincipal() {
 		}
 	}
 	spanNames = append(spanNames, contract.SpanReducerS3ExternalPrincipalGrantMaterialization)
+}
+
+// registerRepositoryRetirementSplit appends the retired-relationship
+// counter's closed dimensions (#7324 item: per-direction/per-type split).
+// MetricDimensionDirection and MetricDimensionEdgeClass stay declared in
+// root contract.go.
+func registerRepositoryRetirementSplit() {
+	metricDimensionKeys = append(
+		metricDimensionKeys,
+		MetricDimensionDirection,
+		MetricDimensionEdgeClass,
+	)
 }

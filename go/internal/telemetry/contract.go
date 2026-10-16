@@ -65,6 +65,17 @@ const (
 	// (#7446) with the closed shared-edge writer: repo_dependency or
 	// submodule_pin.
 	MetricDimensionWriter = "writer"
+	// MetricDimensionDirection labels the retired-relationship counter
+	// (#7324 item: per-direction split) with the closed direction of the
+	// dropped edge from the retired Repository: incoming or outgoing.
+	// Producers must never use raw relationship types here; those stay in
+	// the log's capped per-type map.
+	MetricDimensionDirection = "direction"
+	// MetricDimensionEdgeClass labels the retired-relationship counter
+	// (#7324 item: per-type split) with the closed owner family derived
+	// from the dropped edge's evidence_source: projector (projector/*),
+	// reducer (any other present source), or other (missing source).
+	MetricDimensionEdgeClass = "class"
 	// MetricDimensionState labels the repository selection scope gauge
 	// (#7625) with the closed selection state: selected, not_listed_pending,
 	// not_listed, archived_excluded, or rule_excluded.

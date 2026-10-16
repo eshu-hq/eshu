@@ -171,3 +171,21 @@ func (w *CanonicalNodeWriter) WithBatchedEntityContainmentInEntityUpsert() *Cano
 	w.entityContainmentBatchAcrossFiles = true
 	return w
 }
+
+// WithBareRepositoryRetirement emits the bare path-conflict retirement
+// shape (no pre-delete edge collection, no RETURN record) instead of the
+// attributed one. REQUIRED on every writer targeting NornicDB: the
+// attributed shape's OPTIONAL MATCH + WITH collect composition drops the
+// id guard there and DETACH DELETEs the live node in steady state, losing
+// reducer edges no writer re-arms (#8173). The bare shape is correct on
+// both backends; its retirements report through the unattributed
+// (attribution=false) path, moving only
+// eshu_dp_canonical_repository_retirements_total. The default (no call)
+// keeps the attributed shape, which is Neo4j-only.
+func (w *CanonicalNodeWriter) WithBareRepositoryRetirement() *CanonicalNodeWriter {
+	if w == nil {
+		return nil
+	}
+	w.repositoryRetirementBare = true
+	return w
+}
