@@ -197,8 +197,15 @@ func TestActivationWakeSetClauseMatchesReplayReset(t *testing.T) {
 	t.Parallel()
 	normalize := func(s string) string { return strings.Join(strings.Fields(s), " ") }
 	template := replayFailedWorkItemsTemplate
+	// The SET list runs from the UPDATE's SET to its WHERE; the locked CTE
+	// ahead of the UPDATE (#8205) has its own WHERE, so search after SET.
 	start := strings.Index(template, "SET ")
-	end := strings.Index(template, "WHERE status IN ('dead_letter', 'failed')")
+	end := -1
+	if start >= 0 {
+		if offset := strings.Index(template[start:], "\n    WHERE "); offset >= 0 {
+			end = start + offset
+		}
+	}
 	if start < 0 || end < start {
 		t.Fatal("cannot find the SET list in replayFailedWorkItemsTemplate")
 	}
