@@ -14,7 +14,7 @@ its protocol companion.
 | PR | Adds |
 |---|---|
 | PR3b-1a (this package's first version) | migration 170 tables, the encoding check, the read-model port, the walk claim, the dirty join, the version-row guard |
-| PR3b-1b | migration 184: the four `content_files_version_fence_*` triggers; migration 185: the version-0 seed |
+| PR3b-1b | migration 184: the five fence triggers (four `content_files_version_fence_*` on `content_files` and `config_artifact_fence_pending_commit` on the pending table); migration 185: the version-0 seed |
 | PR3b-2 | the derive in `ContentWriter.Write`, the walker derive, telemetry, env variables |
 | PR3c | the stored reader, the read mode, the `/admin/status` field |
 

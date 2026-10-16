@@ -320,12 +320,12 @@ Arm 3, on the real retention statement:
   one discarded round (the shim's `versionFenceInterleave`).
 - Body classes, both required and reported separately: 1 KiB inline and 8 KiB
   TOASTed.
-- Pass (ruling arb-8155-c1, 2026-10-16, replacing arb-8155-s3's +10%/+5%):
-  added `ScopeLockHold` at most +0.25 s per 100,000 doomed rows, mean of at
-  least 5 rounds, both classes. The +10%/+5% bar of arb-8155-s3 was missed in
-  two of three sessions; replaced by arb-8155-c1. 1 KiB commit-time fence:
-  +0.11 to +0.17 s of both `prune_content_files` and `ScopeLockHold`, 181.1 MB
-  temp per prune (`8155-content-version-fence.md`). 8 KiB pending.
+- Pass (ruling arb-8155-c1, replacing arb-8155-s3's +10%/+5%, missed by
+  session means in one of three sessions (S2), by session medians in all three
+  on `prune_content_files` and in two on `ScopeLockHold`): added
+  `ScopeLockHold` at most +0.25 s per 100,000 doomed rows, mean of at least 5
+  rounds, both classes. 1 KiB: +0.11 to +0.17 s of both, 181.1 MB temp per
+  prune (`8155-content-version-fence.md`). 8 KiB pending.
 - The arm 3 write probe of section 6 (a Write of a pruned repository waits
   for the prune commit) is informational. It is not part of the rerun bar.
 

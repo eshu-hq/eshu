@@ -26,7 +26,8 @@ Names are proposals. The migration number is chosen at build time.
 - PR3b-1b seeds one version row with `version = 0` for each `SELECT
   DISTINCT repo_id FROM content_files` in `repo_id` order (F2), as migration 169 does its backfill.
   The walker's universe is then O(repositories), not a scan of
-  `content_files`. Order (S3 ruling): the four triggers first (migration 184),
+  `content_files`. Order (S3 ruling): the fence first (migration 184: four `content_files`
+  triggers and the pending-table commit trigger),
   then the seed with `ON CONFLICT DO NOTHING` (migration 185). The #7961
   lock-shape gate refuses both in one file, so a write can land between them;
   its trigger creates or bumps the row first and the seed keeps it. Timed on
@@ -98,7 +99,8 @@ Names are proposals. The migration number is chosen at build time.
   `UTF8` they log at ERROR, skip every derive with
   `derives_total{outcome=encoding_unsupported}`, and report
   `config_artifacts = not_installed` with the reason in `/admin/status`. The
-  same check tests the four fence triggers (section 2): a missing one gives
+  same check tests the five fence triggers (section 2: the four on
+  `content_files` and `config_artifact_fence_pending_commit`): a missing one gives
   outcome `fence_missing` and reason `version_fence_missing`. The content
   Write proceeds, and reads stay live.
 - Autovacuum (re-ruling 2): each derive deletes and re-inserts a
@@ -378,7 +380,7 @@ today. Ownership, not a cycle, is the reason for the neutral package.
    |---|---|---|
    | 1 | Full Write, 5,000 files, 500-row batches, production-width content. The derive's row insert includes the generated `row_digest` | B at most A + 5% on Write wall time. A primary-key-only micro-shim at most 0.5 us per row |
    | 2 | Delta Write, 1 file changed, 3 tombstones | B at most A + 5% |
-   | 3 | Retention prune, 100,000 rows over 50 repositories, one transaction | Row-level and `OLD TABLE` shapes. Denominator: `PhaseDurations["prune_content_files"]` of the real `GenerationRetentionStore` statement, under its `SET LOCAL work_mem = '64MB'`, at 1 KiB inline and 8 KiB TOASTed bodies, both required. The chosen shape at most +5% on both classes. Else the other shape. Else the Proposed fallback of section 2 (needs an F2 amendment by ruling. Without it retention pays the trigger). `ScopeLockHold` delta is informational, against the QA-environment p95 of `eshu_dp_generation_retention_scope_lock_hold_seconds` (**Proposed**). Binding rerun spec: evidence appendix, section 7 **Bar (ruling arb-8155-c1, 2026-10-16)**: added `ScopeLockHold` at most +0.25 s per 100,000 doomed rows, mean of at least 5 interleaved rounds after 1 discard, load1 under 9, both classes; report `prune_content_files` and wall deltas and `prune_temp_bytes`. The +10%/+5% bar of arb-8155-s3 was missed in two of three sessions; replaced by arb-8155-c1. 1 KiB commit-time fence: `ScopeLockHold` +0.11 to +0.17 s, `prune_content_files` +0.11 to +0.17 s (+9 to +14%), 181.1 MB temp per prune (evidence note `8155-content-version-fence.md`). 8 KiB pending |
+   | 3 | Retention prune, 100,000 rows over 50 repositories, one transaction | Row-level and `OLD TABLE` shapes. Denominator: `PhaseDurations["prune_content_files"]` of the real `GenerationRetentionStore` statement, under its `SET LOCAL work_mem = '64MB'`, at 1 KiB inline and 8 KiB TOASTed bodies, both required. The chosen shape at most +5% on both classes. Else the other shape. Else the Proposed fallback of section 2 (needs an F2 amendment by ruling. Without it retention pays the trigger). `ScopeLockHold` delta is informational, against the QA-environment p95 of `eshu_dp_generation_retention_scope_lock_hold_seconds` (**Proposed**). Binding rerun spec: evidence appendix, section 7 **Bar (ruling arb-8155-c1, 2026-10-16)**: added `ScopeLockHold` at most +0.25 s per 100,000 doomed rows, mean of at least 5 interleaved rounds after 1 discard, load1 under 9, both classes; report `prune_content_files` and wall deltas and `prune_temp_bytes`. By session means the +10%/+5% bar of arb-8155-s3 was missed in one of three sessions (S2); by session medians it was missed in all three on `prune_content_files` and in two on `ScopeLockHold`; replaced by arb-8155-c1. 1 KiB commit-time fence: `ScopeLockHold` +0.11 to +0.17 s, `prune_content_files` +0.11 to +0.17 s (+9 to +14%), 181.1 MB temp per prune (evidence note `8155-content-version-fence.md`). 8 KiB pending |
    | 4 | One 50,000-row single-statement insert | B at most A + 5% |
    | 5 | Two concurrent Writes, one `repo_id`, 5,000 files each | B at most A + 10% per Write. The `version_row` lock wait at most one contended batch (B-last per-Write median / 10), with A as control, by wait class, plus an overlapping-keys run. 0 deadlocks in 20 rounds. Slower of the pair is informational. Binding rerun spec, with every bar: evidence appendix, section 7 |
    | 6 | Version-row churn, counted by `xmin` changes or `n_tup_upd` | One rewrite per repository per content transaction, never per Write (re-ruling 2). A Write sends tombstones and reaped paths through one delete list, chunked at 500. It expects ceil((tombstones + reaped paths) / 500) delete transactions. It adds one per 500-row upsert batch. Arm 1 = 10. Arm 2 = 2 (one delete chunk, one upsert batch). Arm 3 = 1 per affected repository. Arm 4 = 1 |

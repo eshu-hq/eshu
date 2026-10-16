@@ -76,8 +76,10 @@ percent:
 | | BDW (diagnostic, `work_mem` 2GB) | +0.0490 s (+4.04%) | +0.0667 s (+2.42%) | +0.0689 s (+1.95%) | 0 |
 
 The medians read +10.2%, +12.5% and +15.4% for BD `prune_content_files`.
-The +10%/+5% bar of arb-8155-s3 was missed in two of three sessions; replaced
-by arb-8155-c1: added `ScopeLockHold` at most +0.25 s per 100,000 doomed rows.
+By session means the +10%/+5% bar of arb-8155-s3 was missed in one of three
+sessions (S2); by session medians it was missed in all three on
+`prune_content_files` and in two on `ScopeLockHold`; replaced by arb-8155-c1:
+added `ScopeLockHold` at most +0.25 s per 100,000 doomed rows.
 BD adds +0.11 to +0.17 s, so it meets the budget. B2 reads the same or worse,
 so the commit-time move costs nothing; the cost is the `OLD TABLE` capture
 and its 181.1 MB spill past the 64MB `work_mem` (the diagnostics remove the

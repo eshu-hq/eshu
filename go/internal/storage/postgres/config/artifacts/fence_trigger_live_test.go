@@ -233,7 +233,7 @@ func containsName(names []string, name string) bool {
 	return false
 }
 
-// dropFence removes the four fence triggers so a test can install a seeded
+// dropFence removes the four content_files fence triggers so a test can install a seeded
 // variant; the functions stay.
 func dropFence(ctx context.Context, t *testing.T, db *sql.DB) {
 	t.Helper()
