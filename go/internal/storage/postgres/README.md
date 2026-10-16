@@ -79,8 +79,8 @@ High-signal invariants for this package:
   `CREATE EXTENSION`, `ALTER COLUMN`, or any definition (types, defaults,
   index columns, constraint, trigger, and function bodies), so a readable
   name followed by a definition joined on at runtime passes. Name-only
-  comparison also collapses function schemas and overloads to one name,
-  skips inline column `CONSTRAINT` clauses, and reports a Go
+  comparison also collapses function schemas and overloads to one name
+  and reports a Go
   `ADD CONSTRAINT <table>_pkey` against a migration's unnamed `PRIMARY KEY`
   as a gap no allowlist can exempt; name the constraint in the migration.
   A constraint keyword counts only with the token its grammar needs next

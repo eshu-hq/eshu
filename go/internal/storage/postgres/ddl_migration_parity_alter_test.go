@@ -77,6 +77,7 @@ type ddlAlterAction struct {
 	form       string // recognized form name; empty when unrecognized
 	column     string // folded column name for "add column"
 	constraint string // folded constraint name for "add constraint"
+	definition string // text after the column name for "add column"
 }
 
 // classifyAlterAction matches one trimmed ALTER TABLE action against
@@ -91,7 +92,11 @@ func classifyAlterAction(action string) (ddlAlterAction, bool) {
 		if !ok {
 			return ddlAlterAction{}, false
 		}
-		return ddlAlterAction{form: form.name, column: names["column"], constraint: names["constraint"]}, true
+		classified := ddlAlterAction{form: form.name, column: names["column"], constraint: names["constraint"]}
+		if classified.column != "" {
+			classified.definition = action[form.pattern.FindStringIndex(action)[1]:]
+		}
+		return classified, true
 	}
 	return ddlAlterAction{}, false
 }

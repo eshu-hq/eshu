@@ -198,6 +198,8 @@ func (inv *ddlInventory) addCreateTable(rest string, site ddlSite) {
 		default:
 			if column, ok := normalizeDDLIdent(fields[0]); ok {
 				inv.addColumn(ddlColumn{table: table, column: column}, site)
+				definition := strings.TrimSpace(element)[len(fields[0]):]
+				inv.addInlineConstraints(table, definition, rest[:m[5]]+" ("+fields[0], site)
 			} else {
 				inv.unresolvedAt(rest[:m[5]]+" ("+fields[0], site)
 			}
@@ -229,6 +231,7 @@ func (inv *ddlInventory) addAlterTable(rest string, site ddlSite) {
 			inv.unresolvedAt(head+" "+action, site)
 		case classified.column != "":
 			inv.addColumn(ddlColumn{table: table, column: classified.column}, site)
+			inv.addInlineConstraints(table, classified.definition, head+" ADD "+classified.column, site)
 		case classified.constraint != "":
 			inv.addObject("constraint", table, classified.constraint, head, site)
 		}
@@ -289,6 +292,27 @@ func (inv *ddlInventory) addObject(kind, table, rawName, head string, site ddlSi
 	key := ddlObject{kind: kind, table: table, name: name}
 	if _, seen := inv.objects[key]; !seen {
 		inv.objects[key] = site
+	}
+}
+
+// ddlInlineConstraintPattern finds an inline CONSTRAINT keyword in the
+// top-level words of a column definition. Group 1 is the constraint name; it
+// is empty when the name is joined on at runtime.
+var ddlInlineConstraintPattern = regexp.MustCompile(`(?is)(?:^|\s)constraint\b(?:\s+(` + ddlActionName + `))?`)
+
+// addInlineConstraints records each named inline column constraint
+// ("col type CONSTRAINT name CHECK (...)", or REFERENCES, UNIQUE, PRIMARY
+// KEY, NOT NULL, DEFAULT) in definition, the column element text after the
+// column name, as a constraint of table. Text inside parentheses or
+// single-quoted literals is not searched. A CONSTRAINT keyword with no
+// readable name after it is recorded as unresolved under head.
+func (inv *ddlInventory) addInlineConstraints(table, definition, head string, site ddlSite) {
+	for _, m := range ddlInlineConstraintPattern.FindAllStringSubmatch(ddlTopLevelText(definition), -1) {
+		if m[1] == "" {
+			inv.unresolvedAt(head+" constraint", site)
+			continue
+		}
+		inv.addObject("constraint", table, m[1], head, site)
 	}
 }
 

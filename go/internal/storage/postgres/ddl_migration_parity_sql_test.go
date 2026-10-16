@@ -61,20 +61,33 @@ func normalizeDDLIdent(raw string) (string, bool) {
 	return name, true
 }
 
-// stripSQLComments blanks "--" line comments and "/* */" block comments
-// outside single-quoted literals, keeping newlines so line numbers hold.
+// stripSQLComments blanks "--" line comments and "/* */" block comments,
+// keeping newlines so line numbers hold. Single-quoted literals,
+// double-quoted identifiers, and dollar-quoted bodies ($$...$$ or
+// $tag$...$tag$) are skipped whole, so a comment marker or an apostrophe
+// inside one is body text. An unterminated quote runs to the end of sql.
 func stripSQLComments(sql string) string {
 	out := []byte(sql)
-	inQuote := false
 	for i := 0; i < len(out); i++ {
-		switch {
-		case inQuote:
-			if out[i] == '\'' {
-				inQuote = false
+		switch c := out[i]; {
+		case c == '\'' || c == '"':
+			// A doubled quote ('it''s') closes here and reopens at once.
+			end := strings.IndexByte(sql[i+1:], c)
+			if end < 0 {
+				return string(out)
 			}
-		case out[i] == '\'':
-			inQuote = true
-		case out[i] == '-' && i+1 < len(out) && out[i+1] == '-':
+			i += 1 + end
+		case c == '$':
+			tag, ok := dollarQuoteTag(sql, i)
+			if !ok {
+				continue
+			}
+			end := strings.Index(sql[i+len(tag):], tag)
+			if end < 0 {
+				return string(out)
+			}
+			i += len(tag) + end + len(tag) - 1
+		case c == '-' && i+1 < len(out) && out[i+1] == '-':
 			for ; i < len(out) && out[i] != '\n'; i++ {
 				out[i] = ' '
 			}
@@ -91,6 +104,57 @@ func stripSQLComments(sql string) string {
 			}
 			i--
 		}
+	}
+	return string(out)
+}
+
+// dollarQuoteTag reports the dollar-quote tag that opens at s[i], which must
+// be '$'. Per the PostgreSQL lexical rules a tag is "$", an optional
+// identifier that does not start with a digit and holds no "$", and "$".
+// A "$" that continues an identifier (a$$b) or starts a positional
+// parameter ($1) opens no dollar quote.
+func dollarQuoteTag(s string, i int) (string, bool) {
+	if i > 0 && (ddlIdentByte(s[i-1]) || s[i-1] == '$') {
+		return "", false
+	}
+	j := i + 1
+	if j < len(s) && ddlIdentByte(s[j]) && (s[j] < '0' || s[j] > '9') {
+		for j < len(s) && ddlIdentByte(s[j]) {
+			j++
+		}
+	}
+	if j >= len(s) || s[j] != '$' {
+		return "", false
+	}
+	return s[i : j+1], true
+}
+
+// ddlIdentByte reports whether b can continue an unquoted identifier,
+// apart from '$': a letter, a digit, an underscore, or a non-ASCII byte.
+func ddlIdentByte(b byte) bool {
+	return b == '_' || b >= 0x80 || (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9')
+}
+
+// ddlTopLevelText returns s with every parenthesized group and
+// single-quoted literal blanked, so a keyword search sees only the
+// top-level words of a column definition and not a CHECK body or a literal.
+func ddlTopLevelText(s string) string {
+	out := []byte(s)
+	depth, inQuote := 0, false
+	for i, c := range out {
+		switch {
+		case inQuote:
+			inQuote = c != '\''
+		case c == '\'':
+			inQuote = true
+		case c == '(':
+			depth++
+		case c == ')':
+			depth--
+		case depth == 0:
+			continue
+		}
+		out[i] = ' '
 	}
 	return string(out)
 }
