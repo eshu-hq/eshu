@@ -50,6 +50,13 @@ INSERT INTO fact_work_items (
           'projector', 'source_local', 'running', 1, 'proof-worker',
           now() + interval '2 minutes', now(), '{}'::jsonb, now(), now());
 `)
+	// The commit-path successor backstop (#7926) counts prior generation
+	// facts before storing, so this fixture needs the shipped fact_records
+	// table (empty here: the recommit carries no new facts). Apply the
+	// shipped DDL, not a copy.
+	if _, err := database.ExecContext(context.Background(), MigrationSQL("fact_records")); err != nil {
+		t.Fatalf("create fact_records table: %v", err)
+	}
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	store := NewIngestionStore(SQLDB{DB: database})
