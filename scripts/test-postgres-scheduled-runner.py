@@ -25,6 +25,13 @@ class ScheduledRunnerTest(unittest.TestCase):
         inventory = MODULE.load_inventory()
         self.assertEqual(len(inventory), 24)
         self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 41)
+        for group, files, tests in (
+            ("crossplane", 5, 9),
+            ("infra_inventory", 19, 32),
+        ):
+            rows = [row for row in inventory.values() if row["group"] == group]
+            self.assertEqual(len(rows), files)
+            self.assertEqual(sum(len(row["tests"]) for row in rows), tests)
         MODULE.verify_inventory(ROOT, inventory)
 
     def test_source_drift_and_missing_workflow_command_fail(self) -> None:

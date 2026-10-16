@@ -1,7 +1,9 @@
 """Exercise the verified scheduled PostgreSQL ledger policy with planted errors."""
 
+import hashlib
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import unittest
@@ -57,6 +59,29 @@ class LedgerPolicyTest(unittest.TestCase):
                 result = subprocess.run([str(script)], env=env, capture_output=True, text=True)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(error, result.stderr)
+
+            demoted = text.replace(
+                "    class: verified_scheduled\n", "    class: scheduled\n"
+            ).replace("    runner: postgres-scheduled\n", "")
+            paths = re.findall(
+                r"^  - file: (\S+)\n    tag: .*\n    class: scheduled$",
+                demoted,
+                re.MULTILINE,
+            )
+            digest = hashlib.sha256(
+                "".join(f"{path}\n" for path in sorted(paths)).encode()
+            ).hexdigest()
+            demoted = re.sub(
+                r"(?m)^  count: [0-9]+\n  sha256: [0-9a-f]{64}$",
+                f"  count: {len(paths)}\n  sha256: {digest}",
+                demoted,
+            )
+            ledger.write_text(demoted)
+            result = subprocess.run(
+                [str(script)], env=env, capture_output=True, text=True
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("verified scheduled rows differ", result.stderr)
 
 
 if __name__ == "__main__":
