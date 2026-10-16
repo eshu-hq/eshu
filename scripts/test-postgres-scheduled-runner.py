@@ -38,8 +38,8 @@ class ScheduledRunnerTest(unittest.TestCase):
 
     def test_committed_inventory_and_workflow(self) -> None:
         inventory = MODULE.load_inventory()
-        self.assertEqual(len(inventory), 35)
-        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 53)
+        self.assertEqual(len(inventory), 57)
+        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 96)
         self.assertNotIn(
             "go/internal/query/code_topic_parallel_guarded_live_test.go", inventory
         )
@@ -49,6 +49,7 @@ class ScheduledRunnerTest(unittest.TestCase):
             ("disposable_gate", 1, 1),
             ("disposable_query", 9, 9),
             ("disposable_storage", 1, 2),
+            ("ack_family", 22, 43),
         ):
             rows = [row for row in inventory.values() if row["group"] == group]
             self.assertEqual(len(rows), files)
@@ -218,6 +219,18 @@ class ScheduledRunnerTest(unittest.TestCase):
                     "CREATE DATABASE eshu_crossplane_scheduled",
                     "fresh database",
                 ),
+                (
+                    "CREATE DATABASE eshu_ack_scheduled",
+                    "CREATE DATABASE eshu_crossplane_scheduled",
+                    "fresh database",
+                ),
+                (
+                    "ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/"
+                    "eshu_ack_scheduled",
+                    "ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/"
+                    "postgres",
+                    "ACK DSNs",
+                ),
             ):
                 workflow.write_text(original.replace(old, new, 1))
                 with self.assertRaisesRegex(ValueError, error):
@@ -248,7 +261,7 @@ class ScheduledRunnerTest(unittest.TestCase):
         inventory = MODULE.load_inventory()
         for group in (
             "crossplane", "infra_inventory", "disposable_gate",
-            "disposable_query", "disposable_storage",
+            "disposable_query", "disposable_storage", "ack_family",
         ):
             rows = [row for row in inventory.values() if row["group"] == group]
             package = rows[0]["package"]

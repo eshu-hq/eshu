@@ -21,10 +21,12 @@ PACKAGES = {
     "disposable_gate": "github.com/eshu-hq/eshu/go/cmd/golden-corpus-gate",
     "disposable_query": "github.com/eshu-hq/eshu/go/internal/query",
     "disposable_storage": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "ack_family": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
 }
 DSNS = {
     "crossplane": "ESHU_CROSSPLANE_REDRIVE_PROOF_DSN",
     "infra_inventory": "ESHU_POSTGRES_DSN",
+    "ack_family": "ESHU_POSTGRES_TEST_DSN",
 }
 ADMIN_ENVS = {
     "disposable_gate": ("ESHU_TEST_DRAIN_RESIDUAL_POSTGRES",),
@@ -172,7 +174,12 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
         raise ValueError("conditional hosted proof manifest step")
     for group, package in PACKAGES.items():
         package_path = "./" + package.split("/go/", 1)[1]
-        timeout = "7m" if group in DSNS else "6m"
+        if group == "ack_family":
+            timeout = "10m"
+        elif group in DSNS:
+            timeout = "7m"
+        else:
+            timeout = "6m"
         pattern = re.compile(
             r"(?m)^\s*go test -json -race -p=1 -count=1 -timeout="
             + timeout + " "
@@ -195,6 +202,16 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
         if group in DSNS:
             if step.count(f"{DSNS[group]}: postgres://") != 1:
                 raise ValueError(f"missing or duplicate DSN for {group}")
+            if group == "ack_family":
+                dsn = (
+                    "postgres://eshu:change-me@localhost:15432/"
+                    "eshu_ack_scheduled?sslmode=disable"
+                )
+                if (
+                    step.count(f"ESHU_POSTGRES_TEST_DSN: {dsn}") != 1
+                    or step.count(f"ESHU_POSTGRES_DSN: {dsn}") != 1
+                ):
+                    raise ValueError("ACK DSNs must point to the same fresh database")
         else:
             for prefix in ADMIN_ENVS[group]:
                 dsn = (
@@ -216,7 +233,8 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
     if workflow.count("set -o pipefail") != len(PACKAGES):
         raise ValueError("every scheduled package step requires pipefail")
     for group, database in (("crossplane", "eshu_crossplane_scheduled"),
-                            ("infra_inventory", "eshu_inventory_scheduled")):
+                            ("infra_inventory", "eshu_inventory_scheduled"),
+                            ("ack_family", "eshu_ack_scheduled")):
         create = f"-c 'CREATE DATABASE {database}'"
         dsn = f"{DSNS[group]}: postgres://eshu:change-me@localhost:15432/{database}?sslmode=disable"
         if workflow.count(create) != 1 or workflow.count(dsn) != 1:
