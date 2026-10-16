@@ -23,8 +23,8 @@
 -- a version this ordering produces.
 --
 -- bumped_xid is '0'::xid8. pg_current_xact_id() never returns 0 (it is
--- InvalidTransactionId), so the trigger guard bumped_xid IS DISTINCT FROM
--- pg_current_xact_id() always lets the first real write bump a seeded row.
+-- InvalidTransactionId), so the trigger guard on (bumped_xid, bumped_at)
+-- always lets the first real write bump a seeded row.
 --
 -- Re-runnable: ON CONFLICT DO NOTHING never resets or rewrites a version row.
 

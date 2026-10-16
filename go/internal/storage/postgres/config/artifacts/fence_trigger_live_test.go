@@ -236,3 +236,37 @@ func dropFence(ctx context.Context, t *testing.T, db *sql.DB) {
 		mustExec(ctx, t, db, "DROP TRIGGER IF EXISTS "+name+" ON content_files")
 	}
 }
+
+// TestVersionFenceSurvivesATransactionIDRestartLive covers the PR3b-1a review
+// forward note (README, "Known limits for the trigger"): after a logical
+// restore the transaction id counter restarts while stored bumped_xid values
+// survive, so a later transaction can receive an id a version row already
+// holds. The guard compares (bumped_xid, bumped_at), so that transaction
+// still bumps once, and a second statement in it does not bump again.
+func TestVersionFenceSurvivesATransactionIDRestartLive(t *testing.T) {
+	ctx, db := openDatabase(t)
+	seedZeroVersions(ctx, t, db, "repo-restored")
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.Close() }()
+	for _, statement := range []string{
+		"BEGIN",
+		// The restored row carries this transaction's id from an older
+		// cluster, stamped a day earlier.
+		`UPDATE config_artifact_content_versions
+SET bumped_xid = pg_current_xact_id(), bumped_at = now() - interval '1 day'
+WHERE repo_id = 'repo-restored'`,
+		insertSQL("repo-restored", "p/1"),
+		insertSQL("repo-restored", "p/2"),
+		"COMMIT",
+	} {
+		if _, err := conn.ExecContext(ctx, statement); err != nil {
+			t.Fatalf("%.60q: %v", statement, err)
+		}
+	}
+	if got := versionOf(ctx, t, db, "repo-restored"); got != 1 {
+		t.Fatalf("version after a write whose xid a restored row holds = %d, want 1", got)
+	}
+}

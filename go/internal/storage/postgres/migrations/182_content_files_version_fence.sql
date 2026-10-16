@@ -16,8 +16,12 @@
 -- statement-level with an OLD TABLE (S3 arm 3 picked this shape over a
 -- row-level DELETE trigger), and TRUNCATE bumps every existing version row.
 -- An INSERT ... ON CONFLICT DO UPDATE fires both the INSERT and the UPDATE
--- trigger; the bumped_xid guard makes the second a no-op. pg_current_xact_id()
--- is a 64-bit id, so the guard cannot wrap.
+-- trigger; the guard makes the second a no-op. The guard is the pair
+-- (bumped_xid, bumped_at): pg_current_xact_id() is 64-bit and cannot wrap, and
+-- now() is fixed for a transaction, but a logical restore into a fresh
+-- cluster restarts the id counter while stored bumped_xid values survive, so
+-- a later transaction can receive an id a row already holds. Its now() still
+-- differs, so it bumps.
 --
 -- Lock order. A statement-level trigger takes the version-row locks of a
 -- multi-repository statement in its SELECT order, and ORDER BY r.repo_id makes
@@ -52,7 +56,8 @@ BEGIN
     ORDER BY r.repo_id
     ON CONFLICT (repo_id) DO UPDATE
     SET version = v.version + 1, bumped_xid = EXCLUDED.bumped_xid, bumped_at = EXCLUDED.bumped_at
-    WHERE v.bumped_xid IS DISTINCT FROM EXCLUDED.bumped_xid;
+    WHERE v.bumped_xid IS DISTINCT FROM EXCLUDED.bumped_xid
+       OR v.bumped_at IS DISTINCT FROM EXCLUDED.bumped_at;
     RETURN NULL;
 END;
 $fn$;
@@ -68,7 +73,8 @@ BEGIN
     ORDER BY r.repo_id
     ON CONFLICT (repo_id) DO UPDATE
     SET version = v.version + 1, bumped_xid = EXCLUDED.bumped_xid, bumped_at = EXCLUDED.bumped_at
-    WHERE v.bumped_xid IS DISTINCT FROM EXCLUDED.bumped_xid;
+    WHERE v.bumped_xid IS DISTINCT FROM EXCLUDED.bumped_xid
+       OR v.bumped_at IS DISTINCT FROM EXCLUDED.bumped_at;
     RETURN NULL;
 END;
 $fn$;
@@ -82,7 +88,8 @@ AS $fn$
 BEGIN
     UPDATE config_artifact_content_versions AS v
     SET version = v.version + 1, bumped_xid = pg_current_xact_id(), bumped_at = now()
-    WHERE v.bumped_xid IS DISTINCT FROM pg_current_xact_id();
+    WHERE v.bumped_xid IS DISTINCT FROM pg_current_xact_id()
+       OR v.bumped_at IS DISTINCT FROM now();
     RETURN NULL;
 END;
 $fn$;

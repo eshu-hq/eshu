@@ -19,6 +19,7 @@ CONFIG_FENCE_PACKAGES = {
             "TestVersionFenceCreatesMissingRowOnFirstWriteLive",
             "TestVersionFenceConcurrentFirstWritesConvergeLive",
             "TestVersionFenceTriggersFireLastLive",
+            "TestVersionFenceSurvivesATransactionIDRestartLive",
         ),
         f"{_FENCE_DIR}/fence_churn_live_test.go": (
             "TestVersionFenceChurnIsOnePerTransactionLive",
