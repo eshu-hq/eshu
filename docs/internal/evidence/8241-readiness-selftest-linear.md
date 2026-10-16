@@ -102,8 +102,8 @@ Interleaved in one process at this head (load average 22 to 31):
 
 The rounds give about 26x and 27x for the per-proof phase. At this head the
 whole new self-test passed on the clean tree in 171.4 s (load average 20 to
-57), and the seeded-violation test caught all eight seeds in 134.2 s (load
-average 20 to 51). The deep seed walks almost every proof, so it uses most
+57), and the seeded-violation test caught all eight seeds in 105.1 s (load
+average 12 to 29). The deep seed walks almost every proof, so it uses most
 of the seeds time.
 
 No-Observability-Change: this is a CI self-test fixture change. It adds no

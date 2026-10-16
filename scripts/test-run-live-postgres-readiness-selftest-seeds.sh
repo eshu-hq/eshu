@@ -50,20 +50,13 @@ python3 "${repo_root}/scripts/lib/live_postgres_readiness_results.py" list-packa
 read -r first_proof unsorted_proof deep_pkg deep_name first_pkg big_pkg hidden_name < <(
   python3 - "${work}/packages.tsv" "${tail_keep}" <<'PY'
 import sys
-
-rows = []
-with open(sys.argv[1], encoding="utf-8") as listing:
-    for line in listing:
-        package, _pattern, names = line.rstrip("\n").split("\t")
-        rows.append((package, names.split()))
-first = rows[0][1][0]
-unsorted = next(name for _, names in rows for name in names if name != min(names))
-deep_package, deep_names = [row for row in rows if max(row[1]) != row[1][0]][-1]
+rows = [(p, n.split()) for p, _, n in (x.rstrip("\n").split("\t") for x in open(sys.argv[1]))]
 keep = int(sys.argv[2])
-big_package, big_names = next(row for row in rows if len(row[1]) > keep)
-shown = set(sorted(big_names)[-keep:])
-hidden = next(name for name in big_names if name not in shown)
-print(first, unsorted, deep_package, max(deep_names), rows[0][0], big_package, hidden)
+deep = [r for r in rows if max(r[1]) != r[1][0]][-1]
+big = next(r for r in rows if len(r[1]) > keep)
+shown = set(sorted(big[1])[-keep:])
+print(rows[0][1][0], next(n for _, ns in rows for n in ns if n != min(ns)),
+      deep[0], max(deep[1]), rows[0][0], big[0], next(n for n in big[1] if n not in shown))
 PY
 )
 [[ -n "${hidden_name:-}" ]] || fail "package listing yielded no seed targets"
