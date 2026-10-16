@@ -102,18 +102,30 @@ func serveInfraSearchLegacy(t *testing.T, c infraSearchLegacyCase, configure fun
 	if configure != nil {
 		configure(handler)
 	}
+	var auth *AuthContext
+	if c.scoped {
+		a := dialectGrants()[0].auth()
+		auth = &a
+	}
+	serveInfraSearchRequest(t, handler, auth, c.body)
+	return graph.calls
+}
+
+// serveInfraSearchRequest sends one search body through handler's mounted
+// route, under auth when it is not nil, and fails the test on a non-200.
+func serveInfraSearchRequest(t *testing.T, handler *InfraHandler, auth *AuthContext, body string) {
+	t.Helper()
 	mux := http.NewServeMux()
 	handler.Mount(mux)
-	req := httptest.NewRequest(http.MethodPost, infraSearchPath, strings.NewReader(c.body))
-	if c.scoped {
-		req = req.WithContext(ContextWithAuthContext(req.Context(), dialectGrants()[0].auth()))
+	req := httptest.NewRequest(http.MethodPost, infraSearchPath, strings.NewReader(body))
+	if auth != nil {
+		req = req.WithContext(ContextWithAuthContext(req.Context(), *auth))
 	}
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("%s: status %d body %s", c.name, rec.Code, rec.Body.String())
+		t.Fatalf("%.80s: status %d body %.300s", body, rec.Code, rec.Body.String())
 	}
-	return graph.calls
 }
 
 func TestInfraSearchLegacyStatementsByteIdentical(t *testing.T) {
