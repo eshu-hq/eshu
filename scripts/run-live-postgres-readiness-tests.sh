@@ -42,10 +42,11 @@ fi
 command -v go >/dev/null 2>&1 || die "go is required"
 command -v python3 >/dev/null 2>&1 || die "python3 is required"
 
-# ESHU_WEBHOOK_CLAIM_LEASE_PROOF_DSN carries no _DISPOSABLE twin: the
-# webhook claim-lease suite creates and drops one isolated schema per
-# test instead of gating on a disposable-database flag.
+# ESHU_POSTGRES_DSN and ESHU_WEBHOOK_CLAIM_LEASE_PROOF_DSN carry no
+# _DISPOSABLE twin: their tests create and drop isolated schemas instead of
+# gating on a disposable-database flag.
 for name in \
+  ESHU_POSTGRES_DSN \
   ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN \
   ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DSN \
   ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN \

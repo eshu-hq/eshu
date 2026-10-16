@@ -4,8 +4,11 @@
 package reset
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -169,5 +172,35 @@ func TestRefinalizeClaimFenceWithRetryExhaustsAdmissionBudget(t *testing.T) {
 	}
 	if attempts != 1 {
 		t.Fatalf("attempts = %d, want 1", attempts)
+	}
+}
+
+func TestRefinalizeClaimFenceWithRetryLogsLastSQLStateForAdmissionExpiry(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		attemptErr error
+		wantState  string
+	}{
+		{name: "non postgres error", attemptErr: errors.New("retry begin failed"), wantState: "none"},
+		{name: "fence timeout", attemptErr: &ClaimFenceLockTimeoutError{err: &pgconn.PgError{Code: "55P03"}}, wantState: "55P03"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var logs bytes.Buffer
+			logger := slog.New(slog.NewTextHandler(&logs, nil))
+			_, err := RefinalizeClaimFenceWithRetry(
+				context.Background(), time.Nanosecond, logger,
+				func(_ context.Context, budget *FenceAdmissionBudget) (recovery.RefinalizeResult, error) {
+					budget.start()
+					time.Sleep(time.Millisecond)
+					return recovery.RefinalizeResult{}, test.attemptErr
+				},
+			)
+			if !errors.Is(err, recovery.ErrRefinalizeClaimFenceBusy) {
+				t.Fatalf("error = %v, want busy sentinel", err)
+			}
+			if !strings.Contains(logs.String(), "last_sqlstate="+test.wantState) {
+				t.Fatalf("logs = %q, want last_sqlstate=%s", logs.String(), test.wantState)
+			}
+		})
 	}
 }

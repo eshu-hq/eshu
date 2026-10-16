@@ -83,9 +83,9 @@ for var in ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF ESHU_PACKAGE_MANIFEST_REPO_SCOPE_
   printf '%s_DSN\n%s_DISPOSABLE\n' "${var}" "${var}" >>"${fake}/envs"
 done
 printf '%s\n' ESHU_TEST_CONTENT_INDEX_POSTGRES_READ_DSN >>"${fake}/envs"
-# Lone DSN with no _DISPOSABLE twin: the webhook claim-lease suite isolates
-# per-test schemas instead of gating on a disposable-database flag.
-printf '%s\n' ESHU_WEBHOOK_CLAIM_LEASE_PROOF_DSN >>"${fake}/envs"
+# DSNs with no _DISPOSABLE twin: these suites isolate their schemas instead
+# of gating on a disposable-database flag.
+printf '%s\n' ESHU_POSTGRES_DSN ESHU_WEBHOOK_CLAIM_LEASE_PROOF_DSN >>"${fake}/envs"
 for var in ESHU_NEO4J_URI ESHU_NEO4J_USERNAME ESHU_NEO4J_PASSWORD \
   ESHU_GRAPH_BACKEND; do
   printf '%s\n' "${var}" >>"${fake}/envs"

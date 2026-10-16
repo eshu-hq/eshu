@@ -4,6 +4,7 @@
 package admin
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -78,6 +79,25 @@ func TestAdminHandler_RecoverGenerations_ClaimFenceBusyReturnsConflict(t *testin
 	}
 	if !strings.Contains(w.Body.String(), "blocked/claim_fence_busy") {
 		t.Fatalf("body = %s, want blocked/claim_fence_busy", w.Body.String())
+	}
+}
+
+func TestAdminHandler_RecoverGenerations_PrefixesRefinalizeErrors(t *testing.T) {
+	const cause = "database connection failed"
+	h := &Handler{
+		Recovery: &stubRecoveryHandler{refinalizeErr: errors.New(cause)},
+		Store:    &stubAdminStore{claim: ReplayIdempotencyClaim{Claimed: true}},
+	}
+	w := postJSON(newAdminMux(h), "/api/v0/admin/recover-generations", map[string]any{
+		"scope_ids":       []string{"scope-1"},
+		"reason":          "operator recovery",
+		"idempotency_key": "recover-error-key",
+	})
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusInternalServerError, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "recover-generations: "+cause) {
+		t.Fatalf("body = %s, want recover-generations error prefix", w.Body.String())
 	}
 }
 

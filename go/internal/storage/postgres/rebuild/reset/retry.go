@@ -11,6 +11,8 @@ import (
 	"math/rand/v2"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/coordination"
 )
@@ -36,12 +38,13 @@ func RefinalizeClaimFenceWithRetry(
 	}
 	admission := NewFenceAdmissionBudget(ctx, retryBudget)
 	defer admission.Close()
-	budgetError := func(attempts int, cause string) error {
+	var lastSQLState string
+	budgetError := func(attempts int, cause, sqlstate string) error {
 		elapsed := admission.Elapsed()
 		logger.WarnContext(ctx, "refinalize claim fence admission budget exhausted",
 			slog.String("outcome", "blocked/claim_fence_busy"), slog.Int("attempts", attempts),
 			slog.Duration("retry_elapsed", elapsed), slog.String("phase", "fence_admission"),
-			slog.String("cause", cause), slog.String("last_sqlstate", "55P03"))
+			slog.String("cause", cause), slog.String("last_sqlstate", sqlstate))
 		return fmt.Errorf("%w after %s and %d attempts", recovery.ErrRefinalizeClaimFenceBusy, elapsed.Round(time.Millisecond), attempts)
 	}
 	for attempts := 1; ; attempts++ {
@@ -49,11 +52,12 @@ func RefinalizeClaimFenceWithRetry(
 		if err == nil {
 			return result, nil
 		}
+		lastSQLState = postgresSQLState(err)
 		if ctx.Err() != nil {
 			return recovery.RefinalizeResult{}, fmt.Errorf("refinalize claim fence retry: %w", ctx.Err())
 		}
 		if admission.Expired() {
-			return recovery.RefinalizeResult{}, budgetError(attempts, "admission_deadline")
+			return recovery.RefinalizeResult{}, budgetError(attempts, "admission_deadline", lastSQLState)
 		}
 		var lockTimeout *ClaimFenceLockTimeoutError
 		if !errors.As(err, &lockTimeout) || !coordination.IsLockNotAvailable(err) {
@@ -61,7 +65,7 @@ func RefinalizeClaimFenceWithRetry(
 		}
 		elapsed := admission.Elapsed()
 		if elapsed >= retryBudget {
-			return recovery.RefinalizeResult{}, budgetError(attempts, "last_fence_timeout")
+			return recovery.RefinalizeResult{}, budgetError(attempts, "last_fence_timeout", lastSQLState)
 		}
 		// #nosec G404 -- jitter spreads retry timing and makes no security decision.
 		delay := 100*time.Millisecond + time.Duration(rand.Int64N(401))*time.Millisecond
@@ -78,8 +82,16 @@ func RefinalizeClaimFenceWithRetry(
 			if ctx.Err() != nil {
 				return recovery.RefinalizeResult{}, fmt.Errorf("refinalize claim fence retry: %w", ctx.Err())
 			}
-			return recovery.RefinalizeResult{}, budgetError(attempts, "admission_deadline")
+			return recovery.RefinalizeResult{}, budgetError(attempts, "admission_deadline", lastSQLState)
 		case <-timer.C:
 		}
 	}
+}
+
+func postgresSQLState(err error) string {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code
+	}
+	return "none"
 }
