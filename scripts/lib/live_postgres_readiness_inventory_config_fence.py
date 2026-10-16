@@ -42,6 +42,10 @@ CONFIG_FENCE_PACKAGES = {
             "TestVersionFencePruneAndWriteDisjointKeysLive",
             "TestVersionFencePruneAndWriteSharedDoomedKeyLive",
         ),
+        f"{_FENCE_DIR}/fence_chunk_live_test.go": (
+            "TestVersionFenceChunkCycleRacingAWriteDoesNotDeadlockLive",
+            "TestVersionFenceTwoStatementTransactionRacingADeleteLive",
+        ),
         f"{_FENCE_DIR}/fence_seed_live_test.go": (
             "TestVersionFenceMigrationsOnExistingContentLive",
             "TestVersionFenceSeedRacesAFencedWriteLive",
