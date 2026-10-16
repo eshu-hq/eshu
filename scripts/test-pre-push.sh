@@ -16,6 +16,9 @@
 #     workflow and would otherwise have no local enforcement at all.
 set -euo pipefail
 
+# Fixture repositories define their own bases; the caller's pinned SHA is absent.
+unset ESHU_PRE_PUSH_BASE
+
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/dev/pre-push.sh"
 
