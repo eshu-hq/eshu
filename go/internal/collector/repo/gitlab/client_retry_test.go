@@ -104,7 +104,10 @@ func TestListGroupProjectsContextCancelDuringWait(t *testing.T) {
 	}
 	h := newClientHarness(t, f.server)
 	ctx, cancel := context.WithCancel(context.Background())
-	h.client.Sleep = func(d time.Duration) { cancel() }
+	h.client.Sleep = func(ctx context.Context, _ time.Duration) error {
+		cancel()
+		return ctx.Err()
+	}
 
 	_, err := h.client.ListGroupProjects(ctx, "acme/platform", 4000)
 	if !errors.Is(err, context.Canceled) {

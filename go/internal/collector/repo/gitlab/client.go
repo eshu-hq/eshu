@@ -76,8 +76,7 @@ func classified(class, format string, args ...any) *Error {
 	return &Error{Class: class, msg: "gitlab " + fmt.Sprintf(format, args...)}
 }
 
-// canceled returns a transport-classified error whose cause is the
-// caller's context error, so errors.Is still finds the cancellation.
+// canceled returns a transport-classified error caused by ctxErr.
 func canceled(operation string, ctxErr error) *Error {
 	return &Error{Class: FailureClassTransport, msg: "gitlab " + operation + ": " + ctxErr.Error(), cause: ctxErr}
 }
@@ -146,9 +145,21 @@ type Client struct {
 	token       string
 	instruments *telemetry.Instruments
 	logger      *slog.Logger
-	// Sleep waits out a backoff wait. Tests replace it to assert the
-	// schedule without waiting.
-	Sleep func(time.Duration)
+	// Sleep waits out a backoff wait, returning early when the context ends.
+	// Tests replace it to assert the schedule without waiting.
+	Sleep func(ctx context.Context, d time.Duration) error
+}
+
+// sleepWithTimer waits with a timer: either it fires or the context ends.
+func sleepWithTimer(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("backoff wait: %w", ctx.Err())
+	case <-timer.C:
+		return nil
+	}
 }
 
 // NewClient returns a listing client for apiBase ("https://<host>/api/v4")
@@ -161,7 +172,7 @@ func NewClient(httpClient *http.Client, apiBase, token string, inst *telemetry.I
 	if httpClient == nil {
 		httpClient = sdk.DefaultHTTPClient(requestTimeout)
 	}
-	return &Client{httpClient: httpClient, apiBase: strings.TrimRight(strings.TrimSpace(apiBase), "/"), token: token, instruments: inst, logger: logger, Sleep: time.Sleep}, nil
+	return &Client{httpClient: httpClient, apiBase: strings.TrimRight(strings.TrimSpace(apiBase), "/"), token: token, instruments: inst, logger: logger, Sleep: sleepWithTimer}, nil
 }
 
 // ValidateConfig checks the gitlabGroup environment contract at config
@@ -186,7 +197,9 @@ func ValidateConfig(authMethod, group, gitToken, githubToken string, exactRuleID
 		return errors.New("gitlabGroup source mode requires ESHU_GIT_TOKEN")
 	}
 	if !isNumericGroup(group) {
-		if err := CheckExactRules(group, exactRuleIDs); err != nil {
+		// Lowercase for this check only; discovery re-checks the canonical
+		// server case, so fail-closed is preserved.
+		if err := CheckExactRules(strings.ToLower(group), exactRuleIDs); err != nil {
 			return err
 		}
 	}
@@ -319,7 +332,7 @@ type fetchedPage struct {
 func (c *Client) get(ctx context.Context, endpoint, operation string) (fetchedPage, error) {
 	sleep := c.Sleep
 	if sleep == nil {
-		sleep = time.Sleep
+		sleep = sleepWithTimer
 	}
 	for attempt := 1; ; attempt++ {
 		request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
@@ -416,20 +429,13 @@ func backoffWait(retryAfter string, attempt int) time.Duration {
 	return min(max(wait, retryWaitMin), retryWaitMax)
 }
 
-// waitContext waits wait via sleep, returning a classified error caused by
-// the context error when the context ends first.
-func waitContext(ctx context.Context, operation string, sleep func(time.Duration), wait time.Duration) error {
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		sleep(wait)
-	}()
-	select {
-	case <-ctx.Done():
-		return canceled(operation+" backoff wait", ctx.Err())
-	case <-done:
-		return nil
+// waitContext waits wait via sleep, mapping an early end to a classified
+// error. The production sleep watches the context, so no goroutine parks.
+func waitContext(ctx context.Context, operation string, sleep func(context.Context, time.Duration) error, wait time.Duration) error {
+	if err := sleep(ctx, wait); err != nil {
+		return canceled(operation+" backoff wait", err)
 	}
+	return nil
 }
 
 // HasNextLink reports whether any RFC 8288 Link header value names a

@@ -27,6 +27,6 @@
   faults are terminal; only 429/502/503/504 retry, at most 3 times per
   page. Never widen the retry set without a test that shows the fault it
   can no longer surface immediately.
-- The sleep is injected so tests never wait out a backoff. Production
-  passes `time.Sleep`.
+- The sleep is injected and context-aware so tests never wait out a
+  backoff. Production passes a timer select; no goroutine parks on cancel.
 - Keep every file under 500 lines; split before approaching the cap.

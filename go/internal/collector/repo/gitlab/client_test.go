@@ -160,7 +160,10 @@ func newClientHarness(t *testing.T, server *httptest.Server) *clientHarness {
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
 	}
-	client.Sleep = func(d time.Duration) { h.sleeps = append(h.sleeps, d) }
+	client.Sleep = func(_ context.Context, d time.Duration) error {
+		h.sleeps = append(h.sleeps, d)
+		return nil
+	}
 	h.client = client
 	return h
 }

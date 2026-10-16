@@ -87,6 +87,12 @@ func TestValidateConfig(t *testing.T) {
 	if err := gitlab.ValidateConfig("token", "acme/platform", "glpat", "", []string{"gitlab/acme/platform/a"}); err != nil {
 		t.Fatalf("ValidateConfig() error = %v, want nil", err)
 	}
+	// The config-time check lowercases a path-form group: the discovery-time
+	// check runs against the canonical server case, so a configured-case
+	// rule that matches there must not fail at startup.
+	if err := gitlab.ValidateConfig("token", "Acme/Platform", "glpat", "", []string{"gitlab/acme/platform/a"}); err != nil {
+		t.Fatalf("ValidateConfig() error = %v, want nil for a rule matching the resolved group", err)
+	}
 	for _, tc := range []struct {
 		name                                 string
 		method, group, gitToken, githubToken string
