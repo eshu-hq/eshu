@@ -15,8 +15,10 @@ independently of the legacy exemption count and digest. The static mirror
 plants disabled, suppressed, unselected, missing, skipped, duplicate,
 wrong-package, and re-pinned-demotion cases.
 The always-run ledger verifier reads the active static workflow and gate
-registry. The E2E PR filter also includes those control files, so an edit
-that removes the static guard still selects the independent conformance job.
+registry. It binds the complete shell runner, including setup, CORE, the
+NornicDB branch, and the closing tail; an early exit fails the static mirror.
+The E2E PR filter also includes those control files, so an edit that removes
+the static guard still selects the independent conformance job.
 
 All nine tests passed a local race run on pinned NornicDB 1.3.3: package
 1.342 seconds, process 2.367 seconds. The fresh Linux ARM64 fixture ran the
@@ -35,8 +37,9 @@ selected declarations: seven backend tests and two hermetic helpers. The
 package passed with no test skip or failure. The source guard exited 0, and
 the worktree stayed clean at the same commit. The local receipt is
 `nornic7-current-ea5f` (`start.json`, `result.json`,
-`nornic-conformance.jsonl`, and `strict-verifier.log`). This is a current-source
-local proof, not a hosted AMD64 or retained-state diagnosis.
+`nornic-conformance.jsonl`, and `strict-verifier.log`). This local run
+predates the complete-runner guard change. It is not a hosted AMD64 proof or a
+retained-state diagnosis.
 
 Two earlier reused-fixture attempts failed in the unchanged core containment
 readback. In two later parent/candidate pairs,

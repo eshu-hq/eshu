@@ -77,6 +77,27 @@ class NornicConformanceTest(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         MODULE.verify_workflow_text(workflow.replace(old, new, 1))
 
+    def test_runner_preamble_and_tail_are_bound(self) -> None:
+        """Executable code outside the Nornic branch cannot bypass CORE."""
+        root = Path(__file__).resolve().parent.parent
+        runner = (root / MODULE.RUNNER).read_text(encoding="utf-8")
+        inventory = MODULE.load_inventory()
+        MODULE.verify_runner_text(runner, inventory)
+        cd = 'cd "$REPO_ROOT/go"\n'
+        core = "go test ./internal/backendconformance -run '^TestLiveBackendConformance$' -count=1 -v"
+        for label, changed in (
+            ("early exit", runner.replace(cd, cd + "exit 0\n", 1)),
+            ("early exec", runner.replace(cd, cd + "exec true\n", 1)),
+            ("early false", runner.replace(cd, cd + "false\n", 1)),
+            ("outer wrapper", runner.replace(core, "if false; then\n" + core, 1) + "fi\n"),
+            ("omitted core", runner.replace(core, "true", 1)),
+            ("tail exit", runner + "exit 0\n"),
+        ):
+            with self.subTest(label=label):
+                self.assertNotEqual(changed, runner)
+                with self.assertRaises(ValueError):
+                    MODULE.verify_runner_text(changed, inventory)
+
     def test_active_metadata_routes_and_static_owner(self) -> None:
         """A source edit must select both hosted jobs and their local mirror."""
         root = Path(__file__).resolve().parent.parent
@@ -146,6 +167,51 @@ atexit.register(lambda: print(f"N7_MUTATED_SUBJECT_READS={reads}", file=sys.stde
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("N7_MUTATED_SUBJECT_READS=1", result.stderr)
         self.assertIn("missing active Nornic static mirror step", result.stderr)
+
+    def test_ledger_command_rejects_early_runner_exit(self) -> None:
+        """The production ledger guard must reject a successful early exit."""
+        root = Path(__file__).resolve().parent.parent
+        with tempfile.TemporaryDirectory() as directory:
+            hook = Path(directory) / "sitecustomize.py"
+            hook.write_text('''from pathlib import Path
+import atexit
+import os
+import sys
+
+original = Path.read_text
+subject = Path(os.environ["N7_RUNNER_SUBJECT"]).resolve()
+reads = 0
+
+def seeded_read(self, *args, **kwargs):
+    global reads
+    text = original(self, *args, **kwargs)
+    if self.resolve() == subject:
+        reads += 1
+        needle = 'cd "$REPO_ROOT/go"\\n'
+        if text.count(needle) != 1:
+            raise ValueError("expected one runner directory change")
+        return text.replace(needle, needle + "exit 0\\n", 1)
+    return text
+
+Path.read_text = seeded_read
+atexit.register(lambda: print(f"N7_MUTATED_SUBJECT_READS={reads}", file=sys.stderr))
+''')
+            seeded = subprocess.run(
+                ["bash", "scripts/verify-live-tests-ledger.sh"],
+                cwd=root, capture_output=True, text=True, check=False,
+                env={**os.environ, "PYTHONPATH": directory,
+                     "PYTHONDONTWRITEBYTECODE": "1",
+                     "N7_RUNNER_SUBJECT": str(root / MODULE.RUNNER)},
+            )
+        self.assertNotEqual(seeded.returncode, 0, seeded.stdout + seeded.stderr)
+        self.assertIn("N7_MUTATED_SUBJECT_READS=1", seeded.stderr)
+        self.assertIn("runner", seeded.stderr)
+        clean = subprocess.run(
+            ["bash", "scripts/verify-live-tests-ledger.sh"],
+            cwd=root, capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(clean.returncode, 0, clean.stdout + clean.stderr)
+        self.assertIn("live-tests ledger ok", clean.stdout)
 
     def test_inventory_cannot_swap_reviewed_files(self) -> None:
         inventory = MODULE.load_inventory()
