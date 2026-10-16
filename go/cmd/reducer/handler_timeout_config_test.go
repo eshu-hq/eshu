@@ -13,11 +13,11 @@ import (
 func TestLoadReducerHandlerTimeoutDefaultsToZero(t *testing.T) {
 	t.Parallel()
 
-	if got := loadReducerHandlerTimeout(func(string) string { return "" }); got != 0 {
-		t.Fatalf("loadReducerHandlerTimeout() = %v, want 0 (no bound configured)", got)
+	if got, err := loadReducerHandlerTimeout(func(string) string { return "" }); err != nil || got != 0 {
+		t.Fatalf("loadReducerHandlerTimeout() = %v, %v; want 0, nil (no bound configured)", got, err)
 	}
-	if got := loadReducerHandlerTimeout(nil); got != 0 {
-		t.Fatalf("loadReducerHandlerTimeout(nil) = %v, want 0", got)
+	if got, err := loadReducerHandlerTimeout(nil); err != nil || got != 0 {
+		t.Fatalf("loadReducerHandlerTimeout(nil) = %v, %v; want 0, nil", got, err)
 	}
 }
 
@@ -30,18 +30,18 @@ func TestLoadReducerHandlerTimeoutReadsDuration(t *testing.T) {
 		}
 		return ""
 	}
-	if got, want := loadReducerHandlerTimeout(getenv), 10*time.Minute; got != want {
-		t.Fatalf("loadReducerHandlerTimeout() = %v, want %v", got, want)
+	if got, err := loadReducerHandlerTimeout(getenv); err != nil || got != 10*time.Minute {
+		t.Fatalf("loadReducerHandlerTimeout() = %v, %v; want %v, nil", got, err, 10*time.Minute)
 	}
 }
 
 func TestLoadReducerHandlerTimeoutRejectsBadValues(t *testing.T) {
 	t.Parallel()
 
-	for _, raw := range []string{"not-a-duration", "0s", "-5m"} {
+	for _, raw := range []string{"not-a-duration", "0s", "-5m", "10mm"} {
 		getenv := func(string) string { return raw }
-		if got := loadReducerHandlerTimeout(getenv); got != 0 {
-			t.Fatalf("loadReducerHandlerTimeout(%q) = %v, want 0", raw, got)
+		if got, err := loadReducerHandlerTimeout(getenv); err == nil {
+			t.Fatalf("loadReducerHandlerTimeout(%q) = %v, want error", raw, got)
 		}
 	}
 }
@@ -88,6 +88,7 @@ func TestLoadReducerHandlerTimeoutOverridesRejectsBadEntries(t *testing.T) {
 		"workload_materialization=forever",
 		"workload_materialization=0s",
 		"workload_materialization=5m,",
+		"workload_materialization=5m,workload_materialization=10m",
 	} {
 		getenv := func(string) string { return raw }
 		if overrides, err := loadReducerHandlerTimeoutOverrides(getenv); err == nil {

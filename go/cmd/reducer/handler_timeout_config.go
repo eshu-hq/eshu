@@ -17,22 +17,24 @@ const (
 )
 
 // loadReducerHandlerTimeout reads the default bound on one handler execution.
-// Zero (unset or invalid) means no bound is configured. Step (a) of #8211
-// records the slot and measures handler durations only: nothing enforces the
-// value yet, because worst-case handler durations are still unmeasured.
-func loadReducerHandlerTimeout(getenv func(string) string) time.Duration {
+// Empty means no bound is configured. An unparsable or non-positive value is
+// an error: silently running unbounded on a typo would hide a misconfigured
+// bound, so startup refuses it like the overrides path does. Step (a) of
+// #8211 records the slot and measures handler durations only: nothing enforces
+// the value yet, because worst-case handler durations are still unmeasured.
+func loadReducerHandlerTimeout(getenv func(string) string) (time.Duration, error) {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
 	raw := strings.TrimSpace(getenv(reducerHandlerTimeoutEnv))
 	if raw == "" {
-		return 0
+		return 0, nil
 	}
 	value, err := time.ParseDuration(raw)
 	if err != nil || value <= 0 {
-		return 0
+		return 0, fmt.Errorf("%s must carry a positive duration, got %q", reducerHandlerTimeoutEnv, raw)
 	}
-	return value
+	return value, nil
 }
 
 // loadReducerHandlerTimeoutOverrides parses per-domain handler bounds in
@@ -64,6 +66,9 @@ func loadReducerHandlerTimeoutOverrides(getenv func(string) string) (map[reducer
 		bound, err := time.ParseDuration(strings.TrimSpace(value))
 		if err != nil || bound <= 0 {
 			return nil, fmt.Errorf("%s entry %q must carry a positive duration", reducerHandlerTimeoutOverridesEnv, part)
+		}
+		if _, dup := overrides[domain]; dup {
+			return nil, fmt.Errorf("%s names domain %q twice; a repeated domain is a copy-paste mistake, not an override", reducerHandlerTimeoutOverridesEnv, name)
 		}
 		overrides[domain] = bound
 	}

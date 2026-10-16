@@ -204,9 +204,20 @@ func buildReducerService(
 	if err != nil {
 		return reducer.Service{}, fmt.Errorf("load reducer claim domains: %w", err)
 	}
+	handlerTimeout, err := loadReducerHandlerTimeout(getenv)
+	if err != nil {
+		return reducer.Service{}, fmt.Errorf("load reducer handler timeout: %w", err)
+	}
 	handlerTimeoutOverrides, err := loadReducerHandlerTimeoutOverrides(getenv)
 	if err != nil {
 		return reducer.Service{}, fmt.Errorf("load reducer handler timeout overrides: %w", err)
+	}
+	if (handlerTimeout > 0 || len(handlerTimeoutOverrides) > 0) && logger != nil {
+		logger.Warn(
+			"reducer handler timeouts are recorded but not enforced yet",
+			"default", handlerTimeout.String(),
+			"overrides", len(handlerTimeoutOverrides),
+		)
 	}
 	if len(claimDomains) > 0 && logger != nil {
 		logger.Info(
@@ -402,7 +413,7 @@ func buildReducerService(
 		WorkSink:                   workQueue,
 		Heartbeater:                workQueue,
 		HeartbeatInterval:          reducerHeartbeatInterval,
-		HandlerTimeout:             loadReducerHandlerTimeout(getenv),
+		HandlerTimeout:             handlerTimeout,
 		HandlerTimeoutOverrides:    handlerTimeoutOverrides,
 		SharedProjectionEdgeWriter: edgeWriter,
 		SharedProjectionRunner: &reducer.SharedProjectionRunner{
