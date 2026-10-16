@@ -136,9 +136,8 @@ const provider = "gitlab"
 
 // Client lists one GitLab group's projects. APIBase is
 // "https://<host>/api/v4" and Token a token with read_api scope; both are
-// fixed per process. Sleep waits out backoff (time.Sleep in production, a
-// recorder in tests) and must honor nothing itself: the wait selects on the
-// caller's context around it.
+// fixed per process. Sleep waits out backoff (a timer select in production,
+// a recorder in tests) and ends early when the context ends.
 type Client struct {
 	httpClient  *http.Client
 	apiBase     string
