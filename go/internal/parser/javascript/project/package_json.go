@@ -81,9 +81,14 @@ func NearestPackageRoot(repoRoot string, path string) (string, bool) {
 // that owns path, bounded by repoRoot. It returns "" when no manifest owns the
 // path or the nearest one has no usable string name; an outer manifest is not
 // consulted, because the nearest manifest is the package that publishes path.
+// A nearest manifest under a test, tests, fixtures, testdata, or examples
+// directory (shared.FixtureDirPattern, relative to repoRoot) is test
+// scaffolding and publishes nothing: the answer is "" there too, never the
+// outer manifest's name (#8244). The producer anchor applies the same pattern
+// to the stored manifest path.
 func NearestPackageName(repoRoot string, path string) string {
-	manifest, _, ok := nearestPackageManifest(repoRoot, path)
-	if !ok {
+	manifest, packageRoot, ok := nearestPackageManifest(repoRoot, path)
+	if !ok || manifestInFixtureDir(repoRoot, packageRoot) {
 		return ""
 	}
 	name, _ := manifest.Name.(string)
@@ -230,6 +235,14 @@ func PackagePublicSourcePaths(repoRoot string, path string) []string {
 		}
 	}
 	return paths
+}
+
+// manifestInFixtureDir reports whether the package.json in packageRoot sits
+// under a fixture-style directory relative to repoRoot, the same predicate the
+// producer anchor applies to a stored manifest path.
+func manifestInFixtureDir(repoRoot string, packageRoot string) bool {
+	relative, ok := RelativeSlashPath(CleanPath(repoRoot), filepath.Join(packageRoot, "package.json"))
+	return ok && shared.InFixtureDir(relative)
 }
 
 func nearestPackageManifest(repoRoot string, path string) (packageManifest, string, bool) {
