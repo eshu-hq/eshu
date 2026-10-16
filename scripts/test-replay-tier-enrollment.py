@@ -26,7 +26,9 @@ INVENTORY = ROOT / "scripts/lib/replay_tier_inventory.json"
 def copy_route_sources(destination: Path) -> None:
     """Copy the production route inputs for controlled mutations."""
     for name in (".github/workflows/verify-replay-tier.yml",
-                 "specs/ci-gates.d/gates-15.yaml", "scripts/dev/pre-pr.sh"):
+                 ".github/workflows/live-backend-tests.yml",
+                 "specs/ci-gates.d/gates-15.yaml",
+                 "specs/ci-gates.d/gates-09.yaml", "scripts/dev/pre-pr.sh"):
         target = destination / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / name, target)
@@ -156,8 +158,8 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
                 '    requirements:\n      - go\n      - docker\n'
                 '      - "specs/live-tests.d/**"\n    ci_only_reason:', 1)),
             "registry duplicate triggers override": ("registry", registry_source.replace(
-                '      - ".github/workflows/verify-replay-tier.yml"\n    local:',
-                '      - ".github/workflows/verify-replay-tier.yml"\n'
+                '      - ".github/workflows/*"\n    local:',
+                '      - ".github/workflows/*"\n'
                 '    triggers:\n      - "go/internal/replay/**"\n    local:', 1)),
             "registry duplicate replay gate": ("registry", registry_source.replace(
                 "  - id: go-test-race\n",
@@ -294,8 +296,8 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
             original[0] + "\njobs : {}\n",
         )
         registry_case = original[1].replace(
-            '      - ".github/workflows/verify-replay-tier.yml"\n    local:',
-            '      - ".github/workflows/verify-replay-tier.yml"\n'
+            '      - ".github/workflows/*"\n    local:',
+            '      - ".github/workflows/*"\n'
             '    triggers : []\n    local:', 1)
         target = r"|specs/live-tests(\.v1\.yaml|\.d/)"
         before, command, after = original[2].partition("run_or_defer replay-tier " + chr(92) + "\n")
@@ -359,6 +361,58 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "source integrity"):
                     verify_inventory(fixture, inventory)
                 subject.write_text(original)
+
+    def test_independent_ledger_route_and_step_stay_active(self) -> None:
+        """A replay source edit must select the independent ledger check."""
+        cases = (
+            (".github/workflows/live-backend-tests.yml",
+             "      - 'scripts/lib/replay_tier_enrollment.py'\n", ""),
+            ("specs/ci-gates.d/gates-09.yaml",
+             '      - "scripts/lib/replay_tier_enrollment.py"\n', ""),
+            (".github/workflows/live-backend-tests.yml",
+             "      - 'scripts/test-replay-tier-source-integrity.py'\n", ""),
+            ("specs/ci-gates.d/gates-09.yaml",
+             '      - "scripts/test-replay-tier-source-integrity.py"\n', ""),
+            (".github/workflows/live-backend-tests.yml",
+             "        run: bash scripts/verify-live-tests-ledger.sh",
+             "        run: true"),
+            (".github/workflows/live-backend-tests.yml",
+             "        run: bash scripts/verify-live-tests-ledger.sh",
+             "        continue-on-error: true\n"
+             "        run: bash scripts/verify-live-tests-ledger.sh"),
+            (".github/workflows/live-backend-tests.yml",
+             "  static-mirror:\n", "  static-mirror:\n    if: false\n"),
+            ("specs/ci-gates.d/gates-09.yaml",
+             '      command: "bash scripts/verify-live-tests-ledger.sh"',
+             '      command: "true"'),
+            ("specs/ci-gates.d/gates-09.yaml",
+             "    blocking: true", "    blocking: false"),
+            (".github/workflows/verify-replay-tier.yml",
+             "      - '.github/workflows/live-backend-tests.yml'\n", ""),
+            (".github/workflows/verify-replay-tier.yml",
+             "      - 'specs/ci-gates.d/gates-09.yaml'\n", ""),
+            ("specs/ci-gates.d/gates-15.yaml",
+             '      - "specs/live-tests.d/**"\n'
+             '      - "specs/ci-gates.d/**"\n',
+             '      - "specs/live-tests.d/**"\n'
+             '      - "specs/ci-gates.d/gates-15.yaml"\n'),
+            ("specs/ci-gates.d/gates-15.yaml",
+             '      - ".github/workflows/*"\n',
+             '      - ".github/workflows/verify-replay-tier.yml"\n'),
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = Path(temporary)
+            copy_route_sources(fixture)
+            verify_routes(fixture)
+            for name, before, after in cases:
+                with self.subTest(name=name, before=before):
+                    path = fixture / name
+                    original = path.read_text()
+                    self.assertIn(before, original)
+                    path.write_text(original.replace(before, after, 1))
+                    with self.assertRaises(ValueError):
+                        verify_routes(fixture)
+                    path.write_text(original)
 
     def test_old_guard_output_cannot_replace_json_test_events(self) -> None:
         package = "github.com/eshu-hq/eshu/go/internal/replay/offlinetier"

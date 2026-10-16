@@ -17,6 +17,15 @@ ROUTED_PATHS = (
     "specs/live-tests.v1.yaml",
     "specs/live-tests.d/**",
     "specs/ci-gates.d/gates-15.yaml",
+    "specs/ci-gates.d/gates-09.yaml",
+    ".github/workflows/live-backend-tests.yml",
+)
+
+INDEPENDENT_SUBJECTS = (
+    "scripts/verify-replay-tier.sh",
+    "scripts/lib/replay_tier_enrollment.py",
+    "scripts/lib/replay_tier_inventory.json",
+    "scripts/test-replay-tier-source-integrity.py",
 )
 
 
@@ -104,11 +113,11 @@ PREPR_SELECTOR = (
     r"|testdata/cassettes/(replayoffline|replaydelta)/"
     r"|scripts/(verify-replay-tier|test-verify-replay-tier)\.sh"
     r"|scripts/dev/pre-pr\.sh|scripts/ci/install-apt-packages\.sh"
-    r"|\.github/workflows/verify-replay-tier\.yml"
+    r"|\.github/workflows/(verify-replay-tier|live-backend-tests)\.yml"
     r"|scripts/lib/(replay_tier_|verify-live-tests-ledger\.py)"
     r"|scripts/test-replay-tier-.*\.py"
     r"|specs/live-tests(\.v1\.yaml|\.d/)"
-    r"|specs/ci-gates\.d/gates-15\.yaml)"
+    r"|specs/ci-gates\.d/gates-(09|15)\.yaml)"
 )
 
 
@@ -265,8 +274,89 @@ def _prepr_selector(prepr: str) -> re.Pattern[str]:
         raise ValueError("pre-pr replay-tier selector is invalid") from error
 
 
+def verify_independent_static_mirror(root: Path) -> None:
+    """Require replay source edits to select an active independent ledger read."""
+    workflow = (root / ".github/workflows/live-backend-tests.yml").read_text()
+    lines = _active_lines(workflow, "independent workflow")
+    _reject_quoted_workflow_keys(lines)
+    events = _only_block(lines, "on", 0, "independent workflow")
+    pull_request = _only_block(events, "pull_request", 2, "independent workflow")
+    path_lines = _only_block(pull_request, "paths", 4, "independent workflow")
+    paths = set()
+    for depth, content in path_lines:
+        match = re.fullmatch(r"- '([^']+)'", content)
+        if depth != 6 or match is None:
+            raise ValueError("independent workflow has unsupported PR paths")
+        paths.add(match.group(1))
+    required = set(INDEPENDENT_SUBJECTS) | {
+        ".github/workflows/live-backend-tests.yml", "specs/ci-gates.d/gates-09.yaml"
+    }
+    if not required <= paths:
+        raise ValueError("independent workflow does not select replay proof sources")
+
+    jobs = _only_block(lines, "jobs", 0, "independent workflow")
+    job = _only_block(jobs, "static-mirror", 2, "independent workflow")
+    job_keys = [content.split(":", 1)[0] for depth, content in job if depth == 4]
+    if job_keys != ["needs", "name", "runs-on", "timeout-minutes", "steps"]:
+        raise ValueError("independent workflow static mirror is disabled or changed")
+    if (4, "needs: queue-selection") not in job or (
+            4, "name: static-mirror (ledger and runner probes)") not in job:
+        raise ValueError("independent workflow static mirror is not selected")
+    steps = _only_block(job, "steps", 4, "independent workflow")
+    starts = [index for index, line in enumerate(steps)
+              if line == (6, "- name: Validate the live-test ledger")]
+    if len(starts) != 1:
+        raise ValueError("independent workflow ledger step is missing")
+    end = next((index for index in range(starts[0] + 1, len(steps))
+                if steps[index][0] <= 6), len(steps))
+    selected = ("if: ${{ github.event_name != 'merge_group' || "
+                "(contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), "
+                "'static-mirror (ledger and runner probes)')) }}")
+    if steps[starts[0]:end] != [
+        (6, "- name: Validate the live-test ledger"),
+        (8, selected),
+        (8, "run: bash scripts/verify-live-tests-ledger.sh"),
+    ]:
+        raise ValueError("independent workflow ledger step is inactive")
+
+    registry = (root / "specs/ci-gates.d/gates-09.yaml").read_text()
+    registry_lines = _active_lines(registry, "independent registry")
+    if [content for depth, content in registry_lines if depth == 0] != [
+        "version: v1", "gates:"
+    ]:
+        raise ValueError("independent registry has unsupported root controls")
+    gates = _only_block(registry_lines, "gates", 0, "independent registry")
+    starts = [index for index, line in enumerate(gates)
+              if line == (2, "- id: live-backend-static-mirror")]
+    if len(starts) != 1:
+        raise ValueError("independent registry static mirror is missing")
+    end = next((index for index in range(starts[0] + 1, len(gates))
+                if gates[index][0] <= 2), len(gates))
+    gate = gates[starts[0]:end]
+    keys = [content.split(":", 1)[0] for depth, content in gate if depth == 4]
+    if keys != ["name", "category", "layer", "purpose", "tier", "blocking",
+                "triggers", "local", "ci", "requirements", "ci_only_reason"]:
+        raise ValueError("independent registry static mirror controls changed")
+    if (4, "tier: pre-pr") not in gate or (4, "blocking: true") not in gate:
+        raise ValueError("independent registry static mirror is not blocking")
+    triggers = _paths(_only_block(gate, "triggers", 4, "independent registry"),
+                      6, '"', "independent registry triggers")
+    if not required <= triggers:
+        raise ValueError("independent registry does not select replay proof sources")
+    local = _only_block(gate, "local", 4, "independent registry")
+    if [content for depth, content in local if depth == 6 and content.startswith("command:")] != [
+        'command: "bash scripts/verify-live-tests-ledger.sh"'
+    ]:
+        raise ValueError("independent registry does not run the ledger")
+    ci = _only_block(gate, "ci", 4, "independent registry")
+    if ci != [(6, "workflow: live-backend-tests.yml"),
+              (6, 'job: "static-mirror (ledger and runner probes)"')]:
+        raise ValueError("independent registry does not own the static mirror job")
+
+
 def verify_routes(root: Path) -> None:
     """Require metadata-only PRs to select the existing blocking replay job."""
+    verify_independent_static_mirror(root)
     workflow = (root / ".github/workflows/verify-replay-tier.yml").read_text()
     verify_workflow_liveness(workflow)
     registry = (root / "specs/ci-gates.d/gates-15.yaml").read_text()
@@ -283,6 +373,10 @@ def verify_routes(root: Path) -> None:
             registry_path = "scripts/lib/verify-live-tests-ledger.py"
         elif path.startswith("scripts/test-replay-tier-"):
             registry_path = "scripts/test-replay-tier-*.py"
+        elif path.startswith("specs/ci-gates.d/"):
+            registry_path = "specs/ci-gates.d/**"
+        elif path.startswith(".github/workflows/"):
+            registry_path = ".github/workflows/*"
         elif path.startswith("specs/live-tests"):
             registry_path = path
         else:

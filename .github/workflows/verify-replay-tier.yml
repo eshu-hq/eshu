@@ -50,6 +50,8 @@ on:
       - 'scripts/dev/pre-pr.sh'
       - 'scripts/ci/install-apt-packages.sh'
       - 'scripts/ci/go-mod-download-retry.sh'
+      - '.github/workflows/live-backend-tests.yml'
+      - 'specs/ci-gates.d/gates-09.yaml'
       - '.github/workflows/verify-replay-tier.yml'
 
 concurrency:
