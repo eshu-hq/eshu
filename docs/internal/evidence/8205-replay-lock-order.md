@@ -6,7 +6,9 @@ with no `Limit`) and the admin replay (`buildMutatingWorkItemsQuery`) each
 updated their rows in one statement. Each took row locks in its own scan
 order. The planner picks a different index for each filter shape, so two
 overlapping replays took shared rows in opposite orders. Postgres then aborted
-one of them.
+one of them. The reducer claim-time supersede sweep is a third blocking
+locker of the same rows. It is ordered in the same change, because an ordered
+replay against the unordered sweep would trade one deadlock for another.
 
 ## Fix
 
@@ -73,6 +75,13 @@ through different indexes, so the RED cannot go vacuous:
 scoped replay scans fact_work_items via [Bitmap Index Scan:fact_work_items_scope_generation_idx Index Scan:fact_work_items_pkey]; stage-only via [Index Scan:fact_work_items_pkey Index Scan:fact_work_items_reducer_source_claim_idx]
 ```
 
+Every count on main below is one observed run. The counts depend on the
+plan and the planner statistics of that run. An independent review run saw
+other counts and outcomes on main (134, 143 and 304 x 40P01 in the
+concurrent tests, the sweep held-row probe failing 3 of 4 instead of 4 of 4,
+and the admin scoped-first held-row pair deadlocking where the run below
+passed). The fix side was 0 x 40P01 in every run.
+
 `TestRecoveryReplayConcurrentReplaysNeverDeadlockLive` runs 150 rounds of
 three concurrent replays (scoped plus `retry_exhausted`, stage-only, and
 bounded `Limit 3` per scope in reverse scope order):
@@ -81,6 +90,13 @@ bounded `Limit 3` per scope in reverse scope order):
 main (a997e3962): 150 rounds in 2m30.617s: 40P01 scoped=48 stage-only=97 bounded=0; rounds failing exact accounting=0
                   concurrent replays deadlocked 145 times in 150 rounds, want 0   (FAIL)
 fix:              150 rounds in 6.267s: 40P01 scoped=0 stage-only=0 bounded=0; rounds failing exact accounting=0   (PASS)
+```
+
+Rerun after the switch to `= ANY(ARRAY(...))` with the final test files:
+
+```text
+main (900cba4f7): 150 rounds in 1m46.336s: 40P01 scoped=43 stage-only=52 bounded=0; rounds failing exact accounting=0   (FAIL, 95 x 40P01)
+fix (53120f3f7; identical production SQL at baa670bc6 and at the final head): 150 rounds in 7.055s: 40P01 scoped=0 stage-only=0 bounded=0; rounds failing exact accounting=0   (PASS)
 ```
 
 Exact accounting means the three replays together reported each of the 18
@@ -103,6 +119,21 @@ selection order on main as well, and no inverted admin pair was reproduced.
 The admin fixture runs `updated_at` forward with the scope order, so on main
 the admin UPDATE visits s5 first while the scoped recovery replay visits s0
 first.
+
+The sleep-trigger tests do not prove the order on the fix. The first lock
+step takes all 18 locks in milliseconds, before any per-row sleep, so the
+second statement can only wait one way, whatever its order. The held-row
+probes do prove it (`raceThroughHeldRow`). A third session keeps the middle
+row (`lo-s3-w0`) locked while A, then B, advance until they wait, and then
+releases it. Lockers in one order both stop below that row and queue one
+behind the other. Lockers in opposite orders hold rows on both sides of it,
+and the release closes the cycle.
+
+| probe | main | fix | fix with the lock step's `ORDER BY` removed |
+| --- | --- | --- | --- |
+| `TestRecoveryReplayHeldRowRaceLive` (scoped, then stage-only) | 40P01 | PASS | 40P01 |
+| `TestAdminReplayHeldRowRaceLive`, admin first | 40P01 | PASS | not run |
+| `TestAdminReplayHeldRowRaceLive`, scoped first | PASS in this run (the review run deadlocked) | PASS | not run |
 
 The hermetic shape tests are RED on main, because the lock step does not
 exist there:
@@ -202,9 +233,106 @@ planned as its own CTE node, with `LockRows` above `Sort`. The query-shape
 tests fail if the `ORDER BY work_item_id COLLATE "C"` or the
 `FOR NO KEY UPDATE` is removed from either lock step.
 
+## Claim-Time Supersede Sweep
+
+`supersedeInactiveReducerGenerationsCTE` (`reducer_generation_filter_sql.go`)
+runs inside both reducer claim statements, `claimReducerWorkQuery` and
+`claimReducerWorkBatchQuery`. It has no other call site; a frozen copy in
+`reducer_queue_batch_rank_once_fixtures_query_test.go` embeds the same
+constant. The sweep supersedes `pending`/`retrying`/`failed`/`dead_letter`
+reducer rows of an older generation when the scope has a newer active one.
+On main it was a plain blocking `UPDATE ... FROM` with no order.
+
+With the replays ordered and the sweep still in scan order, every replay
+variant could deadlock against the sweep. On main the stage-only replay
+happened to walk the sweep's `visible_at` order, so this pair waited one way;
+an ordered replay against the unordered sweep is a mutual block. The
+coordinator therefore ruled the sweep into this change (comment on #8205).
+
+The sweep is now two steps:
+
+1. `superseded_stale_reducer_locked` runs the whole sweep predicate
+   (`supersedeInactiveReducerGenerationsPredicate`: stage, status, domain
+   filter, the generation guard and both readiness gates) with
+   `ORDER BY stale.work_item_id COLLATE "C" FOR NO KEY UPDATE OF stale`. Only
+   work rows are locked; scope and generation rows stay unlocked, as before.
+2. The UPDATE touches
+   `stale.work_item_id = ANY(ARRAY(SELECT work_item_id FROM superseded_stale_reducer_locked))`.
+   It rechecks the row's own stage and status, and joins
+   `ingestion_scopes` only for `active_generation_id` in `failure_details`.
+
+The guard is unchanged. A waited lock rechecks the whole predicate on the
+newest row version, so a row a worker claimed in the meantime is dropped
+(`TestReducerClaimSweepDropsRowClaimedBeforeItsLockLive`). Rows of the
+active generation are never superseded
+(`TestReducerClaimSweepKeepsActiveGenerationRowsLive`). The sweep keeps
+blocking rather than `SKIP LOCKED`, so no older-generation row escapes it.
+
+Not re-running the readiness gate and generation joins in the UPDATE is
+measured. Once the lock step holds a row, no other transaction can change it
+before the UPDATE. Re-running the full predicate cost +16 % (single) and
++20 % (batch) on a 2,118-row sweep; the shipped shape costs +4 to +5 %.
+
+### Sweep RED And GREEN
+
+The fixture is the one above, with every target scope given a newer active
+generation and `source_system` set to `src-0` .. `src-5`. On main, every
+unordered locker then runs opposite to the sweep. The sweep scans
+`fact_work_items_stage_domain_status_idx` in `visible_at` order (s5 first).
+The scoped replay goes by scope, the stage-only replay leads with
+`source_system`, and the admin replay selects newest `updated_at` first; all
+three go s0 first.
+
+| test | main (`900cba4f7`, one run) | fix |
+| --- | --- | --- |
+| `TestReducerClaimSweepAndReplayBlockOneWayLive`, 4 pairs (sweep or replay first, scoped and stage-only) | 4 of 4: mutual block, then 40P01 (claim the victim when it started first) | 4 of 4 one-way; all 18 rows superseded |
+| `TestReducerClaimSweepHeldRowRaceLive`, the same 4 pairs | 4 of 4 40P01 | 4 of 4 PASS |
+| `TestReducerClaimSweepConcurrentWithReplaysNeverDeadlockLive`, 150 rounds of claim + scoped + stage-only + bounded | `40P01 claim=32 scoped=52 stage-only=27 bounded=0` (111 x 40P01) | `40P01 claim=0 scoped=0 stage-only=0 bounded=0; rounds failing accounting=0` |
+| `TestAdminReplayAndClaimSweepBlockOneWayLive`, both orders | 2 of 2 40P01 | 2 of 2 one-way |
+| `TestAdminReplayAndClaimSweepHeldRowRaceLive`, both orders | 2 of 2 40P01 | 2 of 2 PASS |
+| `TestReplaysAndClaimSweepConcurrentNeverDeadlockLive`, 150 rounds of claim + scoped + stage-only recovery + admin | `40P01 claim=42 recovery scoped=43 recovery stage-only=76 admin=51` (212) | all 0; rounds failing accounting=0 |
+| `TestReducerClaimSweepKeepsActiveGenerationRowsLive` | PASS | PASS |
+| `TestReducerClaimSweepDropsRowClaimedBeforeItsLockLive` | PASS | PASS |
+| `TestSupersedeSweepLocksStaleRowsInWorkItemOrder` (hermetic) | FAIL (no lock step) | PASS |
+
+Exact accounting: every target row ends `superseded`, and no replay reports
+a row twice. A replay that runs first resets the rows to `pending`, and the
+sweep then retires them as stale `pending` work.
+
+Mutations on the fix:
+
+- Lock step `ORDER BY` removed:
+  - the held-row probe fails 4 of 4;
+  - the concurrent tests fail with 83 and 50 x 40P01 in 150 rounds;
+  - the sleep-trigger tests still pass, which is why the held-row probe
+    exists.
+- Generation guard removed: the four active-generation rows are superseded.
+- Status predicate removed: X's claimed row is superseded.
+
+### Claim Cost
+
+Performance Evidence: `EXPLAIN (ANALYZE, BUFFERS)` of the claim statement the
+production `ReducerQueue.Claim`/`ClaimBatch(16)` renders (single-domain filter
+`workload_identity`, 200 claimable `pending` rows), inside
+`BEGIN`/`ROLLBACK`. 9 repetitions after a warm-up, medians in ms,
+`jit = off`, on the 400,000-row fixture. Main is `900cba4f7`. No plan seq-scans
+`fact_work_items`.
+
+| stale rows | single, main | single, fix | batch, main | batch, fix |
+| --- | --- | --- | --- | --- |
+| 0 | 1.03 | 0.95 | 4.16 | 4.06 |
+| 18 | 2.03 | 1.95 | 5.08 | 5.06 |
+| 2,118 | 118.0 | 123.6 (+4.8 %) | 106.1 | 110.2 (+3.9 %) |
+
+The steady state, with no stale rows, is unchanged. That is the cost every
+claim pays. The 2,118-row case is the one-time sweep after 14 scopes switch
+generations. It adds the sort and the lock step, about 5 ms.
+
 ## Concurrency
 
-- Conflict domain: `fact_work_items` rows in `dead_letter` or `failed`.
+- Conflict domain: `fact_work_items` rows in `dead_letter` or `failed` (both
+  replays), plus the `pending`, `retrying`, `failed` and `dead_letter`
+  reducer rows of older generations (the claim sweep).
 - Lock mode: `FOR NO KEY UPDATE`, taken in `work_item_id COLLATE "C"` order
   by the lock step.
 - Hold time: one autocommit statement (recovery), or one statement before the
@@ -221,27 +349,41 @@ tests fail if the `ORDER BY work_item_id COLLATE "C"` or the
     `claimed`/`running` row by primary key. A one-row locker holds nothing
     while it waits, so it cannot close a cycle. Its follow-up wake statement
     is `SKIP LOCKED`.
-- Reducer claim-time supersede sweep (`supersedeInactiveReducerGenerationsCTE`
-  in `reducer_generation_filter_sql.go`): a residual, out of this change's
-  files. It is a plain blocking UPDATE with no ORDER BY over
-  `pending`/`retrying`/`failed`/`dead_letter` rows of inactive generations, so
-  it still locks in scan order. In a scratch shim (18 dead letters on an
-  inactive generation, a per-row sleep trigger, the claim first, then the
-  replay), the results were:
-  - 400,000 background rows, where the sweep scans
-    `fact_work_items_stage_domain_status_idx`:
-    - main: the scoped replay deadlocked the claim, and the claim statement
-      got the 40P01. The stage-only replay waited one way; on main it walks
-      the same `visible_at` order as the sweep.
-    - fix: both replay variants deadlock with the sweep, and the replay gets
-      the 40P01.
-  - 18 rows only, both sides seq-scanning: one-way on both trees when the
-    heap order matches id order. On the fix, a reversed heap order deadlocks.
+- Reducer claim-time supersede sweep: same order since this change (see
+  Claim-Time Supersede Sweep).
+- Other lockers on or near the claim path, read from source:
 
-  The hazard predates this change, but the set of replay variants that can
-  hit it moves. Removing it needs the sweep to take the shared order or
-  `SKIP LOCKED`, on the reducer claim hot path.
-- Retention deletes and the refinalize reset: NOT_CHECKED.
+  | writer | rows and lock | against the ordered lock steps |
+  | --- | --- | --- |
+  | `Heartbeat`, `Ack`, `Fail`, retry (`reducer_queue.go`, `reducer_queue_ack.go`) | one `claimed`/`running` row by primary key | cannot close a cycle; holds nothing while it waits |
+  | `AckBatch` (`reducer_queue_batch.go`) | `claimed`/`running` rows, `work_item_id COLLATE "C"` | same order; disjoint statuses from the sweep and the replays |
+  | claim candidate selection | `FOR UPDATE SKIP LOCKED` | never waits |
+  | `ReopenSucceeded`, `ReplayDomain` (`reducer_queue_replay.go`) | `succeeded` rows only | disjoint statuses from every lock step here. A third-party status change between two snapshots could in theory overlap them: NOT_CHECKED |
+  | `scheduleWorkloadMaterializationReplayQuery` | one row by primary key | cannot close a cycle |
+  | own-gate wake (`relationship_store_resolved.go`) | dead letters, `SKIP LOCKED` | never waits |
+  | projector zombie heal, projector claim sweeps | `stage = 'projector'` rows | disjoint from the reducer sweep. A projector-stage replay does lock projector terminal rows; against these writers it is NOT_CHECKED |
+  | projector Ack obsolete-generation supersede (`supersedeProjectorObsoleteGenerationsQuery`, `projector_queue_marker_fence_sql.go`) | its `superseded_work` UPDATE blocks with no order, inside the multi-statement Ack transaction, over projector `pending`/`retrying`/`failed`/`dead_letter` rows of obsolete generations | meets a projector-stage replay on `failed`/`dead_letter` rows. Pre-existing and unchanged; NOT_CHECKED by repro |
+  | admin repository skip (`SkipRepositoryWorkItems`, `go/internal/query/admin/store/postgres.go`) | `UPDATE ... FROM selected` over one scope's `pending`/`retrying`/`failed` rows, `LIMIT 100` by `updated_at DESC`, no lock order, no `SKIP LOCKED` | meets the replays on `failed` rows and the sweep on older-generation reducer rows. Pre-existing and unchanged; NOT_CHECKED by repro |
+  | generation liveness recovery (`generation_liveness_sql.go`) | projector rows (INSERT ... ON CONFLICT) | disjoint from reducer rows |
+  | poison recovery (`poison/liveness_sql.go`, `RecoverDeadLettersQuery`) | `dead_letter` rows of the newest generation; unlocked `ORDER BY dead.work_item_id LIMIT` selection, then `UPDATE ... FROM` in join order | disjoint from the sweep (the sweep takes only rows with a newer active generation). It overlaps the recovery and admin replays and can lock in another order: a pre-existing hazard of the same shape, not changed here, NOT_CHECKED by repro |
+  | generation retention (`generation_retention_sql.go`) | `DELETE FROM scope_generations` cascades to that generation's work rows, in the cascade's scan order | can meet the sweep on an older generation's `pending`/`dead_letter` rows. Pre-existing and unchanged; NOT_CHECKED by repro |
+  | rebuild reset (`rebuild/reset/reset.go`) | deletes `succeeded` reducer rows | disjoint statuses |
+
+- Refinalize reset: NOT_CHECKED (#7852 and PR #8207 own that code).
+
+## Residual Risk
+
+This change orders the two replays and the reducer claim sweep. It does not
+order every multi-row locker of `fact_work_items`. These remain unordered,
+blocking lockers that can meet the rows above. All predate this change, none
+was reproduced here, and #8261 tracks them:
+
+- poison recovery (`RecoverDeadLettersQuery`);
+- generation retention's FK-cascade delete of a pruned generation's work rows;
+- admin repository skip (`SkipRepositoryWorkItems`);
+- projector Ack's obsolete-generation supersede
+  (`supersedeProjectorObsoleteGenerationsQuery`);
+- the refinalize reset (#7852, PR #8207).
 
 ## Observability
 
@@ -249,14 +391,22 @@ No-Observability-Change: a replay is an operator request, and its 40P01
 already reaches the operator. The runtime recovery route answers 422 with the
 error text (`deadlock detected (SQLSTATE 40P01)`). The admin replay answers
 500, and the request span records the error. Postgres logs both statements
-of the cycle and counts it in `pg_stat_database.deadlocks`. This change
-removes the replay-against-replay cycle and adds no new runtime path, so no
-metric is added. Rerun a replay that failed with 40P01.
+of the cycle and counts it in `pg_stat_database.deadlocks`. A claim that
+lost a sweep deadlock is worse than a failed replay. The reducer service's
+claim loop treats any claim error as fatal for its run: `runSequential`
+returns `claim reducer work: ...`, and the batch loop records `batch claim
+reducer work: ...` with `appendErr` and returns (`go/internal/reducer`). This
+change removes the replay-against-replay and replay-against-sweep cycles. It
+adds no new runtime path, so no metric is added. Rerun a replay that failed
+with 40P01.
 
 ## Not Checked
 
 - A deployed environment: everything above ran on a local scratch container.
 - The smallest table size at which the replay plans diverge.
-- Retention deletes and the refinalize reset as waiters on replayed rows.
+- The still-unordered lockers under Residual Risk (poison recovery, retention's
+  FK-cascade delete, admin repository skip, projector Ack's obsolete
+  supersede) against the ordered lock steps; all pre-existing.
+- The refinalize reset as a waiter on replayed or swept rows.
 - An inverted admin-versus-admin pair (no plan was found that inverts two
   admin replays on main).

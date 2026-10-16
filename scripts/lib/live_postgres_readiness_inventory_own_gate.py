@@ -37,6 +37,13 @@ OWN_GATE_PACKAGES = {
             "TestRecoveryReplayHeldRowRaceLive",
             "TestRecoveryReplayDropsRowChangedBeforeItsLockLive",
         ),
+        "go/internal/storage/postgres/reducer_claim_sweep_lock_order_live_test.go": (
+            "TestReducerClaimSweepAndReplayBlockOneWayLive",
+            "TestReducerClaimSweepHeldRowRaceLive",
+            "TestReducerClaimSweepConcurrentWithReplaysNeverDeadlockLive",
+            "TestReducerClaimSweepKeepsActiveGenerationRowsLive",
+            "TestReducerClaimSweepDropsRowClaimedBeforeItsLockLive",
+        ),
     },
     ADMIN_PACKAGE: {
         "go/internal/query/admin/activation_wake_interleave_live_test.go": (
@@ -46,6 +53,11 @@ OWN_GATE_PACKAGES = {
             "TestAdminReplayLockOrderBlocksOneWayLive",
             "TestAdminReplayHeldRowRaceLive",
             "TestAdminReplayDropsRowClaimedBeforeItsLockLive",
+        ),
+        "go/internal/query/admin/replay_claim_sweep_lock_order_live_test.go": (
+            "TestAdminReplayAndClaimSweepBlockOneWayLive",
+            "TestAdminReplayAndClaimSweepHeldRowRaceLive",
+            "TestReplaysAndClaimSweepConcurrentNeverDeadlockLive",
         ),
     },
 }
