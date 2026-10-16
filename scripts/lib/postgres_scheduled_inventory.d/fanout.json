@@ -1,0 +1,23 @@
+{
+  "go/internal/storage/postgres/cross_scope_completion_ack_horizon_postgres_live_test.go": {
+    "group": "fanout",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestReducerContentionGateProducerAckCaptureHorizonLive"
+    ]
+  },
+  "go/internal/storage/postgres/reducer_queue_ack_eligible_epq_postgres_live_test.go": {
+    "group": "fanout",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestReducerContentionGateAckEligibleEPQLive"
+    ]
+  },
+  "go/internal/storage/postgres/reducer_queue_ack_fk_compatibility_postgres_live_test.go": {
+    "group": "fanout",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestReducerContentionGateAckFanoutAuditFKCompatibilityLive"
+    ]
+  }
+}

@@ -5,6 +5,8 @@ import hashlib
 from pathlib import Path
 import re
 
+from postgres_scheduled_fragments import inventory_digest
+
 
 def source_digest(root: Path, inventory: dict[str, dict[str, object]]) -> str:
     """Bind the manifest to bytes of every enrolled source file."""
@@ -69,7 +71,7 @@ def build_manifest(
         "reviewed_head_sha": reviewed_head_sha,
         "event_sha": event_sha,
         "checkout_sha": checkout_sha,
-        "inventory_sha256": hashlib.sha256(inventory_path.read_bytes()).hexdigest(),
+        "inventory_sha256": inventory_digest(inventory_path),
         "source_sha256": source_digest(
             source_root or Path(__file__).resolve().parents[2], inventory
         ),

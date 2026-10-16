@@ -18,6 +18,17 @@ STEP_NAMES = (
     "Run infra inventory proofs",
     "Create fresh ACK database",
     "Run ACK and completion proofs",
+    "Create fresh claim database",
+    "Run claim proofs",
+    "Create fresh liveness database",
+    "Run liveness proofs",
+    "Create fresh fanout database",
+    "Run fanout proofs",
+    "Create fresh search database",
+    "Run search proofs",
+    "Create fresh readiness database",
+    "Run readiness proofs",
+
     "Run disposable golden corpus residual proof",
     "Run disposable query proofs",
     "Run disposable storage proofs",
@@ -93,3 +104,36 @@ def verify_canonical_workflow(workflow: str) -> None:
             raise ValueError(f"non-fail-closed conditional workflow step: {name}")
         if name == "Retain hosted proof bundle" and keys.get("if") != "        if: always()":
             raise ValueError("non-fail-closed artifact workflow step")
+
+
+def verify_trigger(workflow: str, inventory: dict[str, dict[str, object]], pr_paths: set[str]) -> None:
+    """Keep the same daily job enrolled for narrowly selected PR changes."""
+    match = re.search(r"(?ms)^on:\n(.*?)(?=^permissions:)", workflow)
+    if not match:
+        raise ValueError("scheduled workflow event block missing")
+    events = re.findall(r"(?m)^  ([a-z_]+):", match.group(1))
+    if len(events) != 3 or set(events) != {"schedule", "workflow_dispatch", "pull_request"}:
+        raise ValueError("scheduled workflow PR events changed")
+    if not re.search(r"(?m)^    - cron: '35 4 \* \* \*'$", match.group(1)):
+        raise ValueError("scheduled workflow cadence missing")
+    pr = re.search(
+        r"(?ms)^  pull_request:\n(.*?)(?=^  [a-z_]+:|\Z)",
+        match.group(1),
+    )
+    if not pr:
+        raise ValueError("scheduled workflow PR path filter missing")
+    paths = sorted(pr_paths | set(inventory))
+    expected = "    paths:\n" + "".join(f"      - '{path}'\n" for path in paths)
+    if pr.group(1).rstrip("\n") + "\n" != expected:
+        raise ValueError("scheduled workflow PR paths differ from exact enrollment")
+    group = "  group: postgres-scheduled-live-${{ github.event_name }}-${{ github.ref }}"
+    if (len(re.findall("(?m)^" + re.escape(group) + "$", workflow)) != 1
+            or not re.search(r"(?m)^  cancel-in-progress: false$", workflow)):
+        raise ValueError("scheduled workflow PR concurrency is not separate")
+    jobs = workflow.split("\njobs:\n", 1)
+    if len(jobs) != 2 or re.findall(r"(?m)^  ([A-Za-z0-9_-]+):", jobs[1]) != ["postgres-scheduled"]:
+        raise ValueError("scheduled workflow needs the same live job")
+    if re.search(r"(?m)^    if:", jobs[1]):
+        raise ValueError("conditional scheduled live job")
+    if re.search(r"(?m)^\s*continue-on-error:", jobs[1]):
+        raise ValueError("scheduled live job cannot use continue-on-error")

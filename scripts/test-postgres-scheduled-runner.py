@@ -28,8 +28,8 @@ class ScheduledRunnerTest(unittest.TestCase):
     def test_ack_family_integration_requires_exact_sixth_stream(self) -> None:
         """The combined enrollment keeps ACK in the hosted proof bundle."""
         inventory = MODULE.load_inventory()
-        self.assertEqual(len(inventory), 57)
-        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 96)
+        self.assertEqual(len(inventory), 89)
+        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 167)
         self.assertIn("ack_family", MODULE.PACKAGES)
         self.assertEqual(
             sum(row["group"] == "ack_family" for row in inventory.values()), 22
@@ -38,8 +38,8 @@ class ScheduledRunnerTest(unittest.TestCase):
 
     def test_committed_inventory_and_workflow(self) -> None:
         inventory = MODULE.load_inventory()
-        self.assertEqual(len(inventory), 57)
-        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 96)
+        self.assertEqual(len(inventory), 89)
+        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 167)
         self.assertNotIn(
             "go/internal/query/code_topic_parallel_guarded_live_test.go", inventory
         )
@@ -50,6 +50,11 @@ class ScheduledRunnerTest(unittest.TestCase):
             ("disposable_query", 9, 9),
             ("disposable_storage", 1, 2),
             ("ack_family", 22, 43),
+            ("claim", 13, 36),
+            ("liveness", 7, 18),
+            ("fanout", 3, 3),
+            ("search", 5, 8),
+            ("readiness", 4, 6),
         ):
             rows = [row for row in inventory.values() if row["group"] == group]
             self.assertEqual(len(rows), files)
@@ -302,7 +307,7 @@ class ScheduledRunnerTest(unittest.TestCase):
                     "eshu_ack_scheduled",
                     "ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/"
                     "postgres",
-                    "ACK DSNs",
+                    "secondary DSN",
                 ),
             ):
                 workflow.write_text(original.replace(old, new, 1))
@@ -332,10 +337,7 @@ class ScheduledRunnerTest(unittest.TestCase):
 
     def test_events_require_each_run_and_pass(self) -> None:
         inventory = MODULE.load_inventory()
-        for group in (
-            "crossplane", "infra_inventory", "disposable_gate",
-            "disposable_query", "disposable_storage", "ack_family",
-        ):
+        for group in MODULE.PACKAGES:
             rows = [row for row in inventory.values() if row["group"] == group]
             package = rows[0]["package"]
             expected = {test for row in rows for test in row["tests"]}
@@ -385,7 +387,7 @@ class ScheduledRunnerTest(unittest.TestCase):
         self.assertEqual(manifest["checkout_sha"], "b" * 40)
         self.assertEqual(
             manifest["inventory_sha256"],
-            hashlib.sha256(MODULE.INVENTORY.read_bytes()).hexdigest(),
+            MODULE.inventory_digest(MODULE.INVENTORY),
         )
         self.assertEqual(manifest["postgres_image"], MODULE.IMAGE)
         with self.assertRaisesRegex(ValueError, "backend identity"):

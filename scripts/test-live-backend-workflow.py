@@ -38,6 +38,7 @@ class FanInTest(unittest.TestCase):
                     "scripts/test-live-backend-lifecycle.py",
                     "scripts/test-live-backend-workflow.py",
                     "scripts/test-postgres-scheduled-runner.py",
+                    "scripts/test-postgres-scheduled-fragments.py",
                     "scripts/test-postgres-scheduled-ledger-policy.py"]
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)

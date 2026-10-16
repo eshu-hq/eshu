@@ -22,8 +22,9 @@ tests:
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/cross_scope_completion_ack_horizon_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL fanout proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/cross_scope_completion_concurrency_postgres_live_test.go
     tag: ~
     class: verified_scheduled
@@ -105,24 +106,29 @@ tests:
     reason: "env-gated (ESHU_POSTGRES_TEST_DSN, or ESHU_POSTGRES_DSN as a fallback) forced-interleave proof for #7458, run on demand when the search-document fence changes; seeds and drops its own schema, streams 600 files through the real loader, needs a live Postgres so it stays scheduled until a hermetic lane hosts it"
   - file: go/internal/storage/postgres/eshu_search_index_bm25_partition_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL search proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/eshu_search_index_bm25_plan_stability_live_test.go
     tag: ~
-    class: scheduled
-    reason: "env-gated (ESHU_SEARCH_INDEX_PARTITION_LIVE=1 and ESHU_POSTGRES_DSN) cross-plan byte-identity proof for #7737, measured ~2 s on a scratch PG 16; seeds and drops its own isolated schema, needs a live Postgres so it stays scheduled until a hermetic lane hosts it"
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL search proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/eshu_search_index_bm25_posting_plan_live_test.go
     tag: ~
-    class: scheduled
-    reason: "env-gated (ESHU_SEARCH_INDEX_PARTITION_LIVE=1 and ESHU_POSTGRES_DSN) covering-index plan proof for #7727, measured ~4 s on a scratch PG 18; seeds and drops its own isolated schema, needs a live Postgres so it stays scheduled until a hermetic lane hosts it"
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL search proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/eshu_search_index_partition_contention_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL search proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/eshu_search_index_partition_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL search proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/eshu_search_index_term_copy_bench_live_test.go
     tag: ~
     class: scheduled
@@ -327,8 +333,9 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/generation_projected_commit_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL liveness proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/generation_reconcile_state_live_test.go
     tag: ~
     class: scheduled

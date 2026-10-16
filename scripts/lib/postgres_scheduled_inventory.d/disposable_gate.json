@@ -1,0 +1,9 @@
+{
+  "go/cmd/golden-corpus-gate/drains_residual_breakdown_live_test.go": {
+    "group": "disposable_gate",
+    "package": "github.com/eshu-hq/eshu/go/cmd/golden-corpus-gate",
+    "tests": [
+      "TestResidualBreakdownLivePostgres"
+    ]
+  }
+}

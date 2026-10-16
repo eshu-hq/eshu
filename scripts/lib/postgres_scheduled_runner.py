@@ -9,8 +9,11 @@ import re
 import sys
 
 from reducer_contention_events import verify_events as verify_go_events
+from postgres_scheduled_fragments import load_inventory as load_fragments, inventory_digest
 from postgres_scheduled_manifest import build_manifest as build_source_bound_manifest
-from postgres_scheduled_workflow import verify_canonical_workflow
+from postgres_scheduled_workflow import (
+    verify_canonical_workflow, verify_trigger as verify_workflow_trigger,
+)
 
 
 INVENTORY = Path(__file__).with_name("postgres_scheduled_inventory.json")
@@ -23,12 +26,27 @@ PACKAGES = {
     "disposable_query": "github.com/eshu-hq/eshu/go/internal/query",
     "disposable_storage": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
     "ack_family": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    **{group: "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+       for group in ("claim", "liveness", "fanout", "search", "readiness")},
 }
 DSNS = {
     "crossplane": "ESHU_CROSSPLANE_REDRIVE_PROOF_DSN",
     "infra_inventory": "ESHU_POSTGRES_DSN",
     "ack_family": "ESHU_POSTGRES_TEST_DSN",
+    "claim": "ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN",
+    "liveness": "ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN",
+    "fanout": "ESHU_POSTGRES_DSN",
+    "search": "ESHU_POSTGRES_DSN",
+    "readiness": "ESHU_REDUCER_FAIRNESS_PROOF_DSN",
 }
+DATABASES = {
+    "crossplane": "eshu_crossplane_scheduled",
+    "infra_inventory": "eshu_inventory_scheduled",
+    "ack_family": "eshu_ack_scheduled",
+    **{group: f"eshu_{group}_scheduled"
+       for group in ("claim", "liveness", "fanout", "search", "readiness")},
+}
+
 ADMIN_ENVS = {
     "disposable_gate": ("ESHU_TEST_DRAIN_RESIDUAL_POSTGRES",),
     "disposable_query": (
@@ -51,11 +69,19 @@ PR_PATHS = {
     "go/internal/storage/postgres/testdata/**",
     "go/internal/storage/postgres/*fixture*test.go",
     "go/internal/storage/postgres/ack_supersession_assertions_test.go",
+    "go/internal/storage/postgres/projector_queue_supersession_live_test.go",
+    "go/internal/storage/postgres/queue_observer_test.go",
+    "go/internal/storage/postgres/reducer_queue_cross_scope_readiness_gate_coverage_test.go",
+    "go/internal/storage/postgres/reducer_queue_domain_fairness_test.go",
+    "go/internal/storage/postgres/reducer_queue_supersede_readiness_test.go",
     "go/internal/storage/postgres/crossplane/testdata/**",
     "go/internal/storage/postgres/infra/inventory/testdata/**",
     "go/cmd/golden-corpus-gate/testdata/**",
     "scripts/ci/go-mod-download-retry.sh",
     "scripts/lib/postgres_scheduled_inventory.json",
+    "scripts/lib/postgres_scheduled_inventory.d/**",
+    "scripts/lib/postgres_scheduled_fragments.py",
+    "scripts/test-postgres-scheduled-fragments.py",
     "scripts/lib/postgres_scheduled_manifest.py",
     "scripts/lib/postgres_scheduled_workflow.py",
     "scripts/lib/postgres_scheduled_runner.py",
@@ -74,45 +100,14 @@ PR_PATHS = {
 
 
 def verify_trigger(workflow: str, inventory: dict[str, dict[str, object]]) -> None:
-    """Keep the same daily job enrolled for narrowly selected PR changes."""
+    """Verify the canonical scheduled and narrow PR trigger."""
     verify_canonical_workflow(workflow)
-    match = re.search(r"(?ms)^on:\n(.*?)(?=^permissions:)", workflow)
-    if not match:
-        raise ValueError("scheduled workflow event block missing")
-    events = re.findall(r"(?m)^  ([a-z_]+):", match.group(1))
-    if len(events) != 3 or set(events) != {"schedule", "workflow_dispatch", "pull_request"}:
-        raise ValueError("scheduled workflow PR events changed")
-    if not re.search(r"(?m)^    - cron: '35 4 \* \* \*'$", match.group(1)):
-        raise ValueError("scheduled workflow cadence missing")
-    pr = re.search(
-        r"(?ms)^  pull_request:\n(.*?)(?=^  [a-z_]+:|\Z)",
-        match.group(1),
-    )
-    if not pr:
-        raise ValueError("scheduled workflow PR path filter missing")
-    paths = sorted(PR_PATHS | set(inventory))
-    expected = "    paths:\n" + "".join(f"      - '{path}'\n" for path in paths)
-    if pr.group(1).rstrip("\n") + "\n" != expected:
-        raise ValueError("scheduled workflow PR paths differ from exact enrollment")
-    group = "  group: postgres-scheduled-live-${{ github.event_name }}-${{ github.ref }}"
-    if (len(re.findall("(?m)^" + re.escape(group) + "$", workflow)) != 1
-            or not re.search(r"(?m)^  cancel-in-progress: false$", workflow)):
-        raise ValueError("scheduled workflow PR concurrency is not separate")
-    jobs = workflow.split("\njobs:\n", 1)
-    if len(jobs) != 2 or re.findall(r"(?m)^  ([A-Za-z0-9_-]+):", jobs[1]) != ["postgres-scheduled"]:
-        raise ValueError("scheduled workflow needs the same live job")
-    if re.search(r"(?m)^    if:", jobs[1]):
-        raise ValueError("conditional scheduled live job")
-    if re.search(r"(?m)^\s*continue-on-error:", jobs[1]):
-        raise ValueError("scheduled live job cannot use continue-on-error")
+    verify_workflow_trigger(workflow, inventory, PR_PATHS)
 
 
 def load_inventory(path: Path = INVENTORY) -> dict[str, dict[str, object]]:
     """Load the reviewed exact file and test inventory."""
-    value = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(value, dict) or not value:
-        raise ValueError("scheduled inventory must be a nonempty mapping")
-    return value
+    return load_fragments(path)
 
 
 def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> None:
@@ -144,6 +139,7 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
         raise ValueError("scheduled runner harness step missing")
     for command in (
         "python3 scripts/test-postgres-scheduled-runner.py",
+        "python3 scripts/test-postgres-scheduled-fragments.py",
         "python3 scripts/test-postgres-scheduled-ledger-policy.py",
         "python3 scripts/lib/postgres_scheduled_runner.py",
     ):
@@ -180,7 +176,7 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
         package_path = "./" + package.split("/go/", 1)[1]
         if group == "ack_family":
             timeout = "10m"
-        elif group in DSNS:
+        elif group in {"crossplane", "infra_inventory"}:
             timeout = "7m"
         else:
             timeout = "6m"
@@ -206,16 +202,23 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
         if group in DSNS:
             if step.count(f"{DSNS[group]}: postgres://") != 1:
                 raise ValueError(f"missing or duplicate DSN for {group}")
-            if group == "ack_family":
-                dsn = (
-                    "postgres://eshu:change-me@localhost:15432/"
-                    "eshu_ack_scheduled?sslmode=disable"
-                )
-                if (
-                    step.count(f"ESHU_POSTGRES_TEST_DSN: {dsn}") != 1
-                    or step.count(f"ESHU_POSTGRES_DSN: {dsn}") != 1
-                ):
-                    raise ValueError("ACK DSNs must point to the same fresh database")
+            dsn = (
+                "postgres://eshu:change-me@localhost:15432/"
+                f"{DATABASES[group]}?sslmode=disable"
+            )
+            if step.count(f"{DSNS[group]}: {dsn}") != 1:
+                raise ValueError(f"wrong fresh database for {group}")
+            extras = {
+                "ack_family": ("ESHU_POSTGRES_DSN",),
+                "claim": ("ESHU_POSTGRES_DSN", "ESHU_REDUCER_FAIRNESS_PROOF_DSN"),
+                "fanout": ("ESHU_REDUCER_FAIRNESS_PROOF_DSN",),
+                "readiness": ("ESHU_POSTGRES_DSN",),
+            }
+            for name in extras.get(group, ()):
+                if step.count(f"{name}: {dsn}") != 1:
+                    raise ValueError(f"secondary DSN differs for {group}")
+            if group == "search" and step.count('ESHU_SEARCH_INDEX_PARTITION_LIVE: "1"') != 1:
+                raise ValueError("search partition opt-in missing")
         else:
             for prefix in ADMIN_ENVS[group]:
                 dsn = (
@@ -236,13 +239,26 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
             raise ValueError(f"conditional proof step for {group}")
     if workflow.count("set -o pipefail") != len(PACKAGES):
         raise ValueError("every scheduled package step requires pipefail")
-    for group, database in (("crossplane", "eshu_crossplane_scheduled"),
-                            ("infra_inventory", "eshu_inventory_scheduled"),
-                            ("ack_family", "eshu_ack_scheduled")):
-        create = f"-c 'CREATE DATABASE {database}'"
+    for group, database in DATABASES.items():
+        label = {"crossplane": "Crossplane", "infra_inventory": "inventory",
+                 "ack_family": "ACK"}.get(group, group)
+        create_index, create_step = named_step(f"Create fresh {label} database")
+        expected_create = (
+            '        run: docker exec "${{ job.services.postgres.id }}" '
+            'psql -v ON_ERROR_STOP=1 -U eshu -d postgres '
+            f"-c 'CREATE DATABASE {database}'"
+        )
         dsn = f"{DSNS[group]}: postgres://eshu:change-me@localhost:15432/{database}?sslmode=disable"
-        if workflow.count(create) != 1 or workflow.count(dsn) != 1:
+        if (create_step.splitlines().count(expected_create) != 1
+                or workflow.count(f"-c 'CREATE DATABASE {database}'") != 1
+                or workflow.count(dsn) != 1):
             raise ValueError(f"fresh database and DSN mismatch for {group}")
+        run_name = {"infra_inventory": "Run infra inventory proofs",
+                    "ack_family": "Run ACK and completion proofs"}.get(
+                        group, f"Run {label} proofs")
+        run_index, _ = named_step(run_name)
+        if create_index >= run_index:
+            raise ValueError(f"fresh database is not created before {group}")
 
     for relative, row in inventory.items():
         group, package, tests = row.get("group"), row.get("package"), row.get("tests")

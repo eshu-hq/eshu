@@ -54,6 +54,9 @@ on:
       - 'scripts/lib/postgres_scheduled_workflow.py'
       - 'scripts/lib/postgres_scheduled_manifest.py'
       - 'scripts/lib/postgres_scheduled_inventory.json'
+      - 'scripts/lib/postgres_scheduled_inventory.d/**'
+      - 'scripts/lib/postgres_scheduled_fragments.py'
+      - 'scripts/test-postgres-scheduled-fragments.py'
       - 'scripts/test-postgres-scheduled-runner.py'
       - 'scripts/test-postgres-scheduled-ledger-policy.py'
       - '.github/workflows/postgres-scheduled-live.yml'
@@ -126,6 +129,7 @@ jobs:
           python3 scripts/test-live-backend-lifecycle.py
           python3 scripts/test-live-backend-workflow.py
           python3 scripts/test-postgres-scheduled-runner.py
+          python3 scripts/test-postgres-scheduled-fragments.py
           python3 scripts/test-postgres-scheduled-ledger-policy.py
 
   live-backend-shards:

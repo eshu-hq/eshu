@@ -8,6 +8,10 @@ import re
 import subprocess
 import tempfile
 import unittest
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import postgres_scheduled_runner as scheduled_runner  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -62,9 +66,7 @@ class LedgerPolicyTest(unittest.TestCase):
                 self.assertIn(error, result.stderr)
 
             demoted = text
-            inventory = json.loads(
-                (ROOT / "scripts/lib/postgres_scheduled_inventory.json").read_text()
-            )
+            inventory = scheduled_runner.load_inventory()
             for enrolled in inventory:
                 marker = f"  - file: {enrolled}\n"
                 beginning = demoted.index(marker)

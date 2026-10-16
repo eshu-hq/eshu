@@ -81,8 +81,9 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/recovery_replay_superseded_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL liveness proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/reducer_fact_batch_insert_fence_live_test.go
     tag: ~
     class: scheduled
@@ -101,12 +102,14 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/reducer_queue_ack_eligible_epq_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL fanout proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/reducer_queue_ack_fk_compatibility_postgres_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL fanout proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/reducer_queue_ack_lock_order_postgres_live_test.go
     tag: ~
     class: verified_scheduled
@@ -123,20 +126,24 @@ tests:
     reason: "untagged live proof gated by env Skip (ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN); #7285 re-projection re-enqueue contract, about 1s on a disposable schema"
   - file: go/internal/storage/postgres/reducer_queue_cross_scope_readiness_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL readiness proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/reducer_queue_pre_activation_exits_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live Postgres proof gated by env Skip (#6686); its TestReducerContentionGate prefix already runs it on every claim-path PR in reducer-contention-gate.yml, but it is not in the live-backend graph job; promote to ci with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL readiness proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/reducer_queue_pre_activation_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live Postgres proof gated by env Skip (#6686); its TestReducerContentionGate prefix already runs it on every claim-path PR in reducer-contention-gate.yml, but it is not in the live-backend graph job; promote to ci with timing evidence
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL readiness proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/reducer_queue_shared_edge_target_readiness_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live Postgres proof gated by env Skip (#7268); its TestReducerContentionGate prefix already runs it on every claim-path PR in reducer-contention-gate.yml, but it is not in the live-backend graph job; promote to ci with timing evidence (about 0.4 s against a local postgres:16)
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL readiness proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/reducer_queue_workload_replay_live_test.go
     tag: ~
     class: dedicated_ci
@@ -265,20 +272,23 @@ tests:
     reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN; the cost proof also needs ESHU_7320_COST_PROOF=1); #7320 supersede prior-failure fold, unmeasured cost — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/failure_text_bound_live_test.go
     tag: ~
-    class: scheduled
-    reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN); #7407 Fail-time failure_details bound and the #7320 fold copying the stored string byte for byte; about 2 s on Postgres 18 — promote to blocking with timing evidence"
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL claim proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/projector_queue_reclaim_cost_live_test.go
     tag: ~
     class: scheduled
     reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN plus ESHU_7320_COST_PROOF=1, pg_stat_statements preloaded); #7388 WAL and page cost of the reclaim fold per reclaimed row, before derived from the shipped constant; the derivation self-check runs without a database — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/projector_queue_reclaim_evidence_live_test.go
     tag: ~
-    class: scheduled
-    reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN); #7388 both projector_stale_scope_reclaim UPDATEs keep the prior failure, no nesting, and the reclaim-then-supersede chain; about 8 s on Postgres 18 — promote to blocking with timing evidence"
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL claim proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/supersede_prior_failure_fidelity_live_test.go
     tag: ~
-    class: scheduled
-    reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN; the cost proof also needs ESHU_7320_COST_PROOF=1); #7320 supersede prior-failure fold, unmeasured cost — promote to blocking with timing evidence"
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL claim proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/supersede_prior_failure_memory_live_test.go
     tag: ~
     class: scheduled
@@ -289,8 +299,9 @@ tests:
     reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN; the cost proof also needs ESHU_7320_COST_PROOF=1); #7320 supersede prior-failure fold, unmeasured cost — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/supersede_prior_failure_live_test.go
     tag: ~
-    class: scheduled
-    reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN; the cost proof also needs ESHU_7320_COST_PROOF=1); #7320 supersede prior-failure fold, unmeasured cost — promote to blocking with timing evidence"
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL claim proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/supersede_prior_failure_wal_live_test.go
     tag: ~
     class: scheduled

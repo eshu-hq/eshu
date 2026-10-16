@@ -15,8 +15,8 @@ legacy_scheduled_exemptions:
   baseline_main: 101cd4f6ab7b72ff01f018ad52112e3a9955168b
   steward: linuxdynasty
   tracking_issue: 7533
-  count: 473
-  sha256: 402da8603e09282ecc15dbafbfd067fdf3359e6a8af442bb9f9b9baaa11c9ac4
+  count: 441
+  sha256: db97d95b4a42acc196f9662d86d2546538db89381e83d64c5941506c1cd45e80
 
 purpose: >
   Classify every live backend proof in go/ as graph CI, PostgreSQL CI,
@@ -28,7 +28,7 @@ purpose: >
   migration job runs only its exact integration-tagged postgres_ci rows. The
   reducer contention job verifies each enrolled PostgreSQL-only dedicated_ci
   test from Go JSON events in its expected package. The postgres-scheduled
-  job checks exact tests in six groups across five packages daily on PostgreSQL. The
+  job checks exact tests in eleven groups across five packages daily on PostgreSQL. The
   ledger validator (scripts/verify-live-tests-ledger.sh) fails on any live test
   file this ledger does not name, so a new unclassified live test can never
   pass as clean. A live test is any *_live_test.go file plus any
@@ -67,4 +67,5 @@ fragments:
   - live-tests.d/live-tests-04.yaml
   - live-tests.d/live-tests-05.yaml
   - live-tests.d/live-tests-06.yaml
+  - live-tests.d/live-tests-06b.yaml
   - live-tests.d/live-tests-07.yaml
