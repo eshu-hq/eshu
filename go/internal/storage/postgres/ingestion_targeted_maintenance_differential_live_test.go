@@ -29,15 +29,14 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 			newEvidence: []string{"repo-tgt->repo-dep"},
 			published:   partitionSet("git:tgt", "tgt-2"),
 			reopened:    workIDs("tgt-2"),
-			// The whole pass also rewrites the untouched dep partition's phase
-			// and memo and reopens its correlation items. The stale tgt-1
-			// relationship items stay succeeded: #7637 gave the relationship
-			// listings the same per-scope replay floor the correlation
-			// listing already had.
-			wholeOutside: outsideKeys(concatIDs(
-				[]string{phaseKey("git:dep", "dep-1"), memoKey("git:dep", "dep-1")},
-				workKeys(correlationIDs("dep-1")),
-			)...),
+			// dep-1 is a memo hit with no inserted evidence row (the new
+			// repo-tgt->repo-dep row lands in tgt-2), so the whole pass leaves
+			// its phase and memo as they were (#8082) and only reopens its
+			// correlation items. The stale tgt-1 relationship items stay
+			// succeeded: #7637 gave the relationship listings the same
+			// per-scope replay floor the correlation listing already had.
+			unchanged:    partitionSet("git:dep", "dep-1"),
+			wholeOutside: outsideKeys(workKeys(correlationIDs("dep-1"))...),
 		})
 	})
 
@@ -57,12 +56,13 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 			// in-1 is a same-pass memo hit: its relationship items stay
 			// succeeded in both arms; its correlation items reopen in both.
 			reopened: concatIDs(workIDs("tgt-2"), correlationIDs("in-1")),
-			// No stale tgt-1 relationship reopen: the #7637 replay floor
-			// covers the relationship listings too.
-			wholeOutside: outsideKeys(concatIDs(
-				[]string{phaseKey("git:dep", "dep-1"), memoKey("git:dep", "dep-1")},
-				workKeys(correlationIDs("dep-1")),
-			)...),
+			// in-1 and dep-1 are memo hits with no inserted evidence row, so
+			// the whole pass leaves their phase and memo as they were (#8082);
+			// the targeted arm republishes in-1 with new timestamps only. No
+			// stale tgt-1 relationship reopen: the #7637 replay floor covers
+			// the relationship listings too.
+			unchanged:    partitionSet("git:in", "in-1", "git:dep", "dep-1"),
+			wholeOutside: outsideKeys(workKeys(correlationIDs("dep-1"))...),
 		})
 	})
 
@@ -95,11 +95,11 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 			// inserted (issue #7636). Before the fix both arms wrongly left
 			// them succeeded.
 			reopened: workIDs("gsrc-1"),
+			// dep-1 and tgt-1 are memo hits with no inserted evidence row (the
+			// new row lands in gsrc-1), so the whole pass leaves their phase
+			// and memo as they were (#8082).
+			unchanged: partitionSet("git:dep", "dep-1", "git:tgt", "tgt-1"),
 			wholeOutside: outsideKeys(concatIDs(
-				[]string{
-					phaseKey("git:dep", "dep-1"), memoKey("git:dep", "dep-1"),
-					phaseKey("git:tgt", "tgt-1"), memoKey("git:tgt", "tgt-1"),
-				},
 				workKeys(correlationIDs("dep-1")),
 				workKeys(correlationIDs("tgt-1")),
 				workKeys(workIDs("gcp-2")),
@@ -123,12 +123,13 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 			newEvidence: []string{"repo-tgt->repo-dep"},
 			published:   partitionSet("git:tgt", "tgt-2", "git:gsrc", "gsrc-1"),
 			reopened:    concatIDs(workIDs("tgt-2"), correlationIDs("gsrc-1")),
-			// No stale tgt-1 relationship reopen: the #7637 replay floor
-			// covers the relationship listings too.
-			wholeOutside: outsideKeys(concatIDs(
-				[]string{phaseKey("git:dep", "dep-1"), memoKey("git:dep", "dep-1")},
-				workKeys(correlationIDs("dep-1")),
-			)...),
+			// gsrc-1 (its gcp-1 evidence already committed in the pre-pass)
+			// and dep-1 are memo hits with no inserted evidence row, so the
+			// whole pass leaves their phase and memo as they were (#8082). No
+			// stale tgt-1 relationship reopen: the #7637 replay floor covers
+			// the relationship listings too.
+			unchanged:    partitionSet("git:gsrc", "gsrc-1", "git:dep", "dep-1"),
+			wholeOutside: outsideKeys(workKeys(correlationIDs("dep-1"))...),
 		})
 		if _, loaded := owedSet(outcome.result.Loaded)[backfill.ScopeGenerationPartition{ScopeID: targetedGCPScope, GenerationID: "gcp-1"}]; !loaded {
 			t.Fatalf("closure did not load the GCP cloud scope holding the inbound relation: %v", outcome.result.Loaded)
@@ -282,6 +283,10 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 			newEvidence: []string{"repo-tgt->repo-dep"},
 			published:   partitionSet("git:tgt", "tgt-2", "git:in", "in-1", "git:in2", "in2-1"),
 			reopened:    concatIDs(workIDs("tgt-2"), correlationIDs("in-1"), workIDs("in2-1")),
+			// in-1 is a memo hit with no inserted evidence row, so the whole
+			// pass leaves its phase and memo as they were (#8082); in2-1 is a
+			// memo miss and publishes in both arms.
+			unchanged: partitionSet("git:in", "in-1"),
 		})
 	})
 }

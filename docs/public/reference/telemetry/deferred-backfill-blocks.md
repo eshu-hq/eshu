@@ -22,7 +22,7 @@ log line. The set is closed: nine blocks, no others.
 | Per-partition fact load, merge, and ArgoCD config reload | `relationship.backfill.fact_load` | `partitions`, `facts`, `workers` |
 | Evidence discovery, dedupe, and per-source grouping | `relationship.backfill.discover` | `facts_in`, `evidence_out` |
 | Per-repository evidence write batches | `relationship.backfill.write_batches` | `batches`, `readiness_rows`, `inserted_rows` |
-| Per-partition readiness and memo publication | `relationship.backfill.fanin` | `partitions`, `published`, `skipped`, `argocd_probe_seconds` |
+| Per-partition readiness and memo publication | `relationship.backfill.fanin` | `partitions`, `published`, `skipped`, `skipped_unchanged`, `argocd_probe_seconds` |
 | One reopen domain call after the backfill commits | `relationship.backfill.reopen` | `domain`, `reopened`, `skipped_by_memo` |
 
 Rules that make the numbers safe to compare:
@@ -37,7 +37,18 @@ Rules that make the numbers safe to compare:
 - `write_batches` duration is the batches only. The fan-in runs after it and
   has its own span, so the two durations add up. `readiness_rows` is an
   attribute: the number of readiness rows the fan-in published, known only
-  after the fan-in returns.
+  after the fan-in returns. Since #8082 it counts only the rows written this
+  pass, not every active partition: on a quiet corpus it falls from the
+  partition count to the changed partitions.
+- `fanin` `skipped` counts every partition not published. `skipped_unchanged`
+  is the part the whole pass left as it was: a memo hit at pass start that got
+  no inserted evidence row and whose readiness row already exists (#8082).
+  Such a partition takes no lock, opens no transaction, and runs no ArgoCD
+  probe. The `deferred_backfill_fanin_unchanged_checked` line gives the same
+  count, `republished_missing_phase` (unchanged partitions republished
+  because their readiness row was missing, which should stay 0), and
+  `generation_advanced` (unchanged-set partitions sent back to the locked path
+  because their generation moved after the batch).
 - `fanin` `argocd_probe_seconds` is the sum of the per-partition
   ArgoCD-bearing-partition probe durations across the fan-in workers. The
   probes overlap, so the sum can exceed the block's duration; it is the probe's
@@ -129,8 +140,13 @@ existing `deferred_backfill_completed` line, the existing
    partitions.
 4. A long `write_batches` points at lock waits or write batches. Compare with
    `eshu_dp_deferred_backfill_batch_duration_seconds`.
-5. A long `fanin` with `skipped` above 0 means generations advanced during the
-   pass. See `eshu_dp_deferred_backfill_fanin_skipped_total`. A long `fanin`
+5. A long `fanin` with `skipped` above `skipped_unchanged` means generations
+   advanced during the pass. See `eshu_dp_deferred_backfill_fanin_skipped_total`
+   by `reason`; `unchanged_since_memo` is the normal steady state. A memo-hit
+   partition whose generation advanced before the unchanged check keeps
+   `generation_advanced_since_batch` (the check line's `generation_advanced`
+   field counts it); one that advanced after that unlocked check can be
+   counted as `unchanged_since_memo`. Neither writes a row. A long `fanin`
    with `argocd_probe_seconds` near its duration times the worker count means
    the per-partition ArgoCD probe owns it.
 6. A `deferred_backfill_block_failed` line names the block that failed the

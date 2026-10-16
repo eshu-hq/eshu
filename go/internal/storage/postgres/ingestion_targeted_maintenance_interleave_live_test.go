@@ -182,7 +182,7 @@ func TestTargetedMaintenanceInterleavingsMatchWholePass(t *testing.T) {
 		if want := []TargetedMaintenanceOutcome{{Partition: OwedPartition{ScopeID: "git:new", GenerationID: "new-1"}, Kind: TargetedMaintenanceRetry}}; !reflect.DeepEqual(result.Outcomes, want) {
 			t.Fatalf("refused pass outcomes = %v, want %v", result.Outcomes, want)
 		}
-		if changed := diffStates(before, before, p.capture(p.targeted), nil).targetedChangedOutside; len(changed) > 0 {
+		if changed := diffStates(before, before, p.capture(p.targeted), nil, nil).targetedChangedOutside; len(changed) > 0 {
 			t.Fatalf("refused pass changed rows: %v", changed)
 		}
 	})

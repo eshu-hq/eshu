@@ -48,7 +48,9 @@ const DeferredMaintenanceRepoBatchSize = 32
 // The subtraction is load-bearing: discovery is cross-partition, so a memo-hit
 // partition can still receive new evidence during the pass (issue #7636), and
 // returning it unrevised would let the reopen gate skip items that never
-// re-read the new rows.
+// re-read the new rows. The fan-in uses the same set (#8082): it leaves those
+// partitions untouched when their readiness row exists, because republishing
+// them would only rewrite timestamps.
 //
 // The root RunDeferredRelationshipMaintenance is the only caller that uses this
 // return value: it is the sole set the deferred reopen gate (issue #4770) may
@@ -117,7 +119,9 @@ func (s Store) RunAllRelationshipEvidence(
 	fingerprintParams, _ := BuildDeferredScopedFactQueryParams(catalog)
 	catalogFingerprint := DeferredCatalogFingerprint(fingerprintParams)
 
-	readinessRows, insertedRows, err := s.writeDeferredBackfillInBatches(ctx, evidenceBySourceRepo, snapshotGenerations, catalogFingerprint, instruments)
+	readinessRows, unchangedPartitions, err := s.writeDeferredBackfillInBatches(
+		ctx, evidenceBySourceRepo, snapshotGenerations, catalogFingerprint, skippedPartitions, instruments,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -130,18 +134,20 @@ func (s Store) RunAllRelationshipEvidence(
 	log.Printf("deferred_backfill_completed evidence_facts=%d readiness_rows=%d duration_s=%.2f batch_size=%d",
 		totalEvidence, readinessRows, dur, DeferredMaintenanceRepoBatchSize)
 
-	return ExcludePartitionsWithNewEvidence(skippedPartitions, insertedRows), nil
+	return unchangedPartitions, nil
 }
 
 // writeDeferredBackfillInBatches commits deferred backward evidence in bounded
 // per-repository batches, each in its own transaction holding only that batch's
 // exclusive maintenance locks, and then publishes readiness and the partition
 // memo in a separate per-partition fan-in step. It returns the number of
-// readiness rows published, plus the per-partition actually-inserted evidence
-// row counts the pass's memo-hit skip-set revision needs (issue #7636). Every
-// active repository is published as backward-evidence-ready even when it
-// discovered no new evidence, preserving the prior corpus-wide readiness
-// contract; repositories whose active generation disappears between batches
+// readiness rows published and memoHits revised by the rows the batches
+// actually inserted (ExcludePartitionsWithNewEvidence, issue #7636): the
+// partitions whose backward evidence this pass provably did not change. A nil
+// memoHits (the memo gate did not run) returns nil. Every active repository's
+// partition is backward-evidence-ready afterwards: the fan-in publishes every
+// partition except an unchanged one whose readiness row already exists
+// (#8082). Repositories whose active generation disappears between batches
 // are skipped idempotently.
 //
 // The two phases are separate because they have different natural units. A
@@ -155,8 +161,9 @@ func (s Store) writeDeferredBackfillInBatches(
 	evidenceBySourceRepo map[string][]relationships.EvidenceFact,
 	snapshotGenerations map[string]string,
 	catalogFingerprint string,
+	memoHits map[ScopeGenerationPartition]struct{},
 	instruments *telemetry.Instruments,
-) (int, map[ScopeGenerationPartition]int64, error) {
+) (int, map[ScopeGenerationPartition]struct{}, error) {
 	// write_batches covers the active-generation read, the batch writes, and its
 	// own shape; its attributes also carry the fan-in's readiness count, so it
 	// is ended with the batches' own end time once the fan-in has returned.
@@ -168,7 +175,7 @@ func (s Store) writeDeferredBackfillInBatches(
 	}
 	if len(repoGenerations) == 0 {
 		batchBlock.End(nil, IntAttr("batches", 0), IntAttr("readiness_rows", 0), IntAttr("inserted_rows", 0))
-		return 0, nil, nil
+		return 0, ExcludePartitionsWithNewEvidence(memoHits, nil), nil
 	}
 
 	repoIDs := make([]string, 0, len(repoGenerations))
@@ -228,21 +235,26 @@ func (s Store) writeDeferredBackfillInBatches(
 		return 0, nil, fmt.Errorf("deferred backfill canceled before readiness publication: %w", err)
 	}
 
+	// The revised set is computed before the fan-in, which consumes it, but
+	// logged only after the fan-in succeeds, so a pass whose fan-in fails
+	// does not report a revision nobody acted on.
+	unchanged, unskipped := excludePartitionsWithNewEvidence(memoHits, insertedRows)
 	fanInBlock := startBlockFromContext(ctx, BlockFanIn)
 	probeTimer := &argoCDProbeTimer{}
-	published, err := s.PublishDeferredBackfillPartitions(
-		withArgoCDProbeTimer(ctx, probeTimer), contributions, snapshotGenerations, catalogFingerprint, workers, instruments,
+	fanIn, err := s.publishChangedDeferredBackfillPartitions(
+		withArgoCDProbeTimer(ctx, probeTimer), contributions, unchanged, snapshotGenerations, catalogFingerprint, workers, instruments,
 	)
-	endFanInBlock(fanInBlock, err, len(contributions), published, probeTimer.seconds())
+	endFanInBlock(fanInBlock, err, len(contributions), fanIn, probeTimer.seconds())
 	batchBlock.EndAt(batchesEnd, nil,
 		IntAttr("batches", len(bounds)),
-		IntAttr("readiness_rows", published),
+		IntAttr("readiness_rows", fanIn.published),
 		IntAttr("inserted_rows", int(sumInsertedRows(insertedRows))),
 	)
 	if err != nil {
 		return 0, nil, err
 	}
-	return published, insertedRows, nil
+	logSkipSetRevised(memoHits, unskipped, unchanged)
+	return fanIn.published, unchanged, nil
 }
 
 // runDeferredBackfillBatches executes the partitioned per-repository batches with
@@ -409,42 +421,4 @@ func (s Store) writeDeferredBackfillBatchWith(
 	}
 	committed = true
 	return contributions, insertedRows, nil
-}
-
-// ExcludePartitionsWithNewEvidence revises a same-pass memo-hit skip-set with
-// the ground truth of what the pass's backfill actually wrote (issue #7636).
-// skipped holds the partitions the fact loader skipped at pass start; a
-// memo-hit partition can still receive NEW evidence during the pass when
-// cross-partition discovery writes under its generation (for example a GCP
-// cloud scope with no repository fact of its own). insertedRows maps each
-// partition to the rows the pass's backfill actually INSERTED — ON CONFLICT
-// DO NOTHING skips do not count — so a re-upsert of already-committed
-// evidence never invalidates a skip. Every skipped partition with a positive
-// count is excluded; the result is the set whose backward evidence the pass
-// provably did NOT change.
-//
-// A nil skipped (gate failure upstream) stays nil: the reopen-all fallback is
-// preserved, not converted into an empty skip-set. The input map is not
-// mutated. Indexing a nil insertedRows is safe and excludes nothing.
-func ExcludePartitionsWithNewEvidence(
-	skipped map[ScopeGenerationPartition]struct{},
-	insertedRows map[ScopeGenerationPartition]int64,
-) map[ScopeGenerationPartition]struct{} {
-	if skipped == nil {
-		return nil
-	}
-	revised := make(map[ScopeGenerationPartition]struct{}, len(skipped))
-	unskipped := 0
-	for partition := range skipped {
-		if insertedRows[partition] > 0 {
-			unskipped++
-			continue
-		}
-		revised[partition] = struct{}{}
-	}
-	log.Printf(
-		"deferred_backfill_skip_set_revised skipped_before=%d unskipped_new_evidence=%d skipped_after=%d",
-		len(skipped), unskipped, len(revised),
-	)
-	return revised
 }

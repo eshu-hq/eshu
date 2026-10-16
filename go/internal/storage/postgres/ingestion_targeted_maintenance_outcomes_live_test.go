@@ -46,7 +46,7 @@ func TestTargetedMaintenanceOutcomesMatchWholePass(t *testing.T) {
 		if !reflect.DeepEqual(result.Outcomes, want) {
 			t.Fatalf("outcomes = %v, want %v", result.Outcomes, want)
 		}
-		if changed := diffStates(before, before, p.capture(p.targeted), nil).targetedChangedOutside; len(changed) > 0 {
+		if changed := diffStates(before, before, p.capture(p.targeted), nil, nil).targetedChangedOutside; len(changed) > 0 {
 			t.Fatalf("not-active pass changed rows: %v", changed)
 		}
 	})
@@ -64,7 +64,7 @@ func TestTargetedMaintenanceOutcomesMatchWholePass(t *testing.T) {
 		if result.Outcomes[0].Kind != TargetedMaintenanceRetry {
 			t.Fatalf("refused owed outcome = %v, want retry", result.Outcomes)
 		}
-		if changed := diffStates(before, before, p.capture(p.targeted), nil).targetedChangedOutside; len(changed) > 0 {
+		if changed := diffStates(before, before, p.capture(p.targeted), nil, nil).targetedChangedOutside; len(changed) > 0 {
 			t.Fatalf("refused pass changed rows: %v", changed)
 		}
 		// The epoch whole pass writes the memo baseline; the targeted pass is

@@ -64,19 +64,22 @@ func discoverEvidenceBlock(
 // is withheld rather than reported wrong. argocdProbeSeconds is the summed
 // per-partition ArgoCD probe time across the fan-in workers, reported on both
 // outcomes because a failed fan-in's probe cost is still real.
-func endFanInBlock(block *BlockSpan, err error, partitions, published int, argocdProbeSeconds float64) {
+// skipped_unchanged is the part of skipped the whole pass left untouched because
+// its evidence did not change and its readiness was already open (#8082).
+func endFanInBlock(block *BlockSpan, err error, partitions int, result deferredFanInResult, argocdProbeSeconds float64) {
 	if err != nil {
 		block.End(err,
 			IntAttr("partitions", partitions),
-			IntAttr("published", published),
+			IntAttr("published", result.published),
 			FloatAttr("argocd_probe_seconds", argocdProbeSeconds),
 		)
 		return
 	}
 	block.End(nil,
 		IntAttr("partitions", partitions),
-		IntAttr("published", published),
-		IntAttr("skipped", partitions-published),
+		IntAttr("published", result.published),
+		IntAttr("skipped", partitions-result.published),
+		IntAttr("skipped_unchanged", result.skippedUnchanged),
 		FloatAttr("argocd_probe_seconds", argocdProbeSeconds),
 	)
 }
