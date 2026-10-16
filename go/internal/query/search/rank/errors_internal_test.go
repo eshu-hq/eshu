@@ -188,3 +188,25 @@ func TestWriteErrorLeavesAnUnknownCodeToTheCaller(t *testing.T) {
 		t.Fatalf("WriteError wrote %q for an unknown code", rec.Body.String())
 	}
 }
+
+// TestWriteErrorAnswersEveryListedCode guards the code switch in WriteError
+// against a code added to ErrorCodes without a status case. Such a code would
+// make WriteError return false, and the callers that ignore the return value
+// would then write nothing. Each listed code must be answered with a 400 or a
+// 409.
+func TestWriteErrorAnswersEveryListedCode(t *testing.T) {
+	t.Parallel()
+
+	for _, code := range ErrorCodes() {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/v0/code/search", nil)
+		err := &Error{Code: code, Reason: ReasonMalformed, Message: "listed code"}
+		if !WriteError(rec, req, err) {
+			t.Errorf("%s: WriteError returned false for a listed code", code)
+			continue
+		}
+		if rec.Code != http.StatusBadRequest && rec.Code != http.StatusConflict {
+			t.Errorf("%s: status = %d, want 400 or 409", code, rec.Code)
+		}
+	}
+}
