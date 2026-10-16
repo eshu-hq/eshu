@@ -240,8 +240,9 @@ yet: its reads still answer a client cancel with `500`.
 A client that cancels its request while one of the post-selector reads above
 runs, while a selector lookup runs through the shared selector helper, or
 while a read on any route in the sections above runs (except the
-`POST /api/v0/code/language-query` reads), gets `499` with the
-same fixed message, and
+`POST /api/v0/code/language-query` reads), or while a read on the
+[compare and semantic search routes](compare-and-semantic-search-failures.md)
+runs, gets `499` with the same fixed message, and
 the request span is not marked as an error; the span carries an
 `eshu.request.client_canceled` event instead. No route documents `499` in the
 OpenAPI spec, because the client has already gone. Other routes still answer

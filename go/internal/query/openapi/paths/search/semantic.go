@@ -12,7 +12,7 @@ const Semantic = `
       "post": {
         "tags": ["semantic"],
         "summary": "Search curated semantic context",
-        "description": "Runs bounded retrieval over active curated Eshu search documents for one repository corpus. Callers must provide repo_id, query, mode, limit, and timeout_ms. Results are derived retrieval evidence with graph handles, truth labels, freshness, search method, and truncation metadata; retrieval scores are never promoted to canonical graph truth.",
+        "description": "Runs bounded retrieval over active curated Eshu search documents for one repository corpus. Callers must provide repo_id, query, mode, limit, and timeout_ms. Results are derived retrieval evidence with graph handles, truth labels, freshness, search method, and truncation metadata; retrieval scores are never promoted to canonical graph truth. A 503 with Retry-After means a transient condition that is safe to retry: the scope resolution or index read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: no persisted search index is configured on this API instance, or mode semantic was requested with no embedder configured. A scope-resolver fault and a stored result that fails normalization answer 500 (they answered 503 and 400 before #7674), as does any other failed read, with a fixed message. A failed index or local hybrid read on a stale or timed-out reader answers the retryable 503 (it answered 500 before #7674), and a scope-resolution 503 on such a reader now carries Retry-After. The 500 and 503 bodies keep this route's own shape: the envelope when negotiated, else error_code, message, and capability. No 5xx body carries backend error text. A reader-verdict 503 names capability semantic_search.curated_retrieval in its error envelope.",
         "operationId": "searchSemanticContext",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -161,6 +161,7 @@ const Semantic = `
           "403": {"$ref": "#/components/responses/Forbidden"},
           "404": {"$ref": "#/components/responses/NotFound"},
           "409": {"description": "Canonical repository id maps to multiple active ingestion scopes; retry after repairing repository scope identity"},
+          "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }

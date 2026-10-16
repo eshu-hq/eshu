@@ -160,6 +160,15 @@ type ErrorEnvelope struct {
 	retryable bool
 }
 
+// Retryable reports whether e is a verdict marked transient: the marker
+// WriteErrorEnvelope reads to set Retry-After on a 503. A route that writes a
+// GraphReadErrorEnvelope verdict in its own body shape, instead of through
+// WriteErrorEnvelope, reads it to send the same Retry-After header. A nil
+// envelope, a hand-built one, and a permanent verdict report false.
+func (e *ErrorEnvelope) Retryable() bool {
+	return e != nil && e.retryable
+}
+
 // ResponseEnvelope is the negotiated query response wire contract.
 type ResponseEnvelope struct {
 	Data  any            `json:"data"`

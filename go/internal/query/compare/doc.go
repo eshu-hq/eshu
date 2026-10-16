@@ -15,8 +15,12 @@
 // A scoped caller whose grant is empty, or whose grant does not cover the
 // workload's repo_id, gets the same "not found" response a missing workload
 // gets, so the endpoint does not reveal which workloads exist. A profile
-// without the capability answers 501. Graph read failures go through
-// querycontract.WriteGraphReadError.
+// without the capability answers 501. A failed read answers through
+// writeCompareReadFailure (failure.go): querycontract.WriteGraphReadError
+// first (graph outage or reader fence 503 with Retry-After, graph deadline
+// 504), then tracing.WriteServerFailure with a fixed per-read message (500,
+// or 499 for a client cancel). Backend error text never reaches a body
+// (#7674).
 //
 // Capability and Support declare the route's capability row once:
 // internal/query/contract registers Support() for production and main_test.go
