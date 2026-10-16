@@ -21,8 +21,9 @@ Source binding: branch `perf/7127-pr3b-ack-journal`, rebased on `origin/main`
 `8f188353f` (Merge pull request #8183). The runs below were taken on main at
 `eef372440` (Merge pull request #8170); main changed no projector queue,
 ledger store, reducer freshness or schema file between the two
-(`git diff --stat eef372440 8f188353f` over those paths is empty). PostgreSQL 18.6 (`postgres:18`, aarch64) in two disposable
-containers: one with `pg_stat_statements` preloaded (`track = all`), one
+(`git diff --stat eef372440 8f188353f` over those paths is empty).
+PostgreSQL 18.6 (`postgres:18`, aarch64) in two disposable containers: one
+with `pg_stat_statements` preloaded (`track = all`), one
 without it, as the CI readiness service runs. The host had 16 CPUs and load1
 between 13 and 70 during the runs, so no wall time below is a result.
 
