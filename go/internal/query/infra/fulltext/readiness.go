@@ -111,7 +111,7 @@ func (r *Readiness) probe(ctx context.Context) State {
 		return st
 	}
 	st.Index = indexState(raw)
-	counts, err := search.CountUnkeyed(ctx, r.runner)
+	counts, err := search.CountUnkeyedSearchable(ctx, r.runner)
 	if err != nil {
 		st.Err = err
 		return st

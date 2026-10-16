@@ -172,3 +172,35 @@ func TestReadinessWatchRefreshesUntilCanceled(t *testing.T) {
 		t.Fatal("Watch did not return after cancel")
 	}
 }
+
+// recordingProbe answers like probeGraph and records every statement.
+type recordingProbe struct {
+	probeGraph
+	statements []string
+}
+
+func (g *recordingProbe) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	g.statements = append(g.statements, cypher)
+	return g.probeGraph.Run(ctx, cypher, params)
+}
+
+// Readiness must count only unkeyed nodes that hold a searched field: a
+// posture-only node the index can never need must not hold readiness off.
+func TestReadinessCountsOnlySearchableUnkeyedNodes(t *testing.T) {
+	t.Parallel()
+	graph := &recordingProbe{probeGraph: probeGraph{state: "ONLINE"}}
+	fulltext.NewReadiness(graph, nil, nil).Refresh(context.Background())
+	var counts int
+	for _, stmt := range graph.statements {
+		if !strings.Contains(stmt, "AS unkeyed") {
+			continue
+		}
+		counts++
+		if !strings.Contains(stmt, "n.name IS NOT NULL") || !strings.Contains(stmt, "n.config_path IS NOT NULL") {
+			t.Fatalf("readiness count does not require a searched field: %q", stmt)
+		}
+	}
+	if counts == 0 {
+		t.Fatal("readiness ran no unkeyed count")
+	}
+}

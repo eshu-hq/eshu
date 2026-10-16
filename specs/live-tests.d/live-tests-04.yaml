@@ -128,6 +128,11 @@ tests:
     class: ci
     reason: "#7245 PR-2 seeded Neo4j differential: for 67 request bodies, unscoped and under a scoped grant, the full-text statement the real handler emits returns the same fixture rows as the legacy statement (key overflow, 8,000/8,001 code-point keys, case, Lucene specials, whitespace, unicode, U+001F, duplicate rows, multi-label, non-string fields, data_type fallback, :: equality, categories, kind filters, USES and MATCHES_STATE grants), and queries past fulltext.MaxQueryRunes keep the legacy statement; NornicDB has no infra_search_key_ft, so the file is Neo4j-only; local run 15.9 s"
     backends: neo4j
+  - file: go/internal/query/infra/fulltext/readiness_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "#7245 PR-2 seeded Neo4j proof of the readiness probe: a CloudResource or KustomizeOverlay node a posture or base_refs writer creates with no searched field, and an overflow-marked node, do not hold readiness off, while an unkeyed node with any one of the twelve searched fields (string or not) does; CountUnkeyed still counts every flagless node; Neo4j-only; local run 2.9 s"
+    backends: neo4j
   - file: go/internal/storage/cypher/retrying_executor_live_test.go
     tag: ~
     class: scheduled

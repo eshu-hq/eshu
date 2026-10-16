@@ -2503,8 +2503,8 @@ type Instruments struct {
 	// InfraSearchKeyIndexOnline is 1 when the last readiness probe read the
 	// infra_search_key_ft index as ONLINE (#7245).
 	InfraSearchKeyIndexOnline metric.Int64Gauge
-	// InfraSearchKeyUnkeyedNodes is the unkeyed infra node count at the last
-	// successful readiness probe (#7245).
+	// InfraSearchKeyUnkeyedNodes is the count of unkeyed infra nodes that hold
+	// a searched field at the last successful readiness probe (#7245).
 	InfraSearchKeyUnkeyedNodes metric.Int64Gauge
 	// ReducerOwnGateWake counts #7597 own-gate wake statements by site
 	// (activation, fail) and outcome (reopened, noop, error), once per

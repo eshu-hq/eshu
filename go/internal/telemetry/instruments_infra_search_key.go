@@ -52,9 +52,9 @@ func registerInfraSearchKeyInstruments(meter metric.Meter, inst *Instruments) er
 	}
 	if inst.InfraSearchKeyUnkeyedNodes, err = meter.Int64Gauge(
 		"eshu_dp_infra_search_key_unkeyed_nodes",
-		metric.WithDescription("Infra search label nodes with no infra_search_ovf flag at the last successful "+
-			"readiness probe: nodes no keying writer or backfill touched, which the full-text index cannot "+
-			"find (#7245). Non-zero keeps the search on the legacy statement"),
+		metric.WithDescription("Infra search label nodes with no infra_search_ovf flag that hold at least one "+
+			"searched field, at the last successful readiness probe: nodes the search could match but the "+
+			"full-text index cannot find (#7245). Non-zero keeps the search on the legacy statement"),
 	); err != nil {
 		return fmt.Errorf("register InfraSearchKeyUnkeyedNodes gauge: %w", err)
 	}
