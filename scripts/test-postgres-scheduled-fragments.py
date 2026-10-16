@@ -161,7 +161,7 @@ class InventoryFragmentTest(unittest.TestCase):
 
     @mock.patch.dict("os.environ", {"GITHUB_ACTIONS": "false"})
     def test_missing_new_stream_and_local_as_hosted_fail(self) -> None:
-        """The eleven-stream bundle requires the new stream and hosted origin."""
+        """The twelve-stream bundle requires the new stream and hosted origin."""
         inventory = runner.load_inventory()
         manifest = runner.build_manifest(
             inventory, "pull_request", "123", "1",

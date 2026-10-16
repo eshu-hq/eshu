@@ -31,6 +31,31 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/identity_page_plan_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7805 disposable PostgreSQL 18 plan guard: EXPLAIN (FORMAT JSON) of the identity page query on the migrated schema must ride the ordered identity index with a hashed SubPlan active-generation filter, the keyset comparison as an Index Cond on a mid-load page, no Sort and no Seq Scan on fact_records; timing evidence: the guarded plan loads the 546k-row active set in 4.7s versus 589s to 724s for the JOIN plan (docs/internal/evidence/7805-identity-epoch-flight.md)"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/identity_epoch_cache_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/identity_epoch_index_replay_live_test.go
+    tag: integration
+    class: scheduled
+    reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
+  - file: go/internal/storage/postgres/identity_local_failed_attempt_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "untagged Postgres-only failed-attempt upsert proof for #7498 gated by ESHU_POSTGRES_DSN Skip; ~4.5s locally including full bootstrap migration; promote to blocking with timing evidence"
+  - file: go/internal/storage/postgres/identity_local_rotate_single_connection_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "untagged Postgres-only single-connection rotation proof for #7499 gated by ESHU_POSTGRES_DSN Skip; ~4.3s locally including full bootstrap migration; promote to blocking with timing evidence"
+  - file: go/internal/storage/postgres/identity_mapping_pagination_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/installed_advisory_targets_paging_live_test.go
     tag: ~
     class: dedicated_ci
