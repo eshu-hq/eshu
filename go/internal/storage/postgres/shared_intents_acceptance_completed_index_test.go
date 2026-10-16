@@ -10,9 +10,11 @@ import (
 
 // TestSharedIntentAcceptanceCompletedIndexMigration pins the #7929
 // reachability-selection fix: the per-run max(completed_at) LATERAL probe in
-// the pending-code-reachability loader must be servable as one backward
-// index-only scan per traversed domain instead of a bitmap heap walk over
-// every completed intent of the run. The probe filters on the four equality
+// the pending-code-reachability loader must be servable from the covering
+// index as an index-only scan instead of a bitmap heap walk over every
+// completed intent of the run (measured AFTER plan still visits one index
+// entry per completed intent; max() over the two-value IN list does not
+// short-circuit to a backward limit scan). The probe filters on the four equality
 // columns (scope_id, acceptance_unit_id, source_run_id, generation_id), one
 // of two projection_domain values, and completed_at IS NOT NULL, then takes
 // max(completed_at); the migration-008 acceptance_lookup_idx lacks
