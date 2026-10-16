@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
@@ -121,8 +122,14 @@ func graphSchemaAdoptionModeFromEnv(getenv func(string) string, backend graph.Sc
 	}
 }
 
+// adoptExistingGraphSchema adopts a complete existing graph schema. Only the
+// catalog inspection is bounded by inspectTimeout; beforeMark (the Neo4j
+// infra search key gate, which bounds each of its own statements) and the
+// marker write run under ctx, so a gate longer than one statement timeout
+// does not leave the marker write with an expired deadline.
 func adoptExistingGraphSchema(
 	ctx context.Context,
+	inspectTimeout time.Duration,
 	db bootstrapExecutor,
 	inspector graphSchemaInspector,
 	logger *slog.Logger,
@@ -136,7 +143,9 @@ func adoptExistingGraphSchema(
 	if err != nil {
 		return false, nil, err
 	}
-	actualNames, err := inspector.GraphSchemaObjectNames(ctx)
+	inspectCtx, cancel := context.WithTimeout(ctx, inspectTimeout)
+	actualNames, err := inspector.GraphSchemaObjectNames(inspectCtx)
+	cancel()
 	if err != nil {
 		return false, nil, fmt.Errorf("inspect graph schema for adoption: %w", err)
 	}

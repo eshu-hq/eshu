@@ -54,7 +54,9 @@ Resolved through `runtime.OpenPostgres`, `runtime.OpenNeo4jDriver`, and
   adoption incomplete so the DDL pass runs the drop. If only some NornicDB
   objects are missing, the DDL pass forwards only those missing objects and
   skips every inspected existing constraint/index before it reaches NornicDB. The inspection uses the
-  ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT budget.
+  ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT budget; only the inspection does. On
+  Neo4j the infra search key gate and the adoption marker write run after it,
+  outside that deadline.
 - ESHU_GRAPH_SCHEMA_ADOPT_ONLY — opt-in, fail-closed adoption for a schema
   Job that must not issue graph DDL. When true, a missing or incompatible
   marker requires a complete inspected graph catalog. A missing inspector,
@@ -93,8 +95,13 @@ leaves the marker unset; the next run retries, and the backfill resumes after
 the nodes already keyed. Schema adoption (`ESHU_GRAPH_SCHEMA_ADOPT_EXISTING`)
 runs the same probe, backfill, and `ONLINE` check before it writes the
 adoption marker, so adopting an existing `infra_search_key_ft` by name never
-trusts a `FAILED` index or a backfill that never ran. Each statement is bounded by
-`ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT`. NornicDB runs none of this. Recovery:
+trusts a `FAILED` index or a backfill that never ran. Each gate statement is
+bounded by `ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT` on its own: the probe, each
+label's backfill, the `db.awaitIndex` wait (90% of that timeout), and the
+state read. The gate as a whole has no single deadline, so a large graph is
+not cut off by the adoption inspection's budget. A statement that times out
+fails the run with an error naming its stage and the variable to raise.
+NornicDB runs none of this. Recovery:
 the runbook in `go/internal/graph/README.md`.
 
 ## Telemetry

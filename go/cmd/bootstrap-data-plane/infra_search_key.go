@@ -41,7 +41,7 @@ func checkInfraSearchKeyReadiness(ctx context.Context, runner search.Runner, log
 	}
 	oversized, err := search.OversizedKeyCount(ctx, runner)
 	if err != nil {
-		return err
+		return fmt.Errorf("infra search key readiness probe: %w", err)
 	}
 	logger.InfoContext(ctx, "infra search key readiness probe",
 		telemetry.EventAttr("bootstrap.graph.infra_search_key.readiness"),
@@ -79,9 +79,12 @@ func backfillInfraSearchKeys(ctx context.Context, runner search.Runner, logger *
 	_, awaitErr := runner.Run(ctx, infraSearchKeyAwaitCypher, map[string]any{
 		"name": graph.InfraSearchKeyIndexName, "seconds": awaitSeconds,
 	})
+	if awaitErr != nil {
+		awaitErr = fmt.Errorf("infra search key index wait: %w", awaitErr)
+	}
 	rows, err := runner.Run(ctx, infraSearchKeyIndexStateCypher, map[string]any{"name": graph.InfraSearchKeyIndexName})
 	if err != nil {
-		return fmt.Errorf("read %s state: %w", graph.InfraSearchKeyIndexName, errors.Join(err, awaitErr))
+		return fmt.Errorf("infra search key index state: read %s: %w", graph.InfraSearchKeyIndexName, errors.Join(err, awaitErr))
 	}
 	if len(rows) == 0 {
 		return fmt.Errorf("%s is missing", graph.InfraSearchKeyIndexName)
@@ -144,10 +147,15 @@ func infraSearchKeyRunner(runner search.Runner, timeout time.Duration) search.Ru
 	return statementTimeoutRunner{runner: runner, timeout: timeout}
 }
 
-// statementTimeoutRunner bounds each runner statement, like
-// statementTimeoutExecutor bounds DDL. One backfill statement covers one
-// label and commits in batches, so a label that times out keeps its progress
-// and the next run resumes after the nodes already keyed.
+// statementTimeoutRunner bounds each runner statement by the graph schema
+// statement timeout, like statementTimeoutExecutor bounds DDL. The bound is
+// per statement, never for the whole gate: the probe, each label's backfill,
+// the index wait (db.awaitIndex for infraSearchKeyAwaitSeconds, inside the
+// same bound), and the state read each get their own. One backfill statement
+// covers one label and commits in batches, so a label that times out keeps its
+// progress and the next run resumes after the nodes already keyed. A timeout
+// error names ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT, and each gate stage wraps
+// it with its own name.
 type statementTimeoutRunner struct {
 	runner  search.Runner
 	timeout time.Duration
@@ -158,7 +166,7 @@ func (r statementTimeoutRunner) Run(ctx context.Context, cypher string, params m
 	defer cancel()
 	rows, err := r.runner.Run(statementCtx, cypher, params)
 	if err != nil && errors.Is(statementCtx.Err(), context.DeadlineExceeded) {
-		return nil, fmt.Errorf("graph statement exceeded %s: %w", r.timeout, context.DeadlineExceeded)
+		return nil, fmt.Errorf("graph statement exceeded %s (raise %s): %w", r.timeout, graphSchemaStatementTimeoutEnv, context.DeadlineExceeded)
 	}
 	return rows, err
 }

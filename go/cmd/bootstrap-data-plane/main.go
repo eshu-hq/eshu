@@ -240,9 +240,7 @@ func run(
 				return fmt.Errorf("%s requires graph schema inspection support", graphSchemaAdoptExistingEnv)
 			}
 		} else {
-			adoptionCtx, cancel := context.WithTimeout(ctx, statementTimeout)
-			defer cancel()
-			adopted, actualNames, err := adoptExistingGraphSchema(adoptionCtx, database, nd.inspector, logger, schemaApplication,
+			adopted, actualNames, err := adoptExistingGraphSchema(ctx, statementTimeout, database, nd.inspector, logger, schemaApplication,
 				infraSearchKeyAdoptionGate(ctx, backend, keyRunner, logger, awaitSeconds))
 			if err != nil {
 				return err
