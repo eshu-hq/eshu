@@ -21,6 +21,10 @@ type Pass struct {
 	logger  *slog.Logger
 	reports map[string]Report
 	ran     bool
+	// drain is Drain for a pre-delete pass and SweepOrphan for an orphan
+	// sweep; message is the per-generation completion log line.
+	drain   func(context.Context, db.Beginner, Generation, *Budget) (Report, error)
+	message string
 }
 
 // NewPass returns a pass bounded by rowCap deleted rows and the deadline
@@ -31,7 +35,20 @@ func NewPass(rowCap int64, deadline time.Time, logger *slog.Logger) *Pass {
 		budget:  Budget{RowCap: rowCap, Deadline: deadline},
 		logger:  logger,
 		reports: make(map[string]Report),
+		drain:   Drain,
+		message: "generation retention search index pre-delete completed",
 	}
+}
+
+// NewOrphanPass returns a pass that sweeps orphan generations with
+// SweepOrphan under the same budget rules as NewPass (#7427 PR2). Its
+// per-generation log line is "generation retention search index orphan
+// generation swept".
+func NewOrphanPass(rowCap int64, deadline time.Time, logger *slog.Logger) *Pass {
+	pass := NewPass(rowCap, deadline, logger)
+	pass.drain = SweepOrphan
+	pass.message = "generation retention search index orphan generation swept"
+	return pass
 }
 
 // Run drains generations in the given order, which must be oldest first, so
@@ -48,7 +65,7 @@ func (p *Pass) Run(ctx context.Context, database db.Beginner, generations []Gene
 		}
 		p.ran = true
 		started := time.Now()
-		report, err := Drain(ctx, database, generation, &p.budget)
+		report, err := p.drain(ctx, database, generation, &p.budget)
 		p.reports[generation.GenerationID] = report
 		p.log(ctx, report, time.Since(started))
 		if err != nil {
@@ -106,7 +123,7 @@ func (p *Pass) log(ctx context.Context, report Report, duration time.Duration) {
 	if report.Drained() && report.Rows() == 0 {
 		level = slog.LevelDebug
 	}
-	p.logger.Log(ctx, level, "generation retention search index pre-delete completed",
+	p.logger.Log(ctx, level, p.message,
 		slog.String(telemetry.LogKeyScopeID, report.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, report.GenerationID),
 		slog.String("outcome", string(report.Outcome)),

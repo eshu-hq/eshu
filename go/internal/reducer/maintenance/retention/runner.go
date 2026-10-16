@@ -125,6 +125,15 @@ type Runner struct {
 
 	Instruments *telemetry.Instruments
 	Logger      *slog.Logger
+
+	// OrphanSweeper, when set, sweeps search index rows of generations that
+	// no longer exist once per poll interval, after the pass (#7427 PR2).
+	OrphanSweeper OrphanSweeper
+	// Now is the clock for the sweep cadence; nil uses time.Now.
+	Now func() time.Time
+	// lastOrphanSweep is when the last sweep started. A Runner is driven by
+	// one goroutine, so it needs no lock.
+	lastOrphanSweep time.Time
 }
 
 // Run drains eligible retention batches until the context is cancelled. A
@@ -198,6 +207,10 @@ func (r *Runner) RunOnce(ctx context.Context) (Result, error) {
 		policy.SearchIndexPredeleteDeadline = r.Config.pollInterval() / generationRetentionSearchIndexDeadlineDivisor
 	}
 	result, err := r.Pruner.PruneSupersededGenerations(ctx, policy)
+	// The orphan sweep runs after the prune transaction has ended, so it
+	// never holds or waits on a retention scope lock, and it runs even when
+	// the prune failed: it depends on neither the prune nor its key indexes.
+	r.sweepOrphansIfDue(ctx, policy.SearchIndexPredeleteDeadline)
 	if err != nil {
 		return Result{}, fmt.Errorf("prune superseded generations: %w", err)
 	}

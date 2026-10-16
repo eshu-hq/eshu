@@ -63,6 +63,12 @@ func (r *scriptedRows) Scan(dest ...any) error {
 			*target = value.(int64)
 		case *string:
 			*target = value.(string)
+		case *sql.NullString:
+			if value == nil {
+				*target = sql.NullString{}
+			} else {
+				*target = sql.NullString{String: value.(string), Valid: true}
+			}
 		default:
 			return fmt.Errorf("unsupported scan target %T", dest[i])
 		}

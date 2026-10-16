@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	linkstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
+	indexretention "github.com/eshu-hq/eshu/go/internal/storage/postgres/search/index/retention"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -118,12 +119,47 @@ func generationRetentionRunnerFor(
 	if !cfg.Enabled {
 		return nil
 	}
-	return &retention.Runner{
+	runner := &retention.Runner{
 		Pruner: postgresGenerationRetentionPruner{
 			store: postgres.NewGenerationRetentionStore(database).WithLogger(logger),
 		},
 		Config: cfg.Runner,
 	}
+	// The search index orphan sweep (#7427 PR2) runs its batches in their own
+	// transactions, so it needs a database that can begin them.
+	if sweepDatabase, ok := database.(indexretention.Database); ok {
+		runner.OrphanSweeper = searchIndexOrphanSweeper{database: sweepDatabase, logger: logger}
+	}
+	return runner
+}
+
+// searchIndexOrphanSweeper adapts the indexretention orphan census and sweep
+// to the retention runner's contract.
+type searchIndexOrphanSweeper struct {
+	database indexretention.Database
+	logger   *slog.Logger
+}
+
+// SweepSearchIndexOrphans runs one census and sweep, its batches bounded by
+// deadline from now (none when deadline is not positive).
+func (s searchIndexOrphanSweeper) SweepSearchIndexOrphans(
+	ctx context.Context,
+	deadline time.Duration,
+) (retention.OrphanSweepResult, error) {
+	var until time.Time
+	if deadline > 0 {
+		until = time.Now().Add(deadline)
+	}
+	sweep, err := indexretention.SweepOrphans(ctx, s.database, until, s.logger)
+	return retention.OrphanSweepResult{
+		PairsScanned:      sweep.Census.PairsScanned,
+		OrphanGenerations: sweep.Census.OrphanGenerations,
+		RowsSwept:         sweep.RowsSwept,
+		Batches:           sweep.Batches,
+		Unswept:           sweep.Unswept,
+		CensusDuration:    sweep.CensusDuration,
+		SweepDuration:     sweep.SweepDuration,
+	}, err
 }
 
 func (p postgresGenerationRetentionPruner) PruneSupersededGenerations(

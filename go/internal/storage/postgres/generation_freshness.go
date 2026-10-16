@@ -120,12 +120,16 @@ func (s IngestionStore) CurrentScopeGeneration(
 //
 // Outcomes:
 //   - the intent generation is active, the scope is unknown, or the scope has
-//     no active generation and the intent is neither pending nor terminal:
-//     (true, nil), and the handler runs;
+//     no active generation and the intent's row exists but is neither pending
+//     nor terminal: (true, nil), and the handler runs. An unknown scope keeps
+//     this legacy result; it cannot leave search index orphans because
+//     eshu_search_index_terms and eshu_search_index_documents keep their
+//     scope_id foreign key, which rejects the row (#7427);
 //   - the scope has no active generation and the intent is pending:
 //     (false, reducercontract.GenerationNotYetActiveError) until first Ack;
-//   - the scope has no active generation and the intent is failed or superseded:
-//     (false, nil), and the intent is terminally superseded;
+//   - the scope has no active generation and the intent is failed or
+//     superseded, or its generation row is missing (retention pruned it,
+//     #7427): (false, nil), and the intent is terminally superseded;
 //   - the intent generation is still pending and sorts after the active
 //     generation: (false, reducercontract.GenerationNotYetActiveError). Its
 //     projector has enqueued reducer work but not yet acknowledged, so the
@@ -165,8 +169,11 @@ func NewGenerationFreshnessCheck(database db.ExecQueryer) reducer.GenerationFres
 					GenerationID: generationID,
 				}
 			}
-			if intentStatus.Valid && (intentStatus.String == string(scope.GenerationStatusFailed) ||
-				intentStatus.String == string(scope.GenerationStatusSuperseded)) {
+			if !intentStatus.Valid || intentStatus.String == string(scope.GenerationStatusFailed) ||
+				intentStatus.String == string(scope.GenerationStatusSuperseded) {
+				// A missing row fails closed (#7427): retention pruned the
+				// generation, and with the terms generation foreign key
+				// gone nothing else would reject the writer's rows.
 				return false, nil
 			}
 			// Preserve the legacy result for every other no-active state.

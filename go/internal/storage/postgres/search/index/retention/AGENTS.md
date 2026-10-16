@@ -5,7 +5,9 @@
 1. `README.md` and `doc.go` in this directory.
 2. `../../../AGENTS.md` for Postgres storage conventions.
 3. `docs/internal/evidence/7427-search-index-predelete.md` for the measured
-   statement shape and the plan it must keep.
+   statement shape and the plan it must keep, and
+   `docs/internal/evidence/7427-search-index-orphan-guard.md` for the orphan
+   census plan and the c3 freshness change.
 
 ## Invariants
 
@@ -22,7 +24,14 @@
   `freshness/links/lockclass_scan_test.go` reads the literal.
 - A batch never waits: try lock, lock_timeout below deadlock_timeout. Do not
   replace `pg_try_advisory_xact_lock` with the waiting form.
-
+- The orphan sweep's eligibility CTE keeps both tests: the pair is absent
+  from `scope_generations`, and `ingestion_scopes.active_generation_id` does
+  not name it (`TestOrphanSweepStatementsDeleteOnlyMissingGenerations`,
+  `TestOrphanSweepLiveNeverDeletesAnExistingGeneration`). It shares the
+  pre-delete's page and DELETE body; change both together.
+- The census stays a loose index scan per terms leaf, never `DISTINCT` over
+  a table (`TestCensusStatementWalksThePrimaryKeyPrefix`).
+- Never run the census or the sweep inside a retention transaction.
 - The root retention store (`generation_retention_policy.go`) runs this
   leaf's batches before it opens the prune transaction, and admits only
   drained generations whose advisory lock (class 7427) it takes before the
@@ -34,6 +43,22 @@
   `ingestion_scopes.active_generation_id`
   (`TestSearchIndexReadersJoinTheActiveGeneration`). Both guards live in the
   root `postgres` package and enumerate the module's source.
+- The orphan sweep relies on writers of a pruned generation stopping. The
+  root `NewGenerationFreshnessCheck` (`generation_freshness.go`, used by the
+  reducer runtime guard and the search document, container image identity,
+  cloud inventory and repo dependency handlers) returns terminal
+  `(false, nil)` for a missing generation row, with or without an active
+  generation (#7427 PR2). Keep it failing closed
+  (`TestGenerationFreshnessFailsClosedForAPrunedGenerationLive`).
+- Freshness fails closed on a missing generation (#7427 PR2):
+  `NewGenerationFreshnessCheck` (root `generation_freshness.go`) returns
+  `(false, nil)` when the intent's generation row is missing, also when the
+  scope's active pointer is NULL. Retention prunes generation rows; once PR3
+  drops the terms generation foreign key nothing else rejects a late writer's
+  rows. Do not restore the old `(true, nil)` for that case. An unknown scope
+  stays `(true, nil)`: the search index `scope_id` foreign key rejects its
+  rows. The orphan census and sweep in this leaf remove what a writer leaves
+  anyway.
 
 ## Verification
 

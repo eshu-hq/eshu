@@ -21,7 +21,8 @@ var generationRetentionSearchIndexBatchBuckets = []float64{1, 2, 4, 8, 16, 32, 6
 
 // registerGenerationRetentionPhaseInstruments registers the per-phase,
 // scope-lock-hold and search index pre-delete batch histograms of the
-// generation retention cycle on inst.
+// generation retention cycle, and the search index orphan census gauge and
+// swept-rows counter (#7427 PR2), on inst.
 func registerGenerationRetentionPhaseInstruments(meter metric.Meter, inst *Instruments) error {
 	var err error
 	if inst.GenerationRetentionPhaseDuration, err = meter.Float64Histogram(
@@ -47,6 +48,20 @@ func registerGenerationRetentionPhaseInstruments(meter metric.Meter, inst *Instr
 		metric.WithExplicitBucketBoundaries(generationRetentionSearchIndexBatchBuckets...),
 	); err != nil {
 		return fmt.Errorf("register GenerationRetentionSearchIndexBatches histogram: %w", err)
+	}
+	if inst.SearchIndexOrphanGenerations, err = meter.Int64Gauge(
+		"eshu_dp_search_index_orphan_generations",
+		metric.WithDescription("Search index (scope_id, generation_id) pairs whose scope_generations row is gone, by table, at the last orphan census"),
+		metric.WithUnit("{generation}"),
+	); err != nil {
+		return fmt.Errorf("register SearchIndexOrphanGenerations gauge: %w", err)
+	}
+	if inst.SearchIndexOrphanRowsSwept, err = meter.Int64Counter(
+		"eshu_dp_search_index_orphan_rows_swept_total",
+		metric.WithDescription("Search index rows the orphan sweep deleted because their generation no longer exists, by table"),
+		metric.WithUnit("{row}"),
+	); err != nil {
+		return fmt.Errorf("register SearchIndexOrphanRowsSwept counter: %w", err)
 	}
 	return nil
 }

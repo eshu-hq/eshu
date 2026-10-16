@@ -210,6 +210,7 @@ STORAGE_PACKAGES = {
             "TestGenerationRetentionAdmitsOnlyDrainedGenerationsLive",
             "TestGenerationRetentionAdmitSkipsAGenerationWhoseLockIsHeldLive",
             "TestGenerationRetentionCandidateReadQueryPreparesLive",
+            "TestGenerationFreshnessFailsClosedForAPrunedGenerationLive",
         ),
         "go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go": (
             "TestPackageManifestConsumptionMigrationsUpgradeAfterSecretLinesLive",
@@ -371,6 +372,14 @@ STORAGE_PACKAGES = {
             "TestDrainLiveCancelledMidLoopConverges",
             "TestDrainLiveResweepRemovesARowInsertedBehindTheCursor",
             "TestDrainLiveSkipsAGenerationAnotherSessionHolds",
+        ),
+        "go/internal/storage/postgres/search/index/retention/orphan_live_test.go": (
+            "TestOrphanCensusLiveReadsZeroWithTheForeignKeysPresent",
+            "TestOrphanSweepLiveRemovesOnlyMissingGenerations",
+            "TestOrphanSweepLiveNeverDeletesAnExistingGeneration",
+            "TestOrphanSweepLiveConcurrentSweepsDeleteOnce",
+            "TestOrphanSweepLiveSweepsALateWriter",
+            "TestOrphanLiveUnknownScopeWriteIsRejected",
         ),
     },
 }

@@ -13,4 +13,9 @@
 // full sleep. A cycle the pruner refuses with [ErrKeyIndexUnavailable]
 // reports failure reason key_index_unavailable and retries on its next
 // poll; an operator rebuilds the index to clear it.
+//
+// When [Runner.OrphanSweeper] is set, [Runner.RunOnce] also runs the search
+// index orphan census and sweep (#7427 PR2) after the prune returns, at most
+// once per poll interval, and reports it on its own gauge, counter, phases
+// and log line; a sweep failure is counted but does not fail the pass.
 package retention
