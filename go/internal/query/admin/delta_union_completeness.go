@@ -5,8 +5,10 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/goldengate"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -54,8 +56,21 @@ type DeltaUnionCompletenessChecker struct {
 	MaxRepos int
 }
 
-// Check runs the completeness check over the scope filter (empty covers
-// every active generation, bounded by the ACTIVE read's scope cap).
+// ErrDeltaUnionScopeRequired reports a completeness check call without an
+// explicit scope filter. An empty filter fans out over every active
+// generation plus one anchored graph query per repository (#7797: p95
+// 1.648s past the 1.5s default budget), so callers must name their scopes.
+// The read-api latency gate's no-arg sweep answers this with a fast 400 and
+// stays unexercised instead of sampling the fan-out; a named latency/work
+// budget for scoped calls must be rendered from GREEN gate reports via
+// scripts/refresh-read-api-work-budgets.sh, never hand-written.
+var ErrDeltaUnionScopeRequired = errors.New("delta union completeness requires at least one explicit scope filter")
+
+// Check runs the completeness check over an explicit scope filter: at
+// least one scope is required (see ErrDeltaUnionScopeRequired). Scopes
+// with no active generation, or whose active generation is not a delta,
+// are reported skipped without a graph read; delta-active scopes past
+// MaxRepos fail loudly instead of paging silently.
 func (c *DeltaUnionCompletenessChecker) Check(
 	ctx context.Context,
 	scopeIDs []string,
@@ -63,18 +78,32 @@ func (c *DeltaUnionCompletenessChecker) Check(
 	if c == nil || c.Active == nil || c.Graph == nil {
 		return recovery.DeltaUnionCompletenessReport{}, fmt.Errorf("delta union completeness check is not configured")
 	}
+	scopes := make([]string, 0, len(scopeIDs))
+	for _, id := range scopeIDs {
+		if strings.TrimSpace(id) == "" {
+			continue
+		}
+		scopes = append(scopes, id)
+	}
+	if len(scopes) == 0 {
+		return recovery.DeltaUnionCompletenessReport{}, fmt.Errorf("%w: pass at least one ?scope= query value", ErrDeltaUnionScopeRequired)
+	}
 	maxRepos := c.MaxRepos
 	if maxRepos <= 0 {
 		maxRepos = defaultDeltaUnionMaxRepos
 	}
-	snapshot, err := c.Active.ReadDeltaUnionActive(ctx, scopeIDs)
+	snapshot, err := c.Active.ReadDeltaUnionActive(ctx, scopes)
 	if err != nil {
 		return recovery.DeltaUnionCompletenessReport{}, fmt.Errorf("read delta union active: %w", err)
 	}
 	expected := goldengate.AssembleDeltaUnionExpectations(snapshot.Rows, snapshot.Deltas)
 	var comparable []goldengate.DeltaUnionExpectation
 	for _, exp := range expected {
-		if exp.ActiveGenerationID == "" {
+		// Only delta-active scopes issue graph reads: the want side
+		// counts every content_entity fact row per file while the graph
+		// side counts only :Function nodes, so a full active generation
+		// is out of this comparison's scope.
+		if exp.ActiveGenerationID == "" || !exp.ActiveIsDelta {
 			continue
 		}
 		comparable = append(comparable, exp)
@@ -85,13 +114,18 @@ func (c *DeltaUnionCompletenessChecker) Check(
 	}
 	repos := make([]recovery.DeltaUnionRepoReport, 0, len(expected))
 	for _, exp := range expected {
-		if exp.ActiveGenerationID == "" {
+		if exp.ActiveGenerationID == "" || !exp.ActiveIsDelta {
+			annotation := fmt.Sprintf("repo=%s scope=%s: no active generation",
+				exp.RepoID, exp.ScopeID)
+			if exp.ActiveGenerationID != "" {
+				annotation = fmt.Sprintf("repo=%s scope=%s: active generation is not a delta",
+					exp.RepoID, exp.ScopeID)
+			}
 			repos = append(repos, recovery.DeltaUnionRepoReport{
 				RepoID: exp.RepoID, ScopeID: exp.ScopeID,
-				Outcome: recovery.DeltaUnionRepoSkipped,
-				Active:  recovery.DeltaUnionGeneration{},
-				Annotation: fmt.Sprintf("repo=%s scope=%s: no active generation",
-					exp.RepoID, exp.ScopeID),
+				Outcome:    recovery.DeltaUnionRepoSkipped,
+				Active:     recovery.DeltaUnionGeneration{},
+				Annotation: annotation,
 			})
 			continue
 		}
@@ -157,8 +191,9 @@ func deltaUnionGraphCount(value any) int64 {
 }
 
 // deltaUnionCompleteness serves GET /api/v0/admin/delta-union/completeness:
-// the read-only prod completeness report over ?scope= filters (empty covers
-// every active generation). It never repairs.
+// the read-only prod completeness report over explicit ?scope= filters (at
+// least one is required; an empty filter fans out and is rejected with
+// 400). It never repairs.
 func (h *Handler) deltaUnionCompleteness(w http.ResponseWriter, r *http.Request) {
 	if h.Completeness == nil {
 		querycontract.WriteJSON(w, http.StatusServiceUnavailable, map[string]any{
@@ -169,6 +204,13 @@ func (h *Handler) deltaUnionCompleteness(w http.ResponseWriter, r *http.Request)
 	}
 	report, err := h.Completeness.Check(r.Context(), r.URL.Query()["scope"])
 	if err != nil {
+		if errors.Is(err, ErrDeltaUnionScopeRequired) {
+			querycontract.WriteJSON(w, http.StatusBadRequest, map[string]any{
+				"status": "error",
+				"detail": err.Error(),
+			})
+			return
+		}
 		querycontract.WriteJSON(w, http.StatusInternalServerError, map[string]any{
 			"status": "error",
 			"detail": err.Error(),

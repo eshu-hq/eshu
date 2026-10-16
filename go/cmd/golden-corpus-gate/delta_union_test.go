@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	gg "github.com/eshu-hq/eshu/go/internal/goldengate"
@@ -73,6 +74,44 @@ func TestEvaluateDeltaUnionSnapshotMismatchFails(t *testing.T) {
 	}
 	if !r.Failed() {
 		t.Fatal("report passed, want required failure on resurrected file")
+	}
+}
+
+// A scope whose active generation is a full generation, not a delta, skips
+// the delta-union phase without touching the graph (#7797): the want side
+// counts every content_entity fact row per file while the graph side counts
+// only :Function nodes, so comparing it would fail on the label gap. The
+// erroring graph stub proves the phase issues no read for such scopes.
+func TestEvaluateDeltaUnionSnapshotNonDeltaSkips(t *testing.T) {
+	snapshot := pgstatus.DeltaUnionActiveSnapshot{
+		Rows: []gg.DeltaUnionActiveRow{
+			{
+				RepoID: "repo-1", ScopeID: "scope-1", GenerationID: "gen-full", GenerationStatus: "active",
+				Kind: "file", StableKey: "file:repo-1:config.yaml", Path: "config.yaml",
+			},
+			{
+				RepoID: "repo-1", ScopeID: "scope-1", GenerationID: "gen-full", GenerationStatus: "active",
+				Kind: "content_entity", StableKey: "content_entity:cfg-a", Path: "config.yaml",
+			},
+			{
+				RepoID: "repo-1", ScopeID: "scope-1", GenerationID: "gen-full", GenerationStatus: "active",
+				Kind: "content_entity", StableKey: "content_entity:cfg-b", Path: "config.yaml",
+			},
+		},
+	}
+	var r Report
+	graph := &stubDeltaUnionGraphFiles{err: errors.New("graph must not be read for a non-delta scope")}
+	if err := evaluateDeltaUnionSnapshot(context.Background(), snapshot, graph, &r); err != nil {
+		t.Fatalf("evaluate() error = %v, want nil (non-delta scope skips without a graph read)", err)
+	}
+	if r.Failed() {
+		t.Fatalf("report failed, want skip-with-reason: %+v", r)
+	}
+	if len(r.Findings) != 1 {
+		t.Fatalf("findings = %d, want 1 skip check: %+v", len(r.Findings), r)
+	}
+	if got := r.Findings[0].Detail; !strings.Contains(got, "skip:") {
+		t.Fatalf("finding detail = %q, want a skip-with-reason check", got)
 	}
 }
 

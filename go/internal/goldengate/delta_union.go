@@ -216,8 +216,9 @@ const (
 	DeltaUnionRepoComplete DeltaUnionRepoOutcome = "complete"
 	// DeltaUnionRepoMismatch means the graph differs from the ACTIVE set.
 	DeltaUnionRepoMismatch DeltaUnionRepoOutcome = "mismatch"
-	// DeltaUnionRepoSkipped means the scope has no active generation, so
-	// there is nothing to compare.
+	// DeltaUnionRepoSkipped means the scope has no active generation, or
+	// its active generation is not a delta, so the delta-union comparison
+	// does not apply to it.
 	DeltaUnionRepoSkipped DeltaUnionRepoOutcome = "skipped"
 )
 
@@ -242,7 +243,10 @@ type DeltaUnionRepoResult struct {
 // CompareDeltaUnionRepo compares one repository's GRAPH side against its
 // ACTIVE side: pass when the file sets and per-path entity counts agree,
 // mismatch on any missing, extra, or count-drifted path, skip when the scope
-// has no active generation. Empty repositories pass.
+// has no active generation or its active generation is not a delta (the
+// want side counts every content_entity fact row per file while the graph
+// side counts only :Function nodes, so a full active generation is out of
+// this comparison's scope). Empty delta-active repositories pass.
 func CompareDeltaUnionRepo(exp DeltaUnionExpectation, obs DeltaUnionObservation) DeltaUnionRepoResult {
 	result := DeltaUnionRepoResult{
 		RepoID:  exp.RepoID,
@@ -252,6 +256,10 @@ func CompareDeltaUnionRepo(exp DeltaUnionExpectation, obs DeltaUnionObservation)
 			exp.ActiveGenerationID, exp.ActiveIsDelta),
 	}
 	if exp.ActiveGenerationID == "" {
+		result.Outcome = DeltaUnionRepoSkipped
+		return result
+	}
+	if !exp.ActiveIsDelta {
 		result.Outcome = DeltaUnionRepoSkipped
 		return result
 	}
@@ -296,8 +304,12 @@ func EvaluateDeltaUnionCompleteness(
 		result := CompareDeltaUnionRepo(exp, byRepo[exp.RepoID])
 		switch result.Outcome {
 		case DeltaUnionRepoSkipped:
+			reason := "no active generation"
+			if exp.ActiveGenerationID != "" {
+				reason = "active generation is not a delta"
+			}
 			r.AddCheck("delta-union", "repo_"+exp.RepoID, true, false,
-				fmt.Sprintf("skip: no active generation (%s)", result.Annotation))
+				fmt.Sprintf("skip: %s (%s)", reason, result.Annotation))
 		case DeltaUnionRepoComplete:
 			r.AddCheck("delta-union", "repo_"+exp.RepoID, true, true,
 				fmt.Sprintf("complete: %d files agree (%s)", len(exp.Files), result.Annotation))

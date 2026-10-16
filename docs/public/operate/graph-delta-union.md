@@ -36,11 +36,14 @@ failure self-heals.
   ACTIVE set (base-full overlaid with the active delta), with per-path
   entity counts, outcome `complete`, `mismatch`, or `skipped`, and the
   base/active generations behind each verdict. Repeat the `scope` query
-  parameter to filter scopes; empty covers every active generation. Past
-  the repository cap the call fails loudly instead of paging silently. A
-  mismatch names the diff for a forced full re-parse; the check never
-  repairs. Empty repositories pass, scopes without an active generation
-  skip with a reason, and tombstoned-only rows are excluded on both sides.
+  parameter to name scopes; at least one scope is required, and an empty
+  filter is rejected with 400 instead of fanning out over every active
+  generation. Past the repository cap the call fails loudly instead of
+  paging silently. A mismatch names the diff for a forced full re-parse;
+  the check never repairs. Empty delta-active repositories pass, scopes
+  without an active generation skip with a reason, scopes whose active
+  generation is not a delta skip without a graph read, and
+  tombstoned-only rows are excluded on both sides.
 
 ## Performance Evidence
 

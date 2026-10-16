@@ -82,6 +82,31 @@ func TestEvaluateDeltaUnionCompletenessNoActiveGenerationSkips(t *testing.T) {
 	}
 }
 
+// A scope whose active generation is a full generation, not a delta, is
+// out of the delta-union comparison's scope (#7797): the want side counts
+// every content_entity fact row per file while the graph side counts only
+// :Function nodes, so comparing a full active generation would fail on the
+// label gap rather than on a real repair signal. Such scopes skip.
+func TestCompareDeltaUnionRepoNonDeltaActiveSkips(t *testing.T) {
+	expected := DeltaUnionExpectation{
+		RepoID: "repo-1", ScopeID: "scope-1",
+		BaseGenerationID: "", BaseStatus: "",
+		ActiveGenerationID: "gen-full", ActiveIsDelta: false,
+		// Two content_entity rows behind keep.go: the want side counts both.
+		Files: map[string]int64{"keep.go": 2},
+	}
+	// The graph counts only :Function nodes behind the same path.
+	observed := DeltaUnionObservation{
+		RepoID: "repo-1",
+		Files:  map[string]int64{"keep.go": 1},
+	}
+	result := CompareDeltaUnionRepo(expected, observed)
+	if result.Outcome != DeltaUnionRepoSkipped {
+		t.Fatalf("CompareDeltaUnionRepo() outcome = %q, want %q (missing=%v extra=%v drifted=%v)",
+			result.Outcome, DeltaUnionRepoSkipped, result.Missing, result.Extra, result.Drifted)
+	}
+}
+
 func TestAssembleDeltaUnionExpectationOverlaysBaseWithDelta(t *testing.T) {
 	rows := []DeltaUnionActiveRow{
 		{

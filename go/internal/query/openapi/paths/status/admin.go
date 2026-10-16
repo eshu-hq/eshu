@@ -483,12 +483,13 @@ const Admin = `
       "get": {
         "tags": ["admin"],
         "summary": "Check delta-union graph completeness",
-        "description": "Read-only prod completeness check (#7797): per repository, the graph's file set against the ACTIVE set (base-full overlaid with the active delta). Repeat the scope query parameter to filter scopes; empty covers every active generation. Past the repository cap the call fails loudly instead of paging silently. A mismatch names the diff and the generations to re-parse; it never repairs. 503 when the check is not configured on the instance.",
+        "description": "Read-only prod completeness check (#7797): per repository, the graph's file set against the ACTIVE set (base-full overlaid with the active delta). Repeat the scope query parameter to name scopes; at least one scope is required (an empty filter fans out and is rejected). Past the repository cap the call fails loudly instead of paging silently. A mismatch names the diff and the generations to re-parse; it never repairs. 503 when the check is not configured on the instance.",
         "parameters": [
-          {"name": "scope", "in": "query", "description": "Scope id filter, repeatable.", "schema": {"type": "string"}}
+          {"name": "scope", "in": "query", "description": "Scope id filter, repeatable, at least one required.", "schema": {"type": "string"}}
         ],
         "responses": {
           "200": {"description": "Completeness report: one entry per checked repository with outcome complete, mismatch, or skipped."},
+          "400": {"$ref": "#/components/responses/BadRequest"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"description": "The completeness check is not configured on this API instance"}
         }
