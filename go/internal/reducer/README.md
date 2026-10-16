@@ -377,7 +377,8 @@ values each counter carries.
   exists does it defer for `crossscope.ProducerReadinessMaxWait`, then count in
   `*_producer_missing`. When the producer later activates the generation, the
   activation transaction reopens those dead letters (storage/postgres
-  `RelationshipStore`). See
+  `RelationshipStore`); one still dead-lettered while the generation is active
+  is replayed by `failure_class` (3 AM runbook). See
   `docs/internal/evidence/7597-own-gate-producer-terminal.md`.
 - **Non-counting failures record `deferred`** — `Service.IsDeferredFailureClass`
   (wired to `postgres.IsNonCountingReducerRetryFailureClass`) turns a

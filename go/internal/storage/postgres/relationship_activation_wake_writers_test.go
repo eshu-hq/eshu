@@ -208,3 +208,30 @@ func TestActivationWakeSetClauseMatchesReplayReset(t *testing.T) {
 		t.Fatalf("activation wake SET list drifted from the replay reset list:\n got: %s\nwant: %s", wake, want)
 	}
 }
+
+// lockOrderPattern captures the ORDER BY clause that sets the lock order of a
+// FOR UPDATE / FOR NO KEY UPDATE row lock.
+var lockOrderPattern = regexp.MustCompile(`(?s)ORDER BY ([^\n]+)\n\s*(?:LIMIT [^\n]+\n\s*)?FOR (?:NO KEY )?UPDATE`)
+
+// TestOwnGateLocksShareTheBatchAckOrder pins one lock order for every
+// multi-row locker of reducer work rows the activation wake can meet: the
+// batch ack and both wake statements sort on work_item_id COLLATE "C", so
+// they cannot lock two rows in opposite orders (#7597 review N1).
+func TestOwnGateLocksShareTheBatchAckOrder(t *testing.T) {
+	t.Parallel()
+	for name, query := range map[string]string{
+		"ackReducerWorkBatchQuery":         ackReducerWorkBatchQuery(),
+		"lockInflightOwnGateConsumersSQL":  lockInflightOwnGateConsumersSQL,
+		"wakeProducerTerminalConsumersSQL": wakeProducerTerminalConsumersSQL,
+	} {
+		orders := lockOrderPattern.FindAllStringSubmatch(query, -1)
+		if len(orders) == 0 {
+			t.Fatalf("%s: no ORDER BY before a row lock; the lock order is undefined", name)
+		}
+		for _, order := range orders {
+			if !strings.Contains(order[1], `work_item_id COLLATE "C"`) {
+				t.Fatalf("%s locks in order %q, want work_item_id COLLATE \"C\"", name, order[1])
+			}
+		}
+	}
+}

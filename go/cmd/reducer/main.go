@@ -101,7 +101,7 @@ func buildReducerService(
 		return reducer.Service{}, err
 	}
 	presence := newEndpointPresenceWirings(getenv, secretsIAMGraphWriter != nil, database)
-	relationshipStore := postgres.NewRelationshipStore(database)
+	relationshipStore := postgres.NewRelationshipStore(database).WithInstruments(instruments)
 	relationshipGenerationActive := postgres.NewRelationshipGenerationActiveLookup(relationshipStore)
 	// Corpus-wide fence for derivation that merges foreign resolved reads
 	// (workload materialization, deployable-unit correlation): those loaders

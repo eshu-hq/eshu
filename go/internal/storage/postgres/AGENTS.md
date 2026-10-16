@@ -527,7 +527,7 @@ shared-intent backlog/status queries and reducer code-call cycle logs.
   transaction of activation, `SET LOCAL lock_timeout`, a plain `FOR UPDATE` on
   the in-flight own-gate consumers, then the wake UPDATE (dead letters locked
   `SKIP LOCKED`). Lock order: claimant work row, relationship generation,
-  in-flight consumers by work_item_id, dead-lettered consumers. Keep both the
+  in-flight consumers by `work_item_id COLLATE "C"` (the `AckBatch` order; `TestOwnGateLocksShareTheBatchAckOrder`), dead-lettered consumers. Keep both the
   in-flight lock and `wakeAfterProducerTerminalDeadLetter` in the Fail path:
   dropping either produced lost wakes in `TestActivationWakeInterleaveLive`
   (go/internal/query/admin). Keep the wake SET list in lockstep with the replay

@@ -250,10 +250,32 @@ func TestActivationLockTimeoutFailsRetryablyLive(t *testing.T) {
 	if err := holder.Rollback(); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.ActivateResolutionGenerationForClaim(ctx, f.gen, f.scope, f.dm.IntentID, *f.dm.ClaimedAt); err != nil {
+
+	// The deployment_mapping attempt fails with the retryable contention
+	// error, the queue retries it, and the next attempt activates and wakes.
+	dmq := newOwnGateQueue(base, &clock, reducer.DomainDeploymentMapping)
+	if err := dmq.Fail(ctx, f.dm, err); err != nil {
+		t.Fatalf("fail the timed-out deployment_mapping attempt: %v", err)
+	}
+	st, _, _, _, vis := readProducerTerminalRow(t, ctx, base, "dm-1")
+	if st != "retrying" {
+		t.Fatalf("deployment_mapping after the contention failure = %s, want retrying", st)
+	}
+	clock = vis.Add(time.Second)
+	retried, ok, err := dmq.Claim(ctx)
+	if err != nil || !ok || retried.IntentID != "dm-1" || retried.AttemptCount != 2 {
+		t.Fatalf("re-claim deployment_mapping: ok=%v id=%s attempt=%d err=%v", ok, retried.IntentID, retried.AttemptCount, err)
+	}
+	if err := store.ActivateResolutionGenerationForClaim(ctx, f.gen, f.scope, retried.IntentID, *retried.ClaimedAt); err != nil {
 		t.Fatalf("retried activation: %v", err)
 	}
+	if err := dmq.Ack(ctx, retried, reducer.Result{IntentID: retried.IntentID, Domain: retried.Domain, Status: reducer.ResultStatusSucceeded}); err != nil {
+		t.Fatalf("ack the retried deployment_mapping: %v", err)
+	}
 	if got := readWakeRow(t, ctx, base, "c-2"); got.status != "pending" || !got.reopened.Valid {
-		t.Fatalf("c-2 = %+v after the retried activation, want woken", got)
+		t.Fatalf("c-2 = %+v after the retried deployment_mapping activated, want woken", got)
+	}
+	if st, _, _, _, _ := readProducerTerminalRow(t, ctx, base, "dm-1"); st != "succeeded" {
+		t.Fatalf("retried deployment_mapping = %s, want succeeded", st)
 	}
 }

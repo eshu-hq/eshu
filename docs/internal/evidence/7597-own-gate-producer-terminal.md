@@ -62,7 +62,11 @@ A consumer's own counting dead letter runs the same wake statement once more
 (`wakeAfterProducerTerminalDeadLetter`, fresh snapshot, a no-op while the
 generation is inactive).
 
-Why three pieces and not the single plain-lock UPDATE the ruling sketched
+Arbiter ruling 1(c) (a plain `FOR UPDATE` inside the wake UPDATE, relying on
+EvalPlanQual to re-read a row whose Fail commits mid-statement) was disproven
+by the Read Committed analysis below and the mutation runs in Concurrency, and
+replaced by this three-piece design; the arbiter ratified the replacement.
+Why three pieces and not the single plain-lock UPDATE
 (FACT, PostgreSQL Read Committed semantics, proven below): an UPDATE evaluates
 its WHERE on the statement-snapshot version of a row. A final Fail that has
 not committed leaves the snapshot version `running`, so a wake filtered on
@@ -83,16 +87,38 @@ wake nobody and do NOT stamp `reopened_at`; only the wake does. The missing
 
 1. claimant DM work row (`claimant` CTE, claim-fenced path only);
 2. `relationship_generations` rows (deactivate, then insert or update);
-3. in-flight own-gate consumer rows of the generation, ascending
-   `work_item_id`, plain `FOR UPDATE` (waits at most `lock_timeout`);
-4. dead-lettered own-gate consumer rows, `SKIP LOCKED` (never waits).
+3. in-flight own-gate consumer rows of the generation, ordered
+   `work_item_id COLLATE "C"`, plain `FOR UPDATE` (waits at most
+   `lock_timeout`);
+4. dead-lettered own-gate consumer rows, same order, `SKIP LOCKED` (never
+   waits).
 
-Other writers of those rows: the consumer's Fail, Ack and heartbeat lock only
-their own row; the claim and the claim-time supersede sweep use `SKIP LOCKED`;
-both replays touch only `dead_letter`/`failed` rows (never step 3's rows), and
-step 4 skips any row they hold. Refinalize's `LOCK TABLE ... EXCLUSIVE`
+Other writers of those rows: the consumer's Fail, single Ack and heartbeat
+lock only their own row. `AckBatch` locks every in-flight row of a batch in
+one statement, also ordered `work_item_id COLLATE "C"`, so it and step 3 take
+any two shared rows in the same order and cannot form a cycle
+(`TestOwnGateLocksShareTheBatchAckOrder` pins the shared order). The claim uses
+`SKIP LOCKED`. The claim-time supersede sweep is a plain blocking UPDATE over
+`pending`, `retrying`, `failed` and `dead_letter` rows of inactive generations:
+it never touches `claimed`/`running` rows, so step 3 never waits on it, and
+step 4 skips any row it holds. Both replays touch only `dead_letter`/`failed`
+rows (never step 3's rows), and step 4 skips any row they hold. Refinalize's `LOCK TABLE ... EXCLUSIVE`
 conflicts at step 1 exactly as before (`TestRecoveryClaimFence*` pass). No
 writer holds a step 3 or step 4 row and then waits for a step 1 or 2 lock.
+
+Two residuals, both bounded and visible:
+
+- A reducer heartbeat UPDATE on an in-flight consumer row waits behind step 3
+  for the rest of the activation transaction: milliseconds, never past the
+  activation's `lock_timeout` (2 s), after which the activation rolls back and
+  releases it.
+- A replay (recovery, admin, or poison) that holds a dead-lettered consumer row
+  when step 4 runs, and then rolls back instead of committing, leaves that row
+  dead-lettered while its relationship generation is active: step 4 skipped it
+  and nothing re-runs the wake. It shows on
+  `eshu_dp_queue_dead_letters_total` and the operator dead-letter read in a
+  `*_producer_dead_lettered`/`*_producer_missing` class, and an admin replay of
+  the consumer repairs it (3 AM runbook, deadletter growth).
 
 ## Prove-The-Theory-First Measurement
 
@@ -148,11 +174,19 @@ Live tests ran with
   wake removed: `c-1 = {status:dead_letter ...}, want reopened`.
 - `TestActivationLockTimeoutFailsRetryablyLive`: a held consumer row makes the
   activation return a retryable `ActivationWakeContentionError` (55P03) with no
-  generation row; the retry activates and wakes.
+  generation row; the queue retries the deployment_mapping item, its second
+  attempt re-claims, activates, wakes the dead consumer and acks `succeeded`.
+- `TestActivationWakeCountsEveryOutcome`, `TestFailSideWakeCountsEveryOutcome`
+  (unit, scripted database): RED with the counter unwired (`activation
+  reopened = 0, want 1`); GREEN each site records `reopened`, `noop` and
+  `error` once.
 - `TestOwnGateWaitsThroughRefinalizeReResolutionLive` (real
   `RefinalizeScopeProjections`). RED with the re-resolution rule removed:
   `cycle 1 ... class=workload_materialization_producer_missing ... after 2h0m0s
-  (bound 30m0s)`. GREEN: 5 cycles non-counting; the re-enqueued DM's
+  (bound 30m0s)`, that is, the consumer counted toward its retry budget on the
+  first cycle after the refinalize (its anchor was already past the bound); the
+  test stops there, before the budget dead-letters it. GREEN: 5 cycles
+  non-counting; the re-enqueued DM's
   activation wakes the dead-lettered consumer and the deferring one succeeds.
 - Unit: `TestEvaluateOwnGate*`, `TestOwnGateCountingClassesAreDistinctAndOneSourced`
   (crossrepo); `TestOwnGate*`, `TestRecordReducerResult*` (reducer);
@@ -174,11 +208,22 @@ whose sweep supersedes an older-generation row. It requires zero 40P01 on the
 activation, zero lost wakes, and each consumer reopened exactly once (admin
 reported it XOR the wake stamped `reopened_at`).
 
-| run | iterations | 40P01 activation / Fail / admin / claim | lost wakes |
+Final tree of this note (COLLATE "C" ordering included), `go test
+./internal/query/admin/ -run TestActivationWakeInterleaveLive -count=5`:
+
+| run | runs x iterations | 40P01 activation / Fail / admin / claim | lost wakes per run |
 | --- | --- | --- | --- |
-| shipped, 5 runs | 1,000 | 0 / 0 / 0 / 0 | 0 |
-| step 3 removed, 3 runs | 600 | 0 / 0 / 0 / 0 | 1, 6, 5 |
-| Fail-side wake removed, 3 runs | 600 | 0 / 0 / 0 / 0 | 1, 11, 9 |
+| shipped | 5 x 200 = 1,000 | 0 / 0 / 0 / 0 | 0, 0, 0, 0, 0 |
+| step 3 removed | 5 x 200 | 0 / 0 / 0 / 0 | 0, 8, 5, 4, 6 |
+| Fail-side wake removed | 5 x 200 | 0 / 0 / 0 / 0 | 0, 2, 1, 0, 0 |
+
+Earlier commits of this branch ran the shipped interleave 7 more times (1,400
+iterations), all with 0 40P01 and 0 lost wakes, and the two mutations 3 times
+each (lost wakes 1 to 6 and 1 to 11). Mutation counts are sample dependent:
+across all 8 runs each, step 3 removed lost 0 to 8 wakes per 200 iterations
+and the Fail-side wake removed lost 0 to 11 (an independent reviewer saw 0 to
+35), so a single run can miss a regression; the deterministic race tests
+above are the per-mechanism RED proofs.
 
 ## Observability
 
@@ -192,7 +237,10 @@ generation activation reopened own-gate consumers` (`scope_id`,
 `generation_id`, `woken_consumers`); the Fail-side check logs INFO `own-gate
 dead letter reopened: relationship generation already active`, and ERROR when
 its statement fails. An activation lock timeout surfaces as a retrying DM with
-`ActivationWakeContentionError` text. Every statement is timed by
+`ActivationWakeContentionError` text. Every wake statement counts once on
+`eshu_dp_reducer_own_gate_wake_total{site=activation|fail,
+outcome=reopened|noop|error}`; a `fail`-site `error` is the case logged at
+ERROR instead of returned. Every statement is timed by
 `eshu_dp_postgres_query_duration_seconds`.
 
 ## Not Checked

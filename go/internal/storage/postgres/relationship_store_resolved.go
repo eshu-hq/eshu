@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"slices"
 	"strings"
 	"time"
 
@@ -18,10 +17,9 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
-	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // GetResolvedRelationshipsForRepos returns active resolved relationships that
@@ -273,7 +271,9 @@ const activationWakeSetClause = `status = 'pending',
         reopened_at = $1`
 
 // lockInflightOwnGateConsumersSQL waits for, then holds, every in-flight
-// own-gate consumer row of the activated scope generation (#7597). A consumer
+// own-gate consumer row of the activated scope generation (#7597), in the
+// byte order (COLLATE "C") every multi-row reducer locker uses, the batch ack
+// included, so the two cannot form a lock cycle. A consumer
 // whose final counted Fail is committing finishes first, so the wake
 // statement that follows (a fresh snapshot) sees it dead-lettered; a Fail that
 // starts later waits for this transaction and then sees the active generation
@@ -288,7 +288,7 @@ WHERE scope_id = $1
   AND stage = 'reducer'
   AND status IN ('claimed', 'running')
   AND domain IN (` + sqlStringList(ownGateConsumerDomainStrings()) + `)
-ORDER BY work_item_id
+ORDER BY work_item_id COLLATE "C"
 FOR UPDATE
 `
 
@@ -319,37 +319,10 @@ WHERE status = 'dead_letter'
         SELECT 1 FROM relationship_generations AS rg
         WHERE rg.generation_id = $3 AND rg.scope = $2 AND rg.status = 'active'
       )
-    ORDER BY consumer.work_item_id
+    ORDER BY consumer.work_item_id COLLATE "C"
     FOR UPDATE OF consumer SKIP LOCKED
   )
 `
-
-// ownGateCountingClasses is every own-gate counting class: the consumers
-// dead-lettered because their producer was dead-lettered or missing. An
-// activation satisfies the wait of both, so the wake reopens both.
-func ownGateCountingClasses() []string {
-	return append(crossrepo.ProducerDeadLetteredFailureClasses(), crossrepo.ProducerMissingFailureClasses()...)
-}
-
-// ownGateConsumerDomainStrings renders crossrepo.OwnGateConsumerDomains.
-func ownGateConsumerDomainStrings() []string {
-	domains := crossrepo.OwnGateConsumerDomains()
-	out := make([]string, 0, len(domains))
-	for _, domain := range domains {
-		out = append(out, string(domain))
-	}
-	return out
-}
-
-// sqlStringList renders compile-time constant names as a SQL literal list. It
-// is only for constants owned by this repository, never input.
-func sqlStringList(values []string) string {
-	quoted := make([]string, 0, len(values))
-	for _, value := range values {
-		quoted = append(quoted, "'"+strings.ReplaceAll(value, "'", "''")+"'")
-	}
-	return strings.Join(quoted, ", ")
-}
 
 // ActivationWakeContentionError reports an activation transaction that hit
 // lock_timeout (55P03) or a deadlock (40P01) and rolled back (#7597). It is
@@ -419,30 +392,45 @@ func (s *RelationshipStore) activateWithConsumerWake(
 		fmt.Sprintf("%dms", timeout.Milliseconds())); err != nil {
 		return 0, fmt.Errorf("activation wake: set lock timeout: %w", err)
 	}
+	woken, err := s.lockAndWake(ctx, tx, scopeID, generationID, now)
+	if err != nil {
+		recordOwnGateWake(ctx, s.instruments, telemetry.OwnGateWakeSiteActivation, telemetry.OwnGateWakeOutcomeError)
+		return 0, classifyActivationError(err)
+	}
+	if err := tx.Commit(); err != nil {
+		recordOwnGateWake(ctx, s.instruments, telemetry.OwnGateWakeSiteActivation, telemetry.OwnGateWakeOutcomeError)
+		return 0, classifyActivationError(err)
+	}
+	committed = true
+	recordOwnGateWake(ctx, s.instruments, telemetry.OwnGateWakeSiteActivation, wakeOutcome(woken))
+	if n := woken; n > 0 {
+		slog.Default().InfoContext(ctx, "relationship generation activation reopened own-gate consumers",
+			"scope_id", scopeID, "generation_id", generationID, "woken_consumers", n)
+	}
+	return affected, nil
+}
+
+// lockAndWake runs the activation wake's in-flight lock and wake statements
+// inside tx and returns how many consumers the wake reopened.
+func (s *RelationshipStore) lockAndWake(
+	ctx context.Context, tx db.Transaction, scopeID, generationID string, now time.Time,
+) (int64, error) {
 	rows, err := tx.QueryContext(ctx, lockInflightOwnGateConsumersSQL, scopeID, generationID)
 	if err != nil {
-		return 0, classifyActivationError(err)
+		return 0, err
 	}
 	for rows.Next() {
 	}
 	rowsErr := rows.Err()
 	_ = rows.Close()
 	if rowsErr != nil {
-		return 0, classifyActivationError(rowsErr)
+		return 0, rowsErr
 	}
-	woken, err := tx.ExecContext(ctx, wakeProducerTerminalConsumersSQL, now, scopeID, generationID)
+	result, err := tx.ExecContext(ctx, wakeProducerTerminalConsumersSQL, now, scopeID, generationID)
 	if err != nil {
-		return 0, classifyActivationError(err)
+		return 0, err
 	}
-	if err := tx.Commit(); err != nil {
-		return 0, classifyActivationError(err)
-	}
-	committed = true
-	if n, err := woken.RowsAffected(); err == nil && n > 0 {
-		slog.Default().InfoContext(ctx, "relationship generation activation reopened own-gate consumers",
-			"scope_id", scopeID, "generation_id", generationID, "woken_consumers", n)
-	}
-	return affected, nil
+	return result.RowsAffected()
 }
 
 // classifyActivationError makes lock_timeout and deadlock retryable and
@@ -453,36 +441,4 @@ func classifyActivationError(err error) error {
 		return ActivationWakeContentionError{err: err}
 	}
 	return err
-}
-
-// wakeAfterProducerTerminalDeadLetter closes the one interleave the
-// activation wake alone cannot: a consumer whose final counted Fail waited on
-// an activation's in-flight lock, then dead-lettered after that activation
-// committed (#7597). This fresh-snapshot statement sees the active generation
-// and reopens the row at once; it is a no-op while the generation is
-// inactive. It runs only for an own-gate counting dead letter. The dead letter
-// already committed, so a wake failure is logged at ERROR, not returned: the
-// row stays dead-lettered and a later activation or replay reopens it.
-func (q ReducerQueue) wakeAfterProducerTerminalDeadLetter(
-	ctx context.Context,
-	intent reducer.Intent,
-	failureClass string,
-	now time.Time,
-) {
-	if !slices.Contains(ownGateCountingClasses(), failureClass) {
-		return
-	}
-	result, err := q.database.ExecContext(ctx, wakeProducerTerminalConsumersSQL, now,
-		intent.ScopeID, intent.GenerationID)
-	if err != nil {
-		slog.Default().ErrorContext(ctx, "own-gate dead letter could not check for an active generation",
-			"work_item_id", intent.IntentID, "scope_id", intent.ScopeID,
-			"generation_id", intent.GenerationID, "failure_class", failureClass, "error", err)
-		return
-	}
-	if n, err := result.RowsAffected(); err == nil && n > 0 {
-		slog.Default().InfoContext(ctx, "own-gate dead letter reopened: relationship generation already active",
-			"work_item_id", intent.IntentID, "scope_id", intent.ScopeID,
-			"generation_id", intent.GenerationID, "failure_class", failureClass, "woken_consumers", n)
-	}
 }

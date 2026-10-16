@@ -2475,6 +2475,10 @@ type Instruments struct {
 	// row in another repository.
 	// Registered by registerLanguageQueryMetadataInstruments.
 	LanguageQueryMetadataRows metric.Int64Counter
+	// ReducerOwnGateWake counts #7597 own-gate wake statements by site
+	// (activation, fail) and outcome (reopened, noop, error), once per
+	// statement. Registered by registerOwnGateWakeInstruments.
+	ReducerOwnGateWake metric.Int64Counter
 	// OIDCBearerValidationTotal counts every IdP bearer-token (Authorization:
 	// Bearer <access_token>) validation outcome the internal/oidcbearer
 	// resolver reaches (issue #5162, epic #5161), by bounded outcome value:
@@ -5325,6 +5329,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	if err := registerLanguageQueryMetadataInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerOwnGateWakeInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 

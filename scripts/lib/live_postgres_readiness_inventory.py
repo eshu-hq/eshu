@@ -285,21 +285,6 @@ PACKAGES = {
             "TestReducerQueueAckBatchFencesSupersededClaimLive",
             "TestReducerQueueExpiryInterleaveLive",
         ),
-        "go/internal/storage/postgres/reducer_queue_producer_terminal_live_test.go": (
-            "TestOwnGateProducerDeadLetteredConsumerDeadLettersLive",
-            "TestOwnGateProducerRetryingConsumerKeepsDeferringLive",
-        ),
-        "go/internal/storage/postgres/relationship_activation_wake_live_test.go": (
-            "TestActivationWakesOwnGateConsumersLive",
-        ),
-        "go/internal/storage/postgres/relationship_activation_wake_race_live_test.go": (
-            "TestActivationWaitsForAnInflightFinalFailLive",
-            "TestFinalFailAfterTheActivationLockIsWokenLive",
-            "TestActivationLockTimeoutFailsRetryablyLive",
-        ),
-        "go/internal/storage/postgres/reducer_queue_producer_refinalize_live_test.go": (
-            "TestOwnGateWaitsThroughRefinalizeReResolutionLive",
-        ),
     },
     WEBHOOK_PACKAGE: {
         "go/internal/storage/postgres/webhook/ignored_decision_live_test.go": (
@@ -533,9 +518,6 @@ PACKAGES = {
         ),
         "go/internal/query/admin/reopen_rollover_live_test.go": (
             "TestAdminHandler_ReopenRolloverActsOnCurrentGenerationLive",
-        ),
-        "go/internal/query/admin/activation_wake_interleave_live_test.go": (
-            "TestActivationWakeInterleaveLive",
         ),
     },
     REACHABILITY_PACKAGE: {

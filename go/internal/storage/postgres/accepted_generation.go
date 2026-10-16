@@ -7,8 +7,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"slices"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
@@ -16,6 +20,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // RelationshipGenerationActiveChecker reports whether a relationship generation
@@ -384,4 +389,85 @@ func (s *SharedProjectionAcceptanceStore) lookupAcceptanceChunk(
 		return fmt.Errorf("iterate shared projection acceptance batch (%d keys): %w", len(chunk), err)
 	}
 	return nil
+}
+
+// ownGateCountingClasses is every own-gate counting class: the consumers
+// dead-lettered because their producer was dead-lettered or missing. An
+// activation satisfies the wait of both, so the wake reopens both.
+func ownGateCountingClasses() []string {
+	return append(crossrepo.ProducerDeadLetteredFailureClasses(), crossrepo.ProducerMissingFailureClasses()...)
+}
+
+// ownGateConsumerDomainStrings renders crossrepo.OwnGateConsumerDomains.
+func ownGateConsumerDomainStrings() []string {
+	domains := crossrepo.OwnGateConsumerDomains()
+	out := make([]string, 0, len(domains))
+	for _, domain := range domains {
+		out = append(out, string(domain))
+	}
+	return out
+}
+
+// sqlStringList renders compile-time constant names as a SQL literal list. It
+// is only for constants owned by this repository, never input.
+func sqlStringList(values []string) string {
+	quoted := make([]string, 0, len(values))
+	for _, value := range values {
+		quoted = append(quoted, "'"+strings.ReplaceAll(value, "'", "''")+"'")
+	}
+	return strings.Join(quoted, ", ")
+}
+
+// wakeAfterProducerTerminalDeadLetter closes the one interleave the
+// activation wake alone cannot: a consumer whose final counted Fail waited on
+// an activation's in-flight lock, then dead-lettered after that activation
+// committed (#7597). This fresh-snapshot statement sees the active generation
+// and reopens the row at once; it is a no-op while the generation is
+// inactive. It runs only for an own-gate counting dead letter. The dead letter
+// already committed, so a wake failure is logged at ERROR, not returned: the
+// row stays dead-lettered and a later activation or replay reopens it.
+func (q ReducerQueue) wakeAfterProducerTerminalDeadLetter(
+	ctx context.Context,
+	intent reducer.Intent,
+	failureClass string,
+	now time.Time,
+) {
+	if !slices.Contains(ownGateCountingClasses(), failureClass) {
+		return
+	}
+	result, err := q.database.ExecContext(ctx, wakeProducerTerminalConsumersSQL, now,
+		intent.ScopeID, intent.GenerationID)
+	if err != nil {
+		recordOwnGateWake(ctx, q.Instruments, telemetry.OwnGateWakeSiteFail, telemetry.OwnGateWakeOutcomeError)
+		slog.Default().ErrorContext(ctx, "own-gate dead letter could not check for an active generation",
+			"work_item_id", intent.IntentID, "scope_id", intent.ScopeID,
+			"generation_id", intent.GenerationID, "failure_class", failureClass, "error", err)
+		return
+	}
+	n, _ := result.RowsAffected()
+	recordOwnGateWake(ctx, q.Instruments, telemetry.OwnGateWakeSiteFail, wakeOutcome(n))
+	if n > 0 {
+		slog.Default().InfoContext(ctx, "own-gate dead letter reopened: relationship generation already active",
+			"work_item_id", intent.IntentID, "scope_id", intent.ScopeID,
+			"generation_id", intent.GenerationID, "failure_class", failureClass, "woken_consumers", n)
+	}
+}
+
+// wakeOutcome maps a wake statement's affected rows to its outcome label.
+func wakeOutcome(reopened int64) string {
+	if reopened > 0 {
+		return telemetry.OwnGateWakeOutcomeReopened
+	}
+	return telemetry.OwnGateWakeOutcomeNoop
+}
+
+// recordOwnGateWake counts one wake statement on
+// eshu_dp_reducer_own_gate_wake_total (#7597). Nil instruments are a no-op.
+func recordOwnGateWake(ctx context.Context, instruments *telemetry.Instruments, site, outcome string) {
+	if instruments == nil || instruments.ReducerOwnGateWake == nil {
+		return
+	}
+	instruments.ReducerOwnGateWake.Add(ctx, 1, metric.WithAttributes(
+		telemetry.AttrOwnGateWakeSite(site), telemetry.AttrOutcome(outcome),
+	))
 }
