@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -330,5 +331,70 @@ func TestDeltaBaselineFenceSharesActivePredicate(t *testing.T) {
 		if strings.Contains(deltaBaselineFenceQuery, forbidden) {
 			t.Fatalf("fence read must take no lock and never touch the scope row (%q):\n%s", forbidden, deltaBaselineFenceQuery)
 		}
+	}
+}
+
+// TestProjectorQueueRefuseDeltaBaseMissingMarksAndRequestsReindex pins the
+// #7797 routing: a base-missing refusal marks superseded with the dedicated
+// class and message, then records a per-repository reindex watermark so the
+// next selection forces a full re-parse. The watermark reuses the refinalize
+// path's upsert semantics.
+func TestProjectorQueueRefuseDeltaBaseMissingMarksAndRequestsReindex(t *testing.T) {
+	t.Parallel()
+	fake := &recordingExecQueryer{queryRows: []db.Rows{
+		&markRows{work: 1, generation: 1},
+		&markRows{work: 1, generation: 1},
+	}}
+	queue := NewProjectorQueue(fake, "projector-1", time.Minute)
+	work := projector.ScopeGenerationWork{
+		Scope:        scope.IngestionScope{ScopeID: "git-repository-scope:owner/repo"},
+		Generation:   scope.ScopeGeneration{GenerationID: "gen-d"},
+		AttemptCount: 3,
+	}
+	err := queue.RefuseDeltaBaseline(context.Background(), work, projector.DeltaBaselineRefusal{
+		Phase: projector.DeltaBaselinePhasePreflight, Outcome: projector.DeltaBaselineRefusedBaseMissing,
+		State: projector.DeltaBaselineState{TargetFound: true, IsDelta: true, BaselineCommitSHA: "B"},
+	})
+	if !errors.Is(err, failure.ErrWorkSuperseded) || supersededFailureClass(err) != projector.DeltaBaselineBaseMissingClass {
+		t.Fatalf("RefuseDeltaBaseline() = %v, want ErrWorkSuperseded with the base-missing class", err)
+	}
+	markArgs := fake.queries[0].args
+	if markArgs[5] != projector.DeltaBaselineBaseMissingClass {
+		t.Fatalf("mark failure class = %v, want %q", markArgs[5], projector.DeltaBaselineBaseMissingClass)
+	}
+	if markArgs[6] != "projector delta refused before projection: base full generation is missing" {
+		t.Fatalf("mark message = %v, want the base-missing message", markArgs[6])
+	}
+	if got, want := len(fake.queries), 2; got != want {
+		t.Fatalf("query count = %d, want %d (refusal mark plus reindex watermark)", got, want)
+	}
+	watermark := fake.queries[1]
+	if !strings.Contains(watermark.query, "repository_reindex_requests") {
+		t.Fatalf("second query = %q, want the reindex upsert", watermark.query)
+	}
+	if got, want := watermark.args[0], []string{"git-repository-scope:owner/repo"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("watermark scopes = %v, want %v", got, want)
+	}
+	if fake.beginCalls != 0 {
+		t.Fatalf("base-missing refusal opened %d transactions, want 0", fake.beginCalls)
+	}
+}
+
+// TestProjectorQueueRefuseDeltaBaseMissingSkipsReindexOffGitScopes pins the
+// boundary: a non-git scope's refusal marks superseded but records no
+// reindex watermark, which only the git selector consumes.
+func TestProjectorQueueRefuseDeltaBaseMissingSkipsReindexOffGitScopes(t *testing.T) {
+	t.Parallel()
+	fake := &recordingExecQueryer{queryRows: []db.Rows{&markRows{work: 1, generation: 1}}}
+	queue := NewProjectorQueue(fake, "projector-1", time.Minute)
+	err := queue.RefuseDeltaBaseline(context.Background(), deltaFenceWork(), projector.DeltaBaselineRefusal{
+		Phase: projector.DeltaBaselinePhasePreflight, Outcome: projector.DeltaBaselineRefusedBaseMissing,
+		State: projector.DeltaBaselineState{TargetFound: true, IsDelta: true, BaselineCommitSHA: "B"},
+	})
+	if !errors.Is(err, failure.ErrWorkSuperseded) {
+		t.Fatalf("RefuseDeltaBaseline() = %v, want ErrWorkSuperseded", err)
+	}
+	if got, want := len(fake.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d (no watermark off git scopes)", got, want)
 	}
 }

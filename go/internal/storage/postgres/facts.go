@@ -5,10 +5,11 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"regexp"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 
@@ -68,6 +69,7 @@ type FactStore struct {
 	database      db.ExecQueryer
 	identityCache *IdentityEpochCache
 	instruments   *telemetry.Instruments
+	logger        *slog.Logger
 }
 
 // NewFactStore constructs a Postgres-backed fact store without identity caching.
@@ -90,10 +92,36 @@ func (s FactStore) WithInstruments(instruments *telemetry.Instruments) *FactStor
 }
 
 // CountFacts returns the number of facts for a scope generation without loading them.
+//
+// For a delta generation with a projected base it returns the union upper
+// bound (base count plus delta count): the projection loads the overlaid set,
+// so the large-generation semaphore must classify on the union, not on the
+// delta alone. A delta whose base is missing returns the refusal error so the
+// caller fails closed instead of classifying a partial load as small.
 func (s FactStore) CountFacts(ctx context.Context, scopeID, generationID string) (int, error) {
 	if s.database == nil {
 		return 0, fmt.Errorf("fact store database is required")
 	}
+	baseGenerationID, _, wantUnion, err := s.resolveDeltaUnionBase(ctx, scopeID, generationID)
+	if err != nil {
+		return 0, err
+	}
+	if wantUnion {
+		baseCount, err := s.countFactsGeneration(ctx, scopeID, baseGenerationID)
+		if err != nil {
+			return 0, err
+		}
+		deltaCount, err := s.countFactsGeneration(ctx, scopeID, generationID)
+		if err != nil {
+			return 0, err
+		}
+		return baseCount + deltaCount, nil
+	}
+	return s.countFactsGeneration(ctx, scopeID, generationID)
+}
+
+// countFactsGeneration runs countFactsQuery for one (scope, generation).
+func (s FactStore) countFactsGeneration(ctx context.Context, scopeID, generationID string) (int, error) {
 	rows, err := s.database.QueryContext(ctx, countFactsQuery, scopeID, generationID)
 	if err != nil {
 		return 0, fmt.Errorf("count facts: %w", err)
@@ -122,6 +150,14 @@ func (s FactStore) LoadFacts(
 }
 
 // ListFacts loads fact envelopes for one scope generation.
+//
+// When the generation is a delta with a projected base full generation at
+// its baseline commit, the load returns the delta-base union (#7797): the
+// delta's facts overlaid on the base generation's facts, so a from-empty
+// projection of the delta writes the full repository tree. A delta whose
+// base is missing fails closed with projector.DeltaBaseMissingError and
+// loads nothing. The kind-filtered ListFactsByKind paths keep
+// single-generation behavior: reducer handlers are delta-aware by design.
 func (s FactStore) ListFacts(
 	ctx context.Context,
 	scopeID string,
@@ -131,25 +167,27 @@ func (s FactStore) ListFacts(
 		return nil, fmt.Errorf("fact store database is required")
 	}
 
-	rows, err := s.database.QueryContext(ctx, listFactsQuery, scopeID, generationID)
+	loaded, err := s.listFactsGeneration(ctx, scopeID, generationID)
 	if err != nil {
-		return nil, fmt.Errorf("list facts: %w", err)
+		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
-
-	var loaded []facts.Envelope
-	for rows.Next() {
-		envelope, scanErr := backfill.ScanFactEnvelope(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("list facts: %w", scanErr)
+	baseGenerationID, baselineSHA, wantUnion, err := s.resolveDeltaUnionBase(ctx, scopeID, generationID)
+	if err != nil {
+		// Only a missing base refuses downstream: any other resolve
+		// error retries through the generic fail path, so it counts a
+		// distinct resolve-failed outcome instead of the refused one.
+		var baseMissing *projector.DeltaBaseMissingError
+		if errors.As(err, &baseMissing) {
+			s.recordDeltaUnionRefused(ctx, scopeID, generationID, len(loaded))
+		} else {
+			s.recordDeltaUnion(ctx, scopeID, generationID, projector.DeltaUnionResolveFailed, 0, len(loaded), 0)
 		}
-		loaded = append(loaded, envelope)
+		return nil, err
 	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list facts: %w", err)
+	if !wantUnion {
+		return loaded, nil
 	}
-
-	return loaded, nil
+	return s.listFactsUnion(ctx, scopeID, generationID, baseGenerationID, baselineSHA, loaded)
 }
 
 // backfill.ScanFactEnvelope lives in the backfill package as ScanFactEnvelope: the

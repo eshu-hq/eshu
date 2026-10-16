@@ -310,6 +310,10 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 			ReadStore:   adminstore.NewReadStore(reader),
 			Audit:       adminRecoveryAuditAppender(governanceAudit),
 			Instruments: instruments,
+			Completeness: &admin.DeltaUnionCompletenessChecker{
+				Active: pgstatus.NewFactStore(pgstatus.SQLDB{DB: writer}),
+				Graph:  neo4jReader,
+			},
 		},
 	}
 	if writer == nil {

@@ -8,6 +8,7 @@ package catalog
 // which backend it queries and its expected retrieval cost class.
 func askRouteAnnotations() map[string]Annotation {
 	return map[string]Annotation{
+		"GET /api/v0/admin/delta-union/completeness":                         {Backend: BackendBoth, Cost: CostModerate},
 		"GET /api/v0/admin/reindex/progress":                                 {Backend: BackendPostgres, Cost: CostLow},
 		"GET /api/v0/admin/shared-projection/tuning-report":                  {Backend: BackendEmbedded, Cost: CostLow},
 		"GET /api/v0/capabilities":                                           {Backend: BackendEmbedded, Cost: CostLow},

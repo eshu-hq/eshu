@@ -169,7 +169,7 @@ func buildBootstrapProjector(
 
 	return projectorDeps{
 		workSource:        projectorQueue,
-		factStore:         postgres.NewFactStore(instrumentedDB),
+		factStore:         postgres.NewFactStore(instrumentedDB).WithInstruments(instruments).WithLogger(logger),
 		runner:            runtime,
 		workSink:          projectorQueue,
 		heartbeater:       projectorQueue,

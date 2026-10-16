@@ -341,6 +341,9 @@ type Handler struct {
 	// listInputInvalidFacts (issue #4630). Nil disables that telemetry; the
 	// route itself is unaffected.
 	Instruments *telemetry.Instruments
+	// Completeness serves the read-only delta-union completeness report
+	// (#7797); nil makes the route 503.
+	Completeness *DeltaUnionCompletenessChecker
 }
 
 // readStore chooses the configured inspection port before any query runs.
@@ -366,6 +369,7 @@ func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/admin/refinalize", h.refinalize)
 	mux.HandleFunc("GET /api/v0/admin/shared-projection/tuning-report", h.tuningReport)
 	mux.HandleFunc("POST /api/v0/admin/reindex", h.reindex)
+	mux.HandleFunc("GET /api/v0/admin/delta-union/completeness", h.deltaUnionCompleteness)
 	mux.HandleFunc("GET /api/v0/admin/reindex/progress", h.reindexProgress)
 	mux.HandleFunc("POST /api/v0/admin/recover-generations", h.recoverGenerations)
 
