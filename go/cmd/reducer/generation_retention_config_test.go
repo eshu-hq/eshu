@@ -4,10 +4,14 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func TestLoadGenerationRetentionConfigDefaults(t *testing.T) {
@@ -141,4 +145,24 @@ func TestGenerationRetentionRunnerForConfig(t *testing.T) {
 	}, nil)
 	require.NotNil(t, enabled)
 	require.Equal(t, time.Hour, enabled.Config.PollInterval)
+}
+
+// fakeReducerBeginnerDB is a fakeReducerDB that can also begin transactions,
+// as the production SQLDB and InstrumentedDB do.
+type fakeReducerBeginnerDB struct{ fakeReducerDB }
+
+func (*fakeReducerBeginnerDB) Begin(context.Context) (db.Transaction, error) {
+	return nil, errors.New("not used")
+}
+
+// TestGenerationRetentionRunnerForWiresOrphanSweeper pins the #7427 PR2
+// wiring: a database that can begin batch transactions gets the search index
+// orphan sweeper; one that cannot keeps the runner without it.
+func TestGenerationRetentionRunnerForWiresOrphanSweeper(t *testing.T) {
+	cfg := generationRetentionConfig{
+		Enabled: true,
+		Runner:  loadGenerationRetentionConfig(func(string) string { return "" }).Runner,
+	}
+	require.Nil(t, generationRetentionRunnerFor(&fakeReducerDB{}, cfg, nil).OrphanSweeper)
+	require.NotNil(t, generationRetentionRunnerFor(&fakeReducerBeginnerDB{}, cfg, nil).OrphanSweeper)
 }

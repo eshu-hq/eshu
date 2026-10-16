@@ -46,6 +46,8 @@ handler proof enters the handler and reads the epoch before its freshness check.
 | Non-NULL active, older/failed/superseded/missing intent | `(false, nil)` | Existing terminal contract |
 | Active generation without identity epoch | handler hard error | Existing corruption control |
 
+Superseded by #7427 PR2: a known scope with a NULL active pointer and a missing intent row now returns `(false, nil)`; see [7427-search-index-orphan-guard.md](7427-search-index-orphan-guard.md).
+
 ## No-Regression Evidence
 
 No-Regression Evidence: PostgreSQL 18.6 on a disposable local container;

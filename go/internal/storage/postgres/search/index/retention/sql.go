@@ -93,7 +93,13 @@ const eligibleGenerationCTE = `eligible AS MATERIALIZED (
 // bound.
 const deleteTermsBatchQuery = `-- retention: search index terms pre-delete batch
 WITH ` + eligibleGenerationCTE + `,
-page AS MATERIALIZED (
+` + termsBatchBody
+
+// termsBatchBody is the terms batch after its eligibility CTE: the keyset
+// page, the ctid DELETE, and the result row. The pre-delete and the orphan
+// sweep share it, so both walk and delete the same way and differ only in
+// which generations their eligibility CTE admits.
+const termsBatchBody = `page AS MATERIALIZED (
     SELECT term.ctid AS row_ctid, term.term_key, term.document_id
     FROM eshu_search_index_terms AS term
     WHERE term.scope_id = $1
@@ -131,7 +137,11 @@ SELECT EXISTS (SELECT 1 FROM eligible),
 // page bound.
 const deleteDocumentsBatchQuery = `-- retention: search index documents pre-delete batch
 WITH ` + eligibleGenerationCTE + `,
-page AS MATERIALIZED (
+` + documentsBatchBody
+
+// documentsBatchBody is the documents batch after its eligibility CTE,
+// shared by the pre-delete and the orphan sweep like termsBatchBody.
+const documentsBatchBody = `page AS MATERIALIZED (
     SELECT document.ctid AS row_ctid, document.document_id
     FROM eshu_search_index_documents AS document
     WHERE document.scope_id = $1
@@ -160,3 +170,105 @@ SELECT EXISTS (SELECT 1 FROM eligible),
     COALESCE((SELECT last_key.document_id FROM last_key), ''),
     ''::text
 `
+
+// orphanGenerationCTE admits, in the batch's own statement and snapshot, only
+// a generation whose (scope_id, generation_id) pair is absent from
+// scope_generations and that the scope's active pointer does not name (#7427
+// PR2). Readers join ingestion_scopes.active_generation_id, so such rows are
+// read-invisible; the pointer test keeps that true even for a dangling
+// pointer, which has no foreign key. A pair that exists in any status
+// (pending, active, superseded, failed) is ineligible, so the sweep never
+// deletes a row of an existing generation. $1 scope id, $2 generation id.
+const orphanGenerationCTE = `eligible AS MATERIALIZED (
+    SELECT 1 AS ok
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM scope_generations AS generation
+        WHERE generation.generation_id = $2
+          AND generation.scope_id = $1
+    )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM ingestion_scopes AS scope
+        WHERE scope.scope_id = $1
+          AND scope.active_generation_id = $2
+    )
+)`
+
+// sweepTermsBatchQuery deletes one keyset page of an orphan generation's
+// eshu_search_index_terms rows: deleteTermsBatchQuery with the orphan
+// eligibility CTE. Same arguments and result row.
+const sweepTermsBatchQuery = `-- retention: search index terms orphan sweep batch
+WITH ` + orphanGenerationCTE + `,
+` + termsBatchBody
+
+// sweepDocumentsBatchQuery is sweepTermsBatchQuery for
+// eshu_search_index_documents.
+const sweepDocumentsBatchQuery = `-- retention: search index documents orphan sweep batch
+WITH ` + orphanGenerationCTE + `,
+` + documentsBatchBody
+
+// termsLeavesQuery lists the leaf partitions of eshu_search_index_terms as
+// regclass text, which PostgreSQL quotes and schema-qualifies as the
+// search_path needs, so the census can name each leaf safely. It returns no
+// row for an install whose terms table is not partitioned.
+const termsLeavesQuery = `-- retention: search index orphan census leaves
+SELECT child.oid::regclass::text
+FROM pg_inherits AS inheritance
+JOIN pg_class AS child ON child.oid = inheritance.inhrelid
+WHERE inheritance.inhparent = to_regclass('eshu_search_index_terms')
+ORDER BY 1
+`
+
+// censusQuery enumerates the distinct (scope_id, generation_id) pairs of one
+// relation (a terms leaf or eshu_search_index_documents) with a loose index
+// scan over its primary-key prefix: each recursive step seeks to the first
+// key after the previous pair, so the walk costs one index descent per pair
+// plus any dead index entries it steps over, not a pass over every row. It
+// returns the pairs walked, the pairs absent from scope_generations (the
+// orphans), and at most $1 of those orphans, one per row (a NULL pair when
+// there is none). relation must be a regclass text from termsLeavesQuery or a
+// fixed table name; it is never caller input.
+func censusQuery(relation string) string {
+	return `-- retention: search index orphan census
+WITH RECURSIVE pairs AS (
+    (
+        SELECT relation.scope_id, relation.generation_id
+        FROM ` + relation + ` AS relation
+        ORDER BY relation.scope_id, relation.generation_id
+        LIMIT 1
+    )
+    UNION ALL
+    SELECT following.scope_id, following.generation_id
+    FROM pairs
+    CROSS JOIN LATERAL (
+        SELECT relation.scope_id, relation.generation_id
+        FROM ` + relation + ` AS relation
+        WHERE (relation.scope_id, relation.generation_id) > (pairs.scope_id, pairs.generation_id)
+        ORDER BY relation.scope_id, relation.generation_id
+        LIMIT 1
+    ) AS following
+),
+orphans AS MATERIALIZED (
+    SELECT pairs.scope_id, pairs.generation_id
+    FROM pairs
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM scope_generations AS generation
+        WHERE generation.generation_id = pairs.generation_id
+          AND generation.scope_id = pairs.scope_id
+    )
+)
+SELECT (SELECT count(*) FROM pairs),
+    (SELECT count(*) FROM orphans),
+    listed.scope_id,
+    listed.generation_id
+FROM (SELECT 1) AS one
+LEFT JOIN LATERAL (
+    SELECT orphans.scope_id, orphans.generation_id
+    FROM orphans
+    ORDER BY orphans.scope_id, orphans.generation_id
+    LIMIT $1
+) AS listed ON true
+`
+}

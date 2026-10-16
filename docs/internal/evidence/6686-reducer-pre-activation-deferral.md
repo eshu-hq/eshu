@@ -31,6 +31,8 @@ sorts after the active one by `(ingested_at, generation_id)`. It returns:
 | intent generation is `pending` and sorts after the active generation | `(false, GenerationNotYetActiveError)`: retryable, class `generation_activation_not_ready` |
 | older, superseded, failed, or missing generation | `(false, nil)`: terminal supersession (unchanged) |
 
+Superseded by #7427 PR2: with no active generation, a missing intent generation row now returns `(false, nil)` instead of `(true, nil)`; see [7427-search-index-orphan-guard.md](7427-search-index-orphan-guard.md).
+
 The ordering matches the projector's own supersession SQL
 (`supersedeProjectorObsoleteGenerationsQuery`, the running-work heartbeat check)
 and the reducer claim's `superseded_stale_reducer_generations` CTE, all of which
