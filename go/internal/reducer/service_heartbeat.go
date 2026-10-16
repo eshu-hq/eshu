@@ -251,10 +251,14 @@ func (s Service) HandlerTimeoutFor(domain Domain) time.Duration {
 }
 
 // handlerOutcome carries one Executor.Execute result across the abandonment
-// boundary.
+// boundary. When the handler panicked, panicked is true and value holds the
+// panic value for the caller to re-raise; the boolean (rather than a nil test
+// on value) keeps panic(nil) unambiguous.
 type handlerOutcome struct {
-	result Result
-	err    error
+	result   Result
+	err      error
+	panicked bool
+	value    any
 }
 
 // executeHandler runs Executor.Execute in a goroutine and waits for either its
@@ -271,6 +275,14 @@ type handlerOutcome struct {
 // are still unmeasured, so step (a) of #8211 releases only at shutdown and
 // measures durations for the later enforcing step.
 //
+// A handler panic must unwind on the caller's goroutine exactly as a direct
+// Executor.Execute call would: harnesses such as crashreplay recover crash
+// sentinels by identity on the run goroutine, and a panic stranded in the
+// spawned goroutine would kill the process instead. The spawned goroutine
+// therefore recovers the panic, ships the value across done, and the caller
+// re-raises it. A panic that lands after abandonment is dropped with the late
+// outcome: the item is already released and the process is shutting down.
+//
 // Residual risk: an abandoned handler that later returns may still commit
 // graph writes after Fail released the item. Queue mutations are fenced, but
 // graph writes are only safe when the handler's writes are idempotent
@@ -283,12 +295,25 @@ func (s Service) executeHandler(
 ) (result Result, err error, abandoned bool) {
 	done := make(chan handlerOutcome, 1)
 	go func() {
+		completed := false
+		defer func() {
+			if !completed {
+				done <- handlerOutcome{panicked: true, value: recover()}
+			}
+		}()
 		result, err := s.Executor.Execute(execCtx, intent)
+		completed = true
 		done <- handlerOutcome{result: result, err: err}
 	}()
+	reraise := func(out handlerOutcome) (Result, error, bool) {
+		if out.panicked {
+			panic(out.value)
+		}
+		return out.result, out.err, false
+	}
 	select {
 	case out := <-done:
-		return out.result, out.err, false
+		return reraise(out)
 	case <-shutdownCtx.Done():
 		// Shutdown raced a finishing handler: when its outcome is already
 		// available, prefer it over abandonment. Failing an item whose
@@ -297,7 +322,7 @@ func (s Service) executeHandler(
 		// genuinely still running, and only then is it abandoned.
 		select {
 		case out := <-done:
-			return out.result, out.err, false
+			return reraise(out)
 		default:
 		}
 		return Result{}, shutdownCtx.Err(), true

@@ -647,3 +647,69 @@ func TestServiceRunBatchKeepsCooperativeShutdownFailOnce(t *testing.T) {
 		t.Fatalf("heartbeats after Fail started = %d, want 0", got)
 	}
 }
+
+// panickingReducerExecutor panics with a fixed sentinel instead of returning:
+// the crash-simulation shape (crashreplay raises crash/fatal sentinels out of
+// Executor.Execute and the run goroutine recovers them by identity).
+type panickingReducerExecutor struct {
+	value any
+}
+
+func (e *panickingReducerExecutor) Execute(context.Context, Intent) (Result, error) {
+	panic(e.value)
+}
+
+// TestExecuteHandlerReraisesHandlerPanic pins the panic contract behind the
+// abandonment boundary: a handler panic must unwind on the caller's goroutine
+// exactly as a direct Executor.Execute call would. On code that runs Execute
+// in a spawned goroutine without propagation, the panic kills the test
+// binary instead of reaching this recover (this is the go-race (3)
+// crashreplay failure: *crashreplay.fatalSignal stranded in
+// executeHandler.func1).
+func TestExecuteHandlerReraisesHandlerPanic(t *testing.T) {
+	sentinel := &struct{ marker string }{marker: "crash-sentinel"}
+	s := Service{Executor: &panickingReducerExecutor{value: sentinel}}
+	defer func() {
+		got := recover()
+		if got != any(sentinel) {
+			t.Fatalf("recovered panic = %#v, want the sentinel by identity", got)
+		}
+	}()
+	_, _, _ = s.executeHandler(context.Background(), context.Background(), abandonTestIntent("panic-1"))
+	t.Fatal("executeHandler returned, want the handler panic to propagate")
+}
+
+// releaseThenPanicReducerExecutor blocks until released, then panics: the
+// late-panic-after-abandonment shape. The panic must be dropped with the late
+// outcome, never crash the process during shutdown.
+type releaseThenPanicReducerExecutor struct {
+	release chan struct{}
+	exited  chan struct{}
+}
+
+func (e *releaseThenPanicReducerExecutor) Execute(context.Context, Intent) (Result, error) {
+	defer close(e.exited)
+	<-e.release
+	panic("late panic after abandonment")
+}
+
+// TestExecuteHandlerDropsLatePanicAfterAbandon proves the orphaned side of
+// the panic contract: once shutdown has won and the item is abandoned, a
+// later handler panic is contained in the orphaned goroutine and the already
+// returned abandonment stands.
+func TestExecuteHandlerDropsLatePanicAfterAbandon(t *testing.T) {
+	exec := &releaseThenPanicReducerExecutor{release: make(chan struct{}), exited: make(chan struct{})}
+	s := Service{Executor: exec}
+	shutdown, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, _, abandoned := s.executeHandler(context.Background(), shutdown, abandonTestIntent("panic-2"))
+	if !abandoned {
+		t.Fatal("abandoned = false, want true: shutdown was already done")
+	}
+	close(exec.release)
+	select {
+	case <-exec.exited:
+	case <-time.After(10 * time.Second):
+		t.Fatal("orphaned handler goroutine did not exit within 10s of release")
+	}
+}
