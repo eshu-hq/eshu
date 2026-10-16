@@ -42,6 +42,9 @@ func TestWorkflowControlStoreReleaseClaimUsesFencingAndOwnerGuards(t *testing.T)
 		"SET status = 'pending'",
 		"last_failure_class = NULL",
 		"last_failure_message = NULL",
+		"last_failure_operation = NULL",
+		"last_failure_status_code = NULL",
+		"last_failure_terminal = NULL",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("release query missing %q: %s", want, query)

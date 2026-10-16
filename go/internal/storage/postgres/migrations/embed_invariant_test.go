@@ -78,14 +78,16 @@ import (
 // 180_fact_records_terraform_state_resource_arn_idx.sql; #7663 adds
 // 181_fact_records_package_manifest_consumption_backfill_idx.sql; #7420 adds
 // 182_package_manifest_consumption_keys_partition_idx.sql and
-// 183_package_registry_identity_keys_partition_idx.sql.
-const goldenBootstrapDefinitionsDigest = "d55540f2d2d644fa3bed33d62f2f3df5bb821a1c47d83e132167b2d372ab7367"
+// 183_package_registry_identity_keys_partition_idx.sql; #7420 adds
+// 184_workflow_claims_failure_classification.sql and
+// 185_workflow_work_items_failure_classification.sql; #7926 adds
+const goldenBootstrapDefinitionsDigest = "3a85515a38b9c4c49f48bf0b50e4e2c827488af77c3ef5de44c2708d0a279d9b"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 202
+const goldenBootstrapDefinitionsCount = 204
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

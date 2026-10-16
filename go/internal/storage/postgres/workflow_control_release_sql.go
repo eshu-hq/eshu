@@ -38,7 +38,10 @@ SET status = 'pending',
     visible_at = $1,
     updated_at = $1,
     last_failure_class = NULL,
-    last_failure_message = NULL
+    last_failure_message = NULL,
+    last_failure_operation = NULL,
+    last_failure_status_code = NULL,
+    last_failure_terminal = NULL
 FROM candidate
 WHERE item.work_item_id = candidate.work_item_id
   AND EXISTS (SELECT 1 FROM updated_claim)
