@@ -142,9 +142,7 @@ gates:
     requirements:
       - go
     ci_only_reason: "requires macOS hosted runner; nightly/dispatch only and non-blocking (0 of 29 macOS failures since 2026-09-21 were macOS-only, ~2,800 macOS-min/day)"
-
   # ─── EVIDENCE / LEDGER / DRIFT ─────────────────────────────────────────────
-
   - id: root-cause-evidence
     name: Root-cause claims carry observed evidence
     category: exactness
@@ -315,7 +313,10 @@ gates:
       - "scripts/lib/ci-gates-resolved-fixtures.sh"
       - "go/cmd/ingester/**"
       - "go/cmd/projector/**"
-      # The query path carries the sql_table blast-radius branch proof.
+      # internal/query carries the sql_table blast-radius branch proof (#5409),
+      # which this gate runs and nothing else does (#6182). Without this
+      # trigger a PR editing only the blast-radius query would not select the
+      # gate that proves its UNION branches still match.
       - "go/internal/query/**"
       - "go/internal/replay/**"
       - "go/internal/reducer/**"
@@ -493,7 +494,6 @@ gates:
       - go
     ci_only_reason: ""
     hook_id: gate-registry-drift
-
 # ─── HYGIENE HOOKS ───────────────────────────────────────────────────────────
 # Local pre-commit hook ids that are basic hygiene or self-tests, intentionally
 # NOT registry gates. The drift check allows these without a gate mapping.
