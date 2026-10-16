@@ -21,8 +21,9 @@ the selector's 503/504, 500 lookup-failure, and 400 answers for this route,
 (`entitysemantics`), or the shared semantic-metadata Cypher fragment
 (`rows`) -- those are separate leaves this package calls into.
 Does not own `*ContentReader` (package query, a later lane's family): this
-package reaches it only through the `querycontract.ContentStore` and
-`taxonomy.LanguageEntityContentSearcher` port interfaces.
+package reaches it only through the `querycontract.ContentStore`,
+`taxonomy.LanguageEntityContentSearcher`, and
+`taxonomy.LanguageEntityMetadataByIDReader` port interfaces.
 
 ## Layout
 
@@ -62,6 +63,14 @@ package reaches it only through the `querycontract.ContentStore` and
   (`enrichLanguageResultsWithContentMetadata`), the repository-scoped merge
   key, and `searchLanguageEntities` (the grant-bound content-store dispatch
   `codequery/relationships/story.SearchEntitiesForGrant` cross-checks).
+- `metadata_anchored.go` -- the #7247 id-anchored enrichment:
+  `contentIDAnchoredLabels` (the labels whose graph id is the content primary
+  key), `enrichLanguageResultsByEntityID` (one `entity_id = ANY` lookup keyed
+  by the graph rows, merged only into the row with the same id and
+  repository), and `recordMetadataEnrichment` (the request-span attributes
+  and `eshu_dp_language_query_metadata_rows_total`).
+  `metadata_anchored_identity_test.go` pins the label set against the
+  projector's real entity extraction.
 - `reasons.go` -- the per-branch truth-basis-to-reason mappings, the
   truth-basis-to-source_backend mapping (`SourceBackendForTruthBasis`), and
   the empty-grant response writer.
@@ -111,9 +120,39 @@ one span with those attributes. Since #7626 that span is also set to Error,
 with an `exception` event, when the repo_id selector's backing read fails
 (`TestLanguageQuerySelectorLookupFailureAnswers500`).
 
+## Id-anchored metadata enrichment (#7247)
+
+For a content-id-anchored label the enrichment no longer reads a second,
+independently ordered content page. It reads the graph rows' own content rows
+by `entity_id`, with the caller's repository scope bound in the statement.
+The row set, order, and non-metadata fields do not change. Rows the page read
+missed now carry content metadata, so the truth basis can move from
+`authoritative_graph` to `hybrid` on the same rows. Every other label with a
+content entity type keeps the page read; a label without one (for example
+`TerraformBackend`) never reaches the enrichment.
+
+Performance Evidence: one bounded primary-key lookup replaces the filtered
+page read for anchored labels. On the 160,000-row disposable fixture in
+`content_reader_entity_metadata_by_ids_live_test.go`, the lookup for 200 ids
+read 458 shared buffers on `postgres:18-alpine` (18.6, `shared_buffers=256MB`)
+and 465 on `postgres:18` (Debian 18.6, `shared_buffers=128MB`), under both a
+custom and a forced generic plan. The page read it replaces read 2,259
+(custom) on both, and 157,469 and 157,465 (generic). The id lookup used the
+same plan on both images; the counts differ by at most 7 buffers (1.53%)
+between images. See
+`docs/internal/evidence/7247-language-query-anchored-metadata.md`.
+
+Observability Evidence: the request span carries
+`eshu.language_query.metadata_path`, `eshu.language_query.metadata_rows_enriched`
+and `eshu.language_query.metadata_rows_missing`, and the
+`eshu_dp_language_query_metadata_rows_total{metadata_path, outcome}` counter
+counts the same rows (`metadata_anchored_telemetry_test.go`). The lookup's
+`postgres.query` span reports `db.operation=list_entity_metadata_by_ids`.
+
 ## Related docs
 
 - `docs/public/reference/language-query-dsl.md`
+- `docs/internal/evidence/7247-language-query-anchored-metadata.md`
 - `docs/internal/evidence/6546-language-query-extension-filter.md`
 - `docs/internal/evidence/5167-code-family-batch-2.md`
 - `go/internal/query/read-models.md`

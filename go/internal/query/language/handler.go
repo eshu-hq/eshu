@@ -72,6 +72,13 @@ const (
 // verbatim into `LIMIT $limit` with no ceiling of their own. Mirrors the
 // sibling code_symbol.go symbolSearchMaxLimit (200) on the nearest sibling
 // route in package query.
+//
+// Coupled to taxonomy.MaxLanguageEntityIDLookup (#7247): a page of this many
+// graph rows is the id set the anchored metadata lookup receives, and the
+// content reader refuses a larger set with an error (a 500) rather than
+// truncating it, so a silent drift cannot leave rows without metadata. Raise
+// both together; TestLanguageQueryMaxLimitFitsTheIDLookupBound in
+// metadata_anchored_test.go fails when this exceeds the lookup bound.
 const languageQueryMaxLimit = 200
 
 // Handler provides language-specific entity queries against the graph and
@@ -92,6 +99,11 @@ type Handler struct {
 	// existing constructions that do not set it keep working; logging is
 	// skipped in that case.
 	Logger *slog.Logger
+	// Instruments backs eshu_dp_language_query_metadata_rows_total, the
+	// per-row count of how content-metadata enrichment served graph rows
+	// (#7247). Nil is tolerated; the request span still carries the same
+	// counts as attributes.
+	Instruments *telemetry.Instruments
 }
 
 // profile returns the handler's normalized query profile, defaulting to

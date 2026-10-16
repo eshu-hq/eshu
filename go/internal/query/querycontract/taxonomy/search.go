@@ -51,6 +51,49 @@ type LanguageEntityContentSearcher interface {
 	SearchEntitiesByLanguageAndTypeForAccess(context.Context, LanguageEntitySearch) ([]querycontract.EntityContent, error)
 }
 
+// LanguageEntityIDLookup is one bounded content-metadata read for
+// POST /api/v0/code/language-query, keyed by the entity ids the graph already
+// returned rather than by a second filtered page (#7247).
+//
+// EntityIDs are graph entity ids whose label shares the content store's
+// primary key (see the language package's contentIDAnchoredLabels). RepoID and
+// AllowedRepositoryIDs carry the caller's repository scope exactly as
+// LanguageEntitySearch does: a non-empty RepoID binds the read to that one
+// repository, otherwise a non-empty AllowedRepositoryIDs binds it to the
+// caller's grant, and both empty leaves it to the id set alone (the unscoped
+// shared, admin, and local callers). Neither is ever taken from the request
+// body.
+//
+// A lookup carries at most MaxLanguageEntityIDLookup ids; the reader rejects a
+// larger set rather than issuing an unbounded statement.
+type LanguageEntityIDLookup struct {
+	EntityIDs            []string
+	RepoID               string
+	AllowedRepositoryIDs []string
+}
+
+// MaxLanguageEntityIDLookup bounds one LanguageEntityIDLookup to the largest
+// language-query page (the route clamps limit to 200), so the id set, and the
+// rows the lookup can return, never exceed one page.
+//
+// It is coupled to the route's clamp, languageQueryMaxLimit in
+// go/internal/query/language/handler.go: the reader rejects a larger set with
+// an error on purpose (a loud 500, never a silent truncation that would leave
+// rows without metadata). Raise both together;
+// TestLanguageQueryMaxLimitFitsTheIDLookupBound in
+// go/internal/query/language/metadata_anchored_test.go fails when the clamp
+// exceeds this bound.
+const MaxLanguageEntityIDLookup = 200
+
+// LanguageEntityMetadataByIDReader is the id-anchored content read the
+// language-query enrichment prefers for a content-id-anchored label (#7247).
+// It returns at most one row per id, with the repository scope above bound in
+// the statement. Rows carry no source_cache: the enrichment merges metadata
+// only. A store that does not implement it gets today's filtered page read.
+type LanguageEntityMetadataByIDReader interface {
+	ListEntityMetadataByIDsForAccess(context.Context, LanguageEntityIDLookup) ([]querycontract.EntityContent, error)
+}
+
 // ResultContentEntityType resolves a result row's content-entity type from
 // its graph labels. The implementation moved from root's
 // code_search_metadata.go for #6060 so a handler-family subpackage can

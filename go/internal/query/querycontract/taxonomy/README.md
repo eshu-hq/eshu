@@ -17,7 +17,7 @@ import alias in six of its 28 importing files, five of them because a
 | `language.go` | `CanonicalLanguage`, `NormalizedLanguageVariants`, `CoverageLanguageMaps` over an unexported alias table |
 | `entity_types.go` | `GraphBackedEntityTypes`, `ContentBackedEntityTypes`, `ResolveContentBackedEntityTypes`, `ContentEntityTypeForResolve`, `GraphFirstContentBackedEntityTypes`, `ElixirSemanticEntityType(s)`, `ElixirGraphSemanticEntityType`, `GraphLabelToContentEntityType` |
 | `result_metadata.go` | `GraphResultMetadata` |
-| `search.go` | `LanguageEntitySearch`, `LanguageEntityContentSearcher`, `LanguageResultMatchKey`, `ResultContentEntityType` |
+| `search.go` | `LanguageEntitySearch`, `LanguageEntityContentSearcher`, `LanguageEntityIDLookup`, `LanguageEntityMetadataByIDReader`, `MaxLanguageEntityIDLookup` (the #7247 id-anchored metadata read), `LanguageResultMatchKey`, `ResultContentEntityType` |
 
 The two grantless no-read constants that used to sit beside these
 (`NoBackendReadSourceBackend`, `ReasonEmptyGrantNoBackendRead`) did not move:

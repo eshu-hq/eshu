@@ -342,6 +342,58 @@ Direct HTTP response:
 | `no_backend_read` | No backend was read at all: the page a scoped token with no repository grants gets, answered from the grant alone without touching either backend. The truth envelope's `reason` names that case exactly, its `basis` is the matching `no_backend_read`, and the same pair appears on `POST /api/v0/code/imports/investigate`'s equivalent page. |
 | `unavailable` | Defensive fallback for a truth basis this route does not otherwise recognize. It is not reachable under the current dispatch: every reading branch of `handleLanguageQuery` only ever passes `TruthBasisAuthoritativeGraph`, `TruthBasisHybrid`, or `TruthBasisContentIndex`, and the empty-grant page passes `TruthBasisNoBackendRead`. Until #6544 this value carried the no-read meaning as well, because neither vocabulary had a member for a page produced without a read; both now do. |
 
+### Content-metadata enrichment
+
+When the graph serves a page, the route adds Postgres content-store metadata to
+its rows (docstrings, decorators, semantic kinds, and similar parser fields).
+A graph-owned value wins over a content value at the same key. Which content
+rows the route reads depends on the row's graph label.
+
+**Id-anchored labels.** For `Function`, `Class`, `Struct`, `Enum`, `Union`,
+`Macro`, `TypeAnnotation`, `Annotation`, and `TerragruntDependency` (#7247),
+the graph node's `entity_id` is the content store's primary key for the same
+entity. The route reads those rows by the page's own ids: one bounded lookup,
+bound to the request's `repo_id` or the caller's repository grant. It reads no
+`source_cache`. A content row merges only into the graph row with the same id
+and the same repository. This covers the `function`, `class`, `struct`,
+`enum`, `union`, `macro`, `type_annotation`, `annotation`,
+`terragrunt_dependency`, and `guard` entity types.
+
+**Page-read labels.** `Module`, `Variable` (`module_attribute`), the SQL
+labels, `TerraformModule`, `TerragruntConfig`, `Component`, `ImplBlock`,
+`TypeAlias`, and `Typedef` still use the filtered content page. That page is
+merged by repository, file path, label, name, and start line. It is ordered
+and matched independently of the graph page, so on a large repository it
+can share few rows with the graph page. Those rows keep only their graph
+metadata. `Variable` stays on this path on purpose: a dependency-manifest
+`Variable` has a different content id than its graph node.
+
+**Labels with no enrichment.** A label with no content entity type never
+reaches the enrichment: `Repository`, `Directory`, `File`, `Protocol`,
+`ProtocolImplementation`, `TerraformBackend`, `TerraformCheck`,
+`TerraformImport`, `TerraformLockProvider`, `TerraformMovedBlock`, and
+`TerraformRemovedBlock`. Their rows carry only graph metadata, with no content
+read.
+
+**What changed in #7247.** The row set, the order, and every non-metadata
+field are unchanged. Rows of an id-anchored label that the page read used to
+miss now carry their content metadata. The same answer can therefore move
+from `basis: authoritative_graph` / `source_backend: graph` to
+`basis: hybrid` / `source_backend: hybrid_graph_and_content`. A row with no
+content row keeps its graph metadata, and a page where no row merged content
+metadata stays `basis: authoritative_graph` / `source_backend: graph`.
+
+Operators see the enrichment on the request span
+(`eshu.language_query.metadata_path`, `..._metadata_rows_enriched`,
+`..._metadata_rows_missing`) and on
+`eshu_dp_language_query_metadata_rows_total{metadata_path, outcome}`. A row
+counts as `missing` when it merged no content metadata. On `anchored` that is
+no content row for its id, a content row whose metadata holds nothing beyond
+fingerprint keys (for example a struct with no docstring), or a content row in
+another repository. On `page_read` it is no page row with the same key, or a
+matched row with no metadata beyond fingerprint keys. The counter does not
+separate those causes.
+
 ## Errors
 
 | Error | Cause |

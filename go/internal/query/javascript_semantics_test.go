@@ -103,19 +103,13 @@ func TestAttachJavaScriptSemanticsReturnsOriginalWhenEmpty(t *testing.T) {
 func TestEnrichLanguageResultsWithContentMetadataJavaScriptMethod(t *testing.T) {
 	t.Parallel()
 
+	// #7247: Function is content-id-anchored, so the enrichment reads the graph
+	// row's own content row by id (graph-1) instead of a filtered page.
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{
-		{
-			columns: []string{
-				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
-				"start_line", "end_line", "language", "source_cache", "metadata",
-			},
-			rows: [][]driver.Value{
-				{
-					"js-fn-1", "repo-1", "src/app.js", "Function", "getTab",
-					int64(10), int64(24), "javascript", "export function getTab() {}", []byte(`{"docstring":"Returns the active tab.","method_kind":"getter"}`),
-				},
-			},
-		},
+		entityMetadataByIDResult([]driver.Value{
+			"graph-1", "repo-1", "src/app.js", "Function", "getTab",
+			int64(10), int64(24), "javascript", []byte(`{"docstring":"Returns the active tab.","method_kind":"getter"}`),
+		}),
 	})
 
 	handler := &LanguageQueryHandler{
@@ -242,19 +236,13 @@ func TestHandleLanguageQueryJavaScriptMethodUsesGraphMetadataWithoutContent(t *t
 func TestEnrichLanguageResultsWithContentMetadataPreservesGraphJavaScriptFields(t *testing.T) {
 	t.Parallel()
 
+	// #7247: Function is content-id-anchored, so the enrichment reads the graph
+	// row's own content row by id (graph-1) instead of a filtered page.
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{
-		{
-			columns: []string{
-				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
-				"start_line", "end_line", "language", "source_cache", "metadata",
-			},
-			rows: [][]driver.Value{
-				{
-					"js-fn-1", "repo-1", "src/app.js", "Function", "getTab",
-					int64(10), int64(24), "javascript", "export function getTab() {}", []byte(`{"docstring":"Content fallback doc.","method_kind":"setter"}`),
-				},
-			},
-		},
+		entityMetadataByIDResult([]driver.Value{
+			"graph-1", "repo-1", "src/app.js", "Function", "getTab",
+			int64(10), int64(24), "javascript", []byte(`{"docstring":"Content fallback doc.","method_kind":"setter"}`),
+		}),
 	})
 
 	handler := &LanguageQueryHandler{

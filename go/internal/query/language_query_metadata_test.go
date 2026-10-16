@@ -76,19 +76,13 @@ func languageQueryMetadataResult(t *testing.T, handler *LanguageQueryHandler, bo
 func TestEnrichLanguageResultsWithContentMetadata(t *testing.T) {
 	t.Parallel()
 
+	// #7247: Function is content-id-anchored, so the enrichment reads the graph
+	// row's own content row by id (graph-1) instead of a filtered page.
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{
-		{
-			columns: []string{
-				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
-				"start_line", "end_line", "language", "source_cache", "metadata",
-			},
-			rows: [][]driver.Value{
-				{
-					"content-1", "repo-1", "src/handler.py", "Function", "handler",
-					int64(12), int64(20), "python", "async def handler(): ...", []byte(`{"decorators":["@route"],"async":true}`),
-				},
-			},
-		},
+		entityMetadataByIDResult([]driver.Value{
+			"graph-1", "repo-1", "src/handler.py", "Function", "handler",
+			int64(12), int64(20), "python", []byte(`{"decorators":["@route"],"async":true}`),
+		}),
 	})
 
 	handler := &LanguageQueryHandler{
@@ -155,19 +149,13 @@ func TestEnrichLanguageResultsWithContentMetadata(t *testing.T) {
 func TestEnrichLanguageResultsWithContentMetadataSkipsUnmatchedRows(t *testing.T) {
 	t.Parallel()
 
+	// #7247: the id-anchored read answers with a row whose id is not the
+	// graph row's; an id-keyed merge must not attach it.
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{
-		{
-			columns: []string{
-				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
-				"start_line", "end_line", "language", "source_cache", "metadata",
-			},
-			rows: [][]driver.Value{
-				{
-					"content-1", "repo-1", "src/other.py", "Function", "other",
-					int64(1), int64(5), "python", "def other(): pass", []byte(`{"decorators":["@cached"]}`),
-				},
-			},
-		},
+		entityMetadataByIDResult([]driver.Value{
+			"content-1", "repo-1", "src/other.py", "Function", "other",
+			int64(1), int64(5), "python", []byte(`{"decorators":["@cached"]}`),
+		}),
 	})
 
 	handler := &LanguageQueryHandler{
@@ -234,19 +222,13 @@ func TestEnrichLanguageResultsWithContentMetadataSkipsUnmatchedRows(t *testing.T
 func TestEnrichLanguageResultsWithContentMetadataAnnotation(t *testing.T) {
 	t.Parallel()
 
+	// #7247: Annotation is content-id-anchored; the row is read by the graph
+	// row's own id.
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{
-		{
-			columns: []string{
-				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
-				"start_line", "end_line", "language", "source_cache", "metadata",
-			},
-			rows: [][]driver.Value{
-				{
-					"annotation-1", "repo-1", "src/Logged.java", "Annotation", "Logged",
-					int64(2), int64(2), "java", "@Logged", []byte(`{"kind":"applied","target_kind":"method_declaration"}`),
-				},
-			},
-		},
+		entityMetadataByIDResult([]driver.Value{
+			"graph-1", "repo-1", "src/Logged.java", "Annotation", "Logged",
+			int64(2), int64(2), "java", []byte(`{"kind":"applied","target_kind":"method_declaration"}`),
+		}),
 	})
 
 	handler := &LanguageQueryHandler{

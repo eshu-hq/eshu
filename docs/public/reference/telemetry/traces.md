@@ -238,6 +238,16 @@ A request that ends in an error carries `statements_tried` and no
 entity id, 404 for an empty scoped grant) carries neither attribute and is not
 counted.
 
+`POST /api/v0/code/language-query`'s request span (`query.language_query`)
+carries, when a non-empty graph page reached content-metadata enrichment (even
+if no row received metadata), `eshu.language_query.metadata_path` (`anchored` or `page_read`),
+`eshu.language_query.metadata_rows_enriched` and
+`eshu.language_query.metadata_rows_missing` (#7247). They are the same closed
+path set and the same counts as `eshu_dp_language_query_metadata_rows_total`.
+An `anchored` request issues one `postgres.query` span with
+`db.operation=list_entity_metadata_by_ids` and no
+`search_entities_by_language_and_type` span for the enrichment.
+
 Jira fetch traces use bounded integer attributes such as `jira.search_pages`,
 `jira.changelog_pages`, `jira.remote_link_pages`, `jira.metadata_pages`,
 `jira.issues_emitted`, `jira.changelog_events_emitted`,

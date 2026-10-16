@@ -74,3 +74,8 @@ func sourceBackendForTruthBasis(basis querycontract.TruthBasis) string {
 // It moved from language/metadata.go (#6642) because ContentReader is a
 // later lane's family and the leaf must never name it.
 var _ taxonomy.LanguageEntityContentSearcher = (*ContentReader)(nil)
+
+// The same pin for the #7247 id-anchored metadata lookup: if *ContentReader
+// stopped satisfying it, the language-query enrichment would silently fall
+// back to the filtered page read for every anchored label.
+var _ taxonomy.LanguageEntityMetadataByIDReader = (*ContentReader)(nil)

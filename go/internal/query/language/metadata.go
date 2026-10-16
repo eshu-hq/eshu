@@ -31,8 +31,13 @@ type EntitySearch = taxonomy.LanguageEntitySearch
 type languageEntityContentSearcher = taxonomy.LanguageEntityContentSearcher
 
 // enrichLanguageResultsWithContentMetadata merges Postgres content-index
-// metadata into graph-sourced results, keyed by repository plus file
-// path/label/name/start line (languageResultRepositoryMatchKey). merged
+// metadata into graph-sourced results. For a content-id-anchored label
+// (contentIDAnchoredLabels) on a store that implements the id lookup, it reads
+// the graph rows' own content rows by entity id (#7247,
+// enrichLanguageResultsByEntityID). Every other label with a content entity
+// type keeps the filtered content page read, merged by repository plus file path/label/name/start
+// line (languageResultRepositoryMatchKey). Either way it records which path
+// served the request and how many rows it enriched. merged
 // reports true whenever a matched row's content metadata was
 // non-empty and was merged into that row via mergeGraphFirstMetadata -- every
 // no-op path below (nil Content, unmapped label, zero content rows, no key
@@ -69,6 +74,14 @@ func (h *Handler) enrichLanguageResultsWithContentMetadata(
 		entitysemantics.AttachSemanticSummary(results[i])
 	}
 
+	// #7247: for a label whose graph id is the content primary key, read the
+	// graph rows' own content rows by id. The page read below is a separate,
+	// differently ordered and differently matched page, so on a large
+	// repository it shares few rows with the graph page.
+	if reader, ok := h.anchoredMetadataReader(label); ok {
+		return h.enrichLanguageResultsByEntityID(ctx, reader, results, repoID, grant)
+	}
+
 	// #5167 batch 2a: this is a SECOND content read, issued after the graph
 	// already answered. Left unbound it reads every tenant's rows to build the
 	// merge-key map below, so a key collision would merge another tenant's
@@ -86,6 +99,7 @@ func (h *Handler) enrichLanguageResultsWithContentMetadata(
 		return nil, false, fmt.Errorf("enrich language results with content metadata: %w", err)
 	}
 	if len(rows) == 0 {
+		h.recordMetadataEnrichment(ctx, metadataPathPageRead, 0, len(results))
 		return results, false, nil
 	}
 
@@ -101,6 +115,7 @@ func (h *Handler) enrichLanguageResultsWithContentMetadata(
 	}
 
 	merged := false
+	enriched := 0
 	for i := range results {
 		key := languageResultRepositoryMatchKey(
 			languageResultRepositoryID(results[i]),
@@ -116,7 +131,9 @@ func (h *Handler) enrichLanguageResultsWithContentMetadata(
 		results[i]["metadata"] = mergeGraphFirstMetadata(results[i]["metadata"], metadata)
 		entitysemantics.AttachSemanticSummary(results[i])
 		merged = true
+		enriched++
 	}
+	h.recordMetadataEnrichment(ctx, metadataPathPageRead, enriched, len(results)-enriched)
 
 	return results, merged, nil
 }

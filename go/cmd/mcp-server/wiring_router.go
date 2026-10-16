@@ -160,10 +160,11 @@ func newMCPQueryRouterWithSemanticEmbeddingWithReadStore(
 			ContentRelationships: query.ContentIndexRelationshipBuilder{},
 		},
 		Language: &query.LanguageQueryHandler{
-			Neo4j:   neo4jReader,
-			Content: contentReader,
-			Profile: queryProfile,
-			Logger:  logger,
+			Neo4j:       neo4jReader,
+			Content:     contentReader,
+			Profile:     queryProfile,
+			Logger:      logger,
+			Instruments: instruments,
 		},
 		Content: &query.ContentHandler{
 			Content:      contentReader,

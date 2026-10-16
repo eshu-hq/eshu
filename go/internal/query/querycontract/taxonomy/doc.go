@@ -9,7 +9,9 @@
 // graph-first variants, the Elixir semantic types), how a graph row's optional
 // semantic metadata is projected (GraphResultMetadata), and the shapes a
 // language-scoped entity search uses (LanguageEntitySearch,
-// LanguageEntityContentSearcher, LanguageResultMatchKey).
+// LanguageEntityContentSearcher, LanguageResultMatchKey) and the id-anchored
+// metadata read the language-query enrichment prefers (LanguageEntityIDLookup,
+// LanguageEntityMetadataByIDReader, MaxLanguageEntityIDLookup; #7247).
 //
 // The maps are package-level vars shared by every handler family; callers
 // read them and must never write to them.
