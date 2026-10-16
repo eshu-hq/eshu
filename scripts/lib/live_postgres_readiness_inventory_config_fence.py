@@ -51,6 +51,9 @@ CONFIG_FENCE_PACKAGES = {
             "TestVersionFenceSeedRacesAFencedWriteLive",
             "TestVersionFenceSeedOrderDoesNotDeadlockWithAWriterLive",
         ),
+        f"{_FENCE_DIR}/fence_rerun_live_test.go": (
+            "TestVersionFenceMigrationReRunsUnderAConcurrentWriterLive",
+        ),
         f"{_FENCE_DIR}/fence_commit_live_test.go": (
             "TestVersionFenceCommitTriggerIsDeferredLive",
             "TestVersionFenceBumpsOnceAtCommitLive",

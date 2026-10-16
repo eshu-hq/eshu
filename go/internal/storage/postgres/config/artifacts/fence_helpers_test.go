@@ -251,3 +251,25 @@ func contentCount(ctx context.Context, t *testing.T, db *sql.DB, repoID, prefix 
 	}
 	return n
 }
+
+// waitForSleeper polls pg_stat_activity until a backend whose query holds
+// fragment is inside pg_sleep, so a test can act while that statement is
+// mid-flight with its table locks held.
+func waitForSleeper(ctx context.Context, t *testing.T, db *sql.DB, fragment string) {
+	t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		var sleeping int
+		if err := db.QueryRowContext(ctx, `
+SELECT count(*) FROM pg_stat_activity
+WHERE datname = current_database() AND wait_event = 'PgSleep'
+  AND pid <> pg_backend_pid() AND strpos(query, $1) > 0`, fragment).Scan(&sleeping); err != nil {
+			t.Fatalf("poll sleepers: %v", err)
+		}
+		if sleeping > 0 {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for a sleeping %q statement", fragment)
+}
