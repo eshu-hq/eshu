@@ -125,9 +125,11 @@ def verify_trigger(workflow: str, inventory: dict[str, dict[str, object]], pr_pa
     if not pr:
         raise ValueError("scheduled workflow PR path filter missing")
     paths = sorted(pr_paths | set(inventory))
-    expected = "    paths:\n" + "".join(f"      - '{path}'\n" for path in paths)
+    expected = "    branches:\n      - main\n    paths:\n" + "".join(
+        f"      - '{path}'\n" for path in paths
+    )
     if pr.group(1).rstrip("\n") + "\n" != expected:
-        raise ValueError("scheduled workflow PR paths differ from exact enrollment")
+        raise ValueError("scheduled workflow PR paths or branches differ from exact enrollment")
     group = "  group: postgres-scheduled-live-${{ github.event_name }}-${{ github.ref }}"
     if (len(re.findall("(?m)^" + re.escape(group) + "$", workflow)) != 1
             or not re.search(r"(?m)^  cancel-in-progress: false$", workflow)):

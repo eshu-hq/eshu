@@ -66,10 +66,11 @@ class ScheduledRunnerTest(unittest.TestCase):
         inventory = MODULE.load_inventory()
         workflow = (ROOT / MODULE.WORKFLOW).read_text()
         trigger = re.search(
-            r"(?ms)^  pull_request:\n    paths:\n((?:      - '[^']+'\n)+)",
+            r"(?ms)^  pull_request:\n    branches:\n      - main\n    paths:\n((?:      - '[^']+'\n)+)",
             workflow,
         )
         self.assertIsNotNone(trigger)
+        self.assertIn("    branches:\n      - main\n", trigger.group(0))
         paths = re.findall(r"^      - '([^']+)'$", trigger.group(1), re.MULTILINE)
         self.assertTrue(set(inventory).issubset(paths))
         self.assertIn(
@@ -89,6 +90,7 @@ class ScheduledRunnerTest(unittest.TestCase):
             if inventory[path]["group"] == "ack_family"
         )
         changes = (
+            ("    branches:\n      - main\n", "", "PR paths or branches"),
             ("  pull_request:\n", "  push:\n", "PR events"),
             ("  workflow_dispatch:\n", "  workflow_dispatch:\n  merge_group:\n", "PR events"),
             ("  workflow_dispatch:\n", "  workflow_dispatch:\n  workflow_dispatch:\n", "PR events"),

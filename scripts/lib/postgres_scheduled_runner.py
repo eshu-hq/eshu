@@ -20,7 +20,7 @@ from postgres_scheduled_workflow import (
 
 INVENTORY = Path(__file__).with_name("postgres_scheduled_inventory.json")
 WORKFLOW = Path(".github/workflows/postgres-scheduled-live.yml")
-WORKFLOW_SHA256 = "6dd9caf460dd34329e467d667ac747e11991be358eda6d67687d4470be8c8a03"
+WORKFLOW_SHA256 = "32711bd22394a3afb14560f65dfde341721055718db9c8a03962aecd2c9e32d6"
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
 
 

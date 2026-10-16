@@ -89,8 +89,11 @@ func watchAdvisoryLockHold(ctx context.Context, sqlDB *sql.DB, stop <-chan struc
 	}
 	out := make(chan time.Duration, 1)
 	go func() {
-		defer func() { _ = conn.Close() }()
 		var first, last time.Time
+		defer func() {
+			_ = conn.Close()
+			out <- last.Sub(first)
+		}()
 		for {
 			var held int
 			if err := conn.QueryRowContext(ctx, advisoryLocksHeldSQL).Scan(&held); err == nil && held > 0 {
@@ -102,7 +105,6 @@ func watchAdvisoryLockHold(ctx context.Context, sqlDB *sql.DB, stop <-chan struc
 			}
 			select {
 			case <-stop:
-				out <- last.Sub(first)
 				return
 			case <-time.After(2 * time.Millisecond):
 			}
@@ -120,6 +122,12 @@ func probeRetentionPolicy() postgres.GenerationRetentionPolicy {
 		PolicyScope:              "global",
 		PolicyRevision:           "infra-inventory-lock-probe",
 	}
+}
+
+// newRetentionProbeRoundContext gives each complete 50k-row round its own
+// deadline; no round inherits the previous round's elapsed budget.
+func newRetentionProbeRoundContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), 90*time.Second)
 }
 
 // TestRetentionLiveLockHoldAndDeriveWaitCost measures what the #6793 retention
@@ -142,53 +150,71 @@ func probeRetentionPolicy() postgres.GenerationRetentionPolicy {
 //	  -run TestRetentionLiveLockHoldAndDeriveWaitCost -count=1 -v
 func TestRetentionLiveLockHoldAndDeriveWaitCost(t *testing.T) {
 	sqlDB, ctx := liveDB(t)
-	database := postgres.SQLDB{DB: sqlDB}
-	store := postgres.NewGenerationRetentionStore(database)
 	other := uniqueRepo(t)
 	putContent(t, ctx, sqlDB, other, contentRow{"o1", "o.tf", "TerraformResource", "r.o1", `{}`})
 	wantPruned := int64(retentionProbeGenerations * retentionProbeFactsPerGeneration)
 
 	for round := 1; round <= 3; round++ {
-		drainRetention(t, ctx, store)
-		// Retention alone, to sample the lock hold.
-		repo := uniqueRepo(t)
-		seedRetentionProbeRepo(t, ctx, sqlDB, repo)
-		stop := make(chan struct{})
-		hold, err := watchAdvisoryLockHold(ctx, sqlDB, stop)
-		if err != nil {
-			t.Fatalf("watch locks: %v", err)
-		}
-		result, err := store.PruneSupersededGenerations(ctx, probeRetentionPolicy())
-		close(stop)
-		if err != nil {
-			t.Fatalf("PruneSupersededGenerations() error = %v", err)
-		}
-		lockHold := <-hold
-		if got := result.RowsPruned["infra_resource_entities"]; got != wantPruned {
-			t.Fatalf("round %d infra_resource_entities pruned = %d, want %d", round, got, wantPruned)
-		}
-
-		// A derive of the same repository racing retention.
-		repo = uniqueRepo(t)
-		seedRetentionProbeRepo(t, ctx, sqlDB, repo)
-		baseline := timedDerive(t, ctx, database, repo)
-		retentionDone := make(chan error, 1)
-		go func() {
-			_, err := store.PruneSupersededGenerations(ctx, probeRetentionPolicy())
-			retentionDone <- err
-		}()
-		waitForAdvisoryLock(t, ctx, sqlDB)
-		otherWait := timedDerive(t, ctx, database, other)
-		deriveWait := timedDerive(t, ctx, database, repo)
-		if err := <-retentionDone; err != nil {
-			t.Fatalf("PruneSupersededGenerations() error = %v", err)
-		}
-		if rows := tableRows(t, ctx, sqlDB, repo); len(rows) != 0 {
-			t.Fatalf("round %d: %d read-model rows survived retention, want 0", round, len(rows))
-		}
-		t.Logf("No-Regression Evidence: round=%d retention_duration=%s lock_hold=%s derive_baseline=%s derive_wait=%s other_repo=%s",
-			round, result.Duration, lockHold, baseline, deriveWait, otherWait)
+		runRetentionProbeRound(t, sqlDB, other, round, wantPruned)
 	}
+}
+
+// runRetentionProbeRound keeps all seeding, pruning, observation, and derive
+// checks inside one independent bounded round and joins its worker on failure.
+func runRetentionProbeRound(t *testing.T, sqlDB *sql.DB, other string, round int, wantPruned int64) {
+	t.Helper()
+	ctx, cancel := newRetentionProbeRoundContext()
+	defer cancel()
+	database := postgres.SQLDB{DB: sqlDB}
+	store := postgres.NewGenerationRetentionStore(database)
+	drainRetention(t, ctx, store)
+	// Retention alone, to sample the lock hold.
+	repo := uniqueRepo(t)
+	seedRetentionProbeRepo(t, ctx, sqlDB, repo)
+	stop := make(chan struct{})
+	hold, err := watchAdvisoryLockHold(ctx, sqlDB, stop)
+	if err != nil {
+		t.Fatalf("watch locks: %v", err)
+	}
+	result, err := store.PruneSupersededGenerations(ctx, probeRetentionPolicy())
+	close(stop)
+	lockHold := <-hold
+	if err != nil {
+		t.Fatalf("PruneSupersededGenerations() error = %v", err)
+	}
+	if got := result.RowsPruned["infra_resource_entities"]; got != wantPruned {
+		t.Fatalf("round %d infra_resource_entities pruned = %d, want %d", round, got, wantPruned)
+	}
+
+	// A derive of the same repository racing retention.
+	repo = uniqueRepo(t)
+	seedRetentionProbeRepo(t, ctx, sqlDB, repo)
+	baseline := timedDerive(t, ctx, database, repo)
+	retentionDone := make(chan error, 1)
+	go func() {
+		_, err := store.PruneSupersededGenerations(ctx, probeRetentionPolicy())
+		retentionDone <- err
+	}()
+	joined := false
+	defer func() {
+		if !joined {
+			cancel()
+			<-retentionDone
+		}
+	}()
+	waitForAdvisoryLock(t, ctx, sqlDB)
+	otherWait := timedDerive(t, ctx, database, other)
+	deriveWait := timedDerive(t, ctx, database, repo)
+	retentionErr := <-retentionDone
+	joined = true
+	if retentionErr != nil {
+		t.Fatalf("PruneSupersededGenerations() error = %v", retentionErr)
+	}
+	if rows := tableRows(t, ctx, sqlDB, repo); len(rows) != 0 {
+		t.Fatalf("round %d: %d read-model rows survived retention, want 0", round, len(rows))
+	}
+	t.Logf("No-Regression Evidence: round=%d retention_duration=%s lock_hold=%s derive_baseline=%s derive_wait=%s other_repo=%s",
+		round, result.Duration, lockHold, baseline, deriveWait, otherWait)
 }
 
 // drainRetention prunes every eligible generation left by an earlier aborted

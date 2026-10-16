@@ -1,8 +1,8 @@
 # #7533: scheduled PostgreSQL live proof enrollment
 
 The `postgres-scheduled` runner owns 182 exact named tests in 97 live files.
-The same job runs daily at 04:35 UTC, manually, and for pull requests changing
-its enrolled inputs. It uses one digest-pinned PostgreSQL 18.6 service.
+The same job runs daily at 04:35 UTC, manually, and for pull requests to
+`main` changing its enrolled inputs. It uses one digest-pinned PostgreSQL 18.6 service.
 
 Crossplane, infra inventory, ACK/completion, claim, liveness, fanout, search,
 readiness and containerimage use separate fresh databases. The three disposable
@@ -16,7 +16,7 @@ evidence. Actual cron delivery remains NOT_CHECKED.
 
 ## Local enrollment proof
 
-The source baseline was `eac0860933e4124400a7e59056f58954346d4c32`. Go was `go1.26.9 linux/arm64`; PostgreSQL was image `ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873`. Each package ran serially with `go test -json -race -p=1 -count=1` and an anchored selector of its exact named tests. The first five groups retain their source files from that baseline; the ACK group updates one stale assertion to the current typed supersession contract. The five additional groups have unchanged source bytes from the owned five-database PostgreSQL 18.6 proof on parent `8e52aa782a892fc0a86a32fc8898a5405f552ce6`.
+The source baseline was `eac0860933e4124400a7e59056f58954346d4c32`. Go was `go1.26.9 linux/arm64`; PostgreSQL was image `ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873`. Each package ran serially with `go test -json -race -p=1 -count=1` and an anchored selector of its exact named tests. The first five groups originally used source files from that baseline; the infra inventory group has the later test-only repairs described below. The ACK group updates one stale assertion to the current typed supersession contract. The five additional groups have unchanged source bytes from the owned five-database PostgreSQL 18.6 proof on parent `8e52aa782a892fc0a86a32fc8898a5405f552ce6`.
 
 | Package | Files | Tests | Result | Process wall time |
 | --- | ---: | ---: | --- | ---: |
@@ -36,6 +36,36 @@ The source baseline was `eac0860933e4124400a7e59056f58954346d4c32`. Go was `go1.
 No selected test or subtest skipped or failed. The first five local Go JSON streams are `/tmp/eshu-7533-proof/{crossplane-full,infra_inventory-full,cmd-golden-corpus-gate-disposable-pg,internal-query-disposable-pg,internal-storage-postgres-disposable-pg}.jsonl`; the coordinator recorded exact commands and outcomes in `pg-full-results.json` and `disposable-pg-results.json`. The query stream's 33.881s process wall time belongs to an enclosing ten-test run that also included the excluded peer test. Its events prove the selected nine-test subset passed, not its isolated cost. The ACK stream is `/tmp/eshu-7533-ack-full.jsonl`; its command, exit, and process wall time are in `/tmp/eshu-7533-ack-full-result.json`. The baseline stream `/tmp/eshu-7533-proof/ack-family.jsonl` had 42 passing tests and one failing stale supersession assertion before the test-only correction. The listed times are observed enrollment costs on a shared host, not a controlled speed or budget comparison. The versioned inventory index lists twelve closed JSON fragments. The manifest checksum binds the index bytes, each listed path, and every fragment byte. The committed inventory checks every Test name against source and workflow selectors; the event verifier rejects missing, duplicate, skipped, failed, malformed, or wrong-package results. The scheduled job runs negative harness tests before the packages.
 
 The combined worktree replay on parent `8e52aa782a892fc0a86a32fc8898a5405f552ce6` ran the exact 43 ACK tests with `-race -p=1 -count=1` against a fresh owned PostgreSQL 18.6 database. It exited 0; the strict event check found 43 named run/pass pairs, package pass, and no selected skip or failure. The stream and command receipt are `/tmp/eshu-7533-pg57-ack-final.jsonl` and `/tmp/eshu-7533-pg57-ack-final-result.json`. Its 915.915s process wall includes cold race compilation in a new private Go cache, so it is not comparable to the earlier 159.951s ACK run or a controlled budget result. The original local 167-test bundle combines those six passing streams with the five passing streams from `/tmp/eshu-7533-isolation-{claim,liveness,fanout,search,readiness}.jsonl`. The five-group command and result manifest is `/tmp/eshu-7533-isolation-groups-results.json`; its receipt records 71 exact passing tests on five fresh databases in 458.455s total wall. Those group process times are observations on a shared host, not controlled speed comparisons. The local 167-test bundle labels its synthetic run metadata `local_simulation`; its artifact location is retained in the session receipt.
+
+## First hosted attempt and corrected infra inventory proof
+
+The first hosted PostgreSQL attempt failed its infra inventory group because
+`TestRetentionLiveLockHoldAndDeriveWaitCost` reused one 90-second database
+context across three complete rounds. It logged two successful rounds and
+expired during the third. The corrected test gives each unchanged 50,000-row
+round an independent 90-second context, joins its lock observer and retention
+worker before returning, and keeps the 7-minute package timeout. A local race run exposed a fixture shutdown race in
+`TestWriterFenceLiveInvariantUnderConcurrentWritesAndRepairs`: a mark became
+visible after its final reconcile cycle began. The test passed its 6-second
+scheduling context to admitted SQL, so cancellation did not establish that
+all server work had finished before the final check. Its three concurrent actors now use
+the existing 90-second operation context, stop admitting work after six
+seconds, record late operation and per-repository errors, and join before one
+final reconcile and repeatable-read snapshot. No workload, actor count,
+production SQL, or runtime contract changed.
+
+At the corrected source, the exact 32-test infra inventory group passed with
+`-race -p=1 -count=1 -timeout=7m` on a fresh PostgreSQL 18.6 database. The
+strict event verifier found 32 named run/pass pairs, package pass, and no
+selected skip or failure. The three retention rounds all logged their full
+measurements and passed. The process wall time was 102.680 seconds on a shared
+host, an observed cost rather than a controlled speed comparison. The retained
+local stream is `pg-infra-32-final.jsonl` with receipt
+`pg-infra-32-final-receipt.json`; its source hashes bind the corrected fence
+and retention tests. Controlled unit regressions proved a fresh context per
+round and that an admitted operation continues after scheduling stops, joins,
+and reports its late error. A passing hosted job on the final revision remains
+a merge prerequisite.
 
 ## Container-image fixture regression and route
 
