@@ -228,7 +228,8 @@ has_prepr_selector_parity() {
 		'scripts/(verify-replay-tier|test-verify-replay-tier)\.sh' \
 		'scripts/dev/pre-pr\.sh' \
 		'scripts/ci/install-apt-packages\.sh' \
-		'\.github/workflows/verify-replay-tier\.yml'; do
+		'\.github/workflows/(verify-replay-tier|live-backend-tests)\.yml' \
+		'specs/ci-gates\.d/gates-(09|15)\.yaml'; do
 		rg --fixed-strings --quiet "${required_path}" <<<"${trigger}" || return 1
 	done
 }

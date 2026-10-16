@@ -334,11 +334,11 @@ gates:
       - "scripts/test-replay-tier-*.py"
       - "specs/live-tests.v1.yaml"
       - "specs/live-tests.d/**"
-      - "specs/ci-gates.d/gates-15.yaml"
+      - "specs/ci-gates.d/**"
       - "scripts/dev/pre-pr.sh"
       - "scripts/ci/install-apt-packages.sh"
       - "scripts/ci/go-mod-download-retry.sh"
-      - ".github/workflows/verify-replay-tier.yml"
+      - ".github/workflows/*"
     local:
       command: "bash scripts/verify-replay-tier.sh"
       test_command: "bash scripts/test-verify-replay-tier.sh"
