@@ -31,8 +31,8 @@ func TestAWSCloudRuntimeDriftStateARNJoinProbesARNIndexLive(t *testing.T) {
 			name = "stale_statistics"
 		}
 		t.Run(name, func(t *testing.T) {
-			database, ctx := openIsolatedLiveDB(t, "aws_drift_arn_plan",
-				"set ESHU_POSTGRES_DSN to run the #7666 aws_cloud_runtime_drift ARN-join plan proof")
+			database, ctx := openAWSDriftARNProofDB(t, "aws_drift_arn_plan",
+				"set ESHU_AWS_DRIFT_ARN_PROOF_DSN (or ESHU_POSTGRES_DSN) to run the #7666 aws_cloud_runtime_drift ARN-join plan proof")
 			fixture := seedAWSDriftStateARNFixture(t, ctx, database, 320, stale)
 
 			// Generous against the fixed plan (a few buffers per ARN probe plus

@@ -29,8 +29,8 @@ type awsDriftDifferentialFact struct {
 // order, over the edge cases the drift loader depends on. Order matters: the
 // loader keeps the first state row per ARN as the row's State.
 func TestAWSCloudRuntimeDriftStateARNJoinMatchesReferenceLive(t *testing.T) {
-	database, ctx := openIsolatedLiveDB(t, "aws_drift_arn_diff",
-		"set ESHU_POSTGRES_DSN to run the #7666 aws_cloud_runtime_drift ARN-join row differential")
+	database, ctx := openAWSDriftARNProofDB(t, "aws_drift_arn_diff",
+		"set ESHU_AWS_DRIFT_ARN_PROOF_DSN (or ESHU_POSTGRES_DSN) to run the #7666 aws_cloud_runtime_drift ARN-join row differential")
 	now := time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC)
 
 	const (
