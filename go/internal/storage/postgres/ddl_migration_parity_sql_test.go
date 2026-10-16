@@ -61,33 +61,63 @@ func normalizeDDLIdent(raw string) (string, bool) {
 	return name, true
 }
 
+// ddlQuotedEnd reports whether a quoted region opens at s[i]: a
+// single-quoted literal, a double-quoted identifier, or a dollar-quoted body
+// ($$...$$ or $tag$...$tag$). When one does, end is the index just past its
+// closing delimiter, or len(s) when it is unterminated. A doubled single
+// quote inside a literal closes one region and opens the next at once. It
+// is the one quote scanner the comment stripper and the statement cut
+// share.
+func ddlQuotedEnd(s string, i int) (end int, quoted bool) {
+	delim := ""
+	switch s[i] {
+	case '\'', '"':
+		delim = s[i : i+1]
+	case '$':
+		tag, ok := dollarQuoteTag(s, i)
+		if !ok {
+			return 0, false
+		}
+		delim = tag
+	default:
+		return 0, false
+	}
+	stop := strings.Index(s[i+len(delim):], delim)
+	if stop < 0 {
+		return len(s), true
+	}
+	return i + len(delim) + stop + len(delim), true
+}
+
+// ddlStatementEnd returns the index of the first ";" in s outside every
+// quoted region ddlQuotedEnd recognizes, or len(s) when there is none. SQL
+// comments are already stripped when it runs.
+func ddlStatementEnd(s string) int {
+	for i := 0; i < len(s); i++ {
+		if end, quoted := ddlQuotedEnd(s, i); quoted {
+			i = end - 1
+			continue
+		}
+		if s[i] == ';' {
+			return i
+		}
+	}
+	return len(s)
+}
+
 // stripSQLComments blanks "--" line comments and "/* */" block comments,
-// keeping newlines so line numbers hold. Single-quoted literals,
-// double-quoted identifiers, and dollar-quoted bodies ($$...$$ or
-// $tag$...$tag$) are skipped whole, so a comment marker or an apostrophe
-// inside one is body text. An unterminated quote runs to the end of sql.
+// keeping newlines so line numbers hold. Quoted regions (see ddlQuotedEnd)
+// are skipped whole, so a comment marker or an apostrophe inside one is
+// body text. An unterminated quote runs to the end of sql.
 func stripSQLComments(sql string) string {
 	out := []byte(sql)
 	for i := 0; i < len(out); i++ {
-		switch c := out[i]; {
-		case c == '\'' || c == '"':
-			// A doubled quote ('it''s') closes here and reopens at once.
-			end := strings.IndexByte(sql[i+1:], c)
-			if end < 0 {
-				return string(out)
-			}
-			i += 1 + end
-		case c == '$':
-			tag, ok := dollarQuoteTag(sql, i)
-			if !ok {
-				continue
-			}
-			end := strings.Index(sql[i+len(tag):], tag)
-			if end < 0 {
-				return string(out)
-			}
-			i += len(tag) + end + len(tag) - 1
-		case c == '-' && i+1 < len(out) && out[i+1] == '-':
+		if end, quoted := ddlQuotedEnd(sql, i); quoted {
+			i = end - 1
+			continue
+		}
+		switch {
+		case out[i] == '-' && i+1 < len(out) && out[i+1] == '-':
 			for ; i < len(out) && out[i] != '\n'; i++ {
 				out[i] = ' '
 			}

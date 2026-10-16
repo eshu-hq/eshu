@@ -91,11 +91,9 @@ func ddlSubmatch(s string, m []int, n int) string {
 	return s[m[2*n]:m[2*n+1]]
 }
 
-// ddlStatementText returns s up to its first semicolon or newline, the text
-// an unresolved ALTER is keyed by.
+// ddlStatementText returns s up to the statement end (ddlStatementEnd) or
+// its first newline, whichever comes first: the text an unresolved ALTER is
+// keyed by.
 func ddlStatementText(s string) string {
-	if i := strings.IndexByte(s, ';'); i >= 0 {
-		s = s[:i]
-	}
-	return ddlFirstLine(s)
+	return ddlFirstLine(s[:ddlStatementEnd(s)])
 }

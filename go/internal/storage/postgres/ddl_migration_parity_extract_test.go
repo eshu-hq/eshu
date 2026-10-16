@@ -87,9 +87,10 @@ var (
 	// ddlCreateIndexPattern is anchored at a CREATE INDEX head; group 1 is
 	// the index name and group 2 the table.
 	ddlCreateIndexPattern = regexp.MustCompile(`(?is)^create\s+(?:unique\s+)?index\s+(?:concurrently\s+)?(?:if\s+not\s+exists\s+)?([^\s(;,]+)\s+on\s+(?:only\s+)?([^\s(;,]+)`)
-	// ddlAlterTablePattern is anchored at an ALTER TABLE head; group 1 is the
-	// table and group 2 the action list up to the statement end.
-	ddlAlterTablePattern = regexp.MustCompile(`(?is)^alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?([^\s(;,]+)\s+([^;]*)`)
+	// ddlAlterTablePattern is anchored at an ALTER TABLE head and runs on
+	// the statement text up to ddlStatementEnd; group 1 is the table and
+	// group 2 the action list.
+	ddlAlterTablePattern = regexp.MustCompile(`(?is)^alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?([^\s(;,]+)\s+(.*)`)
 	// ddlCreateTriggerPattern is anchored at a CREATE TRIGGER head; group 1
 	// is the trigger name and group 2 the table after ON.
 	ddlCreateTriggerPattern = regexp.MustCompile(`(?is)^create\s+(?:or\s+replace\s+)?(?:constraint\s+)?trigger\s+([^\s(;,]+)\s[^;]*?\bon\s+(?:only\s+)?([^\s(;,]+)`)
@@ -216,6 +217,7 @@ func (inv *ddlInventory) addCreateTable(rest string, site ddlSite) {
 // action list, an empty action, or an unrecognized action means part of the
 // statement is joined on at runtime, and is recorded as unresolved.
 func (inv *ddlInventory) addAlterTable(rest string, site ddlSite) {
+	rest = rest[:ddlStatementEnd(rest)]
 	m := ddlAlterTablePattern.FindStringSubmatchIndex(rest)
 	if m == nil {
 		inv.unresolvedAt(ddlFirstLine(rest), site)

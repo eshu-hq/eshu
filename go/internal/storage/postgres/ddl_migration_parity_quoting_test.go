@@ -215,3 +215,66 @@ func TestDDLMigrationParityInlineConstraints(t *testing.T) {
 		})
 	}
 }
+
+// TestDDLMigrationParityStatementCut proves a statement ends at the first
+// ";" outside a single-quoted literal, a double-quoted identifier, or a
+// dollar-quoted body. A ";" inside one of them must not cut an ALTER TABLE
+// action list short and hide the actions after it.
+func TestDDLMigrationParityStatementCut(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		goSQL   string
+		wantGap []string // sorted substrings, one per expected gap
+	}{
+		{
+			name:    "fail: semicolon in a DEFAULT literal does not hide a later ADD COLUMN",
+			goSQL:   "ALTER TABLE widgets ADD COLUMN owner TEXT DEFAULT 'a;b', ADD COLUMN go_only_col TEXT",
+			wantGap: []string{"column widgets.go_only_col"},
+		},
+		{
+			// The name stays whole in the statement; like any quoted name
+			// holding a space, comma, or parenthesis, it is not readable.
+			name:    "fail: semicolon in a double-quoted identifier does not cut the statement",
+			goSQL:   `ALTER TABLE widgets ADD COLUMN "odd;name" TEXT, ADD COLUMN go_only_col TEXT`,
+			wantGap: []string{"column widgets.go_only_col", `unresolved DDL in "ALTER TABLE widgets ADD COLUMN \"odd;name\" TEXT"`},
+		},
+		{
+			name:    "fail: semicolon in a dollar-quoted DEFAULT does not hide a later ADD COLUMN",
+			goSQL:   "ALTER TABLE widgets ADD COLUMN owner TEXT DEFAULT $d$a;b$d$, ADD COLUMN go_only_col TEXT",
+			wantGap: []string{"column widgets.go_only_col"},
+		},
+		{
+			name:  "pass: a plain semicolon still ends the statement",
+			goSQL: "ALTER TABLE widgets ADD COLUMN owner TEXT; ADD COLUMN ghost TEXT",
+		},
+		{
+			name:    "fail: two statements in one literal are both read",
+			goSQL:   "ALTER TABLE widgets ADD COLUMN owner TEXT DEFAULT 'x;y'; ALTER TABLE widgets ADD COLUMN go_only_col TEXT",
+			wantGap: []string{"column widgets.go_only_col"},
+		},
+		{
+			name:    "fail: an unresolved ALTER keeps a quoted semicolon in its key",
+			goSQL:   "ALTER TYPE widget_state ADD VALUE 'a;b'; SELECT 1",
+			wantGap: []string{`unresolved DDL in "ALTER TYPE widget_state ADD VALUE 'a;b'"`},
+		},
+	}
+
+	migInv := extractDDLInventory([]ddlSource{{file: "migrations/001_widgets.sql", line: 1, sql: ddlParityMigrationBase}})
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			goInv := extractDDLInventory([]ddlSource{{file: "store/schema.go", line: 10, sql: tc.goSQL}})
+			gaps := ddlParityGaps(goInv, migInv, nil, nil)
+			if len(gaps) != len(tc.wantGap) {
+				t.Fatalf("gaps = %d %q, want %d matching %q", len(gaps), gaps, len(tc.wantGap), tc.wantGap)
+			}
+			for i, want := range tc.wantGap {
+				if !strings.Contains(gaps[i], want) || !strings.Contains(gaps[i], "store/schema.go:") {
+					t.Fatalf("gap[%d] = %q, want it to mention %q at the Go source site", i, gaps[i], want)
+				}
+			}
+		})
+	}
+}
