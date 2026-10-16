@@ -66,6 +66,9 @@ class ScheduledRunnerTest(unittest.TestCase):
         self.assertIsNotNone(trigger)
         paths = re.findall(r"^      - '([^']+)'$", trigger.group(1), re.MULTILINE)
         self.assertTrue(set(inventory).issubset(paths))
+        self.assertIn(
+            "go/internal/storage/postgres/ack_supersession_assertions_test.go", paths
+        )
         self.assertNotIn("go/**", paths)
         self.assertNotIn("  push:", workflow)
         self.assertNotIn("  merge_group:", workflow)

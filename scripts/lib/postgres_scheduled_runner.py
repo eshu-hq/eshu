@@ -50,6 +50,7 @@ PR_PATHS = {
     "go/internal/query/*fixture*test.go",
     "go/internal/storage/postgres/testdata/**",
     "go/internal/storage/postgres/*fixture*test.go",
+    "go/internal/storage/postgres/ack_supersession_assertions_test.go",
     "go/internal/storage/postgres/crossplane/testdata/**",
     "go/internal/storage/postgres/infra/inventory/testdata/**",
     "go/cmd/golden-corpus-gate/testdata/**",

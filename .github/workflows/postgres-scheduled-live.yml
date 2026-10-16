@@ -25,6 +25,7 @@ on:
       - 'go/internal/query/documentation_target_facts_differential_live_test.go'
       - 'go/internal/query/testdata/**'
       - 'go/internal/storage/postgres/*fixture*test.go'
+      - 'go/internal/storage/postgres/ack_supersession_assertions_test.go'
       - 'go/internal/storage/postgres/container_image_identity_ack_attempt_fencing_live_test.go'
       - 'go/internal/storage/postgres/container_image_identity_ack_batch_exactness_live_test.go'
       - 'go/internal/storage/postgres/container_image_identity_ack_capability_live_test.go'
