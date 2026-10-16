@@ -41,6 +41,8 @@ use const Cn\{EPS, ZETA as Z};
 /* lead */ use /* mid */ function Fn\commented;
 	use   const   Cn\SPACED;
 use Functional\Multi, Constraint\Multi2;
+use function Fn\a, Fn\b as bb;
+use A\{B, function c};
 `,
 	)
 
@@ -76,6 +78,15 @@ use Functional\Multi, Constraint\Multi2;
 		{`Cn\SPACED`, "const"},
 		{`Functional\Multi`, "use"},
 		{`Constraint\Multi2`, "use"},
+		// One kind token before a comma list applies to every clause (PHP
+		// semantics), so the second, aliased clause is a function import too.
+		{`Fn\a`, "function"},
+		{`Fn\b`, "function"},
+		// A mixed group has no declaration-level kind token, so it stays a
+		// class-style `use`. Reading the first typed clause here would mark
+		// `A\B` as a function and drop its package key.
+		{`A\B`, "use"},
+		{`A\c`, "use"},
 	}
 	for _, tc := range cases {
 		item := parsertest.AssertBucketItemByName(t, got, "imports", tc.name)
