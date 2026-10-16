@@ -131,3 +131,30 @@ func failureBodyKeys(m map[string]any) []string {
 	sort.Strings(keys)
 	return keys
 }
+
+// TestDocumentationAggregatesUnconfiguredAnswer503WithoutRetryAfter pins the
+// configuration 503 the two aggregate routes keep: with no aggregate store
+// wired, they answer 503 backend_unavailable with no Retry-After, so a client
+// can tell it from the retryable reader-fence 503.
+func TestDocumentationAggregatesUnconfiguredAnswer503WithoutRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	for _, path := range []string{"/api/v0/documentation/findings/count", "/api/v0/documentation/findings/inventory"} {
+		mux := http.NewServeMux()
+		(&DocumentationHandler{}).Mount(mux)
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusServiceUnavailable {
+			t.Errorf("%s: status = %d, want 503", path, rec.Code)
+		}
+		if got := rec.Header().Get("Retry-After"); got != "" {
+			t.Errorf("%s: Retry-After = %q, want none on the configuration 503", path, got)
+		}
+		got := decodeFailureBody(t, path, rec.Body.Bytes(), true)
+		if got["code"] != string(ErrorCodeBackendUnavailable) {
+			t.Errorf("%s: code = %v, want %s", path, got["code"], ErrorCodeBackendUnavailable)
+		}
+	}
+}
