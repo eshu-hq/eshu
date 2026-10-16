@@ -106,17 +106,20 @@ func mismatch(reason, message string) *Error {
 	return &Error{Code: ErrorCodeBasisMismatch, Status: http.StatusConflict, Reason: reason, Message: message}
 }
 
-// WriteError answers a request with err when err is a *Error and reports
-// whether it did. The negotiated envelope carries details.reason, and for a
-// basis mismatch or an invalid cursor details.restart_with="start". Any other
-// error is left to the caller.
+// WriteError answers a request with err when err is a *Error with a code
+// from ErrorCodes, and reports whether it wrote anything. The negotiated
+// envelope carries details.reason, and for a basis mismatch or an invalid
+// cursor details.restart_with="start".
 //
 // The status comes from the code as a literal, never from the Status field:
 // rank_cursor_basis_mismatch answers 409, rank_cursor_invalid and
 // rank_cursor_unsupported answer 400, the same status each constructor puts in
-// Status. A *Error with any other code, which no constructor makes, is left
-// to the caller too, so a hand-built Status can never write a 5xx here
-// (#7674).
+// Status. A hand-built Status can never write a 5xx here (#7674).
+//
+// On false nothing is written: err is nil, not a *Error, or a *Error with a
+// code outside ErrorCodes, which no constructor makes. The caller must then
+// answer the request through its own failure path. Dropping the result
+// leaves the request with an empty 200.
 func WriteError(w http.ResponseWriter, r *http.Request, err error) bool {
 	var rankErr *Error
 	if err == nil || !errors.As(err, &rankErr) {
