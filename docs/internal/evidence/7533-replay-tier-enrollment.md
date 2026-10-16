@@ -41,8 +41,8 @@ non-vacuity checks, and 33 top-level passes across its two invocations. The
 added governance check was not selected in that baseline. This is a measured
 verification cost, not a speedup or a general NornicDB support claim.
 
-The full changed runner on candidate `42dc57c8325b6fd8e8a859555e56711676230bfd`
-exited 0 in 245.684093 seconds (4m 5.68s). Its first invocation passed 31
+The full changed runner on candidate `872b752061146ba3a08d3a415365114fc998e3df`
+exited 0 in 334.595925 seconds (5m 34.60s). Its first invocation passed 31
 selected top-level tests, including all 27 enrolled declarations (25 live and
 two hermetic); the separate blast-radius invocation passed all three selected
 top-level tests. The reviewed-source guard passed, the disposable fixture was
