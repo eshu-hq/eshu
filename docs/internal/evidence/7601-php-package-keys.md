@@ -208,10 +208,14 @@ because #7978 owns it. Production discovery already prunes `vendor/`
 - An unresolved PHP key still falls through to the repository-unique name
   fallback, as an unkeyed call did before. The JS-family barrier (#7610) has no
   PHP equivalent yet.
-- A class whose namespace begins with `Function` or `Const` (any case), such as
-  `use Functional\Collection;`, gets no Composer key and a wrong `import_type`,
-  because `phpImportKind` reads the statement prefix. This is pre-existing and
-  a missed key, never a false link (#8222).
+- A class whose namespace's first segment is exactly `Function` or `Const` (any
+  case), such as `use Function\Foo;`, is read by the vendored tree-sitter PHP
+  grammar as a `use function` or `use const` clause: the first segment is
+  dropped from the name and the `import_type` is wrong, so the class gets no
+  Composer key. This is a grammar limit that pre-dates #7601 and is a missed
+  key, never a false link. Namespaces that only begin with those words, such as
+  `Functional\` or `Constraint\`, were misread by `phpImportKind` and are fixed
+  by #8222.
 - Nested test-fixture `composer.json` files: a fixture manifest that reuses a
   real package name and maps a class at the same path can capture an edge only
   when the real producer is not indexed; when both are indexed, the unique rule

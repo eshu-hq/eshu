@@ -7,6 +7,8 @@
 // (TestDefaultEngineParsePathPHPEmitsLaravelRouteEntries).
 
 use Illuminate\Support\Facades\Route;
+use Functional\Collection;
+use Constraint\Rule;
 
 Route::get('user', 'UserController@index');
 Route::post('users/login', 'AuthController@login');
