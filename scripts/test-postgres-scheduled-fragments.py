@@ -232,8 +232,10 @@ class InventoryFragmentTest(unittest.TestCase):
         self.assertIsNotNone(match)
         script = "\n".join(line[10:] for line in match.group(1).splitlines())
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            for relative in ("go/proof_test.go", "scripts/ci/go-mod-download-retry.sh",
+            root = Path(temporary) / "checkout"
+            root.mkdir()
+            (root / ".gitignore").write_text("go.work\n", encoding="utf-8")
+            for relative in ("go/proof_test.go", "sdk/proof.go", "scripts/ci/go-mod-download-retry.sh",
                              ".github/workflows/postgres-scheduled-live.yml"):
                 target = root / relative
                 target.parent.mkdir(parents=True, exist_ok=True)
@@ -245,10 +247,12 @@ class InventoryFragmentTest(unittest.TestCase):
             subprocess.run(["git", "-c", "user.name=Proof", "-c",
                             "user.email=proof@example.invalid", "commit", "-qm", "fixture"],
                            cwd=root, check=True)
-            def run() -> int:
+            def run(goenv: str = "off") -> int:
                 """Execute the workflow's real source guard in the fixture repo."""
                 return subprocess.run(["bash", "-c", script], cwd=root / "go",
-                                      env={**os.environ, "GOFLAGS": "", "GOWORK": ""},
+                                      env={**{key: value for key, value in os.environ.items()
+                                              if key not in ("GOFLAGS", "GOWORK")},
+                                           "GOENV": goenv},
                                       check=False, capture_output=True).returncode
             self.assertEqual(run(), 0)
             target = root / "go/proof_test.go"
@@ -262,6 +266,25 @@ class InventoryFragmentTest(unittest.TestCase):
             (root / "go/new_test.go").write_text("new\n")
             self.assertNotEqual(run(), 0)
             (root / "go/new_test.go").unlink()
+            sdk = root / "sdk/proof.go"
+            sdk.write_text("changed\n")
+            self.assertNotEqual(run(), 0, "SDK source drift must fail the real guard")
+            sdk.write_text("reviewed\n")
+            workspace = root / "go.work"
+            workspace.write_text("go 1.26.9\n")
+            with self.subTest(configuration="ignored workspace"):
+                self.assertNotEqual(run(), 0, "ignored workspace must fail")
+            workspace.unlink()
+            ancestor_workspace = Path(temporary) / "go.work"
+            ancestor_workspace.write_text("go 1.26.9\nuse ./checkout/go\n")
+            with self.subTest(configuration="ancestor workspace"):
+                self.assertNotEqual(run(), 0, "ancestor workspace must fail")
+            ancestor_workspace.unlink()
+            goenv_file = Path(temporary) / "go-env"
+            goenv_file.write_text("GOFLAGS=-run=^$\n")
+            with self.subTest(configuration="persisted GOFLAGS"):
+                self.assertNotEqual(run(str(goenv_file)), 0,
+                                    "persisted GOFLAGS must fail")
             helper = root / "scripts/ci/go-mod-download-retry.sh"
             helper.write_text("changed\n")
             self.assertNotEqual(run(), 0)

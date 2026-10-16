@@ -20,7 +20,7 @@ from postgres_scheduled_workflow import (
 
 INVENTORY = Path(__file__).with_name("postgres_scheduled_inventory.json")
 WORKFLOW = Path(".github/workflows/postgres-scheduled-live.yml")
-WORKFLOW_SHA256 = "7360bc846cd78102d21c889089c53e2723c6113d0ddb63a128326e449e7e41d9"
+WORKFLOW_SHA256 = "6dd9caf460dd34329e467d667ac747e11991be358eda6d67687d4470be8c8a03"
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
 
 
@@ -167,7 +167,10 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
             raise ValueError(f"missing event verifier for {group}")
         if len(re.findall(r"(?m)^          set -euo pipefail$", step)) != 1:
             raise ValueError(f"missing fail-closed shell for {group}")
-        if step.count('          proof_status="$(git -C .. status --porcelain --untracked-files=all -- go scripts .github/workflows)"') != 2 or step.count('          test -z "$proof_status"') != 2:
+        if (step.count('          effective_config="$(go env GOFLAGS GOWORK)"') != 2 or
+                step.count('          test -z "$effective_config"') != 2 or
+                step.count('          proof_status="$(git -C .. status --porcelain --untracked-files=all)"') != 2 or
+                step.count('          test -z "$proof_status"') != 2):
             raise ValueError(f"reviewed source guard missing for {group}")
         if re.search(r"(?m)^\s*if:", step):
             raise ValueError(f"conditional proof step for {group}")
