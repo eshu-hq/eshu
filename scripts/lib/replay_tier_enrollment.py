@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 
@@ -82,6 +85,78 @@ def verify_inventory(root: Path, inventory: dict[str, object]) -> None:
         raise ValueError("replay selector does not name exactly the enrolled and retained tests")
     runner = (root / RUNNER_PATH).read_text(encoding="utf-8")
     verify_runner(runner, selector)
+    verify_source_guard_activation(
+        (root / "scripts/lib/replay_tier_enrollment.py").read_text(encoding="utf-8")
+    )
+
+
+def verify_reviewed_source(root: Path) -> None:
+    """Reject unreviewed checkout contents and ambient Go source overrides."""
+    for name in ("GOFLAGS", "GOWORK"):
+        if os.environ.get(name):
+            raise ValueError(f"shell {name} must be empty for reviewed source")
+    top = subprocess.run(("git", "rev-parse", "--show-toplevel"), cwd=root,
+                         capture_output=True, text=True, check=False)
+    if top.returncode != 0 or Path(top.stdout.strip()).resolve() != root.resolve():
+        raise ValueError("source root is not the reviewed Git checkout")
+    status = subprocess.run(
+        ("git", "status", "--porcelain=v1", "--untracked-files=all",
+         "--ignore-submodules=none"), cwd=root, capture_output=True,
+        text=True, check=False,
+    )
+    if status.returncode != 0 or status.stdout:
+        raise ValueError("source checkout has staged, modified, or untracked files")
+    effective = subprocess.run(("go", "env", "GOFLAGS", "GOWORK"), cwd=root / "go",
+                               capture_output=True, text=True, check=False)
+    if effective.returncode != 0:
+        raise ValueError("could not inspect effective Go configuration")
+    values = effective.stdout.splitlines()
+    if len(values) != 2:
+        raise ValueError("invalid effective Go configuration response")
+    for name, value in zip(("GOFLAGS", "GOWORK"), values):
+        if value:
+            raise ValueError(f"effective {name} must be empty for reviewed source")
+
+
+def verify_source_guard_activation(source: str) -> None:
+    """Require the reviewed-source guard and unconditional CLI call sites."""
+    required = (
+        '("git", "status", "--porcelain=v1", "--untracked-files=all",',
+        '("go", "env", "GOFLAGS", "GOWORK")',
+        'if os.environ.get(name):',
+    )
+    if any(item not in source for item in required):
+        raise ValueError("reviewed-source guard implementation is disabled")
+    tree = ast.parse(source)
+    functions = {node.name: node for node in tree.body
+                 if isinstance(node, ast.FunctionDef)}
+    guard = functions.get("verify_reviewed_source")
+    main_function = functions.get("main")
+    if guard is None or main_function is None:
+        raise ValueError("reviewed-source guard implementation is missing")
+    if any(isinstance(node, ast.Return) for node in ast.walk(guard)):
+        raise ValueError("reviewed-source guard has an early return")
+    try_blocks = [node for node in main_function.body if isinstance(node, ast.Try)]
+    if len(try_blocks) != 1:
+        raise ValueError("reviewed-source guard CLI activation is incomplete")
+    actions = try_blocks[0].body
+
+    def calls_guard(node: ast.stmt) -> bool:
+        return (isinstance(node, ast.Expr)
+                and isinstance(node.value, ast.Call)
+                and isinstance(node.value.func, ast.Name)
+                and node.value.func.id == "verify_reviewed_source"
+                and len(node.value.args) == 1
+                and isinstance(node.value.args[0], ast.Attribute)
+                and node.value.args[0].attr == "root")
+    if not actions or not calls_guard(actions[0]):
+        raise ValueError("reviewed-source guard must precede CLI work")
+    event_blocks = [node for node in actions if isinstance(node, ast.If)
+                    and isinstance(node.test, ast.Attribute)
+                    and node.test.attr == "events"]
+    if (len(event_blocks) != 1 or len(event_blocks[0].body) < 3
+            or not calls_guard(event_blocks[0].body[2])):
+        raise ValueError("reviewed-source guard must follow event checks")
 
 
 def verify_runner(runner: str, selector: str) -> None:
@@ -105,6 +180,23 @@ def verify_runner(runner: str, selector: str) -> None:
     for pattern in required:
         if not re.search(pattern, runner, re.M):
             raise ValueError("runner event verifier, direct exit, or stderr separation disabled")
+    guard = ('python3 scripts/lib/replay_tier_enrollment.py --root "${repo_root}" '
+             '--reviewed-source')
+    if runner.count("\n" + guard + "\n") != 5:
+        raise ValueError("runner reviewed-source checks are missing or bypassed")
+    positions = [match.start() for match in re.finditer(re.escape("\n" + guard + "\n"), runner)]
+    anchors = (
+        'log "starting lean NornicDB container',
+        'log "running focused offline replay tier tests',
+        'python3 scripts/lib/replay_tier_enrollment.py --root "${repo_root}" --events "${TIER_JSON}"',
+        'log "running sql_table blast-radius branch proof',
+        'python3 scripts/lib/replay_tier_enrollment.py --root "${repo_root}" --events "${BLAST_JSON}"',
+    )
+    anchor_positions = [runner.index(anchor) for anchor in anchors]
+    if not (positions[0] < anchor_positions[0] < positions[1] < anchor_positions[1]
+            < anchor_positions[2] < positions[2] < anchor_positions[3] < positions[3]
+            < anchor_positions[4] < positions[4]):
+        raise ValueError("runner reviewed-source checks are out of order")
 
 
 def verify_ledger(rows: list[tuple[str, str, str, str, str, str]],
@@ -248,14 +340,19 @@ def main() -> int:
     parser.add_argument("--go-exit", type=int, default=0)
     parser.add_argument("--blast", action="store_true")
     parser.add_argument("--routes", action="store_true")
+    parser.add_argument("--reviewed-source", action="store_true")
     args = parser.parse_args()
     try:
+        verify_reviewed_source(args.root)
+        if args.reviewed_source:
+            return 0
         inventory = load_inventory(args.root)
         if args.routes:
             verify_routes(args.root)
         if args.events:
             expected = BLAST_TESTS if args.blast else expected_tests(inventory)
             verify_events(args.events, expected, args.go_exit)
+            verify_reviewed_source(args.root)
             for line in args.events.read_text(encoding="utf-8").splitlines():
                 event = json.loads(line)
                 if event.get("Action") == "output":
