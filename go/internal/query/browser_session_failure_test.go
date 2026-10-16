@@ -99,13 +99,6 @@ func TestBrowserSessionStepFailuresAnswerFixedText(t *testing.T) {
 			},
 		},
 		{
-			Name: "session list", Path: "/api/v0/auth/sessions",
-			Message: "failed to list browser sessions", Scope: browserSessionScope,
-			Handler: func(err error) failure.Mounter {
-				return &BrowserSessionListHandler{Store: &fakeBrowserSessionListStore{listErr: err}}
-			},
-		},
-		{
 			Name: "oidc callback session store", Path: "/api/v0/auth/oidc/callback?state=s&code=c",
 			Message: "failed to create browser session",
 			Handler: func(err error) failure.Mounter {
@@ -126,6 +119,21 @@ func TestBrowserSessionStepFailuresAnswerFixedText(t *testing.T) {
 			},
 		},
 	}
+	runAuthFailureSteps(t, failure.Suite{Routes: routes}, errorFlowKinds)
+}
+
+// TestListSessionsStoreFailureAnswersFixedText drives GET
+// /api/v0/auth/sessions through a failing session store with a backend
+// fault, a client cancel, and an inner cancel (#7674). A client cancel is
+// not logged as a failure.
+func TestListSessionsStoreFailureAnswersFixedText(t *testing.T) {
+	routes := []failure.Route{{
+		Name: "session list", Path: "/api/v0/auth/sessions",
+		Message: "failed to list browser sessions", Scope: browserSessionScope,
+		Handler: func(err error) failure.Mounter {
+			return &BrowserSessionListHandler{Store: &fakeBrowserSessionListStore{listErr: err}}
+		},
+	}}
 	runAuthFailureSteps(t, failure.Suite{Routes: routes}, errorFlowKinds)
 }
 
