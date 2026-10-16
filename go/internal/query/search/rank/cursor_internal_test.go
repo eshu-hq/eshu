@@ -43,3 +43,25 @@ func TestAdvanceRefusesToPassTheWindow(t *testing.T) {
 		t.Fatalf("Advance(150 + 50) error = %v, want nil", err)
 	}
 }
+
+// TestWalkRefusesAWindowPastWindowSize pins the one producer of an
+// unbounded served count: a window of more than WindowSize walkable rows is a
+// caller error, so no cursor with a count past the window, which the uint16
+// count field could wrap, is ever minted.
+func TestWalkRefusesAWindowPastWindowSize(t *testing.T) {
+	t.Parallel()
+	rows := make([]Row, 0, WindowSize+1)
+	for i := 0; i <= WindowSize; i++ {
+		rows = append(rows, Row{ID: fmt.Sprintf("r%03d", i)})
+	}
+	window := Window{Tool: ToolFindCode, Lane: LaneGraph, Order: OrderGraphName, Rows: rows}
+	page, err := Walk(window, nil, StartToken, WindowSize+1)
+	var rankErr *Error
+	if err == nil || errors.As(err, &rankErr) {
+		t.Fatalf("Walk(%d rows) = %d ids, error %v; want a non-rank caller error", len(rows), len(page.IDs), err)
+	}
+	window.Rows = rows[:WindowSize]
+	if _, err := Walk(window, nil, StartToken, WindowSize); err != nil {
+		t.Fatalf("Walk(%d rows) error = %v, want nil", WindowSize, err)
+	}
+}

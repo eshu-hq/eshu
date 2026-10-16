@@ -65,6 +65,7 @@ func (c cursor) encode() string {
 	payload[0] = cursorVersion
 	payload[1] = c.tool
 	payload[2] = c.lane
+	// #nosec G115 -- c.count is always 0..WindowSize (200): Walk refuses a window of more than WindowSize rows, and parseCursor and Advance refuse a count past it, so the uint16 conversion cannot truncate.
 	binary.BigEndian.PutUint16(payload[3:5], uint16(c.count))
 	copy(payload[5:21], c.basis[:])
 	binary.BigEndian.PutUint64(payload[21:29], c.digest.a)

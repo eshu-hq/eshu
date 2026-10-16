@@ -187,6 +187,11 @@ func Walk(window Window, scores map[string]float64, token string, limit int) (Pa
 		return Page{}, fmt.Errorf("rank walk: lane %q cannot serve order %q", window.Lane, window.Order)
 	}
 	rows, excluded := keyedRows(window.Rows)
+	if len(rows) > WindowSize {
+		// The routes cut the window to WindowSize rows. A larger window is a
+		// caller error, refused so no cursor can carry a count past the window.
+		return Page{}, fmt.Errorf("rank walk: window has %d walkable rows, more than %d", len(rows), WindowSize)
+	}
 	fingerprint := basis(window, rows, excluded)
 
 	state := cursor{tool: tool, lane: lane, basis: fingerprint}
