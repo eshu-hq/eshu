@@ -10,7 +10,7 @@ const Documentation = `
       "get": {
         "tags": ["documentation"],
         "summary": "List collected documentation facts",
-        "description": "Lists source-neutral documentation facts collected from systems such as Confluence. The route is bounded by limit/cursor and requires a scope, target, or source/document/section anchor.",
+        "description": "Lists source-neutral documentation facts collected from systems such as Confluence. The route is bounded by limit/cursor and requires a scope, target, or source/document/section anchor. A 503 with Retry-After means a transient condition that is safe to retry: the documentation facts read hit a stale or timed-out PostgreSQL reader; this route has no configuration 503, so every 503 it answers carries Retry-After. No 5xx body carries backend error text. A reader-verdict 503 names capability documentation_facts.list in its error envelope.",
         "operationId": "listDocumentationFacts",
         "x-scoped-token-support": true,
         "parameters": [
@@ -71,6 +71,7 @@ const Documentation = `
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "501": {
             "description": "Documentation facts capability or Postgres documentation read model is unavailable",
             "content": {
@@ -86,7 +87,7 @@ const Documentation = `
       "get": {
         "tags": ["documentation"],
         "summary": "List documentation truth findings",
-        "description": "Lists read-only documentation truth findings from durable documentation finding facts for external updater actuators. Target-scoped requests also return bounded raw documentation facts and coverage metadata so empty findings are explainable.",
+        "description": "Lists read-only documentation truth findings from durable documentation finding facts for external updater actuators. Target-scoped requests also return bounded raw documentation facts and coverage metadata so empty findings are explainable. A 503 with Retry-After means a transient condition that is safe to retry: the documentation findings read hit a stale or timed-out PostgreSQL reader; this route has no configuration 503, so every 503 it answers carries Retry-After. No 5xx body carries backend error text. A reader-verdict 503 names capability documentation_findings.list in its error envelope.",
         "operationId": "listDocumentationFindings",
         "x-scoped-token-support": true,
         "parameters": [
@@ -130,6 +131,7 @@ const Documentation = `
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "501": {
             "description": "Documentation evidence packet capability or Postgres documentation read model is unavailable",
             "content": {
@@ -145,7 +147,7 @@ const Documentation = `
       "get": {
         "tags": ["documentation"],
         "summary": "Get documentation evidence packet",
-        "description": "Returns the bounded evidence packet for one documentation truth finding. External updater services should snapshot this response before planning a diff.",
+        "description": "Returns the bounded evidence packet for one documentation truth finding. External updater services should snapshot this response before planning a diff. A 503 with Retry-After means a transient condition that is safe to retry: the evidence packet read hit a stale or timed-out PostgreSQL reader; this route has no configuration 503, so every 503 it answers carries Retry-After. No 5xx body carries backend error text. A reader-verdict 503 names capability documentation_evidence_packet.read in its error envelope.",
         "operationId": "getDocumentationEvidencePacket",
         "x-scoped-token-support": true,
         "parameters": [
@@ -206,6 +208,7 @@ const Documentation = `
           "403": {"$ref": "#/components/responses/Forbidden"},
           "404": {"$ref": "#/components/responses/NotFound"},
           "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "501": {
             "description": "Documentation evidence packet capability or Postgres documentation read model is unavailable",
             "content": {
@@ -221,7 +224,7 @@ const Documentation = `
       "get": {
         "tags": ["documentation"],
         "summary": "Check documentation evidence packet freshness",
-        "description": "Checks whether a previously snapshotted documentation evidence packet is still current before an external updater publishes a diff.",
+        "description": "Checks whether a previously snapshotted documentation evidence packet is still current before an external updater publishes a diff. A 503 with Retry-After means a transient condition that is safe to retry: the packet freshness read hit a stale or timed-out PostgreSQL reader; this route has no configuration 503, so every 503 it answers carries Retry-After. No 5xx body carries backend error text. A reader-verdict 503 names capability documentation_evidence_packet.freshness in its error envelope.",
         "operationId": "checkDocumentationEvidencePacketFreshness",
         "x-scoped-token-support": true,
         "parameters": [
@@ -262,6 +265,7 @@ const Documentation = `
           "403": {"$ref": "#/components/responses/Forbidden"},
           "404": {"$ref": "#/components/responses/NotFound"},
           "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "501": {
             "description": "Documentation evidence packet capability or Postgres documentation read model is unavailable",
             "content": {

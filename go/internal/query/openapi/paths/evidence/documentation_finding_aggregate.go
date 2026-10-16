@@ -12,6 +12,7 @@ const DocumentationFindingAggregate = `
     "/api/v0/documentation/findings/count": {
       "get": {
         "summary": "Count durable documentation findings without paging the list endpoint",
+        "description": "Counts durable documentation findings by status, truth level, and freshness state. A 503 with Retry-After means a transient condition that is safe to retry: the aggregate read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the documentation finding aggregate store is not configured on this API instance. No 5xx body carries backend error text. A reader-verdict 503 names capability documentation_findings.aggregate in its error envelope.",
         "operationId": "countDocumentationFindings",
         "x-scoped-token-support": true,
         "parameters": [
@@ -41,13 +42,16 @@ const DocumentationFindingAggregate = `
               }
             }
           },
-          "403": {"$ref": "#/components/responses/Forbidden"}
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
     "/api/v0/documentation/findings/inventory": {
       "get": {
         "summary": "Group durable documentation findings by one dimension without paging the list endpoint",
+        "description": "Groups durable documentation findings into count buckets by one dimension. A 503 with Retry-After means a transient condition that is safe to retry: the aggregate read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the documentation finding aggregate store is not configured on this API instance. No 5xx body carries backend error text. A reader-verdict 503 names capability documentation_findings.aggregate in its error envelope.",
         "operationId": "getDocumentationFindingInventory",
         "x-scoped-token-support": true,
         "parameters": [
@@ -93,7 +97,9 @@ const DocumentationFindingAggregate = `
               }
             }
           },
-          "403": {"$ref": "#/components/responses/Forbidden"}
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
