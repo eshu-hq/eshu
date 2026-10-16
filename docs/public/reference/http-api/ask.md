@@ -125,8 +125,10 @@ bad JSON) are returned as plain JSON with the appropriate HTTP status code
 **before** the event stream is opened.
 
 **Error responses:** 400 (empty/missing question), 401 (unauthenticated),
-503 (disabled or provider absent). The engine never echoes provider prompts,
-raw provider bodies, or credentials.
+503 (disabled or provider absent), and on the SSE variant 500 when the
+server's response writer cannot flush, before the stream opens (see
+[Semantic Evidence And Documentation Route Failures](semantic-and-documentation-failures.md#ask-sse-without-a-flusher)).
+The engine never echoes provider prompts, raw provider bodies, or credentials.
 
 **Authentication:** This endpoint accepts both the **shared token**
 (admin/full-scope `ESHU_API_KEY`) and **scoped tokens**. A scoped caller's
