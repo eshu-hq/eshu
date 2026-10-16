@@ -94,8 +94,12 @@ func boundedOutcome(outcome string) string {
 	return OutcomeInvalid
 }
 
+// ToolSearchFileContent labels a refused rank_cursor on search_file_content.
+// It is a telemetry label only: the file route cannot walk.
+const ToolSearchFileContent = "search_file_content"
+
 func boundedTool(tool string) string {
-	if _, ok := toolCodes[tool]; ok {
+	if _, ok := toolCodes[tool]; ok || tool == ToolSearchFileContent {
 		return tool
 	}
 	return "unknown"
