@@ -123,7 +123,7 @@ func (h *Handler) recoverGenerations(w http.ResponseWriter, r *http.Request) {
 		// in_progress so a retry surfaces a 409 rather than re-driving blindly.
 		// Refinalize runs in one transaction, so a client cancel rolls it back
 		// unless it lands while the commit itself runs.
-		writeMutationFailure(w, r, err, recoverGenerationsFailedMessage)
+		writeRefinalizeFailure(w, r, err, recoverGenerationsFailedMessage)
 		return
 	}
 

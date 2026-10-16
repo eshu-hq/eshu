@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -275,6 +276,17 @@ func TestAdminHandler_Refinalize(t *testing.T) {
 	}
 	if int(got["shared_projection_acceptance_cleared"].(float64)) != 4 {
 		t.Errorf("shared_projection_acceptance_cleared = %v, want 4", got["shared_projection_acceptance_cleared"])
+	}
+}
+
+func TestAdminHandler_RefinalizeClaimFenceBusyReturnsConflict(t *testing.T) {
+	h := &Handler{Recovery: &stubRecoveryHandler{refinalizeErr: recovery.ErrRefinalizeClaimFenceBusy}}
+	w := postJSON(newAdminMux(h), "/api/v0/admin/refinalize", map[string]any{"scope_ids": []string{"scope-1"}})
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusConflict, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "blocked/claim_fence_busy") {
+		t.Fatalf("body = %s, want blocked/claim_fence_busy", w.Body.String())
 	}
 }
 
