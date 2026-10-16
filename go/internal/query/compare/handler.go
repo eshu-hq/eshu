@@ -60,20 +60,20 @@ func (h *Handler) compareEnvironments(w http.ResponseWriter, r *http.Request) {
 
 	var req compareEnvironmentsRequest
 	if err := readCompareJSON(r, &req); err != nil {
-		writeCompareError(w, http.StatusBadRequest, err.Error())
+		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	if req.WorkloadID == "" {
-		writeCompareError(w, http.StatusBadRequest, "workload_id is required")
+		querycontract.WriteError(w, http.StatusBadRequest, "workload_id is required")
 		return
 	}
 	if req.Left == "" {
-		writeCompareError(w, http.StatusBadRequest, "left environment is required")
+		querycontract.WriteError(w, http.StatusBadRequest, "left environment is required")
 		return
 	}
 	if req.Right == "" {
-		writeCompareError(w, http.StatusBadRequest, "right environment is required")
+		querycontract.WriteError(w, http.StatusBadRequest, "right environment is required")
 		return
 	}
 
@@ -101,10 +101,7 @@ func (h *Handler) compareEnvironments(w http.ResponseWriter, r *http.Request) {
 	// Fetch workload
 	workload, err := h.fetchWorkload(ctx, req.WorkloadID)
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, Capability) {
-			return
-		}
-		writeCompareError(w, http.StatusInternalServerError, err.Error())
+		writeCompareReadFailure(w, r, err, compareWorkloadLookupFailedMessage)
 		return
 	}
 
@@ -121,24 +118,18 @@ func (h *Handler) compareEnvironments(w http.ResponseWriter, r *http.Request) {
 	// Fetch environment snapshots
 	serviceEvidence, err := h.loadServiceEvidence(ctx, workload)
 	if err != nil {
-		writeCompareError(w, http.StatusInternalServerError, err.Error())
+		writeCompareReadFailure(w, r, err, compareServiceEvidenceFailedMessage)
 		return
 	}
 
 	leftSnap, leftTruncated, err := h.environmentSnapshot(ctx, workload, req.Left, serviceEvidence, limit)
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, Capability) {
-			return
-		}
-		writeCompareError(w, http.StatusInternalServerError, err.Error())
+		writeCompareReadFailure(w, r, err, compareLeftSnapshotFailedMessage)
 		return
 	}
 	rightSnap, rightTruncated, err := h.environmentSnapshot(ctx, workload, req.Right, serviceEvidence, limit)
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, Capability) {
-			return
-		}
-		writeCompareError(w, http.StatusInternalServerError, err.Error())
+		writeCompareReadFailure(w, r, err, compareRightSnapshotFailedMessage)
 		return
 	}
 
@@ -438,21 +429,6 @@ func compareStringVal(row map[string]any, key string) string {
 		return typed
 	}
 	return fmt.Sprintf("%v", value)
-}
-
-func writeCompareJSON(w http.ResponseWriter, status int, value any) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(status)
-	enc := json.NewEncoder(w)
-	enc.SetEscapeHTML(false)
-	_ = enc.Encode(value)
-}
-
-func writeCompareError(w http.ResponseWriter, status int, message string) {
-	writeCompareJSON(w, status, map[string]any{
-		"error":  http.StatusText(status),
-		"detail": message,
-	})
 }
 
 func readCompareJSON(r *http.Request, value any) error {
