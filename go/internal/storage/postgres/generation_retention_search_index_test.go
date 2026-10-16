@@ -110,3 +110,32 @@ func TestGenerationRetentionDurationExcludesThePredelete(t *testing.T) {
 		t.Fatalf("Duration = %v includes the pre-delete (%v); want the prune transaction only", result.Duration, predelete)
 	}
 }
+
+// TestSearchIndexPredeleteSkipsDeltaProtectedGenerations pins the #7427 and
+// #7802 interplay: the pre-delete drains only what the prune's planning could
+// remove, so a delta-protected generation (a delta-active scope's base full
+// or a delta in its chain, never pruned) keeps its search index rows, as an
+// uncovered writer does. Only gen-a is drained: one empty page per table.
+func TestSearchIndexPredeleteSkipsDeltaProtectedGenerations(t *testing.T) {
+	now := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	old := now.Add(-10 * 24 * time.Hour)
+	database := &generationRetentionFakeDB{
+		candidateRows: [][]any{
+			deltaBaseCandidateRow("scope-delta", "gen-base", old, old.Add(-time.Hour), false, true),
+			deltaBaseCandidateRow("scope-a", "gen-a", old.Add(time.Hour), old, false, false),
+		},
+		countRows: [][]any{{"gen-a", "fact_records", int64(1)}},
+	}
+	store := NewGenerationRetentionStore(database)
+	store.Now = func() time.Time { return now }
+	result, err := store.PruneSupersededGenerations(context.Background(), DefaultGenerationRetentionPolicy())
+	if err != nil {
+		t.Fatalf("PruneSupersededGenerations() error = %v", err)
+	}
+	if result.SearchIndexBatches != 2 {
+		t.Fatalf("SearchIndexBatches = %d, want 2 (gen-a only; the delta-protected gen-base is never drained)", result.SearchIndexBatches)
+	}
+	if result.Skipped["delta_base"] != 1 {
+		t.Fatalf("Skipped = %v, want gen-base skipped as delta_base", result.Skipped)
+	}
+}

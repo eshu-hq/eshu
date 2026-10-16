@@ -224,6 +224,15 @@ cost follows the live work rows, not the table.
   retention row lock spans a batch, a scope held `FOR UPDATE` by another pass
   or an Ack is skipped as the prune will skip it, and a fact insert's FK
   `KEY SHARE` neither waits on nor skips the read.
+- The pre-delete drains only generations the prune could remove. Like the
+  prune's planning, it drops uncovered writers (#7472), each same-identity
+  group's newest copy (#7981), and, since the restack onto #8139,
+  delta-protected generations: a delta-active scope's base full and its
+  chain, which retention never prunes. Before that filter, a protected
+  generation's search index rows were drained on every pass but never
+  admitted. Readers join the active generation, so no answer changed.
+  `TestSearchIndexPredeleteSkipsDeltaProtectedGenerations` failed first
+  (4 batches, want 2) and passes with the filter.
 - Live proofs: two concurrent drains of one generation delete its 33,000
   rows exactly once with no 40P01; a held advisory lock makes a drain skip
   with zero rows deleted; a drain cancelled after one batch converges on

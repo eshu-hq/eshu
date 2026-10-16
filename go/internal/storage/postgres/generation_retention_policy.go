@@ -279,8 +279,9 @@ func (s GenerationRetentionStore) WithLogger(logger *slog.Logger) GenerationRete
 
 // predeleteSearchIndex runs the pass's search index pre-delete before the
 // prune transaction opens (#7427): it reads the eligible candidates in a
-// transaction it rolls back first, drops uncovered writers and each identity group's newest copy as the
-// prune's planning does, and drains the rest oldest first in committed
+// transaction it rolls back first, drops uncovered writers, delta-protected
+// generations (#7802) and each identity group's newest copy as the prune's
+// planning does, and drains the rest oldest first in committed
 // batches under the policy's row cap and deadline. It checks the retention
 // key indexes first, so a cycle the prune would refuse changes nothing.
 func (s GenerationRetentionStore) predeleteSearchIndex(
@@ -298,7 +299,7 @@ func (s GenerationRetentionStore) predeleteSearchIndex(
 	}
 	covered := candidates[:0]
 	for _, candidate := range candidates {
-		if !candidate.uncovered {
+		if !candidate.uncovered && !candidate.deltaProtected { // never admitted to the prune (#8139)
 			covered = append(covered, candidate)
 		}
 	}
