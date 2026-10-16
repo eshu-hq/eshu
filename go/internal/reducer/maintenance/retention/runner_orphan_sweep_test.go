@@ -24,13 +24,15 @@ import (
 // succeeded but whose batch failed does.
 type fakeOrphanSweeper struct {
 	deadlines []time.Duration
+	rowCaps   []int64
 	results   []OrphanSweepResult
 	partial   OrphanSweepResult
 	err       error
 }
 
-func (s *fakeOrphanSweeper) SweepSearchIndexOrphans(_ context.Context, deadline time.Duration) (OrphanSweepResult, error) {
+func (s *fakeOrphanSweeper) SweepSearchIndexOrphans(_ context.Context, deadline time.Duration, rowCap int64) (OrphanSweepResult, error) {
 	s.deadlines = append(s.deadlines, deadline)
+	s.rowCaps = append(s.rowCaps, rowCap)
 	if s.err != nil {
 		return s.partial, s.err
 	}
@@ -183,4 +185,24 @@ func TestGenerationRetentionRunnerRecordsTheCensusWhenTheSweepFails(t *testing.T
 		map[string]string{"table": "eshu_search_index_terms"}))
 	require.Equal(t, int64(2), testutil.CounterValue(t, rm, "eshu_dp_generation_retention_failures_total",
 		map[string]string{"reason": "search_index_orphan_sweep"}))
+}
+
+// TestGenerationRetentionRunnerPassesOneRowCapToPruneAndSweep pins #8281
+// review thread A: the policy's search index row cap reaches both the
+// pre-delete (through the pruner's policy) and the orphan sweep, so lowering
+// it bounds both. Unset (0) is passed through for each side's default.
+func TestGenerationRetentionRunnerPassesOneRowCapToPruneAndSweep(t *testing.T) {
+	for _, rowCap := range []int64{250_000, 0} {
+		sweeper := &fakeOrphanSweeper{}
+		pruner := &fakeGenerationRetentionPruner{}
+		runner := &Runner{
+			Pruner:        pruner,
+			OrphanSweeper: sweeper,
+			Config:        Config{PollInterval: time.Hour, Policy: Policy{SearchIndexPredeleteRowCap: rowCap}},
+		}
+		_, err := runner.RunOnce(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, []int64{rowCap}, sweeper.rowCaps)
+		require.Equal(t, rowCap, pruner.policies[0].SearchIndexPredeleteRowCap)
+	}
 }

@@ -124,7 +124,10 @@ VACUUM, not leaf rows. It runs at most once per retention poll interval
 
 The sweep reuses the pre-delete's batch loop and statement body (keyset
 page plus ctid DELETE, 20,000 rows, per-generation advisory lock class 7427,
-500 ms `lock_timeout`, from-start re-sweep, row cap and deadline). Only the
+500 ms `lock_timeout`, from-start re-sweep, row cap and deadline). The row
+cap is the policy's `SearchIndexPredeleteRowCap`, which the runner passes to
+both the pre-delete and the sweep, so lowering it bounds both (#8281 review;
+there is no environment knob for it, and unset means 2,000,000). Only the
 eligibility CTE differs: the pair is absent from `scope_generations` and the
 scope's active pointer does not name it, re-checked in each batch's
 snapshot.
@@ -195,9 +198,14 @@ succeeds and a sweep batch then fails, the gauge still takes the census
 value and the committed batches' rows stay counted; a failed census leaves
 the gauge at its last value
 (`TestGenerationRetentionRunnerRecordsTheCensusWhenTheSweepFails`, RED before
-the fix: `expected: 3 actual: 0`). At 3 AM: a gauge
-above 0 on two consecutive hours means the sweep cannot drain; the log's
-`unswept_generations` and the per-generation outcome say why. One named
+the fix: `expected: 3 actual: 0`). At 3 AM: the census lists at most 1,000
+orphan pairs per relation (`OrphanListLimit`) per sweep, and a sweep runs
+once per poll interval, so a larger backlog drains over several sweeps and
+the gauge can stay above 0 for more than one interval while it drains.
+`unswept_generations` counts both the listed orphans a sweep did not drain
+and the ones past the list limit (#8281 review). The signal that the sweep
+cannot drain is the gauge, or `unswept_generations`, not falling from one
+sweep to the next; the log's per-generation outcome says why. One named
 cause is a dangling active pointer: the generation row is missing but
 `ingestion_scopes.active_generation_id` still names it, so readers can see
 those rows and the sweep leaves them; the per-generation line reads

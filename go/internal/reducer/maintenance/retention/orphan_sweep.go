@@ -25,9 +25,10 @@ const (
 // OrphanSweeper takes a census of search index rows whose scope_generations
 // row is gone and deletes them in bounded committed batches (#7427 PR2). The
 // storage implementation owns the SQL, the advisory lock and the budget;
-// deadline bounds the sweep's batches.
+// deadline bounds the sweep's batches and rowCap the rows it deletes (the
+// policy's search index row cap; not positive means the storage default).
 type OrphanSweeper interface {
-	SweepSearchIndexOrphans(ctx context.Context, deadline time.Duration) (OrphanSweepResult, error)
+	SweepSearchIndexOrphans(ctx context.Context, deadline time.Duration, rowCap int64) (OrphanSweepResult, error)
 }
 
 // OrphanSweepResult summarizes one orphan census and sweep. Every map is
@@ -36,8 +37,9 @@ type OrphanSweepResult struct {
 	PairsScanned      map[string]int64
 	OrphanGenerations map[string]int64
 	RowsSwept         map[string]int64
-	// Batches is the sweep's committed batch transactions; Unswept the listed
-	// orphan generations it did not drain (the next sweep retries them).
+	// Batches is the sweep's committed batch transactions; Unswept the orphan
+	// generations it did not sweep, listed or past the census list limit
+	// (later sweeps retry them).
 	Batches        int
 	Unswept        int
 	CensusDuration time.Duration
@@ -49,7 +51,7 @@ type OrphanSweepResult struct {
 // every search index pair, so it follows the poll cadence, not the pass
 // rate. A failed sweep is recorded and logged but does not fail the pass; it
 // is retried after the next interval.
-func (r *Runner) sweepOrphansIfDue(ctx context.Context, deadline time.Duration) {
+func (r *Runner) sweepOrphansIfDue(ctx context.Context, deadline time.Duration, rowCap int64) {
 	if r.OrphanSweeper == nil || ctx.Err() != nil {
 		return
 	}
@@ -58,7 +60,7 @@ func (r *Runner) sweepOrphansIfDue(ctx context.Context, deadline time.Duration) 
 		return
 	}
 	r.lastOrphanSweep = now
-	result, err := r.OrphanSweeper.SweepSearchIndexOrphans(ctx, deadline)
+	result, err := r.OrphanSweeper.SweepSearchIndexOrphans(ctx, deadline, rowCap)
 	if err != nil {
 		// A census that succeeded before a batch failed still sets the
 		// gauge, so it never keeps a stale value (such as 0) while orphans

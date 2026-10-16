@@ -55,6 +55,11 @@ type Policy struct {
 	// index pre-delete batches (#7427). RunOnce sets a quarter of the poll
 	// interval when it is unset.
 	SearchIndexPredeleteDeadline time.Duration
+	// SearchIndexPredeleteRowCap bounds the search index rows one pass's
+	// pre-delete deletes and, separately, the rows one orphan sweep deletes
+	// (#7427, #8281 review): one cap, so lowering it for WAL or I/O pressure
+	// bounds both. Unset (0) leaves each side's 2,000,000-row default.
+	SearchIndexPredeleteRowCap int64
 }
 
 // Result summarizes one bounded cleanup transaction.
@@ -210,7 +215,7 @@ func (r *Runner) RunOnce(ctx context.Context) (Result, error) {
 	// The orphan sweep runs after the prune transaction has ended, so it
 	// never holds or waits on a retention scope lock, and it runs even when
 	// the prune failed: it depends on neither the prune nor its key indexes.
-	r.sweepOrphansIfDue(ctx, policy.SearchIndexPredeleteDeadline)
+	r.sweepOrphansIfDue(ctx, policy.SearchIndexPredeleteDeadline, policy.SearchIndexPredeleteRowCap)
 	if err != nil {
 		return Result{}, fmt.Errorf("prune superseded generations: %w", err)
 	}

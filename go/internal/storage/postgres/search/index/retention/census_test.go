@@ -85,7 +85,7 @@ func TestSweepOrphansReturnsTheCensusWhenABatchFails(t *testing.T) {
 		}
 		return nil, errors.New("connection reset")
 	}}
-	sweep, err := SweepOrphans(context.Background(), database, time.Time{}, nil)
+	sweep, err := SweepOrphans(context.Background(), database, time.Time{}, 0, nil)
 	if err == nil {
 		t.Fatal("SweepOrphans() error = nil, want the batch error")
 	}
@@ -94,7 +94,7 @@ func TestSweepOrphansReturnsTheCensusWhenABatchFails(t *testing.T) {
 	}
 
 	failing := &scriptedDB{answer: func(string, []any) ([][]any, error) { return nil, errors.New("census down") }}
-	sweep, err = SweepOrphans(context.Background(), failing, time.Time{}, nil)
+	sweep, err = SweepOrphans(context.Background(), failing, time.Time{}, 0, nil)
 	if err == nil || sweep.Census.OrphanGenerations != nil {
 		t.Fatalf("failed census = (%v, %v), want an error and no table counts", sweep.Census.OrphanGenerations, err)
 	}
@@ -116,7 +116,7 @@ func TestSweepOrphansCountsOnlyCommittedBatches(t *testing.T) {
 		}
 		return page(true, 0, 0, "", ""), nil
 	}}
-	sweep, err := SweepOrphans(context.Background(), database, time.Time{}, nil)
+	sweep, err := SweepOrphans(context.Background(), database, time.Time{}, 0, nil)
 	if err != nil {
 		t.Fatalf("SweepOrphans() error = %v", err)
 	}

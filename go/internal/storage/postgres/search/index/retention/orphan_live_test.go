@@ -71,15 +71,25 @@ VALUES ($1, $2, 'snapshot', now() - interval '20 days', now() - interval '20 day
 	}
 	f.orphan(t, lost)
 
-	sweep, err := indexretention.SweepOrphans(f.ctx, f.database, time.Time{}, nil)
+	// A row cap of one batch (#8281 review) stops the sweep after its first
+	// committed batch and leaves the orphan unswept for the next sweep.
+	capped, err := indexretention.SweepOrphans(f.ctx, f.database, time.Time{}, indexretention.BatchRows, nil)
+	if err != nil {
+		t.Fatalf("capped SweepOrphans() error = %v", err)
+	}
+	if got := capped.RowsSwept; got[indexretention.TermsTable] != indexretention.BatchRows || got[indexretention.DocumentsTable] != 0 || capped.Unswept != 1 {
+		t.Fatalf("capped sweep = %+v, want one %d-row terms batch and the orphan unswept", capped, indexretention.BatchRows)
+	}
+
+	sweep, err := indexretention.SweepOrphans(f.ctx, f.database, time.Time{}, 0, nil)
 	if err != nil {
 		t.Fatalf("SweepOrphans() error = %v", err)
 	}
 	if got := sweep.Census.OrphanGenerations; got[indexretention.TermsTable] != 1 || got[indexretention.DocumentsTable] != 1 {
 		t.Fatalf("census orphans = %v, want 1 per table", got)
 	}
-	if got := sweep.RowsSwept; got[indexretention.TermsTable] != 25000 || got[indexretention.DocumentsTable] != 2500 || sweep.Unswept != 0 {
-		t.Fatalf("sweep = %+v, want 25000 terms and 2500 documents swept, none unswept", sweep)
+	if got := sweep.RowsSwept; got[indexretention.TermsTable] != 25000-indexretention.BatchRows || got[indexretention.DocumentsTable] != 2500 || sweep.Unswept != 0 {
+		t.Fatalf("sweep = %+v, want the remaining %d terms and 2500 documents swept, none unswept", sweep, 25000-indexretention.BatchRows)
 	}
 	if terms, documents := f.counts(t, lost); terms != 0 || documents != 0 {
 		t.Fatalf("orphan keeps %d terms, %d documents, want none", terms, documents)
@@ -90,7 +100,7 @@ VALUES ($1, $2, 'snapshot', now() - interval '20 days', now() - interval '20 day
 		}
 	}
 
-	again, err := indexretention.SweepOrphans(f.ctx, f.database, time.Time{}, nil)
+	again, err := indexretention.SweepOrphans(f.ctx, f.database, time.Time{}, 0, nil)
 	if err != nil {
 		t.Fatalf("second SweepOrphans() error = %v", err)
 	}
@@ -150,7 +160,7 @@ func TestOrphanSweepLiveConcurrentSweepsDeleteOnce(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			results[i], errs[i] = indexretention.SweepOrphans(f.ctx, f.database, time.Time{}, nil)
+			results[i], errs[i] = indexretention.SweepOrphans(f.ctx, f.database, time.Time{}, 0, nil)
 		}()
 	}
 	wg.Wait()
@@ -203,7 +213,7 @@ VALUES ($1, $2, 'doc-late', 'a-late', 'late', 1)`, f.scope, f.old)
 
 	f.exec(t, `INSERT INTO eshu_search_index_terms (scope_id, generation_id, document_id, term_key, term, term_frequency)
 VALUES ($1, $2, 'doc-later', 'a-later', 'later', 1)`, f.scope, f.old)
-	sweep, err := indexretention.SweepOrphans(f.ctx, f.database, time.Time{}, nil)
+	sweep, err := indexretention.SweepOrphans(f.ctx, f.database, time.Time{}, 0, nil)
 	if err != nil {
 		t.Fatalf("SweepOrphans() error = %v", err)
 	}

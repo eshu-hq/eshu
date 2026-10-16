@@ -37,6 +37,11 @@ type Census struct {
 	// Orphans is the listed orphan pairs of both tables, de-duplicated and
 	// sorted by scope then generation.
 	Orphans []Generation
+	// Unlisted is the orphan pairs the census counted but did not list,
+	// summed over relations: a relation with more than OrphanListLimit
+	// orphans lists only the first OrphanListLimit. The sweep cannot reach
+	// them this pass; a later census lists them (#8281 review).
+	Unlisted int64
 }
 
 // TakeCensus counts the orphan pairs of eshu_search_index_terms (leaf by
@@ -70,6 +75,9 @@ func TakeCensus(ctx context.Context, q db.Queryer) (Census, error) {
 		}
 		census.PairsScanned[relation[0]] += pairs
 		census.OrphanGenerations[relation[0]] += orphans
+		if unlisted := orphans - int64(len(listed)); unlisted > 0 {
+			census.Unlisted += unlisted
+		}
 		for _, generation := range listed {
 			if !seen[generation] {
 				seen[generation] = true

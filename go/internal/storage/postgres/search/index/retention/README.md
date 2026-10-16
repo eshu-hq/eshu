@@ -53,9 +53,13 @@ sequenceDiagram
 - `BatchRows` (20,000) and `LockClass` (7427)
 - Orphans: `TakeCensus(ctx, db.Queryer) (Census, error)`,
   `SweepOrphan(ctx, db.Beginner, Generation, *Budget)`,
-  `SweepOrphans(ctx, Database, deadline, logger) (OrphanSweep, error)`,
+  `SweepOrphans(ctx, Database, deadline, rowCap, logger) (OrphanSweep, error)`,
   `NewOrphanPass`, `Database`, `TermsTable`, `DocumentsTable`,
-  `OrphanListLimit` (1,000 per relation), `OrphanSweepRowCap` (2,000,000)
+  `OrphanListLimit` (1,000 per relation), `OrphanSweepRowCap` (2,000,000,
+  the fallback when the caller's row cap is not positive; the retention
+  runner passes the policy's `SearchIndexPredeleteRowCap`, so one cap bounds
+  the pre-delete and the sweep). `OrphanSweep.Unswept` adds
+  `Census.Unlisted`, the orphans counted past the list limit.
 
 See `doc.go` for the contract.
 

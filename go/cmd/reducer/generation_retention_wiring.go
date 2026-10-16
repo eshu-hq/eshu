@@ -141,16 +141,19 @@ type searchIndexOrphanSweeper struct {
 }
 
 // SweepSearchIndexOrphans runs one census and sweep, its batches bounded by
-// deadline from now (none when deadline is not positive).
+// deadline from now (none when deadline is not positive) and its rows by
+// rowCap, the policy's search index row cap (the sweep's 2,000,000-row
+// default when not positive).
 func (s searchIndexOrphanSweeper) SweepSearchIndexOrphans(
 	ctx context.Context,
 	deadline time.Duration,
+	rowCap int64,
 ) (retention.OrphanSweepResult, error) {
 	var until time.Time
 	if deadline > 0 {
 		until = time.Now().Add(deadline)
 	}
-	sweep, err := indexretention.SweepOrphans(ctx, s.database, until, s.logger)
+	sweep, err := indexretention.SweepOrphans(ctx, s.database, until, rowCap, s.logger)
 	return retention.OrphanSweepResult{
 		PairsScanned:      sweep.Census.PairsScanned,
 		OrphanGenerations: sweep.Census.OrphanGenerations,
@@ -174,8 +177,10 @@ func (p postgresGenerationRetentionPruner) PruneSupersededGenerations(
 		BatchRowLimit:            policy.BatchRowLimit,
 		PolicyScope:              policy.PolicyScope,
 		PolicyRevision:           policy.PolicyRevision,
-		// The row cap keeps the store default; the deadline follows the
+		// One row cap bounds the pre-delete and the orphan sweep (#8281
+		// review); unset keeps the store default. The deadline follows the
 		// runner's poll interval (#7427).
+		SearchIndexPredeleteRowCap:   policy.SearchIndexPredeleteRowCap,
 		SearchIndexPredeleteDeadline: policy.SearchIndexPredeleteDeadline,
 	})
 	if errors.Is(err, postgres.ErrGenerationRetentionKeyIndexUnavailable) {

@@ -67,7 +67,8 @@ Never `internal/reducer`.
 - The orphan sweep runs after the prune transaction ends, at most once per
   poll interval per reducer replica (a draining backlog runs passes back to back and the census
   walks every search index pair), and also when the prune failed. A sweep
-  failure does not fail the pass.
+  failure does not fail the pass. `Policy.SearchIndexPredeleteRowCap` bounds
+  both the pre-delete and the sweep (unset: 2,000,000 each).
 
 - A skipped-only pass retries soon (1m doubling per consecutive
   skipped-only pass, capped at the poll interval) instead of sleeping
