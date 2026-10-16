@@ -19,77 +19,121 @@ ROUTED_PATHS = (
 )
 
 
+# The reviewed workflow and gate use a literal YAML subset. Compare every active
+# control line, then validate the one variable paths/triggers sequence separately.
+WORKFLOW_CONTROL_LINES = """
+name: Replay Tier (offline NornicDB)
+on:
+  merge_group:
+    types: [checks_requested]
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+    paths:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+permissions:
+  contents: read
+jobs:
+  queue-selection:
+    uses: ./.github/workflows/queue-selection.yml
+    with:
+      workflow: verify-replay-tier.yml
+  replay-tier:
+    needs: queue-selection
+    name: Offline replay tier vs real NornicDB
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
+      - name: Check out code
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Offline replay tier vs real NornicDB')) }}
+        uses: actions/checkout@v5
+      - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Offline replay tier vs real NornicDB')) }}
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Install contract dependencies
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Offline replay tier vs real NornicDB')) }}
+        run: scripts/ci/install-apt-packages.sh ripgrep
+      - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Offline replay tier vs real NornicDB')) }}
+        run: scripts/ci/go-mod-download-retry.sh
+      - name: Verify replay tier contract
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Offline replay tier vs real NornicDB')) }}
+        run: bash scripts/test-verify-replay-tier.sh
+      - name: Run offline replay tier against real NornicDB
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Offline replay tier vs real NornicDB')) }}
+        run: bash scripts/verify-replay-tier.sh
+""".strip("\n").splitlines()
+
+REGISTRY_GATE_CONTROL_LINES = """
+  - id: replay-tier
+    name: Replay tier (offline cassette replay)
+    category: exactness
+    layer: replay
+    purpose: "Replays recorded ingest/projector cassettes offline and checks the results match the real NornicDB backend."
+    tier: ci-heavy
+    blocking: true
+    triggers:
+    local:
+      command: "bash scripts/verify-replay-tier.sh"
+      test_command: "bash scripts/test-verify-replay-tier.sh"
+    ci:
+      workflow: verify-replay-tier.yml
+      job: "Offline replay tier vs real NornicDB"
+    requirements:
+      - go
+      - docker
+    ci_only_reason: ""
+""".strip("\n").splitlines()
+
+# A fixed reviewed selector keeps the live-tests.d/ branch open for every
+# current and future fragment, not merely the fragment used in one fixture.
+PREPR_SELECTOR = (
+    r"^(go/cmd/(ingester|projector)/"
+    r"|go/internal/(query|replay|reducer|storage/cypher|storage/nornicdb"
+    r"|projector|graph|runtime)/"
+    r"|testdata/cassettes/(replayoffline|replaydelta)/"
+    r"|scripts/(verify-replay-tier|test-verify-replay-tier)\.sh"
+    r"|scripts/dev/pre-pr\.sh|scripts/ci/install-apt-packages\.sh"
+    r"|\.github/workflows/verify-replay-tier\.yml"
+    r"|scripts/lib/(replay_tier_|verify-live-tests-ledger\.py)"
+    r"|scripts/test-replay-tier-.*\.py"
+    r"|specs/live-tests(\.v1\.yaml|\.d/)"
+    r"|specs/ci-gates\.d/gates-15\.yaml)"
+)
+
+
+def _control_lines_without_sequence(lines: list[tuple[int, str]],
+                                    key: str, indent: int,
+                                    label: str) -> list[str]:
+    """Keep every active control line outside one validated literal sequence."""
+    indexes = [index for index, (depth, content) in enumerate(lines)
+               if depth == indent and content == key + ":"]
+    if len(indexes) != 1:
+        raise ValueError(f"{label} needs one literal {key} sequence")
+    start = indexes[0] + 1
+    end = next((index for index in range(start, len(lines))
+                if lines[index][0] <= indent), len(lines))
+    return [" " * depth + content for index, (depth, content) in enumerate(lines)
+            if not start <= index < end]
+
+
 def verify_workflow_liveness(workflow: str) -> None:
     """Require the existing CI job to execute every reviewed proof step."""
-    if (not all(re.search(pattern, workflow, re.M) for pattern in (
-        r"^  merge_group:\n    types: \[checks_requested\]$",
-        r"^  push:\n    branches: \[ main \]$",
-        r"^  pull_request:\n    branches: \[ main \]$",
-    )) or any(len(re.findall(pattern, workflow, re.M)) != 1 for pattern in (
-        r"^on:.*$", r"^jobs:.*$", r"^  merge_group:.*$",
-        r"^  push:.*$", r"^  pull_request:.*$",
-    ))):
-        raise ValueError("workflow events no longer select the replay gate")
-    sections = workflow.split("\njobs:\n", 1)
-    if len(sections) != 2:
-        raise ValueError("workflow jobs block is missing")
-    job_rows = re.findall(
-        r"(?ms)^  ([a-z][a-z0-9-]*):\n(.*?)(?=^  [a-z][a-z0-9-]*:\n|\Z)",
-        sections[1],
+    workflow_paths(workflow)
+    controls = _control_lines_without_sequence(
+        _active_lines(workflow, "workflow"), "paths", 4, "workflow"
     )
-    if [name for name, _ in job_rows] != ["queue-selection", "replay-tier"]:
-        raise ValueError("workflow queue or replay job is missing or replaced")
-    queue, replay = (body for _, body in job_rows)
-    queue_fields = re.findall(r"(?m)^    ([a-z][a-z0-9-]*):(?: ([^\n]+))?$", queue)
-    replay_fields = re.findall(r"(?m)^    ([a-z][a-z0-9-]*):(?: ([^\n]+))?$", replay)
-    if (queue_fields != [("uses", "./.github/workflows/queue-selection.yml"),
-                         ("with", "")]
-            or re.findall(r"(?m)^      ([a-z][a-z0-9-]*):(?: ([^\n]+))?$",
-                          queue) != [("workflow", "verify-replay-tier.yml")]
-            or replay_fields != [
-                ("needs", "queue-selection"),
-                ("name", "Offline replay tier vs real NornicDB"),
-                ("runs-on", "ubuntu-latest"),
-                ("timeout-minutes", "15"),
-                ("steps", ""),
-            ]):
-        raise ValueError("workflow replay job or queue selection is disabled")
-    steps_text = replay.split("    steps:\n", 1)[1]
-    steps = re.findall(r"(?ms)^      - name: ([^\n]+)\n(.*?)(?=^      - |\Z)",
-                       steps_text)
-    if len(steps) != 7 or len(re.findall(r"(?m)^      - ", steps_text)) != 7:
-        raise ValueError("workflow proof steps are missing or replaced")
-    selection = ("${{ github.event_name != 'merge_group' || "
-                 "(contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), "
-                 "'Offline replay tier vs real NornicDB')) }}")
-    expected = (
-        ("Require queue selection to succeed",
-         "${{ always() && github.event_name == 'merge_group' }}",
-         "run", 'test "${{ needs.queue-selection.result }}" = success'),
-        ("Check out code", selection, "uses", "actions/checkout@v5"),
-        ("Set up Go", selection, "uses", "actions/setup-go@v6"),
-        ("Install contract dependencies", selection, "run",
-         "scripts/ci/install-apt-packages.sh ripgrep"),
-        ("Pre-warm Go modules", selection, "run",
-         "scripts/ci/go-mod-download-retry.sh"),
-        ("Verify replay tier contract", selection, "run",
-         "bash scripts/test-verify-replay-tier.sh"),
-        ("Run offline replay tier against real NornicDB", selection, "run",
-         "bash scripts/verify-replay-tier.sh"),
-    )
-    for (name, body), (want_name, want_if, command_key, command) in zip(steps, expected):
-        fields = re.findall(r"(?m)^        ([a-z][a-z0-9-]*):(?: ([^\n]+))?$",
-                            body)
-        want_fields = [("if", want_if), (command_key, command)]
-        if name == "Set up Go":
-            want_fields.append(("with", ""))
-            if re.findall(
-                r"(?m)^          ([a-z][a-z0-9-]*):(?: ([^\n]+))?$", body
-            ) != [("go-version-file", "go/go.mod"),
-                  ("cache-dependency-path", "go/go.sum")]:
-                raise ValueError("workflow Go setup no longer uses reviewed module")
-        if name != want_name or fields != want_fields:
-            raise ValueError(f"workflow proof step disabled or altered: {want_name}")
+    if controls != WORKFLOW_CONTROL_LINES:
+        raise ValueError("workflow has unsupported active YAML controls")
 
 
 def _active_lines(source: str, label: str) -> list[tuple[int, str]]:
@@ -99,8 +143,8 @@ def _active_lines(source: str, label: str) -> list[tuple[int, str]]:
         if not line.strip() or line.lstrip().startswith("#"):
             continue
         prefix = line[:len(line) - len(line.lstrip())]
-        if "\t" in prefix:
-            raise ValueError(f"{label} uses unsupported tab indentation")
+        if any(character != " " for character in prefix):
+            raise ValueError(f"{label} uses unsupported indentation")
         active.append((len(prefix), line.strip()))
     return active
 
@@ -157,7 +201,15 @@ def workflow_paths(workflow: str) -> set[str]:
 def replay_gate_triggers(registry: str) -> set[str]:
     """Read effective replay-tier triggers in the supported registry shape."""
     lines = _active_lines(registry, "registry")
+    if [content for depth, content in lines if depth == 0] != [
+        "version: v1", "gates:"
+    ]:
+        raise ValueError("registry has unsupported root controls")
     gates = _only_block(lines, "gates", 0, "registry")
+    if any(depth == 2 and re.fullmatch(
+        r"- id: [a-z][a-z0-9-]*(?: #.*)?", content
+    ) is None for depth, content in gates):
+        raise ValueError("registry has unsupported gate entries")
     matches = [index for index, (depth, content) in enumerate(gates)
                if depth == 2 and content.startswith("- id:")
                and content.partition(":")[2].split(" #", 1)[0]
@@ -171,7 +223,13 @@ def replay_gate_triggers(registry: str) -> set[str]:
     if any(content.startswith("<<:") for _, content in gate):
         raise ValueError("registry replay-tier uses unsupported YAML merge")
     triggers = _only_block(gate, "triggers", 4, "registry")
-    return _paths(triggers, 6, '"', "registry replay-tier.triggers")
+    paths = _paths(triggers, 6, '"', "registry replay-tier.triggers")
+    controls = _control_lines_without_sequence(
+        [gates[matches[0]], *gate], "triggers", 4, "registry"
+    )
+    if controls != REGISTRY_GATE_CONTROL_LINES:
+        raise ValueError("registry replay-tier has unsupported active YAML controls")
+    return paths
 
 
 def _prepr_selector(prepr: str) -> re.Pattern[str]:
@@ -182,12 +240,24 @@ def _prepr_selector(prepr: str) -> re.Pattern[str]:
     if len(starts) != 1 or starts[0] + 3 >= len(lines):
         raise ValueError("pre-pr needs one active replay-tier command")
     index = starts[0]
+    functions = [position for position, line in enumerate(lines)
+                 if line == "step_live() {"]
+    calls = [position for position, line in enumerate(lines)
+             if line == 'run_step "path-triggered live lane" step_live']
+    if len(functions) != 1 or len(calls) != 1:
+        raise ValueError("pre-pr no longer invokes its live lane")
+    end = next((position for position in range(functions[0] + 1, len(lines))
+                if lines[position] == "}"), -1)
+    if not functions[0] < index < end < calls[0]:
+        raise ValueError("pre-pr replay command is outside the live lane")
     selector = re.fullmatch(r"[ \t]*'([^']+)' \\", lines[index + 1])
     if (selector is None
             or re.fullmatch(r"[ \t]*'docker info' \\", lines[index + 2]) is None
             or re.fullmatch(r'[ \t]*bash "\$\{repo_root\}/scripts/verify-replay-tier\.sh" \|\| rc=1',
                             lines[index + 3]) is None):
         raise ValueError("pre-pr replay-tier command has unsupported arguments")
+    if selector.group(1) != PREPR_SELECTOR:
+        raise ValueError("pre-pr replay-tier selector differs from reviewed coverage")
     try:
         return re.compile(selector.group(1))
     except re.error as error:
@@ -218,7 +288,15 @@ def verify_routes(root: Path) -> None:
             registry_path = path
         if registry_path not in registry_triggers:
             raise ValueError(f"registry lacks replay metadata trigger: {path}")
-        sample = ("specs/live-tests.d/live-tests-03.yaml"
-                  if path == "specs/live-tests.d/**" else path)
-        if selector.match(sample) is None:
-            raise ValueError(f"pre-pr lacks replay metadata trigger: {path}")
+        if path == "specs/live-tests.d/**":
+            fragments = list((root / "specs/live-tests.d").glob("**/*.yaml"))
+            if not fragments:
+                raise ValueError("pre-pr has no live-test fragments to check")
+            samples = {item.relative_to(root).as_posix() for item in fragments}
+            samples.update(("specs/live-tests.d/live-tests-99.yaml",
+                            "specs/live-tests.d/future/live-tests-99.yaml"))
+        else:
+            samples = {path}
+        for sample in samples:
+            if selector.match(sample) is None:
+                raise ValueError(f"pre-pr lacks replay metadata trigger: {sample}")
