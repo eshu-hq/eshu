@@ -15,12 +15,17 @@ watermark to the forced-full path. Operator record:
 
 Base-lookup `EXPLAIN (ANALYZE, BUFFERS)` on a scratch PostgreSQL
 instance, 60,000 `scope_generations` rows (40 scopes x 1,500
-generations, mixed full/delta and five statuses): without the index
-0.328 ms and 56 buffers with 898 rows removed by filter; with the
-migration-178 partial index one seek, 0.132 ms and 19 buffers, a
-byte-identical row. A plain
-`(scope_id, is_delta, source_commit_sha)` index is never chosen by the
-planner and was not shipped.
+generations, mixed full/delta and five statuses): 0.328 ms and 56
+buffers with 898 rows removed by filter, served by the pre-existing
+status-led bitmap on `scope_generations_scope_idx`. A dedicated
+partial index over projected full generations was evaluated (one seek,
+0.132 ms and 19 buffers, a byte-identical row) and then dropped: it
+deterministically flipped the retention prescreen plan to sequential
+scans, failing that lane's blocking gate, while its own win was small
+and mainly growth protection. The blocking gate plus accuracy outrank
+an unproven growth-protection index; the bitmap fallback serves at
+0.33 ms warm. A plain `(scope_id, is_delta, source_commit_sha)` index
+is never chosen by the planner and was not shipped.
 
 - Backend: local PostgreSQL scratch instance for the plan proof; live
   union-read proof below ran against local PostgreSQL 15433.
@@ -40,14 +45,17 @@ planner and was not shipped.
   `TestFactStoreListFactsDeltaBaseMissingLive` 0.06s,
   `TestFactStoreReadDeltaUnionActiveLive` 0.05s,
   `TestFactStoreListFactsPrunedBaseRefusesLive` 0.07s, package 0.324s.
-- Why safe: the base lookup is one partial-index seek per delta load;
-  the overlay is in-memory over rows already paged; migration 178
-  indexes only `is_delta = false` projected generations, so delta
-  inserts pay nothing and full inserts pay one small partial-index
-  write. No new hot write path, no worker or batch change. The
-  161-scope production repair-load plan (per-scope base/delta/union
-  counts and stage durations against each scope's full band) is an
-  owner act recorded in the operate note.
+- Why safe: the base lookup is one status-bitmap probe per delta load
+  on the pre-existing index at 0.33 ms warm; the overlay is in-memory
+  over rows already paged. No new index, no new hot write path, no
+  worker or batch change. The 161-scope production repair-load plan
+  (per-scope base/delta/union counts and stage durations against each
+  scope's full band) is an owner act recorded in the operate note.
+  Reintroducing a dedicated base index needs a production-scale
+  bottleneck proof first: measured base-lookup contribution to a
+  missed target, same-boundary before/after `EXPLAIN (ANALYZE,
+  BUFFERS)`, and a retention prescreen plan-shape re-proof with no
+  blocking-gate regression.
 
 ## Observability Evidence:
 

@@ -46,17 +46,21 @@ failure self-heals.
 
 Base lookup on PostgreSQL 16, 60,000 `scope_generations` rows (40 scopes x
 1,500 generations, mixed full/delta and five statuses), `EXPLAIN (ANALYZE,
-BUFFERS)`: the partial index serves it as one seek (0.132 ms, 19 buffers,
-byte-identical row) against 0.328 ms and 56 buffers with 898 rows removed by
-filter on the pre-existing status bitmap. A plain
+BUFFERS)`: 0.328 ms and 56 buffers with 898 rows removed by filter on the
+pre-existing status bitmap, which serves the lookup with no dedicated
+index. A partial index over projected full generations was evaluated
+(one seek, 0.132 ms, 19 buffers, byte-identical row) and dropped: it
+deterministically flipped the retention prescreen plan to sequential
+scans, failing that lane's blocking gate, while its own win was small
+and mainly growth protection. The blocking gate plus accuracy outrank
+an unproven growth-protection index. A plain
 `(scope_id, is_delta, source_commit_sha)` index is never chosen by the
 planner and was not shipped. The lookup runs once per delta fact load and
-once per delta fact count; generation inserts pay one small partial-index
-write. Per-load cost is one target-row read, one base seek, one prune-event
-probe only for superseded bases, plus the base fact pages the projection
-would have skipped before: a delta projection now loads base plus delta
-facts, and `CountFacts` reports that upper bound so the large-generation
-semaphore classifies on the union.
+once per delta fact count. Per-load cost is one target-row read, one base
+bitmap probe, one prune-event probe only for superseded bases, plus the
+base fact pages the projection would have skipped before: a delta
+projection now loads base plus delta facts, and `CountFacts` reports that
+upper bound so the large-generation semaphore classifies on the union.
 
 ## Observability Evidence
 

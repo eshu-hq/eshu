@@ -39,10 +39,9 @@ WHERE scope_id = $1
 // generations, so an active or completed base is intact by construction,
 // while a superseded base needs the retention-event probe below. Same-commit
 // generations observe the same tree, so intactness outranks recency. The
-// WHERE predicates match scope_generations_delta_union_base_idx (migration
-// 178) exactly so the planner serves it as one index seek; the fact-load hot
-// path must not depend on it (the pre-index bitmap plan is sub-millisecond),
-// it only halves the buffers.
+// lookup is served by the pre-existing status-led bitmap on
+// scope_generations_scope_idx (sub-millisecond, ~0.33 ms warm); it carries
+// no dedicated index dependency.
 const deltaUnionBaseQuery = `
 SELECT generation_id, status
 FROM scope_generations
