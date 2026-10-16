@@ -44,6 +44,12 @@ Move evidence.
   package-local so `span_test.go`'s recording-provider swap stays private to
   this package. Do not promote it to an exported var or move the span helper
   back to root.
+- Each of the four read branches answers a read error in order:
+  `querycontract.WriteGraphReadError` with `languageQueryCapability`, then
+  `tracing.WriteServerFailure` with `languageQueryFailedMessage` from
+  `failure.go` (#7674): 500 with the error on the route span, or 499 on a
+  client cancel. `server_failure_test.go` drives all four branches through
+  `testutil/failure`; keep one route per branch.
 - `EntitySearch` is exported at its declaration because root's
   `content_reader_entity_search.go` (Part B, not moved) names it through the
   `languageEntitySearch` alias in `language_alias.go`. `languageEntityContentSearcher`
