@@ -138,3 +138,6 @@ not apply. Before you retry, read the state the route writes:
   not. The replay, reopen, or recovery applied and only its idempotency record
   did not. The key stays in progress and a retry answers `409`. Inspect the
   work items before you use a new key.
+
+The auth, session, and first-run setup routes follow the same rules; see
+[Auth and session route failures](auth-session-failures.md).
