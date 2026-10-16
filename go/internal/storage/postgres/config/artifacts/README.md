@@ -191,7 +191,9 @@ When called, `CheckEncoding` logs `event_name=postgres.server_encoding` at
 INFO or ERROR, and every statement here runs through the caller's
 instrumented Postgres wrapper (`eshu_dp_postgres_query_duration_seconds`).
 
-`CheckFence` logs `event_name=postgres.config_artifact_fence`:
+Observability Evidence: `CheckFence` logs
+`event_name=postgres.config_artifact_fence` (the hermetic tests in
+`fence_test.go` assert the level, event and every field below):
 
 | Level | When | Fields |
 |---|---|---|
@@ -204,11 +206,19 @@ At 3 AM grep for `"event_name":"postgres.config_artifact_fence"` with
 migration 186 for a dropped trigger, `ALTER TABLE ... ENABLE TRIGGER` for
 `D` or `R`). `OutcomeFenceMissing` is only a constant here: the
 `eshu_dp_config_artifact_derives_total` counter that carries it is registered
-by a later PR3b-2 slice, so no metric exists yet. The catalog read is one
-statement per process start. On a fully bootstrapped PostgreSQL 18.6 database
-(770 `pg_trigger` rows, 26 non-internal) its plan is a hash join of the five
-requested pairs over a sequential scan of `pg_trigger`: 18 shared buffers,
-0.044-0.063 ms execution over four runs on 2026-10-16.
+by a later PR3b-2 slice, so no metric exists yet.
+
+Performance Evidence: the baseline (base branch) runs no fence check; after
+this change the check is one catalog statement per process start, and no
+binary calls it yet, so no hot path changes. Backend: PostgreSQL 18.6
+(`postgres:18.6` in Docker, local). Input shape: a fully bootstrapped
+database, 770 `pg_trigger` rows (26 non-internal), five requested pairs, five
+rows returned. `EXPLAIN (ANALYZE, BUFFERS)` of `fenceTriggersSQL`: a hash
+join of the five pairs over a sequential scan of `pg_trigger`, 18 shared
+buffers, 0.044-0.063 ms execution over four runs on 2026-10-16. The cost
+grows with catalog triggers, not with content rows. It is safe because it
+reads only `pg_trigger`, takes no lock beyond the catalog's ACCESS SHARE, and
+never fails or blocks the caller.
 
 ## Verification
 
