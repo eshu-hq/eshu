@@ -3,11 +3,13 @@
 import importlib.util
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -267,6 +269,7 @@ class ScheduledRunnerTest(unittest.TestCase):
                     path.write_text("\n".join(json.dumps(event) for event in altered) + "\n")
                     self.assertFalse(MODULE.verify_events(path, package, expected))
 
+    @mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "false"})
     def test_manifest_and_bundle_fail_closed(self) -> None:
         inventory = MODULE.load_inventory()
         manifest = MODULE.build_manifest(
@@ -332,6 +335,42 @@ class ScheduledRunnerTest(unittest.TestCase):
                 MODULE.verify_proof_bundle(
                     bundle, inventory, allow_local_simulation=True
                 )
+
+    def test_hosted_bundle_matches_github_run_metadata(self) -> None:
+        inventory = MODULE.load_inventory()
+        manifest = MODULE.build_manifest(
+            inventory, "pull_request", "123", "2",
+            "https://github.com/eshu-hq/eshu/actions/runs/123/attempts/2",
+            "a" * 40, "b" * 40, "PostgreSQL 18.6 on aarch64-linux",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            event_path = Path(directory) / "event.json"
+            event_path.write_text(json.dumps({
+                "pull_request": {"head": {"sha": "a" * 40}},
+            }))
+            hosted_env = {
+                "GITHUB_ACTIONS": "true",
+                "GITHUB_REPOSITORY": "eshu-hq/eshu",
+                "GITHUB_EVENT_NAME": "pull_request",
+                "GITHUB_RUN_ID": "999",
+                "GITHUB_RUN_ATTEMPT": "2",
+                "GITHUB_SHA": "b" * 40,
+                "GITHUB_EVENT_PATH": str(event_path),
+            }
+            with mock.patch.dict(os.environ, hosted_env, clear=True):
+                with self.assertRaisesRegex(ValueError, "run ID"):
+                    MODULE.verify_hosted_environment(manifest)
+                os.environ["GITHUB_RUN_ID"] = "123"
+                MODULE.verify_hosted_environment(manifest)
+                os.environ["GITHUB_SHA"] = "c" * 40
+                with self.assertRaisesRegex(ValueError, "checkout SHA"):
+                    MODULE.verify_hosted_environment(manifest)
+                os.environ["GITHUB_SHA"] = "b" * 40
+                event_path.write_text(json.dumps({
+                    "pull_request": {"head": {"sha": "d" * 40}},
+                }))
+                with self.assertRaisesRegex(ValueError, "reviewed head SHA"):
+                    MODULE.verify_hosted_environment(manifest)
 
 
 

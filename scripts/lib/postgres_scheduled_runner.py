@@ -292,6 +292,33 @@ def build_manifest(
     )
 
 
+def verify_hosted_environment(manifest: dict[str, object]) -> None:
+    """Bind hosted proof metadata to the current GitHub Actions attempt."""
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        return
+    if os.environ.get("GITHUB_REPOSITORY") != "eshu-hq/eshu":
+        raise ValueError("hosted repository differs from proof manifest")
+    for field, variable, label in (
+        ("event", "GITHUB_EVENT_NAME", "event"),
+        ("run_id", "GITHUB_RUN_ID", "run ID"),
+        ("run_attempt", "GITHUB_RUN_ATTEMPT", "run attempt"),
+        ("checkout_sha", "GITHUB_SHA", "checkout SHA"),
+        ("event_sha", "GITHUB_SHA", "event SHA"),
+    ):
+        if str(manifest.get(field)) != os.environ.get(variable):
+            raise ValueError(f"hosted {label} differs from current GitHub run")
+    if manifest.get("event") == "pull_request":
+        event_path = os.environ.get("GITHUB_EVENT_PATH")
+        if not event_path:
+            raise ValueError("hosted pull request event path missing")
+        event = json.loads(Path(event_path).read_text(encoding="utf-8"))
+        pull_request = event.get("pull_request") if isinstance(event, dict) else None
+        head = pull_request.get("head") if isinstance(pull_request, dict) else None
+        expected_head = head.get("sha") if isinstance(head, dict) else None
+        if manifest.get("reviewed_head_sha") != expected_head:
+            raise ValueError("hosted reviewed head SHA differs from pull request")
+
+
 def verify_proof_bundle(
     bundle: Path, inventory: dict[str, dict[str, object]],
     source_root: Path | None = None,
@@ -330,6 +357,7 @@ def verify_proof_bundle(
         raise ValueError("hosted proof source checksum mismatch")
     if manifest != expected:
         raise ValueError("hosted proof manifest differs from expected run")
+    verify_hosted_environment(manifest)
     for group, package in PACKAGES.items():
         path = bundle / f"{group}.jsonl"
         if not path.is_file():
