@@ -55,7 +55,7 @@ sweep outcome.
   excluded by the candidate CTE, never retried.
 - `DefaultBatchLimit` (200) deliberately matches the generation-liveness sweep
   batch default; the parent package pins the equality in
-  `poison_batch_default_parity_test.go`, so changing one without the other
+  `batch_default_parity_test.go`, so changing one without the other
   fails loudly.
 - `"Strictly newer"` is `(ingested_at, generation_id)` compared
   lexicographically, mirroring the generation supersede comparator. A scope
