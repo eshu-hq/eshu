@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -15,12 +16,34 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/samlauth"
 
 	"github.com/eshu-hq/eshu/go/internal/authsafe"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 const (
 	maxSAMLACSBodyBytes = 1 << 20
 	// DefaultSAMLRequestTTL bounds RelayState and AuthnRequest replay windows.
 	DefaultSAMLRequestTTL = 5 * time.Minute
+)
+
+// Fixed messages for SAML step failures (#7674), answered through
+// tracing.WriteServerFailure: 500 with the cause on the request span, or 499
+// on a client cancel. A cause can quote provider config, SQL, or a host.
+const (
+	samlProviderLoadFailedMessage     = "failed to load saml provider"
+	samlMetadataRenderFailedMessage   = "failed to render saml metadata"
+	samlRequestCreateFailedMessage    = "failed to create saml request"
+	samlRequestBuildFailedMessage     = "failed to build saml request"
+	samlRequestPersistFailedMessage   = "failed to persist saml request"
+	samlRequestConsumeFailedMessage   = "failed to consume saml request"
+	samlReplayReserveFailedMessage    = "failed to reserve saml replay key"
+	samlPrincipalResolveFailedMessage = "failed to resolve saml principal"
+	samlPrincipalUnboundMessage       = "saml principal resolved without tenant or workspace"
+)
+
+// Span causes for the SAML steps that fail with no error of their own.
+var (
+	errSAMLRequestHashEmpty = errors.New("saml request id or relay state hashed to empty")
+	errSAMLPrincipalUnbound = errors.New("saml principal has no tenant or workspace")
 )
 
 // SAMLStore resolves SAML provider state and maps validated principals to Eshu
@@ -58,30 +81,6 @@ type SAMLRequestCreateRecord struct {
 	ReturnToPath   string
 	IssuedAt       time.Time
 	ExpiresAt      time.Time
-}
-
-// SAMLAssertion is the validated assertion material needed after XML checks.
-type SAMLAssertion struct {
-	ResponseID  string
-	AssertionID string
-	Claims      samlauth.AssertionClaims
-	Window      samlauth.AssertionWindow
-}
-
-// SAMLAssertionVerifier validates SAML responses before Eshu session creation.
-type SAMLAssertionVerifier interface {
-	VerifySAMLResponse(context.Context, SAMLProviderConfig, string, []string) (SAMLAssertion, error)
-}
-
-// SAMLAuthnRequest is an IdP redirect plus the request ID it carries.
-type SAMLAuthnRequest struct {
-	RequestID   string
-	RedirectURL string
-}
-
-// SAMLAuthnRequestBuilder builds SP-initiated SAML login redirects.
-type SAMLAuthnRequestBuilder interface {
-	BuildSAMLRedirect(context.Context, SAMLProviderConfig, string) (SAMLAuthnRequest, error)
 }
 
 // SAMLProviderIDLister is an optional extension on SAMLStore implementations
@@ -147,7 +146,7 @@ func (h *SAMLHandler) handleMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 	provider, ok, err := h.Store.GetSAMLProvider(r.Context(), PathParam(r, "provider_id"))
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "failed to load saml provider")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, samlProviderLoadFailedMessage)
 		return
 	}
 	if !ok {
@@ -156,7 +155,7 @@ func (h *SAMLHandler) handleMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 	body, err := samlauth.RenderServiceProviderMetadata(provider.ServiceProvider)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "failed to render saml metadata")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, samlMetadataRenderFailedMessage)
 		return
 	}
 	w.Header().Set("Content-Type", "application/samlmetadata+xml; charset=utf-8")
@@ -172,7 +171,7 @@ func (h *SAMLHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	providerID := PathParam(r, "provider_id")
 	provider, ok, err := h.Store.GetSAMLProvider(r.Context(), providerID)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "failed to load saml provider")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, samlProviderLoadFailedMessage)
 		return
 	}
 	if !ok {
@@ -181,12 +180,12 @@ func (h *SAMLHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	relayState, err := h.newSecret()
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "failed to create saml request")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, samlRequestCreateFailedMessage)
 		return
 	}
 	request, err := h.requestBuilder().BuildSAMLRedirect(r.Context(), provider, relayState)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "failed to build saml request")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, samlRequestBuildFailedMessage)
 		return
 	}
 	now := h.now()
@@ -199,11 +198,11 @@ func (h *SAMLHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		ExpiresAt:      now.Add(DefaultSAMLRequestTTL),
 	}
 	if record.RequestIDHash == "" || record.RelayStateHash == "" {
-		WriteError(w, http.StatusInternalServerError, "failed to create saml request")
+		tracing.WriteServerFailure(w, r, errSAMLRequestHashEmpty, http.StatusInternalServerError, samlRequestCreateFailedMessage)
 		return
 	}
 	if err := h.Store.CreateSAMLRequest(r.Context(), provider.ProviderConfigID, record); err != nil {
-		WriteError(w, http.StatusInternalServerError, "failed to persist saml request")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, samlRequestPersistFailedMessage)
 		return
 	}
 	http.Redirect(w, r, request.RedirectURL, http.StatusFound)
@@ -230,7 +229,7 @@ func (h *SAMLHandler) handleACS(w http.ResponseWriter, r *http.Request) {
 	provider, ok, err := h.Store.GetSAMLProvider(r.Context(), providerID)
 	if err != nil {
 		h.auditSAMLLogin(r, now, governanceaudit.DecisionUnavailable, "provider_lookup_error")
-		WriteError(w, http.StatusInternalServerError, "failed to load saml provider")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, samlProviderLoadFailedMessage)
 		return
 	}
 	if !ok {
@@ -253,8 +252,11 @@ func (h *SAMLHandler) handleACS(w http.ResponseWriter, r *http.Request) {
 		now,
 	)
 	if err != nil {
+		// A 499 here or at any later step says only that the client left: a
+		// consume that committed spends the AuthnRequest, so a retried POST
+		// answers 401 and the user restarts login.
 		h.auditSAMLLogin(r, now, governanceaudit.DecisionUnavailable, "request_consume_error")
-		WriteError(w, http.StatusInternalServerError, "failed to consume saml request")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, samlRequestConsumeFailedMessage)
 		return
 	}
 	if !requestConsumed {
@@ -308,7 +310,7 @@ func (h *SAMLHandler) handleACS(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		h.auditSAMLLogin(r, now, governanceaudit.DecisionUnavailable, "replay_reserve_error")
-		WriteError(w, http.StatusInternalServerError, "failed to reserve saml replay key")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, samlReplayReserveFailedMessage)
 		return
 	}
 	if !replayReserved {
@@ -324,7 +326,7 @@ func (h *SAMLHandler) handleACS(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		h.auditSAMLLogin(r, now, governanceaudit.DecisionUnavailable, "principal_resolve_error")
-		WriteError(w, http.StatusInternalServerError, "failed to resolve saml principal")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, samlPrincipalResolveFailedMessage)
 		return
 	}
 	if !ok {
@@ -357,17 +359,17 @@ func (h *SAMLHandler) readyForACS(w http.ResponseWriter) bool {
 func (h *SAMLHandler) createSession(w http.ResponseWriter, r *http.Request, auth AuthContext, returnToPath string, now time.Time) {
 	auth = normalizeAuthContext(auth)
 	if strings.TrimSpace(auth.TenantID) == "" || strings.TrimSpace(auth.WorkspaceID) == "" {
-		WriteError(w, http.StatusInternalServerError, "saml principal resolved without tenant or workspace")
+		tracing.WriteServerFailure(w, r, errSAMLPrincipalUnbound, http.StatusInternalServerError, samlPrincipalUnboundMessage)
 		return
 	}
 	sessionSecret, err := h.newSecret()
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "failed to create browser session")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, browserSessionCreateFailedMessage)
 		return
 	}
 	csrfSecret, err := h.newSecret()
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "failed to create browser session")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, browserSessionCreateFailedMessage)
 		return
 	}
 	idleTimeout, absoluteTimeout := resolveSessionTimeouts(
@@ -396,7 +398,7 @@ func (h *SAMLHandler) createSession(w http.ResponseWriter, r *http.Request, auth
 		AbsoluteExpiresAt:            absoluteExpiresAt,
 		UpdatedAt:                    now,
 	}); err != nil {
-		WriteError(w, http.StatusInternalServerError, "failed to create browser session")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, browserSessionCreateFailedMessage)
 		return
 	}
 	sessionAuth := auth

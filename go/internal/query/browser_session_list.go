@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // BrowserSessionListItem is the metadata-only view of one browser session that
@@ -91,8 +93,11 @@ func (h *BrowserSessionListHandler) handleListSessions(w http.ResponseWriter, r 
 	now := h.now()
 	items, err := h.Store.ListSessionsBySubject(r.Context(), auth.SubjectIDHash, now, sessionHash, limit, offset)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "list browser sessions failed", "err", err)
-		WriteError(w, http.StatusInternalServerError, "failed to list browser sessions")
+		// A client cancel answers 499 and is not logged as a failure.
+		if !tracing.ClientCanceled(r.Context(), err) {
+			slog.ErrorContext(r.Context(), "list browser sessions failed", "err", err)
+		}
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, browserSessionListFailedMessage)
 		return
 	}
 

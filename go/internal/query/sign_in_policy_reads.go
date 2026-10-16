@@ -9,6 +9,15 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
+)
+
+// Fixed messages for sign-in policy step failures (#7674), answered through
+// tracing.WriteServerFailure: 500 with the store error on the request span,
+// or 499 on a client cancel, which is not logged as a failure.
+const (
+	signInPolicyReadFailedMessage   = "failed to read sign-in policy"
+	signInPolicyUpdateFailedMessage = "failed to update sign-in policy"
 )
 
 // SignInPolicyReadHandler serves the tenant sign-in policy read routes
@@ -96,8 +105,10 @@ func (h *SignInPolicyReadHandler) handleAdminGet(w http.ResponseWriter, r *http.
 	}
 	policy, err := h.Store.GetSignInPolicy(r.Context(), tenantID)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "admin sign-in policy read failed", "err", err)
-		WriteError(w, http.StatusInternalServerError, "failed to read sign-in policy")
+		if !tracing.ClientCanceled(r.Context(), err) {
+			slog.ErrorContext(r.Context(), "admin sign-in policy read failed", "err", err)
+		}
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, signInPolicyReadFailedMessage)
 		return
 	}
 	WriteJSON(w, http.StatusOK, signInPolicyDetailJSON(policy))

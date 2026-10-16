@@ -104,6 +104,7 @@ nav:
         - Admin Replay Refusals: reference/http-api/admin-replay-refusals.md
         - Admin Route Failures: reference/http-api/admin-failures.md
         - Status And Evidence Route Failures: reference/http-api/status-evidence-failures.md
+        - Auth And Session Route Failures: reference/http-api/auth-session-failures.md
         - Selector And Read Failures: reference/http-api/selector-and-read-failures.md
         - Completed Work Reopen: reference/http-api/status-admin-reopen.md
         - Admin Scope Selector: reference/http-api/status-admin-scope-selector.md

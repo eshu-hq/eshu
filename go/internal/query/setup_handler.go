@@ -11,7 +11,21 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
+
+// Fixed messages for setup wizard step failures (#7674), answered through
+// tracing.WriteServerFailure: 500 with the cause on the request span, or 499
+// on a client cancel. A store error never reaches the body, and a wrong
+// bootstrap credential still answers the same 401 for every cause.
+const (
+	setupStateFailedMessage           = "failed to determine setup state"
+	setupCredentialCheckFailedMessage = "failed to verify bootstrap credential"
+	setupOwnerResolveFailedMessage    = "failed to resolve setup owner"
+	setupAdminPasswordFailedMessage   = "failed to set administrator password"
+	setupRecoveryCodesFailedMessage   = "failed to generate recovery codes"
+	setupCompleteFailedMessage        = "failed to complete setup"
 )
 
 // SetupHandler serves the first-run setup wizard routes (epic #4962, issue
@@ -43,6 +57,9 @@ type SetupHandler struct {
 	// not gate any behavior here — SetupNeeded's seal signal is the single
 	// source of truth for whether the wizard is reachable.
 	BootstrapMode string
+	// readEntropy fills the recovery-code buffers. Nil means crypto/rand.Read;
+	// tests set it to drive the recovery-code failure step.
+	readEntropy func([]byte) (int, error)
 }
 
 // Mount registers first-run setup wizard routes. auth.go's publicHTTPPaths
@@ -63,7 +80,7 @@ func (h *SetupHandler) handleState(w http.ResponseWriter, r *http.Request) {
 	}
 	needed, err := h.Store.SetupNeeded(r.Context())
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "failed to determine setup state")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, setupStateFailedMessage)
 		return
 	}
 	WriteJSON(w, http.StatusOK, SetupStateResponse{
@@ -85,7 +102,7 @@ func (h *SetupHandler) handleClaim(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.auditSetup(r, governanceaudit.DecisionDenied, "setup_claim_error")
 		h.recordOutcome(r, "claim_error")
-		WriteError(w, http.StatusInternalServerError, "failed to verify bootstrap credential")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, setupCredentialCheckFailedMessage)
 		return
 	}
 	if !ok {
@@ -124,7 +141,7 @@ func (h *SetupHandler) handleCreateAdmin(w http.ResponseWriter, r *http.Request)
 	credentialID, err := h.newID()
 	if err != nil {
 		h.recordOutcome(r, "admin_error")
-		WriteError(w, http.StatusInternalServerError, "failed to set administrator password")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, setupAdminPasswordFailedMessage)
 		return
 	}
 	now := h.now()
@@ -137,7 +154,7 @@ func (h *SetupHandler) handleCreateAdmin(w http.ResponseWriter, r *http.Request)
 		ResetAt:                now,
 	}); err != nil {
 		h.recordOutcome(r, "admin_error")
-		WriteError(w, http.StatusInternalServerError, "failed to set administrator password")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, setupAdminPasswordFailedMessage)
 		return
 	}
 	h.auditSetup(r, governanceaudit.DecisionAllowed, "setup_admin_password_set")
@@ -161,7 +178,7 @@ func (h *SetupHandler) verifyAndResolveOwner(
 	if err != nil {
 		h.auditSetup(r, governanceaudit.DecisionDenied, "setup_"+step+"_error")
 		h.recordOutcome(r, step+"_error")
-		WriteError(w, http.StatusInternalServerError, "failed to verify bootstrap credential")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, setupCredentialCheckFailedMessage)
 		return SetupOwner{}, false
 	}
 	if !ok {
@@ -174,7 +191,7 @@ func (h *SetupHandler) verifyAndResolveOwner(
 	if err != nil {
 		h.auditSetup(r, governanceaudit.DecisionDenied, "setup_"+step+"_owner_unresolved")
 		h.recordOutcome(r, step+"_error")
-		WriteError(w, http.StatusInternalServerError, "failed to resolve setup owner")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, setupOwnerResolveFailedMessage)
 		return SetupOwner{}, false
 	}
 	return owner, true
@@ -187,7 +204,7 @@ func (h *SetupHandler) verifyAndResolveOwner(
 func (h *SetupHandler) requireSetupOpen(w http.ResponseWriter, r *http.Request) bool {
 	needed, err := h.Store.SetupNeeded(r.Context())
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "failed to determine setup state")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, setupStateFailedMessage)
 		return false
 	}
 	if !needed {

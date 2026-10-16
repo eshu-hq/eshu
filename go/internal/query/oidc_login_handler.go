@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/authsafe"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // OIDC login errors let provider implementations map fail-closed outcomes to
@@ -20,6 +21,19 @@ var (
 	ErrOIDCLoginInvalidRequest = errors.New("oidc login invalid request")
 	ErrOIDCLoginDenied         = errors.New("oidc login denied")
 )
+
+// Fixed messages for OIDC login failures the sentinels above do not classify
+// (#7674), answered through tracing.WriteServerFailure: 500 with the cause on
+// the request span, or 499 on a client cancel. The cause can quote an IdP
+// response or provider config, so it never reaches the body.
+const (
+	oidcLoginFailedMessage     = "oidc login failed"
+	oidcLoginNoRedirectMessage = "oidc login did not return a redirect URL"
+)
+
+// errOIDCLoginRedirectEmpty is the span cause when the login service returned
+// an empty redirect URL with no error of its own.
+var errOIDCLoginRedirectEmpty = errors.New("oidc login service returned an empty redirect URL")
 
 // OIDCLoginService resolves generic OIDC Authorization Code login requests
 // into Eshu browser-session authorization contexts.
@@ -135,12 +149,12 @@ func (h *OIDCLoginHandler) handleStart(w http.ResponseWriter, r *http.Request) {
 	}
 	start, err := h.Service.StartOIDCLogin(r.Context(), req)
 	if err != nil {
-		writeOIDCLoginError(w, err)
+		writeOIDCLoginError(w, r, err)
 		return
 	}
 	redirectURL := strings.TrimSpace(start.RedirectURL)
 	if redirectURL == "" {
-		WriteError(w, http.StatusInternalServerError, "oidc login did not return a redirect URL")
+		tracing.WriteServerFailure(w, r, errOIDCLoginRedirectEmpty, http.StatusInternalServerError, oidcLoginNoRedirectMessage)
 		return
 	}
 	http.Redirect(w, r, redirectURL, http.StatusFound)
@@ -157,7 +171,7 @@ func (h *OIDCLoginHandler) handleCallback(w http.ResponseWriter, r *http.Request
 	complete, err := h.Service.CompleteOIDCLogin(r.Context(), req)
 	if err != nil {
 		auditOIDCSSOLogin(r, h.Audit, h.SessionIssuer.now(), err, "", "", "")
-		writeOIDCLoginError(w, err)
+		writeOIDCLoginError(w, r, err)
 		return
 	}
 	auditOIDCSSOLogin(r, h.Audit, h.SessionIssuer.now(), nil, complete.ProviderSubjectID, complete.Auth.TenantID, complete.Auth.WorkspaceID)
@@ -209,7 +223,10 @@ func (h *OIDCLoginHandler) sessionRefreshWindow() time.Duration {
 	return DefaultOIDCSessionRefreshWindow
 }
 
-func writeOIDCLoginError(w http.ResponseWriter, err error) {
+// writeOIDCLoginError answers a login service error: each sentinel keeps its
+// fixed 503, 400, or 403, and any other error answers oidcLoginFailedMessage
+// through tracing.WriteServerFailure.
+func writeOIDCLoginError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, ErrOIDCLoginUnavailable):
 		WriteError(w, http.StatusServiceUnavailable, "oidc login is unavailable")
@@ -218,6 +235,6 @@ func writeOIDCLoginError(w http.ResponseWriter, err error) {
 	case errors.Is(err, ErrOIDCLoginDenied):
 		WriteError(w, http.StatusForbidden, "oidc login denied")
 	default:
-		WriteError(w, http.StatusInternalServerError, "oidc login failed")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, oidcLoginFailedMessage)
 	}
 }

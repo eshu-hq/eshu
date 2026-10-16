@@ -6,11 +6,13 @@ package query
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth/session"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // The two timeout defaults are compatibility aliases: they live in
@@ -23,6 +25,21 @@ const (
 	DefaultBrowserSessionAbsoluteTimeout = session.DefaultBrowserSessionAbsoluteTimeout
 	browserSessionSecretBytes            = 32
 )
+
+// Fixed messages for browser-session step failures (#7674), answered through
+// tracing.WriteServerFailure: 500 with the cause on the request span, or 499
+// on a client cancel. The SAML ACS route and the OIDC and GitHub callbacks
+// answer browserSessionCreateFailedMessage too when issuing a session fails.
+const (
+	browserSessionCreateFailedMessage = "failed to create browser session"
+	browserSessionRevokeFailedMessage = "failed to revoke browser session"
+	browserSessionSwitchFailedMessage = "failed to switch browser session workspace"
+	browserSessionListFailedMessage   = "failed to list browser sessions"
+)
+
+// errBrowserSessionSecretEmpty is the span cause when a generated session or
+// CSRF secret hashed to empty with no generator error of its own.
+var errBrowserSessionSecretEmpty = errors.New("browser session secret hashed to empty")
 
 // BrowserSessionStore is the write surface for server-managed dashboard
 // sessions. It lives in session (#6642, moved from queryauth by #6818) so a
@@ -121,12 +138,12 @@ func (h *BrowserSessionHandler) issueBrowserSessionWithExternalAuth(
 	auth = normalizeAuthContext(auth)
 	sessionSecret, err := h.newSecret()
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "failed to create browser session")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, browserSessionCreateFailedMessage)
 		return BrowserSessionResponse{}, false
 	}
 	csrfSecret, err := h.newSecret()
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "failed to create browser session")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, browserSessionCreateFailedMessage)
 		return BrowserSessionResponse{}, false
 	}
 	now := h.now()
@@ -165,11 +182,11 @@ func (h *BrowserSessionHandler) issueBrowserSessionWithExternalAuth(
 		UpdatedAt:                    now,
 	}
 	if record.SessionHash == "" || record.CSRFTokenHash == "" {
-		WriteError(w, http.StatusInternalServerError, "failed to create browser session")
+		tracing.WriteServerFailure(w, r, errBrowserSessionSecretEmpty, http.StatusInternalServerError, browserSessionCreateFailedMessage)
 		return BrowserSessionResponse{}, false
 	}
 	if err := h.Store.CreateBrowserSession(r.Context(), record); err != nil {
-		WriteError(w, http.StatusInternalServerError, "failed to create browser session")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, browserSessionCreateFailedMessage)
 		return BrowserSessionResponse{}, false
 	}
 
@@ -224,7 +241,7 @@ func (h *BrowserSessionHandler) handleLogout(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if err := h.Store.RevokeBrowserSession(r.Context(), sessionHash, h.now()); err != nil {
-		WriteError(w, http.StatusInternalServerError, "failed to revoke browser session")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, browserSessionRevokeFailedMessage)
 		return
 	}
 	writeBrowserSessionCookies(w, r, h.cookieSecureMode(), "", "", time.Time{}, -1)
@@ -266,7 +283,7 @@ func (h *BrowserSessionHandler) handleSwitch(w http.ResponseWriter, r *http.Requ
 		h.now(),
 	)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "failed to switch browser session workspace")
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, browserSessionSwitchFailedMessage)
 		return
 	}
 	if !ok {
