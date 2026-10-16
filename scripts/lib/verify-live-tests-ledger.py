@@ -20,6 +20,7 @@ import sys
 
 from live_tests_registry import load_ledger_text
 from live_postgres_migrations import MIGRATION_PATHS
+from reducer_contention_events import load_inventory, verify_inventory
 
 if len(sys.argv) != 3:
     sys.exit(f"usage: {sys.argv[0]} <ledger_path> <repo_root>")
@@ -40,6 +41,9 @@ if not rows:
 seen_files = set()
 classes = {}
 legacy_scheduled = []
+contention_inventory = load_inventory()
+contention_paths = set(contention_inventory)
+has_contention_row = False
 for path, tag, cls, reason, runner, backends in rows:
     if path in seen_files:
         sys.exit(f"duplicate ledger row: {path}")
@@ -57,9 +61,13 @@ for path, tag, cls, reason, runner, backends in rows:
         if not (readiness or migration) or backends:
             sys.exit(f"PostgreSQL CI row needs its verified runner and tag: {path}")
     elif cls == "dedicated_ci":
-        if runner != "query-methodology":
+        if runner == "reducer-contention":
+            has_contention_row = True
+            if path not in contention_paths or tag.strip() != "~" or backends:
+                sys.exit(f"contention row needs an enrolled untagged PostgreSQL-only file: {path}")
+        elif runner != "query-methodology":
             sys.exit(f"dedicated CI row needs its verified runner: {path}")
-        if path.endswith("methodology_postgres_live_test.go"):
+        elif path.endswith("methodology_postgres_live_test.go"):
             if backends:
                 sys.exit(f"PostgreSQL dedicated row cannot claim graph backends: {path}")
         elif backends != "neo4j":
@@ -95,6 +103,12 @@ for path, tag, cls, reason, runner, backends in rows:
         claimed = ""
     if claimed != actual:
         sys.exit(f"tag mismatch for {path}: ledger {tag!r} vs file {actual!r}")
+
+if has_contention_row:
+    try:
+        verify_inventory(Path(repo_root), contention_inventory)
+    except (OSError, ValueError, re.error) as error:
+        sys.exit(f"reducer contention runner enrollment failed: {error}")
 
 # The ledger itself lists the exact grandfathered paths. Bind that readable
 # inventory to a fixed digest so a newly scheduled row cannot inherit an
