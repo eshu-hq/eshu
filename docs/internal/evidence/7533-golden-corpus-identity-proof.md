@@ -16,8 +16,9 @@ The closed mapping in `scripts/lib/golden_corpus_identity.py` requires both rows
 with `class: dedicated_ci`, `tag: ~`, and `runner: golden-corpus-identity`.
 Neither row can assert graph backends. Missing, extra, duplicate, or demoted
 rows fail validation, including a demotion with a newly valid legacy digest.
-The legacy exemption inventory changes from 530 to 528 on this branch's base.
-Other unpublished enrollment branches do not contribute to that count.
+The new base includes the seven Ifá rows merged by #8245 and has 523
+legacy exemptions. This patch enrolls two more rows, reducing the count to
+521. The digest binds the full remaining inventory.
 
 The actual shell guard requires one selected test run, one selected pass, and
 one successful terminal event from the expected package, in that order.
@@ -65,5 +66,7 @@ were retained with the local proof. The unchanged Go source SHA-256 values are:
 
 The local helper results do not replace the canonical hosted B-7 gate.
 The final hosted B-7 run must execute both updated guards successfully before
-merge. Full B-7 execution and hosted acceptance for this branch are NOT_CHECKED.
+merge. Both hosted B-7 cells passed on the prior published head `cd603442`.
+This rebase changes the ledger and validator; hosted B-7 acceptance at
+the new head is NOT_CHECKED.
 No production Go, SQL, golden snapshot, or backend standard changes here.
