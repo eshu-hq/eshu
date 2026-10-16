@@ -320,12 +320,11 @@ Arm 3, on the real retention statement:
   one discarded round (the shim's `versionFenceInterleave`).
 - Body classes, both required and reported separately: 1 KiB inline and 8 KiB
   TOASTed.
-- Pass: the chosen shape at most +5% of `prune_content_files` on both
-  classes. At equal cost prefer `OLD TABLE`. Report the `ScopeLockHold` delta
-  in seconds as informational. Fail: both shapes over 5% on either class.
-  The fallback of the protocol companion then becomes available as the
-  Proposed fallback, which needs an F2 amendment by ruling. Without it,
-  retention pays the trigger.
+- Pass (amended by ruling arb-8155-s3, 2026-10-16, replacing "+5% of
+  `prune_content_files`"): at most +10% of `prune_content_files` and at most
+  +5% of `ScopeLockHold`, both classes. 1 KiB `OLD TABLE`: +8.26%, +0.1105 s
+  per 100,000-row cycle, `ScopeLockHold` +4.04%: PASS. 8 KiB pending. No F2
+  fallback (rejected by the same ruling).
 - The arm 3 write probe of section 6 (a Write of a pruned repository waits
   for the prune commit) is informational. It is not part of the rerun bar.
 

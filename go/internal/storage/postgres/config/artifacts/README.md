@@ -14,17 +14,19 @@ its protocol companion.
 | PR | Adds |
 |---|---|
 | PR3b-1a (this package's first version) | migration 170 tables, the encoding check, the read-model port, the walk claim, the dirty join, the version-row guard |
-| PR3b-1b | the `content_files` version-fence triggers and the version-0 seed (next migration) |
+| PR3b-1b | migration 182: the four `content_files_version_fence_*` triggers; migration 183: the version-0 seed |
 | PR3b-2 | the derive in `ContentWriter.Write`, the walker derive, telemetry, env variables |
 | PR3c | the stored reader, the read mode, the `/admin/status` field |
 
-Until PR3b-1b ships, nothing writes these tables in production.
+From PR3b-1b on, every `content_files` write bumps
+`config_artifact_content_versions`; nothing reads or derives from it until
+PR3b-2.
 
 ## Tables (migration 170)
 
 | Table | Key | Holds |
 |---|---|---|
-| `config_artifact_content_versions` | `repo_id` | `version`, `bumped_xid` (xid8), `bumped_at`. Bumped once per content transaction by the PR3b-1b trigger |
+| `config_artifact_content_versions` | `repo_id` | `version`, `bumped_xid` (xid8), `bumped_at`. Bumped once per content transaction by the migration 182 triggers; seeded at version 0 by migration 183 |
 | `config_artifact_repo_state` | `repo_id` | the version and extractor version the last successful derive read, `row_count` (NULL until a success), list and candidate counts, failure count and class, and `last_failure_extractor_version` for the walker's skip rule |
 | `config_artifact_paths` | `(repo_id, row_digest)` | `raw_path`, `relative_path`, `evidence_kind`, `name_scoped`; `row_digest` is a stored generated SHA-256 |
 | `config_artifact_backfill_markers` | `marker_name` | when the first full walk finished |
@@ -98,18 +100,30 @@ because each derive rewrites a repository's rows.
 - **Claims are not leases.** `ClaimPage` spreads work; the derive's advisory
   lock and advance-only write carry correctness.
 
-## Known limits for the trigger (PR3b-1b)
+## The version fence (PR3b-1b)
 
-The ruled bump guard `WHERE v.bumped_xid IS DISTINCT FROM
-EXCLUDED.bumped_xid` assumes an xid8 value never repeats for a database. A
-logical restore (dump into a fresh cluster) or a logical-replication cutover
-restarts the transaction id counter while the stored `bumped_xid` values
-survive, so a later transaction could receive a stored value and skip that
-repository's bump. PR3b-1b must compare `(bumped_xid, bumped_at)` or otherwise
-survive an xid restart. The columns already allow it, so no `ALTER` is
-needed. Source: the PR3b-1a review verdict r1 of 2026-10-11, forward note
-(`7126-pr3b1a-review-verdict-r1-20261011.md`, local kit note, not in the
-repository); an inference from PostgreSQL xid semantics, not a measurement.
+Migration 182 adds four triggers on `content_files`: statement-level INSERT
+and UPDATE with a `NEW TABLE`, statement-level DELETE with an `OLD TABLE` (the
+shape S3 arm 3 chose), and TRUNCATE, which bumps every version row. Each bumps
+a touched repository once per transaction, inside the content statement's
+transaction, taking version rows in `repo_id` order; the `content_files_version_fence_`
+prefix makes them fire after the migration 138 secret-lines triggers and the
+row-level RI triggers. The once-per-transaction guard compares the pair
+`(bumped_xid, bumped_at)`, not `bumped_xid` alone: a logical restore restarts
+the transaction id counter while stored `bumped_xid` values survive (the
+PR3b-1a review forward note), and `now()` still differs for that later
+transaction (`TestVersionFenceSurvivesATransactionIDRestartLive`).
+
+Migration 183 seeds one version-0 row (`bumped_xid` `'0'::xid8`) per
+repository with content. It is a separate file because the #7961 lock-shape
+gate refuses `CREATE TRIGGER` and bulk DML in one file; it holds ACCESS SHARE
+on `content_files` only, and `ON CONFLICT DO NOTHING` keeps a row a fenced
+write created first. The design and the evidence are in
+`docs/internal/evidence/8155-content-version-fence.md`.
+
+A Write of a repository whose retention prune is open waits on the version
+row (or on a doomed content row) until the retention commit, inside the
+existing `eshu_dp_generation_retention_scope_lock_hold_seconds` window.
 
 ## Telemetry
 

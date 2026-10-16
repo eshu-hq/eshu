@@ -22,15 +22,15 @@ Names are proposals. The migration number is chosen at build time.
 | `config_artifact_paths` | `(repo_id, row_digest)` | `raw_path`, `relative_path`, `evidence_kind`, `name_scoped`, `row_digest` (generated) |
 | `config_artifact_backfill_markers`, `config_artifact_reconcile_cursor` | name | as in migration 109 |
 
-- The trigger migration (PR3b-1b, after the table migration) seeds one
-  version row with `version = 0` for each `SELECT DISTINCT repo_id FROM
-  content_files`, as migration 169 does its backfill. The walker's universe is
-  then O(repositories), not a scan of `content_files`. Order (S3 ruling):
-  create the four triggers first, then seed with `ON CONFLICT DO NOTHING`, in
-  one transaction. `CREATE TRIGGER` blocks content writes until that
-  transaction commits, so no write can land between the seed scan and the
-  trigger. The seed scan duration is then a content-write stall, and the
-  migration proof must time it.
+- PR3b-1b seeds one version row with `version = 0` for each `SELECT
+  DISTINCT repo_id FROM content_files`, as migration 169 does its backfill.
+  The walker's universe is then O(repositories), not a scan of
+  `content_files`. Order (S3 ruling): the four triggers first (migration 182),
+  then the seed with `ON CONFLICT DO NOTHING` (migration 183). The #7961
+  lock-shape gate refuses both in one file, so a write can land between them;
+  its trigger creates or bumps the row first and the seed keeps it. Timed on
+  1,000,000 rows: 182 0.0033 s, 183 0.1329 s (evidence note
+  `8155-content-version-fence.md`).
 - **Proposed** rule: delete or reset a version row only together with the
   repository's state row, in one transaction. A version row re-created while
   a state row survives would count up from 1 again. After enough bumps it
@@ -115,8 +115,8 @@ pre-write mark and no mark table exist.
 
 - INSERT and UPDATE: statement-level, `REFERENCING NEW TABLE`. An `INSERT ...
   ON CONFLICT DO UPDATE` fires both. The guard below makes the second a no-op.
-- DELETE: row-level, with the same guard. S3 may replace it with a
-  statement-level `REFERENCING OLD TABLE` trigger.
+- DELETE: statement-level `REFERENCING OLD TABLE`, with the same guard (S3
+  arm 3 and ruling arb-8155-s3, 2026-10-16).
 - TRUNCATE: statement-level, bumps every version row through the same
   once-per-transaction guard.
 - Names and order (S3 ruling). PostgreSQL fires the triggers of one event on
@@ -146,6 +146,7 @@ ORDER BY r.repo_id
 ON CONFLICT (repo_id) DO UPDATE
 SET version = v.version + 1, bumped_xid = EXCLUDED.bumped_xid, bumped_at = EXCLUDED.bumped_at
 WHERE v.bumped_xid IS DISTINCT FROM EXCLUDED.bumped_xid
+   OR v.bumped_at IS DISTINCT FROM EXCLUDED.bumped_at  -- survives an xid restart
 ```
 
 - The trigger runs inside the content statement's transaction, so the bump
@@ -412,7 +413,7 @@ today. Ownership, not a cycle, is the reason for the neutral package.
    |---|---|---|
    | 1 | Full Write, 5,000 files, 500-row batches, production-width content. The derive's row insert includes the generated `row_digest` | B at most A + 5% on Write wall time. A primary-key-only micro-shim at most 0.5 us per row |
    | 2 | Delta Write, 1 file changed, 3 tombstones | B at most A + 5% |
-   | 3 | Retention prune, 100,000 rows over 50 repositories, one transaction | Row-level and `OLD TABLE` shapes. Denominator: `PhaseDurations["prune_content_files"]` of the real `GenerationRetentionStore` statement, under its `SET LOCAL work_mem = '64MB'`, at 1 KiB inline and 8 KiB TOASTed bodies, both required. The chosen shape at most +5% on both classes. Else the other shape. Else the Proposed fallback of section 2 (needs an F2 amendment by ruling. Without it retention pays the trigger). `ScopeLockHold` delta is informational, against the QA-environment p95 of `eshu_dp_generation_retention_scope_lock_hold_seconds` (**Proposed**). Binding rerun spec: evidence appendix, section 7 |
+   | 3 | Retention prune, 100,000 rows over 50 repositories, one transaction | Row-level and `OLD TABLE` shapes. Denominator: `PhaseDurations["prune_content_files"]` of the real `GenerationRetentionStore` statement, under its `SET LOCAL work_mem = '64MB'`, at 1 KiB inline and 8 KiB TOASTed bodies, both required. The chosen shape at most +5% on both classes. Else the other shape. Else the Proposed fallback of section 2 (needs an F2 amendment by ruling. Without it retention pays the trigger). `ScopeLockHold` delta is informational, against the QA-environment p95 of `eshu_dp_generation_retention_scope_lock_hold_seconds` (**Proposed**). Binding rerun spec: evidence appendix, section 7 **Amended bar** (ruling arb-8155-s3, 2026-10-16): `OLD TABLE` at most +10% of `prune_content_files` and at most +5% of `ScopeLockHold`, both classes. 1 KiB: +8.26% (+0.1105 s per 100,000-row cycle), `ScopeLockHold` +4.04%, PASS. 8 KiB pending |
    | 4 | One 50,000-row single-statement insert | B at most A + 5% |
    | 5 | Two concurrent Writes, one `repo_id`, 5,000 files each | B at most A + 10% per Write. The `version_row` lock wait at most one contended batch (B-last per-Write median / 10), with A as control, by wait class, plus an overlapping-keys run. 0 deadlocks in 20 rounds. Slower of the pair is informational. Binding rerun spec, with every bar: evidence appendix, section 7 |
    | 6 | Version-row churn, counted by `xmin` changes or `n_tup_upd` | One rewrite per repository per content transaction, never per Write (re-ruling 2). A Write sends tombstones and reaped paths through one delete list, chunked at 500. It expects ceil((tombstones + reaped paths) / 500) delete transactions. It adds one per 500-row upsert batch. Arm 1 = 10. Arm 2 = 2 (one delete chunk, one upsert batch). Arm 3 = 1 per affected repository. Arm 4 = 1 |
