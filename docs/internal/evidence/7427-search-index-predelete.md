@@ -229,10 +229,15 @@ cost follows the live work rows, not the table.
   with zero rows deleted; a drain cancelled after one batch converges on
   rerun; a row inserted behind the cursor is removed by the re-sweep.
 - `TestGenerationRetentionChunkConcurrentInsertWaitsLive` (#7981) flaked on
-  `origin/main` (3 of 8 runs: the selection skips the scope while an insert
-  holds its FK `KEY SHARE`); the pre-delete shifted the timing (6 of 8). The
-  test now retries passes that skipped the scope; its assertions are
-  unchanged (8 of 8 pass).
+  the earlier `origin/main` (3 of 8 runs: the selection skips the scope while
+  an insert holds its FK `KEY SHARE`); the pre-delete shifted the timing (6 of
+  8). PR1 does not change this test. #8206 (`c20f8e91c`, on main) rewrote it
+  in `generation_retention_chunk_insert_wait_live_test.go`: the inserts start
+  from the `afterChunkTargetLocked` hook once the prune holds the chunk
+  target, the hook returns only when all five are lock-blocked, and the test
+  asserts `Skipped[row_limit_chunked] == 1` on a single pass, with no retry.
+  On the PR1 head, with the pre-delete in place, it passed 8 of 8 runs
+  (`-count=8`, PostgreSQL 18.6, 2026-10-16).
 
 ## Observability
 
