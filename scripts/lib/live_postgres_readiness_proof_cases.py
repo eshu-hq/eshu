@@ -1,22 +1,27 @@
 #!/usr/bin/env python3
-"""Check that every enrolled readiness proof fails closed by name.
+"""Build the readiness self-test's fake events and check every proof by name.
 
 The hermetic self-test (scripts/test-run-live-postgres-readiness-tests.sh)
-feeds one tab-separated record per enrolled proof on stdin: package path,
-test name, and the path of that package's all-pass baseline event file. For
-each proof, in input order, this helper plants three faults in a copy of the
-baseline (the proof's pass event turned into a skip, then into a fail, then
-every event of the proof removed) and runs the results verifier's
-verify_results on it in this one process. Each case must fail and name the
-proof, exactly as the self-test's former per-proof runner loop required.
+feeds one tab-separated record per enrolled proof on stdin, in the runner's
+package order: package path, test name, and the path of that package's
+all-pass event file (its test-name list sits beside it as `.names`).
 
-One process replaces three full runner invocations per proof (#8241): the
-per-package runner cases in the self-test still cover the runner's own
-plumbing. The first case that passes or does not name its proof stops the
-check with the same message the former loop printed; a clean run prints the
-number of cases checked so the caller can refuse a vacuous pass.
+`snapshot` writes those all-pass files: a run and a pass event per test,
+then one passing package terminal per package. The self-test builds them
+once per proof list and copies them for each case (#8241).
 
-Usage: live_postgres_readiness_proof_cases.py RESULTS_PY WORK_DIR < records
+`check` plants three faults per proof in a copy of its package file (the
+pass event turned into a skip, then into a fail, then every event of the
+proof removed) and runs the results verifier's verify_results on it in this
+one process. Each case must fail and name the proof, as the self-test's
+former per-proof runner loop required; the self-test's runner cases cover
+the runner's own plumbing for every package. The first case that passes or
+does not name its proof prints the former loop's message and exits 3; a
+clean run prints the number of cases checked so the caller can refuse a
+vacuous pass.
+
+Usage: live_postgres_readiness_proof_cases.py snapshot < records
+       live_postgres_readiness_proof_cases.py check RESULTS_PY WORK_DIR < records
 """
 
 import contextlib
@@ -97,31 +102,85 @@ def check_case(results: ModuleType, case_path: pathlib.Path, package: str,
     return ""
 
 
-def main() -> int:
-    """Check every proof record on stdin; print the failure or the case count."""
-    if len(sys.argv) != 3:
-        print("usage: live_postgres_readiness_proof_cases.py RESULTS_PY WORK_DIR < records",
-              file=sys.stderr)
-        return 2
-    results = load_results(pathlib.Path(sys.argv[1]))
-    case_path = pathlib.Path(sys.argv[2]) / "proof-case.jsonl"
-    checked = 0
+def read_records() -> list[tuple[str, str, pathlib.Path]]:
+    """Return the (package, test, events file) records on stdin.
+
+    Raises:
+        ValueError: A record is not three non-empty tab-separated fields.
+    """
+    records = []
     for record in sys.stdin.read().splitlines():
         fields = record.split("\t")
         if len(fields) != 3 or not all(fields):
-            print(f"malformed proof record: {record!r}")
-            return 1
-        package, name, baseline_path = fields
-        baseline = pathlib.Path(baseline_path).read_text(encoding="utf-8")
+            raise ValueError(f"malformed proof record: {record!r}")
+        records.append((fields[0], fields[1], pathlib.Path(fields[2])))
+    return records
+
+
+def write_snapshot(records: list[tuple[str, str, pathlib.Path]]) -> int:
+    """Write each package's all-pass events file and test-name list.
+
+    Args:
+        records: The proof records, grouped by package in runner order.
+
+    Returns:
+        0 after writing the files.
+    """
+    events: dict[pathlib.Path, list[str]] = {}
+    names: dict[pathlib.Path, list[str]] = {}
+    packages: dict[pathlib.Path, str] = {}
+    for package, name, path in records:
+        packages.setdefault(path, package)
+        names.setdefault(path, []).append(f"{name}\n")
+        events.setdefault(path, []).append(
+            f'{{"Action":"run","Test":"{name}"}}\n'
+            f'{{"Action":"pass","Test":"{name}","Elapsed":0.25}}\n')
+    for path, package in packages.items():
+        terminal = package.removeprefix("./")
+        events[path].append(
+            f'{{"Action":"pass","Package":"github.com/eshu-hq/eshu/go/{terminal}","Elapsed":1.0}}\n')
+        path.write_text("".join(events[path]), encoding="utf-8")
+        path.with_suffix(".names").write_text("".join(names[path]), encoding="utf-8")
+    return 0
+
+
+def check_records(records: list[tuple[str, str, pathlib.Path]], results_path: pathlib.Path,
+                  work_dir: pathlib.Path) -> int:
+    """Check every proof record; print the failure or the case count.
+
+    Args:
+        records: The proof records with their all-pass events files.
+        results_path: The live_postgres_readiness_results.py under test.
+        work_dir: A scratch directory for the faulted events file.
+
+    Returns:
+        0 when every case failed closed by name, 3 at the first that did not.
+    """
+    results = load_results(results_path)
+    case_path = work_dir / "proof-case.jsonl"
+    checked = 0
+    for package, name, path in records:
+        baseline = path.read_text(encoding="utf-8")
         for action in ("skip", "fail", "missing"):
             case_path.write_text(plant(baseline, name, action), encoding="utf-8")
             message = check_case(results, case_path, package, name, action)
             if message:
                 print(message)
-                return 1
+                return 3
             checked += 1
     print(checked)
     return 0
+
+
+def main() -> int:
+    """Dispatch the snapshot and check modes."""
+    if sys.argv[1:2] == ["snapshot"] and len(sys.argv) == 2:
+        return write_snapshot(read_records())
+    if sys.argv[1:2] == ["check"] and len(sys.argv) == 4:
+        return check_records(read_records(), pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3]))
+    print("usage: live_postgres_readiness_proof_cases.py snapshot < records | "
+          "check RESULTS_PY WORK_DIR < records", file=sys.stderr)
+    return 2
 
 
 if __name__ == "__main__":

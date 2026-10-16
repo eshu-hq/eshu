@@ -111,23 +111,21 @@ done <"${fake}/envs"
 export PATH="${seed_dir}/bin:${PATH}"
 
 checker="${repo_root}/scripts/lib/live_postgres_readiness_results.py"
-packages=()
-proofs=()
-# write_events restores the all-pass event files from this snapshot, which
-# load_proofs drops so the next write_events rebuilds it for the new list.
+cases_lib="${repo_root}/scripts/lib/live_postgres_readiness_proof_cases.py"
+# write_events restores this all-pass snapshot; load_proofs drops it.
 snapshot="${seed_dir}/snapshot"
-# load_proofs fills packages and "package|test" entries, in the runner's order,
-# from the list-packages output of the given verifier.
+declare -A pfirst=() plast=()
+# load_proofs fills packages, "package|test" proofs and each package's first and
+# last test (pfirst, plast) in the runner's order from the verifier's list-packages.
 load_proofs() {
   local pkg pattern names name
-  packages=()
-  proofs=()
+  packages=() proofs=() pfirst=() plast=() && rm -rf "${snapshot}"
   while IFS=$'\t' read -r pkg pattern names; do
     packages+=("${pkg}")
+    pfirst[${pkg}]="${names%% *}" plast[${pkg}]="${names##* }"
     for name in ${names}; do proofs+=("${pkg}|${name}"); done
   done < <(python3 "$1" list-packages)
   [[ "${#packages[@]}" -gt 0 && "${#proofs[@]}" -gt 0 ]] || fail "list-packages produced no proofs from $1"
-  rm -rf "${snapshot}"
 }
 load_proofs "${checker}"
 [[ " ${proofs[*]} " == *"./internal/query|TestCodeTopicFleetCapacityEndpointPostgresLive"* ]] ||
@@ -139,31 +137,23 @@ first_proof="${proofs[0]##*|}"
 last_proof="${proofs[$((total - 1))]##*|}"
 count_in() { local e n=0; for e in "${proofs[@]}"; do [[ "${e%%|*}" == "$1" ]] && n=$((n + 1)); done; printf '%s' "${n}"; }
 
-pkg_key() { printf '%s' "${1//[^a-z]/_}"; }
-events_of() { printf '%s/%s.jsonl' "${fake}" "${1//[^a-z]/_}"; }
+set_key() { key="${1//[^a-z]/_}"; }
+pkg_key() { set_key "$1"; printf '%s' "${key}"; }
+events_of() { set_key "$1"; printf '%s/%s.jsonl' "${fake}" "${key}"; }
 
-# write_events resets ${fake} to one all-pass event file per package. The
-# files are built once per proof list (no forks per proof) and then copied:
-# rebuilding them for every case made the self-test quadratic (#8241).
+# proof_records prints "package<TAB>test<TAB>snapshot events file" per proof.
+proof_records() {
+  local entry key
+  for entry in "${proofs[@]}"; do
+    set_key "${entry%%|*}"
+    printf '%s\t%s\t%s\n' "${entry%%|*}" "${entry##*|}" "${snapshot}/${key}.jsonl"
+  done
+}
+# write_events copies the all-pass snapshot (built once per list, #8241) to ${fake}.
 write_events() {
-  local entry pkg name key
   rm -f "${fake}"/*.jsonl "${fake}"/*.names "${fake}"/*.exit "${fake}"/*.bak
-  if [[ ! -d "${snapshot}" ]]; then
-    mkdir -p "${snapshot}.tmp"
-    for entry in "${proofs[@]}"; do
-      pkg="${entry%%|*}"
-      name="${entry##*|}"
-      key="${pkg//[^a-z]/_}"
-      printf '%s\n' "${name}" >>"${snapshot}.tmp/${key}.names"
-      printf '{"Action":"run","Test":"%s"}\n{"Action":"pass","Test":"%s","Elapsed":0.25}\n' \
-        "${name}" "${name}" >>"${snapshot}.tmp/${key}.jsonl"
-    done
-    for pkg in "${packages[@]}"; do
-      printf '{"Action":"pass","Package":"github.com/eshu-hq/eshu/go/%s","Elapsed":1.0}\n' \
-        "${pkg#./}" >>"${snapshot}.tmp/${pkg//[^a-z]/_}.jsonl"
-    done
-    mv "${snapshot}.tmp" "${snapshot}"
-  fi
+  [[ -d "${snapshot}" ]] || { mkdir "${snapshot}" && proof_records | python3 "${cases_lib}" snapshot; } ||
+    fail "event snapshot build failed"
   cp "${snapshot}"/* "${fake}/"
 }
 
@@ -180,16 +170,9 @@ done
 
 # Every enrolled proof needs its own pass event in its own package: a skip, a
 # failure, or a missing event for any one of them fails the run. One verifier
-# process plants all three faults per proof and stops at the first proof it
-# does not fail by name; the per-package cases below drive the full runner.
-records=""
-for entry in "${proofs[@]}"; do
-  pkg="${entry%%|*}"
-  records+="${pkg}"$'\t'"${entry##*|}"$'\t'"${snapshot}/${pkg//[^a-z]/_}.jsonl"$'\n'
-done
-cases="$(printf '%s' "${records}" |
-  python3 "${repo_root}/scripts/lib/live_postgres_readiness_proof_cases.py" "${checker}" "${seed_dir}")" ||
-  fail "${cases}"
+# process plants all three per proof and exits 3 naming the first it passed.
+cases="$(proof_records | python3 "${cases_lib}" check "${checker}" "${seed_dir}" 2>&1)" ||
+  { rc=$?; [[ "${rc}" -eq 3 ]] && fail "${cases}"; fail "proof-case helper exited ${rc}: ${cases}"; }
 [[ "${cases}" == "$((3 * total))" ]] || fail "per-proof cases checked ${cases}, want $((3 * total))"
 
 # A stale -run expression must not allow zero matched tests in any package.
@@ -216,12 +199,20 @@ for pkg in "${packages[@]}"; do
   out="$(run_runner)" && fail "go nonzero exit in ${pkg} passed"
   [[ "${out}" == *"${pkg}: go test exited 1"* ]] || fail "go exit in ${pkg} not reported: ${out}"
 done
+# Through the runner every package names its own failed first and skipped last
+# proof, so no package's per-test reporting is lost or hidden by another's.
 write_events
-sed -i.bak "s/\"Action\":\"pass\",\"Test\":\"${first_proof}\"/\"Action\":\"fail\",\"Test\":\"${first_proof}\"/" "$(events_of "${first_pkg}")"
-sed -i.bak "s/\"Action\":\"pass\",\"Test\":\"${last_proof}\"/\"Action\":\"skip\",\"Test\":\"${last_proof}\"/" "$(events_of "${last_pkg}")"
-out="$(run_runner)" && fail "failures in two packages passed"
-[[ "${out}" == *"${first_proof}: FAIL"* && "${out}" == *"${last_proof}: SKIP"* ]] ||
-  fail "an earlier package failure hid a later package failure: ${out}"
+for pkg in "${packages[@]}"; do
+  sed -i.bak -e "s/\"Action\":\"pass\",\"Test\":\"${pfirst[${pkg}]}\"/\"Action\":\"fail\",\"Test\":\"${pfirst[${pkg}]}\"/" \
+    -e "s/\"Action\":\"pass\",\"Test\":\"${plast[${pkg}]}\"/\"Action\":\"skip\",\"Test\":\"${plast[${pkg}]}\"/" "$(events_of "${pkg}")"
+done
+out="$(run_runner)" && fail "failures in every package passed"
+for pkg in "${packages[@]}"; do
+  [[ $'\n'"${out}" == *$'\n'"${pfirst[${pkg}]}: FAIL"* ]] || fail "runner fail in ${pkg} not named: ${out}"
+  [[ "${pfirst[${pkg}]}" == "${plast[${pkg}]}" || $'\n'"${out}" == *$'\n'"${plast[${pkg}]}: SKIP"* ]] ||
+    fail "runner skip in ${pkg} not named: ${out}"
+  [[ "${out}" == *"${pkg}: expected tests did not all pass"* ]] || fail "failed ${pkg} not reported: ${out}"
+done
 
 # A failing test prints the TAIL of its output stream: a long test's early
 # progress lines must not crowd out the assertion (#7814).
