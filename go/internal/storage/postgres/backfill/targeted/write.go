@@ -117,7 +117,8 @@ func (s Store) writeTargetedMaintenanceEvidence(
 //
 // The correlation reopen is partition-scoped on purpose: the fleet-wide replay
 // of those domains stays on the epoch whole pass and is not part of the
-// activation obligation (#7584).
+// activation obligation (#7584). An empty affected set is a no-op. Otherwise
+// incomplete reopen configuration is rejected before the transaction begins.
 func (s Store) ReopenTargetedMaintenanceWorkItems(
 	ctx context.Context,
 	tracer trace.Tracer,
@@ -127,6 +128,9 @@ func (s Store) ReopenTargetedMaintenanceWorkItems(
 	reopened := make(map[string]int)
 	if len(affected) == 0 {
 		return reopened, nil
+	}
+	if err := s.validateReopenConfig(); err != nil {
+		return nil, err
 	}
 	if tracer != nil {
 		var span trace.Span
@@ -205,15 +209,5 @@ func startTargetedReopenBlock(ctx context.Context, tracer trace.Tracer) *backfil
 // reopen block's domain, reopened, and skipped_by_memo attributes plus
 // pass=targeted, so a targeted reopen is told apart from a whole-pass one.
 func endTargetedReopenBlock(block *backfill.BlockSpan, err error, domain string, reopened, skippedByMemo int) {
-	block.End(err, append(reopenBlockAttrs(domain, reopened, skippedByMemo), backfill.StringAttr("pass", "targeted"))...)
-}
-
-// reopenBlockAttrs records the same per-domain reopen attributes as the
-// whole-pass helper in the parent package.
-func reopenBlockAttrs(domain string, reopened, skippedByMemo int) []backfill.BlockAttr {
-	return []backfill.BlockAttr{
-		backfill.StringAttr("domain", domain),
-		backfill.IntAttr("reopened", reopened),
-		backfill.IntAttr("skipped_by_memo", skippedByMemo),
-	}
+	block.End(err, append(backfill.ReopenBlockAttrs(domain, reopened, skippedByMemo), backfill.StringAttr("pass", "targeted"))...)
 }

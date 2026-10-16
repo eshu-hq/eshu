@@ -160,7 +160,7 @@ func (s IngestionStore) reopenCorrelationDomain(
 	reopened := 0
 	reopenBlock := backfill.StartBlock(ctx, tracer, instruments, backfill.BlockReopen)
 	defer func() {
-		reopenBlock.End(err, reopenBlockAttrs(domain, reopened, 0)...)
+		reopenBlock.End(err, backfill.ReopenBlockAttrs(domain, reopened, 0)...)
 	}()
 
 	workItemIDs, err := listSucceededReducerWorkItemIDsForDomain(ctx, s.database, domain)

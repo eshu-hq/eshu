@@ -12,3 +12,10 @@ Engine proofs belong here. Use real root entry points through external
 `targeted_test` for whole-versus-scoped comparisons. Keep fixture SQL and
 comparison logic in one parent-free implementation. Do not replace the whole
 arm with a direct backfill engine call.
+
+A hand-built `Store` must supply DB, Beginner, PhaseCommitted, GateReopen,
+ReopenSucceeded, all three nonblank narrowed queries, and a nonempty list of
+unique, nonblank correlation domains. The full pass rejects missing values
+before span or database work. Standalone reopen needs Beginner, reopen
+callbacks, queries, and domains; empty affected input returns before validation.
+Keep the domain membership list in the root constructor, not in this child.

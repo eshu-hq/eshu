@@ -18,7 +18,9 @@ type WorkItem struct {
 
 // Store owns the targeted pass and receives parent-owned collaborators through
 // narrow callbacks. Each callback uses the database or transaction supplied by
-// this pass, so the transaction and lock lifetime remain here.
+// this pass, so the transaction and lock lifetime remain here. The pass
+// rejects missing callbacks, reopen queries, or correlation domains before
+// starting telemetry or database work.
 type Store struct {
 	Backfill           backfill.Store
 	PhaseCommitted     func(context.Context, db.ExecQueryer, backfill.ScopeGenerationPartition) (bool, error)

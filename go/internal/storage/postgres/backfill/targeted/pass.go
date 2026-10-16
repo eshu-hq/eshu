@@ -150,6 +150,9 @@ func (s Store) RunDeferredRelationshipMaintenanceForPartitions(
 	if len(requested) == 0 {
 		return result, fmt.Errorf("partition-scoped maintenance requires at least one owed partition")
 	}
+	if err := s.validatePassConfig(); err != nil {
+		return result, err
+	}
 
 	start := time.Now()
 	ctx, span, endSpan := startTargetedMaintenanceSpan(ctx, tracer)
