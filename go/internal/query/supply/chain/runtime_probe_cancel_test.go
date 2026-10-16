@@ -84,8 +84,9 @@ func probeSpanExceptions(t *testing.T, spanName string, probe func(context.Conte
 }
 
 // TestRuntimeProbeChildSpansSkipClientCancel pins that the cloud and
-// Kubernetes runtime probe child spans record a backend fault but not a
-// client cancel, matching the request span (#7674).
+// Kubernetes runtime probe child spans record a backend fault and an inner
+// cancel on a live request, but not a client cancel, matching the request
+// span (#7674).
 //
 // Not parallel: it swaps the package-level queryHandlerTracer.
 func TestRuntimeProbeChildSpansSkipClientCancel(t *testing.T) {
@@ -138,6 +139,16 @@ func TestRuntimeProbeChildSpansSkipClientCancel(t *testing.T) {
 			})
 			if got != 1 {
 				t.Fatalf("exception events = %d, want 1", got)
+			}
+		})
+		t.Run(probe.name+"/inner cancel on a live request", func(t *testing.T) {
+			// A context.Canceled from an inner context while the caller's
+			// request is still live is a server fault, not a client cancel.
+			got := probeSpanExceptions(t, probe.spanName, func(ctx context.Context) error {
+				return probe.run(ctx, nil, fmt.Errorf("backend: %w", context.Canceled))
+			})
+			if got != 1 {
+				t.Fatalf("exception events = %d, want 1 for an inner cancel", got)
 			}
 		})
 		t.Run(probe.name+"/client cancel", func(t *testing.T) {
