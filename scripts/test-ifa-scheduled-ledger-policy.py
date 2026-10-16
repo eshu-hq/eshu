@@ -115,6 +115,9 @@ class IfaLedgerPolicyTest(unittest.TestCase):
         inventory = json.loads(INVENTORY.read_text())
         target = sorted(inventory)[0]
         marker = f"  - file: {target}\n"
+        self.assertTrue(
+            marker in source, f"missing target fixture row: {target}"
+        )
         start = source.index(marker)
         end = source.find("  - file: ", start + len(marker))
         self.assertGreater(end, start)
