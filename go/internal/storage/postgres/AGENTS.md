@@ -594,6 +594,12 @@ shared-intent backlog/status queries and reducer code-call cycle logs.
   the own-gate counting classes as non-counting
   (`TestDeliberatelyCountingClassesAreNeverEnrolled`).
 
+- Replay lock order (#8205) → the unbounded and admin replays lock rows first
+  (`ORDER BY work_item_id COLLATE "C"`, `FOR NO KEY UPDATE`), then update by id
+  (`= ANY(ARRAY(...))`; `IN` scanned every terminal row). Keep both status
+  checks and the sort; rerun the #8205 `TestRecoveryReplay*` and admin
+  `*Replay*` proofs.
+
 - Symptom: `graph_projection_phase_state` rows missing for a scope generation →
   projector `publish_phases` stage failed; check `GraphProjectionPhaseRepairQueueStore`
   depth; check projector structured logs for `stage=canonical_write` error fields.

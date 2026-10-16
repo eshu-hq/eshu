@@ -374,12 +374,30 @@ const replaySkippedNoneCTE = `SELECT 0::bigint AS n`
 // replaySkippedNoneCTE). $1 is the replay timestamp; the predicate
 // placeholders start at $2.
 //
+// The locked CTE takes every row lock first, ordered by work_item_id COLLATE
+// "C" like the batch ack and the own-gate wake (#8205, #7597): this replay
+// waits on locks, and in index-scan order two overlapping replays took shared
+// rows in opposite orders (40P01). FOR NO KEY UPDATE is the UPDATE's own lock.
+// Both CTE and UPDATE recheck terminal status, which the EvalPlanQual recheck
+// of a waited lock re-reads on the newest row version, so a row another
+// transaction made pending or claimed is dropped, not reset twice. The UPDATE
+// reads the ids through = ANY(ARRAY(...)) to probe the primary key; IN (SELECT
+// ...) planned a scan of every terminal row. AS MATERIALIZED measured no plan
+// change. See docs/internal/evidence/8205-replay-lock-order.md.
+//
 // The result carries one skip count per row, and a replay that moved nothing
 // still returns one row with a NULL work_item_id, so the count commits or
 // fails together with the replay (#7130 review).
 const replayFailedWorkItemsTemplate = `
 WITH skipped AS (
     %[2]s
+), locked AS (
+    SELECT work_item_id
+    FROM fact_work_items
+    WHERE status IN ('dead_letter', 'failed')
+      %[1]s
+    ORDER BY work_item_id COLLATE "C"
+    FOR NO KEY UPDATE
 ), replayed AS (
     UPDATE fact_work_items
     SET status = 'pending',
@@ -400,8 +418,8 @@ WITH skipped AS (
         failure_message = NULL,
         failure_details = NULL,
         updated_at = $1
-    WHERE status IN ('dead_letter', 'failed')
-      %[1]s
+    WHERE work_item_id = ANY(ARRAY(SELECT work_item_id FROM locked))
+      AND status IN ('dead_letter', 'failed')
     RETURNING work_item_id
 )
 SELECT replayed.work_item_id, skipped.n

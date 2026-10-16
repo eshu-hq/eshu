@@ -950,6 +950,15 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 - Dead-letter items accumulate in `fact_work_items` when `attempt_count >=
   MaxAttempts`; use `RecoveryStore` to replay after investigating
   `failure_class`.
+- An unbounded `ReplayFailedWorkItems` (no `Limit`) locks its rows first in
+  `work_item_id COLLATE "C"` order (`locked` CTE, `FOR NO KEY UPDATE`), the
+  order of `AckBatch`, the own-gate wake and the admin replay, then updates
+  them by primary key (#8205). Before this, two overlapping replays locked
+  rows in index-scan order and Postgres aborted one with 40P01. A bounded
+  replay (`Limit > 0`) still uses `SKIP LOCKED` and never waits. A replay
+  that fails with 40P01 returns the error to its caller (HTTP 422 from the
+  runtime recovery route, 500 from the admin replay); rerun it. See
+  `docs/internal/evidence/8205-replay-lock-order.md`.
 - A `*_producer_dead_lettered` or `*_producer_missing` dead letter on
   `deployable_unit_correlation` or `workload_materialization` means the scope
   generation's `deployment_mapping` item is dead-lettered or absent (#7597).

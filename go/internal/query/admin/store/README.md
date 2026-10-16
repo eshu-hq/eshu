@@ -14,7 +14,11 @@ identity v2/v3 status authorizations in the same row update as `status`. The
 cutover checks require equality for guarded rows. All three actions preserve
 claim epoch and last-attempt history; a later reducer claim advances them. The shared replay
 and dead-letter UPDATE rechecks terminal status after locking the row so a
-concurrent claim cannot be reset by stale selection.
+concurrent claim cannot be reset by stale selection. Both mutations lock the
+selected rows first, in `work_item_id COLLATE "C"` order
+(`lockSelectedWorkItemsCTE`), the order the recovery replay and the reducer
+batch ack use, so an admin replay never locks shared rows in the opposite
+order of a concurrent replay (#8205, 40P01 on main).
 
 Repository skip selects only pending, retrying, or failed rows, up to 100. It
 rechecks the selected status and eligibility on the locked target row so an
