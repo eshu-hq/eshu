@@ -19,7 +19,7 @@ import (
 // of two projection_domain values, and completed_at IS NOT NULL, then takes
 // max(completed_at); the migration-008 acceptance_lookup_idx lacks
 // generation_id and completed_at, so the probe re-reads the whole intent
-// heap (see docs/internal/evidence/7929-polling-elimination.md once written).
+// heap (see docs/internal/evidence/7929-polling-elimination.md).
 func TestSharedIntentAcceptanceCompletedIndexMigration(t *testing.T) {
 	t.Parallel()
 
