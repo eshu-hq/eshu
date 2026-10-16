@@ -116,6 +116,7 @@ gates:
       - "specs/ci-gates.d/**"
       - "scripts/run-live-postgres-readiness-tests.sh"
       - "scripts/test-run-live-postgres-readiness-tests.sh"
+      - "scripts/lib/test-run-live-postgres-readiness-seed-cases.sh"
       - "scripts/ci/live-postgres-standby-fixture.sh"
       - "scripts/test-live-postgres-standby-fixture.sh"
       - "scripts/lib/live_postgres_readiness_results.py"
