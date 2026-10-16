@@ -3,9 +3,12 @@
 The status read routes, the evidence routes, and the investigation packet
 routes answer a failed read or build step with a fixed message for that step,
 never with the backend error text (#7674). A backend error can quote SQL,
-Cypher, relation names, hosts, and connection settings. It goes on the request
-span as an `exception` event, and the span status is Error with the fixed
-message as its description. The [Status And Admin](status-admin.md) page
+Cypher, relation names, hosts, and connection settings. It goes on the span as
+an `exception` event, and the span status is Error with the fixed message as
+its description. The evidence and investigation packet routes record this on
+their own handler span. The status routes and the live evidence bundle open no
+handler span, so they record it on the request span, where `otelhttp` replaces
+the description for a `5xx`. The [Status And Admin](status-admin.md) page
 describes what each status route returns.
 
 ## Statuses
@@ -23,9 +26,12 @@ describes what each status route returns.
 - A client that cancels its own request gets `499` with the same fixed
   message. The span status stays Unset and the span gets only the
   `eshu.request.client_canceled` event. `499` is not in the OpenAPI spec.
-- The status snapshot read runs under its own internal time bound. A
-  snapshot read that runs out of that bound is not a reader verdict and
-  answers the route's `500`.
+- The status snapshot read runs under its own internal time bound. If the
+  bound expires while the reader borrows a connection, runs its identity
+  check, or waits for replay, the error is a reader verdict and answers the
+  retryable `503` with `Retry-After`, as
+  [HTTP API](../http-api.md) describes. If it expires after the snapshot
+  transaction begins, the route answers its `500`.
 - The existing `400`, `404`, and `501` answers do not change.
 
 ## Capability field

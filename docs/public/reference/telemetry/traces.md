@@ -126,7 +126,9 @@ investigation packet routes in
 (#7674). The code-flow routes
 answered a cancel with `408` before. A `503` that reports a configuration or
 readiness state, on these routes or the impact code-evidence reads, marks the
-span the same way a fault does. Other routes still answer a cancel with `500`
+span the same way a fault does, except on the status, evidence, and
+investigation packet routes: there a configuration `503` is a plain write and
+does not mark the span. Other routes still answer a cancel with `500`
 until #7674 lands.
 
 Two operator effects follow. Eshu's own `eshu_dp_api_request_errors_total`

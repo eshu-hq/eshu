@@ -6,7 +6,10 @@ package identity
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
+	"sync"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
@@ -59,6 +62,82 @@ func TestAdminAuditReadsAnswerFixedServerFailures(t *testing.T) {
 			t.Errorf("%s: fence envelope carries capability %v, want no field (#8227)", route.Name, capability)
 		}
 	}
+}
+
+// TestAdminAuditReadsLogOnlyServerFaults pins the audit reads' log decision
+// (#7674): a server fault writes one error log line naming the read, and a
+// client cancel writes none, because the client walking away is not a
+// failure. Not parallel: it swaps the default slog logger.
+func TestAdminAuditReadsLogOnlyServerFaults(t *testing.T) {
+	records := &capturedLogRecords{}
+	previous := slog.Default()
+	slog.SetDefault(slog.New(records))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	sharedOperator := func(ctx context.Context) context.Context {
+		return auth.ContextWithAuthContext(ctx, auth.AuthContext{Mode: auth.AuthModeShared, AllScopes: true})
+	}
+	for _, tc := range []struct {
+		name, path, logMessage string
+	}{
+		{name: "audit events", path: "/api/v0/auth/admin/audit/events?limit=10", logMessage: "admin list audit events failed"},
+		{name: "audit summary", path: "/api/v0/auth/admin/audit/summary", logMessage: "admin audit summary failed"},
+	} {
+		route := failure.Route{Name: tc.name, Path: tc.path, Scope: sharedOperator}
+		for _, kase := range []struct {
+			name    string
+			err     error
+			cancel  bool
+			wantLog int
+		}{
+			{name: "server fault", err: errors.New("backend: " + failure.Canary), wantLog: 1},
+			{name: "client cancel", err: fmt.Errorf("backend: %w", context.Canceled), cancel: true, wantLog: 0},
+		} {
+			records.reset()
+			failure.Serve(failure.Suite{}, route, &ReadHandler{Audit: failingAuditReader{err: kase.err}}, kase.cancel)
+			if got := records.count(slog.LevelError, tc.logMessage); got != kase.wantLog {
+				t.Errorf("%s / %s: %d error log line(s) %q, want %d", tc.name, kase.name, got, tc.logMessage, kase.wantLog)
+			}
+		}
+	}
+}
+
+// capturedLogRecords is a slog.Handler that keeps every record's level and
+// message for TestAdminAuditReadsLogOnlyServerFaults.
+type capturedLogRecords struct {
+	mu      sync.Mutex
+	records []slog.Record
+}
+
+func (c *capturedLogRecords) Enabled(context.Context, slog.Level) bool { return true }
+
+func (c *capturedLogRecords) Handle(_ context.Context, record slog.Record) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.records = append(c.records, record)
+	return nil
+}
+
+func (c *capturedLogRecords) WithAttrs([]slog.Attr) slog.Handler { return c }
+
+func (c *capturedLogRecords) WithGroup(string) slog.Handler { return c }
+
+func (c *capturedLogRecords) reset() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.records = nil
+}
+
+func (c *capturedLogRecords) count(level slog.Level, message string) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	n := 0
+	for _, record := range c.records {
+		if record.Level == level && record.Message == message {
+			n++
+		}
+	}
+	return n
 }
 
 // failingAuditReader fails every audit read with err, unconditionally.

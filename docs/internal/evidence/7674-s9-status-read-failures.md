@@ -10,8 +10,8 @@ messages are in `docs/public/reference/http-api/status-evidence-failures.md`.
 
 ## No-Regression Evidence
 
-No-Regression Evidence: baseline `e3bbaa678` (origin/main at branch point)
-versus this branch. No SQL, Cypher, transaction, lock, queue, lease, or
+No-Regression Evidence: baseline `a6bca3b92` (origin/main, the branch's
+merge base after the rebase) versus this branch. No SQL, Cypher, transaction, lock, queue, lease, or
 batching path changed. The backend is PostgreSQL through the guarded reader
 for the status snapshot, live activity, governance audit, content,
 relationship evidence, admission decision, and drift finding reads, and the
