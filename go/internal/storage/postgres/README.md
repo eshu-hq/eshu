@@ -679,6 +679,13 @@ Primary groups:
 - `awsstore.AWSPaginationCheckpointStore` records AWS checkpoint load, save,
   resume, expiry, and failure events through
   `eshu_dp_aws_pagination_checkpoint_events_total`.
+- `PostgresAWSCloudRuntimeDriftEvidenceLoader` labels its two reads on the
+  `postgres.query` span as `db.query.summary=aws_runtime_drift_resources` and
+  `db.query.summary=aws_runtime_drift_active_state_by_arn`, so a slow
+  `reducer.aws_runtime_drift_evidence_load` span names the statement that held
+  it (#7666). The state join probes
+  `fact_records_terraform_state_resource_arn_idx` (migration 180) once per AWS
+  ARN; see `docs/internal/evidence/7666-aws-drift-arn-index.md`.
 - `PostgresAWSCloudRuntimeDriftEvidenceLoader` logs malformed AWS runtime
   resource rows with `resource.fingerprint`, `resource.identity_kind`, and
   `resource.type`; it does not put raw ARNs, Terraform addresses, or

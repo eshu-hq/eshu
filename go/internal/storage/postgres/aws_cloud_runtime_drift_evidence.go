@@ -48,6 +48,15 @@ type PostgresAWSCloudRuntimeDriftEvidenceLoader struct {
 	Instruments *telemetry.Instruments
 }
 
+// Read labels for the drift evidence statements: the closed value set of
+// db.query.summary on their postgres.query spans, so a slow
+// reducer.aws_runtime_drift_evidence_load span names which statement held it
+// (#7666).
+const (
+	awsRuntimeDriftResourcesRead        = "aws_runtime_drift_resources"
+	awsRuntimeDriftActiveStateByARNRead = "aws_runtime_drift_active_state_by_arn"
+)
+
 type awsRuntimeStateResourceRow struct {
 	scopeID      string
 	generationID string
@@ -140,7 +149,12 @@ func (l PostgresAWSCloudRuntimeDriftEvidenceLoader) loadAWSRuntimeResources(
 	scopeID string,
 	generationID string,
 ) (map[string]*cloudruntime.ResourceRow, []string, error) {
-	rows, err := l.DB.QueryContext(ctx, listAWSCloudRuntimeResourcesForGenerationQuery, scopeID, generationID)
+	rows, err := l.DB.QueryContext(
+		db.WithQuerySummary(ctx, awsRuntimeDriftResourcesRead),
+		listAWSCloudRuntimeResourcesForGenerationQuery,
+		scopeID,
+		generationID,
+	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("list aws runtime resources: %w", err)
 	}
@@ -184,7 +198,7 @@ func (l PostgresAWSCloudRuntimeDriftEvidenceLoader) loadActiveStateResourcesByAR
 		return nil, fmt.Errorf("marshal aws arn allowlist: %w", err)
 	}
 	rows, err := l.DB.QueryContext(
-		ctx,
+		db.WithQuerySummary(ctx, awsRuntimeDriftActiveStateByARNRead),
 		listActiveStateResourcesForAWSARNsQuery,
 		awsScopeID,
 		awsGenerationID,

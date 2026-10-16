@@ -467,3 +467,13 @@ tests:
     class: postgres_ci
     reason: "#7127 PR-3b deterministic cost gate: one backend, journal off and on over 4 rounds of 200 Acks; statements per Ack equal, WAL records per Ack at most +6 and buffer hits at most +40 from pg_stat_get_backend_wal and pg_stat_get_backend_io (pg_stat_statements also gated when preloaded), with a seeded RED that writes three extra rows; disposable database from ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN (env Skip); PostgreSQL 18 required; about 10 s locally; enrolled in the live-postgres-readiness runner; wall ratio logged with mean and SD, never gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/aws_cloud_runtime_drift_state_arn_plan_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7666 disposable PostgreSQL 18 plan proof of the aws_cloud_runtime_drift ARN-keyed state join: 320 state scopes x 3 generations and 120 requested ARNs in an isolated schema, fresh and stale planner statistics, custom and generic plans; asserts the migration 180 ARN index is probed per ARN (never walked), no fact_records node loops past the ARN count, and root buffers stay linear in the ARN count; enrolled in the live-postgres-readiness runner; 3.5-6.7 s locally on PostgreSQL 18.6 including two bootstraps; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/aws_cloud_runtime_drift_state_arn_differential_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7666 disposable PostgreSQL 18 row differential: the fenced ARN-keyed state join returns exactly the rows, in order, of the pre-#7666 direct join derived from the shipped constant, over ambiguous ownership, superseded and older AWS generations, a stale caller allowlist, blank and padded ARNs, an inactive scope, and duplicate addresses; enrolled in the live-postgres-readiness runner; about 1-2.8 s locally on PostgreSQL 18.6 including the bootstrap"
+    runner: live-postgres-readiness
