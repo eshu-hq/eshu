@@ -135,16 +135,43 @@ func setConstraintsStatements(origin string, texts []string) []string {
 	return hits
 }
 
+// scanSourceForSetConstraints runs the SET CONSTRAINTS guard over one Go file.
+// The cheap prefilter reads goLiteralSQL's joined literal runs, not the raw
+// source, so a keyword split across concatenated literals still reaches the
+// scan.
+func scanSourceForSetConstraints(t *testing.T, path, src string) []string {
+	t.Helper()
+	texts := goLiteralSQL(t, path, src)
+	if !strings.Contains(strings.ToUpper(strings.Join(texts, "\x00")), "CONSTRAINTS") {
+		return nil
+	}
+	return setConstraintsStatements(path, texts)
+}
+
+// scanSourceForRepoIDChanges runs the F4 guard over one Go file and returns
+// its violations and the content_files upserts it saw.
+func scanSourceForRepoIDChanges(t *testing.T, path, src string) (violations []string, upserts int) {
+	t.Helper()
+	texts := goLiteralSQL(t, path, src)
+	joined := strings.ToLower(strings.Join(texts, "\x00"))
+	if !strings.Contains(joined, "content_files") && !strings.Contains(joined, "relative_path") {
+		return nil, 0
+	}
+	for _, text := range texts {
+		found, n := repoIDChangeViolations(path, text)
+		violations = append(violations, found...)
+		upserts += n
+	}
+	return violations, upserts
+}
+
 // TestNoGoCodeSetsConstraintsImmediate fails on any non-test Go statement that
 // issues SET CONSTRAINTS, which would run the fence's deferred commit trigger
 // before the transaction's last content lock (#8282 review).
 func TestNoGoCodeSetsConstraintsImmediate(t *testing.T) {
 	var hits []string
 	nonTestGoFiles(t, func(path, src string) {
-		if !strings.Contains(strings.ToUpper(src), "CONSTRAINTS") {
-			return
-		}
-		hits = append(hits, setConstraintsStatements(path, goLiteralSQL(t, path, src))...)
+		hits = append(hits, scanSourceForSetConstraints(t, path, src)...)
 	})
 	if len(hits) > 0 {
 		t.Fatalf("non-test Go statements issue SET CONSTRAINTS, which voids the fence's commit-time lock order:\n%s",
@@ -159,14 +186,9 @@ func TestNoGoStatementChangesContentFilesRepoID(t *testing.T) {
 	var violations []string
 	upserts := 0
 	nonTestGoFiles(t, func(path, src string) {
-		if !strings.Contains(src, "content_files") && !strings.Contains(src, "relative_path") {
-			return
-		}
-		for _, text := range goLiteralSQL(t, path, src) {
-			found, n := repoIDChangeViolations(path, text)
-			violations = append(violations, found...)
-			upserts += n
-		}
+		found, n := scanSourceForRepoIDChanges(t, path, src)
+		violations = append(violations, found...)
+		upserts += n
 	})
 	if upserts < 2 {
 		t.Fatalf("saw %d content_files upserts, want at least 2: the scan is broken", upserts)
@@ -202,6 +224,29 @@ func TestFenceSourceGuardSeededViolations(t *testing.T) {
 	}
 	if !replicaRolePattern.MatchString(`db.Exec("SET session_replication_role = replica")`) {
 		t.Error("replica-role pattern misses a SET")
+	}
+	splitRed := map[string]string{
+		"split SET CONSTRAINTS": "package p\nconst q = \"SET CONSTRA\" + \"INTS ALL IMMEDIATE\"\n",
+		"split content_files":   "package p\nconst q = \"UPDATE content_\" + \"files SET repo_id = $1\"\n",
+	}
+	for name, src := range splitRed {
+		constraints := scanSourceForSetConstraints(t, name+".go", src)
+		repoIDs, _ := scanSourceForRepoIDChanges(t, name+".go", src)
+		if len(constraints)+len(repoIDs) == 0 {
+			t.Errorf("%s: a keyword split across Go literals evades the guard's prefilter", name)
+		}
+	}
+	splitGreen := map[string]string{
+		"go comment":  "package p\n// SET CONSTRAINTS ALL IMMEDIATE; UPDATE content_files SET repo_id = 1\nconst q = \"SELECT 1\"\n",
+		"sql comment": "package p\nconst q = \"-- SET CONSTRA\" + \"INTS ALL IMMEDIATE\\nSELECT 1\"\n",
+		"column name": "package p\nconst q = \"UPDATE t SET constraint_\" + \"name = $1\"\n",
+	}
+	for name, src := range splitGreen {
+		constraints := scanSourceForSetConstraints(t, name+".go", src)
+		repoIDs, _ := scanSourceForRepoIDChanges(t, name+".go", src)
+		if len(constraints)+len(repoIDs) != 0 {
+			t.Errorf("%s: reported %v %v", name, constraints, repoIDs)
+		}
 	}
 	constraintsRed := map[string]string{
 		"literal":      "package p\nconst q = \"SET CONSTRAINTS ALL IMMEDIATE\"\n",
