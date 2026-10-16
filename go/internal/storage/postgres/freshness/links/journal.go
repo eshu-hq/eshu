@@ -27,8 +27,11 @@ const (
 
 // JournalResult summarizes one journal pass.
 type JournalResult struct {
-	// Skipped is true when another replica held the journal lock; nothing
-	// else is set then.
+	// Skipped is true when the pass's try of the exclusive journal key
+	// missed: another replica's pass held it, or a projector Ack held it
+	// shared (#7127 PR-3b). Nothing was journaled and nothing else is set
+	// then. The runner counts it as retries_total{reason="journal_busy"}
+	// (RetryJournalBusy).
 	Skipped bool
 	// BackfillScopes is the number of scopes whose retained chain was
 	// journaled; BackfillRows the rows it inserted.
