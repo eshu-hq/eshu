@@ -16,7 +16,7 @@ waits, backoff, and later fence attempts. Once `LOCK TABLE` succeeds, the
 request context governs reset and commit. A live-Postgres regression inserts a
 live lease after the first 55P03; the second attempt returns
 `blocked/claim_fence_busy` when a shortened test budget expires at
-4.000131054 seconds. Another holds a post-fence write past its remaining
+4.000092329 seconds. Another holds a post-fence write past its remaining
 budget and verifies the transaction still commits.
 
 Backend/version: PostgreSQL 18.3 (Debian 18.3-1.pgdg13+1), disposable local
