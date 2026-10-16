@@ -48,3 +48,21 @@ func TestSearchFileContentForwardsResumeCursor(t *testing.T) {
 		t.Fatalf("an entity call without a cursor must not send one: %#v", plainEntity.Body)
 	}
 }
+
+// TestSearchEntityContentForwardsRankCursor pins that the #7746 rank cursor
+// reaches the entity route, and that a call without one sends no key.
+func TestSearchEntityContentForwardsRankCursor(t *testing.T) {
+	t.Parallel()
+	entity, _ := Route("search_entity_content", routecontract.Arguments{"pattern": "render", "repo_ids": []any{"r1"}, "rank_cursor": "start"})
+	if got := body(t, entity)["rank_cursor"]; got != "start" {
+		t.Fatalf("search_entity_content body rank_cursor = %#v, want start", got)
+	}
+	plain, _ := Route("search_entity_content", routecontract.Arguments{"pattern": "render"})
+	if _, present := body(t, plain)["rank_cursor"]; present {
+		t.Fatalf("a call without rank_cursor must not send one: %#v", plain.Body)
+	}
+	file, _ := Route("search_file_content", routecontract.Arguments{"pattern": "render", "rank_cursor": "start"})
+	if got := body(t, file)["rank_cursor"]; got != "start" {
+		t.Fatalf("search_file_content body rank_cursor = %#v, want start so the route refuses it", got)
+	}
+}

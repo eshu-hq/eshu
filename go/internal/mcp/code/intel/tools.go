@@ -76,6 +76,10 @@ func findCodeTool() toolcontract.ToolDefinition {
 					"description": "Deprecated compatibility field; repo_id controls repository scope",
 					"default":     "auto",
 				},
+				"rank_cursor": map[string]any{
+					"type":        "string",
+					"description": "Opt-in relevance walk (needs the hybrid ranker and repo_id; not with exact=true or offset). Pass \"start\" to rank the first 200 content matches by hybrid BM25+vector relevance, then pass rank_walk.next_rank_cursor from each reply until it is absent (rank_walk.window_end=true). Each row is read once. A 409 rank_cursor_basis_mismatch means the matches or their order changed: restart with \"start\". rank_walk.lexical_truncated=true means more than 200 matches exist; the walk does not read them.",
+				},
 			},
 			"required": []string{"query"},
 		},

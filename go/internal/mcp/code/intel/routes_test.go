@@ -277,3 +277,17 @@ func TestRouteBuildsAFreshBodyMap(t *testing.T) {
 		}
 	}
 }
+
+// TestFindCodeForwardsRankCursor pins that the #7746 rank cursor reaches
+// /api/v0/code/search, and that a call without one sends no key.
+func TestFindCodeForwardsRankCursor(t *testing.T) {
+	t.Parallel()
+	request, _ := Route("find_code", routecontract.Arguments{"query": "decode", "repo_id": "r1", "rank_cursor": "rc1.abc"})
+	if got := request.Body.(map[string]any)["rank_cursor"]; got != "rc1.abc" {
+		t.Fatalf("find_code body rank_cursor = %#v, want rc1.abc", got)
+	}
+	plain, _ := Route("find_code", routecontract.Arguments{"query": "decode"})
+	if _, present := plain.Body.(map[string]any)["rank_cursor"]; present {
+		t.Fatalf("a call without rank_cursor must not send one: %#v", plain.Body)
+	}
+}

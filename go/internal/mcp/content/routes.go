@@ -93,6 +93,12 @@ func contentSearchBody(args routecontract.Arguments) map[string]any {
 	default:
 		body["repo_ids"] = repoIDs
 	}
+	// The #7746 relevance-walk cursor is sent only when set, so a call
+	// without it keeps its exact wire body. The file route refuses it with a
+	// typed 400 rather than this selector dropping it.
+	if rankCursor := args.String("rank_cursor"); rankCursor != "" {
+		body["rank_cursor"] = rankCursor
+	}
 
 	return body
 }
