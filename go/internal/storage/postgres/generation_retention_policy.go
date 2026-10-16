@@ -74,3 +74,20 @@ func (p GenerationRetentionPolicy) normalize() GenerationRetentionPolicy {
 	}
 	return p
 }
+
+// generationRetentionTestHooks are the ordering points the live retention
+// proofs use to put another session at an exact place inside one prune
+// pass. The fields are unexported and only same-package tests set them;
+// production wiring never does, so every hook is nil there and each call
+// site is a single nil check.
+type generationRetentionTestHooks struct {
+	// beforeTargetedLock runs between the selection's savepoint rollback and
+	// the targeted re-lock of the provisionally selected set, where another
+	// session can take a candidate.
+	beforeTargetedLock func()
+	// afterChunkTargetLocked runs once the chunked re-lock holds the
+	// over-limit chunk target's scope and generation rows and before its
+	// page delete, so a test can start writers that must wait on those row
+	// locks (#8206).
+	afterChunkTargetLocked func()
+}

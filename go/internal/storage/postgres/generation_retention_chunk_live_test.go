@@ -7,7 +7,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"sync"
 	"testing"
 	"time"
 
@@ -426,67 +425,5 @@ FROM generate_series(1, 1500) AS n`, scopeID, generationID); err != nil {
 	}
 	if facts := countScopeGenerationFacts(t, ctx, database, scopeID, generationID); facts != 1500 {
 		t.Fatalf("facts after lock miss = %d, want 1500 (nothing drained)", facts)
-	}
-}
-
-// TestGenerationRetentionChunkConcurrentInsertWaitsLive proves a fact insert
-// into a chunking generation waits out the narrow scope hold instead of
-// deadlocking: five concurrent inserts all commit, none lands in the drained
-// page (their observed_at is newer), and the final count is exact.
-func TestGenerationRetentionChunkConcurrentInsertWaitsLive(t *testing.T) {
-	bridgeRetentionFamilyDSN(t)
-	database, ctx := openGenerationRetentionMigratedSchema(t)
-	now := time.Now().UTC()
-	const scopeID, generationID = "chunk-insertwait", "chunk-insertwait-g0"
-	testfixtures.SeedScope(t, ctx, database, scopeID)
-	testfixtures.SeedSupersededGeneration(t, ctx, database, scopeID, generationID, now.Add(-10*24*time.Hour))
-	if _, err := database.ExecContext(ctx, `
-INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system,
-    source_fact_key, observed_at, ingested_at, payload)
-SELECT 'iw-' || lpad(n::text, 5, '0'), $1, $2, 'metric', 'iwk' || n, 'git', 'iwk' || n, now(), now(), '{}'::jsonb
-FROM generate_series(1, 1500) AS n`, scopeID, generationID); err != nil {
-		t.Fatalf("seed insert-wait facts: %v", err)
-	}
-
-	const inserts = 5
-	start := make(chan struct{})
-	var wg sync.WaitGroup
-	errs := make(chan error, inserts)
-	for i := 0; i < inserts; i++ {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			<-start
-			_, err := database.ExecContext(ctx, `
-INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system,
-    source_fact_key, observed_at, ingested_at, payload)
-VALUES ($1, $2, $3, 'metric', $4, 'git', $4, now(), now(), '{}'::jsonb)`,
-				fmt.Sprintf("iw-new-%d", i), scopeID, generationID, fmt.Sprintf("iwnewk-%d", i))
-			errs <- err
-		}(i)
-	}
-	close(start)
-
-	store := NewGenerationRetentionStore(SQLDB{DB: database})
-	store.Now = func() time.Time { return now }
-	result, err := store.PruneSupersededGenerations(ctx, chunkDrainPolicy())
-	if err != nil {
-		t.Fatalf("PruneSupersededGenerations() error = %v", err)
-	}
-	wg.Wait()
-	close(errs)
-	for err := range errs {
-		if err != nil {
-			t.Fatalf("concurrent insert: %v", err)
-		}
-	}
-	if got := result.Skipped[generationRetentionChunkedProgressSkippedReason]; got != 1 {
-		t.Fatalf("Skipped[row_limit_chunked] = %d, want 1", got)
-	}
-	// One 1000-fact page drained, five newer inserts committed: every row
-	// is accounted for, so no insert was lost to the chunk delete and no
-	// deadlock stalled either side.
-	if facts := countScopeGenerationFacts(t, ctx, database, scopeID, generationID); facts != 1500-1000+inserts {
-		t.Fatalf("facts after concurrent inserts = %d, want %d", facts, 1500-1000+inserts)
 	}
 }

@@ -154,6 +154,8 @@ PACKAGES = {
             "TestGenerationRetentionChunkedDrainLive",
             "TestGenerationRetentionChunkStatementsRollBackLive",
             "TestGenerationRetentionChunkLockMissDropsSilentlyLive",
+        ),
+        "go/internal/storage/postgres/generation_retention_chunk_insert_wait_live_test.go": (
             "TestGenerationRetentionChunkConcurrentInsertWaitsLive",
         ),
         "go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go": (

@@ -89,10 +89,7 @@ type GenerationRetentionResult struct {
 type GenerationRetentionStore struct {
 	database db.ExecQueryer
 	Now      func() time.Time
-	// beforeTargetedLock, when set by a test, runs between the selection's
-	// savepoint rollback and the targeted re-lock of the provisionally
-	// selected set, where another session can take a candidate.
-	beforeTargetedLock func()
+	generationRetentionTestHooks
 }
 
 // NewGenerationRetentionStore constructs a Postgres-backed retention cleanup

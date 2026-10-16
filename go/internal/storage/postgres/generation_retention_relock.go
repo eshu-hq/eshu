@@ -235,6 +235,9 @@ func (s GenerationRetentionStore) relockChunkedBatch(
 	if lockedChunk == nil && len(normal) == 0 {
 		return nil, nil, nil, generationRetentionChunk{}, false, false, nil
 	}
+	if lockedChunk != nil && s.afterChunkTargetLocked != nil {
+		s.afterChunkTargetLocked()
+	}
 	// No second #7981 witness on the normal subset either: planning retained
 	// each group's newest outside the lock set, so this subset is safe to
 	// prune whole; regrouping it would drain one copy per cycle.
