@@ -43,3 +43,11 @@ must never import root.
 Unchanged by the #6642 move: engine failures log `ask engine error`
 (`err_type=engine_failure`, with SSE and SSE-sync variants) via the
 injected logger, defaulting to `slog.Default()` when nil.
+
+An SSE request on a response writer with no `http.Flusher` answers a plain
+JSON `500` with the fixed detail
+`streaming not supported by this server configuration` before any event-stream
+header or engine call. It goes through `tracing.ServerFailureEnvelope` with the
+`errSSEFlushUnsupported` sentinel, so the request span gets status Error and
+one `exception` event (#7674). The sentinel is never a cancel, so this step
+never answers `499`.
