@@ -101,7 +101,7 @@ func buildReducerService(
 		return reducer.Service{}, err
 	}
 	presence := newEndpointPresenceWirings(getenv, secretsIAMGraphWriter != nil, database)
-	relationshipStore := postgres.NewRelationshipStore(database)
+	relationshipStore := postgres.NewRelationshipStore(database).WithInstruments(instruments)
 	relationshipGenerationActive := postgres.NewRelationshipGenerationActiveLookup(relationshipStore)
 	// Corpus-wide fence for derivation that merges foreign resolved reads
 	// (workload materialization, deployable-unit correlation): those loaders
@@ -110,6 +110,8 @@ func buildReducerService(
 	resolutionsComplete := postgres.NewRelationshipGenerationsCompleteLookup(relationshipStore)
 	// Best-effort holder list for fence deferral errors (#6730).
 	incompleteScopes := postgres.NewRelationshipGenerationsIncompleteScopesLookup(relationshipStore)
+	// #7597: a closed own gate reads its deployment_mapping producer.
+	resolutionProducer := postgres.NewResolutionProducerLookup(database)
 	factStore := postgres.NewFactStore(database).WithInstruments(instruments)
 	if identityCache != nil {
 		factStore = postgres.NewFactStoreWithIdentityCache(database, identityCache).WithInstruments(instruments)
@@ -221,6 +223,7 @@ func buildReducerService(
 			ResolutionActiveLookup:    relationshipGenerationActive,
 			ResolutionsCompleteLookup: resolutionsComplete,
 			IncompleteScopesLookup:    incompleteScopes,
+			ResolutionProducerLookup:  resolutionProducer,
 			CanonicalQuiescence:       postgres.NewReducerGraphDrain(database),
 			Logger:                    logger,
 		},
@@ -231,6 +234,7 @@ func buildReducerService(
 			ResolutionActiveLookup:    relationshipGenerationActive,
 			ResolutionsCompleteLookup: resolutionsComplete,
 			IncompleteScopesLookup:    incompleteScopes,
+			ResolutionProducerLookup:  resolutionProducer,
 		},
 		WorkloadDependencyLookup:           neo4jWorkloadDependencyLookup{reader: graphReader},
 		InstanceRetractionLookup:           neo4jWorkloadInstanceRetractionLookup{reader: graphReader},
@@ -477,12 +481,13 @@ func buildReducerService(
 			LeaseOwner: defaultCrossScopeCompletionLeaseOwner(),
 			Logger:     logger,
 		},
-		QuarantineWriter: postgres.NewReducerInputInvalidFactStore(database),
-		Workers:          workers,
-		BatchClaimSize:   loadReducerBatchClaimSize(getenv, workers, graphBackend),
-		Tracer:           tracer,
-		Instruments:      instruments,
-		Logger:           logger,
+		QuarantineWriter:       postgres.NewReducerInputInvalidFactStore(database),
+		IsDeferredFailureClass: postgres.IsNonCountingReducerRetryFailureClass,
+		Workers:                workers,
+		BatchClaimSize:         loadReducerBatchClaimSize(getenv, workers, graphBackend),
+		Tracer:                 tracer,
+		Instruments:            instruments,
+		Logger:                 logger,
 	}, nil
 }
 

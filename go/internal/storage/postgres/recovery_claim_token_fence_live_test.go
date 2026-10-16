@@ -387,33 +387,41 @@ type claimTokenActivationPauseDB struct {
 	once      sync.Once
 }
 
-func (d *claimTokenActivationPauseDB) ExecContext(
-	ctx context.Context,
-	query string,
-	args ...any,
-) (sql.Result, error) {
-	if !strings.Contains(query, "WITH claimant AS MATERIALIZED") {
-		return d.claimTokenSQLConn.ExecContext(ctx, query, args...)
-	}
+// Begin returns a transaction that signals once the claim-fenced activation
+// statement ran and holds its commit until release, so the activation's row
+// locks stay held across the recovery race. Since #7597 the activation and its
+// consumer wake share one transaction.
+func (d *claimTokenActivationPauseDB) Begin(ctx context.Context) (db.Transaction, error) {
 	tx, err := d.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = tx.Rollback() }()
-	result, err := tx.ExecContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
+	return &claimTokenActivationPauseTx{SQLTx: SQLTx{Tx: tx}, owner: d, ctx: ctx}, nil
+}
+
+// claimTokenActivationPauseTx pauses the activation transaction before commit.
+type claimTokenActivationPauseTx struct {
+	SQLTx
+	owner *claimTokenActivationPauseDB
+	ctx   context.Context
+}
+
+func (tx *claimTokenActivationPauseTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	result, err := tx.SQLTx.ExecContext(ctx, query, args...)
+	if err == nil && strings.Contains(query, "WITH claimant AS MATERIALIZED") {
+		tx.owner.once.Do(func() { close(tx.owner.activated) })
 	}
-	d.once.Do(func() { close(d.activated) })
+	return result, err
+}
+
+func (tx *claimTokenActivationPauseTx) Commit() error {
 	select {
-	case <-d.release:
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	case <-tx.owner.release:
+	case <-tx.ctx.Done():
+		_ = tx.Rollback()
+		return tx.ctx.Err()
 	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-	return result, nil
+	return tx.SQLTx.Commit()
 }
 
 func claimTokenOpenConn(t *testing.T, ctx context.Context, database *sql.DB) *sql.Conn {

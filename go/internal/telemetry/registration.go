@@ -70,6 +70,7 @@ var registrationSteps = []func(){
 	registerDeferredBackfillBlock,
 	registerHybridRerank,
 	registerRepositoryRetirementSplit,
+	registerOwnGateWake,
 }
 
 func init() {

@@ -893,6 +893,23 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 - Dead-letter items accumulate in `fact_work_items` when `attempt_count >=
   MaxAttempts`; use `RecoveryStore` to replay after investigating
   `failure_class`.
+- A `*_producer_dead_lettered` or `*_producer_missing` dead letter on
+  `deployable_unit_correlation` or `workload_materialization` means the scope
+  generation's `deployment_mapping` item is dead-lettered or absent (#7597).
+  Replay or re-enqueue that producer first. If the scope's relationship
+  generation is already active and the consumer is still dead-lettered (a
+  replay held the row and rolled back, or the Fail-side check logged an
+  error), replay the consumer by `failure_class`. Every
+  relationship-generation activation (`RelationshipStore`
+  `activateWithConsumerWake`) reopens those consumers of the same
+  `(scope_id, generation_id)` in the activation transaction and logs INFO
+  `relationship generation activation reopened own-gate consumers`
+  (`woken_consumers`). A consumer whose final Fail lands after the activation
+  is reopened at once by its own post-dead-letter check (INFO `own-gate dead
+  letter reopened: relationship generation already active`). Both count on
+  `eshu_dp_reducer_own_gate_wake_total{site, outcome}`. Operator replays
+  do not stamp `reopened_at`; only the wake does. See
+  `docs/internal/evidence/7597-own-gate-producer-terminal.md`.
 - `ErrProjectorClaimRejected` or `ErrReducerClaimRejected` in logs means a
   heartbeat or ack arrived after lease expiry; the original worker must stop and
   not retry the ack.

@@ -24,10 +24,23 @@
 // evidence_source, so relationship type and endpoint labels cannot tell the two
 // families' edges apart.
 //
+// # Own gate
+//
+// EvaluateOwnGate is the own-generation readiness gate of
+// deployable_unit_correlation and workload_materialization (#6184), bounded by
+// the deployment_mapping work item this package's handler runs (#7597). When
+// the own relationship generation is inactive it reads that producer through a
+// ProducerLookup: a dead-lettered producer returns the counting
+// ProducerDeadLetteredError; when neither the producer row nor a
+// relationship_generations row exists it defers for
+// crossscope.ProducerReadinessMaxWait and then returns ProducerMissingError;
+// every other state, including a non-active generation row (re-resolution),
+// keeps the caller's non-counting deferral.
+//
 // # Package boundary
 //
 // Imports point strictly downward: this package reaches [reducercontract],
-// [gpphase], [payloadcore], [sharedintent], internal/environment,
+// [crossscope], [factload], [gpphase], [payloadcore], [sharedintent], internal/environment,
 // internal/ghactionsref, internal/relationships, internal/telemetry and
 // pkg/log, and never the parent internal/reducer package. The reducer root keeps
 // compatibility aliases in the cross-repo stanza of compat_correlation.go so its own callers -- and

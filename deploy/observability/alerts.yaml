@@ -64,6 +64,7 @@ groups:
           runbook: |
             1. Check Jaeger traces filtered by `service_name=eshu-reducer` and `pipeline_phase=reduction`
             2. Group failures by domain: check `eshu_dp_reducer_executions_total{status="failed"}` by domain label
+               Readiness waits record `status="deferred"` (#7597) and are not in this numerator; a steady `deferred` rate for one domain is a wait that never ends.
             3. Common failure patterns:
                - Intent deserialization failures (malformed queue items)
                - Domain handler panics or unhandled cases

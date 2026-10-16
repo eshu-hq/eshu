@@ -341,6 +341,7 @@ cp "${runner}" "${tree}/scripts/"
 cp "${repo_root}/scripts/lib/live_postgres_readiness_events.py" "${tree}/scripts/lib/"
 cp "${repo_root}/scripts/lib/live_tests_registry.py" "${tree}/scripts/lib/"
 cp "${repo_root}/scripts/lib/live_postgres_readiness_inventory.py" "${tree}/scripts/lib/"
+cp "${repo_root}/scripts/lib/live_postgres_readiness_inventory_own_gate.py" "${tree}/scripts/lib/"
 cp "${repo_root}/scripts/lib/live_postgres_readiness_records.py" "${tree}/scripts/lib/"
 cp "${checker}" "${tree}/scripts/lib/"
 ln -s "${repo_root}/go" "${tree}/go"
@@ -417,6 +418,7 @@ for location in empty malformed; do
   cp "${repo_root}/scripts/lib/live_postgres_readiness_events.py" "${seed_dir}/${location}/"
   cp "${repo_root}/scripts/lib/live_tests_registry.py" "${seed_dir}/${location}/"
   cp "${repo_root}/scripts/lib/live_postgres_readiness_records.py" "${seed_dir}/${location}/"
+  cp "${repo_root}/scripts/lib/live_postgres_readiness_inventory_own_gate.py" "${seed_dir}/${location}/"
 done
 awk '/^PACKAGES = \{/ { print "PACKAGES = {}"; skip = 1; next } skip && /^\}$/ { skip = 0; next } !skip' \
   "${repo_root}/scripts/lib/live_postgres_readiness_inventory.py" >"${seed_dir}/empty/live_postgres_readiness_inventory.py"

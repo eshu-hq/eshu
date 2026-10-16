@@ -178,6 +178,14 @@ type Service struct {
 	// counter and structured error log are unaffected.
 	QuarantineWriter QuarantinedFactWriter
 
+	// IsDeferredFailureClass reports whether a failure class is one the queue
+	// exempts from the retry budget (a readiness wait). Such a failure records
+	// status "deferred" and logs WARN "reducer execution deferred" instead of
+	// "failed"/ERROR. cmd/reducer wires
+	// postgres.IsNonCountingReducerRetryFailureClass; nil keeps every failure
+	// "failed". Injected so this package never restates the class list.
+	IsDeferredFailureClass func(failureClass string) bool
+
 	// Telemetry fields (optional)
 	Tracer         trace.Tracer
 	Instruments    *telemetry.Instruments

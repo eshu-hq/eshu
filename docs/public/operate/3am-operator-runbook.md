@@ -138,6 +138,15 @@ Dead-letter counts are rising in the operator read model
     accepted or refused replay records an `admin_recovery_action` governance audit
     event carrying no secret values. See
     [Safe Replay Workflow](../reference/http-api/status-admin.md#safe-replay-workflow).
+- **Own-gate dead letters (#7597):** a `deployable_unit_correlation` or
+  `workload_materialization` dead letter in `*_producer_dead_lettered` or
+  `*_producer_missing` waits on its scope generation's `deployment_mapping`
+  producer. Replay or fix the producer first; its activation reopens these
+  consumers on its own (`eshu_dp_reducer_own_gate_wake_total`). If the scope's
+  relationship generation is already `active` and the consumer is still
+  dead-lettered, replay the consumer with
+  `"failure_class":"deployable_unit_correlation_producer_dead_lettered"` (or the
+  matching `workload_materialization_*` or `*_producer_missing` class).
 
 ## Symptom: graph backend degradation
 
