@@ -56,6 +56,8 @@
   further check, so a new keyed shape needs a negative test for every way it
   could bind the wrong symbol (`engine_package_export_keys_test.go`). Type
   references stay unkeyed, and a name the file declares again is never keyed.
+  A manifest under a test, tests, fixtures, testdata, or examples directory
+  publishes no `package_id` (#8244, `engine_package_fixture_manifest_test.go`).
   A bare import is keyed only when a package.json on the path to the repo root
   declares it (`engine_package_import_dependencies_test.go`); do not replace
   that rule with a built-in or alias list.

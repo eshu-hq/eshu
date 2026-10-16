@@ -32,9 +32,9 @@ and `internal/parser/go_package_module_import_path.go`.
   `GoModuleScopeIDs`. `PackageScopeIDs` sends a composer name
   (`vendor/name` in the composer grammar) to the composer.json read, which
   skips manifests under `vendor/` and under a test, tests, fixtures, testdata,
-  or examples directory (whole segments, any ASCII case; `composer.FixtureDirPattern`,
-  #8223), and every other name to the package.json
-  read; the two name spaces are disjoint, and a request with both unions the
+  or examples directory (whole segments, any ASCII case; `shared.FixtureDirPattern`,
+  #8223), and every other name to the package.json read, which skips
+  `node_modules*` and the same fixture-style directories (#8244); the two name spaces are disjoint, and a request with both unions the
   two reads. All three manifest reads (package.json, composer.json, go.mod)
   bind stored content to the writing
   generation through the `content_files` generation tag (#7760): a row whose

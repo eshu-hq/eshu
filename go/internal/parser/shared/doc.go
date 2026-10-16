@@ -20,6 +20,13 @@
 // name the optional type_only, deferred, and inferred keys a language parser
 // sets on an "imports" entry; a flag is present only when true.
 //
+// FixtureDirPattern and InFixtureDir name the one path rule that keeps a
+// package manifest under a test, tests, fixtures, testdata, or examples
+// directory from being a package producer (#8223, #8244). The pattern is ASCII
+// bracket classes with no case-fold flag, so PostgreSQL's !~ and Go's regexp
+// agree; the producer anchors in SQL and the composer and JavaScript parsers
+// all apply this one constant.
+//
 // CyclomaticComplexity is the shared McCabe complexity walker. It counts
 // decision points from a BranchNodeSet so every tree-sitter language computes
 // real complexity from data tables rather than per-language traversal code.

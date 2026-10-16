@@ -16,7 +16,7 @@ Composer manifest reads for the PHP cross-repository call keys (#7601).
 
 - Producer: nearest `composer.json` only, never under a `vendor/` directory,
   and never a manifest under a test, tests, fixtures, testdata, or examples
-  directory (`FixtureDirPattern`, whole path segments, any ASCII letter case; #8223).
+  directory (`FixtureDirPattern`, an alias of `shared.FixtureDirPattern`, whole path segments, any ASCII letter case; #8223).
   A fixture manifest ends the walk with no key; the file never falls through
   to an outer manifest.
   The name must match composer's grammar. Only `autoload.psr-4` counts

@@ -226,7 +226,9 @@ the pinned digest (252 facts at v5). Production discovery already prunes `vendor
 - Nested test-fixture `composer.json` files: a fixture manifest that reuses a
   real package name and maps a class at the same path can capture an edge only
   when the real producer is not indexed; when both are indexed, the unique rule
-  leaves the key unresolved. The JS leg shares this exposure (#8223).
+  leaves the key unresolved. The JS leg had the same exposure and applies the
+  same rule since #8244
+  ([8244-package-json-fixture-manifests.md](8244-package-json-fixture-manifests.md)).
 
 ## NOT_CHECKED
 

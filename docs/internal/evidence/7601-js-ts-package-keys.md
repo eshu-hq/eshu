@@ -271,3 +271,11 @@ The arbiter ruling on #7601 (2026-10-05) accepted each of these deviations.
 - Replica shape split of the investigation's 2,602 strict calls: NOT_CHECKED.
   The split above, from parser output on 22 repositories, stands in for it.
 - Namespace-member key count on the worst consumer: NOT_CHECKED.
+
+## Fixture-directory manifests (#8244)
+
+The nearest-`package.json` rule above now stops at a manifest under a test,
+tests, fixtures, testdata, or examples directory: `project.NearestPackageName`
+returns no name there and does not fall through to an outer manifest, and the
+package.json producer read excludes the same stored paths. See
+[8244-package-json-fixture-manifests.md](8244-package-json-fixture-manifests.md).

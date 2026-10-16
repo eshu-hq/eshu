@@ -67,3 +67,8 @@
 - The leaf-package constraint (no import of `internal/parser/javascript`).
 - `CleanPath`/`PathWithin`'s absolute-path-and-containment semantics; several
   callers rely on them to keep resolution inside the repository root.
+- The fixture-manifest rule in `NearestPackageName` (#8244). It applies
+  `shared.FixtureDirPattern`, the constant the producer anchor in
+  `internal/storage/postgres/code/producers` embeds in SQL. Never retype the
+  pattern, and keep the walk fail-closed: a fixture manifest returns `""`, it
+  does not fall through to an outer manifest.
