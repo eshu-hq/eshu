@@ -21,6 +21,11 @@ with all seams supplied (`backfillStore`), the post-commit transaction,
 the skip orchestration, the reproject transaction, and the catalog cache.
 The engine never imports the parent postgres package.
 
+The `targeted` child owns partition-scoped maintenance and its reopen
+transaction. Three shipped whole-pass reopen listings and shared replay-floor
+fragments live in `reopen_sql.go`; root keeps constant aliases for existing
+consumers. The child derives bounded listings once from those strings.
+
 ## Exported surface
 
 - `Store`, `NewStore` — engine handles plus the two seams the engine must

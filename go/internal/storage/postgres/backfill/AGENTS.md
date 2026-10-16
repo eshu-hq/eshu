@@ -29,9 +29,8 @@
 - **Differentials derive, never copy** — root proofs bind the shipped
   constants and exported arg builders. Do not freeze SQL by hand.
 - **Test placement** — fake-driven engine tests stay `package backfill`
-  with local doubles (`fakes_test.go`); anything needing root
-  collaborators (`IngestionStore`, commit path, live DSN) lives in the
-  root package.
+  with local doubles (`fakes_test.go`); targeted engine proofs live in the `targeted` child package. External
+  child tests may call root `IngestionStore` entry points.
 
 - **Block telemetry is a closed set** — the `Block*` constants in
   `block_telemetry.go` are the nine blocks of #8082. A failed block ends its

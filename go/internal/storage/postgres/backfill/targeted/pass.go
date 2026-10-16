@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package targeted
 
 import (
 	"context"
@@ -22,7 +22,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// targetedCatalogBaselineQuery reports whether any memo row exists (the
+// CatalogBaselineQuery reports whether any memo row exists (the
 // baseline the catalog guard needs) and whether any memo row records a
 // catalog fingerprint other than $1. Each arm reads the active partitions
 // first and falls back to the owed scopes' own latest memo, any generation
@@ -38,7 +38,7 @@ import (
 // its first publication and keeps that order. If a future path ever writes
 // memos for non-active generations, this ordering argument must be
 // revisited.
-const targetedCatalogBaselineQuery = backfill.LatestGenerationCTE + `,
+const CatalogBaselineQuery = backfill.LatestGenerationCTE + `,
 owed_latest_memo AS (
     SELECT DISTINCT ON (memo.scope_id)
         memo.scope_id,
@@ -134,16 +134,16 @@ type TargetedMaintenanceResult struct {
 // Per-owed results are in TargetedMaintenanceResult.Outcomes; the returned
 // error is a pass-level refusal (match with errors.Is) or an operational
 // failure.
-func (s IngestionStore) RunDeferredRelationshipMaintenanceForPartitions(
+func (s Store) RunDeferredRelationshipMaintenanceForPartitions(
 	ctx context.Context,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 	owed []OwedPartition,
 ) (result TargetedMaintenanceResult, err error) {
-	if s.database == nil {
+	if s.Backfill.DB == nil {
 		return result, fmt.Errorf("ingestion store db is required")
 	}
-	if s.beginner == nil {
+	if s.Backfill.Beginner == nil {
 		return result, fmt.Errorf("transaction beginner is required for partition-scoped maintenance")
 	}
 	requested := normalizeOwedPartitions(owed)
@@ -164,7 +164,7 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceForPartitions(
 	// partition is reported as such even when the catalog guard would refuse.
 	active := make(map[backfill.ScopeGenerationPartition]struct{}, len(requested))
 	for _, partition := range requested {
-		generationID, err := backfill.LoadActiveGenerationForScope(ctx, s.database, partition.ScopeID)
+		generationID, err := backfill.LoadActiveGenerationForScope(ctx, s.Backfill.DB, partition.ScopeID)
 		if err != nil {
 			return result, fmt.Errorf("read active generation for owed scope %q: %w", partition.ScopeID, err)
 		}
@@ -177,7 +177,7 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceForPartitions(
 	if len(active) == 0 {
 		return result, nil
 	}
-	owedRepos, err := loadActiveRepositoryGenerationsForPartitions(ctx, s.database, sortedPartitions(active))
+	owedRepos, err := loadActiveRepositoryGenerationsForPartitions(ctx, s.Backfill.DB, sortedPartitions(active))
 	if err != nil {
 		return result, fmt.Errorf("load owed repository generations: %w", err)
 	}
@@ -188,7 +188,7 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceForPartitions(
 		}
 	}
 
-	catalog, _, err := backfill.LoadRepositoryCatalog(ctx, s.database)
+	catalog, _, err := backfill.LoadRepositoryCatalog(ctx, s.Backfill.DB)
 	if err != nil {
 		return result, fmt.Errorf("load repository catalog for partition-scoped maintenance: %w", err)
 	}
@@ -232,13 +232,13 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceForPartitions(
 	skipped := map[backfill.ScopeGenerationPartition]struct{}{}
 	if hasAnchors {
 		snapshot, result.SnapshotConflicts = buildTargetedMaintenanceSnapshot(closure.load, affected)
-		loaded, loadSkipped, err := s.backfillStore().LoadDeferredScopedFactsAcrossPartitions(
-			ctx, s.database, params, sortedPartitions(closure.load), nil)
+		loaded, loadSkipped, err := s.Backfill.LoadDeferredScopedFactsAcrossPartitions(
+			ctx, s.Backfill.DB, params, sortedPartitions(closure.load), nil)
 		if err != nil {
 			return result, fmt.Errorf("load partition-scoped deferred facts: %w", err)
 		}
 		if len(loaded) > 0 {
-			loaded, err = s.backfillStore().AppendArgoCDGeneratorConfigFacts(ctx, s.database, catalog, loaded)
+			loaded, err = s.Backfill.AppendArgoCDGeneratorConfigFacts(ctx, s.Backfill.DB, catalog, loaded)
 			if err != nil {
 				return result, err
 			}
@@ -271,12 +271,12 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceForPartitions(
 	// (issue #7636). A nil skipped (gate failure) stays nil, preserving the
 	// reopen-all fallback and the SkipSetUnavailable flag set above.
 	skipped = backfill.ExcludePartitionsWithNewEvidence(skipped, insertedRows)
-	if result.Reopened, err = s.reopenTargetedMaintenanceWorkItems(ctx, tracer, affectedList, skipped); err != nil {
+	if result.Reopened, err = s.ReopenTargetedMaintenanceWorkItems(ctx, tracer, affectedList, skipped); err != nil {
 		return result, err
 	}
 
 	for partition := range applicable {
-		committed, err := backwardEvidencePhaseCommitted(ctx, s.database, partition)
+		committed, err := s.PhaseCommitted(ctx, s.Backfill.DB, partition)
 		if err != nil {
 			return result, err
 		}
@@ -295,8 +295,8 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceForPartitions(
 // fingerprint, nil when the catalog is unchanged, and the query error
 // otherwise. owedScopeIDs carries the distinct scope_ids of the normalized
 // requested owed partitions; it must be non-empty.
-func (s IngestionStore) targetedCatalogRefusal(ctx context.Context, fingerprint string, owedScopeIDs []string) error {
-	rows, err := s.database.QueryContext(ctx, targetedCatalogBaselineQuery, fingerprint, array.StringArray(owedScopeIDs))
+func (s Store) targetedCatalogRefusal(ctx context.Context, fingerprint string, owedScopeIDs []string) error {
+	rows, err := s.Backfill.DB.QueryContext(ctx, CatalogBaselineQuery, fingerprint, array.StringArray(owedScopeIDs))
 	if err != nil {
 		return fmt.Errorf("check catalog fingerprint for partition-scoped maintenance: %w", err)
 	}

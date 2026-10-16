@@ -9,6 +9,7 @@ what callers import, so this table can grow without the file passing the
 
 IMPACT_PACKAGE = "./internal/query/supply/chain/impact"
 STORAGE_PACKAGE = "./internal/storage/postgres"
+TARGETED_PACKAGE = "./internal/storage/postgres/backfill/targeted"
 ACTIVATION_PACKAGE = "./internal/storage/postgres/activation"
 MAINTENANCE_PACKAGE = "./internal/storage/postgres/maintenance"
 MEMBERSHIP_PACKAGE = "./internal/storage/postgres/membership"
@@ -135,9 +136,6 @@ PACKAGES = {
         "go/internal/storage/postgres/drifted_bucket_skip_live_test.go": (
             "TestDriftedPathologicalBucketSkippedLive",
         ),
-        "go/internal/storage/postgres/ingestion_targeted_maintenance_terminal_live_test.go": (
-            "TestActivationObligationInapplicableCollisionLoserLive",
-        ),
         "go/internal/storage/postgres/package_manifest_consumption_backfill_live_test.go": (
             "TestPackageManifestConsumptionBackfillRepairsOldWriterAfterReadyLive",
             "TestPackageManifestConsumptionBackfillPagesHeavyScopeLive",
@@ -227,21 +225,6 @@ PACKAGES = {
             "TestIngestionStoreCommitScopeGenerationPersistsFluxEvidenceNatively",
             "TestFluxEvidenceMixedGenerationLegacyAndCurrentCoexist",
         ),
-        "go/internal/storage/postgres/ingestion_targeted_maintenance_differential_live_test.go": (
-            "TestTargetedMaintenanceMatchesWholePass",
-        ),
-        "go/internal/storage/postgres/ingestion_targeted_maintenance_interleave_live_test.go": (
-            "TestTargetedMaintenanceInterleavingsMatchWholePass",
-        ),
-        "go/internal/storage/postgres/ingestion_targeted_maintenance_outcomes_live_test.go": (
-            "TestTargetedMaintenanceOutcomesMatchWholePass",
-        ),
-        "go/internal/storage/postgres/ingestion_targeted_maintenance_sql_live_test.go": (
-            "TestBoundedRepositoryGenerationReadsMatchShippedRead",
-        ),
-        "go/internal/storage/postgres/targeted_partition_evidence_theory_live_test.go": (
-            "TestTheoryExactPartitionEvidenceClosure",
-        ),
         "go/internal/storage/postgres/repository_catalog_projection_live_test.go": (
             "TestLoadRepositoryCatalogProjectionMatchesWholePayloadDecode",
         ),
@@ -305,6 +288,26 @@ PACKAGES = {
         "go/internal/storage/postgres/reducer_queue_batch_ack_reclaim_live_test.go": (
             "TestReducerQueueAckBatchFencesSupersededClaimLive",
             "TestReducerQueueExpiryInterleaveLive",
+        ),
+    },
+    TARGETED_PACKAGE: {
+        "go/internal/storage/postgres/backfill/targeted/terminal_live_test.go": (
+            "TestActivationObligationInapplicableCollisionLoserLive",
+        ),
+        "go/internal/storage/postgres/backfill/targeted/differential_live_test.go": (
+            "TestTargetedMaintenanceMatchesWholePass",
+        ),
+        "go/internal/storage/postgres/backfill/targeted/interleave_live_test.go": (
+            "TestTargetedMaintenanceInterleavingsMatchWholePass",
+        ),
+        "go/internal/storage/postgres/backfill/targeted/outcomes_live_test.go": (
+            "TestTargetedMaintenanceOutcomesMatchWholePass",
+        ),
+        "go/internal/storage/postgres/backfill/targeted/sql_live_test.go": (
+            "TestBoundedRepositoryGenerationReadsMatchShippedRead",
+        ),
+        "go/internal/storage/postgres/backfill/targeted/closure_theory_live_test.go": (
+            "TestTheoryExactPartitionEvidenceClosure",
         ),
     },
     WEBHOOK_PACKAGE: {

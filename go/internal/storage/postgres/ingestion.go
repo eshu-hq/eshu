@@ -78,6 +78,15 @@ type IngestionStore struct {
 // input. It installs a shared repository catalog cache so per-commit catalog
 // reloads stay O(1) across the lifetime of the store (issue #3481).
 func NewIngestionStore(database db.ExecQueryer) IngestionStore {
+	return NewIngestionStoreWithMaintenanceConfig(database, 0, 0)
+}
+
+// NewIngestionStoreWithMaintenanceConfig constructs the same ingestion store
+// with optional positive overrides for repositories per deferred-maintenance
+// batch and concurrent batch workers. Zero or negative values use the same
+// defaults as NewIngestionStore. The database handle supplies db.Beginner when
+// it implements that interface; the configured pass keeps that exact handle.
+func NewIngestionStoreWithMaintenanceConfig(database db.ExecQueryer, batchSize, workers int) IngestionStore {
 	store := IngestionStore{
 		database:               database,
 		catalogCache:           newRepositoryCatalogCache(),
@@ -86,6 +95,12 @@ func NewIngestionStore(database db.ExecQueryer) IngestionStore {
 	}
 	if beginner, ok := database.(db.Beginner); ok {
 		store.beginner = beginner
+	}
+	if batchSize > 0 {
+		store.maintenanceBatchSize = batchSize
+	}
+	if workers > 0 {
+		store.maintenanceWorkers = workers
 	}
 
 	return store

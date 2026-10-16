@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package targeted_test
 
 import (
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
@@ -21,9 +23,9 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 	t.Run("direct_outgoing_reference", func(t *testing.T) {
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
-		p.prepass()
-		p.quietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
-		p.run("direct_outgoing_reference", targetedDiffCase{
+		p.Prepass()
+		p.QuietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
+		runTargetedDiff(p, "direct_outgoing_reference", targetedDiffCase{
 			owed:        owedPartitions("git:tgt", "tgt-2"),
 			compared:    partitionSet("git:tgt", "tgt-2"),
 			newEvidence: []string{"repo-tgt->repo-dep"},
@@ -43,12 +45,12 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 	t.Run("inbound_content_reference_from_another_repo", func(t *testing.T) {
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
-		p.gitRepo("git:in", "in-1", "repo-in", "billing-ui")
-		p.terraformRef("in-1-ref", "git:in", "in-1", "repo-in", "in.tf", "payments-service")
-		p.workItems("git:in", "in-1")
-		p.prepass()
-		p.quietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
-		p.run("inbound_content_reference_from_another_repo", targetedDiffCase{
+		p.GitRepo("git:in", "in-1", "repo-in", "billing-ui")
+		p.TerraformRef("in-1-ref", "git:in", "in-1", "repo-in", "in.tf", "payments-service")
+		p.WorkItems("git:in", "in-1")
+		p.Prepass()
+		p.QuietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
+		runTargetedDiff(p, "inbound_content_reference_from_another_repo", targetedDiffCase{
 			owed:        owedPartitions("git:tgt", "tgt-2"),
 			compared:    partitionSet("git:tgt", "tgt-2", "git:in", "in-1"),
 			newEvidence: []string{"repo-tgt->repo-dep"},
@@ -72,19 +74,19 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 		// effect is evidence attached to ANOTHER scope's repository.
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
-		p.gitRepo("git:gsrc", "gsrc-1", "repo-gsrc", "order-gateway")
-		p.workItems("git:gsrc", "gsrc-1")
-		p.scope(targetedGCPScope)
-		p.generation(targetedGCPScope, "gcp-1", 0, true)
-		p.prepass()
-		p.generation(targetedGCPScope, "gcp-2", 90*time.Minute, true)
-		p.gcpRelation("gcp-2-edge", "gcp-2", "order-gateway", "payments-service")
-		p.workItems(targetedGCPScope, "gcp-2")
-		p.run("cloud_scope_gcp_relation_owed", targetedDiffCase{
+		p.GitRepo("git:gsrc", "gsrc-1", "repo-gsrc", "order-gateway")
+		p.WorkItems("git:gsrc", "gsrc-1")
+		p.Scope(targetedGCPScope)
+		p.Generation(targetedGCPScope, "gcp-1", 0, true)
+		p.Prepass()
+		p.Generation(targetedGCPScope, "gcp-2", 90*time.Minute, true)
+		p.GCPRelation("gcp-2-edge", "gcp-2", "order-gateway", "payments-service")
+		p.WorkItems(targetedGCPScope, "gcp-2")
+		runTargetedDiff(p, "cloud_scope_gcp_relation_owed", targetedDiffCase{
 			owed: owedPartitions(targetedGCPScope, "gcp-2"),
 			// A cloud scope maps to no repository: no pass can publish its
 			// phase, so it is inapplicable, but its evidence work still runs.
-			outcomes:    map[string]TargetedMaintenanceOutcomeKind{targetedGCPScope + "/gcp-2": TargetedMaintenanceInapplicable},
+			outcomes:    map[string]postgres.TargetedMaintenanceOutcomeKind{targetedGCPScope + "/gcp-2": postgres.TargetedMaintenanceInapplicable},
 			compared:    partitionSet("git:gsrc", "gsrc-1"),
 			newEvidence: []string{"repo-gsrc->repo-tgt"},
 			published:   partitionSet("git:gsrc", "gsrc-1"),
@@ -110,14 +112,14 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 	t.Run("cloud_scope_gcp_relation_into_owed_repo", func(t *testing.T) {
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
-		p.gitRepo("git:gsrc", "gsrc-1", "repo-gsrc", "order-gateway")
-		p.workItems("git:gsrc", "gsrc-1")
-		p.scope(targetedGCPScope)
-		p.generation(targetedGCPScope, "gcp-1", 0, true)
-		p.gcpRelation("gcp-1-edge", "gcp-1", "order-gateway", "payments-service")
-		p.prepass()
-		p.quietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
-		outcome := p.run("cloud_scope_gcp_relation_into_owed_repo", targetedDiffCase{
+		p.GitRepo("git:gsrc", "gsrc-1", "repo-gsrc", "order-gateway")
+		p.WorkItems("git:gsrc", "gsrc-1")
+		p.Scope(targetedGCPScope)
+		p.Generation(targetedGCPScope, "gcp-1", 0, true)
+		p.GCPRelation("gcp-1-edge", "gcp-1", "order-gateway", "payments-service")
+		p.Prepass()
+		p.QuietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
+		outcome := runTargetedDiff(p, "cloud_scope_gcp_relation_into_owed_repo", targetedDiffCase{
 			owed:        owedPartitions("git:tgt", "tgt-2"),
 			compared:    partitionSet("git:tgt", "tgt-2", "git:gsrc", "gsrc-1"),
 			newEvidence: []string{"repo-tgt->repo-dep"},
@@ -140,11 +142,11 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
 		seedTargetedArgoCD(p, "payments-service")
-		p.prepass()
-		p.generation("git:config", "config-2", 90*time.Minute, true)
-		p.repo("git:config", "config-2", "repo-config", "platform-config")
-		p.argoConfig("config-2", "orders-api")
-		p.workItems("git:config", "config-2")
+		p.Prepass()
+		p.Generation("git:config", "config-2", 90*time.Minute, true)
+		p.Repo("git:config", "config-2", "repo-config", "platform-config")
+		p.ArgoConfig("config-2", "orders-api")
+		p.WorkItems("git:config", "config-2")
 		// The new config names orders-api, so the deploy-source evidence
 		// repo-dep -> repo-config (source = deployed repo) is new and lands in
 		// dep-1. The ApplicationSet discovery evidence repo-gitops ->
@@ -155,7 +157,7 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 		// genuinely new evidence this pass, so its relationship items
 		// reopen too (issue #7636: the skip set is revised with the rows
 		// the backfill actually inserted).
-		p.run("argocd_applicationset_external_config_repo", targetedDiffCase{
+		runTargetedDiff(p, "argocd_applicationset_external_config_repo", targetedDiffCase{
 			owed:        owedPartitions("git:config", "config-2"),
 			compared:    partitionSet("git:config", "config-2", "git:dep", "dep-1", "git:gitops", "gitops-1"),
 			newEvidence: []string{"repo-dep->repo-config"},
@@ -167,12 +169,12 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 	t.Run("two_repos_sharing_one_partition_in_separate_batches", func(t *testing.T) {
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
-		p.gitRepo("git:mono", "mono-1", "repo-m1", "mono-alpha")
-		p.repo("git:mono", "mono-1", "repo-m2", "mono-beta")
-		p.workItems("git:mono", "mono-1")
-		p.prepass()
+		p.GitRepo("git:mono", "mono-1", "repo-m1", "mono-alpha")
+		p.Repo("git:mono", "mono-1", "repo-m2", "mono-beta")
+		p.WorkItems("git:mono", "mono-1")
+		p.Prepass()
 		seedTargetedMonoGeneration(p)
-		p.run("two_repos_sharing_one_partition_in_separate_batches", targetedDiffCase{
+		runTargetedDiff(p, "two_repos_sharing_one_partition_in_separate_batches", targetedDiffCase{
 			owed:        owedPartitions("git:mono", "mono-2"),
 			compared:    partitionSet("git:mono", "mono-2"),
 			newEvidence: []string{"repo-m1->repo-dep", "repo-m2->repo-dep"},
@@ -185,9 +187,9 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 	t.Run("empty_evidence", func(t *testing.T) {
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
-		p.prepass()
-		p.quietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service")
-		p.run("empty_evidence", targetedDiffCase{
+		p.Prepass()
+		p.QuietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service")
+		runTargetedDiff(p, "empty_evidence", targetedDiffCase{
 			owed:      owedPartitions("git:tgt", "tgt-2"),
 			compared:  partitionSet("git:tgt", "tgt-2"),
 			published: partitionSet("git:tgt", "tgt-2"),
@@ -198,12 +200,12 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 	t.Run("unrelated_quiet_scope", func(t *testing.T) {
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
-		p.gitRepo("git:quiet", "quiet-1", "repo-quiet", "audit-log")
-		p.workItems("git:quiet", "quiet-1")
-		p.prepass()
-		p.quietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
-		p.quietGeneration("git:quiet", "quiet-2", "repo-quiet", "audit-log", "orders-api")
-		outcome := p.run("unrelated_quiet_scope", targetedDiffCase{
+		p.GitRepo("git:quiet", "quiet-1", "repo-quiet", "audit-log")
+		p.WorkItems("git:quiet", "quiet-1")
+		p.Prepass()
+		p.QuietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
+		p.QuietGeneration("git:quiet", "quiet-2", "repo-quiet", "audit-log", "orders-api")
+		outcome := runTargetedDiff(p, "unrelated_quiet_scope", targetedDiffCase{
 			owed:        owedPartitions("git:tgt", "tgt-2"),
 			compared:    partitionSet("git:tgt", "tgt-2"),
 			newEvidence: []string{"repo-tgt->repo-dep"},
@@ -231,11 +233,11 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 		// the catalog guard refuses no_memo_baseline and the gap holds
 		// until a later commit runs the epoch whole pass.
 		p := newTargetedDiffPair(t)
-		p.gitRepo("git:only", "only-1", "repo-only", "solo-service")
-		p.workItems("git:only", "only-1")
-		p.prepass()
-		p.quietGeneration("git:only", "only-2", "repo-only", "solo-service")
-		p.run("single_repository_quiet_generation", targetedDiffCase{
+		p.GitRepo("git:only", "only-1", "repo-only", "solo-service")
+		p.WorkItems("git:only", "only-1")
+		p.Prepass()
+		p.QuietGeneration("git:only", "only-2", "repo-only", "solo-service")
+		runTargetedDiff(p, "single_repository_quiet_generation", targetedDiffCase{
 			owed:      owedPartitions("git:only", "only-2"),
 			compared:  partitionSet("git:only", "only-2"),
 			published: partitionSet("git:only", "only-2"),
@@ -248,14 +250,14 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 		// past their memos, no active memo anywhere. The wider baseline
 		// admits both and the targeted arm must match the whole arm.
 		p := newTargetedDiffPair(t)
-		p.gitRepo("git:a", "a-1", "repo-a", "alpha-svc")
-		p.workItems("git:a", "a-1")
-		p.gitRepo("git:b", "b-1", "repo-b", "beta-svc")
-		p.workItems("git:b", "b-1")
-		p.prepass()
-		p.quietGeneration("git:a", "a-2", "repo-a", "alpha-svc")
-		p.quietGeneration("git:b", "b-2", "repo-b", "beta-svc")
-		p.run("multi_owed_both_fresh_superseded", targetedDiffCase{
+		p.GitRepo("git:a", "a-1", "repo-a", "alpha-svc")
+		p.WorkItems("git:a", "a-1")
+		p.GitRepo("git:b", "b-1", "repo-b", "beta-svc")
+		p.WorkItems("git:b", "b-1")
+		p.Prepass()
+		p.QuietGeneration("git:a", "a-2", "repo-a", "alpha-svc")
+		p.QuietGeneration("git:b", "b-2", "repo-b", "beta-svc")
+		runTargetedDiff(p, "multi_owed_both_fresh_superseded", targetedDiffCase{
 			owed:      owedPartitions("git:a", "a-2", "git:b", "b-2"),
 			compared:  partitionSet("git:a", "a-2", "git:b", "b-2"),
 			published: partitionSet("git:a", "a-2", "git:b", "b-2"),
@@ -266,18 +268,18 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 	t.Run("memo_hit_and_miss", func(t *testing.T) {
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
-		p.gitRepo("git:in", "in-1", "repo-in", "billing-ui")
-		p.terraformRef("in-1-ref", "git:in", "in-1", "repo-in", "in.tf", "payments-service")
-		p.workItems("git:in", "in-1")
-		p.gitRepo("git:in2", "in2-1", "repo-in2", "ledger-ui")
-		p.terraformRef("in2-1-ref", "git:in2", "in2-1", "repo-in2", "in2.tf", "payments-service")
-		p.workItems("git:in2", "in2-1")
-		p.prepass()
+		p.GitRepo("git:in", "in-1", "repo-in", "billing-ui")
+		p.TerraformRef("in-1-ref", "git:in", "in-1", "repo-in", "in.tf", "payments-service")
+		p.WorkItems("git:in", "in-1")
+		p.GitRepo("git:in2", "in2-1", "repo-in2", "ledger-ui")
+		p.TerraformRef("in2-1-ref", "git:in2", "in2-1", "repo-in2", "in2.tf", "payments-service")
+		p.WorkItems("git:in2", "in2-1")
+		p.Prepass()
 		// in2-1 keeps its committed evidence but loses its memo row: the
 		// tolerated "publication withheld" state, a same-pass memo miss.
-		p.exec("DELETE FROM deferred_backfill_partition_memo WHERE scope_id = 'git:in2'")
-		p.quietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
-		p.run("memo_hit_and_miss", targetedDiffCase{
+		p.Exec("DELETE FROM deferred_backfill_partition_memo WHERE scope_id = 'git:in2'")
+		p.QuietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
+		runTargetedDiff(p, "memo_hit_and_miss", targetedDiffCase{
 			owed:        owedPartitions("git:tgt", "tgt-2"),
 			compared:    partitionSet("git:tgt", "tgt-2", "git:in", "in-1", "git:in2", "in2-1"),
 			newEvidence: []string{"repo-tgt->repo-dep"},

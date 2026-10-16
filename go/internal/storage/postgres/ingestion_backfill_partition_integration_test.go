@@ -14,69 +14,10 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
-// deferredPartitionProofSchemaSQL is the minimal scope/generation/fact table set
-// the deferred backfill's per-scope fact load selects over. It mirrors the
-// production columns the backfill.LatestGenerationCTE and
-// backfill.ListDeferredScopedRelationshipFactRecordsQuery reference, plus the
-// fact_records_scope_generation_idx the per-scope partition load is bound by, so
-// the partition-source proof exercises the same access path the data plane would.
-const deferredPartitionProofSchemaSQL = `
-CREATE TABLE ingestion_scopes (
-    scope_id TEXT PRIMARY KEY,
-    active_generation_id TEXT NULL
-);
-
-CREATE TABLE scope_generations (
-    generation_id TEXT PRIMARY KEY,
-    scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
-    ingested_at TIMESTAMPTZ NOT NULL,
-    -- Mirrors schema/data-plane/postgres/002_scope_generations.sql, whose status
-    -- column is NOT NULL. The default keeps every existing seed helper's
-    -- three-column INSERT valid while letting the replay-floor tests model the
-    -- 'failed' lifecycle state failProjectorWorkQuery writes.
-    status TEXT NOT NULL DEFAULT 'pending'
-);
-
-CREATE INDEX scope_generations_scope_latest_lookup_idx
-    ON scope_generations (scope_id, ingested_at DESC, generation_id DESC);
-
-CREATE TABLE fact_records (
-    fact_id TEXT PRIMARY KEY,
-    scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
-    generation_id TEXT NOT NULL REFERENCES scope_generations(generation_id) ON DELETE CASCADE,
-    fact_kind TEXT NOT NULL,
-    stable_fact_key TEXT NOT NULL,
-    schema_version TEXT NOT NULL DEFAULT '0.0.0',
-    collector_kind TEXT NOT NULL DEFAULT 'unknown',
-    fencing_token BIGINT NOT NULL DEFAULT 0,
-    source_confidence TEXT NOT NULL DEFAULT 'unknown',
-    source_system TEXT NOT NULL,
-    source_fact_key TEXT NOT NULL,
-    source_uri TEXT NULL,
-    source_record_id TEXT NULL,
-    observed_at TIMESTAMPTZ NOT NULL,
-    ingested_at TIMESTAMPTZ NOT NULL,
-    is_tombstone BOOLEAN NOT NULL DEFAULT FALSE,
-    payload JSONB NOT NULL DEFAULT '{}'::jsonb
-);
-
-CREATE INDEX fact_records_scope_generation_idx
-    ON fact_records (scope_id, generation_id, fact_kind, observed_at DESC);
-
-CREATE TABLE relationship_reference_candidate_keys (
-    fact_id TEXT NOT NULL,
-    scope_id TEXT NOT NULL,
-    generation_id TEXT NOT NULL,
-    source_repo_id TEXT NOT NULL,
-    reference_key TEXT NOT NULL,
-    PRIMARY KEY (fact_id)
-);
-
-CREATE INDEX relationship_reference_candidate_keys_partition_idx
-    ON relationship_reference_candidate_keys (scope_id, generation_id, fact_id);
-`
+const deferredPartitionProofSchemaSQL = testfixtures.DeferredPartitionProofSchemaSQL
 
 // TestDeferredBackfillPartitionSourceCoversAllScopes is the #3710 partition-source
 // regression proof. It drives the REAL partitioned fact loader
@@ -207,66 +148,9 @@ func provisionDeferredPartitionSchema(t *testing.T, db *sql.DB) {
 	}
 }
 
-// seedDeferredPartitionFixture inserts the three partition-coverage cases.
+// seedDeferredPartitionFixture inserts the unchanged shared fixture.
 func seedDeferredPartitionFixture(t *testing.T, ctx context.Context, db *sql.DB) {
-	t.Helper()
-	base := time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC)
-
-	scopes := []string{
-		"git:scope-a",
-		"git:scope-b",
-		"git:scope-ref",
-		"gcp:project:demo:relationship:global",
-	}
-	for _, scopeID := range scopes {
-		if _, err := db.ExecContext(ctx,
-			"INSERT INTO ingestion_scopes (scope_id, active_generation_id) VALUES ($1, NULL)", scopeID); err != nil {
-			t.Fatalf("seed scope %q: %v", scopeID, err)
-		}
-	}
-	gens := map[string]string{
-		"git:scope-a":                          "gen-a",
-		"git:scope-b":                          "gen-b",
-		"git:scope-ref":                        "gen-ref",
-		"gcp:project:demo:relationship:global": "gen-gcp",
-	}
-	for scopeID, genID := range gens {
-		if _, err := db.ExecContext(ctx,
-			"INSERT INTO scope_generations (generation_id, scope_id, ingested_at) VALUES ($1, $2, $3)",
-			genID, scopeID, base); err != nil {
-			t.Fatalf("seed generation %q: %v", genID, err)
-		}
-	}
-
-	insertFact := func(factID, scopeID, genID, kind, payload string) {
-		t.Helper()
-		if _, err := db.ExecContext(ctx, `
-INSERT INTO fact_records
-  (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key, observed_at, ingested_at, payload)
-VALUES ($1, $2, $3, $4, $5, 'git', $5, $6, $6, $7::jsonb)`,
-			factID, scopeID, genID, kind, factID, base, payload); err != nil {
-			t.Fatalf("seed fact %q: %v", factID, err)
-		}
-	}
-
-	// (b) Two distinct git scopes whose repository fact derives the SAME repo_id
-	// ("shared-id"). Each carries a content fact referencing the OTHER's alias so
-	// both must load and resolve a cross-repo edge.
-	insertFact("repo-a", "git:scope-a", "gen-a", "repository", `{"repo_id":"shared-id","name":"alpha-service"}`)
-	insertFact("repo-b", "git:scope-b", "gen-b", "repository", `{"graph_id":"shared-id","name":"beta-service"}`)
-	insertFact("fact-alpha-ref-beta", "git:scope-a", "gen-a", "content",
-		`{"repo_id":"shared-id","artifact_type":"terraform","relative_path":"main.tf","content":"target = beta-service"}`)
-	insertFact("fact-beta-ref-alpha", "git:scope-b", "gen-b", "content",
-		`{"repo_id":"shared-id","artifact_type":"terraform","relative_path":"main.tf","content":"target = alpha-service"}`)
-
-	// (c) Cross-scope content reference in its own git scope.
-	insertFact("repo-ref", "git:scope-ref", "gen-ref", "repository", `{"repo_id":"repo-ref-target","name":"billing-service"}`)
-	insertFact("fact-cross-scope-ref", "git:scope-ref", "gen-ref", "content",
-		`{"repo_id":"repo-ref-target","artifact_type":"terraform","relative_path":"refs.tf","content":"uses payments-service"}`)
-
-	// (a) gcp_cloud_relationship fact in a CLOUD scope with NO repository fact.
-	gcpPayload := `{"source_full_resource_name":"//run.googleapis.com/projects/demo/locations/us-central1/services/order-gateway","source_asset_type":"run.googleapis.com/Service","relationship_type":"run_service_uses_secret","target_full_resource_name":"//secretmanager.googleapis.com/projects/demo/secrets/payments-service","target_asset_type":"secretmanager.googleapis.com/Secret","support_state":"supported"}`
-	insertFact("fact-gcp-edge", "gcp:project:demo:relationship:global", "gen-gcp", "gcp_cloud_relationship", gcpPayload)
+	testfixtures.SeedDeferredPartitionFixture(t, ctx, db)
 }
 
 func evidenceHasEdge(evidence []relationships.EvidenceFact, source, target string) bool {

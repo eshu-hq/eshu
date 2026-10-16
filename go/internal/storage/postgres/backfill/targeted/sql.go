@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package targeted
 
 import (
 	"context"
@@ -29,7 +29,7 @@ import (
 // TestTargetedMaintenanceQueriesDeriveFromShippedQueries pins each derived
 // string against the shipped text byte for byte, and the live differential
 // pins that the derived rows equal the shipped rows filtered in Go. A shipped
-// query that loses its marker makes deriveQueryAtMarker panic at package init.
+// query that loses its marker makes DeriveQueryAtMarker panic at package init.
 
 // activeRepositoryGenerationsRepoMarker is the line of
 // backfill.ActiveRepositoryGenerationsQuery after which the repo-bounded read adds its
@@ -42,7 +42,7 @@ const activeRepositoryGenerationsRepoMarker = "WHERE repo_id <> ''\n"
 // restricted to the repositories in $1. The partition-scoped batch writer reads
 // it under the batch's advisory locks instead of re-reading every active
 // repository generation in the corpus.
-var activeRepositoryGenerationsForReposQuery = deriveQueryAtMarker(
+var activeRepositoryGenerationsForReposQuery = DeriveQueryAtMarker(
 	backfill.ActiveRepositoryGenerationsQuery,
 	activeRepositoryGenerationsRepoMarker,
 	"  AND repo_id = ANY($1)\n",
@@ -65,43 +65,51 @@ var activeRepositoryGenerationsForPartitionsQuery = "SELECT repo_id, scope_id, g
 // scope_generations, which carries the same column names.
 const relationshipReopenPartitionConjunct = "  AND (work.scope_id, work.generation_id) IN (SELECT * FROM unnest($1::text[], $2::text[]))\n"
 
-// listSucceededDeploymentMappingWorkItemsForPartitionsQuery is the shipped
-// deployment_mapping reopen listing AND an exact-partition predicate.
-var listSucceededDeploymentMappingWorkItemsForPartitionsQuery = deriveQueryAtMarker(
-	listSucceededDeploymentMappingWorkItemsQuery,
-	correlationReopenStageMarker,
-	relationshipReopenPartitionConjunct,
-)
+// ShippedQueries carries the three exact whole-pass reopen listings owned by
+// the parent package. Targeted predicates are derived from these strings.
+type ShippedQueries struct {
+	DeploymentMapping  string
+	CodeImportRepoEdge string
+	Correlation        string
+}
 
-// listSucceededCodeImportRepoEdgeWorkItemsForPartitionsQuery is the shipped
-// code_import_repo_edge reopen listing AND an exact-partition predicate.
-var listSucceededCodeImportRepoEdgeWorkItemsForPartitionsQuery = deriveQueryAtMarker(
-	listSucceededCodeImportRepoEdgeWorkItemsQuery,
-	correlationReopenStageMarker,
-	relationshipReopenPartitionConjunct,
-)
+// Queries holds the three narrowed reopen listings derived once during root
+// package initialization, plus their shipped sources for differential proof.
+type Queries struct {
+	Shipped            ShippedQueries
+	DeploymentMapping  string
+	CodeImportRepoEdge string
+	Correlation        string
+}
 
-// correlationReopenStageMarker is the stage line shared by all three floored
-// reopen listings: listSucceededReducerWorkItemsByDomainQuery and the two
-// relationship listings, which compose the same scopeReplayFloor fragments
-// (#7637). The inserted conjunct keeps the shipped replay floor and
-// failed-generation exclusion, then narrows to the exact (scope_id,
-// generation_id) partitions in ($2, $3).
-const correlationReopenStageMarker = "WHERE work.stage = 'reducer'\n"
+// ProductionQueries is derived once at initialization from the shared
+// whole-pass SQL owner. Every pass receives these exact narrowed strings.
+var ProductionQueries = DeriveQueries(ShippedQueries{
+	DeploymentMapping:  backfill.ListSucceededDeploymentMappingWorkItemsQuery,
+	CodeImportRepoEdge: backfill.ListSucceededCodeImportRepoEdgeWorkItemsQuery,
+	Correlation:        backfill.ListSucceededReducerWorkItemsByDomainQuery,
+})
 
-// listSucceededReducerWorkItemsByDomainForPartitionsQuery is the shipped
-// correlation reopen listing AND an exact-partition predicate.
-var listSucceededReducerWorkItemsByDomainForPartitionsQuery = deriveQueryAtMarker(
-	listSucceededReducerWorkItemsByDomainQuery,
-	correlationReopenStageMarker,
-	"  AND (work.scope_id, work.generation_id) IN (SELECT * FROM unnest($2::text[], $3::text[]))\n",
-)
+// DeriveQueries inserts the exact partition conjunct into each shipped
+// listing. A missing or repeated marker panics, preserving the old fail-closed
+// package-initialization behavior.
+func DeriveQueries(shipped ShippedQueries) Queries {
+	return Queries{
+		Shipped:            shipped,
+		DeploymentMapping:  DeriveQueryAtMarker(shipped.DeploymentMapping, CorrelationReopenStageMarker, relationshipReopenPartitionConjunct),
+		CodeImportRepoEdge: DeriveQueryAtMarker(shipped.CodeImportRepoEdge, CorrelationReopenStageMarker, relationshipReopenPartitionConjunct),
+		Correlation:        DeriveQueryAtMarker(shipped.Correlation, CorrelationReopenStageMarker, "  AND (work.scope_id, work.generation_id) IN (SELECT * FROM unnest($2::text[], $3::text[]))\n"),
+	}
+}
 
-// deriveQueryAtMarker returns shipped with conjunct inserted directly after the
+// CorrelationReopenStageMarker is the shared whole-pass stage predicate.
+const CorrelationReopenStageMarker = "WHERE work.stage = 'reducer'\n"
+
+// DeriveQueryAtMarker returns shipped with conjunct inserted directly after the
 // single occurrence of marker. It panics when marker is absent or repeated,
 // because a derived query that silently fell back to another shape would make
 // the partition-scoped pass diverge from the whole pass it must equal.
-func deriveQueryAtMarker(shipped, marker, conjunct string) string {
+func DeriveQueryAtMarker(shipped, marker, conjunct string) string {
 	if count := strings.Count(shipped, marker); count != 1 {
 		panic(fmt.Sprintf("derive partition-scoped maintenance query: marker %q occurs %d times, want 1",
 			marker, count))
@@ -175,7 +183,7 @@ func listSucceededRelationshipWorkItemsForPartitions(
 	query string,
 	domain string,
 	partitions []backfill.ScopeGenerationPartition,
-) ([]reopenWorkItemRef, error) {
+) ([]WorkItem, error) {
 	if len(partitions) == 0 {
 		return nil, nil
 	}
@@ -186,9 +194,9 @@ func listSucceededRelationshipWorkItemsForPartitions(
 	}
 	defer func() { _ = rows.Close() }()
 
-	items := make([]reopenWorkItemRef, 0)
+	items := make([]WorkItem, 0)
 	for rows.Next() {
-		var item reopenWorkItemRef
+		var item WorkItem
 		if err := rows.Scan(&item.WorkItemID, &item.Partition.ScopeID, &item.Partition.GenerationID); err != nil {
 			return nil, fmt.Errorf("scan succeeded %s work item for partitions: %w", domain, err)
 		}
@@ -210,12 +218,13 @@ func listSucceededReducerWorkItemIDsForDomainAndPartitions(
 	queryer db.Queryer,
 	domain string,
 	partitions []backfill.ScopeGenerationPartition,
+	query string,
 ) ([]string, error) {
 	if len(partitions) == 0 {
 		return nil, nil
 	}
 	scopeIDs, generationIDs := partitionColumns(partitions)
-	rows, err := queryer.QueryContext(ctx, listSucceededReducerWorkItemsByDomainForPartitionsQuery,
+	rows, err := queryer.QueryContext(ctx, query,
 		domain, array.StringArray(scopeIDs), array.StringArray(generationIDs))
 	if err != nil {
 		return nil, fmt.Errorf("list succeeded %s work items for partitions: %w", domain, err)
@@ -265,4 +274,20 @@ func sortedPartitions(set map[backfill.ScopeGenerationPartition]struct{}) []back
 		return partitions[i].GenerationID < partitions[j].GenerationID
 	})
 	return partitions
+}
+
+// LoadActiveRepositoryGenerationsForRepos reads the shipped active-repository
+// result restricted to the requested repository IDs.
+func LoadActiveRepositoryGenerationsForRepos(
+	ctx context.Context, queryer db.Queryer, repoIDs []string,
+) (map[string]backfill.RepositoryGenerationIdentity, error) {
+	return loadActiveRepositoryGenerationsForRepos(ctx, queryer, repoIDs)
+}
+
+// LoadActiveRepositoryGenerationsForPartitions reads the shipped active-repository
+// result restricted to the requested scope-generation partitions.
+func LoadActiveRepositoryGenerationsForPartitions(
+	ctx context.Context, queryer db.Queryer, partitions []backfill.ScopeGenerationPartition,
+) (map[string]backfill.RepositoryGenerationIdentity, error) {
+	return loadActiveRepositoryGenerationsForPartitions(ctx, queryer, partitions)
 }

@@ -1,19 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package targeted
 
 import (
-	"context"
 	"errors"
-	"fmt"
 	"sort"
 
-	"go.opentelemetry.io/otel/trace"
-
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/obligation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // OwedPartition names one (scope_id, generation_id) whose
@@ -186,67 +180,4 @@ func buildTargetedMaintenanceSnapshot(
 	}
 	sort.Strings(conflicts)
 	return snapshot, conflicts
-}
-
-// ActivationMaintainer is the production maintenance port of the activation
-// obligation consumer (#7584): for one claimed obligation it runs the
-// partition-scoped pass on exactly the obligation's (scope, generation) and
-// maps the owed partition's result to the consumer's contract. It never runs
-// the whole-corpus pass; that stays on the ingester's epoch.
-type ActivationMaintainer struct {
-	pass func(context.Context, []OwedPartition) (TargetedMaintenanceResult, error)
-}
-
-var _ obligation.Maintainer = ActivationMaintainer{}
-
-// NewActivationMaintainer returns the maintainer backed by store's
-// RunDeferredRelationshipMaintenanceForPartitions.
-func NewActivationMaintainer(store IngestionStore, tracer trace.Tracer, instruments *telemetry.Instruments) ActivationMaintainer {
-	return ActivationMaintainer{pass: func(ctx context.Context, owed []OwedPartition) (TargetedMaintenanceResult, error) {
-		return store.RunDeferredRelationshipMaintenanceForPartitions(ctx, tracer, instruments, owed)
-	}}
-}
-
-// MaintainActivation runs the partition-scoped pass for the obligation.
-//
-// The owed partition's own outcome decides first, because the pass
-// classifies before any refusal: not_active returns nil so the consumer's
-// Finalize retires the obligation as obsolete on the raw active pointer, and
-// inapplicable returns obligation.ErrInapplicable so the consumer
-// retires it inapplicable. A typed catalog_changed, no_memo_baseline or
-// closure_too_deep refusal becomes a hold with that reason (lease kept, retry
-// at lease cadence, no fallback pass). A published phase returns nil so
-// Finalize wakes and completes. A retry outcome, a missing outcome or any
-// other error is a maintenance failure; the lease expires and the obligation
-// is retried.
-func (m ActivationMaintainer) MaintainActivation(ctx context.Context, work obligation.Obligation) error {
-	owed := OwedPartition{ScopeID: work.ScopeID, GenerationID: work.GenerationID}
-	result, err := m.pass(ctx, []OwedPartition{owed})
-	kind, found := TargetedMaintenanceOutcomeKind(""), false
-	for _, outcome := range result.Outcomes {
-		if outcome.Partition == owed {
-			kind, found = outcome.Kind, true
-			break
-		}
-	}
-	switch {
-	case found && kind == TargetedMaintenanceNotActive:
-		return nil
-	case found && kind == TargetedMaintenanceInapplicable:
-		return fmt.Errorf("%w: %w", obligation.ErrInapplicable, ErrTargetedMaintenanceInapplicable)
-	case err != nil:
-		switch reason := TargetedMaintenanceReason(err); reason {
-		case ErrTargetedMaintenanceCatalogChanged.Reason(),
-			ErrTargetedMaintenanceNoMemoBaseline.Reason(),
-			ErrTargetedMaintenanceClosureTooDeep.Reason():
-			return obligation.Hold(reason, err)
-		}
-		return fmt.Errorf("partition-scoped maintenance for %s/%s: %w", owed.ScopeID, owed.GenerationID, err)
-	case !found:
-		return fmt.Errorf("partition-scoped maintenance returned no outcome for %s/%s", owed.ScopeID, owed.GenerationID)
-	case kind == TargetedMaintenancePublished:
-		return nil
-	default:
-		return fmt.Errorf("owed partition %s/%s: %w", owed.ScopeID, owed.GenerationID, ErrTargetedMaintenanceRetry)
-	}
 }

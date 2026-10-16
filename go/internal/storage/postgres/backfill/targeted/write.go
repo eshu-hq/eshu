@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package targeted
 
 import (
 	"context"
@@ -22,7 +22,7 @@ import (
 // row of this pass is written. A gate failure in either place yields nil,
 // which reopens every relationship-domain candidate, and is logged with the
 // same event the whole pass uses.
-func (s IngestionStore) targetedMaintenanceSkipSet(
+func (s Store) targetedMaintenanceSkipSet(
 	ctx context.Context,
 	fingerprint string,
 	loadSkipped map[backfill.ScopeGenerationPartition]struct{},
@@ -46,7 +46,7 @@ func (s IngestionStore) targetedMaintenanceSkipSet(
 		return skipped
 	}
 	gate, err := backfill.ApplyDeferredPartitionMemoGate(
-		ctx, backfill.NewDeferredBackfillPartitionMemoStore(s.database), sortedPartitions(unloaded), fingerprint, nil)
+		ctx, backfill.NewDeferredBackfillPartitionMemoStore(s.Backfill.DB), sortedPartitions(unloaded), fingerprint, nil)
 	if err != nil {
 		log.Printf("deferred_backfill_partition_memo_gate_failed error=%q partitions=%d falling_back=true path=targeted",
 			err, len(unloaded))
@@ -65,7 +65,7 @@ func (s IngestionStore) targetedMaintenanceSkipSet(
 // off: the targeted pass has its own (see recordTargetedMaintenance). The
 // second return carries the per-partition actually-inserted evidence row
 // counts for the pass's memo-hit skip-set revision (issue #7636).
-func (s IngestionStore) writeTargetedMaintenanceEvidence(
+func (s Store) writeTargetedMaintenanceEvidence(
 	ctx context.Context,
 	closure targetedMaintenanceClosure,
 	evidenceBySourceRepo map[string][]relationships.EvidenceFact,
@@ -80,7 +80,7 @@ func (s IngestionStore) writeTargetedMaintenanceEvidence(
 		return 0, nil, nil
 	}
 	sort.Strings(repoIDs)
-	batchSize := s.maintenanceBatchSize
+	batchSize := s.Backfill.BatchSize
 	if batchSize <= 0 {
 		batchSize = backfill.DeferredMaintenanceRepoBatchSize
 	}
@@ -88,10 +88,10 @@ func (s IngestionStore) writeTargetedMaintenanceEvidence(
 	for start := 0; start < len(repoIDs); start += batchSize {
 		bounds = append(bounds, [2]int{start, min(start+batchSize, len(repoIDs))})
 	}
-	workers := max(s.maintenanceWorkers, 1)
+	workers := max(s.Backfill.Workers, 1)
 	workers = min(workers, len(bounds))
 
-	contributions, insertedRows, err := s.backfillStore().RunDeferredBackfillBatchesWith(
+	contributions, insertedRows, err := s.Backfill.RunDeferredBackfillBatchesWith(
 		ctx, repoIDs, bounds, workers, evidenceBySourceRepo, snapshot, nil,
 		loadActiveRepositoryGenerationsForRepos,
 	)
@@ -101,14 +101,14 @@ func (s IngestionStore) writeTargetedMaintenanceEvidence(
 	if err := ctx.Err(); err != nil {
 		return 0, nil, fmt.Errorf("partition-scoped maintenance canceled before readiness publication: %w", err)
 	}
-	published, err := s.backfillStore().PublishDeferredBackfillPartitions(ctx, contributions, snapshot, catalogFingerprint, workers, nil)
+	published, err := s.Backfill.PublishDeferredBackfillPartitions(ctx, contributions, snapshot, catalogFingerprint, workers, nil)
 	if err != nil {
 		return 0, nil, err
 	}
 	return published, insertedRows, nil
 }
 
-// reopenTargetedMaintenanceWorkItems reopens, in ONE transaction, the
+// ReopenTargetedMaintenanceWorkItems reopens, in ONE transaction, the
 // succeeded reducer work items of the exact affected partitions: the
 // deployment_mapping and code_import_repo_edge items gated by the same-pass
 // memo-hit set, and every CrossScopeCorrelationReopenDomains item NOT gated by
@@ -118,7 +118,7 @@ func (s IngestionStore) writeTargetedMaintenanceEvidence(
 // The correlation reopen is partition-scoped on purpose: the fleet-wide replay
 // of those domains stays on the epoch whole pass and is not part of the
 // activation obligation (#7584).
-func (s IngestionStore) reopenTargetedMaintenanceWorkItems(
+func (s Store) ReopenTargetedMaintenanceWorkItems(
 	ctx context.Context,
 	tracer trace.Tracer,
 	affected []backfill.ScopeGenerationPartition,
@@ -133,7 +133,7 @@ func (s IngestionStore) reopenTargetedMaintenanceWorkItems(
 		ctx, span = tracer.Start(ctx, "bootstrap.reopen_targeted_work_items")
 		defer span.End()
 	}
-	tx, err := s.beginner.Begin(ctx)
+	tx, err := s.Backfill.Beginner.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin partition-scoped reopen transaction: %w", err)
 	}
@@ -143,14 +143,13 @@ func (s IngestionStore) reopenTargetedMaintenanceWorkItems(
 			_ = tx.Rollback()
 		}
 	}()
-	queue := ReducerQueue{database: tx, Now: s.Now}
 
 	for _, relationship := range []struct {
 		domain string
 		query  string
 	}{
-		{"deployment_mapping", listSucceededDeploymentMappingWorkItemsForPartitionsQuery},
-		{"code_import_repo_edge", listSucceededCodeImportRepoEdgeWorkItemsForPartitionsQuery},
+		{"deployment_mapping", s.Queries.DeploymentMapping},
+		{"code_import_repo_edge", s.Queries.CodeImportRepoEdge},
 	} {
 		block := startTargetedReopenBlock(ctx, tracer)
 		items, err := listSucceededRelationshipWorkItemsForPartitions(ctx, tx, relationship.query, relationship.domain, affected)
@@ -158,26 +157,26 @@ func (s IngestionStore) reopenTargetedMaintenanceWorkItems(
 			endTargetedReopenBlock(block, err, relationship.domain, 0, 0)
 			return nil, err
 		}
-		gate := applyReopenPartitionMemoGate(ctx, relationship.domain, items, skipped, nil)
-		for _, item := range gate.ToReopen {
-			if _, err := queue.ReopenSucceeded(ctx, item.WorkItemID); err != nil {
+		toReopen, skippedCount := s.GateReopen(ctx, relationship.domain, items, skipped)
+		for _, workItemID := range toReopen {
+			if _, err := s.ReopenSucceeded(ctx, tx, workItemID); err != nil {
 				err = fmt.Errorf("reopen %s work items: %w", relationship.domain, err)
-				endTargetedReopenBlock(block, err, relationship.domain, 0, len(gate.Skipped))
+				endTargetedReopenBlock(block, err, relationship.domain, 0, skippedCount)
 				return nil, err
 			}
 		}
-		reopened[relationship.domain] = len(gate.ToReopen)
-		endTargetedReopenBlock(block, nil, relationship.domain, len(gate.ToReopen), len(gate.Skipped))
+		reopened[relationship.domain] = len(toReopen)
+		endTargetedReopenBlock(block, nil, relationship.domain, len(toReopen), skippedCount)
 	}
-	for _, domain := range CrossScopeCorrelationReopenDomains() {
+	for _, domain := range s.CorrelationDomains {
 		block := startTargetedReopenBlock(ctx, tracer)
-		workItemIDs, err := listSucceededReducerWorkItemIDsForDomainAndPartitions(ctx, tx, domain, affected)
+		workItemIDs, err := listSucceededReducerWorkItemIDsForDomainAndPartitions(ctx, tx, domain, affected, s.Queries.Correlation)
 		if err != nil {
 			endTargetedReopenBlock(block, err, domain, 0, 0)
 			return nil, err
 		}
 		for _, workItemID := range workItemIDs {
-			if _, err := queue.ReopenSucceeded(ctx, workItemID); err != nil {
+			if _, err := s.ReopenSucceeded(ctx, tx, workItemID); err != nil {
 				err = fmt.Errorf("reopen %s work items: %w", domain, err)
 				endTargetedReopenBlock(block, err, domain, 0, 0)
 				return nil, err
@@ -207,4 +206,14 @@ func startTargetedReopenBlock(ctx context.Context, tracer trace.Tracer) *backfil
 // pass=targeted, so a targeted reopen is told apart from a whole-pass one.
 func endTargetedReopenBlock(block *backfill.BlockSpan, err error, domain string, reopened, skippedByMemo int) {
 	block.End(err, append(reopenBlockAttrs(domain, reopened, skippedByMemo), backfill.StringAttr("pass", "targeted"))...)
+}
+
+// reopenBlockAttrs records the same per-domain reopen attributes as the
+// whole-pass helper in the parent package.
+func reopenBlockAttrs(domain string, reopened, skippedByMemo int) []backfill.BlockAttr {
+	return []backfill.BlockAttr{
+		backfill.StringAttr("domain", domain),
+		backfill.IntAttr("reopened", reopened),
+		backfill.IntAttr("skipped_by_memo", skippedByMemo),
+	}
 }

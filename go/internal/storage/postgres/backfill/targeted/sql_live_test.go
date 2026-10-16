@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package targeted_test
 
 import (
 	"context"
@@ -10,7 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill/targeted"
 )
 
 // TestBoundedRepositoryGenerationReadsMatchShippedRead pins the derived
@@ -72,7 +75,7 @@ VALUES ($1, $2, $3, 'repository', $1, 'git', $1, $4, $4, $5::jsonb)`,
 	scope("gcp:cloud", "c-1")
 	generation("gcp:cloud", "c-1", "active", 0)
 
-	adapter := SQLDB{DB: database}
+	adapter := postgres.SQLDB{DB: database}
 	shipped, err := backfill.LoadActiveRepositoryGenerations(ctx, adapter)
 	if err != nil {
 		t.Fatalf("shipped read: %v", err)
@@ -84,7 +87,7 @@ VALUES ($1, $2, $3, 'repository', $1, 'git', $1, $4, $4, $5::jsonb)`,
 	for _, repoIDs := range [][]string{
 		{"shared"}, {"m1"}, {"m1", "m2"}, {"pend", "old"}, {"missing"}, {"shared", "m2", "pend", "old", "missing"},
 	} {
-		got, err := loadActiveRepositoryGenerationsForRepos(ctx, adapter, repoIDs)
+		got, err := targeted.LoadActiveRepositoryGenerationsForRepos(ctx, adapter, repoIDs)
 		if err != nil {
 			t.Fatalf("bounded read %v: %v", repoIDs, err)
 		}
@@ -106,7 +109,7 @@ VALUES ($1, $2, $3, 'repository', $1, 'git', $1, $4, $4, $5::jsonb)`,
 		partitionsOf("git:old", "old-1"),
 		partitionsOf("git:old", "old-2", "git:pending", "p-1", "gcp:cloud", "c-1"),
 	} {
-		got, err := loadActiveRepositoryGenerationsForPartitions(ctx, adapter, partitions)
+		got, err := targeted.LoadActiveRepositoryGenerationsForPartitions(ctx, adapter, partitions)
 		if err != nil {
 			t.Fatalf("partition-bounded read %v: %v", partitions, err)
 		}

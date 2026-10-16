@@ -16,7 +16,7 @@ import (
 func memoHitReopenWorkStatus(t *testing.T, p *targetedDiffPair, database *sql.DB, workItemID string) string {
 	t.Helper()
 	var status string
-	if err := database.QueryRowContext(p.ctx,
+	if err := database.QueryRowContext(p.Ctx,
 		`SELECT status FROM fact_work_items WHERE work_item_id = $1`, workItemID).Scan(&status); err != nil {
 		t.Fatalf("status of %s: %v", workItemID, err)
 	}
@@ -30,7 +30,7 @@ func memoHitReopenPendingCount(t *testing.T, p *targetedDiffPair, database *sql.
 	var count int
 	for _, domain := range domains {
 		var c int
-		if err := database.QueryRowContext(p.ctx,
+		if err := database.QueryRowContext(p.Ctx,
 			`SELECT count(*) FROM fact_work_items
 WHERE generation_id = $1 AND domain = $2 AND status IN ('pending', 'retrying')`,
 			generationID, domain).Scan(&c); err != nil {
@@ -50,7 +50,7 @@ WHERE generation_id = $1 AND domain = $2 AND status IN ('pending', 'retrying')`,
 // a stability snapshot.
 func memoHitReopenRelationshipSnapshot(t *testing.T, p *targetedDiffPair, database *sql.DB, excludeGenerationID string) string {
 	t.Helper()
-	rows, err := database.QueryContext(p.ctx,
+	rows, err := database.QueryContext(p.Ctx,
 		`SELECT work_item_id || '|' || status || '|' || attempt_count::text
 FROM fact_work_items
 WHERE scope_id <> 'eshu:global'
@@ -105,38 +105,38 @@ func TestMemoHitPartitionWithNewInboundEvidenceReopensRelationshipItems(t *testi
 	// hit). Ten extra quiet git scopes bound the cost: they receive no new
 	// evidence, so the fix must not reopen their relationship items.
 	seedTargetedCorpus(p)
-	p.gitRepo("git:gsrc", "gsrc-1", "repo-gsrc", "order-gateway")
-	p.workItems("git:gsrc", "gsrc-1")
-	p.scope(targetedGCPScope)
-	p.generation(targetedGCPScope, "gcp-1", 0, true)
+	p.GitRepo("git:gsrc", "gsrc-1", "repo-gsrc", "order-gateway")
+	p.WorkItems("git:gsrc", "gsrc-1")
+	p.Scope(targetedGCPScope)
+	p.Generation(targetedGCPScope, "gcp-1", 0, true)
 	for i := 0; i < quietScopes; i++ {
 		scopeID := fmt.Sprintf("git:quiet%d", i)
 		generationID := fmt.Sprintf("quiet%d-1", i)
 		repoID := fmt.Sprintf("repo-quiet%d", i)
-		p.gitRepo(scopeID, generationID, repoID, fmt.Sprintf("quiet-%d", i))
-		p.workItems(scopeID, generationID)
+		p.GitRepo(scopeID, generationID, repoID, fmt.Sprintf("quiet-%d", i))
+		p.WorkItems(scopeID, generationID)
 	}
-	p.prepass()
-	p.generation(targetedGCPScope, "gcp-2", 90*time.Minute, true)
-	p.gcpRelation("gcp-2-edge", "gcp-2", "order-gateway", "payments-service")
-	p.workItems(targetedGCPScope, "gcp-2")
+	p.Prepass()
+	p.Generation(targetedGCPScope, "gcp-2", 90*time.Minute, true)
+	p.GCPRelation("gcp-2-edge", "gcp-2", "order-gateway", "payments-service")
+	p.WorkItems(targetedGCPScope, "gcp-2")
 
-	wholeStore := targetedDiffStore(p.whole, targetedDiffArmsAt)
-	if err := wholeStore.RunDeferredRelationshipMaintenance(p.ctx, nil, nil); err != nil {
+	wholeStore := targetedDiffStore(p.Whole, targetedDiffArmsAt)
+	if err := wholeStore.RunDeferredRelationshipMaintenance(p.Ctx, nil, nil); err != nil {
 		t.Fatalf("pass 1 RunDeferredRelationshipMaintenance() error = %v", err)
 	}
 
 	// gsrc-1 is a same-pass memo hit whose generation received new inbound
 	// evidence: its relationship items must reopen (RED on main: succeeded).
 	for _, domain := range []string{"deployment_mapping", "code_import_repo_edge"} {
-		if status := memoHitReopenWorkStatus(t, p, p.whole, "gsrc-1/"+domain); status != "pending" {
+		if status := memoHitReopenWorkStatus(t, p, p.Whole, "gsrc-1/"+domain); status != "pending" {
 			t.Fatalf("gsrc-1/%s status = %q, want pending: memo-hit partition with new inbound evidence must reopen its relationship items (#7636)",
 				domain, status)
 		}
 	}
 	// The memo-miss generation reopens everything, as before.
 	for _, id := range workIDs("gcp-2") {
-		if status := memoHitReopenWorkStatus(t, p, p.whole, id); status != "pending" {
+		if status := memoHitReopenWorkStatus(t, p, p.Whole, id); status != "pending" {
 			t.Fatalf("%s status = %q, want pending", id, status)
 		}
 	}
@@ -147,7 +147,7 @@ func TestMemoHitPartitionWithNewInboundEvidenceReopensRelationshipItems(t *testi
 		"tgt-1/deployment_mapping", "tgt-1/code_import_repo_edge",
 		"dep-1/deployment_mapping", "dep-1/code_import_repo_edge",
 	} {
-		if status := memoHitReopenWorkStatus(t, p, p.whole, id); status != "succeeded" {
+		if status := memoHitReopenWorkStatus(t, p, p.Whole, id); status != "succeeded" {
 			t.Fatalf("%s status = %q, want succeeded: no new evidence, no reopen", id, status)
 		}
 	}
@@ -157,7 +157,7 @@ func TestMemoHitPartitionWithNewInboundEvidenceReopensRelationshipItems(t *testi
 	quietRelationshipReopened := 0
 	for i := 0; i < quietScopes; i++ {
 		generationID := fmt.Sprintf("quiet%d-1", i)
-		quietRelationshipReopened += memoHitReopenPendingCount(t, p, p.whole, generationID,
+		quietRelationshipReopened += memoHitReopenPendingCount(t, p, p.Whole, generationID,
 			"deployment_mapping", "code_import_repo_edge")
 	}
 	if quietRelationshipReopened != 0 {
@@ -172,19 +172,19 @@ func TestMemoHitPartitionWithNewInboundEvidenceReopensRelationshipItems(t *testi
 	// clock_timestamp(), so a fixed past Now would expire every claim
 	// before it is acked.
 	queue := ReducerQueue{
-		database:      SQLDB{DB: p.whole},
+		database:      SQLDB{DB: p.Whole},
 		LeaseOwner:    "memo-hit-reopen-drain",
 		LeaseDuration: time.Minute,
 	}
 	for i := 0; i < 500; i++ {
-		intent, claimed, err := queue.Claim(p.ctx)
+		intent, claimed, err := queue.Claim(p.Ctx)
 		if err != nil {
 			t.Fatalf("drain Claim() error = %v", err)
 		}
 		if !claimed {
 			break
 		}
-		if err := queue.Ack(p.ctx, intent, reducer.Result{}); err != nil {
+		if err := queue.Ack(p.Ctx, intent, reducer.Result{}); err != nil {
 			t.Fatalf("drain Ack(%s) error = %v", intent.IntentID, err)
 		}
 	}
@@ -195,19 +195,19 @@ func TestMemoHitPartitionWithNewInboundEvidenceReopensRelationshipItems(t *testi
 		"gsrc-1/deployment_mapping", "gsrc-1/code_import_repo_edge",
 		"gcp-2/deployment_mapping", "gcp-2/code_import_repo_edge",
 	} {
-		if status := memoHitReopenWorkStatus(t, p, p.whole, id); status != "succeeded" {
+		if status := memoHitReopenWorkStatus(t, p, p.Whole, id); status != "succeeded" {
 			t.Fatalf("drained %s status = %q, want succeeded: reopened items must drain exactly once", id, status)
 		}
 	}
 	k8sDomain := string(reducer.DomainKubernetesCorrelationMaterialization)
 	var k8sPending int
-	if err := p.whole.QueryRowContext(p.ctx,
+	if err := p.Whole.QueryRowContext(p.Ctx,
 		`SELECT count(*) FROM fact_work_items
 WHERE domain = $1 AND status IN ('pending', 'retrying')`, k8sDomain).Scan(&k8sPending); err != nil {
 		t.Fatalf("k8s pending count: %v", err)
 	}
 	var otherPending int
-	if err := p.whole.QueryRowContext(p.ctx,
+	if err := p.Whole.QueryRowContext(p.Ctx,
 		`SELECT count(*) FROM fact_work_items
 WHERE scope_id <> 'eshu:global' AND domain <> $1 AND status IN ('pending', 'retrying')`,
 		k8sDomain).Scan(&otherPending); err != nil {
@@ -223,23 +223,23 @@ WHERE scope_id <> 'eshu:global' AND domain <> $1 AND status IN ('pending', 'retr
 	// once (pass 2's revision unskips nothing). gcp-2 is excluded: it is a
 	// memo miss, so it reopens every pass by pre-existing design, pinned
 	// below.
-	beforeSecond := memoHitReopenRelationshipSnapshot(t, p, p.whole, "gcp-2")
-	secondStore := targetedDiffStore(p.whole, targetedDiffArmsAt.Add(time.Hour))
-	if err := secondStore.RunDeferredRelationshipMaintenance(p.ctx, nil, nil); err != nil {
+	beforeSecond := memoHitReopenRelationshipSnapshot(t, p, p.Whole, "gcp-2")
+	secondStore := targetedDiffStore(p.Whole, targetedDiffArmsAt.Add(time.Hour))
+	if err := secondStore.RunDeferredRelationshipMaintenance(p.Ctx, nil, nil); err != nil {
 		t.Fatalf("pass 2 RunDeferredRelationshipMaintenance() error = %v", err)
 	}
-	if afterSecond := memoHitReopenRelationshipSnapshot(t, p, p.whole, "gcp-2"); afterSecond != beforeSecond {
+	if afterSecond := memoHitReopenRelationshipSnapshot(t, p, p.Whole, "gcp-2"); afterSecond != beforeSecond {
 		t.Fatalf("pass 2 changed memo-hit relationship rows; drained items must not reopen again:\nbefore:\n%safter:\n%s", beforeSecond, afterSecond)
 	}
 	// Pre-existing boundaries, pinned so the exclusion above cannot hide a
 	// regression: the memo-miss generation reopens its relationship items
 	// every pass, and correlation items reopen unconditionally every pass.
 	for _, id := range []string{"gcp-2/deployment_mapping", "gcp-2/code_import_repo_edge"} {
-		if status := memoHitReopenWorkStatus(t, p, p.whole, id); status != "pending" {
+		if status := memoHitReopenWorkStatus(t, p, p.Whole, id); status != "pending" {
 			t.Fatalf("pass 2 %s status = %q, want pending: memo-miss generations reopen every pass", id, status)
 		}
 	}
-	if status := memoHitReopenWorkStatus(t, p, p.whole, "gsrc-1/deployable_unit_correlation"); status != "pending" {
+	if status := memoHitReopenWorkStatus(t, p, p.Whole, "gsrc-1/deployable_unit_correlation"); status != "pending" {
 		t.Fatalf("pass 2 gsrc-1/deployable_unit_correlation status = %q, want pending: correlation items reopen every pass", status)
 	}
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package targeted_test
 
 import (
 	"sort"
@@ -19,46 +19,6 @@ import (
 // committed_at the targeted arm rewrites. The helpers below tolerate exactly
 // that difference, and only for partitions the fixture declares unchanged.
 
-// unchangedTimestampOnly reports whether the arms may disagree on the row at
-// key because the whole arm left a declared-unchanged partition alone. All of
-// these must hold: the row exists in before, whole and targeted; its partition
-// is in unchanged; it is a phase or memo row; the whole row is identical to
-// before; and the targeted row differs only in timestamps: a phase value must be exactly two non-empty timestamps. A phase row's key
-// carries every non-timestamp column (scope, acceptance unit, source run,
-// generation, keyspace, phase) and its value is committed_at|updated_at. A
-// memo row's value is catalog_fingerprint|committed_at, so the fingerprint
-// must match and the targeted value must carry exactly one non-empty timestamp.
-func unchangedTimestampOnly(
-	key string,
-	before, whole, targeted targetedDiffState,
-	unchanged map[backfill.ScopeGenerationPartition]struct{},
-) bool {
-	wholeRow, inWhole := whole[key]
-	targetedRow, inTargeted := targeted[key]
-	beforeRow, inBefore := before[key]
-	if !inWhole || !inTargeted || !inBefore {
-		return false
-	}
-	if _, ok := unchanged[wholeRow.partition]; !ok {
-		return false
-	}
-	if wholeRow.value != beforeRow.value {
-		return false
-	}
-	switch wholeRow.table {
-	case "phase":
-		targetedCommitted, targetedUpdated, okTargeted := strings.Cut(targetedRow.value, "|")
-		return okTargeted && targetedCommitted != "" && targetedUpdated != "" &&
-			!strings.Contains(targetedUpdated, "|")
-	case "memo":
-		wholeFingerprint, _, okWhole := strings.Cut(wholeRow.value, "|")
-		targetedFingerprint, targetedCommitted, okTargeted := strings.Cut(targetedRow.value, "|")
-		return okWhole && okTargeted && wholeFingerprint == targetedFingerprint &&
-			targetedCommitted != "" && !strings.Contains(targetedCommitted, "|")
-	}
-	return false
-}
-
 // wholeRewroteUnchanged returns the phase and memo keys of declared-unchanged
 // partitions that the whole arm does not hold byte-identical to before. Every
 // declared-unchanged partition must already have both rows before the pass.
@@ -71,7 +31,7 @@ func wholeRewroteUnchanged(before, whole targetedDiffState, unchanged map[backfi
 		} {
 			beforeRow, inBefore := before[key]
 			wholeRow, inWhole := whole[key]
-			if !inBefore || !inWhole || beforeRow.value != wholeRow.value {
+			if !inBefore || !inWhole || beforeRow.Value != wholeRow.Value {
 				violations = append(violations, key)
 			}
 		}
@@ -88,7 +48,7 @@ func unchangedDiffFixture() (before, whole, targeted targetedDiffState, partitio
 	phase := phaseKey(partition.ScopeID, partition.GenerationID)
 	memo := memoKey(partition.ScopeID, partition.GenerationID)
 	row := func(table, key, value string) targetedDiffRow {
-		return targetedDiffRow{table: table, key: strings.TrimPrefix(key, table+"|"), partition: partition, value: value}
+		return targetedDiffRow{Table: table, Key: strings.TrimPrefix(key, table+"|"), Partition: partition, Value: value}
 	}
 	before = targetedDiffState{
 		phase: row("phase", phase, "T1|T1"),
@@ -105,7 +65,7 @@ func unchangedDiffFixture() (before, whole, targeted targetedDiffState, partitio
 // plantTargetedValue overwrites the value of the targeted row at key.
 func plantTargetedValue(targeted targetedDiffState, key, value string) {
 	row := targeted[key]
-	row.value = value
+	row.Value = value
 	targeted[key] = row
 }
 
@@ -117,7 +77,7 @@ func TestTargetedDiffUnchangedToleranceSeededViolations(t *testing.T) {
 
 	inScopeMismatch := func(before, whole, targeted targetedDiffState, compared, unchanged map[backfill.ScopeGenerationPartition]struct{}) bool {
 		report := diffStates(before, whole, targeted, compared, unchanged)
-		return len(report.wholeOnlyInScope) > 0 || len(report.targetedOnlyInScope) > 0
+		return len(report.WholeOnlyInScope) > 0 || len(report.TargetedOnlyInScope) > 0
 	}
 
 	t.Run("clean timestamp-only difference is tolerated", func(t *testing.T) {
@@ -142,7 +102,7 @@ func TestTargetedDiffUnchangedToleranceSeededViolations(t *testing.T) {
 		{"targeted memo fingerprint changed", func(_, whole, targeted targetedDiffState, p backfill.ScopeGenerationPartition) (map[backfill.ScopeGenerationPartition]struct{}, targetedDiffState, targetedDiffState) {
 			key := memoKey(p.ScopeID, p.GenerationID)
 			row := targeted[key]
-			row.value = "sha256:other|T2"
+			row.Value = "sha256:other|T2"
 			targeted[key] = row
 			return map[backfill.ScopeGenerationPartition]struct{}{p: {}}, whole, targeted
 		}},
@@ -151,14 +111,14 @@ func TestTargetedDiffUnchangedToleranceSeededViolations(t *testing.T) {
 			row := targeted[key]
 			delete(targeted, key)
 			changed := strings.Replace(key, "backward_evidence_committed", "some_other_phase", 1)
-			row.key = strings.TrimPrefix(changed, "phase|")
+			row.Key = strings.TrimPrefix(changed, "phase|")
 			targeted[changed] = row
 			return map[backfill.ScopeGenerationPartition]struct{}{p: {}}, whole, targeted
 		}},
 		{"whole arm row not identical to before", func(_, whole, targeted targetedDiffState, p backfill.ScopeGenerationPartition) (map[backfill.ScopeGenerationPartition]struct{}, targetedDiffState, targetedDiffState) {
 			key := phaseKey(p.ScopeID, p.GenerationID)
 			row := whole[key]
-			row.value = "T3|T3"
+			row.Value = "T3|T3"
 			whole[key] = row
 			return map[backfill.ScopeGenerationPartition]struct{}{p: {}}, whole, targeted
 		}},
@@ -197,7 +157,7 @@ func TestTargetedDiffUnchangedToleranceSeededViolations(t *testing.T) {
 		before, whole, _, partition := unchangedDiffFixture()
 		key := phaseKey(partition.ScopeID, partition.GenerationID)
 		row := whole[key]
-		row.value = "T2|T2"
+		row.Value = "T2|T2"
 		whole[key] = row
 		set := map[backfill.ScopeGenerationPartition]struct{}{partition: {}}
 		if got := wholeRewroteUnchanged(before, whole, set); len(got) != 1 || got[0] != key {
