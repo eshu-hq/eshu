@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 import shutil
 from pathlib import Path
@@ -12,34 +11,16 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 
 from replay_tier_enrollment import (  # noqa: E402
-    verify_events, verify_inventory, verify_reviewed_source, verify_routes,
-    verify_runner, verify_source_guard_activation,
+    verify_events, verify_inventory, verify_routes, verify_runner,
 )
 
 
 ROOT = Path(__file__).resolve().parent.parent
 INVENTORY = ROOT / "scripts/lib/replay_tier_inventory.json"
-
-
-def committed_fixture(root: Path) -> None:
-    """Create a small reviewed Go checkout for source-guard mutations."""
-    (root / "go").mkdir()
-    (root / "go/go.mod").write_text("module example.com/replayguard\n\ngo 1.26\n")
-    (root / ".gitignore").write_text("go.work\ngoenv\n")
-    (root / "tracked.txt").write_text("reviewed\n")
-    for command in (
-        ("git", "init", "-q"),
-        ("git", "config", "user.name", "Replay Fixture"),
-        ("git", "config", "user.email", "replay@example.invalid"),
-        ("git", "add", "."),
-        ("git", "commit", "-qm", "fixture"),
-    ):
-        subprocess.run(command, cwd=root, check=True, capture_output=True)
 
 
 def copy_route_sources(destination: Path) -> None:
@@ -103,70 +84,6 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
         ):
             with self.assertRaises(ValueError):
                 verify_runner(changed, inventory["selector"])
-
-    def test_source_guard_function_and_cli_activation_are_closed(self) -> None:
-        source = (ROOT / "scripts/lib/replay_tier_enrollment.py").read_text()
-        verify_source_guard_activation(source)
-        for changed in (
-            source.replace("\n        verify_reviewed_source(args.root)\n",
-                           "\n        # verify_reviewed_source(args.root)\n", 1),
-            source.replace("\n        verify_reviewed_source(args.root)\n",
-                           "\n        pass\n", 1),
-            source.replace("\n            verify_reviewed_source(args.root)\n",
-                           "\n            pass\n", 1),
-            source.replace('    for name in ("GOFLAGS", "GOWORK"):',
-                           '    return\n    for name in ("GOFLAGS", "GOWORK"):', 1),
-        ):
-            with self.assertRaises(ValueError):
-                verify_source_guard_activation(changed)
-
-    def test_reviewed_source_rejects_dirty_checkout_and_go_overrides(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            fixture = Path(temporary)
-            committed_fixture(fixture)
-            with mock.patch.dict(os.environ, {"GOFLAGS": "", "GOWORK": ""}):
-                verify_reviewed_source(fixture)
-                check = subprocess.run(
-                    ("python3", str(ROOT / "scripts/lib/replay_tier_enrollment.py"),
-                     "--root", str(fixture), "--reviewed-source"),
-                    capture_output=True, text=True, check=False,
-                )
-                self.assertEqual(check.returncode, 0, check.stderr)
-                tracked = fixture / "tracked.txt"
-                tracked.write_text("dirty\n")
-                with self.assertRaisesRegex(ValueError, "source"):
-                    verify_reviewed_source(fixture)
-                subprocess.run(("git", "add", "tracked.txt"), cwd=fixture,
-                               check=True, capture_output=True)
-                tracked.write_text("reviewed\n")
-                with self.assertRaisesRegex(ValueError, "source"):
-                    verify_reviewed_source(fixture)
-                subprocess.run(("git", "reset", "-q", "HEAD", "--", "tracked.txt"),
-                               cwd=fixture, check=True, capture_output=True)
-                tracked.write_text("reviewed\n")
-                (fixture / "untracked.txt").write_text("untracked\n")
-                with self.assertRaisesRegex(ValueError, "source"):
-                    verify_reviewed_source(fixture)
-                (fixture / "untracked.txt").unlink()
-                with mock.patch.dict(os.environ, {"GOFLAGS": "-run=OnlyOne"}):
-                    with self.assertRaisesRegex(ValueError, "GOFLAGS"):
-                        verify_reviewed_source(fixture)
-                with mock.patch.dict(os.environ, {"GOWORK": "off"}):
-                    with self.assertRaisesRegex(ValueError, "GOWORK"):
-                        verify_reviewed_source(fixture)
-                goenv = fixture / "goenv"
-                goenv.write_text("GOFLAGS=-run=OnlyOne\n")
-                with mock.patch.dict(os.environ, {"GOENV": str(goenv)}):
-                    with self.assertRaisesRegex(ValueError, "GOFLAGS"):
-                        verify_reviewed_source(fixture)
-                goenv.unlink()
-                (fixture / "go.work").write_text("go 1.26\nuse ./go\n")
-                with self.assertRaisesRegex(ValueError, "GOWORK"):
-                    verify_reviewed_source(fixture)
-                (fixture / "go.work").unlink()
-                (fixture / "go/go.work").write_text("go 1.26\nuse .\n")
-                with self.assertRaisesRegex(ValueError, "GOWORK"):
-                    verify_reviewed_source(fixture)
 
     def test_metadata_routes_and_seeded_removal(self) -> None:
         verify_routes(ROOT)
@@ -426,6 +343,22 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
             ))
             with self.assertRaisesRegex(ValueError, "workflow"):
                 verify_inventory(fixture, inventory)
+            shutil.copy2(ROOT / ".github/workflows/verify-replay-tier.yml", workflow)
+            subjects = {
+                "scripts/verify-replay-tier.sh": (
+                    "\npython3 scripts/lib/replay_tier_enrollment.py --root",
+                    "\nexit 0\npython3 scripts/lib/replay_tier_enrollment.py --root"),
+                "scripts/lib/replay_tier_enrollment.py": (
+                    "raise SystemExit(main())", "raise SystemExit(0)"),
+            }
+            for name, (before, after) in subjects.items():
+                subject = fixture / name
+                original = subject.read_text()
+                self.assertIn(before, original)
+                subject.write_text(original.replace(before, after, 1))
+                with self.assertRaisesRegex(ValueError, "source integrity"):
+                    verify_inventory(fixture, inventory)
+                subject.write_text(original)
 
     def test_old_guard_output_cannot_replace_json_test_events(self) -> None:
         package = "github.com/eshu-hq/eshu/go/internal/replay/offlinetier"

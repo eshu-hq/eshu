@@ -35,6 +35,7 @@ BLAST_TESTS = {
 }
 SOURCE_PATH = "go/internal/replay/offlinetier/"
 RUNNER_PATH = "scripts/verify-replay-tier.sh"
+ENROLLMENT_PATH = "scripts/lib/replay_tier_enrollment.py"
 
 
 def load_inventory(root: Path) -> dict[str, object]:
@@ -85,10 +86,19 @@ def verify_inventory(root: Path, inventory: dict[str, object]) -> None:
             or set(selector.split("|")) != expected_selector
             or len(selector.split("|")) != 30):
         raise ValueError("replay selector does not name exactly the enrolled and retained tests")
+    source_pins = inventory.get("proof_source_sha256")
+    if (not isinstance(source_pins, dict)
+            or set(source_pins) != {RUNNER_PATH, ENROLLMENT_PATH}):
+        raise ValueError("replay proof source integrity pins are missing")
+    for name, expected_digest in source_pins.items():
+        if (not isinstance(expected_digest, str)
+                or re.fullmatch(r"[0-9a-f]{64}", expected_digest) is None
+                or hashlib.sha256((root / name).read_bytes()).hexdigest() != expected_digest):
+            raise ValueError(f"replay proof source integrity mismatch: {name}")
     runner = (root / RUNNER_PATH).read_text(encoding="utf-8")
     verify_runner(runner, selector)
     verify_source_guard_activation(
-        (root / "scripts/lib/replay_tier_enrollment.py").read_text(encoding="utf-8")
+        (root / ENROLLMENT_PATH).read_text(encoding="utf-8")
     )
     verify_routes(root)
 
@@ -137,11 +147,43 @@ def verify_source_guard_activation(source: str) -> None:
     main_function = functions.get("main")
     if guard is None or main_function is None:
         raise ValueError("reviewed-source guard implementation is missing")
+    dispatch = tree.body[-1]
+    if (not isinstance(dispatch, ast.If) or dispatch.orelse
+            or ast.dump(dispatch.test) != ast.dump(
+                ast.parse('__name__ == "__main__"', mode="eval").body)
+            or len(dispatch.body) != 1
+            or not isinstance(dispatch.body[0], ast.Raise)
+            or not isinstance(dispatch.body[0].exc, ast.Call)
+            or ast.dump(dispatch.body[0].exc) != ast.dump(
+                ast.parse("SystemExit(main())", mode="eval").body)):
+        raise ValueError("reviewed-source CLI dispatch is not unconditional")
     if any(isinstance(node, ast.Return) for node in ast.walk(guard)):
         raise ValueError("reviewed-source guard has an early return")
     try_blocks = [node for node in main_function.body if isinstance(node, ast.Try)]
-    if len(try_blocks) != 1:
+    if (len(try_blocks) != 1 or main_function.body[-2] is not try_blocks[0]
+            or not isinstance(main_function.body[-1], ast.Return)
+            or not isinstance(main_function.body[-1].value, ast.Constant)
+            or main_function.body[-1].value.value != 0
+            or any(isinstance(node, (ast.If, ast.For, ast.While, ast.With,
+                                     ast.Return, ast.Raise, ast.Try))
+                   for node in main_function.body[:-2])):
         raise ValueError("reviewed-source guard CLI activation is incomplete")
+    for statement in main_function.body[:-2]:
+        if (isinstance(statement, ast.Import)
+                and [alias.name for alias in statement.names] == ["argparse"]):
+            continue
+        if isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Constant):
+            continue
+        if isinstance(statement, (ast.Expr, ast.Assign)) and isinstance(statement.value, ast.Call):
+            call = statement.value
+            if (isinstance(call.func, ast.Attribute)
+                    and isinstance(call.func.value, ast.Name)
+                    and (call.func.value.id, call.func.attr) in {
+                        ("argparse", "ArgumentParser"), ("parser", "add_argument"),
+                        ("parser", "parse_args")
+                    }):
+                continue
+        raise ValueError("reviewed-source guard CLI prelude has an early exit")
     actions = try_blocks[0].body
 
     def calls_guard(node: ast.stmt) -> bool:
