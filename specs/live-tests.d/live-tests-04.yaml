@@ -242,6 +242,11 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/code/reachability/loader_completed_index_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7929 disposable PostgreSQL 18 proof that the loader's per-run max(completed_at) probe serves from the acceptance-completed covering index and returns exactly the pre-#7547 oracle rows; enrolled in the live-postgres-readiness runner. Upper-bound timing: 7.3s cold including one-time schema bootstrap and the 200k-row fixture, on local postgres:18"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/code/reachability/loader_edges_scope_live_test.go
     tag: ~
     class: postgres_ci
