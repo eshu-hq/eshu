@@ -80,6 +80,12 @@ type Error struct {
 // Error renders the code, reason, and message, so a client that did not
 // negotiate the envelope still reads the typed values in the detail text.
 func (e *Error) Error() string {
+	return e.detail()
+}
+
+// detail is the client-facing text: the stable code, the reason, and a fixed
+// message from this package. It never carries backend error text.
+func (e *Error) detail() string {
 	return string(e.Code) + ": " + e.Reason + ": " + e.Message
 }
 
@@ -115,7 +121,7 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error) bool {
 	}
 	querycontract.WriteErrorEnvelope(w, r, rankErr.Status, &querycontract.ErrorEnvelope{
 		Code:    rankErr.Code,
-		Message: rankErr.Error(),
+		Message: rankErr.detail(),
 		Details: details,
 	})
 	return true
