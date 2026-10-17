@@ -2,8 +2,9 @@
 
 ## Scope
 
-Base: `origin/main` at `87f019495` after a conflict-free rebase
-(branch `refactor/6695-document-moves`; pre-rebase base `5e6fa5c5fb29`).
+Base: `origin/main` at `7cabdbf0f1e2` after a second rebase with one
+conflict (digest block; resolved by re-deriving). First rebase base was
+`87f019495`; original base `5e6fa5c5fb29`.
 
 This slice moves four flat collector leaves under plain-English parents,
 rename-only via `git mv` (162 renames, 134 of them `.go`):
@@ -40,7 +41,9 @@ In scope after the head commit: the `specs/live-tests.d` JFrog
 scheduled-test row moves one-for-one with the code (old
 `packageregistry/packageruntime` path to new
 `registry/package/runtime` path) plus its freshly derived digest in
-`specs/live-tests.v1.yaml`; the scheduled-test count holds at 372.
+`specs/live-tests.v1.yaml`; the scheduled-test count holds at 373
+(the new base added one scheduled row; the digest is freshly derived
+over the relocated inventory).
 
 ## Inventory
 
