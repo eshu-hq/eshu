@@ -299,12 +299,15 @@ function withLocal() {
 		{"util.pick", "function_call", "package:@acme/util#pick"},
 		{"pick", "function_call", "package:@acme/util#pick"},
 		{"Button", "jsx_component", "package:@acme/ui#Button"},
-		// A deep chain, a member of a non-import, a member of a default import,
-		// a type-only binding, a subpath, a relative or in-repo import, and a
-		// name the file also declares elsewhere all stay unkeyed.
-		{"fmt.nested.deep", "function_call", ""},
+		// #8280: ns.C.m() names a static method of the export C, and D.m() on
+		// a default import names a static method of the default export. Each
+		// key holds a '.', so it can never resolve to a top-level export.
+		{"fmt.nested.deep", "function_call", "package:@acme/format#nested.deep"},
+		{"render.member", "function_call", "package:@acme/format#default.member"},
+		// A member of a non-import, a type-only binding, a subpath, a relative
+		// or in-repo import, and a name the file also declares elsewhere all
+		// stay unkeyed.
 		{"obj.formatPrice", "function_call", ""},
-		{"render.member", "function_call", ""},
 		{"Money", "function_call", ""},
 		{"Currency", "function_call", ""},
 		{"sub", "function_call", ""},

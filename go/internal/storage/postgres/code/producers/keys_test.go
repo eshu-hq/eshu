@@ -104,6 +104,11 @@ func TestPackageName(t *testing.T) {
 		"package:#map":                 "",
 		"package:lodash#":              "",
 		"package:":                     "",
+		// #8280 member and function keys anchor on the same package name.
+		"package:@acme/log#Logger.create":                           "@acme/log",
+		"package:@acme/log#default.connect":                         "@acme/log",
+		`package:acme/logging#Acme\Logging\Logger->info`:            "acme/logging",
+		`package:acme/logging#function:Acme\Logging\format_message`: "acme/logging",
 	} {
 		if got := PackageName(key); got != want {
 			t.Errorf("PackageName(%q) = %q, want %q", key, got, want)

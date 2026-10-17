@@ -47,6 +47,7 @@ on:
       - 'scripts/lib/live_postgres_readiness_records.py'
       - 'scripts/lib/live_postgres_readiness_shards.py'
       - 'scripts/test-live-postgres-readiness-shards.py'
+      - 'scripts/test-live-postgres-readiness-helper.py'
       - 'scripts/lib/live_postgres_readiness_events.py'
       - 'scripts/lib/test-run-live-postgres-readiness-proofs.sh'
       - 'scripts/test-run-live-postgres-readiness-selftest-seeds.sh'
@@ -99,6 +100,7 @@ on:
       - 'scripts/lib/live_postgres_readiness_records.py'
       - 'scripts/lib/live_postgres_readiness_shards.py'
       - 'scripts/test-live-postgres-readiness-shards.py'
+      - 'scripts/test-live-postgres-readiness-helper.py'
       - 'scripts/lib/live_postgres_readiness_events.py'
       - 'scripts/lib/test-run-live-postgres-readiness-proofs.sh'
       - 'scripts/test-run-live-postgres-readiness-selftest-seeds.sh'
@@ -160,6 +162,10 @@ jobs:
       - name: Check self-test seeded violations
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: bash scripts/test-run-live-postgres-readiness-selftest-seeds.sh
+
+      - name: Check helper source dependency
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
+        run: python3 scripts/test-live-postgres-readiness-helper.py
 
       - name: Check shard planner fail-closed behavior
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}

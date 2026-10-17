@@ -128,3 +128,46 @@ func generateLockConsumerPHPSource(importCount int) string {
 	b.WriteString("    }\n}\n")
 	return b.String()
 }
+
+// BenchmarkParsePathPHPMemberCalls parses a consumer class that works the
+// #8280 steps under a 120-package composer.lock: 40 methods, each writing one
+// variable by `new` of a locked class and calling two methods on it, calling a
+// property chain, and calling a `use function` import. Every method body is
+// one variable scope, summarized once. Compare against the same benchmark on
+// the base commit, where none of these calls is keyed.
+func BenchmarkParsePathPHPMemberCalls(b *testing.B) {
+	repoRoot := b.TempDir()
+	writeBenchFile(b, filepath.Join(repoRoot, "composer.json"), `{"name": "acme/app", "autoload": {"psr-4": {"App\\": "src/"}}}`)
+	writeBenchFile(b, filepath.Join(repoRoot, "composer.lock"), generateComposerLock(120))
+	sourceDir := filepath.Join(repoRoot, "src", "Http")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		b.Fatalf("mkdir: %v", err)
+	}
+	var source strings.Builder
+	source.WriteString("<?php\nnamespace App\\Http;\n\n")
+	for i := range 40 {
+		fmt.Fprintf(&source, "use Vendor%d\\Package\\Service%d;\n", i, i)
+		fmt.Fprintf(&source, "use function Vendor%d\\Package\\helper%d;\n", i, i)
+	}
+	source.WriteString("\nfinal class Consumer {\n")
+	for i := range 40 {
+		fmt.Fprintf(&source, "    public function run%d(): void {\n", i)
+		fmt.Fprintf(&source, "        $service = new Service%d();\n", i)
+		source.WriteString("        $service->start();\n        $service->stop();\n")
+		source.WriteString("        $this->repository->find(1);\n")
+		fmt.Fprintf(&source, "        helper%d($service->name);\n    }\n", i)
+	}
+	source.WriteString("}\n")
+	filePath := filepath.Join(sourceDir, "Consumer.php")
+	writeBenchFile(b, filePath, source.String())
+
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		b.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
+	}
+	for b.Loop() {
+		if _, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{}); err != nil {
+			b.Fatalf("ParsePath() error = %v, want nil", err)
+		}
+	}
+}

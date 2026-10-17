@@ -156,7 +156,13 @@ concurrency:
 jobs:
   postgres-scheduled:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    # Full scheduled live suite (-race, -p=1) needs >35 min of steady-state
+    # execution: crossplane live (67s) + inventory live incl. retention probe
+    # (127s) were both green when the 35-min cap killed run 39003328538
+    # 43s into the downstream readiness-proofs step. 60 min covers the
+    # measured suite with headroom; revisit with a split/matrix if the
+    # suite grows past ~50 min of measured step time.
+    timeout-minutes: 60
     services:
       postgres:
         image: ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873

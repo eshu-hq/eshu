@@ -7,6 +7,7 @@ Composer manifest reads for the PHP cross-repository call keys (#7601).
 | Function | Side | Reads | Answers |
 | --- | --- | --- | --- |
 | `ProducerPackage(repoRoot, path, fqcn)` | producer | nearest `composer.json` | the package that publishes `fqcn` from this file, or `""` |
+| `ProducerFunctionPackage(repoRoot, path, fqn)` | producer | nearest `composer.json` | the package that publishes free function `fqn` from a file its `autoload.files` lists under a covering psr-4 prefix (#8280), or `""` |
 | `LocksFor(repoRoot, path)` | consumer | every `composer.lock` up to `repoRoot`, nearest first | the file's lock chain, read once per file |
 | `Locks.Package(fqcn)` | consumer | the chain | the locked package that provides `fqcn`, or `""` |
 | `ManifestName(content)` | loader | one `composer.json` | its name in the composer grammar, or `""` |
@@ -22,7 +23,9 @@ Composer manifest reads for the PHP cross-repository call keys (#7601).
   The name must match composer's grammar. Only `autoload.psr-4` counts
   (`autoload-dev`, `classmap`, `files`, `psr-0`, and the empty fallback prefix
   do not), and the declaring file must sit exactly at the mapped directory
-  plus the namespace remainder plus `.php`.
+  plus the namespace remainder plus `.php`. A free function (#8280) instead
+  needs its file listed in that manifest's `autoload.files` and a covering
+  psr-4 prefix; a file a listed file includes is not listed itself (a miss).
 - Consumer: the first lock (nearest first) with a covering prefix decides. The
   longest covering prefix wins; a tie between packages, a `psr-0` prefix, a
   `psr-4` prefix without the trailing `\`, or a name outside the grammar

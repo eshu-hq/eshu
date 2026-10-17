@@ -22,8 +22,8 @@ func TestRetentionProbeRoundContextIsFreshAndBounded(t *testing.T) {
 	}
 	deadline, ok := second.Deadline()
 	remaining := time.Until(deadline)
-	if !ok || remaining <= 0 || remaining > 5*time.Minute {
-		t.Fatalf("next round deadline = %v, bounded 5m deadline required", deadline)
+	if !ok || remaining <= 0 || remaining > 3*time.Minute {
+		t.Fatalf("next round deadline = %v, bounded 3m deadline required", deadline)
 	}
 	if first.Err() != context.Canceled {
 		t.Fatalf("prior round cancellation = %v, want canceled", first.Err())

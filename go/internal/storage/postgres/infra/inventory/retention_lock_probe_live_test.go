@@ -137,11 +137,12 @@ func probeRetentionPolicy() postgres.GenerationRetentionPolicy {
 // -race rounds take ~30s on a fast host, but a slow scheduled runner needed
 // more than 90s for one round (its counts query missed the deadline at
 // exactly the 90s mark while sibling rounds took ~27s), failing
-// TestRetentionLiveLockHoldAndDeriveWaitCost. The go test -timeout=7m on the
-// scheduled lane stays the outer bound, so a genuinely wedged prune still
-// fails closed there.
+// TestRetentionLiveLockHoldAndDeriveWaitCost. 3m is ~6x the measured slow
+// round yet stays well inside the shared go test -timeout=7m on the
+// scheduled lane, so one wedged round fails with its RETENTION_PHASE
+// traces instead of consuming the whole package timeout.
 func newRetentionProbeRoundContext() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), 5*time.Minute)
+	return context.WithTimeout(context.Background(), 3*time.Minute)
 }
 
 // retentionPhaseTrace records test-side phase boundaries against the original

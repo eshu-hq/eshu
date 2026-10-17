@@ -75,6 +75,9 @@ func TestNodePackageKeyPackage(t *testing.T) {
 	}{
 		{"package:@acme/format#formatPrice", "@acme/format"},
 		{"package:bar#widget", "bar"},
+		// #8280 member keys: the export side holds '.' but never '#'.
+		{"package:@acme/log#default.connect", "@acme/log"},
+		{"package:@acme/log#Logger.create", "@acme/log"},
 		{"  package:bar#widget  ", "bar"},
 		{"", ""},
 		{"package:bar", ""},

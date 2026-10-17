@@ -324,7 +324,7 @@ parent parser engine and runtime instrumentation. It emits two structured
 
 ## Gotchas / invariants
 
-Cross-repository call keys (`package_keys.go`, #7601) must never name a symbol
+Cross-repository call keys (`package_keys.go`, #7601; static member keys in `package_keys_members.go` and `package_keys_closed.go`, #8280) must never name a symbol
 they cannot prove; a bare import is keyed only when a manifest declares it. See
 `doc.go` for the stamped fields and unkeyed shapes; the `engine_package_*` tests pin each.
 

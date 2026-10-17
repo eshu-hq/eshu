@@ -301,7 +301,15 @@ sed 's/class: postgres_ci/class: scheduled/g' "${flat_ledger}" >"${seed_dir}/led
 out="$(python3 "${checker}" verify-ledger "${seed_dir}/ledger-missing.yaml" "${repo_root}" 2>&1)" &&
   fail "missing postgres_ci ledger row passed"
 [[ "${out}" == *"unexpected class"* ]] || fail "ledger drift not named: ${out}"
-sed 's/runner: live-postgres-readiness/runner: unrelated/g' "${flat_ledger}" >"${seed_dir}/ledger-wrong-runner.yaml"
+python3 - "${flat_ledger}" "${seed_dir}/ledger-wrong-runner.yaml" <<'PY_WRONG_RUNNER'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+old = "    runner: live-postgres-readiness\n"
+assert old in source
+Path(sys.argv[2]).write_text(source.replace(old, "    runner: unrelated\n", 1),
+                             encoding="utf-8")
+PY_WRONG_RUNNER
 out="$(python3 "${checker}" verify-ledger "${seed_dir}/ledger-wrong-runner.yaml" "${repo_root}" 2>&1)" &&
   fail "wrong postgres_ci runner passed"
 [[ "${out}" == *"unexpected runner"* ]] || fail "wrong runner not named: ${out}"
@@ -332,6 +340,30 @@ last_proof_module="$(rg -lF -- "\"${last_proof}\"" "${repo_root}"/scripts/lib/li
   fail "expected exactly one inventory module to carry ${last_proof}: ${last_proof_module}"
 tree_inventory="${tree}/scripts/lib/$(basename "${last_proof_module}")"
 cp "${flat_ledger}" "${tree}/specs/live-tests.v1.yaml"
+# A stale reviewed consumer source pin must stop the real runner before the
+# fake Go sees a package. The clean map is restored for the existing seeds.
+helper_map="${tree}/scripts/lib/live_postgres_readiness_inventory_helpers.py"
+cp "${helper_map}" "${helper_map}.clean"
+python3 - "${helper_map}" <<'PY_HELPER_PIN'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+source = path.read_text(encoding="utf-8")
+old = "0f9bba8d97de2d4cb3c32b9571ef86e1eab56486558cf4fc4765f26a0f1a32ad"
+assert source.count(old) == 1
+path.write_text(source.replace(old, "0" * 64), encoding="utf-8")
+PY_HELPER_PIN
+: >"${fake}/calls"
+runner="${tree_runner}"
+out="$(run_runner)" && fail "stale helper consumer pin passed the runner"
+[[ "${out}" == *"helper proof source changed"* && "${out}" == *"ledger selection is invalid"* ]] ||
+  fail "helper dependency drift failed for another reason: ${out}"
+[[ ! -s "${fake}/calls" ]] || fail "go test ran before helper dependency rejection"
+runner="${repo_root}/scripts/run-live-postgres-readiness-tests.sh"
+mv "${helper_map}.clean" "${helper_map}"
+# Equal-size pin strings can leave Python's timestamp bytecode cache valid.
+# Discard only this disposable fixture cache before the clean-map GREEN case.
+rm -rf "${tree}/scripts/lib/__pycache__"
 # Remove the last PACKAGES entry (from its "    NAME: {" line through the
 # next "    }," line) and list the test files it carried in dropped-files.
 awk -v list="${seed_dir}/dropped-files" '
