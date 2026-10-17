@@ -77,12 +77,14 @@ FROM generate_series(1, $2::int) g, generate_series(1, $3::int) e`,
 	if _, err := inventory.MirrorRepo(ctx, postgres.SQLDB{DB: sqlDB}, repo); err != nil {
 		t.Fatalf("MirrorRepo(%s) error = %v", repo, err)
 	}
-	// Each seed bulk-loads 50k fact rows and 50k content rows. Without fresh
-	// planner statistics the retention row-count query (fact_records joins on
-	// scope/generation plus JSONB payload anti-joins) degrades by round 3:
-	// prune cost grows 3s -> 70s+ and the 90s round deadline expires in
+	// The retention counts query is tuned for planned shapes, and production
+	// always has autovacuum stats. A freshly seeded probe database has none:
+	// each seed bulk-loads 50k fact rows and 50k content rows, and without
+	// fresh planner statistics the retention row-count query (fact_records
+	// joins on scope/generation plus JSONB payload anti-joins) degrades by
+	// round 3: prune cost grows 3s -> 70s+ and the round deadline expires in
 	// "count rows". ANALYZE keeps every round on the measured ~3s plan.
-	if _, err := sqlDB.ExecContext(ctx, `ANALYZE fact_records, content_entities, scope_generations`); err != nil {
+	if _, err := sqlDB.ExecContext(ctx, `ANALYZE ingestion_scopes, scope_generations, fact_records, content_entities, content_files, infra_resource_entities`); err != nil {
 		t.Fatalf("analyze seeded tables: %v", err)
 	}
 }
@@ -133,9 +135,13 @@ func probeRetentionPolicy() postgres.GenerationRetentionPolicy {
 }
 
 // newRetentionProbeRoundContext gives each complete 50k-row round its own
-// deadline; no round inherits the previous round's elapsed budget.
+// deadline; no round inherits the previous round's elapsed budget. The
+// budget is deliberately generous for a correctness-only probe: measured
+// -race slow rounds take ~30s, so 3m is ~6x headroom. It stays well inside
+// the shared go test -timeout=7m, so a genuinely wedged round still fails
+// with RETENTION_PHASE traces instead of consuming the package timeout.
 func newRetentionProbeRoundContext() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), 90*time.Second)
+	return context.WithTimeout(context.Background(), 3*time.Minute)
 }
 
 // retentionPhaseTrace records test-side phase boundaries against the original
