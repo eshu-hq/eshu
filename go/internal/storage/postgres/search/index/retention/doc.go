@@ -7,13 +7,15 @@
 // generation (#7427). It is the `search/index/retention/` leaf of
 // storage/postgres.
 //
-// Without it those rows go only through the scope_generations foreign-key
+// Before it, those rows went only through the scope_generations foreign-key
 // cascade inside the retention prune transaction, while that transaction
-// holds the generation's ingestion_scopes row lock. The terms cascade runs on
-// the hash-partitioned parent, so its cost follows the whole leaf partition,
+// held the generation's ingestion_scopes row lock. The terms cascade ran on
+// the hash-partitioned parent, so its cost followed the whole leaf partition,
 // not the generation. Drain removes the rows first, outside any retention
-// row lock, so the cascade under the lock finds none. The cascade still runs
-// (the foreign keys stay); a later change drops the terms foreign key.
+// row lock. Migration 191 (#7427 PR3) then dropped the terms generation
+// foreign key, so no terms statement runs under that lock and Drain and
+// SweepOrphans are the only removers of a pruned generation's terms; the
+// documents and stats generation keys stay.
 //
 // Drain walks one table's primary key in keyset pages of BatchRows rows, each
 // page its own transaction, then re-sweeps from the start of the keyspace

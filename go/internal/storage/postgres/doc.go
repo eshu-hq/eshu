@@ -89,8 +89,9 @@
 // Before that transaction opens, each pass pre-deletes its candidates' search
 // index terms and documents in committed batches through the
 // search/index/retention leaf (#7427) and admits only generations that
-// drained and whose per-generation advisory lock it takes, so the FK cascade
-// under the scope lock finds no search index row.
+// drained and whose per-generation advisory lock it takes. Migration 191
+// dropped the terms generation foreign key, so no terms statement runs under
+// the scope lock, and the documents cascade finds no row.
 // FactStore kind-filtered reads use bounded, stable keyset pages and scan the
 // same facts.Envelope metadata shape as full fact loads. Fact writes remove
 // JSONB-incompatible U+0000 characters without changing literal source text

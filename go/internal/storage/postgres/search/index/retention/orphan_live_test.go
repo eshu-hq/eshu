@@ -15,12 +15,16 @@ import (
 	indexretention "github.com/eshu-hq/eshu/go/internal/storage/postgres/search/index/retention"
 )
 
-// dropGenerationForeignKeys simulates #7427 PR3 inside the test's isolated
-// schema: without the generation foreign keys a search index row can outlive
-// its scope_generations row. The production schema keeps them in PR2.
+// dropGenerationForeignKeys removes every search index generation foreign key
+// in the test's isolated schema, so a row of either table can outlive its
+// scope_generations row. Migration 191 (#7427 PR3) already dropped the terms
+// key on the bootstrapped schema; the documents key stays in production and
+// is dropped here only to exercise the documents half of the census.
 func (f *liveFixture) dropGenerationForeignKeys(t *testing.T) {
 	t.Helper()
-	f.exec(t, `ALTER TABLE eshu_search_index_terms DROP CONSTRAINT eshu_search_index_terms_generation_id_fkey`)
+	if got := f.termsGenerationForeignKeys(t); len(got) != 0 {
+		t.Fatalf("terms generation foreign keys after bootstrap = %v, want none (migration 191)", got)
+	}
 	f.exec(t, `ALTER TABLE eshu_search_index_documents DROP CONSTRAINT eshu_search_index_documents_generation_id_fkey`)
 }
 
@@ -32,11 +36,12 @@ func (f *liveFixture) orphan(t *testing.T, generation string) {
 	f.exec(t, `DELETE FROM scope_generations WHERE generation_id = $1`, generation)
 }
 
-// TestOrphanCensusLiveReadsZeroWithTheForeignKeysPresent is the clean-tree
-// proof: with the foreign keys in place no search index row can name a
-// missing generation, so the census reads 0 for both tables while it walks
-// every pair.
-func TestOrphanCensusLiveReadsZeroWithTheForeignKeysPresent(t *testing.T) {
+// TestOrphanCensusLiveReadsZeroOnACleanTree is the clean-tree proof: while
+// every search index row's generation exists the census reads 0 for both
+// tables while it walks every pair. It runs on the bootstrapped schema, where
+// the terms generation foreign key is gone (migration 191) and the documents
+// one stays.
+func TestOrphanCensusLiveReadsZeroOnACleanTree(t *testing.T) {
 	f := openLiveFixture(t)
 	f.seedIndex(t, f.active, 200, 3)
 	f.seedIndex(t, f.old, 200, 3)
@@ -223,7 +228,7 @@ VALUES ($1, $2, 'doc-later', 'a-later', 'later', 1)`, f.scope, f.old)
 }
 
 // TestOrphanLiveUnknownScopeWriteIsRejected is the c3 unknown-scope proof:
-// even with the generation foreign keys gone, the scope_id foreign key that
+// with the generation foreign keys gone, the scope_id foreign key that
 // stays rejects a search index row for a scope that does not exist, so the
 // freshness check's unknown-scope (true, nil) cannot leave an orphan.
 func TestOrphanLiveUnknownScopeWriteIsRejected(t *testing.T) {

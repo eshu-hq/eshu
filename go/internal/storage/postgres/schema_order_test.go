@@ -469,4 +469,7 @@ var orderedBootstrapDefinitionNames = []string{
 	"relationship_reference_candidate_keys_drop_fact_fk",
 	"package_manifest_consumption_keys_drop_fact_fk",
 	"package_registry_identity_keys_drop_fact_fk",
+	// Migration 191 (#7427) drops the eshu_search_index_terms generation
+	// foreign key once retention deletes a generation's terms explicitly.
+	"eshu_search_index_terms_drop_generation_fk",
 }
