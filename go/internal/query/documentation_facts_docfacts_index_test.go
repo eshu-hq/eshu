@@ -55,23 +55,23 @@ func TestBuildDocumentationFactsSQLBindsCollectedKindsLiterally(t *testing.T) {
 }
 
 // stubDocRepoScopeRows is a canned db.Rows for the repository-scope resolver
-// proof. Each row is a (scope_id, canonical_repo_id) pair.
+// proof. Each row is a (scope_id, canonical_repo_id) pair. When err is set it
+// surfaces only after errAfter successful scans, so a test can yield partial
+// rows before the failure the way a real cursor does.
 type stubDocRepoScopeRows struct {
-	rows [][]string
-	pos  int
-	err  error
+	rows     [][]string
+	pos      int
+	err      error
+	errAfter int
 }
 
 func (r *stubDocRepoScopeRows) Next() bool {
-	if r.err != nil {
-		return false
-	}
 	r.pos++
 	return r.pos <= len(r.rows)
 }
 
 func (r *stubDocRepoScopeRows) Scan(dest ...any) error {
-	if r.err != nil {
+	if r.err != nil && r.pos > r.errAfter {
 		return r.err
 	}
 	if len(dest) != 2 {
@@ -82,7 +82,12 @@ func (r *stubDocRepoScopeRows) Scan(dest ...any) error {
 	return nil
 }
 
-func (r *stubDocRepoScopeRows) Err() error { return r.err }
+func (r *stubDocRepoScopeRows) Err() error {
+	if r.err != nil && r.pos > r.errAfter {
+		return r.err
+	}
+	return nil
+}
 
 func (r *stubDocRepoScopeRows) Close() error { return nil }
 
@@ -98,9 +103,11 @@ func scanDocRepoScopeString(dest any, value string) {
 // rows. It implements only the Queryer surface the resolver uses; every other
 // ReadStore method fails the test when touched.
 type stubDocRepoScopeReadStore struct {
-	rows     [][]string
-	queryErr error
-	queries  int
+	rows         [][]string
+	queryErr     error
+	rowsErr      error
+	rowsErrAfter int
+	queries      int
 }
 
 func (s *stubDocRepoScopeReadStore) QueryContext(context.Context, string, ...any) (db.Rows, error) {
@@ -108,7 +115,7 @@ func (s *stubDocRepoScopeReadStore) QueryContext(context.Context, string, ...any
 	if s.queryErr != nil {
 		return nil, s.queryErr
 	}
-	return &stubDocRepoScopeRows{rows: s.rows}, nil
+	return &stubDocRepoScopeRows{rows: s.rows, err: s.rowsErr, errAfter: s.rowsErrAfter}, nil
 }
 
 func (s *stubDocRepoScopeReadStore) QueryRowContext(context.Context, string, ...any) db.Row {
@@ -299,6 +306,42 @@ func TestResolveDocumentationRepositoryScopeKeepsAmbiguousAndUnknownRepos(t *tes
 		}
 		if !reflect.DeepEqual(got, before) {
 			t.Fatalf("failed-lookup filter changed: %#v", got)
+		}
+	})
+
+	// Mid-scan failure must fail open even after a row was already yielded:
+	// resolving on partial rows would silently narrow the read.
+	t.Run("mid-scan rows.Err failure keeps filter", func(t *testing.T) {
+		t.Parallel()
+		before := documentationFactFilter{Repository: "payments", Limit: 10}
+		store := &stubDocRepoScopeReadStore{
+			rows:         [][]string{{"scope:payments", "repository:payments"}},
+			rowsErr:      errors.New("cursor lost mid-scan"),
+			rowsErrAfter: 1,
+		}
+		got, resolved := resolveDocumentationRepositoryScope(context.Background(), store, before)
+		if resolved {
+			t.Fatal("mid-scan rows.Err failure must not resolve on the partial row")
+		}
+		if !reflect.DeepEqual(got, before) {
+			t.Fatalf("mid-scan-failure filter changed: %#v", got)
+		}
+	})
+
+	t.Run("mid-scan Scan failure keeps filter", func(t *testing.T) {
+		t.Parallel()
+		before := documentationFactFilter{Repository: "payments", Limit: 10}
+		store := &stubDocRepoScopeReadStore{
+			rows:         [][]string{{"scope:payments", "repository:payments"}},
+			rowsErr:      errors.New("row decode boom"),
+			rowsErrAfter: 0,
+		}
+		got, resolved := resolveDocumentationRepositoryScope(context.Background(), store, before)
+		if resolved {
+			t.Fatal("mid-scan Scan failure must not resolve")
+		}
+		if !reflect.DeepEqual(got, before) {
+			t.Fatalf("mid-scan-Scan-failure filter changed: %#v", got)
 		}
 	})
 }
