@@ -55,18 +55,15 @@ func TestResolvedRelationshipIDIsDeterministic(t *testing.T) {
 		RelationshipType: RelDeploysFrom,
 	}
 
-	got := ResolvedRelationshipID("gen-1", relationship, 3)
+	got := ResolvedRelationshipID("gen-1", relationship)
 	if got == "" {
 		t.Fatal("ResolvedRelationshipID() = empty, want stable id")
 	}
-	if again := ResolvedRelationshipID("gen-1", relationship, 3); again != got {
+	if again := ResolvedRelationshipID("gen-1", relationship); again != got {
 		t.Fatalf("ResolvedRelationshipID() = %q then %q, want deterministic value", got, again)
 	}
-	if changed := ResolvedRelationshipID("gen-2", relationship, 3); changed == got {
+	if changed := ResolvedRelationshipID("gen-2", relationship); changed == got {
 		t.Fatalf("ResolvedRelationshipID() did not include generation: %q", changed)
-	}
-	if changed := ResolvedRelationshipID("gen-1", relationship, 4); changed == got {
-		t.Fatalf("ResolvedRelationshipID() did not include ordinal: %q", changed)
 	}
 }
 

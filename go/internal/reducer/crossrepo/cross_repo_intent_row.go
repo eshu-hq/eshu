@@ -26,13 +26,12 @@ func buildResolvedEdgeIntentRows(
 	rows := make([]sharedintent.Row, 0, len(resolved))
 	routeCounts := make(map[string]int)
 
-	for i, r := range resolved {
+	for _, r := range resolved {
 		row, routeType, ok := buildResolvedEdgeIntentRow(
 			r,
 			scopeID,
 			sourceRunID,
 			generationID,
-			i,
 			createdAt,
 		)
 		if !ok {
@@ -54,7 +53,6 @@ func buildResolvedEdgeIntentRow(
 	scopeID string,
 	sourceRunID string,
 	generationID string,
-	ordinal int,
 	createdAt time.Time,
 ) (sharedintent.Row, string, bool) {
 	if r.SourceRepoID == "" {
@@ -64,7 +62,7 @@ func buildResolvedEdgeIntentRow(
 	payload := map[string]any{
 		"repo_id":           r.SourceRepoID,
 		"evidence_source":   CrossRepoEvidenceSource,
-		"resolved_id":       relationships.ResolvedRelationshipID(generationID, r, ordinal),
+		"resolved_id":       relationships.ResolvedRelationshipID(generationID, r),
 		"generation_id":     generationID,
 		"confidence":        r.Confidence,
 		"evidence_count":    r.EvidenceCount,

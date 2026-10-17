@@ -327,7 +327,12 @@ ON CONFLICT (candidate_id) DO NOTHING
 // no other statement UPDATEs resolved_relationships. The deployable-unit
 // reopen fingerprint (#8283, backfill.ResolvedInputFingerprintSQL) relies on
 // that: it hashes resolved_id sets, not row content. A future UPDATE path must
-// widen that fingerprint to the columns it changes.
+// widen that fingerprint to the columns it changes. The resolved_id digest
+// (relationships.ResolvedRelationshipID) is a pure function of this
+// statement's conflict identity (generation plus COALESCE entity/repo ids
+// plus type, #8299), so a re-run with shifted ordinals computes the same ids
+// and a new identity cannot reuse a stored id; pre-#8299 rows keep their
+// stored ids because nothing rewrites them.
 const insertResolvedSQL = `
 INSERT INTO resolved_relationships (
     resolved_id, generation_id, source_repo_id, target_repo_id,

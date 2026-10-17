@@ -34,8 +34,8 @@ func TestServiceDependencyEvidenceKeyIsGenerationIndependent(t *testing.T) {
 	// ResolvedRelationshipID digests generationID), so keying on it would produce
 	// 100% false churn. Prove the resolved_id changes across generations and that
 	// the dependency key embeds neither generation's resolved_id.
-	genA := relationships.ResolvedRelationshipID("gen-a", rel, 0)
-	genB := relationships.ResolvedRelationshipID("gen-b", rel, 0)
+	genA := relationships.ResolvedRelationshipID("gen-a", rel)
+	genB := relationships.ResolvedRelationshipID("gen-b", rel)
 	if genA == genB {
 		t.Fatalf("resolved_id should embed the generation, but %q == %q", genA, genB)
 	}
