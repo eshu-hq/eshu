@@ -27,6 +27,12 @@
 // exported entry points the rest of the program uses stay methods on
 // IngestionStore in the parent package and delegate here.
 //
+// ListDeployableUnitReopenCandidatesQuery and its fragments gate the
+// deployable_unit_correlation reopen on the input fingerprint the item's last
+// success recorded (#8283); RecordDeployableUnitReopenFingerprintQuery is the
+// claim-fenced write that records it.
+//
 // The package imports the db contracts and the leaf facts, relationships,
-// scope, and telemetry packages, never the parent postgres package.
+// reducer contract, scope, and telemetry packages, never the parent postgres
+// package.
 package backfill

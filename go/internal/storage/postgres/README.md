@@ -1955,16 +1955,16 @@ gap. One list plus one SQL shape means the gate's bootstrap passes are evidence
 about the ingester; only the call site differs. (The gate still does not start
 `eshu-ingester`, so the call site itself is not gate-covered.)
 
-The remaining blanket domains are deliberately NOT gated by the same-pass
-backfill skip-set described below. That set records which partitions committed
-no new BACKWARD EVIDENCE this pass; the correlation domains wait on a different
-signal — another scope's generation activating — so gating them on it would
-skip exactly the replay the activation race needs. The completion-driven chain
-is intentionally excluded: its retrying event queue is durable, independently
-leased, and visible through the generic queue depth and oldest-age gauges as
-`cross_scope_completion.<producer_domain>`. Retry merges the failed live lease
-with any queued event for that producer, keeping one queued and at most one live
-row per producer domain.
+These domains are NOT gated by the same-pass skip-set below (it tracks new
+backward evidence; they wait on another scope's activation).
+`deployable_unit_correlation` has its own gate (#8283):
+`backfill.ListDeployableUnitReopenCandidatesQuery` re-opens it only when its
+`deployable_unit_reopen_fingerprints` row is missing, its logic version moved,
+or its input fingerprint changed (`eshu_dp_correlation_reopen_skipped_total`).
+The completion chain is excluded: its durable, leased event queue shows as
+`cross_scope_completion.<producer_domain>` in the queue gauges, and a retry
+merges a failed live lease with any queued event (one queued, at most one live
+row per producer).
 
 The bound is a per-scope REPLAY FLOOR instead.
 `listSucceededReducerWorkItemsByDomainQuery` keeps only the work items on a

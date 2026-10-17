@@ -252,34 +252,55 @@ func listSucceededReducerWorkItemIDsForDomain(
 	return workItemIDs, nil
 }
 
-// fusedRepoIDsToken stands for the fused read's bind-parameter array in
-// listResolvedByReposWithCorpusFenceAndFingerprintSQL; it is replaced per call
-// with ARRAY[<the same placeholders the IN lists use>]::text[].
-const fusedRepoIDsToken = "{{fused_repo_ids}}"
-
 // listResolvedByReposWithCorpusFenceAndFingerprintSQL is
-// listResolvedByReposWithCorpusFenceSQL with the #8283 input fingerprint added
-// to the materialized fence row, so the verdict, the rows, and the fingerprint
-// of those rows come from one statement snapshot. It is derived from the
-// shipped fused read, never copied: the by-repos subquery and its plan are
-// byte-identical, and the fingerprint is one more InitPlan in the fence CTE.
+// listResolvedByReposWithCorpusFenceSQL with the #8283 input fingerprint: the
+// by-repos rows move into a MATERIALIZED input_rows CTE, which also carries
+// resolved_id, and the fingerprint is ResolvedInputDigestSQL over those same
+// rows, so the verdict, the rows, and the fingerprint of exactly those rows
+// come from one statement snapshot and the rows are read once. It is derived
+// from the shipped fused read by markers, never copied: the fence CTE, the
+// by-repos predicate, the select list, and the order are its text. Measured on
+// the #6740 seed it costs about 0.2 ms over the shipped read with the same
+// buffers (docs/internal/evidence/8283-deployable-unit-reopen-gate.md).
 var listResolvedByReposWithCorpusFenceAndFingerprintSQL = deriveFingerprintedFusedRead(
 	listResolvedByReposWithCorpusFenceSQL,
 )
 
-// deriveFingerprintedFusedRead inserts the fingerprint column into the fused
-// read's fence CTE and select list. It panics when either marker is missing or
-// repeated, so a rewrite of the fused read fails at package initialization
-// instead of silently computing a fingerprint over other rows.
+// deriveFingerprintedFusedRead builds the fingerprinted fused read from the
+// shipped one. It panics when a marker is missing or repeated, so a rewrite of
+// the fused read fails at package initialization instead of silently
+// fingerprinting other rows than it returns.
 func deriveFingerprintedFusedRead(fused string) string {
-	for _, marker := range []string{"  ) AS complete\n)", "SELECT fence.complete,"} {
+	const (
+		selectMarker = "\n)\nSELECT fence.complete,"
+		joinMarker   = "FROM fence\nLEFT JOIN (\n"
+		closeMarker  = "\n) AS r ON fence.complete\n"
+		innerSelect  = "  SELECT r.source_repo_id,"
+	)
+	for _, marker := range []string{selectMarker, joinMarker, closeMarker, innerSelect} {
 		if count := strings.Count(fused, marker); count != 1 {
 			panic(fmt.Sprintf("derive fingerprinted fused read: marker %q occurs %d times, want 1", marker, count))
 		}
 	}
-	fused = strings.Replace(fused, "  ) AS complete\n)",
-		"  ) AS complete,\n  "+backfill.ResolvedInputFingerprintSQL(fusedRepoIDsToken)+" AS input_fingerprint\n)", 1)
-	return strings.Replace(fused, "SELECT fence.complete,", "SELECT fence.complete, fence.input_fingerprint,", 1)
+	selectAt := strings.Index(fused, selectMarker)
+	joinAt := strings.Index(fused, joinMarker)
+	closeAt := strings.Index(fused, closeMarker)
+	fenceCTE := fused[:selectAt+len("\n)")]
+	selectList := fused[selectAt+len("\n)\nSELECT fence.complete,") : joinAt]
+	inner := strings.Replace(fused[joinAt+len(joinMarker):closeAt], innerSelect, "  SELECT r.resolved_id, r.source_repo_id,", 1)
+	orderBy := fused[closeAt+len(closeMarker):]
+	return fenceCTE + `,
+input_rows AS MATERIALIZED (
+` + inner + `
+),
+input_fingerprint AS MATERIALIZED (
+  SELECT ` + backfill.ResolvedInputDigestSQL("input_rows.resolved_id") + ` AS value
+  FROM input_rows
+)
+SELECT fence.complete, input_fingerprint.value,` + selectList + `FROM fence
+CROSS JOIN input_fingerprint
+LEFT JOIN input_rows AS r ON fence.complete
+` + orderBy
 }
 
 // GetFingerprintedResolvedRelationshipsForReposWithCorpusFence is
@@ -304,11 +325,8 @@ func (s *RelationshipStore) GetFingerprintedResolvedRelationshipsForReposWithCor
 	}
 
 	placeholderList, args := repoIDPlaceholders(repoIDs)
-	query := strings.ReplaceAll(
-		fmt.Sprintf(listResolvedByReposWithCorpusFenceAndFingerprintSQL, placeholderList, placeholderList),
-		fusedRepoIDsToken, "ARRAY["+placeholderList+"]::text[]",
-	)
-	sqlRows, err := s.database.QueryContext(ctx, query, args...)
+	sqlRows, err := s.database.QueryContext(ctx,
+		fmt.Sprintf(listResolvedByReposWithCorpusFenceAndFingerprintSQL, placeholderList, placeholderList), args...)
 	if err != nil {
 		return nil, false, fingerprint, fmt.Errorf("list fingerprinted resolved by repos with corpus fence: %w", err)
 	}

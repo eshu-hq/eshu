@@ -67,20 +67,31 @@ func ResolvedInputRowsSQL(repoIDs string) string {
 	return strings.ReplaceAll(resolvedInputRowsSQL, resolvedInputRepoIDsToken, repoIDs)
 }
 
-// ResolvedInputFingerprintSQL returns the scalar subquery that computes the
-// input fingerprint of repoIDs, a SQL text[] expression. An empty row set
-// coalesces to reducercontract.EmptyResolvedReadFingerprint, so the value is
-// never NULL. The separator is a newline because resolved_id is a
+// ResolvedInputDigestSQL returns the aggregate that turns a set of resolved_id
+// values (the column expression resolvedIDs, over the rows of the enclosing
+// FROM) into the input fingerprint: the hex sha256 of the ids sorted under
+// the C collation and joined by newlines, or
+// reducercontract.EmptyResolvedReadFingerprint for an empty set, so the value
+// is never NULL. It is the one digest expression both sides render: the fused
+// read over its own materialized rows, the reopen listing over
+// resolvedInputRowsSQL. The separator is a newline because resolved_id is a
 // prefix-plus-hex digest that never contains one. The digest is sha256, not
 // md5: OpenSSL FIPS rejects md5, and production SQL must not call it (#6753,
 // TestProductionSQLHasNoMD5Calls).
+func ResolvedInputDigestSQL(resolvedIDs string) string {
+	return `COALESCE(
+      encode(sha256(convert_to(
+        string_agg(` + resolvedIDs + `, E'\n' ORDER BY ` + resolvedIDs + ` COLLATE "C"), 'UTF8')), 'hex'),
+      '` + reducercontract.EmptyResolvedReadFingerprint + `'
+    )`
+}
+
+// ResolvedInputFingerprintSQL returns the scalar subquery that computes the
+// input fingerprint of repoIDs, a SQL text[] expression, from
+// resolvedInputRowsSQL and ResolvedInputDigestSQL.
 func ResolvedInputFingerprintSQL(repoIDs string) string {
 	return `(
-    SELECT COALESCE(
-      encode(sha256(convert_to(
-        string_agg(input_row.resolved_id, E'\n' ORDER BY input_row.resolved_id COLLATE "C"), 'UTF8')), 'hex'),
-      '` + reducercontract.EmptyResolvedReadFingerprint + `'
-    )` + ResolvedInputRowsSQL(repoIDs) + `
+    SELECT ` + ResolvedInputDigestSQL("input_row.resolved_id") + ResolvedInputRowsSQL(repoIDs) + `
   )`
 }
 

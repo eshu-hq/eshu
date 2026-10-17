@@ -26,6 +26,14 @@ transaction. Three shipped whole-pass reopen listings and shared replay-floor
 fragments live in `reopen_sql.go`; root keeps constant aliases for existing
 consumers. The child derives bounded listings once from those strings.
 
+`reopen_fingerprint_sql.go` holds the `deployable_unit_correlation`
+changed-evidence gate (#8283): the input-row predicate and digest both the
+fused read and the reopen listing render, the gated listing
+`ListDeployableUnitReopenCandidatesQuery` (the same floor fragments plus an
+`input_changed` column, the stage marker exactly once), its scanner, and the
+claim-fenced success write. resolved rows are immutable, so the sha256 of the
+sorted `resolved_id` set identifies their content. The listing takes no lock.
+
 ## Exported surface
 
 - `Store`, `NewStore` — engine handles plus the two seams the engine must

@@ -136,7 +136,7 @@ func (f *deployableUnitTargetBoundDB) QueryContext(
 	case strings.Contains(query, "WITH fence AS MATERIALIZED"):
 		f.readDeployableUnitInputs = true
 		row := deployableUnitFencedResolvedRow()
-		if strings.Contains(query, "AS input_fingerprint") {
+		if strings.Contains(query, "input_fingerprint") {
 			// The deployable-unit handler reads through the fingerprinted
 			// fused read (#8283): the fingerprint follows the verdict.
 			row = append([]any{row[0], "fixture-fingerprint"}, row[1:]...)
