@@ -84,9 +84,9 @@
   a defect, not an improvement. `TestScrubbedTextIsAFixedPoint` drives the whole
   package corpus, and the driver-level re-emit is in the PR evidence.
 
-- **Wrappers in `cmd/eshu` are not dead code.** `go/cmd/eshu` is digest-pinned in
-  `scripts/lib/dirgate-grandfather.tsv`, so no new non-test file may be added
-  there. The logic lives here; the wrappers stay so the existing corpus and
+- **Wrappers in `cmd/eshu` are not dead code.** `go/cmd/eshu` is over the
+  40-file cap (`go/cmd/dirgate`), so no new non-test file may be added
+  there without a `Dirgate-Growth:` trailer. The logic lives here; the wrappers stay so the existing corpus and
   differential tests keep driving the real path.
 
 ## Common changes and how to scope them

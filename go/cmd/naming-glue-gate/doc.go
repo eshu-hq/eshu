@@ -10,7 +10,7 @@
 //
 // Two earlier gates already cover naming.md rules 2 and 3 mechanically:
 // scripts/verify-filename-stutter.sh (a file repeating its directory name, a
-// directory repeating its parent's name) and tools/golangci-lint-dirgate's
+// directory repeating its parent's name) and go/cmd/dirgate's
 // naming check (a file that belongs in a sibling subpackage). Neither
 // catches a brand-new directory whose OWN name is a glued compound
 // unrelated to its parent -- "workloadinstance" under internal/reducer does

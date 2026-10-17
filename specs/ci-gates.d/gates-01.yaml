@@ -143,41 +143,37 @@ gates:
     name: Go directory-size and naming gate
     category: hygiene
     layer: hygiene
-    purpose: "Fails when a Go directory holds too many files or a package name breaks the naming rules."
+    purpose: "Fails when a Go directory grows past max(40, its base count) without a Dirgate-Growth trailer, or a new file or package breaks the sibling-package naming rule."
     tier: pre-commit
     blocking: true
     triggers:
+      # Every pull request must wait for this gate. The dirgate job runs on every
+      # pull request, but required-gates-complete awaits only the jobs that
+      # triggers select, and a stray Dirgate-Growth trailer on a docs-only change
+      # still counts toward the absolute invariant's W. The specific paths below
+      # stay for readers; "**" is what makes the check required.
+      - "**"
       - "go/**"
       - "scripts/dev/precommit-go.sh"
       - "scripts/verify-dirgate.sh"
-      # Glob, not the four-or-so exact paths this used to list. Every dirgate
-      # file under scripts/lib/ is part of this gate: the core implementation,
-      # both pinned ledgers, and the case files scripts/test-verify-dirgate.sh
-      # sources. Listing them individually is what let the ledgers fall out of
-      # their own gate's trigger list once already, and the same thing happened
-      # again the moment the test suite was split into per-area case files --
-      # editing one reported "SKIPPED go-dir-gate: no trigger matched changed
-      # paths" (#6054 review finding). A glob cannot drift as files are added.
-      - "scripts/lib/*dirgate*"
-      - "scripts/test-verify-dirgate.sh"
-      - "scripts/generate-dirgate-grandfather-go.sh"
-      - "scripts/test-generate-dirgate-grandfather-go.sh"
-      - "tools/golangci-lint-dirgate/**"
+      - "go/cmd/dirgate/**"
     self_test_triggers:
       - "scripts/dev/precommit-go.sh"
       - "scripts/verify-dirgate.sh"
-      - "scripts/lib/*dirgate*"
-      - "scripts/test-verify-dirgate.sh"
-      - "scripts/generate-dirgate-grandfather-go.sh"
-      - "scripts/test-generate-dirgate-grandfather-go.sh"
-      - "tools/golangci-lint-dirgate/**"
+      - "go/cmd/dirgate/**"
     local:
       command: "bash scripts/dev/precommit-go.sh dirgate-all"
       pre_push: floor
-      test_command: "bash scripts/test-verify-dirgate.sh && bash scripts/test-generate-dirgate-grandfather-go.sh"
+      test_command: "cd go && env -u GOROOT go test -count=1 ./cmd/dirgate/"
     ci:
       workflow: test.yml
-      job: "go-core"
+      # A dedicated job that needs only queue-selection, selected on every change
+      # through the "**" trigger above. markdown-file-cap and scripts-file-cap are
+      # path-scoped because their verdicts depend only on files under their
+      # triggers. This gate also reads commit messages, which do not depend on
+      # paths: a Dirgate-Growth trailer on a docs-only change still counts toward
+      # the absolute invariant's W, so no change may skip it.
+      job: "dirgate"
     requirements:
       - go
     ci_only_reason: ""

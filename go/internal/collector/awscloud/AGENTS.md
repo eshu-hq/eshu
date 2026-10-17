@@ -27,13 +27,11 @@
 
 ## This Directory Is Over The File Cap And Will Be Restructured
 
-The `dirgate` linter caps a package directory at 40 non-test `.go` files. This
-one holds **154** and is currently held open by a row in
-`scripts/lib/dirgate-grandfather.tsv` (the source of truth;
-`tools/golangci-lint-dirgate/grandfather.go` is generated from it). That row is
-a stopgap, not an endorsement — it exists so the gate could land green on the
-pre-existing sprawl it was written to stop. It is scheduled to be removed, not
-renewed: the target is zero grandfathered directories.
+The dirgate gate (`go/cmd/dirgate`) caps a package directory at 40 non-test
+`.go` files. This one holds **154**, so it may not grow: the gate allows the
+base count of the directory and nothing more unless a commit carries a
+`Dirgate-Growth:` trailer. That is a stopgap, not an endorsement. The target is
+zero directories over the cap.
 
 The restructure is in scope under epic **#6053** (package restructure — flat
 thousand-file directories become a navigable tree), whose end state is that
@@ -120,7 +118,7 @@ naming alongside it lands exactly here.
 
 | Measure | Value | How |
 | --- | ---: | --- |
-| Non-test `.go` files | 154 | `scripts/verify-dirgate.sh --digest internal/collector/awscloud` |
+| Non-test `.go` files | 154 | `ls go/internal/collector/awscloud/*.go \| rg -v '_test\.go$' \| wc -l` |
 | `constants_<service>.go` files | 133 | `ls go/internal/collector/awscloud/constants_*.go \| rg -v '_test\.go$' \| wc -l` |
 | Lines across those | 7,283 | `wc -l $(ls go/internal/collector/awscloud/constants_*.go \| rg -v '_test\.go$') \| tail -1` |
 | Non-test root files not matching `constants_*.go` (**not** all non-constants — see row 4 above) | 21 | 154 − 133 |

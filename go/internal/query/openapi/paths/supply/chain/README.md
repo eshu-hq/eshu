@@ -36,8 +36,8 @@ and the only fragment either of them reads. Nothing outside this leaf
 consumes it, and no file here imports `openapi/schema`.
 
 At 16 files this is the largest leaf under `paths/`, closer than any other
-family to the 40-non-test-file-per-directory cap the `dirgate` linter
-enforces (see `tools/golangci-lint-dirgate/`). A new supply-chain fragment
+family to the 40-non-test-file-per-directory cap the dirgate gate
+enforces (see `go/cmd/dirgate`). A new supply-chain fragment
 is still comfortably under the cap, but check it before adding one.
 
 ## Move evidence

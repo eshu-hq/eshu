@@ -41,14 +41,19 @@ found it. The same reasoning extends to a name that shadows a standard-library
 package (`sort`, `context`, `errors`, ...) — nest or rename instead of
 colliding with it.
 
-`golangci-lint`'s `dirgate` plugin caps non-test `.go` files per directory at
-40 (issue #6054). Directories already over the cap are pinned in
-`scripts/lib/dirgate-grandfather.tsv` by file count and content digest; every
-PR touching a pinned directory must shrink the count or re-derive both — see
-`generator-script-discipline` for regenerating
-`tools/golangci-lint-dirgate/grandfather.go` from the ledger, and
+The dirgate gate (`go/cmd/dirgate`, issue #6054) caps non-test `.go` files per
+directory at 40 as a ratchet derived from git, plus two write-once baselines
+(`go/cmd/dirgate/baseline-cap.tsv`, `baseline-naming.tsv`) for what already
+existed: a directory may not grow past `max(40, its count at the base)`, and the
+gate also names growth that landed concurrently and was never waived. Shrinking,
+swapping, and renaming inside a directory need no action. Growth needs a
+`Dirgate-Growth:` trailer in the commit message that adds the files — see the
+[`Dirgate-Growth` trailer](../eshu-publish/references/commit-trailers.md) for
+the syntax. Never edit the baselines; there is no ledger row to re-derive and no
+mirror to regenerate. See
 [reducer-target-tree.md, "Restack rule (the dirgate ledger trap)"](../../../docs/internal/design/reducer-target-tree.md)
-for the merge-conflict trap when two moves re-pin the same row.
+for why the old ledger was retired. `//nolint:dirgate // <reason>` is the
+naming escape only; it no longer waives the cap.
 
 When a family moves to its own package, keep root callers compiling through a
 compat surface: type aliases and thin forwarders grouped by family under a

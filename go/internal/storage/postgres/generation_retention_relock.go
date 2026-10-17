@@ -6,8 +6,8 @@ package postgres
 // This file holds the retention selection re-lock
 // (relockRetentionSelection, #7334), split out of
 // generation_retention_events.go when the #7903 coverage re-check pushed
-// that file over the 500-line cap. The directory's dirgate row is re-pinned
-// for the split (scripts/lib/dirgate-grandfather.tsv). Since #7981 it also
+// that file over the 500-line cap. The split added one file to a
+// directory that is over the dirgate cap. Since #7981 it also
 // holds the same-identity witness (dropNewestSameIdentityPerBatch) and the
 // bounded over-limit chunk prune, which both run under the same narrow
 // targeted lock the re-lock takes.

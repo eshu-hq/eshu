@@ -15,9 +15,9 @@ func scopedInputInvalidFactListRoute(r *http.Request) bool {
 // scopedChangedSincePoisonedLinksRoute reports whether r is the bounded
 // durable changed-since poisoned/retrying link read (#7290), mirroring
 // scopedInputInvalidFactListRoute above for the sibling reducer_input_invalid_facts
-// route. Declared here rather than in its own file: package query sits at
-// the dirgate grandfathered file-count cap (issue #6054), and both routes
-// are the same shape.
+// route. Declared here rather than in its own file: package query is over
+// the dirgate file-count cap (issue #6054), so a new file needs a growth
+// trailer, and both routes are the same shape.
 func scopedChangedSincePoisonedLinksRoute(r *http.Request) bool {
 	return r.Method == http.MethodPost && r.URL.Path == "/api/v0/admin/changed-since/poisoned-links/query"
 }

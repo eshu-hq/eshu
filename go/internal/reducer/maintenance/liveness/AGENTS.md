@@ -23,9 +23,9 @@ transitively.
 
 - **`verify-telemetry-coverage.sh`** — `runner.go` needs its row in
   `docs/public/observability/telemetry-coverage.md`, keyed by file path.
-- **`verify-dirgate.sh`** — re-derive the `internal/reducer` row with
-  `verify-dirgate.sh --digest internal/reducer` and regenerate the
-  mirror; never hand-edit either.
+- **`verify-dirgate.sh`** — no ledger row to re-derive. A move or shrink needs no
+  dirgate action; growth of a directory past max(40, its count at the base) needs a
+  `Dirgate-Growth:` trailer. Never edit the write-once baselines.
 
 ## Do not
 

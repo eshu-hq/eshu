@@ -136,15 +136,10 @@ See `deadline/README.md`.
 
 ## Directory size
 
-This directory is over the 40-file cap and carries a row in
-`scripts/lib/dirgate-grandfather.tsv`. That row is a monotonic ratchet: the gate
-fails if the count grows OR shrinks without the row being re-pinned in the same
-change, so every future extraction has to lower it. Recompute with:
-
-```bash
-bash scripts/dev/precommit-go.sh dirgate-digest internal/collector/repo/git
-bash scripts/generate-dirgate-grandfather-go.sh
-```
+This directory is over the 40-file cap. The gate (`go/cmd/dirgate`) derives its
+ratchet from git: the count may not grow past its count at the base unless a
+commit carries a `Dirgate-Growth:` trailer, and shrinking needs no action.
+Check it with `bash scripts/verify-dirgate.sh --pre-push`.
 
 ## Reindex watermark
 
@@ -167,8 +162,8 @@ scope's effective watermark is the later of the two
 `prioritizeRepositoryReindex` moves requested repositories to the front of
 the sync order so the shared per-cycle budget cannot starve them. With the
 sweep off and no fleet watermark, `reconcileDue` reads state only for scopes
-with a row. This directory is pinned at its file count by the dirgate ledger,
-so the code lives in `selection_reconcile_config.go` and
+with a row. This directory is over the dirgate cap, so a new file needs a
+growth trailer. The code lives in `selection_reconcile_config.go` and
 `selection_baseline.go`, not a new file.
 
 An unchanged forced reconcile can skip the parse (#7978 follow-up, ruling

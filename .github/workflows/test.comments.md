@@ -245,49 +245,6 @@ Original lines 337–341.
 
 ## Comment group 17
 
-Original lines 347–347.
-
-```yaml
-      # tools/golangci-lint-dirgate is also its own module -- warm it too.
-```
-
-## Comment group 18
-
-Original lines 357–370.
-
-```yaml
-      # The dirgate Go plugin above is loaded by "Lint Go" below, but
-      # golangci-lint's OWN nolint processor suppresses a finding purely on
-      # `//nolint:dirgate` marker PRESENCE before the plugin's own
-      # nolintJustification check (nolint.go) ever sees it -- so a BARE,
-      # unjustified marker silently passes "Lint Go" even though the
-      # dirgate gate requires a justification (see
-      # tools/golangci-lint-dirgate/README.md's "Escape hatch" section).
-      # scripts/lib/dirgate-core.sh (sourced by verify-dirgate.sh) is the
-      # only path that enforces that rule, plus TSV/generated-Go lockstep
-      # and the naming-exempt ledger's stale-row hard fail -- none of which
-      # "Lint Go" alone can catch. Mirrors go-file-cap's split between the
-      # golangci-lint plugin path and its own local/CI bash enforcement (see
-      # specs/ci-gates.v1.yaml's go-dir-gate entry, which declares this job
-      # as its `ci.job`).
-```
-
-## Comment group 19
-
-Original lines 375–381.
-
-```yaml
-      # The plugin's own unit tests. "Lint Go" runs the plugin against the real
-      # tree, but that tree is green, so none of the negative-case logic ever
-      # fires there -- a plugin-only regression in the naming word-boundary
-      # rule, nolint parsing, or swap/shrink detection would merge green, and
-      # the bash mirror's separate tests cannot catch a Go-side bug. This
-      # module is outside go/, so `go test ./...` in go/ does not reach it
-      # (#6054 review finding).
-```
-
-## Comment group 20
-
 Original lines 398–401.
 
 ```yaml
@@ -297,7 +254,7 @@ Original lines 398–401.
         # (codex P2 review on PR #3847).
 ```
 
-## Comment group 21
+## Comment group 18
 
 Original lines 411–440.
 
@@ -334,7 +291,7 @@ Original lines 411–440.
     # each side only compiled against its own base.
 ```
 
-## Comment group 22
+## Comment group 19
 
 Original lines 462–475.
 
@@ -355,7 +312,7 @@ Original lines 462–475.
     # The matrix values MUST stay contiguous 1..N or a package slice is dropped.
 ```
 
-## Comment group 23
+## Comment group 20
 
 Original lines 483–501.
 
@@ -381,7 +338,7 @@ Original lines 483–501.
     # fails in under 35 minutes rather than running unbounded.
 ```
 
-## Comment group 24
+## Comment group 21
 
 Original lines 519–522.
 
@@ -392,7 +349,7 @@ Original lines 519–522.
           # Helm contract tests with no code change. See eshu-hq/eshu#5566.
 ```
 
-## Comment group 25
+## Comment group 22
 
 Original lines 525–527.
 
@@ -402,7 +359,7 @@ Original lines 525–527.
       # never ran a test (#6075 follow-up).
 ```
 
-## Comment group 26
+## Comment group 23
 
 Original lines 531–536.
 
@@ -415,7 +372,7 @@ Original lines 531–536.
       # ripgrep exactly as go-core does.
 ```
 
-## Comment group 27
+## Comment group 24
 
 Original lines 570–588.
 
@@ -441,7 +398,7 @@ Original lines 570–588.
     # skip when `changes` itself succeeded.
 ```
 
-## Comment group 28
+## Comment group 25
 
 Original lines 610–612.
 
@@ -451,7 +408,7 @@ Original lines 610–612.
     # above stays intact even on the docs-only PRs it governs.
 ```
 
-## Comment group 29
+## Comment group 26
 
 Original lines 647–650.
 
@@ -462,7 +419,7 @@ Original lines 647–650.
           # Helm contract tests with no code change. See eshu-hq/eshu#5566.
 ```
 
-## Comment group 30
+## Comment group 27
 
 `go-core` job `timeout-minutes` (eshu-hq/eshu#8135; recorded here because
 `test.yml` carries no inline comments — see the header above).
@@ -483,3 +440,22 @@ signal distinct from a finding: a `cancelled` aggregate (the conclusion a
 `timeout-minutes` cutoff produces) now fails with its own `timed out or
 was cancelled — not a lint or build finding` annotation instead of sharing
 the generic `did not succeed` one a real lint/build failure emits.
+
+## Comment group 28
+
+New in #6054. The `dirgate` job.
+
+```yaml
+      # dirgate job: needs only queue-selection, so it runs on every pull request
+      # including docs-only ones; go-core is skipped when no code path changed.
+      # Unlike the path-scoped scripts-file-cap and markdown-file-cap, its input
+      # includes commit messages, which do not depend on paths. It is therefore
+      # required on every change through the "**" trigger on the go-dir-gate
+      # registry row, because required-gates-complete awaits only the jobs the
+      # triggers select.
+      #
+      # setup-go sets cache: false. The Go module cache is not needed for `go run`
+      # of the tool, and the prewarm-ordering check rejects a caching setup-go step
+      # whose dependency path it cannot resolve. `go test ./cmd/dirgate/` does fetch
+      # gopkg.in/yaml.v3 for the workflow test, a few small modules, uncached.
+```

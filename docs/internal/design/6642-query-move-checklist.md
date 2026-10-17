@@ -8,8 +8,9 @@ there would fail the cap on some later PR for a reason unrelated to its change.
 ## The moves
 
 One destination directory per PR. A row ticks when its PR is merged, not when
-it is opened. `querycontract` starts at 56 non-test files and retires its
-`//nolint:dirgate` when what stays is under 40.
+it is opened. `querycontract` starts at 56 non-test files and shrinks below 40; its cap
+marker no longer waives anything. At exactly 40 files and no baseline row it can
+take no new file without a `Dirgate-Growth:` trailer.
 
 The `querycontract` leaves land **nested under the current name**
 (`querycontract/<leaf>`), not at `contract/<leaf>`: today's `contract/` is a

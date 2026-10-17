@@ -76,11 +76,8 @@ The family keeps `type packageSourceHint = source.Hint` and
 at the end of `packages/correlation/source.go` (not a
 separate compat file: that file was already at 199 lines pre-extraction, well
 under the 500-line cap, and adding a new root `.go` file would have grown
-`internal/reducer`'s dirgate-pinned non-test file count past the
-`internal/reducer` row's current grandfathered ceiling in
-`scripts/lib/dirgate-grandfather.tsv` -- the ratchet only allows that row to
-move down or be removed, never up (see `bash scripts/verify-dirgate.sh
---digest internal/reducer` for the live count/digest)), so the call sites
+`internal/reducer`'s non-test file count past the dirgate ratchet
+(`go/cmd/dirgate`: no growth without a `Dirgate-Growth:` trailer), so the call sites
 across `packages/correlation/consumption.go`,
 `packages/correlation/publication.go`,
 `container_image_identity_provenance.go`,

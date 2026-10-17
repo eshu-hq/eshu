@@ -78,13 +78,10 @@ identical logic, and a family package may never import the reducer root.
 - **`verify-doc-citations.sh`** — a `path:NNN` citation to a file in this
   package must stay accurate. If you move a line inside a moved file, repoint
   or drop the `:NNN` suffix in the citing doc, or the gate refuses the drift.
-- **`verify-dirgate.sh`** — this directory counts against the per-directory
-  file cap, and the `internal/reducer` row in
-  `scripts/lib/dirgate-grandfather.tsv` is a monotonic ratchet. If you move
-  files into or out of this package, re-derive the root row with
-  `verify-dirgate.sh --digest internal/reducer` and regenerate the mirror with
-  `generate-dirgate-grandfather-go.sh`. Never hand-edit either, and never
-  grandfather a count upward.
+- **`verify-dirgate.sh`** — the cap is a git-derived ratchet plus write-once
+  baselines (`go/cmd/dirgate`). Growth of a directory past max(40, its count at
+  the base) needs a `Dirgate-Growth:` trailer in the commit message that adds the
+  files; shrinking or moving files out needs nothing. Never edit the baselines.
 
 ## Do not
 
