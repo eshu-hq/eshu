@@ -160,6 +160,25 @@ func TestContractGuardsSeededViolations(t *testing.T) {
 			want: "does not exist",
 		},
 		{
+			name: "binding symbol behind build tag",
+			mutate: func(files map[string]string) {
+				files["go/internal/reducer/handler.go"] = strings.ReplaceAll(fixtureBinding,
+					`func MaterializeTest(kind string) bool { return kind == "test_resource" }`, "")
+				files["go/internal/reducer/tagged.go"] = "//go:build ignore\n\npackage reducer\n\nfunc MaterializeTest(kind string) bool { return kind == \"test_resource\" }\n"
+			},
+			want: "does not exist",
+		},
+		{
+			name: "reducer evidence behind build tag",
+			mutate: func(files map[string]string) {
+				files["go/internal/reducer/handler.go"] = strings.ReplaceAll(fixtureBinding,
+					`func MaterializeTest(kind string) bool { return kind == "test_resource" }`,
+					`func MaterializeTest(kind string) bool { return true }`)
+				files["go/internal/reducer/tagged.go"] = "//go:build ignore\n\npackage reducer\n\nfunc taggedReader(kind string) bool { return kind == \"test_resource\" }\n"
+			},
+			want: "no reducer-consumption evidence",
+		},
+		{
 			name: "binding wrong directory",
 			mutate: func(files map[string]string) {
 				files["go/internal/reducer/handler.go"] = strings.ReplaceAll(fixtureBinding,
@@ -332,8 +351,15 @@ func TestValidateOutputSetGuards(t *testing.T) {
 		{rel: "specs/fact-kind-registry-contracts.d/kinds/aws/resource.yaml", data: []byte("x\n")},
 		{rel: "specs/fact-kind-registry-contracts.d/kinds/aws/resource.yaml", data: []byte("y\n")},
 	}
-	if err := validateOutputSet(dup); err == nil || !strings.Contains(err.Error(), "same destination") {
-		t.Fatalf("duplicate destination error = %v", err)
+	if err := validateOutputSet(dup); err == nil || !strings.Contains(err.Error(), "is produced by more than one declaration") {
+		t.Fatalf("duplicate destination error = %v, want single-output duplicate rejection", err)
+	} else {
+		if !strings.Contains(err.Error(), "rename one source ID") {
+			t.Fatalf("duplicate destination error = %v, want rename-one-source-ID action", err)
+		}
+		if n := strings.Count(err.Error(), "specs/fact-kind-registry-contracts.d/kinds/aws/resource.yaml"); n != 1 {
+			t.Fatalf("duplicate destination error names the output %d times, want once: %v", n, err)
+		}
 	}
 	conflict := []outputFile{
 		{rel: "specs/fact-kind-registry-contracts.d/kinds/aws", data: []byte("x\n")},

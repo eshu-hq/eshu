@@ -63,7 +63,8 @@ from edits confined to this package.
 Declarations are compile-time values. The generator's discovery scan
 parses source with `go/parser` only and never executes package
 initialization, so a declaration cannot run code during generation.
-The restricted literal grammar (string/bool literals, slice literals,
-nested struct literals from this package) is documented in `doc.go`;
-the contributor workflow lives in
+The restricted literal grammar (string/bool literals,
+`<package-name>.<Const>` references to this package's string constants,
+slice literals, nested struct literals from this package) is documented
+in `doc.go`; the contributor workflow lives in
 `docs/public/reference/fact-schema-versioning.md`.

@@ -72,6 +72,10 @@ func discoverDeclarations(repoRoot, goRoot string) ([]discoveredFamily, []discov
 	var families []discoveredFamily
 	var bindings []discoveredBinding
 	var diags diagnostics
+	// String constants from the contract package source resolve
+	// <local>.<Const> references in declarations (see evalString), so
+	// declarations get compile-checked spellings.
+	contractConsts := loadContractStringConsts(repoRoot)
 	fset := token.NewFileSet()
 	walkErr := filepath.WalkDir(goRoot, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
@@ -101,7 +105,7 @@ func discoverDeclarations(repoRoot, goRoot string) ([]discoveredFamily, []discov
 				continue
 			}
 			for _, spec := range gen.Specs {
-				fam, bind, found := evalValueSpec(fset, repoRoot, path, local, spec, &diags)
+				fam, bind, found := evalValueSpec(fset, repoRoot, path, local, contractConsts, spec, &diags)
 				if !found {
 					continue
 				}
@@ -153,7 +157,7 @@ func posOf(fset *token.FileSet, repoRoot, path string, offset token.Pos) sourceP
 
 // evalValueSpec evaluates one var spec when it is a Declare/Bind call.
 // found reports whether the spec was such a call (even when invalid).
-func evalValueSpec(fset *token.FileSet, repoRoot, path, local string, spec ast.Spec, diags *diagnostics) (*discoveredFamily, *discoveredBinding, bool) {
+func evalValueSpec(fset *token.FileSet, repoRoot, path, local string, contractConsts map[string]string, spec ast.Spec, diags *diagnostics) (*discoveredFamily, *discoveredBinding, bool) {
 	valueSpec, ok := spec.(*ast.ValueSpec)
 	if !ok || len(valueSpec.Values) != 1 {
 		return nil, nil, false
@@ -175,7 +179,7 @@ func evalValueSpec(fset *token.FileSet, repoRoot, path, local string, spec ast.S
 		diags.addf(pos, "%s takes exactly one struct-literal argument, got %d; ACTION: pass a single %s literal", sel.Sel.Name, len(call.Args), map[string]string{"Declare": "contract.Family", "Bind": "contract.Binding"}[sel.Sel.Name])
 		return nil, nil, true
 	}
-	ev := &literalEval{fset: fset, repoRoot: repoRoot, path: path, local: local, diags: diags}
+	ev := &literalEval{fset: fset, repoRoot: repoRoot, path: path, local: local, contractConsts: contractConsts, diags: diags}
 	if sel.Sel.Name == "Declare" {
 		var family contract.Family
 		if !ev.eval(call.Args[0], reflect.ValueOf(&family).Elem()) {
@@ -191,18 +195,20 @@ func evalValueSpec(fset *token.FileSet, repoRoot, path, local string, spec ast.S
 }
 
 // literalEval evaluates the restricted literal grammar into contract
-// model values by reflection. Only string/bool literals, slice
-// literals, and keyed struct literals from the contract package are
-// supported; every other expression is a diagnostic naming the exact
-// source position and the corrective action.
+// model values by reflection. Only string/bool literals, <local>.<Const>
+// references to string constants declared in the contract package,
+// slice literals, and keyed struct literals from the contract package
+// are supported; every other expression is a diagnostic naming the
+// exact source position and the corrective action.
 type literalEval struct {
-	fset     *token.FileSet
-	repoRoot string
-	path     string
-	local    string
-	diags    *diagnostics
-	kindPos  map[string]sourcePos
-	prodPos  []sourcePos
+	fset           *token.FileSet
+	repoRoot       string
+	path           string
+	local          string
+	contractConsts map[string]string
+	diags          *diagnostics
+	kindPos        map[string]sourcePos
+	prodPos        []sourcePos
 }
 
 func (e *literalEval) pos(node ast.Node) sourcePos {
@@ -226,18 +232,95 @@ func (e *literalEval) eval(expr ast.Expr, target reflect.Value) bool {
 }
 
 func (e *literalEval) evalString(expr ast.Expr, target reflect.Value) bool {
+	if lit, ok := expr.(*ast.BasicLit); ok && lit.Kind == token.STRING {
+		value, err := strconv.Unquote(lit.Value)
+		if err != nil {
+			e.diags.addf(e.pos(expr), "malformed string literal; ACTION: fix the quoting")
+			return false
+		}
+		target.SetString(value)
+		return true
+	}
+	// A <local>.<Const> reference resolves against the contract
+	// package's string constants, so declarations get compile-checked
+	// spellings (a typo'd constant fails the Go build instead of
+	// slipping a typo'd value past it to the generate gate).
+	if sel, ok := expr.(*ast.SelectorExpr); ok {
+		if pkg, ok := sel.X.(*ast.Ident); ok && pkg.Name == e.local {
+			if value, ok := e.contractConsts[sel.Sel.Name]; ok {
+				target.SetString(value)
+				return true
+			}
+			e.diags.addf(e.pos(expr), "unknown contract constant %q; ACTION: use a quoted string literal or a string constant declared in go/internal/facts/contract", sel.Sel.Name)
+			return false
+		}
+	}
+	e.diags.addf(e.pos(expr), "value is not a string literal; ACTION: replace it with a quoted string literal or a %s.<Const> reference to a contract string constant (variables, calls, and concatenations are not allowed in contract declarations)", e.local)
+	return false
+}
+
+// loadContractStringConsts parses the contract package source once per
+// discovery run and maps its string constant names to values. The
+// discovery scan stays parse-only: constants are read as source text,
+// never evaluated, so scanned package initialization cannot run.
+func loadContractStringConsts(repoRoot string) map[string]string {
+	out := map[string]string{}
+	dir := filepath.Join(repoRoot, "go", "internal", "facts", "contract")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return out
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		fset := token.NewFileSet()
+		file, err := parser.ParseFile(fset, filepath.Join(dir, name), nil, parser.SkipObjectResolution)
+		if err != nil {
+			continue
+		}
+		for _, decl := range file.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok || gen.Tok != token.CONST {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				valueSpec, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				values := valueSpec.Values
+				// One value may serve several names (const A, B = "x").
+				if len(values) == 1 && len(valueSpec.Names) > 1 {
+					for _, ident := range valueSpec.Names {
+						setContractConst(values[0], ident.Name, out)
+					}
+					continue
+				}
+				for i, ident := range valueSpec.Names {
+					if i >= len(values) {
+						continue
+					}
+					setContractConst(values[i], ident.Name, out)
+				}
+			}
+		}
+	}
+	return out
+}
+
+// setContractConst records one constant name when its value is a
+// string literal. Typed (const A Disposition = "x") and untyped
+// constants both qualify; anything computed does not.
+func setContractConst(expr ast.Expr, name string, out map[string]string) {
 	lit, ok := expr.(*ast.BasicLit)
 	if !ok || lit.Kind != token.STRING {
-		e.diags.addf(e.pos(expr), "value is not a string literal; ACTION: replace it with a quoted string literal (variables, constants, calls, and concatenations are not allowed in contract declarations)")
-		return false
+		return
 	}
-	value, err := strconv.Unquote(lit.Value)
-	if err != nil {
-		e.diags.addf(e.pos(expr), "malformed string literal; ACTION: fix the quoting")
-		return false
+	if value, err := strconv.Unquote(lit.Value); err == nil {
+		out[name] = value
 	}
-	target.SetString(value)
-	return true
 }
 
 func (e *literalEval) evalBool(expr ast.Expr, target reflect.Value) bool {

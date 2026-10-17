@@ -123,7 +123,10 @@ fi
 generate
 
 # A seeded duplicate family declaration must fail with a file:line
-# diagnostic naming the conflicting ownership.
+# diagnostic naming the conflicting ownership. The fixture stays
+# minimal (ID only): the duplicate-ownership guard fires in the
+# ownership index before metadata checks run, and the heredoc budget
+# caps inline fixture bodies at 512 bytes.
 cat >go/internal/facts/cloud/zz_duplicate_family_fixture.go <<'EOF'
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
@@ -132,24 +135,7 @@ package cloud
 
 import "github.com/eshu-hq/eshu/go/internal/facts/contract"
 
-var zzDuplicateAWSFamily = contract.Declare(contract.Family{
-	ID:              "aws",
-	FactDir:         "go/internal/facts/cloud",
-	OwnerRepository: "eshu-hq/eshu",
-	LifecycleOwner:  "go/internal/facts",
-	SchemaVersion:   "1.0.0",
-	ReducerDomain:   "aws_cloud_runtime_drift",
-	ProjectionHook:  "cloud_asset_resolution",
-	AdmissionHook:   "facts.ValidateSchemaVersion",
-	ReadSurface:     "GET /api/v0/cloud/inventory",
-	TruthProfile:    "provider_gated",
-	Kinds:           []contract.Kind{{Kind: "aws_resource"}},
-	Producers: []contract.Producer{{
-		ID: "collector-aws-cloud", Repository: "eshu-hq/eshu",
-		Path: "go/internal/collector/awscloud", AuthorityMode: "core_issued_grant",
-		Kinds: []string{"aws_resource"},
-	}},
-})
+var zzDuplicateAWSFamily = contract.Declare(contract.Family{ID: "aws"})
 EOF
 if bash scripts/verify-fact-kind-registry.sh >/tmp/eshu-fact-kind-registry-dupe.out 2>/tmp/eshu-fact-kind-registry-dupe.err; then
   printf 'expected duplicate family check to fail\n' >&2

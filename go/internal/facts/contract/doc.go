@@ -25,10 +25,13 @@
 //	    Producers: []contract.Producer{{ID: "...", Kinds: []string{"..."}}},
 //	})
 //
-// Every field value must be a string or boolean literal, a slice literal
-// of literals, or a nested struct literal in this package. Variables,
-// constants, function calls, and computed expressions are rejected with
-// the declaration's file and line. The scan parses source only: it never
+// Every field value must be a string or boolean literal, a
+// <package-name>.<Const> reference to a string constant declared in
+// this package (for example contract.DispositionReadOnly, so
+// declarations get compile-checked spellings), a slice literal of
+// literals, or a nested struct literal in this package. Variables,
+// function calls, and computed expressions are rejected with the
+// declaration's file and line. The scan parses source only: it never
 // compiles, loads, or executes the scanned packages, so package
 // initialization code cannot run during discovery by construction.
 //

@@ -453,11 +453,11 @@ var SemanticFamilyDeclaration = contract.Declare(contract.Family{
 	PolicyGate:             "semanticpolicy",
 	ProviderKeyIndependent: false,
 	Kinds: []contract.Kind{
-		{Kind: "semantic.code_hint", ReadSurface: "GET /api/v0/semantic/code-hints", PayloadSchema: "sdk/go/factschema/schema/semantic.code_hint.v1.schema.json", Disposition: "read_only", NoReducerReason: "Consumed by read surfaces only; no reducer domain decodes it.", NoReducerEvidence: "read consumption in go/internal/query"},
-		{Kind: "semantic.documentation_observation", PayloadSchema: "sdk/go/factschema/schema/semantic.documentation_observation.v1.schema.json", Disposition: "read_only", NoReducerReason: "Consumed by read surfaces only; no reducer domain decodes it.", NoReducerEvidence: "read consumption in go/internal/query"},
+		{Kind: "semantic.code_hint", ReadSurface: "GET /api/v0/semantic/code-hints", PayloadSchema: "sdk/go/factschema/schema/semantic.code_hint.v1.schema.json", Disposition: contract.DispositionReadOnly, NoReducerReason: "Consumed by read surfaces only; no reducer domain decodes it.", NoReducerEvidence: "read consumption in go/internal/query"},
+		{Kind: "semantic.documentation_observation", PayloadSchema: "sdk/go/factschema/schema/semantic.documentation_observation.v1.schema.json", Disposition: contract.DispositionReadOnly, NoReducerReason: "Consumed by read surfaces only; no reducer domain decodes it.", NoReducerEvidence: "read consumption in go/internal/query"},
 	},
 	Producers: []contract.Producer{
-		{ID: "semantic-docs-emitter", Repository: "eshu-hq/eshu", Path: "go/internal/semanticdocs", AuthorityMode: "core_owned", Kinds: []string{"semantic.documentation_observation"}},
-		{ID: "semantic-code-emitter", Repository: "eshu-hq/eshu", Path: "go/internal/semanticcode", AuthorityMode: "core_owned", Kinds: []string{"semantic.code_hint"}},
+		{ID: "semantic-docs-emitter", Repository: "eshu-hq/eshu", Path: "go/internal/semanticdocs", AuthorityMode: contract.AuthorityCoreOwned, Kinds: []string{"semantic.documentation_observation"}},
+		{ID: "semantic-code-emitter", Repository: "eshu-hq/eshu", Path: "go/internal/semanticcode", AuthorityMode: contract.AuthorityCoreOwned, Kinds: []string{"semantic.code_hint"}},
 	},
 })

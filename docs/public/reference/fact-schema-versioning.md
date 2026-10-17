@@ -290,7 +290,10 @@ producer may emit several families.
 The generator (`go/cmd/fact-kind-registry`, driven by
 `scripts/generate-fact-kind-registry.sh`) discovers declarations with
 a static `go/parser` scan over a restricted literal grammar — string
-and boolean literals, slice literals, and keyed struct literals only.
+and boolean literals, `<contract>.<Const>` references to the contract
+package's string constants (compile-checked spellings for fields like
+disposition and authority mode), slice literals, and keyed struct
+literals only.
 It never compiles or executes the scanned packages, so package
 initialization cannot run during discovery. From the declarations it
 regenerates, deterministically:

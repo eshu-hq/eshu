@@ -24,6 +24,12 @@ type kindSymbols struct {
 // loadKindSymbols scans the facts tree and the factschema SDK for
 // string constants whose values are fact kinds and for Decode<Kind>
 // seams. It is a go/parser scan like discovery: nothing executes.
+//
+// Learning runs in two phases so the result is independent of file
+// order: constants are collected across every root first, then decode
+// seams resolve against the complete constant set. A Decode seam
+// whose *FactKind* constant lives in a later-parsed file maps exactly
+// as one whose constant came first.
 func loadKindSymbols(repoRoot string, knownKinds map[string]bool) kindSymbols {
 	symbols := kindSymbols{identToKind: map[string]string{}, decodeToKind: map[string]string{}}
 	roots := []string{
@@ -34,20 +40,29 @@ func loadKindSymbols(repoRoot string, knownKinds map[string]bool) kindSymbols {
 		// attribute consumption to the domain handlers that call them.
 		filepath.Join(repoRoot, "go", "internal", "reducer", "schemadecode"),
 	}
+	var files []*ast.File
 	for _, root := range roots {
 		_ = filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
 			if err != nil || entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 				return nil //nolint:nilerr // a missing tree yields no symbols; validation reports gaps.
+			}
+			if !fileBuilds(filepath.Dir(path), entry.Name()) {
+				return nil
 			}
 			fset := token.NewFileSet()
 			file, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
 			if err != nil {
 				return nil
 			}
-			collectConstSymbols(file, knownKinds, symbols.identToKind)
-			collectDecodeSymbols(file, symbols)
+			files = append(files, file)
 			return nil
 		})
+	}
+	for _, file := range files {
+		collectConstSymbols(file, knownKinds, symbols.identToKind)
+	}
+	for _, file := range files {
+		collectDecodeSymbols(file, symbols)
 	}
 	collectReducerAliases(repoRoot, knownKinds, symbols)
 	return symbols
@@ -58,18 +73,38 @@ func loadKindSymbols(repoRoot string, knownKinds map[string]bool) kindSymbols {
 // constants under the reducer tree whose values are fact kinds (the
 // factload kind constants), and decode-seam alias vars of the form
 // decodeX = schemadecode.DecodeX that root handlers call directly.
+//
+// Aliases resolve to a fixpoint so chained aliases (decodeA naming
+// decodeB, which names a seam) resolve regardless of declaration
+// order. Each round fills only unmapped names from the current maps,
+// so the loop terminates once a full round adds nothing.
 func collectReducerAliases(repoRoot string, knownKinds map[string]bool, symbols kindSymbols) {
 	root := filepath.Join(repoRoot, "go", "internal", "reducer")
+	var files []*ast.File
 	_ = filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
 		if err != nil || entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil //nolint:nilerr // a missing tree yields no symbols; validation reports gaps.
+		}
+		if !fileBuilds(filepath.Dir(path), entry.Name()) {
+			return nil
 		}
 		fset := token.NewFileSet()
 		file, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
 		if err != nil {
 			return nil
 		}
+		files = append(files, file)
+		return nil
+	})
+	for _, file := range files {
 		collectConstSymbols(file, knownKinds, symbols.identToKind)
+	}
+	type alias struct {
+		name   string
+		target string
+	}
+	var aliases []alias
+	for _, file := range files {
 		for _, decl := range file.Decls {
 			gen, ok := decl.(*ast.GenDecl)
 			if !ok || gen.Tok != token.VAR {
@@ -84,21 +119,49 @@ func collectReducerAliases(repoRoot string, knownKinds map[string]bool, symbols 
 					if i >= len(valueSpec.Values) {
 						continue
 					}
-					sel, ok := valueSpec.Values[i].(*ast.SelectorExpr)
+					target, ok := aliasTarget(valueSpec.Values[i])
 					if !ok {
 						continue
 					}
-					if kind, ok := symbols.decodeToKind[sel.Sel.Name]; ok {
-						symbols.decodeToKind[name.Name] = kind
-					}
-					if kind, ok := symbols.identToKind[sel.Sel.Name]; ok {
-						symbols.identToKind[name.Name] = kind
-					}
+					aliases = append(aliases, alias{name: name.Name, target: target})
 				}
 			}
 		}
-		return nil
-	})
+	}
+	for changed := true; changed; {
+		changed = false
+		for _, a := range aliases {
+			if _, ok := symbols.decodeToKind[a.name]; ok {
+				continue
+			}
+			if _, ok := symbols.identToKind[a.name]; ok {
+				continue
+			}
+			if kind, ok := symbols.decodeToKind[a.target]; ok {
+				symbols.decodeToKind[a.name] = kind
+				changed = true
+				continue
+			}
+			if kind, ok := symbols.identToKind[a.target]; ok {
+				symbols.identToKind[a.name] = kind
+				changed = true
+			}
+		}
+	}
+}
+
+// aliasTarget returns the vocabulary name one alias var points at:
+// the selector of decodeX = schemadecode.DecodeX, or the identifier
+// of a chained decodeA = decodeB alias. Anything else is not an alias.
+func aliasTarget(expr ast.Expr) (string, bool) {
+	switch expr := expr.(type) {
+	case *ast.SelectorExpr:
+		return expr.Sel.Name, true
+	case *ast.Ident:
+		return expr.Name, true
+	default:
+		return "", false
+	}
 }
 
 func collectConstSymbols(file *ast.File, knownKinds map[string]bool, out map[string]string) {
@@ -175,6 +238,12 @@ func packageSymbols(dirAbs string) map[string]bool {
 		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
 			continue
 		}
+		// A symbol that exists only behind an unsatisfied build
+		// constraint never compiles into the package, so it cannot
+		// anchor a binding.
+		if !fileBuilds(dirAbs, name) {
+			continue
+		}
 		fset := token.NewFileSet()
 		file, err := parser.ParseFile(fset, filepath.Join(dirAbs, name), nil, parser.SkipObjectResolution)
 		if err != nil {
@@ -210,8 +279,10 @@ func packageSymbols(dirAbs string) map[string]bool {
 // composite literals outside calls (such as a returned []string of
 // kinds a domain loads but never decodes), struct/map literals, and
 // string constants that reuse a kind's spelling for another purpose
-// are all inert. This mirrors the distinction the disclosure ledger
-// documents between a loaded kind and a consumed kind.
+// are all inert. Files behind an unsatisfied //go:build constraint
+// contribute nothing: their consumption never compiles. This mirrors
+// the distinction the disclosure ledger documents between a loaded
+// kind and a consumed kind.
 //
 // A directory named schemadecode is decode substrate, not a consumer:
 // it contributes no evidence itself, and consumption is attributed to
@@ -229,6 +300,11 @@ func evidenceInDir(repoRoot, dirAbs string, symbols kindSymbols, knownKinds map[
 	for _, entry := range entries {
 		name := entry.Name()
 		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		// Consumption that exists only behind an unsatisfied build
+		// constraint never runs, so it is not reducer evidence.
+		if !fileBuilds(dirAbs, name) {
 			continue
 		}
 		path := filepath.Join(dirAbs, name)

@@ -37,28 +37,40 @@ type yamlRegistry struct {
 	Families map[string]yamlFamily `yaml:"families"`
 }
 
+// quotedString is a YAML string scalar that always marshals
+// double-quoted. The legacy registry file quotes every read_surface
+// value, and consumer BITES proofs pin that exact line shape
+// byte-for-byte, so the generator preserves the quoting instead of
+// emitting bare scalars with identical parsed values.
+type quotedString string
+
+// MarshalYAML renders the value as a double-quoted YAML scalar.
+func (s quotedString) MarshalYAML() (any, error) {
+	return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Style: yaml.DoubleQuotedStyle, Value: string(s)}, nil
+}
+
 // yamlFamily is one legacy registry family in generated YAML form.
 type yamlFamily struct {
-	LifecycleOwner         string            `yaml:"lifecycle_owner"`
-	SchemaVersion          string            `yaml:"schema_version,omitempty"`
-	SchemaVersionOverrides map[string]string `yaml:"schema_version_overrides,omitempty,flow"`
-	AdmissionExempt        bool              `yaml:"admission_exempt,omitempty"`
-	ReducerDomain          string            `yaml:"reducer_domain"`
-	ReducerDir             string            `yaml:"reducer_dir,omitempty"`
-	ProjectionHook         string            `yaml:"projection_hook"`
-	AdmissionHook          string            `yaml:"admission_hook"`
-	ReadSurface            string            `yaml:"read_surface"`
-	ReadSurfaceOverrides   map[string]string `yaml:"read_surface_overrides,omitempty,flow"`
-	TruthProfile           string            `yaml:"truth_profile"`
-	PolicyGate             string            `yaml:"policy_gate,omitempty"`
-	ProviderKeyIndependent bool              `yaml:"provider_key_independent"`
-	PayloadSchema          string            `yaml:"payload_schema,omitempty"`
-	PayloadSchemaOverrides map[string]string `yaml:"payload_schema_overrides,omitempty,flow"`
-	DeprecatedIn           string            `yaml:"deprecated_in,omitempty"`
-	DeprecatedInOverrides  map[string]string `yaml:"deprecated_in_overrides,omitempty,flow"`
-	RemovedIn              string            `yaml:"removed_in,omitempty"`
-	RemovedInOverrides     map[string]string `yaml:"removed_in_overrides,omitempty,flow"`
-	Kinds                  []string          `yaml:"kinds,flow"`
+	LifecycleOwner         string                  `yaml:"lifecycle_owner"`
+	SchemaVersion          string                  `yaml:"schema_version,omitempty"`
+	SchemaVersionOverrides map[string]string       `yaml:"schema_version_overrides,omitempty,flow"`
+	AdmissionExempt        bool                    `yaml:"admission_exempt,omitempty"`
+	ReducerDomain          string                  `yaml:"reducer_domain"`
+	ReducerDir             string                  `yaml:"reducer_dir,omitempty"`
+	ProjectionHook         string                  `yaml:"projection_hook"`
+	AdmissionHook          string                  `yaml:"admission_hook"`
+	ReadSurface            quotedString            `yaml:"read_surface"`
+	ReadSurfaceOverrides   map[string]quotedString `yaml:"read_surface_overrides,omitempty,flow"`
+	TruthProfile           string                  `yaml:"truth_profile"`
+	PolicyGate             string                  `yaml:"policy_gate,omitempty"`
+	ProviderKeyIndependent bool                    `yaml:"provider_key_independent"`
+	PayloadSchema          string                  `yaml:"payload_schema,omitempty"`
+	PayloadSchemaOverrides map[string]string       `yaml:"payload_schema_overrides,omitempty,flow"`
+	DeprecatedIn           string                  `yaml:"deprecated_in,omitempty"`
+	DeprecatedInOverrides  map[string]string       `yaml:"deprecated_in_overrides,omitempty,flow"`
+	RemovedIn              string                  `yaml:"removed_in,omitempty"`
+	RemovedInOverrides     map[string]string       `yaml:"removed_in_overrides,omitempty,flow"`
+	Kinds                  []string                `yaml:"kinds,flow"`
 }
 
 const registryYAMLHeader = `# Generated fact-kind registry contract v1. DO NOT EDIT.
@@ -77,6 +89,13 @@ const registryYAMLHeader = `# Generated fact-kind registry contract v1. DO NOT E
 func renderRegistryYAML(spec specFile) ([]byte, error) {
 	out := yamlRegistry{Version: spec.Version, Families: map[string]yamlFamily{}}
 	for id, fam := range spec.Families {
+		overrides := map[string]quotedString{}
+		for kind, surface := range fam.ReadSurfaceOverrides {
+			overrides[kind] = quotedString(surface)
+		}
+		if len(overrides) == 0 {
+			overrides = nil
+		}
 		out.Families[id] = yamlFamily{
 			LifecycleOwner:         fam.LifecycleOwner,
 			SchemaVersion:          fam.SchemaVersion,
@@ -86,8 +105,8 @@ func renderRegistryYAML(spec specFile) ([]byte, error) {
 			ReducerDir:             fam.ReducerDir,
 			ProjectionHook:         fam.ProjectionHook,
 			AdmissionHook:          fam.AdmissionHook,
-			ReadSurface:            fam.ReadSurface,
-			ReadSurfaceOverrides:   fam.ReadSurfaceOverrides,
+			ReadSurface:            quotedString(fam.ReadSurface),
+			ReadSurfaceOverrides:   overrides,
 			TruthProfile:           fam.TruthProfile,
 			PolicyGate:             fam.PolicyGate,
 			ProviderKeyIndependent: fam.ProviderKeyIndependent,
@@ -314,8 +333,8 @@ func validateOutputSet(outputs []outputFile) error {
 				}
 			}
 		}
-		if prev, dup := seen[out.rel]; dup {
-			return fmt.Errorf("generated outputs %q and %q resolve to the same destination %q; ACTION: rename one source ID (no silent disambiguation)", prev, out.rel, out.rel)
+		if _, dup := seen[out.rel]; dup {
+			return fmt.Errorf("generated output %q is produced by more than one declaration; ACTION: rename one source ID (no silent disambiguation)", out.rel)
 		}
 		seen[out.rel] = out.rel
 		lower := strings.ToLower(out.rel)
