@@ -11,8 +11,10 @@
 // (ValidPackageName) and an autoload psr-4 prefix maps the class to exactly
 // the file that declares it. A consumer class is keyed only when a
 // composer.lock names the package that provides it through the longest
-// covering psr-4 prefix. Both rules return "" whenever the answer is not
-// proven, so the reducer's unique-or-unresolved rule never sees a guessed key.
+// covering psr-4 prefix. A producer free function (#8280,
+// ProducerFunctionPackage) is keyed only when the nearest composer.json lists
+// its file in autoload.files and a psr-4 prefix of that manifest covers it.
+// Every rule returns "" whenever the answer is not proven, so the reducer's unique-or-unresolved rule never sees a guessed key.
 //
 // Parsed manifests and locks are memoized by (path, stat) in the same bounded
 // cache the JavaScript adapter uses for package.json. This package is a leaf:

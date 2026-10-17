@@ -85,10 +85,20 @@ key the reducer already resolves:
   prefix suppresses the key, and a `function` or `const` clause in a mixed group
   use binds no class.
   Not keyed: `self`/`static`/`parent`, `$var::`, `new $var`, relative qualified
-  names, instance calls, free functions, `use function`/`use const`, type
-  references, `X::class`, and constants.
+  names, `use const`, type references, `X::class`, and constants.
+- #8280 (`package_keys_instances.go`, `package_keys_scopes.go`, `package_keys_functions.go`): a public, concrete, non-magic instance
+  method gets `export_name = <FQCN>-><method>`, keyed on `(new X())->m(` and on
+  `$v->m(` when the scope writes `$v` once, by `new X(`, and reads it only as a
+  member receiver (a script scope also needs the write to run first on every
+  path, with only literals and calls on the receiver between them; `eval` or
+  `$GLOBALS` anywhere in the scope blocks it). A namespaced free function in a file the manifest's `autoload.files`
+  lists, under a covering psr-4 prefix, gets `export_name = function:<FQN>`,
+  keyed on a bare call bound by `use function`. Typed parameters, properties,
+  interface, trait, and inherited methods stay unkeyed, and a class declared
+  inside a condition (`if (!class_exists(...))`) gets no key of any kind.
 
-See `composer/README.md` and `docs/internal/evidence/7601-php-package-keys.md`.
+See `composer/README.md`, `docs/internal/evidence/7601-php-package-keys.md`, and
+`docs/internal/evidence/8280-package-key-call-shapes.md`.
 
 ## Telemetry
 

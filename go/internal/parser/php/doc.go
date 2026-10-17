@@ -32,8 +32,13 @@
 // <FQCN>::<method>, and a `new X(` or `X::method(` call whose class a `use`
 // import or a fully qualified literal names carries package_export_symbol
 // package:<locked package>#<FQCN>[::<method>] when a composer.lock names the
-// package that provides it. Every rule leaves the key off when it cannot be
-// proven; see package_keys.go and the composer subpackage. The package is
+// package that provides it. #8280 adds a public, concrete instance method's
+// <FQCN>-><method> (package_keys_instances.go), keyed on (new X())->m( and on
+// $v->m( when the variable scope writes $v once, by new X(, and a namespaced
+// free function's function:<FQN> from a file autoload.files lists
+// (package_keys_functions.go), keyed on a bare call bound by `use function`.
+// Every rule leaves the key off when it cannot be proven; see package_keys.go
+// and the composer subpackage. The package is
 // deterministic and depends only on shared parser helpers, the composer
 // subpackage, and the tree-sitter runtime.
 //

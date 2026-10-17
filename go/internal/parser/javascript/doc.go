@@ -40,8 +40,14 @@
 // target ("alias": "npm:target@range" keys package:target#name), and an alias
 // whose target does not parse stays unkeyed (#7613). An undeclared bare name
 // (a bundler alias, a Node.js built-in) stays unkeyed, as do type references,
-// type-only imports, subpaths, in-repo imports, deep chains, default-import
-// members, and names the file declares again. A jsconfig.json alias resolves
+// type-only imports, subpaths, in-repo imports, chains deeper than ns.C.m, and
+// names the file declares again. Static member keys (#8280,
+// package_keys_members.go): a public static method of a keyed class carries
+// export_name <Export>.<method>; a consumer keys C.m() and D.m() on a named or
+// default import and ns.C.m() on a namespace import, only when every
+// occurrence of the import name passes the closed rule of
+// package_keys_closed.go. Each member key holds a '.', so a default-import
+// member never names a top-level export. Instance method calls are not keyed. A jsconfig.json alias resolves
 // in-repo like a tsconfig.json one, so it sets resolved_source and stays
 // unkeyed even when the name is also declared (#7613). Every file also
 // carries node_package_name, the nearest package.json name that owns it
