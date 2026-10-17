@@ -118,6 +118,7 @@ write_fake_go() {
 set -uo pipefail
 if [ -n "${GOROOT+x}" ]; then st=set; else st=unset; fi
 printf '%s GOROOT=%s\n' "${1:-}" "${st}" >>"${FAKE_GO_LOG}"
+[ "${1:-}" = list ] && case " $* " in *" -find "*) printf '%s/pkg|x.go \n' "${PWD}"; exit 0 ;; esac
 [ "${1:-}" = list ] && { printf '{"ImportPath":"mini/stub"}\n'; exit 0; }
 [ "${1:-}" = install ] || exit 0
 SHIM_DISPATCH
