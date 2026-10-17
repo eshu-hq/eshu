@@ -93,13 +93,13 @@ import (
 // 195_fact_records_changed_since_tombstone_keys_idx.sql, and slice B adds
 // 196_fact_records_documentation_collected_target_refs_idx.sql (numbered 196
 // while the slice-D PR holds 194-195; gaps are tolerated).
-const goldenBootstrapDefinitionsDigest = "68c110f20127f78eaa4367ba020b4377dffd5aa150f221abe7d0b9c1a58b1469"
+const goldenBootstrapDefinitionsDigest = "e6ccf8e8ae40e9f8a0212fe21df004e4fda24366822f6d7267dfa338b61721ea"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 214
+const goldenBootstrapDefinitionsCount = 215
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()
