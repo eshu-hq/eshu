@@ -188,6 +188,9 @@ The #7584 activation obligation consumer is **off by default**:
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED` | `false` | Start `obligation.Runner` with the partition-scoped `postgres.ActivationMaintainer` (`activation_obligation_wiring.go`). Requires a transactional database. |
+| `ESHU_ACTIVATION_OBLIGATION_LEASE` | `2m` | How long one claim holds an obligation. Unparsable or non-positive values fall back to the default without failing startup. Lease sizing awaits the full-corpus p99 (#7638 item 3); the default is unchanged. |
+| `ESHU_ACTIVATION_OBLIGATION_POLL_INTERVAL` | `10s` | Wait after a cycle that claimed nothing. Unparsable or non-positive values fall back to the default without failing startup. |
+| `ESHU_ACTIVATION_OBLIGATION_WORKERS` | `1` | Concurrent claim loops; workers claim through SKIP LOCKED so they never share work. Unparsable or non-positive values fall back to the default without failing startup. |
 
 ### Shared projection
 
