@@ -105,6 +105,13 @@ ignores it). It also refuses a run whose scanned file count differs from the
 the same whole-module arm after its SARIF upload, so findings reach the
 Security tab before the arm can fail the job.
 
+The gosec gate covers production code only. It runs gosec without `-tests`, by
+design, so `_test.go` files never reach the gate or the Security tab (#8341).
+To look at test code, run the pinned `golangci-lint` with only `gosec` enabled,
+the SSA rules you want under `settings.gosec.includes`, severity and confidence
+`low`, and `run.tests: true`. A tests-on scan of `internal/storage/postgres` found
+sixteen G115 and G602 findings; they are fixed, so that package now scans clean.
+
 A push that prints nothing for minutes is a slow hook under host contention,
 not a mutex wait. Pre-commit captures a passing hook's output until the hook
 exits, and the hook path never waits on the live-gate mutex: a push finished
