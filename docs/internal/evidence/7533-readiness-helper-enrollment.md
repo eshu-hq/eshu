@@ -9,7 +9,7 @@ add a Go invocation or a test root.
 
 ## Preimplementation proof
 
-The current `main` run [38997937360](https://github.com/eshu-hq/eshu/actions/runs/38997937360)
+The preimplementation `main` run [38997937360](https://github.com/eshu-hq/eshu/actions/runs/38997937360)
 checked out `271d54e54672deb73a8f1743761de19f4ab8163f`. Its four readiness
 shard reports passed the production aggregate: 411 of 411 planned runs.
 Shard 1 job 117294524860 ran the owner test exactly once with status 0. The
@@ -30,11 +30,16 @@ review and runtime proof before repinning.
 ## Enrollment boundary
 
 The one helper ledger row moves from `scheduled` to `postgres_ci`, with the
-existing readiness runner. The executable inventory remains 173 files and
-411 roots; the helper adds one source file and zero roots. The package list,
+existing readiness runner. At base `f198b95272c370d454e5b2192cf771dd33e2109c`, the executable
+inventory contains 178 files and 419 roots; the helper adds one source file and zero roots. The package list,
 selectors, shard assignment, Go commands, environment, workload, images, and
 timeouts remain unchanged. The legacy scheduled ledger count changes from
 418 to 417 for this row. This is one original-cohort disposition, not closure
 of the #7533 inventory.
+
+Merged #8301 added five executable files and eight roots after the
+preimplementation run. The helper branch has the same package plan as its
+current base. The earlier 411-root run proves the unchanged consumer; it does
+not prove the expanded 419-root suite.
 
 Hosted proof of the completed guard on the eventual PR head remains required.
