@@ -24,7 +24,15 @@ type guardedDirectFamily struct {
 	OduName string
 	// EdgeTypes is what the family's WRITER can emit, hand-read off the Cypher
 	// that writer executes rather than off the port name -- the #6181 rule.
+	// Empty for a PredicateScoped family, whose writers prefix an open verb
+	// vocabulary no finite list can name.
 	EdgeTypes []string
+	// PredicateScoped records that the family resolves through
+	// MaterializedEdgeDomainPredicate (#8358) rather than a finite type set:
+	// its writers prefix an open per-provider vocabulary, so
+	// MaterializedEdgeDomainEdgeTypes must keep FAILING for it and the
+	// finite-set roster checks assert the predicate instead.
+	PredicateScoped bool
 	// LiveProven records that the live ifa-determinism AND ifa-fault-injection
 	// matrices both drive this family and assert its exact edge set. It is
 	// set by hand when the proof lands, and TestGuardedDirectFamiliesStillCarryTheirWaivers
@@ -108,6 +116,11 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		OduName:   ifa.SemanticEntityContainmentFamilyOduName,
 		EdgeTypes: []string{"CONTAINS"},
 	},
+	{
+		Family:          cloudResourceFamily,
+		OduName:         ifa.CloudResourceFamilyOduName,
+		PredicateScoped: true,
+	},
 }
 
 // guardedDirectFamilyCoverageEntry builds the coverage entry a ledger row for
@@ -163,6 +176,23 @@ func TestGuardedDirectFamiliesResolveToTheirWrittenEdgeTypes(t *testing.T) {
 	for _, entry := range guardedDirectMaterializedEdgeFamilies {
 		t.Run(entry.Family, func(t *testing.T) {
 			t.Parallel()
+			if entry.PredicateScoped {
+				// A predicate-scoped family's registry half is the
+				// predicate: it must resolve, and the finite set must keep
+				// failing closed so no caller can scope the open vocabulary
+				// to an observed-type snapshot by accident (#8358).
+				if _, err := MaterializedEdgeDomainEdgeTypes(entry.Family); err == nil {
+					t.Fatalf("MaterializedEdgeDomainEdgeTypes(%q) resolved a finite set for a predicate-scoped family", entry.Family)
+				}
+				predicate, ok := MaterializedEdgeDomainPredicate(entry.Family)
+				if !ok {
+					t.Fatalf("MaterializedEdgeDomainPredicate(%q) did not resolve", entry.Family)
+				}
+				if len(predicate.Writers) == 0 {
+					t.Fatalf("family %q predicate registers no writers; the scan would assert an empty population", entry.Family)
+				}
+				return
+			}
 			types, err := MaterializedEdgeDomainEdgeTypes(entry.Family)
 			if err != nil {
 				t.Fatalf("MaterializedEdgeDomainEdgeTypes(%q): %v", entry.Family, err)

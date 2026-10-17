@@ -218,7 +218,7 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 		return resolveInvokesCloudActionMaterializedEdges(odu, invokesCloudActionExpectedEdgesPath(r.RepoRoot))
 	// The DIRECT-materialization families (#6228). Every arm above is a
 	// reducer.MaterializedEdgeFamilies() entry reaching the graph through the
-	// shared-projection intent path; the nine below are
+	// shared-projection intent path; the ten below are
 	// reducer.DirectMaterializedEdgeFamilies() entries whose reducer port
 	// writes straight to a storage/cypher writer with no intent row between.
 	//
@@ -250,6 +250,8 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 		return resolveKubernetesCorrelationMaterializedEdges(odu, kubernetesCorrelationExpectedEdgesPath(r.RepoRoot))
 	case semanticEntityContainmentFamily:
 		return resolveSemanticEntityContainmentMaterializedEdges(odu, semanticEntityContainmentExpectedEdgesPath(r.RepoRoot))
+	case cloudResourceFamily:
+		return resolveCloudResourceMaterializedEdges(odu, cloudResourceExpectedEdgesPath(r.RepoRoot))
 	default:
 		return false, fmt.Sprintf("no vacuity guard registered for materialized-edge family %q", family)
 	}

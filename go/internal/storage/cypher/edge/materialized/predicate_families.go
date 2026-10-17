@@ -7,7 +7,9 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	azurerelationship "github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/azure/relationship"
+	gcprelationship "github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/gcp/relationship"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/resource"
 )
 
 // Predicate-scoped materialized-edge families (#8358, route 2 of the #6228
@@ -118,30 +120,30 @@ var predicateScopedMaterializedEdgeFamilies = map[string]PredicateScopedEdgeFami
 		ToLabel:   "CloudResource",
 		Writers: []PredicateScopedEdgeWriter{
 			{
-				TypePrefix:         sourcecypher.AWSRelationshipCypherTypePrefix,
+				TypePrefix:         resource.AWSRelationshipCypherTypePrefix,
 				EvidenceSource:     reducer.AWSRelationshipEvidenceSource(),
-				UpsertCypherFormat: sourcecypher.CanonicalCloudResourceEdgeUpsertCypherFormat,
+				UpsertCypherFormat: resource.CanonicalCloudResourceEdgeUpsertCypherFormat,
 				RetractCyphers: []string{
-					sourcecypher.RetractCloudResourceEdgesCypher,
-					sourcecypher.RetractCloudResourceEdgesByUIDsCypher,
+					resource.RetractCloudResourceEdgesCypher,
+					resource.RetractCloudResourceEdgesByUIDsCypher,
 				},
 			},
 			{
-				TypePrefix:         sourcecypher.GCPRelationshipCypherTypePrefix,
+				TypePrefix:         gcprelationship.GCPRelationshipCypherTypePrefix,
 				EvidenceSource:     reducer.GCPRelationshipEvidenceSource(),
-				UpsertCypherFormat: sourcecypher.CanonicalGCPCloudResourceEdgeUpsertCypherFormat,
+				UpsertCypherFormat: gcprelationship.CanonicalGCPCloudResourceEdgeUpsertCypherFormat,
 				RetractCyphers: []string{
-					sourcecypher.RetractGCPCloudResourceEdgesCypher,
-					sourcecypher.RetractGCPCloudResourceEdgesByUIDsCypher,
+					gcprelationship.RetractGCPCloudResourceEdgesCypher,
+					gcprelationship.RetractGCPCloudResourceEdgesByUIDsCypher,
 				},
 			},
 			{
-				TypePrefix:         sourcecypher.AzureRelationshipCypherTypePrefix,
+				TypePrefix:         azurerelationship.AzureRelationshipCypherTypePrefix,
 				EvidenceSource:     reducer.AzureRelationshipEvidenceSource(),
-				UpsertCypherFormat: sourcecypher.CanonicalAzureCloudResourceEdgeUpsertCypherFormat,
+				UpsertCypherFormat: azurerelationship.CanonicalAzureCloudResourceEdgeUpsertCypherFormat,
 				RetractCyphers: []string{
-					sourcecypher.RetractAzureCloudResourceEdgesCypher,
-					sourcecypher.RetractAzureCloudResourceEdgesByUIDsCypher,
+					azurerelationship.RetractAzureCloudResourceEdgesCypher,
+					azurerelationship.RetractAzureCloudResourceEdgesByUIDsCypher,
 				},
 			},
 		},

@@ -8,7 +8,9 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	azurerelationship "github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/azure/relationship"
+	gcprelationship "github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/gcp/relationship"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/resource"
 )
 
 // TestPredicateScopedCloudResourceFamilyMatchesItsWriters is the exactness
@@ -45,30 +47,30 @@ func TestPredicateScopedCloudResourceFamilyMatchesItsWriters(t *testing.T) {
 		retracts       []string
 	}{
 		{
-			prefix:         sourcecypher.AWSRelationshipCypherTypePrefix,
+			prefix:         resource.AWSRelationshipCypherTypePrefix,
 			evidenceSource: reducer.AWSRelationshipEvidenceSource(),
-			upsert:         sourcecypher.CanonicalCloudResourceEdgeUpsertCypherFormat,
+			upsert:         resource.CanonicalCloudResourceEdgeUpsertCypherFormat,
 			retracts: []string{
-				sourcecypher.RetractCloudResourceEdgesCypher,
-				sourcecypher.RetractCloudResourceEdgesByUIDsCypher,
+				resource.RetractCloudResourceEdgesCypher,
+				resource.RetractCloudResourceEdgesByUIDsCypher,
 			},
 		},
 		{
-			prefix:         sourcecypher.GCPRelationshipCypherTypePrefix,
+			prefix:         gcprelationship.GCPRelationshipCypherTypePrefix,
 			evidenceSource: reducer.GCPRelationshipEvidenceSource(),
-			upsert:         sourcecypher.CanonicalGCPCloudResourceEdgeUpsertCypherFormat,
+			upsert:         gcprelationship.CanonicalGCPCloudResourceEdgeUpsertCypherFormat,
 			retracts: []string{
-				sourcecypher.RetractGCPCloudResourceEdgesCypher,
-				sourcecypher.RetractGCPCloudResourceEdgesByUIDsCypher,
+				gcprelationship.RetractGCPCloudResourceEdgesCypher,
+				gcprelationship.RetractGCPCloudResourceEdgesByUIDsCypher,
 			},
 		},
 		{
-			prefix:         sourcecypher.AzureRelationshipCypherTypePrefix,
+			prefix:         azurerelationship.AzureRelationshipCypherTypePrefix,
 			evidenceSource: reducer.AzureRelationshipEvidenceSource(),
-			upsert:         sourcecypher.CanonicalAzureCloudResourceEdgeUpsertCypherFormat,
+			upsert:         azurerelationship.CanonicalAzureCloudResourceEdgeUpsertCypherFormat,
 			retracts: []string{
-				sourcecypher.RetractAzureCloudResourceEdgesCypher,
-				sourcecypher.RetractAzureCloudResourceEdgesByUIDsCypher,
+				azurerelationship.RetractAzureCloudResourceEdgesCypher,
+				azurerelationship.RetractAzureCloudResourceEdgesByUIDsCypher,
 			},
 		},
 	}

@@ -1,0 +1,44 @@
+{
+  "odu": "odu:ifa-cloud-resource-family",
+  "note": "Hand-derived from the three production writers' templates and the predicate registration in go/internal/storage/cypher/edge/materialized/predicate_families.go (#8358, route 2 of the #6228 verdict's cloud_resource follow-up). Each writer MATCHes two :CloudResource endpoints by uid and MERGEs (source)-[rel:%s]->(target) with NO relationship property map, so edges key on (type, source uid, target uid) alone and there is no identity block. The %s is the writer's exported prefix const prepended to the row's relationship_type (AWSRelationshipCypherTypePrefix, GCPRelationshipCypherTypePrefix, AzureRelationshipCypherTypePrefix) — the statement-metadata labels (AWS_RELATIONSHIP, GCP_RELATIONSHIP, AZURE_RELATIONSHIP) never reach the graph. Endpoint ids are reducer cloudjoin.CloudResourceUID values = facts.StableID over (account, region, resource_type, resource_id) of the Odù's own facts: AWS over (123456789012, us-east-1, type, id) for (aws_lambda_function, eshu-fixture-fn), (aws_iam_role, eshu-fixture-fn-role), (aws_ec2_subnet, subnet-eshufixt1); GCP over (eshu-fixture-project, us-central1-a, asset_type, full_resource_name); Azure over (eshu-fixture-subscription, eastus, resource_type, normalized ARM id). Exactly four edges: two AWS verbs off one source (the duplicate lambda_function_uses_execution_role fact dedups; the never-scanned subnet target and the self-loop produce nothing, and a regression fabricating endpoints or admitting self-loops would break this set), one GCP supported relationship (the partial and the unsupported-target relationships produce nothing), one Azure managed_by (the depends_on verb is screened out by Azure's closed vocabulary). evidence_source and resolution_mode (and support_state where the GCP/Azure templates SET it) are asserted as mutable properties: evidence_source is the compile-time handler constant the retract scopes by, so a writer that stopped stamping it must fail here and on the live assert, not only when the next generation's retract silently reaps nothing. scope_id and generation_id are per-run intent values, so no static set can pin them; the writer unit tests cover their stamping.",
+  "edges": [
+    {
+      "relationship_type": "AWS_lambda_function_uses_execution_role",
+      "source_entity_id": "2769a273573ece1e497ff53793afdce095cabd9638aa5c8cec90382e59aacdd6",
+      "target_entity_id": "ddd259eec83b50ad9fa9f7612167f94d2d266f58642c6542b90c584867e3ad59",
+      "properties": {
+        "resolution_mode": "arn",
+        "evidence_source": "reducer/aws-relationships"
+      }
+    },
+    {
+      "relationship_type": "AWS_lambda_function_uses_subnet",
+      "source_entity_id": "2769a273573ece1e497ff53793afdce095cabd9638aa5c8cec90382e59aacdd6",
+      "target_entity_id": "4f75e12b355d2ff6611e941be5bb1051cfc51f809f2d1b9b9f2fa67df947fbf9",
+      "properties": {
+        "resolution_mode": "arn",
+        "evidence_source": "reducer/aws-relationships"
+      }
+    },
+    {
+      "relationship_type": "GCP_instance_uses_disk",
+      "source_entity_id": "47cc0872efffa431a311d34ce8f9db9b0e29ed085f15c63c6c5ca253b5feb474",
+      "target_entity_id": "03712ca613b12b8e8eb0da6a812b182e971704150777f3ba7e24b5d1628da15e",
+      "properties": {
+        "resolution_mode": "full_resource_name",
+        "support_state": "supported",
+        "evidence_source": "reducer/gcp-relationships"
+      }
+    },
+    {
+      "relationship_type": "AZURE_managed_by",
+      "source_entity_id": "af2bf2842bfa343c5524b9f7a8d66c9ac88b7ff9341768b04f313f1f8e5b6793",
+      "target_entity_id": "cbd2006ca457808afc7d91f0f16f31704e7bf7031226b92967d53b3269e1fcbd",
+      "properties": {
+        "resolution_mode": "arm_resource_id",
+        "support_state": "supported",
+        "evidence_source": "reducer/azure-relationships"
+      }
+    }
+  ]
+}

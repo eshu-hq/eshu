@@ -23,6 +23,7 @@ type (
 )
 
 const (
+	CloudResourceFamilyOduName                  = familyodu.CloudResourceFamilyOduName
 	CodeownersFamilyOduName                     = familyodu.CodeownersFamilyOduName
 	CodeCallFamilyOduName                       = familyodu.CodeCallFamilyOduName
 	ContentEntityFactKind                       = familyodu.ContentEntityFactKind
@@ -161,6 +162,9 @@ func EC2UsesProfileFamilyOdu() CatalogOdu { return familyodu.EC2UsesProfileFamil
 
 // S3LogsToFamilyOdu returns the cataloged S3 logs-to family Odù.
 func S3LogsToFamilyOdu() CatalogOdu { return familyodu.S3LogsToFamilyOdu() }
+
+// CloudResourceFamilyOdu returns the cataloged cloud_resource family Odù.
+func CloudResourceFamilyOdu() CatalogOdu { return familyodu.CloudResourceFamilyOdu() }
 
 // KubernetesCorrelationFamilyOdu returns the cataloged Kubernetes
 // correlation family Odù.
