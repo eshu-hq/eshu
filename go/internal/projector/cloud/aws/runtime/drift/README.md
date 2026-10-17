@@ -87,7 +87,10 @@ key, reason, anchor selection, and source-system derivation are identical to
 the base commit, and the dispatcher's ordered fan-out is unchanged at 44
 builder probes with this probe still running immediately after
 `packagesource.BuildReducerIntent` and immediately
-before `multidrift.BuildReducerIntent`. During the earlier #6057 extraction,
+before `multidrift.BuildReducerIntent`. No-Observability-Change: trigger facts,
+intent values, and fan-out position are identical, so
+`eshu_dp_reducer_intents_enqueued_total` and the reducer execution signals in
+the coverage row above are unchanged. During the earlier #6057 extraction,
 the root
 `awsCloudRuntimeDriftSourceSystem` helper it called was compared body-for-body
 against its `projectorintent.SourceSystem` replacement (both trim
