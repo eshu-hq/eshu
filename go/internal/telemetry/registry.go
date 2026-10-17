@@ -256,6 +256,8 @@ var logKeys = []string{
 	LogKeyLeaseTTLSeconds,
 	LogKeyFencingToken,
 	LogKeyRefreshSkipReason,
+	LogKeySkipRetract,
+	LogKeySkipRetractReason,
 }
 
 // MetricDimensionKeys returns the frozen ordered metric dimensions.

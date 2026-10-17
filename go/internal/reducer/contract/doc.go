@@ -30,6 +30,12 @@
 // intent until its generation activates instead of acking it as superseded
 // (issue #6686).
 //
+// [DecideFirstGenerationRetract] (issue #8167) is the one predicate the
+// first-generation retract skip shares: only a first attempt whose
+// [PriorGenerationCheck] finds no strictly older generation skips, and the
+// [RetractDecision] carries one of the closed [RetractReasons] for callers to
+// record on their span and completion log.
+//
 // [ResolvedReadFingerprint] and [DeployableUnitReopenFingerprintRecorder]
 // (issue #8283) carry the input fingerprint of a deployable_unit_correlation
 // run's corpus-fenced read from the store to the claim-fenced success write

@@ -43,8 +43,12 @@ See `README.md` Purpose for the six-outcome contract and the PR1/PR3 split.
   fatal error would delete valid prior edges and then write nothing.
 - **The ledger-free retract-then-write order in
   `KubernetesCorrelationMaterializationHandler.Handle` is load-bearing.**
-  `shouldSkipRetract` only skips the retract on the scope's genuinely first
-  generation (via `PriorGenerationCheck`) or gates on `AttemptCount`; do not
+  `reducercontract.DecideFirstGenerationRetract` (#8167, shared with
+  CAN_PERFORM) only skips the retract on a first attempt when
+  `PriorGenerationCheck` finds no strictly older generation in activation
+  order; a newer generation never counts, so the skip does not depend on
+  queue timing. The decision and its closed reason land on the handler span
+  and completion log as `skip_retract` and `skip_retract_reason`. Do not
   reorder the retract ahead of the readiness gate or the fatal-decode
   return.
 

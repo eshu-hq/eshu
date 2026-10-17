@@ -28,7 +28,9 @@ constants, `KnownDomains`, `ParseDomain`, lifecycle statuses, `FailureRecord`,
 constants, `ContainerImageIdentityFactKind`, `ProjectionDomains`,
 `RationaleEvidenceSource`, `GraphQueryRunner`, `ResolvedReadFingerprint`,
 `DeployableUnitReopenFingerprintRecorder`, the generation-check func
-types, and the not-yet-active generation deferral (`ErrGenerationNotYetActive`,
+types, the shared first-generation retract predicate
+(`DecideFirstGenerationRetract`, `RetractDecision`, `RetractReasons` and the
+`RetractReason*` constants, #8167), and the not-yet-active generation deferral (`ErrGenerationNotYetActive`,
 `GenerationNotYetActiveError`, `GenerationActivationNotReadyFailureClass`). See
 [doc.go](doc.go) for the package contract.
 
@@ -68,6 +70,13 @@ spans, counters, and structured logs around contract handlers.
   supersession acks work for a generation that is about to activate, and nothing
   re-drives it. Its failure class ends in `_not_ready` so the storage enrollment
   guard requires it to stay non-counting.
+- `DecideFirstGenerationRetract` is the one first-generation retract predicate
+  (#8167). It skips only a first attempt (`AttemptCount` at most 1) whose
+  wired `PriorGenerationCheck` finds no strictly older generation; a retry,
+  an unwired check, or a prior generation retracts. The check must ignore
+  generations committed after the intent's, or the decision depends on queue
+  timing and backend-diff legs record different retracts. The reason is one
+  of the closed `RetractReasons`; callers record it, this package does not.
 
 No-Regression Evidence: #6100 moves the existing value types and validation
 methods without changing fields, constants, lifecycle rules, or registry order.
@@ -153,3 +162,23 @@ No-Observability-Change: #6686's error type registers no metric. A deferral is
 durable as `failure_class = generation_activation_not_ready` on
 `fact_work_items` and counted by the existing
 `eshu_dp_reducer_retry_surge_total{failure_class}`.
+
+No-Regression Evidence: #8167 changes `priorGenerationExistsSQL`, the
+statement behind `postgres.NewPriorGenerationCheck` and so behind every
+first-generation retract skip, from "any other generation" to "a strictly
+older generation in (`ingested_at`, `generation_id`) order". Measured with
+`EXPLAIN (ANALYZE, BUFFERS)` on disposable PostgreSQL 18 holding the shipped
+`scope_generations` indexes and 99,054 rows (32,000 scopes of 3 generations
+plus one 3,040-generation scope). A 3-generation scope: 0.170 ms, both
+probes are index scans (`scope_generations_scope_generation_idx` for the
+intent row, `scope_generations_scope_latest_lookup_idx` with the row
+comparison as index condition). The 3,040-generation scope under a custom
+plan: the old statement seq-scans in 8.4 ms and the new one in 8.1-11.3 ms;
+the planner picks the seq scan for both because that scope holds 3% of the
+table. Under a generic plan both use the index: old 0.024 ms, new 0.069 ms.
+The missing-intent fallback runs only when the intent row is absent.
+
+Observability Evidence: #8167 adds the `skip_retract_reason` log key (closed
+`RetractReasons` set) beside the existing `skip_retract` key, and the
+`RUNS_IMAGE` and `CAN_PERFORM` handlers set both as attributes on their
+handler spans. The decision helper itself emits nothing; callers record it.

@@ -49,12 +49,41 @@ LEFT JOIN scope_generations AS active_generation
 WHERE scope.scope_id = $1
 `
 
+// priorGenerationExistsSQL reports whether the scope has a generation
+// strictly older than the intent's own row in activation order
+// (ingested_at, generation_id): the order generationFreshnessSQL and the
+// projector supersession SQL use, so a predecessor here is a generation that
+// could have activated, and written edges, before the intent's. A generation
+// committed after the intent's never counts, so the answer, and the
+// first-generation retract skip built on it, does not depend on whether a
+// newer generation committed before the intent ran (#8167). Failed and
+// superseded predecessors count: their partial writes may still need cleanup.
+// A missing intent row (retention pruned it) falls back to "any other
+// generation exists", the conservative answer that keeps the retract.
+// Both probes are index range scans on scope_id
+// (scope_generations_scope_generation_idx for the intent row,
+// scope_generations_scope_latest_lookup_idx for the row comparison), and
+// the fallback runs only when the intent row is missing.
 const priorGenerationExistsSQL = `
-SELECT EXISTS (
-    SELECT 1
-    FROM scope_generations
-    WHERE scope_id = $1
-      AND generation_id <> $2
+SELECT COALESCE(
+    (
+        SELECT EXISTS (
+            SELECT 1
+            FROM scope_generations AS prior
+            WHERE prior.scope_id = $1
+              AND (prior.ingested_at, prior.generation_id)
+                  < (intent.ingested_at, intent.generation_id)
+        )
+        FROM scope_generations AS intent
+        WHERE intent.scope_id = $1
+          AND intent.generation_id = $2
+    ),
+    EXISTS (
+        SELECT 1
+        FROM scope_generations
+        WHERE scope_id = $1
+          AND generation_id <> $2
+    )
 )
 `
 
@@ -228,7 +257,11 @@ func NewPriorGenerationID(database db.ExecQueryer) reducer.PriorGenerationID {
 }
 
 // NewPriorGenerationCheck returns a check backed by scope_generations for
-// identifying first-generation writes.
+// identifying first-generation writes. It reports true only when the scope
+// has a generation strictly older than generationID in activation order
+// (ingested_at, generation_id), so a newer generation committed while the
+// intent waits in the queue never changes the answer (#8167). An unknown
+// generation row falls back to whether any other generation exists.
 func NewPriorGenerationCheck(database db.ExecQueryer) reducer.PriorGenerationCheck {
 	return func(ctx context.Context, scopeID, generationID string) (bool, error) {
 		rows, err := database.QueryContext(ctx, priorGenerationExistsSQL, scopeID, generationID)

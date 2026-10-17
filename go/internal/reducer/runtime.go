@@ -21,9 +21,10 @@ type Result = reducercontract.Result
 // (false, nil) if superseded, or (false, err) on lookup failure.
 type GenerationFreshnessCheck = reducercontract.GenerationFreshnessCheck
 
-// PriorGenerationCheck reports whether the scope has any generation before the
-// given generation. Retract paths use it to skip no-op cleanup on first writes
-// while preserving cleanup on refreshes and retries.
+// PriorGenerationCheck reports whether the scope has a generation strictly
+// older than the given generation in activation order, so the answer does not
+// depend on queue timing (#8167). Retract paths use it to skip no-op cleanup
+// on first writes while preserving cleanup on refreshes and retries.
 type PriorGenerationCheck = reducercontract.PriorGenerationCheck
 
 // PriorGenerationID returns the scope's generation immediately before the

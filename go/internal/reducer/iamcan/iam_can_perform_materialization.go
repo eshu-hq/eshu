@@ -252,7 +252,8 @@ func (h IAMCanPerformMaterializationHandler) Handle(
 		resourcePolicyCount:     len(resourcePolicyEnvelopes),
 		edgeCount:               commit.writes,
 		tally:                   result.Tally,
-		skipRetract:             commit.skipRetract || !decision.Commit,
+		skipRetract:             commit.retract.Skip || !decision.Commit,
+		retractReason:           commit.retract.Reason,
 		loadDuration:            loadDuration,
 		extractDuration:         extractDuration,
 		retractDuration:         commit.retractDuration,
@@ -287,7 +288,7 @@ func (h IAMCanPerformMaterializationHandler) Handle(
 
 // iamCanPerformCommit reports what one scope-wide commit did.
 type iamCanPerformCommit struct {
-	skipRetract     bool
+	retract         reducercontract.RetractDecision
 	writes          int
 	retractDuration time.Duration
 	writeDuration   time.Duration
@@ -307,15 +308,18 @@ func (h IAMCanPerformMaterializationHandler) commitEdges(
 	recommit bool,
 ) (iamCanPerformCommit, error) {
 	var commit iamCanPerformCommit
-	skipRetract := false
+	commit.retract = reducercontract.RetractDecision{Reason: reducercontract.RetractReasonRecommit}
 	if !recommit {
 		var err error
-		if skipRetract, err = h.shouldSkipRetract(ctx, intent); err != nil {
-			return commit, err
+		if commit.retract, err = reducercontract.DecideFirstGenerationRetract(ctx, h.PriorGenerationCheck, intent); err != nil {
+			return commit, fmt.Errorf("iam can_perform retract decision: %w", err)
 		}
 	}
-	commit.skipRetract = skipRetract
-	if !skipRetract {
+	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.Bool(telemetry.LogKeySkipRetract, commit.retract.Skip),
+		attribute.String(telemetry.LogKeySkipRetractReason, commit.retract.Reason),
+	)
+	if !commit.retract.Skip {
 		retractStart := time.Now()
 		if err := h.Writer.RetractIAMCanPerformEdges(
 			ctx,
@@ -357,21 +361,6 @@ func (h IAMCanPerformMaterializationHandler) firstNotReadyKeyspace(intent reduce
 		}
 	}
 	return ""
-}
-
-// shouldSkipRetract mirrors the IAM escalation and AWS relationship edge domains:
-// skip the prior-edge retract on the very first generation for a scope (no prior
-// edges to remove) and only on the first attempt, so a retried attempt still cleans
-// up a partial prior write.
-func (h IAMCanPerformMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
-	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
-		return false, nil
-	}
-	hasPrior, err := h.PriorGenerationCheck(ctx, intent.ScopeID, intent.GenerationID)
-	if err != nil {
-		return false, fmt.Errorf("check prior generation for iam can_perform retract: %w", err)
-	}
-	return !hasPrior, nil
 }
 
 // recordTally emits the CAN_PERFORM edge counters: edges committed keyed by

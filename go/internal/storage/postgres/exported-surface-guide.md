@@ -350,7 +350,11 @@ the concrete adapters stay here.
   generation's lifecycle row in one statement; a pending generation, either
   before first activation or newer than the active one, returns the retryable
   `GenerationNotYetActiveError` (#6686, #7916) instead
-  of reporting supersession.
+  of reporting supersession. `NewPriorGenerationCheck` reports a generation
+  strictly older than the intent's in activation order
+  (`ingested_at`, `generation_id`); a newer generation never counts, so the
+  first-generation retract skip does not depend on queue timing (#8167). A
+  missing intent row falls back to "any other generation exists".
 
 **Terraform drift adapters** (implement reducer drift ports for chunk #163)
 
