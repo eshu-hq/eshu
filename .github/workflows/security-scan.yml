@@ -224,6 +224,12 @@ jobs:
       - name: Install gosec (pinned)
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)')) }}
         run: scripts/ci/go-install-retry.sh github.com/securego/gosec/v2/cmd/gosec@v2.27.1
+      - name: Install ripgrep
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)')) }}
+        run: scripts/ci/install-apt-packages.sh ripgrep
+      - name: Fail-closed gosec gate (partial-analysis ledger)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)')) }}
+        run: bash scripts/dev/precommit-go.sh gosec-all
       - name: Run gosec on every Go package (SARIF)
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)')) }}
         working-directory: go
