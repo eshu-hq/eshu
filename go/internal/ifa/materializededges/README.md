@@ -255,8 +255,11 @@ exact wording and fails if they drift.
   `internal/storage/cypher`, never hand-listed here) so a live graph read knows
   which edges belong to the family. All fourteen umbrella families resolve as of
   #5543 - the multi-type ones (`sql_relationships`, `code_calls`,
-  `inheritance_edges`, `repo_dependency`) through explicit arms, the rest from
-  cypher's shared single-type table. An unregistered family returns an error
+  `inheritance_edges`, `repo_dependency`) through explicit arms, the three
+  multi-type DIRECT families (`incident_routing_evidence`,
+  `observability_coverage`, `security_group_sg_rule`, #6228) through explicit
+  arms reading cypher's multi-type direct table, the rest from cypher's shared
+  single-type table. An unregistered family returns an error
   rather than an empty set, so a caller fails closed instead of asserting
   nothing. This is what backs
   the `materialized_edges:sql_relationships`,

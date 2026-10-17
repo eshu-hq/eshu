@@ -130,8 +130,8 @@ leaves:
 ```bash
 docker compose -f docker-compose.live-backend-neo4j.yml up -d
 # coordinate with scripts/lib/live-gate-lock.sh — never alongside another live gate
-ESHU_CYPHER_BOLT_DSN=neo4j://127.0.0.1:7687 \
-  go test ./go/internal/storage/cypher/ \
+cd go && ESHU_CYPHER_BOLT_DSN=neo4j://127.0.0.1:7687 \
+  go test ./internal/storage/cypher/ \
   -run 'TestLive(SecurityGroupSGRule|ObservabilityCoverage|CodeTaintEvidence|IncidentRoutingEvidence)' -v
 docker compose -f docker-compose.live-backend-neo4j.yml down
 ```

@@ -291,6 +291,81 @@ func TestRegistryReasonsCiteRealSymbols(t *testing.T) {
 	}
 }
 
+// writerFileCitation matches the multi-type DIRECT table's reason convention:
+// the writer symbol plus the cypher-package file that declares it, e.g.
+// "(SecurityGroupReachabilityWriter in security_group_reachability_edge_writer.go)".
+var writerFileCitation = regexp.MustCompile(`\(\s*([A-Za-z_]\w*)\s+in\s+([a-z0-9_]+\.go)\s*\)`)
+
+// declaredTopLevelNames returns every top-level declared name in one
+// non-test .go file: funcs, types, consts and vars, including entries inside
+// a const/var block (where the exported registry-holder aliases live).
+func declaredTopLevelNames(t *testing.T, path string) map[string]struct{} {
+	t.Helper()
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	declared := map[string]struct{}{}
+	for _, decl := range file.Decls {
+		switch d := decl.(type) {
+		case *ast.FuncDecl:
+			declared[d.Name.Name] = struct{}{}
+		case *ast.GenDecl:
+			for _, spec := range d.Specs {
+				switch s := spec.(type) {
+				case *ast.ValueSpec:
+					for _, name := range s.Names {
+						declared[name.Name] = struct{}{}
+					}
+				case *ast.TypeSpec:
+					declared[s.Name.Name] = struct{}{}
+				}
+			}
+		}
+	}
+	return declared
+}
+
+// TestMultiTypeDirectReasonsCiteOwningWriter ranges the multi-type DIRECT
+// table's reasons the same way TestRegistryReasonsCiteRealSymbols ranges the
+// single-type ones: every reason must cite its owning writer as "(<Symbol> in
+// <file>)", the file must exist in the parent cypher package, and the symbol
+// must be declared there. A reason citing a renamed writer or a moved file
+// fails here instead of sending the next maintainer grepping for nothing.
+func TestMultiTypeDirectReasonsCiteOwningWriter(t *testing.T) {
+	t.Parallel()
+
+	var missing []string
+	for _, family := range MultiTypeDirectMaterializedEdgeFamilyNames() {
+		reg, ok := MultiTypeDirectMaterializedEdgeTypes(family)
+		if !ok {
+			t.Fatalf("family %q vanished between listing and lookup", family)
+		}
+		for edgeType, reason := range reg {
+			citations := writerFileCitation.FindAllStringSubmatch(reason, -1)
+			if len(citations) == 0 {
+				missing = append(missing, family+"/"+edgeType+" cites no (Writer in file.go) owner")
+				continue
+			}
+			for _, m := range citations {
+				symbol, file := m[1], filepath.Join("..", "..", m[2])
+				if _, err := os.Stat(filepath.Clean(file)); err != nil {
+					missing = append(missing, family+"/"+edgeType+" cites missing file "+m[2])
+					continue
+				}
+				if _, ok := declaredTopLevelNames(t, file)[symbol]; !ok {
+					missing = append(missing, family+"/"+edgeType+" cites undeclared symbol "+symbol+" in "+m[2])
+				}
+			}
+		}
+	}
+	sort.Strings(missing)
+	if len(missing) > 0 {
+		t.Errorf("multi-type DIRECT registry reasons cite missing writers:\n  %s", strings.Join(missing, "\n  "))
+	}
+}
+
 func TestInheritanceRegistryReasonsCiteOwningPackage(t *testing.T) {
 	t.Parallel()
 

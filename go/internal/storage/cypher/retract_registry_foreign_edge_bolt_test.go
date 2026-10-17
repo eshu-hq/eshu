@@ -115,6 +115,118 @@ func TestLiveSecurityGroupSGRuleRetractSparesForeignType(t *testing.T) {
 	}
 }
 
+// TestLiveSecurityGroupSGRuleByUIDsRetractSparesForeignType is the kind-C
+// foreign-edge regression for the ledger-anchored security_group_sg_rule
+// variant (F1: the ByUIDs const carried a bare [rel] while the guard held
+// only the full-scope retract). It seeds the same shape as
+// TestLiveSecurityGroupSGRuleRetractSparesForeignType and retracts through
+// the REAL RetractSecurityGroupReachabilityByUIDs writer method: the owned
+// edge under a listed uid is reaped, the same-source foreign-type edge
+// survives the named alternation, the foreign-source sibling survives the
+// evidence_source predicate, and an owned edge under an unlisted uid
+// survives the ledger anchor.
+func TestLiveSecurityGroupSGRuleByUIDsRetractSparesForeignType(t *testing.T) {
+	t.Parallel()
+
+	runner := openBoltTestRunner(t)
+	defer runner.close(context.Background())
+	ctx := context.Background()
+
+	const (
+		sgUID       = "6228-sg-byuids-sg"
+		ruleUID     = "6228-sg-byuids-rule"
+		sibSGUID    = "6228-sg-byuids-sib-sg"
+		sibRuleUID  = "6228-sg-byuids-sib-rule"
+		otherSGUID  = "6228-sg-byuids-other-sg"
+		otherRuleID = "6228-sg-byuids-other-rule"
+		scopeID     = "6228-sg-byuids-scope"
+		source      = "6228-sg-byuids-source"
+		sibSource   = "6228-sg-byuids-sib-source"
+	)
+
+	for _, seed := range []struct {
+		cypher string
+		params map[string]any
+	}{
+		{`MERGE (:CloudResource {uid: $uid})`, map[string]any{"uid": sgUID}},
+		{`MERGE (:SecurityGroupRule {uid: $uid})`, map[string]any{"uid": ruleUID}},
+		{`MERGE (:CloudResource {uid: $uid})`, map[string]any{"uid": sibSGUID}},
+		{`MERGE (:SecurityGroupRule {uid: $uid})`, map[string]any{"uid": sibRuleUID}},
+		{`MERGE (:CloudResource {uid: $uid})`, map[string]any{"uid": otherSGUID}},
+		{`MERGE (:SecurityGroupRule {uid: $uid})`, map[string]any{"uid": otherRuleID}},
+		{
+			strings.Join([]string{
+				`MATCH (sg:CloudResource {uid: $sg_uid})`,
+				`MATCH (rule:SecurityGroupRule {uid: $rule_uid})`,
+				`MERGE (sg)-[rel:ALLOWS_INGRESS]->(rule)`,
+				`SET rel.scope_id = $scope_id, rel.evidence_source = $source, rel.generation_id = $gen`,
+			}, " "),
+			map[string]any{"sg_uid": sgUID, "rule_uid": ruleUID, "scope_id": scopeID, "source": source, "gen": "gen-1"},
+		},
+		{
+			strings.Join([]string{
+				`MATCH (sg:CloudResource {uid: $sg_uid})`,
+				`MATCH (rule:SecurityGroupRule {uid: $rule_uid})`,
+				`MERGE (sg)-[rel:USES]->(rule)`,
+				`SET rel.scope_id = $scope_id, rel.evidence_source = $source, rel.generation_id = $gen`,
+			}, " "),
+			map[string]any{"sg_uid": sgUID, "rule_uid": ruleUID, "scope_id": scopeID, "source": source, "gen": "gen-1"},
+		},
+		{
+			strings.Join([]string{
+				`MATCH (sg:CloudResource {uid: $sg_uid})`,
+				`MATCH (rule:SecurityGroupRule {uid: $rule_uid})`,
+				`MERGE (sg)-[rel:ALLOWS_EGRESS]->(rule)`,
+				`SET rel.scope_id = $scope_id, rel.evidence_source = $source, rel.generation_id = $gen`,
+			}, " "),
+			map[string]any{"sg_uid": sibSGUID, "rule_uid": sibRuleUID, "scope_id": scopeID, "source": sibSource, "gen": "gen-1"},
+		},
+		{
+			strings.Join([]string{
+				`MATCH (sg:CloudResource {uid: $sg_uid})`,
+				`MATCH (rule:SecurityGroupRule {uid: $rule_uid})`,
+				`MERGE (sg)-[rel:ALLOWS_INGRESS]->(rule)`,
+				`SET rel.scope_id = $scope_id, rel.evidence_source = $source, rel.generation_id = $gen`,
+			}, " "),
+			map[string]any{"sg_uid": otherSGUID, "rule_uid": otherRuleID, "scope_id": scopeID, "source": source, "gen": "gen-1"},
+		},
+	} {
+		if err := boltWriteStatement(ctx, runner, seed.cypher, seed.params); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+
+	executor := &boltTestExecutor{runner: runner}
+	writer := NewSecurityGroupReachabilityWriter(executor, 0)
+	if err := writer.RetractSecurityGroupReachabilityByUIDs(ctx, []string{sgUID, sibSGUID}, []string{scopeID}, source); err != nil {
+		t.Fatalf("RetractSecurityGroupReachabilityByUIDs returned error: %v", err)
+	}
+
+	count := func(cypher string, params map[string]any) int64 {
+		t.Helper()
+		n, err := boltCount(ctx, runner, cypher, params)
+		if err != nil {
+			t.Fatalf("count: %v", err)
+		}
+		return n
+	}
+	sgParams := map[string]any{"sg_uid": sgUID, "rule_uid": ruleUID}
+	if n := count(`MATCH (:CloudResource {uid: $sg_uid})-[rel:ALLOWS_INGRESS]->(:SecurityGroupRule {uid: $rule_uid}) RETURN count(rel) AS count`, sgParams); n != 0 {
+		t.Errorf("owned ALLOWS_INGRESS count = %d, want 0 (ByUIDs retract must reap it)", n)
+	}
+	if n := count(`MATCH (:CloudResource {uid: $sg_uid})-[rel:USES]->(:SecurityGroupRule {uid: $rule_uid}) RETURN count(rel) AS count`, sgParams); n != 1 {
+		t.Errorf("foreign USES count = %d, want 1 (named alternation must spare the same-source foreign type the bare [rel] deleted)", n)
+	}
+	if n := count(`MATCH (:CloudResource {uid: $sg_uid})-[rel:ALLOWS_EGRESS]->(:SecurityGroupRule {uid: $rule_uid}) RETURN count(rel) AS count`,
+		map[string]any{"sg_uid": sibSGUID, "rule_uid": sibRuleUID}); n != 1 {
+		t.Errorf("foreign-source sibling ALLOWS_EGRESS count = %d, want 1 (evidence_source predicate must scope the delete)", n)
+	}
+	if n := count(`MATCH (:CloudResource {uid: $sg_uid})-[rel:ALLOWS_INGRESS]->(:SecurityGroupRule {uid: $rule_uid}) RETURN count(rel) AS count`,
+		map[string]any{"sg_uid": otherSGUID, "rule_uid": otherRuleID}); n != 1 {
+		t.Errorf("unlisted-uid ALLOWS_INGRESS count = %d, want 1 (ledger anchor must scope the delete to listed uids)", n)
+	}
+}
+
 // TestLiveObservabilityCoverageRetractSparesForeignType is the kind-C
 // foreign-edge regression for observability_coverage: both retract variants
 // name the five-type AWS_COVERS_* alternation, so a USES edge sharing the

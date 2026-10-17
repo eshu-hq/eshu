@@ -56,16 +56,20 @@ var multiTypeDirectMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	},
 	// security_group_sg_rule is a closed-vocabulary relAlternation family
 	// (#6228 split verdict, kind C): ALLOWS_INGRESS and ALLOWS_EGRESS named in
-	// the SG -> rule retract. The direction vocabulary the write path screens
-	// each row against is the derivation source the drift guard reads. The
-	// sibling TO family (security_group_rule_endpoint) is a separate family
-	// with its own single-type retract and is not covered here.
+	// both SG -> rule retract variants (full-scope plus ledger-anchored
+	// ByUIDs). The direction vocabulary the write path screens each row
+	// against is the derivation source the drift guard reads. The sibling TO
+	// family (security_group_rule_endpoint) is a separate family with its own
+	// single-type retract and is not covered here.
 	"security_group_sg_rule": {
 		EdgeTypes: map[string]string{
 			"ALLOWS_INGRESS": "ingress direction edge (SecurityGroupReachabilityWriter in security_group_reachability_edge_writer.go)",
 			"ALLOWS_EGRESS":  "egress direction edge (SecurityGroupReachabilityWriter in security_group_reachability_edge_writer.go)",
 		},
-		RetractCypher:  sourcecypher.RetractSecurityGroupSGRuleEdgesCypher,
+		RetractCypher: sourcecypher.RetractSecurityGroupSGRuleEdgesCypher,
+		RetractVariants: []string{
+			sourcecypher.RetractSecurityGroupSGRuleEdgesByUIDsCypher,
+		},
 		IdentityCypher: sourcecypher.CanonicalSecurityGroupSGRuleEdgeUpsertCypherFormat,
 	},
 }

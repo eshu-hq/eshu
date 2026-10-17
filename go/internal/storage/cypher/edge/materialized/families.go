@@ -30,12 +30,16 @@ import (
 // a single relationship type, so they are collected here rather than scattered
 // as ten near-identical accessors. The multi-type DIRECT families
 // (incident_routing_evidence, observability_coverage, security_group_sg_rule)
-// are the deliberate exception: their writers each own one template and one
-// closed vocabulary, so their reasoning fits one row each in the separate
-// multi-type table beside the single-type one. Every entry here is a contract
+// are the deliberate exception: each owns one closed vocabulary and a fully
+// held retract-variant set (full-scope plus ledger-anchored ByUIDs shapes,
+// which for security_group_sg_rule span two writer files), so their reasoning
+// fits one row each in the separate multi-type table beside the single-type
+// one (direct_families.go). Every entry in that multi-type table is a contract
 // family whose retract is edge-scoped by scope_id plus evidence_source, which
-// is what lets the drift guard pin predicate shape on this table while the
-// single-type table keeps its pre-contract shapes.
+// is what lets the drift guard pin predicate shape on the multi-type table
+// while this single-type table keeps its pre-contract shapes — except the
+// node-scoped code_taint_evidence entry, whose evidenceNodeDetach check pins
+// its own evidence_source plus scope predicates per variant.
 //
 // Every entry carries the production retract Cypher it must agree with.
 // TestMaterializedEdgeFamilyRegistryMatchesItsRetract checks that const at

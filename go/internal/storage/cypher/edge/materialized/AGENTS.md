@@ -5,6 +5,8 @@
 1. `README.md` and `doc.go` in this directory.
 2. `../../AGENTS.md` for Cypher storage conventions.
 3. `families.go` for the family registries,
+   `direct_families.go` for the multi-type DIRECT
+   table (`RetractKind`, `RetractVariants`),
    `endpoints.go` for endpoints, and
    `repo_dependency.go` for the alternation and split
    retract builder.
