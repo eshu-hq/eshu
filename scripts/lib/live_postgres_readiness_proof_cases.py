@@ -25,12 +25,12 @@ import importlib.util
 import io
 import pathlib
 import sys
-from types import ModuleType
+import types
 
 ACTIONS = ("skip", "fail", "missing")
 
 
-def load_results(path: pathlib.Path) -> ModuleType:
+def load_results(path: pathlib.Path) -> types.ModuleType:
     """Imports the results verifier at path together with its sibling modules.
 
     Args:
@@ -71,7 +71,23 @@ def plant(baseline: str, name: str, action: str) -> str:
     return "".join(line.replace(old, new, 1) for line in lines)
 
 
-def check_case(results: ModuleType, case_path: pathlib.Path, package: str,
+def names_line(out: str, want: str) -> bool:
+    """Reports whether a verifier output line starts with want.
+
+    The old self-test shell asserted the line start, so a test whose name
+    only ends like another's cannot satisfy the check.
+
+    Args:
+        out: The captured verifier output.
+        want: The "<name>: <verdict>" text a line must begin with.
+
+    Returns:
+        True when some line of out begins with want.
+    """
+    return "\n" + want in "\n" + out
+
+
+def check_case(results: types.ModuleType, case_path: pathlib.Path, package: str,
                name: str, action: str) -> str:
     """Runs one planted fault through verify_results.
 
@@ -93,12 +109,12 @@ def check_case(results: ModuleType, case_path: pathlib.Path, package: str,
     if action == "missing":
         if status == 0:
             return f"missing {name} events passed"
-        if f"{name}: missing" not in out:
+        if not names_line(out, f"{name}: missing"):
             return f"missing {name} events not named: {out}"
         return ""
     if status == 0:
         return f"{name} {action} event passed"
-    if f"{name}: {action.upper()}" not in out:
+    if not names_line(out, f"{name}: {action.upper()}"):
         return f"{name} {action} not named: {out}"
     return ""
 

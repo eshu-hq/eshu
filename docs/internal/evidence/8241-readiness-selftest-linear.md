@@ -12,8 +12,12 @@ The old per-proof loop did this for each enrolled proof and for each of
 skip, fail, and missing: rebuild every fake event file, then run the full
 runner. Each rebuild was O(N) because it forked about five processes for
 each entry (`$(pkg_key ...)` and `$(events_of ...)`), so the loop cost
-O(N^2). At this head, `list-packages` enrolls 314 proofs in 15 packages,
-which is 942 rebuilds and 942 runner calls.
+O(N^2). At the head of the first revision, `list-packages` enrolled 314 proofs in 15
+packages, which is 942 rebuilds and 942 runner calls. Later rebases changed the
+enrolled count; the follow-up section uses the current figures. Derive them with
+`python3 scripts/lib/live_postgres_readiness_results.py list-packages` (one row
+per package, proofs in the third tab field; 459 proofs in 16 packages when this
+note was updated).
 
 Phase seconds on the shared development host, from the read-only profile
 taken when 308 proofs were enrolled (the host was loaded, so only the
@@ -64,7 +68,7 @@ loop removed, took 206.7 s.
   in a throwaway tree and requires the self-test to fail with the named
   first failure line:
 
-| Seed | Broken property | First failure line at this head |
+| Seed | Broken property | First failure line at the first-revision head |
 | --- | --- | --- |
 | skip-as-pass | verifier accepts a skip | `<first proof> skip event passed` |
 | missing-ignored | verifier ignores a test with no events | `missing <first proof> events passed` |
@@ -80,7 +84,7 @@ The first proof is `TestSupplyChainImpactReadinessPackageManifestRepoScopeQueryP
 - runner-truncates is the review finding on the first revision, which
   checked runner naming only for the first proof of each package. That
   revision passed the self-test under this seed (exit 0). The old
-  `origin/main` self-test fails under it (exit 1), as does this head.
+  `origin/main` self-test fails under it (exit 1), as does the first-revision head.
 - deep-proof: a scratch copy of the first revision with the direct check
   removed let the deep seed through (`seed deep-proof: self-test passed`).
 
@@ -92,7 +96,7 @@ The profile's candidate run (115.3 s whole self-test) and the projected
 ~2,693 s old loop come from different load and are not comparable to each
 other or to the rows below.
 
-Interleaved in one process at this head (load average 22 to 31):
+Interleaved in one process at the first-revision head (load average 22 to 31):
 
 | Measurement | Old loop | New `check_each_proof` |
 | --- | ---: | ---: |
@@ -100,7 +104,7 @@ Interleaved in one process at this head (load average 22 to 31):
 | Round 2 | 102.7 s for 10 proofs (10.3 s/proof, ~3,224 s projected for 314) | 117.8 s for 314 proofs |
 | Fixture rebuild (`write_events`) | 900 ms | 16 ms |
 
-The rounds give about 26x and 27x for the per-proof phase. At this head the
+The rounds give about 26x and 27x for the per-proof phase. At the first-revision head the
 whole new self-test passed on the clean tree in 171.4 s (load average 20 to
 57), and the seeded-violation test caught all eight seeds in 105.1 s (load
 average 12 to 29). The deep seed walks almost every proof, so it uses most
@@ -128,8 +132,8 @@ former loop's message at the first case that passes or goes unnamed, and
 prints the case count so the caller refuses a vacuous pass. The all-names
 runner phase (`check_proofs_runner`) and the seeds test are unchanged.
 
-Direct phase only, same 459-proof, 16-package fixture (this head's
-`list-packages`), same host in the same minutes (load average 130 to 145, so
+Direct phase only, same 459-proof, 16-package fixture (`list-packages` when
+this note was updated), same host in the same minutes (load average 130 to 145, so
 compare the CPU seconds as well):
 
 | Direct phase | Real | User | Sys |
@@ -159,9 +163,14 @@ seeds against the new helper in 153.5 s real (59.6 s user, 12.4 s sys).
 GitHub marks a job that reaches `timeout-minutes` as cancelled, not failed,
 so no check turns red and the run reads like a concurrency cancel.
 `scripts/ci/live-postgres-readiness-job-summary.sh` closes that gap. The
-hermetic job records its start epoch in its first step. Its last step runs
-with `if: always()` and reads `${{ job.status }}`, then writes one verdict to
-the job summary:
+hermetic job records its start epoch in its first step, inline
+(`echo "READINESS_JOB_STARTED_EPOCH=$(date +%s)" >> "$GITHUB_ENV"`), because
+that step runs before checkout and no repo file exists yet. Its last step runs
+with `if: always()` and reads `${{ job.status }}` through `env`, then writes
+one verdict to the job summary. That step checks that the script exists and
+skips with a warning when checkout did not run (a merge-group run that did not
+select the leg), and it turns a classifier failure into a warning, so the
+summary cannot fail a healthy job:
 
 | Status | Elapsed | Verdict |
 | --- | --- | --- |
@@ -174,19 +183,40 @@ The 90 s grace covers runner setup before the first step. A concurrency
 cancel that lands inside the last 90 s reads as a cap cancel; the platform
 annotation on the job stays the authority. `CAP_MINUTES` on the summary step
 must equal `timeout-minutes`: `go/internal/cigates/readiness_job_split_test.go`
-pins it, and its seeded mutations cover a drifted cap, a summary that does
-not run on cancel, a summary that ignores the status, and a missing start
-step. `scripts/ci/test-live-postgres-readiness-job-summary.sh` checks the
+pins it. It also pins that the start record is inline and that no step runs
+the repo script before checkout. Its seeded mutations cover a drifted cap, a
+summary that does not run on cancel, a summary that ignores the status, a
+missing or skipped start record, the start script called before checkout
+(the shape the first revision had, which fails on every run), a summary that
+fails when the script is absent, and a summary that fails the job when the
+classifier fails. `scripts/ci/test-live-postgres-readiness-job-summary.sh` checks the
 classification and breaks the classifier four ways in a throwaway copy
 (cancel read as failure, failure read as cap, every cancel read as cap, grace
 dropped); each seed must fail the cases.
+
+### Cap-cancel step semantics (live experiment)
+
+Whether `if: always()` steps run after `timeout-minutes` cancels a job, and
+what `job.status` reads then, is not stated in the GitHub documentation. A
+throwaway workflow in `eshu-hq/eshu` (run id 39077917141, 2026-10-17, branch
+deleted) set `timeout-minutes: 1` and ran a 150 s sleep step. The job
+concluded `cancelled` and the sleep step was `cancelled`. An `if: always()`
+step and an `if: cancelled()` step both ran afterwards, and `job.status` read
+`cancelled` in them.
+
+This shows the step-order semantics the summary relies on: a cap cancel is a
+cancelled job, and the `always()` step runs with `job.status` equal to
+`cancelled`. It does not run the Eshu readiness job, so it does not show the
+summary text for a real cap hit. The classifier is proven on its inputs by
+`scripts/ci/test-live-postgres-readiness-job-summary.sh`. The workflow keeps
+`if: always()`. A `run:` text cannot call `cancelled()`, so the step passes
+`job.status` through `env`.
 
 ## NOT_CHECKED
 
 - CI wall time of the hermetic job after this change. The coordinator
   records it from the first CI run on the pushed head.
-- Whether GitHub runs the `if: always()` summary step after a job-timeout
-  cancel. The step is written for that behavior; only a real timeout in CI
-  shows it. The classifier is proven on its inputs, not on a live cap hit.
+- The summary text for a real cap hit of the Eshu hermetic job. Only the step
+  semantics are shown live (above); the Eshu job itself has not hit its cap.
 - `shellcheck` (not installed on the host); `bash -n` passed on all three
   scripts.

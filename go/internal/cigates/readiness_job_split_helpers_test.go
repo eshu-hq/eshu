@@ -103,22 +103,44 @@ func jobRuns(steps []readinessStep, command string) bool {
 const (
 	readinessSummaryScript = "scripts/ci/live-postgres-readiness-job-summary.sh"
 	readinessSummaryTest   = "bash scripts/ci/test-live-postgres-readiness-job-summary.sh"
+	// readinessStartRecord is the whole first step: it needs no checkout, so
+	// it must not name a repo file. NAME=value is the $GITHUB_ENV format.
+	readinessStartRecord = `echo "READINESS_JOB_STARTED_EPOCH=$(date +%s)" >> "$GITHUB_ENV"`
 )
 
 // checkReadinessHermeticSummary requires the hermetic job to record its start
-// time first and to end with an always-run summary step that classifies the
-// job by status and elapsed time against the job's own cap, so a run cut off
-// by the cap reads differently from a failure (#8241).
+// time inline in its first step (before checkout, so no repo file is needed)
+// and to end with an always-run summary step that classifies the job by
+// status and elapsed time against the job's own cap, so a run cut off by the
+// cap reads differently from a failure (#8241). The summary step must also
+// tolerate an absent script (checkout skipped or not yet run) and a failing
+// classifier, so it can never fail a healthy job. No other step before the
+// checkout may run the repo script.
 func checkReadinessHermeticSummary(job readinessJob) string {
 	steps := job.Steps
-	if len(steps) == 0 || strings.TrimSpace(steps[0].Run) != "bash "+readinessSummaryScript+" start" ||
+	if len(steps) == 0 || strings.TrimSpace(steps[0].Run) != readinessStartRecord ||
 		steps[0].If != "" || steps[0].ContinueOnError != "" {
-		return "hermetic job must record its start time in its first step"
+		return "hermetic job must record its start time inline in its first step, with no repo file"
+	}
+	checkedOut := false
+	for i, step := range steps {
+		if strings.HasPrefix(step.Uses, "actions/checkout@") {
+			checkedOut = true
+		}
+		if !checkedOut && i != len(steps)-1 && strings.Contains(step.Run, readinessSummaryScript) {
+			return "hermetic step runs a repo script before checkout"
+		}
 	}
 	last := steps[len(steps)-1]
-	if strings.TrimSpace(last.Run) != "bash "+readinessSummaryScript+" finish" ||
-		last.If != readinessAlways || last.ContinueOnError != "" {
+	if last.If != readinessAlways || last.ContinueOnError != "" ||
+		!strings.Contains(last.Run, `bash "$script" finish`) || !strings.Contains(last.Run, "script="+readinessSummaryScript) {
 		return "hermetic job must end with an always-run summary step"
+	}
+	if !strings.Contains(last.Run, `if [ ! -f "$script" ]; then`) || !strings.Contains(last.Run, "exit 0\n") {
+		return "hermetic summary step must skip, not fail, when the script is absent"
+	}
+	if !strings.Contains(last.Run, `bash "$script" finish || echo`) {
+		return "hermetic summary step must not fail the job when the classifier fails"
 	}
 	if last.Env["JOB_STATUS"] != "${{ job.status }}" {
 		return "hermetic summary step must read the job status"

@@ -150,15 +150,17 @@ jobs:
     # PostgreSQL/Neo4j leg's 30-minute budget.
     #
     # A job that reaches the cap is cancelled, not failed. The first step
-    # records the start time and the last step (always) writes a summary that
-    # names a cap cancel, a failure, or an early cancel (#8241). Keep
-    # CAP_MINUTES on that step equal to this value; the cigates readiness
-    # test pins it. Measured with the 30-minute cap: the self-test took about
+    # records the start time inline (it runs before checkout, so it cannot
+    # depend on a repo file) and the last step (always) writes a summary that
+    # names a cap cancel, a failure, or an early cancel (#8241). The summary
+    # step skips itself with a warning when checkout did not run, and cannot
+    # fail the job. Keep CAP_MINUTES on that step equal to this value; the
+    # cigates readiness test pins it. Measured with the 30-minute cap: the self-test took about
     # 5 minutes after #8263, so the margin is wide.
     timeout-minutes: 30
     steps:
       - name: Record hermetic job start
-        run: bash scripts/ci/live-postgres-readiness-job-summary.sh start
+        run: echo "READINESS_JOB_STARTED_EPOCH=$(date +%s)" >> "$GITHUB_ENV"
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
         run: test "${{ needs.queue-selection.result }}" = success
@@ -197,7 +199,13 @@ jobs:
         env:
           JOB_STATUS: ${{ job.status }}
           CAP_MINUTES: '30'
-        run: bash scripts/ci/live-postgres-readiness-job-summary.sh finish
+        run: |
+          script=scripts/ci/live-postgres-readiness-job-summary.sh
+          if [ ! -f "$script" ]; then
+            echo "::warning title=hermetic job summary skipped::$script is absent (checkout did not run)"
+            exit 0
+          fi
+          bash "$script" finish || echo "::warning title=hermetic job summary failed::$script finish exited $?"
 
   live-postgres-readiness-shards:
     needs: queue-selection

@@ -3,13 +3,13 @@
 #
 # GitHub cancels a job that reaches `timeout-minutes` and marks it cancelled,
 # not failed, so no check turns red and the run reads like a concurrency
-# cancel. The workflow runs this script twice:
+# cancel. The workflow records the start epoch inline in its first step
+# (READINESS_JOB_STARTED_EPOCH in $GITHUB_ENV, before checkout, so it needs no
+# repo file) and runs this script as its last step, `if: always()`:
 #
-#   start   first step; records the job's start epoch in $GITHUB_ENV.
-#   finish  last step, `if: always()`; classifies the job from JOB_STATUS
-#           (the job context's success, failure, or cancelled) and the
-#           elapsed seconds, then writes the verdict to $GITHUB_STEP_SUMMARY
-#           and stdout.
+#   finish  classifies the job from JOB_STATUS (the job context's success,
+#           failure, or cancelled) and the elapsed seconds, then writes the
+#           verdict to $GITHUB_STEP_SUMMARY and stdout.
 #
 # A cancelled job whose elapsed time is within a short grace of the cap is
 # reported as cancelled by the time cap. The grace covers runner setup before
@@ -30,11 +30,6 @@ fail() { printf 'live-postgres-readiness-job-summary: %s\n' "$*" >&2; exit 2; }
 grace_s=90
 # budget_percent is the share of the cap above which a passing job warns.
 budget_percent=80
-
-start() {
-  [[ -n "${GITHUB_ENV:-}" ]] || fail "start needs GITHUB_ENV"
-  printf 'READINESS_JOB_STARTED_EPOCH=%s\n' "$(date +%s)" >>"${GITHUB_ENV}"
-}
 
 # emit prints the verdict lines to stdout and, minus the ::annotation lines,
 # to the step summary.
@@ -98,7 +93,6 @@ finish() {
 }
 
 case "${1:-}" in
-  start) start ;;
   finish) finish ;;
-  *) fail "usage: live-postgres-readiness-job-summary.sh start|finish" ;;
+  *) fail "usage: live-postgres-readiness-job-summary.sh finish" ;;
 esac

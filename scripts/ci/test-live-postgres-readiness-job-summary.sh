@@ -67,11 +67,9 @@ out="$(JOB_STATUS=cancelled READINESS_JOB_STARTED_EPOCH= CAP_MINUTES=30 bash "${
   fail "cancel without a start time was refused"
 has "${out}" "start time unknown" && ! has "${out}" "TIME CAP" || fail "cancel without a start time was classified"
 
-# The start mode records the epoch for later steps.
-env_file="${work}/env"
-: >"${env_file}"
-GITHUB_ENV="${env_file}" bash "${real}" start || fail "start mode failed"
-rg -q '^READINESS_JOB_STARTED_EPOCH=[0-9]+$' "${env_file}" || fail "start mode wrote no epoch"
+# The start epoch is recorded inline by the workflow, so the script has no
+# start mode and refuses one.
+bash "${real}" start >/dev/null 2>&1 && fail "script accepted a start mode"
 
 # Seeds: each mutation must make check_cases fail.
 seed() {
