@@ -144,7 +144,8 @@ reducer-root alias, `ReducerGraphDrain` (a type alias for this package's
 `ReducerGraphDrain`, identical by definition), with a single external caller:
 `reducerGraphDrainFor` in `go/cmd/reducer/main_helpers.go`. With the alias
 deleted before the caller edit, `go build ./cmd/reducer/` failed to compile
-at that caller reference (`undefined: reducer.ReducerGraphDrain`, exit 1).
+at that caller reference (undefined `ReducerGraphDrain` in package
+`cmd/reducer`, exit 1).
 After repointing the return type to `projection.ReducerGraphDrain`, whole
 module `go build ./...` and `go vet` over the touched trees exited 0, and
 unfiltered recursive `go test -count=1 ./cmd/reducer/...` and
