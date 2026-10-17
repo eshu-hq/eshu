@@ -10,7 +10,7 @@ The registry holds one relationship type, `RECONCILES_FROM`, covering all
 seven (reconciler, target-label) pairs. `querycontract` reads it directly for
 the edge-materialization coverage gate. The parent `cypher` package wraps the
 Statement-free parts into executable statements
-(`canonical_flux_statements.go`); the four Phase G appends
+(`flux_statements.go`); the four Phase G appends
 (atlantis, flux, gitlab, helm) keep their order in the root phases file.
 
 The exported templates preserve the original query bytes and parameters.

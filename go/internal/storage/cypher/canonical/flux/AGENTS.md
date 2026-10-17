@@ -5,7 +5,7 @@
 - This package owns the canonical Cypher templates, the T1-T4 Go resolution,
   and the one-type registry for Flux `RECONCILES_FROM` edges.
 - The parent `cypher` package owns the `Statement` wrap
-  (`canonical_flux_statements.go`) because the shared `Statement` type and
+  (`flux_statements.go`) because the shared `Statement` type and
   the phase dispatch callers remain there.
 - `querycontract` reads this package's registry directly for the
   edge-materialization coverage gate.
