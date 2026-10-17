@@ -379,5 +379,25 @@ func provisionReopenPartitionMemoSchema(t *testing.T, db *sql.DB) string {
 		`ALTER TABLE fact_work_items ADD COLUMN IF NOT EXISTS reopened_at TIMESTAMPTZ NULL`); err != nil {
 		t.Fatalf("add reopened_at column: %v", err)
 	}
+	// The deployable_unit_correlation reopen reads its fingerprint table
+	// (#8283). Apply the shipped migration, not a copy, so the hand-rolled
+	// schema carries exactly the production DDL.
+	applyShippedMigration(t, ctx, db, "deployable_unit_reopen_fingerprints")
 	return schemaName
+}
+
+// applyShippedMigration runs one shipped bootstrap definition, found by name,
+// against db.
+func applyShippedMigration(t *testing.T, ctx context.Context, db *sql.DB, name string) {
+	t.Helper()
+	for _, def := range BootstrapDefinitions() {
+		if def.Name != name {
+			continue
+		}
+		if _, err := db.ExecContext(ctx, def.SQL); err != nil {
+			t.Fatalf("apply shipped migration %s: %v", name, err)
+		}
+		return
+	}
+	t.Fatalf("shipped migration %s not found", name)
 }
