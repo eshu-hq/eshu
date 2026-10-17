@@ -280,8 +280,8 @@ old full scan made — not "earliest fact of the first-checked kind" — so anch
 `FactID`, `Reason`, and `SourceSystem` stay byte-identical.
 Root assembly constructs one concrete `intent.FactLookup` per generation and
 retains a compatibility wrapper for unmoved family builders. The extracted
-`internal/projector/azure`, `internal/projector/aws/ec2`, `internal/projector/gcp`,
-`internal/projector/kubernetes`, `internal/projector/aws/rds`, `internal/projector/aws/s3`, `internal/projector/security`, `internal/projector/workload/cloud`, `internal/projector/incident/routing`, `internal/projector/aws/relationship`, `internal/projector/aws/cloud/image`, `internal/projector/cloud/aws/iam/trust`, `internal/projector/cloud/aws/iam/perform`, `internal/projector/cloud/aws/iam/escalation`, `internal/projector/package/source`, `internal/projector/cloud/inventory`, `internal/projector/code/taint/evidence`, `internal/projector/code/interproc/evidence`, `internal/projector/code/function/summary`, `internal/projector/sbom/attestation`, `internal/projector/service/catalog`, `internal/projector/access/posture`, `internal/projector/observability/coverage`, `internal/projector/cloud/aws/iam/instance/profile`, `internal/projector/cicd/run/correlation`, `internal/projector/container/image/identity`, `internal/projector/supply/chain/impact`, `internal/projector/crossplane/satisfaction`, `internal/projector/cloud/runtime/drift/multi`, `internal/projector/cloud/runtime/drift/aws`, and `internal/projector/aws/resource`
+`internal/projector/cloud/azure`, `internal/projector/cloud/aws/ec2`, `internal/projector/cloud/gcp`,
+`internal/projector/kubernetes`, `internal/projector/cloud/aws/rds`, `internal/projector/cloud/aws/s3`, `internal/projector/security`, `internal/projector/workload/cloud`, `internal/projector/incident/routing`, `internal/projector/cloud/aws/relationship`, `internal/projector/cloud/aws/image`, `internal/projector/cloud/aws/iam/trust`, `internal/projector/cloud/aws/iam/perform`, `internal/projector/cloud/aws/iam/escalation`, `internal/projector/package/source`, `internal/projector/cloud/inventory`, `internal/projector/code/taint/evidence`, `internal/projector/code/interproc/evidence`, `internal/projector/code/function/summary`, `internal/projector/sbom/attestation`, `internal/projector/service/catalog`, `internal/projector/access/posture`, `internal/projector/observability/coverage`, `internal/projector/cloud/aws/iam/instance/profile`, `internal/projector/cicd/run/correlation`, `internal/projector/container/image/identity`, `internal/projector/supply/chain/impact`, `internal/projector/crossplane/satisfaction`, `internal/projector/cloud/runtime/drift/multi`, `internal/projector/cloud/aws/runtime/drift`, and `internal/projector/cloud/aws/resource`
 families import that neutral lookup (semantic/entity does not: it is per-fact);
 remaining root builders keep using the private forwarders until they move.
 `ReducerIntent` in the root package is a type alias, so existing writer and
@@ -294,13 +294,13 @@ reducer-intent builder calls and fails if that constant (and, by extension,
 this prose) ever drifts from the source again — this doc count went stale
 silently twice before that guard existed.
 RDS posture facts follow that same reducer-owned handoff, now from the
-`internal/projector/aws/rds` child package. When a generation contains an
+`internal/projector/cloud/aws/rds` child package. When a generation contains an
 `rds_instance_posture` fact, `rds.BuildPostureMaterializationReducerIntent`
 emits one `rds_posture_materialization` reducer intent for the scope/generation. The
 projector does not set RDS graph properties, infer exposure, or create RDS
 nodes; the reducer waits for the CloudResource canonical-nodes phase and then
 projects bounded posture metadata onto existing RDS CloudResource nodes.
-EC2 posture observations now use the extracted `internal/projector/aws/ec2` child
+EC2 posture observations now use the extracted `internal/projector/cloud/aws/ec2` child
 package. `ec2.BuildInstanceNodeMaterializationReducerIntent` and
 `ec2.BuildInstanceIdentityMaterializationReducerIntent` share the
 `ec2_instance_node_materialization:<scope>` entity key for the EC2 instance

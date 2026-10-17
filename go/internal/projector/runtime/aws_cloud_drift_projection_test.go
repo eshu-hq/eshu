@@ -19,7 +19,7 @@ import (
 // dispatch after the #6057 move, and that the same aws_resource generation
 // enqueues the other AWS-scope-keyed intents it always has. The builder's own
 // anchor-selection, entity-key, and source-system unit coverage lives in
-// internal/projector/cloud/runtime/drift/aws/reducer_intent_test.go.
+// internal/projector/cloud/aws/runtime/drift/reducer_intent_test.go.
 
 func TestBuildProjectionQueuesSingleAWSCloudRuntimeDriftIntent(t *testing.T) {
 	t.Parallel()

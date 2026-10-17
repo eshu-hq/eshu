@@ -16,7 +16,7 @@ import (
 // awsv1.Resource struct through the contracts seam.
 //
 // This package keeps its own decode rather than importing root's wrapper, the
-// same way internal/projector/aws/ec2 and the sibling
+// same way internal/projector/cloud/aws/ec2 and the sibling
 // internal/projector/observability/coverage do: sharing root's would require
 // importing the package that already imports this one to dispatch, which
 // cycles.
