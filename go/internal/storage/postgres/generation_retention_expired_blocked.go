@@ -13,7 +13,10 @@ import "time"
 // Later PRs map live store signals (fact_work_items statuses, dependency
 // references) onto GenerationRetentionEvaluationInput and surface the
 // evaluations to operators; this PR fixes the reason vocabulary and the
-// ceiling-edge semantics those PRs will share.
+// ceiling-edge semantics those PRs will share. Uncovered (#7472) and
+// delta-protected (#7802) history has no reason in this vocabulary yet:
+// PR2 must add flags or reasons for those classes, or explicitly scope
+// them out, before the report is treated as total.
 
 // GenerationRetentionBlockedReason names why hard-ceiling-expired history
 // is retained instead of pruned. The set is closed so it can label operator
@@ -49,7 +52,8 @@ const (
 // I/O, so the report path cannot lock, wait, or change prune behavior.
 type GenerationRetentionEvaluationInput struct {
 	// SupersededAt is the generation's original superseded_at, the same
-	// instant the hard ceiling measures from.
+	// instant the hard ceiling measures from. Callers pass only superseded
+	// generations; the zero time is not a valid input.
 	SupersededAt time.Time
 	// IsActiveGeneration is true when the generation is still its scope's
 	// active (current) generation.
@@ -95,9 +99,12 @@ func (e GenerationRetentionEvaluation) Compliant() bool {
 }
 
 // EvaluateGenerationRetention classifies one superseded generation against
-// the policy's hard history ceiling (#7585). An unset ceiling resolves
+// the policy's hard history ceiling (#7585). It assumes a validated
+// policy: callers must reject HardMaxSupersededAge < MaxSupersededAge via
+// validate, as the prune does, before reporting. An unset ceiling resolves
 // through normalize, the same 90-day default (or longer soft window) the
-// prune uses, so the report and the deletion bound cannot drift apart.
+// prune uses, so the report and the deletion bound cannot drift apart for
+// validated policies.
 // Expiry mirrors the candidate SQL exactly: history is expired only when
 // strictly older than the ceiling (`superseded_at < now - ceiling`), so
 // history exactly at the ceiling stays compliant. Past the ceiling the
