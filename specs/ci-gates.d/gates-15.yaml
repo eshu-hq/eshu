@@ -301,7 +301,6 @@ gates:
     requirements:
       - go
     ci_only_reason: ""
-
   - id: replay-tier
     name: Replay tier (offline cassette replay)
     category: exactness
@@ -334,11 +333,13 @@ gates:
       - "scripts/test-replay-tier-*.py"
       - "specs/live-tests.v1.yaml"
       - "specs/live-tests.d/**"
-      - "specs/ci-gates.d/**"
+      - "specs/ci-gates.d/gates-09.yaml"
+      - "specs/ci-gates.d/gates-15.yaml"
       - "scripts/dev/pre-pr.sh"
       - "scripts/ci/install-apt-packages.sh"
       - "scripts/ci/go-mod-download-retry.sh"
-      - ".github/workflows/*"
+      - ".github/workflows/live-backend-tests.yml"
+      - ".github/workflows/verify-replay-tier.yml"
     local:
       command: "bash scripts/verify-replay-tier.sh"
       test_command: "bash scripts/test-verify-replay-tier.sh"
@@ -349,7 +350,6 @@ gates:
       - go
       - docker
     ci_only_reason: ""
-
   - id: go-test-race
     name: Go tests with race detector
     category: race

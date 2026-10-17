@@ -39,7 +39,11 @@ def production_ledger_fixture(parent: Path) -> Path:
     for name in ("scripts/verify-live-tests-ledger.sh", LEDGER_CHECKER_PATH,
                  RUNNER_PATH, INVENTORY_PATH,
                  "scripts/lib/replay_tier_enrollment.py",
-                 "scripts/lib/replay_tier_routes.py", "specs/live-tests.v1.yaml"):
+                 "scripts/lib/replay_tier_routes.py", "specs/live-tests.v1.yaml",
+                 ".github/workflows/verify-replay-tier.yml",
+                 ".github/workflows/live-backend-tests.yml",
+                 "specs/ci-gates.d/gates-15.yaml",
+                 "specs/ci-gates.d/gates-09.yaml", "scripts/dev/pre-pr.sh"):
         shutil.copy2(ROOT / name, checkout / name)
     subprocess.run(("git", "init", "-q"), cwd=checkout,
                    check=True, capture_output=True)

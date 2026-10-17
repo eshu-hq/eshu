@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from fnmatch import fnmatchcase
 from pathlib import Path
 import re
 
@@ -365,25 +366,11 @@ def verify_routes(root: Path) -> None:
     workflow_triggers = workflow_paths(workflow)
     registry_triggers = replay_gate_triggers(registry)
     selector = _prepr_selector(prepr)
+    if workflow_triggers != registry_triggers:
+        raise ValueError("replay registry and workflow trigger sets differ")
     for path in ROUTED_PATHS:
-        if path not in workflow_triggers:
+        if not any(fnmatchcase(path, trigger) for trigger in workflow_triggers):
             raise ValueError(f"workflow lacks replay metadata trigger: {path}")
-        if path.startswith("scripts/lib/replay_tier_"):
-            registry_path = "scripts/lib/replay_tier_*"
-        elif path == "scripts/lib/verify-live-tests-ledger.py":
-            registry_path = "scripts/lib/verify-live-tests-ledger.py"
-        elif path.startswith("scripts/test-replay-tier-"):
-            registry_path = "scripts/test-replay-tier-*.py"
-        elif path.startswith("specs/ci-gates.d/"):
-            registry_path = "specs/ci-gates.d/**"
-        elif path.startswith(".github/workflows/"):
-            registry_path = ".github/workflows/*"
-        elif path.startswith("specs/live-tests"):
-            registry_path = path
-        else:
-            registry_path = path
-        if registry_path not in registry_triggers:
-            raise ValueError(f"registry lacks replay metadata trigger: {path}")
         if path == "specs/live-tests.d/**":
             fragments = list((root / "specs/live-tests.d").glob("**/*.yaml"))
             if not fragments:

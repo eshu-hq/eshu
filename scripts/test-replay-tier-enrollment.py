@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from fnmatch import fnmatchcase
 import json
 import re
 import shutil
@@ -17,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 from replay_tier_enrollment import (  # noqa: E402
     verify_events, verify_inventory, verify_routes, verify_runner,
 )
+from replay_tier_routes import replay_gate_triggers, workflow_paths  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -37,6 +39,28 @@ def copy_route_sources(destination: Path) -> None:
 
 class ReplayTierEnrollmentTest(unittest.TestCase):
     """Check the exact source set and successful top-level Go events."""
+
+    def test_registry_and_workflow_trigger_sets_match(self) -> None:
+        """A required gate must start for every path that selects it."""
+        workflow = workflow_paths(
+            (ROOT / ".github/workflows/verify-replay-tier.yml").read_text())
+        registry = replay_gate_triggers(
+            (ROOT / "specs/ci-gates.d/gates-15.yaml").read_text())
+        self.assertEqual(registry, workflow)
+        for path in ("specs/ci-gates.d/gates-10.yaml", ".github/workflows/frontend.yml"):
+            self.assertFalse(any(fnmatchcase(path, trigger) for trigger in registry))
+        for path in ("scripts/lib/replay_tier_future.py",
+                     "scripts/test-replay-tier-future.py"):
+            self.assertTrue(any(fnmatchcase(path, trigger) for trigger in registry))
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = Path(temporary)
+            copy_route_sources(fixture)
+            path = fixture / "specs/ci-gates.d/gates-15.yaml"
+            path.write_text(path.read_text().replace(
+                '      - "specs/ci-gates.d/gates-09.yaml"',
+                '      - "specs/ci-gates.d/**"', 1))
+            with self.assertRaisesRegex(ValueError, "trigger sets differ"):
+                verify_routes(fixture)
 
     def test_committed_inventory_and_source_are_closed(self) -> None:
         inventory = json.loads(INVENTORY.read_text(encoding="utf-8"))
@@ -158,8 +182,8 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
                 '    requirements:\n      - go\n      - docker\n'
                 '      - "specs/live-tests.d/**"\n    ci_only_reason:', 1)),
             "registry duplicate triggers override": ("registry", registry_source.replace(
-                '      - ".github/workflows/*"\n    local:',
-                '      - ".github/workflows/*"\n'
+                '      - ".github/workflows/verify-replay-tier.yml"\n    local:',
+                '      - ".github/workflows/verify-replay-tier.yml"\n'
                 '    triggers:\n      - "go/internal/replay/**"\n    local:', 1)),
             "registry duplicate replay gate": ("registry", registry_source.replace(
                 "  - id: go-test-race\n",
@@ -296,8 +320,8 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
             original[0] + "\njobs : {}\n",
         )
         registry_case = original[1].replace(
-            '      - ".github/workflows/*"\n    local:',
-            '      - ".github/workflows/*"\n'
+            '      - ".github/workflows/verify-replay-tier.yml"\n    local:',
+            '      - ".github/workflows/verify-replay-tier.yml"\n'
             '    triggers : []\n    local:', 1)
         target = r"|specs/live-tests(\.v1\.yaml|\.d/)"
         before, command, after = original[2].partition("run_or_defer replay-tier " + chr(92) + "\n")
@@ -399,13 +423,11 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
             (".github/workflows/verify-replay-tier.yml",
              "      - 'specs/ci-gates.d/gates-09.yaml'\n", ""),
             ("specs/ci-gates.d/gates-15.yaml",
-             '      - "specs/live-tests.d/**"\n'
-             '      - "specs/ci-gates.d/**"\n',
-             '      - "specs/live-tests.d/**"\n'
-             '      - "specs/ci-gates.d/gates-15.yaml"\n'),
+             '      - "specs/ci-gates.d/gates-09.yaml"\n',
+             ''),
             ("specs/ci-gates.d/gates-15.yaml",
-             '      - ".github/workflows/*"\n',
-             '      - ".github/workflows/verify-replay-tier.yml"\n'),
+             '      - ".github/workflows/verify-replay-tier.yml"\n',
+             ''),
         )
         with tempfile.TemporaryDirectory() as temporary:
             fixture = Path(temporary)
