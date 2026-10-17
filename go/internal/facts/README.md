@@ -117,9 +117,13 @@ consume these types as their input or storage shape.
   generator both use to reject malformed versions and lifecycle markers. See
   [Fact Schema Versioning](../../../docs/public/reference/fact-schema-versioning.md).
 
-The generated fact-kind contract source is
-`specs/fact-kind-registry.v1.yaml`; it emits
-[`fact_kind_registry.generated.go`](fact_kind_registry.generated.go) and
+The fact-kind contract source of truth is the typed
+`contract.Declare(contract.Family{...})` declaration beside each family's
+fact definitions (issue #6629), plus `contract.Bind` declarations beside
+reducer implementations. `go/cmd/fact-kind-registry` discovers them
+statically and emits `specs/fact-kind-registry.v1.yaml`, the
+`specs/fact-kind-registry-contracts.d/` shards and catalog pages,
+[`fact_kind_registry.generated.go`](fact_kind_registry.generated.go), and
 [`FACT_KIND_REGISTRIES.md`](FACT_KIND_REGISTRIES.md). Public operator-facing
 descriptions live in
 `docs/public/reference/fact-envelope-reference.md`. See `doc.go` for the full
@@ -140,6 +144,7 @@ contract, including its private-data boundary; read its `doc.go` and
 | [`docs/`](docs/README.md) | The documentation fact family: sources, documents, sections, links, entity mentions, claim candidates, findings, evidence packets, and the bounded source-ACL vocabulary |
 | [`supply/chain/`](supply/chain/README.md) | OCI registry, language package registry, SBOM and attestation, vulnerability intelligence, and vulnerability suppression evidence |
 | [`encode/`](encode/README.md) | Shared payload substrate: `StableID` and the pointer/JSON-shape helpers a family's encoders use |
+| [`contract/`](contract/README.md) | Dependency-neutral fact-family contract model: the `Family`/`Kind`/`Producer`/`Binding` declarations the registry generator discovers statically (issue #6629) |
 
 The `docs/` package is named `docs`, not `documentation`, because `go/build`
 excludes every `.go` file in a package named `documentation`; see
