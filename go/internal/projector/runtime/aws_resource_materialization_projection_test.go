@@ -19,7 +19,7 @@ import (
 // at root when that builder moved into internal/projector/aws/resource (#6057),
 // because buildProjection is a root-only function the child package cannot
 // call; the builder's own unit tests live in
-// aws/resource/materialization_intents_test.go.
+// cloud/aws/resource/materialization_intents_test.go.
 //
 // The cases first lived in aws_cloud_runtime_drift_intents_test.go alongside
 // the aws_cloud_runtime_drift dispatch tests, and moved into a file of their

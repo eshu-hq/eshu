@@ -80,7 +80,7 @@
   time was still the root file `aws_resource_materialization_intents.go`. That
   coverage moved into a new root file matching the builder's own name, and
   survives today as `../../../../aws_resource_materialization_projection_test.go` —
-  the builder itself was extracted into `../cloud/aws/resource/` shortly afterwards,
+  the builder itself was extracted into `../../resource/` shortly afterwards,
   also under #6057, and the root file was renamed to match the dispatch-level
   role it kept.
 - **`awsCloudRuntimeDriftSourceSystem` had two other root callers at

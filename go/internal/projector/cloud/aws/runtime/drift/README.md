@@ -64,7 +64,7 @@ builder adds no queue, storage, graph, span, metric, or log boundary.
   (`awsCloudRuntimeDriftSourceSystem`) had the identical two-tier body, and
   the child tests pin both tiers. At extraction time that helper had two other
   root callers (`aws_resource_materialization_intents.go`,
-  since extracted into `../../../../aws/resource/materialization_intents.go`, and
+  since extracted into `../../resource/materialization_intents.go`, and
   `observability/coverage/materialization/materialization_intents.go`); both were
   repointed to `projectorintent.SourceSystem` directly rather than left
   calling a now-deleted root function.
@@ -80,9 +80,9 @@ Run the package contract tests, ordered fan-out parity and probe-count tests,
 the projector package tree, package-doc and path mirrors, dirgate, telemetry
 coverage, and the golden-corpus gates selected by the changed paths.
 
-No-Regression Evidence: #6627 changes this builder's package path, package
-name, exported symbol, and references without changing its trigger, value, or
-fan-out position. The reducer intent domain, entity
+No-Regression Evidence: #6627 changes this builder's package path and
+references without changing its package name, exported symbols, trigger,
+value, or fan-out position. The reducer intent domain, entity
 key, reason, anchor selection, and source-system derivation are identical to
 the base commit, and the dispatcher's ordered fan-out is unchanged at 44
 builder probes with this probe still running immediately after

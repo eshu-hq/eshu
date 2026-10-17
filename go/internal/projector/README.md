@@ -384,7 +384,7 @@ contains an `s3_bucket_posture` fact,
 `s3.BuildInternetExposureMaterializationReducerIntent` emits one
 `s3_internet_exposure_materialization` reducer intent for the scope/generation,
 keyed to `aws_resource_materialization:<scope>` so the reducer waits for the
-same CloudResource canonical-nodes phase as AWS relationship (`relationship.BuildMaterializationReducerIntent`, [architecture](aws/relationship/README.md)) and S3 LOGS_TO
+same CloudResource canonical-nodes phase as AWS relationship (`relationship.BuildMaterializationReducerIntent`, [architecture](cloud/aws/relationship/README.md)) and S3 LOGS_TO
 work. The projector does not derive exposed/not_exposed/unknown posture and never reads raw bucket policies or ACL grants.
 
 S3 external-principal grants follow the same reducer-owned boundary. When a
@@ -396,7 +396,7 @@ reducer waits for the same CloudResource canonical-nodes phase before writing
 `GRANTS_ACCESS_TO` edges. The projector does not create `ExternalPrincipal`
 nodes, does not infer access from posture booleans, and never carries raw bucket
 policy, statement, ACL, condition, action, resource, or object data. S3 LOGS_TO
-projection (`s3.BuildLogsToMaterializationReducerIntent`) follows the same boundary; see [S3 architecture](aws/s3/README.md) for its full contract.
+projection (`s3.BuildLogsToMaterializationReducerIntent`) follows the same boundary; see [S3 architecture](cloud/aws/s3/README.md) for its full contract.
 
 ## Telemetry
 
