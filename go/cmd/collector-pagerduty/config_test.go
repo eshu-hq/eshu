@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 func TestLoadClaimedRuntimeConfigSelectsPagerDutyInstanceAndLoadsTokenEnv(t *testing.T) {
@@ -108,5 +109,51 @@ func TestLoadClaimedRuntimeConfigRejectsMissingPagerDutyToken(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "token-value") || !strings.Contains(err.Error(), "PAGERDUTY_TOKEN") {
 		t.Fatalf("loadClaimedRuntimeConfig() error = %q, want credential env reference without value", err)
+	}
+}
+
+func TestLoadPagerDutySourceConfigRoundTripsAllowEmptySuccessor(t *testing.T) {
+	t.Parallel()
+
+	load := func(t *testing.T, targetJSON string) bool {
+		t.Helper()
+		instance := workflow.DesiredCollectorInstance{
+			InstanceID:    "pagerduty-primary",
+			Configuration: `{"targets":[` + targetJSON + `]}`,
+		}
+		config, err := loadPagerDutySourceConfig(instance, func(key string) string {
+			if key == "PAGERDUTY_TOKEN" {
+				return "token-value"
+			}
+			return ""
+		})
+		if err != nil {
+			t.Fatalf("loadPagerDutySourceConfig() error = %v, want nil", err)
+		}
+		if len(config.Targets) != 1 {
+			t.Fatalf("len(Targets) = %d, want 1", len(config.Targets))
+		}
+		return config.Targets[0].AllowEmptySuccessor
+	}
+
+	attested := `{
+		"provider":"pagerduty",
+		"scope_id":"pagerduty:account:example",
+		"account_id":"example",
+		"token_env":"PAGERDUTY_TOKEN",
+		"allow_empty_successor":true
+	}`
+	if got := load(t, attested); !got {
+		t.Fatal("AllowEmptySuccessor = false with allow_empty_successor:true, want true")
+	}
+
+	unattested := `{
+		"provider":"pagerduty",
+		"scope_id":"pagerduty:account:example",
+		"account_id":"example",
+		"token_env":"PAGERDUTY_TOKEN"
+	}`
+	if got := load(t, unattested); got {
+		t.Fatal("AllowEmptySuccessor = true without allow_empty_successor, want false default")
 	}
 }

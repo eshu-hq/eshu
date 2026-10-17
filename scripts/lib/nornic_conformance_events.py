@@ -72,6 +72,8 @@ ROUTED_PATHS = frozenset({
     "scripts/lib/nornic_conformance_inventory.json",
     "scripts/test-nornic-conformance-events.py",
     "scripts/lib/verify-live-tests-ledger.py",
+    "scripts/lib/nornic_cli_activation_guard.py",
+    "scripts/test-nornic-ledger-guard-boundary.py",
     "specs/live-tests.v1.yaml",
     "specs/live-tests.d/**",
     ".github/workflows/e2e-tests.yml",

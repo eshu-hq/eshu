@@ -31,11 +31,15 @@ die() { printf '[verify-replay-tier] ERROR: %s\n' "$*" >&2; exit 1; }
 
 BLAST_LOG="${TMPDIR:-/tmp}/eshu-replay-tier-blast-$$.log"
 TIER_LOG="${TMPDIR:-/tmp}/eshu-replay-tier-main-$$.log"
+TIER_JSON="${TMPDIR:-/tmp}/eshu-replay-tier-main-$$.jsonl"
+TIER_ERR="${TMPDIR:-/tmp}/eshu-replay-tier-main-$$.stderr"
+BLAST_JSON="${TMPDIR:-/tmp}/eshu-replay-tier-blast-$$.jsonl"
+BLAST_ERR="${TMPDIR:-/tmp}/eshu-replay-tier-blast-$$.stderr"
 
 cleanup() {
 	# Always tear the container down, on every exit path.
 	docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
-	rm -f "${BLAST_LOG}" "${TIER_LOG}"
+	rm -f "${BLAST_LOG}" "${TIER_LOG}" "${TIER_JSON}" "${TIER_ERR}" "${BLAST_JSON}" "${BLAST_ERR}"
 }
 trap cleanup EXIT
 
@@ -46,6 +50,7 @@ command -v docker >/dev/null 2>&1 || die "docker is required"
 # instead.
 command -v rg >/dev/null 2>&1 || die "rg is required for the blast-radius non-vacuity check"
 
+python3 scripts/lib/replay_tier_enrollment.py --root "${repo_root}" --reviewed-source
 log "starting lean NornicDB container ${CONTAINER_NAME} (plain docker run, no compose)"
 docker run -d --name "${CONTAINER_NAME}" \
 	-p "${HTTP_PORT}:7474" \
@@ -104,6 +109,7 @@ export ESHU_REPLAY_TIER_LIVE=1
 # Per-worktree build cache isolation (house rule).
 export GOCACHE="${repo_root}/.gocache"
 
+python3 scripts/lib/replay_tier_enrollment.py --root "${repo_root}" --reviewed-source
 log "running focused offline replay tier tests (R-5 graph truth + R-17 delta/tombstone) against real NornicDB"
 tier_start="$(date +%s)"
 # set -e is on, and a failing ( ... ) exits the shell at once -- so without this
@@ -117,12 +123,16 @@ set +e
 	# Both packages mutate the same live graph, so package test binaries must run
 	# sequentially. Test-level parallelism remains available within each binary.
 	go test -p=1 ./internal/replay/offlinetier/ ./internal/reducer/... \
-		-run 'TestOfflineReplayTierGraphTruth|TestDeltaTombstone|TestDeltaEntityRetractGraphTruth|TestEntityRetractManifestBinding|TestDeltaSurvivorScopedRetractGraphTruth|TestDeltaEdgeRetractGraphTruth|TestDeltaFileRetractGraphTruth|TestReducerCodeCallEdgeRetractGraphTruth|TestReducerInheritanceEdgeRetractGraphTruth|TestReducerSQLRelationshipRetractGraphTruth|TestReducerRationaleEdgeRetractGraphTruth|TestReducerMetaclassEdgeRetractGraphTruth|TestReducerRepoDependencyEdgeRetractGraphTruth|TestReducerRuntimeEdgeRetractGraphTruth|TestReducerContentEdgeRetractGraphTruth|TestCodeInterprocTaintEdgeRetractGraphTruth|TestReducerCloudEdgeRetractGraphTruth|TestReducerSecurityGroupReachabilityEdgeRetractGraphTruth|TestReducerCanonicalGovernanceEdgeRetractGraphTruth|TestReducerWorkloadUsesEdgeRetractGraphTruth|TestReducerIAMEdgeRetractGraphTruth|TestReducerAWSCloudImageEdgeRetractGraphTruth|TestReducerSecretsIAMEdgeRetractGraphTruth|TestReducerSemanticVariableRetractGraphTruth|TestReducerKubernetesNamespaceEnvironmentRetractGraphTruth|TestReducerKubernetesNamespaceAbsentNodeRetractGraphTruth|TestReducerProvenanceReplayTombstoneGraphTruth|TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch|TestNornicDBChainedOptionalMatchEvaluatesSecondHop' -count=1 -v
-) >"${TIER_LOG}" 2>&1
+		-run 'TestOfflineReplayTierGraphTruth|TestDeltaTombstone|TestDeltaEntityRetractGraphTruth|TestEntityRetractManifestBinding|TestDeltaSurvivorScopedRetractGraphTruth|TestDeltaEdgeRetractGraphTruth|TestDeltaFileRetractGraphTruth|TestReducerCodeCallEdgeRetractGraphTruth|TestReducerInheritanceEdgeRetractGraphTruth|TestReducerSQLRelationshipRetractGraphTruth|TestReducerRationaleEdgeRetractGraphTruth|TestReducerMetaclassEdgeRetractGraphTruth|TestReducerRepoDependencyEdgeRetractGraphTruth|TestReducerRuntimeEdgeRetractGraphTruth|TestReducerContentEdgeRetractGraphTruth|TestCodeInterprocTaintEdgeRetractGraphTruth|TestReducerCloudEdgeRetractGraphTruth|TestReducerSecurityGroupReachabilityEdgeRetractGraphTruth|TestReducerCanonicalGovernanceEdgeRetractGraphTruth|TestReducerWorkloadUsesEdgeRetractGraphTruth|TestReducerIAMEdgeRetractGraphTruth|TestReducerAWSCloudImageEdgeRetractGraphTruth|TestReducerSecretsIAMEdgeRetractGraphTruth|TestReducerSemanticVariableRetractGraphTruth|TestReducerKubernetesNamespaceEnvironmentRetractGraphTruth|TestReducerKubernetesNamespaceAbsentNodeRetractGraphTruth|TestReducerProvenanceReplayTombstoneGraphTruth|TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch|TestNornicDBChainedOptionalMatchEvaluatesSecondHop|TestGovScopeMaterializationEntitySourcesHaveFiles' -count=1 -v -json
+) >"${TIER_JSON}" 2>"${TIER_ERR}"
 tier_status=$?
 set -e
 tier_end="$(date +%s)"
 tier_elapsed=$(( tier_end - tier_start ))
+cat "${TIER_ERR}" >&2
+cat "${TIER_JSON}"
+python3 scripts/lib/replay_tier_enrollment.py --root "${repo_root}" --events "${TIER_JSON}" --go-exit "${tier_status}" >"${TIER_LOG}" || die "replay tier event contract failed"
+python3 scripts/lib/replay_tier_enrollment.py --root "${repo_root}" --reviewed-source
 cat "${TIER_LOG}"
 
 log "offline replay tier wall-clock: ${tier_elapsed}s (start=${tier_start} end=${tier_end})"
@@ -156,16 +166,21 @@ log "offline replay tier PASSED against real NornicDB"
 # rows would have kept both other tests green and gutted the detection -- which
 # is what the test #6201 renamed actually did.
 log "running sql_table blast-radius branch proof (#5409) and bite proof (#6204) against the same NornicDB"
+python3 scripts/lib/replay_tier_enrollment.py --root "${repo_root}" --reviewed-source
 blast_start="$(date +%s)"
 set +e
 (
 	cd go
 	go test -p=1 ./internal/query/ \
 		-run 'TestSQLTableBlastRadiusEveryBranchContributesLive|TestSQLTableBlastRadiusMatchesNothingForUnknownTableLive|TestSQLTableBlastRadiusReportsUnseededBranchMissingLive' \
-		-count=1 -v
-) >"${BLAST_LOG}" 2>&1
+		-count=1 -v -json
+) >"${BLAST_JSON}" 2>"${BLAST_ERR}"
 blast_status=$?
 set -e
+cat "${BLAST_ERR}" >&2
+cat "${BLAST_JSON}"
+python3 scripts/lib/replay_tier_enrollment.py --root "${repo_root}" --events "${BLAST_JSON}" --go-exit "${blast_status}" --blast >"${BLAST_LOG}" || die "blast-radius event contract failed"
+python3 scripts/lib/replay_tier_enrollment.py --root "${repo_root}" --reviewed-source
 cat "${BLAST_LOG}"
 log "sql_table blast-radius wall-clock: $(( $(date +%s) - blast_start ))s"
 [[ ${blast_status} -eq 0 ]] || die "sql_table blast-radius branch proof failed (status ${blast_status})"

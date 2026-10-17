@@ -270,7 +270,7 @@ step_live() {
 		'docker info' \
 		env ESHU_GRAPH_BACKEND=neo4j bash "${repo_root}/scripts/verify-golden-corpus-gate.sh" || rc=1
 	run_or_defer replay-tier \
-		'^(go/cmd/(ingester|projector)/|go/internal/(query|replay|reducer|storage/cypher|storage/nornicdb|projector|graph|runtime)/|testdata/cassettes/(replayoffline|replaydelta)/|scripts/(verify-replay-tier|test-verify-replay-tier)\.sh|scripts/dev/pre-pr\.sh|scripts/ci/install-apt-packages\.sh|\.github/workflows/verify-replay-tier\.yml)' \
+		'^(go/cmd/(ingester|projector)/|go/internal/(query|replay|reducer|storage/cypher|storage/nornicdb|projector|graph|runtime)/|testdata/cassettes/(replayoffline|replaydelta)/|scripts/(verify-replay-tier|test-verify-replay-tier)\.sh|scripts/dev/pre-pr\.sh|scripts/ci/install-apt-packages\.sh|\.github/workflows/(verify-replay-tier|live-backend-tests)\.yml|scripts/lib/(replay_tier_|verify-live-tests-ledger\.py)|scripts/test-replay-tier-.*\.py|specs/live-tests(\.v1\.yaml|\.d/)|specs/ci-gates\.d/gates-(09|15)\.yaml)' \
 		'docker info' \
 		bash "${repo_root}/scripts/verify-replay-tier.sh" || rc=1
 	# Go source only: a doc-adjacent edit under go/ (README.md, AGENTS.md) can't

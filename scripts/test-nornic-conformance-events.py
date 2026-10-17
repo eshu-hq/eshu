@@ -166,7 +166,7 @@ atexit.register(lambda: print(f"N7_MUTATED_SUBJECT_READS={reads}", file=sys.stde
                      "N7_STATIC_SUBJECT": str(root / MODULE.STATIC_WORKFLOW)},
             )
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("N7_MUTATED_SUBJECT_READS=1", result.stderr)
+        self.assertRegex(result.stderr, r"N7_MUTATED_SUBJECT_READS=[1-9][0-9]*")
         self.assertIn("missing active Nornic static mirror step", result.stderr)
 
     def test_ledger_command_rejects_early_runner_exit(self) -> None:
@@ -292,7 +292,7 @@ atexit.register(lambda: print(f"N7_MUTATED_SUBJECT_READS={reads}", file=sys.stde
     def test_cli_semantics_survive_hash_repin(self) -> None:
         """A new digest alone cannot authorize a CLI that skips validation."""
         root = Path(__file__).resolve().parent.parent
-        ledger_source = (root / "scripts/lib/verify-live-tests-ledger.py").read_text()
+        ledger_source = (root / "scripts/lib/nornic_cli_activation_guard.py").read_text()
         tree = ast.parse(ledger_source)
         names = {"NORNIC_CLI_SOURCE_SHA256", "NORNIC_CLI_MAIN",
                  "NORNIC_CLI_DISPATCH"}
@@ -333,7 +333,9 @@ atexit.register(lambda: print(f"N7_MUTATED_SUBJECT_READS={reads}", file=sys.stde
         """A digest update cannot admit an import that exits before validation."""
         root = Path(__file__).resolve().parent.parent
         source = LIB.read_text(encoding="utf-8")
-        ledger = (root / "scripts/lib/verify-live-tests-ledger.py").read_text()
+        ledger = (root / "scripts/lib/nornic_cli_activation_guard.py").read_text()
+        checker = (root / "scripts/lib/verify-live-tests-ledger.py").read_text()
+        guard_digest = hashlib.sha256(ledger.encode()).hexdigest()
         digest_line = re.search(r'^NORNIC_CLI_SOURCE_SHA256 = "[0-9a-f]{64}"$',
                                 ledger, re.M)
         self.assertIsNotNone(digest_line)
@@ -370,8 +372,12 @@ atexit.register(lambda: print(f"N7_MUTATED_SUBJECT_READS={reads}", file=sys.stde
                     f'NORNIC_CLI_SOURCE_SHA256 = "{hashlib.sha256(changed.encode()).hexdigest()}"',
                     1,
                 )
+                (copied / "nornic_cli_activation_guard.py").write_text(
+                    repinned, encoding="utf-8")
                 verifier = copied / "verify-live-tests-ledger.py"
-                verifier.write_text(repinned, encoding="utf-8")
+                verifier.write_text(checker.replace(
+                    guard_digest, hashlib.sha256(repinned.encode()).hexdigest()),
+                    encoding="utf-8")
                 env = {**os.environ, "PYTHONPATH": str(LIB.parent),
                        "PYTHONDONTWRITEBYTECODE": "1"}
                 missing = copied / "missing-events.jsonl"

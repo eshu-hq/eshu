@@ -53,7 +53,16 @@ sorted `resolved_id` set identifies their content. The listing takes no lock.
   decision and its skip accounting
 - `RefuseDestructiveSuccessor` — the #7926 successor-emptiness backstop
   predicate: refuses an empty or sharply shrunken successor over a
-  content-bearing prior unless the generation carries trusted deletion
+  content-bearing prior unless the generation carries trusted deletion.
+  Covered collectors (each with an explicit operator attestation surface,
+  #8267): `jira` (`allow_empty_successor` target key),
+  `pagerduty` (`allow_empty_successor` target key), `confluence`
+  (`ESHU_CONFLUENCE_ALLOW_EMPTY_SUCCESSOR`), and component extensions
+  (SDK `Generation.trusted_deletion`, forwarded by the extension host).
+  Uncovered collectors (for example `security_alerts/alertruntime`,
+  `aws`/`oci`/`tfstate`) have no attestation path: a legitimately emptied
+  scope stays on its prior generation and the refusal recurs every tick
+  under `destructive_successor_refused` until the scope regains content.
 - `BuildDeferredScopedFactQueryParams`, `DeferredScopedFactQueryParams`,
   `BuildDeferredRepoIDRegex`, `DeferredRepoIDReferenceKeys`,
   `DeferredCatalogFingerprint`, `NewDeferredBackfillPartitionMemoStore`,

@@ -111,6 +111,14 @@ type Generation struct {
 	ID            string    `json:"id"`
 	ObservedAt    time.Time `json:"observed_at"`
 	FreshnessHint string    `json:"freshness_hint,omitempty"`
+	// TrustedDeletion is the extension's explicit attestation that an
+	// empty or sharply shrunken successor is legitimate (for example a
+	// legitimately emptied scope). The host forwards it onto the
+	// generation it commits, which bypasses the ingestion store's
+	// successor-emptiness backstop. It defaults to false: without it the
+	// store refuses to replace a content-bearing active generation with
+	// an empty or sharply shrunken one.
+	TrustedDeletion bool `json:"trusted_deletion,omitempty"`
 }
 
 // Fact is the public fact envelope emitted by an out-of-tree collector.

@@ -1,0 +1,139 @@
+tests:
+  - file: go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb
+  - file: go/internal/replay/offlinetier/delta_tier_edge_retract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb
+  - file: go/internal/replay/offlinetier/delta_tier_entity_retract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb
+  - file: go/internal/replay/offlinetier/delta_tier_file_retract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb
+  - file: go/internal/replay/offlinetier/delta_tier_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_cloud_image_edge_retract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_iam_edge_retract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_kubernetes_namespace_absent_retract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_kubernetes_namespace_environment_retract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_metaclass_edge_retract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_rationale_edge_retract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_secrets_iam_edge_retract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_semantic_variable_retract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_workload_uses_edge_retract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb
+  - file: go/internal/replay/offlinetier/delta_tier_survivor_retract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb

@@ -33,6 +33,10 @@ type targetJSON struct {
 	ConfigResourceLimit     int      `json:"config_resource_limit"`
 	PaginationMaxPages      int      `json:"pagination_max_pages"`
 	PaginationMaxRecords    int      `json:"pagination_max_records"`
+	// AllowEmptySuccessor is the explicit operator attestation that an
+	// empty or sharply shrunken successor generation is legitimate for
+	// this target. It defaults to false.
+	AllowEmptySuccessor bool `json:"allow_empty_successor"`
 }
 
 func loadPagerDutySourceConfig(
@@ -87,6 +91,9 @@ func mapTarget(target targetJSON, getenv func(string) string) (pagerduty.TargetC
 		ConfigResourceLimit:     target.ConfigResourceLimit,
 		PaginationMaxPages:      target.PaginationMaxPages,
 		PaginationMaxRecords:    target.PaginationMaxRecords,
+		// Only an explicitly attested target bypasses the ingestion
+		// store's successor-emptiness backstop.
+		AllowEmptySuccessor: target.AllowEmptySuccessor,
 	}, nil
 }
 

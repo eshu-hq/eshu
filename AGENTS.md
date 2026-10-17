@@ -463,7 +463,10 @@ check commands, see
   [Agent Git And Worktree Hygiene](docs/internal/agent-git-hygiene.md). MUST isolate formatter drift in its own commit. See
   [duplicate-work and formatter-drift guards](docs/internal/agent-guide.md#duplicate-work-and-formatter-drift-guards).
 - Before you claim merge-ready, the PR **title AND description** MUST both match
-  the final diff. The description MUST carry the before and after evidence.
+  the final diff. The description MUST carry the before and after evidence. A
+  wrong derivable figure is exempt when the verdict's P3 list (posted as a PR
+  comment, not in the body) records the correct figure (see
+  [Derivable figures](.agents/skills/eshu-code-review/references/merge-bar.md#derivable-figures)).
 - CI is complete ONLY after **two consecutive stable reads of the full check
   set** (`pending == 0` and an unchanged total). Large sets register in waves,
   so one `0-pending` read is a false done. State the query you used. Reconcile

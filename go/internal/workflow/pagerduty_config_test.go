@@ -4,6 +4,7 @@
 package workflow
 
 import (
+	"encoding/json"
 	"strconv"
 	"testing"
 )
@@ -104,5 +105,45 @@ func TestValidatePagerDutyCollectorConfigurationRejectsPaginationMaxRecordsOutOf
 				t.Fatal("ValidatePagerDutyCollectorConfiguration() error = nil, want out-of-range pagination_max_records error")
 			}
 		})
+	}
+}
+
+func TestValidatePagerDutyCollectorConfigurationRoundTripsAllowEmptySuccessor(t *testing.T) {
+	t.Parallel()
+
+	raw := `{"targets":[{
+		"provider":"pagerduty",
+		"scope_id":"pagerduty:account:example",
+		"account_id":"example",
+		"token_env":"PAGERDUTY_TOKEN",
+		"allow_empty_successor":true
+	}]}`
+
+	if err := ValidatePagerDutyCollectorConfiguration(raw); err != nil {
+		t.Fatalf("ValidatePagerDutyCollectorConfiguration() error = %v, want nil", err)
+	}
+	var decoded pagerDutyCollectorConfiguration
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	if len(decoded.Targets) != 1 {
+		t.Fatalf("len(Targets) = %d, want 1", len(decoded.Targets))
+	}
+	if !decoded.Targets[0].AllowEmptySuccessor {
+		t.Fatal("AllowEmptySuccessor = false with allow_empty_successor:true, want true")
+	}
+
+	absent := `{"targets":[{
+		"provider":"pagerduty",
+		"scope_id":"pagerduty:account:example",
+		"account_id":"example",
+		"token_env":"PAGERDUTY_TOKEN"
+	}]}`
+	var decodedAbsent pagerDutyCollectorConfiguration
+	if err := json.Unmarshal([]byte(absent), &decodedAbsent); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	if decodedAbsent.Targets[0].AllowEmptySuccessor {
+		t.Fatal("AllowEmptySuccessor = true without allow_empty_successor, want false default")
 	}
 }

@@ -59,7 +59,7 @@ has_blast_radius_nonvacuity_guard() {
 # renamed or skipped test must not let the real-backend tier report green.
 has_projection_boundary_nonvacuity_guard() {
 	rg --quiet \
-		"^[[:space:]]*-run '.*TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch\\|TestNornicDBChainedOptionalMatchEvaluatesSecondHop' -count=1 -v$" \
+		"^[[:space:]]*-run '.*TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch\\|TestNornicDBChainedOptionalMatchEvaluatesSecondHop\|TestGovScopeMaterializationEntitySourcesHaveFiles' -count=1 -v -json$" \
 		"$1" || return 1
 	rg --quiet '^for projection_test in \\$' "$1" || return 1
 	local name
@@ -75,7 +75,7 @@ has_projection_boundary_nonvacuity_guard() {
 # exists, but `go test -run` exits zero when a renamed selector matches nothing.
 has_provenance_tombstone_nonvacuity_guard() {
 	rg --quiet \
-		"^[[:space:]]*-run '.*TestReducerProvenanceReplayTombstoneGraphTruth.*' -count=1 -v$" \
+		"^[[:space:]]*-run '.*TestReducerProvenanceReplayTombstoneGraphTruth.*' -count=1 -v -json$" \
 		"$1" || return 1
 	rg --quiet \
 		'^rg --quiet "\^--- PASS: TestReducerProvenanceReplayTombstoneGraphTruth " "\$\{TIER_LOG\}"' \
@@ -228,7 +228,8 @@ has_prepr_selector_parity() {
 		'scripts/(verify-replay-tier|test-verify-replay-tier)\.sh' \
 		'scripts/dev/pre-pr\.sh' \
 		'scripts/ci/install-apt-packages\.sh' \
-		'\.github/workflows/verify-replay-tier\.yml'; do
+		'\.github/workflows/(verify-replay-tier|live-backend-tests)\.yml' \
+		'specs/ci-gates\.d/gates-(09|15)\.yaml'; do
 		rg --fixed-strings --quiet "${required_path}" <<<"${trigger}" || return 1
 	done
 }
@@ -315,7 +316,7 @@ if has_projection_boundary_nonvacuity_guard "${tmp}/script-vacuous-projection"; 
 fi
 # The #6258 manifest row is only honest if its exact live test both remains in
 # the selector and produces a PASS line.
-sed "/^[[:space:]]*-run '.*TestReducerProvenanceReplayTombstoneGraphTruth.*' -count=1 -v$/s/TestReducerProvenanceReplayTombstoneGraphTruth/TestProvenanceTombstoneSelectorMissing/" \
+sed "/^[[:space:]]*-run '.*TestReducerProvenanceReplayTombstoneGraphTruth.*' -count=1 -v -json$/s/TestReducerProvenanceReplayTombstoneGraphTruth/TestProvenanceTombstoneSelectorMissing/" \
 	"${script}" >"${tmp}/script-missing-provenance-tombstone"
 rg --quiet '^rg --quiet "\^--- PASS: TestReducerProvenanceReplayTombstoneGraphTruth "' \
 	"${tmp}/script-missing-provenance-tombstone" \
@@ -445,5 +446,9 @@ sed '/^[[:space:]]*run_or_defer replay-tier \\$/s/^/# /' \
 if has_prepr_selector_parity "${tmp}/pre-pr"; then
 	fail "commented-out pre-pr selector must not satisfy the guard"
 fi
+
+python3 "${repo_root}/scripts/test-replay-tier-enrollment.py"
+python3 "${repo_root}/scripts/test-replay-tier-source-integrity.py"
+python3 "${repo_root}/scripts/test-replay-tier-ledger-policy.py"
 
 printf 'test-verify-replay-tier: PASS\n'

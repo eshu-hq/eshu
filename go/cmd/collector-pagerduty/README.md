@@ -19,7 +19,9 @@ work with `incident_lookback`, `incident_limit`, `log_entry_limit`,
 `change_event_limit`, and `allowed_service_ids`. Live configuration validation
 is opt-in per target with `config_validation_enabled`; `config_resource_limit`
 bounds service and service-integration reads used for no-IaC fallback,
-freshness proof, and reducer-owned drift comparison.
+freshness proof, and reducer-owned drift comparison. `allow_empty_successor`
+(default false) attests that an empty or sharply shrunken successor is
+legitimate, bypassing the ingestion store's successor-emptiness backstop.
 
 The token value is read only inside this process and is never copied into
 workflow run metadata, facts, metric labels, logs, or status errors.

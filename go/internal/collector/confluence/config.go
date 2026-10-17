@@ -39,7 +39,15 @@ type SourceConfig struct {
 	Email         string
 	APIToken      string
 	BearerToken   string
-	Now           func() time.Time
+	// AllowEmptySuccessor is the explicit operator attestation that an
+	// empty or sharply shrunken successor generation is legitimate for
+	// this source (for example an emptied space). The source stamps it
+	// onto the generation as TrustedDeletion, which bypasses the ingestion
+	// store's successor-emptiness backstop. It defaults to false: without
+	// it the store refuses to replace a content-bearing active generation
+	// with an empty or sharply shrunken one.
+	AllowEmptySuccessor bool
+	Now                 func() time.Time
 }
 
 // LoadConfig parses the Confluence collector environment contract.
@@ -86,6 +94,13 @@ func LoadConfig(getenv func(string) string) (SourceConfig, error) {
 			return SourceConfig{}, fmt.Errorf("ESHU_CONFLUENCE_POLL_INTERVAL must be a positive duration")
 		}
 		config.PollInterval = interval
+	}
+	if raw := strings.TrimSpace(getenv("ESHU_CONFLUENCE_ALLOW_EMPTY_SUCCESSOR")); raw != "" {
+		attested, err := strconv.ParseBool(raw)
+		if err != nil {
+			return SourceConfig{}, fmt.Errorf("ESHU_CONFLUENCE_ALLOW_EMPTY_SUCCESSOR must be a boolean")
+		}
+		config.AllowEmptySuccessor = attested
 	}
 	if config.BaseURL == "" {
 		return SourceConfig{}, errors.New("ESHU_CONFLUENCE_BASE_URL is required")

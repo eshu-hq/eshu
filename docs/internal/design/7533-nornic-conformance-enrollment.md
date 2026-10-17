@@ -21,6 +21,9 @@ Before importing the verifier, the ledger binds its allowed imports,
 import-safe declarations and function signatures, then the canonical CLI
 control flow. A digest update alone cannot admit an import-time successful
 exit that bypasses source or event checks.
+The activation checks live in `scripts/lib/nornic_cli_activation_guard.py`.
+Before importing that helper, the ledger verifies its digest and rejects
+executable top-level declarations, defaults, and imports.
 The E2E PR filter also includes those control files, so an edit that removes
 the static guard still selects the independent conformance job.
 

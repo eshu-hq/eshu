@@ -68,7 +68,7 @@ Refs #NNNN.
 | At a glance | |
 |---|---|
 | Behavior change | REPLACE: "None", and why the old and new names give identical values. |
-| Size | REPLACE: the number of files edited and deleted. |
+| Size | REPLACE: the `git diff --shortstat <base>...HEAD` line at the final head. |
 | Proof | REPLACE: the test result before and after, and whether the sets match. |
 | Review | REPLACE: the verdict and the findings fixed. |
 
@@ -144,7 +144,7 @@ Refs #NNNN.
 | At a glance | |
 |---|---|
 | Readers get | REPLACE: the new or corrected content, in one sentence. |
-| Pages | REPLACE: the pages changed, or the count. |
+| Pages | REPLACE: the pages changed. |
 | Proof | REPLACE: the docs build result and the claims you checked. |
 | Review | REPLACE: the verdict and the findings fixed. |
 

@@ -1,6 +1,6 @@
 ---
 name: resolve-review-threads
-description: Resolves GitHub PR review threads (Codex, Copilot, Claude, human) via resolveReviewThread once each finding is verified fixed at current HEAD; classifies fixed/unchanged/ambiguous. Not reply authoring or the review verdict.
+description: Resolves GitHub PR review threads (Codex, Copilot, Claude, human) via resolveReviewThread once each finding is verified fixed at current HEAD or graded a derivable-figure P3; classifies fixed/p3-no-action/unchanged/ambiguous. Not reply authoring or the review verdict.
 ---
 
 # Resolve Review Threads
@@ -11,7 +11,8 @@ proactively when opening a PR — bot reviews often land within minutes, and
 loading the classification rules after the first P2 arrives is too late.
 
 This is the close-out step: it calls the GitHub GraphQL `resolveReviewThread`
-mutation for threads whose underlying code is now fixed, and leaves threads
+mutation for threads whose underlying code is now fixed, or whose finding is a
+derivable-figure P3 (`p3-no-action`), and leaves threads
 open when the fix is missing, partial, or unclear. It does not author reply
 text (`resolve-review` or `post-merge:resolve-review` do that) and it does not
 drive a PR to merge (`eshu-issue-driver` does).
@@ -56,6 +57,7 @@ Stop and report if any prerequisite fails — do not guess.
    | Label | Meaning | Action |
    | --- | --- | --- |
    | `fixed` | Cited `file:line` changed in a way that plausibly addresses the comment. | Resolve it. |
+   | `p3-no-action` | The comment is a wrong derivable figure graded P3 under [merge-bar.md](../eshu-code-review/references/merge-bar.md#derivable-figures). The reply "P3, no action" names the correct value, and the verdict's P3 list for the current head names the same figure. An author's self-grade is not enough. | Resolve it. |
    | `unchanged` | Cited `file:line` is byte-identical to what the reviewer saw. | Leave open, report. |
    | `ambiguous` | Nearby code changed but the fix cannot be proven to address the comment. | Leave open, report. |
 
@@ -66,7 +68,16 @@ Stop and report if any prerequisite fails — do not guess.
    `ambiguous` — do not auto-resolve on inferred coverage elsewhere. Err toward
    `ambiguous`: a false-positive resolve is worse than an honest open thread.
 
-4. **Resolve `fixed` threads.**
+   Use `p3-no-action` only when all four hold. The comment cites a figure that a
+   file-reading command computes. The thread carries the reply "P3, no action"
+   with the correct value. The verdict's P3 list for the current head names the
+   same figure. No keep-grade item in merge-bar.md applies to the figure: a
+   completeness claim, a contract, a limit, a run result, a test or gate
+   statement, a fixture outcome, or a pinned or generated value. If one applies,
+   classify it as `unchanged` or `ambiguous`. Check `p3-no-action` before
+   `unchanged`, because the cited line stays the same by design.
+
+4. **Resolve `fixed` and `p3-no-action` threads.**
 
    ```bash
    gh api graphql -F threadId="$THREAD_ID" \
@@ -82,14 +93,16 @@ Stop and report if any prerequisite fails — do not guess.
 
    - threads scanned, and how many were already resolved (skipped)
    - `fixed` threads: threadId, path:line, one-line reason
+   - `p3-no-action` threads: threadId, path:line, the correct value, and the
+     verdict line that names it
    - `unchanged`/`ambiguous` threads: threadId, path:line, first line of the
      comment, and — for ambiguous — what blocked a confident call
    - before/after unresolved counts
 
 ## Operating rules
 
-- Resolve only threads classified `fixed` from current-HEAD evidence; a
-  false-positive resolve is worse than an honest open thread.
+- Resolve only threads classified `fixed` or `p3-no-action` from current-HEAD
+  evidence; a false-positive resolve is worse than an honest open thread.
 - Treat outdated threads as still in scope.
 - On a truncated thread list, stop and report rather than classify a partial
   set.
