@@ -39,11 +39,12 @@ func TestInvalidateDeployableUnitReopenFingerprintsForReposQueryDeletesOverlapBa
 	}
 }
 
-// TestListDeployableUnitAdmittedAnchorReposQueryIsBoundedAdmittedScan pins the
-// #8316 gap-reconciliation Postgres half: the distinct source repositories
-// with admitted deployable_unit_correlation decisions, bounded by LIMIT, so
-// the graph probe stays a fixed-size UNWIND.
-func TestListDeployableUnitAdmittedAnchorReposQueryIsBoundedAdmittedScan(t *testing.T) {
+// TestListAllDeployableUnitAdmittedAnchorReposQueryIsFullAdmittedScan pins
+// the #8316 gap-reconciliation Postgres half: the full distinct source
+// repository set with admitted deployable_unit_correlation decisions, with
+// no LIMIT — a first-N prefix would starve tail anchors (#8371 review F1).
+// The graph probe batches the set into fixed-size UNWINDs instead.
+func TestListAllDeployableUnitAdmittedAnchorReposQueryIsFullAdmittedScan(t *testing.T) {
 	t.Parallel()
 
 	for _, fragment := range []string{
@@ -52,11 +53,15 @@ func TestListDeployableUnitAdmittedAnchorReposQueryIsBoundedAdmittedScan(t *test
 		"domain = 'deployable_unit_correlation'",
 		"state = 'admitted'",
 		"anchor_kind = 'repository'",
-		"LIMIT $1",
+		"ORDER BY anchor_id",
 	} {
-		if !strings.Contains(ListDeployableUnitAdmittedAnchorReposQuery, fragment) {
+		if !strings.Contains(ListAllDeployableUnitAdmittedAnchorReposQuery, fragment) {
 			t.Fatalf("admitted anchors query missing %q:\n%s",
-				fragment, ListDeployableUnitAdmittedAnchorReposQuery)
+				fragment, ListAllDeployableUnitAdmittedAnchorReposQuery)
 		}
+	}
+	if strings.Contains(ListAllDeployableUnitAdmittedAnchorReposQuery, "LIMIT") {
+		t.Fatalf("admitted anchors query must carry no LIMIT:\\n%s",
+			ListAllDeployableUnitAdmittedAnchorReposQuery)
 	}
 }

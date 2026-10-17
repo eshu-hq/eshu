@@ -48,6 +48,24 @@ func (r *deployableUnitGapReader) CountIncidentCorrelationEdges(
 	if err != nil {
 		return nil, fmt.Errorf("collect deployable unit correlation incident probe: %w", err)
 	}
+	rows := make([]deployableUnitIncidentRecord, 0, len(records))
+	for _, record := range records {
+		rows = append(rows, record)
+	}
+	return countDeployableUnitIncidentRepos(rows), nil
+}
+
+// deployableUnitIncidentRecord is the row-shape seam for the incident-edge
+// probe: the Bolt driver record and scripted test rows both answer Get.
+type deployableUnitIncidentRecord interface {
+	Get(string) (any, bool)
+}
+
+// countDeployableUnitIncidentRepos folds incident-probe rows into per-anchor
+// counts. Rows with a missing, empty, or non-string repo_id are skipped, so
+// a row-shape drift degrades to a gap (bounded replay, self-healing) rather
+// than a miscount that hides a loss.
+func countDeployableUnitIncidentRepos(records []deployableUnitIncidentRecord) map[string]int64 {
 	counts := make(map[string]int64, len(records))
 	for _, record := range records {
 		value, _ := record.Get("repo_id")
@@ -57,7 +75,7 @@ func (r *deployableUnitGapReader) CountIncidentCorrelationEdges(
 		}
 		counts[repoID]++
 	}
-	return counts, nil
+	return counts
 }
 
 // deployableUnitGapReconciler runs the #8316 gap reconciliation in the
@@ -67,7 +85,7 @@ func (r *deployableUnitGapReader) CountIncidentCorrelationEdges(
 // cell's exclusive lock, which its exact-equality census can never align
 // (#8371).
 type deployableUnitGapReconciler struct {
-	listAnchors func(context.Context, int) ([]string, error)
+	listAnchors func(context.Context) ([]string, error)
 	countEdges  *deployableUnitGapReader
 	invalidate  func(context.Context, []string) (int64, error)
 }
@@ -77,15 +95,16 @@ type deployableUnitGapReconciler struct {
 func newDeployableUnitGapReconciler(database bootstrapDB, reader *deployableUnitGapReader) *deployableUnitGapReconciler {
 	store := postgres.NewRelationshipStore(database)
 	return &deployableUnitGapReconciler{
-		listAnchors: store.ListDeployableUnitAdmittedAnchorRepos,
+		listAnchors: store.ListAllDeployableUnitAdmittedAnchorRepos,
 		countEdges:  reader,
 		invalidate:  store.InvalidateDeployableUnitReopenFingerprintsForRepos,
 	}
 }
 
-// Reconcile lists the bounded admitted set, probes the graph once, and
-// invalidates the fingerprint rows of the gap set so the correlation reopen
-// that follows re-projects the lost edges. A seam error fails closed.
+// Reconcile lists the full admitted set, probes the graph in bounded
+// batches, and invalidates the fingerprint rows of the gap set so the
+// correlation reopen that follows re-projects the lost edges. A seam error
+// fails closed.
 func (r *deployableUnitGapReconciler) Reconcile(ctx context.Context) ([]string, int64, error) {
 	if r == nil {
 		return nil, 0, fmt.Errorf("deployable unit gap reconciler is required")

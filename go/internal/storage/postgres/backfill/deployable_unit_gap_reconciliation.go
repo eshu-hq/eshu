@@ -8,10 +8,11 @@ import (
 	"fmt"
 )
 
-// DeployableUnitGapScanLimit bounds one gap-reconciliation run: at most
-// this many admitted source repositories are listed from Postgres and
-// probed in one graph UNWIND (#8316). It matches the probe's fixed-size
-// shape: the scan is a safeguard over admitted decisions, not a backlog.
+// DeployableUnitGapScanLimit bounds one gap-reconciliation graph round
+// trip: at most this many admitted source repositories are probed in one
+// UNWIND (#8316). It matches the probe's fixed-size shape; the listing
+// itself is the full admitted set, probed batch by batch, so no tail anchor
+// starves (#8371 review F1).
 const DeployableUnitGapScanLimit = 500
 
 // ReconcileDeployableUnitCorrelationGaps is the #8316 gap reconciliation:
@@ -24,39 +25,48 @@ const DeployableUnitGapScanLimit = 500
 // handler, and any sweep-cycle statement against admission_decisions parks a
 // second waiter behind the fault-injection kill cell's exclusive lock, which
 // its exact-equality census can never align (#8371). The three seams keep
-// the orchestration hermetically testable: listAnchors reads the bounded
-// admitted set from Postgres, countIncidentEdges probes the graph once for
-// the whole set, and invalidate deletes the fingerprint rows of the gap set.
+// the orchestration hermetically testable: listAnchors reads the full
+// admitted set from Postgres, countIncidentEdges probes the graph batch by
+// batch, and invalidate deletes the fingerprint rows of the gap set.
 //
-// The steady state performs no graph or delete work: no admitted anchors
-// means no probe and no delete, and a fully connected admitted set means no
-// delete. A seam error fails the run loudly instead of silently keeping
-// lost edges closed: no invalidation runs after a probe error. It returns
-// the gap repositories and the invalidated fingerprint row count.
+// The listing carries no LIMIT — every pass must cover the whole set, or
+// tail anchors starve behind a fixed first-N prefix (#8371 review F1) —
+// while every graph round trip stays bounded by batchSize. The steady state
+// performs no graph or delete work: no admitted anchors means no probe and
+// no delete, and a fully connected admitted set means no delete. A seam
+// error fails the run loudly instead of silently keeping lost edges closed:
+// no invalidation runs after a probe error. It returns the gap repositories
+// and the invalidated fingerprint row count.
 func ReconcileDeployableUnitCorrelationGaps(
 	ctx context.Context,
-	listAnchors func(context.Context, int) ([]string, error),
+	listAnchors func(context.Context) ([]string, error),
 	countIncidentEdges func(context.Context, []string) (map[string]int64, error),
 	invalidate func(context.Context, []string) (int64, error),
-	limit int,
+	batchSize int,
 ) (gapRepos []string, invalidated int64, err error) {
-	if limit <= 0 {
-		limit = DeployableUnitGapScanLimit
+	if batchSize <= 0 {
+		batchSize = DeployableUnitGapScanLimit
 	}
-	anchors, err := listAnchors(ctx, limit)
+	anchors, err := listAnchors(ctx)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list deployable unit admitted anchors: %w", err)
 	}
 	if len(anchors) == 0 {
 		return nil, 0, nil
 	}
-	counts, err := countIncidentEdges(ctx, anchors)
-	if err != nil {
-		return nil, 0, fmt.Errorf("probe deployable unit correlation edges: %w", err)
-	}
-	for _, anchor := range anchors {
-		if counts[anchor] == 0 {
-			gapRepos = append(gapRepos, anchor)
+	for start := 0; start < len(anchors); start += batchSize {
+		end := start + batchSize
+		if end > len(anchors) {
+			end = len(anchors)
+		}
+		counts, err := countIncidentEdges(ctx, anchors[start:end])
+		if err != nil {
+			return nil, 0, fmt.Errorf("probe deployable unit correlation edges: %w", err)
+		}
+		for _, anchor := range anchors[start:end] {
+			if counts[anchor] == 0 {
+				gapRepos = append(gapRepos, anchor)
+			}
 		}
 	}
 	if len(gapRepos) == 0 {

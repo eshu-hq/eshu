@@ -184,14 +184,17 @@ const InvalidateDeployableUnitReopenFingerprintsForReposQuery = `
 DELETE FROM deployable_unit_reopen_fingerprints WHERE repo_ids && $1::text[]
 `
 
-// ListDeployableUnitAdmittedAnchorReposQuery lists the distinct source
-// repositories with admitted deployable_unit_correlation decisions (#8316),
-// bounded by LIMIT so the gap-reconciliation graph probe stays a fixed-size
-// UNWIND. Rows whose canonical write never landed (Written false) are
-// excluded: no edge was ever expected for them. Rows predating the Written
-// key are included: every deployable_unit_correlation admission of that era
-// wrote its edge. $1 is the bound.
-const ListDeployableUnitAdmittedAnchorReposQuery = `
+// ListAllDeployableUnitAdmittedAnchorReposQuery lists the full distinct
+// source repository set with admitted deployable_unit_correlation decisions
+// (#8316). It carries no LIMIT: bounding the listing to a first-N prefix
+// would deterministically starve tail anchors, since every pass re-probes
+// the same prefix (#8371 review F1). The gap reconciliation probes the graph
+// in fixed-size batches instead, so every round trip stays bounded while
+// every pass covers the whole set. Rows whose canonical write never landed
+// (Written false) are excluded: no edge was ever expected for them. Rows
+// predating the Written key are included: every
+// deployable_unit_correlation admission of that era wrote its edge.
+const ListAllDeployableUnitAdmittedAnchorReposQuery = `
 SELECT DISTINCT anchor_id
 FROM admission_decisions
 WHERE domain = 'deployable_unit_correlation'
@@ -199,7 +202,6 @@ WHERE domain = 'deployable_unit_correlation'
   AND anchor_kind = 'repository'
   AND COALESCE((canonical_write ->> 'Written') IN ('true'), TRUE)
 ORDER BY anchor_id
-LIMIT $1
 `
 
 // ScanDeployableUnitReopenCandidates reads a ListDeployableUnitReopenCandidatesQuery
@@ -232,8 +234,8 @@ func ScanDeployableUnitReopenCandidates(rows db.Rows) ([]string, int, error) {
 }
 
 // ScanDeployableUnitAdmittedAnchorRepos reads a
-// ListDeployableUnitAdmittedAnchorReposQuery result into the admitted source
-// repository ids in listing order, skipping blank ids.
+// ListAllDeployableUnitAdmittedAnchorReposQuery result into the admitted
+// source repository ids in listing order, skipping blank ids.
 func ScanDeployableUnitAdmittedAnchorRepos(rows db.Rows) ([]string, error) {
 	defer func() { _ = rows.Close() }()
 	anchors := make([]string, 0)

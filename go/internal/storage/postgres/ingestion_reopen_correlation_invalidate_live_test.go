@@ -81,12 +81,12 @@ func TestInvalidateDeployableUnitReopenFingerprintsForReposLive(t *testing.T) {
 	}
 }
 
-// TestListDeployableUnitAdmittedAnchorReposLive proves the #8316
-// gap-reconciliation Postgres half on the real schema: the bounded listing
-// returns admitted deployable_unit_correlation source repositories, skips
-// decisions whose canonical write never landed, keeps legacy rows predating
-// the Written key, and excludes other states and domains.
-func TestListDeployableUnitAdmittedAnchorReposLive(t *testing.T) {
+// TestListAllDeployableUnitAdmittedAnchorReposLive proves the #8316
+// gap-reconciliation Postgres half on the real schema: the full listing
+// returns every admitted deployable_unit_correlation source repository,
+// skips decisions whose canonical write never landed, keeps legacy rows
+// predating the Written key, and excludes other states and domains.
+func TestListAllDeployableUnitAdmittedAnchorReposLive(t *testing.T) {
 	dsn := reducerDomainFairnessDSN()
 	if dsn == "" {
 		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the #8316 admitted-anchors proof")
@@ -101,9 +101,9 @@ func TestListDeployableUnitAdmittedAnchorReposLive(t *testing.T) {
 	seedGapAdmissionDecision(t, ctx, db, w, "adm-missing", "repo-e", "missing_evidence", `{"Written":false}`)
 
 	store := NewRelationshipStore(SQLDB{DB: db})
-	anchors, err := store.ListDeployableUnitAdmittedAnchorRepos(ctx, 500)
+	anchors, err := store.ListAllDeployableUnitAdmittedAnchorRepos(ctx)
 	if err != nil {
-		t.Fatalf("ListDeployableUnitAdmittedAnchorRepos() error = %v", err)
+		t.Fatalf("ListAllDeployableUnitAdmittedAnchorRepos() error = %v", err)
 	}
 	want := []string{"repo-a", "repo-c"}
 	if len(anchors) != len(want) {
@@ -113,14 +113,6 @@ func TestListDeployableUnitAdmittedAnchorReposLive(t *testing.T) {
 		if anchors[i] != want[i] {
 			t.Fatalf("admitted anchors = %#v, want %#v", anchors, want)
 		}
-	}
-
-	anchors, err = store.ListDeployableUnitAdmittedAnchorRepos(ctx, 0)
-	if err != nil {
-		t.Fatalf("ListDeployableUnitAdmittedAnchorRepos(0) error = %v", err)
-	}
-	if len(anchors) != 0 {
-		t.Fatalf("admitted anchors with limit 0 = %#v, want empty", anchors)
 	}
 }
 

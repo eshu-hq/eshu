@@ -39,9 +39,9 @@ const deployableUnitCorrelationFallbackThreshold = 0.90
 // every admitted edge back (verified success): an edge lost at write time
 // fails the run instead of closing the item. An edge lost after a verified
 // write is repaired by the #8316 paths: both Repository deleters invalidate
-// the item's fingerprint right after the graph commit (push), and the sweep
-// cycle's gap reconciliation deletes the fingerprint rows of admitted
-// anchors the graph left edgeless, so the next pass re-opens them.
+// the item's fingerprint right after the graph commit (push), and the
+// maintenance pass gap reconciliation deletes the fingerprint rows of
+// admitted anchors the graph left edgeless, so the same pass re-opens them.
 type DeployableUnitCorrelationHandler struct {
 	FactLoader              FactLoader
 	ResolvedLoader          ResolvedRelationshipLoader

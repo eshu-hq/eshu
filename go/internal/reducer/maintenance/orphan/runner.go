@@ -76,11 +76,13 @@ type Result struct {
 	Skipped map[string]int64
 	// InvalidatedFingerprints counts the deployable_unit_correlation
 	// reopen fingerprint rows the cycle deleted after the graph commit:
-	// swept repositories (push) plus admitted anchors with no incident
-	// edge (gap reconciliation, #8316).
+	// swept repositories (push, #8316). Gap reconciliation lives in the
+	// maintenance pass, never in the sweep, so the sweep deletes no gap
+	// rows here.
 	InvalidatedFingerprints int64
-	// DeployableUnitGapRepos counts the admitted anchors the gap
-	// reconciliation found edgeless this cycle (#8316).
+	// DeployableUnitGapRepos is retained for the result shape and stays 0
+	// from the sweep: gap reconciliation lives in the maintenance pass
+	// (#8316, #8371).
 	DeployableUnitGapRepos int
 	Duration               time.Duration
 }

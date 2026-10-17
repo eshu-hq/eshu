@@ -35,8 +35,9 @@ gap reconciliation, with no periodic replay and no worker serialization.
   result, and the reducer sweep wiring invalidates them under the same sweep
   lease.
 - **Gap reconciliation is repo-granularity, maintenance-pass-coupled.** It
-  lists the distinct admitted `deployable_unit_correlation` source anchors
-  (bounded 500), probes the graph once for their outgoing
+  lists the full distinct admitted `deployable_unit_correlation` source
+  anchor set (no LIMIT — a first-N prefix would starve tail anchors),
+  probes the graph in 500-anchor batches for their outgoing
   `CORRELATES_DEPLOYABLE_UNIT` edges, and deletes the fingerprint rows of
   the edgeless anchors. Repo granularity is exact for this failure class:
   both deleters remove whole nodes, so loss always lands on every incident
@@ -75,10 +76,11 @@ gap reconciliation, with no periodic replay and no worker serialization.
 No index was added (index doctrine: hot path plus usable predicate shape).
 The invalidation seq-scans the fingerprint table (one row per succeeded
 item) and runs only when a deleter actually removed a node — rare, and
-measured at 1.4 ms on 20k rows. The admitted-anchors scan runs once per
-maintenance pass at 2.6 ms on 50k decisions. Both stay seq scans by
-measurement, not by guess; if production row counts move the cost, the
-follow-up adds the index with its own proof.
+measured at 1.4 ms on 20k rows. The admitted-anchors listing is one indexed
+scan per maintenance pass: production EXPLAIN shows a Bitmap Index Scan on
+the existing `admission_decisions_scope_generation_domain_idx` returning
+94 anchors, the same single scan with or without LIMIT. If production row
+counts move the cost, the follow-up adds the index with its own proof.
 
 ## Measurements
 
@@ -93,13 +95,15 @@ the shipped tables, `VACUUM ANALYZE`d before each run:
   scan on a rare path.
 - 50,000 admission decisions (2,500 admitted deployable-unit rows):
   `SELECT DISTINCT anchor_id ... WHERE domain/state/anchor_kind ... LIMIT 500`
-  — 2.628 ms, 871 shared-hit buffers. Conclusion: the hourly listing costs
-  single-digit milliseconds; no covering index.
+  — 2.628 ms, 871 shared-hit buffers (bounded form, since removed).
+  Production EXPLAIN of the unbounded form: one Bitmap Index Scan on the
+  existing domain/state index, 94 anchors. Conclusion: the listing costs
+  single-digit milliseconds in both forms; no covering index.
 
 Live proof on the full 211-migration bootstrap schema, local PostgreSQL
 18.6, isolated schema per test
 (`TestInvalidateDeployableUnitReopenFingerprintsForReposLive`,
-`TestListDeployableUnitAdmittedAnchorReposLive`):
+`TestListAllDeployableUnitAdmittedAnchorReposLive`):
 
 - Invalidation deletes exactly the rows whose repo_ids contain the removed
   repository (2 of 3), keeps the unrelated row, and no-ops on empty and
@@ -132,13 +136,14 @@ Graph side:
   one bounded replay.
 
 Performance Evidence: scratch EXPLAIN (ANALYZE, BUFFERS) above (Postgres
-18.6, 20k/50k rows), live functional proof on the full bootstrap schema,
-and direct probe measurement on the pinned NornicDB backend (~0.25 s for
-500 anchors); no hot-path regression: the retirement MATCH spine is
-unchanged, the invalidation runs only on actual deletions, and the
-relocation moves the identical statements (one ~3 ms PG scan plus one
-~0.25 s bounded round trip) from the hourly sweep cycle to the
-maintenance pass, so the measured costs carry over unchanged.
+18.6, 20k/50k rows), production EXPLAIN of the unbounded listing (one
+bitmap-indexed scan, 94 anchors), live functional proof on the full
+bootstrap schema, and direct probe measurement on the pinned NornicDB
+backend (~0.25 s per 500-anchor batch); no hot-path regression: the
+retirement MATCH spine is unchanged, the invalidation runs only on actual
+deletions, and each pass issues one indexed listing plus one ~0.25 s
+bounded round trip per 500-anchor batch (one batch at the current 94-anchor
+scale).
 
 Observability Evidence: one new phase completion log line plus duration
 metric, `deployable_unit_gap_reconciliation` (completion with

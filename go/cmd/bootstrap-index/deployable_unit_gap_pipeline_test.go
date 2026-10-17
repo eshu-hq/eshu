@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -83,5 +84,40 @@ func TestMaintenancePassWithoutGapReconcilerFailsClosed(t *testing.T) {
 	err := runPipelined(context.Background(), cd, pd, 2, nil, nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "gap reconciler is required") {
 		t.Fatalf("runPipelined() error = %v, want the missing-reconciler failure", err)
+	}
+}
+
+// TestMaintenancePassGapReconciliationErrorFailsClosed proves the gap step
+// fails the maintenance pass loudly: a reconciliation error aborts the run
+// before the correlation reopen instead of silently keeping lost edges
+// closed.
+func TestMaintenancePassGapReconciliationErrorFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeSource{generations: nil}
+	ws := &concurrentWorkSource{items: nil}
+	sink := &concurrentWorkSink{}
+	committer := &fakeCommitter{}
+	gapErr := errors.New("graph probe failed")
+	gap := &stubGapReconciliation{err: gapErr}
+
+	cd := collectorDeps{source: source, committer: committer, gapReconciler: gap}
+	pd := projectorDeps{
+		workSource:    ws,
+		factStore:     &fakeFactStore{},
+		runner:        &fakeProjectionRunner{},
+		workSink:      sink,
+		baselineFence: passBootstrapBaselineFence{},
+		writeMarker:   passBootstrapBaselineFence{},
+	}
+
+	err := runPipelined(context.Background(), cd, pd, 2, nil, nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "deployable unit gap reconciliation fatal") {
+		t.Fatalf("runPipelined() error = %v, want the gap reconciliation failure", err)
+	}
+	for _, call := range committer.snapshotCalls() {
+		if call == "reopen_correlation" {
+			t.Fatal("correlation reopen ran after a gap reconciliation error, want the pass aborted first")
+		}
 	}
 }

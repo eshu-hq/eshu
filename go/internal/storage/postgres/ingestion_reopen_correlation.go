@@ -407,17 +407,15 @@ func (s *RelationshipStore) InvalidateDeployableUnitReopenFingerprintsForRepos(
 	return affected, nil
 }
 
-// ListDeployableUnitAdmittedAnchorRepos lists the distinct source
-// repositories with admitted deployable_unit_correlation decisions (#8316),
-// bounded to limit rows, for the gap-reconciliation graph probe.
-func (s *RelationshipStore) ListDeployableUnitAdmittedAnchorRepos(
+// ListAllDeployableUnitAdmittedAnchorRepos lists the full distinct source
+// repository set with admitted deployable_unit_correlation decisions
+// (#8316), for the gap-reconciliation graph probe. It carries no LIMIT:
+// the probe batches the set into fixed-size graph round trips instead, so
+// no tail anchor starves (#8371 review F1).
+func (s *RelationshipStore) ListAllDeployableUnitAdmittedAnchorRepos(
 	ctx context.Context,
-	limit int,
 ) ([]string, error) {
-	if limit <= 0 {
-		return nil, nil
-	}
-	rows, err := s.database.QueryContext(ctx, backfill.ListDeployableUnitAdmittedAnchorReposQuery, limit)
+	rows, err := s.database.QueryContext(ctx, backfill.ListAllDeployableUnitAdmittedAnchorReposQuery)
 	if err != nil {
 		return nil, fmt.Errorf("list deployable_unit_correlation admitted anchors: %w", err)
 	}
