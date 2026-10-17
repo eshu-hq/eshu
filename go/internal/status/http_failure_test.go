@@ -85,6 +85,13 @@ func TestServeHTTPLoadFailureHidesBackendText(t *testing.T) {
 	if len(ended) != 1 || ended[0].Status().Code != codes.Error {
 		t.Fatalf("span status not Error: %+v", ended)
 	}
+	var sawException bool
+	for _, ev := range ended[0].Events() {
+		sawException = sawException || ev.Name == "exception"
+	}
+	if !sawException {
+		t.Fatalf("span lost the exception event: %+v", ended[0].Events())
+	}
 	if !strings.Contains(logs.String(), "password authentication failed") {
 		t.Fatalf("server-side log lost the error: %q", logs.String())
 	}
@@ -169,5 +176,30 @@ func TestWriteReadFailureCanceledErrorOnLiveRequestIsAFault(t *testing.T) {
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+}
+
+// TestServeHTTPDeadlineExceededIsAServerFault proves a status read that hit its
+// deadline answers 500 with the fixed body and a server-side log, not the 499
+// reserved for a caller cancel.
+func TestServeHTTPDeadlineExceededIsAServerFault(t *testing.T) {
+	logs := captureLogs(t)
+	err := fmt.Errorf("%s: %w", failureCanary, context.DeadlineExceeded)
+	handler, herr := NewHTTPHandler(failureReader{err: err}, HTTPHandlerOptions{})
+	if herr != nil {
+		t.Fatalf("NewHTTPHandler() error = %v", herr)
+	}
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/admin/status", nil))
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+	if got := strings.TrimSpace(rec.Body.String()); got != LoadFailureMessage {
+		t.Fatalf("body = %q, want %q", got, LoadFailureMessage)
+	}
+	if !strings.Contains(logs.String(), "password authentication failed") {
+		t.Fatalf("deadline fault was not logged: %q", logs.String())
 	}
 }

@@ -309,7 +309,12 @@ states (in priority order):
   `err` on the request span, and logs it server-side. A caller cancel (`err`
   wraps `context.Canceled` and the request context is canceled) answers
   `StatusClientClosedRequest` (499) with a `ClientCanceledEvent` span event and
-  no log. `/metrics` in `internal/runtime` reuses it
+  no log. `/metrics` in `internal/runtime` reuses it. The 499 constant, the
+  cancel event, and the cancel conjunction are redeclared from
+  `query/querycontract` and `query/tracing` because importing them would pull
+  their large dependency closure into this package;
+  `TestStatusReadFailureMatchesQueryServerFailure` in `internal/query` pins
+  both copies together
 
 ### Retry policy helpers
 
@@ -379,8 +384,9 @@ and `eshu_dp_postgres_query_duration_seconds`.
 
 ## Gotchas / invariants
 
-- **Failure bodies never carry error text.** Backend errors quote SQL, hosts,
-  and credentials, and the admin routes are unauthenticated. Answer through
+- **Status and metrics read failures never carry error text.** Backend errors
+  quote SQL, hosts, and credentials, and the admin routes are unauthenticated.
+  Answer `/admin/status` and `/metrics` read failures through
   `WriteReadFailure` with a fixed message; the error goes to the span and the
   server log only (#8287).
 

@@ -380,7 +380,8 @@ Prometheus output after the hand-rolled gauges at the same `/metrics` endpoint.
 
   Observability Evidence: a failed scrape now logs `load runtime metrics failed`
   with `path` and the error at ERROR level and records the error and an Error
-  status on the request span when one exists, so an operator finds the cause
+  status on the request span when one exists (a span exists only where
+  `otelhttp` wraps the handler, the API binary today), so an operator finds the cause
   server-side instead of in the response body. A caller cancel adds the
   `eshu.request.client_canceled` span event and no log. Pinned by
   `TestStatusMetricsHandlerReadFailureHidesBackendText`,

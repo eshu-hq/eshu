@@ -35,7 +35,9 @@ A failed status read answers `GET /admin/status` with `500` and the fixed body
 `load status report failed` (or `render status report failed`), and a failed
 read on a status-only `/metrics` handler answers `500` with
 `load runtime metrics failed`. The body never carries the backend error text:
-look for it in the runtime log and the request span. A caller that cancels its
+look for it in the runtime log, and in the request span where the handler is
+wrapped by `otelhttp` (the API binary today; other runtimes have the log
+only). A caller that cancels its
 own request gets `499`, which is not a server fault.
 
 The MCP server also exposes `GET /health`, `GET /sse`, and
