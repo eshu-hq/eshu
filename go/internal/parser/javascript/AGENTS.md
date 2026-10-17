@@ -63,8 +63,11 @@
   `engine_package_member_constructs_test.go`. Do not key instance method calls
   or key from the loose `inferred_obj_type`: a parser cannot prove a
   receiver's object. A method shadowed by a field, a parameter property, or a
-  `this.<name> =` write in its class body gets no key. The #7601 keys keep
-  their open rule (#8310 tracks closing it).
+  `this.<name> =` write in its class body gets no key. The #7601 plain-call
+  keys pass the #8310 plain closed rule of `package_keys_closed.go`: any other
+  occurrence of the import name (a rebinding, an assignment, or a bare read)
+  drops every plain key of that name file-wide
+  (`engine_package_plain_call_rebind_test.go`).
   A manifest under a test, tests, fixtures, testdata, or examples directory
   publishes no `package_id`, but its files keep `node_package_name` (#8244, `engine_package_fixture_manifest_test.go`).
   A bare import is keyed only when a package.json on the path to the repo root

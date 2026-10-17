@@ -374,13 +374,13 @@ func TestDefaultEngineParsePathTypeScriptSkipsStaticMembersOfShadowedImports(t *
 	}
 }
 
-// TestDefaultEngineParsePathSkipsMemberKeysTheOpenRuleMisses pins the #8310
+// TestDefaultEngineParsePathSkipsMemberKeysOfReboundImports pins the #8310
 // repros for the #8280 static member keys (ruling (B)): an import alias, a
 // using declaration, a `\u` escape, or a sloppy-mode eval var can rebind the
-// import name where the #7601 open rule does not look, so `Logger.create()`
-// stays unkeyed. The #7601 plain call `Logger()` keeps its key exactly as on
-// main, hole included; #8310 tracks closing it.
-func TestDefaultEngineParsePathSkipsMemberKeysTheOpenRuleMisses(t *testing.T) {
+// import name, so `Logger.create()` stays unkeyed. The plain `Logger()` call
+// of the same files stays unkeyed too under the #8310 plain closed rule,
+// pinned by TestDefaultEngineParsePathSkipsPlainCallsOfReboundImports.
+func TestDefaultEngineParsePathSkipsMemberKeysOfReboundImports(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -404,18 +404,15 @@ func TestDefaultEngineParsePathSkipsMemberKeysTheOpenRuleMisses(t *testing.T) {
 			if key := callPackageKey(t, got, "Logger.create", "function_call"); key != "" {
 				t.Errorf("Logger.create package_export_symbol = %q, want none", key)
 			}
-			if key := callPackageKey(t, got, "Logger", "function_call"); key != "package:@acme/log#Logger" {
-				t.Errorf("Logger() package_export_symbol = %q, want the #7601 key package:@acme/log#Logger, unchanged from main", key)
-			}
 		})
 	}
 }
 
-// TestDefaultEngineParsePathSkipsMemberKeysInFilesWithWith pins review F8 for
-// the #8280 member keys: inside a sloppy-mode `with (o)` block a name may
-// resolve to a property of o, so a file with a with statement keys no member
-// call. The #7601 call keeps its key as on main. The word in a comment, a
-// string, or an identifier is no with statement.
+// TestDefaultEngineParsePathSkipsMemberKeysInFilesWithWith pins review F8:
+// inside a sloppy-mode `with (o)` block a name may resolve to a property of
+// o, so a file with a with statement keys no member call and, under the #8310
+// plain closed rule, no plain call either. The word in a comment, a string,
+// or an identifier is no with statement.
 func TestDefaultEngineParsePathSkipsMemberKeysInFilesWithWith(t *testing.T) {
 	t.Parallel()
 
@@ -427,8 +424,8 @@ func TestDefaultEngineParsePathSkipsMemberKeysInFilesWithWith(t *testing.T) {
 	if key := callPackageKey(t, got, "Logger.create", "function_call"); key != "" {
 		t.Errorf("Logger.create package_export_symbol = %q, want none in a file with a with statement", key)
 	}
-	if key := callPackageKey(t, got, "Logger", "function_call"); key != "package:@acme/log#Logger" {
-		t.Errorf("Logger() package_export_symbol = %q, want the #7601 key unchanged", key)
+	if key := callPackageKey(t, got, "Logger", "function_call"); key != "" {
+		t.Errorf("Logger() package_export_symbol = %q, want none in a file with a with statement", key)
 	}
 
 	plainPath := filepath.Join(repoRoot, "src", "plain.js")
@@ -438,12 +435,13 @@ func TestDefaultEngineParsePathSkipsMemberKeysInFilesWithWith(t *testing.T) {
 	}
 }
 
-// TestDefaultEngineParsePathKeepsTheOpenRuleForPlainCalls pins review F11:
-// the #7601 plain-call keys keep their open rule exactly as on main, so a TS
-// `module fmt {}` that rebinds a namespace import does not unkey `fmt.f()`
-// (the inner call is a known false link on main, tracked by #8310). The new
-// member key of the same file stays unkeyed under the closed rule.
-func TestDefaultEngineParsePathKeepsTheOpenRuleForPlainCalls(t *testing.T) {
+// TestDefaultEngineParsePathDropsPlainCallsFileWideOnRebind pins the #8310
+// file-wide conservatism for the plain closed rule: a TS `module fmt {}`
+// that rebinds a namespace import inside one namespace drops every plain key
+// of that name in the file, including the outer call the rebinding cannot
+// reach. The member key of the same file stays unkeyed under its own closed
+// rule.
+func TestDefaultEngineParsePathDropsPlainCallsFileWideOnRebind(t *testing.T) {
 	t.Parallel()
 
 	repoRoot := t.TempDir()
@@ -467,8 +465,8 @@ fmt.Logger.create();
 			continue
 		}
 		plain++
-		if key, _ := call["package_export_symbol"].(string); key != "package:@acme/log#f" {
-			t.Errorf("fmt.f() line %v package_export_symbol = %q, want the #7601 key package:@acme/log#f, as on main", call["line_number"], key)
+		if key, _ := call["package_export_symbol"].(string); key != "" {
+			t.Errorf("fmt.f() line %v package_export_symbol = %q, want none: module fmt rebinds the name", call["line_number"], key)
 		}
 	}
 	if plain != 2 {
