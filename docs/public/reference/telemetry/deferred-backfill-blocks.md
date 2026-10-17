@@ -63,18 +63,20 @@ Rules that make the numbers safe to compare:
   Correlation domains are not memo-gated, so their `skipped_by_memo` is always
   0. The partition-scoped pass also emits one per domain call, tagged
   `pass=targeted`.
-- `reopen` `skipped_unchanged` (whole pass, correlation domains) counts the
-  succeeded items the changed-evidence gate left succeeded because their
-  recorded input fingerprint still matches their current resolved input
-  (#8283). Only `deployable_unit_correlation` is gated, so the other
-  correlation domains report 0. `reopened` plus `skipped_unchanged` is the
-  domain's candidate count. The same count goes to
+- `reopen` `skipped_unchanged` (correlation domains, whole and
+  partition-scoped passes) counts the succeeded items the changed-evidence
+  gate left succeeded because their recorded input fingerprint still matches
+  their current resolved input (#8283). Only `deployable_unit_correlation` is
+  gated, so the other correlation domains report 0. `reopened` plus
+  `skipped_unchanged` is the domain's candidate count. The whole pass also
+  adds the count to
   `eshu_dp_correlation_reopen_skipped_total{domain,reason="input_unchanged"}`
-  and to the `reducer_work_items_reopened` log line as `skipped_unchanged`. A
-  wave whose `skipped_unchanged` equals its candidate count saw no changed
-  input. An item with no fingerprint row (never succeeded since the gate
-  shipped, or its success write was fenced off) always re-opens. The
-  partition-scoped pass does not apply the gate.
+  and to the `reducer_work_items_reopened` log line as `skipped_unchanged`;
+  the partition-scoped pass runs with instruments off, so it reports the count
+  on its `pass=targeted` span and log line only. A wave whose
+  `skipped_unchanged` equals its candidate count saw no changed input. An item
+  with no fingerprint row (never succeeded since the gate shipped, or its
+  success write was fenced off) always re-opens.
 - `bootstrap-index`'s standalone `Reopen*` calls emit the same `reopen` span,
   the same `deferred_backfill_block_completed` line, and the same histogram
   point as the ingester's maintenance pass.
