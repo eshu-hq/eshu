@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package flux
 
 import (
 	"path"
@@ -14,7 +14,7 @@ import (
 // canonicalNodeFluxReconcilesFromGitRepositoryEdgeCypher links a
 // FluxKustomization to the FluxGitRepository its spec.sourceRef resolved
 // against. Both endpoints are matched by their canonical uid, resolved in Go
-// (fluxReconcilesFromEdgeStatements), mirroring the Atlantis MANAGES/
+// (EdgeParts), mirroring the Atlantis MANAGES/
 // USES_WORKFLOW edges (canonical_atlantis_edges.go). One static template per
 // target label -- never a data-driven label -- keeps the emitted Cypher fully
 // pinned for the query-plan gate.
@@ -56,7 +56,7 @@ SET r.evidence_source = 'projector/canonical', r.generation_id = row.generation_
 // keyed on the relationship type (never scoped to a target label) covers all
 // three -- matching the MATCH-then-anonymous-target shape, no label needed to
 // select the stale edge. Emitted with Drain=true (see
-// fluxReconcilesFromEdgeStatements): this is an UNWIND relationship DELETE
+// EdgeParts): this is an UNWIND relationship DELETE
 // inside the mixed structural_edges phase, and on NornicDB such a DELETE
 // silently no-ops when it runs inside the phase's grouped ExecuteWrite
 // transaction alongside the sibling RECONCILES_FROM MERGE upserts (#4476, the
@@ -67,27 +67,6 @@ const retractFluxReconcilesFromEdgesCypher = `UNWIND $source_uids AS uid
 MATCH (k:FluxKustomization {uid: uid})-[r:RECONCILES_FROM]->()
 WHERE r.evidence_source = 'projector/canonical' AND r.generation_id <> $generation_id
 DELETE r`
-
-// fluxReconcilesFromWriteReasons is the write-reason registry
-// FluxRelationshipMaterializedEdgeTypes exposes to the blast-radius
-// edge-materialization coverage registry
-// (go/internal/query/edge_materialization_coverage.go), mirroring
-// crossplaneSatisfiedByWriteReasons.
-var fluxReconcilesFromWriteReasons = map[string]string{
-	"RECONCILES_FROM": "FluxKustomization spec.sourceRef or FluxHelmRelease spec.chart.spec.sourceRef/spec.chartRef resolved against exactly one source CR (FluxGitRepository/FluxOCIRepository/FluxBucket/FluxHelmRepository) via the shared deterministic same-repo namespace/name tiers (T1-T4); never fabricated across a namespace mismatch, dangling ref, unresolved ambiguity, an unmapped ref kind (chartRef kind HelmChart is deliberately never linked -- it names a different graph label, the Chart.yaml directory), or an invalid both-chart-and-chartRef HelmRelease",
-}
-
-// FluxRelationshipMaterializedEdgeTypes returns a defensive copy of
-// fluxReconcilesFromWriteReasons: the graph relationship types the Flux
-// canonical edge writer actually accepts, mapped to the write reason recorded
-// on each MERGEd edge. Mirrors CrossplaneRelationshipMaterializedEdgeTypes.
-func FluxRelationshipMaterializedEdgeTypes() map[string]string {
-	out := make(map[string]string, len(fluxReconcilesFromWriteReasons))
-	for edgeType, reason := range fluxReconcilesFromWriteReasons {
-		out[edgeType] = reason
-	}
-	return out
-}
 
 // fluxSourceRefKindToLabel maps a Flux Kustomization's spec.sourceRef.kind to
 // the typed graph label PR A registered for it. A kind absent from this map
@@ -121,7 +100,7 @@ var fluxSourceLabels = map[string]struct{}{
 // in every static Cypher template, since sourceLabel+targetLabel already
 // determine them uniquely for the current closed kind maps (see
 // fluxHelmChartRefKindToLabel / fluxHelmSourceRefKindToLabel in
-// canonical_flux_helm_edges.go), so no `via` field is threaded through the
+// helm.go), so no `via` field is threaded through the
 // row.
 type fluxReconcilerEntity struct {
 	uid          string
@@ -156,96 +135,6 @@ type fluxReconciliationRow struct {
 	sourceRefName      string
 	sourceRefNamespace string // the EFFECTIVE namespace used to resolve; "" means unknown (omitted on the edge)
 	namespaceDefaulted bool
-}
-
-// fluxReconcilesFromEdgeStatements returns the RECONCILES_FROM edge statements
-// for the FluxKustomization and FluxHelmRelease entities in the
-// materialization (issue #5360 PR B, extended by issue #5483 C1), or nil when
-// there are neither so the statements never run for non-Flux repos. Both
-// reconciler kinds resolve through the IDENTICAL T1-T4 tiers
-// (resolveFluxSourceCandidate) but are retract-scoped and Cypher-templated
-// separately, since they anchor on different source labels. Edges are
-// resolved in Go (resolveFluxReconciliationRows) and matched by canonical
-// uid, mirroring atlantisEdgeStatements.
-func fluxReconcilesFromEdgeStatements(mat canonical.CanonicalMaterialization) []Statement {
-	kustomizations, allKustomizationUIDs := collectFluxKustomizationEntities(mat.Entities)
-	helmReleases, allHelmReleaseUIDs := collectFluxHelmReleaseEntities(mat.Entities)
-	if len(allKustomizationUIDs) == 0 && len(allHelmReleaseUIDs) == 0 {
-		return nil
-	}
-
-	candidatesByKey := collectFluxSourceEntities(mat.Entities)
-	reconcilers := make([]fluxReconcilerEntity, 0, len(kustomizations)+len(helmReleases))
-	reconcilers = append(reconcilers, kustomizations...)
-	reconcilers = append(reconcilers, helmReleases...)
-	rows := resolveFluxReconciliationRows(reconcilers, candidatesByKey)
-
-	rowsByLabelPair := map[string]map[string][]map[string]any{
-		"FluxKustomization": {},
-		"FluxHelmRelease":   {},
-	}
-	for _, row := range rows {
-		byLabel := rowsByLabelPair[row.sourceLabel]
-		byLabel[row.targetLabel] = append(byLabel[row.targetLabel], map[string]any{
-			"source_uid":           row.sourceUID,
-			"target_uid":           row.targetUID,
-			"generation_id":        mat.GenerationID,
-			"resolution_mode":      row.resolutionMode,
-			"source_ref_kind":      row.sourceRefKind,
-			"source_ref_name":      row.sourceRefName,
-			"source_ref_namespace": nilIfEmptyString(row.sourceRefNamespace),
-			"namespace_defaulted":  row.namespaceDefaulted,
-		})
-	}
-
-	var stmts []Statement
-	if !mat.FirstGeneration {
-		if len(allKustomizationUIDs) > 0 {
-			stmts = append(stmts, Statement{
-				Operation: OperationCanonicalRetract,
-				Cypher:    retractFluxReconcilesFromEdgesCypher,
-				Parameters: map[string]any{
-					"source_uids":   allKustomizationUIDs,
-					"generation_id": mat.GenerationID,
-				},
-				Drain: true,
-			})
-		}
-		if len(allHelmReleaseUIDs) > 0 {
-			stmts = append(stmts, Statement{
-				Operation: OperationCanonicalRetract,
-				Cypher:    retractFluxHelmReconcilesFromEdgesCypher,
-				Parameters: map[string]any{
-					"source_uids":   allHelmReleaseUIDs,
-					"generation_id": mat.GenerationID,
-				},
-				Drain: true,
-			})
-		}
-	}
-	for _, targetLabel := range []string{"FluxGitRepository", "FluxOCIRepository", "FluxBucket"} {
-		labelRows := rowsByLabelPair["FluxKustomization"][targetLabel]
-		if len(labelRows) == 0 {
-			continue
-		}
-		stmts = append(stmts, Statement{
-			Operation:  OperationCanonicalUpsert,
-			Cypher:     fluxReconcilesFromCypherByLabel[targetLabel],
-			Parameters: map[string]any{"rows": labelRows},
-		})
-	}
-	for _, targetLabel := range []string{"FluxHelmRepository", "FluxGitRepository", "FluxOCIRepository", "FluxBucket"} {
-		labelRows := rowsByLabelPair["FluxHelmRelease"][targetLabel]
-		if len(labelRows) == 0 {
-			continue
-		}
-		stmts = append(stmts, Statement{
-			Operation:  OperationCanonicalUpsert,
-			Cypher:     fluxHelmReconcilesFromCypherByLabel[targetLabel],
-			Parameters: map[string]any{"rows": labelRows},
-		})
-	}
-	return stmts
 }
 
 // fluxReconcilesFromCypherByLabel selects among the three pre-written static
@@ -475,6 +364,21 @@ func commonDirPrefixDepth(a, b string) int {
 		n++
 	}
 	return n
+}
+
+// metadataString reads a string value from an entity metadata map.
+// Leaf-local copy of the parent cypher package's helper
+// (canonical_atlantis_edges.go): this leaf must stay Statement-free and
+// import-free of its parent, so the helper moves with the code that needs
+// it rather than being exported from root.
+func metadataString(metadata map[string]any, key string) string {
+	if metadata == nil {
+		return ""
+	}
+	if value, ok := metadata[key].(string); ok {
+		return strings.TrimSpace(value)
+	}
+	return ""
 }
 
 // nilIfEmptyString returns nil for an empty string, else the string itself.
