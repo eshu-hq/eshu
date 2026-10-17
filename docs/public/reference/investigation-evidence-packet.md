@@ -13,7 +13,7 @@ The schema identifier is `investigation_evidence_packet.v2`. The contract types
 live in `go/internal/query/investigation_packet.go`,
 `investigation_packet_build.go`, and `investigation_packet_validate.go`. The
 packet reuses the existing truth, freshness, and evidence-handle contracts from
-`contract.go` and `evidence_citation.go` rather than redefining them.
+`contract.go` and `evidence/citation.go` rather than redefining them.
 
 Read the [Truth Label Protocol](truth-label-protocol.md) and
 [Answer Packet Contract](answer-packets.md) first: the v2 packet does not invent
