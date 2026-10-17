@@ -66,6 +66,10 @@ func (s *Source) next(ctx context.Context) (collector.CollectedGeneration, bool,
 		Status:        scope.GenerationStatusPending,
 		TriggerKind:   scope.TriggerKindSnapshot,
 		FreshnessHint: freshnessHint(pages),
+		// The escape hatch for a legitimately emptied space: only a
+		// source that explicitly attests its deletions bypasses the
+		// store's successor-emptiness backstop.
+		TrustedDeletion: s.Config.AllowEmptySuccessor,
 	}
 	envelopes, err := s.factEnvelopes(ctx, scopeValue, generationValue, spaceValue, pages, failureCount, truncated)
 	if err != nil {

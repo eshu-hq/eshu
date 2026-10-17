@@ -252,6 +252,49 @@ func TestLoadConfigRejectsCredentialBearingBaseURL(t *testing.T) {
 	}
 }
 
+func TestLoadConfigRoundTripsAllowEmptySuccessor(t *testing.T) {
+	t.Parallel()
+
+	load := func(t *testing.T, attested string) bool {
+		t.Helper()
+		values := map[string]string{
+			"ESHU_CONFLUENCE_BASE_URL":  "https://example.atlassian.net/wiki",
+			"ESHU_CONFLUENCE_SPACE_ID":  "100",
+			"ESHU_CONFLUENCE_API_TOKEN": "token",
+			"ESHU_CONFLUENCE_EMAIL":     "bot@example.com",
+		}
+		if attested != "" {
+			values["ESHU_CONFLUENCE_ALLOW_EMPTY_SUCCESSOR"] = attested
+		}
+		config, err := LoadConfig(func(key string) string { return values[key] })
+		if err != nil {
+			t.Fatalf("LoadConfig() error = %v, want nil", err)
+		}
+		return config.AllowEmptySuccessor
+	}
+
+	if got := load(t, "true"); !got {
+		t.Fatal("AllowEmptySuccessor = false with ESHU_CONFLUENCE_ALLOW_EMPTY_SUCCESSOR=true, want true")
+	}
+	if got := load(t, ""); got {
+		t.Fatal("AllowEmptySuccessor = true without ESHU_CONFLUENCE_ALLOW_EMPTY_SUCCESSOR, want false default")
+	}
+
+	_, err := LoadConfig(func(key string) string {
+		values := map[string]string{
+			"ESHU_CONFLUENCE_BASE_URL":              "https://example.atlassian.net/wiki",
+			"ESHU_CONFLUENCE_SPACE_ID":              "100",
+			"ESHU_CONFLUENCE_API_TOKEN":             "token",
+			"ESHU_CONFLUENCE_EMAIL":                 "bot@example.com",
+			"ESHU_CONFLUENCE_ALLOW_EMPTY_SUCCESSOR": "not-a-boolean",
+		}
+		return values[key]
+	})
+	if err == nil {
+		t.Fatal("LoadConfig() error = nil, want invalid boolean error")
+	}
+}
+
 func TestDocumentationSourceIDIncludesTenant(t *testing.T) {
 	t.Parallel()
 

@@ -10,6 +10,36 @@ import (
 	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
 )
 
+// TestCollectedGenerationForwardsTrustedDeletion proves the host does not
+// drop the extension's trusted-deletion attestation: an extension generation
+// that attests legitimate emptiness reaches the commit path, so the store's
+// successor-emptiness backstop honors it instead of refusing every tick.
+func TestCollectedGenerationForwardsTrustedDeletion(t *testing.T) {
+	t.Parallel()
+
+	collect := func(t *testing.T, trusted bool) bool {
+		t.Helper()
+		item := testWorkItem()
+		result := completeResult(item, testSDKFact(item))
+		result.Generation.TrustedDeletion = trusted
+		source := mustNewSource(t, &recordingRunner{result: result}, nil)
+		collected, ok, err := source.NextClaimed(context.Background(), item)
+		if err != nil {
+			t.Fatalf("NextClaimed() error = %v, want nil", err)
+		}
+		if !ok {
+			t.Fatal("NextClaimed() ok = false, want true")
+		}
+		return collected.Generation.TrustedDeletion
+	}
+	if got := collect(t, false); got {
+		t.Fatal("TrustedDeletion = true without attestation, want false")
+	}
+	if got := collect(t, true); !got {
+		t.Fatal("TrustedDeletion = false with attestation, want true")
+	}
+}
+
 func TestSourceFactIDIgnoresSourceConfidenceMetadata(t *testing.T) {
 	t.Parallel()
 

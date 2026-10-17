@@ -42,6 +42,10 @@ func (s *Source) collectedGeneration(
 		Status:        scope.GenerationStatusPending,
 		TriggerKind:   scope.TriggerKindSnapshot,
 		FreshnessHint: result.Generation.FreshnessHint,
+		// Forward the extension's attestation: only an explicitly
+		// attested generation bypasses the store's successor-emptiness
+		// backstop.
+		TrustedDeletion: result.Generation.TrustedDeletion,
 	}
 	return collector.FactsFromSlice(scopeValue, generation, envelopes)
 }

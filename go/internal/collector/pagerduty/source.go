@@ -158,6 +158,10 @@ func (s *ClaimedSource) NextClaimed(
 			Status:        scope.GenerationStatusPending,
 			TriggerKind:   scope.TriggerKindSnapshot,
 			FreshnessHint: freshnessHint(envs),
+			// The escape hatch for legitimate mass-resolves: only a
+			// target that explicitly attests its deletions bypasses the
+			// store's successor-emptiness backstop.
+			TrustedDeletion: target.config.AllowEmptySuccessor,
 		},
 		envs,
 	), true, nil
