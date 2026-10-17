@@ -77,6 +77,14 @@ FROM generate_series(1, $2::int) g, generate_series(1, $3::int) e`,
 	if _, err := inventory.MirrorRepo(ctx, postgres.SQLDB{DB: sqlDB}, repo); err != nil {
 		t.Fatalf("MirrorRepo(%s) error = %v", repo, err)
 	}
+	// Each seed bulk-loads 50k fact rows and 50k content rows. Without fresh
+	// planner statistics the retention row-count query (fact_records joins on
+	// scope/generation plus JSONB payload anti-joins) degrades by round 3:
+	// prune cost grows 3s -> 70s+ and the 90s round deadline expires in
+	// "count rows". ANALYZE keeps every round on the measured ~3s plan.
+	if _, err := sqlDB.ExecContext(ctx, `ANALYZE fact_records, content_entities, scope_generations`); err != nil {
+		t.Fatalf("analyze seeded tables: %v", err)
+	}
 }
 
 // watchAdvisoryLockHold polls pg_locks on its own connection until stop closes

@@ -131,6 +131,7 @@ gates:
       - "scripts/test-run-live-postgres-readiness-selftest-seeds.sh"
       - "scripts/lib/live_postgres_readiness_shards.py"
       - "scripts/test-live-postgres-readiness-shards.py"
+      - "scripts/test-live-postgres-readiness-helper.py"
       - "scripts/lib/verify-live-tests-ledger.py"
       - "scripts/verify-live-tests-ledger.sh"
       - "scripts/test-verify-live-tests-ledger.sh"
@@ -139,6 +140,7 @@ gates:
       - ".github/workflows/live-postgres-readiness.yml"
       - ".github/workflows/required-gates.yml"
     self_test_triggers:
+      - "scripts/test-live-postgres-readiness-helper.py"
       - "scripts/test-run-live-postgres-readiness-selftest-seeds.sh"
       - "scripts/test-run-live-postgres-readiness-tests.sh"
       - "scripts/lib/test-run-live-postgres-readiness-proofs.sh"
@@ -150,7 +152,7 @@ gates:
       - "scripts/run-live-postgres-readiness-tests.sh"
     local:
       command: "bash scripts/test-run-live-postgres-readiness-tests.sh"
-      test_command: "bash scripts/test-run-live-postgres-readiness-selftest-seeds.sh"
+      test_command: "bash scripts/test-run-live-postgres-readiness-selftest-seeds.sh && python3 scripts/test-live-postgres-readiness-helper.py"
       pre_push: floor
     ci:
       workflow: live-postgres-readiness.yml
