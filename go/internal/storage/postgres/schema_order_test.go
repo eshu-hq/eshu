@@ -475,4 +475,9 @@ var orderedBootstrapDefinitionNames = []string{
 	// Migration 193 (#8283) records the per-item input fingerprint the
 	// deployable_unit_correlation reopen compares to skip unchanged items.
 	"deployable_unit_reopen_fingerprints",
+	// Migrations 194 and 195 (#7098 slice D-read) trim the changed-since
+	// diff: a partial live-keys index excluding reducer fact_kinds and a
+	// tombstone-only index. Read path unchanged.
+	"fact_records_changed_since_live_keys_idx",
+	"fact_records_changed_since_tombstone_keys_idx",
 }
