@@ -69,6 +69,12 @@ Scoped instructions for the config-artifact read model (#7126). The root
   (`recordFailureSQL`). Never let it touch the rows, `content_version`,
   `extractor_version` or `row_count` of an existing state row, and keep it on
   a context detached from the caller so a timed-out derive still records.
+  `TestDeriveFailureRecordWaitsOnTheWriteLockLive` pins the extractor half: its
+  failing deriver runs an older extractor than the held write, so copying the
+  failing version into `extractor_version` fails it. The racing test
+  (`TestDeriveFailureRecordRacingNewerWritesLive`) biases the write and failure
+  order with sleeps and requires at least 5 rounds of each; it does not force
+  either order.
 - Step 2 reads through `contentReader`, which must send only the neutral
   package's statements and row mappers (`contentartifacts.ListStatement` and
   its siblings), never a copy: the S4 equality test compares the stored rows

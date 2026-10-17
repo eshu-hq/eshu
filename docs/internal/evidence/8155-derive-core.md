@@ -80,7 +80,7 @@ Live tests on a disposable PostgreSQL 18.6 database
 | Rollback | `TestDeriveRollbackLeavesRowsAndStateLive` | superseded and failed-insert (`sqlstate_22021`) derives leave rows and trust columns unchanged; `failure_count` 1, then 0 after a success |
 | Failure-only row | `TestDeriveTimeoutAndPanicRecordFailureOnlyLive` | timeout and panic leave `row_count` and `content_version` NULL, `failure_count` 2; a later derive writes (Proposed clause) |
 | One lock key for write and failure | `TestDeriveWriteAndFailureRecordShareOneRepositoryLock` (hermetic), `TestDeriveFailureRecordWaitsOnTheWriteLockLive` | both send `config_artifact_paths:repo-a`; live, the failure update waits on the held write lock, and the held and waiting `pg_locks` keys both equal `hashtextextended(repoLockKey, 0)` |
-| Failure update racing a newer write | `TestDeriveFailureRecordRacingNewerWritesLive` | 30 rounds, both orders (13-17 split over three runs): `content_version` always the current, advancing version, rows from that round |
+| Failure update racing a newer write | `TestDeriveFailureRecordRacingNewerWritesLive` | 30 rounds; sleeps bias the order and the test requires at least 5 rounds of each, it does not force either (13-17 split over three runs): `content_version` always the current, advancing version, rows from that round |
 | Start-up checks | `TestDeriveMapsEveryStartupCheckResult` (hermetic) | real `CheckEncoding` and `CheckFence` results: both encoding reasons give `encoding_unsupported`, all fence reasons (`fence_check_failed` included) give `fence_missing`, no statement |
 
 Mutation sweep (each mutation applied alone, the named tests run, the file
@@ -104,8 +104,9 @@ restored with `git checkout`):
 | M14 failure update sets `content_version = content_version - 1` | `TestDeriveFailureRecordRacingNewerWritesLive` |
 | M15 failure update deletes the rows | `TestDeriveFailureRecordRacingNewerWritesLive` |
 | M16 read the state before the lock, inside the write transaction (the reviewer's R1) | `TestDeriveWritesInOneTransactionUnderTheLock` (hermetic), `TestDeriveTwoDerivesOfOneRepositorySerializeLive` (live, `derive_race_live_test.go`); `derive_order_live_test.go` does not catch it |
+| M17 failure update sets `extractor_version = EXCLUDED.extractor_version` (the reviewer's N4; an older binary's failure would relabel a newer extractor's rows) | `TestDeriveFailureRecordWaitsOnTheWriteLockLive` (the failing deriver is one extractor version older than the held write) |
 
-16 of 16 killed. The write-transaction timings, the `Performance Evidence:`
+17 of 17 killed. The write-transaction timings, the `Performance Evidence:`
 and the `Observability Evidence:` markers are in the package README
 (`go/internal/storage/postgres/config/artifacts/README.md`, section "Evidence
 (PR3b-2b, the derive core)").
