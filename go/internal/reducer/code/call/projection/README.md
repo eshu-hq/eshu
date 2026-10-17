@@ -44,7 +44,7 @@ vocabulary (`codecall`), or the graph-projection phase/readiness vocabulary
 
 The reducer root wires `Runner` on `Service.CodeCallProjectionRunner`,
 keeping the `reducer.CodeCallProjectionRunner`/
-`reducer.CodeCallProjectionRunnerConfig`/`reducer.ReducerGraphDrain`/
+`reducer.CodeCallProjectionRunnerConfig`/
 `reducer.DefaultCodeCallProjectionLeaseOwnerPrefix`/
 `reducer.DefaultCodeCallAcceptanceScanLimit`/
 `reducer.CodeCallProjectionFilePartitionKeyPrefix`/
@@ -138,3 +138,23 @@ graph, or Postgres operation, runtime setting, metric instrument, metric
 label, span, or status surface. The structured-log messages and metrics
 listed under Telemetry above are unchanged; only the package that owns the
 code moved.
+
+No-Regression Evidence (#6626 batch 4): baseline `5e6fa5c5f` exposed one
+reducer-root alias, `ReducerGraphDrain` (a type alias for this package's
+`ReducerGraphDrain`, identical by definition), with a single external caller:
+`reducerGraphDrainFor` in `go/cmd/reducer/main_helpers.go`. With the alias
+deleted before the caller edit, `go build ./cmd/reducer/` failed to compile
+at that caller reference (undefined `ReducerGraphDrain` in package
+`cmd/reducer`, exit 1).
+After repointing the return type to `projection.ReducerGraphDrain`, whole
+module `go build ./...` and `go vet` over the touched trees exited 0, and
+unfiltered recursive `go test -count=1 ./cmd/reducer/...` and
+`./internal/reducer/...` passed (exit 0). The backend is in-memory Go
+1.26.9 linux/amd64; inputs are the existing unit suites (no fixtures added).
+There are no queue or graph writes in this batch, so terminal queue and row
+counts are not applicable. The retired alias had no runtime behavior of its
+own; the caller now names the identical leaf type directly. No runtime
+speedup is claimed.
+No-Observability-Change: this batch changes no metric, span, log, status,
+worker, queue, or runtime setting. The quiescence-gate wiring described
+above still covers the same production path.
