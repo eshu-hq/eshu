@@ -124,6 +124,16 @@ WHERE scope_id = $1
 // contributes no rows, and the maintenance is deferred to the next claim or
 // Ack instead of waiting on an open generation update (40P01 with a
 // concurrent claim).
+// #8261: locked_obsolete_work then locks the held generations' projector
+// rows in work_item_id COLLATE "C" order (FOR NO KEY UPDATE, waiting) before
+// the work UPDATE touches any. That is the order the recovery and admin
+// replays lock in (#8205). Without it the UPDATE locked them in generation_id
+// order under the database's default collation; where that order and C
+// order disagree (en_US.utf8 and generation ids differing in case or
+// punctuation), Ack and a projector-stage replay over the same dead letters
+// could lock them in opposite orders and deadlock (40P01). The lock step's
+// row predicates are rechecked on the newest row version when a lock waits
+// (EvalPlanQual); the UPDATE repeats them with the generation guards.
 const supersedeProjectorObsoleteGenerationsQuery = `
 WITH locked_obsolete_stale_generations AS (
     SELECT stale_generation.generation_id
@@ -149,6 +159,18 @@ WITH locked_obsolete_stale_generations AS (
     FOR NO KEY UPDATE OF obsolete_fence SKIP LOCKED
     FOR NO KEY UPDATE OF stale_generation SKIP LOCKED
 ),
+locked_obsolete_work AS (
+    SELECT stale.work_item_id
+    FROM fact_work_items AS stale
+    JOIN locked_obsolete_stale_generations AS locked
+      ON locked.generation_id = stale.generation_id
+    WHERE stale.stage = 'projector'
+      AND stale.scope_id = $2
+      AND stale.generation_id <> $3
+      AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
+    ORDER BY stale.work_item_id COLLATE "C"
+    FOR NO KEY UPDATE OF stale
+),
 superseded_work AS (
     UPDATE fact_work_items AS stale
     SET status = 'superseded',
@@ -168,7 +190,8 @@ superseded_work AS (
     FROM locked_obsolete_stale_generations AS locked,
          scope_generations AS stale_generation,
          scope_generations AS current_generation
-    WHERE stale.stage = 'projector'
+    WHERE stale.work_item_id = ANY(ARRAY(SELECT work_item_id FROM locked_obsolete_work))
+      AND stale.stage = 'projector'
       AND stale.scope_id = $2
       AND stale.generation_id <> $3
       AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
