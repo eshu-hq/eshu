@@ -166,7 +166,7 @@ func classifiedProviderFailure(err error) ProviderFailure {
 			class = sdk.FailureTerminal
 			terminal = true
 		}
-		return sdk.NewProviderFailure("loki", class, terminal, err)
+		return sdk.NewProviderFailure("loki", class, terminal, err).WithOperation(apiErr.FailureOperation())
 	}
 	return sdk.ClassifyProviderFailure("loki", err, sdk.StatusPolicy{
 		AuthDeniedClass: sdk.FailureAuthDenied,

@@ -381,6 +381,7 @@ func (c HTTPClient) doJSON(
 		Method:      method,
 		BaseURL:     c.baseURL,
 		Endpoint:    endpoint,
+		Operation:   jiraOperationForEndpoint(endpoint),
 		Query:       query,
 		Body:        body,
 		Out:         out,

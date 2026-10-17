@@ -166,7 +166,7 @@ func classifiedProviderFailure(err error) ProviderFailure {
 			class = sdk.FailureTerminal
 			terminal = true
 		}
-		return sdk.NewProviderFailure("prometheus_mimir", class, terminal, err)
+		return sdk.NewProviderFailure("prometheus_mimir", class, terminal, err).WithOperation(apiErr.FailureOperation())
 	}
 	return sdk.ClassifyProviderFailure("prometheus_mimir", err, sdk.StatusPolicy{
 		AuthDeniedClass: sdk.FailureAuthDenied,

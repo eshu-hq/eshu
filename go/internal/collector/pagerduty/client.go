@@ -228,17 +228,48 @@ func (c *HTTPClient) listRelatedChangeEvents(
 
 func (c *HTTPClient) getJSON(ctx context.Context, path string, values url.Values, out any) error {
 	return sdk.DoJSON(ctx, sdk.JSONRequest{
-		Provider: "pagerduty",
-		Method:   http.MethodGet,
-		BaseURL:  c.baseURL,
-		Endpoint: path,
-		Query:    values,
-		Out:      out,
-		Client:   c.client,
+		Provider:  "pagerduty",
+		Method:    http.MethodGet,
+		BaseURL:   c.baseURL,
+		Endpoint:  path,
+		Operation: pagerDutyOperationForPath(path),
+		Query:     values,
+		Out:       out,
+		Client:    c.client,
 		Headers: func(req *http.Request) {
 			req.Header.Set("Authorization", "Token token="+c.token)
 		},
 	})
+}
+
+// pagerDutyOperationForPath maps a PagerDuty REST path to its bounded failure
+// operation token (#8258). Per-incident and per-service paths carry provider
+// IDs, so the token is matched by exact path or by prefix and suffix and
+// never derived from the raw path: an unknown path keeps a blank token and
+// claim handling falls back to its stage operation.
+func pagerDutyOperationForPath(path string) string {
+	switch path {
+	case "/incidents":
+		return "list_incidents"
+	case "/services":
+		return "list_services"
+	}
+	if strings.HasPrefix(path, "/incidents/") {
+		switch {
+		case strings.HasSuffix(path, "/log_entries"):
+			return "list_log_entries"
+		case strings.HasSuffix(path, "/related_change_events"):
+			return "list_change_events"
+		}
+		return ""
+	}
+	if strings.HasPrefix(path, "/services/") {
+		if strings.HasSuffix(path, "/integrations") {
+			return "list_service_integrations"
+		}
+		return "read_service"
+	}
+	return ""
 }
 
 func defaultClientFactory(target TargetConfig) (EvidenceClient, error) {
