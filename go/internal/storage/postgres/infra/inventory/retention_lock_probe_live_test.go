@@ -185,7 +185,9 @@ func (trace retentionPhaseTrace) finish(activePhase string, failed bool) {
 //	ESHU_POSTGRES_DSN=... go test ./internal/storage/postgres/infra/inventory \
 //	  -run TestRetentionLiveLockHoldAndDeriveWaitCost -count=1 -v
 func TestRetentionLiveLockHoldAndDeriveWaitCost(t *testing.T) {
-	sqlDB, ctx := liveDB(t)
+	// Three rounds need ~130s under -race; every other liveDB caller keeps
+	// the 90s default.
+	sqlDB, ctx := liveDB(t, 10*time.Minute)
 	other := uniqueRepo(t)
 	putContent(t, ctx, sqlDB, other, contentRow{"o1", "o.tf", "TerraformResource", "r.o1", `{}`})
 	wantPruned := int64(retentionProbeGenerations * retentionProbeFactsPerGeneration)

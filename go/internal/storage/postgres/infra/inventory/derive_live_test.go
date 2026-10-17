@@ -25,8 +25,17 @@ import (
 //	ESHU_POSTGRES_DSN=postgresql://eshu:change-me@localhost:<port>/eshu \
 //	  go test ./internal/storage/postgres/infra/inventory -run Live -count=1 -race -v
 
-func liveDB(t *testing.T) (*sql.DB, context.Context) {
+// liveDB opens the shared probe database with a per-test context budget.
+// The default is 90 seconds; a caller with a heavier measured shape (the
+// lock-hold probe runs 3 rounds of seed/prune/racing-derive, ~130s under
+// -race) passes its own budget. The probe asserts correctness only, never
+// latency.
+func liveDB(t *testing.T, timeout ...time.Duration) (*sql.DB, context.Context) {
 	t.Helper()
+	budget := 90 * time.Second
+	if len(timeout) > 0 {
+		budget = timeout[0]
+	}
 	dsn := os.Getenv("ESHU_POSTGRES_DSN")
 	if dsn == "" {
 		t.Skip("set ESHU_POSTGRES_DSN to run the real-Postgres infra inventory proofs")
@@ -44,10 +53,7 @@ func liveDB(t *testing.T) (*sql.DB, context.Context) {
 	if err := postgres.ApplyBootstrap(schemaCtx, postgres.SQLDB{DB: sqlDB}); err != nil {
 		t.Fatalf("apply bootstrap schema: %v", err)
 	}
-	// The budget must cover the heaviest user (the lock-hold probe runs 3
-	// rounds of seed/prune/racing-derive, ~30s each and growing with the
-	// schema corpus); the probe asserts correctness only, never latency.
-	ctx, cancelTest := context.WithTimeout(context.Background(), 10*time.Minute)
+	ctx, cancelTest := context.WithTimeout(context.Background(), budget)
 	t.Cleanup(cancelTest)
 	return sqlDB, ctx
 }
