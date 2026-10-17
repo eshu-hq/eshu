@@ -24,7 +24,7 @@ control-flow line changes outside test fixtures.
   the whole `go/internal/query` tree. The 7 pinned migration files and the
   append-only measurements ledger are untouched.
 
-## No-Regression Evidence
+## No-Regression Evidence:
 
 Baseline is the branch point `e7675d9ee`, which is also the merge base with
 `origin/main`. Input shape is 117 files, 206 insertions, 215 deletions of
