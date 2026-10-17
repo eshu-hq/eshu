@@ -379,9 +379,14 @@ func provisionReopenPartitionMemoSchema(t *testing.T, db *sql.DB) string {
 		`ALTER TABLE fact_work_items ADD COLUMN IF NOT EXISTS reopened_at TIMESTAMPTZ NULL`); err != nil {
 		t.Fatalf("add reopened_at column: %v", err)
 	}
-	// The deployable_unit_correlation reopen reads its fingerprint table
-	// (#8283). Apply the shipped migration, not a copy, so the hand-rolled
-	// schema carries exactly the production DDL.
+	// The deployable_unit_correlation reopen (#8283) reads its fingerprint
+	// table and recomputes fingerprints over resolved_relationships joined to
+	// relationship_generations. Apply the shipped DDL for all three, not
+	// copies, so the hand-rolled schema never resolves them through public
+	// (the search_path fallback a fresh database does not have).
+	if _, err := db.ExecContext(ctx, RelationshipSchemaSQL()); err != nil {
+		t.Fatalf("apply shipped relationship schema: %v", err)
+	}
 	applyShippedMigration(t, ctx, db, "deployable_unit_reopen_fingerprints")
 	return schemaName
 }
