@@ -467,6 +467,16 @@ func MaterializedEdgeIdentityProperties(family string) (map[string][]string, err
 		}
 		return out, nil
 	}
+	if _, ok := predicateScopedMaterializedEdgeFamilies[family]; ok {
+		// A predicate-scoped family's types are an open prefixed vocabulary,
+		// so no per-type map can be enumerated. Every writer MERGEs on
+		// (source, type, target) with no relationship property map — pinned
+		// against the held upsert consts by
+		// TestPredicateScopedCloudResourceTemplatesCarryThePredicate — so the
+		// explicit empty declaration is the identity contract: a type absent
+		// from the returned map MERGEs on its endpoints alone.
+		return map[string][]string{}, nil
+	}
 	return nil, fmt.Errorf("cypher: no materialized-edge identity registered for family %q; register it before proving it on a live gate", family)
 }
 

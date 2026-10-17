@@ -14,6 +14,27 @@ import (
 
 const canonicalPhaseAzureCloudResourceEdge = "azure_cloud_resource_edge"
 
+// AzureRelationshipCypherTypePrefix is the relationship-type prefix every
+// Azure cloud-resource edge type carries: canonicalAzureRelationshipCypherType
+// prepends it to the per-row relationship_type token. The Ifá
+// predicate-scoped family registry (#8358) holds this const rather than a
+// copy of the literal. See AWSRelationshipCypherTypePrefix.
+const AzureRelationshipCypherTypePrefix = "AZURE_"
+
+// Exported aliases of the production templates in this file, held by the Ifá
+// materialized-edge family registry (#8358). See the AWS writer's aliases in
+// cloud_resource_edge_writer.go.
+const (
+	// CanonicalAzureCloudResourceEdgeUpsertCypherFormat is
+	// canonicalAzureCloudResourceEdgeUpsertCypherFormat.
+	CanonicalAzureCloudResourceEdgeUpsertCypherFormat = canonicalAzureCloudResourceEdgeUpsertCypherFormat
+	// RetractAzureCloudResourceEdgesCypher is retractAzureCloudResourceEdgesCypher.
+	RetractAzureCloudResourceEdgesCypher = retractAzureCloudResourceEdgesCypher
+	// RetractAzureCloudResourceEdgesByUIDsCypher is
+	// retractAzureCloudResourceEdgesByUIDsCypher.
+	RetractAzureCloudResourceEdgesByUIDsCypher = retractAzureCloudResourceEdgesByUIDsCypher
+)
+
 const canonicalAzureCloudResourceEdgeUpsertCypherFormat = `UNWIND $rows AS row
 MATCH (source:CloudResource {uid: row.source_uid})
 MATCH (target:CloudResource {uid: row.target_uid})
@@ -145,7 +166,7 @@ func canonicalAzureRelationshipCypherType(row map[string]any) (string, error) {
 		}
 		return "", fmt.Errorf("azure relationship_type %q contains unsupported character %q", raw, ch)
 	}
-	return "AZURE_" + raw, nil
+	return AzureRelationshipCypherTypePrefix + raw, nil
 }
 
 // RetractCloudResourceEdges removes Azure relationship edges owned by this
