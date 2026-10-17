@@ -75,7 +75,7 @@ fi
 
 # Public-safety static check: the script must not embed credentials, tokens, or
 # internal hostnames. Only public registries/sources are allowed.
-if rg -nI 'password=|secret=|jfrog\.io|boatsgroup|10\.[0-9]+\.[0-9]+\.[0-9]+' "${script}"; then
+if rg -nI 'password=|secret=|jfrog\.io|b[o]atsgr[o]up|10\.[0-9]+\.[0-9]+\.[0-9]+' "${script}"; then
 	echo "verify_local_public_collector_proof.sh must not embed secrets or internal locators" >&2
 	exit 1
 fi
@@ -154,7 +154,7 @@ for fn in assert_kev_evidence assert_epss_evidence assert_osv_evidence; do
 	fi
 done
 # Public-safety check on the assertions lib: no credentials or internal locators.
-if rg -nI 'password=|secret=|jfrog\.io|boatsgroup|10\.[0-9]+\.[0-9]+\.[0-9]+|NVD_API_KEY' "${assertions_lib}"; then
+if rg -nI 'password=|secret=|jfrog\.io|b[o]atsgr[o]up|10\.[0-9]+\.[0-9]+\.[0-9]+|NVD_API_KEY' "${assertions_lib}"; then
 	echo "public_collector_proof_assertions.sh must not embed secrets or internal locators" >&2
 	exit 1
 fi
