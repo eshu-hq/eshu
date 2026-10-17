@@ -2,9 +2,10 @@
 
 ## Scope
 
-Base: `origin/main` at `54a73a48c` after a third conflict-free
-rebase (base delta is 7 docs/specs files, all file-disjoint from this
-slice; reversion scan empty). Second rebase base was `7cabdbf0f1e2`
+Base: `origin/main` at `668f4971c77f` after a fourth conflict-free
+rebase (base delta is 2 query-contract files from the #8376 merge, both
+file-disjoint from this slice; reversion scan empty). Third rebase base
+was `54a73a48c` (7 disjoint docs/specs files). Second rebase base was `7cabdbf0f1e2`
 (one digest-block conflict, resolved by re-deriving); first rebase base
 was `87f019495`; original base `5e6fa5c5fb29`.
 
