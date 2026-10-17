@@ -24,6 +24,13 @@
       "TestGenerationRetentionSkipsHeldScopeAndReplacesLive"
     ]
   },
+  "go/internal/storage/postgres/generation_retention_fingerprint_count_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestGenerationRetentionCountsReopenFingerprintsLive",
+      "TestGenerationRetentionRowCountsCoverCascadeTablesLive"
+    ]
+  },
   "go/internal/storage/postgres/generation_retention_key_index_live_test.go": {
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
     "tests": [

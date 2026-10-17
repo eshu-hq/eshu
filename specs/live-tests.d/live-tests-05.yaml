@@ -414,6 +414,11 @@ tests:
     class: dedicated_ci
     reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 5.26s); docs/internal/evidence/7533-contention-live-proof.md"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/generation_retention_fingerprint_count_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "linuxdynasty: 2/2 named Go tests pass with -race against local postgres:18 (summed test elapsed 4.31s); docs/internal/evidence/8300-fingerprint-count-arm.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/generation_retention_evalplanqual_live_test.go
     tag: ~
     class: dedicated_ci
