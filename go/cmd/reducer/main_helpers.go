@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/clock"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
@@ -133,7 +134,7 @@ func graphProjectionPhaseRepairerFor(
 // reducerGraphDrainFor returns a ReducerGraphDrain when the projector drain gate
 // is enabled, otherwise nil. Extracted from buildReducerService to keep main.go
 // within the repo file-size budget.
-func reducerGraphDrainFor(enabled bool, queryer db.Queryer) reducer.ReducerGraphDrain {
+func reducerGraphDrainFor(enabled bool, queryer db.Queryer) projection.ReducerGraphDrain {
 	if !enabled {
 		return nil
 	}

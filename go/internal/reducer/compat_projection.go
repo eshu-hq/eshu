@@ -286,9 +286,6 @@ type CodeCallProjectionRunner = projection.Runner
 // [projection.RunnerConfig].
 type CodeCallProjectionRunnerConfig = projection.RunnerConfig
 
-// ReducerGraphDrain is the root spelling of [projection.ReducerGraphDrain].
-type ReducerGraphDrain = projection.ReducerGraphDrain
-
 // DefaultCodeCallProjectionLeaseOwnerPrefix is the root spelling of
 // [projection.DefaultLeaseOwnerPrefix].
 const DefaultCodeCallProjectionLeaseOwnerPrefix = projection.DefaultLeaseOwnerPrefix
