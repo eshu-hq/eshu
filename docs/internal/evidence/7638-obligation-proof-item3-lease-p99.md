@@ -40,35 +40,38 @@ with item 5.
 
 Consumer path, in claim order:
 
-- Claim: `claimObligationQuery`
-  (`go/internal/storage/postgres/activation/sql.go:38-58`) — single oldest
+- Claim: `claimObligationQuery` in
+  `go/internal/storage/postgres/activation/sql.go` — single oldest
   open row, `FOR UPDATE SKIP LOCKED`, row-self predicate repeated for the
   EvalPlanQual recheck. Cheap; never the bound.
-- Settle: `settleObligation` (`go/internal/reducer/maintenance/obligation/`
-  `settle.go:33-87`) runs Finalize, then the maintainer only when the exact
+- Settle: `settleObligation` in
+  `go/internal/reducer/maintenance/obligation/settle.go` runs Finalize,
+  then the maintainer only when the exact
   generation's phase is missing, then Finalize again.
-- Deadline: `maintenanceContext` (`settle.go:129-134`) cancels the pass at
-  `leaseUntil - lease/5`. With the fixed default lease
-  (`defaultActivationLease = 2 * time.Minute`,
-  `runner.go:39-46`; poll 10 s, workers 1) the pass must finish inside
+- Deadline: `maintenanceContext` in the obligation `settle.go` cancels
+  the pass at `leaseUntil - lease/5`. With the fixed default lease
+  (`DefaultActivationLease = 2 * time.Minute` in the obligation
+  `runner.go`; poll 10 s, workers 1) the pass must finish inside
   **96 s**, else it counts `maintenance_timeout`, holds the lease, and retries
   after expiry — paying corpus cost every 2 minutes without finishing.
-- Maintainer: `ActivationMaintainer.MaintainActivation`
-  (`go/internal/storage/postgres/ingestion_backfill_seam.go:343-373`) runs
+- Maintainer: `ActivationMaintainer.MaintainActivation` in
+  `go/internal/storage/postgres/ingestion_backfill_seam.go` runs
   exactly one owed `(scope, generation)` through
-  `RunDeferredRelationshipMaintenanceForPartitions`
-  (`go/internal/storage/postgres/backfill/targeted/pass.go:137`), never the
+  `RunDeferredRelationshipMaintenanceForPartitions` in
+  `go/internal/storage/postgres/backfill/targeted/pass.go`, never the
   whole pass. That pass is the bound.
-- Wiring sets only `Owner` (`go/cmd/reducer/activation_obligation_wiring.go:`
-  `30-53`); no LEASE/POLL/WORKERS env exists. The registry carries only
-  `ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED`
-  (`go/internal/envregistry/entries.go:162`).
+- Wiring sets only `Owner` (`activationObligationRunnerFor` in
+  `go/cmd/reducer/activation_obligation_wiring.go`); no LEASE/POLL/WORKERS
+  env exists. The registry carries only
+  `ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED` (the reducer-subsystem row
+  in `go/internal/envregistry/entries.go`).
 
 ## Measurement design
 
 - Metric: admitted-pass wall (`duration_s` on the
   `deferred_backfill_targeted_completed outcome=completed` line the pass
-  itself logs, `backfill/targeted/pass.go:399`), p99 vs 96 s. Refusals
+  itself logs in `go/internal/storage/postgres/backfill/targeted/pass.go`),
+  p99 vs 96 s. Refusals
   (`no_memo_baseline`, 0.00–0.01 s, no fact work) are not pass samples.
 - Corpus: 61 real repositories stratified across the full size distribution
   (every 16th by size from the 984-repo remote workspace, `.git` excluded,
@@ -130,8 +133,8 @@ Per ~18 s pass, from the 1 s slow-statement log (107 statements, p50 1.6 s,
 p90 8.9 s) and the full slow texts:
 
 1. **Anchor-scoped relationship fact load, ~8.2–10.2 s, once per pass.**
-   `LoadAnchorScopedRelationshipFacts`
-   (`go/internal/storage/postgres/backfill/scoped_facts.go:136`): a
+   `LoadAnchorScopedRelationshipFacts` in
+   `go/internal/storage/postgres/backfill/scoped_facts.go`: a
    corpus-wide scan joining `fact_records` to the shared
    `latest_generations` DISTINCT ON CTE with eight
    `lower(payload::text) LIKE '%…%'` patterns. No payload/trigram index

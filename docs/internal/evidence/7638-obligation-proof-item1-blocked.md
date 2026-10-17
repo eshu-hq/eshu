@@ -22,13 +22,13 @@ docker info
 ```
 
 - `/var/run/docker.sock` is a dangling symlink to
-  `/Users/asanabria/.orbstack/run/docker.sock`, which does not exist.
+  `~/.orbstack/run/docker.sock`, which does not exist.
 - The `desktop-linux` (`~/.docker/run/docker.sock`) socket is also absent.
 - `OrbStack.app` exists in `/Applications` but its daemon is not running and
   there is no `orbstack` CLI on PATH, so the runtime cannot be revived from
   this session's scope. Docker Compose v5.5.0 client is present but has no
   server to talk to.
-- Worktree/branch (unchanged, clean): `/Users/asanabria/repos/eshu-hq/eshu-wt/7638-obligation-proof`,
+- Worktree/branch (unchanged, clean): `eshu-wt/7638-obligation-proof` (under the Eshu worktrees root),
   branch `feat/7638-obligation-proof-p1`, base `origin/main e7675d9ee`.
 
 Nothing was faked: zero drive assertions were executed, so there are no
@@ -84,7 +84,7 @@ that moves the tree fingerprint, on the next collector poll, no restart needed.
 ## Resume runbook (not executed)
 
 ```bash
-cd /Users/asanabria/repos/eshu-hq/eshu-wt/7638-obligation-proof
+cd path/to/eshu-wt/7638-obligation-proof
 # 0. Revive runtime first: start OrbStack/Docker Desktop until `docker info` exits 0.
 # 1. Prepare host fixture roots: /tmp/7638-two-repo/{source,target}, /tmp/7638-single-repo/{only}.
 # 2. Flag-ON arm:
