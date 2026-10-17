@@ -191,14 +191,14 @@ func packageRegistryAggregateParams(filter AggregateFilter) map[string]any {
 // Two write paths mint (:Package) nodes and set .ecosystem, and the bound
 // needs BOTH to normalize, not just the obvious one. Directly-observed
 // packages come from the package_registry.package fact, built by
-// packageregistry.NewPackageEnvelope, which calls packageidentity.Normalize.
+// packages.NewPackageEnvelope, which calls packageidentity.Normalize.
 // Dependency TARGETS never observed directly are minted separately by
 // storage/cypher/package_registry_canonical_writer.go's
 // canonicalPackageRegistryDependencyTargetUpsertCypher
 // (`MERGE (target:Package:PackageRegistryPackage {uid: ...}) ON CREATE SET
 // target.ecosystem = row.dependency_ecosystem`), fed by the
 // package_registry.package_dependency fact from
-// packageregistry.NewPackageDependencyEnvelope, which calls
+// packages.NewPackageDependencyEnvelope, which calls
 // NormalizePackageIdentity. Both normalizers reject an ecosystem outside the
 // enum rather than emit the fact, so p.ecosystem cannot carry
 // collector-supplied free text by either route. 32 = 13 enum values + 1 unknown bucket +

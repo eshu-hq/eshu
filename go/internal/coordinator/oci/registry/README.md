@@ -35,13 +35,13 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-`internal/collector/ociregistry` and its per-provider adapters (`acr`,
+`internal/collector/registry/oci` and its per-provider adapters (`acr`,
 `dockerhub`, `ecr`, `gar`, `ghcr`, `harbor`, `jfrog`) resolve each configured
 target into the shared normalized repository identity. `contract`
 validates plan keys. `facts`, `scope`, and `workflow` provide stable
 identities and durable row contracts. This package does not import its parent
 and performs no I/O. These eight collector dependencies remain future service
-extraction work: the shared `internal/collector/ociregistry` identity package
+extraction work: the shared `internal/collector/registry/oci` identity package
 plus its `acr`, `dockerhub`, `ecr`, `gar`, `ghcr`, `harbor`, and `jfrog`
 provider adapters. The nested path makes ownership explicit but does not make
 this leaf independently extractable.

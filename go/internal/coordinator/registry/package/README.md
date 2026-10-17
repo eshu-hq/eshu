@@ -56,7 +56,7 @@ See `doc.go` for the godoc contract.
   limits, and skip-evidence helpers.
 - `internal/coordinator/planner/contract` for the shared plan-key grammar.
 - `internal/facts` for stable generation identities.
-- `internal/collector/packageregistry` and `internal/packageidentity` for
+- `internal/collector/registry/package` and `internal/packageidentity` for
   ecosystem normalization and package-identity construction.
 - `internal/scope` and `internal/workflow` for collector, scope, and durable
   workflow contracts.
@@ -84,7 +84,7 @@ field, status field, queue, worker, lease, or runtime setting.
   the source of truth; this line is the only place in the repository that
   states the count, so update it here when that switch changes.
 - A derived target's package identity is normalized through
-  `packageregistry.NormalizePackageIdentity`; a normalization failure skips
+  `packages.NormalizePackageIdentity`; a normalization failure skips
   that target rather than failing the plan.
 - Target ordering after derivation is stable-sorted by
   `schedule.TargetClassRank`, not by discovery order.

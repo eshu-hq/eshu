@@ -218,8 +218,8 @@ No-Regression Evidence:
 - `go test ./internal/reducer -run 'TestBuildSupplyChainImpactFindings(UsesOwnedLockfileVersion|LeavesRangeDependencyPossiblyAffected|MarksOwnedFixedVersionKnownFixed)' -count=1`
 - `go test ./internal/parser/json -run 'TestParsePackageLockJSON(PreservesDependencyChainRows|EmitsExactDependencyRows)' -count=1`
 - `go test ./internal/reducer -run 'TestBuildPackageConsumptionDecisionsPreservesLockfileDependencyChain|TestPostgresPackageWriterPersistsOwnershipAndConsumptionFacts|TestBuildSupplyChainImpactFindingsExposesDependencyChain' -count=1`
-- `go test ./internal/collector/packageregistry/packageruntime -run TestHTTPMetadataProviderRequestsAbbreviatedNPMPackument -count=1 -v`
-- `go test ./internal/coordinator/... ./internal/workflow ./internal/storage/postgres ./internal/collector/packageregistry/packageruntime ./internal/collector/vulnerabilityintelligence/vulnruntime ./cmd/workflow-coordinator ./cmd/collector-package-registry ./cmd/collector-vulnerability-intelligence -count=1`
+- `go test ./internal/collector/registry/package/runtime -run TestHTTPMetadataProviderRequestsAbbreviatedNPMPackument -count=1 -v`
+- `go test ./internal/coordinator/... ./internal/workflow ./internal/storage/postgres ./internal/collector/registry/package/runtime ./internal/collector/vulnerabilityintelligence/vulnruntime ./cmd/workflow-coordinator ./cmd/collector-package-registry ./cmd/collector-vulnerability-intelligence -count=1`
 
 Remote proof `pr573-anchored-impact-20260523T162055Z` completed a 45-repository
 smoke corpus with `435/435` queue rows succeeded, zero pending, retrying,
@@ -266,7 +266,7 @@ No-Observability-Change: Cargo coverage reuses existing parser payloads,
 span, log key, queue, reducer lane, graph write, scanner worker, or runtime
 configuration knob.
 
-No-Regression Evidence: `go test ./internal/packageidentity ./internal/collector/packageregistry ./internal/collector/vulnerabilityintelligence ./internal/reducer ./internal/projector ./internal/storage/cypher ./internal/query -count=1`
+No-Regression Evidence: `go test ./internal/packageidentity ./internal/collector/registry/package ./internal/collector/vulnerabilityintelligence ./internal/reducer ./internal/projector ./internal/storage/cypher ./internal/query -count=1`
 proves #602 package identity fields normalize at the collector boundary,
 survive graph projection, keep OSV/GLAD affected-package facts on canonical
 package IDs, join manifest dependencies by normalized ecosystem aliases, and

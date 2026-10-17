@@ -150,7 +150,7 @@ log "5. Run the OCI collector against the live TLS registry (custom-CA trust)"
   ESHU_OCI_LOCALTLS_REPOSITORY="${REPOSITORY}" \
   ESHU_OCI_LOCALTLS_REFERENCE="${REFERENCE}" \
   ESHU_OCI_LOCALTLS_CA_CERT_PATH="${CERT_DIR}/ca.pem" \
-  go test ./internal/collector/ociregistry/ociruntime/ \
+  go test ./internal/collector/registry/oci/runtime/ \
     -run TestLiveLocalTLSRegistryImageIdentity -count=1 -v
 )
 

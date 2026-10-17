@@ -491,7 +491,7 @@ sibling ci_cd_run_correlation/container_image_identity/package domains:
   node uid directly from that reference, matching the OCI registry canonical
   writer's own formula (`oci-descriptor://<registry>/<repository>@<digest>`,
   see `internal/projector.ociDescriptorUID`) — including its normalization:
-  the OCI registry collector (`internal/collector/ociregistry/identity.go`
+  the OCI registry collector (`internal/collector/registry/oci/identity.go`
   `NormalizeRepositoryIdentity`/`normalizeDigest`) always fully lowercases the
   scanned repository and digest, and lowercases the registry's leading host
   segment (`normalizeRegistry` preserves an embedded path segment's case for a

@@ -17,7 +17,7 @@ package v1
 // The remaining named fields are descriptive metadata the projector copies
 // onto the node; each is OPTIONAL because the projector tolerates an empty
 // value and the package still materializes on its package_id alone. The
-// collector emitter (go/internal/collector/packageregistry/envelope.go
+// collector emitter (go/internal/collector/registry/package/envelope.go
 // NewPackageEnvelope) unconditionally writes every field below (each is a
 // possibly-empty string derived from NormalizePackageIdentity, never an absent
 // key), so the optional typing simply preserves the pre-typing tolerance

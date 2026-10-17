@@ -718,10 +718,10 @@ linters:
           - wrapcheck
       # OCI registry source and package registry source are at the
       # boundary with the upstream OCI/registry APIs.
-      - path: 'internal/collector/ociregistry/'
+      - path: 'internal/collector/registry/oci/'
         linters:
           - wrapcheck
-      - path: 'internal/collector/packageregistry/'
+      - path: 'internal/collector/registry/package/'
         linters:
           - wrapcheck
       # Git selection filesystem layer is at the boundary with the

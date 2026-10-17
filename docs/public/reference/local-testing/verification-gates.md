@@ -86,11 +86,11 @@ go test ./internal/collector/awscloud/awsruntime \
   -run 'TestClaimedSourceRecordsEmissionCounters|TestClaimedSourceRecordsScanStatusWithAPICallStats' \
   -count=1 -v
 
-go test ./internal/collector/ociregistry/ociruntime \
+go test ./internal/collector/registry/oci/runtime \
   -run 'TestSourceNextEmitsCollectedGenerationForRegistryTarget|TestClaimedSourceNextClaimedScansMatchingTargetWithClaimGeneration' \
   -count=1 -v
 
-go test ./internal/collector/packageregistry/packageruntime \
+go test ./internal/collector/registry/package/runtime \
   -run 'TestClaimedSourceParsesMetadataIntoPackageRegistryFacts|TestClaimedSourceTruncatesMetadataOverVersionLimit|TestClaimedSourceSanitizesSourceURIBeforeFactEmission' \
   -count=1 -v
 

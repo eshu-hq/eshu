@@ -99,9 +99,9 @@ fixed text, and an unrecognized message fails closed to a generic reason.
 `*url.Error` `http.NewRequest` returns.
 
 Consumers: `cli/report`'s `targetAuthority` (the refusal), and the collector
-sanitizers in `securityalerts`, `servicecatalog`, `ociregistry`,
-`vulnerabilityintelligence`, `kuberneteslive`, `packageregistry`
-(+ `packageruntime`), `sbom/runtime`, `ospackagevulnerability`, and `cicdrun`
+sanitizers in `securityalerts`, `servicecatalog`, `registry/oci`,
+`vulnerabilityintelligence`, `kuberneteslive`, `registry/package`
+(+ `registry/package/runtime`), `sbom/runtime`, `ospackagevulnerability`, and `cicdrun`
 (both its deployment-URL sanitizer and the envelope `stripSensitiveURL` every
 source_ref passes through), which drop a non-hierarchical value that carries
 userinfo instead of re-stringing it. `sdk/go/collector`'s `validateSourceURI`

@@ -114,7 +114,7 @@ ON CONFLICT (generation_id) DO NOTHING;
 -- ----------------------------------------------------------------------------
 -- 3a. oci_registry.image_manifest — the registry-observed image digest.
 --     Payload fields mirror NewManifestEnvelope/descriptorPayload in
---     go/internal/collector/ociregistry/envelope.go. The (registry, repository,
+--     go/internal/collector/registry/oci/envelope.go. The (registry, repository,
 --     digest) triple plus correlation_anchors is what the image-identity
 --     reducer joins against the K8s manifest's digest reference to classify
 --     exact_digest and emit image_ref = registry/repository@digest.

@@ -14,7 +14,7 @@ import (
 	awsecr "github.com/aws/aws-sdk-go-v2/service/ecr"
 	awsecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/ecr"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/ecr"
 	"github.com/eshu-hq/eshu/go/internal/collector/sbom/runtime"
 )
 

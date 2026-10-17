@@ -85,7 +85,7 @@ flowchart LR
   and non-`ecr` providers keep the existing static-credential client and the
   same single manifest/blob fetch shape. `provider=ecr` targets gain a fresh
   `GetAuthorizationToken` exchange per collection. Verified by `go test
-  ./internal/collector/sbom/runtime/... ./internal/collector/ociregistry/...
+  ./internal/collector/sbom/runtime/... ./internal/collector/registry/oci/...
   ./cmd/collector-sbom-attestation/... -count=1`.
 - Observability Evidence (#3113): the ECR auth path logs one structured info
   line (`provider`, `scope_id`, `repository`, `registry_host`; never the token)

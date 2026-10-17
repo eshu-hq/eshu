@@ -220,7 +220,7 @@ func TestContainerImageNodeUIDFromDigestRef(t *testing.T) {
 	})
 
 	t.Run("registry, repository, and digest are lowercased to match the OCI registry collector's normalization", func(t *testing.T) {
-		// internal/collector/ociregistry/identity.go NormalizeRepositoryIdentity /
+		// internal/collector/registry/oci/identity.go NormalizeRepositoryIdentity /
 		// normalizeDigest unconditionally lowercase the scanned registry,
 		// repository, and digest before computing the real :ContainerImage
 		// node's repository_id/descriptor identity. resolved_image_uri comes

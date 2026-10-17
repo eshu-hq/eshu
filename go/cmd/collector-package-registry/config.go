@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/packageregistry"
-	"github.com/eshu-hq/eshu/go/internal/collector/packageregistry/packageruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/package"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/package/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -48,7 +48,7 @@ type claimedRuntimeConfig struct {
 	PollInterval      time.Duration
 	ClaimLeaseTTL     time.Duration
 	HeartbeatInterval time.Duration
-	Source            packageruntime.SourceConfig
+	Source            runtime.SourceConfig
 }
 
 type packageRegistryRuntimeConfiguration struct {
@@ -151,36 +151,36 @@ func validatePackageRegistryInstance(instance workflow.DesiredCollectorInstance)
 func parsePackageRegistryRuntimeConfiguration(
 	instance workflow.DesiredCollectorInstance,
 	getenv func(string) string,
-) (packageruntime.SourceConfig, error) {
+) (runtime.SourceConfig, error) {
 	var decoded packageRegistryRuntimeConfiguration
 	if err := json.Unmarshal([]byte(instance.Configuration), &decoded); err != nil {
-		return packageruntime.SourceConfig{}, fmt.Errorf("decode package registry collector configuration: %w", err)
+		return runtime.SourceConfig{}, fmt.Errorf("decode package registry collector configuration: %w", err)
 	}
-	targets := make([]packageruntime.TargetConfig, 0, len(decoded.Targets))
+	targets := make([]runtime.TargetConfig, 0, len(decoded.Targets))
 	for i, target := range decoded.Targets {
 		mapped, err := mapTarget(target, getenv)
 		if err != nil {
-			return packageruntime.SourceConfig{}, fmt.Errorf("targets[%d]: %w", i, err)
+			return runtime.SourceConfig{}, fmt.Errorf("targets[%d]: %w", i, err)
 		}
 		targets = append(targets, mapped)
 	}
-	return packageruntime.SourceConfig{
+	return runtime.SourceConfig{
 		CollectorInstanceID: instance.InstanceID,
 		Targets:             targets,
 		DerivedTargets:      mapDerivedTargets(decoded.DeriveFromOwnedPackages),
-		Provider:            packageruntime.HTTPMetadataProvider{},
+		Provider:            runtime.HTTPMetadataProvider{},
 	}, nil
 }
 
-func mapDerivedTargets(config derivedPackageTargetsJSON) packageruntime.DerivedTargetConfig {
+func mapDerivedTargets(config derivedPackageTargetsJSON) runtime.DerivedTargetConfig {
 	if !config.Enabled {
-		return packageruntime.DerivedTargetConfig{}
+		return runtime.DerivedTargetConfig{}
 	}
-	ecosystems := make([]packageregistry.Ecosystem, 0, len(config.Ecosystems))
+	ecosystems := make([]packages.Ecosystem, 0, len(config.Ecosystems))
 	for _, ecosystem := range config.Ecosystems {
-		ecosystems = append(ecosystems, packageregistry.Ecosystem(strings.TrimSpace(ecosystem)))
+		ecosystems = append(ecosystems, packages.Ecosystem(strings.TrimSpace(ecosystem)))
 	}
-	return packageruntime.DerivedTargetConfig{
+	return runtime.DerivedTargetConfig{
 		Enabled:      true,
 		Ecosystems:   ecosystems,
 		PackageLimit: config.PackageLimit,
@@ -188,15 +188,15 @@ func mapDerivedTargets(config derivedPackageTargetsJSON) packageruntime.DerivedT
 	}
 }
 
-func mapTarget(target targetJSON, getenv func(string) string) (packageruntime.TargetConfig, error) {
-	visibility := packageregistry.Visibility(strings.TrimSpace(target.Visibility))
+func mapTarget(target targetJSON, getenv func(string) string) (runtime.TargetConfig, error) {
+	visibility := packages.Visibility(strings.TrimSpace(target.Visibility))
 	if visibility == "" {
-		visibility = packageregistry.VisibilityUnknown
+		visibility = packages.VisibilityUnknown
 	}
-	return packageruntime.TargetConfig{
-		Base: packageregistry.TargetConfig{
+	return runtime.TargetConfig{
+		Base: packages.TargetConfig{
 			Provider:     strings.TrimSpace(target.Provider),
-			Ecosystem:    packageregistry.Ecosystem(strings.TrimSpace(target.Ecosystem)),
+			Ecosystem:    packages.Ecosystem(strings.TrimSpace(target.Ecosystem)),
 			Registry:     strings.TrimRight(strings.TrimSpace(target.Registry), "/"),
 			ScopeID:      strings.TrimSpace(target.ScopeID),
 			Namespace:    strings.TrimSpace(target.Namespace),

@@ -408,7 +408,7 @@ coordinator startup validation errors and collector-instance config surfaces
 are the only operator-facing signals for this blocked activation state.
 
 No-Regression Evidence: the owned package target derivation contract is covered
-by `go test ./internal/coordinator/... ./internal/workflow ./internal/storage/postgres ./internal/collector/packageregistry/packageruntime ./internal/collector/vulnerabilityintelligence/vulnruntime ./cmd/workflow-coordinator ./cmd/collector-package-registry ./cmd/collector-vulnerability-intelligence -count=1`.
+by `go test ./internal/coordinator/... ./internal/workflow ./internal/storage/postgres ./internal/collector/registry/package/runtime ./internal/collector/vulnerabilityintelligence/vulnruntime ./cmd/workflow-coordinator ./cmd/collector-package-registry ./cmd/collector-vulnerability-intelligence -count=1`.
 The test set proves package-registry planning derives unique metadata targets
 from active owned package evidence across npm, PyPI, Go modules, Maven, NuGet,
 Composer, RubyGems, and Cargo; vulnerability planning derives OSV

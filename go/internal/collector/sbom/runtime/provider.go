@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/distribution"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/distribution"
 	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 

@@ -14,8 +14,8 @@ This binary owns process wiring only: collector-instance selection, target JSON
 parsing, credential environment resolution, `collector.ClaimedService` setup,
 Postgres ingestion, telemetry, and the hosted status surface. Package identity,
 parser registration, and envelope construction live in
-`internal/collector/packageregistry`; runtime fetch and claim handling live in
-`internal/collector/packageregistry/packageruntime`.
+`internal/collector/registry/package`; runtime fetch and claim handling live in
+`internal/collector/registry/package/runtime`.
 
 ## Entry Points
 

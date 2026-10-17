@@ -39,7 +39,7 @@ admission, retries, and telemetry changes belong in the parent
 (`oci_registry_service.go`).
 
 Adding a new OCI registry provider: add the adapter under
-`internal/collector/ociregistry/<provider>`, add a `case` in
+`internal/collector/registry/oci/<provider>`, add a `case` in
 `ociRegistryTargetIdentity`, and add coverage in `planner_test.go` mirroring
 `TestOCIRegistryWorkPlannerNormalizesProviderEndpointFields`.
 

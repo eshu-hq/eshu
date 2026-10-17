@@ -16,7 +16,7 @@ import (
 // the stale-cassette regression the Wave 4b typed-payload migration surfaced:
 // the B-7 golden-corpus cassette (testdata/cassettes/ociregistry/
 // supply-chain-demo.json) must carry the shape the CURRENT collector emitters
-// produce (go/internal/collector/ociregistry/*.NewXEnvelope), because the
+// produce (go/internal/collector/registry/oci/*.NewXEnvelope), because the
 // projector now decodes each oci fact through the typed factschema seam. A
 // cassette payload whose optional field carries a shape the typed struct cannot
 // decode (the historical bug: manifest "layers": 12 as an int, where the
@@ -47,7 +47,7 @@ func TestOCIRegistryCassetteDecodesCleanlyThroughSeam(t *testing.T) {
 	// shape (the stale-cassette regression this test exists to catch).
 	if len(quarantined) != 0 {
 		for _, q := range quarantined {
-			t.Errorf("cassette fact %s (%s) quarantined as input_invalid on field %q; the cassette payload has drifted from the current collector emitter's shape — reconcile testdata/cassettes/ociregistry/supply-chain-demo.json to go/internal/collector/ociregistry/*.NewXEnvelope", q.FactID, q.FactKind, q.Field)
+			t.Errorf("cassette fact %s (%s) quarantined as input_invalid on field %q; the cassette payload has drifted from the current collector emitter's shape — reconcile testdata/cassettes/ociregistry/supply-chain-demo.json to go/internal/collector/registry/oci/*.NewXEnvelope", q.FactID, q.FactKind, q.Field)
 		}
 		t.FailNow()
 	}

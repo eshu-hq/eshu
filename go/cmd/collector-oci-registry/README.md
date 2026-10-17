@@ -15,8 +15,8 @@ This binary owns process wiring only: target JSON parsing, collector-instance
 selection, provider client construction, `collector.Service` or
 `collector.ClaimedService` setup, Postgres ingestion, telemetry, and the hosted
 status surface. Fact identity and envelope construction live in
-`internal/collector/ociregistry`; registry scan orchestration lives in
-`internal/collector/ociregistry/ociruntime`.
+`internal/collector/registry/oci`; registry scan orchestration lives in
+`internal/collector/registry/oci/runtime`.
 
 ## Entry Points
 

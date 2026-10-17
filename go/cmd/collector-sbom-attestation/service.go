@@ -19,7 +19,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/ecr"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/ecr"
 	"github.com/eshu-hq/eshu/go/internal/collector/sbom/runtime"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/scope"

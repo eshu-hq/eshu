@@ -113,9 +113,10 @@ upstream failure being asserted:
 - an unpaginated or truncated listing, where a new entry evicts the tail and the
   evicted entry's observation silently vanishes.
 
-`container_image_identity` has both (`ociruntime/config_provenance.go` returns
-nil labels plus a warning envelope on a `GetBlob` failure;
-`ociruntime/source_references.go` bounds the tag list). Its current planner
+`container_image_identity` has both (`registry/oci/runtime/config_provenance.go`
+returns nil labels plus a warning envelope on a `GetBlob` failure;
+`registry/oci/runtime/source_references.go` bounds the tag list). Its current
+planner
 carries only the affected prior supports while the warning remains and retires
 them after a complete scan clears the warning. A new domain needs an equivalent,
 evidence-specific hold; do not treat an activated generation as complete merely

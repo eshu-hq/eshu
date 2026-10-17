@@ -21,7 +21,7 @@
    operational behavior
 8. `go/internal/collector/DIAGNOSTICS.md` — the repository basename-collision
    diagnostic (issue #3677) before changing repository identity/dedup logic
-9. `go/internal/collector/packageregistry/README.md` — package-registry
+9. `go/internal/collector/registry/package/README.md` — package-registry
    evidence contracts when editing package/feed collection support
 
 ## Invariants this package enforces
@@ -93,7 +93,7 @@
   test in `gitrepo/git_snapshot_native_discovery_test.go`.
 
 - **Add package-registry support** → keep normalization and fact-envelope work
-  in `packageregistry`; keep live registry clients and runtime claim loops in a
+  in `registry/package`; keep live registry clients and runtime claim loops in a
   later bounded collector slice; do not materialize package graph truth from
   collector code.
 
