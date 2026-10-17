@@ -30,8 +30,8 @@ func TestServiceDeploymentEvidenceKeyIsGenerationIndependent(t *testing.T) {
 		t.Fatalf("deployment evidence key %q is not the deployment:<service>:<identity> shape", key)
 	}
 
-	genA := relationships.ResolvedRelationshipID("gen-a", rel, 0)
-	genB := relationships.ResolvedRelationshipID("gen-b", rel, 0)
+	genA := relationships.ResolvedRelationshipID("gen-a", rel)
+	genB := relationships.ResolvedRelationshipID("gen-b", rel)
 	if genA == genB {
 		t.Fatalf("resolved_id should embed the generation, but %q == %q", genA, genB)
 	}

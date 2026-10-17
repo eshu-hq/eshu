@@ -235,13 +235,24 @@ type ResolvedRelationship struct {
 }
 
 // ResolvedRelationshipID builds the durable Postgres identity for a resolved
-// relationship in a generation. The ordinal preserves the current storage
-// contract while still giving graph edges a stable pointer back to Postgres.
-func ResolvedRelationshipID(generationID string, r ResolvedRelationship, ordinal int) string {
+// relationship in a generation. The digest inputs are exactly the unique-index
+// identity enforced by resolved_relationships_identity_idx
+// (generation_id, COALESCE(source_entity_id, source_repo_id),
+// COALESCE(target_entity_id, target_repo_id), relationship_type), so the id is
+// a pure function of that identity: a re-run that assigns different slice
+// ordinals to the same identities computes the same ids, and a new identity
+// cannot reuse a stored id (#8299). There is deliberately no ordinal input.
+// Stored rows are never rewritten: insertResolvedSQL is ON CONFLICT on the
+// identity with DO NOTHING and nothing UPDATEs resolved_relationships, so rows
+// written by the pre-#8299 ordinal digest keep their stored ids and the #8283
+// fingerprint (a hash of stored resolved_id sets) cannot change for an
+// existing identity.
+func ResolvedRelationshipID(generationID string, r ResolvedRelationship) string {
 	return relationshipDigest(
 		"resolved", generationID,
-		r.SourceEntityID, r.TargetEntityID,
-		string(r.RelationshipType), fmt.Sprintf("%d", ordinal),
+		entityIdentity(r.SourceEntityID, r.SourceRepoID),
+		entityIdentity(r.TargetEntityID, r.TargetRepoID),
+		string(r.RelationshipType),
 	)
 }
 

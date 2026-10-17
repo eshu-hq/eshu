@@ -145,6 +145,15 @@ kind, path, matched value, then tie-breaks) before accumulating, so the
 resolved candidate — confidence, rationale, preview, and repo attribution — is
 a pure function of the fact set and identical across runs.
 
+### Resolved Identity Is Order-Independent
+
+The durable Postgres identity of a resolved relationship is a pure function of
+(generation, source identity, target identity, relationship type): an empty
+entity id falls back to the repository id, matching the unique index, and the
+resolver's slice ordinals do not participate (#8299). A re-run that orders the
+same identities differently stores the same ids, so re-resolution never reuses
+one identity's id for another.
+
 ## Direction Matters
 
 Write the edge in the direction of the behavior being explained:

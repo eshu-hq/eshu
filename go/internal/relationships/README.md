@@ -181,8 +181,8 @@ overridable place instead of scattered literals.
   `discoverArgoCDDocumentEvidence`; lets the per-commit backfill's two-phase fact
   load (issue #3570) pull in those config files so the deploy edges synthesized
   from their template params are not dropped (`argocd_generator_config.go`)
-- `ResolvedRelationshipID(generationID, r, ordinal)` — build the durable
-  Postgres identity for a resolved relationship (`models.go:163`)
+- `ResolvedRelationshipID(generationID, r)` — durable Postgres identity as a
+  pure function of the unique-index identity, no ordinal input (#8299)
 - `RegisterSchemaDrivenTerraformExtractors(schemaDir)` — bootstrap schema-
   driven Terraform resource extractors from a provider schema directory;
   returns a `map[string]int` summarizing registered resource types per

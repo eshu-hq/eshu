@@ -326,8 +326,8 @@ func (s *RelationshipStore) UpsertResolved(
 		return nil
 	}
 
-	for i, r := range resolved {
-		resolvedID := relationships.ResolvedRelationshipID(generationID, r, i)
+	for _, r := range resolved {
+		resolvedID := relationships.ResolvedRelationshipID(generationID, r)
 		detailsJSON, err := json.Marshal(r.Details)
 		if err != nil {
 			return fmt.Errorf("marshal resolved details: %w", err)
