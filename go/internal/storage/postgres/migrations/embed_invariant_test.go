@@ -88,14 +88,16 @@ import (
 // 190_package_registry_identity_keys_drop_fact_fk.sql; #7427 adds
 // 191_eshu_search_index_terms_drop_generation_fk.sql; #8283 adds
 // 193_deployable_unit_reopen_fingerprints.sql (numbered 193 while open PRs held
-// 191-192; sequence gaps are tolerated).
-const goldenBootstrapDefinitionsDigest = "b361c0a964bd89589a9b10f320190a07474aab0ce5b328f09b42d49889002862"
+// 191-192; sequence gaps are tolerated); #7098 adds
+// 194_fact_records_changed_since_live_keys_idx.sql and
+// 195_fact_records_changed_since_tombstone_keys_idx.sql.
+const goldenBootstrapDefinitionsDigest = "f628164c1ac080580d50a18c2c5d3f25c69266886c3e3afe410986c5c21aeba5"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 211
+const goldenBootstrapDefinitionsCount = 213
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()
