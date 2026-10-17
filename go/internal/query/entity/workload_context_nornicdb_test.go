@@ -337,8 +337,8 @@ func TestFetchWorkloadContextPrefersInstanceRunsOnTruthOverProvisionedPlatformSh
 	if got, want := instances[0]["platform_reason"], "Workload instance runs on inferred platform"; got != want {
 		t.Fatalf("example-prod platform_reason = %#v, want %#v", got, want)
 	}
-	opsQAPlatforms := querycontract.MapSliceValue(instances[1], "platforms")
-	if got, want := len(opsQAPlatforms), 1; got != want {
+	qaPlatforms := querycontract.MapSliceValue(instances[1], "platforms")
+	if got, want := len(qaPlatforms), 1; got != want {
 		t.Fatalf("len(platform-qa platforms) = %d, want %d", got, want)
 	}
 	if got, want := instances[1]["platform_name"], "platform-qa"; got != want {

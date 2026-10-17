@@ -82,7 +82,7 @@ func (h *CodeHandler) runWrapperKeyChunks(
 // outlierCalleeEdgeBatchSize caps one UNWIND key list for the
 // convention-outlier CALLS fan-out (readOutlierCalleeEdges). #7325 measured
 // this read alone at repository scale against a pinned Neo4j container
-// seeded with realistic CALLS out-degree (ops-qa reference distribution:
+// seeded with realistic CALLS out-degree (QA reference distribution:
 // mean 2.71, p90 5, p99 21, #6649): raising the chunk size from 50 to 250
 // cuts the fan-out phase and full-sweep warm p50 by roughly 40%, purely by
 // shrinking the round-trip count (PROFILE showed identical per-key

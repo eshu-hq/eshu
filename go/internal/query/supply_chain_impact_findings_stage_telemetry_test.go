@@ -16,7 +16,7 @@ import (
 
 // TestSupplyChainListImpactFindingsEmitsPerStageTelemetry is the #7007
 // regression proof for the route's missing stage-level signal: issue #7007
-// reported 13-25s requests on ops-qa with "no repository_query.stage_*,
+// reported 13-25s requests on QA with "no repository_query.stage_*,
 // no query.graph_read.*, nothing tied to the request" in the API pod logs.
 // This locks in that every backing read the handler issues — the findings
 // query itself, plus the readiness-snapshot Postgres read and the three

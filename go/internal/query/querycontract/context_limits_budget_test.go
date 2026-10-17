@@ -331,7 +331,7 @@ func entrypointCandidateRows(n int) []map[string]any {
 // entrypoint_candidates list is cut to the row limit on the context surface,
 // with the true total on result_limits and a reason of its own. The list had no
 // cap and grows with repository size: 357 rows (about 63 KB) on the largest
-// ops-qa service (#7129).
+// QA service (#7129).
 func TestWorkloadContextResultLimitsCapsEntrypointCandidates(t *testing.T) {
 	t.Parallel()
 

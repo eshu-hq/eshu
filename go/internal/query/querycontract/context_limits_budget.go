@@ -41,7 +41,7 @@ func capContextBudgetRows(ctx map[string]any) (artifactTotal int, truncated bool
 // ContextStoryItemLimit and names the cut with a reason of its own. The list
 // holds hostname-shaped tokens kept as non-entrypoint supporting evidence, has
 // no read bound, and grows with repository size: 357 rows (about 63 KB) on the
-// largest ops-qa service. The caller reports the pre-cut total as
+// largest QA service. The caller reports the pre-cut total as
 // result_limits.entrypoint_candidate_count. It only reassigns the ctx key to a
 // shorter view, so the caller's backing slice is never written.
 func capContextEntrypointCandidates(ctx map[string]any) bool {

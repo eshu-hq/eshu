@@ -24,10 +24,10 @@ import (
 // #7007 regression proof for pushing the repository anchor into
 // package_manifest_active (readiness_postgres_query.go). Before #7007 that
 // CTE read every dependency-variable content_entity fact repo-wide with no
-// repository_id predicate at all; on ops-qa (content_entity is the largest
+// repository_id predicate at all; on QA (content_entity is the largest
 // fact_kind in the corpus) that unfiltered, unindexed read was the dominant
 // cost of the impact/findings endpoint's reported 13-25s latency (EXPLAIN
-// (ANALYZE, BUFFERS) against ops-qa, read-only, recorded in the #7007 PR
+// (ANALYZE, BUFFERS) against QA, read-only, recorded in the #7007 PR
 // evidence — not reproducible from this file, which proves the fix's shape
 // and correctness on a disposable local corpus instead).
 //
@@ -242,7 +242,7 @@ ANALYZE scope_generations;
 // repository-only anchor ($11 = repository id, $20 = false). Before #7088
 // package_manifest_active's legacy-shape arm (top-level config_kind) had no
 // repository-leading index and carried an empty-$11 escape, so it probed
-// fact_records once per active scope (819 loops; 9.4 s on the warm ops-qa
+// fact_records once per active scope (819 loops; 9.4 s on the warm QA
 // primary, and repository-anchor calls on the cold replica hit the 30 s client
 // timeout); arm 1 heap-fetched every generation's rows before the
 // active-generation join; and package_dependency_gap_active scanned the whole

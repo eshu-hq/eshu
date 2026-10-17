@@ -15,7 +15,7 @@ import (
 // id-indexed Repository label instead of the broad Function label. The
 // prior shape kept the required MATCH direction Function-first even once a
 // repo_id or scoped grant was known, so it paid a whole-corpus Function scan
-// on every repo-scoped call -- proven live on ops-qa to blow the 10s
+// on every repo-scoped call -- proven live on QA to blow the 10s
 // bounded-read deadline on a repository with zero matching rows, while a
 // Repository-first anchor on the same repository returned in under 3s. See
 // docs/public/reference/cypher-performance.md.

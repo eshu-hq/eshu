@@ -220,7 +220,7 @@ only their package qualifier changed).
   and the gap CTE already relied on it (#7007); `scopestore.SourceKey` falls
   back to the scope id when scope metadata has no `source_key` and
   `parserfixture.Emitter` writes scopes with none, so such scopes drop out.
-  On ops-qa all 799 repository scopes satisfy it and a 50-scope sample of
+  On QA all 799 repository scopes satisfy it and a 50-scope sample of
   117,010 active `content_entity` rows had 0 violations (teammate-reported,
   2026-10-02); a fleet-wide fact-level count is NOT_CHECKED.
   Proof: `TestSupplyChainImpactReadinessRepoArmScopeLive` (scheduled, not run

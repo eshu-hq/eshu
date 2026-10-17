@@ -23,7 +23,7 @@ import (
 // "_" and "%" are wildcards and break a word, as does any other character that
 // is not an ASCII letter or digit. Only ASCII counts: under a C-ctype database
 // PostgreSQL treats multibyte characters as non-alphanumeric for trigram
-// extraction, so a purely non-ASCII term has none there; ops-qa runs en_US.UTF-8
+// extraction, so a purely non-ASCII term has none there; QA runs en_US.UTF-8
 // but the guard cannot assume it. "ab-cd" does have trigrams (pg_trgm pads a
 // word next to punctuation); the guard is conservative for it and costs nothing,
 // because the plain statement is the base.

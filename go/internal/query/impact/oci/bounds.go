@@ -30,7 +30,7 @@ const MaxKeysPerStatement = 250
 // RegistryTruthFanOut declares the per-key row multiplicity the OCI
 // registry-truth statements are bounded against (#6590): an image_ref or
 // digest key is expected to produce at most this many rows. It is 3x the
-// multiplicity measured on in-tree corpora and ops-qa (1 observation/image
+// multiplicity measured on in-tree corpora and QA (1 observation/image
 // per key), matching the taghistory.BuiltFromMaxRows precedent
 // (go/internal/query/taghistory/builtfrom.go) of declaring headroom above a
 // measured worst case rather than picking a number. Tag multiplicity per ref

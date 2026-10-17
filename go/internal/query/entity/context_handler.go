@@ -59,7 +59,7 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 	// The bare, unlabeled `MATCH (e)` anchor scans every node in the graph
 	// -- the classic all-node-scan shape
 	// (docs/public/reference/cypher-performance.md, "unlabeled anchor"),
-	// proven live on ops-qa's NornicDB deployment (issue #7006) to blow the
+	// proven live on QA's NornicDB deployment (issue #7006) to blow the
 	// 10s bounded-read deadline.
 	//
 	// A single `MATCH (e:A|B|C)` label DISJUNCTION is not a safe fix: on the
@@ -97,7 +97,7 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 	// both columns wherever the nodes carry no repo_id property (the
 	// live-backend answer-truth fixtures on NornicDB and Neo4j) and, for a
 	// scoped caller, turned an in-grant entity into a 404. The two-hop
-	// OPTIONAL MATCH was observed slow on ops-qa's retired NornicDB
+	// OPTIONAL MATCH was observed slow on QA's retired NornicDB
 	// deployment; answer truth wins over that observation, and the shared
 	// deadline still caps the request.
 	params := access.GraphParams(map[string]any{"entity_id": entityID})
@@ -287,7 +287,7 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 // `e.uid = $entity_id AND e.id = $entity_id` (issue #7089). Neo4j indexes
 // uid, not id, on those labels, so the plain `e.id = $entity_id` read was a
 // NodeByLabelScan over every node of the label (about 1.08M db hits for the
-// first, Function, read on ops-qa), while the uid equality plans as a
+// first, Function, read on QA), while the uid equality plans as a
 // NodeUniqueIndexSeek (under 110 db hits). The id
 // equality stays in the predicate, so a clause matches only nodes the old
 // `e.id = $entity_id` read matched: a File carries a uid but no id and must
