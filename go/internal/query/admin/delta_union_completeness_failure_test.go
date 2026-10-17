@@ -138,12 +138,18 @@ func TestDeltaUnionCompletenessCapAnswersItsOwnFixedText(t *testing.T) {
 // TestDeltaUnionCompletenessAtCapAnswersReport pins the post-read cap
 // boundary: exactly MaxRepos delta-active repositories, plus a full active
 // generation outside the count, answer the report rather than the cap error.
+// The stub graph holds files only for repo-1, so repo-1 is complete, repo-2
+// (its delta row carries a.go) is a mismatch, and repo-3 skips without a
+// graph read.
 func TestDeltaUnionCompletenessAtCapAnswersReport(t *testing.T) {
 	t.Parallel()
 
 	checker, active := deltaUnionChecker()
 	addDeltaAndFullScopes(active)
 	checker.MaxRepos = deltaActiveScopeCount(active.snapshot.Rows)
+	if all := activeScopeCount(active.snapshot.Rows); all <= checker.MaxRepos {
+		t.Fatalf("fixture has %d active scopes at the %d cap; it needs a full generation outside the count", all, checker.MaxRepos)
+	}
 	rec, _ := serveDeltaUnionTraced(t, &Handler{Completeness: checker}, "?scope=scope-1", false)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200 at the %d cap; body = %s", rec.Code, checker.MaxRepos, rec.Body.String())
@@ -161,8 +167,8 @@ func TestDeltaUnionCompletenessAtCapAnswersReport(t *testing.T) {
 	for _, repo := range report.Repos {
 		outcomes[repo.RepoID] = repo.Outcome
 	}
-	if len(report.Repos) != 3 || outcomes["repo-1"] != "complete" || outcomes["repo-3"] != "skipped" {
-		t.Fatalf("report repos = %+v, want repo-1 complete, repo-2 compared, repo-3 skipped", report.Repos)
+	if len(report.Repos) != 3 || outcomes["repo-1"] != "complete" || outcomes["repo-2"] != "mismatch" || outcomes["repo-3"] != "skipped" {
+		t.Fatalf("report repos = %+v, want repo-1 complete, repo-2 mismatch, repo-3 skipped", report.Repos)
 	}
 }
 
