@@ -2,9 +2,11 @@
 
 ## Scope
 
-Base: `origin/main` at `7cabdbf0f1e2` after a second rebase with one
-conflict (digest block; resolved by re-deriving). First rebase base was
-`87f019495`; original base `5e6fa5c5fb29`.
+Base: `origin/main` at `54a73a48c` after a third conflict-free
+rebase (base delta is 7 docs/specs files, all file-disjoint from this
+slice; reversion scan empty). Second rebase base was `7cabdbf0f1e2`
+(one digest-block conflict, resolved by re-deriving); first rebase base
+was `87f019495`; original base `5e6fa5c5fb29`.
 
 This slice moves four flat collector leaves under plain-English parents,
 rename-only via `git mv` (162 renames, 134 of them `.go`):
