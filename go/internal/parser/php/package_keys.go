@@ -180,18 +180,7 @@ func (k *phpPackageKeys) consumerKey(fqcn string, member string) string {
 	if k == nil || fqcn == "" {
 		return ""
 	}
-	if !k.locksRead {
-		k.locksRead = true
-		k.locks = composer.LocksFor(k.repoRoot, k.path)
-	}
-	if k.locks.Empty() {
-		return ""
-	}
-	packageName, seen := k.lockedPackages[fqcn]
-	if !seen {
-		packageName = k.locks.Package(fqcn)
-		k.lockedPackages[fqcn] = packageName
-	}
+	packageName := k.lockedPackage(fqcn)
 	if packageName == "" {
 		return ""
 	}
@@ -200,6 +189,30 @@ func (k *phpPackageKeys) consumerKey(fqcn string, member string) string {
 		key += "::" + member
 	}
 	return key
+}
+
+// hasLocks reports whether the file's composer.lock chain names any package,
+// reading the chain once.
+func (k *phpPackageKeys) hasLocks() bool {
+	if !k.locksRead {
+		k.locksRead = true
+		k.locks = composer.LocksFor(k.repoRoot, k.path)
+	}
+	return !k.locks.Empty()
+}
+
+// lockedPackage returns the locked composer package that provides the class
+// or namespaced function fqcn, memoized per name, or "" when none does.
+func (k *phpPackageKeys) lockedPackage(fqcn string) string {
+	if fqcn == "" || !k.hasLocks() {
+		return ""
+	}
+	packageName, seen := k.lockedPackages[fqcn]
+	if !seen {
+		packageName = k.locks.Package(fqcn)
+		k.lockedPackages[fqcn] = packageName
+	}
+	return packageName
 }
 
 // phpNamespaceCount returns how many namespace declarations the file has. A
