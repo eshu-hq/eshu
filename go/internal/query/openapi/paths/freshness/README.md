@@ -18,7 +18,7 @@ Layout:
 Freshness is a distinct read concern from the general status and admin
 surfaces (`status/`) and from documentation/evidence freshness
 (`evidence/routes.go`'s evidence-packet freshness read stays with its
-packet, not here): these four routes answer "what changed and when" over
+packet, not here): these routes answer "what changed and when" over
 repos, services, and generations specifically, and reviewing them together
 keeps that boundary visible.
 

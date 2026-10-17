@@ -17,7 +17,7 @@ Layout:
 
 ## Why its own package
 
-These four routes all answer discovery questions about the deployment
+These routes all answer discovery questions about the deployment
 itself rather than about repository or runtime content — a caller asks
 "what can I call" or "what is this deployment's maturity" before asking
 "what does the graph contain". Grouping them keeps that discovery-surface

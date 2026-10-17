@@ -5,7 +5,7 @@
 // a single-repository investigation (Investigation), a per-repository scan
 // (Scan), and a cross-repository classification (CrossRepo). Each is its
 // own file, following the one-constant-per-file shape the rest of
-// openapi/paths/ uses. openapi.Spec concatenates all three.
+// openapi/paths/ uses. openapi.Spec concatenates each of them.
 //
 // This package MUST NOT import openapi or any other openapi/paths/<leaf>
 // package.

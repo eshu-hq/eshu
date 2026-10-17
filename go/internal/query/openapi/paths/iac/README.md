@@ -31,7 +31,7 @@ None of these fragments import `openapi/schema`.
 
 `openapi/spec.go` concatenates these constants — plus every other
 `paths/<family>` leaf and the shared `openapi/schema` and `components`
-blocks — into the single JSON document `Spec()` returns; the four
+blocks — into the single JSON document `Spec()` returns; the
 replatforming constants and `Resources`/`TerraformConfigStateDrift` are
 joined in their own cluster, separately from `Routes`. A dropped or
 misplaced constant here silently changes the published wire contract at
