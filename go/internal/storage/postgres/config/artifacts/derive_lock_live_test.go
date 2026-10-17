@@ -22,7 +22,13 @@ var errLiveLoad = errors.New("live test load failure")
 // derive goes straight to its failure-only update.
 func failingDeriver(t *testing.T, db *sql.DB, delay time.Duration) *artifacts.Deriver {
 	t.Helper()
-	deriver := newLiveDeriver(t, db, testExtractorVersion)
+	return failingDeriverAt(t, db, delay, testExtractorVersion)
+}
+
+// failingDeriverAt is failingDeriver for the given extractor version.
+func failingDeriverAt(t *testing.T, db *sql.DB, delay time.Duration, extractorVersion int) *artifacts.Deriver {
+	t.Helper()
+	deriver := newLiveDeriver(t, db, extractorVersion)
 	artifacts.SetDeriveHooks(deriver, artifacts.DeriveHooks{Load: func(context.Context, contentartifacts.Reader, contentartifacts.Repository, []contentartifacts.File, bool, int) ([]map[string]any, contentartifacts.ReadStats, error) {
 		time.Sleep(delay)
 		return nil, contentartifacts.ReadStats{}, errLiveLoad
@@ -58,7 +64,9 @@ WHERE locktype = 'advisory' AND granted = $1
 // failure-only update waits on that same lock (the waiter's key equals the
 // holder's, and both equal hashtextextended(RepoLockKey(repo), 0)). After
 // the write commits, the failure counts itself and leaves the newer
-// content_version and rows as they are.
+// content_version, extractor_version, row_count and rows as they are. The
+// failing deriver runs an OLDER extractor than the held write, so a failure
+// update that copied its extractor_version into the state row would show.
 func TestDeriveFailureRecordWaitsOnTheWriteLockLive(t *testing.T) {
 	ctx, db := openDatabase(t)
 	putFile(ctx, t, db, "repo-a", "docker-compose.yml", composeBody(1))
@@ -68,9 +76,10 @@ func TestDeriveFailureRecordWaitsOnTheWriteLockLive(t *testing.T) {
 	putFile(ctx, t, db, "repo-a", "docker-compose.yml", composeBody(2))
 	current := versionOf(ctx, t, db, "repo-a")
 
-	release, held := heldDerive(ctx, t, db, "repo-a")
+	newer := testExtractorVersion + 1
+	release, held := heldDeriveAt(ctx, t, db, "repo-a", newer)
 	failed := make(chan artifacts.Result, 1)
-	failing := failingDeriver(t, db, 0)
+	failing := failingDeriverAt(t, db, 0, testExtractorVersion)
 	go func() {
 		failed <- failing.DeriveRepository(ctx, artifacts.Request{RepoID: "repo-a", Trigger: artifacts.TriggerRepair})
 	}()
@@ -94,6 +103,16 @@ func TestDeriveFailureRecordWaitsOnTheWriteLockLive(t *testing.T) {
 	state := stateOf(ctx, t, db, "repo-a")
 	if state.ContentVersion == nil || *state.ContentVersion != current || state.FailureCount != 1 || *state.RowCount != 1 {
 		t.Fatalf("state = %+v, want content_version %d, row_count 1, failure_count 1", state, current)
+	}
+	if state.ExtractorVersion != newer {
+		t.Fatalf("extractor_version = %d, want the held write's %d: a failure of the older extractor %d must not relabel it", state.ExtractorVersion, newer, testExtractorVersion)
+	}
+	var lastFailure sql.NullInt64
+	if err := db.QueryRowContext(ctx, `SELECT last_failure_extractor_version FROM config_artifact_repo_state WHERE repo_id = 'repo-a'`).Scan(&lastFailure); err != nil {
+		t.Fatalf("read last_failure_extractor_version: %v", err)
+	}
+	if !lastFailure.Valid || lastFailure.Int64 != testExtractorVersion {
+		t.Fatalf("last_failure_extractor_version = %v, want the failing deriver's %d", lastFailure, testExtractorVersion)
 	}
 	if got := rowGeneration(t, storedRows(ctx, t, db, "repo-a")); got != 2 {
 		t.Fatalf("stored generation = %d, want 2", got)

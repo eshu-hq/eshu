@@ -61,9 +61,15 @@ WHERE datname = current_database() AND wait_event_type = 'Lock' AND wait_event =
 // the repository lock, and returns a release function and the result channel.
 func heldDerive(ctx context.Context, t *testing.T, db *sql.DB, repoID string) (release func(), done <-chan artifacts.Result) {
 	t.Helper()
+	return heldDeriveAt(ctx, t, db, repoID, testExtractorVersion)
+}
+
+// heldDeriveAt is heldDerive for a deriver of the given extractor version.
+func heldDeriveAt(ctx context.Context, t *testing.T, db *sql.DB, repoID string, extractorVersion int) (release func(), done <-chan artifacts.Result) {
+	t.Helper()
 	locked, proceed := make(chan struct{}), make(chan struct{})
 	results := make(chan artifacts.Result, 1)
-	deriver := newLiveDeriver(t, db, testExtractorVersion)
+	deriver := newLiveDeriver(t, db, extractorVersion)
 	artifacts.SetDeriveHooks(deriver, artifacts.DeriveHooks{AfterLock: func(context.Context) {
 		close(locked)
 		<-proceed
