@@ -45,7 +45,7 @@ ifa_live_gate_determinism_only_seams=(
 	# families. The other seven of the thirteen triggers were already matched
 	# on BOTH gates by 'go/internal/ifa/*.go', 'go/internal/reducer/**' and
 	# 'scripts/lib/ifa_*_live*.sh' (each with its own seam above).
-	# iam_can_perform, workload_cloud_relationship,
+	# workload_cloud_relationship,
 	# iam_escalation, ec2_uses_profile, s3_logs_to, and
 	# kubernetes_correlation (#6228) keep their three each here: none has
 	# fault cells by design (cell_kind=custom,
@@ -57,10 +57,16 @@ ifa_live_gate_determinism_only_seams=(
 	# Odu file selects determinism only (matched by neither fault trigger
 	# nor broad fault glob), while its cassette and expected-edge set moved
 	# to the common table beside the siblings when the fault cells landed.
+	# iam_can_perform's cassette and expected-edge set moved to
+	# ifa_live_gate_common_seams when its fault cells landed (#6228 fault
+	# half): they are the fault cells' own inputs, so they must retrigger
+	# the fault gate too. Its Odù stays here: the fault cells drive the
+	# committed cassette JSON, never the Odù source, so an Odù-only edit
+	# still selects determinism alone -- the same position the two #6309
+	# siblings' Odus hold (matched on determinism by the registry, with no
+	# fault trigger naming them).
 	'go/internal/ifa/familyodu/iam_can_assume_family_odu.go|go/internal/ifa/familyodu/iam_can_assume_family_odu.go'
 	'go/internal/ifa/familyodu/iam_can_perform_family_odu.go|go/internal/ifa/familyodu/iam_can_perform_family_odu.go'
-	'testdata/cassettes/iamcanperform/**|testdata/cassettes/iamcanperform/ifa-iam-can-perform-family.json'
-	'go/internal/ifa/testdata/iamcanperform/**|go/internal/ifa/testdata/iamcanperform/ifa-iam-can-perform-family-expected-edges.json'
 	'go/internal/ifa/familyodu/workload_cloud_relationship_family_odu.go|go/internal/ifa/familyodu/workload_cloud_relationship_family_odu.go'
 	'testdata/cassettes/workloadcloudrelationship/**|testdata/cassettes/workloadcloudrelationship/ifa-workload-cloud-relationship-family.json'
 	'go/internal/ifa/testdata/workloadcloudrelationship/**|go/internal/ifa/testdata/workloadcloudrelationship/ifa-workload-cloud-relationship-family-expected-edges.json'

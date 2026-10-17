@@ -113,7 +113,8 @@
       # Glob though only canonical_codeowners_edges.go exists today: the
       # documentation family learned the hard way that a correct literal stops
       # being correct the moment the writer splits into a second file.
-      # kubernetes_namespace_environment + iam_instance_profile_role (#6309):
+      # kubernetes_namespace_environment + iam_instance_profile_role (#6309)
+      # + iam_can_perform (#6228 fault half):
       # mirror of the determinism block's family entries. The Go production
       # paths need no mirror: go/internal/ifa/*.go, go/internal/reducer/**,
       # and go/cmd/ifa/** above already cover the Odù builders, handlers, and
@@ -170,8 +171,9 @@
       # gate blocks. Without the literals here that assertion has nothing to
       # match, since this gate covers them by glob and that gate must not be
       # widened to the whole fault surface.
-      # kubernetes_namespace_environment + iam_instance_profile_role (#6309):
-      # the first direct-materialization families with fault cells. Same
+      # kubernetes_namespace_environment + iam_instance_profile_role (#6309)
+      # + iam_can_perform (#6228 fault half):
+      # the direct-materialization families with fault cells. Same
       # per-family literal treatment as the inheritance/shell_exec/
       # repo_dependency reach-ins above.
       # Every per-family live module this gate sources, plus the

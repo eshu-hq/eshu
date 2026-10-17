@@ -46,7 +46,10 @@ import (
 // both waivers to coverage rows, so both families are now covered and the
 // coverage-keyed checks hold them the same as every other covered family. Do
 // not re-remove them by applying the paragraph above: a stem whose triggers
-// exist is the thing that paragraph is waiting for.
+// exist is the thing that paragraph is waiting for. iam_can_perform joined
+// them the same way: its determinism triggers were written files since the
+// iam-can-perform live-cell change, and the #6228 fault half wired the fault
+// side and converted its waivers to coverage rows in the same change.
 var materializedEdgeFamilyTriggerStems = map[string]string{
 	"code_calls":                 "code_call",
 	"codeowners_ownership_edges": "codeowners",
@@ -90,6 +93,12 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 	"iam_can_assume":                   "iam_can_assume",
 	"iam_instance_profile_role":        "iam_instance_profile_role",
 	"kubernetes_namespace_environment": "kubernetes_namespace_environment",
+	// The fourth DIRECT family wired into a live gate (#6228 fault half).
+	// Its ifa-determinism triggers were already written files (family Odù,
+	// cassettes, expected-edge set); the fault half adds the writer, the
+	// per-family cell files, and the shared fault seams, so the stem below
+	// is read off them, not guessed.
+	"iam_can_perform": "iam_can_perform",
 }
 
 // TestEveryCoveredFamilyTriggersBothLiveGates closes the third side of the

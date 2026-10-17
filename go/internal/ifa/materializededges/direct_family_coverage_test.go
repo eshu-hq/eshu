@@ -76,9 +76,10 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		LiveProven: true,
 	},
 	{
-		Family:    iamCanPerformFamily,
-		OduName:   ifa.IAMCanPerformFamilyOduName,
-		EdgeTypes: []string{"CAN_PERFORM"},
+		Family:     iamCanPerformFamily,
+		OduName:    ifa.IAMCanPerformFamilyOduName,
+		EdgeTypes:  []string{"CAN_PERFORM"},
+		LiveProven: true,
 	},
 	{
 		Family:    iamEscalationFamily,

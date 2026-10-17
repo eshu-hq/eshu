@@ -60,9 +60,9 @@
 # defect -- root-cause it, never lower workers, retry, or otherwise normalize
 # it away (Serialization-Is-Not-A-Fix). A fault that never fires is an inert
 # script, not a pass, so every cell checks that its own fault actually fired:
-#   - a claimed-row proof for cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44
-#   - an exact runner-waiter proof for cells 50/51/52
-#   - a once-fired marker for cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/47/48/49
+#   - a claimed-row proof for cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44/47
+#   - an exact runner-waiter proof for cells 53/54/55
+#   - a once-fired marker for cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/48/50/51/52
 #   - a sentinel-fired proof for cell 5
 #
 # Usage:
@@ -129,8 +129,8 @@ export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7688}"
 : "${ESHU_POSTGRES_PASSWORD:=change-me}"
 : "${ESHU_NEO4J_PASSWORD:=change-me}"
 # Headroom over this gate's two slowest natural recovery mechanics: the fixed
-# 1-minute reducer lease (cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44) and the default 30s (+jitter)
-# reducer retry delay (cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/47/48/49's queue-retry lane) -- see go/cmd/reducer/
+# 1-minute reducer lease (cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44/47) and the default 30s (+jitter)
+# reducer retry delay (cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/48/50/51/52's queue-retry lane) -- see go/cmd/reducer/
 # main_helpers.go and go/internal/runtime/retry_policy.go.
 : "${GATE_DRAIN_TIMEOUT:=4m}"
 # 120s general CI margin; lock-vs-projector ordering fixed the CI codeowners failure, not this budget.
@@ -194,6 +194,14 @@ iam_instance_profile_role_edge_operation_match="MERGE (profile)-[rel:HAS_ROLE]->
 # fire. It is NOT IAM_CAN_ASSUME, which is statement metadata beside the
 # query.
 iam_can_assume_edge_operation_match="MERGE (principal)-[rel:CAN_ASSUME]->(role)"
+# The CAN_PERFORM MERGE anchor cell_failgraphwrite_iam_can_perform (#6228
+# fault half) targets: go/internal/storage/cypher/iam_can_perform_edge_writer.go:47
+# bakes the static CAN_PERFORM token directly into the template
+# (CanonicalIAMCanPerformEdgeUpsertCypher carries no %s to fill), so the
+# anchor carries the literal. A `%s` form would match no executed statement
+# and the fault would never fire. It is NOT IAM_CAN_PERFORM, which appears
+# nowhere in code.
+iam_can_perform_edge_operation_match="MERGE (p)-[rel:CAN_PERFORM]->(r)"
 
 # The DOCUMENTS edge MERGE anchor cell_failgraphwrite_documentation targets:
 # go/internal/storage/cypher/canonical_documentation_edges.go's
@@ -411,6 +419,12 @@ ifa_fault_shard_run cell_failgraphwrite_iam_instance_profile_role
 ifa_fault_shard_run cell_baseline_iam_can_assume
 ifa_fault_shard_run cell_killworker_iam_can_assume
 ifa_fault_shard_run cell_failgraphwrite_iam_can_assume
+# iam_can_perform (#6228 fault half): fourth direct-materialization family in
+# this gate. Trio is baseline first (sole writer of that family's digest and
+# retry baseline), same shape as the #6309 trios and the iam_can_assume trio above.
+ifa_fault_shard_run cell_baseline_iam_can_perform
+ifa_fault_shard_run cell_killworker_iam_can_perform
+ifa_fault_shard_run cell_failgraphwrite_iam_can_perform
 # inheritance_edges (#5996) and shell_exec (#6001): generic dispatch, baseline
 # first in each trio (sole writer of that family's digest and retry baseline;
 # the atomic-group ordering check enforces it). Both are FAULT_SHARED_DRIVE=0,
