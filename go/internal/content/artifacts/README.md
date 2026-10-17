@@ -262,9 +262,9 @@ candidates of the S4 set (each `tests/fixtures` directory and child directory,
 plus the 26 recorded S0 repositories). `testdata/guard/generated.jsonl` holds
 the hydration tests' mutant corpus, `randomTree` seeds 1 to 150, and a small
 supplement for Docker Compose secrets and `read_terragrunt_config`. The
-generator writes a raw Go line citation in a fixture comment
-(`go/internal/x.go:12`) as `go/internal/x.go line 12`, because the
-doc-citations gate refuses a new one under `go/`. At
+generator writes a raw Go line citation in a fixture comment (a
+`go/internal` `.go` path, a colon and a line number) with ` line ` in place
+of the colon, because the doc-citations gate refuses a new one under `go/`. At
 version 1 it is 297 repositories, 5,549 files and 2,021 rows, about 1 MB in
 two files under the 1,024 KB large-file hook. The snapshot is frozen, so a
 fixture or helper edit elsewhere cannot move the pin, and the guard's sources

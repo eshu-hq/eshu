@@ -62,9 +62,10 @@ func TestRegenerateExtractorCorpus(t *testing.T) {
 		out.Repositories, out.Files, out.Rows, out.WithRows, corpusDigest, out.Digest)
 }
 
-// guardLineCitation matches a raw Go line citation (go/internal/x.go:12). A
-// fixture comment may hold one, and under go/ the doc-citations gate refuses
-// a new one, so the snapshot writes it as "go/internal/x.go line 12".
+// guardLineCitation matches a raw Go line citation: a go/internal path of a
+// .go file, a colon and a line number. A fixture comment may hold one, and
+// under go/ the doc-citations gate refuses a new one, so the snapshot writes
+// the colon as " line ".
 var guardLineCitation = regexp.MustCompile(`(go/internal/[A-Za-z0-9_./-]+\.go):([0-9]+)`)
 
 // freezeGuardRepositories drops every file that is not a config-artifact
