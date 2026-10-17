@@ -96,3 +96,21 @@ expect_red "mergeStateStatus BLOCKED" checks
 new_case unknown-bucket
 edit check-runs.json '.check_runs += [{name:"future-check",status:"completed",conclusion:"stale"}]'
 expect_red "check row with an unrecognized conclusion" checks
+# Precedence: a required context that is both a check run and a commit status
+# is judged by the check run. A failing run must not be masked by a success
+# status; a success run needs no status at all.
+new_case rgc-run-failure-status-success
+edit check-runs.json '.check_runs += [{name:"required-gates-complete",status:"completed",conclusion:"failure"}]'
+expect_red "required-gates-complete failed as a check run but success as a status" checks
+ok=0
+rg -q 'required-gates-complete=failure; ' <<<"${OUT}" || ok=1
+check "RED the check run wins over a success status and the failure is named" "${ok}"
+new_case rgc-run-success-no-status
+edit check-runs.json '.check_runs += [{name:"required-gates-complete",status:"completed",conclusion:"success"}]'
+edit status.json '.statuses = []'
+run
+ok=0
+[[ "${RC}" -eq 0 ]] || ok=1
+[[ "$(fail_lines)" == 0 ]] || ok=1
+check "GREEN required-gates-complete as a success check run passes without a status" "${ok}"
+[[ "${ok}" -eq 0 ]] || printf '%s\n' "${OUT}" | sed 's/^/    | /'
