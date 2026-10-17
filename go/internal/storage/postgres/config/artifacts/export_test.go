@@ -41,5 +41,6 @@ func NewContentReader(queryer db.Queryer) contentartifacts.Reader {
 	return contentReader{queryer: queryer}
 }
 
-// RepoLockSQL is the repository lock statement, for the lock-scope proofs.
-const RepoLockSQL = repoLockSQL
+// RepoLockKey is the advisory-lock key text of a repository, for the
+// lock-contention proofs.
+func RepoLockKey(repoID string) string { return repoLockKey(repoID) }

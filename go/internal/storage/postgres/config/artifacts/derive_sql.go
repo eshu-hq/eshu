@@ -20,6 +20,9 @@ SELECT coalesce((SELECT version FROM config_artifact_content_versions WHERE repo
 // Committed). It is released at COMMIT or ROLLBACK.
 const repoLockSQL = `SELECT pg_advisory_xact_lock(hashtextextended('config_artifact_paths:' || $1, 0))`
 
+// repoLockKey is a stub of the lock key helper.
+func repoLockKey(repoID string) string { return repoID }
+
 // readStateSQL reads the part of the state row the write conditions compare.
 // It runs after repoLockSQL in the same transaction.
 const readStateSQL = `
