@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/evidence"
 )
 
 func investigationsByBasis(r Report, basis InvestigationBasis) []SuggestedInvestigation {
@@ -33,7 +34,7 @@ func TestSuggestMissingEvidence(t *testing.T) {
 	in := fullInput()
 	for i := range in.Sections {
 		if in.Sections[i].Kind == SectionCodeToRuntime {
-			in.Sections[i].MissingEvidence = []query.EvidenceCitationHandle{
+			in.Sections[i].MissingEvidence = []evidence.EvidenceCitationHandle{
 				{Kind: "source", RepoID: "repo:checkout", RelativePath: "router.go", EntityID: "entity:route-1"},
 			}
 		}
@@ -187,7 +188,7 @@ func TestSuggestHighImpactRelationshipOnlyWhenFlagged(t *testing.T) {
 	for i := range in.Sections {
 		if in.Sections[i].Kind == SectionCodeToRuntime {
 			in.Sections[i].HighImpact = true
-			in.Sections[i].Evidence = []query.EvidenceCitationHandle{{Kind: "entity", EntityID: "entity:edge-1"}}
+			in.Sections[i].Evidence = []evidence.EvidenceCitationHandle{{Kind: "entity", EntityID: "entity:edge-1"}}
 		}
 	}
 	r := Compose(in)
@@ -211,7 +212,7 @@ func TestSuggestHighImpactSuppressedWithoutResolvableID(t *testing.T) {
 	for i := range in.Sections {
 		if in.Sections[i].Kind == SectionCodeToRuntime {
 			in.Sections[i].HighImpact = true
-			in.Sections[i].Evidence = []query.EvidenceCitationHandle{{Kind: "file", RepoID: "repo:checkout", RelativePath: "main.go"}}
+			in.Sections[i].Evidence = []evidence.EvidenceCitationHandle{{Kind: "file", RepoID: "repo:checkout", RelativePath: "main.go"}}
 		}
 	}
 	if len(investigationsByBasis(Compose(in), BasisHighImpactRelationship)) != 0 {
@@ -244,7 +245,7 @@ func TestSuggestIsDeterministicAndDeduped(t *testing.T) {
 		in := fullInput()
 		for i := range in.Sections {
 			if in.Sections[i].Kind == SectionCodeToRuntime {
-				in.Sections[i].MissingEvidence = []query.EvidenceCitationHandle{
+				in.Sections[i].MissingEvidence = []evidence.EvidenceCitationHandle{
 					{EntityID: "entity:a"}, {EntityID: "entity:b"},
 				}
 			}
@@ -281,7 +282,7 @@ func TestSuggestBounded(t *testing.T) {
 		in.Sections = append(in.Sections, SectionInput{
 			Kind:            spec.Kind,
 			Err:             &query.ErrorEnvelope{Code: query.ErrorCodeUnsupportedCapability, Message: "lane down"},
-			MissingEvidence: []query.EvidenceCitationHandle{{EntityID: "e:" + string(spec.Kind)}},
+			MissingEvidence: []evidence.EvidenceCitationHandle{{EntityID: "e:" + string(spec.Kind)}},
 		})
 	}
 	r := Compose(in)

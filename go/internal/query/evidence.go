@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package query //nolint:dirgate // #6642 evidence slice: EvidenceHandler stays in root until the full evidence leaf move carries it; see query/evidence/doc.go.
 
 import (
 	"context"

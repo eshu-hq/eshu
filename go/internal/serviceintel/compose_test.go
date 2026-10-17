@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/evidence"
 )
 
 // freshExactTruth is a supported, fresh, authoritative-graph truth envelope.
@@ -20,8 +21,8 @@ func freshExactTruth(capability string) *query.TruthEnvelope {
 	}
 }
 
-func handle(repo, path string) query.EvidenceCitationHandle {
-	return query.EvidenceCitationHandle{Kind: "source", RepoID: repo, RelativePath: path}
+func handle(repo, path string) evidence.EvidenceCitationHandle {
+	return evidence.EvidenceCitationHandle{Kind: "source", RepoID: repo, RelativePath: path}
 }
 
 func sectionByKind(t *testing.T, r Report, kind SectionKind) ReportSection {
@@ -43,7 +44,7 @@ func fullInput() ReportInput {
 			Kind:     spec.Kind,
 			Summary:  "evidence-backed " + string(spec.Kind),
 			Truth:    freshExactTruth(spec.PromptFamily),
-			Evidence: []query.EvidenceCitationHandle{handle("repo:checkout", string(spec.Kind)+".go")},
+			Evidence: []evidence.EvidenceCitationHandle{handle("repo:checkout", string(spec.Kind)+".go")},
 		})
 	}
 	return in
@@ -168,7 +169,7 @@ func TestComposeAbsentSectionIsUnsupportedWithNextCall(t *testing.T) {
 		Kind:     SectionIdentity,
 		Summary:  "checkout service",
 		Truth:    freshExactTruth("service.story"),
-		Evidence: []query.EvidenceCitationHandle{handle("repo:checkout", "main.go")},
+		Evidence: []evidence.EvidenceCitationHandle{handle("repo:checkout", "main.go")},
 	})
 	r := Compose(in)
 	if !r.Supported {
@@ -238,7 +239,7 @@ func TestComposeMissingEvidenceSectionIsPartial(t *testing.T) {
 	in := fullInput()
 	for i := range in.Sections {
 		if in.Sections[i].Kind == SectionCodeToRuntime {
-			in.Sections[i].MissingEvidence = []query.EvidenceCitationHandle{handle("repo:checkout", "missing.go")}
+			in.Sections[i].MissingEvidence = []evidence.EvidenceCitationHandle{handle("repo:checkout", "missing.go")}
 		}
 	}
 

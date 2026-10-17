@@ -9,10 +9,10 @@ package evidence
 //
 // This type moved here from root package query's evidence_citation.go
 // (#6060) and on into this leaf (#6597). The querycontract/answer packets
-// and the querycontract/visualization nodes carry it, so it sits below both. Root still
-// publishes the exported alias query.EvidenceCitationHandle in
-// evidence_citation_public.go for serviceintel; every field stays exported and
-// unchanged.
+// and the querycontract/visualization nodes carry it, so it sits below both.
+// query/evidence still publishes the exported alias
+// evidence.EvidenceCitationHandle in citation_public.go for serviceintel;
+// every field stays exported and unchanged.
 type EvidenceCitationHandle struct {
 	Kind           string  `json:"kind,omitempty"`
 	RepoID         string  `json:"repo_id,omitempty"`

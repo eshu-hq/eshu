@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package query //nolint:dirgate // #6642 evidence slice: handler method on the staying EvidenceHandler; moves with the full evidence leaf, see query/evidence/doc.go.
 
 import (
 	"net/http"
