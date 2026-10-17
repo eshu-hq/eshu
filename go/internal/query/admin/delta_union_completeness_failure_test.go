@@ -6,12 +6,16 @@ package admin
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+
+	"github.com/eshu-hq/eshu/go/internal/goldengate"
 )
 
 // serveDeltaUnionTraced serves one GET of the completeness route through the
@@ -81,22 +85,69 @@ func TestDeltaUnionCompletenessFailuresAnswerFixedText(t *testing.T) {
 	}
 }
 
-// TestDeltaUnionCompletenessCapAnswersItsOwnFixedText pins that a filter past
+// TestDeltaUnionCompletenessCapAnswersItsOwnFixedText pins that a check past
 // the repository cap keeps its 500 and its narrow-the-filter text, which the
-// route builds from the counts alone, not from an error's text.
+// route builds from the counts alone, not from an error's text. It covers
+// both cap checks: the scope filter past MaxRepos before the ACTIVE read
+// ("scopes"), and the delta-active subset past MaxRepos after it
+// ("repositories"). The second case requests one scope, inside the cap, and
+// the ACTIVE stub answers two delta-active scopes, so only the post-read
+// check can fire.
 func TestDeltaUnionCompletenessCapAnswersItsOwnFixedText(t *testing.T) {
 	t.Parallel()
 
-	checker, _ := deltaUnionChecker()
-	checker.MaxRepos = 1
-	rec, _ := serveDeltaUnionTraced(t, &Handler{Completeness: checker}, "?scope=scope-1&scope=scope-2", false)
-	if rec.Code != http.StatusInternalServerError {
-		t.Fatalf("status = %d, want 500; body = %s", rec.Code, rec.Body.String())
+	const capText = "delta union completeness covers %d %s, past the %d cap: narrow the scope filter"
+	secondDeltaScope := func(active *stubDeltaUnionActive) {
+		active.snapshot.Rows = append(active.snapshot.Rows, goldengate.DeltaUnionActiveRow{
+			RepoID: "repo-2", ScopeID: "scope-2", GenerationID: "gen-delta-2",
+			GenerationStatus: "active", IsDelta: true,
+			Kind: "file", StableKey: "file:repo-2:a.go", Path: "a.go",
+		})
 	}
-	want := "delta union completeness covers 2 scopes, past the 1 cap: narrow the scope filter"
-	if got := adminFailureBodyMessage(t, rec); got != want {
-		t.Fatalf("detail = %q, want %q", got, want)
+	for _, tc := range []struct {
+		name   string
+		scopes []string
+		unit   string
+		extend func(*stubDeltaUnionActive)
+	}{
+		{name: "scope filter", scopes: []string{"scope-1", "scope-2"}, unit: "scopes"},
+		{name: "delta-active subset", scopes: []string{"scope-1"}, unit: "repositories", extend: secondDeltaScope},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			checker, active := deltaUnionChecker()
+			checker.MaxRepos = 1
+			if tc.extend != nil {
+				tc.extend(active)
+			}
+			count := len(tc.scopes)
+			if tc.unit == "repositories" {
+				if count > checker.MaxRepos {
+					t.Fatalf("fixture requests %d scopes past the %d cap; the pre-read check would fire instead", count, checker.MaxRepos)
+				}
+				count = deltaActiveScopeCount(active.snapshot.Rows)
+			}
+			if count <= checker.MaxRepos {
+				t.Fatalf("fixture count %d is not past the %d cap", count, checker.MaxRepos)
+			}
+			query := "?scope=" + strings.Join(tc.scopes, "&scope=")
+			rec, ended := serveDeltaUnionTraced(t, &Handler{Completeness: checker}, query, false)
+			step := adminFailureStep{name: tc.name, message: fmt.Sprintf(capText, count, tc.unit, checker.MaxRepos)}
+			assertAdminFailure(t, step, adminFailureBackend, rec, ended)
+		})
 	}
+}
+
+// deltaActiveScopeCount counts the distinct scopes whose rows include an
+// active delta generation: the subset the post-read cap check counts.
+func deltaActiveScopeCount(rows []goldengate.DeltaUnionActiveRow) int {
+	scopes := map[string]struct{}{}
+	for _, row := range rows {
+		if row.GenerationStatus == "active" && row.IsDelta {
+			scopes[row.ScopeID] = struct{}{}
+		}
+	}
+	return len(scopes)
 }
 
 // TestDeltaUnionCompletenessKeepsClientVerdicts pins the route's existing
