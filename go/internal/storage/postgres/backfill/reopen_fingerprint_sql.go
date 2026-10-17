@@ -40,10 +40,11 @@ import (
 // whenever the item runs before the deployment_mapping. If no later pass runs,
 // the item keeps its old graph until one does.
 
-// resolvedInputRepoIDsToken stands for the text[] repository-set expression in
-// resolvedInputRowsSQL: an ARRAY of bind parameters on the fused read, the
-// recorded fingerprint row's repo_ids on the reopen listing.
-const resolvedInputRepoIDsToken = "{{repo_ids}}"
+// resolvedInputRepoIDsPlaceholder stands for the text[] repository-set
+// expression in resolvedInputRowsSQL: an ARRAY of bind parameters on the fused
+// read, the recorded fingerprint row's repo_ids on the reopen listing. It is a
+// SQL template placeholder; the name avoids gosec G101's credential pattern.
+const resolvedInputRepoIDsPlaceholder = "{{repo_ids}}"
 
 // resolvedInputRowsSQL is the FROM and WHERE of the resolved rows a
 // deployable_unit_correlation run reads for a repository set. It mirrors the
@@ -56,15 +57,15 @@ const resolvedInputRowsSQL = `
       ON input_generation.generation_id = input_row.generation_id
     WHERE input_generation.status = 'active'
       AND (
-        input_row.source_repo_id = ANY(` + resolvedInputRepoIDsToken + `)
-        OR input_row.target_repo_id = ANY(` + resolvedInputRepoIDsToken + `)
+        input_row.source_repo_id = ANY(` + resolvedInputRepoIDsPlaceholder + `)
+        OR input_row.target_repo_id = ANY(` + resolvedInputRepoIDsPlaceholder + `)
       )`
 
 // ResolvedInputRowsSQL returns resolvedInputRowsSQL with repoIDs as the
 // repository-set expression. It is exported for the fingerprint differential
 // test, which selects the rows themselves through it.
 func ResolvedInputRowsSQL(repoIDs string) string {
-	return strings.ReplaceAll(resolvedInputRowsSQL, resolvedInputRepoIDsToken, repoIDs)
+	return strings.ReplaceAll(resolvedInputRowsSQL, resolvedInputRepoIDsPlaceholder, repoIDs)
 }
 
 // ResolvedInputDigestSQL returns the aggregate that turns a set of resolved_id
