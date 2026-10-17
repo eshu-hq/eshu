@@ -218,6 +218,16 @@ ec2_uses_profile_edge_operation_match="MERGE (source)-[rel:USES_PROFILE]->(targe
 # fire. It is NOT S3_LOGS_TO, which is statement metadata beside the
 # query.
 s3_logs_to_edge_operation_match="MERGE (source)-[rel:LOGS_TO]->(target)"
+# The AWS writer MERGE anchor cell_failgraphwrite_cloud_resource (#8358)
+# targets: go/internal/storage/cypher/cloud_resource_edge_writer.go's
+# canonicalCloudResourceEdgeUpsertCypherFormat emits
+# MERGE (source)-[rel:%s]->(target), filled per row from
+# AWSRelationshipCypherTypePrefix + the collector verb (an OPEN set), so the
+# anchor carries the interpolated type of the one verb the family cassette
+# drives first. A literal %s would match no executed statement and the fault
+# would never fire. It is NOT AWS_RELATIONSHIP, which is statement metadata
+# beside the query.
+cloud_resource_edge_operation_match="MERGE (source)-[rel:AWS_lambda_function_uses_execution_role]->(target)"
 
 # The DOCUMENTS edge MERGE anchor cell_failgraphwrite_documentation targets:
 # go/internal/storage/cypher/canonical_documentation_edges.go's
@@ -454,6 +464,12 @@ ifa_fault_shard_run cell_failgraphwrite_ec2_uses_profile
 ifa_fault_shard_run cell_baseline_s3_logs_to
 ifa_fault_shard_run cell_killworker_s3_logs_to
 ifa_fault_shard_run cell_failgraphwrite_s3_logs_to
+# cloud_resource (#8358): the predicate-scoped direct family. Baseline
+# first (sole writer of the family digest and the
+# aws_relationship_materialization retry baseline), same trio shape.
+ifa_fault_shard_run cell_baseline_cloud_resource
+ifa_fault_shard_run cell_killworker_cloud_resource
+ifa_fault_shard_run cell_failgraphwrite_cloud_resource
 # inheritance_edges (#5996) and shell_exec (#6001): generic dispatch, baseline
 # first in each trio (sole writer of that family's digest and retry baseline;
 # the atomic-group ordering check enforces it). Both are FAULT_SHARED_DRIVE=0,

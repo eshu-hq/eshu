@@ -8,7 +8,7 @@
 # reducer), so this mirror validates the contract that cannot silently
 # drift: strict mode and the bash>=4.4 guard, an isolated Compose project and
 # port triple distinct from every sibling verify-ifa-*.sh script, the
-# 61-cell shape (baseline + 60 live cells; fail-terminal
+# 64-cell shape (baseline + 63 live cells; fail-terminal
 # deliberately absent with its rationale documented), each cell's own
 # recovery mechanism, the digest/dead_letter/non-vacuity assertions, the
 # tagged-reducer + fault-script wiring this gate is the first thing to

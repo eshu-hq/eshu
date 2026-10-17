@@ -496,3 +496,25 @@ ifa_semantic_entity_containment_assert() {
 		-domain semantic_entity_containment \
 		-expected "${expected_edges}"
 }
+
+# ifa_cloud_resource_drive replays the cloud-resource cassette (three scope
+# generations, one per provider writer, in one drive).
+ifa_cloud_resource_drive() {
+	local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"
+	_ifa_direct_family_drive cloud-resource \
+		"${label}" "${bin_dir}" "${cassette}" "${workers}" "${log_dir}"
+}
+
+# ifa_cloud_resource_assert pins the four-edge exact set through the
+# predicate-scoped scan (#8358): two AWS verbs off one Lambda (duplicate,
+# unresolved, and self-loop controls contribute nothing), one supported GCP
+# relationship (partial/unresolved controls contribute nothing), one Azure
+# managed_by (depends_on is screened out). Types are the writers' prefix
+# consts + verb, NOT the AWS_/GCP_/AZURE_RELATIONSHIP metadata labels.
+ifa_cloud_resource_assert() {
+	local label="$1" bin_dir="$2" expected_edges="$3"
+	printf '\n=== %s: assert cloud_resource materialized edges (four-edge exact set) ===\n' "${label}"
+	"${bin_dir}/eshu-ifa" assert-edges \
+		-domain cloud_resource \
+		-expected "${expected_edges}"
+}
