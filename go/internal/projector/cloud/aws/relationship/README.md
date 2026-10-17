@@ -82,13 +82,13 @@ root `firstOfKind` forwarder was a direct delegate to
 behavior-identical by construction. At that extraction checkpoint the root
 helper remained for seven other callers; later family extractions removed its
 final callers and definition. Focused proof:
-`../scripts/go-test-run-guard.sh 1 'TestBuildMaterializationReducerIntent' -- ./internal/projector/aws/relationship -count=1`
+`../scripts/go-test-run-guard.sh 1 'TestBuildMaterializationReducerIntent' -- ./internal/projector/cloud/aws/relationship -count=1`
 and `go test ./internal/projector/... -count=1` green, whole-module `go build`
 and `go vet` clean.
 
 ## Related docs
 
-- [Projector architecture](../../README.md)
-- [Intent contract](../../intent/README.md)
-- [AWS relationship edge materialization design](../../../../../docs/internal/aws-relationship-edge-materialization-design.md)
-- [Package restructure](../../../../../docs/internal/design/package-restructure.md)
+- [Projector architecture](../../../README.md)
+- [Intent contract](../../../intent/README.md)
+- [AWS relationship edge materialization design](../../../../../../docs/internal/aws-relationship-edge-materialization-design.md)
+- [Package restructure](../../../../../../docs/internal/design/package-restructure.md)

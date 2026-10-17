@@ -109,7 +109,7 @@ probes on both sides, with this probe still running immediately after
 immediately before `gcp.BuildResourceMaterializationReducerIntent`.
 
 Focused proof, run from the `go/` module root:
-`go test ./internal/projector/aws/resource/ -count=1` and
+`go test ./internal/projector/cloud/aws/resource/ -count=1` and
 `go test ./internal/projector/... -count=1` green, whole-module `go build` and
 `go vet ./internal/projector/...` clean. Each of the five subtests in
 `materialization_intents_test.go` was proven load-bearing by mutating the
@@ -119,6 +119,6 @@ red before the file was restored byte-identical.
 
 ## Related docs
 
-- [Projector architecture](../../README.md)
-- [Intent contract](../../intent/README.md)
-- [Package restructure](../../../../../docs/internal/design/package-restructure.md)
+- [Projector architecture](../../../README.md)
+- [Intent contract](../../../intent/README.md)
+- [Package restructure](../../../../../../docs/internal/design/package-restructure.md)

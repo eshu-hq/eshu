@@ -3,9 +3,9 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../../AGENTS.md` and `../../README.md` for projector-wide invariants.
-3. `../../intent/AGENTS.md` for the neutral builder contract.
-4. `../../scope_generation_intents.go` for root-owned assembly order; this probe
+2. `../../../AGENTS.md` and `../../../README.md` for projector-wide invariants.
+3. `../../../intent/AGENTS.md` for the neutral builder contract.
+4. `../../../runtime/scope_generation_intents.go` for root-owned assembly order; this probe
    runs immediately after `multidrift.BuildReducerIntent`
    and immediately before `gcp.BuildResourceMaterializationReducerIntent`.
 5. `go/internal/reducer/aws_resource_materialization.go` for what the reducer
@@ -46,8 +46,8 @@
 
 - **Changing the reason string or the entity key.** Both are asserted
   verbatim by this package's tests, by the root dispatch test
-  (`../../aws_resource_materialization_projection_test.go`), and by the root
-  fan-out parity fixture (`../../scope_generation_intents_fanout_parity_test.go`,
+  (`../../../runtime/aws_resource_materialization_projection_test.go`), and by the root
+  fan-out parity fixture (`../../../runtime/scope_generation_intents_fanout_parity_test.go`,
   which lists `reducer.DomainAWSResourceMaterialization` in both
   `fanOutParityExpectations` and `fanOutParityExpectedOrder`). Change them
   together — and for the entity key, read the shared-key invariant above
@@ -58,8 +58,8 @@
   reconciliation; narrowing it starves them. Update the root dispatch tests in
   the same change.
 - **Adding a probe to root assembly.** Root's
-  `documentedReducerIntentProbeCount` (`../../reducer_intent_fact_index.go`) and
-  the "N probes" prose in `../../README.md` are pinned by
+  `documentedReducerIntentProbeCount` (`../../../runtime/reducer_intent_fact_index.go`) and
+  the "N probes" prose in `../../../README.md` are pinned by
   `TestReducerIntentProbeCountMatchesDocumentedCount`. Replacing a root
   builder with a package-qualified one — as this extraction did — leaves the
   count unchanged at 44, because that test counts distinct probes, not
@@ -88,12 +88,12 @@
   move, `buildAWSResourceMaterializationReducerIntent` was named by six
   places outside the file that defined it, including
   `go/internal/reducer/ec2usesprofile/ec2_uses_profile_materialization.go` and a synthetic
-  AST fixture in `../../reducer_intent_probe_count_test.go` labelled "root
+  AST fixture in `../../../runtime/reducer_intent_probe_count_test.go` labelled "root
   builder", which would have kept naming a function that no longer exists. No
   gate scans `docs/internal/**`, so sweep the whole repository — not just
   `go/` — for the old symbol whenever a builder here is renamed or exported.
 - **The root test file is not this package's test file.**
-  `../../aws_resource_materialization_projection_test.go` drives `buildProjection`,
+  `../../../runtime/aws_resource_materialization_projection_test.go` drives `buildProjection`,
   a root-only function this package cannot call, so it stayed at root. Do not
   move it here and do not delete it as a duplicate; it is the only proof that
   root assembly still reaches this builder.

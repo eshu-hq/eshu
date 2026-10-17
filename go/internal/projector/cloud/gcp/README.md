@@ -67,8 +67,8 @@ telemetry coverage checks, and the six-run exact same benchmark.
 
 ## Related docs
 
-- [Projector architecture](../README.md)
-- [Intent contract](../intent/README.md)
-- [GCP resource design](../../../../docs/internal/gcp-cloud-resource-materialization-design.md)
-- [GCP relationship design](../../../../docs/internal/gcp-cloud-relationship-edge-materialization-design.md)
-- [Package restructure](../../../../docs/internal/design/package-restructure.md)
+- [Projector architecture](../../README.md)
+- [Intent contract](../../intent/README.md)
+- [GCP resource design](../../../../../docs/internal/gcp-cloud-resource-materialization-design.md)
+- [GCP relationship design](../../../../../docs/internal/gcp-cloud-relationship-edge-materialization-design.md)
+- [Package restructure](../../../../../docs/internal/design/package-restructure.md)

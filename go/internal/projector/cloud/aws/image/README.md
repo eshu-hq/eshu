@@ -104,7 +104,7 @@ callers and definition. The root `firstOfKind` forwarder was a direct
 delegate to `projectorintent.FactLookup.FirstOfKind`, so that substitution is
 behavior-identical by construction too. Focused proof, run from the `go/`
 module root:
-`../scripts/go-test-run-guard.sh 1 'TestBuildMaterializationReducerIntent' -- ./internal/projector/aws/cloud/image -count=1`
+`../scripts/go-test-run-guard.sh 1 'TestBuildMaterializationReducerIntent' -- ./internal/projector/cloud/aws/image -count=1`
 and `go test ./internal/projector/... -count=1` green, whole-module `go build`
 and `go vet` clean.
 

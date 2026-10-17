@@ -96,7 +96,7 @@ third literal fallback in either), so the substitution used both here and at
 the helper's two other root call sites at that time is behavior-identical by
 construction, and the child pins both tiers. Focused proof, run from the `go/`
 module root:
-`go test ./internal/projector/cloud/runtime/drift/aws -count=1`
+`go test ./internal/projector/cloud/aws/runtime/drift -count=1`
 and `go test ./internal/projector/... -count=1` green, whole-module `go build`
 and `go vet` clean.
 

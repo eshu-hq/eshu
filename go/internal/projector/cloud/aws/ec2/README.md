@@ -95,6 +95,6 @@ selected by the changed paths.
 
 ## Related docs
 
-- [Projector architecture](../../README.md)
-- [Intent contract](../../intent/README.md)
-- [Package restructure](../../../../../docs/internal/design/package-restructure.md)
+- [Projector architecture](../../../README.md)
+- [Intent contract](../../../intent/README.md)
+- [Package restructure](../../../../../../docs/internal/design/package-restructure.md)
