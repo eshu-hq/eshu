@@ -30,7 +30,9 @@ Severity:
   separately. Full bar and the unbounded loop it prevents:
   [merge-bar.md](merge-bar.md).
 - **P3**: cosmetic and non-actionable. A typo, a formatting slip, a wording
-  preference, a number in a narrative sentence that changes no decision. Fix it
+  preference, a number in a narrative sentence that changes no decision. A wrong
+  derivable figure is also P3. The finding names the correct value and the
+  command that computes it. Fix it
   inline when it is a line, and never open an issue for one — a tracked typo is
   backlog, not progress. P3 never blocks, and a review returning only P3s is a
   clean review.
@@ -39,7 +41,13 @@ Severity:
   finding. It may NOT take `deferred-to-linked-follow-up`, because that
   disposition means a linked issue exists and P3s do not get issues. A P3 left
   unfixed is recorded in the verdict's P3 list and named in the PR; that list
-  is a record, not a disposition, and nothing downstream waits on it.
+  is a record, not a disposition, and nothing downstream waits on it. After
+  receipt capture, record a derivable-figure P3 in the verdict's P3 list and
+  post that verdict, or its P3 list, as a PR comment. A comment is not a body
+  edit. Do not edit the PR body for it.
+
+  Do not tag a finding "P2 (nit, non-blocking)". A finding that does not block
+  is P3.
 
 **P3 is decided by consequence, not by file type.** "It is markdown" is not a
 severity. Documentation in this repo is the control plane: `AGENTS.md`, the
@@ -50,12 +58,18 @@ diagnostic procedure, an evidence table or claim a reviewer relies on, or
 anywhere the documentation contradicts the code — that last one is already a
 blocking condition and does not become weaker for being written in English.
 
+This does not cover a derivable figure (see
+[Derivable figures](merge-bar.md#derivable-figures)). An evidence table that
+miscounts a derivable figure is P3, unless the correct figure changes a
+decision that the table supports.
+
 Worked examples, all real findings on #6220, all documentation, none of them
 P3: a diagnostic naming a stamp file the hook no longer writes, so following it
 produces the wrong conclusion; an escape hatch documented as "not blocked" when
 it blocks; a block message naming three variables when the guard probes five,
-so an agent following it stays blocked; and an evidence table understating its
-own test count by ten. A file-extension rule would have downgraded all four.
+so an agent following it stays blocked; and an evidence table whose test
+count, once corrected, no longer supports its coverage claim. A file-extension
+rule would have downgraded all four.
 
 Disposition must be one of: `fixed`, `not-a-bug-with-evidence`,
 `deferred-to-linked-follow-up`, or `blocked`. No finding may disappear between
@@ -122,8 +136,8 @@ per line:
 - `reversion scan`: the command, the files both sides touched, and the result.
   No hunk reverts or drops a line the new base added. The scan is textual.
 - `claims and affected proof`: the PR title and body re-read against the diff at
-  the `new head`, with head-bound SHAs and counts current (or stated as not
-  head-bound), and the focused proof the rebase can affect rerun with its exit
+  the `new head`, with head-bound SHAs and decision-bearing counts current (or
+  stated as not head-bound), and the focused proof the rebase can affect rerun with its exit
   codes, or `none affected` and why. Do this before capture: the receipt hashes
   the claims file.
 - `make pre-push`: exit code 0 and the head SHA it ran on. That head equals the

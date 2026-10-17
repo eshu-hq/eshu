@@ -54,8 +54,10 @@ Keep outward-facing comments and review requests within user authorization.
   (`github-copilot[bot]`), Cursor, Claude, and human reviewers** — by reading
   the comment body and the cited `file:line`, not by trusting (or skipping) a
   bot label. Address each; resolve a thread only after the referenced code is
-  fixed in HEAD (classify each unresolved thread `fixed` / `unchanged` / `ambiguous`;
-  resolve only `fixed` threads through the review-thread API). Duplicate findings across bots: fix the code once, resolve
+  fixed in HEAD (classify each unresolved thread `fixed` / `p3-no-action` /
+  `unchanged` / `ambiguous`; resolve only `fixed` and `p3-no-action` threads
+  through the review-thread API; the `p3-no-action` conditions are in
+  `resolve-review-threads`). Duplicate findings across bots: fix the code once, resolve
   both threads. When bots disagree, trust the code and the project rules.
 - **If GitHub Copilot returns "couldn't review any files"** on its first pass,
   re-request the review immediately via `gh pr edit <n> --add-reviewer @copilot`
