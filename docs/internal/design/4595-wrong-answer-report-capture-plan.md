@@ -111,15 +111,15 @@ string into any error it returns.
   `ErrorEnvelope`; `internal/query` re-exports them in `envelope_aliases.go`.
 - Truncation is a read-model field, not an envelope field (e.g.
   `AnswerPacket.Truncated`, `go/internal/query/ask/answer_packet.go`;
-  `admission_decision_types.go:126`). The bundle records the observed
+  `evidence/admission_decision_types.go`). The bundle records the observed
   truncation flags from the data it captured, not a new contract.
 - Evidence citation handle shape: `evidenceCitationHandle`
   (`go/internal/query/evidence/citation.go`), exported as
-  `query.EvidenceCitationHandle` (`evidence_citation_public.go:10`). Full
-  citations (`evidence_citation.go:54-76`) carry `content_hash`, `commit_sha`,
+  `evidence.EvidenceCitationHandle` (`evidence/citation_public.go`). Full
+  citations (`evidence/citation.go`) carry `content_hash`, `commit_sha`,
   provenance — and an `Excerpt` field, which is INLINE CONTENT BYTES and must
   be stripped from public bundles. Citation provenance is
-  `{basis, rationale, source}` only (`evidence_citation_unified.go:17-21`) —
+  `{basis, rationale, source}` only (`evidence/citation_unified.go`) —
   citations do NOT carry fact IDs, and no public fact-record read route exists
   (checked `go/internal/query/openapi/`; only
   `/api/v0/documentation/facts` and the static schema-version registry). This
