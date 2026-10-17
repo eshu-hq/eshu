@@ -4,12 +4,14 @@
 package main
 
 import (
+	"context"
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -90,4 +92,18 @@ func newBootstrapCanonicalNodeWriter(
 		return nil, err
 	}
 	return sourcecypher.NewCanonicalNodeWriterWithDialect(executor, batchSize, instruments, searchKey), nil
+}
+
+// bootstrapRetiredRepositoryObserver invalidates the
+// deployable_unit_correlation reopen fingerprints of every repository the
+// path-conflict retirement deleted (#8316), so a later maintenance pass
+// re-opens the items that lost edges with the retired node. On NornicDB the
+// bare retirement reports no id and the observer never fires; the gap
+// reconciliation covers those losses.
+func bootstrapRetiredRepositoryObserver(database bootstrapDB) sourcecypher.RetiredRepositoryObserver {
+	fingerprints := postgres.NewRelationshipStore(database)
+	return func(ctx context.Context, repoIDs []string) error {
+		_, err := fingerprints.InvalidateDeployableUnitReopenFingerprintsForRepos(ctx, repoIDs)
+		return err
+	}
 }

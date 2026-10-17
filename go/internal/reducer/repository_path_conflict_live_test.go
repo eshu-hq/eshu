@@ -234,6 +234,15 @@ func TestLiveRepositoryPathConflictRetirementReportsDroppedIncomingEdges(t *test
 				t.Fatalf("NewInstruments: %v", err)
 			}
 			writer := live.instrumentedWriterShapes(instruments)[shape]
+			// #8316: observe the retired Repository ids the committed
+			// retirement reports, through the same writer the production
+			// projector and ingester wire their fingerprint invalidation on.
+			var observedRetired [][]string
+			writer = writer.WithRetiredRepositoryObserver(
+				func(_ context.Context, repoIDs []string) error {
+					observedRetired = append(observedRetired, append([]string(nil), repoIDs...))
+					return nil
+				})
 			newID, oldID := live.repoID(retryFixtureRepo.name), live.repoID(retryFixtureRepo.name+"-rekeyed")
 			path := live.repoPath(retryFixtureRepo.name)
 
@@ -328,6 +337,20 @@ func TestLiveRepositoryPathConflictRetirementReportsDroppedIncomingEdges(t *test
 				counterValue2(t, reader, splitMetric, "direction", "outgoing", "class", "other")
 			if splitTotal != degree {
 				t.Fatalf("%s bucket sum = %d, want %d (the split must sum to relationships_deleted)", splitMetric, splitTotal, degree)
+			}
+
+			// #8316: the committed retirement reports the retired id
+			// through the observer on the attributed (Neo4j) shape, so
+			// production wiring can invalidate its fingerprint rows. The
+			// bare (NornicDB) shape carries no RETURN record and reports
+			// nothing; its losses come back through the gap
+			// reconciliation instead.
+			if live.backend == "neo4j" {
+				if len(observedRetired) != 1 || len(observedRetired[0]) != 1 || observedRetired[0][0] != oldID {
+					t.Fatalf("observed retired ids = %v, want [[%s]]", observedRetired, oldID)
+				}
+			} else if len(observedRetired) != 0 {
+				t.Fatalf("observed retired ids = %v, want none on the bare retirement shape", observedRetired)
 			}
 
 			// A steady-state retry of the same generation matches nothing:

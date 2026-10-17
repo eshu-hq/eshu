@@ -36,10 +36,12 @@ const retirementSplitMetric = "eshu_dp_canonical_repository_retired_relationship
 // re-runs and re-reports every statement before the final commit.
 // cleanupDropped is the canned RETURN dropped collection: nil leaves the
 // entry unattributed (an executor that never consumed the record), non-nil
-// (even empty) marks it attributed, as CollectRetiredRelationships does.
+// (even empty) marks it attributed, as CollectRetirementReport does.
+// cleanupRetiredIDs is the canned RETURN retired_id column.
 type retirementReportingExecutor struct {
 	cleanupCounters     WriteCounters
 	cleanupDropped      []DroppedEdge
+	cleanupRetiredIDs   []string
 	reportsPerStatement int
 	failCleanup         bool
 	// failAfterCleanup fails the repository upsert, the statement right after
@@ -68,7 +70,7 @@ func (e *retirementReportingExecutor) report(ctx context.Context, stmt Statement
 		reports = 1
 	}
 	for i := 0; i < reports; i++ {
-		ReportWriteCountsWithDropped(ctx, stmt.Cypher, stmt.Parameters, counters, dropped)
+		ReportRetirementWriteCounts(ctx, stmt.Cypher, stmt.Parameters, counters, RetirementReport{Dropped: dropped, RetiredIDs: e.cleanupRetiredIDs})
 	}
 	return nil
 }

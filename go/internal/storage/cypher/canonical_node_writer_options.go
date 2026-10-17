@@ -214,3 +214,17 @@ func (w *CanonicalNodeWriter) WithBareRepositoryRetirement() *CanonicalNodeWrite
 	w.repositoryRetirementBare = true
 	return w
 }
+
+// WithRetiredRepositoryObserver injects the port that runs after a committed
+// path-conflict retirement with the retired Repository ids (#8316).
+// Optional: a nil observer (the default) keeps the retirement
+// metrics-and-log report exactly as before. A set observer never fails the
+// write: its error is logged and the gap reconciliation re-derives any loss
+// a failed call misses.
+func (w *CanonicalNodeWriter) WithRetiredRepositoryObserver(observer RetiredRepositoryObserver) *CanonicalNodeWriter {
+	if w == nil {
+		return nil
+	}
+	w.retiredRepositoryObserver = observer
+	return w
+}
