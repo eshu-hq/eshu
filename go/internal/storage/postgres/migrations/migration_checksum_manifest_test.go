@@ -240,6 +240,7 @@ var migrationShippedChecksums = map[string]string{
 	"190_package_registry_identity_keys_drop_fact_fk.sql":                    "9aed89601e235a4ba5ce133b9b19b4049ffe3f74737e4f6d8176babccd005412",
 	"191_eshu_search_index_terms_drop_generation_fk.sql":                     "816790778346a3bbf1bbc713450e69b6c1f30bb71dcc2f5d2d4570d2306f10f8",
 	"193_deployable_unit_reopen_fingerprints.sql":                            "9290e77a2f233339cbb93d130f04da0235cbab2727ea31799c2b6c0c3635a9b1",
+	"196_fact_records_documentation_collected_target_refs_idx.sql":           "f13c388c88db6eb6604cced57c46097e951d92457bb3c16b09afd2d68e023fa6",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
