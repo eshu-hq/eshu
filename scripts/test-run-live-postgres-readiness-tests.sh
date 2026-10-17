@@ -61,31 +61,26 @@ if [[ -f "${ESHU_FAKE_DIR}/${key}.exit" ]]; then exit "$(cat "${ESHU_FAKE_DIR}/$
 exit 0
 EOF
 chmod +x "${seed_dir}/bin/go"
-for var in ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF \
-  ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF ESHU_SUPPRESSION_PATHS_PROOF \
-  ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF ESHU_READINESS_CONTAINER_IDENTITY_PROOF \
-  ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES ESHU_DEAD_CODE_INCOMING_BOUND_PROOF \
-  ESHU_GENERATION_RETENTION_PROOF ESHU_STATUS_TERRAFORM_SELECTION_PROOF \
-  ESHU_DEFERRED_PARTITION_PROOF ESHU_TARGETED_MAINTENANCE_PROOF \
-  ESHU_STATUS_SUMMARY_PROOF ESHU_ADMIN_REOPEN_PROOF ESHU_FLUX_EVIDENCE_IDENTITY_PROOF \
-  ESHU_REACHABILITY_EDGES_SCOPE_PROOF \
-  ESHU_DRIFTED_BUCKET_SKIP_PROOF \
-  ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF \
-  ESHU_PROJECTOR_SUPERSESSION_PROOF \
-  ESHU_PREFETCH_BATCH_PLAN_PROOF ESHU_REDUCER_FAIRNESS_PROOF \
-  ESHU_REDUCER_ACK_RECLAIM_PROOF ESHU_RECOVERY_DELTA_ACTIVE_PROOF \
-  ESHU_TEST_CONTENT_INDEX_POSTGRES \
-  ESHU_CONTENT_FILES_LANGUAGE_PROOF \
-  ESHU_CONTENT_SEARCH_PROOF \
-  ESHU_SCOPED_SEARCH_PROOF \
-  ESHU_IDENTITY_EPOCH_PROOF \
-  ESHU_AWS_DRIFT_ARN_PROOF; do
-  printf '%s_DSN\n%s_DISPOSABLE\n' "${var}" "${var}" >>"${fake}/envs"
+# The fake env contract below derives from the same generated env lists the
+# runner requires (scripts/lib/live_postgres_readiness_env.sh); do not
+# hand-edit that file. A DSN whose _DISPOSABLE twin is enrolled expands to
+# both names; a twinless or reader DSN passes through as named (those suites
+# isolate their schemas instead of gating on a disposable-database flag).
+# shellcheck source=lib/live_postgres_readiness_env.sh
+source "${repo_root}/scripts/lib/live_postgres_readiness_env.sh"
+for var in "${READINESS_DSN_VARS[@]}"; do
+  case "${var}" in
+    *_READ_DSN) printf '%s\n' "${var}" >>"${fake}/envs" ;;
+    *)
+      twin="${var%_DSN}_DISPOSABLE"
+      if [[ " ${READINESS_DISPOSABLE_VARS[*]} " == *" ${twin} "* ]]; then
+        printf '%s\n%s\n' "${var}" "${twin}" >>"${fake}/envs"
+      else
+        printf '%s\n' "${var}" >>"${fake}/envs"
+      fi
+      ;;
+  esac
 done
-printf '%s\n' ESHU_TEST_CONTENT_INDEX_POSTGRES_READ_DSN >>"${fake}/envs"
-# DSNs with no _DISPOSABLE twin: these suites isolate their schemas instead
-# of gating on a disposable-database flag.
-printf '%s\n' ESHU_POSTGRES_DSN ESHU_WEBHOOK_CLAIM_LEASE_PROOF_DSN >>"${fake}/envs"
 for var in ESHU_NEO4J_URI ESHU_NEO4J_USERNAME ESHU_NEO4J_PASSWORD \
   ESHU_GRAPH_BACKEND; do
   printf '%s\n' "${var}" >>"${fake}/envs"
@@ -323,18 +318,21 @@ mkdir -p "${tree}/scripts/lib" "${tree}/specs"
 cp "${runner}" "${tree}/scripts/"
 cp "${repo_root}/scripts/lib/live_postgres_readiness_events.py" "${tree}/scripts/lib/"
 cp "${repo_root}/scripts/lib/live_tests_registry.py" "${tree}/scripts/lib/"
-# The inventory is a set of sibling modules (the assembler, the package-path
-# names, and one table per domain), so the throwaway tree takes every one.
+# The inventory is generated per package (one TABLE module each) plus the
+# PACKAGES assembler, the helper pins, and the env lists, so the throwaway
+# tree takes every one; the tree runner sources its env lists from its own
+# root, which is why env.sh is copied too.
 cp "${repo_root}"/scripts/lib/live_postgres_readiness_inventory*.py "${tree}/scripts/lib/"
+cp "${repo_root}/scripts/lib/live_postgres_readiness_env.sh" "${tree}/scripts/lib/"
 cp "${repo_root}/scripts/lib/live_postgres_readiness_records.py" "${tree}/scripts/lib/"
 cp "${checker}" "${tree}/scripts/lib/"
 ln -s "${repo_root}/go" "${tree}/go"
 tree_runner="${tree}/scripts/$(basename "${runner}")"
 tree_checker="${tree}/scripts/lib/$(basename "${checker}")"
-# The seeded edits below land in the domain table that carries the last
-# enrolled proof, found by content so a table move cannot silently turn the
-# seed into a no-op.
-last_proof_module="$(rg -lF -- "\"${last_proof}\"" "${repo_root}"/scripts/lib/live_postgres_readiness_inventory_*.py)" ||
+# The seeded edits below land in the generated per-package table that
+# carries the last enrolled proof, found by content so a table move cannot
+# silently turn the seed into a no-op.
+last_proof_module="$(rg -lF -- "\"${last_proof}\"" "${repo_root}"/scripts/lib/live_postgres_readiness_inventory_gen_*.py)" ||
   fail "no inventory module carries ${last_proof}"
 [[ "$(printf '%s\n' "${last_proof_module}" | wc -l | tr -d '[:space:]')" -eq 1 ]] ||
   fail "expected exactly one inventory module to carry ${last_proof}: ${last_proof_module}"
@@ -346,10 +344,13 @@ helper_map="${tree}/scripts/lib/live_postgres_readiness_inventory_helpers.py"
 cp "${helper_map}" "${helper_map}.clean"
 python3 - "${helper_map}" <<'PY_HELPER_PIN'
 from pathlib import Path
+import re
 import sys
 path = Path(sys.argv[1])
 source = path.read_text(encoding="utf-8")
-old = "0f9bba8d97de2d4cb3c32b9571ef86e1eab56486558cf4fc4765f26a0f1a32ad"
+match = re.search(r'"consumer_sha256": "([0-9a-f]{64})"', source)
+assert match, "no consumer pin in the generated helper map"
+old = match.group(1)
 assert source.count(old) == 1
 path.write_text(source.replace(old, "0" * 64), encoding="utf-8")
 PY_HELPER_PIN
@@ -364,23 +365,11 @@ mv "${helper_map}.clean" "${helper_map}"
 # Equal-size pin strings can leave Python's timestamp bytecode cache valid.
 # Discard only this disposable fixture cache before the clean-map GREEN case.
 rm -rf "${tree}/scripts/lib/__pycache__"
-# Remove the last PACKAGES entry (from its "    NAME: {" line through the
-# next "    }," line) and list the test files it carried in dropped-files.
+# Empty the generated per-package TABLE (each carries exactly one package)
+# and list the test files it carried in dropped-files.
 awk -v list="${seed_dir}/dropped-files" '
-  { line[NR] = $0 }
-  /^[A-Z_]+_PACKAGES = \{/ { inpkg = 1 }
-  /^\}$/ { inpkg = 0 }
-  inpkg && /^    [A-Z_]+: \{$/ { from = NR }
-  END {
-    for (i = 1; i <= NR; i++) {
-      if (i >= from && !done) {
-        if (line[i] ~ /^        "go\//) { split(line[i], f, "\""); print f[2] >> list }
-        if (line[i] ~ /^    \},$/) done = 1
-        continue
-      }
-      print line[i]
-    }
-  }
+  /^        "go\// { split($0, f, "\""); print f[2] >> list }
+  END { print "TABLE = {}" }
 '  "${last_proof_module}" >"${tree_inventory}.seed"
 mv "${tree_inventory}.seed" "${tree_inventory}"
 [[ -s "${seed_dir}/dropped-files" ]] || fail "seeded verifier dropped no package files"

@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7978 disposable PostgreSQL 18 proof that an unchanged reconcile stores no generation, fact, search, or content row and re-opens the active generation's projector work, with the scope-lock race and supersede fences; enrolled in the live-postgres-readiness runner; about 20 s locally, wall time is logged, not gated
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 // Live proof for #7978 on a disposable PostgreSQL database
 // (ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN). Each test bootstraps the full
 // production schema into its own schema, commits generations through the

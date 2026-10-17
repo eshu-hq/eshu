@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7816 disposable PostgreSQL 18 proof that the runtime fence bound is measured from the producer row's last-workable time (GREATEST of COALESCE(reopened_at, created_at), COALESCE(last_attempt_at, created_at), COALESCE(visible_at, created_at), COALESCE(claim_until, created_at)), not the catalog row's age: a 45-minute-old catalog row defers on a one-minute-old producer; a producer enqueued 45 minutes ago that is polling its corpus fence, sleeping in a counting backoff, claimed one minute ago, holding a lease that expired 29 minutes ago, heartbeating a run claimed 31 minutes ago, or reclaimed by a second owner keeps a young catalog row deferring, and a retry leaves claim_until NULL; a producer with no claim, heartbeat, scheduled visibility, or cycle start for 31 minutes (never claimed, corpus-fence retry starved, counting retry visible and unclaimed, lease expired 31 minutes ago) lets the catalog row commit and ack; and a producer reopened through ReopenSucceeded waits a fresh bound; every producer row is shaped by the real Claim, Heartbeat, Fail, and ReopenSucceeded SQL; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local runs about 1s to 6s each on postgres:18; wall time is logged, not gated
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

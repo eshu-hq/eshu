@@ -3,6 +3,10 @@
 
 package query
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7730 disposable PostgreSQL 18 proof of the unscoped file search walk: page equality with the old single statement, the real statement-timeout cancel with cursor resume to the exact answer, and the plan shapes (ordered key walk with no trigram node; trigram bitmap tail under disabled index scans); one local PostgreSQL 18 run took about 11 s
+//eshu:readiness:env ESHU_CONTENT_SEARCH_PROOF_DISPOSABLE ESHU_CONTENT_SEARCH_PROOF_DSN ESHU_SCOPED_SEARCH_PROOF_DISPOSABLE ESHU_SCOPED_SEARCH_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7420 disposable PostgreSQL proof that the documented reverse procedure bounds its lock wait with lock_timeout beside an open fact writer, refuses with an orphan key, restores three validated cascading foreign keys after cleanup and is undone only after its step 4 forgets the 188-190 ledger rows, and that a drop migration whose key table stays busy fails the tracked bootstrap loudly with 55P03 and records nothing, enrolled in the live-postgres-readiness runner; bridges ESHU_GENERATION_RETENTION_PROOF_DSN. local run passed both tests in 7.8s of test time on PostgreSQL 18.6 on 2026-10-16
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"bytes"
 	"context"

@@ -3,6 +3,10 @@
 
 package membershipstore_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7625 disposable PostgreSQL 18 proof that the SQL live filter in ReadLiveScopeObservations keeps exactly the rows selection.Live keeps, at and around the liveness window boundary, so the Go predicate and the SQL cannot drift. Enrolled in the live-postgres-readiness runner; 1.38-1.39s of test time on postgres:18.6 on 2026-10-08; wall time is logged, not gated
+//eshu:readiness:env ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE ESHU_GENERATION_RETENTION_PROOF_DSN
+
 import (
 	"fmt"
 	"slices"

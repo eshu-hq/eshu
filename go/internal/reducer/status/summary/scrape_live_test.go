@@ -3,6 +3,10 @@
 
 package summary_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7009 disposable PostgreSQL 18 proofs of the runtime /metrics scrape path in autocommit, the shape of every hosted runtime: a row written by the production writer is served equal to the live active-work statement at the same data and clock; once the row is stale, missing, or its table is dropped, the process keeps serving its last row as stale with an age that keeps growing; a process that restarts into a stale but decodable row serves that row as stale, and a process that restarts with the table dropped serves the zero summary (the empty-table and foreign or undecodable row cases are proven hermetically, not by this live file); the live active-work statement runs zero times; the statement inventory on an empty store through the production status store is 24 statements before, 20 with the reader off, and 21 with the reader on (no active-work statement); and the scrape renders identical bytes through the production handler with the metrics selection and the broader selection over a database whose collector fact-evidence, registry collector, and coordinator sections are populated (with a planted violation); the blocking reducer-contention-gate step also runs it with ESHU_REQUIRE_STATUS_SUMMARY_WRITER_PROOF=1, so an unset DSN fails there
+//eshu:readiness:env ESHU_STATUS_SUMMARY_PROOF_DISPOSABLE ESHU_STATUS_SUMMARY_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

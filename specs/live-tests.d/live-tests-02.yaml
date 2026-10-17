@@ -4,50 +4,10 @@ tests:
     class: verified_scheduled
     reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; disposable template0 database; 9 query tests in 9 files, 33.881s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
     runner: postgres-scheduled
-  - file: go/internal/query/content_reader_entity_metadata_by_ids_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7247 disposable PostgreSQL proof of the language-query id-anchored metadata read on a 160,000-row fixture with every bootstrap migration: exact rows for 200 graph-page ids under repository, grant and unscoped scope and none outside the scope, a content_entities_pkey index scan with no Seq Scan and at most 10 shared buffers per id under a custom and a forced generic plan, and the replaced page read's buffers logged for comparison; three local postgres:18-alpine runs took 9.3-11.5 s and two local postgres:18 (Debian) runs took 22-35 s"
-    runner: live-postgres-readiness
-  - file: go/internal/query/content_reader_entity_search_unscoped_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7730 disposable PostgreSQL proof of the unscoped entity search walk: page equality with the old single statement, the four-part keyset and window-edge exactness, and the plan shapes (walk-order index windows with no trigram node; trigram bitmap tail under disabled index scans); one local PostgreSQL 16 run took about 24 s"
-    runner: live-postgres-readiness
-  - file: go/internal/query/content_reader_file_contents_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7126 disposable PostgreSQL 18 proof that the batched file-content statement returns the rows N single-file reads return (ASCII, multibyte, empty, blank, 2 MB, paths with spaces, quotes, percent, underscore, backslash and non-ASCII, absent, duplicated and cross-repository paths, array sizes 0, 1, 10 and all stored) and that its plan uses an index scan on a small and a 50-file repository under a generic and a custom plan; one local PostgreSQL 18 run took about 1.5 s"
-    runner: live-postgres-readiness
-  - file: go/internal/query/content_reader_nonblank_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7126 disposable PostgreSQL 18 proof that the non-blank statement of the needed-content hydration equals strings.TrimSpace on every Unicode White_Space code point, on text with whitespace on either side, and on large out-of-line values, plus the trim set checked against unicode.IsSpace over the whole 0x10FFFF range; one local PostgreSQL 18 run took about 1.5 s"
-    runner: live-postgres-readiness
-  - file: go/internal/query/content_reader_wide_window_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7951 disposable PostgreSQL 18 proof on a full 5,000-file repository that the chunked blank check (500 paths) and the content read (10 paths) keep an index-scan plan under a custom and a generic plan, that batched reads of 500 and 4,950 paths equal single-file reads, that the non-blank statement at 500 and 4,950 paths equals strings.TrimSpace, and that the whole-window load issues ten blank-check chunks and returns the extractors' rows over every non-blank file; one local PostgreSQL 18 run took about 4 s"
-    runner: live-postgres-readiness
-  - file: go/internal/query/content_reader_search_unscoped_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7730 disposable PostgreSQL 18 proof of the unscoped file search walk: page equality with the old single statement, the real statement-timeout cancel with cursor resume to the exact answer, and the plan shapes (ordered key walk with no trigram node; trigram bitmap tail under disabled index scans); one local PostgreSQL 18 run took about 11 s"
-    runner: live-postgres-readiness
-  - file: go/internal/query/content_reader_search_scoped_workbound_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7930 disposable PostgreSQL 18 proof of the scoped file search custom-generic-reader equivalence oracle plus the shipped-WHERE derivation guard; one local PostgreSQL 18 run took about 6 s"
-    runner: live-postgres-readiness
   - file: go/internal/query/content_reader_search_scoped_workbound_guard_live_test.go
     tag: ~
     class: scheduled
     reason: "#7930 RED-by-design kill record for the scoped file search work-bound guard (S3/S5/M2 over caps in both regimes); gated by ESHU_SCOPED_SEARCH_PROOF_DSN opt-in, local-only, never a blocking proof — promote to blocking only with a green re-baseline plus timing evidence"
-  - file: go/internal/query/content_reader_search_scoped_union_probe_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7930 disposable PostgreSQL 18 proof of the per-repo UNION ALL probe (work and row equivalence against the shipped multi cells in both regimes) and the rare/empty single-scope BitmapAnd investigation; one local PostgreSQL 18 run took about 6 s"
-    runner: live-postgres-readiness
   - file: go/internal/query/content_reader_security_secrets_fallback_live_test.go
     tag: ~
     class: scheduled
@@ -449,28 +409,3 @@ tests:
     tag: ~
     class: scheduled
     reason: "#5167 live row-membership proof for the grant-filtered index-status repository count (seven grant shapes, empty grant makes no graph call); env-gated by ESHU_INDEX_STATUS_NORNICDB_LIVE — promote to blocking with repeated timing evidence"
-  - file: go/internal/query/status_terraform_selection_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7009 disposable PostgreSQL 18 proof that every Terraform-free status route returns byte-identical responses with and without the Terraform-state serial and warning reads over seeded tfstate and git warnings, that pipeline and index status keep the seeded terraform_state rows, and that forcing the skip onto them changes the response"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/status/summary/bloat_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7009 disposable PostgreSQL 18 bloat proof of the one-row status summary table (also a blocking step of the reducer-contention-gate workflow, fail-closed through ESHU_REQUIRE_STATUS_SUMMARY_PROOF): 4,000 upserts at the production row size, with a compressible and an incompressible (TOASTed) payload, then a manual VACUUM with autovacuum disabled on the proof table so no background vacuum moves the round-one baseline, leave a one-page heap, a bounded TOAST relation, HOT updates, and a read of a handful of buffers; about 1 s each on PostgreSQL 18.6"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/status/summary/bloat_terraform_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7009 disposable PostgreSQL 18 bloat and read-buffer proof of the terraform_state status summary row (also a blocking step of the reducer-contention-gate workflow, fail-closed through ESHU_REQUIRE_STATUS_SUMMARY_PROOF): 4,000 upserts of a 72-entry (about 35 KB, the ops-qa size) and of a 141-entry (about 69 KB) TOASTed payload then a manual VACUUM with autovacuum disabled on the proof table (a merge-group run failed the TOAST bound when autovacuum vacuumed the TOAST relation during round one) leave a one-page heap, a bounded TOAST relation, HOT updates, and a read that touches only status_summary_snapshots in at most 8 plan buffers and 30 TOAST buffers; a 5 MB worst-case row stays bounded and is read in 151 TOAST buffers"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/status/summary/conflict_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7009 disposable PostgreSQL 18 contention proof of the status summary as_of guard (also a blocking step of the reducer-contention-gate workflow, fail-closed through ESHU_REQUIRE_STATUS_SUMMARY_PROOF): one writer's transaction is held open, pg_stat_activity shows the other blocked on a lock, and the release decides whether the waiter advances (newer over older, older rejected, first insert, holder rollback); about 1 s on PostgreSQL 18.6"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/status/summary/store_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7009 disposable PostgreSQL 18 proofs of the status summary store (also a blocking step of the reducer-contention-gate workflow, fail-closed through ESHU_REQUIRE_STATUS_SUMMARY_PROOF): missing-table and empty-table reads, migration 161 applied twice with its storage parameters, the as_of guard (with a guard-stripped RED comparator), two concurrent writers with a polling reader, single-row crash safety, and the writer advisory lock; under 1 s each on PostgreSQL 18.6"
-    runner: live-postgres-readiness

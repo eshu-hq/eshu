@@ -263,11 +263,6 @@ tests:
     tag: integration
     class: scheduled
     reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
-  - file: go/internal/storage/postgres/drifted_bucket_skip_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7228 overfull-band-bucket skip proof, enrolled in the live-postgres-readiness runner on ESHU_DRIFTED_BUCKET_SKIP_PROOF_DSN: a 307-member bucket nominates no pairs while the same repo's small-bucket pairs are unchanged, with skipped-bucket/max-bucket/pairs-considered stats. Local run passed in 1.3s on postgres:18 on 2026-10-08; wall time is logged, not gated"
-    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/code_drifted_findings_live_test.go
     tag: ~
     class: scheduled
@@ -280,16 +275,6 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/storage/postgres/code/reachability/loader_completed_index_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7929 disposable PostgreSQL 18 proof that the loader's per-run max(completed_at) probe serves from the acceptance-completed covering index and returns exactly the pre-#7547 oracle rows; enrolled in the live-postgres-readiness runner. Upper-bound timing: 7.3s cold including one-time schema bootstrap and the 200k-row fixture, on local postgres:18"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/code/reachability/loader_edges_scope_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7592 disposable PostgreSQL 18 proof that the reachability edge loader reads the consumer scope's own edges only (a chain X -> Z.g -> P never lands in X); enrolled in the live-postgres-readiness runner. Upper-bound timing: 1.31s cold including one-time schema bootstrap, 0.09s warm, on local postgres:18"
-    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/code_reachability_upgrade_backfill_live_test.go
     tag: ~
     class: scheduled
@@ -401,21 +386,6 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/storage/postgres/container_image_identity_epoch_barrier_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#6502 disposable PostgreSQL 18 proof that a projection reading the activation epoch ahead of activation defers and retries without dead-lettering, that the released generation proceeds and acks, that a superseded generation acks as superseded, and that every epoch miss wraps the not-active sentinel; enrolled in the live-postgres-readiness runner"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/container_image_identity_first_generation_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7916 disposable PostgreSQL 18 proof that a pending first generation without an active predecessor defers its reducer intent without counting an attempt, then replays after actual projector Ack creates the activation epoch; enrolled in the live-postgres-readiness runner"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/container_image_identity_first_generation_service_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7916 disposable PostgreSQL 18 proof that actual sequential and batch reducer Service.Run dispatches defer first-generation work while an unrelated ready scope progresses, then replay after projector Ack; enrolled in the live-postgres-readiness runner"
-    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/container_image_identity_failure_fencing_live_test.go
     tag: ~
     class: verified_scheduled

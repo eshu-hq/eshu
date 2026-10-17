@@ -3,6 +3,10 @@
 
 package reachabilitystore_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7592 disposable PostgreSQL 18 proof that the reachability edge loader reads the consumer scope's own edges only (a chain X -> Z.g -> P never lands in X); enrolled in the live-postgres-readiness runner. Upper-bound timing: 1.31s cold including one-time schema bootstrap, 0.09s warm, on local postgres:18
+//eshu:readiness:env ESHU_POSTGRES_DSN ESHU_REACHABILITY_EDGES_SCOPE_PROOF_DISPOSABLE ESHU_REACHABILITY_EDGES_SCOPE_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

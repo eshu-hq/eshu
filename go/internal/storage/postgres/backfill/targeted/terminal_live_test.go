@@ -3,6 +3,10 @@
 
 package targeted_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7584 activation obligation repo_id collision loser retired inapplicable after one callback against exported backfill.ActiveRepositoryGenerationsQuery from the targeted package external proof, on the full bootstrap schema in an isolated disposable PostgreSQL schema
+//eshu:readiness:env ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE ESHU_TARGETED_MAINTENANCE_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

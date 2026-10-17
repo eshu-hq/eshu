@@ -3,6 +3,10 @@
 
 package activation_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7584 composed concurrency: lease expiry mid-maintenance with a second claimer (one completion, one wake, late Finalize not_owner) and a consumer crash between the evidence commit and the phase publication, on the full bootstrap schema in isolated disposable PostgreSQL schemas
+//eshu:readiness:env ESHU_DEFERRED_PARTITION_PROOF_DSN
+
 import (
 	"context"
 	"strings"

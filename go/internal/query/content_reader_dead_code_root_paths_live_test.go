@@ -3,6 +3,10 @@
 
 package query
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7603 disposable PostgreSQL 18 proof that the cross-repo consumer-root path read returns one path per named root, leaves out a missing root and a root in another repository, and plans as a keyed entity_id lookup
+//eshu:readiness:env ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DISPOSABLE ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DSN ESHU_SCOPED_SEARCH_PROOF_DISPOSABLE ESHU_SCOPED_SEARCH_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

@@ -3,6 +3,10 @@
 
 package query
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7591 disposable PostgreSQL 18 proof that both cross-repo consumer-coverage statements ignore a refresh intent on a full generation, keep it on a delta generation, and count a legacy action-less row as an edge
+//eshu:readiness:env ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DISPOSABLE ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DSN ESHU_SCOPED_SEARCH_PROOF_DISPOSABLE ESHU_SCOPED_SEARCH_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

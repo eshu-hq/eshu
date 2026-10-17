@@ -3,6 +3,10 @@
 
 package query
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7951 disposable PostgreSQL 18 proof on a full 5,000-file repository that the chunked blank check (500 paths) and the content read (10 paths) keep an index-scan plan under a custom and a generic plan, that batched reads of 500 and 4,950 paths equal single-file reads, that the non-blank statement at 500 and 4,950 paths equals strings.TrimSpace, and that the whole-window load issues ten blank-check chunks and returns the extractors' rows over every non-blank file; one local PostgreSQL 18 run took about 4 s
+//eshu:readiness:env ESHU_SCOPED_SEARCH_PROOF_DISPOSABLE ESHU_SCOPED_SEARCH_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

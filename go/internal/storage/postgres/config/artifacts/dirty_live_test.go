@@ -3,6 +3,10 @@
 
 package artifacts_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7126 disposable PostgreSQL 18 proof of the config-artifact walker's dirty join: never-derived (failed) and retry repositories and old extractor versions first, then missing state, then moved content, skipped repositories last; exact rows and every newer-extractor row (exact, moved, failing) excluded; and over the cross product of the state inputs every listed repository carries Classify's label (retry excepted) and every untrusted repository in the walk universe is listed; enrolled in the live-postgres-readiness runner; nine proofs took 0.88-1.15s each and 9.1s for the package (disposable database plus full bootstrap per test) on a local PostgreSQL 18.6 on 2026-10-11; wall time is logged, not gated
+//eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
+
 import (
 	"fmt"
 	"reflect"

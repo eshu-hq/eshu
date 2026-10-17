@@ -44,6 +44,7 @@ on:
       - 'scripts/lib/test-run-live-postgres-readiness-shards.sh'
       - 'scripts/lib/live_postgres_readiness_results.py'
       - 'scripts/lib/live_postgres_readiness_inventory*.py'
+      - 'scripts/lib/live_postgres_readiness_env.sh'
       - 'scripts/lib/live_postgres_readiness_records.py'
       - 'scripts/lib/live_postgres_readiness_shards.py'
       - 'scripts/test-live-postgres-readiness-shards.py'
@@ -97,6 +98,7 @@ on:
       - 'scripts/lib/test-run-live-postgres-readiness-shards.sh'
       - 'scripts/lib/live_postgres_readiness_results.py'
       - 'scripts/lib/live_postgres_readiness_inventory*.py'
+      - 'scripts/lib/live_postgres_readiness_env.sh'
       - 'scripts/lib/live_postgres_readiness_records.py'
       - 'scripts/lib/live_postgres_readiness_shards.py'
       - 'scripts/test-live-postgres-readiness-shards.py'
@@ -254,74 +256,76 @@ jobs:
       - name: Run live readiness proofs
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         env:
-          ESHU_POSTGRES_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DISPOSABLE: '1'
-          ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DISPOSABLE: '1'
-          ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE: '1'
-          ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DISPOSABLE: '1'
-          ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DISPOSABLE: '1'
-          ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DISPOSABLE: '1'
-          ESHU_SUPPRESSION_PATHS_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_SUPPRESSION_PATHS_PROOF_DISPOSABLE: '1'
-          ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DISPOSABLE: '1'
-          ESHU_GENERATION_RETENTION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE: '1'
-          ESHU_CONTENT_FILES_LANGUAGE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_CONTENT_FILES_LANGUAGE_PROOF_DISPOSABLE: '1'
-          ESHU_STATUS_TERRAFORM_SELECTION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_STATUS_TERRAFORM_SELECTION_PROOF_DISPOSABLE: '1'
-          ESHU_DEFERRED_PARTITION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE: '1'
-          ESHU_TARGETED_MAINTENANCE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE: '1'
-          ESHU_STATUS_SUMMARY_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_STATUS_SUMMARY_PROOF_DISPOSABLE: '1'
-          ESHU_ADMIN_REOPEN_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          # BEGIN GENERATED READINESS ENV (scripts/generate-live-postgres-readiness.py; do not hand-edit)
           ESHU_ADMIN_REOPEN_PROOF_DISPOSABLE: '1'
-          ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DISPOSABLE: '1'
-          ESHU_REACHABILITY_EDGES_SCOPE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_REACHABILITY_EDGES_SCOPE_PROOF_DISPOSABLE: '1'
-          ESHU_REACHABILITY_COMPLETED_INDEX_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_REACHABILITY_COMPLETED_INDEX_PROOF_DISPOSABLE: '1'
-          ESHU_DRIFTED_BUCKET_SKIP_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_DRIFTED_BUCKET_SKIP_PROOF_DISPOSABLE: '1'
-          ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_ADMIN_REOPEN_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE: '1'
+          ESHU_AWS_DRIFT_ARN_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DISPOSABLE: '1'
-          ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_PROJECTOR_SUPERSESSION_PROOF_DISPOSABLE: '1'
-          ESHU_PREFETCH_BATCH_PLAN_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_PREFETCH_BATCH_PLAN_PROOF_DISPOSABLE: '1'
-          ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_TEST_CONTENT_INDEX_POSTGRES_READ_DSN: postgres://postgres:local-proof-only@127.0.0.1:15433/postgres?sslmode=disable
-          ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE: '1'
+          ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_CONTENT_FILES_LANGUAGE_PROOF_DISPOSABLE: '1'
+          ESHU_CONTENT_FILES_LANGUAGE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_CONTENT_SEARCH_PROOF_DISPOSABLE: '1'
+          ESHU_CONTENT_SEARCH_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DISPOSABLE: '1'
+          ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE: '1'
+          ESHU_DEFERRED_PARTITION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_DRIFTED_BUCKET_SKIP_PROOF_DISPOSABLE: '1'
+          ESHU_DRIFTED_BUCKET_SKIP_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DISPOSABLE: '1'
+          ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE: '1'
+          ESHU_GENERATION_RETENTION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_GRAPH_BACKEND: neo4j
+          ESHU_IDENTITY_EPOCH_PROOF_DISPOSABLE: '1'
+          ESHU_IDENTITY_EPOCH_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_NEO4J_DATABASE: neo4j
+          ESHU_NEO4J_PASSWORD: local-proof-only
           ESHU_NEO4J_URI: neo4j://127.0.0.1:7687
           ESHU_NEO4J_USERNAME: neo4j
-          ESHU_NEO4J_PASSWORD: local-proof-only
-          ESHU_NEO4J_DATABASE: neo4j
-          ESHU_REDUCER_FAIRNESS_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_REDUCER_FAIRNESS_PROOF_DISPOSABLE: '1'
-          ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_REDUCER_ACK_RECLAIM_PROOF_DISPOSABLE: '1'
-          ESHU_RECOVERY_DELTA_ACTIVE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE: '1'
+          ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DISPOSABLE: '1'
+          ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_POSTGRES_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_PREFETCH_BATCH_PLAN_PROOF_DISPOSABLE: '1'
+          ESHU_PREFETCH_BATCH_PLAN_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DISPOSABLE: '1'
+          ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_PROJECTOR_SUPERSESSION_PROOF_DISPOSABLE: '1'
+          ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_REACHABILITY_COMPLETED_INDEX_PROOF_DISPOSABLE: '1'
+          ESHU_REACHABILITY_COMPLETED_INDEX_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_REACHABILITY_EDGES_SCOPE_PROOF_DISPOSABLE: '1'
+          ESHU_REACHABILITY_EDGES_SCOPE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DISPOSABLE: '1'
+          ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_RECOVERY_DELTA_ACTIVE_PROOF_DISPOSABLE: '1'
-          ESHU_CONTENT_SEARCH_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_CONTENT_SEARCH_PROOF_DISPOSABLE: '1'
-          ESHU_SCOPED_SEARCH_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_RECOVERY_DELTA_ACTIVE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_REDUCER_ACK_RECLAIM_PROOF_DISPOSABLE: '1'
+          ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_REDUCER_FAIRNESS_PROOF_DISPOSABLE: '1'
+          ESHU_REDUCER_FAIRNESS_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DISPOSABLE: '1'
+          ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DISPOSABLE: '1'
+          ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_SCOPED_SEARCH_PROOF_DISPOSABLE: '1'
-          ESHU_IDENTITY_EPOCH_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_IDENTITY_EPOCH_PROOF_DISPOSABLE: '1'
-          ESHU_AWS_DRIFT_ARN_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE: '1'
+          ESHU_SCOPED_SEARCH_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_STATUS_SUMMARY_PROOF_DISPOSABLE: '1'
+          ESHU_STATUS_SUMMARY_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_STATUS_TERRAFORM_SELECTION_PROOF_DISPOSABLE: '1'
+          ESHU_STATUS_TERRAFORM_SELECTION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_SUPPRESSION_PATHS_PROOF_DISPOSABLE: '1'
+          ESHU_SUPPRESSION_PATHS_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE: '1'
+          ESHU_TARGETED_MAINTENANCE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE: '1'
+          ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_TEST_CONTENT_INDEX_POSTGRES_READ_DSN: postgres://postgres:local-proof-only@127.0.0.1:15433/postgres?sslmode=disable
           ESHU_WEBHOOK_CLAIM_LEASE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          # END GENERATED READINESS ENV
         run: bash scripts/run-live-postgres-readiness-tests.sh --shard "${{ matrix.shard }}/4" --report readiness-shard-report.json
 
       - name: Upload shard coverage report

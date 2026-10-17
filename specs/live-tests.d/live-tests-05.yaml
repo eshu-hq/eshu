@@ -185,26 +185,6 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/storage/postgres/active_code_call_symbols_ahead_manifest_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7609 disposable PostgreSQL 18 proof of the generation-anchored manifest read: ahead manifests keep every producer candidate, the supersede-then-delta hole stays covered, and dirty non-producer scopes stay gated; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/active_symbol_loader_composer_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7601 disposable PostgreSQL 18 proof of the composer.json producer leg for PHP package keys: nested manifests anchor, vendor/ manifests and package.json lookalikes do not, dirty composer scopes are scanned, npm and composer names read their own manifests in one request, and an unpublished composer key issues no scan; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/active_symbol_loader_package_fixture_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#8244 disposable PostgreSQL 18 proof that a package.json under a test, tests, fixtures, testdata, or examples directory is not a package producer (a real manifest of the same name still anchors, substring look-alikes still anchor), and that the one fixture pattern evaluates identically in PostgreSQL ~ and Go regexp on a path corpus including the long s; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/content_files_generation_tag_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7760 disposable PostgreSQL 18 proof of the content_files generation tag: ahead, dangling, null, and manifest-less tags read dirty on both the package and gomod reads, activated tags read clean, the writer stamps every row and stores NULL for a blank generation, and the migration-169 backfill attributes only clean scopes; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
-    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/facts_active_container_image_ci_owner_live_test.go
     tag: integration
     class: scheduled
@@ -249,11 +229,6 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/storage/postgres/delta_union_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7797 disposable PostgreSQL proof of the delta-base union read: delta over base with tombstone and deleted-path removal, base-missing refusal, pruned-base refusal, and the independent ACTIVE snapshot; each test runs in an isolated disposable schema (unique name, DROP SCHEMA cleanup) in 0.05-0.08s locally (package 0.324s); enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
-    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/freshness/links/fence_breach_live_test.go
     tag: ~
     class: scheduled
@@ -407,66 +382,11 @@ tests:
     class: dedicated_ci
     reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.66s); docs/internal/evidence/7533-contention-live-proof.md"
     runner: reducer-contention
-  - file: go/internal/storage/postgres/generation_retention_hard_ceiling_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7585 disposable PostgreSQL 18 boundary proof that the hard history ceiling caps the retained count (100-day-old rank-1 generation pruned under the configured and the defaulted 90d ceilings, 10-day-old rank-1 retained); local run passed in 2.14s wall with the full 178-migration setup on postgres:18-alpine on 2026-10-04"
-    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/generation_retention_lock_set_live_test.go
     tag: ~
     class: dedicated_ci
     reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 6.33s); docs/internal/evidence/7533-contention-live-proof.md"
     runner: reducer-contention
-  - file: go/internal/storage/postgres/generation_retention_relock_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7334 disposable PostgreSQL 18 proof of unlocked planning (own-fact pre-screen skip, fact-index probe, targeted re-lock plan shape, EPQ raced-member drop) on the migrated schema, enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed all 4 tests in 5.53s wall with the migrated-schema setup on postgres:18 on 2026-10-09"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/content_files_language_covering_index_replay_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7728 disposable PostgreSQL 18 proof that the guarded language-index swap converges (fresh and upgrade) and that tracked plus untracked replays leave the index untouched, enrolled in the live-postgres-readiness runner; bridges the family ESHU_CONTENT_FILES_LANGUAGE_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN. local run passed fresh+upgrade in 4.16s wall on postgres:18.6 on 2026-10-12"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/generation_retention_relock_uncovered_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7903 disposable PostgreSQL 18 proof that the targeted re-lock drops a candidate that flips to uncovered-writer coverage after selection and counts it as skipped while still pruning a covered bystander, enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed in 1.31s wall with the full 188-migration setup on postgres:18 on 2026-10-11"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/generation_retention_samesha_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7981 disposable PostgreSQL 18 proof that the general and targeted candidate queries admit the same same-SHA duplicates past the count window in lockstep, that the witness retains each batch's newest copy per identity, and that a covered-but-never-activated generation prunes past the hard ceiling while an uncovered writer is retained and counted, enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed all 3 tests in 6.81s wall with the migrated-schema setup on postgres:16 on 2026-10-14"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/generation_retention_chunk_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7981 disposable PostgreSQL 18 proof that an over-limit generation drains one bounded fact chunk per cycle and prunes whole once the remainder fits with no orphan rows, that the chunk statements roll back atomically, and that a lock-held chunk target drops silently (the concurrent-insert proof moved to generation_retention_chunk_insert_wait_live_test.go in #8206), enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed all 4 tests (3 remain here after #8206) in 9.38s wall with the migrated-schema setup on postgres:16 on 2026-10-14"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/generation_retention_chunk_insert_wait_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#8206 disposable PostgreSQL 18 proof that five fact inserts started after the chunked re-lock holds the over-limit chunk target all wait on its row locks (counted in pg_stat_activity), then commit after the one bounded page drains, enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed 50 of 50 with -count=50 on postgres:18.6 on 2026-10-16"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/generation_retention_fact_keys_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7420 disposable PostgreSQL proof that, with the three per-fact key foreign keys dropped by migrations 188-190 in the isolated migrated schema, the whole-generation prune and every over-limit chunk cycle leave zero orphan key sidecar rows and report the explicit deletes in RowsPruned, and that a dropped, INVALID or misshapen key sidecar partition index refuses the cycle, enrolled in the live-postgres-readiness runner; bridges ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN. local run passed all 3 tests in 4.15s of test time on PostgreSQL 18.6 on 2026-10-15"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/generation_retention_fact_keys_plan_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7420 disposable PostgreSQL proof that every key sidecar delete prepares against the migrated schema and plans on its (scope_id, generation_id, fact_id) partition index under no statistics, ANALYZE, custom and forced-generic plans, with executed buffers bounded by rows deleted and seeded REDs for the fact_id-only form and a dropped index, enrolled in the live-postgres-readiness runner; bridges ESHU_GENERATION_RETENTION_PROOF_DSN. local run passed both tests in 6.93s of test time on PostgreSQL 18.6 on 2026-10-15"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/generation_retention_fact_keys_accuracy_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7420 disposable PostgreSQL proof that orphan relationship keys are invisible to the deferred relationship fact load, that the key writers replace an orphan key by fact_id, and that a fact insert into a pruned generation fails before any key write, enrolled in the live-postgres-readiness runner; reads ESHU_GENERATION_RETENTION_PROOF_DSN and ESHU_DEFERRED_PARTITION_PROOF_DSN. local run passed all 3 tests in 4.55s of test time on PostgreSQL 18.6 on 2026-10-15"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/generation_retention_fact_keys_concurrency_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7420 disposable PostgreSQL two-session proof that retention key deletes overlap an ingestion-shaped key writer without blocking it, are idempotent on retry, and run beside the package key scope rebuild without deadlock in lock order while the reversed order deadlocks (seeded RED), enrolled in the live-postgres-readiness runner; bridges ESHU_GENERATION_RETENTION_PROOF_DSN. local run passed all 3 tests in 9.97s of test time on PostgreSQL 18.6 on 2026-10-15"
-    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/generation_retention_fairness_live_test.go
     tag: ~
     class: dedicated_ci
@@ -482,26 +402,6 @@ tests:
     class: dedicated_ci
     reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.29s); docs/internal/evidence/7533-contention-live-proof.md"
     runner: reducer-contention
-  - file: go/internal/storage/postgres/generation_retention_large_fixture_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7695 disposable PostgreSQL 18 proof that the store prunes 100 superseded generations (50,000 fact rows) on the migrated schema while the active generation and the retained window survive, enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. Upper-bound timing: 3.4s locally (bootstrap + 63k-row seed + prune) on postgres:18 on 2026-10-08; wall time is logged, not gated"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/generation_retention_uncovered_writer_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7472 disposable PostgreSQL 18 proof that retention keeps an uncovered superseded writer (reconcile-probe evidence) at any age while still pruning a covered writer, enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed in 1.30s wall with the full 188-migration setup on postgres:18 on 2026-10-10"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/generation_retention_delta_base_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7802 disposable PostgreSQL 18 proof that retention keeps a delta-active scope's newest activated full generation and its delta chain past the 90-day hard ceiling while still pruning an active-full scope's old superseded generation, enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does; also proves a newer pending or failed full never displaces the activated base. local run passed in 1.69s wall with the full 196-migration setup on native PostgreSQL 18.6 on 2026-10-15"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/generation_retention_delta_base_relock_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7802 disposable PostgreSQL 18 proof that the targeted re-lock keeps a chain delta that became delta-protected between selection and re-lock, and still prunes a bystander older than the base, with and without a newer pending full, enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed in 1.20s wall with the full 196-migration setup on native PostgreSQL 18.6 on 2026-10-15"
-    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/generation_uncovered_writers_live_test.go
     tag: ~
     class: dedicated_ci
@@ -515,8 +415,3 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/storage/postgres/identity_epoch_active_set_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7805 disposable PostgreSQL 18 proof, on the migrated schema in a private schema, that deleting superseded-generation identity facts leaves the epoch unchanged while an active-generation insert or delete moves it, and that the identity page serves only non-tombstone identity facts of a scope's active generation; timing evidence: the same page query loads the 546k-row active set in 4.7s (docs/internal/evidence/7805-identity-epoch-flight.md)"
-    runner: live-postgres-readiness

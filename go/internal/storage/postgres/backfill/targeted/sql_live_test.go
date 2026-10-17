@@ -3,6 +3,10 @@
 
 package targeted_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7584 disposable PostgreSQL 18 proof that the repo-bounded and partition-bounded repository-generation reads equal the shipped corpus-wide read filtered in Go, including a repo_id DISTINCT ON collision; enrolled in the live-postgres-readiness runner; local run passed in 1.04s of test time on the pinned postgres:18 image (2 CPUs, 1 GiB) on 2026-10-05; wall time is logged, not gated
+//eshu:readiness:env ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE ESHU_TARGETED_MAINTENANCE_PROOF_DSN
+
 import (
 	"context"
 	"fmt"

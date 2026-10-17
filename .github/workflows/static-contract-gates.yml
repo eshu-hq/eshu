@@ -62,6 +62,7 @@ jobs:
       dockerpublish: ${{ steps.filter.outputs.dockerpublish }}
       dockerhublogin: ${{ steps.filter.outputs.dockerhublogin }}
       workflowscriptcheckout: ${{ steps.filter.outputs.workflowscriptcheckout }}
+      readinessderive: ${{ steps.filter.outputs.readinessderive }}
       matrix: ${{ steps.gate-matrix.outputs.matrix }}
       any: ${{ steps.gate-matrix.outputs.any }}
     steps:
@@ -166,6 +167,7 @@ jobs:
           # over the slowest sample.
           append_gate "${{ steps.filter.outputs.dockerhublogin }}" "dockerhublogin" "Verify Docker Hub login gate" "bash scripts/test-verify-dockerhub-login.sh && bash scripts/test-ci-image-compose.sh && bash scripts/ci/test-image-overrides.sh && bash scripts/ci/test-build-reproducibility-image.sh && bash scripts/ci/test-mirror-images.sh && python3 scripts/ci/test-tools-workflow.py" "bash scripts/verify-dockerhub-login.sh" 30
           append_gate "${{ steps.filter.outputs.workflowscriptcheckout }}" "workflowscriptcheckout" "Verify workflow script checkout gate" "bash scripts/test-verify-workflow-script-checkout.sh" "bash scripts/verify-workflow-script-checkout.sh"
+          append_gate "${{ steps.filter.outputs.readinessderive }}" "readinessderive" "Verify live-readiness registration drift gate" "bash scripts/test-generate-live-postgres-readiness.sh" "bash scripts/verify-live-postgres-readiness-drift.sh"
           # The observed cold sweep took 25m31s for 73 configurations. Its old
           # 30m job expired during a 3m35s cache save, after vet passed. A 40m
           # envelope covers that recorded sweep, bounded restore, setup/cleanup, and

@@ -3,6 +3,9 @@
 
 package impact
 
+//eshu:readiness-helper live-postgres-readiness
+//eshu:readiness-helper:reason #7533 helper-only source with no Test root; exercised by the enrolled TestSupplyChainSuppressionPathsPerformanceLive proof in the preimplementation main run at 271d54e5 (readiness run 38997937360, shard 1 job 117294524860: 24.070s PASS); source dependency pinned in the live-postgres-readiness helper inventory
+
 import (
 	"context"
 	"database/sql"

@@ -3,6 +3,10 @@
 
 package artifacts_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8155 (#7126 PR3b-2b) derive ordering and failure semantics: a content write injected between the version read and the list leaves state.content_version = v0 below the version (Classify stale_version); pg_locks and pg_stat_activity show no advisory lock and no open transaction during extraction and one lock inside step 3; an older extractor never replaces a newer extractor's rows; a superseded derive and a failed insert (SQLSTATE 22021) leave the rows and trust columns unchanged; a timeout and a panic write a failure-only state row; about 19 s locally; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

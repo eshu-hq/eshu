@@ -3,6 +3,10 @@
 
 package targeted_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7584 disposable PostgreSQL 18 per-owed outcomes of the partition-scoped pass (not_active before the catalog guard, no_memo_baseline, NULL active pointer from the real projector Fail path, repo_id collision loser, empty catalog) and its targeted-only metric series; enrolled in the live-postgres-readiness runner; local run passed in 11.99s of test time on the pinned postgres:18 image (2 CPUs, 1 GiB) on 2026-10-05; wall time is logged, not gated
+//eshu:readiness:env ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE ESHU_TARGETED_MAINTENANCE_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

@@ -3,6 +3,10 @@
 
 package summary_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7009 disposable PostgreSQL 18 proofs of the reducer status summary writer: after a pass the stored row equals the live active-work statement at its as_of in one snapshot at 0.2, 50 and 100 percent live work and when empty (with a non-vacuity mutation), a backend killed between the statement and the upsert leaves the old row whole, a newer stored row is kept (rejected_guard), a missing table is skipped until migration 161 applies, a row from another statement digest is replaced, the pass runs READ COMMITTED under a REPEATABLE READ database default, and a second writer skips while the first holds the advisory lock; the blocking reducer-contention-gate step also runs it with ESHU_REQUIRE_STATUS_SUMMARY_WRITER_PROOF=1, so an unset DSN fails there
+//eshu:readiness:env ESHU_STATUS_SUMMARY_PROOF_DISPOSABLE ESHU_STATUS_SUMMARY_PROOF_DSN
+
 import (
 	"context"
 	"reflect"

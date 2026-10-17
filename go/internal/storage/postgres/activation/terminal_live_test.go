@@ -3,6 +3,10 @@
 
 package activation_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7584 activation obligation terminal states on the full bootstrap schema in an isolated disposable PostgreSQL schema: cloud scope retires inapplicable with no callback and no reclaim, catalog-changed refusal is held at lease cadence with no consumer pass, and a NULL active pointer from the real projector Fail retires obsolete with no wake
+//eshu:readiness:env ESHU_DEFERRED_PARTITION_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

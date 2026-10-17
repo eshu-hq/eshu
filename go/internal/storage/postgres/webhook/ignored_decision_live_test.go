@@ -3,6 +3,10 @@
 
 package webhookstore_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7795 disposable PostgreSQL proof that an ignored redelivery demotes the queued row to ignored, that a stale claimed row with an ignored decision fails with the ignored_decision class instead of requeueing and stays terminal across reaps, and that the same-tick ignored-decision fail is decision-guarded and returns only the rows it terminated; runs in isolated disposable schemas gated by the ESHU_WEBHOOK_CLAIM_LEASE_PROOF_DSN env Skip; enrolled in the live-postgres-readiness runner; wall time is logged, not gated
+//eshu:readiness:env ESHU_WEBHOOK_CLAIM_LEASE_PROOF_DSN
+
 import (
 	"context"
 	"testing"

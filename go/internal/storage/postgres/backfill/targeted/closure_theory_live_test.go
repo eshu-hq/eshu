@@ -7,6 +7,10 @@
 // ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE=1.
 package targeted_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7584 disposable PostgreSQL 18 read-side parity proof that the target-catalog inbound load plus the exact owed partition load equals the full deferred loader for evidence touching the owed repository; enrolled in the live-postgres-readiness runner; local run passed in 0.30s of test time on the pinned postgres:18 image (2 CPUs, 1 GiB) on 2026-10-05; wall time is logged, not gated
+//eshu:readiness:env ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE ESHU_TARGETED_MAINTENANCE_PROOF_DSN
+
 import (
 	"context"
 	"encoding/json"

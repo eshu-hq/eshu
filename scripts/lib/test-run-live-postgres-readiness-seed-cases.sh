@@ -14,9 +14,9 @@ for location in empty malformed; do
   cp "${repo_root}/scripts/lib/live_postgres_readiness_records.py" "${seed_dir}/${location}/"
   cp "${repo_root}"/scripts/lib/live_postgres_readiness_inventory*.py "${seed_dir}/${location}/"
 done
-sed 's/^PACKAGES = .*/PACKAGES = {}/' "${repo_root}/scripts/lib/live_postgres_readiness_inventory.py" \
-  >"${seed_dir}/empty/live_postgres_readiness_inventory.py"
-cmp -s "${repo_root}/scripts/lib/live_postgres_readiness_inventory.py" "${seed_dir}/empty/live_postgres_readiness_inventory.py" && fail "empty seed changed nothing"
+sed '/^PACKAGES = {/,/^}/c\PACKAGES = {}' "${repo_root}/scripts/lib/live_postgres_readiness_inventory_generated.py" \
+  >"${seed_dir}/empty/live_postgres_readiness_inventory_generated.py"
+cmp -s "${repo_root}/scripts/lib/live_postgres_readiness_inventory_generated.py" "${seed_dir}/empty/live_postgres_readiness_inventory_generated.py" && fail "empty seed changed nothing"
 out="$(python3 "${seed_dir}/empty/live_postgres_readiness_results.py" list-packages 2>&1)" && fail "empty PACKAGES listed"
 [[ "${out}" == *"PACKAGES is empty"* ]] || fail "empty PACKAGES not named: ${out}"
 sed "s/\"${last_proof}\"/\"not a test\"/" "${last_proof_module}" >"${seed_dir}/malformed/$(basename "${last_proof_module}")"

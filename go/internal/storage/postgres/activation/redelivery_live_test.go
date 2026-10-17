@@ -3,6 +3,10 @@
 
 package activation_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7584 composed concurrency: duplicate projector Ack redelivery, a re-activating Ack racing catch-up, and two catch-ups re-owing one obsolete row (free and held-lock races), plus supersession between claim and finalize through the real projector path, on the full bootstrap schema in isolated disposable PostgreSQL schemas
+//eshu:readiness:env ESHU_DEFERRED_PARTITION_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

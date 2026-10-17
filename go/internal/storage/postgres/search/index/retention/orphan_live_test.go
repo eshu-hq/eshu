@@ -3,6 +3,10 @@
 
 package indexretention_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7427 PR2 disposable PostgreSQL 18 proof of the search index orphan census and sweep: the census reads 0 on a clean tree (terms generation foreign key dropped by migration 191, documents key present), and with the documents key also dropped inside the isolated test schema only a generation missing from scope_generations loses rows while active, pending, superseded and dangling-active-pointer generations keep every row, a second sweep is a no-op, two concurrent sweeps delete each row once without deadlock, a late writer's row is swept by the re-sweep or the next census, and the retained scope_id foreign key rejects a row for an unknown scope; enrolled in the live-postgres-readiness runner; reads ESHU_GENERATION_RETENTION_PROOF_DSN (with its DISPOSABLE flag) and creates one isolated bootstrapped schema per test. local run passed all 6 tests in 11.4s of test time on PostgreSQL 18.6 on 2026-10-16
+//eshu:readiness:env ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE ESHU_GENERATION_RETENTION_PROOF_DSN ESHU_POSTGRES_DSN
+
 import (
 	"errors"
 	"strings"

@@ -3,6 +3,10 @@
 
 package artifacts_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8155 (#7126 PR3b-2b) one repository lock for the write and the failure-only update: a failing derive's failure record waits on the advisory lock a newer successful write holds, and the held and waiting pg_locks keys both equal hashtextextended(repoLockKey, 0); 30 rounds racing a newer successful write against a failing derive in both orders never lower content_version or change the rows; about 3-8 s locally; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

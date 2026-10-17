@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7663 disposable PostgreSQL 18 proofs that the package-consumption backfill rebuilds a 24-page scope one page per transaction (a reducer-style FK insert completes and the ingester's scope upsert stays excluded while a page is stalled), aborts with SQLSTATE 55P03 within its 5 s lock_timeout without advancing the cursor or marking ready, and rolls back only the in-flight page on a page failure or cancel before converging on the facts. Two proofs wait out the 5 s lock_timeout by design; local run 2.7s, 6.0s, and 6.7s on postgres 18.6 on 2026-10-15; wall time is logged, not gated
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

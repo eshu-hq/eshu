@@ -3,6 +3,10 @@
 
 package indexretention_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7427 PR3 disposable PostgreSQL 18 proof of migration 191: after bootstrap no foreign key from the terms parent or any leaf references scope_generations while the scope_id, documents and stats keys stay; the lock-ordered block drops the key under both field names and a leaf-only key, a re-run takes no table lock, it waits holding no terms lock beside the prune order and the writer order and fails with 55P03 at once beside a terms-only holder; enrolled in the live-postgres-readiness runner; reads ESHU_GENERATION_RETENTION_PROOF_DSN (with its DISPOSABLE flag) and creates one isolated bootstrapped schema per test. local run passed all 3 tests in 4.4s of test time on PostgreSQL 18.6 on 2026-10-16
+//eshu:readiness:env ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE ESHU_GENERATION_RETENTION_PROOF_DSN ESHU_POSTGRES_DSN
+
 import (
 	"database/sql"
 	"errors"

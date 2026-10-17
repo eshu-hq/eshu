@@ -1,27 +1,16 @@
 #!/usr/bin/env python3
 """Derived views and checks over the live PostgreSQL readiness inventory.
 
-PACKAGES lives in live_postgres_readiness_inventory.py (data only), plus the
-siblings live_postgres_readiness_inventory_own_gate.py,
-live_postgres_readiness_inventory_config_fence.py, and
-live_postgres_readiness_inventory_reopen_gate.py merged below. This
-module derives EXPECTED and TOTAL_TESTS from it and owns the fail-closed
-checks the runner relies on; it is the one import site for callers.
+PACKAGES is generated from enrollment markers in the test files by
+scripts/generate-live-postgres-readiness.py (see
+live_postgres_readiness_inventory_generated.py); this module derives
+EXPECTED and TOTAL_TESTS from it and owns the fail-closed checks the
+runner relies on. It is the one import site for callers.
 """
 
 import re
 
-from live_postgres_readiness_inventory import PACKAGES
-from live_postgres_readiness_inventory_config_fence import CONFIG_FENCE_PACKAGES
-from live_postgres_readiness_inventory_own_gate import OWN_GATE_PACKAGES
-from live_postgres_readiness_inventory_reopen_gate import REOPEN_GATE_PACKAGES
-
-# Merge the sibling tables into their existing packages only, so an emptied or
-# partial PACKAGES never gains a package from here.
-for _sibling in (OWN_GATE_PACKAGES, CONFIG_FENCE_PACKAGES, REOPEN_GATE_PACKAGES):
-    for _package, _files in _sibling.items():
-        if _package in PACKAGES:
-            PACKAGES[_package] = {**PACKAGES[_package], **_files}
+from live_postgres_readiness_inventory_generated import PACKAGES
 
 __all__ = ["EXPECTED", "PACKAGES", "TOTAL_TESTS", "neo4j_tests", "package_records"]
 

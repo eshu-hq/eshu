@@ -3,6 +3,10 @@
 
 package artifacts_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8155 S3 arm 6 as a PR test through the production ContentWriter and GenerationRetentionStore: exact version rewrites full 10, delta 2, reap 4, bulk 1, prune 1 per repository, with a seeded per-row unguarded fence that misses the counts (RED); enrolled in the live-postgres-readiness runner; 11-17 s per proof on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated
+//eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

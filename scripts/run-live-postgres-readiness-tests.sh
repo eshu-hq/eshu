@@ -3,8 +3,8 @@
 # quiet-generation, activation obligation, #7584 targeted-maintenance,
 # reindex watermark plan/correctness, container image identity epoch-gate,
 # #7209 projector zombie-heal, and #7471 marked-write-age signal proofs
-# listed in scripts/lib/live_postgres_readiness_inventory*.py on disposable
-# PostgreSQL 18
+# enrolled by markers in the test files (rendered to generated registration
+# by scripts/generate-live-postgres-readiness.py) on disposable PostgreSQL 18
 # (plus a disposable Neo4j for the zombie-heal graph proof when its env is
 # configured; without one the graph proofs are excused and named in the
 # summary), one go test per package.
@@ -42,76 +42,20 @@ fi
 command -v go >/dev/null 2>&1 || die "go is required"
 command -v python3 >/dev/null 2>&1 || die "python3 is required"
 
-# ESHU_POSTGRES_DSN and ESHU_WEBHOOK_CLAIM_LEASE_PROOF_DSN carry no
-# _DISPOSABLE twin: their tests create and drop isolated schemas instead of
-# gating on a disposable-database flag.
-for name in \
-  ESHU_POSTGRES_DSN \
-  ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN \
-  ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DSN \
-  ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN \
-  ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DSN \
-  ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DSN \
-  ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DSN \
-  ESHU_SUPPRESSION_PATHS_PROOF_DSN \
-  ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DSN \
-  ESHU_GENERATION_RETENTION_PROOF_DSN \
-  ESHU_CONTENT_FILES_LANGUAGE_PROOF_DSN \
-  ESHU_STATUS_TERRAFORM_SELECTION_PROOF_DSN \
-  ESHU_DEFERRED_PARTITION_PROOF_DSN \
-  ESHU_TARGETED_MAINTENANCE_PROOF_DSN \
-  ESHU_STATUS_SUMMARY_PROOF_DSN \
-  ESHU_ADMIN_REOPEN_PROOF_DSN \
-  ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DSN \
-  ESHU_REACHABILITY_EDGES_SCOPE_PROOF_DSN \
-  ESHU_DRIFTED_BUCKET_SKIP_PROOF_DSN \
-  ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DSN \
-  ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN \
-  ESHU_PREFETCH_BATCH_PLAN_PROOF_DSN \
-  ESHU_REDUCER_FAIRNESS_PROOF_DSN \
-  ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN \
-  ESHU_RECOVERY_DELTA_ACTIVE_PROOF_DSN \
-  ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN \
-  ESHU_TEST_CONTENT_INDEX_POSTGRES_READ_DSN \
-  ESHU_CONTENT_SEARCH_PROOF_DSN \
-  ESHU_SCOPED_SEARCH_PROOF_DSN \
-  ESHU_IDENTITY_EPOCH_PROOF_DSN \
-  ESHU_AWS_DRIFT_ARN_PROOF_DSN \
-  ESHU_WEBHOOK_CLAIM_LEASE_PROOF_DSN; do
+# The required proof env lists below are generated from the enrollment
+# markers in the test files (scripts/lib/live_postgres_readiness_env.sh);
+# do not hand-edit that file. ESHU_POSTGRES_DSN and
+# ESHU_WEBHOOK_CLAIM_LEASE_PROOF_DSN carry no _DISPOSABLE twin: their tests
+# create and drop isolated schemas instead of gating on a
+# disposable-database flag.
+# shellcheck source=lib/live_postgres_readiness_env.sh
+source "${repo_root}/scripts/lib/live_postgres_readiness_env.sh"
+for name in "${READINESS_DSN_VARS[@]}"; do
   [[ -n "${!name:-}" ]] || die "${name} must name the administrative postgres database"
   [[ "${!name}" == */postgres\?* || "${!name}" == */postgres ]] ||
     die "${name} must target the administrative postgres database"
 done
-for name in \
-  ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DISPOSABLE \
-  ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DISPOSABLE \
-  ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE \
-  ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DISPOSABLE \
-  ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DISPOSABLE \
-  ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DISPOSABLE \
-  ESHU_SUPPRESSION_PATHS_PROOF_DISPOSABLE \
-  ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DISPOSABLE \
-  ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE \
-  ESHU_CONTENT_FILES_LANGUAGE_PROOF_DISPOSABLE \
-  ESHU_STATUS_TERRAFORM_SELECTION_PROOF_DISPOSABLE \
-  ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE \
-  ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE \
-  ESHU_STATUS_SUMMARY_PROOF_DISPOSABLE \
-  ESHU_ADMIN_REOPEN_PROOF_DISPOSABLE \
-  ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DISPOSABLE \
-  ESHU_REACHABILITY_EDGES_SCOPE_PROOF_DISPOSABLE \
-  ESHU_DRIFTED_BUCKET_SKIP_PROOF_DISPOSABLE \
-  ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DISPOSABLE \
-  ESHU_PROJECTOR_SUPERSESSION_PROOF_DISPOSABLE \
-  ESHU_PREFETCH_BATCH_PLAN_PROOF_DISPOSABLE \
-  ESHU_REDUCER_FAIRNESS_PROOF_DISPOSABLE \
-  ESHU_REDUCER_ACK_RECLAIM_PROOF_DISPOSABLE \
-  ESHU_RECOVERY_DELTA_ACTIVE_PROOF_DISPOSABLE \
-  ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE \
-  ESHU_CONTENT_SEARCH_PROOF_DISPOSABLE \
-  ESHU_SCOPED_SEARCH_PROOF_DISPOSABLE \
-  ESHU_IDENTITY_EPOCH_PROOF_DISPOSABLE \
-  ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE; do
+for name in "${READINESS_DISPOSABLE_VARS[@]}"; do
   [[ "${!name:-}" == "1" ]] || die "${name} must be 1"
 done
 # Only the Neo4j graph proofs need a backend; everything else runs on plain

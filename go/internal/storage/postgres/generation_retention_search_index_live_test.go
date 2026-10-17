@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7427 disposable PostgreSQL 18 proof that the retention pass pre-deletes a superseded generation's search index terms and documents in committed batches before its targeted re-lock (0 rows at the re-lock, 45000 on main), admits only drained generations (search_index_undrained otherwise), skips a candidate whose advisory lock another session holds (advisory_lock_busy), that the marked candidate read prepares against the migrated schema, and (#7427 PR2 c3) that the generation freshness check returns (false, nil) for a pruned generation behind a NULL active pointer while the active, pending and unknown-scope branches keep their contract; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed all 4 tests in 10.4s wall with the migrated-schema setup on PostgreSQL 18.6 on 2026-10-15; with the c3 proof all 5 passed in 10.7s on 2026-10-16
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

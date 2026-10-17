@@ -3,6 +3,10 @@
 
 package artifacts_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8155 review finding N1: migration 186 re-applied while a content writer sleeps mid-statement (the migrator replays a file whose receipt was lost), 10 rounds, 0 deadlocks, the writer's commit still bumps once and the pending table empties; deadlocked in round 0 on the commit that adds this file (DDL locked the pending table before content_files); enrolled in the live-postgres-readiness runner; about 3 s on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated
+//eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
+
 import (
 	"fmt"
 	"testing"

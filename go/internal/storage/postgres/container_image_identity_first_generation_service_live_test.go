@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7916 disposable PostgreSQL 18 proof that actual sequential and batch reducer Service.Run dispatches defer first-generation work while an unrelated ready scope progresses, then replay after projector Ack; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DISPOSABLE ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

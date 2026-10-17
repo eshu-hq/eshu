@@ -3,6 +3,10 @@
 
 package artifacts_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8155 seed timing proof: migrations 186 and 187 on a content_files fixture over 3,000 repositories with every index present, then exactly one version-0 row per repository; 30,000 rows by default (ESHU_CONFIG_ARTIFACT_SEED_TIMING_ROWS=1000000 for the ruling size: 186 0.0033 s, 187 0.1329 s, fixture load 74 s, load1 45 on 2026-10-16); enrolled in the live-postgres-readiness runner; SEED_TIMING wall is logged, never gated
+//eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
+
 import (
 	"fmt"
 	"os"

@@ -3,6 +3,10 @@
 
 package artifacts_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8155 (#7126 PR3b-2b) a derive whose extractor output holds one (raw_path, relative_path, evidence_kind) triple twice fails loudly: the insert raises SQLSTATE 23505, step 3 rolls back, the derive records class sqlstate_23505 as a failure-only update and leaves the previous rows, content_version, extractor_version and row_count (or, on a first derive, a failure-only state row and no rows) instead of reporting ok with fewer stored rows than row_count; a second derive of one repository at a newer extractor version replaces the rows with the same set and row_count and no key conflict; about 2 s locally; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
+
 import (
 	"context"
 	"slices"

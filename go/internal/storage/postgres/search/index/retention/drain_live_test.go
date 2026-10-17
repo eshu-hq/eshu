@@ -3,6 +3,10 @@
 
 package indexretention_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7427 disposable PostgreSQL 18 proof of the search index pre-delete batches: only the superseded generation loses rows while the active generation's re-minted document ids survive, pending, active and still-pointed-at generations lose none, running eshu_search_document work blocks the drain, a drain cancelled mid-loop converges on rerun, the from-start re-sweep removes a row inserted behind the cursor, and a held advisory lock makes a drain skip while two concurrent drains delete each row once without deadlock; enrolled in the live-postgres-readiness runner; reads ESHU_GENERATION_RETENTION_PROOF_DSN (with its DISPOSABLE flag) and creates one isolated bootstrapped schema per test. local run passed all 6 tests in 15.3s wall on PostgreSQL 18.6 on 2026-10-15
+//eshu:readiness:env ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE ESHU_GENERATION_RETENTION_PROOF_DSN ESHU_POSTGRES_DSN
+
 import (
 	"context"
 	"errors"

@@ -3,6 +3,10 @@
 
 package artifacts_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8155 (#7126 PR3b-2b) S4-style equality of the derive core: every tests/fixtures directory and child directory plus the 26 recorded S0 corpus repositories are written to content_files, derived with DeriveRepository, and the stored rows after the read-time name step equal the live path's rows (the query package's ContentReader through LoadConfigPaths with the graph name, allowance -1) with 0 / 0 differing rows; the derive's own reader also equals the live reader; 220 repositories, 160 rows, about 4 s on a local PostgreSQL 18.6 on 2026-10-17; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
+
 import (
 	"bufio"
 	"encoding/json"

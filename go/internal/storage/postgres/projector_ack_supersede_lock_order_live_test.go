@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8261 projector Ack obsolete-generation supersede (supersedeProjectorObsoleteGenerationsQuery under Ack's lock_timeout) lock order against the scoped and stage-plus-class projector replays: the held-middle-row race completes for hex and mixed-case generation ids (main: 40P01 for mixed-case ids), 150 rounds over 18 obsolete generations give 0 x 40P01 with every obsolete row superseded (main: 38 x 40P01), the EvalPlanQual case keeps a row claimed before the lock step and its generation, and the supersede still gives up with 55P03 after Ack's 2 s lock_timeout behind a held row (main: the same); isolated schemas; about 70-90 s locally; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

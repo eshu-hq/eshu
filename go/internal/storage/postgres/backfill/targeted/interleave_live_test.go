@@ -3,6 +3,10 @@
 
 package targeted_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7584 disposable PostgreSQL 18 differential of the partition-scoped pass against the whole pass under a generation advance before the evidence commit and before the phase, successor activation, a failed sibling batch and its retry, promotion of an unprocessed source, and the catalog-change refusal; enrolled in the live-postgres-readiness runner; local run passed in 11.84s of test time on the pinned postgres:18 image (2 CPUs, 1 GiB) on 2026-10-05; wall time is logged, not gated
+//eshu:readiness:env ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE ESHU_TARGETED_MAINTENANCE_PROOF_DSN
+
 import (
 	"database/sql"
 	"errors"

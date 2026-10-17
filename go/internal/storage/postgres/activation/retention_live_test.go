@@ -3,6 +3,10 @@
 
 package activation_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7584 activation obligation FK cascade under the real generation-retention prune, bounded finished-row prune and state census on the full bootstrap schema in an isolated disposable PostgreSQL schema
+//eshu:readiness:env ESHU_DEFERRED_PARTITION_PROOF_DSN
+
 import (
 	"testing"
 	"time"

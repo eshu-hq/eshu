@@ -3,6 +3,10 @@
 
 package query
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7249 disposable PostgreSQL 18 proof of the active-run bound and its unbound fallbacks for the legacy dead-code incoming read, plus the #7547 proof of which repositories the cross-repo consumer-coverage statements report as gaps; every case passes on disposable PostgreSQL 18
+//eshu:readiness:env ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DISPOSABLE ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DSN ESHU_SCOPED_SEARCH_PROOF_DISPOSABLE ESHU_SCOPED_SEARCH_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

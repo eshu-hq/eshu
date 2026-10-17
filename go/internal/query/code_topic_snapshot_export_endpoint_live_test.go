@@ -3,6 +3,10 @@
 
 package query
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7957 disposable PostgreSQL 18 primary and physical-standby proof that the real code-topic HTTP endpoint refuses shared-snapshot export on an undeclared reader build (permanent 503, no reader borrow) and serves the parallel shared-snapshot path once the exact build is declared; the live-postgres-readiness runner requires both administrative DSNs and explicit disposable opt-in, and verifies every test PASS event
+//eshu:readiness:env ESHU_POSTGRES_DSN ESHU_SCOPED_SEARCH_PROOF_DISPOSABLE ESHU_SCOPED_SEARCH_PROOF_DSN ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN ESHU_TEST_CONTENT_INDEX_POSTGRES_READ_DSN
+
 import (
 	"bytes"
 	"context"

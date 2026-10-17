@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8243 disposable PostgreSQL 18 proof of the narrowed manifest-less dirty rule: every lifecycle fixture that can still need a producer (pending, uncovered writer, the supersede-then-delta hole, rows without a marked full) stays in the real loader's producer set on all three manifest reads, only covered superseded or failed generations leave it, and the rule agrees with UncoveredProjectionWriters; enrolled in the live-postgres-readiness runner; wall time is logged, not gated
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

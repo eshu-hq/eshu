@@ -120,11 +120,17 @@ Scoped instructions for the config-artifact read model (#7126). The root
   administrative `postgres` database DSN) and
   `ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE=1`; each test creates and drops
   its own database. They are enrolled in the `live-postgres-readiness` runner
-  (`scripts/lib/live_postgres_readiness_inventory*.py`,
-  `specs/live-tests.d/`).
+  with an `//eshu:readiness` marker in the test file itself, rendered to
+  generated registration by
+  `python3 scripts/generate-live-postgres-readiness.py`
+  (`scripts/lib/live_postgres_readiness_inventory_gen_*.py`,
+  `specs/live-tests.d/live-tests-readiness.generated.yaml`); adding a test
+  never hand-edits a shared file.
 
 ## Gates that will fire on your change
 
-- `verify-live-tests-ledger.sh` — a new `*_live_test.go` needs a ledger row.
+- `verify-live-tests-ledger.sh` — a new `*_live_test.go` needs an
+  `//eshu:readiness` marker (or another ledger classification), then a
+  regeneration before the drift gate runs.
 - The migration golden digest and checksum manifest in `../../migrations`.
 - `migration-immutability` lock-shape check on any new migration.

@@ -3,6 +3,10 @@
 
 package query
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7247 disposable PostgreSQL proof of the language-query id-anchored metadata read on a 160,000-row fixture with every bootstrap migration: exact rows for 200 graph-page ids under repository, grant and unscoped scope and none outside the scope, a content_entities_pkey index scan with no Seq Scan and at most 10 shared buffers per id under a custom and a forced generic plan, and the replaced page read's buffers logged for comparison; three local postgres:18-alpine runs took 9.3-11.5 s and two local postgres:18 (Debian) runs took 22-35 s
+//eshu:readiness:env ESHU_SCOPED_SEARCH_PROOF_DISPOSABLE ESHU_SCOPED_SEARCH_PROOF_DSN ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

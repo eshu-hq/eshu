@@ -164,11 +164,6 @@ tests:
     tag: live_nornicdb_answer_truth
     class: ci
     reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
-  - file: go/cmd/reducer/package_manifest_backfill_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7529 disposable PostgreSQL 18 proofs of the package-manifest backfill leadership lock (one candidate owns a pass, a crashed owner is taken over) and the single-connection pool (no starvation), enrolled in the live-postgres-readiness runner; the env-gated pair moved out of the hermetic package_manifest_backfill_test.go so this ledger can classify it. Upper-bound timing: in the local sixteen-proof runner the two proofs took 0.05s and 0.02s of test time (2.4s wall with a warm build cache) on postgres:18-alpine on tmpfs on 2026-10-03; an earlier run on a loaded laptop took under 1s; wall time is logged, not gated"
-    runner: live-postgres-readiness
   - file: go/cmd/reducer/repo_dependency_commit_response_loss_prove_theory_live_test.go
     tag: ~
     class: scheduled
@@ -238,21 +233,6 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/query/admin/reopen_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7321 disposable PostgreSQL 18 proof that the admin reopen reopens succeeded reducer rows (claimable through the production claim path) and one completed intent row per acceptance unit at the accepted source run, and that a repeated idempotency key is a no-op; enrolled in the live-postgres-readiness runner"
-    runner: live-postgres-readiness
-  - file: go/internal/query/admin/scope_selector_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7732 disposable PostgreSQL 18 proof that a scope-id/source-key collision fails closed (409 on skip and reopen, rows untouched); enrolled in the live-postgres-readiness runner"
-    runner: live-postgres-readiness
-  - file: go/internal/query/admin/reopen_rollover_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7734 disposable PostgreSQL 18 proof that a reopen whose scope rolls over mid-flight acts on the current generation (scope-row fence plus authoritative in-transaction resolve) instead of the stale pinned pointer; enrolled in the live-postgres-readiness runner"
-    runner: live-postgres-readiness
   - file: go/internal/query/admin/operator_note_live_test.go
     tag: ~
     class: scheduled
@@ -342,16 +322,6 @@ tests:
     tag: ~
     class: scheduled
     reason: disposable PostgreSQL guarded-reader parity proof gated by ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN and explicit opt-in; the graph live-backend job has no PostgreSQL DSN, so promote only after CI timing and provisioning evidence
-  - file: go/internal/query/code_topic_snapshot_export_endpoint_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7957 disposable PostgreSQL 18 primary and physical-standby proof that the real code-topic HTTP endpoint refuses shared-snapshot export on an undeclared reader build (permanent 503, no reader borrow) and serves the parallel shared-snapshot path once the exact build is declared; the live-postgres-readiness runner requires both administrative DSNs and explicit disposable opt-in, and verifies every test PASS event"
-    runner: live-postgres-readiness
-  - file: go/internal/query/code_topic_fleet_endpoint_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7033 disposable PostgreSQL 18 primary and physical-standby proof of the real code-topic HTTP endpoint under reader-pool pressure; the live-postgres-readiness runner requires both administrative DSNs and explicit disposable opt-in, and verifies every test PASS event; local focused three-repeat run took 17.527s and race run took 7.303s on 2026-10-09; fixture setup timing is reported by the runner"
-    runner: live-postgres-readiness
   - file: go/internal/query/codequery/chain/call_chain_grant_clause_live_test.go
     tag: live_nornicdb_call_chain
     class: scheduled
@@ -480,18 +450,3 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/query/content_reader_dead_code_incoming_bound_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7249 disposable PostgreSQL 18 proof of the active-run bound and its unbound fallbacks for the legacy dead-code incoming read, plus the #7547 proof of which repositories the cross-repo consumer-coverage statements report as gaps; every case passes on disposable PostgreSQL 18"
-    runner: live-postgres-readiness
-  - file: go/internal/query/content_reader_dead_code_refresh_probe_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7591 disposable PostgreSQL 18 proof that both cross-repo consumer-coverage statements ignore a refresh intent on a full generation, keep it on a delta generation, and count a legacy action-less row as an edge"
-    runner: live-postgres-readiness
-  - file: go/internal/query/content_reader_dead_code_root_paths_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7603 disposable PostgreSQL 18 proof that the cross-repo consumer-root path read returns one path per named root, leaves out a missing root and a root in another repository, and plans as a keyed entity_id lookup"
-    runner: live-postgres-readiness

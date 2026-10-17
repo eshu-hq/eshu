@@ -3,6 +3,10 @@
 
 package query
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7730 disposable PostgreSQL proof of the unscoped entity search walk: page equality with the old single statement, the four-part keyset and window-edge exactness, and the plan shapes (walk-order index windows with no trigram node; trigram bitmap tail under disabled index scans); one local PostgreSQL 16 run took about 24 s
+//eshu:readiness:env ESHU_CONTENT_SEARCH_PROOF_DISPOSABLE ESHU_CONTENT_SEARCH_PROOF_DSN ESHU_SCOPED_SEARCH_PROOF_DISPOSABLE ESHU_SCOPED_SEARCH_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

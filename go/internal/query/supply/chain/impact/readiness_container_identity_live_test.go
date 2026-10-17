@@ -3,6 +3,10 @@
 
 package impact
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7529 disposable PostgreSQL 18 mutable-ref proof over a 513-digest set, enrolled in the live-postgres-readiness runner; local six-proof runner passed in 28s suite time (1.84s for this proof) on postgres:18.6-alpine on 2026-10-03
+//eshu:readiness:env ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DISPOSABLE ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"
