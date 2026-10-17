@@ -20,7 +20,7 @@ func TestFIPSAdminMappingAndChangedSinceQueriesAvoidMD5(t *testing.T) {
 	}
 	for name, query := range queries {
 		if strings.Contains(strings.ToLower(query), "md5(") {
-			t.Errorf("%s invokes MD5, which fails on the ops-qa FIPS Postgres", name)
+			t.Errorf("%s invokes MD5, which fails on the QA FIPS Postgres", name)
 		}
 	}
 	refExpression := regexp.MustCompile(`encode\(sha256\(convert_to\([^\n]*, 'UTF8'\)\), 'hex'\)`).

@@ -25,7 +25,7 @@ writer, reader and stale flags cover both models.
 `reducer.Service.StatusSummaryWriter`; `Service` starts it beside the other
 side runners. With the flag off no runner exists, no goroutine starts, and no
 writer SQL runs. `ESHU_STATUS_SUMMARY_WRITER_INTERVAL` sets the cadence
-(default `10s`, from the 1.0 s median pass measured on the ops-qa read replica;
+(default `10s`, from the 1.0 s median pass measured on the QA read replica;
 minimum `5s`); a value below `5s` or one that does not parse fails reducer
 startup.
 
@@ -127,6 +127,6 @@ ledger requires for `postgres_ci` rows.
   lock, so the reader slices (PR-C, PR-F) own a row-derived age gauge
   (`now() - as_of` of the stored row) and the stale alert.
 - Reader staleness: with the 10 s default interval and the 2.09 s replica replay
-  lag p95 measured on ops-qa, the ruling's formula `3 x interval + lag p95`
+  lag p95 measured on QA, the ruling's formula `3 x interval + lag p95`
   gives 32.09 s, so the reader's `ESHU_STATUS_SUMMARY_STALE_AFTER` default
   should be at least 33 s.

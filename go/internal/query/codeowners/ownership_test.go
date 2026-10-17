@@ -98,7 +98,7 @@ func TestCodeownersOwnershipRejectsInvalidLimitAndHalfCursor(t *testing.T) {
 		"zero limit":            "/api/v0/codeowners/ownership?repository_id=repo-1&limit=0",
 		"over max limit":        "/api/v0/codeowners/ownership?repository_id=repo-1&limit=201",
 		"half cursor (pattern)": "/api/v0/codeowners/ownership?repository_id=repo-1&after_pattern=*.go",
-		"half cursor (ref)":     "/api/v0/codeowners/ownership?repository_id=repo-1&after_ref=@org/team",
+		"half cursor (ref)":     "/api/v0/codeowners/ownership?repository_id=repo-1&after_ref=@example/team",
 	}
 	for name, target := range cases {
 		name, target := name, target
@@ -135,9 +135,9 @@ func TestCodeownersOwnershipDefaultsReturnBoundedPageAndEffectiveOwner(t *testin
 
 	graph := &recordingCodeownersGraphReader{
 		runRows: []map[string]any{
-			{"pattern": "*.go", "source_path": "CODEOWNERS", "order_index": int64(0), "owner_ref": "@org/team-a"},
+			{"pattern": "*.go", "source_path": "CODEOWNERS", "order_index": int64(0), "owner_ref": "@example/team-a"},
 		},
-		singleRow: map[string]any{"owner_ref": "@org/team-a"},
+		singleRow: map[string]any{"owner_ref": "@example/team-a"},
 	}
 	correlations := &fakeCodeownersCorrelationStore{}
 	mux := newCodeownersOwnershipMux(graph, correlations)
@@ -180,13 +180,13 @@ func TestCodeownersOwnershipDefaultsReturnBoundedPageAndEffectiveOwner(t *testin
 	if got, want := row.Pattern, "*.go"; got != want {
 		t.Fatalf("pattern = %q, want %q", got, want)
 	}
-	if got, want := row.OwnerRef, "@org/team-a"; got != want {
+	if got, want := row.OwnerRef, "@example/team-a"; got != want {
 		t.Fatalf("owner_ref = %q, want %q", got, want)
 	}
 	if resp.Truncated {
 		t.Fatal("truncated = true, want false")
 	}
-	if want := (EffectiveRepositoryOwner{OwnerRef: "@org/team-a", Source: EffectiveOwnerSourceCodeowners}); resp.EffectiveOwner != want {
+	if want := (EffectiveRepositoryOwner{OwnerRef: "@example/team-a", Source: EffectiveOwnerSourceCodeowners}); resp.EffectiveOwner != want {
 		t.Fatalf("effective_owner = %+v, want %+v", resp.EffectiveOwner, want)
 	}
 }
@@ -194,10 +194,10 @@ func TestCodeownersOwnershipDefaultsReturnBoundedPageAndEffectiveOwner(t *testin
 func TestCodeownersOwnershipEffectiveOwnerPrefersManifestSource(t *testing.T) {
 	t.Parallel()
 
-	graph := &recordingCodeownersGraphReader{singleRow: map[string]any{"owner_ref": "@org/team-codeowners"}}
+	graph := &recordingCodeownersGraphReader{singleRow: map[string]any{"owner_ref": "@example/team-codeowners"}}
 	correlations := &fakeCodeownersCorrelationStore{
 		rows: []querycontract.ServiceCatalogCorrelationRow{
-			{RepositoryID: "repo-1", OwnerRef: "@org/team-manifest", Outcome: "exact"},
+			{RepositoryID: "repo-1", OwnerRef: "@example/team-manifest", Outcome: "exact"},
 		},
 	}
 	mux := newCodeownersOwnershipMux(graph, correlations)
@@ -216,7 +216,7 @@ func TestCodeownersOwnershipEffectiveOwnerPrefersManifestSource(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
-	if want := (EffectiveRepositoryOwner{OwnerRef: "@org/team-manifest", Source: EffectiveOwnerSourceServiceCatalog}); resp.EffectiveOwner != want {
+	if want := (EffectiveRepositoryOwner{OwnerRef: "@example/team-manifest", Source: EffectiveOwnerSourceServiceCatalog}); resp.EffectiveOwner != want {
 		t.Fatalf("effective_owner = %+v, want %+v", resp.EffectiveOwner, want)
 	}
 }
@@ -252,8 +252,8 @@ func TestCodeownersOwnershipTruncatesAndEmitsKeysetCursor(t *testing.T) {
 
 	graph := &recordingCodeownersGraphReader{
 		runRows: []map[string]any{
-			{"pattern": "*.go", "source_path": "CODEOWNERS", "order_index": int64(0), "owner_ref": "@org/team-a"},
-			{"pattern": "*.md", "source_path": "CODEOWNERS", "order_index": int64(1), "owner_ref": "@org/team-b"},
+			{"pattern": "*.go", "source_path": "CODEOWNERS", "order_index": int64(0), "owner_ref": "@example/team-a"},
+			{"pattern": "*.md", "source_path": "CODEOWNERS", "order_index": int64(1), "owner_ref": "@example/team-b"},
 		},
 	}
 	mux := newCodeownersOwnershipMux(graph, &fakeCodeownersCorrelationStore{})
@@ -293,7 +293,7 @@ func TestCodeownersOwnershipTruncatesAndEmitsKeysetCursor(t *testing.T) {
 	if got, want := resp.NextCursor.AfterPattern, "*.go"; got != want {
 		t.Fatalf("next_cursor.after_pattern = %q, want %q", got, want)
 	}
-	if got, want := resp.NextCursor.AfterRef, "@org/team-a"; got != want {
+	if got, want := resp.NextCursor.AfterRef, "@example/team-a"; got != want {
 		t.Fatalf("next_cursor.after_ref = %q, want %q", got, want)
 	}
 }
@@ -303,16 +303,16 @@ func TestCodeownersOwnershipCursorThreadsKeysetParams(t *testing.T) {
 
 	graph := &recordingCodeownersGraphReader{
 		runRowsByCall: [][]map[string]any{
-			{{"pattern": "*.md", "source_path": "CODEOWNERS", "order_index": int64(3), "owner_ref": "@org/team-z"}},
-			{{"pattern": "z*", "source_path": "CODEOWNERS", "order_index": int64(2), "owner_ref": "@org/team-a"}},
-			{{"pattern": "*.go", "source_path": "CODEOWNERS", "order_index": int64(2), "owner_ref": "@org/team-b"}},
+			{{"pattern": "*.md", "source_path": "CODEOWNERS", "order_index": int64(3), "owner_ref": "@example/team-z"}},
+			{{"pattern": "z*", "source_path": "CODEOWNERS", "order_index": int64(2), "owner_ref": "@example/team-a"}},
+			{{"pattern": "*.go", "source_path": "CODEOWNERS", "order_index": int64(2), "owner_ref": "@example/team-b"}},
 		},
 	}
 	mux := newCodeownersOwnershipMux(graph, &fakeCodeownersCorrelationStore{})
 
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/api/v0/codeowners/ownership?repository_id=repo-1&after_order_index=2&after_pattern=*.go&after_ref=@org/team-a&limit=2",
+		"/api/v0/codeowners/ownership?repository_id=repo-1&after_order_index=2&after_pattern=*.go&after_ref=@example/team-a&limit=2",
 		nil,
 	)
 	w := httptest.NewRecorder()
@@ -349,8 +349,8 @@ func TestCodeownersOwnershipCursorThreadsKeysetParams(t *testing.T) {
 		t.Fatalf("len(ownership) = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 	want := []OwnershipRow{
-		{Pattern: "*.go", SourcePath: "CODEOWNERS", OrderIndex: 2, OwnerRef: "@org/team-b"},
-		{Pattern: "z*", SourcePath: "CODEOWNERS", OrderIndex: 2, OwnerRef: "@org/team-a"},
+		{Pattern: "*.go", SourcePath: "CODEOWNERS", OrderIndex: 2, OwnerRef: "@example/team-b"},
+		{Pattern: "z*", SourcePath: "CODEOWNERS", OrderIndex: 2, OwnerRef: "@example/team-a"},
 	}
 	for i := range want {
 		if got := resp.Ownership[i]; got != want[i] {
@@ -360,7 +360,7 @@ func TestCodeownersOwnershipCursorThreadsKeysetParams(t *testing.T) {
 	if !resp.Truncated {
 		t.Fatal("truncated = false, want true")
 	}
-	if got := resp.Next; got.AfterOrderIndex != 2 || got.AfterPattern != "z*" || got.AfterRef != "@org/team-a" {
+	if got := resp.Next; got.AfterOrderIndex != 2 || got.AfterPattern != "z*" || got.AfterRef != "@example/team-a" {
 		t.Fatalf("next_cursor = %+v, want cursor for second globally sorted row", got)
 	}
 }
@@ -375,7 +375,7 @@ func TestCodeownersOwnershipCursorStopsWhenOneBranchFails(t *testing.T) {
 	mux := newCodeownersOwnershipMux(graph, &fakeCodeownersCorrelationStore{})
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/api/v0/codeowners/ownership?repository_id=repo-1&after_order_index=2&after_pattern=*.go&after_ref=@org/team-a",
+		"/api/v0/codeowners/ownership?repository_id=repo-1&after_order_index=2&after_pattern=*.go&after_ref=@example/team-a",
 		nil,
 	)
 	w := httptest.NewRecorder()

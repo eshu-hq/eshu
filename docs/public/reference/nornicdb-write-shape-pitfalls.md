@@ -178,7 +178,7 @@ which calls `loadNodesWithTemporalViewport(ctx, labels)` for this shape. With
 5 rows (3 existing paths), the broken guard took 0.46 s at 5,000 File nodes,
 2.03 s at 20,000, and 5.88 s at 100,000, and re-stamped all 5 rows; the
 correlated form took 0.003-0.090 s (0.009-0.013 s at 100,000 once warm) and wrote only the 2 missing rows.
-On ops-qa the broken form hit the 300 s transaction timeout with 1-22 rows
+On QA the broken form hit the 300 s transaction timeout with 1-22 rows
 (#6798). The `WITH ... WHERE existing IS NULL` filter is a bare null test, not
 one of the `WITH`-attached `WHERE` shapes that
 [NornicDB Query-Shape Pitfalls](nornicdb-query-pitfalls.md) records as ignored
@@ -211,9 +211,9 @@ RETURN count(n) AS __drained
 ```
 
 The same `MATCH`, `WHERE`, and `WITH ... LIMIT` as a read returned in 1-9 ms on
-a local 1M-node store and in 0.10-0.17 s on ops-qa. Dropping `ORDER BY` does
+a local 1M-node store and in 0.10-0.17 s on QA. Dropping `ORDER BY` does
 not help and is unsafe: the bare-label `WITH n LIMIT k DETACH DELETE n` form
-still deletes zero rows with no error on v1.3.3, as it did on v1.1.9. On ops-qa
+still deletes zero rows with no error on v1.3.3, as it did on v1.1.9. On QA
 (1.1M nodes) these retracts took 45-55 s each while deleting nothing (#6822).
 
 ### Safe shape
@@ -230,13 +230,13 @@ RETURN elementId(n) AS __id
 When the probe returns a row, run the single-statement bounded drain loop shown
 above until it drains zero rows. When it returns nothing, skip the drain. A
 retract with nothing to delete then costs one read bounded by its own label
-(1-9 ms for a small label on a local 1M-node store; 0.11 s and up on ops-qa)
+(1-9 ms for a small label on a local 1M-node store; 0.11 s and up on QA)
 instead of a whole-store scan. Probe once per statement, not per batch: the
 probe scans its label, which took 0.11 s for `AtlantisProject`, 2.9-4.4 s for
-`Directory`, and 31-50 s for `Function` on the 1.1M-node ops-qa store, so
+`Directory`, and 31-50 s for `Function` on the 1.1M-node QA store, so
 repeating it would add that cost to every drain step. Keep the `WITH ... LIMIT`
 before `RETURN`: `MATCH ... WHERE ... RETURN elementId(n) AS id LIMIT $batch`,
-without the `WITH`, took 15-18 s on the ops-qa store.
+without the `WITH`, took 15-18 s on the QA store.
 
 Keep the delete in the single drain statement so its `WHERE` clause is
 rechecked atomically. Do not split it into "read the element IDs, then
@@ -252,7 +252,7 @@ no longer exists costs a whole-store scan too.
 and the NornicDB phase-group executor probes once before every bare-label
 bounded drain. Relationship-anchored retracts, such as
 `(r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)`, are bounded by the
-anchor (median 0.01 s on ops-qa) and are not probed.
+anchor (median 0.01 s on QA) and are not probed.
 
 When you probe this, give each run a unique parameter value. NornicDB serves a
 repeated identical read from its result cache, so a second run can look fast

@@ -365,7 +365,7 @@ The cross-repo route returns repository-boundary evidence once. A candidate with
 no entity-level consumer evidence falls back to the repository's incoming
 relationships, which are the same for every such candidate; they used to be
 copied into each row's `consumer_evidence` (about 12 KB per row on the measured
-ops-qa repository, enough to push a default-args reply over the MCP budget,
+QA repository, enough to push a default-args reply over the MCP budget,
 #7129). The route now puts them in `data.boundary_consumer_evidence`, with
 `data.boundary_consumer_evidence_count`, after the request's `consumer_repo_ids`
 selector and the caller's grant. Both keys are always present. The list is

@@ -95,7 +95,7 @@ func (f *codeScopeQuiescenceFixture) describe(wantTotal int, wantIDs []string, s
 }
 
 // removeGlobalSeedPhase deletes migration 116's vacuous eshu:global phase row,
-// reproducing the ops-qa state where it was missing (#7133), and restores it
+// reproducing the QA state where it was missing (#7133), and restores it
 // on cleanup so later proofs in the same database see the bootstrap shape.
 func (f *codeScopeQuiescenceFixture) removeGlobalSeedPhase() {
 	f.t.Helper()
@@ -130,7 +130,7 @@ func (f *codeScopeQuiescenceFixture) cleanup() {
 }
 
 // TestReducerGraphDrainQuiescenceIgnoresNonCodeScopes is the #7133
-// regression. On ops-qa an active AWS region scope whose every generation
+// regression. On QA an active AWS region scope whose every generation
 // held zero facts, plus the synthetic eshu:global scope with its migration-116
 // phase row missing, held the canonical-code quiescence gate true for eight
 // days, while every git scope was committed. Neither scope can ever publish a

@@ -2715,7 +2715,7 @@ issues exactly two bounded reads (roles, then grants for the same tenant),
 a fixed 2-query cost. The mapping list's materialized CTE hashes all
 eligible tenant/workspace rows before cursor filtering and sorting, so
 per-page work scales with that row count rather than the 500-row cap.
-The fixture proves paging correctness, not loaded ops-qa latency.
+The fixture proves paging correctness, not loaded QA latency.
 
 Observability Evidence: the queries run on the `InstrumentedDB`-wrapped pool, so
 per-statement latency/error spans and metrics are inherited without per-call

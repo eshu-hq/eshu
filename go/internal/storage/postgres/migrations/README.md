@@ -32,7 +32,7 @@ the directory is the single source of truth root already documented it as.
   `093_cross_scope_completion_queue.sql` shipped, was edited in place twice
   (`#6785`, then `#6923`) to widen a `CHECK` constraint and a trigger's `WHEN`
   list, and both edits broke `applyTrackedDefinitions`'s checksum guard for
-  every database that had already recorded 093 -- including a stuck ops-qa
+  every database that had already recorded 093 -- including a stuck QA
   rollout. `093` was restored to its originally shipped bytes; `112` and `120`
   are the correct pattern for that same widening (a new file, guarded by
   `pg_get_constraintdef`/`pg_get_triggerdef` `NOT LIKE` checks, that converges

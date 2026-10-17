@@ -26,7 +26,7 @@ func TestActiveWorkSummaryOracleIsThePinnedBaseline(t *testing.T) {
 // activeWorkSummaryQuerySHA256 pins the shipped gated summary text after the
 // #7881 threshold calibration. Restoring T=0.4 and removing the mode section
 // yields the S5 shim's s5_a2v_T.sql byte for byte
-// (TestActiveWorkSummaryIsTheMeasuredA2vRender). The ops-qa same-snapshot
+// (TestActiveWorkSummaryIsTheMeasuredA2vRender). The QA same-snapshot
 // compare packet refuses to run when its text hashes differently (#7009
 // arbiter ruling S4 D3 C1, S5 D5.4). Any edit to the statement must re-pin
 // this with the re-rendered SHA-256 and rerun the oracle differential.

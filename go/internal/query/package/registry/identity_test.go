@@ -20,13 +20,13 @@ func TestPackageRegistryListPackagesClassifiesBlankPackageIdentityRows(t *testin
 					"package_id":         "",
 					"ecosystem":          "npm",
 					"registry":           "registry.npmjs.org",
-					"namespace":          "@bad",
-					"normalized_name":    "@bad/missing-id",
-					"purl":               "pkg:npm/%40bad/missing-id",
-					"bom_ref":            "pkg:npm/%40bad/missing-id",
+					"namespace":          "@example",
+					"normalized_name":    "@example/missing-id",
+					"purl":               "pkg:npm/%40example/missing-id",
+					"bom_ref":            "pkg:npm/%40example/missing-id",
 					"package_manager":    "npm",
 					"source_path":        "package.json",
-					"source_specific_id": "npm:@bad/missing-id",
+					"source_specific_id": "npm:@example/missing-id",
 				},
 				{
 					"package_id":      "npm://registry.npmjs.org/left-pad",
@@ -112,16 +112,16 @@ func TestPackageRegistryListPackagesClassifiesBlankPackageIdentityRows(t *testin
 	if got, want := issue.Registry, "registry.npmjs.org"; got != want {
 		t.Fatalf("identity issue registry = %q, want %q", got, want)
 	}
-	if got, want := issue.Namespace, "@bad"; got != want {
+	if got, want := issue.Namespace, "@example"; got != want {
 		t.Fatalf("identity issue namespace = %q, want %q", got, want)
 	}
-	if got, want := issue.NormalizedName, "@bad/missing-id"; got != want {
+	if got, want := issue.NormalizedName, "@example/missing-id"; got != want {
 		t.Fatalf("identity issue normalized_name = %q, want %q", got, want)
 	}
-	if got, want := issue.PURL, "pkg:npm/%40bad/missing-id"; got != want {
+	if got, want := issue.PURL, "pkg:npm/%40example/missing-id"; got != want {
 		t.Fatalf("identity issue purl = %q, want %q", got, want)
 	}
-	if got, want := issue.BOMRef, "pkg:npm/%40bad/missing-id"; got != want {
+	if got, want := issue.BOMRef, "pkg:npm/%40example/missing-id"; got != want {
 		t.Fatalf("identity issue bom_ref = %q, want %q", got, want)
 	}
 	if got, want := issue.PackageManager, "npm"; got != want {
@@ -130,7 +130,7 @@ func TestPackageRegistryListPackagesClassifiesBlankPackageIdentityRows(t *testin
 	if got, want := issue.SourcePath, "package.json"; got != want {
 		t.Fatalf("identity issue source_path = %q, want %q", got, want)
 	}
-	if got, want := issue.SourceSpecific, "npm:@bad/missing-id"; got != want {
+	if got, want := issue.SourceSpecific, "npm:@example/missing-id"; got != want {
 		t.Fatalf("identity issue source_specific_id = %q, want %q", got, want)
 	}
 	if got, want := issue.VersionCount, 0; got != want {

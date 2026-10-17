@@ -19,7 +19,7 @@ import (
 )
 
 // resetPageServer serves a healthy space listing but drops the TCP connection
-// on every single-page GET, reproducing the ops-qa
+// on every single-page GET, reproducing the QA
 // "read: connection reset by peer" that killed the collector.
 func resetPageServer(t *testing.T, pageGets *atomic.Int64) *httptest.Server {
 	t.Helper()

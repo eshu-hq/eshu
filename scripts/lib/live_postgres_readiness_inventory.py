@@ -52,7 +52,7 @@ SUMMARY_PACKAGES = {
         ),
         "go/internal/storage/postgres/status/summary/bloat_terraform_live_test.go": (
             "TestStatusSummaryBloatTerraformLive",
-            "TestStatusSummaryBloatTerraformOpsQaScaleLive",
+            "TestStatusSummaryBloatTerraformQAScaleLive",
             "TestStatusSummaryBloatTerraformWorstCaseLive",
         ),
         "go/internal/storage/postgres/status/summary/select_live_test.go": (

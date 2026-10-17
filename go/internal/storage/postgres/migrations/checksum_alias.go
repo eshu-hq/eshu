@@ -25,7 +25,7 @@ type checksumAliasEntry struct {
 // 7f73153be9a782875b054085c6eafa9d7e6723507b343e2e5ec43b307168473c) -- before
 // landing back on its original shipped bytes here. Editing a shipped
 // migration is forbidden (see README.md); this table exists only because
-// both edited copies were already applied to real Eshu deployments (ops-qa
+// both edited copies were already applied to real Eshu deployments (QA
 // among them) between 2026-09-20 and 2026-09-23, and the checksum guard in
 // root's applyTrackedDefinitions must accept a ledger that recorded either
 // edited checksum without treating that acceptance as a general bypass.

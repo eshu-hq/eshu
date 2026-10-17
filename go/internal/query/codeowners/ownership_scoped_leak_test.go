@@ -24,9 +24,9 @@ const codeownersCrossTenantRepo = "repo-b"
 func codeownersCrossTenantGraph() *recordingCodeownersGraphReader {
 	return &recordingCodeownersGraphReader{
 		runRows: []map[string]any{
-			{"pattern": "*.go", "source_path": "CODEOWNERS", "order_index": int64(0), "owner_ref": "@org/team-b"},
+			{"pattern": "*.go", "source_path": "CODEOWNERS", "order_index": int64(0), "owner_ref": "@example/team-b"},
 		},
-		singleRow: map[string]any{"owner_ref": "@org/team-b"},
+		singleRow: map[string]any{"owner_ref": "@example/team-b"},
 	}
 }
 
@@ -36,7 +36,7 @@ func codeownersCrossTenantGraph() *recordingCodeownersGraphReader {
 func codeownersCrossTenantCorrelations() *fakeCodeownersCorrelationStore {
 	return &fakeCodeownersCorrelationStore{
 		rows: []querycontract.ServiceCatalogCorrelationRow{
-			{RepositoryID: codeownersCrossTenantRepo, OwnerRef: "@org/team-b-manifest", Outcome: "exact"},
+			{RepositoryID: codeownersCrossTenantRepo, OwnerRef: "@example/team-b-manifest", Outcome: "exact"},
 		},
 	}
 }
@@ -124,7 +124,7 @@ func TestCodeownersOwnershipScopedCallerCannotReadUngrantedRepository(t *testing
 		if len(ownership) != 1 {
 			t.Fatalf("scoped caller granted repo-b did not see repo-b ownership rows: %+v", ownership)
 		}
-		if want := (EffectiveRepositoryOwner{OwnerRef: "@org/team-b-manifest", Source: EffectiveOwnerSourceServiceCatalog}); effectiveOwner != want {
+		if want := (EffectiveRepositoryOwner{OwnerRef: "@example/team-b-manifest", Source: EffectiveOwnerSourceServiceCatalog}); effectiveOwner != want {
 			t.Fatalf("scoped caller granted repo-b: effective_owner = %+v, want %+v", effectiveOwner, want)
 		}
 	})
@@ -141,7 +141,7 @@ func TestCodeownersOwnershipScopedCallerCannotReadUngrantedRepository(t *testing
 		if len(ownership) != 1 {
 			t.Fatalf("unscoped caller did not see repo-b ownership rows: %+v", ownership)
 		}
-		if want := (EffectiveRepositoryOwner{OwnerRef: "@org/team-b-manifest", Source: EffectiveOwnerSourceServiceCatalog}); effectiveOwner != want {
+		if want := (EffectiveRepositoryOwner{OwnerRef: "@example/team-b-manifest", Source: EffectiveOwnerSourceServiceCatalog}); effectiveOwner != want {
 			t.Fatalf("unscoped caller: effective_owner = %+v, want %+v", effectiveOwner, want)
 		}
 	})

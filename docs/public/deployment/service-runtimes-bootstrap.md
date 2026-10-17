@@ -58,7 +58,7 @@ then derives findings for every existing file in the same transaction. The
 foreign key and the triggers take `SHARE ROW EXCLUSIVE` on `content_files`
 until that transaction commits, so ingester and bootstrap-index content writes
 wait, and reads continue. The window is the backfill: about 0.27 ms of Postgres
-CPU per file, measured at about 38 s for 145k files on the ops-qa corpus, and it
+CPU per file, measured at about 38 s for 145k files on the QA corpus, and it
 grows linearly with `content_files`. A new install has no rows to backfill. A
 migration that cannot get the lock inside `lock_timeout` applies nothing and
 retries like any other (above); once the lock is held, the backfill runs without

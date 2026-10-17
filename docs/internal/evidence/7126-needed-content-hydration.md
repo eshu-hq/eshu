@@ -174,7 +174,7 @@ equal. The observed mix is the 141-repository response
 set's class mix and size fits, drawn at the bench's 300 repositories and 8,000
 files; it is not the response set. The earlier CPU bench attributed 76-79 percent of CPU to parse; parse
 is unchanged by this PR, which is why the CPU gain is smaller than the
-statement and byte gain. Pod CPU, the deployed API p95 and ops-qa stage seconds
+statement and byte gain. Pod CPU, the deployed API p95 and QA stage seconds
 are NOT_CHECKED.
 
 ## Evidence markers

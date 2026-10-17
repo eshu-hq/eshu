@@ -17,7 +17,7 @@ import (
 // (the old failure columns join the update's target list), so this measures the
 // executor memory and temp-file effect that timing cannot show: per-node peak
 // memory, hash batches, sort and temp spill, and temp blocks, for the shipped
-// statement against the same statement with the fold cut out, over the ops-qa
+// statement against the same statement with the fold cut out, over the QA
 // scale case and the 64 KB stress case. The claim statements set no work_mem of
 // their own (no SET LOCAL), so the server default applies; a second run at the
 // PostgreSQL minimum shows how close each variant sits to spilling. Opt in with
@@ -115,7 +115,7 @@ func TestSupersedePriorFailureClaimMemory(t *testing.T) {
 		name        string
 		rows, bytes int
 	}{
-		{"ops_qa_scale", costEnvInt("ESHU_7320_COST_ROWS", 3500), costEnvInt("ESHU_7320_COST_DETAIL_BYTES", 800)},
+		{"qa_scale", costEnvInt("ESHU_7320_COST_ROWS", 3500), costEnvInt("ESHU_7320_COST_DETAIL_BYTES", 800)},
 		{"stress_wide_details", costEnvInt("ESHU_7320_COST_STRESS_ROWS", 500), costEnvInt("ESHU_7320_COST_STRESS_BYTES", 65536)},
 	}
 	for _, st := range statements {

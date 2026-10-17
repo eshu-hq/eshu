@@ -53,7 +53,7 @@ High run duration points to the handler, store, or graph-write path.
 | `eshu_dp_graph_id_anchor_id_bearing_nodes` | gauge | Snapshot of graph nodes that carry an `id`, from the same successful census pass as `eshu_dp_graph_id_anchor_unreachable_nodes`. An empty graph also reads zero unreachable nodes, so read the pair: `eshu_dp_graph_id_anchor_unreachable_nodes == 0 and eshu_dp_graph_id_anchor_id_bearing_nodes > 0` is the healthy reading. A failed pass keeps the last good value. No labels. Neo4j only. |
 | `eshu_dp_graph_id_anchor_census_last_success_unixtime` | gauge | Unix second of the last successful census pass; `time() - eshu_dp_graph_id_anchor_census_last_success_unixtime` is the age of the snapshot. Absent until the first pass succeeds. |
 | `eshu_dp_graph_id_anchor_census_passes_total` | counter | Census passes by closed `outcome`: `ok` or `failed` (graph error or the `ESHU_ID_ANCHOR_CENSUS_TIMEOUT` deadline). |
-| `eshu_dp_graph_id_anchor_census_duration_seconds` | histogram | Wall time of each census pass by the same outcome. The pass scanned 1,130,424 nodes in about 1.95 s on ops-qa (image sha-57167b0, 2026-10-08). |
+| `eshu_dp_graph_id_anchor_census_duration_seconds` | histogram | Wall time of each census pass by the same outcome. The pass scanned 1,130,424 nodes in about 1.95 s on QA (image sha-57167b0, 2026-10-08). |
 
 The reducer emits a structured elected-pass log with `ready`,
 `dirty_scopes_capped`, `cursor_updated_unixtime`, and `duration_seconds`;

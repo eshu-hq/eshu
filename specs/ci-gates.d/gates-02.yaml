@@ -313,18 +313,13 @@ gates:
     blocking: true
     triggers:
       # Tree mode scans the fixture-bearing trees whole, so a fixture change
-      # anywhere under them selects this gate. The two go/internal/query file
-      # triggers are literal tracked files (#6055): their directory also
-      # carries #7803 sweep content, so only the fixture files are targets
-      # until that sweep lands.
+      # anywhere under them selects this gate. go/internal/query is a whole
+      # tree since the #7803 batch 2 sweep cleaned it.
       - "apps/console/src/**"
       - "apps/console/prototype/**"
       - "go/internal/parser/hcl/**"
       - "go/internal/parser/rust/**"
-      - "go/internal/query/service/**"
-      - "go/internal/query/visualization/**"
-      - "go/internal/query/entity_resolve_contract_test.go"
-      - "go/internal/query/repository_deployment_evidence_test.go"
+      - "go/internal/query/**"
       # The gate's own files, listed beside the content triggers because a
       # self_test_trigger must also appear in triggers: editing one selects
       # the test mirror that exercises it.

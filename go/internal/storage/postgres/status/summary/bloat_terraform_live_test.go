@@ -57,7 +57,7 @@ func terraformBloatRow(random *rand.Rand, asOf time.Time, serials, warnings int)
 
 // TestStatusSummaryBloatTerraformLive is the bloat and read-buffer proof at the
 // terraform_state model's payload: 30 last-serial rows and 111 warning rows
-// (the ops-qa figure), about 35 KB, which TOASTs. 4,000 upserts and VACUUM must
+// (the QA figure), about 35 KB, which TOASTs. 4,000 upserts and VACUUM must
 // keep the heap and TOAST relation bounded with HOT updates, and the keyed
 // read must touch only status_summary_snapshots and its TOAST relation.
 func TestStatusSummaryBloatTerraformLive(t *testing.T) {
@@ -70,11 +70,11 @@ func TestStatusSummaryBloatTerraformLive(t *testing.T) {
 	})
 }
 
-// TestStatusSummaryBloatTerraformOpsQaScaleLive is the same proof at the ops-qa
+// TestStatusSummaryBloatTerraformQAScaleLive is the same proof at the QA
 // payload: about 111 warning rows at roughly 300 bytes each, about 35 KB. The
 // proof's rows are larger per entry (full 64-character hashes and generation
 // ids), so 20 serials and 52 warnings land at that size.
-func TestStatusSummaryBloatTerraformOpsQaScaleLive(t *testing.T) {
+func TestStatusSummaryBloatTerraformQAScaleLive(t *testing.T) {
 	random := rand.New(rand.NewSource(7011))
 	runBloatProof(t, func(i int) summary.Row {
 		return terraformBloatRow(random, proofAsOf.Add(time.Duration(i)*time.Second), 20, 52)

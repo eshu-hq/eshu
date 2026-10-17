@@ -25,7 +25,7 @@ const (
 	// inside the no-writer spread.
 	MinInterval = 5 * time.Second
 	// DefaultInterval is the cadence used when none is configured. The
-	// active-work pass measured a 1.0 s median on the ops-qa read replica
+	// active-work pass measured a 1.0 s median on the QA read replica
 	// (2026-10-06 probe), which the #7009 ruling maps to a 10 s interval.
 	DefaultInterval = 10 * time.Second
 )

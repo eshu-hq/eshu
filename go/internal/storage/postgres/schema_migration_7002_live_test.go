@@ -76,7 +76,7 @@ func plantChecksumAndRestore(t *testing.T, ctx context.Context, db *sql.DB, path
 }
 
 // TestBootstrapAcceptsLedgerRecordingShippedChecksum093Live reproduces
-// #7002's exact ops-qa failure: a database that recorded 093 with its
+// #7002's exact QA failure: a database that recorded 093 with its
 // originally shipped checksum must not be refused once 093 is restored, and
 // bootstrap must still apply every migration recorded after it. Before the
 // #7002 fix (093 carrying the checksum #6785/#6923 left behind on main), this
@@ -99,7 +99,7 @@ func TestBootstrapAcceptsLedgerRecordingShippedChecksum093Live(t *testing.T) {
 	}
 	plantChecksumAndRestore(t, ctx, db, migration093Path, migration093ShippedChecksum)
 
-	// Simulate ops-qa: a rollout stuck because no migration recorded after
+	// Simulate QA: a rollout stuck because no migration recorded after
 	// 093 (112 through 120) ever ran.
 	definitions := BootstrapDefinitions()
 	pending := 0

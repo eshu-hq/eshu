@@ -331,5 +331,5 @@ A replica separates much of the read CPU and memory work from the primary,
 but it still replays writes and needs its own storage capacity. Start with the
 same resource size when proving a representative workload; reduce it only
 when measured latency, replay lag, and pool wait remain acceptable. Small local
-fixtures do not prove 100-engineer capacity, ops-qa response times, or reduced
+fixtures do not prove 100-engineer capacity, QA response times, or reduced
 memory requirements.

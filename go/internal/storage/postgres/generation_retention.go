@@ -22,7 +22,7 @@ const (
 	defaultGenerationRetentionMaxAge        = 7 * 24 * time.Hour
 	// defaultGenerationRetentionHardMaxAge is the #7585 hard history ceiling
 	// floor; see DefaultGenerationRetentionHardMaxAge. 90 days preserves
-	// observable behavior (ops-qa census found nothing older).
+	// observable behavior (QA census found nothing older).
 	defaultGenerationRetentionHardMaxAge  = 90 * 24 * time.Hour
 	defaultGenerationRetentionBatchLimit  = 100
 	defaultGenerationRetentionRowLimit    = 100000
@@ -36,7 +36,7 @@ const (
 // (docs/internal/evidence/6809-retention-content-prune-plan.md). Since #7279 the
 // statements aggregate only the batch's candidate keys (one DISTINCT or GROUP
 // BY per kind, bounded by BatchGenerationLimit generations, about 300k facts on
-// the first ops-qa backlog), and 64MB keeps those aggregates in memory.
+// the first QA backlog), and 64MB keeps those aggregates in memory.
 //
 // work_mem is a per-plan-node allowance, not a per-statement budget: each sort or
 // hash node may use up to 64MB (a hash node up to twice that,

@@ -2,7 +2,7 @@
 
 ## Problem
 
-1,231 `EvidenceArtifact` nodes on ops-qa are orphaned: 805 with no
+1,231 `EvidenceArtifact` nodes on QA are orphaned: 805 with no
 relationship and 426 attached only to an `Environment` (#7322). The
 repo-relationship retract reaches artifacts only through the source
 repository's `HAS_DEPLOYMENT_EVIDENCE` edges
