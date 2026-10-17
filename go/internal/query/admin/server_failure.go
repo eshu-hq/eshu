@@ -52,6 +52,8 @@ const (
 	reopenClaimFailedMessage           = "reopen idempotency claim failed"
 	reopenFailedMessage                = "reopen failed"
 	reopenRecordFailedMessage          = "reopen applied but recording its idempotency outcome failed"
+
+	deltaUnionCompletenessFailedMessage = "delta-union completeness check failed"
 )
 
 // Capability-matrix keys of the admin reads, so the reader verdict envelope

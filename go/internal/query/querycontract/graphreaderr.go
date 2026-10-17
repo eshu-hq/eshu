@@ -114,9 +114,9 @@ func ClassifyBoundedGraphReadError(ctx context.Context, err error) error {
 // connection refused, a role denied pg_control_system) and a client
 // context.Canceled. Those fall through to the caller's own failure step so a
 // permanent misconfiguration is never told "retry shortly". A client cancel is
-// not retryable either; the caller's step decides its status: 499 with no span
-// error on routes that use tracing.WriteServerFailure or
-// tracing.ServerFailureEnvelope, and 500 on other routes until #7674 lands.
+// not retryable either; the caller's step decides its status, and
+// tracing.WriteServerFailure and tracing.ServerFailureEnvelope answer it 499
+// with no span error (#7674).
 // The deadline-wrapping
 // verdicts also must be left alone by ClassifyBoundedGraphReadError, or a
 // transient reader condition would read as a 504 graph deadline.

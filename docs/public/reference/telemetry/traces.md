@@ -127,22 +127,23 @@ evidence, and investigation packet routes in
 [Status And Evidence Route Failures](../http-api/status-evidence-failures.md),
 the auth and session routes in
 [Auth and session route failures](../http-api/auth-session-failures.md),
-and the infra and inventory routes in
+the infra and inventory routes in
 [Infra And Inventory Route Failures](../http-api/infra-and-inventory-failures.md),
-and the environment comparison and semantic search routes in
+the environment comparison and semantic search routes in
 [Compare And Semantic Search Failures](../http-api/compare-and-semantic-search-failures.md),
 and the semantic evidence and documentation routes in
 [Semantic Evidence And Documentation Route Failures](../http-api/semantic-and-documentation-failures.md)
 (#7674). The code-flow routes
-answered a cancel with `408` before. A `503` that reports a configuration or
-readiness state, on these routes or the impact code-evidence reads, marks the
-span the same way a fault does, except on the status, evidence, and
-investigation packet routes, the identity admin, provider-config, and local
-identity routes, the auth and session routes, the infra and inventory
-routes, the semantic search routes, and the documentation finding count and
-inventory routes: there a configuration `503` is a plain write and does not
-mark the span. Other routes still answer a cancel with `500`
-until #7674 lands.
+answered a cancel with `408` before. On the code and entity routes and the
+impact code-evidence reads, a `503` that reports a configuration or readiness
+state marks the span the same way a fault does. On the status, evidence,
+investigation packet, identity admin, provider-config, local identity, auth,
+session, infra, inventory, semantic search, and documentation finding count and
+inventory routes a configuration `503` is a plain write and does not mark the
+span. The query guard tests catch a direct `500` write that skips the helper
+behind this `499` when they can resolve the writer; the
+[client-cancel rules](../http-api/selector-and-read-failures.md#client-cancels)
+list what they cannot see (#7674).
 
 Two operator effects follow. Eshu's own `eshu_dp_api_request_errors_total`
 counts only `5xx`, so a canceled read on these routes leaves that counter and

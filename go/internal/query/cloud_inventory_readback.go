@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -19,6 +20,10 @@ import (
 // reducer-owning profiles; local_lightweight returns unsupported_capability
 // because it cannot materialize the reducer_cloud_resource_identity rows.
 const cloudInventoryReadbackCapability = "cloud_inventory.readback.list"
+
+// cloudInventoryReadbackFailedMessage is the fixed body of a failed canonical
+// identity read on GET /api/v0/cloud/inventory (#7674).
+const cloudInventoryReadbackFailedMessage = "cloud inventory readback failed"
 
 const (
 	cloudInventoryReadbackMaxLimit     = 200
@@ -193,16 +198,7 @@ func (h *CloudInventoryHandler) listInventory(w http.ResponseWriter, r *http.Req
 	}
 	readModel, err := store.CloudInventoryIdentities(r.Context(), filter)
 	if err != nil {
-		WriteContractError(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"cloud inventory readback failed",
-			ErrorCodeInternalError,
-			cloudInventoryReadbackCapability,
-			h.profile(),
-			querycontract.RequiredProfile(cloudInventoryReadbackCapability),
-		)
+		h.writeReadbackFailure(w, r, err)
 		return
 	}
 
@@ -214,6 +210,27 @@ func (h *CloudInventoryHandler) listInventory(w http.ResponseWriter, r *http.Req
 		TruthBasisSemanticFacts,
 		"resolved from reducer-owned canonical CloudResource identity facts (reducer_cloud_resource_identity)",
 	))
+}
+
+// writeReadbackFailure answers a failed canonical identity read. The store
+// reads through the guarded PostgreSQL reader, so WriteGraphReadError runs
+// first: a stale or timed-out reader answers the retryable 503 with
+// Retry-After. Anything else keeps the route's contract envelope through
+// tracing.ServerFailureEnvelope: 500 internal_error with err on the handler
+// span, or 499 for a client cancel, with the fixed message either way. err's
+// text never reaches the body.
+func (h *CloudInventoryHandler) writeReadbackFailure(w http.ResponseWriter, r *http.Request, err error) {
+	if WriteGraphReadError(w, r, err, cloudInventoryReadbackCapability) {
+		return
+	}
+	status, errEnv := tracing.ServerFailureEnvelope(
+		r.Context(), err, cloudInventoryReadbackFailedMessage, cloudInventoryReadbackCapability,
+	)
+	errEnv.Profiles = &querycontract.ErrorProfiles{
+		Current:  h.profile(),
+		Required: querycontract.RequiredProfile(cloudInventoryReadbackCapability),
+	}
+	WriteErrorEnvelope(w, r, status, errEnv)
 }
 
 // store resolves the canonical inventory read model from h.Content. It mirrors
