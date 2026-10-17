@@ -190,12 +190,17 @@ func emitPHPFunctionCall(state *phpParseState, node *tree_sitter.Node) {
 		return
 	}
 	ctx := phpResolveContext(node, state.source, state.parents)
-	appendUniquePHPCall(
+	item := appendUniquePHPCall(
 		state.payload, state.seenCalls,
 		name, name, shared.NodeLine(node),
 		phpCallArguments(node, state.source),
 		ctx.name, ctx.kind, ctx.line, "",
 	)
+	if item != nil {
+		if key := state.packageKeys.functionKey(name); key != "" {
+			item["package_export_symbol"] = key
+		}
+	}
 }
 
 // inferReceiverType resolves the static type of a member-call receiver

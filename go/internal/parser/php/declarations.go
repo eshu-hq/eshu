@@ -176,6 +176,9 @@ func collectPHPFunction(state *phpParseState, node *tree_sitter.Node, typeName s
 	fingerprint.Attach("php", state.fpHasError, node.ChildByFieldName("body"), state.source, item, state.fpStats)
 	isPublic := phpMethodIsPublic(node, state.source)
 	state.packageKeys.recordMethod(node, typeName, typeKind, isPublic, item)
+	if typeName == "" {
+		state.packageKeys.recordFunction(node, state.parents, item)
+	}
 	recordPHPDeadCodeFunction(state.deadCodeFacts, name, typeName, typeKind, parameters)
 	state.deadCodeFunctions = append(state.deadCodeFunctions, phpDeadCodeFunctionFact{
 		item:        item,

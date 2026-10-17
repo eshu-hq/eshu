@@ -52,6 +52,13 @@ type phpPackageKeys struct {
 	locksRead bool
 	// lockedPackages memoizes locks.Package per fully qualified class name.
 	lockedPackages map[string]string
+	// functions are the free functions eligible for a #8280 function key.
+	functions []phpFunctionDeclaration
+	// functionTargets maps each local function name a `use function` clause
+	// binds to its fully qualified name; blockedFunctions holds names bound to
+	// two different functions.
+	functionTargets  map[string]string
+	blockedFunctions map[string]struct{}
 }
 
 // phpTypeDeclaration is one named class or interface declaration.
@@ -74,11 +81,13 @@ func newPHPPackageKeys(repoRoot string, path string, root *tree_sitter.Node) *ph
 		return nil
 	}
 	return &phpPackageKeys{
-		repoRoot:       repoRoot,
-		path:           path,
-		useTargets:     make(map[string]string),
-		blockedUse:     make(map[string]struct{}),
-		lockedPackages: make(map[string]string),
+		repoRoot:         repoRoot,
+		path:             path,
+		useTargets:       make(map[string]string),
+		blockedUse:       make(map[string]struct{}),
+		lockedPackages:   make(map[string]string),
+		functionTargets:  make(map[string]string),
+		blockedFunctions: make(map[string]struct{}),
 	}
 }
 
@@ -142,6 +151,7 @@ func (k *phpPackageKeys) stampProducers(namespace string) {
 	if k == nil {
 		return
 	}
+	k.stampFunctionProducers(namespace)
 	keyedClasses := map[string][2]string{}
 	for _, declared := range k.types {
 		if !phpIsPlainName(declared.name) {

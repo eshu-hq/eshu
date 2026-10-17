@@ -145,6 +145,8 @@ func TestDefaultEngineParsePathPHPStampsConsumerPackageExportSymbols(t *testing.
 		{`$literalStatic = \Acme\Logging\Logger::create();`, `Acme\Logging\Logger.create`, `package:acme/logging#Acme\Logging\Logger::create`},
 		// packages-dev count like require-dev.
 		{"$devOnly = new Fake();", "Fake", `package:acme/testkit#Acme\Testkit\Fake`},
+		// #8280: a bare call bound by `use function` names the function.
+		{"helper();", "helper", `package:acme/logging#function:Acme\Logging\helper`},
 	} {
 		call := phpCallOnLine(t, got, phpConsumerService, tc.marker, tc.fullName)
 		parsertest.AssertStringFieldValue(t, call, "package_export_symbol", tc.want)
@@ -178,7 +180,6 @@ func TestDefaultEngineParsePathPHPSkipsUnprovableConsumerKeys(t *testing.T) {
 		{"consumer's own class", "$own = User::find(1);", "User.find"},
 		{"variable method name", "$dynamic = Logger::$factoryName();", "Logger.$factoryName"},
 		{"instance method call", "$member = $typed->info('x');", "$typed.info"},
-		{"use function", "helper();", "helper"},
 		// A function clause inside a class group use binds no class.
 		{"function clause in a mixed group use", "$mixed = make::x();", "make.x"},
 		{"parent:: receiver", "$viaParent = parent::create();", "Logger.create"},

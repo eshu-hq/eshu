@@ -34,6 +34,9 @@ func collectPHPImports(state *phpParseState, node *tree_sitter.Node) {
 		if importType == "use" && !phpUseClauseHasKindKeyword(clause) {
 			state.packageKeys.recordUse(name, alias)
 		}
+		if importType == "function" || (importType == "use" && phpUseClauseIsFunction(clause)) {
+			state.packageKeys.recordFunctionUse(name, alias)
+		}
 		shared.AppendBucket(state.payload, "imports", map[string]any{
 			"name":             name,
 			"full_import_name": fullImportName,

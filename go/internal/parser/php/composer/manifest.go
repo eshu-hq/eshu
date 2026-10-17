@@ -29,6 +29,9 @@ type manifest struct {
 	name        string
 	psr4        []psr4Mapping
 	ownPrefixes []string
+	// files holds the cleaned autoload.files paths, relative to the manifest,
+	// that composer requires on every autoload (#8280).
+	files map[string]struct{}
 }
 
 // manifestCache memoizes parsed composer.json files by (path, stat), the same
@@ -65,8 +68,9 @@ func ManifestName(content []byte) string {
 // tree.
 func parseManifest(content []byte) manifest {
 	type autoload struct {
-		PSR4 map[string]any `json:"psr-4"`
-		PSR0 map[string]any `json:"psr-0"`
+		PSR4  map[string]any `json:"psr-4"`
+		PSR0  map[string]any `json:"psr-0"`
+		Files any            `json:"files"`
 	}
 	var document struct {
 		Autoload    autoload `json:"autoload"`
@@ -88,6 +92,7 @@ func parseManifest(content []byte) manifest {
 	if parsed.name == "" {
 		return parsed
 	}
+	parsed.files = autoloadFiles(document.Autoload.Files)
 	for rawPrefix, value := range document.Autoload.PSR4 {
 		prefix := normalizePrefix(rawPrefix)
 		if prefix == "" || !strings.HasSuffix(prefix, `\`) {
