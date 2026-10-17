@@ -8,8 +8,8 @@ Each destination directory lands in its own PR, in the order under
 Baseline: `origin/main` `958e833e9` (2026-09-22). The root package
 `go/internal/storage/postgres` holds **368 non-test files** and **713 test
 files** (27 of them behind the `integration`, `perf5854_ack`,
-`perf5740_completion` or `perf6785_wait` build tags). The dirgate ledger pins
-the row at 368 (`scripts/lib/dirgate-grandfather.tsv`).
+`perf5740_completion` or `perf6785_wait` build tags). A ledger row pinned it at 368
+then; it is a write-once baseline row now: it shrinks freely and grows only with a trailer.
 
 Both counts come from `git ls-tree --name-only <commit> go/internal/storage/postgres/`.
 
@@ -318,7 +318,7 @@ after everything it imports has left, or root and the child would import each
 other. So the order below is dependency-first, with the smaller directory
 first at each step. Every move PR follows the epic's
 [mandatory proof requirements](storage-collector-tree.md#mandatory-proof-requirements-every-pr-under-this-epic)
-and re-pins the dirgate row down.
+and shrinks the directory (a shrink needs no dirgate action; the baselines are write-once).
 
 Landed:
 
@@ -405,13 +405,13 @@ Identity, last:
 Close-out:
 
 - [ ] U1 placed; N2 `iamcantargets/` renamed
-- [ ] dirgate row for `internal/storage/postgres` re-pinned at 4 or removed
+- [ ] `internal/storage/postgres` down to 4 non-test files (no dirgate action; the baselines stay untouched)
 
 ## Done
 
 `storage/postgres` root holds the 4-file core; every directory under it has at
-most 40 non-test files; no file repeats its directory name; the dirgate row is
-removed or re-pinned at 4.
+most 40 non-test files; no file repeats its directory name; the directory is
+down to 4 files with no dirgate action.
 
 ## Per-directory counts
 

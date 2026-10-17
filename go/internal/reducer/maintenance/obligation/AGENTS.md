@@ -37,9 +37,9 @@ storage; implementations live in `storage/postgres`.
 - **`verify-performance-evidence.sh`** — fires on this path (worker,
   queue, lease). Markers must be unbolded and line-initial in a tracked
   note.
-- **`verify-dirgate.sh`** — re-derive the `internal/reducer` row with
-  `verify-dirgate.sh --digest internal/reducer` and regenerate the
-  mirror; never hand-edit either.
+- **`verify-dirgate.sh`** — no ledger row to re-derive. A move or shrink needs no
+  dirgate action; growth of a directory past max(40, its count at the base) needs a
+  `Dirgate-Growth:` trailer. Never edit the write-once baselines.
 
 ## Do not
 

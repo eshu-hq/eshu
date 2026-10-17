@@ -77,7 +77,7 @@ cd go && go build ./internal/query/...
 cd go && go vet ./internal/query/ ./internal/query/codeshaping/
 cd go && go test ./internal/query/... -count=1
 cd go && go test ./internal/queryplan/ -count=1
-bash scripts/verify-dirgate.sh --digest internal/query
+bash scripts/verify-dirgate.sh --pre-push
 git diff --check
 gofmt -l <touched files, repo-relative>
 ```

@@ -35,7 +35,7 @@ const (
 	// argument, such as `docker compose logs eshu`, is not one of them: this
 	// count is asserted in both directions, so over-reporting would fail the
 	// gate on an unrelated docs edit. It is pinned in BOTH directions, the way the
-	// dirgate grandfather rows are: growth means a new unparseable example
+	// retired dirgate grandfather rows were: growth means a new unparseable example
 	// slipped in, and a shrink that is not re-pinned lets the population creep
 	// back up under a stale number. Today's one line is a backgrounded
 	// `ESHU_PPROF_ADDR=… eshu graph start ... 2>&1 &` in the profiling

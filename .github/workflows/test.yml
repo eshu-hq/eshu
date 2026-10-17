@@ -102,6 +102,32 @@ jobs:
         run: |
           scripts/test-verify-tooling-line-cap.sh
           TOOLING_LINE_CAP_REQUIRE_BASE=1 scripts/verify-tooling-line-cap.sh --all
+  dirgate:
+    needs: queue-selection
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
+      - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dirgate')) }}
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+      - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dirgate')) }}
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache: false
+      - name: Test dirgate
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dirgate')) }}
+        working-directory: go
+        run: go test ./cmd/dirgate/ -count=1
+      - name: Verify dirgate (derived ratchet)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dirgate')) }}
+        run: bash scripts/verify-dirgate.sh --ci
   verify-contracts:
     needs: [queue-selection, changes]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
@@ -270,23 +296,6 @@ jobs:
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
         working-directory: tools/golangci-lint-filelength
         run: make test
-      - name: Pre-warm golangci-lint dirgate plugin modules
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
-        run: scripts/ci/go-mod-download-retry.sh tools/golangci-lint-dirgate
-      - name: Build golangci-lint dirgate plugin
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
-        working-directory: tools/golangci-lint-dirgate
-        run: make build
-      - name: Verify dirgate test mirrors
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
-        run: bash scripts/test-verify-dirgate.sh && bash scripts/test-generate-dirgate-grandfather-go.sh
-      - name: Test dirgate plugin
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
-        working-directory: tools/golangci-lint-dirgate
-        run: go test ./... -count=1
-      - name: Verify dirgate (bash mirror)
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
-        run: bash scripts/verify-dirgate.sh --all
       - name: Lint Go
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
         working-directory: go

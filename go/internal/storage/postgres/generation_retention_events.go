@@ -7,9 +7,9 @@ package postgres
 // the key-index guard (#7279), countRows, the row-limit selection rules and
 // the own-fact pre-screen. The selection re-lock (relockRetentionSelection,
 // #7334) lives in generation_retention_relock.go since #7903 split it out
-// over the 500-line cap. They share one directory because it is at its
-// dirgate cap (scripts/lib/dirgate-grandfather.tsv), which admits no new
-// non-test file without a re-pin. Follow-up: extract a
+// over the 500-line cap. They share one directory because it is over the
+// dirgate cap, which admits no new non-test file without a Dirgate-Growth
+// trailer. Follow-up: extract a
 // generationretention subpackage.
 
 import (

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Test mirror and BITES proof for scripts/verify-markdown-line-cap.sh
-# (issue #6187), modelled directly on scripts/test-verify-dirgate.sh.
+# (issue #6187), modelled on the retired shell test for the dirgate ledger.
 # Exercises the REAL CLI entry point (not a reimplementation of its logic)
 # against isolated scratch git repos, so every assertion here proves the
 # actual production script's behavior. No live runtime dependency

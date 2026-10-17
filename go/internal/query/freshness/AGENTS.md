@@ -114,9 +114,9 @@ into a `_test.go` copy here or in root:
 These fixtures live in `testutil/freshnessreader.go` beside the
 repository freshness double rather than in a file of their own: a new file
 would have put `testutil` one over the 40-non-test-file dirgate cap,
-and a cap exemption is not worth a second freshness fixture file. Do not add
-an exemption row to `scripts/lib/dirgate-naming-exempt.tsv` for this
-package's own files -- `freshness/` has none and must stay that way.
+and a cap waiver is not worth a second freshness fixture file. Do not add a
+`//nolint:dirgate` naming escape to this package's own files -- `freshness/`
+has none and must stay that way.
 
 The service route's two-tenant fixture, `testutil.GrantMirroringServiceChangedSince`
 with `TwoTenantServiceLineageRows` (`testutil/servicelineage.go`), mirrors

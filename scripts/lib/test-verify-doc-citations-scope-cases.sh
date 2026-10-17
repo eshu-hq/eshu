@@ -330,6 +330,48 @@ remove_doc_citation_repository_floor_case() {
   ' "${source}" >"${destination}"
 }
 
+# Case 16 (#8155): a fixture whose basename appears only in the
+# extractor-version guard snapshot is still "unused". The snapshot is a
+# frozen copy of fixture paths, not a use of them.
+test_guard_snapshot_basename_is_not_a_use() {
+  local root="${tmp_root}/case16" out="${tmp_root}/case16.out"
+  write_fixture "${root}" "tests/fixtures/ecosystems/frozen_comprehensive/"
+  write_usage "${root}" "go/internal/content/artifacts/testdata/guard/fixtures.jsonl" "frozen_comprehensive"
+  write_doc "${root}" "example.md" \
+    '# Example' '' \
+    'Fixture: `tests/fixtures/ecosystems/frozen_comprehensive/`.'
+  if run_verifier "${root}" "${out}"; then
+    record_fail "case16: a basename only in the guard snapshot is unused (verifier exited zero)"
+    cat "${out}" >&2
+  else
+    record_pass "case16: a basename only in the guard snapshot is unused"
+  fi
+  assert_contains "unused fixture" "${out}" "case16: failure names the reason"
+  assert_contains "frozen_comprehensive" "${out}" "case16: failure names the fixture path"
+}
+
+# Case 17 (#8155): the guard-snapshot exclusion is narrow. A basename the
+# snapshot holds and a real file outside it also uses still counts as used,
+# and so does one in another testdata directory.
+test_guard_snapshot_exclusion_is_narrow() {
+  local root="${tmp_root}/case17" out="${tmp_root}/case17.out"
+  write_fixture "${root}" "tests/fixtures/ecosystems/live_comprehensive/"
+  write_fixture "${root}" "tests/fixtures/ecosystems/sibling_comprehensive/"
+  write_usage "${root}" "go/internal/content/artifacts/testdata/guard/fixtures.jsonl" "live_comprehensive"
+  write_usage "${root}" "go/internal/live_test.go" "live_comprehensive"
+  write_usage "${root}" "go/internal/content/artifacts/testdata/name_free_corpus.jsonl" "sibling_comprehensive"
+  write_doc "${root}" "example.md" \
+    '# Example' '' \
+    'Fixture: `tests/fixtures/ecosystems/live_comprehensive/`.' \
+    'Fixture: `tests/fixtures/ecosystems/sibling_comprehensive/`.'
+  if run_verifier "${root}" "${out}"; then
+    assert_contains "verify-doc-citations: OK" "${out}" "case17: uses outside the guard snapshot still count"
+  else
+    record_fail "case17: uses outside the guard snapshot still count (verifier exited non-zero)"
+    cat "${out}" >&2
+  fi
+}
+
 run_doc_citation_case() {
   "$1"
 }
@@ -347,6 +389,8 @@ run_basic_fixture_cases() {
     test_unused_fixture_citation_fails \
     test_missing_fixture_citation_fails \
     test_baselined_unused_fixture_shared_across_docs_passes \
+    test_guard_snapshot_basename_is_not_a_use \
+    test_guard_snapshot_exclusion_is_narrow \
     test_fails_closed_on_bad_baseline; do
     run_doc_citation_case "${test_case}"
   done

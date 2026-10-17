@@ -12,8 +12,8 @@ each statement.
 
 ## Why it is a separate package
 
-The parent directory is at its file-count pin
-(`scripts/lib/dirgate-grandfather.tsv`), so it takes no new file, and its
+The parent directory is over the dirgate cap
+(`go/cmd/dirgate`), so a new file there needs a growth trailer, and its
 retention files sit at the 500-line cap. The move kept the statement text
 byte for byte (#7427 restack onto #8139).
 

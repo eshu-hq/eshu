@@ -258,9 +258,8 @@
 
   That code used to sit in `go/cmd/eshu/first_run_evidence.go` and was extracted
   when it crowded the repo's 500-line cap. Do not move it back: `go/cmd/eshu`
-  has a digest-pinned file-count ledger entry
-  (`scripts/lib/dirgate-grandfather.tsv`), so a new non-test file there fails
-  the gate, and the extraction is also what made the walk unit-testable on its
+  is over the 40-file cap, so a new non-test file there needs a
+  `Dirgate-Growth:` trailer (`go/cmd/dirgate`), and the extraction is also what made the walk unit-testable on its
   own — the leak that prompted it survived precisely because every test reached
   the scrub through the `first-run report` command.
 - **Record a row one walk cannot handle** → set `EndpointKeepsSecret` or

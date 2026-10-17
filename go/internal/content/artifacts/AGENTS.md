@@ -59,6 +59,33 @@
   sweep updated in the same change, and the equality differential against the
   frozen shipped extractor (`hcl_prefilter_test.go`) must stay green.
 
+- `ExtractorVersion` versions the stored rows. A change that can alter any
+  row (raw_path, relative_path, evidence_kind, name_scoped) for any input
+  bumps it by one and appends its pin row to `extractorPins`
+  (`version_guard_test.go`) in the same change. Never re-pin a digest at an
+  unchanged version to make `TestExtractorOutputIsPinned` pass. The pin row
+  also records the window constants (`ListLimit`, `AllowanceWholeWindow`):
+  a moved constant at an unchanged version fails the guard, because a window
+  change that cuts no corpus repository moves no digest. The digests fail
+  only when a change moves a stored row over the frozen corpus; they do not
+  see inputs the corpus lacks, the derive's `LoadConfigPaths` call arguments
+  (pinned by `TestDeriveCallsLoadConfigPathsWithTheGuardArguments` in
+  `storage/postgres/config/artifacts`), `storedRows` there, the
+  `content_files` statements, `artifact_type` or files above the 256 KiB
+  pre-filter bound (README, "What the guard does not see"). A change to one
+  of those still bumps.
+- `testdata/guard` changes in one of two ways only. A re-snapshot at the same
+  version, in a commit with no extractor change. Or a bump that adds the
+  input that shows its change to `supplementSnapshotInputs` and regenerates,
+  in one change, appending `{Version: N+1, CorpusDigest: <new>,
+  OutputDigest: <new>, Window: <current>}`. The guard's sources must not read `tests/fixtures`
+  or the hydration test helpers; only `version_snapshot_test.go` does.
+- The version is monotonic. Never lower `ExtractorVersion` or delete a pin
+  row. A `git revert` of a bump PR is not a rollback: `mayWrite`
+  (`storage/postgres/config/artifacts/derive_write.go`) refuses a lower
+  extractor version over a state row that a higher-version binary wrote.
+  Undo an extractor change with a new bump.
+
 ## Verification
 
 Run `go test ./internal/content/artifacts/... -count=1`, then

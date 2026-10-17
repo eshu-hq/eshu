@@ -40,7 +40,7 @@ order is the shared spine: nothing moves before PR 1.
 | 32 | `repository/`: move the 12 zero-outbound files into `repository/readmodel`, export the 34 names the parent calls; plus `repository/artifacts` ← `repositoryartifacts` | 65 | 15 queryplan `file:` keys re-key |
 | 33 | **Part B.** `content/` ← `contentread`, `content/read/` (the `ContentReader` unit, with the four merges and the `semantic_evidence.go` split), `content/relationship/` | 56 moved, 52 after merges | the issue puts it last; it is the only big-bang |
 | 34 | The alias sweep: delete all 21 root `*_alias.go` and migrate 1,420 external references | −21 | each family's aliases can only die after that family has moved |
-| 35 | move the 5 shared rows out of today's `contract/` into `capability/` (`capabilities.go`, `capability_matrix_ext.go`, `capability_matrix_terraform.go`, plus `capability_matrix.go` as `matrix.go` and `registry.go` as `registry.go`); hand the free `contract/` name to #6818 once today's `contract/` is down to `doc.go`; root reduction to five files; re-pin the dirgate row; retire the `internal/query` ledger row | — | definition of done |
+| 35 | move the 5 shared rows out of today's `contract/` into `capability/` (`capabilities.go`, `capability_matrix_ext.go`, `capability_matrix_terraform.go`, plus `capability_matrix.go` as `matrix.go` and `registry.go` as `registry.go`); hand the free `contract/` name to #6818 once today's `contract/` is down to `doc.go`; root reduction to five files (a shrink needs no dirgate action) | — | definition of done |
 
 ### PR 2 is a hoist, not a move (measured)
 
@@ -133,8 +133,8 @@ real code. That is a separate change on top of PR 31.
   `AGENTS.md` with real content; `scripts/verify-package-docs.sh` passes. A
   namespace parent with no package of its own carries nothing, matching
   `query/graph/` and `query/package/` today.
-- Dirgate row re-pinned DOWN in the same PR, `grandfather.go` regenerated —
-  see [Restack rule](#restack-rule-the-dirgate-ledger-trap).
+- No dirgate action for a shrink; a directory that grows needs a growth
+  trailer — see [Restack rule](#restack-rule-the-dirgate-ledger-trap).
 - Citation sweep. **222 path citations across 101 tracked `.md`/`.yaml`/`.yml`
   files name 87 of the 277 moving files** (`envelope_aliases.go` 12 times,
   `relationships_catalog_cypher.go` and `content_reader_repository_catalog.go`
@@ -230,13 +230,10 @@ the rename happens at all remains open under #6649.
 
 ## Restack rule (the dirgate ledger trap)
 
-`scripts/lib/dirgate-grandfather.tsv` row `internal/query` and its generated
-mirror `tools/golangci-lint-dirgate/grandfather.go` conflict on every sibling
-merge, and a clean merge is the dangerous case. Every move PR: take
-`origin/main`'s copy of both, re-derive count and digest for the real tree with
-`scripts/dev/precommit-go.sh dirgate-digest internal/query`, regenerate the
-mirror with `scripts/generate-dirgate-grandfather-go.sh`, check the sums. Never
-carry a ledger resolution across a rebase without re-deriving it.
+Superseded: the ledger this section describes is retired and the cap is derived
+from git. See the same heading in `reducer-target-tree.md`. A move PR for
+`internal/query` now needs no row to re-derive; it needs a `Dirgate-Growth:`
+trailer only when a directory grows past `max(40, base count)`.
 
 A second session (`eshu-14`) is driving the same shape of change on
 `go/internal/storage/postgres` under #6693 and re-pins its own row in the same
@@ -290,4 +287,4 @@ Updated as each PR lands.
 - [ ] PR 32 — `repository/artifacts` rename (`repository/` itself blocked on UNDECIDED 1)
 - [ ] PR 33 — Part B, `content/`
 - [ ] PR 34 — alias sweep
-- [ ] PR 35 — `contract/` name handed to #6818; root at 5 files; dirgate row retired
+- [ ] PR 35 — `contract/` name handed to #6818; root at 5 files

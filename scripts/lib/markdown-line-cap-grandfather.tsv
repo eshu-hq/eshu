@@ -1,14 +1,12 @@
 # Line-count-pinned grandfather ledger for the Markdown 500-line file cap
-# under go/ and docs/ (issues #6187/#6545), the Markdown sibling of
-# scripts/lib/dirgate-grandfather.tsv: a closed list of the .md files that
+# under go/ and docs/ (issues #6187/#6545): a closed list of the .md files that
 # already exceeded the cap when the gate landed, so the gate lands green on
 # today's tree and new or growing files fail immediately.
 #
 # This file is the single source of truth for the cap check.
 # scripts/lib/markdown-line-cap-core.sh reads it directly -- there is no
-# generated Go mirror the way dirgate has one, because the Go cap is enforced
-# by a golangci-lint plugin that walks the Go AST and cannot see a .md file at
-# all. Nothing regenerates this file; edit it by hand, using
+# generated Go mirror, because the Go file cap is enforced by a golangci-lint
+# plugin that walks the Go AST and cannot see a .md file at all. Nothing regenerates this file; edit it by hand, using
 # `bash scripts/verify-markdown-line-cap.sh --pin <path>` to measure the row.
 #
 # "Closed list" is enforced, not merely intended. The gate compares this file
@@ -27,9 +25,9 @@
 #                unterminated line that `wc -l` would miss) at the commit
 #                this row was pinned.
 #
-# The rule the pin is checked with is `live <= line_count`, NOT dirgate's
-# `live == file_count`. A count match is not a pin match, and the two ledgers
-# deliberately assert different things:
+# The rule the pin is checked with is `live <= line_count`. The retired dirgate cap
+# ledger (#6054) asserted `live == file_count`; this one asserts the softer
+# bound below. A count match is not a pin match:
 #
 #   - A file whose live count EXCEEDS line_count FAILS. Pinning the number
 #     rather than allowlisting the filename is the entire point: a bare
@@ -40,13 +38,12 @@
 #     query/README.md by 4, query/evidence-notes.md by 38 -- which is the
 #     drift this column measures.
 #   - A file whose live count is BELOW line_count passes, and the gate prints
-#     a non-fatal NOTE asking for a re-pin. dirgate hard-fails a shrink to
-#     force its ratchet down; that is right for a ledger whose rows move when
-#     FILES move, and wrong here. Markdown shrinks a line at a time on
+#     a non-fatal NOTE asking for a re-pin. A hard fail on every shrink suits a
+#     ledger whose rows move when FILES move, and is wrong here. Markdown shrinks a line at a time on
 #     ordinary prose edits, and requiring a re-pin for each one would make
 #     every documentation edit under go/ re-touch this one shared file, which
 #     serialises documentation edits against each other -- the exact cost
-#     #6187 warned a second dirgate-shaped ledger would carry. The bounded
+#     #6187 warned a second count-pinned ledger would carry. The bounded
 #     price of the softer rule: a file that shrinks to 600 lines may regrow
 #     to its pin before failing. It can never exceed the pin.
 #

@@ -5,9 +5,6 @@
 # --pin helper and argument handling. Sourced by that driver, which provides
 # new_scratch_repo, write_md_lines, write_ledger, run_mdcap and the
 # assert_*/record_* helpers. Not runnable on its own.
-#
-# Sibling of scripts/lib/test-verify-dirgate-naming-exempt-cases.sh, which
-# pins the same stale-row rule for the dirgate naming ledger.
 
 # A row whose file was moved, renamed, or deleted must be removed by the
 # change that did it. Left behind, it silently pre-authorises an over-cap

@@ -116,7 +116,7 @@ handler telemetry remain unchanged.
 cd go && go build ./internal/query/...
 cd go && go test ./internal/query/ ./internal/query/codemodel/ -count=1
 bash scripts/verify-route-coverage.sh
-bash scripts/verify-dirgate.sh --digest internal/query
+bash scripts/verify-dirgate.sh --pre-push
 ```
 
 Moving a builder also moves its queryplan pin: update the `file:` path

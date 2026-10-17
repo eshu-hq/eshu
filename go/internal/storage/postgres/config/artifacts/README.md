@@ -176,10 +176,22 @@ unsupported `Encoding` or `Fence` (including `fence_check_failed`) returns
 was canceled), `sqlstate_<SQLSTATE>` for a PostgreSQL error, or `error`.
 
 `DeriverConfig.ExtractorVersion` is required and positive. This package
-defines no extractor-version constant: the wiring slice supplies it. The S0
-`extractor_version` digest guard (decision record section 7, "S0 test,
-version guard") has not landed, so nothing yet fails when extractor output
-changes without a version bump.
+defines no extractor-version constant: the wiring slice supplies
+`contentartifacts.ExtractorVersion`. Its guard
+(`TestExtractorOutputIsPinned` in `content/artifacts`, decision record
+section 7, "S0 test, version guard") copies `storedRows` and re-implements the
+`content_files` statements, so it cannot see a change here.
+`TestStoredRowsCopiesTheBuildVerbatim` (`derive_reader_test.go`) pins
+`storedRows` as a verbatim copy of the build. The guard also passes its own
+copy of the derive's `LoadConfigPaths` call arguments (an id-only
+repository, no supplied file list, `AllowanceWholeWindow`);
+`TestDeriveCallsLoadConfigPathsWithTheGuardArguments`
+(`derive_contract_test.go`) records the arguments the real Deriver passes and
+that production wires `LoadConfigPaths`. A change to those arguments needs the
+same change to `deriveGuardRows` and a bump. A change to `storedRows` or to
+what a statement returns needs an `ExtractorVersion` bump and the same change
+to the guard's copy (`content/artifacts` README, "What the guard does not
+see").
 
 ## The version fence (PR3b-1b)
 

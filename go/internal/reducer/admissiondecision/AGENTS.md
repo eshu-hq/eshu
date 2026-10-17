@@ -69,12 +69,10 @@ addition, not a rename" section.
 - **`verify-performance-evidence.sh`** — fires on this path (hot-path
   location). Markers must be unbolded and preceded by start-of-line or
   whitespace in a tracked note (`README.md` here carries them).
-- **`verify-dirgate.sh`** — the `internal/reducer` row in
-  `scripts/lib/dirgate-grandfather.tsv` is a monotonic ratchet, decremented
-  when a file leaves the root. Re-derive it with
-  `bash scripts/dev/precommit-go.sh dirgate-digest internal/reducer` and
-  regenerate the mirror with `bash scripts/generate-dirgate-grandfather-go.sh`.
-  Never hand-edit either.
+- **`verify-dirgate.sh`** — the cap is a git-derived ratchet plus write-once
+  baselines (`go/cmd/dirgate`). Growth of a directory past max(40, its count at
+  the base) needs a `Dirgate-Growth:` trailer in the commit message that adds the
+  files; shrinking or moving files out needs nothing. Never edit the baselines.
 - **`scripts/lib/ifa_live_gate_selector_cases.sh`** — line ~142 pins
   `'go/internal/reducer/**|go/internal/reducer/admissiondecision/admission_decisions.go'`
   as a concrete path the `go/internal/reducer/**` glob must keep selecting.
