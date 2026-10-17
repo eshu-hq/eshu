@@ -193,6 +193,25 @@ TABLE = {
             "TestIngestionStoreCommitScopeGenerationPersistsFluxEvidenceNatively",
             "TestFluxEvidenceMixedGenerationLegacyAndCurrentCoexist",
         ),
+        "go/internal/storage/postgres/ingestion_reopen_correlation_fingerprint_concurrency_live_test.go": (
+            "TestDeployableUnitReopenFingerprintConcurrentPassesLive",
+            "TestDeployableUnitReopenFingerprintWriteRacesReclaimLive",
+            "TestDeployableUnitReopenFingerprintWriteRacesRetentionLive",
+        ),
+        "go/internal/storage/postgres/ingestion_reopen_correlation_fingerprint_differential_live_test.go": (
+            "TestDeployableUnitReopenFingerprintDifferentialLive",
+            "TestDeployableUnitReopenFingerprintZeroCandidateLive",
+            "TestDeployableUnitReopenFingerprintGatesTargetedPassLive",
+        ),
+        "go/internal/storage/postgres/ingestion_reopen_correlation_fingerprint_live_test.go": (
+            "TestDeployableUnitReopenFingerprintGateLive",
+            "TestDeployableUnitReopenFingerprintKeepsReadSnapshotLive",
+        ),
+        "go/internal/storage/postgres/ingestion_reopen_correlation_fingerprint_write_live_test.go": (
+            "TestDeployableUnitReopenFingerprintWriteIsClaimFencedLive",
+            "TestDeployableUnitReopenFingerprintWriteIsMonotonicLive",
+            "TestDeployableUnitReopenFingerprintCascadesWithWorkItemLive",
+        ),
         "go/internal/storage/postgres/manifest_less_dirty_rule_answer_live_test.go": (
             "TestReducerContentionGateManifestLessDirtyRuleReturnsTheSameDefinitions",
             "TestReducerContentionGateManifestLessDirtyRuleNaiveRuleLosesTheHole",
