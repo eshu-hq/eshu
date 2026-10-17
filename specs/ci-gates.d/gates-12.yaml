@@ -218,7 +218,6 @@ gates:
       - "go/internal/ifa/testdata/shellexec/**"
       - "testdata/cassettes/kubernetesnamespaceenvironment/**"
       - "testdata/cassettes/iaminstanceprofilerole/**"
-<<<<<<< HEAD
       - "testdata/cassettes/iamcanassume/**"
       - "testdata/cassettes/ec2usesprofile/**"
       - "testdata/cassettes/s3logsto/**"

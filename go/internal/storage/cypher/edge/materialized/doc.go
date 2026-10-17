@@ -13,7 +13,10 @@
 // observability_coverage, security_group_sg_rule in direct_families.go) expose
 // their closed vocabularies with a RetractKind (relAlternation or
 // evidenceNodeDetach) plus every production retract variant the drift guard
-// pins (RetractCypher plus RetractVariants).
+// pins (RetractCypher plus RetractVariants). The one predicate-scoped
+// family (cloud_resource, #8358) exposes no type set — its writers prefix
+// an open verb vocabulary — but the (type-prefix, evidence_source,
+// endpoint-label) predicate its scan scopes by.
 //
 // The registries are data, not writers: every Cypher template they cite is
 // owned by the edge/writer sibling or the canonical writers in the cypher
