@@ -22,13 +22,19 @@
 #   G1 clean changed package -> exit 0 (real gosec)
 #   G2 docs-only change -> exit 0, "no changed Go packages", gosec never invoked
 #   R2 unresolvable base -> exit 2, message names the base, gosec never invoked
-#   R3 each whole-module trigger file changed -> argv has ./..., message names it
+#   R3 each whole-module trigger file changed -> message names it, no ./... in argv
 #   R4 gosec killed by SIGTERM -> exit 143 and "gosec exited 143"
 #   R5 gosec exits 0 and writes no file      -> exit 1, "no parsable result"
 #   R6 gosec exits 0 and writes an empty file -> exit 1
 #   R7 gosec exits 0 and writes `not json`   -> exit 1
 #   R8 real gosec on a package with a type error -> exit 1, errors printed
 #   R9 valid JSON with Stats.files 0 for a requested package -> exit 1
+#   A1-A5 a package over the go/packages pattern limit (#8339), real gosec: A1 a
+#      planted G115 in the last file is reported with the REAL path; A2 clean ->
+#      exit 0 and no alias left behind; A3 under the limit -> no alias; A4 too big
+#      even via alias -> exit 1; A5 whole-module mode never passes ./... to gosec
+#   C1 no go.mod -> "must run from the module root"; C2 Stats.files below the
+#      expected count -> exit 1; C3 an absolute pattern -> exit 1
 #
 # Mechanics cases use a stub gosec that logs its argv, so a pass cannot be
 # vacuous. Findings cases use the REAL pinned gosec from the shared tool cache
@@ -76,7 +82,9 @@ write_stub() {
 printf '%s\n' "$*" >>"${STUB_LOG}"
 out=""; prev=""
 for a in "$@"; do [ "${prev}" = -out ] && out="${a}"; prev="${a}"; done
-j='{"Issues":[],"Stats":{"files":3},"Golang errors":{}}'
+n=0
+for a in "$@"; do case "${a}" in ./*) c=$(ls "${a}"*.go 2>/dev/null | wc -l); n=$((n + c)) ;; esac; done
+j="{\"Issues\":[],\"Stats\":{\"files\":${n}},\"Golang errors\":{}}"
 STUB_A
 	cat >>"${dest}" <<'STUB_B'
 case "${STUB_MODE:-ok}" in
@@ -85,6 +93,7 @@ case "${STUB_MODE:-ok}" in
 	notjson) printf 'not json\n' >"${out}" ;;
 	zero) printf '{"Issues":[],"Stats":{"files":0},"Golang errors":{}}\n' >"${out}" ;;
 	term) kill -TERM $$ ;;
+	file) cp "${STUB_JSON}" "${out}" ;;
 esac
 exit 0
 STUB_B
@@ -104,6 +113,8 @@ build_fixture() {
 	: >"${fx}/go/go.sum"
 	printf 'package ok\n\n// Add adds two ints.\nfunc Add(a, b int) int { return a + b }\n' \
 		>"${fx}/go/internal/ok/ok.go"
+	printf 'package ok\n\n// Sub subtracts two ints.\nfunc Sub(a, b int) int { return a - b }\n' \
+		>"${fx}/go/internal/ok/ok2.go"
 	printf 'run: scripts/ci/go-install-retry.sh github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2\n' \
 		>"${fx}/.github/workflows/test.yml"
 	printf 'run: scripts/ci/go-install-retry.sh github.com/securego/gosec/v2/cmd/gosec@%s\n' "${gosec_version}" \
@@ -175,6 +186,12 @@ check() {
 	pass "${label}: exit ${rc}"
 }
 
+check_absent() { # <label> <fixed string that must NOT be in the output>
+	if rg --quiet --fixed-strings -- "$2" "${out_file}"; then
+		fail "$1: output unexpectedly contains '$2'"
+	fi
+}
+
 stub_calls() { awk 'END { print NR }' "${stub_log}"; }
 
 expect_no_scan() {
@@ -196,7 +213,7 @@ topic; touch_ok; commit_all; use_stub
 run_arm STUB_MODE=ok bash "${script}" gosec-changed
 check "self-check gosec-changed (stub ok)" 0
 if ! rg --quiet --fixed-strings -- '-fmt=json' "${stub_log}" \
-	|| ! rg --quiet --fixed-strings -- './internal/ok/...' "${stub_log}"; then
+	|| ! rg --quiet --fixed-strings -- './internal/ok/' "${stub_log}"; then
 	fail "self-check: stub argv lacks -fmt=json or ./internal/ok/... ($(tr '\n' ';' <"${stub_log}"))"
 fi
 
@@ -234,14 +251,14 @@ run_arm STUB_MODE=ok ESHU_PRE_PUSH_BASE=refs/heads/nope bash "${script}" gosec-c
 check "R2 gosec-changed: bad base" 2 'refs/heads/nope'
 expect_no_scan "R2 gosec-changed"
 
-# --- R3: each whole-module trigger file widens the scan to ./...
+# --- R3: each whole-module trigger file widens the scan to every package, as explicit dirs
 for p in go/go.mod go/go.sum scripts/dev/precommit-go.sh scripts/lib/precommit-go-gosec.sh \
 	scripts/ci/go-install-retry.sh scripts/ci/go-mod-download-retry.sh .github/workflows/security-scan.yml; do
-	topic; printf '# changed\n' >>"${fx}/${p}"; commit_all
+	topic; if [ "${p}" = go/go.mod ]; then printf '// changed\n' >>"${fx}/${p}"; else printf '# changed\n' >>"${fx}/${p}"; fi; commit_all
 	run_arm STUB_MODE=ok bash "${script}" gosec-changed
 	check "R3 gosec-changed: ${p}" 0 "whole-module scan, ${p} changed"
-	if ! rg --quiet --fixed-strings -- './...' "${stub_log}"; then
-		fail "R3 ${p}: gosec argv lacks ./... ($(tr '\n' ';' <"${stub_log}"))"
+	if rg --quiet --fixed-strings -- './...' "${stub_log}" || ! rg --quiet --fixed-strings -- './internal/ok/' "${stub_log}"; then
+		fail "R3 ${p}: gosec argv must list explicit package dirs, never ./... ($(tr '\n' ';' <"${stub_log}"))"
 	fi
 done
 
@@ -249,11 +266,11 @@ done
 topic; touch_ok
 run_arm STUB_MODE=ok bash "${script}" gosec-changed
 check "gosec-changed: unstaged change" 0
-rg --quiet --fixed-strings -- './internal/ok/...' "${stub_log}" || fail "unstaged change not scanned"
+rg --quiet --fixed-strings -- './internal/ok/' "${stub_log}" || fail "unstaged change not scanned"
 git -C "${fx}" add -A
 run_arm STUB_MODE=ok bash "${script}" gosec-changed
 check "gosec-changed: staged change" 0
-rg --quiet --fixed-strings -- './internal/ok/...' "${stub_log}" || fail "staged change not scanned"
+rg --quiet --fixed-strings -- './internal/ok/' "${stub_log}" || fail "staged change not scanned"
 
 # --- R4-R7, R9: broken gosec behaviour must fail closed on every arm.
 for arm in gosec gosec-all gosec-changed; do
@@ -268,8 +285,95 @@ for arm in gosec gosec-all gosec-changed; do
 	run_arm STUB_MODE=notjson bash "${script}" "${arm}" ${in}
 	check "R7 ${arm}: non-JSON result" 1 'no parsable result'
 	run_arm STUB_MODE=zero bash "${script}" "${arm}" ${in}
-	check "R9 ${arm}: zero files scanned" 1 'scanned 0 files'
+	check "R9 ${arm}: zero files scanned" 1 'scanned 0 of'
 done
+
+# --- A1-A5: a package whose file patterns exceed the go/packages limit (#8339).
+# go/packages splits the pattern list at 16383 bytes into several `go list` runs
+# and keeps only the first run's imports, so gosec type-checks the package with
+# missing imports and silently skips its SSA analyzers (G115, G407, G602...). The
+# last file imports a package no other file does and plants a G115 conversion.
+big_pkg() { # <dir> <count> <name-length>
+	local dir="$1" n="$2" len="$3" i name pad
+	mkdir -p "${fx}/go/internal/${dir}"
+	pad="$(printf '%*s' "${len}" '' | tr ' ' 'x')"
+	i=0
+	while [ "${i}" -lt "${n}" ]; do
+		name="$(printf 'f%04d_%s' "${i}" "${pad}")"
+		printf 'package %s\n\n// F%d returns %d.\nfunc F%d() int { return %d }\n' "${dir}" "${i}" "${i}" "${i}" "${i}" \
+			>"${fx}/go/internal/${dir}/${name}.go"
+		i=$((i + 1))
+	done
+	printf 'package %s\n\nimport "text/tabwriter"\n\n// Align is a value only this file needs.\nvar Align = tabwriter.AlignRight\n' "${dir}" \
+		>"${fx}/go/internal/${dir}/zzlast.go"
+}
+plant_g115() { # <dir>
+	printf '\n// Narrow converts an int to int8.\nfunc Narrow(v int) int8 { return int8(v) }\n' >>"${fx}/go/internal/$1/zzlast.go"
+}
+aliases_left() { ls -d "${fx}"/go/_g* 2>/dev/null | wc -l | tr -d ' '; }
+
+use_real
+topic; big_pkg bigpackage 300 30; commit_all
+# Control: the pinned gosec called directly reports Go errors on this fixture, so
+# the fixture really reproduces #8339 and A1/A2 cannot pass vacuously.
+( cd "${fx}/go" && "${fx}/.git/eshu-precommit/gosec-${gosec_version}" -no-fail -fmt=json -out "${tmp_root}/ctl.json" ./internal/bigpackage/ >/dev/null 2>&1 )
+if [ "$(jq -r '."Golang errors" | length' "${tmp_root}/ctl.json")" -eq 0 ]; then
+	fail "A-control: direct gosec reported no Go errors, the fixture does not reproduce #8339"
+else
+	pass "A-control: direct gosec reports Go errors on the oversized package"
+fi
+for arm in gosec gosec-changed; do
+	topic; big_pkg bigpackage 300 30; plant_g115 bigpackage; commit_all
+	run_arm bash "${script}" "${arm}" $(if [ "${arm}" = gosec ]; then printf 'go/internal/bigpackage/zzlast.go'; fi)
+	check "A1 ${arm}: G115 in the last file via alias" 1 G115 'internal/bigpackage/zzlast.go' 'scanned via alias'
+	check_absent "A1 ${arm}" '/_g'
+	topic; big_pkg bigpackage 300 30; commit_all
+	run_arm bash "${script}" "${arm}" $(if [ "${arm}" = gosec ]; then printf 'go/internal/bigpackage/zzlast.go'; fi)
+	check "A2 ${arm}: clean oversized package" 0 'scanned via alias' '301 file(s) scanned'
+	[ "$(aliases_left)" -eq 0 ] || fail "A2 ${arm}: alias left behind: $(ls -d "${fx}"/go/_g*)"
+done
+topic; big_pkg small 20 10; commit_all
+run_arm bash "${script}" gosec-changed
+check "A3 gosec-changed: package under the limit" 0 '21 file(s) scanned'
+check_absent "A3" 'alias'
+topic; big_pkg hugepackage 400 45; commit_all
+run_arm bash "${script}" gosec-changed
+check "A4 gosec-changed: too big even via alias" 1 'split the package (#8339)'
+[ "$(aliases_left)" -eq 0 ] || fail "A4: alias left behind: $(ls -d "${fx}"/go/_g*)"
+use_stub
+topic; big_pkg bigpackage 300 30; commit_all
+run_arm STUB_MODE=ok bash "${script}" gosec-all
+check "A5 gosec-all: oversized package via alias, stub" 0 'internal/bigpackage scanned via alias'
+if rg --quiet --fixed-strings -- './...' "${stub_log}"; then fail "A5: gosec-all passed ./... to gosec"; fi
+rg --quiet --fixed-strings -- './internal/ok/' "${stub_log}" || fail "A5: gosec-all argv lacks ./internal/ok/"
+
+json_file="${tmp_root}/stub.json"
+# --- C1-C3: the run is anchored to the module root and checks what it scanned.
+topic; touch_ok; commit_all
+mv "${fx}/go/go.mod" "${fx}/go/go.mod.off"
+run_arm STUB_MODE=ok bash "${script}" gosec-all
+check "C1 gosec-all: no go.mod" 1 'must run from the module root'
+mv "${fx}/go/go.mod.off" "${fx}/go/go.mod"
+printf '{"Issues":[],"Stats":{"files":1},"Golang errors":{}}\n' >"${json_file}"
+run_arm STUB_MODE=file STUB_JSON="${json_file}" bash "${script}" gosec-changed
+check "C2 gosec-changed: fewer files than expected" 1 'scanned 1 of 2 expected files'
+printf '{"Issues":[],"Stats":{"files":0},"Golang errors":{}}\n' >"${json_file}"
+run_arm STUB_MODE=file STUB_JSON="${json_file}" bash "${script}" gosec-changed
+check "C2b gosec-changed: zero files" 1 'scanned 0 of 2 expected files'
+real_lib="${repo_root}/scripts/lib/precommit-go-gosec.sh"
+c3_out="${tmp_root}/c3.out"
+c3_rc=0
+( repo_root="${fx}"; go_dir="${fx}/go"; worktree_cache_dir="${tmp_root}/wc"; mkdir -p "${worktree_cache_dir}"
+  ensure_gosec() { printf '%s' "${fx}/.git/eshu-precommit/gosec-${gosec_version}"; }
+  die() { printf '%s\n' "$*" >&2; exit 1; }
+  # shellcheck source=lib/precommit-go-gosec.sh
+  source "${real_lib}"
+  run_gosec c3 "${fx}/go/internal/ok/" ) >"${c3_out}" 2>&1 || c3_rc=$?
+if [ "${c3_rc}" -ne 1 ] || ! rg --quiet --fixed-strings -- 'absolute pattern' "${c3_out}"; then
+	fail "C3: absolute pattern: exit ${c3_rc}, output: $(tail -n 3 "${c3_out}" | tr '\n' ' ')"
+else
+	pass "C3: absolute pattern refused, exit 1"
+fi
 
 if [ "${failures}" -ne 0 ]; then
 	printf 'test-precommit-go-gosec: %d failure(s)\n' "${failures}" >&2
