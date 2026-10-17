@@ -13,7 +13,7 @@ TABLE = {
         ),
         "go/internal/storage/postgres/status/summary/bloat_terraform_live_test.go": (
             "TestStatusSummaryBloatTerraformLive",
-            "TestStatusSummaryBloatTerraformQaScaleLive",
+            "TestStatusSummaryBloatTerraformQAScaleLive",
             "TestStatusSummaryBloatTerraformWorstCaseLive",
         ),
         "go/internal/storage/postgres/status/summary/conflict_live_test.go": (
