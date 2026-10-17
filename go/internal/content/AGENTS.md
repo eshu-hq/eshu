@@ -10,7 +10,10 @@
    `CanonicalEntityIDWithMetadata`, `CanonicalDependencyEntityID`,
    `dependencyIdentityPackageManagers`, `dependencyIdentityDiscriminator`
 4. `go/internal/content/writer_config.go` — `WriterConfig`, `LoadWriterConfig`,
-   `ContentEntityBatchSizeEnv`, `MaxContentEntityBatchSize`
+   `ContentEntityBatchSizeEnv`, `MaxContentEntityBatchSize`; and
+   `config_artifact_derive.go` — `LoadConfigArtifactDeriveConfig`, the
+   read-once derive timeout and kill switch (#8155; not called until
+   PR3b-2c-2)
 5. `go/internal/content/doc.go` — package contract for godoc consumers
 6. `go/internal/content/artifacts/AGENTS.md` — when the change touches the
    config-artifact extractors, the per-repository function or a `content_files`
