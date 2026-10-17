@@ -17,11 +17,25 @@ package artifacts
 // selection, the list window, the dedup or the name-scope table. Bump
 // ExtractorVersion by one and, in the same change, append the new pinned row
 // (version, corpus digest, output digest) to extractorPins in
-// version_guard_test.go. The guard runs the derive's call of LoadConfigPaths
-// over the committed corpus in testdata/guard. It fails when the output
-// digest changed at an unchanged version, when the version changed but the
-// output did not, and when the corpus bytes changed outside the re-snapshot
-// procedure in the package README. A change that leaves every row unchanged
-// keeps the version. A bump makes every stored row stale, so each repository
-// is derived again.
+// version_guard_test.go. A change that leaves every row unchanged keeps the
+// version. A bump makes every stored row stale, so each repository is derived
+// again.
+//
+// The guard (TestExtractorOutputIsPinned) runs the derive's call of
+// LoadConfigPaths over the frozen corpus in testdata/guard. It fails when a
+// change moves a stored row over that corpus, when the version changed but
+// the output over that corpus did not, and when the corpus bytes changed
+// without a matching pin row. It does not see, so each still needs a manual
+// bump when it changes: inputs the corpus lacks (add one that shows the
+// change to the generator's supplement and regenerate in the bump change);
+// the storedRows mapping in storage/postgres/config/artifacts, which the
+// guard copies (TestStoredRowsCopiesTheBuildVerbatim there fails on a change
+// to it); the content_files statements, whose semantics the guard's store
+// re-implements; and artifact_type, which the corpus does not hold. The
+// package README, "Extractor version and its guard", has the procedures.
+//
+// The version is monotonic: never lower it or delete a pin row. A git revert
+// of a bump is not a rollback, because the derive's write condition refuses a
+// lower extractor version over a state row that a higher-version binary
+// wrote. Undo an extractor change with a new bump.
 const ExtractorVersion int = 1

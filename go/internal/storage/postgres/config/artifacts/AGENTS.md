@@ -83,6 +83,10 @@ Scoped instructions for the config-artifact read model (#7126). The root
   (`TestDeriveFailureRecordRacingNewerWritesLive`) biases the write and failure
   order with sleeps and requires at least 5 rounds of each; it does not force
   either order.
+- `storedRows` copies the build verbatim (`TestStoredRowsCopiesTheBuildVerbatim`).
+  The extractor-version guard in `content/artifacts` hashes its own copy of
+  it, so a change to `storedRows` needs an `ExtractorVersion` bump and the
+  same change to `deriveGuardRows` there.
 - Step 2 reads through `contentReader`, which must send only the neutral
   package's statements and row mappers (`contentartifacts.ListStatement` and
   its siblings), never a copy: the S4 equality test compares the stored rows
@@ -103,9 +107,9 @@ Scoped instructions for the config-artifact read model (#7126). The root
 ## Tests
 
 - `schema_test.go`, `port_test.go`, `encoding_test.go`, `fence_test.go`,
-  `fence_migration_test.go`, `versions_guard_test.go` and `derive_test.go`
-  (over the scripted database in `derive_fake_test.go`) run without a
-  database. `export_test.go` exposes the derive's test hooks to the live
+  `fence_migration_test.go`, `versions_guard_test.go`, `derive_reader_test.go`
+  and `derive_test.go` (over the scripted database in `derive_fake_test.go`)
+  run without a database. `export_test.go` exposes the derive's test hooks to the live
   tests.
 - `*_live_test.go` need `ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN` (an
   administrative `postgres` database DSN) and

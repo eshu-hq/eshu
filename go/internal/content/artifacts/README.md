@@ -230,17 +230,26 @@ version. The constant starts at 1.
 
 **Bump rule.** A change that can alter those rows for any input needs a
 bump: an extractor, a path rule, the clean step, the hydration selection, the
-list window, the dedup or the name-scope table. Bump by one and, in the same
-change, append `{Version, CorpusDigest, OutputDigest}` to `extractorPins` in
+list window, the dedup, the name-scope table, or any input in "What the guard
+does not see" below. Bump by one and, in the same change, append
+`{Version, CorpusDigest, OutputDigest}` to `extractorPins` in
 `version_guard_test.go`. The failure message prints the exact row. A change
 that leaves every row unchanged keeps the version: a bump makes every stored
 row stale, so each repository is derived again.
 
+The version is monotonic. Never lower `ExtractorVersion` or delete a pin row.
+A `git revert` of a bump PR is not a rollback: `mayWrite`
+(`storage/postgres/config/artifacts/derive_write.go`) refuses a lower
+extractor version over a state row that a higher-version binary wrote, so
+those repositories stay superseded. To undo an extractor change, revert the
+extractor code and bump forward again (version N+1 with its own pin row; the
+pin history accepts a row whose output equals an older, non-adjacent row).
+
 **The guard.** `TestExtractorOutputIsPinned` runs the derive's own call
 (`LoadConfigPaths` with no name, no supplied list and `AllowanceWholeWindow`,
 as in `storage/postgres/config/artifacts/derive.go`) over the committed corpus
-in `testdata/guard`, through its own in-memory store. It maps the rows as the
-derive does, sorts them by repository label, `raw_path`, `relative_path`,
+in `testdata/guard`, through its own in-memory store. It maps the rows with a
+copy of the derive's `storedRows`, sorts them by repository label, `raw_path`, `relative_path`,
 `evidence_kind` and `name_scoped`, and hashes every field framed as
 `<byte length>:<bytes>`. It fails when:
 
@@ -248,7 +257,7 @@ derive does, sorts them by repository label, `raw_path`, `relative_path`,
 |---|---|
 | The snapshot bytes changed | `guard corpus changed` |
 | The output changed at the pinned version | `extractor output changed` |
-| The version changed but the output did not | `... the output did not change, so revert the bump` |
+| The version changed but the output did not | `... the output over the guard corpus did not change` |
 | The version was bumped without a new pin row | `ExtractorVersion was bumped to N without updating the pinned pair` |
 | An evidence kind has fewer than 3 rows | `guard corpus coverage` |
 
@@ -256,6 +265,26 @@ derive does, sorts them by repository label, `raw_path`, `relative_path`,
 `TestGuardIsSelfContained` are the seeded RED/GREEN pairs of the three
 checks. Production row order is not in the digest: the stored rows are a set,
 and `CompareConfigPaths` has its own tests.
+
+**What the guard does not see.** The guard fails when a change moves a stored
+row over the frozen corpus. It does not prove that no unbumped change ships.
+Each of these still needs a manual bump when it changes:
+
+- Inputs the corpus lacks. A change that alters rows only for such an input
+  passes the guard (for example, lower-casing the kustomize policy path: no
+  kustomize row in the corpus has upper case). Add that input in the bump
+  change (procedure below).
+- The `storedRows` mapping in `storage/postgres/config/artifacts`
+  (`derive_reader.go`). The guard hashes its own copy (`deriveGuardRows`).
+  `TestStoredRowsCopiesTheBuildVerbatim` in that package fails on a change to
+  the mapping; update the guard's copy and bump in the same change. The S4
+  live test compares stored rows with the live path and sees a mapping
+  change only on its corpus, which has no upper-case `relative_path`.
+- The `content_files` statements (`ListStatement`, `GetFilesStatement`,
+  `NonBlankPathsStatement`). `guardStore` re-implements their semantics, so
+  an edit to the SQL is not seen.
+- `artifact_type`. The snapshot holds no `artifact_type`, so a change to an
+  extractor branch that reads it is not seen.
 
 **The corpus.** `testdata/guard/fixtures.jsonl` holds the config-artifact
 candidates of the S4 set (each `tests/fixtures` directory and child directory,
@@ -273,8 +302,21 @@ must not read those inputs (`TestGuardIsSelfContained`). The S4 live test in
 220 repositories through the Deriver against Postgres) stays the broader
 stored-equals-live proof. This snapshot is only the version-guard corpus.
 
-**Re-snapshot procedure.** Change the corpus only in a commit that changes no
-extractor:
+**Bump with a new input.** When the guard cannot see a change that alters
+rows (the guard passes, or reports `the output over the guard corpus did not
+change` after the bump), do this in one change:
+
+1. Add an input that shows the change to `supplementSnapshotInputs`
+   (`version_snapshot_test.go`), with the extractor change in place.
+2. Regenerate (step 2 below).
+3. Set `ExtractorVersion` to N+1 and append
+   `{Version: N+1, CorpusDigest: <new>, OutputDigest: <new>}`, with the
+   digests the generator logs (the guard's `guard corpus changed` message
+   prints the same row). Leave the older rows as they are.
+4. Name the added input in the PR, so a reviewer can see it shows the change.
+
+**Re-snapshot procedure.** Re-snapshot at the same version only in a commit
+that changes no extractor:
 
 1. With the committed snapshot, run
    `go test ./internal/content/artifacts/ -run TestExtractorOutputIsPinned -count=1`.
