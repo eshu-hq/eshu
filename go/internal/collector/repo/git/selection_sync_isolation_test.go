@@ -37,7 +37,7 @@ func newSyncIsolationInstruments(t *testing.T) (*telemetry.Instruments, *sdkmetr
 // checkout) as no-ops/success, and makes `ls-remote` fail for exactly the
 // repositories named in failingRepoIDs (matched by substring on the checkout
 // path, which embeds the repo ID) with the same shape of error #7001
-// observed on ops-qa: a `git ls-remote` non-zero exit after a DNS timeout.
+// observed on QA: a `git ls-remote` non-zero exit after a DNS timeout.
 // Every other repository's ls-remote succeeds with one minimal valid ref.
 func writeFakeGitForSyncIsolation(t *testing.T, failingRepoIDs ...string) {
 	t.Helper()
@@ -92,7 +92,7 @@ func makeManagedRepo(t *testing.T, reposDir, repoID string) string {
 }
 
 // TestSyncGitRepositoriesIsolatesOneListRefsFailure is the RED->GREEN
-// regression for #7001: on ops-qa, repository 322 of 795's `git ls-remote`
+// regression for #7001: on QA, repository 322 of 795's `git ls-remote`
 // timed out on DNS resolution, and the pre-fix code returned that error
 // immediately from syncGitRepositoriesWithLogger, aborting the entire cycle
 // (propagating out through source.Next() -> "collect scope generation" ->

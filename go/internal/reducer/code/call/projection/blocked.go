@@ -127,7 +127,7 @@ func laneAttributes(reason string) metric.MeasurementOption {
 }
 
 // recordCodeCallLaneBlocked makes a blocked cycle visible (#7133): the lane
-// sat shut for eight days on ops-qa with no log line and no metric. Every
+// sat shut for eight days in the QA environment with no log line and no metric. Every
 // blocked partition cycle counts; the log line and the blocking-scope sample
 // are rate-limited per episode. A sample failure is logged, never returned:
 // the gate already answered and the sample is operator detail only.

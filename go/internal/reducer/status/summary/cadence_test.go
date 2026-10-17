@@ -267,7 +267,7 @@ func TestRunStopsMidPassOnShutdown(t *testing.T) {
 }
 
 // TestRunUsesTheTenSecondDefault proves an unset interval paces passes at
-// the 10 s default the ops-qa pass measurement chose.
+// the 10 s default the QA pass measurement chose.
 func TestRunUsesTheTenSecondDefault(t *testing.T) {
 	t.Parallel()
 	runner, _, _, _ := newPassRunner(t)

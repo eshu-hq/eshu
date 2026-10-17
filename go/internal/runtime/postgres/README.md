@@ -148,7 +148,7 @@ The final follow-up edit classified TLS failures as permanent and did not
 change successful selection. Raced integration after that edit passed. This
 is a local saturated-member selection measurement, not a full endpoint test.
 The later [fixed-corpus endpoint runs](../../../../docs/internal/evidence/7033-exact-code-topic-parallel.md#reader-fleet-follow-up-2026-10-03)
-measure the legacy and opt-in fleet paths separately. The deployed ops-qa
+measure the legacy and opt-in fleet paths separately. The deployed QA
 `<1s` budget is still unmet. The fixture, volumes, and network were removed.
 
 Root-Cause Evidence: In an owned PostgreSQL 18.6 primary plus two physical

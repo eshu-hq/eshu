@@ -198,7 +198,7 @@ func TestBuildDocumentationFactsSQLProbeFormKeepsOrderedEarlyStop(t *testing.T) 
 
 	// fact_kind=source with nothing else is served by an ordered scan of the
 	// documentation_source partial index that stops after LIMIT rows. A join
-	// would replace it with a sort of every source row (measured on ops-qa in
+	// would replace it with a sort of every source row (measured on QA in
 	// docs/internal/evidence/7128-*.md), so this read probes the scope by
 	// primary key per candidate row instead.
 	query, _ := buildDocumentationFactsSQL(documentationFactFilter{

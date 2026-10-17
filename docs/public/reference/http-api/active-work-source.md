@@ -95,7 +95,7 @@ A stored row is never served older than `ESHU_STATUS_SUMMARY_STALE_AFTER`
 `as_of`; the caller's clock is not used. The two database clocks (the writer's primary and the
 reader's replica) differ by the clock skew between those hosts, and that term is
 part of the age. It is small next to the limit: the 25-sample replay-lag probe on
-the ops-qa read replica measured a 0.026 s median and 2.09 s p95 for the lag
+the QA read replica measured a 0.026 s median and 2.09 s p95 for the lag
 itself, which the 33 s default already budgets; a reader clock behind the
 writer's makes the age negative, and it is clamped to zero. The counts in a
 stored row are true at `as_of`, so `overdue_claims`, blockage membership, and in-flight counts can lag

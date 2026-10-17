@@ -80,7 +80,7 @@ var neo4jContextAnchor = buildNeo4jEntityContextAnchor()
 // late-label hit is about 6x to 10x faster than the loop with a warm JVM and a
 // cleared plan cache, and a first-label hit pays about +41 ms while the plan
 // is not cached. The widened form's cost (cold compile, warm paired delta,
-// ops-qa PROFILE) is in
+// QA PROFILE) is in
 // docs/internal/evidence/7212-wide-entity-anchor.md. Neo4j keeps a plan until
 // its statistics diverge (dbms.cypher.statistics_divergence_threshold,
 // checked at most every dbms.cypher.min_replan_interval), so at most one

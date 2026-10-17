@@ -365,7 +365,7 @@ func recordCodeTopicFallbackReason(span trace.Span, termCount int, supportsSnaps
 // statement, which is the base, so the guard is safe to over-reject. The scoped
 // one-term statement hides the term from the planner (#7246) only when this
 // holds (measured 3.3 to 4.6 s plain against 14.9 to 16.7 s hidden for a term
-// with none, on ops-qa).
+// with none, on QA).
 func codeTopicTermHasTrigram(term string) bool {
 	run := 0
 	for _, r := range term {

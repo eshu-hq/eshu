@@ -30,16 +30,11 @@ targets=(
 	"apps/console/prototype"
 	"go/internal/parser/hcl"
 	"go/internal/parser/rust"
-	"go/internal/query/service"
-	"go/internal/query/visualization"
-	# go/internal/query holds two fixture files whose directory also carries
-	# #7803 sweep content (environment tokens in comments, CODEOWNERS owner
-	# refs), so the directory cannot be a target until that sweep lands its
-	# test-copy batch. These two file targets cover the fixtures without an
-	# exception for the rest of the directory. Promote to the directory once
-	# the sweep cleans it; do not add a path exception instead.
-	"go/internal/query/entity_resolve_contract_test.go"
-	"go/internal/query/repository_deployment_evidence_test.go"
+	# go/internal/query is a whole-directory target since the #7803 sweep
+	# cleaned its environment tokens in comments (#7803 batch 2); the two
+	# former file targets and the old service/visualization subtrees stay
+	# covered without a path exception.
+	"go/internal/query"
 )
 
 pattern='api-node-|/Users/|TF__[A-Z]{2}\b|@[[:lower:]]{3}/|'"${PRIVATE_IDENTIFIER_PATTERN}"

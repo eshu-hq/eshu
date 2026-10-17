@@ -96,7 +96,7 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		"FROM package_dependency_gap_active",
 		// #7007/#7088: the dependency-gap CTE must end with the repository
 		// anchor and the scope bound. Without them it probes fact_records
-		// once per active scope (8s on ops-qa). The needle spans the closing
+		// once per active scope (8s on QA). The needle spans the closing
 		// of the CTE so the surrounding SQL comment cannot satisfy it and the
 		// lines cannot drift into another CTE. The repo_id anchor sits in the
 		// LATERAL probe that migration 159's index serves; the live plan

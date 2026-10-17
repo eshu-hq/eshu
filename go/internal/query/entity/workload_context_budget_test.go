@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	// budgetEndpointTotal is the endpoint-edge count of the populated ops-qa
+	// budgetEndpointTotal is the endpoint-edge count of the populated QA
 	// services that stayed over the MCP budget after #7169 (72-78 edges); the
 	// graph read returns the first 50 rows of them.
 	budgetEndpointTotal = 78

@@ -61,8 +61,8 @@ package_manifest_dependency AS (
 // repository, scope and active generation all in its Index Cond. The
 // OFFSET 0 keeps the LATERAL subquery from being flattened, so the planner
 // cannot start from the fact index and heap-fetch every generation's rows
-// (8,832 fetched to keep 552 on ops-qa) or, for the legacy arm, probe every
-// active scope (819 loops, 9.4 s on the warm ops-qa primary; calls on the cold
+// (8,832 fetched to keep 552 on QA) or, for the legacy arm, probe every
+// active scope (819 loops, 9.4 s on the warm QA primary; calls on the cold
 // replica hit the 30 s client timeout). The former empty-$11 escape is gone:
 // it was unreachable (TestReadinessEmptyRepositoryAlwaysCarriesATargetAnchor),
 // and under a generic plan it forced that per-scope probe. Arm 1 uses
@@ -79,7 +79,7 @@ package_manifest_dependency AS (
 // repo.ID. The gap CTE already depended on it (#7007). scopestore.SourceKey
 // falls back to the scope id when scope metadata carries no source_key, and
 // parserfixture.Emitter builds scopes with no metadata, so such scopes would
-// drop out of both arms. Evidence on ops-qa (teammate-reported, read-only,
+// drop out of both arms. Evidence on QA (teammate-reported, read-only,
 // 2026-10-02): all 799 repository scopes satisfy scope_id =
 // 'git-repository-scope:' || source_key and scope payload repo_id =
 // source_key; a 50-scope sample of 117,010 active content_entity rows had 0

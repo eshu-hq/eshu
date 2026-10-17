@@ -17,7 +17,7 @@ import (
 
 // TestGetEntityContextAnchorsOneLabelPerMatch pins the #7006 fix's final
 // shape: the bare `MATCH (e) WHERE e.id = $entity_id` anchor scanned every
-// node in the graph on every call -- proven live on ops-qa to blow the 10s
+// node in the graph on every call -- proven live on QA to blow the 10s
 // bounded-read deadline. A single-clause label DISJUNCTION looked like the
 // fix, but on this NornicDB pin `MATCH (n:A|B) WHERE n.id = $id` (and the
 // inline-map form) silently returns ZERO rows for an id a single-label

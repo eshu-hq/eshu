@@ -22,7 +22,7 @@ import (
 )
 
 // neo4jWideAnchorStatementSHA256 is the SHA-256 of the unscoped Neo4j anchor
-// statement the #7212 T1 shim measured on ops-qa (124 NodeUniqueIndexSeek
+// statement the #7212 T1 shim measured on QA (124 NodeUniqueIndexSeek
 // operators, 124 db hits on a miss) and in the local cost bench. Production
 // must send exactly that text, or the measurement proves nothing about it.
 const neo4jWideAnchorStatementSHA256 = "e3a6d9edd0fc7ca56892c3fda781d397094b0c12b972b99a89e2f0917c72ed25"

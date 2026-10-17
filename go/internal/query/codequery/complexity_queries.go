@@ -178,7 +178,7 @@ func complexityCandidateProjection() string {
 // docs/internal/evidence/5167-code-family-batch-1.md), but it still anchored
 // on Function first and filtered repo identity afterward, so every
 // repo-scoped or scoped-grant call paid a whole-corpus Function scan before
-// the repository filter ever applied. Proven live on ops-qa (issue #7006):
+// the repository filter ever applied. Proven live on QA (issue #7006):
 // the Function-first shape timed out past the 10s bounded-read deadline for a
 // small, zero-match repository, while seeding the same repository from
 // Repository first returned in under 3s. A function with no repository path

@@ -19,7 +19,7 @@ import (
 )
 
 // Reopenable domains for POST /api/v0/admin/reopen: the three domains the
-// #7285 ops-qa repair reopened by hand. The strings mirror the canonical
+// #7285 QA repair reopened by hand. The strings mirror the canonical
 // reducercontract domain names without importing the reducer tree (see the
 // package AGENTS.md import direction); a dedicated test pins them.
 const (

@@ -53,7 +53,7 @@ type ReducerGraphDrain struct {
 // the git collector's non-default-branch scope kind (repository_ref), which
 // the projector gates before any canonical write. A scope outside that set can
 // never publish the phase, so letting it hold the lane wedges the lane
-// forever: on ops-qa a zero-fact AWS region scope and the synthetic
+// forever: on QA a zero-fact AWS region scope and the synthetic
 // eshu:global scope (migration 115, whose migration-116 escape-hatch phase row
 // had gone missing) held code_calls and repo_dependency shut for eight days
 // while every git scope was committed. Neither can be a CALLS or DEPENDS_ON

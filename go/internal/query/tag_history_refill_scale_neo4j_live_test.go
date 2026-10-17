@@ -45,7 +45,7 @@ var tagHistoryRefillScaleCorpusSizes = []int{5000, 10000}
 // pinned Neo4j at corpus scale -- never NornicDB (owner rule: NornicDB-only
 // bugs get a hermetic guard, not a fake RED; corpus-scale timing claims are
 // proven on Neo4j). It seeds N background ContainerImage nodes sizing the
-// container_image_digest index the way ops-qa's read-only probe found it
+// container_image_digest index the way QA's read-only probe found it
 // (#6705 claim comment: a 400-key NodeIndexSeek against a real store, 0-1ms),
 // plus one image_ref whose tagHistoryRefillScaleObservations digests carry NO
 // ContainerImage node at all -- the fully-withheld page that drives the

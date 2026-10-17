@@ -5,7 +5,7 @@
 // (outlier_repo_scale_live_test.go) carries near-zero CALLS density among
 // the swept repository's noise members: only the 11-node signal fixture has
 // real outgoing CALLS edges. This file extends that seed with deterministic
-// CALLS out-degree approximating the #6649 ops-qa reference distribution
+// CALLS out-degree approximating the #6649 QA reference distribution
 // (mean 2.71, p50 1, p90 5, p99 21, docs/internal/evidence/
 // 6649-calls-degree-floor.md), then proves the outlier CALLS-fanout's
 // committed 250-key batch (outlierCalleeEdgeBatchSize,
@@ -59,7 +59,7 @@ func densityNoiseFunctionUIDs() []string {
 }
 
 // densityDegreeForRank returns the CALLS out-degree assigned to the member
-// at rank i of n, deterministically shaped to approximate the #6649 ops-qa
+// at rank i of n, deterministically shaped to approximate the #6649 QA
 // reference out-degree distribution (mean 2.71, p50 1, p90 5, p99 21,
 // p99.9 53, max 521): most members get 1-5 callees, a small tail gets 20+.
 func densityDegreeForRank(i, n int) int {

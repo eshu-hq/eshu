@@ -221,10 +221,10 @@ func TestGovernanceStatusConfigDropsUnsafeStatusValues(t *testing.T) {
 	t.Parallel()
 
 	payload := buildGovernanceStatus(GovernanceStatusConfig{
-		Mode:               "/Users/operator/policy.json",
+		Mode:               "/home/demo/policy.json",
 		State:              "https://redacted.invalid/state",
 		SourceKind:         "tenant-redacted",
-		PolicyRevisionHash: "sha256:/Users/operator/private",
+		PolicyRevisionHash: "sha256:/home/demo/private",
 		AuthMode:           "Bearer redacted",
 		TenantMode:         "tenant-redacted",
 		WorkspaceMode:      "workspace-redacted",
@@ -235,7 +235,7 @@ func TestGovernanceStatusConfigDropsUnsafeStatusValues(t *testing.T) {
 		ExtensionMode:      "provider response",
 		Reasons: []string{
 			"policy_invalid",
-			"/Users/operator/policy.json",
+			"/home/demo/policy.json",
 			"https://redacted.invalid",
 		},
 	}, semantic.ExtractionStatus{})
@@ -245,7 +245,7 @@ func TestGovernanceStatusConfigDropsUnsafeStatusValues(t *testing.T) {
 		t.Fatalf("json.Marshal() error = %v, want nil", err)
 	}
 	for _, forbidden := range []string{
-		"/Users/operator",
+		"/home/demo",
 		"redacted.invalid",
 		"tenant-redacted",
 		"workspace-redacted",
@@ -413,7 +413,7 @@ func assertNoGovernanceStatusLeak(t *testing.T, body string) {
 		"credential_handle",
 		"provider_endpoint",
 		"token_value",
-		"/Users/",
+		"/home/",
 	} {
 		if strings.Contains(body, forbidden) {
 			t.Fatalf("governance status leaked forbidden marker %q: %s", forbidden, body)

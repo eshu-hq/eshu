@@ -18,7 +18,7 @@ const (
 
 const (
 	// DefaultStaleAfter is three writer intervals (10 s each) plus the 2.09 s
-	// replay-lag p95 measured on the ops-qa read replica, 32.09 s, rounded up.
+	// replay-lag p95 measured on the QA read replica, 32.09 s, rounded up.
 	// A row older than this is never served as fresh.
 	DefaultStaleAfter = 33 * time.Second
 	// MinStaleAfter is the smallest accepted stale_after: one default writer

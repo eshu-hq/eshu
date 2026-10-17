@@ -2,7 +2,7 @@
 
 `POST /api/v0/admin/reopen` (go/internal/query/admin/reopen.go,
 go/internal/query/admin/store/reopen.go) replaces the hand-written
-`#7285` ops-qa repair SQL with an audited, idempotency-keyed admin
+`#7285` QA repair SQL with an audited, idempotency-keyed admin
 surface. There is no prior endpoint to regress against: the baseline is
 the repair run by hand, unbounded and unaudited.
 

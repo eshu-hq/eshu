@@ -39,7 +39,7 @@ sbom_component AS (
 const listSupplyChainImpactReadinessQueryUnsupportedAndSource = `
 package_dependency_gap_active AS (
     -- #7007/#7088: bounded to the requested repository's own scopes.
-    -- These provenance-only kinds are rare (17 active rows on ops-qa; the
+    -- These provenance-only kinds are rare (17 active rows on QA; the
     -- ~810 active scopes counted in the #7007 measurement, 819 in #7088's,
     -- 799 of them repository scopes); unbounded, the read probed fact_records once per
     -- active scope (8.0s of an 8.1s readiness read), and bounded by scope

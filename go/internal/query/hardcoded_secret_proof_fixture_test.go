@@ -127,7 +127,7 @@ func secretProofBulkFiles(count int) []secretProofFile {
 }
 
 // secretProofRequests returns the 16 argument sets from the arbiter ruling plus
-// the 8 unscoped limit-only sweep sets #7125 measured on ops-qa.
+// the 8 unscoped limit-only sweep sets #7125 measured on QA.
 func secretProofRequests() []secretProofRequest {
 	req := func(mut func(*codequery.HardcodedSecretInvestigationRequest)) codequery.HardcodedSecretInvestigationRequest {
 		r := codequery.HardcodedSecretInvestigationRequest{Limit: 26}

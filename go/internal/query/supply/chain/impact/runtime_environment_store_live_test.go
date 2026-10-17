@@ -360,7 +360,7 @@ func runtimeEnvironmentEvidencePlanIndex(
 
 // TestRuntimeEnvironmentEvidenceManyPairsStayFactFirstLive proves the production
 // SQL keeps one artifact-index probe per candidate when the active
-// scope/generation pair count reaches ops-qa scale (#7552: 819 pairs there).
+// scope/generation pair count reaches QA scale (#7552: 819 pairs there).
 // Without the fenced fact probe the planner multiplies the transitively implied
 // scope join clauses (rows=1 estimated for 901 actual pairs) and plans
 // scope-first: 200 candidates x 901 pairs = 180,200 probes. It is opt-in

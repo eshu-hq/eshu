@@ -73,7 +73,7 @@ import (
 //
 // The manifest read is a MATERIALIZED CTE on purpose. Inlined, the planner
 // estimates the scope join at one row and probes content_files once per
-// repository scope; on the ops-qa replica (2026-10-04) that took 125 ms warm
+// repository scope; on the QA replica (2026-10-04) that took 125 ms warm
 // and 758 ms cold over 155k buffers. Materialized, content_files is read once
 // through content_files_relative_path_trgm_idx: 15 to 21 ms and 3,497 buffers
 // for the same 469 rows. See

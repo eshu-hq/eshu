@@ -5547,7 +5547,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	// Second-scale boundaries, 1 ms to 30 s: a claim is a Postgres round trip
-	// (measured mean ~0.4 s on ops-qa) that can stretch under lock contention.
+	// (measured mean ~0.4 s in the QA environment) that can stretch under lock contention.
 	// The OTEL default set is millisecond-scaled (0, 5, 10 ... 10000) and put
 	// every claim in the first non-zero bucket (#7084).
 	claimDurationBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}

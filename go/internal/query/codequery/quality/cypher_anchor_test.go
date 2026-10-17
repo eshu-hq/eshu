@@ -14,7 +14,7 @@ import (
 // known repo_id must seed the walk from the small, id-indexed Repository
 // label instead of the broad Function label. The prior shape anchored on
 // Function unconditionally, so a repo_id-scoped call still paid a
-// whole-corpus Function scan -- proven live on ops-qa to blow the 10s
+// whole-corpus Function scan -- proven live on QA to blow the 10s
 // bounded-read deadline. See docs/public/reference/cypher-performance.md.
 func TestBuildCypherAnchorsOnRepositoryWhenRepoIDKnown(t *testing.T) {
 	t.Parallel()

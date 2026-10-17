@@ -126,7 +126,7 @@ func runGitViaConstructor(t *testing.T, ctx context.Context, dir string, args ..
 // TestFetchChurnZombiesDrainedByReaper is the live-churn companion to the
 // orphan regression: real `git fetch` operations over HTTP fork the
 // remote-https helper, and the helper's teardown intermittently outlives the
-// parent's exit so it reparents here as an unreaped zombie (the ops-qa pids
+// parent's exit so it reparents here as an unreaped zombie (the QA pids
 // exhaustion, issue #6873). Phase 1 churns fetches with no reaper running
 // until a zombie is adopted; the teardown race is host-dependent, so when no
 // zombie appears the test skips instead of failing (#7865) — the

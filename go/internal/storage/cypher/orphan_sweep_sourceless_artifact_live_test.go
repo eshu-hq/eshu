@@ -15,7 +15,7 @@ import (
 // TestLiveOrphanSweepReachesSourcelessEvidenceArtifact is the committed live
 // regression for #7322 part (2): an EvidenceArtifact whose
 // HAS_DEPLOYMENT_EVIDENCE source edge is gone must be swept even when it is
-// still attached to an Environment (the 426 ops-qa nodes) or a target repo.
+// still attached to an Environment (the 426 QA nodes) or a target repo.
 // The repo-relationship retract reaches artifacts only through the source
 // repository's edges, and the cooperation-blind S2 connectivity check treats
 // any relationship as connected, so such an artifact is unreachable today.

@@ -30,7 +30,7 @@ const (
 // TestDocumentationFactsActiveScopeReadUsesKeysetIndexLive binds the production
 // buildDocumentationFactsSQL statement for a scope_id read (#7128) to a
 // representative PostgreSQL plan: eight retained generations of ~7,000 facts
-// each, the shape measured on ops-qa. The active-generation bind must let the
+// each, the shape measured on QA. The active-generation bind must let the
 // planner walk fact_records_scope_generation_keyset_idx backward in ORDER BY
 // order and stop after LIMIT rows, with no Sort node, under both a literal plan
 // and a generic plan. The generic plan is the one database/sql clients get, and
@@ -263,7 +263,7 @@ CROSS JOIN generate_series(1, $3) AS n`,
 }
 
 // TestDocumentationFactsAnchorOnlyReadsBindActiveGenerationLive proves the two
-// anchor-only binding forms (#7128) plan as intended at the ops-qa source
+// anchor-only binding forms (#7128) plan as intended at the QA source
 // scale: 1,500 scopes of eight generations each, one documentation_source fact
 // per generation (12,000 rows, one row in eight active).
 //

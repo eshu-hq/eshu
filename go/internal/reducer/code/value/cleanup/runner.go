@@ -18,7 +18,7 @@ import (
 )
 
 // defaultLeaseTTL is 10 minutes so one cleanup cycle's lease outlasts the
-// graph write budget with margin: ops-qa's ESHU_CANONICAL_WRITE_TIMEOUT is
+// graph write budget with margin: the QA environment's ESHU_CANONICAL_WRITE_TIMEOUT is
 // 300s, and a 5m lease reached the end of the lease with no margin when a
 // write ran to its full budget, admitting a second holder mid-cycle (#7047).
 // 10m keeps crash failover delay small against the hourly poll. If a cycle

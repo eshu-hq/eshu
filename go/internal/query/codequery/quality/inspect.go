@@ -43,7 +43,7 @@ func Inspect(
 // unconditionally and only applied the repo_id/grant filter in a WHERE after
 // the full File/Repository traversal, so it paid a whole-corpus Function scan
 // on every repo-scoped or scoped-grant call regardless of how small the
-// target repository was: proven live on ops-qa (issue #7006), the
+// target repository was: proven live on QA (issue #7006), the
 // Function-first shape timed out past the 10s bounded-read deadline on a
 // repository with zero matching rows. The Repository-first shape here is
 // byte-identical in anchor structure to codequery/complexity_queries.go's

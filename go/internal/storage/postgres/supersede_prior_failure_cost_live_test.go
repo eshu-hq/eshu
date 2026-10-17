@@ -318,7 +318,7 @@ func TestSupersedePriorFailureClaimCost(t *testing.T) {
 		name        string
 		rows, bytes int
 	}{
-		{"ops_qa_scale", costEnvInt("ESHU_7320_COST_ROWS", 3500), costEnvInt("ESHU_7320_COST_DETAIL_BYTES", 800)},
+		{"qa_scale", costEnvInt("ESHU_7320_COST_ROWS", 3500), costEnvInt("ESHU_7320_COST_DETAIL_BYTES", 800)},
 		{"stress_wide_details", costEnvInt("ESHU_7320_COST_STRESS_ROWS", 500), costEnvInt("ESHU_7320_COST_STRESS_BYTES", 65536)},
 	}
 	t.Logf("host load at start: %s", hostLoad())

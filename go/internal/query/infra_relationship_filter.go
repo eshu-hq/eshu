@@ -100,7 +100,7 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 
 	typeFilter := infraRelationshipTypeClause(relationshipTypes)
 	// The bare `MATCH (n)` anchor scans every node in the graph -- proven
-	// live on ops-qa's NornicDB deployment (issue #7006) to blow the 10s
+	// live on QA's NornicDB deployment (issue #7006) to blow the 10s
 	// bounded-read deadline.
 	//
 	// A single-clause label DISJUNCTION (`MATCH (n:A|B) WHERE n.id = $id`,

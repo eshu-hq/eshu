@@ -51,7 +51,7 @@ func TestCodeownersOwnershipCypherAnchorsOnRepositoryAndOrdersDeterministically(
 func TestCodeownersOwnershipCypherThreadsKeysetCursorParams(t *testing.T) {
 	t.Parallel()
 
-	queries := OwnershipCyphers("repo-1", 3, "*.go", "@org/team-a", 10)
+	queries := OwnershipCyphers("repo-1", 3, "*.go", "@example/team-a", 10)
 	if got, want := len(queries), 3; got != want {
 		t.Fatalf("query count = %d, want %d with a cursor", got, want)
 	}
@@ -77,7 +77,7 @@ func TestCodeownersOwnershipCypherThreadsKeysetCursorParams(t *testing.T) {
 	if got, want := queries[1].params["after_pattern"], "*.go"; got != want {
 		t.Fatalf("query 1 after_pattern = %#v, want %#v", got, want)
 	}
-	if got, want := queries[2].params["after_ref"], "@org/team-a"; got != want {
+	if got, want := queries[2].params["after_ref"], "@example/team-a"; got != want {
 		t.Fatalf("query 2 after_ref = %#v, want %#v", got, want)
 	}
 }

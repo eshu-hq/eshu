@@ -23,7 +23,7 @@ port. The reducer takes one pass at startup, then one per
 `ESHU_ID_ANCHOR_CENSUS_POLL_INTERVAL` (default `1h`), each under an
 `ESHU_ID_ANCHOR_CENSUS_TIMEOUT` deadline (default `2m`). It records the result
 after the pass, so a scrape never reads the graph. The scan took about 1.95 s
-over 1,130,424 nodes (898,874 with an id) on ops-qa, image sha-57167b0, on
+over 1,130,424 nodes (898,874 with an id) on QA, image sha-57167b0, on
 2026-10-08. It runs on Neo4j only; set `ESHU_ID_ANCHOR_CENSUS_ENABLED=false` to
 turn it off.
 

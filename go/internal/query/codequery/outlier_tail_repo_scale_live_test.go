@@ -5,7 +5,7 @@
 // (docs/internal/evidence/7325-outlier-fanout-batch.md, Proof limits /
 // NOT_CHECKED) measured the outlier CALLS fan-out's committed 250-key
 // batch only against seeds whose maximum out-degree is 64 -- far below
-// the ops-qa tail (max out-degree 521,
+// the QA tail (max out-degree 521,
 // docs/internal/evidence/6649-calls-degree-floor.md) and the registry
 // audit bound (250 keys x corpus CALLS degree floor 1125 = 281,250 rows
 // from one statement). This file reuses the #6929/#7297 base seed plus
@@ -52,7 +52,7 @@ import (
 const tailChunkSize = 250
 
 // tailDegreeForChunkRank returns the CALLS out-degree seeded for rank j
-// (0..249) of the tail chunk, deterministically shaped to the ops-qa
+// (0..249) of the tail chunk, deterministically shaped to the QA
 // reference tail (max out-degree 521, #6649): one anchor at the max, a
 // short taper, and a long 25-degree body. No math/rand, for
 // reproducibility.
@@ -78,7 +78,7 @@ func tailDegreeForChunkRank(j int) int {
 // tailSeedCallsEdges adds the deterministic high-degree tail among the
 // swept repository's members: tailSources (exactly production chunk
 // index 1 of the sorted cohort member list, all noise members) get
-// tailDegreeForChunkRank out-degree via MERGE (matching the ops-qa
+// tailDegreeForChunkRank out-degree via MERGE (matching the QA
 // MERGE-dedup methodology in #6649, so per-node relationship count
 // equals distinct-callee out-degree). Targets spread deterministically
 // across all noise members with per-source dedup. Returns the number of

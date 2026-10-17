@@ -125,7 +125,7 @@ func validateFanOutMultiplier(key string, disposition NonHotDisposition) []strin
 func validateNonHotMaxDegree(key, class string, maxDegree int) []string {
 	if maxDegree < nonHotCorpusMaxCALLSDegree {
 		return []string{fmt.Sprintf(
-			"%s: %s requires max_degree >= %d (got %d); %d is the maximum CALLS degree measured both directions on the ops-qa reference corpus (#6649)",
+			"%s: %s requires max_degree >= %d (got %d); %d is the maximum CALLS degree measured both directions on the QA reference corpus (#6649)",
 			key,
 			class,
 			nonHotCorpusMaxCALLSDegree,

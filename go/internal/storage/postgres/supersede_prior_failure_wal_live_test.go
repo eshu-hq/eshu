@@ -281,7 +281,7 @@ func TestSupersedePriorFailureWriteCost(t *testing.T) {
 		name        string
 		rows, bytes int
 	}{
-		{"ops_qa_scale", costEnvInt("ESHU_7320_COST_ROWS", 3500), costEnvInt("ESHU_7320_COST_DETAIL_BYTES", 800)},
+		{"qa_scale", costEnvInt("ESHU_7320_COST_ROWS", 3500), costEnvInt("ESHU_7320_COST_DETAIL_BYTES", 800)},
 		{"stress_wide_details", costEnvInt("ESHU_7320_COST_STRESS_ROWS", 500), costEnvInt("ESHU_7320_COST_STRESS_BYTES", 65536)},
 	}
 	for _, wc := range walCases() {
@@ -344,7 +344,7 @@ func TestSupersedePriorFailureWriteCost(t *testing.T) {
 					perRow(b.hit, r), perRow(a.hit, r), perRow(a.hit-b.hit, r),
 					perRow(b.toastInserts, r), perRow(a.toastInserts, r), perRow(b.heapHotUpdates, r), perRow(a.heapHotUpdates, r))
 			}
-			if sc.name == "ops_qa_scale" && wc.calls(rows) != nil && len(wc.calls(rows)) == 1 {
+			if sc.name == "qa_scale" && wc.calls(rows) != nil && len(wc.calls(rows)) == 1 {
 				for _, variant := range []string{"before", "after"} {
 					wc.seed(t, database, rows, sc.bytes)
 					text := after

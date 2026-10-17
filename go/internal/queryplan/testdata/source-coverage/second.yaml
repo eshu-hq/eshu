@@ -101,7 +101,7 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 94dd51247efefd7a4b3bd720e1c812ea738bda51d69ff9f113c7b74d892079bc
+          source_sha256: ff3621c5ac9ba72a55a56bb8dfa785f5b7672256e1fe0d8442ad8fa42a153fec
           key_bound: single_key
           max_results: 1
   - file: infra_scope.go

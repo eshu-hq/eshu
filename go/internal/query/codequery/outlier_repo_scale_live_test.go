@@ -159,7 +159,7 @@ func liveScaleRunWrite(ctx context.Context, t *testing.T, session neo4jdriver.Se
 // liveScaleNoiseFileRow is one seeded :File row: each lives in its own
 // directory so codedivergence.PackageOf groups it into its own package
 // cohort of exactly liveScaleFuncsPerFile members -- the same file-level
-// cohort shape diag-6929 measured on ops-qa's largest repo.
+// cohort shape diag-6929 measured on QA's largest repo.
 type liveScaleNoiseFileRow struct {
 	UID  string
 	Path string

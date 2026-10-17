@@ -72,7 +72,7 @@ func writesTierLabel(value string) bool {
 //     go/internal/queryplan/testdata/query-source-coverage.yaml) names this
 //     writer as the code enforcer behind its fan_out_multiplier: 1.
 //
-// Empty today: no :Tier writer exists in-tree (ops-qa has 0 Tier nodes and 0
+// Empty today: no :Tier writer exists in-tree (QA has 0 Tier nodes and 0
 // CONTAINS edges into a Tier), so enrichBlastRadiusTiers's "one tier per
 // repo" assumption holds vacuously. This test fails the build the moment a
 // :Tier writer appears without paying that price, instead of the assumption

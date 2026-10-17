@@ -66,7 +66,7 @@ Eight interleaved ABBA rounds (16 timed requests per variant) had baseline and
 candidate medians of 0.768627 and 0.415212 seconds. Every timed request
 returned HTTP 200, the complete canonical JSON response matched, and the
 content and queue fingerprint was unchanged. This is a built endpoint result
-on the dedicated instance, not a deployed ops-qa acceptance result. Those
+on the dedicated instance, not a deployed QA acceptance result. Those
 measurements remain bound to the pre-rebase source commit. The later
 guarded-reader integration has its own [historical pre-permit built endpoint
 comparison](../../../../docs/internal/evidence/7033-exact-code-topic-parallel.md):
@@ -78,7 +78,7 @@ permit/fallback changes. The current guarded-reader source
 ABBA comparison against baseline `575ef287bfe13785639a8e4548593ccb92cf3c27`:
 16 timed requests per variant yielded medians of 0.797406 and 0.484409
 seconds, with matching complete JSON and unchanged content/index fingerprints.
-Deployed ops-qa readiness and the `<1 s` endpoint budget are also not yet
+Deployed QA readiness and the `<1 s` endpoint budget are also not yet
 validated and are tracked in #7516.
 
 Observability Evidence: The `postgres.query` span records the selected route,

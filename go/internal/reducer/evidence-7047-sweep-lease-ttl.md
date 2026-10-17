@@ -4,12 +4,12 @@
 
 The graph orphan sweep (`graph_orphan_sweep` partition lease) and the
 value-flow stale cleanup (`code_value_flow_stale_cleanup` partition lease)
-claimed 5-minute leases with no heartbeat and no startup check. On ops-qa
+claimed 5-minute leases with no heartbeat and no startup check. On QA
 `ESHU_CANONICAL_WRITE_TIMEOUT` is 300s, so a write running to its full budget
 reached the end of the lease with no margin and a second holder could claim
 mid-cycle (the store grants a different owner once `lease_expires_at` passes).
 Arbiter verdict for #7047: LENGTHEN_TTL_ONLY (a boot-time gate would fail
-ops-qa at startup; heartbeat machinery deferred — the renewal precedent is
+QA at startup; heartbeat machinery deferred — the renewal precedent is
 `ProcessPartitionOnce`'s TTL/2 same-owner re-claim from #4449).
 
 Default TTLs 5m to 10m in four places: `maintenance`

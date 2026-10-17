@@ -29,7 +29,7 @@ import (
 // succeeded row after reducer work drained) re-ran repository_cleanup, whose
 // lookup=id statement DETACH DELETEd the Repository node and every reducer
 // edge on it. The reducers are never re-armed (ON CONFLICT DO NOTHING), so the
-// edges stayed lost: the empty-shell workloads on ops-qa.
+// edges stayed lost: the empty-shell workloads on QA.
 
 var (
 	retryFixtureRepo  = repoFixture{name: "payments", files: retryFixtureFiles, remoteURL: "https://example.invalid/payments.git"}

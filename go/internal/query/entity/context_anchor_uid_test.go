@@ -43,7 +43,7 @@ func schemaUIDConstrainedLabels(t *testing.T, backend schemagraph.SchemaBackend)
 // Neo4j the code-entity labels carry a uid uniqueness constraint and no id
 // index, so `MATCH (e:Function) WHERE e.id = $entity_id` plans as a
 // NodeByLabelScan over every Function node (hundreds of thousands on
-// ops-qa). Canonical code entities carry id == uid, so each per-label read of
+// QA). Canonical code entities carry id == uid, so each per-label read of
 // a uid-constrained label must anchor on
 // `e.uid = $entity_id AND e.id = $entity_id`: an index seek on uid that keeps
 // the exact id semantics (a File, which carries a uid but no id, must still

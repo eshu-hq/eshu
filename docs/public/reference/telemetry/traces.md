@@ -220,7 +220,7 @@ stage events through cursor close and decode; `query.semantic_search.vector_read
 records only the bounded freshness outcome. Parentage, event order, error
 stages, and omission of query text and identifiers are asserted in the focused
 semantic-search and search-index tests. The deployed trace shape remains to be
-checked after this commit reaches ops QA.
+checked after this commit reaches QA.
 
 ## Useful Attributes
 

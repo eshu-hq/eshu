@@ -51,7 +51,7 @@ func assertCodeCallManifestShape(t *testing.T, query string, pathPredicates ...s
 	t.Helper()
 	// The manifest read must stay a MATERIALIZED CTE. Inlined, the planner
 	// misestimates the scope join at one row and probes content_files once per
-	// repository scope (ops-qa replica, 2026-10-04: 125 ms warm, 758 ms cold,
+	// repository scope (QA replica, 2026-10-04: 125 ms warm, 758 ms cold,
 	// 155k buffers) instead of one trigram-index read (15 to 21 ms, 3,497 buffers).
 	if !strings.Contains(query, "WITH manifest AS MATERIALIZED (") {
 		t.Fatalf("manifest query must read content_files in a MATERIALIZED CTE:\n%s", query)

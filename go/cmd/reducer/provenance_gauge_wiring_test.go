@@ -16,7 +16,7 @@ import (
 )
 
 // blockingGraphReader stands in for a Bolt read that never returns until its
-// context is done, the ops-qa failure shape in #7062.
+// context is done, the QA failure shape in #7062.
 type blockingGraphReader struct {
 	entered chan struct{}
 }

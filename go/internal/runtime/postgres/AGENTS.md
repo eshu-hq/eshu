@@ -76,7 +76,7 @@ only an established fleet member's transport loss for a caller-owned whole
 workflow retry. Reader pool limits remain aggregate across members, and
 readiness needs the writer and one qualified reader.
 Use the owned disposable PostgreSQL fixture for physical replay tests; do not
-point write tests at ops-qa. Coordinate fixture use with other agents. Run the
+point write tests at the QA environment. Coordinate fixture use with other agents. Run the
 package tests with and without `-race`; classify a new `*_live_test.go` in the
 live-test ledger in the same change.
 

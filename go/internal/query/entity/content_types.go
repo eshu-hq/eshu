@@ -71,7 +71,7 @@ var globalGraphOnlyEntityTypes = map[string]struct{}{
 // NornicDB build a label DISJUNCTION in one MATCH (`MATCH (n:A|B)`, with
 // either a trailing WHERE or an inline property map) silently matches zero
 // rows for an id a single-label MATCH resolves correctly -- live-proven on
-// ops-qa for both a code-entity and an infra-entity id (issue #7006). Use
+// QA for both a code-entity and an infra-entity id (issue #7006). Use
 // EntityContextAnchorLabels to iterate one label per MATCH instead.
 const EntityContextAnchorLabelDisjunction = "Repository|Directory|File|Module|Function|Class|Struct|Enum|Union|Macro|TypeAnnotation|Workload|WorkloadInstance|Interface|TypeAlias"
 

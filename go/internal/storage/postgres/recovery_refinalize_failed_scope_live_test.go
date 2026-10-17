@@ -35,7 +35,7 @@ func refinalizeFailedScopeLiveDB(t *testing.T) (*sql.DB, context.Context) {
 	return openIsolatedLiveDB(t, "refinalize_failed_scope", "set ESHU_POSTGRES_DSN to run the #7116 refinalize failed-scope proofs")
 }
 
-// refinalizeFailedScope seeds the shape observed on ops-qa: a failed scope with
+// refinalizeFailedScope seeds the shape observed on QA: a failed scope with
 // no active generation, an older superseded generation, and a newest generation
 // that failed. It returns the scope and both generation ids.
 func refinalizeFailedScope(

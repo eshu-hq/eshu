@@ -136,7 +136,7 @@ every run.
 
 | payload | test | TOAST pages (round 1 / 2) | read buffers (plan / TOAST) | pinned at |
 | --- | --- | --- | --- | --- |
-| 34,583 bytes, 72 entries (the QA size) | `TestStatusSummaryBloatTerraformOpsQaScaleLive` | 2,225 / 2,446 | 1 / 12 | 8 / 20 |
+| 34,583 bytes, 72 entries (the QA size) | `TestStatusSummaryBloatTerraformQAScaleLive` | 2,225 / 2,446 | 1 / 12 | 8 / 20 |
 | 68,883 bytes, 141 entries | `TestStatusSummaryBloatTerraformLive` | 4,001 / 4,447 (identical in all 17 runs of this test with autovacuum disabled on the table, and in the full live-set run) | 1 / 13 | 8 / 30 |
 
 The `rows = CASE ...` option the ruling allowed was not needed.

@@ -4,9 +4,9 @@
 # verify-answer-demo-fixtures-sanitized.sh (#7918).
 #
 # Seeds each scrubber pattern arm in a throwaway repo and pins the widened
-# target list: a real-name fixture fails in every covered directory and in
-# the two go/internal/query file targets, while the generic same-shape
-# replacements this drive ships stay green.
+# target list: a real-name fixture fails in every covered directory,
+# including go/internal/query as a whole-directory target (#7803 batch 2),
+# while the generic same-shape replacements this drive ships stay green.
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
@@ -64,13 +64,11 @@ new_repo() {
     esac
   done < <(gate_targets)
   # An empty parse (gate format drift) must fail loudly, never seed silently:
-  # the two go/internal/query file targets anchor the parse output.
-  for target in go/internal/query/entity_resolve_contract_test.go go/internal/query/repository_deployment_evidence_test.go; do
-    if [ ! -f "$dir/$target" ]; then
-      printf 'FAIL skeleton: %s missing, gate targets parse changed\n' "$target" >&2
-      return 1
-    fi
-  done
+  # the go/internal/query directory target anchors the parse output.
+  if [ ! -d "$dir/go/internal/query" ]; then
+    printf 'FAIL skeleton: go/internal/query missing, gate targets parse changed\n' >&2
+    return 1
+  fi
   printf '%s\n' "$dir"
 }
 
@@ -102,7 +100,7 @@ repo="$(new_repo)"
 seed "$repo" go/internal/query/visualization/packet_test.go '"service_name": "api-node-boats",'
 check "api-node- name under go/internal/query/visualization is RED" 1 "$(run_gate "$repo")"
 
-# 3. RED: the same name in a go/internal/query file target.
+# 3. RED: the same name in a go/internal/query file (directory target).
 repo="$(new_repo)"
 seed "$repo" go/internal/query/entity_resolve_contract_test.go '{"name":"api-node-boats","type":"workload"}'
 check "api-node- name in go/internal/query file target is RED" 1 "$(run_gate "$repo")"
@@ -154,11 +152,12 @@ printf '%s\n' "$repo" >>"$tmp_list"
 seed "$repo" apps/console/src/api/fixture.test.ts 'label: "example-shop",'
 check "missing target directory exits 2" 2 "$(run_gate "$repo")"
 
-# 10. SYNC: every go/internal/query file target of the gate appears in this
-# gate's triggers block in gates-02.yaml, so a renamed target cannot silently
-# lose CI selection (#7918 P2). The search is scoped to the triggers block: a
-# target mentioned in a comment or under self_test_triggers elsewhere in the
-# file must not satisfy it.
+# 10. SYNC: every target of the gate appears in this gate's triggers block
+# in gates-02.yaml, so a renamed target cannot silently lose CI selection
+# (#7918 P2). The search is scoped to the triggers block: a target mentioned
+# in a comment or under self_test_triggers elsewhere in the file must not
+# satisfy it. File targets match literally; directory targets match their
+# tree glob, so deleting the go/internal/query tree trigger fails loudly.
 triggers_yaml="${script_dir}/../specs/ci-gates.d/gates-02.yaml"
 triggers_block="$(mktemp)"
 printf '%s\n' "$triggers_block" >>"$tmp_list"
@@ -173,9 +172,15 @@ while IFS= read -r sync_target; do
         sync_failures=$((sync_failures + 1))
       fi
       ;;
+    *)
+      if ! rg -q --fixed-strings -- "- \"$sync_target/**\"" "$triggers_block"; then
+        printf 'FAIL trigger sync: gate directory target %s/** not in this gate triggers block\n' "$sync_target" >&2
+        sync_failures=$((sync_failures + 1))
+      fi
+      ;;
   esac
 done < <(gate_targets)
-check "gate file targets are this gate triggers" 0 "$sync_failures"
+check "gate targets are this gate triggers" 0 "$sync_failures"
 
 if [ "$failures" -ne 0 ]; then
   printf '%s case(s) failed\n' "$failures" >&2

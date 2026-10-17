@@ -227,7 +227,7 @@ func (s *SharedIntentStore) SupersededGenerationIDs(
 // generation_id DESC) index serves the newer-full probe, and
 // shared_projection_intents_acceptance_lookup_idx serves the (scope_id,
 // projection_domain) emission slice with generation_id as a bounded post-scan
-// filter. A disposable-Postgres-18 shim at the ops-qa mean scope shape (1,500
+// filter. A disposable-Postgres-18 shim at the QA mean scope shape (1,500
 // intents) measured 15 shared-buffer hits on the covering side with no new
 // index (see the #7165 evidence note).
 //
