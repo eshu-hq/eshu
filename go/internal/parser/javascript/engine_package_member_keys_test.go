@@ -437,3 +437,44 @@ func TestDefaultEngineParsePathSkipsMemberKeysInFilesWithWith(t *testing.T) {
 		t.Errorf("Logger.create package_export_symbol = %q, want package:@acme/log#Logger.create", key)
 	}
 }
+
+// TestDefaultEngineParsePathKeepsTheOpenRuleForPlainCalls pins review F11:
+// the #7601 plain-call keys keep their open rule exactly as on main, so a TS
+// `module fmt {}` that rebinds a namespace import does not unkey `fmt.f()`
+// (the inner call is a known false link on main, tracked by #8310). The new
+// member key of the same file stays unkeyed under the closed rule.
+func TestDefaultEngineParsePathKeepsTheOpenRuleForPlainCalls(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	writeTestFile(t, filepath.Join(repoRoot, "package.json"), `{"name": "consumer-app", "dependencies": {"@acme/log": "1"}}`)
+	filePath := filepath.Join(repoRoot, "src", "module.ts")
+	writeTestFile(t, filePath, `import * as fmt from "@acme/log";
+namespace N {
+  module fmt {
+    export function f() {}
+  }
+  fmt.f();
+}
+fmt.f();
+fmt.Logger.create();
+`)
+	got := parsePackageKeyFixture(t, repoRoot, filePath)
+	calls, _ := got["function_calls"].([]map[string]any)
+	plain := 0
+	for _, call := range calls {
+		if call["full_name"] != "fmt.f" {
+			continue
+		}
+		plain++
+		if key, _ := call["package_export_symbol"].(string); key != "package:@acme/log#f" {
+			t.Errorf("fmt.f() line %v package_export_symbol = %q, want the #7601 key package:@acme/log#f, as on main", call["line_number"], key)
+		}
+	}
+	if plain != 2 {
+		t.Fatalf("found %d fmt.f() calls, want 2", plain)
+	}
+	if key := callPackageKey(t, got, "fmt.Logger.create", "function_call"); key != "" {
+		t.Errorf("fmt.Logger.create package_export_symbol = %q, want none under the closed rule", key)
+	}
+}

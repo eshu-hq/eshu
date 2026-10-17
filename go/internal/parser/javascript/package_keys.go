@@ -355,7 +355,7 @@ func isBindingIdentifier(node *tree_sitter.Node, parents *syntax.ParentLookup) b
 		return true
 	case "variable_declarator", "function_declaration", "generator_function_declaration",
 		"function_expression", "function", "generator_function", "function_signature",
-		"class_declaration", "abstract_class_declaration", "class", "enum_declaration", "internal_module", "module":
+		"class_declaration", "abstract_class_declaration", "class", "enum_declaration", "internal_module":
 		return isFieldChild(parent, "name", node)
 	case "required_parameter", "optional_parameter":
 		return isFieldChild(parent, "pattern", node)
