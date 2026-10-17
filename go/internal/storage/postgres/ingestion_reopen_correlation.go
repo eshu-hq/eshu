@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
@@ -17,6 +19,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -43,10 +47,15 @@ import (
 //
 // Per-domain rationale, in list order:
 //
-//   - deployable_unit_correlation reads resolved DEPLOYS_FROM relationships and
-//     has no readiness retry of its own, so on the first maintenance pass —
-//     before resolution commits — it correlates nothing. A later pass replays it
-//     once the resolved relationships exist.
+//   - deployable_unit_correlation reads resolved DEPLOYS_FROM relationships.
+//     Its handler defers on its own resolution gate, on canonical-node
+//     quiescence, and on the corpus fence, but none of those sees a foreign
+//     scope's resolved rows changing after this item succeeded: success is
+//     never re-opened by the handler itself. The reopen replays it so it reads
+//     the changed rows. It is the one domain here behind the changed-evidence
+//     gate (#8283): a succeeded item re-opens only when its fingerprint row is
+//     missing or no longer matches its current resolved input (see
+//     reopenCorrelationDomain).
 //   - kubernetes_correlation_materialization writes RUNS_IMAGE edges by joining a
 //     live workload's image digest against the cross-scope active OCI manifest
 //     facts. If the OCI registry scope's generation is not active yet the digest
@@ -100,8 +109,9 @@ const listSucceededReducerWorkItemsByDomainQuery = backfill.ListSucceededReducer
 // relationships, or canonical nodes they depend on — produced by an earlier
 // drain plus the relationship maintenance — exist. It generalizes the
 // deployment_mapping and code_import_repo_edge reopens for additive correlation
-// domains (e.g. deployable_unit_correlation, which consumes resolved DEPLOYS_FROM
-// relationships and has no readiness retry of its own).
+// domains (e.g. deployable_unit_correlation, which consumes resolved
+// DEPLOYS_FROM relationships; its readiness deferrals cover input that is not
+// ready yet, not input that changed after it succeeded).
 //
 // Both runtimes call it with CrossScopeCorrelationReopenDomains: the ingester's
 // reopenMaintenanceWorkItemsInTransaction, inside that pass's reopen
@@ -150,6 +160,9 @@ func (s IngestionStore) ReopenSucceededReducerWorkItems(
 // reopenCorrelationDomain lists and reopens the succeeded work items of one
 // correlation domain as one relationship.backfill.reopen block. The correlation
 // domains are not gated on the partition memo, so skipped_by_memo is always 0.
+// deployable_unit_correlation alone is behind the changed-evidence gate
+// (#8283): its listing returns each candidate's input_changed verdict, and the
+// unchanged ones are counted as skipped_unchanged instead of re-opened.
 func (s IngestionStore) reopenCorrelationDomain(
 	ctx context.Context,
 	tracer trace.Tracer,
@@ -157,13 +170,20 @@ func (s IngestionStore) reopenCorrelationDomain(
 	instruments *telemetry.Instruments,
 	domain string,
 ) (err error) {
-	reopened := 0
+	reopened, skippedUnchanged := 0, 0
 	reopenBlock := backfill.StartBlock(ctx, tracer, instruments, backfill.BlockReopen)
 	defer func() {
-		reopenBlock.End(err, backfill.ReopenBlockAttrs(domain, reopened, 0)...)
+		reopenBlock.End(err, append(backfill.ReopenBlockAttrs(domain, reopened, 0),
+			backfill.IntAttr("skipped_unchanged", skippedUnchanged))...)
 	}()
 
-	workItemIDs, err := listSucceededReducerWorkItemIDsForDomain(ctx, s.database, domain)
+	var workItemIDs []string
+	gated := domain == string(reducer.DomainDeployableUnitCorrelation)
+	if gated {
+		workItemIDs, skippedUnchanged, err = listDeployableUnitReopenCandidates(ctx, s.database, domain)
+	} else {
+		workItemIDs, err = listSucceededReducerWorkItemIDsForDomain(ctx, s.database, domain)
+	}
 	if err != nil {
 		return err
 	}
@@ -178,9 +198,30 @@ func (s IngestionStore) reopenCorrelationDomain(
 			ctx, int64(len(workItemIDs)),
 			metric.WithAttributes(attribute.String("domain", domain)),
 		)
+		if gated {
+			instruments.CorrelationReopenSkipped.Add(
+				ctx, int64(skippedUnchanged),
+				metric.WithAttributes(attribute.String("domain", domain), attribute.String("reason", "input_unchanged")),
+			)
+		}
 	}
-	log.Printf("reducer_work_items_reopened domain=%s count=%d", domain, len(workItemIDs))
+	log.Printf("reducer_work_items_reopened domain=%s count=%d skipped_unchanged=%d",
+		domain, len(workItemIDs), skippedUnchanged)
 	return nil
+}
+
+// listDeployableUnitReopenCandidates runs the changed-evidence listing and
+// returns the items to re-open plus the count left succeeded (#8283).
+func listDeployableUnitReopenCandidates(
+	ctx context.Context,
+	queryer db.Queryer,
+	domain string,
+) ([]string, int, error) {
+	rows, err := queryer.QueryContext(ctx, backfill.ListDeployableUnitReopenCandidatesQuery, domain)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list %s reopen candidates: %w", domain, err)
+	}
+	return backfill.ScanDeployableUnitReopenCandidates(rows)
 }
 
 func listSucceededReducerWorkItemIDsForDomain(
@@ -209,4 +250,105 @@ func listSucceededReducerWorkItemIDsForDomain(
 		return nil, fmt.Errorf("list succeeded %s work items: %w", domain, err)
 	}
 	return workItemIDs, nil
+}
+
+// fusedRepoIDsToken stands for the fused read's bind-parameter array in
+// listResolvedByReposWithCorpusFenceAndFingerprintSQL; it is replaced per call
+// with ARRAY[<the same placeholders the IN lists use>]::text[].
+const fusedRepoIDsToken = "{{fused_repo_ids}}"
+
+// listResolvedByReposWithCorpusFenceAndFingerprintSQL is
+// listResolvedByReposWithCorpusFenceSQL with the #8283 input fingerprint added
+// to the materialized fence row, so the verdict, the rows, and the fingerprint
+// of those rows come from one statement snapshot. It is derived from the
+// shipped fused read, never copied: the by-repos subquery and its plan are
+// byte-identical, and the fingerprint is one more InitPlan in the fence CTE.
+var listResolvedByReposWithCorpusFenceAndFingerprintSQL = deriveFingerprintedFusedRead(
+	listResolvedByReposWithCorpusFenceSQL,
+)
+
+// deriveFingerprintedFusedRead inserts the fingerprint column into the fused
+// read's fence CTE and select list. It panics when either marker is missing or
+// repeated, so a rewrite of the fused read fails at package initialization
+// instead of silently computing a fingerprint over other rows.
+func deriveFingerprintedFusedRead(fused string) string {
+	for _, marker := range []string{"  ) AS complete\n)", "SELECT fence.complete,"} {
+		if count := strings.Count(fused, marker); count != 1 {
+			panic(fmt.Sprintf("derive fingerprinted fused read: marker %q occurs %d times, want 1", marker, count))
+		}
+	}
+	fused = strings.Replace(fused, "  ) AS complete\n)",
+		"  ) AS complete,\n  "+backfill.ResolvedInputFingerprintSQL(fusedRepoIDsToken)+" AS input_fingerprint\n)", 1)
+	return strings.Replace(fused, "SELECT fence.complete,", "SELECT fence.complete, fence.input_fingerprint,", 1)
+}
+
+// GetFingerprintedResolvedRelationshipsForReposWithCorpusFence is
+// GetResolvedRelationshipsForReposWithCorpusFence plus the input fingerprint
+// of the rows it returned, computed in the same statement (#8283). The
+// deployable_unit_correlation handler records the fingerprint on success and
+// the deferred-maintenance reopen compares against it. An empty repository
+// set reads no row and fingerprints as reducercontract.EmptyResolvedReadFingerprint.
+func (s *RelationshipStore) GetFingerprintedResolvedRelationshipsForReposWithCorpusFence(
+	ctx context.Context,
+	repoIDs []string,
+) ([]relationships.ResolvedRelationship, bool, reducercontract.ResolvedReadFingerprint, error) {
+	repoIDs = uniqueNonEmptyStrings(repoIDs)
+	fingerprint := reducercontract.ResolvedReadFingerprint{RepoIDs: repoIDs}
+	if len(repoIDs) == 0 {
+		complete, err := s.AreActiveScopeRelationshipGenerationsComplete(ctx)
+		if err != nil {
+			return nil, false, fingerprint, err
+		}
+		fingerprint.Value = reducercontract.EmptyResolvedReadFingerprint
+		return nil, complete, fingerprint, nil
+	}
+
+	placeholderList, args := repoIDPlaceholders(repoIDs)
+	query := strings.ReplaceAll(
+		fmt.Sprintf(listResolvedByReposWithCorpusFenceAndFingerprintSQL, placeholderList, placeholderList),
+		fusedRepoIDsToken, "ARRAY["+placeholderList+"]::text[]",
+	)
+	sqlRows, err := s.database.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, false, fingerprint, fmt.Errorf("list fingerprinted resolved by repos with corpus fence: %w", err)
+	}
+	defer func() { _ = sqlRows.Close() }()
+
+	resolved, complete, err := scanCorpusFencedResolvedRowsInto(sqlRows, &fingerprint.Value)
+	return resolved, complete, fingerprint, err
+}
+
+// RecordDeployableUnitReopenFingerprint stores the read-time fingerprint of a
+// deployable_unit_correlation run that is about to succeed (#8283), fenced on
+// the exact claim (workItemID plus claimedAt, the claim's last_attempt_at, and
+// a live claim_until). It never recomputes the fingerprint: the value is the
+// one the fenced read returned. It returns an error wrapping
+// reducercontract.ErrExecutionClaimRejected when the claim no longer holds the
+// item or a later claim already recorded a row.
+func (s *RelationshipStore) RecordDeployableUnitReopenFingerprint(
+	ctx context.Context,
+	workItemID string,
+	claimedAt time.Time,
+	fingerprint reducercontract.ResolvedReadFingerprint,
+) error {
+	repoIDs := fingerprint.RepoIDs
+	if repoIDs == nil {
+		repoIDs = []string{}
+	}
+	result, err := s.database.ExecContext(ctx, backfill.RecordDeployableUnitReopenFingerprintQuery,
+		workItemID, claimedAt.UTC(), array.StringArray(repoIDs), fingerprint.Value,
+		reducercontract.DeployableUnitCorrelationLogicVersion,
+	)
+	if err != nil {
+		return fmt.Errorf("record deployable unit reopen fingerprint: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("record deployable unit reopen fingerprint: rows affected: %w", err)
+	}
+	if affected == 0 {
+		return fmt.Errorf("record deployable unit reopen fingerprint for %s: %w",
+			workItemID, reducercontract.ErrExecutionClaimRejected)
+	}
+	return nil
 }

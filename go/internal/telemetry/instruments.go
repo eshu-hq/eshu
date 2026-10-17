@@ -2230,6 +2230,13 @@ type Instruments struct {
 	DeploymentMappingReopened              metric.Int64Counter
 	CodeImportRepoEdgeReopened             metric.Int64Counter
 	CorrelationReopened                    metric.Int64Counter
+	// CorrelationReopenSkipped counts succeeded correlation work items the
+	// deferred-maintenance reopen left succeeded because their recorded input
+	// fingerprint still matches their current resolved input (#8283), labeled
+	// by domain and reason=input_unchanged. Only deployable_unit_correlation
+	// is gated today. Read it beside eshu_dp_correlation_reopened_total: a wave
+	// that skips every item means the reopen saw no changed input.
+	CorrelationReopenSkipped               metric.Int64Counter
 	IaCReachabilityMaterializationDuration metric.Float64Histogram
 	IaCReachabilityRows                    metric.Int64Counter
 
@@ -6281,6 +6288,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CorrelationReopened counter: %w", err)
+	}
+
+	inst.CorrelationReopenSkipped, err = meter.Int64Counter(
+		"eshu_dp_correlation_reopen_skipped_total",
+		metric.WithDescription("Total succeeded correlation reducer work items the deferred-maintenance reopen left succeeded because their recorded input fingerprint matches their current resolved input (#8283), labeled by domain and reason=input_unchanged."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CorrelationReopenSkipped counter: %w", err)
 	}
 
 	inst.IaCReachabilityMaterializationDuration, err = meter.Float64Histogram(

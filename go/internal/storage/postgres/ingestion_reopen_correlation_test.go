@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
 
 // TestReopenSucceededReducerWorkItemsReplaysListedItems proves the generic
@@ -22,9 +24,10 @@ func TestReopenSucceededReducerWorkItemsReplaysListedItems(t *testing.T) {
 
 	now := time.Date(2026, time.June, 26, 12, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{
-		// One list query returns two real ids plus a blank that must be skipped.
+		// One gated list query (#8283) returns two changed ids, a blank that
+		// must be skipped, and one unchanged id the gate leaves succeeded.
 		queryResponses: []queueFakeRows{
-			{rows: [][]any{{"work-item-1"}, {""}, {"work-item-2"}}},
+			{rows: [][]any{{"work-item-1", true}, {"", true}, {"work-item-2", true}, {"work-item-3", false}}},
 		},
 		execResults: []sql.Result{
 			rowsAffectedResult{rowsAffected: 1},
@@ -49,9 +52,13 @@ func TestReopenSucceededReducerWorkItemsReplaysListedItems(t *testing.T) {
 	if got, want := got0Arg(db.queries[0].args), "deployable_unit_correlation"; got != want {
 		t.Fatalf("list query domain arg = %v, want %v", got, want)
 	}
-	// Two non-blank ids => two reopen UPDATEs; the blank id is skipped.
+	if got := db.queries[0].query; got != backfill.ListDeployableUnitReopenCandidatesQuery {
+		t.Fatalf("deployable_unit_correlation list query is not the changed-evidence listing:\n%s", got)
+	}
+	// Two changed non-blank ids => two reopen UPDATEs; the blank id and the
+	// unchanged id are skipped.
 	if got, want := len(db.execs), 2; got != want {
-		t.Fatalf("reopen exec count = %d, want %d (blank id must be skipped)", got, want)
+		t.Fatalf("reopen exec count = %d, want %d (blank and unchanged ids must be skipped)", got, want)
 	}
 }
 
@@ -103,7 +110,7 @@ func TestReopenSucceededReducerWorkItemsPropagatesReopenError(t *testing.T) {
 	now := time.Date(2026, time.June, 26, 12, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			{rows: [][]any{{"work-item-1"}}},
+			{rows: [][]any{{"work-item-1", true}}},
 		},
 		execErrors: []error{errors.New("boom")},
 	}

@@ -144,8 +144,9 @@ func TestDeployableUnitCorrelationRecordsEmptyInputWithoutCandidates(t *testing.
 	if _, err := handler.Handle(context.Background(), claimedDeployableUnitIntent(time.Now().UTC())); err != nil {
 		t.Fatalf("Handle() error = %v", err)
 	}
-	if len(recorder.records) != 1 || len(recorder.records[0].fingerprint.RepoIDs) != 0 {
-		t.Fatalf("fingerprint records = %+v, want one with an empty repository set", recorder.records)
+	if len(recorder.records) != 1 || len(recorder.records[0].fingerprint.RepoIDs) != 0 ||
+		recorder.records[0].fingerprint.Value != reducercontract.EmptyResolvedReadFingerprint {
+		t.Fatalf("fingerprint records = %+v, want one empty repository set with the empty-input sentinel", recorder.records)
 	}
 	if loader.reads != 0 {
 		t.Fatalf("fenced resolved reads = %d, want 0 without a candidate", loader.reads)

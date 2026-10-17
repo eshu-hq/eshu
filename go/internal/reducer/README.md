@@ -364,6 +364,13 @@ values each counter carries.
   pair a passing verdict with a partial set (#6740). Other stores keep the
   pre-read fence plus post-read recheck (#6730), which has that window. See
   `docs/internal/evidence/6740-corpus-fence-snapshot.md`.
+- **A deployable-unit success records what it read** (#8283) — with a
+  `FingerprintedCorpusFencedResolvedRelationshipLoader`, the fused read also
+  returns the input fingerprint its statement computed, and the handler hands
+  that value (never a recompute) to `ReopenFingerprintRecorder` after every
+  graph write, fenced on the exact claim. A rejected write fails the run. The
+  deferred-maintenance reopen leaves the item succeeded while the fingerprint
+  still matches; a missing row always re-opens.
 - **The own gate is bounded by its producer** — when the own relationship
   generation is inactive, `crossrepo.EvaluateOwnGate` reads the newest
   `deployment_mapping` row of the same scope generation

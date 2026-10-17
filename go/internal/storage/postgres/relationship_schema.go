@@ -323,6 +323,11 @@ INSERT INTO relationship_candidates (
 ON CONFLICT (candidate_id) DO NOTHING
 `
 
+// insertResolvedSQL never updates a stored row (ON CONFLICT DO NOTHING) and
+// no other statement UPDATEs resolved_relationships. The deployable-unit
+// reopen fingerprint (#8283, backfill.ResolvedInputFingerprintSQL) relies on
+// that: it hashes resolved_id sets, not row content. A future UPDATE path must
+// widen that fingerprint to the columns it changes.
 const insertResolvedSQL = `
 INSERT INTO resolved_relationships (
     resolved_id, generation_id, source_repo_id, target_repo_id,

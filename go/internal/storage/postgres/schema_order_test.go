@@ -472,4 +472,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// Migration 191 (#7427) drops the eshu_search_index_terms generation
 	// foreign key once retention deletes a generation's terms explicitly.
 	"eshu_search_index_terms_drop_generation_fk",
+	// Migration 193 (#8283) records the per-item input fingerprint the
+	// deployable_unit_correlation reopen compares to skip unchanged items.
+	"deployable_unit_reopen_fingerprints",
 }

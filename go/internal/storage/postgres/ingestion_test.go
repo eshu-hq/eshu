@@ -428,6 +428,11 @@ func (f *fakeTx) QueryContext(_ context.Context, query string, args ...any) (db.
 		// reopen no-ops in tests that do not stage explicit responses for it.
 		return &queueFakeRows{}, nil
 	}
+	if query == backfill.ListDeployableUnitReopenCandidatesQuery {
+		// deployable_unit_correlation's changed-evidence listing (#8283):
+		// default to no candidates, like the generic correlation listing below.
+		return &queueFakeRows{}, nil
+	}
 	if query == listSucceededReducerWorkItemsByDomainQuery {
 		// Cross-scope correlation reopen listing (one call per domain in
 		// CrossScopeCorrelationReopenDomains, now issued on the ingester's

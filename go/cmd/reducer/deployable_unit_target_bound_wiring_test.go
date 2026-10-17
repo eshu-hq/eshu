@@ -135,7 +135,13 @@ func (f *deployableUnitTargetBoundDB) QueryContext(
 	// predicate, so it must match before the own-generation readiness probe.
 	case strings.Contains(query, "WITH fence AS MATERIALIZED"):
 		f.readDeployableUnitInputs = true
-		return &resolvedRelationshipRows{rows: [][]any{deployableUnitFencedResolvedRow()}}, nil
+		row := deployableUnitFencedResolvedRow()
+		if strings.Contains(query, "AS input_fingerprint") {
+			// The deployable-unit handler reads through the fingerprinted
+			// fused read (#8283): the fingerprint follows the verdict.
+			row = append([]any{row[0], "fixture-fingerprint"}, row[1:]...)
+		}
+		return &resolvedRelationshipRows{rows: [][]any{row}}, nil
 	case strings.Contains(query, "graph_projection_phase_state AS phase"):
 		return &fakeExistsRows{value: false}, nil
 	case strings.Contains(query, "FROM relationship_generations") && strings.Contains(query, "status = 'active'"):

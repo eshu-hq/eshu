@@ -289,6 +289,12 @@ func runPipelined(
 	// into the new set instead of turning missing evidence into a destructive
 	// retirement. This closes the outcome-keyed replay gap from #5847 and keeps
 	// the bounded-degradation and stale-writer safeguards from #5854 and #5740.
+	//
+	// deployable_unit_correlation is reopened through the changed-evidence
+	// gate (#8283): an item whose recorded input fingerprint still matches is
+	// left succeeded, and an item with no fingerprint row always re-opens. Input a
+	// deployment_mapping re-opened above appends after this gate ran is left
+	// to the next maintenance pass; a one-shot run has none.
 	correlationReopenStart := time.Now()
 	if err := cd.committer.ReopenSucceededReducerWorkItems(
 		ctx, tracer, instruments, postgres.CrossScopeCorrelationReopenDomains(),

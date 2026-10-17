@@ -103,6 +103,7 @@ func readDeployableUnitResolvedInput(
 	if !ok || len(candidates) == 0 {
 		read, err := readCorpusFencedResolvedRelationships(ctx, loader, completeLookup, intent, candidates)
 		read.fingerprinted = err == nil && read.complete && len(candidates) == 0
+		read.fingerprint.Value = reducercontract.EmptyResolvedReadFingerprint
 		return read, err
 	}
 	repoResolved, complete, fingerprint, err := fingerprinted.

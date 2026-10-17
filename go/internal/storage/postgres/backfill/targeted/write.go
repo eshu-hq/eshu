@@ -11,6 +11,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
@@ -174,20 +175,30 @@ func (s Store) ReopenTargetedMaintenanceWorkItems(
 	}
 	for _, domain := range s.CorrelationDomains {
 		block := startTargetedReopenBlock(ctx, tracer)
-		workItemIDs, err := listSucceededReducerWorkItemIDsForDomainAndPartitions(ctx, tx, domain, affected, s.Queries.Correlation)
+		// deployable_unit_correlation alone is behind the changed-evidence
+		// gate (#8283); the other correlation domains keep their
+		// unconditional partition-scoped reopen.
+		var workItemIDs []string
+		skippedUnchanged := 0
+		if domain == string(reducer.DomainDeployableUnitCorrelation) {
+			workItemIDs, skippedUnchanged, err = listDeployableUnitReopenCandidatesForPartitions(
+				ctx, tx, domain, affected, s.Queries.DeployableUnit)
+		} else {
+			workItemIDs, err = listSucceededReducerWorkItemIDsForDomainAndPartitions(ctx, tx, domain, affected, s.Queries.Correlation)
+		}
 		if err != nil {
-			endTargetedReopenBlock(block, err, domain, 0, 0)
+			endTargetedCorrelationReopenBlock(block, err, domain, 0, 0)
 			return nil, err
 		}
 		for _, workItemID := range workItemIDs {
 			if _, err := s.ReopenSucceeded(ctx, tx, workItemID); err != nil {
 				err = fmt.Errorf("reopen %s work items: %w", domain, err)
-				endTargetedReopenBlock(block, err, domain, 0, 0)
+				endTargetedCorrelationReopenBlock(block, err, domain, 0, skippedUnchanged)
 				return nil, err
 			}
 		}
 		reopened[domain] = len(workItemIDs)
-		endTargetedReopenBlock(block, nil, domain, len(workItemIDs), 0)
+		endTargetedCorrelationReopenBlock(block, nil, domain, len(workItemIDs), skippedUnchanged)
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("commit partition-scoped reopen transaction: %w", err)
@@ -210,4 +221,13 @@ func startTargetedReopenBlock(ctx context.Context, tracer trace.Tracer) *backfil
 // pass=targeted, so a targeted reopen is told apart from a whole-pass one.
 func endTargetedReopenBlock(block *backfill.BlockSpan, err error, domain string, reopened, skippedByMemo int) {
 	block.End(err, append(backfill.ReopenBlockAttrs(domain, reopened, skippedByMemo), backfill.StringAttr("pass", "targeted"))...)
+}
+
+// endTargetedCorrelationReopenBlock is endTargetedReopenBlock for a
+// correlation domain, which is never memo-gated and carries the
+// skipped_unchanged count of the changed-evidence gate (0 for an ungated
+// domain).
+func endTargetedCorrelationReopenBlock(block *backfill.BlockSpan, err error, domain string, reopened, skippedUnchanged int) {
+	block.End(err, append(backfill.ReopenBlockAttrs(domain, reopened, 0),
+		backfill.IntAttr("skipped_unchanged", skippedUnchanged), backfill.StringAttr("pass", "targeted"))...)
 }

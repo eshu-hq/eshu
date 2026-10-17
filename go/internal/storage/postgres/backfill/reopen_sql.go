@@ -43,16 +43,26 @@ const scopeReplayFloorSelectWorkItemIDs = `SELECT work.work_item_id
 const scopeReplayFloorSelectWorkItemRefs = `SELECT work.work_item_id, work.scope_id, work.generation_id
 `
 
-// scopeReplayFloorJoinsAndStage joins the work item to its generation row and
-// the scope's floor row, then opens the WHERE clause on the reducer stage.
-const scopeReplayFloorJoinsAndStage = `FROM fact_work_items AS work
+// scopeReplayFloorJoins joins the work item to its generation row and the
+// scope's floor row.
+const scopeReplayFloorJoins = `FROM fact_work_items AS work
 JOIN scope_generations AS work_generation
   ON work_generation.scope_id = work.scope_id
  AND work_generation.generation_id = work.generation_id
 JOIN scope_replay_floor AS floor
   ON floor.scope_id = work.scope_id
-WHERE work.stage = 'reducer'
 `
+
+// scopeReplayFloorStage opens the WHERE clause on the reducer stage. It is
+// the single marker the partition-scoped pass inserts its partition conjunct
+// after (targeted.CorrelationReopenStageMarker), so every listing carries it
+// exactly once.
+const scopeReplayFloorStage = `WHERE work.stage = 'reducer'
+`
+
+// scopeReplayFloorJoinsAndStage joins the work item to its generation row and
+// the scope's floor row, then opens the WHERE clause on the reducer stage.
+const scopeReplayFloorJoinsAndStage = scopeReplayFloorJoins + scopeReplayFloorStage
 
 // scopeReplayFloorBound is the shared tail of every floored reopen listing:
 // succeeded rows only, the failed-generation exclusion, the floor tuple

@@ -19,6 +19,21 @@ type ResolvedReadFingerprint struct {
 	Value   string
 }
 
+// EmptyResolvedReadFingerprint is the fingerprint value of a read that
+// selected no resolved row, and of a run that read no by-repos input at all
+// (a deployable_unit_correlation item with no workload candidate). The store's
+// SQL coalesces an empty row set to this exact value, so it is never NULL
+// and compares equal to itself on both sides of the reopen gate.
+const EmptyResolvedReadFingerprint = "empty-resolved-input"
+
+// DeployableUnitCorrelationLogicVersion is the version of the
+// deployable_unit_correlation handler logic a recorded fingerprint was taken
+// under (#8283). The reopen gate re-opens every item whose recorded version
+// differs, so a handler change that can produce a different graph from the
+// same resolved input MUST bump it; a change that cannot (logging, telemetry,
+// refactors proven output-identical) must not.
+const DeployableUnitCorrelationLogicVersion = 1
+
 // DeployableUnitReopenFingerprintRecorder stores the ResolvedReadFingerprint
 // of a deployable_unit_correlation run that is about to succeed, so the
 // deferred-maintenance reopen can leave the item succeeded while its

@@ -44,6 +44,7 @@ func (s Store) validateReopenCollaborators() error {
 		{"deployment mapping", s.Queries.DeploymentMapping},
 		{"code import repo edge", s.Queries.CodeImportRepoEdge},
 		{"correlation", s.Queries.Correlation},
+		{"deployable unit", s.Queries.DeployableUnit},
 	} {
 		if strings.TrimSpace(query.text) == "" {
 			return fmt.Errorf("partition-scoped maintenance %s query is required", query.name)

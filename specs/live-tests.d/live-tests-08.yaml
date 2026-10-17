@@ -114,3 +114,23 @@ tests:
     class: postgres_ci
     reason: "#8280 disposable PostgreSQL 18 proof that the unchanged production loader returns the producer file facts for every new parser-stamped key form (JS/TS static methods of a named and a default export, a PHP instance method, a PHP use function function) and both candidates when a mirror repository publishes the same package; producer and consumer payloads come from parser.DefaultEngine; enrolled in the live-postgres-readiness runner; about 0.1 s on a local PostgreSQL 18.6 on 2026-10-17; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/ingestion_reopen_correlation_fingerprint_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8283 deployable_unit_correlation changed-evidence gate through the real RunDeferredRelationshipMaintenance on the full bootstrap schema: unchanged input stays succeeded and is counted in eshu_dp_correlation_reopen_skipped_total (G1; on the ungated tree it re-opened, the RED), a dependency generation advance, a row appended under an already-active generation, a missing fingerprint row, a logic-version mismatch, a generation leaving the active set and a new matching scope all re-open (R1-R5), an append outside the repository set re-opens only its reader (G3, forced-change canary), container_image_identity stays ungated, and input that moves between the fenced read and the success write keeps the read-time value and re-opens on the next pass (C2); isolated schema per subtest from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; 9.7 s on local PostgreSQL 18.6 on 2026-10-17; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/ingestion_reopen_correlation_fingerprint_write_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8283 success-write fence of the deployable_unit_correlation reopen fingerprint: a stale claim, an expired lease and a succeeded item are rejected with ErrExecutionClaimRejected (C1), an older claim token never replaces a newer row, and the retention delete of the scope generation cascades the row away with its work item; isolated schemas from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; 3.1 s on local PostgreSQL 18.6 on 2026-10-17; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/ingestion_reopen_correlation_fingerprint_differential_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8283 D1 differential: the fingerprint the fused corpus-fenced read returns (bind-parameter ARRAY inside the fence CTE) equals the reopen listing's recompute (= ANY over a stored text[]) and covers exactly the rows the fused read returned through its IN-list predicate, across source-only, target-only, superseded-generation and empty matches; a zero-candidate item recorded with an empty repository set and the empty-input sentinel stays succeeded (G2); and the #7584 partition-scoped reopen applies the same gate through its derived listing; isolated schemas from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; 3.6 s on local PostgreSQL 18.6 on 2026-10-17; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/ingestion_reopen_correlation_fingerprint_concurrency_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8283 concurrency: four maintenance passes on separate connections over gated items finish with no error and the exact changed/unchanged split; 40 rounds of a stale claim's success write ordered before, after and concurrently with a reclaim plus the fresh claim's write always end on the fresh claim's row with the fresh write never rejected; 40 rounds of a success write racing the retention cascade never deadlock and never leave a fingerprint row behind its work item; isolated schema from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; 2.9 s on local PostgreSQL 18.6 on 2026-10-17, also run under -race; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness

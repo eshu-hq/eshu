@@ -24,6 +24,10 @@ const deployableUnitCorrelationFallbackThreshold = 0.90
 
 // DeployableUnitCorrelationHandler reduces one intent into evidence-backed
 // candidate evaluation and admitted exact deployable-unit correlation edges.
+//
+// Bump reducercontract.DeployableUnitCorrelationLogicVersion with any change
+// here that can write a different graph from the same resolved input: the
+// reopen gate (#8283) re-runs every item recorded under another version.
 type DeployableUnitCorrelationHandler struct {
 	FactLoader              FactLoader
 	ResolvedLoader          ResolvedRelationshipLoader
