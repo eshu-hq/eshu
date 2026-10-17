@@ -3,7 +3,7 @@
 
 package impact
 
-// Rest is the OpenAPI path fragment documenting the 6 `/api/v0/impact/*`
+// Rest is the OpenAPI path fragment documenting the `/api/v0/impact/*`
 // routes. openapi.Spec concatenates it into the published document; keep it in
 // lockstep with the handlers and docs/public/reference/http-api.md.
 const Rest = `

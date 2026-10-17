@@ -3,7 +3,7 @@
 
 package evidence
 
-// Investigations is the OpenAPI path fragment documenting the 4
+// Investigations is the OpenAPI path fragment documenting the
 // `/api/v0/investigations/*` routes. openapi.Spec concatenates it into the
 // published document; keep it in lockstep with the handlers and
 // docs/public/reference/http-api.md.

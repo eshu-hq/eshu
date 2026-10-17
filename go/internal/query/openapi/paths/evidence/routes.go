@@ -3,7 +3,7 @@
 
 package evidence
 
-// Routes is the OpenAPI path fragment documenting the 3 evidence reads.
+// Routes is the OpenAPI path fragment documenting the evidence reads.
 // openapi.Spec concatenates it into the published document; keep it in
 // lockstep with the handlers and docs/public/reference/http-api.md.
 const Routes = `

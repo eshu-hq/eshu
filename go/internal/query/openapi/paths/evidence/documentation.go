@@ -3,7 +3,7 @@
 
 package evidence
 
-// Documentation is the OpenAPI path fragment for the four documentation reads.
+// Documentation is the OpenAPI path fragment for the documentation reads.
 // openapi.Spec concatenates it after Routes in the published document.
 const Documentation = `
     "/api/v0/documentation/facts": {

@@ -3,7 +3,7 @@
 
 package repository
 
-// PackageRegistry is the OpenAPI path fragment documenting the 5
+// PackageRegistry is the OpenAPI path fragment documenting the
 // `/api/v0/package-registry/*` routes. openapi.Spec concatenates it into the
 // published document; keep it in lockstep with the handlers and
 // docs/public/reference/http-api.md.

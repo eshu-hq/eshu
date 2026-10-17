@@ -10,7 +10,7 @@ package auth //nolint:filelength // ~800 lines of OpenAPI path fragments for aut
 // fragment over the 500-line cap; do not copy the exemption to a new file
 // without the same justification.
 
-// Routes is the OpenAPI path fragment documenting the 22 `/api/v0/auth/*`
+// Routes is the OpenAPI path fragment documenting the `/api/v0/auth/*`
 // routes. openapi.Spec concatenates it into the published document; keep it in
 // lockstep with the handlers and docs/public/reference/http-api.md.
 const Routes = `

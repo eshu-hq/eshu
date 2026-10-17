@@ -7,7 +7,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/openapi/schema"
 )
 
-// Entities is the OpenAPI path fragment documenting the 6 `/api/v0/*` routes.
+// Entities is the OpenAPI path fragment documenting the `/api/v0/*` routes.
 // openapi.Spec concatenates it into the published document; keep it in
 // lockstep with the handlers and docs/public/reference/http-api.md.
 const Entities = `

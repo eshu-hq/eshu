@@ -3,7 +3,7 @@
 
 package search
 
-// Content is the OpenAPI path fragment documenting the 5 `/api/v0/content/*`
+// Content is the OpenAPI path fragment documenting the `/api/v0/content/*`
 // routes. openapi.Spec concatenates it into the published document; keep it in
 // lockstep with the handlers and docs/public/reference/http-api.md.
 const Content = `
