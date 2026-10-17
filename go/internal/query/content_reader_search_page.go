@@ -10,8 +10,6 @@ import (
 	"log/slog"
 	"strings"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codetopicparallel"
@@ -351,32 +349,4 @@ func recordCodeTopicFallbackReason(span trace.Span, termCount int, supportsSnaps
 	} else if maxOpenConns < codetopicparallel.Partitions {
 		span.SetAttributes(attribute.String("code_topic.parallel_fallback_reason", "pool_capacity"))
 	}
-}
-
-// codeTopicTermHasTrigram reports whether an ILIKE '%term%' pattern has a run
-// of three ASCII letters or digits, the shortest word pg_trgm can reliably
-// extract a trigram from. In a LIKE pattern "_" and "%" are wildcards and any
-// other character that is not an ASCII letter or digit breaks a word, so "db_"
-// and "a_b" carry no trigram: both trigram GIN scans then return every row.
-// Only ASCII counts because, under a C-ctype database, PostgreSQL treats a
-// multibyte character as non-alphanumeric for trigram extraction, so a purely
-// non-ASCII term has none there. A term this reports false for (for example
-// "ab-cd", which does have trigrams, or a non-ASCII word) keeps the plain
-// statement, which is the base, so the guard is safe to over-reject. The scoped
-// one-term statement hides the term from the planner (#7246) only when this
-// holds (measured 3.3 to 4.6 s plain against 14.9 to 16.7 s hidden for a term
-// with none, on QA).
-func codeTopicTermHasTrigram(term string) bool {
-	run := 0
-	for _, r := range term {
-		if r < utf8.RuneSelf && (unicode.IsLetter(r) || unicode.IsDigit(r)) {
-			run++
-			if run >= 3 {
-				return true
-			}
-			continue
-		}
-		run = 0
-	}
-	return false
 }

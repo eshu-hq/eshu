@@ -87,6 +87,27 @@ bytes, probe and assembly duration, pool-cap status, and errors. A pool below
 four open connections uses the single statement and marks the fallback reason
 on the same span.
 
+## Measured scope: scoped hidden binds (#8370)
+
+Performance Evidence: Partition 0 of a 16-term repo-scoped probe with common
+trigram terms ran on the shared QA read replica (PostgreSQL 18.3, read-only;
+`content_files` 137,419 rows, `content_entities` 2,392,524 rows, largest repo
+12,403 files — the same corpus as the #8356 serial measurement).
+`EXPLAIN (ANALYZE, BUFFERS)` through server-side `PREPARE`, warmed, interleaved
+A/B/A/B, fully cache-resident, identical repo scope, terms, cap 250, and arg
+order both shapes. Before (visible content binds): 3.71s and 3.73s server
+execution at 43,460 shared-hit buffers. After (hidden binds, the shape this
+package now emits for repo-scoped trigram terms): 0.73s and 0.74s at 18,989
+buffers. Identical 1,487 rows all four runs. This proves the partition-0
+query-shape theory on that corpus, not the endpoint target: partitions 1-3,
+full 4-partition concurrent execution with assembly, end-to-end `Investigate`
+latency, cold-cache and p95 behavior, and generic-plan behavior are not
+measured here.
+
+No-Observability-Change: branch selection mirrors the serial path and the
+caller already records the chosen path as `code_topic.execution_mode`; no new
+span, metric, or log was added for this shape change.
+
 ## Gotchas / invariants
 
 - The guarded reader imports the exported snapshot before each worker's first

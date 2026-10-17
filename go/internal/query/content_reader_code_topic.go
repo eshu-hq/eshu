@@ -107,9 +107,9 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 	fileBranches := make([]string, len(req.Terms))
 	measuredScopedOneTerm := strings.TrimSpace(req.RepoID) != "" && len(req.Terms) == 1 && strings.TrimSpace(req.Language) == ""
 	span.SetAttributes(attribute.Bool("code_topic.scoped_one_term", measuredScopedOneTerm))
-	hideTerm := measuredScopedOneTerm && codeTopicTermHasTrigram(req.Terms[0])
+	hideTerm := measuredScopedOneTerm && codequery.CodeTopicTermHasTrigram(req.Terms[0])
 	span.SetAttributes(attribute.Bool("code_topic.terms_materialized", hideTerm))
-	scopedRepo := strings.TrimSpace(req.RepoID) != "" && strings.TrimSpace(req.Language) == ""
+	scopedRepo := codequery.CodeTopicIsRepoScoped(req)
 	for i, term := range req.Terms {
 		termValues[i] = fmt.Sprintf("($%d)", nextArg)
 		fileBranches[i] = codeTopicFileBranch(measuredScopedOneTerm, scopedRepo, term, nextArg, where, candidateCap)
@@ -214,7 +214,7 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 // cannot filter keeps the
 // visible bind, as do corpus-wide, grant-list, and language-filtered shapes.
 func codeTopicFileBranch(measuredScopedOneTerm, scopedRepo bool, term string, termArg int, where string, candidateCap int) string {
-	if measuredScopedOneTerm || (scopedRepo && codeTopicTermHasTrigram(term)) {
+	if measuredScopedOneTerm || (scopedRepo && codequery.CodeTopicTermHasTrigram(term)) {
 		return scopedCodeTopicFileBranch(termArg, where, candidateCap)
 	}
 	return codetopicparallel.FileBranch(termArg, where, candidateCap)
