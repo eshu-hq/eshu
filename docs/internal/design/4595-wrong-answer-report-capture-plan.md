@@ -114,7 +114,7 @@ string into any error it returns.
   `admission_decision_types.go:126`). The bundle records the observed
   truncation flags from the data it captured, not a new contract.
 - Evidence citation handle shape: `evidenceCitationHandle`
-  (`go/internal/query/evidence_citation.go:33-43`), exported as
+  (`go/internal/query/evidence/citation.go`), exported as
   `query.EvidenceCitationHandle` (`evidence_citation_public.go:10`). Full
   citations (`evidence_citation.go:54-76`) carry `content_hash`, `commit_sha`,
   provenance — and an `Excerpt` field, which is INLINE CONTENT BYTES and must

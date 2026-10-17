@@ -55,7 +55,7 @@ the shared API request duration and error metrics (`request.go` in
   route in this package builds a fresh map.
 - `build_evidence_citation_packet` forwards `subject` and `handles`
   unchanged (`nil` when absent) and defaults `limit` to 10. The handler
-  (`internal/query/evidence_citation.go`) independently defaults an
+  (`internal/query/evidence/citation.go`) independently defaults an
   absent/nonpositive limit to 10 and caps anything above 50
   (`evidenceCitationMaxLimit`) at 50; the advertised schema caps the
   incoming `handles` array at 500 (`evidenceCitationMaxInputHandles`).

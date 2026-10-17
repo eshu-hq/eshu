@@ -13,7 +13,7 @@
 6. `../../tools_admission_decisions.go` for the advertised schema, which stays at
    root and must keep naming the same eight fields.
 7. `../../contract/route/README.md` for the dependency-neutral request contract.
-8. `go/internal/query/admission_decisions.go` for the handler that reads the
+8. `go/internal/query/evidence/admission_decisions.go` for the handler that reads the
    keys this package selects: the required-key check, the state vocabulary,
    the anchor-pair rule, and the limit bound all live there. That bound is not
    a symmetric clamp: a nonpositive limit becomes the 50-row default, and only

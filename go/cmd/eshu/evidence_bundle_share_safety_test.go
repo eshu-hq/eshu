@@ -256,7 +256,7 @@ func TestEvidenceBundleScopeFlagSensitiveValueNeverReachesTheArtifact(t *testing
 // against a status route that reports its domain list was capped, and reads
 // the bounds back out of the file. A bundle that shows a partial enumeration
 // as complete is a wrong answer about the stack, and the API route
-// (internal/query/evidence_bundle_live.go) has always carried this flag.
+// (internal/query/evidence/bundle_live.go) has always carried this flag.
 func TestEvidenceBundleLiveExportMarksATruncatedDomainList(t *testing.T) {
 	index := `{"repository_count": 5, "semantic_extraction": {"state": "unavailable", "reason": "provider_not_configured"}}`
 	pipeline := `{

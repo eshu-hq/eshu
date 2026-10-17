@@ -10,7 +10,7 @@
 // a swapped client's in-flight response never commits over a newer source,
 // mirroring AdminTokensPanel's pattern.
 //
-// The route is stack-wide (go/internal/query/evidence_bundle_live.go) and is
+// The route is stack-wide (go/internal/query/evidence/bundle_live.go) and is
 // rejected with HTTP 403 for a scoped-bearer token or a browser session that
 // is not this deployment's tenant-bound all-scopes owner session — in a
 // hosted multi-tenant deployment that includes every browser session, even an

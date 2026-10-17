@@ -171,6 +171,6 @@ the serving API's own request telemetry.
 
 - `go/internal/evidencebundle/README.md` -- the composer and the validation
   contract this package depends on
-- `go/internal/query/evidence_bundle_live.go` -- the API route that composes
+- `go/internal/query/evidence/bundle_live.go` -- the API route that composes
   the same bundle from a typed `status.Report`; `cmd/eshu`'s
   `evidence_bundle_api_parity_test.go` holds the two readings together

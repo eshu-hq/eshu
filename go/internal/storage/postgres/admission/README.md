@@ -23,7 +23,7 @@ This package owns admission decision persistence only. It does not decide
 admission states — `go/internal/reducer/admissiondecision` and its callers
 (`go/cmd/reducer/admission_decision_wiring.go`) do that and call
 `UpsertDecision`/`InsertEvidence` with an already-decided
-`AdmissionDecision`. `go/internal/query/admission_decision_store.go` is the
+`AdmissionDecision`. `go/internal/query/evidence/admission_decision_store.go` is the
 read caller behind the API/MCP admission-decision routes. This package must
 not import the parent `postgres` package.
 
