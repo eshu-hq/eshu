@@ -73,8 +73,22 @@ WHERE dead.status = 'dead_letter'
 // (EvalPlanQual recheck) against the now-committed row and finds
 // status <> 'dead_letter', so it affects zero rows instead of clobbering the
 // concurrent claim. The conflict domain is work_item_id (the primary key), so
-// each candidate row is an independent lock target — no cross-row lock
-// ordering is introduced.
+// each candidate row is an independent lock target.
+//
+// Lock order (#8261): the poison CTE stays an unlocked selection (its ORDER
+// BY uses the database's default collation, which picks the batch). The
+// poison_locked CTE then locks the selected rows that are still dead letters
+// under their recovery budget, in work_item_id COLLATE "C" order, before the
+// UPDATE touches any. That is the order the recovery and admin replays and
+// the reducer claim sweep lock in (#8205). Without it the UPDATE locked rows
+// in the selection's default-collation order: on a database whose collation
+// is not C (en_US.utf8 is the common default) and work ids whose two orders
+// disagree (an upper-case entity key), poison recovery and a concurrent
+// replay over the same dead letters locked them in opposite orders and one
+// died with 40P01. The lock step's status and budget predicates are
+// rechecked on the newest row version when a lock waits (EvalPlanQual), so a
+// row another worker reclaimed or re-drove after the selection read it is
+// dropped there; the UPDATE repeats the status check.
 //
 // Parameter order:
 //
@@ -108,6 +122,15 @@ WITH poison AS (
       AND COALESCE((dead.payload ->> 'poison_recovery_attempts')::int, 0) < $2
     ORDER BY dead.work_item_id
     LIMIT $3
+),
+poison_locked AS (
+    SELECT locked.work_item_id
+    FROM fact_work_items AS locked
+    WHERE locked.work_item_id = ANY(ARRAY(SELECT work_item_id FROM poison))
+      AND locked.status = 'dead_letter'
+      AND COALESCE((locked.payload ->> 'poison_recovery_attempts')::int, 0) < $2
+    ORDER BY locked.work_item_id COLLATE "C"
+    FOR NO KEY UPDATE
 )
 UPDATE fact_work_items AS target
 SET status = 'pending',
@@ -134,8 +157,7 @@ SET status = 'pending',
         )
     ),
     updated_at = $1
-FROM poison
-WHERE target.work_item_id = poison.work_item_id
+WHERE target.work_item_id = ANY(ARRAY(SELECT work_item_id FROM poison_locked))
   -- Write-time re-verify (#4464-grade guard): only a row still genuinely
   -- dead_letter at UPDATE time is re-driven. A concurrent reclaim that moved
   -- the row to claimed/running/pending/succeeded/etc. between the poison CTE's

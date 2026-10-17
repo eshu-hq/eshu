@@ -16,8 +16,14 @@
 - Keep the write-time `target.status = 'dead_letter'` guard on the UPDATE's
   locked relation. Removing it lets a sweep clobber a concurrent reclaim
   (dead_letter -> claimed) back to pending.
-- The conflict domain is `work_item_id` (one independent lock target per
-  candidate row). Do not introduce cross-row lock ordering here.
+- `RecoverDeadLettersQuery` locks its rows in the `poison_locked` CTE, in
+  `work_item_id COLLATE "C"` order with a blocking `FOR NO KEY UPDATE`,
+  before the UPDATE (#8261): the order every blocking multi-row
+  `fact_work_items` locker shares (`SKIP LOCKED` claim and selection lockers
+  never wait, so they keep their own order). Keep the `COLLATE "C"` (the default
+  collation sorts differently), the lock step's status and budget rechecks,
+  and the waiting lock (no `SKIP LOCKED`). Rerun `TestPoisonRecovery*` in the
+  parent package after any edit.
 - The budget counter stays in the JSONB payload with a `LEAST` cap — do not
   add a schema column for it, and do not widen the candidate CTE past the
   `< maxRecoverAttempts` gate.

@@ -21,6 +21,9 @@ batch ack use, so an admin replay never locks shared rows in the opposite
 order of a concurrent replay (#8205, 40P01 on main).
 
 Repository skip selects only pending, retrying, or failed rows, up to 100. It
+locks the selected rows still in their selected state first, in
+`work_item_id COLLATE "C"` order (`locked` CTE), so a skip never deadlocks
+against a replay or the reducer claim sweep over the same rows (#8261), and
 rechecks the selected status and eligibility on the locked target row so an
 in-flight worker claim or a concurrent status change is not overwritten.
 

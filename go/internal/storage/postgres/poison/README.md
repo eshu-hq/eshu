@@ -50,6 +50,14 @@ sweep outcome.
   concurrent worker reclaimed between the candidate snapshot and the row lock
   must be skipped (EvalPlanQual recheck). Keep the row-self predicate on the
   locked relation.
+- Recovery locks its selected rows first, in `work_item_id COLLATE "C"`
+  order (`poison_locked`, blocking `FOR NO KEY UPDATE`), the order the
+  recovery and admin replays lock in (#8261). The selection's own
+  `ORDER BY dead.work_item_id` uses the database's default collation; on an
+  `en_US.utf8` database, ordering locks by it deadlocked (40P01) against a
+  replay over work ids whose two orders disagree. The lock step also
+  rechecks the attempt budget, so a row re-driven and dead-lettered again
+  after the snapshot is not re-driven twice in one sweep.
 - The attempt budget lives in the row's JSONB payload and is capped with
   `LEAST`; there is no schema column. A row at or past the ceiling is
   excluded by the candidate CTE, never retried.
