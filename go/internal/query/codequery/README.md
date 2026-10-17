@@ -8,7 +8,7 @@ route-to-caller, cypher, visualize, and bundles.
 
 It moved out of root package `query` (#6060 lane A) so the family can be
 read, tested, and changed without pulling in the rest of the query
-surface. The directory is exempt from the dirgate file cap by the existing //nolint:dirgate justification on doc.go.
+surface. The directory is over the dirgate file cap and is held at its `baseline-cap.tsv` row; growth needs a `Dirgate-Growth` trailer.
 
 ## How it connects
 
@@ -44,6 +44,10 @@ surface. The directory is exempt from the dirgate file cap by the existing //nol
 
 - **Never import root package `query`.** Root imports this package;
   the reverse is an import cycle. Qualify to the leaves instead.
+- **The divergence rollup stays in this package.** It must stay beside
+  the `CodeHandler`'s unexported wrapper and outlier tracks and the
+  `divergenceStore` interface it shares with the findings read. A
+  subpackage split would re-export those seams for one report.
 - **Relocated, not rewritten.** Queryplan-pinned builders keep their
   emitted Cypher byte-identical. Where the move forced a spelling
   change (a seam export, a leaf qualification), a same-named alias

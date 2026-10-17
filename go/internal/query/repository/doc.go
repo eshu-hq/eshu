@@ -13,4 +13,4 @@
 // root package live in querycontract; file-content artifact readers live in
 // repositoryartifacts; ref resolution and page shaping live in
 // repository/readmodel.
-package repository //nolint:dirgate // Lane-B B3 repository family for #6060: 47 non-test files vs the 40-file cap (the deployment-evidence store split the 500-line cap forced, later stage/degrade splits, #6810 context_degrade.go, and #7674 failure.go); splitting a subpackage rechurns the queryplan file pins.
+package repository

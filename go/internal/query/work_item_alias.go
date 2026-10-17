@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:dirgate // B6 root alias shim for #6642: type aliases and thin forwarders for the moved work-item evidence family must live in package query so handler wiring, cmd constructors, and staying callers compile unchanged.
+package query
 
 import (
 	"database/sql"

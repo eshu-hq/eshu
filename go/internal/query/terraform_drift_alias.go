@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:dirgate // B5 root alias shim for #6642: the Terraform config-vs-state drift aliases must live in package query so the APIRouter field and the cmd/api and cmd/mcp-server wiring compile unchanged.
+package query
 
 import (
 	"database/sql"

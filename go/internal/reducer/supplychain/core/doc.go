@@ -44,4 +44,4 @@
 // own wiring test live in the parent's compat stanza, following the
 // containerimage precedent; family-local test doubles live in
 // cross_scope_test_doubles_test.go.
-package core //nolint:dirgate // supplychain family for #6061: 72 non-test files vs the 40-file cap; the tree doc names supplychain/core as the single destination and the Suppression-on-SupplyChainImpactFinding field makes finding+core+suppression indivisible, so splitting the directory mid-move would re-create the root<->package cycle the unit move exists to end.
+package core
