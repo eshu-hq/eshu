@@ -84,6 +84,13 @@ type generationRetentionFakeDB struct {
 	// predeleteBatchDelay makes every pre-delete batch statement take this
 	// long, so a test can tell pre-delete time from prune time.
 	predeleteBatchDelay time.Duration
+	// expiredBlockedRows answers the #7585 PR2 expired-generations report:
+	// one row per fixture superseded generation (scope id, generation id,
+	// superseded at, is-active, live work, retrying work, uncovered,
+	// delta-protected). The fake filters by the report's ceiling cutoff
+	// arg ($1, strict `superseded_at < cutoff`) and caps at its limit arg
+	// ($2), as the live statement does.
+	expiredBlockedRows [][]any
 }
 
 // isSearchIndexPredeleteStatement reports whether a statement belongs to the
@@ -145,8 +152,56 @@ func (database *generationRetentionFakeDB) QueryContext(_ context.Context, query
 			rows = append(rows, []any{name})
 		}
 		return &queueFakeRows{rows: rows}, nil
+	case strings.Contains(query, generationRetentionExpiredReportMarker):
+		return &queueFakeRows{rows: filterGenerationRetentionExpiredRows(database.expiredBlockedRows, args)}, nil
 	}
 	return nil, sql.ErrConnDone
+}
+
+// filterGenerationRetentionExpiredRows answers the expired-generations
+// report the way the live statement does: only fixture rows strictly older
+// than the ceiling cutoff arg ($1) are returned, oldest first, capped at
+// the limit arg ($2).
+func filterGenerationRetentionExpiredRows(rows [][]any, args []any) [][]any {
+	if len(args) == 0 {
+		return nil
+	}
+	cutoff, ok := args[0].(time.Time)
+	if !ok {
+		return nil
+	}
+	limit := len(rows)
+	if len(args) >= 2 {
+		if queryLimit, ok := args[1].(int); ok && queryLimit >= 0 && queryLimit < limit {
+			limit = queryLimit
+		}
+	}
+	filtered := make([][]any, 0, len(rows))
+	for _, row := range rows {
+		supersededAt, ok := row[2].(time.Time)
+		if !ok || !supersededAt.Before(cutoff) {
+			continue
+		}
+		filtered = append(filtered, row)
+	}
+	// Mirror the live statement's ORDER BY superseded_at ASC,
+	// generation_id ASC before the LIMIT cap, so the oldest rows win.
+	slices.SortFunc(filtered, func(a, b []any) int {
+		aTime, aOK := a[2].(time.Time)
+		bTime, bOK := b[2].(time.Time)
+		if aOK && bOK {
+			if c := aTime.Compare(bTime); c != 0 {
+				return c
+			}
+		}
+		aID, _ := a[1].(string)
+		bID, _ := b[1].(string)
+		return strings.Compare(aID, bID)
+	})
+	if len(filtered) > limit {
+		filtered = filtered[:limit]
+	}
+	return filtered
 }
 
 type generationRetentionFakeTx struct {
