@@ -2118,6 +2118,14 @@ type Instruments struct {
 	// stay in the accompanying structured log. Each detection counts once;
 	// a batch held across retry cycles re-counts on every detection.
 	SharedEdgeTargetMiss metric.Int64Counter
+	// DeployableUnitEdgeVerify counts the post-write verification verdicts of
+	// admitted CORRELATES_DEPLOYABLE_UNIT edges (#8283, verified success), by
+	// the closed outcome label present, missing_target, missing_edge, or
+	// probe_error. A run records its reopen fingerprint only when every edge
+	// reads present; missing_edge (both endpoints present, edge absent) is a
+	// counting failure that dead-letters when it repeats. Sample ids and the
+	// verdict travel in the WARN, not the labels.
+	DeployableUnitEdgeVerify metric.Int64Counter
 	// RationaleRetractProbeOutcomes counts the #5998 rationale EXPLAINS
 	// retract probe-guard decision by two bounded labels: outcome (skipped /
 	// deleted / unsupported / probe_error) and scope (whole_scope /
@@ -6001,6 +6009,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SharedEdgeTargetMiss counter: %w", err)
+	}
+
+	inst.DeployableUnitEdgeVerify, err = meter.Int64Counter(
+		"eshu_dp_deployable_unit_edge_verify_total",
+		metric.WithDescription("Total post-write verification verdicts of admitted CORRELATES_DEPLOYABLE_UNIT edges (#8283), by outcome=present|missing_target|missing_edge|probe_error"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register DeployableUnitEdgeVerify counter: %w", err)
 	}
 
 	inst.RationaleRetractProbeOutcomes, err = meter.Int64Counter(

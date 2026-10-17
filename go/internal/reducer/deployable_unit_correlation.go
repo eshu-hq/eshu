@@ -69,6 +69,10 @@ type DeployableUnitCorrelationHandler struct {
 	// leaves an unchanged item succeeded (#8283). Nil records nothing and
 	// every success keeps its unconditional reopen.
 	ReopenFingerprintRecorder reducercontract.DeployableUnitReopenFingerprintRecorder
+	// EdgeVerifier proves every admitted edge landed before the admission
+	// decisions and the reopen fingerprint are written (#8283). Nil skips
+	// verification and therefore records no fingerprint.
+	EdgeVerifier DeployableUnitEdgeVerifier
 	// Logger receives the bound-expiry WARN emitted when a shared-edge target
 	// stays absent past the wait bound (#7268). main.go wires the reducer's
 	// structured logger so the WARN carries its trace and service fields; nil
@@ -199,6 +203,10 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	if err != nil {
 		return Result{}, boundSharedEdgeTargetDeferral(err, intent, time.Now().UTC(), h.Logger)
 	}
+	verified, err := h.verifyDeployableUnitEdges(ctx, edgeRows)
+	if err != nil {
+		return Result{}, boundSharedEdgeTargetDeferral(err, intent, time.Now().UTC(), h.Logger)
+	}
 	if err := h.writeDeployableUnitAdmissionDecisions(ctx, intent, evaluation, canonicalWrites); err != nil {
 		return Result{}, err
 	}
@@ -212,8 +220,10 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	); err != nil {
 		return Result{}, err
 	}
-	if err := h.recordReopenFingerprint(ctx, intent, read); err != nil {
-		return Result{}, err
+	if verified {
+		if err := h.recordReopenFingerprint(ctx, intent, read); err != nil {
+			return Result{}, err
+		}
 	}
 
 	// Same refinement as the zero path above: a no-op for key_match, kept

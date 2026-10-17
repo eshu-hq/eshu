@@ -93,6 +93,9 @@ func edgeAPIDeploysFrom() []relationships.ResolvedRelationship {
 		TargetRepoID:     "repo-edge-api",
 		RelationshipType: relationships.RelDeploysFrom,
 		Confidence:       0.94,
+		Details: map[string]any{
+			"evidence_kinds": []string{string(relationships.EvidenceKindArgoCDAppSource)},
+		},
 	}}
 }
 
@@ -106,6 +109,7 @@ func TestDeployableUnitCorrelationRecordsReadFingerprintOnSuccess(t *testing.T) 
 		FactLoader:                &stubDeployableUnitFactLoader{envelopes: dockerfileCandidateEnvelopes()},
 		ResolvedLoader:            &fingerprintedResolvedLoader{resolved: edgeAPIDeploysFrom(), complete: true, fingerprint: read},
 		EdgeWriter:                &recordingDeployableUnitEdgeWriter{},
+		EdgeVerifier:              &stubDeployableUnitEdgeVerifier{},
 		ReopenFingerprintRecorder: recorder,
 	}
 
@@ -213,6 +217,7 @@ func TestDeployableUnitCorrelationFailsWhenFingerprintWriteIsRejected(t *testing
 			fingerprint: reducercontract.ResolvedReadFingerprint{RepoIDs: []string{"repo-edge-api"}, Value: "v"},
 		},
 		EdgeWriter:                &recordingDeployableUnitEdgeWriter{},
+		EdgeVerifier:              &stubDeployableUnitEdgeVerifier{},
 		ReopenFingerprintRecorder: &recordingReopenFingerprints{err: reducercontract.ErrExecutionClaimRejected},
 	}
 

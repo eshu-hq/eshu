@@ -133,3 +133,61 @@ func TestReducerQueueClaimKeepsSharedEdgeTargetDeferralAttemptCount(t *testing.T
 		t.Fatalf("IsNonCountingReducerRetryFailureClass(%q) = false, want true", reducer.SharedEdgeTargetNotReadyFailureClass)
 	}
 }
+
+// TestReducerQueueFailDeadLettersUnverifiedDeployableUnitEdgeAtBudget pins the
+// #8283 verified-success class as counting: an edge that is absent after a
+// successful write while both Repository nodes exist is not a timing state,
+// so at the retry budget the queue dead-letters it loudly instead of
+// deferring it forever. The error comes from the real edge writer.
+func TestReducerQueueFailDeadLettersUnverifiedDeployableUnitEdgeAtBudget(t *testing.T) {
+	t.Parallel()
+
+	verifyErr := writer.NewEdgeWriter(nodesPresentEdgeAbsentExecutor{}, 0).VerifyDeployableUnitEdges(
+		context.Background(),
+		[]reducer.SharedProjectionIntentRow{{
+			IntentID:     "intent-du-edge-1",
+			RepositoryID: "repo-app",
+			Payload: map[string]any{
+				"repo_id":             "repo-app",
+				"deployment_repo_id":  "repo-deploy",
+				"deployable_unit_key": "du-1",
+				"correlation_key":     "corr-1",
+			},
+		}},
+		"reducer/deployable-unit-correlation",
+	)
+	if verifyErr == nil {
+		t.Fatal("VerifyDeployableUnitEdges() = nil, want the unverified-edge error")
+	}
+	if IsNonCountingReducerRetryFailureClass(reducer.DeployableUnitEdgeWriteUnverifiedFailureClass) {
+		t.Fatalf("IsNonCountingReducerRetryFailureClass(%q) = true, want counting", reducer.DeployableUnitEdgeWriteUnverifiedFailureClass)
+	}
+	now := time.Date(2026, time.October, 17, 9, 0, 0, 0, time.UTC)
+	database := &fakeExecQueryer{}
+	queue := ReducerQueue{
+		database: database, LeaseOwner: "reducer-1", LeaseDuration: time.Minute,
+		RetryDelay: 2 * time.Minute, MaxAttempts: 3, Now: func() time.Time { return now },
+	}
+	intent := reducer.Intent{
+		IntentID: "intent-deployable-unit-correlation-1", Domain: reducer.DomainDeployableUnitCorrelation, AttemptCount: 3,
+	}
+	cause := fmt.Errorf("verify deployable unit correlation edges: %w", verifyErr)
+	if err := queue.Fail(context.Background(), intent, cause); err != nil {
+		t.Fatalf("Fail() error = %v, want nil", err)
+	}
+	if len(database.execs) != 1 || !strings.Contains(database.execs[0].query, "dead_letter") {
+		t.Fatalf("Fail() at the budget did not dead-letter the unverified edge: %+v", database.execs)
+	}
+}
+
+// nodesPresentEdgeAbsentExecutor answers Repository probes present and the
+// CORRELATES_DEPLOYABLE_UNIT edge probe absent.
+type nodesPresentEdgeAbsentExecutor struct{}
+
+func (nodesPresentEdgeAbsentExecutor) Execute(context.Context, sourcecypher.Statement) error {
+	return nil
+}
+
+func (nodesPresentEdgeAbsentExecutor) ExecuteProbe(_ context.Context, stmt sourcecypher.Statement) (bool, error) {
+	return !strings.Contains(stmt.Cypher, "CORRELATES_DEPLOYABLE_UNIT"), nil
+}
