@@ -35,15 +35,37 @@ re-opened only when something it read can have changed.
   runs first. A pass runs only after a drain that committed something
   (`RunDeferredRelationshipMaintenanceAfterShardDrain`). If no later pass
   runs, the item keeps its old graph until one does. The exact
-  completion-driven wake is a follow-up.
+  completion-driven wake is the follow-up #8294.
 
 - **Graph-side loss is not detected.** This limitation was accepted by the
   ruling. The fingerprint covers the resolved Postgres input, not the graph.
   If another writer removes a `CORRELATES_DEPLOYABLE_UNIT` edge or its target
   node, an item whose input is unchanged is not re-opened, so the edge stays
   missing until the input changes or the logic version is bumped. Before the
-  gate, every wave re-merged those edges. To force a re-run, delete the
-  item's fingerprint row: a missing row always re-opens on the next pass.
+  gate, every wave re-merged those edges. Graph-side truth stays with its
+  owners: the canonical-node quiescence gate keeps the handler's writes behind
+  repository projection, and dual-write reconciliation
+  (`go/internal/storage/cypher/generation_reconciliation.go`) retracts edges
+  whose denormalized `generation_id` or `resolved_id` drifted from Postgres.
+  Neither re-creates an edge an unrelated writer removed. The deployed
+  forced-change canary (NOT_CHECKED below) is the check that a changed input
+  still re-opens. To force a re-run, delete the item's fingerprint row: a
+  missing row always re-opens on the next pass.
+- **A logic change needs a version bump.** Before the gate, a deployed logic
+  fix reached every item in the next wave. Now an unchanged item keeps its old
+  output until `DeployableUnitCorrelationLogicVersion` is bumped. The bump rule
+  sits on the handler type and names the code path it covers: the handler,
+  candidate extraction, `ExtractDeployableUnitCorrelationRows` and
+  `applyResolvedDeploymentSources`, the rule packs and engine, the
+  admission-decision mapping and the edge row shape. No source-hash guard
+  was added. It cannot tell an output-changing edit from a comment or a
+  refactor, so it would teach reviewers to re-pin the hash, and a guard
+  satisfied by its own data is not proof (AGENTS evidence rules).
+- **resolved_id identity.** The fingerprint hashes `resolved_id` values, so
+  it inherits their identity rules. #8299 tracks a latent `resolved_id`
+  collision (the id hashes the batch ordinal, not the repository ids); a fix
+  that changes how ids are minted changes every fingerprint once, which only
+  re-opens items.
 
 ## Shape
 
@@ -136,7 +158,7 @@ Write costs:
   +35 % on the work-item cascade step.
 - **Retention row count.** `generationRetentionRowCountsQuery` does not count
   the new grandchild, so it under-counts by at most one row per pruned item.
-  This is a follow-up.
+  The follow-up is #8300.
 
 ## Concurrency
 
@@ -194,9 +216,11 @@ already handles.
   skipped-unchanged per wave, `eshu_dp_correlation_reopened_total` per domain,
   and the forced-change canary on a deployed corpus all wait on a deployed
   image.
-- **Generation-id over-admit rate.** Not measured on deployed data; the ruling
-  estimates about 80 of 799. The row-set basis also admits an item when an
-  appended row does not change its edges.
+- **Over-admit rate of the shipped basis.** How often a deployed wave
+  re-opens an item whose `resolved_id` set changed but whose edges did not
+  (an appended row that matches the item's repositories without changing its
+  admitted edges). Not measured; it needs a deployed wave with per-item output
+  comparison.
 - **Golden-corpus gate.** Not run against the gate. If it shows the
-  deployable-unit edge set changed, the completion-driven wake comes into this
-  work.
+  deployable-unit edge set changed, the completion-driven wake (#8294) comes
+  into this work.

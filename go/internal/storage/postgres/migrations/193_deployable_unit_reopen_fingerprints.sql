@@ -20,9 +20,12 @@
 -- keeps the claim the row came from, so a stale write can never replace a row
 -- recorded by a later claim.
 --
--- New table only: no lock on an existing table beyond the catalog entry for
--- the foreign key. The primary key on work_item_id is the index the cascade
--- from fact_work_items probes, so retention deletes stay index lookups.
+-- New table only, but the foreign key takes SHARE ROW EXCLUSIVE on
+-- fact_work_items while the table is created, which briefly blocks queue
+-- writers. That lock is bounded by the runner's lock_timeout and retry
+-- (schema.go), as for the other FK-bearing tables on fact_work_items. The
+-- primary key on work_item_id is the index the cascade from fact_work_items
+-- probes, so retention deletes stay index lookups.
 CREATE TABLE IF NOT EXISTS deployable_unit_reopen_fingerprints (
     work_item_id TEXT PRIMARY KEY
         REFERENCES fact_work_items(work_item_id) ON DELETE CASCADE,

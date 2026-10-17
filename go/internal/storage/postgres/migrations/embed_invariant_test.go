@@ -89,7 +89,7 @@ import (
 // 191_eshu_search_index_terms_drop_generation_fk.sql; #8283 adds
 // 193_deployable_unit_reopen_fingerprints.sql (numbered 193 while open PRs held
 // 191-192; sequence gaps are tolerated).
-const goldenBootstrapDefinitionsDigest = "a5bf306ab14010a15c1282a5b5cb40fc1371f53cdb8a3e531b44f286c6f86e12"
+const goldenBootstrapDefinitionsDigest = "b361c0a964bd89589a9b10f320190a07474aab0ce5b328f09b42d49889002862"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
