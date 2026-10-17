@@ -3,6 +3,10 @@
 
 package admin_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8205 admin replay lock order: admin stage-only versus scoped recovery replay in both start orders and admin versus admin wait one way on pg_blocking_pids with exact accounting (main: admin versus recovery deadlocks), and the EvalPlanQual case keeps a row claimed before the admin lock step; isolated schemas; about 22 s locally; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_POSTGRES_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

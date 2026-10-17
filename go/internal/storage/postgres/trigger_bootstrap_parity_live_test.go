@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7777 disposable PostgreSQL 18 proof that a schema built by ApplyBootstrap alone runs the webhook trigger store's store, claim, fenced handoff, and stale-claim reap, and that its webhook_refresh_triggers columns and indexes equal both a store-only EnsureSchema schema and itself after EnsureSchema (fails on main without migration 168: column claim_fencing_token does not exist). Installs pg_trgm through postgresproof.InstallTrigramExtension. Enrolled in the live-postgres-readiness runner; 1.56s of test time on postgres:18 on 2026-10-08; wall time is logged, not gated
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE ESHU_GENERATION_RETENTION_PROOF_DSN ESHU_POSTGRES_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

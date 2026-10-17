@@ -3,6 +3,10 @@
 
 package impact
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7529 disposable PostgreSQL 18 proofs of the runtime-environment evidence read, enrolled in the live-postgres-readiness runner: the hot digest (about 1,000,199 seeded rows, 200 candidates) keeps one artifact-index probe per candidate at the seeded active scope/generation pair count with analyzed statistics, and the truth matrix admits only current, authorized, accepted facts. Pair-count scaling is pinned by the #7552 many-pairs proof (901 active pairs, one artifact-index probe per candidate, deploy_event fold). Upper-bound timing: local eight-proof runner passed in 90s suite time (50.7s hot digest, dominated by the seed; 0.63s truth matrix) on postgres:18-alpine with host load average 65 to 94 on 12 CPUs on 2026-10-03; wall time is logged, not gated
+//eshu:readiness:env ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DISPOSABLE ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

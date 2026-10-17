@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7961 disposable PostgreSQL 18 proof that tracked migration 169 never blocks a content_files read past 1 s: migrations 001-168 applied through the tracked migrator (all nine content_files indexes and both secret-lines triggers asserted), 8,000 seeded rows, a 100 ms reader loop and pg_locks sampler (no AccessExclusiveLock during the backfill), receipt skip and a receipt-free replay that rewrites no tuple, a backend terminated mid-backfill that keeps the ALTER, writes no tag or receipt, and reruns to exactly one receipt, and a one-message control that must block a reader past the bound so the proof is not vacuous. Enrolled in the live-postgres-readiness runner; about 25s of test time (22.3s to 29.7s over three local PostgreSQL 18.6 runs on 2026-10-11, host load varied); wall time is logged, not gated
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

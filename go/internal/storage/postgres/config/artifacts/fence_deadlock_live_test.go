@@ -3,6 +3,10 @@
 
 package artifacts_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8155 arm 7 cases 1a and 1b: two opposite-order multi-repository upserts and deletes over ten shared repositories, overlapped every round by a held middle version row, 20 rounds each with 0 deadlocks and exact bump counts; the seeded row-level fence deadlocks on the same rounds (RED); enrolled in the live-postgres-readiness runner; 1.2-6.8 s per proof on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated
+//eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

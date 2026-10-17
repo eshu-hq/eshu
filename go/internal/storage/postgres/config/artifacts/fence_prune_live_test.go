@@ -3,6 +3,10 @@
 
 package artifacts_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8155 ruling additions 3a and 3b: auto_explain records the DELETE fence statement's plan with a Sort on repo_id under the Insert and no reordering node between; arm 7 case 1c runs two real PruneSupersededGenerations passes on scope sets sharing six repositories in opposite order, 3 rounds, 0 deadlocks, each shared version row bumped twice; needs LOAD 'auto_explain' (superuser DSN); enrolled in the live-postgres-readiness runner; 0.8-2.5 s per proof on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated
+//eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

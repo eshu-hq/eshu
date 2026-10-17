@@ -3,6 +3,10 @@
 
 package activation_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7584 activation obligation finalize matrix (queue isolation incl. other-domain row, terminal preservation, forged identity and injected completion rollback, no phase substitution, supersession) on the full bootstrap schema in an isolated disposable PostgreSQL schema
+//eshu:readiness:env ESHU_DEFERRED_PARTITION_PROOF_DSN
+
 import (
 	"errors"
 	"fmt"

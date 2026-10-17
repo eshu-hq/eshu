@@ -3,6 +3,10 @@
 
 package unscoped_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7730 disposable PostgreSQL 18 proof that a resume chain of the unscoped file search crosses one planted 16 MB document whose 500-row window costs more than the flat 0.375 x budget window timeout of the earlier walk: the budget is twice the window's measured cost, every call advances its cursor, a key-ordered window (not the tail) carries the walk past the document, and the gathered rows equal the old single statement's; the measured budget (about 96-109 ms locally) is at or below the 100 ms MinBudget that BudgetFromEnv enforces, which Searcher.Budget accepts and every ratio scales with, so the mechanics proof holds; one local PostgreSQL 18 run took about 5-8 s
+//eshu:readiness:env ESHU_CONTENT_SEARCH_PROOF_DISPOSABLE ESHU_CONTENT_SEARCH_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

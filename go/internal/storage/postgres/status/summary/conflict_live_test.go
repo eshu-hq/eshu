@@ -3,6 +3,10 @@
 
 package summary_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7009 disposable PostgreSQL 18 contention proof of the status summary as_of guard (also a blocking step of the reducer-contention-gate workflow, fail-closed through ESHU_REQUIRE_STATUS_SUMMARY_PROOF): one writer's transaction is held open, pg_stat_activity shows the other blocked on a lock, and the release decides whether the waiter advances (newer over older, older rejected, first insert, holder rollback); about 1 s on PostgreSQL 18.6
+//eshu:readiness:env ESHU_STATUS_SUMMARY_PROOF_DISPOSABLE ESHU_STATUS_SUMMARY_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7420 disposable PostgreSQL proof that the bootstrap leaves no foreign key referencing fact_records and that each key sidecar drop migration (188-190) waits beside a fact-then-key writer, fails fast with 55P03 beside a key-first holder, and takes no table lock on a re-run (the plain DROP CONSTRAINT deadlocked, seeded RED), enrolled in the live-postgres-readiness runner; bridges ESHU_GENERATION_RETENTION_PROOF_DSN. local run passed both tests in 1.82s of test time on PostgreSQL 18.6 on 2026-10-16
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

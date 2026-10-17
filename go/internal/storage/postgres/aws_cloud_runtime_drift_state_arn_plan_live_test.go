@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7666 disposable PostgreSQL 18 plan proof of the aws_cloud_runtime_drift ARN-keyed state join: 320 state scopes x 3 generations and 120 requested ARNs in an isolated schema, fresh and stale planner statistics, custom and generic plans; asserts the migration 180 ARN index is probed per ARN (never walked), no fact_records node loops past the ARN count, and root buffers stay linear in the ARN count; enrolled in the live-postgres-readiness runner; 3.5-6.7 s locally on PostgreSQL 18.6 including two bootstraps; wall time is logged, not gated
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"strings"
 	"testing"

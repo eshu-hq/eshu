@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7724 disposable PostgreSQL 18 proof that both shared-projection prefetch batch queries probe the primary key with no sequential scan at 500-key scale over 100K-row tables, that the shipped SQL binds UNNEST arrays against real Postgres, and that LookupBatch returns exactly the present subset; enrolled in the live-postgres-readiness runner, bridging its ESHU_PREFETCH_BATCH_PLAN_PROOF_DSN family pair onto ESHU_POSTGRES_TEST_DSN with a disposable-ack fail-closed
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PREFETCH_BATCH_PLAN_PROOF_DISPOSABLE ESHU_PREFETCH_BATCH_PLAN_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

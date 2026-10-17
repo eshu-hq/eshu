@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7978 disposable PostgreSQL 18 proof of the reconcile re-projection lifecycle (rulings a9-117, a9-120): a live lease is left alone with no request stamp, a dead-lettered re-projection keeps the active generation and its scope pointer, and a pending same-identity snapshot stores nothing while a failed one stores; enrolled in the live-postgres-readiness runner; wall time is logged, not gated
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 // Live lifecycle proofs for the #7978 reconcile re-projection (rulings a9-117
 // and a9-120) on a disposable PostgreSQL database
 // (ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN). They reuse the reprojectProof

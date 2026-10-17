@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7420 disposable PostgreSQL proof that every key sidecar delete prepares against the migrated schema and plans on its (scope_id, generation_id, fact_id) partition index under no statistics, ANALYZE, custom and forced-generic plans, with executed buffers bounded by rows deleted and seeded REDs for the fact_id-only form and a dropped index, enrolled in the live-postgres-readiness runner; bridges ESHU_GENERATION_RETENTION_PROOF_DSN. local run passed both tests in 6.93s of test time on PostgreSQL 18.6 on 2026-10-15
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

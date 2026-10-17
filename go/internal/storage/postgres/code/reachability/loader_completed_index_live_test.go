@@ -3,6 +3,11 @@
 
 package reachabilitystore_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7929 disposable PostgreSQL 18 proof that the loader's per-run max(completed_at) probe serves from the acceptance-completed covering index and returns exactly the pre-#7547 oracle rows; enrolled in the live-postgres-readiness runner. Upper-bound timing: 7.3s cold including one-time schema bootstrap and the 200k-row fixture, on local postgres:18
+//eshu:readiness:env ESHU_POSTGRES_DSN
+//eshu:readiness:env-optional ESHU_REACHABILITY_COMPLETED_INDEX_PROOF_DISPOSABLE ESHU_REACHABILITY_COMPLETED_INDEX_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

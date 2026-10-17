@@ -3,6 +3,10 @@
 
 package query
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7009 disposable PostgreSQL 18 proof that every Terraform-free status route returns byte-identical responses with and without the Terraform-state serial and warning reads over seeded tfstate and git warnings, that pipeline and index status keep the seeded terraform_state rows, and that forcing the skip onto them changes the response
+//eshu:readiness:env ESHU_SCOPED_SEARCH_PROOF_DISPOSABLE ESHU_SCOPED_SEARCH_PROOF_DSN ESHU_STATUS_TERRAFORM_SELECTION_PROOF_DISPOSABLE ESHU_STATUS_TERRAFORM_SELECTION_PROOF_DSN
+
 import (
 	"bytes"
 	"context"

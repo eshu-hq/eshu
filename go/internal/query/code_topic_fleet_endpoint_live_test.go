@@ -3,6 +3,10 @@
 
 package query
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7033 disposable PostgreSQL 18 primary and physical-standby proof of the real code-topic HTTP endpoint under reader-pool pressure; the live-postgres-readiness runner requires both administrative DSNs and explicit disposable opt-in, and verifies every test PASS event; local focused three-repeat run took 17.527s and race run took 7.303s on 2026-10-09; fixture setup timing is reported by the runner
+//eshu:readiness:env ESHU_POSTGRES_DSN ESHU_SCOPED_SEARCH_PROOF_DISPOSABLE ESHU_SCOPED_SEARCH_PROOF_DSN ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN ESHU_TEST_CONTENT_INDEX_POSTGRES_READ_DSN
+
 import (
 	"bytes"
 	"context"

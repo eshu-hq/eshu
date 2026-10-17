@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8283 deployable_unit_correlation changed-evidence gate through the real RunDeferredRelationshipMaintenance on the full bootstrap schema: unchanged input stays succeeded and is counted in eshu_dp_correlation_reopen_skipped_total (G1; on the ungated tree it re-opened, the RED), a dependency generation advance, a row appended under an already-active generation, a missing fingerprint row, a logic-version mismatch, a generation leaving the active set and a new matching scope all re-open (R1-R5), an append outside the repository set re-opens only its reader (G3, forced-change canary), container_image_identity stays ungated, and input that moves between the fenced read and the success write keeps the read-time value and re-opens on the next pass (C2); isolated schema per subtest from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; 9.7 s on local PostgreSQL 18.6 on 2026-10-17; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_POSTGRES_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

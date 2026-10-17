@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7816 disposable PostgreSQL 18 proof that readiness/producer.Store counts only the active generation's workload_materialization rows (older, newer pending, and sibling-domain rows never count), returns the newest in-flight last-workable time, max(GREATEST(COALESCE(reopened_at, created_at), COALESCE(last_attempt_at, created_at), COALESCE(visible_at, created_at), COALESCE(claim_until, created_at))), and the newest claim_until over in-flight rows only, and that its plan reaches fact_work_items through fact_work_items_scope_generation_idx with no sequential scan; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local run about 2.5s on postgres:18; wall time is logged, not gated
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

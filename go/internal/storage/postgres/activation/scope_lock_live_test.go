@@ -3,6 +3,10 @@
 
 package activation_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7584 composed concurrency: a held real ingestion commit and a held projector Ack racing Finalize's scope lock (wait then re-read the pointer; lock_timeout leaves durable state unchanged and the next claimer completes), on the full bootstrap schema in isolated disposable PostgreSQL schemas
+//eshu:readiness:env ESHU_DEFERRED_PARTITION_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

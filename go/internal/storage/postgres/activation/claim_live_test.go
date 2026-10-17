@@ -3,6 +3,10 @@
 
 package activation_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7584 activation obligation claim never waits on a held row and never leases or starves on finished rows, and a lease lost inside finalize rolls back the wake and the completion (statement-level pg_sleep trigger in an isolated disposable PostgreSQL schema)
+//eshu:readiness:env ESHU_DEFERRED_PARTITION_PROOF_DSN
+
 import (
 	"context"
 	"errors"

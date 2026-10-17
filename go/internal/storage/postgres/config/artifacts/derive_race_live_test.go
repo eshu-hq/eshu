@@ -3,6 +3,10 @@
 
 package artifacts_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8155 (#7126 PR3b-2b) derive concurrency: a second derive of one repository waits on the advisory lock (pg_stat_activity wait_event advisory) and is superseded, 20 unsynchronized rounds end one ok and one superseded each; three derive loops racing 40 content writes never store rows older than the version they are labelled with (repeatable-read snapshot checks) and converge after the writes stop; a derive of another repository completes while the first holds its lock; about 6 s locally; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

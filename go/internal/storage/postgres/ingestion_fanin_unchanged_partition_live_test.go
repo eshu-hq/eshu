@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8082 disposable PostgreSQL 18 proof that the whole-pass fan-in leaves an unchanged memo-hit partition's phase and memo rows untouched, publishes a memo hit that gained evidence and a memo miss, republishes an unchanged partition whose readiness row is missing, and keeps the targeted catalog baseline on the active generation's memo after a skipped re-stamp; reuses the #7584 targeted-maintenance proof DSN; enrolled in the live-postgres-readiness runner (scripts/generate-live-postgres-readiness.py); three proofs took 2.8-3.7s each (two bootstrapped schemas each, two runs) on a local PostgreSQL 18.6 on 2026-10-15; wall time is logged, not gated
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"bytes"
 	"context"

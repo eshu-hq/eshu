@@ -3,6 +3,10 @@
 
 package impact
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7088 disposable PostgreSQL 18 package-scope proof, enrolled in the #7529 readiness runner; local run passed in 0.61s of test time on postgres:18.6-bookworm on 2026-10-02
+//eshu:readiness:env ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

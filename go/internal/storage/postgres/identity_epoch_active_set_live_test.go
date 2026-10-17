@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7805 disposable PostgreSQL 18 proof, on the migrated schema in a private schema, that deleting superseded-generation identity facts leaves the epoch unchanged while an active-generation insert or delete moves it, and that the identity page serves only non-tombstone identity facts of a scope's active generation; timing evidence: the same page query loads the 546k-row active set in 4.7s (docs/internal/evidence/7805-identity-epoch-flight.md)
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_IDENTITY_EPOCH_PROOF_DISPOSABLE ESHU_IDENTITY_EPOCH_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

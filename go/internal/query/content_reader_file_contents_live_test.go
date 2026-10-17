@@ -3,6 +3,10 @@
 
 package query
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7126 disposable PostgreSQL 18 proof that the batched file-content statement returns the rows N single-file reads return (ASCII, multibyte, empty, blank, 2 MB, paths with spaces, quotes, percent, underscore, backslash and non-ASCII, absent, duplicated and cross-repository paths, array sizes 0, 1, 10 and all stored) and that its plan uses an index scan on a small and a 50-file repository under a generic and a custom plan; one local PostgreSQL 18 run took about 1.5 s
+//eshu:readiness:env ESHU_SCOPED_SEARCH_PROOF_DISPOSABLE ESHU_SCOPED_SEARCH_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

@@ -3,6 +3,10 @@
 
 package artifacts_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8155 (#7126 PR3b-1b) disposable PostgreSQL 18 proof of the migration 186 content_files version fence: INSERT, UPDATE, upsert, DELETE and TRUNCATE each bump a touched repository once per transaction and leave others alone; a rolled-back write leaves no version row; two concurrent first writes of an unseeded repository converge on one row at version 2 with no error (10 rounds); a transaction whose id a restored version row already holds still bumps once (the (bumped_xid, bumped_at) guard); the fence is the last statement-level AFTER trigger per event, after the migration 138 secret-lines triggers and, for DELETE, after the row-level RI triggers; enrolled in the live-postgres-readiness runner; 0.7-1.5 s per proof on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated
+//eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

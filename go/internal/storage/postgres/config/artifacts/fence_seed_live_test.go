@@ -3,6 +3,10 @@
 
 package artifacts_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8155 migrations 186 and 187 on a database that already holds content: one version-0 row per repository with bumped_xid 0, a row a fenced write created between the two files kept, a re-apply changes nothing, and the first write bumps 0 to 1; the seed racing an open fenced write converges on one row (commit: version 1, rollback: version 0); enrolled in the live-postgres-readiness runner; about 1-2 s per proof on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated
+//eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

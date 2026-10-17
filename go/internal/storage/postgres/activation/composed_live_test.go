@@ -3,6 +3,10 @@
 
 package activation_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7584 composed concurrency: consumer cycle with the production partition-scoped maintainer racing the ingester epoch pass through the deferred barrier (forced lock-holder interleavings plus a 20-iteration barrier race) and two consumer replicas on one and on distinct obligations, on the full bootstrap schema in isolated disposable PostgreSQL schemas
+//eshu:readiness:env ESHU_DEFERRED_PARTITION_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

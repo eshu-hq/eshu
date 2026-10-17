@@ -3,6 +3,10 @@
 
 package indexretention_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7427 PR3 disposable PostgreSQL 18 proof that migration 191 beside a continuous terms writer and a back-to-back orphan census never fails either stream, each attempt drops the key or returns 55P03 with all 65 keys kept, the slowest insert stays under 1s with no other holder, and beside a 1.5s scope_generations holder the wait is bounded by that holder (well under the 5s lock_timeout); enrolled in the live-postgres-readiness runner; reads ESHU_GENERATION_RETENTION_PROOF_DSN (with its DISPOSABLE flag). local run passed in 4.1s of test time on PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated
+//eshu:readiness:env ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE ESHU_GENERATION_RETENTION_PROOF_DSN ESHU_POSTGRES_DSN
+
 import (
 	"database/sql"
 	"fmt"

@@ -3,6 +3,10 @@
 
 package artifacts_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8155 ruling arb-8155-f1 2.7c commit-time fence contract: the fifth trigger (config_artifact_fence_pending_commit: row-level AFTER INSERT constraint trigger, deferrable, initially deferred, tgenabled O) on the UNLOGGED pending table keyed (bumped_xid, repo_id); bumps visible only after COMMIT; rollback, a rolled-back savepoint, SET CONSTRAINTS ALL IMMEDIATE followed by more writes, and COPY each bump exactly once or not at all; the pending table is empty after every commit and rollback; enrolled in the live-postgres-readiness runner; about 1 s per proof on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated
+//eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

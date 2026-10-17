@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7420 disposable PostgreSQL proof that, with the three per-fact key foreign keys dropped by migrations 188-190 in the isolated migrated schema, the whole-generation prune and every over-limit chunk cycle leave zero orphan key sidecar rows and report the explicit deletes in RowsPruned, and that a dropped, INVALID or misshapen key sidecar partition index refuses the cycle, enrolled in the live-postgres-readiness runner; bridges ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN. local run passed all 3 tests in 4.15s of test time on PostgreSQL 18.6 on 2026-10-15
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

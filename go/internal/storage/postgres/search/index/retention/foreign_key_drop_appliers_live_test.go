@@ -3,6 +3,10 @@
 
 package indexretention_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7427 PR3 disposable PostgreSQL 18 proof that two migration 191 runs waiting behind a scope_generations holder both succeed (the second one's DROP CONSTRAINT IF EXISTS finds no key; without IF EXISTS it fails with 42704) and hold no terms lock while they wait; enrolled in the live-postgres-readiness runner; reads ESHU_GENERATION_RETENTION_PROOF_DSN (with its DISPOSABLE flag) and creates one isolated bootstrapped schema. local run passed in 1.4s of test time on PostgreSQL 18.6 on 2026-10-16
+//eshu:readiness:env ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE ESHU_GENERATION_RETENTION_PROOF_DSN ESHU_POSTGRES_DSN
+
 import (
 	"testing"
 

@@ -3,6 +3,10 @@
 
 package artifacts_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8155 arm 7 cases 2 and 3: a content Write of a repository whose retention prune is open waits (disjoint keys on the version row's tuple lock, a shared doomed key on the prune's transaction) until the retention commit, then lands; no deadlock, version bumped twice, rows converge; enrolled in the live-postgres-readiness runner; about 1 s per proof on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated
+//eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

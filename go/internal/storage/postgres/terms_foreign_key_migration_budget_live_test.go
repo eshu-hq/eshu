@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7427 PR3 disposable PostgreSQL 18 proof of migration 191's budget exhaustion through the tracked migrator (200 ms lock_timeout, 1.5 s retry budget): a terms-parent holder (NOWAIT refusal naming the relation) and a scope_generations holder (lock timeout) each make the run fail with 55P03 naming the migration and the budget, log the lock_wait warning, keep all 65 keys, leave no relation lock on the connection and record nothing in the ledger, and a later run after the holder ends drops the key; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN. local run passed both cases in 3.8s of test time on PostgreSQL 18.6 on 2026-10-16
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"bytes"
 	"context"

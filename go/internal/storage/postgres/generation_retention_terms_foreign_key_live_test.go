@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7427 PR3 disposable PostgreSQL 18 proof on the bootstrapped schema with the terms generation foreign key dropped by migration 191: the retention pass prunes a generation whose terms an earlier pre-delete removed and one whose 10000 terms were all present, leaves no terms row and a zero orphan census; a late writer's terms for a pruned generation (rejected with 23503 before 191) are stored, listed by the census as one terms orphan, invisible to EshuSearchIndexStore.Search, and deleted by the orphan sweep; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN. local run passed both tests in 6.8s of test time on PostgreSQL 18.6 on 2026-10-16
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

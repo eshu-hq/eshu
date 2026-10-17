@@ -3,6 +3,10 @@
 
 package maintenancestore_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7620 disposable PostgreSQL 18 proof of the per-repository reindex watermarks: one request stores one row per distinct scope, sixteen concurrent requests over overlapping scope sets in opposite orders all succeed and store the largest returned value per scope, a future-seeded value is not moved backward, and the per-cycle read returns only rows newer than the fleet watermark (a mutant that locks rows in input order fails with SQLSTATE 40P01). Enrolled in the live-postgres-readiness runner; 2.01s of test time on postgres:18 on 2026-10-07; wall time is logged, not gated
+//eshu:readiness:env ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE ESHU_GENERATION_RETENTION_PROOF_DSN
+
 import (
 	"context"
 	"fmt"

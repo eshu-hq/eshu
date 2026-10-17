@@ -3,6 +3,10 @@
 
 package query
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7126 disposable PostgreSQL 18 proof that the non-blank statement of the needed-content hydration equals strings.TrimSpace on every Unicode White_Space code point, on text with whitespace on either side, and on large out-of-line values, plus the trim set checked against unicode.IsSpace over the whole 0x10FFFF range; one local PostgreSQL 18 run took about 1.5 s
+//eshu:readiness:env ESHU_SCOPED_SEARCH_PROOF_DISPOSABLE ESHU_SCOPED_SEARCH_PROOF_DSN ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

@@ -3,6 +3,10 @@
 
 package summary_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7009 disposable PostgreSQL 18 proof of the terraform_state summary model: a row written by the production writer pass (each model row is its own transaction under the same advisory lock, reads its own database clock after the active-work row commits so the terraform_state as_of is not earlier than the active-work as_of, and carries its own digest) and read back by the production stored-summary reader inside a REPEATABLE READ READ ONLY snapshot equals what the two live Terraform-state statements return at an empty database, a few state scopes, past the per-locator rank cap of 50, and with Git backend warnings plus state scopes whose generation ids carry no serial; a warning written after the pass shows the comparison can differ; TestWriterKilledMidCompanionKeepsThePrimaryRowLive terminates the companion's backend between its statements and its upsert and shows the active-work row advances while the terraform_state row keeps its old as_of and still serves equal to live
+//eshu:readiness:env ESHU_STATUS_SUMMARY_PROOF_DISPOSABLE ESHU_STATUS_SUMMARY_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

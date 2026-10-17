@@ -1,20 +1,30 @@
 #!/usr/bin/env python3
-"""Expected live proofs for the query package (data only)."""
+"""Readiness enrollment for ./internal/query (generated, data only).
 
-from live_postgres_readiness_inventory_names import (
-    QUERY_PACKAGE,
-)
+Do not edit by hand; regenerate with
+`python3 scripts/generate-live-postgres-readiness.py`.
+"""
 
-QUERY_PACKAGES = {
-    QUERY_PACKAGE: {
+TABLE = {
+    "./internal/query": {
         "go/internal/query/code_topic_fleet_endpoint_live_test.go": (
             "TestCodeTopicFleetCapacityEndpointPostgresLive",
         ),
-        "go/internal/query/content_reader_entity_metadata_by_ids_live_test.go": (
-            "TestEntityMetadataByIDsLive",
-        ),
         "go/internal/query/code_topic_snapshot_export_endpoint_live_test.go": (
             "TestCodeTopicSnapshotExportQualificationEndpointPostgresLive",
+        ),
+        "go/internal/query/content_reader_dead_code_incoming_bound_live_test.go": (
+            "TestDeadCodeIncomingEntityIDsActiveRunBoundLive",
+            "TestCrossRepoDeadCodeConsumerCoverageLive",
+        ),
+        "go/internal/query/content_reader_dead_code_refresh_probe_live_test.go": (
+            "TestCrossRepoDeadCodeConsumerCoverageRefreshIntentLive",
+        ),
+        "go/internal/query/content_reader_dead_code_root_paths_live_test.go": (
+            "TestCrossRepoDeadCodeConsumerRootPathsLive",
+        ),
+        "go/internal/query/content_reader_entity_metadata_by_ids_live_test.go": (
+            "TestEntityMetadataByIDsLive",
         ),
         "go/internal/query/content_reader_entity_search_unscoped_live_test.go": (
             "TestSearchEntitiesUnscopedMatchesOldStatementLive",
@@ -39,26 +49,16 @@ QUERY_PACKAGES = {
             "TestScopedSearchShippedDerivationGuard",
             "TestScopedSearchCustomGenericEquivalenceLive",
         ),
-        "go/internal/query/content_reader_wide_window_live_test.go": (
-            "TestWideWindowChunkPlansUseAnIndexLive",
-            "TestWideWindowReadsMatchSingleReadsLive",
-        ),
         "go/internal/query/content_reader_search_unscoped_live_test.go": (
             "TestSearchFilesUnscopedMatchesOldStatementLive",
             "TestSearchFilesUnscopedCancelledTailResumesToExactAnswerLive",
+            "TestUnscopedSearchPlanShapesLive",
             "TestSearchFilesUnscopedEdgeRowsAreExactLive",
             "TestSearchFilesUnscopedTailFilledPageKeepsMoreLive",
-            "TestUnscopedSearchPlanShapesLive",
         ),
-        "go/internal/query/content_reader_dead_code_incoming_bound_live_test.go": (
-            "TestDeadCodeIncomingEntityIDsActiveRunBoundLive",
-            "TestCrossRepoDeadCodeConsumerCoverageLive",
-        ),
-        "go/internal/query/content_reader_dead_code_refresh_probe_live_test.go": (
-            "TestCrossRepoDeadCodeConsumerCoverageRefreshIntentLive",
-        ),
-        "go/internal/query/content_reader_dead_code_root_paths_live_test.go": (
-            "TestCrossRepoDeadCodeConsumerRootPathsLive",
+        "go/internal/query/content_reader_wide_window_live_test.go": (
+            "TestWideWindowChunkPlansUseAnIndexLive",
+            "TestWideWindowReadsMatchSingleReadsLive",
         ),
         "go/internal/query/status_terraform_selection_live_test.go": (
             "TestStatusRoutesTerraformSelectionLive",

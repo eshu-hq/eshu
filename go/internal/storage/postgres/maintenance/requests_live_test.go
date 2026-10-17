@@ -3,6 +3,10 @@
 
 package maintenancestore_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7620 disposable PostgreSQL 18 proof that the reindex watermark upsert returns a monotonic database-clock stamp: sequential requests never go backward, sixteen concurrent requests store the largest returned value, and a future-seeded value is not moved backward (a mutant without GREATEST fails this proof). Enrolled in the live-postgres-readiness runner; 1.23s of test time, 3s wall with a warm build cache, on postgres:18.6-alpine on tmpfs on 2026-10-06; wall time is logged, not gated
+//eshu:readiness:env ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE ESHU_GENERATION_RETENTION_PROOF_DSN
+
 import (
 	"os"
 	"sync"

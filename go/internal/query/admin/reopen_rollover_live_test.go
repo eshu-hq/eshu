@@ -3,6 +3,10 @@
 
 package admin_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7734 disposable PostgreSQL 18 proof that a reopen whose scope rolls over mid-flight acts on the current generation (scope-row fence plus authoritative in-transaction resolve) instead of the stale pinned pointer; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_ADMIN_REOPEN_PROOF_DISPOSABLE ESHU_ADMIN_REOPEN_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

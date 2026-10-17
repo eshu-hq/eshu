@@ -3,6 +3,10 @@
 
 package main
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7529 disposable PostgreSQL 18 proofs of the package-manifest backfill leadership lock (one candidate owns a pass, a crashed owner is taken over) and the single-connection pool (no starvation), enrolled in the live-postgres-readiness runner; the env-gated pair moved out of the hermetic package_manifest_backfill_test.go so this ledger can classify it. Upper-bound timing: in the local sixteen-proof runner the two proofs took 0.05s and 0.02s of test time (2.4s wall with a warm build cache) on postgres:18-alpine on tmpfs on 2026-10-03; an earlier run on a loaded laptop took under 1s; wall time is logged, not gated
+//eshu:readiness:env ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN ESHU_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

@@ -3,6 +3,10 @@
 
 package impact
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7529 disposable PostgreSQL 18 readiness plan and truth proof; local four-test run passed in 41.3s on 2026-10-02
+//eshu:readiness:env ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DISPOSABLE ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

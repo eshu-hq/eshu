@@ -3,6 +3,10 @@
 
 package activation_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7584 activation obligation consumer protocol (ordering, late failure, parallel claim and lease recovery) on the full bootstrap schema in an isolated disposable PostgreSQL schema; real Ack, reducer Fail/Claim and control-arm maintenance
+//eshu:readiness:env ESHU_DEFERRED_PARTITION_PROOF_DSN
+
 import (
 	"sync"
 	"testing"

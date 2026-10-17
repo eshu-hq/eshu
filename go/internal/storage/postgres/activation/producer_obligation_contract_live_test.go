@@ -3,6 +3,10 @@
 
 package activation_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7635 producer activation settle contracts on the full bootstrap schema in isolated disposable PostgreSQL schemas: exactly-once reopen, lease-fenced stale settle with empty counts, no reopen for unrelated scopes, epoch-pass subset match, drift reopen, prune/stats, retention cascade and insert conflict branches
+//eshu:readiness:env ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

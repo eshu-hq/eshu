@@ -3,6 +3,10 @@
 
 package activation_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7584 activation obligation consumer with the production partition-scoped maintainer on the full bootstrap schema in an isolated disposable PostgreSQL schema: real catalog_changed and no_memo_baseline refusals are held one callback per lease and complete after the epoch whole pass with no consumer pass; a real repo_id collision loser retires inapplicable after one callback
+//eshu:readiness:env ESHU_DEFERRED_PARTITION_PROOF_DSN
+
 import (
 	"context"
 	"errors"

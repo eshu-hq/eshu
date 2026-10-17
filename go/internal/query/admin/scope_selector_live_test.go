@@ -3,6 +3,10 @@
 
 package admin_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7732 disposable PostgreSQL 18 proof that a scope-id/source-key collision fails closed (409 on skip and reopen, rows untouched); enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_ADMIN_REOPEN_PROOF_DISPOSABLE ESHU_ADMIN_REOPEN_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

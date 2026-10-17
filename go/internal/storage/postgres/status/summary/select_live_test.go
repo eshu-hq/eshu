@@ -3,6 +3,10 @@
 
 package summary_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7009 disposable PostgreSQL 18 proof of the status summary reader's decision (Select) inside a REPEATABLE READ READ ONLY transaction: a missing table is a typed fallback that leaves the transaction usable, a missing row, a foreign digest or schema version, an undecodable payload, a row_count mismatch and a row older than the limit fall back with their reason, and a fresh row is served with its age taken from the database clock and added to the stored ages
+//eshu:readiness:env ESHU_STATUS_SUMMARY_PROOF_DISPOSABLE ESHU_STATUS_SUMMARY_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

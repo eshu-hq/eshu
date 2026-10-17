@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7597 each relationship-generation activation writer (claim-fenced, plain, CommitGeneration) reopens in the same transaction only the same scope-generation consumers dead-lettered in an own-gate counting class, keeps retry evidence and stamps reopened_at; the repo-dependency workload replay flips from NotScheduled to Scheduled and the woken workload item succeeds; isolated schema per subtest, about 4 s locally; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

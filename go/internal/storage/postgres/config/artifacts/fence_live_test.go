@@ -3,6 +3,10 @@
 
 package artifacts_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8155 (#7126 PR3b-2a) disposable PostgreSQL 18 proof of the start-up fence check CheckFence: the bootstrapped database has all five migration 186 triggers firing (Supported); DROP TRIGGER of each in turn names exactly that one absent and re-applying migration 186 restores it; DISABLE, ENABLE REPLICA give tgenabled D and R and count as missing while ENABLE ALWAYS and ENABLE count as present, for a content_files trigger and the constraint trigger; a same-named trigger on another table does not count; a database with no schema reports all five missing without a catalog error; enrolled in the live-postgres-readiness runner; 0.05-1.1 s per proof on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated
+//eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8280 disposable PostgreSQL 18 proof that the unchanged production loader returns the producer file facts for every new parser-stamped key form (JS/TS static methods of a named and a default export, a PHP instance method, a PHP use function function) and both candidates when a mirror repository publishes the same package; producer and consumer payloads come from parser.DefaultEngine; enrolled in the live-postgres-readiness runner; about 0.1 s on a local PostgreSQL 18.6 on 2026-10-17; wall time is logged, not gated
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"encoding/json"

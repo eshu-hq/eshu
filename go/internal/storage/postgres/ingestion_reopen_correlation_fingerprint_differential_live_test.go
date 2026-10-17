@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8283 D1 differential: the fingerprint the fused corpus-fenced read returns (its IN-list rows materialized and digested in one statement) equals the reopen listing's recompute (= ANY over a stored text[]), and the listing predicate covers exactly the rows the fused read returned, across source-only, target-only, superseded-generation and empty matches; a zero-candidate item recorded with an empty repository set and the empty-input sentinel stays succeeded (G2); and the #7584 partition-scoped reopen applies the same gate through its derived listing; isolated schemas from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; 3.6 s on local PostgreSQL 18.6 on 2026-10-17; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_POSTGRES_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"slices"

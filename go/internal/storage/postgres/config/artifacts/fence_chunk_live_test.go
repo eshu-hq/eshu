@@ -3,6 +3,10 @@
 
 package artifacts_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8155 ruling arb-8155-f1 2.7b: a real PruneSupersededGenerations chunk cycle (over-limit target page drained, normal batch non-empty, one repository) parked between its two content_files DELETEs and raced with ContentWriter.Write tombstoning and upserting doomed keys, 20 rounds, 0 deadlocks and exactly 3 bumps per round; plus the SQL two-statement transaction against an autocommit DELETE, 10 rounds; both deadlock on the immediate fence (RED on the commit that adds this file: 20 of 20 and round 0); enrolled in the live-postgres-readiness runner; about 23 s and 2 s on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated
+//eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

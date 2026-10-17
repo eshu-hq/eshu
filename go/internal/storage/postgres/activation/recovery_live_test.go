@@ -3,6 +3,10 @@
 
 package activation_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7584 activation obligation restart/duplicate fencing, >32-row wake batch cap and bounded catch-up pages on the full bootstrap schema in an isolated disposable PostgreSQL schema
+//eshu:readiness:env ESHU_DEFERRED_PARTITION_PROOF_DSN
+
 import (
 	"fmt"
 	"testing"

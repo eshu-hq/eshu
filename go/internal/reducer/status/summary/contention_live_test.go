@@ -3,6 +3,10 @@
 
 package summary_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7009 disposable PostgreSQL 18 proof that two status summary writers at the production 5 s cadence for 30 s beside two workers claiming and Acking through the production ReducerQueue (80 to 100 percent live spike) cause zero claim errors and zero writer-attributable lock waits, keep the stored as_of monotone, never compute at once, and count overruns only for passes over the interval; the blocking reducer-contention-gate step also runs it with ESHU_REQUIRE_STATUS_SUMMARY_WRITER_PROOF=1, so an unset DSN fails there
+//eshu:readiness:env ESHU_STATUS_SUMMARY_PROOF_DISPOSABLE ESHU_STATUS_SUMMARY_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

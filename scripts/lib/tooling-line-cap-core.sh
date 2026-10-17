@@ -95,7 +95,7 @@ slcap_evaluate_file() {
 	# A malformed pin counts as no pin here; slcap_verify_ledger reports the
 	# malformed row itself.
 	if ! pinned="$(slcap_grandfather_lookup "${path}")" || ! slcap_pin_is_canonical "${pinned}"; then
-		printf '%s: %s has %d lines, exceeding the %d-line cap; split it by responsibility into sibling modules (see scripts/lib/live_postgres_readiness_inventory*.py for an example) -- scripts/lib/tooling-line-cap-grandfather.tsv lists the files that predate the gate\n' \
+		printf '%s: %s has %d lines, exceeding the %d-line cap; split it by responsibility into sibling modules (see scripts/lib/live_postgres_readiness_inventory_gen_*.py for an example) -- scripts/lib/tooling-line-cap-grandfather.tsv lists the files that predate the gate\n' \
 			"${TOOLING_LINE_CAP_NAME}" "${path}" "${count}" "${TOOLING_LINE_CAP_MAX_LINES}" >&2
 		return 1
 	fi

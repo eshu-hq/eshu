@@ -3,6 +3,10 @@
 
 package admin_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7321 disposable PostgreSQL 18 proof that the admin reopen reopens succeeded reducer rows (claimable through the production claim path) and one completed intent row per acceptance unit at the accepted source run, and that a repeated idempotency key is a no-op; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_ADMIN_REOPEN_PROOF_DISPOSABLE ESHU_ADMIN_REOPEN_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

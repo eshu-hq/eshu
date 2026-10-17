@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""Closed source dependencies exercised by enrolled PostgreSQL readiness tests.
+"""Closed source dependencies exercised by enrolled readiness tests.
 
-These are Go files with no Test root of their own. Whole-file hashes bind the
-reviewed helper and consumer calls to the runtime proof. A source edit needs
-renewed review and proof before either pin changes.
+These are Go files with no Test root of their own. Whole-file hashes
+bind the reviewed helper and consumer calls to the runtime proof.
+A source edit needs renewed review and proof before either pin
+changes. Generated; do not edit by hand.
 """
 
 HELPER_PROOFS = {
     "go/internal/query/supply/chain/impact/suppression_plan_proof_live_test.go": {
         "consumer_file": "go/internal/query/supply/chain/impact/suppression_paths_performance_live_test.go",
         "consumer_test": "TestSupplyChainSuppressionPathsPerformanceLive",
-        "helper_sha256": "2f5767807ad4d47896193e2fe4bd291161aab845c61983dbfef8659338cfaa7e",
-        "consumer_sha256": "0f9bba8d97de2d4cb3c32b9571ef86e1eab56486558cf4fc4765f26a0f1a32ad",
+        "helper_sha256": "14a4f3983bdc2ba54930442d31b1140934af8cb31cecfdc541936e5122dae3be",
+        "consumer_sha256": "58235f6a06f813185fd010b97058c2b466e111bc88cc2841176c5a007fca26b7",
     },
 }

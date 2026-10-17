@@ -3,6 +3,10 @@
 
 package summary_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7009 disposable PostgreSQL 18 proofs of the status summary reader against the production writer: a row written by a writer pass and read back by the stored-summary reader inside a REPEATABLE READ READ ONLY snapshot equals the live active-work statement at the same data and clock at 0.2, 50 and 100 percent live work and when empty (the age add is load-bearing: dropping it fails the comparison, and a changed work item shows the comparison can differ), and a stale row, a row from another statement digest, and a dropped table each fall back to the whole live answer with the right reason and without aborting the transaction
+//eshu:readiness:env ESHU_STATUS_SUMMARY_PROOF_DISPOSABLE ESHU_STATUS_SUMMARY_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

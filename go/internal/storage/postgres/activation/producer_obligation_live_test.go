@@ -3,6 +3,10 @@
 
 package activation_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7635 quiet-Ack producer activation RED/GREEN on the full bootstrap schema in an isolated disposable PostgreSQL schema: a producer scope activating with no commit replays exactly the owed correlation consumers once the obligation settles
+//eshu:readiness:env ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

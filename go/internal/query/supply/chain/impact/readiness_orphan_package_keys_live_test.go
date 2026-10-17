@@ -3,6 +3,10 @@
 
 package impact
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7420 disposable PostgreSQL proof that orphan package manifest consumption and registry identity key rows (foreign keys dropped by migrations 189 and 190) change no readiness evidence or ownership, with a live-owner sensitivity check, enrolled in the live-postgres-readiness runner; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in. local run passed in 1.70s of test time on PostgreSQL 18.6 on 2026-10-15
+//eshu:readiness:env ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN ESHU_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

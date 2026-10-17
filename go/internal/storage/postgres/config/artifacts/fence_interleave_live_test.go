@@ -3,6 +3,10 @@
 
 package artifacts_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8155 protocol section 6 interleavings with the production ContentWriter, retention store and artifacts.Classify: R-1 (derive read between batches 1 and 2 of a three-batch Write), two-scope Writes of one repository, and a derive read inside an open prune each leave the stored version stale_version, and a read after the last commit is trusted; enrolled in the live-postgres-readiness runner; 0.9-1.9 s per proof on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated
+//eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

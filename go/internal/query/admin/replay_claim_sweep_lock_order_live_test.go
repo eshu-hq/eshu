@@ -3,6 +3,10 @@
 
 package admin_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8205 admin replay against the reducer claim-time supersede sweep in both start orders waits one way and survives the held-middle-row race (main: 40P01), and 150 rounds of a claim, a scoped and a stage-only recovery replay and an admin replay started together over the same stale rows give 0 x 40P01 with exact accounting (main: 212 x 40P01); isolated schemas; about 60-90 s locally including two 400,000-row seeds; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_POSTGRES_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7805 disposable PostgreSQL 18 plan guard: EXPLAIN (FORMAT JSON) of the identity page query on the migrated schema must ride the ordered identity index with a hashed SubPlan active-generation filter, the keyset comparison as an Index Cond on a mid-load page, no Sort and no Seq Scan on fact_records; timing evidence: the guarded plan loads the 546k-row active set in 4.7s versus 589s to 724s for the JOIN plan (docs/internal/evidence/7805-identity-epoch-flight.md)
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

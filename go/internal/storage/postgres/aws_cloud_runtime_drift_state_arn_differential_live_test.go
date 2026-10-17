@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7666 disposable PostgreSQL 18 row differential: the fenced ARN-keyed state join returns exactly the rows, in order, of the pre-#7666 direct join derived from the shipped constant, over ambiguous ownership, superseded and older AWS generations, a stale caller allowlist, blank and padded ARNs, an inactive scope, and duplicate addresses; enrolled in the live-postgres-readiness runner; about 1-2.8 s locally on PostgreSQL 18.6 including the bootstrap
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"
