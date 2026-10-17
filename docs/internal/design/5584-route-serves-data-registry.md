@@ -111,6 +111,16 @@ The gate's independence from the backing map is tiered, not absolute:
 | Route | Domain | Why not served |
 | --- | --- | --- |
 | documentation/facts | semantic_entity_materialization | the collected IN-list includes `semantic.documentation_observation` (documentation_facts.go:394), so semantic rows return here too; the family's declared surface is the semantic route |
+
+No-Regression Evidence: the #7098 citation repoint (kind-list marker moved
+from `documentation_read_model.go` to `documentation_facts.go`) changes no
+query, route, or registry behavior — the disclosure and the served rows are
+identical before and after. `TestRouteServesDataRegistryHonestStateGreen`
+was RED on the stale citation and is GREEN after the repoint; the full
+`go/internal/mcp` package suite passes.
+
+No-Observability-Change: registry citations carry no spans, metrics, or logs;
+no telemetry was added, removed, or renamed by this repoint.
 | incidents/{id}/context | kubernetes_correlation, ci_cd_run_correlation | runtime-evidence enrichment reads (incident_context_runtime_sql.go:30,50) decorating the incident response |
 | sbom-attestations/attachments | container_image_identity | `reducer_container_image_identity` appears only in the missing-evidence CTE (sbom_attestation_attachments.go:253) |
 | codeowners/ownership | service_catalog_correlation | effective-owner precedence enrichment via `h.Correlations` (codeowners/ownership.go:175) |
