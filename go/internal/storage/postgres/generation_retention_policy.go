@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/retention/statements"
 	indexretention "github.com/eshu-hq/eshu/go/internal/storage/postgres/search/index/retention"
@@ -276,6 +278,15 @@ type generationRetentionSearchIndex struct {
 // generationRetentionStoreOptions holds the store's optional collaborators.
 type generationRetentionStoreOptions struct {
 	logger *slog.Logger
+	// instruments records the expired-generations live-signal report
+	// (#7585 PR3): the expired-blocked counter, the report duration, and
+	// report failures on the shared retention failure counter. Nil
+	// disables report metrics; every record site nil-guards it the way
+	// the retention runner's recordResult does.
+	instruments *telemetry.Instruments
+	// tracer starts the expired-generations report span (#7585 PR3). Nil
+	// disables the span; the read itself is unaffected.
+	tracer trace.Tracer
 }
 
 // WithLogger returns the store with a logger for the per-generation search
