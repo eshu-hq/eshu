@@ -17,8 +17,11 @@ Load the project skills whose contracts match the diff, using root skill routing
    [review packet](references/review-packet.md) for a separate reviewer or a
    self-review; never substitute chat history for it. Before any expensive
    proof, run `eshu-publish`'s `check-shape.sh` on the PR body when one exists.
-   Re-measure each count, SHA, and file list that the body or changed docs claim
-   at this head. Both checks take seconds. A defect found after a live proof
+   Re-measure each SHA, file list, and decision-bearing claim that the body or
+   changed docs make at this head. A mismatch in a derivable figure is P3 and
+   never restarts the review (see
+   [merge-bar.md](references/merge-bar.md#derivable-figures)). Both
+   checks take seconds. A defect found after a live proof
    wastes that proof.
 2. Map the changed flow, owners, consumers, invariants, and failure boundaries.
    Use the full-picture checklist in [cold-review-probes.md](references/cold-review-probes.md).

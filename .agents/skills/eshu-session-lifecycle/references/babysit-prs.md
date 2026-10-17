@@ -73,7 +73,8 @@ Triggers: a PR you created is open; review bots are running; CI is in flight;
    not by which bot wrote it. Every reviewer is treated the same way.
 
 6. **Fix first, reply after.** Land the fix, then answer the thread describing
-   what changed. Never reply announcing an intention.
+   what changed. Never reply announcing an intention. A derivable-figure P3 is
+   the exception (see `resolve-review-threads`).
 
 7. **Merge only on the real bar.** Zero failing checks, and every thread from
    every reviewer addressed and resolved by you. Advisory lanes still pending is
@@ -99,5 +100,5 @@ Your report must contain:
 - the two stable reads that justify calling CI complete, or an explicit
   statement that it is still in flight
 - every review thread, its reviewer, and its disposition: fixed and resolved,
-  or open with a reason
+  resolved as P3, no action, or open with a reason
 - merge decision and what it rests on

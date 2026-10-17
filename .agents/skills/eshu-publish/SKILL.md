@@ -86,10 +86,15 @@ breaks them first.
   fails a body that has no `#N` reference.
 - No AI attribution in any title, body, comment, or commit.
 - The PR title and body must describe the final diff. Rewrite them when review
-  changes the work.
+  changes the work. A wrong derivable figure that the verdict's P3 list records
+  is the exception (see
+  [Derivable figures](../eshu-code-review/references/merge-bar.md#derivable-figures)).
 - A byte changed in the title or body after you capture the
   `ci-gates review-attest` claims file voids the receipt. If you must edit,
   repeat the affected proof and the full review, then capture a new receipt.
+- Before you capture the receipt, fix a wrong derivable figure. After capture,
+  do not edit the body only to fix one. Record the correct figure in the
+  verdict's P3 list.
 - Keep issue headings of the `competitive-audit` form exactly as the form
   defines them. `audit-preflight` parses them. Keep the fields of the
   `wrong-answer` form, including the share-safe attestation.
@@ -120,4 +125,6 @@ bash .agents/skills/eshu-publish/scripts/check-shape.sh --issue issue.md
 python3 -I ~/os-repos/asd-ste100-skill/scripts/ste-lint.py draft.md
 ```
 
-4. Compare every number and claim in the draft with the diff and the proof.
+4. Compare every claim that bears on a decision with the diff and the proof.
+   Write a derivable figure as a link or a command, not as a hand-typed count
+   (see [Derivable figures](../eshu-code-review/references/merge-bar.md#derivable-figures)).

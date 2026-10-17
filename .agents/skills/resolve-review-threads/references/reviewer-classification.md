@@ -63,6 +63,9 @@ alone.
 - Comment says "this needs a test"; cited file is unchanged at HEAD, but a new
   `_test.go` exists in the same package covering the symbol. -> `ambiguous`
   (report it; the human can verify the new test matches the intent).
+- Comment says "the table lists 12 files; `git diff --name-only` prints 13"; the
+  line is unchanged, and the thread has the reply "P3, no action: 13". ->
+  `p3-no-action`.
 - Comment says "guard against nil"; cited line is byte-identical at HEAD and no
   nil-check is visible in the same function. -> `unchanged`.
 - Comment says "extract this into a helper"; cited function was deleted and the

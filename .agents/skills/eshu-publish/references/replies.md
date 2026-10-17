@@ -19,6 +19,11 @@ Say what changed, where, and what proves it. Start with the answer.
 
 Never close a thread with only "fixed". Fix the code first, then reply.
 
+A wrong derivable figure is the exception. Reply `P3, no action: <correct
+value>`, name the command, and resolve the thread. The reply names the value, so
+it is not a bare "fixed". See
+[Derivable figures](../../eshu-code-review/references/merge-bar.md#derivable-figures).
+
 A reply is usually 40 to 120 words. The median inline review comment in the
 last 30 PRs was about 70 words. Keep to that range.
 

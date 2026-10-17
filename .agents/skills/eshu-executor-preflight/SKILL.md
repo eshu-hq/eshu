@@ -1,6 +1,6 @@
 ---
 name: eshu-executor-preflight
-description: "Use as the last step before an executor hands a branch to a reviewer: shape-checks the PR body, re-measures its claims at HEAD, and clears the registry traps that static gates catch late."
+description: "Use as the last step before an executor hands a branch to a reviewer: shape-checks the PR body, re-measures its decision-bearing claims at HEAD, and clears the registry traps that static gates catch late."
 ---
 
 # Eshu Executor Preflight
@@ -23,11 +23,19 @@ those. You are a leaf agent: do not dispatch other agents.
    code is 0. If no body exists, record this step as `NOT_CHECKED` with that
    reason.
 
-3. **Re-measure the claims a command can settle.** List each count, SHA, file
-   list, and link target in the PR body and in the docs you changed. Run a
-   command at this HEAD for each one. Write the rows as
-   `claim | command | measured | match`. If a row does not match, fix the text.
-   If the text is right, fix the code. Done when every row matches.
+3. **Re-measure the claims that bear on a decision.** List each contract
+   claim, measured result, and statement of what a test or gate proves in the PR
+   body and in the docs you changed. Run a command at this HEAD for each one.
+   Write the rows as `claim | command | measured | match`. If a row does not
+   match, fix the text. If the text is right, fix the code. Done when every row
+   matches.
+
+   Do not hand-write a derivable figure (see
+   [Derivable figures](../eshu-code-review/references/merge-bar.md#derivable-figures)).
+   Link it, name its command, or use a generated value. If a derivable figure
+   is wrong, fix it in this pass: no receipt exists yet, so the fix costs one
+   pass. A derivable-figure mismatch that you leave does not block the handoff.
+   Record it for the verdict's P3 list.
 
    Leave a timing or baseline-bound claim as it is. Do not re-run it at this
    HEAD, because that destroys its provenance. Check that it names its run id
@@ -77,7 +85,7 @@ Your report must contain:
 | Mistake | What it costs |
 |---|---|
 | Running the preflight, then committing a "small" fix | Results that belong to a HEAD no reviewer will see |
-| Copying a figure from the last run into the body | A stale claim that a reviewer re-measures and blocks on |
+| Copying a measured figure from the last run into the body | A stale claim that a reviewer re-measures and blocks on |
 | Re-running a baseline-bound timing at this HEAD | A number that no longer matches its named baseline |
 | Treating a `make pre-push` exit 0 as proof the ledger and env-registry checks passed | The first run of those checks happens in CI |
 | Running `make pre-push` yourself to feel safe | One more floor run per branch: changed-package tests, race tests, and lint |

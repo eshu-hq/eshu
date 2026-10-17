@@ -5,7 +5,7 @@ an unqualified "fix every P2 before push" has no terminator and has repeatedly
 stalled ready work.
 
 Contents: [The failure this exists to stop](#the-failure-this-exists-to-stop),
-[The bar](#the-bar),
+[The bar](#the-bar), [Derivable figures](#derivable-figures),
 [Findings introduced by review fixes](#findings-introduced-by-review-fixes),
 [Sweeping rule text](#sweeping-rule-text), [Repeat findings](#repeat-findings),
 [Final exact-diff attestation](#final-exact-diff-attestation),
@@ -37,6 +37,9 @@ A P2 **blocks** when either is true:
 2. **It is cheap and in the same edit.** Same function, same file, same evidence
    path, and fixable without new proof. Defaulting to `fixed` remains correct —
    this bar bounds the loop, it does not license deferral.
+
+A wrong derivable figure meets neither criterion. See
+[Derivable figures](#derivable-figures).
 
 A P2 **does not block** when it is genuinely orthogonal to the PR's claims,
 needs its own proof or a design decision, or would only be reachable by widening
@@ -95,6 +98,63 @@ Two rules keep the judgement that DOES stay with the agent auditable:
   claim the PR makes" is read against what the PR *should* assert for its
   change — the description-carries-the-evidence rule — not against a
   deliberately thin description.
+
+## Derivable figures
+
+A **derivable figure** is a count, total, tally, ordinal, line number, or list
+length that a command computes from the committed tree at this head. The
+command reads files. It does not run `go build`, `go test`, a generator, a
+binary, a container, or a backend. If no such command exists, the figure is
+not derivable.
+
+Grade a wrong derivable figure with one question: would a reader decide
+differently with the right figure? If no, it is P3, in any file and in the PR
+body. If yes, grade it by consequence under [verdict.md](verdict.md). The
+reviewer applies the question. The author's label does not bind.
+
+A figure that states completeness keeps the grade of the claim it supports.
+Examples are "all", "every", "none remain", and "N of N". "All 7 call sites
+migrated" is a completeness claim, not a tally.
+
+A derivable-figure P3 meets neither criterion 1 nor criterion 2. It needs no
+new review round. The finding names the correct value and the command that
+computes it.
+
+These keep their grade:
+
+1. A published contract: an OpenAPI path, a CLI flag, an environment variable,
+   a metric or span name, a fact kind, a schema, an SDK changelog entry, or a
+   scope word such as "every" or "all" in a reference page.
+2. A limit, threshold, or budget that an agent or an operator acts on.
+3. A result of a build, test, gate, benchmark, or live run: a pass count, a
+   timing, a row or node count, and its provenance.
+4. A statement of what a test or a gate proves.
+5. A figure that code produces from a fixture, such as a fixture outcome count.
+6. A count in a golden snapshot or a test assertion, a capability-matrix tier,
+   a product-claims maturity, a migration number, `go.sum`, and an image digest.
+7. A value in a generated file or a ledger that a gate verifies. Regenerate it.
+
+A count of published contract items on a reference page is a derivable figure.
+Examples are "N routes" and "N MCP tools". No gate reads a count in prose. The
+gates `openapi-surface`, `route-coverage`, and `mcp-tool-count` hold the code
+to the OpenAPI surface, the route tests, and the pinned tool count. A wrong
+prose count is P3 unless a decision rests on it. The pin in a test keeps its
+grade (item 6).
+
+A measured number copied into the PR body is P3 only when two conditions hold.
+The gap is within the rounding or noise that the evidence note states. The
+conclusion is unchanged. If the note states no rounding, any gap is P2. Replace
+the copy with a link to the note, or with `ledger:<id>` when the number is in
+`docs/internal/measurements.jsonl`. Make the replacement before you capture the
+receipt. After capture, make it at the next body edit, because a body edit voids
+the receipt.
+
+Before you capture the review receipt, fix a wrong derivable figure that you
+find. After capture, do not edit the body or a doc only to fix one. Write it in
+the verdict's P3 list and post that list as a PR comment. A comment is not a
+body edit. Do not post it as an inline review thread, because an
+open thread blocks the merge. If it is already an inline thread, resolve it
+with "P3, no action".
 
 ## Findings introduced by review fixes
 
