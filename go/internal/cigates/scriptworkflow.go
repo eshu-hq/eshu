@@ -36,7 +36,7 @@ var verifyScriptRE = regexp.MustCompile(`scripts/verify-[\w.-]+\.sh`)
 // do not hand-edit it without doing so.
 // The contention workflow also invokes verify-live-tests-ledger.sh, which
 // already runs in the live-backend workflow, so that gate leaves this subset.
-const scriptWorkflowSoundSubsetCount = 55
+const scriptWorkflowSoundSubsetCount = 56
 
 // runStep is the minimal shape needed to read a step's executable command.
 type runStep struct {
