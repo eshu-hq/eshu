@@ -41,6 +41,7 @@ subpackage can call the same logic without an import cycle (#6060):
 | `AnswerMetadata` attach helper and the answer packet | moved to `answer/` (#6597) | callers name `answer.AttachAnswerMetadata`, `answer.NewAnswerPacket` and friends directly; root keeps the exported aliases in `answer_metadata_alias.go` and `ask_alias.go` that packages outside `go/internal/query` name; `AssertAnswerMetadata` pin in `impact/` test |
 | Edge-materialization coverage | `edge_materialization_coverage.go` | `impact/` callers and the root coverage test reference directly |
 | Evidence-boundary disclosures | moved to `evidence/` (#6597) | root's `evidence_boundaries.go` shim was deleted; callers name `evidence.AttachEvidenceBoundaries` directly |
+| Relationship-evidence authz predicates (#6642 evidence-leaf pre-slice) | `relationship_evidence_authz.go` | root keeps one unexported forwarder (`relationshipEvidenceRowWithinAccess` in `evidence.go`) for the handler and scoped tests; the catalog scope predicate and the drilldown 404-mask resolve through the contract functions directly |
 | Hostname environment inference | `hostname_environment.go` | root service-evidence callers reference directly |
 | Infra-label helpers | `infra_labels.go` | root infra-aggregate callers reference directly |
 | Dead-code contract types | moved to `code/` (#6597) | callers name `code.DeadCodeCandidateLabels`, `code.DeadCodeIncomingEdge`, `code.CrossRepoDeadCodeConsumerReads` and friends directly; nothing in this package referenced them, so no forwarder stayed behind |

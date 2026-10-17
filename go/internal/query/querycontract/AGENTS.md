@@ -53,6 +53,21 @@
   package back, or the two leaves cycle. That is the reason
   `WriteUnauthorized`/`WritePermissionDenied`/`RequirePermissionFeature` live
   here instead of in the more auth-shaped `auth`.
+- (#6642 evidence-leaf pre-slice) `relationship_evidence_authz.go` is the
+  single source of truth for the verb→targetAttributable classification. Do
+  not re-add a per-entry flag on the catalog or a second table anywhere; the
+  edges scope predicate and the evidence 404-mask both resolve through
+  `RelationshipVerbTargetAttributable` /
+  `RelationshipEvidenceTargetAttributable`.
+- The verb table is keyed UPPER-CASED and every lookup upper-cases first
+  (#5450 P1-B: raw-keying misclassifies AWS_lambda_function_uses_image).
+  Unknown verbs stay fail-closed both directions: source-only scope binding
+  (mirroring the old zero value) and row-fallback to the target repo_id. Do
+  not change either default without re-proving both directions.
+- These predicates are pure Go over caller-fetched rows (the
+  `WorkloadGrantAdmitted` precedent): no Cypher, no complete queries, no
+  family response models, and no func-valued fields on shared structs --
+  callers name the functions directly.
 
 ## Verification
 

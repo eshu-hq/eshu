@@ -47,7 +47,7 @@ func TestFluxReconcilesFromVerbIsRegisteredInDeployLayer(t *testing.T) {
 	if entry.targetIdentityProperty != "" {
 		t.Fatalf("RECONCILES_FROM targetIdentityProperty = %q, want empty (target has uid like every other non-MANAGES verb)", entry.targetIdentityProperty)
 	}
-	if !entry.targetAttributable {
+	if !querycontract.RelationshipVerbTargetAttributable(entry.verb) {
 		t.Fatal("RECONCILES_FROM targetAttributable = false, want true (target source CR carries repo_id)")
 	}
 }

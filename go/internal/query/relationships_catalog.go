@@ -332,7 +332,8 @@ func (h *InfraHandler) getRelationshipEdges(w http.ResponseWriter, r *http.Reque
 	// no granted repository or ingestion scope must never reach the graph
 	// (empty page, no read); a granted scoped caller's edges are bound to its
 	// grant on both endpoints via relationshipEdgesScopeWhereClause (source
-	// always, target when entry.targetAttributable).
+	// always, target when querycontract.RelationshipVerbTargetAttributable
+	// reports the verb target-attributable).
 	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 
 	limit := req.limit()

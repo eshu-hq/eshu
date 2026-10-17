@@ -32,7 +32,7 @@ var RepresentativeScopeID = fmt.Sprintf("seed-scope-%s-0000", scope.AllCollector
 // argument that would not exercise anything more real than the 400 it
 // replaces.
 var RouteQueryArgs = map[string]string{
-	// go/internal/query/admission_decisions.go
+	// go/internal/query/evidence/admission_decisions.go
 	"GET /api/v0/evidence/admission-decisions": "scope_id=" + RepresentativeScopeID,
 	// go/internal/query/cicd/handler.go
 	"GET /api/v0/ci-cd/run-correlations": "scope_id=" + RepresentativeScopeID,

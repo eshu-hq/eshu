@@ -14,11 +14,11 @@ type repositoryScopedEntityContentStore interface {
 }
 
 // The batch helpers (getEntityContentsForRepositoryAccess and
-// getEntityContentsOneAtATime) stay in root package query
-// (content_entity_access_batch.go): the batch path filters through
-// filterEvidenceCitationEntitiesForAccess, which belongs to the evidence
-// handler family in root, so moving it here would couple this package to a
-// sibling lane.
+// getEntityContentsOneAtATime) moved with the evidence handler family to
+// internal/query/evidence (#6642): the batch path filters through
+// filterEvidenceCitationEntitiesForAccess, which belongs to that family, so
+// the batch file moved with its sole caller instead of coupling this
+// package to a sibling lane.
 
 func getEntityContentForRepositoryAccess(
 	ctx context.Context,

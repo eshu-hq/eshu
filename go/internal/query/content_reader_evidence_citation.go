@@ -74,7 +74,7 @@ func (cr *ContentReader) EvidenceCitationFiles(
 			span.RecordError(err)
 			return nil, fmt.Errorf("scan evidence citation file: %w", err)
 		}
-		files[evidenceCitationFileKey{repoID: file.RepoID, relativePath: file.RelativePath}] = file
+		files[evidenceCitationFileKey{RepoID: file.RepoID, RelativePath: file.RelativePath}] = file
 	}
 	if err := rows.Err(); err != nil {
 		span.RecordError(err)
@@ -95,7 +95,7 @@ func cleanEvidenceCitationFileLookups(lookups []evidenceCitationFileLookup) []ev
 		if lookup.RepoID == "" || lookup.RelativePath == "" {
 			continue
 		}
-		key := evidenceCitationFileKey{repoID: lookup.RepoID, relativePath: lookup.RelativePath}
+		key := evidenceCitationFileKey(lookup)
 		if _, exists := seen[key]; exists {
 			continue
 		}

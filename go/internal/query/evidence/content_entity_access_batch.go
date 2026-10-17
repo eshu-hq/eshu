@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package evidence
 
 import (
 	"context"
@@ -10,29 +10,28 @@ import (
 )
 
 // This file holds the batch half of the entity-content repository-access
-// helpers. It split from content_entity_authz.go in the #6060 lane-B1 move:
-// the single-entity helper moved with the ContentHandler family to
-// internal/query/contentread, while this batch path stays in root because it
-// filters through filterEvidenceCitationEntitiesForAccess, which belongs to
-// the evidence handler family (evidence_citation.go) -- moving it would
-// couple contentread to a sibling lane.
+// helpers. It split from content_entity_authz.go in the #6060 lane-B1 move,
+// and moved with the evidence handler family to internal/query/evidence in
+// the #6642 evidence-leaf move: its sole caller is
+// evidenceCitationEntityContents (citation.go), so carrying it keeps the
+// batch path beside the citation synthesis that owns the access filter.
 
 type repositoryScopedEntityBatchContentStore interface {
-	GetEntityContentsInRepositories(ctx context.Context, entityIDs []string, repoIDs []string) (map[string]*EntityContent, error)
+	GetEntityContentsInRepositories(ctx context.Context, entityIDs []string, repoIDs []string) (map[string]*querycontract.EntityContent, error)
 }
 
 type entityContentBatchStore interface {
-	GetEntityContents(context.Context, []string) (map[string]*EntityContent, error)
+	GetEntityContents(context.Context, []string) (map[string]*querycontract.EntityContent, error)
 }
 
 func getEntityContentsForRepositoryAccess(
 	ctx context.Context,
-	content ContentStore,
+	content querycontract.ContentStore,
 	entityIDs []string,
 	access querycontract.RepositoryAccessFilter,
-) (map[string]*EntityContent, error) {
+) (map[string]*querycontract.EntityContent, error) {
 	if content == nil || access.Empty() || len(entityIDs) == 0 {
-		return map[string]*EntityContent{}, nil
+		return map[string]*querycontract.EntityContent{}, nil
 	}
 	if !access.Scoped() {
 		if store, ok := content.(entityContentBatchStore); ok {
@@ -42,11 +41,11 @@ func getEntityContentsForRepositoryAccess(
 	}
 	repoIDs := access.RepositorySearchIDs()
 	if len(repoIDs) == 0 {
-		return map[string]*EntityContent{}, nil
+		return map[string]*querycontract.EntityContent{}, nil
 	}
 	store, ok := content.(repositoryScopedEntityBatchContentStore)
 	if !ok {
-		return map[string]*EntityContent{}, nil
+		return map[string]*querycontract.EntityContent{}, nil
 	}
 	entities, err := store.GetEntityContentsInRepositories(ctx, entityIDs, repoIDs)
 	if err != nil {
@@ -57,11 +56,11 @@ func getEntityContentsForRepositoryAccess(
 
 func getEntityContentsOneAtATime(
 	ctx context.Context,
-	content ContentStore,
+	content querycontract.ContentStore,
 	entityIDs []string,
 	access querycontract.RepositoryAccessFilter,
-) (map[string]*EntityContent, error) {
-	results := make(map[string]*EntityContent, len(entityIDs))
+) (map[string]*querycontract.EntityContent, error) {
+	results := make(map[string]*querycontract.EntityContent, len(entityIDs))
 	for _, entityID := range entityIDs {
 		entity, err := content.GetEntityContent(ctx, entityID)
 		if err != nil {

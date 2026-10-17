@@ -5,6 +5,7 @@ package answerquality
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/evidence"
 	"github.com/eshu-hq/eshu/go/internal/serviceintel"
 )
 
@@ -221,7 +222,7 @@ func completeSectionInputs() []serviceintel.SectionInput {
 				Basis:     query.TruthBasisAuthoritativeGraph,
 				Freshness: query.TruthFreshness{State: query.FreshnessFresh},
 			},
-			Evidence: []query.EvidenceCitationHandle{
+			Evidence: []evidence.EvidenceCitationHandle{
 				{Kind: "source", RepoID: "repo:checkout", RelativePath: string(kind) + ".go"},
 			},
 		})

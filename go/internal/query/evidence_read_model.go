@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package query //nolint:dirgate // #6642 evidence slice: method on the staying ContentReader; moves with the content/read leaf, see query/evidence/doc.go.
 
 import (
 	"context"

@@ -3,7 +3,10 @@
 
 package serviceintel
 
-import "github.com/eshu-hq/eshu/go/internal/query"
+import (
+	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/evidence"
+)
 
 // ReportSchema is the wire schema identifier for a service intelligence report.
 // It is versioned so consumers can pin against contract changes.
@@ -95,9 +98,9 @@ type SectionInput struct {
 	// never reclassified. A nil Truth (with no Err) marks the section empty.
 	Truth *query.TruthEnvelope
 	// Evidence are the resolved evidence handles backing the section.
-	Evidence []query.EvidenceCitationHandle
+	Evidence []evidence.EvidenceCitationHandle
 	// MissingEvidence lists evidence handles requested but not resolved.
-	MissingEvidence []query.EvidenceCitationHandle
+	MissingEvidence []evidence.EvidenceCitationHandle
 	// Truncated marks the source result as truncated.
 	Truncated bool
 	// NoEvidence marks an evidence-centric section that resolved nothing. The

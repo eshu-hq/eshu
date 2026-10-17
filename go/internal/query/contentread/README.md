@@ -151,11 +151,11 @@ import). Both cite the root original they mirror. The tripwire fake instead
 embeds the shared `testutil/content`'s `FakePortContentStore` -- never redeclare
 what `testutil/content` already exports.
 
-**The batch entity-access helpers stay in root**
-(`content_entity_access_batch.go`). Only the single-entity helper moved
-here; the batch path filters through the evidence family's
-`filterEvidenceCitationEntitiesForAccess`, so moving it would couple this
-package to a sibling lane.
+**The batch entity-access helpers moved with the evidence family**
+(`internal/query/evidence/content_entity_access_batch.go`, #6642). Only the
+single-entity helper lives here; the batch path filters through the evidence
+family's `filterEvidenceCitationEntitiesForAccess`, so the batch file moved
+with its sole caller instead of coupling this package to a sibling lane.
 
 **The hybrid ranker never egresses.** `ContentHybridRanker` embeds a
 process-local deterministic hash embedder and refuses any provider

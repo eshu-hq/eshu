@@ -242,7 +242,7 @@ source_coverage:
   - file: entity/workload_platform.go
     calls:
       - {symbol: "(*Handler).FetchWorkloadPlatformResult", count: 1, source_sha256: 79fe5edddb6379a4d194f635adc961d05e9f41379a03ba7a3035f79c89e624e4, entry_ids: [QP-SVC-RUNS-ON]}
-  - file: evidence_bundle_live.go
+  - file: evidence/bundle_live.go
     calls:
       - symbol: "repositoryCountForEvidenceBundle"
         count: 1

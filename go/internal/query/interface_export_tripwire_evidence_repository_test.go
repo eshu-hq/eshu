@@ -55,11 +55,12 @@ func TestEvidenceHandlerGetRelationshipEvidenceUsesReadModelFastPath(t *testing.
 
 	fake := &fakeRelationshipEvidenceTripwireStore{}
 	h := &EvidenceHandler{Content: fake, Profile: ProfileProduction}
+	mux := http.NewServeMux()
+	h.Mount(mux)
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/evidence/relationships/resolved-1", nil)
-	req.SetPathValue("resolved_id", "resolved-1")
 	w := httptest.NewRecorder()
 
-	h.getRelationshipEvidence(w, req)
+	mux.ServeHTTP(w, req)
 
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())

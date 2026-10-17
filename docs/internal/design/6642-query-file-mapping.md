@@ -7,12 +7,12 @@
 
 ## The mapping
 
-All 277 root non-test files, grouped by destination. The test column names the
+All 276 root non-test files, grouped by destination. The test column names the
 root test file whose stem prefix-matches, and counts the others that do.
 
-Coverage adds up exactly: **250 rows below + 5 in [What stays at
+Coverage adds up exactly: **249 rows below + 5 in [What stays at
 root](6642-query-move-cost.md#what-stays-at-root) + 21 in [The alias ledger](6642-query-move-cost.md#the-alias-ledger) +
-`semantic_evidence.go`, which is split rather than moved, = 277.** No file
+`semantic_evidence.go`, which is split rather than moved, = 276.** No file
 appears twice and none is unaccounted for.
 
 #### `query/ask/` — 5 non-test, 10 test files (1 stays: `ask_permission_authz_test.go`)
@@ -197,13 +197,12 @@ Only the SQL test leaves `ci_cd_authz_test.go` (`cicd/queries_test.go`); the sto
 | `compare_story.go` | `compare/story.go` | `compare_story_test.go` |
 | `context_story_limits.go` | stays in root: only `querycontract` forwarders no compare file calls; leaves with the alias sweep | `context_story_limits_test.go` |
 
-#### `query/content/read/` — 40 non-test, 30 test files
+#### `query/content/read/` — 39 non-test, 30 test files
 
 | current | new | test files carried |
 | --- | --- | --- |
 | `cloud_inventory_read_model.go` | `content/read/cloud_inventory_model.go` | `cloud_inventory_read_model_test.go` |
 | `cloud_inventory_rollout_signal.go` | `content/read/cloud_inventory_rollout_signal.go` | `cloud_inventory_rollout_signal_live_test.go` +1 more |
-| `content_entity_access_batch.go` | `content/read/entity_access_batch.go` | — |
 | `content_reader.go` | `content/read/reader.go` | `content_reader_code_divergence_test.go` +4 more |
 | `content_reader_by_type.go` | `content/read/by_type.go` | `content_reader_by_type_test.go` |
 | `content_reader_code_topic.go` | `content/read/code_topic.go` | — |
@@ -282,20 +281,20 @@ Only the SQL test leaves `ci_cd_authz_test.go` (`cicd/queries_test.go`); the sto
 | `documentation_packet_authz.go` | `documentation/packet_authz.go` | `documentation_packet_authz_test.go` |
 | `documentation_payload_helpers.go` | `documentation/payload_helpers.go` | — |
 
-#### `query/evidence/` — 10 non-test, 9 test files
+#### `query/evidence/` — 10 non-test rows (9 moved in the #6642 evidence-leaf slice, 1 already moved, 1 carried from `content/read/`; `evidence_boundaries.go` retired — already in `querycontract/evidence` since #6597)
 
 | current | new | test files carried |
 | --- | --- | --- |
 | `admission_decision_store.go` | `evidence/admission_decision_store.go` | — |
 | `admission_decision_types.go` | `evidence/admission_decision_types.go` | — |
-| `admission_decisions.go` | `evidence/admission_decisions.go` | `admission_decisions_bounds_test.go` +1 more |
-| `evidence.go` | `evidence/handler.go` | `evidence_scoped_test.go` +1 more |
-| `evidence_boundaries.go` | `evidence/boundaries.go` | `evidence_boundaries_test.go` |
-| `evidence_bundle_live.go` | `evidence/bundle_live.go` | `evidence_bundle_live_test.go` |
-| `evidence_citation.go` | `evidence/citation.go` | `evidence_citation_authz_test.go` +1 more |
-| `evidence_citation_public.go` | `evidence/citation_public.go` | — |
-| `evidence_citation_unified.go` | `evidence/citation_unified.go` | `evidence_citation_unified_test.go` |
-| `investigation_packet_api_deployable.go` | `evidence/deployable_unit_packet.go` | — |
+| `admission_decisions.go` | `evidence/admission_decisions.go` | `admission_decisions_test.go` + `admission_decisions_bounds_test.go` stay root (external) |
+| `evidence.go` | `evidence/handler.go` | `evidence_test.go` splits (handler tests move; read-model test stays); `evidence_scoped_test.go` stays root (external) |
+| `evidence_bundle_live.go` | `evidence/bundle_live.go` | `evidence_bundle_live_test.go` stays root (external); `evidence_bundle_selection_test.go` + `evidence_bundle_selection_theory_test.go` move |
+| `evidence_citation.go` | `evidence/citation.go` | `evidence_citation_test.go` splits (pure-helper tests move); `evidence_citation_authz_test.go` stays root (external) |
+| `evidence_citation_public.go` | `evidence/citation_public.go` | already moved (#6642 handle-alias slice) |
+| `evidence_citation_unified.go` | `evidence/citation_unified.go` | `evidence_citation_unified_test.go` moves |
+| `investigation_packet_api_deployable.go` | `evidence/deployable_unit_packet.go` | behind the `DeployableUnitPacketResponder` seam: root implements it from the lane-B envelope, cmd wiring injects it, bounds read from the live request inside root's implementation; delete the seam (as with the supply-chain seam; drift moves whole with its handler) when `investigation/packet` lands; new leaf seam tests; root `investigation_packet_api_test.go` deployable expectations unchanged |
+| `content_entity_access_batch.go` | `evidence/content_entity_access_batch.go` | carried with its sole caller (was planned for `content/read/` below) |
 
 #### `query/graph/entity/` — 2 non-test, 3 test files
 
@@ -396,6 +395,8 @@ they are impact's own backends.
 | `investigation_packet_identity.go` | `investigation/packet/identity.go` | — |
 | `investigation_packet_render.go` | `investigation/packet/render.go` | — |
 | `investigation_packet_validate.go` | `investigation/packet/validate.go` | — |
+
+Seam-deletion obligation: when this leaf lands, delete the supply-chain and deployable-unit packet responder seams and call the leaf directly.
 
 #### `query/investigation/workflow/` — 3 non-test, 4 test files
 
