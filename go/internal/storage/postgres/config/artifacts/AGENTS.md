@@ -44,6 +44,29 @@ Scoped instructions for the config-artifact read model (#7126). The root
   same reason for every state; test it against `Classify`, not a copy.
 - The walk claim is not a lease. Do not make correctness depend on a single
   walker owning a repository.
+- The derive (`derive*.go`) follows protocol section 3 in this order: read
+  the version (`contentVersionSQL`) before the list, extract with no lock and
+  no open transaction, then take `repoLockSQL` FIRST in the write
+  transaction and read the state after it. Moving the version read after the
+  list, taking the lock earlier, or reading the state before the lock breaks
+  the protocol; `derive_order_live_test.go` catches each (mutation table in
+  `docs/internal/evidence/8155-derive-core.md`). `repoLockSQL` is the one definition of the repository
+  lock key; every writer of a repository's rows or state row takes it.
+- `mayWrite` is the write condition. Change it only with the protocol
+  companion; `TestMayWriteConditions` pins every branch, including the
+  Proposed clause for a failure-only state row.
+- A failed derive changes only `failure_count`, `last_error_class`,
+  `last_failure_at` and `last_failure_extractor_version`
+  (`recordFailureSQL`). Never let it touch the rows, `content_version`,
+  `extractor_version` or `row_count` of an existing state row, and keep it on
+  a context detached from the caller so a timed-out derive still records.
+- Step 2 reads through `contentReader`, which must send only the neutral
+  package's statements and row mappers (`contentartifacts.ListStatement` and
+  its siblings), never a copy: the S4 equality test compares the stored rows
+  with the query package's live reader.
+- No metric or span here: `DeriveRepository` returns a `Result` and the
+  wiring slice counts it. Do not add an env lookup for the timeout here; it
+  is a `DeriverConfig` field.
 - Migrations 186 and 187 are the fence. Every `content_files` writer must
   bump; never add a session setting or `WHEN` clause that skips the fence
   triggers (an F2 amendment by ruling is required). Keep the bump at COMMIT
@@ -57,7 +80,10 @@ Scoped instructions for the config-artifact read model (#7126). The root
 ## Tests
 
 - `schema_test.go`, `port_test.go`, `encoding_test.go`, `fence_test.go`,
-  `fence_migration_test.go`, `versions_guard_test.go` run without a database.
+  `fence_migration_test.go`, `versions_guard_test.go` and `derive_test.go`
+  (over the scripted database in `derive_fake_test.go`) run without a
+  database. `export_test.go` exposes the derive's test hooks to the live
+  tests.
 - `*_live_test.go` need `ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN` (an
   administrative `postgres` database DSN) and
   `ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE=1`; each test creates and drops

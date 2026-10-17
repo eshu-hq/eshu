@@ -16,12 +16,13 @@ its protocol companion.
 | PR3b-1a (this package's first version) | migration 170 tables, the encoding check, the read-model port, the walk claim, the dirty join, the version-row guard |
 | PR3b-1b | migration 186: the five fence triggers (four `content_files_version_fence_*` on `content_files` and `config_artifact_fence_pending_commit` on the pending table); migration 187: the version-0 seed |
 | PR3b-2a | `CheckFence`, the start-up check of the five fence triggers (no caller yet) |
-| PR3b-2 | the derive in `ContentWriter.Write`, the walker derive, the start-up wiring of `CheckEncoding` and `CheckFence`, telemetry, env variables |
+| PR3b-2b | `Deriver.DeriveRepository`, the derive core of protocol section 3 (no caller yet) |
+| PR3b-2 (rest) | the derive call in `ContentWriter.Write`, the walker derive, the start-up wiring of `CheckEncoding` and `CheckFence`, the derive counter, histogram and span, env variables |
 | PR3c | the stored reader, the read mode, the `/admin/status` field |
 
 From PR3b-1b on, every `content_files` write bumps
-`config_artifact_content_versions`; nothing reads or derives from it until
-PR3b-2.
+`config_artifact_content_versions`. PR3b-2b adds the derive that reads it;
+no runtime calls the derive until the rest of PR3b-2.
 
 ## Tables (migration 170)
 
@@ -51,6 +52,8 @@ because each derive rewrites a repository's rows.
 - `ClaimPage`, `LoadCursor` — the walker's cursor claim over the versions
   table
 - `ListDirty`, `DirtyRequest`, `Dirty` — the walker's dirty join
+- `NewDeriver`, `Deriver`, `DeriverConfig`, `Database`, `Request`, `Result`,
+  `DefaultDeriveTimeout` — the derive core (protocol section 3)
 - `Trigger`, `Outcome`, `Status*`, `Reason*` — labels and status values
 
 ## Invariants
@@ -117,6 +120,50 @@ because each derive rewrites a repository's rows.
 - **Claims are not leases.** `ClaimPage` spreads work; the derive's advisory
   lock and advance-only write carry correctness.
 
+## The derive (PR3b-2b)
+
+`Deriver.DeriveRepository` runs protocol section 3 for one repository. The
+docs/internal/evidence/8155-derive-core.md note has the sequence diagram.
+
+1. **Version first.** `contentVersionSQL` reads `v0 = coalesce(version, 0)`
+   on the pool, before the list. Content committed later bumps the version
+   past `v0` at its COMMIT, so a derive never labels rows with a version
+   newer than the content it read.
+2. **No lock, no transaction.** `contentartifacts.LoadConfigPaths` lists the
+   files, reads the candidates of the whole window (allowance -1) through
+   `contentReader`, which sends the neutral package's statements and row
+   mappers, and runs the extractors with no name. `storedRows` sets
+   `NameScoped` from `contentartifacts.NameScoped` and fails on an unknown
+   evidence kind or a named row.
+3. **One short transaction.** `repoLockSQL` takes
+   `pg_advisory_xact_lock(hashtextextended('config_artifact_paths:' ||
+   repo_id, 0))` first, then the state row is read on a snapshot taken after
+   the previous holder committed. `mayWrite` allows a write for no state row
+   or one with no success (`row_count` or `content_version` NULL, the
+   **Proposed** clause), for `v0 >` stored with an extractor version at least
+   the stored one, and for `v0 =` stored with a greater extractor version.
+   Otherwise the transaction rolls back: `superseded`. A write deletes the
+   repository's rows, inserts the new rows in one `unnest` statement, and
+   upserts the state (`content_version = v0`, counts, `failure_count = 0`;
+   an empty scope or generation keeps the stored one).
+
+Failure semantics: the derive runs under `DeriverConfig.Timeout` (default
+`DefaultDeriveTimeout`, 10 s) and recovers a panic. An error, a panic or a
+timeout writes a failure-only update (`recordFailureSQL`, under the same
+lock, on a context detached from the caller and bounded at 5 s):
+`failure_count + 1`, `last_error_class`, `last_failure_at`,
+`last_failure_extractor_version`. A new row carries this derive's extractor
+version and NULL `row_count`; an existing row keeps its rows,
+`content_version`, `extractor_version` and `row_count`. `Result` carries the
+outcome and the error for logging; the derive never fails its caller. The
+deadline interrupts statements and is checked before step 3; a CPU-bound
+extractor is not preempted and ends as `timeout` when it returns. An
+unsupported `Encoding` or `Fence` (including `fence_check_failed`) returns
+`encoding_unsupported` or `fence_missing` without a statement.
+
+`last_error_class` is `panic`, `timeout`, `canceled` (the caller's context
+was canceled), `sqlstate_<SQLSTATE>` for a PostgreSQL error, or `error`.
+
 ## The version fence (PR3b-1b)
 
 Migration 186 is a commit-time fence (ruling arb-8155-f1). Four
@@ -153,6 +200,10 @@ transaction's COMMIT. The retention cost is the `OLD TABLE` capture: +0.11 to
 ## Telemetry
 
 No runtime path calls this package yet, so it emits nothing in production.
+`DeriveRepository` logs `event_name=config_artifacts.derive.failed` at ERROR
+for every failed derive and returns a `Result` the wiring slice counts on
+`eshu_dp_config_artifact_derives_total{trigger,outcome}` and observes on the
+derive duration histogram; this package registers no metric or span.
 `CheckEncoding` logs `event_name=postgres.server_encoding` at INFO for UTF8
 and at ERROR otherwise (with `config_artifacts_status=not_installed` and the
 `reason`), for the binaries that will call it in PR3b-2 and PR3c. Every
@@ -220,6 +271,56 @@ buffers on the scan, 0.043-0.064 ms execution over four runs on 2026-10-16
 grows with catalog triggers, not with content rows. It is safe because it
 reads only `pg_trigger`, takes no lock beyond the catalog's ACCESS SHARE, and
 never fails or blocks the caller.
+
+## Evidence (PR3b-2b, the derive core)
+
+Performance Evidence: baseline is the base branch, where no derive exists;
+this slice adds no caller, so no runtime hot path runs new work. The cost a
+later caller pays is step 3's write transaction, the only part that holds
+the repository lock. Backend: `postgres:18.6` in Docker, local, a 16-core
+host at load average 10-14, 2026-10-17. Shape: one repository of 20,000 rows
+over 5,000 files, beside 800 repositories of 21 rows, the statements of
+`derive_sql.go` under `EXPLAIN (ANALYZE, BUFFERS)`, one transaction per run:
+
+| Shape | Lock | State read | Delete | Insert | Upsert | Commit | Transaction |
+|---|---|---|---|---|---|---|---|
+| 20,000 rows, `VACUUM` before each run (5 runs) | 0.05-2.2 ms | 0.06-0.7 ms | 6.5-7.9 ms (Bitmap Heap Scan on the primary key) | 134.6-213.0 ms (about 201,000 shared buffers hit) | 0.1 ms | 10.1-81.7 ms | 192.6-232.0 ms |
+| 20,000 rows, back to back, no vacuum (6 runs) | 0.07 ms | 0.07-0.4 ms | 0.1-9.6 ms | 128.2-868.7 ms | 0.1 ms | 32.3-154.8 ms | 233.2-910.9 ms |
+| 21 rows (the R1 average), `VACUUM` before each run (5 runs) | 0.03-0.08 ms | 0.04-0.14 ms | 0.05-0.11 ms | 0.20-0.51 ms | 0.05-0.07 ms | 0.47-0.57 ms | 0.9-1.5 ms |
+
+The insert dominates: each row computes the generated SHA-256 `row_digest`
+and inserts into the `(repo_id, row_digest)` key. Without a vacuum the dead
+tuples of the previous rewrites slow it; the 868.7 ms run overlapped an
+autovacuum of the table (`last_autovacuum` 01:21:51). The lock serializes
+only derives of one repository: a 20,000-row repository holds it for about
+0.2 s, a 21-row repository for about 1 ms, and no content write waits on it.
+Step 2 holds no lock and no transaction (proved by
+`TestDeriveHoldsTheLockOnlyInStepThreeLive`). The end-to-end derive time on
+a large repository is not measured here; S1 measures it with the caller.
+
+Observability Evidence: a failed derive logs one record at ERROR (the
+hermetic `runFailure` tests assert the level, the event and the fields):
+
+| Field | Value |
+|---|---|
+| `event_name` | `config_artifacts.derive.failed` |
+| `repo_id`, `trigger` | the repository and `write`, `backfill` or `repair` |
+| `outcome`, `error_class` | `error`, `panic` or `timeout`; `panic`, `timeout`, `canceled`, `sqlstate_<SQLSTATE>` or `error` |
+| `error`, `stack` | the failure; the goroutine stack for a panic |
+| `content_version`, `extractor_version` | `v0` (-1 before step 1) and this binary's extractor version |
+| `duration_seconds`, `failure_recorded` | wall time; whether the failure-only update committed |
+| `failure_record_error` | only when the failure-only update itself failed |
+
+At 3 AM grep for `"event_name":"config_artifacts.derive.failed"`; group by
+`error_class` to tell a parse bug (`panic`), a slow repository (`timeout`)
+and a database error (`sqlstate_*`) apart, and by `repo_id` for the
+repository. The state row keeps the same story: `SELECT repo_id,
+failure_count, last_error_class, last_failure_at FROM
+config_artifact_repo_state WHERE failure_count > 0`. `failure_recorded=false`
+means the state row did not count the failure. If the content moved, the
+version mismatch still sends readers live and lists the repository for the
+walker; if it did not, the stored rows are still exact. The derive
+outcome counter and duration histogram are registered by the wiring slice.
 
 ## Verification
 

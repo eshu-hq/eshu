@@ -15,7 +15,8 @@
 // config_artifact_reconcile_cursor. Migration 186 adds the content_files
 // version fence, which bumps a repository's version once per content
 // transaction at COMMIT, and migration 187 seeds one version-0 row per
-// repository. No derive or reader exists yet.
+// repository. The derive exists; no runtime calls it yet, and no reader
+// exists yet.
 //
 // This package defines the contracts the later PRs build on:
 //
@@ -31,6 +32,13 @@
 //     content version and extractor version after a successful derive.
 //   - [ClaimPage] and [LoadCursor], the walker's shared cursor claim over the
 //     versions table, and [ListDirty], the walker's dirty join.
+//   - [NewDeriver], [Deriver] and [Deriver.DeriveRepository], the derive of
+//     one repository under protocol section 3: read the content version
+//     first, list, read and extract with no lock and no transaction, then
+//     write in one short transaction under the repository advisory lock only
+//     when the version or extractor version advances. An error, a panic or a
+//     timeout writes a failure-only state update and never fails the
+//     caller; [Result] carries the outcome for the wiring slice to count.
 //   - [Trigger] and [Outcome], the derive labels, and the status values
 //     [StatusNotInstalled], [StatusBackfilling] and [StatusReady].
 //
