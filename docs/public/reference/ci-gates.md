@@ -8,12 +8,12 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 146 gates. Local execution runs the primary
-command first, then a distinct self-test when one is registered; byte-identical
-pairs run once. A row with no primary local command is
-CI-only (it needs a credential, a service container, or hosted infrastructure
-a laptop does not have); a row marked as an alias shares its check with the
-gate its reason names, under a different git hook stage.
+Local execution runs the primary command first, then a distinct self-test
+when one is registered; byte-identical pairs run once. A row with no primary
+local command is CI-only (it needs a credential, a service container, or
+hosted infrastructure a laptop does not have); a row marked as an alias
+shares its check with the gate its reason names, under a different git hook
+stage.
 
 Blocking is an enforcement contract, not descriptive metadata. The trusted
 default-branch `required-gates-complete` publisher selects every matching
