@@ -59,33 +59,52 @@ full-text read fails while the request context is live.
 
 ## Broad class (#7245)
 
-A query is *broad* when its escaped substring matches candidates in every
-label class the probe sees: selective substrings restrict the candidate set,
-broad ones do not. A broad query against hard paging (`page_size 200`, hard
-`K=1000`) returns a truncated page with no signal that rows were dropped.
+A query is *broad* when `Broad` says it can match corpus-wide: the trimmed
+query is one or two runes (`BroadQueryMaxRunes = 2`). Empty queries
+(structured search) and the `"::"` equality branch are never broad, and the
+bound applies only on the full-text path (`RowsBounded` checks `path ==
+PathFulltext && Broad(req.Query)`). A short wildcard would otherwise run the
+twelve-field `CONTAINS` recheck, `DISTINCT`, and the `ORDER BY` sort over
+the whole candidate set before the late `LIMIT`.
 
-`BroadCandidateCap` (1000, equal to `hardCapK`) bounds the candidate set
-before filtering. `Probe` runs the full-text query once per label class with
-`LIMIT $broad_probe_limit` where `broad_probe_limit = BroadCandidateCap+1`,
-so the probe count is observable per class and a count past the cap proves
-truncation. A query is broad only when *every* probed class exceeds the cap,
-which keeps the capped form off the selective path byte-for-byte: a
-selective query emits the unchanged full-text statement and the same rows
-(`TestBroadCapSelectiveStatementInvariance`,
-`TestSelectExclusiveEquivalentStatement`).
+`BroadCandidateCap` (K = 1000) bounds the candidates the broad class
+evaluates. It sits above the largest servable page (`infraSearchMaxLimit`
+200, over-fetched by one), so a page is complete whenever the probe fits in
+K. `rowsBroad` first runs one combined probe, `ProbeStatement`: the same
+full-text index call with the combined `(n:A OR n:B ...)` label filter, then
+`WITH n LIMIT 1001` (`BroadProbeLimit = BroadCandidateCap + 1`) and
+`RETURN count(n) AS candidate_count`. The probe runs no recheck, no
+`DISTINCT`, and no sort. A count past the cap proves the cap would cut rows;
+a malformed probe count is treated as over-cap (conservative capped), never
+as uncapped.
 
-A broad query keeps the same full-text statement and page shape and adds the
-cap contract: at most `BroadCandidateCap` rows survive filtering, and the
-page carries `truncated=true` (`Truncated=true` on the handler result,
-`RowsBounded=true`). At most `200 * 1001` index rows are fetched per broad
-page. When candidates are at or under the cap, returned rows are equal to
-the pre-cap form (rows-equal); above the cap the page holds at most the cap
-(bounded partial) instead of a silently truncated page.
+When the probe fits in K, the read runs the unchanged full-text statement,
+so rows equal the uncapped read (rows-equal). Past the cap, it runs the
+capped form (`CappedUnscopedStatement` / `CappedScopedStatement`): same
+labels and `whereExtra`, with `WITH n LIMIT 1000` between the label filter
+and the recheck, before `DISTINCT` / `ORDER BY` / the grant predicate, so at
+most K rows ever reach them. A capped page always carries its marker:
+`truncated=true` in the response (`Truncated=true` on the handler result,
+`RowsBounded=true`), plus the `eshu.infra_search_broad_capped=true` span
+attribute. Worst case per broad page is about 1001 probe rows plus at most
+1000 candidates through the recheck. Probe and read failures keep the
+`Rows` contract: a canceled context returns the error with no fallback,
+otherwise the legacy statement answers once.
 
-No-Regression Evidence (#7245): the selective class emits byte-identical
-statements and rows before and after (invariance tests above), and the full
-`go/internal/query/...` suite is green. Corpus-scale before/after timing on
-the broad class stays with the owner lane and is NOT_CHECKED here.
+Covered by `TestBroadClassifier`,
+`TestRowsBoundedBroadOverCapReturnsCappedRowsWithMarker`,
+`TestRowsBoundedBroadAtCapIsUncappedWithoutMarker`,
+`TestRowsBoundedSelectiveIsSingleUncappedRead`,
+`TestCappedStatementsBoundEvaluationBeforeRecheck`, and the handler tests
+`TestInfraSearchBroadOverCapMarksTruncated`,
+`TestInfraSearchBroadAtCapIsUncapped`,
+`TestInfraSearchSelectiveHasNoCapEffect`.
+
+No-Regression Evidence (#7245): selective reads emit byte-identical
+statements and rows before and after (the selective and at-cap tests
+above), and the full `go/internal/query/...` suite is green. Corpus-scale
+before/after timing on the broad class stays with the owner lane and is
+NOT_CHECKED here.
 
 Observability Evidence (#7245): a broad page sets the
 `eshu.infra_search_broad_capped=true` span attribute on
