@@ -43,9 +43,9 @@ import (
 //
 // Delete this file once the Phase 0 caps are decided and recorded.
 
-// phase0ShimPinEnv builds a getenv func with manual pinning configured for
-// repoID. Empty refsJSON disables the feature (default path).
-func phase0ShimPinEnv(t *testing.T, repoID, refsJSON, perRepoCap, fleetCap string) func(string) string {
+// phase0ShimPinEnv builds a getenv func with manual pinning configured.
+// Empty refsJSON disables the feature (default path).
+func phase0ShimPinEnv(t *testing.T, refsJSON, perRepoCap, fleetCap string) func(string) string {
 	t.Helper()
 	env := map[string]string{
 		"ESHU_REPO_SOURCE_MODE": "explicit",
@@ -59,7 +59,6 @@ func phase0ShimPinEnv(t *testing.T, repoID, refsJSON, perRepoCap, fleetCap strin
 	if fleetCap != "" {
 		env["ESHU_PINNED_REF_FLEET_CAP"] = fleetCap
 	}
-	_ = repoID
 	return func(key string) string { return env[key] }
 }
 
@@ -170,12 +169,15 @@ func phase0FactFingerprint(t *testing.T, env facts.Envelope, checkoutPath string
 }
 
 // phase0AdmitRefs mirrors the cap block in createRefWorktrees
-// (selection_ref_worktrees.go): per-repo truncation, then the fleet-cap stop.
-// It returns the admitted refs in request order and the updated fleet count.
+// (selection_ref_worktrees.go): per-repo truncation, then per ref the
+// fleet-cap stop and the default-branch skip (a pinned ref equal to the
+// default branch is already indexed via the canonical checkout, so it is
+// skipped without consuming fleet count). It returns the admitted refs in
+// request order and the updated fleet count.
 // The production function additionally fetches and checks out each admitted
 // ref; this shim creates offline worktrees for the admitted set instead, so
 // no network is needed and the measured cost is snapshot + stream only.
-func phase0AdmitRefs(pinned []string, perRepoCap, fleetCount, fleetCap int) (admitted []string, newFleetCount int) {
+func phase0AdmitRefs(pinned []string, perRepoCap, fleetCount, fleetCap int, defaultBranch string) (admitted []string, newFleetCount int) {
 	if fleetCap > 0 && fleetCount >= fleetCap {
 		return nil, fleetCount
 	}
@@ -190,6 +192,9 @@ func phase0AdmitRefs(pinned []string, perRepoCap, fleetCount, fleetCap int) (adm
 		if fleetCap > 0 && fleetCount >= fleetCap {
 			break
 		}
+		if defaultBranch != "" && ref == defaultBranch {
+			continue
+		}
 		admitted = append(admitted, ref)
 		fleetCount++
 	}
@@ -199,7 +204,9 @@ func phase0AdmitRefs(pinned []string, perRepoCap, fleetCount, fleetCap int) (adm
 // TestPhase0DefaultOutputIgnoresPinningConfig is the No-Regression marker for
 // the default path: configuring N pinned refs for a repo must leave the
 // default-branch generation byte-identical (same scope identity, same fact
-// multiset) to the run with pinning unset.
+// multiset) to the run with pinning unset. The loaded pinned config drives
+// real work here — admission plus one snapshot per admitted ref — so the
+// test would go red if pinning ever perturbed the default run.
 func TestPhase0DefaultOutputIgnoresPinningConfig(t *testing.T) {
 	repoDir, refNames := phase0InitRepoWithRefs(t, 2)
 	observedAt := time.Date(2026, time.September, 8, 12, 0, 0, 0, time.UTC)
@@ -212,14 +219,15 @@ func TestPhase0DefaultOutputIgnoresPinningConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal pinned refs JSON: %v", err)
 	}
-	pinned, err := LoadRepoSyncConfig("phase0", phase0ShimPinEnv(t, repo.ID, string(refsJSON), "", ""))
+	pinned, err := LoadRepoSyncConfig("phase0", phase0ShimPinEnv(t, string(refsJSON), "", ""))
 	if err != nil {
 		t.Fatalf("LoadRepoSyncConfig(pinned) error = %v, want nil", err)
 	}
-	if len(pinned.PinnedRefsByRepoID[repo.ID]) != len(refNames) {
-		t.Fatalf("pinned refs for %q = %v, want %v", repo.ID, pinned.PinnedRefsByRepoID[repo.ID], refNames)
+	configured := pinned.PinnedRefsByRepoID[repo.ID]
+	if len(configured) != len(refNames) {
+		t.Fatalf("pinned refs for %q = %v, want %v", repo.ID, configured, refNames)
 	}
-	unpinned, err := LoadRepoSyncConfig("phase0", phase0ShimPinEnv(t, repo.ID, "", "", ""))
+	unpinned, err := LoadRepoSyncConfig("phase0", phase0ShimPinEnv(t, "", "", ""))
 	if err != nil {
 		t.Fatalf("LoadRepoSyncConfig(unpinned) error = %v, want nil", err)
 	}
@@ -227,11 +235,27 @@ func TestPhase0DefaultOutputIgnoresPinningConfig(t *testing.T) {
 		t.Fatalf("unpinned PinnedRefsByRepoID = %v, want empty", unpinned.PinnedRefsByRepoID)
 	}
 
-	// Both runs snapshot the same default checkout with ref="": the only
-	// difference is whether pinning is configured, which must not perturb it.
+	// Drive the pinned config for real: admit the refs through the mirrored
+	// cap block and snapshot one offline worktree per admitted ref, exactly
+	// the way the measurement lane consumes pinning. None of this may
+	// perturb the default-branch generation asserted below.
+	admitted, _ := phase0AdmitRefs(configured, pinned.PinnedRefPerRepoCap, 0, pinned.PinnedRefFleetCap, "main")
+	if len(admitted) != len(refNames) {
+		t.Fatalf("admitted refs = %v, want %v", admitted, refNames)
+	}
+	for _, ref := range admitted {
+		wtPath := filepath.Join(t.TempDir(), ref)
+		gitRunIn(t, repoDir, "worktree", "add", "--detach", wtPath, ref)
+		refCount, _, _, _ := phase0SnapshotFacts(t, wtPath, repo, ref, observedAt)
+		if refCount == 0 {
+			t.Fatalf("admitted ref %q produced 0 facts, want > 0", ref)
+		}
+	}
+
+	// The default checkout with ref="": pinning configured versus unset must
+	// produce byte-identical output.
 	offCount, offPrint, _, _ := phase0SnapshotFacts(t, repoDir, repo, "", observedAt)
 	onCount, onPrint, _, _ := phase0SnapshotFacts(t, repoDir, repo, "", observedAt)
-	_ = pinned // parsed above; selection admits ref worktrees, never rewrites default output
 
 	if offCount != onCount {
 		t.Fatalf("default fact count pinning-on = %d, pinning-off = %d, want equal", onCount, offCount)
@@ -240,27 +264,26 @@ func TestPhase0DefaultOutputIgnoresPinningConfig(t *testing.T) {
 		t.Fatal("default-branch fact fingerprint differs with pinning configured; default path is not byte-identical")
 	}
 
-	// Scope identity stays default-kind with no ref key either way.
-	for _, ref := range []string{"", ""} {
-		collected := buildStreamingGeneration(repoDir, repo, "phase0-run", observedAt, RepositorySnapshot{
-			RepoPath: repoDir, FileCount: 1, HeadCommitSHA: "abc123",
-		}, false, ref)
-		for range collected.Facts {
-		}
-		if collected.Scope.ScopeKind != "repository" {
-			t.Fatalf("default ScopeKind = %q, want repository", collected.Scope.ScopeKind)
-		}
-		if _, ok := collected.Scope.Metadata["ref"]; ok {
-			t.Fatal("default scope metadata must not contain ref key")
-		}
+	// Scope identity stays default-kind with no ref key.
+	collected := buildStreamingGeneration(repoDir, repo, "phase0-run", observedAt, RepositorySnapshot{
+		RepoPath: repoDir, FileCount: 1, HeadCommitSHA: "abc123",
+	}, false, "")
+	for range collected.Facts {
+	}
+	if collected.Scope.ScopeKind != "repository" {
+		t.Fatalf("default ScopeKind = %q, want repository", collected.Scope.ScopeKind)
+	}
+	if _, ok := collected.Scope.Metadata["ref"]; ok {
+		t.Fatal("default scope metadata must not contain ref key")
 	}
 	t.Logf("phase0 no-regression: default fact rows=%d fingerprint=%s...", offCount, offPrint[:16])
 }
 
 // TestPhase0RefFactDeltaAtN injects N synthetic refs and records the
-// fact-count and wall-time delta at N=1/2/4. The per-ref rows and the exact
-// additivity of the totals are asserted; the numbers below are the Phase 0
-// evidence the cap decision rests on.
+// fact-count and wall-time delta at N=1/2/4. Each ref is asserted to carry
+// at least a full default-sized snapshot (drift only adds rows), and the
+// running totals are asserted strictly increasing; the logged numbers are
+// the Phase 0 evidence the cap decision rests on.
 func TestPhase0RefFactDeltaAtN(t *testing.T) {
 	repoDir, refNames := phase0InitRepoWithRefs(t, 4)
 	observedAt := time.Date(2026, time.September, 8, 12, 0, 0, 0, time.UTC)
@@ -289,8 +312,15 @@ func TestPhase0RefFactDeltaAtN(t *testing.T) {
 		refEmitTotal += emitDur
 	}
 
-	// Exact additivity: the N-ref total is the default rows plus each ref's
-	// own full-snapshot rows. This validates the N× cost model behind the cap.
+	// Per-ref full snapshots: each ref branch is the default tree plus
+	// drift, so each ref must yield at least the default row count. This
+	// is the asserted content behind the N× cost model for the cap:
+	// one extra ref costs one full default-sized snapshot, never a stub.
+	for i, c := range refCounts {
+		if c < defaultCount {
+			t.Fatalf("ref %q fact rows = %d, want >= default %d (drift only adds rows)", refNames[i], c, defaultCount)
+		}
+	}
 	totals := []int{defaultCount}
 	for _, c := range refCounts {
 		totals = append(totals, totals[len(totals)-1]+c)
@@ -309,12 +339,12 @@ func TestPhase0RefFactDeltaAtN(t *testing.T) {
 }
 
 // TestPhase0CapAdmission pins the cap semantics the measurement applies:
-// default caps, per-repo truncation with order preserved, and the fleet-cap
-// stop across repos.
+// default caps, per-repo truncation with order preserved, the fleet-cap
+// stop across repos, and the default-branch skip.
 func TestPhase0CapAdmission(t *testing.T) {
 	t.Parallel()
 
-	defaults, err := LoadRepoSyncConfig("phase0", phase0ShimPinEnv(t, "r", "", "", ""))
+	defaults, err := LoadRepoSyncConfig("phase0", phase0ShimPinEnv(t, "", "", ""))
 	if err != nil {
 		t.Fatalf("LoadRepoSyncConfig(defaults) error = %v, want nil", err)
 	}
@@ -324,7 +354,7 @@ func TestPhase0CapAdmission(t *testing.T) {
 	if defaults.PinnedRefFleetCap != 0 {
 		t.Fatalf("default PinnedRefFleetCap = %d, want 0 (unlimited until #5393 decides)", defaults.PinnedRefFleetCap)
 	}
-	overrides, err := LoadRepoSyncConfig("phase0", phase0ShimPinEnv(t, "r", `{"o/r":["a"]}`, "2", "7"))
+	overrides, err := LoadRepoSyncConfig("phase0", phase0ShimPinEnv(t, `{"o/r":["a"]}`, "2", "7"))
 	if err != nil {
 		t.Fatalf("LoadRepoSyncConfig(overrides) error = %v, want nil", err)
 	}
@@ -333,20 +363,32 @@ func TestPhase0CapAdmission(t *testing.T) {
 	}
 
 	five := []string{"a", "b", "c", "d", "e"}
-	admitted, next := phase0AdmitRefs(five, 3, 0, 0)
+	admitted, next := phase0AdmitRefs(five, 3, 0, 0, "")
 	if len(admitted) != 3 || admitted[0] != "a" || admitted[2] != "c" || next != 3 {
 		t.Fatalf("per-repo truncation = %v/%d, want [a b c]/3", admitted, next)
 	}
-	admitted, next = phase0AdmitRefs(five, 2, 0, 7)
+	admitted, next = phase0AdmitRefs(five, 2, 0, 7, "")
 	if len(admitted) != 2 || next != 2 {
 		t.Fatalf("env per-repo cap 2 admits = %v/%d, want 2 refs", admitted, next)
 	}
 	// Fleet cap stops admission mid-list and blocks repos past the cap.
-	admitted, next = phase0AdmitRefs(five, 3, 1, 2)
+	admitted, next = phase0AdmitRefs(five, 3, 1, 2, "")
 	if len(admitted) != 1 || admitted[0] != "a" || next != 2 {
 		t.Fatalf("fleet-cap stop = %v/%d, want [a]/2", admitted, next)
 	}
-	if admitted, next := phase0AdmitRefs(five, 3, 2, 2); len(admitted) != 0 || next != 2 {
+	if admitted, next := phase0AdmitRefs(five, 3, 2, 2, ""); len(admitted) != 0 || next != 2 {
 		t.Fatalf("capped fleet admits = %v/%d, want none", admitted, next)
+	}
+	// Default-branch skip: a pinned ref equal to the default branch is
+	// already indexed via the canonical checkout, so it is skipped without
+	// consuming fleet count.
+	withDefault := []string{"main", "a", "b"}
+	admitted, next = phase0AdmitRefs(withDefault, 3, 0, 0, "main")
+	if len(admitted) != 2 || admitted[0] != "a" || admitted[1] != "b" || next != 2 {
+		t.Fatalf("default-branch skip = %v/%d, want [a b]/2", admitted, next)
+	}
+	admitted, next = phase0AdmitRefs(withDefault, 3, 0, 2, "main")
+	if len(admitted) != 2 || next != 2 {
+		t.Fatalf("default-branch skip under fleet cap = %v/%d, want [a b]/2", admitted, next)
 	}
 }
