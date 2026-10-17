@@ -4,7 +4,7 @@
 # capability surface-inventory drift) so they are caught at commit time instead
 # of on GitHub.
 #
-# Usage: scripts/dev/precommit-go.sh <fmt|lint|lint-all|fmt-all|filecap|filecap-all|dirgate|dirgate-all|gosec|gosec-all|govulncheck|nancy|surface|cache-paths> [files...]
+# Usage: scripts/dev/precommit-go.sh <fmt|lint|lint-all|fmt-all|filecap|filecap-all|dirgate|dirgate-all|gosec|gosec-all|gosec-changed|govulncheck|nancy|surface|cache-paths> [files...]
 #   lint-all / fmt-all run over the whole module (./...); the pre-pr gate
 #   (scripts/dev/pre-pr.sh) uses them to mirror CI before the first push.
 #
@@ -386,19 +386,14 @@ case "${cmd}" in
 		exit "$?"
 		;;
 	gosec)
-		collect_dirs "$@"
-		[[ ${#dirs[@]} -gt 0 ]] || exit 0
-		bin="$(ensure_gosec)"
-		pkgs=()
-		for d in "${dirs[@]}"; do pkgs+=("${d}/..."); done
-		out="${worktree_cache_dir}/gosec.sarif"
-		( cd "${go_dir}" && "${bin}" -severity=low -confidence=low -no-fail \
-			-fmt=sarif -out "${out}" "${pkgs[@]}" >/dev/null 2>&1 )
-		findings="$(jq '[.runs[].results[]] | length' "${out}" 2>/dev/null || echo 0)"
-		if [[ "${findings}" -ne 0 ]]; then
-			jq -r '.runs[].results[] | "  \(.ruleId) \(.locations[0].physicalLocation.artifactLocation.uri):\(.locations[0].physicalLocation.region.startLine)"' "${out}" >&2
-			die "gosec: ${findings} finding(s) — fix or annotate with a leading // #nosec <RULE> -- <reason>"
-		fi
+		# shellcheck source=../lib/precommit-go-gosec.sh
+		source "${script_root}/scripts/lib/precommit-go-gosec.sh"
+		gosec_arm_files "$@"
+		;;
+	gosec-changed)
+		# shellcheck source=../lib/precommit-go-gosec.sh
+		source "${script_root}/scripts/lib/precommit-go-gosec.sh"
+		gosec_arm_changed
 		;;
 	surface)
 		( cd "${go_dir}" && go run ./cmd/capability-inventory -mode verify >/dev/null ) \
@@ -495,19 +490,11 @@ case "${cmd}" in
 		exit "${status}"
 		;;
 	gosec-all)
-		# Whole-module gosec (./...), mirroring security-scan.yml's authoritative
-		# scan. Slower than the changed-file `gosec` subcommand (gosec is per-package
-		# SSA-heavy on Go 1.26); used by the ci-gates runner where no file list is
-		# passed. The local security lane in #4217 narrows this to changed packages.
-		bin="$(ensure_gosec)"
-		out="${worktree_cache_dir}/gosec-all.sarif"
-		( cd "${go_dir}" && "${bin}" -severity=low -confidence=low -no-fail \
-			-fmt=sarif -out "${out}" ./... >/dev/null 2>&1 )
-		findings="$(jq '[.runs[].results[]] | length' "${out}" 2>/dev/null || echo 0)"
-		if [[ "${findings}" -ne 0 ]]; then
-			jq -r '.runs[].results[] | "  \(.ruleId) \(.locations[0].physicalLocation.artifactLocation.uri):\(.locations[0].physicalLocation.region.startLine)"' "${out}" >&2
-			die "gosec: ${findings} finding(s) — fix or annotate with a leading // #nosec <RULE> -- <reason>"
-		fi
+		# Whole-module gosec (./...), the same scope as security-scan.yml's
+		# authoritative scan. Kept as a manual command; the registry row runs gosec-changed.
+		# shellcheck source=../lib/precommit-go-gosec.sh
+		source "${script_root}/scripts/lib/precommit-go-gosec.sh"
+		run_gosec gosec-all ./...
 		;;
 	govulncheck)
 		# Whole-module govulncheck against the Go vulnerability database,
@@ -530,6 +517,6 @@ case "${cmd}" in
 		bash "${repo_root}/scripts/dev/nancy-local.sh" "${go_dir}" "${worktree_cache_dir}" "${bin}"
 		;;
 	*)
-		die "unknown subcommand '${cmd}' (want fmt|lint|lint-all|fmt-all|filecap|filecap-all|dirgate|dirgate-all|gosec|gosec-all|govulncheck|nancy|surface|perf-evidence|telemetry|measurement-citations|cache-paths)"
+		die "unknown subcommand '${cmd}' (want fmt|lint|lint-all|fmt-all|filecap|filecap-all|dirgate|dirgate-all|gosec|gosec-all|gosec-changed|govulncheck|nancy|surface|perf-evidence|telemetry|measurement-citations|cache-paths)"
 		;;
 esac
