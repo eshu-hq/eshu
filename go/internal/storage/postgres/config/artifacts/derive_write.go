@@ -128,8 +128,8 @@ func (d *Deriver) write(ctx context.Context, req Request, v0 int64, rows []Row, 
 			_ = tx.Rollback()
 		}
 	}()
-	if _, err := tx.ExecContext(ctx, repoLockSQL, req.RepoID); err != nil {
-		return "", fmt.Errorf("lock config artifacts of %q: %w", req.RepoID, err)
+	if err := lockRepository(ctx, tx, req.RepoID); err != nil {
+		return "", err
 	}
 	if d.afterLock != nil {
 		d.afterLock(ctx)
@@ -196,8 +196,8 @@ func (d *Deriver) recordFailure(ctx context.Context, repoID, errorClass string) 
 			_ = tx.Rollback()
 		}
 	}()
-	if _, err = tx.ExecContext(ctx, repoLockSQL, repoID); err != nil {
-		return fmt.Errorf("lock config artifacts of %q: %w", repoID, err)
+	if err = lockRepository(ctx, tx, repoID); err != nil {
+		return err
 	}
 	if _, err = tx.ExecContext(ctx, recordFailureSQL, repoID, d.extractorVersion, errorClass); err != nil {
 		return fmt.Errorf("record config artifact failure of %q: %w", repoID, err)

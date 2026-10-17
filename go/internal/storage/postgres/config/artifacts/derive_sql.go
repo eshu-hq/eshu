@@ -11,20 +11,8 @@ package artifacts
 const contentVersionSQL = `
 SELECT coalesce((SELECT version FROM config_artifact_content_versions WHERE repo_id = $1), 0)`
 
-// repoLockSQL is the repository lock of step 3, the one definition of its key:
-// a transaction-scoped advisory lock on the 64-bit hash of
-// 'config_artifact_paths:' || repo_id, the shape of the infra inventory's
-// repoLockSQL. Every statement that writes a repository's config-artifact rows
-// or state row takes it first in its transaction, so the state read that
-// follows runs on a snapshot taken after the previous holder committed (Read
-// Committed). It is released at COMMIT or ROLLBACK.
-const repoLockSQL = `SELECT pg_advisory_xact_lock(hashtextextended('config_artifact_paths:' || $1, 0))`
-
-// repoLockKey is a stub of the lock key helper.
-func repoLockKey(repoID string) string { return repoID }
-
 // readStateSQL reads the part of the state row the write conditions compare.
-// It runs after repoLockSQL in the same transaction.
+// It runs after lockRepository in the same transaction.
 const readStateSQL = `
 SELECT content_version, extractor_version, row_count
 FROM config_artifact_repo_state

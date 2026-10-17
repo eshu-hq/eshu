@@ -107,12 +107,20 @@ func TestDeriveFailureRecordWaitsOnTheWriteLockLive(t *testing.T) {
 func TestDeriveFailureRecordRacingNewerWritesLive(t *testing.T) {
 	ctx, db := openDatabase(t)
 	rng := rand.New(rand.NewSource(8155))
-	succeeding := newLiveDeriver(t, db, testExtractorVersion)
+	// Odd rounds let the write usually win; even rounds hold the write back
+	// after its version read so the failure usually records first. Both
+	// orders must occur.
+	prompt := newLiveDeriver(t, db, testExtractorVersion)
+	delayed := newLiveDeriver(t, db, testExtractorVersion)
+	artifacts.SetDeriveHooks(delayed, artifacts.DeriveHooks{AfterVersionRead: func(context.Context) { time.Sleep(30 * time.Millisecond) }})
 	var last int64 = -1
 	failuresAfterSuccess := 0
 	for round := 1; round <= 30; round++ {
 		putFile(ctx, t, db, "repo-a", "docker-compose.yml", composeBody(round))
-		failing := failingDeriver(t, db, time.Duration(rng.Intn(20000))*time.Microsecond)
+		succeeding, failing := prompt, failingDeriver(t, db, time.Duration(rng.Intn(20000))*time.Microsecond)
+		if round%2 == 0 {
+			succeeding, failing = delayed, failingDeriver(t, db, time.Duration(rng.Intn(2000))*time.Microsecond)
+		}
 		var wg sync.WaitGroup
 		var ok, failed artifacts.Result
 		wg.Add(2)
@@ -136,4 +144,7 @@ func TestDeriveFailureRecordRacingNewerWritesLive(t *testing.T) {
 		}
 	}
 	t.Logf("30 rounds: the failure update landed after the write in %d, before it in %d", failuresAfterSuccess, 30-failuresAfterSuccess)
+	if failuresAfterSuccess < 5 || 30-failuresAfterSuccess < 5 {
+		t.Fatalf("orders: %d after, %d before; want at least 5 of each", failuresAfterSuccess, 30-failuresAfterSuccess)
+	}
 }
