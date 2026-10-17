@@ -263,7 +263,7 @@ func TestParseFluxHelmReleaseWhollyNamelessOmitsGenerateName(t *testing.T) {
 // of the two must be set), the parser still captures both sets of fields
 // verbatim. The exactly-one-of validation and honest non-link decision
 // belongs entirely to the edge resolver
-// (go/internal/storage/cypher/canonical_flux_helm_edges.go), never here.
+// (go/internal/storage/cypher/canonical/flux/helm.go), never here.
 func TestParseFluxHelmReleaseBothChartAndChartRefSetCapturesBoth(t *testing.T) {
 	t.Parallel()
 

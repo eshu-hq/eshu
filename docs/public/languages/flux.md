@@ -99,7 +99,7 @@ Not claimed today:
 - **The correlation edge resolves same-repo only.** `FluxKustomization
   -[:RECONCILES_FROM]-> FluxGitRepository`/`FluxOCIRepository`/`FluxBucket`
   (issue #5360 PR B) is resolved in Go at projection time
-  (`go/internal/storage/cypher/canonical_flux_edges.go`), never in the
+  (`go/internal/storage/cypher/canonical/flux/edges.go`), never in the
   parser: it applies Flux's own same-namespace default (an empty
   `sourceRef.namespace` falls back to the Kustomization's own namespace,
   recorded on the edge as `namespace_defaulted`), then four deterministic

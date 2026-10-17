@@ -60,8 +60,8 @@
   buckets are registered content entities (issue #5360 PR A, issue #5483 C1).
   The RECONCILES_FROM correlation edge from a FluxKustomization/FluxHelmRelease
   to its source CR lives in
-  go/internal/storage/cypher/canonical_flux_edges.go and
-  canonical_flux_helm_edges.go, not in this package -- never fold the
+  go/internal/storage/cypher/canonical/flux/edges.go and
+  canonical/flux/helm.go, not in this package -- never fold the
   exactly-one-of chart/chartRef validation or the chartRef-kind-HelmChart
   honest non-link into the parser; both belong to the edge resolver.
 - Extend CloudFormation per-entity position support (currently Parameters,

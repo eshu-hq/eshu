@@ -30,7 +30,7 @@ func isFluxHelmRelease(apiVersion string, kind string) bool {
 // such judgment: it captures whichever fields are present verbatim, including
 // both (an invalid CR) or neither. The exactly-one-of validation and the
 // resulting honest non-link decision belong entirely to the edge resolver
-// (go/internal/storage/cypher/canonical_flux_helm_edges.go), never here.
+// (go/internal/storage/cypher/canonical/flux/helm.go), never here.
 //
 // spec.chart.spec.sourceRef uses the SAME three row keys
 // (source_ref_kind/name/namespace) that parseFluxKustomization emits for its

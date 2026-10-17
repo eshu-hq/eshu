@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package flux
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
@@ -9,7 +9,7 @@ import (
 
 // fluxHelmSourceRefKindToLabel maps a Flux HelmRelease's
 // spec.chart.spec.sourceRef.kind to the typed graph label PR A/C1 registered
-// for it. Mirrors fluxSourceRefKindToLabel (canonical_flux_edges.go) but adds
+// for it. Mirrors fluxSourceRefKindToLabel (edges.go) but adds
 // HelmRepository, a source kind a Kustomization's sourceRef never names. A
 // kind absent from this map is an honest non-link: the HelmRelease is
 // excluded from resolution via this path entirely rather than guessed at.
@@ -34,7 +34,7 @@ var fluxHelmChartRefKindToLabel = map[string]string{
 // retractFluxHelmReconcilesFromEdgesCypher deletes stale RECONCILES_FROM
 // edges from this materialization's FluxHelmRelease source nodes, the
 // FluxHelmRelease-anchored sibling of retractFluxReconcilesFromEdgesCypher
-// (canonical_flux_edges.go). Emitted with Drain=true FROM THE FIRST COMMIT of
+// (edges.go). Emitted with Drain=true FROM THE FIRST COMMIT of
 // this edge (unlike the Kustomization-anchored retract, which started
 // Drain=false and was fixed later): the same NornicDB grouped-write DELETE
 // no-op (#4476) applies here, so there is no reason to repeat the bug before

@@ -6,8 +6,8 @@
 // sibling (issue #5483 C1).
 //
 // RECONCILES_FROM is Drain-marked from its first commit for BOTH anchor kinds
-// (canonical_flux_edges.go: retractFluxReconcilesFromEdgesCypher;
-// canonical_flux_helm_edges.go: retractFluxHelmReconcilesFromEdgesCypher),
+// (canonical/flux/edges.go: retractFluxReconcilesFromEdgesCypher;
+// canonical/flux/helm.go: retractFluxHelmReconcilesFromEdgesCypher),
 // mirroring the Atlantis governance retract fix (#4476) rather than repeating
 // the bug -- each UNWIND relationship DELETE runs as a standalone autocommit
 // statement before the grouped structural_edges MERGE upserts, so this is a
