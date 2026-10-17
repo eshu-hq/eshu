@@ -50,6 +50,12 @@
 // feed BatchRowLimit, so a batch's ledger deletes are bounded with its other
 // deletes.
 //
+// The PR-3c read (read.go, read_sql.go) answers a changed-since window from
+// one link or a chain of links under a stored-delta-row budget, falling back
+// to the legacy two-generation diff on any miss. It is dark behind
+// ESHU_CHANGED_SINCE_LEDGER_READ_ENABLED and takes no locks. The attempt
+// itself lives in the parent postgres package, which owns the read contract.
+//
 // Every digest is computed in SQL from PayloadDigestInput; Go never hashes a
 // payload. The parent postgres package aliases PayloadDigestInput and
 // ExcludeReducerDerivedKinds for the changed-since read statement. This

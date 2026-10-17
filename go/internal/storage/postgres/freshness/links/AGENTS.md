@@ -86,6 +86,12 @@
   `README.md` for the reason.
 - The overlay link is not shipped. A delta activation is a break until the
   delta-kind ownership proof (G2) passes in its own PR.
+- The PR-3c read (`read.go`, `read_sql.go`) takes no locks: plain SELECTs
+  only. Every link predicate names the full three-column key (scope_id,
+  generation_id, prior_generation_id); never aggregate or join by
+  generation_id alone, or an orphan row naming another prior leaks into a
+  window. The composer lives in the parent package; this package must not
+  import it.
 - The ledger delete of retention is one statement (`retentionPruneQuery`):
   links, deltas, bucket counts and activations in one `WITH`, one snapshot.
   Never split it; split deletes leak headless deltas

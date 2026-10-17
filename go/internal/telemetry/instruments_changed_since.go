@@ -116,6 +116,12 @@ func registerChangedSinceLinkInstruments(meter metric.Meter, inst *Instruments) 
 	); err != nil {
 		return fmt.Errorf("register ChangedSinceLedgerOrphans gauge: %w", err)
 	}
+	if inst.ChangedSinceLedgerReads, err = meter.Int64Counter(
+		"eshu_dp_changed_since_ledger_reads_total",
+		metric.WithDescription("Changed-since read attempts with the ledger-read switch on, by outcome (ledger_single, ledger_chain, fallback_<reason>)"),
+	); err != nil {
+		return fmt.Errorf("register ChangedSinceLedgerReads counter: %w", err)
+	}
 	if inst.ChangedSinceLinkDuration, err = meter.Float64Histogram(
 		"eshu_dp_changed_since_link_duration_seconds",
 		metric.WithDescription("Committed changed-since link transaction duration by link_kind"),

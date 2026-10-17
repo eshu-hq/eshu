@@ -6,8 +6,10 @@ package main
 import (
 	"database/sql"
 	"log/slog"
+	"os"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	linksfreshnessstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/query/cicd"
@@ -187,6 +189,15 @@ func newWorkItemHandler(reader db.ReadStore, profile query.QueryProfile) *query.
 	}
 }
 
+// newLedgerReadStatusStore builds the changed-since reader with the PR-3c
+// ledger-read switch resolved once per process (#7127). The flag defaults
+// off: the read path then issues no ledger SQL.
+func newLedgerReadStatusStore(reader db.ReadStore) pgstatus.StatusStore {
+	store := pgstatus.NewStatusStore(reader)
+	store.LedgerReadEnabled = linksfreshnessstore.ReadEnabled(os.Getenv)
+	return store
+}
+
 // newFreshnessHandler builds the freshness read handler. The generation,
 // changed-since, and service-changed-since readers are all backed by the
 // Postgres status store, and the service-ownership resolver by the
@@ -200,7 +211,7 @@ func newFreshnessHandler(reader db.ReadStore, profile query.QueryProfile) *query
 	)
 	if reader != nil {
 		generationLifecycle = pgstatus.NewStatusStore(reader)
-		changedSince = pgstatus.NewStatusStore(reader)
+		changedSince = newLedgerReadStatusStore(reader)
 		serviceChangedSince = pgstatus.NewStatusStore(reader)
 	}
 	return &query.FreshnessHandler{

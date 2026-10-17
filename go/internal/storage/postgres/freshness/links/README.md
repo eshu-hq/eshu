@@ -9,11 +9,12 @@ the scope's previous linked generation and the activating one. A later read
 path (PR-3c) answers `get_changed_since` from those links in O(changes)
 instead of diffing two whole generations.
 
-The store is dark. Nothing reads the ledger yet, and the runner is off unless
-`ESHU_CHANGED_SINCE_LINK_ENABLED=true`. The same switch makes the projector
-Ack in the ingester and bootstrap-index journal each activation it commits
-(PR-3b, "Ack writer" below); off, the Ack issues no ledger SQL. `Enabled`
-parses the switch for all three binaries, so they cannot disagree on a value.
+The writer is dark unless `ESHU_CHANGED_SINCE_LINK_ENABLED=true`. The same
+switch makes the projector Ack in the ingester and bootstrap-index journal
+each activation it commits (PR-3b, "Ack writer" below); off, the Ack issues
+no ledger SQL. `Enabled` parses the switch for all three binaries, so they
+cannot disagree on a value. The read path below is dark behind its own
+switch, `ESHU_CHANGED_SINCE_LEDGER_READ_ENABLED` (PR-3c, `ReadEnabled`).
 
 ## Tables (migration 136)
 
@@ -94,6 +95,35 @@ Outcomes (#7127 ruling 8.10):
 - The whole transaction has a context deadline of the statement timeout plus
   30 s (`LinkWriter.TransactionDeadline` overrides it; the stall test uses 2 s). The candidate list is a hint; the head is re-read under the lock, and a
   head still backing off returns `Idle` with `Deferred`.
+
+## Read path (PR-3c)
+
+With `ESHU_CHANGED_SINCE_LEDGER_READ_ENABLED=true` (default off), the
+changed-since read answers from the ledger instead of diffing two whole
+generations. Off, it issues no ledger SQL. The statements live in
+`read_sql.go`; the attempt in the parent package tries one link, then a
+chain of links under a 200k stored-delta-row budget (`ChainDeltaRowBudget`),
+then the legacy statement, with the wire contract unchanged.
+
+- Every statement is a plain SELECT by the full three-column key
+  (`scope_id`, `generation_id`, `prior_generation_id`): no row lock, no
+  advisory lock, no aggregation by generation alone, so an orphan row naming
+  another prior can never leak into a window.
+- The chain walk follows `prior_generation_id` pointers from the requested
+  prior to the current generation. A gap, a branch, a break, or a rebase
+  root on the way is `prior_off_chain`, never composed.
+- Counts are exact: composed added/updated/retired/superseded come from the
+  link deltas, and unchanged is the final link's live key total minus
+  composed added and updated (the G1 oracle shape). Unchanged samples come
+  from the key-state rows outside the composed changed set; removed keys go
+  through a final-generation tombstone probe, mirroring the legacy tombstone
+  join, so retired and superseded match exactly.
+- A cursor re-read after the fetch turns a mid-read writer or retention
+  commit into `cursor_moved`; a delta-row count that no longer matches the
+  links' recorded counts turns it into `ledger_error`. Both fall back to the
+  legacy statement with exact rows.
+- Every attempt counts `eshu_dp_changed_since_ledger_reads_total` by
+  outcome (`ledger_single`, `ledger_chain`, `fallback_<reason>`).
 
 ## Journal
 

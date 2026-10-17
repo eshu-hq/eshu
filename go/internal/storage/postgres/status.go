@@ -48,6 +48,13 @@ func (q SQLQueryer) QueryContext(ctx context.Context, query string, args ...any)
 type StatusStore struct {
 	queryer     db.Queryer
 	Instruments *telemetry.Instruments
+	// LedgerReadEnabled answers get_changed_since from the changed-since
+	// link ledger when a link chain covers the requested window (#7127
+	// PR-3c, ESHU_CHANGED_SINCE_LEDGER_READ_ENABLED). It defaults off: the
+	// read path then issues no ledger SQL and serves the legacy
+	// two-generation diff exactly as before. Every ledger miss falls back
+	// to the legacy diff, so the wire contract never changes.
+	LedgerReadEnabled bool
 	// summaryReader is the process-wide stored-summary reader (#7009); nil
 	// means the reader is off. startupErr is an invalid reader configuration.
 	summaryReader *StatusSummaryReader

@@ -409,7 +409,13 @@ type Instruments struct {
 	// generation or prior), activation (an activation of a pruned
 	// generation) and bucket_group (bucket counts with no link). Sampled at
 	// most once a minute; zero except briefly for a deleted scope.
-	ChangedSinceLedgerOrphans    metric.Int64Gauge
+	ChangedSinceLedgerOrphans metric.Int64Gauge
+	// ChangedSinceLedgerReads counts changed-since read attempts with the
+	// ledger-read switch on (#7127 PR-3c), by outcome: ledger_single (one
+	// composed link served the window), ledger_chain (several composed
+	// links served it), or fallback_<reason> (the legacy two-generation
+	// diff answered; the wire contract is unchanged either way).
+	ChangedSinceLedgerReads      metric.Int64Counter
 	GenerationLivenessRecovered  metric.Int64Counter
 	GenerationLivenessSuperseded metric.Int64Counter
 	GenerationLivenessFailures   metric.Int64Counter

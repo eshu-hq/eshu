@@ -239,6 +239,10 @@ tests:
     tag: ~
     class: scheduled
     reason: changed-since link ledger proof (#7127 PR-3a), untagged and gated by env Skip; clones a bootstrapped template database per test; unmeasured in the CI lane -- promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/changed_since_ledger_read_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since ledger-read proof (#7127 PR-3c), untagged and gated by env Skip; creates a bootstrapped database per test; unmeasured in the CI lane -- promote to blocking with timing evidence
   - file: go/internal/storage/postgres/changed_since_multiset_live_test.go
     tag: ~
     class: scheduled
