@@ -42,7 +42,7 @@ func TestPendingReachabilityLoaderLimitStaysParameterized(t *testing.T) {
 	if regexp.MustCompile(`(?i)\bLIMIT\s+[0-9]`).MatchString(uncommented) {
 		t.Fatalf("pending reachability query interpolates a literal LIMIT (plan varies per limit):\n%s", query)
 	}
-	if strings.Contains(query, "$3") {
+	if strings.Contains(uncommented, "$3") {
 		t.Fatalf("pending reachability query gained a third bind parameter (generic-plan scope changed):\n%s", query)
 	}
 }
