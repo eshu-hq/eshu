@@ -83,7 +83,7 @@ func Parse(
 	commonJSModuleAliases := rootIndexes.commonJSModuleAliases
 	tsConfigImports := project.NewTSConfigImportResolver(repoRoot, path)
 	newExpressionTypes := rootIndexes.newExpressionTypes
-	packageExports := newPackageExportStamper(repoRoot, path, deadCodeRoots.FileRootKinds, parents)
+	packageExports := newPackageExportStamper(repoRoot, path, deadCodeRoots.FileRootKinds, parents, source)
 	fastifyBases := rootIndexes.fastifyBases
 
 	// Gate the gather on framework presence. Non-framework files (the
@@ -115,7 +115,7 @@ func Parse(
 			maybeAppendJavaScriptComponent(payload, node, nameNode, source, outputLanguage, reactAliases)
 		case "method_definition":
 			nameNode := node.ChildByFieldName("name")
-			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots, fpHasError, fpStats)
+			packageExports.stampMethod(appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots, fpHasError, fpStats), node)
 			if wantFrameworkGather {
 				gatheredMethodDefinitions = append(gatheredMethodDefinitions, cloneNode(node))
 			}
