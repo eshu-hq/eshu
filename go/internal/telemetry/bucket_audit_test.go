@@ -87,6 +87,7 @@ func bucketAuditTable() []bucketAuditEntry {
 		{MetricName: "eshu_dp_gcp_materialization_duration_seconds", Buckets: reducerWaitBuckets},
 		{MetricName: "eshu_dp_projector_run_duration_seconds", Buckets: []float64{0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120}},
 		{MetricName: "eshu_dp_projector_stage_duration_seconds", Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120}},
+		{MetricName: "eshu_dp_config_artifact_derive_duration_seconds", Buckets: ConfigArtifactDeriveDurationBuckets(), Note: "1 ms floor; 2 s S1 cap; 10 s deadline; 15 s deadline plus failure record (#8155)"},
 
 		// ---- scope / fact / queue ----
 		{MetricName: "eshu_dp_scope_assign_duration_seconds", Buckets: []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}},
