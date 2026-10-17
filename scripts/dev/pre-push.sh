@@ -35,7 +35,11 @@
 #       (fast gates chosen from 67 local pre-pr timing reports: lint, file
 #       and directory caps, package docs, perf-evidence, telemetry coverage,
 #       the contract registries, plus the repo-wide sweep tests #7111 F5
-#       added). Every other triggered gate prints
+#       added; and, since #8326, changed-package gosec, measurement
+#       citations and the docs build, which only the git pre-push hook ran
+#       before). The category list includes `security` and `frontend` so
+#       blocking rows there print DEFER-CI instead of silently never running.
+#       Every other triggered gate prints
 #       `DEFER-CI <gate>: <reason>` and still runs in `make pre-pr` and CI.
 #       A denylist of the slowest gates was tried first and still took more
 #       than 15 minutes on a one-line Go change; the allowlist took 400s

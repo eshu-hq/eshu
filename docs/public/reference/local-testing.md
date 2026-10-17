@@ -32,7 +32,7 @@ registry-selected blocking exactness/telemetry/hygiene/docs gates, and the
 advisory docs-contradiction gate. No live lane, no push stamp (removed —
 see [agent-git-hygiene.md](https://github.com/eshu-hq/eshu/blob/main/docs/internal/agent-git-hygiene.md)). Push-hook bounds and bypass policy: [push stalls and bounds](local-testing/pre-commit-hooks.md#push-stalls-and-bounds).
 The gate step is an allowlist: only gates registered `local.pre_push: floor`
-in `specs/ci-gates.v1.yaml` run (lint, caps, package-docs, perf-evidence, telemetry, contract-registry, and repo-wide sweep gates).
+in `specs/ci-gates.v1.yaml` run (lint, caps, package-docs, perf-evidence, telemetry, changed-package gosec, measurement citations, docs build, contract-registry, and repo-wide sweep gates).
 Every other triggered gate prints `DEFER-CI <gate>: <reason>`, never silently, and still runs in `make pre-pr` and blocks merge in CI through `required-gates-complete`.
 Measured on a one-line `go/internal/query` change on a shared host: about 370s before the merge-vet and race steps, 416s with them at matched load (+45s, see [pre-push merge](local-testing/pre-push-merge.md)). `make pre-pr`/`pre-pr-full` remain RECOMMENDED (optional) deeper
 preflights for queue/lease/claim, schema DDL, hot-Cypher/graph-write, or
@@ -177,7 +177,7 @@ These gates need Node and installed dependencies; if `node_modules` is missing
 the npm commands fail loudly (run `npm ci` first) rather than skipping silently.
 
 For dependency or deploy changes, a security preflight mirrors the
-credential-free `security-scan.yml` jobs (#4217) — whole-module gosec,
+credential-free `security-scan.yml` jobs (#4217) — changed-package gosec,
 govulncheck, nancy, and an optional Trivy filesystem scan — selected by changed
 path:
 
