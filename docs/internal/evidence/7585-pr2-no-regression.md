@@ -2,7 +2,7 @@
 
 Status: **no-regression by construction; no live measurement claimed.**
 
-## No-Regression Evidence
+## No-Regression Evidence:
 
 - Baseline: PR1 state (report vocabulary in
   `generation_retention_expired_blocked.go`, no store reader). After: PR2
@@ -26,7 +26,7 @@ Status: **no-regression by construction; no live measurement claimed.**
   plan and row/WAL cost at production shape are NOT_RUN (no local
   Postgres on this host); the CI live lanes own that proof before merge.
 
-## No-Observability-Change
+## No-Observability-Change:
 
 PR2 adds no metric, span, log line, or status field. Ceiling telemetry
 arrives in PR3.
