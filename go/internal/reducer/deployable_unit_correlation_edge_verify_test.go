@@ -4,9 +4,12 @@
 package reducer
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -166,5 +169,33 @@ func TestDeployableUnitCorrelationVerificationUnavailableRecordsNoFingerprint(t 
 	}
 	if len(decisions.calls) != 1 {
 		t.Fatalf("admission decision writes = %d, want 1 (the write itself is unchanged)", len(decisions.calls))
+	}
+}
+
+// An unverified fail-open run must say so on the log: without a debug
+// record, a fleet whose executor never verifies keeps its unconditional
+// reopen with no attributable signal (#8283 P2).
+func TestDeployableUnitCorrelationLogsUnverifiedFailOpenRun(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		verifier DeployableUnitEdgeVerifier
+	}{
+		{"no_verifier_wired", nil},
+		{"verification_unavailable", &stubDeployableUnitEdgeVerifier{err: fmt.Errorf("wrapped: %w", ErrDeployableUnitEdgeVerificationUnavailable)}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var logs bytes.Buffer
+			handler, _, _, _ := verifyingDeployableUnitHandler(tc.verifier)
+			handler.Logger = slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+			if _, err := handler.Handle(context.Background(), claimedDeployableUnitIntent(time.Now().UTC())); err != nil {
+				t.Fatalf("Handle() error = %v, want succeeded fail-open", err)
+			}
+			if !strings.Contains(logs.String(), "unverified") {
+				t.Fatalf("logs = %q, want an unverified-run debug record", logs.String())
+			}
+		})
 	}
 }

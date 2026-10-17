@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -62,15 +63,28 @@ func (h DeployableUnitCorrelationHandler) verifyDeployableUnitEdges(
 		return true, nil
 	}
 	if h.EdgeWriter == nil || h.EdgeVerifier == nil {
+		logDeployableUnitUnverifiedRun(h.Logger, "no edge verifier wired")
 		return false, nil
 	}
 	if err := h.EdgeVerifier.VerifyDeployableUnitEdges(ctx, admitted, deployableUnitCorrelationEvidenceSource); err != nil {
 		if errors.Is(err, ErrDeployableUnitEdgeVerificationUnavailable) {
+			logDeployableUnitUnverifiedRun(h.Logger, "edge verification unavailable")
 			return false, nil
 		}
 		return false, fmt.Errorf("verify deployable unit correlation edges: %w", err)
 	}
 	return true, nil
+}
+
+// logDeployableUnitUnverifiedRun records the fail-open unverified path at
+// debug level so a fleet whose executor never verifies stays attributable
+// (#8283): the run succeeds and records no reopen fingerprint, keeping the
+// unconditional reopen. A nil logger keeps the pre-existing silent behavior.
+func logDeployableUnitUnverifiedRun(logger *slog.Logger, reason string) {
+	if logger == nil {
+		return
+	}
+	logger.Debug("deployable unit correlation run unverified: recording no reopen fingerprint", "reason", reason)
 }
 
 func (h DeployableUnitCorrelationHandler) writeDeployableUnitAdmissionDecisions(
