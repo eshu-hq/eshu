@@ -44,21 +44,56 @@ func TestRefDeltaGuardCatchesPlantedCanonicalWrite(t *testing.T) {
 	}
 }
 
-// TestRefDeltaGuardCatchesPlantedCanonicalUpsert plants the other write
-// shapes (INSERT, UPDATE) so the guard cannot pass on verb coverage it does
-// not have.
+// TestRefDeltaGuardCatchesPlantedCanonicalUpsert plants every canonical
+// write shape the guard claims (plain, schema-qualified, and ONLY forms) so
+// the guard cannot pass on verb coverage it does not have. Each shape gets
+// its own guard call: the guard reports only the first match in a slice, so
+// sharing one slice would leave every shape after the first unproven.
 func TestRefDeltaGuardCatchesPlantedCanonicalUpsert(t *testing.T) {
 	t.Parallel()
 
-	planted := []string{
-		"INSERT INTO content_files (repo_id) VALUES ('repo-1') ON CONFLICT DO NOTHING",
-		"UPDATE content_files SET content = 'x' WHERE repo_id = 'repo-1'",
+	planted := map[string]string{
+		"plain INSERT":            "INSERT INTO content_files (repo_id) VALUES ('repo-1') ON CONFLICT DO NOTHING",
+		"plain UPDATE":            "UPDATE content_files SET content = 'x' WHERE repo_id = 'repo-1'",
+		"schema-qualified INSERT": "INSERT INTO public.content_files (repo_id) VALUES ('repo-1')",
+		"quoted schema INSERT":    `INSERT INTO "public"."content_files" (repo_id) VALUES ('repo-1')`,
+		"UPDATE ONLY":             "UPDATE ONLY content_files SET content = 'x' WHERE repo_id = 'repo-1'",
+		"DELETE FROM ONLY":        "DELETE FROM ONLY content_files WHERE repo_id = 'repo-1'",
+		"TRUNCATE":                "TRUNCATE content_files",
 	}
-	err := assertRefDeltaStatementsNeverWriteCanonical(planted)
-	if err == nil {
-		t.Fatal("guard = nil, want an error for planted canonical writes")
+	for name, shape := range planted {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			err := assertRefDeltaStatementsNeverWriteCanonical([]string{shape})
+			if err == nil {
+				t.Fatalf("guard = nil, want an error for planted canonical write %q", shape)
+			}
+			if !strings.Contains(err.Error(), "content_files") {
+				t.Fatalf("error %v does not name the canonical table", err)
+			}
+		})
 	}
-	if !strings.Contains(err.Error(), "content_files") {
-		t.Fatalf("error %v does not name the canonical table", err)
+}
+
+// TestRefDeltaGuardIgnoresOverlayWrites pins the guard's false-positive
+// boundary: overlay-table writes in the same shapes the canonical plants
+// use (plain, schema-qualified, ONLY) must pass the guard.
+func TestRefDeltaGuardIgnoresOverlayWrites(t *testing.T) {
+	t.Parallel()
+
+	overlay := map[string]string{
+		"plain INSERT":            "INSERT INTO content_file_ref_deltas (repo_id) VALUES ('repo-1')",
+		"schema-qualified INSERT": "INSERT INTO public.content_file_ref_deltas (repo_id) VALUES ('repo-1')",
+		"UPDATE ONLY":             "UPDATE ONLY content_file_ref_deltas SET content = 'x'",
+	}
+	for name, shape := range overlay {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			if err := assertRefDeltaStatementsNeverWriteCanonical([]string{shape}); err != nil {
+				t.Fatalf("guard = %v, want nil for overlay-table write %q", err, shape)
+			}
+		})
 	}
 }

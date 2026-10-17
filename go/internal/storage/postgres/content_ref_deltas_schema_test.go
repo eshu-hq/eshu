@@ -26,6 +26,7 @@ func TestRefDeltaMigrationCreatesOverlayTables(t *testing.T) {
 		"PRIMARY KEY (repo_id, ref)",
 		"base_default_sha TEXT NOT NULL",
 		"is_deleted BOOLEAN NOT NULL DEFAULT FALSE",
+		"(is_deleted AND content IS NULL) OR (NOT is_deleted AND content IS NOT NULL)",
 	} {
 		if !strings.Contains(migration, want) {
 			t.Fatalf("ref-deltas migration missing %q:\n%s", want, migration)
@@ -79,6 +80,7 @@ func TestRefDeltaSchemaSQLDeclaresOverlayTables(t *testing.T) {
 		"PRIMARY KEY (repo_id, ref)",
 		"content_file_ref_deltas_content_trgm_idx",
 		"ON content_file_ref_deltas USING gin (content gin_trgm_ops)",
+		"(is_deleted AND content IS NULL) OR (NOT is_deleted AND content IS NOT NULL)",
 	} {
 		if !strings.Contains(schema, want) {
 			t.Fatalf("RefDeltaSchemaSQL() missing %q:\n%s", want, schema)
