@@ -27,19 +27,30 @@ import (
 // be skipped on a stale result.
 //
 // The sources are enumerated from the module, so a later writer is held to the
-// rule without anyone editing this test. A deliberate change of that rule must
+// rule without anyone editing this test.
+//
+// Limit: this is a text scan of SQL literals. A table name assembled at runtime
+// (fmt.Sprintf, string concatenation) or a statement built from fragments that
+// never spell "resolved_relationships" next to the verb passes it. The write
+// path has one SQL constant (insertResolvedSQL), so review any new code that
+// builds SQL for this table dynamically. A deliberate change of that rule must
 // change the fingerprint contract first and then this guard.
 
 var (
+	// Every pattern is bounded by [^;`] so a match stops at the end of its own
+	// statement (";") or its own Go raw-string literal (a backtick) and cannot
+	// run into a neighboring literal that happens to mention the table.
 	resolvedRowMutationPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?is)\bUPDATE\s+(?:ONLY\s+)?(?:\w+\.)?resolved_relationships\b`),
 		regexp.MustCompile(`(?is)\bDELETE\s+FROM\s+(?:ONLY\s+)?(?:\w+\.)?resolved_relationships\b`),
-		regexp.MustCompile(`(?is)\bTRUNCATE\b[^;]*?\bresolved_relationships\b`),
-		regexp.MustCompile(`(?is)\bDROP\s+TABLE\b[^;]*?\bresolved_relationships\b`),
-		regexp.MustCompile(`(?is)\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:CONSTRAINT\s+)?TRIGGER\b[^;]*?\bON\s+(?:\w+\.)?resolved_relationships\b`),
-		regexp.MustCompile(`(?is)\bALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?(?:\w+\.)?resolved_relationships\b[^;]*?\b(?:REFERENCES|FOREIGN\s+KEY)\b`),
-		regexp.MustCompile(`(?is)\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:\w+\.)?resolved_relationships\b[^;]*?\bREFERENCES\b`),
-		regexp.MustCompile(`(?is)\bCREATE\s+RULE\b[^;]*?\bON\s+(?:\w+\.)?resolved_relationships\b`),
+		regexp.MustCompile("(?is)\\bINSERT\\s+INTO\\s+(?:\\w+\\.)?resolved_relationships\\b[^;`]*?\\bDO\\s+UPDATE\\b"),
+		regexp.MustCompile(`(?is)\bMERGE\s+INTO\s+(?:ONLY\s+)?(?:\w+\.)?resolved_relationships\b`),
+		regexp.MustCompile("(?is)\\bTRUNCATE\\b[^;`]*?\\bresolved_relationships\\b"),
+		regexp.MustCompile("(?is)\\bDROP\\s+TABLE\\b[^;`]*?\\bresolved_relationships\\b"),
+		regexp.MustCompile("(?is)\\bCREATE\\s+(?:OR\\s+REPLACE\\s+)?(?:CONSTRAINT\\s+)?TRIGGER\\b[^;`]*?\\bON\\s+(?:\\w+\\.)?resolved_relationships\\b"),
+		regexp.MustCompile("(?is)\\bALTER\\s+TABLE\\s+(?:IF\\s+EXISTS\\s+)?(?:ONLY\\s+)?(?:\\w+\\.)?resolved_relationships\\b[^;`]*?\\b(?:REFERENCES|FOREIGN\\s+KEY)\\b"),
+		regexp.MustCompile("(?is)\\bCREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?(?:\\w+\\.)?resolved_relationships\\b[^;`]*?\\bREFERENCES\\b"),
+		regexp.MustCompile("(?is)\\bCREATE\\s+RULE\\b[^;`]*?\\bON\\s+(?:\\w+\\.)?resolved_relationships\\b"),
 	}
 	goLineComment  = regexp.MustCompile(`(?m)//[^\n]*`)
 	sqlLineComment = regexp.MustCompile(`(?m)--[^\n]*`)
@@ -159,13 +170,16 @@ func TestResolvedRelationshipsAppendOnlyGuardBitesOnPlantedWriters(t *testing.T)
 		t.Fatalf("clean sources flagged: %v", got)
 	}
 	for name, planted := range map[string]string{
-		"update.go":     "package x\nconst q = `UPDATE resolved_relationships SET confidence = 1 WHERE generation_id = $1`\n",
-		"delete.go":     "package x\nconst q = `DELETE FROM resolved_relationships WHERE generation_id = $1`\n",
-		"truncate.sql":  "TRUNCATE TABLE resolved_relationships;\n",
-		"drop.sql":      "DROP TABLE IF EXISTS resolved_relationships;\n",
-		"trigger.sql":   "CREATE TRIGGER t AFTER INSERT ON resolved_relationships FOR EACH ROW EXECUTE FUNCTION f();\n",
-		"fk_alter.sql":  "ALTER TABLE resolved_relationships ADD CONSTRAINT fk FOREIGN KEY (generation_id) REFERENCES relationship_generations(generation_id) ON DELETE CASCADE;\n",
-		"fk_create.sql": "CREATE TABLE resolved_relationships (resolved_id TEXT PRIMARY KEY, generation_id TEXT REFERENCES relationship_generations(generation_id) ON DELETE CASCADE);\n",
+		"update.go":         "package x\nconst q = `UPDATE resolved_relationships SET confidence = 1 WHERE generation_id = $1`\n",
+		"delete.go":         "package x\nconst q = `DELETE FROM resolved_relationships WHERE generation_id = $1`\n",
+		"truncate.sql":      "TRUNCATE TABLE resolved_relationships;\n",
+		"drop.sql":          "DROP TABLE IF EXISTS resolved_relationships;\n",
+		"trigger.sql":       "CREATE TRIGGER t AFTER INSERT ON resolved_relationships FOR EACH ROW EXECUTE FUNCTION f();\n",
+		"fk_alter.sql":      "ALTER TABLE resolved_relationships ADD CONSTRAINT fk FOREIGN KEY (generation_id) REFERENCES relationship_generations(generation_id) ON DELETE CASCADE;\n",
+		"upsert_update.go":  "package x\nconst q = `INSERT INTO resolved_relationships (resolved_id, confidence) VALUES ($1, $2) ON CONFLICT (resolved_id) DO UPDATE SET confidence = EXCLUDED.confidence`\n",
+		"upsert_update.sql": "INSERT INTO public.resolved_relationships (resolved_id) SELECT 1 ON CONFLICT (resolved_id) DO UPDATE SET confidence = 1;\n",
+		"merge.go":          "package x\nconst q = `MERGE INTO resolved_relationships AS t USING src ON t.resolved_id = src.id WHEN MATCHED THEN UPDATE SET confidence = src.c`\n",
+		"fk_create.sql":     "CREATE TABLE resolved_relationships (resolved_id TEXT PRIMARY KEY, generation_id TEXT REFERENCES relationship_generations(generation_id) ON DELETE CASCADE);\n",
 	} {
 		got := scanResolvedRowMutations(map[string]string{name: planted})
 		if len(got) == 0 {

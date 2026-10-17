@@ -125,8 +125,16 @@ func (f *fingerprintFixture) succeedItem(t *testing.T) {
 // fused fenced read, then stores it through the production recorder.
 func (f *fingerprintFixture) recordFingerprint(t *testing.T) string {
 	t.Helper()
+	return f.recordFingerprintFor(t, fingerprintCandidateRepoIDs)
+}
+
+// recordFingerprintFor is recordFingerprint over an explicit candidate set. A
+// set that no resolved row touches isolates the own-generation half of the
+// fingerprint: nothing in the touching half can move.
+func (f *fingerprintFixture) recordFingerprintFor(t *testing.T, repoIDs []string) string {
+	t.Helper()
 	_, complete, fingerprint, err := f.relations.GetResolvedRelationshipsForReposWithCorpusFenceAndInputFingerprint(
-		f.ctx, fingerprintOwnGen, fingerprintCandidateRepoIDs,
+		f.ctx, fingerprintOwnGen, repoIDs,
 	)
 	if err != nil {
 		t.Fatalf("fused fenced read: %v", err)
@@ -135,7 +143,7 @@ func (f *fingerprintFixture) recordFingerprint(t *testing.T) string {
 		t.Fatalf("fused read complete=%v fingerprint=%q, want complete with a fingerprint", complete, fingerprint)
 	}
 	if err := f.recorder.RecordDeployableUnitInputFingerprint(
-		f.ctx, fingerprintItemID, fingerprintCandidateRepoIDs, fingerprint,
+		f.ctx, fingerprintItemID, repoIDs, fingerprint,
 	); err != nil {
 		t.Fatalf("record fingerprint: %v", err)
 	}

@@ -106,6 +106,20 @@ original is empty):
   repo ids with activated_at > work.updated_at)`: seven of the cases above fail;
 - the fingerprint without row counts: the rows-added case fails;
 - a missing row treated as unchanged: the missing-row case fails.
+- the own half of the fingerprint, isolated by a candidate set no resolved row
+  touches (`TestInputFingerprintReopenOwnGenerationOnlySignals`: rows added to
+  the own generation with no re-stamp, an own status change with the same
+  `activated_at`, a bare re-stamp, and an unchanged control): dropping the whole
+  own part, `own.status`, the own row count, or `own.activated_at` each fails
+  at least one case.
+- the append-only guard: changing `insertResolvedSQL` from `DO NOTHING` to `DO
+  UPDATE SET ...`, or planting a `MERGE INTO resolved_relationships ... WHEN
+  MATCHED THEN UPDATE` in a non-test Go file, turns
+  `TestResolvedRelationshipsStayAppendOnly` red; the clean tree is green. The
+  guard is a text scan, so a table name built at runtime would pass it.
+- a compile-time assertion in `cmd/reducer` ties `*postgres.RelationshipStore`
+  to `reducer.InputFingerprintedResolvedRelationshipLoader`, so a signature
+  drift fails to compile instead of silently turning the gate off.
 
 ### Interleavings (`input_fingerprint_interleave_live_test.go`)
 
@@ -154,6 +168,8 @@ first mover. Medians, execution time:
 | fingerprint listing, no rows (first pass after the roll) | 36.2 ms | 34.5 | 39.7 |
 
 The steady-state listing adds about 97 ms per pass against the 500 ms budget.
+Treat 132.7 ms as an upper bound: the `VALUES` stand-in has no key, so the plan
+shows a 798 by 798 join filter, while the real table joins on its primary key.
 It saves one reopen UPDATE and one handler run for each unchanged item. The
 fingerprint is evaluated only for items that have a row (`CASE`), and the first
 pass after the roll costs the same as today.
@@ -195,9 +211,31 @@ blocking and failure show in `skipped_unchanged`, the existing
 
 ## Rollout
 
-Apply migration 191 with the schema Job before the reducer and ingester images
-roll. If the binary rolls first, the listing fails on the missing table and the
-whole maintenance reopen transaction rolls back, losing that pass's
-deployment_mapping and code_import_repo_edge reopens. The first pass after the
-roll finds no rows and reopens every item once. Rolling the image back is safe;
-the table is additive.
+Apply migration 191 with the schema Job before the reducer image rolls, not
+only before the ingester.
+
+- Ingester: if the binary rolls first, the listing fails on the missing table
+  and the whole maintenance reopen transaction rolls back, losing that pass's
+  deployment_mapping and code_import_repo_edge reopens.
+- Reducer: if the binary rolls first, `recordInputFingerprint` fails on the
+  missing table after the graph writes and the phase publish. The wrapped
+  Postgres error carries no class from `nonCountingReducerRetryFailureClasses`
+  (`reducer_queue_readiness_sql.go`), so the attempt takes the counting retry
+  path and a deployable_unit_correlation item that has candidates can reach
+  dead letter. A dead-lettered item does not come back through the reopen,
+  which lists succeeded items only.
+
+The first pass after the roll finds no rows and reopens every item once.
+Rolling the image back is safe; the table is additive.
+
+## Accepted risk: graph-side narrowing
+
+The blanket reopen also repaired graph-only losses: an item whose result row
+was fine but whose graph edges were lost got rewritten on every drain. A
+skipped item is not rewritten. This is accepted. A concrete instance: a stalled
+zombie worker B (lease expired, heartbeat not yet failed,
+`service_heartbeat.go`) can write a stale graph between worker A's graph write
+and A's fingerprint record. The order is A_graph, B_graph, B_record, A_record.
+A's current fingerprint wins and the item stays skipped on a stale graph. The
+record write is not the place to fix this; it is a statement of accepted risk,
+not a code change.

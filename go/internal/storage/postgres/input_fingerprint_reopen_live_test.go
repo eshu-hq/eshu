@@ -233,3 +233,45 @@ func TestInputFingerprintReopenRowsAddedToActiveGenerationWithoutRestamp(t *test
 		})
 	}
 }
+
+// TestInputFingerprintReopenOwnGenerationOnlySignals isolates the own half of
+// the fingerprint. The item's candidate set is one repository that no resolved
+// row touches, so the touching half is empty and cannot move. DUC still reads
+// its whole own generation (listResolvedByGenerationSQL has no repository
+// filter and no status filter), so each change below must reopen the item
+// through the own component alone: rows added to the own generation that do not
+// touch the candidates and carry no re-stamp, a status change with the same
+// activated_at, and a bare re-stamp. The equal case must stay succeeded.
+func TestInputFingerprintReopenOwnGenerationOnlySignals(t *testing.T) {
+	untouched := []string{"repo-nobody-touches"}
+	for name, tc := range map[string]struct {
+		change func(t *testing.T, f *fingerprintFixture)
+		want   string
+	}{
+		"nothing changed": {func(*testing.T, *fingerprintFixture) {}, "succeeded"},
+		"rows added to the own generation, no re-stamp": {func(t *testing.T, f *fingerprintFixture) {
+			f.insertResolved(t, fingerprintOwnGen, "repo-other-source", "repo-other-target")
+		}, "pending"},
+		"own status changed, same activated_at": {func(t *testing.T, f *fingerprintFixture) {
+			f.exec(t, `UPDATE relationship_generations SET status = 'superseded' WHERE generation_id = $1`, fingerprintOwnGen)
+		}, "pending"},
+		"own generation re-stamped": {func(t *testing.T, f *fingerprintFixture) {
+			if err := f.relations.ActivateResolutionGeneration(f.ctx, fingerprintOwnGen, fingerprintOwnScope); err != nil {
+				t.Fatalf("re-activate own generation: %v", err)
+			}
+		}, "pending"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newFingerprintFixture(t)
+			f.succeedItem(t)
+			f.recordFingerprintFor(t, untouched)
+
+			tc.change(t, f)
+			f.runPass(t)
+
+			if got := f.status(t); got != tc.want {
+				t.Fatalf("item status = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

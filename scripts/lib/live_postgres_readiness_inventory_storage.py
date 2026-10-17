@@ -217,6 +217,7 @@ STORAGE_PACKAGES = {
             "TestInputFingerprintReopenInFlightItemReopensOnNextPass",
             "TestInputFingerprintReopenListingFailureFailsThePass",
             "TestInputFingerprintReopenRowsAddedToActiveGenerationWithoutRestamp",
+            "TestInputFingerprintReopenOwnGenerationOnlySignals",
         ),
         "go/internal/storage/postgres/input_fingerprint_interleave_live_test.go": (
             "TestInputFingerprintInterleavePassVsClaimVsAckVsWrite",

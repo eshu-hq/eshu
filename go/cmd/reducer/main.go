@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main //nolint:filelength // 503 lines: reducer service assembly; the #8211 handler-timeout wiring tipped it over the cap.
+package main //nolint:filelength // 515 lines: reducer service assembly; the #8211 handler-timeout wiring tipped it over the cap.
 
 import (
 	"context"

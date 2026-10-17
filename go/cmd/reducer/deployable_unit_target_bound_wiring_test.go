@@ -63,6 +63,9 @@ func TestBuildReducerServiceWiresDeployableUnitBoundExpiryLogger(t *testing.T) {
 	if !database.readDeployableUnitInputs {
 		t.Fatalf("handler never read its resolved relationships (execErr=%v): the fixture did not reach the edge write", execErr)
 	}
+	if !database.readFingerprinted {
+		t.Fatal("handler read the plain fused statement: the input fingerprint read is not wired in production")
+	}
 	if !strings.Contains(execErr.Error(), "target still absent") {
 		t.Fatalf("execution error = %v, want the bound-expiry error", execErr)
 	}
@@ -123,6 +126,7 @@ func (*absentTargetProbeExecutor) ExecuteProbe(context.Context, sourcecypher.Sta
 type deployableUnitTargetBoundDB struct {
 	fakeReducerDB
 	readDeployableUnitInputs bool
+	readFingerprinted        bool
 }
 
 func (f *deployableUnitTargetBoundDB) QueryContext(
@@ -135,6 +139,9 @@ func (f *deployableUnitTargetBoundDB) QueryContext(
 	// predicate, so it must match before the own-generation readiness probe.
 	case strings.Contains(query, "WITH fence AS MATERIALIZED"):
 		f.readDeployableUnitInputs = true
+		// Production wires the fingerprinted fused read (#8283); the plain one
+		// has one column fewer. Serving the wrong shape fails the scan loudly.
+		f.readFingerprinted = strings.Contains(query, "fingerprint AS MATERIALIZED")
 		return &resolvedRelationshipRows{rows: [][]any{deployableUnitFencedResolvedRow()}}, nil
 	case strings.Contains(query, "graph_projection_phase_state AS phase"):
 		return &fakeExistsRows{value: false}, nil
@@ -148,9 +155,10 @@ func (f *deployableUnitTargetBoundDB) QueryContext(
 	return f.fakeReducerDB.QueryContext(ctx, query, args...)
 }
 
-// deployableUnitFencedResolvedRow is the corpus-fenced by-repos row shape:
-// complete verdict, source/target repo and entity keys, relationship type,
-// confidence, evidence count, rationale, resolution source, details.
+// deployableUnitFencedResolvedRow is the fingerprinted corpus-fenced by-repos
+// row shape: complete verdict, input fingerprint (#8283), source/target repo and
+// entity keys, relationship type, confidence, evidence count, rationale,
+// resolution source, details.
 func deployableUnitFencedResolvedRow() []any {
 	details, err := json.Marshal(map[string]any{
 		"evidence_kinds": []string{"ARGOCD_APPLICATION_SOURCE"},
@@ -160,6 +168,7 @@ func deployableUnitFencedResolvedRow() []any {
 	}
 	return []any{
 		true,
+		"fixture-input-fingerprint",
 		sql.NullString{String: "repo-deployments", Valid: true},
 		sql.NullString{String: "repo-edge-api", Valid: true},
 		sql.NullString{String: "repo-deployments", Valid: true},

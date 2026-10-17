@@ -72,6 +72,18 @@ Proofs: `input_fingerprint_reopen_live_test.go`,
 
 ## Rollout order
 
-Apply migration 191 with the schema Job before the reducer and ingester
-images roll. A binary that rolls first fails the listing on the missing table
-and rolls back that pass's whole reopen transaction.
+Apply migration 191 with the schema Job before the reducer image rolls, not
+only before the ingester. An ingester binary that rolls first fails the listing
+on the missing table and rolls back that pass's whole reopen transaction. A
+reducer binary that rolls first fails `recordInputFingerprint` after the graph
+writes; that error has no class in `nonCountingReducerRetryFailureClasses`, so
+it takes the counting retry path and an item with candidates can dead-letter,
+and the succeeded-only reopen never brings it back.
+
+## Accepted risk
+
+The blanket reopen also repaired graph-only losses; a skipped item is not
+rewritten. A stalled worker whose lease expired can write a stale graph between
+the current worker's graph write and its fingerprint record, and the current
+fingerprint then keeps the item skipped on that stale graph. Accepted, not a
+code change.
