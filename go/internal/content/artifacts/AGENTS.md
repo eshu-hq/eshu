@@ -59,6 +59,15 @@
   sweep updated in the same change, and the equality differential against the
   frozen shipped extractor (`hcl_prefilter_test.go`) must stay green.
 
+- `ExtractorVersion` versions the stored rows. A change that can alter any
+  row (raw_path, relative_path, evidence_kind, name_scoped) for any input
+  bumps it by one and appends its pin row to `extractorPins`
+  (`version_guard_test.go`) in the same change. Never re-pin a digest at an
+  unchanged version to make `TestExtractorOutputIsPinned` pass. Only the
+  README's re-snapshot procedure changes `testdata/guard`, in a commit with no
+  extractor change. The guard's sources must not read `tests/fixtures` or the
+  hydration test helpers; only `version_snapshot_test.go` does.
+
 ## Verification
 
 Run `go test ./internal/content/artifacts/... -count=1`, then
