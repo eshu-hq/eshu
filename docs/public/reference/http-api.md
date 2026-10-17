@@ -168,8 +168,8 @@ retry them. A client disconnect is not retried either: a post-selector read or
 shared-helper selector lookup covered in
 [Selector And Read Failures](http-api/selector-and-read-failures.md#client-cancels)
 answers `499`, and so does every supply-chain query route and the compare and
-semantic search routes; other routes still
-answer `500` until #7674 lands. Every
+semantic search routes; that page also
+says which direct `500` writes the query guard tests catch (#7674). Every
 supply-chain query route sends its store reads through the shared helper first
 (#7549): a stale or timed-out guarded reader answers the retryable `503` with `Retry-After` above, while any other
 store failure stays a handler-owned `500` with a fixed message per route and
@@ -198,10 +198,9 @@ Environment comparison and semantic search failures are in
 [Compare And Semantic Search Failures](http-api/compare-and-semantic-search-failures.md).
 The semantic evidence and documentation routes are listed in
 [Semantic Evidence And Documentation Route Failures](http-api/semantic-and-documentation-failures.md).
-Routes outside the dead-code and
-dead-IaC lanes and `GET /api/v0/supply-chain/impact/findings` that write a
-store error straight into a `500` do not yet map a reader fence failure and
-still answer `500` until they are routed through the shared helper.
+A route that answers a store failure with its fixed `500` without running
+the shared helper first does not map a reader fence failure, so a stale
+reader there still answers that `500`.
 
 A bearer credential is checked against the PostgreSQL identity store. When that
 store cannot answer (a lost or refused connection, a refusal for lack of
