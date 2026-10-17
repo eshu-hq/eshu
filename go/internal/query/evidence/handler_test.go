@@ -8,8 +8,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
@@ -124,6 +126,51 @@ func TestEvidenceHandlerReturnsNotFoundForMissingRelationshipEvidence(t *testing
 	mux.ServeHTTP(w, req)
 
 	if got, want := w.Code, http.StatusNotFound; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+}
+
+func TestListAdmissionDecisionsReturnsEmptyPageWithoutAccessScope(t *testing.T) {
+	t.Parallel()
+
+	handler := &Handler{Profile: querycontract.ProfileProduction}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/evidence/admission-decisions?domain=terraform&scope_id=scope-1&generation_id=gen-1", nil)
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{Mode: auth.AuthModeScoped}))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	if got, want := resp["count"], float64(0); got != want {
+		t.Fatalf("count = %#v, want %#v", got, want)
+	}
+	if got, want := resp["truncated"], false; got != want {
+		t.Fatalf("truncated = %#v, want %#v", got, want)
+	}
+}
+
+func TestBuildEvidenceCitationsRequiresContentStore(t *testing.T) {
+	t.Parallel()
+
+	handler := &Handler{Profile: querycontract.ProfileProduction}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/evidence/citations", strings.NewReader(`{"handles":[]}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusNotImplemented; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 }
