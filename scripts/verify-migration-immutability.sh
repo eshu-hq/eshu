@@ -14,7 +14,7 @@
 # keys applied migrations by path + variant + checksum_sha256, so editing a
 # shipped file in place changes what every already-bootstrapped database has
 # on record for it -- exactly the #7002 incident (093 edited twice, breaking
-# bootstrap for every database, including ops-qa, that had already recorded
+# bootstrap for every database, including the QA environment's, that had already recorded
 # its shipped checksum). Widen behavior through a NEW guarded migration file
 # instead (see migrations/README.md and migrations/checksum_alias.go for the
 # pattern 112/120 established for 093).
