@@ -61,5 +61,12 @@ CONFIG_FENCE_PACKAGES = {
         f"{_FENCE_DIR}/fence_seed_timing_live_test.go": (
             "TestVersionFenceSeedTimingLive",
         ),
+        f"{_FENCE_DIR}/fence_live_test.go": (
+            "TestCheckFenceFindsTheMigratedTriggersLive",
+            "TestCheckFenceNamesEachDroppedTriggerLive",
+            "TestCheckFenceIgnoresASameNamedTriggerOnAnotherTableLive",
+            "TestCheckFenceTracksTriggerEnablementLive",
+            "TestCheckFenceReportsAnUnmigratedDatabaseAsMissingLive",
+        ),
     },
 }

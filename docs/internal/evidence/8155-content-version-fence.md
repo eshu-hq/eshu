@@ -15,6 +15,7 @@ removes no read time.
 |---|---|
 | `186_content_files_version_fence.sql` | The UNLOGGED `config_artifact_fence_pending (bumped_xid, repo_id)` table. Four statement-level triggers on `content_files` (INSERT and UPDATE with `NEW TABLE`, DELETE with `OLD TABLE`, TRUNCATE) stage touched repositories. One deferred constraint trigger, `config_artifact_fence_pending_commit`, runs the ordered upsert with the `(bumped_xid, bumped_at)` guard at COMMIT and clears the stage |
 | `187_config_artifact_content_versions_seed.sql` | One version-0 row per repository with content, `bumped_xid` `'0'::xid8`, in `repo_id` order, `ON CONFLICT DO NOTHING` |
+| `config/artifacts/fence.go` (added in PR3b-2a) | `CheckFence`, the start-up check of the five triggers: one `pg_trigger` read; a trigger counts only on its own table with `tgenabled` `'O'` or `'A'`. `fence_live_test.go` proves a drop of each trigger, `DISABLE`, `ENABLE REPLICA`, a same-named trigger on another table and an unmigrated database each give `version_fence_missing`, naming the trigger. No binary calls it yet |
 
 Decisions beyond the arb-8155-s3 text:
 
@@ -332,9 +333,10 @@ would surface as SQLSTATE 40P01 in the projector's retry and in
 
 - A re-run of 186 checks the commit trigger by name only (review R3-a), so
   it leaves an existing `config_artifact_fence_pending_commit` that is
-  disabled (`'D'`) or replica-only (`'R'`) as it is. The PR3b-2 startup check
-  counts `'D'` and `'R'` as missing (ADR 3.1 item 7), so the read model
-  reports `not_installed` and no stale row is trusted. The 186 SQL and its
+  disabled (`'D'`) or replica-only (`'R'`) as it is. The startup check
+  (`CheckFence`, PR3b-2a) counts `'D'` and `'R'` as missing (ADR 3.1 item 7),
+  so the read model reports `not_installed` and no stale row is trusted once
+  a binary runs the check (PR3b-2). The 186 SQL and its
   checksum stay as measured.
 
 ## NOT_CHECKED
