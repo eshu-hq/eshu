@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -67,6 +68,7 @@ func TestGenerationRetentionDeletesFactKeysBeforeGenerations(t *testing.T) {
 		countRows: [][]any{
 			{"generation-a", "fact_records", int64(3)},
 			{"generation-b", "fact_records", int64(4)},
+			{"generation-a", "package_manifest_consumption_keys", int64(4)},
 		},
 		execResults: generationRetentionExecResults(2, 0, 0, 0, 0, 0, 0, 2),
 		factKeyRows: factKeyTestRows,
@@ -123,6 +125,19 @@ func TestGenerationRetentionDeletesFactKeysBeforeGenerations(t *testing.T) {
 	}
 	if _, ok := result.PhaseDurations[GenerationRetentionPhaseDeleteFactKeys]; !ok {
 		t.Fatalf("PhaseDurations has no %s phase", GenerationRetentionPhaseDeleteFactKeys)
+	}
+	// The pre-count names the key tables too: generation-a counted 4
+	// manifest keys, generation-b none, and no other key table appears.
+	wantCounted := map[string]int64{factKeyTablesInOrder[0]: 0, factKeyTablesInOrder[1]: 4, factKeyTablesInOrder[2]: 0}
+	if !maps.Equal(result.FactKeyRowsCounted, wantCounted) {
+		t.Errorf("FactKeyRowsCounted = %v, want %v", result.FactKeyRowsCounted, wantCounted)
+	}
+	wantPruned := map[string]int64{}
+	for table, perStatement := range factKeyTestRows {
+		wantPruned[table] = 2 * perStatement
+	}
+	if !maps.Equal(result.FactKeyRowsPruned, wantPruned) {
+		t.Errorf("FactKeyRowsPruned = %v, want %v", result.FactKeyRowsPruned, wantPruned)
 	}
 }
 
@@ -191,6 +206,11 @@ func TestGenerationRetentionChunkDeletesPageFactKeysFirst(t *testing.T) {
 		if got, want := result.RowsPruned[table], 2*perStatement; got != want {
 			t.Errorf("RowsPruned[%s] = %d, want %d (batch plus chunk page)", table, got, want)
 		}
+	}
+	// FactKeyRowsPruned is the whole-generation delete alone, the figure its
+	// pre-count describes; the chunk page's keys stay out of it.
+	if !maps.Equal(result.FactKeyRowsPruned, factKeyTestRows) {
+		t.Errorf("FactKeyRowsPruned = %v, want the batch delete alone %v", result.FactKeyRowsPruned, factKeyTestRows)
 	}
 }
 

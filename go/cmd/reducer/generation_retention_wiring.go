@@ -202,6 +202,8 @@ func (p postgresGenerationRetentionPruner) PruneSupersededGenerations(
 		ScopeLockHold:      result.ScopeLockHold,
 		LedgerRowsPruned:   result.LedgerRowsPruned,
 		LedgerRowsCounted:  result.LedgerRowsCounted,
+		FactKeyRowsPruned:  result.FactKeyRowsPruned,
+		FactKeyRowsCounted: result.FactKeyRowsCounted,
 		RowsOverLimit:      result.RowsOverLimit,
 		LockedScopeRows:    result.LockedScopeRows,
 		SearchIndexBatches: result.SearchIndexBatches,

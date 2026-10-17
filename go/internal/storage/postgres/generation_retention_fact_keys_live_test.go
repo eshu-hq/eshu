@@ -7,31 +7,33 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"maps"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
+
+	factkeys "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/keys"
 )
 
-// factKeyForeignKeys are the three per-fact foreign keys #7420 retires. The
-// live tests drop them in their isolated schema to run the retention code in
-// the end state of the follow-up FK drop, where only the explicit deletes
-// keep the key sidecars clean.
-var factKeyForeignKeys = map[string]string{
-	"relationship_reference_candidate_keys": "relationship_reference_candidate_keys_fact_id_fkey",
-	"package_manifest_consumption_keys":     "package_manifest_consumption_keys_fact_id_fkey",
-	"package_registry_identity_keys":        "package_registry_identity_keys_fact_id_fkey",
+// factKeyTables are the three key sidecars whose per-fact foreign keys
+// migrations 188 to 190 drop (#7420). The migrated schema the live tests run
+// on has them dropped for real, so only the explicit retention deletes keep
+// the sidecars clean.
+var factKeyTables = []string{
+	factkeys.RelationshipReferenceTable,
+	factkeys.ManifestConsumptionTable,
+	factkeys.RegistryIdentityTable,
 }
 
-// dropFactKeyForeignKeys drops the three per-fact foreign keys in the test's
-// isolated schema only.
-func dropFactKeyForeignKeys(t *testing.T, ctx context.Context, database *sql.DB) {
+// requireFactKeyForeignKeysDropped fails unless the migrated schema has no
+// foreign key referencing fact_records, the end state the retention proofs
+// depend on.
+func requireFactKeyForeignKeysDropped(t *testing.T, ctx context.Context, database *sql.DB) {
 	t.Helper()
-	for table, constraint := range factKeyForeignKeys {
-		if _, err := database.ExecContext(ctx, "ALTER TABLE "+table+" DROP CONSTRAINT "+constraint); err != nil {
-			t.Fatalf("drop %s: %v", constraint, err)
-		}
+	if got := factRecordsForeignKeys(t, ctx, database); len(got) != 0 {
+		t.Fatalf("migrated schema still has foreign keys referencing fact_records: %v", got)
 	}
 }
 
@@ -60,21 +62,13 @@ FROM fact_records WHERE scope_id = $1 AND generation_id = $2 AND hashtext(fact_i
 	}
 }
 
-// orphanFactKeys counts key sidecar rows whose fact or generation is gone,
-// by table: the anti-join the dropped foreign key used to make impossible.
+// orphanFactKeys runs the shipped operator census (factkeys.OrphanCensusSQL)
+// and sums its orphan rows by table.
 func orphanFactKeys(t *testing.T, ctx context.Context, database *sql.DB) map[string]int64 {
 	t.Helper()
-	orphans := make(map[string]int64, len(factKeyForeignKeys))
-	for table := range factKeyForeignKeys {
-		var count int64
-		if err := database.QueryRowContext(ctx, `
-SELECT count(*) FROM `+table+` AS keys
-WHERE NOT EXISTS (SELECT 1 FROM fact_records AS fact WHERE fact.fact_id = keys.fact_id)
-   OR NOT EXISTS (SELECT 1 FROM scope_generations AS generation
-                  WHERE generation.scope_id = keys.scope_id AND generation.generation_id = keys.generation_id)`).Scan(&count); err != nil {
-			t.Fatalf("count %s orphans: %v", table, err)
-		}
-		orphans[table] = count
+	orphans := make(map[string]int64, len(factKeyTables))
+	for _, row := range factKeyOrphanCensus(t, ctx, database) {
+		orphans[row.table] += row.orphans
 	}
 	return orphans
 }
@@ -101,11 +95,22 @@ func assertNoOrphanFactKeys(t *testing.T, ctx context.Context, database *sql.DB,
 // TestGenerationRetentionNormalPruneLeavesNoOrphanFactKeysLive proves site A
 // (#7420): with the per-fact foreign keys dropped, a whole-generation prune
 // deletes every key sidecar row of the pruned generation, reports the counts
-// in RowsPruned, and keeps the active generation's keys.
+// in RowsPruned and FactKeyRowsPruned, and keeps the active generation's
+// keys. With clean keys the batch's pre-count (FactKeyRowsCounted) equals
+// the delete, so the runner logs no WARN. A planted orphan manifest key (no
+// fact) is deleted with its generation but missed by the pre-count, which
+// joins the keys to their facts: that is the difference the runner WARNs on.
 func TestGenerationRetentionNormalPruneLeavesNoOrphanFactKeysLive(t *testing.T) {
 	bridgeRetentionFamilyDSN(t)
+	for _, plantOrphan := range []bool{false, true} {
+		name := map[bool]string{false: "clean-keys", true: "planted-orphan-key"}[plantOrphan]
+		t.Run(name, func(t *testing.T) { runNormalPruneFactKeys(t, plantOrphan) })
+	}
+}
+
+func runNormalPruneFactKeys(t *testing.T, plantOrphan bool) {
 	database, ctx := openGenerationRetentionMigratedSchema(t)
-	dropFactKeyForeignKeys(t, ctx, database)
+	requireFactKeyForeignKeysDropped(t, ctx, database)
 	now := time.Now().UTC()
 	const scope = "keys-normal"
 	const oldGen, activeGen = "keys-normal-old", "keys-normal-active"
@@ -120,14 +125,25 @@ FROM generate_series(1, 400) AS n CROSS JOIN (VALUES ($2::text), ($3::text)) AS 
 	}
 	seedFactKeysForGeneration(t, ctx, database, scope, oldGen)
 	seedFactKeysForGeneration(t, ctx, database, scope, activeGen)
+	if plantOrphan {
+		if _, err := database.ExecContext(ctx, `INSERT INTO package_manifest_consumption_keys
+    (fact_id, scope_id, generation_id, repository_id, ecosystem, package_name)
+VALUES ('keys-normal-orphan', $1, $2, 'repo-keys', 'npm', 'pkg-orphan')`, scope, oldGen); err != nil {
+			t.Fatalf("plant orphan manifest key: %v", err)
+		}
+	}
 	want := map[string]int64{}
 	keptBefore := map[string]int64{}
-	for table := range factKeyForeignKeys {
+	for _, table := range factKeyTables {
 		want[table] = factKeyRowsFor(t, ctx, database, table, scope, oldGen)
 		keptBefore[table] = factKeyRowsFor(t, ctx, database, table, scope, activeGen)
 		if want[table] == 0 {
 			t.Fatalf("fixture seeded no %s rows for the pruned generation", table)
 		}
+	}
+	wantCounted := maps.Clone(want)
+	if plantOrphan {
+		wantCounted[factkeys.ManifestConsumptionTable]--
 	}
 
 	store := NewGenerationRetentionStore(SQLDB{DB: database})
@@ -140,6 +156,12 @@ FROM generate_series(1, 400) AS n CROSS JOIN (VALUES ($2::text), ($3::text)) AS 
 		t.Fatalf("GenerationsPruned = %d, want 1", result.GenerationsPruned)
 	}
 	assertNoOrphanFactKeys(t, ctx, database, "after the whole-generation prune")
+	if !maps.Equal(result.FactKeyRowsPruned, want) {
+		t.Errorf("FactKeyRowsPruned = %v, want %v", result.FactKeyRowsPruned, want)
+	}
+	if !maps.Equal(result.FactKeyRowsCounted, wantCounted) {
+		t.Errorf("FactKeyRowsCounted = %v, want %v", result.FactKeyRowsCounted, wantCounted)
+	}
 	for table, rows := range want {
 		if got := result.RowsPruned[table]; got != rows {
 			t.Errorf("RowsPruned[%s] = %d, want %d", table, got, rows)
@@ -158,13 +180,13 @@ FROM generate_series(1, 400) AS n CROSS JOIN (VALUES ($2::text), ($3::text)) AS 
 func TestGenerationRetentionChunkDrainLeavesNoOrphanFactKeysLive(t *testing.T) {
 	bridgeRetentionFamilyDSN(t)
 	database, ctx := openGenerationRetentionMigratedSchema(t)
-	dropFactKeyForeignKeys(t, ctx, database)
+	requireFactKeyForeignKeysDropped(t, ctx, database)
 	now := time.Now().UTC()
 	seedChunkDrainFixture(t, ctx, database, now)
 	seedFactKeysForGeneration(t, ctx, database, chunkDrainScope, chunkDrainGen)
 	seedFactKeysForGeneration(t, ctx, database, chunkNeighbor, chunkNeighbor+"-active")
 	neighborBefore := map[string]int64{}
-	for table := range factKeyForeignKeys {
+	for _, table := range factKeyTables {
 		neighborBefore[table] = factKeyRowsFor(t, ctx, database, table, chunkNeighbor, chunkNeighbor+"-active")
 	}
 	store := NewGenerationRetentionStore(SQLDB{DB: database})
@@ -172,7 +194,7 @@ func TestGenerationRetentionChunkDrainLeavesNoOrphanFactKeysLive(t *testing.T) {
 
 	for cycle := 1; cycle <= 3; cycle++ {
 		before := map[string]int64{}
-		for table := range factKeyForeignKeys {
+		for _, table := range factKeyTables {
 			before[table] = factKeyRowsFor(t, ctx, database, table, chunkDrainScope, chunkDrainGen)
 		}
 		result, err := store.PruneSupersededGenerations(ctx, chunkDrainPolicy())
@@ -180,7 +202,7 @@ func TestGenerationRetentionChunkDrainLeavesNoOrphanFactKeysLive(t *testing.T) {
 			t.Fatalf("cycle %d PruneSupersededGenerations() error = %v", cycle, err)
 		}
 		assertNoOrphanFactKeys(t, ctx, database, "after chunk drain cycle")
-		for table := range factKeyForeignKeys {
+		for _, table := range factKeyTables {
 			after := factKeyRowsFor(t, ctx, database, table, chunkDrainScope, chunkDrainGen)
 			if got := result.RowsPruned[table]; got != before[table]-after {
 				t.Errorf("cycle %d RowsPruned[%s] = %d, want %d deleted", cycle, table, got, before[table]-after)

@@ -82,6 +82,13 @@ type Result struct {
 	// differs from LedgerRowsPruned only when a link committed between the
 	// count and the delete; the runner logs a WARN with both.
 	LedgerRowsCounted map[string]int64
+	// FactKeyRowsPruned is the rows the whole-generation key sidecar delete
+	// removed (#7420), by table; RowsPruned also counts any chunk page's
+	// keys. FactKeyRowsCounted is the batch's pre-count of the same tables.
+	// They differ when keys were written or orphaned between the count and
+	// the delete; the runner logs a WARN with both.
+	FactKeyRowsPruned  map[string]int64
+	FactKeyRowsCounted map[string]int64
 	// RowsOverLimit is how far a batch of one generation exceeded
 	// BatchRowLimit because of its changed-since ledger rows (#7127), else 0.
 	RowsOverLimit int64
@@ -318,6 +325,18 @@ func (r *Runner) recordResult(ctx context.Context, result Result) {
 			"generation retention ledger delete differs from its pre-count",
 			slog.Any("changed_since_ledger_rows_pruned", result.LedgerRowsPruned),
 			slog.Any("changed_since_ledger_rows_counted", result.LedgerRowsCounted),
+			telemetry.PhaseAttr(telemetry.PhaseReduction),
+		)
+	}
+	if !maps.Equal(result.FactKeyRowsPruned, result.FactKeyRowsCounted) {
+		// Keys were written or orphaned between the pre-count and the key
+		// sidecar delete (#7420). Every key of the pruned generations went
+		// either way; the census (factkeys.OrphanCensusSQL) shows any orphans.
+		r.Logger.WarnContext(
+			ctx,
+			"generation retention fact key delete differs from its pre-count",
+			slog.Any("fact_key_rows_pruned", result.FactKeyRowsPruned),
+			slog.Any("fact_key_rows_counted", result.FactKeyRowsCounted),
 			telemetry.PhaseAttr(telemetry.PhaseReduction),
 		)
 	}

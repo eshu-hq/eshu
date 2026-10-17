@@ -212,6 +212,17 @@ STORAGE_PACKAGES = {
             "TestGenerationRetentionCandidateReadQueryPreparesLive",
             "TestGenerationFreshnessFailsClosedForAPrunedGenerationLive",
         ),
+        "go/internal/storage/postgres/fact_key_foreign_key_drop_live_test.go": (
+            "TestBootstrapDropsEveryFactRecordsForeignKeyLive",
+            "TestFactKeyForeignKeyDropMigrationsAreDeadlockFreeLive",
+        ),
+        "go/internal/storage/postgres/fact_key_foreign_key_reverse_live_test.go": (
+            "TestFactKeyForeignKeyReverseProcedureLive",
+            "TestFactKeyForeignKeyDropFailsLoudlyWhenKeyTableStaysBusyLive",
+        ),
+        "go/internal/storage/postgres/fact_key_orphan_census_live_test.go": (
+            "TestFactKeyOrphanCensusCountsPlantedOrphansLive",
+        ),
         "go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go": (
             "TestPackageManifestConsumptionMigrationsUpgradeAfterSecretLinesLive",
         ),

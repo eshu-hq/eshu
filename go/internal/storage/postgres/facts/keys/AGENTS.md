@@ -20,6 +20,18 @@
 - Run in the caller's transaction, before the fact delete. Never commit
   inside this package.
 - Keep the package a leaf: never import the parent `postgres` package.
+- No foreign key backs these tables any more (migrations 188 to 190). Keep
+  `OrphanCensusSQL` joining on `(fact_id, scope_id, generation_id)`, the
+  triple the readers join on
+  (`TestFactKeyOrphanCensusCountsPlantedOrphansLive` plants a key whose
+  fact lives in another generation).
+- A test that truncates or deletes `fact_records` clears the key sidecars
+  too. A new `TRUNCATE` of `fact_records` in the parent package is
+  classified in `factTruncateSites` (`fact_truncate_key_guard_test.go`) with
+  the key tables it names.
+- A migration that drops a foreign key to `fact_records` locks
+  `fact_records` first, then the child with `NOWAIT` (migrations 188 to
+  190). A plain `DROP CONSTRAINT` deadlocks ingestion's fact-then-key order.
 
 ## Common changes
 
@@ -40,7 +52,7 @@ From `go/`, run:
 
 ```bash
 go test ./internal/storage/postgres/facts/keys -count=1
-ESHU_POSTGRES_DSN=... go test ./internal/storage/postgres -run 'FactKey|FactRecordDelete' -count=1
+ESHU_POSTGRES_DSN=... go test ./internal/storage/postgres -run 'FactKey|FactRecordDelete|FactRecordsForeignKey' -count=1
 ```
 
 Run `scripts/verify-package-docs.sh` from the repository root.

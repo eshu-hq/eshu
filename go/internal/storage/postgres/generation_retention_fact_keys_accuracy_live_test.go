@@ -91,7 +91,7 @@ func writeKeysOnly(t *testing.T, ctx context.Context, exec db.ExecQueryer, envel
 func TestKeyWritersReplaceOrphanFactKeysLive(t *testing.T) {
 	bridgeRetentionFamilyDSN(t)
 	database, ctx := openGenerationRetentionMigratedSchema(t)
-	dropFactKeyForeignKeys(t, ctx, database)
+	requireFactKeyForeignKeysDropped(t, ctx, database)
 	exec := SQLDB{DB: database}
 	stale := factKeyEnvelopes("keys-shadow", "keys-shadow-old", 1)
 	// The orphans: key rows for the old generation with no fact behind them.
@@ -184,7 +184,7 @@ VALUES ($1, $2, $3, 'github.com/org/app', $4)`, fmt.Sprintf("orphan-ref-%d", i),
 func TestOrphanFactKeysCannotBeWrittenForAPrunedGenerationLive(t *testing.T) {
 	bridgeRetentionFamilyDSN(t)
 	database, ctx := openGenerationRetentionMigratedSchema(t)
-	dropFactKeyForeignKeys(t, ctx, database)
+	requireFactKeyForeignKeysDropped(t, ctx, database)
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatalf("begin: %v", err)
@@ -200,7 +200,7 @@ VALUES ($1, 'keys-pruned', 'keys-pruned-gone', 'content', $1, 'git', $1, now(), 
 	if insertErr == nil || !strings.Contains(insertErr.Error(), "foreign key") {
 		t.Fatalf("fact insert into a deleted generation error = %v, want a foreign key violation", insertErr)
 	}
-	for table := range factKeyForeignKeys {
+	for _, table := range factKeyTables {
 		if got := factKeyRowsFor(t, ctx, database, table, "keys-pruned", "keys-pruned-gone"); got != 0 {
 			t.Errorf("%s rows for the deleted generation = %d, want 0", table, got)
 		}

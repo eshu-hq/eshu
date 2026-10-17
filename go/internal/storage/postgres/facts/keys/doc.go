@@ -11,5 +11,7 @@
 // scope_generations, and DeletePage before an over-limit chunk page's fact
 // delete, in the caller's transaction. Both run the tables in Deletes order
 // and key every statement on the (scope_id, generation_id, fact_id) partition
-// index of each table.
+// index of each table. Migrations 188 to 190 dropped the per-fact foreign
+// keys, so these deletes are what keep the sidecars free of orphan rows;
+// OrphanCensusSQL is the operator census that counts any that remain.
 package factkeys

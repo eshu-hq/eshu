@@ -235,7 +235,13 @@ func runRelationshipFamilyWriteTaxRound(
 	fixture []facts.Envelope,
 ) relationshipFamilyWriteTaxResult {
 	t.Helper()
-	if _, err := db.ExecContext(ctx, "TRUNCATE fact_records"); err != nil {
+	// #7420 arbiter accuracy condition 5: truncate the key sidecar with the
+	// facts. This fixture schema (deferredPartitionProofSchemaSQL) never had
+	// the per-fact foreign key; clearing the relationship keys here makes
+	// every round start from the same empty state as round 1, in both the
+	// control and the candidate arm, so the paired delta still compares the
+	// same writes. TestFactRecordTruncateSitesAreKeySidecarSafe pins it.
+	if _, err := db.ExecContext(ctx, "TRUNCATE fact_records, relationship_reference_candidate_keys"); err != nil {
 		t.Fatalf("truncate write-tax facts: %v", err)
 	}
 	shards := make([][]facts.Envelope, relationshipFamilyWriteTaxWorkers)

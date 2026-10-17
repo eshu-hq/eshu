@@ -57,10 +57,14 @@ Never `internal/reducer`.
 - Spans: none; the drain runs inline in the side-runner goroutine
 - Logs: `generation retention cycle completed` (pruned/skipped totals,
   ledger share, lock hold, `search_index_batches`); WARN when the ledger delete differs from
-  its pre-count; `generation retention search index orphan sweep completed`
-  (pairs_scanned, orphan_generations, rows_swept, batches committed,
-  unswept_generations) and ERROR `generation retention search index orphan
-  sweep failed`
+  its pre-count; WARN `generation retention fact key delete differs from
+  its pre-count` (`fact_key_rows_pruned`, `fact_key_rows_counted`) when the
+  #7420 whole-generation key sidecar delete removes a different number of
+  rows than the batch counted, usually orphan keys (run
+  `factkeys.OrphanCensusSQL`); `generation retention search index orphan
+  sweep completed` (pairs_scanned, orphan_generations, rows_swept, batches
+  committed, unswept_generations) and ERROR `generation retention search
+  index orphan sweep failed`
 
 ## Gotchas / invariants
 

@@ -84,6 +84,8 @@
 // explicitly, by (scope_id, generation_id) before the generation delete and
 // by the page's fact ids on the over-limit chunk path, in that table order
 // (#7420), so no fact delete relies on their per-fact foreign key cascade.
+// Migrations 188 to 190 dropped those foreign keys, so these explicit key
+// sidecar deletes are what keep the sidecars free of orphan rows.
 // Before that transaction opens, each pass pre-deletes its candidates' search
 // index terms and documents in committed batches through the
 // search/index/retention leaf (#7427) and admits only generations that
