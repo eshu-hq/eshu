@@ -59,6 +59,7 @@ OWN_GATE_PACKAGES = {
             "TestProjectorAckSupersedeHeldRowRaceLive",
             "TestProjectorAckSupersedeDropsRowClaimedBeforeItsLockLive",
             "TestProjectorAckSupersedeConcurrentWithReplaysNeverDeadlockLive",
+            "TestProjectorAckSupersedeKeepsLockTimeoutLive",
         ),
     },
     ADMIN_PACKAGE: {
