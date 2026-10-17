@@ -18,8 +18,9 @@
   (dead_letter -> claimed) back to pending.
 - `RecoverDeadLettersQuery` locks its rows in the `poison_locked` CTE, in
   `work_item_id COLLATE "C"` order with a blocking `FOR NO KEY UPDATE`,
-  before the UPDATE (#8261): the order every other multi-row
-  `fact_work_items` locker shares. Keep the `COLLATE "C"` (the default
+  before the UPDATE (#8261): the order every blocking multi-row
+  `fact_work_items` locker shares (`SKIP LOCKED` claim and selection lockers
+  never wait, so they keep their own order). Keep the `COLLATE "C"` (the default
   collation sorts differently), the lock step's status and budget rechecks,
   and the waiting lock (no `SKIP LOCKED`). Rerun `TestPoisonRecovery*` in the
   parent package after any edit.

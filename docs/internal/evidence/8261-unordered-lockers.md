@@ -250,10 +250,9 @@ warm-up, medians):
   `generation_id` predicate), held until the prune commits, as before. The
   hold starts one statement earlier: the `delete_scope_generations` phase grew
   from 5.3 to 9.9 ms (18 rows) and from 11.6 to 17.4 ms (2,000 rows).
-- Claims and the sweep: claim candidate selection uses `FOR UPDATE SKIP
-  LOCKED`, so it never waits on these rows. The claim-time sweep waited on the
-  same rows on main, behind the cascade, until the prune committed; it now
-  waits that much longer at most. No worker count, batch or retry changed.
+- Claims and the sweep: claim candidate selection never waits (`FOR UPDATE
+  SKIP LOCKED`). The claim-time sweep waits on these rows, as it did behind
+  the cascade on main, now up to the lock step longer. No worker count, batch or retry changed.
 - Rejected alternative: deleting the work rows explicitly, in C order, before
   the generation delete. One statement
   (`DELETE ... WHERE work_item_id = ANY(ARRAY(SELECT ... ORDER BY
@@ -321,7 +320,7 @@ that counter should stop rising for these statements.
   `column target.container_image_identity_v2_required does not exist`. Their
   hand-built schema predates that column, and no CI job sets their
   `ESHU_POISON_LIVENESS_PROOF_DSN`. The repros here use the full bootstrap
-  schema instead.
+  schema instead. Follow-up: #8302.
 - Projector Ack was driven through its supersede statement in a transaction
   with Ack's lock timeout, not through `ProjectorQueue.Ack`. Ack's earlier
   statements lock the scope row and Ack's own claimed row, which no replay
