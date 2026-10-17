@@ -248,6 +248,7 @@ gates:
       - "go/internal/query/**"
       - "go/internal/runtime/**"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/precommit-go-gosec.sh"
       - "scripts/verify-performance-evidence.sh"
       - "scripts/lib/live-gate-lock.sh"
       - "scripts/lib/golden-corpus-keep-marker.sh"

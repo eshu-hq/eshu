@@ -216,7 +216,7 @@ step_fmt_lint_build_vet() {
 
 step_exactness() {
 	bash "${repo_root}/scripts/dev/run-selected-gates.sh" \
-		--base "${base}" --tier pre-pr --category exactness,telemetry,hygiene,docs \
+		--base "${base}" --tier pre-pr --category exactness,telemetry,hygiene,docs,security,frontend \
 		--self-tests changed --blocking-only --pre-push
 }
 

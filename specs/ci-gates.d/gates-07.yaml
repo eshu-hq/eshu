@@ -160,10 +160,10 @@ gates:
   # ─── SECURITY ──────────────────────────────────────────────────────────────
 
   - id: gosec-changed
-    name: gosec static analysis (whole module)
+    name: gosec static analysis (changed packages)
     category: security
     layer: hygiene
-    purpose: "Runs gosec static analysis across the Go module to catch common security anti-patterns in source code."
+    purpose: "Runs gosec on the Go packages changed since the merge-base, or the whole module when a scan-defining file changed, to catch security anti-patterns."
     tier: pre-push
     blocking: true
     triggers:
@@ -171,12 +171,25 @@ gates:
       - "scripts/dev/precommit-go.sh"
       - "scripts/ci/go-mod-download-retry.sh"
       - "scripts/ci/go-install-retry.sh"
-    # Whole-module gosec here so the ci-gates runner (which passes no file list)
-    # runs a real scan rather than a no-op. #4217 narrows the local security lane
-    # to changed packages for speed while keeping CI authoritative.
+      # precommit-go.sh reads the pinned gosec version from this workflow.
+      - ".github/workflows/security-scan.yml"
+      - "scripts/lib/precommit-go-gosec.sh"
+      - "scripts/test-precommit-go-gosec.sh"
+    self_test_triggers:
+      - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/precommit-go-gosec.sh"
+      - "scripts/test-precommit-go-gosec.sh"
+      - ".github/workflows/security-scan.yml"
+    # The gosec-changed mode derives its own package list from the merge-base
+    # diff (plus staged and unstaged work), falls back to the whole module when
+    # a trigger file that decides how gosec runs changed, and fails closed on an
+    # unresolvable base or an unusable gosec result (#8335). CI security-scan.yml
+    # stays the whole-module authority. `make pre-push` runs it from the floor
+    # (#8326); the git pre-push hook go-gosec runs the same scan again on a push.
     local:
-      command: "bash scripts/dev/precommit-go.sh gosec-all"
-      test_command: ""
+      command: "bash scripts/dev/precommit-go.sh gosec-changed"
+      pre_push: floor
+      test_command: "bash scripts/test-precommit-go-gosec.sh"
     ci:
       workflow: security-scan.yml
       job: "gosec (Go static analysis)"
@@ -198,6 +211,7 @@ gates:
       - "go/go.sum"
       - "go/**/*.go"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/precommit-go-gosec.sh"
       - "scripts/test-precommit-go-toolchain-isolation.sh"
       - "scripts/ci/go-mod-download-retry.sh"
       - "scripts/ci/go-install-retry.sh"
@@ -237,6 +251,7 @@ gates:
       - "go/go.mod"
       - "go/go.sum"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/precommit-go-gosec.sh"
       - "scripts/dev/nancy-local.sh"
       - "scripts/test-nancy-local.sh"
       - "scripts/ci/go-mod-download-retry.sh"

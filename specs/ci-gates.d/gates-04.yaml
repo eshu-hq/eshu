@@ -39,6 +39,7 @@ gates:
       - "specs/surface-inventory.v1.yaml"
       - "specs/product-claims.v1.yaml"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/precommit-go-gosec.sh"
       - "scripts/ci/go-mod-download-retry.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh surface"
@@ -468,6 +469,7 @@ gates:
       - "specs/surface-inventory.v1.yaml"
       - "specs/capability-catalog.v1.yaml"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/precommit-go-gosec.sh"
       - "scripts/ci/go-mod-download-retry.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh surface"
