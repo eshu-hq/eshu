@@ -319,7 +319,7 @@ gates its changed paths select:
   the scheduled audit does not claim to prove their absence; an
   admin-authenticated invocation requires the field and verifies that it is
   empty. `main` merges by pull request with required status checks. The
-  verifier asserts no merge queue (a present `merge_queue` rule passes), and
+  verifier does not assert a merge queue (a present `merge_queue` rule passes), and
   strict mode is an owner preference that it does not assert.
 - **Advisory:** the benchmark regression check (`BENCH_REGRESSION_ENFORCE=false`)
   and the changed-file Prettier check do not block merge.
