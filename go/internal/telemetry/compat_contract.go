@@ -299,3 +299,10 @@ const (
 
 // Auth identity-store outage log record (from contract/auth_identity.go).
 const EventAuthIdentityStoreUnavailable = contract.EventAuthIdentityStoreUnavailable
+
+// Config-artifact derive span and trigger dimension (from
+// contract/config_artifacts.go).
+const (
+	SpanConfigArtifactsDerive = contract.SpanConfigArtifactsDerive
+	MetricDimensionTrigger    = contract.MetricDimensionTrigger
+)

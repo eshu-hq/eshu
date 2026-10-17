@@ -109,6 +109,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"class",
 		"site",
 		"search_path",
+		"trigger",
 	}
 
 	got := MetricDimensionKeys()
@@ -296,6 +297,7 @@ func TestSpanNames(t *testing.T) {
 		"bootstrap.collector_cycle",
 		"collector.claimed_run",
 		"collector.snapshot_stage",
+		"config_artifacts.derive",
 	}
 
 	got := SpanNames()

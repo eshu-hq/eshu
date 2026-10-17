@@ -113,3 +113,28 @@ restored with `git checkout`):
 and the `Observability Evidence:` markers are in the package README
 (`go/internal/storage/postgres/config/artifacts/README.md`, section "Evidence
 (PR3b-2b, the derive core)").
+
+## PR3b-2c-1: registration only, no runtime change
+
+PR3b-2c-1 registers the derive metrics, the span name and the two environment
+variables, and adds their parse loader. It changes no runtime path.
+
+No-Regression Evidence: no code path executes the new loader or records the new
+instruments. `rg 'LoadConfigArtifactDeriveConfig' go --glob '!*_test.go'` finds
+only the definition and docs, so no binary reads either variable. `rg
+'ConfigArtifactDerives|ConfigArtifactDeriveDuration|SpanConfigArtifactsDerive'
+go --glob '!*_test.go'` finds only the registration, the contract constant and
+the instrument fields, so nothing records a value or starts a span. The only
+runtime effect is two more instruments created when telemetry starts. No
+latency, throughput or queue claim is made, and none is measured, because there
+is nothing to measure until PR3b-2c-2 emits. That slice carries the S1 run on
+the built binaries (the arbiter ruling arb-8155-2c pins the pass bar before the
+data).
+
+No-Observability-Change: the change adds registrations only and removes no
+signal. Backend and version are not relevant (no query, no queue, no lease and
+no batch changes). The new names and labels are listed in
+`docs/public/reference/telemetry/metrics.md` and
+`docs/public/reference/telemetry/traces.md`, and the existing walker row of
+`docs/public/observability/telemetry-coverage.md` carries the registration
+marker. First emission is PR3b-2c-2.

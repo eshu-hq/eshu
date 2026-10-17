@@ -22,6 +22,7 @@ var coreScanFiles = []string{
 	"internal/runtime/postgres/config.go",
 	"internal/runtime/postgres/snapshot_export_qualification.go",
 	"internal/runtime/pprof.go",
+	"internal/content/config_artifact_derive.go",
 	"internal/coordinator/config.go",
 	"cmd/reducer/code_value_flow_stale_cleanup_config.go",
 	"cmd/reducer/infra_inventory_reconcile_wiring.go",

@@ -1059,8 +1059,17 @@ type Instruments struct {
 	// candidates past the window are unknown). A non-zero unhydrated or
 	// list_truncated rate is the operator signal that responses carried a
 	// budget or window reason. No repository label. Registered in
-	// instruments_config_artifact_candidates.go.
+	// instruments_config_artifacts.go.
 	ConfigArtifactCandidates metric.Int64Counter
+	// ConfigArtifactDerives counts per-repository config-artifact derives
+	// (#8155) by trigger (write, backfill, repair) and outcome (ok,
+	// superseded, error, panic, timeout, canceled, encoding_unsupported,
+	// fence_missing), and ConfigArtifactDeriveDuration records each derive's
+	// wall time by trigger, on buckets from 1 ms to 30 s. No repository
+	// label. Registered in instruments_config_artifacts.go; nothing
+	// emits them until PR3b-2c-2 wires the derive into the content Write.
+	ConfigArtifactDerives        metric.Int64Counter
+	ConfigArtifactDeriveDuration metric.Float64Histogram
 	// QueryK8sSelectCandidateScanTruncated counts k8s SELECTS relationship
 	// builds (GET /api/v0/entities/{id}/context on a Service or Deployment
 	// K8sResource) whose K8sResource candidate scan hit the
@@ -5493,6 +5502,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerConfigArtifactCandidates(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerConfigArtifactDeriveInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerAuthIdentityStoreUnavailable(meter, inst); err != nil {
