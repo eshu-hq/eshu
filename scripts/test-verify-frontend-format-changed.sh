@@ -251,6 +251,12 @@ test_advisory_drift_exits_zero() {
   fi
   assert_contains "format: advisory:" "${out}"
   assert_contains "fake-prettier:" "${out}"
+  assert_contains "prettier exited 1" "${out}"
+  if rg -q --fixed-strings "reported drift" "${out}"; then
+    echo "test-frontend-format: advisory message must not claim drift for any non-zero exit" >&2
+    cat "${out}" >&2
+    exit 1
+  fi
 }
 
 test_advisory_missing_prettier_exits_zero() {
@@ -307,6 +313,18 @@ hook_entry() {
   ' "${repo_root}/.pre-commit-config.yaml"
 }
 
+# hook_has_verbose ID: succeed when the hook sets `verbose: true`. pre-commit
+# hides the output of a hook that exits 0, so an advisory hook needs it for the
+# `format: advisory:` line to reach the developer.
+hook_has_verbose() {
+  awk -v id="$1" '
+    $0 ~ "- id: " id "$" { found = 1; next }
+    found && /^ *- id:/ { exit }
+    found && /^ *verbose: *true *$/ { ok = 1 }
+    END { exit ok ? 0 : 1 }
+  ' "${repo_root}/.pre-commit-config.yaml"
+}
+
 test_hook_wiring_push_advisory_staged_strict() {
   local push_entry staged_entry
   push_entry="$(hook_entry frontend-format-changed)"
@@ -325,6 +343,10 @@ test_hook_wiring_push_advisory_staged_strict() {
       exit 1
       ;;
   esac
+  if ! hook_has_verbose frontend-format-changed; then
+    echo "test-frontend-format: push-stage advisory hook must set verbose: true so pre-commit shows the advisory line" >&2
+    exit 1
+  fi
   case "${staged_entry}" in
     *"--advisory"*)
       echo "test-frontend-format: staged hook must stay strict, got: ${staged_entry}" >&2

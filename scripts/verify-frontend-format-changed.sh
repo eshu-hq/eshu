@@ -184,7 +184,7 @@ if [[ "${advisory}" -eq 1 ]]; then
   prettier_rc=0
   "${prettier_cmd[@]}" --check "${changed_files[@]}" || prettier_rc=$?
   if [[ "${prettier_rc}" -ne 0 ]]; then
-    log "advisory: prettier reported drift (exit ${prettier_rc}); not blocking. Run 'npx prettier --write' on the files above"
+    log "advisory: prettier exited ${prettier_rc}; not blocking. See the output above; 'npx prettier --write' fixes formatting drift"
   fi
   exit 0
 fi

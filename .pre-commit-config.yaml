@@ -384,7 +384,10 @@ repos:
       # so local pushes report the same format drift surfaced in CI without
       # blocking on unrelated repo-wide Prettier drift. The registry row is
       # blocking:false, so --advisory keeps drift and a missing node_modules
-      # from failing the push (#8355); CI runs the script strict.
+      # from failing the push (#8355). The script still runs strict in CI, but
+      # that CI job is advisory (continue-on-error). verbose: true is required:
+      # pre-commit hides the output of a hook that exits 0, so without it the
+      # `format: advisory:` line never reaches the developer.
       - id: frontend-format-changed
         name: frontend prettier changed files
         entry: scripts/verify-frontend-format-changed.sh --advisory
@@ -392,6 +395,7 @@ repos:
         always_run: true
         pass_filenames: false
         require_serial: true
+        verbose: true
         stages: [pre-push]
 
       # Docs-build changed-file gate (mirrors CI docs build in test.yml): diffs
