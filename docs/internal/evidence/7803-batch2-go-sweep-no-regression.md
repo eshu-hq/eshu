@@ -27,7 +27,7 @@ control-flow line changes outside test fixtures.
 ## No-Regression Evidence:
 
 Baseline is the branch point `e7675d9ee`, which is also the merge base with
-`origin/main`. Input shape is 117 files, 206 insertions, 215 deletions of
+`origin/main`. Input shape is 118 files, 255 insertions, 215 deletions of
 comments, prose, and symmetric test fixtures. After measurement is the unit
 proof battery on the local Go toolchain `go1.26.6 linux/arm64`, with no live
 backend: `go build ./...` exits 0, and every touched package suite passes

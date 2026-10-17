@@ -152,13 +152,12 @@ printf '%s\n' "$repo" >>"$tmp_list"
 seed "$repo" apps/console/src/api/fixture.test.ts 'label: "example-shop",'
 check "missing target directory exits 2" 2 "$(run_gate "$repo")"
 
-# 10. SYNC: every go/internal/query file target of the gate appears in this
-# gate's triggers block in gates-02.yaml, so a renamed target cannot silently
-# lose CI selection (#7918 P2). The search is scoped to the triggers block: a
-# target mentioned in a comment or under self_test_triggers elsewhere in the
-# file must not satisfy it. Since the #7803 batch 2 promotion there are no
-# .go file targets left, so this check is vacuously green; it still guards
-# any future file target.
+# 10. SYNC: every target of the gate appears in this gate's triggers block
+# in gates-02.yaml, so a renamed target cannot silently lose CI selection
+# (#7918 P2). The search is scoped to the triggers block: a target mentioned
+# in a comment or under self_test_triggers elsewhere in the file must not
+# satisfy it. File targets match literally; directory targets match their
+# tree glob, so deleting the go/internal/query tree trigger fails loudly.
 triggers_yaml="${script_dir}/../specs/ci-gates.d/gates-02.yaml"
 triggers_block="$(mktemp)"
 printf '%s\n' "$triggers_block" >>"$tmp_list"
@@ -173,9 +172,15 @@ while IFS= read -r sync_target; do
         sync_failures=$((sync_failures + 1))
       fi
       ;;
+    *)
+      if ! rg -q --fixed-strings -- "- \"$sync_target/**\"" "$triggers_block"; then
+        printf 'FAIL trigger sync: gate directory target %s/** not in this gate triggers block\n' "$sync_target" >&2
+        sync_failures=$((sync_failures + 1))
+      fi
+      ;;
   esac
 done < <(gate_targets)
-check "gate file targets are this gate triggers" 0 "$sync_failures"
+check "gate targets are this gate triggers" 0 "$sync_failures"
 
 if [ "$failures" -ne 0 ]; then
   printf '%s case(s) failed\n' "$failures" >&2

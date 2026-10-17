@@ -30,11 +30,10 @@ targets=(
 	"apps/console/prototype"
 	"go/internal/parser/hcl"
 	"go/internal/parser/rust"
-	"go/internal/query/service"
-	"go/internal/query/visualization"
 	# go/internal/query is a whole-directory target since the #7803 sweep
 	# cleaned its environment tokens in comments (#7803 batch 2); the two
-	# former file targets stay covered without a path exception.
+	# former file targets and the old service/visualization subtrees stay
+	# covered without a path exception.
 	"go/internal/query"
 )
 
