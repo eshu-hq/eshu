@@ -44,10 +44,11 @@ func checkExtractorPins(corpusDigest, outputDigest string, version int, pins []e
 	last := pins[len(pins)-1]
 	switch {
 	case corpusDigest != last.CorpusDigest:
-		return fmt.Errorf("guard corpus changed: corpus digest %s != pinned %s; testdata/guard changes only through the re-snapshot procedure "+
-			"(package README, \"Extractor version and its guard\"): restore the committed snapshot, run the guard on it, regenerate with "+
-			"-update-extractor-corpus, then set the version %d row to {CorpusDigest: %q} and its new output digest, with no extractor change in the same commit",
-			corpusDigest, last.CorpusDigest, last.Version, corpusDigest)
+		return fmt.Errorf("guard corpus changed: corpus digest %s != pinned %s; testdata/guard changes only by regeneration "+
+			"(package README, \"Extractor version and its guard\"). With no extractor change in this commit, restore the committed snapshot, "+
+			"run the guard on it, regenerate with -update-extractor-corpus, then set the version %d row to {CorpusDigest: %q} and its new output digest; "+
+			"with an extractor change that the new input shows, set ExtractorVersion to %d and append {Version: %d, CorpusDigest: %q, OutputDigest: %q}",
+			corpusDigest, last.CorpusDigest, last.Version, corpusDigest, last.Version+1, last.Version+1, corpusDigest, outputDigest)
 	case version == last.Version && outputDigest == last.OutputDigest:
 		return nil
 	case version == last.Version:
@@ -58,7 +59,10 @@ func checkExtractorPins(corpusDigest, outputDigest string, version int, pins []e
 		return fmt.Errorf("ExtractorVersion is %d, below the pinned version %d: the pin was appended but the constant was not bumped; set ExtractorVersion to %d",
 			version, last.Version, last.Version)
 	case outputDigest == last.OutputDigest:
-		return fmt.Errorf("ExtractorVersion is %d but the output digest %s equals the pin at version %d: the output did not change, so revert the bump (it would re-derive every repository for nothing)",
+		return fmt.Errorf("ExtractorVersion is %d but the output digest %s equals the pin at version %d: "+
+			"the output over the guard corpus did not change; if the change alters rows for an input the corpus lacks, "+
+			"add that input to the generator's supplement and regenerate in this change, otherwise revert the bump "+
+			"(it would re-derive every repository for nothing); package README, \"Extractor version and its guard\"",
 			version, outputDigest, last.Version)
 	case version != last.Version+1:
 		return fmt.Errorf("ExtractorVersion is %d, pinned version is %d: bump by one, to %d, and append {Version: %d, CorpusDigest: %q, OutputDigest: %q}",
@@ -92,6 +96,10 @@ func TestCheckExtractorPins(t *testing.T) {
 			pins: []extractorPin{{Version: 1, CorpusDigest: c2, OutputDigest: d3}},
 		},
 		{
+			name: "green: bump with a new corpus", corpus: c2, digest: d2, version: 2,
+			pins: []extractorPin{{Version: 1, CorpusDigest: c1, OutputDigest: d1}, {Version: 2, CorpusDigest: c2, OutputDigest: d2}},
+		},
+		{
 			name: "red: changed output without a bump", corpus: c1, digest: d2, version: 1, pins: history,
 			wantErr: "extractor output changed: digest digest-two != pinned digest-one; bump ExtractorVersion (now 1) and update the pinned pair",
 		},
@@ -101,7 +109,8 @@ func TestCheckExtractorPins(t *testing.T) {
 		},
 		{
 			name: "red: bump with an unchanged output", corpus: c1, digest: d1, version: 2, pins: history,
-			wantErr: "the output did not change, so revert the bump",
+			wantErr: "the output over the guard corpus did not change; if the change alters rows for an input the corpus lacks, " +
+				"add that input to the generator's supplement and regenerate in this change, otherwise revert the bump",
 		},
 		{
 			name: "red: pin appended but the constant not bumped", corpus: c1, digest: d2, version: 1, pins: bumped,
@@ -122,6 +131,11 @@ func TestCheckExtractorPins(t *testing.T) {
 		{
 			name: "red: hand-edited snapshot hides an output change", corpus: c2, digest: d2, version: 1, pins: history,
 			wantErr: "guard corpus changed",
+		},
+		{
+			name: "red: bump with a new corpus without the pin row", corpus: c2, digest: d2, version: 2, pins: history,
+			wantErr: `with an extractor change that the new input shows, set ExtractorVersion to 2 and append ` +
+				`{Version: 2, CorpusDigest: "corpus-two", OutputDigest: "digest-two"}`,
 		},
 		{
 			name: "red: history edited in place", corpus: c1, digest: d2, version: 2,

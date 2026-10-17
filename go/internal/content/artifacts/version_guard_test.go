@@ -11,13 +11,16 @@ import (
 	"os"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 )
 
 // extractorPins is the pin history of ExtractorVersion, oldest first, one row
-// per version. A bump appends a row; a re-snapshot (README, "Extractor
-// version and its guard") rewrites the digests of the last row in a commit
-// that changes no extractor.
+// per version. A bump appends a row, with a new corpus digest when the bump
+// also adds the input that shows its change; a re-snapshot (README,
+// "Extractor version and its guard") rewrites the digests of the last row in a
+// commit that changes no extractor. Never delete a row or lower the version:
+// the version is monotonic, so an extractor change is undone by a new bump.
 //
 // Version 1 was pinned on the extractors of origin/main c704fbc3d with
 // go1.26.9 linux/arm64 (the go.mod toolchain): run TestExtractorOutputIsPinned
@@ -96,7 +99,8 @@ type guardCoverageError struct {
 
 func (e *guardCoverageError) Error() string {
 	return fmt.Sprintf("guard corpus coverage: kinds with fewer than %d rows %q, kinds no extractor emits %q; "+
-		"add input for each thin kind to the generator's supplement and re-snapshot (package README)", e.MinRows, e.Thin, e.Unknown)
+		"add input for each thin kind to the generator's supplement and regenerate together with the bump when an extractor change thinned the kind, "+
+		"otherwise in a commit with no extractor change (package README, \"Extractor version and its guard\")", e.MinRows, e.Thin, e.Unknown)
 }
 
 // guardForbiddenInputs are the corpus inputs only the generator may read.
@@ -168,5 +172,9 @@ func TestCheckGuardCoverage(t *testing.T) {
 	coverage, ok := err.(*guardCoverageError)
 	if !ok || !reflect.DeepEqual(coverage.Thin, []string{"a", "b"}) || !reflect.DeepEqual(coverage.Unknown, []string{"c"}) {
 		t.Fatalf("red: got %v", err)
+	}
+	const action = "regenerate together with the bump when an extractor change thinned the kind, otherwise in a commit with no extractor change"
+	if !strings.Contains(err.Error(), action) {
+		t.Fatalf("red: message %q does not say %q", err, action)
 	}
 }
