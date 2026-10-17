@@ -1059,7 +1059,7 @@ type Instruments struct {
 	// candidates past the window are unknown). A non-zero unhydrated or
 	// list_truncated rate is the operator signal that responses carried a
 	// budget or window reason. No repository label. Registered in
-	// instruments_config_artifact_candidates.go.
+	// instruments_config_artifacts.go.
 	ConfigArtifactCandidates metric.Int64Counter
 	// QueryK8sSelectCandidateScanTruncated counts k8s SELECTS relationship
 	// builds (GET /api/v0/entities/{id}/context on a Service or Deployment
