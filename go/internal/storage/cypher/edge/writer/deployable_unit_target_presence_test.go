@@ -62,9 +62,11 @@ func TestEdgeWriterWriteEdgesDeployableUnitAbsentTargetFailsClosed(t *testing.T)
 }
 
 // TestEdgeWriterDeployableUnitProbeAnchorsBothRepos pins the probe shape the
-// guard relies on: the miss-detection statement must anchor both MATCH
-// endpoints of the deployable-unit template (source AND deployment repo),
-// stay read-only, and carry exactly this batch's targets.
+// guard relies on: the miss-detection probes must anchor both MATCH endpoints
+// of the deployable-unit template (source AND deployment repo), stay
+// read-only, and carry exactly this batch's targets — one single-clause
+// statement per endpoint (#8315: the old two-anchor statement answered
+// present on NornicDB with the target absent).
 func TestEdgeWriterDeployableUnitProbeAnchorsBothRepos(t *testing.T) {
 	t.Parallel()
 
@@ -72,51 +74,40 @@ func TestEdgeWriterDeployableUnitProbeAnchorsBothRepos(t *testing.T) {
 		"repo_id":            "repo-app",
 		"deployment_repo_id": "repo-deploy",
 	}}
-	probe, ok := buildTargetPresenceProbeStatement(reducer.DomainDeployableUnitEdges, rows)
+	probes, ok := buildTargetPresenceProbeStatements(reducer.DomainDeployableUnitEdges, rows)
 	if !ok {
-		t.Fatal("buildTargetPresenceProbeStatement(deployable_unit_edges) = false, want a probe anchoring both Repository endpoints")
+		t.Fatal("buildTargetPresenceProbeStatements(deployable_unit_edges) = false, want one probe per Repository endpoint")
 	}
-	for _, want := range []string{"(:Repository {id: $", "RETURN 1 LIMIT 1"} {
-		if !strings.Contains(probe.Cypher, want) {
-			t.Fatalf("probe cypher missing %q:\n%s", want, probe.Cypher)
+	if len(probes) != 2 {
+		t.Fatalf("probe statements = %d, want 2 (source and deployment repo)", len(probes))
+	}
+	for _, probe := range probes {
+		for _, want := range []string{"MATCH (:Repository {id: $", "RETURN 1 LIMIT 1"} {
+			if !strings.Contains(probe.Cypher, want) {
+				t.Fatalf("probe cypher missing %q:\n%s", want, probe.Cypher)
+			}
 		}
-	}
-	for _, forbidden := range []string{"MERGE", "CREATE", "DELETE", "SET ", "OPTIONAL", "WITH", "WHERE", "COUNT", "UNWIND"} {
-		if strings.Contains(probe.Cypher, forbidden) {
-			t.Fatalf("probe cypher must be anchored MATCHes only, found %q:\n%s", forbidden, probe.Cypher)
+		if got := strings.Count(probe.Cypher, "MATCH "); got != 1 {
+			t.Fatalf("probe has %d MATCH clauses, want exactly 1 (single-pattern #8315):\n%s", got, probe.Cypher)
+		}
+		for _, forbidden := range []string{"MERGE", "CREATE", "DELETE", "SET ", "OPTIONAL", "WITH", "WHERE", "COUNT", "UNWIND"} {
+			if strings.Contains(probe.Cypher, forbidden) {
+				t.Fatalf("probe cypher must be anchored MATCHes only, found %q:\n%s", forbidden, probe.Cypher)
+			}
 		}
 	}
 	found := map[string]bool{}
-	for _, v := range probe.Parameters {
-		if s, ok := v.(string); ok {
-			found[s] = true
+	for _, probe := range probes {
+		for _, v := range probe.Parameters {
+			if s, ok := v.(string); ok {
+				found[s] = true
+			}
 		}
 	}
 	for _, want := range []string{"repo-app", "repo-deploy"} {
 		if !found[want] {
-			t.Fatalf("probe parameters missing target %q: %v", want, probe.Parameters)
+			t.Fatalf("probe parameters missing target %q: %v", want, probes)
 		}
-	}
-}
-
-// TestEdgeWriterWriteEdgesDeployableUnitTargetPresentProceeds guards the
-// happy path: when both batch targets exist, the probe must not cost the
-// write anything.
-func TestEdgeWriterWriteEdgesDeployableUnitTargetPresentProceeds(t *testing.T) {
-	t.Parallel()
-
-	executor := &targetMissProbeExecutor{probeAllPresent: true}
-	writer := NewEdgeWriter(executor, 0)
-
-	if _, err := writer.WriteEdges(
-		context.Background(), reducer.DomainDeployableUnitEdges,
-		[]reducer.SharedProjectionIntentRow{validDeployableUnitRow()},
-		"reducer/deployable-unit-correlation",
-	); err != nil {
-		t.Fatalf("WriteEdges() with all targets present error = %v", err)
-	}
-	if executor.executeCalls == 0 {
-		t.Fatal("expected the edge write to run when all targets are present")
 	}
 }
 
@@ -146,10 +137,11 @@ func distinctDeployableUnitRows(n int) []reducer.SharedProjectionIntentRow {
 }
 
 // TestEdgeWriterDeployableUnitProbeChunksPerWriteBatch pins the #6730 owner
-// finding: one existence probe must cover at most one write batch worth of
-// rows, so a 10k-row drain cannot build an unbounded MATCH chain the
-// backend never proved. With BatchSize 2 and 3 distinct-target rows, the
-// guard must probe twice (2+1) instead of once.
+// finding: the existence probes for a chunk must cover at most one write
+// batch worth of rows, so a 10k-row drain cannot build an unbounded probe
+// set the backend never proved. With BatchSize 2 and 3 distinct-target rows,
+// the guard must probe per chunk (3 + 2 single-pattern statements) instead
+// of once.
 func TestEdgeWriterDeployableUnitProbeChunksPerWriteBatch(t *testing.T) {
 	t.Parallel()
 
@@ -164,12 +156,12 @@ func TestEdgeWriterDeployableUnitProbeChunksPerWriteBatch(t *testing.T) {
 	); err != nil {
 		t.Fatalf("WriteEdges() with all targets present error = %v", err)
 	}
-	if executor.probeCalls != 2 {
-		t.Fatalf("probe calls = %d, want 2 (chunks of 2+1 at BatchSize 2)", executor.probeCalls)
+	if executor.probeCalls != 5 {
+		t.Fatalf("probe calls = %d, want 5 (chunk 1: shared source + 2 targets, chunk 2: shared source + 1 target)", executor.probeCalls)
 	}
 	for i, stmt := range executor.probeStmts {
-		if got := strings.Count(stmt.Cypher, "MATCH "); got > 3 {
-			t.Fatalf("probe %d has %d MATCH clauses, want at most 3 (one write batch of 2 rows: shared source + 2 targets)", i, got)
+		if got := strings.Count(stmt.Cypher, "MATCH "); got != 1 {
+			t.Fatalf("probe %d has %d MATCH clauses, want exactly 1 (single-pattern #8315)", i, got)
 		}
 	}
 }

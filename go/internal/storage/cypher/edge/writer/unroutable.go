@@ -6,7 +6,6 @@ package writer
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -144,111 +143,6 @@ func unroutableReasonForRow(domain string, row reducer.SharedProjectionIntentRow
 // can never stall one. Other domains keep their existing contract; see the
 // per-template comments for why their MATCH misses stay silent.
 
-// targetMissProbeDomains are the shared-projection domains whose batch write
-// resolves a cross-acceptance-unit runtime target committed by a different
-// handler, and whose rows therefore reach WriteEdges only after a presence
-// gate proved the target committable. A miss for these rows is always worth
-// a retry, never a silent completion.
-var targetMissProbeDomains = map[string]bool{
-	reducer.DomainHandlesRoute:        true,
-	reducer.DomainRunsIn:              true,
-	reducer.DomainDeployableUnitEdges: true,
-}
-
-// buildTargetPresenceProbeStatement returns the existence probe for one
-// routed batch, or false for domains outside the guard. The probe returns a
-// row if and only if every distinct runtime target of the batch exists, so
-// the ProbeExecutor boolean is the verdict directly: found means write,
-// not-found means a target is absent and the batch must be deferred.
-//
-// Shape discipline (docs/public/reference/nornicdb-query-pitfalls.md): one
-// inline-anchored MATCH clause per distinct target, no WITH, no OPTIONAL
-// MATCH, no subquery — sequential anchored MATCHes over literal parameters.
-// Correlated COUNT{}/EXISTS{} subqueries over UNWIND rows are rejected by
-// the backend, and a WHERE attached to a WITH is not evaluated as a filter,
-// so neither can carry this verdict. The probe shape is proven live in both
-// directions on the pinned backend (see the #6184 run notes); the unit tests
-// pin the builder output.
-func buildTargetPresenceProbeStatement(domain string, rows []map[string]any) (sourcecypher.Statement, bool) {
-	if !targetMissProbeDomains[domain] {
-		return sourcecypher.Statement{}, false
-	}
-	params := make(map[string]any, 2*len(rows))
-	var sb strings.Builder
-	clause := 0
-	seen := make(map[string]struct{}, len(rows))
-	emit := func(key string, match string, kv ...any) {
-		if _, dup := seen[key]; dup {
-			return
-		}
-		seen[key] = struct{}{}
-		// The clause indexes in match and kv are bound at the call site from
-		// the pre-increment counter, so every MATCH clause gets a unique
-		// parameter pair.
-		sb.WriteString("MATCH " + match + "\n")
-		for i := 0; i < len(kv); i += 2 {
-			params[kv[i].(string)] = kv[i+1]
-		}
-		clause++
-	}
-	switch domain {
-	case reducer.DomainHandlesRoute:
-		// The write MATCHes both (f:Function {uid}) and (e:Endpoint
-		// {repo_id, path}); the probe anchors both, or a batch whose
-		// Function node is absent (post-wipe ordering vs content
-		// projection) passes the guard and completes a silent zero-edge
-		// write (#6730 owner finding).
-		for _, row := range rows {
-			repo, _ := row["repo_id"].(string)
-			path, _ := row["path"].(string)
-			if repo == "" || path == "" {
-				continue
-			}
-			key := repo + "\x00" + path
-			emit(key, fmt.Sprintf("(e%d:Endpoint {repo_id: $r%d, path: $p%d})", clause, clause, clause),
-				fmt.Sprintf("r%d", clause), repo, fmt.Sprintf("p%d", clause), path)
-			if uid, _ := row["function_entity_id"].(string); uid != "" {
-				emit("f\x00"+uid, fmt.Sprintf("(f%d:Function {uid: $u%d})", clause, clause),
-					fmt.Sprintf("u%d", clause), uid)
-			}
-		}
-	case reducer.DomainRunsIn:
-		for _, row := range rows {
-			repo, _ := row["repo_id"].(string)
-			if repo == "" {
-				continue
-			}
-			emit(repo, fmt.Sprintf("(:Repository {id: $r%d})-[:DEFINES]->(:Workload)", clause),
-				fmt.Sprintf("r%d", clause), repo)
-		}
-	case reducer.DomainDeployableUnitEdges:
-		// The deployable-unit template MATCHes both endpoint Repositories;
-		// the deployment node is committed by another scope's
-		// materialization with no happens-before against this batch (#6184).
-		for _, row := range rows {
-			if repo, _ := row["repo_id"].(string); repo != "" {
-				emit("s\x00"+repo, fmt.Sprintf("(:Repository {id: $s%d})", clause),
-					fmt.Sprintf("s%d", clause), repo)
-			}
-			if repo, _ := row["deployment_repo_id"].(string); repo != "" {
-				emit("t\x00"+repo, fmt.Sprintf("(:Repository {id: $t%d})", clause),
-					fmt.Sprintf("t%d", clause), repo)
-			}
-		}
-	default:
-		return sourcecypher.Statement{}, false
-	}
-	if clause == 0 {
-		return sourcecypher.Statement{}, false
-	}
-	sb.WriteString("RETURN 1 LIMIT 1")
-	return sourcecypher.Statement{
-		Operation:  sourcecypher.OperationCanonicalProbe,
-		Cypher:     sb.String(),
-		Parameters: params,
-	}, true
-}
-
 // targetMissingError fails a batch whose runtime target is absent from
 // the graph. Retryable() keeps the rows queued: the target commits later in
 // the same generation (its presence row proves these facts derive it) and
@@ -323,76 +217,13 @@ func (e *targetProbeError) Retryable() bool { return true }
 // through it; the probe error adds none of its own.
 func (e *targetProbeError) Unwrap() error { return e.err }
 
-// checkBatchTargetsPresent probes one routed batch for runtime-target
-// completeness before its write statements run. It returns nil when the
-// domain is unguarded, the executor has no probe capability, or every target
-// is present. A probe failure or a detected miss emits the operator signal
-// and returns a retryable error; the caller must run no write statement for
-// the batch afterwards.
-func (w *EdgeWriter) checkBatchTargetsPresent(
-	ctx context.Context,
-	prober sourcecypher.ProbeExecutor,
-	domain string,
-	evidenceSource string,
-	rows []map[string]any,
-	sampleRepoID string,
-	sampleIntentID string,
-) error {
-	probe, ok := buildTargetPresenceProbeStatement(domain, rows)
-	if !ok {
-		return nil
-	}
-	allPresent, err := prober.ExecuteProbe(ctx, probe)
-	if err != nil {
-		if w.Logger != nil {
-			w.Logger.Warn(
-				"shared edge target probe failed, deferring unverified batch",
-				"domain", domain,
-				"evidence_source", evidenceSource,
-				"batch_rows", len(rows),
-				"sample_intent_id", sampleIntentID,
-				"error", err,
-			)
-		}
-		return &targetProbeError{
-			domain:         domain,
-			batchRows:      len(rows),
-			sampleIntentID: sampleIntentID,
-			err:            err,
-		}
-	}
-	if allPresent {
-		return nil
-	}
-	if w.Instruments != nil && w.Instruments.SharedEdgeTargetMiss != nil {
-		w.Instruments.SharedEdgeTargetMiss.Add(ctx, 1, metric.WithAttributes(
-			telemetry.AttrDomain(domain),
-		))
-	}
-	if w.Logger != nil {
-		w.Logger.Warn(
-			"shared edge batch target absent, deferring batch",
-			"domain", domain,
-			"evidence_source", evidenceSource,
-			"batch_rows", len(rows),
-			"sample_repo_id", sampleRepoID,
-			"sample_intent_id", sampleIntentID,
-		)
-	}
-	return &targetMissingError{
-		domain:         domain,
-		batchRows:      len(rows),
-		sampleRepoID:   sampleRepoID,
-		sampleIntentID: sampleIntentID,
-	}
-}
-
 // checkRoutedBatchTargets runs the target-presence guard over every routed
 // group of one WriteEdges call, chunked at the same batch size the write
-// path uses (see EdgeWriter.batchSizeForDomain): one probe covers at most
-// one write batch worth of rows, so a large drain cannot build an unbounded
-// MATCH chain the backend never proved — the fence scales down with the
-// batch size (#6184 owner finding on PR #6730). The sample intent identifies
+// path uses (see EdgeWriter.batchSizeForDomain): the probes for a chunk cover
+// at most one write batch worth of rows, so a large drain cannot build an
+// unbounded probe set the backend never proved — the fence scales down with
+// the batch size (#6184 owner finding on PR #6730). Each probe is one
+// single-clause statement (#8315). The sample intent identifies
 // the batch in the log; per-group samples would cost an intent-id index
 // through routing for no operator benefit, so the batch head stands in for
 // all groups.

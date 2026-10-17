@@ -224,25 +224,34 @@ func TestEdgeWriterTargetMissProbeMentionsBatchScope(t *testing.T) {
 	if len(executor.probeStmts) == 0 {
 		t.Fatal("target existence probe was never consulted")
 	}
-	probe := executor.probeStmts[0].Cypher
-	for _, want := range []string{"MATCH (e0:Endpoint", "RETURN 1 LIMIT 1"} {
-		if !strings.Contains(probe, want) {
-			t.Fatalf("probe cypher missing %q:\n%s", want, probe)
+	if len(executor.probeStmts) != 2 {
+		t.Fatalf("probe statements = %d, want 2 (Endpoint and Function anchors)", len(executor.probeStmts))
+	}
+	for _, stmt := range executor.probeStmts {
+		probe := stmt.Cypher
+		if !strings.Contains(probe, "RETURN 1 LIMIT 1") {
+			t.Fatalf("probe cypher missing %q:\n%s", "RETURN 1 LIMIT 1", probe)
+		}
+		if got := strings.Count(probe, "MATCH "); got != 1 {
+			t.Fatalf("probe has %d MATCH clauses, want exactly 1 (single-pattern #8315):\n%s", got, probe)
+		}
+		for _, forbidden := range []string{"MERGE", "CREATE", "DELETE", "SET ", "OPTIONAL", "WITH", "WHERE", "COUNT", "UNWIND"} {
+			if strings.Contains(probe, forbidden) {
+				t.Fatalf("probe cypher must be anchored MATCHes only, found %q:\n%s", forbidden, probe)
+			}
 		}
 	}
-	for _, forbidden := range []string{"MERGE", "CREATE", "DELETE", "SET ", "OPTIONAL", "WITH", "WHERE", "COUNT", "UNWIND"} {
-		if strings.Contains(probe, forbidden) {
-			t.Fatalf("probe cypher must be anchored MATCHes only, found %q:\n%s", forbidden, probe)
-		}
+	if !strings.Contains(executor.probeStmts[0].Cypher, "MATCH (e:Endpoint") {
+		t.Fatalf("first probe must anchor the Endpoint, got:\n%s", executor.probeStmts[0].Cypher)
 	}
 }
 
 // TestEdgeWriterHandlesRouteProbeAnchorsFunction pins the #6730 owner
 // finding: the HANDLES_ROUTE write MATCHes two nodes — (f:Function {uid})
-// and (e:Endpoint {repo_id, path}) — so the presence probe must anchor both.
+// and (e:Endpoint {repo_id, path}) — so the presence probes must anchor both.
 // An Endpoint-only probe lets a batch whose Function node is absent (post-wipe
 // ordering vs content projection) pass the guard and complete a silent
-// zero-edge write.
+// zero-edge write. Each anchor is its own single-clause statement (#8315).
 func TestEdgeWriterHandlesRouteProbeAnchorsFunction(t *testing.T) {
 	t.Parallel()
 
@@ -251,24 +260,36 @@ func TestEdgeWriterHandlesRouteProbeAnchorsFunction(t *testing.T) {
 		"repo_id":            "repo-a",
 		"path":               "/widgets",
 	}}
-	probe, ok := buildTargetPresenceProbeStatement(reducer.DomainHandlesRoute, rows)
+	probes, ok := buildTargetPresenceProbeStatements(reducer.DomainHandlesRoute, rows)
 	if !ok {
-		t.Fatal("buildTargetPresenceProbeStatement(handles_route) = false, want a probe anchoring Function and Endpoint")
+		t.Fatal("buildTargetPresenceProbeStatements(handles_route) = false, want probes anchoring Function and Endpoint")
+	}
+	if len(probes) != 2 {
+		t.Fatalf("probe statements = %d, want 2 (Endpoint and Function anchors)", len(probes))
+	}
+	joined := ""
+	for _, probe := range probes {
+		joined += probe.Cypher + "\n"
+		if got := strings.Count(probe.Cypher, "MATCH "); got != 1 {
+			t.Fatalf("probe has %d MATCH clauses, want exactly 1 (single-pattern #8315):\n%s", got, probe.Cypher)
+		}
 	}
 	for _, want := range []string{":Function {uid: $", ":Endpoint {repo_id: $", "RETURN 1 LIMIT 1"} {
-		if !strings.Contains(probe.Cypher, want) {
-			t.Fatalf("probe cypher missing %q:\n%s", want, probe.Cypher)
+		if !strings.Contains(joined, want) {
+			t.Fatalf("probe cyphers missing %q:\n%s", want, joined)
 		}
 	}
 	found := map[string]bool{}
-	for _, v := range probe.Parameters {
-		if s, ok := v.(string); ok {
-			found[s] = true
+	for _, probe := range probes {
+		for _, v := range probe.Parameters {
+			if s, ok := v.(string); ok {
+				found[s] = true
+			}
 		}
 	}
 	for _, want := range []string{"content-entity:gw", "repo-a", "/widgets"} {
 		if !found[want] {
-			t.Fatalf("probe parameters missing target %q: %v", want, probe.Parameters)
+			t.Fatalf("probe parameters missing target %q: %v", want, probes)
 		}
 	}
 }
