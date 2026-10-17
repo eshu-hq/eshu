@@ -19,8 +19,8 @@ import (
 // This file holds the retention policy and, since #7427, the search index
 // pre-delete hooks the policy bounds. The pre-delete loop itself lives in the
 // storage/postgres/search/index/retention leaf; only the glue that needs
-// root-private retention state stays here, because this directory is at its
-// dirgate pin (scripts/lib/dirgate-grandfather.tsv) and takes no new file.
+// root-private retention state stays here, because this directory is over the
+// dirgate cap, so a new file here needs a Dirgate-Growth trailer.
 
 const (
 	// defaultGenerationRetentionSearchIndexPredeleteRowCap bounds the rows one
@@ -152,6 +152,11 @@ type GenerationRetentionResult struct {
 	// (#7127). They differ only when a link committed between the two.
 	LedgerRowsPruned  map[string]int64
 	LedgerRowsCounted map[string]int64
+	// FactKeyRowsPruned and FactKeyRowsCounted are the whole-generation key
+	// sidecar delete's rows and the batch's pre-count of them, by table
+	// (#7420). They differ only when keys were written or orphaned between.
+	FactKeyRowsPruned  map[string]int64
+	FactKeyRowsCounted map[string]int64
 	// RowsOverLimit is the batch's counted rows minus BatchRowLimit when the
 	// batch is one generation over the limit (admitted alone because only its
 	// changed-since ledger rows push it over), else 0. It comes from the

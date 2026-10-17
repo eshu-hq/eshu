@@ -46,7 +46,7 @@ results are derived from the inputs rather than written by hand. See
 - `go-build` (blocking): Builds every Go binary in the module to confirm the code still compiles.
 - `go-vet` (blocking): Runs go vet across the Go module to catch suspicious constructs the compiler allows through.
 - `go-file-cap` (blocking): Fails when a Go file exceeds the 500-line cap, keeping files split and readable.
-- `go-dir-gate` (blocking): Fails when a Go directory holds too many files or a package name breaks the naming rules.
+- `go-dir-gate` (blocking): Fails when a Go directory grows past max(40, its base count) without a Dirgate-Growth trailer, or a new file or package breaks the sibling-package naming rule.
 - `markdown-file-cap` (blocking): Fails when a Markdown file under go/ or docs/ exceeds the 500-line cap.
 - `scripts-file-cap` (blocking): Fails when a tracked file under scripts/ exceeds the 500-line cap, or a pinned grandfather row grows (#8221).
 - `package-docs` (blocking): Fails when a Go package is missing its doc.go, README.md or AGENTS.md.
@@ -214,7 +214,7 @@ results are derived from the inputs rather than written by hand. See
 | `go-build` | Go build (all binaries) | build | pre-push | true | `cd go && go build ./...` | test.yml / go-core | 1 path(s): go/** |
 | `go-vet` | Go vet | hygiene | pre-push | true | `cd go && go vet ./...` | test.yml / go-core | 1 path(s): go/** |
 | `go-file-cap` | Go 500-line file cap | hygiene | pre-commit | true | `bash scripts/dev/precommit-go.sh filecap-all`<br>then self-test: `bash scripts/test-precommit-go-filecap.sh && cd tools/golangci-lint-filelength && env -u GOROOT go test -count=1 .` | test.yml / go-core | 5 path(s): go/**, scripts/dev/precommit-go.sh, scripts/test-precommit-go-filecap.sh, … |
-| `go-dir-gate` | Go directory-size and naming gate | hygiene | pre-commit | true | `bash scripts/dev/precommit-go.sh dirgate-all`<br>then self-test: `bash scripts/test-verify-dirgate.sh && bash scripts/test-generate-dirgate-grandfather-go.sh` | test.yml / go-core | 8 path(s): go/**, scripts/dev/precommit-go.sh, scripts/verify-dirgate.sh, … |
+| `go-dir-gate` | Go directory-size and naming gate | hygiene | pre-commit | true | `bash scripts/dev/precommit-go.sh dirgate-all`<br>then self-test: `cd go && env -u GOROOT go test -count=1 ./cmd/dirgate/` | test.yml / dirgate | 5 path(s): **, go/**, scripts/dev/precommit-go.sh, … |
 | `markdown-file-cap` | Markdown 500-line file cap (go/ and docs/) | hygiene | pre-commit | true | `bash scripts/verify-markdown-line-cap.sh --all`<br>then self-test: `bash scripts/test-verify-markdown-line-cap.sh` | test.yml / markdown-file-cap | 10 path(s): go/**/*.md, docs/**/*.md, .github/workflows/test.yml, … |
 | `scripts-file-cap` | scripts/ 500-line file cap | hygiene | pre-commit | true | `bash scripts/verify-tooling-line-cap.sh --all`<br>then self-test: `bash scripts/test-verify-tooling-line-cap.sh` | test.yml / scripts-file-cap | 9 path(s): scripts/**, .github/workflows/test.yml, .pre-commit-config.yaml, … |
 | `package-docs` | Go package docs coverage | hygiene | pre-pr | true | `bash scripts/verify-package-docs.sh`<br>then self-test: `bash scripts/test-verify-package-docs.sh` | test.yml / verify-contracts | 3 path(s): go/**, scripts/test-verify-package-docs.sh, scripts/verify-package-docs.sh |

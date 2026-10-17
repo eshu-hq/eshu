@@ -464,4 +464,12 @@ var orderedBootstrapDefinitionNames = []string{
 	// Migration 187 seeds one version-0 row per repository with content,
 	// in its own file so no table lock is held through the scan (#7961).
 	"config_artifact_content_versions_seed",
+	// Migrations 188 to 190 (#7420) drop the per-fact foreign keys of the
+	// three key sidecars once retention deletes their rows explicitly.
+	"relationship_reference_candidate_keys_drop_fact_fk",
+	"package_manifest_consumption_keys_drop_fact_fk",
+	"package_registry_identity_keys_drop_fact_fk",
+	// Migration 191 (#7427) drops the eshu_search_index_terms generation
+	// foreign key once retention deletes a generation's terms explicitly.
+	"eshu_search_index_terms_drop_generation_fk",
 }

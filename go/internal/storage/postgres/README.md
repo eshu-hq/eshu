@@ -602,9 +602,9 @@ Primary groups:
   `GenerationRetentionPolicy.SearchIndexPredeleteRowCap` (default 2,000,000)
   and `SearchIndexPredeleteDeadline`, and admits to its prune only drained
   generations whose advisory lock (class 7427) it takes; the rest are skipped
-  as `search_index_undrained` or `advisory_lock_busy`. The FK cascade still
-  runs under the scope lock (foreign keys unchanged), now over an empty
-  search index.
+  as `search_index_undrained` or `advisory_lock_busy`. Migration 191 (#7427
+  PR3) dropped the terms generation key, so no terms statement runs under the
+  scope lock; late orphan terms are read-invisible and swept by the census.
 - Service-scoped incident evidence loader for the incidents service-evidence
   family. It resolves PagerDuty provider service ids to catalog service ids
   through active exact/derived reducer correlation facts and fails closed for
@@ -962,21 +962,21 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 - An unbounded `ReplayFailedWorkItems` (no `Limit`) locks its rows first in
   `work_item_id COLLATE "C"` order (`locked` CTE, `FOR NO KEY UPDATE`), the
   order of `AckBatch`, the own-gate wake and the admin replay, then updates
-  them by primary key (#8205). Before this, two overlapping replays locked
-  rows in index-scan order and Postgres aborted one with 40P01. A bounded
-  replay (`Limit > 0`) still uses `SKIP LOCKED` and never waits. The reducer
-  claim-time supersede sweep (`supersedeInactiveReducerGenerationsCTE`, in both
-  `claimReducerWorkQuery` and `claimReducerWorkBatchQuery`) takes the same
-  order: its `superseded_stale_reducer_locked` step applies the whole sweep
-  predicate (generation guard and readiness gate) with `FOR NO KEY UPDATE OF
-  stale`, and the UPDATE touches only those ids. It blocks and never skips, so
-  no inactive-generation row escapes the sweep. A replay that fails with
-  40P01 returns the error to its caller (HTTP 422 from the runtime recovery
-  route, 500 from the admin replay); rerun it. A claim error ends the reducer
-  service's run. Keep the sort, both status checks and the blocking lock step,
-  and rerun the `TestRecoveryReplay*`, `TestReducerClaimSweep*` and admin
-  `*Replay*` proofs after any edit to these statements. See
-  `docs/internal/evidence/8205-replay-lock-order.md`.
+  them by primary key (#8205); before, overlapping replays locked rows in
+  index-scan order and one died with 40P01. A bounded replay keeps `SKIP
+  LOCKED`. The same order holds in the claim-time supersede sweep
+  (`superseded_stale_reducer_locked`: whole sweep predicate, blocking, never
+  skipping) and, since #8261, in poison recovery (`poison_locked`), the
+  retention work-row lock before its cascade delete (`FOR UPDATE`), the admin
+  repository skip and projector Ack's obsolete supersede
+  (`locked_obsolete_work`). A replay's 40P01 returns to its caller (HTTP 422
+  runtime route, 500 admin replay); rerun it. A claim error ends the reducer
+  service's run. Keep each sort, status recheck and blocking lock step; rerun
+  the `TestRecoveryReplay*`, `TestReducerClaimSweep*`, admin `*Replay*`,
+  `TestPoisonRecovery*`, `TestRetentionCascade*`, `TestProjectorAckSupersede*`
+  and `TestSkipRepository*` proofs after an edit. See
+  `docs/internal/evidence/8205-replay-lock-order.md` and
+  `docs/internal/evidence/8261-unordered-lockers.md`.
 - A `*_producer_dead_lettered` or `*_producer_missing` dead letter on
   `deployable_unit_correlation` or `workload_materialization` means the scope
   generation's `deployment_mapping` item is dead-lettered or absent (#7597).
@@ -1085,10 +1085,10 @@ over-limit chunk path, the page's fact ids
 key partition indexes). `TestFactRecordDeleteSitesAreKeySidecarSafe` fails
 on an unclassified or unpaired fact delete. Retention refuses the cycle with
 `ErrGenerationRetentionKeyIndexUnavailable` when a partition index is missing,
-invalid or misshapen, as for the #7279 key indexes. This is the prerequisite for
-dropping the per-fact foreign keys, whose one-trigger-per-fact cascade
-dominates a large generation prune. Evidence:
-`docs/internal/evidence/7420-key-sidecar-explicit-deletes.md`.
+invalid or misshapen, as for the #7279 key indexes. Migrations 188 to 190 drop
+the per-fact foreign keys, so these deletes alone remove key rows with their
+facts; `factkeys.OrphanCensusSQL` counts any orphan (see `facts/keys/README.md`).
+Evidence: `docs/internal/evidence/7420-drop-key-sidecar-fks.md`.
 
 Detailed query, queue, fact-readback, runtime, and fencing invariants live in
 [`gotchas-and-invariants.md`](gotchas-and-invariants.md). Keep that companion

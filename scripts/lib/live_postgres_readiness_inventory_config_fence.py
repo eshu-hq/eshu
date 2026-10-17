@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Config-artifact version-fence live PostgreSQL readiness proofs (#8155).
+"""Config-artifact fence and derive live PostgreSQL readiness proofs (#8155).
 
 live_postgres_readiness_inventory.py is over the 500-line cap and must not
 grow, so these files live here and live_postgres_readiness_records.py merges
@@ -67,6 +67,29 @@ CONFIG_FENCE_PACKAGES = {
             "TestCheckFenceIgnoresASameNamedTriggerOnAnotherTableLive",
             "TestCheckFenceTracksTriggerEnablementLive",
             "TestCheckFenceReportsAnUnmigratedDatabaseAsMissingLive",
+        ),
+        f"{_FENCE_DIR}/derive_s4_live_test.go": (
+            "TestDeriveStoredRowsEqualLivePathLive",
+        ),
+        f"{_FENCE_DIR}/derive_race_live_test.go": (
+            "TestDeriveTwoDerivesOfOneRepositorySerializeLive",
+            "TestDeriveRacingContentWritesNeverLabelsNewerContentLive",
+            "TestDeriveTwoRepositoriesRunInParallelLive",
+        ),
+        f"{_FENCE_DIR}/derive_order_live_test.go": (
+            "TestDeriveReadsVersionBeforeListLive",
+            "TestDeriveHoldsTheLockOnlyInStepThreeLive",
+            "TestDeriveOlderExtractorNeverReplacesNewerRowsLive",
+            "TestDeriveRollbackLeavesRowsAndStateLive",
+            "TestDeriveTimeoutAndPanicRecordFailureOnlyLive",
+        ),
+        f"{_FENCE_DIR}/derive_lock_live_test.go": (
+            "TestDeriveFailureRecordWaitsOnTheWriteLockLive",
+            "TestDeriveFailureRecordRacingNewerWritesLive",
+        ),
+        f"{_FENCE_DIR}/derive_duplicate_live_test.go": (
+            "TestDeriveDuplicateRowDigestFailsLoudlyLive",
+            "TestDeriveRederiveReplacesRowsWithoutConflictLive",
         ),
     },
 }

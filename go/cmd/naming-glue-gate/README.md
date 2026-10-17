@@ -7,7 +7,7 @@ full words together where [naming.md](../../../docs/internal/naming.md) rule
 3 requires nesting instead (`workloadinstance` should be
 `workload/instance`). This is the mechanical file/directory-repeat gates'
 blind spot: `scripts/verify-filename-stutter.sh` and
-`tools/golangci-lint-dirgate`'s naming check both compare a name against its
+`go/cmd/dirgate`'s naming check both compare a name against its
 *parent*; neither catches a directory whose own name is a glued compound
 unrelated to its parent.
 
@@ -17,7 +17,7 @@ This tool owns exactly one judgment call: is a newly added directory basename
 a glued compound under rule 3. It does not check identifier stutter (rule 4;
 see `revive`'s `exported` rule), file-vs-directory stutter (rule 2; see
 `scripts/verify-filename-stutter.sh`), or file placement
-(`tools/golangci-lint-dirgate`).
+(`go/cmd/dirgate`).
 
 ## Exported surface
 

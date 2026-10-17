@@ -11,8 +11,9 @@ external-principal grants, scanner-worker, security alerts, semantic
 extraction, service catalog, source-tool provenance, supply-chain and
 vulnerability findings, vulnerability-intelligence, incident context,
 observability coverage, secrets/IAM, work-item evidence, generation
-lifecycle, changed-since reads, and operator recovery (the refinalize
-delta-active span attribute, #7797). It replaces the 27 flat `contract_*.go`
+lifecycle, changed-since reads, operator recovery (the refinalize
+delta-active span attribute, #7797), and the config-artifact derive span and
+`trigger` dimension (#8155). It replaces the 27 flat `contract_*.go`
 files that used to live directly in `go/internal/telemetry` (issue #6777).
 
 ## Ownership boundary

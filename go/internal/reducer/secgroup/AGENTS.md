@@ -68,11 +68,10 @@ deliberate hoist to a shared leaf, which is how `cloudjoin`, `factdecode`, and
 - **`verify-performance-evidence.sh`** — fires on this path. Markers must be
   unbolded and line-initial in a tracked note (`README.md` here carries
   them).
-- **`verify-dirgate.sh`** — the `internal/reducer` row in
-  `scripts/lib/dirgate-grandfather.tsv` is a monotonic ratchet. If you move
-  files, re-derive it with `verify-dirgate.sh --digest internal/reducer` and
-  regenerate the mirror with `generate-dirgate-grandfather-go.sh`. Never
-  hand-edit either.
+- **`verify-dirgate.sh`** — the cap is a git-derived ratchet plus write-once
+  baselines (`go/cmd/dirgate`). Growth of a directory past max(40, its count at
+  the base) needs a `Dirgate-Growth:` trailer in the commit message that adds the
+  files; shrinking or moving files out needs nothing. Never edit the baselines.
 
 ## Do not
 

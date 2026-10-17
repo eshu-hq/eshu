@@ -11,7 +11,7 @@
 // same eligibility rules, re-checked at lock time. The parent forwards it as
 // generationRetentionTargetedCandidateQuery.
 //
-// The statements live here because the parent directory is at its file-count
-// pin (scripts/lib/dirgate-grandfather.tsv) and its retention files sit at
+// The statements live here because the parent directory is over the dirgate
+// cap (go/cmd/dirgate) and its retention files sit at
 // the 500-line cap.
 package statements

@@ -2406,6 +2406,11 @@
     },
     {
       "category": "command",
+      "name": "dirgate",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "docs-cli-env-refs",
       "readiness": "implemented"
     },

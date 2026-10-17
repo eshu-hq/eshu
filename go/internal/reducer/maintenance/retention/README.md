@@ -57,10 +57,14 @@ Never `internal/reducer`.
 - Spans: none; the drain runs inline in the side-runner goroutine
 - Logs: `generation retention cycle completed` (pruned/skipped totals,
   ledger share, lock hold, `search_index_batches`); WARN when the ledger delete differs from
-  its pre-count; `generation retention search index orphan sweep completed`
-  (pairs_scanned, orphan_generations, rows_swept, batches committed,
-  unswept_generations) and ERROR `generation retention search index orphan
-  sweep failed`
+  its pre-count; WARN `generation retention fact key delete differs from
+  its pre-count` (`fact_key_rows_pruned`, `fact_key_rows_counted`) when the
+  #7420 whole-generation key sidecar delete removes a different number of
+  rows than the batch counted, usually orphan keys (run
+  `factkeys.OrphanCensusSQL`); `generation retention search index orphan
+  sweep completed` (pairs_scanned, orphan_generations, rows_swept, batches
+  committed, unswept_generations) and ERROR `generation retention search
+  index orphan sweep failed`
 
 ## Gotchas / invariants
 
@@ -69,6 +73,13 @@ Never `internal/reducer`.
   walks every search index pair), and also when the prune failed. A sweep
   failure does not fail the pass. `Policy.SearchIndexPredeleteRowCap` bounds
   both the pre-delete and the sweep (unset: 2,000,000 each).
+- Since migration 191 (#7427 PR3) no foreign key removes a pruned
+  generation's `eshu_search_index_terms` rows: the store's pre-delete
+  (drained generations only) and this runner's orphan sweep do. Do not run
+  without the sweeper on a database where 191 applied; the image carrying
+  191 must carry it. Retention keeps running through the migration (no
+  quiesce step). Post-deploy census and runbook:
+  `docs/internal/evidence/7427-drop-terms-generation-fk.md`.
 
 - A skipped-only pass retries soon (1m doubling per consecutive
   skipped-only pass, capped at the poll interval) instead of sleeping

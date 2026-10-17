@@ -43,6 +43,8 @@ and adapts `querycontract.FileContent` to `File`.
   `ReadChunksInFlight`, `BlankCheckChunkSize`, `SelectHydrationIndexes` — the
   floor, the allowance sentinel, the list window, the statement sizes and the
   single definition of the hydration set
+- `ExtractorVersion` — the version of the stored rows' output; see
+  "Extractor version and its guard" below
 - `IsDockerComposeArtifact`, `IsDockerComposeFilename`,
   `AnsibleInventoryEvidencePath` and its siblings,
   `NormalizeConfigArtifactExpression`, `DecodeYAMLMaps` — path rules the query
@@ -78,7 +80,8 @@ stage log line and the content store's `postgres.query` spans are unchanged.
   families, or not a string literal (a variable, a wrapper parameter, a
   constructor used as a value). Pass the kind to a constructor as a literal.
 - A change to an extractor's output changes what a stored read model holds.
-  Run `TestNameFreeRowsEqualBuildWithName` and the hydration differentials.
+  Run `TestNameFreeRowsEqualBuildWithName` and the hydration differentials,
+  and bump `ExtractorVersion` with its pin (`TestExtractorOutputIsPinned`).
 - Do not raise `ReadChunkSize` or `ReadChunksInFlight`, parallelize across
   repositories, or read a whole repository in one statement without a
   measurement on a byte-heavy repository: one statement detoasts serially.
@@ -216,6 +219,157 @@ fails on an unpinned survivor or a pinned one that now dies.
 one on six content shapes at 2, 12 and 86 KB. A change to one of the six
 patterns changes its derived gate; update the pinned derivation and re-run the
 sweep in the same change.
+
+## Extractor version and its guard (#8155)
+
+`ExtractorVersion` (`version.go`) versions the output of the extractors: the
+stored rows `(raw_path, relative_path, evidence_kind, name_scoped)` that a
+content-write derive keeps. The derive stores the version on each
+repository's state row, and a reader trusts a stored row only at the same
+version. The constant starts at 1.
+
+**Bump rule.** A change that can alter those rows for any input needs a
+bump: an extractor, a path rule, the clean step, the hydration selection, the
+list window, the dedup, the name-scope table, or any input in "What the guard
+does not see" below. Bump by one and, in the same change, append
+`{Version, CorpusDigest, OutputDigest, Window}` to `extractorPins` in
+`version_guard_test.go`. The failure message prints the exact row. A change
+that leaves every row unchanged keeps the version: a bump makes every stored
+row stale, so each repository is derived again.
+
+The version is monotonic. Never lower `ExtractorVersion` or delete a pin row.
+A `git revert` of a bump PR is not a rollback: `mayWrite`
+(`storage/postgres/config/artifacts/derive_write.go`) refuses a lower
+extractor version over a state row that a higher-version binary wrote, so
+those repositories stay superseded. To undo an extractor change, revert the
+extractor code and bump forward again (version N+1 with its own pin row; the
+pin history accepts a row whose output equals an older, non-adjacent row).
+
+**The guard.** `TestExtractorOutputIsPinned` runs the derive's own call
+(`LoadConfigPaths` with no name, no supplied list and `AllowanceWholeWindow`,
+as in `storage/postgres/config/artifacts/derive.go`) over the committed corpus
+in `testdata/guard`, through its own in-memory store. Those call arguments are
+a copy: `TestDeriveCallsLoadConfigPathsWithTheGuardArguments` in that package
+records the arguments the real Deriver passes and fails when they differ. It maps the rows with a
+copy of the derive's `storedRows`, sorts them by repository label,
+`raw_path`, `relative_path`, `evidence_kind` and `name_scoped`, and hashes
+every field framed as `<byte length>:<bytes>`. It fails when:
+
+| Condition | Message starts with |
+|---|---|
+| The snapshot bytes changed | `guard corpus changed` |
+| The output changed at the pinned version | `extractor output changed` |
+| The hydration window (`ListLimit`, `AllowanceWholeWindow`) moved at the pinned version | `hydration window moved` |
+| The version changed but neither the output nor the window did | `... the output over the guard corpus did not change` |
+| The version was bumped without a new pin row | `ExtractorVersion was bumped to N without updating the pinned pair` |
+| An evidence kind has fewer than 3 rows | `guard corpus coverage` |
+
+`TestCheckExtractorPins` (digests, version and window), `TestCheckGuardCoverage`
+and `TestGuardIsSelfContained` are the seeded RED/GREEN pairs of the three
+checks. Production row order is not in the digest: the stored rows are a set,
+and `CompareConfigPaths` has its own tests.
+
+**The hydration window.** The corpus holds no repository near `ListLimit`
+(the generator refuses one at or above it). A change to `ListLimit` or
+`AllowanceWholeWindow` that cuts no corpus repository moves no digest, yet it
+changes which files a larger repository contributes. A change that cuts a
+corpus repository (for example a `ListLimit` below its file count) moves the
+output digest too. Either way, each pin row records the window constants it
+ran with (`Window`), and the guard compares the current constants with the
+last row. The guard pins the constants, not the window the derive passes:
+`TestDeriveCallsLoadConfigPathsWithTheGuardArguments` pins that the derive
+passes `AllowanceWholeWindow`. A moved window at an unchanged version reports `hydration window moved`
+and prints the row to append. A window-only bump needs no added input: set
+`ExtractorVersion` to N+1 and append the row with the same digests and the new
+window. `checkExtractorPins` accepts that row, and refuses a bump whose row
+repeats the old digests and the old window.
+
+**What the guard does not see.** The guard fails when a change moves a stored
+row over the frozen corpus. It does not prove that no unbumped change ships.
+Each of these still needs a manual bump when it changes:
+
+- Inputs the corpus lacks. A change that alters rows only for such an input
+  passes the guard (for example, lower-casing the kustomize policy path: no
+  kustomize row in the corpus has upper case). Add that input in the bump
+  change (procedure below).
+- The derive's `LoadConfigPaths` call arguments in
+  `storage/postgres/config/artifacts` (`derive.go`): the repository with an
+  id and no name, no supplied file list and `AllowanceWholeWindow`. The guard
+  passes its own copy (`deriveGuardRows`).
+  `TestDeriveCallsLoadConfigPathsWithTheGuardArguments` in that package fails
+  on a change to them or to the wired load function; change the guard's copy
+  and bump in the same change.
+- The `storedRows` mapping in `storage/postgres/config/artifacts`
+  (`derive_reader.go`). The guard hashes its own copy (`deriveGuardRows`).
+  `TestStoredRowsCopiesTheBuildVerbatim` in that package fails on a change to
+  the mapping; update the guard's copy and bump in the same change. The S4
+  live test compares stored rows with the live path, so it sees a mapping
+  change only where its corpus shows one. Its corpus (the `fx:` and
+  `recorded:` repositories of the snapshot) holds no row with an upper-case
+  `relative_path`, so it cannot see a lower-casing of that field.
+- The `content_files` statements (`ListStatement`, `GetFilesStatement`,
+  `NonBlankPathsStatement`). `guardStore` re-implements their semantics, so
+  an edit to the SQL is not seen.
+- `artifact_type`. The snapshot holds no `artifact_type`, so a change to an
+  extractor branch that reads it is not seen.
+- Files above the pre-filter bound (256 KiB), which the generator drops. The
+  bound comes from the S4 live test and the S0 corpus loader, not from a
+  production cap: the collector and storage source hold no `content_files`
+  size bound, so a real repository can hold such a file and the derive reads
+  it. The generator drops a `tests/fixtures` file above the bound before it
+  can prove equivalence, so an extractor change that alters rows only for
+  such a file passes the guard. No fixture file is above the bound today
+  (`rg --files --max-filesize 256K tests/fixtures` lists them all). The
+  recorded, mutant and generated inputs fail the generator instead of
+  dropping a file.
+
+**The corpus.** `testdata/guard/fixtures.jsonl` holds the config-artifact
+candidates of the S4 set (each `tests/fixtures` directory and child directory,
+plus the 26 recorded S0 repositories). `testdata/guard/generated.jsonl` holds
+the hydration tests' mutant corpus, `randomTree` seeds 1 to 150, and a small
+supplement for Docker Compose secrets and `read_terragrunt_config`. The
+generator writes a raw Go line citation in a fixture comment (a
+`go/internal` `.go` path, a colon and a line number) with ` line ` in place
+of the colon, because the doc-citations gate refuses a new one under `go/`. At
+version 1 it is 297 repositories, 5,549 files and 2,021 rows, about 1 MB in
+two files under the 1,024 KB large-file hook. The snapshot is frozen, so a
+fixture or helper edit elsewhere cannot move the pin, and the guard's sources
+must not read those inputs (`TestGuardIsSelfContained`). The S4 live test in
+`storage/postgres/config/artifacts` (`TestDeriveStoredRowsEqualLivePathLive`,
+220 repositories through the Deriver against Postgres) stays the broader
+stored-equals-live proof. This snapshot is only the version-guard corpus.
+
+**Bump with a new input.** When the guard cannot see a change that alters
+rows (the guard passes, or reports `the output over the guard corpus did not
+change` after the bump), do this in one change:
+
+1. Add an input that shows the change to `supplementSnapshotInputs`
+   (`version_snapshot_test.go`), with the extractor change in place.
+2. Regenerate (step 2 below).
+3. Set `ExtractorVersion` to N+1 and append
+   `{Version: N+1, CorpusDigest: <new>, OutputDigest: <new>, Window: <current>}`,
+   with the digests the generator logs (the guard's `guard corpus changed`
+   message prints the same row). Leave the older rows as they are.
+4. Name the added input in the PR. To check that it shows the change, revert
+   only the extractor change at version N+1: the guard must report
+   `extractor output changed`.
+
+**Re-snapshot procedure.** Re-snapshot at the same version only in a commit
+that changes no extractor:
+
+1. With the committed snapshot, run
+   `go test ./internal/content/artifacts/ -run TestExtractorOutputIsPinned -count=1`.
+   It must pass. A failure here is an extractor change, so bump instead.
+2. Regenerate:
+   `go test ./internal/content/artifacts/ -run TestRegenerateExtractorCorpus -count=1 -args -update-extractor-corpus`.
+   The generator keeps only candidate files and fails unless each
+   repository's rows over the kept files equal its rows over every file, and
+   unless each repository stays under `ListLimit`, each recorded, mutant and
+   generated file stays under 256 KiB (it drops a `tests/fixtures` file above
+   that bound without a check) and each snapshot file stays under 1,000 KiB.
+   Its output is byte-identical on a rerun.
+3. Set the last `extractorPins` row's `CorpusDigest` and `OutputDigest` to the
+   values the generator logs, at the same version.
 
 ## Related docs
 

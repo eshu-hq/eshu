@@ -81,13 +81,12 @@ a `GOROOT` that no longer exists. Unset it.
 ## The custom lint plugins
 
 The bare `golangci-lint run ./...` above needs the repo's custom `filelength`
-and `dirgate` linter plugins built first in a fresh clone or worktree --
+linter plugin built first in a fresh clone or worktree --
 otherwise it fails with `plugin.Open` / "unable to load custom analyzer"
-naming `tools/golangci-lint-filelength/filelength.so` or
-`tools/golangci-lint-dirgate/dirgate.so`. Build both once per clone/worktree
-with `cd tools/golangci-lint-filelength && make build` and
-`cd tools/golangci-lint-dirgate && make build` (the `.so` files are
-gitignored, so this is a per-checkout step, not a one-time repo action).
+naming `tools/golangci-lint-filelength/filelength.so`. Build it once per
+clone/worktree with `cd tools/golangci-lint-filelength && make build` (the
+`.so` file is gitignored, so this is a per-checkout step, not a one-time repo
+action). The directory cap is not a linter: it is `go/cmd/dirgate`.
 `scripts/dev/precommit-go.sh lint`/`lint-all` (`lint` scoped to changed
 packages is what `make pre-push` runs; `lint-all`, whole-module, is what
 `make pre-pr` runs) avoid this entirely by running against a config copy with

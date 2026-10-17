@@ -15,9 +15,10 @@ import (
 )
 
 // TestReadinessIgnoresOrphanPackageKeysLive is #7420 accuracy condition (b)
-// for the two package key readers: once the per-fact foreign keys are
-// dropped, a manifest consumption key or registry identity key with no fact
-// behind it must not change readiness. Both readers join each key to its
+// for the two package key readers: the bootstrap drops the per-fact foreign
+// keys (migrations 189 and 190), so the orphan inserts below succeed, and a
+// manifest consumption key or registry identity key with no fact behind it
+// must not change readiness. Both readers join each key to its
 // live fact by (fact_id, scope_id, generation_id), so orphans placed in the
 // active generations, the worst case, add no package.consumption evidence and
 // no second registry owner (which would make ownership ambiguous).
@@ -63,8 +64,6 @@ func TestReadinessIgnoresOrphanPackageKeysLive(t *testing.T) {
 	}
 
 	for _, statement := range []string{
-		"ALTER TABLE package_manifest_consumption_keys DROP CONSTRAINT package_manifest_consumption_keys_fact_id_fkey",
-		"ALTER TABLE package_registry_identity_keys DROP CONSTRAINT package_registry_identity_keys_fact_id_fkey",
 		`INSERT INTO package_manifest_consumption_keys (fact_id, scope_id, generation_id, repository_id, ecosystem, package_name)
 VALUES ('orphan-manifest', 'readiness-consumption-consuming-one', 'readiness-consumption-consuming-one-gen',
         'repository:orphan', 'npm', 'lodash')`,

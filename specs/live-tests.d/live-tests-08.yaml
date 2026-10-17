@@ -84,3 +84,28 @@ tests:
     class: postgres_ci
     reason: "#8155 (#7126 PR3b-2a) disposable PostgreSQL 18 proof of the start-up fence check CheckFence: the bootstrapped database has all five migration 186 triggers firing (Supported); DROP TRIGGER of each in turn names exactly that one absent and re-applying migration 186 restores it; DISABLE, ENABLE REPLICA give tgenabled D and R and count as missing while ENABLE ALWAYS and ENABLE count as present, for a content_files trigger and the constraint trigger; a same-named trigger on another table does not count; a database with no schema reports all five missing without a catalog error; enrolled in the live-postgres-readiness runner; 0.05-1.1 s per proof on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/config/artifacts/derive_s4_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8155 (#7126 PR3b-2b) S4-style equality of the derive core: every tests/fixtures directory and child directory plus the 26 recorded S0 corpus repositories are written to content_files, derived with DeriveRepository, and the stored rows after the read-time name step equal the live path's rows (the query package's ContentReader through LoadConfigPaths with the graph name, allowance -1) with 0 / 0 differing rows; the derive's own reader also equals the live reader; 220 repositories, 160 rows, about 4 s on a local PostgreSQL 18.6 on 2026-10-17; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/config/artifacts/derive_race_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8155 (#7126 PR3b-2b) derive concurrency: a second derive of one repository waits on the advisory lock (pg_stat_activity wait_event advisory) and is superseded, 20 unsynchronized rounds end one ok and one superseded each; three derive loops racing 40 content writes never store rows older than the version they are labelled with (repeatable-read snapshot checks) and converge after the writes stop; a derive of another repository completes while the first holds its lock; about 6 s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/config/artifacts/derive_order_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8155 (#7126 PR3b-2b) derive ordering and failure semantics: a content write injected between the version read and the list leaves state.content_version = v0 below the version (Classify stale_version); pg_locks and pg_stat_activity show no advisory lock and no open transaction during extraction and one lock inside step 3; an older extractor never replaces a newer extractor's rows; a superseded derive and a failed insert (SQLSTATE 22021) leave the rows and trust columns unchanged; a timeout and a panic write a failure-only state row; about 19 s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/config/artifacts/derive_lock_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8155 (#7126 PR3b-2b) one repository lock for the write and the failure-only update: a failing derive's failure record waits on the advisory lock a newer successful write holds, and the held and waiting pg_locks keys both equal hashtextextended(repoLockKey, 0); 30 rounds racing a newer successful write against a failing derive in both orders never lower content_version or change the rows; about 3-8 s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/config/artifacts/derive_duplicate_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8155 (#7126 PR3b-2b) a derive whose extractor output holds one (raw_path, relative_path, evidence_kind) triple twice fails loudly: the insert raises SQLSTATE 23505, step 3 rolls back, the derive records class sqlstate_23505 as a failure-only update and leaves the previous rows, content_version, extractor_version and row_count (or, on a first derive, a failure-only state row and no rows) instead of reporting ok with fewer stored rows than row_count; a second derive of one repository at a newer extractor version replaces the rows with the same set and row_count and no key conflict; about 2 s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness

@@ -217,7 +217,8 @@ tests still cover for the same handlers.
 
 Staying root files that started with `local_identity_` tripped the new
 `local/` directory's dirgate sibling-prefix naming rule (any qualifying file
-whose stem is `local` or starts with `local_`) and were renamed clear of it:
+whose stem is `local` or starts with `local_`; RED unless it has a justified
+`//nolint:dirgate` marker or a baseline row) and were renamed clear of it:
 `local_identity_api_tokens_list_handler_test.go` ->
 `identity_api_tokens_list_handler_test.go`,
 `local_identity_api_tokens_selfservice_test.go` ->

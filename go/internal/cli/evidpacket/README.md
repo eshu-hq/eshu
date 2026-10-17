@@ -213,13 +213,11 @@ The other required context, `go-core-complete`, stays green through a reword
 here, because its `go-core` job runs no `go test` against the `go/` module at
 all. Its steps, in the `go-core` job of `.github/workflows/test.yml`, are:
 install ripgrep;
-install golangci-lint; build the `filelength` and `dirgate` golangci-lint plugin
-modules under `tools/`; run `scripts/test-verify-dirgate.sh` and
-`scripts/test-generate-dirgate-grandfather-go.sh`; run the `dirgate` plugin
-module's own `go test ./... -count=1`; run `scripts/verify-dirgate.sh --all`;
+install golangci-lint; build the `filelength` golangci-lint plugin
+module under `tools/`; run `scripts/verify-dirgate.sh --all`;
 lint `go/` with `golangci-lint run ./...`; check gofumpt formatting with
 `golangci-lint fmt --diff`; and finish with `go build ./...`. The one `go test`
-in that list runs in `tools/golangci-lint-dirgate`, which is its own Go module
+in that list runs in `tools/golangci-lint-filelength`, which is its own Go module
 outside `go/`, so it never reaches this package.
 
 ## How the move was checked

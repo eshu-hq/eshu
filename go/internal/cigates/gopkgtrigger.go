@@ -67,7 +67,10 @@ var goPackageSubcommands = map[string]struct{}{
 // The job-ownership rows raised this from 24 to 26: mcp-tool-count and
 // mcp-test-suite each run `go test` on ./internal/mcp, selected by their
 // `go/**` trigger.
-const goPackageGateCount = 26
+// #6054 raised this from 26 to 27: go-dir-gate's local.test_command now runs
+// `go test ./cmd/dirgate/` (the derived-ratchet gate replaced the shell mirror),
+// and the row carries `go/**` as a trigger.
+const goPackageGateCount = 27
 
 // argTrimCutset strips shell punctuation that can adhere to a token once a
 // command is split on whitespace: quotes, and the parentheses of a subshell.

@@ -68,8 +68,13 @@ func statements(table string) Delete {
 // deleted. Facts are generation-scoped (a fact id derives from scope,
 // generation and stable key) and every key writer copies the fact's scope and
 // generation, so this removes exactly the rows the per-fact foreign key
-// cascade would. The statements are idempotent: a retried transaction
-// deletes nothing twice.
+// cascade would. A key filed under another scope or generation than its fact
+// breaks that premise, and two checks report it: OrphanCensusSQL counts it as
+// an orphan, because it matches no fact on (fact_id, scope_id,
+// generation_id), and for the two package tables the retention pre-count,
+// which joins keys to facts by fact_id, then differs from this delete's
+// counts, which the retention runner logs as a WARN. The statements are
+// idempotent: a retried transaction deletes nothing twice.
 func DeleteGenerations(
 	ctx context.Context,
 	exec db.Executor,
@@ -91,6 +96,18 @@ func DeleteGenerations(
 		rowsPruned[keys.Table] = deleted
 	}
 	return nil
+}
+
+// TableCounts returns counts' entries for the three key sidecar tables, keyed
+// by table, with 0 for a table counts does not name. Retention uses it to
+// keep the batch's pre-count of the key rows beside the rows
+// DeleteGenerations removes, so a difference can be logged.
+func TableCounts(counts map[string]int64) map[string]int64 {
+	tables := make(map[string]int64, 3)
+	for _, keys := range Deletes() {
+		tables[keys.Table] = counts[keys.Table]
+	}
+	return tables
 }
 
 // DeletePage deletes the key sidecar rows of one over-limit chunk page before

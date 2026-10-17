@@ -54,10 +54,10 @@ a forwarder and costs nothing to bypass.
   `README.md` and `AGENTS.md`.
 - **`verify-telemetry-coverage.sh`** — this move added no row (a rename is an
   `R` diff, not an `A`); do not add one unless you register a new instrument.
-- **`verify-dirgate.sh`** — the `internal/reducer` row in
-  `scripts/lib/dirgate-grandfather.tsv` is a monotonic ratchet. Never
-  hand-edit it or `tools/golangci-lint-dirgate/grandfather.go`; regenerate both
-  from the tree.
+- **`verify-dirgate.sh`** — the cap is a git-derived ratchet plus write-once
+  baselines (`go/cmd/dirgate`). Growth of a directory past max(40, its count at
+  the base) needs a `Dirgate-Growth:` trailer in the commit message that adds the
+  files; shrinking or moving files out needs nothing. Never edit the baselines.
 - **`verify-doc-citations.sh`** — cite this package by symbol or file, never a
   raw `.go:<line>` pointer; a relocation invalidates any line number a doc
   carried for the old root path.

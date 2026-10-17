@@ -267,6 +267,7 @@ nav:
         - Discovery Advisory: reference/local-testing/discovery-advisory.md
         - Profiling And Concurrency: reference/local-testing/profiling-and-concurrency.md
         - Performance Evidence Gate: reference/local-testing/performance-evidence-gate.md
+        - Dirgate-Growth Trailer: reference/local-testing/dirgate-growth-trailer.md
       - Cloud Validation: reference/cloud-validation.md
       - Remote E2E Runtime State: reference/remote-e2e-runtime-state.md
     - Local Host & Capabilities:
