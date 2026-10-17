@@ -43,6 +43,22 @@ func TestResolvedRelationshipIDRepoLevelCollision(t *testing.T) {
 	}
 }
 
+// BenchmarkResolvedRelationshipID bounds the per-row digest cost of the
+// #8299 identity digest (referenced by docs/internal/evidence/
+// 8299-resolved-id-no-regression.md).
+func BenchmarkResolvedRelationshipID(b *testing.B) {
+	row := ResolvedRelationship{
+		SourceRepoID:     "repo-a",
+		TargetRepoID:     "repo-b",
+		RelationshipType: RelDeploysFrom,
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = ResolvedRelationshipID("gen-1", row)
+	}
+}
+
 // TestResolvedRelationshipIDFallsBackToRepoIDs pins the #8299 digest inputs:
 // an empty entity id falls back to the repo id, matching the COALESCE in
 // resolved_relationships_identity_idx. Entity-level rows keep the entity id.
