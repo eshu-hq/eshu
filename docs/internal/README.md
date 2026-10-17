@@ -8,5 +8,3 @@ This directory holds maintainer-only documentation for Eshu.
   not re-document that layout here.
 - Internal specs and plans must be updated or removed when the active codebase
   changes. Treat them as current guidance only when they still match the repo.
-- `docs-change-tally.md` records each cleanup pass: created docs, modified
-  docs, deleted docs, and the remaining review backlog.

@@ -3,7 +3,7 @@
 
 package status
 
-// Admin is the OpenAPI path fragment documenting the 15 admin mutation and
+// Admin is the OpenAPI path fragment documenting the admin mutation and
 // query routes in this file. openapi.Spec concatenates it into the published
 // document; keep it in lockstep with the handlers and HTTP API reference.
 // Reindex progress and delta-union completeness have their own fragments.
