@@ -29,6 +29,10 @@ func loadKindSymbols(repoRoot string, knownKinds map[string]bool) kindSymbols {
 	roots := []string{
 		filepath.Join(repoRoot, "go", "internal", "facts"),
 		filepath.Join(repoRoot, "sdk", "go", "factschema"),
+		// The reducer's shared decode seams wrap the SDK decoders;
+		// learning their Decode<Kind> mapping lets the evidence scan
+		// attribute consumption to the domain handlers that call them.
+		filepath.Join(repoRoot, "go", "internal", "reducer", "schemadecode"),
 	}
 	for _, root := range roots {
 		_ = filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
@@ -45,7 +49,56 @@ func loadKindSymbols(repoRoot string, knownKinds map[string]bool) kindSymbols {
 			return nil
 		})
 	}
+	collectReducerAliases(repoRoot, knownKinds, symbols)
 	return symbols
+}
+
+// collectReducerAliases learns two reducer-local vocabularies so
+// handler packages that use them get consumption credit: string
+// constants under the reducer tree whose values are fact kinds (the
+// factload kind constants), and decode-seam alias vars of the form
+// decodeX = schemadecode.DecodeX that root handlers call directly.
+func collectReducerAliases(repoRoot string, knownKinds map[string]bool, symbols kindSymbols) {
+	root := filepath.Join(repoRoot, "go", "internal", "reducer")
+	_ = filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil //nolint:nilerr // a missing tree yields no symbols; validation reports gaps.
+		}
+		fset := token.NewFileSet()
+		file, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+		if err != nil {
+			return nil
+		}
+		collectConstSymbols(file, knownKinds, symbols.identToKind)
+		for _, decl := range file.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok || gen.Tok != token.VAR {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				valueSpec, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				for i, name := range valueSpec.Names {
+					if i >= len(valueSpec.Values) {
+						continue
+					}
+					sel, ok := valueSpec.Values[i].(*ast.SelectorExpr)
+					if !ok {
+						continue
+					}
+					if kind, ok := symbols.decodeToKind[sel.Sel.Name]; ok {
+						symbols.decodeToKind[name.Name] = kind
+					}
+					if kind, ok := symbols.identToKind[sel.Sel.Name]; ok {
+						symbols.identToKind[name.Name] = kind
+					}
+				}
+			}
+		}
+		return nil
+	})
 }
 
 func collectConstSymbols(file *ast.File, knownKinds map[string]bool, out map[string]string) {
@@ -68,7 +121,12 @@ func collectConstSymbols(file *ast.File, knownKinds map[string]bool, out map[str
 					continue
 				}
 				value, err := strconv.Unquote(lit.Value)
-				if err == nil && knownKinds[value] {
+				// Only FactKind-named constants identify fact kinds.
+				// Other string constants reuse kind spellings for
+				// unrelated purposes (for example an AWS resource-type
+				// constant whose value equals the aws_iam_instance_profile
+				// kind) and must never become kind symbols.
+				if err == nil && knownKinds[value] && strings.Contains(name.Name, "FactKind") {
 					out[name.Name] = value
 				}
 			}
@@ -154,8 +212,16 @@ func packageSymbols(dirAbs string) map[string]bool {
 // string constants that reuse a kind's spelling for another purpose
 // are all inert. This mirrors the distinction the disclosure ledger
 // documents between a loaded kind and a consumed kind.
+//
+// A directory named schemadecode is decode substrate, not a consumer:
+// it contributes no evidence itself, and consumption is attributed to
+// the handler packages that call its Decode seams (whose kind mapping
+// loadKindSymbols learns).
 func evidenceInDir(repoRoot, dirAbs string, symbols kindSymbols, knownKinds map[string]bool) map[string]sourcePos {
 	out := map[string]sourcePos{}
+	if filepath.Base(dirAbs) == "schemadecode" {
+		return out
+	}
 	entries, err := os.ReadDir(dirAbs)
 	if err != nil {
 		return out
@@ -174,7 +240,7 @@ func evidenceInDir(repoRoot, dirAbs string, symbols kindSymbols, knownKinds map[
 		scan := &evidenceScan{fset: fset, repoRoot: repoRoot, path: path, symbols: symbols, knownKinds: knownKinds, out: out}
 		for _, decl := range file.Decls {
 			if fn, ok := decl.(*ast.FuncDecl); ok && fn.Body != nil {
-				scan.walk(fn.Body, false)
+				scan.walk(fn.Body, walkState{})
 			}
 		}
 	}
@@ -196,12 +262,24 @@ func (s *evidenceScan) record(kind string, node ast.Node) {
 	}
 }
 
+// walkState tracks two independent activation levels: active covers
+// kind-constant and decode-seam evidence, literal additionally covers
+// bare wire-string literals. Literals are far noisier than constants
+// (payload keys and resource types reuse kind spellings, and the
+// legacy kinds "file" and "repository" match ordinary words), so a
+// literal counts only when compared against, or switched on, an
+// expression that reads an envelope's FactKind.
+type walkState struct {
+	active  bool
+	literal bool
+}
+
 // walk traverses a function body tracking whether the current position
 // is an active consumption position. A composite literal deactivates
 // its subtree unless the literal itself sits inside a call argument
 // (already active), which keeps loader argument lists as evidence
 // while standalone kind lists stay inert.
-func (s *evidenceScan) walk(node ast.Node, active bool) {
+func (s *evidenceScan) walk(node ast.Node, state walkState) {
 	if node == nil {
 		return
 	}
@@ -212,46 +290,56 @@ func (s *evidenceScan) walk(node ast.Node, active bool) {
 		// deactivate: constructing an envelope or table is production
 		// or declaration, not consumption.
 		_, isArray := node.Type.(*ast.ArrayType)
+		elemState := walkState{active: state.active && isArray}
 		for _, elt := range node.Elts {
-			s.walk(elt, active && isArray)
+			s.walk(elt, elemState)
 		}
 		return
 	case *ast.CallExpr:
 		s.noteCall(node)
-		s.walk(node.Fun, true)
+		s.walk(node.Fun, walkState{active: true})
 		for _, arg := range node.Args {
-			s.walk(arg, true)
+			s.walk(arg, walkState{active: true})
 		}
 		return
 	case *ast.BinaryExpr:
-		s.walk(node.X, true)
-		s.walk(node.Y, true)
+		s.walk(node.X, walkState{active: true, literal: isFactKindExpr(node.Y)})
+		s.walk(node.Y, walkState{active: true, literal: isFactKindExpr(node.X)})
+		return
+	case *ast.SwitchStmt:
+		s.walk(node.Init, walkState{})
+		s.walk(node.Tag, walkState{})
+		if node.Body != nil {
+			for _, stmt := range node.Body.List {
+				clause, ok := stmt.(*ast.CaseClause)
+				if !ok {
+					s.walk(stmt, state)
+					continue
+				}
+				s.walkCase(clause, isFactKindExpr(node.Tag), state)
+			}
+		}
 		return
 	case *ast.CaseClause:
-		for _, expr := range node.List {
-			s.walk(expr, true)
-		}
-		for _, stmt := range node.Body {
-			s.walk(stmt, active)
-		}
+		s.walkCase(node, false, state)
 		return
 	case *ast.BasicLit:
-		if active && node.Kind == token.STRING {
+		if state.literal && node.Kind == token.STRING {
 			if value, err := strconv.Unquote(node.Value); err == nil && s.knownKinds[value] {
 				s.record(value, node)
 			}
 		}
 		return
 	case *ast.SelectorExpr:
-		if active {
+		if state.active {
 			if kind, ok := s.symbols.identToKind[node.Sel.Name]; ok {
 				s.record(kind, node)
 			}
 		}
-		s.walk(node.X, active)
+		s.walk(node.X, state)
 		return
 	case *ast.Ident:
-		if active {
+		if state.active {
 			if kind, ok := s.symbols.identToKind[node.Name]; ok {
 				s.record(kind, node)
 			}
@@ -259,8 +347,38 @@ func (s *evidenceScan) walk(node ast.Node, active bool) {
 		return
 	}
 	for _, child := range childNodes(node) {
-		s.walk(child, active)
+		s.walk(child, state)
 	}
+}
+
+func (s *evidenceScan) walkCase(clause *ast.CaseClause, tagIsFactKind bool, outer walkState) {
+	for _, expr := range clause.List {
+		s.walk(expr, walkState{active: true, literal: tagIsFactKind})
+	}
+	for _, stmt := range clause.Body {
+		s.walk(stmt, outer)
+	}
+}
+
+// isFactKindExpr reports whether an expression reads a fact kind: a
+// .FactKind selector, a plain kind/factKind identifier, or a call
+// (such as a kind normalizer) wrapping one of those.
+func isFactKindExpr(expr ast.Expr) bool {
+	switch expr := expr.(type) {
+	case *ast.SelectorExpr:
+		return expr.Sel.Name == "FactKind"
+	case *ast.Ident:
+		return expr.Name == "kind" || expr.Name == "factKind"
+	case *ast.CallExpr:
+		for _, arg := range expr.Args {
+			if isFactKindExpr(arg) {
+				return true
+			}
+		}
+	case *ast.ParenExpr:
+		return isFactKindExpr(expr.X)
+	}
+	return false
 }
 
 // noteCall records a Decode<Kind> seam call as evidence for its kind.

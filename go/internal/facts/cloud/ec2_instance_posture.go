@@ -3,7 +3,11 @@
 
 package cloud
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/contract"
+)
 
 const (
 	// EC2InstancePostureFactKind identifies one derived security/operations
@@ -47,3 +51,27 @@ func EC2InstancePostureSchemaVersion(factKind string) (string, bool) {
 	version, ok := ec2InstancePostureSchemaVersions[factKind]
 	return version, ok
 }
+
+// EC2InstancePostureFamilyDeclaration is the typed fact-family contract declaration for the
+// ec2_instance_posture family (issue #6629). It is build-time metadata: the
+// fact-kind-registry generator discovers it statically and derives
+// the registry, shards, and catalog from it.
+var EC2InstancePostureFamilyDeclaration = contract.Declare(contract.Family{
+	ID:                     "ec2_instance_posture",
+	FactDir:                "go/internal/facts/cloud",
+	OwnerRepository:        "eshu-hq/eshu",
+	LifecycleOwner:         "go/internal/facts",
+	SchemaVersion:          "1.0.0",
+	ReducerDomain:          "ec2_instance_node_materialization",
+	ProjectionHook:         "ec2_instance_posture",
+	AdmissionHook:          "facts.ValidateSchemaVersion",
+	ReadSurface:            "GET /api/v0/cloud/resources",
+	TruthProfile:           "provider_gated",
+	ProviderKeyIndependent: false,
+	Kinds: []contract.Kind{
+		{Kind: "ec2_instance_posture"},
+	},
+	Producers: []contract.Producer{
+		{ID: "collector-aws-cloud", Repository: "eshu-hq/eshu", Path: "go/internal/collector/awscloud", PlannedRepository: "eshu-hq/eshu-collector-aws-cloud", AuthorityMode: "core_issued_grant", Kinds: []string{"ec2_instance_posture"}},
+	},
+})

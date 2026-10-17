@@ -3,7 +3,11 @@
 
 package facts
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/contract"
+)
 
 // CodeownersOwnershipFactKind identifies one CODEOWNERS pattern-to-owners
 // mapping: a single line of a repository's CODEOWNERS file, carrying the
@@ -34,3 +38,27 @@ func CodeownersSchemaVersion(factKind string) (string, bool) {
 	version, ok := codeownersSchemaVersions[factKind]
 	return version, ok
 }
+
+// CodeownersFamilyDeclaration is the typed fact-family contract declaration for the
+// codeowners family (issue #6629). It is build-time metadata: the
+// fact-kind-registry generator discovers it statically and derives
+// the registry, shards, and catalog from it.
+var CodeownersFamilyDeclaration = contract.Declare(contract.Family{
+	ID:                     "codeowners",
+	FactDir:                "go/internal/facts",
+	OwnerRepository:        "eshu-hq/eshu",
+	LifecycleOwner:         "go/internal/facts",
+	SchemaVersion:          "1.0.0",
+	ReducerDomain:          "codeowners_ownership",
+	ProjectionHook:         "codeowners_ownership",
+	AdmissionHook:          "facts.ValidateSchemaVersion",
+	ReadSurface:            "GET /api/v0/codeowners/ownership",
+	TruthProfile:           "deterministic",
+	ProviderKeyIndependent: true,
+	Kinds: []contract.Kind{
+		{Kind: "codeowners.ownership", PayloadSchema: "sdk/go/factschema/schema/codeowners.ownership.v1.schema.json"},
+	},
+	Producers: []contract.Producer{
+		{ID: "git-core", Repository: "eshu-hq/eshu", Path: "go/internal/collector/repo", AuthorityMode: "core_owned", Kinds: []string{"codeowners.ownership"}},
+	},
+})

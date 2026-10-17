@@ -3,7 +3,11 @@
 
 package cloud
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/contract"
+)
 
 const (
 	// KubernetesPodTemplateFactKind identifies one pod-template-backed workload
@@ -79,3 +83,30 @@ func KubernetesLiveSchemaVersion(factKind string) (string, bool) {
 	version, ok := kubernetesLiveSchemaVersions[factKind]
 	return version, ok
 }
+
+// KubernetesLiveFamilyDeclaration is the typed fact-family contract declaration for the
+// kubernetes_live family (issue #6629). It is build-time metadata: the
+// fact-kind-registry generator discovers it statically and derives
+// the registry, shards, and catalog from it.
+var KubernetesLiveFamilyDeclaration = contract.Declare(contract.Family{
+	ID:                     "kubernetes_live",
+	FactDir:                "go/internal/facts/cloud",
+	OwnerRepository:        "eshu-hq/eshu",
+	LifecycleOwner:         "go/internal/facts",
+	SchemaVersion:          "1.0.0",
+	ReducerDomain:          "kubernetes_correlation",
+	ProjectionHook:         "kubernetes_correlation",
+	AdmissionHook:          "facts.ValidateSchemaVersion",
+	ReadSurface:            "GET /api/v0/kubernetes/correlations",
+	TruthProfile:           "provider_gated",
+	ProviderKeyIndependent: false,
+	Kinds: []contract.Kind{
+		{Kind: "kubernetes_live.namespace", PayloadSchema: "sdk/go/factschema/schema/kubernetes_live.namespace.v1.schema.json"},
+		{Kind: "kubernetes_live.pod_template", SchemaVersion: "1.3.0", PayloadSchema: "sdk/go/factschema/schema/kubernetes_live.pod_template.v1.schema.json"},
+		{Kind: "kubernetes_live.relationship", PayloadSchema: "sdk/go/factschema/schema/kubernetes_live.relationship.v1.schema.json"},
+		{Kind: "kubernetes_live.warning", PayloadSchema: "sdk/go/factschema/schema/kubernetes_live.warning.v1.schema.json"},
+	},
+	Producers: []contract.Producer{
+		{ID: "collector-kubernetes-live", Repository: "eshu-hq/eshu", Path: "go/internal/collector/kuberneteslive", PlannedRepository: "eshu-hq/eshu-collector-kubernetes-live", AuthorityMode: "core_issued_grant", Kinds: []string{"kubernetes_live.namespace", "kubernetes_live.pod_template", "kubernetes_live.relationship", "kubernetes_live.warning"}},
+	},
+})

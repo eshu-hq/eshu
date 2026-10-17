@@ -3,7 +3,11 @@
 
 package cloud
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/contract"
+)
 
 const (
 	// AWSResourceFactKind identifies one resource reported by an AWS API.
@@ -102,3 +106,35 @@ func AWSSchemaVersion(factKind string) (string, bool) {
 	version, ok := awsSchemaVersions[factKind]
 	return version, ok
 }
+
+// AWSFamilyDeclaration is the typed fact-family contract declaration for the
+// aws family (issue #6629). It is build-time metadata: the
+// fact-kind-registry generator discovers it statically and derives
+// the registry, shards, and catalog from it.
+var AWSFamilyDeclaration = contract.Declare(contract.Family{
+	ID:                     "aws",
+	FactDir:                "go/internal/facts/cloud",
+	OwnerRepository:        "eshu-hq/eshu",
+	LifecycleOwner:         "go/internal/facts",
+	SchemaVersion:          "1.0.0",
+	ReducerDomain:          "aws_cloud_runtime_drift",
+	ProjectionHook:         "cloud_asset_resolution",
+	AdmissionHook:          "facts.ValidateSchemaVersion",
+	ReadSurface:            "GET /api/v0/cloud/inventory",
+	TruthProfile:           "provider_gated",
+	ProviderKeyIndependent: false,
+	Kinds: []contract.Kind{
+		{Kind: "aws_dns_record", PayloadSchema: "sdk/go/factschema/schema/aws_dns_record.v1.schema.json", Disposition: "unconsumed", NoReducerReason: "Round-2 verified no real consumer: searches for the kind constant and wire literal across reducer, projector, query, storage, and relationships trees returned no consumption.", NoReducerEvidence: "go/internal/mcp/kind_disclosure_ledger.go (kindDisclosureEntries, #5474 backfill)"},
+		{Kind: "aws_iam_permission", PayloadSchema: "sdk/go/factschema/schema/aws_iam_permission.v1.schema.json"},
+		{Kind: "aws_image_reference", PayloadSchema: "sdk/go/factschema/schema/aws_image_reference.v1.schema.json"},
+		{Kind: "aws_relationship", PayloadSchema: "sdk/go/factschema/schema/aws_relationship.v1.schema.json"},
+		{Kind: "aws_resource", PayloadSchema: "sdk/go/factschema/schema/aws_resource.v1.schema.json"},
+		{Kind: "aws_resource_policy_permission", PayloadSchema: "sdk/go/factschema/schema/aws_resource_policy_permission.v1.schema.json"},
+		{Kind: "aws_security_group_rule", PayloadSchema: "sdk/go/factschema/schema/aws_security_group_rule.v1.schema.json"},
+		{Kind: "aws_tag_observation", Disposition: "unconsumed", NoReducerReason: "Round-2 verified no real consumer: searches for the kind constant and wire literal across reducer, projector, query, storage, and relationships trees returned no consumption.", NoReducerEvidence: "go/internal/mcp/kind_disclosure_ledger.go (kindDisclosureEntries, #5474 backfill)"},
+		{Kind: "aws_warning", PayloadSchema: "sdk/go/factschema/schema/aws_warning.v1.schema.json", Disposition: "unconsumed", NoReducerReason: "Round-2 verified no real consumer: searches for the kind constant and wire literal across reducer, projector, query, storage, and relationships trees returned no consumption.", NoReducerEvidence: "go/internal/mcp/kind_disclosure_ledger.go (kindDisclosureEntries, #5474 backfill)"},
+	},
+	Producers: []contract.Producer{
+		{ID: "collector-aws-cloud", Repository: "eshu-hq/eshu", Path: "go/internal/collector/awscloud", PlannedRepository: "eshu-hq/eshu-collector-aws-cloud", AuthorityMode: "core_issued_grant", Kinds: []string{"aws_dns_record", "aws_iam_permission", "aws_image_reference", "aws_relationship", "aws_resource", "aws_resource_policy_permission", "aws_security_group_rule", "aws_tag_observation", "aws_warning"}},
+	},
+})

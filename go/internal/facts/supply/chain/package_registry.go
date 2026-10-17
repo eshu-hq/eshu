@@ -3,7 +3,11 @@
 
 package chain
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/contract"
+)
 
 const (
 	// PackageRegistryPackageFactKind identifies one package identity observed in
@@ -92,3 +96,35 @@ func PackageRegistrySchemaVersion(factKind string) (string, bool) {
 	version, ok := packageRegistrySchemaVersions[factKind]
 	return version, ok
 }
+
+// PackageRegistryFamilyDeclaration is the typed fact-family contract declaration for the
+// package_registry family (issue #6629). It is build-time metadata: the
+// fact-kind-registry generator discovers it statically and derives
+// the registry, shards, and catalog from it.
+var PackageRegistryFamilyDeclaration = contract.Declare(contract.Family{
+	ID:                     "package_registry",
+	FactDir:                "go/internal/facts/supply/chain",
+	OwnerRepository:        "eshu-hq/eshu",
+	LifecycleOwner:         "go/internal/facts",
+	SchemaVersion:          "1.0.0",
+	ReducerDomain:          "package_source_correlation",
+	ProjectionHook:         "package_source_correlation",
+	AdmissionHook:          "facts.ValidateSchemaVersion",
+	ReadSurface:            "GET /api/v0/package-registry/packages",
+	TruthProfile:           "provider_gated",
+	ProviderKeyIndependent: false,
+	Kinds: []contract.Kind{
+		{Kind: "package_registry.package", PayloadSchema: "sdk/go/factschema/schema/package_registry.package.v1.schema.json"},
+		{Kind: "package_registry.package_artifact", PayloadSchema: "sdk/go/factschema/schema/package_registry.package_artifact.v1.schema.json", Disposition: "projector_only", NoReducerReason: "Consumed by canonical projection; no reducer domain decodes it.", NoReducerEvidence: "projector consumption in go/internal/projector/canonical, go/internal/projector/decode"},
+		{Kind: "package_registry.package_dependency", PayloadSchema: "sdk/go/factschema/schema/package_registry.package_dependency.v1.schema.json", Disposition: "projector_only", NoReducerReason: "Consumed by canonical projection; no reducer domain decodes it.", NoReducerEvidence: "projector consumption in go/internal/projector/canonical, go/internal/projector/decode"},
+		{Kind: "package_registry.package_version", PayloadSchema: "sdk/go/factschema/schema/package_registry.package_version.v1.schema.json"},
+		{Kind: "package_registry.registry_event", PayloadSchema: "sdk/go/factschema/schema/package_registry.registry_event.v1.schema.json", Disposition: "projector_only", NoReducerReason: "Consumed by canonical projection; no reducer domain decodes it.", NoReducerEvidence: "projector consumption in go/internal/projector/canonical, go/internal/projector/decode"},
+		{Kind: "package_registry.repository_hosting", PayloadSchema: "sdk/go/factschema/schema/package_registry.repository_hosting.v1.schema.json", Disposition: "unconsumed", NoReducerReason: "Registry feed topology with no graph consumer; it does not advance the package-to-source provenance backbone and none is planned.", NoReducerEvidence: "go/internal/mcp/kind_disclosure_ledger.go (#5458 KEEP DISCLOSURE entry)"},
+		{Kind: "package_registry.source_hint", PayloadSchema: "sdk/go/factschema/schema/package_registry.source_hint.v1.schema.json"},
+		{Kind: "package_registry.vulnerability_hint", PayloadSchema: "sdk/go/factschema/schema/package_registry.vulnerability_hint.v1.schema.json", Disposition: "unconsumed", NoReducerReason: "Join-key-only evidence: the supply-chain impact query filters on fact_kind but never decodes the payload, and the projector intentionally does not consume it; corroboration is owned by the vulnerability_intelligence family and epic #5462.", NoReducerEvidence: "go/internal/mcp/kind_disclosure_ledger.go (#5458 KEEP DISCLOSURE entry)"},
+		{Kind: "package_registry.warning", PayloadSchema: "sdk/go/factschema/schema/package_registry.warning.v1.schema.json", Disposition: "read_only", NoReducerReason: "Consumed by read surfaces only; no reducer domain decodes it.", NoReducerEvidence: "read consumption in query read model"},
+	},
+	Producers: []contract.Producer{
+		{ID: "collector-package-registry", Repository: "eshu-hq/eshu", Path: "go/internal/collector/packageregistry", PlannedRepository: "eshu-hq/eshu-collector-package-registry", AuthorityMode: "core_issued_grant", Kinds: []string{"package_registry.package", "package_registry.package_artifact", "package_registry.package_dependency", "package_registry.package_version", "package_registry.registry_event", "package_registry.repository_hosting", "package_registry.source_hint", "package_registry.vulnerability_hint", "package_registry.warning"}},
+	},
+})
