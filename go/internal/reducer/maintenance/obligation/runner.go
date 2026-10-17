@@ -37,13 +37,27 @@ const (
 )
 
 const (
-	defaultActivationLease           = 2 * time.Minute
-	defaultActivationPollInterval    = 10 * time.Second
 	defaultActivationMaxPerCycle     = 32
 	defaultActivationCatchUpPageSize = 500
 	defaultActivationPruneRetention  = 24 * time.Hour
 	defaultActivationPruneLimit      = 500
 )
+
+// DefaultActivationLease is how long one claim holds an obligation when the
+// operator sets no ESHU_ACTIVATION_OBLIGATION_LEASE override. An obligation
+// left open is retried after its lease expires. The value is unchanged by
+// #7638 item 3: lease sizing awaits the full-corpus p99, which is unmeasured,
+// so no tuned value is prescribed here.
+const DefaultActivationLease = 2 * time.Minute
+
+// DefaultActivationPollInterval is the wait after a cycle that claimed
+// nothing when the operator sets no ESHU_ACTIVATION_OBLIGATION_POLL_INTERVAL
+// override.
+const DefaultActivationPollInterval = 10 * time.Second
+
+// DefaultActivationWorkers is the number of concurrent claim loops when the
+// operator sets no ESHU_ACTIVATION_OBLIGATION_WORKERS override.
+const DefaultActivationWorkers = 1
 
 // Obligation is one claimed exact-generation activation obligation
 // (#7584).
@@ -122,13 +136,13 @@ type Config struct {
 
 func (c Config) withDefaults() Config {
 	if c.Lease <= 0 {
-		c.Lease = defaultActivationLease
+		c.Lease = DefaultActivationLease
 	}
 	if c.PollInterval <= 0 {
-		c.PollInterval = defaultActivationPollInterval
+		c.PollInterval = DefaultActivationPollInterval
 	}
 	if c.Workers <= 0 {
-		c.Workers = 1
+		c.Workers = DefaultActivationWorkers
 	}
 	if c.MaxPerCycle <= 0 {
 		c.MaxPerCycle = defaultActivationMaxPerCycle
