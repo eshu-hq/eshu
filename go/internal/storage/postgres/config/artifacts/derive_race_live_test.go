@@ -6,6 +6,7 @@ package artifacts_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -146,6 +147,12 @@ func TestDeriveRacingContentWritesNeverLabelsNewerContentLive(t *testing.T) {
 	putFile(ctx, t, db, "repo-a", "docker-compose.yml", composeBody(0))
 	baseVersion := versionOf(ctx, t, db, "repo-a")
 	const writes = 40
+	// Seed one successful derive so a labelled state row exists before the
+	// first snapshot check; without it every check could land before any
+	// derive wins the race and the test would assert nothing.
+	if seed := newLiveDeriver(t, db, testExtractorVersion).DeriveRepository(ctx, artifacts.Request{RepoID: "repo-a", Trigger: artifacts.TriggerRepair}); seed.Outcome != artifacts.OutcomeOK {
+		t.Fatalf("seed derive = %+v, want ok", seed)
+	}
 
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
@@ -178,11 +185,14 @@ func TestDeriveRacingContentWritesNeverLabelsNewerContentLive(t *testing.T) {
 		defer func() { _ = tx.Rollback() }()
 		var label sql.NullInt64
 		err = tx.QueryRowContext(ctx, `SELECT content_version FROM config_artifact_repo_state WHERE repo_id = 'repo-a'`).Scan(&label)
-		if err == sql.ErrNoRows || !label.Valid {
-			return
+		if errors.Is(err, sql.ErrNoRows) {
+			return // no state row yet
 		}
 		if err != nil {
 			t.Fatalf("read state: %v", err)
+		}
+		if !label.Valid {
+			return // no successful derive yet
 		}
 		labelled := int(label.Int64 - baseVersion)
 		if got := rowGeneration(t, storedRows(ctx, t, tx, "repo-a")); got < labelled {
@@ -198,6 +208,9 @@ func TestDeriveRacingContentWritesNeverLabelsNewerContentLive(t *testing.T) {
 	}
 	close(stop)
 	wg.Wait()
+	if checks == 0 {
+		t.Fatal("no snapshot check ran: the stored (state, rows) invariant was never inspected")
+	}
 	if got := versionOf(ctx, t, db, "repo-a"); got != baseVersion+writes {
 		t.Fatalf("version = %d, want %d: one bump per content write", got, baseVersion+writes)
 	}
