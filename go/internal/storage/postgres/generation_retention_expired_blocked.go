@@ -167,8 +167,10 @@ const generationRetentionExpiredReportMarker = "-- retention: expired-blocked re
 //   - the claimed/running/retrying anti-join the candidate query lumps
 //     into one live_work set is split into two EXISTS probes, so
 //     retrying-only history reports retrying, distinct from live work. Each
-//     probe follows the fact_work_items (scope_id, generation_id, status)
-//     index prefix, and the report's LIMIT bounds the probe count;
+//     probe carries the outer scope_id so it seeks the fact_work_items
+//     (scope_id, generation_id, status) index prefix (generation_id is
+//     globally unique, so the predicate is result-neutral), and the
+//     report's LIMIT bounds the probe count;
 //   - uncovered (#7472) and delta-protected (#7802) rows reuse the
 //     candidate query's definitions verbatim and ride the report with
 //     their flags visible, explicitly scoped out of the blocked verdict:
@@ -221,13 +223,15 @@ SELECT
     EXISTS (
         SELECT 1
         FROM fact_work_items AS work
-        WHERE work.generation_id = generation.generation_id
+        WHERE work.scope_id = generation.scope_id
+          AND work.generation_id = generation.generation_id
           AND work.status IN ('claimed', 'running')
     ) AS has_live_work,
     EXISTS (
         SELECT 1
         FROM fact_work_items AS work
-        WHERE work.generation_id = generation.generation_id
+        WHERE work.scope_id = generation.scope_id
+          AND work.generation_id = generation.generation_id
           AND work.status = 'retrying'
     ) AS has_retrying_work,
     (generation.projection_write_started_at IS NOT NULL

@@ -329,6 +329,40 @@ func TestSelectExpiredGenerationsMapsLiveStoreSignals(t *testing.T) {
 	}
 }
 
+// TestSelectExpiredGenerationsReturnsOldestFirst proves the report
+// surfaces the oldest expired history first under a small limit, mirroring
+// the live statement's ORDER BY superseded_at ASC, generation_id ASC: with
+// newest-first fixtures and limit 2, the two oldest rows win.
+func TestSelectExpiredGenerationsReturnsOldestFirst(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(generationRetentionExpiredReportQuery, "work.scope_id = generation.scope_id") {
+		t.Fatal("report query omits the scope_id probe predicate, want prefix-seeking EXISTS probes")
+	}
+
+	now := time.Now().UTC()
+	policy := expiredBlockedTestPolicy()
+	policy.BatchGenerationLimit = 2
+	database := &generationRetentionFakeDB{expiredBlockedRows: [][]any{
+		expiredBlockedFixtureRow(now, "gen-new", 100*24*time.Hour, false, false, false, false, false),
+		expiredBlockedFixtureRow(now, "gen-old", 200*24*time.Hour, false, false, false, false, false),
+		expiredBlockedFixtureRow(now, "gen-oldest", 300*24*time.Hour, false, false, false, false, false),
+	}}
+	store := NewGenerationRetentionStore(database)
+	store.Now = func() time.Time { return now }
+	report, err := store.SelectExpiredGenerations(context.Background(), policy)
+	if err != nil {
+		t.Fatalf("SelectExpiredGenerations() error = %v", err)
+	}
+	if len(report) != 2 {
+		t.Fatalf("len(report) = %d, want 2 oldest rows under limit 2", len(report))
+	}
+	if report[0].GenerationID != "gen-oldest" || report[1].GenerationID != "gen-old" {
+		t.Errorf("report order = [%s %s], want [gen-oldest gen-old]",
+			report[0].GenerationID, report[1].GenerationID)
+	}
+}
+
 // TestSelectExpiredGenerationsOmitsCompliantHistory proves superseded
 // history inside the ceiling never enters the expired report: compliant
 // history stays absent rather than surfaced with a reason or an age.

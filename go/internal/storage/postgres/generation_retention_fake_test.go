@@ -183,9 +183,23 @@ func filterGenerationRetentionExpiredRows(rows [][]any, args []any) [][]any {
 			continue
 		}
 		filtered = append(filtered, row)
-		if len(filtered) >= limit {
-			break
+	}
+	// Mirror the live statement's ORDER BY superseded_at ASC,
+	// generation_id ASC before the LIMIT cap, so the oldest rows win.
+	slices.SortFunc(filtered, func(a, b []any) int {
+		aTime, aOK := a[2].(time.Time)
+		bTime, bOK := b[2].(time.Time)
+		if aOK && bOK {
+			if c := aTime.Compare(bTime); c != 0 {
+				return c
+			}
 		}
+		aID, _ := a[1].(string)
+		bID, _ := b[1].(string)
+		return strings.Compare(aID, bID)
+	})
+	if len(filtered) > limit {
+		filtered = filtered[:limit]
 	}
 	return filtered
 }
