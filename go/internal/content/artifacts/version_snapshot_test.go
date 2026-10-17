@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -61,9 +62,15 @@ func TestRegenerateExtractorCorpus(t *testing.T) {
 		out.Repositories, out.Files, out.Rows, out.WithRows, corpusDigest, out.Digest)
 }
 
+// guardLineCitation matches a raw Go line citation (go/internal/x.go:12). A
+// fixture comment may hold one, and under go/ the doc-citations gate refuses
+// a new one, so the snapshot writes it as "go/internal/x.go line 12".
+var guardLineCitation = regexp.MustCompile(`(go/internal/[A-Za-z0-9_./-]+\.go):([0-9]+)`)
+
 // freezeGuardRepositories drops every file that is not a config-artifact
-// candidate and proves that the drop and the JSON round trip leave the
-// derive's output unchanged.
+// candidate, rewrites raw Go line citations (guardLineCitation), and proves
+// that the drop, the rewrite and the JSON round trip leave the derive's
+// output unchanged.
 func freezeGuardRepositories(t *testing.T, inputs []guardRepository) []guardRepository {
 	t.Helper()
 	frozen := make([]guardRepository, 0, len(inputs))
@@ -80,6 +87,7 @@ func freezeGuardRepositories(t *testing.T, inputs []guardRepository) []guardRepo
 				t.Fatalf("%s/%s cannot be a content_files row (invalid UTF-8 or NUL)", repo.Label, f.RelativePath)
 			}
 			if isConfigArtifactCandidate(File{RelativePath: f.RelativePath, Content: f.Content}) {
+				f.Content = guardLineCitation.ReplaceAllString(f.Content, "$1 line $2")
 				kept.Files = append(kept.Files, f)
 			}
 		}

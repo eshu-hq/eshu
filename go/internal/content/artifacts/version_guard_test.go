@@ -27,7 +27,7 @@ import (
 var extractorPins = []extractorPin{
 	{
 		Version:      1,
-		CorpusDigest: "c470a1eaea5c00841259f6cc4eb9182a655c71733933ec3ad5d0771dfb83f2df",
+		CorpusDigest: "c8b4f29521e1a41f56111fb5d85aa989f797d08fccc6a400a523910820b70e06",
 		OutputDigest: "7dde1bb7ab14ac9e08ca681ca85bfb70b3ce2eb99017911cc84afed14294ef01",
 	},
 }
