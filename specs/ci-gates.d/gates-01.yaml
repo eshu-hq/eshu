@@ -343,3 +343,155 @@ gates:
     requirements: []
     ci_only_reason: ""
     hook_id: ""
+
+  # ─── MERGE-GROUP SLIM LANE ───────────────────────────────────────────────
+  # Fixed-set gates for the merge_group event (#7859 P3). Each command below
+  # also runs on pull requests through its full-size sibling gate; the slim
+  # rows exist so the queue lane has slim-fast CI jobs to select instead of
+  # the coarse go-core and verify-contracts jobs. Every slim row triggers
+  # only on its own lane definition, so pull-request path selection is
+  # unchanged for all other paths. All six share one CI job,
+  # test.yml/merge-group-slim.
+  - id: slim-go-build
+    name: Slim lane Go build (all binaries)
+    category: build
+    layer: hygiene
+    purpose: "Builds every Go binary in the module to confirm the queue entry still compiles."
+    tier: pre-push
+    blocking: true
+    triggers:
+      - ".github/workflows/test.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/gates-01.yaml"
+    ci:
+      workflow: test.yml
+      job: "merge-group-slim"
+    requirements:
+      - go
+    ci_only_reason: "merge_group lane step; pull requests run the identical command through go-build"
+    hook_id: ""
+
+  - id: slim-go-vet
+    name: Slim lane scoped go vet (changed packages plus direct importers)
+    category: hygiene
+    layer: hygiene
+    purpose: "Vets the queue entry's changed Go packages and their direct importers through the go list import graph."
+    tier: pre-push
+    blocking: true
+    triggers:
+      - ".github/workflows/test.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/gates-01.yaml"
+      - "scripts/verify-merge-group-slim-vet.sh"
+      - "scripts/test-verify-merge-group-slim-vet.sh"
+    self_test_triggers:
+      - "scripts/verify-merge-group-slim-vet.sh"
+      - "scripts/test-verify-merge-group-slim-vet.sh"
+    local:
+      command: "bash scripts/verify-merge-group-slim-vet.sh"
+      pre_push: floor
+      test_command: "bash scripts/test-verify-merge-group-slim-vet.sh"
+    ci:
+      workflow: test.yml
+      job: "merge-group-slim"
+    requirements:
+      - go
+    ci_only_reason: ""
+    hook_id: ""
+
+  - id: slim-go-filecap
+    name: Slim lane Go 500-line file cap
+    category: hygiene
+    layer: hygiene
+    purpose: "Fails the queue entry when a Go file exceeds the 500-line cap."
+    tier: pre-push
+    blocking: true
+    triggers:
+      - ".github/workflows/test.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/gates-01.yaml"
+      - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/precommit-go-gosec.sh"
+    local:
+      command: "bash scripts/dev/precommit-go.sh filecap-all"
+      test_command: ""
+    ci:
+      workflow: test.yml
+      job: "merge-group-slim"
+    requirements:
+      - go
+    ci_only_reason: ""
+    hook_id: ""
+
+  - id: slim-migration-uniqueness
+    name: Slim lane migration sequence uniqueness
+    category: hygiene
+    layer: hygiene
+    purpose: "Fails the queue entry when shipped Postgres migration sequence numbers collide."
+    tier: pre-push
+    blocking: true
+    triggers:
+      - ".github/workflows/test.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/gates-01.yaml"
+      - "go/internal/storage/postgres/migrations/**"
+    local:
+      command: "cd go && go test ./internal/storage/postgres/migrations/ -run 'TestBootstrapDefinitionsHaveUniqueSequenceNumbers' -count=1"
+      pre_push: floor
+      test_command: ""
+    ci:
+      workflow: test.yml
+      job: "merge-group-slim"
+    requirements:
+      - go
+    ci_only_reason: ""
+    hook_id: ""
+
+  - id: slim-collector-entrypoints
+    name: Slim lane generated collector entrypoints parity
+    category: exactness
+    layer: contract
+    purpose: "Fails the queue entry when the generated collector entrypoints file drifts from the collector fact contract spec."
+    tier: pre-push
+    blocking: true
+    triggers:
+      - ".github/workflows/test.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/gates-01.yaml"
+      - "scripts/test-verify-collector-entrypoints-generated.sh"
+      - "scripts/verify-collector-entrypoints-generated.sh"
+    self_test_triggers:
+      - "scripts/test-verify-collector-entrypoints-generated.sh"
+      - "scripts/verify-collector-entrypoints-generated.sh"
+    local:
+      command: "bash scripts/verify-collector-entrypoints-generated.sh"
+      test_command: "bash scripts/test-verify-collector-entrypoints-generated.sh"
+    ci:
+      workflow: test.yml
+      job: "merge-group-slim"
+    requirements:
+      - go
+    ci_only_reason: ""
+    hook_id: ""
+
+  - id: slim-doc-split
+    name: Slim lane context and story reference layout
+    category: docs
+    layer: hygiene
+    purpose: "Fails the queue entry when a context or story reference page exceeds its line cap or breaks the route map."
+    tier: pre-push
+    blocking: true
+    triggers:
+      - ".github/workflows/test.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/gates-01.yaml"
+      - "scripts/test-context-stories-doc-split.sh"
+    local:
+      command: "bash scripts/test-context-stories-doc-split.sh"
+      test_command: ""
+    ci:
+      workflow: test.yml
+      job: "merge-group-slim"
+    requirements: []
+    ci_only_reason: ""
+    hook_id: ""

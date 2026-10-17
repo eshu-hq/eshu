@@ -67,13 +67,15 @@ func writeQueueSelection(out io.Writer, selection cigates.QueueSelection) error 
 	return json.NewEncoder(out).Encode(selection)
 }
 
-// selectQueueGates reuses await's fixed-base GitHub compare. Both registries
-// contribute rows so an unmerged registry edit cannot remove a gate that the
-// trusted default-branch publisher will still require.
-func selectQueueGates(ctx context.Context, runner ghRunner, registries []*cigates.Registry, repo, baseRef, branch, headSHA, workflow, job string) (cigates.QueueSelection, error) {
-	paths, truncated, err := mergeGroupChangedPaths(ctx, runner, repo, baseRef, branch, headSHA)
-	if err != nil {
+// selectQueueGates serves the registry's merge_group slim set for one
+// workflow. Changed paths play no role: the fixed set is the selection, so no
+// compare call is made. Both registries contribute rows so an unmerged
+// registry edit cannot remove a gate that the trusted default-branch
+// publisher will still require. The queue branch is still parsed to fail
+// closed on a malformed branch, exactly as the await path does.
+func selectQueueGates(_ context.Context, _ ghRunner, registries []*cigates.Registry, _, baseRef, branch, _, workflow, job string) (cigates.QueueSelection, error) {
+	if _, err := mergeGroupBaseSHA(branch, baseRef); err != nil {
 		return cigates.QueueSelection{}, err
 	}
-	return cigates.SelectQueueWorkflow(registries, paths, truncated, workflow, job)
+	return cigates.SelectSlimWorkflow(registries, workflow, job)
 }

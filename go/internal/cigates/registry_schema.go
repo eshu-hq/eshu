@@ -12,6 +12,7 @@ type registryFile struct {
 	HygieneHooks         []hygieneHookFile         `yaml:"hygiene_hooks"`
 	NonGateWorkflows     []nonGateWorkflowFile     `yaml:"non_gate_workflows"`
 	RequiredStatusChecks []requiredStatusCheckFile `yaml:"required_status_checks"`
+	MergeGroupSlimGates  []string                  `yaml:"merge_group_slim_gates"`
 }
 
 type gateFile struct {

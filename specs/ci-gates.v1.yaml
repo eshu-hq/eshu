@@ -46,6 +46,32 @@ gate_fragments:
   - ci-gates.d/gates-16.yaml
   - ci-gates.d/gates-15.yaml
 
+# Merge-group slim lane (#7859 P3): the owner-fixed ordered set of blocking
+# gate IDs selected on the merge_group event, ignoring changed paths. Source:
+# the owner decision (2026-10-17 15:29Z) as refined by the measurement
+# (2026-10-17 16:18Z): build, scoped vet of changed packages plus direct
+# importers, tagged builds, file and line caps, generated-file parity, count
+# and registry gates, the migration uniqueness test, dirgate, capability
+# inventory, and the doc-split layout check; minus the 335s readiness
+# self-test (omitted by the owner). Pull-request selection never reads this
+# list. Every entry must name a distinct existing blocking gate.
+merge_group_slim_gates:
+  - slim-go-build
+  - slim-go-vet
+  - slim-go-filecap
+  - tagged-builds
+  - markdown-file-cap
+  - doc-citations
+  - scripts-file-cap
+  - ci-gate-registry
+  - capability-inventory
+  - mcp-tool-count
+  - live-backend-static-mirror
+  - slim-migration-uniqueness
+  - slim-collector-entrypoints
+  - go-dir-gate
+  - slim-doc-split
+
 hygiene_hooks:
   - id: codex-spawn-guard
     reason: "pre-commit mirror of the agent-canon Codex spawn guard test, also run locally and in CI"

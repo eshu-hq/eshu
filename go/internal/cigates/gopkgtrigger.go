@@ -70,7 +70,10 @@ var goPackageSubcommands = map[string]struct{}{
 // #6054 raised this from 26 to 27: go-dir-gate's local.test_command now runs
 // `go test ./cmd/dirgate/` (the derived-ratchet gate replaced the shell mirror),
 // and the row carries `go/**` as a trigger.
-const goPackageGateCount = 27
+// #7859 raised this from 27 to 28: slim-migration-uniqueness runs
+// `go test ./internal/storage/postgres/migrations/`, selected by that
+// package's whole directory as a trigger.
+const goPackageGateCount = 28
 
 // argTrimCutset strips shell punctuation that can adhere to a token once a
 // command is split on whitespace: quotes, and the parentheses of a subshell.
