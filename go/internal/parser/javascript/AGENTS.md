@@ -56,6 +56,15 @@
   further check, so a new keyed shape needs a negative test for every way it
   could bind the wrong symbol (`engine_package_export_keys_test.go`). Type
   references stay unkeyed, and a name the file declares again is never keyed.
+  Static member keys (`package_keys_members.go`, #8280) also need the closed
+  import-name rule of `package_keys_closed.go`: an occurrence of the import
+  name outside its allowed positions drops the member keys of that name.
+  Never add an allowed position without a row in
+  `engine_package_member_constructs_test.go`. Do not key instance method calls
+  or key from the loose `inferred_obj_type`: a parser cannot prove a
+  receiver's object. A method shadowed by a field, a parameter property, or a
+  `this.<name> =` write in its class body gets no key. The #7601 keys keep
+  their open rule (#8310 tracks closing it).
   A manifest under a test, tests, fixtures, testdata, or examples directory
   publishes no `package_id`, but its files keep `node_package_name` (#8244, `engine_package_fixture_manifest_test.go`).
   A bare import is keyed only when a package.json on the path to the repo root

@@ -280,3 +280,12 @@ tests, fixtures, testdata, or examples directory: `project.ProducerPackageName`
 returns no name there and does not fall through to an outer manifest, and the
 package.json producer read excludes the same stored paths. See
 [8244-package-json-fixture-manifests.md](8244-package-json-fixture-manifests.md).
+
+## Member keys (#8280)
+
+Default-import members and static method calls, deferred above, are keyed by
+#8280: `D.member()` on a default import now carries
+`package:<pkg>#default.member`, which only a static method of the entry file's
+default-exported class can define, never the named export `member`. Instance
+method calls stay unkeyed. See
+[8280-package-key-call-shapes.md](8280-package-key-call-shapes.md).

@@ -98,9 +98,11 @@ func TestDefaultEngineParsePathPHPStampsProducerPackageKeysOnPSR4Classes(t *test
 		parsertest.AssertStringFieldValue(t, item, "package_id", "acme/logging")
 		parsertest.AssertStringFieldValue(t, item, "export_name", `Acme\Logging\Logger::`+method)
 	}
-	// Only a public static method is reachable as Class::method() from
-	// another package; an instance method is a member call, out of scope.
-	for _, method := range []string{"info", "guarded", "hidden"} {
+	// A public instance method carries the #8280 instance key, never the
+	// static :: form.
+	info := parsertest.AssertFunctionByNameAndClass(t, got, "info", "Logger")
+	parsertest.AssertStringFieldValue(t, info, "export_name", `Acme\Logging\Logger->info`)
+	for _, method := range []string{"guarded", "hidden"} {
 		assertPHPNoPackageKey(t, "method "+method, parsertest.AssertFunctionByNameAndClass(t, got, method, "Logger"))
 	}
 }

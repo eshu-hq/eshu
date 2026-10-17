@@ -13,7 +13,7 @@
 9. returns.go - return chain and parenthesized-receiver helpers
 10. dead_code_roots.go - AST dead-code facts and root classification
 11. support.go - base, type, parameter, and return-type AST helpers
-12. package_keys.go and composer/ - #7601 cross-repository package keys
+12. package_keys.go, package_keys_instances.go, package_keys_scopes.go, package_keys_functions.go, and composer/ - #7601 and #8280 cross-repository package keys
 
 ## Invariants this package enforces
 
@@ -58,6 +58,13 @@
   receiver: those keep only the last segment, which the public-corpus
   measurement showed binds `new \InvalidArgumentException` and
   `ResendEmail::from` to the wrong imports.
+- Instance and function keys (#8280, `package_keys_instances.go` and `package_keys_functions.go`, receiver proof in `package_keys_scopes.go`) prove the
+  receiver from one variable scope's single `new` write, and a script scope
+  also needs that write to dominate the call with only literals and calls on
+  the receiver between them: an included file inherits its includer's
+  variables, and any called code can rewrite them through `global` or
+  `$GLOBALS`. Do not key from `inferReceiverType`, typed parameters,
+  or properties (`package_keys_instances_test.go`).
 
 ## Common changes and how to scope them
 

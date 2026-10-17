@@ -38,12 +38,27 @@ type phpPackageKeys struct {
 	types []phpTypeDeclaration
 	// publicStaticMethods are the class methods eligible for a producer key.
 	publicStaticMethods []phpStaticMethod
+	// publicInstanceMethods are the concrete public instance methods eligible
+	// for a #8280 instance key.
+	publicInstanceMethods []phpStaticMethod
+	// scopes holds the variable summary of each scope root by node ID and
+	// newAssigned the variables some `new` of a locked class writes; both are
+	// nil until the first instance-key candidate.
+	scopes      map[uintptr]*phpScopeVariables
+	newAssigned map[string]struct{}
 	// locks is the file's composer.lock chain, read once at the first
 	// candidate call.
 	locks     composer.Locks
 	locksRead bool
 	// lockedPackages memoizes locks.Package per fully qualified class name.
 	lockedPackages map[string]string
+	// functions are the free functions eligible for a #8280 function key.
+	functions []phpFunctionDeclaration
+	// functionTargets maps each local function name a `use function` clause
+	// binds to its fully qualified name; blockedFunctions holds names bound to
+	// two different functions.
+	functionTargets  map[string]string
+	blockedFunctions map[string]struct{}
 }
 
 // phpTypeDeclaration is one named class or interface declaration.
@@ -53,7 +68,7 @@ type phpTypeDeclaration struct {
 	item    map[string]any
 }
 
-// phpStaticMethod is one public static method of a class declaration.
+// phpStaticMethod is one public method of a class declaration.
 type phpStaticMethod struct {
 	className string
 	item      map[string]any
@@ -66,11 +81,13 @@ func newPHPPackageKeys(repoRoot string, path string, root *tree_sitter.Node) *ph
 		return nil
 	}
 	return &phpPackageKeys{
-		repoRoot:       repoRoot,
-		path:           path,
-		useTargets:     make(map[string]string),
-		blockedUse:     make(map[string]struct{}),
-		lockedPackages: make(map[string]string),
+		repoRoot:         repoRoot,
+		path:             path,
+		useTargets:       make(map[string]string),
+		blockedUse:       make(map[string]struct{}),
+		lockedPackages:   make(map[string]string),
+		functionTargets:  make(map[string]string),
+		blockedFunctions: make(map[string]struct{}),
 	}
 }
 
@@ -96,24 +113,35 @@ func (k *phpPackageKeys) recordUse(fqcn string, alias string) {
 }
 
 // recordType stages a named class or interface declaration for the producer
-// key.
-func (k *phpPackageKeys) recordType(name string, isClass bool, item map[string]any) {
-	if k == nil {
+// key. Only a top-level declaration (a child of the file or of a braced
+// namespace body) is staged: a class declared inside a condition, such as the
+// `if (!class_exists(...))` polyfill pattern, may never be the class composer
+// loads (#8280).
+func (k *phpPackageKeys) recordType(node *tree_sitter.Node, parents *phpParentLookup, name string, isClass bool, item map[string]any) {
+	if k == nil || !phpDeclaredAtTopLevel(node, parents) {
 		return
 	}
 	k.types = append(k.types, phpTypeDeclaration{name: name, isClass: isClass, item: item})
 }
 
-// recordMethod stages a class method for the producer key when it is public
-// and static, the only methods another package can call as Class::method().
+// recordMethod stages a public class method for the producer key: a static
+// one for Class::method() (#7601), and a concrete, non-magic instance one for
+// $object->method() (#8280).
 func (k *phpPackageKeys) recordMethod(node *tree_sitter.Node, typeName string, typeKind string, isPublic bool, item map[string]any) {
 	if k == nil {
 		return
 	}
-	if typeKind != "class_declaration" || typeName == "" || !isPublic || !phpMethodIsStatic(node) {
+	if typeKind != "class_declaration" || typeName == "" || !isPublic {
 		return
 	}
-	k.publicStaticMethods = append(k.publicStaticMethods, phpStaticMethod{className: typeName, item: item})
+	method := phpStaticMethod{className: typeName, item: item}
+	if phpMethodIsStatic(node) {
+		k.publicStaticMethods = append(k.publicStaticMethods, method)
+		return
+	}
+	if name, _ := item["name"].(string); phpMethodIsInstanceKeyable(node, name) {
+		k.publicInstanceMethods = append(k.publicInstanceMethods, method)
+	}
 }
 
 // stampProducers sets package_id and export_name on the file's classes,
@@ -123,6 +151,7 @@ func (k *phpPackageKeys) stampProducers(namespace string) {
 	if k == nil {
 		return
 	}
+	k.stampFunctionProducers(namespace)
 	keyedClasses := map[string][2]string{}
 	for _, declared := range k.types {
 		if !phpIsPlainName(declared.name) {
@@ -148,6 +177,7 @@ func (k *phpPackageKeys) stampProducers(namespace string) {
 		method.item["package_id"] = keyed[0]
 		method.item["export_name"] = keyed[1] + "::" + name
 	}
+	k.stampInstanceProducers(keyedClasses)
 }
 
 // classTarget returns the fully qualified class a `new` or static-call class
@@ -180,18 +210,7 @@ func (k *phpPackageKeys) consumerKey(fqcn string, member string) string {
 	if k == nil || fqcn == "" {
 		return ""
 	}
-	if !k.locksRead {
-		k.locksRead = true
-		k.locks = composer.LocksFor(k.repoRoot, k.path)
-	}
-	if k.locks.Empty() {
-		return ""
-	}
-	packageName, seen := k.lockedPackages[fqcn]
-	if !seen {
-		packageName = k.locks.Package(fqcn)
-		k.lockedPackages[fqcn] = packageName
-	}
+	packageName := k.lockedPackage(fqcn)
 	if packageName == "" {
 		return ""
 	}
@@ -200,6 +219,30 @@ func (k *phpPackageKeys) consumerKey(fqcn string, member string) string {
 		key += "::" + member
 	}
 	return key
+}
+
+// hasLocks reports whether the file's composer.lock chain names any package,
+// reading the chain once.
+func (k *phpPackageKeys) hasLocks() bool {
+	if !k.locksRead {
+		k.locksRead = true
+		k.locks = composer.LocksFor(k.repoRoot, k.path)
+	}
+	return !k.locks.Empty()
+}
+
+// lockedPackage returns the locked composer package that provides the class
+// or namespaced function fqcn, memoized per name, or "" when none does.
+func (k *phpPackageKeys) lockedPackage(fqcn string) string {
+	if fqcn == "" || !k.hasLocks() {
+		return ""
+	}
+	packageName, seen := k.lockedPackages[fqcn]
+	if !seen {
+		packageName = k.locks.Package(fqcn)
+		k.lockedPackages[fqcn] = packageName
+	}
+	return packageName
 }
 
 // phpNamespaceCount returns how many namespace declarations the file has. A

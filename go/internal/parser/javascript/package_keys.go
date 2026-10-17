@@ -48,15 +48,21 @@ type packageExportStamper struct {
 	// files whose default is the default of "pkg/plugin/x", not of "pkg".
 	entryFile bool
 	parents   *syntax.ParentLookup
+	// source is the file text, read for the class name of a method (#8280).
+	source []byte
+	// shadowed memoizes shadowedMembers per class node ID (#8280).
+	shadowed map[uintptr]map[string]struct{}
 }
 
-func newPackageExportStamper(repoRoot string, path string, fileRootKinds []string, parents *syntax.ParentLookup) packageExportStamper {
+func newPackageExportStamper(repoRoot string, path string, fileRootKinds []string, parents *syntax.ParentLookup, source []byte) packageExportStamper {
 	packageName, producerName := project.PackageNames(repoRoot, path)
 	return packageExportStamper{
 		packageName:  packageName,
 		producerName: producerName,
 		entryFile:    slices.Contains(fileRootKinds, "javascript.node_package_entrypoint"),
 		parents:      parents,
+		source:       source,
+		shadowed:     map[uintptr]map[string]struct{}{},
 	}
 }
 
@@ -117,6 +123,16 @@ func isDefaultExportStatement(node *tree_sitter.Node) bool {
 	return false
 }
 
+// packageKeyedCall is one call that will carry key unless the file declares
+// localName again. member marks a #8280 static member key, which must also
+// pass the closed import-name rule.
+type packageKeyedCall struct {
+	call      map[string]any
+	localName string
+	key       string
+	member    bool
+}
+
 // packageImportBinding is what one local name of a file is bound to by a bare
 // package import. An empty exportName marks a namespace binding
 // (`import * as ns`, `const ns = require("pkg")`), whose members are the
@@ -133,10 +149,14 @@ type packageImportBinding struct {
 // inside the repository, so it is never keyed. An npm alias dependency
 // (`"alias": "npm:target@range") is keyed under the target package, which is
 // what the producer publishes; an alias whose target does not parse stays
-// unkeyed. Two shapes are keyed: `local(`, `new Local(`,
-// `<Local />` for a named or default import, and `ns.member(` (also with new
-// or JSX) for a namespace import. A deeper chain, a member of a non-namespace
-// binding, and any name the file declares again are left unkeyed.
+// unkeyed. The #7601 shapes are `local(`, `new Local(`, `<Local />` for a
+// named or default import, and `ns.member(` (also with new or JSX) for a
+// namespace import. The #8280 static member shapes are `C.m(` and `D.m(` on a
+// named or default import and `ns.C.m(` on a namespace import
+// (memberCallTarget); they key only when the import name also passes the
+// closed rule of closedMemberImportNames. A chain deeper than `ns.C.m(`, a
+// member call on any other receiver, and any import name the file declares
+// again are left unkeyed.
 func annotatePackageImportCalls(
 	payload map[string]any,
 	root *tree_sitter.Node,
@@ -154,42 +174,21 @@ func annotatePackageImportCalls(
 		return
 	}
 
-	type keyedCall struct {
-		call      map[string]any
-		localName string
-		key       string
-	}
-	var keyed []keyedCall
+	var keyed []packageKeyedCall
 	var declared map[string]struct{} // read once, at the first candidate
 	var aliases map[string]string    // npm alias targets, read with declared
 	aliasesRead := false
 	usedNames := map[string]packageImportBinding{}
-	for _, call := range calls {
-		callKind, _ := call["call_kind"].(string)
-		if _, ok := packageKeyCallKinds[callKind]; !ok {
-			continue
-		}
-		name, _ := call["name"].(string)
-		fullName, _ := call["full_name"].(string)
-		localName, exportName := name, ""
-		if fullName == name {
-			if binding, ok := bindings[name]; ok && binding.exportName != "" {
-				exportName = binding.exportName
-			}
-		} else if namespace, member, ok := strings.Cut(fullName, "."); ok && member == name {
-			if binding, ok := bindings[namespace]; ok && binding.exportName == "" && isJSIdentifier(member) {
-				localName, exportName = namespace, member
-			}
-		}
-		if exportName == "" {
-			continue
-		}
+	memberNames := map[string]packageImportBinding{}
+	// packageKey returns the key for a call bound through localName, or "" when
+	// no manifest declares the package or its npm alias target does not parse.
+	packageKey := func(localName string, exportName string) string {
 		binding := bindings[localName]
 		if declared == nil {
 			declared = project.DeclaredDependencies(repoRoot, path)
 		}
 		if _, ok := declared[binding.source]; !ok {
-			continue
+			return ""
 		}
 		keyPackage := binding.source
 		if !aliasesRead {
@@ -198,21 +197,51 @@ func annotatePackageImportCalls(
 		}
 		if target, isAlias := aliases[binding.source]; isAlias {
 			if target == "" {
-				continue // unparseable npm alias target: unresolved, never keyed wrong
+				return "" // unparseable npm alias target: unresolved, never keyed wrong
 			}
 			keyPackage = target
 		}
 		usedNames[localName] = binding
-		keyed = append(keyed, keyedCall{call: call, localName: localName, key: "package:" + keyPackage + "#" + exportName})
+		return "package:" + keyPackage + "#" + exportName
+	}
+	for _, call := range calls {
+		callKind, _ := call["call_kind"].(string)
+		if _, ok := packageKeyCallKinds[callKind]; !ok {
+			continue
+		}
+		name, _ := call["name"].(string)
+		fullName, _ := call["full_name"].(string)
+		localName, exportName := memberCallTarget(fullName, name, callKind, bindings)
+		if exportName == "" {
+			continue
+		}
+		if key := packageKey(localName, exportName); key != "" {
+			member := strings.Contains(exportName, staticMemberSeparator)
+			keyed = append(keyed, packageKeyedCall{call: call, localName: localName, key: key, member: member})
+			if member {
+				memberNames[localName] = bindings[localName]
+			}
+		}
 	}
 	if len(keyed) == 0 {
 		return
 	}
 
 	redeclared := redeclaredImportNames(root, source, parents, usedNames)
+	// The #8280 member keys must also pass the closed import-name rule
+	// (closedMemberImportNames). The #7601 keys keep their own rule unchanged.
+	var closed map[string]bool
 	for _, item := range keyed {
 		if _, ok := redeclared[item.localName]; ok {
 			continue
+		}
+		if item.member {
+			if closed == nil {
+				closed = closedMemberImportNames(root, source, parents, memberNames)
+			}
+			if !closed[item.localName] {
+				continue
+			}
 		}
 		item.call["package_export_symbol"] = item.key
 	}

@@ -240,3 +240,11 @@ the pinned digest (252 facts at v5). Production discovery already prunes `vendor
   way as packages).
 - The B-7 RED run (the gate without the parser keys), and the replica EXPLAIN
   of `ComposerManifestsQuery`.
+
+## Instance and function keys (#8280)
+
+Instance calls and `use function` calls, listed as unkeyed above, are keyed by
+#8280 under the separate export names `<FQCN>-><method>` and
+`function:<FQN>`; static calls keep `<FQCN>::<method>`. The content version
+moved to `git-collector.v7`. See
+[8280-package-key-call-shapes.md](8280-package-key-call-shapes.md).

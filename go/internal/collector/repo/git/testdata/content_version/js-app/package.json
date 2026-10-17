@@ -1,0 +1,4 @@
+{
+  "name": "acme-fixture-app",
+  "dependencies": {"acme-fixture-lib": "1.0.0"}
+}
