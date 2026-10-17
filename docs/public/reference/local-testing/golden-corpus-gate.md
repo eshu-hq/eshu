@@ -209,6 +209,18 @@ backends agree. The parse guard requires `ORDER BY` and rejects `LIMIT` /
 `SKIP` — with truncation, tied keys change which rows return, and that is
 row truth that must stay required — and only the `results` kind is held.
 
+Two `missing` entries cover the Repository path-conflict cleanup (#8240). When
+a re-keyed repository leaves a different-id Repository on the projected path,
+the Neo4j writer sends the attributed retirement (`OPTIONAL MATCH` edge
+collection, `DETACH DELETE`, `RETURN dropped`) and the NornicDB writer sends
+the bare `DETACH DELETE`, because NornicDB drops the id guard on the attributed
+shape (#8173). Both statements match the same path and `r.id <> $repo_id`
+guard and delete the same node, so each is recorded on one backend only by
+design. The `storage/cypher` shape tests pin that equivalence, and the
+`graph/capture` allowlist test pins the entries to the production writer. Drop
+both entries when the NornicDB leg leaves the differential, because a stale
+entry fails the gate.
+
 Replay a CI capture locally with the committed allowlist (single-pair mode,
 which reports under the `nornicdb_vs_neo4j` finding name rather than the
 quorum table above; quorum needs two pairing dirs):

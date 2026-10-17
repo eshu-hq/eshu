@@ -1,5 +1,5 @@
 version: backend-divergence-allowlist/v1
-updated_at: 2026-10-11
+updated_at: 2026-10-17
 issue: 6782
 parent_issue: 6788
 owners:
@@ -384,6 +384,16 @@ entries:
   reason: "Dialect-divergent hot-entities degree read (Neo4j-shaped in-graph degree aggregate); NornicDB runs the shared raw CALLS edge pass (recorded on both legs with agreeing results) and ranks in Go to avoid NornicDB aggregate corruption (graphSummaryHotEntities). Unify query text per backend in #6906; API truth is verified by B-7 query shapes on both legs."
   upstream: https://github.com/eshu-hq/eshu/issues/6906
   owner: query
+- statement: "MATCH (r:Repository {path: $path}) WHERE r.id <> $repo_id OPTIONAL MATCH (r)-[rel]-(other) WITH r, collect(CASE WHEN rel IS NULL THEN NULL ELSE {t: type(rel), dir: CASE WHEN startNode(rel) = r THEN 'out' ELSE 'in' END, src: rel.evidence_source} END) AS dropped DETACH DELETE r RETURN dropped"
+  tier: missing
+  reason: "Attributed Repository path-conflict retirement (#7324): the Neo4j writer collects the incident edges before the delete and reads the RETURN dropped record for the per-direction split metric. NornicDB writers cannot emit it (its interpreter drops the id guard on the OPTIONAL MATCH + WITH collect composition and deletes the live node, live probe #8173), so they emit the bare shape, which the paired entry names. Both shapes anchor on the same path, apply the same r.id <> $repo_id guard, and end in DETACH DELETE r, so they retire the same different-id Repository set; TestRepositoryPathCleanupShapesRetireTheSameSet and TestRepositoryPathCleanupShapeFollowsWriterBackend in storage/cypher pin that shared set and which writer gets which shape. The quorum reproduced the one-sided recording in the #8218 and #8230 captures (staged paths deployable-config and supply-chain-demo-db); no backend fix is owed because NornicDB is not a supported deployment backend."
+  upstream: https://github.com/eshu-hq/eshu/issues/7324
+  owner: graph
+- statement: "MATCH (r:Repository {path: $path}) WHERE r.id <> $repo_id DETACH DELETE r"
+  tier: missing
+  reason: "Bare Repository path-conflict retirement (#8173): the shape every NornicDB-targeted writer emits (WithBareRepositoryRetirement) because the attributed shape, which the paired entry names for Neo4j, deletes the live node in steady state there. It carries no incident-edge collection and no RETURN record, so its retirements report unattributed (attribution=false). Both shapes anchor on the same path, apply the same r.id <> $repo_id guard, and end in DETACH DELETE r, so they retire the same different-id Repository set; TestRepositoryPathCleanupShapesRetireTheSameSet and TestRepositoryPathCleanupShapeFollowsWriterBackend in storage/cypher pin that shared set and which writer gets which shape. No backend fix is owed because NornicDB is not a supported deployment backend."
+  upstream: https://github.com/eshu-hq/eshu/issues/7324
+  owner: graph
 
 transient_reads:
 - statement: "MATCH (n:Module) WHERE n.evidence_source IS NOT NULL AND n.uid IS NULL AND (n.name > $cursor_0 OR (n.name = $cursor_0 AND coalesce(n.lang, '<absent>') > $cursor_1)) WITH n.name AS key_0, coalesce(n.lang, '<absent>') AS key_1, n.eshu_orphan_observed_at_unix AS observed_at RETURN key_0, key_1, observed_at ORDER BY key_0, key_1 LIMIT $limit"
