@@ -128,25 +128,20 @@ func SelectSlimWorkflow(registries []*Registry, workflow, job string) (QueueSele
 		if err != nil {
 			return result, fmt.Errorf("select merge_group slim gates: %w", err)
 		}
-		slimIDs := make(map[string]struct{})
-		for _, required := range slim {
-			for _, id := range required.GateIDs {
-				slimIDs[id] = struct{}{}
-			}
-		}
 		byID := make(map[string]Gate, len(reg.Gates))
 		for _, gate := range reg.Gates {
 			byID[gate.ID] = gate
 		}
-		for _, id := range reg.MergeGroupSlim() {
-			if _, ok := slimIDs[id]; !ok {
-				continue
+		// slim already holds exactly the validated merge_group IDs grouped
+		// by job, so every ID below resolves; no membership re-check.
+		for _, required := range slim {
+			for _, id := range required.GateIDs {
+				gate := byID[id]
+				if gate.CI.Workflow != workflow || gate.CI.Job == "" || !queueJobMatches(gate.CI, job) {
+					continue
+				}
+				queueAddSelection(&result, gate.CI.Job, gate.ID, seenJobs, seenGates)
 			}
-			gate := byID[id]
-			if gate.CI.Workflow != workflow || gate.CI.Job == "" || !queueJobMatches(gate.CI, job) {
-				continue
-			}
-			queueAddSelection(&result, gate.CI.Job, gate.ID, seenJobs, seenGates)
 		}
 	}
 	if !knownWorkflow {
