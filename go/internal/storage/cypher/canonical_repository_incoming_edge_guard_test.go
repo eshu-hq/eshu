@@ -364,7 +364,7 @@ func TestRepositoryDeleteViolationsDetectsSeededDeletes(t *testing.T) {
 		{"the path cleanup constant", canonicalNodeRepositoryPathCleanupCypher, nil},
 		{"the bare path cleanup constant", canonicalNodeRepositoryPathCleanupBareCypher, nil},
 		{"the bare path cleanup, reflowed", "MATCH (r:Repository {path: $path})  WHERE r.id <> $repo_id\n\n DETACH DELETE r", nil},
-		{"the path cleanup, reflowed", "MATCH (r:Repository {path: $path})  WHERE r.id <> $repo_id\n\n OPTIONAL MATCH (r)-[rel]-(other)\n WITH r, collect(CASE WHEN rel IS NULL THEN NULL ELSE {t: type(rel), dir: CASE WHEN startNode(rel) = r THEN 'out' ELSE 'in' END, src: rel.evidence_source} END) AS dropped\n DETACH DELETE r\n RETURN dropped", nil},
+		{"the path cleanup, reflowed", "MATCH (r:Repository {path: $path})  WHERE r.id <> $repo_id\n\n OPTIONAL MATCH (r)-[rel]-(other)\n WITH r, r.id AS retired_id, collect(CASE WHEN rel IS NULL THEN NULL ELSE {t: type(rel), dir: CASE WHEN startNode(rel) = r THEN 'out' ELSE 'in' END, src: rel.evidence_source} END) AS dropped\n DETACH DELETE r\n RETURN retired_id, dropped", nil},
 		{"incoming delete, no evidence scope", "MATCH (w:Workload)-[rel:DEPLOYS_FROM]->(r:Repository {id: $id}) DELETE rel", []string{rule2("rel")}},
 		{"incoming delete from the left", "MATCH (r:Repository {id: $id})<-[rel:DEPENDS_ON]-(o:Repository) DELETE rel", []string{rule2("rel")}},
 		{"anonymous Repository head", "MATCH (i:ContainerImage)-[rel:BUILT_FROM]->(:Repository) WHERE i.uid = $uid DELETE rel", []string{rule2("rel")}},

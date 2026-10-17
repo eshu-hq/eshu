@@ -49,12 +49,12 @@ func (e provenanceReplayExecutor) Execute(ctx context.Context, stmt cypher.State
 	if err != nil {
 		return fmt.Errorf("execute auto-commit statement: %w", err)
 	}
-	dropped := cypher.CollectRetiredRelationships(ctx, stmt.Cypher, result)
+	retirement := cypher.CollectRetirementReport(ctx, stmt.Cypher, result)
 	summary, err := result.Consume(ctx)
 	if err != nil {
 		return fmt.Errorf("consume auto-commit statement: %w", err)
 	}
-	cypher.ReportWriteCountsWithDropped(ctx, stmt.Cypher, stmt.Parameters, cypher.WriteCountersFromSummary(summary.Counters()), dropped)
+	cypher.ReportRetirementWriteCounts(ctx, stmt.Cypher, stmt.Parameters, cypher.WriteCountersFromSummary(summary.Counters()), retirement)
 	return nil
 }
 
@@ -74,12 +74,12 @@ func (e provenanceReplayExecutor) ExecuteGroup(ctx context.Context, stmts []cyph
 			if runErr != nil {
 				return nil, runErr
 			}
-			dropped := cypher.CollectRetiredRelationships(ctx, stmt.Cypher, result)
+			retirement := cypher.CollectRetirementReport(ctx, stmt.Cypher, result)
 			summary, consumeErr := result.Consume(ctx)
 			if consumeErr != nil {
 				return nil, consumeErr
 			}
-			cypher.ReportWriteCountsWithDropped(ctx, stmt.Cypher, stmt.Parameters, cypher.WriteCountersFromSummary(summary.Counters()), dropped)
+			cypher.ReportRetirementWriteCounts(ctx, stmt.Cypher, stmt.Parameters, cypher.WriteCountersFromSummary(summary.Counters()), retirement)
 		}
 		return nil, nil
 	})

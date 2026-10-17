@@ -42,6 +42,11 @@ type CanonicalNodeWriter struct {
 	// node in steady state (#8173). The default (false) keeps the
 	// attributed shape, which is Neo4j-only.
 	repositoryRetirementBare bool
+	// retiredRepositoryObserver runs after a committed path-conflict
+	// retirement with the retired Repository ids (#8316). Nil (the
+	// default) observes nothing; production wiring injects the
+	// deployable_unit_correlation fingerprint invalidation.
+	retiredRepositoryObserver RetiredRepositoryObserver
 	// searchKey decides whether infra-label writes append the #7245 infra
 	// search key clause. NewCanonicalNodeWriter sets search.On; production
 	// wiring passes the backend dialect to NewCanonicalNodeWriterWithDialect.

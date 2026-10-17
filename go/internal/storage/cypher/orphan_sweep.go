@@ -84,8 +84,15 @@ type OrphanSweepResult struct {
 	// Skipped counts write statements that were not executed because the
 	// computed key set for that write was empty. Values are 0..3 per label
 	// (clear, mark, sweep).
-	Skipped  map[string]int64
-	Duration time.Duration
+	Skipped map[string]int64
+	// DeletedRepositoryIDs holds the repository ids the cycle's Repository
+	// sweep actually deleted (#8316). Callers invalidate the
+	// deployable_unit_correlation reopen fingerprints whose repo_ids
+	// contain them, so the next maintenance pass re-opens the items that
+	// lost edges with the swept nodes. Any other label's swept keys never
+	// appear here.
+	DeletedRepositoryIDs []string
+	Duration             time.Duration
 }
 
 // OrphanSweepStore counts, marks, and deletes disconnected graph nodes through
@@ -168,6 +175,14 @@ func (s *OrphanSweepStore) SweepOrphanNodes(ctx context.Context, policy OrphanSw
 		result.Marked[labelKey] = cycle.markedCount
 		result.Deleted[labelKey] = cycle.deletedCount
 		result.Skipped[labelKey] = cycle.skipped
+		if label == OrphanSweepLabelRepository {
+			for _, key := range cycle.swept {
+				if len(key) == 0 || key[0] == "" {
+					continue
+				}
+				result.DeletedRepositoryIDs = append(result.DeletedRepositoryIDs, key[0])
+			}
+		}
 	}
 	result.Duration = time.Since(start)
 	return result, nil
@@ -179,6 +194,9 @@ type orphanSweepCycleResult struct {
 	markedCount  int64
 	deletedCount int64
 	skipped      int64
+	// swept holds the keys the S5 delete actually removed, in the
+	// deterministic write order. Steady state leaves it empty.
+	swept []orphanSweepKey
 }
 
 // runOrphanSweepCycle runs the S1/S2 anti-join reads, computes the
@@ -307,6 +325,7 @@ func (s *OrphanSweepStore) runOrphanSweepCycle(
 		return out, fmt.Errorf("sweep orphan nodes for %s: %w", label, err)
 	}
 	out.deletedCount = int64(len(finalSweep))
+	out.swept = finalSweep
 	return out, nil
 }
 

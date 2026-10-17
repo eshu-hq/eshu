@@ -33,6 +33,10 @@ fused read and the reopen listing render, the gated listing
 `input_changed` column, the stage marker exactly once), its scanner, and the
 claim-fenced success write. resolved rows are immutable, so the sha256 of the
 sorted `resolved_id` set identifies their content. The listing takes no lock.
+The same file holds the #8316 graph-loss repair SQL: the fingerprint
+invalidation for removed repositories (single `$1 = ANY(repo_ids)` and batch
+overlap forms) and the bounded admitted-anchors listing feeding the gap
+reconciliation, plus the anchors scanner.
 
 ## Exported surface
 

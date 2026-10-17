@@ -129,8 +129,10 @@ DETACH DELETE p`
 // runs); the CASE keeps NULL rels out of the collection (collect skips
 // NULL), so an edgeless retirement reports an empty dropped list rather
 // than one junk entry; startNode decides direction from the stored edge,
-// not from a pattern arrow. RETURN dropped yields exactly one record when a
-// node matched, zero when the MATCH matched nothing (steady state).
+// not from a pattern arrow. retired_id is bound in WITH, before the delete:
+// the RETURN reads a bound scalar, never a property off the deleted node.
+// RETURN yields one record per retired node when the MATCH matched, zero
+// records when it matched nothing (steady state).
 //
 // Neo4j-only: NornicDB routes this multi-clause composition into an
 // interpreter that drops the WHERE guard and deletes the path-matched live
@@ -140,13 +142,15 @@ DETACH DELETE p`
 // emit canonicalNodeRepositoryPathCleanupBareCypher instead (see
 // WithBareRepositoryRetirement): the bare shape is correct on both
 // backends, and its entries report through the unattributed
-// (attribution=false) path.
+// (attribution=false) path. A NornicDB retirement therefore reports no
+// retired id; its fingerprint invalidation comes from the #8316 gap
+// reconciliation, not from this RETURN.
 const canonicalNodeRepositoryPathCleanupCypher = `MATCH (r:Repository {path: $path})
 WHERE r.id <> $repo_id
 OPTIONAL MATCH (r)-[rel]-(other)
-WITH r, collect(CASE WHEN rel IS NULL THEN NULL ELSE {t: type(rel), dir: CASE WHEN startNode(rel) = r THEN 'out' ELSE 'in' END, src: rel.evidence_source} END) AS dropped
+WITH r, r.id AS retired_id, collect(CASE WHEN rel IS NULL THEN NULL ELSE {t: type(rel), dir: CASE WHEN startNode(rel) = r THEN 'out' ELSE 'in' END, src: rel.evidence_source} END) AS dropped
 DETACH DELETE r
-RETURN dropped`
+RETURN retired_id, dropped`
 
 // canonicalNodeRepositoryPathCleanupBareCypher is the pre-split retirement
 // shape: the same path anchor and id guard, no incident-edge collection, no
