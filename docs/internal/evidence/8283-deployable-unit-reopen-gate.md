@@ -151,11 +151,20 @@ Write costs:
 - **Success write.** One claim-fenced upsert per success, 0.134-0.143 ms each.
   800 upserts took 0.20 s of wall time in one session. In steady state the
   gate stops the re-runs, so most waves write almost none.
-- **Retention cascade.** The cascading FK adds +15.9 to +17.5 ms per 5000
-  cascaded work items (8 paired runs: 47.2-48.4 ms without the table,
-  63.6-65.5 ms with it). That is about 3.3 µs per deleted work item, about
-  56 µs per pruned generation at QA's 17.2 work items per generation, and
-  +35 % on the work-item cascade step.
+- **Retention cascade.** Measured on the production bootstrap schema at
+  base 271d54e54 (after #7420 dropped the key-sidecar FKs, which sat on
+  `fact_records`; `fact_work_items` still has exactly two cascading FK
+  children, `fact_replay_events` and this table). Seed: 400000 work items
+  over 4000 generations, 4000 fingerprint rows. Deleting 50 generations
+  (5000 cascaded work items), 8 paired runs:
+  - without the table, 48.99-50.18 ms; with it, 78.43-79.87 ms;
+  - delta +28.7 to +30.8 ms (median 29.4), about 5.9 µs per deleted work item
+    and about 101 µs per pruned generation at QA's 17.2 work items per
+    generation;
+  - the FK's own trigger is 13.7 ms over 5000 calls (2.7 µs each); the rest
+    is AFTER-trigger queue overhead and the slower work-item cascade step.
+  An earlier measurement on a reduced synthetic schema gave +16.5 ms; the
+  bootstrap-schema figure above supersedes it.
 - **Retention row count.** `generationRetentionRowCountsQuery` does not count
   the new grandchild, so it under-counts by at most one row per pruned item.
   The follow-up is #8300.
