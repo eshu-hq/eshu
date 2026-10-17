@@ -172,6 +172,11 @@ configuration.
   the obligations `ProjectorQueue.Ack` writes by running the partition-scoped
   deferred maintenance pass on the owed generation only; see
   [Resolution Engine](../services/resolution-engine.md) "Activation obligations".
+  Tune it with `ESHU_ACTIVATION_OBLIGATION_LEASE` (default `2m`),
+  `ESHU_ACTIVATION_OBLIGATION_POLL_INTERVAL` (default `10s`), and
+  `ESHU_ACTIVATION_OBLIGATION_WORKERS` (default `1`); an unparsable or
+  non-positive value falls back to its default without failing startup. Lease
+  sizing awaits the full-corpus p99 (#7638 item 3), so the default is unchanged.
 - The reducer's graph-backed gauges (`eshu_dp_edges_by_source_tool`,
   `eshu_dp_files_by_language`, `eshu_dp_graph_orphan_nodes`) are served from a
   background snapshot, so a slow graph read can never stall `/metrics` (#7062).

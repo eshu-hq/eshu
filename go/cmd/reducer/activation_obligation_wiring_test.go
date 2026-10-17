@@ -11,7 +11,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/obligation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -73,6 +75,106 @@ func TestActivationObligationConsumerWiresTheTargetedMaintainer(t *testing.T) {
 	owner := runner.Config.Owner
 	if !strings.HasPrefix(owner, "activation-obligation-consumer:") || !strings.Contains(owner, ":"+strconv.Itoa(os.Getpid())+":") {
 		t.Fatalf("lease owner = %q, want a process-unique activation-obligation-consumer owner", owner)
+	}
+}
+
+// TestActivationObligationConsumerKnobsFlowIntoConfig pins the #7638 item-3
+// tuning knobs: valid durations and worker counts flow into the runner
+// Config, while empty or unparsable values fall back to the owning package's
+// defaults without failing startup. A disabled consumer still yields no
+// runner even when the knobs are set.
+func TestActivationObligationConsumerKnobsFlowIntoConfig(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		env         map[string]string
+		wantLease   time.Duration
+		wantPoll    time.Duration
+		wantWorkers int
+		wantNil     bool
+	}{
+		{
+			name:        "defaults when knobs unset",
+			env:         map[string]string{activationObligationConsumerEnabledEnv: "true"},
+			wantLease:   obligation.DefaultActivationLease,
+			wantPoll:    obligation.DefaultActivationPollInterval,
+			wantWorkers: obligation.DefaultActivationWorkers,
+		},
+		{
+			name: "valid overrides flow into config",
+			env: map[string]string{
+				activationObligationConsumerEnabledEnv: "true",
+				activationObligationLeaseEnv:           "5m",
+				activationObligationPollIntervalEnv:    "30s",
+				activationObligationWorkersEnv:         "4",
+			},
+			wantLease:   5 * time.Minute,
+			wantPoll:    30 * time.Second,
+			wantWorkers: 4,
+		},
+		{
+			name: "invalid values fall back to defaults",
+			env: map[string]string{
+				activationObligationConsumerEnabledEnv: "true",
+				activationObligationLeaseEnv:           "not-a-duration",
+				activationObligationPollIntervalEnv:    "0",
+				activationObligationWorkersEnv:         "-2",
+			},
+			wantLease:   obligation.DefaultActivationLease,
+			wantPoll:    obligation.DefaultActivationPollInterval,
+			wantWorkers: obligation.DefaultActivationWorkers,
+		},
+		{
+			name: "empty values fall back to defaults",
+			env: map[string]string{
+				activationObligationConsumerEnabledEnv: "true",
+				activationObligationLeaseEnv:           "",
+				activationObligationPollIntervalEnv:    " ",
+				activationObligationWorkersEnv:         "banana",
+			},
+			wantLease:   obligation.DefaultActivationLease,
+			wantPoll:    obligation.DefaultActivationPollInterval,
+			wantWorkers: obligation.DefaultActivationWorkers,
+		},
+		{
+			name: "disabled consumer yields no runner even with knobs set",
+			env: map[string]string{
+				activationObligationConsumerEnabledEnv: "false",
+				activationObligationLeaseEnv:           "5m",
+				activationObligationPollIntervalEnv:    "30s",
+				activationObligationWorkersEnv:         "4",
+			},
+			wantNil: true,
+		},
+	}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			runner, err := activationObligationRunnerFor(activationEnv(tc.env),
+				activationWiringTxDB{activationWiringDB{t}}, nil, nil, nil)
+			if err != nil {
+				t.Fatalf("runnerFor() error = %v, want nil", err)
+			}
+			if tc.wantNil {
+				if runner != nil {
+					t.Fatalf("disabled consumer: runner=%v, want nil", runner)
+				}
+				return
+			}
+			if runner == nil {
+				t.Fatal("enabled consumer: runner is nil")
+			}
+			if runner.Config.Lease != tc.wantLease {
+				t.Errorf("Lease = %v, want %v", runner.Config.Lease, tc.wantLease)
+			}
+			if runner.Config.PollInterval != tc.wantPoll {
+				t.Errorf("PollInterval = %v, want %v", runner.Config.PollInterval, tc.wantPoll)
+			}
+			if runner.Config.Workers != tc.wantWorkers {
+				t.Errorf("Workers = %v, want %v", runner.Config.Workers, tc.wantWorkers)
+			}
+		})
 	}
 }
 
