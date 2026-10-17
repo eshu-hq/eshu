@@ -160,6 +160,10 @@ class InventoryFragmentTest(unittest.TestCase):
                 ("-timeout=30m ./internal/storage/postgres/freshness/links",
                  "-timeout=6m ./internal/storage/postgres/freshness/links",
                  "selector"),
+                ("ESHU_RETENTION_TIMING_MODE=build go test",
+                 "ESHU_RETENTION_TIMING_MODE=run go test", "freshness"),
+                ("< ../docs/internal/evidence/7127-link-writer-fixture.sql",
+                 "< /tmp/7127-link-writer-fixture-missing.sql", "freshness"),
             ):
                 self.assertIn(old, original)
                 workflow.write_text(original.replace(old, new, 1))
