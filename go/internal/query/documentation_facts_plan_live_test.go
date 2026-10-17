@@ -398,3 +398,242 @@ ANALYZE fact_records; ANALYZE ingestion_scopes; ANALYZE scope_generations;
 		t.Fatalf("seed source scale: %v", err)
 	}
 }
+
+const (
+	docFactsCollectedIndexName        = "fact_records_documentation_collected_target_refs_idx"
+	docFactsCollectedMentionIndexName = "fact_records_documentation_target_refs_idx"
+	docFactsCollectedScopes           = 800
+	docFactsCollectedGens             = 2
+	docFactsCollectedPerGen           = 25
+	docFactsCollectedTarget           = "repository:docfacts-target"
+	docFactsCollectedNameForm         = "docfacts-target-name"
+	docFactsCollectedScope            = "scope:docfacts-collected-0001"
+	docFactsCollectedHits             = 40
+	docFactsCollectedMentions         = 6
+	// docFactsCollectedBodyRepeat sets the number of distinct hashed blocks in
+	// every fact body. The blocks must be high-entropy (not a repeated
+	// string, which TOAST compresses away): real documentation bodies are
+	// kilobytes of incompressible text, and only then does the planner price
+	// the heap scan honestly against the GIN for a selective anchor.
+	docFactsCollectedBodyRepeat = 100
+)
+
+// TestDocumentationFactsCollectedRefsIndexLive proves the #7098 slice-B theory
+// on a fixture-scale corpus (800 scopes of two generations, mirroring the QA
+// fan-out width, with TOAST-width collected document/section/link facts and
+// one scope holding 40 document and 6 mention facts that reference the probe
+// repository):
+//
+//   - the production single-kind document read anchored on the probe
+//     repository uses fact_records_documentation_collected_target_refs_idx in
+//     its literal and generic plans (the literal kind from
+//     TestBuildDocumentationFactsSQLBindsCollectedKindsLiterally is what lets
+//     the generic plan prove the partial index predicate);
+//   - dropping that index restores the pre-change shape (no collected GIN,
+//     far more buffers); re-creating it from the shipped migration text
+//     brings the index back;
+//   - the single-kind mention read uses the pre-existing mention/claim GIN in
+//     both plan modes;
+//   - the name-form repository resolves to its scope end to end: the store
+//     read returns the probe scope's active-generation rows, while the raw
+//     name-form SQL matches zero rows.
+//
+// It is opt-in because it creates a disposable database and executes the real
+// bootstrap DDL.
+func TestDocumentationFactsCollectedRefsIndexLive(t *testing.T) {
+	ctx, db := postgresproof.OpenDisposableDatabase(
+		t,
+		os.Getenv("ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DSN"),
+		os.Getenv("ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DISPOSABLE"),
+		15*time.Minute,
+	)
+	if err := storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db}); err != nil {
+		t.Fatalf("apply bootstrap: %v", err)
+	}
+	seedDocumentationFactsCollectedScale(t, ctx, db)
+
+	t.Run("document branch uses collected index", func(t *testing.T) {
+		filter := documentationFactFilter{FactKind: "documentation_document", Repository: docFactsCollectedTarget, Limit: 10}
+		query, args := buildDocumentationFactsSQL(filter)
+		after := explainDocumentationFactsLiteral(t, ctx, db, query, args)
+		if !planUsesIndex(after, docFactsCollectedIndexName) {
+			t.Fatalf("production read did not use %s: %s", docFactsCollectedIndexName, after.raw)
+		}
+		afterGeneric := explainDocumentationFactsGeneric(t, ctx, db, query, args)
+		if !planUsesIndex(afterGeneric, docFactsCollectedIndexName) {
+			t.Fatalf("production read generic plan did not use %s: %s", docFactsCollectedIndexName, afterGeneric.raw)
+		}
+		t.Logf("DOCFACTS_COLLECTED_PLAN with_buffers=%d with_generic_buffers=%d with_ms=%.3f with_generic_ms=%.3f",
+			after.Plan.SharedHit+after.Plan.SharedRead,
+			afterGeneric.Plan.SharedHit+afterGeneric.Plan.SharedRead,
+			after.ExecutionTime, afterGeneric.ExecutionTime)
+
+		execProofStatements(t, ctx, db, []proofStatement{
+			{"DROP INDEX IF EXISTS " + docFactsCollectedIndexName, nil},
+			{"ANALYZE fact_records", nil},
+		})
+		before := explainDocumentationFactsLiteral(t, ctx, db, query, args)
+		if planUsesIndex(before, docFactsCollectedIndexName) {
+			t.Fatalf("pre-change plan unexpectedly uses %s after DROP INDEX", docFactsCollectedIndexName)
+		}
+		t.Logf("DOCFACTS_COLLECTED_PLAN before_buffers=%d before_ms=%.3f",
+			before.Plan.SharedHit+before.Plan.SharedRead, before.ExecutionTime)
+		if before.Plan.SharedHit+before.Plan.SharedRead <= after.Plan.SharedHit+after.Plan.SharedRead {
+			t.Fatalf("pre-change plan touched %d buffers, want more than the indexed %d (fan-out not demonstrated)",
+				before.Plan.SharedHit+before.Plan.SharedRead, after.Plan.SharedHit+after.Plan.SharedRead)
+		}
+		execProofStatements(t, ctx, db, []proofStatement{
+			{migrationSQLByName(t, docFactsCollectedIndexName), nil},
+			{"ANALYZE fact_records", nil},
+		})
+		restored := explainDocumentationFactsLiteral(t, ctx, db, query, args)
+		if !planUsesIndex(restored, docFactsCollectedIndexName) {
+			t.Fatalf("read did not pick %s back up from the shipped migration text", docFactsCollectedIndexName)
+		}
+	})
+
+	t.Run("mention branch uses mention index", func(t *testing.T) {
+		query, args := buildDocumentationFactsSQL(documentationFactFilter{
+			FactKind: "documentation_entity_mention", Repository: docFactsCollectedTarget, Limit: 10,
+		})
+		literal := explainDocumentationFactsLiteral(t, ctx, db, query, args)
+		if !planUsesIndex(literal, docFactsCollectedMentionIndexName) {
+			t.Fatalf("mention read did not use %s: %s", docFactsCollectedMentionIndexName, literal.raw)
+		}
+		generic := explainDocumentationFactsGeneric(t, ctx, db, query, args)
+		if !planUsesIndex(generic, docFactsCollectedMentionIndexName) {
+			t.Fatalf("mention read generic plan did not use %s: %s", docFactsCollectedMentionIndexName, generic.raw)
+		}
+	})
+
+	t.Run("name form resolves end to end", func(t *testing.T) {
+		unresolved := documentationFactFilter{
+			FactKind: "documentation_document", Repository: docFactsCollectedNameForm, Limit: 10,
+		}
+		unresolvedSQL, unresolvedArgs := buildDocumentationFactsSQL(unresolved)
+		if got := queryTargetFactPayloads(t, ctx, db, unresolvedSQL, unresolvedArgs); len(got) != 0 {
+			t.Fatalf("raw name-form read returned %d rows, want 0 (the unresolved 0-row path)", len(got))
+		}
+		reader := NewContentReader(db)
+		model, err := reader.DocumentationFacts(ctx, unresolved)
+		if err != nil {
+			t.Fatalf("name-form documentation facts read: %v", err)
+		}
+		if len(model.Facts) != 10 {
+			t.Fatalf("name-form read returned %d facts, want 10 (limit hit on the probe scope's active generation)", len(model.Facts))
+		}
+		for _, fact := range model.Facts {
+			if fact["scope_id"] != docFactsCollectedScope {
+				t.Fatalf("name-form read leaked scope %v, want only %s", fact["scope_id"], docFactsCollectedScope)
+			}
+		}
+	})
+}
+
+// seedDocumentationFactsCollectedScale builds the slice-B proof corpus: 800
+// repository scopes of two generations (only the second active, mirroring the
+// QA fan-out width), each holding 25 collected document/section/link facts
+// with TOAST-width bodies whose linked_entities reference one of 2,000 decoy
+// repositories, plus 40 document and 6 mention facts in the first scope's
+// active generation referencing the probe repository. The first scope carries
+// the probe's name-form source_key and canonical repo payload the resolver
+// reads.
+func seedDocumentationFactsCollectedScale(t *testing.T, ctx context.Context, db *sql.DB) {
+	t.Helper()
+	// One statement per exec: the pgx driver refuses multiple commands in a
+	// prepared (parameterized) statement.
+	execProofStatements(t, ctx, db, []proofStatement{{`
+INSERT INTO ingestion_scopes (
+  scope_id, scope_kind, source_system, source_key, collector_kind,
+  partition_key, observed_at, ingested_at, status, payload
+)
+SELECT 'scope:docfacts-collected-' || lpad(s::text, 4, '0'), 'repository', 'proof',
+  CASE WHEN s = 1 THEN '` + docFactsCollectedNameForm + `' ELSE 'proof:' || s END,
+  'proof', 'proof', clock_timestamp(), clock_timestamp(), 'active',
+  jsonb_build_object('repo', CASE WHEN s = 1 THEN '` + docFactsCollectedTarget + `' ELSE 'repository:decoy-' || (s % 2000) END)
+FROM generate_series(1, $1::int) AS s`, []any{docFactsCollectedScopes}}, {`
+INSERT INTO scope_generations (
+  generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at
+)
+SELECT 'generation:docfacts-collected-' || lpad(s::text, 4, '0') || ':' || g,
+  'scope:docfacts-collected-' || lpad(s::text, 4, '0'), 'proof',
+  clock_timestamp(), clock_timestamp(), CASE WHEN g = $2::int THEN 'active' ELSE 'superseded' END, clock_timestamp()
+FROM generate_series(1, $1::int) AS s CROSS JOIN generate_series(1, $2::int) AS g`, []any{docFactsCollectedScopes, docFactsCollectedGens}}, {`
+UPDATE ingestion_scopes SET active_generation_id =
+  'generation:docfacts-collected-' || substr(scope_id, length('scope:docfacts-collected-') + 1) || ':' || $1::text
+WHERE scope_id LIKE 'scope:docfacts-collected-%'`, []any{strconv.Itoa(docFactsCollectedGens)}}, {`
+INSERT INTO fact_records (
+  fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+  collector_kind, source_system, source_fact_key, observed_at, ingested_at, payload
+)
+SELECT 'fact:docfacts-collected:' || s || ':' || g || ':' || n,
+  'scope:docfacts-collected-' || lpad(s::text, 4, '0'),
+  'generation:docfacts-collected-' || lpad(s::text, 4, '0') || ':' || g,
+  CASE n % 3 WHEN 0 THEN 'documentation_document' WHEN 1 THEN 'documentation_section' ELSE 'documentation_link' END,
+  'stable:' || s || ':' || g || ':' || n, 'proof', 'proof', 'key:' || s || ':' || g || ':' || n,
+  TIMESTAMPTZ '2026-09-01 00:00:00+00' + ((s * 7919 + g * 104729 + n) % 500000) * interval '1 second',
+  clock_timestamp(),
+  jsonb_build_object(
+    'document_id', 'doc:' || (n % 500),
+    'linked_entities', jsonb_build_array(jsonb_build_object(
+      'entity_type', 'repository', 'entity_id', 'repository:decoy-' || ((s * 31 + g * 17 + n) % 2000))),
+    'body', (SELECT string_agg(md5('fact:docfacts-collected:' || s || ':' || g || ':' || n || ':' || b), '')
+             FROM generate_series(1, ` + strconv.Itoa(docFactsCollectedBodyRepeat) + `) AS b))
+FROM generate_series(1, $1::int) AS s
+CROSS JOIN generate_series(1, $2::int) AS g
+CROSS JOIN generate_series(1, $3::int) AS n`, []any{docFactsCollectedScopes, docFactsCollectedGens, docFactsCollectedPerGen}}, {`
+INSERT INTO fact_records (
+  fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+  collector_kind, source_system, source_fact_key, observed_at, ingested_at, payload
+)
+SELECT 'fact:docfacts-target:' || n, '` + docFactsCollectedScope + `',
+  (SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = '` + docFactsCollectedScope + `'),
+  'documentation_document', 'stable:target:' || n, 'proof', 'proof', 'key:target:' || n,
+  TIMESTAMPTZ '2026-09-01 00:00:00+00' + (n * interval '1 second'),
+  clock_timestamp(),
+  jsonb_build_object(
+    'document_id', 'doc:target:' || n,
+    'linked_entities', jsonb_build_array(jsonb_build_object(
+      'entity_type', 'repository', 'entity_id', '` + docFactsCollectedTarget + `')),
+    'body', (SELECT string_agg(md5('fact:docfacts-target:' || n || ':' || b), '')
+             FROM generate_series(1, ` + strconv.Itoa(docFactsCollectedBodyRepeat) + `) AS b))
+FROM generate_series(1, $1::int) AS n`, []any{docFactsCollectedHits}}, {`
+INSERT INTO fact_records (
+  fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+  collector_kind, source_system, source_fact_key, observed_at, ingested_at, payload
+)
+SELECT 'fact:docfacts-mention:' || n, '` + docFactsCollectedScope + `',
+  (SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = '` + docFactsCollectedScope + `'),
+  'documentation_entity_mention', 'stable:mention:' || n, 'proof', 'proof', 'key:mention:' || n,
+  TIMESTAMPTZ '2026-09-01 00:00:00+00' + ((n + 500) * interval '1 second'),
+  clock_timestamp(),
+  jsonb_build_object(
+    'document_id', 'doc:mention:' || n, 'section_id', 'sec:mention',
+    'candidate_refs', jsonb_build_array(jsonb_build_object(
+      'kind', 'repository', 'id', '` + docFactsCollectedTarget + `')),
+    'body', (SELECT string_agg(md5('fact:docfacts-mention:' || n || ':' || b), '')
+             FROM generate_series(1, ` + strconv.Itoa(docFactsCollectedBodyRepeat) + `) AS b))
+FROM generate_series(1, $1::int) AS n`, []any{docFactsCollectedMentions}}, {
+		// VACUUM, not just ANALYZE: bulk seeding leaves GIN fastupdate
+		// pending lists and dead tuples that price the GIN out of the plan.
+		// Production keeps this clean with autovacuum; the fixture must do it
+		// explicitly for a deterministic plan. One statement per exec:
+		// VACUUM cannot run inside a transaction block.
+		"VACUUM (ANALYZE) fact_records", nil,
+	}, {
+		"VACUUM (ANALYZE) ingestion_scopes", nil,
+	}, {
+		"VACUUM (ANALYZE) scope_generations", nil,
+	}})
+}
+
+// planUsesIndex reports whether any node of an EXPLAIN plan scans indexName.
+func planUsesIndex(plan docFactsPlan, indexName string) bool {
+	used := false
+	plan.walk(func(n docFactsPlanNode) {
+		if n.IndexName == indexName {
+			used = true
+		}
+	})
+	return used
+}

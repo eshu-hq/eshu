@@ -480,4 +480,9 @@ var orderedBootstrapDefinitionNames = []string{
 	// tombstone-only index. Read path unchanged.
 	"fact_records_changed_since_live_keys_idx",
 	"fact_records_changed_since_tombstone_keys_idx",
+	// Migration 196 (#7098 slice B) gives the documentation-facts read a
+	// partial GIN over documentation_document, documentation_section, and
+	// documentation_link, mirroring
+	// fact_records_documentation_target_refs_idx.
+	"fact_records_documentation_collected_target_refs_idx",
 }

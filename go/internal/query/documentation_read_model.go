@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"go.opentelemetry.io/otel/attribute"
@@ -141,6 +140,15 @@ func (cr *ContentReader) DocumentationFacts(
 		),
 	)
 	defer span.End()
+
+	// A name-form repository resolves to its scope before SQL is built, so
+	// the read below binds through that scope's active generation instead of
+	// probing every ingestion scope (#7098). An unresolved filter keeps the
+	// current SQL unchanged.
+	if resolved, ok := resolveDocumentationRepositoryScope(ctx, cr.db, filter); ok {
+		filter = resolved
+		span.SetAttributes(attribute.Bool("eshu.documentation.repo_scope_resolved", true))
+	}
 
 	query, args := buildDocumentationFactsSQL(filter)
 	rows, err := cr.db.QueryContext(ctx, query, args...)
@@ -363,6 +371,7 @@ func buildDocumentationFactsSQL(filter documentationFactFilter) (string, []any) 
 		args = append(args, value)
 		clauses = append(clauses, fmt.Sprintf("fact_records.payload->>'%s' = $%d", field, len(args)))
 	}
+	bindingForm := documentationFactBindingForm(filter)
 	if strings.TrimSpace(filter.FactKind) == docs.SourceFactKind {
 		// A literal, not a parameter: a generic plan cannot prove the
 		// documentation_source partial index predicate from `fact_kind = $n`,
@@ -370,6 +379,16 @@ func buildDocumentationFactsSQL(filter documentationFactFilter) (string, []any) 
 		// index gives it (#7128). The value is the package constant, never
 		// caller input.
 		clauses = append(clauses, "fact_records.fact_kind = '"+docs.SourceFactKind+"'")
+	} else if kind, ok := documentationLiteralCollectedFactKind(filter.FactKind); ok &&
+		bindingForm == documentationFactBindingActiveJoin &&
+		len(querycontract.DocumentationTargetRefsFromFactFilter(filter)) > 0 {
+		// Same literal rule for an anchor-only read over a GIN-covered kind
+		// that carries a payload containment predicate (#7098): only a
+		// literal kind lets a generic plan prove the partial GIN predicate
+		// instead of heap-scanning behind the join. Every other read keeps
+		// the predicate it always had, including the parameterized shape the
+		// #7128 arg contract pins for scope-bound reads.
+		clauses = append(clauses, "fact_records.fact_kind = '"+kind+"'")
 	} else if strings.TrimSpace(filter.FactKind) != "" {
 		addColumnFilter("fact_records.fact_kind", filter.FactKind)
 	} else {
@@ -377,7 +396,6 @@ func buildDocumentationFactsSQL(filter documentationFactFilter) (string, []any) 
 	}
 	addColumnFilter("fact_records.scope_id", filter.ScopeID)
 	scopeArg := len(args)
-	bindingForm := documentationFactBindingForm(filter)
 	switch bindingForm {
 	case documentationFactBindingExplicit:
 		// An explicit generation keeps the exact read it always had, whatever
@@ -457,14 +475,4 @@ WHERE %s
 ORDER BY fact_records.observed_at DESC, fact_records.fact_id DESC
 LIMIT $%d OFFSET $%d
 `, scopeJoin, strings.Join(clauses, " AND "), len(args)-1, len(args)), args
-}
-
-func documentationCollectedFactKindSQLList() string {
-	return "'" + docs.SourceFactKind + "', " +
-		"'" + docs.DocumentFactKind + "', " +
-		"'" + docs.SectionFactKind + "', " +
-		"'" + docs.LinkFactKind + "', " +
-		"'" + docs.EntityMentionFactKind + "', " +
-		"'" + docs.ClaimCandidateFactKind + "', " +
-		"'" + facts.SemanticDocumentationObservationFactKind + "'"
 }
