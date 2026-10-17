@@ -6,8 +6,9 @@ added `deployable_unit_reopen_fingerprints` with `work_item_id REFERENCES
 fact_work_items(work_item_id) ON DELETE CASCADE`: a cascade grandchild of
 the pruned generation, like the key sidecars in #7396 and #7784. Every prune
 of a fingerprinted work item under-counted by its fingerprint rows. A catalog
-test now lists every table with a cascading foreign key onto `fact_work_items`
-or `scope_generations` (24 tables, zero exemptions) and requires an arm.
+test now lists every table the prune deletes through a cascading foreign key,
+transitively from `fact_work_items` and `scope_generations` (25 tables,
+zero exemptions), and requires an arm.
 
 ## Shim (local only, deleted after measuring)
 

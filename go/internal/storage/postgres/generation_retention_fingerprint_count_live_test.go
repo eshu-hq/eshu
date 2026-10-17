@@ -101,20 +101,30 @@ func TestGenerationRetentionCountsReopenFingerprintsLive(t *testing.T) {
 var retentionCountArmTablePattern = regexp.MustCompile(`'([a-z0-9_]+)' AS table_name`)
 
 // TestGenerationRetentionRowCountsCoverCascadeTablesLive lists every table
-// with a cascading foreign key onto fact_work_items or scope_generations on
-// the migrated schema and requires the row-count query to count it (#8300).
-// A new cascade child that lands without an arm fails here instead of
-// silently under-counting BatchRowLimit and the retention events.
+// the prune deletes through a cascading foreign key — transitively from
+// fact_work_items and scope_generations — on the migrated schema, and
+// requires the row-count query to count it (#8300). A new cascade child or
+// grandchild that lands without an arm fails here instead of silently
+// under-counting BatchRowLimit and the retention events.
 func TestGenerationRetentionRowCountsCoverCascadeTablesLive(t *testing.T) {
 	database, ctx := openGenerationRetentionMigratedSchema(t)
 	rows, err := database.QueryContext(ctx, `
+WITH RECURSIVE cascade_tree AS (
+    SELECT con.conrelid AS child_oid
+    FROM pg_constraint AS con
+    JOIN pg_class AS parent ON parent.oid = con.confrelid
+    WHERE con.contype = 'f' AND con.confdeltype = 'c'
+      AND parent.relname IN ('scope_generations', 'fact_work_items')
+    UNION
+    SELECT con.conrelid
+    FROM pg_constraint AS con
+    JOIN cascade_tree AS tree ON tree.child_oid = con.confrelid
+    WHERE con.contype = 'f' AND con.confdeltype = 'c'
+)
 SELECT DISTINCT child.relname
-FROM pg_constraint AS con
-JOIN pg_class AS child ON child.oid = con.conrelid
-JOIN pg_class AS parent ON parent.oid = con.confrelid
+FROM cascade_tree
+JOIN pg_class AS child ON child.oid = cascade_tree.child_oid
 JOIN pg_namespace AS ns ON ns.oid = child.relnamespace AND ns.nspname = current_schema()
-WHERE con.contype = 'f' AND con.confdeltype = 'c'
-  AND parent.relname IN ('scope_generations', 'fact_work_items')
 ORDER BY 1`)
 	if err != nil {
 		t.Fatalf("list cascade children: %v", err)
