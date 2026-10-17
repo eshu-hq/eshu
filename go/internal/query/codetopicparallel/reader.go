@@ -72,8 +72,54 @@ func FileBranch(termArg int, where string, candidateCap int) string {
 		)`, termArg, where, candidateCap)
 }
 
+// ScopedFileBranch hides one repo-scoped term's file-content bind behind a
+// MATERIALIZED term_param (#8370 parallel probes, #7098 serial shape: a
+// visible bind lets the planner heap-filter corpus-wide trigram matches
+// before the repository predicate). A term the GIN indexes cannot filter
+// keeps FileBranch, as do corpus-wide, grant-list, and language-filtered
+// probes. Keep path/content pool accounting in sync with FileBranch and the
+// branch text in sync with query.scopedCodeTopicFileBranch.
+func ScopedFileBranch(termArg int, where string, candidateCap int) string {
+	termParam := fmt.Sprintf("term_param AS MATERIALIZED (SELECT $%d::text AS term),\n\t\t  ", termArg)
+	contentTerm := "(SELECT term FROM term_param)"
+	// #nosec G201 -- termArg and candidateCap are integers; where contains
+	// only generated placeholder predicates from codeTopicFilters.
+	return fmt.Sprintf(`(
+		  WITH %[4]spath_pool AS MATERIALIZED (
+		    SELECT f.repo_id, f.relative_path, coalesce(f.language, '') AS language,
+		           least(greatest(coalesce(f.line_count, 1), 1), 80) AS end_line, $%[1]d AS matched_term
+		    FROM content_files f
+		    WHERE f.relative_path ILIKE '%%' || $%[1]d || '%%'
+		    %[2]s LIMIT %[3]d
+		  ),
+		  content_pool AS (
+		    SELECT f.repo_id, f.relative_path, coalesce(f.language, '') AS language,
+		           least(greatest(coalesce(f.line_count, 1), 1), 80) AS end_line, $%[1]d AS matched_term
+		    FROM content_files f
+		    WHERE f.content ILIKE '%%' || %[5]s || '%%'
+		      AND f.relative_path NOT ILIKE '%%' || $%[1]d || '%%'
+		    %[2]s LIMIT (SELECT %[3]d - count(*) FROM path_pool)
+		  )
+		  SELECT * FROM path_pool
+		  UNION ALL
+		  SELECT * FROM content_pool
+		)`, termArg, where, candidateCap, termParam, contentTerm)
+}
+
+// scopedProbe mirrors the serial scopedRepo predicate in
+// query.InvestigateCodeTopic: an explicit repository without a language
+// filter. Partition groups preserve the parent request's scope fields, so the
+// derived value matches the serial decision for the same request.
+func scopedProbe(req codequery.CodeTopicInvestigationRequest) bool {
+	return strings.TrimSpace(req.RepoID) != "" && strings.TrimSpace(req.Language) == ""
+}
+
 // ProbeSQL builds the exact per-term candidate read for one partition.
 // The caller supplies grant and language filters produced by codeTopicFilters.
+// A repo-scoped probe hides each trigram-bearing term's file-content bind
+// behind MATERIALIZED term_param (#8370, selected by the same guard as
+// query.codeTopicFileBranch); every other shape keeps the shared upstream
+// visible branch.
 func ProbeSQL(req codequery.CodeTopicInvestigationRequest, candidateCap int, filters []string, baseArgs []any) (string, []any) {
 	args := append([]any(nil), baseArgs...)
 	nextArg := len(args) + 1
@@ -81,11 +127,16 @@ func ProbeSQL(req codequery.CodeTopicInvestigationRequest, candidateCap int, fil
 	if len(filters) > 0 {
 		where = "AND " + strings.Join(filters, " AND ")
 	}
+	scoped := scopedProbe(req)
 	terms := make([]string, len(req.Terms))
 	branches := make([]string, len(req.Terms))
 	for i, term := range req.Terms {
 		terms[i] = fmt.Sprintf("($%d)", nextArg)
-		branches[i] = FileBranch(nextArg, where, candidateCap)
+		if scoped && codequery.CodeTopicTermHasTrigram(term) {
+			branches[i] = ScopedFileBranch(nextArg, where, candidateCap)
+		} else {
+			branches[i] = FileBranch(nextArg, where, candidateCap)
+		}
 		args = append(args, term)
 		nextArg++
 	}
