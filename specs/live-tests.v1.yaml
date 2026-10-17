@@ -15,8 +15,8 @@ legacy_scheduled_exemptions:
   baseline_main: 101cd4f6ab7b72ff01f018ad52112e3a9955168b
   steward: linuxdynasty
   tracking_issue: 7533
-  count: 394
-  sha256: 751959533b136474367e2208ce31f65760bd35abf829a6fd8e20b5e13aaef882
+  count: 372
+  sha256: 92759959706a7141e0e1b74881dd1a260632d529a7e5348e7b40f891638af1af
 
 purpose: >
   Classify every live backend proof in go/ as graph CI, PostgreSQL CI,
@@ -29,7 +29,7 @@ purpose: >
   reducer contention job verifies each enrolled PostgreSQL-only dedicated_ci
   test from Go JSON events in its expected package. The B-7 identity runner
   verifies its two PostgreSQL proofs through the existing golden corpus job.
-  The postgres-scheduled job checks exact tests in twelve groups daily on
+  The postgres-scheduled job checks exact tests in thirteen groups daily on
   PostgreSQL. The ifa-scheduled job checks eight exact tagged tests daily and
   on scoped PRs on disposable NornicDB and PostgreSQL, with a second NornicDB
   identity endpoint. The replay-tier gate checks 27 exact tests from 23 files;

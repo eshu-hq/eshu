@@ -12,7 +12,8 @@ PACKAGES = {
     "fanout": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
     "search": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
     "readiness": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
-    "containerimage": "github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
+    "containerimage": "github.com/eshu-hq/eshu/go/internal/reducer/containerimage",
+    "freshness_links": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
 }
 
 DSNS = {
@@ -24,7 +25,8 @@ DSNS = {
     "fanout": "ESHU_POSTGRES_DSN",
     "search": "ESHU_POSTGRES_DSN",
     "readiness": "ESHU_REDUCER_FAIRNESS_PROOF_DSN",
-    "containerimage": "ESHU_POSTGRES_DSN"
+    "containerimage": "ESHU_POSTGRES_DSN",
+    "freshness_links": "ESHU_POSTGRES_TEST_DSN"
 }
 
 DATABASES = {
@@ -34,6 +36,7 @@ DATABASES = {
     "claim": "eshu_claim_scheduled",
     "liveness": "eshu_liveness_scheduled",
     "fanout": "eshu_fanout_scheduled",
+    "freshness_links": "eshu_freshness_scheduled",
     "search": "eshu_search_scheduled",
     "readiness": "eshu_readiness_scheduled",
     "containerimage": "eshu_containerimage_scheduled"
@@ -60,9 +63,16 @@ IMAGE = (
 
 PR_PATHS = {
     ".github/workflows/postgres-scheduled-live.yml",
+    "docs/internal/evidence/7127-ledger-retention-timing.sh",
+    "docs/internal/evidence/7127-link-writer-fixture.sql",
+    "docs/internal/evidence/7127-link-writer-scale.py",
     "go/cmd/golden-corpus-gate/testdata/**",
     "go/go.mod",
     "go/go.sum",
+    "go/internal/storage/postgres/migrations/001_ingestion_scopes.sql",
+    "go/internal/storage/postgres/migrations/002_scope_generations.sql",
+    "go/internal/storage/postgres/migrations/003_fact_records.sql",
+    "go/internal/storage/postgres/migrations/136_changed_since_link_ledger.sql",
     "go/internal/query/*fixture*test.go",
     "go/internal/query/testdata/**",
     "go/internal/reducer/containerimage/*.go",

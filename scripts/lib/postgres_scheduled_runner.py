@@ -20,7 +20,7 @@ from postgres_scheduled_workflow import (
 
 INVENTORY = Path(__file__).with_name("postgres_scheduled_inventory.json")
 WORKFLOW = Path(".github/workflows/postgres-scheduled-live.yml")
-WORKFLOW_SHA256 = "c27797f2e2316ab5ec5afe90c32f18ac41087b7594414712aa2d490f3195274f"
+WORKFLOW_SHA256 = "f437df5ea2bc500b612ef5b8ea2ae78e124740d81d35e57988728940238e22cf"
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
 
 
@@ -104,6 +104,8 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
             timeout = "10m"
         elif group in {"crossplane", "infra_inventory"}:
             timeout = "7m"
+        elif group == "freshness_links":
+            timeout = "30m"
         else:
             timeout = "6m"
         arguments = (
@@ -151,6 +153,29 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
                     raise ValueError(f"secondary DSN differs for {group}")
             if group == "search" and step.count('ESHU_SEARCH_INDEX_PARTITION_LIVE: "1"') != 1:
                 raise ValueError("search partition opt-in missing")
+            if group == "freshness_links":
+                for line in (
+                    'ESHU_7127_W11_COST: "1"',
+                    "ESHU_RETENTION_TIMING_DSN: postgres://eshu:change-me@localhost:15432/"
+                    "eshu_freshness_scheduled?sslmode=disable",
+                    'ESHU_RETENTION_TIMING_MODE: "run"',
+                    'ESHU_RETENTION_TIMING_FIXTURES: "link"',
+                    'ESHU_RETENTION_TIMING_FIXTURE: "link"',
+                    "ESHU_CHANGED_SINCE_LINK_SCALE_DSN: postgres://eshu:change-me@localhost:15432/"
+                    "eshu_freshness_scale?sslmode=disable",
+                    'ESHU_CHANGED_SINCE_LINK_SCALE_BASE_REF: "HEAD"',
+                    'ESHU_CHANGED_SINCE_LINK_SCALE_ROUNDS: "1"',
+                    'ESHU_CHANGED_SINCE_LINK_SCALE_VALID_ROUNDS: "1"',
+                    'ESHU_CHANGED_SINCE_LINK_SCALE_DEADLINE: "30m"',
+                    'ESHU_CHANGED_SINCE_LINK_SCALE_PROOF: "p3"',
+                    "ESHU_RETENTION_TIMING_MODE=build go test -race -p=1 -count=1 "
+                    "-timeout=10m ./internal/storage/postgres/freshness/links "
+                    "-run '^TestRetentionTimingP8$'",
+                ):
+                    if step.count(f"          {line}") != 1:
+                        raise ValueError(f"missing freshness links fixture pin: {line}")
+                if step.count("../docs/internal/evidence/7127-link-writer-fixture.sql") != 1:
+                    raise ValueError("missing freshness links scale fixture load")
         else:
             for prefix in ADMIN_ENVS[group]:
                 dsn = (

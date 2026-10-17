@@ -25,11 +25,11 @@ SPEC.loader.exec_module(MODULE)
 class ScheduledRunnerTest(unittest.TestCase):
     """The inventory, workflow, and events must name the same live proofs."""
 
-    def test_ack_family_integration_requires_exact_sixth_stream(self) -> None:
+    def test_ack_family_integration_requires_ack_stream(self) -> None:
         """The combined enrollment keeps ACK in the hosted proof bundle."""
         inventory = MODULE.load_inventory()
-        self.assertEqual(len(inventory), 97)
-        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 182)
+        self.assertEqual(len(inventory), 119)
+        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 240)
         self.assertIn("ack_family", MODULE.PACKAGES)
         self.assertEqual(
             sum(row["group"] == "ack_family" for row in inventory.values()), 22
@@ -38,8 +38,8 @@ class ScheduledRunnerTest(unittest.TestCase):
 
     def test_committed_inventory_and_workflow(self) -> None:
         inventory = MODULE.load_inventory()
-        self.assertEqual(len(inventory), 97)
-        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 182)
+        self.assertEqual(len(inventory), 119)
+        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 240)
         self.assertNotIn(
             "go/internal/query/code_topic_parallel_guarded_live_test.go", inventory
         )
@@ -56,6 +56,7 @@ class ScheduledRunnerTest(unittest.TestCase):
             ("search", 5, 8),
             ("readiness", 4, 6),
             ("containerimage", 8, 15),
+            ("freshness_links", 22, 58),
         ):
             rows = [row for row in inventory.values() if row["group"] == group]
             self.assertEqual(len(rows), files)

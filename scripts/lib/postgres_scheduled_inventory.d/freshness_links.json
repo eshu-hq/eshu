@@ -1,0 +1,192 @@
+{
+  "go/internal/storage/postgres/freshness/links/fence_breach_live_test.go": {
+    "group": "freshness_links",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestLinkFailsWhenAFenceBreachSkipsADelete"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/fence_live_test.go": {
+    "group": "freshness_links",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestCursorHeldReturnsRetryWithoutWaiting",
+      "TestLedgerSchemaHasNoForeignKeys",
+      "TestLinkFenceOneWinnerPerActivation",
+      "TestLinkKilledMidStatementRerunsToIdenticalRows",
+      "TestTransactionDeadlineEndsAStalledLink"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/journal_live_test.go": {
+    "group": "freshness_links",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestAckJournalGateAndJournalPassExcludeEachOther",
+      "TestJournalBackfillWalksRetainedChainInOrder",
+      "TestJournalPassIsExclusiveAcrossReplicas",
+      "TestJournalSweeperJournalsActiveGenerationsWithUnknownPrior",
+      "TestOrphanScopeRowsAreDeletedUnlessLinking",
+      "TestStatsReportsBacklogAndLag"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/link_live_test.go": {
+    "group": "freshness_links",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestChainBreakKeepsStateThenIncremental",
+      "TestDeltaWithoutRootAndPrunedBeforeLink",
+      "TestGenerationLockedIsRetryable",
+      "TestLinkRootThenIncrementalStateEqualsAggregate",
+      "TestRetryErrorIsRetryable",
+      "TestSlotBusyBlocksFullLinksOnly"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/lock_timeout_cost_live_test.go": {
+    "group": "freshness_links",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestLinkCostW11"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/lock_timeout_live_test.go": {
+    "group": "freshness_links",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestActivatingGenerationChainWaitTimesOut",
+      "TestBackfillChainWaitTimesOut",
+      "TestLockTimeoutDoesNotLeaveTheTransaction",
+      "TestPriorChainWaitTimesOut"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/plan_live_test.go": {
+    "group": "freshness_links",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestLinkDeltaChainReadUsesPrimaryKey",
+      "TestLinkStatementPlanShape"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/plan_stats_live_test.go": {
+    "group": "freshness_links",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestIncrementalLinkPlanClassUnderPlantedStatistics"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/poison_live_test.go": {
+    "group": "freshness_links",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestDigestVersionChangeReRootsTheScope",
+      "TestFailingLinkIsPoisonedAfterMaxAttempts",
+      "TestRecordFailureSkipsAHeldCursor",
+      "TestStaleFailureDoesNotCountAgainstANewerHead"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/prior_fence_live_test.go": {
+    "group": "freshness_links",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestBackfillEndsTheChainAtAHeldGeneration",
+      "TestBackfillInsertFencesItsGeneration",
+      "TestOrphansCountsPlantedRows",
+      "TestPriorHeldByRetentionIsGenerationLocked",
+      "TestPriorLockWithACommittedUpdaterDoesNotWait",
+      "TestRebaseOnPrunedPriorWritesOnlyChangedKeys"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/prior_plan_live_test.go": {
+    "group": "freshness_links",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestRebaseLinkPlanShape"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/prior_wait_live_test.go": {
+    "group": "freshness_links",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestGenerationLockChainWaitRaceShape",
+      "TestStalledLockDiffersFromShippedOnlyByTheStall"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/rekey_timing_live_test.go": {
+    "group": "freshness_links",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestRekeyLinkIsBoundedUnderAbsentStatistics"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/retention_bound_live_test.go": {
+    "group": "freshness_links",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestRetentionActivationAboveCursorP4",
+      "TestRetentionBoundP3",
+      "TestRetentionRowLimitDoesNotStarveLedgerHeavyGenerations"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/retention_live_test.go": {
+    "group": "freshness_links",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestRetentionCountsP5",
+      "TestRetentionRowLimitP5",
+      "TestRetentionRuleP1"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/retention_plan_live_test.go": {
+    "group": "freshness_links",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestRetentionStatementPlanShape"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/retention_race_live_test.go": {
+    "group": "freshness_links",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestLinkWriterDoesNotWaitOnRetentionInFlight",
+      "TestRetentionAndOrphanPurgeDoNotBlock",
+      "TestRetentionDoesNotWaitOnALinkInFlight",
+      "TestRetentionRacesLinkWriter",
+      "TestRetentionSkipsTheGenerationALinkHolds",
+      "TestSplitLedgerDeleteLeaksHeadlessDeltas"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/retention_timing_clone_live_test.go": {
+    "group": "freshness_links",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestRetentionTimingCloneIsDropped"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/retention_timing_live_test.go": {
+    "group": "freshness_links",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestRetentionTimingP8"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/scale_live_test.go": {
+    "group": "freshness_links",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestLinkScaleEvidence"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/scale_proof_live_test.go": {
+    "group": "freshness_links",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestLinkScaleProof"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/stale_stats_live_test.go": {
+    "group": "freshness_links",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestIncrementalLinkSurvivesStaleScopeStatistics"
+    ]
+  }
+}
