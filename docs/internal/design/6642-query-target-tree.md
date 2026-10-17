@@ -34,26 +34,26 @@ issue's own warning — "prefixes lie in this package" — held: see
 
 ## The cap, exactly
 
-`tools/golangci-lint-dirgate/dirgate.go:35` sets `maxDirFiles = 40`. The count
-is **per directory, non-recursive**, and `_test.go` files are excluded
-(`dirgate.go:152-167`). Nested subdirectories are counted separately, so
+`go/cmd/dirgate` sets `maxDirFiles = 40`. The count
+is **per directory, non-recursive**, and `_test.go` files are excluded. Nested subdirectories are counted separately, so
 `auth/` and `auth/route/` each get their own budget of 40.
 
-`internal/query` is additionally pinned in `scripts/lib/dirgate-grandfather.tsv`:
-
-```
-internal/query	277	9c52f08bbe86185263d306745269f3df99b31608126c77a9184125f6b67ee005
-```
-
-That row is a **monotonic ratchet**, not a snapshot. It fails when the live
-count rises above 277 *and* when it drops below 277 without a re-pin. Every
-move PR therefore re-pins the row DOWN and regenerates
-`tools/golangci-lint-dirgate/grandfather.go` — see
+`internal/query` was additionally pinned in a committed ledger when this plan was
+written (277 files). That ledger is retired: the cap is a ratchet derived from
+git, so `internal/query` may shrink freely and may not grow without a
+`Dirgate-Growth:` trailer — see
 [Restack rule](6642-query-move-sequence.md#restack-rule-the-dirgate-ledger-trap).
 
-Four existing subpackages sit over the cap today behind a `//nolint:dirgate`
-marker on their `doc.go` package line, and the issue's definition of done
-requires those markers gone:
+Four existing subpackages sat over the cap when this plan was written, behind a
+`//nolint:dirgate` marker on their `doc.go` package line, and the issue's
+definition of done required those markers gone. The marker no longer waives the
+cap. Measured on the current tree: `repository` (47) and `codequery` (46) are
+rows in `go/cmd/dirgate/baseline-cap.tsv` (as is `codemodel`, 47, not in this
+table); `querycontract` is at exactly 40 with no row, so one more file needs a
+`Dirgate-Growth:` trailer; `querytestutil` no longer exists as a directory. A row
+means the directory may stay at that size and shrink with no action; growing it
+needs a trailer. The gate prints a stale-marker note for each marker left. The
+table is the plan-time state:
 
 | directory | non-test files | marker |
 | --- | ---: | --- |

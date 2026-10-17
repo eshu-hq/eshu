@@ -94,12 +94,10 @@ enforces they stay in sync.
   `No-Regression Evidence:` and `No-Observability-Change:` markers, unbolded
   and at the start of their line, in a tracked note. `README.md` here carries
   them; keep them unbolded and line-initial or the gate stops seeing them.
-- **`verify-dirgate.sh`** — this directory counts against the per-directory
-  cap, and the `internal/reducer` row in `scripts/lib/dirgate-grandfather.tsv`
-  is a monotonic ratchet. If you move files, re-derive the row with
-  `verify-dirgate.sh --digest internal/reducer` and regenerate the mirror with
-  `generate-dirgate-grandfather-go.sh`. Never hand-edit either, and never
-  grandfather a count upward.
+- **`verify-dirgate.sh`** — the cap is a git-derived ratchet plus write-once
+  baselines (`go/cmd/dirgate`). Growth of a directory past max(40, its count at
+  the base) needs a `Dirgate-Growth:` trailer in the commit message that adds the
+  files; shrinking or moving files out needs nothing. Never edit the baselines.
 
 ## Do not
 

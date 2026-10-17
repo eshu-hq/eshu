@@ -112,8 +112,8 @@ moves follow the one-parent-per-PR order below under this issue.
    is the coupling #4047/#4398 must remove to extract reducer.
    (c) Target root ~9: doc.go + ~4 compat + ~4 contract surface (intent,
    domain, runtime, registry). ≤40 clears with room; no exception. The
-   dirgate row ratchets DOWN on every move PR, as
-   `internal/collector/gitrepo` does at 66.
+   dirgate ratchet only allows the directory to shrink on a move PR
+   (no growth without a growth trailer), as `internal/collector/gitrepo` does at 66.
 3. **The 2026-09-08 tree as the destination.** Superseded by the 2026-09-11
    tree below.
 
@@ -275,7 +275,8 @@ Re-derive each family with `go/types` first; filename prefixes lie (per Lane
 A's query census: 4 of 46 `code*.go` files belonged to a different handler).
 #6634 and #6645 both landed; each restacked onto the other at the time.
 The standing rule remains: whichever of two sibling move PRs lands second
-restacks onto the other and re-derives the dirgate ledger.
+restacks onto the other. The dirgate ratchet is derived from git, so a restack
+has no ledger to re-derive.
 
 Preconditions per move PR: all-lanes-quiet window (re-check open PRs every
 preflight); `internal/query` untouched (lanes A/B, #5167); one-way imports
@@ -304,7 +305,7 @@ root); gate/spec lockstep in the same PR.
   `go run ./cmd/ci-gates` from `go/`, per
   `scripts/verify-ci-gates-registry.sh`; `--registry` is required);
   telemetry-coverage row check passes.
-- Dirgate row re-pinned DOWN in the same PR (see restack rule below).
+- No dirgate action for a shrink; growth needs a `Dirgate-Growth:` trailer (see restack rule below).
 - `eshu-code-review` P0=P1=P2-blocking=0 on both sides of the promotion
   preflight; only the coordinator runs `make pre-pr`, once per push.
 
@@ -398,16 +399,30 @@ naming the instruments that already cover its stage;
 
 ## Restack rule (the dirgate ledger trap)
 
-The ledger (`scripts/lib/dirgate-grandfather.tsv`, row 88:
-`internal/reducer <count> <digest>`, re-pinned DOWN by every move PR) and its generated `.go` mirror
-(`scripts/test-generate-dirgate-grandfather-go.sh`) conflict on every
-sibling merge, and a clean merge is the dangerous case. Every move PR:
-take `origin/main`'s copy of both, re-derive count and digest for the real
-tree, regenerate the mirror with `scripts/generate-dirgate-grandfather-go.sh`
-(committed output: `tools/golangci-lint-dirgate/grandfather.go` — never
-hand-edit it; `scripts/test-generate-dirgate-grandfather-go.sh` only
-asserts), check the sums. Never carry a ledger resolution
-forward across a rebase without re-deriving.
+This trap is gone. The dirgate cap used to be pinned in a committed ledger
+(`scripts/lib/dirgate-grandfather.tsv`, a count and digest per directory) plus a
+generated Go mirror. The digest was a pure function of the tree, so two moves in
+one directory rewrote the same row to different values and git could not merge
+them. A clean textual merge of those rows was the dangerous case.
+
+The cap is now derived from git each run (`go/cmd/dirgate`), plus two write-once
+baselines of what already existed (`baseline-cap.tsv`, `baseline-naming.tsv`).
+A rebase has nothing to re-derive, and nothing edits the baselines after landing:
+
+- A directory needs `w == max(delta_needed, abs_needed)` growth waived, where
+  `delta_needed = max(0, h - max(40, b))` guards each merge and
+  `abs_needed = max(0, h - max(40, B0) - W)` catches concurrent growth that was
+  never waived. `b` is the count at the base, `B0` the baseline row, `W` the
+  waivers in all history reachable from the base. The base is the first parent of
+  the merge ref in CI, and `origin/main` merged with `HEAD` for a local pre-push.
+- Moving files out of a directory, swapping files, or renaming inside it needs no
+  action. A move that grows the destination past `max(40, base count)` needs a
+  `Dirgate-Growth:` trailer in the commit message that adds the files. The
+  trailer syntax is in [Dirgate-Growth trailer](../../public/reference/local-testing/dirgate-growth-trailer.md).
+- Two PRs that each add one file to the same directory each carry their own
+  `+1` trailer. Each is judged against the base it merges onto, so neither
+  rewrites a shared row. If both land without trailers, the second push run goes
+  RED and a one-commit repair PR carries the missing trailer.
 
 ## Prior art disposition
 

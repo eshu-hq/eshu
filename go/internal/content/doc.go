@@ -7,6 +7,9 @@
 // Writer is the narrow per-scope-generation interface; Materialization,
 // Record, EntityRecord, and RepositoryRef are its inputs. WriterConfig and
 // LoadWriterConfig expose the ESHU_CONTENT_ENTITY_BATCH_SIZE tunable.
+// ConfigArtifactDeriveConfig and LoadConfigArtifactDeriveConfig read the
+// config-artifact derive timeout and kill switch once at process start; no
+// binary calls the loader until the derive is wired (#8155 PR3b-2c-2).
 // CanonicalEntityID hashes (repoID, relativePath, entityType, entityName,
 // lineNumber) into a stable "content-entity:e_<12-hex>" identifier with
 // BLAKE2s. CanonicalEntityIDWithMetadata routes in-scope manifest dependency

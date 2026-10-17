@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Core bash implementation of the Markdown 500-line file cap under go/ and docs/
-# (issue #6187). Sibling of scripts/lib/dirgate-core.sh: same ledger shape,
-# same CLI shape, same test-mirror shape. Read that file alongside this one.
+# (issue #6187). Modelled on the dirgate ledger gate, which #6054 retired (the
+# directory cap is now derived from git; see go/cmd/dirgate). This file keeps
+# the ledger shape, the CLI shape and the test-mirror shape that gate had.
 #
 # Why this exists as its own checker rather than a config change: the Go cap
 # is the tools/golangci-lint-filelength plugin, which walks the Go AST and
@@ -16,8 +17,9 @@
 # whatever bash resolves first on PATH -- including macOS's stock bash 3.2.
 # It therefore never uses `declare -A` / associative arrays, never moves data
 # through a pipe with `<<<` or `<<EOF`, and guards every `"${arr[@]}"`
-# expansion as `"${arr[@]:-}"`. Same constraints as dirgate-core.sh; see that
-# file's header for the incidents behind each one.
+# expansion as `"${arr[@]:-}"`. These are portability limits: macOS bash 3.2 has no associative
+# arrays and trips on an empty-array expansion under `set -u`, and Homebrew
+# bash 5.3.15 deadlocks on heredoc and here-string bodies over ~512 bytes.
 
 # Base-ref fetching without shallowing the shared clone (#8078): every
 # worktree shares one .git/shallow, so a --depth fetch from a lane shallows
@@ -29,8 +31,8 @@ MARKDOWN_LINE_CAP_MAX_LINES=500
 MARKDOWN_LINE_CAP_NAME="markdown-file-cap"
 MARKDOWN_LINE_CAP_TSV="${MARKDOWN_LINE_CAP_TSV:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/markdown-line-cap-grandfather.tsv}"
 
-# mdcap_skip_path is the bash analogue of dirgate_skip_dir: true (exit 0) if
-# the repo-relative path is NOT a Markdown file this gate governs. That is
+# mdcap_skip_path is true (exit 0) if the repo-relative path is NOT a Markdown
+# file this gate governs. That is
 # anything outside go/ and docs/, anything that is not *.md, and anything under a
 # vendor, testdata, generated, or hidden path segment. go/**/testdata/*.md
 # really exists (go/cmd/audit-preflight/testdata carries fixture Markdown
@@ -72,7 +74,7 @@ mdcap_line_count() {
 	awk 'END { print NR }' "${file}"
 }
 
-# mdcap_grandfather_lookup mirrors dirgate_grandfather_lookup: prints the
+# mdcap_grandfather_lookup prints the
 # pinned line count for a repo-relative path and returns 0 if the path has a
 # row in the ledger; returns 1 with no output otherwise.
 mdcap_grandfather_lookup() {
@@ -92,22 +94,21 @@ mdcap_grandfather_lookup() {
 # mdcap_verify_ledger instead).
 #
 # The ledger pins the LINE COUNT, and the comparison it is checked with is
-# `live <= pinned`, NOT dirgate's `live == pinned`. Be precise about which:
-# a count match is not a pin match, and these two ledgers deliberately assert
-# different things.
+# `live <= pinned`. Be precise about which: a count match is not a pin match.
+# The old dirgate cap ledger asserted `live == pinned` and is retired (#6054);
+# this ledger deliberately asserts the softer bound below.
 #
 #   - `live > pinned` FAILS. This is the whole point of pinning a number
 #     rather than allowlisting a filename: a bare filename allowlist would
 #     let go/internal/storage/postgres/README.md drift from 3766 lines to
 #     5000 without a single gate ever going red.
 #   - `live <= pinned` PASSES, with a non-fatal NOTE below the pin nudging a
-#     re-pin. dirgate hard-FAILS a shrink to force the ratchet down, and that
-#     is right for it: a directory shrinks when files MOVE, which is a
-#     deliberate structural change already touching the ledger. Markdown
+#     re-pin. A hard fail on every shrink would suit a ledger whose rows move
+#     when FILES move, a deliberate structural change. Markdown
 #     shrinks a line at a time, on ordinary prose edits. Requiring a re-pin
 #     for each one would make every documentation edit under go/ re-touch a
 #     single shared file, which serialises them against each other exactly
-#     the way #6187 warned a second dirgate-shaped ledger would -- and
+#     the way #6187 warned a second count-pinned ledger would -- and
 #     documentation edits are otherwise among the cheapest changes to land.
 #     The cost of the softer rule is bounded and stated: a file that shrinks
 #     to 600 lines may regrow to its pin before failing. It can never exceed
@@ -169,9 +170,8 @@ mdcap_evaluate_file() {
 	return 0
 }
 
-# mdcap_verify_ledger HARD-FAILS on a stale or malformed ledger row, the way
-# dirgate_verify_naming_exempt_ledger does (and unlike
-# dirgate_report_removable_grandfathers' soft NOTE). A row is stale when its
+# mdcap_verify_ledger HARD-FAILS on a stale or malformed ledger row, not a
+# soft NOTE. A row is stale when its
 # file no longer exists, or when the file has been brought under the cap: in
 # both cases the reason the row was written has already been dealt with, and
 # the change that dealt with it must delete the row rather than leave it to
@@ -365,7 +365,7 @@ mdcap_verify_ledger_growth() {
 }
 
 # mdcap_print_pin prints the ledger row a human should paste for one
-# repo-relative path, mirroring dirgate_print_digest's role: authoring a row
+# repo-relative path: authoring a row
 # by measuring the file rather than by guessing at its length.
 mdcap_print_pin() {
 	local repo_root="$1" path="$2"

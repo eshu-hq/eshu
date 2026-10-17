@@ -144,8 +144,10 @@ func TestGenerationRetentionStorePrunesEligibleGenerationBatch(t *testing.T) {
 	// 9 since #6793: the infra_resource_entities read model takes the
 	// per-repository derive locks before the content_entities prune and drops
 	// its orphaned rows right after it, in the same transaction.
-	if len(database.execs) != 9 {
-		t.Fatalf("exec count = %d, want 9", len(database.execs))
+	// 10 since #8261: the pruned generations' work rows are locked in
+	// work_item_id COLLATE "C" order before the scope_generations delete.
+	if len(database.execs) != 10 {
+		t.Fatalf("exec count = %d, want 10", len(database.execs))
 	}
 	pruneAt := -1
 	for i, call := range database.execs {
@@ -307,8 +309,10 @@ func TestGenerationRetentionStoreRowLimitSkipDoesNotBlockLaterCandidate(t *testi
 	// 9 since #6793: the infra_resource_entities read model takes the
 	// per-repository derive locks before the content_entities prune and drops
 	// its orphaned rows right after it, in the same transaction.
-	if len(database.execs) != 9 {
-		t.Fatalf("exec count = %d, want 9", len(database.execs))
+	// 10 since #8261: the pruned generations' work rows are locked in
+	// work_item_id COLLATE "C" order before the scope_generations delete.
+	if len(database.execs) != 10 {
+		t.Fatalf("exec count = %d, want 10", len(database.execs))
 	}
 	pruneAt := -1
 	for i, call := range database.execs {

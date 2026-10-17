@@ -101,8 +101,10 @@ Names are proposals. The migration number is chosen at build time.
   `config_artifacts = not_installed` with the reason in `/admin/status`. The
   same check tests the five fence triggers (section 2: the four on
   `content_files` and `config_artifact_fence_pending_commit`): a missing one gives
-  outcome `fence_missing` and reason `version_fence_missing`. The content
-  Write proceeds, and reads stay live.
+  outcome `fence_missing` and reason `version_fence_missing`. A failed
+  catalog read records `fence_missing` too, with reason `fence_check_failed`
+  (coordinator ruling 2026-10-17). The content Write proceeds, and reads stay
+  live.
 - Autovacuum (re-ruling 2): each derive deletes and re-inserts a
   repository's rows. Without a vacuum, S2 measured the 300-id read at 2.47 ms
   (9,202 `Heap Fetches`) against 1.76 ms after a vacuum (0 `Heap Fetches`),

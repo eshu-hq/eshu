@@ -62,7 +62,7 @@
 - Exported SQL or arg surface changes must keep the root differentials
   green; they assert on the shipped text.
 - New files carry the MIT SPDX header. Keep every file under 500 lines;
-  the dirgate cap for the parent directory is pinned in
-  `scripts/lib/dirgate-grandfather.tsv`.
+  the parent directory is over the dirgate cap, so a new file
+  there needs a `Dirgate-Growth:` trailer (`go/cmd/dirgate`).
 - Run `go test ./internal/storage/postgres/backfill/ ./internal/storage/postgres/`
   from `go/` before handing off.

@@ -32,7 +32,7 @@ files (issue #6777):
   security alerts, semantic extraction, service catalog, source-tool
   provenance, supply-chain/vulnerability findings, vulnerability
   intelligence, incident context, observability coverage, secrets/IAM,
-  work-item evidence, generation lifecycle, and changed-since reads.
+  work-item evidence, generation lifecycle, changed-since reads, and config-artifact derives.
 - `contract/observability/` — Grafana, Loki, Prometheus/Mimir, Tempo.
 - `contract/thirdparty/` — Jira, PagerDuty, the live Vault collector's
   redaction dimension.

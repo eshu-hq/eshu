@@ -373,17 +373,22 @@ generations. It adds the sort and the lock step, about 5 ms.
 
 ## Residual Risk
 
-This change orders the two replays and the reducer claim sweep. It does not
-order every multi-row locker of `fact_work_items`. These remain unordered,
-blocking lockers that can meet the rows above. All predate this change, none
-was reproduced here, and #8261 tracks them:
+This change orders the two replays and the reducer claim sweep. It did not
+order every multi-row locker of `fact_work_items`. #8261 then reproduced the
+unordered lockers listed in the review against these lock steps on `main`
+(`docs/internal/evidence/8261-unordered-lockers.md`):
 
-- poison recovery (`RecoverDeadLettersQuery`);
-- generation retention's FK-cascade delete of a pruned generation's work rows;
-- admin repository skip (`SkipRepositoryWorkItems`);
+- poison recovery (`RecoverDeadLettersQuery`): 40P01 when the database
+  collation and C order disagree on the work ids; now ordered;
+- generation retention's FK-cascade delete of a pruned generation's work
+  rows: 40P01 in every pairing; now locked in C order before the delete;
+- admin repository skip (`SkipRepositoryWorkItems`): 40P01 in every pairing;
+  now ordered;
 - projector Ack's obsolete-generation supersede
-  (`supersedeProjectorObsoleteGenerationsQuery`);
-- the refinalize reset (#7852, PR #8207).
+  (`supersedeProjectorObsoleteGenerationsQuery`): 40P01 only for generation
+  ids whose two orders disagree; now ordered;
+- the refinalize reset (#7852, PR #8207): cannot join a row-lock cycle, since
+  it takes an EXCLUSIVE table lock before any write.
 
 ## Observability
 
@@ -404,9 +409,7 @@ with 40P01.
 
 - A deployed environment: everything above ran on a local scratch container.
 - The smallest table size at which the replay plans diverge.
-- The still-unordered lockers under Residual Risk (poison recovery, retention's
-  FK-cascade delete, admin repository skip, projector Ack's obsolete
-  supersede) against the ordered lock steps; all pre-existing.
-- The refinalize reset as a waiter on replayed or swept rows.
+- The lockers under Residual Risk were reproduced and ordered by #8261; see
+  `docs/internal/evidence/8261-unordered-lockers.md`.
 - An inverted admin-versus-admin pair (no plan was found that inverts two
   admin replays on main).

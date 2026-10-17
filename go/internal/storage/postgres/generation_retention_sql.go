@@ -389,6 +389,27 @@ USING doomed AS d
 WHERE t.repo_id = d.repo_id AND t.relative_path = d.relative_path
 `
 
+// lockPrunedGenerationWorkItemsQuery locks every fact_work_items row of the
+// pruned generations in work_item_id COLLATE "C" order, as the last step
+// before deleteScopeGenerationsForRetentionQuery (#8261). That delete's FK
+// cascade removes the same rows, but in its own scan order (heap order of a
+// bitmap scan), so it could hold one row while waiting on another that the
+// reducer claim sweep or a recovery or admin replay held, while those wait in
+// C order on the row the cascade held: 40P01. Locking first in the order they
+// share makes the cascade find every row already held. FOR UPDATE is the
+// lock the cascade delete takes, so the delete never upgrades a lock. The
+// relock holds the generation rows FOR UPDATE, so no work row of a pruned
+// generation can be inserted between this lock and the delete.
+//
+// $1 generation ids.
+const lockPrunedGenerationWorkItemsQuery = `
+SELECT work.work_item_id
+FROM fact_work_items AS work
+WHERE work.generation_id = ANY($1::text[])
+ORDER BY work.work_item_id COLLATE "C"
+FOR UPDATE
+`
+
 const deleteScopeGenerationsForRetentionQuery = `
 DELETE FROM scope_generations
 WHERE generation_id = ANY($1::text[])

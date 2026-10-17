@@ -66,7 +66,10 @@ const (
 	// OutcomeEncodingUnsupported: the start-up encoding check failed, so no
 	// derive runs in this process.
 	OutcomeEncodingUnsupported Outcome = "encoding_unsupported"
-	// OutcomeFenceMissing: the start-up fence check found a fence trigger
-	// missing, disabled or replica-only, so no derive runs in this process.
+	// OutcomeFenceMissing: the start-up fence check did not vouch for the
+	// fence, so no derive runs in this process. It covers a fence trigger
+	// that is missing, disabled or replica-only (ReasonVersionFenceMissing)
+	// and a failed pg_trigger read (ReasonFenceCheckFailed), as
+	// OutcomeEncodingUnsupported covers both encoding reasons.
 	OutcomeFenceMissing Outcome = "fence_missing"
 )

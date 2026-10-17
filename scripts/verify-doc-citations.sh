@@ -220,9 +220,12 @@ fixture_resolves() {
   # not a controlling terminal -- exactly the case here -- so an omitted "."
   # would silently search the (partially-consumed) citations file instead of
   # the repo tree and this check would never fire.
+  # The extractor-version guard snapshot (#8155) freezes fixture paths as
+  # derive input, so a basename there is a copy, not a use.
   local usage_count
   usage_count="$(cd "${repo_root}" && rg -c --fixed-strings "${base}" \
-    --glob '!**/*.md' --glob '!scripts/docs-citations-baseline.txt' . 2>/dev/null \
+    --glob '!**/*.md' --glob '!scripts/docs-citations-baseline.txt' \
+    --glob '!go/internal/content/artifacts/testdata/guard/**' . 2>/dev/null \
     | wc -l | tr -d ' ')"
   if [[ "${usage_count}" -eq 0 ]]; then
     printf 'unused\n'

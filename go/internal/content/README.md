@@ -32,6 +32,8 @@ This package owns:
 - `Materialization`, `Record`, `EntityRecord`, `RepositoryRef`, `Result` — value types
 - `CanonicalEntityID`, `CanonicalEntityIDWithMetadata`, `CanonicalDependencyEntityID` — stable entity hashes
 - `WriterConfig`, `LoadWriterConfig` — batch-width tunable
+- `ConfigArtifactDeriveConfig`, `LoadConfigArtifactDeriveConfig` — the
+  config-artifact derive timeout and kill switch (#8155)
 - `MemoryWriter` — in-process test double
 
 This package does not own the Postgres schema, SQL, or connection pool.
@@ -123,6 +125,15 @@ Config:
 - `WriterConfig` / `LoadWriterConfig` — reads `ContentEntityBatchSizeEnv`
   (`ESHU_CONTENT_ENTITY_BATCH_SIZE`) from the environment; rejects non-positive
   values and values above `MaxContentEntityBatchSize` (4000).
+- `ConfigArtifactDeriveConfig` / `LoadConfigArtifactDeriveConfig` — reads
+  `ESHU_CONFIG_ARTIFACT_DERIVE_TIMEOUT` (default `10s`) and
+  `ESHU_CONFIG_ARTIFACT_DERIVE_ENABLED` (default `true`) once at process
+  start. A zero, negative, or unparsable timeout, or an unparsable flag, is an
+  error, so the binary fails at start. The timeout is checked even with the
+  derive off. No binary calls the loader yet: PR3b-2c-2 (#8155) wires it into
+  the ingester, the projector, and bootstrap-index beside `LoadWriterConfig`.
+  The loader lives here, not in the storage `config/artifacts` package, whose
+  contract forbids environment lookups.
 
 ## Dependencies
 
