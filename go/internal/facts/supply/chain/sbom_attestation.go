@@ -3,7 +3,11 @@
 
 package chain
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/contract"
+)
 
 const (
 	// SBOMDocumentFactKind identifies one parsed or attempted SBOM document.
@@ -66,3 +70,35 @@ func SBOMAttestationSchemaVersion(factKind string) (string, bool) {
 	version, ok := sbomAttestationSchemaVersions[factKind]
 	return version, ok
 }
+
+// SBOMAttestationFamilyDeclaration is the typed fact-family contract declaration for the
+// sbom_attestation family (issue #6629). It is build-time metadata: the
+// fact-kind-registry generator discovers it statically and derives
+// the registry, shards, and catalog from it.
+var SBOMAttestationFamilyDeclaration = contract.Declare(contract.Family{
+	ID:                     "sbom_attestation",
+	FactDir:                "go/internal/facts/supply/chain",
+	OwnerRepository:        "eshu-hq/eshu",
+	LifecycleOwner:         "go/internal/facts",
+	SchemaVersion:          "1.1.0",
+	ReducerDomain:          "sbom_attestation_attachment",
+	ProjectionHook:         "sbom_attestation_attachment",
+	AdmissionHook:          "facts.ValidateSchemaVersion",
+	ReadSurface:            "GET /api/v0/supply-chain/sbom-attestations/attachments",
+	TruthProfile:           "provider_gated",
+	ProviderKeyIndependent: false,
+	Kinds: []contract.Kind{
+		{Kind: "attestation.signature_verification", PayloadSchema: "sdk/go/factschema/schema/attestation.signature_verification.v1.schema.json"},
+		{Kind: "attestation.slsa_provenance", PayloadSchema: "sdk/go/factschema/schema/attestation.slsa_provenance.v1.schema.json"},
+		{Kind: "attestation.statement", PayloadSchema: "sdk/go/factschema/schema/attestation.statement.v1.schema.json"},
+		{Kind: "sbom.component", PayloadSchema: "sdk/go/factschema/schema/sbom.component.v1.schema.json"},
+		{Kind: "sbom.dependency_relationship", PayloadSchema: "sdk/go/factschema/schema/sbom.dependency_relationship.v1.schema.json"},
+		{Kind: "sbom.document", PayloadSchema: "sdk/go/factschema/schema/sbom.document.v1.schema.json"},
+		{Kind: "sbom.external_reference", PayloadSchema: "sdk/go/factschema/schema/sbom.external_reference.v1.schema.json"},
+		{Kind: "sbom.warning", PayloadSchema: "sdk/go/factschema/schema/sbom.warning.v1.schema.json"},
+	},
+	Producers: []contract.Producer{
+		{ID: "collector-sbom-attestation", Repository: "eshu-hq/eshu", Path: "go/internal/collector/sbom", PlannedRepository: "eshu-hq/eshu-collector-sbom-attestation", AuthorityMode: "core_issued_grant", Kinds: []string{"attestation.signature_verification", "attestation.slsa_provenance", "attestation.statement", "sbom.dependency_relationship", "sbom.external_reference"}},
+		{ID: "scanner-worker", Repository: "eshu-hq/eshu", Path: "go/internal/collector/scannerworker", AuthorityMode: "core_owned", Kinds: []string{"sbom.component", "sbom.document", "sbom.warning"}},
+	},
+})

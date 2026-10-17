@@ -3,7 +3,11 @@
 
 package cloud
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/contract"
+)
 
 const (
 	// AzureCloudResourceFactKind identifies one Azure Resource Graph resource
@@ -86,3 +90,34 @@ func AzureSchemaVersion(factKind string) (string, bool) {
 	version, ok := azureSchemaVersions[factKind]
 	return version, ok
 }
+
+// AzureFamilyDeclaration is the typed fact-family contract declaration for the
+// azure family (issue #6629). It is build-time metadata: the
+// fact-kind-registry generator discovers it statically and derives
+// the registry, shards, and catalog from it.
+var AzureFamilyDeclaration = contract.Declare(contract.Family{
+	ID:                     "azure",
+	FactDir:                "go/internal/facts/cloud",
+	OwnerRepository:        "eshu-hq/eshu",
+	LifecycleOwner:         "go/internal/facts",
+	SchemaVersion:          "1.0.0",
+	ReducerDomain:          "azure_resource_materialization",
+	ProjectionHook:         "multi_cloud_runtime_drift",
+	AdmissionHook:          "facts.ValidateSchemaVersion",
+	ReadSurface:            "GET /api/v0/cloud/inventory",
+	TruthProfile:           "provider_gated",
+	ProviderKeyIndependent: false,
+	Kinds: []contract.Kind{
+		{Kind: "azure_cloud_relationship", PayloadSchema: "sdk/go/factschema/schema/azure_cloud_relationship.v1.schema.json"},
+		{Kind: "azure_cloud_resource", PayloadSchema: "sdk/go/factschema/schema/azure_cloud_resource.v1.schema.json"},
+		{Kind: "azure_collection_warning", PayloadSchema: "sdk/go/factschema/schema/azure_collection_warning.v1.schema.json", Disposition: "unconsumed", NoReducerReason: "Round-2 verified no real consumer: searches for the kind constant and wire literal across reducer, projector, query, storage, and relationships trees returned no consumption.", NoReducerEvidence: "go/internal/mcp/kind_disclosure_ledger.go (kindDisclosureEntries, #5474 backfill)"},
+		{Kind: "azure_dns_record", PayloadSchema: "sdk/go/factschema/schema/azure_dns_record.v1.schema.json", Disposition: "unconsumed", NoReducerReason: "Round-2 verified no real consumer: searches for the kind constant and wire literal across reducer, projector, query, storage, and relationships trees returned no consumption.", NoReducerEvidence: "go/internal/mcp/kind_disclosure_ledger.go (kindDisclosureEntries, #5474 backfill)"},
+		{Kind: "azure_identity_observation", PayloadSchema: "sdk/go/factschema/schema/azure_identity_observation.v1.schema.json", Disposition: "read_only", NoReducerReason: "Consumed by read surfaces only; no reducer domain decodes it.", NoReducerEvidence: "read consumption in go/internal/storage/postgres"},
+		{Kind: "azure_image_reference", PayloadSchema: "sdk/go/factschema/schema/azure_image_reference.v1.schema.json"},
+		{Kind: "azure_resource_change", PayloadSchema: "sdk/go/factschema/schema/azure_resource_change.v1.schema.json", Disposition: "read_only", NoReducerReason: "Consumed by read surfaces only; no reducer domain decodes it.", NoReducerEvidence: "read consumption in go/internal/storage/postgres"},
+		{Kind: "azure_tag_observation", PayloadSchema: "sdk/go/factschema/schema/azure_tag_observation.v1.schema.json", Disposition: "read_only", NoReducerReason: "Consumed by read surfaces only; no reducer domain decodes it.", NoReducerEvidence: "read consumption in go/internal/storage/postgres"},
+	},
+	Producers: []contract.Producer{
+		{ID: "collector-azure-cloud", Repository: "eshu-hq/eshu", Path: "go/internal/collector/cloud/azure", PlannedRepository: "eshu-hq/eshu-collector-azure-cloud", AuthorityMode: "core_issued_grant", Kinds: []string{"azure_cloud_relationship", "azure_cloud_resource", "azure_collection_warning", "azure_dns_record", "azure_identity_observation", "azure_image_reference", "azure_resource_change", "azure_tag_observation"}},
+	},
+})

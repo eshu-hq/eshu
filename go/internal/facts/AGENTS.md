@@ -75,13 +75,18 @@ package's own `AGENTS.md` before changing a family.
 - **Add a new field to `Ref`** → same additive-only rule; check that all
   callers that construct `Ref` literals compile without modification.
 
-- **Add or change a core fact kind registry entry** → update
-  `specs/fact-kind-registry.v1.yaml`, regenerate
-  `fact_kind_registry.generated.go` and `FACT_KIND_REGISTRIES.md` with
-  `bash scripts/verify-fact-kind-registry.sh`, and keep the family constants
-  plus schema-version helpers aligned in the same slice — in the owning
-  nested package when the family lives in one. Keep every package in this
-  tree leaf-only: no collector imports and no I/O.
+- **Add or change a core fact kind registry entry** → edit the family's
+  typed `contract.Declare(contract.Family{...})` declaration beside its fact
+  definitions (and `contract.Bind` declarations beside reducer
+  implementations for consumption changes; issue #6629), then regenerate
+  every output with `bash scripts/generate-fact-kind-registry.sh` and prove
+  currency with `bash scripts/verify-fact-kind-registry.sh`. Never edit
+  `specs/fact-kind-registry.v1.yaml`, the `contracts.d` shards,
+  `fact_kind_registry.generated.go`, or `FACT_KIND_REGISTRIES.md` by hand —
+  all are generated. Keep the family constants plus schema-version helpers
+  aligned in the same slice — in the owning nested package when the family
+  lives in one. Keep every package in this tree leaf-only: no collector
+  imports and no I/O.
 
 - **Change `StableID` normalization** → the function lives in
   `internal/facts/encode`. First understand whether existing stored keys must

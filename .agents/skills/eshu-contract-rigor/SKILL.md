@@ -109,9 +109,13 @@ pre-pr`/blocking, so part of what `required-gates-complete` waits on):
   `go/internal/reducer/payload_usage_manifest_test.go`
   (`TestPayloadUsageManifest`).
 - **`fact-kind-registry`** — `bash scripts/verify-fact-kind-registry.sh`
-  validates `specs/fact-kind-registry.v1.yaml` (currently `version: "1.1.0"`)
-  and regenerates `go/internal/facts/fact_kind_registry.generated.go` and
-  `FACT_KIND_REGISTRIES.md`. The registry already carries the additive
+  validates the typed fact-family contract declarations in Go source
+  (`contract.Declare` / `contract.Bind`, issue #6629) and regenerates
+  `specs/fact-kind-registry.v1.yaml` (generated, `version: "1.1.0"`), the
+  `specs/fact-kind-registry-contracts.d/` shards,
+  `go/internal/facts/fact_kind_registry.generated.go`, and
+  `FACT_KIND_REGISTRIES.md`. Edit declarations, never the generated YAML.
+  The registry already carries the additive
   `payload_schema:`, `deprecated_in:`, and `removed_in:` fields from the
   v1.1.0 bump (a handful of AWS kinds set `payload_schema:` today); see the
   registry file's own header comment and

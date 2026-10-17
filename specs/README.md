@@ -21,9 +21,13 @@ documentation.
   issues. It is enforced by `scripts/verify-parser-relationship-kit.sh`.
 - `fact-kind-registry.v1.yaml` maps every first-party fact kind to its schema
   version, lifecycle owner, reducer domain, projection hook, admission hook,
-  read surface, truth profile, and no-provider posture. It generates
-  `go/internal/facts/fact_kind_registry.generated.go` and
-  `go/internal/facts/FACT_KIND_REGISTRIES.md`, and is enforced by
+  read surface, truth profile, and no-provider posture. It is generated from
+  the typed fact-family contract declarations in Go source (issue #6629),
+  together with the `fact-kind-registry-contracts.d/` family/kind/binding
+  shards and catalog pages (producer, disposition, evidence, and
+  reducer-binding metadata), `go/internal/facts/fact_kind_registry.generated.go`,
+  and `go/internal/facts/FACT_KIND_REGISTRIES.md`. Do not edit any of these by
+  hand; regenerate with `scripts/generate-fact-kind-registry.sh`. Enforced by
   `scripts/verify-fact-kind-registry.sh`.
 - `replay-depth-requirements.v1.yaml` declares the replay depth-requirement
   taxonomy (C-13, #4366): the retractable graph node types (kept byte-equal to

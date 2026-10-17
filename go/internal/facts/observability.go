@@ -3,7 +3,11 @@
 
 package facts
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/contract"
+)
 
 const (
 	// ObservabilitySourceInstanceFactKind identifies one configured declared,
@@ -119,3 +123,48 @@ func ObservabilitySchemaVersion(factKind string) (string, bool) {
 	version, ok := observabilitySchemaVersions[factKind]
 	return version, ok
 }
+
+// ObservabilityFamilyDeclaration is the typed fact-family contract declaration for the
+// observability family (issue #6629). It is build-time metadata: the
+// fact-kind-registry generator discovers it statically and derives
+// the registry, shards, and catalog from it.
+var ObservabilityFamilyDeclaration = contract.Declare(contract.Family{
+	ID:                     "observability",
+	FactDir:                "go/internal/facts",
+	OwnerRepository:        "eshu-hq/eshu",
+	LifecycleOwner:         "go/internal/facts",
+	SchemaVersion:          "1.0.0",
+	ReducerDomain:          "observability_coverage_correlation",
+	ProjectionHook:         "observability_coverage_correlation",
+	AdmissionHook:          "facts.ValidateSchemaVersion",
+	ReadSurface:            "GET /api/v0/observability/coverage/correlations",
+	TruthProfile:           "provider_gated",
+	ProviderKeyIndependent: false,
+	Kinds: []contract.Kind{
+		{Kind: "observability.applied_resource", PayloadSchema: "sdk/go/factschema/schema/observability.applied_resource.v1.schema.json"},
+		{Kind: "observability.applied_sync_state", PayloadSchema: "sdk/go/factschema/schema/observability.applied_sync_state.v1.schema.json"},
+		{Kind: "observability.coverage_warning", PayloadSchema: "sdk/go/factschema/schema/observability.coverage_warning.v1.schema.json"},
+		{Kind: "observability.declared_alert_rule", PayloadSchema: "sdk/go/factschema/schema/observability.declared_alert_rule.v1.schema.json"},
+		{Kind: "observability.declared_dashboard", PayloadSchema: "sdk/go/factschema/schema/observability.declared_dashboard.v1.schema.json"},
+		{Kind: "observability.declared_datasource", PayloadSchema: "sdk/go/factschema/schema/observability.declared_datasource.v1.schema.json"},
+		{Kind: "observability.declared_folder", PayloadSchema: "sdk/go/factschema/schema/observability.declared_folder.v1.schema.json"},
+		{Kind: "observability.declared_log_route", PayloadSchema: "sdk/go/factschema/schema/observability.declared_log_route.v1.schema.json"},
+		{Kind: "observability.declared_metric_route", PayloadSchema: "sdk/go/factschema/schema/observability.declared_metric_route.v1.schema.json"},
+		{Kind: "observability.declared_metric_rule", PayloadSchema: "sdk/go/factschema/schema/observability.declared_metric_rule.v1.schema.json"},
+		{Kind: "observability.declared_scrape_config", PayloadSchema: "sdk/go/factschema/schema/observability.declared_scrape_config.v1.schema.json"},
+		{Kind: "observability.declared_trace_route", PayloadSchema: "sdk/go/factschema/schema/observability.declared_trace_route.v1.schema.json"},
+		{Kind: "observability.observed_dashboard", PayloadSchema: "sdk/go/factschema/schema/observability.observed_dashboard.v1.schema.json"},
+		{Kind: "observability.observed_log_signal", PayloadSchema: "sdk/go/factschema/schema/observability.observed_log_signal.v1.schema.json"},
+		{Kind: "observability.observed_rule", PayloadSchema: "sdk/go/factschema/schema/observability.observed_rule.v1.schema.json"},
+		{Kind: "observability.observed_target", PayloadSchema: "sdk/go/factschema/schema/observability.observed_target.v1.schema.json"},
+		{Kind: "observability.observed_trace_signal", PayloadSchema: "sdk/go/factschema/schema/observability.observed_trace_signal.v1.schema.json"},
+		{Kind: "observability.source_instance", PayloadSchema: "sdk/go/factschema/schema/observability.source_instance.v1.schema.json"},
+	},
+	Producers: []contract.Producer{
+		{ID: "collector-grafana", Repository: "eshu-hq/eshu", Path: "go/internal/collector/observability/grafana", PlannedRepository: "eshu-hq/eshu-collector-grafana", AuthorityMode: "core_issued_grant", Kinds: []string{"observability.observed_dashboard"}},
+		{ID: "collector-loki", Repository: "eshu-hq/eshu", Path: "go/internal/collector/observability/loki", PlannedRepository: "eshu-hq/eshu-collector-loki", AuthorityMode: "core_issued_grant", Kinds: []string{"observability.observed_log_signal"}},
+		{ID: "collector-prometheus-mimir", Repository: "eshu-hq/eshu", Path: "go/internal/collector/observability/prometheus", PlannedRepository: "eshu-hq/eshu-collector-prometheus-mimir", AuthorityMode: "core_issued_grant", Kinds: []string{"observability.coverage_warning", "observability.observed_rule", "observability.observed_target", "observability.source_instance"}},
+		{ID: "collector-tempo", Repository: "eshu-hq/eshu", Path: "go/internal/collector/observability/tempo", PlannedRepository: "eshu-hq/eshu-collector-tempo", AuthorityMode: "core_issued_grant", Kinds: []string{"observability.observed_trace_signal"}},
+		{ID: "git-core", Repository: "eshu-hq/eshu", Path: "go/internal/collector/repo", AuthorityMode: "core_owned", Kinds: []string{"observability.applied_resource", "observability.applied_sync_state", "observability.declared_alert_rule", "observability.declared_dashboard", "observability.declared_datasource", "observability.declared_folder", "observability.declared_log_route", "observability.declared_metric_route", "observability.declared_metric_rule", "observability.declared_scrape_config", "observability.declared_trace_route"}},
+	},
+})

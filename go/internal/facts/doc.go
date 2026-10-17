@@ -14,8 +14,9 @@
 // # The fact-kind registry and schema-version dispatch
 //
 // FactKindRegistry, FactKindRegistryEntryFor, CoreFactKinds, IsCoreFactKind,
-// and SchemaVersion are backed by the generated registry from
-// specs/fact-kind-registry.v1.yaml, so schema version, lifecycle owner,
+// and SchemaVersion are backed by the registry generated from the typed
+// fact-family contract declarations in this tree (contract.Declare; see
+// internal/facts/contract), so schema version, lifecycle owner,
 // reducer domain, projection hook, admission hook, read surface, truth
 // profile, semantic policy gate, and no-provider posture cannot drift from
 // the accepted contracts. SchemaVersion, SupportedSchemaVersions,

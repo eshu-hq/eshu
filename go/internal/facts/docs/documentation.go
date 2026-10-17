@@ -3,7 +3,10 @@
 
 package docs
 
-import "github.com/eshu-hq/eshu/go/internal/facts/encode"
+import (
+	"github.com/eshu-hq/eshu/go/internal/facts/contract"
+	"github.com/eshu-hq/eshu/go/internal/facts/encode"
+)
 
 const (
 	// SourceFactKind identifies one documentation source.
@@ -315,3 +318,35 @@ func EvidencePacketStableID(packetID, packetVersion string) string {
 		"packet_version": packetVersion,
 	})
 }
+
+// DocumentationFamilyDeclaration is the typed fact-family contract declaration for the
+// documentation family (issue #6629). It is build-time metadata: the
+// fact-kind-registry generator discovers it statically and derives
+// the registry, shards, and catalog from it.
+var DocumentationFamilyDeclaration = contract.Declare(contract.Family{
+	ID:                     "documentation",
+	FactDir:                "go/internal/facts/docs",
+	OwnerRepository:        "eshu-hq/eshu",
+	LifecycleOwner:         "go/internal/facts",
+	SchemaVersion:          "1.0.0",
+	ReducerDomain:          "documentation_materialization",
+	ProjectionHook:         "documentation_evidence",
+	AdmissionHook:          "facts.ValidateSchemaVersion",
+	ReadSurface:            "GET /api/v0/documentation/facts",
+	TruthProfile:           "deterministic",
+	ProviderKeyIndependent: true,
+	Kinds: []contract.Kind{
+		{Kind: "documentation_claim_candidate", PayloadSchema: "sdk/go/factschema/schema/documentation_claim_candidate.v1.schema.json", Disposition: "read_only", NoReducerReason: "Consumed by read surfaces only; no reducer domain decodes it.", NoReducerEvidence: "read consumption in go/internal/query"},
+		{Kind: "documentation_document", PayloadSchema: "sdk/go/factschema/schema/documentation_document.v1.schema.json"},
+		{Kind: "documentation_entity_mention", PayloadSchema: "sdk/go/factschema/schema/documentation_entity_mention.v1.schema.json"},
+		{Kind: "documentation_evidence_packet", PayloadSchema: "sdk/go/factschema/schema/documentation_evidence_packet.v1.schema.json", Disposition: "read_only", NoReducerReason: "Consumed by read surfaces only; no reducer domain decodes it.", NoReducerEvidence: "read consumption in go/internal/query"},
+		{Kind: "documentation_finding", PayloadSchema: "sdk/go/factschema/schema/documentation_finding.v1.schema.json", Disposition: "read_only", NoReducerReason: "Consumed by read surfaces only; no reducer domain decodes it.", NoReducerEvidence: "read consumption in go/internal/query, go/internal/query/supply/chain/impact"},
+		{Kind: "documentation_link", PayloadSchema: "sdk/go/factschema/schema/documentation_link.v1.schema.json", Disposition: "read_only", NoReducerReason: "Consumed by read surfaces only; no reducer domain decodes it.", NoReducerEvidence: "read consumption in go/internal/query"},
+		{Kind: "documentation_section", SchemaVersion: "1.1.0", PayloadSchema: "sdk/go/factschema/schema/documentation_section.v1.schema.json", Disposition: "read_only", NoReducerReason: "Consumed by read surfaces only; no reducer domain decodes it.", NoReducerEvidence: "read consumption in go/internal/query"},
+		{Kind: "documentation_source", PayloadSchema: "sdk/go/factschema/schema/documentation_source.v1.schema.json", Disposition: "read_only", NoReducerReason: "Consumed by read surfaces only; no reducer domain decodes it.", NoReducerEvidence: "read consumption in go/internal/query"},
+	},
+	Producers: []contract.Producer{
+		{ID: "git-document-core", Repository: "eshu-hq/eshu", Path: "go/internal/collector/document", AuthorityMode: "core_owned", Kinds: []string{"documentation_document", "documentation_entity_mention", "documentation_link", "documentation_section", "documentation_source"}},
+		{ID: "doctruth-verifier", Repository: "eshu-hq/eshu", Path: "go/internal/doctruth", AuthorityMode: "core_owned", Kinds: []string{"documentation_claim_candidate", "documentation_evidence_packet", "documentation_finding"}},
+	},
+})

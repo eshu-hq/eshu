@@ -167,7 +167,10 @@ uses for `schema_version_overrides` and `read_surface_overrides`: a family
 sets a default (`payload_schema:`, `deprecated_in:`, `removed_in:`) and
 overrides one kind at a time (`payload_schema_overrides: {kind: value}`,
 `deprecated_in_overrides: {kind: value}`, `removed_in_overrides: {kind:
-value}`).
+value}`). Since issue #6629 these values are authored on the typed
+`contract.Family` / `contract.Kind` declarations in Go source (see
+[Code-First Fact-Family Contracts](#code-first-fact-family-contracts));
+the YAML below is the generated shape they land in.
 
 ### Declaring a payload schema reference
 
@@ -271,6 +274,87 @@ major-version removal. They do not themselves change runtime accept/reject
 behavior; `facts.ClassifySchemaVersion` and `facts.ValidateSchemaVersion`
 remain the enforcement point for envelope-level `schema_version`
 compatibility.
+
+## Code-First Fact-Family Contracts
+
+Typed declarations in Go source are the build-time source of truth for
+the registry (issue #6629). Each family is declared beside its fact
+definitions with `contract.Declare(contract.Family{...})` from
+`go/internal/facts/contract`, and each reducer consumption is declared
+beside its implementation with `contract.Bind(contract.Binding{...})`.
+Family identity, fact-definition directory, reducer ownership,
+producer identity, and read surfaces are separate fields on purpose:
+several families may share a reducer package or domain, and one
+producer may emit several families.
+
+The generator (`go/cmd/fact-kind-registry`, driven by
+`scripts/generate-fact-kind-registry.sh`) discovers declarations with
+a static `go/parser` scan over a restricted literal grammar — string
+and boolean literals, slice literals, and keyed struct literals only.
+It never compiles or executes the scanned packages, so package
+initialization cannot run during discovery. From the declarations it
+regenerates, deterministically:
+
+- `specs/fact-kind-registry.v1.yaml` — the compact v1.1 registry with
+  its legacy family, kind, schema, admission, and `reducer_dir`
+  semantics. It is generated; do not edit it by hand.
+- `specs/fact-kind-registry-contracts.d/families/<family-id>.yaml` and
+  `<family-id>.md` — per-family metadata, producers, and the human
+  catalog page (producers and emitted kinds, canonical fact owner,
+  per-kind reducer consumers or no-reducer disposition, read
+  surfaces, and schema references with missing registrations
+  disclosed).
+- `specs/fact-kind-registry-contracts.d/kinds/<family-id>/<name>.yaml`
+  — one shard per kind. When a kind ID starts with the exact
+  case-sensitive `<family-id>_` prefix, the filename strips it once
+  (for example `kinds/aws/resource.yaml` for `aws_resource`); the YAML
+  always carries the full `family_id` and `kind`.
+- `specs/fact-kind-registry-contracts.d/bindings/<directory>/<name>.yaml`
+  — one shard per binding. The binding ID is `directory/name`; when
+  the name starts with the exact `<directory>_` prefix, the filename
+  strips it once. The YAML preserves the full binding ID.
+- `go/internal/facts/fact_kind_registry.generated.go` and
+  `go/internal/facts/FACT_KIND_REGISTRIES.md` at their existing paths,
+  with their existing row semantics.
+
+### Adding a family or kind
+
+1. Add the fact-kind constants and the `<Family>FactKinds()` /
+   `<Family>SchemaVersion()` helpers in the owning facts package (or a
+   new nested family package), following the existing families.
+2. Append a `contract.Declare(contract.Family{...})` declaration in
+   that same directory (`FactDir` must name it). Declare every kind,
+   the canonical owner repository, current producers with their exact
+   emitted-kind subsets (current repository/path, planned destination
+   repository under the collector-repository migration when one
+   exists, and the existing authority mode), read surface, and schema
+   references. Declaration alone creates no producer grant.
+3. For each reducer implementation that consumes the kinds, add a
+   `contract.Bind(contract.Binding{...})` in the reducer package,
+   naming the exact consumed-kind subset and a real top-level symbol
+   there. A kind with no reducer consumer instead carries a
+   `Disposition` (`read_only`, `projector_only`, `collector_only`, or
+   `unconsumed`) with a non-blank `NoReducerReason` and falsifiable
+   `NoReducerEvidence`; a kind must have exactly one of the two
+   states.
+4. Run `bash scripts/generate-fact-kind-registry.sh`, then
+   `bash scripts/verify-fact-kind-registry.sh`. Diagnostics name the
+   declaration file and line, any conflicting source location, and
+   the corrective action. Validation rejects duplicate family/kind
+   ownership, duplicate binding edges, unknown owners or bindings,
+   unsupported expressions, invalid producer subsets, directory or
+   symbol mismatches, missing metadata or evidence, contradictory
+   states, stale no-reducer disclosures, and invalid schema
+   references.
+5. Commit the declarations and every regenerated output together.
+   The verify script fails on any stale, missing, or extra generated
+   file, and repeated generation is byte-identical.
+
+Producer entries record existing authority only: `core_owned` for a
+producer that is part of the core repository, `core_issued_grant` for
+a first-party producer component authorized by a core-issued producer
+grant. Recording a mode creates no grant and changes no admission or
+authorization behavior.
 
 ## Related
 

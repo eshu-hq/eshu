@@ -248,13 +248,16 @@ gates:
     name: Verify Fact-Kind Registry
     category: exactness
     layer: contract
-    purpose: "Fails when the fact-kind registry spec drifts from the fact kinds actually defined in Go code."
+    purpose: "Fails when generated registry outputs drift from the typed fact-family contract declarations in Go code or a declaration guard fails."
     tier: pre-pr
     blocking: true
     triggers:
       - ".github/static-contract-filters.yml"
       - "go/internal/facts/**"
+      - "go/internal/reducer/**"
+      - "go/cmd/fact-kind-registry/**"
       - "specs/fact-kind-registry.v1.yaml"
+      - "specs/fact-kind-registry-contracts.d/**"
       - "scripts/test-verify-fact-kind-registry.sh"
       - "scripts/verify-fact-kind-registry.sh"
     local:
