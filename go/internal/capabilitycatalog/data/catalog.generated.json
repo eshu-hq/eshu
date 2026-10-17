@@ -685,7 +685,7 @@
       },
       {
         "family": "operator_dead_letters",
-        "description": "Bounded dead-letter, input-invalid-quarantine, changed-since poisoned/retrying-link, work-item, decision, decision-evidence, replay-event, and repository-catalog operator triage reads over fact work items, reducer_input_invalid_facts, changed_since_scope_cursor, projection decisions, fact_replay_events, and the repository catalog, scoped to granted repositories or source scopes.",
+        "description": "Bounded dead-letter, input-invalid-quarantine, changed-since poisoned/retrying-link, work-item, decision, decision-evidence, replay-event, repository-catalog, and delta-union completeness operator triage reads over fact work items, reducer_input_invalid_facts, changed_since_scope_cursor, projection decisions, fact_replay_events, and the repository catalog, scoped to granted repositories or source scopes.",
         "capability_prefixes": [
           "operator.dead_letters.",
           "operator.reducer_input_invalid_facts.",
@@ -694,7 +694,8 @@
           "operator.decisions.",
           "operator.decision_evidence.",
           "operator.replay_events.",
-          "operator.repository_catalog."
+          "operator.repository_catalog.",
+          "operator.delta_union_completeness."
         ],
         "action": "service.runtime.read",
         "data_classes": [
@@ -6510,6 +6511,68 @@
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1500,
           "max_scope_size": "repository_source_run_scope"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "operator_dead_letters",
+        "action": "service.runtime.read",
+        "data_classes": [
+          "status_metadata"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace",
+          "repository",
+          "source_scope"
+        ],
+        "default_roles": [
+          "operator",
+          "owner"
+        ],
+        "sensitive_data": false
+      }
+    },
+    {
+      "capability": "operator.delta_union_completeness.check",
+      "display_name": "Operator Delta Union Completeness Check",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
+      "surfaces": [],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "explicit_scope_filter_repository_cap"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "explicit_scope_filter_repository_cap"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "explicit_scope_filter_repository_cap"
+        },
+        "production": {
+          "status": "experimental",
+          "max_truth_level": "exact",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "explicit_scope_filter_repository_cap"
         }
       },
       "proof_signals": [

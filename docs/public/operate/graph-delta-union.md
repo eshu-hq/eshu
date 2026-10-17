@@ -44,7 +44,9 @@ failure self-heals.
   filter is rejected with 400 instead of fanning out over every active
   generation. Past the repository cap the call fails loudly instead of
   paging silently, and a filter wider than the cap fails before the ACTIVE
-  fact fan-out. A failed ACTIVE or graph read answers `500` with the fixed
+  fact fan-out. A graph outage answers the retryable `503` with `Retry-After`
+  and a graph deadline answers `504`, both with fixed verdict text (#8292).
+  Any other failed ACTIVE or graph read answers `500` with the fixed
   detail `delta-union completeness check failed`, or `499` when the client
   canceled; the body never carries the backend error (#7674). Per-path counts cover Function entities only, matching the
   graph readers. A mismatch names the diff for a forced full re-parse;

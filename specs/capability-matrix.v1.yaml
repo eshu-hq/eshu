@@ -753,6 +753,13 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: repository_selector_scope, verification: [{go_test: ./internal/query}], notes: graph is not required; exact means the content-reader catalog match for the selector}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: repository_selector_scope, verification: [{go_test: ./internal/query}], notes: at most 100 selectors per request; the request records nothing unless every selector resolves}
       production: {status: experimental, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: repository_selector_scope, verification: [{go_test: ./internal/query}], notes: "the read surface is proven by handler tests only (#8176). Stays experimental until a deployed run proves a live catalog lookup end to end"}
+  - capability: operator.delta_union_completeness.check
+    tools: []
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host_postgres, p95_latency_ms: 1000, max_scope_size: explicit_scope_filter_repository_cap, verification: [{go_test: ./internal/query}], notes: read-only per-repository comparison of the ACTIVE delta-union file set against the graph file set for explicit scope filters (an empty filter is rejected with 400); a graph outage answers the retryable 503 and a graph deadline the 504}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: explicit_scope_filter_repository_cap, verification: [{go_test: ./internal/query}], notes: exact means the persisted ACTIVE fact set compared against one anchored graph query per delta-active repository; never repairs}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: explicit_scope_filter_repository_cap, verification: [{go_test: ./internal/query}], notes: at most 500 repositories per call; a wider filter fails loudly instead of paging silently}
+      production: {status: experimental, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: explicit_scope_filter_repository_cap, verification: [{go_test: ./internal/query}], notes: "the graph-read verdict mapping is proven by handler tests only (#8292). Stays experimental until a deployed run proves a live graph outage or deadline verdict end to end"}
   - capability: freshness.generation_lifecycle
     tools: [get_generation_lifecycle]
     profiles:

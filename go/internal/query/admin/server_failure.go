@@ -70,6 +70,11 @@ const (
 	decisionEvidenceListCapability    = "operator.decision_evidence.list"
 	replayEventListCapability         = "operator.replay_events.list"
 	repositoryCatalogLookupCapability = "operator.repository_catalog.lookup"
+
+	// deltaUnionCompletenessCapability names the delta-union completeness
+	// check (GET /api/v0/admin/delta-union/completeness) in its graph-read
+	// verdict envelope (#8292).
+	deltaUnionCompletenessCapability = "operator.delta_union_completeness.check"
 )
 
 // writeInspectionFailure answers a failed unbounded admin read: work items,

@@ -275,8 +275,8 @@ permission_families:
     scope_levels: [tenant, workspace]
     default_roles: [tenant_admin, operator, auditor, owner]
   - family: operator_dead_letters
-    description: Bounded dead-letter, input-invalid-quarantine, changed-since poisoned/retrying-link, work-item, decision, decision-evidence, replay-event, and repository-catalog operator triage reads over fact work items, reducer_input_invalid_facts, changed_since_scope_cursor, projection decisions, fact_replay_events, and the repository catalog, scoped to granted repositories or source scopes.
-    capability_prefixes: [operator.dead_letters., operator.reducer_input_invalid_facts., operator.changed_since_poisoned_links., operator.work_items., operator.decisions., operator.decision_evidence., operator.replay_events., operator.repository_catalog.]
+    description: Bounded dead-letter, input-invalid-quarantine, changed-since poisoned/retrying-link, work-item, decision, decision-evidence, replay-event, repository-catalog, and delta-union completeness operator triage reads over fact work items, reducer_input_invalid_facts, changed_since_scope_cursor, projection decisions, fact_replay_events, and the repository catalog, scoped to granted repositories or source scopes.
+    capability_prefixes: [operator.dead_letters., operator.reducer_input_invalid_facts., operator.changed_since_poisoned_links., operator.work_items., operator.decisions., operator.decision_evidence., operator.replay_events., operator.repository_catalog., operator.delta_union_completeness.]
     action: service.runtime.read
     data_classes: [status_metadata]
     scope_levels: [tenant, workspace, repository, source_scope]
