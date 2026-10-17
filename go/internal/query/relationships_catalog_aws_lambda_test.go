@@ -143,3 +143,32 @@ func TestRelationshipVerbCatalogEdgeScopeInvariant(t *testing.T) {
 		}
 	}
 }
+
+// TestRelationshipVerbCatalogMatchesContractVerbSet enforces verb-set parity
+// (issue #8345 F3b): the relationships-catalog verb set must equal the
+// querycontract target-attribution table key set. Catalog verbs compare
+// upper-cased so the mixed-case AWS_lambda_function_uses_image lines up with
+// its upper-cased contract key (#5450 P1-B). A verb added to one side without
+// the other silently desyncs the edges scope predicate from the evidence
+// drilldown 404-mask, so both directions fail here: equal size plus every
+// contract verb present in the catalog proves the sets are identical.
+func TestRelationshipVerbCatalogMatchesContractVerbSet(t *testing.T) {
+	t.Parallel()
+	catalog := make(map[string]struct{}, len(relationshipVerbCatalog))
+	for _, entry := range relationshipVerbCatalog {
+		key := strings.ToUpper(entry.verb)
+		if _, dup := catalog[key]; dup {
+			t.Fatalf("relationshipVerbCatalog has duplicate verb %q", entry.verb)
+		}
+		catalog[key] = struct{}{}
+	}
+	contract := querycontract.RelationshipVerbs()
+	if len(catalog) != len(contract) {
+		t.Fatalf("verb set size mismatch: catalog has %d verbs, contract table has %d", len(catalog), len(contract))
+	}
+	for _, verb := range contract {
+		if _, ok := catalog[verb]; !ok {
+			t.Fatalf("contract table verb %q missing from relationshipVerbCatalog", verb)
+		}
+	}
+}
