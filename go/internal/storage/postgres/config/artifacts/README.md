@@ -332,6 +332,24 @@ version mismatch still sends readers live and lists the repository for the
 walker; if it did not, the stored rows are still exact. The derive
 outcome counter and duration histogram are registered by the wiring slice.
 
+## Known limits for the wiring slice
+
+These came out of the independent review of the derive core and belong to the
+wiring and walker slices, not to this one.
+
+- A caller can block for `Timeout` plus the 5 s failure-update bound (15 s with
+  the default) when the repository lock is contended; `derive_write.go`
+  `recordFailure` bounds only its own update, and the caller-facing total is
+  not in the `DeriveRepository` godoc yet.
+- A canceled caller context records a failure (`failure_count` + 1, class
+  `canceled`; `derive_write.go` `classifyFailure`), so repeated restarts
+  mid-derive can push `failure_count` toward the walker's skip threshold of 5;
+  confirm that is wanted when the walker skip rule lands.
+- `classifyFailure` reads the deadline error after the derive returns, so a
+  non-context error that lands just before the deadline can be classed
+  `timeout` instead of its own class (`derive_write.go`); the rows and the
+  state are unaffected.
+
 ## Verification
 
 ```bash

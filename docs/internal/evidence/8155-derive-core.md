@@ -103,8 +103,9 @@ restored with `git checkout`):
 | M13 `encoding_check_failed` not mapped to `encoding_unsupported` | `TestDeriveMapsEveryStartupCheckResult` |
 | M14 failure update sets `content_version = content_version - 1` | `TestDeriveFailureRecordRacingNewerWritesLive` |
 | M15 failure update deletes the rows | `TestDeriveFailureRecordRacingNewerWritesLive` |
+| M16 read the state before the lock, inside the write transaction (the reviewer's R1) | `TestDeriveWritesInOneTransactionUnderTheLock` (hermetic), `TestDeriveTwoDerivesOfOneRepositorySerializeLive` (live, `derive_race_live_test.go`); `derive_order_live_test.go` does not catch it |
 
-15 of 15 killed. The write-transaction timings, the `Performance Evidence:`
+16 of 16 killed. The write-transaction timings, the `Performance Evidence:`
 and the `Observability Evidence:` markers are in the package README
 (`go/internal/storage/postgres/config/artifacts/README.md`, section "Evidence
 (PR3b-2b, the derive core)").

@@ -49,7 +49,13 @@ Scoped instructions for the config-artifact read model (#7126). The root
   no open transaction, then call `lockRepository` FIRST in the write
   transaction and read the state after it. Moving the version read after the
   list, taking the lock earlier, or reading the state before the lock breaks
-  the protocol; `derive_order_live_test.go` catches each (mutation table in
+  the protocol. Different tests catch each: `derive_order_live_test.go`
+  catches the late version read (`TestDeriveReadsVersionBeforeListLive`) and
+  the early lock (`TestDeriveHoldsTheLockOnlyInStepThreeLive`), while the
+  state-before-lock order is caught only by
+  `TestDeriveWritesInOneTransactionUnderTheLock` (hermetic) and
+  `derive_race_live_test.go` (`TestDeriveTwoDerivesOfOneRepositorySerializeLive`),
+  not by `derive_order_live_test.go` (mutation table in
   `docs/internal/evidence/8155-derive-core.md`). `lockRepository` and
   `repoLockKey` (`lock.go`) are the one definition of the repository lock;
   every writer of a repository's rows or state row, the walker included,
