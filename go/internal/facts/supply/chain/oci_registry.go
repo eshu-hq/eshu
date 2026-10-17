@@ -3,7 +3,11 @@
 
 package chain
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/contract"
+)
 
 const (
 	// OCIRegistryRepositoryFactKind identifies one OCI registry repository
@@ -71,3 +75,33 @@ func OCIRegistrySchemaVersion(factKind string) (string, bool) {
 	version, ok := ociRegistrySchemaVersions[factKind]
 	return version, ok
 }
+
+// OCIRegistryFamilyDeclaration is the typed fact-family contract declaration for the
+// oci_registry family (issue #6629). It is build-time metadata: the
+// fact-kind-registry generator discovers it statically and derives
+// the registry, shards, and catalog from it.
+var OCIRegistryFamilyDeclaration = contract.Declare(contract.Family{
+	ID:                     "oci_registry",
+	FactDir:                "go/internal/facts/supply/chain",
+	OwnerRepository:        "eshu-hq/eshu",
+	LifecycleOwner:         "go/internal/facts",
+	SchemaVersion:          "1.0.0",
+	ReducerDomain:          "container_image_identity",
+	ProjectionHook:         "container_image_identity",
+	AdmissionHook:          "facts.ValidateSchemaVersion",
+	ReadSurface:            "GET /api/v0/images",
+	TruthProfile:           "provider_gated",
+	ProviderKeyIndependent: false,
+	Kinds: []contract.Kind{
+		{Kind: "oci_registry.image_descriptor", PayloadSchema: "sdk/go/factschema/schema/oci_registry.image_descriptor.v1.schema.json"},
+		{Kind: "oci_registry.image_index", PayloadSchema: "sdk/go/factschema/schema/oci_registry.image_index.v1.schema.json"},
+		{Kind: "oci_registry.image_manifest", PayloadSchema: "sdk/go/factschema/schema/oci_registry.image_manifest.v1.schema.json"},
+		{Kind: "oci_registry.image_referrer", PayloadSchema: "sdk/go/factschema/schema/oci_registry.image_referrer.v1.schema.json"},
+		{Kind: "oci_registry.image_tag_observation", PayloadSchema: "sdk/go/factschema/schema/oci_registry.image_tag_observation.v1.schema.json"},
+		{Kind: "oci_registry.repository", PayloadSchema: "sdk/go/factschema/schema/oci_registry.repository.v1.schema.json", Disposition: "projector_only", NoReducerReason: "Consumed by canonical projection; no reducer domain decodes it.", NoReducerEvidence: "projector consumption in go/internal/projector/canonical, go/internal/projector/decode"},
+		{Kind: "oci_registry.warning", PayloadSchema: "sdk/go/factschema/schema/oci_registry.warning.v1.schema.json"},
+	},
+	Producers: []contract.Producer{
+		{ID: "collector-oci-registry", Repository: "eshu-hq/eshu", Path: "go/internal/collector/ociregistry", PlannedRepository: "eshu-hq/eshu-collector-oci-registry", AuthorityMode: "core_issued_grant", Kinds: []string{"oci_registry.image_descriptor", "oci_registry.image_index", "oci_registry.image_manifest", "oci_registry.image_referrer", "oci_registry.image_tag_observation", "oci_registry.repository", "oci_registry.warning"}},
+	},
+})

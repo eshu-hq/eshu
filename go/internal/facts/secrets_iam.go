@@ -3,7 +3,11 @@
 
 package facts
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/contract"
+)
 
 const (
 	// AWSIAMPrincipalFactKind identifies one AWS IAM principal source fact.
@@ -163,3 +167,52 @@ func SecretsIAMSchemaVersion(factKind string) (string, bool) {
 	version, ok := secretsIAMSchemaVersions[factKind]
 	return version, ok
 }
+
+// SecretsIAMFamilyDeclaration is the typed fact-family contract declaration for the
+// secrets_iam family (issue #6629). It is build-time metadata: the
+// fact-kind-registry generator discovers it statically and derives
+// the registry, shards, and catalog from it.
+var SecretsIAMFamilyDeclaration = contract.Declare(contract.Family{
+	ID:                     "secrets_iam",
+	FactDir:                "go/internal/facts",
+	OwnerRepository:        "eshu-hq/eshu",
+	LifecycleOwner:         "go/internal/facts",
+	SchemaVersion:          "1.0.0",
+	ReducerDomain:          "secrets_iam_trust_chain",
+	ProjectionHook:         "secrets_iam_graph_projection",
+	AdmissionHook:          "facts.ValidateSchemaVersion",
+	ReadSurface:            "GET /api/v0/secrets-iam/posture-summary",
+	TruthProfile:           "provider_gated",
+	ProviderKeyIndependent: false,
+	Kinds: []contract.Kind{
+		{Kind: "aws_iam_access_analyzer_finding", PayloadSchema: "sdk/go/factschema/schema/aws_iam_access_analyzer_finding.v1.schema.json", Disposition: "unconsumed", NoReducerReason: "Round-2 verified no real consumer: searches for the kind constant and wire literal across reducer, projector, query, storage, and relationships trees returned no consumption.", NoReducerEvidence: "go/internal/mcp/kind_disclosure_ledger.go (kindDisclosureEntries, #5474 backfill)"},
+		{Kind: "aws_iam_instance_profile", PayloadSchema: "sdk/go/factschema/schema/aws_iam_instance_profile.v1.schema.json", Disposition: "unconsumed", NoReducerReason: "Round-2 verified no real consumer: searches for the kind constant and wire literal across reducer, projector, query, storage, and relationships trees returned no consumption.", NoReducerEvidence: "go/internal/mcp/kind_disclosure_ledger.go (kindDisclosureEntries, #5474 backfill)"},
+		{Kind: "aws_iam_permission_boundary", PayloadSchema: "sdk/go/factschema/schema/aws_iam_permission_boundary.v1.schema.json"},
+		{Kind: "aws_iam_permission_policy", PayloadSchema: "sdk/go/factschema/schema/aws_iam_permission_policy.v1.schema.json", Disposition: "read_only", NoReducerReason: "Consumed by read surfaces only; no reducer domain decodes it.", NoReducerEvidence: "read consumption in go/internal/storage/postgres"},
+		{Kind: "aws_iam_policy_attachment", PayloadSchema: "sdk/go/factschema/schema/aws_iam_policy_attachment.v1.schema.json", Disposition: "read_only", NoReducerReason: "Consumed by read surfaces only; no reducer domain decodes it.", NoReducerEvidence: "read consumption in go/internal/storage/postgres"},
+		{Kind: "aws_iam_principal", PayloadSchema: "sdk/go/factschema/schema/aws_iam_principal.v1.schema.json"},
+		{Kind: "aws_iam_trust_policy", PayloadSchema: "sdk/go/factschema/schema/aws_iam_trust_policy.v1.schema.json"},
+		{Kind: "eks_irsa_annotation", PayloadSchema: "sdk/go/factschema/schema/eks_irsa_annotation.v1.schema.json"},
+		{Kind: "eks_pod_identity_association", PayloadSchema: "sdk/go/factschema/schema/eks_pod_identity_association.v1.schema.json"},
+		{Kind: "gcp_iam_permission_policy", PayloadSchema: "sdk/go/factschema/schema/gcp_iam_permission_policy.v1.schema.json"},
+		{Kind: "gcp_iam_principal", PayloadSchema: "sdk/go/factschema/schema/gcp_iam_principal.v1.schema.json"},
+		{Kind: "gcp_iam_trust_policy", PayloadSchema: "sdk/go/factschema/schema/gcp_iam_trust_policy.v1.schema.json"},
+		{Kind: "k8s_gcp_workload_identity_binding", PayloadSchema: "sdk/go/factschema/schema/k8s_gcp_workload_identity_binding.v1.schema.json"},
+		{Kind: "k8s_rbac_binding", PayloadSchema: "sdk/go/factschema/schema/k8s_rbac_binding.v1.schema.json", Disposition: "unconsumed", NoReducerReason: "Round-2 verified no real consumer: searches for the kind constant and wire literal across reducer, projector, query, storage, and relationships trees returned no consumption.", NoReducerEvidence: "go/internal/mcp/kind_disclosure_ledger.go (kindDisclosureEntries, #5474 backfill)"},
+		{Kind: "k8s_rbac_role", PayloadSchema: "sdk/go/factschema/schema/k8s_rbac_role.v1.schema.json", Disposition: "unconsumed", NoReducerReason: "Round-2 verified no real consumer: searches for the kind constant and wire literal across reducer, projector, query, storage, and relationships trees returned no consumption.", NoReducerEvidence: "go/internal/mcp/kind_disclosure_ledger.go (kindDisclosureEntries, #5474 backfill)"},
+		{Kind: "k8s_service_account", PayloadSchema: "sdk/go/factschema/schema/k8s_service_account.v1.schema.json"},
+		{Kind: "k8s_service_account_token_posture", PayloadSchema: "sdk/go/factschema/schema/k8s_service_account_token_posture.v1.schema.json", Disposition: "read_only", NoReducerReason: "Consumed by read surfaces only; no reducer domain decodes it.", NoReducerEvidence: "read consumption in go/internal/storage/postgres"},
+		{Kind: "k8s_workload_identity_use", PayloadSchema: "sdk/go/factschema/schema/k8s_workload_identity_use.v1.schema.json"},
+		{Kind: "secrets_iam_coverage_warning", PayloadSchema: "sdk/go/factschema/schema/secrets_iam_coverage_warning.v1.schema.json"},
+		{Kind: "vault_acl_policy", PayloadSchema: "sdk/go/factschema/schema/vault_acl_policy.v1.schema.json"},
+		{Kind: "vault_auth_mount", PayloadSchema: "sdk/go/factschema/schema/vault_auth_mount.v1.schema.json", Disposition: "unconsumed", NoReducerReason: "Round-2 verified no real consumer: searches for the kind constant and wire literal across reducer, projector, query, storage, and relationships trees returned no consumption.", NoReducerEvidence: "go/internal/mcp/kind_disclosure_ledger.go (kindDisclosureEntries, #5474 backfill)"},
+		{Kind: "vault_auth_role", PayloadSchema: "sdk/go/factschema/schema/vault_auth_role.v1.schema.json"},
+		{Kind: "vault_identity_alias", PayloadSchema: "sdk/go/factschema/schema/vault_identity_alias.v1.schema.json", Disposition: "unconsumed", NoReducerReason: "Round-2 verified no real consumer: searches for the kind constant and wire literal across reducer, projector, query, storage, and relationships trees returned no consumption.", NoReducerEvidence: "go/internal/mcp/kind_disclosure_ledger.go (kindDisclosureEntries, #5474 backfill)"},
+		{Kind: "vault_identity_entity", PayloadSchema: "sdk/go/factschema/schema/vault_identity_entity.v1.schema.json", Disposition: "unconsumed", NoReducerReason: "Round-2 verified no real consumer: searches for the kind constant and wire literal across reducer, projector, query, storage, and relationships trees returned no consumption.", NoReducerEvidence: "go/internal/mcp/kind_disclosure_ledger.go (kindDisclosureEntries, #5474 backfill)"},
+		{Kind: "vault_kv_metadata", PayloadSchema: "sdk/go/factschema/schema/vault_kv_metadata.v1.schema.json"},
+		{Kind: "vault_secret_engine_mount", PayloadSchema: "sdk/go/factschema/schema/vault_secret_engine_mount.v1.schema.json", Disposition: "unconsumed", NoReducerReason: "Round-2 verified no real consumer: searches for the kind constant and wire literal across reducer, projector, query, storage, and relationships trees returned no consumption.", NoReducerEvidence: "go/internal/mcp/kind_disclosure_ledger.go (kindDisclosureEntries, #5474 backfill)"},
+	},
+	Producers: []contract.Producer{
+		{ID: "secrets-iam-posture", Repository: "eshu-hq/eshu", Path: "go/internal/collector/access/posture", AuthorityMode: "core_issued_grant", Kinds: []string{"aws_iam_access_analyzer_finding", "aws_iam_instance_profile", "aws_iam_permission_boundary", "aws_iam_permission_policy", "aws_iam_policy_attachment", "aws_iam_principal", "aws_iam_trust_policy", "eks_irsa_annotation", "eks_pod_identity_association", "gcp_iam_permission_policy", "gcp_iam_principal", "gcp_iam_trust_policy", "k8s_gcp_workload_identity_binding", "k8s_rbac_binding", "k8s_rbac_role", "k8s_service_account", "k8s_service_account_token_posture", "k8s_workload_identity_use", "secrets_iam_coverage_warning", "vault_acl_policy", "vault_auth_mount", "vault_auth_role", "vault_identity_alias", "vault_identity_entity", "vault_kv_metadata", "vault_secret_engine_mount"}},
+	},
+})

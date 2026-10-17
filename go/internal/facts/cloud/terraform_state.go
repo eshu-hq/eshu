@@ -3,7 +3,11 @@
 
 package cloud
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/contract"
+)
 
 const (
 	// TerraformStateCandidateFactKind identifies one repo-local Terraform state
@@ -81,3 +85,35 @@ func TerraformStateSchemaVersion(factKind string) (string, bool) {
 	version, ok := terraformStateSchemaVersions[factKind]
 	return version, ok
 }
+
+// TerraformStateFamilyDeclaration is the typed fact-family contract declaration for the
+// terraform_state family (issue #6629). It is build-time metadata: the
+// fact-kind-registry generator discovers it statically and derives
+// the registry, shards, and catalog from it.
+var TerraformStateFamilyDeclaration = contract.Declare(contract.Family{
+	ID:                     "terraform_state",
+	FactDir:                "go/internal/facts/cloud",
+	OwnerRepository:        "eshu-hq/eshu",
+	LifecycleOwner:         "go/internal/facts",
+	SchemaVersion:          "1.0.0",
+	ReducerDomain:          "config_state_drift",
+	ProjectionHook:         "terraform_relationship_projection",
+	AdmissionHook:          "facts.ValidateSchemaVersion",
+	ReadSurface:            "GET /api/v0/iac/resources",
+	TruthProfile:           "deterministic",
+	ProviderKeyIndependent: true,
+	Kinds: []contract.Kind{
+		{Kind: "terraform_state_candidate", PayloadSchema: "sdk/go/factschema/schema/terraform_state_candidate.v1.schema.json", Disposition: "unconsumed", NoReducerReason: "Intentionally not consumed; the terraform-state canonical extractor documents it as unhandled.", NoReducerEvidence: "go/internal/mcp/kind_disclosure_ledger.go (kindDisclosureEntries); projector terraform-state extractor doc comment"},
+		{Kind: "terraform_state_module", PayloadSchema: "sdk/go/factschema/schema/terraform_state_module.v1.schema.json", Disposition: "projector_only", NoReducerReason: "Consumed by canonical projection; no reducer domain decodes it.", NoReducerEvidence: "projector consumption in go/internal/projector/canonical, go/internal/projector/decode, go/internal/projector/runtime"},
+		{Kind: "terraform_state_output", PayloadSchema: "sdk/go/factschema/schema/terraform_state_output.v1.schema.json", Disposition: "projector_only", NoReducerReason: "Consumed by canonical projection; no reducer domain decodes it.", NoReducerEvidence: "projector consumption in go/internal/projector/canonical, go/internal/projector/decode"},
+		{Kind: "terraform_state_provider_binding", PayloadSchema: "sdk/go/factschema/schema/terraform_state_provider_binding.v1.schema.json", Disposition: "projector_only", NoReducerReason: "Consumed by canonical projection; no reducer domain decodes it.", NoReducerEvidence: "projector consumption in go/internal/projector/canonical, go/internal/projector/decode"},
+		{Kind: "terraform_state_resource", PayloadSchema: "sdk/go/factschema/schema/terraform_state_resource.v1.schema.json", Disposition: "projector_only", NoReducerReason: "Consumed by canonical projection; no reducer domain decodes it.", NoReducerEvidence: "projector consumption in go/internal/projector/canonical, go/internal/projector/decode, go/internal/projector/runtime"},
+		{Kind: "terraform_state_snapshot", PayloadSchema: "sdk/go/factschema/schema/terraform_state_snapshot.v1.schema.json", Disposition: "projector_only", NoReducerReason: "Consumed by canonical projection; no reducer domain decodes it.", NoReducerEvidence: "projector consumption in go/internal/projector/canonical, go/internal/projector/decode, go/internal/projector/runtime"},
+		{Kind: "terraform_state_tag_observation", PayloadSchema: "sdk/go/factschema/schema/terraform_state_tag_observation.v1.schema.json", Disposition: "projector_only", NoReducerReason: "Consumed by canonical projection; no reducer domain decodes it.", NoReducerEvidence: "projector consumption in go/internal/projector/canonical, go/internal/projector/decode"},
+		{Kind: "terraform_state_warning", PayloadSchema: "sdk/go/factschema/schema/terraform_state_warning.v1.schema.json", Disposition: "unconsumed", NoReducerReason: "Intentionally not consumed; the terraform-state canonical extractor documents it as unhandled.", NoReducerEvidence: "go/internal/mcp/kind_disclosure_ledger.go (kindDisclosureEntries); projector terraform-state extractor doc comment"},
+	},
+	Producers: []contract.Producer{
+		{ID: "collector-terraform-state", Repository: "eshu-hq/eshu", Path: "go/internal/collector/terraformstate", PlannedRepository: "eshu-hq/eshu-collector-terraform-state", AuthorityMode: "core_issued_grant", Kinds: []string{"terraform_state_module", "terraform_state_output", "terraform_state_provider_binding", "terraform_state_resource", "terraform_state_snapshot", "terraform_state_tag_observation", "terraform_state_warning"}},
+		{ID: "git-core", Repository: "eshu-hq/eshu", Path: "go/internal/collector/repo", AuthorityMode: "core_owned", Kinds: []string{"terraform_state_candidate"}},
+	},
+})
