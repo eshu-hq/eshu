@@ -228,7 +228,7 @@ Focused reruns passed
 `go test ./internal/collector -run TestContractEncodeAdoptionRatchet -count=1`,
 `go test ./internal/facts ./internal/doctruth ./internal/semanticdocs -count=1`,
 `go test ./internal/collector/confluence ./internal/collector/document/export
-./internal/collector/mediadoc ./internal/collector/ocrdoc -count=1`, and
+./internal/collector/document/media ./internal/collector/document/ocr -count=1`, and
 `go test ./... -count=1` from `sdk/go/factschema`.
 `scripts/verify-fact-kind-registry.sh && git diff --check` passed. The branch
 also adds direct

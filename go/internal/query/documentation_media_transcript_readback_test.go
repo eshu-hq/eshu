@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/mediadoc"
+	"github.com/eshu-hq/eshu/go/internal/collector/document/media"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
@@ -104,7 +104,7 @@ func queryMediaTranscriptFactRow(t *testing.T) []byte {
 func queryMediaTranscriptEnvelopes(t *testing.T) []facts.Envelope {
 	t.Helper()
 
-	result, err := mediadoc.Extract(context.Background(), mediadoc.Request{
+	result, err := media.Extract(context.Background(), media.Request{
 		ScopeID:      "doc-source:git:repo-media",
 		GenerationID: "gen-media-1",
 		ObservedAt:   time.Date(2026, time.June, 9, 12, 0, 0, 0, time.UTC),
@@ -118,12 +118,12 @@ func queryMediaTranscriptEnvelopes(t *testing.T) []facts.Envelope {
 		CanonicalURI: "docs/incident.wav",
 		Title:        "Transcript fixture",
 		Body:         queryEncodeTestWAV(t, 3000),
-		Engine: queryTranscriptEngineFunc(func(context.Context, mediadoc.Media) (mediadoc.EngineResult, error) {
-			return mediadoc.EngineResult{
+		Engine: queryTranscriptEngineFunc(func(context.Context, media.Media) (media.EngineResult, error) {
+			return media.EngineResult{
 				EngineName:    "synthetic-transcript",
 				EngineVersion: "fixture",
 				Language:      "en",
-				Segments: []mediadoc.Segment{{
+				Segments: []media.Segment{{
 					SegmentID:    "restore",
 					Text:         "Restore the service from the runbook.",
 					StartMillis:  1000,
@@ -135,14 +135,14 @@ func queryMediaTranscriptEnvelopes(t *testing.T) []facts.Envelope {
 		}),
 	})
 	if err != nil {
-		t.Fatalf("mediadoc.Extract() error = %v, want nil", err)
+		t.Fatalf("media.Extract() error = %v, want nil", err)
 	}
 	return result.Envelopes
 }
 
-type queryTranscriptEngineFunc func(context.Context, mediadoc.Media) (mediadoc.EngineResult, error)
+type queryTranscriptEngineFunc func(context.Context, media.Media) (media.EngineResult, error)
 
-func (f queryTranscriptEngineFunc) Transcribe(ctx context.Context, media mediadoc.Media) (mediadoc.EngineResult, error) {
+func (f queryTranscriptEngineFunc) Transcribe(ctx context.Context, media media.Media) (media.EngineResult, error) {
 	return f(ctx, media)
 }
 

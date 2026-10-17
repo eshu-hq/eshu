@@ -1005,8 +1005,8 @@ linters:
       - path: 'internal/searchembedprovider/'
         linters:
           - wrapcheck
-      # Remaining collector boundaries: service runner, ocrdoc,
-      # mediadoc, confluence, eks nodegroup addons, and
+      # Remaining collector boundaries: service runner, document/ocr,
+      # document/media, confluence, eks nodegroup addons, and
       # documentation extractors.
       - path: 'internal/collector/claimed_service\.go'
         linters:
@@ -1014,10 +1014,10 @@ linters:
       - path: 'internal/collector/service\.go'
         linters:
           - wrapcheck
-      - path: 'internal/collector/ocrdoc/'
+      - path: 'internal/collector/document/ocr/'
         linters:
           - wrapcheck
-      - path: 'internal/collector/mediadoc/'
+      - path: 'internal/collector/document/media/'
         linters:
           - wrapcheck
       - path: 'internal/collector/confluence/'

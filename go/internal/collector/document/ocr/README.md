@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`collector/ocrdoc` turns reviewed local OCR output for image documentation
+`collector/document/ocr` turns reviewed local OCR output for image documentation
 artifacts into source-neutral documentation document and section facts. It
 exists so image OCR can be tested and read back without enabling a hosted
 collector path or treating screenshot text as operational truth.
@@ -49,7 +49,7 @@ future runtime integration must add bounded extraction attempt metrics, warning
 class counts, elapsed time, source bytes, image dimensions, OCR region counts,
 redaction counts, logs, spans, and status evidence before enablement.
 
-Collector Performance Evidence: `go test ./internal/collector/ocrdoc
+Collector Performance Evidence: `go test ./internal/collector/document/ocr
 ./internal/collector/preflight/picture -count=1` proves OCR fact construction is
 bounded by image preflight limits, synthetic OCR regions, and section text
 bounds without adding discovery, queue, graph, or runtime work.

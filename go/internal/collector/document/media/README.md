@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`collector/mediadoc` turns reviewed local transcript output for media
+`collector/document/media` turns reviewed local transcript output for media
 documentation artifacts into source-neutral documentation document and section
 facts. It exists so audio/video transcript facts can be tested and read back
 without enabling a hosted collector path or treating spoken text as operational
@@ -56,7 +56,7 @@ class counts, elapsed time, source bytes, duration, codec/container outcomes,
 segment counts, redaction counts, logs, spans, and status evidence before
 enablement.
 
-Collector Performance Evidence: `go test ./internal/collector/mediadoc
+Collector Performance Evidence: `go test ./internal/collector/document/media
 ./internal/collector/preflight/media ./internal/doctruth -count=1` proves
 transcript fact construction is bounded by media preflight limits, synthetic
 transcript segments, section text bounds, and deterministic mention extraction

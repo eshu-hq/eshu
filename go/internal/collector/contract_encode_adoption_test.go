@@ -210,14 +210,14 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 			},
 		},
 		{
-			path: "mediadoc/extract.go",
+			path: "document/media/extract.go",
 			calls: []string{
 				"EncodeDocument",
 				"EncodeSection",
 			},
 		},
 		{
-			path: "ocrdoc/extract.go",
+			path: "document/ocr/extract.go",
 			calls: []string{
 				"EncodeDocument",
 				"EncodeSection",

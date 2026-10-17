@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/ocrdoc"
+	"github.com/eshu-hq/eshu/go/internal/collector/document/ocr"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
@@ -86,7 +86,7 @@ func ocrDocumentationEnvelopes(t *testing.T) []facts.Envelope {
 	t.Helper()
 
 	body := encodeOCRPNG(t)
-	result, err := ocrdoc.Extract(context.Background(), ocrdoc.Request{
+	result, err := ocr.Extract(context.Background(), ocr.Request{
 		ScopeID:      "doc-source:git:repo-ocr",
 		GenerationID: "gen-ocr-1",
 		ObservedAt:   time.Date(2026, time.June, 9, 12, 0, 0, 0, time.UTC),
@@ -100,29 +100,29 @@ func ocrDocumentationEnvelopes(t *testing.T) []facts.Envelope {
 		CanonicalURI: "git://repo-ocr/docs/architecture.png",
 		Title:        "OCR fixture",
 		Body:         body,
-		Engine: ocrEngineFunc(func(context.Context, ocrdoc.Image) (ocrdoc.EngineResult, error) {
-			return ocrdoc.EngineResult{
+		Engine: ocrEngineFunc(func(context.Context, ocr.Image) (ocr.EngineResult, error) {
+			return ocr.EngineResult{
 				EngineName:    "synthetic-ocr",
 				EngineVersion: "fixture",
 				Language:      "en",
-				Regions: []ocrdoc.Region{{
+				Regions: []ocr.Region{{
 					RegionID:   "title",
 					Text:       "Architecture dashboard",
-					Bounds:     ocrdoc.Bounds{X: 0.10, Y: 0.20, Width: 0.70, Height: 0.15},
+					Bounds:     ocr.Bounds{X: 0.10, Y: 0.20, Width: 0.70, Height: 0.15},
 					Confidence: 0.92,
 				}},
 			}, nil
 		}),
 	})
 	if err != nil {
-		t.Fatalf("ocrdoc.Extract() error = %v, want nil", err)
+		t.Fatalf("ocr.Extract() error = %v, want nil", err)
 	}
 	return result.Envelopes
 }
 
-type ocrEngineFunc func(context.Context, ocrdoc.Image) (ocrdoc.EngineResult, error)
+type ocrEngineFunc func(context.Context, ocr.Image) (ocr.EngineResult, error)
 
-func (f ocrEngineFunc) Recognize(ctx context.Context, image ocrdoc.Image) (ocrdoc.EngineResult, error) {
+func (f ocrEngineFunc) Recognize(ctx context.Context, image ocr.Image) (ocr.EngineResult, error) {
 	return f(ctx, image)
 }
 
