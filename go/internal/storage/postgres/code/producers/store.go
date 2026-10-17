@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/php/composer"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -26,7 +27,15 @@ import (
 // dependency is not a publisher: counting it would anchor a scan of the whole
 // backup repository for every consumer of that name and could mint false edges.
 // Discovery already prunes the exact node_modules directory; this covers the
-// renamed backups it does not.
+// renamed backups it does not. A manifest under a fixture-style directory
+// (test, tests, fixtures, testdata, examples; whole segments, any ASCII case) is
+// excluded the same way for the same reason (#8244): it is test scaffolding that
+// can reuse a real package name. The predicate is shared.FixtureDirPattern, the
+// constant the parser's ProducerPackageName applies and the composer read embeds.
+// Its case folding is ASCII classes with !~, never ~*, so no fold or locale
+// differs between the two dialects. It is a row filter on the bitmap scan the
+// path predicate already drives, not a new index
+// (docs/internal/evidence/8244-package-json-fixture-manifests.md).
 //
 // content_files holds the latest projected content of each repository, stamped
 // with the writing generation (#7760). A stored manifest can be ahead of the
@@ -75,6 +84,7 @@ WITH manifest AS MATERIALIZED (
     FROM content_files
     WHERE (relative_path = 'package.json' OR relative_path LIKE '%/package.json')
       AND relative_path !~* '(^|/)node_modules[^/]*/'
+      AND relative_path !~ '` + shared.FixtureDirPattern + `'
 ),
 tagged AS (
     SELECT manifest.repo_id, manifest.content, manifest.generation_id AS tag,

@@ -16,7 +16,8 @@ schema, API, MCP, or telemetry code changed.
 - **Producer.** An exported top-level function, generator, class, abstract
   class, or `export const|let|var X = <function>` carries `package_id` (the
   trimmed `name` of the nearest `package.json`, from
-  `project.NearestPackageName`) and `export_name`. The export must sit directly
+  `project.ProducerPackageName` since #8244, which is empty when that manifest
+  sits under a test or fixture directory) and `export_name`. The export must sit directly
   under the program, so methods, nested functions, and members of a TypeScript
   `namespace` or `declare module` block get no key. `export default` is keyed
   as `default`, and only in the file the manifest's `main` or `module` field
@@ -271,3 +272,11 @@ The arbiter ruling on #7601 (2026-10-05) accepted each of these deviations.
 - Replica shape split of the investigation's 2,602 strict calls: NOT_CHECKED.
   The split above, from parser output on 22 repositories, stands in for it.
 - Namespace-member key count on the worst consumer: NOT_CHECKED.
+
+## Fixture-directory manifests (#8244)
+
+The nearest-`package.json` rule above now stops at a manifest under a test,
+tests, fixtures, testdata, or examples directory: `project.ProducerPackageName`
+returns no name there and does not fall through to an outer manifest, and the
+package.json producer read excludes the same stored paths. See
+[8244-package-json-fixture-manifests.md](8244-package-json-fixture-manifests.md).

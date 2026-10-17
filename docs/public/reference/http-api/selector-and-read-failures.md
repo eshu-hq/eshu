@@ -191,11 +191,15 @@ error text (#7674):
 - `POST /api/v0/terraform/config-state-drift/findings`: `count Terraform
   config-vs-state drift findings failed` or `list Terraform config-vs-state
   drift findings failed`.
+- `GET /api/v0/cloud/inventory`: `cloud inventory readback failed`, in the
+  route's `internal_error` contract envelope with the profile block. Its text
+  was already fixed; a stale reader used to answer this `500`, and a client
+  cancel used to read as a server fault.
 
 A reader fence on these reads answers the retryable `503` with `Retry-After`.
 The metrics route reads Prometheus, which cannot produce a fence, so it
 declares no `503`. The OpenAPI spec now declares that `503` on the CI/CD,
-service catalog, and Terraform drift routes. An incident that is not found
+service catalog, Terraform drift, and cloud inventory routes. An incident that is not found
 answers `404` with the fixed not-found text, not the wrapped lookup error.
 
 A shared selector helper error that is neither an unmatched nor an ambiguous
@@ -250,8 +254,24 @@ unavailable`), or while a read on the
 runs, gets `499` with the same fixed message, and
 the request span is not marked as an error; the span carries an
 `eshu.request.client_canceled` event instead. No route documents `499` in the
-OpenAPI spec, because the client has already gone. Other routes still answer
-a client cancel with `500` until #7674 lands. The telemetry effects are in
+OpenAPI spec, because the client has already gone. The server-failure helper
+is the only writer of that `499`. The query guard tests (#7674) check writers
+they can resolve: a named function, or a method whose receiver type is
+evident or matched by name. Through those writers they fail the build on a
+direct `500`, `502`, `504`, or `408` write, and on a server-failure body that
+takes `err.Error()` or an `fmt` call formatting an `err`-named variable
+straight from the call. Outside the guard:
+
+- calls through function values, method values, interfaces, function
+  literals, and methods promoted from embedded fields;
+- the second status parameter of a writer that forwards two;
+- error text first stored in a local (`msg := err.Error()`), read from a
+  local named like a sentinel (`errResp.Error()`), or formatted from a
+  variable whose name does not end in `err` or `Err`;
+- error text behind a literal `1xx`-`3xx` status, and a raw body write
+  (`w.Write`, `Encode`) in the handler itself.
+
+The telemetry effects are in
 [Failed and canceled query reads](../telemetry/traces.md#failed-and-canceled-query-reads-7626).
 
 ## Supply-chain read failures

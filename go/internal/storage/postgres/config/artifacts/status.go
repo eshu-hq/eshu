@@ -24,6 +24,15 @@ const (
 	// ReasonEncodingCheckFailed: SHOW server_encoding failed at start, so the
 	// process cannot vouch for the digest and keeps the read model off.
 	ReasonEncodingCheckFailed = "encoding_check_failed"
+	// ReasonVersionFenceMissing: at least one of the five migration 186
+	// fence triggers is absent from pg_trigger, or present with tgenabled 'D'
+	// (disabled) or 'R' (replica only), so a content write can change files
+	// without bumping the content version and stored rows cannot be trusted.
+	ReasonVersionFenceMissing = "version_fence_missing"
+	// ReasonFenceCheckFailed: the pg_trigger read of the fence check failed
+	// at start, so the process cannot vouch for the fence and keeps the read
+	// model off.
+	ReasonFenceCheckFailed = "fence_check_failed"
 )
 
 // Trigger names what started a derive. It is the trigger label of the
@@ -57,4 +66,7 @@ const (
 	// OutcomeEncodingUnsupported: the start-up encoding check failed, so no
 	// derive runs in this process.
 	OutcomeEncodingUnsupported Outcome = "encoding_unsupported"
+	// OutcomeFenceMissing: the start-up fence check found a fence trigger
+	// missing, disabled or replica-only, so no derive runs in this process.
+	OutcomeFenceMissing Outcome = "fence_missing"
 )

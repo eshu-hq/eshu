@@ -15,8 +15,8 @@ legacy_scheduled_exemptions:
   baseline_main: 101cd4f6ab7b72ff01f018ad52112e3a9955168b
   steward: linuxdynasty
   tracking_issue: 7533
-  count: 402
-  sha256: cd665ec6d1a02c18a710ae51dc30e3abc99c3b6a59849f97c342323fba2a8988
+  count: 395
+  sha256: 2464e30c58eddfe02589084b4fcb4b700c8ca1f73b915057040b5891e763c4c1
 
 purpose: >
   Classify every live backend proof in go/ as graph CI, PostgreSQL CI,
@@ -33,7 +33,8 @@ purpose: >
   PostgreSQL. The ifa-scheduled job checks eight exact tagged tests daily and
   on scoped PRs on disposable NornicDB and PostgreSQL, with a second NornicDB
   identity endpoint. The replay-tier gate checks 27 exact tests from 23 files;
-  25 require NornicDB. The
+  25 require NornicDB. The NornicDB backend conformance job accounts for all nine
+  tests in seven exact Cypher files; Neo4j keeps the core conformance path. The
   ledger validator (scripts/verify-live-tests-ledger.sh) fails on any live test
   file this ledger does not name, so a new unclassified live test can never
   pass as clean. A live test is any *_live_test.go file plus any
@@ -47,7 +48,7 @@ design: >
   job, selected backends), postgres_ci (the named PostgreSQL runner;
   integration-tagged migration proofs have their own exact-file runner),
   dedicated_ci (a verified named runner: query-methodology or
-  reducer-contention, golden-corpus-identity, or replay-tier),
+  reducer-contention, golden-corpus-identity, replay-tier, or backend-conformance-nornicdb),
   verified_scheduled (an exact-file, daily or manual PostgreSQL or Ifá runner
   with strict Go event accounting; the Ifá job also runs on scoped pull requests),
   scheduled (an exact-file legacy exemption from this ledger's verified
@@ -72,6 +73,7 @@ fragments:
   - live-tests.d/live-tests-03.yaml
   - live-tests.d/live-tests-03b.yaml
   - live-tests.d/live-tests-04.yaml
+  - live-tests.d/live-tests-04b.yaml
   - live-tests.d/live-tests-05.yaml
   - live-tests.d/live-tests-06.yaml
   - live-tests.d/live-tests-06b.yaml

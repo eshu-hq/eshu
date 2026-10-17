@@ -4,8 +4,6 @@
 package query
 
 import (
-	"go/parser"
-	"go/token"
 	"testing"
 )
 
@@ -60,7 +58,7 @@ func TestQueryErrorTextLeakSitesShapes(t *testing.T) {
 
 		// Known gaps: not caught without type resolution.
 		{"gap_local_message_var", `msg := err.Error(); WriteError(w, 500, msg)`, 0},
-		{"gap_wrapper_helper", `writeLeaky(w, err)`, 0},
+		{"gap_unresolved_callee", `writeLeaky(w, err)`, 0},
 		{"gap_sentinel_named_local", `errResp := do(); WriteError(w, 500, errResp.Error())`, 0},
 	}
 
@@ -68,12 +66,8 @@ func TestQueryErrorTextLeakSitesShapes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			src := "package p\n\nfunc f() (int, any) {\n" + tc.body + "\nreturn 0, nil\n}\n"
-			fset := token.NewFileSet()
-			file, err := parser.ParseFile(fset, tc.name+".go", src, 0)
-			if err != nil {
-				t.Fatalf("parse synthetic source: %v\n%s", err, src)
-			}
-			if got := len(queryErrorTextLeakSites(fset, file)); got != tc.want {
+			tree, file := queryGuardTreeFromSource(t, tc.name+".go", src)
+			if got := len(queryErrorTextLeakSites(tree, file)); got != tc.want {
 				t.Fatalf("queryErrorTextLeakSites() found %d sites, want %d\nbody: %s", got, tc.want, tc.body)
 			}
 		})

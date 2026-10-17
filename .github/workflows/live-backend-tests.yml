@@ -55,6 +55,11 @@ on:
       - 'scripts/test-replay-tier-source-integrity.py'
       - 'scripts/lib/reducer_contention_events.py'
       - 'scripts/lib/reducer_contention_inventory.json'
+      - 'scripts/lib/nornic_conformance_events.py'
+      - 'scripts/verify_backend_conformance_live.sh'
+      - '.github/workflows/e2e-tests.yml'
+      - 'scripts/lib/nornic_conformance_inventory.json'
+      - 'scripts/test-nornic-conformance-events.py'
       - 'scripts/test-reducer-contention-events.py'
       - 'scripts/test-reducer-contention-ledger-policy.py'
       - 'scripts/lib/postgres_scheduled_runner.py'
@@ -77,8 +82,6 @@ on:
       - 'scripts/test-ifa-scheduled-ledger-policy.py'
       - 'scripts/run-ifa-scheduled-proofs.sh'
       - '.github/workflows/ifa-scheduled-proofs.yml'
-      - 'specs/ci-gates.v1.yaml'
-      - 'specs/ci-gates.d/gates-09.yaml'
       - '.github/workflows/postgres-scheduled-live.yml'
       - '.github/workflows/reducer-contention-gate.yml'
       - 'scripts/test-live-tests-registry.py'
@@ -140,6 +143,9 @@ jobs:
       - name: Test the ledger validator
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (ledger and runner probes)')) }}
         run: bash scripts/test-verify-live-tests-ledger.sh
+      - name: Test Nornic conformance enrollment
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (ledger and runner probes)')) }}
+        run: python3 scripts/test-nornic-conformance-events.py
 
       - name: Test the live-backend runner
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (ledger and runner probes)')) }}

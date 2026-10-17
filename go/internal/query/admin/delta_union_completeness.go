@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/goldengate"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -66,6 +67,24 @@ type DeltaUnionCompletenessChecker struct {
 // scripts/refresh-read-api-work-budgets.sh, never hand-written.
 var ErrDeltaUnionScopeRequired = errors.New("delta union completeness requires at least one explicit scope filter")
 
+// deltaUnionCapError reports a completeness check past its repository cap.
+// Its text holds only the counts and the cap, so the route answers it as its
+// own fixed message (deltaUnionCapMessage) rather than a store error's text.
+type deltaUnionCapError struct {
+	count, limit int
+	unit         string
+}
+
+func (e *deltaUnionCapError) Error() string {
+	return deltaUnionCapMessage(e.count, e.limit, e.unit)
+}
+
+// deltaUnionCapMessage is the narrow-the-filter text for count units (scopes
+// or repositories) past limit.
+func deltaUnionCapMessage(count, limit int, unit string) string {
+	return fmt.Sprintf("delta union completeness covers %d %s, past the %d cap: narrow the scope filter", count, unit, limit)
+}
+
 // Check runs the completeness check over an explicit scope filter: at
 // least one scope is required (see ErrDeltaUnionScopeRequired). A filter
 // wider than MaxRepos fails before the ACTIVE fact fan-out; scopes with
@@ -99,8 +118,7 @@ func (c *DeltaUnionCompletenessChecker) Check(
 	// The post-assembly cap check below stays as defense in depth for the
 	// delta-active subset.
 	if len(scopes) > maxRepos {
-		return recovery.DeltaUnionCompletenessReport{}, fmt.Errorf(
-			"delta union completeness covers %d scopes, past the %d cap: narrow the scope filter", len(scopes), maxRepos)
+		return recovery.DeltaUnionCompletenessReport{}, &deltaUnionCapError{count: len(scopes), limit: maxRepos, unit: "scopes"}
 	}
 	snapshot, err := c.Active.ReadDeltaUnionActive(ctx, scopes)
 	if err != nil {
@@ -118,8 +136,7 @@ func (c *DeltaUnionCompletenessChecker) Check(
 		comparable = append(comparable, exp)
 	}
 	if len(comparable) > maxRepos {
-		return recovery.DeltaUnionCompletenessReport{}, fmt.Errorf(
-			"delta union completeness covers %d repositories, past the %d cap: narrow the scope filter", len(comparable), maxRepos)
+		return recovery.DeltaUnionCompletenessReport{}, &deltaUnionCapError{count: len(comparable), limit: maxRepos, unit: "repositories"}
 	}
 	repos := make([]recovery.DeltaUnionRepoReport, 0, len(expected))
 	for _, exp := range expected {
@@ -224,7 +241,12 @@ func deltaUnionGraphCount(value any) int64 {
 // deltaUnionCompleteness serves GET /api/v0/admin/delta-union/completeness:
 // the read-only prod completeness report over explicit ?scope= filters (at
 // least one is required; an empty filter fans out and is rejected with
-// 400). It never repairs.
+// 400). It never repairs. A failed ACTIVE or graph read answers
+// deltaUnionCompletenessFailedMessage through
+// tracing.ServerFailureEnvelope: 500 with the error on the request span, or
+// 499 when the caller canceled (#7674). A filter past the repository cap
+// keeps its 500 with the narrow-the-filter text built from the counts. The
+// body keeps its {"status","detail"} shape.
 func (h *Handler) deltaUnionCompleteness(w http.ResponseWriter, r *http.Request) {
 	if h.Completeness == nil {
 		querycontract.WriteJSON(w, http.StatusServiceUnavailable, map[string]any{
@@ -242,9 +264,15 @@ func (h *Handler) deltaUnionCompleteness(w http.ResponseWriter, r *http.Request)
 			})
 			return
 		}
-		querycontract.WriteJSON(w, http.StatusInternalServerError, map[string]any{
+		message := deltaUnionCompletenessFailedMessage
+		var overCap *deltaUnionCapError
+		if errors.As(err, &overCap) {
+			message = deltaUnionCapMessage(overCap.count, overCap.limit, overCap.unit)
+		}
+		status, _ := tracing.ServerFailureEnvelope(r.Context(), err, message, "")
+		querycontract.WriteJSON(w, status, map[string]any{
 			"status": "error",
-			"detail": err.Error(),
+			"detail": message,
 		})
 		return
 	}
