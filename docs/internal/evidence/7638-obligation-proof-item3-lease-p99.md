@@ -188,6 +188,38 @@ be a guess. Rationale recorded so the implementing lane starts here:
   hundreds of seconds, no sane lease covers it and the item-5
   predicate-pushdown becomes the prerequisite, not an optimization.
 
+## Knob implementation (feat/7638-obligation-proof-p1)
+
+Status: **IMPLEMENTED** (Refs #7638; packets 3-12 untouched). The sketch above
+is now code, with two deviations: the getenv-override table lives in
+`go/cmd/reducer/activation_obligation_wiring_test.go` — the direct sibling of
+`activationObligationRunnerFor` — not next to the `go/internal/reducer`
+Service-wiring test; and the owning package exports
+`DefaultActivationLease`/`DefaultActivationPollInterval`/
+`DefaultActivationWorkers` so the wiring defaults cannot drift from
+`withDefaults()` (single source of truth). No default value changed, so the
+worker-default rule needs no new headroom evidence.
+
+No-Regression Evidence: baseline is `Config{Owner}` plus `withDefaults()` at
+`Run` (2m/10s/1). After the change the wired `Config` carries the same values
+when the env is unset or unparsable, proven by
+`TestActivationObligationConsumerKnobsFlowIntoConfig` (5/5 subtests green)
+beside the still-green disabled, maintainer-wiring, non-transactional, and
+service-composition cases. No SQL, lock, claim, or IO path changed, and
+`withDefaults()` still applies at `Run`, so a set knob and an unset knob
+reach the identical effective config as before. Backend/version: none
+touched — pure env parsing, no Postgres or Neo4j involved. Input shape:
+duration/int env table covering valid values plus empty, whitespace, zero,
+negative, and garbage values, all falling back without failing startup
+(`loadDurationOrDefault`/`loadPositiveIntOrDefault` soft-fallback, matching
+the other reducer maintenance knobs). Queue/row counts: none — no queue or
+table touched. Defaults are unchanged per the verdict above; full-corpus p99
+remains NOT_RUN, so no tuned LEASE value is prescribed.
+
+No-Observability-Change: no new spans, metrics, logs, or gauges; the
+consumer's instruments and failure classes (`recordOutcome`, `recordFailure`,
+`recordHeld`) are untouched.
+
 ## Exact commands run (exit codes)
 
 Connection values lived in shell vars per the remote-validation skill and
