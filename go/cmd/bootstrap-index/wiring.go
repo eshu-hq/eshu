@@ -222,27 +222,27 @@ func openBootstrapCanonicalWriter(
 	getenv func(string) string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
-) (runtime.CanonicalWriter, io.Closer, error) {
+) (runtime.CanonicalWriter, io.Closer, *deployableUnitGapReader, error) {
 	graphBackend, err := runtimecfg.LoadGraphBackend(getenv)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	// Differential capture (#6782 slice 3) opens before any datastore so a
 	// half-configured capture fails closed with nothing to leak: the flag
 	// without a directory errors here instead of running uncaptured.
 	captureSession, err := capture.Open(getenv, "bootstrap-index")
 	if err != nil {
-		return nil, nil, fmt.Errorf("open differential capture: %w", err)
+		return nil, nil, nil, fmt.Errorf("open differential capture: %w", err)
 	}
 	driver, cfg, err := runtimecfg.OpenNeo4jDriver(parent, getenv)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	profileGroupStatements, err := bootstrapNeo4jProfileGroupStatements(getenv)
 	if err != nil {
 		_ = closeBootstrapNeo4jDriver(driver)
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	warnUnboundedNeo4jWriteTimeout(slog.Default(), graphBackend, getenv)
 	rawExecutor := bootstrapNeo4jExecutor{
@@ -278,13 +278,13 @@ func openBootstrapCanonicalWriter(
 	)
 	if err != nil {
 		_ = closeBootstrapNeo4jDriver(driver)
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	writer, err := newBootstrapCanonicalNodeWriter(executor, graphBackend, neo4jBatchSize(getenv), instruments)
 	if err != nil {
 		_ = closeBootstrapNeo4jDriver(driver)
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	writer = writer.WithTracer(tracer).WithTerraformStateOwnershipResolver(
 		bootstrapTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.PostgresTerraformBackendQuery{DB: database})},
@@ -304,22 +304,22 @@ func openBootstrapCanonicalWriter(
 		fileBatchSize, err = nornicDBPositiveIntEnv(getenv, nornicDBFileBatchSizeEnv, defaultNornicDBFileBatchSize)
 		if err != nil {
 			_ = closeBootstrapNeo4jDriver(driver)
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		entityBatchSize, err = nornicDBPositiveIntEnv(getenv, nornicDBEntityBatchSizeEnv, defaultNornicDBEntityBatchSize)
 		if err != nil {
 			_ = closeBootstrapNeo4jDriver(driver)
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		labelBatchSizes, err = nornicDBEntityLabelBatchSizes(getenv, entityBatchSize)
 		if err != nil {
 			_ = closeBootstrapNeo4jDriver(driver)
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		batchedEntityContainment, err = nornicDBBatchedEntityContainmentEnabled(getenv)
 		if err != nil {
 			_ = closeBootstrapNeo4jDriver(driver)
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		orderedLabels = orderedBootstrapEntityBatchLabels(labelBatchSizes)
 	}
@@ -332,7 +332,10 @@ func openBootstrapCanonicalWriter(
 		OrderedEntityLabelBatchSizeLabels: orderedLabels,
 	})
 
-	return writer, bootstrapNeo4jDriverCloser{Driver: driver, captureSession: captureSession}, nil
+	return writer, bootstrapNeo4jDriverCloser{Driver: driver, captureSession: captureSession}, &deployableUnitGapReader{
+		driver:       driver,
+		databaseName: cfg.DatabaseName,
+	}, nil
 }
 
 type bootstrapNeo4jExecutor struct {

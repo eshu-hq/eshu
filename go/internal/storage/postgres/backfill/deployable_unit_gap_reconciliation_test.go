@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package backfill
 
 import (
 	"context"
@@ -20,7 +20,7 @@ func TestReconcileDeployableUnitCorrelationGapsInvalidatesZeroEdgeAnchors(t *tes
 	t.Parallel()
 
 	var invalidated [][]string
-	reconciled, deleted, err := reconcileDeployableUnitCorrelationGaps(
+	reconciled, deleted, err := ReconcileDeployableUnitCorrelationGaps(
 		context.Background(),
 		func(context.Context, int) ([]string, error) {
 			return []string{"repo-lost", "repo-healthy", "repo-node-gone"}, nil
@@ -62,7 +62,7 @@ func TestReconcileDeployableUnitCorrelationGapsSkipsGraphAndDeleteWhenClean(t *t
 	probed := false
 	deleted := false
 	gotLimit := 0
-	reconciled, rows, err := reconcileDeployableUnitCorrelationGaps(
+	reconciled, rows, err := ReconcileDeployableUnitCorrelationGaps(
 		context.Background(),
 		func(_ context.Context, limit int) ([]string, error) {
 			gotLimit = limit
@@ -89,7 +89,7 @@ func TestReconcileDeployableUnitCorrelationGapsSkipsGraphAndDeleteWhenClean(t *t
 	}
 
 	// A non-positive limit falls back to the fixed scan bound.
-	_, _, err = reconcileDeployableUnitCorrelationGaps(
+	_, _, err = ReconcileDeployableUnitCorrelationGaps(
 		context.Background(),
 		func(_ context.Context, limit int) ([]string, error) {
 			gotLimit = limit
@@ -108,8 +108,8 @@ func TestReconcileDeployableUnitCorrelationGapsSkipsGraphAndDeleteWhenClean(t *t
 	if err != nil {
 		t.Fatalf("reconcile error = %v", err)
 	}
-	if gotLimit != deployableUnitGapScanLimit {
-		t.Fatalf("listing limit = %d, want the fixed bound %d", gotLimit, deployableUnitGapScanLimit)
+	if gotLimit != DeployableUnitGapScanLimit {
+		t.Fatalf("listing limit = %d, want the fixed bound %d", gotLimit, DeployableUnitGapScanLimit)
 	}
 	if probed || deleted {
 		t.Fatalf("empty reconcile probed graph = %v, deleted = %v, want no work", probed, deleted)
@@ -118,7 +118,7 @@ func TestReconcileDeployableUnitCorrelationGapsSkipsGraphAndDeleteWhenClean(t *t
 		t.Fatalf("clean reconcile probed graph = %v, deleted = %v, want no graph or delete work", probed, deleted)
 	}
 
-	reconciled, _, err = reconcileDeployableUnitCorrelationGaps(
+	reconciled, _, err = ReconcileDeployableUnitCorrelationGaps(
 		context.Background(),
 		func(context.Context, int) ([]string, error) { return []string{"repo-healthy"}, nil },
 		func(context.Context, []string) (map[string]int64, error) {
@@ -149,7 +149,7 @@ func TestReconcileDeployableUnitCorrelationGapsPropagatesSeamErrors(t *testing.T
 
 	probeErr := errors.New("graph probe failed")
 	deleted := false
-	_, _, err := reconcileDeployableUnitCorrelationGaps(
+	_, _, err := ReconcileDeployableUnitCorrelationGaps(
 		context.Background(),
 		func(context.Context, int) ([]string, error) { return []string{"repo-a"}, nil },
 		func(context.Context, []string) (map[string]int64, error) { return nil, probeErr },

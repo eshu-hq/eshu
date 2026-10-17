@@ -6,7 +6,6 @@ package main
 import (
 	"context"
 	"reflect"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -15,19 +14,15 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
-// scriptSweepReader scripts the three read shapes one sweep cycle issues:
+// scriptSweepReader scripts the two read shapes one sweep cycle issues:
 // the S1 candidate read (one aged disconnected Repository node, then empty
-// pages), the S2 connectivity read (disconnected), and the #8316 gap probe
-// (no edges, so every admitted anchor is a gap).
+// pages) and the S2 connectivity read (disconnected).
 type scriptSweepReader struct {
 	agedUnix int64
 	s1Calls  int
 }
 
 func (r *scriptSweepReader) Run(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-	if strings.Contains(cypher, "CORRELATES_DEPLOYABLE_UNIT") {
-		return nil, nil
-	}
 	if strings.Contains(cypher, "observed_at") {
 		r.s1Calls++
 		if r.s1Calls > 1 || !strings.Contains(cypher, "n:Repository") {
@@ -48,12 +43,7 @@ func (e *scriptSweepExecutor) Execute(_ context.Context, stmt sourcecypher.State
 }
 
 type scriptSweepFingerprints struct {
-	anchors     []string
 	invalidated [][]string
-}
-
-func (f *scriptSweepFingerprints) ListDeployableUnitAdmittedAnchorRepos(_ context.Context, _ int) ([]string, error) {
-	return f.anchors, nil
 }
 
 func (f *scriptSweepFingerprints) InvalidateDeployableUnitReopenFingerprintsForRepos(_ context.Context, repos []string) (int64, error) {
@@ -61,12 +51,13 @@ func (f *scriptSweepFingerprints) InvalidateDeployableUnitReopenFingerprintsForR
 	return int64(len(repos)), nil
 }
 
-// TestGraphOrphanSweeperInvalidatesSweptReposAndGapRepos proves the #8316
-// sweep-cycle coupling: the Repository node the cycle deletes is
-// push-invalidated immediately, then the gap reconciliation invalidates the
-// admitted anchors the graph left edgeless. Both run under the same sweep
-// lease, with no new worker.
-func TestGraphOrphanSweeperInvalidatesSweptReposAndGapRepos(t *testing.T) {
+// TestGraphOrphanSweeperInvalidatesSweptReposOnly proves the #8316
+// sweep-cycle push coupling and nothing more: the Repository node the cycle
+// deletes is push-invalidated immediately under the same sweep lease. Gap
+// reconciliation lives in the bootstrap-index maintenance pass, so the
+// sweep performs no gap invalidation even though the graph left admitted
+// anchors edgeless.
+func TestGraphOrphanSweeperInvalidatesSweptReposOnly(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now().UTC()
@@ -74,7 +65,7 @@ func TestGraphOrphanSweeperInvalidatesSweptReposAndGapRepos(t *testing.T) {
 	exec := &scriptSweepExecutor{}
 	store := sourcecypher.NewOrphanSweepStore(exec, reader)
 	store.Now = func() time.Time { return now }
-	fingerprints := &scriptSweepFingerprints{anchors: []string{"repo-gone", "repo-healthy"}}
+	fingerprints := &scriptSweepFingerprints{}
 	sweeper := graphOrphanSweeper{store: store, fingerprints: fingerprints}
 
 	result, err := sweeper.SweepOrphanNodes(context.Background(), orphan.Policy{
@@ -89,22 +80,17 @@ func TestGraphOrphanSweeperInvalidatesSweptReposAndGapRepos(t *testing.T) {
 	if got := result.Deleted["Repository"]; got != 1 {
 		t.Fatalf("Deleted[Repository] = %d, want 1", got)
 	}
-	if len(fingerprints.invalidated) != 2 {
-		t.Fatalf("invalidate calls = %d, want 2 (swept push, then gap set)", len(fingerprints.invalidated))
+	if len(fingerprints.invalidated) != 1 {
+		t.Fatalf("invalidate calls = %d, want exactly 1 (swept push only)", len(fingerprints.invalidated))
 	}
 	if !reflect.DeepEqual(fingerprints.invalidated[0], []string{"repo-gone"}) {
 		t.Fatalf("push invalidated = %#v, want [repo-gone]", fingerprints.invalidated[0])
 	}
-	gaps := append([]string(nil), fingerprints.invalidated[1]...)
-	sort.Strings(gaps)
-	if !reflect.DeepEqual(gaps, []string{"repo-gone", "repo-healthy"}) {
-		t.Fatalf("gap invalidated = %#v, want both admitted anchors", gaps)
+	if result.InvalidatedFingerprints != 1 {
+		t.Fatalf("InvalidatedFingerprints = %d, want 1 (push only)", result.InvalidatedFingerprints)
 	}
-	if result.InvalidatedFingerprints != 3 {
-		t.Fatalf("InvalidatedFingerprints = %d, want 3 (1 push + 2 gap)", result.InvalidatedFingerprints)
-	}
-	if result.DeployableUnitGapRepos != 2 {
-		t.Fatalf("DeployableUnitGapRepos = %d, want 2", result.DeployableUnitGapRepos)
+	if result.DeployableUnitGapRepos != 0 {
+		t.Fatalf("DeployableUnitGapRepos = %d, want 0: the sweep performs no gap reconciliation", result.DeployableUnitGapRepos)
 	}
 }
 
@@ -136,5 +122,25 @@ func TestGraphOrphanSweeperWithoutFingerprintsSkipsGapWork(t *testing.T) {
 	if result.InvalidatedFingerprints != 0 || result.DeployableUnitGapRepos != 0 {
 		t.Fatalf("fingerprint counts = (%d, %d), want (0, 0) without the seam",
 			result.InvalidatedFingerprints, result.DeployableUnitGapRepos)
+	}
+}
+
+// TestDeployableUnitGapSeamExcludesAdmittedAnchorListing is the #8371
+// regression test: the sweep-cycle Postgres seam must expose no
+// admitted-anchor listing, so production code cannot issue a sweep-cycle
+// statement against admission_decisions. The fault-injection kill cell holds
+// an exclusive lock on that table and its census counts every ungranted
+// waiter with exact equality, so a second waiter never aligns. Gap
+// reconciliation lives in the bootstrap-index maintenance pass, which
+// completes before the kill cell takes its lock.
+func TestDeployableUnitGapSeamExcludesAdmittedAnchorListing(t *testing.T) {
+	t.Parallel()
+
+	seam := reflect.TypeOf((*deployableUnitGapPostgres)(nil)).Elem()
+	if seam.NumMethod() != 1 {
+		t.Fatalf("deployableUnitGapPostgres methods = %d, want exactly 1 (no admitted-anchor listing)", seam.NumMethod())
+	}
+	if name := seam.Method(0).Name; name != "InvalidateDeployableUnitReopenFingerprintsForRepos" {
+		t.Fatalf("deployableUnitGapPostgres method = %q, want only the fingerprint invalidation", name)
 	}
 }

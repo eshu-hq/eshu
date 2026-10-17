@@ -142,7 +142,7 @@ func TestRunPipelinedEmitsBootstrapPhaseTimings(t *testing.T) {
 	}
 	sink := &concurrentWorkSink{}
 
-	cd := collectorDeps{source: source, committer: &fakeCommitter{}}
+	cd := collectorDeps{source: source, committer: &fakeCommitter{}, gapReconciler: stubNoopGapReconciliation()}
 	pd := projectorDeps{
 		workSource:    ws,
 		factStore:     &fakeFactStore{},
@@ -205,7 +205,7 @@ func TestRunPipelinedRecordsPhaseDurationOnError(t *testing.T) {
 	sink := &concurrentWorkSink{}
 
 	committer := &fakeCommitter{iacErr: errInjectedIaCFailure}
-	cd := collectorDeps{source: source, committer: committer}
+	cd := collectorDeps{source: source, committer: committer, gapReconciler: stubNoopGapReconciliation()}
 	pd := projectorDeps{
 		workSource:    ws,
 		factStore:     &fakeFactStore{},
@@ -272,7 +272,7 @@ func TestRunPipelinedProjectionPhaseExcludesBackfillWait(t *testing.T) {
 	const backfillDelay = 4 * time.Second
 	const projectionUpperBound = 3.5 // seconds; > ~2.5s drain, < backfillDelay
 	committer := &fakeCommitter{backfillDelay: backfillDelay}
-	cd := collectorDeps{source: source, committer: committer}
+	cd := collectorDeps{source: source, committer: committer, gapReconciler: stubNoopGapReconciliation()}
 	pd := projectorDeps{
 		workSource:    ws,
 		factStore:     &fakeFactStore{},
@@ -327,7 +327,7 @@ func TestRunPipelinedRecordsDeploymentReopenPhaseOnError(t *testing.T) {
 	sink := &concurrentWorkSink{}
 
 	committer := &fakeCommitter{reopenErr: errInjected("injected reopen failure")}
-	cd := collectorDeps{source: source, committer: committer}
+	cd := collectorDeps{source: source, committer: committer, gapReconciler: stubNoopGapReconciliation()}
 	pd := projectorDeps{
 		workSource:    ws,
 		factStore:     &fakeFactStore{},
@@ -395,7 +395,7 @@ func TestRunPipelinedLogsRelationshipBackfillPhaseStartBeforeCompletion(t *testi
 	started := make(chan struct{})
 	release := make(chan struct{})
 	committer := &fakeCommitter{backfillStarted: started, backfillRelease: release}
-	cd := collectorDeps{source: source, committer: committer}
+	cd := collectorDeps{source: source, committer: committer, gapReconciler: stubNoopGapReconciliation()}
 	pd := projectorDeps{
 		workSource:    ws,
 		factStore:     &fakeFactStore{},

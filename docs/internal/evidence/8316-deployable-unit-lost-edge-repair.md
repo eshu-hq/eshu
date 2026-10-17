@@ -34,9 +34,9 @@ gap reconciliation, with no periodic replay and no worker serialization.
   Repository label's deleted ids (the label's identity is `id`) on the
   result, and the reducer sweep wiring invalidates them under the same sweep
   lease.
-- **Gap reconciliation is repo-granularity, sweep-coupled.** It lists the
-  distinct admitted `deployable_unit_correlation` source anchors (bounded
-  500), probes the graph once for their outgoing
+- **Gap reconciliation is repo-granularity, maintenance-pass-coupled.** It
+  lists the distinct admitted `deployable_unit_correlation` source anchors
+  (bounded 500), probes the graph once for their outgoing
   `CORRELATES_DEPLOYABLE_UNIT` edges, and deletes the fingerprint rows of
   the edgeless anchors. Repo granularity is exact for this failure class:
   both deleters remove whole nodes, so loss always lands on every incident
@@ -45,19 +45,29 @@ gap reconciliation, with no periodic replay and no worker serialization.
   hashes the deployment repository id, so only the source anchor survives in
   Postgres. The probe mirrors the sweep's proven S2 connected-keys shape
   (UNWIND-anchored concrete-relationship-variable MATCH, DISTINCT ids back).
-  It runs inside the hourly sweep cycle under the same lease: no new worker,
-  no new cadence, no serialization change. A probe or Postgres error fails
-  the cycle loudly (retried next poll) instead of silently keeping lost
-  edges closed.
+  It runs in the bootstrap-index maintenance pass, strictly before the
+  correlation reopen, on the existing one-shot pass: no new worker, no new
+  cadence, no serialization change. A probe or Postgres error fails the
+  pass loudly instead of silently keeping lost edges closed.
+- **Never in the sweep cycle (#8371).** The reconciliation was first wired
+  into the reducer sweep cycle, where its admitted-anchors `SELECT` on
+  `admission_decisions` parked a second waiter behind the fault-injection
+  kill cell's exclusive lock: the cell's census demands exact equality
+  (`holders = 1 AND waiters > 0 AND claimed = waiters`), so two waiters
+  never align and the shard failed. Any `SELECT` takes a lock conflicting
+  with `ACCESS EXCLUSIVE`, so no sweep-cycle statement may touch that
+  table. The maintenance pass completes before the kill cell takes its
+  lock, which removes the contender entirely (arbiter verdict A; skip-on-
+  contention was rejected as test-only behavior in the prod sweep).
 - **No periodic replay.** The issue allows a bounded replay only as a
   measured safeguard if a loss remains after both paths. No loss class
   remains: attributed retirements push their ids, sweeps push their keys,
   the bare (NornicDB) retirement and any commit-then-crash window are
-  re-derived by the hourly reconciliation, and a failed invalidation is
+  re-derived by the per-pass reconciliation, and a failed invalidation is
   loud. No replay was added.
 - **No serialization.** The invalidation is one DELETE after the commit;
   the reconciliation adds one bounded PG scan plus one bounded graph round
-  trip to the already-serial hourly sweep cycle. Worker counts, batch
+  trip to the already-serial maintenance pass. Worker counts, batch
   sizes, and lease behavior are unchanged.
 
 ## Index notes
@@ -65,10 +75,10 @@ gap reconciliation, with no periodic replay and no worker serialization.
 No index was added (index doctrine: hot path plus usable predicate shape).
 The invalidation seq-scans the fingerprint table (one row per succeeded
 item) and runs only when a deleter actually removed a node — rare, and
-measured at 1.4 ms on 20k rows. The admitted-anchors scan runs hourly at
-2.6 ms on 50k decisions. Both stay seq scans by measurement, not by guess;
-if production row counts move the cost, the follow-up adds the index with
-its own proof.
+measured at 1.4 ms on 20k rows. The admitted-anchors scan runs once per
+maintenance pass at 2.6 ms on 50k decisions. Both stay seq scans by
+measurement, not by guess; if production row counts move the cost, the
+follow-up adds the index with its own proof.
 
 ## Measurements
 
@@ -115,22 +125,26 @@ Graph side:
   490 connected ids in 224 ms with no schema and 261 ms with the Repository
   id uniqueness constraint (client-measured incl. row collect on localhost;
   the 10 edgeless anchors were exactly the gap set in both runs).
-  Conclusion: ~0.25 s per hourly cycle at the 500-anchor bound — negligible
-  against the sweep's own S1/S2 reads. A probe error fails the cycle
-  instead of misclassifying, and a wrong-row miscount degrades safe — a
-  missed gap keeps today's behavior, a false gap costs one bounded replay.
+  Conclusion: ~0.25 s per maintenance pass at the 500-anchor bound —
+  negligible against the pass's own backfill and reopen work. A probe error
+  fails the pass instead of misclassifying, and a wrong-row miscount
+  degrades safe — a missed gap keeps today's behavior, a false gap costs
+  one bounded replay.
 
 Performance Evidence: scratch EXPLAIN (ANALYZE, BUFFERS) above (Postgres
 18.6, 20k/50k rows), live functional proof on the full bootstrap schema,
 and direct probe measurement on the pinned NornicDB backend (~0.25 s for
 500 anchors); no hot-path regression: the retirement MATCH spine is
 unchanged, the invalidation runs only on actual deletions, and the
-reconciliation adds one ~3 ms PG scan plus one ~0.25 s bounded round trip
-to the hourly sweep cycle.
+relocation moves the identical statements (one ~3 ms PG scan plus one
+~0.25 s bounded round trip) from the hourly sweep cycle to the
+maintenance pass, so the measured costs carry over unchanged.
 
-No-Observability-Change: no new metric, span, or log line. The sweep
-completion line (`graph orphan sweep cycle completed`) gains two counters
-(`deployable_unit_fingerprints_invalidated`,
-`deployable_unit_gap_repos`); the retirement report keeps its existing
-`canonical repository retired` line and counters, with observer failures on
-a WARN under the same message family.
+Observability Evidence: one new phase completion log line plus duration
+metric, `deployable_unit_gap_reconciliation` (completion with
+`deployable_unit_gap_repos` and
+`deployable_unit_fingerprints_invalidated` counts), following the
+established `recordPhase` convention. The sweep completion line keeps its
+two counters; the retirement report keeps its existing `canonical
+repository retired` line and counters, with observer failures on a WARN
+under the same message family.

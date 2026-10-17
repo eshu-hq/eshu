@@ -36,6 +36,13 @@ type bootstrapDB interface {
 type graphDeps struct {
 	writer runtime.CanonicalWriter
 	close  func() error
+	// gapReconciler runs the #8316 deployable-unit gap reconciliation in
+	// the maintenance pass, strictly before the correlation reopen. It is
+	// a *deployableUnitGapReconciler in production; tests stub the
+	// deployableUnitGapReconciliation seam. main wires it into
+	// collectorDeps; runPipelined fails closed when it is nil so a
+	// miswire can never silently disable the repair.
+	gapReconciler deployableUnitGapReconciliation
 }
 
 type bootstrapCommitter interface {
@@ -72,6 +79,18 @@ type collectorDeps struct {
 	// runs (#5130). Sized by commitLaneCount from
 	// ESHU_BOOTSTRAP_COMMIT_LANES with a measured-plateau default.
 	commitLanes int
+	// gapReconciler runs the #8316 deployable-unit gap reconciliation in
+	// the maintenance pass, strictly before the correlation reopen. It is
+	// a *deployableUnitGapReconciler in production; tests stub the
+	// deployableUnitGapReconciliation seam. runPipelined fails closed
+	// when it is nil so a miswire can never silently disable the repair.
+	gapReconciler deployableUnitGapReconciliation
+}
+
+// deployableUnitGapReconciliation is the maintenance-pass seam for the #8316
+// deployable-unit gap reconciliation.
+type deployableUnitGapReconciliation interface {
+	Reconcile(context.Context) ([]string, int64, error)
 }
 
 type projectorDeps struct {
@@ -291,6 +310,7 @@ func run(
 	requestedLanes := cd.commitLanes
 	maxOpenConns := postgresMaxOpenConns(getenv)
 	cd.commitLanes = effectiveCommitLanes(requestedLanes, maxOpenConns, workers)
+	cd.gapReconciler = gd.gapReconciler // Postgres store + graph probe handles ride the graph deps.
 	logger.Info(
 		"starting pipelined bootstrap",
 		slog.Int("projection_workers", workers),

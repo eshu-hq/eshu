@@ -53,7 +53,7 @@ func TestRunEnsuresGraphSchemaBeforeOpeningGraph(t *testing.T) {
 				t.Fatal("graph opened before graph schema was ensured")
 			}
 			graphOpened = true
-			return graphDeps{writer: &noopCanonicalWriter{}, close: func() error { return nil }}, nil
+			return graphDeps{writer: &noopCanonicalWriter{}, close: func() error { return nil }, gapReconciler: stubNoopGapReconciliation()}, nil
 		},
 		func(context.Context, bootstrapDB, func(string) string, trace.Tracer, *telemetry.Instruments, *slog.Logger) (collectorDeps, error) {
 			return collectorDeps{

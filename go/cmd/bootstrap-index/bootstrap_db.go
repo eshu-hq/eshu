@@ -72,9 +72,13 @@ func schemaOptionsFromEnv(getenv func(string) string, logger *slog.Logger) (post
 }
 
 func openBootstrapGraph(ctx context.Context, database bootstrapDB, getenv func(string) string, tracer trace.Tracer, instruments *telemetry.Instruments) (graphDeps, error) {
-	writer, closer, err := openBootstrapCanonicalWriter(ctx, database, getenv, tracer, instruments)
+	writer, closer, gapReader, err := openBootstrapCanonicalWriter(ctx, database, getenv, tracer, instruments)
 	if err != nil {
 		return graphDeps{}, err
 	}
-	return graphDeps{writer: writer, close: closer.Close}, nil
+	return graphDeps{
+		writer:        writer,
+		close:         closer.Close,
+		gapReconciler: newDeployableUnitGapReconciler(database, gapReader),
+	}, nil
 }

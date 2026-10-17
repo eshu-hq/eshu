@@ -55,7 +55,7 @@ func TestOpenBootstrapCanonicalWriterWiresTerraformStateResolversLive(t *testing
 		}
 	}
 
-	writer, closer, err := openBootstrapCanonicalWriter(context.Background(), &fakeBootstrapDB{}, getenv, nil, nil)
+	writer, closer, _, err := openBootstrapCanonicalWriter(context.Background(), &fakeBootstrapDB{}, getenv, nil, nil)
 	if err != nil {
 		t.Fatalf("openBootstrapCanonicalWriter() error = %v, want nil", err)
 	}

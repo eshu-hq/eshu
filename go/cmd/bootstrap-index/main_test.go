@@ -70,7 +70,7 @@ func TestRunAppliesSchemaAndDrainsCollectorAndProjector(t *testing.T) {
 			return nil
 		},
 		func(context.Context, bootstrapDB, func(string) string, trace.Tracer, *telemetry.Instruments) (graphDeps, error) {
-			return graphDeps{writer: &noopCanonicalWriter{}, close: func() error { return nil }}, nil
+			return graphDeps{writer: &noopCanonicalWriter{}, close: func() error { return nil }, gapReconciler: stubNoopGapReconciliation()}, nil
 		},
 		func(ctx context.Context, database bootstrapDB, getenv func(string) string, _ trace.Tracer, _ *telemetry.Instruments, _ *slog.Logger) (collectorDeps, error) {
 			return collectorDeps{
@@ -183,7 +183,7 @@ func TestRunReturnsCollectorError(t *testing.T) {
 			return nil
 		},
 		func(context.Context, bootstrapDB, func(string) string, trace.Tracer, *telemetry.Instruments) (graphDeps, error) {
-			return graphDeps{writer: &noopCanonicalWriter{}, close: func() error { return nil }}, nil
+			return graphDeps{writer: &noopCanonicalWriter{}, close: func() error { return nil }, gapReconciler: stubNoopGapReconciliation()}, nil
 		},
 		func(ctx context.Context, database bootstrapDB, getenv func(string) string, _ trace.Tracer, _ *telemetry.Instruments, _ *slog.Logger) (collectorDeps, error) {
 			return collectorDeps{}, collectorErr

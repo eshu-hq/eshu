@@ -110,6 +110,34 @@ func (f *fakeSource) Next(context.Context) (collector.CollectedGeneration, bool,
 	return gen, true, nil
 }
 
+// stubGapReconciliation is the pipeline-test stand-in for the #8316
+// maintenance-pass gap repair. calls counts Reconcile invocations; err, when
+// set, makes the maintenance pass fail closed. orderCheck, when non-nil,
+// runs inside Reconcile so a test can assert the gap step ran before the
+// correlation reopen.
+type stubGapReconciliation struct {
+	mu         sync.Mutex
+	calls      int
+	gaps       []string
+	invalidate int64
+	err        error
+	orderCheck func()
+}
+
+func (s *stubGapReconciliation) Reconcile(context.Context) ([]string, int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.calls++
+	if s.orderCheck != nil {
+		s.orderCheck()
+	}
+	return append([]string(nil), s.gaps...), s.invalidate, s.err
+}
+
+func stubNoopGapReconciliation() *stubGapReconciliation {
+	return &stubGapReconciliation{}
+}
+
 type fakeCommitter struct {
 	mu                sync.Mutex
 	calls             []string

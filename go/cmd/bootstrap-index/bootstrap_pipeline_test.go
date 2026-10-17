@@ -48,7 +48,7 @@ func TestPipelinedBootstrapProjectsDuringCollection(t *testing.T) {
 	}
 	sink := &concurrentWorkSink{}
 
-	cd := collectorDeps{source: source, committer: &fakeCommitter{}}
+	cd := collectorDeps{source: source, committer: &fakeCommitter{}, gapReconciler: stubNoopGapReconciliation()}
 	pd := projectorDeps{
 		workSource:    ws,
 		factStore:     &fakeFactStore{},
@@ -99,7 +99,7 @@ func TestPipelinedBootstrapDrainsQueueAfterCollectorExits(t *testing.T) {
 	}
 	sink := &concurrentWorkSink{}
 
-	cd := collectorDeps{source: source, committer: &fakeCommitter{}}
+	cd := collectorDeps{source: source, committer: &fakeCommitter{}, gapReconciler: stubNoopGapReconciliation()}
 	pd := projectorDeps{
 		workSource:    ws,
 		factStore:     &fakeFactStore{},
@@ -127,7 +127,7 @@ func TestPipelinedBootstrapExitsCleanlyWhenQueueEmpty(t *testing.T) {
 	ws := &concurrentWorkSource{items: nil}
 	sink := &concurrentWorkSink{}
 
-	cd := collectorDeps{source: source, committer: &fakeCommitter{}}
+	cd := collectorDeps{source: source, committer: &fakeCommitter{}, gapReconciler: stubNoopGapReconciliation()}
 	pd := projectorDeps{
 		workSource:    ws,
 		factStore:     &fakeFactStore{},
@@ -161,7 +161,7 @@ func TestPipelinedBootstrapCollectorErrorCancelsProjector(t *testing.T) {
 	ws := &concurrentWorkSource{items: nil}
 	sink := &concurrentWorkSink{}
 
-	cd := collectorDeps{source: source, committer: &fakeCommitter{}}
+	cd := collectorDeps{source: source, committer: &fakeCommitter{}, gapReconciler: stubNoopGapReconciliation()}
 	pd := projectorDeps{
 		workSource:    ws,
 		factStore:     &fakeFactStore{},
@@ -188,7 +188,7 @@ func TestPipelinedBootstrapRunsDeferredBackfillWorkflow(t *testing.T) {
 	sink := &concurrentWorkSink{}
 	committer := &fakeCommitter{}
 
-	cd := collectorDeps{source: source, committer: committer}
+	cd := collectorDeps{source: source, committer: committer, gapReconciler: stubNoopGapReconciliation()}
 	pd := projectorDeps{
 		workSource:    ws,
 		factStore:     &fakeFactStore{},
@@ -233,7 +233,7 @@ func TestPipelinedBootstrapBackfillFailureIsFatal(t *testing.T) {
 
 	err := runPipelined(
 		context.Background(),
-		collectorDeps{source: &fakeSource{generations: nil}, committer: committer},
+		collectorDeps{source: &fakeSource{generations: nil}, committer: committer, gapReconciler: stubNoopGapReconciliation()},
 		projectorDeps{
 			workSource:    &concurrentWorkSource{items: nil},
 			factStore:     &fakeFactStore{},
@@ -266,7 +266,7 @@ func TestPipelinedBootstrapIaCReachabilityFailureIsFatal(t *testing.T) {
 
 	err := runPipelined(
 		context.Background(),
-		collectorDeps{source: &fakeSource{generations: nil}, committer: committer},
+		collectorDeps{source: &fakeSource{generations: nil}, committer: committer, gapReconciler: stubNoopGapReconciliation()},
 		projectorDeps{
 			workSource:    &concurrentWorkSource{items: nil},
 			factStore:     &fakeFactStore{},
@@ -299,7 +299,7 @@ func TestPipelinedBootstrapReopenFailureIsFatal(t *testing.T) {
 
 	err := runPipelined(
 		context.Background(),
-		collectorDeps{source: &fakeSource{generations: nil}, committer: committer},
+		collectorDeps{source: &fakeSource{generations: nil}, committer: committer, gapReconciler: stubNoopGapReconciliation()},
 		projectorDeps{
 			workSource:    &concurrentWorkSource{items: nil},
 			factStore:     &fakeFactStore{},
@@ -334,7 +334,7 @@ func TestPipelinedBootstrapDriftEnqueueFailureIsFatal(t *testing.T) {
 
 	err := runPipelined(
 		context.Background(),
-		collectorDeps{source: &fakeSource{generations: nil}, committer: committer},
+		collectorDeps{source: &fakeSource{generations: nil}, committer: committer, gapReconciler: stubNoopGapReconciliation()},
 		projectorDeps{
 			workSource:    &concurrentWorkSource{items: nil},
 			factStore:     &fakeFactStore{},
@@ -367,7 +367,7 @@ func TestPipelinedBootstrapWaitsForProjectorDrainBeforeReopen(t *testing.T) {
 
 	err := runPipelined(
 		context.Background(),
-		collectorDeps{source: &fakeSource{generations: nil}, committer: committer},
+		collectorDeps{source: &fakeSource{generations: nil}, committer: committer, gapReconciler: stubNoopGapReconciliation()},
 		projectorDeps{
 			workSource: &concurrentWorkSource{
 				items: []projector.ScopeGenerationWork{
@@ -408,7 +408,7 @@ func TestPipelinedBootstrapHeartbeatsLongProjectorWork(t *testing.T) {
 	go func() {
 		errc <- runPipelined(
 			context.Background(),
-			collectorDeps{source: &fakeSource{generations: nil}, committer: &fakeCommitter{}},
+			collectorDeps{source: &fakeSource{generations: nil}, committer: &fakeCommitter{}, gapReconciler: stubNoopGapReconciliation()},
 			projectorDeps{
 				workSource: &concurrentWorkSource{
 					items: []projector.ScopeGenerationWork{{
