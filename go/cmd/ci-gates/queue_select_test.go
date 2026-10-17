@@ -5,118 +5,172 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cigates"
 )
 
-func queueTestRegistry() *cigates.Registry {
-	return &cigates.Registry{Gates: []cigates.Gate{
-		{ID: "blocking", Blocking: true, Triggers: []string{"go/**"}, CI: cigates.CI{Workflow: "test.yml", Job: "go-core"}},
-		{ID: "advisory", Triggers: []string{"docs/**"}, CI: cigates.CI{Workflow: "test.yml", Job: "docs-advisory"}},
-		{ID: "ci-only", Blocking: true, Triggers: []string{"docs/**"}, CI: cigates.CI{Workflow: "test.yml", Job: "docs-ci-only"}},
-		{ID: "other-workflow", Blocking: true, Triggers: []string{"go/**"}, CI: cigates.CI{Workflow: "other.yml", Job: "other"}},
-	}}
+// Merge-group queue selection serves the registry's fixed slim set (#7859
+// P3), never the changed-path set: the same slim jobs are selected for every
+// path payload, and no compare call is made.
+
+// slimQueueRegistryYAML is loaded through cigates.Load so the slim-set
+// validation the production registry passes also guards these fixtures.
+const slimQueueRegistryYAML = `version: v1
+gates:
+  - id: slim-core
+    name: Slim Core
+    category: hygiene
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "scripts/verify-slim-core.sh"
+    local:
+      command: "bash scripts/verify-slim-core.sh"
+    ci:
+      workflow: test.yml
+      job: "merge-group-slim"
+  - id: slim-docs
+    name: Slim Docs
+    category: hygiene
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "scripts/verify-slim-docs.sh"
+    local:
+      command: "bash scripts/verify-slim-docs.sh"
+    ci:
+      workflow: test.yml
+      job: "docs-slim"
+  - id: path-only
+    name: Path Only
+    category: hygiene
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "go/**"
+    local:
+      command: "bash scripts/verify-path-only.sh"
+    ci:
+      workflow: test.yml
+      job: "go-core"
+  - id: other-workflow
+    name: Other Workflow
+    category: hygiene
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "go/**"
+    local:
+      command: "bash scripts/verify-other.sh"
+    ci:
+      workflow: other.yml
+      job: "other"
+merge_group_slim_gates:
+  - slim-core
+  - slim-docs
+`
+
+func slimQueueTestRegistry(t *testing.T) *cigates.Registry {
+	t.Helper()
+	path := t.TempDir() + "/ci-gates.v1.yaml"
+	writeTestFile(t, path, slimQueueRegistryYAML)
+	reg, err := cigates.Load(path)
+	if err != nil {
+		t.Fatalf("Load slim queue fixture: %v", err)
+	}
+	return reg
 }
 
 func queueRunner(files string) *endpointRunner {
 	return &endpointRunner{routes: map[string]string{"compare/": `{"files":` + files + `}`}}
 }
 
-func TestQueueSelectIncludesAdvisoryAndCIOnlyRows(t *testing.T) {
+func TestQueueSelectServesSlimSetRegardlessOfPaths(t *testing.T) {
 	t.Parallel()
-	runner := queueRunner(`[{"filename":"docs/new.md","previous_filename":"go/old.go"}]`)
-	got, err := selectQueueGates(context.Background(), runner, []*cigates.Registry{queueTestRegistry()}, "eshu-hq/eshu", "main", queueBranchFixture, headSHAFixture, "test.yml", "")
-	if err != nil {
-		t.Fatal(err)
+	reg := slimQueueTestRegistry(t)
+	// No routes: any `gh api` call fails. Every payload below — code,
+	// docs, policy edits, and an empty listing — must select the same fixed
+	// set with zero API calls.
+	runner := &endpointRunner{routes: map[string]string{}}
+	for name := range map[string]struct{}{
+		"go change":     {},
+		"docs change":   {},
+		"workflow edit": {},
+		"registry edit": {},
+		"empty":         {},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got, err := selectQueueGates(context.Background(), runner, []*cigates.Registry{reg}, "eshu-hq/eshu", "main", queueBranchFixture, headSHAFixture, "test.yml", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !got.Selected || !reflect.DeepEqual(got.Gates, []string{"slim-core", "slim-docs"}) {
+				t.Fatalf("selection = %+v; want slim-core+slim-docs", got)
+			}
+			if !reflect.DeepEqual(got.Jobs, []string{"merge-group-slim", "docs-slim"}) {
+				t.Fatalf("jobs = %v", got.Jobs)
+			}
+		})
 	}
-	if !got.Selected || got.Truncated || !reflect.DeepEqual(got.Gates, []string{"blocking", "advisory", "ci-only"}) {
-		t.Fatalf("selection = %+v", got)
-	}
-	if !reflect.DeepEqual(got.Jobs, []string{"go-core", "docs-advisory", "docs-ci-only"}) {
-		t.Fatalf("jobs = %v", got.Jobs)
-	}
-	if len(runner.calls) != 1 || !strings.Contains(runner.calls[0], baseSHAFixture+"..."+headSHAFixture) {
-		t.Fatalf("compare calls = %v", runner.calls)
+	if len(runner.calls) != 0 {
+		t.Fatalf("fixed-set selection must not call gh; calls = %v", runner.calls)
 	}
 }
 
 func TestQueueSelectUnionsTrustedRegistryAndMatchesConcreteJob(t *testing.T) {
 	t.Parallel()
-	head := &cigates.Registry{Gates: []cigates.Gate{{ID: "new", Triggers: []string{"docs/**"}, CI: cigates.CI{Workflow: "golden.yml", Job: "differential", CheckNames: []string{"differential nornicdb vs neo4j"}}}}}
-	trusted := &cigates.Registry{Gates: []cigates.Gate{{ID: "old", Blocking: true, Triggers: []string{"go/**"}, CI: cigates.CI{Workflow: "golden.yml", Job: "differential", CheckNames: []string{"differential nornicdb vs neo4j"}}}}}
-	got, err := selectQueueGates(context.Background(), queueRunner(`[{"filename":"go/x.go"}]`), []*cigates.Registry{head, trusted}, "eshu-hq/eshu", "main", queueBranchFixture, headSHAFixture, "golden.yml", "differential nornicdb vs neo4j")
+	head := slimQueueTestRegistry(t)
+	trustedYAML := `version: v1
+gates:
+  - id: trusted-slim
+    name: Trusted Slim
+    category: hygiene
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "scripts/verify-trusted-slim.sh"
+    local:
+      command: "bash scripts/verify-trusted-slim.sh"
+    ci:
+      workflow: test.yml
+      job: "merge-group-slim"
+      check_names: ["merge-group-slim concrete"]
+merge_group_slim_gates:
+  - trusted-slim
+`
+	path := t.TempDir() + "/ci-gates.v1.yaml"
+	writeTestFile(t, path, trustedYAML)
+	trusted, err := cigates.Load(path)
+	if err != nil {
+		t.Fatalf("Load trusted slim fixture: %v", err)
+	}
+	runner := &endpointRunner{routes: map[string]string{}}
+	got, err := selectQueueGates(context.Background(), runner, []*cigates.Registry{head, trusted}, "eshu-hq/eshu", "main", queueBranchFixture, headSHAFixture, "test.yml", "merge-group-slim concrete")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !got.Selected || !reflect.DeepEqual(got.Gates, []string{"old"}) || !reflect.DeepEqual(got.Jobs, []string{"differential"}) {
-		t.Fatalf("selection = %+v", got)
+	if !got.Selected || !reflect.DeepEqual(got.Gates, []string{"trusted-slim"}) || !reflect.DeepEqual(got.Jobs, []string{"merge-group-slim"}) {
+		t.Fatalf("selection = %+v; want trusted-slim/merge-group-slim", got)
 	}
 }
 
-func TestQueueSelectSelectsWholeWorkflowAtCapAndOnPolicyChanges(t *testing.T) {
+func TestQueueSelectFailsClosedForUnknownWorkflowAndBadBranch(t *testing.T) {
 	t.Parallel()
-	var files []string
-	for i := 0; i < mergeGroupCompareFileCap; i++ {
-		files = append(files, fmt.Sprintf(`{"filename":"unrelated/%d"}`, i))
-	}
-	for _, tt := range []struct {
-		name      string
-		files     string
-		truncated bool
-	}{
-		{name: "cap", files: `[` + strings.Join(files, ",") + `]`, truncated: true},
-		{name: "workflow edit", files: `[{"filename":".github/workflows/test.yml"}]`},
-		{name: "registry edit", files: `[{"filename":"specs/ci-gates.v1.yaml"}]`},
-		{name: "fragment edit", files: `[{"filename":"specs/ci-gates.d/gates-14.yaml"}]`},
-		{name: "fragment rename", files: `[{"filename":"specs/ci-gates.d/gates-15.yaml","previous_filename":"specs/ci-gates.d/gates-14.yaml"}]`},
-		{name: "shared selector edit", files: `[{"filename":".github/workflows/queue-selection.yml"}]`},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := selectQueueGates(context.Background(), queueRunner(tt.files), []*cigates.Registry{queueTestRegistry()}, "eshu-hq/eshu", "main", queueBranchFixture, headSHAFixture, "test.yml", "")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !got.Selected || got.Truncated != tt.truncated || len(got.Gates) != 3 {
-				t.Fatalf("selection = %+v", got)
-			}
-		})
-	}
-}
-
-func TestQueueSelectSelectsStaticWorkflowOnExternalFilterEdit(t *testing.T) {
-	t.Parallel()
-	reg := &cigates.Registry{Gates: []cigates.Gate{
-		{ID: "static-one", Blocking: true, Triggers: []string{"go/one/**"}, CI: cigates.CI{Workflow: "static-contract-gates.yml", Job: "one"}},
-		{ID: "static-two", Triggers: []string{"docs/two/**"}, CI: cigates.CI{Workflow: "static-contract-gates.yml", Job: "two"}},
-	}}
-	got, err := selectQueueGates(context.Background(), queueRunner(`[{"filename":".github/static-contract-filters.yml"}]`), []*cigates.Registry{reg}, "eshu-hq/eshu", "main", queueBranchFixture, headSHAFixture, "static-contract-gates.yml", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !got.Selected || !reflect.DeepEqual(got.Gates, []string{"static-one", "static-two"}) {
-		t.Fatalf("external filter edit did not select the whole static workflow: %+v", got)
-	}
-}
-
-func TestQueueSelectFailsClosedForUnknownWorkflowAndBadCompare(t *testing.T) {
-	t.Parallel()
+	reg := slimQueueTestRegistry(t)
+	runner := &endpointRunner{routes: map[string]string{}}
 	for _, tt := range []struct {
 		name     string
 		workflow string
-		files    string
 		branch   string
 	}{
-		{name: "unknown workflow", workflow: "unknown.yml", files: `[{"filename":"go/x.go"}]`, branch: queueBranchFixture},
-		{name: "empty diff", workflow: "test.yml", files: `[]`, branch: queueBranchFixture},
-		{name: "malformed compare", workflow: "test.yml", files: `null`, branch: queueBranchFixture},
-		{name: "bad branch", workflow: "test.yml", files: `[{"filename":"go/x.go"}]`, branch: "gh-readonly-queue/main/pr-1"},
+		{name: "unknown workflow", workflow: "unknown.yml", branch: queueBranchFixture},
+		{name: "bad branch", workflow: "test.yml", branch: "gh-readonly-queue/main/pr-1"},
+		{name: "non-queue branch", workflow: "test.yml", branch: "feature/x"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := selectQueueGates(context.Background(), queueRunner(tt.files), []*cigates.Registry{queueTestRegistry()}, "eshu-hq/eshu", "main", tt.branch, headSHAFixture, tt.workflow, "")
+			_, err := selectQueueGates(context.Background(), runner, []*cigates.Registry{reg}, "eshu-hq/eshu", "main", tt.branch, headSHAFixture, tt.workflow, "")
 			if err == nil {
 				t.Fatal("expected fail-closed error")
 			}
@@ -126,7 +180,7 @@ func TestQueueSelectFailsClosedForUnknownWorkflowAndBadCompare(t *testing.T) {
 
 func TestQueueSelectUnselectedKnownWorkflow(t *testing.T) {
 	t.Parallel()
-	got, err := selectQueueGates(context.Background(), queueRunner(`[{"filename":"unrelated/x.txt"}]`), []*cigates.Registry{queueTestRegistry()}, "eshu-hq/eshu", "main", queueBranchFixture, headSHAFixture, "test.yml", "")
+	got, err := selectQueueGates(context.Background(), queueRunner(`[{"filename":"unrelated/x.txt"}]`), []*cigates.Registry{slimQueueTestRegistry(t)}, "eshu-hq/eshu", "main", queueBranchFixture, headSHAFixture, "other.yml", "")
 	if err != nil {
 		t.Fatal(err)
 	}
