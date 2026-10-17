@@ -54,7 +54,7 @@ build as the host binary, and a mismatched toolchain fails `plugin.Open`.
 | `go-telemetry-coverage` | **push** | the telemetry-coverage gate (a new metric or pipeline stage must be reflected in `docs/public/observability/telemetry-coverage.md`, and the doc must not drift from `instruments.go`). Diffs the branch against origin/main. |
 | `console-e2e` | **push** | the `Console (apps/console)` per-page e2e gate (`console:e2e:mock`): boots a Vite dev server + headless Chromium and renders all 84 console routes. Catches blank-rendering pages and stale e2e selectors that the unit suite (`console:test`) cannot. Runs only when a file under `apps/console/` changed; installs Chromium idempotently. Bypass with `ESHU_SKIP_CONSOLE_E2E=1` (logged, not silent). |
 | `docs-build-changed` | **push** | the docs build (`mkdocs build --strict` on changed docs/navigation/project-guidance files). Bounded by `ESHU_DOCS_BUILD_TIMEOUT_SECONDS` (default 600); fails closed past the bound (#7983). |
-| `frontend-format-changed` | **push** | the changed-file Prettier check (frontend.yml mirror). |
+| `frontend-format-changed` | **push** | the changed-file Prettier check (frontend.yml mirror). Advisory (`--advisory`): drift and a missing `node_modules/prettier` print `format: advisory:` and never fail the push; CI runs it strict (#8355). |
 | `go-measurement-citations` | **push** | the measurement-ledger citation gate (new `<N>/<M> trials` or `Measurement:` claims must cite `docs/internal/measurements.jsonl`). |
 
 The lint/format/gosec hooks run only on the **changed packages**, so a normal
