@@ -104,7 +104,8 @@ flowchart LR
   prior generation active. Operators set it with the `allow_empty_successor`
   target key, accepted by both the collector runtime configuration and the
   workflow configuration validation. It defaults to false: omit it unless an
-  emptied or sharply shrunken successor is legitimate.
+  emptied or sharply shrunken successor is legitimate. Remove the key after
+  recovery so later shrinks trip the backstop again.
 
 ## Telemetry
 
