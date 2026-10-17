@@ -37,13 +37,14 @@ cd "$REPO_ROOT/go"
 go test ./internal/backendconformance -run '^TestLiveBackendConformance$' -count=1 -v
 
 if [ "$ESHU_GRAPH_BACKEND" = "nornicdb" ]; then
-    echo "Running live NornicDB retry classification contracts and #5441 stale-attribute-removal regression"
+    set -o pipefail
+    python3 ../scripts/lib/nornic_conformance_events.py --source-check
+    echo "Running nine exact live NornicDB conformance proofs"
     ESHU_NORNICDB_RETRY_CONTRACT_LIVE=1 \
+    ESHU_CLOUDRESOURCE_NODE_WRITER_LIVE=1 \
+    ESHU_SEMANTIC_ENTITY_NORNICDB_LIVE=1 \
     ESHU_CYPHER_BOLT_DSN="$ESHU_NEO4J_URI" \
     ESHU_CYPHER_BOLT_DATABASE="$ESHU_NEO4J_DATABASE" \
-        go test ./internal/storage/cypher -run '^(TestLiveNornicDBRetryConflictClassificationContract|TestLiveNornicDBRelationshipSnapshotConflictRetryContract|TestTerraformResourceWriterLiveClearsStaleAttributeOnRefresh)$' -count=1 -v
-
-    echo "Running live NornicDB CloudResource heterogeneous-batch row-key-default regression (#5714/#5055)"
-    ESHU_CLOUDRESOURCE_NODE_WRITER_LIVE=1 \
-        go test ./internal/storage/cypher -run '^TestCloudResourceNodeWriterLiveHeterogeneousBatchNeverPersistsLiteral$' -count=1 -v
+        go test ./internal/storage/cypher -run '^(TestBuildLiveRetryContractRowsMirrorProductionPlatformBatch|TestCloudResourceNodeWriterLiveHeterogeneousBatchNeverPersistsLiteral|TestLiveNornicDBRelationshipSnapshotConflictRetryContract|TestLiveNornicDBRetryConflictClassificationContract|TestRunLiveRetryWritesConcurrentlyOverlapsBothWrites|TestSemanticEntityWriterLiveNornicDBConcurrentDistinctRepos|TestSemanticEntityWriterLiveNornicDBFullRepoRetractRecreatesSameUID|TestSemanticEntityWriterLiveNornicDBMaterializesVariableNodes|TestTerraformResourceWriterLiveClearsStaleAttributeOnRefresh)$' -json -count=1 -v | tee "${RUNNER_TEMP:-/tmp}/nornic-conformance.jsonl"
+    python3 ../scripts/lib/nornic_conformance_events.py --events "${RUNNER_TEMP:-/tmp}/nornic-conformance.jsonl"
 fi
