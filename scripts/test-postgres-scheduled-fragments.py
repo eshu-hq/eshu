@@ -19,14 +19,14 @@ import postgres_scheduled_runner as runner  # noqa: E402
 class InventoryFragmentTest(unittest.TestCase):
     """The index and every listed fragment form one closed source contract."""
 
-    def test_committed_index_and_all_five_new_groups(self) -> None:
-        """The reviewed inventory contains all 182 tests in 97 files."""
+    def test_committed_index_and_all_six_new_groups(self) -> None:
+        """The reviewed inventory contains all 240 tests in 119 files."""
         index = json.loads(runner.INVENTORY.read_text(encoding="utf-8"))
         self.assertEqual(index["version"], "postgres-scheduled-inventory/v1")
-        self.assertEqual(len(index["fragments"]), 12)
+        self.assertEqual(len(index["fragments"]), 13)
         inventory = runner.load_inventory()
-        self.assertEqual(len(inventory), 97)
-        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 182)
+        self.assertEqual(len(inventory), 119)
+        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 240)
         for group, files, tests in (
             ("claim", 13, 36), ("liveness", 7, 18), ("fanout", 3, 3),
             ("search", 5, 8), ("readiness", 4, 6),
@@ -153,6 +153,17 @@ class InventoryFragmentTest(unittest.TestCase):
                 ("      - '" + source + "'\n", "", "PR paths"),
                 ("      - 'go/internal/storage/postgres/"
                  "reducer_queue_domain_fairness_test.go'\n", "", "PR paths"),
+                ('ESHU_CHANGED_SINCE_LINK_SCALE_PROOF: "p3"',
+                 'ESHU_CHANGED_SINCE_LINK_SCALE_PROOF: "p8b"', "freshness"),
+                ('ESHU_7127_W11_COST: "1"',
+                 'ESHU_7127_W11_COST: "0"', "freshness"),
+                ("-timeout=30m ./internal/storage/postgres/freshness/links",
+                 "-timeout=6m ./internal/storage/postgres/freshness/links",
+                 "selector"),
+                ("ESHU_RETENTION_TIMING_MODE=build go test",
+                 "ESHU_RETENTION_TIMING_MODE=run go test", "freshness"),
+                ("< ../docs/internal/evidence/7127-link-writer-fixture.sql",
+                 "< /tmp/7127-link-writer-fixture-missing.sql", "freshness"),
             ):
                 self.assertIn(old, original)
                 workflow.write_text(original.replace(old, new, 1))
@@ -161,7 +172,7 @@ class InventoryFragmentTest(unittest.TestCase):
 
     @mock.patch.dict("os.environ", {"GITHUB_ACTIONS": "false"})
     def test_missing_new_stream_and_local_as_hosted_fail(self) -> None:
-        """The twelve-stream bundle requires the new stream and hosted origin."""
+        """The thirteen-stream bundle requires the new stream and hosted origin."""
         inventory = runner.load_inventory()
         manifest = runner.build_manifest(
             inventory, "pull_request", "123", "1",

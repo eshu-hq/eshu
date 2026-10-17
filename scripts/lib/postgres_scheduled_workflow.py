@@ -34,6 +34,8 @@ STEP_NAMES = (
     "Run disposable golden corpus residual proof",
     "Run disposable query proofs",
     "Run disposable storage proofs",
+    "Create fresh freshness_links database",
+    "Run freshness_links proofs",
     "Verify hosted proof bundle",
     "Retain hosted proof bundle",
 )

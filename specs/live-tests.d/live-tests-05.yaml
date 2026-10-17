@@ -231,92 +231,114 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/freshness/links/fence_breach_live_test.go
     tag: ~
-    class: scheduled
-    reason: changed-since link fence-breach invariant proof (#7127 PR-3a, arbiter ruling arb-7127-g8 P4), untagged and gated by env Skip; unmeasured in the CI lane -- promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: fence-breach invariant (#7127 PR-3a, arb-7127-g8 P4); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/fence_live_test.go
     tag: ~
-    class: scheduled
-    reason: changed-since link ledger proof (#7127 PR-3a), untagged and gated by env Skip; clones a bootstrapped template database per test; unmeasured in the CI lane -- promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: fence ledger (#7127 PR-3a); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/journal_live_test.go
     tag: ~
-    class: scheduled
-    reason: changed-since link ledger proof (#7127 PR-3a), untagged and gated by env Skip; clones a bootstrapped template database per test; unmeasured in the CI lane -- promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: journal ledger (#7127 PR-3a); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/link_live_test.go
     tag: ~
-    class: scheduled
-    reason: changed-since link ledger proof (#7127 PR-3a), untagged and gated by env Skip; clones a bootstrapped template database per test; unmeasured in the CI lane -- promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: link ledger (#7127 PR-3a); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/lock_timeout_cost_live_test.go
     tag: ~
-    class: scheduled
-    reason: changed-since link cost measurement for the generation lock timeout (#7127 PR-3e, arbiter ruling arb-7127-3e-wait W11); skips unless ESHU_7127_W11_COST is set and prints samples for an interleaving script; never a gate
+    class: verified_scheduled
+    reason: "linuxdynasty: generation lock-timeout cost, W11 opt-in samples (arb-7127-3e-wait W11); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/lock_timeout_live_test.go
     tag: ~
-    class: scheduled
-    reason: changed-since generation lock timeout (#7127 PR-3e, arbiter ruling arb-7127-3e-wait W1/W2/W7/W8) -- chain-walk holder on G, on the prior and on a backfill generation, and the transaction-local setting; each with a planted RED; untagged and gated by env Skip; about 2s
+    class: verified_scheduled
+    reason: "linuxdynasty: generation lock timeout, chain-walk holders + planted REDs (arb-7127-3e-wait W1/W2/W7/W8); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/plan_live_test.go
     tag: ~
-    class: scheduled
-    reason: changed-since link plan-shape proof (#7127 PR-3a gates G3/G4) that builds 2M link-delta and 3.8M state rows, about 1 minute locally; scheduled, never blocking
+    class: verified_scheduled
+    reason: "linuxdynasty: plan shape over 2M link-delta + 3.8M state rows (#7127 PR-3a G3/G4); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/plan_stats_live_test.go
     tag: ~
-    class: scheduled
-    reason: changed-since link plan class under planted statistics (#7127 PR-3a, arbiter ruling arb-7127-g8 P1), about 30s; scheduled, never blocking
+    class: verified_scheduled
+    reason: "linuxdynasty: plan class under planted statistics (arb-7127-g8 P1); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/poison_live_test.go
     tag: ~
-    class: scheduled
-    reason: changed-since link poison-bound proof (#7127 PR-3a gates G16a/G16c), untagged and gated by env Skip; clones a bootstrapped template database per test; unmeasured in the CI lane -- promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: poison bound (G16a/G16c); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/prior_fence_live_test.go
     tag: ~
-    class: scheduled
-    reason: changed-since link writer prior fence (#7127 PR-3e, arbiter ruling arb-7127-3d C1-C3, C5) -- rebase accuracy, generation_locked on a held prior with the committed-updater shapes, backfill fence, orphan probe; untagged and gated by env Skip; clones a bootstrapped template database per test; about 5s; scheduled, never blocking
+    class: verified_scheduled
+    reason: "linuxdynasty: writer prior fence: rebase accuracy, backfill fence (arb-7127-3d C1-C3, C5); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/prior_plan_live_test.go
     tag: ~
-    class: scheduled
-    reason: changed-since rebase statement plan shape (#7127 PR-3e, gate G3 and the arb-7127-g8 P1 class) under four planted statistics states with planted REDs, 7-35s locally depending on host load; untagged and gated by env Skip; scheduled, never blocking
+    class: verified_scheduled
+    reason: "linuxdynasty: rebase plan shape, four statistics states + planted REDs (G3, arb-7127-g8 P1); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/prior_wait_live_test.go
     tag: ~
-    class: scheduled
-    reason: changed-since generation lock update-chain wait, race shape (#7127 PR-3e, arbiter ruling arb-7127-3e-wait W3) -- bounded 55P03, unbounded RED and a no-update control, about 10s; untagged and gated by env Skip; scheduled, never blocking
+    class: verified_scheduled
+    reason: "linuxdynasty: update-chain wait race: bounded 55P03, unbounded RED, control (arb-7127-3e-wait W3); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/rekey_timing_live_test.go
     tag: ~
-    class: scheduled
-    reason: changed-since link re-key timing under absent statistics (#7127 PR-3a, arbiter ruling arb-7127-g8 P2), about 80s including a 60s RED timeout; scheduled, never blocking
+    class: verified_scheduled
+    reason: "linuxdynasty: re-key timing under absent statistics (arb-7127-g8 P2); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/retention_bound_live_test.go
     tag: ~
-    class: scheduled
-    reason: changed-since ledger retention bound (P3, inverted by PR-3e -- no orphan link), activation above the cursor and row-limit starvation (#7127 PR-3d, arbiter ruling arb-7127-3d P3/P4), untagged and gated by env Skip; clones a bootstrapped template database per test; unmeasured in the CI lane -- promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: retention bound: no-orphan inversion, cursor + starvation (#7127 PR-3d, arb-7127-3d P3/P4); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/retention_live_test.go
     tag: ~
-    class: scheduled
-    reason: changed-since ledger retention equality, row-limit and idempotency proof (#7127 PR-3d, ruling 2.8), untagged and gated by env Skip; clones a bootstrapped template database per test; unmeasured in the CI lane -- promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: retention equality, row-limit, idempotency (ruling 2.8); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/retention_plan_live_test.go
     tag: ~
-    class: scheduled
-    reason: changed-since ledger retention plan-shape proof (#7127 PR-3d, ruling 8.4 sweep) that builds 2M link-delta rows, about 1-2 minutes locally; scheduled, never blocking
+    class: verified_scheduled
+    reason: "linuxdynasty: retention plan shape over 2M rows (ruling 8.4 sweep); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/retention_race_live_test.go
     tag: ~
-    class: scheduled
-    reason: changed-since ledger retention concurrency proof against the link writer and the orphan-scope purge (#7127 PR-3d), untagged and gated by env Skip; clones a bootstrapped template database per test; unmeasured in the CI lane -- promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: retention concurrency vs writer + orphan purge (#7127 PR-3d); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/retention_timing_clone_live_test.go
     tag: ~
-    class: scheduled
-    reason: retention timing harness regression, a timing clone is dropped when the test that made it ends (#7127 PR-3d, arbiter ruling arb-7127-3d-e PE1), skipped unless ESHU_RETENTION_TIMING_DSN is set; clones an empty template of its own
+    class: verified_scheduled
+    reason: "linuxdynasty: timing-harness regression: dropped clone on maker exit (arb-7127-3d-e PE1); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/retention_timing_live_test.go
     tag: ~
-    class: scheduled
-    reason: changed-since ledger retention lock-hold timing, drain and lock-set probe (#7127 PR-3d, arbiter rulings arb-7127-3d P8, arb-7127-3d-b PB4/PB7, arb-7127-3d-c PC1/PC2), skipped unless ESHU_RETENTION_TIMING_DSN is set; driven by docs/internal/evidence/7127-ledger-retention-timing.sh
+    class: verified_scheduled
+    reason: "linuxdynasty: retention lock-hold timing, drain + lock-set probe (arb-7127-3d P8/PB4/PB7/PC1/PC2); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/scale_live_test.go
     tag: ~
-    class: scheduled
-    reason: changed-since link scale measurement (#7127 PR-3a gates G5-G8), skipped unless ESHU_CHANGED_SINCE_LINK_SCALE_DSN names a database loaded by docs/internal/evidence/7127-link-writer-fixture.sql; driven by docs/internal/evidence/7127-link-writer-scale.py, about 10 minutes with the load
+    class: verified_scheduled
+    reason: "linuxdynasty: scale measurement G5-G8, fixture-loaded DB; postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/scale_proof_live_test.go
     tag: ~
-    class: scheduled
-    reason: changed-since link scale proofs P3/P8b/P8c (#7127 PR-3a, arbiter ruling arb-7127-g8), skipped unless ESHU_CHANGED_SINCE_LINK_SCALE_DSN and ESHU_CHANGED_SINCE_LINK_SCALE_PROOF are set; driven by docs/internal/evidence/7127-link-writer-scale.py --proof
+    class: verified_scheduled
+    reason: "linuxdynasty: scale proofs P3/P8b/P8c (arb-7127-g8); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/stale_stats_live_test.go
     tag: ~
-    class: scheduled
-    reason: changed-since link stale-statistics regression (#7127 PR-3a G8 stall), untagged and gated by env Skip; clones a bootstrapped template database per test; unmeasured in the CI lane -- promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "linuxdynasty: stale-statistics regression (G8 stall); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/generation_prior_live_test.go
     tag: ~
     class: scheduled

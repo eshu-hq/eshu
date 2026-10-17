@@ -9,6 +9,7 @@
     "postgres_scheduled_inventory.d/disposable_query.json",
     "postgres_scheduled_inventory.d/disposable_storage.json",
     "postgres_scheduled_inventory.d/fanout.json",
+    "postgres_scheduled_inventory.d/freshness_links.json",
     "postgres_scheduled_inventory.d/infra_inventory.json",
     "postgres_scheduled_inventory.d/liveness.json",
     "postgres_scheduled_inventory.d/readiness.json",
