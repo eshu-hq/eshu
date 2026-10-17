@@ -15,8 +15,8 @@ legacy_scheduled_exemptions:
   baseline_main: 101cd4f6ab7b72ff01f018ad52112e3a9955168b
   steward: linuxdynasty
   tracking_issue: 7533
-  count: 417
-  sha256: 848a52f782e021d60d755775dc3f9031ea39866a3c30fa23a914de0f68eac062
+  count: 394
+  sha256: 751959533b136474367e2208ce31f65760bd35abf829a6fd8e20b5e13aaef882
 
 purpose: >
   Classify every live backend proof in go/ as graph CI, PostgreSQL CI,
@@ -32,7 +32,8 @@ purpose: >
   The postgres-scheduled job checks exact tests in twelve groups daily on
   PostgreSQL. The ifa-scheduled job checks eight exact tagged tests daily and
   on scoped PRs on disposable NornicDB and PostgreSQL, with a second NornicDB
-  identity endpoint. The NornicDB backend conformance job accounts for all nine
+  identity endpoint. The replay-tier gate checks 27 exact tests from 23 files;
+  25 require NornicDB. The NornicDB backend conformance job accounts for all nine
   tests in seven exact Cypher files; Neo4j keeps the core conformance path. The
   ledger validator (scripts/verify-live-tests-ledger.sh) fails on any live test
   file this ledger does not name, so a new unclassified live test can never
@@ -47,9 +48,9 @@ design: >
   job, selected backends), postgres_ci (the named PostgreSQL runner;
   integration-tagged migration proofs have their own exact-file runner),
   dedicated_ci (a verified named runner: query-methodology or
-  reducer-contention, golden-corpus-identity, or backend-conformance-nornicdb), verified_scheduled (an
-  exact-file, daily or manual PostgreSQL or Ifá runner with strict Go event
-  accounting; the Ifá job also runs on scoped pull requests),
+  reducer-contention, golden-corpus-identity, replay-tier, or backend-conformance-nornicdb),
+  verified_scheduled (an exact-file, daily or manual PostgreSQL or Ifá runner
+  with strict Go event accounting; the Ifá job also runs on scoped pull requests),
   scheduled (an exact-file legacy exemption from this ledger's verified
   runner mapping, tracked by issue 7533; independently owned blocking
   runners may exist, but a reason does not prove execution), or retired (a
@@ -70,6 +71,7 @@ fragments:
   - live-tests.d/live-tests-01.yaml
   - live-tests.d/live-tests-02.yaml
   - live-tests.d/live-tests-03.yaml
+  - live-tests.d/live-tests-03b.yaml
   - live-tests.d/live-tests-04.yaml
   - live-tests.d/live-tests-04b.yaml
   - live-tests.d/live-tests-05.yaml

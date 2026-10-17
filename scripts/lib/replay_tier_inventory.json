@@ -1,0 +1,155 @@
+{
+  "file_count": 23,
+  "files": {
+    "go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go": {
+      "sha256": "68e0a12a4d431505aa311d0d07620d24c544c7790a3227a7dcb1461675e3d726",
+      "tests": [
+        "TestGovScopeMaterializationEntitySourcesHaveFiles",
+        "TestReducerCanonicalGovernanceEdgeRetractGraphTruth"
+      ]
+    },
+    "go/internal/replay/offlinetier/delta_tier_edge_retract_live_test.go": {
+      "sha256": "cdecfc27ad14534e0ba7e717c1e9107695c75ed7e3921e2d4f0a654ba77b2dd3",
+      "tests": [
+        "TestDeltaEdgeRetractGraphTruth"
+      ]
+    },
+    "go/internal/replay/offlinetier/delta_tier_entity_retract_live_test.go": {
+      "sha256": "45b05fe185775b2e9d02ce1f7494f404b5aabafee7fdad50b01a27ac1bee1fe4",
+      "tests": [
+        "TestDeltaEntityRetractGraphTruth",
+        "TestEntityRetractManifestBinding"
+      ]
+    },
+    "go/internal/replay/offlinetier/delta_tier_file_retract_live_test.go": {
+      "sha256": "4d7eded2dc3769616e449e272b07278da8fdf57233c50516fd4bc71bc72b2941",
+      "tests": [
+        "TestDeltaFileRetractGraphTruth"
+      ]
+    },
+    "go/internal/replay/offlinetier/delta_tier_live_test.go": {
+      "sha256": "847bc2b7e792e0014437002261ba6d533ae6fdbd5fc466b2b0bc029fb2ababa1",
+      "tests": [
+        "TestDeltaTombstoneGraphTruth",
+        "TestDeltaTombstoneNegativeControlBrokenRetraction"
+      ]
+    },
+    "go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go": {
+      "sha256": "2bc9bdb1a1c92e53671105ef22c1b7cdf5fcf98dd7b0627e225552466cd2d629",
+      "tests": [
+        "TestReducerCloudEdgeRetractGraphTruth"
+      ]
+    },
+    "go/internal/replay/offlinetier/delta_tier_reducer_cloud_image_edge_retract_live_test.go": {
+      "sha256": "153787861f9abca14415de916dfb0053985e3a70327b951e158530cfd4980dd6",
+      "tests": [
+        "TestReducerAWSCloudImageEdgeRetractGraphTruth"
+      ]
+    },
+    "go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go": {
+      "sha256": "38db455de83b38e831d8e0024df5498dcbb636d2911d5991dd8c1ec34c219740",
+      "tests": [
+        "TestReducerContentEdgeRetractGraphTruth",
+        "TestCodeInterprocTaintEdgeRetractGraphTruth"
+      ]
+    },
+    "go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go": {
+      "sha256": "b6bf7ab7eacf6e503110766e5dd296a01c549413224b30b3fd49a0dc872a63c8",
+      "tests": [
+        "TestReducerCodeCallEdgeRetractGraphTruth"
+      ]
+    },
+    "go/internal/replay/offlinetier/delta_tier_reducer_iam_edge_retract_live_test.go": {
+      "sha256": "13113c6b8ae350700498971e673f11ef7d5b7ac749be02115de66522fcfcdc15",
+      "tests": [
+        "TestReducerIAMEdgeRetractGraphTruth"
+      ]
+    },
+    "go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go": {
+      "sha256": "7648df80acfb753dac7561001740a50f99c6cbd4f0b9ee6ef2a80887ad8e4235",
+      "tests": [
+        "TestReducerInheritanceEdgeRetractGraphTruth"
+      ]
+    },
+    "go/internal/replay/offlinetier/delta_tier_reducer_kubernetes_namespace_absent_retract_live_test.go": {
+      "sha256": "c17b29103e13f49e8db10a54ef6182305cb89005ce7f951d170b1c2f0b7e04cc",
+      "tests": [
+        "TestReducerKubernetesNamespaceAbsentNodeRetractGraphTruth"
+      ]
+    },
+    "go/internal/replay/offlinetier/delta_tier_reducer_kubernetes_namespace_environment_retract_live_test.go": {
+      "sha256": "b294b595f4b974091a1d97551d1e63a68d8a678f91a453901776db8390dac3b1",
+      "tests": [
+        "TestReducerKubernetesNamespaceEnvironmentRetractGraphTruth"
+      ]
+    },
+    "go/internal/replay/offlinetier/delta_tier_reducer_metaclass_edge_retract_live_test.go": {
+      "sha256": "4a20b3ed06d0ebe96abd7df8bc5997a2ba83e485e0fdfe8ce19fa39e7b40f825",
+      "tests": [
+        "TestReducerMetaclassEdgeRetractGraphTruth"
+      ]
+    },
+    "go/internal/replay/offlinetier/delta_tier_reducer_rationale_edge_retract_live_test.go": {
+      "sha256": "3ae7c333a23bd52cbcf59bdeedf8d21acadea3df734d5dfa08c650490a76106c",
+      "tests": [
+        "TestReducerRationaleEdgeRetractGraphTruth"
+      ]
+    },
+    "go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go": {
+      "sha256": "5adda7fc33c4c327171942a8aa75d1ce652dc60bd90055a114f3a3ea65698c12",
+      "tests": [
+        "TestReducerRepoDependencyEdgeRetractGraphTruth"
+      ]
+    },
+    "go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go": {
+      "sha256": "3e475d3f1b6613969bfa723aedd988537c4fc69400cd0d310e32932826615231",
+      "tests": [
+        "TestReducerRuntimeEdgeRetractGraphTruth"
+      ]
+    },
+    "go/internal/replay/offlinetier/delta_tier_reducer_secrets_iam_edge_retract_live_test.go": {
+      "sha256": "8e3ffbe0d6638330b115b0e16d10f504e21ca32e6fe192c596cb2c228b75bffe",
+      "tests": [
+        "TestReducerSecretsIAMEdgeRetractGraphTruth"
+      ]
+    },
+    "go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go": {
+      "sha256": "a26ddb44aa92076a3bc8bc8e8496825e47c80d1bb985da3353d57ec6958c1419",
+      "tests": [
+        "TestReducerSecurityGroupReachabilityEdgeRetractGraphTruth"
+      ]
+    },
+    "go/internal/replay/offlinetier/delta_tier_reducer_semantic_variable_retract_live_test.go": {
+      "sha256": "94c5b5d7cc21cce3096ed0d2ac0c099558f2d22f95ea669cf9bc0f4ea0f37736",
+      "tests": [
+        "TestReducerSemanticVariableRetractGraphTruth"
+      ]
+    },
+    "go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go": {
+      "sha256": "a4b44a3abc149c192528e857a1aac503cabfa938c6650978dba1c0f92631a701",
+      "tests": [
+        "TestReducerSQLRelationshipRetractGraphTruth"
+      ]
+    },
+    "go/internal/replay/offlinetier/delta_tier_reducer_workload_uses_edge_retract_live_test.go": {
+      "sha256": "63f09ae872980ad4727fa2d701630a2f694136b79b63f1b868a88f54e260b801",
+      "tests": [
+        "TestReducerWorkloadUsesEdgeRetractGraphTruth"
+      ]
+    },
+    "go/internal/replay/offlinetier/delta_tier_survivor_retract_live_test.go": {
+      "sha256": "a0ae17bd3a49430e48343ccd28015a43a8ee58c8cf882f424a9e4e387ca6af1b",
+      "tests": [
+        "TestDeltaSurvivorScopedRetractGraphTruth"
+      ]
+    }
+  },
+  "head": "e0e7f03f9763b25e7f5b1163e2bdafb4f5100f24",
+  "proof_source_sha256": {
+    "scripts/verify-replay-tier.sh": "c444a52095236b608cda143bf4bdbbedc9302e9ed23f4980bcdefeac8f81056b",
+    "scripts/lib/replay_tier_enrollment.py": "9a588e169c81abc96b363adced5c60918b76b9ac7bfdcda210939121880d6822",
+    "scripts/lib/replay_tier_routes.py": "24f16072428e5866d5a39a24642d469e822d91cb5f8bdf696b626492cf8e4191"
+  },
+  "selector": "TestOfflineReplayTierGraphTruth|TestDeltaTombstone|TestDeltaEntityRetractGraphTruth|TestEntityRetractManifestBinding|TestDeltaSurvivorScopedRetractGraphTruth|TestDeltaEdgeRetractGraphTruth|TestDeltaFileRetractGraphTruth|TestReducerCodeCallEdgeRetractGraphTruth|TestReducerInheritanceEdgeRetractGraphTruth|TestReducerSQLRelationshipRetractGraphTruth|TestReducerRationaleEdgeRetractGraphTruth|TestReducerMetaclassEdgeRetractGraphTruth|TestReducerRepoDependencyEdgeRetractGraphTruth|TestReducerRuntimeEdgeRetractGraphTruth|TestReducerContentEdgeRetractGraphTruth|TestCodeInterprocTaintEdgeRetractGraphTruth|TestReducerCloudEdgeRetractGraphTruth|TestReducerSecurityGroupReachabilityEdgeRetractGraphTruth|TestReducerCanonicalGovernanceEdgeRetractGraphTruth|TestReducerWorkloadUsesEdgeRetractGraphTruth|TestReducerIAMEdgeRetractGraphTruth|TestReducerAWSCloudImageEdgeRetractGraphTruth|TestReducerSecretsIAMEdgeRetractGraphTruth|TestReducerSemanticVariableRetractGraphTruth|TestReducerKubernetesNamespaceEnvironmentRetractGraphTruth|TestReducerKubernetesNamespaceAbsentNodeRetractGraphTruth|TestReducerProvenanceReplayTombstoneGraphTruth|TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch|TestNornicDBChainedOptionalMatchEvaluatesSecondHop|TestGovScopeMaterializationEntitySourcesHaveFiles",
+  "test_count": 27
+}

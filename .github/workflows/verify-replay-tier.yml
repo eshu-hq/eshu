@@ -9,7 +9,7 @@ name: Replay Tier (offline NornicDB)
 # fake/in-memory graph cannot reproduce those, so without this job a regression
 # back to the full-atomic projection path would stay green on the default
 # `go test ./...` run (where the live tier skips). It is deliberately lean (one
-# container, no Postgres, seconds), complementing — not replacing — the full
+# container, no Postgres), complementing — not replacing — the full
 # Compose B-7 golden-corpus gate.
 
 on:
@@ -36,10 +36,18 @@ on:
       - 'testdata/cassettes/replaydelta/**'
       - 'scripts/verify-replay-tier.sh'
       - 'scripts/test-verify-replay-tier.sh'
+      - 'scripts/lib/replay_tier_*'
+      - 'scripts/test-replay-tier-*.py'
+      - 'scripts/lib/verify-live-tests-ledger.py'
+      - 'specs/live-tests.v1.yaml'
+      - 'specs/live-tests.d/**'
+      - 'specs/ci-gates.d/gates-15.yaml'
       - 'scripts/lib/ci-gates-resolved-fixtures.sh'
       - 'scripts/dev/pre-pr.sh'
       - 'scripts/ci/install-apt-packages.sh'
       - 'scripts/ci/go-mod-download-retry.sh'
+      - '.github/workflows/live-backend-tests.yml'
+      - 'specs/ci-gates.d/gates-09.yaml'
       - '.github/workflows/verify-replay-tier.yml'
 
 concurrency:
