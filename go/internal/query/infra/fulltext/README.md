@@ -57,10 +57,78 @@ requests never probe. A probe error is not ready.
 `Reader.Rows` falls back to the legacy statement for one request when the
 full-text read fails while the request context is live.
 
+## Broad class (#7245)
+
+A query is *broad* when `Broad` says it can match corpus-wide: the trimmed
+query is one or two runes (`BroadQueryMaxRunes = 2`). Empty queries
+(structured search) and the `"::"` equality branch are never broad, and the
+bound applies only on the full-text path (`RowsBounded` checks `path ==
+PathFulltext && Broad(req.Query)`). A short wildcard would otherwise run the
+twelve-field `CONTAINS` recheck, `DISTINCT`, and the `ORDER BY` sort over
+the whole candidate set before the late `LIMIT`.
+
+`BroadCandidateCap` (K = 1000) bounds the candidates the broad class
+evaluates. It sits above the largest servable page (`infraSearchMaxLimit`
+200, over-fetched by one), so a page is complete whenever the probe fits in
+K. `rowsBroad` first runs one combined probe, `ProbeStatement`: the same
+full-text index call with the combined `(n:A OR n:B ...)` label filter, then
+`WITH n LIMIT 1001` (`BroadProbeLimit = BroadCandidateCap + 1`) and
+`RETURN count(n) AS candidate_count`. The probe runs no recheck, no
+`DISTINCT`, and no sort. A count past the cap proves the cap would cut rows;
+a malformed probe count is treated as over-cap (conservative capped), never
+as uncapped.
+
+When the probe fits in K, the read runs the unchanged full-text statement,
+so rows equal the uncapped read (rows-equal). Past the cap, it runs the
+capped form (`CappedUnscopedStatement` / `CappedScopedStatement`): same
+labels and `whereExtra`, with `WITH n LIMIT 1000` between the label filter
+and the recheck, before `DISTINCT` / `ORDER BY` / the grant predicate, so at
+most K rows ever reach them. A capped page always carries its marker:
+`truncated=true` in the response (`Truncated=true` on the handler result,
+`RowsBounded=true`), plus the `eshu.infra_search_broad_capped=true` span
+attribute. Worst case per broad page is about 1001 probe rows plus at most
+1000 candidates through the recheck. Probe and read failures keep the
+`Rows` contract: a canceled context returns the error with no fallback,
+otherwise the legacy statement answers once.
+
+Covered by `TestBroadClassifier`,
+`TestRowsBoundedBroadOverCapReturnsCappedRowsWithMarker`,
+`TestRowsBoundedBroadAtCapIsUncappedWithoutMarker`,
+`TestRowsBoundedSelectiveIsSingleUncappedRead`,
+`TestCappedStatementsBoundEvaluationBeforeRecheck`, and the handler tests
+`TestInfraSearchBroadOverCapMarksTruncated`,
+`TestInfraSearchBroadAtCapIsUncapped`,
+`TestInfraSearchSelectiveHasNoCapEffect`.
+
+No-Regression Evidence (#7245): selective reads emit byte-identical
+statements and rows before and after (the selective and at-cap tests
+above), and the full `go/internal/query/...` suite is green. Corpus-scale
+before/after timing on the broad class stays with the owner lane and is
+NOT_CHECKED here.
+
+Observability Evidence (#7245): a broad page sets the
+`eshu.infra_search_broad_capped=true` span attribute on
+`query.infra_resource_search` and reuses the existing
+`eshu_dp_infra_search_path_total{search_path="fulltext"}` counter. No new
+metric or log is added.
+
+Known limits of the bound:
+
+- Scope-blind probe. `ProbeStatement` counts label matches without the grant
+  predicate, so a scoped broad query is served capped with `truncated=true`
+  whenever label matches exceed K, even when the grant-visible rows would fit
+  in K. The direction is safe (the marker is always set), but scoped callers
+  see truncation noise. A scope-aware probe is a follow-up, not this change.
+- Unstable capped subset. The cap has no `ORDER BY`, so repeated identical
+  broad queries can return different rows. `truncated=true` discloses that the
+  page is incomplete, not that it is stable. Deterministic pre-cap ordering
+  is a follow-up.
+
 ## Telemetry
 
 - Span attributes on `query.infra_resource_search`: `eshu.infra_search_path`
   (`fulltext`, `legacy`) and, on legacy, `eshu.infra_search_fallback_reason`.
+  A broad page also sets `eshu.infra_search_broad_capped=true`.
 - `eshu_dp_infra_search_path_total{search_path, reason}`.
 - `eshu_dp_infra_search_key_ready`, `eshu_dp_infra_search_key_index_online`,
   `eshu_dp_infra_search_key_unkeyed_nodes` gauges, recorded on every probe.
