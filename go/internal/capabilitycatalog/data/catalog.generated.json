@@ -5962,11 +5962,10 @@
           "max_scope_size": "bounded_index_status"
         },
         "local_lightweight": {
-          "status": "supported",
-          "max_truth_level": "exact",
-          "required_runtime": "local_host_postgres",
-          "p95_latency_ms": 1000,
-          "max_scope_size": "bounded_index_status"
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host",
+          "max_scope_size": "none"
         },
         "production": {
           "status": "experimental",

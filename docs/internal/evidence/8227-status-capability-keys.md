@@ -20,7 +20,11 @@ write, and deletes `querycontract.NoCapability` with its allowlist.
 
 ## Claim tiers
 
-The three local profiles are `supported` with `go_test` verification. The
+The local profiles are `supported` with `go_test` verification, except
+`operations.index_status` in `local_lightweight`, which is `unsupported`: both
+its paths read the repository count from the graph, and the lightweight
+profile wires a driverless graph reader (a scoped caller gets a 500, an
+unscoped caller a silent `repository_count` 0). The
 `production` profile of every new key is `experimental`: the committed
 evidence is handler tests only, and no deployed run or
 `docs/internal/remote-validation/<slug>.md` artifact exists for these routes.

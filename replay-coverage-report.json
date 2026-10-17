@@ -1125,7 +1125,7 @@
       "scenario": "capability_claim",
       "ref": "operations.index_status",
       "proof_gate": "capability-inventory",
-      "detail": "capability \"operations.index_status\" matrix profile proofs present (supported=4 refusal=0)"
+      "detail": "capability \"operations.index_status\" matrix profile proofs present (supported=3 refusal=1)"
     },
     {
       "registry": "capability_matrix",

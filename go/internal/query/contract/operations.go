@@ -74,12 +74,15 @@ func init() {
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalLightweight,
 	})
+	// index_status reads the repository count from the graph on both the
+	// scoped and unscoped paths, and local_lightweight wires a driverless graph
+	// reader, so the lightweight profile cannot serve it (#8227).
 	register(operationsIndexStatusCapability, capabilitySupport{
-		LocalLightweightMax:   &truthExact,
+		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,
 		LocalFullStackMax:     &truthExact,
 		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalLightweight,
+		RequiredProfile:       ProfileLocalAuthoritative,
 	})
 	register(operationsHostedReadinessStatusCapability, capabilitySupport{
 		LocalLightweightMax:   &truthDerived,
