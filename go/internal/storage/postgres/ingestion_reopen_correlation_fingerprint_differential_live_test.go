@@ -17,12 +17,12 @@ import (
 )
 
 // TestDeployableUnitReopenFingerprintDifferentialLive is D1: the fingerprint
-// the fused read returns (bind-parameter ARRAY shape, inside the fence CTE)
-// equals the reopen listing's recompute (= ANY over a stored text[]), both
-// rendered from backfill.ResolvedInputFingerprintSQL, and the rows the
-// fingerprint covers are exactly the rows the fused read returned through its
-// IN-list predicate. The corpus carries rows matched by source only, by target
-// only, rows under a superseded generation, and rows outside every set.
+// the fused read returns (its IN-list rows materialized in input_rows and
+// digested there) equals the reopen listing's recompute (= ANY over a stored
+// text[]); both render backfill.ResolvedInputDigestSQL, and the rows the
+// listing's predicate covers are exactly the rows the fused read returned.
+// The corpus carries rows matched by source only, by target only, rows under
+// a superseded generation, and rows outside every set.
 func TestDeployableUnitReopenFingerprintDifferentialLive(t *testing.T) {
 	dsn := reducerDomainFairnessDSN()
 	if dsn == "" {
