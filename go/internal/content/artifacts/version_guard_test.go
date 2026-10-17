@@ -20,13 +20,15 @@ import (
 // that changes no extractor.
 //
 // Version 1 was pinned on the extractors of origin/main c704fbc3d with
-// go1.26.6 linux/arm64: run TestExtractorOutputIsPinned and copy the
-// corpusDigest and outputDigest of its log line.
+// go1.26.9 linux/arm64 (the go.mod toolchain): run TestExtractorOutputIsPinned
+// with -v and copy the corpusDigest and outputDigest of its first log line.
+// The digest input holds no map order, locale or path separator, and
+// .gitattributes keeps the snapshot bytes exact (-text).
 var extractorPins = []extractorPin{
 	{
 		Version:      1,
-		CorpusDigest: "PENDING",
-		OutputDigest: "PENDING",
+		CorpusDigest: "c470a1eaea5c00841259f6cc4eb9182a655c71733933ec3ad5d0771dfb83f2df",
+		OutputDigest: "7dde1bb7ab14ac9e08ca681ca85bfb70b3ce2eb99017911cc84afed14294ef01",
 	},
 }
 
@@ -52,11 +54,13 @@ func TestExtractorOutputIsPinned(t *testing.T) {
 	for _, kind := range kinds {
 		t.Logf("kind %-36s rows=%d", kind, out.KindRows[kind])
 	}
-	if err := checkGuardCoverage(out.KindRows, EvidenceKinds(), guardMinRowsPerKind); err != nil {
-		t.Fatal(err)
-	}
+	// Both checks report, so an extractor change that also thins a kind
+	// still prints the bump instruction.
 	if err := checkExtractorPins(corpusDigest, out.Digest, ExtractorVersion, extractorPins); err != nil {
-		t.Fatal(err)
+		t.Error(err)
+	}
+	if err := checkGuardCoverage(out.KindRows, EvidenceKinds(), guardMinRowsPerKind); err != nil {
+		t.Error(err)
 	}
 }
 
