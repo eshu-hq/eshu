@@ -112,6 +112,18 @@ Observability Evidence (#7245): a broad page sets the
 `eshu_dp_infra_search_path_total{search_path="fulltext"}` counter. No new
 metric or log is added.
 
+Known limits of the bound:
+
+- Scope-blind probe. `ProbeStatement` counts label matches without the grant
+  predicate, so a scoped broad query is served capped with `truncated=true`
+  whenever label matches exceed K, even when the grant-visible rows would fit
+  in K. The direction is safe (the marker is always set), but scoped callers
+  see truncation noise. A scope-aware probe is a follow-up, not this change.
+- Unstable capped subset. The cap has no `ORDER BY`, so repeated identical
+  broad queries can return different rows. `truncated=true` discloses that the
+  page is incomplete, not that it is stable. Deterministic pre-cap ordering
+  is a follow-up.
+
 ## Telemetry
 
 - Span attributes on `query.infra_resource_search`: `eshu.infra_search_path`
