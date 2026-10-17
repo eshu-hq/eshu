@@ -84,6 +84,10 @@ So the exposure is real but small: one name could bind a consumer import to a
 fixture manifest's repository (or make two repositories look like producers of
 one name) before this change.
 
+The per-file cost of the parser gate is one `RelativeSlashPath` and one regular
+expression match on a short repository-relative string, on top of the existing
+nearest-manifest walk; no measurement is claimed beyond that.
+
 ## Performance Evidence
 
 Performance Evidence: baseline is the package.json manifest read without the

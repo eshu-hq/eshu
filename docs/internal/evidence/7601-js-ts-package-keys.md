@@ -16,7 +16,8 @@ schema, API, MCP, or telemetry code changed.
 - **Producer.** An exported top-level function, generator, class, abstract
   class, or `export const|let|var X = <function>` carries `package_id` (the
   trimmed `name` of the nearest `package.json`, from
-  `project.NearestPackageName`) and `export_name`. The export must sit directly
+  `project.ProducerPackageName` since #8244, which is empty when that manifest
+  sits under a test or fixture directory) and `export_name`. The export must sit directly
   under the program, so methods, nested functions, and members of a TypeScript
   `namespace` or `declare module` block get no key. `export default` is keyed
   as `default`, and only in the file the manifest's `main` or `module` field
