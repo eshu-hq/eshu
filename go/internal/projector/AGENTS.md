@@ -283,14 +283,14 @@ editing inside it. Three rules that are easy to get wrong from here:
   different values) and moved into the child's own test file, since the
   private helper they exercised no longer exists.
 - **AWS-cloud-runtime-drift family (#6057)** — the
-  `aws_cloud_runtime_drift` builder lives in `cloud/runtime/drift/aws/` and
+  `aws_cloud_runtime_drift` builder lives in `cloud/aws/runtime/drift/` and
   consumes the lookup like the families above. It carries no decode seam: it
   triggers on the earliest `aws_resource` fact in original input order. The
   root `awsCloudRuntimeDriftSourceSystem` helper was byte-identical to
   `projectorintent.SourceSystem`, but unlike the CI/CD and container-image
   precedents it could not simply be dropped: two OTHER root builders
   (`aws_resource_materialization_intents.go`, itself since extracted into
-  `aws/resource/`, and `observability/coverage/materialization/`)
+  `cloud/aws/resource/`, and `observability/coverage/materialization/`)
   still called it, so
   both call sites were repointed to `projectorintent.SourceSystem` directly in
   this same change before the helper's definition moved out. This family IS
@@ -301,7 +301,7 @@ editing inside it. Three rules that are easy to get wrong from here:
   test file was NOT single-family: alongside `buildProjection` dispatch
   assertions for `aws_cloud_runtime_drift`, it also carried the only dispatch
   coverage for the unrelated `aws_resource_materialization` builder (still at
-  root at that point; extracted into `aws/resource/` shortly afterwards), and
+  root at that point; extracted into `cloud/aws/resource/` shortly afterwards), and
   it defined two cross-family test
   fixtures — `intentForDomain` and `awsResourceEnvelope` — that 14 and 4 other
   root test files respectively depend on. Moving the file wholesale would have
@@ -315,7 +315,7 @@ editing inside it. Three rules that are easy to get wrong from here:
   fixtures moved
   into a new root file, `runtime/reducer_intent_test_helpers_test.go`. The child
   package's own test file (`reducer_intent_test.go`) carries fresh
-  builder-level unit tests in the `aws/cloud/image` style (anchor selection,
+  builder-level unit tests in the `cloud/aws/image` style (anchor selection,
   entity key, both source-system tiers, the negative case) rather than any of
   the moved `buildProjection` cases, since `buildProjection` is a root-only
   function the child package cannot call.
@@ -338,7 +338,7 @@ editing inside it. Three rules that are easy to get wrong from here:
   domain stayed at root in `runtime/projection_test.go` and
   `runtime/clone_removal_test.go`.
 - **AWS-resource-materialization family (#6057)** — the
-  `aws_resource_materialization` builder lives in `aws/resource/` and consumes
+  `aws_resource_materialization` builder lives in `cloud/aws/resource/` and consumes
   the lookup like the families above. It carries no decode seam: it triggers
   on the earliest `aws_resource` fact in original input order and never reads
   the payload. Its `aws_resource_materialization:<scope>` entity key is the

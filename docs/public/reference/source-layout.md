@@ -89,25 +89,24 @@ live in the repository today.
 | `go/internal/mcp/visualization/` | visualization-packet MCP registration plus pure family membership and dependency-neutral route selection |
 | `go/internal/parser/` | native parser registry, language adapters, and SCIP support |
 | `go/internal/projector/` | source-local projection stages and failure classification |
-| `go/internal/projector/aws/` | documentation-only namespace for AWS reducer-intent families |
-| `go/internal/projector/aws/cloud/` | documentation-only namespace for AWS cloud-resource reducer-intent families |
-| `go/internal/projector/aws/cloud/image/` | AWS cloud-image edge reducer-intent family builder |
-| `go/internal/projector/aws/ec2/` | EC2 instance-posture reducer-intent family builders |
-| `go/internal/projector/aws/rds/` | RDS posture-materialization reducer-intent family builder |
-| `go/internal/projector/aws/relationship/` | AWS relationship-edge reducer-intent family builder |
-| `go/internal/projector/aws/resource/` | AWS resource-node reducer-intent family builder |
-| `go/internal/projector/aws/s3/` | S3 LOGS_TO, external-principal-grant, and internet-exposure reducer-intent family builders |
-| `go/internal/projector/azure/` | Azure resource and relationship reducer-intent family builders |
+| `go/internal/projector/cloud/aws/ec2/` | EC2 instance-posture reducer-intent family builders |
+| `go/internal/projector/cloud/aws/rds/` | RDS posture-materialization reducer-intent family builder |
+| `go/internal/projector/cloud/aws/relationship/` | AWS relationship-edge reducer-intent family builder |
+| `go/internal/projector/cloud/aws/resource/` | AWS resource-node reducer-intent family builder |
+| `go/internal/projector/cloud/aws/s3/` | S3 LOGS_TO, external-principal-grant, and internet-exposure reducer-intent family builders |
+| `go/internal/projector/cloud/aws/image/` | AWS cloud-image edge reducer-intent family builder |
+| `go/internal/projector/cloud/aws/runtime/drift/` | AWS-specific cloud-runtime-drift reducer-intent family builder |
+| `go/internal/projector/cloud/azure/` | Azure resource and relationship reducer-intent family builders |
+| `go/internal/projector/cloud/gcp/` | GCP resource and relationship reducer-intent family builders |
 | `go/internal/projector/cicd/` | documentation-only namespace for CI/CD reducer-intent families |
 | `go/internal/projector/cicd/run/` | documentation-only namespace for CI/CD run reducer-intent families |
 | `go/internal/projector/cicd/run/correlation/` | CI/CD run-correlation reducer-intent family builder |
 | `go/internal/projector/cloud/inventory/` | cloud-inventory-admission reducer-intent family builder |
-| `go/internal/projector/cloud/runtime/drift/{aws,multi}/` | AWS-specific and provider-neutral cloud-runtime-drift reducer-intent builders |
+| `go/internal/projector/cloud/runtime/drift/multi/` | provider-neutral cloud-runtime-drift reducer-intent family builder |
 | `go/internal/projector/code/function/summary/` | function-summary reducer-intent builder and its code_function_summary/code_dataflow_scanned decode wrappers |
 | `go/internal/projector/code/interproc/evidence/` | interprocedural-evidence reducer-intent builder |
 | `go/internal/projector/code/taint/evidence/` | taint-evidence reducer-intent builder |
 | `go/internal/projector/container/image/identity/` | container-image-identity reducer-intent family builder |
-| `go/internal/projector/gcp/` | GCP resource and relationship reducer-intent family builders |
 | `go/internal/projector/cloud/aws/iam/trust/` | IAM CAN_ASSUME trust-edge reducer-intent family builder and its aws_iam_permission decode wrapper |
 | `go/internal/projector/cloud/aws/iam/instance/profile/` | IAM instance-profile-role reducer-intent family builder and its aws_resource decode wrapper |
 | `go/internal/projector/incident/routing/` | PagerDuty incident-routing reducer-intent family builder |

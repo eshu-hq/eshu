@@ -23,7 +23,7 @@ import (
 // drives the FULL enqueue path (appendScopeGenerationReducerIntents, not the
 // handler) and fails without
 // image.BuildMaterializationReducerIntent wired into it. The builder itself
-// lives in internal/projector/aws/cloud/image; these are the
+// lives in internal/projector/cloud/aws/image; these are the
 // root dispatcher wiring cases, and this file keeps its pre-extraction name
 // because go/internal/reducer/awscloud/aws_cloud_image_materialization_test.go cites
 // the file and its retraction-safety test by name as the enqueue-side half of

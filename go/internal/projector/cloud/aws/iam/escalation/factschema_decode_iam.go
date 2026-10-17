@@ -15,7 +15,7 @@ import (
 // This file holds this family's decode wrapper for the aws_iam_permission
 // fact kind, named factschema_decode_iam.go to match the repo-wide
 // convention (root's go/internal/projector/factschema_decode_aws.go,
-// go/internal/projector/aws/ec2/factschema_decode_aws.go,
+// go/internal/projector/cloud/aws/ec2/factschema_decode_aws.go,
 // go/internal/projector/cloud/aws/iam/trust/factschema_decode_iam.go,
 // go/internal/reducer/schemadecode/factschema_decode.go) so the
 // payload-usage manifest gate (scripts/verify-payload-usage-manifest.sh,
@@ -41,7 +41,7 @@ import (
 // and discards the wrapped error's classification, so this direct
 // factschema.DecodeAWSIAMPermission call plus fact-kind-labeled wrapping is
 // behavior-identical to the classified call for that check. This mirrors
-// go/internal/projector/aws/ec2's decodeEC2InstancePosture and the sibling
+// go/internal/projector/cloud/aws/ec2's decodeEC2InstancePosture and the sibling
 // packages' independent copies, which the repo already keeps per-package
 // rather than shared.
 func decodeIAMEscalationAWSIAMPermission(env facts.Envelope) (iamv1.Permission, error) {
