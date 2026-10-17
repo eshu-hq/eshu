@@ -403,13 +403,17 @@ func filterToolsForProfile(tools []ToolDefinition, profile querycontract.QueryPr
 
 // productionHiddenToolNames is the tools/list hide set for the production
 // query profile. It derives from the divergence family's own registration,
-// so a future family member hides automatically; the matrix-parity test
-// locks it to the capability-matrix row instead of a second copy here.
+// so a future family member hides automatically, plus compare_code_paths,
+// whose call_graph.compare_code_paths matrix row is production-unsupported
+// until remote validation lands (#7933); the matrix-parity test locks the
+// set to those capability-matrix rows instead of a second copy here. The
+// callable gate stays: hidden tools remain call-gated on every profile.
 func productionHiddenToolNames() map[string]bool {
 	family := codedivergencetools.Tools()
-	hidden := make(map[string]bool, len(family))
+	hidden := make(map[string]bool, len(family)+1)
 	for _, tool := range family {
 		hidden[tool.Name] = true
 	}
+	hidden["compare_code_paths"] = true
 	return hidden
 }

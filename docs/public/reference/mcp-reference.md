@@ -30,6 +30,24 @@ No-Observability-Change (#7726): no new metric, span, or log line. The
 existing `mcp server started` log's `tools` count observes the filtered
 surface.
 
+No-Regression Evidence (#7933): hiding `compare_code_paths` adds one entry
+to the existing hide-set map. The filter still runs once at server
+construction over the registered tool definitions, so request-path work is
+unchanged. Baseline: production list included `compare_code_paths` while
+its matrix row says unsupported. After: production omits exactly 4 tools
+(the divergence family plus `compare_code_paths`); local and default
+profiles keep byte-identical lists (`TestToolsListHidesCompareCodePathsOnProduction`
+plus the local-tier loop); the absence surface passes through unchanged;
+the matrix-parity tripwire pins the set to both capability-matrix rows.
+Measured on the local test backend: 5 targeted discovery tests PASS in
+0.01s each, full `go test ./internal/mcp/...` exit 0. Safe because the
+change is one additive map entry with no request-path, gate, or profile
+change, and the per-call gate still fails closed.
+
+No-Observability-Change (#7933): no new metric, span, or log line. The
+existing `mcp server started` log's `tools` count observes the filtered
+surface (one fewer on production).
+
 For per-tool bounds, required fields, envelopes, and prompt-readiness notes, use
 [MCP Tool Contract Matrix](mcp-tool-contract-matrix.md). This page is the public
 tool index, not a second copy of every schema.
