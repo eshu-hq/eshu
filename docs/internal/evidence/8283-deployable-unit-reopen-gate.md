@@ -37,6 +37,14 @@ re-opened only when something it read can have changed.
   runs, the item keeps its old graph until one does. The exact
   completion-driven wake is a follow-up.
 
+- **Graph-side loss is not detected.** This limitation was accepted by the
+  ruling. The fingerprint covers the resolved Postgres input, not the graph.
+  If another writer removes a `CORRELATES_DEPLOYABLE_UNIT` edge or its target
+  node, an item whose input is unchanged is not re-opened, so the edge stays
+  missing until the input changes or the logic version is bumped. Before the
+  gate, every wave re-merged those edges. To force a re-run, delete the
+  item's fingerprint row: a missing row always re-opens on the next pass.
+
 ## Shape
 
 - **Side table.** Migration 188 adds `deployable_unit_reopen_fingerprints`:
