@@ -18,7 +18,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
-	"gopkg.in/yaml.v3"
 )
 
 const supportedSpecVersion = "1.1.0"
@@ -42,10 +41,15 @@ type specFile struct {
 }
 
 type familySpec struct {
-	LifecycleOwner         string            `yaml:"lifecycle_owner"`
-	SchemaVersion          string            `yaml:"schema_version"`
-	SchemaVersionOverride  map[string]string `yaml:"schema_version_overrides"`
-	ReducerDomain          string            `yaml:"reducer_domain"`
+	LifecycleOwner        string            `yaml:"lifecycle_owner"`
+	SchemaVersion         string            `yaml:"schema_version"`
+	SchemaVersionOverride map[string]string `yaml:"schema_version_overrides"`
+	ReducerDomain         string            `yaml:"reducer_domain"`
+	// ReducerDir is the legacy registry reducer_dir hint. It is carried
+	// through generation for YAML compatibility and, as before, is not
+	// consumed when building registry entries; verified reducer
+	// ownership lives in contract.Binding declarations.
+	ReducerDir             string            `yaml:"reducer_dir"`
 	ProjectionHook         string            `yaml:"projection_hook"`
 	AdmissionHook          string            `yaml:"admission_hook"`
 	ReadSurface            string            `yaml:"read_surface"`
@@ -106,37 +110,72 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	spec, err := loadSpec(opts.specPath)
+	outputs, err := buildOutputs(opts)
 	if err != nil {
 		return err
 	}
-	entries, err := buildRegistry(opts.repoRoot, spec)
-	if err != nil {
+	if err := applyOutputs(opts.repoRoot, outputs, opts.check); err != nil {
 		return err
 	}
-	goBytes, err := renderGo(entries)
-	if err != nil {
-		return err
-	}
-	docBytes := renderMarkdown(entries)
 	if opts.check {
-		if err := verifyFile(opts.goOut, goBytes, "scripts/generate-fact-kind-registry.sh"); err != nil {
-			return err
-		}
-		if err := verifyFile(opts.docOut, docBytes, "scripts/generate-fact-kind-registry.sh"); err != nil {
-			return err
-		}
 		_, _ = fmt.Fprintln(stdout, "fact-kind-registry: generated artifacts are current")
 		return nil
 	}
-	if err := writeFile(opts.goOut, goBytes); err != nil {
-		return err
-	}
-	if err := writeFile(opts.docOut, docBytes); err != nil {
-		return err
-	}
-	_, _ = fmt.Fprintf(stdout, "fact-kind-registry: wrote %s and %s\n", opts.goOut, opts.docOut)
+	_, _ = fmt.Fprintf(stdout, "fact-kind-registry: wrote %d generated files\n", len(outputs))
 	return nil
+}
+
+// buildOutputs discovers and validates the typed contract declarations
+// under the repo's Go tree, derives the legacy registry spec from
+// them, and renders the full deterministic output set: the compact
+// registry YAML, the generated Go registry and Markdown tables at
+// their existing paths, and the contracts.d shards and catalog pages.
+func buildOutputs(opts options) ([]outputFile, error) {
+	families, bindings, diags := discoverDeclarations(opts.repoRoot, filepath.Join(opts.repoRoot, "go"))
+	diags = append(diags, validateContracts(opts.repoRoot, families, bindings)...)
+	if len(families) == 0 && len(diags) == 0 {
+		diags.addf(sourcePos{file: "go", line: 1}, "no contract.Declare family declarations found; ACTION: declare each family beside its fact definitions")
+	}
+	if err := diags.err(); err != nil {
+		return nil, err
+	}
+	spec := deriveSpec(families)
+	entries, err := buildRegistry(opts.repoRoot, spec)
+	if err != nil {
+		return nil, err
+	}
+	goBytes, err := renderGo(entries)
+	if err != nil {
+		return nil, err
+	}
+	yamlBytes, err := renderRegistryYAML(spec)
+	if err != nil {
+		return nil, err
+	}
+	shards, err := renderShards(families, bindings, entries)
+	if err != nil {
+		return nil, err
+	}
+	outputs := make([]outputFile, 0, len(shards)+3)
+	for _, named := range []struct {
+		abs  string
+		data []byte
+	}{
+		{opts.specPath, yamlBytes},
+		{opts.goOut, goBytes},
+		{opts.docOut, renderMarkdown(entries)},
+	} {
+		rel, err := filepath.Rel(opts.repoRoot, named.abs)
+		if err != nil || strings.HasPrefix(rel, "..") {
+			return nil, fmt.Errorf("generated output %s must live under -repo-root %s", named.abs, opts.repoRoot)
+		}
+		outputs = append(outputs, outputFile{rel: filepath.ToSlash(rel), data: named.data})
+	}
+	outputs = append(outputs, shards...)
+	if err := validateOutputSet(outputs); err != nil {
+		return nil, err
+	}
+	return outputs, nil
 }
 
 func parseOptions(args []string, stderr io.Writer) (options, error) {
@@ -144,7 +183,7 @@ func parseOptions(args []string, stderr io.Writer) (options, error) {
 	flags.SetOutput(stderr)
 	opts := options{}
 	flags.StringVar(&opts.repoRoot, "repo-root", "..", "repository root")
-	flags.StringVar(&opts.specPath, "spec", "", "fact-kind registry YAML path")
+	flags.StringVar(&opts.specPath, "spec", "", "generated fact-kind registry YAML output path")
 	flags.StringVar(&opts.goOut, "go-out", "", "generated Go output path")
 	flags.StringVar(&opts.docOut, "doc-out", "", "generated Markdown output path")
 	flags.BoolVar(&opts.check, "check", false, "verify generated files without writing")
@@ -165,24 +204,6 @@ func parseOptions(args []string, stderr io.Writer) (options, error) {
 		opts.docOut = filepath.Join(opts.repoRoot, "go", "internal", "facts", "FACT_KIND_REGISTRIES.md")
 	}
 	return opts, nil
-}
-
-func loadSpec(path string) (specFile, error) {
-	raw, err := os.ReadFile(path) // #nosec G304 -- path is a repo-local generator input.
-	if err != nil {
-		return specFile{}, fmt.Errorf("read fact-kind registry spec: %w", err)
-	}
-	var spec specFile
-	if err := yaml.Unmarshal(raw, &spec); err != nil {
-		return specFile{}, fmt.Errorf("decode fact-kind registry spec: %w", err)
-	}
-	if spec.Version != supportedSpecVersion {
-		return specFile{}, fmt.Errorf("fact-kind registry spec version %q not supported (expected %q)", spec.Version, supportedSpecVersion)
-	}
-	if len(spec.Families) == 0 {
-		return specFile{}, fmt.Errorf("fact-kind registry spec must declare families")
-	}
-	return spec, nil
 }
 
 func buildRegistry(repoRoot string, spec specFile) ([]registryEntry, error) {
@@ -319,7 +340,7 @@ func renderGo(entries []registryEntry) ([]byte, error) {
 	buf.WriteString("// Copyright (c) 2025-2026 eshu-hq\n")
 	buf.WriteString("//\n")
 	buf.WriteString("// Code generated by go/cmd/fact-kind-registry; DO NOT EDIT.\n")
-	buf.WriteString("// Source-of-truth: specs/fact-kind-registry.v1.yaml\n\n")
+	buf.WriteString("// Source-of-truth: typed fact-family contract declarations in Go source.\n\n")
 	buf.WriteString("package facts\n\n")
 	buf.WriteString("var factKindRegistryEntries = []FactKindRegistryEntry{\n")
 	for _, entry := range entries {
@@ -340,7 +361,7 @@ func renderGo(entries []registryEntry) ([]byte, error) {
 func renderMarkdown(entries []registryEntry) []byte {
 	var buf bytes.Buffer
 	buf.WriteString("# Fact Kind Registries\n\n")
-	buf.WriteString("Generated from `specs/fact-kind-registry.v1.yaml`. Do not edit this file by hand; run `scripts/generate-fact-kind-registry.sh`.\n\n")
+	buf.WriteString("Generated from typed fact-family contract declarations in Go source. Do not edit this file by hand; run `scripts/generate-fact-kind-registry.sh`.\n\n")
 	buf.WriteString("| Fact kind | Schema | Owner | Reducer domain | Projection | Admission | Read surface | Truth profile | Policy gate | No-provider | Payload schema | Deprecated in | Removed in | Admission exempt |\n")
 	buf.WriteString("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
 	for _, entry := range entries {
@@ -350,17 +371,6 @@ func renderMarkdown(entries []registryEntry) []byte {
 			entry.PayloadSchema, entry.DeprecatedIn, entry.RemovedIn, entry.AdmissionExempt)
 	}
 	return buf.Bytes()
-}
-
-func verifyFile(path string, want []byte, generateCommand string) error {
-	got, err := os.ReadFile(path) // #nosec G304 -- path is an internally configured generated artifact.
-	if err != nil {
-		return fmt.Errorf("read generated file %s: %w", path, err)
-	}
-	if !bytes.Equal(got, want) {
-		return fmt.Errorf("generated file %s is stale; run %s", path, generateCommand)
-	}
-	return nil
 }
 
 func writeFile(path string, contents []byte) error {
