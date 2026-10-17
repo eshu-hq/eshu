@@ -10,7 +10,9 @@ below exists.
 ## Why quarantine, not replay
 
 Replay is mechanically unblocked but it is a promotion, not a retry. The
-replay path sets the failed generation `active` with `activated_at`,
+replay path returns the failed generation's items to `pending` and clears
+their markers; the subsequent claim-to-ack cycle then reactivates the
+generation (`TestReplayedFailedGenerationWritesAndActivatesLive`),
 displacing the older active full generation the scope still uses. The dead
 letter (2026-09-22) predates the `projection_write_started_at` marker
 (migration 149, 2026-09-30), so a pre-marker partial canonical writer is
@@ -41,4 +43,5 @@ generation exists.
 - R3: proof the September attempts left no partial canonical graph overlay.
 
 Recorded from the 2026-10-17 arbiter ruling on #7927 (quarantine over
-replay). Clearing failure markers is not recovery proof.
+replay), following the 2026-10-10 owner investigation linked on the issue.
+Clearing failure markers is not recovery proof.
