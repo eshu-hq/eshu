@@ -387,3 +387,31 @@ func argStrings(args []any) []string {
 	}
 	return out
 }
+
+// TestInsertRowsSQLDoesNotAbsorbAConflict: the row insert must raise a key
+// conflict, not swallow it. A conflict on (repo_id, row_digest) means one
+// derive holds a (raw_path, relative_path, evidence_kind) triple twice; with
+// DO NOTHING the insert would store one row fewer than the row_count the
+// state upsert records, a silent skew. The behaviour itself (SQLSTATE 23505,
+// rollback, failure-only record) is proven against PostgreSQL by
+// TestDeriveDuplicateRowDigestFailsLoudlyLive; this is the hermetic guard
+// that the statement carries no conflict clause.
+func TestInsertRowsSQLDoesNotAbsorbAConflict(t *testing.T) {
+	if strings.Contains(strings.ToUpper(insertRowsSQL), "ON CONFLICT") {
+		t.Fatalf("insertRowsSQL has a conflict clause; a duplicate row digest must fail the insert:\n%s", insertRowsSQL)
+	}
+}
+
+// TestDeriveDuplicateRowDigestRecordsAFailureOnly: when the insert reports a
+// duplicate key (SQLSTATE 23505) the step 3 transaction rolls back before the
+// state upsert, and the derive records one failure of class sqlstate_23505.
+func TestDeriveDuplicateRowDigestRecordsAFailureOnly(t *testing.T) {
+	fake := &deriveFakeDB{version: int64Ptr(2), failOn: map[string]error{"INSERT INTO config_artifact_paths": sqlStateError{code: "23505"}}}
+	result, _ := runFailure(t, fake, supportedConfig(), rowsLoad(composeRow(), composeRow()), deleteRowsSQL, insertRowsSQL)
+	if result.Outcome != OutcomeError || result.ErrorClass != "sqlstate_23505" {
+		t.Fatalf("Result = %+v, want error class sqlstate_23505", result)
+	}
+	if fake.called(upsertStateSQL) {
+		t.Fatal("the state upsert ran after a failed insert")
+	}
+}

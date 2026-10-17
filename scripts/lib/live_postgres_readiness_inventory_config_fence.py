@@ -87,5 +87,9 @@ CONFIG_FENCE_PACKAGES = {
             "TestDeriveFailureRecordWaitsOnTheWriteLockLive",
             "TestDeriveFailureRecordRacingNewerWritesLive",
         ),
+        f"{_FENCE_DIR}/derive_duplicate_live_test.go": (
+            "TestDeriveDuplicateRowDigestFailsLoudlyLive",
+            "TestDeriveRederiveReplacesRowsWithoutConflictLive",
+        ),
     },
 }

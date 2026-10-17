@@ -104,3 +104,8 @@ tests:
     class: postgres_ci
     reason: "#8155 (#7126 PR3b-2b) one repository lock for the write and the failure-only update: a failing derive's failure record waits on the advisory lock a newer successful write holds, and the held and waiting pg_locks keys both equal hashtextextended(repoLockKey, 0); 30 rounds racing a newer successful write against a failing derive in both orders never lower content_version or change the rows; about 3-8 s locally; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/config/artifacts/derive_duplicate_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8155 (#7126 PR3b-2b) a derive whose extractor output holds one (raw_path, relative_path, evidence_kind) triple twice fails loudly: the insert raises SQLSTATE 23505, step 3 rolls back, the derive records class sqlstate_23505 as a failure-only update and leaves the previous rows, content_version, extractor_version and row_count (or, on a first derive, a failure-only state row and no rows) instead of reporting ok with fewer stored rows than row_count; a second derive of one repository at a newer extractor version replaces the rows with the same set and row_count and no key conflict; about 2 s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
