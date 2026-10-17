@@ -143,13 +143,26 @@ paths:
               schema:
                 type: string
               example: GET, HEAD
-        "500":
-          description: Report load or render failure.
+        "499":
+          description: >
+            The caller canceled the request before the report loaded. Not a
+            server fault; the body is the same fixed message as the 500 answers.
           content:
             text/plain:
               schema:
                 type: string
-              example: "load status report: read status snapshot: postgres unavailable"
+              example: load status report failed
+        "500":
+          description: >
+            Report load or render failure. The body is a fixed message
+            (`load status report failed` or `render status report failed`) and
+            never carries the backend error text; the error is logged
+            server-side.
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: load status report failed
     head:
       summary: Operator status metadata
       operationId: headRuntimeStatus
@@ -177,8 +190,10 @@ paths:
               schema:
                 type: string
               example: GET, HEAD
+        "499":
+          description: The caller canceled the request. Not a server fault.
         "500":
-          description: Report load or render failure.
+          description: Report load or render failure. No body detail beyond the fixed message.
   /admin/replay-collector-generations:
     post:
       summary: Request source-level replay for collector generation failures

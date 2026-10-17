@@ -360,6 +360,13 @@ Prometheus output after the hand-rolled gauges at the same `/metrics` endpoint.
 
 ## Gotchas / invariants
 
+- `/metrics` answers a failed status read with the fixed body
+  `load runtime metrics failed` (500) and never the reader's error text; a
+  canceled scrape answers 499. The error is recorded on the request span and
+  logged server-side through `status.WriteReadFailure` (#8287). The composite
+  handler already folds any non-200 status answer into
+  `eshu_runtime_status_snapshot_available 0`, so Prometheus sees a 200 scrape.
+
 - `LoadGraphBackend` with an unrecognized value fails at startup, not at
   first use. `data_stores.go:90` is the only valid switch for the backend
   env var; do not add new backend strings without updating this switch and
