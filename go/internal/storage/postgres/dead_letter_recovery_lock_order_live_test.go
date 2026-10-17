@@ -17,20 +17,32 @@ import (
 // poisonLockOrderCase is one id shape for the poison recovery repro.
 type poisonLockOrderCase struct {
 	name string
-	// keys are the entity-key suffixes of the three dead-lettered reducer
-	// rows; held is the one the third session keeps locked.
-	keys []string
-	held string
+	// suffixes follow "reducer_<scope>_<generation>_" in the three
+	// dead-lettered reducer work ids (domain, then entity key); held is the
+	// one the third session keeps locked.
+	suffixes []string
+	held     string
 }
 
-// poisonLockOrderCases pairs an id shape whose default-collation order and
-// C order disagree (an upper-case entity key) with one where they agree.
+// poisonLockOrderCases are id shapes whose default-collation (en_US.utf8)
+// order and C order disagree, and one where they agree.
 var poisonLockOrderCases = []poisonLockOrderCase{
-	// C: Nginx, api, mysql. en_US: api, mysql, Nginx. Held mysql: poison holds
-	// api and waits on mysql, the replay takes Nginx and waits on api.
-	{name: "mixed-case keys", keys: []string{"Nginx", "api", "mysql"}, held: "mysql"},
+	// Production shape: reducer domain names and hex entity keys. en_US
+	// ignores '_' at the first level, so codeowners_ownership sorts before
+	// code_taint_evidence and code_value_flow_refresh; C sorts it after them.
+	// Poison waits on the held codeowners row holding nothing; the replay takes
+	// the other two and waits on it; the release closes the cycle.
+	{name: "production domain names", suffixes: []string{
+		"codeowners_ownership_3f9a1c", "code_taint_evidence_8b20e4", "code_value_flow_refresh_c41d77",
+	}, held: "codeowners_ownership_3f9a1c"},
+	// Upper-case entity key. C: Nginx, api, mysql. en_US: api, mysql, Nginx.
+	{name: "mixed-case keys", suffixes: []string{
+		"workload_identity_Nginx", "workload_identity_api", "workload_identity_mysql",
+	}, held: "workload_identity_mysql"},
 	// Both collations: api, mysql, nginx.
-	{name: "lower-case keys", keys: []string{"api", "mysql", "nginx"}, held: "mysql"},
+	{name: "lower-case keys", suffixes: []string{
+		"workload_identity_api", "workload_identity_mysql", "workload_identity_nginx",
+	}, held: "workload_identity_mysql"},
 }
 
 // TestPoisonRecoveryHeldRowRaceLive races poison recovery
@@ -63,7 +75,7 @@ WHERE scope_id LIKE 'bg-%' AND status = 'dead_letter'`)
 		for _, replay := range replays {
 			replayName, filter := replay.name, replay.filter
 			t.Run(tc.name+"/"+replayName, func(t *testing.T) {
-				ids := f.seedPoisonRows(t, ctx, tc.keys)
+				ids := f.seedPoisonRows(t, ctx, tc.suffixes)
 				f.analyzeLockerTables(t, ctx)
 				held := poisonWorkItemID(tc.held)
 				recovered := 0
@@ -89,19 +101,20 @@ WHERE scope_id LIKE 'bg-%' AND status = 'dead_letter'`)
 	}
 }
 
-// poisonWorkItemID is the reducer work id of a poison-fixture row.
-func poisonWorkItemID(key string) string {
-	return "reducer_pz_pz-g_workload_identity_" + key
+// poisonWorkItemID is the reducer work id of a poison-fixture row:
+// reducer_<scope>_<generation>_<suffix>, the reducerWorkItemID layout.
+func poisonWorkItemID(suffix string) string {
+	return "reducer_pz_pz-g_" + suffix
 }
 
 // seedPoisonRows replaces the poison scope's rows with one dead-lettered
-// reducer row per key and returns their ids.
-func (f *lockOrderFixture) seedPoisonRows(t *testing.T, ctx context.Context, keys []string) []string {
+// reducer row per id suffix and returns their ids.
+func (f *lockOrderFixture) seedPoisonRows(t *testing.T, ctx context.Context, suffixes []string) []string {
 	t.Helper()
 	lockOrderExec(t, ctx, f.base, `DELETE FROM fact_work_items WHERE scope_id = 'pz'`)
-	ids := make([]string, 0, len(keys))
-	for i, key := range keys {
-		id := poisonWorkItemID(key)
+	ids := make([]string, 0, len(suffixes))
+	for i, suffix := range suffixes {
+		id := poisonWorkItemID(suffix)
 		ids = append(ids, id)
 		f.seedLockerWork(t, ctx, id, "pz", "pz-g", "reducer", "dead_letter", time.Duration(i)*time.Second)
 	}
@@ -139,8 +152,8 @@ WHERE scope_id LIKE 'bg-%' AND status = 'dead_letter'`)
 		{name: "budget spent", change: `SET payload = payload || '{"poison_recovery_attempts": 1}'::jsonb`, wantStatus: "dead_letter"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ids := f.seedPoisonRows(t, ctx, poisonLockOrderCases[0].keys)
-			target := poisonWorkItemID("Nginx") // first in C order
+			ids := f.seedPoisonRows(t, ctx, poisonLockOrderCases[0].suffixes)
+			target := poisonWorkItemID("code_taint_evidence_8b20e4") // first in C order
 			x := f.session(t)
 			tx, err := x.BeginTx(ctx, nil)
 			if err != nil {
@@ -182,19 +195,18 @@ WHERE scope_id LIKE 'bg-%' AND status = 'dead_letter'`)
 	}
 }
 
-// poisonStressKeys are 18 entity keys, half "Z.." and half "a..": C order
-// puts every "Z" key first, while a case-insensitive default collation puts
-// every "a" key first, so the two orders share no leading row.
-func poisonStressKeys() []string {
-	keys := make([]string, 0, 18)
+// poisonStressSuffixes are 18 production-shaped id suffixes: three reducer
+// domains in turn with hex entity keys. C order puts every
+// code_taint_evidence and code_value_flow_refresh row before every
+// codeowners_ownership row; en_US.utf8 puts codeowners_ownership first, so
+// the two orders share no leading row.
+func poisonStressSuffixes() []string {
+	domains := []string{"codeowners_ownership", "code_taint_evidence", "code_value_flow_refresh"}
+	suffixes := make([]string, 0, 18)
 	for i := 0; i < 18; i++ {
-		prefix := "a"
-		if i%2 == 0 {
-			prefix = "Z"
-		}
-		keys = append(keys, fmt.Sprintf("%s%02d", prefix, i))
+		suffixes = append(suffixes, fmt.Sprintf("%s_%06x", domains[i%len(domains)], 0x3f9a1c+i*0x1111))
 	}
-	return keys
+	return suffixes
 }
 
 // poisonRecoveryLocker runs production poison recovery and reports one entry
@@ -206,7 +218,7 @@ func poisonRecoveryLocker(ctx context.Context, db *sql.DB) ([]string, error) {
 
 // TestPoisonRecoveryConcurrentWithReplaysNeverDeadlockLive runs poison
 // recovery, a scoped and a stage-only recovery replay concurrently over 18
-// mixed-case dead letters for lockOrderRounds rounds (#8261). Every round
+// production-shaped dead letters for lockOrderRounds rounds (#8261). Every round
 // must end with each row re-driven exactly once and pending.
 func TestPoisonRecoveryConcurrentWithReplaysNeverDeadlockLive(t *testing.T) {
 	f := openUnorderedLockerFixture(t, true)
@@ -217,8 +229,7 @@ UPDATE fact_work_items SET payload = payload || '{"poison_recovery_attempts": 99
 WHERE scope_id LIKE 'bg-%' AND status = 'dead_letter'`)
 	f.seedLockerScope(t, ctx, "pz", "pz-g")
 	f.seedLockerGeneration(t, ctx, "pz", "pz-g", "active", 0)
-	keys := poisonStressKeys()
-	ids := f.seedPoisonRows(t, ctx, keys)
+	ids := f.seedPoisonRows(t, ctx, poisonStressSuffixes())
 	f.analyzeLockerTables(t, ctx)
 	f.installSleepTrigger(t, ctx)
 	reset := func() {

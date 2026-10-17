@@ -6,9 +6,12 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 )
@@ -204,4 +207,42 @@ func TestProjectorAckSupersedeConcurrentWithReplaysNeverDeadlockLive(t *testing.
 		{name: "scoped", locker: recoveryReplayLocker(recovery.ReplayFilter{Stage: recovery.StageProjector, ScopeIDs: []string{"pa"}})},
 		{name: "class", locker: recoveryReplayLocker(recovery.ReplayFilter{Stage: recovery.StageProjector, FailureClass: lockOrderClass})},
 	})
+}
+
+// TestProjectorAckSupersedeKeepsLockTimeoutLive proves the ordered work lock
+// keeps Ack's lock_timeout contract (#8261). A third session holds one
+// obsolete projector row; the supersede, under Ack's default lock_timeout,
+// must give up with SQLSTATE 55P03 after that timeout, not wait longer and
+// not fail sooner, and must leave every obsolete row and generation as it
+// was.
+func TestProjectorAckSupersedeKeepsLockTimeoutLive(t *testing.T) {
+	f := openUnorderedLockerFixture(t, false)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	f.seedLockerScope(t, ctx, "pa", "")
+	ids := f.seedAckSupersedeScope(t, ctx, ackSupersedeCases[0].stale)
+	tx, err := f.session(t).BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin holder: %v", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `SELECT 1 FROM fact_work_items WHERE work_item_id = $1 FOR UPDATE`, ids[1]); err != nil {
+		t.Fatalf("hold %s: %v", ids[1], err)
+	}
+	started := time.Now()
+	_, err = ackSupersedeLocker(ctx, f.session(t))
+	elapsed := time.Since(started)
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "55P03" {
+		t.Fatalf("supersede behind a held row = %v, want SQLSTATE 55P03", err)
+	}
+	if elapsed < defaultProjectorAckLockTimeout || elapsed > defaultProjectorAckLockTimeout+time.Second {
+		t.Errorf("supersede gave up after %s, want about %s", elapsed.Round(time.Millisecond), defaultProjectorAckLockTimeout)
+	}
+	t.Logf("supersede gave up after %s with 55P03", elapsed.Round(time.Millisecond))
+	for id, status := range f.workStatuses(t, ctx, ids) {
+		if status != "dead_letter" {
+			t.Errorf("%s ended %q, want dead_letter (the timed-out supersede rolled back)", id, status)
+		}
+	}
 }
