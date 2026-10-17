@@ -7,7 +7,7 @@
 2. `go/internal/query/envelope_aliases.go`, `handler.go`, and `ports.go` — compatibility
    aliases and wrappers plus `APIRouter`; existing callers keep the root API.
 3. `go/internal/query/querycontract/capability.go` and `contract/` — family
-   registration and the canonical 139-capability order (#6642 moved the rows).
+   registration and the canonical capability order (#6642 moved the rows).
 4. `go/internal/query/openapi/` — how the spec is assembled. `openapi/spec.go`
    concatenates exported constants from `openapi/paths/<family>/`, the
    components block, and `openapi/schema/`; a changed route updates its fragment.

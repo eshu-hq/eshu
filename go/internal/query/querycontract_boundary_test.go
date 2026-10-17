@@ -106,6 +106,24 @@ func TestK8sSelectCandidateConversionPreservesPresenceTriState(t *testing.T) {
 	}
 }
 
+// TestCapabilityRegistrationOrderMatchesCanonicalYAMLOrder holds the Go
+// capability registry and the checked-in capability matrix (the base file plus
+// its fragments) to the same keys in the same order, in both directions. It
+// carries no hand-written count: adding a capability needs its YAML row and its
+// registration, and the test passes without a number bump.
+//
+// A capability removed from both sides at once passes this test, because the
+// two sides agree. That removal is a published-contract change, and it does
+// not land silently. The capability-inventory gate byte-compares the committed
+// catalog artifact (go/internal/capabilitycatalog/data/catalog.generated.json)
+// with a fresh build from the matrix, so the removal fails until the artifact
+// is regenerated, and the entry disappears by name in the diff. For a
+// capability with a positive claim, the replay-coverage gate also fails on the
+// stale capability:<id> row in specs/replay-coverage-manifest.v1.yaml until
+// the manifest and its committed dashboard are edited in the same change. A
+// capability whose profiles are all unsupported has no manifest row; the
+// catalog artifact is its guard. While a handler still names the capability,
+// TestWriteGraphReadErrorCapabilitiesExistInMatrix fails too (#8318).
 func TestCapabilityRegistrationOrderMatchesCanonicalYAMLOrder(t *testing.T) {
 	_, filename, _, ok := runtime.Caller(0)
 	if !ok {
@@ -113,9 +131,27 @@ func TestCapabilityRegistrationOrderMatchesCanonicalYAMLOrder(t *testing.T) {
 	}
 	parsed := loadCapabilityMatrixYAML(t, filepath.Clean(filepath.Join(filepath.Dir(filename), "..", "..", "..", "specs")))
 	registrations := querycontract.CapabilityRegistrations()
-	if got, want := len(registrations), 147; got != want {
-		t.Fatalf("registered capabilities = %d, want %d", got, want)
+
+	registered := make(map[string]struct{}, len(registrations))
+	for _, registration := range registrations {
+		registered[registration.Capability] = struct{}{}
 	}
+	declared := make(map[string]struct{}, len(parsed.Capabilities))
+	for _, capability := range parsed.Capabilities {
+		declared[capability.Capability] = struct{}{}
+		if _, ok := registered[capability.Capability]; !ok {
+			t.Errorf("capability %q is in the YAML matrix but not registered in Go", capability.Capability)
+		}
+	}
+	for _, registration := range registrations {
+		if _, ok := declared[registration.Capability]; !ok {
+			t.Errorf("capability %q is registered in Go but not in the YAML matrix", registration.Capability)
+		}
+	}
+	if t.Failed() {
+		return
+	}
+
 	if got, want := len(parsed.Capabilities), len(registrations); got != want {
 		t.Fatalf("YAML capabilities = %d, registrations = %d", got, want)
 	}

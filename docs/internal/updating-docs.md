@@ -8,7 +8,7 @@ documentation site.
 | Surface | Purpose |
 | --- | --- |
 | `docs/public/` | Public product, operator, guide, and reference docs. |
-| `docs/internal/` | Maintainer-only cleanup tracking and workflow notes. |
+| `docs/internal/` | Maintainer-only workflow notes. |
 | `docs/mkdocs.yml` | Public site navigation and build configuration. |
 | `go/**/README.md` | Package-local ownership and maintainer context. |
 | `go/**/AGENTS.md` | Harness-loaded scoped agent rules. |
@@ -22,9 +22,8 @@ and be wired into `docs/mkdocs.yml` when they are part of the site.
 2. Compare claims against code, manifests, scripts, tests, or generated specs.
 3. Remove duplicated or stale prose instead of adding another layer.
 4. Update navigation when public pages are added, moved, or deleted.
-5. Update `docs/internal/docs-change-tally.md` after each cleanup pass.
-6. Run the smallest focused verifier for the touched surface.
-7. Run the broad acceptance gates before commit.
+5. Run the smallest focused verifier for the touched surface.
+6. Run the broad acceptance gates before commit.
 
 Parser docs are owned by `go/internal/parser/registry.go`, parser package code,
 and parser tests. Update `docs/public/languages/`, `feature-matrix.md`, and
