@@ -126,6 +126,10 @@ func TestReaderOpenKeepsHealthyMemberWhenFirstMemberBlackholes(t *testing.T) {
 		{ID: "blackhole", Host: "127.0.0.1", Port: uint16(listener.Addr().(*net.TCPAddr).Port)},
 		{ID: "healthy", Host: endpoint.Host, Port: endpoint.Port},
 	}
+	// Open requires four idle connections per member. Assigning members after
+	// LoadConfig skips the fleet pool split, so give the pool that budget here.
+	cfg.ReadMaxOpenConns = 8
+	cfg.ReadMaxIdleConns = 8
 	cfg.PingTimeout = 3 * time.Second
 	access, err := Open(context.Background(), cfg, nil)
 	if err != nil {
