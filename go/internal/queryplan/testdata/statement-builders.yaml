@@ -210,17 +210,16 @@ builders:
                 - ']->() WHERE rel.evidence_source = $evidence_source DELETE rel'
           source_sha256: d05473ec960b3845dec78d196a3097d8b3558c6c273839fc76c365bd319678b7
           exempt: B-7 legs carry no SQL-relationship retract scope; fragments absent from both backends' captures
-    - file: internal/storage/cypher/edge/writer/unroutable.go
+    - file: internal/storage/cypher/edge/writer/target_probe.go
       builders:
-        - symbol: buildTargetPresenceProbeStatement
-          count: 4
+        - symbol: buildTargetPresenceProbeStatements
+          count: 1
           operation: sourcecypher.OperationCanonicalProbe
           variants:
-            - {}
-            - {}
-            - {}
-            - {}
-          source_sha256: b0d65e81bc31805690d7093d4a3442c3115b85d0354c024a77f1955c03e38365
+            - fragments:
+                - MATCH
+                - RETURN 1 LIMIT 1
+          source_sha256: 64266371433d80cfbb5f7961b63cc3c9bf1e5f433b480ec6be0a3f3f3ffc5355
           exempt: strings.Builder-composed probe text is opaque to static matching; executions recorded as probe records
     - file: internal/storage/nornicdb/phase_group_executor_drain.go
       builders:

@@ -53,7 +53,7 @@ one write batch worth of rows (#6730 fence); each statement is constant size.
 - Live (local, emulated amd64 NornicDB + Neo4j): new
   `TestBoltWriteEdgesDeployableUnitAbsentTargetFailsClosed` FAILED before the
   fix (silent success, the #8283 CI shape) and PASSES after; the
-  present-targets happy path passes. All four
+  present-targets happy path passes. All five
   `TestBoltWriteEdges{HandlesRoute,DeployableUnit}*` live tests pass on both
   backends. Full live-backend CI lanes (amd64) run the same tests on merge.
 - Perf: correctness fix, no bench claimed. Before/after on the same input

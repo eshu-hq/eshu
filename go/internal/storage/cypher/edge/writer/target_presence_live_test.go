@@ -194,7 +194,7 @@ func countLiveDeployableUnitEdges(t *testing.T, ctx context.Context, runner *bol
 	return n
 }
 
-func liveDeployableUnitRow(source, target, intentID string) reducer.SharedProjectionIntentRow {
+func liveTargetMissRow(source, target, intentID string) reducer.SharedProjectionIntentRow {
 	return reducer.SharedProjectionIntentRow{
 		IntentID:     intentID,
 		RepositoryID: source,
@@ -228,7 +228,7 @@ func TestBoltWriteEdgesDeployableUnitAbsentTargetFailsClosed(t *testing.T) {
 	t.Cleanup(func() { cleanupDeployableUnitLiveRepos(t, runner, source, target) })
 
 	writer := NewEdgeWriter(&boltProbeTestExecutor{runner: runner}, 0)
-	row := liveDeployableUnitRow(source, target, "du-target-miss-live-absent")
+	row := liveTargetMissRow(source, target, "du-target-miss-live-absent")
 	if _, err := writer.WriteEdges(ctx, reducer.DomainDeployableUnitEdges, []reducer.SharedProjectionIntentRow{row}, "reducer/deployable-unit-correlation"); err == nil {
 		t.Fatal("WriteEdges() with an absent deployment repository succeeded silently, want a retryable error")
 	} else if !reducer.IsRetryable(err) {
@@ -255,7 +255,7 @@ func TestBoltWriteEdgesDeployableUnitPresentTargetsWrite(t *testing.T) {
 	t.Cleanup(func() { cleanupDeployableUnitLiveRepos(t, runner, source, target) })
 
 	writer := NewEdgeWriter(&boltProbeTestExecutor{runner: runner}, 0)
-	row := liveDeployableUnitRow(source, target, "du-target-miss-live-present")
+	row := liveTargetMissRow(source, target, "du-target-miss-live-present")
 	if _, err := writer.WriteEdges(ctx, reducer.DomainDeployableUnitEdges, []reducer.SharedProjectionIntentRow{row}, "reducer/deployable-unit-correlation"); err != nil {
 		t.Fatalf("WriteEdges() with all targets present error = %v", err)
 	}
