@@ -26,7 +26,8 @@ gh api graphql -F owner=<owner> -F repo=<repo> -F number=<pr> -f query='<reviewT
 Classify results exactly:
 
 - unresolved latest-head review threads are findings until fixed and resolved,
-  or resolved as P3, no action for a derivable figure;
+  or resolved as P3, no action for a derivable figure that the verdict's P3
+  list names;
 - outdated threads still need a disposition when they named a real bug;
 - queued or in-progress checks are pending, not failures;
 - completed red checks are concrete CI findings and need log evidence;

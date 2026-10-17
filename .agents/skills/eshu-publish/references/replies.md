@@ -19,8 +19,9 @@ Say what changed, where, and what proves it. Start with the answer.
 
 Never close a thread with only "fixed". Fix the code first, then reply.
 
-A wrong derivable figure is the exception. Reply `P3, no action: <correct
-value>`, name the command, and resolve the thread. The reply names the value, so
+A wrong derivable figure is the exception. Post `P3, no action: <correct
+value>` only when the verdict's P3 list for the current head names the same
+figure. Name the command, then resolve the thread. The reply names the value, so
 it is not a bare "fixed". See
 [Derivable figures](../../eshu-code-review/references/merge-bar.md#derivable-figures).
 

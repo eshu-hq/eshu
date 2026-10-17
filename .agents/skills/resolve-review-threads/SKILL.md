@@ -57,7 +57,7 @@ Stop and report if any prerequisite fails — do not guess.
    | Label | Meaning | Action |
    | --- | --- | --- |
    | `fixed` | Cited `file:line` changed in a way that plausibly addresses the comment. | Resolve it. |
-   | `p3-no-action` | The comment is a wrong derivable figure graded P3 under [merge-bar.md](../eshu-code-review/references/merge-bar.md#derivable-figures). The reviewer's reply "P3, no action" names the correct value, and the verdict's P3 list for the current head names the same figure. An author's self-grade is not enough. | Resolve it. |
+   | `p3-no-action` | The comment is a wrong derivable figure graded P3 under [merge-bar.md](../eshu-code-review/references/merge-bar.md#derivable-figures). The reply "P3, no action" names the correct value, and the verdict's P3 list for the current head names the same figure. An author's self-grade is not enough. | Resolve it. |
    | `unchanged` | Cited `file:line` is byte-identical to what the reviewer saw. | Leave open, report. |
    | `ambiguous` | Nearby code changed but the fix cannot be proven to address the comment. | Leave open, report. |
 

@@ -103,7 +103,7 @@ Two rules keep the judgement that DOES stay with the agent auditable:
 
 A **derivable figure** is a count, total, tally, ordinal, line number, or list
 length that a command computes from the committed tree at this head. The
-command reads files. It does not run `go build`, `go test`, a generator, a
+command reads files. It does not run `go build`, `go test`, a generator, a built
 binary, a container, or a backend. If no such command exists, the figure is
 not derivable.
 
