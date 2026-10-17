@@ -22,6 +22,10 @@
 //   - [CheckEncoding], the start-up check that the database is UTF8. The
 //     row_digest column hashes config_artifact_utf8(text), which is IMMUTABLE
 //     only per database; on another encoding the read model stays off.
+//   - [CheckFence], the start-up check that the five migration 186 fence
+//     triggers exist on their tables and fire for an ordinary session
+//     (tgenabled 'O' or 'A'); otherwise the read model stays off with
+//     [ReasonVersionFenceMissing]. No binary calls either check yet.
 //   - [Reader], [Repository], [Row] and [Classify], the read-model port and the
 //     reader's trust condition: stored rows are served only for the current
 //     content version and extractor version after a successful derive.
