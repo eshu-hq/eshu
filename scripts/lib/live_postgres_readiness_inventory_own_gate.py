@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Own-gate (#7597) and replay lock-order (#8205) live PostgreSQL readiness proofs.
+"""Own-gate (#7597) and work-row lock-order (#8205, #8261) live readiness proofs.
 
-Both families pin the one reducer work-row lock order (work_item_id
+These families pin the one fact_work_items row lock order (work_item_id
 COLLATE "C"), so they are kept together beside the inventory.
 
 These files live in their own table beside the per-domain inventory tables
@@ -45,6 +45,21 @@ OWN_GATE_PACKAGES = {
             "TestReducerClaimSweepKeepsActiveGenerationRowsLive",
             "TestReducerClaimSweepDropsRowClaimedBeforeItsLockLive",
         ),
+        "go/internal/storage/postgres/dead_letter_recovery_lock_order_live_test.go": (
+            "TestPoisonRecoveryHeldRowRaceLive",
+            "TestPoisonRecoveryDropsRowChangedBeforeItsLockLive",
+            "TestPoisonRecoveryConcurrentWithReplaysNeverDeadlockLive",
+        ),
+        "go/internal/storage/postgres/pruned_generation_lock_order_live_test.go": (
+            "TestRetentionCascadeHeldRowRaceLive",
+            "TestRetentionCascadeDeletesRowChangedBeforeItsLockLive",
+            "TestRetentionCascadeConcurrentWithSweepAndReplaysNeverDeadlockLive",
+        ),
+        "go/internal/storage/postgres/projector_ack_supersede_lock_order_live_test.go": (
+            "TestProjectorAckSupersedeHeldRowRaceLive",
+            "TestProjectorAckSupersedeDropsRowClaimedBeforeItsLockLive",
+            "TestProjectorAckSupersedeConcurrentWithReplaysNeverDeadlockLive",
+        ),
     },
     ADMIN_PACKAGE: {
         "go/internal/query/admin/activation_wake_interleave_live_test.go": (
@@ -59,6 +74,11 @@ OWN_GATE_PACKAGES = {
             "TestAdminReplayAndClaimSweepBlockOneWayLive",
             "TestAdminReplayAndClaimSweepHeldRowRaceLive",
             "TestReplaysAndClaimSweepConcurrentNeverDeadlockLive",
+        ),
+        "go/internal/query/admin/skip_lock_order_live_test.go": (
+            "TestSkipRepositoryHeldRowRaceLive",
+            "TestSkipRepositoryDropsRowChangedBeforeItsLockLive",
+            "TestSkipRepositoryConcurrentWithReplaysAndSweepNeverDeadlockLive",
         ),
     },
 }
