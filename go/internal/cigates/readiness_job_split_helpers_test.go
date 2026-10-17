@@ -4,6 +4,7 @@
 package cigates
 
 import (
+	"strconv"
 	"strings"
 )
 
@@ -97,4 +98,45 @@ func jobRuns(steps []readinessStep, command string) bool {
 		}
 	}
 	return false
+}
+
+const (
+	readinessSummaryScript = "scripts/ci/live-postgres-readiness-job-summary.sh"
+	readinessSummaryTest   = "bash scripts/ci/test-live-postgres-readiness-job-summary.sh"
+)
+
+// checkReadinessHermeticSummary requires the hermetic job to record its start
+// time first and to end with an always-run summary step that classifies the
+// job by status and elapsed time against the job's own cap, so a run cut off
+// by the cap reads differently from a failure (#8241).
+func checkReadinessHermeticSummary(job readinessJob) string {
+	steps := job.Steps
+	if len(steps) == 0 || strings.TrimSpace(steps[0].Run) != "bash "+readinessSummaryScript+" start" ||
+		steps[0].If != "" || steps[0].ContinueOnError != "" {
+		return "hermetic job must record its start time in its first step"
+	}
+	last := steps[len(steps)-1]
+	if strings.TrimSpace(last.Run) != "bash "+readinessSummaryScript+" finish" ||
+		last.If != readinessAlways || last.ContinueOnError != "" {
+		return "hermetic job must end with an always-run summary step"
+	}
+	if last.Env["JOB_STATUS"] != "${{ job.status }}" {
+		return "hermetic summary step must read the job status"
+	}
+	if last.Env["CAP_MINUTES"] != strconv.Itoa(job.TimeoutMinutes) {
+		return "hermetic summary CAP_MINUTES must equal the job timeout-minutes"
+	}
+	runs := 0
+	for _, step := range steps {
+		if strings.TrimSpace(step.Run) == readinessSummaryTest {
+			runs++
+			if step.If != readinessQueueSelection || step.ContinueOnError != "" {
+				return "summary classifier test must use the registry queue selection without waiving failure"
+			}
+		}
+	}
+	if runs != 1 {
+		return "hermetic job must run the summary classifier test exactly once"
+	}
+	return ""
 }

@@ -110,9 +110,83 @@ No-Observability-Change: this is a CI self-test fixture change. It adds no
 runtime code, worker, queue, metric, span, log key, or route. Operators keep
 reading the existing job step durations and the self-test failure lines.
 
+## Follow-up: one-process direct phase and cap-cancel summary
+
+After #8263 merged, the hermetic job ran in about 5 minutes against the
+30-minute cap. Two items stayed open on #8241.
+
+### Direct phase in one process
+
+The direct phase of `check_each_proof` called
+`live_postgres_readiness_results.py verify-results` as a python subprocess
+for each proof and seed: 1,377 cold interpreter starts at 459 proofs. It is now
+`check_proofs_direct`, which pipes one record per proof to
+`scripts/lib/live_postgres_readiness_proof_cases.py`. That helper plants the
+same three faults (skip, fail, missing) in memory and calls `verify_results`
+with the unsharded runner's arguments in one process. It exits 3 with the
+former loop's message at the first case that passes or goes unnamed, and
+prints the case count so the caller refuses a vacuous pass. The all-names
+runner phase (`check_proofs_runner`) and the seeds test are unchanged.
+
+Direct phase only, same 459-proof, 16-package fixture (this head's
+`list-packages`), same host in the same minutes (load average 130 to 145, so
+compare the CPU seconds as well):
+
+| Direct phase | Real | User | Sys |
+| --- | ---: | ---: | ---: |
+| Before (1,377 subprocess calls) | 182.7 s | 49.4 s | 33.2 s |
+| After, run 1 | 3.25 s | 0.96 s | 0.17 s |
+| After, run 2 | 2.70 s | 0.86 s | 0.11 s |
+| After, run 3 | 4.23 s | 0.98 s | 0.15 s |
+
+That is about 56x on real time (about 70x on CPU) for the phase. The whole
+self-test, before and after, on the same host load:
+
+| Whole self-test | Real | User | Sys | CPU (user + sys) |
+| --- | ---: | ---: | ---: | ---: |
+| Before (`origin/main` snapshot), load average 150 to 290 | 1,301.2 s | 277.8 s | 81.7 s | 359.5 s |
+| After, load average 140 to 166 | 564.8 s | 220.9 s | 53.7 s | 274.6 s |
+
+Both runs exited 0. The two runs did not see the same load, so only the CPU
+column compares: the after run used 84.9 s less CPU, which matches the
+direct phase's 82.6 s before and 1.1 s after (user + sys). The real-time
+column mostly reflects the host. In CI, where the job ran about 5 minutes
+after #8263, the removed CPU is the saving. The seeds test passed all eight
+seeds against the new helper in 153.5 s real (59.6 s user, 12.4 s sys).
+
+### Cap-cancel summary
+
+GitHub marks a job that reaches `timeout-minutes` as cancelled, not failed,
+so no check turns red and the run reads like a concurrency cancel.
+`scripts/ci/live-postgres-readiness-job-summary.sh` closes that gap. The
+hermetic job records its start epoch in its first step. Its last step runs
+with `if: always()` and reads `${{ job.status }}`, then writes one verdict to
+the job summary:
+
+| Status | Elapsed | Verdict |
+| --- | --- | --- |
+| success | any | PASSED with the share of the cap; a warning at 80% or more |
+| failure | any | FAILED, "a failure, not a timeout" |
+| cancelled | at least cap minus 90 s | CANCELLED BY THE TIME CAP, plus an error annotation |
+| cancelled | less than that | CANCELLED BEFORE THE CAP (concurrency group or manual cancel) |
+
+The 90 s grace covers runner setup before the first step. A concurrency
+cancel that lands inside the last 90 s reads as a cap cancel; the platform
+annotation on the job stays the authority. `CAP_MINUTES` on the summary step
+must equal `timeout-minutes`: `go/internal/cigates/readiness_job_split_test.go`
+pins it, and its seeded mutations cover a drifted cap, a summary that does
+not run on cancel, a summary that ignores the status, and a missing start
+step. `scripts/ci/test-live-postgres-readiness-job-summary.sh` checks the
+classification and breaks the classifier four ways in a throwaway copy
+(cancel read as failure, failure read as cap, every cancel read as cap, grace
+dropped); each seed must fail the cases.
+
 ## NOT_CHECKED
 
 - CI wall time of the hermetic job after this change. The coordinator
   records it from the first CI run on the pushed head.
+- Whether GitHub runs the `if: always()` summary step after a job-timeout
+  cancel. The step is written for that behavior; only a real timeout in CI
+  shows it. The classifier is proven on its inputs, not on a live cap hit.
 - `shellcheck` (not installed on the host); `bash -n` passed on all three
   scripts.

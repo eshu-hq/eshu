@@ -123,6 +123,7 @@ type readinessStep struct {
 	If              string            `yaml:"if"`
 	ContinueOnError string            `yaml:"continue-on-error"`
 	With            map[string]string `yaml:"with"`
+	Env             map[string]string `yaml:"env"`
 }
 
 func checkReadinessSplit(workflow []byte, gate Gate) string {
@@ -274,6 +275,9 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 		return "each shard leg must upload its coverage report for the aggregate"
 	}
 	if problem := checkReadinessAggregate(aggregate); problem != "" {
+		return problem
+	}
+	if problem := checkReadinessHermeticSummary(hermetic); problem != "" {
 		return problem
 	}
 	return ""
