@@ -4,6 +4,8 @@
 package postgres
 
 import (
+	"go/scanner"
+	"go/token"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -29,32 +31,68 @@ import (
 // The sources are enumerated from the module, so a later writer is held to the
 // rule without anyone editing this test.
 //
-// Limit: this is a text scan of SQL literals. A table name assembled at runtime
-// (fmt.Sprintf, string concatenation) or a statement built from fragments that
-// never spell "resolved_relationships" next to the verb passes it. The write
+// Limits: this is a text scan of SQL literals. A table name assembled at
+// runtime (fmt.Sprintf, string concatenation) or a statement built from
+// fragments that never spell "resolved_relationships" next to the verb passes it.
+// Go comments are removed with the Go scanner, so a "//" inside a literal does
+// not hide SQL after it; SQL files strip "--" comments by line, so a "--" inside
+// a SQL string literal would hide the rest of that line. The write
 // path has one SQL constant (insertResolvedSQL), so review any new code that
 // builds SQL for this table dynamically. A deliberate change of that rule must
 // change the fingerprint contract first and then this guard.
+
+// resolvedTable is the table spelled the ways Postgres accepts it: bare,
+// schema-qualified, and with double-quoted identifiers on either part
+// (resolved_relationships, public.resolved_relationships,
+// "resolved_relationships", public."resolved_relationships",
+// "public"."resolved_relationships"). Every pattern below builds on it.
+const resolvedTable = `(?:"?\w+"?\.)?"?resolved_relationships"?\b`
 
 var (
 	// Every pattern is bounded by [^;`] so a match stops at the end of its own
 	// statement (";") or its own Go raw-string literal (a backtick) and cannot
 	// run into a neighboring literal that happens to mention the table.
 	resolvedRowMutationPatterns = []*regexp.Regexp{
-		regexp.MustCompile(`(?is)\bUPDATE\s+(?:ONLY\s+)?(?:\w+\.)?resolved_relationships\b`),
-		regexp.MustCompile(`(?is)\bDELETE\s+FROM\s+(?:ONLY\s+)?(?:\w+\.)?resolved_relationships\b`),
-		regexp.MustCompile("(?is)\\bINSERT\\s+INTO\\s+(?:\\w+\\.)?resolved_relationships\\b[^;`]*?\\bDO\\s+UPDATE\\b"),
-		regexp.MustCompile(`(?is)\bMERGE\s+INTO\s+(?:ONLY\s+)?(?:\w+\.)?resolved_relationships\b`),
-		regexp.MustCompile("(?is)\\bTRUNCATE\\b[^;`]*?\\bresolved_relationships\\b"),
-		regexp.MustCompile("(?is)\\bDROP\\s+TABLE\\b[^;`]*?\\bresolved_relationships\\b"),
-		regexp.MustCompile("(?is)\\bCREATE\\s+(?:OR\\s+REPLACE\\s+)?(?:CONSTRAINT\\s+)?TRIGGER\\b[^;`]*?\\bON\\s+(?:\\w+\\.)?resolved_relationships\\b"),
-		regexp.MustCompile("(?is)\\bALTER\\s+TABLE\\s+(?:IF\\s+EXISTS\\s+)?(?:ONLY\\s+)?(?:\\w+\\.)?resolved_relationships\\b[^;`]*?\\b(?:REFERENCES|FOREIGN\\s+KEY)\\b"),
-		regexp.MustCompile("(?is)\\bCREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?(?:\\w+\\.)?resolved_relationships\\b[^;`]*?\\bREFERENCES\\b"),
-		regexp.MustCompile("(?is)\\bCREATE\\s+RULE\\b[^;`]*?\\bON\\s+(?:\\w+\\.)?resolved_relationships\\b"),
+		regexp.MustCompile(`(?is)\bUPDATE\s+(?:ONLY\s+)?` + resolvedTable),
+		regexp.MustCompile(`(?is)\bDELETE\s+FROM\s+(?:ONLY\s+)?` + resolvedTable),
+		regexp.MustCompile("(?is)\\bINSERT\\s+INTO\\s+" + resolvedTable + "[^;`]*?\\bDO\\s+UPDATE\\b"),
+		regexp.MustCompile(`(?is)\bMERGE\s+INTO\s+(?:ONLY\s+)?` + resolvedTable),
+		regexp.MustCompile("(?is)\\bTRUNCATE\\b[^;`]*?" + resolvedTable),
+		regexp.MustCompile("(?is)\\bDROP\\s+TABLE\\b[^;`]*?" + resolvedTable),
+		regexp.MustCompile("(?is)\\bCREATE\\s+(?:OR\\s+REPLACE\\s+)?(?:CONSTRAINT\\s+)?TRIGGER\\b[^;`]*?\\bON\\s+" + resolvedTable),
+		regexp.MustCompile("(?is)\\bALTER\\s+TABLE\\s+(?:IF\\s+EXISTS\\s+)?(?:ONLY\\s+)?" + resolvedTable + "[^;`]*?\\b(?:REFERENCES|FOREIGN\\s+KEY)\\b"),
+		regexp.MustCompile("(?is)\\bCREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?" + resolvedTable + "[^;`]*?\\bREFERENCES\\b"),
+		regexp.MustCompile("(?is)\\bCREATE\\s+RULE\\b[^;`]*?\\bON\\s+" + resolvedTable),
 	}
-	goLineComment  = regexp.MustCompile(`(?m)//[^\n]*`)
 	sqlLineComment = regexp.MustCompile(`(?m)--[^\n]*`)
 )
+
+// stripGoComments blanks every Go comment with the Go scanner, so a "//" inside
+// a string or raw-string literal (a URL, say) does not start a comment and hide
+// SQL after it on the same line. Newlines are kept so offsets stay readable.
+func stripGoComments(src string) string {
+	b := []byte(src)
+	fset := token.NewFileSet()
+	file := fset.AddFile("", fset.Base(), len(b))
+	var scan scanner.Scanner
+	scan.Init(file, b, nil, scanner.ScanComments)
+	for {
+		pos, tok, lit := scan.Scan()
+		if tok == token.EOF {
+			break
+		}
+		if tok != token.COMMENT {
+			continue
+		}
+		start := file.Offset(pos)
+		for i := start; i < start+len(lit) && i < len(b); i++ {
+			if b[i] != '\n' {
+				b[i] = ' '
+			}
+		}
+	}
+	return string(b)
+}
 
 // scanResolvedRowMutations reports every place a source set can change or
 // remove a resolved_relationships row. files maps a display name to the source
@@ -66,7 +104,7 @@ func scanResolvedRowMutations(files map[string]string) []string {
 		if strings.HasSuffix(name, ".sql") {
 			src = sqlLineComment.ReplaceAllString(src, "")
 		} else {
-			src = goLineComment.ReplaceAllString(src, "")
+			src = stripGoComments(src)
 		}
 		for _, pattern := range resolvedRowMutationPatterns {
 			if loc := pattern.FindStringIndex(src); loc != nil {
@@ -179,6 +217,11 @@ func TestResolvedRelationshipsAppendOnlyGuardBitesOnPlantedWriters(t *testing.T)
 		"upsert_update.go":  "package x\nconst q = `INSERT INTO resolved_relationships (resolved_id, confidence) VALUES ($1, $2) ON CONFLICT (resolved_id) DO UPDATE SET confidence = EXCLUDED.confidence`\n",
 		"upsert_update.sql": "INSERT INTO public.resolved_relationships (resolved_id) SELECT 1 ON CONFLICT (resolved_id) DO UPDATE SET confidence = 1;\n",
 		"merge.go":          "package x\nconst q = `MERGE INTO resolved_relationships AS t USING src ON t.resolved_id = src.id WHEN MATCHED THEN UPDATE SET confidence = src.c`\n",
+		"quoted_update.go":  "package x\nconst q = `UPDATE \"resolved_relationships\" SET confidence = 1`\n",
+		"quoted_delete.sql": "DELETE FROM public.\"resolved_relationships\" WHERE generation_id = 'x';\n",
+		"quoted_schema.sql": "DELETE FROM \"public\".\"resolved_relationships\";\n",
+		"quoted_upsert.go":  "package x\nconst q = `INSERT INTO \"resolved_relationships\" (resolved_id) VALUES ($1) ON CONFLICT (resolved_id) DO UPDATE SET confidence = 1`\n",
+		"after_url.go":      "package x\nvar a, b = \"http://example.test/x\", \"UPDATE resolved_relationships SET confidence = 1\"\n",
 		"fk_create.sql":     "CREATE TABLE resolved_relationships (resolved_id TEXT PRIMARY KEY, generation_id TEXT REFERENCES relationship_generations(generation_id) ON DELETE CASCADE);\n",
 	} {
 		got := scanResolvedRowMutations(map[string]string{name: planted})
