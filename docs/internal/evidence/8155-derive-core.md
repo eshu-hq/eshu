@@ -71,7 +71,7 @@ Live tests on a disposable PostgreSQL 18.6 database
 |---|---|---|
 | S4: stored rows after the name step equal the live path's rows | `TestDeriveStoredRowsEqualLivePathLive` | 220 repositories (every `tests/fixtures` directory and child, plus the 26 recorded S0 corpus repositories), 43 with rows, 160 live rows, 160 stored rows, differing 0 / 0 |
 | Two derives of one repository | `TestDeriveTwoDerivesOfOneRepositorySerializeLive` | the second waits on the advisory lock and is superseded; 20 racing rounds end one `ok`, one `superseded` each |
-| A derive racing content writes | `TestDeriveRacingContentWritesNeverLabelsNewerContentLive` | 3 derive loops over 40 writes: `ok` 38, `superseded` 327, 72 snapshot checks, never rows older than their label; converges after the writes |
+| A derive racing content writes | `TestDeriveRacingContentWritesNeverLabelsNewerContentLive` | 3 derive loops over 40 writes, never rows older than their label, converges after the writes. The counts depend on the interleaving: one run gave `ok` 38, `superseded` 327 and 72 snapshot checks, another `ok` 41, `superseded` 1,592 and 79 checks |
 | Two repositories in parallel | `TestDeriveTwoRepositoriesRunInParallelLive` | repo-b completes while repo-a holds its lock |
 | Version read before the list | `TestDeriveReadsVersionBeforeListLive` | a write injected after step 1 leaves `content_version = v0 < version`, `Classify` = `stale_version` |
 | Lock only in step 3 | `TestDeriveHoldsTheLockOnlyInStepThreeLive` | during extraction 0 advisory locks and 0 open transactions; 1 lock inside step 3; 0 after commit |
