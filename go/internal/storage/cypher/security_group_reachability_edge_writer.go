@@ -104,15 +104,46 @@ SET rel.scope_id = row.scope_id,
 
 // retractSecurityGroupSGRuleEdgesCypher removes this reducer's SG -> rule edges
 // for a set of scopes before a fresh generation reprojects them. The direction
-// relationship types are closed, so the retract matches any relationship from a
-// CloudResource to a SecurityGroupRule and scopes by the edge's own scope_id and
-// evidence_source. CloudResource and SecurityGroupRule nodes are cross-generation
-// canonical and carry no reducer scope_id, so a node-scoped predicate would leak
-// stale edges.
-const retractSecurityGroupSGRuleEdgesCypher = `MATCH (sg:CloudResource)-[rel]->(rule:SecurityGroupRule)
+// relationship types are closed, so the retract names both members of
+// securityGroupAllowsRelTypeVocabulary in its alternation (#6228 split verdict,
+// kind C): a bare [rel] scoped only by evidence_source would reap any foreign
+// edge type sharing the endpoints, so the retract names exactly the types the
+// writer can emit and the registry drift guard pins the two together.
+// CloudResource and SecurityGroupRule nodes are cross-generation canonical and
+// carry no reducer scope_id, so a node-scoped predicate would leak stale edges.
+const retractSecurityGroupSGRuleEdgesCypher = `MATCH (sg:CloudResource)-[rel:ALLOWS_INGRESS|ALLOWS_EGRESS]->(rule:SecurityGroupRule)
 WHERE rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
+
+// Registry-contract holders for the #6228 materialized-edge retract registry
+// (docs/internal/design/6228-materialized-edge-retract-registry-contract.md).
+// The registry in go/internal/storage/cypher/edge/materialized must hold the
+// production consts themselves, never a copy of their text, and derive the
+// family's edge types from the vocabulary below rather than a copied literal.
+const (
+	// CanonicalSecurityGroupSGRuleEdgeUpsertCypherFormat is the production write template.
+	CanonicalSecurityGroupSGRuleEdgeUpsertCypherFormat = canonicalSecurityGroupSGRuleEdgeUpsertCypherFormat
+	// RetractSecurityGroupSGRuleEdgesCypher is the production SG -> rule retract.
+	RetractSecurityGroupSGRuleEdgesCypher = retractSecurityGroupSGRuleEdgesCypher
+)
+
+// SecurityGroupSGRuleRelationshipTypes derives the closed relationship-type
+// set the SG -> rule edge can use from securityGroupAllowsRelTypeVocabulary,
+// the same closed set the write path screens each row's direction against, so
+// the registry asserts exactly the types the writer can emit.
+func SecurityGroupSGRuleRelationshipTypes() map[string]string {
+	members := make([]string, 0, len(securityGroupAllowsRelTypeVocabulary))
+	for member := range securityGroupAllowsRelTypeVocabulary {
+		members = append(members, member)
+	}
+	sort.Strings(members)
+	out := make(map[string]string, len(members))
+	for _, member := range members {
+		out[member] = "rule direction edge (securityGroupAllowsRelTypeVocabulary)"
+	}
+	return out
+}
 
 // retractSecurityGroupToEdgesCypher removes this reducer's rule -> endpoint TO
 // edges for a set of scopes. The TO type is fixed, so the retract matches it from

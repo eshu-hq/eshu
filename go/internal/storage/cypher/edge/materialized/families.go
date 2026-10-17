@@ -28,13 +28,40 @@ import (
 // registries next to their writers, because their types span several templates
 // and files and the reasoning belongs there. The families below each materialize
 // a single relationship type, so they are collected here rather than scattered
-// as ten near-identical accessors.
+// as ten near-identical accessors. The multi-type DIRECT families
+// (incident_routing_evidence, observability_coverage, security_group_sg_rule)
+// are the deliberate exception: their writers each own one template and one
+// closed vocabulary, so their reasoning fits one row each in the separate
+// multi-type table beside the single-type one. Every entry here is a contract
+// family whose retract is edge-scoped by scope_id plus evidence_source, which
+// is what lets the drift guard pin predicate shape on this table while the
+// single-type table keeps its pre-contract shapes.
 //
 // Every entry carries the production retract Cypher it must agree with.
-// TestMaterializedEdgeFamilyRegistryMatchesItsRetract extracts the alternation
-// from that const at test time instead of comparing against a copied literal —
-// a literal would pin this file against itself and keep passing after the
-// retract changed underneath it.
+// TestMaterializedEdgeFamilyRegistryMatchesItsRetract checks that const at
+// test time — the alternation for a relAlternation family, the node-detach
+// shape for an evidenceNodeDetach family — instead of comparing against a
+// copied literal: a literal would pin this file against itself and keep
+// passing after the retract changed underneath it.
+
+// retractKind names how a family's production retract reaps its edges (#6228
+// retract-registry contract,
+// docs/internal/design/6228-materialized-edge-retract-registry-contract.md).
+type retractKind uint8
+
+const (
+	// retractKindRelAlternation is the default: the retract names its owned
+	// relationship types in a [rel:A|B] alternation while keeping the
+	// evidence_source and scope predicates. The zero value, so every family
+	// registered before the contract keeps this meaning without an edit.
+	retractKindRelAlternation retractKind = iota
+	// retractKindEvidenceNodeDetach covers a family whose edges hang off
+	// private evidence nodes: the retract MATCHes the evidence nodes it owns
+	// and DETACH DELETEs them, reaping the edges as a cascade. Only a family
+	// that passes the sole-creator census (no other production writer MERGEs
+	// its evidence label) may use this kind.
+	retractKindEvidenceNodeDetach
+)
 
 // materializedEdgeFamily is one family's ownership record: the relationship
 // types its write path materializes, the retract statement that reaps them,
@@ -44,10 +71,23 @@ type materializedEdgeFamily struct {
 	// EdgeTypes are the relationship types the family owns, mapped to a short
 	// reason naming what writes each.
 	EdgeTypes map[string]string
+	// RetractKind names how the retract reaps the family's edges. The zero
+	// value is retractKindRelAlternation; families whose retract DETACH
+	// DELETEs private evidence nodes set retractKindEvidenceNodeDetach.
+	RetractKind retractKind
 	// RetractCypher is the production retract template whose [rel:...]
 	// alternation must name exactly EdgeTypes. Holding the real const (not a
-	// copy of its text) is what makes the drift guard meaningful.
+	// copy of its text) is what makes the drift guard meaningful. For an
+	// evidenceNodeDetach family it is the production node-detach template the
+	// shape check pins instead.
 	RetractCypher string
+	// RetractVariants holds every further production retract variant the
+	// family owns (ledger-anchored ByUIDs shapes, stale-generation shapes).
+	// RetractCypher plus RetractVariants must hold every production retract
+	// variant: the drift guard checks all of them, so a variant edited without
+	// its alternation (or detach shape) turns the build red instead of
+	// silently narrowing what the family reaps.
+	RetractVariants []string
 	// IdentityCypher is the production write template whose relationship
 	// MERGE clause is this family's source of truth for IdentityProperties.
 	// Every single-type family in this table names one, so
@@ -303,6 +343,24 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		RetractCypher:  sourcecypher.RetractKubernetesCorrelationEdgesCypher,
 		IdentityCypher: sourcecypher.CanonicalKubernetesCorrelationEdgeUpsertCypherFormat,
 	},
+	// code_taint_evidence is the first evidenceNodeDetach family (#6228 split
+	// verdict, kind A). Its edges hang off private CodeTaintEvidence nodes no
+	// other production writer MERGEs (pinned by the sole-creator census in
+	// go/internal/storage/cypher), so the retract reaps the nodes with
+	// DETACH DELETE and the edges cascade. The edge type is still declared
+	// here so the resolver scopes assert-edges to it; the drift guard derives
+	// it from the held write template rather than trusting this literal.
+	"code_taint_evidence": {
+		EdgeTypes:     map[string]string{"HAS_TAINT_EVIDENCE": "taint finding edge (CodeTaintEvidenceWriter in code_taint_evidence_writer.go)"},
+		RetractKind:   retractKindEvidenceNodeDetach,
+		RetractCypher: sourcecypher.RetractCodeTaintEvidenceCypher,
+		RetractVariants: []string{
+			sourcecypher.RetractStaleCodeTaintEvidenceCypher,
+			sourcecypher.RetractCodeTaintEvidenceByUIDsCypher,
+			sourcecypher.RetractStaleCodeTaintEvidenceByUIDsCypher,
+		},
+		IdentityCypher: sourcecypher.CodeTaintEvidenceUpsertCypher,
+	},
 }
 
 // materializedEdgeIdentityByFamily declares identity for the four
@@ -314,12 +372,13 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 // empty identity because their relationship MERGEs key on endpoint nodes alone.
 // repo_dependency's RUNS_ON writer additionally keys on identity_key so its
 // two production writers converge on one stored relationship identity.
-// This matches the scope TestMaterializedEdgeFamilyRegistryMatchesItsRetract
-// already draws around singleTypeMaterializedEdgeFamilies: proving identity
-// against a held write-Cypher const (as
-// TestSingleTypeFamilyIdentityMatchesWriteCypher does below) only works for a
-// family with one write template in this file; these four span several
-// templates across several files, so their reasoning stays there too. The
+// This matches the scope TestSingleTypeFamilyIdentityMatchesWriteCypher draws
+// around singleTypeMaterializedEdgeFamilies: proving identity against a held
+// write-Cypher const only works for a family with one write template in this
+// file; these four span several templates across several files, so their
+// reasoning stays there too. (The retract-shape guard,
+// TestMaterializedEdgeFamilyRegistryMatchesItsRetract, ranges over both the
+// single-type and the multi-type direct tables.) The
 // three empty declarations are backed globally, not per-family, by
 // TestPropertyKeyedRelationshipMergesMatchKnownAllowList
 // (materialized_edge_property_keyed_inventory_test.go), which scans this
@@ -351,6 +410,17 @@ var materializedEdgeIdentityByFamily = map[string]map[string][]string{
 // mutate the package-level tables through the returned value.
 func MaterializedEdgeIdentityProperties(family string) (map[string][]string, error) {
 	if entry, ok := singleTypeMaterializedEdgeFamilies[family]; ok {
+		out := make(map[string][]string, len(entry.EdgeTypes))
+		if len(entry.IdentityProperties) > 0 {
+			for edgeType := range entry.EdgeTypes {
+				propsCopy := make([]string, len(entry.IdentityProperties))
+				copy(propsCopy, entry.IdentityProperties)
+				out[edgeType] = propsCopy
+			}
+		}
+		return out, nil
+	}
+	if entry, ok := multiTypeDirectMaterializedEdgeFamilies[family]; ok {
 		out := make(map[string][]string, len(entry.EdgeTypes))
 		if len(entry.IdentityProperties) > 0 {
 			for edgeType := range entry.EdgeTypes {

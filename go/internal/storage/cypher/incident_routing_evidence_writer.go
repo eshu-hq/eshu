@@ -82,6 +82,42 @@ WHERE n.scope_id IN $scope_ids
   AND n.evidence_source = $evidence_source
 DETACH DELETE n`
 
+// Registry-contract holders for the #6228 materialized-edge retract registry
+// (docs/internal/design/6228-materialized-edge-retract-registry-contract.md).
+// The registry in go/internal/storage/cypher/edge/materialized must hold the
+// production consts themselves, never a copy of their text, and derive the
+// family's edge types from the vocabulary maps below rather than a copied
+// literal.
+const (
+	// CanonicalIncidentRoutingEvidenceUpsertCypherFormat is the production write template.
+	CanonicalIncidentRoutingEvidenceUpsertCypherFormat = canonicalIncidentRoutingEvidenceUpsertCypherFormat
+	// RetractIncidentRoutingEvidenceCypher is the production full-scope retract.
+	RetractIncidentRoutingEvidenceCypher = retractIncidentRoutingEvidenceCypher
+)
+
+// IncidentRoutingEvidenceSlotVocabulary returns a copy of the closed routing
+// slots the writer accepts, following the CodeCallMaterializedEdgeTypes
+// copy-on-read precedent so a caller cannot mutate the writer's vocabulary.
+func IncidentRoutingEvidenceSlotVocabulary() map[string]struct{} {
+	out := make(map[string]struct{}, len(incidentRoutingSlotVocabulary))
+	for slot := range incidentRoutingSlotVocabulary {
+		out[slot] = struct{}{}
+	}
+	return out
+}
+
+// IncidentRoutingEvidenceRelationshipTypes returns a copy of the slot to graph
+// relationship type map the writer interpolates into the edge-type position,
+// so the registry derives the family's types from the same map the write path
+// screens each row against.
+func IncidentRoutingEvidenceRelationshipTypes() map[string]string {
+	out := make(map[string]string, len(incidentRoutingSlotRelationshipTypes))
+	for slot, relType := range incidentRoutingSlotRelationshipTypes {
+		out[slot] = relType
+	}
+	return out
+}
+
 // IncidentRoutingEvidenceWriter materializes exact PagerDuty incident-routing
 // evidence into reducer-owned graph evidence nodes and relationships.
 type IncidentRoutingEvidenceWriter struct {

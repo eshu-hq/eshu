@@ -75,19 +75,35 @@
 # TestEveryWaivedFamilyIsRegistered holds the #5543 umbrella roster to the
 # resolve check but not these. The waiver reasons below say so per family.
 #
-# NOT EVERY FAMILY CAN BE REGISTERED IN ITS CURRENT SHAPE, and the blocker is
-# the registry's own contract rather than fixture effort.
-# TestMaterializedEdgeFamilyRegistryMatchesItsRetract extracts a `[rel:TYPE]`
-# alternation from each registered family's retract template and pins it against
-# the declared edge types. A family whose retract names no relationship type
-# cannot supply one. Several here are in that position: code_taint_evidence and
-# incident_routing_evidence retract by `DETACH DELETE` on their evidence NODE,
-# semantic_entity_containment retracts by a node-label alternation, and
-# cloud_resource, observability_coverage and security_group_sg_rule retract
-# through a deliberately bare `[rel]` scoped by evidence_source (their type
-# vocabularies are open or derived, so an alternation would be an ever-growing
-# allowlist). Covering those needs a decision about the registry contract, not
-# another Odù -- record it in an ADR before writing the fixture.
+# SPLIT VERDICT D (arbiter ruling, issue #6228 comment 2026-10-17) decided the
+# registry contract for the six families below that could not register in
+# their old shape. Recorded in
+# docs/internal/design/6228-materialized-edge-retract-registry-contract.md,
+# which is the pointer every reason below carries.
+# TestMaterializedEdgeFamilyRegistryMatchesItsRetract now dispatches on
+# RetractKind: a `[rel:A|B]` alternation for relAlternation families, a
+# MATCH/DETACH DELETE shape plus derived types for evidenceNodeDetach
+# families. The disposition per family:
+# code_taint_evidence and incident_routing_evidence are node-scoped (kind A):
+# private evidence nodes, sole-creator census, registered edge types.
+# observability_coverage and security_group_sg_rule name their alternation
+# (kind C): the 5-type AWS_COVERS_* alternation and
+# [rel:ALLOWS_INGRESS|ALLOWS_EGRESS] respectively, in every retract variant.
+# semantic_entity_containment is EXCLUDED: its node-label-alternation DETACH
+# DELETE deletes shared nodes and foreign edges with them, and needs a
+# dedicated [rel:CONTAINS] edge retract as separate writer work.
+# cloud_resource stays UNCOVERED by design as the sole genuinely open family:
+# unblock only by closing the vocabulary upstream or by a predicate-scoped
+# assert-edges scan (follow-up issue); registering an observed-type list is
+# rejected. CORRECTION to the old prose this replaces: only cloud_resource has
+# an open vocabulary. observability_coverage (5 closed AWS_COVERS_* types) and
+# security_group_sg_rule (ALLOWS_INGRESS|ALLOWS_EGRESS) are closed and screened
+# per row in code today; their old "open" claim was false.
+# Registering edge types is scaffolding, not coverage: every family below
+# still lacks its Odù, expected-edge-set fixture, and live matrices, which is
+# why every family below still carries waiver rows. Converting a waiver to a
+# coverage row and flipping its roster flag belongs to that family's own leaf,
+# never to this scaffolding change.
 #
 # WHERE THE FAMILY LIST COMES FROM. Not from this file, and not from any port's
 # name. reducer.DirectMaterializedEdgeFamilies() is the source, and
@@ -163,12 +179,12 @@ waivers:
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteCloudResourceEdges -> cypher/{aws,azure,gcp}_cloud_resource_edge_writer.go merges a per-row AWS_<relationship_type>; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteCloudResourceEdges -> cypher/{aws,azure,gcp}_cloud_resource_edge_writer.go merges a per-row AWS_<relationship_type> from an OPEN per-provider vocabulary; split verdict D: UNCOVERED by design as the sole genuinely open family (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Unblock only by closing the vocabulary upstream or by a predicate-scoped assert-edges scan (follow-up issue); registering an observed-type list is rejected. Stays waived: no Odu, expected-edge-set fixture, registered edge types, or live matrix yet"
   - surface: "materialized_edges:cloud_resource"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteCloudResourceEdges -> cypher/{aws,azure,gcp}_cloud_resource_edge_writer.go merges a per-row AWS_<relationship_type>; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteCloudResourceEdges -> cypher/{aws,azure,gcp}_cloud_resource_edge_writer.go merges a per-row AWS_<relationship_type> from an OPEN per-provider vocabulary; split verdict D: UNCOVERED by design as the sole genuinely open family (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Unblock only by closing the vocabulary upstream or by a predicate-scoped assert-edges scan (follow-up issue); registering an observed-type list is rejected. Stays waived: no Odu, expected-edge-set fixture, registered edge types, or live matrix yet"
   - surface: "materialized_edges:cloud_resource_container_image"
     proof_gate: ifa-determinism
     issue: "#6228"
@@ -193,12 +209,12 @@ waivers:
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteCodeTaintEvidence -> cypher/code_taint_evidence_writer.go merges HAS_TAINT_EVIDENCE; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteCodeTaintEvidence -> cypher/code_taint_evidence_writer.go merges HAS_TAINT_EVIDENCE; split verdict D kind A (node-scoped DETACH DELETE retract): edge types registered in the single-type table with sole-creator census + seeded live-test proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Stays waived: no Odu, expected-edge-set fixture, or live matrix yet (per-family leaf owns coverage rows + roster flag)"
   - surface: "materialized_edges:code_taint_evidence"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteCodeTaintEvidence -> cypher/code_taint_evidence_writer.go merges HAS_TAINT_EVIDENCE; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteCodeTaintEvidence -> cypher/code_taint_evidence_writer.go merges HAS_TAINT_EVIDENCE; split verdict D kind A (node-scoped DETACH DELETE retract): edge types registered in the single-type table with sole-creator census + seeded live-test proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Stays waived: no Odu, expected-edge-set fixture, or live matrix yet (per-family leaf owns coverage rows + roster flag)"
   - surface: "materialized_edges:crossplane_satisfied_by"
     proof_gate: ifa-determinism
     issue: "#6228"
@@ -273,12 +289,12 @@ waivers:
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteIncidentRoutingEvidence -> cypher/incident_routing_evidence_writer.go merges HAS_INTENDED_ROUTING / HAS_APPLIED_ROUTING / HAS_LIVE_ROUTING, one per routing slot; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteIncidentRoutingEvidence -> cypher/incident_routing_evidence_writer.go merges HAS_INTENDED_ROUTING / HAS_APPLIED_ROUTING / HAS_LIVE_ROUTING, one per routing slot; split verdict D kind A (node-scoped DETACH DELETE retract): edge types registered in the multi-type direct table with sole-creator census + seeded live-test proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Stays waived: no Odu, expected-edge-set fixture, or live matrix yet (per-family leaf owns coverage rows + roster flag)"
   - surface: "materialized_edges:incident_routing_evidence"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteIncidentRoutingEvidence -> cypher/incident_routing_evidence_writer.go merges HAS_INTENDED_ROUTING / HAS_APPLIED_ROUTING / HAS_LIVE_ROUTING, one per routing slot; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteIncidentRoutingEvidence -> cypher/incident_routing_evidence_writer.go merges HAS_INTENDED_ROUTING / HAS_APPLIED_ROUTING / HAS_LIVE_ROUTING, one per routing slot; split verdict D kind A (node-scoped DETACH DELETE retract): edge types registered in the multi-type direct table with sole-creator census + seeded live-test proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Stays waived: no Odu, expected-edge-set fixture, or live matrix yet (per-family leaf owns coverage rows + roster flag)"
   - surface: "materialized_edges:kubernetes_correlation"
     proof_gate: ifa-determinism
     issue: "#6228"
@@ -293,12 +309,12 @@ waivers:
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteObservabilityCoverageEdges -> cypher/observability_coverage_edge_writer.go merges one COVERS-format type per coverage signal; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteObservabilityCoverageEdges -> cypher/observability_coverage_edge_writer.go merges one AWS_COVERS_<signal> type per coverage signal from a CLOSED 5-member vocabulary (truth correction: the vocabulary was never open); split verdict D kind C: both retract variants name the 5-type alternation, edge types registered in the multi-type direct table with foreign-edge regression proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Stays waived: no Odu, expected-edge-set fixture, or live matrix yet (per-family leaf owns coverage rows + roster flag)"
   - surface: "materialized_edges:observability_coverage"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteObservabilityCoverageEdges -> cypher/observability_coverage_edge_writer.go merges one COVERS-format type per coverage signal; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteObservabilityCoverageEdges -> cypher/observability_coverage_edge_writer.go merges one AWS_COVERS_<signal> type per coverage signal from a CLOSED 5-member vocabulary (truth correction: the vocabulary was never open); split verdict D kind C: both retract variants name the 5-type alternation, edge types registered in the multi-type direct table with foreign-edge regression proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Stays waived: no Odu, expected-edge-set fixture, or live matrix yet (per-family leaf owns coverage rows + roster flag)"
   - surface: "materialized_edges:publishes"
     proof_gate: ifa-determinism
     issue: "#6228"
@@ -343,22 +359,22 @@ waivers:
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteSecurityGroupSGRuleEdges -> cypher/security_group_reachability_edge_writer.go merges ALLOWS_INGRESS / ALLOWS_EGRESS; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteSecurityGroupSGRuleEdges -> cypher/security_group_reachability_edge_writer.go merges ALLOWS_INGRESS / ALLOWS_EGRESS from a CLOSED direction vocabulary (truth correction: the vocabulary was never open); split verdict D kind C: the retract names [rel:ALLOWS_INGRESS|ALLOWS_EGRESS], edge types registered in the multi-type direct table with foreign-edge regression proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Stays waived: no Odu, expected-edge-set fixture, or live matrix yet (per-family leaf owns coverage rows + roster flag)"
   - surface: "materialized_edges:security_group_sg_rule"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteSecurityGroupSGRuleEdges -> cypher/security_group_reachability_edge_writer.go merges ALLOWS_INGRESS / ALLOWS_EGRESS; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteSecurityGroupSGRuleEdges -> cypher/security_group_reachability_edge_writer.go merges ALLOWS_INGRESS / ALLOWS_EGRESS from a CLOSED direction vocabulary (truth correction: the vocabulary was never open); split verdict D kind C: the retract names [rel:ALLOWS_INGRESS|ALLOWS_EGRESS], edge types registered in the multi-type direct table with foreign-edge regression proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Stays waived: no Odu, expected-edge-set fixture, or live matrix yet (per-family leaf owns coverage rows + roster flag)"
   - surface: "materialized_edges:semantic_entity_containment"
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteSemanticEntities -> cypher/semantic_entity_statements.go merges CONTAINS; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteSemanticEntities -> cypher/semantic_entity_statements.go merges CONTAINS; split verdict D: EXCLUDED — its node-label-alternation DETACH DELETE retract deletes shared semantic nodes and foreign edges with them, so neither retract kind applies (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Needs a dedicated [rel:CONTAINS] edge retract as separate writer work before any registration. Stays waived: no Odu, expected-edge-set fixture, registered edge types, or live matrix yet"
   - surface: "materialized_edges:semantic_entity_containment"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteSemanticEntities -> cypher/semantic_entity_statements.go merges CONTAINS; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteSemanticEntities -> cypher/semantic_entity_statements.go merges CONTAINS; split verdict D: EXCLUDED — its node-label-alternation DETACH DELETE retract deletes shared semantic nodes and foreign edges with them, so neither retract kind applies (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Needs a dedicated [rel:CONTAINS] edge retract as separate writer work before any registration. Stays waived: no Odu, expected-edge-set fixture, registered edge types, or live matrix yet"
   - surface: "materialized_edges:uses_service_account"
     proof_gate: ifa-determinism
     issue: "#6228"

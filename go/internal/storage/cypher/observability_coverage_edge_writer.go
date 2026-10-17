@@ -57,14 +57,17 @@ SET rel.coverage_signal = row.coverage_signal,
     rel.evidence_source = row.evidence_source`
 
 // retractObservabilityCoverageEdgesCypher removes the reducer-owned COVERS edges
-// for a set of scopes before a fresh generation reprojects them. COVERS writes
-// use signal-specific Cypher relationship types, so the retract intentionally
-// matches any CloudResource relationship and then scopes by the edge properties
-// this reducer owns. The scope predicate filters on the edge's own scope_id, not
-// the endpoint node's: CloudResource nodes are cross-scope canonical and carry
-// no scope_id, so a node-scoped predicate would make the retract a silent no-op
-// that leaks stale edges across generations.
-const retractObservabilityCoverageEdgesCypher = `MATCH (obs:CloudResource)-[rel]->(:CloudResource)
+// for a set of scopes before a fresh generation reprojects them. The
+// relationship alternation names every member of
+// observabilityCoverageSignalVocabulary (#6228 split verdict, kind C): a bare
+// [rel] scoped only by evidence_source would reap any foreign edge type
+// sharing the endpoints, so the retract names exactly the types the writer can
+// emit and the registry drift guard pins the two together. The scope predicate
+// filters on the edge's own scope_id, not the endpoint node's: CloudResource
+// nodes are cross-scope canonical and carry no scope_id, so a node-scoped
+// predicate would make the retract a silent no-op that leaks stale edges
+// across generations.
+const retractObservabilityCoverageEdgesCypher = `MATCH (obs:CloudResource)-[rel:AWS_COVERS_alarm|AWS_COVERS_composite_alarm|AWS_COVERS_dashboard|AWS_COVERS_log_group|AWS_COVERS_trace_sampling]->(:CloudResource)
 WHERE rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
@@ -81,17 +84,50 @@ DELETE rel`
 // (orneryd/NornicDB#258) and measured ~300s/timeout on the prior UNWIND-based
 // shape. The single-clause form also binds the relationship correctly, unlike
 // a two-clause `MATCH (obs) MATCH ()-[rel]->()` split (orneryd/NornicDB#257).
-// A bare `[rel]` is safe here: COVERS edges use a signal-specific Cypher
-// relationship type (AWS_COVERS_<signal>) drawn from a closed vocabulary, but
-// enumerating every member would still require keeping this Cypher in
-// lockstep with observabilityCoverageSignalVocabulary; the `evidence_source`
-// predicate already scopes the delete to only this writer's edges, so a bare
-// `[rel]` cannot reach an edge owned by a different writer.
-const retractObservabilityCoverageEdgesByUIDsCypher = `MATCH (obs:CloudResource)-[rel]->()
+// The relationship alternation names the same five closed-vocabulary types as
+// retractObservabilityCoverageEdgesCypher (#6228 split verdict, kind C); the
+// registry drift guard pins both variants, so a signal added to the vocabulary
+// without updating both alternations turns the build red.
+const retractObservabilityCoverageEdgesByUIDsCypher = `MATCH (obs:CloudResource)-[rel:AWS_COVERS_alarm|AWS_COVERS_composite_alarm|AWS_COVERS_dashboard|AWS_COVERS_log_group|AWS_COVERS_trace_sampling]->()
 WHERE obs.uid IN $source_uids
   AND rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
+
+// Registry-contract holders for the #6228 materialized-edge retract registry
+// (docs/internal/design/6228-materialized-edge-retract-registry-contract.md).
+// The registry in go/internal/storage/cypher/edge/materialized must hold the
+// production consts themselves, never a copy of their text, and derive the
+// family's edge types from the vocabulary below rather than a copied literal.
+const (
+	// CanonicalObservabilityCoverageEdgeUpsertCypherFormat is the production write template.
+	CanonicalObservabilityCoverageEdgeUpsertCypherFormat = canonicalObservabilityCoverageEdgeUpsertCypherFormat
+	// RetractObservabilityCoverageEdgesCypher is the production full-scope retract.
+	RetractObservabilityCoverageEdgesCypher = retractObservabilityCoverageEdgesCypher
+	// RetractObservabilityCoverageEdgesByUIDsCypher is the ledger-anchored retract.
+	RetractObservabilityCoverageEdgesByUIDsCypher = retractObservabilityCoverageEdgesByUIDsCypher
+)
+
+// ObservabilityCoverageRelationshipTypes derives the closed relationship-type
+// set this writer can emit: one observabilityCoverageEdgeLabel-prefixed token
+// per member of observabilityCoverageSignalVocabulary, composed with the same
+// label-plus-signal rule the write path's validator applies. A companion test
+// round-trips every derived type back through
+// canonicalObservabilityCoverageCypherType, so a change to the token rule that
+// this derivation does not follow turns the build red instead of silently
+// narrowing what the registry asserts.
+func ObservabilityCoverageRelationshipTypes() map[string]string {
+	signals := make([]string, 0, len(observabilityCoverageSignalVocabulary))
+	for signal := range observabilityCoverageSignalVocabulary {
+		signals = append(signals, signal)
+	}
+	sort.Strings(signals)
+	out := make(map[string]string, len(signals))
+	for _, signal := range signals {
+		out[observabilityCoverageEdgeLabel+"_"+signal] = "coverage signal " + signal + " (observabilityCoverageSignalVocabulary)"
+	}
+	return out
+}
 
 // observabilityCoverageEdgeRetractUIDBatchSize bounds the number of source
 // uids passed in the $source_uids IN-list per anchored-retract statement.
