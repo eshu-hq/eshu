@@ -134,6 +134,22 @@ span names, or structured-log fields changed. Operators diagnose this path
 through the existing Terraform-state warning counters, composite-skip counter,
 safe warning fact payloads, `/api/v0/status/index`, and `/api/v0/index-status`.
 
+## Trusted-Deletion Attestation
+
+`ClaimedSource.AllowEmptySuccessor` (from the `allow_empty_successor` runtime
+configuration key or `ESHU_TFSTATE_ALLOW_EMPTY_SUCCESSOR`, both default false)
+is the explicit operator attestation for a legitimately emptied state. The
+source stamps it onto the generation as `TrustedDeletion`, but only when the
+parsed state has the legitimate-empty shape: a JSON object root with matching
+lineage/serial identity, exactly one envelope (the unconditional snapshot
+fact), and zero body facts (`terraformstate.IsLegitimatelyEmptyBody`). Without
+the shape, or without the flag, the ingestion store's successor-emptiness
+backstop refuses to replace a content-bearing active generation with an empty
+successor, keeping the prior generation active. Failure shapes never attest:
+missing and over-ceiling states return warning generations before parsing,
+and identity-mismatched states fail claim matching with no generation at all.
+A partially shrunk state stays unattested; only the empty shape is covered.
+
 ## Related Docs
 
 - `go/internal/collector/terraformstate/README.md`

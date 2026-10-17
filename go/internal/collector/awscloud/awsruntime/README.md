@@ -273,6 +273,14 @@ shape.
   the claimed generation and record `credential_failed` scan status.
 - Stale pagination checkpoints are expired at claim start for the current
   workflow generation before credentials are acquired.
+- `TargetScope.AllowEmptySuccessor` (and the collector-wide
+  `ESHU_AWS_ALLOW_EMPTY_SUCCESSOR`) is the explicit operator attestation for
+  a legitimately emptied scope. The source stamps it onto the generation as
+  `TrustedDeletion`; without it the ingestion store's successor-emptiness
+  backstop refuses to replace a content-bearing active generation with an
+  empty or sharply shrunken successor, keeping the prior generation active.
+  It defaults to false: omit it unless an emptied scope makes an empty
+  successor legitimate.
 - Scanner-side status records API call counts and throttle counts before fact
   commit. The command's commit wrapper records whether the fenced fact
   transaction later committed or failed.

@@ -102,6 +102,16 @@ digests. Those values are high cardinality and may describe private topology.
   reports a valid digest.
 - Provider-specific auth and endpoint shape stay outside this package behind
   `ClientFactory`.
+- `TargetConfig.AllowEmptySuccessor` (and the collector-wide
+  `ESHU_OCI_REGISTRY_ALLOW_EMPTY_SUCCESSOR`) is the explicit operator
+  attestation for a legitimately emptied repository. The source stamps it onto
+  the generation as `TrustedDeletion`; without it the ingestion store's
+  successor-emptiness backstop refuses to replace a content-bearing active
+  generation with an empty or sharply shrunken successor, keeping the prior
+  generation active. An emptied repository still emits its repository
+  observation (one envelope), so the sharp-shrink rule applies without the
+  attestation. It defaults to false: omit it unless an emptied repository
+  makes an empty successor legitimate.
 
 Unchanged-generation decision (#8003): this collector sends a stable content
 hint. `ociFreshnessHint` covers the sorted reference-to-digest pairs, the

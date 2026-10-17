@@ -14,6 +14,12 @@ type terraformStateCollectorConfiguration struct {
 	Discovery    terraformStateDiscoveryConfiguration `json:"discovery"`
 	AWS          terraformStateAWSConfiguration       `json:"aws"`
 	TargetScopes []terraformStateTargetScopeConfig    `json:"target_scopes"`
+	// AllowEmptySuccessor is the explicit operator attestation that a
+	// legitimately emptied state is expected. It defaults to false and
+	// needs no range validation: both JSON boolean values are meaningful
+	// attestations. Only the legitimate-empty shape (snapshot only, zero
+	// body facts) attests at collection time.
+	AllowEmptySuccessor bool `json:"allow_empty_successor"`
 }
 
 type terraformStateDiscoveryConfiguration struct {

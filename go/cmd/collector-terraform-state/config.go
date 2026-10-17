@@ -51,6 +51,7 @@ type runtimeConfig struct {
 	RedactionRules       redact.RuleSet
 	SchemaResolver       terraformstate.ProviderSchemaResolver
 	SourceMaxBytes       int64
+	AllowEmptySuccessor  bool
 	AWSRoleARN           string
 	AWSCredentials       awsCredentialConfig
 	AWSTargetScopes      []awsTargetScopeConfig
@@ -60,6 +61,11 @@ type runtimeConfig struct {
 type terraformStateRuntimeConfiguration struct {
 	AWS          terraformStateRuntimeAWSConfiguration `json:"aws"`
 	TargetScopes []terraformStateRuntimeTargetScope    `json:"target_scopes"`
+	// AllowEmptySuccessor is the explicit operator attestation that a
+	// legitimately emptied state is expected. It defaults to false and
+	// only attests the legitimate-empty shape (snapshot only, zero body
+	// facts) at collection time.
+	AllowEmptySuccessor bool `json:"allow_empty_successor"`
 }
 
 type terraformStateRuntimeAWSConfiguration struct {
@@ -174,6 +180,10 @@ func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
 	if err != nil {
 		return runtimeConfig{}, err
 	}
+	allowEmptySuccessor, err := parseAllowEmptySuccessor(instance.Configuration, getenv)
+	if err != nil {
+		return runtimeConfig{}, err
+	}
 
 	return runtimeConfig{
 		Instance:             instance,
@@ -185,11 +195,35 @@ func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
 		RedactionRules:       redactionRules,
 		SchemaResolver:       schemaResolver,
 		SourceMaxBytes:       sourceMaxBytes,
+		AllowEmptySuccessor:  allowEmptySuccessor,
 		AWSRoleARN:           awsCredentials.RoleARN,
 		AWSCredentials:       awsCredentials,
 		AWSTargetScopes:      awsTargetScopes,
 		AWSDynamoDBLockTable: awsDynamoDBLockTable,
 	}, nil
+}
+
+// parseAllowEmptySuccessor reads the trusted-deletion attestation from the
+// collector runtime configuration key and the collector-wide environment
+// variable. Either surface attests; both default to false, so unattested
+// inputs take the identical path as before.
+func parseAllowEmptySuccessor(raw string, getenv func(string) string) (bool, error) {
+	var config terraformStateRuntimeConfiguration
+	if err := json.Unmarshal([]byte(normalizeJSON(raw)), &config); err != nil {
+		return false, fmt.Errorf("terraform_state runtime configuration: %w", err)
+	}
+	if config.AllowEmptySuccessor {
+		return true, nil
+	}
+	rawEnv := strings.TrimSpace(getenv("ESHU_TFSTATE_ALLOW_EMPTY_SUCCESSOR"))
+	if rawEnv == "" {
+		return false, nil
+	}
+	attested, err := strconv.ParseBool(rawEnv)
+	if err != nil {
+		return false, fmt.Errorf("ESHU_TFSTATE_ALLOW_EMPTY_SUCCESSOR must be a boolean")
+	}
+	return attested, nil
 }
 
 // loadSchemaResolver builds the production ProviderSchemaResolver from the

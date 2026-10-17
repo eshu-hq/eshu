@@ -44,13 +44,31 @@ type CredentialMode string
 type Config struct {
 	CollectorInstanceID string
 	Targets             []TargetScope
+	// AllowEmptySuccessor is the explicit operator attestation that an
+	// empty or sharply shrunken successor generation is legitimate for
+	// every target of this collector instance (for example an emptied
+	// estate). The source stamps it onto the generation as
+	// TrustedDeletion, which bypasses the ingestion store's
+	// successor-emptiness backstop. It defaults to false: without it the
+	// store refuses to replace a content-bearing active generation with
+	// an empty or sharply shrunken one. Prefer the per-scope key when
+	// only some scopes may legitimately empty.
+	AllowEmptySuccessor bool
 }
 
 // TargetScope defines which AWS claims this collector instance may process.
 type TargetScope struct {
-	AccountID           string
-	AllowedRegions      []string
-	AllowedServices     []string
+	AccountID       string
+	AllowedRegions  []string
+	AllowedServices []string
+	// AllowEmptySuccessor is the explicit operator attestation that an
+	// empty or sharply shrunken successor generation is legitimate for
+	// this scope (for example emptied accounts or regions). The source
+	// stamps it onto the generation as TrustedDeletion, which bypasses
+	// the ingestion store's successor-emptiness backstop. It defaults to
+	// false: without it the store refuses to replace a content-bearing
+	// active generation with an empty or sharply shrunken one.
+	AllowEmptySuccessor bool
 	MaxConcurrentClaims int
 	Credentials         CredentialConfig
 }
@@ -69,6 +87,9 @@ type Target struct {
 	Region      string
 	ServiceKind string
 	Credentials CredentialConfig
+	// AllowEmptySuccessor carries the matched scope's operator
+	// attestation through to the generation stamp. It defaults to false.
+	AllowEmptySuccessor bool
 }
 
 // CredentialProvider acquires claim-scoped credentials for an authorized AWS

@@ -27,6 +27,11 @@ type ociRegistryTargetConfiguration struct {
 	RegistryHost  string   `json:"registry_host"`
 	References    []string `json:"references"`
 	TagLimit      int      `json:"tag_limit"`
+	// AllowEmptySuccessor is the explicit operator attestation that an
+	// empty or sharply shrunken successor generation is legitimate for
+	// this target. It defaults to false and needs no range validation:
+	// both JSON boolean values are meaningful attestations.
+	AllowEmptySuccessor bool `json:"allow_empty_successor"`
 }
 
 // ValidateOCIRegistryCollectorConfiguration checks the claim-planned OCI

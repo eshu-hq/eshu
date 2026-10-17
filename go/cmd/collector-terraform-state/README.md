@@ -53,6 +53,14 @@ the runtime uses host and process identity.
   older `ESHU_TFSTATE_COLLECTOR_HEARTBEAT` alias is still accepted.
 - `ESHU_TFSTATE_SOURCE_MAX_BYTES` sets the max bytes per state object. The
   reader default is used when this is unset or zero.
+- `ESHU_TFSTATE_ALLOW_EMPTY_SUCCESSOR` (boolean, default false):
+  collector-wide trusted-deletion attestation. When true, a parsed state with
+  the legitimate-empty shape (snapshot only, zero body facts) carries
+  `TrustedDeletion`, bypassing the ingestion store's successor-emptiness
+  backstop for legitimately emptied states. Missing, over-ceiling, and
+  identity-mismatched states never attest. The `allow_empty_successor`
+  runtime configuration key attests the same way when the environment is
+  managed per instance.
 - `ESHU_TFSTATE_REDACTION_SENSITIVE_KEYS` is a comma-separated list of leaf
   attribute keys the redactor treats as secrets. When unset the collector
   uses `defaultRedactionSensitiveKeys` in `config.go` (`password`, `secret`,

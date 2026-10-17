@@ -119,7 +119,19 @@ func (f DefaultSourceFactory) s3LockConfig(
 type ClaimedSource struct {
 	Resolver      terraformstate.DiscoveryResolver
 	SourceFactory SourceFactory
-	RedactionKey  redact.Key
+	// AllowEmptySuccessor is the explicit operator attestation that a
+	// legitimately emptied state is expected (for example after
+	// `terraform destroy` removed every managed resource and output).
+	// The source stamps it onto the generation as TrustedDeletion, but
+	// only when the parsed state has the legitimate-empty shape
+	// (snapshot only, zero body facts), which bypasses the ingestion
+	// store's successor-emptiness backstop. It defaults to false:
+	// without it the store refuses to replace a content-bearing active
+	// generation with an empty successor, keeping the prior generation
+	// active. Failure shapes (missing, over-ceiling, or
+	// identity-mismatched states) never attest, even with this set.
+	AllowEmptySuccessor bool
+	RedactionKey        redact.Key
 	// RedactionRules carries the versioned sensitive-key policy; without it
 	// every parsed attribute fails closed through redact.SchemaUnknown.
 	RedactionRules redact.RuleSet
@@ -287,6 +299,10 @@ func (s ClaimedSource) collectCandidate(
 		s.recordSnapshotObserved(ctx, sourceKey.BackendKind, "error")
 		return collector.CollectedGeneration{}, false, err
 	}
+	// The gated escape hatch for a legitimately emptied state: only an
+	// attested empty body bypasses the store's successor-emptiness
+	// backstop. Failure and content-bearing shapes stay unattested.
+	generationValue = attestTrustedDeletion(generationValue, s.AllowEmptySuccessor, result)
 	s.recordSnapshotObserved(ctx, sourceKey.BackendKind, "parsed")
 	safeLocatorHash := scopeValue.Metadata["locator_hash"]
 	s.recordResourceFacts(ctx, sourceKey.BackendKind, result.ResourceFacts)

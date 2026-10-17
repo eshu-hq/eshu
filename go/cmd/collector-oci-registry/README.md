@@ -41,6 +41,12 @@ Configured-target mode required values:
 Optional values:
 
 - `ESHU_OCI_REGISTRY_POLL_INTERVAL` (Go duration, defaults to `5m`)
+- `ESHU_OCI_REGISTRY_ALLOW_EMPTY_SUCCESSOR` (boolean, default false):
+  collector-wide trusted-deletion attestation. When true, every generation
+  carries `TrustedDeletion`, bypassing the ingestion store's
+  successor-emptiness backstop for legitimately emptied repositories. Prefer
+  the per-target `allow_empty_successor` key when only some repositories may
+  empty.
 
 Claim-aware mode is selected when `ESHU_COLLECTOR_INSTANCES_JSON` is non-empty.
 The runtime selects the `oci_registry` collector instance, requires
@@ -68,6 +74,14 @@ Each target JSON object supports:
   `aws_profile` for ECR
 - credential indirection fields: `username_env`, `password_env`,
   `bearer_token_env`
+- `allow_empty_successor` (default false): the explicit operator attestation
+  for a legitimately emptied repository. The source stamps it onto the
+  generation as `TrustedDeletion`; without it the ingestion store's
+  successor-emptiness backstop refuses to replace a content-bearing active
+  generation with an empty or sharply shrunken successor, keeping the prior
+  generation active. An emptied repository still emits its repository
+  observation (one envelope), so the sharp-shrink rule applies without the
+  attestation.
 
 Credentials are resolved from the named environment variables at runtime and
 are not copied into docs, logs, metrics, or facts.

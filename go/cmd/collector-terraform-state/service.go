@@ -86,6 +86,10 @@ func buildClaimedService(
 	committer.Instruments = instruments
 
 	source := tfstateruntime.ClaimedSource{
+		// The gated escape hatch for legitimately emptied states: only an
+		// attested empty body bypasses the store's successor-emptiness
+		// backstop.
+		AllowEmptySuccessor: config.AllowEmptySuccessor,
 		Resolver: terraformstate.DiscoveryResolver{
 			Config:         discoveryConfig,
 			GitReadiness:   postgres.TerraformStateGitReadinessChecker{DB: database},

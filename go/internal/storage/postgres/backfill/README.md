@@ -55,14 +55,20 @@ sorted `resolved_id` set identifies their content. The listing takes no lock.
   predicate: refuses an empty or sharply shrunken successor over a
   content-bearing prior unless the generation carries trusted deletion.
   Covered collectors (each with an explicit operator attestation surface,
-  #8267): `jira` (`allow_empty_successor` target key),
+  #8267, #8329): `jira` (`allow_empty_successor` target key),
   `pagerduty` (`allow_empty_successor` target key), `confluence`
-  (`ESHU_CONFLUENCE_ALLOW_EMPTY_SUCCESSOR`), and component extensions
-  (SDK `Generation.trusted_deletion`, forwarded by the extension host).
-  Uncovered collectors (for example `security_alerts/alertruntime`,
-  `aws`/`oci`/`tfstate`) have no attestation path: a legitimately emptied
-  scope stays on its prior generation and the refusal recurs every tick
-  under `destructive_successor_refused` until the scope regains content.
+  (`ESHU_CONFLUENCE_ALLOW_EMPTY_SUCCESSOR`), `aws` (`allow_empty_successor`
+  scope key or `ESHU_AWS_ALLOW_EMPTY_SUCCESSOR`), `oci`
+  (`allow_empty_successor` target key or
+  `ESHU_OCI_REGISTRY_ALLOW_EMPTY_SUCCESSOR`), `tfstate`
+  (`allow_empty_successor` runtime key or `ESHU_TFSTATE_ALLOW_EMPTY_SUCCESSOR`,
+  gated on the legitimate-empty shape: snapshot only, zero body facts), and
+  component extensions (SDK `Generation.trusted_deletion`, forwarded by the
+  extension host).
+  Uncovered collectors (for example `security_alerts/alertruntime`) have no
+  attestation path: a legitimately emptied scope stays on its prior generation
+  and the refusal recurs every tick under `destructive_successor_refused`
+  until the scope regains content.
 - `BuildDeferredScopedFactQueryParams`, `DeferredScopedFactQueryParams`,
   `BuildDeferredRepoIDRegex`, `DeferredRepoIDReferenceKeys`,
   `DeferredCatalogFingerprint`, `NewDeferredBackfillPartitionMemoStore`,

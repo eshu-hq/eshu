@@ -41,6 +41,29 @@ func generationForCandidate(
 	return scopeValue, generationValue, nil
 }
 
+// attestTrustedDeletion stamps TrustedDeletion onto the parsed generation
+// when the operator attested empty successors AND the parsed state has the
+// legitimate-empty shape (zero resource, output, and module facts). The gate
+// runs post-parse because only a successful parse proves the shape: the
+// parse itself enforces the JSON object root and the lineage/serial identity
+// match, while IsLegitimatelyEmptyBody proves the body is empty. Failure
+// shapes never reach this gate: missing and over-ceiling states return
+// warning generations before parsing, and identity-mismatched states fail
+// claim matching with no generation at all. A partially shrunk state (real
+// body facts under half the prior) stays unattested: only the empty shape
+// is covered, so sharp shrink still trips the backstop until the scope
+// regains content or the operator re-attests an emptied state.
+func attestTrustedDeletion(
+	generation scope.ScopeGeneration,
+	allowEmptySuccessor bool,
+	result terraformstate.ParseStreamResult,
+) scope.ScopeGeneration {
+	if allowEmptySuccessor && terraformstate.IsLegitimatelyEmptyBody(result.ResourceFacts, result.OutputFacts, result.ModuleFacts) {
+		generation.TrustedDeletion = true
+	}
+	return generation
+}
+
 // scopeForCandidate builds the IngestionScope for a candidate using the
 // already-verified source key. Repo metadata is preserved in scope metadata so
 // downstream consumers can correlate the snapshot back to its discovering repo

@@ -22,6 +22,16 @@ type Config struct {
 	CollectorInstanceID string
 	PollInterval        time.Duration
 	Targets             []TargetConfig
+	// AllowEmptySuccessor is the explicit operator attestation that an
+	// empty or sharply shrunken successor generation is legitimate for
+	// every target of this collector instance (for example an emptied
+	// estate). The source stamps it onto the generation as
+	// TrustedDeletion, which bypasses the ingestion store's
+	// successor-emptiness backstop. It defaults to false: without it the
+	// store refuses to replace a content-bearing active generation with
+	// an empty or sharply shrunken one. Prefer the per-target key when
+	// only some repositories may legitimately empty.
+	AllowEmptySuccessor bool
 }
 
 // TargetConfig describes one bounded OCI registry repository scan target.
@@ -45,6 +55,15 @@ type TargetConfig struct {
 	AWSProfile    string
 	FencingToken  int64
 	TLS           TLSConfig
+	// AllowEmptySuccessor is the explicit operator attestation that an
+	// empty or sharply shrunken successor generation is legitimate for
+	// this repository (for example after all tags were deleted). The
+	// source stamps it onto the generation as TrustedDeletion, which
+	// bypasses the ingestion store's successor-emptiness backstop. It
+	// defaults to false: without it the store refuses to replace a
+	// content-bearing active generation with an empty or sharply
+	// shrunken one.
+	AllowEmptySuccessor bool
 }
 
 func (c Config) validated() (Config, error) {
@@ -70,7 +89,7 @@ func (c Config) validated() (Config, error) {
 		}
 		targets = append(targets, validated)
 	}
-	return Config{CollectorInstanceID: collectorID, PollInterval: pollInterval, Targets: targets}, nil
+	return Config{CollectorInstanceID: collectorID, PollInterval: pollInterval, Targets: targets, AllowEmptySuccessor: c.AllowEmptySuccessor}, nil
 }
 
 func (t TargetConfig) validated() (TargetConfig, error) {
@@ -120,6 +139,9 @@ func (t TargetConfig) validated() (TargetConfig, error) {
 		AWSProfile:    strings.TrimSpace(t.AWSProfile),
 		FencingToken:  t.FencingToken,
 		TLS:           t.TLS,
+		// Only an explicitly attested repository bypasses the ingestion
+		// store's successor-emptiness backstop.
+		AllowEmptySuccessor: t.AllowEmptySuccessor,
 	}, nil
 }
 
