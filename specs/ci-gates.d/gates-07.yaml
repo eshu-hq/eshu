@@ -174,6 +174,7 @@ gates:
       # precommit-go.sh reads the pinned gosec version from this workflow.
       - ".github/workflows/security-scan.yml"
       - "scripts/lib/precommit-go-gosec.sh"
+      - "scripts/lib/gosec-partial-packages.tsv"
       - "scripts/test-precommit-go-gosec.sh"
     self_test_triggers:
       - "scripts/dev/precommit-go.sh"
@@ -183,9 +184,11 @@ gates:
     # The gosec-changed mode derives its own package list from the merge-base
     # diff (plus staged and unstaged work), falls back to the whole module when
     # a trigger file that decides how gosec runs changed, and fails closed on an
-    # unresolvable base or an unusable gosec result (#8335). CI security-scan.yml
-    # stays the whole-module authority. `make pre-push` runs it from the floor
-    # (#8326); the git pre-push hook go-gosec runs the same scan again on a push.
+    # unresolvable base or an unusable gosec result (#8335). Packages gosec cannot
+    # fully type-check are disclosed from scripts/lib/gosec-partial-packages.tsv
+    # (#8339). CI security-scan.yml runs the same fail-closed whole-module arm.
+    # `make pre-push` runs this row from the floor (#8326); the git pre-push
+    # hook go-gosec runs the same scan again on a push.
     local:
       command: "bash scripts/dev/precommit-go.sh gosec-changed"
       pre_push: floor

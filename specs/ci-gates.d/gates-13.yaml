@@ -383,8 +383,9 @@ gates:
       # Every committed cassette: the scan's subject (#6965 Phase 2). A leak
       # pushed to a PR branch is already public. The floor's category list
       # excluded `security` until #8326, so this row never ran in `make
-      # pre-push`; it is now deferred there on its measured cost (see
-      # local.pre_push_reason) and runs in `make pre-pr` and CI.
+      # pre-push` despite pre_push: floor; since #8326 it does, and its
+      # self-test is trigger-scoped (self_test_triggers) so it runs only when
+      # the gate's own code changes.
       - "testdata/cassettes/**"
       - "scripts/verify-cassette-author.sh"
       - "scripts/test-verify-cassette-author.sh"
@@ -397,10 +398,14 @@ gates:
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
       - ".github/static-contract-filters.yml"
+    self_test_triggers:
+      - "scripts/verify-cassette-author.sh"
+      - "scripts/test-verify-cassette-author.sh"
+      - "scripts/lib/cassette_private_data_pattern.sh"
+      - "go/internal/replay/schema/**"
     local:
       command: "bash scripts/verify-cassette-author.sh"
-      pre_push: deferred
-      pre_push_reason: "Measured at idle (load1 1-6) over 3 runs: the scan is 2.2 s wall warm (13.7 s on a cold Go build cache) and its self-test is 30.0-30.3 s wall (32 CPU-s), which runs whenever the row is selected, so a cassette or registry change costs about 32 s against the 15 s floor threshold. Still runs in `make pre-pr`/`make pre-pr-full` and blocks merge via static-contract-gates.yml (job \"Verify cassette author gate\", required-gates-complete)."
+      pre_push: floor
       test_command: "bash scripts/test-verify-cassette-author.sh"
     ci:
       workflow: static-contract-gates.yml

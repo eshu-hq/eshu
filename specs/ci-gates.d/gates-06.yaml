@@ -281,6 +281,10 @@ gates:
     blocking: true
     triggers:
       - "docs/**"
+      - "docs/mkdocs.yml"
+      - "docs/public/index.md"
+      - "docs/public/reference/http-api.md"
+      - "docs/public/reference/http-api/**"
       - "specs/**"
       - "AGENTS.md"
       - "README.md"
@@ -291,7 +295,10 @@ gates:
       - "scripts/test-verify-docs-build-changed.sh"
       - "scripts/verify-docs-build-changed.sh"
     self_test_triggers:
-      - "docs/**"
+      - "docs/mkdocs.yml"
+      - "docs/public/index.md"
+      - "docs/public/reference/http-api.md"
+      - "docs/public/reference/http-api/**"
       - "scripts/lib/context-stories-markdown-visible.awk"
       - "scripts/lib/test-verify-docs-build-changed-fake-uv.sh"
       - "scripts/test-context-stories-doc-split.sh"
