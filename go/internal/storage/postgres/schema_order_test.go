@@ -464,7 +464,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// Migration 187 seeds one version-0 row per repository with content,
 	// in its own file so no table lock is held through the scan (#7961).
 	"config_artifact_content_versions_seed",
-	// Migration 191 (#8283) adds the side table of per-work-item input
+	// Migration 192 (#8283) adds the side table of per-work-item input
 	// fingerprints the deployable_unit_correlation reopen compares against.
 	"reducer_work_input_fingerprints",
 }

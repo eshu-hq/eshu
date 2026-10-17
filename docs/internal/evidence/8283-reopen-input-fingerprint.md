@@ -24,11 +24,11 @@ un-reopened if that pass is the last one. A timestamp rule
 A per-item input fingerprint, taken in the fused fenced read and stored in a
 side table. A missing row reopens the item.
 
-- Table `reducer_work_input_fingerprints` (migration 191, Go DDL in
+- Table `reducer_work_input_fingerprints` (migration 192, Go DDL in
   `backfill/input_fingerprint_store.go`): `work_item_id` primary key with a cascading
   foreign key to `fact_work_items`, `domain`, `repo_ids`, `fingerprint`,
-  `recorded_at`. Migrations 188 to 190 are held by an open PR, so this one is
-  191.
+  `recorded_at`. Open PRs hold migrations 188 to 191, so this one is
+  192.
 - The handler writes the row (idempotent upsert) after its graph writes and
   before the ACK, following the admission-decision writer pattern.
 - The fingerprint is computed inside
@@ -62,7 +62,7 @@ side table. A missing row reopens the item.
   enumerates every non-test Go source and migration and fails on any UPDATE,
   DELETE, TRUNCATE, DROP, trigger, rule or foreign key that could change or
   remove a row (a seeded-violation pair plants each shape and fails it).
-- Migration 191, not 188.
+- Migration 192, not 188: open PRs hold 188 to 190 and 191.
 
 ## Local proof
 
@@ -211,7 +211,7 @@ blocking and failure show in `skipped_unchanged`, the existing
 
 ## Rollout
 
-Apply migration 191 with the schema Job before the reducer image rolls, not
+Apply migration 192 with the schema Job before the reducer image rolls, not
 only before the ingester.
 
 - Ingester: if the binary rolls first, the listing fails on the missing table

@@ -5,7 +5,7 @@ items whose inputs have not changed. Code: `backfill/input_fingerprint_store.go`
 (store, DDL, upsert), `backfill/input_fingerprint_sql.go` (the one fingerprint
 expression, the fingerprinted fused read, the reopen listing),
 `relationship_store_resolved.go` (the fused-read method),
-`ingestion_reopen_correlation.go`, migration 191.
+`ingestion_reopen_correlation.go`, migration 192.
 
 ## Why
 
@@ -72,7 +72,7 @@ Proofs: `input_fingerprint_reopen_live_test.go`,
 
 ## Rollout order
 
-Apply migration 191 with the schema Job before the reducer image rolls, not
+Apply migration 192 with the schema Job before the reducer image rolls, not
 only before the ingester. An ingester binary that rolls first fails the listing
 on the missing table and rolls back that pass's whole reopen transaction. A
 reducer binary that rolls first fails `recordInputFingerprint` after the graph

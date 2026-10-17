@@ -14,7 +14,7 @@ import (
 )
 
 // InputFingerprintSchemaSQL is the DDL of the reducer_work_input_fingerprints
-// side table (#8283). It mirrors migration 191, which the schema Job applies;
+// side table (#8283). It mirrors migration 192, which the schema Job applies;
 // TestDDLMigrationParity keeps the two in step.
 //
 // The fingerprint column holds a SHA-256 over per-generation resolved-row
