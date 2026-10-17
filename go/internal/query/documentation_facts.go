@@ -381,6 +381,43 @@ func normalizeDocumentationFactKind(raw string) (string, bool) {
 	}
 }
 
+// documentationCollectedFactKindSQLList is the default-listing kind predicate:
+// every collected documentation kind. It lives beside kind normalization
+// because the two must agree on the kind set.
+func documentationCollectedFactKindSQLList() string {
+	return "'" + docs.SourceFactKind + "', " +
+		"'" + docs.DocumentFactKind + "', " +
+		"'" + docs.SectionFactKind + "', " +
+		"'" + docs.LinkFactKind + "', " +
+		"'" + docs.EntityMentionFactKind + "', " +
+		"'" + docs.ClaimCandidateFactKind + "', " +
+		"'" + facts.SemanticDocumentationObservationFactKind + "'"
+}
+
+// documentationLiteralCollectedFactKind maps a requested fact kind to the SQL
+// literal an anchor-only read binds for it, reporting false for kinds without
+// a partial GIN. Every collected kind except documentation_source qualifies;
+// source keeps its older literal. The match is against the package constants,
+// never caller input, so the literal cannot inject.
+func documentationLiteralCollectedFactKind(raw string) (string, bool) {
+	switch strings.TrimSpace(raw) {
+	case docs.DocumentFactKind:
+		return docs.DocumentFactKind, true
+	case docs.SectionFactKind:
+		return docs.SectionFactKind, true
+	case docs.LinkFactKind:
+		return docs.LinkFactKind, true
+	case docs.EntityMentionFactKind:
+		return docs.EntityMentionFactKind, true
+	case docs.ClaimCandidateFactKind:
+		return docs.ClaimCandidateFactKind, true
+	case facts.SemanticDocumentationObservationFactKind:
+		return facts.SemanticDocumentationObservationFactKind, true
+	default:
+		return "", false
+	}
+}
+
 func documentationFactsResponse(
 	readModel documentationFactListReadModel,
 	page documentationPage,

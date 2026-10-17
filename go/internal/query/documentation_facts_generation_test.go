@@ -322,10 +322,13 @@ func TestContentReaderDocumentationFactsActiveScopeLabelsBoundGenerationWithoutE
 func TestContentReaderDocumentationFactsAnchorOnlyIsActiveByConstruction(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{{
-		columns: []string{"payload"},
-		rows:    [][]driver.Value{{factRowJSON("gen-a")}},
-	}})
+	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+		unresolvedDocRepoScopeResult(),
+		{
+			columns: []string{"payload"},
+			rows:    [][]driver.Value{{factRowJSON("gen-a")}},
+		},
+	})
 	got, err := NewContentReader(db).DocumentationFacts(t.Context(), documentationFactFilter{
 		Repository: "repository:r_1",
 		Limit:      10,
