@@ -5,6 +5,7 @@ import hashlib
 import pathlib
 import re
 import sys
+import unicodedata
 
 from live_postgres_readiness_events import verify_results
 from live_postgres_readiness_inventory_helpers import HELPER_PROOFS
@@ -74,7 +75,7 @@ CONSUMER_PATH = "go/internal/query/supply/chain/impact/suppression_paths_perform
 CONSUMER_TEST = "TestSupplyChainSuppressionPathsPerformanceLive"
 HELPER_FIELDS = {"consumer_file", "consumer_test", "helper_sha256", "consumer_sha256"}
 HASH_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
-TEST_DECLARATION = re.compile(r"^func (Test\w+)\(", flags=re.MULTILINE)
+TEST_DECLARATION = re.compile(r"^func (Test\w*)\(", flags=re.MULTILINE)
 PACKAGE_DECLARATION = re.compile(r"^package ([A-Za-z_][A-Za-z_0-9]*)$", flags=re.MULTILINE)
 BUILD_TAG = re.compile(r"^//(?:go:build| \+build) ", flags=re.MULTILINE)
 
@@ -117,7 +118,9 @@ def verify_helper(repo_root: pathlib.Path) -> None:
             raise ValueError(f"helper proof source has no unique package: {file_path}")
         if file_path == HELPER_PATH:
             helper_package = packages[0]
-            if TEST_DECLARATION.search(text):
+            names = TEST_DECLARATION.findall(text)
+            if any(len(name) == 4 or unicodedata.category(name[4]) != "Ll"
+                   for name in names):
                 raise ValueError("helper proof source declares a Test root")
         elif packages[0] != helper_package:
             raise ValueError(f"helper and consumer Go packages differ: {file_path}")
@@ -150,6 +153,10 @@ def verify_ledger(ledger_path: pathlib.Path, repo_root: pathlib.Path) -> int:
         )
         return 1
     helper_row = selected[HELPER_PATH]
+    if "backends" in helper_row:
+        print(f"postgres_ci helper row has unexpected backends: {HELPER_PATH}",
+              file=sys.stderr)
+        return 1
     for field, want in (("class", "postgres_ci"), ("tag", "~"),
                         ("runner", "live-postgres-readiness")):
         if helper_row.get(field) != want:

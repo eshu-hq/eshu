@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import pathlib
 import re
@@ -79,6 +80,60 @@ class HelperEnrollmentTest(unittest.TestCase):
         status, message = self.verify_output()
         self.assertNotEqual(status, 0)
         self.assertIn("helper proof source declares a Test root", message)
+
+    def test_bare_go_test_root_fails_even_with_renewed_source_pin(self) -> None:
+        """Go accepts a bare Test name, so the zero-root check must see it."""
+        self.edit_source(HELPER, "package impact",
+                         "package impact\nfunc Test(t *testing.T) {}")
+        source = (self.root / HELPER).read_bytes()
+        original = readiness.HELPER_PROOFS[HELPER]
+        # This one temporary repin isolates the semantic zero-root check.
+        repinned = {HELPER: {**original, "helper_sha256": hashlib.sha256(source).hexdigest()}}
+        with mock.patch.object(readiness, "HELPER_PROOFS", repinned):
+            status, message = self.verify_output()
+        self.assertNotEqual(status, 0)
+        self.assertIn("helper proof source declares a Test root", message)
+
+    def test_lowercase_test_prefix_is_not_a_go_test_root(self) -> None:
+        """Go treats a lowercase suffix after Test as a helper name."""
+        self.edit_source(HELPER, "package impact",
+                         "package impact\nfunc Testinternal(t *testing.T) {}")
+        source = (self.root / HELPER).read_bytes()
+        original = readiness.HELPER_PROOFS[HELPER]
+        repinned = {HELPER: {**original, "helper_sha256": hashlib.sha256(source).hexdigest()}}
+        with mock.patch.object(readiness, "HELPER_PROOFS", repinned):
+            self.assertEqual(self.verify(), 0)
+
+    def test_unicode_ordinal_feminine_suffix_is_a_go_test_root(self) -> None:
+        """Go does not classify U+00AA as a lowercase letter."""
+        self.edit_source(HELPER, "package impact",
+                         "package impact\nfunc Testª(t *testing.T) {}")
+        source = (self.root / HELPER).read_bytes()
+        original = readiness.HELPER_PROOFS[HELPER]
+        repinned = {HELPER: {**original, "helper_sha256": hashlib.sha256(source).hexdigest()}}
+        with mock.patch.object(readiness, "HELPER_PROOFS", repinned):
+            status, message = self.verify_output()
+        self.assertNotEqual(status, 0)
+        self.assertIn("helper proof source declares a Test root", message)
+
+    def test_helper_row_rejects_any_backend_field(self) -> None:
+        """PostgreSQL helper ownership has no graph-backend metadata."""
+        original = self.ledger.read_text(encoding="utf-8")
+        row = f"  - file: {HELPER}\n"
+        start = original.index(row)
+        end = original.find("  - file: ", start + len(row))
+        self.assertGreater(end, start)
+        section = original[start:end]
+        runner = "    runner: live-postgres-readiness\n"
+        self.assertIn(runner, section)
+        for backend in ("neo4j", "~"):
+            with self.subTest(backend=backend):
+                changed = section.replace(runner, runner + f"    backends: {backend}\n", 1)
+                self.ledger.write_text(original[:start] + changed + original[end:],
+                                       encoding="utf-8")
+                status, message = self.verify_output()
+                self.assertNotEqual(status, 0)
+                self.assertIn("helper row has unexpected backends", message)
 
     def test_consumer_call_removal_fails(self) -> None:
         self.edit_source(CONSUMER, "suppressionListPlanArgs(listFilter, readAt)",
