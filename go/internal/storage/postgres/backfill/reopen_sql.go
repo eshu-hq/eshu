@@ -45,13 +45,22 @@ const scopeReplayFloorSelectWorkItemRefs = `SELECT work.work_item_id, work.scope
 
 // scopeReplayFloorJoinsAndStage joins the work item to its generation row and
 // the scope's floor row, then opens the WHERE clause on the reducer stage.
-const scopeReplayFloorJoinsAndStage = `FROM fact_work_items AS work
+const scopeReplayFloorJoinsAndStage = scopeReplayFloorJoins + scopeReplayFloorWhereStage
+
+// scopeReplayFloorJoins is the FROM clause with the generation and floor
+// joins. A listing that needs one more join (the deployable_unit_correlation
+// input-fingerprint listing, #8283) composes it between this fragment and
+// scopeReplayFloorWhereStage.
+const scopeReplayFloorJoins = `FROM fact_work_items AS work
 JOIN scope_generations AS work_generation
   ON work_generation.scope_id = work.scope_id
  AND work_generation.generation_id = work.generation_id
 JOIN scope_replay_floor AS floor
   ON floor.scope_id = work.scope_id
-WHERE work.stage = 'reducer'
+`
+
+// scopeReplayFloorWhereStage opens the WHERE clause on the reducer stage.
+const scopeReplayFloorWhereStage = `WHERE work.stage = 'reducer'
 `
 
 // scopeReplayFloorBound is the shared tail of every floored reopen listing:

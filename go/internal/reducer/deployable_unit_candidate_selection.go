@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 
@@ -141,4 +142,29 @@ func logDeployableUnitCorrelationCompleted(
 		slog.String("selection_reason", string(selection.Reason)),
 		slog.Int("edge_row_count", edgeRowCount),
 	)
+}
+
+// deployableUnitCorrelationEntityKeys normalizes the intent entity keys the
+// candidate selection and the empty-result retraction match on. It fails fast
+// when the intent names none.
+func deployableUnitCorrelationEntityKeys(intent Intent) (map[string]struct{}, error) {
+	entityKeys := uniqueSortedStrings(intent.EntityKeys)
+	if len(entityKeys) == 0 {
+		return nil, fmt.Errorf(
+			"deployable unit correlation intent %q must include at least one entity key",
+			intent.IntentID,
+		)
+	}
+
+	normalized := make(map[string]struct{}, len(entityKeys))
+	for _, key := range entityKeys {
+		raw := strings.ToLower(strings.TrimSpace(key))
+		if raw != "" {
+			normalized[raw] = struct{}{}
+		}
+		if alias := normalizedEntityKey(key); alias != "" {
+			normalized[alias] = struct{}{}
+		}
+	}
+	return normalized, nil
 }

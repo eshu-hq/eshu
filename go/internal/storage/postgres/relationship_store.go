@@ -10,12 +10,24 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// InputFingerprintStore persists the per-work-item input fingerprints the
+// deployable_unit_correlation reopen compares against (#8283). The store, its
+// DDL, and the fingerprint SQL live in the backfill package beside the reopen
+// listing that reads them; root keeps this alias for the wiring in cmd/reducer.
+type InputFingerprintStore = backfill.InputFingerprintStore
+
+// NewInputFingerprintStore builds the input fingerprint store over an executor.
+func NewInputFingerprintStore(database db.Executor) InputFingerprintStore {
+	return backfill.NewInputFingerprintStore(database)
+}
 
 // RelationshipStore persists relationship evidence, assertions, candidates,
 // and resolved relationships in PostgreSQL.

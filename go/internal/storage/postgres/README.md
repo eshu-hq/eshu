@@ -1915,10 +1915,10 @@ zero signals a catalog churn or a memo-write regression.
 ### Cross-scope completion and correlation reopen (#5423 / #5710 / #5426 / #5837 / #5699 / #5740)
 
 `CrossScopeCorrelationReopenDomains` (`ingestion_reopen_correlation.go`) is the
-single source of truth for reducer domains that still need blanket replay after
-a maintenance pass: `deployable_unit_correlation`,
+single source of truth for reducer domains replayed after a maintenance pass:
+`deployable_unit_correlation` (only when its input fingerprint changed or is missing, #8283, see `reopen-input-fingerprint.md`),
 `kubernetes_correlation_materialization`, `container_image_identity`, and
-`aws_cloud_runtime_drift`. Container image identity needs this replay when a
+`aws_cloud_runtime_drift` (these three blanket). Container image identity needs this replay when a
 cloud image-reference decision succeeds before the matching OCI registry
 generation activates. Both runtimes consume the list — the
 ingester on every shard drain through `reopenMaintenanceWorkItemsInTransaction`,
@@ -1955,7 +1955,7 @@ gap. One list plus one SQL shape means the gate's bootstrap passes are evidence
 about the ingester; only the call site differs. (The gate still does not start
 `eshu-ingester`, so the call site itself is not gate-covered.)
 
-The remaining blanket domains are deliberately NOT gated by the same-pass
+The correlation domains are deliberately NOT gated by the same-pass
 backfill skip-set described below. That set records which partitions committed
 no new BACKWARD EVIDENCE this pass; the correlation domains wait on a different
 signal — another scope's generation activating — so gating them on it would

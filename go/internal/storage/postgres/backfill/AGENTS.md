@@ -52,6 +52,15 @@
   publishing every partition. A failed readiness check must fall back to
   publishing all partitions, never to skipping them.
 
+- **One definition of the input fingerprint** (#8283) —
+  `InputFingerprintExprSQL` is the only place the deployable_unit_correlation
+  fingerprint is defined. The parent's fused fenced read and
+  `ListSucceededDeployableUnitWorkItemsQuery` both embed its output; never
+  re-spell it, never hash in Go, and keep it SHA-256 (the production database
+  is FIPS-mode, where `md5()` raises). The listing returns an `unchanged`
+  flag, not a filter, and a missing fingerprint row is `false` (reopen). No
+  readiness predicate and no timestamp predicate belong in it.
+
 ## Change guidance
 
 - Keep `Store` fields behind the seam: a new durable collaborator needs a

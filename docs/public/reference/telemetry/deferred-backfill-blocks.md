@@ -23,7 +23,7 @@ log line. The set is closed: nine blocks, no others.
 | Evidence discovery, dedupe, and per-source grouping | `relationship.backfill.discover` | `facts_in`, `evidence_out` |
 | Per-repository evidence write batches | `relationship.backfill.write_batches` | `batches`, `readiness_rows`, `inserted_rows` |
 | Per-partition readiness and memo publication | `relationship.backfill.fanin` | `partitions`, `published`, `skipped`, `skipped_unchanged`, `argocd_probe_seconds` |
-| One reopen domain call after the backfill commits | `relationship.backfill.reopen` | `domain`, `reopened`, `skipped_by_memo` |
+| One reopen domain call after the backfill commits | `relationship.backfill.reopen` | `domain`, `reopened`, `skipped_by_memo`, `skipped_unchanged` |
 
 Rules that make the numbers safe to compare:
 
@@ -63,6 +63,19 @@ Rules that make the numbers safe to compare:
   Correlation domains are not memo-gated, so their `skipped_by_memo` is always
   0. The partition-scoped pass also emits one per domain call, tagged
   `pass=targeted`.
+- `reopen` `skipped_unchanged` counts succeeded items the pass left as they
+  were because their recorded input fingerprint still equals the live one
+  (#8283). Only `deployable_unit_correlation` carries a fingerprint, so every
+  other domain reports 0. An item with no recorded fingerprint row always
+  reopens, so the first pass after the schema Job and the new image reports 0
+  and reopens everything once. `reopened` counts the items reopened, so
+  `reopened + skipped_unchanged` is the succeeded items above the replay floor.
+  The same count is the `skipped_unchanged` field of the
+  `reducer_work_items_reopened` log line and the
+  `eshu_dp_correlation_reopen_skipped_unchanged_total{domain}` counter, which
+  sits beside `eshu_dp_correlation_reopened_total{domain}`. If the skipped
+  counter stays 0 while the corpus is quiet, the handler is not recording
+  fingerprints (check the reducer image) or the fingerprint table is empty.
 - `bootstrap-index`'s standalone `Reopen*` calls emit the same `reopen` span,
   the same `deferred_backfill_block_completed` line, and the same histogram
   point as the ingester's maintenance pass.

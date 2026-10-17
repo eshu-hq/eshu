@@ -43,10 +43,14 @@ import (
 //
 // Per-domain rationale, in list order:
 //
-//   - deployable_unit_correlation reads resolved DEPLOYS_FROM relationships and
-//     has no readiness retry of its own, so on the first maintenance pass —
-//     before resolution commits — it correlates nothing. A later pass replays it
-//     once the resolved relationships exist.
+//   - deployable_unit_correlation reads resolved DEPLOYS_FROM relationships. It
+//     defers while its own relationship generation is inactive or the corpus
+//     fence is open (#6184, #6730), so it can no longer succeed on a partial
+//     resolved set. A success is still stale after a foreign scope activates a
+//     generation that touches its repositories, which is what this replay
+//     repairs. It records an input fingerprint when it succeeds, and the pass
+//     skips the item while that fingerprint is unchanged (#8283); a missing
+//     fingerprint reopens it.
 //   - kubernetes_correlation_materialization writes RUNS_IMAGE edges by joining a
 //     live workload's image digest against the cross-scope active OCI manifest
 //     facts. If the OCI registry scope's generation is not active yet the digest
@@ -101,7 +105,9 @@ const listSucceededReducerWorkItemsByDomainQuery = backfill.ListSucceededReducer
 // drain plus the relationship maintenance — exist. It generalizes the
 // deployment_mapping and code_import_repo_edge reopens for additive correlation
 // domains (e.g. deployable_unit_correlation, which consumes resolved DEPLOYS_FROM
-// relationships and has no readiness retry of its own).
+// relationships). deployable_unit_correlation alone skips an item whose
+// recorded input fingerprint still matches the live one (#8283); the other
+// domains reopen every listed item.
 //
 // Both runtimes call it with CrossScopeCorrelationReopenDomains: the ingester's
 // reopenMaintenanceWorkItemsInTransaction, inside that pass's reopen
@@ -150,6 +156,8 @@ func (s IngestionStore) ReopenSucceededReducerWorkItems(
 // reopenCorrelationDomain lists and reopens the succeeded work items of one
 // correlation domain as one relationship.backfill.reopen block. The correlation
 // domains are not gated on the partition memo, so skipped_by_memo is always 0.
+// deployable_unit_correlation additionally skips the items whose recorded input
+// fingerprint is unchanged and reports them as skipped_unchanged (#8283).
 func (s IngestionStore) reopenCorrelationDomain(
 	ctx context.Context,
 	tracer trace.Tracer,
@@ -157,56 +165,88 @@ func (s IngestionStore) reopenCorrelationDomain(
 	instruments *telemetry.Instruments,
 	domain string,
 ) (err error) {
-	reopened := 0
+	reopened, skippedUnchanged := 0, 0
 	reopenBlock := backfill.StartBlock(ctx, tracer, instruments, backfill.BlockReopen)
 	defer func() {
-		reopenBlock.End(err, backfill.ReopenBlockAttrs(domain, reopened, 0)...)
+		reopenBlock.End(err, backfill.ReopenBlockAttrs(domain, reopened, 0, skippedUnchanged)...)
 	}()
 
-	workItemIDs, err := listSucceededReducerWorkItemIDsForDomain(ctx, s.database, domain)
+	listing, err := listSucceededReducerWorkItemsForDomain(ctx, s.database, domain)
 	if err != nil {
 		return err
 	}
-	for _, workItemID := range workItemIDs {
+	skippedUnchanged = listing.skippedUnchanged
+	for _, workItemID := range listing.reopenIDs {
 		if _, err := queue.ReopenSucceeded(ctx, workItemID); err != nil {
 			return fmt.Errorf("reopen %s work items: %w", domain, err)
 		}
 		reopened++
 	}
 	if instruments != nil {
-		instruments.CorrelationReopened.Add(
-			ctx, int64(len(workItemIDs)),
-			metric.WithAttributes(attribute.String("domain", domain)),
-		)
+		attrs := metric.WithAttributes(attribute.String("domain", domain))
+		instruments.CorrelationReopened.Add(ctx, int64(reopened), attrs)
+		if skippedUnchanged > 0 {
+			instruments.CorrelationReopenSkippedUnchanged.Add(ctx, int64(skippedUnchanged), attrs)
+		}
 	}
-	log.Printf("reducer_work_items_reopened domain=%s count=%d", domain, len(workItemIDs))
+	log.Printf("reducer_work_items_reopened domain=%s count=%d skipped_unchanged=%d",
+		domain, reopened, skippedUnchanged)
 	return nil
 }
 
-func listSucceededReducerWorkItemIDsForDomain(
+// correlationListing is one domain's reopen listing: the work items to reopen
+// and how many succeeded items were skipped because their recorded input
+// fingerprint still matches (always 0 for a domain without a fingerprint).
+type correlationListing struct {
+	reopenIDs        []string
+	skippedUnchanged int
+}
+
+// listSucceededReducerWorkItemsForDomain lists the succeeded work items of one
+// domain above the replay floor. deployable_unit_correlation uses the
+// fingerprint listing, which returns an unchanged flag per item (#8283); every
+// other domain keeps the blanket listing. A listing error is returned as is:
+// it must never read as "nothing to reopen".
+func listSucceededReducerWorkItemsForDomain(
 	ctx context.Context,
 	queryer db.Queryer,
 	domain string,
-) ([]string, error) {
-	rows, err := queryer.QueryContext(ctx, listSucceededReducerWorkItemsByDomainQuery, domain)
+) (correlationListing, error) {
+	withFingerprint := domain == string(reducer.DomainDeployableUnitCorrelation)
+	query := listSucceededReducerWorkItemsByDomainQuery
+	if withFingerprint {
+		query = backfill.ListSucceededDeployableUnitWorkItemsQuery
+	}
+	rows, err := queryer.QueryContext(ctx, query, domain)
 	if err != nil {
-		return nil, fmt.Errorf("list succeeded %s work items: %w", domain, err)
+		return correlationListing{}, fmt.Errorf("list succeeded %s work items: %w", domain, err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	workItemIDs := make([]string, 0)
+	listing := correlationListing{reopenIDs: make([]string, 0)}
 	for rows.Next() {
 		var workItemID string
-		if err := rows.Scan(&workItemID); err != nil {
-			return nil, fmt.Errorf("scan succeeded %s work item: %w", domain, err)
+		unchanged := false
+		var scanErr error
+		if withFingerprint {
+			scanErr = rows.Scan(&workItemID, &unchanged)
+		} else {
+			scanErr = rows.Scan(&workItemID)
+		}
+		if scanErr != nil {
+			return correlationListing{}, fmt.Errorf("scan succeeded %s work item: %w", domain, scanErr)
 		}
 		if strings.TrimSpace(workItemID) == "" {
 			continue
 		}
-		workItemIDs = append(workItemIDs, workItemID)
+		if unchanged {
+			listing.skippedUnchanged++
+			continue
+		}
+		listing.reopenIDs = append(listing.reopenIDs, workItemID)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list succeeded %s work items: %w", domain, err)
+		return correlationListing{}, fmt.Errorf("list succeeded %s work items: %w", domain, err)
 	}
-	return workItemIDs, nil
+	return listing, nil
 }

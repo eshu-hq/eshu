@@ -66,7 +66,7 @@ func (s IngestionStore) reopenCodeImportRepoEdgeWorkItemsWithSkipSet(
 	var reopened, skippedByMemo int
 	reopenBlock := backfill.StartBlock(ctx, tracer, instruments, backfill.BlockReopen)
 	defer func() {
-		reopenBlock.End(err, backfill.ReopenBlockAttrs("code_import_repo_edge", reopened, skippedByMemo)...)
+		reopenBlock.End(err, backfill.ReopenBlockAttrs("code_import_repo_edge", reopened, skippedByMemo, 0)...)
 	}()
 
 	items, err := listSucceededCodeImportRepoEdgeWorkItems(ctx, s.database)

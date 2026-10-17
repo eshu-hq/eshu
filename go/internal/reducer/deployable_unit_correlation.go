@@ -54,6 +54,10 @@ type DeployableUnitCorrelationHandler struct {
 	ResolutionProducerLookup crossrepo.ProducerLookup
 	// CanonicalQuiescence keeps graph writes behind repository projection.
 	CanonicalQuiescence CanonicalCodeQuiescenceChecker
+	// InputFingerprintWriter records the input fingerprint of a successful run
+	// so the maintenance reopen can skip the item while its inputs are
+	// unchanged (#8283). Nil records nothing and the item reopens every pass.
+	InputFingerprintWriter DeployableUnitInputFingerprintWriter
 	// Logger receives the bound-expiry WARN emitted when a shared-edge target
 	// stays absent past the wait bound (#7268). main.go wires the reducer's
 	// structured logger so the WARN carries its trace and service fields; nil
@@ -101,7 +105,8 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	candidates, _ := ExtractWorkloadCandidates(envelopes)
 
 	// Fail closed before the resolved-relationship read: both feeds are partial
-	// until resolutions complete corpus-wide, and success is never reopened.
+	// until resolutions complete corpus-wide, and a success built on a partial
+	// feed is only repaired by a maintenance reopen.
 	// A dead-lettered own producer counts instead of deferring (#7597).
 	gate := crossrepo.EvaluateOwnGate(ctx, h.ResolutionActiveLookup, h.ResolutionProducerLookup,
 		intent, len(candidates) > 0, time.Now().UTC())
@@ -118,7 +123,7 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	}
 	// The corpus fence and the foreign read share one statement snapshot when
 	// the store offers it (#6740); see the workload loader for the rationale.
-	read, err := readCorpusFencedResolvedRelationships(ctx, h.ResolvedLoader, h.ResolutionsCompleteLookup, intent, candidates)
+	read, err := readCorpusFencedResolvedRelationshipsWithFingerprint(ctx, h.ResolvedLoader, h.ResolutionsCompleteLookup, intent, candidates)
 	if err != nil {
 		return Result{}, fmt.Errorf("load resolved relationships for deployable unit correlation: %w", err)
 	}
@@ -167,6 +172,9 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		// caller holding the scope repository set can tell the two apart.
 		selection.Reason = refineCandidateSelectionReason(selection, intent.EntityKeys, repositoryGraphIDsFromEnvelopes(envelopes))
 		logDeployableUnitCorrelationCompleted(ctx, h.Logger, intent, selection, 0)
+		if err := h.recordInputFingerprint(ctx, intent, candidates, read); err != nil {
+			return Result{}, err
+		}
 		return Result{
 			IntentID:        intent.IntentID,
 			Domain:          DomainDeployableUnitCorrelation,
@@ -199,6 +207,9 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	// at both log call sites so the two cannot drift apart.
 	selection.Reason = refineCandidateSelectionReason(selection, intent.EntityKeys, repositoryGraphIDsFromEnvelopes(envelopes))
 	logDeployableUnitCorrelationCompleted(ctx, h.Logger, intent, selection, len(edgeRows))
+	if err := h.recordInputFingerprint(ctx, intent, candidates, read); err != nil {
+		return Result{}, err
+	}
 	return Result{
 		IntentID:        intent.IntentID,
 		Domain:          DomainDeployableUnitCorrelation,
@@ -206,28 +217,6 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		EvidenceSummary: deployableUnitCorrelationSummary(evaluatedCandidateCount, summary),
 		CanonicalWrites: canonicalWrites,
 	}, nil
-}
-
-func deployableUnitCorrelationEntityKeys(intent Intent) (map[string]struct{}, error) {
-	entityKeys := uniqueSortedStrings(intent.EntityKeys)
-	if len(entityKeys) == 0 {
-		return nil, fmt.Errorf(
-			"deployable unit correlation intent %q must include at least one entity key",
-			intent.IntentID,
-		)
-	}
-
-	normalized := make(map[string]struct{}, len(entityKeys))
-	for _, key := range entityKeys {
-		raw := strings.ToLower(strings.TrimSpace(key))
-		if raw != "" {
-			normalized[raw] = struct{}{}
-		}
-		if alias := normalizedEntityKey(key); alias != "" {
-			normalized[alias] = struct{}{}
-		}
-	}
-	return normalized, nil
 }
 
 func candidateIdentityKeys(candidate WorkloadCandidate) []string {

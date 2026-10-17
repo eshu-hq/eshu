@@ -209,5 +209,5 @@ func startTargetedReopenBlock(ctx context.Context, tracer trace.Tracer) *backfil
 // reopen block's domain, reopened, and skipped_by_memo attributes plus
 // pass=targeted, so a targeted reopen is told apart from a whole-pass one.
 func endTargetedReopenBlock(block *backfill.BlockSpan, err error, domain string, reopened, skippedByMemo int) {
-	block.End(err, append(backfill.ReopenBlockAttrs(domain, reopened, skippedByMemo), backfill.StringAttr("pass", "targeted"))...)
+	block.End(err, append(backfill.ReopenBlockAttrs(domain, reopened, skippedByMemo, 0), backfill.StringAttr("pass", "targeted"))...)
 }

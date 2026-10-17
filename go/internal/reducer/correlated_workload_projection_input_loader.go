@@ -279,6 +279,10 @@ type corpusFencedResolvedRead struct {
 	resolved []relationships.ResolvedRelationship
 	complete bool
 	fenceErr error
+	// inputFingerprint is the opaque fingerprint the fused fingerprinted read
+	// computed in the same statement snapshot (#8283); empty on every other
+	// path, which records nothing.
+	inputFingerprint string
 }
 
 // readCorpusFencedResolvedRelationships loads the resolved relationships a
@@ -309,21 +313,7 @@ func readCorpusFencedResolvedRelationships(
 		if err != nil {
 			return corpusFencedResolvedRead{}, err
 		}
-		if !complete {
-			return corpusFencedResolvedRead{}, nil
-		}
-		// The own-scope read is pinned to the intent's active generation,
-		// whose rows are immutable once active, so reading it after the
-		// verdict loses nothing and a deferral never pays for it (#6740
-		// review F1).
-		resolved, err := loadResolvedRelationshipsForIntent(ctx, loader, intent)
-		if err != nil {
-			return corpusFencedResolvedRead{}, err
-		}
-		return corpusFencedResolvedRead{
-			resolved: mergeResolvedRelationships(resolved, repoResolved),
-			complete: true,
-		}, nil
+		return finishFusedRead(ctx, loader, intent, repoResolved, complete, "")
 	}
 	complete, err := corpusResolutionsComplete(ctx, completeLookup, candidates)
 	if err != nil || !complete || loader == nil {

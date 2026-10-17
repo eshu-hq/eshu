@@ -24,7 +24,8 @@ The engine never imports the parent postgres package.
 The `targeted` child owns partition-scoped maintenance and its reopen
 transaction. Three shipped whole-pass reopen listings and shared replay-floor
 fragments live in `reopen_sql.go`; root keeps constant aliases for existing
-consumers. The child derives bounded listings once from those strings.
+consumers. The deployable_unit_correlation listing composes the same fragments
+in `input_fingerprint_sql.go` (#8283). The child derives bounded listings once from those strings.
 
 ## Exported surface
 
@@ -52,6 +53,13 @@ consumers. The child derives bounded listings once from those strings.
   `ApplyDeferredPartitionMemoGate`,
   `ListUnchangedPartitionsNeedingPublicationQuery` — query-arg derivation,
   memo gating, and the fan-in unchanged-partition check
+- `InputFingerprintExprSQL`, `ListSucceededDeployableUnitWorkItemsQuery`,
+  `ListResolvedByReposWithCorpusFenceAndInputFingerprintSQL` — the one SQL
+  definition of the deployable_unit_correlation input fingerprint (#8283), the
+  reopen listing that compares it with the recorded value, and the fused fenced
+  read that takes it (`input_fingerprint_sql.go`); `InputFingerprintStore`,
+  `InputFingerprintSchemaSQL` — the side table of recorded values
+  (`input_fingerprint_store.go`)
 - `LatestGenerationCTE`, `List*Query`, `Active*Query` constants and the
   `DeferredRelationshipFamily*SQL` fragments — the shipped SQL the root
   differential proofs derive from, never hand-copy

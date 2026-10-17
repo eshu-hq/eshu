@@ -160,10 +160,11 @@ func TestRelationshipReopenMatchesCorrelationReplayFloor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listSucceededCodeImportRepoEdgeWorkItems() error = %v", err)
 	}
-	correlationIDs, err := listSucceededReducerWorkItemIDsForDomain(ctx, adapter, correlationDomain)
+	correlationListing, err := listSucceededReducerWorkItemsForDomain(ctx, adapter, correlationDomain)
 	if err != nil {
-		t.Fatalf("listSucceededReducerWorkItemIDsForDomain() error = %v", err)
+		t.Fatalf("listSucceededReducerWorkItemsForDomain() error = %v", err)
 	}
+	correlationIDs := correlationListing.reopenIDs
 
 	deploymentPartitions := reopenRefPartitionSet(deploymentItems)
 	codeImportPartitions := reopenRefPartitionSet(codeImportItems)

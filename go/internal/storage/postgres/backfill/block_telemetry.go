@@ -94,13 +94,16 @@ func StringAttr(key, value string) BlockAttr {
 }
 
 // ReopenBlockAttrs returns a fresh, ordered attribute set for one reopen
-// domain: its name, reopened work-item count, then memo-skipped count. Both
-// whole and targeted passes use this shape for spans and completion logs.
-func ReopenBlockAttrs(domain string, reopened, skippedByMemo int) []BlockAttr {
+// domain: its name, reopened work-item count, memo-skipped count, then the
+// count skipped because the item's recorded input fingerprint still matched
+// (#8283; always 0 for a domain without a fingerprint). Both whole and
+// targeted passes use this shape for spans and completion logs.
+func ReopenBlockAttrs(domain string, reopened, skippedByMemo, skippedUnchanged int) []BlockAttr {
 	return []BlockAttr{
 		StringAttr("domain", domain),
 		IntAttr("reopened", reopened),
 		IntAttr("skipped_by_memo", skippedByMemo),
+		IntAttr("skipped_unchanged", skippedUnchanged),
 	}
 }
 

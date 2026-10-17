@@ -426,4 +426,12 @@
 // stable Reason for telemetry labels. Its correlation reopen is
 // partition-scoped: the fleet-wide correlation replay stays on the epoch whole
 // pass. See docs/internal/evidence/7584-partition-scoped-maintenance.md.
+//
+// InputFingerprintStore records, per deployable_unit_correlation work item, the
+// input fingerprint its fused fenced read returned
+// (RelationshipStore.GetResolvedRelationshipsForReposWithCorpusFenceAndInputFingerprint)
+// in reducer_work_input_fingerprints. The maintenance reopen skips an item
+// whose recorded value still equals the live one, which backfill.InputFingerprintExprSQL
+// computes on both sides; a missing row reopens the item. See
+// reopen-input-fingerprint.md.
 package postgres

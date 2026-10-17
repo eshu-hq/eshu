@@ -428,7 +428,7 @@ func (f *fakeTx) QueryContext(_ context.Context, query string, args ...any) (db.
 		// reopen no-ops in tests that do not stage explicit responses for it.
 		return &queueFakeRows{}, nil
 	}
-	if query == listSucceededReducerWorkItemsByDomainQuery {
+	if query == listSucceededReducerWorkItemsByDomainQuery || query == backfill.ListSucceededDeployableUnitWorkItemsQuery {
 		// Cross-scope correlation reopen listing (one call per domain in
 		// CrossScopeCorrelationReopenDomains, now issued on the ingester's
 		// maintenance pass as well as bootstrap-index's): default to no succeeded

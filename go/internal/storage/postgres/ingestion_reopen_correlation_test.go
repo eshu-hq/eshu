@@ -23,8 +23,10 @@ func TestReopenSucceededReducerWorkItemsReplaysListedItems(t *testing.T) {
 	now := time.Date(2026, time.June, 26, 12, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{
 		// One list query returns two real ids plus a blank that must be skipped.
+		// deployable_unit_correlation's listing adds the unchanged flag (#8283);
+		// both real items are flagged changed here, so both reopen.
 		queryResponses: []queueFakeRows{
-			{rows: [][]any{{"work-item-1"}, {""}, {"work-item-2"}}},
+			{rows: [][]any{{"work-item-1", false}, {"", false}, {"work-item-2", false}}},
 		},
 		execResults: []sql.Result{
 			rowsAffectedResult{rowsAffected: 1},
@@ -103,7 +105,7 @@ func TestReopenSucceededReducerWorkItemsPropagatesReopenError(t *testing.T) {
 	now := time.Date(2026, time.June, 26, 12, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			{rows: [][]any{{"work-item-1"}}},
+			{rows: [][]any{{"work-item-1", false}}},
 		},
 		execErrors: []error{errors.New("boom")},
 	}

@@ -193,7 +193,7 @@ func (s IngestionStore) reopenDeploymentMappingWorkItemsWithSkipSet(
 	var reopened, skippedByMemo int
 	reopenBlock := backfill.StartBlock(ctx, tracer, instruments, backfill.BlockReopen)
 	defer func() {
-		reopenBlock.End(err, backfill.ReopenBlockAttrs("deployment_mapping", reopened, skippedByMemo)...)
+		reopenBlock.End(err, backfill.ReopenBlockAttrs("deployment_mapping", reopened, skippedByMemo, 0)...)
 	}()
 
 	items, err := listSucceededDeploymentMappingWorkItems(ctx, s.database)

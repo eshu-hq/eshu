@@ -364,6 +364,15 @@ values each counter carries.
   pair a passing verdict with a partial set (#6740). Other stores keep the
   pre-read fence plus post-read recheck (#6730), which has that window. See
   `docs/internal/evidence/6740-corpus-fence-snapshot.md`.
+- **Deployable-unit correlation records an input fingerprint** (#8283) — on
+  success the handler stores, keyed on the work item id, the fingerprint the
+  fused read returned (`InputFingerprintedResolvedRelationshipLoader`) and the
+  candidate repository ids, via `DeployableUnitInputFingerprintWriter`, after
+  the graph writes and before the ACK. The maintenance reopen skips the item
+  while the live fingerprint still matches; no row, no fingerprint (no
+  candidates, unwired loader or writer) means reopen. A write failure fails the
+  attempt. The fingerprint SQL lives in `storage/postgres/backfill`; see
+  `storage/postgres/reopen-input-fingerprint.md`.
 - **The own gate is bounded by its producer** — when the own relationship
   generation is inactive, `crossrepo.EvaluateOwnGate` reads the newest
   `deployment_mapping` row of the same scope generation

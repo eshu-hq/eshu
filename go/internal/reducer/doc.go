@@ -69,6 +69,13 @@
 // CorpusFencedResolvedRelationshipLoader returns the verdict from the same
 // statement snapshot as the rows (#6740); other stores fall back to a
 // pre-read fence plus a post-read recheck (#6730).
+// DeployableUnitCorrelationHandler additionally records the input fingerprint of
+// a successful run (InputFingerprintedResolvedRelationshipLoader returns it from
+// that same statement; DeployableUnitInputFingerprintWriter stores it keyed on
+// the work item id, after the graph writes and before the ACK) so the
+// maintenance reopen can skip the item while its inputs are unchanged (#8283).
+// A loader or writer that is not wired, or an item with no candidates, records
+// nothing and the item reopens on the next pass.
 // Their own-generation gate is crossrepo.EvaluateOwnGate: an inactive own
 // generation whose deployment_mapping producer is dead-lettered returns a
 // counting producer-terminal failure instead of the non-counting deferral

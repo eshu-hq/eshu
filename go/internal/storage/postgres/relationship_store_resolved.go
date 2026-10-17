@@ -15,6 +15,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
@@ -41,6 +42,39 @@ func (s *RelationshipStore) GetResolvedRelationshipsForRepos(
 	defer func() { _ = sqlRows.Close() }()
 
 	return scanResolvedRelationshipRows(sqlRows, "by repos")
+}
+
+// GetResolvedRelationshipsForReposWithCorpusFenceAndInputFingerprint is
+// GetResolvedRelationshipsForReposWithCorpusFence with the input fingerprint of
+// the item's reads taken in the same statement snapshot (#8283). ownGenerationID
+// is the work item's own relationship generation. When complete is false the
+// rows and fingerprint are empty. An empty repository set evaluates the fence
+// alone and returns no fingerprint, so nothing is recorded and the item reopens.
+func (s *RelationshipStore) GetResolvedRelationshipsForReposWithCorpusFenceAndInputFingerprint(
+	ctx context.Context,
+	ownGenerationID string,
+	repoIDs []string,
+) ([]relationships.ResolvedRelationship, bool, string, error) {
+	repoIDs = uniqueNonEmptyStrings(repoIDs)
+	ownGenerationID = strings.TrimSpace(ownGenerationID)
+	if len(repoIDs) == 0 || ownGenerationID == "" {
+		complete, err := s.AreActiveScopeRelationshipGenerationsComplete(ctx)
+		return nil, complete, "", err
+	}
+	args := make([]any, 0, len(repoIDs)+1)
+	for _, repoID := range repoIDs {
+		args = append(args, repoID)
+	}
+	args = append(args, ownGenerationID)
+	query := backfill.ListResolvedByReposWithCorpusFenceAndInputFingerprintSQL(
+		incompleteScopeRelationshipGenerationsPredicate, len(repoIDs))
+	sqlRows, err := s.database.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, false, "", fmt.Errorf("list resolved by repos with corpus fence and input fingerprint: %w", err)
+	}
+	defer func() { _ = sqlRows.Close() }()
+
+	return scanCorpusFencedResolvedRowsWithFingerprint(sqlRows, true)
 }
 
 // errCorpusFencedResolvedNoRows reports a fused fence-and-read result with no
@@ -91,17 +125,34 @@ func (s *RelationshipStore) GetResolvedRelationshipsForReposWithCorpusFence(
 // or an empty match. No row at all is impossible from the LEFT JOIN shape and
 // is reported as an error rather than read as a verdict.
 func scanCorpusFencedResolvedRows(rows db.Rows) ([]relationships.ResolvedRelationship, bool, error) {
+	result, complete, _, err := scanCorpusFencedResolvedRowsWithFingerprint(rows, false)
+	return result, complete, err
+}
+
+// scanCorpusFencedResolvedRowsWithFingerprint is scanCorpusFencedResolvedRows
+// for both fused statements. With withFingerprint the second column is the
+// input fingerprint of the fingerprinted statement (#8283), one value repeated
+// on every row; it is returned as the opaque string the statement computed.
+func scanCorpusFencedResolvedRowsWithFingerprint(
+	rows db.Rows,
+	withFingerprint bool,
+) ([]relationships.ResolvedRelationship, bool, string, error) {
 	var result []relationships.ResolvedRelationship
 	sawRow := false
 	complete := false
+	fingerprint := ""
 	for rows.Next() {
 		var rowComplete bool
+		var rowFingerprint string
 		var sourceRepoID, targetRepoID, sourceEntityID, targetEntityID, relType sql.NullString
 		var r relationships.ResolvedRelationship
 		var resSrc string
 		var detailsBytes []byte
-		if err := rows.Scan(
-			&rowComplete,
+		dest := []any{&rowComplete}
+		if withFingerprint {
+			dest = append(dest, &rowFingerprint)
+		}
+		dest = append(dest,
 			&sourceRepoID,
 			&targetRepoID,
 			&sourceEntityID,
@@ -112,11 +163,13 @@ func scanCorpusFencedResolvedRows(rows db.Rows) ([]relationships.ResolvedRelatio
 			&r.Rationale,
 			&resSrc,
 			&detailsBytes,
-		); err != nil {
-			return nil, false, fmt.Errorf("scan resolved by repos with corpus fence: %w", err)
+		)
+		if err := rows.Scan(dest...); err != nil {
+			return nil, false, "", fmt.Errorf("scan resolved by repos with corpus fence: %w", err)
 		}
 		sawRow = true
 		complete = rowComplete
+		fingerprint = rowFingerprint
 		if !rowComplete || !relType.Valid {
 			continue
 		}
@@ -128,21 +181,21 @@ func scanCorpusFencedResolvedRows(rows db.Rows) ([]relationships.ResolvedRelatio
 		r.ResolutionSource = relationships.ResolutionSource(resSrc)
 		if len(detailsBytes) > 0 {
 			if err := json.Unmarshal(detailsBytes, &r.Details); err != nil {
-				return nil, false, fmt.Errorf("unmarshal resolved by repos with corpus fence details: %w", err)
+				return nil, false, "", fmt.Errorf("unmarshal resolved by repos with corpus fence details: %w", err)
 			}
 		}
 		result = append(result, r)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, false, fmt.Errorf("iterate resolved by repos with corpus fence: %w", err)
+		return nil, false, "", fmt.Errorf("iterate resolved by repos with corpus fence: %w", err)
 	}
 	if !sawRow {
-		return nil, false, errCorpusFencedResolvedNoRows
+		return nil, false, "", errCorpusFencedResolvedNoRows
 	}
 	if !complete {
-		return nil, false, nil
+		return nil, false, "", nil
 	}
-	return result, true, nil
+	return result, true, fingerprint, nil
 }
 
 // repoIDPlaceholders renders the positional placeholder list and bind

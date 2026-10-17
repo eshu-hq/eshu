@@ -11,6 +11,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -176,7 +177,8 @@ func runHermeticDeferredMaintenanceObserved(
 // pass was in fact issuing the listing. Identity fails only when the call is
 // genuinely gone.
 func isCorrelationListing(query string) bool {
-	return query == listSucceededReducerWorkItemsByDomainQuery
+	return query == listSucceededReducerWorkItemsByDomainQuery ||
+		query == backfill.ListSucceededDeployableUnitWorkItemsQuery
 }
 
 // correlationListingDomains returns the $1 domain argument of every correlation

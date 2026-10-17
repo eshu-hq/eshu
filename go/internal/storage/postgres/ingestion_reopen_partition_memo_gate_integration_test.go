@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -45,7 +47,16 @@ CREATE TABLE fact_work_items (
     created_at      TIMESTAMPTZ NOT NULL,
     updated_at      TIMESTAMPTZ NOT NULL
 );
-`
+` + reopenInputFingerprintProofSchemaSQL
+
+// reopenInputFingerprintProofSchemaSQL adds the tables the deployable_unit
+// correlation reopen listing reads (#8283) to the hand-rolled proof schema: the
+// relationship tables the live fingerprint expression recomputes from, and the
+// side table of recorded input fingerprints. Both come from the production Go
+// DDL, so a column the listing needs cannot be missing here. They are empty, so
+// every deployable_unit_correlation item reads "no recorded row" and reopens,
+// which is what these tests assert.
+const reopenInputFingerprintProofSchemaSQL = relationshipSchemaSQL + backfill.InputFingerprintSchemaSQL
 
 // TestReopenDeploymentMappingWorkItemsNilSkipSetAlwaysReopensEvenAfterMemoHit
 // is the MANDATORY regression proof for the issue #4770/#4816 hostile
