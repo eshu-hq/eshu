@@ -249,9 +249,9 @@ pin history accepts a row whose output equals an older, non-adjacent row).
 (`LoadConfigPaths` with no name, no supplied list and `AllowanceWholeWindow`,
 as in `storage/postgres/config/artifacts/derive.go`) over the committed corpus
 in `testdata/guard`, through its own in-memory store. It maps the rows with a
-copy of the derive's `storedRows`, sorts them by repository label, `raw_path`, `relative_path`,
-`evidence_kind` and `name_scoped`, and hashes every field framed as
-`<byte length>:<bytes>`. It fails when:
+copy of the derive's `storedRows`, sorts them by repository label,
+`raw_path`, `relative_path`, `evidence_kind` and `name_scoped`, and hashes
+every field framed as `<byte length>:<bytes>`. It fails when:
 
 | Condition | Message starts with |
 |---|---|
@@ -278,8 +278,10 @@ Each of these still needs a manual bump when it changes:
   (`derive_reader.go`). The guard hashes its own copy (`deriveGuardRows`).
   `TestStoredRowsCopiesTheBuildVerbatim` in that package fails on a change to
   the mapping; update the guard's copy and bump in the same change. The S4
-  live test compares stored rows with the live path and sees a mapping
-  change only on its corpus, which has no upper-case `relative_path`.
+  live test compares stored rows with the live path, so it sees a mapping
+  change only where its corpus shows one. Its corpus (the `fx:` and
+  `recorded:` repositories of the snapshot) holds no row with an upper-case
+  `relative_path`, so it cannot see a lower-casing of that field.
 - The `content_files` statements (`ListStatement`, `GetFilesStatement`,
   `NonBlankPathsStatement`). `guardStore` re-implements their semantics, so
   an edit to the SQL is not seen.
@@ -313,7 +315,9 @@ change` after the bump), do this in one change:
    `{Version: N+1, CorpusDigest: <new>, OutputDigest: <new>}`, with the
    digests the generator logs (the guard's `guard corpus changed` message
    prints the same row). Leave the older rows as they are.
-4. Name the added input in the PR, so a reviewer can see it shows the change.
+4. Name the added input in the PR. To check that it shows the change, revert
+   only the extractor change at version N+1: the guard must report
+   `extractor output changed`.
 
 **Re-snapshot procedure.** Re-snapshot at the same version only in a commit
 that changes no extractor:
