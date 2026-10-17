@@ -7,7 +7,7 @@ capability-matrix key `operator.delta_union_completeness.check`.
 
 ## No-Regression Evidence
 
-No-Regression Evidence: baseline `1d90acfc7` (origin/main, the branch base)
+No-Regression Evidence: baseline `87f019495` (origin/main, the branch base)
 versus this branch. Only the handler's error branch changed: on a failed read
 it runs one `querycontract.GraphReadErrorEnvelope` mapping (a few `errors.Is`
 checks) before the existing `500`/`499` mapping. The per-repository statement
@@ -15,7 +15,7 @@ checks) before the existing `500`/`499` mapping. The per-repository statement
 call count (one ACTIVE read, then one anchored graph read per delta-active
 repository), the input shape (explicit `?scope=` filters, capped at 500
 repositories), and the row counts are the same as the baseline: `git diff
-1d90acfc7 -- go/internal/query/admin/delta_union_completeness.go` changes no
+87f019495 -- go/internal/query/admin/delta_union_completeness.go` changes no
 Cypher line and no line on the success path. No new query, lock, queue, or
 claim is added, so no concurrency path changes. Measured with stub stores, no
 live backend. `TestDeltaUnionCompletenessMapsGraphReadVerdicts` and

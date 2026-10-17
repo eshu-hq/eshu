@@ -53,7 +53,8 @@ const operatorRepositoryCatalogLookupCapability = "operator.repository_catalog.l
 // read-only delta-union completeness check
 // (GET /api/v0/admin/delta-union/completeness). It compares the ACTIVE
 // delta-union file set from Postgres against one anchored graph query per
-// delta-active repository, and answers a graph outage or deadline with the
+// delta-active repository, so it requires the graph backend and is unsupported
+// in the lightweight profile. It answers a graph outage or deadline with the
 // shared 503 or 504 verdict (#8292).
 const operatorDeltaUnionCompletenessCheckCapability = "operator.delta_union_completeness.check"
 
@@ -108,10 +109,9 @@ func init() {
 		RequiredProfile:       ProfileLocalLightweight,
 	})
 	register(operatorDeltaUnionCompletenessCheckCapability, capabilitySupport{
-		LocalLightweightMax:   &truthExact,
 		LocalAuthoritativeMax: &truthExact,
 		LocalFullStackMax:     &truthExact,
 		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalLightweight,
+		RequiredProfile:       ProfileLocalAuthoritative,
 	})
 }

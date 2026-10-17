@@ -6561,11 +6561,10 @@
           "max_scope_size": "explicit_scope_filter_repository_cap"
         },
         "local_lightweight": {
-          "status": "supported",
-          "max_truth_level": "exact",
-          "required_runtime": "local_host_postgres",
-          "p95_latency_ms": 1000,
-          "max_scope_size": "explicit_scope_filter_repository_cap"
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host",
+          "max_scope_size": "none"
         },
         "production": {
           "status": "experimental",
@@ -6578,7 +6577,7 @@
       "proof_signals": [
         {
           "kind": "go_test",
-          "ref": "./internal/query"
+          "ref": "./internal/query/admin"
         }
       ],
       "console": false,
