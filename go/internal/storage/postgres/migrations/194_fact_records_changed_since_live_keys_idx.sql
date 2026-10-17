@@ -2,8 +2,8 @@
 -- Copyright (c) 2025-2026 eshu-hq
 
 -- #7098 slice D-read: trim the changed-since live scan to the rows its
--- statement hashes. prior_keys, current_active_keys, and both duplicate-row
--- CTEs read WHERE scope_id = $1 AND generation_id = $2 AND
+-- statement hashes. prior_keys and current_active_keys read
+-- WHERE scope_id = $1 AND generation_id = $2 AND
 -- is_tombstone = FALSE AND fact_kind NOT LIKE 'reducer\_%'. The only prior
 -- access path was fact_records_scope_generation_idx, whose bitmap fetched
 -- every generation row's TOAST payload and discarded the reducer-derived

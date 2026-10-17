@@ -274,9 +274,10 @@ func assertChangedSinceTombstonePlanSeeks(
 	}
 }
 
-// assertChangedSinceTrimProbeDerivesFromProduction is the hermetic prefix
-// guard: the probe statements must stay byte-prefixes of the shipped
-// classification CTEs, so a hand-frozen copy cannot drift false-green.
+// assertChangedSinceTrimProbeDerivesFromProduction is the filter-drift
+// guard: the probe aggregates must keep the shipped WHERE filters, so a
+// predicate change to the classification CTEs fails here instead of silently
+// unmatching the indexes.
 func assertChangedSinceTrimProbeDerivesFromProduction(t *testing.T) {
 	t.Helper()
 

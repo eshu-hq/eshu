@@ -91,7 +91,7 @@ import (
 // 191-192; sequence gaps are tolerated); #7098 adds
 // 194_fact_records_changed_since_live_keys_idx.sql and
 // 195_fact_records_changed_since_tombstone_keys_idx.sql.
-const goldenBootstrapDefinitionsDigest = "f628164c1ac080580d50a18c2c5d3f25c69266886c3e3afe410986c5c21aeba5"
+const goldenBootstrapDefinitionsDigest = "402760eb859a5413e4ad1bda8f3341c4baa1b25c086ac8295240067174e9c933"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
