@@ -61,7 +61,7 @@ one quarter of entities documented).
 | facts in | intents out | content records | canonical rows | wall |
 |---|---|---|---|---|
 | 161 | 20 | 40 | 122 | ~0.4-1.0 ms |
-| 321 | 40 | 80 | 242 | ~1.1-2.4 ms |
+| 321 | 40 | 80 | 242 | ~1.1-4.3 ms |
 | 641 | 80 | 160 | 482 | ~2.4-3.2 ms |
 
 Exact scaling asserted in the test: content records equal content facts;
