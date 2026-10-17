@@ -46,7 +46,7 @@ require "sources the shared Go-path helpers" 'scripts/lib/pre-pr-go-paths.sh'
 require "sources the fixture-consumer helpers" 'scripts/lib/pre-pr-fixture-consumers.sh'
 require "sources the focused test-selection helper" 'scripts/lib/pre-pr-test-selection.sh'
 require "runs the registry-selected gates at tier pre-pr" '--tier pre-pr'
-require "scopes to the documented categories" '--category exactness,telemetry,hygiene,docs'
+require "scopes to the documented categories" '--category exactness,telemetry,hygiene,docs,security,frontend'
 require "runs blocking-only (advisory gates stay out of the mandatory floor)" '--blocking-only'
 require "narrows self-tests to changed paths" '--self-tests changed'
 require "requests the data-backed pre-push gate deferral" '--pre-push'
@@ -236,6 +236,32 @@ case_j_out="$(
 	changed_go_dirs
 )"
 [[ "${case_j_out}" == $'./.\n./internal/pkg' ]] || fail "case J: changed_go_dirs = [${case_j_out}], want ./. and ./internal/pkg only (testdata, _ and . dirs are skipped like ./...; the module root stays)"
+
+# ── Case K: no blocking `pre_push: floor` row may sit outside the floor's ──
+# category list (#8326). The list is a filter in front of the allowlist, so a
+# floor row in a category it omits is silently never run: gosec-changed was one
+# (`security`), and cassette-author claimed the floor for the same reason while
+# never running there. floor_rows_outside_categories prints "<id> <category>"
+# for each such row; the seeded pass drops `security` and must name gosec-changed.
+floor_rows_outside_categories() {
+	local cats="$1" f
+	for f in "${repo_root}"/specs/ci-gates.d/*.yaml; do
+		awk -v cats="${cats}" '
+			/^  - id: / { id = $3; cat = ""; blocking = "" }
+			/^    category: / { cat = $2 }
+			/^    blocking: / { blocking = $2 }
+			/^      pre_push: floor/ {
+				if (blocking == "true" && index("," cats ",", "," cat ",") == 0) { print id, cat }
+			}' "${f}"
+	done
+}
+floor_cats="$(rg -o -- '--category [a-z,]+' "${script}" | head -1 | sed 's/--category //')"
+[[ -n "${floor_cats}" ]] || fail "case K: could not read the floor category list from pre-push.sh"
+case_k_out="$(floor_rows_outside_categories "${floor_cats}")"
+[[ -z "${case_k_out}" ]] || fail "case K: blocking pre_push: floor rows outside the floor categories (${floor_cats}): ${case_k_out}"
+case_k_seeded="$(floor_rows_outside_categories "${floor_cats//security,/}")"
+printf '%s\n' "${case_k_seeded}" | rg -q -- '^gosec-changed security$' ||
+	fail "case K: seeded run without security did not name gosec-changed (got: ${case_k_seeded})"
 
 # ── Cases E-I: the merge-tree step (#7111 F5) ──
 # shellcheck source=lib/test-pre-push-merge-cases.sh

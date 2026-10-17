@@ -1,5 +1,8 @@
 # Go build artifacts
 go/bin/
+# Per-process symlink aliases scripts/lib/precommit-go-gosec.sh creates for an
+# oversized package (#8339); it removes them on exit, so only a crash leaves one.
+go/_g*
 go/admin-status
 go/api
 go/bootstrap-data-plane

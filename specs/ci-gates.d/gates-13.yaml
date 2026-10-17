@@ -381,8 +381,11 @@ gates:
     blocking: true
     triggers:
       # Every committed cassette: the scan's subject (#6965 Phase 2). A leak
-      # pushed to a PR branch is already public, so this runs in the
-      # pre-push floor rather than only in CI.
+      # pushed to a PR branch is already public. The floor's category list
+      # excluded `security` until #8326, so this row never ran in `make
+      # pre-push` despite pre_push: floor; since #8326 it does, and its
+      # self-test is trigger-scoped (self_test_triggers) so it runs only when
+      # the gate's own code changes.
       - "testdata/cassettes/**"
       - "scripts/verify-cassette-author.sh"
       - "scripts/test-verify-cassette-author.sh"
@@ -395,6 +398,11 @@ gates:
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
       - ".github/static-contract-filters.yml"
+    self_test_triggers:
+      - "scripts/verify-cassette-author.sh"
+      - "scripts/test-verify-cassette-author.sh"
+      - "scripts/lib/cassette_private_data_pattern.sh"
+      - "go/internal/replay/schema/**"
     local:
       command: "bash scripts/verify-cassette-author.sh"
       pre_push: floor

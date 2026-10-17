@@ -15,9 +15,18 @@ Never `--no-verify` a commit or a push. Commit-stage gates are fast. Before
 every push, run `make pre-push` (`scripts/dev/pre-push.sh`): the fast local
 floor of changed-package `go test`, the 500-line file cap, changed-package
 gofumpt/lint/build/vet, the allowlisted fast registry gates
-(`local.pre_push: floor`; other triggered gates print `DEFER-CI` and still run in
-`make pre-pr` and CI), and the advisory docs-contradiction gate. It has no race
-lane, no live Docker/NornicDB/Postgres lane, and writes no push stamp.
+(`local.pre_push: floor`, which includes changed-package gosec, measurement
+citations and the docs build; other triggered gates print `DEFER-CI` and still
+run in `make pre-pr` and CI), and the advisory docs-contradiction gate. It has no
+race lane, no live Docker/NornicDB/Postgres lane, and writes no push stamp. The
+git pre-push hook runs those three checks again on the push: gosec 0.3-8 s wall (40-85 s when a trigger file forces the whole module),
+measurement citations 0.7 s, the docs build 0-18 s (idle host). A marker that
+skipped the repeat would be a stamp, so there is none. A finding the hook would
+reject (a G301, say) now fails the floor first, before the review receipt. gosec
+fails closed: exit 143 (SIGTERM), a missing result, or a package it could not
+analyze fails the run; rerun `make pre-push`. A package whose file patterns
+exceed go/packages' 16383-byte limit (`internal/storage/postgres`, #8339) is
+scanned through a short `go/_g<pid>` alias, and the run prints `scanned via alias`.
 
 There used to be a per-SHA push stamp here: `make pre-pr` wrote one on success
 and a pre-push hook refused to push a commit without it. It is removed. The

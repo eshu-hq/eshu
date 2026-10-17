@@ -10,6 +10,7 @@ gates:
     triggers:
       - "go/**"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/precommit-go-gosec.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh fmt-all"
       pre_push: floor
@@ -32,6 +33,7 @@ gates:
     triggers:
       - "go/**"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/precommit-go-gosec.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh lint-all"
       pre_push: floor
@@ -93,6 +95,7 @@ gates:
     triggers:
       - "go/**"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/precommit-go-gosec.sh"
       - "scripts/test-precommit-go-filecap.sh"
       - "scripts/lib/test-precommit-go-filecap-cases.sh"
       # The Go plugin is the AUTHORITY the two bash variants mirror, and

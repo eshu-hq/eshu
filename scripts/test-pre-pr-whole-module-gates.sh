@@ -136,12 +136,16 @@ require_precommit "disabled ambient golangci cache program" 'GOLANGCI_LINT_CACHE
 parallel_run_count="$(rg --fixed-strings -c -- '--allow-parallel-runners --config "${cfg}"' "${precommit_script}")"
 [[ "${parallel_run_count}" == "2" ]] ||
 	fail "parallel-runner flag count = ${parallel_run_count}, want 2 lint entrypoints"
+# The gosec arms live in scripts/lib/precommit-go-gosec.sh (#8335): one run_gosec
+# writes every arm's result under the worktree-local cache, never the shared one.
+gosec_lib="${repo_root}/scripts/lib/precommit-go-gosec.sh"
 # shellcheck disable=SC2016
-require_precommit "worktree-local changed-package SARIF" 'out="${worktree_cache_dir}/gosec.sarif"'
+rg --fixed-strings --quiet -- 'out="${worktree_cache_dir}/gosec-${label}.json"' "${gosec_lib}" ||
+	fail "missing worktree-local gosec result path in ${gosec_lib}"
 # shellcheck disable=SC2016
-require_precommit "worktree-local whole-module SARIF" 'out="${worktree_cache_dir}/gosec-all.sarif"'
-# shellcheck disable=SC2016
-reject_precommit "mutable SARIF in shared tool cache" 'out="${tool_cache_dir}/gosec'
+if rg --fixed-strings --quiet -- 'out="${tool_cache_dir}/gosec' "${precommit_script}" "${gosec_lib}"; then
+	fail "mutable gosec result in shared tool cache"
+fi
 
 # #5791/#5804: the nancy case must delegate its sleuth/classification logic
 # to scripts/dev/nancy-local.sh, which has its own executable regression

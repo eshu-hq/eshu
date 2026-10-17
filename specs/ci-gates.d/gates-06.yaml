@@ -116,6 +116,7 @@ gates:
       - "scripts/dev/precommit-go.sh"
     local:
       command: "bash scripts/verify-measurement-citations.sh"
+      pre_push: floor
       test_command: "bash scripts/test-verify-measurement-citations.sh && bash scripts/test-verify-measurement-citations-wrapper.sh"
     ci:
       workflow: static-contract-gates.yml
@@ -280,6 +281,10 @@ gates:
     blocking: true
     triggers:
       - "docs/**"
+      - "docs/mkdocs.yml"
+      - "docs/public/index.md"
+      - "docs/public/reference/http-api.md"
+      - "docs/public/reference/http-api/**"
       - "specs/**"
       - "AGENTS.md"
       - "README.md"
@@ -290,15 +295,22 @@ gates:
       - "scripts/test-verify-docs-build-changed.sh"
       - "scripts/verify-docs-build-changed.sh"
     self_test_triggers:
-      - "docs/**"
+      - "docs/mkdocs.yml"
+      - "docs/public/index.md"
+      - "docs/public/reference/http-api.md"
+      - "docs/public/reference/http-api/**"
       - "scripts/lib/context-stories-markdown-visible.awk"
       - "scripts/lib/test-verify-docs-build-changed-fake-uv.sh"
       - "scripts/test-context-stories-doc-split.sh"
       - "scripts/test-context-stories-markdown-visible.sh"
       - "scripts/test-verify-docs-build-changed.sh"
       - "scripts/verify-docs-build-changed.sh"
+    # In the pre-push floor (#8326). `requirements` stays [go]: the verifier
+    # itself exits non-zero when uv is missing, so the floor fails closed and
+    # the requirements enum is not widened for one tool.
     local:
       command: "bash scripts/verify-docs-build-changed.sh"
+      pre_push: floor
       test_command: "bash scripts/test-verify-docs-build-changed.sh && bash scripts/test-context-stories-doc-split.sh && bash scripts/test-context-stories-markdown-visible.sh"
     ci:
       workflow: test.yml

@@ -118,6 +118,7 @@ write_fake_go() {
 set -uo pipefail
 if [ -n "${GOROOT+x}" ]; then st=set; else st=unset; fi
 printf '%s GOROOT=%s\n' "${1:-}" "${st}" >>"${FAKE_GO_LOG}"
+[ "${1:-}" = list ] && case " $* " in *" -find "*) printf '%s/pkg|x.go \n' "${PWD}"; exit 0 ;; esac
 [ "${1:-}" = list ] && { printf '{"ImportPath":"mini/stub"}\n'; exit 0; }
 [ "${1:-}" = install ] || exit 0
 SHIM_DISPATCH
@@ -155,8 +156,8 @@ write_stubs() {
 	write_stub govulncheck 'printf "No vulnerabilities found.\n"; exit 0'
 	write_stub nancy 'printf "audited 1 dependency, no issues\n"; exit 0'
 	write_stub golangci-lint 'exit 0'
-	# gosec must leave a well-formed empty SARIF where -out points, because the
-	# real gate jq-counts that file.
+	# gosec must leave a well-formed empty JSON result (Issues, Stats.files > 0)
+	# where -out points: run_gosec fails closed on anything else (#8335).
 	write_stub gosec '
 out=""
 prev=""
@@ -165,7 +166,7 @@ for arg in "$@"; do
 	case "${arg}" in -out=*) out="${arg#-out=}" ;; esac
 	prev="${arg}"
 done
-[ -n "${out}" ] && printf "{\"runs\":[{\"results\":[]}]}\n" >"${out}"
+[ -n "${out}" ] && printf "{\"Issues\":[],\"Stats\":{\"files\":1},\"Golang errors\":{}}\n" >"${out}"
 exit 0'
 }
 
