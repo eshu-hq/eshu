@@ -69,18 +69,6 @@ type relationshipVerbEntry struct {
 	// Repository-to-Repository edges, while its drill-down slice browses
 	// Workload-to-Workload edges.
 	sourceToolSourceLabel string
-	// targetAttributable is true when the edge's target endpoint (t) carries
-	// tenant attribution a #5167 scoped-token grant can bind: a Repository, a
-	// Workload/WorkloadInstance reachable from a Repository via
-	// DEFINES/INSTANCE_OF, or a code entity carrying repo_id. It is false for
-	// verbs whose target is a shared/global entity with no tenant attribution
-	// (Module for IMPORTS, Platform for RUNS_ON, SqlTable for QUERIES_TABLE,
-	// CloudAction for INVOKES_CLOUD_ACTION) -- relationshipEdgesCypher binds
-	// the scope predicate to target t only when this is true; the source
-	// endpoint s is always bound for a scoped caller regardless, which alone
-	// prevents a scoped caller from ever seeing an edge whose source belongs to
-	// another tenant.
-	targetAttributable bool
 	// edgeScopeAttributable is true when the verb's authoritative reducer scope
 	// is stamped on the relationship (rel.scope_id) rather than on either
 	// endpoint node. AWS_lambda_function_uses_image (#5450) is the only such
@@ -90,9 +78,11 @@ type relationshipVerbEntry struct {
 	// nodes), so an endpoint-only scope predicate would exclude every edge for a
 	// legitimately scoped caller. For such a verb relationshipEdgesScopeExpr
 	// folds an `r.scope_id IN $allowed_scope_ids` disjunct into the endpoint
-	// OR-group. It is an invariant that edgeScopeAttributable implies
-	// !targetAttributable (the fold assumes a single source-alias endpoint
-	// group); TestRelationshipVerbCatalogEdgeScopeInvariant enforces it.
+	// OR-group. It is an invariant that edgeScopeAttributable implies a
+	// target-unattributable verb in the querycontract classification (the
+	// fold assumes a single source-alias endpoint group);
+	// TestRelationshipVerbCatalogEdgeScopeInvariant enforces it against
+	// querycontract.RelationshipVerbTargetAttributable.
 	edgeScopeAttributable bool
 }
 
@@ -104,28 +94,30 @@ type relationshipVerbEntry struct {
 // be covered by the static query-plan regression gate.
 var relationshipVerbCatalog = []relationshipVerbEntry{
 	// code layer
-	{verb: "CALLS", layer: "code", sourceLabel: "Function", sourceProperty: "uid", evidence: "Call graph", detail: "Function invokes another function", targetAttributable: true},
+	{verb: "CALLS", layer: "code", sourceLabel: "Function", sourceProperty: "uid", evidence: "Call graph", detail: "Function invokes another function"},
 	// IMPORTS targets a Module, whose canonical import identity is (name, lang)
 	// and which carries no id or uid, so target_id is language-qualified rather
 	// than the bare name (#6102). See targetIdentityExpr for why the concat is
 	// guarded on both operands and why the ORDER BY tie-breaker is untouched.
 	{verb: "IMPORTS", layer: "code", sourceLabel: "File", sourceProperty: "path", targetIdentityExpr: importsTargetIdentityExpr, evidence: "Module imports", detail: "File imports a module or symbol"},
-	{verb: "INHERITS", layer: "code", sourceLabel: "Class", sourceProperty: "uid", evidence: "Type hierarchy", detail: "Class inherits from a base type", targetAttributable: true},
-	{verb: "REFERENCES", layer: "code", sourceLabel: "Function", sourceProperty: "uid", evidence: "Symbol references", detail: "Symbol references another symbol", targetAttributable: true},
-	{verb: "OVERRIDES", layer: "code", sourceLabel: "Function", sourceProperty: "uid", evidence: "Type hierarchy", detail: "Method overrides a base method", targetAttributable: true},
+	{verb: "INHERITS", layer: "code", sourceLabel: "Class", sourceProperty: "uid", evidence: "Type hierarchy", detail: "Class inherits from a base type"},
+	{verb: "REFERENCES", layer: "code", sourceLabel: "Function", sourceProperty: "uid", evidence: "Symbol references", detail: "Symbol references another symbol"},
+	{verb: "OVERRIDES", layer: "code", sourceLabel: "Function", sourceProperty: "uid", evidence: "Type hierarchy", detail: "Method overrides a base method"},
 	{verb: "QUERIES_TABLE", layer: "code", sourceLabel: "Function", sourceProperty: "uid", evidence: "Data access", detail: "Function queries a database table"},
 	// deploy layer
-	{verb: "DEPLOYS_FROM", layer: "deploy", sourceLabel: "Repository", sourceProperty: "id", evidence: "Deployment evidence", detail: "Repository deploys from a source", carriesSourceTool: true, sourceToolSourceLabel: "Repository", targetAttributable: true},
-	{verb: "INSTANCE_OF", layer: "deploy", sourceLabel: "WorkloadInstance", sourceProperty: "id", evidence: "Workload model", detail: "Instance realizes a workload definition", targetAttributable: true},
+	{verb: "DEPLOYS_FROM", layer: "deploy", sourceLabel: "Repository", sourceProperty: "id", evidence: "Deployment evidence", detail: "Repository deploys from a source", carriesSourceTool: true, sourceToolSourceLabel: "Repository"},
+	{verb: "INSTANCE_OF", layer: "deploy", sourceLabel: "WorkloadInstance", sourceProperty: "id", evidence: "Workload model", detail: "Instance realizes a workload definition"},
 	// RECONCILES_FROM (issue #5360 PR B) anchors on the source FluxKustomization;
 	// its target (FluxGitRepository/FluxOCIRepository/FluxBucket) is a generic
 	// canonical entity carrying repo_id like every CALLS/INHERITS/REFERENCES/
-	// OVERRIDES target, so targetAttributable is true here: the #5167 scoped-grant
+	// OVERRIDES target, so the querycontract classification marks it
+	// target-attributable here: the #5167 scoped-grant
 	// predicate can bind the target endpoint's repo_id, so binding it is the
 	// more-restrictive (correct) choice. This differs from the Atlantis
 	// governance verbs below precisely because their targets (Directory,
 	// AtlantisWorkflow) carry no repo_id a #5167 grant could bind, which is
-	// why those stay targetAttributable=false -- the distinction is repo_id
+	// why the querycontract classification keeps those target-unattributable --
+	// the distinction is repo_id
 	// bindability, not the unrelated targetIdentityProperty override MANAGES
 	// uses for its non-standard Directory identity key.
 	//
@@ -143,15 +135,16 @@ var relationshipVerbCatalog = []relationshipVerbEntry{
 	// generic graph-projected-node edge surface), not this catalog's
 	// per-verb browse. See relationships_catalog_flux_test.go for the
 	// count/slice divergence proof.
-	{verb: "RECONCILES_FROM", layer: "deploy", sourceLabel: "FluxKustomization", sourceProperty: "uid", evidence: "Flux GitOps", detail: "Flux Kustomization or HelmRelease reconciles from its source", targetAttributable: true},
+	{verb: "RECONCILES_FROM", layer: "deploy", sourceLabel: "FluxKustomization", sourceProperty: "uid", evidence: "Flux GitOps", detail: "Flux Kustomization or HelmRelease reconciles from its source"},
 	// infra layer
-	{verb: "PROVISIONS_DEPENDENCY_FOR", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Terraform", detail: "Repository provisions infrastructure for a target", carriesSourceTool: true, sourceToolSourceLabel: "Repository", targetAttributable: true},
-	{verb: "USES_MODULE", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Terraform modules", detail: "Repository consumes a module repository", carriesSourceTool: true, sourceToolSourceLabel: "Repository", targetAttributable: true},
-	{verb: "DISCOVERS_CONFIG_IN", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Config discovery", detail: "Repository discovers configuration in a target", carriesSourceTool: true, sourceToolSourceLabel: "Repository", targetAttributable: true},
+	{verb: "PROVISIONS_DEPENDENCY_FOR", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Terraform", detail: "Repository provisions infrastructure for a target", carriesSourceTool: true, sourceToolSourceLabel: "Repository"},
+	{verb: "USES_MODULE", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Terraform modules", detail: "Repository consumes a module repository", carriesSourceTool: true, sourceToolSourceLabel: "Repository"},
+	{verb: "DISCOVERS_CONFIG_IN", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Config discovery", detail: "Repository discovers configuration in a target", carriesSourceTool: true, sourceToolSourceLabel: "Repository"},
 	// Atlantis-governance verbs anchor on the source AtlantisProject; their
 	// targets (Terraform directory, another AtlantisProject, a workflow) carry
-	// no repo_id a #5167 grant can bind, so targetAttributable stays false and
-	// the scope predicate binds the source endpoint only.
+	// no repo_id a #5167 grant can bind, so the querycontract classification
+	// keeps them target-unattributable and the scope predicate binds the
+	// source endpoint only.
 	{verb: "MANAGES", layer: "infra", sourceLabel: "AtlantisProject", sourceProperty: "uid", targetIdentityProperty: "path", evidence: "Atlantis governance", detail: "Atlantis project manages a Terraform directory"},
 	{verb: "ATLANTIS_DEPENDS_ON", layer: "infra", sourceLabel: "AtlantisProject", sourceProperty: "uid", evidence: "Atlantis governance", detail: "Atlantis project applies after another project"},
 	{verb: "USES_WORKFLOW", layer: "infra", sourceLabel: "AtlantisProject", sourceProperty: "uid", evidence: "Atlantis governance", detail: "Atlantis project uses a custom workflow"},
@@ -161,25 +154,27 @@ var relationshipVerbCatalog = []relationshipVerbEntry{
 	// (the Lambda function) by uid -- the same indexed anchor the edge writer's
 	// MATCH (source:CloudResource {uid}) uses. Its target ContainerImage is a
 	// cross-generation canonical node carrying no repo_id a #5167 grant could
-	// bind, so targetAttributable stays false (bind the source endpoint only),
+	// bind, so the querycontract classification keeps it target-unattributable
+	// (bind the source endpoint only),
 	// matching the Atlantis-governance precedent above. Its CloudResource source
 	// carries no repo_id/scope_id either -- the reducer scope is stamped on the
 	// edge (rel.scope_id) -- so edgeScopeAttributable is set (#5450 P1-C) to
 	// admit a scoped caller by the edge's own granted scope; see
 	// edgeScopeAttributable's doc comment.
 	{verb: "AWS_lambda_function_uses_image", layer: "runtime", sourceLabel: "CloudResource", sourceProperty: "uid", evidence: "Lambda container image", detail: "AWS Lambda function uses a container image", edgeScopeAttributable: true},
-	{verb: "DEPENDS_ON", layer: "runtime", sourceLabel: "Workload", sourceProperty: "id", evidence: "Runtime dependency", detail: "Workload depends on another workload", carriesSourceTool: true, sourceToolSourceLabel: "Repository", targetAttributable: true},
+	{verb: "DEPENDS_ON", layer: "runtime", sourceLabel: "Workload", sourceProperty: "id", evidence: "Runtime dependency", detail: "Workload depends on another workload", carriesSourceTool: true, sourceToolSourceLabel: "Repository"},
 	// security layer
 	{verb: "INVOKES_CLOUD_ACTION", layer: "security", sourceLabel: "Function", sourceProperty: "uid", evidence: "IAM call analysis", detail: "Function invokes a cloud action"},
 	// ops layer
-	{verb: "READS_CONFIG_FROM", layer: "ops", sourceLabel: "Repository", sourceProperty: "id", evidence: "Config access", detail: "Repository reads configuration from a target", carriesSourceTool: true, sourceToolSourceLabel: "Repository", targetAttributable: true},
-	{verb: "TAINT_FLOWS_TO", layer: "ops", sourceLabel: "Function", sourceProperty: "uid", evidence: "Taint analysis", detail: "Tainted data flows to a sink", targetAttributable: true},
+	{verb: "READS_CONFIG_FROM", layer: "ops", sourceLabel: "Repository", sourceProperty: "id", evidence: "Config access", detail: "Repository reads configuration from a target", carriesSourceTool: true, sourceToolSourceLabel: "Repository"},
+	{verb: "TAINT_FLOWS_TO", layer: "ops", sourceLabel: "Function", sourceProperty: "uid", evidence: "Taint analysis", detail: "Tainted data flows to a sink"},
 }
 
 // relationshipVerbByName indexes the catalog by the upper-cased verb for O(1)
 // lookup when serving the per-verb edge endpoint. Every lookup site
-// (getRelationshipEdges, relationshipEvidenceTargetAttributable in evidence.go)
-// upper-cases the requested verb before probing this map, so the map MUST be
+// (getRelationshipEdges here, querycontract.RelationshipEvidenceTargetAttributable
+// and querycontract.RelationshipVerbTargetAttributable in querycontract)
+// upper-cases the requested verb before probing its map, so this map MUST be
 // keyed by the upper-cased verb too. Keying by the raw entry.verb (#5450 P1-B)
 // silently 400s AWS_lambda_function_uses_image -- the only catalog verb whose
 // canonical form is not already all-uppercase -- for every casing. entry.verb
@@ -378,13 +373,14 @@ func relationshipEdgesScopeWhereClauseWithAnchor(entry relationshipVerbEntry, ac
 
 // relationshipEdgesScopeExpr builds the #5167 access-scope WHERE-body for a
 // verb (no leading "WHERE"). For an ordinary verb it is the AND-combined
-// endpoint-scope predicates -- source s always, plus target t when
-// entry.targetAttributable -- byte-identical to the pre-#5450 shape. For an
+// endpoint-scope predicates -- source s always, plus target t when the
+// querycontract verb→targetAttributable classification reports the verb
+// target-attributable -- byte-identical to the pre-#5450 shape. For an
 // entry.edgeScopeAttributable verb (AWS_lambda_function_uses_image, #5450 P1-C)
 // the authoritative reducer scope lives on the relationship, not on either
 // endpoint node, so the caller must also be admitted when the edge's own scope
 // is granted. Such a verb is endpoint-source-only (edgeScopeAttributable
-// implies !targetAttributable, enforced by
+// implies a target-unattributable classification, enforced by
 // TestRelationshipVerbCatalogEdgeScopeInvariant), so its endpoint group is the
 // single source-alias disjunct list; the `r.scope_id IN $allowed_scope_ids`
 // term is folded into that SAME flat OR-group, yielding one atomically
@@ -400,7 +396,7 @@ func relationshipEdgesScopeExpr(entry relationshipVerbEntry, scalars []string) s
 		return "(" + strings.Join(disjuncts, " OR ") + ")"
 	}
 	clauses := []string{relationshipEndpointScopePredicate("s", scalars)}
-	if entry.targetAttributable {
+	if querycontract.RelationshipVerbTargetAttributable(entry.verb) {
 		clauses = append(clauses, relationshipEndpointScopePredicate("t", scalars))
 	}
 	return strings.Join(clauses, " AND ")

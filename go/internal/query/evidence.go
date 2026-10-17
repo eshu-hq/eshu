@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:dirgate // #6642 evidence slice: EvidenceHandler stays in root until the full evidence leaf move carries it; see query/evidence/doc.go.
+package query //nolint:dirgate // #6642 evidence slice: EvidenceHandler stays in root until the querycontract evidence-authz pre-slice (the blocking dependency) and then the full evidence leaf move carry it; see query/evidence/doc.go.
 
 import (
 	"context"
@@ -63,63 +63,16 @@ func (h *EvidenceHandler) profile() QueryProfile {
 	return h.Profile
 }
 
-// relationshipEvidenceRowWithinAccess reports whether the resolved
-// relationship row is visible to access's granted repositories/ingestion
-// scopes. Shared/admin/local callers (access.scoped() == false) always pass;
-// a scoped caller with no grants fails closed.
-//
-// A scoped caller must always own the SOURCE repository (resolved_relationships
-// always carries a source repo). The TARGET grant is required only when the
-// target endpoint carries a tenant attribution, mirroring the
-// relationships/edges targetAttributable model (relationships_catalog_cypher.go,
-// relationshipVerbEntry.targetAttributable): for a targetAttributable:false
-// verb the target is a shared/global entity (IMPORTS->Module, RUNS_ON->Platform,
-// QUERIES_TABLE->SqlTable, INVOKES_CLOUD_ACTION->CloudAction) with no repo_id,
-// so there is no cross-tenant secret to protect and source ownership alone
-// authorizes the read. Requiring a grant on that empty repo_id (the pre-#5167
-// F-6 W6 review behavior) spuriously 404'd evidence a caller fully owned via
-// the source. For a targetAttributable:true verb the target names a real
-// repository, so the target grant is enforced.
+// relationshipEvidenceRowWithinAccess is the root forwarder for the
+// relationship-evidence access gate (#6060 pattern): the handler and the
+// scoped tests in this package keep the unexported spelling, while the
+// predicate itself -- the verb→targetAttributable classification, the
+// endpoint-repo reader, and the both-endpoints gate over them -- lives in
+// querycontract (relationship_evidence_authz.go, the #6642 evidence-leaf
+// pre-slice) so the evidence leaf can share the single source of truth
+// without importing the root query package.
 func relationshipEvidenceRowWithinAccess(row map[string]any, access querycontract.RepositoryAccessFilter) bool {
-	if !access.Scoped() {
-		return true
-	}
-	if access.Empty() {
-		return false
-	}
-	if !access.AllowsRepositoryID(relationshipEvidenceEndpointRepoID(row, "source")) {
-		return false
-	}
-	if !relationshipEvidenceTargetAttributable(row) {
-		return true
-	}
-	return access.AllowsRepositoryID(relationshipEvidenceEndpointRepoID(row, "target"))
-}
-
-// relationshipEvidenceTargetAttributable reports whether the row's target
-// endpoint carries a tenant attribution that a scoped grant must gate on. It
-// resolves the row's relationship_type against the fixed relationships-catalog
-// verb set (relationshipVerbByName); a known verb uses its targetAttributable
-// classification. An unknown verb (outside the 16-verb catalog) falls back
-// fail-closed to the row's own target repo_id: a non-empty target repo_id
-// names a real repository that must be protected, an empty one has no tenant
-// secret, so source ownership suffices.
-func relationshipEvidenceTargetAttributable(row map[string]any) bool {
-	verb := strings.ToUpper(strings.TrimSpace(StringVal(row, "relationship_type")))
-	if entry, ok := relationshipVerbByName[verb]; ok {
-		return entry.targetAttributable
-	}
-	return relationshipEvidenceEndpointRepoID(row, "target") != ""
-}
-
-// relationshipEvidenceEndpointRepoID reads the repo_id string off the
-// "source" or "target" endpoint map relationshipEvidenceEndpoint built.
-func relationshipEvidenceEndpointRepoID(row map[string]any, key string) string {
-	endpoint, _ := row[key].(map[string]any)
-	if endpoint == nil {
-		return ""
-	}
-	return StringVal(endpoint, "repo_id")
+	return querycontract.RelationshipEvidenceRowWithinAccess(row, access)
 }
 
 func (h *EvidenceHandler) getRelationshipEvidence(w http.ResponseWriter, r *http.Request) {

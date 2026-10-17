@@ -13,9 +13,10 @@
   (`evidence.EvidenceCitationHandle`); do not re-add a root-level
   `query.EvidenceCitationHandle` forwarding alias.
 - The citation endpoint, synthesis helpers, read model, bundle composer,
-  and `EvidenceHandler` stay in root query until the full evidence leaf
-  move; do not move them here piecemeal — methods on root receiver types
-  cannot live in another package.
+  and `EvidenceHandler` stay in root query until the querycontract
+  evidence-authz pre-slice (#6642, the blocking dependency) and then the
+  full evidence leaf move; do not move them here piecemeal — methods on
+  root receiver types cannot live in another package.
 
 ## Common changes
 

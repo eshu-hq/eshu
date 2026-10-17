@@ -14,7 +14,8 @@ evidence-citation endpoint (`POST /api/v0/evidence/citations`), the citation
 synthesis helpers (`evidence_citation.go`, `evidence_citation_unified.go`),
 the relationship read model (`evidence_read_model.go`), the live bundle
 composer (`evidence_bundle_live.go`), and the `EvidenceHandler` stay in the
-root query package until the full evidence leaf move (#6642). The canonical
+root query package until the querycontract evidence-authz pre-slice (#6642,
+the blocking dependency) and then the full evidence leaf move. The canonical
 handle type, coverage, and response shapes live in
 `internal/query/querycontract/evidence`; auth gates live in
 `internal/query/auth`.

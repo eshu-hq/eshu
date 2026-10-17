@@ -10,6 +10,7 @@
 // handles built through querycontract/evidence are the same value. The
 // evidence-citation endpoint itself (POST /api/v0/evidence/citations),
 // the citation synthesis helpers, and the EvidenceHandler stay in the root
-// query package until the full evidence leaf move (#6642); this package
+// query package until the querycontract evidence-authz pre-slice (#6642,
+// the blocking dependency) and then the full evidence leaf move; this package
 // must never import the root query package.
 package evidence

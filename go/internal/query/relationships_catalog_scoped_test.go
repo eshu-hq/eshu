@@ -202,8 +202,9 @@ func TestGetRelationshipEdgesScopedGrantBindsBothEndpointsAndReturnsRealRowData(
 // does NOT hold. With both endpoints bound the target bind excludes the edge,
 // so the caller sees zero rows and never learns the cross-tenant target's
 // identity -- while the graph IS read (reader.calls == 1, not an empty-grant
-// short-circuit). Mutation proof: deleting the entry.targetAttributable branch
-// in relationshipEdgesScopeWhereClause (relationships_catalog_cypher.go) drops
+// short-circuit). Mutation proof: deleting the querycontract
+// RelationshipVerbTargetAttributable branch in relationshipEdgesScopeExpr
+// (relationships_catalog_cypher.go) drops
 // the "t.repo_id IN ..." clause, so the source-only WHERE admits this edge and
 // this test goes red (edges == 1, leaking target_name "tenantBCallee").
 func TestGetRelationshipEdgesScopedGrantHidesCrossTenantTargetEdge(t *testing.T) {
