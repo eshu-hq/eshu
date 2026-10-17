@@ -27,8 +27,11 @@ control-flow line changes outside test fixtures.
 ## No-Regression Evidence:
 
 Baseline is the branch point `e7675d9ee`, which is also the merge base with
-`origin/main`. Input shape is 118 files, 255 insertions, 215 deletions of
-comments, prose, and symmetric test fixtures. After measurement is the unit
+`origin/main`. Input shape of the three sweep commits (`43816059e`, `514f63525`, `f2b390a1f`)
+is 117 files, 206 insertions, 215 deletions of comments, prose, and symmetric
+test fixtures. The generated doc regen, this note, and the review fixes ride
+on top and are enumerated above, never counted here, so this paragraph does
+not chase its own diff. After measurement is the unit
 proof battery on the local Go toolchain `go1.26.6 linux/arm64`, with no live
 backend: `go build ./...` exits 0, and every touched package suite passes
 with `-count=1`, including `go/internal/query/...`, `go/internal/queryplan`,
