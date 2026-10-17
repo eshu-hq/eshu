@@ -13,9 +13,11 @@ jobs:
         run: sleep 150
       - name: after always
         if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
         run: |
-          echo "REACHED always() step; job.status=${{ job.status }}; cancelled()=${{ cancelled() }}; failure()=${{ failure() }}"
-          echo "REACHED always() job.status=${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "REACHED always() step; job.status=$JOB_STATUS"
+          echo "REACHED always() job.status=$JOB_STATUS" >> "$GITHUB_STEP_SUMMARY"
       - name: after cancelled only
         if: cancelled()
         run: echo "REACHED cancelled() step"
