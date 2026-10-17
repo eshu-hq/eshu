@@ -24,7 +24,9 @@ import (
 // ESHU_READER_TEST_SNAPSHOT_EXPORT_SMOKE=1 and the owned
 // ESHU_READER_TEST_WRITER_DSN and ESHU_READER_TEST_READER_DSN, takes any build
 // declaration from ESHU_POSTGRES_READ_SNAPSHOT_EXPORT_BUILDS, and skips on an
-// unqualified build. It is a plain env-gated test outside the live-test ledger
+// unqualified build. It hashes with sha256, not md5: a server image that sets
+// OPENSSL_FIPS=yes refuses md5() and would fail the smoke before any export. It
+// is a plain env-gated test outside the live-test ledger
 // and stays out of CI until the CI image is qualified.
 func TestSnapshotExportConsistencySmoke(t *testing.T) {
 	writer := os.Getenv("ESHU_READER_TEST_WRITER_DSN")
@@ -64,7 +66,7 @@ func TestSnapshotExportConsistencySmoke(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = primary.Close(context.Background()) }()
-	if _, err := primary.Exec(ctx, "CREATE TABLE "+pgx.Identifier{table}.Sanitize()+" AS SELECT g AS id, md5(g::text) AS body FROM generate_series(1, 5000) AS g"); err != nil {
+	if _, err := primary.Exec(ctx, "CREATE TABLE "+pgx.Identifier{table}.Sanitize()+" AS SELECT g AS id, encode(sha256(convert_to(g::text, 'UTF8')), 'hex') AS body FROM generate_series(1, 5000) AS g"); err != nil {
 		t.Fatal(err)
 	}
 	// Deferred after the Close defer, so it runs first while primary is open.
@@ -83,7 +85,7 @@ func TestSnapshotExportConsistencySmoke(t *testing.T) {
 		t.Fatalf("qualified set: %v", err)
 	}
 	defer func() { _ = set.Close() }()
-	digest := "SELECT count(*)::text || ':' || md5(string_agg(id::text || body, ',' ORDER BY id)) FROM " + pgx.Identifier{table}.Sanitize()
+	digest := "SELECT count(*)::text || ':' || encode(sha256(convert_to(string_agg(id::text || body, ',' ORDER BY id), 'UTF8')), 'hex') FROM " + pgx.Identifier{table}.Sanitize()
 	readings := make([]string, 0, 5)
 	for i := range 4 {
 		queryer, err := set.Reader(i)
