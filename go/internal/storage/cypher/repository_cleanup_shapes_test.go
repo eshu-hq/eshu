@@ -59,11 +59,13 @@ func TestRepositoryPathCleanupShapesRetireTheSameSet(t *testing.T) {
 	if !ok {
 		t.Fatalf("attributed shape has no %q: %q", deleteClause, attributed)
 	}
-	if !strings.HasPrefix(before, "OPTIONAL MATCH (r)-[rel]-(other) WITH r, collect(") {
-		t.Fatalf("attributed shape adds %q before the delete, want only the incident-edge collection", before)
-	}
-	if strings.Contains(before, "WHERE") || strings.Count(before, "MATCH") != 1 {
-		t.Fatalf("attributed collection %q adds a filter or a second match; it must not change the retired set", before)
+	const collection = "OPTIONAL MATCH (r)-[rel]-(other) WITH r, collect(CASE WHEN rel IS NULL THEN NULL ELSE " +
+		"{t: type(rel), dir: CASE WHEN startNode(rel) = r THEN 'out' ELSE 'in' END, src: rel.evidence_source} END) AS dropped"
+	// Compare the whole clause, not keywords: LIMIT, SKIP, ORDER BY, UNWIND,
+	// or a changed grouping would shrink or reshape the retired set while a
+	// prefix-and-forbidden-word check still passed.
+	if before != collection {
+		t.Fatalf("attributed collection = %q, want exactly %q; it must not change the retired set", before, collection)
 	}
 	if after != " RETURN dropped" {
 		t.Fatalf("attributed tail after the delete = %q, want %q", after, " RETURN dropped")

@@ -23,9 +23,12 @@ func (e *cleanupRecordingExecutor) Execute(_ context.Context, stmt sourcecypher.
 	return nil
 }
 
-// repositoryCleanupStatement drives the production writer for a re-keyed
-// repository (not the first generation, not a delta) and returns the one
-// path-conflict cleanup statement it emits. bare selects the NornicDB
+// repositoryCleanupStatement drives the production writer for a repository
+// materialization that is neither the first generation nor a delta (the
+// corpus gate's staged second generation) and returns the one path-conflict
+// cleanup statement it emits. The writer sends it on every such
+// materialization; the MATCH deletes only when a different-id Repository
+// holds the path. bare selects the NornicDB
 // writer configuration (#8173).
 func repositoryCleanupStatement(t *testing.T, bare bool) sourcecypher.Statement {
 	t.Helper()
