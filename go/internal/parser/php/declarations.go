@@ -31,7 +31,7 @@ func collectPHPClassDeclaration(state *phpParseState, node *tree_sitter.Node) {
 		item["trait_adaptations"] = adaptations
 	}
 	shared.AppendBucket(state.payload, "classes", item)
-	state.packageKeys.recordType(name, true, item)
+	state.packageKeys.recordType(node, state.parents, name, true, item)
 	collectPHPTypeMembers(state, node, name, "class_declaration")
 }
 
@@ -49,7 +49,7 @@ func collectPHPInterfaceDeclaration(state *phpParseState, node *tree_sitter.Node
 	}
 	recordPHPDeadCodeType(state.deadCodeFacts, "interface_declaration", name, bases)
 	shared.AppendBucket(state.payload, "interfaces", item)
-	state.packageKeys.recordType(name, false, item)
+	state.packageKeys.recordType(node, state.parents, name, false, item)
 	collectPHPTypeMembers(state, node, name, "interface_declaration")
 }
 

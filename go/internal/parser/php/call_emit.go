@@ -96,12 +96,17 @@ func emitPHPMemberCall(state *phpParseState, node *tree_sitter.Node) {
 	fullName := normalizePHPMethodCall(chainExpr)
 	ctx := phpResolveContext(node, state.source, state.parents)
 	inferred := state.inferReceiverType(receiverText, node)
-	appendUniquePHPCall(
+	item := appendUniquePHPCall(
 		state.payload, state.seenCalls,
 		methodName, fullName, shared.NodeLine(node),
 		phpCallArguments(node, state.source),
 		ctx.name, ctx.kind, ctx.line, inferred,
 	)
+	if item != nil && nameNode.Kind() == "name" {
+		if key := state.packageKeys.instanceKey(state, node, objectNode, methodName); key != "" {
+			item["package_export_symbol"] = key
+		}
+	}
 }
 
 // emitPHPScopedCall emits a call row for static and self/parent/static method
