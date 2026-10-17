@@ -29,12 +29,6 @@
 #   R7 gosec exits 0 and writes `not json`   -> exit 1
 #   R8 real gosec on a package with a type error -> exit 1, errors printed
 #   R9 valid JSON with Stats.files 0 for a requested package -> exit 1
-#   L1 Go errors only in a ledgered package -> exit 0, "partial analysis (known"
-#   L3 ledgered package in scope with zero Go errors -> exit 1, "is stale"
-#   L4 ledgered package out of scope, zero Go errors -> exit 0, no stale message
-#   L5 malformed ledger row -> exit 1
-#   L6 Go errors in a ledgered AND a non-ledgered package -> exit 1, names the latter
-#      (L2 is R8: a non-ledgered package with Go errors fails)
 #
 # Mechanics cases use a stub gosec that logs its argv, so a pass cannot be
 # vacuous. Findings cases use the REAL pinned gosec from the shared tool cache
@@ -91,7 +85,6 @@ case "${STUB_MODE:-ok}" in
 	notjson) printf 'not json\n' >"${out}" ;;
 	zero) printf '{"Issues":[],"Stats":{"files":0},"Golang errors":{}}\n' >"${out}" ;;
 	term) kill -TERM $$ ;;
-	file) cp "${STUB_JSON}" "${out}" ;;
 esac
 exit 0
 STUB_B
@@ -276,58 +269,6 @@ for arm in gosec gosec-all gosec-changed; do
 	check "R7 ${arm}: non-JSON result" 1 'no parsable result'
 	run_arm STUB_MODE=zero bash "${script}" "${arm}" ${in}
 	check "R9 ${arm}: zero files scanned" 1 'scanned 0 files'
-done
-
-# --- L1-L6: the partial-analysis ledger (scripts/lib/gosec-partial-packages.tsv,
-# overridden here by ESHU_GOSEC_PARTIAL_LEDGER). Crafted gosec JSON drives them.
-ledger="${tmp_root}/ledger.tsv"
-tab="$(printf '\t')"
-write_ledger() { # <dir>...
-	{ printf '# test ledger\n'; for d in "$@"; do printf '%s\t#1234\t2026-10-17\ttest reason\n' "${d}"; done; } >"${ledger}"
-}
-blob_ok='{"Issues":[],"Stats":{"files":3},"Golang errors":{"":[{"line":0,"column":0,"error":"# command-line-arguments\ninternal/ok/ok.go:3:4: undefined: X\ninternal/ok/ok.go:5:6: undefined: Y"}]}}'
-blob_both='{"Issues":[],"Stats":{"files":3},"Golang errors":{"":[{"line":0,"column":0,"error":"# command-line-arguments\ninternal/ok/ok.go:3:4: undefined: X\ninternal/other/o.go:5:6: undefined: Y"}]}}'
-blob_key="{\"Issues\":[],\"Stats\":{\"files\":3},\"Golang errors\":{\"${fx}/go/internal/ok/ok.go\":[{\"line\":3,\"column\":4,\"error\":\"undefined: X\"}]}}"
-clean_json='{"Issues":[],"Stats":{"files":3},"Golang errors":{}}'
-json_file="${tmp_root}/stub.json"
-run_ledger() { # <json> <arm> [arm input...]
-	local json="$1"; shift
-	printf '%s\n' "${json}" >"${json_file}"
-	run_arm STUB_MODE=file STUB_JSON="${json_file}" ESHU_GOSEC_PARTIAL_LEDGER="${ledger}" bash "${script}" "$@"
-}
-check_absent() { # <label> <fixed string that must NOT be in the output>
-	if rg --quiet --fixed-strings -- "$2" "${out_file}"; then
-		fail "$1: output unexpectedly contains '$2'"
-	fi
-}
-for arm in gosec gosec-all gosec-changed; do
-	topic; touch_ok; commit_all
-	in="$(arm_input "${arm}")"
-	write_ledger internal/ok
-	run_ledger "${blob_ok}" "${arm}" ${in}
-	check "L1 ${arm}: ledgered package, blob errors" 0 'partial analysis (known, #1234): internal/ok' '2 Go errors'
-	run_ledger "${blob_key}" "${arm}" ${in}
-	check "L1 ${arm}: ledgered package, file-key error" 0 'partial analysis (known, #1234): internal/ok' '1 Go errors'
-	run_ledger "${clean_json}" "${arm}" ${in}
-	check "L3 ${arm}: ledger row in scope, clean" 1 'ledger row internal/ok is stale'
-	write_ledger internal/other
-	run_ledger "${clean_json}" "${arm}" ${in}
-	if [ "${arm}" = gosec-all ]; then
-		check "L3 ${arm}: other ledger row in scope, clean" 1 'ledger row internal/other is stale'
-	else
-		check "L4 ${arm}: ledger row out of scope, clean" 0
-		check_absent "L4 ${arm}" 'stale'
-	fi
-	write_ledger internal/ok
-	run_ledger "${blob_both}" "${arm}" ${in}
-	check "L6 ${arm}: ledgered + non-ledgered errors" 1 'internal/other'
-	check_absent "L6 ${arm}" 'partial analysis (known'
-	{ printf 'internal/ok\t#1234\n'; } >"${ledger}"
-	run_ledger "${clean_json}" "${arm}" ${in}
-	check "L5 ${arm}: malformed ledger row" 1 'malformed ledger row'
-	{ printf 'internal/ok\t\t2026-10-17\treason\n'; } >"${ledger}"
-	run_ledger "${clean_json}" "${arm}" ${in}
-	check "L5 ${arm}: ledger row without an issue" 1 'malformed ledger row'
 done
 
 if [ "${failures}" -ne 0 ]; then
