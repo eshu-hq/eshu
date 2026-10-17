@@ -55,14 +55,16 @@ func TestBuildDocumentationFactsSQLBindsCollectedKindsLiterally(t *testing.T) {
 }
 
 // stubDocRepoScopeRows is a canned db.Rows for the repository-scope resolver
-// proof. Each row is a (scope_id, canonical_repo_id) pair. When err is set it
-// surfaces only after errAfter successful scans, so a test can yield partial
-// rows before the failure the way a real cursor does.
+// proof. Each row is a (scope_id, canonical_repo_id) pair. scanErr surfaces
+// from Scan only and iterErr from Err only (after iterAfter successful scans),
+// so each resolver guard is pinned by exactly one subtest. A test can yield
+// partial rows before the failure the way a real cursor does.
 type stubDocRepoScopeRows struct {
-	rows     [][]string
-	pos      int
-	err      error
-	errAfter int
+	rows      [][]string
+	pos       int
+	scanErr   error
+	iterErr   error
+	iterAfter int
 }
 
 func (r *stubDocRepoScopeRows) Next() bool {
@@ -71,8 +73,8 @@ func (r *stubDocRepoScopeRows) Next() bool {
 }
 
 func (r *stubDocRepoScopeRows) Scan(dest ...any) error {
-	if r.err != nil && r.pos > r.errAfter {
-		return r.err
+	if r.scanErr != nil {
+		return r.scanErr
 	}
 	if len(dest) != 2 {
 		return errors.New("stubDocRepoScopeRows.Scan wants 2 destinations")
@@ -83,8 +85,8 @@ func (r *stubDocRepoScopeRows) Scan(dest ...any) error {
 }
 
 func (r *stubDocRepoScopeRows) Err() error {
-	if r.err != nil && r.pos > r.errAfter {
-		return r.err
+	if r.iterErr != nil && r.pos > r.iterAfter {
+		return r.iterErr
 	}
 	return nil
 }
@@ -103,11 +105,12 @@ func scanDocRepoScopeString(dest any, value string) {
 // rows. It implements only the Queryer surface the resolver uses; every other
 // ReadStore method fails the test when touched.
 type stubDocRepoScopeReadStore struct {
-	rows         [][]string
-	queryErr     error
-	rowsErr      error
-	rowsErrAfter int
-	queries      int
+	rows      [][]string
+	queryErr  error
+	scanErr   error
+	iterErr   error
+	iterAfter int
+	queries   int
 }
 
 func (s *stubDocRepoScopeReadStore) QueryContext(context.Context, string, ...any) (db.Rows, error) {
@@ -115,7 +118,7 @@ func (s *stubDocRepoScopeReadStore) QueryContext(context.Context, string, ...any
 	if s.queryErr != nil {
 		return nil, s.queryErr
 	}
-	return &stubDocRepoScopeRows{rows: s.rows, err: s.rowsErr, errAfter: s.rowsErrAfter}, nil
+	return &stubDocRepoScopeRows{rows: s.rows, scanErr: s.scanErr, iterErr: s.iterErr, iterAfter: s.iterAfter}, nil
 }
 
 func (s *stubDocRepoScopeReadStore) QueryRowContext(context.Context, string, ...any) db.Row {
@@ -315,9 +318,9 @@ func TestResolveDocumentationRepositoryScopeKeepsAmbiguousAndUnknownRepos(t *tes
 		t.Parallel()
 		before := documentationFactFilter{Repository: "payments", Limit: 10}
 		store := &stubDocRepoScopeReadStore{
-			rows:         [][]string{{"scope:payments", "repository:payments"}},
-			rowsErr:      errors.New("cursor lost mid-scan"),
-			rowsErrAfter: 1,
+			rows:      [][]string{{"scope:payments", "repository:payments"}},
+			iterErr:   errors.New("cursor lost mid-scan"),
+			iterAfter: 1,
 		}
 		got, resolved := resolveDocumentationRepositoryScope(context.Background(), store, before)
 		if resolved {
@@ -332,9 +335,8 @@ func TestResolveDocumentationRepositoryScopeKeepsAmbiguousAndUnknownRepos(t *tes
 		t.Parallel()
 		before := documentationFactFilter{Repository: "payments", Limit: 10}
 		store := &stubDocRepoScopeReadStore{
-			rows:         [][]string{{"scope:payments", "repository:payments"}},
-			rowsErr:      errors.New("row decode boom"),
-			rowsErrAfter: 0,
+			rows:    [][]string{{"scope:payments", "repository:payments"}},
+			scanErr: errors.New("row decode boom"),
 		}
 		got, resolved := resolveDocumentationRepositoryScope(context.Background(), store, before)
 		if resolved {
