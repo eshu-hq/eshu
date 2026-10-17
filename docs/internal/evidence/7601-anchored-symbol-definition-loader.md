@@ -337,3 +337,12 @@ NOT_CHECKED:
 - If a producer of about 7,000 files ever has a consumer, the next step below
   the detoast floor is `ALTER TABLE fact_records ALTER COLUMN payload SET
   COMPRESSION lz4`. Its gain is unmeasured.
+
+## Fixture-directory manifests (#8244)
+
+The package.json read also excludes a manifest under a test, tests, fixtures,
+testdata, or examples directory (whole segments, any ASCII letter case), with
+the same shared pattern the composer read uses. The predicate is a heap filter
+on the rows the existing bitmap scan returns, so the plan class and buffers are
+unchanged. See
+[8244-package-json-fixture-manifests.md](8244-package-json-fixture-manifests.md).

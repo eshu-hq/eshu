@@ -6,7 +6,7 @@
 // or jsconfig.json and its baseUrl/paths import-alias mappings
 // (TSConfigImportResolver), the
 // nearest package.json and the entry points it declares (PackageFileRootKinds,
-// NearestPackageRoot, NearestPackageName, DeclaredDependencies,
+// NearestPackageRoot, NearestPackageName, ProducerPackageName, PackageNames, DeclaredDependencies,
 // NpmAliasTargets, PackagePublicSourcePaths), repo-relative path
 // normalization (RelativeSlashPath, CleanPath, PathWithin), and the
 // stat-keyed cache (ScopeCache) that keeps those filesystem lookups off the

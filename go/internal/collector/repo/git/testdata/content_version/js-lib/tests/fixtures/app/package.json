@@ -1,0 +1,4 @@
+{
+  "name": "acme-fixture-lib",
+  "main": "src/greeter.js"
+}
