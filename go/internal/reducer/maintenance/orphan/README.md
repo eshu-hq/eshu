@@ -18,7 +18,9 @@ root.
 
 - `Runner`, `Config` — the sweep loop and its bounds
 - `Policy` — orphan TTL, batch/count limits, labels
-- `Result` — per-label counts, marked, deleted, skipped
+- `Result` — per-label counts, marked, deleted, skipped, plus the #8316
+  fingerprint repair counts (`InvalidatedFingerprints`,
+  `DeployableUnitGapRepos`)
 - `Sweeper` — storage port (`SweepOrphanNodes`)
 - `PartitionLeaseManager` — local mirror of the root lease contract
 - `ErrSweeperRequired` — missing-wiring marker

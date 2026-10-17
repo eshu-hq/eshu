@@ -40,3 +40,31 @@ func BuildRetractDeployableUnitCorrelationEdges(repoIDs []string, evidenceSource
 		},
 	}
 }
+
+// DeployableUnitCorrelationIncidentReposCypher lists the admitted source
+// repositories that still own at least one outgoing CORRELATES_DEPLOYABLE_UNIT
+// edge (#8316). The shape mirrors the orphan sweep's proven S2 connected-keys
+// read: one UNWIND-anchored concrete-relationship-variable MATCH per key,
+// which is the only relationship primitive proven reliable on both pinned
+// backends. The directed outgoing pattern matches the handler's write
+// direction (workload repository to deployment repository): an anchor whose
+// own outgoing edge was lost is a gap even when some other repository still
+// correlates into it. RETURN DISTINCT keeps one row per connected anchor, so
+// the result stays bounded by the input size.
+const DeployableUnitCorrelationIncidentReposCypher = `UNWIND $repo_ids AS requested_repo_id
+MATCH (s:Repository {id: requested_repo_id})-[rel:CORRELATES_DEPLOYABLE_UNIT]->(:Repository)
+RETURN DISTINCT s.id AS repo_id`
+
+// BuildDeployableUnitCorrelationIncidentRepos builds the gap-reconciliation
+// probe: which of repoIDs still own an outgoing deployable-unit correlation
+// edge. Callers treat an admitted anchor absent from the result as a gap and
+// delete its fingerprint rows so the next maintenance pass re-opens it.
+func BuildDeployableUnitCorrelationIncidentRepos(repoIDs []string) Statement {
+	return Statement{
+		Operation: OperationCanonicalProbe,
+		Cypher:    DeployableUnitCorrelationIncidentReposCypher,
+		Parameters: map[string]any{
+			"repo_ids": repoIDs,
+		},
+	}
+}

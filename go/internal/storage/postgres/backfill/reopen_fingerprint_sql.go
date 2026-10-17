@@ -169,6 +169,39 @@ SET repo_ids = EXCLUDED.repo_ids,
 WHERE deployable_unit_reopen_fingerprints.claimed_at <= EXCLUDED.claimed_at
 `
 
+// InvalidateDeployableUnitReopenFingerprintsForRepoQuery deletes the reopen
+// fingerprint rows of every deployable_unit_correlation item whose recorded
+// repository set contains the removed repository (#8316). A missing row
+// always re-opens on the next maintenance pass, so deleting the row is the
+// repair signal for a graph-side loss the fingerprint gate cannot see.
+const InvalidateDeployableUnitReopenFingerprintsForRepoQuery = `DELETE FROM deployable_unit_reopen_fingerprints WHERE $1 = ANY(repo_ids)`
+
+// InvalidateDeployableUnitReopenFingerprintsForReposQuery deletes the same
+// rows for a batch of removed repositories in one statement, matched by
+// array overlap. Callers with exactly one repository use the single-repo
+// form above so its predicate stays the issue's named shape.
+const InvalidateDeployableUnitReopenFingerprintsForReposQuery = `
+DELETE FROM deployable_unit_reopen_fingerprints WHERE repo_ids && $1::text[]
+`
+
+// ListDeployableUnitAdmittedAnchorReposQuery lists the distinct source
+// repositories with admitted deployable_unit_correlation decisions (#8316),
+// bounded by LIMIT so the gap-reconciliation graph probe stays a fixed-size
+// UNWIND. Rows whose canonical write never landed (Written false) are
+// excluded: no edge was ever expected for them. Rows predating the Written
+// key are included: every deployable_unit_correlation admission of that era
+// wrote its edge. $1 is the bound.
+const ListDeployableUnitAdmittedAnchorReposQuery = `
+SELECT DISTINCT anchor_id
+FROM admission_decisions
+WHERE domain = 'deployable_unit_correlation'
+  AND state = 'admitted'
+  AND anchor_kind = 'repository'
+  AND COALESCE((canonical_write ->> 'Written') IN ('true'), TRUE)
+ORDER BY anchor_id
+LIMIT $1
+`
+
 // ScanDeployableUnitReopenCandidates reads a ListDeployableUnitReopenCandidatesQuery
 // result (or its partition-scoped derivation) into the work items to re-open,
 // in listing order, and the count left succeeded because their input did not
@@ -196,4 +229,26 @@ func ScanDeployableUnitReopenCandidates(rows db.Rows) ([]string, int, error) {
 		return nil, 0, fmt.Errorf("list deployable_unit_correlation reopen candidates: %w", err)
 	}
 	return reopen, skipped, nil
+}
+
+// ScanDeployableUnitAdmittedAnchorRepos reads a
+// ListDeployableUnitAdmittedAnchorReposQuery result into the admitted source
+// repository ids in listing order, skipping blank ids.
+func ScanDeployableUnitAdmittedAnchorRepos(rows db.Rows) ([]string, error) {
+	defer func() { _ = rows.Close() }()
+	anchors := make([]string, 0)
+	for rows.Next() {
+		var anchorID string
+		if err := rows.Scan(&anchorID); err != nil {
+			return nil, fmt.Errorf("scan deployable_unit_correlation admitted anchor: %w", err)
+		}
+		if strings.TrimSpace(anchorID) == "" {
+			continue
+		}
+		anchors = append(anchors, anchorID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list deployable_unit_correlation admitted anchors: %w", err)
+	}
+	return anchors, nil
 }

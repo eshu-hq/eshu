@@ -249,7 +249,9 @@ func openProjectorCanonicalWriter(
 		projectorTerraformStateConfigMatchResolver{driver: driver, databaseName: cfg.DatabaseName},
 	).WithKustomizeOverlayResolver(
 		projectorKustomizeOverlayResolver{driver: driver, databaseName: cfg.DatabaseName},
-	).WithSchemaWriteFence(schemaFence.Check)
+	).WithSchemaWriteFence(schemaFence.Check).WithRetiredRepositoryObserver(
+		projectorRetiredRepositoryObserver(database),
+	)
 	writer = configureProjectorCanonicalWriter(writer, graphBackend, nornicDBConfig)
 
 	return writer,
@@ -271,6 +273,20 @@ func newProjectorCanonicalNodeWriter(
 		return nil, err
 	}
 	return sourcecypher.NewCanonicalNodeWriterWithDialect(executor, batchSize, instruments, searchKey), nil
+}
+
+// projectorRetiredRepositoryObserver invalidates the
+// deployable_unit_correlation reopen fingerprints of every repository the
+// path-conflict retirement deleted (#8316), so the next maintenance pass
+// re-opens the items that lost edges with the retired node. On NornicDB the
+// bare retirement reports no id and the observer never fires; the gap
+// reconciliation covers those losses.
+func projectorRetiredRepositoryObserver(database postgres.SQLDB) sourcecypher.RetiredRepositoryObserver {
+	fingerprints := postgres.NewRelationshipStore(database)
+	return func(ctx context.Context, repoIDs []string) error {
+		_, err := fingerprints.InvalidateDeployableUnitReopenFingerprintsForRepos(ctx, repoIDs)
+		return err
+	}
 }
 
 func projectorNornicDBCanonicalWriteTimeout(getenv func(string) string) time.Duration {

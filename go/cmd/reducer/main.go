@@ -143,7 +143,7 @@ func buildReducerService(
 		poisonLivenessRunner.Instruments = instruments
 		poisonLivenessRunner.Logger = logger
 	}
-	graphOrphanSweepRunner := graphOrphanSweepRunnerFor(neo4jExec, graphReader, intentStore, graphOrphanSweepCfg)
+	graphOrphanSweepRunner := graphOrphanSweepRunnerFor(neo4jExec, graphReader, intentStore, graphOrphanSweepCfg, relationshipStore)
 	if graphOrphanSweepRunner != nil {
 		graphOrphanSweepRunner.Logger = logger
 	}

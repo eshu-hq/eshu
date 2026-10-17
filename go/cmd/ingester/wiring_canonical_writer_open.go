@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 
+	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/graphbackpressure"
@@ -179,13 +180,7 @@ func openIngesterCanonicalWriter(
 	if err != nil {
 		return failAfterDriverOpen(err)
 	}
-	writer = writer.WithTracer(tracer).WithTerraformStateOwnershipResolver(
-		ingesterTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.PostgresTerraformBackendQuery{DB: database})},
-	).WithTerraformStateConfigMatchResolver(
-		ingesterTerraformStateConfigMatchResolver{driver: driver, databaseName: cfg.DatabaseName},
-	).WithKustomizeOverlayResolver(
-		ingesterKustomizeOverlayResolver{driver: driver, databaseName: cfg.DatabaseName},
-	).WithSchemaWriteFence(schemaFence.Check)
+	writer = decorateIngesterCanonicalWriter(writer, tracer, driver, cfg.DatabaseName, schemaFence.Check, database)
 	labelBatchSizes := map[string]int(nil)
 	if graphBackend == runtimecfg.GraphBackendNornicDB {
 		if nornicDBBatchedEntityContainment {
@@ -207,4 +202,40 @@ func openIngesterCanonicalWriter(
 	})
 
 	return writer, ingesterNeo4jDriverCloser{Driver: driver}, nil
+}
+
+// decorateIngesterCanonicalWriter attaches the ingester's resolvers, schema
+// fence, and #8316 retired-repository observer to a fresh canonical writer.
+// Split out so openIngesterCanonicalWriter stays under the funlen limit.
+func decorateIngesterCanonicalWriter(
+	writer *sourcecypher.CanonicalNodeWriter,
+	tracer trace.Tracer,
+	driver neo4jdriver.DriverWithContext,
+	databaseName string,
+	schemaCheck func(context.Context) error,
+	database postgres.SQLDB,
+) *sourcecypher.CanonicalNodeWriter {
+	return writer.WithTracer(tracer).WithTerraformStateOwnershipResolver(
+		ingesterTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.PostgresTerraformBackendQuery{DB: database})},
+	).WithTerraformStateConfigMatchResolver(
+		ingesterTerraformStateConfigMatchResolver{driver: driver, databaseName: databaseName},
+	).WithKustomizeOverlayResolver(
+		ingesterKustomizeOverlayResolver{driver: driver, databaseName: databaseName},
+	).WithSchemaWriteFence(schemaCheck).WithRetiredRepositoryObserver(
+		ingesterRetiredRepositoryObserver(database),
+	)
+}
+
+// ingesterRetiredRepositoryObserver invalidates the
+// deployable_unit_correlation reopen fingerprints of every repository the
+// path-conflict retirement deleted (#8316), so the next maintenance pass
+// re-opens the items that lost edges with the retired node. On NornicDB the
+// bare retirement reports no id and the observer never fires; the gap
+// reconciliation covers those losses.
+func ingesterRetiredRepositoryObserver(database postgres.SQLDB) sourcecypher.RetiredRepositoryObserver {
+	fingerprints := postgres.NewRelationshipStore(database)
+	return func(ctx context.Context, repoIDs []string) error {
+		_, err := fingerprints.InvalidateDeployableUnitReopenFingerprintsForRepos(ctx, repoIDs)
+		return err
+	}
 }

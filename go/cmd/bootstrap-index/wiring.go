@@ -292,6 +292,8 @@ func openBootstrapCanonicalWriter(
 		bootstrapTerraformStateConfigMatchResolver{driver: driver, databaseName: cfg.DatabaseName},
 	).WithKustomizeOverlayResolver(
 		bootstrapKustomizeOverlayResolver{driver: driver, databaseName: cfg.DatabaseName},
+	).WithRetiredRepositoryObserver(
+		bootstrapRetiredRepositoryObserver(database),
 	)
 	labelBatchSizes := map[string]int(nil)
 	orderedLabels := []string(nil)
@@ -364,13 +366,13 @@ func (e bootstrapNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []source
 			if runErr != nil {
 				return runErr
 			}
-			dropped := sourcecypher.CollectRetiredRelationships(ctx, stmt.Cypher, result)
+			retirement := sourcecypher.CollectRetirementReport(ctx, stmt.Cypher, result)
 			summary, consumeErr := result.Consume(ctx)
 			if consumeErr != nil {
 				return consumeErr
 			}
 			counts = append(counts, bootstrapStatementRetractionCounts(stmt, summary))
-			sourcecypher.ReportWriteCountsWithDropped(ctx, stmt.Cypher, stmt.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()), dropped)
+			sourcecypher.ReportRetirementWriteCounts(ctx, stmt.Cypher, stmt.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()), retirement)
 			return nil
 		}, e.ProfileGroupStatements, nil)
 		if err != nil {
@@ -404,7 +406,7 @@ func (e bootstrapNeo4jExecutor) Execute(ctx context.Context, statement sourcecyp
 	if err != nil {
 		return err
 	}
-	dropped := sourcecypher.CollectRetiredRelationships(ctx, statement.Cypher, result)
+	retirement := sourcecypher.CollectRetirementReport(ctx, statement.Cypher, result)
 	summary, err := result.Consume(ctx)
 	if err == nil {
 		sourcecypher.RecordReconciliationDriftRetractions(
@@ -414,7 +416,7 @@ func (e bootstrapNeo4jExecutor) Execute(ctx context.Context, statement sourcecyp
 			int64(summary.Counters().NodesDeleted()),
 			int64(summary.Counters().RelationshipsDeleted()),
 		)
-		sourcecypher.ReportWriteCountsWithDropped(ctx, statement.Cypher, statement.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()), dropped)
+		sourcecypher.ReportRetirementWriteCounts(ctx, statement.Cypher, statement.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()), retirement)
 	}
 	return err
 }
