@@ -121,13 +121,19 @@ new_case() {
 		       {position:2,headCommit:{oid:$t},pullRequest:{number:202}}]}}}}}' >"${FIXTURES}/queue.json"
 	jq -n '{files:[{path:"docs/x.md"}]}' >"${FIXTURES}/files-201.json"
 	jq -n '{files:[{path:"b.txt"}]}' >"${FIXTURES}/files-202.json"
-	# A passing check NAMED like a failure proves counting uses the state
-	# bucket, not the line text.
-	jq -n '[{name:"lint",state:"SUCCESS",bucket:"pass"},
-		{name:"fail-closed-guard pending-rows",state:"SUCCESS",bucket:"pass"},
-		{name:"docs",state:"SKIPPED",bucket:"skipping"}]' >"${FIXTURES}/checks.json"
-	jq -n '{state:"success",statuses:[{context:"required-gates-complete",state:"success"},
-		{context:"go-core-complete",state:"success"}]}' >"${FIXTURES}/status.json"
+	# One page of `gh api repos/.../commits/<sha>/check-runs`. A passing check
+	# NAMED like a failure proves counting uses status and conclusion, not the
+	# name. skipped and neutral are allowed; the three ruleset-required
+	# contexts that are check runs (go-core-complete, go-race-complete) are
+	# present and green.
+	jq -n '{total_count:6,check_runs:[
+		{name:"lint",status:"completed",conclusion:"success"},
+		{name:"fail-closed-guard pending-rows",status:"completed",conclusion:"success"},
+		{name:"docs",status:"completed",conclusion:"skipped"},
+		{name:"notes",status:"completed",conclusion:"neutral"},
+		{name:"go-core-complete",status:"completed",conclusion:"success"},
+		{name:"go-race-complete",status:"completed",conclusion:"success"}]}' >"${FIXTURES}/check-runs.json"
+	jq -n '{state:"success",statuses:[{context:"required-gates-complete",state:"success"}]}' >"${FIXTURES}/status.json"
 	jq -n '{data:{repository:{pullRequest:{reviewThreads:{totalCount:2,
 		pageInfo:{hasNextPage:false},nodes:[{isResolved:true},{isResolved:true}]}}}}}' >"${FIXTURES}/threads.json"
 }
@@ -174,7 +180,7 @@ if rg -q 'non-closing references:' <<<"${OUT}"; then ok=1; fi
 check "GREEN all six arms pass, exit 0" "${ok}"
 printf '%s\n' "${OUT}" | sed 's/^/    | /'
 ok=0
-if rg -v '^(pr view|pr checks|api graphql|api repos/eshu-hq/eshu/commits/[0-9a-f]{40}/status)' \
+if rg -v '^(pr view|api graphql|api repos/eshu-hq/eshu/commits/[0-9a-f]{40}/status|api --paginate repos/eshu-hq/eshu/commits/[0-9a-f]{40}/check-runs\?per_page=100 )' \
 	"${FIXTURES}/calls.log" >/dev/null; then ok=1; fi
 check "GREEN issues only read calls to gh" "${ok}"
 
@@ -205,7 +211,10 @@ queue_self() {
 }
 new_case in-group
 queue_self
-edit checks.json '[range(127) | {name:("check-\(.)"),state:"SUCCESS",bucket:"pass"}]'
+edit check-runs.json '.check_runs = ([range(124) | {name:("check-\(.)"),status:"completed",conclusion:"success"}]
+	+ [{name:"go-core-complete",status:"completed",conclusion:"success"},
+	   {name:"go-race-complete",status:"completed",conclusion:"success"},
+	   {name:"docs",status:"completed",conclusion:"skipped"}])'
 run
 ok=0
 [[ "${RC}" -eq 0 ]] || ok=1
@@ -216,14 +225,14 @@ check "GREEN a queued PR with mergeStateStatus UNKNOWN prints IN-GROUP and passe
 [[ "${ok}" -eq 0 ]] || printf '%s\n' "${OUT}" | sed 's/^/    | /'
 new_case in-group-pending
 queue_self
-edit checks.json '. + [{name:"go-race",state:"IN_PROGRESS",bucket:"pending"}]'
+edit check-runs.json '.check_runs += [{name:"go-race",status:"in_progress",conclusion:null}]'
 expect_red "queued PR with a pending check" checks
 ok=0
 rg -q '^FAIL checks +IN-GROUP: pending=1' <<<"${OUT}" || ok=1
 check "RED the queued FAIL row is labeled IN-GROUP" "${ok}"
 new_case in-group-failing
 queue_self
-edit checks.json '. + [{name:"go-core",state:"FAILURE",bucket:"fail"}]'
+edit check-runs.json '.check_runs += [{name:"go-core",status:"completed",conclusion:"failure"}]'
 expect_red "queued PR with a failing check" checks
 # A queued PR accepts only UNKNOWN or CLEAN (ruling a9-139.2): any other merge
 # state still fails, labeled IN-GROUP and naming the value.
@@ -330,29 +339,9 @@ expect_red "merge-tree conflict vs queue tip" merge-queue
 new_case queue-tip-missing
 edit queue.json '.data.repository.mergeQueue.entries.nodes[1].headCommit.oid = "1111111111111111111111111111111111111111"'
 expect_red "queue tip not fetchable" merge-queue
-new_case pending
-edit checks.json '. + [{name:"go-race",state:"IN_PROGRESS",bucket:"pending"}]'
-printf '8\n' >"${FIXTURES}/checks.rc"
-expect_red "pending check" checks
-new_case failing
-edit checks.json '. + [{name:"go-core",state:"FAILURE",bucket:"fail"}]'
-printf '1\n' >"${FIXTURES}/checks.rc"
-expect_red "failing check" checks
-new_case cancelled
-edit checks.json '. + [{name:"e2e",state:"CANCELLED",bucket:"cancel"}]'
-expect_red "cancelled check" checks
-new_case no-checks
-edit checks.json '[]'
-expect_red "no check rows" checks
-new_case rgc-pending
-edit status.json '.statuses[0].state = "pending"'
-expect_red "required-gates-complete pending" checks
-new_case rgc-absent
-edit status.json '.statuses |= map(select(.context != "required-gates-complete"))'
-expect_red "required-gates-complete absent" checks
-new_case not-clean
-edit pr.json '.mergeStateStatus = "BLOCKED"'
-expect_red "mergeStateStatus BLOCKED" checks
+# The checks arm cases (check runs read through gh api, #8381) live in a
+# sibling so this file stays under the 500-line cap.
+source "${repo_root}/scripts/lib/test-pre-enqueue-check-checks-cases.sh"
 new_case unresolved
 edit threads.json '.data.repository.pullRequest.reviewThreads.nodes[1].isResolved = false'
 expect_red "unresolved review thread" threads
@@ -362,9 +351,6 @@ expect_red "more threads than one page" threads
 new_case queue-truncated
 edit queue.json '.data.repository.mergeQueue.entries.pageInfo.hasNextPage = true'
 expect_red "more queue entries than one page" merge-queue
-new_case unknown-bucket
-edit checks.json '. + [{name:"future-check",state:"STALE",bucket:"stale"}]'
-expect_red "check row with an unrecognized bucket" checks
 new_case no-reference
 edit pr.json '.body = "Tightens the gate.\n"'
 expect_red "missing issue reference" body

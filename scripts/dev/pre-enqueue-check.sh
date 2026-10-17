@@ -38,11 +38,14 @@ usage() {
 		'                  entry that is not this PR); prints file overlap per queued' \
 		'                  PR; an empty or absent queue (main has none) passes with' \
 		'                  "queue empty"' \
-		'  checks          gh pr checks: pending == 0 and fail == 0 by state bucket' \
-		'                  (skipping allowed); commit status required-gates-complete' \
-		'                  == success; mergeStateStatus == CLEAN; a PR already in' \
-		'                  the merge queue is labeled IN-GROUP and accepts UNKNOWN' \
-		'                  (GitHub reports it for a queued PR) or CLEAN' \
+		'  checks          check runs for the head, read with gh api (REST) because gh' \
+		'                  2.46.0 has no gh pr checks --json: every run completed, none' \
+		'                  failure/cancelled/timed_out/action_required (skipped and' \
+		'                  neutral allowed), at least one row; go-core-complete,' \
+		'                  go-race-complete and required-gates-complete (check run or' \
+		'                  commit status) == success; mergeStateStatus == CLEAN; a PR' \
+		'                  already in the merge queue is labeled IN-GROUP and accepts' \
+		'                  UNKNOWN (GitHub reports it for a queued PR) or CLEAN' \
 		'  threads         unresolved review threads == 0' \
 		'  body            at least one issue reference (#N) or closing keyword' \
 		'                  (Closes/Fixes/Resolves #N), labeled for the caller to' \
@@ -235,28 +238,57 @@ else
 fi
 
 # --- arm 4: checks -----------------------------------------------------------
-# gh pr checks exits non-zero while checks pend or fail; the JSON is the
-# verdict, so its exit status is deliberately ignored. Counts use gh's bucket
-# (its classification of each row's state), never the rendered line text,
-# because check NAMES can contain words like "fail" or "pending".
-checks_json="$("${GH}" pr checks "${pr}" --repo "${repo}" --json name,state,bucket 2>/dev/null)"
+# Check rows come from the REST check-runs endpoint (latest run per name), not
+# `gh pr checks --json`: gh 2.46.0 has no --json there (#8381). --paginate with
+# --jq emits one compact row per check run across every page. REST, not GraphQL:
+# a wide GraphQL check query times out on this repository. A run is judged by
+# its status and conclusion, never by its name, because check NAMES can contain
+# words like "fail" or "pending". A zero-row read is an error, never "pending".
+runs_err="$(mktemp)"
+trap 'rm -f "${runs_err}"' EXIT
 checks_bad=()
-if ! jq -e 'type == "array" and length > 0' >/dev/null 2>&1 <<<"${checks_json}"; then
-	checks_bad+=("no check rows reported")
+runs_raw="$("${GH}" api --paginate "repos/${repo}/commits/${want}/check-runs?per_page=100" \
+	--jq '.check_runs[] | {name,status,conclusion}' 2>"${runs_err}")"
+runs_rc=$?
+checks_json='[]'
+if [[ "${runs_rc}" -ne 0 ]]; then
+	checks_bad+=("gh api check-runs read failed (exit ${runs_rc}): $(head -n1 "${runs_err}" | cut -c1-160)")
+elif ! checks_json="$(jq -s 'if all(.[]; type == "object") then . else error("not rows") end' <<<"${runs_raw}" 2>/dev/null)"; then
+	checks_json='[]'
+	checks_bad+=("gh api check-runs returned unparseable rows")
+elif [[ "$(jq 'length' <<<"${checks_json}")" -eq 0 ]]; then
+	checks_bad+=("no check rows reported for ${want}")
 else
+	# completed + success/skipped/neutral is fine; completed + failure,
+	# cancelled, timed_out or action_required fails; not completed is pending;
+	# any other conclusion (stale, null, ...) is unclassified and fails closed.
 	total="$(jq 'length' <<<"${checks_json}")"
-	pending="$(jq '[.[] | select(.bucket == "pending")] | length' <<<"${checks_json}")"
-	failing="$(jq '[.[] | select(.bucket == "fail" or .bucket == "cancel")] | length' <<<"${checks_json}")"
-	unknown="$(jq '[.[] | select((.bucket // "") | IN("pass","skipping","pending","fail","cancel") | not)] | length' <<<"${checks_json}")"
+	failing_sel='select(.status == "completed" and (.conclusion | IN("failure","cancelled","timed_out","action_required")))'
+	pending="$(jq '[.[] | select(.status != "completed")] | length' <<<"${checks_json}")"
+	failing="$(jq "[.[] | ${failing_sel}] | length" <<<"${checks_json}")"
+	unknown="$(jq '[.[] | select(.status == "completed" and (.conclusion | IN("success","skipped","neutral","failure","cancelled","timed_out","action_required") | not))] | length' <<<"${checks_json}")"
 	note checks "rows=${total} pending=${pending} fail=${failing} unknown=${unknown}"
-	[[ "${pending}" -eq 0 ]] || checks_bad+=("pending=${pending}: $(jq -r '[.[] | select(.bucket == "pending") | .name] | join(", ")' <<<"${checks_json}")")
-	[[ "${failing}" -eq 0 ]] || checks_bad+=("fail=${failing}: $(jq -r '[.[] | select(.bucket == "fail" or .bucket == "cancel") | .name] | join(", ")' <<<"${checks_json}")")
+	[[ "${pending}" -eq 0 ]] || checks_bad+=("pending=${pending}: $(jq -r '[.[] | select(.status != "completed") | .name] | join(", ")' <<<"${checks_json}")")
+	[[ "${failing}" -eq 0 ]] || checks_bad+=("fail=${failing}: $(jq -r "[.[] | ${failing_sel} | .name] | join(\", \")" <<<"${checks_json}")")
 	[[ "${unknown}" -eq 0 ]] || checks_bad+=("unclassified=${unknown}")
 fi
 status_json="$("${GH}" api "repos/${repo}/commits/${want}/status?per_page=100" 2>/dev/null)"
-rgc="$(jq -r '[.statuses[]? | select(.context == "required-gates-complete") | .state] | first // "absent"' <<<"${status_json}" 2>/dev/null)"
-[[ -n "${rgc}" ]] || rgc="unreadable"
-[[ "${rgc}" == success ]] || checks_bad+=("required-gates-complete=${rgc}")
+# The three ruleset-required contexts must each be success. go-core-complete and
+# go-race-complete publish as check runs, required-gates-complete as a commit
+# status. A check run of that name wins; the status is the fallback.
+for ctx in go-core-complete go-race-complete required-gates-complete; do
+	ctx_state="$(jq -r --arg c "${ctx}" '
+		[.[] | select(.name == $c)] as $r
+		| if ($r | length) == 0 then "absent"
+		  elif all($r[]; .status == "completed" and .conclusion == "success") then "success"
+		  elif any($r[]; .status != "completed") then "pending"
+		  else ([$r[] | select(.conclusion != "success") | .conclusion] | first // "unknown") end' <<<"${checks_json}" 2>/dev/null)"
+	if [[ "${ctx_state}" == absent ]]; then
+		ctx_state="$(jq -r --arg c "${ctx}" '[.statuses[]? | select(.context == $c) | .state] | first // "absent"' <<<"${status_json}" 2>/dev/null)"
+		[[ -n "${ctx_state}" ]] || ctx_state="unreadable"
+	fi
+	[[ "${ctx_state}" == success ]] || checks_bad+=("${ctx}=${ctx_state}")
+done
 mss="$(jq -r '.mergeStateStatus // "?"' <<<"${pr_json}")"
 # A PR already in a merge group reads mergeStateStatus UNKNOWN (PR #8000,
 # rulings a9-135.2, a9-139.2): the row is labeled IN-GROUP and accepts only
