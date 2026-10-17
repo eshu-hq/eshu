@@ -187,7 +187,7 @@ writer's makes `as_of` land in the future and the age clamps to zero.
 
 ## Follow-up that gates the default flip
 
-The evidence-bundle route (`evidence_bundle_live.go`) and the
+The evidence-bundle route (`evidence/bundle_live.go`) and the
 freshness-causality route render queue, stage, backlog, and blockage data from
 the same report and do not carry `active_work_source`, so with the reader on they
 would serve stored data with no marker. Their typed schemas and consumers (the

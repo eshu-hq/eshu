@@ -285,7 +285,7 @@ The answer packet does not duplicate existing shapes. It reuses:
 - `TruthEnvelope`, `TruthLevel`, `TruthBasis`, `TruthFreshness`, and
   `ErrorEnvelope` from `contract.go`.
 - The evidence-handle shape and `recommended_next_calls` convention from
-  `evidence_citation.go` and the
+  `evidence/citation.go` and the
   [Evidence Citation Handle Contract](evidence-citation-handles.md).
 
 When the answer is built from an evidence-citation response, its
