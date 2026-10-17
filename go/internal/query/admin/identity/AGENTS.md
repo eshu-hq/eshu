@@ -25,9 +25,9 @@ ports.
   `server_failure_test.go` drives every step through
   `testutil/failure`; add a route there for any new failing step.
 - The two audit reads (`audit.go`) go through the guarded PostgreSQL reader:
-  each failure site calls `querycontract.WriteGraphReadError` with
-  `querycontract.NoCapability` first (no capability-matrix key yet, #8227),
-  then its fixed message, and logs only a server fault, not a client cancel.
+  each failure site calls `querycontract.WriteGraphReadError` with its
+  capability-matrix key first (`audit.events.list`, `audit.summary.read`,
+  #8227), then its fixed message, and logs only a server fault, not a client cancel.
   `audit_failure_test.go` covers them.
 - This package may import the parent `admin` package only for the shared
   actor identity, and the sibling `audit` package for the rest. It MUST

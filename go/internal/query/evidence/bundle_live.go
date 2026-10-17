@@ -18,13 +18,16 @@ import (
 )
 
 // Fixed bodies of the two failure steps on GET /api/v0/evidence/bundle
-// (#7674): the status snapshot read and the bundle validation. The route has
-// no capability-matrix key (#8227): the status snapshot reads through the
-// guarded PostgreSQL reader, so a stale or timed-out reader answers the
-// retryable 503 under querycontract.NoCapability, whose envelope carries no
-// capability field. Neither error reaches the body; each goes on the request
-// span.
+// (#7674): the status snapshot read and the bundle validation. The status
+// snapshot reads through the guarded PostgreSQL reader, so a stale or
+// timed-out reader answers the retryable 503 under
+// liveEvidenceBundleCapability, which the error envelope names (#8227).
+// Neither error reaches the body; each goes on the request span.
 const (
+	// liveEvidenceBundleCapability is the capability-matrix key a reader-fence
+	// 503 on GET /api/v0/evidence/bundle names in error.capability.
+	liveEvidenceBundleCapability = "operations.evidence_bundle_live"
+
 	liveEvidenceBundleStatusReadFailedMessage = "live evidence bundle status read failed"
 	liveEvidenceBundleComposeFailedMessage    = "live evidence bundle composition failed"
 )
@@ -74,7 +77,7 @@ func (h *Handler) getLiveEvidenceBundle(w http.ResponseWriter, r *http.Request) 
 	selection.SkipTerraformStateEvidence = true
 	_, report, err := loadStatusReportFiltered(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions(), selection)
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, querycontract.NoCapability) {
+		if querycontract.WriteGraphReadError(w, r, err, liveEvidenceBundleCapability) {
 			return
 		}
 		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, liveEvidenceBundleStatusReadFailedMessage)

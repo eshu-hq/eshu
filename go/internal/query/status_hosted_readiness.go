@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/shared"
@@ -56,13 +55,16 @@ type hostedDiagnosticTarget struct {
 }
 
 // hostedReadinessStatusReadFailedMessage is the fixed body of a failed status
-// snapshot read on GET /api/v0/status/hosted-readiness (#7674). The route
-// has no capability-matrix key (#8227): the status snapshot reads through the
-// guarded PostgreSQL reader, so a stale or timed-out reader answers the
-// retryable 503 under querycontract.NoCapability, whose envelope carries no
-// capability field. The reader error goes on the request span, never into
-// the body.
+// snapshot read on GET /api/v0/status/hosted-readiness (#7674). The status
+// snapshot reads through the guarded PostgreSQL reader, so a stale or
+// timed-out reader answers the retryable 503 under
+// hostedReadinessStatusCapability, which the error envelope names (#8227). The
+// reader error goes on the request span, never into the body.
 const hostedReadinessStatusReadFailedMessage = "hosted readiness status read failed"
+
+// hostedReadinessStatusCapability is the capability-matrix key a reader-fence
+// 503 on GET /api/v0/status/hosted-readiness names in error.capability.
+const hostedReadinessStatusCapability = "operations.hosted_readiness_status"
 
 func (h *StatusHandler) getHostedReadiness(w http.ResponseWriter, r *http.Request) {
 	if h.StatusReader == nil {
@@ -72,7 +74,7 @@ func (h *StatusHandler) getHostedReadiness(w http.ResponseWriter, r *http.Reques
 
 	raw, report, err := loadStatusReportFiltered(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions(), operatorStatusSelection())
 	if err != nil {
-		if WriteGraphReadError(w, r, err, querycontract.NoCapability) {
+		if WriteGraphReadError(w, r, err, hostedReadinessStatusCapability) {
 			return
 		}
 		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, hostedReadinessStatusReadFailedMessage)

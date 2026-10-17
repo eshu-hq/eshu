@@ -43,11 +43,7 @@ func assertFenceCapability(t *testing.T, suite failure.Suite, route failure.Rout
 		t.Errorf("%s / fence capability: decode body: %v; body = %s", route.Name, err, rec.Body.String())
 		return
 	}
-	got, present := body.Error["capability"]
-	switch {
-	case capability == "" && present:
-		t.Errorf("%s / fence capability: envelope carries capability %v, want no field (#8227)", route.Name, got)
-	case capability != "" && got != capability:
+	if got := body.Error["capability"]; got != capability {
 		t.Errorf("%s / fence capability: envelope capability = %v, want %q", route.Name, got, capability)
 	}
 }
@@ -158,8 +154,8 @@ func TestEvidenceRoutesAnswerFixedServerFailures(t *testing.T) {
 
 // TestLiveEvidenceBundleAnswersFixedServerFailures covers GET
 // /api/v0/evidence/bundle, which opens no handler span of its own. Its status
-// snapshot read answered 500 with the reader error text. The route has no
-// capability-matrix key (#8227), so its fence envelope names none.
+// snapshot read answered 500 with the reader error text. Its fence envelope
+// names the route's capability-matrix key (#8227).
 func TestLiveEvidenceBundleAnswersFixedServerFailures(t *testing.T) {
 	route := failure.Route{
 		Name: "live evidence bundle", Path: "/api/v0/evidence/bundle",
@@ -170,7 +166,7 @@ func TestLiveEvidenceBundleAnswersFixedServerFailures(t *testing.T) {
 	}
 	suite := failure.Suite{Routes: []failure.Route{route}}
 	failure.Run(t, suite)
-	assertFenceCapability(t, suite, route, "")
+	assertFenceCapability(t, suite, route, "operations.evidence_bundle_live")
 }
 
 // failingEvidenceContentStore fails the relationship evidence read, the

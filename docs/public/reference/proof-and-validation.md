@@ -18,7 +18,7 @@ not first-run choices.
 | Family | Examples |
 | --- | --- |
 | Local and CI gates | [Local Testing](local-testing.md), [Verification Gates](local-testing/verification-gates.md), and [Pre-commit Hooks](local-testing/pre-commit-hooks.md) |
-| Replay and cassette proof | [Cassette And Replay Proof](cassette-replay.md) and [Replay Coverage Dashboard](replay-coverage.md) |
+| Replay and cassette proof | [Cassette And Replay Proof](cassette-replay.md) and [Replay Coverage Dashboard](generated/replay-coverage.md) |
 | Benchmark and scale evidence | [Search Benchmark Evidence](search-benchmark-evidence.md), [Scale Benchmark Artifact](local-testing/scale-benchmark-artifact.md), and [Parse Scale Evidence](parse-scale-evidence.md) |
 | Collector and security proof | [All-Collector Readiness Proof Matrix](collector-readiness-proof-matrix.md), [Vulnerability Parity Gate](vulnerability-parity-gate.md), and [Security Intelligence Release Gate](security-intelligence-release-gate.md) |
 | Runtime acceptance proof | [Remote E2E Runtime State](remote-e2e-runtime-state.md), [Remote Collector E2E](local-testing/remote-collector-e2e.md), and [Remote Representative Acceptance](local-testing/remote-representative-acceptance.md) |

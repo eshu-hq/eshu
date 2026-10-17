@@ -22,11 +22,17 @@ import (
 // error can quote SQL and hosts, so it goes on the request span and the
 // error log, never into the body. Both reads go through the guarded
 // PostgreSQL reader, so each failure site first answers a stale or timed-out
-// reader with the retryable 503. The routes have no capability-matrix key yet
-// (#8227), so each site passes querycontract.NoCapability and the envelope
-// carries no capability field. A client cancel answers 499 and is not logged
+// reader with the retryable 503, and the envelope names the route's
+// capability-matrix key (#8227). A client cancel answers 499 and is not logged
 // as a failure.
 const (
+	// auditEventsListCapability is the capability-matrix key a reader-fence 503
+	// on GET /api/v0/auth/admin/audit/events names in error.capability.
+	auditEventsListCapability = "audit.events.list"
+	// auditSummaryReadCapability is the capability-matrix key a reader-fence
+	// 503 on GET /api/v0/auth/admin/audit/summary names in error.capability.
+	auditSummaryReadCapability = "audit.summary.read"
+
 	auditEventsListFailedMessage = "failed to list audit events"
 	auditSummaryFailedMessage    = "failed to summarize audit events"
 )
@@ -69,7 +75,7 @@ func (h *ReadHandler) handleListAuditEvents(w http.ResponseWriter, r *http.Reque
 		if !tracing.ClientCanceled(r.Context(), err) {
 			slog.ErrorContext(r.Context(), "admin list audit events failed", "err", err)
 		}
-		if querycontract.WriteGraphReadError(w, r, err, querycontract.NoCapability) {
+		if querycontract.WriteGraphReadError(w, r, err, auditEventsListCapability) {
 			return
 		}
 		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, auditEventsListFailedMessage)
@@ -113,7 +119,7 @@ func (h *ReadHandler) handleAuditSummary(w http.ResponseWriter, r *http.Request)
 		if !tracing.ClientCanceled(r.Context(), err) {
 			slog.ErrorContext(r.Context(), "admin audit summary failed", "err", err)
 		}
-		if querycontract.WriteGraphReadError(w, r, err, querycontract.NoCapability) {
+		if querycontract.WriteGraphReadError(w, r, err, auditSummaryReadCapability) {
 			return
 		}
 		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, auditSummaryFailedMessage)

@@ -329,7 +329,7 @@ const AdminReads = `
       "get": {
         "tags": ["auth"],
         "summary": "List governance audit events",
-        "description": "All-scopes admin route that lists governance audit events for the caller's tenant context, filtered by event_type, decision, reason_code, and occurred_after/occurred_before, bounded by limit. Returns only audit-safe fields: event type, actor class, scope class, decision, reason code, occurred-at, and optional service principal id and correlation id. Never returns actor, scope, or policy revision hashes. A 503 with Retry-After means a transient condition that is safe to retry: the governance audit read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the admin audit reader is not configured on this API instance. No 5xx body carries backend error text. This route has no capability-matrix key yet, so a reader-verdict 503 error envelope carries no capability field (#8227).",
+        "description": "All-scopes admin route that lists governance audit events for the caller's tenant context, filtered by event_type, decision, reason_code, and occurred_after/occurred_before, bounded by limit. Returns only audit-safe fields: event type, actor class, scope class, decision, reason code, occurred-at, and optional service principal id and correlation id. Never returns actor, scope, or policy revision hashes. A 503 with Retry-After means a transient condition that is safe to retry: the governance audit read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the admin audit reader is not configured on this API instance. No 5xx body carries backend error text. A reader-verdict 503 error envelope names capability audit.events.list.",
         "operationId": "listAdminAuditEvents",
         "x-scoped-token-support": true,
         "parameters": [
@@ -379,7 +379,7 @@ const AdminReads = `
       "get": {
         "tags": ["auth"],
         "summary": "Summarize governance audit events",
-        "description": "All-scopes admin route that returns aggregate-only governance audit counts: total, allowed, denied, unavailable, last-occurred-at, and low-cardinality counts by event type, decision, reason, actor class, and scope class. Returns no individual event identifiers. A 503 with Retry-After means a transient condition that is safe to retry: the governance audit read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the admin audit reader is not configured on this API instance. No 5xx body carries backend error text. This route has no capability-matrix key yet, so a reader-verdict 503 error envelope carries no capability field (#8227).",
+        "description": "All-scopes admin route that returns aggregate-only governance audit counts: total, allowed, denied, unavailable, last-occurred-at, and low-cardinality counts by event type, decision, reason, actor class, and scope class. Returns no individual event identifiers. A 503 with Retry-After means a transient condition that is safe to retry: the governance audit read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the admin audit reader is not configured on this API instance. No 5xx body carries backend error text. A reader-verdict 503 error envelope names capability audit.summary.read.",
         "operationId": "summarizeAdminAuditEvents",
         "x-scoped-token-support": true,
         "responses": {

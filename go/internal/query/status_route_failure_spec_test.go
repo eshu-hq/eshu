@@ -11,8 +11,7 @@ import (
 )
 
 // statusSpecRoute is one #7674 slice 9 route operation in the published spec
-// and the capability its reader-verdict 503 names; an empty capability means
-// the route has no capability-matrix key yet (#8227).
+// and the capability-matrix key its reader-verdict 503 names (#8227).
 type statusSpecRoute struct {
 	path, method, capability string
 }
@@ -21,20 +20,20 @@ type statusSpecRoute struct {
 // moved onto a fixed message behind the reader-fence 503, including the two
 // admin audit reads in admin/identity.
 var statusSliceSpecRoutes = []statusSpecRoute{
-	{path: "/api/v0/status/pipeline", method: "get"},
-	{path: "/api/v0/status/collectors", method: "get"},
-	{path: "/api/v0/collectors", method: "get"},
-	{path: "/api/v0/status/ingesters/{ingester}", method: "get"},
-	{path: "/api/v0/ingesters/{ingester}", method: "get"},
-	{path: "/api/v0/status/index", method: "get"},
-	{path: "/api/v0/index-status", method: "get"},
-	{path: "/api/v0/status/hosted-readiness", method: "get"},
-	{path: "/api/v0/status/freshness-causality", method: "get"},
-	{path: "/api/v0/status/collector-readiness", method: "get"},
-	{path: "/api/v0/collector-readiness", method: "get"},
-	{path: "/api/v0/evidence/bundle", method: "get"},
-	{path: "/api/v0/auth/admin/audit/events", method: "get"},
-	{path: "/api/v0/auth/admin/audit/summary", method: "get"},
+	{path: "/api/v0/status/pipeline", method: "get", capability: "operations.pipeline_status"},
+	{path: "/api/v0/status/collectors", method: "get", capability: "operations.collector_status"},
+	{path: "/api/v0/collectors", method: "get", capability: "operations.collector_status"},
+	{path: "/api/v0/status/ingesters/{ingester}", method: "get", capability: "operations.ingester_status"},
+	{path: "/api/v0/ingesters/{ingester}", method: "get", capability: "operations.ingester_status"},
+	{path: "/api/v0/status/index", method: "get", capability: "operations.index_status"},
+	{path: "/api/v0/index-status", method: "get", capability: "operations.index_status"},
+	{path: "/api/v0/status/hosted-readiness", method: "get", capability: "operations.hosted_readiness_status"},
+	{path: "/api/v0/status/freshness-causality", method: "get", capability: "operations.freshness_causality_status"},
+	{path: "/api/v0/status/collector-readiness", method: "get", capability: "operations.collector_readiness_status"},
+	{path: "/api/v0/collector-readiness", method: "get", capability: "operations.collector_readiness_status"},
+	{path: "/api/v0/evidence/bundle", method: "get", capability: "operations.evidence_bundle_live"},
+	{path: "/api/v0/auth/admin/audit/events", method: "get", capability: "audit.events.list"},
+	{path: "/api/v0/auth/admin/audit/summary", method: "get", capability: "audit.summary.read"},
 	{path: "/api/v0/status/semantic-extraction", method: "get", capability: "semantic_extraction.status"},
 	{path: "/api/v0/status/operations", method: "get", capability: "operations.status"},
 	{path: "/api/v0/status/governance", method: "get", capability: "hosted_governance.status"},
@@ -54,8 +53,8 @@ const readerFenceSentence = "A 503 with Retry-After means a transient condition 
 // and the shared 503 (a stale or timed-out PostgreSQL reader now answers the
 // retryable 503 on each of them; six routes declared no 503 before). Each
 // operation description says what a 503 with and without Retry-After means
-// (or that the route has no configuration 503) and either names the capability its reader-verdict envelope carries or says
-// the envelope carries none (#8227). 499 is never declared.
+// (or that the route has no configuration 503) and names the capability its
+// reader-verdict envelope carries (#8227). 499 is never declared.
 func TestOpenAPIStatusSliceRoutesDeclareTheirFailureStatuses(t *testing.T) {
 	t.Parallel()
 
@@ -80,10 +79,7 @@ func TestOpenAPIStatusSliceRoutesDeclareTheirFailureStatuses(t *testing.T) {
 		if !strings.Contains(description, readerFenceSentence) || !explainsNoRetryAfter {
 			t.Errorf("%s %s: description does not say what a 503 with and without Retry-After means: %q", route.method, route.path, description)
 		}
-		wantCapability := "carries no capability field (#8227)"
-		if route.capability != "" {
-			wantCapability = "names capability " + route.capability
-		}
+		wantCapability := "names capability " + route.capability
 		if !strings.Contains(description, wantCapability) {
 			t.Errorf("%s %s: description lacks %q: %q", route.method, route.path, wantCapability, description)
 		}

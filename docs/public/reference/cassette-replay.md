@@ -72,7 +72,7 @@ any real collector cassette.
 | Authz scoped route | In-grant and out-of-grant scoped token behavior matches the authorization catalog. | `specs/authorization-replay-coverage.v1.yaml` |
 | Scenario-depth proof | A required surface has baseline plus any applicable `delta_tombstone`, `fault`, `ordering`, `crash`, or `cost` coverage. | `specs/replay-coverage-manifest.v1.yaml` |
 
-The generated [Replay Coverage Dashboard](replay-coverage.md) shows which
+The generated [Replay Coverage Dashboard](generated/replay-coverage.md) shows which
 surfaces and scenario-depth classes are covered, what artifact type covers each
 one, and which sibling gate proves it green.
 

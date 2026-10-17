@@ -103,8 +103,8 @@ func TestInventorySpannedRoutesAnswerFixedServerFailures(t *testing.T) {
 // /api/v0/status/operator-control-plane, which opens no handler span. Its
 // status snapshot read answered 500 with the reader error text
 // (fmt.Sprintf("load status: %v", err)). The snapshot reads through the
-// guarded PostgreSQL reader and the route has no capability-matrix key
-// (#8227), so its fence envelope names none.
+// guarded PostgreSQL reader, so its fence envelope names the route's
+// capability-matrix key (#8227).
 func TestOperatorControlPlaneAnswersFixedServerFailures(t *testing.T) {
 	route := failure.Route{
 		Name: "operator control plane", Path: "/api/v0/status/operator-control-plane",
@@ -113,7 +113,7 @@ func TestOperatorControlPlaneAnswersFixedServerFailures(t *testing.T) {
 	}
 	suite := failure.Suite{Routes: []failure.Route{route}}
 	failure.Run(t, suite)
-	assertFenceCapability(t, suite, route, "")
+	assertFenceCapability(t, suite, route, "operations.operator_control_plane_status")
 }
 
 // TestFixedFailureStepsWithoutABackendRead covers the failure steps that read

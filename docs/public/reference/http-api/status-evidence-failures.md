@@ -37,17 +37,26 @@ describes what each status route returns.
 ## Capability field
 
 A reader-verdict `503` names the route's capability-matrix key in
-`error.capability` on the routes that have one. These routes have no
-capability-matrix key yet, so their reader-verdict error envelope carries no
-`capability` field: `GET /api/v0/status/pipeline`,
-`GET /api/v0/status/collectors`, `GET /api/v0/collectors`,
-`GET /api/v0/status/ingesters/{ingester}`, `GET /api/v0/ingesters/{ingester}`,
-`GET /api/v0/status/index`, `GET /api/v0/index-status`,
-`GET /api/v0/status/hosted-readiness`, `GET /api/v0/status/freshness-causality`,
-`GET /api/v0/status/collector-readiness`, `GET /api/v0/collector-readiness`,
-`GET /api/v0/evidence/bundle`, and the two admin audit reads below. The
-status, `Retry-After`, code, and message are the same as on a keyed route.
-#8227 registers their keys.
+`error.capability`, so an operator can tell which route a stale or timed-out
+PostgreSQL reader fenced. The status, `Retry-After`, code, and message are the
+same on every route. #8227 registered the keys below for the routes that had
+none; the other routes on this page already carried theirs.
+
+| Route | `error.capability` |
+| --- | --- |
+| `GET /api/v0/status/pipeline` | `operations.pipeline_status` |
+| `GET /api/v0/status/collectors`, `GET /api/v0/collectors` | `operations.collector_status` |
+| `GET /api/v0/status/ingesters/{ingester}`, `GET /api/v0/ingesters/{ingester}` | `operations.ingester_status` |
+| `GET /api/v0/status/index`, `GET /api/v0/index-status` | `operations.index_status` (also on the scoped graph-count `503`) |
+| `GET /api/v0/status/hosted-readiness` | `operations.hosted_readiness_status` |
+| `GET /api/v0/status/freshness-causality` | `operations.freshness_causality_status` |
+| `GET /api/v0/status/collector-readiness`, `GET /api/v0/collector-readiness` | `operations.collector_readiness_status` |
+| `GET /api/v0/evidence/bundle` | `operations.evidence_bundle_live` |
+| `GET /api/v0/auth/admin/audit/events` | `audit.events.list` |
+| `GET /api/v0/auth/admin/audit/summary` | `audit.summary.read` |
+
+Each key is `experimental` in the `production` profile until a deployed run
+proves the route end to end.
 
 ## Index status for a scoped caller
 
@@ -109,7 +118,8 @@ envelope with the profile block.
 `GET /api/v0/auth/admin/audit/events` and `GET /api/v0/auth/admin/audit/summary`
 read the governance audit store through the guarded PostgreSQL reader. A stale
 or timed-out reader answers the retryable `503` with `Retry-After`, and the
-envelope carries no `capability` field. Any other failure answers `500` with
+envelope names `audit.events.list` or `audit.summary.read` in `capability`.
+Any other failure answers `500` with
 `failed to list audit events` or `failed to summarize audit events`, and a
 client cancel answers `499` with the same text and no error log line. An
 unconfigured audit reader answers `503` `admin audit reader is unavailable`

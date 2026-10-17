@@ -369,15 +369,10 @@ permanent and carries no `Retry-After`. Handlers that write a store
 error as a 500 must call `WriteGraphReadError` first for this contract to apply.
 
 The `capability` argument is a capability-matrix key, checked by the root
-`TestWriteGraphReadErrorCapabilitiesExistInMatrix` sweep. `NoCapability` is the
-one named exception: a route that reads through the guarded reader but has no
-matrix row passes it, and the envelope then omits the `capability` field while
-the status, `Retry-After`, code, and message stay the same. The sweep accepts
-it only from the files in its `noCapabilityAllowedFiles` allowlist, matched by
-exact path (today eight files: the status read routes, the operator control
-plane, the live evidence bundle, and the admin audit reads, until #8227
-registers those keys). A bare `""` literal always fails, and an
-allowlisted file with no `NoCapability` call site fails as a stale entry.
+`TestWriteGraphReadErrorCapabilitiesExistInMatrix` sweep. Every route that
+reads through the guarded reader has a key, so the envelope's `capability`
+field is the operator signal for which route a stale or timed-out reader
+fenced. A bare `""` literal fails the sweep.
 
 `K8sSelectCandidate` carries selector presence separately from selector value.
 Family code must preserve absent, present-empty, and present-nonempty states

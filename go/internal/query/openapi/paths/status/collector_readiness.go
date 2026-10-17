@@ -12,7 +12,7 @@ const CollectorReadiness = `
       "get": {
         "tags": ["status"],
         "summary": "Get collector family readiness",
-        "description": "Returns per-collector-family promotion readiness across the full collector fleet: promotion state, reducer readback status, evidence counts, last proof time, blockers, and a recommended next action. Redacts credentials and raw provider payloads. The MCP tool get_collector_readiness returns the same shape. A 503 with Retry-After means a transient condition that is safe to retry: the status snapshot read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the status reader is not configured on this API instance. No 5xx body carries backend error text. This route has no capability-matrix key yet, so a reader-verdict 503 error envelope carries no capability field (#8227).",
+        "description": "Returns per-collector-family promotion readiness across the full collector fleet: promotion state, reducer readback status, evidence counts, last proof time, blockers, and a recommended next action. Redacts credentials and raw provider payloads. The MCP tool get_collector_readiness returns the same shape. A 503 with Retry-After means a transient condition that is safe to retry: the status snapshot read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the status reader is not configured on this API instance. No 5xx body carries backend error text. A reader-verdict 503 error envelope names capability operations.collector_readiness_status.",
         "operationId": "getCollectorReadiness",
         "x-scoped-token-support": true,
         "responses": {
@@ -69,7 +69,7 @@ const CollectorReadiness = `
       "get": {
         "tags": ["status"],
         "summary": "Get collector family readiness (alias)",
-        "description": "Legacy compatibility alias for /api/v0/status/collector-readiness. Returns the same per-collector-family promotion readiness read model. A 503 with Retry-After means a transient condition that is safe to retry: the status snapshot read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the status reader is not configured on this API instance. No 5xx body carries backend error text. This route has no capability-matrix key yet, so a reader-verdict 503 error envelope carries no capability field (#8227).",
+        "description": "Legacy compatibility alias for /api/v0/status/collector-readiness. Returns the same per-collector-family promotion readiness read model. A 503 with Retry-After means a transient condition that is safe to retry: the status snapshot read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the status reader is not configured on this API instance. No 5xx body carries backend error text. A reader-verdict 503 error envelope names capability operations.collector_readiness_status.",
         "operationId": "getCollectorReadinessLegacy",
         "x-scoped-token-support": true,
         "responses": {

@@ -364,7 +364,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: e65fefe0c7e20e0b988c41380bdd386dce668ee0366dd29e09d09e5998cde09f
+          source_sha256: 338fb09390dc15aee79cb52d23a4b1c2c610f492238ece89352d51821365bcb8
           label: "Repository"
           max_results: 1
   - file: status_hosted_readiness.go
@@ -376,7 +376,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: ffe2537bc1d71430ef9cc4993c87472138e9dfc9382ff3d3e47c58264cf74f4e
+          source_sha256: 82227dbfc08fd95d601559e377248cfd2bae7aab143017e8dd306043584f4933
           label: "Repository"
           max_results: 1
   - file: supply/chain/kubernetes_runtime_probe_fair.go

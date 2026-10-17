@@ -27,8 +27,7 @@ func WriteGraphReadError(w http.ResponseWriter, r *http.Request, err error, capa
 // tracing.WriteServerFailure: 500 with err recorded on the request span, or
 // 499 with only the client-cancel event when the caller canceled the request.
 // err's text never reaches the body. capability must be a capability-matrix
-// key; a route without one calls WriteGraphReadError with
-// querycontract.NoCapability itself, from an allowlisted file.
+// key.
 func writeReadFailure(w http.ResponseWriter, r *http.Request, err error, capability, message string) {
 	if WriteGraphReadError(w, r, err, capability) {
 		return
