@@ -178,7 +178,8 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		RetractCypher:  sourcecypher.RetractRationaleEdgesCypher,
 		IdentityCypher: sourcecypher.BatchCanonicalRationaleExplainsEdgeCypher,
 	},
-	// The nine DIRECT-materialization families registered here (#6228).
+	// The ten DIRECT-materialization families registered here (#6228; #8359
+	// for semantic_entity_containment).
 	// Unlike every entry above them, these reach the graph straight from their
 	// own reducer port with no shared-projection intent row in between, so
 	// reducer.DirectMaterializedEdgeFamilies() enumerates them rather than

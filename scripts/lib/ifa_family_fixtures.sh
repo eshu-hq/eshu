@@ -171,6 +171,16 @@ s3_logs_to_cassette="${repo_root}/testdata/cassettes/s3logsto/ifa-s3-logs-to-fam
 s3_logs_to_expected_edges="${repo_root}/go/internal/ifa/testdata/s3logsto/ifa-s3-logs-to-family-expected-edges.json"
 kubernetes_correlation_cassette="${repo_root}/testdata/cassettes/kubernetescorrelation/ifa-kubernetes-correlation-family.json"
 kubernetes_correlation_expected_edges="${repo_root}/go/internal/ifa/testdata/kubernetescorrelation/ifa-kubernetes-correlation-family-expected-edges.json"
+# semantic_entity_containment family cassette (#8359, #6228 arbiter verdict
+# (a)): the repo-scoped four-edge CONTAINS family. Driven uniformly into
+# every N-cell on the determinism gate through its registry row (shared
+# cell, no dedicated cell, no sibling subtraction). Like every cassette
+# above, a projection of its compiled Odù -- and
+# TestDirectFamilyCassettesMatchTheirCompiledOdu holds it to that -- carrying
+# the repository fact, the three typed file facts the File endpoints project
+# from, and the six content entities the semantic subset admits four of.
+semantic_entity_containment_cassette="${repo_root}/testdata/cassettes/semanticentitycontainment/ifa-semantic-entity-containment-family.json"
+semantic_entity_containment_expected_edges="${repo_root}/go/internal/ifa/testdata/semanticentitycontainment/ifa-semantic-entity-containment-family-expected-edges.json"
 
 # ifa_family_fixtures_require fails fast, before any Compose stack is started,
 # when a committed fixture is missing. Each message names the specific fixture
@@ -227,6 +237,8 @@ ifa_family_fixtures_require() {
 	[[ -f "${s3_logs_to_expected_edges}" ]] || { echo "${gate}: s3-logs-to expected-edge set not found: ${s3_logs_to_expected_edges}" >&2; exit 1; }
 	[[ -f "${kubernetes_correlation_cassette}" ]] || { echo "${gate}: kubernetes-correlation cassette not found: ${kubernetes_correlation_cassette}" >&2; exit 1; }
 	[[ -f "${kubernetes_correlation_expected_edges}" ]] || { echo "${gate}: kubernetes-correlation expected-edge set not found: ${kubernetes_correlation_expected_edges}" >&2; exit 1; }
+	[[ -f "${semantic_entity_containment_cassette}" ]] || { echo "${gate}: semantic-entity-containment cassette not found: ${semantic_entity_containment_cassette}" >&2; exit 1; }
+	[[ -f "${semantic_entity_containment_expected_edges}" ]] || { echo "${gate}: semantic-entity-containment expected-edge set not found: ${semantic_entity_containment_expected_edges}" >&2; exit 1; }
 	# The family scope MUST be stamped source_system='oci_registry': replay
 	# stamps fact.source_system from the scope, and the
 	# container-image-identity loader the handler reads only accepts OCI

@@ -19,6 +19,57 @@
           }
         },
         {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-ifa-semantic-entity-containment:pkg/handle.go",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 0,
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repo-ifa-semantic-entity-containment:pkg/handle.go",
+            "graph_kind": "file",
+            "is_dependency": false,
+            "language": "go",
+            "parsed_file_data": {},
+            "relative_path": "pkg/handle.go",
+            "repo_id": "repo-ifa-semantic-entity-containment"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-ifa-semantic-entity-containment:app/fetch.py",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 0,
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repo-ifa-semantic-entity-containment:app/fetch.py",
+            "graph_kind": "file",
+            "is_dependency": false,
+            "language": "python",
+            "parsed_file_data": {},
+            "relative_path": "app/fetch.py",
+            "repo_id": "repo-ifa-semantic-entity-containment"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-ifa-semantic-entity-containment:lib/worker.ex",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 0,
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repo-ifa-semantic-entity-containment:lib/worker.ex",
+            "graph_kind": "file",
+            "is_dependency": false,
+            "language": "elixir",
+            "parsed_file_data": {},
+            "relative_path": "lib/worker.ex",
+            "repo_id": "repo-ifa-semantic-entity-containment"
+          }
+        },
+        {
           "fact_kind": "content_entity",
           "stable_fact_key": "content_entity:content-entity:sec-go-func",
           "schema_version": "1.0.0",

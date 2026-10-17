@@ -7,6 +7,8 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 )
 
 // The semantic_entity_containment family Odù (#8359, split out of #6228).
@@ -61,6 +63,23 @@ type semanticEntityContainmentFixture struct {
 	Metadata     map[string]any
 }
 
+// semanticEntityContainmentFiles are the three files the four edge producers
+// live in: the writer MATCHes (f:File {path: row.file_path}) per row, so the
+// family materializes zero edges without these File nodes. They project
+// through the canonical file phase, whose path is the repository local_path
+// joined to the relative_path -- the same string the content facts carry as
+// SourceURI -- so writer and projector agree on the node. ParsedFileData is
+// an empty object: the family asserts File containment, not parsed content,
+// and an honest empty object beats invented parser output.
+var semanticEntityContainmentFiles = []struct {
+	RelativePath string
+	Language     string
+}{
+	{RelativePath: "pkg/handle.go", Language: "go"},
+	{RelativePath: "app/fetch.py", Language: "python"},
+	{RelativePath: "lib/worker.ex", Language: "elixir"},
+}
+
 // The fixture entities: four edge producers across three admission paths
 // (always-semantic Annotation, Go Function with docstring metadata,
 // Python async Function, Elixir module-attribute Variable) and two
@@ -102,10 +121,43 @@ var semanticEntityContainmentFixtures = []semanticEntityContainmentFixture{
 	},
 }
 
+// semanticEntityContainmentFileFact builds one typed "file" fact for a
+// fixture file, stamped with this family's scope/generation coordinates.
+// Typed (codegraphv1.File via factschema.EncodeCodegraphFile), never a
+// hand-built map: fixturekinds.go requires the typed contract for file
+// payloads.
+func semanticEntityContainmentFileFact(relativePath, language string) facts.Envelope {
+	graphID := semanticEntityContainmentFamilyRepoID + ":" + relativePath
+	graphKind := "file"
+	isDependency := false
+	payload, err := factschema.EncodeCodegraphFile(codegraphv1.File{
+		RepoID:         semanticEntityContainmentFamilyRepoID,
+		RelativePath:   relativePath,
+		ParsedFileData: map[string]any{},
+		GraphID:        &graphID,
+		GraphKind:      &graphKind,
+		Language:       &language,
+		IsDependency:   &isDependency,
+	})
+	if err != nil {
+		panic(fmt.Sprintf("familyodu: encode semantic file %q: %v", relativePath, err))
+	}
+	return facts.Envelope{
+		ScopeID:          semanticEntityContainmentFamilyScopeID,
+		GenerationID:     semanticEntityContainmentFamilyGenerationID,
+		FactKind:         FileFactKind,
+		SchemaVersion:    "1.0.0",
+		StableFactKey:    fmt.Sprintf("file:%s:%s", semanticEntityContainmentFamilyRepoID, relativePath),
+		CollectorKind:    semanticEntityContainmentFamilyCollectorKind,
+		SourceConfidence: "observed",
+		Payload:          payload,
+	}
+}
+
 // SemanticEntityContainmentFamilyOdu builds the cataloged Odù for the
 // semantic_entity_containment direct-materialization family.
 func SemanticEntityContainmentFamilyOdu() CatalogOdu {
-	factsForOdu := make([]facts.Envelope, 0, len(semanticEntityContainmentFixtures)+1)
+	factsForOdu := make([]facts.Envelope, 0, len(semanticEntityContainmentFixtures)+len(semanticEntityContainmentFiles)+1)
 	factsForOdu = append(factsForOdu, facts.Envelope{
 		ScopeID:          semanticEntityContainmentFamilyScopeID,
 		GenerationID:     semanticEntityContainmentFamilyGenerationID,
@@ -120,6 +172,9 @@ func SemanticEntityContainmentFamilyOdu() CatalogOdu {
 			"local_path":    semanticEntityContainmentFamilyLocalPath,
 		},
 	})
+	for _, file := range semanticEntityContainmentFiles {
+		factsForOdu = append(factsForOdu, semanticEntityContainmentFileFact(file.RelativePath, file.Language))
+	}
 	for _, fixture := range semanticEntityContainmentFixtures {
 		payload := map[string]any{
 			"repo_id":       semanticEntityContainmentFamilyRepoID,
@@ -153,6 +208,6 @@ func SemanticEntityContainmentFamilyOdu() CatalogOdu {
 			Name:  SemanticEntityContainmentFamilyOduName,
 			Facts: factsForOdu,
 		},
-		Detail: "semantic_entity_containment: four stamped File CONTAINS edges from the semantic subset of content_entity facts; plain function and class produce none (#8359)",
+		Detail: "semantic_entity_containment: four stamped File CONTAINS edges from the semantic subset of content_entity facts, plus the three typed file facts those File endpoints project from; plain function and class produce none (#8359)",
 	}
 }

@@ -8,7 +8,8 @@
       "target_entity_id": "content-entity:sec-annotation",
       "properties": {
         "evidence_source": "parser/semantic-entities"
-      }
+      },
+      "repo_id": "repo-ifa-semantic-entity-containment"
     },
     {
       "relationship_type": "CONTAINS",
@@ -16,7 +17,8 @@
       "target_entity_id": "content-entity:sec-py-func",
       "properties": {
         "evidence_source": "parser/semantic-entities"
-      }
+      },
+      "repo_id": "repo-ifa-semantic-entity-containment"
     },
     {
       "relationship_type": "CONTAINS",
@@ -24,7 +26,8 @@
       "target_entity_id": "content-entity:sec-ex-var",
       "properties": {
         "evidence_source": "parser/semantic-entities"
-      }
+      },
+      "repo_id": "repo-ifa-semantic-entity-containment"
     },
     {
       "relationship_type": "CONTAINS",
@@ -32,7 +35,8 @@
       "target_entity_id": "content-entity:sec-go-func",
       "properties": {
         "evidence_source": "parser/semantic-entities"
-      }
+      },
+      "repo_id": "repo-ifa-semantic-entity-containment"
     }
   ]
 }

@@ -101,6 +101,13 @@ type sqlRelationshipExpectedEdge struct {
 	TargetEntityID   string            `json:"target_entity_id"`
 	Identity         map[string]string `json:"identity,omitempty"`
 	Properties       map[string]string `json:"properties,omitempty"`
+	// RepoID is the fixture's single owning repository, populated today
+	// only by semantic_entity_containment (#8359): its live assert scopes
+	// the graph scan to that repo (rationale pattern). It is scope
+	// metadata, not edge identity -- excluded from Key() like rationale's
+	// own repo field -- so every other family's omitted (blank) value
+	// changes nothing they compare.
+	RepoID string `json:"repo_id,omitempty"`
 }
 
 type sqlRelationshipExpectedEdgesFile struct {
