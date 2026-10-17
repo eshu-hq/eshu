@@ -13,3 +13,7 @@ docs/public/services/collector-aws-cloud-scanners.md merge=union
 # it. go.mod is deliberately NOT union-merged: its require block is structured
 # and union would duplicate or interleave entries into an invalid file.
 go.sum merge=union
+
+# The extractor-version guard pins a digest of these bytes (#8155); keep
+# them byte-exact on every OS.
+go/internal/content/artifacts/testdata/guard/*.jsonl -text

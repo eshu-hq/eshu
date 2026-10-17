@@ -33,6 +33,15 @@
 // has no database/sql, telemetry or query-contract dependency: a caller owns
 // the connection, the spans and the metrics.
 //
+// ExtractorVersion versions the output of the extractors. A stored row is
+// trusted only at the version that wrote it, and a change that can alter any
+// stored row bumps the version together with the digest that
+// TestExtractorOutputIsPinned pins over the committed guard corpus, and with
+// the hydration window constants (ListLimit, AllowanceWholeWindow) the pin row
+// records. The digests see only changes that move a row over that corpus. The
+// derive's call arguments are pinned in storage/postgres/config/artifacts,
+// not by the guard. The version only moves forward.
+//
 // Extraction is pure. The extractors read no clock, environment or network,
 // drop remote references without reading them, and resolve kustomize
 // references only inside the same repository's file index.
