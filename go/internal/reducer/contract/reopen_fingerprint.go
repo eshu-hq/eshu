@@ -29,9 +29,11 @@ const EmptyResolvedReadFingerprint = "empty-resolved-input"
 // DeployableUnitCorrelationLogicVersion is the version of the
 // deployable_unit_correlation handler logic a recorded fingerprint was taken
 // under (#8283). The reopen gate re-opens every item whose recorded version
-// differs, so a handler change that can produce a different graph from the
-// same resolved input MUST bump it; a change that cannot (logging, telemetry,
-// refactors proven output-identical) must not.
+// differs, so any change that can produce a different graph or admission
+// decision from the same facts and resolved input MUST bump it: the handler
+// and the code path its output passes through, which the doc comment on
+// reducer.DeployableUnitCorrelationHandler lists. A change that cannot
+// (logging, telemetry, refactors proven output-identical) must not.
 const DeployableUnitCorrelationLogicVersion = 1
 
 // DeployableUnitReopenFingerprintRecorder stores the ResolvedReadFingerprint

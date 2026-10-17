@@ -26,8 +26,14 @@ const deployableUnitCorrelationFallbackThreshold = 0.90
 // candidate evaluation and admitted exact deployable-unit correlation edges.
 //
 // Bump reducercontract.DeployableUnitCorrelationLogicVersion with any change
-// here that can write a different graph from the same resolved input: the
-// reopen gate (#8283) re-runs every item recorded under another version.
+// that can write a different graph or admission decision from the same facts
+// and resolved input. That covers this handler and everything its output
+// passes through: ExtractWorkloadCandidates, ExtractDeployableUnitCorrelationRows
+// and applyResolvedDeploymentSources, evaluateDeployableUnitCandidates with
+// the correlation rule packs and engine it calls, the admission-decision
+// mapping, and the edge row shape materializeDeployableUnitEdges writes. The
+// reopen gate (#8283) re-runs only items whose input changed or whose recorded
+// version differs, so a logic fix without a bump never reaches unchanged items.
 type DeployableUnitCorrelationHandler struct {
 	FactLoader              FactLoader
 	ResolvedLoader          ResolvedRelationshipLoader

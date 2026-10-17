@@ -370,7 +370,10 @@ values each counter carries.
   that value (never a recompute) to `ReopenFingerprintRecorder` after every
   graph write, fenced on the exact claim. A rejected write fails the run. The
   deferred-maintenance reopen leaves the item succeeded while the fingerprint
-  still matches; a missing row always re-opens.
+  still matches; a missing row always re-opens. A logic change is therefore
+  not re-applied to unchanged items unless it bumps
+  `contract.DeployableUnitCorrelationLogicVersion`; the handler's doc comment
+  lists the code path that rule covers.
 - **The own gate is bounded by its producer** — when the own relationship
   generation is inactive, `crossrepo.EvaluateOwnGate` reads the newest
   `deployment_mapping` row of the same scope generation
