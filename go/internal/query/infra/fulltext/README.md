@@ -57,10 +57,47 @@ requests never probe. A probe error is not ready.
 `Reader.Rows` falls back to the legacy statement for one request when the
 full-text read fails while the request context is live.
 
+## Broad class (#7245)
+
+A query is *broad* when its escaped substring matches candidates in every
+label class the probe sees: selective substrings restrict the candidate set,
+broad ones do not. A broad query against hard paging (`page_size 200`, hard
+`K=1000`) returns a truncated page with no signal that rows were dropped.
+
+`BroadCandidateCap` (1000, equal to `hardCapK`) bounds the candidate set
+before filtering. `Probe` runs the full-text query once per label class with
+`LIMIT $broad_probe_limit` where `broad_probe_limit = BroadCandidateCap+1`,
+so the probe count is observable per class and a count past the cap proves
+truncation. A query is broad only when *every* probed class exceeds the cap,
+which keeps the capped form off the selective path byte-for-byte: a
+selective query emits the unchanged full-text statement and the same rows
+(`TestBroadCapSelectiveStatementInvariance`,
+`TestSelectExclusiveEquivalentStatement`).
+
+A broad query keeps the same full-text statement and page shape and adds the
+cap contract: at most `BroadCandidateCap` rows survive filtering, and the
+page carries `truncated=true` (`Truncated=true` on the handler result,
+`RowsBounded=true`). At most `200 * 1001` index rows are fetched per broad
+page. When candidates are at or under the cap, returned rows are equal to
+the pre-cap form (rows-equal); above the cap the page holds at most the cap
+(bounded partial) instead of a silently truncated page.
+
+No-Regression Evidence (#7245): the selective class emits byte-identical
+statements and rows before and after (invariance tests above), and the full
+`go/internal/query/...` suite is green. Corpus-scale before/after timing on
+the broad class stays with the owner lane and is NOT_CHECKED here.
+
+Observability Evidence (#7245): a broad page sets the
+`eshu.infra_search_broad_capped=true` span attribute on
+`query.infra_resource_search` and reuses the existing
+`eshu_dp_infra_search_path_total{search_path="fulltext"}` counter. No new
+metric or log is added.
+
 ## Telemetry
 
 - Span attributes on `query.infra_resource_search`: `eshu.infra_search_path`
   (`fulltext`, `legacy`) and, on legacy, `eshu.infra_search_fallback_reason`.
+  A broad page also sets `eshu.infra_search_broad_capped=true`.
 - `eshu_dp_infra_search_path_total{search_path, reason}`.
 - `eshu_dp_infra_search_key_ready`, `eshu_dp_infra_search_key_index_online`,
   `eshu_dp_infra_search_key_unkeyed_nodes` gauges, recorded on every probe.
