@@ -2,8 +2,8 @@
 
 ## Scope
 
-Base: `origin/main` at `5e6fa5c5fb29` (branch `refactor/6695-document-moves`;
-no rebase needed).
+Base: `origin/main` at `87f019495` after a conflict-free rebase
+(branch `refactor/6695-document-moves`; pre-rebase base `5e6fa5c5fb29`).
 
 This slice moves four flat collector leaves under plain-English parents,
 rename-only via `git mv` (162 renames, 134 of them `.go`):
@@ -33,10 +33,14 @@ path and qualifier only. Exported identifiers, fact kinds, span and
 metric names, and envelope shapes are byte-identical.
 
 Out of scope: entrypoint rename, the `terraformstate`/`tfstateruntime`
-pair, scanner/OS-vulnerability closure, `specs/live-tests.d` plus
-`specs/live-tests.v1.yaml` (the JFrog scheduled-test row stays for the
-sibling lane), and every fact-kind, schema, decode, query, and
-coordinator-alias contract.
+pair, scanner/OS-vulnerability closure, and every fact-kind, schema,
+decode, query, and coordinator-alias contract.
+
+In scope after the head commit: the `specs/live-tests.d` JFrog
+scheduled-test row moves one-for-one with the code (old
+`packageregistry/packageruntime` path to new
+`registry/package/runtime` path) plus its freshly derived digest in
+`specs/live-tests.v1.yaml`; the scheduled-test count holds at 372.
 
 ## Inventory
 
@@ -83,15 +87,15 @@ All commands run with `GOTOOLCHAIN=go1.26.9 CGO_CFLAGS=-std=gnu11` from
 - `go test -count=1` over the collector root, sbom runtime,
   vulnerabilityintelligence, coordinator tree, the three commands, and
   replay inputtape: all ok.
-- `bash scripts/verify-moved-file-refs.sh`: clean except the
-  out-of-scope `specs/live-tests.d/live-tests-01.yaml:192` JFrog row.
+- `bash scripts/verify-moved-file-refs.sh`: all cases passed
+  (the JFrog row repoint is in place, so no exemption remains).
 - `bash scripts/verify-doc-citations.sh`, `verify-docs-refs.sh`,
   `verify-filename-stutter.sh`, `verify-package-docs.sh`,
   `verify-telemetry-coverage.sh`, `verify-license-header.sh`,
   `capability-inventory -mode verify`, `git diff --check`: all pass.
-- `bash scripts/verify-live-tests-ledger.sh`: names only the moved
-  `registry/package/runtime/jfrog_live_test.go`, whose row stays with
-  the sibling lane.
+- `bash scripts/verify-live-tests-ledger.sh`: RED/GREEN pair passed
+  on this head; the ledger names the moved
+  `registry/package/runtime/jfrog_live_test.go` at its relocated row.
 
 ## No-Regression Evidence (#6695):
 
