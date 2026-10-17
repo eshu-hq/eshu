@@ -57,11 +57,12 @@ func TestSemanticEntityWriterWritesTypeScriptModuleSemanticMetadata(t *testing.T
 	if got, want := result.CanonicalWrites, 2; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
-	if got, want := len(executor.calls), 2; got != want {
-		t.Fatalf("executor calls = %d, want %d", got, want)
+	upserts := semanticNonRetractCalls(executor.calls)
+	if got, want := len(upserts), 1; got != want {
+		t.Fatalf("upsert calls = %d, want %d", got, want)
 	}
 
-	moduleRows := executor.calls[1].Parameters["rows"].([]map[string]any)
+	moduleRows := upserts[0].Parameters["rows"].([]map[string]any)
 	if got, want := len(moduleRows), 2; got != want {
 		t.Fatalf("module row count = %d, want %d", got, want)
 	}

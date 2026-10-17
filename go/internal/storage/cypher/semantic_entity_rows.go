@@ -365,8 +365,9 @@ func buildRustImplBlockOwnershipRows(rows []semantic.EntityRow) []map[string]any
 			}
 			seen[dedupKey] = struct{}{}
 			ownershipRows = append(ownershipRows, map[string]any{
-				"impl_block_id": row.EntityID,
-				"function_id":   functionID,
+				"impl_block_id":   row.EntityID,
+				"function_id":     functionID,
+				"evidence_source": semanticEntityEvidenceSource,
 			})
 		}
 	}

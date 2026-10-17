@@ -43,11 +43,12 @@ func TestSemanticEntityWriterWritesTypeScriptFunctionSemanticMetadata(t *testing
 	if got, want := result.CanonicalWrites, 1; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
-	if got, want := len(executor.calls), 2; got != want {
-		t.Fatalf("executor calls = %d, want %d", got, want)
+	upserts := semanticNonRetractCalls(executor.calls)
+	if got, want := len(upserts), 1; got != want {
+		t.Fatalf("upsert calls = %d, want %d", got, want)
 	}
 
-	functionRows := executor.calls[1].Parameters["rows"].([]map[string]any)
+	functionRows := upserts[0].Parameters["rows"].([]map[string]any)
 	if got, want := len(functionRows), 1; got != want {
 		t.Fatalf("function row count = %d, want %d", got, want)
 	}
@@ -57,14 +58,14 @@ func TestSemanticEntityWriterWritesTypeScriptFunctionSemanticMetadata(t *testing
 	if got, want := functionRows[0]["type_parameters"], []string{"T"}; !equalStringSlice(got, want) {
 		t.Fatalf("function row type_parameters = %#v, want %#v", got, want)
 	}
-	if !strings.Contains(executor.calls[1].Cypher, "MERGE (n:Function {uid: row.entity_id})") {
-		t.Fatalf("function cypher missing Function merge: %s", executor.calls[1].Cypher)
+	if !strings.Contains(upserts[0].Cypher, "MERGE (n:Function {uid: row.entity_id})") {
+		t.Fatalf("function cypher missing Function merge: %s", upserts[0].Cypher)
 	}
-	if !strings.Contains(executor.calls[1].Cypher, "n.decorators = row.decorators") {
-		t.Fatalf("function cypher missing decorators projection: %s", executor.calls[1].Cypher)
+	if !strings.Contains(upserts[0].Cypher, "n.decorators = row.decorators") {
+		t.Fatalf("function cypher missing decorators projection: %s", upserts[0].Cypher)
 	}
-	if !strings.Contains(executor.calls[1].Cypher, "n.type_parameters = row.type_parameters") {
-		t.Fatalf("function cypher missing type_parameters projection: %s", executor.calls[1].Cypher)
+	if !strings.Contains(upserts[0].Cypher, "n.type_parameters = row.type_parameters") {
+		t.Fatalf("function cypher missing type_parameters projection: %s", upserts[0].Cypher)
 	}
 }
 

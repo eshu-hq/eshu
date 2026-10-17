@@ -92,9 +92,11 @@
 # observability_coverage and security_group_sg_rule name their alternation
 # (kind C): the 5-type AWS_COVERS_* alternation and
 # [rel:ALLOWS_INGRESS|ALLOWS_EGRESS] respectively, in every retract variant.
-# semantic_entity_containment is EXCLUDED: its node-label-alternation DETACH
-# DELETE deletes shared nodes and foreign edges with them, and needs a
-# dedicated [rel:CONTAINS] edge retract as separate writer work.
+# semantic_entity_containment was EXCLUDED under that verdict — its
+# node-label-alternation DETACH DELETE deleted shared nodes and foreign edges
+# with them — until #8359 gave it a dedicated [rel:CONTAINS] edge retract
+# scoped by evidence_source and endpoint labels (registered, still waived: no
+# live matrix drives it yet).
 # cloud_resource stays UNCOVERED by design as the sole genuinely open family:
 # unblock only by closing the vocabulary upstream or by a predicate-scoped
 # assert-edges scan (follow-up issue); registering an observed-type list is
@@ -385,12 +387,12 @@ waivers:
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteSemanticEntities -> cypher/semantic_entity_statements.go merges CONTAINS; split verdict D: EXCLUDED — its node-label-alternation DETACH DELETE retract deletes shared semantic nodes and foreign edges with them, so neither retract kind applies (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Needs a dedicated [rel:CONTAINS] edge retract as separate writer work before any registration. Stays waived: no Odu, expected-edge-set fixture, registered edge types, or live matrix yet"
+    reason: "WriteSemanticEntities -> cypher/semantic_entity_statements.go merges CONTAINS; direct materialization; the dedicated [rel:CONTAINS] edge retract, registered edge types, endpoint-label + stamp fence, offline Odu, vacuity guard, expected-edge-set fixture, and cassette landed in the #8359 change (foreign-edge survival proven live on pinned Neo4j). Stays waived: neither live matrix drives it yet — no registry row or drive/assert wiring, and the shared-cell question (the semantic handler also fires on other families' content_entity facts) must be settled before a cell asserts its exact set"
   - surface: "materialized_edges:semantic_entity_containment"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteSemanticEntities -> cypher/semantic_entity_statements.go merges CONTAINS; split verdict D: EXCLUDED — its node-label-alternation DETACH DELETE retract deletes shared semantic nodes and foreign edges with them, so neither retract kind applies (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Needs a dedicated [rel:CONTAINS] edge retract as separate writer work before any registration. Stays waived: no Odu, expected-edge-set fixture, registered edge types, or live matrix yet"
+    reason: "WriteSemanticEntities -> cypher/semantic_entity_statements.go merges CONTAINS; direct materialization; dedicated edge retract + registration + offline Odu/guard/fixture/cassette landed in the #8359 change (family stays waived: no fault cells and no live determinism drive yet)"
   - surface: "materialized_edges:uses_service_account"
     proof_gate: ifa-determinism
     issue: "#6228"

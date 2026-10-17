@@ -1,0 +1,38 @@
+{
+  "odu": "odu:ifa-semantic-entity-containment-family",
+  "note": "Hand-derived from the semantic entity writer templates (go/internal/storage/cypher/semantic_entity_statements.go): each per-label template MATCHes (f:File {path: row.file_path}), MERGEs the entity node on uid, and MERGEs (f)-[rel:CONTAINS]->(n) with rel.evidence_source stamped from the row (#8359). CONTAINS is read off those templates, never from the port name WriteSemanticEntities. CONTAINS is shared with the canonical node writer; the live assert fences this family's population by endpoint labels (File|ImplBlock into the eleven semantic entity labels) plus the parser/semantic-entities rel stamp (cypher/edge/materialized/endpoints.go), so canonical containment edges in the same graph are not this set's extras. Each source endpoint is the canonical File uid, RepoID + ':' + RelativePath (canonical_node_writer_phases.go). Exactly four edges: the Go Function with a docstring, the Python async Function, the Annotation, and the Elixir module-attribute Variable — the semantic subset semantic.ExtractEntityRowsForRepo admits. The plain Python Function (no semantic marker) and the Class (not a semantic type) contribute nothing on purpose. Rust ImplBlock ownership edges are absent by fixture design (no ImplBlock rows); the writer unit tests cover that edge.",
+  "edges": [
+    {
+      "relationship_type": "CONTAINS",
+      "source_entity_id": "repo-ifa-semantic-entity-containment:app/fetch.py",
+      "target_entity_id": "content-entity:sec-annotation",
+      "properties": {
+        "evidence_source": "parser/semantic-entities"
+      }
+    },
+    {
+      "relationship_type": "CONTAINS",
+      "source_entity_id": "repo-ifa-semantic-entity-containment:app/fetch.py",
+      "target_entity_id": "content-entity:sec-py-func",
+      "properties": {
+        "evidence_source": "parser/semantic-entities"
+      }
+    },
+    {
+      "relationship_type": "CONTAINS",
+      "source_entity_id": "repo-ifa-semantic-entity-containment:lib/worker.ex",
+      "target_entity_id": "content-entity:sec-ex-var",
+      "properties": {
+        "evidence_source": "parser/semantic-entities"
+      }
+    },
+    {
+      "relationship_type": "CONTAINS",
+      "source_entity_id": "repo-ifa-semantic-entity-containment:pkg/handle.go",
+      "target_entity_id": "content-entity:sec-go-func",
+      "properties": {
+        "evidence_source": "parser/semantic-entities"
+      }
+    }
+  ]
+}

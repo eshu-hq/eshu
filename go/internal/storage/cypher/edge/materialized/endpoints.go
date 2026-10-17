@@ -5,6 +5,7 @@ package materialized
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // Endpoint-label constraints for materialized-edge families whose relationship
@@ -35,6 +36,15 @@ type MaterializedEdgeEndpoint struct {
 	FromLabel string
 	// ToLabel is the required target node label.
 	ToLabel string
+	// FromLabels, when non-empty, replaces FromLabel with an any-of set:
+	// the source endpoint must carry at least one of these labels. It
+	// exists for a family whose writer materializes its one type from
+	// several source labels (semantic_entity_containment writes CONTAINS
+	// from File and from ImplBlock), where a single required label would
+	// silently drop part of the family's own population.
+	FromLabels []string
+	// ToLabels is the target-side counterpart of FromLabels.
+	ToLabels []string
 	// EvidenceSource, when non-empty, additionally requires the edge's own
 	// evidence_source property to equal it.
 	//
@@ -130,6 +140,64 @@ var materializedEdgeEndpointsByFamily = map[string]map[string]MaterializedEdgeEn
 			EvidenceSource: reducer.KubernetesNamespaceEvidenceSource,
 		},
 	},
+	// CONTAINS is the canonical node writer's containment type too
+	// (canonical_node_cypher.go), and the collision is total: asserting
+	// semantic_entity_containment by type alone would count every
+	// Repository/Directory/File containment edge in the graph. The
+	// endpoint sets partition the producers structurally — the canonical
+	// writer's CONTAINS shapes source from Repository, Directory, Class,
+	// or Function and target Directory or File, never File|ImplBlock into
+	// the eleven semantic entity labels — and EvidenceSource pins the
+	// exact population this family's retract reaps (its stamped-edge
+	// statement deletes `WHERE rel.evidence_source = $evidence_source`),
+	// so the gate asserts what the writer owns. The label sets are
+	// derived from the held retract alternation, not copied literals.
+	//
+	// OneEdgePerEndpointPair stays off: the two writers converge on the
+	// same endpoint-only MERGE for File containment of canonical-owned
+	// labels, but those edges are outside this constraint's stamp fence
+	// in canonical-node mode by design (the canonical writer owns them
+	// there), so pair multiplicity across stamps is not this family's
+	// invariant to assert.
+	"semantic_entity_containment": {
+		"CONTAINS": {
+			FromLabels:     sourcecypher.SemanticEntityContainmentSourceLabels(),
+			ToLabels:       sourcecypher.SemanticEntityContainmentTargetLabels(),
+			EvidenceSource: sourcecypher.SemanticEntityEvidenceSource,
+		},
+	},
+}
+
+// MatchesFrom reports whether a source endpoint carrying labels satisfies
+// this constraint's source side: any of FromLabels when set, else
+// FromLabel. An endpoint declaring neither matches nothing — the registry
+// guard rejects that shape, and matching nothing keeps the failure loud
+// if it ever reaches a scan.
+func (e MaterializedEdgeEndpoint) MatchesFrom(labels []string) bool {
+	return matchesEndpointLabels(labels, e.FromLabel, e.FromLabels)
+}
+
+// MatchesTo is MatchesFrom for the target endpoint.
+func (e MaterializedEdgeEndpoint) MatchesTo(labels []string) bool {
+	return matchesEndpointLabels(labels, e.ToLabel, e.ToLabels)
+}
+
+func matchesEndpointLabels(labels []string, single string, set []string) bool {
+	required := set
+	if len(required) == 0 && single != "" {
+		required = []string{single}
+	}
+	for _, want := range required {
+		if want == "" {
+			continue
+		}
+		for _, got := range labels {
+			if got == want {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // MaterializedEdgeEndpointLabels returns the per-edge-type endpoint constraints

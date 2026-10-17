@@ -25,7 +25,9 @@ func TestSemanticEntityWriterRetractsWithoutUpserts(t *testing.T) {
 	if got, want := result.CanonicalWrites, 0; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
-	if got, want := len(executor.calls), 1; got != want {
+	// #8359: the retract is three statements (stamped edge retract,
+	// node-scoped edge retract, edgeless-node reap), not one DETACH DELETE.
+	if got, want := len(executor.calls), 3; got != want {
 		t.Fatalf("executor calls = %d, want %d", got, want)
 	}
 	if executor.calls[0].Operation != OperationCanonicalRetract {

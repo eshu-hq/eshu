@@ -1,0 +1,161 @@
+{
+  "collector": "git",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "collector_kind": "git",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:repo-ifa-semantic-entity-containment",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 0,
+          "source_confidence": "observed",
+          "payload": {
+            "local_path": "/repo-semantic-containment",
+            "repo_id": "repo-ifa-semantic-entity-containment",
+            "source_run_id": "run-ifa-semantic-entity-containment-1"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:sec-go-func",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 0,
+          "source_confidence": "observed",
+          "source_uri": "/repo-semantic-containment/pkg/handle.go",
+          "payload": {
+            "end_line": 20,
+            "entity_id": "content-entity:sec-go-func",
+            "entity_metadata": {
+              "docstring": "Handle serves the request."
+            },
+            "entity_name": "Handle",
+            "entity_type": "Function",
+            "language": "go",
+            "relative_path": "pkg/handle.go",
+            "repo_id": "repo-ifa-semantic-entity-containment",
+            "start_line": 10
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:sec-py-func",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 0,
+          "source_confidence": "observed",
+          "source_uri": "/repo-semantic-containment/app/fetch.py",
+          "payload": {
+            "end_line": 9,
+            "entity_id": "content-entity:sec-py-func",
+            "entity_metadata": {
+              "async": true
+            },
+            "entity_name": "fetch",
+            "entity_type": "Function",
+            "language": "python",
+            "relative_path": "app/fetch.py",
+            "repo_id": "repo-ifa-semantic-entity-containment",
+            "start_line": 3
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:sec-annotation",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 0,
+          "source_confidence": "observed",
+          "source_uri": "/repo-semantic-containment/app/fetch.py",
+          "payload": {
+            "end_line": 2,
+            "entity_id": "content-entity:sec-annotation",
+            "entity_metadata": {
+              "kind": "applied",
+              "target_kind": "function_definition"
+            },
+            "entity_name": "route",
+            "entity_type": "Annotation",
+            "language": "python",
+            "relative_path": "app/fetch.py",
+            "repo_id": "repo-ifa-semantic-entity-containment",
+            "start_line": 2
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:sec-ex-var",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 0,
+          "source_confidence": "observed",
+          "source_uri": "/repo-semantic-containment/lib/worker.ex",
+          "payload": {
+            "end_line": 4,
+            "entity_id": "content-entity:sec-ex-var",
+            "entity_metadata": {
+              "attribute_kind": "module_attribute"
+            },
+            "entity_name": "@timeout",
+            "entity_type": "Variable",
+            "language": "elixir",
+            "relative_path": "lib/worker.ex",
+            "repo_id": "repo-ifa-semantic-entity-containment",
+            "start_line": 4
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:sec-py-plain",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 0,
+          "source_confidence": "observed",
+          "source_uri": "/repo-semantic-containment/app/fetch.py",
+          "payload": {
+            "end_line": 14,
+            "entity_id": "content-entity:sec-py-plain",
+            "entity_name": "plain",
+            "entity_type": "Function",
+            "language": "python",
+            "relative_path": "app/fetch.py",
+            "repo_id": "repo-ifa-semantic-entity-containment",
+            "start_line": 12
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:sec-go-class",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 0,
+          "source_confidence": "observed",
+          "source_uri": "/repo-semantic-containment/pkg/handle.go",
+          "payload": {
+            "end_line": 8,
+            "entity_id": "content-entity:sec-go-class",
+            "entity_name": "Handler",
+            "entity_type": "Class",
+            "language": "go",
+            "relative_path": "pkg/handle.go",
+            "repo_id": "repo-ifa-semantic-entity-containment",
+            "start_line": 5
+          }
+        }
+      ],
+      "generation_id": "gen-ifa-semantic-entity-containment-family-1",
+      "metadata": {
+        "fixture": "ifa-semantic-entity-containment-family"
+      },
+      "observed_at": "2026-10-17T00:00:00Z",
+      "partition_key": "scope-ifa-semantic-entity-containment-family",
+      "scope_id": "scope-ifa-semantic-entity-containment-family",
+      "scope_kind": "repo",
+      "source_system": "git",
+      "trigger_kind": "snapshot"
+    }
+  ]
+}

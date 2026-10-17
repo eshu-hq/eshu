@@ -43,6 +43,7 @@ const (
 	RepoDependencyFamilyOduName                 = familyodu.RepoDependencyFamilyOduName
 	RepositoryFactKind                          = familyodu.RepositoryFactKind
 	S3LogsToFamilyOduName                       = familyodu.S3LogsToFamilyOduName
+	SemanticEntityContainmentFamilyOduName      = familyodu.SemanticEntityContainmentFamilyOduName
 	SharedFollowupFactKind                      = familyodu.SharedFollowupFactKind
 	ShellExecFamilyOduName                      = familyodu.ShellExecFamilyOduName
 	SubmodulePinFamilyOduName                   = familyodu.SubmodulePinFamilyOduName
@@ -164,6 +165,12 @@ func S3LogsToFamilyOdu() CatalogOdu { return familyodu.S3LogsToFamilyOdu() }
 // KubernetesCorrelationFamilyOdu returns the cataloged Kubernetes
 // correlation family Odù.
 func KubernetesCorrelationFamilyOdu() CatalogOdu { return familyodu.KubernetesCorrelationFamilyOdu() }
+
+// SemanticEntityContainmentFamilyOdu returns the cataloged semantic
+// entity containment family Odù.
+func SemanticEntityContainmentFamilyOdu() CatalogOdu {
+	return familyodu.SemanticEntityContainmentFamilyOdu()
+}
 
 // IAMInstanceProfileRoleFamilyOdu returns the cataloged instance-profile-role family Odù.
 func IAMInstanceProfileRoleFamilyOdu() CatalogOdu {
