@@ -44,6 +44,9 @@
 
 ## What NOT to change without an ADR
 
+- Do not edit `FixtureDirPattern` without the SQL-versus-Go parity test in
+  `internal/storage/postgres` and a content-version bump: it decides which
+  manifests are producers in two parsers and two SQL anchors.
 - Do not change `BasePayload` bucket names or default bucket types without a
   fact-materialization plan.
 - Do not move registry dispatch or parser runtime caching into this package.

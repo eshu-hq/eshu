@@ -195,6 +195,11 @@ tests:
     class: postgres_ci
     reason: "#7601 disposable PostgreSQL 18 proof of the composer.json producer leg for PHP package keys: nested manifests anchor, vendor/ manifests and package.json lookalikes do not, dirty composer scopes are scanned, npm and composer names read their own manifests in one request, and an unpublished composer key issues no scan; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/active_symbol_loader_package_fixture_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8244 disposable PostgreSQL 18 proof that a package.json under a test, tests, fixtures, testdata, or examples directory is not a package producer (a real manifest of the same name still anchors, substring look-alikes still anchor), and that the one fixture pattern evaluates identically in PostgreSQL ~ and Go regexp on a path corpus including the long s; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/content_files_generation_tag_live_test.go
     tag: ~
     class: postgres_ci

@@ -35,7 +35,14 @@ one. It is a leaf package: nothing here may import `javascript`.
 - `NearestPackageRoot(repoRoot, path) (string, bool)` — closest owning
   `package.json` directory for a source path.
 - `NearestPackageName(repoRoot, path) string` — the trimmed `name` of the
-  nearest `package.json`, or `""` when it has none (#7601 `package_id`).
+  nearest `package.json`, or `""` when it has none. It is package placement
+  (`node_package_name`) and stays ungated: a file under a fixture manifest keeps
+  its owning package name.
+- `ProducerPackageName(repoRoot, path) string` — the same name, except `""`
+  when the nearest manifest sits under a test, tests, fixtures, testdata, or
+  examples directory (`shared.FixtureDirPattern`, whole segments, any ASCII
+  letter case; #8244). It never falls through to an outer manifest. It feeds
+  `package_id` (#7601). `PackageNames` returns both from one walk.
 - `DeclaredDependencies(repoRoot, path) map[string]struct{}` — union of the
   dependency, dev, peer, and optional dependency names of every `package.json`
   from the file up to the repo root (#7601 consumer keys).

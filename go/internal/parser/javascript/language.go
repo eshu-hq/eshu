@@ -371,8 +371,9 @@ func Parse(
 
 	annotatePackageImportCalls(payload, root, source, parents, repoRoot, path)
 	// node_package_name is the nearest package.json name that owns this file
-	// (#7610). It reuses the producer stamper's already-computed name, so no
-	// manifest is read twice. The reducer unions the names per repository: an
+	// (#7610). It reuses the stamper's already-computed ungated nearest name, so
+	// no manifest is read twice. It stays set under a fixture-directory manifest
+	// (#8244): it records placement, while only package_id is gated. The reducer unions the names per repository: an
 	// unresolved package key to a same-repository workspace package keeps its
 	// repo-unique fallback, while a key to an external package never falls
 	// back to a same-named local declaration. Absent when no manifest owns

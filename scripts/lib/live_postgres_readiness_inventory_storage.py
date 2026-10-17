@@ -292,6 +292,10 @@ STORAGE_PACKAGES = {
             "TestReducerContentionGateActiveCodeCallSymbolLoaderKeepsNpmAndComposerNamesApart",
             "TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsScanForUnpublishedComposerPackage",
         ),
+        "go/internal/storage/postgres/active_symbol_loader_package_fixture_live_test.go": (
+            "TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsFixturePackageManifests",
+            "TestFixtureDirPatternAgreesBetweenPostgresAndGo",
+        ),
         "go/internal/storage/postgres/active_code_call_symbols_ahead_manifest_live_test.go": (
             "TestReducerContentionGateActiveCodeCallSymbolLoaderAheadManifestKeepsProducer",
             "TestReducerContentionGateActiveCodeCallSymbolLoaderSupersedeThenDeltaHole",

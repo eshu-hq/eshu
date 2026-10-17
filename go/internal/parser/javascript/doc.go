@@ -45,7 +45,8 @@
 // in-repo like a tsconfig.json one, so it sets resolved_source and stays
 // unkeyed even when the name is also declared (#7613). Every file also
 // carries node_package_name, the nearest package.json name that owns it
-// (absent when no manifest does); the reducer unions the names per
+// (absent when no manifest does; kept under a test or fixture manifest, whose
+// package_id is not stamped, #8244); the reducer unions the names per
 // repository so an unresolved package key to a same-repository workspace
 // package keeps its repo-unique fallback while a key to an external package
 // never falls back to a same-named local declaration (#7610).

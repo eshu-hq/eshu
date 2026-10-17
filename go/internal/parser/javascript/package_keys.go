@@ -34,7 +34,14 @@ var packageKeyCallKinds = map[string]struct{}{
 // packageExportStamper stamps package_id and export_name on the exported
 // top-level declarations of one file.
 type packageExportStamper struct {
+	// packageName is the nearest package.json name that owns the file
+	// (node_package_name, package placement). It is kept even under a fixture
+	// manifest.
 	packageName string
+	// producerName is the name the nearest manifest publishes: packageName,
+	// except empty under a fixture-style directory (#8244). Only it becomes
+	// package_id.
+	producerName string
 	// entryFile is true when the manifest's main or module field names this
 	// file. Only such a file's default export is the package's default export.
 	// An exports target is not enough: a subpath pattern ("./plugin/*") marks
@@ -44,17 +51,19 @@ type packageExportStamper struct {
 }
 
 func newPackageExportStamper(repoRoot string, path string, fileRootKinds []string, parents *syntax.ParentLookup) packageExportStamper {
+	packageName, producerName := project.PackageNames(repoRoot, path)
 	return packageExportStamper{
-		packageName: project.NearestPackageName(repoRoot, path),
-		entryFile:   slices.Contains(fileRootKinds, "javascript.node_package_entrypoint"),
-		parents:     parents,
+		packageName:  packageName,
+		producerName: producerName,
+		entryFile:    slices.Contains(fileRootKinds, "javascript.node_package_entrypoint"),
+		parents:      parents,
 	}
 }
 
 // stamp adds the producer keys to item when node is a top-level exported
 // declaration of a file owned by a named package. A nil item is ignored.
 func (s packageExportStamper) stamp(item map[string]any, node *tree_sitter.Node) {
-	if item == nil || s.packageName == "" {
+	if item == nil || s.producerName == "" {
 		return
 	}
 	name, _ := item["name"].(string)
@@ -62,7 +71,7 @@ func (s packageExportStamper) stamp(item map[string]any, node *tree_sitter.Node)
 	if exportName == "" {
 		return
 	}
-	item["package_id"] = s.packageName
+	item["package_id"] = s.producerName
 	item["export_name"] = exportName
 }
 

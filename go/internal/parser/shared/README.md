@@ -12,6 +12,14 @@ options also carry the empty-method-list convention used when an imported
 package can reach exported methods through an escaped interface value and the
 qualified roots for imported receiver method calls.
 
+`FixtureDirPattern` and `InFixtureDir` are the one path rule for package
+manifests that are test scaffolding, not producers (#8223, #8244): whole
+directory segments named test, tests, fixtures, testdata, or examples, in any
+ASCII letter case, spelled as bracket classes so Go and PostgreSQL agree on a
+path such as one holding the long s. The composer and package.json producer
+anchors embed the constant in SQL and the composer and JavaScript parsers apply
+it, so no side retypes it.
+
 ## Dependency boundary
 
 ```mermaid
