@@ -437,6 +437,9 @@ func (s GenerationRetentionStore) pruneCandidates(
 			maps.Copy(result.RowsPruned, result.FactKeyRowsPruned)
 			return 0, err
 		}},
+		// Lock the work rows the delete cascades to in the queue's shared
+		// order first (#8261); timed with the delete it prepares.
+		{GenerationRetentionPhaseDeleteGenerations, "", deleteWith(lockPrunedGenerationWorkItemsQuery)},
 		{GenerationRetentionPhaseDeleteGenerations, "scope_generations", deleteWith(deleteScopeGenerationsForRetentionQuery)},
 	}
 	for _, step := range steps {

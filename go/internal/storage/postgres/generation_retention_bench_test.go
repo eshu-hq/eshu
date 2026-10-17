@@ -115,7 +115,7 @@ func generationRetentionExecResults(
 	contentFiles int64,
 	scopeGenerations int64,
 ) []sql.Result {
-	results := make([]sql.Result, 0, eventCount+8)
+	results := make([]sql.Result, 0, eventCount+9)
 	for i := 0; i < eventCount; i++ {
 		results = append(results, fakeRowsAffected{})
 	}
@@ -130,6 +130,10 @@ func generationRetentionExecResults(
 		fakeRowsAffected{n: contentEntities},
 		fakeRowsAffected{n: infraOrphans},
 		fakeRowsAffected{n: contentFiles},
+		// The pruned generations' work rows are locked in work_item_id
+		// COLLATE "C" order before the scope_generations delete cascades to
+		// them (#8261); its row count is ignored.
+		fakeRowsAffected{},
 		fakeRowsAffected{n: scopeGenerations},
 	)
 	return results
