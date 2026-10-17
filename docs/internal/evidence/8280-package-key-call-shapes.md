@@ -108,8 +108,9 @@ Parser tests, on `parser.DefaultEngine`, one file per shape:
   `TestDefaultEngineParsePathTypeScriptStampsConsumerStaticMemberKeys`,
   `TestDefaultEngineParsePathTypeScriptSkipsShadowedMethodKeys`,
   `TestDefaultEngineParsePathTypeScriptSkipsStaticMembersOfShadowedImports`,
-  `TestDefaultEngineParsePathSkipsMemberKeysTheOpenRuleMisses`, and
-  `TestDefaultEngineParsePathSkipsMemberKeysInFilesWithWith`, plus the
+  `TestDefaultEngineParsePathSkipsMemberKeysTheOpenRuleMisses`,
+  `TestDefaultEngineParsePathSkipsMemberKeysInFilesWithWith`, and
+  `TestDefaultEngineParsePathKeepsTheOpenRuleForPlainCalls`, plus the
   construct table `TestDefaultEngineParsePathKeysStaticMembersOnlyUnderTheClosedRule`
   in `go/internal/parser/javascript/engine_package_member_constructs_test.go`.
 - PHP instance methods, `go/internal/parser/php/package_keys_instances_test.go`:
@@ -142,8 +143,13 @@ Four #7601 rows changed on purpose: `render.member()` now keys
 `#default.member`, `fmt.nested.deep()` keys `#nested.deep`, a public PHP
 instance method keys `->`, and `helper()` under `use function` keys
 `function:`. The #7601 JS plain-call keys are otherwise byte-identical to
-main: over the 49-repository QA sample (below) the base and head parsers emit
-the same 21,548 #7601-form JS/TS keys, compared line by line.
+main: `redeclaredImportNames` and `isBindingIdentifier` are unchanged (review
+F11 removed a TS `module` kind an earlier fix had added), and over the
+49-repository QA sample (below) the base and head parsers emit the same
+21,548 #7601-form JS/TS keys, compared line by line.
+`TestDefaultEngineParsePathKeepsTheOpenRuleForPlainCalls` pins a `module fmt {}`
+rebinding: both `fmt.f()` calls keep their #7601 key as on main (the inner one
+is the #8310 hole), while the file's new member key stays unkeyed.
 
 Correlation truth matrix (reducer, parser-backed, one file per shape under
 `go/internal/reducer/code/call/`: `cross_repo_static_member_keys_test.go`,
@@ -273,6 +279,13 @@ definition load` log counts package keys and producer scopes.
   alias, a using declaration, a `\u` escape, or a sloppy-mode eval var that
   rebinds the import name, and a `with` statement, can leave such a call keyed
   to the package. The #8280 member keys are closed against all of these.
+- Producer side, JS/TS: a static method that its own file reassigns through
+  the class name (`Class.m = ...`, `Class["m"] = ...`, `Object.assign(Class,
+  ...)`, `Object.defineProperty(Class, ...)`, `delete Class.m`, a destructuring
+  write) or that another file rewrites is still keyed. The edge then points at
+  the original definition, which a wrapper usually calls. A field, a parameter
+  property, or a `this.<name> =` write in the class body does drop the key.
+  Tracked with the #8310 follow-up list.
 - Recall: a typed parameter or property (`Logger $l`, `$this->logger->m()`), an
   interface-typed receiver, an inherited or trait method, and a re-exported
   class are misses, never links. A JS/TS import name used anywhere outside the
