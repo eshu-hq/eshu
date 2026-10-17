@@ -48,7 +48,7 @@ func retentionCascadeLocker(ctx context.Context, db *sql.DB) ([]string, error) {
 // (dead letters of any generation). Each pair runs in both start orders
 // through the held middle row. Every target row must end deleted.
 func TestRetentionCascadeHeldRowRaceLive(t *testing.T) {
-	f := openUnorderedLockerFixture(t)
+	f := openUnorderedLockerFixture(t, true)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	f.seedLockerScope(t, ctx, "rt", "rt-g2")
@@ -108,7 +108,7 @@ func (f *lockOrderFixture) seedRetentionGeneration(t *testing.T, ctx context.Con
 // step selects by generation only, exactly the rows the cascade deletes,
 // whatever their status.
 func TestRetentionCascadeDeletesRowChangedBeforeItsLockLive(t *testing.T) {
-	f := openUnorderedLockerFixture(t)
+	f := openUnorderedLockerFixture(t, false)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	f.seedLockerScope(t, ctx, "rt", "rt-g2")
@@ -144,7 +144,7 @@ func TestRetentionCascadeDeletesRowChangedBeforeItsLockLive(t *testing.T) {
 // dead letters for lockOrderRounds rounds (#8261). Every round must prune
 // the generation and leave none of its rows.
 func TestRetentionCascadeConcurrentWithSweepAndReplaysNeverDeadlockLive(t *testing.T) {
-	f := openUnorderedLockerFixture(t)
+	f := openUnorderedLockerFixture(t, true)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 	f.seedLockerScope(t, ctx, "rt", "rt-g2")

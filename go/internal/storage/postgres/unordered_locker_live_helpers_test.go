@@ -25,9 +25,12 @@ import (
 // production-shaped statistics, and drives the pair through
 // raceThroughHeldRow: the outcome then depends only on the two lock orders.
 
-// openUnorderedLockerFixture bootstraps an isolated schema with the #8205
-// background rows (no #8205 target rows). It skips without a proof DSN.
-func openUnorderedLockerFixture(t *testing.T) *lockOrderFixture {
+// openUnorderedLockerFixture bootstraps an isolated schema, with the #8205
+// background rows when background is set (never the #8205 target rows). The
+// held-row and stress proofs need the background, because their lock orders
+// come from production-shaped plans; the EvalPlanQual proofs do not. It
+// skips without a proof DSN.
+func openUnorderedLockerFixture(t *testing.T, background bool) *lockOrderFixture {
 	t.Helper()
 	dsn := reducerDomainFairnessDSN()
 	if dsn == "" {
@@ -38,12 +41,14 @@ func openUnorderedLockerFixture(t *testing.T) *lockOrderFixture {
 	base, schema := openReducerFairnessDBWithSchema(t, ctx, dsn)
 	f := &lockOrderFixture{dsn: dsn, schema: schema, base: base, at: time.Now().UTC().Add(-time.Hour).Truncate(time.Second)}
 	started := time.Now()
-	f.seedBackground(t, ctx)
+	if background {
+		f.seedBackground(t, ctx)
+	}
 	var collation string
 	if err := base.QueryRowContext(ctx, `SELECT datcollate FROM pg_database WHERE datname = current_database()`).Scan(&collation); err != nil {
 		t.Fatalf("read database collation: %v", err)
 	}
-	t.Logf("seeded background in %s; database collation %s", time.Since(started).Round(time.Millisecond), collation)
+	t.Logf("seeded (background %t) in %s; database collation %s", background, time.Since(started).Round(time.Millisecond), collation)
 	return f
 }
 

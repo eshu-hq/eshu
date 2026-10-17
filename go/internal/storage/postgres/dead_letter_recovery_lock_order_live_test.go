@@ -42,7 +42,7 @@ var poisonLockOrderCases = []poisonLockOrderCase{
 // held middle row makes the outcome depend only on the two orders. Poison
 // and the replays together must re-drive each row exactly once.
 func TestPoisonRecoveryHeldRowRaceLive(t *testing.T) {
-	f := openUnorderedLockerFixture(t)
+	f := openUnorderedLockerFixture(t, true)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	// Keep the background projector dead-letter tail out of the poison batch.
@@ -124,7 +124,7 @@ func (f *lockOrderFixture) analyzeLockerTables(t *testing.T, ctx context.Context
 // budget (another sweep re-drove the row and it dead-lettered again). Poison
 // recovery must drop the row and re-drive only the other two.
 func TestPoisonRecoveryDropsRowChangedBeforeItsLockLive(t *testing.T) {
-	f := openUnorderedLockerFixture(t)
+	f := openUnorderedLockerFixture(t, false)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	lockOrderExec(t, ctx, f.base, `
@@ -209,7 +209,7 @@ func poisonRecoveryLocker(ctx context.Context, db *sql.DB) ([]string, error) {
 // mixed-case dead letters for lockOrderRounds rounds (#8261). Every round
 // must end with each row re-driven exactly once and pending.
 func TestPoisonRecoveryConcurrentWithReplaysNeverDeadlockLive(t *testing.T) {
-	f := openUnorderedLockerFixture(t)
+	f := openUnorderedLockerFixture(t, true)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	lockOrderExec(t, ctx, f.base, `
