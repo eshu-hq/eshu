@@ -20,8 +20,8 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 	// DocumentationHandler.listFacts reads the collected documentation fact
 	// family from fact_records via (*ContentReader).documentationFacts: the
 	// IN (...) list is built from docs.*FactKind constants
-	// (go/internal/query/documentation_read_model.go:359-367). The list also
-	// includes facts.SemanticDocumentationObservationFactKind (line 366) —
+	// (go/internal/query/documentation_facts.go:387-396). The list also
+	// includes facts.SemanticDocumentationObservationFactKind (line 394) —
 	// semantic observation rows genuinely return through this route, hence
 	// the disclosure.
 	"GET /api/v0/documentation/facts": {
@@ -45,7 +45,7 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 			Domain: "semantic_entity_materialization",
 			Reason: "documentationCollectedFactKindSQLList includes semantic.documentation_observation, so semantic observation rows are returned by this route's facts listing; the semantic family's own declared read surface is GET /api/v0/semantic/documentation-observations",
 			Evidence: []routeReadEvidence{
-				{File: "go/internal/query/documentation_read_model.go", Marker: "facts.SemanticDocumentationObservationFactKind"},
+				{File: "go/internal/query/documentation_facts.go", Marker: "facts.SemanticDocumentationObservationFactKind"},
 			},
 		}},
 	},

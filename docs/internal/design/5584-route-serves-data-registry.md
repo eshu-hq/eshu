@@ -86,7 +86,7 @@ The gate's independence from the backing map is tiered, not absolute:
 
 | Route | Handler.method | Served domain(s) | Load-bearing query evidence |
 | --- | --- | --- | --- |
-| GET /api/v0/documentation/facts | DocumentationHandler.listFacts | documentation_materialization | `(*ContentReader).DocumentationFacts` IN-list from `facts.Documentation*FactKind` (query/documentation_read_model.go:359-367) over `fact_records` |
+| GET /api/v0/documentation/facts | DocumentationHandler.listFacts | documentation_materialization | `(*ContentReader).DocumentationFacts` IN-list from `facts.Documentation*FactKind` (query/documentation_facts.go:387-396) over `fact_records` |
 | GET /api/v0/cloud/inventory | CloudInventoryHandler.listInventory | aws_cloud_runtime_drift, azure_resource_materialization, gcp_resource_materialization | `fact_kind = 'reducer_cloud_resource_identity'` (query/cloud_inventory_read_model.go:22,88); producer: reducer/cloud_inventory_admission_writer.go:18 fed by the closed set {aws_resource, gcp_cloud_resource, azure_cloud_resource} (projector/cloud/inventory/reducer_intent.go) |
 | GET /api/v0/ci-cd/run-correlations | cicd.Handler.listRunCorrelations | ci_cd_run_correlation | `fact.fact_kind = $1` = `reducer_ci_cd_run_correlation` (query/cicd/run_correlations.go); writer reducer/ci_cd_run_correlation_writer.go:17 |
 | GET /api/v0/repositories | RepositoryHandler.listRepositories | code_graph_projection | `MATCH (r:Repository)` page + count Cypher (query/repository/handler.go:66,164-171) |
@@ -110,7 +110,7 @@ The gate's independence from the backing map is tiered, not absolute:
 
 | Route | Domain | Why not served |
 | --- | --- | --- |
-| documentation/facts | semantic_entity_materialization | the collected IN-list includes `semantic.documentation_observation` (documentation_read_model.go:366), so semantic rows return here too; the family's declared surface is the semantic route |
+| documentation/facts | semantic_entity_materialization | the collected IN-list includes `semantic.documentation_observation` (documentation_facts.go:394), so semantic rows return here too; the family's declared surface is the semantic route |
 | incidents/{id}/context | kubernetes_correlation, ci_cd_run_correlation | runtime-evidence enrichment reads (incident_context_runtime_sql.go:30,50) decorating the incident response |
 | sbom-attestations/attachments | container_image_identity | `reducer_container_image_identity` appears only in the missing-evidence CTE (sbom_attestation_attachments.go:253) |
 | codeowners/ownership | service_catalog_correlation | effective-owner precedence enrichment via `h.Correlations` (codeowners/ownership.go:175) |
