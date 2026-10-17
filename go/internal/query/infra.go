@@ -391,6 +391,7 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var rows []map[string]any
+	var broadCapped bool
 	var err error
 	if isArgoCDCategoryOnly(
 		query,
@@ -416,7 +417,10 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 		if neo4jScoped {
 			searchKeyRequest.ScopePredicate = infraResourceScopeListPredicate("n")
 		}
-		rows, err = h.SearchKey.Rows(r.Context(), h.Neo4j, searchKeyRequest)
+		// RowsBounded reports the #7245 broad-class cap hit; a capped page is
+		// explicitly incomplete even when it holds fewer rows than the
+		// limit, so the hit joins the over-fetch signal in truncated.
+		rows, broadCapped, err = h.SearchKey.RowsBounded(r.Context(), h.Neo4j, searchKeyRequest)
 	}
 	if err != nil {
 		writeReadFailure(w, r, err, "platform_impact.deployment_chain", infraResourceSearchFailedMessage)
@@ -476,6 +480,6 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 		"results":   results,
 		"count":     len(results),
 		"limit":     req.Limit,
-		"truncated": len(rows) > req.Limit,
+		"truncated": len(rows) > req.Limit || broadCapped,
 	}, BuildTruthEnvelope(h.profile(), "platform_impact.deployment_chain", TruthBasisHybrid, "resolved from infrastructure graph search"))
 }

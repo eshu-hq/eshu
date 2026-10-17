@@ -180,10 +180,10 @@ check "pull_request run on the same sha is ignored" "$(out_has 'state=green' && 
 new_case ruleset-red "${TIP}"
 green_runs
 ruleset_run failure
-failing_job 70 701 'verify-live-ruleset' $'ruleset 19745843 (main protection) does not own one merge_queue rule\n##[error]Process completed with exit code 1.'
+failing_job 70 701 'verify-live-ruleset' $'ruleset 19745843 (main protection) does not own exactly one required-status rule\n##[error]Process completed with exit code 1.'
 run_watcher
 check "ruleset verifier red with green CI: red" "$(out_has 'state=red' && echo 0 || echo 1)"
-check "ruleset verifier red: routed into the main-health issue with its verdict line" "$(called 'verify-live-ruleset.*does not own one merge_queue rule' && echo 0 || echo 1)"
+check "ruleset verifier red: routed into the main-health issue with its verdict line" "$(called 'verify-live-ruleset.*does not own exactly one required-status rule' && echo 0 || echo 1)"
 check "ruleset verifier red: still exactly one issue" "$([ "$(count_calls "${ISSUES_POST}")" -eq 1 ] && echo 0 || echo 1)"
 
 # P2-1: the ruleset probe fails closed. Any conclusion but success is red

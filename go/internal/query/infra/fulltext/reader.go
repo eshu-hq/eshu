@@ -64,32 +64,22 @@ type Request struct {
 // request instead, so a caller never gets partial rows or a full-text error.
 // It records the chosen path on the span in ctx and on the path counter.
 func (r *Reader) Rows(ctx context.Context, run Runner, req Request) ([]map[string]any, error) {
-	enabled := r != nil && r.Enabled
-	var state State
-	if r != nil {
-		state = r.Readiness.Current()
-	}
-	path, reason := Select(enabled, req.Neo4j, req.Query, state)
+	rows, _, err := r.RowsBounded(ctx, run, req)
+	return rows, err
+}
+
+// rowsPlain runs one search without the broad-class bound: the full-text
+// statement for selective reads, else the legacy statement.
+func (r *Reader) rowsPlain(ctx context.Context, run Runner, req Request, path Path, reason Reason) ([]map[string]any, error) {
 	if path == PathFulltext {
-		rows, err := run.Run(ctx, r.statement(req), r.params(req))
-		if err == nil {
-			r.observe(ctx, PathFulltext, ReasonReady)
-			return rows, nil
-		}
-		if ctx.Err() != nil {
-			r.observe(ctx, PathFulltext, ReasonFTError)
+		rows, direct, err := r.runFulltextOrFallback(ctx, run, req, r.statement(req), r.params(req))
+		if err != nil {
 			return nil, err
 		}
-		// No raw driver error here: it can echo statement text. The graph
-		// reader already logged the failed read with its bounded class.
-		if r.Logger != nil {
-			r.Logger.WarnContext(ctx, "infra search full-text read failed; serving the legacy statement",
-				telemetry.EventAttr("query.infra_search_key.fulltext_fallback"),
-				"search_path", string(PathLegacy),
-				"reason", string(ReasonFTError),
-			)
+		if direct {
+			r.observe(ctx, PathFulltext, ReasonReady)
 		}
-		path, reason = PathLegacy, ReasonFTError
+		return rows, nil
 	}
 	r.observe(ctx, path, reason)
 	return run.Run(ctx, req.Legacy, req.Params)

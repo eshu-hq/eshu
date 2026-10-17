@@ -61,9 +61,14 @@ source_coverage:
   - file: entity/workload_runtime_topology.go
     calls:
       - {symbol: "FetchWorkloadRuntimeTopology", count: 1, source_sha256: fba1d35021a684db7c0a543bd189b33ffe9b77f9d82d79119242cb1ca0f08619, entry_ids: [QP-SVC-RUNTIME-TOPOLOGY]}
+  - file: infra/fulltext/broad.go
+    calls:
+      - {symbol: "(*Reader).rowsBroad", count: 1, source_sha256: fcaece25f9b48f2d65afe9bcf83d9b100be798e93f9c8b6a902c9f18915d0d87, entry_ids: [QP-INFRA-RESOURCE-SEARCH, QP-INFRA-RESOURCE-SEARCH-FULLTEXT]}
+      - {symbol: "(*Reader).runFulltextOrFallback", count: 1, source_sha256: 14a0eb427eb035298e1d87bdd8017dd99b1d5cf3e234bf94aa37d14ce3f428e4, entry_ids: [QP-INFRA-RESOURCE-SEARCH, QP-INFRA-RESOURCE-SEARCH-FULLTEXT]}
+      - {symbol: "(*Reader).serveLegacyAfterFTError", count: 1, source_sha256: 4eba7eb53e1b9db0f6891ff373628827470c8974bfdd76dabfe8ffe2b742f373, entry_ids: [QP-INFRA-RESOURCE-SEARCH, QP-INFRA-RESOURCE-SEARCH-FULLTEXT]}
   - file: infra/fulltext/reader.go
     calls:
-      - {symbol: "(*Reader).Rows", count: 2, source_sha256: dbb158b35141c0c85aa3ed30708e92dd7029e55137e3b78d7c216f5d03274603, entry_ids: [QP-INFRA-RESOURCE-SEARCH, QP-INFRA-RESOURCE-SEARCH-FULLTEXT]}
+      - {symbol: "(*Reader).rowsPlain", count: 1, source_sha256: 1b085c81b05619b462b163fff8278b14c7ed95ce6ca4ebf43b5eb807ceb51be5, entry_ids: [QP-INFRA-RESOURCE-SEARCH, QP-INFRA-RESOURCE-SEARCH-FULLTEXT]}
   - file: infra_argocd_search.go
     calls:
       - symbol: "(*InfraHandler).searchArgoCDCategoryRows"

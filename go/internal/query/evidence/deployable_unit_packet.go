@@ -84,7 +84,7 @@ func (h *Handler) getDeployableUnitPacket(w http.ResponseWriter, r *http.Request
 			w,
 			r,
 			http.StatusServiceUnavailable,
-			"deployable-unit packets require the Postgres admission decision read model",
+			"deployable-unit packet responder not configured",
 			querycontract.ErrorCodeBackendUnavailable,
 			AdmissionDecisionCapability,
 			h.profile(),
