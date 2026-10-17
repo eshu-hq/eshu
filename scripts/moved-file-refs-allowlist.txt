@@ -236,6 +236,10 @@ docs/internal/evidence/6206-unwritten-entity-labels.md:go/internal/collector/git
 docs/internal/evidence/5847-container-image-identity-retire.md:go/internal/collector/ociregistry/ociruntime/config_provenance.go
 docs/internal/evidence/6590-tier-cardinality.md:go/internal/collector/ociregistry/identity.go
 docs/internal/evidence/7110-collector-transient-transport.md:go/internal/collector/ociregistry/ociruntime/transport.go
+# ... and the burn-down row that mirrors that citation. The baseline records the
+# doc's citation verbatim, so it necessarily carries the same historical path;
+# rewriting it here without rewriting the doc would desynchronise the two.
+scripts/docs-citations-baseline.txt:go/internal/collector/ociregistry/ociruntime/config_provenance.go
 
 # #6781 Part B: the terraform_state row of this dated integration matrix cites
 # the projector's canonical path alongside nine other file:line citations on the
