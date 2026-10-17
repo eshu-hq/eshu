@@ -206,11 +206,9 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 		"infra_resource_entities":             1,
 		"content_files":                       1,
 		// #7396: the cascade children of scope_generations the count
-		// query must include so BatchRowLimit and the retention events
-		// stop under-counting the prune. (eshu_search_index_terms_shadow
-		// from the issue list is a transient migration artifact that the
-		// migrated schema never contains; activation_obligations landed
-		// after the issue and belongs to the same class.)
+		// query must include so BatchRowLimit and the events stop
+		// under-counting. (terms_shadow is a transient artifact the
+		// schema never contains; activation_obligations landed later.)
 		"activation_obligations":                  1,
 		"producer_activation_obligations":         1,
 		"admission_decisions":                     1,
@@ -238,6 +236,8 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 		"relationship_reference_candidate_keys": 1,
 		"content_file_secret_lines":             2,
 		"shared_projection_unroutable_intents":  3,
+		// #8300: the fingerprint sidecar on fact_work_items; this fixture writes none.
+		"deployable_unit_reopen_fingerprints": 0,
 		// The changed-since link ledger (#7127 ruling 2.8); this fixture
 		// writes none of it.
 		"changed_since_activations":        0,
