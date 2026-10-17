@@ -84,9 +84,8 @@ capped form (`CappedUnscopedStatement` / `CappedScopedStatement`): same
 labels and `whereExtra`, with `WITH n LIMIT 1000` between the label filter
 and the recheck, before `DISTINCT` / `ORDER BY` / the grant predicate, so at
 most K rows ever reach them. A capped page always carries its marker:
-`truncated=true` in the response (`Truncated=true` on the handler result,
-`RowsBounded=true`), plus the `eshu.infra_search_broad_capped=true` span
-attribute. Worst case per broad page is about 1001 probe rows plus at most
+`truncated=true` in the response, plus the
+`eshu.infra_search_broad_capped=true` span attribute. Worst case per broad page is about 1001 probe rows plus at most
 1000 candidates through the recheck. Probe and read failures keep the
 `Rows` contract: a canceled context returns the error with no fallback,
 otherwise the legacy statement answers once.
