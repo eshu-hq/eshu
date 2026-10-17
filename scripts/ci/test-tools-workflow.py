@@ -64,8 +64,8 @@ class ToolsWorkflowTest(unittest.TestCase):
     def test_existing_blocking_cell_runs_image_regressions(self) -> None:
         """New image checks must run inside the unchanged Docker Hub gate cell."""
         source = WORKFLOW.read_text(encoding="utf-8")
-        # 32nd cell is workflowscriptcheckout (#8008), not an image check.
-        # 33rd cell is the readinessderive drift gate (#7859), not an image check.
+        # 31st cell is workflowscriptcheckout (#8008), not an image check.
+        # 32nd cell is the readinessderive drift gate (#7859), not an image check.
         self.assertEqual(source.count('          append_gate "${{ steps.filter.outputs.'), 33)
         cell = next(
             line for line in source.splitlines()
