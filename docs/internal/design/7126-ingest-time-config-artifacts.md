@@ -133,12 +133,14 @@ sessions that do not derive.
    check: five fence triggers (protocol companion, section 2; arb-8155-f1)
    must exist in `pg_trigger`, the four `content_files_version_fence_*` on
    `content_files` and `config_artifact_fence_pending_commit`. If one is
-   missing, they skip every derive with outcome `fence_missing` and
-   report `not_installed` with reason `version_fence_missing`. A dropped or
-   disabled trigger then fails loud and does not serve stale rows as
-   trusted. The detection is ruled. The mechanism is **Proposed**: the check
-   requires `tgenabled IN ('O','A')`, so a disabled (`D`) or replica-only
-   (`R`) trigger counts as missing. The Write proceeds, and reads stay live.
+   missing, they skip every derive with outcome `fence_missing` and report
+   `not_installed` with reason `version_fence_missing`. A failed catalog
+   read records `fence_missing` too, reason `fence_check_failed` (ruling
+   2026-10-17). A dropped or disabled trigger then fails loud and does not
+   serve stale rows as trusted. The detection is ruled. The mechanism is
+   **Proposed**: the check requires `tgenabled IN ('O','A')`, so a disabled
+   (`D`) or replica-only (`R`) trigger counts as missing. The Write
+   proceeds, and reads stay live.
 
 This departs from #6793. `deriveInfraInventory` fails the Write, which is
 right for a SQL-only copy. The config derive runs Go regexes and `yaml.v3`

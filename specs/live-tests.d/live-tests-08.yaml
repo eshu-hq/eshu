@@ -99,3 +99,8 @@ tests:
     class: postgres_ci
     reason: "#8155 (#7126 PR3b-2b) derive ordering and failure semantics: a content write injected between the version read and the list leaves state.content_version = v0 below the version (Classify stale_version); pg_locks and pg_stat_activity show no advisory lock and no open transaction during extraction and one lock inside step 3; an older extractor never replaces a newer extractor's rows; a superseded derive and a failed insert (SQLSTATE 22021) leave the rows and trust columns unchanged; a timeout and a panic write a failure-only state row; about 19 s locally; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/config/artifacts/derive_lock_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8155 (#7126 PR3b-2b) one repository lock for the write and the failure-only update: a failing derive's failure record waits on the advisory lock a newer successful write holds, and the held and waiting pg_locks keys both equal hashtextextended(repoLockKey, 0); 30 rounds racing a newer successful write against a failing derive in both orders never lower content_version or change the rows; about 3-8 s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness

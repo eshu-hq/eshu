@@ -83,5 +83,9 @@ CONFIG_FENCE_PACKAGES = {
             "TestDeriveRollbackLeavesRowsAndStateLive",
             "TestDeriveTimeoutAndPanicRecordFailureOnlyLive",
         ),
+        f"{_FENCE_DIR}/derive_lock_live_test.go": (
+            "TestDeriveFailureRecordWaitsOnTheWriteLockLive",
+            "TestDeriveFailureRecordRacingNewerWritesLive",
+        ),
     },
 }

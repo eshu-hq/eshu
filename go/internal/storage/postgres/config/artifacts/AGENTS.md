@@ -46,12 +46,15 @@ Scoped instructions for the config-artifact read model (#7126). The root
   walker owning a repository.
 - The derive (`derive*.go`) follows protocol section 3 in this order: read
   the version (`contentVersionSQL`) before the list, extract with no lock and
-  no open transaction, then take `repoLockSQL` FIRST in the write
+  no open transaction, then call `lockRepository` FIRST in the write
   transaction and read the state after it. Moving the version read after the
   list, taking the lock earlier, or reading the state before the lock breaks
   the protocol; `derive_order_live_test.go` catches each (mutation table in
-  `docs/internal/evidence/8155-derive-core.md`). `repoLockSQL` is the one definition of the repository
-  lock key; every writer of a repository's rows or state row takes it.
+  `docs/internal/evidence/8155-derive-core.md`). `lockRepository` and
+  `repoLockKey` (`lock.go`) are the one definition of the repository lock;
+  every writer of a repository's rows or state row, the walker included,
+  takes it through them, never a second copy of the key
+  (`TestDeriveWriteAndFailureRecordShareOneRepositoryLock`).
 - `mayWrite` is the write condition. Change it only with the protocol
   companion; `TestMayWriteConditions` pins every branch, including the
   Proposed clause for a failure-only state row.

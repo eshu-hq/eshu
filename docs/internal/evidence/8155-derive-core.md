@@ -46,14 +46,15 @@ content it read, because it reads `v0` before its list.
 
 | Item | Choice | Source |
 |---|---|---|
-| Repository lock | `pg_advisory_xact_lock(hashtextextended('config_artifact_paths:' \|\| repo_id, 0))`, the shape of `infra/inventory`'s `repoLockSQL`, one helper constant (`repoLockSQL` in `derive_sql.go`) | protocol section 3, step 3 (key not specified) |
+| Repository lock | `pg_advisory_xact_lock(hashtextextended(repoLockKey(repo_id), 0))` with `repoLockKey` = `'config_artifact_paths:' \|\| repo_id`, the shape of `infra/inventory`'s `repoLockSQL`, taken only through `lockRepository` (`lock.go`), which the failure-only update and the walker reuse | protocol section 3, step 3 (key not specified); coordinator ruling 2026-10-17 |
 | Write conditions | no state row or `row_count` NULL (**Proposed**, as the protocol marks it), or `v0 > content_version` with extractor at least the stored one, or `v0 = content_version` with a greater extractor | protocol section 3, step 3 |
 | A NULL `content_version` with a non-NULL `row_count` | treated as no successful derive, as `Classify` does | `port.go` |
 | Failure-only update | one upsert under the same repository lock in its own short transaction: `failure_count + 1`, `last_error_class`, `last_failure_at`, `last_failure_extractor_version`. A new row carries the derive's `extractor_version`; an existing row keeps its `extractor_version`, `content_version`, `row_count` and rows | protocol section 3, failure semantics |
 | Failure-update context | `context.WithoutCancel` of the caller plus its own 5 s bound, so a timed-out derive still records its failure | this slice |
 | Deadline | default 10 s, constructor option. It interrupts every statement and is checked again before step 3. A CPU-bound extractor is not preempted: Go cannot stop a goroutine, and abandoning one leaks it. The overrun shows as outcome `timeout` | protocol section 3 |
 | Panic | recovered in the derive goroutine (extractors, row mapping, write). A panic inside a chunk-read goroutine of the neutral package is not recoverable here | protocol section 3 |
-| `fence_check_failed` | maps to outcome `fence_missing`, as `encoding_check_failed` maps to `encoding_unsupported` (`Encoding` godoc) | `fence.go`, `encoding.go` |
+| `fence_check_failed` | maps to outcome `fence_missing`, as `encoding_check_failed` maps to `encoding_unsupported` (`Encoding` godoc); written into decision record section 3.1, item 7 and the protocol's start-up bullet | coordinator ruling 2026-10-17 |
+| `ExtractorVersion` | a required constructor input; the wiring slice supplies it, and the S0 digest guard has not landed | coordinator ruling 2026-10-17 |
 | Counting | no metric in this slice. `DeriveRepository` returns a `Result` (outcome, trigger, duration, counts, error class) for the wiring slice to count | issue claim comment |
 
 ## Proof
@@ -78,6 +79,9 @@ Live tests on a disposable PostgreSQL 18.6 database
 | Older extractor | `TestDeriveOlderExtractorNeverReplacesNewerRowsLive` | superseded at the same and at a newer version; rows and state unchanged |
 | Rollback | `TestDeriveRollbackLeavesRowsAndStateLive` | superseded and failed-insert (`sqlstate_22021`) derives leave rows and trust columns unchanged; `failure_count` 1, then 0 after a success |
 | Failure-only row | `TestDeriveTimeoutAndPanicRecordFailureOnlyLive` | timeout and panic leave `row_count` and `content_version` NULL, `failure_count` 2; a later derive writes (Proposed clause) |
+| One lock key for write and failure | `TestDeriveWriteAndFailureRecordShareOneRepositoryLock` (hermetic), `TestDeriveFailureRecordWaitsOnTheWriteLockLive` | both send `config_artifact_paths:repo-a`; live, the failure update waits on the held write lock, and the held and waiting `pg_locks` keys both equal `hashtextextended(repoLockKey, 0)` |
+| Failure update racing a newer write | `TestDeriveFailureRecordRacingNewerWritesLive` | 30 rounds, both orders (13-17 split over three runs): `content_version` always the current, advancing version, rows from that round |
+| Start-up checks | `TestDeriveMapsEveryStartupCheckResult` (hermetic) | real `CheckEncoding` and `CheckFence` results: both encoding reasons give `encoding_unsupported`, all fence reasons (`fence_check_failed` included) give `fence_missing`, no statement |
 
 Mutation sweep (each mutation applied alone, the named tests run, the file
 restored with `git checkout`):
@@ -93,8 +97,14 @@ restored with `git checkout`):
 | M7 failure update sets `content_version = NULL` | `TestDeriveLoadErrorRecordsFailure`, `TestDeriveRollbackLeavesRowsAndStateLive` |
 | M8 failure update on the canceled derive context | `TestDeriveCanceledCallerIsAnError` |
 | M9 no panic recovery | `TestDeriveRecoversPanic` |
+| M10 failure update locks its own key copy (`repo_id` only) | `TestDeriveWriteAndFailureRecordShareOneRepositoryLock`, `TestDeriveFailureRecordWaitsOnTheWriteLockLive` |
+| M11 failure update takes no lock | `TestDeriveWriteAndFailureRecordShareOneRepositoryLock`, `TestDeriveFailureRecordWaitsOnTheWriteLockLive` |
+| M12 `fence_check_failed` not mapped to `fence_missing` | `TestDeriveMapsEveryStartupCheckResult` |
+| M13 `encoding_check_failed` not mapped to `encoding_unsupported` | `TestDeriveMapsEveryStartupCheckResult` |
+| M14 failure update sets `content_version = content_version - 1` | `TestDeriveFailureRecordRacingNewerWritesLive` |
+| M15 failure update deletes the rows | `TestDeriveFailureRecordRacingNewerWritesLive` |
 
-9 of 9 killed. The write-transaction timings, the `Performance Evidence:`
+15 of 15 killed. The write-transaction timings, the `Performance Evidence:`
 and the `Observability Evidence:` markers are in the package README
 (`go/internal/storage/postgres/config/artifacts/README.md`, section "Evidence
 (PR3b-2b, the derive core)").

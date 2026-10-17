@@ -71,8 +71,10 @@ because each derive rewrites a repository's rows.
   same-named trigger on another table, `'D'` (disabled) and `'R'` (replica
   only) count as missing: the result is reason `version_fence_missing`, the
   read model stays `not_installed`, and the caller skips every derive with
-  outcome `fence_missing`. A failed catalog read gives
-  `fence_check_failed`. Content Writes and live reads proceed either way.
+  outcome `fence_missing`. A failed catalog read gives reason
+  `fence_check_failed` and the same outcome `fence_missing` (coordinator
+  ruling 2026-10-17; `TestDeriveMapsEveryStartupCheckResult` pins every
+  reason). Content Writes and live reads proceed either way.
   `fenceTriggers` in `fence.go` is the only list of names;
   `TestFenceTriggersMatchMigration186` parses the embedded migration 186 and
   fails when its `CREATE TRIGGER` statements diverge.
@@ -135,10 +137,12 @@ docs/internal/evidence/8155-derive-core.md note has the sequence diagram.
    mappers, and runs the extractors with no name. `storedRows` sets
    `NameScoped` from `contentartifacts.NameScoped` and fails on an unknown
    evidence kind or a named row.
-3. **One short transaction.** `repoLockSQL` takes
-   `pg_advisory_xact_lock(hashtextextended('config_artifact_paths:' ||
-   repo_id, 0))` first, then the state row is read on a snapshot taken after
-   the previous holder committed. `mayWrite` allows a write for no state row
+3. **One short transaction.** `lockRepository` (`lock.go`) takes
+   `pg_advisory_xact_lock(hashtextextended(repoLockKey(repo_id), 0))` first,
+   with `repoLockKey` = `'config_artifact_paths:' || repo_id`, then the state
+   row is read on a snapshot taken after the previous holder committed. The
+   failure-only update takes the same lock through the same helper, and the
+   walker reuses it. `mayWrite` allows a write for no state row
    or one with no success (`row_count` or `content_version` NULL, the
    **Proposed** clause), for `v0 >` stored with an extractor version at least
    the stored one, and for `v0 =` stored with a greater extractor version.
@@ -163,6 +167,12 @@ unsupported `Encoding` or `Fence` (including `fence_check_failed`) returns
 
 `last_error_class` is `panic`, `timeout`, `canceled` (the caller's context
 was canceled), `sqlstate_<SQLSTATE>` for a PostgreSQL error, or `error`.
+
+`DeriverConfig.ExtractorVersion` is required and positive. This package
+defines no extractor-version constant: the wiring slice supplies it. The S0
+`extractor_version` digest guard (decision record section 7, "S0 test,
+version guard") has not landed, so nothing yet fails when extractor output
+changes without a version bump.
 
 ## The version fence (PR3b-1b)
 
@@ -255,9 +265,9 @@ Observability Evidence: `CheckFence` logs
 At 3 AM grep for `"event_name":"postgres.config_artifact_fence"` with
 `"level":"ERROR"`; `missing_triggers` names the trigger to restore (re-apply
 migration 186 for a dropped trigger, `ALTER TABLE ... ENABLE TRIGGER` for
-`D` or `R`). `OutcomeFenceMissing` is only a constant here: the
-`eshu_dp_config_artifact_derives_total` counter that carries it is registered
-by a later PR3b-2 slice, so no metric exists yet.
+`D` or `R`). `Deriver.DeriveRepository` returns `OutcomeFenceMissing` for
+both fence reasons; the `eshu_dp_config_artifact_derives_total` counter that
+carries it is registered by a later PR3b-2 slice, so no metric exists yet.
 
 Performance Evidence: the baseline (base branch) runs no fence check; after
 this change the check is one catalog statement per process start, and no
