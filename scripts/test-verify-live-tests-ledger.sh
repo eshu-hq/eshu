@@ -46,6 +46,8 @@ rm -f "${flat_ledger}.again"
 ledger="${flat_ledger}"
 python3 "${repo_root}/scripts/test-live-tests-registry.py" ||
 	fail "fragment loader contract failed"
+python3 "${repo_root}/scripts/test-nornic-ledger-guard-boundary.py" ||
+	fail "Nornic guard import boundary failed"
 
 # ── GREEN: the committed ledger validates on the clean tree ──────────────
 out="$("${script}")" || fail "validator failed on the clean tree"

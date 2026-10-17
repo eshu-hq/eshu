@@ -37,6 +37,13 @@ def production_ledger_fixture(parent: Path) -> Path:
     with tarfile.open(archive) as source:
         source.extractall(checkout, filter="data")
     for name in ("scripts/verify-live-tests-ledger.sh", LEDGER_CHECKER_PATH,
+                 "scripts/lib/nornic_cli_activation_guard.py",
+                 "scripts/lib/nornic_conformance_events.py",
+                 "scripts/lib/nornic_conformance_inventory.json",
+                 "scripts/verify_backend_conformance_live.sh",
+                 "specs/live-tests.d/live-tests-04.yaml",
+                 "specs/live-tests.d/live-tests-04b.yaml",
+                 ".github/workflows/e2e-tests.yml",
                  RUNNER_PATH, INVENTORY_PATH,
                  "scripts/lib/replay_tier_enrollment.py",
                  "scripts/lib/replay_tier_routes.py", "specs/live-tests.v1.yaml",

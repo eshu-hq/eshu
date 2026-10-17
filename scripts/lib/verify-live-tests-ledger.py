@@ -1,15 +1,5 @@
 #!/usr/bin/env python3
-# Live-test ledger integrity check (#6784). Verifies that every
-# *_live_test.go file under go/ is classified in specs/live-tests.v1.yaml
-# with a valid class and a non-blank reason, and that every ledger row
-# names a tracked or present file exactly once. An optional `backends:`
-# line (nornicdb, neo4j, or both; default both) pins which backends the
-# test can run on.
-#
-# Invoked by scripts/verify-live-tests-ledger.sh as a file (not a bash
-# heredoc) so the heredoc-budget gate stays green: Homebrew bash >= 5.1
-# deadlocks on heredoc bodies over 512 bytes.
-#
+# Classify every Go live test and validate its registered runner and proof routes.
 # Usage: verify-live-tests-ledger.py <ledger_path> <repo_root>
 import ast
 import hashlib
@@ -35,6 +25,68 @@ from postgres_scheduled_runner import (
     load_inventory as load_scheduled_inventory,
     verify_inventory as verify_scheduled_inventory,
 )
+
+
+NORNIC_GUARD_SHA256 = "e0c73949c75c0ef605da9367c05d489717ec23f2a17e5370d031acc14746f438"
+
+def verify_nornic_guard_source(path: Path) -> None:
+    """Reject executable helper declarations before importing the CLI guard."""
+    source = path.read_text(encoding="utf-8")
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as error:
+        raise ValueError(f"Nornic guard source integrity syntax error: {error}") from error
+    imports = ast.parse(
+        "from __future__ import annotations\n"
+        "import ast\nimport hashlib\nfrom pathlib import Path\n"
+    ).body
+    prefix = tree.body[:5]
+    if (len(prefix) != 5 or not isinstance(prefix[0], ast.Expr)
+            or not isinstance(prefix[0].value, ast.Constant)
+            or not isinstance(prefix[0].value.value, str)
+            or [ast.dump(node) for node in prefix[1:]]
+            != [ast.dump(node) for node in imports]):
+        raise ValueError("Nornic guard source integrity imports changed")
+    names = (
+        "NORNIC_CLI_SOURCE_SHA256", "NORNIC_CLI_MAIN",
+        "NORNIC_CLI_DISPATCH", "NORNIC_CLI_IMPORTS",
+        "NORNIC_CLI_ASSIGNMENTS", "NORNIC_CLI_VALUE_EXPRESSIONS",
+        "NORNIC_CLI_LITERAL_SETS", "NORNIC_CLI_FUNCTION_SIGNATURES",
+    )
+    declarations = tree.body[5:13]
+    functions = tree.body[13:]
+    if len(declarations) != 8 or len(functions) != 3:
+        raise ValueError("Nornic guard source integrity has extra top-level code")
+    for node, name in zip(declarations, names, strict=True):
+        if (not isinstance(node, ast.Assign) or len(node.targets) != 1
+                or not isinstance(node.targets[0], ast.Name)
+                or node.targets[0].id != name):
+            raise ValueError("Nornic guard source integrity declarations changed")
+        try:
+            ast.literal_eval(node.value)
+        except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError) as error:
+            raise ValueError(f"Nornic guard source integrity executable declaration: {name}") from error
+    for node, name in zip(functions, (
+            "nornic_cli_safe_value", "verify_nornic_cli_activation",
+            "verify_nornic_enrollment"), strict=True):
+        if (not isinstance(node, ast.FunctionDef) or node.name != name
+                or node.decorator_list or node.args.defaults
+                or any(value is not None for value in node.args.kw_defaults)
+                or getattr(node, "type_params", ())):
+            raise ValueError("Nornic guard source integrity executable function")
+    if hashlib.sha256(source.encode()).hexdigest() != NORNIC_GUARD_SHA256:
+        raise ValueError("Nornic guard source integrity digest mismatch")
+
+
+try:
+    verify_nornic_guard_source(Path(__file__).with_name(
+        "nornic_cli_activation_guard.py"))
+except (OSError, ValueError) as error:
+    sys.exit(f"Nornic guard source integrity failed: {error}")
+
+from nornic_cli_activation_guard import verify_nornic_enrollment  # noqa: E402
+
+
 if len(sys.argv) != 3:
     sys.exit(f"usage: {sys.argv[0]} <ledger_path> <repo_root>")
 ledger_path, repo_root = sys.argv[1], sys.argv[2]
@@ -208,6 +260,7 @@ if not rows:
 
 seen_files = set()
 classes = {}
+nornic_rows = {}
 legacy_scheduled = []
 contention_inventory = load_inventory()
 try:
@@ -228,6 +281,7 @@ for path, tag, cls, reason, runner, backends in rows:
         sys.exit(f"duplicate ledger row: {path}")
     seen_files.add(path)
     classes[path] = cls
+    nornic_rows[path] = (cls, runner, backends)
     if cls not in ("ci", "postgres_ci", "dedicated_ci", "verified_scheduled", "scheduled", "retired"):
         sys.exit(f"invalid class {cls!r} for {path}")
     if cls == "postgres_ci":
@@ -240,7 +294,10 @@ for path, tag, cls, reason, runner, backends in rows:
         if not (readiness or migration) or backends:
             sys.exit(f"PostgreSQL CI row needs its verified runner and tag: {path}")
     elif cls == "dedicated_ci":
-        if runner == "reducer-contention":
+        if runner == "backend-conformance-nornicdb":
+            if tag.strip() != "~" or backends != "nornicdb":
+                sys.exit(f"Nornic conformance row needs untagged NornicDB file: {path}")
+        elif runner == "reducer-contention":
             contention_ledger_paths.add(path)
             if path not in contention_paths or tag.strip() != "~" or backends:
                 sys.exit(f"contention row needs an enrolled untagged PostgreSQL-only file: {path}")
@@ -349,11 +406,16 @@ try:
     verify_identity_routes(Path(repo_root))
 except (OSError, ValueError) as error:
     sys.exit(f"B-7 identity runner enrollment failed: {error}")
+try:
+    verify_nornic_enrollment(
+        Path(repo_root), nornic_rows,
+        Path(__file__).with_name("nornic_conformance_events.py"),
+    )
+except (OSError, ValueError, re.error) as error:
+    sys.exit(f"Nornic conformance runner enrollment failed: {error}")
 
-# The ledger itself lists the exact grandfathered paths. Bind that readable
-# inventory to a fixed digest so a newly scheduled row cannot inherit an
-# exemption merely by carrying a plausible reason. Canonical input is sorted,
-# unique, UTF-8 repo-relative paths with exactly one LF after each path.
+# Bind the grandfathered paths to a fixed digest. Canonical input is
+# sorted unique UTF-8 paths, each followed by one LF.
 legacy_policy = re.search(
     r"^legacy_scheduled_exemptions:\n"
     r"  baseline_main: ([0-9a-f]{40})\n"
@@ -392,11 +454,7 @@ live = sorted(p for p in tracked if p.endswith("_live_test.go"))
 if not live:
     sys.exit("no live test files found; is REPO_ROOT a repo checkout?")
 
-# A live test under a nonstandard filename evades the *_live_test.go rule:
-# any tracked *_test.go carrying a live_* build-tag atom and defining a
-# Test func is a live backend proof too and must be classified. Helper-only
-# files (live tag, no Test funcs) compile into the test binary and are
-# covered transitively through the files that use them.
+# Live-tagged test functions need ledger rows, including nonstandard names.
 nonstandard = []
 for path in tracked:
     if not path.endswith("_test.go") or path.endswith("_live_test.go"):
@@ -428,11 +486,7 @@ for path in sorted(seen_files):
     if not os.path.isfile(full):
         sys.exit(f"ledger row names missing file: {path}")
 
-# A retired row names a file that was a live proof and was repaired in
-# place, so it still exists but no longer meets the live definition. A
-# row for a deleted file is removed in the deleting commit instead: the
-# missing-file check above keeps typos fail-closed. Retiring a file that
-# is still live hides a live proof, so it fails: repair it first.
+# Retired files still exist but are no longer live; deleted files lose rows.
 still_live = [p for p in live if classes.get(p) == "retired"]
 if still_live:
     sys.exit(f"{len(still_live)} retired row(s) name still-live file(s), first: {still_live[:5]}")
