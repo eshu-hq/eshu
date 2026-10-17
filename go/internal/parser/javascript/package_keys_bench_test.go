@@ -119,3 +119,39 @@ func BenchmarkParsePathJavaScriptCorpus(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkParsePathTypeScriptPackageMemberCalls parses one consumer file that
+// works the #8280 member step: 100 classes imported from declared packages,
+// each called statically (so the closed import-name rule scans the file),
+// plus 300 member calls on receivers that are not imports. Compare against the
+// same benchmark on the base commit, where member calls are never keyed.
+func BenchmarkParsePathTypeScriptPackageMemberCalls(b *testing.B) {
+	repoRoot := b.TempDir()
+	dependencies := make([]string, 0, 20)
+	for i := range 20 {
+		dependencies = append(dependencies, fmt.Sprintf("%q: \"1.0.0\"", fmt.Sprintf("@bench/pkg%d", i)))
+	}
+	writeBenchFile(b, filepath.Join(repoRoot, "package.json"),
+		`{"name": "bench-app", "dependencies": {`+strings.Join(dependencies, ", ")+`}}`)
+	filePath := filepath.Join(repoRoot, "members.ts")
+	var source strings.Builder
+	for i := range 100 {
+		fmt.Fprintf(&source, "import { Service%d } from \"@bench/pkg%d\";\n", i, i%20)
+	}
+	for i := range 100 {
+		fmt.Fprintf(&source, "\nexport function use%d(input: any) {\n", i)
+		fmt.Fprintf(&source, "  Service%d.create();\n  Service%d.reset();\n", i, i)
+		fmt.Fprintf(&source, "  input.local%d.run();\n  helperA%d.go();\n  helperB%d.go();\n}\n", i, i, i)
+	}
+	writeBenchFile(b, filePath, source.String())
+
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		b.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
+	}
+	for b.Loop() {
+		if _, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{}); err != nil {
+			b.Fatalf("ParsePath() error = %v, want nil", err)
+		}
+	}
+}
