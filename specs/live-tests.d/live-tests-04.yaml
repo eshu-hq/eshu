@@ -19,6 +19,10 @@ tests:
     reason: "#7533 exact nine-test NornicDB conformance enrollment on pinned v1.3.3; combined local race run at a7623da9 had package 1.342s and process 2.367s; hosted proof pending"
     runner: backend-conformance-nornicdb
     backends: nornicdb
+  - file: go/internal/storage/cypher/edge/writer/deployable_unit_verify_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "#8283 verified-success probe: deterministic seeded fixture with run-unique Repository ids and cleanup; proves target-absent, edge-absent, and edge-present (via the real WriteEdges path) verdicts; measured 1.6s locally against Neo4j; backend-agnostic so both live-backend legs run it"
   - file: go/internal/storage/cypher/edge/writer/provenance_identity_live_test.go
     tag: ~
     class: scheduled
