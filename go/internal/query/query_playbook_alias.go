@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:dirgate // B7 root alias shim for #6642: type aliases and thin forwarders for the moved query-playbook family must live in package query so handler wiring, cmd constructors, and the staying investigation-workflow family compile unchanged.
+package query
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/query/playbook"

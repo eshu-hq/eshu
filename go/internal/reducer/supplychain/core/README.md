@@ -17,6 +17,12 @@ through the default domain catalog; `go/cmd/reducer` wires the Postgres
 writer. Query surfaces read the durable facts; they never import this
 package.
 
+The directory stays whole. The `Suppression` field on
+`SupplyChainImpactFinding` makes the finding, core, and suppression code one
+unit: the suppression functions take the finding type (#6636). A later move,
+such as the `supply/chain/impact` leaf in the reducer target tree, must move
+all three together.
+
 ## Files
 
 72 non-test files: 65 `impact*`/`*.go` short names (impact builders,
