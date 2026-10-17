@@ -10,4 +10,9 @@ class Greeter
     {
         return "hello " . $name;
     }
+
+    public function wave(string $name): string
+    {
+        return "bye " . $name;
+    }
 }
