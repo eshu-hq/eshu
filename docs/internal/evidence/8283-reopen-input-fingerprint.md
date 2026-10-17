@@ -69,7 +69,7 @@ side table. A missing row reopens the item.
 Disposable PostgreSQL 18.6 on a private native cluster, real bootstrapped
 schema, one isolated schema per test.
 
-`Observability Evidence:` the pass reports the skip three ways, none of which
+Observability Evidence: the pass reports the skip three ways, none of which
 carries a scope or repository id:
 
 - span `relationship.backfill.reopen` and its completion log gain the
@@ -151,7 +151,7 @@ The existing tests the issue cites stay green:
 
 ## Performance
 
-`Performance Evidence:` `EXPLAIN (ANALYZE, BUFFERS)` on the production reader,
+Performance Evidence: `EXPLAIN (ANALYZE, BUFFERS)` on the production reader,
 read-only (`default_transaction_read_only=on`, `statement_timeout=60000`).
 Production holds 1,558 relationship generations (802 active) and 2,544 resolved
 relationship rows; the reopen listing returns 798 items, each with one
@@ -186,7 +186,7 @@ read. Seven interleaved runs each on the production reader:
 The fence dominates the fused read (about 9 ms), so the fingerprint adds 2.4 ms
 at most on the heaviest repository sets.
 
-`No-Regression Evidence:` the conflict domain is one work item row. Writers
+No-Regression Evidence: the conflict domain is one work item row. Writers
 touch distinct rows (the side table's primary key); the ACK's non-key UPDATE is
 compatible with the foreign-key `KEY SHARE` lock; the reopen UPDATE is
 status-guarded so a stale pass cannot reopen a claimed item. No worker count,
