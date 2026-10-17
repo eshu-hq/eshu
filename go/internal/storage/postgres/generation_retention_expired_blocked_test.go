@@ -446,6 +446,38 @@ func TestSelectExpiredGenerationsScopesOutUncoveredAndDeltaProtected(t *testing.
 	}
 }
 
+// TestSelectExpiredGenerationsScopedOutCoincidence pins the documented
+// scoping rule: an uncovered row with live work still evaluates a
+// coincidental live_work reason, yet ScopedOut() keeps it out of both the
+// blocked and the eligible verdicts, so a reader going straight to
+// Evaluation cannot misclassify a never-prune row as blocked.
+func TestSelectExpiredGenerationsScopedOutCoincidence(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+	century := 100 * 24 * time.Hour
+	byID := selectExpiredWithFixtures(t, now, expiredBlockedTestPolicy(), [][]any{
+		expiredBlockedFixtureRow(now, "gen-uncovered-live", century, false, true, false, true, false),
+	})
+	generation, ok := byID["gen-uncovered-live"]
+	if !ok {
+		t.Fatal("report omits gen-uncovered-live, want scoped-out history visible with its flag")
+	}
+	if !generation.ScopedOut() {
+		t.Fatal("gen-uncovered-live: ScopedOut() = false, want true for uncovered history")
+	}
+	if generation.Evaluation.BlockedReason != GenerationRetentionBlockedLiveWork {
+		t.Errorf("gen-uncovered-live: Evaluation.BlockedReason = %q, want the coincidental %q",
+			generation.Evaluation.BlockedReason, GenerationRetentionBlockedLiveWork)
+	}
+	if generation.ExpiredBlocked() {
+		t.Error("gen-uncovered-live: ExpiredBlocked() = true, want false for scoped-out history")
+	}
+	if generation.Eligible() {
+		t.Error("gen-uncovered-live: Eligible() = true, want false for scoped-out history")
+	}
+}
+
 // TestSelectExpiredGenerationsDefaultsUnsetCeilingToNinetyDays proves the
 // report resolves an unset ceiling through the same normalize the prune
 // uses, so the report and the deletion bound cannot drift apart.

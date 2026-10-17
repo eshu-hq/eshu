@@ -267,6 +267,10 @@ type GenerationRetentionExpiredGeneration struct {
 	GenerationID string
 	// Evaluation carries the ceiling verdict: age, expiry, and the
 	// blocked reason when a safety exception retains the history.
+	// A scoped-out row may still carry a coincidental BlockedReason from
+	// its live-work flags (the evaluation has no notion of scoping), so
+	// readers must gate on ScopedOut(), ExpiredBlocked(), and Eligible(),
+	// never on Evaluation.BlockedReason alone.
 	Evaluation GenerationRetentionEvaluation
 	// Uncovered marks reconcile-probe evidence (#7472) and
 	// DeltaProtected marks delta-chain history (#7802): both ride the
