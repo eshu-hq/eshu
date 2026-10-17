@@ -38,10 +38,22 @@ stamp forced was entirely self-imposed, and PRs sat for days waiting on it.
 The non-strict ruleset alone later proved unsafe: at 5–8 merges a day, two
 green PRs could land a red `main` because neither was tested against the other.
 That was the leading cause of CI reds in the September 2026 CI failure review
-tracked in #7111. `main` now merges through a GitHub merge queue. The queue
-builds each entry on top of the entries ahead of it and runs the required
-contexts on that exact commit (`merge_group`), so correctness no longer
-depends on authors rebasing, and strict mode stays off. Enter the queue from the PR page; do not rebase just because `main` moved.
+tracked in #7111. A GitHub merge queue was tried to close that gap: it built
+each entry on the entries ahead of it and ran the required contexts on that
+exact commit (`merge_group`). The owner turned it off on 2026-10-16 because an
+entry sat for more than six hours and PRs backed up. `main` has no merge queue
+now, and no `merge_group` run tests the combined tree.
+
+The merge path is the `main` ruleset (check it with
+`gh api repos/eshu-hq/eshu/rules/branches/main`): `pull_request`,
+`required_status_checks`, `non_fast_forward`, and `deletion`. The required
+contexts are `required-gates-complete`, `go-core-complete`, and
+`go-race-complete`, and strict mode (`strict_required_status_checks_policy`) is
+off. A PR merges once those pass on its own head, and the ruleset allows merge,
+squash, and rebase merges. Strict mode is off, so a branch need not be rebased
+just because `main` moved. Nothing tests two green PRs together, so the
+[pre-push merge step](../public/reference/local-testing/pre-push-merge.md)
+is the local guard against a red `main`.
 A red `main` is reported by the Main Health watcher: one pinned `main is red @<sha>` issue and a `main-health` commit status (see [Main Health Watcher](../public/reference/local-testing/main-health-watcher.md)).
 
 This does **not** weaken the Ifá/Odù protection for contracts, performance, or

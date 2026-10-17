@@ -120,11 +120,11 @@ Do not use `git stash`, `git stash pop`, or `git stash apply` in this
 repository when more than one worktree may be active. To compare against a clean
 tree, use `git diff`, `git show <ref>:<path>`, or a throwaway worktree instead.
 
-### Rebasing a sibling branch after a squash-merge
+### Rebasing a sibling branch after a merge
 
-PRs land via squash-merge, so a merged PR's commits are not ancestors of a
-sibling branch that shares files with it. When PR A merges and sibling PR B
-still touches some of the same files, rebase B onto fresh `origin/main`:
+`main` has no merge queue ([details](agent-git-hygiene.md)); PRs land as merge,
+squash, or rebase merges, and the last two leave a merged PR's commits off
+sibling branches. When PR A merges and PR B shares files, rebase B onto `origin/main`:
 
 1. `git fetch origin main` first. A stale/shallow `origin/main` can make
    `git rebase` explode into spurious conflicts (empty merge-base); if so,
