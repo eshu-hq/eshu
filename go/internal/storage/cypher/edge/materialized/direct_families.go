@@ -9,8 +9,10 @@ import (
 
 // multiTypeDirectMaterializedEdgeFamilies indexes the direct-materialization
 // families that own more than one relationship type (#6228 split verdict).
-// Membership requires an edge-scoped retract (scope_id plus evidence_source):
-// the drift guard pins predicate shape on this table.
+// Membership requires a held, exactly-scoped retract: either an edge-scoped
+// alternation (scope_id plus evidence_source) or a node-detach on a
+// sole-creator evidence label (kind A). The drift guard pins predicate shape
+// on this table per RetractKind.
 // It sits beside singleTypeMaterializedEdgeFamilies rather than inside it so
 // TestSingleTypeFamiliesDeclareExactlyOneType keeps its exactly-one meaning:
 // a second type here is a multi-type family with its own reasoning, never a
