@@ -87,7 +87,8 @@ key the reducer already resolves:
   Not keyed: `self`/`static`/`parent`, `$var::`, `new $var`, relative qualified
   names, `use const`, type references, `X::class`, and constants.
 - #8280 (`package_keys_instances.go`, `package_keys_scopes.go`, `package_keys_functions.go`): a public, concrete, non-magic instance
-  method gets `export_name = <FQCN>-><method>`, keyed on `(new X())->m(` and on
+  method gets `export_name = <FQCN>-><method>`, keyed on `(new X())->m(`, on the
+  PHP 8.4 unparenthesized `new X()->m(`, and on
   `$v->m(` when the scope writes `$v` once, by `new X(`, and reads it only as a
   member receiver (a script scope also needs the write to run first on every
   path, with only literals and calls on the receiver between them; `eval` or

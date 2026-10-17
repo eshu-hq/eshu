@@ -13,8 +13,8 @@ import (
 // This file stamps the #8280 PHP instance keys on top of the #7601 ones. A
 // public, concrete, non-magic instance method of a keyed class carries
 // export_name <FQCN>-><method>, distinct from the static <FQCN>::<method>. A
-// consumer keys `(new X())->m(` and `$v->m(` when $v is proven to hold an X
-// (package_keys_scopes.go).
+// consumer keys `(new X())->m(`, `new X()->m(`, and `$v->m(` when $v is
+// proven to hold an X (package_keys_scopes.go).
 
 // phpInstanceMemberSeparator joins a class name and an instance method.
 const phpInstanceMemberSeparator = "->"
@@ -35,7 +35,8 @@ func (k *phpPackageKeys) stampInstanceProducers(keyedClasses map[string][2]strin
 
 // instanceKey returns the package_export_symbol for a member call node
 // (`object->method(`), or "" when the receiver is not proven to be an
-// instance of a keyable class: the object must be `(new X(...))`, or a
+// instance of a keyable class: the object must be `(new X(...))`, the PHP 8.4
+// unparenthesized `new X(...)`, or a
 // variable that its scope writes exactly once, by `new X(...)`, and otherwise
 // reads only as the object of a member call or property access.
 func (k *phpPackageKeys) instanceKey(state *phpParseState, node *tree_sitter.Node, objectNode *tree_sitter.Node, method string) string {
@@ -44,6 +45,10 @@ func (k *phpPackageKeys) instanceKey(state *phpParseState, node *tree_sitter.Nod
 	}
 	var creation *tree_sitter.Node
 	switch objectNode.Kind() {
+	case "object_creation_expression":
+		// PHP 8.4's unparenthesized `new X()->m(`; the grammar gives the same
+		// tree for a file that targets an older PHP, which cannot parse it.
+		creation = objectNode
 	case "parenthesized_expression":
 		if objectNode.NamedChildCount() == 1 {
 			if inner := objectNode.NamedChild(0); inner != nil && inner.Kind() == "object_creation_expression" {

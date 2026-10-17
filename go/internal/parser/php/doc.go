@@ -33,7 +33,8 @@
 // import or a fully qualified literal names carries package_export_symbol
 // package:<locked package>#<FQCN>[::<method>] when a composer.lock names the
 // package that provides it. #8280 adds a public, concrete instance method's
-// <FQCN>-><method> (package_keys_instances.go), keyed on (new X())->m( and on
+// <FQCN>-><method> (package_keys_instances.go), keyed on (new X())->m(, on
+// the PHP 8.4 unparenthesized new X()->m(, and on
 // $v->m( when the variable scope writes $v once, by new X(, and a namespaced
 // free function's function:<FQN> from a file autoload.files lists
 // (package_keys_functions.go), keyed on a bare call bound by `use function`.
