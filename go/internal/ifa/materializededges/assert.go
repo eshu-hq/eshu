@@ -321,3 +321,19 @@ func MaterializedEdgeDomainEdgeTypes(domain string) (map[string]struct{}, error)
 		return nil, fmt.Errorf("ifa: no materialized-edge family registered for domain %q; register its edge types beside its writer (multi-type) or in cypher.singleTypeMaterializedEdgeFamilies (single-type) before proving it on a live gate", domain)
 	}
 }
+
+// MaterializedEdgeDomainPredicate returns the predicate of a
+// predicate-scoped family (#8358): a family like cloud_resource whose
+// writers prefix an open per-provider verb vocabulary, so no finite type set
+// exists for MaterializedEdgeDomainEdgeTypes to return. The live
+// `assert-edges` scan scopes to the predicate instead — relationship-type
+// prefix plus evidence_source plus endpoint labels, matched as same-writer
+// pairings (see materialized.PredicateScopedEdgeFamily).
+//
+// The second return is false for every finite-set family. The caller must
+// try the finite set first and fail closed when neither resolves: silently
+// treating an unknown family as predicate-scoped with an empty predicate
+// would assert zero edges and pass any graph vacuously.
+func MaterializedEdgeDomainPredicate(domain string) (materialized.PredicateScopedEdgeFamily, bool) {
+	return materialized.PredicateScopedMaterializedEdgeFamily(domain)
+}
