@@ -475,7 +475,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// Migration 193 (#8283) records the per-item input fingerprint the
 	// deployable_unit_correlation reopen compares to skip unchanged items.
 	"deployable_unit_reopen_fingerprints",
-	// Migration 194 (#7098) gives the documentation-facts read a partial GIN
+	// Migration 196 (#7098) gives the documentation-facts read a partial GIN
 	// over documentation_document, documentation_section, and
 	// documentation_link, mirroring
 	// fact_records_documentation_target_refs_idx.
