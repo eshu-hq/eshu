@@ -4,6 +4,8 @@
 package querycontract
 
 import (
+	"maps"
+	"slices"
 	"strings"
 )
 
@@ -51,6 +53,15 @@ var relationshipTargetAttributableByVerb = map[string]bool{
 	"INVOKES_CLOUD_ACTION":           false,
 	"READS_CONFIG_FROM":              true,
 	"TAINT_FLOWS_TO":                 true,
+}
+
+// RelationshipVerbs returns the sorted upper-cased verbs keying the
+// target-attribution table, one per relationships-catalog verb. It is the
+// enumeration behind the catalog/contract verb-set parity test: callers
+// compare this set against the catalog's verb set instead of re-listing the
+// table. The returned slice is a fresh copy.
+func RelationshipVerbs() []string {
+	return slices.Sorted(maps.Keys(relationshipTargetAttributableByVerb))
 }
 
 // RelationshipVerbTargetAttributable reports whether verb's target endpoint
