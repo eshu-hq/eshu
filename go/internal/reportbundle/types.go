@@ -119,10 +119,10 @@ type EvidenceContext struct {
 	FactRefsReason string `json:"fact_refs_reason,omitempty"`
 }
 
-// CitationRef is a share-safe citation reference: the query.EvidenceCitationHandle
-// handle fields (evidence_citation.go:33-43) plus resolved citation_id,
+// CitationRef is a share-safe citation reference: the evidence.EvidenceCitationHandle
+// handle fields (evidence/citation.go) plus resolved citation_id,
 // content_hash, and commit_sha. Excerpt — inline content bytes
-// (evidence_citation.go:75) — is deliberately NOT a field here; it is dropped
+// (evidence/citation.go) — is deliberately NOT a field here; it is dropped
 // from every public-profile bundle and only ever appears, verbatim, inside
 // PayloadAttachment.Excerpts under --include-payloads.
 type CitationRef struct {

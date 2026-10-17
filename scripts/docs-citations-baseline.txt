@@ -95,7 +95,6 @@ LINE docs/internal/design/4588-collector-claim-pacing.md go/internal/storage/pos
 LINE docs/internal/design/4588-collector-claim-pacing.md go/internal/storage/postgres/workflow_control_sql.go:64
 LINE docs/internal/design/4595-wrong-answer-report-capture-plan.md go/internal/ifa/odu.go:25
 LINE docs/internal/design/4595-wrong-answer-report-capture-plan.md go/internal/ifa/odu.go:26
-LINE docs/internal/design/4595-wrong-answer-report-capture-plan.md go/internal/query/evidence_citation.go:33
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/workload_identity_writer.go:17
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/ec2_posture_envelope.go:23
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/envelope.go:1

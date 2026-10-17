@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/evidence"
 	"github.com/eshu-hq/eshu/go/internal/serviceintel"
 )
 
@@ -213,8 +214,8 @@ func sentinelReport() serviceintel.Report {
 			Freshness: query.TruthFreshness{State: query.FreshnessState(sentinel(name + "-freshness"))},
 		}
 	}
-	handle := func(name string) query.EvidenceCitationHandle {
-		return query.EvidenceCitationHandle{
+	handle := func(name string) evidence.EvidenceCitationHandle {
+		return evidence.EvidenceCitationHandle{
 			Kind:           sentinel(name + "-kind"),
 			RepoID:         sentinel(name + "-repo"),
 			RelativePath:   sentinel(name + "-path"),
@@ -259,8 +260,8 @@ func sentinelReport() serviceintel.Report {
 				Truth:                envelope("answer-truth"),
 				Limitations:          []string{sentinel("answer-limitation")},
 				Truncated:            true,
-				MissingEvidence:      []query.EvidenceCitationHandle{handle("missing-evidence")},
-				EvidenceHandles:      []query.EvidenceCitationHandle{handle("evidence-handle")},
+				MissingEvidence:      []evidence.EvidenceCitationHandle{handle("missing-evidence")},
+				EvidenceHandles:      []evidence.EvidenceCitationHandle{handle("evidence-handle")},
 				CitationRef:          sentinel("citation-ref"),
 				RecommendedNextCalls: []map[string]any{{"tool": sentinel("answer-next-call")}},
 				UnsupportedReasons:   []string{sentinel("unsupported-reason")},

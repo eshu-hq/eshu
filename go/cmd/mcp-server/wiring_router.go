@@ -194,6 +194,7 @@ func newMCPQueryRouterWithSemanticEmbeddingWithReadStore(
 			Profile:            queryProfile,
 			StatusReader:       statusReader,
 			Neo4j:              neo4jReader,
+			PacketResponder:    query.NewDeployableUnitPacketResponder(),
 		},
 		Documentation: &query.DocumentationHandler{
 			Content:    contentReader,

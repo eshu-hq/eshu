@@ -166,7 +166,11 @@ func TestInvestigationPacketAPIDeployableUnitMatchesSharedBuilder(t *testing.T) 
 		t.Fatalf("BuildDeployableUnitPacket() error = %v", err)
 	}
 
-	handler := &EvidenceHandler{AdmissionDecisions: store, Profile: ProfileProduction}
+	handler := &EvidenceHandler{
+		AdmissionDecisions: store,
+		Profile:            ProfileProduction,
+		PacketResponder:    NewDeployableUnitPacketResponder(),
+	}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

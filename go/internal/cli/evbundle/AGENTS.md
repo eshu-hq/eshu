@@ -42,7 +42,7 @@
 
 - **Carry a new status field into the bundle** → add the field to the decode
   type in status.go, map it in `LiveSnapshotFromStatus`, and check whether
-  `internal/query/evidence_bundle_live.go` already carries it. That route
+  `internal/query/evidence/bundle_live.go` already carries it. That route
   composes the same bundle from a typed `status.Report`, and
   `go/cmd/eshu/evidence_bundle_api_parity_test.go` fails when the two
   readings diverge. Extend that test's fixture too — a field only one side
@@ -70,7 +70,7 @@
 - Symptom: the CLI and the API route disagree → the parity test in
   `go/cmd/eshu` names the field. One side is carrying something the other
   drops; check `LiveSnapshotFromStatus` against
-  `internal/query/evidence_bundle_live.go`.
+  `internal/query/evidence/bundle_live.go`.
 
 ## Anti-patterns specific to this package
 

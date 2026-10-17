@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package evidence
 
 import (
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 
 	"github.com/eshu-hq/eshu/go/internal/truth"
@@ -14,7 +15,7 @@ import (
 func TestCitationFromFileCarriesConfidenceAndByteCitation(t *testing.T) {
 	t.Parallel()
 
-	file := FileContent{
+	file := querycontract.FileContent{
 		RepoID:       "repo-service",
 		RelativePath: "cmd/api/main.go",
 		CommitSHA:    "abc123",

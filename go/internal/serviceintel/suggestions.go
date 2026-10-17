@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/evidence"
 )
 
 // maxInvestigations bounds the suggested-investigation list so a report stays a
@@ -253,7 +254,7 @@ func freshnessNextCall(check *query.FreshnessNextCheck) NextCall {
 
 // firstEntityID returns the first non-empty entity id from a set of evidence
 // handles, used as the concrete resolved id for a relationship drilldown.
-func firstEntityID(handles []query.EvidenceCitationHandle) string {
+func firstEntityID(handles []evidence.EvidenceCitationHandle) string {
 	for _, handle := range handles {
 		if id := strings.TrimSpace(handle.EntityID); id != "" {
 			return id
@@ -265,7 +266,7 @@ func firstEntityID(handles []query.EvidenceCitationHandle) string {
 // citationHandleArgs renders unresolved evidence handles into the bounded
 // handle-input shape the evidence-citation request accepts, so the hydration
 // call carries the very handles the missing-evidence basis surfaced.
-func citationHandleArgs(handles []query.EvidenceCitationHandle) []map[string]any {
+func citationHandleArgs(handles []evidence.EvidenceCitationHandle) []map[string]any {
 	if len(handles) == 0 {
 		return nil
 	}
@@ -372,7 +373,7 @@ func fallbackTarget(call NextCall) string {
 
 // handleKeys renders evidence handles as stable, low-cardinality keys for the
 // evidence basis, preferring entity id then repo-qualified path.
-func handleKeys(handles []query.EvidenceCitationHandle) []string {
+func handleKeys(handles []evidence.EvidenceCitationHandle) []string {
 	if len(handles) == 0 {
 		return nil
 	}
@@ -386,7 +387,7 @@ func handleKeys(handles []query.EvidenceCitationHandle) []string {
 	return keys
 }
 
-func handleKey(handle query.EvidenceCitationHandle) string {
+func handleKey(handle evidence.EvidenceCitationHandle) string {
 	if id := strings.TrimSpace(handle.EntityID); id != "" {
 		return id
 	}

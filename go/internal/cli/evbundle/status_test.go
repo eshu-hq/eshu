@@ -199,7 +199,7 @@ func TestLiveSnapshotFromStatusEmitsEmptySlicesNotNil(t *testing.T) {
 // TestLiveSnapshotCarriesDomainBacklogTruncation pins the flag the status
 // layer sets when it capped the domain list. Without it a bundle presents a
 // partial enumeration as complete, and the API route
-// (internal/query/evidence_bundle_live.go) already carries it, so dropping it
+// (internal/query/evidence/bundle_live.go) already carries it, so dropping it
 // here also splits the two readings of one stack.
 func TestLiveSnapshotCarriesDomainBacklogTruncation(t *testing.T) {
 	for _, truncated := range []bool{true, false} {

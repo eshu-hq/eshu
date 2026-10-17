@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package evidence
 
 import (
 	"crypto/sha256"
@@ -164,7 +164,7 @@ func TestEvidenceBundleTerraformOmissionTheory(t *testing.T) {
 // no expected field is copied from either candidate bundle.
 func loadFrozenEvidenceBundleTheory(t *testing.T) evidencebundle.Bundle {
 	t.Helper()
-	raw, err := os.ReadFile("testdata/evidence_bundle_selection_expected.json")
+	raw, err := os.ReadFile("../testdata/evidence_bundle_selection_expected.json")
 	if err != nil {
 		t.Fatal(err)
 	}

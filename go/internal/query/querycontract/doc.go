@@ -91,7 +91,18 @@
 // own WriteJSON/ResponseEnvelope/ErrorEnvelope/ErrorCode primitives, and
 // auth cannot import querycontract: querycontract already imports
 // auth (RepositoryAccessFilterFromContext reads AuthContext), so the
-// reverse edge would cycle. WriteUnauthorized's WWW-Authenticate header
+// reverse edge would cycle. #6642 also promoted the relationship-evidence
+// authorization predicates (relationship_evidence_authz.go, the evidence-leaf
+// pre-slice): the verb→targetAttributable classification every scoped
+// relationship read shares, the endpoint-repo reader, and the both-endpoints
+// row gate. The relationships catalog's per-entry flag is deleted; the edges
+// scope predicate and the evidence drilldown 404-mask both resolve through
+// this single table. Root keeps one unexported forwarder
+// (relationshipEvidenceRowWithinAccess) for its handler and scoped tests.
+// Like WorkloadGrantAdmitted, these are pure Go decisions over rows the caller
+// already fetched -- no Cypher, no complete queries, no family response
+// models -- so the evidence leaf can share them without importing root.
+// WriteUnauthorized's WWW-Authenticate header
 // needed a types-only hoist alongside it -- OAuthChallengePolicy (the
 // interface only; root's PostureOAuthChallengePolicy, DeriveAuthPosture, and
 // OAuthProtectedResourceHandler all stay in root untouched), its context-key
@@ -102,4 +113,4 @@
 // root caller (the WWW-Authenticate lookup's only caller moved with it, so
 // it keeps none), and cmd/mcp-server, auth_constructors.go, and every
 // other existing caller compile unchanged.
-package querycontract // Shared-seam home for #6060 family moves: root, impact/ and the family packages must share these seams without an import cycle. The #6597 split extracted nine leaves into subpackages (kubernetes/, rowvalue/, code/, entity/, evidence/, visualization/, answer/, taxonomy/ and repository/); what stays fits the 40-file cap, so no file-count dirgate marker remains.
+package querycontract // Shared-seam home for #6060 family moves: root, impact/ and the family packages must share these seams without an import cycle. The #6597 split extracted nine leaves into subpackages (kubernetes/, rowvalue/, code/, entity/, evidence/, visualization/, answer/, taxonomy/ and repository/); the #6642 evidence-authz pre-slice adds one root file (relationship_evidence_authz.go) under a Dirgate-Growth trailer, the cap's sanctioned growth path -- never a baseline edit.

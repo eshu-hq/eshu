@@ -153,8 +153,8 @@ func scopedRelationshipEvidenceRoute(r *http.Request) bool {
 // whole-graph typed-edge slice. getRelationshipEdges (relationships_catalog.go)
 // binds the source endpoint to a granted repository/ingestion scope for every
 // verb, and additionally binds the target endpoint for every verb whose
-// target carries tenant attribution (relationshipVerbEntry.targetAttributable,
-// relationships_catalog_cypher.go), returning an empty page without a graph
+// target carries tenant attribution (querycontract
+// RelationshipVerbTargetAttributable), returning an empty page without a graph
 // read for an empty-grant scoped caller.
 func scopedRelationshipEdgesRoute(r *http.Request) bool {
 	return r.Method == http.MethodPost && r.URL.Path == "/api/v0/relationships/edges"

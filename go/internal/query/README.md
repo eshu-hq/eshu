@@ -207,7 +207,7 @@ shows an admitted write.
 Live evidence bundle reads (`GET /api/v0/evidence/bundle`, #4045) compose a
 share-safe `evidence_bundle.v1` artifact from the same status providers behind
 `GET /api/v0/status/index`, `GET /api/v0/status/pipeline`, and `GET
-/api/v0/status/collectors` (`evidence_bundle_live.go`), so `eshu evidence
+/api/v0/status/collectors` (`evidence/bundle_live.go`), so `eshu evidence
 bundle export --live` and this route describe one running stack through the
 same `status.Report` and repository-count query. `EvidenceHandler` only maps
 that typed report into an `evidencebundle.LiveSnapshot`; it never re-derives

@@ -5,7 +5,7 @@
 // command generate the identical bundle rather than two independently
 // maintained readings. See docs/public/reference/evidence-bundle.md.
 //
-// The route is stack-wide (go/internal/query/evidence_bundle_live.go): it
+// The route is stack-wide (go/internal/query/evidence/bundle_live.go): it
 // carries no scoped-token support, and AuthMiddleware rejects a scoped-bearer
 // or non-tenant-bound browser-session caller with HTTP 403 before the handler
 // ever runs (go/internal/query/evidence_bundle_live_test.go

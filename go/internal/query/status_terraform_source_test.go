@@ -4,6 +4,8 @@
 package query
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -171,4 +173,54 @@ func TestIndexStatusWithheldSectionsExcludeTheTerraformStateSource(t *testing.T)
 			t.Fatal("terraform_state_source is a marker, not a withheld section: it must stay out of indexStatusWithheldSections")
 		}
 	}
+}
+
+// TestStatusPipelineStillRequiresTerraformEvidence is the contrast control
+// for the live bundle's Terraform omission (extracted from
+// TestEvidenceBundleSelectsAllExceptTerraformState in the #6642
+// evidence-leaf move): the full status surface still reads Terraform
+// evidence and propagates a Terraform read error as a 500 with the full
+// selection.
+func TestStatusPipelineStillRequiresTerraformEvidence(t *testing.T) {
+	t.Parallel()
+
+	reader := &terraformFailingStatusReader{err: errors.New("terraform evidence unavailable")}
+	mux := http.NewServeMux()
+	(&StatusHandler{StatusReader: reader}).Mount(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v0/status/pipeline", nil))
+	want := statuspkg.FullSnapshotSelection()
+	if rec.Code != http.StatusInternalServerError || reader.calls != 1 || reader.selection != want {
+		t.Fatalf("full status failure/selection/calls = %d/%+v/%d, want 500/full/1",
+			rec.Code, reader.selection, reader.calls)
+	}
+}
+
+// terraformFailingStatusReader fails the Terraform-state read the way a store
+// with unavailable Terraform evidence does, while recording the selection
+// the route requested.
+type terraformFailingStatusReader struct {
+	err       error
+	selection statuspkg.SnapshotSelection
+	calls     int
+}
+
+func (r *terraformFailingStatusReader) ReadStatusSnapshot(
+	ctx context.Context,
+	asOf time.Time,
+) (statuspkg.RawSnapshot, error) {
+	return r.ReadStatusSnapshotFiltered(ctx, asOf, statuspkg.FullSnapshotSelection())
+}
+
+func (r *terraformFailingStatusReader) ReadStatusSnapshotFiltered(
+	_ context.Context,
+	_ time.Time,
+	selection statuspkg.SnapshotSelection,
+) (statuspkg.RawSnapshot, error) {
+	r.selection = selection
+	r.calls++
+	if !selection.SkipTerraformStateEvidence {
+		return statuspkg.RawSnapshot{}, r.err
+	}
+	return statuspkg.RawSnapshot{}, nil
 }

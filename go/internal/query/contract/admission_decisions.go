@@ -3,12 +3,12 @@
 
 package contract
 
+import (
+	"github.com/eshu-hq/eshu/go/internal/query/evidence"
+)
+
 func init() {
-	register(admissionDecisionCapability, capabilitySupport{
-		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalAuthoritative,
-	})
+	// Declared by the evidence family (evidence/capabilities.go, #6642),
+	// not copied here.
+	register(admissionDecisionCapability, evidence.AdmissionDecisionSupport())
 }

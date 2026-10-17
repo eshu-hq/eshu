@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/evidence"
 )
 
 func TestSecondGenerationAnswerPacketParityHostedProfileModes(t *testing.T) {
@@ -220,11 +221,11 @@ func packetPromptFamily(env *query.ResponseEnvelope) string {
 	return "platform_impact.environment_compare"
 }
 
-func packetEvidenceHandlesFromCompareData(data map[string]any) []query.EvidenceCitationHandle {
+func packetEvidenceHandlesFromCompareData(data map[string]any) []evidence.EvidenceCitationHandle {
 	if data == nil {
 		return nil
 	}
-	handles := []query.EvidenceCitationHandle{}
+	handles := []evidence.EvidenceCitationHandle{}
 	for _, side := range []string{"left", "right"} {
 		snap, ok := data[side].(map[string]any)
 		if !ok {
@@ -236,7 +237,7 @@ func packetEvidenceHandlesFromCompareData(data map[string]any) []query.EvidenceC
 				continue
 			}
 			if id := query.StringVal(row, "id"); id != "" {
-				handles = append(handles, query.EvidenceCitationHandle{
+				handles = append(handles, evidence.EvidenceCitationHandle{
 					Kind:           "entity",
 					EntityID:       id,
 					EvidenceFamily: "cloud_resource",
@@ -248,14 +249,14 @@ func packetEvidenceHandlesFromCompareData(data map[string]any) []query.EvidenceC
 	return handles
 }
 
-func packetMissingEvidenceFromCompareData(data map[string]any) []query.EvidenceCitationHandle {
+func packetMissingEvidenceFromCompareData(data map[string]any) []evidence.EvidenceCitationHandle {
 	missing := missingEvidenceFromData(data)
 	if len(missing) == 0 {
 		return nil
 	}
-	handles := make([]query.EvidenceCitationHandle, 0, len(missing))
+	handles := make([]evidence.EvidenceCitationHandle, 0, len(missing))
 	for _, reason := range missing {
-		handles = append(handles, query.EvidenceCitationHandle{
+		handles = append(handles, evidence.EvidenceCitationHandle{
 			Kind:           "entity",
 			EvidenceFamily: "environment",
 			Reason:         reason,

@@ -132,13 +132,14 @@ func TestRelationshipEdgesScopeBindsEdgeScopeForLambdaImageVerb(t *testing.T) {
 
 // TestRelationshipVerbCatalogEdgeScopeInvariant enforces the invariant
 // relationshipEdgesScopeExpr relies on: an edgeScopeAttributable verb must be
-// endpoint-source-only (!targetAttributable), so its endpoint scope group is the
-// single source-alias disjunct list the edge-scope term is folded into.
+// endpoint-source-only (target-unattributable in the querycontract
+// classification), so its endpoint scope group is the single source-alias
+// disjunct list the edge-scope term is folded into.
 func TestRelationshipVerbCatalogEdgeScopeInvariant(t *testing.T) {
 	t.Parallel()
 	for _, entry := range relationshipVerbCatalog {
-		if entry.edgeScopeAttributable && entry.targetAttributable {
-			t.Fatalf("verb %s is both edgeScopeAttributable and targetAttributable; the edge-scope fold assumes a single source-alias endpoint group", entry.verb)
+		if entry.edgeScopeAttributable && querycontract.RelationshipVerbTargetAttributable(entry.verb) {
+			t.Fatalf("verb %s is both edgeScopeAttributable and target-attributable; the edge-scope fold assumes a single source-alias endpoint group", entry.verb)
 		}
 	}
 }

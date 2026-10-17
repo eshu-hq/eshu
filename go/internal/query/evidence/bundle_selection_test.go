@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package evidence
 
 import (
 	"context"
@@ -17,6 +17,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 )
 
@@ -68,7 +70,7 @@ func TestEvidenceBundleSelectsAllExceptTerraformState(t *testing.T) {
 	reader := &bundleSelectionReader{raw: raw, terraformErr: errors.New("terraform evidence unavailable")}
 
 	bundleMux := http.NewServeMux()
-	(&EvidenceHandler{StatusReader: reader, Neo4j: evidenceBundleFixtureGraph{count: 5}}).Mount(bundleMux)
+	(&Handler{StatusReader: reader, Neo4j: evidenceBundleFixtureGraph{count: 5}}).Mount(bundleMux)
 	bundleRec := httptest.NewRecorder()
 	bundleMux.ServeHTTP(bundleRec, httptest.NewRequest(http.MethodGet, "/api/v0/evidence/bundle", nil))
 	if bundleRec.Code != http.StatusOK {
@@ -103,7 +105,7 @@ func TestEvidenceBundleSelectsAllExceptTerraformState(t *testing.T) {
 	// baseline. Only the wall-clock stamp and its derived bundle ID may vary.
 	baselineReader := &bundleSelectionReader{raw: raw}
 	baselineMux := http.NewServeMux()
-	(&EvidenceHandler{StatusReader: baselineReader, Neo4j: evidenceBundleFixtureGraph{count: 5}}).Mount(baselineMux)
+	(&Handler{StatusReader: baselineReader, Neo4j: evidenceBundleFixtureGraph{count: 5}}).Mount(baselineMux)
 	baselineRec := httptest.NewRecorder()
 	baselineMux.ServeHTTP(baselineRec, httptest.NewRequest(http.MethodGet, "/api/v0/evidence/bundle", nil))
 	if baselineRec.Code != http.StatusOK || baselineReader.calls != 1 || baselineReader.selection != wantSelection {
@@ -124,17 +126,6 @@ func TestEvidenceBundleSelectsAllExceptTerraformState(t *testing.T) {
 	if !reflect.DeepEqual(bundle, baseline) {
 		t.Fatalf("Terraform-only failure changed the complete typed bundle beyond CreatedAt/BundleID")
 	}
-
-	// The full status surface still needs Terraform evidence and propagates
-	// that read error. The bundle has no fallback after a failed retained read.
-	fullReader := &bundleSelectionReader{raw: raw, terraformErr: reader.terraformErr}
-	statusMux := http.NewServeMux()
-	(&StatusHandler{StatusReader: fullReader}).Mount(statusMux)
-	fullRec := httptest.NewRecorder()
-	statusMux.ServeHTTP(fullRec, httptest.NewRequest(http.MethodGet, "/api/v0/status/pipeline", nil))
-	if fullRec.Code != http.StatusInternalServerError || fullReader.calls != 1 || fullReader.selection != statuspkg.FullSnapshotSelection() {
-		t.Fatalf("full status failure/selection = %d/%+v/%d, want 500/full/1", fullRec.Code, fullReader.selection, fullReader.calls)
-	}
 }
 
 func TestEvidenceBundleSelectedReadPreservesFailures(t *testing.T) {
@@ -153,7 +144,7 @@ func TestEvidenceBundleSelectedReadPreservesFailures(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			mux := http.NewServeMux()
-			(&EvidenceHandler{StatusReader: tc.reader}).Mount(mux)
+			(&Handler{StatusReader: tc.reader}).Mount(mux)
 			req := httptest.NewRequest(http.MethodGet, "/api/v0/evidence/bundle", nil)
 			if tc.cancel {
 				ctx, cancel := context.WithCancel(req.Context())
@@ -184,10 +175,85 @@ func TestEvidenceBundleSelectedReadStillRejectsInvalidBundle(t *testing.T) {
 	raw.SemanticExtraction.Reason = "dial tcp 10.0.5.3:5432"
 	reader := &bundleSelectionReader{raw: raw}
 	mux := http.NewServeMux()
-	(&EvidenceHandler{StatusReader: reader, Neo4j: evidenceBundleFixtureGraph{count: 5}}).Mount(mux)
+	(&Handler{StatusReader: reader, Neo4j: evidenceBundleFixtureGraph{count: 5}}).Mount(mux)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v0/evidence/bundle", nil))
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want validation 500: %s", rec.Code, rec.Body.String())
 	}
+}
+
+// evidenceBundleFixtureSnapshot is the shared RawSnapshot fixture for the
+// live-bundle handler tests: one stage, one domain backlog with a matching
+// queue blockage, one coordinator-registered collector, and a
+// not-configured semantic provider. It mirrors the root fixture of the same
+// name in evidence_bundle_live_test.go: the staying root bundle tests and
+// the moved leaf tests cannot share an unexported helper across the package
+// boundary, so each side keeps its own copy.
+func evidenceBundleFixtureSnapshot() statuspkg.RawSnapshot {
+	fixed := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
+	return statuspkg.RawSnapshot{
+		AsOf: fixed,
+		ScopeActivity: statuspkg.ScopeActivitySnapshot{
+			Active: 5, Changed: 1, Unchanged: 4,
+		},
+		GenerationHistory: statuspkg.GenerationHistorySnapshot{
+			Active: 1, Completed: 9, Superseded: 5, Other: 2,
+		},
+		StageCounts: []statuspkg.StageStatusCount{
+			{Stage: "parse", Status: "pending", Count: 2},
+			{Stage: "parse", Status: "claimed", Count: 6},
+			{Stage: "parse", Status: "running", Count: 3},
+			{Stage: "parse", Status: "succeeded", Count: 11},
+		},
+		DomainBacklogs: []statuspkg.DomainBacklog{
+			{
+				Domain:      "aws_relationship_materialization",
+				Outstanding: 5,
+				InFlight:    4,
+				DeadLetter:  1,
+				OldestAge:   41500 * time.Millisecond,
+			},
+		},
+		QueueBlockages: []queue.Blockage{
+			{Stage: "reduce", Domain: "aws_relationship_materialization", ConflictDomain: "aws", ConflictKey: "k1", Blocked: 3},
+			{Stage: "reduce", Domain: "aws_relationship_materialization", ConflictDomain: "aws", ConflictKey: "k2", Blocked: 2},
+		},
+		Queue: statuspkg.QueueSnapshot{
+			Total: 18, Outstanding: 7, Pending: 4, InFlight: 2, Retrying: 1,
+			Succeeded: 10, DeadLetter: 1, OverdueClaims: 3,
+			OldestOutstandingAge: 12500 * time.Millisecond,
+		},
+		Coordinator: &statuspkg.CoordinatorSnapshot{
+			CollectorInstances: []collector.InstanceSummary{
+				{
+					InstanceID: "git-1", CollectorKind: "git", Mode: "direct",
+					Enabled: true, ClaimsEnabled: true, DisplayName: "git",
+					LastObservedAt: fixed, UpdatedAt: fixed,
+				},
+			},
+		},
+		SemanticExtraction: semantic.ExtractionStatus{
+			State: "unavailable", Reason: "provider_not_configured", ProviderConfigured: false,
+		},
+	}
+}
+
+// evidenceBundleFixtureGraph is a GraphQuery stub returning a fixed
+// repository count for MATCH (r:Repository) RETURN count(r), matching what
+// getIndexStatus's identical query would report against the same graph.
+type evidenceBundleFixtureGraph struct {
+	count int
+	err   error
+}
+
+func (g evidenceBundleFixtureGraph) Run(context.Context, string, map[string]any) ([]map[string]any, error) {
+	return nil, errors.New("Run not implemented by evidenceBundleFixtureGraph")
+}
+
+func (g evidenceBundleFixtureGraph) RunSingle(context.Context, string, map[string]any) (map[string]any, error) {
+	if g.err != nil {
+		return nil, g.err
+	}
+	return map[string]any{"count": g.count}, nil
 }

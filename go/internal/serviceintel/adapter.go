@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/evidence"
 )
 
 // FromServiceStory maps a get_service_story dossier response into the report
@@ -173,17 +174,17 @@ func distinctIncidents(records []IncidentRecord) []IncidentRecord {
 	return out
 }
 
-func incidentHandles(incidents []IncidentRecord) []query.EvidenceCitationHandle {
+func incidentHandles(incidents []IncidentRecord) []evidence.EvidenceCitationHandle {
 	if len(incidents) == 0 {
 		return nil
 	}
-	handles := make([]query.EvidenceCitationHandle, 0, len(incidents))
+	handles := make([]evidence.EvidenceCitationHandle, 0, len(incidents))
 	for _, incident := range incidents {
 		reason := "incident routed to the service via the durable incident-repository correlation"
 		if incident.Provider != "" {
 			reason = incident.Provider + " " + reason
 		}
-		handles = append(handles, query.EvidenceCitationHandle{
+		handles = append(handles, evidence.EvidenceCitationHandle{
 			Kind:           "entity",
 			EntityID:       incident.ProviderIncidentID,
 			EvidenceFamily: "incident_routing",
@@ -210,12 +211,12 @@ func incidentSummary(subject ReportSubject, count int, truncated bool) string {
 // caller can follow the report's handles into build_evidence_citation_packet
 // without a bad-request. It returns ok=false when there is no service id, so the
 // adapter never emits a handle the citation surface would reject.
-func serviceEntityHandle(subject ReportSubject) (query.EvidenceCitationHandle, bool) {
+func serviceEntityHandle(subject ReportSubject) (evidence.EvidenceCitationHandle, bool) {
 	entityID := strings.TrimSpace(subject.ServiceID)
 	if entityID == "" {
-		return query.EvidenceCitationHandle{}, false
+		return evidence.EvidenceCitationHandle{}, false
 	}
-	return query.EvidenceCitationHandle{
+	return evidence.EvidenceCitationHandle{
 		Kind:           "entity",
 		EntityID:       entityID,
 		EvidenceFamily: "service_story",
@@ -262,11 +263,11 @@ func deploymentSummary(subject ReportSubject, lanes int) string {
 
 // handlesIf returns a single-handle slice when the condition holds, else nil, so
 // a section carries evidence only when the dossier actually supports it.
-func handlesIf(ok bool, handle query.EvidenceCitationHandle) []query.EvidenceCitationHandle {
+func handlesIf(ok bool, handle evidence.EvidenceCitationHandle) []evidence.EvidenceCitationHandle {
 	if !ok {
 		return nil
 	}
-	return []query.EvidenceCitationHandle{handle}
+	return []evidence.EvidenceCitationHandle{handle}
 }
 
 // subMap returns m[key] as a map[string]any, or nil when absent or another type.

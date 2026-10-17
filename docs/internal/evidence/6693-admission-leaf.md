@@ -20,7 +20,7 @@ a behavior change.
 
 ## Callers repointed
 
-- `go/internal/query/admission_decision_store.go` (API/MCP admission-decision
+- `go/internal/query/evidence/admission_decision_store.go` (API/MCP admission-decision
   read path)
 - `go/cmd/reducer/admission_decision_wiring.go` and its test
   `admission_decision_wiring_test.go` (reducer write path)

@@ -8,6 +8,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/compare"
 	"github.com/eshu-hq/eshu/go/internal/query/dependency"
 	"github.com/eshu-hq/eshu/go/internal/query/entity"
+	"github.com/eshu-hq/eshu/go/internal/query/evidence"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/semanticsearch"
@@ -288,19 +289,10 @@ var baseCapabilityMatrix = map[string]capabilitySupport{
 	// not copied here. See the semanticsearch entry above for why.
 	repository.CatalogCapability: repository.CatalogSupport(),
 	compare.Capability:           compare.Support(),
-	"relationship_evidence.drilldown": {
-		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalAuthoritative,
-	},
-	"evidence_citation.packet": {
-		LocalLightweightMax:   &truthDerived,
-		LocalAuthoritativeMax: &truthDerived,
-		LocalFullStackMax:     &truthDerived,
-		ProductionMax:         &truthDerived,
-	},
+	// Declared by the evidence family (evidence/capabilities.go, #6642),
+	// not copied here. See the semanticsearch entry above for why.
+	"relationship_evidence.drilldown": evidence.RelationshipEvidenceSupport(),
+	"evidence_citation.packet":        evidence.CitationPacketSupport(),
 	// Declared by the visualization family (visualization/capability.go,
 	// #6060), not copied here. See the semanticsearch entry above for why.
 	visualization.PacketDerivationCapability: visualization.PacketDerivationSupport(),
