@@ -52,6 +52,8 @@ type GenerationRetentionPolicy struct {
 	// HardMaxSupersededAge: superseded history older than this (from the
 	// original superseded_at) is eligible regardless of rank. Unset resolves
 	// to DefaultGenerationRetentionHardMaxAge(MaxSupersededAge).
+	// EvaluateGenerationRetention reports expired-but-blocked history with
+	// its reason and age instead of calling it compliant.
 	HardMaxSupersededAge time.Duration
 	BatchGenerationLimit int
 	BatchRowLimit        int
