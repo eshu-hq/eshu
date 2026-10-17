@@ -453,9 +453,10 @@ func codeTopicTermsMaterialization(scopedOneTerm bool) string {
 }
 
 // scopedCodeTopicFileBranch preserves the measured explicit-repository
-// single-statement file probe. The caller must supply the repository filter.
-// Keep path/content pool accounting in sync with codetopicparallel.FileBranch;
-// only the term binding differs.
+// single-statement file probe for repo-scoped searches of any term count
+// (#7246 one-term, #7098 multi-term). The caller must supply the repository
+// filter. Keep path/content pool accounting in sync with
+// codetopicparallel.FileBranch; only the term binding differs.
 func scopedCodeTopicFileBranch(termArg int, where string, candidateCap int) string {
 	termParam := fmt.Sprintf("term_param AS MATERIALIZED (SELECT $%d::text AS term),\n\t\t  ", termArg)
 	contentTerm := "(SELECT term FROM term_param)"

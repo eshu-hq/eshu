@@ -109,13 +109,10 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 	span.SetAttributes(attribute.Bool("code_topic.scoped_one_term", measuredScopedOneTerm))
 	hideTerm := measuredScopedOneTerm && codeTopicTermHasTrigram(req.Terms[0])
 	span.SetAttributes(attribute.Bool("code_topic.terms_materialized", hideTerm))
+	scopedRepo := strings.TrimSpace(req.RepoID) != "" && strings.TrimSpace(req.Language) == ""
 	for i, term := range req.Terms {
 		termValues[i] = fmt.Sprintf("($%d)", nextArg)
-		if measuredScopedOneTerm {
-			fileBranches[i] = scopedCodeTopicFileBranch(nextArg, where, candidateCap)
-		} else {
-			fileBranches[i] = codetopicparallel.FileBranch(nextArg, where, candidateCap)
-		}
+		fileBranches[i] = codeTopicFileBranch(measuredScopedOneTerm, scopedRepo, term, nextArg, where, candidateCap)
 		args = append(args, term)
 		nextArg++
 	}
@@ -206,6 +203,21 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 	}
 	span.SetAttributes(attribute.Bool("code_topic.pool_truncated", poolTruncated))
 	return results, nil
+}
+
+// codeTopicFileBranch selects the per-term file probe for the single-statement
+// topic read. A repo-scoped search hides each trigram-bearing term's content
+// bind behind a MATERIALIZED term_param (#7246 one-term, #7098 multi-term: a
+// visible bind lets the planner heap-filter corpus-wide trigram matches before
+// the repository predicate (measured 10.1 s against 1.3 s scoped to the
+// largest repository on a full-corpus read replica). A term the GIN indexes
+// cannot filter keeps the
+// visible bind, as do corpus-wide, grant-list, and language-filtered shapes.
+func codeTopicFileBranch(measuredScopedOneTerm, scopedRepo bool, term string, termArg int, where string, candidateCap int) string {
+	if measuredScopedOneTerm || (scopedRepo && codeTopicTermHasTrigram(term)) {
+		return scopedCodeTopicFileBranch(termArg, where, candidateCap)
+	}
+	return codetopicparallel.FileBranch(termArg, where, candidateCap)
 }
 
 func scanCodeTopicEvidenceRows(rows db.Rows) ([]codequery.CodeTopicEvidenceRow, bool, error) {

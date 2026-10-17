@@ -31,7 +31,8 @@
 		),
 		file_probe AS (
 		  (
-		  WITH path_pool AS MATERIALIZED (
+		  WITH term_param AS MATERIALIZED (SELECT $2::text AS term),
+		  path_pool AS MATERIALIZED (
 		    SELECT f.repo_id, f.relative_path, coalesce(f.language, '') AS language,
 		           least(greatest(coalesce(f.line_count, 1), 1), 80) AS end_line, $2 AS matched_term
 		    FROM content_files f
@@ -42,7 +43,7 @@
 		    SELECT f.repo_id, f.relative_path, coalesce(f.language, '') AS language,
 		           least(greatest(coalesce(f.line_count, 1), 1), 80) AS end_line, $2 AS matched_term
 		    FROM content_files f
-		    WHERE f.content ILIKE '%' || $2 || '%'
+		    WHERE f.content ILIKE '%' || (SELECT term FROM term_param) || '%'
 		      AND f.relative_path NOT ILIKE '%' || $2 || '%'
 		    AND repo_id = $1 LIMIT (SELECT 1333 - count(*) FROM path_pool)
 		  )
@@ -52,7 +53,8 @@
 		)
 		  UNION ALL
 (
-		  WITH path_pool AS MATERIALIZED (
+		  WITH term_param AS MATERIALIZED (SELECT $3::text AS term),
+		  path_pool AS MATERIALIZED (
 		    SELECT f.repo_id, f.relative_path, coalesce(f.language, '') AS language,
 		           least(greatest(coalesce(f.line_count, 1), 1), 80) AS end_line, $3 AS matched_term
 		    FROM content_files f
@@ -63,7 +65,7 @@
 		    SELECT f.repo_id, f.relative_path, coalesce(f.language, '') AS language,
 		           least(greatest(coalesce(f.line_count, 1), 1), 80) AS end_line, $3 AS matched_term
 		    FROM content_files f
-		    WHERE f.content ILIKE '%' || $3 || '%'
+		    WHERE f.content ILIKE '%' || (SELECT term FROM term_param) || '%'
 		      AND f.relative_path NOT ILIKE '%' || $3 || '%'
 		    AND repo_id = $1 LIMIT (SELECT 1333 - count(*) FROM path_pool)
 		  )
@@ -73,7 +75,8 @@
 		)
 		  UNION ALL
 (
-		  WITH path_pool AS MATERIALIZED (
+		  WITH term_param AS MATERIALIZED (SELECT $4::text AS term),
+		  path_pool AS MATERIALIZED (
 		    SELECT f.repo_id, f.relative_path, coalesce(f.language, '') AS language,
 		           least(greatest(coalesce(f.line_count, 1), 1), 80) AS end_line, $4 AS matched_term
 		    FROM content_files f
@@ -84,7 +87,7 @@
 		    SELECT f.repo_id, f.relative_path, coalesce(f.language, '') AS language,
 		           least(greatest(coalesce(f.line_count, 1), 1), 80) AS end_line, $4 AS matched_term
 		    FROM content_files f
-		    WHERE f.content ILIKE '%' || $4 || '%'
+		    WHERE f.content ILIKE '%' || (SELECT term FROM term_param) || '%'
 		      AND f.relative_path NOT ILIKE '%' || $4 || '%'
 		    AND repo_id = $1 LIMIT (SELECT 1333 - count(*) FROM path_pool)
 		  )

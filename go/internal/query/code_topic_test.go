@@ -77,11 +77,117 @@ func TestContentReaderInvestigateCodeTopicUsesOneScoredQuery(t *testing.T) {
 	if strings.Contains(recorder.queries[0], "eshu_require_content_substring_indexes_ready()") {
 		t.Fatalf("repo-scoped query = %q, must remain available during global index finalization", recorder.queries[0])
 	}
-	if got := strings.Count(recorder.queries[0], "term_param AS MATERIALIZED"); got != 0 {
-		t.Fatalf("three-term repo search term CTEs = %d, want upstream SQL", got)
+	// #7098 generalizes the #7246 hidden-term shape to repo-scoped searches of
+	// any term count (measured 10.1 s to 1.3 s scoped to the largest repository
+	// on a full-corpus read replica): each trigram-bearing term hides its
+	// content bind here too.
+	if got := strings.Count(recorder.queries[0], "term_param AS MATERIALIZED"); got != 3 {
+		t.Fatalf("three-term repo search term CTEs = %d, want one hidden content bind per term", got)
 	}
-	if got, want := strings.Count(recorder.queries[0], "f.content ILIKE '%' || $"), 3; got != want {
+	if got, want := strings.Count(recorder.queries[0], "f.content ILIKE '%' || $"), 0; got != want {
 		t.Fatalf("three-term repo content predicates = %d, want %d direct binds", got, want)
+	}
+}
+
+// TestContentReaderInvestigateCodeTopicScopedMultiTermHidesContentBinds proves
+// the #7098 repo-scope generalization of #7246: every repo-scoped term that
+// carries a trigram hides its file-content bind behind a MATERIALIZED
+// term_param so the planner BitmapAnds the repository predicate instead of
+// heap-filtering corpus-wide trigram matches. Measured on a full-corpus read
+// replica for five common terms scoped to the largest repository: 10.1 s and
+// 131k buffers with visible binds against 1.3 s and 35k buffers hidden. The
+// corpus-wide shape, the driver arg shape, and the scoring/flag contract are
+// unchanged: one statement, repo_id plus one arg per term plus limit/offset,
+// score DESC ordering, and the same pool-truncation detection.
+func TestContentReaderInvestigateCodeTopicScopedMultiTermHidesContentBinds(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentSearchDB(t, []contentSearchQueryResult{
+		{
+			columns: []string{
+				"source_kind", "repo_id", "relative_path", "entity_id", "entity_name",
+				"entity_type", "language", "start_line", "end_line", "matched_terms", "score",
+				"pool_truncated",
+			},
+			rows: [][]driver.Value{
+				{
+					"entity", "repo-1", "go/internal/collector/reposync/auth.go", "entity-auth",
+					"resolveGitHubAppAuth", "Function", "go", int64(44), int64(88),
+					"auth\x1frepo\x1fsync", int64(3), false,
+				},
+			},
+		},
+	})
+	reader := NewContentReader(db)
+
+	rows, err := reader.InvestigateCodeTopic(context.Background(), CodeTopicInvestigationRequest{
+		RepoID:               "repo-1",
+		AllowedRepositoryIDs: []string{"repo-1"},
+		Terms:                []string{"repo", "sync", "auth"},
+		Limit:                26,
+		Offset:               0,
+	})
+	if err != nil {
+		t.Fatalf("InvestigateCodeTopic() error = %v, want nil", err)
+	}
+	if got, want := len(rows), 1; got != want {
+		t.Fatalf("len(rows) = %d, want %d", got, want)
+	}
+	if got, want := len(recorder.queries), 1; got != want {
+		t.Fatalf("queries = %d, want one scored SQL query", got)
+	}
+	if got, want := len(recorder.args[0]), 6; got != want {
+		t.Fatalf("len(query args) = %d, want %d (repo_id + 3 terms + limit + offset)", got, want)
+	}
+	if got, want := recorder.args[0][0], "repo-1"; got != want {
+		t.Fatalf("repo arg = %#v, want %#v", got, want)
+	}
+	for i, want := range []string{"repo", "sync", "auth"} {
+		if got := recorder.args[0][1+i]; got != want {
+			t.Fatalf("term arg[%d] = %#v, want %#v", i, got, want)
+		}
+	}
+	if strings.Contains(recorder.queries[0], "eshu_require_content_substring_indexes_ready()") {
+		t.Fatalf("repo-scoped query = %q, must remain available during global index finalization", recorder.queries[0])
+	}
+	if got := strings.Count(recorder.queries[0], "term_param AS MATERIALIZED"); got != 3 {
+		t.Fatalf("three-term repo search term CTEs = %d, want one hidden content bind per term", got)
+	}
+	if got := strings.Count(recorder.queries[0], "f.content ILIKE '%' || $"); got != 0 {
+		t.Fatalf("three-term repo direct content binds = %d, want hidden", got)
+	}
+	for _, fragment := range []string{
+		"ORDER BY score DESC, repo_id, relative_path, entity_name, source_kind",
+		"pool_status.capped AS pool_truncated",
+		"count(DISTINCT matched_term)::int AS score",
+		"string_agg(DISTINCT matched_term, E'\\x1f' ORDER BY matched_term)",
+	} {
+		if !strings.Contains(recorder.queries[0], fragment) {
+			t.Fatalf("query missing parity fragment %q", fragment)
+		}
+	}
+}
+
+// TestContentReaderInvestigateCodeTopicScopedMultiTermKeepsNoTrigramBindVisible
+// proves the per-term #7246 guard survives the #7098 generalization: a term
+// with no extractable trigram ("db_": "_" breaks the letter run) keeps its
+// visible content bind even in a repo-scoped multi-term search, while a
+// trigram-bearing sibling hides. Hiding a trigram-less term measured 3.3 to
+// 4.6 s visible against 14.9 to 16.7 s hidden on QA, so the guard must stay
+// per-term.
+func TestContentReaderInvestigateCodeTopicScopedMultiTermKeepsNoTrigramBindVisible(t *testing.T) {
+	t.Parallel()
+
+	query := codeTopicSQLFor(t, CodeTopicInvestigationRequest{
+		RepoID: "repo-1",
+		Terms:  []string{"auth", "db_"},
+		Limit:  13,
+	})
+	if got := strings.Count(query, "term_param AS MATERIALIZED"); got != 1 {
+		t.Fatalf("mixed-trigram repo search term CTEs = %d, want 1 (auth hidden, db_ visible)", got)
+	}
+	if got := strings.Count(query, "f.content ILIKE '%' || $"); got != 1 {
+		t.Fatalf("mixed-trigram repo direct content binds = %d, want 1 (db_ visible)", got)
 	}
 }
 
