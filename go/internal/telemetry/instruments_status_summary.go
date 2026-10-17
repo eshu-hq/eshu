@@ -22,7 +22,7 @@ const MetricDimensionModelKey = "model_key"
 
 // statusSummaryWriterPassBuckets span a lock skip (sub-millisecond) to a pass
 // at its two-interval deadline. The #7009 fixture measured 300-440 ms alone
-// and 600-640 ms beside the claim loop, and the ops-qa read replica about
+// and 600-640 ms beside the claim loop, and the QA read replica about
 // 1.0 s; a pass above the writer interval (10 s by default) is an overrun.
 var statusSummaryWriterPassBuckets = []float64{0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20, 30}
 

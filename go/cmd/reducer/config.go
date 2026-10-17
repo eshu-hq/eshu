@@ -454,7 +454,7 @@ const (
 	idAnchorCensusTimeoutEnv      = "ESHU_ID_ANCHOR_CENSUS_TIMEOUT"
 
 	// defaultIDAnchorCensusPollInterval spaces the AllNodesScan: about 1.95 s
-	// over 1,130,424 nodes on ops-qa (image sha-57167b0, 2026-10-08), so an
+	// over 1,130,424 nodes on the QA graph (image sha-57167b0, 2026-10-08), so an
 	// hourly pass is well under 0.1% of one core per replica.
 	defaultIDAnchorCensusPollInterval = time.Hour
 	// defaultIDAnchorCensusTimeout bounds one pass at about 60 times the

@@ -10,7 +10,7 @@ import (
 )
 
 // Bucket boundaries of the changed-since link histograms (#7127 PR-3a). A
-// link of the largest repository takes about 13 s warm on ops-qa and is
+// link of the largest repository takes about 13 s warm in the QA environment and is
 // bounded by a 120 s statement timeout; delta rows and keys span a
 // one-file change to a 1.3M-key scope.
 var (

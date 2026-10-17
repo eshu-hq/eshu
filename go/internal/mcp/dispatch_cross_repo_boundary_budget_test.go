@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-// boundaryRelationshipCount is the live ops-qa shape behind #7129: one
+// boundaryRelationshipCount is the live QA shape behind #7129: one
 // producer repository with 20 incoming repository-level relationships, none of
 // which names a symbol, so every candidate row falls back to the same 20
 // repository-boundary evidence items.

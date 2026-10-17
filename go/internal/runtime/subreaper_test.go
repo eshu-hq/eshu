@@ -68,7 +68,7 @@ func drainOrphans(t *testing.T, minAge time.Duration) {
 	t.Fatal("timed out draining orphan zombies")
 }
 
-// TestOrphanReaperReapsAbandonedZombie is the regression for the ops-qa pids
+// TestOrphanReaperReapsAbandonedZombie is the regression for the QA pids
 // exhaustion: every git fetch orphaned one git grandchild that no os/exec Cmd
 // tracked, and PID 1 never reaped it. The reaper must reap exactly the zombie
 // the test abandons.

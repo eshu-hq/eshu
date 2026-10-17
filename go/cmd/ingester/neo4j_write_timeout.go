@@ -20,7 +20,7 @@ const unboundedNeo4jWriteTimeoutEvent = "graph.write_timeout.unbounded"
 // defaultNeo4jCanonicalWriteTimeout bounds Neo4j canonical writes when
 // ESHU_CANONICAL_WRITE_TIMEOUT is unset or invalid (issue #7471). It is
 // ~15x over the largest locally measured full write (19.6s at 50k markers;
-// the ops-qa 25k-marker shape measured 14.4s here), confirmed by the arbiter;
+// the QA 25k-marker shape measured 14.4s here), confirmed by the arbiter;
 // the reference-corpus measurement is NOT_CHECKED on this machine. An
 // explicit non-positive duration keeps the deliberate unbounded opt-out.
 const defaultNeo4jCanonicalWriteTimeout = 300 * time.Second

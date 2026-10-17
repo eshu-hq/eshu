@@ -558,7 +558,7 @@ func TestCodeValueFlowStaleCleanupRunnerEmitsLeaseTTLSeconds(t *testing.T) {
 // TestStaleCleanupDefaultLeaseTTLCoversWriteBudget pins #7047: the effective
 // lease TTL with no configured value must exceed the graph write budget plus
 // a safety margin, so a write running to its full budget cannot reach the end
-// of the lease with no margin. The 300s budget is ops-qa's
+// of the lease with no margin. The 300s budget is the QA environment's
 // ESHU_CANONICAL_WRITE_TIMEOUT; the 30s margin mirrors
 // repoDependencyProjectionLeaseSafetyMargin.
 func TestStaleCleanupDefaultLeaseTTLCoversWriteBudget(t *testing.T) {

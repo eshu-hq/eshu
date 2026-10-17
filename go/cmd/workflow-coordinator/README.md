@@ -144,7 +144,7 @@ the rest of the fleet keeps the 30-second default:
 
 ```json
 [{
-  "instance_id": "aws-ops-prod",
+  "instance_id": "aws-demo-shop",
   "collector_kind": "aws",
   "mode": "continuous",
   "enabled": true,
@@ -211,7 +211,7 @@ scheduled planner, an AWS instance with `scheduled_scan_enabled: false`, or a
 `single_pass` derivation sets a bucket nothing consumes). The ground truth
 for the cadence in effect is the plan-key
 suffix of the run IDs the instance produces, for example
-`aws:aws-ops-prod:schedule:continuous-20260520T120000Z`.
+`aws:aws-demo-shop:schedule:continuous-20260520T120000Z`.
 
 ## Exported surface
 

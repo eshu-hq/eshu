@@ -300,7 +300,7 @@ Prometheus output after the hand-rolled gauges at the same `/metrics` endpoint.
 - Adopted zombie reaping (`StartOrphanReaper`, wired by `cmd/ingester` and
   `cmd/collector-git`) exists because every collector git fetch/clone orphans
   one short-lived helper grandchild that reparents to PID 1; with no init
-  process in the image those zombies accumulated (~45/min on ops-qa, pids
+  process in the image those zombies accumulated (~45/min in the QA environment, pids
   cgroup saturation at 75,412 with pod-wide fork failures) until this fix.
 
   No-Regression Evidence: the spawn path is behavior-preserving — call-site
@@ -315,7 +315,7 @@ Prometheus output after the hand-rolled gauges at the same `/metrics` endpoint.
   Verified by `go test ./internal/runtime ./internal/collector/repo/git
   -count=1` in a Linux container (reaper reaps exactly the abandoned zombie,
   age gate and tracked-child safety proven, routing guard green with seeded
-  RED/GREEN). Post-deploy ops-qa `pids.current` observation under fetch
+  RED/GREEN). Post-deploy QA `pids.current` observation under fetch
   churn is the follow-on that proves the incident fixed (issue #6873).
 
   Observability Evidence: each reap logs pid and zombie age at info level, so

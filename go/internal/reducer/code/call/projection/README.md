@@ -71,7 +71,7 @@ and logs the same `lane released` line with the old `blocked_reason`, its
 episode at zero. The blocker sample is taken from the dependency the gate
 consults (`ReducerGraphDrain` when wired, otherwise `CanonicalQuiescence`),
 never from the other one. Before #7133 a blocked cycle emitted
-nothing, and the lane sat shut on ops-qa for eight days without a signal.
+nothing, and the lane sat shut in the QA environment for eight days without a signal.
 
 ## Dependencies
 

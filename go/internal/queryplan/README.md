@@ -120,7 +120,7 @@ that does not exist: `degree_bounded` (single-anchor one-hop reads, carrying
 the corpus-measured `max_degree`) and `depth_bounded` (single-anchor
 variable-length traversals, carrying `max_degree` plus the handler-enforced
 `max_depth`). Both floors live in `source_coverage.go`. `max_degree` floors at 1125, the
-measured maximum CALLS degree over both directions on the ops-qa reference
+measured maximum CALLS degree over both directions on the QA reference
 corpus; see `#6649` for the method and
 `docs/internal/evidence/6649-calls-degree-floor.md` for the full
 distribution. This supersedes `#6556`'s B-7 synthetic-fixture measurement

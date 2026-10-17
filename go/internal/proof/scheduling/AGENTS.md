@@ -3,7 +3,7 @@
 When changing fixture_seed.sql, oracle_preflight.sql, or persisted_oracle.sql,
 run the README's exact psql checks on a disposable PostgreSQL 18 primary.
 Require the green markers and all five seeded bad cases to exit 3; never run
-the seed on ops-qa or a shared database.
+the seed on the QA environment or a shared database.
 
 Follow the repository root `AGENTS.md` and query, PostgreSQL, performance, and
 review skills. This command is a non-deployed #7033 experiment; run its

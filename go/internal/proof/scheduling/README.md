@@ -5,7 +5,7 @@ workers that draw one term at a time. Both routes use Eshu's unchanged probe
 and page-assembly SQL. It is a read-only experiment, not an API replacement.
 
 The SQL helpers are separate checks for a disposable PostgreSQL 18 primary,
-not scripts for ops-qa. The seed creates persistent fixture tables, so use
+not scripts for the QA environment. The seed creates persistent fixture tables, so use
 the empty postgres database in a new instance that can be discarded. Connect
 as that instance's postgres superuser; the preflight reads pg_control_system().
 From the repository root, set ESHU7033_FIXTURE_DSN to its connection string,
@@ -55,7 +55,7 @@ non-default loopback port; it is valid only in fixed mode. Set
 `ESHU7033_EXPECTED_DATABASE` and `ESHU7033_EXPECTED_SYSTEM_ID` from a separate
 read-only preflight, not from the connection string alone. The external runner
 must collect fresh database/system IDs and corpus/index fingerprints for each
-run; the fixture values below do not identify an ops-qa reader.
+run; the fixture values below do not identify a QA reader.
 
 All modes use a shared repeatable-read snapshot, a 50-second whole-case deadline,
 five-second SQL statement limit, and bounded rollback and connection cleanup.
