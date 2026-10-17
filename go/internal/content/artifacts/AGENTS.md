@@ -64,11 +64,13 @@
   bumps it by one and appends its pin row to `extractorPins`
   (`version_guard_test.go`) in the same change. Never re-pin a digest at an
   unchanged version to make `TestExtractorOutputIsPinned` pass. The pin row
-  also records the hydration window (`ListLimit`, `AllowanceWholeWindow`):
-  a moved window at an unchanged version fails the guard, because no corpus
-  repository is large enough to move a digest. The digests fail only when a
-  change moves a stored row over the frozen corpus; they do not see inputs
-  the corpus lacks, `storedRows` in `storage/postgres/config/artifacts`, the
+  also records the window constants (`ListLimit`, `AllowanceWholeWindow`):
+  a moved constant at an unchanged version fails the guard, because a window
+  change that cuts no corpus repository moves no digest. The digests fail
+  only when a change moves a stored row over the frozen corpus; they do not
+  see inputs the corpus lacks, the derive's `LoadConfigPaths` call arguments
+  (pinned by `TestDeriveCallsLoadConfigPathsWithTheGuardArguments` in
+  `storage/postgres/config/artifacts`), `storedRows` there, the
   `content_files` statements, `artifact_type` or files above the 256 KiB
   pre-filter bound (README, "What the guard does not see"). A change to one
   of those still bumps.

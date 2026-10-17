@@ -87,6 +87,11 @@ Scoped instructions for the config-artifact read model (#7126). The root
   The extractor-version guard in `content/artifacts` hashes its own copy of
   it, so a change to `storedRows` needs an `ExtractorVersion` bump and the
   same change to `deriveGuardRows` there.
+- Step 2 calls `contentartifacts.LoadConfigPaths` with an id-only repository,
+  a nil file list, `hasFileList` false and `AllowanceWholeWindow`
+  (`TestDeriveCallsLoadConfigPathsWithTheGuardArguments`). The extractor guard
+  copies those arguments, so a change to them needs the same change to
+  `deriveGuardRows` and an `ExtractorVersion` bump.
 - Step 2 reads through `contentReader`, which must send only the neutral
   package's statements and row mappers (`contentartifacts.ListStatement` and
   its siblings), never a copy: the S4 equality test compares the stored rows

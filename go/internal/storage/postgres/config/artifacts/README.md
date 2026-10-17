@@ -182,7 +182,13 @@ defines no extractor-version constant: the wiring slice supplies
 section 7, "S0 test, version guard") copies `storedRows` and re-implements the
 `content_files` statements, so it cannot see a change here.
 `TestStoredRowsCopiesTheBuildVerbatim` (`derive_reader_test.go`) pins
-`storedRows` as a verbatim copy of the build. A change to `storedRows` or to
+`storedRows` as a verbatim copy of the build. The guard also passes its own
+copy of the derive's `LoadConfigPaths` call arguments (an id-only
+repository, no supplied file list, `AllowanceWholeWindow`);
+`TestDeriveCallsLoadConfigPathsWithTheGuardArguments`
+(`derive_contract_test.go`) records the arguments the real Deriver passes and
+that production wires `LoadConfigPaths`. A change to those arguments needs the
+same change to `deriveGuardRows` and a bump. A change to `storedRows` or to
 what a statement returns needs an `ExtractorVersion` bump and the same change
 to the guard's copy (`content/artifacts` README, "What the guard does not
 see").

@@ -26,11 +26,14 @@ package artifacts
 // change moves a stored row over that corpus, when the version changed but
 // neither the output over that corpus nor the window did, when ListLimit or
 // AllowanceWholeWindow moved at an unchanged version (the pin row records the
-// window, because no corpus repository is large enough to move a digest), and
-// when the corpus bytes changed without a matching pin row. It does not see,
-// so each still needs a manual bump when it changes: inputs the corpus lacks
-// (add one that shows the change to the generator's supplement and regenerate
-// in the bump change); the storedRows mapping in
+// constants, because a window change that cuts no corpus repository moves no
+// digest), and when the corpus bytes changed without a matching pin row. It
+// does not see, so each still needs a manual bump when it changes: inputs the
+// corpus lacks (add one that shows the change to the generator's supplement
+// and regenerate in the bump change); the derive's LoadConfigPaths call
+// arguments in storage/postgres/config/artifacts, which the guard copies
+// (TestDeriveCallsLoadConfigPathsWithTheGuardArguments there fails on a change
+// to them); the storedRows mapping in
 // storage/postgres/config/artifacts, which the guard copies
 // (TestStoredRowsCopiesTheBuildVerbatim there fails on a change to it); the
 // content_files statements, whose semantics the guard's store re-implements;

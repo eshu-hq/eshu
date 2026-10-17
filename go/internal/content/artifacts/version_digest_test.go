@@ -130,7 +130,8 @@ func (s guardStore) NonBlankPaths(_ context.Context, _ string, relativePaths []s
 // deriveGuardRows runs the derive's own call over one repository: the
 // production LoadConfigPaths with no repository name, no supplied file list
 // and the whole-window allowance (storage/postgres/config/artifacts
-// derive.go). It maps the rows the way the derive's storedRows does and fails
+// derive.go; TestDeriveCallsLoadConfigPathsWithTheGuardArguments there pins
+// those arguments). It maps the rows the way the derive's storedRows does and fails
 // on a row the derive would refuse.
 func deriveGuardRows(t *testing.T, repo guardRepository) []guardRow {
 	t.Helper()

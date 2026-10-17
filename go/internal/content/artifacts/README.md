@@ -248,7 +248,9 @@ pin history accepts a row whose output equals an older, non-adjacent row).
 **The guard.** `TestExtractorOutputIsPinned` runs the derive's own call
 (`LoadConfigPaths` with no name, no supplied list and `AllowanceWholeWindow`,
 as in `storage/postgres/config/artifacts/derive.go`) over the committed corpus
-in `testdata/guard`, through its own in-memory store. It maps the rows with a
+in `testdata/guard`, through its own in-memory store. Those call arguments are
+a copy: `TestDeriveCallsLoadConfigPathsWithTheGuardArguments` in that package
+records the arguments the real Deriver passes and fails when they differ. It maps the rows with a
 copy of the derive's `storedRows`, sorts them by repository label,
 `raw_path`, `relative_path`, `evidence_kind` and `name_scoped`, and hashes
 every field framed as `<byte length>:<bytes>`. It fails when:
@@ -268,11 +270,15 @@ checks. Production row order is not in the digest: the stored rows are a set,
 and `CompareConfigPaths` has its own tests.
 
 **The hydration window.** The corpus holds no repository near `ListLimit`
-(the generator refuses one at or above it), so a change to `ListLimit` or
-`AllowanceWholeWindow` moves no digest, yet it changes which files an
-oversized repository contributes. Each pin row records the window it ran
-with (`Window`), and the guard compares the current constants with the last
-row. A moved window at an unchanged version reports `hydration window moved`
+(the generator refuses one at or above it). A change to `ListLimit` or
+`AllowanceWholeWindow` that cuts no corpus repository moves no digest, yet it
+changes which files a larger repository contributes. A change that cuts a
+corpus repository (for example a `ListLimit` below its file count) moves the
+output digest too. Either way, each pin row records the window constants it
+ran with (`Window`), and the guard compares the current constants with the
+last row. The guard pins the constants, not the window the derive passes:
+`TestDeriveCallsLoadConfigPathsWithTheGuardArguments` pins that the derive
+passes `AllowanceWholeWindow`. A moved window at an unchanged version reports `hydration window moved`
 and prints the row to append. A window-only bump needs no added input: set
 `ExtractorVersion` to N+1 and append the row with the same digests and the new
 window. `checkExtractorPins` accepts that row, and refuses a bump whose row
@@ -286,6 +292,13 @@ Each of these still needs a manual bump when it changes:
   passes the guard (for example, lower-casing the kustomize policy path: no
   kustomize row in the corpus has upper case). Add that input in the bump
   change (procedure below).
+- The derive's `LoadConfigPaths` call arguments in
+  `storage/postgres/config/artifacts` (`derive.go`): the repository with an
+  id and no name, no supplied file list and `AllowanceWholeWindow`. The guard
+  passes its own copy (`deriveGuardRows`).
+  `TestDeriveCallsLoadConfigPathsWithTheGuardArguments` in that package fails
+  on a change to them or to the wired load function; change the guard's copy
+  and bump in the same change.
 - The `storedRows` mapping in `storage/postgres/config/artifacts`
   (`derive_reader.go`). The guard hashes its own copy (`deriveGuardRows`).
   `TestStoredRowsCopiesTheBuildVerbatim` in that package fails on a change to

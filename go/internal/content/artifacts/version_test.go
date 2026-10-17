@@ -11,9 +11,9 @@ import (
 
 // hydrationWindow is the file window a derive reads: the list window
 // (ListLimit) and the content allowance (AllowanceWholeWindow). A change to
-// either alters which files an oversized repository contributes, and the guard
-// corpus holds no repository that large, so no digest moves. The pin therefore
-// records the window itself.
+// either alters which files a large repository contributes. A change that cuts
+// no guard corpus repository moves no digest, so the pin records the window
+// constants themselves.
 type hydrationWindow struct {
 	ListLimit            int
 	AllowanceWholeWindow int
@@ -81,7 +81,8 @@ func checkExtractorPins(corpusDigest, outputDigest string, version int, window h
 		return nil
 	case version == last.Version && window != last.Window:
 		return fmt.Errorf("hydration window moved: ListLimit %d and AllowanceWholeWindow %d, pinned %d and %d; "+
-			"the guard corpus holds no repository that large, so no digest moves, but a stored row for an oversized repository changes. "+
+			"a window that cuts no guard corpus repository moves no digest (one that cuts a corpus repository moves the output digest too), "+
+			"but the stored rows of a repository it cuts change. "+
 			"Set ExtractorVersion to %d and append %s",
 			window.ListLimit, window.AllowanceWholeWindow, last.Window.ListLimit, last.Window.AllowanceWholeWindow, next.Version, next.literal())
 	case version == last.Version:
