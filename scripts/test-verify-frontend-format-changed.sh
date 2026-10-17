@@ -72,6 +72,17 @@ run_verifier() {
   ) >"${output_file}" 2>&1
 }
 
+run_verifier_no_prettier() {
+  local repo_dir="$1"
+  local output_file="$2"
+  shift 2
+  (
+    cd "${repo_dir}"
+    env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR \
+      -u ESHU_PRETTIER_BIN "${verifier}" "$@"
+  ) >"${output_file}" 2>&1
+}
+
 run_verifier_for_main_push() {
   local repo_dir="$1"
   local output_file="$2"
@@ -215,6 +226,135 @@ test_staged_formatted_js_ts_passes() {
   assert_contains "format: checking prettier on 1 staged files" "${out}"
 }
 
+# ─── Advisory mode (#8355) ──────────────────────────────────────────
+# The push-stage hook runs an advisory (blocking:false) row, so --advisory must
+# never fail a push on drift or on a missing node_modules/prettier. Strict mode
+# (no flag, CI) must keep failing on both.
+
+make_unformatted_repo() {
+  local repo_dir="$1"
+  git_init "${repo_dir}"
+  mkdir -p "${repo_dir}/src"
+  printf 'const value = "UNFORMATTED";\n' >"${repo_dir}/src/bad.ts"
+  git_in "${repo_dir}" add src/bad.ts
+  git_in "${repo_dir}" commit -q -m "bad format"
+}
+
+test_advisory_drift_exits_zero() {
+  local repo_dir="${tmp_root}/advisory-drift"
+  local out="${tmp_root}/advisory-drift.out"
+  make_unformatted_repo "${repo_dir}"
+  if ! run_verifier "${repo_dir}" "${out}" --advisory; then
+    echo "test-frontend-format: expected --advisory drift to exit 0" >&2
+    cat "${out}" >&2
+    exit 1
+  fi
+  assert_contains "format: advisory:" "${out}"
+  assert_contains "fake-prettier:" "${out}"
+  assert_contains "prettier exited 1" "${out}"
+  if rg -q --fixed-strings "reported drift" "${out}"; then
+    echo "test-frontend-format: advisory message must not claim drift for any non-zero exit" >&2
+    cat "${out}" >&2
+    exit 1
+  fi
+}
+
+test_advisory_missing_prettier_exits_zero() {
+  local repo_dir="${tmp_root}/advisory-no-prettier"
+  local out="${tmp_root}/advisory-no-prettier.out"
+  make_unformatted_repo "${repo_dir}"
+  if ! run_verifier_no_prettier "${repo_dir}" "${out}" --advisory; then
+    echo "test-frontend-format: expected --advisory without prettier to exit 0" >&2
+    cat "${out}" >&2
+    exit 1
+  fi
+  assert_contains "format: advisory:" "${out}"
+  assert_contains "node_modules/prettier is missing" "${out}"
+}
+
+test_strict_missing_prettier_fails() {
+  local repo_dir="${tmp_root}/strict-no-prettier"
+  local out="${tmp_root}/strict-no-prettier.out"
+  make_unformatted_repo "${repo_dir}"
+  if run_verifier_no_prettier "${repo_dir}" "${out}"; then
+    echo "test-frontend-format: expected strict mode without prettier to fail" >&2
+    cat "${out}" >&2
+    exit 1
+  fi
+  assert_contains "node_modules/prettier is missing" "${out}"
+  if rg -q --fixed-strings "format: advisory:" "${out}"; then
+    echo "test-frontend-format: strict mode must not print an advisory line" >&2
+    exit 1
+  fi
+}
+
+test_advisory_formatted_passes_quietly() {
+  local repo_dir="${tmp_root}/advisory-formatted"
+  local out="${tmp_root}/advisory-formatted.out"
+  git_init "${repo_dir}"
+  mkdir -p "${repo_dir}/src"
+  printf 'const value = "formatted";\n' >"${repo_dir}/src/good.ts"
+  git_in "${repo_dir}" add src/good.ts
+  git_in "${repo_dir}" commit -q -m "good format"
+  run_verifier "${repo_dir}" "${out}" --advisory
+  if rg -q --fixed-strings "format: advisory:" "${out}"; then
+    echo "test-frontend-format: clean --advisory run must not print an advisory line" >&2
+    cat "${out}" >&2
+    exit 1
+  fi
+}
+
+# hook_entry ID: print the entry line of the hook with that id.
+hook_entry() {
+  awk -v id="$1" '
+    $0 ~ "- id: " id "$" { found = 1; next }
+    found && /^ *- id:/ { exit }
+    found && /^ *entry:/ { sub(/^ *entry: */, ""); print; exit }
+  ' "${repo_root}/.pre-commit-config.yaml"
+}
+
+# hook_has_verbose ID: succeed when the hook sets `verbose: true`. pre-commit
+# hides the output of a hook that exits 0, so an advisory hook needs it for the
+# `format: advisory:` line to reach the developer.
+hook_has_verbose() {
+  awk -v id="$1" '
+    $0 ~ "- id: " id "$" { found = 1; next }
+    found && /^ *- id:/ { exit }
+    found && /^ *verbose: *true *$/ { ok = 1 }
+    END { exit ok ? 0 : 1 }
+  ' "${repo_root}/.pre-commit-config.yaml"
+}
+
+test_hook_wiring_push_advisory_staged_strict() {
+  local push_entry staged_entry
+  push_entry="$(hook_entry frontend-format-changed)"
+  staged_entry="$(hook_entry frontend-format-staged)"
+  case "${push_entry}" in
+    *"verify-frontend-format-changed.sh"*"--advisory"*) ;;
+    *)
+      echo "test-frontend-format: push-stage hook must pass --advisory, got: ${push_entry}" >&2
+      exit 1
+      ;;
+  esac
+  case "${staged_entry}" in
+    *"--staged"*) ;;
+    *)
+      echo "test-frontend-format: staged hook must pass --staged, got: ${staged_entry}" >&2
+      exit 1
+      ;;
+  esac
+  if ! hook_has_verbose frontend-format-changed; then
+    echo "test-frontend-format: push-stage advisory hook must set verbose: true so pre-commit shows the advisory line" >&2
+    exit 1
+  fi
+  case "${staged_entry}" in
+    *"--advisory"*)
+      echo "test-frontend-format: staged hook must stay strict, got: ${staged_entry}" >&2
+      exit 1
+      ;;
+  esac
+}
+
 # ─── Shared-store depth guard (#8032) ───────────────────────────────
 # A gate script must never turn a full clone shallow: every worktree of the
 # clone shares one .git/shallow, so a depth fetch from any worktree breaks
@@ -313,6 +453,11 @@ test_main_push_checks_previous_commit_when_origin_main_is_head
 test_staged_no_frontend_js_ts_files_skips
 test_staged_unformatted_js_ts_fails
 test_staged_formatted_js_ts_passes
+test_advisory_drift_exits_zero
+test_advisory_missing_prettier_exits_zero
+test_strict_missing_prettier_fails
+test_advisory_formatted_passes_quietly
+test_hook_wiring_push_advisory_staged_strict
 test_full_clone_missing_base_stays_full
 test_full_clone_resolvable_base_skips_fetch
 test_shallow_clone_missing_base_fetches_with_depth

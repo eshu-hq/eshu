@@ -8,11 +8,16 @@ log() {
   printf 'format: %s\n' "$*" >&2
 }
 
+# --advisory: the registry row is blocking:false, so report Prettier drift and a
+# missing node_modules/prettier as `format: advisory:` lines and exit 0. Without
+# the flag (CI) both stay hard failures.
+advisory=0
 mode="${ESHU_FORMAT_MODE:-branch}"
 for arg in "$@"; do
   case "${arg}" in
     --staged) mode="staged" ;;
     --branch) mode="branch" ;;
+    --advisory) advisory=1 ;;
     *)
       log "unknown argument: ${arg}"
       exit 2
@@ -166,9 +171,21 @@ if [[ -n "${ESHU_PRETTIER_BIN:-}" ]]; then
 elif [[ -d "${repo_root}/node_modules/prettier" ]]; then
   prettier_cmd=(npx --no-install prettier)
 else
+  if [[ "${advisory}" -eq 1 ]]; then
+    log "advisory: node_modules/prettier is missing; skipping the format check (run 'npm ci' to enable it)"
+    exit 0
+  fi
   log "node_modules/prettier is missing; run 'npm ci' before this gate"
   exit 1
 fi
 
 log "checking prettier on ${#changed_files[@]} ${file_label} files"
+if [[ "${advisory}" -eq 1 ]]; then
+  prettier_rc=0
+  "${prettier_cmd[@]}" --check "${changed_files[@]}" || prettier_rc=$?
+  if [[ "${prettier_rc}" -ne 0 ]]; then
+    log "advisory: prettier exited ${prettier_rc}; not blocking. See the output above; 'npx prettier --write' fixes formatting drift"
+  fi
+  exit 0
+fi
 "${prettier_cmd[@]}" --check "${changed_files[@]}"
