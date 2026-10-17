@@ -16,7 +16,7 @@ new forms).
 | Shape | Producer `export_name` | Consumer call |
 | --- | --- | --- |
 | JS/TS static method | `<Export>.<method>` | `C.m()`, `D.m()` (default import), `ns.C.m()` |
-| PHP instance method | `<FQCN>-><method>` | `(new X())->m()`, `$v->m()` with a proven receiver |
+| PHP instance method | `<FQCN>-><method>` | `(new X())->m()`, `new X()->m()`, `$v->m()` with a proven receiver |
 | PHP `use function` | `function:<FQN>` | a bare `f()` bound by `use function` |
 
 `<Export>` is the class's own export name, `default` only for the main or
@@ -73,8 +73,9 @@ functions and classes in separate symbol tables, so a function key carries the
   `autoload.files`, where a psr-4 prefix of that manifest covers the FQN
   (`composer.ProducerFunctionPackage`). The vendor and fixture-directory rules
   of `ProducerPackage` apply.
-- PHP consumer, instance: the receiver is `(new X(...))`, or a variable that its
-  scope (function, method, or closure body, or the script) writes exactly once,
+- PHP consumer, instance: the receiver is `(new X(...))`, the PHP 8.4
+  unparenthesized `new X(...)`, or a variable that its scope (function,
+  method, or closure body, or the script) writes exactly once,
   by `new X(...)`, and otherwise reads only as the object of a member call or
   property access. Passing it as an argument (a by-reference write), `foreach`,
   `list()`, `catch`, `global`, `static`, a closure `use` clause, or a parameter
@@ -91,7 +92,11 @@ functions and classes in separate symbol tables, so a function key carries the
   `__toString`), and no `include`, `require`, `eval`, `echo`, `print`, `<?=`,
   inline HTML after `?>` (an output buffer callback may run), `clone`, shell
   command, `global`, or `::` (a class constant or static member may run an
-  autoloader) text (review F7 and F9).
+  autoloader) text (review F7 and F9). The pinned tree-sitter-php grammar
+  has no language version, so `new X()->m()` keys the same way in a file that
+  targets PHP before 8.4, where it does not compile. `new X->m()`, with no
+  argument list, is invalid in PHP 8.4 too. The grammar returns an `ERROR`
+  node for it, so it gets no key (PR #8314 review).
 - PHP consumer, function: `use function A\f`, `use function A\f as g`,
   `use function A\{f, g}`, and the `function` clause of a mixed group
   (`use A\{B, function f}`). A name bound to two FQNs is blocked. The package is
@@ -119,7 +124,9 @@ Parser tests, on `parser.DefaultEngine`, one file per shape:
   `TestDefaultEngineParsePathPHPSkipsUnprovableInstanceKeys`,
   `TestDefaultEngineParsePathPHPKeysTopLevelScriptInstanceCalls`,
   `TestDefaultEngineParsePathPHPSkipsConditionalAndAnonymousClassKeys`, and
-  `TestDefaultEngineParsePathPHPSkipsReceiversNonLocalCodeCanRewrite`.
+  `TestDefaultEngineParsePathPHPSkipsReceiversNonLocalCodeCanRewrite`, plus
+  `TestDefaultEngineParsePathPHPKeysUnparenthesizedCreationReceivers` in
+  `go/internal/parser/php/package_keys_bare_creation_test.go`.
 - PHP `use function`, `go/internal/parser/php/package_keys_functions_test.go`:
   `TestDefaultEngineParsePathPHPStampsProducerFunctionKeys`,
   `TestDefaultEngineParsePathPHPSkipsProducerFunctionKeysUnderFixtureManifest`,
