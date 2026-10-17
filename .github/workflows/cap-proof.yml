@@ -1,0 +1,21 @@
+name: tmp-cap-proof
+on:
+  push:
+    branches: [tmp/8241-cap-proof]
+jobs:
+  capped:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: start
+        run: echo "START $(date +%s)" >> "$GITHUB_ENV"
+      - name: long step
+        run: sleep 150
+      - name: after always
+        if: always()
+        run: |
+          echo "REACHED always() step; job.status=${{ job.status }}; cancelled()=${{ cancelled() }}; failure()=${{ failure() }}"
+          echo "REACHED always() job.status=${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+      - name: after cancelled only
+        if: cancelled()
+        run: echo "REACHED cancelled() step"
