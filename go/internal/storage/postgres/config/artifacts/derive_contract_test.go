@@ -6,6 +6,7 @@ package artifacts
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	contentartifacts "github.com/eshu-hq/eshu/go/internal/content/artifacts"
@@ -104,5 +105,63 @@ func TestDeriveWriteAndFailureRecordShareOneRepositoryLock(t *testing.T) {
 	}
 	if got := repoLockKey("repo-a"); got != wantKey {
 		t.Fatalf("repoLockKey() = %q, want %q", got, wantKey)
+	}
+}
+
+// guardCopyNote names the copy of the derive's load call that the extractor
+// guard digests, so a failure here says what else must change.
+const guardCopyNote = "the extractor guard in go/internal/content/artifacts copies these arguments " +
+	"(version_digest_test.go deriveGuardRows); change both and bump ExtractorVersion"
+
+// TestDeriveCallsLoadConfigPathsWithTheGuardArguments records the arguments
+// the real Deriver passes to its step-2 load and pins them to the call the
+// extractor guard digests: the repository id with no name, no supplied file
+// list, and the whole-window allowance. It also pins that production wires
+// contentartifacts.LoadConfigPaths, the function the guard calls. The guard
+// pins the ListLimit and AllowanceWholeWindow constants; LoadConfigPaths reads
+// ListLimit itself, so ListLimit is not a call argument. Without this test a
+// derive that passed a smaller allowance, a name or a file list would store
+// other rows than the pinned output while the guard stayed green.
+func TestDeriveCallsLoadConfigPathsWithTheGuardArguments(t *testing.T) {
+	production, err := NewDeriver(&deriveFakeDB{}, supportedConfig())
+	if err != nil {
+		t.Fatalf("NewDeriver() error = %v", err)
+	}
+	if got, want := reflect.ValueOf(production.load).Pointer(), reflect.ValueOf(contentartifacts.LoadConfigPaths).Pointer(); got != want {
+		t.Fatalf("production load is not contentartifacts.LoadConfigPaths; %s", guardCopyNote)
+	}
+
+	type loadCall struct {
+		reader      contentartifacts.Reader
+		repo        contentartifacts.Repository
+		files       []contentartifacts.File
+		hasFileList bool
+		allowance   int
+	}
+	var calls []loadCall
+	record := func(_ context.Context, reader contentartifacts.Reader, repo contentartifacts.Repository, files []contentartifacts.File, hasFileList bool, allowance int) ([]map[string]any, contentartifacts.ReadStats, error) {
+		calls = append(calls, loadCall{reader, repo, files, hasFileList, allowance})
+		return []map[string]any{composeRow()}, contentartifacts.ReadStats{}, nil
+	}
+	fake := &deriveFakeDB{version: int64Ptr(1)}
+	deriver := newTestDeriver(t, fake, supportedConfig(), record)
+	if result := deriver.DeriveRepository(context.Background(), Request{RepoID: "repo-a", Trigger: TriggerWrite}); result.Outcome != OutcomeOK {
+		t.Fatalf("DeriveRepository() = %+v, want ok", result)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("load calls = %d, want 1", len(calls))
+	}
+	call := calls[0]
+	if call.reader != deriver.reader {
+		t.Fatalf("load reader = %T, want the Deriver's content_files reader", call.reader)
+	}
+	if want := (contentartifacts.Repository{ID: "repo-a"}); call.repo != want {
+		t.Fatalf("load repository = %+v, want %+v (id only, no name); %s", call.repo, want, guardCopyNote)
+	}
+	if call.files != nil || call.hasFileList {
+		t.Fatalf("load files = %v, hasFileList = %v; want nil and false (the load lists the files itself); %s", call.files, call.hasFileList, guardCopyNote)
+	}
+	if call.allowance != contentartifacts.AllowanceWholeWindow {
+		t.Fatalf("load allowance = %d, want contentartifacts.AllowanceWholeWindow (%d); %s", call.allowance, contentartifacts.AllowanceWholeWindow, guardCopyNote)
 	}
 }
