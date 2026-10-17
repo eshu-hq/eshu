@@ -170,6 +170,33 @@ func TestBuildDocumentationFactsSQLKeepsScopeBoundKindsParameterized(t *testing.
 	}
 }
 
+func TestDocumentationLiteralKindsMatchCollectedSet(t *testing.T) {
+	t.Parallel()
+
+	// Every collected kind except documentation_source must have a SQL
+	// literal, or a newly collected kind silently degrades to the slow
+	// parameterized path. The collected list is the source of truth.
+	var collected []string
+	for _, tok := range strings.Split(documentationCollectedFactKindSQLList(), ",") {
+		kind := strings.Trim(strings.TrimSpace(tok), "'")
+		if kind == "" || kind == docs.SourceFactKind {
+			continue
+		}
+		collected = append(collected, kind)
+	}
+	if len(collected) == 0 {
+		t.Fatal("collected kind list parsed empty")
+	}
+	for _, kind := range collected {
+		literal, ok := documentationLiteralCollectedFactKind(kind)
+		if !ok {
+			t.Errorf("collected kind %q has no SQL literal", kind)
+		} else if literal != kind {
+			t.Errorf("literal for %q = %q, want identical", kind, literal)
+		}
+	}
+}
+
 func TestResolveDocumentationRepositoryScopeBindsNameFormToScope(t *testing.T) {
 	t.Parallel()
 
@@ -233,6 +260,45 @@ func TestResolveDocumentationRepositoryScopeKeepsAmbiguousAndUnknownRepos(t *tes
 		}
 		if !reflect.DeepEqual(got, before) {
 			t.Fatalf("scoped filter changed: %#v", got)
+		}
+	})
+
+	t.Run("shadowed repository anchor", func(t *testing.T) {
+		t.Parallel()
+		// ServiceID, TargetID, and GenerationID each shadow the repository in
+		// the SQL: the repository then contributes nothing to the read, so
+		// binding a scope would silently narrow result content. The filter
+		// must stay byte-identical without touching the database.
+		cases := map[string]documentationFactFilter{
+			"service id": {Repository: "payments", ServiceID: "service:api", Limit: 10},
+			"target id":  {Repository: "payments", TargetID: "target:db", Limit: 10},
+			"generation": {Repository: "payments", GenerationID: "generation:7", Limit: 10},
+		}
+		for name, before := range cases {
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				store := &stubDocRepoScopeReadStore{rows: [][]string{{"scope:payments", "repository:payments"}}}
+				got, resolved := resolveDocumentationRepositoryScope(context.Background(), store, before)
+				if resolved || store.queries != 0 {
+					t.Fatalf("shadowed filter must not touch the database: resolved=%v queries=%d", resolved, store.queries)
+				}
+				if !reflect.DeepEqual(got, before) {
+					t.Fatalf("shadowed filter changed: %#v", got)
+				}
+			})
+		}
+	})
+
+	t.Run("lookup failure keeps filter", func(t *testing.T) {
+		t.Parallel()
+		before := documentationFactFilter{Repository: "payments", Limit: 10}
+		store := &stubDocRepoScopeReadStore{queryErr: errors.New("scope probe boom")}
+		got, resolved := resolveDocumentationRepositoryScope(context.Background(), store, before)
+		if resolved {
+			t.Fatal("failed lookup must not resolve")
+		}
+		if !reflect.DeepEqual(got, before) {
+			t.Fatalf("failed-lookup filter changed: %#v", got)
 		}
 	})
 }

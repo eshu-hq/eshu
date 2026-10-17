@@ -33,13 +33,20 @@ LIMIT 2`
 // lookup failure keeps the current SQL rather than failing the read. The
 // repository anchor itself is canonicalized to the scope's stored id only when
 // the caller did not already name the scope id, so id-form callers see no
-// change at all.
+// change at all. A repository combined with a service, target, or explicit
+// generation anchor stays untouched: those anchors shadow the repository in
+// the SQL, so binding a scope would silently narrow result content.
 func resolveDocumentationRepositoryScope(
 	ctx context.Context,
 	store db.ReadStore,
 	filter documentationFactFilter,
 ) (documentationFactFilter, bool) {
 	if strings.TrimSpace(filter.ScopeID) != "" {
+		return filter, false
+	}
+	if strings.TrimSpace(filter.ServiceID) != "" ||
+		strings.TrimSpace(filter.TargetID) != "" ||
+		strings.TrimSpace(filter.GenerationID) != "" {
 		return filter, false
 	}
 	repository := strings.TrimSpace(filter.Repository)
