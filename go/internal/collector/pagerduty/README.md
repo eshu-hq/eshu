@@ -96,6 +96,16 @@ flowchart LR
 - Service names, escalation-policy names, team names, integration summaries,
   routing keys, and token-like URL parameters are omitted, fingerprinted, or
   represented by redaction flags before fact emission.
+- `TargetConfig.AllowEmptySuccessor` is the explicit operator attestation for
+  legitimate mass-resolves (for example an all-resolved account). The source
+  stamps it onto the generation as `TrustedDeletion`; without it the ingestion
+  store's successor-emptiness backstop refuses to replace a content-bearing
+  active generation with an empty or sharply shrunken successor, keeping the
+  prior generation active. Operators set it with the `allow_empty_successor`
+  target key, accepted by both the collector runtime configuration and the
+  workflow configuration validation. It defaults to false: omit it unless an
+  emptied or sharply shrunken successor is legitimate. Remove the key after
+  recovery so later shrinks trip the backstop again.
 
 ## Telemetry
 

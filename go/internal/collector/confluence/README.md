@@ -84,6 +84,16 @@ allowlist.
 - `ESHU_CONFLUENCE_PAGE_LIMIT`
 - `ESHU_CONFLUENCE_MAX_TOTAL_PAGES`
 - `ESHU_CONFLUENCE_POLL_INTERVAL`
+- `ESHU_CONFLUENCE_ALLOW_EMPTY_SUCCESSOR`
+
+`SourceConfig.AllowEmptySuccessor` is the explicit operator attestation for a
+legitimately emptied space. The source stamps it onto the generation as
+`TrustedDeletion`; without it the ingestion store's successor-emptiness
+backstop refuses to replace a content-bearing active generation with an empty
+or sharply shrunken successor, keeping the prior generation active. Operators
+set it with `ESHU_CONFLUENCE_ALLOW_EMPTY_SUCCESSOR` (boolean, default false):
+omit it unless an emptied space makes an empty successor legitimate. Remove
+the variable after recovery so later shrinks trip the backstop again.
 
 Exactly one bounded scope mode is required: `ESHU_CONFLUENCE_SPACE_ID`,
 `ESHU_CONFLUENCE_SPACE_IDS`, or `ESHU_CONFLUENCE_ROOT_PAGE_ID`.

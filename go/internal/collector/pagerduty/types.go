@@ -261,4 +261,12 @@ type TargetConfig struct {
 	ConfigResourceLimit     int
 	PaginationMaxPages      int
 	PaginationMaxRecords    int
+	// AllowEmptySuccessor is the explicit operator attestation that an
+	// empty or sharply shrunken successor generation is legitimate for
+	// this target (for example a mass-resolve). The source stamps it onto
+	// the generation as TrustedDeletion, which bypasses the ingestion
+	// store's successor-emptiness backstop. It defaults to false: without
+	// it the store refuses to replace a content-bearing active generation
+	// with an empty or sharply shrunken one.
+	AllowEmptySuccessor bool
 }

@@ -39,6 +39,11 @@ type pagerDutyTargetConfiguration struct {
 	ConfigResourceLimit     int      `json:"config_resource_limit"`
 	PaginationMaxPages      int      `json:"pagination_max_pages"`
 	PaginationMaxRecords    int      `json:"pagination_max_records"`
+	// AllowEmptySuccessor is the explicit operator attestation that an
+	// empty or sharply shrunken successor generation is legitimate for
+	// this target. It defaults to false and needs no range validation:
+	// both JSON boolean values are meaningful attestations.
+	AllowEmptySuccessor bool `json:"allow_empty_successor"`
 }
 
 // ValidatePagerDutyCollectorConfiguration checks bounded PagerDuty collector
