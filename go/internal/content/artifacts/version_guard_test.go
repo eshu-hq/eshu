@@ -22,6 +22,11 @@ import (
 // commit that changes no extractor. Never delete a row or lower the version:
 // the version is monotonic, so an extractor change is undone by a new bump.
 //
+// Window is the hydration window (ListLimit and AllowanceWholeWindow) the
+// version ran with. The guard corpus holds no repository near ListLimit, so
+// a window change moves no digest; the pin records it instead and
+// checkExtractorPins fails a moved window at an unchanged version.
+//
 // Version 1 was pinned on the extractors of origin/main c704fbc3d with
 // go1.26.9 linux/arm64 (the go.mod toolchain): run TestExtractorOutputIsPinned
 // with -v and copy the corpusDigest and outputDigest of its first log line.
@@ -32,6 +37,7 @@ var extractorPins = []extractorPin{
 		Version:      1,
 		CorpusDigest: "c8b4f29521e1a41f56111fb5d85aa989f797d08fccc6a400a523910820b70e06",
 		OutputDigest: "7dde1bb7ab14ac9e08ca681ca85bfb70b3ce2eb99017911cc84afed14294ef01",
+		Window:       hydrationWindow{ListLimit: 5000, AllowanceWholeWindow: -1},
 	},
 }
 
@@ -59,7 +65,7 @@ func TestExtractorOutputIsPinned(t *testing.T) {
 	}
 	// Both checks report, so an extractor change that also thins a kind
 	// still prints the bump instruction.
-	if err := checkExtractorPins(corpusDigest, out.Digest, ExtractorVersion, extractorPins); err != nil {
+	if err := checkExtractorPins(corpusDigest, out.Digest, ExtractorVersion, currentHydrationWindow(), extractorPins); err != nil {
 		t.Error(err)
 	}
 	if err := checkGuardCoverage(out.KindRows, EvidenceKinds(), guardMinRowsPerKind); err != nil {
