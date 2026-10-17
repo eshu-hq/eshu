@@ -619,6 +619,11 @@ tests:
     class: postgres_ci
     reason: "#8283 success-write fence of the deployable_unit_correlation reopen fingerprint: a stale claim, an expired lease and a succeeded item are rejected with ErrExecutionClaimRejected (C1), an older claim token never replaces a newer row, and the retention delete of the scope generation cascades the row away with its work item; isolated schemas from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; 3.1 s on local PostgreSQL 18.6 on 2026-10-17; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/ingestion_reopen_correlation_invalidate_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8316 fingerprint invalidation when a Repository deleter removes a node: deleting the rows whose repo_ids contain the removed repository re-opens exactly those items, keeps unrelated rows, and is a no-op for empty and unknown inputs; isolated schema from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/maintenance/repository_reindex_live_test.go
     tag: ~
     class: postgres_ci
