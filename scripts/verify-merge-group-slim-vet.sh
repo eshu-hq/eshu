@@ -20,7 +20,9 @@
 # commit on its fixed base). Override both for any other shape. Either ref
 # failing to resolve is a hard error: the gate must never pass blind.
 #
-# Exit 0 when no Go package changed. Any `go list` or `go vet` failure exits
+# Exit 0 when no Go package changed. Changed files that map to no package
+# (go.mod/go.sum, deleted packages, testdata) are skipped, never vetted
+# under a synthetic import path. Any `go list` or `go vet` failure exits
 # non-zero.
 set -euo pipefail
 
@@ -89,12 +91,14 @@ graph_file="$(mktemp)"
 trap 'rm -f "${changed_list}" "${graph_file}"' EXIT
 printf '%s\n' "${graph}" >"${graph_file}"
 
-targets="$(awk -v module="${module}" -v godir="${go_dir}" '
-	function pkgdir(dir,   d) {
+targets="$(awk -v godir="${go_dir}" '
+	function pkgdir(dir,   d, prev) {
 		d = dir
 		while (d != "" && d != ".") {
 			if (d in dir2pkg) return d
+			prev = d
 			sub(/\/[^\/]*$/, "", d)
+			if (d == prev) break
 		}
 		return ""
 	}
@@ -120,10 +124,13 @@ targets="$(awk -v module="${module}" -v godir="${go_dir}" '
 		if (pd != "") {
 			changed[dir2pkg[pd]] = 1
 		} else {
-			# No package owns this directory (a deleted package, a new
-			# directory, or testdata): derive the would-be import path so
-			# surviving importers are still vetted below.
-			changed[module "/" d] = 1
+			# No package owns this directory (a top-level file such as
+			# go.mod, a deleted package, or testdata): never synthesize
+			# a would-be import path for it — vetting a path no package
+			# owns either fails the gate or vets nothing real. Such
+			# files route to the documented exit-0 path when nothing
+			# else changed.
+			printf "skipped\t%s\n", file
 		}
 	}
 	END {
@@ -139,12 +146,16 @@ targets="$(awk -v module="${module}" -v godir="${go_dir}" '
 		}
 	}
 ' "${graph_file}" "${changed_list}")"
-[[ -n "${targets}" ]] || {
-	printf 'verify-merge-group-slim-vet: changed files map to no Go package and no importer; failing closed\n' >&2
-	exit 1
-}
-
-vet_list="$(printf '%s\n' "${targets}" | awk -F'\t' '{print $2}' | sort -u)"
+vet_list="$(printf '%s\n' "${targets}" | awk -F'\t' '$1 == "changed" || $1 == "importer" {print $2}' | sort -u)"
+skipped_list="$(printf '%s\n' "${targets}" | awk -F'\t' '$1 == "skipped" {print $2}' | sort -u)"
+if [[ -z "${vet_list}" ]]; then
+	printf 'verify-merge-group-slim-vet: no Go package changed between %s and %s; nothing to vet\n' "${base}" "${head}"
+	if [[ -n "${skipped_list}" ]]; then
+		printf 'verify-merge-group-slim-vet: skipped %s non-package file(s):\n' "$(printf '%s\n' "${skipped_list}" | wc -l | tr -d ' ')"
+		printf '%s\n' "${skipped_list}" | sed 's/^/  /'
+	fi
+	exit 0
+fi
 count="$(printf '%s\n' "${vet_list}" | wc -l | tr -d ' ')"
 printf 'verify-merge-group-slim-vet: vetting %s package(s) (changed plus direct importers)\n' "${count}"
 printf '%s\n' "${vet_list}" | sed 's/^/  /'

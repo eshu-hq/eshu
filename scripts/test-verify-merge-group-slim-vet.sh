@@ -14,6 +14,9 @@
 # take minutes (each vet run compiles). They fail closed with a clear message
 # when the history is absent: a fetch-depth-2 lane checkout cannot provide it,
 # so this mirror is local-proof tooling, not a lane step.
+#
+# Two synthetic-tree units run first with no history: a go.mod-only diff and
+# a deleted-package diff must exit 0 quickly (never hang the pkgdir walk).
 set -euo pipefail
 
 script_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -52,6 +55,42 @@ if "${vet_script}" --base deadbeefdeadbeefdeadbeefdeadbeefdeadbeef --head HEAD >
 else
 	check "$?" "1" "unresolvable base exits 1"
 fi
+
+synthetic_root="$(mktemp -d)"
+trap 'rm -rf "${synthetic_root}"' EXIT
+mkdir -p "${synthetic_root}/scripts" "${synthetic_root}/go/mypkg" "${synthetic_root}/go/otherpkg"
+cp "${vet_script}" "${synthetic_root}/scripts/"
+(
+	cd "${synthetic_root}" || exit 1
+	git init -q .
+	git config user.email "slim-vet-mirror@example.com"
+	git config user.name "slim-vet-mirror"
+	printf 'module example.com/slimvetmirror\n\ngo 1.24\n' >go/go.mod
+	printf 'package mypkg\n\nfunc Foo() int { return 1 }\n' >go/mypkg/foo.go
+	printf 'package otherpkg\n\nfunc Bar() int { return 2 }\n' >go/otherpkg/bar.go
+	git add -A
+	git commit -qm base
+	printf '// dependabot bump\n' >>go/go.mod
+	git add -A
+	git commit -qm gomod-only
+)
+if timeout 60 bash "${synthetic_root}/scripts/verify-merge-group-slim-vet.sh" --base HEAD~1 --head HEAD >/tmp/slim-vet-gomod-only.log 2>&1; then
+	check "0" "0" "go.mod-only diff exits 0 (no hang)"
+else
+	check "$?" "0" "go.mod-only diff exits 0 (no hang)"
+fi
+(
+	cd "${synthetic_root}" || exit 1
+	git rm -q go/mypkg/foo.go
+	git commit -qm delete-mypkg
+)
+if timeout 60 bash "${synthetic_root}/scripts/verify-merge-group-slim-vet.sh" --base HEAD~1 --head HEAD >/tmp/slim-vet-delete-pkg.log 2>&1; then
+	check "0" "0" "deleted-package diff exits 0 (no hang)"
+else
+	check "$?" "0" "deleted-package diff exits 0 (no hang)"
+fi
+rm -rf "${synthetic_root}"
+trap - EXIT
 
 require_sha() {
 	git -C "${repo_root}" cat-file -e "$1" 2>/dev/null || {

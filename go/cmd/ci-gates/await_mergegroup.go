@@ -111,6 +111,8 @@ func selectSlimRequiredGates(reg *cigates.Registry, root string) ([]resolvedRequ
 // branch and lists the paths changed since it. It fails closed, with an error
 // distinct from an empty diff, when the base SHA cannot be determined: falling
 // back to the moving baseRef would reintroduce the empty late-run compare.
+// Retained although no production caller remains after the fixed-set cutover:
+// its tests pin the fixed-base compare discipline (#7281) the queue still relies on.
 func mergeGroupChangedPaths(ctx context.Context, runner ghRunner, repo, baseRef, mergeGroupBranch, headSHA string) (paths []string, truncated bool, err error) {
 	baseSHA, err := mergeGroupBaseSHA(mergeGroupBranch, baseRef)
 	if err != nil {
