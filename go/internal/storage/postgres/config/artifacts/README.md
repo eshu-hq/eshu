@@ -149,7 +149,14 @@ docs/internal/evidence/8155-derive-core.md note has the sequence diagram.
    Otherwise the transaction rolls back: `superseded`. A write deletes the
    repository's rows, inserts the new rows in one `unnest` statement, and
    upserts the state (`content_version = v0`, counts, `failure_count = 0`;
-   an empty scope or generation keeps the stored one).
+   an empty scope or generation keeps the stored one). The insert has no
+   `ON CONFLICT` clause: `row_digest` covers exactly (`raw_path`,
+   `relative_path`, `evidence_kind`), and `name_scoped` is a function of
+   `evidence_kind`, so a key conflict means the extractors built one triple
+   twice. That fails the derive with SQLSTATE 23505 (a rollback and a
+   failure-only record) instead of storing one row fewer than `row_count`. A
+   retried derive stays idempotent because the same transaction deletes the
+   repository's rows first.
 
 Failure semantics: the derive runs under `DeriverConfig.Timeout` (default
 `DefaultDeriveTimeout`, 10 s) and recovers a panic. An error, a panic or a

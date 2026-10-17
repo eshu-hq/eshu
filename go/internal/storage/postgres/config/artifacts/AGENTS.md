@@ -61,6 +61,14 @@ Scoped instructions for the config-artifact read model (#7126). The root
   every writer of a repository's rows or state row, the walker included,
   takes it through them, never a second copy of the key
   (`TestDeriveWriteAndFailureRecordShareOneRepositoryLock`).
+- Keep `insertRowsSQL` free of `ON CONFLICT`. A `row_digest` conflict means a
+  derive built one (`raw_path`, `relative_path`, `evidence_kind`) triple twice;
+  `DO NOTHING` would store one row fewer than the `row_count` the state upsert
+  records. The insert must fail with SQLSTATE 23505 and roll back (pinned by
+  `TestDeriveDuplicateRowDigestFailsLoudlyLive` and
+  `TestInsertRowsSQLDoesNotAbsorbAConflict`). Idempotence of a retried derive
+  comes from the `DELETE` in the same transaction
+  (`TestDeriveRederiveReplacesRowsWithoutConflictLive`).
 - `mayWrite` is the write condition. Change it only with the protocol
   companion; `TestMayWriteConditions` pins every branch, including the
   Proposed clause for a failure-only state row.

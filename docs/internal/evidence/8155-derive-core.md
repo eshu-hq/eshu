@@ -81,6 +81,8 @@ Live tests on a disposable PostgreSQL 18.6 database
 | Failure-only row | `TestDeriveTimeoutAndPanicRecordFailureOnlyLive` | timeout and panic leave `row_count` and `content_version` NULL, `failure_count` 2; a later derive writes (Proposed clause) |
 | One lock key for write and failure | `TestDeriveWriteAndFailureRecordShareOneRepositoryLock` (hermetic), `TestDeriveFailureRecordWaitsOnTheWriteLockLive` | both send `config_artifact_paths:repo-a`; live, the failure update waits on the held write lock, and the held and waiting `pg_locks` keys both equal `hashtextextended(repoLockKey, 0)` |
 | Failure update racing a newer write | `TestDeriveFailureRecordRacingNewerWritesLive` | 30 rounds; sleeps bias the order and the test requires at least 5 rounds of each, it does not force either (13-17 split over three runs): `content_version` always the current, advancing version, rows from that round |
+| Duplicate row digest | `TestDeriveDuplicateRowDigestFailsLoudlyLive`, `TestDeriveDuplicateRowDigestRecordsAFailureOnly` (hermetic) | extractor output holding one triple twice ends `error` with class `sqlstate_23505` and the failure recorded; the previous rows, `content_version`, `extractor_version` and `row_count` are unchanged (a first derive leaves a failure-only row and no rows). Before the fix it ended `ok` with `Rows` 3 and 2 stored rows. The name-scope variant cannot occur: `name_scoped` is set from `evidence_kind` alone (`contentartifacts.NameScoped`), and the dedup key (`path\|source_repo\|relative_path\|evidence_kind`, `source_repo` empty in the name-free build) is finer than the digest triple, so no extractor emits a repeated triple |
+| Re-derive without conflict | `TestDeriveRederiveReplacesRowsWithoutConflictLive` | a second derive at a newer extractor version stores the same rows and `row_count`: the in-transaction `DELETE` makes the insert idempotent |
 | Start-up checks | `TestDeriveMapsEveryStartupCheckResult` (hermetic) | real `CheckEncoding` and `CheckFence` results: both encoding reasons give `encoding_unsupported`, all fence reasons (`fence_check_failed` included) give `fence_missing`, no statement |
 
 Mutation sweep (each mutation applied alone, the named tests run, the file
@@ -105,8 +107,9 @@ restored with `git checkout`):
 | M15 failure update deletes the rows | `TestDeriveFailureRecordRacingNewerWritesLive` |
 | M16 read the state before the lock, inside the write transaction (the reviewer's R1) | `TestDeriveWritesInOneTransactionUnderTheLock` (hermetic), `TestDeriveTwoDerivesOfOneRepositorySerializeLive` (live, `derive_race_live_test.go`); `derive_order_live_test.go` does not catch it |
 | M17 failure update sets `extractor_version = EXCLUDED.extractor_version` (the reviewer's N4; an older binary's failure would relabel a newer extractor's rows) | `TestDeriveFailureRecordWaitsOnTheWriteLockLive` (the failing deriver is one extractor version older than the held write) |
+| M18 restore `ON CONFLICT (repo_id, row_digest) DO NOTHING` on `insertRowsSQL` (the review of #8305: a duplicate triple stores one row fewer than `row_count`) | `TestInsertRowsSQLDoesNotAbsorbAConflict` (hermetic), `TestDeriveDuplicateRowDigestFailsLoudlyLive` (live, both subtests) |
 
-17 of 17 killed. The write-transaction timings, the `Performance Evidence:`
+18 of 18 killed. The write-transaction timings, the `Performance Evidence:`
 and the `Observability Evidence:` markers are in the package README
 (`go/internal/storage/postgres/config/artifacts/README.md`, section "Evidence
 (PR3b-2b, the derive core)").
