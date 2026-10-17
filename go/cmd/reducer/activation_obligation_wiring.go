@@ -16,11 +16,26 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// activationObligationConsumerEnabledEnv turns on the #7584 activation
-// obligation consumer. It is off by default until the default-on decision;
-// while off, ProjectorQueue.Ack still writes obligations and they stay
-// pending until retention removes their generation.
-const activationObligationConsumerEnabledEnv = "ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED"
+const (
+	// activationObligationConsumerEnabledEnv turns on the #7584 activation
+	// obligation consumer. It is off by default until the default-on decision;
+	// while off, ProjectorQueue.Ack still writes obligations and they stay
+	// pending until retention removes their generation.
+	activationObligationConsumerEnabledEnv = "ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED"
+	// activationObligationLeaseEnv overrides how long one claim holds an
+	// obligation (#7638 item 3). An unparsable or non-positive value uses
+	// the default, as the other reducer maintenance knobs do; lease sizing
+	// awaits the full-corpus p99, so the default is unchanged.
+	activationObligationLeaseEnv = "ESHU_ACTIVATION_OBLIGATION_LEASE"
+	// activationObligationPollIntervalEnv overrides the wait after a cycle
+	// that claimed nothing. An unparsable or non-positive value uses the
+	// default, as the other reducer maintenance knobs do.
+	activationObligationPollIntervalEnv = "ESHU_ACTIVATION_OBLIGATION_POLL_INTERVAL"
+	// activationObligationWorkersEnv overrides the number of concurrent
+	// claim loops. An unparsable or non-positive value uses the default, as
+	// the other reducer maintenance knobs do.
+	activationObligationWorkersEnv = "ESHU_ACTIVATION_OBLIGATION_WORKERS"
+)
 
 // activationObligationRunnerFor builds the activation obligation consumer,
 // or nil when it is disabled. Its maintainer is the partition-scoped pass on
@@ -45,7 +60,10 @@ func activationObligationRunnerFor(
 		Store:      activation.RunnerStore{Store: activation.NewStore(storeDB)},
 		Maintainer: postgres.NewActivationMaintainer(postgres.NewIngestionStore(database), tracer, instruments),
 		Config: obligation.Config{
-			Owner: loadProcessUniqueProjectionLeaseOwner(getenv, "", "activation-obligation-consumer"),
+			Owner:        loadProcessUniqueProjectionLeaseOwner(getenv, "", "activation-obligation-consumer"),
+			Lease:        loadDurationOrDefault(getenv, activationObligationLeaseEnv, obligation.DefaultActivationLease),
+			PollInterval: loadDurationOrDefault(getenv, activationObligationPollIntervalEnv, obligation.DefaultActivationPollInterval),
+			Workers:      loadPositiveIntOrDefault(getenv, activationObligationWorkersEnv, obligation.DefaultActivationWorkers),
 		},
 		Instruments: instruments,
 		Logger:      logger,
