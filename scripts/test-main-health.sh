@@ -243,6 +243,13 @@ check "real repo: derived required list is non-empty" "$([ -n "${listed}" ] && e
 check "real repo: derived list includes the aggregator's source workflow" "$(printf '%s\n' "${listed}" | rg -qx 'Build Test' && echo 0 || echo 1)"
 expected_n="$(yq '.on.workflow_run.workflows | length' "${repo_root}/.github/workflows/required-gates.yml")"
 check "real repo: derived list covers every workflow the aggregator listens to" "$([ "$(printf '%s\n' "${listed}" | wc -l | tr -d ' ')" -ge "${expected_n}" ] && echo 0 || echo 1)"
+# #8354: the workflow_run file list must not depend on the installed yq's
+# string-escape handling (yq < 4.49 kept a "\t" literal, emptied the list, and
+# the watcher then never read Security Scan's workflow_run image scan).
+wr_files="$(repo_root="${repo_root}" aggregator_yml="${repo_root}/.github/workflows/required-gates.yml" \
+	registry_yml="${repo_root}/specs/ci-gates.v1.yaml" \
+	bash -c '. "${repo_root}/scripts/lib/main-health-policy.sh"; workflow_run_files' 2>/dev/null || true)"
+check "real repo: workflow_run files include security-scan.yml" "$(printf '%s\n' "${wr_files}" | rg -qx 'security-scan.yml' && echo 0 || echo 1)"
 
 # 20. F1: the ruleset probe asks for one bounded page (10 runs) in one request
 #     (the paginated per_page=1 probe walked the whole history: 208 calls,
