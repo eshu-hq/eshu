@@ -349,6 +349,10 @@ func TestReaderMembersRejectPrimaryAsStandby(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg.ReadMembers = []ReaderMember{{ID: "standby", Host: standby.Host, Port: standby.Port}, {ID: "wrong", Host: primary.Host, Port: primary.Port}}
+	// Open requires four idle connections per member. Assigning members after
+	// LoadConfig skips the fleet pool split, so give the pool that budget here.
+	cfg.ReadMaxOpenConns = 8
+	cfg.ReadMaxIdleConns = 8
 	declareFixtureSnapshotExport(t, &cfg)
 	access, err := Open(context.Background(), cfg, nil)
 	if access != nil {
