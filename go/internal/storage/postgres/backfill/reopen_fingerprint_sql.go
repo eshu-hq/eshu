@@ -16,7 +16,7 @@ import (
 //
 // A succeeded deployable_unit_correlation item records the input fingerprint
 // its corpus-fenced resolved read computed (deployable_unit_reopen_fingerprints,
-// migration 188). The deferred-maintenance reopen recomputes that fingerprint
+// migration 193). The deferred-maintenance reopen recomputes that fingerprint
 // over the recorded repository set and re-opens the item only when the row is
 // missing, the logic version moved, or the fingerprint differs. Both sides
 // render the fingerprint from ResolvedInputFingerprintSQL, so the read and the

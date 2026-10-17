@@ -69,7 +69,7 @@ re-opened only when something it read can have changed.
 
 ## Shape
 
-- **Side table.** Migration 188 adds `deployable_unit_reopen_fingerprints`:
+- **Side table.** Migration 193 adds `deployable_unit_reopen_fingerprints`:
   one row per succeeded item with `repo_ids`, `input_fingerprint`,
   `logic_version`, `claimed_at` and `recorded_at`. It has a cascading FK to
   `fact_work_items`, and the PK on `work_item_id` serves the cascade.
