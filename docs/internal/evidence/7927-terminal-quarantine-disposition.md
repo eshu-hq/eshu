@@ -18,7 +18,10 @@ letter (2026-09-22) predates the `projection_write_started_at` marker
 (migration 149, 2026-09-30), so a pre-marker partial canonical writer is
 invisible to the `UncoveredProjectionWriters` probe, which requires the
 marker (`go/internal/storage/postgres/generation_projected_commit.go`).
-Existing replay tests cover no graph writes and no older-active interleave.
+Existing replay tests cover no graph writes, and none reactivates a
+failed generation (Ack) while an older active full generation exists
+(`TestReplayAfterFullRecordsLatestWriteStartLive` interleaves the trees
+without that reactivation).
 Replaying would risk the good generation to rescue a stale one, and the
 affected repository reads `archived=true`, which explains why no successor
 generation exists.
