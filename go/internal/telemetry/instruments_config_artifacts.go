@@ -54,11 +54,11 @@ const (
 	// ConfigArtifactDeriveTriggerWrite is a derive the content Write runs as
 	// its last step.
 	ConfigArtifactDeriveTriggerWrite = "write"
-	// ConfigArtifactDeriveTriggerBackfill is a reducer walker derive of a
-	// repository that has no state row yet.
+	// ConfigArtifactDeriveTriggerBackfill is a reducer walker derive during
+	// the first full walk.
 	ConfigArtifactDeriveTriggerBackfill = "backfill"
 	// ConfigArtifactDeriveTriggerRepair is a reducer walker derive of a
-	// repository whose state row is behind or failed.
+	// repository the dirty join named.
 	ConfigArtifactDeriveTriggerRepair = "repair"
 )
 
@@ -66,30 +66,32 @@ const (
 // closed. The storage package owns the matching Go constants; canceled gains
 // its constant there in PR3b-2c-2.
 const (
-	// ConfigArtifactDeriveOutcomeOK is a derive that wrote the row set for
-	// the content version it read.
+	// ConfigArtifactDeriveOutcomeOK is a derive that wrote rows and a state
+	// row for its content version.
 	ConfigArtifactDeriveOutcomeOK = "ok"
-	// ConfigArtifactDeriveOutcomeSuperseded is a derive that found the
-	// content version moved and wrote nothing.
+	// ConfigArtifactDeriveOutcomeSuperseded is a derive that rolled back
+	// without writing because a newer version or extractor already owns the
+	// state row.
 	ConfigArtifactDeriveOutcomeSuperseded = "superseded"
 	// ConfigArtifactDeriveOutcomeError is a derive that failed with an error
-	// other than the classes below.
+	// other than the classes below; the state row records the failure.
 	ConfigArtifactDeriveOutcomeError = "error"
-	// ConfigArtifactDeriveOutcomePanic is a derive whose extractor panicked;
-	// the panic is recovered and recorded.
+	// ConfigArtifactDeriveOutcomePanic is a derive that recovered a panic.
 	ConfigArtifactDeriveOutcomePanic = "panic"
-	// ConfigArtifactDeriveOutcomeTimeout is a derive that hit
-	// ESHU_CONFIG_ARTIFACT_DERIVE_TIMEOUT.
+	// ConfigArtifactDeriveOutcomeTimeout is a derive that ran past its
+	// deadline (ESHU_CONFIG_ARTIFACT_DERIVE_TIMEOUT).
 	ConfigArtifactDeriveOutcomeTimeout = "timeout"
 	// ConfigArtifactDeriveOutcomeCanceled is a derive whose caller context
 	// was canceled (shutdown, supersede, or a lost claim). It is kept apart
 	// from error so a shutdown wave does not read as a derive-error wave.
 	ConfigArtifactDeriveOutcomeCanceled = "canceled"
-	// ConfigArtifactDeriveOutcomeEncodingUnsupported is a derive skipped
-	// because the database encoding is not UTF8.
+	// ConfigArtifactDeriveOutcomeEncodingUnsupported is a derive refused
+	// because the start-up encoding check failed, so no derive runs in that
+	// process.
 	ConfigArtifactDeriveOutcomeEncodingUnsupported = "encoding_unsupported"
-	// ConfigArtifactDeriveOutcomeFenceMissing is a derive skipped because the
-	// content version fence triggers are not installed.
+	// ConfigArtifactDeriveOutcomeFenceMissing is a derive refused because the
+	// start-up fence check did not vouch for the content version fence, so no
+	// derive runs in that process.
 	ConfigArtifactDeriveOutcomeFenceMissing = "fence_missing"
 )
 
