@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // generationFreshnessSQL reads, in one statement (one snapshot), the scope's
@@ -359,7 +360,8 @@ WHERE generation_id = $1`
 // projection behavior is unchanged.
 //
 // It acquires no locks and issues no queries: the prior generation and its
-// fact count arrive in prior, loaded before the transaction opened. The
+// fact count arrive in prior, loaded before the transaction opened — or
+// flagged uncountable when no count can size it (#8362). The
 // caller marks its transaction closed and returns success on a refusal.
 func (s IngestionStore) refuseDestructiveSuccessor(
 	ctx context.Context,
@@ -372,6 +374,18 @@ func (s IngestionStore) refuseDestructiveSuccessor(
 	refuse, reason := backfill.RefuseDestructiveSuccessor(
 		prior.found, prior.factCount, successorFacts, generation.TrustedDeletion,
 	)
+	if prior.uncountable && !generation.TrustedDeletion {
+		// #8362: the prior is a delta with no base full generation, so its
+		// size is unknowable and the ratio half of the backstop cannot
+		// evaluate. The repair (usually the forced full re-parse restoring
+		// the base) still stores; only an empty successor is refused, since
+		// it retracts everything regardless of the prior's size.
+		refuse = successorFacts <= 0
+		reason = ""
+		if refuse {
+			reason = telemetry.RefreshSkipReasonDestructiveSuccessor
+		}
+	}
 	if !refuse {
 		return false, nil
 	}
@@ -383,6 +397,7 @@ func (s IngestionStore) refuseDestructiveSuccessor(
 	s.logCommitStage(ctx, scopeValue, generation, "refuse_destructive_successor", guardStart,
 		slog.String("candidate_generation_id", prior.candidate.GenerationID),
 		slog.Int("prior_fact_count", prior.factCount),
+		slog.Bool("prior_uncountable", prior.uncountable),
 		slog.Int("successor_fact_count", successorFacts),
 	)
 	return true, nil

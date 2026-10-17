@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -78,11 +79,13 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 // successorPrior carries the scope's current generation past the duplicate
 // check into the commit path, so the post-stream destructive-successor guard
 // can compare without re-reading: the candidate the duplicate check loaded,
-// whether one exists, and its committed fact count.
+// whether one exists, and its committed fact count. uncountable marks a
+// prior no count can size (#8362); the guard then keeps only its emptiness check.
 type successorPrior struct {
-	candidate backfill.UnchangedGenerationCandidate
-	found     bool
-	factCount int
+	candidate   backfill.UnchangedGenerationCandidate
+	found       bool
+	factCount   int
+	uncountable bool
 }
 
 // skipUnchangedGeneration decides, before any write, whether a snapshot
@@ -129,7 +132,7 @@ func (s IngestionStore) skipUnchangedGeneration(
 			s.logCommitStage(ctx, scopeValue, generation, "store_over_"+reason, time.Now(),
 				slog.String("candidate_generation_id", candidate.GenerationID))
 		}
-		prior, err := s.successorPriorForGuard(ctx, scopeValue.ScopeID, candidate, found, generation)
+		prior, err := s.successorPriorForGuard(ctx, scopeValue, candidate, found, generation)
 		if err != nil {
 			return true, successorPrior{}, errors.Join(
 				err,
@@ -157,16 +160,15 @@ func (s IngestionStore) skipUnchangedGeneration(
 // successorPriorForGuard reads the candidate generation's committed fact
 // count for the destructive-successor guard. It runs only when the guard
 // can refuse — a found candidate without a trusted-deletion signal — so
-// trusted targets and first writes pay no extra read. The read is a single
-// indexed COUNT(*) over one generation's fact_records rows
-// (fact_records_scope_generation_idx), reusing FactStore.CountFacts, issued
-// on the base connection before the commit transaction opens so it never
-// holds the commit's shared maintenance barrier. A failure fails closed:
-// the commit cannot prove the successor is safe, so the snapshot is dropped
-// with an error and retried rather than stored.
+// trusted targets and first writes pay no extra read. The read reuses
+// FactStore.CountFacts, issued on the base connection before the commit
+// transaction opens so it never holds the commit's shared maintenance
+// barrier. Other count failures fail closed with an error and a retry. A
+// missing delta base (#8362) degrades to an uncountable prior instead, so
+// the forced full re-parse restoring the base still stores.
 func (s IngestionStore) successorPriorForGuard(
 	ctx context.Context,
-	scopeID string,
+	scopeValue scope.IngestionScope,
 	candidate backfill.UnchangedGenerationCandidate,
 	found bool,
 	generation scope.ScopeGeneration,
@@ -175,9 +177,17 @@ func (s IngestionStore) successorPriorForGuard(
 	if !found || generation.TrustedDeletion {
 		return prior, nil
 	}
-	count, err := NewFactStore(s.database).CountFacts(ctx, scopeID, candidate.GenerationID)
+	count, err := NewFactStore(s.database).CountFacts(ctx, scopeValue.ScopeID, candidate.GenerationID)
 	if err != nil {
-		return successorPrior{}, fmt.Errorf("count prior generation facts for scope %s: %w", scopeID, err)
+		var baseMissing *projector.DeltaBaseMissingError
+		if errors.As(err, &baseMissing) {
+			// The prior is a delta with no base full generation: its size
+			// is unknowable, so the guard keeps only its emptiness check.
+			s.logCommitStage(ctx, scopeValue, generation, "successor_prior_uncountable", time.Now(),
+				slog.String("candidate_generation_id", candidate.GenerationID))
+			return successorPrior{candidate: candidate, found: found, uncountable: true}, nil
+		}
+		return successorPrior{}, fmt.Errorf("count prior generation facts for scope %s: %w", scopeValue.ScopeID, err)
 	}
 	prior.factCount = count
 	return prior, nil
