@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -218,15 +219,17 @@ func TestDeriveSupersededRollsBack(t *testing.T) {
 	}
 }
 
-// failureCase drives one failing derive and checks the failure-only update.
-func runFailure(t *testing.T, fake *deriveFakeDB, config DeriverConfig, load loadFunc) (Result, map[string]any) {
+// runFailure drives one failing derive and checks the failure-only update.
+// rolledBack names row statements the derive may send inside its write
+// transaction before that transaction fails and rolls back.
+func runFailure(t *testing.T, fake *deriveFakeDB, config DeriverConfig, load loadFunc, rolledBack ...string) (Result, map[string]any) {
 	t.Helper()
 	var logs bytes.Buffer
 	config.Logger = slog.New(slog.NewJSONHandler(&logs, nil))
 	deriver := newTestDeriver(t, fake, config, load)
 	result := deriver.DeriveRepository(context.Background(), Request{RepoID: "repo-a", Trigger: TriggerBackfill})
 	for _, statement := range rowWriteStatements {
-		if fake.called(statement) {
+		if fake.called(statement) && !slices.Contains(rolledBack, statement) {
 			t.Fatalf("failed derive sent %.60q; a failure-only update never touches rows or content_version", statement)
 		}
 	}
@@ -272,7 +275,7 @@ func TestDeriveLoadErrorRecordsFailure(t *testing.T) {
 
 func TestDeriveSQLStateErrorIsClassified(t *testing.T) {
 	fake := &deriveFakeDB{version: int64Ptr(2), failOn: map[string]error{"INSERT INTO config_artifact_paths": sqlStateError{code: "54000"}}}
-	result, _ := runFailure(t, fake, supportedConfig(), rowsLoad(composeRow()))
+	result, _ := runFailure(t, fake, supportedConfig(), rowsLoad(composeRow()), deleteRowsSQL, insertRowsSQL)
 	if result.Outcome != OutcomeError || result.ErrorClass != "sqlstate_54000" {
 		t.Fatalf("Result = %+v, want error class sqlstate_54000", result)
 	}
