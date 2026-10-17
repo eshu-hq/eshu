@@ -3,7 +3,8 @@
 
 The marker block (after the `package` clause of an enrolled live test):
     //eshu:readiness live-postgres-readiness
-    //eshu:readiness:reason <verbatim ledger reason prose>
+    //eshu:readiness:reason <verbatim ledger reason prose, no double quotes:
+        the generated YAML scalar is double-quoted and unescaped>
     //eshu:readiness:env <space-separated ESHU_* DSN/DISPOSABLE vars>
     //eshu:readiness:env-optional <vars the workflow sets but the runner
         does not require> (zero or one line; the completed-index proofs)
@@ -11,7 +12,7 @@ The marker block (after the `package` clause of an enrolled live test):
 
 The helper-only file carries a reason-only marker (it defines no Test):
     //eshu:readiness-helper live-postgres-readiness
-    //eshu:readiness-helper:reason <verbatim ledger reason prose>
+    //eshu:readiness-helper:reason <verbatim ledger reason prose, no double quotes>
 """
 
 import hashlib
@@ -111,6 +112,9 @@ def parse_marker(rel: str, source: str) -> dict | None:
                                         take(ENV_OPTIONAL), take(HELPER_FIELD))
     if len(reasons) != 1 or not reasons[0].strip():
         raise fail(f"{rel}: exactly one non-blank reason line is required")
+    if '"' in reasons[0]:
+        raise fail(f"{rel}: reason must not contain a double quote"
+                   " (rendered into an unescaped YAML scalar)")
     if len(envs) != 1 or not envs[0].split():
         raise fail(f"{rel}: exactly one non-empty env line is required")
     if len(optionals) > 1 or len(helpers) > 1:
@@ -147,6 +151,9 @@ def parse_helper_marker(rel: str, source: str) -> str | None:
                if line.startswith(HELPER_REASON)]
     if len(reasons) != 1 or not reasons[0].strip():
         raise fail(f"{rel}: exactly one non-blank helper reason is required")
+    if '"' in reasons[0]:
+        raise fail(f"{rel}: helper reason must not contain a double quote"
+                   " (rendered into an unescaped YAML scalar)")
     if TEST_DECLARATION.search(source):
         raise fail(f"{rel}: helper file defines a Test func")
     if BUILD_TAG.search(source):

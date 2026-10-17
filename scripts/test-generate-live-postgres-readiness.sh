@@ -128,4 +128,21 @@ out="$(REPO_ROOT="${scratch}" LEDGER_PATH="${scratch}/specs/live-tests.v1.yaml" 
 out="$(scratch_check)" && fail "orphan seed passed --check"
 [[ "${out}" == *"live-tests-readiness.generated.yaml"* ]] || fail "orphan drift not named: ${out}"
 
-printf 'test-generate-live-postgres-readiness: GREEN (clean, idempotent, stale/unregistered/orphan RED)\n'
+# quote-red: a reason containing a double quote fails the scanner before any
+# YAML renders (the generated reason scalar is double-quoted and unescaped).
+quote_file="${seed_dir}/seeded_quote_probe_live_test.go"
+printf '%s\n' \
+  '// SPDX-License-Identifier: MIT' \
+  'package postgres_test' \
+  '' \
+  '//eshu:readiness live-postgres-readiness' \
+  '//eshu:readiness:reason #7859 seeded quote probe: proves a "quoted" reason fails the scanner.' \
+  '//eshu:readiness:env ESHU_POSTGRES_DSN' \
+  'import "testing"' \
+  '' \
+  'func TestSeededQuoteProbeLive(t *testing.T) { t.Skip("seed") }' >"${quote_file}"
+out="$(python3 "${generator}" --root "${scratch}" 2>&1)" && fail "quoted reason passed the scanner"
+[[ "${out}" == *"${quote_file##*/}"* ]] || fail "quoted reason not named: ${out}"
+rm "${quote_file}"
+
+printf 'test-generate-live-postgres-readiness: GREEN (clean, idempotent, stale/unregistered/orphan/quote RED)\n'

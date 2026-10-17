@@ -468,6 +468,8 @@ readinessderive:
   - 'specs/ci-gates.d/**'
   - '.github/static-contract-filters.yml'
   - 'scripts/generate-live-postgres-readiness.py'
+  - 'scripts/lib/test-run-live-postgres-readiness-seed-cases.sh'
+  - 'scripts/lib/tooling-line-cap-core.sh'
   - 'scripts/test-generate-live-postgres-readiness.sh'
   - 'scripts/verify-live-postgres-readiness-drift.sh'
   - 'scripts/lib/live_postgres_readiness_gen_scan.py'
