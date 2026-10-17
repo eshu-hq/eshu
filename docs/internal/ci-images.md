@@ -237,7 +237,7 @@ Mirror refresh owner: `linuxdynasty`. The refresh runs by hand through the
    configuration ID is not a registry index digest.
 8. Update workflow pins. Prove Compose configuration parity, real startup and
    teardown, mirrored-base builds, and the selected blocking gates locally.
-   Then follow the repository review, attestation, push, and merge queue rules.
+   Then follow the repository review, attestation, push, and merge rules.
 
 Upstream mirror layers retain their license and copyright files unchanged.
 Source records identify the known upstream projects and source releases. This

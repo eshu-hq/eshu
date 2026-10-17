@@ -3,8 +3,10 @@
 # Copyright (c) 2025-2026 eshu-hq
 #
 # pre-enqueue-check.sh -- read-only, fail-closed check a coordinator runs
-# immediately before asking the arbiter to approve a merge-queue enqueue
-# (#7332). It re-derives, mechanically, the facts an arbiter used to re-derive
+# immediately before asking the arbiter to approve a merge (#7332). It was
+# written for a merge-queue enqueue; main has had no merge queue since
+# 2026-10-16 (#8288), so the merge-queue arm reads no queue and passes with
+# "queue empty". It re-derives, mechanically, the facts an arbiter used to re-derive
 # by hand: the reviewed head, merge-tree cleanliness against origin/main AND
 # the merge-queue tip, check completion, review threads, and PR-body hygiene.
 # Each arm prints one PASS/FAIL line; any FAIL exits 1.
@@ -34,7 +36,8 @@ usage() {
 		'                  both sides changed)' \
 		'  merge-queue     clean against the main merge-queue tip (the last queued' \
 		'                  entry that is not this PR); prints file overlap per queued' \
-		'                  PR; an empty queue passes with "queue empty"' \
+		'                  PR; an empty or absent queue (main has none) passes with' \
+		'                  "queue empty"' \
 		'  checks          gh pr checks: pending == 0 and fail == 0 by state bucket' \
 		'                  (skipping allowed); commit status required-gates-complete' \
 		'                  == success; mergeStateStatus == CLEAN; a PR already in' \
@@ -184,6 +187,8 @@ fi
 # --- arm 3: merge-queue ------------------------------------------------------
 # in_group records whether this PR is already a merge-queue entry; the checks
 # arm reads it (GitHub reports mergeStateStatus UNKNOWN for a queued PR).
+# main has no merge queue (#8288): GraphQL returns mergeQueue null, the entries
+# read as empty, and the arm passes with "queue empty".
 in_group=0
 # shellcheck disable=SC2016 # GraphQL variables, not shell expansions.
 queue_query='query($owner:String!,$name:String!){repository(owner:$owner,name:$name){mergeQueue(branch:"main"){entries(first:100){pageInfo{hasNextPage} nodes{position headCommit{oid} pullRequest{number}}}}}}'

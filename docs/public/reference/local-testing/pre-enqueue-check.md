@@ -2,8 +2,12 @@
 
 `scripts/dev/pre-enqueue-check.sh` is a read-only check that fails closed.
 The coordinator runs it immediately before asking the arbiter to approve a
-merge-queue enqueue. It re-derives the facts an arbiter used to collect by hand,
-so the arbiter reviews one report instead of re-running each query.
+merge. It was written for the merge-queue enqueue step. `main` has had no merge
+queue since 2026-10-16, so the `merge-queue` arm reads an absent queue and
+passes with `queue empty`. The script keeps its name and its queue arm until
+the owner decides to drop or restore them. It re-derives the facts an arbiter
+used to collect by hand, so the arbiter reviews one report instead of
+re-running each query.
 
 ```bash
 GH_TOKEN="$(gh auth token --user <account>)" \
@@ -25,8 +29,8 @@ error exits `2`.
 | --- | --- |
 | `pr-state` | The PR is `OPEN`, not a draft, and `headRefOid` equals the expected SHA. |
 | `merge-main` | `git merge-tree --write-tree origin/main <head>` is clean after fetching `main` and the head. The arm also prints a base-drift note: how many commits `main` is past the branch's merge base, and which files both `main` and the PR changed since that base. A clean merge can still need a regenerated artifact, such as `ci-gates.md`, rebuilt, so the arbiter reads this note. It fails only when there is no merge base. |
-| `merge-queue` | The head merges cleanly with the merge-queue tip: the `headCommit` of the last queued entry that is not this PR. A queue entry's `headCommit` is the GitHub-built merge-group commit, not the PR's own head, and it contains `main` plus every PR up to that entry. For example, #7311's entry `26a514a55` has parent `main` `98394122f`, while that PR's head was `f9992c17f`. Checking against the tip therefore covers the whole queue, so a collision that a check against `origin/main` alone misses still fails here. The arm prints the file overlap with each queued PR. An empty queue passes with `queue empty`. |
-| `checks` | `gh pr checks` reports no pending, failing, or cancelled rows. Rows are counted by gh's state bucket, never by line text; skipped rows are allowed. The head's `required-gates-complete` commit status must be `success`, and `mergeStateStatus` must be `CLEAN`. A PR that is already in the merge queue is the one exception: GitHub reports `mergeStateStatus` `UNKNOWN` for it, so the row is labeled `IN-GROUP` and a queued PR accepts `UNKNOWN` or `CLEAN`; any other merge state fails the row and is named in it (rulings a9-135.2 and a9-139.2, from PR #8000's read). |
+| `merge-queue` | The head merges cleanly with the merge-queue tip: the `headCommit` of the last queued entry that is not this PR. A queue entry's `headCommit` is the GitHub-built merge-group commit, not the PR's own head, and it contains `main` plus every PR up to that entry. For example, #7311's entry `26a514a55` has parent `main` `98394122f`, while that PR's head was `f9992c17f`. Checking against the tip therefore covers the whole queue, so a collision that a check against `origin/main` alone misses still fails here. The arm prints the file overlap with each queued PR. An empty queue, or no queue at all as on `main` today, passes with `queue empty`. |
+| `checks` | `gh pr checks` reports no pending, failing, or cancelled rows. Rows are counted by gh's state bucket, never by line text; skipped rows are allowed. The head's `required-gates-complete` commit status must be `success`, and `mergeStateStatus` must be `CLEAN`. A PR that is already in a merge queue is the one exception (`main` has none today): GitHub reports `mergeStateStatus` `UNKNOWN` for it, so the row is labeled `IN-GROUP` and a queued PR accepts `UNKNOWN` or `CLEAN`; any other merge state fails the row and is named in it (rulings a9-135.2 and a9-139.2, from PR #8000's read). |
 | `threads` | GraphQL `reviewThreads` has zero unresolved threads. A truncated page fails closed. |
 | `body` | The body contains either a bare `#N` issue reference (including `Issue: #N`) or `Closes`/`Fixes`/`Resolves #N`, and no AI attribution as the `no-ai-attribution` gate defines it. The report labels closing keywords so the caller can confirm each issue is meant to close; it labels a bare reference as non-closing and does not infer issue closure. When both forms occur, it lists both categories separately. That definition, a shared pattern in `scripts/lib/ai-attribution-pattern.sh`, matches an AI-tool co-author trailer, a "generated with" line that names an AI tool, the robot-emoji footer, or the vendor noreply address. Prose that only describes attribution, and a human co-author trailer, both pass. The same arm fails a body that carries an environment or organization identifier, as the `no-private-identifiers` gate defines it (the shared pattern in `scripts/lib/private-identifier-pattern.sh`); the report names the body line numbers and never repeats the matched text. |
 

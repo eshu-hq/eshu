@@ -188,7 +188,7 @@ statements. Each emitted-statement artifact separately records its one read.
 | Before commit | Deterministic contracts, complete parser, source binding, required cases | Seeded semantic and coverage violations must fail |
 | Before push | Targeted disposable PostgreSQL/Neo4j fixture and plan proof | Calibrate runtime and noise, then select on covered query/schema changes |
 | Pull request CI | Same targeted proof and archived machine-readable artifacts | Missing, stale or unexercised required evidence fails |
-| Merge group CI | Proof on the combined checkout | Demonstrate query-only, schema-only and combined selection |
+| Merge group CI (dormant: `main` has no merge queue) | Proof on the combined checkout | Demonstrate query-only, schema-only and combined selection |
 | Dedicated run | Scale, concurrent HTTP/MCP reads and resource observations | Declare load, topology, budgets and independent result checks |
 
 Preserve current backend support policy and required NornicDB checks. Neo4j

@@ -371,8 +371,8 @@ if [[ ${overall} -ne 0 ]]; then
 else
 	# No per-SHA push stamp is written any more (removed: a rebase or amend
 	# always invalidated it, and the rebase-and-rerun loop it forced was
-	# self-imposed). main merges through a merge queue that tests each exact
-	# merge commit (merge_group), so branches need not be up to date either.
+	# self-imposed). main has no merge queue (turned off 2026-10-16, #8288)
+	# and strict status checks are off, so branches need not be up to date.
 	# scripts/dev/pre-push.sh is the fast local floor every push now runs
 	# instead; CI's required-gates-complete aggregate stays the blocking
 	# authority for everything this local run cannot reach.

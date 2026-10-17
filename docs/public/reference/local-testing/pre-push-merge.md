@@ -1,11 +1,11 @@
 # Pre-Push Merge Step
 
-`make pre-push` tests the branch head, but GitHub's merge ref and the merge
-queue test the head merged with `origin/main`, and main moves between the two.
+`make pre-push` tests the branch head, but GitHub's merge ref tests the head
+merged with `origin/main`, and main moves between the two.
 A head can compile on its own and still fail on the main it lands on: #7053
 vetted clean at its head and failed CI because main had moved a package one of
 its tests imported. The merge step (`scripts/lib/pre-push-merge.sh`) runs that
-check locally before a push or queue cycle is spent.
+check locally before a push or CI cycle is spent.
 
 ## What it runs
 
@@ -104,12 +104,13 @@ binds the reviewed diff, not the merge:
 
 The merge the floor vetted is recorded in the pre-push summary line,
 `merge tree: <tree> (HEAD <sha> + origin/main <sha>)`: the floor tested the
-merge of that HEAD with that origin/main commit, and nothing later. The merge
-queue re-tests the exact landing merge and is the authority for it.
+merge of that HEAD with that origin/main commit, and nothing later. `main` has
+no merge queue (turned off 2026-10-16), so no `merge_group` run re-tests the
+landing merge; the required checks on the PR head are the authority.
 
 ## What it does not catch
 
 It catches a merge that no longer compiles or vets. It does not catch a
 combination that still compiles but behaves differently, for example main
-wrapping a value in a new type that a branch type-asserts on. The merge
-queue's CI run on the exact merge remains the authority for behavior.
+wrapping a value in a new type that a branch type-asserts on. The required checks on the PR head remain the authority for
+behavior; no run tests the exact landing merge.
