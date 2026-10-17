@@ -411,6 +411,7 @@ gates:
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/gates-01.yaml"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/precommit-go-gosec.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh filecap-all"
       test_command: ""
