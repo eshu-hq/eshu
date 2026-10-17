@@ -6,6 +6,8 @@ package workitem
 import (
 	"context"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/failure"
 )
 
 // TestWorkItemEvidenceAnswersFixedServerFailures is the #7674 regression for
@@ -13,13 +15,16 @@ import (
 // skipped the reader-fence 503, and answered a client cancel as a server
 // fault. Not parallel: it swaps workitemHandlerTracer.
 func TestWorkItemEvidenceAnswersFixedServerFailures(t *testing.T) {
-	runServerFailureRoutes(t, []serverFailureRoute{{
-		name: "work-item evidence", path: "/api/v0/work-items/evidence?scope_id=scope-1&limit=10",
-		message: workItemEvidenceListFailedMessage,
-		handler: func(err error) serverFailureMounter {
-			return &Handler{Evidence: erroringWorkItemEvidenceStore{err: err}}
-		},
-	}})
+	failure.Run(t, failure.Suite{
+		HandlerTracer: &workitemHandlerTracer,
+		Routes: []failure.Route{{
+			Name: "work-item evidence", Path: "/api/v0/work-items/evidence?scope_id=scope-1&limit=10",
+			Message: workItemEvidenceListFailedMessage,
+			Handler: func(err error) failure.Mounter {
+				return &Handler{Evidence: erroringWorkItemEvidenceStore{err: err}}
+			},
+		}},
+	})
 }
 
 // erroringWorkItemEvidenceStore fails the evidence read with err.

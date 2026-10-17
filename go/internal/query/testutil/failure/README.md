@@ -108,10 +108,10 @@ mutate `check.go` on disk for it, not with `-overlay`.
 
 ## Remainder
 
-Three families still carry an inline copy (`service`, `terraform/drift`,
-`workitem`), and nine more carry a custom harness this one does not yet cover
-(stage logs, a 504 fault status, write paths with no fence, sentinel 503s).
-#8172 tracks moving them here.
+`service`, `terraform/drift` and `workitem` now run through `Run` (#8172).
+Nine families still carry a custom harness this one does not yet cover (stage
+logs, a 504 fault status, write paths with no fence, sentinel 503s). #8172
+tracks moving them here.
 
 No-Regression Evidence: test-only package with no production importer
 (`internal/queryplan`'s production-import guard rejects one). The `MATCH (n)`
