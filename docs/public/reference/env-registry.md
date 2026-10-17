@@ -406,7 +406,7 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_DELETE_BATCH_LIMIT` | int | `500` | Maximum stale value-flow evidence nodes or edges deleted per active scope and family in one reducer cleanup pass. |
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_ENABLED` | bool | `true` | Enable the reducer side runner that removes stale CodeTaintEvidence nodes and TAINT_FLOWS_TO edges from older active-scope generations. |
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_LEASE_OWNER` | string | — | Lease owner for the single value-flow stale cleanup worker; defaults to a unique process token. |
-| `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_LEASE_TTL` | duration | `10m` | TTL for the value-flow stale cleanup partition lease. Keep above the graph write budget (QA ESHU_CANONICAL_WRITE_TIMEOUT is 300s) plus margin (#7047). |
+| `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_LEASE_TTL` | duration | `10m` | TTL for the value-flow stale cleanup partition lease. Keep above the graph write budget (the QA environment's ESHU_CANONICAL_WRITE_TIMEOUT is 300s) plus margin (#7047). |
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_POLL_INTERVAL` | duration | `1h` | Delay between value-flow stale cleanup passes. |
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_SCOPE_BATCH_LIMIT` | int | `100` | Active repository scopes scanned per value-flow stale cleanup pass. |
 | `ESHU_GENERATION_LIVENESS_ACTIVATION_DEADLINE` | duration | `30m` | Age past which an active generation with outstanding shared intents and no unresolved reducer work can count as wedged. |
@@ -424,7 +424,7 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_GRAPH_ORPHAN_SWEEP_COUNT_LIMIT` | int | `10000` | Maximum graph orphan nodes counted per label for telemetry in one sweep pass. |
 | `ESHU_GRAPH_ORPHAN_SWEEP_ENABLED` | bool | `true` | Enable the reducer side runner that marks and sweeps stale generation-owned graph orphans. |
 | `ESHU_GRAPH_ORPHAN_SWEEP_LEASE_OWNER` | string | — | Lease owner for the single graph orphan sweep worker; defaults to a unique process token. |
-| `ESHU_GRAPH_ORPHAN_SWEEP_LEASE_TTL` | duration | `10m` | TTL for the graph orphan sweep partition lease. Keep above the graph write budget (QA ESHU_CANONICAL_WRITE_TIMEOUT is 300s) plus margin (#7047). |
+| `ESHU_GRAPH_ORPHAN_SWEEP_LEASE_TTL` | duration | `10m` | TTL for the graph orphan sweep partition lease. Keep above the graph write budget (the QA environment's ESHU_CANONICAL_WRITE_TIMEOUT is 300s) plus margin (#7047). |
 | `ESHU_GRAPH_ORPHAN_SWEEP_POLL_INTERVAL` | duration | `1h` | Delay between graph orphan sweep passes. |
 | `ESHU_GRAPH_ORPHAN_SWEEP_TTL` | duration | `168h` | Minimum age before a marked graph orphan can be deleted. |
 | `ESHU_ID_ANCHOR_CENSUS_ENABLED` | bool | `true` | Runs the periodic id-anchor census (#7212) on Neo4j: one AllNodesScan that counts graph nodes with an id the labeled entity-context anchor cannot reach, reported as eshu_dp_graph_id_anchor_unreachable_nodes. No effect on NornicDB. |
