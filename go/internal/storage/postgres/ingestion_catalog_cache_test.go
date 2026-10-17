@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -287,7 +288,7 @@ func TestIngestionStoreSharedCatalogCacheIsConcurrencySafe(t *testing.T) {
 	for w := 0; w < workers; w++ {
 		go func(worker int) {
 			defer wg.Done()
-			generationID := "gen-concurrent-" + string(rune('a'+worker))
+			generationID := fmt.Sprintf("gen-concurrent-%c", 'a'+worker)
 			err := store.CommitScopeGeneration(
 				context.Background(),
 				testfixtures.CatalogScope("scope-known", "repo-known"),

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -137,18 +138,18 @@ func encodeTestWAV(t *testing.T, durationMillis int) []byte {
 	dataSize := byteRate * durationMillis / 1000
 	var buffer bytes.Buffer
 	writeString(t, &buffer, "RIFF")
-	writeUint32(t, &buffer, uint32(36+dataSize))
+	writeUint32(t, &buffer, checkedUint32(t, 36+dataSize))
 	writeString(t, &buffer, "WAVE")
 	writeString(t, &buffer, "fmt ")
 	writeUint32(t, &buffer, 16)
 	writeUint16(t, &buffer, 1)
 	writeUint16(t, &buffer, channels)
 	writeUint32(t, &buffer, sampleRate)
-	writeUint32(t, &buffer, uint32(byteRate))
+	writeUint32(t, &buffer, checkedUint32(t, byteRate))
 	writeUint16(t, &buffer, channels*bytesPerSample)
 	writeUint16(t, &buffer, bitsPerSample)
 	writeString(t, &buffer, "data")
-	writeUint32(t, &buffer, uint32(dataSize))
+	writeUint32(t, &buffer, checkedUint32(t, dataSize))
 	buffer.Write(make([]byte, dataSize))
 	return buffer.Bytes()
 }
@@ -162,9 +163,23 @@ func writeString(t *testing.T, buffer *bytes.Buffer, value string) {
 
 func writeUint16(t *testing.T, buffer *bytes.Buffer, value int) {
 	t.Helper()
+	if value < 0 || value > math.MaxUint16 {
+		t.Fatalf("writeUint16(%d) out of range, want 0..%d", value, math.MaxUint16)
+		return
+	}
 	if err := binary.Write(buffer, binary.LittleEndian, uint16(value)); err != nil {
 		t.Fatalf("binary.Write(%d) error = %v, want nil", value, err)
 	}
+}
+
+// checkedUint32 converts value to uint32 and fails the test when it does not fit.
+func checkedUint32(t *testing.T, value int) uint32 {
+	t.Helper()
+	if value < 0 || value > math.MaxUint32 {
+		t.Fatalf("checkedUint32(%d) out of range, want 0..%d", value, uint32(math.MaxUint32))
+		return 0
+	}
+	return uint32(value)
 }
 
 func writeUint32(t *testing.T, buffer *bytes.Buffer, value uint32) {

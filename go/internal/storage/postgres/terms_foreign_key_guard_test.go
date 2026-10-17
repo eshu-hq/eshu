@@ -164,14 +164,16 @@ func pruneOrderViolations(t *testing.T, sources map[string]string) []string {
 		}
 	}
 	steps := []string{"predeleteSearchIndex", "admit", "pruneCandidates"}
+	var prevStep string
 	for i, step := range steps {
 		if len(callOrder[step]) != 1 {
 			violations = append(violations, fmt.Sprintf("PruneSupersededGenerations calls %s %d times, want once", step, len(callOrder[step])))
 			return violations
 		}
-		if i > 0 && callOrder[step][0] < callOrder[steps[i-1]][0] {
-			violations = append(violations, fmt.Sprintf("PruneSupersededGenerations calls %s before %s", step, steps[i-1]))
+		if i > 0 && callOrder[step][0] < callOrder[prevStep][0] {
+			violations = append(violations, fmt.Sprintf("PruneSupersededGenerations calls %s before %s", step, prevStep))
 		}
+		prevStep = step
 	}
 	return violations
 }

@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -177,13 +178,5 @@ func mustExec(t *testing.T, ctx context.Context, db *sql.DB, sqlText string) {
 }
 
 func equalStrings(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(a, b)
 }

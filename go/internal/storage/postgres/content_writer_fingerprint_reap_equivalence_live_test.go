@@ -152,6 +152,10 @@ func TestContentWriterWriteReapsChurnedFingerprintSideRowsLive(t *testing.T) {
 			Records:      []content.Record{{Path: "a.go", Body: "package a\n", Digest: generationID}},
 		}
 		for name, line := range functions {
+			if line < 0 {
+				t.Fatalf("function %q line = %d, want >= 0", name, line)
+				continue
+			}
 			mat.Entities = append(mat.Entities, content.EntityRecord{
 				EntityID:   content.CanonicalEntityID(repoID, "a.go", "Function", name, line),
 				Path:       "a.go",

@@ -192,7 +192,10 @@ func (database *partitionCandidateListTestDB) QueryContext(_ context.Context, qu
 		}
 		partitionID := args[1].(int)
 		partitionCount := args[2].(int)
-		if !candidate.HasPartitionHash || int(candidate.PartitionHash%uint64(partitionCount)) != partitionID {
+		if partitionID < 0 || partitionCount <= 0 {
+			panic(fmt.Sprintf("partition id %d count %d, want id >= 0 and count > 0", partitionID, partitionCount))
+		}
+		if !candidate.HasPartitionHash || candidate.PartitionHash%uint64(partitionCount) != uint64(partitionID) {
 			continue
 		}
 		rows = append(rows, candidate.Intent)

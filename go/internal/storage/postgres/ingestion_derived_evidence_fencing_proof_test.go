@@ -29,6 +29,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -236,15 +237,7 @@ func readDerivedEvidenceTargets(t *testing.T, ctx context.Context, db *sql.DB, g
 }
 
 func stringSlicesEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(a, b)
 }
 
 // openDerivedEvidenceFencingSchema creates an isolated throwaway schema and
