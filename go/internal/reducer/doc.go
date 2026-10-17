@@ -73,7 +73,9 @@
 // FingerprintedCorpusFencedResolvedRelationshipLoader and, on success, hands
 // the fingerprint that statement computed to its claim-fenced
 // ReopenFingerprintRecorder so the maintenance reopen skips unchanged items
-// (#8283).
+// (#8283). It records only after its DeployableUnitEdgeVerifier reads every
+// admitted edge back, because a write whose endpoint node is not committed
+// yet binds nothing and still reports success.
 // Their own-generation gate is crossrepo.EvaluateOwnGate: an inactive own
 // generation whose deployment_mapping producer is dead-lettered returns a
 // counting producer-terminal failure instead of the non-counting deferral

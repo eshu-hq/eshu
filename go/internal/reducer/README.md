@@ -373,7 +373,11 @@ values each counter carries.
   still matches; a missing row always re-opens. A logic change is therefore
   not re-applied to unchanged items unless it bumps
   `contract.DeployableUnitCorrelationLogicVersion`; the handler's doc comment
-  lists the code path that rule covers.
+  lists the code path that rule covers. The fingerprint is recorded only
+  after `EdgeVerifier` reads every admitted edge back: a write whose endpoint
+  `Repository` was not yet committed binds nothing yet reports success, so an
+  absent edge fails the run (non-counting while an endpoint is absent,
+  counting `deployable_unit_edge_write_unverified` when both exist).
 - **The own gate is bounded by its producer** — when the own relationship
   generation is inactive, `crossrepo.EvaluateOwnGate` reads the newest
   `deployment_mapping` row of the same scope generation

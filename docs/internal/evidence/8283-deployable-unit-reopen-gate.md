@@ -37,20 +37,26 @@ re-opened only when something it read can have changed.
   runs, the item keeps its old graph until one does. The exact
   completion-driven wake is the follow-up #8294.
 
-- **Graph-side loss is not detected.** This limitation was accepted by the
-  ruling. The fingerprint covers the resolved Postgres input, not the graph.
-  If another writer removes a `CORRELATES_DEPLOYABLE_UNIT` edge or its target
-  node, an item whose input is unchanged is not re-opened, so the edge stays
-  missing until the input changes or the logic version is bumped. Before the
-  gate, every wave re-merged those edges. Graph-side truth stays with its
-  owners: the canonical-node quiescence gate keeps the handler's writes behind
+- **Write-time loss is repaired by verification; later loss is not
+  detected.** The fingerprint covers the resolved Postgres input, not the
+  graph. The canonical upsert MATCHes both endpoint `Repository` nodes, so a
+  write whose endpoint commits later binds nothing and still reports success.
+  The CI determinism cell showed exactly that (see "Verified success" below).
+  The handler therefore records its fingerprint only after it reads every
+  admitted edge back. A loss at write time fails the run and the item stays
+  open. A loss after a verified success is the remaining exposure: if another
+  writer later removes a `CORRELATES_DEPLOYABLE_UNIT` edge or its target node,
+  an item whose input is unchanged is not re-opened until the input changes
+  or the logic version is bumped. Before the gate, every wave re-merged those
+  edges. #8316 tracks that class. #8315 tracks the NornicDB semantics of the
+  pre-write target probe, whose multi-clause shape the verification probe
+  does not reuse. Graph-side truth otherwise stays with its owners: the
+  canonical-node quiescence gate keeps the handler's writes behind
   repository projection, and dual-write reconciliation
   (`go/internal/storage/cypher/generation_reconciliation.go`) retracts edges
   whose denormalized `generation_id` or `resolved_id` drifted from Postgres.
-  Neither re-creates an edge an unrelated writer removed. The deployed
-  forced-change canary (NOT_CHECKED below) is the check that a changed input
-  still re-opens. To force a re-run, delete the item's fingerprint row: a
-  missing row always re-opens on the next pass.
+  To force a re-run, delete the item's fingerprint row: a missing row always
+  re-opens on the next pass.
 - **A logic change needs a version bump.** Before the gate, a deployed logic
   fix reached every item in the next wave. Now an unchanged item keeps its old
   output until `DeployableUnitCorrelationLogicVersion` is bumped. The bump rule
@@ -218,6 +224,94 @@ re-opened. A wave whose skipped count equals its candidate count saw no
 changed input. A rejected success write fails the run with
 `ErrExecutionClaimRejected`, on the fenced-claim path the reducer service
 already handles.
+
+## Verified success
+
+Root-Cause Evidence: the CI determinism cell failed deterministically. Its
+artifact logs show the app edge write at 07:09:07.198 with `executed_rows=1`,
+while `repo_dependency` created the deploy `Repository` stub at 07:09:09.589.
+The canonical upsert MATCHes both endpoints
+(`storage/cypher/canonical_deployable_unit_edges.go`), so the MERGE wrote
+nothing, the handler succeeded and recorded its fingerprint, and the gate
+skipped every later pass (`skipped_unchanged=4`). Main passed that cell only
+through the unconditional reopen.
+
+The fix (arbiter ruling on #8312): after `WriteEdges` and before the
+admission decisions, `EdgeVerifier` reads every admitted edge back. The edge
+writer implements it with one single-pattern probe per distinct pair:
+
+```cypher
+MATCH (:Repository {id: $source_repo_id})-[rel:CORRELATES_DEPLOYABLE_UNIT]->(:Repository {id: $target_repo_id})
+WHERE rel.evidence_source = $evidence_source
+RETURN 1 LIMIT 1
+```
+
+On a miss, two `MATCH (:Repository {id: $repo_id}) RETURN 1 LIMIT 1` probes
+classify it. An absent endpoint is the non-counting
+`shared_edge_target_not_ready` class, under the #7268 elapsed bound. Both
+endpoints present is the new counting class
+`deployable_unit_edge_write_unverified`, which dead-letters at the budget. A
+probe fault counts. An executor without probes leaves the run unverified: it
+succeeds and records no fingerprint. No logic-version bump: verification
+changes no written edge or decision.
+
+Performance Evidence: `PROFILE` on the pinned Neo4j image
+(`neo4j:2026-community@sha256:eabfbb04…`, native arm64, auth off), seeded
+with 20000 `Repository` nodes under the `repository_id` uniqueness
+constraint and 10000 edges: 8000 one-to-one pairs plus 2000 edges into one
+hot deploy repository. Three warm runs per case, same plan every run.
+
+| Case | Plan | DB hits | Rows |
+| --- | --- | --- | --- |
+| edge present, ordinary pair | `NodeUniqueIndexSeek` source, `Expand(All)`, `Filter` | 7 | 1 |
+| edge present, target in-degree 2000 | same | 7 | 1 |
+| edge absent, target in-degree 2000 | same | 5 | 0 |
+| source with no out-edges | same | 4 | 0 |
+| endpoint node probe | `NodeUniqueIndexSeek` | 2 | 1 |
+
+The probe anchors on the source's unique id and expands its out-edges, so
+its cost follows the source's out-degree (one per deployment repository),
+not the target's in-degree. Each admitted edge costs one probe, about 1 ms
+round trip through `cypher-shell`; a miss adds two node probes. NornicDB was
+NOT_CHECKED locally: the pinned NornicDB image is amd64-only and fails with
+`exec format error` on this aarch64 host. The live proof below runs on
+NornicDB in the live-backend CI job.
+
+Live proof: `deployable_unit_verify_live_test.go` (class `ci`, both
+backends) seeds run-unique repositories and checks target absent, both
+present with no edge, and an edge written by the real `WriteEdges` path. An
+edge owned by another evidence source reads as missing. Neo4j local run:
+3 of 3 PASS in 1.6 s. Removing the `evidence_source` filter fails the
+edge-present case.
+
+Mutations, each applied, run, and restored:
+
+| Mutation | Fails |
+| --- | --- |
+| skip verification | records-only-after-verified, both unverified classes, no-verifier, unavailable |
+| record regardless of the verdict | no-verifier, unavailable |
+| verify after the record | both unverified classes, no-verifier, unavailable |
+| writer treats `missing_target` as present | missing target, missing source |
+| handler treats `missing_target` as success | unverified `missing_target` |
+
+Observability Evidence: `eshu_dp_deployable_unit_edge_verify_total{outcome}`
+(`present`, `missing_target`, `missing_edge`, `probe_error`), the `deployable
+unit edge not verified after write, the run records no reopen fingerprint`
+WARN with `verdict`, `source_repo_id`, `target_repo_id` and
+`sample_intent_id`, and `deployable_unit_edge_verify_outcome`,
+`deployable_unit_edges_verified` and `deployable_unit_edges_probed` on the
+handler span.
+
+Determinism cell, rerun locally on the pinned Neo4j image with
+`ESHU_GRAPH_BACKEND=neo4j` (the standalone `deployable_unit_edges` cell of
+`scripts/verify-ifa-determinism.sh`, a fresh stack): PASS, `ifa assert-edges:
+domain=deployable_unit_edges expected=1 edges matched exactly`, 0 residual
+work items, all four items succeeded with fingerprint rows, 140 s cell wall
+time. In this sample the app item ran after the deploy stub existed, so no
+verification miss fired: the run shows convergence with the gate, not the
+race. The race path is covered by the hermetic handler tests and the live
+probe proof. The NornicDB cell runs in CI; it was NOT_CHECKED locally for the
+image reason above.
 
 ## NOT_CHECKED
 

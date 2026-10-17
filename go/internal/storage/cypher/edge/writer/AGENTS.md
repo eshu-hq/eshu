@@ -30,3 +30,9 @@
   (#7268). `targetProbeError` must stay classless so a probe fault counts
   and fails closed. `TestTargetMissingErrorCarriesNonCountingReadinessClass`
   and `TestTargetProbeErrorStaysCounting` pin both.
+- `VerifyDeployableUnitEdges` (`deployable_unit_verify.go`) keeps one
+  single-pattern probe per edge (no multi-clause MATCH, no inline
+  relationship properties), returns `targetMissingError` only when an
+  endpoint node is absent, and returns the counting
+  `deployable_unit_edge_write_unverified` class when both endpoints exist.
+  `deployable_unit_verify_test.go` and the live proof pin the verdicts.

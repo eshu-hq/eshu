@@ -19,6 +19,7 @@ Start with:
 - `eshu_dp_shared_edge_write_group_duration_seconds`
 - `eshu_dp_shared_edge_write_group_statement_count`
 - `eshu_dp_shared_edge_target_miss_total`
+- `eshu_dp_deployable_unit_edge_verify_total`
 - `eshu_dp_code_call_edge_batches_total`
 - `eshu_dp_code_call_edge_batch_duration_seconds`
 
@@ -53,6 +54,32 @@ generation and the re-selected batch binds then, so a transient rise during a
 rebuild drain is expected and a stuck non-zero rate across generations is
 the signal worth alerting on. (This section lives here rather than in
 `index.md` because that file is grandfather-capped and may not grow.)
+
+## Deployable-Unit Edge Verification
+
+`eshu_dp_deployable_unit_edge_verify_total` counts the post-write verdicts
+for admitted `CORRELATES_DEPLOYABLE_UNIT` edges (#8283). Its one bounded label
+is `outcome`:
+
+- `present`: the edge reads back after the write.
+- `missing_target`: the edge is absent and an endpoint `Repository` node is
+  absent. The run fails with the non-counting `shared_edge_target_not_ready`
+  class under the same 30-minute bound as a pre-write miss.
+- `missing_edge`: the edge is absent and both endpoint nodes exist. The run
+  fails with the counting class `deployable_unit_edge_write_unverified`, so a
+  repeat dead-letters loudly.
+- `probe_error`: a probe failed. The run fails with a counting error.
+
+The canonical upsert MATCHes both endpoint nodes. An endpoint committed after
+the write leaves the MERGE nothing to bind, and the write still reports
+success. Only a run whose edges all read `present` records its reopen
+fingerprint. Any other verdict leaves the item open for the next maintenance
+pass. A miss logs `deployable unit edge not verified after write, the run
+records no reopen fingerprint` with `verdict`, `source_repo_id`,
+`target_repo_id`, and `sample_intent_id`. The handler span carries
+`deployable_unit_edge_verify_outcome`, `deployable_unit_edges_verified`, and
+`deployable_unit_edges_probed`. A steady `missing_edge` rate means writes are
+being lost with both endpoints present: investigate it, do not retry it away.
 
 Use traces and logs for repository, generation, source run, and lease-owner
 detail. The shared-write metrics intentionally stay domain-scoped.

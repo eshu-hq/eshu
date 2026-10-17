@@ -34,6 +34,11 @@ const deployableUnitCorrelationFallbackThreshold = 0.90
 // mapping, and the edge row shape materializeDeployableUnitEdges writes. The
 // reopen gate (#8283) re-runs only items whose input changed or whose recorded
 // version differs, so a logic fix without a bump never reaches unchanged items.
+//
+// A success records its reopen fingerprint only after EdgeVerifier reads
+// every admitted edge back (verified success): an edge lost at write time
+// fails the run instead of closing the item. An edge lost after a verified
+// write is not re-checked by the gate (#8316).
 type DeployableUnitCorrelationHandler struct {
 	FactLoader              FactLoader
 	ResolvedLoader          ResolvedRelationshipLoader
