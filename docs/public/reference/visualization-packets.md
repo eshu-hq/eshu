@@ -247,7 +247,7 @@ The visualization packet does not duplicate existing shapes. It reuses:
 
 - `TruthEnvelope`, `TruthLevel`, and `TruthFreshness` from `contract.go`.
 - The `evidence_citation` handle shape and `recommended_next_calls` convention
-  from `evidence_citation.go` and the
+  from `evidence/citation.go` and the
   [Evidence Citation Handle Contract](evidence-citation-handles.md).
 - The service-story dossier response shape from `service/story_dossier.go` and
   the incident `evidence_path` from `incident_context_types.go`.

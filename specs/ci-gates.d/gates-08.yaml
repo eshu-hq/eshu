@@ -108,7 +108,7 @@ gates:
       - "go/internal/askwiring/**"
       - "go/internal/answerguardrail/**"
       - "go/internal/answernarration/**"
-      # #4045: query/evidence_bundle_live.go composes GET /api/v0/evidence/bundle
+      # #4045: query/evidence/bundle_live.go composes GET /api/v0/evidence/bundle
       # from internal/evidencebundle, and the snapshot asserts that response. The
       # workflow gained this entry then; the registry did not, so local gate
       # selection has been missing it since. Restored here alongside the #6119
