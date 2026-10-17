@@ -64,11 +64,13 @@ require_sha "${red_7847}"
 require_sha "${red_8219}"
 require_sha "${parent_8219}"
 
-worktrees=""
+worktree_list="$(mktemp)"
 cleanup() {
-	for wt in ${worktrees}; do
+	while IFS= read -r wt; do
+		[[ -n "${wt}" ]] || continue
 		git -C "${repo_root}" worktree remove --force "${wt}" >/dev/null 2>&1 || true
-	done
+	done <"${worktree_list}"
+	rm -f "${worktree_list}"
 }
 trap cleanup EXIT
 
@@ -76,7 +78,7 @@ add_worktree() {
 	wt="$(mktemp -d)"
 	rmdir "${wt}"
 	git -C "${repo_root}" worktree add --detach "${wt}" "$1" >/dev/null 2>&1
-	worktrees="${worktrees} ${wt}"
+	printf '%s\n' "${wt}" >>"${worktree_list}"
 	printf '%s' "${wt}"
 }
 
