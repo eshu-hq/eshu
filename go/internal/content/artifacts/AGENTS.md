@@ -63,17 +63,20 @@
   row (raw_path, relative_path, evidence_kind, name_scoped) for any input
   bumps it by one and appends its pin row to `extractorPins`
   (`version_guard_test.go`) in the same change. Never re-pin a digest at an
-  unchanged version to make `TestExtractorOutputIsPinned` pass. The guard
-  fails only when a change moves a stored row over the frozen corpus; it does
-  not see inputs the corpus lacks, `storedRows` in
-  `storage/postgres/config/artifacts`, the `content_files` statements or
-  `artifact_type` (README, "What the guard does not see"). A change to one of
-  those still bumps.
+  unchanged version to make `TestExtractorOutputIsPinned` pass. The pin row
+  also records the hydration window (`ListLimit`, `AllowanceWholeWindow`):
+  a moved window at an unchanged version fails the guard, because no corpus
+  repository is large enough to move a digest. The digests fail only when a
+  change moves a stored row over the frozen corpus; they do not see inputs
+  the corpus lacks, `storedRows` in `storage/postgres/config/artifacts`, the
+  `content_files` statements, `artifact_type` or files above the 256 KiB
+  pre-filter bound (README, "What the guard does not see"). A change to one
+  of those still bumps.
 - `testdata/guard` changes in one of two ways only. A re-snapshot at the same
   version, in a commit with no extractor change. Or a bump that adds the
   input that shows its change to `supplementSnapshotInputs` and regenerates,
   in one change, appending `{Version: N+1, CorpusDigest: <new>,
-  OutputDigest: <new>}`. The guard's sources must not read `tests/fixtures`
+  OutputDigest: <new>, Window: <current>}`. The guard's sources must not read `tests/fixtures`
   or the hydration test helpers; only `version_snapshot_test.go` does.
 - The version is monotonic. Never lower `ExtractorVersion` or delete a pin
   row. A `git revert` of a bump PR is not a rollback: `mayWrite`

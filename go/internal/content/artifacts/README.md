@@ -232,7 +232,7 @@ version. The constant starts at 1.
 bump: an extractor, a path rule, the clean step, the hydration selection, the
 list window, the dedup, the name-scope table, or any input in "What the guard
 does not see" below. Bump by one and, in the same change, append
-`{Version, CorpusDigest, OutputDigest}` to `extractorPins` in
+`{Version, CorpusDigest, OutputDigest, Window}` to `extractorPins` in
 `version_guard_test.go`. The failure message prints the exact row. A change
 that leaves every row unchanged keeps the version: a bump makes every stored
 row stale, so each repository is derived again.
@@ -257,14 +257,26 @@ every field framed as `<byte length>:<bytes>`. It fails when:
 |---|---|
 | The snapshot bytes changed | `guard corpus changed` |
 | The output changed at the pinned version | `extractor output changed` |
-| The version changed but the output did not | `... the output over the guard corpus did not change` |
+| The hydration window (`ListLimit`, `AllowanceWholeWindow`) moved at the pinned version | `hydration window moved` |
+| The version changed but neither the output nor the window did | `... the output over the guard corpus did not change` |
 | The version was bumped without a new pin row | `ExtractorVersion was bumped to N without updating the pinned pair` |
 | An evidence kind has fewer than 3 rows | `guard corpus coverage` |
 
-`TestCheckExtractorPins`, `TestCheckGuardCoverage` and
-`TestGuardIsSelfContained` are the seeded RED/GREEN pairs of the three
+`TestCheckExtractorPins` (digests, version and window), `TestCheckGuardCoverage`
+and `TestGuardIsSelfContained` are the seeded RED/GREEN pairs of the three
 checks. Production row order is not in the digest: the stored rows are a set,
 and `CompareConfigPaths` has its own tests.
+
+**The hydration window.** The corpus holds no repository near `ListLimit`
+(the generator refuses one at or above it), so a change to `ListLimit` or
+`AllowanceWholeWindow` moves no digest, yet it changes which files an
+oversized repository contributes. Each pin row records the window it ran
+with (`Window`), and the guard compares the current constants with the last
+row. A moved window at an unchanged version reports `hydration window moved`
+and prints the row to append. A window-only bump needs no added input: set
+`ExtractorVersion` to N+1 and append the row with the same digests and the new
+window. `checkExtractorPins` accepts that row, and refuses a bump whose row
+repeats the old digests and the old window.
 
 **What the guard does not see.** The guard fails when a change moves a stored
 row over the frozen corpus. It does not prove that no unbumped change ships.
@@ -287,6 +299,16 @@ Each of these still needs a manual bump when it changes:
   an edit to the SQL is not seen.
 - `artifact_type`. The snapshot holds no `artifact_type`, so a change to an
   extractor branch that reads it is not seen.
+- Files above the pre-filter bound (256 KiB), which the generator drops. The
+  bound comes from the S4 live test and the S0 corpus loader, not from a
+  production cap: the collector and storage source hold no `content_files`
+  size bound, so a real repository can hold such a file and the derive reads
+  it. The generator drops a `tests/fixtures` file above the bound before it
+  can prove equivalence, so an extractor change that alters rows only for
+  such a file passes the guard. No fixture file is above the bound today
+  (`rg --files --max-filesize 256K tests/fixtures` lists them all). The
+  recorded, mutant and generated inputs fail the generator instead of
+  dropping a file.
 
 **The corpus.** `testdata/guard/fixtures.jsonl` holds the config-artifact
 candidates of the S4 set (each `tests/fixtures` directory and child directory,
@@ -312,9 +334,9 @@ change` after the bump), do this in one change:
    (`version_snapshot_test.go`), with the extractor change in place.
 2. Regenerate (step 2 below).
 3. Set `ExtractorVersion` to N+1 and append
-   `{Version: N+1, CorpusDigest: <new>, OutputDigest: <new>}`, with the
-   digests the generator logs (the guard's `guard corpus changed` message
-   prints the same row). Leave the older rows as they are.
+   `{Version: N+1, CorpusDigest: <new>, OutputDigest: <new>, Window: <current>}`,
+   with the digests the generator logs (the guard's `guard corpus changed`
+   message prints the same row). Leave the older rows as they are.
 4. Name the added input in the PR. To check that it shows the change, revert
    only the extractor change at version N+1: the guard must report
    `extractor output changed`.
@@ -329,8 +351,10 @@ that changes no extractor:
    `go test ./internal/content/artifacts/ -run TestRegenerateExtractorCorpus -count=1 -args -update-extractor-corpus`.
    The generator keeps only candidate files and fails unless each
    repository's rows over the kept files equal its rows over every file, and
-   unless each repository stays under `ListLimit`, each file under 256 KiB and
-   each snapshot file under 1,000 KiB. Its output is byte-identical on a rerun.
+   unless each repository stays under `ListLimit`, each recorded, mutant and
+   generated file stays under 256 KiB (it drops a `tests/fixtures` file above
+   that bound without a check) and each snapshot file stays under 1,000 KiB.
+   Its output is byte-identical on a rerun.
 3. Set the last `extractorPins` row's `CorpusDigest` and `OutputDigest` to the
    values the generator logs, at the same version.
 

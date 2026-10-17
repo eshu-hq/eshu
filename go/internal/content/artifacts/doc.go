@@ -36,9 +36,10 @@
 // ExtractorVersion versions the output of the extractors. A stored row is
 // trusted only at the version that wrote it, and a change that can alter any
 // stored row bumps the version together with the digest that
-// TestExtractorOutputIsPinned pins over the committed guard corpus. The guard
-// sees only changes that move a row over that corpus, and the version only
-// moves forward.
+// TestExtractorOutputIsPinned pins over the committed guard corpus, and with
+// the hydration window (ListLimit, AllowanceWholeWindow) the pin row records.
+// The digests see only changes that move a row over that corpus, and the
+// version only moves forward.
 //
 // Extraction is pure. The extractors read no clock, environment or network,
 // drop remote references without reading them, and resolve kustomize

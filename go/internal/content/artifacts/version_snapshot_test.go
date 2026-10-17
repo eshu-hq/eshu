@@ -35,7 +35,18 @@ const (
 	// guardSnapshotMaxBytes keeps each snapshot file under the
 	// check-added-large-files hook (--maxkb=1024).
 	guardSnapshotMaxBytes = 1000 << 10
-	// guardMaxFileBytes is the content_files size bound the S4 corpus keeps.
+	// guardMaxFileBytes is the pre-filter bound on a file's content: the
+	// generator keeps no file above it. It is the bound the S4 live test
+	// applies to tests/fixtures (fixtureRepositories in
+	// storage/postgres/config/artifacts/derive_helpers_test.go, "len(content) >
+	// 256<<10") and the S0 corpus loader applies (name_free_corpus_test.go).
+	// It is not a production cap: no sync, discovery or content_files bound was
+	// found in the collector or storage source, so a repository can hold a
+	// larger file and the derive reads it. A fixture file above the bound is
+	// dropped before freezeGuardRepositories can prove equivalence, so the
+	// guard does not see it (package README, "What the guard does not see");
+	// the recorded, mutant and generated inputs fail the generator instead.
+	// rg --files --max-filesize 256K finds no tests/fixtures file above it.
 	guardMaxFileBytes = 256 << 10
 )
 

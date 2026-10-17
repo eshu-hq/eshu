@@ -16,7 +16,7 @@ package artifacts
 // That includes an extractor, a path rule, the clean step, the hydration
 // selection, the list window, the dedup or the name-scope table. Bump
 // ExtractorVersion by one and, in the same change, append the new pinned row
-// (version, corpus digest, output digest) to extractorPins in
+// (version, corpus digest, output digest, hydration window) to extractorPins in
 // version_guard_test.go. A change that leaves every row unchanged keeps the
 // version. A bump makes every stored row stale, so each repository is derived
 // again.
@@ -24,15 +24,19 @@ package artifacts
 // The guard (TestExtractorOutputIsPinned) runs the derive's call of
 // LoadConfigPaths over the frozen corpus in testdata/guard. It fails when a
 // change moves a stored row over that corpus, when the version changed but
-// the output over that corpus did not, and when the corpus bytes changed
-// without a matching pin row. It does not see, so each still needs a manual
-// bump when it changes: inputs the corpus lacks (add one that shows the
-// change to the generator's supplement and regenerate in the bump change);
-// the storedRows mapping in storage/postgres/config/artifacts, which the
-// guard copies (TestStoredRowsCopiesTheBuildVerbatim there fails on a change
-// to it); the content_files statements, whose semantics the guard's store
-// re-implements; and artifact_type, which the corpus does not hold. The
-// package README, "Extractor version and its guard", has the procedures.
+// neither the output over that corpus nor the window did, when ListLimit or
+// AllowanceWholeWindow moved at an unchanged version (the pin row records the
+// window, because no corpus repository is large enough to move a digest), and
+// when the corpus bytes changed without a matching pin row. It does not see,
+// so each still needs a manual bump when it changes: inputs the corpus lacks
+// (add one that shows the change to the generator's supplement and regenerate
+// in the bump change); the storedRows mapping in
+// storage/postgres/config/artifacts, which the guard copies
+// (TestStoredRowsCopiesTheBuildVerbatim there fails on a change to it); the
+// content_files statements, whose semantics the guard's store re-implements;
+// artifact_type, which the corpus does not hold; and files above the 256 KiB
+// pre-filter bound, which the generator drops. The package README, "Extractor
+// version and its guard", has the procedures.
 //
 // The version is monotonic: never lower it or delete a pin row. A git revert
 // of a bump is not a rollback, because the derive's write condition refuses a
