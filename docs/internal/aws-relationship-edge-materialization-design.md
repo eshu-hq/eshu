@@ -63,7 +63,7 @@ PR #2 landed the `DomainAWSRelationshipMaterialization` reducer domain
 (`go/internal/reducer/aws_relationship_materialization.go` + the bounded join in
 `aws_relationship_join.go`), the backend-neutral edge writer
 (`go/internal/storage/cypher/cloud_resource_edge_writer.go`), the projector
-intent (`go/internal/projector/aws/relationship/materialization_intents.go`), and
+intent (`go/internal/projector/cloud/aws/relationship/materialization_intents.go`), and
 the `eshu_dp_aws_relationship_edges_total` counter. It gates on the PR #1
 `GraphProjectionPhaseCanonicalNodesCommitted` phase on the CloudResource
 keyspace, so edges never resolve against uncommitted nodes. Still requires
@@ -519,7 +519,7 @@ sibling ci_cd_run_correlation/container_image_identity/package domains:
 
   **Retraction-safety fix (issue #5450 follow-up review).** The projector
   intent builder (`image.BuildMaterializationReducerIntent`,
-  `go/internal/projector/aws/cloud/image/materialization_intents.go`)
+  `go/internal/projector/cloud/aws/image/materialization_intents.go`)
   originally triggered ONLY when a `lambda_function_uses_image`
   `aws_relationship` fact was present in the generation. That meant a
   generation where a Lambda function switched from an Image package to Zip

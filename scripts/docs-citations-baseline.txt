@@ -131,7 +131,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storag
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storage/postgres/shared_intents.go:40
 LINE docs/internal/design/4866-offlinetier-cassette-exemption.md go/internal/replay/offlinetier/materialization.go:42
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/ifa/graphdump/normalize.go:32
-LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/projector/gcp/resource_materialization_intents.go:37
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/query/cloud_resource_dependencies.go:43
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/reducer/aws_resource_materialization.go:282
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/reducer/aws_resource_service_anchor.go:33
