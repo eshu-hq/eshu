@@ -37,7 +37,7 @@ var noCapabilityAllowedFiles = map[string]string{
 		"status snapshot with no matrix key (#8227)",
 	"status_collector_readiness.go": "GET /api/v0/status/collector-readiness and GET " +
 		"/api/v0/collector-readiness read the status snapshot with no matrix key (#8227)",
-	"evidence_bundle_live.go": "GET /api/v0/evidence/bundle reads the status snapshot " +
+	"evidence/bundle_live.go": "GET /api/v0/evidence/bundle reads the status snapshot " +
 		"with no matrix key (#8227)",
 	"admin/identity/audit.go": "GET /api/v0/auth/admin/audit/events and GET " +
 		"/api/v0/auth/admin/audit/summary read the governance audit store with no " +

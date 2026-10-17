@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:dirgate // #6642 evidence slice: handler methods on the staying EvidenceHandler; moves with the full evidence leaf, see query/evidence/doc.go.
+package evidence
 
 import (
 	"context"
@@ -12,16 +12,18 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
-
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const (
-	evidenceCitationCapability      = "evidence_citation.packet"
-	evidenceCitationDefaultLimit    = 10
-	evidenceCitationMaxLimit        = 50
+	evidenceCitationCapability   = "evidence_citation.packet"
+	evidenceCitationDefaultLimit = 10
+	// EvidenceCitationMaxLimit bounds the citation packet handles per
+	// request. Root's packet builder derives its per-layer citation cap
+	// from it (see investigation_packet_build.go).
+	EvidenceCitationMaxLimit        = 50
 	evidenceCitationMaxInputHandles = 500
 	evidenceCitationMaxExcerptLines = 40
 )
@@ -41,21 +43,30 @@ type evidenceCitationRequest struct {
 	Limit    int                               `json:"limit,omitempty"`
 }
 
-type evidenceCitationFileLookup struct {
+// EvidenceCitationFileLookup is one bounded file handle the citation
+// packet hydrates in one content-store read.
+type EvidenceCitationFileLookup struct {
 	RepoID       string
 	RelativePath string
 }
 
-type evidenceCitationFileKey struct {
-	repoID       string
-	relativePath string
+// EvidenceCitationFileKey dedupes file lookups by repo and path. The fields
+// stay exported so root's ContentReader batch implementation builds the same
+// map keys the citation packet reads.
+type EvidenceCitationFileKey struct {
+	RepoID       string
+	RelativePath string
 }
 
-type evidenceCitationFileStore interface {
-	EvidenceCitationFiles(context.Context, []evidenceCitationFileLookup) (map[evidenceCitationFileKey]FileContent, error)
+// EvidenceCitationFileStore is the narrow batch port the citation packet
+// asserts its content store through. Root's ContentReader satisfies it; any
+// other store falls back to per-file reads. See the build-time assertion
+// block in root's content_reader.go.
+type EvidenceCitationFileStore interface {
+	EvidenceCitationFiles(context.Context, []EvidenceCitationFileLookup) (map[EvidenceCitationFileKey]querycontract.FileContent, error)
 }
 
-func (h *EvidenceHandler) buildEvidenceCitations(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) buildEvidenceCitations(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryEvidenceCitationPacket,
@@ -65,18 +76,18 @@ func (h *EvidenceHandler) buildEvidenceCitations(w http.ResponseWriter, r *http.
 	defer span.End()
 
 	if h.Content == nil {
-		WriteError(w, http.StatusNotImplemented, "evidence citation packet requires the Postgres content store")
+		querycontract.WriteError(w, http.StatusNotImplemented, "evidence citation packet requires the Postgres content store")
 		return
 	}
 
 	var req evidenceCitationRequest
-	if err := ReadJSON(r, &req); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+	if err := querycontract.ReadJSON(r, &req); err != nil {
+		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	handles, limit, truncated, err := normalizeEvidenceCitationRequest(req)
 	if err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -96,7 +107,7 @@ func (h *EvidenceHandler) buildEvidenceCitations(w http.ResponseWriter, r *http.
 	for _, handle := range handles {
 		switch handle.Kind {
 		case "file":
-			file, ok := files[evidenceCitationFileKey{repoID: handle.RepoID, relativePath: handle.RelativePath}]
+			file, ok := files[EvidenceCitationFileKey{RepoID: handle.RepoID, RelativePath: handle.RelativePath}]
 			if !ok {
 				missing = append(missing, handle)
 				continue
@@ -129,10 +140,10 @@ func (h *EvidenceHandler) buildEvidenceCitations(w http.ResponseWriter, r *http.
 		RecommendedNextCalls: evidenceCitationNextCalls(missing, truncated),
 	}
 
-	WriteSuccess(w, r, http.StatusOK, response, BuildTruthEnvelope(
+	querycontract.WriteSuccess(w, r, http.StatusOK, response, querycontract.BuildTruthEnvelope(
 		h.profile(),
 		evidenceCitationCapability,
-		TruthBasisContentIndex,
+		querycontract.TruthBasisContentIndex,
 		"resolved from bounded Postgres content handles without graph traversal",
 	))
 }
@@ -144,8 +155,8 @@ func normalizeEvidenceCitationRequest(
 	if limit <= 0 {
 		limit = evidenceCitationDefaultLimit
 	}
-	if limit > evidenceCitationMaxLimit {
-		limit = evidenceCitationMaxLimit
+	if limit > EvidenceCitationMaxLimit {
+		limit = EvidenceCitationMaxLimit
 	}
 	if len(req.Handles) > evidenceCitationMaxInputHandles {
 		return nil, limit, false, fmt.Errorf("handles exceeds maximum of %d", evidenceCitationMaxInputHandles)
@@ -198,16 +209,16 @@ func normalizeEvidenceCitationHandle(handle evidence.EvidenceCitationHandle) (ev
 	}
 }
 
-func (h *EvidenceHandler) evidenceCitationFileContents(
+func (h *Handler) evidenceCitationFileContents(
 	ctx context.Context,
 	handles []evidence.EvidenceCitationHandle,
-) (map[evidenceCitationFileKey]FileContent, error) {
+) (map[EvidenceCitationFileKey]querycontract.FileContent, error) {
 	access := querycontract.RepositoryAccessFilterFromContext(ctx)
 	if access.Empty() {
-		return map[evidenceCitationFileKey]FileContent{}, nil
+		return map[EvidenceCitationFileKey]querycontract.FileContent{}, nil
 	}
-	lookups := make([]evidenceCitationFileLookup, 0)
-	seen := make(map[evidenceCitationFileKey]struct{}, len(handles))
+	lookups := make([]EvidenceCitationFileLookup, 0)
+	seen := make(map[EvidenceCitationFileKey]struct{}, len(handles))
 	for _, handle := range handles {
 		if handle.Kind != "file" {
 			continue
@@ -215,21 +226,21 @@ func (h *EvidenceHandler) evidenceCitationFileContents(
 		if !access.AllowsRepositoryID(handle.RepoID) {
 			continue
 		}
-		key := evidenceCitationFileKey{repoID: handle.RepoID, relativePath: handle.RelativePath}
+		key := EvidenceCitationFileKey{RepoID: handle.RepoID, RelativePath: handle.RelativePath}
 		if _, exists := seen[key]; exists {
 			continue
 		}
 		seen[key] = struct{}{}
-		lookups = append(lookups, evidenceCitationFileLookup{RepoID: handle.RepoID, RelativePath: handle.RelativePath})
+		lookups = append(lookups, EvidenceCitationFileLookup{RepoID: handle.RepoID, RelativePath: handle.RelativePath})
 	}
 	if len(lookups) == 0 {
-		return map[evidenceCitationFileKey]FileContent{}, nil
+		return map[EvidenceCitationFileKey]querycontract.FileContent{}, nil
 	}
-	if store, ok := h.Content.(evidenceCitationFileStore); ok {
+	if store, ok := h.Content.(EvidenceCitationFileStore); ok {
 		return store.EvidenceCitationFiles(ctx, lookups)
 	}
 
-	results := make(map[evidenceCitationFileKey]FileContent, len(lookups))
+	results := make(map[EvidenceCitationFileKey]querycontract.FileContent, len(lookups))
 	for _, lookup := range lookups {
 		file, err := h.Content.GetFileContent(ctx, lookup.RepoID, lookup.RelativePath)
 		if err != nil {
@@ -238,18 +249,18 @@ func (h *EvidenceHandler) evidenceCitationFileContents(
 		if file == nil {
 			continue
 		}
-		results[evidenceCitationFileKey{repoID: lookup.RepoID, relativePath: lookup.RelativePath}] = *file
+		results[EvidenceCitationFileKey(lookup)] = *file
 	}
 	return results, nil
 }
 
-func (h *EvidenceHandler) evidenceCitationEntityContents(
+func (h *Handler) evidenceCitationEntityContents(
 	ctx context.Context,
 	handles []evidence.EvidenceCitationHandle,
-) (map[string]*EntityContent, error) {
+) (map[string]*querycontract.EntityContent, error) {
 	access := querycontract.RepositoryAccessFilterFromContext(ctx)
 	if access.Empty() {
-		return map[string]*EntityContent{}, nil
+		return map[string]*querycontract.EntityContent{}, nil
 	}
 	entityIDs := make([]string, 0)
 	seen := make(map[string]struct{}, len(handles))
@@ -264,19 +275,19 @@ func (h *EvidenceHandler) evidenceCitationEntityContents(
 		entityIDs = append(entityIDs, handle.EntityID)
 	}
 	if len(entityIDs) == 0 {
-		return map[string]*EntityContent{}, nil
+		return map[string]*querycontract.EntityContent{}, nil
 	}
 	return getEntityContentsForRepositoryAccess(ctx, h.Content, entityIDs, access)
 }
 
 func filterEvidenceCitationEntitiesForAccess(
-	entities map[string]*EntityContent,
+	entities map[string]*querycontract.EntityContent,
 	access querycontract.RepositoryAccessFilter,
-) map[string]*EntityContent {
+) map[string]*querycontract.EntityContent {
 	if !access.Scoped() {
 		return entities
 	}
-	filtered := make(map[string]*EntityContent, len(entities))
+	filtered := make(map[string]*querycontract.EntityContent, len(entities))
 	for entityID, entity := range entities {
 		if entity == nil || !access.AllowsRepositoryID(entity.RepoID) {
 			continue
@@ -286,7 +297,7 @@ func filterEvidenceCitationEntitiesForAccess(
 	return filtered
 }
 
-func citationFromFile(rank int, handle evidence.EvidenceCitationHandle, file FileContent) evidence.EvidenceCitation {
+func citationFromFile(rank int, handle evidence.EvidenceCitationHandle, file querycontract.FileContent) evidence.EvidenceCitation {
 	excerpt, startLine, endLine := boundedLineExcerpt(file.Content, handle.StartLine, handle.EndLine)
 	byteOffset, byteLength := excerptByteWindow(file.Content, startLine, excerpt)
 	return evidence.EvidenceCitation{
@@ -311,7 +322,7 @@ func citationFromFile(rank int, handle evidence.EvidenceCitationHandle, file Fil
 	}
 }
 
-func citationFromEntity(rank int, handle evidence.EvidenceCitationHandle, entity EntityContent) evidence.EvidenceCitation {
+func citationFromEntity(rank int, handle evidence.EvidenceCitationHandle, entity querycontract.EntityContent) evidence.EvidenceCitation {
 	excerpt, offsetStart, offsetEnd := boundedLineExcerpt(entity.SourceCache, 1, 0)
 	byteOffset, byteLength := excerptByteWindow(entity.SourceCache, offsetStart, excerpt)
 	startLine := entity.StartLine

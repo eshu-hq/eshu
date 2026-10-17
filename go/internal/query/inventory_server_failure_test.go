@@ -19,16 +19,15 @@ import (
 )
 
 // TestInventorySpannedRoutesAnswerFixedServerFailures is the #7674 slice 10
-// regression for the image, tag-history, graph entity, admission decision,
-// and runtime drift reads that open a handler span. Each answered 500 with
-// the backend error text, or (admission decisions and runtime drift, both on
-// the guarded PostgreSQL reader) answered a stale reader with a 500 instead of
-// the retryable 503; and every one answered a client cancel as a server
-// fault. Not parallel: it swaps queryHandlerTracer.
+// regression for the image, tag-history, graph entity, and runtime drift
+// reads that open a handler span. Each answered 500 with the backend error
+// text, or (runtime drift, on the guarded PostgreSQL reader) answered a
+// stale reader with a 500 instead of the retryable 503; and every one
+// answered a client cancel as a server fault. The admission decision cases
+// moved to internal/query/evidence with the evidence handler family in the
+// #6642 evidence-leaf move. Not parallel: it swaps queryHandlerTracer.
 func TestInventorySpannedRoutesAnswerFixedServerFailures(t *testing.T) {
 	const (
-		admissionPath = "/api/v0/evidence/admission-decisions?domain=cloud_inventory" +
-			"&scope_id=git-repository-scope:team/api&generation_id=generation-1&limit=10"
 		tagHistoryPath = "/api/v0/images/tag-history?repository_id=oci-registry://ghcr.io/eshu-hq/demo&tag=1.0.0"
 		driftBody      = `{"scope_id":"aws-account-1"}`
 	)
@@ -68,25 +67,6 @@ func TestInventorySpannedRoutesAnswerFixedServerFailures(t *testing.T) {
 				},
 			},
 			capability: graphEntityInventoryCapability,
-		},
-		{
-			route: failure.Route{
-				Name: "admission decisions", Path: admissionPath, Message: admissionDecisionReadFailedMessage,
-				Handler: func(err error) failure.Mounter {
-					return &EvidenceHandler{AdmissionDecisions: erroringAdmissionDecisionStore{err: err}, Profile: ProfileProduction}
-				},
-			},
-			capability: admissionDecisionCapability,
-		},
-		{
-			route: failure.Route{
-				Name: "admission decision evidence", Path: admissionPath + "&include_evidence=true",
-				Message: admissionDecisionEvidenceReadFailedMessage,
-				Handler: func(err error) failure.Mounter {
-					return &EvidenceHandler{AdmissionDecisions: evidenceFailingAdmissionDecisionStore{err: err}, Profile: ProfileProduction}
-				},
-			},
-			capability: admissionDecisionCapability,
 		},
 		{
 			route: failure.Route{
@@ -329,22 +309,6 @@ func validGraphEntityKindCounts() []map[string]any {
 		row[kind.key] = int64(0)
 	}
 	return []map[string]any{row}
-}
-
-// evidenceFailingAdmissionDecisionStore answers one decision and fails its
-// evidence read with err.
-type evidenceFailingAdmissionDecisionStore struct{ err error }
-
-func (s evidenceFailingAdmissionDecisionStore) ListAdmissionDecisions(
-	context.Context, AdmissionDecisionReadFilter,
-) ([]AdmissionDecisionReadRow, error) {
-	return []AdmissionDecisionReadRow{{DecisionID: "decision-1"}}, nil
-}
-
-func (s evidenceFailingAdmissionDecisionStore) ListAdmissionDecisionEvidence(
-	context.Context, string, int,
-) ([]AdmissionDecisionEvidenceRow, error) {
-	return nil, s.err
 }
 
 // failingTagHistorySealer fails every Seal with err.

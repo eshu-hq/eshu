@@ -17,7 +17,7 @@ func TestEvidenceHandlerScopedCitationPacketEmptyGrantDoesNotHydrate(t *testing.
 
 	store := &citationPacketContentStore{
 		files: map[evidenceCitationFileKey]FileContent{
-			{repoID: "repo-team-a", relativePath: "README.md"}: {
+			{RepoID: "repo-team-a", RelativePath: "README.md"}: {
 				RepoID: "repo-team-a", RelativePath: "README.md", Content: "allowed",
 			},
 		},
@@ -26,6 +26,8 @@ func TestEvidenceHandlerScopedCitationPacketEmptyGrantDoesNotHydrate(t *testing.
 		},
 	}
 	handler := &EvidenceHandler{Content: store, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
 	rec := httptest.NewRecorder()
 	req := evidenceCitationAuthzRequest(t, AuthContext{
 		Mode:        AuthModeScoped,
@@ -33,7 +35,7 @@ func TestEvidenceHandlerScopedCitationPacketEmptyGrantDoesNotHydrate(t *testing.
 		WorkspaceID: "workspace-a",
 	})
 
-	handler.buildEvidenceCitations(rec, req)
+	mux.ServeHTTP(rec, req)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
@@ -49,7 +51,7 @@ func TestEvidenceHandlerScopedCitationPacketFiltersOutOfScopeHandles(t *testing.
 
 	store := &citationPacketContentStore{
 		files: map[evidenceCitationFileKey]FileContent{
-			{repoID: "repo-team-b", relativePath: "README.md"}: {
+			{RepoID: "repo-team-b", RelativePath: "README.md"}: {
 				RepoID: "repo-team-b", RelativePath: "README.md", Content: "blocked",
 			},
 		},
@@ -58,6 +60,8 @@ func TestEvidenceHandlerScopedCitationPacketFiltersOutOfScopeHandles(t *testing.
 		},
 	}
 	handler := &EvidenceHandler{Content: store, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
 	rec := httptest.NewRecorder()
 	req := evidenceCitationAuthzRequest(t, AuthContext{
 		Mode:                 AuthModeScoped,
@@ -66,7 +70,7 @@ func TestEvidenceHandlerScopedCitationPacketFiltersOutOfScopeHandles(t *testing.
 		AllowedRepositoryIDs: []string{"repo-team-a"},
 	})
 
-	handler.buildEvidenceCitations(rec, req)
+	mux.ServeHTTP(rec, req)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
@@ -91,7 +95,7 @@ func TestEvidenceHandlerAllScopeCitationPacketKeepsHydration(t *testing.T) {
 
 	store := &citationPacketContentStore{
 		files: map[evidenceCitationFileKey]FileContent{
-			{repoID: "repo-team-b", relativePath: "README.md"}: {
+			{RepoID: "repo-team-b", RelativePath: "README.md"}: {
 				RepoID: "repo-team-b", RelativePath: "README.md", Content: "line one",
 			},
 		},
@@ -100,6 +104,8 @@ func TestEvidenceHandlerAllScopeCitationPacketKeepsHydration(t *testing.T) {
 		},
 	}
 	handler := &EvidenceHandler{Content: store, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
 	rec := httptest.NewRecorder()
 	req := evidenceCitationAuthzRequest(t, AuthContext{
 		Mode:        AuthModeScoped,
@@ -108,7 +114,7 @@ func TestEvidenceHandlerAllScopeCitationPacketKeepsHydration(t *testing.T) {
 		AllScopes:   true,
 	})
 
-	handler.buildEvidenceCitations(rec, req)
+	mux.ServeHTTP(rec, req)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:dirgate // #6642 evidence slice: unexported helpers called from staying evidence_citation.go; moves with the full evidence leaf, see query/evidence/doc.go.
+package evidence
 
 import (
 	"math"

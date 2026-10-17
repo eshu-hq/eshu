@@ -5,8 +5,13 @@ package query
 
 import (
 	"fmt"
+	"net/http"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/evidence"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // deployableUnitReproduceRoute is the bounded read that backs the deployable-unit
@@ -251,4 +256,63 @@ func formatStateCounts(counts map[string]int) string {
 		parts = append(parts, fmt.Sprintf("%d %s", counts[state], state))
 	}
 	return strings.Join(parts, ", ")
+}
+
+// Fixed bodies of the packet-build failure steps on GET
+// /api/v0/investigations/deployable-unit/packet (#7674): the packet build
+// and the scope-not-found refusal packet build. A build error quotes packet
+// contents, so it goes on the request span, never into the body.
+const (
+	deployableUnitPacketBuildFailedMessage   = "deployable-unit packet build failed"
+	deployableUnitRefusalPacketFailedMessage = "deployable-unit refusal packet build failed"
+)
+
+// deployableUnitPacketResponder implements
+// evidence.DeployableUnitPacketResponder from the lane-B packet envelope. It
+// lives in root because the envelope types (InvestigationEvidencePacket,
+// PacketBounds, the refusal composer) live here; the evidence handler passes
+// only leaf values and the live request, so bounds still come from
+// packetBoundsFromRequest on the same request the route received —
+// byte-identical to the pre-move route.
+//
+// If lane-B moves the envelope to an importable leaf, delete this type and
+// have the evidence handler call the leaf directly.
+type deployableUnitPacketResponder struct{}
+
+// NewDeployableUnitPacketResponder builds the lane-B packet responder cmd
+// wiring injects into the evidence handler.
+func NewDeployableUnitPacketResponder() evidence.DeployableUnitPacketResponder {
+	return deployableUnitPacketResponder{}
+}
+
+// RespondDeployableUnitPacket composes decisions and subject into the
+// portable packet and writes it, exactly as the pre-move
+// getDeployableUnitPacket did.
+func (deployableUnitPacketResponder) RespondDeployableUnitPacket(
+	w http.ResponseWriter,
+	r *http.Request,
+	decisions []AdmissionDecisionResult,
+	subject map[string]string,
+	truth *querycontract.TruthEnvelope,
+) {
+	packet, err := BuildDeployableUnitPacket(decisions, subject, truth, packetBoundsFromRequest(r))
+	if err != nil {
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, deployableUnitPacketBuildFailedMessage)
+		return
+	}
+	writeInvestigationPacket(w, r, packet)
+}
+
+// RespondDeployableUnitScopeRefusal writes the scope-not-found refusal
+// packet, exactly as the pre-move getDeployableUnitPacket did.
+func (deployableUnitPacketResponder) RespondDeployableUnitScopeRefusal(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	packet, err := refusalPacketForAPI(InvestigationFamilyDeployableUnit, PacketRefusalScopeNotFound)
+	if err != nil {
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, deployableUnitRefusalPacketFailedMessage)
+		return
+	}
+	writeInvestigationPacket(w, r, packet)
 }

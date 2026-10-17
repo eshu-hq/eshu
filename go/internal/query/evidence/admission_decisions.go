@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package evidence
 
 import (
 	"net/http"
@@ -12,7 +12,11 @@ import (
 )
 
 const (
-	admissionDecisionCapability    = "admission_decisions.list"
+	// AdmissionDecisionCapability keys admission decision rows in the root
+	// contract capability matrix (see contract/admission_decisions.go, which
+	// carries its own copy) and gates the admission decision routes via
+	// querycontract.CapabilityUnsupported.
+	AdmissionDecisionCapability    = "admission_decisions.list"
 	admissionDecisionDefaultLimit  = 50
 	admissionDecisionMaxLimit      = 200
 	admissionDecisionEvidenceLimit = 20
@@ -28,25 +32,25 @@ const (
 	admissionDecisionEvidenceReadFailedMessage = "admission decision evidence read failed"
 )
 
-func (h *EvidenceHandler) listAdmissionDecisions(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) listAdmissionDecisions(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryAdmissionDecisions,
 		"GET /api/v0/evidence/admission-decisions",
-		admissionDecisionCapability,
+		AdmissionDecisionCapability,
 	)
 	defer span.End()
 
-	if querycontract.CapabilityUnsupported(h.profile(), admissionDecisionCapability) {
-		WriteContractError(
+	if querycontract.CapabilityUnsupported(h.profile(), AdmissionDecisionCapability) {
+		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusNotImplemented,
 			"admission decisions require the local-authoritative profile or higher",
-			ErrorCodeUnsupportedCapability,
-			admissionDecisionCapability,
+			querycontract.ErrorCodeUnsupportedCapability,
+			AdmissionDecisionCapability,
 			h.profile(),
-			querycontract.RequiredProfile(admissionDecisionCapability),
+			querycontract.RequiredProfile(AdmissionDecisionCapability),
 		)
 		return
 	}
@@ -62,21 +66,21 @@ func (h *EvidenceHandler) listAdmissionDecisions(w http.ResponseWriter, r *http.
 		return
 	}
 	if h.AdmissionDecisions == nil {
-		WriteContractError(
+		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusServiceUnavailable,
 			"admission decisions require the Postgres admission decision read model",
-			ErrorCodeBackendUnavailable,
-			admissionDecisionCapability,
+			querycontract.ErrorCodeBackendUnavailable,
+			AdmissionDecisionCapability,
 			h.profile(),
-			querycontract.RequiredProfile(admissionDecisionCapability),
+			querycontract.RequiredProfile(AdmissionDecisionCapability),
 		)
 		return
 	}
 	rows, err := h.AdmissionDecisions.ListAdmissionDecisions(r.Context(), filter)
 	if err != nil {
-		writeReadFailure(w, r, err, admissionDecisionCapability, admissionDecisionReadFailedMessage)
+		writeReadFailure(w, r, err, AdmissionDecisionCapability, admissionDecisionReadFailedMessage)
 		return
 	}
 	truncated := len(rows) > limit
@@ -85,7 +89,7 @@ func (h *EvidenceHandler) listAdmissionDecisions(w http.ResponseWriter, r *http.
 	}
 	results := make([]AdmissionDecisionResult, 0, len(rows))
 	for _, row := range rows {
-		result := admissionDecisionResult(row)
+		result := AdmissionDecisionResultFromRow(row)
 		if includeEvidence {
 			evidence, err := h.AdmissionDecisions.ListAdmissionDecisionEvidence(
 				r.Context(),
@@ -93,7 +97,7 @@ func (h *EvidenceHandler) listAdmissionDecisions(w http.ResponseWriter, r *http.
 				admissionDecisionEvidenceLimit+1,
 			)
 			if err != nil {
-				writeReadFailure(w, r, err, admissionDecisionCapability, admissionDecisionEvidenceReadFailedMessage)
+				writeReadFailure(w, r, err, AdmissionDecisionCapability, admissionDecisionEvidenceReadFailedMessage)
 				return
 			}
 			result.Evidence, result.EvidenceTruncated = boundedAdmissionDecisionEvidence(evidence)
@@ -108,10 +112,10 @@ func (h *EvidenceHandler) listAdmissionDecisions(w http.ResponseWriter, r *http.
 		"truncated":              truncated,
 		"recommended_next_calls": admissionDecisionRecommendedNextCalls(filter, truncated, includeEvidence, len(results)),
 	}
-	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
+	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
 		h.profile(),
-		admissionDecisionCapability,
-		TruthBasisSemanticFacts,
+		AdmissionDecisionCapability,
+		querycontract.TruthBasisSemanticFacts,
 		"resolved from reducer-owned correlation admission decision read model",
 	))
 }
@@ -121,29 +125,29 @@ func admissionDecisionFilterFromRequest(
 	r *http.Request,
 ) (AdmissionDecisionReadFilter, int, bool, bool) {
 	filter := AdmissionDecisionReadFilter{
-		Domain:       QueryParam(r, "domain"),
-		ScopeID:      QueryParam(r, "scope_id"),
-		GenerationID: QueryParam(r, "generation_id"),
-		AnchorKind:   QueryParam(r, "anchor_kind"),
-		AnchorID:     QueryParam(r, "anchor_id"),
+		Domain:       querycontract.QueryParam(r, "domain"),
+		ScopeID:      querycontract.QueryParam(r, "scope_id"),
+		GenerationID: querycontract.QueryParam(r, "generation_id"),
+		AnchorKind:   querycontract.QueryParam(r, "anchor_kind"),
+		AnchorID:     querycontract.QueryParam(r, "anchor_id"),
 	}
 	if filter.Domain == "" || filter.ScopeID == "" || filter.GenerationID == "" {
-		WriteError(w, http.StatusBadRequest, "domain, scope_id, and generation_id are required")
+		querycontract.WriteError(w, http.StatusBadRequest, "domain, scope_id, and generation_id are required")
 		return AdmissionDecisionReadFilter{}, 0, false, false
 	}
-	state := QueryParam(r, "state")
+	state := querycontract.QueryParam(r, "state")
 	if state != "" {
 		if !validAdmissionDecisionState(state) {
-			WriteError(w, http.StatusBadRequest, "state is not supported")
+			querycontract.WriteError(w, http.StatusBadRequest, "state is not supported")
 			return AdmissionDecisionReadFilter{}, 0, false, false
 		}
 		filter.State = &state
 	}
 	if (filter.AnchorKind == "") != (filter.AnchorID == "") {
-		WriteError(w, http.StatusBadRequest, "anchor_kind and anchor_id must be provided together")
+		querycontract.WriteError(w, http.StatusBadRequest, "anchor_kind and anchor_id must be provided together")
 		return AdmissionDecisionReadFilter{}, 0, false, false
 	}
-	limit := admissionDecisionLimit(QueryParamInt(r, "limit", admissionDecisionDefaultLimit))
+	limit := admissionDecisionLimit(querycontract.QueryParamInt(r, "limit", admissionDecisionDefaultLimit))
 	filter.Limit = limit + 1
 	return filter, limit, queryParamBool(r, "include_evidence"), true
 }
@@ -159,7 +163,7 @@ func admissionDecisionLimit(limit int) int {
 }
 
 func queryParamBool(r *http.Request, key string) bool {
-	value := QueryParam(r, key)
+	value := querycontract.QueryParam(r, key)
 	parsed, err := strconv.ParseBool(value)
 	return err == nil && parsed
 }
@@ -174,17 +178,17 @@ func boundedAdmissionDecisionEvidence(
 	return evidence, &truncated
 }
 
-func (h *EvidenceHandler) writeEmptyAdmissionDecisionPage(w http.ResponseWriter, r *http.Request, limit int) {
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
+func (h *Handler) writeEmptyAdmissionDecisionPage(w http.ResponseWriter, r *http.Request, limit int) {
+	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"decisions":              []AdmissionDecisionResult{},
 		"count":                  0,
 		"limit":                  limit,
 		"truncated":              false,
 		"recommended_next_calls": []RecommendedNextCall{},
-	}, BuildTruthEnvelope(
+	}, querycontract.BuildTruthEnvelope(
 		h.profile(),
-		admissionDecisionCapability,
-		TruthBasisSemanticFacts,
+		AdmissionDecisionCapability,
+		querycontract.TruthBasisSemanticFacts,
 		"resolved from reducer-owned correlation admission decision read model",
 	))
 }
@@ -270,7 +274,11 @@ func admissionDecisionBaseArgs(filter AdmissionDecisionReadFilter) map[string]st
 	return args
 }
 
-func admissionDecisionResult(row AdmissionDecisionReadRow) AdmissionDecisionResult {
+// AdmissionDecisionResultFromRow projects one persisted admission decision
+// row into the HTTP/MCP read shape. Root keeps the pre-move spelling
+// through its admissionDecisionResult forwarder (see compat_evidence.go)
+// for the staying packet test.
+func AdmissionDecisionResultFromRow(row AdmissionDecisionReadRow) AdmissionDecisionResult {
 	return AdmissionDecisionResult{
 		DecisionID:          row.DecisionID,
 		Domain:              row.Domain,

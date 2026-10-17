@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:dirgate // #6642 evidence slice: handler method on the staying EvidenceHandler; moves with the full evidence leaf, see query/evidence/doc.go.
+package evidence
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -59,9 +61,9 @@ const (
 // gets rejected. Either way, the caller who reaches this handler could
 // already read the three source status routes directly and derive this
 // bundle by hand.
-func (h *EvidenceHandler) getLiveEvidenceBundle(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) getLiveEvidenceBundle(w http.ResponseWriter, r *http.Request) {
 	if h.StatusReader == nil {
-		WriteError(w, http.StatusServiceUnavailable, "status reader not configured")
+		querycontract.WriteError(w, http.StatusServiceUnavailable, "status reader not configured")
 		return
 	}
 
@@ -72,7 +74,7 @@ func (h *EvidenceHandler) getLiveEvidenceBundle(w http.ResponseWriter, r *http.R
 	selection.SkipTerraformStateEvidence = true
 	_, report, err := loadStatusReportFiltered(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions(), selection)
 	if err != nil {
-		if WriteGraphReadError(w, r, err, querycontract.NoCapability) {
+		if querycontract.WriteGraphReadError(w, r, err, querycontract.NoCapability) {
 			return
 		}
 		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, liveEvidenceBundleStatusReadFailedMessage)
@@ -90,8 +92,22 @@ func (h *EvidenceHandler) getLiveEvidenceBundle(w http.ResponseWriter, r *http.R
 		return
 	}
 	bundle = evidencebundle.StampValidation(bundle)
-	WriteJSON(w, http.StatusOK, bundle)
+	querycontract.WriteJSON(w, http.StatusOK, bundle)
 }
+
+// GraphQuery is the concurrent-safe read-only graph traversal surface,
+// aliased rather than redeclared. IntVal projects a row integer through the
+// shared querycontract helper, aliased as a package-level value.
+//
+// Both aliases exist so repositoryCountForEvidenceBundle below keeps the
+// byte-identical source the queryplan source-coverage manifest pins
+// (source-coverage/first.yaml): that manifest hashes the whole function,
+// and any Cypher change must flip its source_sha256. The Cypher here is
+// unchanged from the root version; do not repoint the call below without
+// re-pinning that manifest entry.
+type GraphQuery = querycontract.GraphQuery
+
+var IntVal = querycontract.IntVal
 
 // repositoryCountForEvidenceBundle mirrors getIndexStatus's repository count
 // query (status.go): the same "MATCH (r:Repository) RETURN count(r)" read,
@@ -213,10 +229,10 @@ func liveEvidenceSnapshotFromReport(report status.Report, repoCount int) evidenc
 
 // sumQueueBlockedCounts totals the gated-row counts across every queue
 // blockage entry. This is a different statistic from a single domain's
-// blocked bucket (domainBacklogBuckets, aws_materialization_status.go),
-// which reports the MAX among that domain's own blockage rows; the two
-// answer different questions -- how much work is gated overall, versus which
-// domain is worst -- and are not meant to reconcile (see
+// blocked bucket (domainBacklogBuckets below), which reports the MAX among
+// that domain's own blockage rows; the two answer different questions --
+// how much work is gated overall, versus which domain is worst -- and are
+// not meant to reconcile (see
 // evidencebundle.PipelineDomainBacklogSnapshot's Blocked doc). It mirrors
 // internal/cli/evbundle's countBlockedQueueEntries (status.go), operating on
 // the typed queue.Blockage this package already has instead of a
@@ -229,4 +245,70 @@ func sumQueueBlockedCounts(blockages []queue.Blockage) int {
 		}
 	}
 	return total
+}
+
+// The helpers below are hoisted copies of root's status plumbing
+// (loadStatusReportFiltered in status_mappers.go, domainBacklogBuckets and
+// queueBlockageCountsByDomain in aws_materialization_status.go, #6642
+// evidence-leaf move). Each is pure over external status/queue types with no
+// root dependency, so the copy keeps this package free of an import cycle
+// through root's compatibility aliases; root keeps its originals for the
+// staying status routes. Keep both copies identical: the bundle snapshot
+// must describe the same report the status routes render.
+
+func loadStatusReportFiltered(
+	ctx context.Context,
+	reader status.Reader,
+	asOf time.Time,
+	opts status.Options,
+	selection status.SnapshotSelection,
+) (status.RawSnapshot, status.Report, error) {
+	if reader == nil {
+		return status.RawSnapshot{}, status.Report{}, fmt.Errorf("status reader is required")
+	}
+	raw, err := reader.ReadStatusSnapshotFiltered(ctx, asOf.UTC(), selection)
+	if err != nil {
+		return status.RawSnapshot{}, status.Report{}, fmt.Errorf("read status snapshot: %w", err)
+	}
+	return raw, status.BuildReport(raw, opts), nil
+}
+
+type domainWorkBuckets struct {
+	Outstanding int
+	Pending     int
+	InFlight    int
+	Blocked     int
+	Retrying    int
+	DeadLetter  int
+	Failed      int
+}
+
+func domainBacklogBuckets(backlog status.DomainBacklog, blocked int) domainWorkBuckets {
+	return domainWorkBuckets{
+		Outstanding: backlog.Outstanding,
+		Pending:     pendingDomainWork(backlog),
+		InFlight:    backlog.InFlight,
+		Blocked:     blocked,
+		Retrying:    backlog.Retrying,
+		DeadLetter:  backlog.DeadLetter,
+		Failed:      backlog.Failed,
+	}
+}
+
+func pendingDomainWork(backlog status.DomainBacklog) int {
+	pending := backlog.Outstanding - backlog.InFlight - backlog.Retrying
+	if pending < 0 {
+		return 0
+	}
+	return pending
+}
+
+func queueBlockageCountsByDomain(blockages []queue.Blockage) map[string]int {
+	counts := make(map[string]int)
+	for _, blockage := range blockages {
+		if blockage.Blocked > counts[blockage.Domain] {
+			counts[blockage.Domain] = blockage.Blocked
+		}
+	}
+	return counts
 }

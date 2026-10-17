@@ -11,8 +11,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
 // TestEvidenceHandlerBuildEvidenceCitationsPacketFromFileAndEntityHandles
@@ -26,7 +24,7 @@ func TestEvidenceHandlerBuildEvidenceCitationsPacketFromFileAndEntityHandles(t *
 
 	store := &citationPacketContentStore{
 		files: map[evidenceCitationFileKey]FileContent{
-			{repoID: "repo-service", relativePath: "cmd/api/main.go"}: {
+			{RepoID: "repo-service", RelativePath: "cmd/api/main.go"}: {
 				RepoID:       "repo-service",
 				RelativePath: "cmd/api/main.go",
 				CommitSHA:    "abc123",
@@ -186,7 +184,7 @@ func TestEvidenceHandlerCitationPacketReportsMissingAndTruncatedHandles(t *testi
 
 	store := &citationPacketContentStore{
 		files: map[evidenceCitationFileKey]FileContent{
-			{repoID: "repo-service", relativePath: "README.md"}: {
+			{RepoID: "repo-service", RelativePath: "README.md"}: {
 				RepoID:       "repo-service",
 				RelativePath: "README.md",
 				Content:      "line one\nline two\nline three\n",
@@ -239,103 +237,6 @@ func TestEvidenceHandlerCitationPacketReportsMissingAndTruncatedHandles(t *testi
 	}
 }
 
-func TestNormalizeEvidenceCitationRequestPreservesDistinctFileCitations(t *testing.T) {
-	t.Parallel()
-
-	handles, limit, truncated, err := normalizeEvidenceCitationRequest(evidenceCitationRequest{
-		Limit: 10,
-		Handles: []evidence.EvidenceCitationHandle{
-			{
-				Kind:         "file",
-				RepoID:       "repo-service",
-				RelativePath: "README.md",
-				StartLine:    1,
-				EndLine:      4,
-				Reason:       "overview",
-			},
-			{
-				Kind:         "file",
-				RepoID:       "repo-service",
-				RelativePath: "README.md",
-				StartLine:    20,
-				EndLine:      24,
-				Reason:       "operations notes",
-			},
-		},
-	})
-	if err != nil {
-		t.Fatalf("normalizeEvidenceCitationRequest() error = %v, want nil", err)
-	}
-	if got, want := limit, 10; got != want {
-		t.Fatalf("limit = %d, want %d", got, want)
-	}
-	if truncated {
-		t.Fatal("truncated = true, want false")
-	}
-	if got, want := len(handles), 2; got != want {
-		t.Fatalf("len(handles) = %d, want %d", got, want)
-	}
-	if got, want := handles[0].StartLine, 1; got != want {
-		t.Fatalf("first start line = %d, want %d", got, want)
-	}
-	if got, want := handles[1].StartLine, 20; got != want {
-		t.Fatalf("second start line = %d, want %d", got, want)
-	}
-}
-
-func TestNormalizeEvidenceCitationRequestStopsAfterTruncationProbe(t *testing.T) {
-	t.Parallel()
-
-	req := evidenceCitationRequest{Limit: 2}
-	for _, path := range []string{"one.md", "two.md", "three.md"} {
-		req.Handles = append(req.Handles, evidence.EvidenceCitationHandle{
-			Kind:         "file",
-			RepoID:       "repo-service",
-			RelativePath: path,
-		})
-	}
-	req.Handles = append(req.Handles, evidence.EvidenceCitationHandle{Kind: "bogus"})
-
-	handles, _, truncated, err := normalizeEvidenceCitationRequest(req)
-	if err != nil {
-		t.Fatalf("normalizeEvidenceCitationRequest() error = %v, want nil", err)
-	}
-	if got, want := len(handles), 2; got != want {
-		t.Fatalf("len(handles) = %d, want %d", got, want)
-	}
-	if !truncated {
-		t.Fatal("truncated = false, want true")
-	}
-}
-
-func TestNormalizeEvidenceCitationRequestRejectsOversizedHandleArrays(t *testing.T) {
-	t.Parallel()
-
-	req := evidenceCitationRequest{Limit: 50}
-	for i := 0; i < evidenceCitationMaxInputHandles+1; i++ {
-		req.Handles = append(req.Handles, evidence.EvidenceCitationHandle{
-			Kind:         "file",
-			RepoID:       "repo-service",
-			RelativePath: "README.md",
-		})
-	}
-	if _, _, _, err := normalizeEvidenceCitationRequest(req); err == nil {
-		t.Fatal("normalizeEvidenceCitationRequest() error = nil, want non-nil")
-	}
-}
-
-func TestBoundedLineExcerptReturnsZeroRangeForStartPastEOF(t *testing.T) {
-	t.Parallel()
-
-	excerpt, startLine, endLine := boundedLineExcerpt("one\ntwo\n", 10, 12)
-	if excerpt != "" {
-		t.Fatalf("excerpt = %#v, want empty", excerpt)
-	}
-	if startLine != 0 || endLine != 0 {
-		t.Fatalf("range = %d-%d, want 0-0", startLine, endLine)
-	}
-}
-
 func TestContentReaderEvidenceCitationFilesHydratesBatch(t *testing.T) {
 	t.Parallel()
 
@@ -375,11 +276,11 @@ func TestContentReaderEvidenceCitationFilesHydratesBatch(t *testing.T) {
 	if got, want := len(files), 2; got != want {
 		t.Fatalf("len(files) = %d, want %d", got, want)
 	}
-	readme := files[evidenceCitationFileKey{repoID: "repo-service", relativePath: "README.md"}]
+	readme := files[evidenceCitationFileKey{RepoID: "repo-service", RelativePath: "README.md"}]
 	if got, want := readme.ArtifactType, "documentation"; got != want {
 		t.Fatalf("README artifact type = %q, want %q", got, want)
 	}
-	mainFile := files[evidenceCitationFileKey{repoID: "repo-service", relativePath: "cmd/api/main.go"}]
+	mainFile := files[evidenceCitationFileKey{RepoID: "repo-service", RelativePath: "cmd/api/main.go"}]
 	if got, want := mainFile.Language, "go"; got != want {
 		t.Fatalf("main.go language = %q, want %q", got, want)
 	}
@@ -404,7 +305,7 @@ func (s *citationPacketContentStore) EvidenceCitationFiles(
 	s.fileBatchCalls++
 	results := make(map[evidenceCitationFileKey]FileContent, len(lookups))
 	for _, lookup := range lookups {
-		key := evidenceCitationFileKey{repoID: lookup.RepoID, relativePath: lookup.RelativePath}
+		key := evidenceCitationFileKey(lookup)
 		if file, ok := s.files[key]; ok {
 			results[key] = file
 		}

@@ -25,10 +25,11 @@ Read `doc.go` and `README.md` first.
   `firstNonEmpty` (`repository_deployment_evidence_read_model.go`). It is a
   copy because an unexported helper cannot cross the boundary; any logic
   added here but not there (or vice versa) is a silent behavior fork.
-- The batch entity-access helpers live in ROOT
-  (`content_entity_access_batch.go`), not here -- the batch path filters
-  through the evidence family's `filterEvidenceCitationEntitiesForAccess`.
-  Do not re-add them here.
+- The batch entity-access helpers live with the evidence family
+  (`internal/query/evidence/content_entity_access_batch.go`, #6642), not
+  here -- the batch path filters through the evidence family's
+  `filterEvidenceCitationEntitiesForAccess`, and the file moved with its
+  sole caller. Do not re-add them here.
 - The hybrid ranker MUST NOT gain a provider embedder, network call, or
   unbounded candidate set. `applied=false` keeps the lexical order and the
   `content_index` truth basis; `SearchBackend="hybrid"` is set only on rows
