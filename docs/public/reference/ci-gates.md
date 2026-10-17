@@ -39,7 +39,7 @@ An **Odù** is one of its scenarios: a set of recorded facts whose expected
 results are derived from the inputs rather than written by hand. See
 [the Ifá conformance platform](../concepts/ifa-conformance-platform.md).
 
-### Hygiene: Is the change well-formed? (50 gates)
+### Hygiene: Is the change well-formed? (55 gates)
 
 - `go-fmt` (blocking): Checks Go source is formatted with gofumpt so diffs stay consistent.
 - `go-lint` (blocking): Runs golangci-lint across the Go module to catch style and correctness issues.
@@ -52,6 +52,11 @@ results are derived from the inputs rather than written by hand. See
 - `package-docs` (blocking): Fails when a Go package is missing its doc.go, README.md or AGENTS.md.
 - `migration-immutability` (blocking): Fails when a shipped Postgres migration is edited instead of added as a new one, or an added one combines table-locking DDL with bulk DML (#7961).
 - `gitignore-rg-parity` (blocking): Fails when an anchored .gitignore line (e.g. go/<binary>) relativizes under a subdirectory search root and hides tracked files from rg (#7750).
+- `slim-go-build` (blocking): Builds every Go binary in the module to confirm the queue entry still compiles.
+- `slim-go-vet` (blocking): Vets the queue entry's changed Go packages and their direct importers through the go list import graph.
+- `slim-go-filecap` (blocking): Fails the queue entry when a Go file exceeds the 500-line cap.
+- `slim-migration-uniqueness` (blocking): Fails the queue entry when shipped Postgres migration sequence numbers collide.
+- `slim-doc-split` (blocking): Fails the queue entry when a context or story reference page exceeds its line cap or breaks the route map.
 - `agent-canon` (blocking): Checks every agent/Claude/Codex skill and hook is wired and reachable, and that Claude/Codex/Muse stay in parity.
 - `no-diff-fragments` (blocking): Scans every tracked file for leftover diff fragments or unresolved merge-conflict markers.
 - `scope-prefix-single-source` (blocking): Fails when a production Go file spells the git repository scope prefix literal instead of naming scope.GitRepositoryScopePrefix.
@@ -102,8 +107,9 @@ results are derived from the inputs rather than written by hand. See
 - `code-coverage-report` (advisory): Runs the full Go test suite with coverage and regenerates the public coverage report and badge; advisory only.
 - `go-test-race` (blocking): Runs the replay and scheduling test packages under Go's race detector to catch data races.
 
-### Contract: Do declared or generated artifacts match the code? (56 gates)
+### Contract: Do declared or generated artifacts match the code? (57 gates)
 
+- `slim-collector-entrypoints` (blocking): Fails the queue entry when the generated collector entrypoints file drifts from the collector fact contract spec.
 - `openapi-surface` (blocking): Fails when a registered HTTP route has no matching OpenAPI fragment, or vice versa.
 - `route-coverage` (blocking): Fails when a registered HTTP route has no test that actually references it.
 - `edge-source-tool-coverage` (blocking): Fails when a relationship-edge evidence kind has no covering collector or source tool.
@@ -221,6 +227,12 @@ results are derived from the inputs rather than written by hand. See
 | `package-docs` | Go package docs coverage | hygiene | pre-pr | true | `bash scripts/verify-package-docs.sh`<br>then self-test: `bash scripts/test-verify-package-docs.sh` | test.yml / verify-contracts | 3 path(s): go/**, scripts/test-verify-package-docs.sh, scripts/verify-package-docs.sh |
 | `migration-immutability` | Shipped Postgres migration immutability and lock shape | hygiene | pre-push | true | `bash scripts/verify-migration-immutability.sh`<br>then self-test: `bash scripts/test-verify-migration-immutability.sh` | test.yml / verify-contracts | 6 path(s): go/internal/storage/postgres/migrations/*.sql, scripts/lib/migration_lock_shape.py, scripts/test-migration-lock-shape.py, … |
 | `gitignore-rg-parity` | Tracked files visible to ripgrep from every search root | hygiene | pre-push | true | `bash scripts/verify-gitignore-rg-parity.sh`<br>then self-test: `bash scripts/test-verify-gitignore-rg-parity.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 4 path(s): .gitignore, **/.gitignore, scripts/test-verify-gitignore-rg-parity.sh, … |
+| `slim-go-build` | Slim lane Go build (all binaries) | build | pre-push | true | — (CI-only: merge_group lane step; pull requests run the identical command through go-build) | test.yml / merge-group-slim | 3 path(s): .github/workflows/test.yml, specs/ci-gates.v1.yaml, specs/ci-gates.d/gates-01.yaml |
+| `slim-go-vet` | Slim lane scoped go vet (changed packages plus direct importers) | hygiene | pre-push | true | `bash scripts/verify-merge-group-slim-vet.sh`<br>then self-test: `bash scripts/test-verify-merge-group-slim-vet.sh` | test.yml / merge-group-slim | 5 path(s): .github/workflows/test.yml, specs/ci-gates.v1.yaml, specs/ci-gates.d/gates-01.yaml, … |
+| `slim-go-filecap` | Slim lane Go 500-line file cap | hygiene | pre-push | true | `bash scripts/dev/precommit-go.sh filecap-all` | test.yml / merge-group-slim | 4 path(s): .github/workflows/test.yml, specs/ci-gates.v1.yaml, specs/ci-gates.d/gates-01.yaml, … |
+| `slim-migration-uniqueness` | Slim lane migration sequence uniqueness | hygiene | pre-push | true | `cd go && go test ./internal/storage/postgres/migrations/ -run 'TestBootstrapDefinitionsHaveUniqueSequenceNumbers' -count=1` | test.yml / merge-group-slim | 4 path(s): .github/workflows/test.yml, specs/ci-gates.v1.yaml, specs/ci-gates.d/gates-01.yaml, … |
+| `slim-collector-entrypoints` | Slim lane generated collector entrypoints parity | exactness | pre-push | true | `bash scripts/verify-collector-entrypoints-generated.sh`<br>then self-test: `bash scripts/test-verify-collector-entrypoints-generated.sh` | test.yml / merge-group-slim | 5 path(s): .github/workflows/test.yml, specs/ci-gates.v1.yaml, specs/ci-gates.d/gates-01.yaml, … |
+| `slim-doc-split` | Slim lane context and story reference layout | docs | pre-push | true | `bash scripts/test-context-stories-doc-split.sh` | test.yml / merge-group-slim | 4 path(s): .github/workflows/test.yml, specs/ci-gates.v1.yaml, specs/ci-gates.d/gates-01.yaml, … |
 | `agent-canon` | Agent canon check | hygiene | pre-pr | true | `bash scripts/verify-agent-canon.sh`<br>then self-test: `bash scripts/test-verify-agent-hygiene.sh && python3 scripts/test-agent-roles.py && python3 scripts/test-codex-spawn-guard.py && python3 scripts/test-goal-role-router.py && bash scripts/test-agent-hooks.sh && bash scripts/test-goal-continue-hook.sh && bash scripts/test-goal-refresh-hook.sh && bash scripts/test-muse-hooks.sh && bash scripts/test-cursor-hooks.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 43 path(s): go/**, .agents/**, .claude/skills/**, … |
 | `no-diff-fragments` | No diff fragments or conflict markers in source | hygiene | pre-commit | true | `bash scripts/verify-no-diff-fragments.sh`<br>then self-test: `bash scripts/test-verify-no-diff-fragments.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 1 path(s): ** |
 | `scope-prefix-single-source` | Git repository scope prefix stays single-sourced | hygiene | pre-commit | true | `bash scripts/verify-scope-prefix-single-source.sh`<br>then self-test: `bash scripts/test-verify-scope-prefix-single-source.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 1 path(s): ** |
