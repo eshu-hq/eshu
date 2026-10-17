@@ -49,7 +49,7 @@ build as the host binary, and a mismatched toolchain fails `plugin.Open`.
 | `go-file-cap` | commit | the 500-line file cap (the `filelength` plugin) |
 | `go-package-docs` | commit | `verify-package-docs.sh` (new packages need doc.go/README.md/AGENTS.md) |
 | `capability-surface-inventory` | commit | the `surface_stale` drift gate (run the generator after catalog/command changes) |
-| `go-gosec` | **push** | the gosec security gate on the changed packages. Also in `make pre-push` as `gosec-changed` (#8326), so it runs twice per push (0.3-8 s). Fails closed (#8335): a non-zero gosec exit (143 is SIGTERM), a missing, empty or unparsable result, zero files scanned, a scanned file count that differs from `go list`, or a package with Go errors fails the run. |
+| `go-gosec` | **push** | the gosec security gate on the changed packages. Also in `make pre-push` as `gosec-changed` (#8326), so it runs twice per push (0.3-8 s for changed packages; a change to a trigger file such as `go/go.mod` scans the whole module, 40-85 s). Fails closed (#8335): a non-zero gosec exit (143 is SIGTERM), a missing, empty or unparsable result, zero files scanned, a scanned file count that differs from `go list`, or a package with Go errors fails the run. |
 | `go-perf-evidence` | **push** | the hot-path performance-evidence gate (a change under storage/cypher, storage/postgres, collector, reducer, query, runtime, workers, or queues needs a tracked No-Regression / No-Observability marker in an `evidence-*.md` / README / AGENTS file). Diffs the branch against origin/main, so it runs at push time; needs bash ≥ 4. |
 | `go-telemetry-coverage` | **push** | the telemetry-coverage gate (a new metric or pipeline stage must be reflected in `docs/public/observability/telemetry-coverage.md`, and the doc must not drift from `instruments.go`). Diffs the branch against origin/main. |
 | `console-e2e` | **push** | the `Console (apps/console)` per-page e2e gate (`console:e2e:mock`): boots a Vite dev server + headless Chromium and renders all 84 console routes. Catches blank-rendering pages and stale e2e selectors that the unit suite (`console:test`) cannot. Runs only when a file under `apps/console/` changed; installs Chromium idempotently. Bypass with `ESHU_SKIP_CONSOLE_E2E=1` (logged, not silent). |
@@ -86,7 +86,7 @@ diffs the committed HEAD against the base, while the hook evaluates the pushed
 refs, so a green floor never implies a passing push. Keep both; the
 non-bypassable enforcement stays CI.
 
-Three checks run in both. Changed-package gosec (0.3-8 s wall), measurement
+Three checks run in both. Changed-package gosec (0.3-8 s wall; 40-85 s when a trigger file forces the whole module), measurement
 citations (0.7 s) and the docs build (0-18 s) are in the floor so a finding
 fails before the review receipt, and they run again here on the push. The
 repeat is the price of keeping no stamp. `gosec-changed` diffs against the
@@ -102,7 +102,8 @@ directory, never `./...`, and scans a package over the limit through a short
 `go/_g<pid>` symlink alias that it removes on exit (a crash can leave one; git
 ignores it). It also refuses a run whose scanned file count differs from the
 `go list` file count, any Go error, and a run outside the module root. CI runs
-the same whole-module arm before its SARIF upload.
+the same whole-module arm after its SARIF upload, so findings reach the
+Security tab before the arm can fail the job.
 
 A push that prints nothing for minutes is a slow hook under host contention,
 not a mutex wait. Pre-commit captures a passing hook's output until the hook

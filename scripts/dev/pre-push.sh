@@ -21,7 +21,7 @@
 #       the merge's Go inputs equal the base's. It catches a head that compiles
 #       alone but not on the main it will land on (#7053); it cannot catch a
 #       combination that still compiles but behaves differently;
-#   (d) the registry-selected blocking exactness/telemetry/hygiene/docs gates
+#   (d) the registry-selected blocking exactness/telemetry/hygiene/docs/security/frontend gates
 #       for changed paths, at tier pre-pr, WITHOUT the whole-module prelude
 #       (that prelude, and the whole-module go-build it adds, are `make pre-pr`'s
 #       job). Note this DOES include go-fmt/go-lint/go-vet whenever go/**
@@ -249,7 +249,7 @@ else
 	run_step "500-line file cap" step_filecap
 	run_step "gofumpt + lint + build + vet (changed packages)" step_fmt_lint_build_vet
 	run_step "go vet on HEAD merged with ${base} (merge tree)" step_merge_vet
-	run_step "selected local gates (exactness/telemetry/hygiene/docs)" step_exactness
+	run_step "selected local gates (exactness/telemetry/hygiene/docs/security/frontend)" step_exactness
 	run_step "docs-contradiction (advisory)" step_docs_contradiction
 fi
 

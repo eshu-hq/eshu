@@ -28,7 +28,7 @@ Use this fixed promotion order before opening or updating a PR:
 changed packages/paths: `go test` and `go test -race`, the file cap, gofumpt/lint/build/vet,
 `go vet ./...` on the merge of HEAD with the `origin/main` commit its summary names (the [merge step](local-testing/pre-push-merge.md);
 a conflict fails closed; the merge queue re-tests the exact landing merge and is its authority), the
-registry-selected blocking exactness/telemetry/hygiene/docs gates, and the
+registry-selected blocking exactness/telemetry/hygiene/docs/security/frontend gates, and the
 advisory docs-contradiction gate. No live lane, no push stamp (removed —
 see [agent-git-hygiene.md](https://github.com/eshu-hq/eshu/blob/main/docs/internal/agent-git-hygiene.md)). Push-hook bounds and bypass policy: [push stalls and bounds](local-testing/pre-commit-hooks.md#push-stalls-and-bounds).
 The gate step is an allowlist: only gates registered `local.pre_push: floor`

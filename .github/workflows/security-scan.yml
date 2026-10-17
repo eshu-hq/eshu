@@ -227,9 +227,6 @@ jobs:
       - name: Install ripgrep
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
-      - name: Fail-closed gosec gate (explicit package dirs)
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)')) }}
-        run: bash scripts/dev/precommit-go.sh gosec-all
       - name: Run gosec on every Go package (SARIF)
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)')) }}
         working-directory: go
@@ -248,6 +245,9 @@ jobs:
         with:
           sarif_file: go/gosec.sarif
           category: gosec
+      - name: Fail-closed gosec gate (explicit package dirs)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)')) }}
+        run: bash scripts/dev/precommit-go.sh gosec-all
   nancy:
     name: nancy (Sonatype dep CVE + license scan)
     runs-on: ubuntu-latest
