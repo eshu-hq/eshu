@@ -70,9 +70,10 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		EdgeTypes: []string{"USES"},
 	},
 	{
-		Family:    iamCanAssumeFamily,
-		OduName:   ifa.IAMCanAssumeFamilyOduName,
-		EdgeTypes: []string{"CAN_ASSUME"},
+		Family:     iamCanAssumeFamily,
+		OduName:    ifa.IAMCanAssumeFamilyOduName,
+		EdgeTypes:  []string{"CAN_ASSUME"},
+		LiveProven: true,
 	},
 	{
 		Family:    iamCanPerformFamily,

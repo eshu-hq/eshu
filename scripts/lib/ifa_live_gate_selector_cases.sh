@@ -415,14 +415,20 @@ ifa_live_gate_common_seams=(
 	'go/internal/ifa/testdata/repodependency/**|go/internal/ifa/testdata/repodependency/ifa-repo-dependency-family-expected-edges.json'
 	# kubernetes_namespace_environment + iam_instance_profile_role (#6228, #6309):
 	# moved here from the determinism-only table when the fault cells landed.
+	# iam_can_assume joins them with the #6228 fault half: same move, same
+	# reason.
 	'go/internal/storage/cypher/kubernetes_namespace_node_writer.go|go/internal/storage/cypher/kubernetes_namespace_node_writer.go'
 	'go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go|go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go'
+	'go/internal/storage/cypher/iam_can_assume_edge_writer.go|go/internal/storage/cypher/iam_can_assume_edge_writer.go'
 	'testdata/cassettes/kubernetesnamespaceenvironment/**|testdata/cassettes/kubernetesnamespaceenvironment/ifa-kubernetes-namespace-environment-family.json'
 	'testdata/cassettes/iaminstanceprofilerole/**|testdata/cassettes/iaminstanceprofilerole/ifa-iam-instance-profile-role-family.json'
+	'testdata/cassettes/iamcanassume/**|testdata/cassettes/iamcanassume/ifa-iam-can-assume-family.json'
 	'go/internal/ifa/testdata/kubernetesnamespaceenvironment/**|go/internal/ifa/testdata/kubernetesnamespaceenvironment/ifa-kubernetes-namespace-environment-family-expected-edges.json'
 	'go/internal/ifa/testdata/iaminstanceprofilerole/**|go/internal/ifa/testdata/iaminstanceprofilerole/ifa-iam-instance-profile-role-family-expected-edges.json'
+	'go/internal/ifa/testdata/iamcanassume/**|go/internal/ifa/testdata/iamcanassume/ifa-iam-can-assume-family-expected-edges.json'
 	'scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh|scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh'
 	'scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh|scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh'
+	'scripts/lib/ifa_fault_injection_iam_can_assume_cells.sh|scripts/lib/ifa_fault_injection_iam_can_assume_cells.sh'
 	'go/internal/collector/repo/git/fact_builder*.go|go/internal/collector/repo/git/fact_builder.go'
 	'go/internal/collector/repo/git/fact_builder*.go|go/internal/collector/repo/git/fact_builder_delta.go'
 	'go/internal/collector/repo/git/followup_facts.go|go/internal/collector/repo/git/followup_facts.go'
