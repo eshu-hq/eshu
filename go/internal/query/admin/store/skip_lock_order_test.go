@@ -13,8 +13,9 @@ import (
 // TestSkipRepositoryWorkItemsLocksSelectedRowsInWorkItemOrder pins the #8261
 // shape of the repository skip: after the unlocked LIMIT selection, one lock
 // step locks the selected rows still in their selected state in work_item_id
-// COLLATE "C" order with a waiting FOR NO KEY UPDATE, and the UPDATE touches
-// only the locked rows and rechecks the selected state itself.
+// COLLATE "C" order with a waiting FOR NO KEY UPDATE, and the UPDATE joins
+// only the locked rows (each carrying its selected status) and rechecks the
+// selected state itself.
 func TestSkipRepositoryWorkItemsLocksSelectedRowsInWorkItemOrder(t *testing.T) {
 	t.Parallel()
 
@@ -49,8 +50,8 @@ func TestSkipRepositoryWorkItemsLocksSelectedRowsInWorkItemOrder(t *testing.T) {
 		t.Errorf("skip lock step must wait in order, not skip:\n%s", query)
 	}
 	for _, want := range []string{
-		"AND work.work_item_id = ANY(ARRAY(SELECT work_item_id FROM locked))",
-		"AND work.status = selected.selected_status",
+		"FROM locked\n    WHERE work.work_item_id = locked.work_item_id",
+		"AND work.status = locked.selected_status",
 		"AND work.status IN ('pending', 'retrying', 'failed')",
 	} {
 		if !strings.Contains(query[update:], want) {

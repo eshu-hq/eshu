@@ -104,15 +104,17 @@ SET status = 'dead_letter',
 //
 // Lock order (#8261): the selected CTE picks up to 100 rows newest first
 // without locking them; the locked CTE then locks the selected rows that are
-// still in their selected state in work_item_id COLLATE "C" order, before the
-// UPDATE touches any. That is the order the recovery and admin replays and
-// the reducer claim sweep lock in (#8205). Without it the UPDATE locked rows
-// in the selection's updated_at DESC order, so a skip and a concurrent
-// replay or claim over the same failed rows could lock them in opposite
-// orders and one died with 40P01 (a claim's 40P01 ends the reducer run). The
-// lock step's status predicates are rechecked on the newest row version when
-// a lock waits (EvalPlanQual), so a row another worker claimed or replayed
-// after the selection read it is dropped there; the UPDATE repeats them.
+// still in their selected state in work_item_id COLLATE "C" order (LockRows
+// above the Sort), and the UPDATE joins only the rows it returns, so every
+// row lock is taken in that order. That is the order the recovery and admin
+// replays and the reducer claim sweep lock in (#8205). Without it the UPDATE
+// locked rows in the selection's updated_at DESC order, so a skip and a
+// concurrent replay or claim over the same failed rows could lock them in
+// opposite orders and one died with 40P01 (a claim's 40P01 ends the reducer
+// run). The lock step's status predicates are rechecked on the newest row
+// version when a lock waits (EvalPlanQual), so a row another worker claimed
+// or replayed after the selection read it is dropped there; the UPDATE
+// repeats them.
 func (s *postgresStore) SkipRepositoryWorkItems(ctx context.Context, repoID string, note string) ([]admin.WorkItem, error) {
 	scopeID, err := s.resolveScopeID(ctx, repoID)
 	if err != nil {
@@ -132,7 +134,7 @@ WITH selected AS (
     ORDER BY work.updated_at DESC, work.work_item_id ASC
     LIMIT 100
 ), locked AS (
-    SELECT work.work_item_id
+    SELECT work.work_item_id, selected.selected_status
     FROM fact_work_items AS work
     JOIN selected ON selected.work_item_id = work.work_item_id
     WHERE work.status = selected.selected_status
@@ -155,11 +157,10 @@ WITH selected AS (
         failure_message = COALESCE(NULLIF(work.failure_message, ''), 'skipped by operator'),
         failure_details = ` + skipNoteDetailsSQL + `,
         updated_at = $2
-    FROM selected
-    WHERE work.work_item_id = selected.work_item_id
-      AND work.work_item_id = ANY(ARRAY(SELECT work_item_id FROM locked))
+    FROM locked
+    WHERE work.work_item_id = locked.work_item_id
       -- Recheck the locked row against both the selected state and eligibility.
-      AND work.status = selected.selected_status
+      AND work.status = locked.selected_status
       AND work.status IN ('pending', 'retrying', 'failed')
     RETURNING
         work.work_item_id,
