@@ -95,11 +95,12 @@ ifa_deployable_unit_live_init_maintenance_scratch() {
 # function picks up from there. Do not call it before that first attempt, and
 # do not call it after a first attempt that already succeeded.
 #
-# WHY A BOUND, NOT A FIXED "RUN TWICE" (#5993 review). Origin's
-# ingestion_reopen_correlation.go documents deployable_unit_correlation as
-# having "no readiness retry of its own": it correlates nothing on the pass
-# before deployment_mapping's own cross-repo resolution commits the resolved
-# DEPLOYS_FROM relationship it reads, and catches up on "a later pass". That
+# WHY A BOUND, NOT A FIXED "RUN TWICE" (#5993 review). A succeeded
+# deployable_unit_correlation item that ran before deployment_mapping's
+# cross-repo resolution committed the resolved DEPLOYS_FROM relationship it
+# reads catches up only when a later maintenance pass re-opens it
+# (ingestion_reopen_correlation.go; since #8283, when its resolved-input
+# fingerprint changed). That
 # is an eventual-consistency contract -- the edge appears within N passes --
 # not a fixed one-pass-behind guarantee. A hard-coded second pass happens to
 # work today and would flake later if the ordering is ever genuinely
@@ -166,7 +167,7 @@ ifa_deployable_unit_live_converge_edges() {
 	local extra_pass pass_label
 	for extra_pass in $(seq 2 "${ifa_deployable_unit_live_converge_bound}"); do
 		pass_label="${pass_label_prefix}-pass${extra_pass}"
-		printf 'deployable_unit_edges: convergence retry %s/%s (eventual consistency: deployable_unit_correlation has no readiness retry of its own; see ingestion_reopen_correlation.go)\n' \
+		printf 'deployable_unit_edges: convergence retry %s/%s (eventual consistency: a succeeded deployable_unit_correlation item catches up only when a maintenance pass re-opens it; see ingestion_reopen_correlation.go)\n' \
 			"${extra_pass}" "${ifa_deployable_unit_live_converge_bound}"
 		if ! ifa_deployable_unit_live_run_maintenance_pass "${pass_label}" "${bin_dir}" "${log_dir}"; then
 			echo "deployable_unit_edges: convergence retry ${extra_pass}/${ifa_deployable_unit_live_converge_bound} aborted -- the bootstrap-index maintenance pass itself failed; this is a crash, not an eventual-consistency timeout" >&2

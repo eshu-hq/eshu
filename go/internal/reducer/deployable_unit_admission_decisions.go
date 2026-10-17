@@ -5,6 +5,9 @@ package reducer
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -13,6 +16,76 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
+
+// DeployableUnitEdgeWriteUnverifiedFailureClass classifies a
+// deployable_unit_correlation run whose CORRELATES_DEPLOYABLE_UNIT edge write
+// reported success but whose edge the post-write verification did not find,
+// although both endpoint Repository nodes exist (#8283). That is not a timing
+// state, so the class counts toward the retry budget and a repeat
+// dead-letters loudly; a missing endpoint node instead returns the
+// non-counting SharedEdgeTargetNotReadyFailureClass.
+const DeployableUnitEdgeWriteUnverifiedFailureClass = "deployable_unit_edge_write_unverified"
+
+// ErrDeployableUnitEdgeVerificationUnavailable is returned by a
+// DeployableUnitEdgeVerifier whose graph executor cannot run read probes. The
+// handler then treats the run as unverified: it still succeeds, but records
+// no reopen fingerprint, so the next maintenance pass re-opens it (#8283).
+var ErrDeployableUnitEdgeVerificationUnavailable = errors.New("deployable unit edge verification unavailable: graph executor has no probe capability")
+
+// DeployableUnitEdgeVerifier proves that every admitted
+// CORRELATES_DEPLOYABLE_UNIT edge row is present in the graph after the write
+// (#8283, verified success). It returns nil when every edge is present, an
+// error classed SharedEdgeTargetNotReadyFailureClass when an edge is missing
+// because an endpoint Repository node is absent, an error classed
+// DeployableUnitEdgeWriteUnverifiedFailureClass when the edge is missing with
+// both endpoints present, and an unclassed retryable error when a probe could
+// not run. The edge writer implements it.
+type DeployableUnitEdgeVerifier interface {
+	VerifyDeployableUnitEdges(ctx context.Context, rows []SharedProjectionIntentRow, evidenceSource string) error
+}
+
+// verifyDeployableUnitEdges proves the admitted edge rows the write just
+// MERGEd are present in the graph (#8283, verified success). The canonical
+// upsert MATCHes both endpoint Repository nodes, so a write whose endpoint did
+// not exist yet reports success while writing nothing; recording the reopen
+// fingerprint after such a run would keep the item closed with its edge
+// missing. It reports verified=true only when there was nothing to write or
+// every admitted edge was found. A nil EdgeVerifier, a verifier that reports
+// ErrDeployableUnitEdgeVerificationUnavailable, or admitted rows with no
+// EdgeWriter, reports verified=false with no error: the run still succeeds,
+// but records no fingerprint, so the next maintenance pass re-opens it.
+func (h DeployableUnitCorrelationHandler) verifyDeployableUnitEdges(
+	ctx context.Context,
+	rows []SharedProjectionIntentRow,
+) (bool, error) {
+	admitted := AdmittedDeployableUnitRows(rows)
+	if len(admitted) == 0 {
+		return true, nil
+	}
+	if h.EdgeWriter == nil || h.EdgeVerifier == nil {
+		logDeployableUnitUnverifiedRun(h.Logger, "no edge verifier wired")
+		return false, nil
+	}
+	if err := h.EdgeVerifier.VerifyDeployableUnitEdges(ctx, admitted, deployableUnitCorrelationEvidenceSource); err != nil {
+		if errors.Is(err, ErrDeployableUnitEdgeVerificationUnavailable) {
+			logDeployableUnitUnverifiedRun(h.Logger, "edge verification unavailable")
+			return false, nil
+		}
+		return false, fmt.Errorf("verify deployable unit correlation edges: %w", err)
+	}
+	return true, nil
+}
+
+// logDeployableUnitUnverifiedRun records the fail-open unverified path at
+// debug level so a fleet whose executor never verifies stays attributable
+// (#8283): the run succeeds and records no reopen fingerprint, keeping the
+// unconditional reopen. A nil logger keeps the pre-existing silent behavior.
+func logDeployableUnitUnverifiedRun(logger *slog.Logger, reason string) {
+	if logger == nil {
+		return
+	}
+	logger.Debug("deployable unit correlation run unverified: recording no reopen fingerprint", "reason", reason)
+}
 
 func (h DeployableUnitCorrelationHandler) writeDeployableUnitAdmissionDecisions(
 	ctx context.Context,

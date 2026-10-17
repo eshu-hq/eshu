@@ -14,6 +14,12 @@
 // Every Cypher statement template lives beside the writer that emits it and
 // moves byte-identically with it.
 //
+// VerifyDeployableUnitEdges reads admitted CORRELATES_DEPLOYABLE_UNIT edges
+// back after WriteEdges (#8283) with one single-pattern probe per distinct
+// pair, and classifies a miss as an absent endpoint (non-counting
+// shared_edge_target_not_ready) or a lost write with both endpoints present
+// (counting deployable_unit_edge_write_unverified).
+//
 // The BatchCanonical* and Retract* statement constants shared with the
 // canonical writers stay exported because the canonical family (still in the
 // cypher root until its own #6694 leaf) and the edge/materialized sibling

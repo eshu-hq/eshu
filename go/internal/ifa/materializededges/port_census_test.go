@@ -17,7 +17,7 @@ var unclassifiedPortPrefixes = []string{"Retract", "Sweep", "Execute"}
 // TestPortClassificationResidueIsIntentional bounds the deliberately
 // one-directional direct-edge classification. Ports that are neither direct
 // edge writers nor declared node-only writers must be command-shaped, or one
-// of the two explicit cross-cutting exceptions pinned below.
+// of the explicit cross-cutting exceptions pinned below.
 func TestPortClassificationResidueIsIntentional(t *testing.T) {
 	t.Parallel()
 
@@ -46,6 +46,10 @@ func TestPortClassificationResidueIsIntentional(t *testing.T) {
 	want := []string{
 		"HasCanonicalCodeTargets",
 		reducer.SharedProjectionEdgeWritePort(),
+		// Read-only: the #8283 post-write probe reads CORRELATES_DEPLOYABLE_UNIT
+		// edges back and writes nothing; the family is written through the
+		// shared-projection port above.
+		"VerifyDeployableUnitEdges",
 	}
 	sort.Strings(want)
 	if strings.Join(residue, ",") != strings.Join(want, ",") {

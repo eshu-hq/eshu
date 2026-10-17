@@ -12,6 +12,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
 
 // TestRunDeferredRelationshipMaintenanceIssuesCorrelationListingPerDomain is the
@@ -175,8 +177,12 @@ func runHermeticDeferredMaintenanceObserved(
 // accusing the pass of the very regression these tests exist to catch, while the
 // pass was in fact issuing the listing. Identity fails only when the call is
 // genuinely gone.
+//
+// deployable_unit_correlation issues the changed-evidence listing (#8283),
+// which composes the same floor fragments, so both shipped constants count.
 func isCorrelationListing(query string) bool {
-	return query == listSucceededReducerWorkItemsByDomainQuery
+	return query == listSucceededReducerWorkItemsByDomainQuery ||
+		query == backfill.ListDeployableUnitReopenCandidatesQuery
 }
 
 // correlationListingDomains returns the $1 domain argument of every correlation

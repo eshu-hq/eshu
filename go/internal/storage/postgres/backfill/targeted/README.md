@@ -9,6 +9,9 @@ The pass derives bounded queries once from shipped whole-pass SQL in
 `backfill`. A missing or repeated marker fails at initialization. Evidence
 writes preserve the backfill batch and fan-in paths. Reopen starts one
 transaction, processes relationship and correlation domains, and commits once.
+`deployable_unit_correlation` reopens through the derived changed-evidence
+listing (#8283) and reports `skipped_unchanged` on its reopen block; the other
+correlation domains keep their unconditional partition-scoped reopen.
 Callbacks use the supplied database or transaction handle. The full pass
 rejects a missing phase, gate, or reopen callback, blank reopen query, or
 blank/duplicate correlation domain before starting a span or database read.

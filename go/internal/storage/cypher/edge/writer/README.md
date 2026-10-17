@@ -29,6 +29,12 @@ the package contract.
   intent defers without spending its retry budget; the reducer handler ends
   the wait after 30 minutes with a counting error (#7268). A probe fault
   carries no class and counts.
+- `eshu_dp_deployable_unit_edge_verify_total{outcome}` counts the #8283
+  post-write verdicts of admitted `CORRELATES_DEPLOYABLE_UNIT` edges
+  (`deployable_unit_verify.go`): `present`, `missing_target` (non-counting
+  `shared_edge_target_not_ready`), `missing_edge` (counting
+  `deployable_unit_edge_write_unverified`), `probe_error` (counting, no class).
+  A miss logs a WARN with the verdict and sample ids.
 - `eshu_dp_canonical_repository_stubs_created_total{writer}` counts the
   path-less `Repository` stubs the `repo_dependency` and `submodule_pin`
   upserts MERGE-create by id (#7446), from the backend's `NodesCreated`,

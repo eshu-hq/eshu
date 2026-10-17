@@ -54,6 +54,13 @@ func TestTargetedMaintenanceQueriesDeriveFromShippedQueries(t *testing.T) {
 			marker:   CorrelationReopenStageMarker,
 			conjunct: "  AND (work.scope_id, work.generation_id) IN (SELECT * FROM unnest($2::text[], $3::text[]))\n",
 		},
+		{
+			name:     "deployable_unit_correlation gated reopen bounded by partition",
+			shipped:  backfill.ListDeployableUnitReopenCandidatesQuery,
+			derived:  ProductionQueries.DeployableUnit,
+			marker:   CorrelationReopenStageMarker,
+			conjunct: "  AND (work.scope_id, work.generation_id) IN (SELECT * FROM unnest($2::text[], $3::text[]))\n",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

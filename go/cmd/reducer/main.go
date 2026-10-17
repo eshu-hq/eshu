@@ -239,6 +239,8 @@ func buildReducerService(
 			IncompleteScopesLookup:    incompleteScopes,
 			ResolutionProducerLookup:  resolutionProducer,
 			CanonicalQuiescence:       postgres.NewReducerGraphDrain(database),
+			ReopenFingerprintRecorder: relationshipStore,
+			EdgeVerifier:              edgeWriterForHandlers,
 			Logger:                    logger,
 		},
 		WorkloadProjectionInputLoader: reducer.CorrelatedWorkloadProjectionInputLoader{

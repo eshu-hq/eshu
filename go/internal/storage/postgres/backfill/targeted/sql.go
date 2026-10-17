@@ -65,21 +65,29 @@ var activeRepositoryGenerationsForPartitionsQuery = "SELECT repo_id, scope_id, g
 // scope_generations, which carries the same column names.
 const relationshipReopenPartitionConjunct = "  AND (work.scope_id, work.generation_id) IN (SELECT * FROM unnest($1::text[], $2::text[]))\n"
 
-// ShippedQueries carries the three exact whole-pass reopen listings owned by
-// the parent package. Targeted predicates are derived from these strings.
+// correlationReopenPartitionConjunct restricts a correlation listing, whose $1
+// is the domain, to the exact partitions in ($2, $3).
+const correlationReopenPartitionConjunct = "  AND (work.scope_id, work.generation_id) IN (SELECT * FROM unnest($2::text[], $3::text[]))\n"
+
+// ShippedQueries carries the exact whole-pass reopen listings owned by the
+// parent package. Targeted predicates are derived from these strings.
+// DeployableUnit is the changed-evidence listing deployable_unit_correlation
+// alone uses (#8283); the other correlation domains use Correlation.
 type ShippedQueries struct {
 	DeploymentMapping  string
 	CodeImportRepoEdge string
 	Correlation        string
+	DeployableUnit     string
 }
 
-// Queries holds the three narrowed reopen listings derived once during root
+// Queries holds the narrowed reopen listings derived once during root
 // package initialization, plus their shipped sources for differential proof.
 type Queries struct {
 	Shipped            ShippedQueries
 	DeploymentMapping  string
 	CodeImportRepoEdge string
 	Correlation        string
+	DeployableUnit     string
 }
 
 // ProductionQueries is derived once at initialization from the shared
@@ -88,6 +96,7 @@ var ProductionQueries = DeriveQueries(ShippedQueries{
 	DeploymentMapping:  backfill.ListSucceededDeploymentMappingWorkItemsQuery,
 	CodeImportRepoEdge: backfill.ListSucceededCodeImportRepoEdgeWorkItemsQuery,
 	Correlation:        backfill.ListSucceededReducerWorkItemsByDomainQuery,
+	DeployableUnit:     backfill.ListDeployableUnitReopenCandidatesQuery,
 })
 
 // DeriveQueries inserts the exact partition conjunct into each shipped
@@ -98,7 +107,8 @@ func DeriveQueries(shipped ShippedQueries) Queries {
 		Shipped:            shipped,
 		DeploymentMapping:  DeriveQueryAtMarker(shipped.DeploymentMapping, CorrelationReopenStageMarker, relationshipReopenPartitionConjunct),
 		CodeImportRepoEdge: DeriveQueryAtMarker(shipped.CodeImportRepoEdge, CorrelationReopenStageMarker, relationshipReopenPartitionConjunct),
-		Correlation:        DeriveQueryAtMarker(shipped.Correlation, CorrelationReopenStageMarker, "  AND (work.scope_id, work.generation_id) IN (SELECT * FROM unnest($2::text[], $3::text[]))\n"),
+		Correlation:        DeriveQueryAtMarker(shipped.Correlation, CorrelationReopenStageMarker, correlationReopenPartitionConjunct),
+		DeployableUnit:     DeriveQueryAtMarker(shipped.DeployableUnit, CorrelationReopenStageMarker, correlationReopenPartitionConjunct),
 	}
 }
 
@@ -246,6 +256,28 @@ func listSucceededReducerWorkItemIDsForDomainAndPartitions(
 		return nil, fmt.Errorf("list succeeded %s work items for partitions: %w", domain, err)
 	}
 	return workItemIDs, nil
+}
+
+// listDeployableUnitReopenCandidatesForPartitions runs the partition-filtered
+// changed-evidence listing (#8283) and returns the items to re-open plus the
+// count left succeeded because their input did not change.
+func listDeployableUnitReopenCandidatesForPartitions(
+	ctx context.Context,
+	queryer db.Queryer,
+	domain string,
+	partitions []backfill.ScopeGenerationPartition,
+	query string,
+) ([]string, int, error) {
+	if len(partitions) == 0 {
+		return nil, 0, nil
+	}
+	scopeIDs, generationIDs := partitionColumns(partitions)
+	rows, err := queryer.QueryContext(ctx, query,
+		domain, array.StringArray(scopeIDs), array.StringArray(generationIDs))
+	if err != nil {
+		return nil, 0, fmt.Errorf("list %s reopen candidates for partitions: %w", domain, err)
+	}
+	return backfill.ScanDeployableUnitReopenCandidates(rows)
 }
 
 // partitionColumns splits partitions into parallel scope and generation arrays

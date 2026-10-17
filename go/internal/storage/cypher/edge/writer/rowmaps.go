@@ -36,17 +36,31 @@ func buildHandlesRouteRowMap(
 	}, true
 }
 
+// deployableUnitRowEndpoints returns the endpoint repository ids of a
+// deployable-unit row and whether the write path can route it. It is the one
+// routability rule shared by the upsert row map and the #8283 post-write
+// verification, so verification probes exactly the rows the write sent.
+func deployableUnitRowEndpoints(payload map[string]any) (repoID, deploymentRepoID string, routable bool) {
+	repoID = sourcecypher.PayloadString(payload, "repo_id")
+	deploymentRepoID = sourcecypher.PayloadString(payload, "deployment_repo_id")
+	if repoID == "" || deploymentRepoID == "" ||
+		sourcecypher.PayloadString(payload, "deployable_unit_key") == "" ||
+		sourcecypher.PayloadString(payload, "correlation_key") == "" {
+		return "", "", false
+	}
+	return repoID, deploymentRepoID, true
+}
+
 func buildDeployableUnitCorrelationRowMap(
 	payload map[string]any,
 	evidenceSource string,
 ) (string, map[string]any, bool) {
-	repoID := sourcecypher.PayloadString(payload, "repo_id")
-	deploymentRepoID := sourcecypher.PayloadString(payload, "deployment_repo_id")
-	unitKey := sourcecypher.PayloadString(payload, "deployable_unit_key")
-	correlationKey := sourcecypher.PayloadString(payload, "correlation_key")
-	if repoID == "" || deploymentRepoID == "" || unitKey == "" || correlationKey == "" {
+	repoID, deploymentRepoID, routable := deployableUnitRowEndpoints(payload)
+	if !routable {
 		return "", nil, false
 	}
+	unitKey := sourcecypher.PayloadString(payload, "deployable_unit_key")
+	correlationKey := sourcecypher.PayloadString(payload, "correlation_key")
 	relationshipType := sourcecypher.PayloadString(payload, "relationship_type")
 	if relationshipType == "" {
 		relationshipType = string(edgetype.CorrelatesDeployableUnit)

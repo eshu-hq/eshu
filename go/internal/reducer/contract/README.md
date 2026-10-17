@@ -12,8 +12,10 @@ This package owns the `Domain` catalog and validation set, durable `Intent` and
 the `ContainerImageIdentityOutcome` type with its five outcome constants and
 `ContainerImageIdentityFactKind`, the complete shared/edge projection domain
 enumeration (`ProjectionDomains`), the rationale edge family's evidence-source
-constant (`RationaleEvidenceSource`), and the read-only graph query port
-(`GraphQueryRunner`). The parent reducer package owns registry composition,
+constant (`RationaleEvidenceSource`), the read-only graph query port
+(`GraphQueryRunner`), and the deployable-unit reopen fingerprint contract
+(`ResolvedReadFingerprint`, `DeployableUnitReopenFingerprintRecorder`, #8283).
+The parent reducer package owns registry composition,
 runtime and queue execution, adapters, retries, telemetry, and graph writes.
 
 ## Exported surface
@@ -24,7 +26,8 @@ constants, `KnownDomains`, `ParseDomain`, lifecycle statuses, `FailureRecord`,
 `OwnershipShape`, `CrossScopeDependency`, `DomainDefinition`, `Handler`,
 `HandlerFunc`, `ContainerImageIdentityOutcome` and its five outcome
 constants, `ContainerImageIdentityFactKind`, `ProjectionDomains`,
-`RationaleEvidenceSource`, `GraphQueryRunner`, the generation-check func
+`RationaleEvidenceSource`, `GraphQueryRunner`, `ResolvedReadFingerprint`,
+`DeployableUnitReopenFingerprintRecorder`, the generation-check func
 types, and the not-yet-active generation deferral (`ErrGenerationNotYetActive`,
 `GenerationNotYetActiveError`, `GenerationActivationNotReadyFailureClass`). See
 [doc.go](doc.go) for the package contract.
@@ -42,6 +45,11 @@ spans, counters, and structured logs around contract handlers.
 
 ## Gotchas / invariants
 
+- `ResolvedReadFingerprint.Value` is opaque (#8283). The store computes it in
+  the same SQL statement as the rows it describes; callers never hash or
+  compare it in Go. A `DeployableUnitReopenFingerprintRecorder` write is fenced
+  on the exact claim and returns an error wrapping
+  `ErrExecutionClaimRejected` when that claim no longer holds the item.
 - `KnownDomains` contains 69 validation identifiers. Three are reserved and
   non-registrable, leaving 66 production-registrable domains.
 - `Intent.Clone` detaches slices, the top-level payload map, timestamps, and the

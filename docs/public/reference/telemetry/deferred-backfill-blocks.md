@@ -23,7 +23,7 @@ log line. The set is closed: nine blocks, no others.
 | Evidence discovery, dedupe, and per-source grouping | `relationship.backfill.discover` | `facts_in`, `evidence_out` |
 | Per-repository evidence write batches | `relationship.backfill.write_batches` | `batches`, `readiness_rows`, `inserted_rows` |
 | Per-partition readiness and memo publication | `relationship.backfill.fanin` | `partitions`, `published`, `skipped`, `skipped_unchanged`, `argocd_probe_seconds` |
-| One reopen domain call after the backfill commits | `relationship.backfill.reopen` | `domain`, `reopened`, `skipped_by_memo` |
+| One reopen domain call after the backfill commits | `relationship.backfill.reopen` | `domain`, `reopened`, `skipped_by_memo`, `skipped_unchanged` (correlation domains only) |
 
 Rules that make the numbers safe to compare:
 
@@ -63,6 +63,20 @@ Rules that make the numbers safe to compare:
   Correlation domains are not memo-gated, so their `skipped_by_memo` is always
   0. The partition-scoped pass also emits one per domain call, tagged
   `pass=targeted`.
+- `reopen` `skipped_unchanged` (correlation domains, whole and
+  partition-scoped passes) counts the succeeded items the changed-evidence
+  gate left succeeded because their recorded input fingerprint still matches
+  their current resolved input (#8283). Only `deployable_unit_correlation` is
+  gated, so the other correlation domains report 0. `reopened` plus
+  `skipped_unchanged` is the domain's candidate count. The whole pass also
+  adds the count to
+  `eshu_dp_correlation_reopen_skipped_total{domain,reason="input_unchanged"}`
+  and to the `reducer_work_items_reopened` log line as `skipped_unchanged`;
+  the partition-scoped pass runs with instruments off, so it reports the count
+  on its `pass=targeted` span and log line only. A wave whose
+  `skipped_unchanged` equals its candidate count saw no changed input. An item
+  with no fingerprint row (never succeeded since the gate shipped, or its
+  success write was fenced off) always re-opens.
 - `bootstrap-index`'s standalone `Reopen*` calls emit the same `reopen` span,
   the same `deferred_backfill_block_completed` line, and the same histogram
   point as the ingester's maintenance pass.

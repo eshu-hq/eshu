@@ -29,4 +29,10 @@
 // [GenerationActivationNotReadyFailureClass], so the durable queue retries the
 // intent until its generation activates instead of acking it as superseded
 // (issue #6686).
+//
+// [ResolvedReadFingerprint] and [DeployableUnitReopenFingerprintRecorder]
+// (issue #8283) carry the input fingerprint of a deployable_unit_correlation
+// run's corpus-fenced read from the store to the claim-fenced success write
+// the deferred-maintenance reopen gate compares against. The value is opaque
+// and computed in SQL; this leaf only names its shape.
 package contract

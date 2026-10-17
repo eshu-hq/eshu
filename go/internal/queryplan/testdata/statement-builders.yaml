@@ -75,6 +75,21 @@ builders:
             - {}
           source_sha256: 3d29b246f8c90e30a0ae881c2edcc9613468d8c5168c5ae896733f85b47dfff8
           exempt: test-corpus helper forwarding its cypher param; exercised by conformance legs
+    - file: internal/storage/cypher/edge/writer/deployable_unit_verify.go
+      builders:
+        - symbol: buildDeployableUnitEdgeProbe
+          count: 1
+          operation: sourcecypher.OperationCanonicalProbe
+          variants:
+            - template: 'MATCH (:Repository {id: $source_repo_id})-[rel:CORRELATES_DEPLOYABLE_UNIT]->(:Repository {id: $target_repo_id}) WHERE rel.evidence_source = $evidence_source RETURN 1 LIMIT 1'
+          source_sha256: c4c1bed32d725d86ddb146a9f906c38a9fedeb469d4f486be860511da29a9ce0
+        - symbol: buildRepositoryPresenceProbe
+          count: 1
+          operation: sourcecypher.OperationCanonicalProbe
+          variants:
+            - template: 'MATCH (:Repository {id: $repo_id}) RETURN 1 LIMIT 1'
+          source_sha256: bd85a8b98471932410d58db5c97115ad200ee658a37fe1bd08d5412eebc0d380
+          exempt: runs only after the #8283 edge probe misses following a successful write; a converged corpus replay never reaches it, and the live verify proof exercises it on both backends
     - file: internal/storage/cypher/edge/writer/documentation_labels.go
       builders:
         - symbol: BuildRetractDocumentationEdges

@@ -47,15 +47,16 @@
 #     publishes ZERO phase rows. Without the maintenance pass, resolution is
 #     gated shut EVERY time, deterministically -- not a race, a permanently
 #     closed gate.
-#   - deployable_unit_correlation has "no readiness retry of its own" (see
-#     the doc comment on crossScopeCorrelationReopenDomains,
-#     go/internal/storage/postgres/ingestion_reopen_correlation.go:43-46,
-#     quoted here so this file's rationale does not silently drift from that
-#     comment): its first pass, before resolution has committed anything,
-#     legitimately correlates nothing. It needs to be REOPENED (marked
-#     pending again) once RelDeploysFrom resolved relationships exist --
-#     the reopen only fires from RunDeferredRelationshipMaintenance
-#     (ingester) or bootstrap-index's own maintenance phase.
+#   - deployable_unit_correlation defers on its own resolution gate, the
+#     corpus fence and canonical quiescence, but none of those sees a foreign
+#     scope's resolved rows changing after the item succeeded (see the doc
+#     comment on crossScopeCorrelationReopenDomains in
+#     go/internal/storage/postgres/ingestion_reopen_correlation.go). Once
+#     RelDeploysFrom resolved relationships exist the item must be REOPENED
+#     (marked pending again); the reopen only fires from
+#     RunDeferredRelationshipMaintenance (ingester) or bootstrap-index's own
+#     maintenance phase, and since #8283 only when the item's resolved-input
+#     fingerprint is missing or changed.
 #
 # scripts/lib/golden-corpus-maintenance-drains.sh's run_maintenance_drain_cycles
 # hit this exact gap for the B-7 gate and fixed it by adding an

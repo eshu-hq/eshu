@@ -15,15 +15,30 @@ import (
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
-	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 const deployableUnitCorrelationFallbackThreshold = 0.90
 
 // DeployableUnitCorrelationHandler reduces one intent into evidence-backed
 // candidate evaluation and admitted exact deployable-unit correlation edges.
+//
+// Bump reducercontract.DeployableUnitCorrelationLogicVersion with any change
+// that can write a different graph or admission decision from the same facts
+// and resolved input. That covers this handler and everything its output
+// passes through: ExtractWorkloadCandidates, ExtractDeployableUnitCorrelationRows
+// and applyResolvedDeploymentSources, evaluateDeployableUnitCandidates with
+// the correlation rule packs and engine it calls, the admission-decision
+// mapping, and the edge row shape materializeDeployableUnitEdges writes. The
+// reopen gate (#8283) re-runs only items whose input changed or whose recorded
+// version differs, so a logic fix without a bump never reaches unchanged items.
+//
+// A success records its reopen fingerprint only after EdgeVerifier reads
+// every admitted edge back (verified success): an edge lost at write time
+// fails the run instead of closing the item. An edge lost after a verified
+// write is not re-checked by the gate (#8316).
 type DeployableUnitCorrelationHandler struct {
 	FactLoader              FactLoader
 	ResolvedLoader          ResolvedRelationshipLoader
@@ -54,6 +69,15 @@ type DeployableUnitCorrelationHandler struct {
 	ResolutionProducerLookup crossrepo.ProducerLookup
 	// CanonicalQuiescence keeps graph writes behind repository projection.
 	CanonicalQuiescence CanonicalCodeQuiescenceChecker
+	// ReopenFingerprintRecorder stores the fenced read's input fingerprint
+	// on success, after every graph write, so the deferred-maintenance reopen
+	// leaves an unchanged item succeeded (#8283). Nil records nothing and
+	// every success keeps its unconditional reopen.
+	ReopenFingerprintRecorder reducercontract.DeployableUnitReopenFingerprintRecorder
+	// EdgeVerifier proves every admitted edge landed before the admission
+	// decisions and the reopen fingerprint are written (#8283). Nil skips
+	// verification and therefore records no fingerprint.
+	EdgeVerifier DeployableUnitEdgeVerifier
 	// Logger receives the bound-expiry WARN emitted when a shared-edge target
 	// stays absent past the wait bound (#7268). main.go wires the reducer's
 	// structured logger so the WARN carries its trace and service fields; nil
@@ -118,7 +142,7 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	}
 	// The corpus fence and the foreign read share one statement snapshot when
 	// the store offers it (#6740); see the workload loader for the rationale.
-	read, err := readCorpusFencedResolvedRelationships(ctx, h.ResolvedLoader, h.ResolutionsCompleteLookup, intent, candidates)
+	read, err := readDeployableUnitResolvedInput(ctx, h.ResolvedLoader, h.ResolutionsCompleteLookup, intent, candidates)
 	if err != nil {
 		return Result{}, fmt.Errorf("load resolved relationships for deployable unit correlation: %w", err)
 	}
@@ -161,6 +185,9 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		); err != nil {
 			return Result{}, err
 		}
+		if err := h.recordReopenFingerprint(ctx, intent, read); err != nil {
+			return Result{}, err
+		}
 		// Refine the raw filter reason before logging so a foreign-key zero
 		// reads as foreign_key_expected, mirroring the workload-materialization
 		// path (#7384 Q4): the filter itself reports no_key_match and only a
@@ -181,6 +208,10 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	if err != nil {
 		return Result{}, boundSharedEdgeTargetDeferral(err, intent, time.Now().UTC(), h.Logger)
 	}
+	verified, err := h.verifyDeployableUnitEdges(ctx, edgeRows)
+	if err != nil {
+		return Result{}, boundSharedEdgeTargetDeferral(err, intent, time.Now().UTC(), h.Logger)
+	}
 	if err := h.writeDeployableUnitAdmissionDecisions(ctx, intent, evaluation, canonicalWrites); err != nil {
 		return Result{}, err
 	}
@@ -194,6 +225,11 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	); err != nil {
 		return Result{}, err
 	}
+	if verified {
+		if err := h.recordReopenFingerprint(ctx, intent, read); err != nil {
+			return Result{}, err
+		}
+	}
 
 	// Same refinement as the zero path above: a no-op for key_match, kept
 	// at both log call sites so the two cannot drift apart.
@@ -206,56 +242,6 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		EvidenceSummary: deployableUnitCorrelationSummary(evaluatedCandidateCount, summary),
 		CanonicalWrites: canonicalWrites,
 	}, nil
-}
-
-func deployableUnitCorrelationEntityKeys(intent Intent) (map[string]struct{}, error) {
-	entityKeys := uniqueSortedStrings(intent.EntityKeys)
-	if len(entityKeys) == 0 {
-		return nil, fmt.Errorf(
-			"deployable unit correlation intent %q must include at least one entity key",
-			intent.IntentID,
-		)
-	}
-
-	normalized := make(map[string]struct{}, len(entityKeys))
-	for _, key := range entityKeys {
-		raw := strings.ToLower(strings.TrimSpace(key))
-		if raw != "" {
-			normalized[raw] = struct{}{}
-		}
-		if alias := normalizedEntityKey(key); alias != "" {
-			normalized[alias] = struct{}{}
-		}
-	}
-	return normalized, nil
-}
-
-func candidateIdentityKeys(candidate WorkloadCandidate) []string {
-	keys := make([]string, 0, 2)
-	appendCandidateIdentityKey := func(value string) {
-		value = strings.ToLower(strings.TrimSpace(value))
-		if value == "" {
-			return
-		}
-		for _, existing := range keys {
-			if existing == value {
-				return
-			}
-		}
-		keys = append(keys, value)
-	}
-
-	appendCandidateIdentityKey(candidate.RepoID)
-	appendCandidateIdentityKey(normalizedEntityKey(candidate.RepoID))
-
-	return keys
-}
-
-// normalizedEntityKey forwards to [payloadcore.NormalizedEntityKey]. The helper
-// moved to the shared tier with the platform family (#6061), which compares the
-// same entity keys when it picks a workload-replay anchor.
-func normalizedEntityKey(key string) string {
-	return payloadcore.NormalizedEntityKey(key)
 }
 
 func evaluateDeployableUnitCandidates(
@@ -487,4 +473,25 @@ func deployableUnitStructuralEvidence(
 		})
 	}
 	return evidence
+}
+
+// recordReopenFingerprint stores the input fingerprint of a run that is about
+// to succeed, fenced on its exact claim (#8283). It runs after every graph
+// write, so a crash before it leaves the previous row, which no longer
+// matches and re-opens the item. An unclaimed run (no ClaimedAt) records
+// nothing: without a claim there is nothing to fence the write on.
+func (h DeployableUnitCorrelationHandler) recordReopenFingerprint(
+	ctx context.Context,
+	intent Intent,
+	read corpusFencedResolvedRead,
+) error {
+	if h.ReopenFingerprintRecorder == nil || !read.fingerprinted || intent.ClaimedAt == nil {
+		return nil
+	}
+	if err := h.ReopenFingerprintRecorder.RecordDeployableUnitReopenFingerprint(
+		ctx, intent.IntentID, intent.ClaimedAt.UTC(), read.fingerprint,
+	); err != nil {
+		return fmt.Errorf("record deployable unit reopen fingerprint: %w", err)
+	}
+	return nil
 }

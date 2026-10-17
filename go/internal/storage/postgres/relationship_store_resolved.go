@@ -91,6 +91,15 @@ func (s *RelationshipStore) GetResolvedRelationshipsForReposWithCorpusFence(
 // or an empty match. No row at all is impossible from the LEFT JOIN shape and
 // is reported as an error rather than read as a verdict.
 func scanCorpusFencedResolvedRows(rows db.Rows) ([]relationships.ResolvedRelationship, bool, error) {
+	return scanCorpusFencedResolvedRowsInto(rows, nil)
+}
+
+// scanCorpusFencedResolvedRowsInto is scanCorpusFencedResolvedRows for a
+// result that may carry one more column after the verdict: the #8283 input
+// fingerprint, scanned into fingerprint when it is non-nil.
+func scanCorpusFencedResolvedRowsInto(
+	rows db.Rows, fingerprint *string,
+) ([]relationships.ResolvedRelationship, bool, error) {
 	var result []relationships.ResolvedRelationship
 	sawRow := false
 	complete := false
@@ -100,8 +109,11 @@ func scanCorpusFencedResolvedRows(rows db.Rows) ([]relationships.ResolvedRelatio
 		var r relationships.ResolvedRelationship
 		var resSrc string
 		var detailsBytes []byte
-		if err := rows.Scan(
-			&rowComplete,
+		dest := []any{&rowComplete}
+		if fingerprint != nil {
+			dest = append(dest, fingerprint)
+		}
+		if err := rows.Scan(append(dest,
 			&sourceRepoID,
 			&targetRepoID,
 			&sourceEntityID,
@@ -112,7 +124,7 @@ func scanCorpusFencedResolvedRows(rows db.Rows) ([]relationships.ResolvedRelatio
 			&r.Rationale,
 			&resSrc,
 			&detailsBytes,
-		); err != nil {
+		)...); err != nil {
 			return nil, false, fmt.Errorf("scan resolved by repos with corpus fence: %w", err)
 		}
 		sawRow = true

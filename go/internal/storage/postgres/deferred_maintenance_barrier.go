@@ -108,6 +108,12 @@ func (c DeferredMaintenanceBarrierConfig) validate() error {
 // outright, rather than running it unconditionally on every idle poll. A
 // single shard that has committed runs maintenance directly, matching the
 // original single-shard behavior.
+//
+// A pass runs only after a drain that committed something, so the
+// deployable_unit_correlation changed-evidence gate (#8283) has a one-pass
+// bound: input a deployment_mapping re-opened by this pass appends after the
+// gate read it is picked up by the next pass, and stays stale until a later
+// commit triggers one (see backfill.ListDeployableUnitReopenCandidatesQuery).
 func (s IngestionStore) RunDeferredRelationshipMaintenanceAfterShardDrain(
 	ctx context.Context,
 	config DeferredMaintenanceBarrierConfig,
