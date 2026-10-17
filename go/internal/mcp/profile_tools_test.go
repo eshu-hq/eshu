@@ -83,11 +83,70 @@ func TestToolsListHidesCodeDivergenceOnProduction(t *testing.T) {
 			t.Errorf("tools/list on production lists %q, want hidden", tool.Name)
 		}
 	}
-	if got, want := len(names), len(ReadOnlyTools())-len(codedivergencetools.Tools()); got != want {
+	if got, want := len(names), len(ReadOnlyTools())-len(productionHiddenToolNames()); got != want {
 		t.Errorf("tools/list on production lists %d tools, want %d", got, want)
 	}
 	if !listed[ReadOnlyTools()[0].Name] {
 		t.Errorf("tools/list on production hides %q, want listed", ReadOnlyTools()[0].Name)
+	}
+}
+
+// TestToolsListHidesCompareCodePathsOnProduction is the #7933
+// discovery-parity contract: call_graph.compare_code_paths is
+// production-unsupported in the capability matrix (production claim deferred
+// until remote validation lands), so a production-profile server must not
+// advertise compare_code_paths, while every local tier still does.
+func TestToolsListHidesCompareCodePathsOnProduction(t *testing.T) {
+	names := toolsListNames(t, profileTestServer(querycontract.ProfileProduction))
+	listed := make(map[string]bool, len(names))
+	for _, name := range names {
+		listed[name] = true
+	}
+	if listed["compare_code_paths"] {
+		t.Errorf("tools/list on production lists %q, want hidden", "compare_code_paths")
+	}
+	if got, want := len(names), len(ReadOnlyTools())-len(productionHiddenToolNames()); got != want {
+		t.Errorf("tools/list on production lists %d tools, want %d", got, want)
+	}
+
+	for _, profile := range []querycontract.QueryProfile{
+		querycontract.ProfileLocalLightweight,
+		querycontract.ProfileLocalAuthoritative,
+		querycontract.ProfileLocalFullStack,
+	} {
+		local := toolsListNames(t, profileTestServer(profile))
+		found := false
+		for _, name := range local {
+			if name == "compare_code_paths" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("tools/list on %s hides %q, want listed", profile, "compare_code_paths")
+		}
+	}
+}
+
+// TestFilterToolsForProfileComparePathsAbsent covers the absence case: a
+// production-profile surface that never carried compare_code_paths (or the
+// divergence family) passes through the filter unchanged, and a
+// non-production profile keeps the full list as-is.
+func TestFilterToolsForProfileComparePathsAbsent(t *testing.T) {
+	surface := []ToolDefinition{{Name: "find_code"}, {Name: "find_symbol"}}
+	kept := filterToolsForProfile(surface, querycontract.ProfileProduction)
+	if len(kept) != len(surface) {
+		t.Fatalf("production filter on surface without hidden tools kept %d, want %d", len(kept), len(surface))
+	}
+	for i := range surface {
+		if kept[i].Name != surface[i].Name {
+			t.Fatalf("production filter reordered tool %d: %q, want %q", i, kept[i].Name, surface[i].Name)
+		}
+	}
+
+	full := ReadOnlyTools()
+	if got := filterToolsForProfile(full, querycontract.ProfileLocalAuthoritative); len(got) != len(full) {
+		t.Errorf("local_authoritative filter kept %d tools, want %d", len(got), len(full))
 	}
 }
 
@@ -126,18 +185,22 @@ func TestToolsListShowsCodeDivergenceOnLocalProfiles(t *testing.T) {
 }
 
 // TestProductionHiddenToolsTrackDivergenceFamily locks the hidden set to the
-// family's own registration: a future fourth divergence tool hides
-// automatically instead of leaking onto the production list.
+// family's own registration plus the parity-covered compare_code_paths: a
+// future fourth divergence tool hides automatically instead of leaking onto
+// the production list.
 func TestProductionHiddenToolsTrackDivergenceFamily(t *testing.T) {
 	hidden := productionHiddenToolNames()
 	family := codedivergencetools.Tools()
-	if len(hidden) != len(family) {
-		t.Fatalf("hidden tools = %d, want %d (the divergence family)", len(hidden), len(family))
+	if len(hidden) != len(family)+1 {
+		t.Fatalf("hidden tools = %d, want %d (the divergence family plus compare_code_paths)", len(hidden), len(family)+1)
 	}
 	for _, tool := range family {
 		if !hidden[tool.Name] {
 			t.Errorf("hidden set lacks family tool %q", tool.Name)
 		}
+	}
+	if !hidden["compare_code_paths"] {
+		t.Errorf("hidden set lacks %q", "compare_code_paths")
 	}
 }
 
@@ -149,10 +212,10 @@ type matrixProfilesForTest map[string]struct {
 
 // TestProductionHiddenToolsMatchCapabilityMatrix is the tripwire that keeps
 // the hide list authoritative: every hidden tool must belong to a capability
-// whose production cell is unsupported, and the matrix row for
-// code_divergence.findings must name exactly the hidden tools. When remote
-// validation lands and the row flips to supported, this test fails until the
-// hide list is lifted with it.
+// whose production cell is unsupported, and the matrix rows for
+// code_divergence.findings and call_graph.compare_code_paths must name
+// exactly the hidden tools. When remote validation lands and a row flips to
+// supported, this test fails until the hide list is lifted with it.
 func TestProductionHiddenToolsMatchCapabilityMatrix(t *testing.T) {
 	_, filename, _, ok := runtime.Caller(0)
 	if !ok {
@@ -196,11 +259,19 @@ func TestProductionHiddenToolsMatchCapabilityMatrix(t *testing.T) {
 	if got := row.Profiles["production"].Status; got != "unsupported" {
 		t.Errorf("code_divergence.findings production status = %q, want unsupported", got)
 	}
-	hidden := productionHiddenToolNames()
-	if len(row.Tools) != len(hidden) {
-		t.Fatalf("matrix row names %d tools, hidden set has %d", len(row.Tools), len(hidden))
+	compareRow, ok := rows["call_graph.compare_code_paths"]
+	if !ok {
+		t.Fatal("capability-matrix has no call_graph.compare_code_paths row")
 	}
-	for _, name := range row.Tools {
+	if got := compareRow.Profiles["production"].Status; got != "unsupported" {
+		t.Errorf("call_graph.compare_code_paths production status = %q, want unsupported", got)
+	}
+	hidden := productionHiddenToolNames()
+	matrixTools := append(append([]string{}, row.Tools...), compareRow.Tools...)
+	if len(matrixTools) != len(hidden) {
+		t.Fatalf("matrix rows name %d tools, hidden set has %d", len(matrixTools), len(hidden))
+	}
+	for _, name := range matrixTools {
 		if !hidden[name] {
 			t.Errorf("matrix tool %q is not in the production hidden set", name)
 		}
