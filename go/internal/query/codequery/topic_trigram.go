@@ -4,9 +4,19 @@
 package codequery
 
 import (
+	"strings"
 	"unicode"
 	"unicode/utf8"
 )
+
+// CodeTopicIsRepoScoped reports whether a code-topic request names an explicit
+// repository without a language filter. Both the root single-statement builder
+// and the codetopicparallel partition builder gate bind-hiding on this one
+// predicate (#8370), so a future scoping-rule change cannot silently diverge
+// the two decisions.
+func CodeTopicIsRepoScoped(req CodeTopicInvestigationRequest) bool {
+	return strings.TrimSpace(req.RepoID) != "" && strings.TrimSpace(req.Language) == ""
+}
 
 // CodeTopicTermHasTrigram reports whether an ILIKE '%term%' pattern has a run
 // of three ASCII letters or digits, the shortest word pg_trgm can reliably

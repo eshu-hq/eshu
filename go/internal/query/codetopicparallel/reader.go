@@ -106,12 +106,12 @@ func ScopedFileBranch(termArg int, where string, candidateCap int) string {
 		)`, termArg, where, candidateCap, termParam, contentTerm)
 }
 
-// scopedProbe mirrors the serial scopedRepo predicate in
-// query.InvestigateCodeTopic: an explicit repository without a language
-// filter. Partition groups preserve the parent request's scope fields, so the
-// derived value matches the serial decision for the same request.
+// scopedProbe is the shared codequery.CodeTopicIsRepoScoped predicate: an
+// explicit repository without a language filter. Partition groups preserve the
+// parent request's scope fields, so the derived value matches the serial
+// decision for the same request.
 func scopedProbe(req codequery.CodeTopicInvestigationRequest) bool {
-	return strings.TrimSpace(req.RepoID) != "" && strings.TrimSpace(req.Language) == ""
+	return codequery.CodeTopicIsRepoScoped(req)
 }
 
 // ProbeSQL builds the exact per-term candidate read for one partition.

@@ -109,7 +109,7 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 	span.SetAttributes(attribute.Bool("code_topic.scoped_one_term", measuredScopedOneTerm))
 	hideTerm := measuredScopedOneTerm && codequery.CodeTopicTermHasTrigram(req.Terms[0])
 	span.SetAttributes(attribute.Bool("code_topic.terms_materialized", hideTerm))
-	scopedRepo := strings.TrimSpace(req.RepoID) != "" && strings.TrimSpace(req.Language) == ""
+	scopedRepo := codequery.CodeTopicIsRepoScoped(req)
 	for i, term := range req.Terms {
 		termValues[i] = fmt.Sprintf("($%d)", nextArg)
 		fileBranches[i] = codeTopicFileBranch(measuredScopedOneTerm, scopedRepo, term, nextArg, where, candidateCap)
