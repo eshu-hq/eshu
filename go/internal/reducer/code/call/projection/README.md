@@ -44,7 +44,7 @@ vocabulary (`codecall`), or the graph-projection phase/readiness vocabulary
 
 The reducer root wires `Runner` on `Service.CodeCallProjectionRunner`,
 keeping the `reducer.CodeCallProjectionRunner`/
-`reducer.CodeCallProjectionRunnerConfig`/`reducer.ReducerGraphDrain`/
+`reducer.CodeCallProjectionRunnerConfig`/
 `reducer.DefaultCodeCallProjectionLeaseOwnerPrefix`/
 `reducer.DefaultCodeCallAcceptanceScanLimit`/
 `reducer.CodeCallProjectionFilePartitionKeyPrefix`/
