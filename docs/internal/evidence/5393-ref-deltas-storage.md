@@ -24,7 +24,7 @@ No-Regression Evidence: #5393 adds the `content_file_ref_deltas` and
 `go/internal/storage/postgres` plus `migrations` suites green before the
 slice (base commit). After: the same suites green with the slice --
 `go test ./internal/storage/postgres/ ./internal/storage/postgres/migrations/
--count=1` passes (22 new `TestRefDelta*` tests, plus the updated migration
+-count=1` passes (23 new `TestRefDelta*` tests, plus the updated migration
 golden digest, checksum manifest, and ordered-names pins). Backend: local Go
 unit tests against the package's `fakeExecQueryer` (no live Postgres; live
 `*_live_test.go` lanes self-skip without a DSN). Input shape: diverged rows,
