@@ -45,6 +45,9 @@ var factTruncateSites = map[string]factTruncateSite{
 	"internal/storage/postgres/supersede_prior_failure_cost_live_test.go:costReset": {
 		reason: "seeds only scopes, generations and queue rows; it writes no facts or key rows",
 	},
+	"internal/storage/postgres/terms_foreign_key_guard_test.go:TestTermsForeignKeyGuardCatchesPlantedViolations": {
+		reason: "a planted literal in the terms foreign key guard's seeded RED table: it is parsed by the guard under test and never executed",
+	},
 }
 
 // TestFactRecordTruncateSitesAreKeySidecarSafe fails on a TRUNCATE of

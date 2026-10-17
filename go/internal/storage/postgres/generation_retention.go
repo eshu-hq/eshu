@@ -63,7 +63,11 @@ func NewGenerationRetentionStore(database db.ExecQueryer) GenerationRetentionSto
 // PruneSupersededGenerations deletes one bounded batch of superseded
 // generations outside the retained window. It records safe retention events
 // before deletion, deletes the per-fact key sidecars explicitly (#7420), and
-// removes the other generation-owned rows through FK cascades.
+// removes the other generation-owned rows through FK cascades, except
+// eshu_search_index_terms: migration 191 dropped that key (#7427 PR3), so a
+// generation's terms go only through the pre-delete that runs before the
+// prune transaction, which admits only drained generations, and through the
+// runner's orphan sweep.
 //
 // Before it locks anything it checks that all five retention key indexes
 // (migrations 146, 147, 058, 182, 183) are valid; if any is not, it refuses

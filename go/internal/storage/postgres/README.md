@@ -602,9 +602,9 @@ Primary groups:
   `GenerationRetentionPolicy.SearchIndexPredeleteRowCap` (default 2,000,000)
   and `SearchIndexPredeleteDeadline`, and admits to its prune only drained
   generations whose advisory lock (class 7427) it takes; the rest are skipped
-  as `search_index_undrained` or `advisory_lock_busy`. The FK cascade still
-  runs under the scope lock (foreign keys unchanged), now over an empty
-  search index.
+  as `search_index_undrained` or `advisory_lock_busy`. Migration 191 (#7427
+  PR3) dropped the terms generation key, so no terms statement runs under the
+  scope lock; late orphan terms are read-invisible and swept by the census.
 - Service-scoped incident evidence loader for the incidents service-evidence
   family. It resolves PagerDuty provider service ids to catalog service ids
   through active exact/derived reducer correlation facts and fails closed for

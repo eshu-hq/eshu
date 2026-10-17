@@ -12,9 +12,9 @@ remove for those tables.
 It also takes the orphan census and runs the orphan sweep (#7427 PR2): it
 finds search index `(scope_id, generation_id)` pairs whose
 `scope_generations` row is gone and deletes their rows with the same batch
-loop. With the generation foreign keys present (PR2) the census reads 0;
-after PR3 drops the terms generation foreign key, it removes rows a late
-writer leaves behind.
+loop. Migration 191 (#7427 PR3) dropped the terms generation foreign key,
+so the census and sweep are what remove terms rows a late writer leaves for
+a pruned generation; the documents key stays, so its census reads 0.
 
 ## Ownership boundary
 
@@ -145,10 +145,13 @@ sequenceDiagram
   is never active again, and neither protection reads search index rows (see
   the evidence note). Same class as the re-lock's accepted residual: a flip
   that commits after its snapshot still reaches the prune.
-- The foreign keys stay through PR2, so the locked cascade still scans the
-  terms leaf (cost follows the leaf, not the generation) until PR3 drops the
-  terms generation foreign key. Orphan tests drop the keys only inside their
-  isolated test schema.
+- No terms statement runs under the retention scope lock: migration 191
+  (#7427 PR3) dropped the terms generation foreign key, whose cascade walked
+  the whole hash leaf. The pre-delete and the sweep are the only removers of
+  a pruned generation's terms, so never admit an undrained generation to the
+  prune. The documents and stats keys stay. Orphan tests drop the documents
+  key only inside their isolated test schema. Deploy runbook and lock-order
+  proof: `docs/internal/evidence/7427-drop-terms-generation-fk.md`.
 - The census interpolates a relation name; it comes only from
   `pg_inherits` as regclass text (PostgreSQL quotes it) or a fixed table
   name, never from input.

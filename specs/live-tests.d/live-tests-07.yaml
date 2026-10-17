@@ -439,7 +439,32 @@ tests:
   - file: go/internal/storage/postgres/search/index/retention/orphan_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#7427 PR2 disposable PostgreSQL 18 proof of the search index orphan census and sweep: the census reads 0 with the generation foreign keys present, and with them dropped inside the isolated test schema only a generation missing from scope_generations loses rows while active, pending, superseded and dangling-active-pointer generations keep every row, a second sweep is a no-op, two concurrent sweeps delete each row once without deadlock, a late writer's row is swept by the re-sweep or the next census, and the retained scope_id foreign key rejects a row for an unknown scope; enrolled in the live-postgres-readiness runner; reads ESHU_GENERATION_RETENTION_PROOF_DSN (with its DISPOSABLE flag) and creates one isolated bootstrapped schema per test. local run passed all 6 tests in 11.4s of test time on PostgreSQL 18.6 on 2026-10-16"
+    reason: "#7427 PR2 disposable PostgreSQL 18 proof of the search index orphan census and sweep: the census reads 0 on a clean tree (terms generation foreign key dropped by migration 191, documents key present), and with the documents key also dropped inside the isolated test schema only a generation missing from scope_generations loses rows while active, pending, superseded and dangling-active-pointer generations keep every row, a second sweep is a no-op, two concurrent sweeps delete each row once without deadlock, a late writer's row is swept by the re-sweep or the next census, and the retained scope_id foreign key rejects a row for an unknown scope; enrolled in the live-postgres-readiness runner; reads ESHU_GENERATION_RETENTION_PROOF_DSN (with its DISPOSABLE flag) and creates one isolated bootstrapped schema per test. local run passed all 6 tests in 11.4s of test time on PostgreSQL 18.6 on 2026-10-16"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/generation_retention_terms_foreign_key_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7427 PR3 disposable PostgreSQL 18 proof on the bootstrapped schema with the terms generation foreign key dropped by migration 191: the retention pass prunes a generation whose terms an earlier pre-delete removed and one whose 10000 terms were all present, leaves no terms row and a zero orphan census; a late writer's terms for a pruned generation (rejected with 23503 before 191) are stored, listed by the census as one terms orphan, invisible to EshuSearchIndexStore.Search, and deleted by the orphan sweep; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN. local run passed both tests in 6.8s of test time on PostgreSQL 18.6 on 2026-10-16"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/search/index/retention/foreign_key_drop_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7427 PR3 disposable PostgreSQL 18 proof of migration 191: after bootstrap no foreign key from the terms parent or any leaf references scope_generations while the scope_id, documents and stats keys stay; the lock-ordered block drops the key under both field names and a leaf-only key, a re-run takes no table lock, it waits holding no terms lock beside the prune order and the writer order and fails with 55P03 at once beside a terms-only holder; enrolled in the live-postgres-readiness runner; reads ESHU_GENERATION_RETENTION_PROOF_DSN (with its DISPOSABLE flag) and creates one isolated bootstrapped schema per test. local run passed all 3 tests in 4.4s of test time on PostgreSQL 18.6 on 2026-10-16"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/search/index/retention/foreign_key_drop_contention_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7427 PR3 disposable PostgreSQL 18 proof that migration 191 beside a continuous terms writer and a back-to-back orphan census never fails either stream, each attempt drops the key or returns 55P03 with all 65 keys kept, the slowest insert stays under 1s with no other holder, and beside a 1.5s scope_generations holder the wait is bounded by that holder (well under the 5s lock_timeout); enrolled in the live-postgres-readiness runner; reads ESHU_GENERATION_RETENTION_PROOF_DSN (with its DISPOSABLE flag). local run passed in 4.1s of test time on PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/terms_foreign_key_migration_budget_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7427 PR3 disposable PostgreSQL 18 proof of migration 191's budget exhaustion through the tracked migrator (200 ms lock_timeout, 1.5 s retry budget): a terms-parent holder (NOWAIT refusal naming the relation) and a scope_generations holder (lock timeout) each make the run fail with 55P03 naming the migration and the budget, log the lock_wait warning, keep all 65 keys, leave no relation lock on the connection and record nothing in the ledger, and a later run after the holder ends drops the key; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN. local run passed both cases in 3.8s of test time on PostgreSQL 18.6 on 2026-10-16"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/search/index/retention/foreign_key_drop_appliers_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7427 PR3 disposable PostgreSQL 18 proof that two migration 191 runs waiting behind a scope_generations holder both succeed (the second one's DROP CONSTRAINT IF EXISTS finds no key; without IF EXISTS it fails with 42704) and hold no terms lock while they wait; enrolled in the live-postgres-readiness runner; reads ESHU_GENERATION_RETENTION_PROOF_DSN (with its DISPOSABLE flag) and creates one isolated bootstrapped schema. local run passed in 1.4s of test time on PostgreSQL 18.6 on 2026-10-16"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/fact_key_foreign_key_drop_live_test.go
     tag: ~

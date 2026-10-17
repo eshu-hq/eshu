@@ -3,8 +3,8 @@
 Before each generation-retention pass opens its prune transaction, it deletes
 the candidates' `eshu_search_index_terms` and `eshu_search_index_documents`
 rows in committed batches (#7427). The prune then admits only generations the
-pre-delete drained and whose per-generation advisory lock it takes, so the
-foreign-key cascade under the scope lock finds no search index row. The
+pre-delete drained and whose per-generation advisory lock it takes; since
+migration 191 no terms statement runs under the scope lock at all. The
 pass-level retention series, the `predelete_search_index` and
 `sweep_search_index` phases, and the `search_index_undrained` and
 `advisory_lock_busy` skip reasons stay in

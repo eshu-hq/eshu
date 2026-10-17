@@ -219,6 +219,58 @@ and `package_registry_identity_keys`. Read these facts before rollout:
 
 Evidence: `docs/internal/evidence/7420-drop-key-sidecar-fks.md`.
 
+## Migration 191 deployment note (#7427)
+
+191 drops the `generation_id` foreign key of `eshu_search_index_terms` to
+`scope_generations` (the parent and its 64 leaves). Read these facts before
+rollout:
+
+- Deploy dependency: the image that carries 191 must also carry #7427 PR1
+  and PR2 (the pre-delete, the fail-closed freshness check, the census and
+  the sweep). After the drop, retention's search index pre-delete (drained generations only) and the
+  orphan census and sweep are what remove terms rows; readers join the active
+  generation, so orphans are never read.
+- No quiesce step: retention and the search writers keep running (arbiter
+  ruling). The block is deadlock-free against them; each attempt waits at
+  most the 5 s `lock_timeout` or fails with 55P03, which the migrator
+  retries. Quieting writers is only a contingency for repeated 55P03 beyond
+  the retry budget.
+- Autovacuum on any terms leaf is a 55P03 cause that does not go away by
+  itself: the `NOWAIT` request never waits, so it never makes autovacuum
+  cancel itself, and every retry inside that vacuum fails at once, naming the
+  leaf. Find it as `backend_type = 'autovacuum worker'` in `pg_stat_activity`
+  with `eshu_search_index_terms_pNN` in its query. Cancel a regular worker with
+  `pg_cancel_backend(pid)` and rerun db-migrate; leave an anti-wraparound
+  vacuum (`(to prevent wraparound)`) to finish. The roughly 0.4^12 all-fail
+  estimate in the evidence note holds only for uncorrelated holders.
+- After the deploy, run
+  `docs/internal/evidence/7427-drop-terms-generation-fk-postdeploy.sql`
+  (no terms key in `pg_constraint`, the 191 ledger row, the orphan census)
+  and read `eshu_dp_search_index_orphan_generations{table}`.
+- Locks, measured on PostgreSQL 18.6: ACCESS EXCLUSIVE on the terms parent,
+  its 64 leaves and `scope_generations`, catalog-only, held 8-16 ms (8.2-9.7 ms
+  from the `scope_generations` grant to commit end; 10.6-15.6 ms timed from
+  before the catalog lookup). A plain
+  `ALTER TABLE ... DROP CONSTRAINT` locks the terms tables first and then
+  waits for `scope_generations`; retention takes the reverse order, so the
+  plain form deadlocks it (SQLSTATE 40P01, not retried). The file is one `DO`
+  block: it finds the key in `pg_constraint` (either name:
+  `eshu_search_index_terms_generation_id_fkey` or, after the 039a cutover,
+  `eshu_search_index_terms_shadow_generation_id_fkey`), waits for
+  `scope_generations` while it holds nothing (bounded by the 5 s
+  `lock_timeout`), then takes the terms parent with `NOWAIT`. A terms
+  statement in flight makes it fail at once with 55P03, which the migrator
+  retries within its 3-minute budget. While it waits, new users of
+  `scope_generations` queue behind it for up to 5 s per attempt.
+- A re-run finds no key and takes no table lock.
+- Rollback: a code-only rollback is safe to the PR2 image. An image older
+  than PR1 relies on the cascade; run
+  `docs/internal/evidence/7427-drop-terms-generation-fk-reverse.sql` first
+  (NOT VALID, then VALIDATE, with `SET lock_timeout`). Its last step deletes
+  the 191 ledger row so a later roll-forward drops the key again.
+
+Evidence: `docs/internal/evidence/7427-drop-terms-generation-fk.md`.
+
 ## Verification
 
 ```bash

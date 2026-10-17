@@ -53,12 +53,18 @@
 - Freshness fails closed on a missing generation (#7427 PR2):
   `NewGenerationFreshnessCheck` (root `generation_freshness.go`) returns
   `(false, nil)` when the intent's generation row is missing, also when the
-  scope's active pointer is NULL. Retention prunes generation rows; once PR3
-  drops the terms generation foreign key nothing else rejects a late writer's
-  rows. Do not restore the old `(true, nil)` for that case. An unknown scope
+  scope's active pointer is NULL. Retention prunes generation rows; since
+  migration 191 dropped the terms generation foreign key nothing else rejects
+  a late writer's rows. Do not restore the old `(true, nil)` for that case. An unknown scope
   stays `(true, nil)`: the search index `scope_id` foreign key rejects its
   rows. The orphan census and sweep in this leaf remove what a writer leaves
   anyway.
+- Migration 191 dropped the terms generation foreign key: nothing in the
+  database removes a pruned generation's terms any more. The pre-delete
+  (drained-only admission) and the sweep must keep covering every
+  `scope_generations` delete
+  (`TestNoCodePathReliesOnTheTermsGenerationForeignKey` in the parent
+  package). Never reintroduce a terms statement under the retention lock.
 
 ## Verification
 

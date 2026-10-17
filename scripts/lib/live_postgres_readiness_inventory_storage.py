@@ -223,6 +223,13 @@ STORAGE_PACKAGES = {
         "go/internal/storage/postgres/fact_key_orphan_census_live_test.go": (
             "TestFactKeyOrphanCensusCountsPlantedOrphansLive",
         ),
+        "go/internal/storage/postgres/generation_retention_terms_foreign_key_live_test.go": (
+            "TestGenerationRetentionPrunesWithoutTheTermsForeignKeyLive",
+            "TestGenerationRetentionLateTermsWriterLeavesASweptInvisibleOrphanLive",
+        ),
+        "go/internal/storage/postgres/terms_foreign_key_migration_budget_live_test.go": (
+            "TestTermsForeignKeyDropFailsCleanlyWhenItsLockStaysBusyLive",
+        ),
         "go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go": (
             "TestPackageManifestConsumptionMigrationsUpgradeAfterSecretLinesLive",
         ),
@@ -400,12 +407,23 @@ STORAGE_PACKAGES = {
             "TestDrainLiveSkipsAGenerationAnotherSessionHolds",
         ),
         "go/internal/storage/postgres/search/index/retention/orphan_live_test.go": (
-            "TestOrphanCensusLiveReadsZeroWithTheForeignKeysPresent",
+            "TestOrphanCensusLiveReadsZeroOnACleanTree",
             "TestOrphanSweepLiveRemovesOnlyMissingGenerations",
             "TestOrphanSweepLiveNeverDeletesAnExistingGeneration",
             "TestOrphanSweepLiveConcurrentSweepsDeleteOnce",
             "TestOrphanSweepLiveSweepsALateWriter",
             "TestOrphanLiveUnknownScopeWriteIsRejected",
+        ),
+        "go/internal/storage/postgres/search/index/retention/foreign_key_drop_live_test.go": (
+            "TestTermsForeignKeyDropLiveLeavesNoGenerationForeignKey",
+            "TestTermsForeignKeyDropLiveHandlesBothConstraintNames",
+            "TestTermsForeignKeyDropLiveIsDeadlockFree",
+        ),
+        "go/internal/storage/postgres/search/index/retention/foreign_key_drop_appliers_live_test.go": (
+            "TestTermsForeignKeyDropLiveTwoAppliersBothSucceed",
+        ),
+        "go/internal/storage/postgres/search/index/retention/foreign_key_drop_contention_live_test.go": (
+            "TestTermsForeignKeyDropLiveBoundsConcurrentWriters",
         ),
     },
 }
