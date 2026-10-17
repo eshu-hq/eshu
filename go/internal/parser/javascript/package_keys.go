@@ -4,7 +4,6 @@
 package javascript
 
 import (
-	"bytes"
 	"slices"
 	"strings"
 	"unicode"
@@ -123,9 +122,9 @@ func isDefaultExportStatement(node *tree_sitter.Node) bool {
 	return false
 }
 
-// packageKeyedCall is one call that will carry key unless the file declares
-// localName again. member marks a #8280 static member key, which must also
-// pass the closed import-name rule.
+// packageKeyedCall is one call that will carry key unless localName fails
+// its closed import-name rule. member marks a #8280 static member key,
+// which passes the member rule; a plain key passes the #8310 plain rule.
 type packageKeyedCall struct {
 	call      map[string]any
 	localName string
@@ -153,10 +152,12 @@ type packageImportBinding struct {
 // named or default import, and `ns.member(` (also with new or JSX) for a
 // namespace import. The #8280 static member shapes are `C.m(` and `D.m(` on a
 // named or default import and `ns.C.m(` on a namespace import
-// (memberCallTarget); they key only when the import name also passes the
-// closed rule of closedMemberImportNames. A chain deeper than `ns.C.m(`, a
-// member call on any other receiver, and any import name the file declares
-// again are left unkeyed.
+// (memberCallTarget). Every key also passes its closed import-name rule
+// (package_keys_closed.go): the member keys pass closedMemberImportNames and
+// the plain keys pass the #8310 plain rule, so an import name with any other
+// occurrence — a rebinding of any kind, an assignment, or a plain read —
+// keys nothing. A chain deeper than `ns.C.m(` and a member call on any other
+// receiver are left unkeyed.
 func annotatePackageImportCalls(
 	payload map[string]any,
 	root *tree_sitter.Node,
@@ -227,19 +228,25 @@ func annotatePackageImportCalls(
 		return
 	}
 
-	redeclared := redeclaredImportNames(root, source, parents, usedNames)
-	// The #8280 member keys must also pass the closed import-name rule
-	// (closedMemberImportNames). The #7601 keys keep their own rule unchanged.
-	var closed map[string]bool
+	// Each key must also pass its closed import-name rule: the #8280 member
+	// keys pass closedMemberImportNames, and the #7601 plain keys pass the
+	// #8310 plain rule (closedPlainImportNames). A name is keyed only when
+	// every occurrence of it is an allowed form, so a rebinding the call
+	// cannot see still drops the key file-wide.
+	var memberClosed, plainClosed map[string]bool
 	for _, item := range keyed {
-		if _, ok := redeclared[item.localName]; ok {
-			continue
-		}
 		if item.member {
-			if closed == nil {
-				closed = closedMemberImportNames(root, source, parents, memberNames)
+			if memberClosed == nil {
+				memberClosed = closedMemberImportNames(root, source, parents, memberNames)
 			}
-			if !closed[item.localName] {
+			if !memberClosed[item.localName] {
+				continue
+			}
+		} else {
+			if plainClosed == nil {
+				plainClosed = closedPlainImportNames(root, source, parents, usedNames)
+			}
+			if !plainClosed[item.localName] {
 				continue
 			}
 		}
@@ -289,84 +296,6 @@ func packageImportBindings(payload map[string]any) map[string]packageImportBindi
 		}
 	}
 	return bindings
-}
-
-// redeclaredImportNames returns the names in used that the file binds again
-// anywhere outside their own import: a parameter, a variable, a function or
-// class name, a catch parameter, or a destructuring pattern. The rule is
-// file-wide on purpose. It misses a call that sits outside the shadowing scope,
-// but it never keys a call that resolves to a local binding.
-//
-// It visits only the places each name's text occurs instead of walking the
-// whole tree: every occurrence is mapped back to its AST node, and only an
-// identifier node spanning exactly that text is classified. An occurrence in a
-// comment, a string, or a longer identifier maps to some other node and is
-// skipped, so the result matches a full walk.
-func redeclaredImportNames(
-	root *tree_sitter.Node,
-	source []byte,
-	parents *syntax.ParentLookup,
-	used map[string]packageImportBinding,
-) map[string]struct{} {
-	redeclared := map[string]struct{}{}
-	for name, binding := range used {
-		needle := []byte(name)
-		for offset := 0; ; {
-			index := bytes.Index(source[offset:], needle)
-			if index < 0 {
-				break
-			}
-			start := offset + index
-			offset = start + len(needle)
-			node := root.NamedDescendantForByteRange(uint(start), uint(offset))
-			if node == nil || node.StartByte() != uint(start) || node.EndByte() != uint(offset) {
-				continue
-			}
-			switch node.Kind() {
-			case "identifier", "type_identifier", "shorthand_property_identifier_pattern":
-			default:
-				continue
-			}
-			if !isBindingIdentifier(node, parents) {
-				continue
-			}
-			if requireSource, ok := requireDeclaratorSource(node, source, parents); ok && requireSource == binding.source {
-				continue // the require declarator that created the binding
-			}
-			redeclared[name] = struct{}{}
-			break
-		}
-	}
-	return redeclared
-}
-
-// isBindingIdentifier reports whether node declares a name rather than reading
-// one. Import specifiers are not listed: an import cannot shadow itself.
-func isBindingIdentifier(node *tree_sitter.Node, parents *syntax.ParentLookup) bool {
-	if node.Kind() == "shorthand_property_identifier_pattern" {
-		return true
-	}
-	parent := parents.Parent(node)
-	if parent == nil {
-		return false
-	}
-	switch parent.Kind() {
-	case "formal_parameters", "array_pattern", "rest_pattern":
-		return true
-	case "variable_declarator", "function_declaration", "generator_function_declaration",
-		"function_expression", "function", "generator_function", "function_signature",
-		"class_declaration", "abstract_class_declaration", "class", "enum_declaration", "internal_module":
-		return isFieldChild(parent, "name", node)
-	case "required_parameter", "optional_parameter":
-		return isFieldChild(parent, "pattern", node)
-	case "arrow_function", "catch_clause":
-		return isFieldChild(parent, "parameter", node)
-	case "assignment_pattern", "object_assignment_pattern", "for_in_statement":
-		return isFieldChild(parent, "left", node)
-	case "pair_pattern":
-		return isFieldChild(parent, "value", node)
-	}
-	return false
 }
 
 func isFieldChild(parent *tree_sitter.Node, field string, node *tree_sitter.Node) bool {

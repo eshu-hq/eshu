@@ -10,9 +10,11 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-// This file holds the closed import-name rule of the #8280 static member keys
-// (review F10, ruling (B)). The #7601 keys keep their own open rule
-// (redeclaredImportNames), unchanged; #8310 tracks closing it.
+// This file holds the closed import-name rules: the #8280 static member rule
+// (review F10, ruling (B)) and the #8310 plain-call rule for the #7601 keys.
+// Each rule keeps a name only when every occurrence of it is an allowed form.
+// A file with a with statement, a `\u` escape (which can spell the name), or
+// the identifier eval (a sloppy-mode eval can declare a var) keys nothing.
 
 // nonVariableKinds are the node kinds whose text is never the variable: a
 // property name, a string, template, or JSX text, a comment, a regular
@@ -28,24 +30,56 @@ var nonVariableKinds = map[string]struct{}{
 }
 
 // closedMemberImportNames reports, for each local import name in names,
-// whether every occurrence of the name in the file is one the closed rule
-// allows (allowedImportOccurrence): the import itself, a call, `new`, or JSX
-// use of the name or of a member chain on it, a TypeScript type position, or
-// a read that runs no user code. Any other occurrence, in any node kind (a
+// whether every occurrence of the name in the file is one the member closed
+// rule allows (allowedImportOccurrence): the import itself, a call, `new`, or
+// JSX use of the name or of a member chain on it, a TypeScript type position,
+// or a read that runs no user code. Any other occurrence, in any node kind (a
 // binding of any kind, an import alias, a using declaration, an assignment, a
 // property write, a plain read that could hand the class to code that
-// replaces C.m), makes the name false. A file with a with statement, a `\u`
-// escape (which can spell the name), or the identifier eval (a sloppy-mode
-// eval can declare a var) makes every name false. The source is scanned once.
+// replaces C.m), makes the name false. The source is scanned once.
 func closedMemberImportNames(
 	root *tree_sitter.Node,
 	source []byte,
 	parents *syntax.ParentLookup,
 	names map[string]packageImportBinding,
 ) map[string]bool {
-	allowed := map[string]bool{}
+	return closedImportScan(root, source, parents, names, allowedImportOccurrence)
+}
+
+// closedPlainImportNames reports, for each local import name in names,
+// whether every occurrence of the name in the file is one the #8310 plain
+// closed rule allows (allowedPlainImportOccurrence): the import clause or the
+// require declarator of the same module, a TypeScript type position, the
+// function of a call, the constructor of `new`, a JSX tag name, or the object
+// of a member read or call. Any other occurrence — a rebinding of any kind
+// (an import alias, a using declaration, a let, a sloppy eval var), an
+// assignment, or a plain read such as an argument, an extends clause, or an
+// instanceof operand — makes the name false, so no plain call of that name
+// is keyed. The source is scanned once.
+func closedPlainImportNames(
+	root *tree_sitter.Node,
+	source []byte,
+	parents *syntax.ParentLookup,
+	names map[string]packageImportBinding,
+) map[string]bool {
+	return closedImportScan(root, source, parents, names, allowedPlainImportOccurrence)
+}
+
+// closedImportScan reports, for each local import name in names, whether
+// every occurrence of the name in the file is one allowed keeps. A file with
+// a with statement, a `\u` escape (which can spell the name), or the
+// identifier eval (a sloppy-mode eval can declare a var) makes every name
+// false. The source is scanned once.
+func closedImportScan(
+	root *tree_sitter.Node,
+	source []byte,
+	parents *syntax.ParentLookup,
+	names map[string]packageImportBinding,
+	allowed func(node *tree_sitter.Node, binding packageImportBinding, source []byte, parents *syntax.ParentLookup) bool,
+) map[string]bool {
+	kept := map[string]bool{}
 	if len(names) == 0 || hasWithStatement(root, source) || bytes.Contains(source, []byte(`\u`)) {
-		return allowed
+		return kept
 	}
 	disqualified := map[string]bool{}
 	for start := 0; start < len(source); {
@@ -81,14 +115,47 @@ func closedMemberImportNames(
 			}
 			continue
 		}
-		if !allowedImportOccurrence(node, binding, source, parents) {
+		if !allowed(node, binding, source, parents) {
 			disqualified[name] = true
 		}
 	}
 	for name := range names {
-		allowed[name] = !disqualified[name]
+		kept[name] = !disqualified[name]
 	}
-	return allowed
+	return kept
+}
+
+// allowedPlainImportOccurrence reports whether one occurrence of an import's
+// local name keeps the #8310 plain closed rule: it sits in the import
+// statement or in the require declarator of the same module, in a TypeScript
+// type position, in the function of a call, the constructor of `new`, or a
+// JSX tag name, or as the object of a member read or call. A member object
+// never rebinds the name, so even a member write keeps the plain call: only
+// a rebinding, an assignment of the name itself, or a bare read of it drops
+// the key.
+func allowedPlainImportOccurrence(node *tree_sitter.Node, binding packageImportBinding, source []byte, parents *syntax.ParentLookup) bool {
+	if inTypePosition(node, parents) {
+		return true
+	}
+	switch node.Kind() {
+	case "identifier", "type_identifier", "shorthand_property_identifier_pattern":
+	default:
+		return false
+	}
+	if hasAncestorKind(node, "import_statement", parents) {
+		return true
+	}
+	if requireSource, ok := requireDeclaratorSource(node, source, parents); ok && requireSource == binding.source {
+		return true
+	}
+	parent := parents.Parent(node)
+	if parent == nil {
+		return false
+	}
+	if callableUse(parent, node) {
+		return true
+	}
+	return parent.Kind() == "member_expression" && isFieldChild(parent, "object", node)
 }
 
 // allowedImportOccurrence reports whether one occurrence of an import's local
