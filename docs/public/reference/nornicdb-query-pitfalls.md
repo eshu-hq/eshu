@@ -206,8 +206,8 @@ statement list; every remaining statement (Drain or not) then ran as one
 `ge.ExecuteGroup` call, in its original relative order.
 
 That hoisting silently broke the tfstate MATCHES_STATE edge retract
-(`canonicalTerraformStateMatchesConfigEdgeRetractCypher`,
-`tfstate_state_match_edge_retract.go`), which is Drain-marked and requires
+(`TerraformStateMatchesConfigEdgeRetractCypher`,
+`go/internal/storage/cypher/canonical/terraform/state_match_retract.go`), which is Drain-marked and requires
 `s.generation_id = $generation_id` — a property only refreshed by the resource
 upsert statement `buildTerraformStateStatements` emits BEFORE it. Hoisted
 ahead of that upsert, the retract's predicate matched zero rows every cycle: a

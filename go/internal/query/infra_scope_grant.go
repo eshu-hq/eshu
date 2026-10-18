@@ -77,7 +77,7 @@ func workloadScopePredicate(alias string, access querycontract.RepositoryAccessF
 //     is. It anchors to a repository only through the MATCHES_STATE edge a
 //     config-declared TerraformResource writes to it once backend ownership
 //     resolves and the state/config address match is unambiguous (#5443,
-//     canonicalTerraformStateMatchesConfigEdgeCypher). The inline-map disjunction
+//     TerraformStateMatchesConfigEdgeCypher). The inline-map disjunction
 //     admits it when the matching TerraformResource's own `repo_id` is granted --
 //     `(alias)<-[:MATCHES_STATE]-(:TerraformResource {repo_id:$g})`. Deliberately
 //     NOT the node's own `config_repo_id` property: that property is set from
@@ -184,8 +184,9 @@ func infraRepositoryIDExpr(alias string) string {
 // one repository's TerraformResource.
 //
 // That "at most one edge" invariant is enforced by
-// terraformStateMatchesConfigEdgeRetractStatements
-// (go/internal/storage/cypher/tfstate_state_match_edge_retract.go), which
+// TerraformStateMatchesConfigEdgeRetractParts
+// (go/internal/storage/cypher/canonical/terraform/state_match_retract.go,
+// wrapped by the root adapter in tfstate_state_match_edge_retract.go), which
 // deletes a stale edge whenever a state resource's resolved owning repo
 // changes. #5623 P0 review finding: an earlier version of that retract skipped
 // entirely on a delta cycle, so a resource reassigned to a different owning

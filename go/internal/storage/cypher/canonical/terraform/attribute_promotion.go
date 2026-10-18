@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package terraform
 
 import (
 	"strings"
@@ -9,23 +9,23 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
-// terraformAttributePromotionKeyPrefix namespaces every promoted Terraform
+// attributePromotionKeyPrefix namespaces every promoted Terraform
 // resource attribute on a TerraformResource node (e.g. "instance_type"
 // becomes the "tf_attr_instance_type" node property) so promoted attributes
 // never collide with the writer's own fixed properties (address, mode,
 // resource_type, ...) or a future generic entity-metadata key.
-const terraformAttributePromotionKeyPrefix = "tf_attr_"
+const attributePromotionKeyPrefix = "tf_attr_"
 
-// terraformAttributePromotionValueSizeCapBytes bounds any single promoted
+// attributePromotionValueSizeCapBytes bounds any single promoted
 // attribute value. This is defense in depth on top of the allowlist below:
 // even an allowlisted attribute is dropped, not truncated, once it exceeds
 // this size, so a future allowlist addition cannot silently bloat every
 // TerraformResource node with an unexpectedly large value. Truncating
 // instead of dropping was rejected — a truncated policy-shaped value could
 // still leak a damaging prefix.
-const terraformAttributePromotionValueSizeCapBytes = 512
+const attributePromotionValueSizeCapBytes = 512
 
-// terraformAttributePromotionAllowlist maps a Terraform resource type to the
+// attributePromotionAllowlist maps a Terraform resource type to the
 // bounded, ordered set of attribute paths that may be promoted from the raw
 // collector-classified terraform_state_resource Attributes object
 // (sdk/go/factschema/terraformstate/v1.Resource.Attributes) onto the
@@ -80,7 +80,7 @@ const terraformAttributePromotionValueSizeCapBytes = 512
 //     file's dot-path walker can unwrap), so no single scalar path exists to
 //     promote; primary_endpoint_address is the single-valued cluster-mode-
 //     disabled connection endpoint this allowlist promotes instead.
-var terraformAttributePromotionAllowlist = map[string][]string{
+var attributePromotionAllowlist = map[string][]string{
 	"aws_instance": {
 		"instance_type",
 		"ami",
@@ -134,7 +134,7 @@ var terraformAttributePromotionAllowlist = map[string][]string{
 // path is absent, unresolvable, non-scalar, or oversize.
 //
 // The result is a plain map[string]any of scalar values (string/bool/int64/
-// float64) run through terraformAttributeScalarValue, which gates
+// float64) run through attributeScalarValue, which gates
 // node.GraphPropertyValue (the same normalization the generic
 // entity-metadata writer uses, reused here instead of adding a map case to
 // node.GraphPropertyValue itself — that would let arbitrary nested
@@ -142,37 +142,37 @@ var terraformAttributePromotionAllowlist = map[string][]string{
 // []any list shapes that function would otherwise also accept. Every value
 // that reaches the caller has been proven scalar (not just proven present)
 // and size-capped by this function.
-func promoteTerraformResourceAttributes(resourceType string, attributes map[string]any) map[string]any {
+func promoteResourceAttributes(resourceType string, attributes map[string]any) map[string]any {
 	if resourceType == "" || len(attributes) == 0 {
 		return nil
 	}
-	allowlist, ok := terraformAttributePromotionAllowlist[resourceType]
+	allowlist, ok := attributePromotionAllowlist[resourceType]
 	if !ok || len(allowlist) == 0 {
 		return nil
 	}
 
 	var result map[string]any
 	for _, path := range allowlist {
-		raw, found := terraformAttributePathValue(attributes, path)
+		raw, found := attributePathValue(attributes, path)
 		if !found {
 			continue
 		}
-		normalized, ok := terraformAttributeScalarValue(raw)
+		normalized, ok := attributeScalarValue(raw)
 		if !ok {
 			continue
 		}
-		if terraformAttributePromotionValueTooLarge(normalized) {
+		if attributePromotionValueTooLarge(normalized) {
 			continue
 		}
 		if result == nil {
 			result = make(map[string]any, len(allowlist))
 		}
-		result[terraformAttributePromotionKeyPrefix+strings.ReplaceAll(path, ".", "_")] = normalized
+		result[attributePromotionKeyPrefix+strings.ReplaceAll(path, ".", "_")] = normalized
 	}
 	return result
 }
 
-// terraformAttributePromotionKeysForType returns every tf_attr_* node
+// attributePromotionKeysForType returns every tf_attr_* node
 // property key promoteTerraformResourceAttributes can possibly write for
 // resourceType, in allowlist declaration order. Returns nil for a
 // resourceType with no allowlist entry.
@@ -185,19 +185,19 @@ func promoteTerraformResourceAttributes(resourceType string, attributes map[stri
 // that no longer matches the source state. Deriving the REMOVE key set from
 // this same allowlist (rather than hand-maintaining a parallel list) is
 // deliberate: the two can never drift out of sync.
-func terraformAttributePromotionKeysForType(resourceType string) []string {
-	allowlist, ok := terraformAttributePromotionAllowlist[resourceType]
+func attributePromotionKeysForType(resourceType string) []string {
+	allowlist, ok := attributePromotionAllowlist[resourceType]
 	if !ok || len(allowlist) == 0 {
 		return nil
 	}
 	keys := make([]string, 0, len(allowlist))
 	for _, path := range allowlist {
-		keys = append(keys, terraformAttributePromotionKeyPrefix+strings.ReplaceAll(path, ".", "_"))
+		keys = append(keys, attributePromotionKeyPrefix+strings.ReplaceAll(path, ".", "_"))
 	}
 	return keys
 }
 
-// terraformAttributeScalarValue gates node.GraphPropertyValue to true
+// attributeScalarValue gates node.GraphPropertyValue to true
 // scalars only (string/bool/int-family/float), rejecting the []string/[]any
 // list shapes node.GraphPropertyValue accepts for the generic
 // entity-metadata path (P2 finding F4). A promoted Terraform attribute must
@@ -207,7 +207,7 @@ func terraformAttributePromotionKeysForType(resourceType string) []string {
 // scalar attribute into a list) is dropped rather than promoted, keeping
 // this function's "proven scalar" contract true regardless of what
 // node.GraphPropertyValue itself would otherwise accept.
-func terraformAttributeScalarValue(raw any) (any, bool) {
+func attributeScalarValue(raw any) (any, bool) {
 	switch raw.(type) {
 	case []string, []any:
 		return nil, false
@@ -216,7 +216,7 @@ func terraformAttributeScalarValue(raw any) (any, bool) {
 	}
 }
 
-// terraformAttributePathValue walks a dot-separated attribute path (e.g.
+// attributePathValue walks a dot-separated attribute path (e.g.
 // "server_side_encryption_configuration.rule.apply_server_side_encryption_by_default.sse_algorithm")
 // through the raw classified Attributes object. Terraform state JSON
 // represents a MaxItems=1 nested block as a one-element list of maps rather
@@ -229,7 +229,7 @@ func terraformAttributeScalarValue(raw any) (any, bool) {
 // false when any segment is missing, the value is nil, or a list segment
 // does not hold exactly one element (an ambiguous/empty block is treated as
 // "no signal", matching the drift classifier's UnknownAttributes handling).
-func terraformAttributePathValue(attributes map[string]any, path string) (any, bool) {
+func attributePathValue(attributes map[string]any, path string) (any, bool) {
 	var current any = attributes
 	for _, segment := range strings.Split(path, ".") {
 		asMap, ok := current.(map[string]any)
@@ -254,15 +254,15 @@ func terraformAttributePathValue(attributes map[string]any, path string) (any, b
 	return current, true
 }
 
-// terraformAttributePromotionValueTooLarge measures a normalized scalar's
-// string representation against terraformAttributePromotionValueSizeCapBytes.
+// attributePromotionValueTooLarge measures a normalized scalar's
+// string representation against attributePromotionValueSizeCapBytes.
 // Only strings can plausibly exceed the cap (bool/int64/float64 are always
 // small), but the check applies uniformly so a future scalar kind cannot
 // silently bypass it.
-func terraformAttributePromotionValueTooLarge(value any) bool {
+func attributePromotionValueTooLarge(value any) bool {
 	s, ok := value.(string)
 	if !ok {
 		return false
 	}
-	return len(s) > terraformAttributePromotionValueSizeCapBytes
+	return len(s) > attributePromotionValueSizeCapBytes
 }

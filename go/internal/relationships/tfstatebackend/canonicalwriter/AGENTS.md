@@ -11,7 +11,7 @@ Guidance for LLM assistants editing this package.
    error sentinels this package classifies.
 3. `../../../projector/tfstate_ownership_outcome.go` — the
    `TerraformStateOwnershipOutcome` enum this package produces.
-4. `../../../storage/cypher/tfstate_state_match_edge.go` — the
+4. `../../../storage/cypher/canonical/terraform/state_match.go` — the
    `TerraformStateOwnershipResolver` interface every `cmd/*` adapter
    implements by delegating to this package.
 

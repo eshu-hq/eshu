@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package terraform
 
 import (
 	"strings"
@@ -10,7 +10,7 @@ import (
 
 // TestPromoteTerraformResourceAttributesAllowlistedScalars proves the
 // bounded, prefixed scalar flattening for every promotable resource type in
-// terraformAttributePromotionAllowlist, including the nested list-of-one-map
+// attributePromotionAllowlist, including the nested list-of-one-map
 // shape terraform state JSON uses for MaxItems=1 blocks (versioning,
 // server_side_encryption_configuration).
 func TestPromoteTerraformResourceAttributesAllowlistedScalars(t *testing.T) {
@@ -221,13 +221,13 @@ func TestPromoteTerraformResourceAttributesAllowlistedScalars(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := promoteTerraformResourceAttributes(tt.resourceType, tt.attributes)
+			got := promoteResourceAttributes(tt.resourceType, tt.attributes)
 			if len(got) != len(tt.want) {
-				t.Fatalf("promoteTerraformResourceAttributes(%s) = %#v, want %#v", tt.resourceType, got, tt.want)
+				t.Fatalf("promoteResourceAttributes(%s) = %#v, want %#v", tt.resourceType, got, tt.want)
 			}
 			for key, wantValue := range tt.want {
 				if gotValue := got[key]; gotValue != wantValue {
-					t.Fatalf("promoteTerraformResourceAttributes(%s)[%s] = %#v (%T), want %#v (%T)",
+					t.Fatalf("promoteResourceAttributes(%s)[%s] = %#v (%T), want %#v (%T)",
 						tt.resourceType, key, gotValue, gotValue, wantValue, wantValue)
 				}
 			}
@@ -241,7 +241,7 @@ func TestPromoteTerraformResourceAttributesAllowlistedScalars(t *testing.T) {
 func TestPromoteTerraformResourceAttributesNonAllowlistedFieldExcluded(t *testing.T) {
 	t.Parallel()
 
-	got := promoteTerraformResourceAttributes("aws_instance", map[string]any{
+	got := promoteResourceAttributes("aws_instance", map[string]any{
 		"instance_type":        "t3.micro",
 		"user_data":            "#!/bin/bash\necho hello",
 		"iam_instance_profile": "profile-role",
@@ -261,12 +261,12 @@ func TestPromoteTerraformResourceAttributesNonAllowlistedFieldExcluded(t *testin
 // #5446 redaction regression guard for the three attributes considered and
 // deliberately rejected during that allowlist extension: a JSON policy-shaped
 // document, a redundant version-qualified duplicate, and a non-scalar list.
-// See terraformAttributePromotionAllowlist's doc comment for the reasoning
+// See attributePromotionAllowlist's doc comment for the reasoning
 // behind each exclusion.
 func TestPromoteTerraformResourceAttributesExcludesSensitiveOrUnbounded(t *testing.T) {
 	t.Parallel()
 
-	taskDefGot := promoteTerraformResourceAttributes("aws_ecs_task_definition", map[string]any{
+	taskDefGot := promoteResourceAttributes("aws_ecs_task_definition", map[string]any{
 		"family":                "supply-chain-demo",
 		"revision":              float64(4),
 		"container_definitions": `[{"name":"app","environment":[{"name":"SECRET","value":"shh"}]}]`,
@@ -278,7 +278,7 @@ func TestPromoteTerraformResourceAttributesExcludesSensitiveOrUnbounded(t *testi
 		t.Fatalf("allowlisted family dropped alongside excluded container_definitions: %#v", taskDefGot)
 	}
 
-	lambdaGot := promoteTerraformResourceAttributes("aws_lambda_function", map[string]any{
+	lambdaGot := promoteResourceAttributes("aws_lambda_function", map[string]any{
 		"version":       "3",
 		"qualified_arn": "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo:3",
 	})
@@ -289,7 +289,7 @@ func TestPromoteTerraformResourceAttributesExcludesSensitiveOrUnbounded(t *testi
 		t.Fatalf("allowlisted version dropped alongside excluded qualified_arn: %#v", lambdaGot)
 	}
 
-	cacheGot := promoteTerraformResourceAttributes("aws_elasticache_replication_group", map[string]any{
+	cacheGot := promoteResourceAttributes("aws_elasticache_replication_group", map[string]any{
 		"primary_endpoint_address": "supply-chain-demo.abc123.ng.0001.use1.cache.amazonaws.com",
 		"cache_nodes": []any{
 			map[string]any{"id": "0001"},
@@ -304,16 +304,16 @@ func TestPromoteTerraformResourceAttributesExcludesSensitiveOrUnbounded(t *testi
 
 	// Guard the allowlist definition itself so a future edit cannot silently
 	// reopen any of the three exclusions.
-	for resourceType, attrs := range terraformAttributePromotionAllowlist {
+	for resourceType, attrs := range attributePromotionAllowlist {
 		for _, attr := range attrs {
 			if attr == "container_definitions" {
-				t.Fatalf("terraformAttributePromotionAllowlist[%s] allowlists the JSON policy-shaped container_definitions attribute", resourceType)
+				t.Fatalf("attributePromotionAllowlist[%s] allowlists the JSON policy-shaped container_definitions attribute", resourceType)
 			}
 			if attr == "qualified_arn" {
-				t.Fatalf("terraformAttributePromotionAllowlist[%s] allowlists the redundant qualified_arn attribute", resourceType)
+				t.Fatalf("attributePromotionAllowlist[%s] allowlists the redundant qualified_arn attribute", resourceType)
 			}
 			if attr == "cache_nodes" {
-				t.Fatalf("terraformAttributePromotionAllowlist[%s] allowlists the composite cache_nodes attribute", resourceType)
+				t.Fatalf("attributePromotionAllowlist[%s] allowlists the composite cache_nodes attribute", resourceType)
 			}
 		}
 	}
@@ -324,14 +324,14 @@ func TestPromoteTerraformResourceAttributesExcludesSensitiveOrUnbounded(t *testi
 // list ([]string or []any) must never be promoted as a list property.
 // node.GraphPropertyValue (reused here for scalar normalization) also
 // accepts []string/[]any for the generic entity-metadata path, so
-// promoteTerraformResourceAttributes must gate on scalar kinds itself
+// promoteResourceAttributes must gate on scalar kinds itself
 // before calling it, or a malformed/future-drifted attribute value would
 // silently promote a list, contradicting this function's "proven scalar"
 // doc claim.
 func TestPromoteTerraformResourceAttributesRejectsListValuedAttributes(t *testing.T) {
 	t.Parallel()
 
-	gotStringSlice := promoteTerraformResourceAttributes("aws_instance", map[string]any{
+	gotStringSlice := promoteResourceAttributes("aws_instance", map[string]any{
 		"instance_type": []string{"t3.micro", "t3.small"},
 		"ami":           "ami-0abcdef1234567890",
 	})
@@ -342,7 +342,7 @@ func TestPromoteTerraformResourceAttributesRejectsListValuedAttributes(t *testin
 		t.Fatalf("bounded sibling attribute was dropped alongside the rejected list: %#v", gotStringSlice)
 	}
 
-	gotAnySlice := promoteTerraformResourceAttributes("aws_instance", map[string]any{
+	gotAnySlice := promoteResourceAttributes("aws_instance", map[string]any{
 		"instance_type": []any{"t3.micro", "t3.small"},
 	})
 	if _, ok := gotAnySlice["tf_attr_instance_type"]; ok {
@@ -363,7 +363,7 @@ func TestPromoteTerraformResourceAttributesRedactsIAMPolicyDocuments(t *testing.
 
 	policyDoc := `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":"arn:aws:iam::123456789012:root"},"Action":"sts:AssumeRole"}]}`
 
-	roleGot := promoteTerraformResourceAttributes("aws_iam_role", map[string]any{
+	roleGot := promoteResourceAttributes("aws_iam_role", map[string]any{
 		"assume_role_policy": policyDoc,
 		"name":               "example-role",
 	})
@@ -371,7 +371,7 @@ func TestPromoteTerraformResourceAttributesRedactsIAMPolicyDocuments(t *testing.
 		t.Fatalf("aws_iam_role promoted attributes, want none (policy documents must never be promoted): %#v", roleGot)
 	}
 
-	policyGot := promoteTerraformResourceAttributes("aws_iam_policy", map[string]any{
+	policyGot := promoteResourceAttributes("aws_iam_policy", map[string]any{
 		"policy": policyDoc,
 		"name":   "example-policy",
 	})
@@ -383,16 +383,16 @@ func TestPromoteTerraformResourceAttributesRedactsIAMPolicyDocuments(t *testing.
 	// behavior, so a future edit that adds an aws_iam_role or aws_iam_policy
 	// entry fails loudly here instead of silently reopening the redaction
 	// gap.
-	if _, ok := terraformAttributePromotionAllowlist["aws_iam_role"]; ok {
-		t.Fatalf("terraformAttributePromotionAllowlist must not carry an aws_iam_role entry")
+	if _, ok := attributePromotionAllowlist["aws_iam_role"]; ok {
+		t.Fatalf("attributePromotionAllowlist must not carry an aws_iam_role entry")
 	}
-	if _, ok := terraformAttributePromotionAllowlist["aws_iam_policy"]; ok {
-		t.Fatalf("terraformAttributePromotionAllowlist must not carry an aws_iam_policy entry")
+	if _, ok := attributePromotionAllowlist["aws_iam_policy"]; ok {
+		t.Fatalf("attributePromotionAllowlist must not carry an aws_iam_policy entry")
 	}
-	for resourceType, attrs := range terraformAttributePromotionAllowlist {
+	for resourceType, attrs := range attributePromotionAllowlist {
 		for _, attr := range attrs {
 			if attr == "assume_role_policy" || attr == "policy" {
-				t.Fatalf("terraformAttributePromotionAllowlist[%s] allowlists a policy-document attribute %q", resourceType, attr)
+				t.Fatalf("attributePromotionAllowlist[%s] allowlists a policy-document attribute %q", resourceType, attr)
 			}
 		}
 	}
@@ -405,8 +405,8 @@ func TestPromoteTerraformResourceAttributesRedactsIAMPolicyDocuments(t *testing.
 func TestPromoteTerraformResourceAttributesDropsOversizeValues(t *testing.T) {
 	t.Parallel()
 
-	oversize := strings.Repeat("a", terraformAttributePromotionValueSizeCapBytes+1)
-	got := promoteTerraformResourceAttributes("aws_instance", map[string]any{
+	oversize := strings.Repeat("a", attributePromotionValueSizeCapBytes+1)
+	got := promoteResourceAttributes("aws_instance", map[string]any{
 		"instance_type": "t3.micro",
 		"ami":           oversize,
 	})
@@ -418,8 +418,8 @@ func TestPromoteTerraformResourceAttributesDropsOversizeValues(t *testing.T) {
 	}
 
 	// The cap boundary itself must still promote.
-	atCap := strings.Repeat("b", terraformAttributePromotionValueSizeCapBytes)
-	gotAtCap := promoteTerraformResourceAttributes("aws_instance", map[string]any{
+	atCap := strings.Repeat("b", attributePromotionValueSizeCapBytes)
+	gotAtCap := promoteResourceAttributes("aws_instance", map[string]any{
 		"ami": atCap,
 	})
 	if gotAtCap["tf_attr_ami"] != atCap {
@@ -432,13 +432,13 @@ func TestPromoteTerraformResourceAttributesDropsOversizeValues(t *testing.T) {
 func TestPromoteTerraformResourceAttributesEmptyInputs(t *testing.T) {
 	t.Parallel()
 
-	if got := promoteTerraformResourceAttributes("aws_instance", nil); len(got) != 0 {
+	if got := promoteResourceAttributes("aws_instance", nil); len(got) != 0 {
 		t.Fatalf("nil attributes promoted %#v, want none", got)
 	}
-	if got := promoteTerraformResourceAttributes("", map[string]any{"instance_type": "t3.micro"}); len(got) != 0 {
+	if got := promoteResourceAttributes("", map[string]any{"instance_type": "t3.micro"}); len(got) != 0 {
 		t.Fatalf("empty resource type promoted %#v, want none", got)
 	}
-	if got := promoteTerraformResourceAttributes("aws_instance", map[string]any{}); len(got) != 0 {
+	if got := promoteResourceAttributes("aws_instance", map[string]any{}); len(got) != 0 {
 		t.Fatalf("empty attributes promoted %#v, want none", got)
 	}
 }

@@ -192,9 +192,10 @@ tests:
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/cypher/tfstate_state_match_edge_retract_delta_live_test.go
-    tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "#5623 delta-cycle stale MATCHES_STATE edge regression plus resolver-hiccup preservation, through the production CanonicalNodeWriter with fixed seed ids and cleanup; replay-coverage MATCHES_STATE row proof; measured locally with the runner invocation on fresh volumes: Neo4j both tests pass, package 3.054s; NornicDB pinned fix-500 image deterministically keeps the stale edge (pre-existing divergence, byte-identical Cypher on main, recorded in #8463); Neo4j-only by owner decision (NornicDB not supported for now, #8463 closed on that decision, not on a fix)"
+    backends: neo4j
   - file: go/internal/storage/cypher/tfstate_state_match_edge_retract_live_test.go
     tag: ~
     class: scheduled

@@ -203,12 +203,13 @@ EOF
 # (#7324: +1 neo4j ledger row for repository_path_conflict_split_live_test.go)
 # (#7245: +2 neo4j ledger rows for infra/fulltext/differential_live_test.go and readiness_live_test.go)
 # (#8283: +1 row on both backends for edge/writer/deployable_unit_verify_live_test.go)
+# (#6694: +1 neo4j ledger row for tfstate_state_match_edge_retract_delta_live_test.go promoted to CI class)
 mapfile -t plan < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend both)
-[[ "${#plan[@]}" == "73" ]] || fail "planned runs ${#plan[@]}, want 73 (32 nornicdb + 41 neo4j)"
+[[ "${#plan[@]}" == "74" ]] || fail "planned runs ${#plan[@]}, want 74 (32 nornicdb + 42 neo4j)"
 mapfile -t plan_nornicdb < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend nornicdb)
 [[ "${#plan_nornicdb[@]}" == "32" ]] || fail "nornicdb planned runs ${#plan_nornicdb[@]}, want 32"
 mapfile -t plan_neo4j < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend neo4j)
-[[ "${#plan_neo4j[@]}" == "41" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 41"
+[[ "${#plan_neo4j[@]}" == "42" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 42"
 printf '%s\n' "${plan_neo4j[@]}" | rg -q '^neo4j\|[^|]*\|.*repository_context_workload_count_neo4j_live_test' ||
 	fail "materialized workload-count regression missing from neo4j plan"
 assert_workload_count_neo4j_only() {

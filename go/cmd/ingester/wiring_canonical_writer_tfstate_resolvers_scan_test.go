@@ -27,7 +27,7 @@ import (
 // (testdata/cassettes/terraformstate/supply-chain-demo.json) only carries
 // module-qualified state addresses (module.ecs.aws_ecs_cluster.*,
 // module.ecs.aws_ecs_service.*, module.ecs.aws_instance.*), and
-// tfstate_state_match_edge.go's exact-address-equality design documents that
+// canonical/terraform/state_match.go's exact-address-equality design documents that
 // a module-qualified state address never matches a bare config address by
 // design; no fixture in the corpus declares a Terraform backend matching the
 // cassette's locator either, so MATCHES_STATE ownership never resolves in

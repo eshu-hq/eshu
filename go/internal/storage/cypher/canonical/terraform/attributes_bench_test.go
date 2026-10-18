@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package terraform
 
 import "testing"
 
 // BenchmarkPromoteTerraformResourceAttributes measures
-// promoteTerraformResourceAttributes' per-call cost across the pre-#5446
+// promoteResourceAttributes' per-call cost across the pre-#5446
 // allowlist shape (aws_instance, a 2-attribute-path entry) and the largest
 // post-#5446 entry (aws_lambda_function, a 6-attribute-path entry after
 // #5446 added version/image_uri to the pre-existing 4), plus an
@@ -16,7 +16,7 @@ import "testing"
 // O(len(allowlist[resourceType])) attribute-path walks after one O(1) map
 // lookup, so adding entries to OTHER resource types can never affect
 // aws_instance's own cost, and growing one entry's own attribute count by a
-// few paths is bounded by a few more terraformAttributePathValue calls, not
+// few paths is bounded by a few more attributePathValue calls, not
 // a new order of growth.
 func BenchmarkPromoteTerraformResourceAttributes(b *testing.B) {
 	cases := []struct {
@@ -60,7 +60,7 @@ func BenchmarkPromoteTerraformResourceAttributes(b *testing.B) {
 		b.Run(tc.name, func(b *testing.B) {
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				_ = promoteTerraformResourceAttributes(tc.resourceType, tc.attributes)
+				_ = promoteResourceAttributes(tc.resourceType, tc.attributes)
 			}
 		})
 	}
