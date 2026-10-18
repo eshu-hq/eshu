@@ -122,10 +122,16 @@ issue:
 No-Regression Evidence: the kind-C refactors narrow the relationship pattern
 from any-type to a 2- and 5-member alternation with predicates unchanged, so
 the matched population can only shrink; no new label scan, no new property,
-no transaction change. Live `PROFILE` before/after on the pinned Neo4j is
-NOT_CHECKED in this change (no backend image on the shared host; pulling one
-would contend with concurrent live gates). Run before merge of the per-family
-leaves:
+no transaction change. Measured 2026-10-18 on the pinned Neo4j
+(`docker-compose.live-backend-neo4j.yml`, coordinator-run at contract head
+`c661db858`): 5/5 live foreign-edge tests PASS
+(`ESHU_CYPHER_BOLT_DATABASE=neo4j` is required — stock Neo4j has no `nornic`
+database, which is the runner default). Seeded 50 SG x 4 rules (200 owned +
+200 foreign USES edges): bare-`[rel]` matches 400 rels at 1735 DbHits, the
+named alternation matches 200 at 1131 DbHits (same predicates; the 200-count
+delta is the spared foreign population), ByUIDs over 2 uids matches 8 at 161
+DbHits. Backend torn down and volume removed after the run. Re-run before
+merge of the per-family leaves if the retracts change:
 
 ```bash
 docker compose -f docker-compose.live-backend-neo4j.yml up -d
