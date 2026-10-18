@@ -132,6 +132,10 @@ type Route struct {
 	// stage_canceled line for a client cancel, and no stage line for a
 	// mapped fence verdict.
 	Stage *StageLog
+	// HandlerSpanName, when non-empty, pins the telemetry name of the
+	// handler span the step opens: a handler that answers under a wrong or
+	// renamed span name fails. Empty means the name is not checked.
+	HandlerSpanName string
 	// Scope, when set, decorates the request context, for example with a
 	// scoped auth grant.
 	Scope func(context.Context) context.Context

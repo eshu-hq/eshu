@@ -38,14 +38,14 @@ func runSupplyFailureRoutes(t *testing.T, routes []failure.Route) {
 // resets on every case.
 func stagedSupplyRoute(
 	t *testing.T,
-	name, method, target, body, message, operation, stage string,
+	name, method, target, body, message, operation, stage, spanName string,
 	build func(err error) *Handler,
 ) failure.Route {
 	t.Helper()
 	var logBuf bytes.Buffer
 	return failure.Route{
 		Name: name, Method: method, Path: target, Body: body,
-		Message: message, PlainDetail: true,
+		Message: message, PlainDetail: true, HandlerSpanName: spanName,
 		Handler: func(err error) failure.Mounter {
 			logBuf.Reset()
 			handler := build(err)

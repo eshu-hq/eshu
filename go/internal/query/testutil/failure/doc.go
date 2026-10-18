@@ -30,7 +30,8 @@
 // Routes that legitimately answer differently set a Route option: FaultStatus
 // for faults that answer a status other than 500, NoFence for a write path
 // with no reader fence to map, CancelMessage for a cancel that surfaces at
-// an earlier step, Stage for a step whose stage-log verdict is part of its
+// an earlier step, HandlerSpanName for a step whose handler span carries a
+// fixed telemetry name, Stage for a step whose stage-log verdict is part of its
 // contract, and PlainDetail for a family whose fixed message is always a
 // plain detail body.
 //

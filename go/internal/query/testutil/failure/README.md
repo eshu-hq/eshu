@@ -43,7 +43,7 @@ is passed here by pointer.
   joins every violation.
 - `Evaluate(suite, route, case)` — the violations as `[]Violation`, each
   naming the `Assertion` it broke. `Assertions()` lists every assertion
-  `Check` makes (20, one exported constant each).
+  `Check` makes (21, one exported constant each).
 - `Cases`, `Case`, `Kind` (`Fault`, `ClientCancel`, `InnerCancel`,
   `ReaderFence`) and `Canary` — the failure table.
 - `Serve` and `Message` — one request on a recording tracer, and the error

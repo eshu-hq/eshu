@@ -33,6 +33,8 @@ type wrongSample struct {
 	faultStatus int
 	// stage sets Route.Stage for the stage-log option.
 	stage *failure.StageLog
+	// spanName sets Route.HandlerSpanName for the handler-span-name option.
+	spanName string
 }
 
 // wrongSamples holds one sample per assertion Check makes.
@@ -70,6 +72,7 @@ var wrongSamples = []wrongSample{
 			Logs: func() ([]map[string]any, []map[string]any) { return nil, nil },
 		},
 	},
+	{assertion: failure.HandlerSpanName, respond: correct, spanName: "probe.other"},
 }
 
 // fault reports whether err is a server fault the route must answer 500:

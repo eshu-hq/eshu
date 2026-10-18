@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/failure"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	vulnerabilitysuppressionv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerabilitysuppression/v1"
 )
 
@@ -28,7 +29,7 @@ const (
 func TestImpactFindingsServerFailures(t *testing.T) {
 	findings := func(stage, message string, build func(err error) *Handler) failure.Route {
 		return stagedSupplyRoute(t, stage, "", failedStageRoute, "", message,
-			supplyChainImpactFindingsOperation, stage, build)
+			supplyChainImpactFindingsOperation, stage, telemetry.SpanQuerySupplyChainImpactFindings, build)
 	}
 	runSupplyFailureRoutes(t, []failure.Route{
 		findings("impact_findings_query", "supply-chain impact findings read failed", func(err error) *Handler {
@@ -67,7 +68,7 @@ func TestSiblingRoutesServerFailures(t *testing.T) {
 	ensureSiblingAdvisoryCapabilities()
 	explain := func(stage, message string, build func(err error) *Handler) failure.Route {
 		return stagedSupplyRoute(t, "explain "+stage, "", explainTarget, "", message,
-			supplyChainImpactExplanationOperation, stage, build)
+			supplyChainImpactExplanationOperation, stage, telemetry.SpanQuerySupplyChainImpactExplanation, build)
 	}
 	runSupplyFailureRoutes(t, []failure.Route{
 		explain("impact_explanation_query", "supply-chain impact explanation read failed", func(err error) *Handler {
@@ -98,65 +99,65 @@ func TestSiblingRoutesServerFailures(t *testing.T) {
 			}
 		}),
 		stagedSupplyRoute(t, "impact packet read", "", "/api/v0/investigations/supply-chain/impact/packet?finding_id=finding-1", "",
-			"supply-chain impact packet read failed", supplyChainImpactPacketOperation, "impact_explanation_query",
+			"supply-chain impact packet read failed", supplyChainImpactPacketOperation, "impact_explanation_query", telemetry.SpanQuerySupplyChainImpactExplanation,
 			func(err error) *Handler {
 				return &Handler{ImpactExplanations: errExplanationStore{err: err}, PacketResponder: stubImpactPacketResponder{}}
 			}),
 		stagedSupplyRoute(t, "impact aggregate count", "", "/api/v0/supply-chain/impact/findings/count", "",
-			"supply-chain impact finding count read failed", supplyChainImpactAggregateOperation, "impact_aggregate_count",
+			"supply-chain impact finding count read failed", supplyChainImpactAggregateOperation, "impact_aggregate_count", telemetry.SpanQuerySupplyChainImpactAggregate,
 			func(err error) *Handler { return &Handler{ImpactAggregates: errImpactAggregateStore{countErr: err}} }),
 		stagedSupplyRoute(t, "impact aggregate inventory", "", "/api/v0/supply-chain/impact/inventory?group_by=impact_status&limit=10", "",
-			"supply-chain impact inventory read failed", supplyChainImpactAggregateOperation, "impact_aggregate_inventory",
+			"supply-chain impact inventory read failed", supplyChainImpactAggregateOperation, "impact_aggregate_inventory", telemetry.SpanQuerySupplyChainImpactAggregate,
 			func(err error) *Handler {
 				return &Handler{ImpactAggregates: errImpactAggregateStore{inventoryErr: err}}
 			}),
 		stagedSupplyRoute(t, "container image aggregate count", "", "/api/v0/supply-chain/container-images/identities/count", "",
-			"container image identity count read failed", supplyChainContainerImageAggregateOperation, "container_image_aggregate_count",
+			"container image identity count read failed", supplyChainContainerImageAggregateOperation, "container_image_aggregate_count", telemetry.SpanQueryContainerImageIdentityAggregate,
 			func(err error) *Handler {
 				return &Handler{ContainerImageAggregates: errContainerImageAggregateStore{countErr: err}}
 			}),
 		stagedSupplyRoute(t, "container image aggregate inventory", "", "/api/v0/supply-chain/container-images/identities/inventory?group_by=outcome&limit=10", "",
-			"container image identity inventory read failed", supplyChainContainerImageAggregateOperation, "container_image_aggregate_inventory",
+			"container image identity inventory read failed", supplyChainContainerImageAggregateOperation, "container_image_aggregate_inventory", telemetry.SpanQueryContainerImageIdentityAggregate,
 			func(err error) *Handler {
 				return &Handler{ContainerImageAggregates: errContainerImageAggregateStore{inventoryErr: err}}
 			}),
 		stagedSupplyRoute(t, "sbom attachment aggregate count", "", "/api/v0/supply-chain/sbom-attestations/attachments/count", "",
-			"SBOM attestation attachment count read failed", supplyChainSBOMAttachmentAggregateOperation, "sbom_attachment_aggregate_count",
+			"SBOM attestation attachment count read failed", supplyChainSBOMAttachmentAggregateOperation, "sbom_attachment_aggregate_count", telemetry.SpanQuerySBOMAttestationAttachmentAggregate,
 			func(err error) *Handler {
 				return &Handler{SBOMAttachmentAggregates: errSBOMAttachmentAggregateStore{countErr: err}}
 			}),
 		stagedSupplyRoute(t, "sbom attachment aggregate inventory", "", "/api/v0/supply-chain/sbom-attestations/attachments/inventory?group_by=attachment_status&limit=10", "",
-			"SBOM attestation attachment inventory read failed", supplyChainSBOMAttachmentAggregateOperation, "sbom_attachment_aggregate_inventory",
+			"SBOM attestation attachment inventory read failed", supplyChainSBOMAttachmentAggregateOperation, "sbom_attachment_aggregate_inventory", telemetry.SpanQuerySBOMAttestationAttachmentAggregate,
 			func(err error) *Handler {
 				return &Handler{SBOMAttachmentAggregates: errSBOMAttachmentAggregateStore{inventoryErr: err}}
 			}),
 		stagedSupplyRoute(t, "security alert aggregate count", "", "/api/v0/supply-chain/security-alerts/reconciliations/count?cve_id=CVE-2026-0001", "",
-			"security alert reconciliation count read failed", supplyChainSecurityAlertAggregateOperation, "security_alert_aggregate_count",
+			"security alert reconciliation count read failed", supplyChainSecurityAlertAggregateOperation, "security_alert_aggregate_count", telemetry.SpanQuerySecurityAlertReconciliationAggregate,
 			func(err error) *Handler {
 				return &Handler{SecurityAlertAggregates: errSecurityAlertAggregateStore{countErr: err}}
 			}),
 		stagedSupplyRoute(t, "security alert aggregate inventory", "", "/api/v0/supply-chain/security-alerts/reconciliations/inventory?group_by=reconciliation_status&limit=10", "",
-			"security alert reconciliation inventory read failed", supplyChainSecurityAlertAggregateOperation, "security_alert_aggregate_inventory",
+			"security alert reconciliation inventory read failed", supplyChainSecurityAlertAggregateOperation, "security_alert_aggregate_inventory", telemetry.SpanQuerySecurityAlertReconciliationAggregate,
 			func(err error) *Handler {
 				return &Handler{SecurityAlertAggregates: errSecurityAlertAggregateStore{inventoryErr: err}}
 			}),
 		stagedSupplyRoute(t, "advisory catalog list", "", "/api/v0/supply-chain/advisories?limit=10", "",
-			"advisory catalog read failed", supplyChainAdvisoryCatalogOperation, "advisory_catalog_query",
+			"advisory catalog read failed", supplyChainAdvisoryCatalogOperation, "advisory_catalog_query", telemetry.SpanQueryAdvisoryCatalog,
 			func(err error) *Handler { return &Handler{AdvisoryCatalog: errAdvisoryCatalogStore{err: err}} }),
 		stagedSupplyRoute(t, "advisory evidence list", "", "/api/v0/supply-chain/advisories/evidence?limit=10&cve_id=CVE-2026-0001", "",
-			"advisory evidence read failed", supplyChainAdvisoryEvidenceOperation, "advisory_evidence_query",
+			"advisory evidence read failed", supplyChainAdvisoryEvidenceOperation, "advisory_evidence_query", telemetry.SpanQueryAdvisoryEvidence,
 			func(err error) *Handler { return &Handler{AdvisoryEvidence: errAdvisoryEvidenceStore{err: err}} }),
 		stagedSupplyRoute(t, "vulnerability detail", "", "/api/v0/supply-chain/vulnerabilities/CVE-2026-0001", "",
-			"vulnerability detail read failed", supplyChainVulnerabilityDetailOperation, "vulnerability_detail_query",
+			"vulnerability detail read failed", supplyChainVulnerabilityDetailOperation, "vulnerability_detail_query", telemetry.SpanQueryAdvisoryEvidence,
 			func(err error) *Handler { return &Handler{AdvisoryEvidence: errAdvisoryEvidenceStore{err: err}} }),
 		stagedSupplyRoute(t, "container image identities list", "", "/api/v0/supply-chain/container-images/identities?limit=10&digest=sha256:abc", "",
-			"container image identity read failed", supplyChainContainerImageIdentityOperation, "container_image_identity_query",
+			"container image identity read failed", supplyChainContainerImageIdentityOperation, "container_image_identity_query", telemetry.SpanQueryContainerImageIdentities,
 			func(err error) *Handler { return &Handler{ContainerImageIdentities: errContainerImageStore{err: err}} }),
 		stagedSupplyRoute(t, "sbom attachments list", "", "/api/v0/supply-chain/sbom-attestations/attachments?limit=10&subject_digest=sha256:abc", "",
-			"SBOM attestation attachment read failed", supplyChainSBOMAttachmentOperation, "sbom_attachment_query",
+			"SBOM attestation attachment read failed", supplyChainSBOMAttachmentOperation, "sbom_attachment_query", telemetry.SpanQuerySBOMAttestationAttachments,
 			func(err error) *Handler { return &Handler{SBOMAttachments: errSBOMAttachmentStore{err: err}} }),
 		stagedSupplyRoute(t, "security alert reconciliations list", "", "/api/v0/supply-chain/security-alerts/reconciliations?limit=10&cve_id=CVE-2026-0001", "",
-			"security alert reconciliation read failed", supplyChainSecurityAlertReconciliationOperation, "security_alert_reconciliation_query",
+			"security alert reconciliation read failed", supplyChainSecurityAlertReconciliationOperation, "security_alert_reconciliation_query", telemetry.SpanQuerySupplyChainSecurityAlerts,
 			func(err error) *Handler { return &Handler{SecurityAlerts: errSecurityAlertStore{err: err}} }),
 	})
 }
@@ -167,7 +168,7 @@ func TestSiblingRoutesServerFailures(t *testing.T) {
 func TestRepositorySelectorServerFailures(t *testing.T) {
 	selectorStep := func(stage string, build func(err error) *Handler) failure.Route {
 		return stagedSupplyRoute(t, stage, "", selectorRoute, "", "repository selector lookup failed",
-			supplyChainSecurityAlertReconciliationOperation, stage, build)
+			supplyChainSecurityAlertReconciliationOperation, stage, telemetry.SpanQuerySupplyChainSecurityAlerts, build)
 	}
 	routes := []failure.Route{
 		selectorStep(selectorResolveStage, func(err error) *Handler {
@@ -192,9 +193,10 @@ func TestSuppressionMutationServerFailures(t *testing.T) {
 		Body: `{"suppression_id":"suppression-1","justification":"accepted_risk",` +
 			`"authored_at":"2026-07-27T12:00:00Z","expires_at":"2026-08-01T12:00:00Z",` +
 			`"reason":"compensating control verified","scope":{"cve_id":"CVE-2026-00001"}}`,
-		Message:     "persist vulnerability suppression",
-		PlainDetail: true,
-		NoFence:     true,
+		Message:         "persist vulnerability suppression",
+		PlainDetail:     true,
+		NoFence:         true,
+		HandlerSpanName: telemetry.SpanQueryVulnerabilitySuppressionMutation,
 		Scope: func(ctx context.Context) context.Context {
 			return auth.ContextWithAuthContext(ctx, auth.AuthContext{
 				Mode: auth.AuthModeShared, SubjectClass: "shared_token", SubjectIDHash: "sha256:operator", AllScopes: true,

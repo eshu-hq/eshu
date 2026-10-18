@@ -155,6 +155,9 @@ func TestCheckCatchesEachWrongSampleOnItsAssertionOnly(t *testing.T) {
 		if sample.stage != nil {
 			suite.Routes[0].Stage = sample.stage
 		}
+		if sample.spanName != "" {
+			suite.Routes[0].HandlerSpanName = sample.spanName
+		}
 		violated := violations(t, suite)
 		if !violated[sample.assertion] {
 			t.Errorf("sample for %q violated %v; want it caught by %q", sample.assertion, violated, sample.assertion)

@@ -51,6 +51,8 @@ const (
 	// OneHandlerSpan: with a HandlerTracer, exactly one span opens directly
 	// under the request span.
 	OneHandlerSpan Assertion = "exactly one handler span"
+	// HandlerSpanName: the handler span carries the route's telemetry name.
+	HandlerSpanName Assertion = "handler span has the route's telemetry name"
 	// FaultSpanError: a Fault or InnerCancel sets span status Error.
 	FaultSpanError Assertion = "fault span status is Error"
 	// FaultSpanDescription: a fault span's Error status is described by the
@@ -81,6 +83,7 @@ func Assertions() []Assertion {
 	return []Assertion{
 		NoCanaryInBody, FaultStatus, CustomFaultStatus, ClientCancelStatus, InnerCancelStatus,
 		FenceStatus, FenceCode, FenceRetryAfter, FixedMessage, PlainDetailBody, OneHandlerSpan,
+		HandlerSpanName,
 		FaultSpanError, FaultSpanDescription, FaultOneException, FaultNoCancelEvent,
 		CancelSpanUnset, CancelNoException, CancelOneEvent, CancelEventNoAttributes,
 		StageLogVerdict,
@@ -135,7 +138,7 @@ func Evaluate(s Suite, route Route, tc Case) ([]Violation, error) {
 		stageFound, err := stageViolations(route, kind)
 		return append(found, stageFound...), err
 	}
-	spanFound, err := spanViolations(route.Message, kind, s.HandlerTracer != nil, ended)
+	spanFound, err := spanViolations(route.Message, route.HandlerSpanName, kind, s.HandlerTracer != nil, ended)
 	found = append(found, spanFound...)
 	if err != nil {
 		return found, err
@@ -282,10 +285,16 @@ func answerViolations(route Route, kind Kind, rec *httptest.ResponseRecorder) ([
 
 // spanViolations finds the span the route marks and checks its status and
 // events for kind.
-func spanViolations(message string, kind Kind, handlerSpan bool, ended []sdktrace.ReadOnlySpan) ([]Violation, error) {
+func spanViolations(message, spanName string, kind Kind, handlerSpan bool, ended []sdktrace.ReadOnlySpan) ([]Violation, error) {
 	span, found, err := markedSpan(handlerSpan, ended)
 	if err != nil || span == nil {
 		return found, err
+	}
+	add := func(assertion Assertion, format string, args ...any) {
+		found = append(found, Violation{assertion, fmt.Sprintf(format, args...)})
+	}
+	if spanName != "" && span.Name() != spanName {
+		add(HandlerSpanName, "handler span name = %q, want %q", span.Name(), spanName)
 	}
 	exceptions, cancelEvents, cancelAttrs := 0, 0, 0
 	for _, event := range span.Events() {
@@ -298,9 +307,6 @@ func spanViolations(message string, kind Kind, handlerSpan bool, ended []sdktrac
 		}
 	}
 	status := span.Status()
-	add := func(assertion Assertion, format string, args ...any) {
-		found = append(found, Violation{assertion, fmt.Sprintf(format, args...)})
-	}
 	if kind == ClientCancel {
 		if status.Code != codes.Unset {
 			add(CancelSpanUnset, "status = %v (%q)", status.Code, status.Description)
