@@ -45,10 +45,14 @@ const (
 //     exactly the repository set the catalog run fences and reads runtime
 //     evidence for (serviceRepositoryIndex);
 //   - a claimed or running catalog row at the active generation, not yet
-//     flagged, whose scope has a decision naming the repository in any
-//     generation or has no decision yet (a first run whose repository set is
-//     still unknown): cross_scope_replay_required is set, so the migration
-//     093 trigger turns its successful ACK into pending and it re-reads.
+//     flagged, whatever its scope's committed decisions say: an in-flight
+//     run's repository set lives only in its uncommitted write, so a run
+//     that newly names the repository is invisible to a decision-keyed rule
+//     (window proof TestReducerContentionGate...FlagsRunThatNewlyNamesRepo).
+//     cross_scope_replay_required is set, so the migration 093 trigger turns
+//     its successful ACK into pending and it re-reads. This flags at most the
+//     rows running concurrently with the ACK; the succeeded-row reopen above
+//     stays decision-keyed, which is the measured hot path.
 //
 // Pending and retrying rows are untouched: they re-read on their next claim.
 // Targets lock in work_item_id C-collation order, the fanout's order, after
@@ -58,9 +62,12 @@ const (
 // re-evaluates the status after a lock wait, so a row that committed
 // succeeded while this statement waited is reopened, not lost. A reopen of an
 // already-pending row is a no-op, so N ACKs coalesce into one catalog run.
-// The lookups read fact_records_service_catalog_correlations_repository_idx,
-// ingestion_scopes_active_generation_idx, fact_work_items_scope_generation_idx,
-// and fact_work_items_stage_domain_status_idx; see
+// The succeeded-row lookup reads
+// fact_records_service_catalog_correlations_repository_idx,
+// ingestion_scopes_active_generation_idx, and
+// fact_work_items_scope_generation_idx; the in-flight lookup reads only
+// fact_work_items_stage_domain_status_idx and the active-generation join, so
+// it touches at most the rows running concurrently with the ACK. See
 // docs/internal/design/8169-service-catalog-runtime-retrigger.md for the plan
 // and pgbench evidence.
 const serviceCatalogRuntimeRetriggerCTEs = `, retrigger_repository AS MATERIALIZED (
@@ -98,20 +105,6 @@ const serviceCatalogRuntimeRetriggerCTEs = `, retrigger_repository AS MATERIALIZ
               AND inflight.domain = 'service_catalog_correlation'
               AND inflight.status IN ('claimed', 'running')
               AND NOT inflight.cross_scope_replay_required
-              AND (inflight.scope_id IN (
-                    SELECT decision.scope_id
-                    FROM retrigger_repository AS named
-                    JOIN fact_records AS decision
-                      ON decision.payload->>'repository_id' = named.repository_id
-                    WHERE decision.fact_kind = 'reducer_service_catalog_correlation'
-                      AND decision.is_tombstone = FALSE
-                  )
-               OR NOT EXISTS (
-                    SELECT 1 FROM fact_records AS decision
-                    WHERE decision.fact_kind = 'reducer_service_catalog_correlation'
-                      AND decision.is_tombstone = FALSE
-                      AND decision.scope_id = inflight.scope_id
-                  ))
           )
       AND catalog.stage = 'reducer'
       AND catalog.domain = 'service_catalog_correlation'

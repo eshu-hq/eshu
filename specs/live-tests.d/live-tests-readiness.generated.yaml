@@ -919,6 +919,11 @@ tests:
     class: postgres_ci
     reason: "#8169 disposable PostgreSQL 18 proof that a workload_materialization ACK re-triggers the service_catalog_correlation rows whose decisions name its repository: a succeeded row reopens, a claimed row is flagged for replay, and the next catalog run commits a generation carrying the runtime family. Local run about 3s on postgres:18; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_window_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8169 disposable PostgreSQL 18 regression proof that a workload_materialization ACK landing between a catalog re-run's runtime read and its decision write flags that in-flight run, even when the scope's older decisions do not name the repository; the run's ACK returns it to pending instead of committing an empty runtime family. Local run about 2s on postgres:18; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/relationship_activation_wake_live_test.go
     tag: ~
     class: postgres_ci

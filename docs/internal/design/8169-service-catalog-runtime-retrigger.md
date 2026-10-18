@@ -75,7 +75,7 @@ not gated on the value-flow emit flag. For each acked
 | Catalog row at its active generation | Match | Action |
 | --- | --- | --- |
 | `succeeded` | its own generation committed a `reducer_service_catalog_correlation` decision with `repository_id = <repo>` | reopen (the `ReopenSucceededReducerSetClause` columns) |
-| `claimed` / `running`, not flagged | its scope has such a decision in any generation, or no decision yet (a first run) | `cross_scope_replay_required = TRUE` |
+| `claimed` / `running`, not flagged | any: an in-flight run's repository set lives only in its uncommitted write, so a decision-keyed rule misses a run that newly names the repository (window proof h). At most the rows running concurrently with the ACK | `cross_scope_replay_required = TRUE` |
 | `pending` / `retrying` | none | untouched; it re-reads on its next claim |
 
 The decisions' `repository_id` is exactly the repository set the catalog run
@@ -153,16 +153,21 @@ Each reopen also re-runs every catalog handler on every workload ACK.
 | RUNS_ON intent lookup, 1 repository | prepared | not run | 0.120 ms | 20.0 |
 | RUNS_ON intent lookup, 50 repositories | prepared | not run | 0.976 ms | 20.0 |
 
-The in-flight rule is not global. It flags a claimed or running row only when
-its scope names the repository or has no decision yet, so an unrelated
-in-flight catalog run is not replayed on every workload ACK. The precise plan
-uses index paths only:
+The table above was measured with the decision-keyed in-flight rule; the
+shipped rule (proof h) drops that join, so the measured statement is a strict
+upper bound. The in-flight branch is global: any workload ACK flags any
+claimed or running catalog row at the active generation, because a run that
+newly names the repository is invisible to committed decisions. It touches at
+most the rows running concurrently with the ACK (normally none), already
+flagged rows are excluded so N ACKs coalesce into one replay, and the replay
+is idempotent (generation fingerprint, `ON CONFLICT DO NOTHING`) and re-reads
+under the fence. The plan uses index paths only:
 
-- `fact_records_service_catalog_correlations_repository_idx` (bitmap)
+- `fact_records_service_catalog_correlations_repository_idx` (bitmap, succeeded
+  branch only)
 - `ingestion_scopes_active_generation_idx`
-- `fact_work_items_scope_generation_idx`
+- `fact_work_items_scope_generation_idx` (succeeded branch)
 - `fact_work_items_stage_domain_status_idx` for in-flight rows
-- a hashed subplan for the in-flight decision match
 - the primary key for the lock
 
 The RUNS_ON lookup reads `shared_projection_intents_repo_run_idx`. No plan has
@@ -193,6 +198,12 @@ Real-queue tests against Postgres, `TestReducerContentionGate*` prefix:
 - (d) `...ConcurrentAcksReopenOnce`: two ACKs on separate connections cause no
   deadlock, one reopen, one run, and one generation.
 - Batch ACK and telemetry: `...RetriggerBatchAckAndTelemetry`.
+- (h) `...RetriggerFlagsRunThatNewlyNamesRepo` (window): the scope's committed
+  decisions name only billing, then a re-run newly names checkout and a
+  checkout workload ACK lands between its runtime read and its decision write.
+  The ACK flags the in-flight run even though no committed decision names
+  checkout; the run's ACK returns it to pending and the replay commits both
+  runtime rows. With the decision-keyed in-flight rule, only this test fails.
 - (g) The drift guard classifies `canonical_relationships.go` as the
   `repo_dependency` shared-intent producer.
 
