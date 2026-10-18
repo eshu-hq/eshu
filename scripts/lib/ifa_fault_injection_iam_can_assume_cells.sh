@@ -65,7 +65,7 @@ ifa_iam_can_assume_start_fact_records_lock() {
 	# silently truncated, so the grant poll below (which matches
 	# the full name) would miss forever while the holder sat on its granted
 	# lock. Proven live by the sibling kubernetes family's identical failure.
-	# ifa_iam_assume_lock_ keeps the longest name this family uses at 45 bytes.
+	# ifa_iam_assume_lock_ keeps the longest lock name this family uses at 42 bytes.
 	local app_name="ifa_iam_assume_lock_${cell}"
 	if ((${#app_name} > 63)); then
 		printf '%s: lock application_name is %s bytes; past the 63-byte repo cap the name truncates and the grant poll would never match\n' "${cell}" "${#app_name}" >&2
