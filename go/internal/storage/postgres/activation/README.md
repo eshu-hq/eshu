@@ -97,8 +97,12 @@ wiring returns no runner and nothing publishes the census. The Ack path still
 writes one `activation_obligations` row per activated generation, so the
 pending pile is visible in SQL. Open states are `pending` and `leased`;
 `completed`, `obsolete`, and `inapplicable` are terminal. This fallback mirrors
-the census query (`statsQuery` in `backlog.go`): per-state counts over all
-states plus one global oldest-open age in seconds.
+the census query (`statsQuery` in `backlog.go`, global derived by `max` in
+`Stats`): per-state counts over all states plus a per-state oldest-open age.
+The `FILTER` admits only pending/leased rows inside each group, so each row
+carries its own state's oldest age — 0 on terminal-state rows — and the global
+oldest-open age is the `MAX` over rows. States with no rows are absent, and an
+empty table yields no rows at all; the gauges report explicit zeros instead.
 
 ```sql
 SELECT state, count(*),
@@ -108,8 +112,6 @@ SELECT state, count(*),
   FROM activation_obligations
  GROUP BY state;
 ```
-
-Read the age from any row; an empty table yields no rows (the gauges report explicit zeros instead).
 
 ## Rollout order
 
