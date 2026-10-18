@@ -78,11 +78,16 @@ registry_trigger_scripts() { # registry-file
     esac
     if [ "$in_entry" -eq 0 ]; then continue; fi
     # Trigger lines are double-quoted today; the match also accepts single
-    # quotes and a trailing comment so a future style change fails loudly in
-    # the seed/real checks (as an unclassified entry or a miss) rather than
-    # silently skipping the line.
+    # quotes, a trailing comment, and bare unquoted tokens, so a future
+    # style change lands in the seed/real checks (as an unclassified entry)
+    # rather than silently skipping the line.
+    pat=""
     if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*[\'\"]([^\"\']+)[\'\"]([[:space:]]*(#.*)?)?$ ]]; then
       pat="${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^[[:space:]]*-[[:space:]]*(scripts/[^[:space:]#]+)[[:space:]]*(#.*)?$ ]]; then
+      pat="${BASH_REMATCH[1]}"
+    fi
+    if [[ -n "$pat" ]]; then
       case "$pat" in
         scripts/*.sh)
           if [[ "$pat" == *[*?\[]* ]]; then
@@ -169,14 +174,15 @@ cat >"$tmp/seed-registry.yaml" <<'EOF'
       - "scripts/test-verify-agent-hygiene.sh"
       - "scripts/seeded-unlisted.sh"
       - 'scripts/seeded-single-quoted.sh'  # non-double-quote style
+      - scripts/seeded-bare.sh  # unquoted style
   - id: next-gate
     triggers:
       - "scripts/seeded-other-gate.sh"
 EOF
 seed_unclassified="$(unclassified_trigger_scripts "$tmp/seed-registry.yaml")"
-seed_expected="$(printf 'scripts/seeded-unlisted.sh\nscripts/seeded-single-quoted.sh')"
+seed_expected="$(printf 'scripts/seeded-unlisted.sh\nscripts/seeded-single-quoted.sh\nscripts/seeded-bare.sh')"
 if [ "$seed_unclassified" = "$seed_expected" ]; then
-  ok "drift guard flags an unlisted trigger-path script by name (either quote style)"
+  ok "drift guard flags an unlisted trigger-path script by name (any style)"
 else
   no "drift guard missed a planted unlisted trigger script -- coverage can silently rot"
 fi
