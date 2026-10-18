@@ -175,7 +175,16 @@ func defaultClientFactory(target TargetConfig) (EvidenceClient, error) {
 
 func classifiedProviderFailure(err error) ProviderFailure {
 	if errors.Is(err, ErrArchivedIssue) {
-		return sdk.NewProviderFailure("jira", sdk.FailureArchived, true, err)
+		failure := sdk.NewProviderFailure("jira", sdk.FailureArchived, true, err)
+		// #8258 P2: a 410 from a known endpoint wraps the archived
+		// sentinel in an HTTPError carrying the token; stamp it so the
+		// failure records the endpoint instead of the stage fallback.
+		// A bare sentinel (no chained token) keeps the blank fallback.
+		var httpErr sdk.HTTPError
+		if errors.As(err, &httpErr) && httpErr.Operation != "" {
+			return failure.WithOperation(httpErr.Operation)
+		}
+		return failure
 	}
 	return sdk.ClassifyProviderFailure("jira", err, jiraStatusPolicy, sdk.FailureRetryable)
 }
