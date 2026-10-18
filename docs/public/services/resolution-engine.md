@@ -231,7 +231,7 @@ catalog-changing commit publishes the phase). `inapplicable` rows are never
 pruned.
 
 The consumer starts only when `ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED=true`
-(default `false`). Its maintainer is the partition-scoped deferred maintenance
+(default `false`); one claim holds its row for `ESHU_ACTIVATION_OBLIGATION_LEASE` (default `30m`, arbiter-ruled #7638 item-2 interim: the measured 395 s full-corpus pass fits inside the lease-minus-a-fifth deadline; lower back only when a rewrite re-measures the pass p99 far below the deadline). Its maintainer is the partition-scoped deferred maintenance
 pass on the obligation's own (scope, generation)
 (`postgres.ActivationMaintainer`); the whole-corpus pass stays on the ingester's
 drain epoch and is never run by the consumer. A pass refusal of
