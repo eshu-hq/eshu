@@ -136,7 +136,10 @@ merge of the per-family leaves if the retracts change:
 ```bash
 docker compose -f docker-compose.live-backend-neo4j.yml up -d
 # coordinate with scripts/lib/live-gate-lock.sh — never alongside another live gate
-cd go && ESHU_CYPHER_BOLT_DSN=neo4j://127.0.0.1:7687 \
+# NOTE: ESHU_CYPHER_BOLT_DATABASE=neo4j is required — the runner defaults to
+# `nornic`, which stock Neo4j does not have, so the command fails as written
+# without it.
+cd go && ESHU_CYPHER_BOLT_DSN=neo4j://127.0.0.1:7687 ESHU_CYPHER_BOLT_DATABASE=neo4j \
   go test ./internal/storage/cypher/ \
   -run 'TestLive(SecurityGroupSGRule|ObservabilityCoverage|CodeTaintEvidence|IncidentRoutingEvidence)' -v
 docker compose -f docker-compose.live-backend-neo4j.yml down

@@ -35,8 +35,10 @@ import (
 // which for security_group_sg_rule span two writer files), so their reasoning
 // fits one row each in the separate multi-type table beside the single-type
 // one (direct_families.go). Every entry in that multi-type table is a contract
-// family whose retract is edge-scoped by scope_id plus evidence_source, which
-// is what lets the drift guard pin predicate shape on the multi-type table
+// family whose retract is held and exactly-scoped — an edge-scoped alternation
+// or, for kind-A evidenceNodeDetach entries, a node-detach on a sole-creator
+// label — which is what lets the drift guard pin predicate shape on the
+// multi-type table
 // while this single-type table keeps its pre-contract shapes — except the
 // node-scoped code_taint_evidence entry, whose evidenceNodeDetach check pins
 // its own evidence_source plus scope predicates per variant.

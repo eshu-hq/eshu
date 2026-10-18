@@ -144,8 +144,9 @@ func checkRelAlternationRetract(t *testing.T, family, variant string, entry mate
 // foreign type sharing the endpoints and source, and no DETACH DELETE (node
 // deletion belongs to evidenceNodeDetach families with a sole-creator
 // census). It runs only over the multi-type direct table: every entry there
-// is a contract family whose retract is edge-scoped by scope_id plus
-// evidence_source.
+// is a contract family whose retract is held and exactly-scoped — an
+// edge-scoped alternation or, for kind-A evidenceNodeDetach entries, a
+// node-detach on a sole-creator label.
 func checkClosedVocabularyPredicates(t *testing.T, family, variant string) {
 	t.Helper()
 	if !strings.Contains(variant, "evidence_source") {
@@ -249,9 +250,10 @@ func deriveEvidenceLabel(t *testing.T, family string, entry materializedEdgeFami
 // RetractKind: alternation pinning for relAlternation families (every held
 // variant), detach-shape pinning plus derived-type agreement for
 // evidenceNodeDetach families. pinPredicates is true for the multi-type direct
-// table, whose entries are all contract families with edge-scoped retracts,
-// and false for the single-type table, where long-registered families keep
-// their pre-contract predicate shapes.
+// table, whose entries are all contract families with held, exactly-scoped
+// retracts (edge alternation or kind-A node-detach), and false for the
+// single-type table, where long-registered families keep their pre-contract
+// predicate shapes.
 func checkRegistryEntryMatchesItsRetract(t *testing.T, family string, entry materializedEdgeFamily, pinPredicates bool) {
 	t.Helper()
 	variants := allHeldRetracts(entry)
