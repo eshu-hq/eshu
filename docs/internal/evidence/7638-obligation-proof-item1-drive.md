@@ -8,8 +8,8 @@ the remote validation host; the resume runbook there was followed verbatim).
 ## Run manifest
 
 - `run_id`: `7638-item1-drive-20261018T120000Z` (operator-local manifest kept
-  on the run host per the run-manifest reference; host identity, SSH key
-  paths, and other operational details stay off-repo).
+  on the run host per [run-manifest.md](../../../.agents/skills/eshu-performance-rigor/references/run-manifest.md);
+  host identity, SSH key paths, and other operational details stay off-repo).
 - Venue: remote validation host over VPN/SSO, Docker 29.9.0.
 - Base: `1664cf2f` (Merge PR #8418), compose images built from that tree,
   native Neo4j stack (`docker-compose.neo4j.yml`) + overlay: postgres host
@@ -19,8 +19,11 @@ the remote validation host; the resume runbook there was followed verbatim).
   resolution engine.
 - Fixture: two filesystem repos — `deploy-source` (Flux
   `GitRepository/deploy-target` linkage + deployment manifest referencing the
-  target) and `deploy-target`. Bootstrap converged 32/32, first-gen
-  obligations completed.
+  target) and `deploy-target`. Bootstrap converged: the drive log read 32/32
+  succeeded with zero failed (unit: `fact_work_items` rows, the same queue
+  unit the item-9 arm reports as 17/17 and 33/33; queue fully drained at
+  converge), and both first-gen obligations completed. (The table has since
+  grown with later generations.)
 
 ## Flag-on arm: GREEN
 
@@ -28,8 +31,8 @@ Quiet mutation = host-only README append in `deploy-source`, no other commit.
 
 | Event | Time (UTC 2026-10-18) | Evidence |
 |---|---|---|
-| Mutation lands | 12:29:20 | `scope_generations.observed_at` for `21eca7f8…1ce4` |
-| `phase_not_ready` fence | 12:29:32 | engine `cross-repo resolution gated … reason=backward_evidence_not_committed` (same shape banked verbatim for `58bc…` at 12:35:18) |
+| Mutation lands | 12:29:20.550 | `scope_generations.observed_at` for `21eca7f8…1ce4` (ms precision) |
+| `phase_not_ready` fence | 12:29:32 (second precision, truncated) | engine `cross-repo resolution gated … reason=backward_evidence_not_committed`, observed pre-restart (same shape banked verbatim with ms for `58bc…` at 12:35:18 and for item 9 at 12:50:12.487) |
 | Backward evidence | 12:29:32.732 | `backward_evidence_committed/cross_repo_evidence` committed |
 | Consumer completes | 12:29:33.435 | `deployment_mapping/service_uid` committed; obligation `completed`; engine `completed woken=1` observed pre-restart (see caveat) |
 
