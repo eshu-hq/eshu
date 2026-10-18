@@ -34,20 +34,22 @@ func TestCanonicalNodeWriterRepositoryCleanupRetiresOnlyPathConflicts(t *testing
 	cleanup := writer.buildRepositoryCleanupStatements(mat)
 	upserts := writer.buildRepositoryStatements(mat)
 
-	if len(cleanup) != 1 {
-		t.Fatalf("repository cleanup statements = %d, want 1 (path_conflict only)", len(cleanup))
+	// #5385 T4: the three owned-label cascade deletes run before the
+	// path_conflict retirement of a DIFFERENT-id Repository.
+	if len(cleanup) != 4 {
+		t.Fatalf("repository cleanup statements = %d, want 4 (3 cascades + path_conflict)", len(cleanup))
 	}
-	if !strings.Contains(cleanup[0].Cypher, "MATCH (r:Repository {path: $path})") ||
-		!strings.Contains(cleanup[0].Cypher, "WHERE r.id <> $repo_id") {
-		t.Fatalf("repository cleanup statement = %q, want the path_conflict retirement", cleanup[0].Cypher)
+	if !strings.Contains(cleanup[3].Cypher, "MATCH (r:Repository {path: $path})") ||
+		!strings.Contains(cleanup[3].Cypher, "WHERE r.id <> $repo_id") {
+		t.Fatalf("repository cleanup statement = %q, want the path_conflict retirement", cleanup[3].Cypher)
 	}
-	if got := cleanup[0].Parameters["repo_id"]; got != "repository:r_new" {
+	if got := cleanup[3].Parameters["repo_id"]; got != "repository:r_new" {
 		t.Fatalf("path_conflict repo_id = %#v, want repository:r_new", got)
 	}
-	if got := cleanup[0].Parameters["path"]; got != "/repos/service" {
+	if got := cleanup[3].Parameters["path"]; got != "/repos/service" {
 		t.Fatalf("path_conflict path = %#v, want /repos/service", got)
 	}
-	if got := cleanup[0].Parameters[StatementMetadataSummaryKey]; got != "repository_cleanup lookup=path_conflict" {
+	if got := cleanup[3].Parameters[StatementMetadataSummaryKey]; got != "repository_cleanup lookup=path_conflict" {
 		t.Fatalf("path_conflict summary = %#v", got)
 	}
 	for _, stmt := range cleanup {

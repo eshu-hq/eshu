@@ -230,6 +230,7 @@ func TestSchemaStatementsContainsPerformanceIndexes(t *testing.T) {
 		"CREATE INDEX workload_name IF NOT EXISTS",
 		"CREATE INDEX workload_instance_workload_id IF NOT EXISTS",
 		"CREATE INDEX workload_instance_repo_id IF NOT EXISTS",
+		"CREATE INDEX endpoint_repo_id IF NOT EXISTS",
 		"CREATE INDEX container_image_digest IF NOT EXISTS",
 		"CREATE INDEX container_image_tag_observation_ref IF NOT EXISTS",
 		"CREATE INDEX package_dependency_package_id IF NOT EXISTS",

@@ -163,6 +163,37 @@ const RepositoryPathCleanupBareCypher = `MATCH (r:Repository {path: $path})
 WHERE r.id <> $repo_id
 DETACH DELETE r`
 
+// Retirement cascade for the workload identity re-key (issue #5385,
+// migration doc section 2): re-onboarding a repository's path under a new
+// repo_id retires every Workload, WorkloadInstance, and Endpoint node the
+// retired identity owned. Each statement re-derives the retired ids from
+// the same path anchor + id guard as the path-conflict retirement, so the
+// cascade depends on no earlier write in the phase and runs before the
+// path template deletes the retired Repository (after which r.id is
+// unrecoverable). The deletes are scoped by label + repo_id, never by node
+// id: an edge escaping an id-anchored delete stays forever.
+//
+// Index backing: Workload and WorkloadInstance match on the workload_repo_id
+// and workload_instance_repo_id indexes; Endpoint matches on the
+// endpoint_repo_id index (both in go/internal/graph/schema_tables_indexes.go),
+// so every leg seeks instead of scanning. The statements carry no OPTIONAL
+// MATCH + WITH collect composition, so the #8173 NornicDB defect does not
+// apply and both backends emit the same shape.
+const RepositoryRetirementWorkloadCascadeCypher = `MATCH (r:Repository {path: $path})
+WHERE r.id <> $repo_id
+MATCH (n:Workload {repo_id: r.id})
+DETACH DELETE n`
+
+const RepositoryRetirementWorkloadInstanceCascadeCypher = `MATCH (r:Repository {path: $path})
+WHERE r.id <> $repo_id
+MATCH (n:WorkloadInstance {repo_id: r.id})
+DETACH DELETE n`
+
+const RepositoryRetirementEndpointCascadeCypher = `MATCH (r:Repository {path: $path})
+WHERE r.id <> $repo_id
+MATCH (n:Endpoint {repo_id: r.id})
+DETACH DELETE n`
+
 const RepositoryUpsertCypher = `MERGE (r:Repository {id: $repo_id})
 SET r.name = $name, r.path = $path, r.local_path = $local_path,
     r.remote_url = $remote_url, r.repo_slug = $repo_slug,

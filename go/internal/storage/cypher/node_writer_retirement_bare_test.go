@@ -31,15 +31,16 @@ func bareRetirementMaterialization() canonical.CanonicalMaterialization {
 	}
 }
 
-// The default writer keeps the attributed shape: same statement, pre-delete
-// collection, RETURN dropped.
+// The default writer keeps the attributed shape: the #5385 T4 cascade
+// deletes first, then the path conflict with its pre-delete collection
+// and RETURN dropped.
 func TestCanonicalNodeWriterDefaultRetirementIsAttributed(t *testing.T) {
 	cleanup := NewCanonicalNodeWriter(nil, 500, nil).buildRepositoryCleanupStatements(bareRetirementMaterialization())
-	if len(cleanup) != 1 {
-		t.Fatalf("cleanup statements = %d, want 1", len(cleanup))
+	if len(cleanup) != 4 {
+		t.Fatalf("cleanup statements = %d, want 4 (3 cascades + path conflict)", len(cleanup))
 	}
-	if !IsRepositoryPathCleanupCypher(cleanup[0].Cypher) {
-		t.Fatalf("default cleanup is not the attributed shape:\n%s", cleanup[0].Cypher)
+	if !IsRepositoryPathCleanupCypher(cleanup[3].Cypher) {
+		t.Fatalf("default cleanup tail is not the attributed shape:\n%s", cleanup[3].Cypher)
 	}
 }
 
@@ -55,27 +56,27 @@ func TestCanonicalNodeWriterBareRetirementEmitsBareShape(t *testing.T) {
 	}
 	bare := NewCanonicalNodeWriter(nil, 500, nil).WithBareRepositoryRetirement().
 		buildRepositoryCleanupStatements(mat)
-	if len(bare) != 1 {
-		t.Fatalf("bare cleanup statements = %d, want 1", len(bare))
+	if len(bare) != 4 {
+		t.Fatalf("bare cleanup statements = %d, want 4 (3 cascades + path conflict)", len(bare))
 	}
-	if IsRepositoryPathCleanupCypher(bare[0].Cypher) {
-		t.Fatalf("bare cleanup is the attributed shape, want the bare shape")
+	if IsRepositoryPathCleanupCypher(bare[3].Cypher) {
+		t.Fatalf("bare cleanup tail is the attributed shape, want the bare shape")
 	}
-	if strings.Contains(bare[0].Cypher, "OPTIONAL MATCH") || strings.Contains(bare[0].Cypher, "RETURN dropped") {
-		t.Fatalf("bare cleanup carries the NornicDB-unsafe clauses:\n%s", bare[0].Cypher)
+	if strings.Contains(bare[3].Cypher, "OPTIONAL MATCH") || strings.Contains(bare[3].Cypher, "RETURN dropped") {
+		t.Fatalf("bare cleanup tail carries the NornicDB-unsafe clauses:\n%s", bare[3].Cypher)
 	}
 	for key, want := range wantParams {
-		if bare[0].Parameters[key] != want {
-			t.Fatalf("bare cleanup param %s = %#v, want %#v", key, bare[0].Parameters[key], want)
+		if bare[3].Parameters[key] != want {
+			t.Fatalf("bare cleanup param %s = %#v, want %#v", key, bare[3].Parameters[key], want)
 		}
 	}
 	collecting := NewCanonicalNodeWriter(nil, 500, nil).buildRepositoryCleanupStatements(mat)
-	if len(collecting) != 1 {
-		t.Fatalf("collecting cleanup statements = %d, want 1", len(collecting))
+	if len(collecting) != 4 {
+		t.Fatalf("collecting cleanup statements = %d, want 4 (3 cascades + path conflict)", len(collecting))
 	}
 	for key, want := range wantParams {
-		if collecting[0].Parameters[key] != want {
-			t.Fatalf("collecting cleanup param %s = %#v, want %#v", key, collecting[0].Parameters[key], want)
+		if collecting[3].Parameters[key] != want {
+			t.Fatalf("collecting cleanup param %s = %#v, want %#v", key, collecting[3].Parameters[key], want)
 		}
 	}
 }

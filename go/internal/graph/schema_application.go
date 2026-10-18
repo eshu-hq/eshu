@@ -68,13 +68,16 @@ const (
 	// current schema digests. They cover the graphWriteIdentityContract section
 	// as well as the DDL.
 	//
-	// The current values are the #8168 Module import_key cutover: the
-	// module_import_key constraint plus the Module=import_key identity line.
-	// This bump is NOT additive, and it deliberately lists no compatible
-	// predecessors (see graphSchemaCompatibleFingerprints). A writer on the
-	// previous release MERGEs Module on (name, lang) and never sets import_key,
-	// so it would mint a second node beside every canonical one. It must stop
-	// before writing, not write a graph an operator then has to repair.
+	// The current values are the #8168 Module import_key cutover (the
+	// module_import_key constraint plus the Module=import_key identity line)
+	// with the additive #5385 T4 endpoint_repo_id index on top: the index
+	// backs the retirement cascade's Endpoint-leg seek and changes no MERGE or
+	// MATCH identity. The bump as a whole is NOT additive, and it deliberately
+	// lists no compatible predecessors (see graphSchemaCompatibleFingerprints):
+	// a writer on the previous release MERGEs Module on (name, lang) and never
+	// sets import_key, so it would mint a second node beside every canonical
+	// one. It must stop before writing, not write a graph an operator then has
+	// to repair.
 	//
 	// The previous values (graphSchemaNeo4jPreModuleImportKeyFingerprint in
 	// schema_predecessors.go) were the #6102 (name, lang) cutover plus the
@@ -82,8 +85,8 @@ const (
 	// tf_module/tf_output evidence_source, the Neo4j-only #7057 uid indexes,
 	// the #7095/#7097 constraint retirements, #7675, and the Neo4j-only #7245
 	// infra_search_key_ft index.
-	graphSchemaNeo4jFingerprint    = "fffcd262a37b3af8ca39eced432e59103f41fe0c778d0378b7ff4f7bf0f3230c"
-	graphSchemaNornicDBFingerprint = "443f528a41e80081f1f1731f64c0a1f0ede77a47e31f6e487576c5583466245a"
+	graphSchemaNeo4jFingerprint    = "7095f6b854a3ce1c9e22fd5fe2cbddab7b0c4bea4e618cc55990ed16e5e9fa89"
+	graphSchemaNornicDBFingerprint = "ec0f9c3a7173c3b57f2f52b659d2deffabcc63aab35e3829fa96302eae28129f"
 
 	// graphSchemaNeo4jPreDirectoryRepoIDIndexFingerprint and its NornicDB peer
 	// are the digests immediately before that index was added, which is the
