@@ -48,6 +48,9 @@ ripgrep 15.2.0 musl tar SHA-256
 `33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c`;
 yq 4.54.1 Linux amd64 SHA-256
 `8e34fc298390875de416e6a4afcb8cabeceb25d9aa8506c1a2f9353cf702ea5f`.
+Minimum supported yq is 4.44.3 (#8397): the oldest release the gate scripts'
+`strenv(TAB)` rows are proven on (4.44.3/4.49.2/4.54.1). CI runs the pin above;
+`scripts/verify-dockerhub-login.sh` fails closed on anything older.
 The Docker CLI 29.1.3 static tar and Compose 2.40.3 plugin are also
 checksum-pinned for each architecture in the Dockerfile. Only the CLI binary
 is extracted from Docker's tar; the image has no daemon or container runtime.
