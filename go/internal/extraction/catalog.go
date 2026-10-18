@@ -60,7 +60,7 @@ func candidateNotStartedCriteriaMissingSchemas() []CriterionResult {
 			rows[i] = CriterionResult{
 				Criterion: PayloadSchemasTyped,
 				State:     Unmet,
-				Detail:    "vulnerability.warning has no registered typed payload schema; the kind is unconsumed with no reducer decode or query reader, owned by #5462",
+				Detail:    "vulnerability.warning (emitted by core-owned scanner-worker, not this collector) has no registered typed payload schema; the kind is unconsumed with no reducer decode or query reader, owned by #5462",
 			}
 		}
 	}
