@@ -2617,12 +2617,15 @@ type Instruments struct {
 	CorpusFenceHolders metric.Int64ObservableGauge
 	// CorpusFenceDeferredConsumers reports, by closed domain label, the
 	// correlation consumers currently deferred on relationship-resolution
-	// readiness behind the fence (#8247): retrying rows in the consumers'
-	// non-counting resolution-not-ready classes.
+	// readiness (#8247): retrying rows in the consumers' non-counting
+	// resolution-not-ready classes. This includes consumers waiting on
+	// their own relationship generation, not only the global fence.
 	CorpusFenceDeferredConsumers metric.Int64ObservableGauge
 	// CorpusFenceOldestDeferredAgeSeconds reports, by closed domain label,
-	// the age in seconds of the oldest consumer deferred behind the fence
-	// (#8247), so a consumer parked for days is visible on a dashboard.
+	// the age in seconds of the oldest consumer deferred on
+	// relationship-resolution readiness (#8247), including consumers
+	// waiting on their own relationship generation, not only the global
+	// fence, so a consumer parked for days is visible on a dashboard.
 	CorpusFenceOldestDeferredAgeSeconds metric.Float64ObservableGauge
 
 	// PoisonDeadLetterScopes and PoisonDeadLetterItems report the current
@@ -7129,10 +7132,12 @@ func registerProjectorMarkedWriteGauges(inst *Instruments, meter metric.Meter, m
 }
 
 // RegisterCorpusFenceObservableGauges registers the #8247 completeness-fence
-// gauges backed by fenceObs. Each callback takes one CorpusFenceCounts
-// reading; production serves it from the Postgres gauge snapshot refreshed in
-// the background (cmd/reducer), so a scrape never queries Postgres and the
-// fence statement runs once per refresh interval, never per claim.
+// gauges backed by fenceObs. A single RegisterCallback reads the snapshot
+// once per scrape and observes all three gauges, keeping the trio on one
+// refresh generation (the poison-liveness idiom). Production serves it from
+// the Postgres gauge snapshot refreshed in the background (cmd/reducer), so
+// a scrape never queries Postgres and the fence statement runs once per
+// refresh interval, never per claim.
 func RegisterCorpusFenceObservableGauges(inst *Instruments, meter metric.Meter, fenceObs CorpusFenceObserver) error {
 	if inst == nil {
 		return errors.New("instruments are required")
@@ -7148,52 +7153,40 @@ func RegisterCorpusFenceObservableGauges(inst *Instruments, meter metric.Meter, 
 	inst.CorpusFenceHolders, err = meter.Int64ObservableGauge(
 		"eshu_dp_corpus_fence_holders",
 		metric.WithDescription("Active scopes holding the global relationship completeness fence (retired-or-pending current relationship generation, or none yet with live resolution work); zero means the fence is open"),
-		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
-			holders, _, _, err := fenceObs.CorpusFenceCounts(ctx)
-			if err != nil {
-				return err
-			}
-			o.Observe(holders)
-			return nil
-		}),
 	)
 	if err != nil {
 		return fmt.Errorf("register CorpusFenceHolders gauge: %w", err)
 	}
 	inst.CorpusFenceDeferredConsumers, err = meter.Int64ObservableGauge(
 		"eshu_dp_corpus_fence_deferred_consumers",
-		metric.WithDescription("Correlation consumers deferred on relationship-resolution readiness behind the corpus fence, by domain (retrying rows in the consumers' non-counting resolution-not-ready classes)"),
-		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
-			_, deferred, _, err := fenceObs.CorpusFenceCounts(ctx)
-			if err != nil {
-				return err
-			}
-			for domain, count := range deferred {
-				o.Observe(count, metric.WithAttributes(attribute.String(MetricDimensionDomain, domain)))
-			}
-			return nil
-		}),
+		metric.WithDescription("Correlation consumers deferred on relationship-resolution readiness, by domain (retrying rows in the consumers' non-counting resolution-not-ready classes; includes consumers waiting on their own relationship generation, not only the global fence)"),
 	)
 	if err != nil {
 		return fmt.Errorf("register CorpusFenceDeferredConsumers gauge: %w", err)
 	}
 	inst.CorpusFenceOldestDeferredAgeSeconds, err = meter.Float64ObservableGauge(
 		"eshu_dp_corpus_fence_oldest_deferred_age_seconds",
-		metric.WithDescription("Age in seconds of the oldest consumer deferred behind the corpus fence, by domain; absent when no consumer of the domain is deferred"),
+		metric.WithDescription("Age in seconds of the oldest consumer deferred on relationship-resolution readiness, by domain; includes consumers waiting on their own relationship generation, not only the global fence; absent when no consumer of the domain is deferred"),
 		metric.WithUnit("s"),
-		metric.WithFloat64Callback(func(ctx context.Context, o metric.Float64Observer) error {
-			_, _, oldest, err := fenceObs.CorpusFenceCounts(ctx)
-			if err != nil {
-				return err
-			}
-			for domain, age := range oldest {
-				o.Observe(age, metric.WithAttributes(attribute.String(MetricDimensionDomain, domain)))
-			}
-			return nil
-		}),
 	)
 	if err != nil {
 		return fmt.Errorf("register CorpusFenceOldestDeferredAgeSeconds gauge: %w", err)
+	}
+	if _, err = meter.RegisterCallback(func(ctx context.Context, o metric.Observer) error {
+		holders, deferred, oldest, err := fenceObs.CorpusFenceCounts(ctx)
+		if err != nil {
+			return err
+		}
+		o.ObserveInt64(inst.CorpusFenceHolders, holders)
+		for domain, count := range deferred {
+			o.ObserveInt64(inst.CorpusFenceDeferredConsumers, count, metric.WithAttributes(attribute.String(MetricDimensionDomain, domain)))
+		}
+		for domain, age := range oldest {
+			o.ObserveFloat64(inst.CorpusFenceOldestDeferredAgeSeconds, age, metric.WithAttributes(attribute.String(MetricDimensionDomain, domain)))
+		}
+		return nil
+	}, inst.CorpusFenceHolders, inst.CorpusFenceDeferredConsumers, inst.CorpusFenceOldestDeferredAgeSeconds); err != nil {
+		return fmt.Errorf("register corpus fence gauge callback: %w", err)
 	}
 	return nil
 }

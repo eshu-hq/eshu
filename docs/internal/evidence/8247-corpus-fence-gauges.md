@@ -19,9 +19,11 @@ gauges are served by the reducer from its Postgres gauge snapshot
   predicate; zero means the fence is open.
 - `eshu_dp_corpus_fence_deferred_consumers`: per closed `domain`,
   `retrying` rows in the consumers' non-counting resolution-not-ready
-  classes on the active generation.
+  classes on the active generation. Includes consumers waiting on
+  their own relationship generation, not only the global fence.
 - `eshu_dp_corpus_fence_oldest_deferred_age_seconds`: per closed
-  `domain`, `now - MIN(created_at)` over the same rows.
+  `domain`, `now - MIN(created_at)` over the same rows (own-generation
+  waiters included).
 
 One statement (`corpusFenceGaugesQuery`) feeds all three. It runs only
 from the background snapshot refresher at
@@ -66,3 +68,32 @@ and `TestPostgresBackedGaugesServeCorpusFenceSnapshot` (scrapes serve
 the refreshed snapshot with no extra store read per scrape). Refresh
 health rides the existing `eshu_dp_gauge_snapshot_*` family under
 `gauge="reducer_corpus_fence"`.
+
+## No-Regression Evidence (#8511):
+
+Baseline: three gauge callbacks each called `CorpusFenceCounts` once per
+scrape, so every scrape read the snapshot three times.
+
+After measurement
+(`TestRegisterCorpusFenceObservableGaugesReadsObserverOncePerScrape`,
+in-memory fake observer plus OTEL Go SDK `ManualReader` v1.45.0):
+
+- Input shape: holders 3, deferred
+  `{deployable_unit_correlation: 782}`, oldest
+  `{deployable_unit_correlation: 417}`.
+- Result: exactly 1 `CorpusFenceCounts` call per `Collect`, over two
+  consecutive scrapes (1 then 2 cumulative). The same triple is
+  observed, so values are identical and share one refresh generation.
+
+Safety: the single read returns the same holders/deferred/oldest
+triple the three reads returned, only more consistent (one
+generation, never mixed). The map iterations moved into one closure
+unchanged. Production still serves the background Postgres snapshot,
+so a scrape still never queries Postgres.
+
+## Observability Evidence (#8511):
+
+No new instruments and no gauge name or label change, so dashboards
+and alerts are unaffected; only description text was refined.
+`scripts/verify-telemetry-coverage.sh` passes: coverage docs and
+`instruments.go` agree with no new untracked stages.

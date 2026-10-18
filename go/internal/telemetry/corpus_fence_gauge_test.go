@@ -85,6 +85,49 @@ func gaugeFloatByDomain(gauge metricdata.Gauge[float64]) map[string]float64 {
 	return out
 }
 
+// countingCorpusFenceObserver counts snapshot reads per scrape cycle.
+type countingCorpusFenceObserver struct {
+	fakeCorpusFenceObserver
+	calls int
+}
+
+func (c *countingCorpusFenceObserver) CorpusFenceCounts(ctx context.Context) (int64, map[string]int64, map[string]float64, error) {
+	c.calls++
+	return c.fakeCorpusFenceObserver.CorpusFenceCounts(ctx)
+}
+
+// TestRegisterCorpusFenceObservableGaugesReadsObserverOncePerScrape proves
+// one scrape reads the fence snapshot once for all three gauges, so the
+// trio stays on one refresh generation (#8247).
+func TestRegisterCorpusFenceObservableGaugesReadsObserverOncePerScrape(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	meter := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test")
+	inst := &Instruments{}
+	observer := &countingCorpusFenceObserver{
+		fakeCorpusFenceObserver: fakeCorpusFenceObserver{
+			holders:  3,
+			deferred: map[string]int64{"deployable_unit_correlation": 782},
+			oldest:   map[string]float64{"deployable_unit_correlation": 417},
+		},
+	}
+	if err := RegisterCorpusFenceObservableGauges(inst, meter, observer); err != nil {
+		t.Fatalf("RegisterCorpusFenceObservableGauges() error = %v", err)
+	}
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if observer.calls != 1 {
+		t.Fatalf("CorpusFenceCounts calls per scrape = %d, want 1", observer.calls)
+	}
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("second Collect() error = %v", err)
+	}
+	if observer.calls != 2 {
+		t.Fatalf("CorpusFenceCounts calls after second scrape = %d, want 2 (one per scrape)", observer.calls)
+	}
+}
+
 // TestRegisterCorpusFenceObservableGaugesNilInputs keeps the nil contracts.
 func TestRegisterCorpusFenceObservableGaugesNilInputs(t *testing.T) {
 	meter := sdkmetric.NewMeterProvider().Meter("test")
