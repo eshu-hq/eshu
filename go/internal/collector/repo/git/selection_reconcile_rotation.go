@@ -168,26 +168,26 @@ func (t *reconcileWalkTracker) noteVisited(walkIdx int, repoID string) {
 // suffix-relative bookkeeping (noteSpent, noteVisited, finishYielded)
 // stays aligned with the filtered walk.
 func (t *reconcileWalkTracker) limitWalk(walk []string, limit int) []string {
+	if len(t.skipPinned) != 0 && t.prefixLen != 0 {
+		kept := make([]string, 0, len(walk))
+		skipped := 0
+		for i, repoID := range walk {
+			if i < t.prefixLen {
+				if _, ok := t.skipPinned[repoID]; ok {
+					skipped++
+					continue
+				}
+			}
+			kept = append(kept, repoID)
+		}
+		t.prefixLen -= skipped
+		walk = kept
+	}
 	if limit <= 0 || limit >= t.suffixLen {
 		return walk
 	}
 	t.walkSuffixLen = limit
-	if len(t.skipPinned) == 0 || t.prefixLen == 0 {
-		return walk[:t.prefixLen+limit]
-	}
-	kept := make([]string, 0, len(walk))
-	skipped := 0
-	for i, repoID := range walk {
-		if i < t.prefixLen {
-			if _, ok := t.skipPinned[repoID]; ok {
-				skipped++
-				continue
-			}
-		}
-		kept = append(kept, repoID)
-	}
-	t.prefixLen -= skipped
-	return kept[:t.prefixLen+limit]
+	return walk[:t.prefixLen+limit]
 }
 
 // finish records the due-unvisited gauge and returns the next cycle's start:
@@ -205,10 +205,10 @@ func (t *reconcileWalkTracker) finish(ctx context.Context, baseline gitDeltaBase
 // finishYielded ends a walk the sweep cut short for a queued webhook
 // trigger (#8123). It records the due-unvisited gauge for the
 // repositories this cycle evaluated (the unvisited tail was not
-// evaluated, so the gauge resumes its whole-sweep meaning on the
-// completing cycle) and returns the next cycle's start — past the
-// last visited suffix position — plus how many suffix repositories
-// the logical sweep still owes.
+// evaluated, so the gauge reflects per-cycle evaluations until the
+// tail-covering completing cycle) and returns the next cycle's
+// start — past the last visited suffix position — plus how many
+// suffix repositories the logical sweep still owes.
 func (t *reconcileWalkTracker) finishYielded(ctx context.Context, baseline gitDeltaBaseline) (nextStart, remaining int) {
 	nextStart = t.start
 	remaining = t.walkSuffixLen
