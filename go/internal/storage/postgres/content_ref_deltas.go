@@ -324,8 +324,11 @@ func (s RefDeltaStore) now() time.Time {
 	return time.Now().UTC()
 }
 
-// refDeltaWriteToCanonical matches a SQL write verb targeting the canonical
-// content_files table: INSERT INTO, UPDATE, DELETE FROM, TRUNCATE, or MERGE.
+// refDeltaWriteToCanonical matches a SQL write or reshape verb targeting
+// the canonical content_files table: INSERT INTO, UPDATE, DELETE FROM,
+// TRUNCATE, MERGE, ALTER TABLE, or DROP TABLE. The DDL verbs matter because
+// the never-a-ref-column invariant on content_files can only arrive via
+// ALTER TABLE.
 // The verb may carry ONLY (UPDATE ONLY, DELETE FROM ONLY) and the table may
 // carry an optional schema qualifier, quoted or not (public.content_files,
 // "public"."content_files"). Comment text is stripped before matching, so
@@ -333,7 +336,7 @@ func (s RefDeltaStore) now() time.Time {
 // own table (content_file_ref_deltas) never matches: the pattern requires
 // the exact canonical name at a word boundary.
 var refDeltaWriteToCanonical = regexp.MustCompile(
-	`(?i)\b(INSERT\s+INTO|UPDATE|DELETE\s+FROM|TRUNCATE(\s+TABLE)?|MERGE(\s+INTO)?)\s+(ONLY\s+)?("?\w+"?\.)?"?content_files\b`,
+	`(?i)\b(INSERT\s+INTO|UPDATE|DELETE\s+FROM|TRUNCATE(\s+TABLE)?|MERGE(\s+INTO)?|ALTER(\s+TABLE)?|DROP(\s+TABLE)?)\s+(ONLY\s+)?("?\w+"?\.)?"?content_files\b`,
 )
 
 // refDeltaStatementInventory returns every SQL statement this store can

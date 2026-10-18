@@ -60,6 +60,11 @@ func TestRefDeltaGuardCatchesPlantedCanonicalUpsert(t *testing.T) {
 		"UPDATE ONLY":             "UPDATE ONLY content_files SET content = 'x' WHERE repo_id = 'repo-1'",
 		"DELETE FROM ONLY":        "DELETE FROM ONLY content_files WHERE repo_id = 'repo-1'",
 		"TRUNCATE":                "TRUNCATE content_files",
+		"ALTER TABLE ADD COLUMN":  "ALTER TABLE content_files ADD COLUMN ref TEXT",
+		"ALTER TABLE schema-qual": "ALTER TABLE public.content_files ADD COLUMN ref TEXT",
+		"DROP TABLE":              "DROP TABLE content_files",
+		"both-names INSERT":       "INSERT INTO content_files SELECT * FROM content_file_ref_deltas",
+		"both-names UPDATE":       "UPDATE content_files SET content = o.content FROM content_file_ref_deltas o WHERE o.repo_id = 'repo-1'",
 	}
 	for name, shape := range planted {
 		t.Run(name, func(t *testing.T) {
@@ -83,9 +88,10 @@ func TestRefDeltaGuardIgnoresOverlayWrites(t *testing.T) {
 	t.Parallel()
 
 	overlay := map[string]string{
-		"plain INSERT":            "INSERT INTO content_file_ref_deltas (repo_id) VALUES ('repo-1')",
-		"schema-qualified INSERT": "INSERT INTO public.content_file_ref_deltas (repo_id) VALUES ('repo-1')",
-		"UPDATE ONLY":             "UPDATE ONLY content_file_ref_deltas SET content = 'x'",
+		"plain INSERT":                    "INSERT INTO content_file_ref_deltas (repo_id) VALUES ('repo-1')",
+		"schema-qualified INSERT":         "INSERT INTO public.content_file_ref_deltas (repo_id) VALUES ('repo-1')",
+		"UPDATE ONLY":                     "UPDATE ONLY content_file_ref_deltas SET content = 'x'",
+		"overlay write reading canonical": "INSERT INTO content_file_ref_deltas (repo_id) SELECT repo_id FROM content_files",
 	}
 	for name, shape := range overlay {
 		t.Run(name, func(t *testing.T) {

@@ -38,8 +38,8 @@ func TestRefDeltaStoreUpsertWritesDivergedRow(t *testing.T) {
 	if !strings.Contains(exec.query, "INSERT INTO content_file_ref_deltas") {
 		t.Fatalf("query = %q, want content_file_ref_deltas insert", exec.query)
 	}
-	if strings.Contains(exec.query, "content_files") && !strings.Contains(exec.query, "content_file_ref_deltas") {
-		t.Fatalf("query = %q, must not target canonical content_files", exec.query)
+	if err := assertRefDeltaStatementsNeverWriteCanonical([]string{exec.query}); err != nil {
+		t.Fatalf("executed statement writes canonical content_files: %v", err)
 	}
 	wantArgs := []any{"repo-1", "feature-x", "main.go", "package main // diverged\n", "branch-hash", false}
 	if len(exec.args) != len(wantArgs)+1 {
