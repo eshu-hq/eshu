@@ -45,6 +45,7 @@ var wrongSamples = []wrongSample{
 	{assertion: failure.FenceCode, respond: fenceInternalError},
 	{assertion: failure.FenceRetryAfter, respond: fenceNoRetryAfter},
 	{assertion: failure.FixedMessage, respond: wrongBodyMessage},
+	{assertion: failure.PlainDetailBody, respond: envelopeBodyMessage},
 	{assertion: failure.OneHandlerSpan, respond: correct, sibling: true},
 	{assertion: failure.FaultSpanError, respond: faultNoErrorStatus},
 	{assertion: failure.FaultSpanDescription, respond: faultWrongDescription},
@@ -182,6 +183,22 @@ func wrongBodyMessage(w http.ResponseWriter, r *http.Request, err error) {
 	marked := httptest.NewRecorder()
 	tracing.WriteServerFailure(marked, r, err, http.StatusInternalServerError, probeMessage)
 	querycontract.WriteError(w, marked.Code, "something else")
+}
+
+// envelopeBodyMessage marks the span and picks the status exactly as the
+// helper does, then writes the fixed message in the error-envelope shape
+// instead of the plain {"detail": ...} body.
+func envelopeBodyMessage(w http.ResponseWriter, r *http.Request, err error) {
+	if querycontract.WriteGraphReadError(w, r, err, "probe") {
+		return
+	}
+	marked := httptest.NewRecorder()
+	tracing.WriteServerFailure(marked, r, err, http.StatusInternalServerError, probeMessage)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(marked.Code)
+	_ = json.NewEncoder(w).Encode(querycontract.ResponseEnvelope{
+		Error: &querycontract.ErrorEnvelope{Code: querycontract.ErrorCodeInternalError, Message: probeMessage},
+	})
 }
 
 // faultNoErrorStatus records the fault's exception but leaves the span status

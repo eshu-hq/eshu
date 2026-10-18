@@ -22,7 +22,9 @@ is passed here by pointer.
 - `Suite`, `Route`, `Mounter` — what a test declares: the routes, the request
   that reaches each failure site, the fixed message, the handler constructor,
   and the package handler tracer (`*trace.Tracer`, nil when the route opens no
-  span of its own).
+  span of its own). `Route.PlainDetail` additionally requires the fixed message
+  as a plain `{"detail": ...}` body (`PlainDetailBody`), for a family whose
+  contract is that shape; without it either body shape passes.
 - `Run(t, suite)` — drives every route through every case and reports each
   wrong answer as a test error named `route / case`. It opens no subtests:
   a `t.Run` call in this non-test file would count as an unregistered query
@@ -31,7 +33,7 @@ is passed here by pointer.
   joins every violation.
 - `Evaluate(suite, route, case)` — the violations as `[]Violation`, each
   naming the `Assertion` it broke. `Assertions()` lists every assertion
-  `Check` makes (17, one exported constant each).
+  `Check` makes (18, one exported constant each).
 - `Cases`, `Case`, `Kind` (`Fault`, `ClientCancel`, `InnerCancel`,
   `ReaderFence`) and `Canary` — the failure table.
 - `Serve` and `Message` — one request on a recording tracer, and the error
@@ -108,10 +110,20 @@ mutate `check.go` on disk for it, not with `-overlay`.
 
 ## Remainder
 
-`service`, `terraform/drift` and `workitem` now run through `Run` (#8172).
-Nine families still carry a custom harness this one does not yet cover (stage
-logs, a 504 fault status, write paths with no fence, sentinel 503s). #8172
-tracks moving them here.
+`service`, `terraform/drift` and `workitem` (#8172 slice 1) and `secrets`,
+`iac` and `package/registry` (#8172 slice 2) now run through `Run`, on top of
+the earlier retrofits. Six families still carry a custom harness this one
+does not yet cover (stage logs, a 504 fault status, write paths with no
+fence, sentinel 503s): `supply/chain`, `impact`, `entity`, `codequery`,
+`contentread` and `selector`. #8172 tracks moving them here.
+
+No-Regression Evidence (#8172 slice 2): test-only change. `Route.PlainDetail`
+adds one body-shape check to `Check`, off unless a route sets it. The three
+converted families change no production code, so their read paths, bounds, and
+costs are unchanged. Their `go test` packages run in under 2 s each.
+
+No-Observability-Change (#8172 slice 2): the new assertion reads the response
+body only. It emits no signal and adds no span, metric, or log.
 
 No-Regression Evidence: test-only package with no production importer
 (`internal/queryplan`'s production-import guard rejects one). The `MATCH (n)`
