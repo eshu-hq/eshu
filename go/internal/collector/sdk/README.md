@@ -38,6 +38,43 @@ See `doc.go` for the godoc package contract. The public surface includes:
   which a collector must stop retrying the same source and return the failure
   as fatal, so persistent misconfiguration crash-loops instead of idling.
 
+## Endpoint operation tokens (#8258)
+
+A failed claim records `failure_operation` per failed claim. The value comes
+from the error chain (`ProviderFailure.WithOperation`) or falls back to the
+claim stage (`collect_failure`, `commit_failure`, `identity_mismatch`). Each
+provider call site passes a bounded endpoint token so the row names the
+endpoint that failed instead of the stage fallback.
+
+Mechanics: `JSONRequest.Operation` carries the token for one call. `DoJSON`
+stamps it onto every `HTTPError` the call returns, including errors built by a
+custom `StatusError` hook that leave `Operation` empty (a hook-set token wins).
+`ClassifyProviderFailure` preserves the carried token onto the returned
+`ProviderFailure`; a cause with no token keeps a blank operation and claim
+handling falls back to its stage token.
+
+Token contract: every token is a short `[a-z0-9_]` identifier of at most 64
+characters (`WithOperation` sanitizes and truncates). Tokens name the endpoint
+shape, never a raw URL path, query string, request-specific ID, repository,
+organization, or credential. Dynamic paths (a Jira issue key, a PagerDuty
+incident ID, a Tempo tag name, a Loki label name) map to one fixed token for
+the shape.
+
+Vocabulary (owner: each provider client maps its endpoints; this list is the
+shared reference):
+
+- Jira: `search_issues`, `read_changelog`, `read_remote_links`,
+  `list_projects`, `list_issue_types`, `list_statuses`, `list_fields`,
+  `list_workflows`.
+- PagerDuty: `list_incidents`, `list_log_entries`, `list_change_events`,
+  `list_services`, `read_service`, `list_service_integrations`.
+- Prometheus/Mimir: `list_targets`, `list_rules`.
+- Tempo: `probe_echo`, `list_tags`, `list_tag_values`.
+- Grafana: `search_resources`, `list_datasources`, `list_alert_rules`.
+- Loki: `list_labels`, `list_label_values`, `list_series`, `list_rules`.
+- GitHub Dependabot: `list_repo_alerts` (per-repository endpoint),
+  `list_org_alerts` (organization-wide endpoint).
+
 ## Dependencies
 
 The package depends only on the Go standard library. It intentionally imports no

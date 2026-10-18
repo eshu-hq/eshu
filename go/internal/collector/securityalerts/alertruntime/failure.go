@@ -11,10 +11,16 @@ import (
 )
 
 // ProviderFailure is a bounded provider failure returned to claim handling.
+// operation names the bounded endpoint token for the call that failed (for
+// example "list_repo_alerts"); it is preserved from the inner cause and never
+// carries a repository, organization, URL, or credential. Empty means the
+// cause carried no token and claim handling falls back to its stage
+// operation.
 type ProviderFailure struct {
 	failureClass string
 	terminal     bool
 	rateLimit    securityalerts.GitHubRateLimitInfo
+	operation    string
 	cause        error
 }
 
@@ -44,6 +50,12 @@ func (f ProviderFailure) TerminalFailure() bool {
 	return f.terminal
 }
 
+// FailureOperation returns the bounded endpoint token preserved from the
+// inner cause, or "" when the cause carries none.
+func (f ProviderFailure) FailureOperation() string {
+	return f.operation
+}
+
 // RateLimit returns bounded provider retry metadata for tests and callers.
 func (f ProviderFailure) RateLimit() securityalerts.GitHubRateLimitInfo {
 	return f.rateLimit
@@ -57,6 +69,7 @@ func classifiedProviderFailure(err error) ProviderFailure {
 			failureClass: class,
 			terminal:     ghErr.TerminalFailure(),
 			rateLimit:    ghErr.RateLimit,
+			operation:    ghErr.FailureOperation(),
 			cause:        err,
 		}
 	}
@@ -69,6 +82,7 @@ func classifiedProviderFailure(err error) ProviderFailure {
 	return ProviderFailure{
 		failureClass: failure.FailureClass(),
 		terminal:     failure.TerminalFailure(),
+		operation:    failure.FailureOperation(),
 		cause:        failure,
 	}
 }
