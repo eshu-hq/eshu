@@ -101,10 +101,9 @@ WHERE r.uid IN $uids
 REMOVE r.environment, r.kind, r.data_type, r.resource_service, r.resource_category, r.service_kind`
 
 // TerraformStateResourceStaleContentPropRemoveParts builds one
-// standalone REMOVE per w.batchSize UIDs over the whole batch (not only
-// allowlisted types: stale content props predate the tf_attr_* scheme).
-// TerraformStateResourceStaleContentPropRemoveParts builds parts that clear
-// content properties left by legacy TerraformResource nodes.
+// standalone REMOVE per batchSize UIDs over the whole batch (not only
+// allowlisted types: stale content props predate the tf_attr_* scheme),
+// clearing content properties left by legacy TerraformResource nodes.
 func TerraformStateResourceStaleContentPropRemoveParts(mat canonical.CanonicalMaterialization, batchSize int) []Part {
 	if len(mat.TerraformStateResources) == 0 {
 		return nil
@@ -137,7 +136,7 @@ func TerraformStateResourceStaleContentPropRemoveParts(mat canonical.CanonicalMa
 }
 
 // TerraformStateResourceMigrationParts batches the migration relabel by
-// w.batchSize UIDs, mirroring terraformStateResourceAttributeRemoveStatements's
+// batchSize UIDs, mirroring TerraformStateResourceAttributeRemoveParts's
 // batching. Skipped on the scope's first generation (mat.FirstGeneration):
 // nothing was ever written for this scope before, so no legacy node can
 // exist to migrate.

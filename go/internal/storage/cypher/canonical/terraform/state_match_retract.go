@@ -146,7 +146,7 @@ DELETE e`
 // eligible here but never MERGE-eligible there, which is exactly "the edge
 // disappears and nothing replaces it," the correct result for both.
 //
-// Batched by w.batchSize uids per statement, mirroring
+// Batched by batchSize uids per statement, mirroring
 // TerraformStateResourceMigrationParts' own uid-batching (same file
 // family, tfstate_canonical_writer_retract.go) rather than inventing a new
 // batching shape.

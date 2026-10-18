@@ -87,7 +87,7 @@ func TestBuildCanonicalMaterializationExtractsTerraformStateRows(t *testing.T) {
 // terraform_state_resource fact payload; this test proves it survives the
 // projector's typed decode onto TerraformStateResourceRow.Attributes
 // unmodified, so the cypher package's promotion allowlist
-// (promoteTerraformResourceAttributes) has a raw producer input to read.
+// (promoteResourceAttributes) has a raw producer input to read.
 func TestBuildCanonicalMaterializationCarriesTerraformStateResourceAttributes(t *testing.T) {
 	t.Parallel()
 

@@ -130,7 +130,7 @@ SET r.address = $address,
 	// batch -- the destroyed resource's absence is exactly what should
 	// trigger terraformStateResourceRetractStatements' generation-gated
 	// DETACH DELETE. ResourceType is deliberately NOT in
-	// terraformAttributePromotionAllowlist so the writer skips the
+	// attributePromotionAllowlist so the writer skips the
 	// attribute-remove phase, isolating this test to the resource-sweep
 	// retract statement under test.
 	mat := canonical.CanonicalMaterialization{

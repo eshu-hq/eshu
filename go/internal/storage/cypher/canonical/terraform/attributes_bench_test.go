@@ -16,7 +16,7 @@ import "testing"
 // O(len(allowlist[resourceType])) attribute-path walks after one O(1) map
 // lookup, so adding entries to OTHER resource types can never affect
 // aws_instance's own cost, and growing one entry's own attribute count by a
-// few paths is bounded by a few more AttributePathValue calls, not
+// few paths is bounded by a few more attributePathValue calls, not
 // a new order of growth.
 func BenchmarkPromoteTerraformResourceAttributes(b *testing.B) {
 	cases := []struct {

@@ -77,7 +77,7 @@ func workloadScopePredicate(alias string, access querycontract.RepositoryAccessF
 //     is. It anchors to a repository only through the MATCHES_STATE edge a
 //     config-declared TerraformResource writes to it once backend ownership
 //     resolves and the state/config address match is unambiguous (#5443,
-//     canonicalTerraformStateMatchesConfigEdgeCypher). The inline-map disjunction
+//     TerraformStateMatchesConfigEdgeCypher). The inline-map disjunction
 //     admits it when the matching TerraformResource's own `repo_id` is granted --
 //     `(alias)<-[:MATCHES_STATE]-(:TerraformResource {repo_id:$g})`. Deliberately
 //     NOT the node's own `config_repo_id` property: that property is set from

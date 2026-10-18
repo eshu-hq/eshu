@@ -48,7 +48,7 @@ import (
 //
 // The fix is the two-statement design below: this upsert template stays
 // exactly as it was (no REMOVE, no per-type variants), and
-// terraformStateResourceAttributeRemoveStatements runs a genuinely separate
+// TerraformStateResourceAttributeRemoveParts runs a genuinely separate
 // REMOVE-only statement first.
 //
 // #5446 adds three more FIXED keys to this same SET clause --
@@ -207,7 +207,7 @@ SET o.id = row.uid,
 //     any pre-#5443 TerraformResource node whose uid reappears in this
 //     batch to TerraformStateResource. Must run before every other phase so
 //     the phases below only ever see the current label.
-//  2. REMOVE-before-upsert (terraformStateResourceAttributeRemoveStatements,
+//  2. REMOVE-before-upsert (TerraformStateResourceAttributeRemoveParts,
 //     #5441 review round 9, P0, plus
 //     TerraformStateResourceStaleContentPropRemoveParts, #6843):
 //     ordering here is load-bearing, not cosmetic. The attribute REMOVE
@@ -308,7 +308,7 @@ func BuildTerraformStateStatements(mat canonical.CanonicalMaterialization, searc
 	return statements
 }
 
-// terraformStateResourceAttributeRemoveStatements builds one standalone
+// TerraformStateResourceAttributeRemoveParts builds one standalone
 // REMOVE-only statement per allowlisted-resource-type batch of UIDs (#5441
 // review round 9, P0). See ResourceAttributeRemoveCypherByType
 // for why this must be a separate statement, never fused with the upsert.
