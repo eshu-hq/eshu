@@ -301,7 +301,11 @@ the point of no return; facts are. Rollback after step 8 additionally reverts
 the golden regeneration.
 
 Step 1 is its own PR; 2–9 are one PR with one operator runbook and one stated
-time bound.
+time bound. **Superseded in this diff by the single-PR ruling on #5385
+(2026-10-18): step-1 code and the step 6 constructor flip ship in one PR as
+two commit groups (step-1 commits, then the flip commit carrying the
+retirement cascade), with operational steps 2–5 and 7–9 run on the old binary
+per the in-repo runbook before the new binary rolls.**
 
 ## 4. Writers to re-enqueue, and the per-family count assertion
 

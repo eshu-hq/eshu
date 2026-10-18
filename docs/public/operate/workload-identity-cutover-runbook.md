@@ -4,8 +4,10 @@ One-shot, drained cutover from name-only Workload/WorkloadInstance keys
 (`workload:<name>`) to repository-scoped keys (`workload:<repo_id>:<name>`).
 Design authority: `docs/internal/design/5385-workload-identity-migration.md`
 §3 (ordered cutover), §4 (writer set), §7 (consumers), §8 (telemetry), §9
-(probes). Step 1 (code) already merged; this runbook covers steps 2–9 and
-rollback in a single operator session with a stated time bound.
+(probes). Step-1 code ships in the same release PR as the step 6 flip (two
+commit groups per the single-PR ruling on #5385); this runbook covers
+operational steps 2–9 and rollback in a single operator session with a
+stated time bound.
 
 ## Preconditions (all verified before step 2)
 
@@ -13,9 +15,12 @@ rollback in a single operator session with a stated time bound.
   included) staged on every reducer lane, **not yet rolled**. HARD NO-ROLL
   GATE: no lane runs the new binary until step 6; a lane found on the new
   binary before step 6 aborts the run (coexistence window, migration §3).
-- [ ] P3 (stale-`USES` hazard) closed as a hard pre-cutover gate — either
-  proven on Neo4j or recorded open with owner sign-off. Do not start step 2
-  with P3 undecided.
+- [ ] Stale-`USES` hazard gate closed as a hard pre-cutover gate — either
+  proven on Neo4j or recorded open with owner sign-off. (This is the
+  compatibility-doc stale-`USES` hazard, not the migration §6 rebuild
+  wall-time probe that shares the P3 name — the wall-time probe is measured
+  at cutover under the stated time bound (steps 5 and 7), not a pre-cutover
+  gate.) Do not start step 2 with the hazard undecided.
 - [ ] In-PR evidence on the release PR: T1 (scoped-token
   `same_name_siblings = 0`), T2 (recomputed route counts), T3 (per-consumer
   full/unique/spanning tables), T4, T5 (handle ladder tables), P4 (plan
