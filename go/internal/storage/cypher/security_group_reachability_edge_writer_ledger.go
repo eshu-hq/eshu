@@ -13,16 +13,32 @@ import (
 // CloudResource uids via a `WHERE sg.uid IN $source_uids` predicate instead of
 // scanning the whole :CloudResource label, mirroring
 // retractCloudResourceEdgesByUIDsCypher (issue #4858, #4881). The
-// `sg:CloudResource` label on the MATCH restricts this statement to the
-// SG->rule edge family even though it shares the $source_uids parameter with
-// retractSecurityGroupToEdgesByUIDsCypher: a rule uid in the same batch simply
-// matches no :CloudResource node and contributes no deletes from this
-// statement.
-const retractSecurityGroupSGRuleEdgesByUIDsCypher = `MATCH (sg:CloudResource)-[rel]->(:SecurityGroupRule)
+// relationship alternation names both members of
+// securityGroupAllowsRelTypeVocabulary, exactly like the full-scope
+// counterpart (#6228 split verdict, kind C): a bare [rel] scoped only by
+// evidence_source would reap any foreign edge type sharing the endpoints, so
+// both variants name exactly the types the writer can emit and the registry
+// drift guard pins both. The `sg:CloudResource` label on the MATCH restricts
+// this statement to the SG->rule edge family even though it shares the
+// $source_uids parameter with retractSecurityGroupToEdgesByUIDsCypher: a rule
+// uid in the same batch simply matches no :CloudResource node and contributes
+// no deletes from this statement.
+const retractSecurityGroupSGRuleEdgesByUIDsCypher = `MATCH (sg:CloudResource)-[rel:ALLOWS_INGRESS|ALLOWS_EGRESS]->(:SecurityGroupRule)
 WHERE sg.uid IN $source_uids
   AND rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
+
+// Registry-contract holder for the #6228 materialized-edge retract registry
+// (docs/internal/design/6228-materialized-edge-retract-registry-contract.md).
+// The registry in go/internal/storage/cypher/edge/materialized must hold the
+// production const itself, never a copy of its text. It lives beside the
+// const, following the observability writer precedent; the full-scope SG->rule
+// holder lives beside its const in security_group_reachability_edge_writer.go.
+const (
+	// RetractSecurityGroupSGRuleEdgesByUIDsCypher is the ledger-anchored SG -> rule retract.
+	RetractSecurityGroupSGRuleEdgesByUIDsCypher = retractSecurityGroupSGRuleEdgesByUIDsCypher
+)
 
 // retractSecurityGroupToEdgesByUIDsCypher is the ledger-anchored counterpart of
 // retractSecurityGroupToEdgesCypher: it enumerates source SecurityGroupRule

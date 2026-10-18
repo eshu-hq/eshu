@@ -199,8 +199,12 @@ func TestSecurityGroupReachabilityRetractScopesByEvidenceAndScope(t *testing.T) 
 		t.Fatalf("retract must filter on edge scope_id + evidence_source:\n%s", joined)
 	}
 	// Both edge families (SG->rule and rule->endpoint) must be retracted.
-	if !strings.Contains(joined, "(:SecurityGroup") && !strings.Contains(joined, "(sg:CloudResource)-[rel]->(rule:SecurityGroupRule)") {
-		t.Fatalf("retract must remove SG->rule edges:\n%s", joined)
+	// The SG->rule statement must BE the held production const, not a copied
+	// literal: the pre-contract copy asserted a bare [rel] shape the
+	// production retract no longer has, so it failed closed on the named
+	// alternation instead of pinning it.
+	if !strings.Contains(joined, sourcecypher.RetractSecurityGroupSGRuleEdgesCypher) {
+		t.Fatalf("retract must remove SG->rule edges with the held production retract:\n%s", joined)
 	}
 	if !strings.Contains(joined, "(rule:SecurityGroupRule)-[rel:TO]->") {
 		t.Fatalf("retract must remove rule->endpoint TO edges:\n%s", joined)

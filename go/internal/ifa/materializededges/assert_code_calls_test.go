@@ -120,6 +120,55 @@ func TestEverySingleTypeFamilyResolvesThroughTheResolver(t *testing.T) {
 	}
 }
 
+// TestEveryMultiTypeDirectFamilyResolvesThroughTheResolver proves the
+// multi-type direct table is reachable through the function the live gate
+// actually calls, and that the resolved set equals the table's declared set.
+// An explicit arm that resolves to a different set than the drift guard pins
+// would let the gate assert one population while the registry proves another.
+func TestEveryMultiTypeDirectFamilyResolvesThroughTheResolver(t *testing.T) {
+	t.Parallel()
+
+	families := materialized.MultiTypeDirectMaterializedEdgeFamilyNames()
+	if len(families) == 0 {
+		t.Fatal("no multi-type direct families registered; this test would pass vacuously")
+	}
+	for _, family := range families {
+		t.Run(family, func(t *testing.T) {
+			t.Parallel()
+			got, err := MaterializedEdgeDomainEdgeTypes(family)
+			if err != nil {
+				t.Fatalf("family %q does not resolve through the resolver the live gate calls: %v", family, err)
+			}
+			if len(got) == 0 {
+				t.Fatalf("family %q resolved to an empty type set; the live gate would assert nothing and pass any graph", family)
+			}
+			reg, ok := materialized.MultiTypeDirectMaterializedEdgeTypes(family)
+			if !ok {
+				t.Fatalf("family %q vanished between listing and lookup", family)
+			}
+			var missingFromResolver, missingFromTable []string
+			for edgeType := range reg {
+				if _, ok := got[edgeType]; !ok {
+					missingFromResolver = append(missingFromResolver, edgeType)
+				}
+			}
+			for edgeType := range got {
+				if _, ok := reg[edgeType]; !ok {
+					missingFromTable = append(missingFromTable, edgeType)
+				}
+			}
+			sort.Strings(missingFromResolver)
+			sort.Strings(missingFromTable)
+			if len(missingFromResolver) > 0 {
+				t.Errorf("table declares %v but the resolver omits them", missingFromResolver)
+			}
+			if len(missingFromTable) > 0 {
+				t.Errorf("resolver asserts %v but the table omits them", missingFromTable)
+			}
+		})
+	}
+}
+
 // TestUnregisteredFamilyStillFailsClosed keeps the default arm honest.
 //
 // Registering families one at a time is only safe while an unregistered one

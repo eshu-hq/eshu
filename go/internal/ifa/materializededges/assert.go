@@ -253,6 +253,18 @@ func edgeTypeSet(registry map[string]string) map[string]struct{} {
 	return out
 }
 
+// slotToTypeSet projects a slot-keyed writer map (slot -> relationship type,
+// as IncidentRoutingEvidenceRelationshipTypes returns) onto a type->reason map
+// edgeTypeSet can consume, keeping the slot as the reason so a maintainer can
+// still see which slot writes each asserted type.
+func slotToTypeSet(slotTypes map[string]string) map[string]string {
+	out := make(map[string]string, len(slotTypes))
+	for slot, edgeType := range slotTypes {
+		out[edgeType] = slot
+	}
+	return out
+}
+
 // MaterializedEdgeDomainEdgeTypes returns the set of graph relationship types
 // the given materialized-edge family's writer registry accepts, so a live
 // `assert-edges` check knows which of a graph's edges belong to the family it
@@ -262,11 +274,15 @@ func edgeTypeSet(registry map[string]string) map[string]struct{} {
 // Every set is registry-derived (#5330 pattern), never hand-listed here, so an
 // edge type added to a writer registry is asserted without a second edit. The
 // multi-type families resolve through explicit arms because their sets span
-// several templates and files: sql_relationships, code_calls (CALLS,
-// REFERENCES, USES_METACLASS, INSTANTIATES), inheritance_edges (INHERITS,
-// OVERRIDES, ALIASES, IMPLEMENTS) and repo_dependency (six repo-to-repo types
-// plus RUNS_ON). The remaining families each materialize a single type and
-// resolve from cypher's shared table.
+// several templates and files, or live in the multi-type direct table whose
+// default single-type lookup must not silently absorb them: sql_relationships,
+// code_calls (CALLS, REFERENCES, USES_METACLASS, INSTANTIATES),
+// inheritance_edges (INHERITS, OVERRIDES, ALIASES, IMPLEMENTS), repo_dependency
+// (six repo-to-repo types plus RUNS_ON), and the three multi-type direct
+// families incident_routing_evidence, observability_coverage, and
+// security_group_sg_rule (#6228 retract-registry contract). The remaining
+// families each materialize a single type and resolve from cypher's shared
+// table.
 //
 // An unknown family returns an error rather than an empty set, so the caller
 // fails closed: an empty type set would assert nothing and let any graph pass
@@ -282,6 +298,12 @@ func MaterializedEdgeDomainEdgeTypes(domain string) (map[string]struct{}, error)
 		return edgeTypeSet(inheritance.MaterializedEdgeTypes()), nil
 	case "repo_dependency":
 		return edgeTypeSet(materialized.RepoDependencyMaterializedEdgeTypes()), nil
+	case "incident_routing_evidence":
+		return edgeTypeSet(slotToTypeSet(cypher.IncidentRoutingEvidenceRelationshipTypes())), nil
+	case "observability_coverage":
+		return edgeTypeSet(cypher.ObservabilityCoverageRelationshipTypes()), nil
+	case "security_group_sg_rule":
+		return edgeTypeSet(cypher.SecurityGroupSGRuleRelationshipTypes()), nil
 	default:
 		// The single-relationship-type families resolve from the shared registry
 		// table. They are looked up rather than switched on so registering one is

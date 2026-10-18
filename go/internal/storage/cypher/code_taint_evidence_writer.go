@@ -82,6 +82,26 @@ DETACH DELETE n`
 
 const codeTaintEvidenceRetractUIDBatchSize = 500
 
+// Registry-contract holders for the #6228 materialized-edge retract registry
+// (docs/internal/design/6228-materialized-edge-retract-registry-contract.md).
+// The registry in go/internal/storage/cypher/edge/materialized must hold the
+// production consts themselves, never a copy of their text, so these aliases
+// export every production write and retract variant this writer owns. Adding a
+// variant here without registering it there must turn the registry drift guard
+// red, not silently narrow what the family reaps.
+const (
+	// CodeTaintEvidenceUpsertCypher is the production write template.
+	CodeTaintEvidenceUpsertCypher = codeTaintEvidenceUpsertCypher
+	// RetractCodeTaintEvidenceCypher is the production full-scope retract.
+	RetractCodeTaintEvidenceCypher = retractCodeTaintEvidenceCypher
+	// RetractStaleCodeTaintEvidenceCypher is the production stale-generation retract.
+	RetractStaleCodeTaintEvidenceCypher = retractStaleCodeTaintEvidenceCypher
+	// RetractCodeTaintEvidenceByUIDsCypher is the ledger-anchored full-scope retract.
+	RetractCodeTaintEvidenceByUIDsCypher = retractCodeTaintEvidenceByUIDsCypher
+	// RetractStaleCodeTaintEvidenceByUIDsCypher is the ledger-anchored stale-generation retract.
+	RetractStaleCodeTaintEvidenceByUIDsCypher = retractStaleCodeTaintEvidenceByUIDsCypher
+)
+
 // CodeTaintEvidenceWriter materializes reducer-owned value-flow taint evidence
 // into graph nodes and Function relationships.
 type CodeTaintEvidenceWriter struct {

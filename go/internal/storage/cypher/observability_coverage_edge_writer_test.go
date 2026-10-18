@@ -5,6 +5,7 @@ package cypher
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -278,8 +279,20 @@ func TestObservabilityCoverageEdgeWriterRetractScopesByEvidenceSource(t *testing
 		t.Fatalf("len(calls) = %d, want 1 retract statement", len(executor.calls))
 	}
 	cypher := executor.calls[0].Cypher
-	if !strings.Contains(cypher, "MATCH (obs:CloudResource)-[rel]->(:CloudResource)") {
-		t.Fatalf("retract must target all reducer-owned CloudResource relationships for the scope:\n%s", cypher)
+	// #6228 split verdict (kind C): the retract names the closed five-type
+	// alternation, never a bare [rel] that would reap a foreign edge type
+	// sharing the endpoints and evidence_source. The expected alternation is
+	// derived from ObservabilityCoverageRelationshipTypes, not copied, so a
+	// signal added to the vocabulary without updating the retract turns this
+	// red.
+	coverageTypes := make([]string, 0, len(ObservabilityCoverageRelationshipTypes()))
+	for relType := range ObservabilityCoverageRelationshipTypes() {
+		coverageTypes = append(coverageTypes, relType)
+	}
+	sort.Strings(coverageTypes)
+	wantMatch := "MATCH (obs:CloudResource)-[rel:" + strings.Join(coverageTypes, "|") + "]->(:CloudResource)"
+	if !strings.Contains(cypher, wantMatch) {
+		t.Fatalf("retract must name the closed AWS_COVERS alternation for the scope, want %q:\n%s", wantMatch, cypher)
 	}
 	// The retract MUST filter on the edge's own scope_id, not the endpoint
 	// node's. CloudResource nodes are cross-scope canonical and carry no
@@ -350,8 +363,16 @@ func TestObservabilityCoverageEdgeWriterRetractByUIDsAnchoredDelete(t *testing.T
 		t.Fatalf("len(calls) = %d, want 1", len(executor.calls))
 	}
 	cypher := executor.calls[0].Cypher
+	// Same kind-C alternation as the full-scope retract, derived from the
+	// writer's relationship types rather than copied: both variants must name
+	// the same closed set.
+	coverageTypes := make([]string, 0, len(ObservabilityCoverageRelationshipTypes()))
+	for relType := range ObservabilityCoverageRelationshipTypes() {
+		coverageTypes = append(coverageTypes, relType)
+	}
+	sort.Strings(coverageTypes)
 	for _, want := range []string{
-		"MATCH (obs:CloudResource)-[rel]->()",
+		"MATCH (obs:CloudResource)-[rel:" + strings.Join(coverageTypes, "|") + "]->()",
 		"WHERE obs.uid IN $source_uids",
 		"rel.scope_id IN $scope_ids",
 		"rel.evidence_source = $evidence_source",

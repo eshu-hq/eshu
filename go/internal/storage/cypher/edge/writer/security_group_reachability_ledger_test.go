@@ -40,7 +40,7 @@ func TestSecurityGroupReachabilityRetractByUIDsAnchoredDelete(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		"MATCH (sg:CloudResource)-[rel]->(:SecurityGroupRule)",
+		"MATCH (sg:CloudResource)-[rel:ALLOWS_INGRESS|ALLOWS_EGRESS]->(:SecurityGroupRule)",
 		"WHERE sg.uid IN $source_uids",
 		"MATCH (rule:SecurityGroupRule)-[rel:TO]->()",
 		"WHERE rule.uid IN $source_uids",
@@ -51,6 +51,20 @@ func TestSecurityGroupReachabilityRetractByUIDsAnchoredDelete(t *testing.T) {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("retract by uids cypher missing %q:\n%s", want, joined)
 		}
+	}
+	// The SG->rule statement must BE the held production const, not a copied
+	// literal: a copy pins this test against itself and keeps passing after
+	// the retract changes underneath it — the bare-[rel] ByUIDs shape (F1)
+	// survived exactly that way while the registry guard held only the
+	// full-scope variant.
+	held := false
+	for _, call := range executor.calls {
+		if call.Cypher == sourcecypher.RetractSecurityGroupSGRuleEdgesByUIDsCypher {
+			held = true
+		}
+	}
+	if !held {
+		t.Fatalf("no emitted statement equals the held RetractSecurityGroupSGRuleEdgesByUIDsCypher const:\n%s", joined)
 	}
 	if strings.Contains(joined, "UNWIND $source_uids") || strings.Contains(joined, "{uid: suid}") {
 		t.Fatalf("retract by uids cypher must not use the slow UNWIND + property-map MATCH shape:\n%s", joined)

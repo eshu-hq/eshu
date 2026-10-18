@@ -4,10 +4,16 @@
 // Package materialized owns the materialized-edge family registries that the
 // Ifá exhaustiveness gates read: single-type families (codeowners,
 // submodule-pin, invokes-cloud-action, handles-route, runs-in, shell-exec,
-// deployable-unit, documentation, code-call, inheritance) expose their edge
-// types, endpoint labels, and identity properties, and the repo-dependency
-// multi-type family exposes its DEPENDS_ON alternation plus the split
-// retract builder the live retract path executes.
+// deployable-unit, documentation, code-call, inheritance, plus the nine
+// DIRECT-materialization families and the node-scoped code_taint_evidence
+// family) expose their edge types, endpoint labels, and identity properties;
+// the repo-dependency multi-type family exposes its DEPENDS_ON alternation
+// plus the split retract builder the live retract path executes; and the
+// multi-type DIRECT families (incident_routing_evidence,
+// observability_coverage, security_group_sg_rule in direct_families.go) expose
+// their closed vocabularies with a RetractKind (relAlternation or
+// evidenceNodeDetach) plus every production retract variant the drift guard
+// pins (RetractCypher plus RetractVariants).
 //
 // The registries are data, not writers: every Cypher template they cite is
 // owned by the edge/writer sibling or the canonical writers in the cypher
