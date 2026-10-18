@@ -31,14 +31,14 @@ import (
 // as ten near-identical accessors. The multi-type DIRECT families
 // (incident_routing_evidence, observability_coverage, security_group_sg_rule)
 // are the deliberate exception: each owns one closed vocabulary and a fully
-// held retract-variant set (full-scope plus ledger-anchored ByUIDs shapes,
-// which for security_group_sg_rule span two writer files), so their reasoning
-// fits one row each in the separate multi-type table beside the single-type
-// one (direct_families.go). Every entry in that multi-type table is a contract
-// family whose retract is held and exactly-scoped — an edge-scoped alternation
-// or, for kind-A evidenceNodeDetach entries, a node-detach on a sole-creator
-// label — which is what lets the drift guard pin predicate shape on the
-// multi-type table
+// held retract-variant set (full-scope shapes plus ledger-anchored ByUIDs
+// shapes where the writer has them — which for security_group_sg_rule span
+// two writer files), so their reasoning fits one row each in the separate
+// multi-type table beside the single-type one (direct_families.go). Every
+// entry in that multi-type table is a contract family whose retract is held
+// and exactly-scoped — an edge-scoped alternation or, for kind-A
+// evidenceNodeDetach entries, a node-detach on a sole-creator label — which
+// is what lets the drift guard pin predicate shape on the multi-type table
 // while this single-type table keeps its pre-contract shapes — except the
 // node-scoped code_taint_evidence entry, whose evidenceNodeDetach check pins
 // its own evidence_source plus scope predicates per variant.
