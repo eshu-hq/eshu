@@ -25,6 +25,16 @@ is passed here by pointer.
   span of its own). `Route.PlainDetail` additionally requires the fixed message
   as a plain `{"detail": ...}` body (`PlainDetailBody`), for a family whose
   contract is that shape; without it either body shape passes.
+  `Route.FaultStatus` names the status a fault answers when it is not 500
+  (`CustomFaultStatus`), for an operational 503 such as a code-evidence read
+  or a configuration-state sentinel. `Route.NoFence` marks a write path with
+  no reader fence, so its stale-reader case is checked as a fault.
+  `Route.CancelMessage` names the message a client cancel answers when it is
+  not the route's message, for a multi-step route whose cancel surfaces at an
+  earlier step. `Route.Stage`
+  additionally checks the step's stage-log verdict (`StageLogVerdict`): one
+  `stage_failed` line for a fault, one `stage_canceled` line for a client
+  cancel, none for a mapped fence verdict.
 - `Run(t, suite)` — drives every route through every case and reports each
   wrong answer as a test error named `route / case`. It opens no subtests:
   a `t.Run` call in this non-test file would count as an unregistered query
@@ -33,7 +43,7 @@ is passed here by pointer.
   joins every violation.
 - `Evaluate(suite, route, case)` — the violations as `[]Violation`, each
   naming the `Assertion` it broke. `Assertions()` lists every assertion
-  `Check` makes (18, one exported constant each).
+  `Check` makes (20, one exported constant each).
 - `Cases`, `Case`, `Kind` (`Fault`, `ClientCancel`, `InnerCancel`,
   `ReaderFence`) and `Canary` — the failure table.
 - `Serve` and `Message` — one request on a recording tracer, and the error
@@ -64,6 +74,17 @@ so a route wrong in two ways reports both. For every case the body carries no
 | `ClientCancel` | 499 | fixed message | Unset, 0 exceptions, 1 cancel event with no attributes |
 | `InnerCancel` | 500 | fixed message | same as `Fault` |
 | `ReaderFence` | 503 | `backend_unavailable` envelope + `Retry-After` | not checked |
+
+With `Route.FaultStatus` set, a `Fault` and an `InnerCancel` answer that
+status instead of 500 (`CustomFaultStatus`); the span and body checks are
+unchanged. With `Route.NoFence`, the `ReaderFence` case is checked as a
+`Fault`. With `Route.Stage`, the case's stage-log records must carry the
+step verdict (`StageLogVerdict`): a fault logs one `stage_failed` record at
+ERROR with the stage's operation, stage, and `error_cause` (`canceled` for an
+inner cancel, `unknown` otherwise); a client cancel logs one `stage_canceled`
+record at INFO with the operation, stage, a `repo_id`, and a numeric
+`duration_seconds` and no error attributes; a mapped fence verdict logs
+neither.
 
 With a `HandlerTracer`, exactly one span must open directly under the test's
 `request` span (`OneHandlerSpan`), and that is the span checked; without one
@@ -111,12 +132,11 @@ mutate `check.go` on disk for it, not with `-overlay`.
 ## Remainder
 
 `service`, `terraform/drift` and `workitem` (#8172 slice 1), `secrets`,
-`iac` and `package/registry` (#8172 slice 2), and `codequery` and
-`contentread` (#8172 slice 4) now run through `Run`, on top of the earlier
-retrofits. Four families still carry a custom harness this one does not yet
-cover (stage logs, a 504 fault status, write paths with no fence, sentinel
-503s, typed selector 404/400 answers): `supply/chain`, `impact`, `entity`
-and `selector`. #8172 tracks moving them here. `codequery` keeps its
+`iac` and `package/registry` (#8172 slice 2), `supply/chain`, `impact`
+and `entity` (#8172 slice 3), and `codequery` and `contentread`
+(#8172 slice 4) now run through `Run`, on top of the earlier retrofits. One
+family still carries a custom harness this one does not yet cover:
+`selector`. #8172 tracks moving it here. `codequery` keeps its
 sentinel-503 test on the local serve/assert helpers, and `selector` keeps its
 typed-answer test: `Run` asserts one fixed message with 500/499/503
 statuses, which cannot express per-class 404/400 answers.

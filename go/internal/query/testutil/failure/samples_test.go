@@ -9,6 +9,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"testing"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -26,6 +28,11 @@ type wrongSample struct {
 	respond   answer
 	// sibling opens a second span directly under the request span.
 	sibling bool
+	// faultStatus sets Route.FaultStatus for options whose expectation only
+	// exists with the option on.
+	faultStatus int
+	// stage sets Route.Stage for the stage-log option.
+	stage *failure.StageLog
 }
 
 // wrongSamples holds one sample per assertion Check makes.
@@ -55,6 +62,14 @@ var wrongSamples = []wrongSample{
 	{assertion: failure.CancelNoException, respond: cancelRecordsException},
 	{assertion: failure.CancelOneEvent, respond: cancelTwoEvents},
 	{assertion: failure.CancelEventNoAttributes, respond: cancelEventWithAttribute},
+	{assertion: failure.CustomFaultStatus, respond: customFaultAs500, faultStatus: http.StatusServiceUnavailable},
+	{
+		assertion: failure.StageLogVerdict, respond: correct,
+		stage: &failure.StageLog{
+			Operation: "probe", Stage: "probe_stage",
+			Logs: func() ([]map[string]any, []map[string]any) { return nil, nil },
+		},
+	},
 }
 
 // fault reports whether err is a server fault the route must answer 500:
@@ -98,6 +113,24 @@ func leakOnly(token string) answer {
 func faultAs504(w http.ResponseWriter, r *http.Request, err error) {
 	if fault(r, err) && !errors.Is(err, context.Canceled) {
 		tracing.WriteServerFailure(w, r, err, http.StatusGatewayTimeout, probeMessage)
+		return
+	}
+	correct(w, r, err)
+}
+
+// customFaultAs500 answers a plain server fault 500 on a route whose fault
+// status is 503; a cancel-wrapped error on a live request still answers the
+// route's 503 with the span marked as a fault.
+func customFaultAs500(w http.ResponseWriter, r *http.Request, err error) {
+	if fault(r, err) && !errors.Is(err, context.Canceled) {
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, probeMessage)
+		return
+	}
+	if fault(r, err) {
+		span := trace.SpanFromContext(r.Context())
+		span.RecordError(err)
+		span.SetStatus(codes.Error, probeMessage)
+		querycontract.WriteError(w, http.StatusServiceUnavailable, probeMessage)
 		return
 	}
 	correct(w, r, err)
@@ -278,4 +311,80 @@ func cancelEventWithAttribute(w http.ResponseWriter, r *http.Request, err error)
 		return
 	}
 	correct(w, r, err)
+}
+
+// noFenceCorrect answers every failure, including a stale reader, as an
+// ordinary server fault: a write path maps no reader fence.
+func noFenceCorrect(w http.ResponseWriter, r *http.Request, err error) {
+	tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, probeMessage)
+}
+
+// cancelStepMessage is the earlier step's message a multi-step route's
+// cancel surfaces with.
+const cancelStepMessage = "earlier step failed"
+
+// cancelAnswersCancelMessage answers a client cancel 499 with the route's
+// cancel message and marks the span exactly as the helper does.
+func cancelAnswersCancelMessage(w http.ResponseWriter, r *http.Request, err error) {
+	if tracing.ClientCanceled(r.Context(), err) {
+		trace.SpanFromContext(r.Context()).AddEvent(tracing.ClientCanceledEvent)
+		querycontract.WriteError(w, querycontract.StatusClientClosedRequest, cancelStepMessage)
+		return
+	}
+	correct(w, r, err)
+}
+
+// TestCancelMessagePinsClientCancelBody proves the CancelMessage option
+// still rejects a wrong answer: a cancel answered with the route's message
+// instead of its cancel message fails, while the cancel message passes every
+// case. Not parallel: it swaps probeTracer.
+func TestCancelMessagePinsClientCancelBody(t *testing.T) {
+	build := func(respond answer) failure.Suite {
+		suite := probeSuite(true, false, respond)
+		suite.Routes[0].PlainDetail = true
+		suite.Routes[0].CancelMessage = cancelStepMessage
+		return suite
+	}
+	if got := violations(t, build(cancelAnswersCancelMessage)); len(got) != 0 {
+		t.Fatalf("route answering its cancel message violated %v, want nothing", got)
+	}
+	route := build(correct).Routes[0]
+	var cancel failure.Case
+	for _, tc := range failure.Cases() {
+		if tc.Kind == failure.ClientCancel {
+			cancel = tc
+		}
+	}
+	if err := failure.Check(build(correct), route, cancel); err == nil {
+		t.Fatal("route answering a cancel with its fault message passed, want rejection")
+	} else if !strings.Contains(err.Error(), string(failure.FixedMessage)) {
+		t.Fatalf("rejection = %q, want it to name %q", err, failure.FixedMessage)
+	}
+}
+
+// TestNoFenceAnswersStaleReaderAsFault proves the NoFence option still
+// rejects a wrong answer: a write path that answers its stale-reader case
+// with the mapped fence verdict fails, while answering it as a fault passes
+// every case. Not parallel: it swaps probeTracer.
+func TestNoFenceAnswersStaleReaderAsFault(t *testing.T) {
+	asFault := probeSuite(true, false, noFenceCorrect)
+	asFault.Routes[0].PlainDetail = true
+	asFault.Routes[0].NoFence = true
+	if got := violations(t, asFault); len(got) != 0 {
+		t.Fatalf("NoFence route answering the fence case as a fault violated %v, want nothing", got)
+	}
+	asFence := probeSuite(true, false, correct)
+	asFence.Routes[0].PlainDetail = true
+	asFence.Routes[0].NoFence = true
+	var fence failure.Case
+	for _, tc := range failure.Cases() {
+		if tc.Kind == failure.ReaderFence {
+			fence = tc
+		}
+	}
+	if err := failure.Check(asFence, asFence.Routes[0], fence); err == nil {
+		t.Fatal("NoFence route answering the fence case with the mapped verdict passed, want rejection")
+	} else if !strings.Contains(err.Error(), string(failure.FaultStatus)) {
+		t.Fatalf("rejection = %q, want it to name %q", err, failure.FaultStatus)
+	}
 }

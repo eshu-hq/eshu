@@ -151,34 +151,34 @@ func TestImpactChangeSurfaceRoutesAnswerFixedFailures(t *testing.T) {
 	const preChangeBody = `{"target":"workload:orders-api","target_type":"service"}`
 	runImpactFailureRoutes(t, []impactFailureRoute{
 		{
-			name: "investigation code evidence", path: investigate, body: investigateBody,
+			name: "investigation code evidence", ownSpan: true, path: investigate, body: investigateBody,
 			message: changeSurfaceInvestigationCodeEvidenceFailedMessage, faultStatus: http.StatusServiceUnavailable,
 			handler: codeSurfaceFails,
 		},
 		{
-			name: "investigation target", path: investigate, body: investigateBody,
+			name: "investigation target", ownSpan: true, path: investigate, body: investigateBody,
 			message: changeSurfaceInvestigationTargetFailedMessage, handler: graphFails(nil),
 		},
 		{
-			name: "investigation traversal", path: investigate, body: investigateBody,
+			name: "investigation traversal", ownSpan: true, path: investigate, body: investigateBody,
 			message: changeSurfaceInvestigationTraversalFailedMessage, handler: graphFails(cypherContains("MATCH path =")),
 		},
 		{
-			name: "pre-change code evidence", path: "/api/v0/impact/pre-change", body: preChangeBody,
+			name: "pre-change code evidence", ownSpan: true, path: "/api/v0/impact/pre-change", body: preChangeBody,
 			message: preChangeImpactCodeEvidenceFailedMessage, faultStatus: http.StatusServiceUnavailable,
 			handler: codeSurfaceFails,
 		},
 		{
-			name: "pre-change graph", path: "/api/v0/impact/pre-change", body: preChangeBody,
+			name: "pre-change graph", ownSpan: true, path: "/api/v0/impact/pre-change", body: preChangeBody,
 			message: preChangeImpactQueryFailedMessage, handler: graphFails(nil),
 		},
 		{
-			name: "developer plan code evidence", path: "/api/v0/impact/developer-change-plan", body: preChangeBody,
+			name: "developer plan code evidence", ownSpan: true, path: "/api/v0/impact/developer-change-plan", body: preChangeBody,
 			message: developerChangePlanCodeEvidenceFailedMessage, faultStatus: http.StatusServiceUnavailable,
 			handler: codeSurfaceFails,
 		},
 		{
-			name: "developer plan graph", path: "/api/v0/impact/developer-change-plan", body: preChangeBody,
+			name: "developer plan graph", ownSpan: true, path: "/api/v0/impact/developer-change-plan", body: preChangeBody,
 			message: developerChangePlanQueryFailedMessage, handler: graphFails(nil),
 		},
 	})

@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	entitycontract "github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/failure"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
@@ -42,48 +43,42 @@ func TestResolveEntityServerFailureAnswersFixedMessage(t *testing.T) {
 	t.Parallel()
 
 	const anchored = `{"name":"handler","type":"function","repo_id":"repo://example/api"}`
-	steps := []struct {
-		name    string
-		body    string
-		message string
-		handler func(err error) *Handler
-	}{
-		{"graph query", anchored, resolveEntityQueryFailedMessage, func(err error) *Handler {
-			return &Handler{Neo4j: resolveFailureGraph(nil, err), Content: routeFailureContent{}}
-		}},
-		{"content enrichment", anchored, resolveEntityEnrichmentFailedMessage, func(err error) *Handler {
-			return &Handler{
-				Neo4j:   resolveFailureGraph([]map[string]any{resolveFailureRow()}, nil),
-				Content: routeFailureContent{byIDsErr: err},
-			}
-		}},
-		{"repo identity hydration", anchored, resolveEntityRepoIdentityFailedMessage, func(err error) *Handler {
-			return &Handler{
-				Neo4j:   resolveFailureGraph([]map[string]any{resolveFailureRow()}, nil),
-				Content: routeFailureContent{getEntityErr: err},
-			}
-		}},
-		{"content fallback", anchored, resolveEntityContentFallbackFailedMessage, func(err error) *Handler {
-			return &Handler{Neo4j: resolveFailureGraph(nil, nil), Content: routeFailureContent{byNameErr: err}}
-		}},
-		{"global content", `{"name":"handler","type":"function"}`, resolveGlobalContentEntitiesFailedMessage, func(err error) *Handler {
-			return &Handler{Content: routeFailureContent{nameSearchErr: err}}
-		}},
-		{"canonical content", `{"name":"content-entity:e1"}`, resolveCanonicalContentEntityFailedMessage, func(err error) *Handler {
-			return &Handler{Content: routeFailureContent{getEntityErr: err}}
-		}},
-		{"workload", `{"name":"api","type":"workload"}`, resolveWorkloadEntitiesFailedMessage, func(err error) *Handler {
-			return &Handler{Neo4j: resolveFailureGraph(nil, err)}
-		}},
-	}
-	for _, step := range steps {
-		for _, tc := range routeFailureCases(step.message) {
-			t.Run(step.name+"/"+tc.name, func(t *testing.T) {
-				t.Parallel()
-				serveRouteFailure(t, step.handler(tc.err), http.MethodPost, resolveFailurePath, step.body, tc)
-			})
-		}
-	}
+	runEntityFailureRoutes(t, []failure.Route{
+		entityFailureRoute("graph query", http.MethodPost, resolveFailurePath, anchored, resolveEntityQueryFailedMessage,
+			func(err error) *Handler {
+				return &Handler{Neo4j: resolveFailureGraph(nil, err), Content: routeFailureContent{}}
+			}),
+		entityFailureRoute("content enrichment", http.MethodPost, resolveFailurePath, anchored, resolveEntityEnrichmentFailedMessage,
+			func(err error) *Handler {
+				return &Handler{
+					Neo4j:   resolveFailureGraph([]map[string]any{resolveFailureRow()}, nil),
+					Content: routeFailureContent{byIDsErr: err},
+				}
+			}),
+		entityFailureRoute("repo identity hydration", http.MethodPost, resolveFailurePath, anchored, resolveEntityRepoIdentityFailedMessage,
+			func(err error) *Handler {
+				return &Handler{
+					Neo4j:   resolveFailureGraph([]map[string]any{resolveFailureRow()}, nil),
+					Content: routeFailureContent{getEntityErr: err},
+				}
+			}),
+		entityFailureRoute("content fallback", http.MethodPost, resolveFailurePath, anchored, resolveEntityContentFallbackFailedMessage,
+			func(err error) *Handler {
+				return &Handler{Neo4j: resolveFailureGraph(nil, nil), Content: routeFailureContent{byNameErr: err}}
+			}),
+		entityFailureRoute("global content", http.MethodPost, resolveFailurePath, `{"name":"handler","type":"function"}`, resolveGlobalContentEntitiesFailedMessage,
+			func(err error) *Handler {
+				return &Handler{Content: routeFailureContent{nameSearchErr: err}}
+			}),
+		entityFailureRoute("canonical content", http.MethodPost, resolveFailurePath, `{"name":"content-entity:e1"}`, resolveCanonicalContentEntityFailedMessage,
+			func(err error) *Handler {
+				return &Handler{Content: routeFailureContent{getEntityErr: err}}
+			}),
+		entityFailureRoute("workload", http.MethodPost, resolveFailurePath, `{"name":"api","type":"workload"}`, resolveWorkloadEntitiesFailedMessage,
+			func(err error) *Handler {
+				return &Handler{Neo4j: resolveFailureGraph(nil, err)}
+			}),
+	})
 }
 
 // TestResolveEntityUnavailableSentinelsAnswerSentinelText is the #7674
@@ -94,49 +89,25 @@ func TestResolveEntityUnavailableSentinelsAnswerSentinelText(t *testing.T) {
 	t.Parallel()
 
 	const global = `{"name":"handler","type":"function"}`
-	cases := []struct {
-		name    string
-		body    string
-		handler *Handler
-		tc      routeFailureCase
-	}{
-		{
-			name:    "global name search wrapped",
-			body:    global,
-			handler: &Handler{Content: routeFailureContent{nameSearchErr: sentinelFailureCase(entitycontract.ErrEntityNameSearchUnavailable).err}},
-			tc:      sentinelFailureCase(entitycontract.ErrEntityNameSearchUnavailable),
-		},
-		{
-			name:    "global name search not wired",
-			body:    global,
-			handler: &Handler{Content: content.FakePortContentStore{}},
-			tc:      bareSentinelCase(entitycontract.ErrEntityNameSearchUnavailable),
-		},
-		{
-			name:    "global substring indexes not ready",
-			body:    global,
-			handler: &Handler{Content: routeFailureContent{nameSearchErr: sentinelFailureCase(querycontract.ErrContentSubstringIndexesNotReady).err}},
-			tc:      sentinelFailureCase(querycontract.ErrContentSubstringIndexesNotReady),
-		},
-		{
-			name:    "workload graph not wired",
-			body:    `{"name":"api","type":"workload"}`,
-			handler: &Handler{},
-			tc:      bareSentinelCase(errWorkloadGraphUnavailable),
-		},
+	globalSearch := func(searchErr error) func() *Handler {
+		return func() *Handler {
+			return &Handler{Content: routeFailureContent{nameSearchErr: searchErr}}
+		}
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			serveRouteFailure(t, tc.handler, http.MethodPost, resolveFailurePath, tc.body, tc.tc)
-		})
-	}
-}
-
-// bareSentinelCase is a configuration-state 503 the route raises itself, with
-// no wrapper text.
-func bareSentinelCase(sentinel error) routeFailureCase {
-	tc := sentinelFailureCase(sentinel)
-	tc.err = sentinel
-	return tc
+	checkEntitySentinel(t, entitySentinelRoute("global name search wrapped",
+		http.MethodPost, resolveFailurePath, global, entitycontract.ErrEntityNameSearchUnavailable,
+		globalSearch(entitySentinelCase(entitycontract.ErrEntityNameSearchUnavailable).Err)),
+		entitySentinelCase(entitycontract.ErrEntityNameSearchUnavailable))
+	checkEntitySentinel(t, entitySentinelRoute("global name search not wired",
+		http.MethodPost, resolveFailurePath, global, entitycontract.ErrEntityNameSearchUnavailable,
+		func() *Handler { return &Handler{Content: content.FakePortContentStore{}} }),
+		entityBareSentinelCase(entitycontract.ErrEntityNameSearchUnavailable))
+	checkEntitySentinel(t, entitySentinelRoute("global substring indexes not ready",
+		http.MethodPost, resolveFailurePath, global, querycontract.ErrContentSubstringIndexesNotReady,
+		globalSearch(entitySentinelCase(querycontract.ErrContentSubstringIndexesNotReady).Err)),
+		entitySentinelCase(querycontract.ErrContentSubstringIndexesNotReady))
+	checkEntitySentinel(t, entitySentinelRoute("workload graph not wired",
+		http.MethodPost, resolveFailurePath, `{"name":"api","type":"workload"}`, errWorkloadGraphUnavailable,
+		func() *Handler { return &Handler{} }),
+		entityBareSentinelCase(errWorkloadGraphUnavailable))
 }

@@ -28,6 +28,9 @@ const (
 	NoCanaryInBody Assertion = "body quotes no canary token"
 	// FaultStatus: a Fault answers 500.
 	FaultStatus Assertion = "fault answers 500"
+	// CustomFaultStatus: with Route.FaultStatus, a Fault or InnerCancel
+	// answers the route's fault status instead of 500.
+	CustomFaultStatus Assertion = "fault answers the route fault status"
 	// ClientCancelStatus: a ClientCancel answers 499.
 	ClientCancelStatus Assertion = "client cancel answers 499"
 	// InnerCancelStatus: an InnerCancel on a live request answers 500.
@@ -66,16 +69,21 @@ const (
 	CancelOneEvent Assertion = "client-cancel span has one cancel event"
 	// CancelEventNoAttributes: the client-cancel event carries no attributes.
 	CancelEventNoAttributes Assertion = "client-cancel event carries no attributes"
+	// StageLogVerdict: with Route.Stage, a fault logs one stage_failed
+	// verdict, a client cancel logs one stage_canceled verdict, and a mapped
+	// fence verdict logs no stage verdict.
+	StageLogVerdict Assertion = "stage log carries the step verdict"
 )
 
 // Assertions returns every assertion Check makes, in evaluation order. The
 // package's own tests hold one wrong sample route per entry.
 func Assertions() []Assertion {
 	return []Assertion{
-		NoCanaryInBody, FaultStatus, ClientCancelStatus, InnerCancelStatus,
+		NoCanaryInBody, FaultStatus, CustomFaultStatus, ClientCancelStatus, InnerCancelStatus,
 		FenceStatus, FenceCode, FenceRetryAfter, FixedMessage, PlainDetailBody, OneHandlerSpan,
 		FaultSpanError, FaultSpanDescription, FaultOneException, FaultNoCancelEvent,
 		CancelSpanUnset, CancelNoException, CancelOneEvent, CancelEventNoAttributes,
+		StageLogVerdict,
 	}
 }
 
@@ -111,27 +119,114 @@ func Check(s Suite, route Route, tc Case) error {
 }
 
 // Evaluate serves route once for tc and returns every assertion the answer
-// violates. The error reports a harness fault, such as an unknown Kind or a
-// missing request span, not a wrong route.
+// violates. The error reports a harness fault, such as an unknown Kind, a
+// missing request span, or a Stage without its Logs, not a wrong route.
 func Evaluate(s Suite, route Route, tc Case) ([]Violation, error) {
+	kind := tc.Kind
+	if kind == ReaderFence && route.NoFence {
+		kind = Fault
+	}
 	rec, ended := Serve(s, route, route.Handler(tc.Err), tc.Kind == ClientCancel)
-	found, err := answerViolations(route, tc.Kind, rec)
-	if err != nil || tc.Kind == ReaderFence {
+	found, err := answerViolations(route, kind, rec)
+	if err != nil {
 		return found, err
 	}
-	spanFound, err := spanViolations(route.Message, tc.Kind, s.HandlerTracer != nil, ended)
-	return append(found, spanFound...), err
+	if kind == ReaderFence {
+		stageFound, err := stageViolations(route, kind)
+		return append(found, stageFound...), err
+	}
+	spanFound, err := spanViolations(route.Message, kind, s.HandlerTracer != nil, ended)
+	found = append(found, spanFound...)
+	if err != nil {
+		return found, err
+	}
+	stageFound, err := stageViolations(route, kind)
+	return append(found, stageFound...), err
+}
+
+// stageViolations checks the handler's stage-log verdict for kind against
+// the records Route.Stage.Logs returns. A nil Stage checks nothing; a Stage
+// without Logs is a harness fault.
+func stageViolations(route Route, kind Kind) ([]Violation, error) {
+	if route.Stage == nil {
+		return nil, nil
+	}
+	if route.Stage.Logs == nil {
+		return nil, fmt.Errorf("route %q has a stage log but no Logs", route.Name)
+	}
+	failed, canceled := route.Stage.Logs()
+	add := func(format string, args ...any) []Violation {
+		return []Violation{{StageLogVerdict, fmt.Sprintf(format, args...)}}
+	}
+	operation, stage := route.Stage.Operation, route.Stage.Stage
+	if kind == ReaderFence {
+		if len(failed) != 0 || len(canceled) != 0 {
+			return add("stage_failed=%d stage_canceled=%d on a mapped fence verdict, want 0/0",
+				len(failed), len(canceled)), nil
+		}
+		return nil, nil
+	}
+	if kind == ClientCancel {
+		if len(failed) != 0 {
+			return add("stage_failed records = %d on a client cancel, want 0: %#v", len(failed), failed), nil
+		}
+		if len(canceled) != 1 {
+			return add("stage_canceled records = %d, want 1", len(canceled)), nil
+		}
+		record := canceled[0]
+		if record["level"] != "INFO" || record["operation"] != operation || record["stage"] != stage {
+			return add("stage_canceled = %#v, want INFO operation=%q stage=%q", record, operation, stage), nil
+		}
+		if _, ok := record["repo_id"]; !ok {
+			return add("stage_canceled = %#v, want a repo_id attribute", record), nil
+		}
+		if _, ok := record["duration_seconds"].(float64); !ok {
+			return add("stage_canceled = %#v, want a numeric duration_seconds", record), nil
+		}
+		for _, key := range []string{"error", "error_site", "error_cause"} {
+			if _, ok := record[key]; ok {
+				return add("stage_canceled carries %q, want no error attributes: %#v", key, record), nil
+			}
+		}
+		return nil, nil
+	}
+	if len(canceled) != 0 {
+		return add("stage_canceled records = %d on a server fault, want 0", len(canceled)), nil
+	}
+	if len(failed) != 1 {
+		return add("stage_failed records = %d, want 1", len(failed)), nil
+	}
+	record := failed[0]
+	if record["level"] != "ERROR" || record["operation"] != operation || record["stage"] != stage {
+		return add("stage_failed = %#v, want ERROR operation=%q stage=%q", record, operation, stage), nil
+	}
+	wantCause := "unknown"
+	if kind == InnerCancel {
+		wantCause = "canceled"
+	}
+	if record["error_cause"] != wantCause {
+		return add("stage_failed error_cause = %v, want %q", record["error_cause"], wantCause), nil
+	}
+	return nil, nil
 }
 
 // statusAssertion returns the status kind must answer and the assertion that
-// holds it.
-func statusAssertion(kind Kind) (int, Assertion, error) {
+// holds it. A route FaultStatus replaces 500 for a Fault and an InnerCancel
+// and is held by CustomFaultStatus instead.
+func statusAssertion(kind Kind, route Route) (int, Assertion, error) {
+	faultStatus, faultAssertion := http.StatusInternalServerError, FaultStatus
+	if route.FaultStatus != 0 {
+		faultStatus, faultAssertion = route.FaultStatus, CustomFaultStatus
+	}
 	switch kind {
 	case Fault:
-		return http.StatusInternalServerError, FaultStatus, nil
+		return faultStatus, faultAssertion, nil
 	case ClientCancel:
 		return querycontract.StatusClientClosedRequest, ClientCancelStatus, nil
 	case InnerCancel:
+		if route.FaultStatus != 0 {
+			return faultStatus, faultAssertion, nil
+		}
 		return http.StatusInternalServerError, InnerCancelStatus, nil
 	case ReaderFence:
 		return http.StatusServiceUnavailable, FenceStatus, nil
@@ -146,7 +241,7 @@ func statusAssertion(kind Kind) (int, Assertion, error) {
 // answerViolations checks the body for a leak, the status for kind, and the
 // fence envelope or the fixed message.
 func answerViolations(route Route, kind Kind, rec *httptest.ResponseRecorder) ([]Violation, error) {
-	want, statusCheck, err := statusAssertion(kind)
+	want, statusCheck, err := statusAssertion(kind, route)
 	if err != nil {
 		return nil, err
 	}
@@ -172,8 +267,12 @@ func answerViolations(route Route, kind Kind, rec *httptest.ResponseRecorder) ([
 		}
 		return found, nil
 	}
-	if got := Message(rec.Body.Bytes()); got != route.Message {
-		found = append(found, Violation{FixedMessage, fmt.Sprintf("body message = %q, want %q; body = %s", got, route.Message, body)})
+	wantMessage := route.Message
+	if kind == ClientCancel && route.CancelMessage != "" {
+		wantMessage = route.CancelMessage
+	}
+	if got := Message(rec.Body.Bytes()); got != wantMessage {
+		found = append(found, Violation{FixedMessage, fmt.Sprintf("body message = %q, want %q; body = %s", got, wantMessage, body)})
 	}
 	if route.PlainDetail && plainDetail(rec.Body.Bytes()) == "" {
 		found = append(found, Violation{PlainDetailBody, "body has no plain detail text; body = " + body})

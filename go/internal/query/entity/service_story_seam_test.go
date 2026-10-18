@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/selector"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/failure"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -128,7 +129,7 @@ func TestServiceStoryResolutionNotFoundAnswersSelectorText(t *testing.T) {
 	t.Parallel()
 
 	notFound := selector.NotFoundError{Selector: "payments"}
-	status, errEnv := serviceStoryResolutionError(context.Background(), fmt.Errorf("private wrapper %s: %w", routeFailureCanary, notFound))
+	status, errEnv := serviceStoryResolutionError(context.Background(), fmt.Errorf("private wrapper %s: %w", failure.Canary, notFound))
 	if status != http.StatusNotFound || errEnv == nil {
 		t.Fatalf("status = %d, envelope = %#v; want 404 with an envelope", status, errEnv)
 	}

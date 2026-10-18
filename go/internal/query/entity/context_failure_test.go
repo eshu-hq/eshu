@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/failure"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
@@ -44,32 +45,24 @@ func entityContextFailureGraph(row map[string]any, err error) graph.FakeGraphRea
 func TestEntityContextServerFailureAnswersFixedMessage(t *testing.T) {
 	t.Parallel()
 
-	steps := []struct {
-		name    string
-		message string
-		handler func(err error) *Handler
-	}{
-		{"anchor query", entityContextQueryFailedMessage, func(err error) *Handler {
-			return &Handler{Neo4j: entityContextFailureGraph(nil, err), Content: routeFailureContent{}}
-		}},
-		{"content fallback", entityContextContentFallbackFailedMessage, func(err error) *Handler {
-			return &Handler{Neo4j: entityContextFailureGraph(nil, nil), Content: routeFailureContent{getEntityErr: err}}
-		}},
-		{"repo identity hydration", entityContextRepoIdentityFailedMessage, func(err error) *Handler {
-			return &Handler{Neo4j: entityContextFailureGraph(entityContextFailureRow(false), nil), Content: routeFailureContent{getEntityErr: err}}
-		}},
-		{"content enrichment", entityContextEnrichmentFailedMessage, func(err error) *Handler {
-			return &Handler{Neo4j: entityContextFailureGraph(entityContextFailureRow(true), nil), Content: routeFailureContent{byIDsErr: err}}
-		}},
-	}
-	for _, step := range steps {
-		for _, tc := range routeFailureCases(step.message) {
-			t.Run(step.name+"/"+tc.name, func(t *testing.T) {
-				t.Parallel()
-				serveRouteFailure(t, step.handler(tc.err), http.MethodGet, entityContextFailurePath, "", tc)
-			})
-		}
-	}
+	runEntityFailureRoutes(t, []failure.Route{
+		entityFailureRoute("anchor query", http.MethodGet, entityContextFailurePath, "", entityContextQueryFailedMessage,
+			func(err error) *Handler {
+				return &Handler{Neo4j: entityContextFailureGraph(nil, err), Content: routeFailureContent{}}
+			}),
+		entityFailureRoute("content fallback", http.MethodGet, entityContextFailurePath, "", entityContextContentFallbackFailedMessage,
+			func(err error) *Handler {
+				return &Handler{Neo4j: entityContextFailureGraph(nil, nil), Content: routeFailureContent{getEntityErr: err}}
+			}),
+		entityFailureRoute("repo identity hydration", http.MethodGet, entityContextFailurePath, "", entityContextRepoIdentityFailedMessage,
+			func(err error) *Handler {
+				return &Handler{Neo4j: entityContextFailureGraph(entityContextFailureRow(false), nil), Content: routeFailureContent{getEntityErr: err}}
+			}),
+		entityFailureRoute("content enrichment", http.MethodGet, entityContextFailurePath, "", entityContextEnrichmentFailedMessage,
+			func(err error) *Handler {
+				return &Handler{Neo4j: entityContextFailureGraph(entityContextFailureRow(true), nil), Content: routeFailureContent{byIDsErr: err}}
+			}),
+	})
 }
 
 // TestEntityContextRelationshipBuilderSentinelAnswersSentinelText is the
@@ -79,11 +72,14 @@ func TestEntityContextServerFailureAnswersFixedMessage(t *testing.T) {
 func TestEntityContextRelationshipBuilderSentinelAnswersSentinelText(t *testing.T) {
 	t.Parallel()
 
-	handler := &Handler{
-		Neo4j:   entityContextFailureGraph(nil, nil),
-		Content: routeFailureContent{entity: &querycontract.EntityContent{EntityID: "function:handler", RepoID: "repo://example/api"}},
-	}
-	serveRouteFailure(t, handler, http.MethodGet, entityContextFailurePath, "", bareSentinelCase(errContentRelationshipBuilderNotConfigured))
+	checkEntitySentinel(t, entitySentinelRoute("relationship builder",
+		http.MethodGet, entityContextFailurePath, "", errContentRelationshipBuilderNotConfigured,
+		func() *Handler {
+			return &Handler{
+				Neo4j:   entityContextFailureGraph(nil, nil),
+				Content: routeFailureContent{entity: &querycontract.EntityContent{EntityID: "function:handler", RepoID: "repo://example/api"}},
+			}
+		}), entityBareSentinelCase(errContentRelationshipBuilderNotConfigured))
 }
 
 // TestWorkloadRoutesServerFailureAnswersFixedMessage is the #7674 regression
@@ -104,14 +100,12 @@ func TestWorkloadRoutesServerFailureAnswersFixedMessage(t *testing.T) {
 		{"/api/v0/workloads/workload:api/story", serviceFailQuery, workloadStoryQueryFailedMessage},
 		{"/api/v0/workloads/workload:api/story", serviceFailEnrichment, workloadStoryEnrichmentFailedMessage},
 	}
+	routes := make([]failure.Route, 0, len(sites))
 	for _, site := range sites {
-		for _, tc := range routeFailureCases(site.message) {
-			t.Run(site.route+"/"+site.stage+"/"+tc.name, func(t *testing.T) {
-				t.Parallel()
-				serveRouteFailure(t, serviceFailureHandler(site.stage, tc.err), http.MethodGet, site.route, "", tc)
-			})
-		}
+		routes = append(routes, entityFailureRoute(site.route+"/"+site.stage, http.MethodGet, site.route, "", site.message,
+			func(err error) *Handler { return serviceFailureHandler(site.stage, err) }))
 	}
+	runEntityFailureRoutes(t, routes)
 }
 
 // TestEnrichmentSubstringIndexSentinelAnswersSentinelText is the #7674
@@ -129,11 +123,10 @@ func TestEnrichmentSubstringIndexSentinelAnswersSentinelText(t *testing.T) {
 		"/api/v0/investigations/services/api",
 		"/api/v0/services/api/story",
 	}
-	tc := sentinelFailureCase(querycontract.ErrContentSubstringIndexesNotReady)
+	tc := entitySentinelCase(querycontract.ErrContentSubstringIndexesNotReady)
 	for _, route := range routes {
-		t.Run(route, func(t *testing.T) {
-			t.Parallel()
-			serveRouteFailure(t, serviceFailureHandler(serviceFailEnrichment, tc.err), http.MethodGet, route, "", tc)
-		})
+		checkEntitySentinel(t, entitySentinelRoute("enrichment substring index",
+			http.MethodGet, route, "", querycontract.ErrContentSubstringIndexesNotReady,
+			func() *Handler { return serviceFailureHandler(serviceFailEnrichment, tc.Err) }), tc)
 	}
 }

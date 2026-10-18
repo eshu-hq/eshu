@@ -5,172 +5,83 @@ package entity
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
-
-	"go.opentelemetry.io/otel/codes"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	entitycontract "github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
-	"github.com/eshu-hq/eshu/go/internal/query/tracing"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/failure"
 )
 
-// routeFailureCanary stands in for backend error text: a credential and a
-// Cypher fragment that must never reach a response body (#7674).
-const routeFailureCanary = "password=hunter2 MATCH (n)"
-
-// routeFailureCase is one failure an entity route step must classify.
-type routeFailureCase struct {
-	name   string
-	err    error
-	cancel bool
-	// wantStatus is the answered status. wantBody is the exact detail text,
-	// or "" for a fence 503 whose body comes from WriteGraphReadError.
-	wantStatus    int
-	wantBody      string
-	wantSpanError bool
+// entityFailureSuite wraps routes in a suite with no handler tracer: entity
+// handlers open no spans of their own, so every check reads the request span.
+func entityFailureSuite(routes ...failure.Route) failure.Suite {
+	return failure.Suite{Routes: routes}
 }
 
-// routeFailureCases returns the canary 500, client-cancel 499, and
-// reader-fence 503 cases for a route step whose fixed message is message.
-func routeFailureCases(message string) []routeFailureCase {
-	return []routeFailureCase{
-		{
-			name:          "backend failure",
-			err:           errors.New("private backend: " + routeFailureCanary),
-			wantStatus:    http.StatusInternalServerError,
-			wantBody:      message,
-			wantSpanError: true,
-		},
-		{
-			name:       "client cancel",
-			err:        fmt.Errorf("private backend %s: %w", routeFailureCanary, context.Canceled),
-			cancel:     true,
-			wantStatus: querycontract.StatusClientClosedRequest,
-			wantBody:   message,
-		},
-		{
-			name:       "reader fence",
-			err:        fmt.Errorf("private read store %s: %w", routeFailureCanary, db.ErrReaderStale),
-			wantStatus: http.StatusServiceUnavailable,
-		},
-	}
-}
-
-// sentinelFailureCase is a configuration-state 503: err wraps sentinel under
-// wrapper text that carries the canary, and the body must be only the
-// sentinel's own text.
-func sentinelFailureCase(sentinel error) routeFailureCase {
-	return routeFailureCase{
-		name:          "sentinel " + sentinel.Error(),
-		err:           fmt.Errorf("private wrapper %s: %w", routeFailureCanary, sentinel),
-		wantStatus:    http.StatusServiceUnavailable,
-		wantBody:      sentinel.Error(),
-		wantSpanError: true,
-	}
-}
-
-// serveRouteFailure serves one request through handler's mux on a recorded
-// span, canceling the request context first when tc.cancel is set, and
-// asserts the classified answer.
-func serveRouteFailure(t *testing.T, handler *Handler, method, path string, body string, tc routeFailureCase) {
+// runEntityFailureRoutes drives every route through every failure case.
+func runEntityFailureRoutes(t *testing.T, routes []failure.Route) {
 	t.Helper()
-	recorder := tracetest.NewSpanRecorder()
-	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
-	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
-	ctx, span := provider.Tracer("entity-route-failure-test").Start(context.Background(), "request")
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	if tc.cancel {
-		cancel()
-	}
-
-	var reqBody io.Reader
-	if body != "" {
-		reqBody = strings.NewReader(body)
-	}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest(method, path, reqBody).WithContext(ctx))
-	span.End()
-
-	assertRouteFailure(t, rec, recorder.Ended(), tc)
+	failure.Run(t, entityFailureSuite(routes...))
 }
 
-// assertRouteFailure checks the status, the exact fixed body, the absence of
-// the canary, Retry-After on a fence 503, and the span signal: Error with the
-// fixed message and exactly one exception event for a server fault, or Unset
-// with only the client-cancel event for a client cancel.
-func assertRouteFailure(t *testing.T, rec *httptest.ResponseRecorder, ended []sdktrace.ReadOnlySpan, tc routeFailureCase) {
-	t.Helper()
-	raw := rec.Body.String()
-	if rec.Code != tc.wantStatus {
-		t.Fatalf("status = %d, want %d; body = %s", rec.Code, tc.wantStatus, raw)
-	}
-	if strings.Contains(raw, "hunter2") || strings.Contains(raw, "MATCH (n)") || strings.Contains(raw, "private") {
-		t.Fatalf("body leaked backend error text: %s", raw)
-	}
-	if tc.wantBody == "" {
-		if rec.Header().Get("Retry-After") == "" {
-			t.Fatalf("reader fence 503 is missing Retry-After; body = %s", raw)
-		}
-	} else if got := routeFailureDetail(t, raw); got != tc.wantBody {
-		t.Fatalf("body detail = %q, want the fixed %q", got, tc.wantBody)
-	}
-	if len(ended) != 1 {
-		t.Fatalf("ended spans = %d, want 1", len(ended))
-	}
-	exceptions, canceled := 0, false
-	for _, event := range ended[0].Events() {
-		if event.Name == "exception" {
-			exceptions++
-		}
-		canceled = canceled || event.Name == tracing.ClientCanceledEvent
-	}
-	status := ended[0].Status()
-	if tc.wantSpanError {
-		if status.Code != codes.Error || status.Description != tc.wantBody || exceptions != 1 {
-			t.Fatalf("span status = %v (%q), exceptions = %d; want Error (%q) with one exception",
-				status.Code, status.Description, exceptions, tc.wantBody)
-		}
-	} else if status.Code == codes.Error || exceptions != 0 {
-		t.Fatalf("span status = %v (%q), exceptions = %d; want no error recorded", status.Code, status.Description, exceptions)
-	}
-	if canceled != tc.cancel {
-		t.Fatalf("%s event recorded = %v, want %v", tracing.ClientCanceledEvent, canceled, tc.cancel)
+// entityFailureRoute builds the failure route for one entity read step: the
+// step answers its fixed message, maps a reader fence to the retryable 503,
+// and answers a client cancel with 499.
+func entityFailureRoute(
+	name, method, path, body, message string,
+	build func(err error) *Handler,
+) failure.Route {
+	return failure.Route{
+		Name: name, Method: method, Path: path, Body: body, Message: message,
+		Handler: func(err error) failure.Mounter { return build(err) },
 	}
 }
 
-// routeFailureDetail returns the message of a WriteError body ("detail") or
-// an envelope body ("error.message").
-func routeFailureDetail(t *testing.T, raw string) string {
+// entitySentinelCase is a configuration-state 503: err wraps sentinel under
+// wrapper text that carries the canary, and the route must answer 503 with
+// only the sentinel's own text. It runs as a Fault on a 503-fault route.
+func entitySentinelCase(sentinel error) failure.Case {
+	return failure.Case{
+		Name: "sentinel " + sentinel.Error(),
+		Kind: failure.Fault,
+		Err:  fmt.Errorf("private wrapper %s: %w", failure.Canary, sentinel),
+	}
+}
+
+// entityBareSentinelCase is a configuration-state 503 the route raises
+// itself, with no wrapper text.
+func entityBareSentinelCase(sentinel error) failure.Case {
+	return failure.Case{
+		Name: "sentinel " + sentinel.Error(),
+		Kind: failure.Fault,
+		Err:  sentinel,
+	}
+}
+
+// entitySentinelRoute builds the one-case route for a sentinel 503 on path:
+// the sentinel's own text answers 503 with the span marked as a fault.
+func entitySentinelRoute(
+	name, method, path, body string,
+	sentinel error,
+	build func() *Handler,
+) failure.Route {
+	return failure.Route{
+		Name: name, Method: method, Path: path, Body: body,
+		Message: sentinel.Error(), FaultStatus: http.StatusServiceUnavailable,
+		Handler: func(error) failure.Mounter { return build() },
+	}
+}
+
+// checkEntitySentinel runs the single sentinel case for route and reports a
+// wrong answer as a test error.
+func checkEntitySentinel(t *testing.T, route failure.Route, tc failure.Case) {
 	t.Helper()
-	var body struct {
-		Detail string `json:"detail"`
-		Error  any    `json:"error"`
+	if err := failure.Check(entityFailureSuite(route), route, tc); err != nil {
+		t.Error(err)
 	}
-	if err := json.Unmarshal([]byte(raw), &body); err != nil {
-		t.Fatalf("decode body %q: %v", raw, err)
-	}
-	if body.Detail != "" {
-		return body.Detail
-	}
-	if envelope, ok := body.Error.(map[string]any); ok {
-		message, _ := envelope["message"].(string)
-		return message
-	}
-	return ""
 }
 
 // routeFailureContent is a content store whose reads fail with the

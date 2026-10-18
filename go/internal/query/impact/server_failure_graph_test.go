@@ -59,24 +59,25 @@ func TestImpactGraphRoutesAnswerFixedServerFailures(t *testing.T) {
 			message: changeSurfaceLegacyTraversalFailedMessage, handler: graphOnly(cypherContains("MATCH path ="), workloadAnchor),
 		},
 		{
-			name: "entity map start", path: "/api/v0/impact/entity-map",
+			name: "entity map start", ownSpan: true, path: "/api/v0/impact/entity-map",
 			body:    `{"from":"checkout","from_type":"service"}`,
 			message: entityMapStartFailedMessage, handler: graphOnly(nil, nil),
 		},
 		{
-			name: "entity map traversal", path: "/api/v0/impact/entity-map",
+			name: "entity map traversal", ownSpan: true, path: "/api/v0/impact/entity-map",
 			body:    `{"from":"checkout","from_type":"service"}`,
 			message: entityMapTraversalFailedMessage, handler: graphOnly(notResolver, entityMapAnchor),
 		},
 		{
-			name: "resource investigation target", path: "/api/v0/impact/resource-investigation",
+			name: "resource investigation target", ownSpan: true, path: "/api/v0/impact/resource-investigation",
 			body:    `{"query":"orders","resource_type":"queue","limit":1}`,
 			message: resourceInvestigationTargetFailedMessage, handler: graphOnly(nil, nil),
 		},
 		{
-			name: "resource investigation sections", path: "/api/v0/impact/resource-investigation",
-			body:    `{"query":"orders","resource_type":"queue","limit":1}`,
-			message: resourceInvestigationSectionsFailedMessage, handler: graphOnly(notResolver, resourceAnchor),
+			name: "resource investigation sections", ownSpan: true, path: "/api/v0/impact/resource-investigation",
+			body:          `{"query":"orders","resource_type":"queue","limit":1}`,
+			message:       resourceInvestigationSectionsFailedMessage,
+			cancelMessage: resourceInvestigationTargetFailedMessage, handler: graphOnly(notResolver, resourceAnchor),
 		},
 		{
 			name: "resource to code start", path: "/api/v0/impact/trace-resource-to-code",
@@ -84,7 +85,7 @@ func TestImpactGraphRoutesAnswerFixedServerFailures(t *testing.T) {
 			message: resourceToCodeStartFailedMessage, handler: graphOnly(nil, nil),
 		},
 		{
-			name: "resource to code paths", path: "/api/v0/impact/trace-resource-to-code",
+			name: "resource to code paths", ownSpan: true, path: "/api/v0/impact/trace-resource-to-code",
 			body:    `{"start":"resource:queue"}`,
 			message: resourceToCodePathsFailedMessage, handler: graphOnly(cypherContains("MATCH path ="), pathAnchor),
 		},
@@ -99,7 +100,7 @@ func TestImpactGraphRoutesAnswerFixedServerFailures(t *testing.T) {
 			message: dependencyPathQueryFailedMessage, handler: graphOnly(cypherContains("shortestPath"), pathAnchor),
 		},
 		{
-			name: "contract impact", path: "/api/v0/impact/contracts",
+			name: "contract impact", ownSpan: true, path: "/api/v0/impact/contracts",
 			body:    `{"family":"http","provider_repo_id":"repo-api"}`,
 			message: contractImpactQueryFailedMessage, handler: graphOnly(nil, nil),
 		},

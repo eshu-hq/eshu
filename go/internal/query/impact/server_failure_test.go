@@ -6,45 +6,22 @@ package impact
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"go.opentelemetry.io/otel/codes"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
-	"github.com/eshu-hq/eshu/go/internal/query/tracing"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/failure"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// impactFailureCanary stands in for backend error text: a credential and a
-// Cypher fragment that must never reach a response body (#7674).
-const impactFailureCanary = "password=hunter2 MATCH (n)"
-
-// impactFailureCase is one way a backend read fails: a server fault whose
-// text carries the canary, a client cancel, or a stale PostgreSQL reader.
-type impactFailureCase struct {
-	name   string
-	err    error
-	cancel bool
-	stale  bool
-}
-
-func impactFailureCases() []impactFailureCase {
-	return []impactFailureCase{
-		{name: "backend failure", err: errors.New("backend: " + impactFailureCanary)},
-		{name: "client cancel", err: fmt.Errorf("backend: %s: %w", impactFailureCanary, context.Canceled), cancel: true},
-		{name: "reader stale", err: fmt.Errorf("backend: %s: %w", impactFailureCanary, db.ErrReaderStale), stale: true},
-	}
+// impactFailureSuite wraps routes in a suite on the package handler tracer.
+func impactFailureSuite(routes ...failure.Route) failure.Suite {
+	return failure.Suite{HandlerTracer: &queryHandlerTracer, Routes: routes}
 }
 
 // impactFailureRoute is one converted failure site: the request that reaches
@@ -57,52 +34,58 @@ type impactFailureRoute struct {
 	message string
 	// faultStatus is the status a server fault answers; zero means 500.
 	faultStatus int
-	handler     func(err error) *Handler
+	// ownSpan marks a step whose handler opens its own span with the package
+	// tracer: its span checks read that span. Without it the failure is
+	// answered on the request span, which is checked instead.
+	ownSpan bool
+	// cancelMessage is the message a client cancel answers when an earlier
+	// step surfaces it first; empty means the route's own message.
+	cancelMessage string
+	handler       func(err error) *Handler
 	// authCtx, when set, is the caller's auth; nil is an unscoped caller.
 	authCtx *auth.AuthContext
 }
 
-// runImpactFailureRoutes drives every route through every failure case. It
+// failureRoute converts the site to the shared harness route. Every impact
+// failure route is a POST whose fixed message answers as a plain detail body.
+func (route impactFailureRoute) failureRoute() failure.Route {
+	converted := failure.Route{
+		Name: route.name, Method: http.MethodPost, Path: route.path, Body: route.body,
+		Message: route.message, PlainDetail: true,
+		FaultStatus: route.faultStatus, CancelMessage: route.cancelMessage,
+		Handler: func(err error) failure.Mounter { return route.handler(err) },
+	}
+	if route.authCtx != nil {
+		authCtx := *route.authCtx
+		converted.Scope = func(ctx context.Context) context.Context {
+			return auth.ContextWithAuthContext(ctx, authCtx)
+		}
+	}
+	return converted
+}
+
+// runImpactFailureRoutes drives every route through every failure case. A
+// route whose handler opens its own span runs on the package tracer suite;
+// the rest answer on the request span and run without it. The tracer suite
 // swaps the package-level queryHandlerTracer, so callers must not be parallel
 // and the subtests run one at a time.
 func runImpactFailureRoutes(t *testing.T, routes []impactFailureRoute) {
 	t.Helper()
+	var spanned, spanless []failure.Route
 	for _, route := range routes {
-		for _, tc := range impactFailureCases() {
-			t.Run(route.name+"/"+tc.name, func(t *testing.T) {
-				serveImpactFailure(t, route, tc)
-			})
+		converted := route.failureRoute()
+		if route.ownSpan {
+			spanned = append(spanned, converted)
+		} else {
+			spanless = append(spanless, converted)
 		}
 	}
-}
-
-func serveImpactFailure(t *testing.T, route impactFailureRoute, tc impactFailureCase) {
-	t.Helper()
-	recorder := tracetest.NewSpanRecorder()
-	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
-	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
-	previous := queryHandlerTracer
-	queryHandlerTracer = provider.Tracer("impact-server-failure-test")
-	t.Cleanup(func() { queryHandlerTracer = previous })
-
-	ctx, parent := provider.Tracer("impact-server-failure-test").Start(context.Background(), "request")
-	if route.authCtx != nil {
-		ctx = auth.ContextWithAuthContext(ctx, *route.authCtx)
+	if len(spanned) != 0 {
+		failure.Run(t, impactFailureSuite(spanned...))
 	}
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	if tc.cancel {
-		cancel()
+	if len(spanless) != 0 {
+		failure.Run(t, failure.Suite{Routes: spanless})
 	}
-	mux := http.NewServeMux()
-	route.handler(tc.err).Mount(mux)
-	req := httptest.NewRequest(http.MethodPost, route.path, strings.NewReader(route.body)).WithContext(ctx)
-	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-	parent.End()
-
-	assertImpactFailure(t, route, tc, rec, recorder.Ended())
 }
 
 // serveImpactRequest posts body to path on handler's routes with no span or
@@ -122,86 +105,6 @@ func containsDetail(body []byte, want string) bool {
 		Detail string `json:"detail"`
 	}
 	return json.Unmarshal(body, &plain) == nil && plain.Detail == want
-}
-
-func assertImpactFailure(t *testing.T, route impactFailureRoute, tc impactFailureCase, rec *httptest.ResponseRecorder, ended []sdktrace.ReadOnlySpan) {
-	t.Helper()
-	body := rec.Body.String()
-	if strings.Contains(body, "hunter2") || strings.Contains(body, "MATCH (n)") {
-		t.Fatalf("body leaked the backend error text: %s", body)
-	}
-	wantStatus := route.faultStatus
-	if wantStatus == 0 {
-		wantStatus = http.StatusInternalServerError
-	}
-	switch {
-	case tc.cancel:
-		wantStatus = querycontract.StatusClientClosedRequest
-	case tc.stale:
-		wantStatus = http.StatusServiceUnavailable
-	}
-	if rec.Code != wantStatus {
-		t.Fatalf("status = %d, want %d; body = %s", rec.Code, wantStatus, body)
-	}
-	if tc.stale {
-		assertImpactFenceVerdict(t, rec)
-		return
-	}
-	// A cancel can surface at an earlier step whose own read saw the canceled
-	// context, so only a server fault pins this step's message.
-	if !tc.cancel && !containsDetail(rec.Body.Bytes(), route.message) {
-		t.Fatalf("body = %s, want the fixed detail %q", body, route.message)
-	}
-
-	span := impactFailureSpan(t, ended)
-	hasException, hasCanceled := false, false
-	for _, event := range span.Events() {
-		hasException = hasException || event.Name == "exception"
-		hasCanceled = hasCanceled || event.Name == tracing.ClientCanceledEvent
-	}
-	status := span.Status()
-	if tc.cancel {
-		if status.Code != codes.Unset || hasException || !hasCanceled {
-			t.Fatalf("cancel span status = %v, exception = %v, %s = %v; want Unset, false, true",
-				status.Code, hasException, tracing.ClientCanceledEvent, hasCanceled)
-		}
-		return
-	}
-	if status.Code != codes.Error || status.Description != route.message || !hasException || hasCanceled {
-		t.Fatalf("fault span status = %v (%q), exception = %v, canceled event = %v; want Error (%q), true, false",
-			status.Code, status.Description, hasException, hasCanceled, route.message)
-	}
-}
-
-// assertImpactFenceVerdict checks the reader-fence 503 from
-// querycontract.WriteGraphReadError: backend_unavailable with Retry-After.
-func assertImpactFenceVerdict(t *testing.T, rec *httptest.ResponseRecorder) {
-	t.Helper()
-	if rec.Header().Get("Retry-After") == "" {
-		t.Fatalf("reader fence 503 is missing Retry-After; body = %s", rec.Body.String())
-	}
-	var envelope querycontract.ResponseEnvelope
-	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil || envelope.Error == nil ||
-		envelope.Error.Code != querycontract.ErrorCodeBackendUnavailable {
-		t.Fatalf("reader fence body = %s (decode err %v), want a backend_unavailable envelope", rec.Body.String(), err)
-	}
-}
-
-// impactFailureSpan returns the innermost recorded span: the route's own
-// handler span when it opens one, otherwise the test's request span.
-func impactFailureSpan(t *testing.T, ended []sdktrace.ReadOnlySpan) sdktrace.ReadOnlySpan {
-	t.Helper()
-	var request sdktrace.ReadOnlySpan
-	for _, span := range ended {
-		if span.Name() != "request" {
-			return span
-		}
-		request = span
-	}
-	if request == nil {
-		t.Fatal("no span recorded")
-	}
-	return request
 }
 
 // failingImpactGraph fails every graph read whose Cypher fail matches (all of
