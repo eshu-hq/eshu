@@ -81,12 +81,23 @@ type GitHubDependabotAlertResult struct {
 }
 
 // GitHubDependabotError is a bounded provider error. It deliberately omits
-// repositories, tokens, URLs, and raw response bodies from Error().
+// repositories, tokens, URLs, and raw response bodies from Error(). Operation
+// names the bounded endpoint token for the call that failed
+// ("list_repo_alerts" or "list_org_alerts"); it never carries a repository,
+// organization, URL, or credential, and stays blank for validation failures
+// that never reached a provider endpoint.
 type GitHubDependabotError struct {
 	StatusCode int
 	Message    string
 	RateLimit  GitHubRateLimitInfo
+	Operation  string
 	Cause      error
+}
+
+// FailureOperation returns the bounded endpoint token for the failed call,
+// or "" when the failure carries none.
+func (e GitHubDependabotError) FailureOperation() string {
+	return e.Operation
 }
 
 // Error returns a bounded provider failure message safe for logs and status.
@@ -211,7 +222,7 @@ func (c GitHubDependabotClient) ListRepositoryAlertsPages(
 	if err != nil {
 		return GitHubDependabotAlertResult{}, err
 	}
-	return c.paginateAlerts(ctx, firstURL, maxPages)
+	return c.paginateAlerts(ctx, firstURL, maxPages, dependabotRepositoryAlertsOperation)
 }
 
 // ListOrganizationAlertsPages returns bounded Dependabot alert pages for an
@@ -239,16 +250,26 @@ func (c GitHubDependabotClient) ListOrganizationAlertsPages(
 	if err != nil {
 		return GitHubDependabotAlertResult{}, err
 	}
-	return c.paginateAlerts(ctx, firstURL, maxPages)
+	return c.paginateAlerts(ctx, firstURL, maxPages, dependabotOrganizationAlertsOperation)
 }
+
+// Bounded Dependabot endpoint tokens (#8258). The token names the endpoint
+// shape (per-repository or organization-wide), never the repository,
+// organization, URL, or credential.
+const (
+	dependabotRepositoryAlertsOperation   = "list_repo_alerts"
+	dependabotOrganizationAlertsOperation = "list_org_alerts"
+)
 
 // paginateAlerts walks bounded cursor pages for any Dependabot alert listing
 // endpoint, sharing pagination, truncation, and per-call alert clamping so the
-// repository and organization paths stay in lockstep.
+// repository and organization paths stay in lockstep. operation names the
+// endpoint shape being walked and is stamped onto every page failure.
 func (c GitHubDependabotClient) paginateAlerts(
 	ctx context.Context,
 	firstURL string,
 	maxPages int,
+	operation string,
 ) (GitHubDependabotAlertResult, error) {
 	if maxPages <= 0 {
 		maxPages = defaultRepositoryAlertMaxPages
@@ -256,7 +277,7 @@ func (c GitHubDependabotClient) paginateAlerts(
 	var out GitHubDependabotAlertResult
 	nextURL := firstURL
 	for page := 1; page <= maxPages; page++ {
-		alerts, rateLimit, next, err := c.listAlertsPage(ctx, nextURL)
+		alerts, rateLimit, next, err := c.listAlertsPage(ctx, nextURL, operation)
 		out.RateLimit = rateLimit
 		if err != nil {
 			return GitHubDependabotAlertResult{}, err
@@ -282,11 +303,16 @@ func (c GitHubDependabotClient) paginateAlerts(
 func (c GitHubDependabotClient) listAlertsPage(
 	ctx context.Context,
 	endpoint string,
+	operation string,
 ) ([]GitHubDependabotAlert, GitHubRateLimitInfo, string, error) {
 	endpoint = strings.TrimSpace(endpoint)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, GitHubRateLimitInfo{}, "", fmt.Errorf("build github dependabot request: %w", err)
+		return nil, GitHubRateLimitInfo{}, "", GitHubDependabotError{
+			Message:   "build github dependabot request",
+			Operation: operation,
+			Cause:     err,
+		}
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("Authorization", "Bearer "+c.token)
@@ -295,7 +321,8 @@ func (c GitHubDependabotClient) listAlertsPage(
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, GitHubRateLimitInfo{}, "", GitHubDependabotError{
-			Message: "fetch github dependabot alerts",
+			Message:   "fetch github dependabot alerts",
+			Operation: operation,
 			Cause: sdk.HTTPError{
 				Provider: "github_dependabot",
 				Message:  "request failed",
@@ -317,12 +344,17 @@ func (c GitHubDependabotClient) listAlertsPage(
 			StatusCode: resp.StatusCode,
 			Message:    "fetch github dependabot alerts",
 			RateLimit:  rateLimit,
+			Operation:  operation,
 			Cause:      httpErr,
 		}
 	}
 	var alerts []GitHubDependabotAlert
 	if err := json.NewDecoder(resp.Body).Decode(&alerts); err != nil {
-		return nil, rateLimit, "", fmt.Errorf("decode github dependabot alerts: %w", err)
+		return nil, rateLimit, "", GitHubDependabotError{
+			Message:   "decode github dependabot alerts",
+			Operation: operation,
+			Cause:     err,
+		}
 	}
 	if len(alerts) > c.repositoryLimit {
 		alerts = alerts[:c.repositoryLimit]

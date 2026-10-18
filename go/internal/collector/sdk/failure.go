@@ -215,6 +215,11 @@ func (f ProviderFailure) RetryAfterDelay() time.Duration {
 }
 
 // ClassifyProviderFailure maps HTTP and context failures to ProviderFailure.
+// An endpoint token carried by the cause (HTTPError.Operation or any wrapped
+// FailureOperation) is preserved onto the returned failure via WithOperation,
+// so per-endpoint tokens threaded through the client layer reach
+// failureOperationOf claim handling. A cause with no token keeps a blank
+// operation and claim handling falls back to its stage token.
 func ClassifyProviderFailure(provider string, err error, policy StatusPolicy, fallback FailureClass) ProviderFailure {
 	var failure ProviderFailure
 	if errors.As(err, &failure) {
@@ -223,13 +228,39 @@ func ClassifyProviderFailure(provider string, err error, policy StatusPolicy, fa
 	var httpErr HTTPError
 	if errors.As(err, &httpErr) {
 		classified := policy.ClassifyStatus(httpErr.StatusCode)
-		return NewProviderFailure(provider, classified.Class, classified.Terminal, err)
+		return withCarriedOperation(NewProviderFailure(provider, classified.Class, classified.Terminal, err), err)
 	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return NewProviderFailure(provider, FailureRetryable, false, err)
+		return withCarriedOperation(NewProviderFailure(provider, FailureRetryable, false, err), err)
 	}
 	if fallback == "" {
 		fallback = FailureRetryable
 	}
-	return NewProviderFailure(provider, fallback, fallback == FailureTerminal, err)
+	return withCarriedOperation(NewProviderFailure(provider, fallback, fallback == FailureTerminal, err), err)
+}
+
+// withCarriedOperation copies the first endpoint token found in the cause
+// chain onto the failure. HTTPError.Operation wins over a generic carried
+// token so the endpoint that failed stays authoritative; a cause with no
+// token leaves the failure operation blank for the stage fallback.
+func withCarriedOperation(failure ProviderFailure, err error) ProviderFailure {
+	if operation := carriedFailureOperation(err); operation != "" {
+		return failure.WithOperation(operation)
+	}
+	return failure
+}
+
+// carriedFailureOperation returns the first endpoint token in the cause
+// chain: the first non-blank HTTPError.Operation, else the first non-blank
+// wrapped FailureOperation. It returns "" when the chain carries no token.
+func carriedFailureOperation(err error) string {
+	var httpErr HTTPError
+	if errors.As(err, &httpErr) && strings.TrimSpace(httpErr.Operation) != "" {
+		return httpErr.Operation
+	}
+	var carried interface{ FailureOperation() string }
+	if errors.As(err, &carried) && strings.TrimSpace(carried.FailureOperation()) != "" {
+		return carried.FailureOperation()
+	}
+	return ""
 }

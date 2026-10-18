@@ -29,13 +29,20 @@ type HTTPDoer interface {
 	Do(*http.Request) (*http.Response, error)
 }
 
-// HTTPError carries bounded HTTP provider failure details.
+// HTTPError carries bounded HTTP provider failure details. Operation names
+// the bounded provider endpoint token for the call that failed (for example
+// "search_issues"). It must stay a short [a-z0-9_] identifier set by the
+// caller from the endpoint vocabulary in the package README: it never carries
+// a URL path, query string, request-specific ID, or credential. Empty means
+// the call site supplied no token and claim handling falls back to its stage
+// operation.
 type HTTPError struct {
 	Provider        string
 	StatusCode      int
 	Message         string
 	RetryAfter      time.Duration
 	RateLimitReason string
+	Operation       string
 	Cause           error
 }
 
@@ -65,13 +72,19 @@ func (e HTTPError) RetryAfterDelay() time.Duration {
 	return e.RetryAfter
 }
 
-// JSONRequest configures one bounded JSON HTTP request.
+// JSONRequest configures one bounded JSON HTTP request. Operation is the
+// bounded endpoint token for this call (for example "search_issues"); DoJSON
+// stamps it onto every HTTPError the call returns, including errors built by
+// a custom StatusError hook that leave Operation empty. Endpoint stays the
+// raw URL path and is never used as the token: paths can carry
+// request-specific IDs that must not reach status rows.
 type JSONRequest struct {
 	Provider    string
 	Method      string
 	BaseURL     *url.URL
 	PathPrefix  string
 	Endpoint    string
+	Operation   string
 	Query       url.Values
 	Body        any
 	Out         any
@@ -155,11 +168,11 @@ func DoJSON(ctx context.Context, request JSONRequest) error {
 	for attempt := 0; ; attempt++ {
 		httpRequest, err := buildRequest(ctx, request, method)
 		if err != nil {
-			return HTTPError{Provider: request.Provider, Message: "build request", Cause: err}
+			return HTTPError{Provider: request.Provider, Message: "build request", Operation: request.Operation, Cause: err}
 		}
 		response, err := client.Do(httpRequest)
 		if err != nil {
-			return HTTPError{Provider: request.Provider, Message: "request failed", Cause: err}
+			return HTTPError{Provider: request.Provider, Message: "request failed", Operation: request.Operation, Cause: err}
 		}
 		if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 			if retryStatus(response.StatusCode) && attempt < request.MaxRetries {
@@ -171,7 +184,7 @@ func DoJSON(ctx context.Context, request JSONRequest) error {
 			}
 			statusErr := statusError(request, response)
 			closeBody(response.Body)
-			return statusErr
+			return withRequestOperation(statusErr, request.Operation)
 		}
 		err = decodeBody(request, response.Body)
 		closeBody(response.Body)
@@ -233,13 +246,34 @@ func statusError(request JSONRequest, response *http.Response) error {
 		Message:         http.StatusText(response.StatusCode),
 		RetryAfter:      ParseRetryAfterHeader(response.Header.Get("Retry-After")),
 		RateLimitReason: strings.TrimSpace(response.Header.Get("RateLimit-Reason")),
+		Operation:       request.Operation,
 	}
+}
+
+// withRequestOperation stamps the request endpoint token onto a status-hook
+// error that left Operation empty. Only a top-level HTTPError is enriched, in
+// place semantics: the copy keeps every other field, and a hook-set token
+// wins over the request token. Sentinel results (ErrStatusHandled) and
+// wrapped chains pass through untouched because DoJSON cannot know which
+// layer owns the token there.
+func withRequestOperation(err error, operation string) error {
+	if operation == "" || err == nil {
+		return err
+	}
+	if errors.Is(err, ErrStatusHandled) {
+		return err
+	}
+	if httpErr, ok := err.(HTTPError); ok && strings.TrimSpace(httpErr.Operation) == "" {
+		httpErr.Operation = operation
+		return httpErr
+	}
+	return err
 }
 
 func decodeBody(request JSONRequest, body io.Reader) error {
 	if request.Decode != nil {
 		if err := request.Decode(body); err != nil {
-			return HTTPError{Provider: request.Provider, Message: "decode response", Cause: err}
+			return HTTPError{Provider: request.Provider, Message: "decode response", Operation: request.Operation, Cause: err}
 		}
 		return nil
 	}
@@ -247,7 +281,7 @@ func decodeBody(request JSONRequest, body io.Reader) error {
 		return nil
 	}
 	if err := json.NewDecoder(body).Decode(request.Out); err != nil {
-		return HTTPError{Provider: request.Provider, Message: "decode response", Cause: err}
+		return HTTPError{Provider: request.Provider, Message: "decode response", Operation: request.Operation, Cause: err}
 	}
 	return nil
 }
