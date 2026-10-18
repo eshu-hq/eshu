@@ -93,9 +93,11 @@ wire string, or call order. `CodeownersOwnershipEdgeMaterializationHandler`
 dropped the `Codeowners`/`Ownership`/`EdgeMaterialization` stutter per
 `docs/internal/naming.md` (`CodeownersOwnershipEdgeMaterializationHandler` ->
 `Handler`, `ExtractCodeownersOwnershipEdgeRowsWithQuarantine` ->
-`ExtractEdgeRowsWithQuarantine`); the reducer root keeps both
-spellings through the codeowners stanza of `compat_projection.go`, so no
-external caller needed a source change. Measured from `go/`, with `GOROOT`
+`ExtractEdgeRowsWithQuarantine`); the reducer root kept both
+spellings through the codeowners stanza of `compat_decode.go`, so no
+external caller needed a source change at the time. Under #6626 the
+extract-rows spelling is named directly and only the `Handler`
+spelling remains at the root. Measured from `go/`, with `GOROOT`
 unset: `go build ./...`, `go vet ./internal/reducer/... ./cmd/reducer/...`,
 and `go test ./internal/reducer/... ./cmd/reducer/...
 ./internal/storage/postgres/... ./internal/replay/... -count=1` all exited 0

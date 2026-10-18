@@ -81,7 +81,7 @@ func resolveCodeCallMaterializedEdges(odu ifa.Odu, expectedEdgesPath string) (bo
 	if mismatch := compareCodeCallExpectedEdges(odu.Name, expected, actual); mismatch != "" {
 		return false, mismatch
 	}
-	return true, fmt.Sprintf("odù %q: ExtractAllCodeRelationshipRows reproduces the expected %d-edge set exactly across all %d registry types", odu.Name, len(expected), len(registry))
+	return true, fmt.Sprintf("odù %q: codecall.ExtractAllRelationshipRows reproduces the expected %d-edge set exactly across all %d registry types", odu.Name, len(expected), len(registry))
 }
 
 func missingCodeCallExpectedTypes(expected []ExpectedEdge, registry map[string]struct{}) []string {

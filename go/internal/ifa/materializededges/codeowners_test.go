@@ -134,7 +134,7 @@ func TestCodeownersFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 	generationID := codeownersOwnershipFamilyGenerationID(odu.Facts)
 	rows, quarantined, err := owners.ExtractEdgeRowsWithQuarantine(odu.Facts, generationID)
 	if err != nil {
-		t.Fatalf("ExtractCodeownersOwnershipEdgeRowsWithQuarantine: %v", err)
+		t.Fatalf("owners.ExtractEdgeRowsWithQuarantine: %v", err)
 	}
 	if len(quarantined) > 0 {
 		t.Fatalf("%d fact(s) quarantined; the cassette no longer validates against the codeowners.ownership contract", len(quarantined))
