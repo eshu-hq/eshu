@@ -275,6 +275,7 @@ func (c HTTPClient) doJSON(
 		Method:     method,
 		BaseURL:    c.baseURL,
 		Endpoint:   endpoint,
+		Operation:  grafanaOperationForEndpoint(endpoint),
 		Query:      query,
 		Out:        out,
 		Client:     c.httpClient,
@@ -306,6 +307,22 @@ func (c HTTPClient) doJSON(
 		return false, err
 	}
 	return true, nil
+}
+
+// grafanaOperationForEndpoint maps a Grafana REST endpoint to its bounded
+// failure operation token (#8258). An unknown endpoint keeps a blank token
+// and claim handling falls back to its stage operation.
+func grafanaOperationForEndpoint(endpoint string) string {
+	switch endpoint {
+	case searchEndpoint:
+		return "search_resources"
+	case datasourcesEndpoint:
+		return "list_datasources"
+	case alertRulesEndpoint:
+		return "list_alert_rules"
+	default:
+		return ""
+	}
 }
 
 func (c HTTPClient) handleStatus(resp *http.Response, result *CollectionResult, resourceClass string) (bool, error) {
