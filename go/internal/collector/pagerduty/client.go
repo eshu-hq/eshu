@@ -267,7 +267,10 @@ func pagerDutyOperationForPath(path string) string {
 		if strings.HasSuffix(path, "/integrations") {
 			return "list_service_integrations"
 		}
-		return "read_service"
+		if !strings.Contains(strings.TrimPrefix(path, "/services/"), "/") {
+			return "read_service"
+		}
+		return ""
 	}
 	return ""
 }

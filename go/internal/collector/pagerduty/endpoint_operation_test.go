@@ -16,6 +16,30 @@ import (
 // incidents listing must record its bounded endpoint token so
 // failure_operation carries the endpoint (list_incidents), not the
 // claim-stage fallback.
+// TestPagerDutyOperationForPathUnknownServiceSubPathFallsBackToBlank proves
+// the #8399 P2: an unknown `/services/{id}/<other>` sub-path must keep a
+// blank token (claim-stage fallback) instead of mislabeling as read_service.
+// Only the exact read shape and the known /integrations listing pin tokens.
+func TestPagerDutyOperationForPathUnknownServiceSubPathFallsBackToBlank(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]string{
+		"/services":                        "list_services",
+		"/services/P123":                   "read_service",
+		"/services/P123/integrations":      "list_service_integrations",
+		"/services/P123/future_subpath":    "",
+		"/services/P123/nested/deeper":     "",
+		"/incidents/INC1/some_future_view": "",
+		"/incidents/INC1/log_entries":      "list_log_entries",
+		"/totally_unknown":                 "",
+	}
+	for path, want := range cases {
+		if got := pagerDutyOperationForPath(path); got != want {
+			t.Errorf("pagerDutyOperationForPath(%q) = %q, want %q", path, got, want)
+		}
+	}
+}
+
 func TestListIncidentsFailureCarriesEndpointToken(t *testing.T) {
 	t.Parallel()
 
