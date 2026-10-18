@@ -88,7 +88,11 @@ func buildTargetPresenceProbeStatements(domain string, rows []map[string]any) ([
 			if repo == "" || path == "" {
 				continue
 			}
-			emit(repo+"\x00"+path,
+			// The Endpoint key carries its own "e" namespace prefix so it can
+			// never collide with a Function "f"-prefixed uid key in the shared
+			// seen map (#8360 P2): without it, repo_id "f" plus a path equal to
+			// a Function uid in the same batch drops one target probe.
+			emit("e\x00"+repo+"\x00"+path,
 				"(e:Endpoint {repo_id: $repo_id, path: $path})",
 				"repo_id", repo, "path", path)
 			if uid, _ := row["function_entity_id"].(string); uid != "" {
