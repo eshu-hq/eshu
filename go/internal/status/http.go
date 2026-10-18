@@ -14,6 +14,10 @@ import (
 type HTTPHandlerOptions struct {
 	Now           func() time.Time
 	ReportOptions Options
+
+	// render builds the response body. Tests inject a failing renderer; nil
+	// means renderHTTPBody.
+	render func(Report, string) ([]byte, string, error)
 }
 
 // NewHTTPHandler returns a shared HTTP adapter for the operator status report.
@@ -25,6 +29,10 @@ func NewHTTPHandler(reader Reader, opts HTTPHandlerOptions) (http.Handler, error
 		opts.Now = func() time.Time {
 			return time.Now().UTC()
 		}
+	}
+
+	if opts.render == nil {
+		opts.render = renderHTTPBody
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -52,17 +60,13 @@ func serveHTTP(
 
 	report, err := LoadReport(r.Context(), reader, opts.Now(), opts.ReportOptions)
 	if err != nil {
-		http.Error(
-			w,
-			fmt.Sprintf("load status report: %v", err),
-			http.StatusInternalServerError,
-		)
+		WriteReadFailure(w, r, err, LoadFailureMessage)
 		return
 	}
 
-	body, contentType, err := renderHTTPBody(report, format)
+	body, contentType, err := opts.render(report, format)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("render status report: %v", err), http.StatusInternalServerError)
+		WriteReadFailure(w, r, err, RenderFailureMessage)
 		return
 	}
 

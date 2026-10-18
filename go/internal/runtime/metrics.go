@@ -21,6 +21,10 @@ import (
 
 const runtimeMetricsContentType = "text/plain; charset=utf-8"
 
+// metricsLoadFailureMessage is the fixed body /metrics answers when the status
+// reader fails. It never carries the reader's error text.
+const metricsLoadFailureMessage = "load runtime metrics failed"
+
 // NewStatusMetricsHandler builds a shared Prometheus-style metrics surface from
 // the same status reader used by the runtime admin report.
 func NewStatusMetricsHandler(serviceName string, reader statuspkg.Reader) (http.Handler, error) {
@@ -55,7 +59,7 @@ func serveStatusMetrics(w http.ResponseWriter, r *http.Request, serviceName stri
 		metricsSnapshotSelection(),
 	)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("load runtime metrics: %v", err), http.StatusInternalServerError)
+		statuspkg.WriteReadFailure(w, r, err, metricsLoadFailureMessage)
 		return
 	}
 

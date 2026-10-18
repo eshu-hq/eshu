@@ -360,6 +360,34 @@ Prometheus output after the hand-rolled gauges at the same `/metrics` endpoint.
 
 ## Gotchas / invariants
 
+- `/metrics` answers a failed status read with the fixed body
+  `load runtime metrics failed` (500) and never the reader's error text; a
+  canceled scrape answers 499. The error is recorded on the request span and
+  logged server-side through `status.WriteReadFailure` (#8287). The composite
+  handler already folds any non-200 status answer into
+  `eshu_runtime_status_snapshot_available 0`, so Prometheus sees a 200 scrape.
+
+  No-Regression Evidence: only the reader-error branch of `serveStatusMetrics`
+  changed; the success path (reader call, `renderStatusMetrics`, headers) is
+  untouched, so scrape latency, the `metricsSnapshotSelection` statement
+  inventory, and the stored-summary read are unchanged. No new pool, worker,
+  queue, lock, or Cypher. The error branch adds one `slog` line and one span
+  event per failed scrape. Baseline and after are the same code on the success
+  path; `go test ./internal/runtime ./internal/status -count=1` passes
+  including `TestStatusMetricsStatementInventory` and
+  `TestStatusMetricsSkipsTerraformEvidence`. Backend: Postgres status reader
+  via the existing shared pool.
+
+  Observability Evidence: a failed scrape now logs `load runtime metrics failed`
+  with `path` and the error at ERROR level and records the error and an Error
+  status on the request span when one exists (a span exists only where
+  `otelhttp` wraps the handler, the API binary today), so an operator finds the cause
+  server-side instead of in the response body. A caller cancel adds the
+  `eshu.request.client_canceled` span event and no log. Pinned by
+  `TestStatusMetricsHandlerReadFailureHidesBackendText`,
+  `TestStatusMetricsHandlerClientCancelIsNotAServerFault`, and
+  `TestServeHTTPLoadFailureHidesBackendText` (log and span asserted).
+
 - `LoadGraphBackend` with an unrecognized value fails at startup, not at
   first use. `data_stores.go:90` is the only valid switch for the backend
   env var; do not add new backend strings without updating this switch and

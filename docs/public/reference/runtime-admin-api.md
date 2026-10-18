@@ -123,6 +123,17 @@ body. `HEAD` returns only headers and status.
 `HEAD /admin/status` follows the same format-selection rules and returns no
 body.
 
+A failed status read answers `500` with the fixed body `load status report
+failed`; a failed render answers `500` with `render status report failed`. The
+body never carries the backend error text, which can quote SQL, hosts, or
+connection strings: read it from the runtime log, or from the request span
+where the handler is wrapped by `otelhttp` (the API binary today; other
+runtimes have the log only). A caller
+that cancels its own request gets `499`, which is not a server fault. A failed
+status read on `/metrics` answers `500` with `load runtime metrics failed` and
+the same `499` rule; the composite `/metrics` handler folds a failed status
+read into `eshu_runtime_status_snapshot_available 0` and still answers `200`.
+
 The JSON report is rendered by `go/internal/status.RenderJSON` and may include:
 
 - `version`

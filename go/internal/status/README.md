@@ -300,7 +300,21 @@ states (in priority order):
   state on a dedicated line.
 - `NewHTTPHandler(reader, opts)` — returns an `http.Handler` that serves `GET`
   and `HEAD`; accepts `?format=text` or `?format=json`, defaults to text for
-  plain requests and JSON when `Accept: application/json` is set
+  plain requests and JSON when `Accept: application/json` is set. A reader or
+  render failure answers a fixed body (`LoadFailureMessage`,
+  `RenderFailureMessage`) and never the backend error text; a canceled request
+  answers 499, not 500 (see `WriteReadFailure`)
+- `WriteReadFailure(w, r, err, message)` — answers a failed status or metrics
+  read with `message` as the only body text. A server fault answers 500, records
+  `err` on the request span, and logs it server-side. A caller cancel (`err`
+  wraps `context.Canceled` and the request context is canceled) answers
+  `StatusClientClosedRequest` (499) with a `ClientCanceledEvent` span event and
+  no log. `/metrics` in `internal/runtime` reuses it. The 499 constant, the
+  cancel event, and the cancel conjunction are redeclared from
+  `query/querycontract` and `query/tracing` because importing them would pull
+  their large dependency closure into this package;
+  `TestStatusReadFailureMatchesQueryServerFailure` in `internal/query` pins
+  both copies together
 
 ### Retry policy helpers
 
@@ -369,6 +383,12 @@ failures, expired claims, and recovery pressure through the existing
 and `eshu_dp_postgres_query_duration_seconds`.
 
 ## Gotchas / invariants
+
+- **Status and metrics read failures never carry error text.** Backend errors
+  quote SQL, hosts, and credentials, and the admin routes are unauthenticated.
+  Answer `/admin/status` and `/metrics` read failures through
+  `WriteReadFailure` with a fixed message; the error goes to the span and the
+  server log only (#8287).
 
 - **JSON shapes are operator contract.** Every exported JSON field name is
   consumed by operators and automation. Changes require coordination with the
