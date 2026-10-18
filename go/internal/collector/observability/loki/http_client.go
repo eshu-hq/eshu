@@ -59,10 +59,20 @@ func (r *apiResponse[T]) apiStatus() (string, string) {
 	return strings.TrimSpace(r.Status), strings.TrimSpace(r.ErrorType)
 }
 
-// ProviderAPIError carries a bounded Loki API status failure.
+// ProviderAPIError carries a bounded Loki API status failure. Operation
+// names the bounded endpoint token for the call that failed; it is set by
+// the client from the endpoint vocabulary and never carries a URL, query
+// string, or provider ID.
 type ProviderAPIError struct {
 	Status    string
 	ErrorType string
+	Operation string
+}
+
+// FailureOperation returns the bounded endpoint token for the failed call,
+// or "" when the failure carries none.
+func (e ProviderAPIError) FailureOperation() string {
+	return e.Operation
 }
 
 func (e ProviderAPIError) Error() string {
@@ -313,10 +323,31 @@ func (c HTTPClient) doJSON(
 	if statusReader, ok := out.(apiStatusReader); ok {
 		status, errorType := statusReader.apiStatus()
 		if status != "" && status != "success" {
-			return false, ProviderAPIError{Status: status, ErrorType: errorType}
+			return false, ProviderAPIError{Status: status, ErrorType: errorType, Operation: lokiOperationForEndpoint(endpoint)}
 		}
 	}
 	return true, nil
+}
+
+// lokiOperationForEndpoint maps a Loki API endpoint to its bounded failure
+// operation token (#8258). Label-value paths carry the configured label name,
+// so the token is matched by exact endpoint or by prefix and suffix and never
+// derived from the raw path: an unknown endpoint keeps a blank token and
+// claim handling falls back to its stage operation.
+func lokiOperationForEndpoint(endpoint string) string {
+	switch endpoint {
+	case labelsEndpoint:
+		return "list_labels"
+	case seriesEndpoint:
+		return "list_series"
+	case rulesEndpoint:
+		return "list_rules"
+	default:
+		if strings.HasPrefix(endpoint, "/loki/api/v1/label/") && strings.HasSuffix(endpoint, "/values") {
+			return "list_label_values"
+		}
+		return ""
+	}
 }
 
 func (c HTTPClient) doYAML(
@@ -349,6 +380,7 @@ func (c HTTPClient) do(
 		BaseURL:    c.baseURL,
 		PathPrefix: target.PathPrefix,
 		Endpoint:   endpoint,
+		Operation:  lokiOperationForEndpoint(endpoint),
 		Query:      query,
 		Out:        out,
 		Client:     c.httpClient,
