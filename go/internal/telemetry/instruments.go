@@ -7690,7 +7690,7 @@ func ContentEntitySourceFileKind(entityType, artifactType, configKind string) st
 // isConfigArtifactType reports whether artifactType is one of the config/infra
 // tokens the git parser actually emits. The set is aligned with the switch arms
 // of inferArtifactType and persistedArtifactType in
-// internal/parser/templated_detection.go; tokens those functions never produce
+// internal/parser/content/infer.go; tokens those functions never produce
 // (terraform, helm_chart, argocd, kustomize, cloudformation, bare "ansible")
 // are intentionally absent because they would be dead labels.
 func isConfigArtifactType(artifactType string) bool {
