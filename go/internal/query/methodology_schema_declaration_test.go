@@ -33,15 +33,11 @@ import (
 // the declaration goes inert, and the pin behaves as before. Any other PR
 // leaves the zero value alone.
 var methodologyCommittedSchemaDeclaration = methodologyRewriteDeclaration{
-	Issue:  7245,
-	Reason: "Adds the Neo4j-only infra_search_key_ft FULLTEXT index and its additive fingerprint bump; no reader uses the index yet (PR-1 is dark), so the paired Base/Candidate sides in this run both measure candidate schema and no query text changes.",
+	Issue:  6694,
+	Reason: "Renames symbol mentions in comments to the canonical/node leaf (no DDL, no statement, no index change); the paired Base/Candidate sides in this run both measure candidate schema and no query text changes.",
 	Paths: []string{
-		"go/internal/graph/schema.go",
 		"go/internal/graph/schema_application.go",
-		"go/internal/graph/schema_execution.go",
-		"go/internal/graph/schema_index_keys.go",
-		"go/internal/graph/schema_predecessors.go",
-		"go/internal/graph/schema_statements.go",
+		"go/internal/graph/schema_retired_constraints.go",
 		"go/internal/graph/schema_tables_indexes.go",
 	},
 }
