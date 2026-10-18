@@ -10,11 +10,11 @@ that ruling requires before any producer change.
 
 Pre-Edit Gate (for the implementation train, section 9):
 
-1. Entry point: `go/internal/collector/repo/git/fact_builder.go:201` sends
+1. Entry point: `streamFacts` (`go/internal/collector/repo/git/fact_builder.go`) sends
    `gitcontent.RepositoryFactEnvelope`
-   (`go/internal/collector/git/content/envelopes.go:137`) once per
-   generation; the call-graph reducer entry is
-   `go/internal/reducer/code/call/extract.go:104,139` calling
+   (`RepositoryFactEnvelope` in `go/internal/collector/git/content/envelopes.go`) once per
+   generation; the call-graph reducer entry is `ExtractRelationships` and
+   `ExtractRows` in `go/internal/reducer/code/call/extract.go`, both calling
    `shared.CollectRepositoryImports`.
 2. Phase ordering: collector emit -> fact admission/storage -> reducer
    factload (`go/internal/reducer/factload`) -> code-call extraction. The
@@ -23,7 +23,8 @@ Pre-Edit Gate (for the implementation train, section 9):
 3. Data dependencies: `CollectRepositoryImports` needs, per repository in
    the generation under reduction, the symbol -> file-paths map the parser
    prescan resolved (`snapshot.ImportsMap`,
-   `go/internal/collector/repo/git/source_types.go:97`). Nothing else reads
+   `RepositorySnapshot.HeadCommitSHA` in
+   `go/internal/collector/repo/git/source_types.go`). Nothing else reads
    it (section 2).
 4. Re-trigger: facts are generation-scoped; a new generation re-emits both
    kinds and the reducer re-runs per generation. No cross-generation join
@@ -58,7 +59,7 @@ upstream by the loader that built the envelope slice).
 | # | Reader | Keys read | `imports_map`? | Pays |
 |---|---|---|---|---|
 | P | Producer `collector/git/content/envelopes.go:137-192` | writes all | writes it | — |
-| 1 | `reducer/code/call/shared/imports.go:42` `CollectRepositoryImports` (callers `extract.go:104,139`, `python/metaclass.go:31`) | `repo_id`/`graph_id`, `imports_map` | **reads — the only consumer** | Go-decode (intended) |
+| 1 | `reducer/code/call/shared/imports.go:42` `CollectRepositoryImports` (callers `ExtractRelationships`/`ExtractRows` in `extract.go`, `python/metaclass.go:31`) | `repo_id`/`graph_id`, `imports_map` | **reads — the only consumer** | Go-decode (intended) |
 | 2 | `storage/postgres/backfill/catalog.go:29,51-55` via `relationships.RepositoryCatalogPayloadKeys()` | `repo_id, graph_id, name, repo_name, repo_slug, remote_url` (`relationships/catalog.go:68-70`) | no | SQL-key since #8082 (`jsonb_to_record` projects six keys; comment at `catalog.go:20-24`) |
 | 3 | `storage/postgres/repository_freshness_sql.go:36,45` | `repo_id, graph_id, name` | no | SQL-key |
 | 4 | `storage/postgres/tfstate_backend_queries.go:15-31,180-198,202,275-298,328-335` | `repo_id, graph_id, name, repo_slug, local_path` | no | SQL-key |
@@ -84,7 +85,8 @@ Test-only emitters of the inline shape: `accuracygate`
 `resolutionparity` (`golden_call_graph_test.go:196`,
 `resolution_tiers_test.go:199`), `reducer/code/call/*_test.go` (many), and
 `collector/repo/git/source_test.go:181-186`. The two rationale cassettes
-(`testdata/cassettes/rationale/ifa-rationale-family{,-delta}.json:27`)
+(`testdata/cassettes/rationale/ifa-rationale-family.json:27` and
+`testdata/cassettes/rationale/ifa-rationale-family-delta.json:27`)
 embed it.
 
 Non-Go consumers: **none found in this repository** — no hit under
@@ -167,7 +169,7 @@ Typed-struct status today: the `repository` kind **has** a typed struct —
 constant `FactKindCodegraphRepository = "repository"`
 (`fact_kinds.go:461`), JSON Schema
 `sdk/go/factschema/schema/repository.v1.schema.json`, registry
-declaration in the code family (`go/internal/facts/legacy_git_kinds.go:12-31`).
+declaration in the code family (`CodeFamilyDeclaration` in `go/internal/facts/legacy_git_kinds.go`).
 But `imports_map` is deliberately **not** a typed field: it passes through
 the open top-level object (`additionalProperties: true`) because its
 `map[string][]string` wire shape renders as array-valued
@@ -310,7 +312,8 @@ generations only (`generation_id` filtered). Retention policy itself is
 
 ## 7. Fixture, Odù, and golden-corpus impact
 
-- Rationale Odù + cassettes: `testdata/cassettes/rationale/ifa-rationale-family{,-delta}.json`
+- Rationale Odù + cassettes: `testdata/cassettes/rationale/ifa-rationale-family.json`
+  and `testdata/cassettes/rationale/ifa-rationale-family-delta.json`
   embed the inline key; both regenerate when the Odù moves to the new
   kind. Because an Odù overlaps cassettes, `eshu-golden-corpus-rigor`
   applies to that step alongside `eshu-contract-rigor`: regenerate via
