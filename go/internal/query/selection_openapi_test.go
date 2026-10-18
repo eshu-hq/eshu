@@ -68,9 +68,24 @@ func TestOpenAPIRepositoryFreshnessVerdictEnumMatchesStatus(t *testing.T) {
 
 // TestOpenAPIRepositoryFreshnessSelectionSchema pins the #7625 selection
 // object: always present, the exact keys the handler renders, and enums that
-// match the selection package.
+// match the selection package. It also pins the Repository component's
+// selection copy to the identical key set, so the two hand-duplicated
+// blocks cannot drift silently (#8454 review).
 func TestOpenAPIRepositoryFreshnessSelectionSchema(t *testing.T) {
 	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
+	}
+	schemas := testutil.MustMapField(t, testutil.MustMapField(t, spec, "components"), "schemas")
+	repository := testutil.MustMapField(t, testutil.MustMapField(t, schemas, "Repository"), "properties")
+	componentSel := testutil.MustMapField(t, testutil.MustMapField(t, repository, "selection"), "properties")
+	componentKeys := make([]string, 0, len(componentSel))
+	for key := range componentSel {
+		componentKeys = append(componentKeys, key)
+	}
+	slices.Sort(componentKeys)
 
 	sel := testutil.MustMapField(t, repositoryFreshnessResponseProperties(t), "selection")
 	if _, nullable := sel["nullable"]; nullable {
@@ -84,6 +99,9 @@ func TestOpenAPIRepositoryFreshnessSelectionSchema(t *testing.T) {
 	slices.Sort(keys)
 	if want := []string{"classification", "evaluated_at", "last_listed_at", "live_selector_count", "reason", "state", "state_since", "successor_selected", "successor_slug"}; !slices.Equal(keys, want) {
 		t.Fatalf("selection properties = %v, want %v", keys, want)
+	}
+	if !slices.Equal(componentKeys, keys) {
+		t.Fatalf("Repository component selection properties = %v, want identical to freshness selection %v", componentKeys, keys)
 	}
 
 	wantStates := []string{

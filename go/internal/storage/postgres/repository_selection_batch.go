@@ -29,6 +29,7 @@ SELECT scope_id, payload->>'repo_slug' AS slug
 FROM ingestion_scopes
 WHERE scope_kind = 'repository'
   AND lower(payload->>'repo_slug') = ANY($1)
+ORDER BY scope_id
 `
 
 // maxGenerationBatchQuery reads one page's newest generation per scope in
