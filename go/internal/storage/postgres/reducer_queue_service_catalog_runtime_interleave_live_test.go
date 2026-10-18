@@ -206,9 +206,36 @@ func TestReducerContentionGateServiceCatalogRuntimeFenceConcurrentWorkers(t *tes
 	if len(writes) != 1 || len(writes[0].Runtime) != 2 {
 		t.Fatalf("materialization runtime rows = %v, want exactly one write with 2 rows: an empty runtime family committed", runtimeRowCounts(writes))
 	}
-	for _, item := range []string{runtimeFenceCatalogItem, runtimeFenceProducerItem} {
-		if status, _, attempts := readRuntimeFenceItem(t, ctx, p.db, item); status != "succeeded" || attempts != 1 {
-			t.Fatalf("%s terminal = %s attempts=%d, want succeeded at 1", item, status, attempts)
+	if status, _, attempts := readRuntimeFenceItem(t, ctx, p.db, runtimeFenceProducerItem); status != "succeeded" || attempts != 1 {
+		t.Fatalf("%s terminal = %s attempts=%d, want succeeded at 1", runtimeFenceProducerItem, status, attempts)
+	}
+	// #8169: a catalog run still claimed when the producer acked is flagged
+	// (this proof's correlation writer records no decision, so the re-trigger
+	// treats the scope as a first run) and its own ACK returns it to pending.
+	// Drain that one owed replay; it must commit the runtime rows again.
+	status, _, attempts := readRuntimeFenceItem(t, ctx, p.db, runtimeFenceCatalogItem)
+	switch {
+	case status == "succeeded" && attempts == 1:
+	case status == "pending" && attempts == 0:
+		queue := runtimeFenceQueue(p.db, "catalog-replay", reducer.DomainServiceCatalogCorrelation, nil)
+		intent, claimed, err := queue.Claim(ctx)
+		if err != nil || !claimed {
+			t.Fatalf("replay Claim() claimed=%v err=%v", claimed, err)
 		}
+		if _, err := p.handler(p.db).Handle(ctx, intent); err != nil {
+			t.Fatalf("replay Handle() error = %v", err)
+		}
+		if err := queue.Ack(ctx, intent, reducer.Result{}); err != nil {
+			t.Fatalf("replay Ack() error = %v", err)
+		}
+		writes = p.materialization.snapshot()
+		if last := writes[len(writes)-1]; len(last.Runtime) != 2 {
+			t.Fatalf("replayed catalog write runtime rows = %d, want 2", len(last.Runtime))
+		}
+		if status, _, _ := readRuntimeFenceItem(t, ctx, p.db, runtimeFenceCatalogItem); status != "succeeded" {
+			t.Fatalf("catalog after its replay = %s, want succeeded", status)
+		}
+	default:
+		t.Fatalf("%s terminal = %s attempts=%d, want succeeded at 1 or pending at 0 (re-triggered)", runtimeFenceCatalogItem, status, attempts)
 	}
 }
