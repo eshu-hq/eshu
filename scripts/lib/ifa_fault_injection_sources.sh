@@ -89,3 +89,5 @@ source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_kubernetes_nam
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_iam_can_assume_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_iam_can_assume_cells.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_iam_can_perform_cells.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_iam_can_perform_cells.sh"

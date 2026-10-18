@@ -429,6 +429,13 @@ ifa_live_gate_common_seams=(
 	'scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh|scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh'
 	'scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh|scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh'
 	'scripts/lib/ifa_fault_injection_iam_can_assume_cells.sh|scripts/lib/ifa_fault_injection_iam_can_assume_cells.sh'
+	# iam_can_perform (#6228 fault half): cassette and expected-edge set
+	# moved here from the determinism-only table when the fault cells
+	# landed; writer and cells are new common seams beside the siblings.
+	'go/internal/storage/cypher/iam_can_perform_edge_writer.go|go/internal/storage/cypher/iam_can_perform_edge_writer.go'
+	'testdata/cassettes/iamcanperform/**|testdata/cassettes/iamcanperform/ifa-iam-can-perform-family.json'
+	'go/internal/ifa/testdata/iamcanperform/**|go/internal/ifa/testdata/iamcanperform/ifa-iam-can-perform-family-expected-edges.json'
+	'scripts/lib/ifa_fault_injection_iam_can_perform_cells.sh|scripts/lib/ifa_fault_injection_iam_can_perform_cells.sh'
 	'go/internal/collector/repo/git/fact_builder*.go|go/internal/collector/repo/git/fact_builder.go'
 	'go/internal/collector/repo/git/fact_builder*.go|go/internal/collector/repo/git/fact_builder_delta.go'
 	'go/internal/collector/repo/git/followup_facts.go|go/internal/collector/repo/git/followup_facts.go'

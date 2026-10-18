@@ -48,15 +48,16 @@
 # mistake commit 42e188ba1 made for documentation_edges and had to withdraw; it
 # is not repeated here.
 #
-# THREE OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment and
-# iam_instance_profile_role each carry a cataloged Odù, a registered edge-type
-# set, a vacuity guard dispatched from MaterializedEdgeOduResolver, a
-# hand-derived expected-edge-set fixture their guard reproduces exactly, and --
-# since #6309 -- live ifa-determinism AND ifa-fault-injection matrices driving
-# the family and asserting its exact edge set. iam_can_assume joins them with
-# the #6228 fault half: same four conditions, same coverage rows below.
-# Every other family below still lacks the fourth condition, which is why
-# every other family below still carries waiver rows instead.
+# FOUR OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
+# iam_instance_profile_role, iam_can_assume, and iam_can_perform each carry a
+# cataloged Odù, a registered edge-type set, a vacuity guard dispatched from
+# MaterializedEdgeOduResolver, a hand-derived expected-edge-set fixture their
+# guard reproduces exactly, and -- since #6309 for the first two, since the
+# #6228 fault half for the other two -- live ifa-determinism AND
+# ifa-fault-injection matrices driving the family and asserting its exact
+# edge set. Their coverage rows below say so. Every other family below still
+# lacks the fourth condition, which is why every other family below still
+# carries waiver rows instead.
 #
 # Which families those are is asserted in code, not only here.
 # guardedDirectMaterializedEdgeFamilies
@@ -156,6 +157,20 @@ coverage:
     scenario: odu
     scenario_type: fault
     ref: "odu:ifa-iam-can-assume-family"
+    proof_gate: ifa-fault-injection
+  # iam_can_perform: fault-free baseline plus kill-worker and
+  # fail-graph-write recovery, all asserting the three-edge CAN_PERFORM
+  # exact set with recovery digests compared against the family baseline
+  # (#6228 fault half).
+  - surface: "materialized_edges:iam_can_perform"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-iam-can-perform-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:iam_can_perform"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-iam-can-perform-family"
     proof_gate: ifa-fault-injection
 
 waivers:
@@ -269,16 +284,6 @@ waivers:
     issue: "#6228"
     waived: "2026-08-23"
     reason: "WriteGrantsSecretReadEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_GRANTS_SECRET_READ; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
-  - surface: "materialized_edges:iam_can_perform"
-    proof_gate: ifa-determinism
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteIAMCanPerformEdges -> cypher/iam_can_perform_edge_writer.go merges CAN_PERFORM; direct materialization; offline Odu + expected-edge-set fixture + registered edge types landed in the iam-can-perform live-cell change, and the live determinism matrix drives the family since that change (registry row 15, shared N={1,2,4} cell + post-delta exact-set assert). Stays waived: the fault-injection matrix does not drive it yet (no fault cells; see the row's cell_kind=custom note)"
-  - surface: "materialized_edges:iam_can_perform"
-    proof_gate: ifa-fault-injection
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteIAMCanPerformEdges -> cypher/iam_can_perform_edge_writer.go merges CAN_PERFORM; direct materialization; offline Odu + expected-edge-set fixture + registered edge types landed in the iam-can-perform live-cell change (family stays waived: the fault-injection matrix does not drive it yet; determinism drives it since the iam-can-perform live-cell change)"
   - surface: "materialized_edges:iam_escalation"
     proof_gate: ifa-determinism
     issue: "#6228"

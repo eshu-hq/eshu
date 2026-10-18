@@ -193,6 +193,7 @@ ifa:
   - 'testdata/cassettes/inheritance/**'
   - 'testdata/cassettes/iaminstanceprofilerole/**'
   - 'testdata/cassettes/iamcanassume/**'
+  - 'testdata/cassettes/iamcanperform/**'
   - 'testdata/cassettes/kubernetesnamespaceenvironment/**'
   - 'testdata/cassettes/rationale/**'
   - 'testdata/cassettes/repodependency/**'
