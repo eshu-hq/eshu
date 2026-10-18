@@ -361,9 +361,6 @@ func gitRunWithStderrWriter(
 	operation string,
 	args ...string,
 ) (string, error) {
-	commandArgs := make([]string, 0, len(args)+2)
-	commandArgs = append(commandArgs, "-C", repoPath)
-	commandArgs = append(commandArgs, args...)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	var attemptStarted time.Time
@@ -375,6 +372,16 @@ func gitRunWithStderrWriter(
 		flushProgressWriter(stderrWriter)
 		stdout.Reset()
 		stderr.Reset()
+		// The argv is rebuilt per attempt so a retry after an address
+		// refresh (#8092) pins the fresh set. The pin is a -c pair ahead
+		// of the caller's own -c options and subcommand; only network
+		// commands (a non-empty operation) get one.
+		commandArgs := make([]string, 0, len(args)+4)
+		commandArgs = append(commandArgs, "-C", repoPath)
+		if operation != "" {
+			commandArgs = append(commandArgs, resolveCacheArgs(commandCtx, config, repoPath)...)
+		}
+		commandArgs = append(commandArgs, args...)
 		command := newGitCommand(commandCtx, commandArgs...)
 		command.Env = gitCommandEnv(config, token, repoPath)
 		command.Stdout = &stdout

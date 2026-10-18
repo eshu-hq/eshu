@@ -53,6 +53,14 @@ its own deadline and a jittered backoff of about 3 s. `FromEnv` also reads
 `ESHU_GIT_RETRY_SWEEP_BUDGET` (default 20), the cap on retries one sweep may
 start, drawn from an atomic counter that `WithSweep` creates.
 
+Before a retry whose attempt died at its deadline or with one of the closed
+curl wording rows, `RunRetrying` asks the `RefreshRequester` hook
+(`WithRefreshRequester`) for a fresh address lookup and waits at most
+`DefaultRefreshWait` for it; the git package wires the per-host address cache
+of #8092 (`resolve`) there, and each attempt rebuilds its argv so the
+retry pins the fresh set. A shutdown that lands as the refresh or the backoff
+timer fires still stops the retry (the waits re-check the context, note N6).
+
 No-Regression Evidence (#8091): baseline origin/main a9b222eb87, where a fetch
 killed at its deadline is final and the repository waits for the next sweep
 (`TestRealGitFetchRetriesAfterDeadlineAndRecovers` fails there, exit 1). After:

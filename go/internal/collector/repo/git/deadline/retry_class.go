@@ -157,8 +157,36 @@ func containsAny(text string, patterns []string) bool {
 	return false
 }
 
-// needsAddressRefresh reports the classes a stale or wrong address can cause,
-// the ones that ask the per-host address cache to look the host up again.
-func needsAddressRefresh(class string) bool {
-	return class == ClassDNSResolve || class == ClassConnect
+// refreshWording is the closed set of libcurl messages that ask the
+// per-host address cache to look the host up again (#8092). The resolver
+// lines and the connect/reset lines are the failures a stale or wrong
+// address can cause. The timeout row is curl's "Operation timed out after"
+// wording on purpose: the connect_failed class also matches the plain text
+// "operation timed out", which a local ETIMEDOUT prints too, and a local
+// timeout says nothing about the cached address (note N4 on #8091).
+var refreshWording = []string{
+	"could not resolve host",
+	"could not resolve hostname",
+	"resolving timed out",
+	"failed to connect",
+	"connection timed out",
+	"connection reset",
+	"operation timed out after",
+}
+
+// shouldRefreshAddresses reports whether one failed attempt asks for a
+// fresh address lookup before its retry. The structured deadline class
+// matches first — a command the sync loop killed may have spent its whole
+// deadline on a dead pinned address — then the closed curl wording set.
+// A remote answer (rate limit, not found, auth, any other HTTP 4xx, object
+// integrity) never refreshes, whatever transport text came with it: the
+// answer is the answer, and Classify already gives it precedence.
+func shouldRefreshAddresses(class, stderr string) bool {
+	switch class {
+	case ClassDeadlineExceeded:
+		return true
+	case ClassRateLimited, ClassNotFound, ClassAuth, ClassHTTPClient, ClassPackObject:
+		return false
+	}
+	return containsAny(strings.ToLower(stderr), refreshWording)
 }

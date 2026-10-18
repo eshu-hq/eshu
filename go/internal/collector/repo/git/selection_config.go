@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/deadline"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/env"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/membership"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/resolve"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/rest"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/gitlab"
 )
@@ -116,6 +117,12 @@ type RepoSyncConfig struct {
 	SelectionLivenessWindow time.Duration
 	// GitDeadlines bounds each git command the sync runs (#8052); zero = defaults.
 	GitDeadlines deadline.Limits
+	// ResolveCache pins each provider host's addresses into network git
+	// commands as http.curloptResolve (#8092). LoadRepoSyncConfig builds it
+	// from ESHU_GIT_RESOLVE_CACHE and its sibling knobs; the pointer is
+	// shared by every copy of this config so all sweeps of one process use
+	// one cache. Nil (a hand-built config) pins nothing.
+	ResolveCache *resolve.Cache
 	// ForceReindex forces a full re-parse even when the corpus manifest is
 	// unchanged (#7982). It is set only from the eshu-bootstrap-index --force
 	// argv override, never from the environment, so scheduled fleet syncs keep
@@ -157,6 +164,10 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 		return RepoSyncConfig{}, err
 	}
 	gitDeadlines, err := deadline.FromEnv(getenv)
+	if err != nil {
+		return RepoSyncConfig{}, err
+	}
+	resolveCacheSettings, err := resolve.SettingsFromEnv(getenv)
 	if err != nil {
 		return RepoSyncConfig{}, err
 	}
@@ -222,6 +233,7 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 
 		SelectionLivenessWindow: selectionLivenessWindow,
 		GitDeadlines:            gitDeadlines,
+		ResolveCache:            resolve.New(resolveCacheSettings, resolve.Options{Getenv: getenv}),
 	}
 	normalizeFilesystemConfig(&config)
 	return config, nil

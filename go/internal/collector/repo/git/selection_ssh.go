@@ -4,10 +4,13 @@
 package git
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -144,4 +147,56 @@ func gitRetryScope(config RepoSyncConfig, repoPath string) string {
 		return repoID
 	}
 	return filepath.Base(repoPath)
+}
+
+// usesSSHRemote reports whether the collector builds SSH remote URLs, the
+// one transport the resolve cache must not pin (#8092): http.curloptResolve
+// is a libcurl option and an SSH remote does its own lookup.
+func usesSSHRemote(config RepoSyncConfig) bool {
+	return strings.EqualFold(strings.TrimSpace(config.GitAuthMethod), "ssh")
+}
+
+// resolveCacheArgs returns the curloptResolve pin for a network command
+// against the managed checkout at repoPath, or nil to run it unpinned. The
+// host comes from the same checkout-path rule as the retry host label and
+// the clone URL, so the pin always names the host the origin remote was
+// built for. Every non-SSH remote this collector builds is HTTPS, so the
+// port is 443.
+func resolveCacheArgs(ctx context.Context, config RepoSyncConfig, repoPath string) []string {
+	if config.ResolveCache == nil || usesSSHRemote(config) {
+		return nil
+	}
+	return config.ResolveCache.Args(ctx, gitRetryHost(config, repoPath), 443)
+}
+
+// resolveCacheArgsForURL returns the curloptResolve pin for a clone of
+// remoteURL. The host and port come from the URL itself — 443 for https,
+// 80 for http, or an explicit port — and any other form (the scp-like
+// git@host:path an SSH remote builds) pins nothing. Only the remote URL's
+// host is pinned; a redirect to another host resolves normally.
+func resolveCacheArgsForURL(ctx context.Context, config RepoSyncConfig, remoteURL string) []string {
+	if config.ResolveCache == nil || usesSSHRemote(config) {
+		return nil
+	}
+	parsed, err := url.Parse(remoteURL)
+	if err != nil || parsed.Hostname() == "" {
+		return nil
+	}
+	port := 0
+	switch strings.ToLower(parsed.Scheme) {
+	case "https":
+		port = 443
+	case "http":
+		port = 80
+	default:
+		return nil
+	}
+	if explicit := parsed.Port(); explicit != "" {
+		parsedPort, err := strconv.Atoi(explicit)
+		if err != nil || parsedPort <= 0 {
+			return nil
+		}
+		port = parsedPort
+	}
+	return config.ResolveCache.Args(ctx, parsed.Hostname(), port)
 }

@@ -326,17 +326,19 @@ func cloneRepository(
 		Build: func(deadlineCtx context.Context) *exec.Cmd {
 			progress.Flush()
 			stderr.Reset()
-			command := newGitCommand(
-				deadlineCtx,
-				append(config.GitDeadlines.LowSpeedArgs(),
-					"clone",
-					"--progress",
-					fmt.Sprintf("--depth=%d", config.CloneDepth),
-					"--single-branch",
-					remoteURL,
-					repoPath,
-				)...,
+			// Rebuilt per attempt: a retry after an address refresh pins
+			// the fresh set (#8092), ahead of the low-speed options.
+			cloneArgs := resolveCacheArgsForURL(deadlineCtx, config, remoteURL)
+			cloneArgs = append(cloneArgs, config.GitDeadlines.LowSpeedArgs()...)
+			cloneArgs = append(cloneArgs,
+				"clone",
+				"--progress",
+				fmt.Sprintf("--depth=%d", config.CloneDepth),
+				"--single-branch",
+				remoteURL,
+				repoPath,
 			)
+			command := newGitCommand(deadlineCtx, cloneArgs...)
 			command.Env = gitCommandEnv(config, token, repoPath)
 			command.Stderr = progress
 			return command
