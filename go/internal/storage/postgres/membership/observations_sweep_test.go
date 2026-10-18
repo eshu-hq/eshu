@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/membership"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
 	membershipstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/membership"
 )
@@ -117,6 +118,74 @@ func TestDeleteExpiredObservationsReportsRowsDeletedBeforeAnError(t *testing.T) 
 	}
 	if counts.Deleted != int64(membershipstore.ExpiredSweepBatchSize) {
 		t.Fatalf("deleted = %d, want the first batch's %d rows", counts.Deleted, membershipstore.ExpiredSweepBatchSize)
+	}
+}
+
+// errAfterRows is a db.Rows that yields its states, then reports err from
+// Err, as a DELETE ... RETURNING stream that fails mid-batch does.
+type errAfterRows struct {
+	states []string
+	index  int
+	err    error
+}
+
+func (r *errAfterRows) Next() bool { return r.index < len(r.states) }
+
+func (r *errAfterRows) Scan(dest ...any) error {
+	target, ok := dest[0].(*string)
+	if !ok {
+		return errors.New("errAfterRows: scan target is not *string")
+	}
+	*target = r.states[r.index]
+	r.index++
+	return nil
+}
+
+func (r *errAfterRows) Err() error   { return r.err }
+func (r *errAfterRows) Close() error { return nil }
+
+// errAfterRowsDB serves one errAfterRows for every query.
+type errAfterRowsDB struct{ rows *errAfterRows }
+
+func (d errAfterRowsDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+	return d.rows, nil
+}
+
+func (d errAfterRowsDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+	return affected(0), nil
+}
+
+func TestDeleteExpiredObservationsScanErrorCountsNothingForFailedBatch(t *testing.T) {
+	t.Parallel()
+
+	// The second batch streams one not_listed row, then its next Scan
+	// fails. The batch is one atomic statement, so it contributes zero:
+	// only the first, completed batch's counts stand.
+	database := &fake.ExecQueryer{QueryResponses: []fake.Rows{
+		deletedBatch("selected", membershipstore.ExpiredSweepBatchSize),
+		{Data: [][]any{{"not_listed"}, {123}}},
+	}}
+	counts, err := membershipstore.NewObservationStore(database).DeleteExpiredObservations(context.Background(), evaluatedAt, time.Hour)
+	if err == nil {
+		t.Fatal("DeleteExpiredObservations() error = nil, want the scan error")
+	}
+	want := membership.SweepCounts{Deleted: int64(membershipstore.ExpiredSweepBatchSize)}
+	if counts != want {
+		t.Fatalf("counts = %+v, want %+v (failed batch counts nothing)", counts, want)
+	}
+}
+
+func TestDeleteExpiredObservationsRowsErrorCountsNothingForFailedBatch(t *testing.T) {
+	t.Parallel()
+
+	boom := errors.New("stream reset")
+	database := errAfterRowsDB{rows: &errAfterRows{states: []string{"selected", "not_listed"}, err: boom}}
+	counts, err := membershipstore.NewObservationStore(database).DeleteExpiredObservations(context.Background(), evaluatedAt, time.Hour)
+	if !errors.Is(err, boom) {
+		t.Fatalf("DeleteExpiredObservations() error = %v, want it to wrap %v", err, boom)
+	}
+	if counts != (membership.SweepCounts{}) {
+		t.Fatalf("counts = %+v, want zero (failed batch counts nothing)", counts)
 	}
 }
 
