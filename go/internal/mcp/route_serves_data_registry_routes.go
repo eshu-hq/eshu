@@ -19,10 +19,11 @@ package mcp
 var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 	// DocumentationHandler.listFacts reads the collected documentation fact
 	// family from fact_records via (*ContentReader).documentationFacts: the
-	// IN (...) list is built from docs.*FactKind constants
-	// (go/internal/query/documentation_facts.go:387-396). The list also
-	// includes facts.SemanticDocumentationObservationFactKind (line 394) —
-	// semantic observation rows genuinely return through this route, hence
+	// IN (...) list is built from docs.*FactKind constants by
+	// documentationCollectedFactKindSQLList in
+	// go/internal/query/documentation_facts.go. The list also includes
+	// facts.SemanticDocumentationObservationFactKind there — semantic
+	// observation rows genuinely return through this route, hence
 	// the disclosure.
 	"GET /api/v0/documentation/facts": {
 		RegistrationFile: "go/internal/query/documentation.go",

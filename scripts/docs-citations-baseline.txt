@@ -403,7 +403,6 @@ LINE go/internal/ifa/deployable_unit_family_catalog.go go/internal/collector/git
 LINE go/internal/mcp/kind_disclosure_ledger.go go/internal/storage/postgres/cloud_identity_policy_evidence.go:85
 LINE go/internal/mcp/kind_disclosure_ledger.go go/internal/storage/postgres/cloud_resource_change_evidence.go:90
 LINE go/internal/mcp/route_serves_data_registry_routes.go go/internal/query/cloud_inventory_read_model.go:22
-LINE go/internal/mcp/route_serves_data_registry_routes.go go/internal/query/documentation_read_model.go:359
 LINE go/internal/mcp/route_serves_data_registry_routes.go go/internal/query/images.go:30
 LINE go/internal/parser/hcl/terraform_resource_attributes.go go/internal/correlation/drift/tfconfigstate/classify.go:171
 LINE go/internal/parser/json/line_number_derived_test.go go/internal/content/writer.go:196
