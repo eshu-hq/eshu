@@ -6,6 +6,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -51,6 +52,10 @@ type targetJSON struct {
 	BearerTokenEnv string   `json:"bearer_token_env"`
 	AWSProfile     string   `json:"aws_profile"`
 	FencingToken   int64    `json:"fencing_token"`
+	// AllowEmptySuccessor is the explicit operator attestation that an
+	// empty or sharply shrunken successor generation is legitimate for
+	// this repository. It defaults to false.
+	AllowEmptySuccessor bool `json:"allow_empty_successor"`
 
 	// TLSCACertPath points at a PEM bundle the collector trusts in addition to
 	// the system pool. Use it to scan a registry served with a private or
@@ -101,10 +106,15 @@ func loadRuntimeConfig(getenv func(string) string) (ociruntime.Config, error) {
 	if err != nil {
 		return ociruntime.Config{}, err
 	}
+	globalAttestation, err := parseAllowEmptySuccessor(getenv)
+	if err != nil {
+		return ociruntime.Config{}, err
+	}
 	return ociruntime.Config{
 		CollectorInstanceID: collectorID,
 		PollInterval:        pollInterval,
 		Targets:             targets,
+		AllowEmptySuccessor: globalAttestation,
 	}, nil
 }
 
@@ -212,9 +222,14 @@ func parseOCIRegistryRuntimeConfiguration(
 		}
 		targets = append(targets, mapped)
 	}
+	globalAttestation, err := parseAllowEmptySuccessor(getenv)
+	if err != nil {
+		return ociruntime.Config{}, err
+	}
 	return ociruntime.Config{
 		CollectorInstanceID: instance.InstanceID,
 		Targets:             targets,
+		AllowEmptySuccessor: globalAttestation,
 	}, nil
 }
 
@@ -301,11 +316,29 @@ func mapTarget(target targetJSON, getenv func(string) string) (ociruntime.Target
 		BearerToken:   getenv(strings.TrimSpace(target.BearerTokenEnv)),
 		AWSProfile:    strings.TrimSpace(target.AWSProfile),
 		FencingToken:  target.FencingToken,
+		// Only an explicitly attested repository bypasses the ingestion
+		// store's successor-emptiness backstop.
+		AllowEmptySuccessor: target.AllowEmptySuccessor,
 		TLS: ociruntime.TLSConfig{
 			CACertPath:         strings.TrimSpace(target.TLSCACertPath),
 			InsecureSkipVerify: target.TLSInsecureSkipVerify,
 		},
 	}, nil
+}
+
+// parseAllowEmptySuccessor reads the collector-wide trusted-deletion
+// attestation. It defaults to false: without it only per-target
+// allow_empty_successor keys attest.
+func parseAllowEmptySuccessor(getenv func(string) string) (bool, error) {
+	raw := strings.TrimSpace(getenv("ESHU_OCI_REGISTRY_ALLOW_EMPTY_SUCCESSOR"))
+	if raw == "" {
+		return false, nil
+	}
+	attested, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false, fmt.Errorf("ESHU_OCI_REGISTRY_ALLOW_EMPTY_SUCCESSOR must be a boolean")
+	}
+	return attested, nil
 }
 
 func parsePollInterval(raw string) (time.Duration, error) {

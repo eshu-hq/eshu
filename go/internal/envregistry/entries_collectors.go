@@ -59,6 +59,7 @@ var collectorEntries = func() []Entry {
 		"ESHU_AWS_COLLECTOR_INSTANCE_ID", "ESHU_AWS_COLLECTOR_OWNER_ID",
 		"ESHU_AWS_COLLECTOR_POLL_INTERVAL", "", "ESHU_AWS_COLLECTOR_CLAIM_LEASE_TTL", "ESHU_AWS_COLLECTOR_HEARTBEAT_INTERVAL")...)
 	add(Entry{Name: "ESHU_AWS_REDACTION_KEY", Type: VarString, Subsystem: "collector-aws-cloud", Description: "Encryption key for redacting AWS secrets when sensitive service scans are enabled."})
+	add(Entry{Name: "ESHU_AWS_ALLOW_EMPTY_SUCCESSOR", Type: VarBool, Default: "false", Subsystem: "collector-aws-cloud", Description: "Collector-wide trusted-deletion attestation: when true, every claimed AWS generation carries TrustedDeletion, bypassing the ingestion store's successor-emptiness backstop for legitimately emptied estates. Prefer the per-scope allow_empty_successor key when only some scopes may legitimately empty."})
 	add(collectorFrameworkEntries("collector-gcp-cloud",
 		"ESHU_GCP_COLLECTOR_INSTANCE_ID", "ESHU_GCP_COLLECTOR_OWNER_ID",
 		"ESHU_GCP_COLLECTOR_POLL_INTERVAL", "", "ESHU_GCP_COLLECTOR_CLAIM_LEASE_TTL", "ESHU_GCP_COLLECTOR_HEARTBEAT_INTERVAL")...)
@@ -96,6 +97,7 @@ var collectorEntries = func() []Entry {
 		"ESHU_OCI_REGISTRY_COLLECTOR_INSTANCE_ID", "ESHU_OCI_REGISTRY_COLLECTOR_OWNER_ID",
 		"ESHU_OCI_REGISTRY_POLL_INTERVAL", "", "ESHU_OCI_REGISTRY_CLAIM_LEASE_TTL", "ESHU_OCI_REGISTRY_HEARTBEAT_INTERVAL")...)
 	add(Entry{Name: "ESHU_OCI_REGISTRY_TARGETS_JSON", Type: VarString, Subsystem: "collector-oci-registry", Description: "JSON array of OCI registry target configurations."})
+	add(Entry{Name: "ESHU_OCI_REGISTRY_ALLOW_EMPTY_SUCCESSOR", Type: VarBool, Default: "false", Subsystem: "collector-oci-registry", Description: "Collector-wide trusted-deletion attestation: when true, every OCI registry generation carries TrustedDeletion, bypassing the ingestion store's successor-emptiness backstop for legitimately emptied repositories. Prefer the per-target allow_empty_successor key when only some repositories may legitimately empty."})
 
 	// terraform-state collector (TFSTATE prefix; extra redaction/source vars).
 	add(collectorFrameworkEntries("collector-terraform-state",
@@ -107,6 +109,7 @@ var collectorEntries = func() []Entry {
 		Entry{Name: "ESHU_TFSTATE_REDACTION_RULESET_VERSION", Type: VarString, Subsystem: "collector-terraform-state", Description: "Versioned policy identifier for redacting sensitive keys."},
 		Entry{Name: "ESHU_TFSTATE_REDACTION_SENSITIVE_KEYS", Type: VarString, Subsystem: "collector-terraform-state", Description: "Comma-separated leaf keys to redact; defaults to password,secret,token,access_key,private_key,certificate,key_pair."},
 		Entry{Name: "ESHU_TFSTATE_SOURCE_MAX_BYTES", Type: VarInt, Default: "0", Subsystem: "collector-terraform-state", Description: "Maximum bytes accepted per Terraform state source; 0 means unlimited."},
+		Entry{Name: "ESHU_TFSTATE_ALLOW_EMPTY_SUCCESSOR", Type: VarBool, Default: "false", Subsystem: "collector-terraform-state", Description: "Collector-wide trusted-deletion attestation: when true, a parsed state with the legitimate-empty shape (snapshot only, zero body facts) carries TrustedDeletion, bypassing the ingestion store's successor-emptiness backstop for legitimately emptied states. Missing, over-ceiling, and identity-mismatched states never attest. Prefer the allow_empty_successor runtime configuration key when the environment is managed per instance."},
 		Entry{Name: "ESHU_TERRAFORM_SCHEMA_DIR", Type: VarString, Subsystem: "collector-terraform-state", Description: "Directory of Terraform provider schemas; defaults to the built-in schema directory."},
 	)
 

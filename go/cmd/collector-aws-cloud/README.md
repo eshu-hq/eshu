@@ -103,6 +103,11 @@ the environment/configuration it accepts:
   cassette corpus (every cassette whose joins must survive shares it), kept
   with the corpus's other secrets, never committed. Read once; only its
   8-hex fingerprint is written to the cassette and logged.
+- `ESHU_AWS_ALLOW_EMPTY_SUCCESSOR` - collector-wide trusted-deletion
+  attestation (boolean, default false). When true, every claimed generation
+  carries `TrustedDeletion`, bypassing the ingestion store's
+  successor-emptiness backstop for a legitimately emptied estate. Prefer the
+  per-scope `allow_empty_successor` key when only some scopes may empty.
 - `ESHU_AWS_REDACTION_KEY` - required when any target scope enables a scanner
   that declared `RequiresRedactionKey: true` in its `runtimebind` registration.
   The command derives this set from `awsruntime.ServiceKindsRequiringRedactionKey()`
@@ -137,6 +142,14 @@ chain. Static credential fields are rejected during config parsing.
 `central_assume_role` requires an external ID, and the role ARN's account must
 match the target `account_id`. `local_workload_identity` must not set
 `role_arn` or `external_id`.
+
+`TargetScope.AllowEmptySuccessor` is the explicit operator attestation for a
+legitimately emptied scope. The source stamps it onto the generation as
+`TrustedDeletion`; without it the ingestion store's successor-emptiness
+backstop refuses to replace a content-bearing active generation with an empty
+or sharply shrunken successor, keeping the prior generation active. Operators
+set it with the `allow_empty_successor` target-scope key (default false): omit
+it unless an emptied scope makes an empty successor legitimate.
 
 ## Dependencies
 

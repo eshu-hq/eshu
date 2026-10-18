@@ -295,10 +295,11 @@ func (s ClaimedSource) targetForClaim(item workflow.WorkItem) (Target, error) {
 			continue
 		}
 		return Target{
-			AccountID:   claim.AccountID,
-			Region:      claim.Region,
-			ServiceKind: claim.ServiceKind,
-			Credentials: candidate.Credentials,
+			AccountID:           claim.AccountID,
+			Region:              claim.Region,
+			ServiceKind:         claim.ServiceKind,
+			Credentials:         candidate.Credentials,
+			AllowEmptySuccessor: candidate.AllowEmptySuccessor,
 		}, nil
 	}
 	return Target{}, fmt.Errorf(
@@ -367,6 +368,10 @@ func (s ClaimedSource) scopeAndGeneration(
 		ObservedAt:   observedAt,
 		IngestedAt:   observedAt,
 		TriggerKind:  scope.TriggerKindSnapshot,
+		// The escape hatch for a legitimately emptied estate: only a
+		// target that explicitly attests its deletions bypasses the
+		// store's successor-emptiness backstop.
+		TrustedDeletion: target.AllowEmptySuccessor || s.Config.AllowEmptySuccessor,
 	}
 	return scopeValue, generationValue, generationValue.ValidateForScope(scopeValue)
 }

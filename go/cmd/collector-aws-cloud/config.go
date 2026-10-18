@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,6 +41,10 @@ type awsTargetScopeConfiguration struct {
 	AllowedServices     []string                   `json:"allowed_services"`
 	MaxConcurrentClaims int                        `json:"max_concurrent_claims"`
 	Credentials         awsCredentialConfiguration `json:"credentials"`
+	// AllowEmptySuccessor is the explicit operator attestation that an
+	// empty or sharply shrunken successor generation is legitimate for
+	// this scope. It defaults to false.
+	AllowEmptySuccessor bool `json:"allow_empty_successor"`
 }
 
 type awsCredentialConfiguration struct {
@@ -69,6 +74,13 @@ func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
 	awsConfig, err := parseAWSRuntimeConfiguration(instance)
 	if err != nil {
 		return runtimeConfig{}, err
+	}
+	if raw := strings.TrimSpace(getenv("ESHU_AWS_ALLOW_EMPTY_SUCCESSOR")); raw != "" {
+		attested, err := strconv.ParseBool(raw)
+		if err != nil {
+			return runtimeConfig{}, fmt.Errorf("ESHU_AWS_ALLOW_EMPTY_SUCCESSOR must be a boolean")
+		}
+		awsConfig.AllowEmptySuccessor = attested
 	}
 	redactionKey, err := loadAWSRedactionKeyIfNeeded(getenv, awsConfig)
 	if err != nil {
@@ -193,9 +205,12 @@ func mapTargetScope(target awsTargetScopeConfiguration) (awsruntime.TargetScope,
 		return awsruntime.TargetScope{}, err
 	}
 	return awsruntime.TargetScope{
-		AccountID:           accountID,
-		AllowedRegions:      allowedRegions,
-		AllowedServices:     allowedServices,
+		AccountID:       accountID,
+		AllowedRegions:  allowedRegions,
+		AllowedServices: allowedServices,
+		// Only an explicitly attested scope bypasses the ingestion
+		// store's successor-emptiness backstop.
+		AllowEmptySuccessor: target.AllowEmptySuccessor,
 		MaxConcurrentClaims: target.MaxConcurrentClaims,
 		Credentials:         credentials,
 	}, nil

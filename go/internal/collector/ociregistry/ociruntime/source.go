@@ -464,6 +464,8 @@ func (s *Source) scopeAndGeneration(target TargetConfig, observedAt time.Time, r
 		ObservedAt:   observedAt,
 		IngestedAt:   observedAt,
 		TriggerKind:  scope.TriggerKindSnapshot,
+		// Attested deletions bypass the successor-emptiness backstop (an emptied scope still emits its repository envelope).
+		TrustedDeletion: target.AllowEmptySuccessor || s.Config.AllowEmptySuccessor,
 	}
 	return scopeValue, generationValue, generationValue.ValidateForScope(scopeValue)
 }
