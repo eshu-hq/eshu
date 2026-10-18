@@ -197,6 +197,9 @@ root="$(cd "${root}" && pwd -P)"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "${tmp}"' EXIT
+# yq < 4.49 keeps a "\t" escape literal, so rows never split and the gate passes empty (#8397): join with strenv(TAB). CI pins 4.54.1.
+export TAB=$'\t'
+[[ "$(yq -n '["a","b"] | join(strenv(TAB))')" == $'a\tb' ]] || { echo "verify-dockerhub-login: yq did not join with a tab (TAB unset or yq broken)" >&2; exit 1; }
 failures=0
 fail() { printf 'verify-dockerhub-login: %s\n' "$1" >&2; failures=$((failures + 1)); }
 b64d() { base64 -d 2>/dev/null || base64 -D; }
@@ -431,10 +434,10 @@ for wf in ${wf_files[@]+"${wf_files[@]}"}; do
   [[ "${queue_wfs}" != *$'\n'"${name}"$'\n'* ]] || queue=1
   wf_env="$(yq e '(.env | select(type == "!!map") | .DOCKERHUB_LOGIN_ENABLED) // ""' "${wf}")"
   yq e '.jobs | to_entries | .[] | .key as $j | (
-      (["J", $j, "x" + (((.value.env | select(type == "!!map") | .DOCKERHUB_LOGIN_ENABLED) // "") | tostring), "x" + (.value.uses // "")] | join("\t")),
-      ((.value.services | select(type == "!!map") | to_entries | .[] | ["S", $j, .key, "x" + (.value.image // ""), "x" + (.value.credentials.username // ""), "x" + (.value.credentials.password // "")] | join("\t")) // ""),
-      ((.value.container | select(type == "!!str") | ["C", $j, "container", "x" + ., "x", "x"] | join("\t")) // ""),
-      ((.value.container | select(type == "!!map") | ["C", $j, "container", "x" + (.image // ""), "x" + (.credentials.username // ""), "x" + (.credentials.password // "")] | join("\t")) // "")
+      (["J", $j, "x" + (((.value.env | select(type == "!!map") | .DOCKERHUB_LOGIN_ENABLED) // "") | tostring), "x" + (.value.uses // "")] | join(strenv(TAB))),
+      ((.value.services | select(type == "!!map") | to_entries | .[] | ["S", $j, .key, "x" + (.value.image // ""), "x" + (.value.credentials.username // ""), "x" + (.value.credentials.password // "")] | join(strenv(TAB))) // ""),
+      ((.value.container | select(type == "!!str") | ["C", $j, "container", "x" + ., "x", "x"] | join(strenv(TAB))) // ""),
+      ((.value.container | select(type == "!!map") | ["C", $j, "container", "x" + (.image // ""), "x" + (.credentials.username // ""), "x" + (.credentials.password // "")] | join(strenv(TAB))) // "")
     )' "${wf}" | sed '/^$/d;/^null$/d' >"${tmp}/jobs.tsv"
   # steps.tsv: seq, job, idx, uses, if (base64), with.registry/username/password/file/context, env (base64 NAME=VALUE lines), continue-on-error, with.driver, with.driver-opts (base64), with.image.
   yq e '.jobs | to_entries | .[] | select(.value.steps | type == "!!seq") | select(.value.steps | length > 0) | .key as $j | ((.value.steps // []) | to_entries | .[] |
@@ -446,9 +449,9 @@ for wf in ${wf_files[@]+"${wf_files[@]}"}; do
        "x" + ((.value["continue-on-error"] // "") | tostring),
        "x" + ((.value.with.driver // "") | tostring), "x" + (((.value.with["driver-opts"] // "") | tostring) | @base64),
        "x" + ((.value.with.image // "") | tostring),
-       "x" + (((.value.with["build-args"] // "") | tostring) | @base64)] | join("\t"))' "${wf}" | awk '{print NR "\t" $0}' >"${tmp}/steps.tsv"
-  yq e '(.env | select(type == "!!map") | to_entries | .[] | [.key, (.value | tostring)] | join("\t"))' "${wf}" >"${tmp}/wfenv.tsv"
-  yq e '.jobs | to_entries | .[] | .key as $j | (.value.env | select(type == "!!map") | to_entries | .[] | [$j, .key, (.value | tostring)] | join("\t"))' "${wf}" >"${tmp}/jobenv.tsv"
+       "x" + (((.value.with["build-args"] // "") | tostring) | @base64)] | join(strenv(TAB)))' "${wf}" | awk '{print NR "\t" $0}' >"${tmp}/steps.tsv"
+  yq e '(.env | select(type == "!!map") | to_entries | .[] | [.key, (.value | tostring)] | join(strenv(TAB)))' "${wf}" >"${tmp}/wfenv.tsv"
+  yq e '.jobs | to_entries | .[] | .key as $j | (.value.env | select(type == "!!map") | to_entries | .[] | [$j, .key, (.value | tostring)] | join(strenv(TAB)))' "${wf}" >"${tmp}/jobenv.tsv"
   # One file per step run text, named by the step's sequence number.
   rm -rf "${tmp}/runs"; mkdir -p "${tmp}/runs"
   yq e '.jobs | to_entries | .[] | select(.value.steps | type == "!!seq") | select(.value.steps | length > 0) | ((.value.steps // []) | to_entries | .[] | ("@@STEP\n" + (.value.run // "")))' "${wf}" |

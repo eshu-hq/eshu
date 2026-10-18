@@ -120,8 +120,9 @@ expect_red direct-docker-job-without-login "${d}" 'verify-agent-hygiene.yml:fixt
 
 d="$(new_case login-after-first-docker)"
 # Move the login after the script-driven step that pulls (steps[5] runs the
-# script, steps[1] is the login in the committed workflow).
-yq e -i '.jobs.live-backend.steps as $s | .jobs.live-backend.steps = ($s[0:1] + $s[2:6] + [$s[1]] + $s[6:])' "${d}/.github/workflows/legacy-hub.yml"
+# script, steps[1] is the login in the committed workflow). Indexed, not sliced:
+# yq before 4.5x does not slice a variable (#8397).
+yq e -i '.jobs.live-backend.steps |= [.[0], .[2], .[3], .[4], .[5], .[1]]' "${d}/.github/workflows/legacy-hub.yml"
 expect_red login-placed-after-first-docker-step "${d}" 'legacy-hub.yml:live-backend: login steps[5] comes after the first Docker-reaching steps[4]'
 
 d="$(new_case service-without-credentials)"
@@ -358,6 +359,8 @@ source "${repo_root}/scripts/lib/dockerhub-login-test-precision.sh"
 source "${repo_root}/scripts/lib/dockerhub-login-test-triggers.sh"
 # shellcheck source=lib/dockerhub-login-test-operands.sh
 source "${repo_root}/scripts/lib/dockerhub-login-test-operands.sh"
+# shellcheck source=lib/dockerhub-login-test-yq-escapes.sh
+source "${repo_root}/scripts/lib/dockerhub-login-test-yq-escapes.sh"
 
 if [[ "${failures}" -gt 0 ]]; then
   echo "test-verify-dockerhub-login: ${failures} case(s) failed" >&2
