@@ -342,6 +342,7 @@ expect_red "queue tip not fetchable" merge-queue
 # The checks arm cases (check runs read through gh api, #8381) live in a
 # sibling so this file stays under the 500-line cap.
 source "${repo_root}/scripts/lib/test-pre-enqueue-check-checks-cases.sh"
+source "${repo_root}/scripts/lib/test-pre-enqueue-check-suite-cases.sh"
 new_case unresolved
 edit threads.json '.data.repository.pullRequest.reviewThreads.nodes[1].isResolved = false'
 expect_red "unresolved review thread" threads

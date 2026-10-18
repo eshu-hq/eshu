@@ -238,17 +238,23 @@ else
 fi
 
 # --- arm 4: checks -----------------------------------------------------------
-# Check rows come from the REST check-runs endpoint (latest run per name), not
-# `gh pr checks --json`: gh 2.46.0 has no --json there (#8381). --paginate with
-# --jq emits one compact row per check run across every page. REST, not GraphQL:
-# a wide GraphQL check query times out on this repository. A run is judged by
-# its status and conclusion, never by its name, because check NAMES can contain
-# words like "fail" or "pending". A zero-row read is an error, never "pending".
+# Check rows come from the REST check-runs endpoint, not `gh pr checks --json`:
+# gh 2.46.0 has no --json there (#8381). --paginate with --jq emits one compact
+# row per check run across every page. REST, not GraphQL: a wide GraphQL check
+# query times out on this repository. The endpoint's default filter=latest
+# returns the latest run per name within each check suite; a re-triggered
+# workflow on the same SHA adds a second suite, and every suite's rows count
+# except for the three required contexts, where the newest suite wins. Never
+# filter=all, and never collapse by name: one job name defined by 13 workflows
+# is 13 distinct checks, and a newer pass must not hide an older failure. A run
+# is judged by its status and conclusion, never by its name, because check NAMES
+# can contain words like "fail" or "pending". A zero-row read is an error, never
+# "pending".
 runs_err="$(mktemp)"
 trap 'rm -f "${runs_err}"' EXIT
 checks_bad=()
 runs_raw="$("${GH}" api --paginate "repos/${repo}/commits/${want}/check-runs?per_page=100" \
-	--jq '.check_runs[] | {name,status,conclusion}' 2>"${runs_err}")"
+	--jq '.check_runs[] | {id,name,status,conclusion,suite:(.check_suite.id // 0)}' 2>"${runs_err}")"
 runs_rc=$?
 checks_json='[]'
 if [[ "${runs_rc}" -ne 0 ]]; then
@@ -262,27 +268,61 @@ else
 	# completed + success/skipped/neutral is fine; completed + failure,
 	# cancelled, timed_out or action_required fails; not completed is pending;
 	# any other conclusion (stale, null, ...) is unclassified and fails closed.
+	# All rows count here, across every suite: fail-closed.
 	total="$(jq 'length' <<<"${checks_json}")"
 	failing_sel='select(.status == "completed" and (.conclusion | IN("failure","cancelled","timed_out","action_required")))'
-	pending="$(jq '[.[] | select(.status != "completed")] | length' <<<"${checks_json}")"
+	pending_sel='select(.status != "completed")'
+	pending="$(jq "[.[] | ${pending_sel}] | length" <<<"${checks_json}")"
 	failing="$(jq "[.[] | ${failing_sel}] | length" <<<"${checks_json}")"
 	unknown="$(jq '[.[] | select(.status == "completed" and (.conclusion | IN("success","skipped","neutral","failure","cancelled","timed_out","action_required") | not))] | length' <<<"${checks_json}")"
 	note checks "rows=${total} pending=${pending} fail=${failing} unknown=${unknown}"
-	[[ "${pending}" -eq 0 ]] || checks_bad+=("pending=${pending}: $(jq -r '[.[] | select(.status != "completed") | .name] | join(", ")' <<<"${checks_json}")")
-	[[ "${failing}" -eq 0 ]] || checks_bad+=("fail=${failing}: $(jq -r "[.[] | ${failing_sel} | .name] | join(\", \")" <<<"${checks_json}")")
+	# A name with rows in more than one suite has no GitHub-defined winner.
+	while IFS= read -r multi_line; do
+		[[ -z "${multi_line}" ]] || note checks "multi-suite: ${multi_line}"
+	done < <(jq -r '[group_by(.name)[] | (map(.suite) | unique) as $s | select(($s | length) > 1)
+		| "\(.[0].name) (\($s | length) suites: \($s | map(tostring) | join(", ")))"] | .[]' <<<"${checks_json}")
+	multi_names="$(jq -c '[group_by(.name)[] | select((map(.suite) | unique | length) > 1) | .[0].name]' <<<"${checks_json}")"
+	orphan_hint=" -- older run on the same SHA still counted; GitHub defines no winner across suites; wait for or cancel the orphan (gh run list --commit ${want})"
+	# bad_entry <label> <count> <selector>: one checks_bad entry for the rows a
+	# selector picks; the orphan hint is appended when a picked name is multi-suite.
+	bad_entry() {
+		local names hits hint=""
+		names="$(jq -r "[.[] | $3 | .name] | unique | join(\", \")" <<<"${checks_json}")"
+		hits="$(jq --argjson m "${multi_names}" "[.[] | $3 | .name | select(IN(\$m[]))] | length" <<<"${checks_json}")"
+		[[ "${hits}" -eq 0 ]] || hint="${orphan_hint}"
+		checks_bad+=("$1=$2: ${names}${hint}")
+	}
+	[[ "${pending}" -eq 0 ]] || bad_entry pending "${pending}" "${pending_sel}"
+	[[ "${failing}" -eq 0 ]] || bad_entry fail "${failing}" "${failing_sel}"
 	[[ "${unknown}" -eq 0 ]] || checks_bad+=("unclassified=${unknown}")
 fi
 status_json="$("${GH}" api "repos/${repo}/commits/${want}/status?per_page=100" 2>/dev/null)"
 # The three ruleset-required contexts must each be success. go-core-complete and
 # go-race-complete publish as check runs, required-gates-complete as a commit
-# status. A check run of that name wins; the status is the fallback.
+# status. A check run of that name wins; the status is the fallback. Each is
+# pinned to exactly one workflow and job (specs/ci-gates.v1.yaml,
+# required_status_checks), so two suites on one SHA are two runs of the same
+# workflow, and only the NEWEST suite (max suite id, then all its rows) decides
+# the context. GitHub: "Using the same job name in multiple workflows can cause
+# ambiguous status check results" (About protected branches). A superseded
+# suite is named in a note; it still counts in the all-rows tally above.
 for ctx in go-core-complete go-race-complete required-gates-complete; do
 	ctx_state="$(jq -r --arg c "${ctx}" '
-		[.[] | select(.name == $c)] as $r
-		| if ($r | length) == 0 then "absent"
-		  elif all($r[]; .status == "completed" and .conclusion == "success") then "success"
-		  elif any($r[]; .status != "completed") then "pending"
-		  else ([$r[] | select(.conclusion != "success") | .conclusion] | first // "unknown") end' <<<"${checks_json}" 2>/dev/null)"
+		[.[] | select(.name == $c)] as $all
+		| if ($all | length) == 0 then "absent"
+		  else ($all | map(.suite) | max) as $top
+		  | [$all[] | select(.suite == $top)] as $r
+		  | if all($r[]; .status == "completed" and .conclusion == "success") then "success"
+		    elif any($r[]; .status != "completed") then "pending"
+		    else ([$r[] | select(.conclusion != "success") | .conclusion] | first // "unknown") end end' <<<"${checks_json}" 2>/dev/null)"
+	superseded="$(jq -r --arg c "${ctx}" '
+		[.[] | select(.name == $c)] as $all
+		| ($all | map(.suite) | max) as $top
+		| [$all[] | select(.suite != $top and (.status != "completed" or .conclusion != "success")) | .suite]
+		| unique | map(tostring) | join(", ")' <<<"${checks_json}" 2>/dev/null)"
+	if [[ -n "${superseded}" ]]; then
+		note checks "${ctx}: newest suite $(jq -r --arg c "${ctx}" '[.[] | select(.name == $c) | .suite] | max' <<<"${checks_json}") wins; superseded suite(s): ${superseded}"
+	fi
 	if [[ "${ctx_state}" == absent ]]; then
 		ctx_state="$(jq -r --arg c "${ctx}" '[.statuses[]? | select(.context == $c) | .state] | first // "absent"' <<<"${status_json}" 2>/dev/null)"
 		[[ -n "${ctx_state}" ]] || ctx_state="unreadable"
