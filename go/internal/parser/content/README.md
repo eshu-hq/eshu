@@ -59,13 +59,13 @@ pins gate-equals-infer across the signal cartesian product.
 
 - Baseline: origin/main 882dd9d, linux/arm64, `go test -benchtime=1x`
   (single-shot execution parity, not a timing claim).
-- After: this branch at 4e5ddba5a, same host, same command. Commits
+- After: this branch at e3de58c15, same host, same command. Commits
   after that point touch comments and docs only, so the measured code
   tree is unchanged.
 - Input shape: synthetic large gated PHP (400 methods), large nginx
   config (400 blocks), large gated PHP through `ParsePath`.
 - Measurement: Unconditional 2630301 → 2535518 ns/op; Gated 127871 →
-  129500 ns/op; ParsePath end-to-end 136415856 → 138731559 ns/op.
+  129500 ns/op; ParsePath end-to-end 135414223 → 138731559 ns/op.
   Same order of magnitude throughout; the end-to-end figure is dominated
   by `ParsePath` fixed costs outside inference.
 - Telemetry: no new metric, span, or log line; inference cost stays under

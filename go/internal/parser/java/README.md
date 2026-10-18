@@ -38,8 +38,8 @@ call inference, Java dead-code root classification, Java reflection evidence,
 Java taint lowering over Spring request parameters and typed JDBC/JPA sinks,
 same-file Java summary/interprocedural extraction, and ServiceLoader or Spring
 metadata class references. The parent `go/internal/parser` package owns
-registry dispatch, Engine methods, runtime
-language lookup, and compatibility wrappers such as `parseJavaMetadata`.
+registry dispatch, Engine methods, and runtime language lookup; the
+engine calls `javaparser.ParseMetadata` directly with no wrapper.
 
 ## Exported surface
 

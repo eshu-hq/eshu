@@ -329,7 +329,7 @@ permanent no-tree-sitter exception only when it appears in the "Permanent
 parser exceptions (no tree-sitter migration)" section of `AGENTS.md`: YAML,
 JSON, HCL/Terraform/Terragrunt, Go modules, node lockfiles, Python dependency
 manifests, Maven, NuGet, Gradle DSL, CloudFormation/SAM, `dbtsql`,
-`templated_detection`, raw text, SCIP, Dockerfile, and Java metadata. All other
+`content`, raw text, SCIP, Dockerfile, and Java metadata. All other
 `—` rows need design or migration follow-up; do not use the dash to exempt a
 source-language adapter that has a runtime tree-sitter loader or language-owned
 AST package.
@@ -562,22 +562,22 @@ alter what those signals report.
 
 ## Gated content-metadata inference
 
-`inferContentMetadata` (`content/infer.go`) runs several regex scans (a
+`content.Infer` (`content/infer.go`) runs several regex scans (a
 Go template line-control scan, a Terraform `templatefile()` scan, and the
 marker scans described in [Hoisted marker scan](#hoisted-marker-scan) below)
 to populate `artifact_type`, `template_dialect`, and `iac_relevant` after every
 parse. Profiling a full-corpus run (issue #4768) showed this call costing
 roughly 7.5ms on a large PHP/JS file, about 5% of `ParsePath` wall time across
 the corpus, even though most files carry no IaC/template signal at all and
-always resolve to the zero `contentMetadata{}`.
+always resolve to the zero `content.Metadata{}`.
 
-`shouldSkipContentMetadata` (`content/gate.go`) gates the call in
+`content.ShouldSkip` (`content/gate.go`) gates the call in
 `Engine.ParsePath`: it returns `true` (skip, use the zero value) only when
-none of `inferContentMetadata`'s own trigger conditions can apply --- derived
+none of `content.Infer`'s own trigger conditions can apply --- derived
 directly from a full line-by-line audit of every branch in
 `content/infer.go`:
 
-- no suffix returned by `splitSuffixes` (i.e. every dot-segment in the
+- no suffix returned by `content.SplitSuffixes` (i.e. every dot-segment in the
   basename, not just the last one) is in `{.yaml, .yml, .hcl, .tf, .tfvars,
   .tpl, .tftpl, .jinja, .jinja2, .j2, .conf, .cfg, .cnf, .kcl}`
   (`isYAMLSuffix`, `isHCLSuffix`, `isJinjaSuffix`, `isTerraformTemplateSuffix`,
@@ -607,12 +607,12 @@ detection is checked regardless of extension or path; and a `.conf`/`.cfg`/
 (not just last), is never skipped either. See
 `docs/public/contributing-language-support.md#content-metadata-sniffing-is-skipped-for-non-iac-signal-source-files`
 for the full contributor-facing description and
-`content_metadata_gate_test.go` for the proof: a hand-picked-case equivalence
+`content/gate_test.go` for the proof: a hand-picked-case equivalence
 test plus the mandatory generative differential
 (`TestShouldSkipContentMetadataGeneratedEquivalence`), which enumerates a
 cartesian product of extensions (including multi-dot shapes), directory
-contexts, and content signals and asserts the implication `shouldSkip==true
-=> inferContentMetadata(path, content) == contentMetadata{}` holds for every
+contexts, and content signals and asserts the implication `content.ShouldSkip(path, content) == true
+=> content.Infer(path, content) == content.Metadata{}` holds for every
 generated combination -- plus two red-without-the-fix regressions
 (`TestShouldSkipContentMetadataTooWideIsCaught` and
 `TestShouldSkipContentMetadataGeneratedEquivalenceFailsOnUnfixedGate`) proving
@@ -632,7 +632,7 @@ Max), a synthetic 400-method PHP file with no IaC/template signal in its path
 or content (unaffected by the extension-set/anySuffix fix, since `.php` was
 never a gated extension and carries no multi-dot suffix):
 `BenchmarkInferContentMetadataUnconditional` (before, unconditional
-`inferContentMetadata` call) ranged 3.13ms-3.64ms/op, 117.3-117.7KB/op, 25
+`content.Infer` call) ranged 3.13ms-3.64ms/op, 117.3-117.7KB/op, 25
 allocs/op across 3 runs; `BenchmarkContentMetadataGated` (after, gate check
 plus skip) ranged 0.163ms-0.181ms/op, 57.7KB/op, 9 allocs/op -- roughly an
 18-20x reduction and ~3ms saved per gated file on this synthetic input,
@@ -651,7 +651,7 @@ parse itself, confirming no crash or behavior change on the gated call-site).
 No-Observability-Change: this adds no metric, span, structured log, status
 field, queue, graph write, worker, lease, batch, or runtime knob. Operators
 still diagnose parse behavior through the existing collector
-`telemetry.FileParseDuration` instrument; `shouldSkipContentMetadata` is a pure
+`telemetry.FileParseDuration` instrument; `content.ShouldSkip` is a pure
 function with no side effects and does not change what `artifact_type`,
 `template_dialect`, or `iac_relevant` is persisted for any file that clears
 the gate (proven by the hand-picked equivalence test and the generative
@@ -739,9 +739,9 @@ confirming the duplicate scan is gone.
 
 Lazy-fix Performance Evidence:
 `BenchmarkInferContentMetadataPathOnlyTFNoMarkers` in
-`templated_detection_hoist_test.go` measures the regression case directly: a
+`content/infer_hoist_test.go` measures the regression case directly: a
 synthetic 400-block, marker-free `.tf` file through the full
-`inferContentMetadata` entrypoint. On the same machine, the eager (regressed)
+`content.Infer` entrypoint. On the same machine, the eager (regressed)
 implementation ran roughly 1.133-1.137ms/op (measured via a throwaway `git
 worktree` checkout of the pre-fix commit, not committed); after making
 `contentMarkers.hasTFMarkers` a lazy, memoized-on-first-call accessor
@@ -754,7 +754,7 @@ ran) after `inferRootFamily` resolves an `isHCLSuffix` path through its first
 case.
 
 Classification: **Handler win** (removes duplicated regex-matching CPU work
-from every un-gated `inferContentMetadata` call, and the follow-up lazy fix
+from every un-gated `content.Infer` call, and the follow-up lazy fix
 restores zero-marker-scan behavior for path-only families; the query/graph-
 visible output is unchanged in both steps, so this does not change `ParsePath`
 correctness, only its cost on the subset of files that legitimately run full
@@ -762,8 +762,8 @@ inference).
 
 Equivalence proof (output-preserving, 0/0):
 `TestInferContentMetadataHoistEquivalence` in
-`templated_detection_hoist_test.go` asserts `inferContentMetadata` returns a
-byte-identical `contentMetadata{}` across 18 cases spanning every branch that
+`content/infer_hoist_test.go` asserts `content.Infer` returns a
+byte-identical `content.Metadata{}` across 18 cases spanning every branch that
 reads a marker signal: plain Go/Python source with no markers, Terraform HCL
 with each marker kind (interpolation/directive/`templatefile()`) and with no
 markers, a `.tftpl` terraform-template-suffix file, a raw `.conf` file with and
