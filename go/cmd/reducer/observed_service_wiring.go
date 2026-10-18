@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"sync/atomic"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
+
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -25,7 +27,7 @@ func buildObservedReducerService(
 	db *sql.DB,
 	neo4jExecutor sourcecypher.Executor,
 	cypherExecutor reducer.CypherExecutor,
-	neo4jReader sourcecypher.CypherReader,
+	neo4jReader node.CypherReader,
 	graphReader query.GraphQuery,
 	getenv func(string) string,
 	tracer trace.Tracer,

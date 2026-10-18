@@ -17,7 +17,7 @@ const canonicalPhaseTerraformState = "terraform_state"
 // #5443: Terraform-state-observed resources MERGE under their own
 // TerraformStateResource label, distinct from the config-declared
 // TerraformResource label the HCL parser's generic content-entity pipeline
-// writes (canonical_node_cypher.go's canonicalNodeEntityUpsertTemplate). The
+// writes (canonical/node's node.EntityUpsertTemplate). The
 // two identity domains were always structurally disjoint (a 64-hex sha256
 // terraformStateUID vs a 12-hex blake2s content-entity ID) but shared one
 // label, which meant no query could distinguish "declared in config",

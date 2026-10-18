@@ -30,7 +30,7 @@ var schemaPerformanceIndexes = []string{
 	//
 	// The write-side cost is real and is not zero: `d.repo_id` is written by
 	// every Directory MERGE and SET the canonical projector emits
-	// (canonicalNodeDirectoryNodeCypher), so each of those now also maintains
+	// (node.DirectoryNodeCypher), so each of those now also maintains
 	// this index entry, and a full projection writes one Directory per
 	// directory per repository. The trade is taken on the measured read win:
 	// the corpus run timed this statement at 15.987s with the index

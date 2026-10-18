@@ -347,7 +347,7 @@ func TestReducerNeo4jSessionRunnerTransactionConfigurersSetTimeout(t *testing.T)
 // TestQueryCypherExistsPassesTransactionConfigurers is a source-level
 // regression for review F8: neo4jSessionRunner.QueryCypherExists' session.Run
 // call previously omitted r.transactionConfigurers()..., unlike RunCypher and
-// RunCypherGroup, so a probe or CanonicalNodeChecker read had no deadline on
+// RunCypherGroup, so a probe or node.Checker read had no deadline on
 // either backend even when ESHU_CANONICAL_WRITE_TIMEOUT bounds every other
 // reducer graph write. neo4jdriver.SessionWithContext (the neo4j-go-driver/v5
 // package) carries an unexported method (lastBookmark), so it cannot be
@@ -382,7 +382,7 @@ func TestQueryCypherExistsPassesTransactionConfigurers(t *testing.T) {
 // TestQueryCypherExistsUsesAccessModeWrite guards the correctness choice the
 // in-source comment right above the session.Run call documents (#6165 review
 // F2): both callers of QueryCypherExists -- the rationale retract probe guard
-// and CanonicalNodeChecker -- read in order to decide whether to mutate, and
+// and node.Checker -- read in order to decide whether to mutate, and
 // neither session shares a BookmarkManager with the write session that
 // follows it. On a routed Neo4j deployment, an AccessModeRead session can be
 // served by a lagging follower and report zero rows for edges already

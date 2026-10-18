@@ -7,6 +7,8 @@ import (
 	"context"
 	"log/slog"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 // StatementRunner executes one Cypher statement inside the caller-owned
@@ -82,17 +84,17 @@ func logProfiledStatement(
 func CanonicalFileStatementProfile(stmt Statement) (string, int, bool) {
 	var id string
 	switch stmt.Cypher {
-	case canonicalNodeFileUpdateExistingCypher:
+	case node.FileUpdateExistingCypher:
 		id = "file.nested.update_existing"
-	case canonicalNodeFileCreateMissingCypher:
+	case node.FileCreateMissingCypher:
 		id = "file.nested.create_missing"
-	case canonicalNodeFileFirstGenerationMergeCypher:
+	case node.FileFirstGenerationMergeCypher:
 		id = "file.nested.first_generation"
-	case canonicalNodeRootFileUpdateExistingCypher:
+	case node.RootFileUpdateExistingCypher:
 		id = "file.root.update_existing"
-	case canonicalNodeRootFileCreateMissingCypher:
+	case node.RootFileCreateMissingCypher:
 		id = "file.root.create_missing"
-	case canonicalNodeRootFileFirstGenerationMergeCypher:
+	case node.RootFileFirstGenerationMergeCypher:
 		id = "file.root.first_generation"
 	default:
 		return "", 0, false

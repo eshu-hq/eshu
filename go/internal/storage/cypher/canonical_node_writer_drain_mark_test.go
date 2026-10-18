@@ -38,7 +38,7 @@ func TestBuildRetractStatementsMasksDrainOnUnboundedFullRefreshFiles(t *testing.
 
 	w := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
 
-	// No filePaths → unbounded canonicalNodeRetractFilesCypher path.
+	// No filePaths → unbounded node.RetractFilesCypher path.
 	mat := canonical.CanonicalMaterialization{
 		RepoID:       "repo-1",
 		GenerationID: "gen-2",
@@ -62,7 +62,7 @@ func TestBuildRetractStatementsMasksDrainOnUnboundedFullRefreshFiles(t *testing.
 }
 
 // TestBuildRetractStatementsMasksDrainOnRemovedFilesVariant verifies the
-// canonicalNodeRetractRemovedFilesCypher path (filePaths > 0) also marks Drain.
+// node.RetractRemovedFilesCypher path (filePaths > 0) also marks Drain.
 func TestBuildRetractStatementsMasksDrainOnRemovedFilesVariant(t *testing.T) {
 	t.Parallel()
 
@@ -257,7 +257,7 @@ func TestBuildRetractStatementsDrainCountIsExactlyFourForFullRefresh(t *testing.
 
 	// Any DETACH DELETE that is NOT bounded by a positive list must carry Drain.
 	// The only known non-drain DETACH DELETE in the full-refresh path is
-	// canonicalNodeRetractParametersCypher, which uses a positive $file_paths IN
+	// node.RetractParametersCypher, which uses a positive $file_paths IN
 	// predicate and is thus already bounded. Verify no other unbounded DELETEs slip
 	// through by checking that non-drain DETACH DELETEs all contain a positive IN
 	// predicate.

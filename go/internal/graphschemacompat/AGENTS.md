@@ -156,13 +156,13 @@ them, and both tables above go stale silently. Re-run the two commands before
 relying on either.
 
 `Repository` is the sharpest case: the fenced `CanonicalNodeWriter` MERGEs
-`(r:Repository {id: $repo_id})` at `storage/cypher/canonical_node_cypher.go:115`
+`(r:Repository {id: $repo_id})` at `storage/cypher/canonical/node/templates.go`
 and the unfenced `EdgeWriter` MERGEs the same label on the same key, so an
 identity change there is fenced on one side of a rollout and not the other.
 
 This file previously named `Environment` as that case. It is not one — a #6123
 review was right that `CanonicalNodeWriter` never references the label, and
-`rg -n Environment go/internal/storage/cypher/canonical_node_cypher.go go/internal/storage/cypher/canonical_node_writer.go`
+`rg -n Environment go/internal/storage/cypher/canonical/node/templates.go go/internal/storage/cypher/canonical_node_writer.go`
 exits 1 with no output. Both `Environment` writers in the table are unfenced, so
 that cutover has no fenced side at all.
 

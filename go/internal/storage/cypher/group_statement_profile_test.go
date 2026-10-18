@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
+
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
@@ -85,12 +87,12 @@ func TestCanonicalFileStatementProfileUsesClosedTemplateIDs(t *testing.T) {
 		cypher string
 		want   string
 	}{
-		{canonicalNodeFileUpdateExistingCypher, "file.nested.update_existing"},
-		{canonicalNodeFileCreateMissingCypher, "file.nested.create_missing"},
-		{canonicalNodeFileFirstGenerationMergeCypher, "file.nested.first_generation"},
-		{canonicalNodeRootFileUpdateExistingCypher, "file.root.update_existing"},
-		{canonicalNodeRootFileCreateMissingCypher, "file.root.create_missing"},
-		{canonicalNodeRootFileFirstGenerationMergeCypher, "file.root.first_generation"},
+		{node.FileUpdateExistingCypher, "file.nested.update_existing"},
+		{node.FileCreateMissingCypher, "file.nested.create_missing"},
+		{node.FileFirstGenerationMergeCypher, "file.nested.first_generation"},
+		{node.RootFileUpdateExistingCypher, "file.root.update_existing"},
+		{node.RootFileCreateMissingCypher, "file.root.create_missing"},
+		{node.RootFileFirstGenerationMergeCypher, "file.root.first_generation"},
 	}
 	for _, tc := range cases {
 		stmt := Statement{Cypher: tc.cypher, Parameters: map[string]any{

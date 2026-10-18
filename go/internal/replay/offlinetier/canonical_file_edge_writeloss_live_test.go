@@ -6,7 +6,7 @@ package offlinetier_test
 // canonical_file_edge_writeloss_live_test.go is the P0 follow-up regression
 // for the File-edge write-loss defect documented in
 // docs/internal/evidence/5652-nornic-bare-match-writeloss.md Part 2:
-// canonicalNodeFileUpdateExistingCypher's WITH-chained REPO_CONTAINS/CONTAINS
+// node.FileUpdateExistingCypher's WITH-chained REPO_CONTAINS/CONTAINS
 // MERGE clauses (after a preceding node SET) silently no-op on the pinned
 // v1.1.11 image. Unlike the Refresh/retract DELETE statements (Defect 2,
 // which route through PhaseGroupExecutor.executeSequentialRetractPhase's
@@ -118,8 +118,8 @@ func TestFileUpdateExistingEdgesGraphTruth_ExistingFile(t *testing.T) {
 // edges created correctly in ONE managed-transaction phase-group write. This
 // is the untested corner case the evidence doc's live proof did not cover
 // (its fixture pre-seeded the File before running the statement): it decides
-// whether folding canonicalNodeFileCreateMissingCypher's job into a
-// MERGE-anchored canonicalNodeFileUpdateExistingCypher split is safe, or
+// whether folding node.FileCreateMissingCypher's job into a
+// MERGE-anchored node.FileUpdateExistingCypher split is safe, or
 // whether CreateMissing must be kept for files with no prior existence.
 func TestFileUpdateExistingEdgesGraphTruth_BrandNewFile(t *testing.T) {
 	if !liveTierEnabled() {

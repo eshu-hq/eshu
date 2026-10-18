@@ -58,7 +58,7 @@ ifa_live_gate_fault_only_seams=(
 	'scripts/lib/test-ifa-fault-injection-*.sh|scripts/lib/test-ifa-fault-injection-code-call-cases.sh'
 	'scripts/lib/test-ifa-fault-injection-*.sh|scripts/lib/test-ifa-fault-injection-entrypoint-cases.sh'
 	'go/internal/storage/cypher/fault/executor/*.go|go/internal/storage/cypher/fault/executor/marker.go'
-	'go/internal/storage/cypher/canonical_node_writer_metadata.go|go/internal/storage/cypher/canonical_node_writer_metadata.go'
+	'go/internal/storage/cypher/canonical/node/metadata.go|go/internal/storage/cypher/canonical/node/metadata.go'
 	'go/internal/projector/runtime/scope_generation_intents.go|go/internal/projector/runtime/scope_generation_intents.go'
 	'go/internal/projector/runtime/reducer_intent_fact_index.go|go/internal/projector/runtime/reducer_intent_fact_index.go'
 	'go/internal/projector/cloud/gcp/resource_materialization_intents.go|go/internal/projector/cloud/gcp/resource_materialization_intents.go'

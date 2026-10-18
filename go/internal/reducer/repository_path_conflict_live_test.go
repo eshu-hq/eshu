@@ -23,7 +23,7 @@ import (
 )
 
 // #7324 live graph truth for the one Repository retirement contract A keeps:
-// canonicalNodeRepositoryPathCleanupCypher DETACH DELETEs a DIFFERENT-id
+// node.RepositoryPathCleanupCypher DETACH DELETEs a DIFFERENT-id
 // Repository still holding the projected path (repository_path is UNIQUE),
 // and so drops every edge on it, including incoming edges written by other
 // scopes' reducers that nothing re-arms. The retirement must say what it

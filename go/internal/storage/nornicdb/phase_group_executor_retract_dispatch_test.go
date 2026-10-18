@@ -35,7 +35,7 @@ func (e *dispatchRecordingExecutor) ExecuteGroup(_ context.Context, _ []sourcecy
 // 5652-followup-file-directory-edge-writeloss-investigation.md). Live-proven
 // against the pinned NornicDB v1.1.11 image: the shipped UNWIND-batched
 // DELETE statements
-// (canonicalNodeRefreshCurrentFileImportEdgesCypher/DirectoryFileEdgesCypher/
+// (node.RefreshCurrentFileImportEdgesCypher/DirectoryFileEdgesCypher/
 // DirectoryParentEdgesCypher) silently drop their DELETE when dispatched
 // through a managed Bolt transaction (ExecuteGroup), but delete correctly
 // when dispatched auto-commit (Execute) -- matching

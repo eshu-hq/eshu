@@ -25,7 +25,7 @@ type recordedWrite struct {
 // uid label that also sets id, a MERGE keyed by id on an id-constrained label,
 // and a dynamic property map on a uid label.
 var canonicalWrites = []recordedWrite{
-	{"UNWIND $rows AS row MERGE (n:Function {uid: row.uid}) SET n.id = row.uid, n.name = row.name", `{"rows":[]}`, "storage/cypher/canonical_node_cypher.go:build"},
+	{"UNWIND $rows AS row MERGE (n:Function {uid: row.uid}) SET n.id = row.uid, n.name = row.name", `{"rows":[]}`, "storage/cypher/canonical/node/templates.go:build"},
 	{"MERGE (r:Repository {id: $repo_id}) SET r.name = $name", `{"repo_id":"r"}`, "storage/cypher/canonical.go:build"},
 	{"UNWIND $rows AS row MERGE (n:Class {uid: row.entity_id}) SET n.id = row.entity_id, n += row.properties", `{"rows":[]}`, "storage/cypher/semantic_entity_statements.go:build"},
 	{"MATCH (n:Function {uid: $uid}) RETURN n", `{"uid":"u"}`, ""},

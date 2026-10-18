@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
+
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
@@ -210,14 +212,14 @@ func TestCanonicalNodeWriterRetractCoversProjectableEntityLabels(t *testing.T) {
 		name   string
 		labels map[string]struct{}
 	}{
-		{name: "code", labels: canonicalNodeRetractCodeEntityLabels},
-		{name: "infra", labels: canonicalNodeRetractInfraEntityLabels},
-		{name: "terraform", labels: canonicalNodeRetractTerraformEntityLabels},
-		{name: "cloudformation", labels: canonicalNodeRetractCloudFormationEntityLabels},
-		{name: "sql", labels: canonicalNodeRetractSQLEntityLabels},
-		{name: "data", labels: canonicalNodeRetractDataEntityLabels},
-		{name: "oci", labels: canonicalNodeRetractOCIEntityLabels},
-		{name: "package_registry", labels: canonicalNodeRetractPackageRegistryEntityLabels},
+		{name: "code", labels: node.RetractCodeEntityLabels},
+		{name: "infra", labels: node.RetractInfraEntityLabels},
+		{name: "terraform", labels: node.RetractTerraformEntityLabels},
+		{name: "cloudformation", labels: node.RetractCloudFormationEntityLabels},
+		{name: "sql", labels: node.RetractSQLEntityLabels},
+		{name: "data", labels: node.RetractDataEntityLabels},
+		{name: "oci", labels: node.RetractOCIEntityLabels},
+		{name: "package_registry", labels: node.RetractPackageRegistryEntityLabels},
 	} {
 		for label := range family.labels {
 			if previous, exists := covered[label]; exists {
@@ -263,8 +265,8 @@ func TestCanonicalNodeWriterRetractCoversProjectableEntityLabels(t *testing.T) {
 func TestCanonicalNodeWriterRetractRetainsCrossplaneClaimForLegacySweep(t *testing.T) {
 	t.Parallel()
 
-	if _, ok := canonicalNodeRetractInfraEntityLabels["CrossplaneClaim"]; !ok {
-		t.Fatal("canonicalNodeRetractInfraEntityLabels must retain CrossplaneClaim to sweep legacy pre-#5347 nodes (issue #5478)")
+	if _, ok := node.RetractInfraEntityLabels["CrossplaneClaim"]; !ok {
+		t.Fatal("node.RetractInfraEntityLabels must retain CrossplaneClaim to sweep legacy pre-#5347 nodes (issue #5478)")
 	}
 	found := false
 	for _, label := range canonicalNodeRetractEntityLabels() {

@@ -13,7 +13,7 @@
 // present either way. Only a real backend settles it.
 //
 // The graph mirrors what the canonical node writer actually persists
-// (go/internal/storage/cypher/canonical_node_cypher.go): a Repository keyed on
+// (go/internal/storage/cypher/canonical/node/templates.go): a Repository keyed on
 // id, a File keyed on path carrying uid/relative_path/repo_id and reached by
 // (:Repository)-[:REPO_CONTAINS]->(:File), and entities MERGEd on uid carrying
 // their own id/name/repo_id/language and reached by (:File)-[:CONTAINS]->(n).

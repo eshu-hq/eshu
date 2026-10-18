@@ -118,7 +118,7 @@ func TestSchemaStatementsForBackendAddsNornicDBMergeLookupIndexes(t *testing.T) 
 		// on those labels without a backing index. Without a single-property
 		// index, source-local projection (go/internal/storage/cypher/writer.go
 		// MERGE on SourceLocalRecord) and the canonical HAS_PARAMETER edge
-		// (go/internal/storage/cypher/canonical_node_cypher.go MERGE on
+		// (go/internal/storage/cypher/canonical/node/templates.go MERGE on
 		// Parameter) fall through to a full label scan that the schema.go
 		// comment calls out as "O(n²)".
 		"CREATE INDEX nornicdb_source_local_record_scope_lookup IF NOT EXISTS FOR (n:SourceLocalRecord) ON (n.scope_id)",

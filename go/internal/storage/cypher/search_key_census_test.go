@@ -151,14 +151,28 @@ func splitCensusItems(s string) []string {
 // censusScanner holds the parsed tree and the package-level string
 // declarations it folds identifiers against.
 type censusScanner struct {
-	files []censusFile
-	decls map[string]map[string]ast.Expr // dir -> name -> value
+	files      []censusFile
+	decls      map[string]map[string]ast.Expr // dir -> name -> value
+	dirImports map[string]map[string]string   // dir -> qualifier -> dir
 }
 
 type censusFile struct {
 	rel, dir string
 	fset     *token.FileSet
 	file     *ast.File
+	imports  map[string]string // qualifier -> dir for this file's imports
+}
+
+// censusImportDir maps a file import path to the repo-relative directory the
+// census walks, so a qualified template reference (node.EntityUpsertTemplate)
+// folds against the declaration in the imported package. Imports outside the
+// walked module report false and the reference stays unfolded.
+func censusImportDir(path string) (string, bool) {
+	const prefix = "github.com/eshu-hq/eshu/go/"
+	if !strings.HasPrefix(path, prefix) {
+		return "", false
+	}
+	return strings.TrimPrefix(path, prefix), true
 }
 
 func newCensusScanner(t *testing.T, root string, dirs []string) *censusScanner {
@@ -178,7 +192,29 @@ func newCensusScanner(t *testing.T, root string, dirs []string) *censusScanner {
 			if perr != nil {
 				t.Fatalf("parse %s: %v", rel, perr)
 			}
-			cf := censusFile{rel: rel, dir: filepath.Dir(rel), fset: fset, file: file}
+			cf := censusFile{rel: rel, dir: filepath.Dir(rel), fset: fset, file: file, imports: map[string]string{}}
+			for _, imp := range file.Imports {
+				impPath, err := strconv.Unquote(imp.Path.Value)
+				if err != nil {
+					continue
+				}
+				impDir, ok := censusImportDir(impPath)
+				if !ok {
+					continue
+				}
+				local := filepath.Base(impPath)
+				if imp.Name != nil {
+					local = imp.Name.Name
+				}
+				cf.imports[local] = impDir
+				if s.dirImports == nil {
+					s.dirImports = map[string]map[string]string{}
+				}
+				if s.dirImports[cf.dir] == nil {
+					s.dirImports[cf.dir] = map[string]string{}
+				}
+				s.dirImports[cf.dir][local] = impDir
+			}
 			s.files = append(s.files, cf)
 			for _, decl := range file.Decls {
 				gen, ok := decl.(*ast.GenDecl)
@@ -223,10 +259,11 @@ func isIdentNamed(e ast.Expr, name string) bool {
 	return ok && id.Name == name
 }
 
-// fold evaluates a string expression: literals, package-level identifiers,
+// fold evaluates a string expression: literals, package-level identifiers
+// (including qualified references into an imported walked package),
 // + chains, fmt.Sprintf on a folded format, and search.Statement, which it
 // evaluates by calling the real search.Clause.
-func (s *censusScanner) fold(dir string, n ast.Node, depth int) (censusFold, bool) {
+func (s *censusScanner) fold(f censusFile, n ast.Node, depth int) (censusFold, bool) {
 	if depth > 16 {
 		return censusFold{}, false
 	}
@@ -238,17 +275,17 @@ func (s *censusScanner) fold(dir string, n ast.Node, depth int) (censusFold, boo
 		v, err := strconv.Unquote(x.Value)
 		return censusFold{text: v}, err == nil
 	case *ast.Ident:
-		if expr, ok := s.decls[dir][x.Name]; ok {
-			return s.fold(dir, expr, depth+1)
+		if expr, ok := s.decls[f.dir][x.Name]; ok {
+			return s.fold(f, expr, depth+1)
 		}
 	case *ast.ParenExpr:
-		return s.fold(dir, x.X, depth+1)
+		return s.fold(f, x.X, depth+1)
 	case *ast.BinaryExpr:
 		if x.Op != token.ADD {
 			return censusFold{}, false
 		}
-		l, lok := s.fold(dir, x.X, depth+1)
-		r, rok := s.fold(dir, x.Y, depth+1)
+		l, lok := s.fold(f, x.X, depth+1)
+		r, rok := s.fold(f, x.Y, depth+1)
 		if !lok || !rok {
 			return censusFold{}, false
 		}
@@ -271,12 +308,23 @@ func (s *censusScanner) fold(dir string, n ast.Node, depth int) (censusFold, boo
 				return censusFold{text: graph.InfraSearchOverflowProperty}, true
 			}
 		}
+		// A template qualified through an imported walked package (moved out
+		// of the caller's directory by a #6694 leaf split) folds against the
+		// declaration in that package.
+		if id, ok := x.X.(*ast.Ident); ok {
+			if targetDir, ok := f.imports[id.Name]; ok {
+				if expr, ok := s.decls[targetDir][x.Sel.Name]; ok {
+					target := censusFile{dir: targetDir, imports: s.dirImports[targetDir]}
+					return s.fold(target, expr, depth+1)
+				}
+			}
+		}
 	case *ast.CallExpr:
 		if sel, ok := x.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "Sprintf" && isIdentNamed(sel.X, "fmt") && len(x.Args) > 0 {
-			return s.fold(dir, x.Args[0], depth+1)
+			return s.fold(f, x.Args[0], depth+1)
 		}
 		if isSearchStatementCall(x) {
-			inner, ok := s.fold(dir, x.Args[3], depth+1)
+			inner, ok := s.fold(f, x.Args[3], depth+1)
 			alias, aerr := strconv.Unquote(exprString(x.Args[2]))
 			if !ok || aerr != nil {
 				return censusFold{}, false
@@ -299,19 +347,33 @@ func exprString(e ast.Expr) string {
 }
 
 // fragments returns the package-level declarations that feed a
-// search.Statement call, transitively, keyed by dir and name.
+// search.Statement call, transitively, keyed by dir and name. A template
+// qualified through an imported walked package is followed into that
+// package, so a #6694 leaf move does not strand the fragment mark behind.
 func (s *censusScanner) fragments() map[string]bool {
 	out := map[string]bool{}
-	var mark func(dir string, n ast.Node)
-	mark = func(dir string, n ast.Node) {
+	var mark func(f censusFile, n ast.Node)
+	mark = func(f censusFile, n ast.Node) {
 		ast.Inspect(n, func(c ast.Node) bool {
-			id, ok := c.(*ast.Ident)
-			if !ok {
-				return true
-			}
-			if expr, ok := s.decls[dir][id.Name]; ok && !out[dir+"\x00"+id.Name] {
-				out[dir+"\x00"+id.Name] = true
-				mark(dir, expr)
+			switch t := c.(type) {
+			case *ast.Ident:
+				if expr, ok := s.decls[f.dir][t.Name]; ok && !out[f.dir+"\x00"+t.Name] {
+					out[f.dir+"\x00"+t.Name] = true
+					mark(f, expr)
+				}
+			case *ast.SelectorExpr:
+				id, ok := t.X.(*ast.Ident)
+				if !ok {
+					return true
+				}
+				targetDir, ok := f.imports[id.Name]
+				if !ok {
+					return true
+				}
+				if expr, ok := s.decls[targetDir][t.Sel.Name]; ok && !out[targetDir+"\x00"+t.Sel.Name] {
+					out[targetDir+"\x00"+t.Sel.Name] = true
+					mark(censusFile{dir: targetDir, imports: s.dirImports[targetDir]}, expr)
+				}
 			}
 			return true
 		})
@@ -319,7 +381,7 @@ func (s *censusScanner) fragments() map[string]bool {
 	for _, f := range s.files {
 		ast.Inspect(f.file, func(n ast.Node) bool {
 			if call, ok := n.(*ast.CallExpr); ok && isSearchStatementCall(call) {
-				mark(f.dir, call.Args[3])
+				mark(f, call.Args[3])
 			}
 			return true
 		})
@@ -335,7 +397,10 @@ func (s *censusScanner) scan() (findings []censusFinding, keyedWrites int) {
 		if _, isIdent := n.(*ast.Ident); isIdent {
 			return true
 		}
-		folded, ok := s.fold(f.dir, n, 0)
+		if _, isSel := n.(*ast.SelectorExpr); isSel {
+			return true
+		}
+		folded, ok := s.fold(f, n, 0)
 		if !ok {
 			return true
 		}

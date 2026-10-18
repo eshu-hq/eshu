@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
+
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
@@ -36,30 +38,30 @@ func (w *CanonicalNodeWriter) buildDeltaRetractStatements(mat canonical.Canonica
 	}
 	if len(changedFilePaths) > 0 {
 		for _, cypher := range []string{
-			canonicalNodeRefreshCurrentFileImportEdgesCypher,
-			canonicalNodeRefreshCurrentDirectoryFileEdgesCypher,
+			node.RefreshCurrentFileImportEdgesCypher,
+			node.RefreshCurrentDirectoryFileEdgesCypher,
 		} {
 			stmts = append(stmts, buildStringSliceRetractStatements(
 				cypher,
 				"file_paths",
 				changedFilePaths,
-				canonicalNodeRefreshFilePathBatchSize,
+				node.RefreshFilePathBatchSize,
 			)...)
 		}
 	}
 	if directoryParentEdgeRefreshRows := currentDirectoryParentEdgeRefreshRows(mat.Directories); len(directoryParentEdgeRefreshRows) > 0 {
 		stmts = append(stmts, buildDirectoryParentEdgeRefreshStatements(
-			canonicalNodeRefreshCurrentDirectoryParentEdgesCypher,
+			node.RefreshCurrentDirectoryParentEdgesCypher,
 			mat.RepoID,
 			directoryParentEdgeRefreshRows,
-			canonicalNodeRefreshFilePathBatchSize,
+			node.RefreshFilePathBatchSize,
 		)...)
 	}
 	stmts = append(stmts, buildEntityContainmentRefreshStatements(mat.Entities, mat.ClassMembers, mat.NestedFuncs)...)
 	if len(touchedFilePaths) > 0 {
 		stmts = append(stmts, Statement{
 			Operation: OperationCanonicalRetract,
-			Cypher:    canonicalNodeRetractParametersCypher,
+			Cypher:    node.RetractParametersCypher,
 			Parameters: map[string]any{
 				"file_paths":    touchedFilePaths,
 				"generation_id": mat.GenerationID,
@@ -73,15 +75,15 @@ func buildDeltaDeletedFileRetractStatements(repoID string, filePaths []string) [
 	if len(filePaths) == 0 {
 		return nil
 	}
-	stmts := make([]Statement, 0, (len(filePaths)+canonicalNodeRefreshFilePathBatchSize-1)/canonicalNodeRefreshFilePathBatchSize)
-	for start := 0; start < len(filePaths); start += canonicalNodeRefreshFilePathBatchSize {
-		end := start + canonicalNodeRefreshFilePathBatchSize
+	stmts := make([]Statement, 0, (len(filePaths)+node.RefreshFilePathBatchSize-1)/node.RefreshFilePathBatchSize)
+	for start := 0; start < len(filePaths); start += node.RefreshFilePathBatchSize {
+		end := start + node.RefreshFilePathBatchSize
 		if end > len(filePaths) {
 			end = len(filePaths)
 		}
 		stmts = append(stmts, Statement{
 			Operation: OperationCanonicalRetract,
-			Cypher:    canonicalNodeRetractDeltaDeletedFilesCypher,
+			Cypher:    node.RetractDeltaDeletedFilesCypher,
 			Parameters: map[string]any{
 				"repo_id":    repoID,
 				"file_paths": append([]string(nil), filePaths[start:end]...),
@@ -144,9 +146,9 @@ func buildDeltaDeletedDirectoryRetractStatements(repoID string, directoryPaths [
 	if len(directoryPaths) == 0 {
 		return nil
 	}
-	stmts := make([]Statement, 0, (len(directoryPaths)+canonicalNodeRefreshFilePathBatchSize-1)/canonicalNodeRefreshFilePathBatchSize)
-	for start := 0; start < len(directoryPaths); start += canonicalNodeRefreshFilePathBatchSize {
-		end := start + canonicalNodeRefreshFilePathBatchSize
+	stmts := make([]Statement, 0, (len(directoryPaths)+node.RefreshFilePathBatchSize-1)/node.RefreshFilePathBatchSize)
+	for start := 0; start < len(directoryPaths); start += node.RefreshFilePathBatchSize {
+		end := start + node.RefreshFilePathBatchSize
 		if end > len(directoryPaths) {
 			end = len(directoryPaths)
 		}
@@ -154,7 +156,7 @@ func buildDeltaDeletedDirectoryRetractStatements(repoID string, directoryPaths [
 		stmts = append(stmts,
 			Statement{
 				Operation: OperationCanonicalRetract,
-				Cypher:    canonicalNodeRetractDeltaDeletedDirectoryEdgesCypher,
+				Cypher:    node.RetractDeltaDeletedDirectoryEdgesCypher,
 				Parameters: map[string]any{
 					"repo_id":         repoID,
 					"directory_paths": batch,
@@ -162,7 +164,7 @@ func buildDeltaDeletedDirectoryRetractStatements(repoID string, directoryPaths [
 			},
 			Statement{
 				Operation: OperationCanonicalRetract,
-				Cypher:    canonicalNodeRetractDeltaDeletedDirectoriesCypher,
+				Cypher:    node.RetractDeltaDeletedDirectoriesCypher,
 				Parameters: map[string]any{
 					"repo_id":         repoID,
 					"directory_paths": batch,
@@ -193,7 +195,7 @@ func buildDeltaEmptyDirectoryRetractStatements(
 	for _, depth := range depths {
 		stmts = append(stmts, Statement{
 			Operation: OperationCanonicalRetract,
-			Cypher:    canonicalNodeRetractDeltaEmptyDirectoriesCypher,
+			Cypher:    node.RetractDeltaEmptyDirectoriesCypher,
 			Parameters: map[string]any{
 				"repo_id":         repoID,
 				"directory_paths": pathsByDepth[depth],
@@ -262,7 +264,7 @@ func buildDeltaEntityRetractStatements(mat canonical.CanonicalMaterialization) [
 	for _, label := range labels {
 		stmts = append(stmts, Statement{
 			Operation: OperationCanonicalRetract,
-			Cypher:    fmt.Sprintf(canonicalNodeRetractDeltaEntityTemplate, label),
+			Cypher:    fmt.Sprintf(node.RetractDeltaEntityTemplate, label),
 			Parameters: map[string]any{
 				"repo_id":       mat.RepoID,
 				"generation_id": mat.GenerationID,

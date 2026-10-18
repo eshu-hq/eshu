@@ -14,12 +14,14 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 // #7285 Test C. The projector no longer DETACH DELETEs the Repository node on
 // a re-projection, so the node's property map is never reset: a property a
 // writer sets and later stops setting would persist forever. The
-// projector-owned property set is exactly what canonicalNodeRepositoryUpsertCypher
+// projector-owned property set is exactly what node.RepositoryUpsertCypher
 // SETs, and that upsert rewrites every one of them on every attempt. This
 // guard pins the invariant that makes the MERGE + SET upsert sufficient: no
 // Cypher string literal under go/internal or go/cmd SETs a Repository
@@ -62,7 +64,7 @@ var (
 func repositoryOwnedProperties(t *testing.T) map[string]bool {
 	t.Helper()
 	owned := map[string]bool{"id": true}
-	for _, match := range upsertOwnedPropertyRegex.FindAllStringSubmatch(canonicalNodeRepositoryUpsertCypher, -1) {
+	for _, match := range upsertOwnedPropertyRegex.FindAllStringSubmatch(node.RepositoryUpsertCypher, -1) {
 		owned[match[1]] = true
 	}
 	for _, want := range []string{"name", "path", "scope_id", "generation_id", "evidence_source"} {
@@ -206,7 +208,7 @@ func TestRepositoryPropertyViolationsDetectsSeededWriters(t *testing.T) {
 		{"map replace", "MERGE (r:Repository {id: $id}) SET r = $props", []string{"r (whole property map)"}},
 		{"map merge", "MERGE (r:Repository {id: $id}) SET r += $props", []string{"r (whole property map)"}},
 		{"on create stray", "MERGE (t:Repository {id: $id}) ON CREATE SET t.first_seen = $now", []string{"t.first_seen"}},
-		{"projector upsert", canonicalNodeRepositoryUpsertCypher, nil},
+		{"projector upsert", node.RepositoryUpsertCypher, nil},
 		{"reducer stub", "MERGE (target_repo:Repository {id: row.target_repo_id})\nON CREATE SET target_repo.evidence_source = $evidence_source, target_repo.generation_id = $generation_id", nil},
 		{"where equality", "MATCH (r:Repository) WHERE r.id = $id AND r.legacy = $x RETURN r", nil},
 		{"relationship set", "MATCH (r:Repository {id: $id})-[rel:DEFINES]->(w) SET rel.confidence = 1.0, w.name = $n", nil},

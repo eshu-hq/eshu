@@ -104,7 +104,8 @@ with no template of its own under it (`TestEveryDynamicLabelWriterIsMarkedWithAP
 `TestMarkerBesideNoDynamicWriterFails`, `TestOneMarkerExcusesOnlyTheNearestWriter`,
 `TestMarkerProofMustLiveInTheMarkersDirectory`). The 13 marked writers are the
 canonical and semantic entity upsert templates (proved by
-`TestEntityUpsertTemplateLabelsAreAnchorLabels` and
+`TestEntityUpsertTemplateLabelsAreAnchorLabels` in
+`internal/storage/cypher/canonical/node` and
 `TestSemanticEntityUpsertLabelsAreAnchorLabels` in `internal/storage/cypher`), the
 `internal/graph` entity merge helpers (proved by
 `TestEntityMergeHelpersHaveNoProductionCaller`), and the read-API latency seed tool

@@ -3,7 +3,11 @@
 
 package cypher
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
+)
 
 // terraformAttributePromotionKeyPrefix namespaces every promoted Terraform
 // resource attribute on a TerraformResource node (e.g. "instance_type"
@@ -131,9 +135,9 @@ var terraformAttributePromotionAllowlist = map[string][]string{
 //
 // The result is a plain map[string]any of scalar values (string/bool/int64/
 // float64) run through terraformAttributeScalarValue, which gates
-// canonicalGraphPropertyValue (the same normalization the generic
+// node.GraphPropertyValue (the same normalization the generic
 // entity-metadata writer uses, reused here instead of adding a map case to
-// canonicalGraphPropertyValue itself — that would let arbitrary nested
+// node.GraphPropertyValue itself — that would let arbitrary nested
 // config reach a node through the generic path) to reject the []string/
 // []any list shapes that function would otherwise also accept. Every value
 // that reaches the caller has been proven scalar (not just proven present)
@@ -193,22 +197,22 @@ func terraformAttributePromotionKeysForType(resourceType string) []string {
 	return keys
 }
 
-// terraformAttributeScalarValue gates canonicalGraphPropertyValue to true
+// terraformAttributeScalarValue gates node.GraphPropertyValue to true
 // scalars only (string/bool/int-family/float), rejecting the []string/[]any
-// list shapes canonicalGraphPropertyValue accepts for the generic
+// list shapes node.GraphPropertyValue accepts for the generic
 // entity-metadata path (P2 finding F4). A promoted Terraform attribute must
 // always be a plain scalar node property, never a list: an allowlisted
 // attribute whose raw walked value is unexpectedly a list (a malformed
 // state payload, or a future Terraform provider schema change that turns a
 // scalar attribute into a list) is dropped rather than promoted, keeping
 // this function's "proven scalar" contract true regardless of what
-// canonicalGraphPropertyValue itself would otherwise accept.
+// node.GraphPropertyValue itself would otherwise accept.
 func terraformAttributeScalarValue(raw any) (any, bool) {
 	switch raw.(type) {
 	case []string, []any:
 		return nil, false
 	default:
-		return canonicalGraphPropertyValue(raw)
+		return node.GraphPropertyValue(raw)
 	}
 }
 

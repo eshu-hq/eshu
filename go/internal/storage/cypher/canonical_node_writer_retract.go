@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
+
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
@@ -40,10 +42,10 @@ func (w *CanonicalNodeWriter) buildRetractStatements(mat canonical.CanonicalMate
 	directoryPaths = dedupeStringValues(directoryPaths)
 
 	stmts := make([]Statement, 0, 3)
-	fileRetractCypher := canonicalNodeRetractFilesCypher
+	fileRetractCypher := node.RetractFilesCypher
 	fileRetractParams := retractParams
 	if len(filePaths) > 0 {
-		fileRetractCypher = canonicalNodeRetractRemovedFilesCypher
+		fileRetractCypher = node.RetractRemovedFilesCypher
 		fileRetractParams = map[string]any{
 			"repo_id":       mat.RepoID,
 			"generation_id": mat.GenerationID,
@@ -63,31 +65,31 @@ func (w *CanonicalNodeWriter) buildRetractStatements(mat canonical.CanonicalMate
 
 	if len(filePaths) > 0 {
 		for _, cypher := range []string{
-			canonicalNodeRefreshCurrentFileImportEdgesCypher,
-			canonicalNodeRefreshCurrentDirectoryFileEdgesCypher,
+			node.RefreshCurrentFileImportEdgesCypher,
+			node.RefreshCurrentDirectoryFileEdgesCypher,
 		} {
 			stmts = append(stmts, buildStringSliceRetractStatements(
 				cypher,
 				"file_paths",
 				filePaths,
-				canonicalNodeRefreshFilePathBatchSize,
+				node.RefreshFilePathBatchSize,
 			)...)
 		}
 	}
 	stmts = append(stmts, buildEntityContainmentRefreshStatements(mat.Entities, mat.ClassMembers, mat.NestedFuncs)...)
 	if directoryParentEdgeRefreshRows := currentDirectoryParentEdgeRefreshRows(mat.Directories); len(directoryParentEdgeRefreshRows) > 0 {
 		stmts = append(stmts, buildDirectoryParentEdgeRefreshStatements(
-			canonicalNodeRefreshCurrentDirectoryParentEdgesCypher,
+			node.RefreshCurrentDirectoryParentEdgesCypher,
 			mat.RepoID,
 			directoryParentEdgeRefreshRows,
-			canonicalNodeRefreshFilePathBatchSize,
+			node.RefreshFilePathBatchSize,
 		)...)
 	}
 
 	// Drain=true: unbounded full-refresh directory DETACH DELETE (issue #4232).
 	stmts = append(stmts, Statement{
 		Operation: OperationCanonicalRetract,
-		Cypher:    canonicalNodeRetractDirectoriesCypher,
+		Cypher:    node.RetractDirectoriesCypher,
 		Parameters: map[string]any{
 			"repo_id":         mat.RepoID,
 			"generation_id":   mat.GenerationID,
@@ -101,7 +103,7 @@ func (w *CanonicalNodeWriter) buildRetractStatements(mat canonical.CanonicalMate
 	if len(filePaths) > 0 {
 		stmts = append(stmts, Statement{
 			Operation: OperationCanonicalRetract,
-			Cypher:    canonicalNodeRetractParametersCypher,
+			Cypher:    node.RetractParametersCypher,
 			Parameters: map[string]any{
 				"file_paths":    filePaths,
 				"generation_id": mat.GenerationID,
@@ -129,7 +131,7 @@ func (w *CanonicalNodeWriter) buildEntityRetractStatements(mat canonical.Canonic
 		// (issue #4232). DrainVar is always "n" — the template variable name.
 		stmts = append(stmts, Statement{
 			Operation: OperationCanonicalRetract,
-			Cypher:    fmt.Sprintf(canonicalNodeRetractEntityTemplate, label),
+			Cypher:    fmt.Sprintf(node.RetractEntityTemplate, label),
 			Parameters: map[string]any{
 				"repo_id":       mat.RepoID,
 				"generation_id": mat.GenerationID,
@@ -166,14 +168,14 @@ func dedupeStringValues(values []string) []string {
 func canonicalNodeRetractEntityLabels() []string {
 	labels := make(map[string]struct{})
 	for _, family := range []map[string]struct{}{
-		canonicalNodeRetractCodeEntityLabels,
-		canonicalNodeRetractInfraEntityLabels,
-		canonicalNodeRetractTerraformEntityLabels,
-		canonicalNodeRetractCloudFormationEntityLabels,
-		canonicalNodeRetractSQLEntityLabels,
-		canonicalNodeRetractDataEntityLabels,
-		canonicalNodeRetractOCIEntityLabels,
-		canonicalNodeRetractPackageRegistryEntityLabels,
+		node.RetractCodeEntityLabels,
+		node.RetractInfraEntityLabels,
+		node.RetractTerraformEntityLabels,
+		node.RetractCloudFormationEntityLabels,
+		node.RetractSQLEntityLabels,
+		node.RetractDataEntityLabels,
+		node.RetractOCIEntityLabels,
+		node.RetractPackageRegistryEntityLabels,
 	} {
 		for label := range family {
 			labels[label] = struct{}{}
@@ -309,9 +311,9 @@ func buildEntityContainmentRefreshStatements(
 		stmts = append(
 			stmts,
 			buildBatchedRetractStatements(
-				fmt.Sprintf(canonicalNodeRefreshCurrentEntityContainmentEdgesTemplate, label),
+				fmt.Sprintf(node.RefreshCurrentEntityContainmentEdgesTemplate, label),
 				rowsByLabel[label],
-				canonicalNodeRefreshEntityContainmentBatchSize,
+				node.RefreshEntityContainmentBatchSize,
 			)...,
 		)
 	}
@@ -335,8 +337,8 @@ func fileNameLineKey(filePath, name string, line int) string {
 // metadata key is stripped before the Bolt seam on the phase-group path
 // (SanitizeStatement).
 func isRepositoryPathCleanupEntry(entry WriteCountEntry) bool {
-	return entry.Cypher == canonicalNodeRepositoryPathCleanupCypher ||
-		entry.Cypher == canonicalNodeRepositoryPathCleanupBareCypher
+	return entry.Cypher == node.RepositoryPathCleanupCypher ||
+		entry.Cypher == node.RepositoryPathCleanupBareCypher
 }
 
 // captureRepositoryRetirement stashes a filtered write-count collector for
@@ -346,8 +348,8 @@ func isRepositoryPathCleanupEntry(entry WriteCountEntry) bool {
 // every entry to any collector the caller already stashed.
 func captureRepositoryRetirement(ctx context.Context, statements []Statement) (context.Context, *WriteCountsCollector) {
 	for _, stmt := range statements {
-		if stmt.Cypher != canonicalNodeRepositoryPathCleanupCypher &&
-			stmt.Cypher != canonicalNodeRepositoryPathCleanupBareCypher {
+		if stmt.Cypher != node.RepositoryPathCleanupCypher &&
+			stmt.Cypher != node.RepositoryPathCleanupBareCypher {
 			continue
 		}
 		collector := NewFilteredWriteCountsCollector(WriteCountsCollectorFromContext(ctx), isRepositoryPathCleanupEntry)

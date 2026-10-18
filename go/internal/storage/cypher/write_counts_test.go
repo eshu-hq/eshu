@@ -7,6 +7,8 @@ import (
 	"context"
 	"sync"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 func TestReportWriteCountsRoundTripThroughContext(t *testing.T) {
@@ -120,13 +122,13 @@ func TestParseDroppedEdgesKeepsEmptyListAttributed(t *testing.T) {
 }
 
 func TestIsRepositoryPathCleanupCypherMatchesTheConstantOnly(t *testing.T) {
-	if !IsRepositoryPathCleanupCypher(canonicalNodeRepositoryPathCleanupCypher) {
+	if !IsRepositoryPathCleanupCypher(node.RepositoryPathCleanupCypher) {
 		t.Fatal("IsRepositoryPathCleanupCypher(constant) = false, want true")
 	}
 	if IsRepositoryPathCleanupCypher("MATCH (r:Repository {path: $path})\nWHERE r.id <> $repo_id\nDETACH DELETE r") {
 		t.Fatal("IsRepositoryPathCleanupCypher(old text) = true, want false after the RETURN dropped rewrite")
 	}
-	if IsRepositoryPathCleanupCypher(canonicalNodeRepositoryUpsertCypher) {
+	if IsRepositoryPathCleanupCypher(node.RepositoryUpsertCypher) {
 		t.Fatal("IsRepositoryPathCleanupCypher(upsert) = true, want false")
 	}
 }

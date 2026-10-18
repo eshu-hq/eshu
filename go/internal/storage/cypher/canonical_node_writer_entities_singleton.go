@@ -6,6 +6,8 @@ package cypher
 import (
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
 )
 
@@ -74,7 +76,7 @@ func canonicalNodeEntitySingletonWithContainmentStatement(
 	}
 	return Statement{
 		Operation: OperationCanonicalUpsert,
-		Cypher:    search.Statement(searchKey, label, "n", fmt.Sprintf(canonicalNodeEntitySingletonUpsertWithContainmentTemplate, label)),
+		Cypher:    search.Statement(searchKey, label, "n", fmt.Sprintf(node.EntitySingletonUpsertWithContainmentTemplate, label)),
 		Parameters: map[string]any{
 			"file_path":                        filePath,
 			"entity_id":                        row["entity_id"],

@@ -263,7 +263,7 @@ func TestBuildCanonicalMaterializationImportRowsAreOrderStable(t *testing.T) {
 
 // TestBuildCanonicalMaterializationDropsRemovedImports is the delta half of the
 // producer's contract. The writer already deletes a file's IMPORTS edges before
-// rewriting them (canonicalNodeRefreshCurrentFileImportEdgesCypher, proven live
+// rewriting them (node.RefreshCurrentFileImportEdgesCypher, proven live
 // by TestRefreshFileImportEdgesGraphTruth), so a stale edge survives only if the
 // extractor keeps emitting a row for an import the file no longer has.
 func TestBuildCanonicalMaterializationDropsRemovedImports(t *testing.T) {

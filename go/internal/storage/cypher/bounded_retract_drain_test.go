@@ -7,14 +7,16 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 // TestBuildBoundedRetractDrainCypherRewritesFilesStatement verifies the rewrite
-// for canonicalNodeRetractFilesCypher (full-refresh, unbounded).
+// for node.RetractFilesCypher (full-refresh, unbounded).
 func TestBuildBoundedRetractDrainCypherRewritesFilesStatement(t *testing.T) {
 	t.Parallel()
 
-	got, err := BuildBoundedRetractDrainCypher(canonicalNodeRetractFilesCypher, "f", "__retract_batch")
+	got, err := BuildBoundedRetractDrainCypher(node.RetractFilesCypher, "f", "__retract_batch")
 	if err != nil {
 		t.Fatalf("BuildBoundedRetractDrainCypher() error = %v, want nil", err)
 	}
@@ -35,11 +37,11 @@ func TestBuildBoundedRetractDrainCypherRewritesFilesStatement(t *testing.T) {
 }
 
 // TestBuildBoundedRetractDrainCypherRewritesRemovedFilesStatement verifies the
-// rewrite for canonicalNodeRetractRemovedFilesCypher (full-refresh with file-list guard).
+// rewrite for node.RetractRemovedFilesCypher (full-refresh with file-list guard).
 func TestBuildBoundedRetractDrainCypherRewritesRemovedFilesStatement(t *testing.T) {
 	t.Parallel()
 
-	got, err := BuildBoundedRetractDrainCypher(canonicalNodeRetractRemovedFilesCypher, "f", "__retract_batch")
+	got, err := BuildBoundedRetractDrainCypher(node.RetractRemovedFilesCypher, "f", "__retract_batch")
 	if err != nil {
 		t.Fatalf("BuildBoundedRetractDrainCypher() error = %v, want nil", err)
 	}
@@ -59,12 +61,12 @@ func TestBuildBoundedRetractDrainCypherRewritesRemovedFilesStatement(t *testing.
 }
 
 // TestBuildBoundedRetractDrainCypherRewritesDirectoriesStatement verifies the
-// rewrite for canonicalNodeRetractDirectoriesCypher (var "d", bare-label shape).
+// rewrite for node.RetractDirectoriesCypher (var "d", bare-label shape).
 // NornicDB v1.1.9 requires ORDER BY elementId() before LIMIT for bare-label queries.
 func TestBuildBoundedRetractDrainCypherRewritesDirectoriesStatement(t *testing.T) {
 	t.Parallel()
 
-	got, err := BuildBoundedRetractDrainCypher(canonicalNodeRetractDirectoriesCypher, "d", "__retract_batch")
+	got, err := BuildBoundedRetractDrainCypher(node.RetractDirectoriesCypher, "d", "__retract_batch")
 	if err != nil {
 		t.Fatalf("BuildBoundedRetractDrainCypher() error = %v, want nil", err)
 	}
@@ -81,7 +83,7 @@ func TestBuildBoundedRetractDrainCypherRewritesDirectoriesStatement(t *testing.T
 }
 
 // TestBuildBoundedRetractDrainCypherRewritesEntityStatement verifies the
-// rewrite for canonicalNodeRetractEntityTemplate (var "n", bare-label shape).
+// rewrite for node.RetractEntityTemplate (var "n", bare-label shape).
 // NornicDB v1.1.9 requires ORDER BY elementId() before LIMIT for bare-label queries.
 func TestBuildBoundedRetractDrainCypherRewritesEntityStatement(t *testing.T) {
 	t.Parallel()
@@ -138,29 +140,29 @@ func TestBuildBoundedRetractDrainCypherShapeClassification(t *testing.T) {
 		wantNoWith string
 	}{
 		{
-			name:       "canonicalNodeRetractFilesCypher relationship-anchored",
-			cypher:     canonicalNodeRetractFilesCypher,
+			name:       "node.RetractFilesCypher relationship-anchored",
+			cypher:     node.RetractFilesCypher,
 			drainVar:   "f",
 			wantWith:   "WITH f LIMIT $" + bp,
 			wantNoWith: "ORDER BY",
 		},
 		{
-			name:       "canonicalNodeRetractRemovedFilesCypher relationship-anchored",
-			cypher:     canonicalNodeRetractRemovedFilesCypher,
+			name:       "node.RetractRemovedFilesCypher relationship-anchored",
+			cypher:     node.RetractRemovedFilesCypher,
 			drainVar:   "f",
 			wantWith:   "WITH f LIMIT $" + bp,
 			wantNoWith: "ORDER BY",
 		},
 		{
-			name:       "canonicalNodeRetractDirectoriesCypher bare-label",
-			cypher:     canonicalNodeRetractDirectoriesCypher,
+			name:       "node.RetractDirectoriesCypher bare-label",
+			cypher:     node.RetractDirectoriesCypher,
 			drainVar:   "d",
 			wantWith:   "WITH d ORDER BY elementId(d) LIMIT $" + bp,
 			wantNoWith: "",
 		},
 		{
-			name:       "canonicalNodeRetractEntityTemplate bare-label (Function)",
-			cypher:     fmt.Sprintf(canonicalNodeRetractEntityTemplate, "Function"),
+			name:       "node.RetractEntityTemplate bare-label (Function)",
+			cypher:     fmt.Sprintf(node.RetractEntityTemplate, "Function"),
 			drainVar:   "n",
 			wantWith:   "WITH n ORDER BY elementId(n) LIMIT $" + bp,
 			wantNoWith: "",
@@ -189,7 +191,7 @@ func TestBuildBoundedRetractDrainCypherShapeClassification(t *testing.T) {
 func TestBuildBoundedRetractDrainCypherErrorsOnWrongVar(t *testing.T) {
 	t.Parallel()
 
-	_, err := BuildBoundedRetractDrainCypher(canonicalNodeRetractFilesCypher, "x", "__retract_batch")
+	_, err := BuildBoundedRetractDrainCypher(node.RetractFilesCypher, "x", "__retract_batch")
 	if err == nil {
 		t.Fatal("BuildBoundedRetractDrainCypher() error = nil, want non-nil for wrong drainVar")
 	}

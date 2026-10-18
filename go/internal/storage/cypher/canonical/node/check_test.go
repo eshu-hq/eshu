@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package node
 
 import (
 	"context"
@@ -18,10 +18,10 @@ func (f *fakeCypherReader) QueryCypherExists(_ context.Context, _ string, _ map[
 	return f.exists, f.err
 }
 
-func TestCanonicalNodeCheckerReturnsTrueWhenNodesExist(t *testing.T) {
+func TestCheckerReturnsTrueWhenNodesExist(t *testing.T) {
 	t.Parallel()
 
-	checker := NewCanonicalNodeChecker(&fakeCypherReader{exists: true})
+	checker := NewChecker(&fakeCypherReader{exists: true})
 	got, err := checker.HasCanonicalCodeTargets(context.Background())
 	if err != nil {
 		t.Fatalf("HasCanonicalCodeTargets() error = %v", err)
@@ -31,10 +31,10 @@ func TestCanonicalNodeCheckerReturnsTrueWhenNodesExist(t *testing.T) {
 	}
 }
 
-func TestCanonicalNodeCheckerReturnsFalseWhenNoNodes(t *testing.T) {
+func TestCheckerReturnsFalseWhenNoNodes(t *testing.T) {
 	t.Parallel()
 
-	checker := NewCanonicalNodeChecker(&fakeCypherReader{exists: false})
+	checker := NewChecker(&fakeCypherReader{exists: false})
 	got, err := checker.HasCanonicalCodeTargets(context.Background())
 	if err != nil {
 		t.Fatalf("HasCanonicalCodeTargets() error = %v", err)
@@ -44,10 +44,10 @@ func TestCanonicalNodeCheckerReturnsFalseWhenNoNodes(t *testing.T) {
 	}
 }
 
-func TestCanonicalNodeCheckerPropagatesError(t *testing.T) {
+func TestCheckerPropagatesError(t *testing.T) {
 	t.Parallel()
 
-	checker := NewCanonicalNodeChecker(&fakeCypherReader{
+	checker := NewChecker(&fakeCypherReader{
 		exists: false,
 		err:    fmt.Errorf("connection refused"),
 	})
@@ -57,10 +57,10 @@ func TestCanonicalNodeCheckerPropagatesError(t *testing.T) {
 	}
 }
 
-func TestCanonicalNodeCheckerNilReaderReturnsError(t *testing.T) {
+func TestCheckerNilReaderReturnsError(t *testing.T) {
 	t.Parallel()
 
-	checker := NewCanonicalNodeChecker(nil)
+	checker := NewChecker(nil)
 	_, err := checker.HasCanonicalCodeTargets(context.Background())
 	if err == nil {
 		t.Fatal("HasCanonicalCodeTargets(nil reader) error = nil, want error")

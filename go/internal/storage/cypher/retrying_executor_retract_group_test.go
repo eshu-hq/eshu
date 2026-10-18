@@ -195,7 +195,7 @@ func TestClassifyRetryableGraphWriteGroupErrorKeepsNonIdempotentGroupsTerminal(t
 		// breaks the "removes the same parameter-bound set" premise the whole
 		// widening rests on, so those retracts keep the group terminal.
 
-		// The live shape: canonicalNodeRetractParametersCypher. Its
+		// The live shape: node.RetractParametersCypher. Its
 		// generation_id inequality matches every generation except this
 		// writer's, so a Parameter committed by a concurrent writer on a
 		// different generation between the failed attempt and the replay is

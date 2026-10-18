@@ -29,7 +29,7 @@ type cypherRunner interface {
 // cypherRunner: widening cypherRunner would force every fake and adapter that
 // only ever writes (never probes) to implement a read primitive it has no use
 // for. neo4jSessionRunner (neo4j_wiring.go) already satisfies this interface
-// via QueryCypherExists, built for the pre-existing CanonicalNodeChecker
+// via QueryCypherExists, built for the pre-existing node.Checker
 // pre-flight check, so no new session-layer code is needed -- only the
 // adapter-layer forward below.
 type cypherProber interface {

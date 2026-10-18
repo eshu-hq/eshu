@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package node
 
 // --- Phase A: Retract stale nodes ---
 //
@@ -11,11 +11,11 @@ package cypher
 // under the repository file-size cap.
 
 const (
-	canonicalNodeRefreshFilePathBatchSize          = 100
-	canonicalNodeRefreshEntityContainmentBatchSize = 50
+	RefreshFilePathBatchSize          = 100
+	RefreshEntityContainmentBatchSize = 50
 )
 
-var canonicalNodeRetractCodeEntityLabels = map[string]struct{}{
+var RetractCodeEntityLabels = map[string]struct{}{
 	"Function":               {},
 	"Class":                  {},
 	"Variable":               {},
@@ -38,7 +38,7 @@ var canonicalNodeRetractCodeEntityLabels = map[string]struct{}{
 	"ShellCommand":           {},
 }
 
-var canonicalNodeRetractInfraEntityLabels = map[string]struct{}{
+var RetractInfraEntityLabels = map[string]struct{}{
 	"K8sResource":          {},
 	"ArgoCDApplication":    {},
 	"ArgoCDApplicationSet": {},
@@ -77,7 +77,7 @@ var canonicalNodeRetractInfraEntityLabels = map[string]struct{}{
 	"HelmTemplateValueUsage": {},
 }
 
-var canonicalNodeRetractTerraformEntityLabels = map[string]struct{}{
+var RetractTerraformEntityLabels = map[string]struct{}{
 	"TerraformResource":     {},
 	"TerraformBlock":        {},
 	"TerraformModule":       {},
@@ -98,7 +98,7 @@ var canonicalNodeRetractTerraformEntityLabels = map[string]struct{}{
 	"TerragruntLocal":       {},
 }
 
-var canonicalNodeRetractCloudFormationEntityLabels = map[string]struct{}{
+var RetractCloudFormationEntityLabels = map[string]struct{}{
 	"CloudFormationResource":  {},
 	"CloudFormationParameter": {},
 	"CloudFormationOutput":    {},
@@ -112,7 +112,7 @@ var canonicalNodeRetractCloudFormationEntityLabels = map[string]struct{}{
 	"CloudFormationExport":    {},
 }
 
-var canonicalNodeRetractSQLEntityLabels = map[string]struct{}{
+var RetractSQLEntityLabels = map[string]struct{}{
 	"SqlTable":     {},
 	"SqlView":      {},
 	"SqlFunction":  {},
@@ -122,7 +122,7 @@ var canonicalNodeRetractSQLEntityLabels = map[string]struct{}{
 	"SqlMigration": {},
 }
 
-var canonicalNodeRetractDataEntityLabels = map[string]struct{}{
+var RetractDataEntityLabels = map[string]struct{}{
 	"DataAsset":        {},
 	"DataColumn":       {},
 	"AnalyticsModel":   {},
@@ -133,7 +133,7 @@ var canonicalNodeRetractDataEntityLabels = map[string]struct{}{
 	"DataOwner":        {},
 }
 
-var canonicalNodeRetractOCIEntityLabels = map[string]struct{}{
+var RetractOCIEntityLabels = map[string]struct{}{
 	"ContainerImage":               {},
 	"ContainerImageDescriptor":     {},
 	"ContainerImageIndex":          {},
@@ -146,7 +146,7 @@ var canonicalNodeRetractOCIEntityLabels = map[string]struct{}{
 	"OciRegistryRepository":        {},
 }
 
-var canonicalNodeRetractPackageRegistryEntityLabels = map[string]struct{}{
+var RetractPackageRegistryEntityLabels = map[string]struct{}{
 	"Package":                          {},
 	"PackageDependency":                {},
 	"PackageRegistryPackage":           {},

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 // TestBuildBoundedRetractProbeCypherReadsOneMatchForBareLabelStatements
@@ -26,7 +28,7 @@ func TestBuildBoundedRetractProbeCypherReadsOneMatchForBareLabelStatements(t *te
 	}{
 		{
 			name:     "directories",
-			cypher:   canonicalNodeRetractDirectoriesCypher,
+			cypher:   node.RetractDirectoriesCypher,
 			drainVar: "d",
 			wantProbe: `MATCH (d:Directory)
 WHERE d.repo_id = $repo_id AND d.generation_id <> $generation_id
@@ -36,7 +38,7 @@ RETURN elementId(d) AS __id`,
 		},
 		{
 			name:     "entity label",
-			cypher:   fmt.Sprintf(canonicalNodeRetractEntityTemplate, "Function"),
+			cypher:   fmt.Sprintf(node.RetractEntityTemplate, "Function"),
 			drainVar: "n",
 			wantProbe: `MATCH (n:Function)
 WHERE n.repo_id = $repo_id AND n.evidence_source = 'projector/canonical' AND n.generation_id <> $generation_id
@@ -69,8 +71,8 @@ func TestBuildBoundedRetractProbeCypherLeavesAnchoredStatementsAlone(t *testing.
 	t.Parallel()
 
 	for name, cypher := range map[string]string{
-		"files":         canonicalNodeRetractFilesCypher,
-		"removed files": canonicalNodeRetractRemovedFilesCypher,
+		"files":         node.RetractFilesCypher,
+		"removed files": node.RetractRemovedFilesCypher,
 	} {
 		_, ok, err := BuildBoundedRetractProbeCypher(cypher, "f")
 		if err != nil {
@@ -94,8 +96,8 @@ func TestBuildBoundedRetractProbeCypherRejectsMalformedInput(t *testing.T) {
 		wantErr  string
 	}{
 		{"wrong trailing verb", "MATCH (d:Directory)\nDELETE d", "d", "DETACH DELETE d"},
-		{"wrong drain var", canonicalNodeRetractDirectoriesCypher, "n", "DETACH DELETE n"},
-		{"empty drain var", canonicalNodeRetractDirectoriesCypher, "", "drainVar"},
+		{"wrong drain var", node.RetractDirectoriesCypher, "n", "DETACH DELETE n"},
+		{"empty drain var", node.RetractDirectoriesCypher, "", "drainVar"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

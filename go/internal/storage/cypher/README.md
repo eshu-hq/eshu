@@ -48,7 +48,7 @@ the lockstep source the replay depth-coverage gate (C-13, #4366) mirrors so ever
 retractable node type is required to have a delta/tombstone replay scenario;
 adding a label to a retract set makes that gate demand a new scenario for it.
 
-`canonicalNodeRetractInfraEntityLabels` retains `CrossplaneClaim` even though
+`node.RetractInfraEntityLabels` retains `CrossplaneClaim` even though
 no writer has emitted that label since #5347 (a Crossplane Claim is edge-only:
 it stays a `K8sResource` node, and the `SATISFIED_BY` edge to its
 `CrossplaneXRD` is the classification). The entry is a legacy-node reaper, not
@@ -68,7 +68,7 @@ registry and its lockstep specs (`specs/replay-depth-requirements.v1.yaml`,
 `specs/replay-coverage-manifest.v1.yaml`) for exactly this reason.
 
 No-Regression Evidence: this file's `Statement` shape, batch size, and
-dispatch order are unchanged by #5478 -- `canonicalNodeRetractInfraEntityLabels`
+dispatch order are unchanged by #5478 -- `node.RetractInfraEntityLabels`
 is restored to its pre-#5478 membership (`CrossplaneClaim` re-added), so the
 generated retract Cypher text, its UNWIND/DETACH DELETE plan, and the phase
 ordering in `canonical_node_writer_retract.go` are byte-identical to the
@@ -1222,8 +1222,8 @@ backend-specific branch.
 
 **Read / check**
 
-- `CypherReader` — interface for read-only existence queries
-- `CanonicalNodeChecker` — short-circuit guard built from `CypherReader`;
+- `node.CypherReader` — interface for read-only existence queries
+- `node.Checker` — short-circuit guard built from `node.CypherReader`;
   `HasCanonicalCodeTargets` avoids expensive label-free MATCH scans when no
   canonical code nodes exist
 

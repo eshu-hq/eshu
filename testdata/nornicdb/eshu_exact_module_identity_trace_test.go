@@ -147,7 +147,7 @@ func TestEshuExactModuleIdentityQueriesUseIndexedMergeHotPath(t *testing.T) {
 	eshuRoot := os.Getenv("ESHU_ROOT")
 	require.NotEmpty(t, eshuRoot)
 
-	cypherFile := filepath.Join(eshuRoot, "go/internal/storage/cypher/canonical_node_cypher.go")
+	cypherFile := filepath.Join(eshuRoot, "go/internal/storage/cypher/canonical/node/templates.go")
 	ctx := context.Background()
 	exec := moduleTraceStore(t, "eshu-exact-module-identity", 25)
 
@@ -158,12 +158,12 @@ func TestEshuExactModuleIdentityQueriesUseIndexedMergeHotPath(t *testing.T) {
 	}{
 		{
 			name:      "module-upsert",
-			constName: "canonicalNodeModuleUpsertCypher",
+			constName: "ModuleUpsertCypher",
 			params:    map[string]interface{}{"rows": moduleUpsertRows()},
 		},
 		{
 			name:      "import-edge",
-			constName: "canonicalNodeImportEdgeCypher",
+			constName: "ImportEdgeCypher",
 			params:    map[string]interface{}{"rows": importEdgeRows()},
 		},
 	} {
@@ -211,7 +211,7 @@ func BenchmarkEshuModuleUpsertMergeKey(b *testing.B) {
 	if eshuRoot == "" {
 		b.Skip("ESHU_ROOT not set")
 	}
-	cypherFile := filepath.Join(eshuRoot, "go/internal/storage/cypher/canonical_node_cypher.go")
+	cypherFile := filepath.Join(eshuRoot, "go/internal/storage/cypher/canonical/node/templates.go")
 	ctx := context.Background()
 
 	for _, sameNameCount := range []int{1, 25, 200} {
@@ -221,7 +221,7 @@ func BenchmarkEshuModuleUpsertMergeKey(b *testing.B) {
 			fromEshu bool
 		}{
 			{name: "legacy-name-only", constant: canonicalNodeModuleUpsertLegacyCypher},
-			{name: "name-and-lang", constant: "canonicalNodeModuleUpsertCypher", fromEshu: true},
+			{name: "name-and-lang", constant: "ModuleUpsertCypher", fromEshu: true},
 		} {
 			b.Run(fmt.Sprintf("candidates=%d/%s", sameNameCount, variant.name), func(b *testing.B) {
 				exec := moduleTraceStore(b, fmt.Sprintf("bench-%d-%s", sameNameCount, variant.name), sameNameCount)

@@ -143,7 +143,7 @@ func BuildOutlierCalleeEdgesCypher(
 	// function_uid_unique constraint (a NodeUniqueIndexSeek), id carries no
 	// index on either backend, and the canonical writer always sets both
 	// properties from the same EntityID (canonicalEntityProperties +
-	// canonicalNodeEntityUpsertTemplate), so the two branches are always
+	// node.EntityUpsertTemplate), so the two branches are always
 	// equal by construction -- the id branch only ever adds an unindexed
 	// NodeByLabelScan over every Function per id (issue #7057).
 	var cypher strings.Builder

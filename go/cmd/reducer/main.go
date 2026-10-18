@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -34,7 +36,7 @@ func buildReducerService(
 	neo4jExec sourcecypher.Executor,
 	cypherExec reducer.CypherExecutor,
 	intentStore *postgres.SharedIntentStore,
-	neo4jReader sourcecypher.CypherReader,
+	neo4jReader node.CypherReader,
 	graphReader query.GraphQuery,
 	getenv func(string) string,
 	tracer trace.Tracer,

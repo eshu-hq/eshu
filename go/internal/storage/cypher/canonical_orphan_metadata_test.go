@@ -6,6 +6,8 @@ package cypher
 import (
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 func TestBuildCanonicalRelationshipTargetsStampOrphanSweepMetadata(t *testing.T) {
@@ -82,28 +84,28 @@ func TestCanonicalCodeStructureNodesStampOrphanSweepMetadata(t *testing.T) {
 	}{
 		{
 			name:   "directory node",
-			cypher: canonicalNodeDirectoryNodeCypher,
+			cypher: node.DirectoryNodeCypher,
 			fragments: []string{
 				"d.evidence_source = 'projector/canonical'",
 			},
 		},
 		{
 			name:   "root directory edge",
-			cypher: canonicalNodeDirectoryDepth0EdgeCypher,
+			cypher: node.DirectoryDepth0EdgeCypher,
 			fragments: []string{
 				"rel.evidence_source = 'projector/canonical'",
 			},
 		},
 		{
 			name:   "nested directory edge",
-			cypher: canonicalNodeDirectoryDepthNEdgeCypher,
+			cypher: node.DirectoryDepthNEdgeCypher,
 			fragments: []string{
 				"rel.evidence_source = 'projector/canonical'",
 			},
 		},
 		{
 			name:   "imported module",
-			cypher: canonicalNodeModuleUpsertCypher,
+			cypher: node.ModuleUpsertCypher,
 			fragments: []string{
 				"m.evidence_source = 'projector/canonical'",
 			},
