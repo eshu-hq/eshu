@@ -262,6 +262,7 @@ gates:
       - "testdata/cassettes/kubernetesnamespaceenvironment/**"
       - "testdata/cassettes/rationale/**"
       - "testdata/cassettes/repodependency/**"
+      - "testdata/cassettes/s3logsto/**"
       - "testdata/cassettes/shellexec/**"
       - "testdata/cassettes/submodulepin/**"
       - "testdata/cassettes/workloaddependency/**"

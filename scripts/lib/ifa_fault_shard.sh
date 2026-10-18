@@ -137,8 +137,8 @@ IFA_FAULT_ALL_CELLS=(
 	cell_killworker_submodule_pin
 	cell_failgraphwrite_submodule_pin
 	# kubernetes_namespace_environment + iam_instance_profile_role (#6309) +
-	# iam_can_assume + ec2_uses_profile (#6228 fault halves): the
-	# direct-materialization families in this gate, same
+	# iam_can_assume + ec2_uses_profile + s3_logs_to (#6228 fault halves):
+	# the direct-materialization families in this gate, same
 	# family-scoped-baseline-plus-two shape as
 	# codeowners_ownership_edges above (cell_kind=custom on a
 	# table_lock:fact_records blocker). Each baseline writes its own
@@ -169,6 +169,13 @@ IFA_FAULT_ALL_CELLS=(
 	cell_baseline_ec2_uses_profile
 	cell_killworker_ec2_uses_profile
 	cell_failgraphwrite_ec2_uses_profile
+	# s3_logs_to (#6228 fault half): sixth direct-materialization family
+	# in this gate, same family-scoped-baseline-plus-two shape. Its
+	# baseline writes digests[baseline_s3_logs_to], so the trio must stay
+	# co-located -- see IFA_FAULT_ATOMIC_GROUPS below.
+	cell_baseline_s3_logs_to
+	cell_killworker_s3_logs_to
+	cell_failgraphwrite_s3_logs_to
 	cell_baseline_inheritance
 	cell_killworker_inheritance
 	cell_failgraphwrite_inheritance
@@ -225,6 +232,7 @@ IFA_FAULT_ATOMIC_GROUPS=(
 	"cell_baseline_iam_can_assume cell_killworker_iam_can_assume cell_failgraphwrite_iam_can_assume"
 	"cell_baseline_iam_can_perform cell_killworker_iam_can_perform cell_failgraphwrite_iam_can_perform"
 	"cell_baseline_ec2_uses_profile cell_killworker_ec2_uses_profile cell_failgraphwrite_ec2_uses_profile"
+	"cell_baseline_s3_logs_to cell_killworker_s3_logs_to cell_failgraphwrite_s3_logs_to"
 	"cell_baseline_inheritance cell_killworker_inheritance cell_failgraphwrite_inheritance"
 	"cell_baseline_shell_exec cell_killworker_shell_exec cell_failgraphwrite_shell_exec"
 	"cell_baseline_workload_dependency cell_killworker_workload_dependency cell_failgraphwrite_workload_dependency"

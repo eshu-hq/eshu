@@ -93,9 +93,10 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		LiveProven: true,
 	},
 	{
-		Family:    s3LogsToFamily,
-		OduName:   ifa.S3LogsToFamilyOduName,
-		EdgeTypes: []string{"LOGS_TO"},
+		Family:     s3LogsToFamily,
+		OduName:    ifa.S3LogsToFamilyOduName,
+		EdgeTypes:  []string{"LOGS_TO"},
+		LiveProven: true,
 	},
 	{
 		Family:    kubernetesCorrelationFamily,

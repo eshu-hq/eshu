@@ -9,9 +9,9 @@
 # go/internal/reducer/s3logsto/s3_logs_to_materialization.go
 # declares `FactLoader factload.FactLoader` as a struct field at :82, Handle
 # rejects a nil one at :114, and passes it to factload.LoadFactsForKinds at
-# :145. An ACCESS EXCLUSIVE lock on fact_records would therefore block a read
-# this handler really performs -- the blocker_kind a future fault cell would
-# take. No such cell exists yet.
+# :145. An ACCESS EXCLUSIVE lock on fact_records therefore blocks a read
+# this handler really performs -- the blocker_kind this family's fault
+# cell takes.
 #
 # A DIRECT-materialization family, so there is no shared_projection_intents row
 # for shared_intent_lock to take.
@@ -41,8 +41,8 @@ IFA_FAMILY_PIN_ANCHOR="MERGE (source)-[rel:LOGS_TO]->(target)"
 # shared_cell: a plain reducer family needing no maintenance pass, so it is
 # driven in the determinism gate's shared N={1,2,4} cell.
 IFA_FAMILY_PIN_SHARED_CELL=1
-# cell_kind: custom, prospectively -- no fault cell file exists for this
-# family yet, and the generic public dispatchers reject custom rows, so the
-# fault gate cannot dispatch it. A future fault cell flips nothing here; the
-# row already declares the custom dispatch shape.
+# cell_kind: derived from the gate's call sites -- the custom trio in
+# scripts/lib/ifa_fault_injection_s3_logs_to_cells.sh,
+# dispatched by name (#6228 fault half). Custom rather than generic for the
+# reason recorded in the sibling iam_instance_profile_role pin.
 IFA_FAMILY_PIN_CELL_KIND="custom"

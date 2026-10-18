@@ -114,7 +114,7 @@
       # documentation family learned the hard way that a correct literal stops
       # being correct the moment the writer splits into a second file.
       # kubernetes_namespace_environment + iam_instance_profile_role (#6309)
-      # + iam_can_perform + ec2_uses_profile (#6228 fault halves):
+      # + iam_can_perform + ec2_uses_profile + s3_logs_to (#6228 fault halves):
       # mirror of the determinism block's family entries. The Go production
       # paths need no mirror: go/internal/ifa/*.go, go/internal/reducer/**,
       # and go/cmd/ifa/** above already cover the Odù builders, handlers, and
@@ -172,7 +172,7 @@
       # match, since this gate covers them by glob and that gate must not be
       # widened to the whole fault surface.
       # kubernetes_namespace_environment + iam_instance_profile_role (#6309)
-      # + iam_can_perform + ec2_uses_profile (#6228 fault halves):
+      # + iam_can_perform + ec2_uses_profile + s3_logs_to (#6228 fault halves):
       # the direct-materialization families with fault cells. Same
       # per-family literal treatment as the inheritance/shell_exec/
       # repo_dependency reach-ins above.
