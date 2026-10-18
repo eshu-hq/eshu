@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
+//go:build live_nornicdb_answer_truth
+
 package cypher
 
 import (
@@ -17,7 +19,8 @@ import (
 // to skip entirely on a delta cycle (mat.DeltaProjection == true), matching
 // terraformStateResourceRetractStatements' own DeltaProjection skip even
 // though the two statements' danger profiles are NOT the same (see this
-// test's sibling doc comment on terraformStateMatchesConfigEdgeRetractStatements,
+// test's sibling doc comment on TerraformStateMatchesConfigEdgeRetractParts,
+// canonical/terraform/state_match_retract.go, wrapped by the root adapter in
 // tfstate_state_match_edge_retract.go). The practical effect: when a state
 // resource's resolved OwningRepoID changes to a DIFFERENT repo (not just
 // becomes unmatched) on a delta cycle, terraformStateMatchesConfigEdgeStatements'
@@ -62,9 +65,12 @@ import (
 // process. All assertions run in a single read block after every write
 // completes.
 //
-// Opt-in, matching every other _live_test.go in this package: set
-// ESHU_CYPHER_BOLT_DSN (and optionally ESHU_CYPHER_BOLT_DATABASE) to run it
-// against a running graph backend. Skipped otherwise.
+// Enrolled as CI-class in the live-tests ledger: the blocking
+// live-backend-tests gate runs this file on its selected backend (Neo4j for
+// this row; NornicDB divergence recorded in #8463, closed Neo4j-only) via
+// ESHU_NEO4J_URI. For a manual run, set ESHU_CYPHER_BOLT_DSN (and optionally
+// ESHU_CYPHER_BOLT_DATABASE) against a running graph backend. Skipped when
+// neither is set.
 func TestCanonicalNodeWriterRetractsStaleMatchesStateEdgeOnDeltaCycleLive(t *testing.T) {
 	runner := openBoltTestRunner(t)
 	t.Cleanup(func() { runner.close(context.Background()) })

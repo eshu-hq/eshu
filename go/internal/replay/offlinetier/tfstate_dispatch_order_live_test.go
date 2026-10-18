@@ -41,7 +41,7 @@ import (
 
 // TestTfstateResourceRetractDispatchLive proves #5680 defect 1: a non-Drain
 // OperationCanonicalRetract statement (the terraform_state resource-sweep
-// DETACH DELETE, tfstate_canonical_writer_retract.go) was bundled into
+// DETACH DELETE, canonical/terraform/retract.go) was bundled into
 // executeGroupedChunksWithDrain's single ge.ExecuteGroup call for "remaining"
 // statements. Every retract DELETE is ExecuteGroup-unsafe on the pinned
 // NornicDB v1.1.11 -- it silently under-applies inside a managed transaction,
@@ -190,7 +190,7 @@ SET r.address = $address,
 // TestTfstateMatchesStateEdgeRetractDispatchLive proves #5680 defect 2: every
 // Drain-marked statement was hoisted to run BEFORE any upsert in the phase,
 // regardless of its emitted position. The tfstate MATCHES_STATE edge retract
-// (tfstate_state_match_edge_retract.go) is Drain-marked and its predicate
+// (canonical/terraform/state_match_retract.go) is Drain-marked and its predicate
 // requires `s.generation_id = $generation_id`, but that property is only
 // refreshed by the resource-upsert statement buildTerraformStateStatements
 // emits BEFORE it. Hoisting the retract ahead of that upsert made the
@@ -286,7 +286,7 @@ SET r.address = $address,
 
 	// Seed the stale MATCHES_STATE edge itself, stamped with the OLD
 	// generation_id -- this is exactly the shape
-	// canonicalTerraformStateMatchesConfigEdgeRetractCypher targets: an edge
+	// TerraformStateMatchesConfigEdgeRetractCypher targets: an edge
 	// whose generation_id no longer matches the current cycle, pointing at a
 	// state resource that DOES get refreshed this cycle.
 	if err := exec.Execute(ctx, cypher.Statement{

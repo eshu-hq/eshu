@@ -399,7 +399,7 @@ Terraform-state readiness checkpoints exist. `TerraformResource` also gets a
 bounded, allowlisted subset of the resource's classified attributes flattened
 onto prefixed scalar node properties (`tf_attr_*`) via an additive
 `r += row.attrs` merge on the existing upsert template — see
-`terraform_attribute_promotion.go` and its redaction guard against the full
+`canonical/terraform/attribute_promotion.go` and its redaction guard against the full
 IAM policy documents the drift package's attribute allowlist also carries
 (#5441).
 

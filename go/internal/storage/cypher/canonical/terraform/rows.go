@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package terraform
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
@@ -9,24 +9,25 @@ import (
 
 // This file builds the per-batch row-map payloads consumed by the
 // terraform_state canonical upsert statements in tfstate_canonical_writer.go
-// (canonicalTerraformStateResourceUpsertCypher,
-// canonicalTerraformStateModuleUpsertCypher, and
-// canonicalTerraformStateOutputUpsertCypher), one builder per node label.
+// (TerraformStateResourceUpsertCypher,
+// TerraformStateModuleUpsertCypher, and
+// TerraformStateOutputUpsertCypher), one builder per node label.
 
-func terraformStateResourceRows(mat canonical.CanonicalMaterialization) []map[string]any {
+// ResourceRows shapes Terraform state resources into canonical row maps.
+func ResourceRows(mat canonical.CanonicalMaterialization) []map[string]any {
 	rows := make([]map[string]any, 0, len(mat.TerraformStateResources))
 	for _, row := range mat.TerraformStateResources {
 		// #5441: reduce the raw classified Attributes object to a bounded,
 		// allowlisted, redaction-safe subset of prefixed scalar node
 		// properties. attrs is always a non-nil map (never Go nil / Cypher
 		// null) so the additive `r += row.attrs` merge in
-		// canonicalTerraformStateResourceUpsertCypher is always a well-typed
+		// TerraformStateResourceUpsertCypher is always a well-typed
 		// map-merge — an empty map is a safe no-op on the pinned NornicDB
 		// executor (pkg/cypher/set_helpers.go applySetMapMergeToNode ranges
 		// over the resolved map's entries), matching the same
 		// always-present-map convention canonicalEntityProperties already
 		// uses for the code-entity `SET n += row.props` writer.
-		attrs := promoteTerraformResourceAttributes(row.ResourceType, row.Attributes)
+		attrs := promoteResourceAttributes(row.ResourceType, row.Attributes)
 		if attrs == nil {
 			attrs = map[string]any{}
 		}
@@ -53,7 +54,7 @@ func terraformStateResourceRows(mat canonical.CanonicalMaterialization) []map[st
 			"tag_key_hashes":          row.TagKeyHashes,
 			"scope_id":                mat.ScopeID,
 			"generation_id":           mat.GenerationID,
-			"config_repo_id":          terraformStateOwningRepoIDValue(row.OwningRepoID),
+			"config_repo_id":          OwningRepoIDValue(row.OwningRepoID),
 			"provider":                row.Provider,
 			"provider_source_address": row.ProviderSourceAddress,
 			"provider_alias":          row.ProviderAlias,
@@ -63,7 +64,8 @@ func terraformStateResourceRows(mat canonical.CanonicalMaterialization) []map[st
 	return rows
 }
 
-func terraformStateModuleRows(mat canonical.CanonicalMaterialization) []map[string]any {
+// ModuleRows shapes Terraform modules into canonical row maps.
+func ModuleRows(mat canonical.CanonicalMaterialization) []map[string]any {
 	rows := make([]map[string]any, 0, len(mat.TerraformStateModules))
 	for _, row := range mat.TerraformStateModules {
 		rows = append(rows, map[string]any{
@@ -88,7 +90,8 @@ func terraformStateModuleRows(mat canonical.CanonicalMaterialization) []map[stri
 	return rows
 }
 
-func terraformStateOutputRows(mat canonical.CanonicalMaterialization) []map[string]any {
+// OutputRows shapes Terraform outputs into canonical row maps.
+func OutputRows(mat canonical.CanonicalMaterialization) []map[string]any {
 	rows := make([]map[string]any, 0, len(mat.TerraformStateOutputs))
 	for _, row := range mat.TerraformStateOutputs {
 		rows = append(rows, map[string]any{

@@ -26,7 +26,7 @@ Two additive, SET-clause-only changes:
   Terraform state resource's classified attributes onto its
   `TerraformResource` node as prefixed scalar properties (`tf_attr_*`), via a
   new promotion allowlist
-  (`go/internal/storage/cypher/terraform_attribute_promotion.go`) and an
+  (`go/internal/storage/cypher/canonical/terraform/attribute_promotion.go`) and an
   additive `r += row.attrs` merge appended to the existing fixed
   `TerraformResource` upsert template
   (`go/internal/storage/cypher/tfstate_canonical_writer.go`).

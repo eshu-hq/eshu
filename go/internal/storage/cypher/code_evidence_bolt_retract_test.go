@@ -134,11 +134,24 @@ func openBoltTestRunner(tb testing.TB) *boltRetractTestRunner {
 
 	dsn := strings.TrimSpace(os.Getenv("ESHU_CYPHER_BOLT_DSN"))
 	if dsn == "" {
-		tb.Skip("ESHU_CYPHER_BOLT_DSN not set; skipping bolt integration test")
+		// The blocking live-backend runner (scripts/run-live-backend-tests.sh)
+		// exports ESHU_NEO4J_URI, not the Bolt DSN. Accept it so CI-class
+		// tests using this helper execute instead of silently skipping.
+		dsn = strings.TrimSpace(os.Getenv("ESHU_NEO4J_URI"))
+	}
+	if dsn == "" {
+		tb.Skip("ESHU_CYPHER_BOLT_DSN/ESHU_NEO4J_URI not set; skipping bolt integration test")
 	}
 
-	// Derive database name from ESHU_CYPHER_BOLT_DATABASE or default to "nornic".
+	// Derive database name from ESHU_CYPHER_BOLT_DATABASE, then the
+	// live-backend runner's per-backend pin, or default to "nornic".
 	database := strings.TrimSpace(os.Getenv("ESHU_CYPHER_BOLT_DATABASE"))
+	if database == "" {
+		database = strings.TrimSpace(os.Getenv("ESHU_LIVE_GRAPH_DATABASE"))
+	}
+	if database == "" {
+		database = strings.TrimSpace(os.Getenv("ESHU_NEO4J_DATABASE"))
+	}
 	if database == "" {
 		database = "nornic"
 	}

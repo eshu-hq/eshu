@@ -184,8 +184,9 @@ func infraRepositoryIDExpr(alias string) string {
 // one repository's TerraformResource.
 //
 // That "at most one edge" invariant is enforced by
-// terraformStateMatchesConfigEdgeRetractStatements
-// (go/internal/storage/cypher/tfstate_state_match_edge_retract.go), which
+// TerraformStateMatchesConfigEdgeRetractParts
+// (go/internal/storage/cypher/canonical/terraform/state_match_retract.go,
+// wrapped by the root adapter in tfstate_state_match_edge_retract.go), which
 // deletes a stale edge whenever a state resource's resolved owning repo
 // changes. #5623 P0 review finding: an earlier version of that retract skipped
 // entirely on a delta cycle, so a resource reassigned to a different owning

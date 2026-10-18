@@ -32,7 +32,7 @@ type TerraformStateResourceRow struct {
 	// object, carried unmodified from tfstatev1.Resource.Attributes (#5441).
 	// It is untyped provider-specific pass-through, exactly as documented on
 	// that field; the canonical graph writer
-	// (go/internal/storage/cypher/terraform_attribute_promotion.go) is
+	// (go/internal/storage/cypher/canonical/terraform/attribute_promotion.go) is
 	// responsible for reducing it to a bounded, redaction-safe, allowlisted
 	// subset before any value reaches a graph node. Nothing in this package
 	// filters or persists it directly.

@@ -18,8 +18,8 @@ import (
 // as unindexed full-label scans. resource_type, name, and address are the
 // three TerraformResource-sibling properties actually written onto a
 // TerraformStateResource node
-// (canonicalTerraformStateResourceUpsertCypher in
-// internal/storage/cypher/tfstate_canonical_writer.go) --
+// (TerraformStateResourceUpsertCypher in
+// internal/storage/cypher/canonical/terraform/writer.go) --
 // provider/environment/resource_service/resource_category are config-only
 // concepts no TerraformStateResource node ever carries. address also backs
 // entity_map_resolver.go's higher-priority (rank 3, ahead of the name

@@ -139,7 +139,7 @@ var domainDataSignatures = map[string]domainDataSignature{
 	"codeowners_ownership": {Markers: []string{"DECLARES_CODEOWNER"}},
 
 	// config_state_drift materializes tfstate truth onto its OWN state
-	// labels and properties (storage/cypher/tfstate_canonical_writer.go):
+	// labels and properties (storage/cypher/canonical/terraform/writer.go):
 	// TerraformStateResource nodes, MATCHES_STATE config↔state edges, and
 	// tf_attr_* promoted attributes. The signature deliberately names only
 	// those state-specific markers — NOT the TerraformModule label the

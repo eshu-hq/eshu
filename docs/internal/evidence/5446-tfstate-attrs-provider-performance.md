@@ -6,7 +6,7 @@ Three additive, non-hot-path-shape changes on top of #5441/#5443's shipped
 Terraform-state canonical writer:
 
 1. Extends `terraformAttributePromotionAllowlist`
-   (`go/internal/storage/cypher/terraform_attribute_promotion.go`) with
+   (`go/internal/storage/cypher/canonical/terraform/attribute_promotion.go`) with
    `aws_ecs_task_definition`, `aws_ecs_service`, `aws_rds_cluster`, `aws_lb`,
    `aws_elasticache_replication_group`, plus two more attributes each on the
    pre-existing `aws_lambda_function` and `aws_db_instance` entries. Pure

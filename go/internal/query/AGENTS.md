@@ -313,8 +313,8 @@
   tenant-visibility leak, not just a theoretical one (#5623 P0 review
   follow-up)** — the MATCHES_STATE disjunct above assumes a
   `TerraformStateResource` has at most one `MATCHES_STATE` edge, which depends
-  on `terraformStateMatchesConfigEdgeRetractStatements`
-  (`go/internal/storage/cypher/tfstate_state_match_edge_retract.go`) deleting
+  on `TerraformStateMatchesConfigEdgeRetractParts` (in
+  `canonical/terraform/state_match_retract.go`, root adapter beside it) deleting
   the old edge whenever a state resource's resolved owning repo changes --
   including on delta cycles, not only full reconciliation. Do not reintroduce a
   `DeltaProjection` skip on that retract: the retract's own `s.generation_id =

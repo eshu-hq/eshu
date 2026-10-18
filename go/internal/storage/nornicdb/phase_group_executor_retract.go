@@ -37,10 +37,11 @@ import (
 //     matched rows, but did not persist.
 //  2. Every Drain-marked statement was hoisted to run BEFORE any upsert in the
 //     phase, regardless of its emitted position. The tfstate MATCHES_STATE
-//     edge retract (tfstate_state_match_edge_retract.go) is Drain-marked and
-//     its predicate requires `s.generation_id = $generation_id`, but that
-//     property is only refreshed by the resource-upsert statement emitted
-//     BEFORE it (buildTerraformStateStatements' documented phase order).
+//     edge retract (canonical/terraform/state_match_retract.go) is
+//     Drain-marked and its predicate requires
+//     `s.generation_id = $generation_id`, but that property is only refreshed
+//     by the resource-upsert statement emitted BEFORE it
+//     (buildTerraformStateStatements' documented phase order).
 //     Hoisting the retract ahead of that upsert made the predicate match zero
 //     rows every cycle — a silent no-op, not merely a race.
 //

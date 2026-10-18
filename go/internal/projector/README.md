@@ -185,7 +185,7 @@ lineage, serial, provider, tag hash, and correlation-anchor evidence kept as
 properties. `TerraformResource` also carries a bounded, redaction-safe,
 allowlisted subset of the resource's classified attributes as prefixed
 scalar properties (`tf_attr_instance_type`, `tf_attr_ami`, ...) — see
-`internal/storage/cypher/terraform_attribute_promotion.go` (#5441). OCI
+`internal/storage/cypher/canonical/terraform/attribute_promotion.go` (#5441). OCI
 registry facts are projected as digest-addressed image
 manifest/index/descriptor rows; tag facts remain weak mutable observations and
 do not define image identity. The projector never calls a Neo4j or NornicDB

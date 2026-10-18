@@ -8,8 +8,9 @@
 // TerraformStateResource carries at most one MATCHES_STATE edge. That
 // assumption depended on cypher.CanonicalNodeWriter's edge-retract statement
 // running every generation; before the #5623 fix
-// (terraformStateMatchesConfigEdgeRetractStatements,
-// go/internal/storage/cypher/tfstate_state_match_edge_retract.go) it skipped
+// (TerraformStateMatchesConfigEdgeRetractParts,
+// go/internal/storage/cypher/canonical/terraform/state_match_retract.go,
+// wrapped by the root adapter in tfstate_state_match_edge_retract.go) it skipped
 // entirely on a delta cycle, so a resource whose resolved owning repo changed
 // on a delta cycle briefly carried edges to BOTH the old and the new owner,
 // and the scope predicate -- built purely from graph shape, with no
@@ -94,7 +95,8 @@ func (e *liveScopeShapeBoltExecutor) ExecuteGroup(ctx context.Context, stmts []c
 // delta-cycle ownership reassignment, the scoped-token infra predicate
 // (infraResourceScopePredicate, infra_scope_grant.go) reflects only the
 // CURRENT owner, not the former one -- i.e. that the #5623 retract fix
-// (go/internal/storage/cypher, tfstate_state_match_edge_retract.go) actually
+// (go/internal/storage/cypher/canonical/terraform/state_match_retract.go,
+// wrapped by the root adapter in tfstate_state_match_edge_retract.go) actually
 // closes the tenant-visibility leak at the query layer this package owns.
 //
 // Gate: set ESHU_CYPHER_BOLT_DSN (e.g. bolt://localhost:27687) to the isolated
