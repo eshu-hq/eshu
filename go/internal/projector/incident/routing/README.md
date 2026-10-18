@@ -4,7 +4,8 @@
 
 This package recognizes PagerDuty incident-routing evidence for one scope
 generation — an `incident.record` fact or a routing source kind registered by
-`facts.IncidentRoutingFactKinds()` — and builds the reducer intent that asks
+`factsincident.IncidentRoutingFactKinds()` — and builds the reducer intent
+that asks
 the reducer to compare declared, applied, and live routing and write
 `IncidentRoutingEvidence` graph truth.
 
@@ -23,7 +24,7 @@ publication.
 - `BuildReducerIntent` builds the
   `incident_routing_materialization` intent, anchored to the earliest
   candidate fact in original input order across `incident.record` and every
-  kind `facts.IncidentRoutingFactKinds()` returns.
+  kind `factsincident.IncidentRoutingFactKinds()` returns.
 
 See `doc.go` for the full godoc contract.
 

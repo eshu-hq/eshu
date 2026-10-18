@@ -11,7 +11,8 @@
 
 - Import `internal/projector/intent`, never the root projector package.
 - `BuildReducerIntent` triggers on
-  `incident.record` plus every kind `facts.IncidentRoutingFactKinds()` returns.
+  `incident.record` plus every kind `factsincident.IncidentRoutingFactKinds()`
+  returns.
   Add a new routing source kind in `internal/facts`, not here; the builder
   must keep reading the registry so the trigger set cannot drift from the
   collector contract.

@@ -23,8 +23,8 @@ derives an access path.
 
 - `BuildSecretsIAMTrustChainReducerIntent` builds the
   `secrets_iam_trust_chain` intent, anchored to the earliest fact in the
-  generation whose kind the `facts.SecretsIAMSchemaVersion` registry
-  recognizes.
+  generation whose kind the `factsidentity.SecretsIAMSchemaVersion`
+  registry recognizes.
 
 See `doc.go` for the full godoc contract.
 
