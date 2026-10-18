@@ -227,6 +227,8 @@ func (o Observer) evaluate(ctx context.Context, req Request) (Result, string, er
 // unchanged, with no gauge sample: the gauge never reports what the store
 // does not hold.
 func (o Observer) classifyProbed(ctx context.Context, req Request, known []KnownScope, prior []Observation, result *Result) {
+	ctx, cancel := context.WithTimeout(ctx, ProbePassTimeout)
+	defer cancel()
 	result.ProbeRan = true
 	result.ProbeOutcomes = make(map[string]int)
 	priorByScope := make(map[string]Observation, len(prior))

@@ -17,8 +17,9 @@ import (
 )
 
 // probeHTTPTimeout bounds one upstream classification probe. The probe runs
-// at most ProbeCapPerCycle sequential requests per collector cycle, so the
-// timeout, not a retry budget, bounds the added cycle cost.
+// at most ProbeCapPerCycle sequential requests per collector cycle, and
+// membership.ProbePassTimeout bounds the whole pass, so neither the timeout
+// nor a retry budget can stretch the added cycle cost.
 const probeHTTPTimeout = 15 * time.Second
 
 // githubUpstreamProbe returns the membership.ProbeFunc that classifies one
@@ -89,7 +90,14 @@ func upstreamProbeForConfig(config RepoSyncConfig, token string) membership.Prob
 	if strings.TrimSpace(token) == "" {
 		return nil
 	}
+	// Resolve never errors: a blank configured base falls back to the
+	// production default. The blank guard stays as defense in depth so a
+	// future Resolve that can return empty disables probing the same way a
+	// blank token does, instead of burning a doomed request per target.
 	baseURL, _ := config.GitHubAPI.Resolve()
+	if strings.TrimSpace(baseURL) == "" {
+		return nil
+	}
 	return githubUpstreamProbe(nil, baseURL, token)
 }
 

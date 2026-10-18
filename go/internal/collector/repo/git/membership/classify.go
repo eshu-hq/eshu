@@ -31,6 +31,15 @@ const (
 // large unlisted backlog drains across cycles instead of in one burst.
 const ProbeCapPerCycle = 25
 
+// ProbePassTimeout bounds one sequential probe pass (#8454): the per-request
+// timeout alone lets a fully degraded upstream stretch 25 sequential probes
+// toward several minutes of collector cycle. Healthy probes finish in well
+// under a second each, so 60 seconds never binds them; an expired pass
+// cancels the remaining probes (kept_prior) and the classification write
+// reports through the classification_upsert WARN class instead of writing
+// partial rows against a dead context.
+const ProbePassTimeout = 60 * time.Second
+
 // ProbeTarget is one Confirmed not_listed scope the probe may classify.
 // PriorClassification and PriorSuccessor carry the row's stored verdict so
 // an inconclusive probe keeps them; ClassifiedAt gates the re-probe.
