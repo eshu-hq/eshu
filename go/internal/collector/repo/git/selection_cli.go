@@ -66,9 +66,19 @@ func syncGitRepositoriesWithLogger(
 	reconciledThisCycle := 0
 	repositoryIDs = prioritizeRepositoryReindex(config, repositoryIDs, baseline.RepositoryReindexRequestedAt)
 	walkOrder, walkTracker := trackReconcileWalk(config, repositoryIDs, baseline)
+	walkOrder = walkTracker.limitWalk(walkOrder, baseline.SweepWalkLimit)
+	yielded := false
+	visited := 0
 	for i, repoID := range walkOrder {
 		if err := ctx.Err(); err != nil {
 			return GitSyncSelection{}, err
+		}
+		// A queued webhook trigger cuts the walk at this repository
+		// boundary (#8123): the partial selection returns now and the
+		// next cycle claims the trigger first, then resumes the tail.
+		if baseline.SweepYield.shouldYield(ctx, logger, i) {
+			yielded = true
+			break
 		}
 		checkoutName, err := repoCheckoutName(repoID)
 		if err != nil {
@@ -179,8 +189,10 @@ func syncGitRepositoriesWithLogger(
 			// cleanly when the dir doesn't exist.
 			reconcileRefWorktrees(ctx, config, repoID, nil, logger)
 		}
+		walkTracker.noteVisited(i)
+		visited = i + 1
 	}
-	nextStart := walkTracker.finish(ctx, baseline)
+	nextStart, sweepRemaining := finishSweepWalk(ctx, walkTracker, baseline, logger, yielded, visited, len(repositoryIDs), len(selected))
 	return GitSyncSelection{
 		SelectedRepoPaths:          sortUniqueStrings(selected),
 		DeltaByRepoPath:            deltaByRepoPath,
@@ -191,6 +203,8 @@ func syncGitRepositoriesWithLogger(
 		PreparseIdentityByRepoPath: preparseByRepoPath,
 		RefWorktreesByRepoPath:     refWorktreesByRepoPath,
 		NextReconcileStartOffset:   nextStart,
+		YieldedToWebhook:           yielded,
+		SweepRemainingRepositories: sweepRemaining,
 	}, nil
 }
 

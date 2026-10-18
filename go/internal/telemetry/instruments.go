@@ -1714,6 +1714,17 @@ type Instruments struct {
 	// the lease window after the tick's reap sweep: a nonzero value means
 	// stale claims arrived faster than one reap limit per tick (#7661).
 	WebhookTriggerStaleClaims metric.Int64Gauge
+	// WebhookTriggerClaimWait is the seconds an accepted webhook trigger
+	// sat queued between receipt and claim (#8123): the operator proof
+	// that a webhook-announced push beats the polling sweep. Recorded
+	// once per accepted row at claim time, with no labels.
+	WebhookTriggerClaimWait metric.Float64Histogram
+	// CollectorSweepYields counts scheduled git sweeps that stopped at a
+	// repository boundary for a queued webhook trigger (#8123). Rising
+	// yields with a flat claim wait means the yield budget or probe
+	// interval needs tuning; yields with a slow sweep period point at
+	// the batch drain instead.
+	CollectorSweepYields metric.Int64Counter
 
 	// DriftSchemaUnknownComposite counts Terraform-state composite attributes
 	// the streaming nested walker dropped because the loaded
@@ -5015,6 +5026,25 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register WebhookTriggerStaleClaims gauge: %w", err)
+	}
+
+	claimWaitBuckets := []float64{0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 600}
+	inst.WebhookTriggerClaimWait, err = meter.Float64Histogram(
+		"eshu_dp_webhook_trigger_claim_wait_seconds",
+		metric.WithDescription("Seconds an accepted webhook trigger waited between receipt and claim"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(claimWaitBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WebhookTriggerClaimWait histogram: %w", err)
+	}
+
+	inst.CollectorSweepYields, err = meter.Int64Counter(
+		"eshu_dp_collector_sweep_yields_total",
+		metric.WithDescription("Total scheduled git sweeps that yielded at a repository boundary to a queued webhook trigger"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CollectorSweepYields counter: %w", err)
 	}
 
 	// Register histograms with explicit bucket boundaries where specified

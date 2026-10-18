@@ -28,6 +28,9 @@ own what happens after handoff.
 - `ReapExpiredTriggerClaims`, `CountStaleClaims` (#7661 lease recovery;
   the reap also fails stale claims whose decision is not accepted with the
   `ignored_decision` class instead of requeueing them, #7795).
+- `HasQueuedAcceptedTriggers`: the read-only queued probe the scheduled
+  sweep consults before yielding to a trigger (#8123). It never claims;
+  claiming stays with `ClaimQueuedTriggers`.
 - `WebhookTriggerSchemaSQL()` returns the DDL.
 
 See `doc.go` for the godoc contract.

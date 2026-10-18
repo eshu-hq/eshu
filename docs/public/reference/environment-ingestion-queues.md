@@ -82,6 +82,8 @@ held time for large repositories.
 | `ESHU_WEBHOOK_TRIGGER_CLAIM_LIMIT` | `100` | ingester webhook-trigger selector | Maximum webhook refresh triggers claimed in one selector pass. |
 | `ESHU_WEBHOOK_TRIGGER_CLAIM_LEASE_WINDOW` | `15m` | ingester webhook-trigger selector | Stale-claim lease: an accepted claim older than this without a handoff goes back to `queued`, or to `failed` past the attempt cap (#7661); a stale claim whose decision is not accepted fails with `ignored_decision` instead (#7795). Go duration string; empty or invalid keeps the default. |
 | `ESHU_WEBHOOK_TRIGGER_MAX_CLAIM_ATTEMPTS` | `3` | ingester webhook-trigger selector | Lifetime claim attempts per accepted trigger before a reap fails it with `claim_lease_exhausted` (#7661). Non-accepted triggers fail with `ignored_decision` on the first stale reap regardless of attempts (#7795). Empty or below 1 keeps the default. |
+| `ESHU_WEBHOOK_TRIGGER_SWEEP_MAX_YIELDS` | `8` | ingester and collector-git native selector | How many times one scheduled sweep may stop at a repository boundary for a queued accepted trigger before it must run to completion (#8123). Empty or below 1 keeps the default. |
+| `ESHU_WEBHOOK_TRIGGER_SWEEP_YIELD_CHECK_REPOS` | `16` | ingester and collector-git native selector | Repositories a scheduled sweep visits between queued-trigger probes; a trigger arriving mid-sweep is claimed at the next cycle after the first probe past its arrival (#8123). Empty or below 1 keeps the default. |
 
 ## Projection And Reducer Queues
 

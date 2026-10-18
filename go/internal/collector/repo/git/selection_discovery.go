@@ -75,6 +75,16 @@ type GitSyncSelection struct {
 	// NextReconcileStartOffset is the walk offset the next cycle passes as
 	// ReconcileStartOffset (#7987).
 	NextReconcileStartOffset int
+	// YieldedToWebhook reports that the sweep stopped at a repository
+	// boundary because an accepted webhook trigger was queued (#8123).
+	// The selection holds only the repositories visited before the
+	// yield; the next cycle resumes at NextReconcileStartOffset with a
+	// walk limited to SweepRemainingRepositories.
+	YieldedToWebhook bool
+	// SweepRemainingRepositories is how many rotating-suffix
+	// repositories the logical sweep still owes after a yield (#8123);
+	// zero on a completed walk.
+	SweepRemainingRepositories int
 }
 
 // RefWorktreeEntry describes one pinned-ref git worktree checkout created

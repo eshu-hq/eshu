@@ -92,6 +92,8 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_WEBHOOK_TRIGGER_CLAIM_LEASE_WINDOW` | duration | `15m` | Stale-claim lease for webhook refresh triggers: a claim older than this without a handoff goes back to queued, or to failed past the attempt cap (#7661). Empty or invalid keeps the default. |
 | `ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED` | bool | `false` | Makes the git ingester claim queued webhook refresh triggers before scheduled selection. A webhook-only ingester (scheduled sync off) syncs only triggered repositories, so it honors a reindex request only for a repository a webhook triggers. 1, true, yes, and on enable it; any other value disables it. |
 | `ESHU_WEBHOOK_TRIGGER_MAX_CLAIM_ATTEMPTS` | int | `3` | Lifetime claim attempts per webhook refresh trigger before a reap fails it with claim_lease_exhausted (#7661). Empty or below 1 keeps the default. |
+| `ESHU_WEBHOOK_TRIGGER_SWEEP_MAX_YIELDS` | int | `8` | How many times one scheduled sweep may stop at a repository boundary for a queued accepted webhook trigger before it must run to completion (#8123), so a steady trigger stream cannot starve sweep coverage. The waited time shows in eshu_dp_webhook_trigger_claim_wait_seconds and each yield in eshu_dp_collector_sweep_yields_total. Empty or below 1 keeps the default. |
+| `ESHU_WEBHOOK_TRIGGER_SWEEP_YIELD_CHECK_REPOS` | int | `16` | Repositories a scheduled sweep visits between queued-trigger probes (#8123): a trigger arriving mid-sweep is noticed at the first probe past its arrival and claimed at the next collector cycle, after the partial batch drains. Smaller values claim sooner and probe Postgres more often. Empty or below 1 keeps the default. |
 
 ## collector-aws-cloud
 
