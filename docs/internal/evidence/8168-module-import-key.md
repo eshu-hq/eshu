@@ -122,17 +122,76 @@ the f2, f3 and f9 property checks.
 
 First application on this container also collapsed leftovers of earlier test
 runs: `keyed_groups=803 moved_imports=3795 deleted_duplicates=2928
-duration_seconds=0.93`; the rerun logged zeros in 0.013 s.
+duration_seconds=0.93` (the field was named `moved_imports` then; it is now
+`imports_on_duplicates`, see below); the rerun logged zeros in 0.013 s.
 
 Lock behavior: each statement is plain Cypher in `CALL { } IN TRANSACTIONS`
-(500 groups or 1,000 edges per transaction), so locks last one batch. The
-writers are fenced: new writers need the new fingerprint, which the marker
-records only after the verify step; older writers are refused once it is
-recorded. A statement that times out keeps its committed batches and the next
-bootstrap resumes. Rollback: `DROP CONSTRAINT module_import_key IF EXISTS` and
+(500 groups or 1,000 edges per transaction), so locks last one batch. Writers
+are NOT fenced while it runs; see "Writer precondition" below. A statement
+that times out keeps its committed batches and the next bootstrap resumes. Rollback: `DROP CONSTRAINT module_import_key IF EXISTS` and
 the previous release; `import_key` stays on the nodes and is harmless. The
 collapse deletes duplicate canonical nodes after moving their edges; the
 ruling is its arbiter review, scoped to canonical duplicates.
+
+## Writer precondition and the marker-missing path (review round 1)
+
+The first review (F1) found that this note and the bootstrap-data-plane
+README claimed a writer fence that does not exist. The Helm schema Job is a
+pre-upgrade hook, so the previous release's pods keep writing (name, lang)
+Module nodes until an operator scales them down
+([Deployment Contract](../../public/deployment/service-runtimes-bootstrap.md#deployment-contract)).
+The fingerprint refuses an old writer only after the marker is written: at
+its startup, or at the write path's next recheck
+(`graphschemacompat.DefaultWriteFenceInterval`, 30 s). The reviewer ran 4
+old-style writers during 3 migration runs; every run failed its verify (197,
+15, 13 canonical nodes without `import_key`; 50, 13, 18 IMPORTS edges still on
+semantic nodes). The failure is safe: the marker stayed unset and nothing was
+lost. After the writers stopped, one run converged.
+
+Fixes:
+
+- The precondition is now stated in the README, the package AGENTS.md, and the
+  incomplete error. The error carries both counts, tells the operator to stop
+  or scale to zero every ingester, projector, resolution engine, and
+  `eshu-bootstrap-index` from the previous release, then rerun bootstrap, and
+  names the Deployment Contract; the ERROR log adds a `runbook` field.
+  `TestModuleImportKeyIncompleteErrorNamesTheWriterPrecondition` pins it.
+  Live re-run after the fix (container `x8168f-neo4j`, same pinned image, 4
+  old-style writers minting new (name, lang) Modules, 3 migration runs, then
+  one after the writers stopped): runs 1 to 3 refused with 267, 21 and 9
+  unkeyed canonical nodes (0 IMPORTS on semantic nodes), each error naming the
+  writers to stop and the Deployment Contract, each ERROR log carrying
+  `runbook`; the run after the writers stopped returned nil. Throwaway harness,
+  not committed.
+- F2: `eshu-bootstrap-index` applies the DDL and writes the marker itself when
+  the marker is missing. It never ran the migration, so on a populated graph
+  that lost its marker it readmitted import_key writers beside unkeyed nodes.
+  On Neo4j it now runs the migration's verify statement
+  (`CanonicalModuleImportKeyPendingCypher`) after the DDL and before the
+  marker, and refuses the marker, naming `eshu-bootstrap-data-plane`, while
+  either count is above zero. It does not run the destructive migration
+  itself: a one-shot seeder should not, and the ruling placed the migration in
+  bootstrap-data-plane. `graph_schema_module_import_key_test.go` pins the
+  order (DDL, check, marker), the refusal, fail-closed on an error, a
+  malformed answer, or a missing reader, and the NornicDB skip. Both binaries
+  parse the answer with `ParseCanonicalModuleImportKeyPending`, which fails on
+  anything but one row of two integers.
+- F3: ruling 6(b)'s zero-row invariant is now the required `graph/module_identity`
+  check in the golden-corpus gate's graph phase on the Neo4j leg, beside
+  `graph/anchor_census`. It runs the issue's duplicate query
+  (`CanonicalModuleDuplicateKeysCypher`, zero rows) and counts canonical Module
+  nodes without `import_key` (`CanonicalModuleUnkeyedCountCypher`, zero). The
+  snapshot schema has no raw-query assertion type, so the check is code in
+  the gate, the same shape as the anchor census; no new gate or registry row.
+  Off Neo4j it records a non-required skip.
+- F6: the collapse now sets the keeper's `lang` to the group's language, so a
+  legacy node with no `lang` ends with `lang = ''`, the value the writer gives
+  a new node for that key and the value the orphan sweep keys on.
+- F7: the log field `moved_imports` counted the IMPORTS edges matched on the
+  duplicates, not the edges created (the reviewer's hot group logged 95,000;
+  5,000 survived). It is now `imports_on_duplicates`, documented as edges
+  found on the deleted duplicates, each moved or folded into the keeper's own
+  edge from that file.
 
 ## NornicDB
 
@@ -205,16 +264,29 @@ Observability Evidence: no new metric. The existing Neo4j deadlock and retry
 signals cover the writer path. The migration adds two log events,
 `bootstrap.graph.module_import_key.migrated` and
 `bootstrap.graph.module_import_key.incomplete` (ERROR), with
-`keyed_groups`, `moved_imports`, `deleted_duplicates`, `repointed_imports`,
-`unkeyed_remaining`, `adopted_imports_remaining`, and `duration_seconds`.
+`keyed_groups`, `imports_on_duplicates`, `deleted_duplicates`,
+`repointed_imports`, `unkeyed_remaining`, `adopted_imports_remaining`, and
+`duration_seconds`; the incomplete event adds `runbook`.
 
 ## NOT_CHECKED
 
-- Repo-scale throughput (above), backend-diff IMPORTS parity
-  (`golden-corpus-differential`), and `golden-corpus-gate-neo4j`: CI or a
-  remote run only.
-- A golden-corpus zero-row invariant for the issue's duplicate query: the
-  snapshot schema (`goldengate.GraphSnapshot`) has no raw-query assertion
-  type. The constraint makes duplicate keyed canonical nodes impossible.
+These gate the merge, not the push (review F5). Each needs CI or a remote
+run:
+
+- Repo-scale throughput (ruling 6(c)), as specified above: 3 runs each of
+  origin/main and this branch, 8 workers, clean volumes, pinned Neo4j,
+  `bootstrap projection complete`.`total_duration_seconds`; a regression over
+  10% blocks. Also the cold-start `module_import_key` index-entry lock wait:
+  over 10% of projection wall time opens a follow-up (ruling item 4). Record
+  deadlock and retry counts.
+- Ruling 6(d): `golden-corpus-differential` (job "differential nornicdb vs
+  neo4j", IMPORTS parity) and `golden-corpus-gate-neo4j` green on the pushed
+  head. The latter is also the first run of the new `graph/module_identity`
+  check on the replayed corpus; locally it ran only against fakes.
+- An upgrade run: index a corpus on origin/main, then run this branch's
+  `eshu-bootstrap-data-plane` with the old writers stopped. Record the
+  migration log counts and `duration_seconds`, and IMPORTS edge parity before
+  and after. Per-group transaction size is bounded by group count, not edge
+  fan-out (one 100,000-edge group took 2.39 s and 1.5 GiB RSS in review).
 - The trace harness on the exact NornicDB fork revision of the pinned image.
 - Helm schema-job ordering beyond the pre-install/pre-upgrade hook.

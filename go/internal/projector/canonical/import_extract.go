@@ -41,8 +41,9 @@ type importIdentity struct {
 // the language it belongs to. A Go `time` and a Python `time` are unrelated
 // modules that share a name, so they are two nodes; every repository importing
 // the same Go `time` still shares one. It mirrors the writer's
-// `MERGE (m:Module {name, lang})` key exactly, so the in-process dedupe cannot
-// collapse two modules the graph would have kept apart.
+// `MERGE (m:Module {import_key})` key exactly (import_key is name + "@" +
+// lang, ModuleImportKey), so the in-process dedupe cannot collapse two modules
+// the graph would have kept apart.
 //
 // The key splits on language even when the two languages belong to one
 // ecosystem, and that is a deliberate accepted cost, not an oversight. The
