@@ -156,7 +156,7 @@ source "${repo_root}/scripts/lib/ifa_family_fixtures.sh"
 : "${SYNTH_MULTISCOPE_RESOURCES:=64}"
 
 # The CloudResource MERGE anchor cell_failgraphwrite (cell 4) targets
-# (go/internal/storage/cypher/cloud_resource_node_writer.go's
+# (go/internal/storage/cypher/cloud/resource/node_writer.go's
 # baseCloudResourceUpsertCypher): a fixed, grep-stable substring regardless of
 # this run's own call interleaving, unlike a statement_ordinal.
 cloud_resource_operation_match="MERGE (r:CloudResource"
@@ -180,14 +180,14 @@ submodule_pin_edge_operation_match="MERGE (parent)-[rel:PINS_SUBMODULE"  # PREFI
 # rationale as cloud_resource_operation_match above.
 kubernetes_namespace_environment_edge_operation_match="MERGE (n)-[env_rel:TARGETS_ENVIRONMENT]->(env)"
 # The HAS_ROLE MERGE anchor cell_failgraphwrite_iam_instance_profile_role (#6309)
-# targets: go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go:22
+# targets: go/internal/storage/cypher/cloud/aws/iam/instance_profile_role_edge_writer.go:24
 # emits MERGE (profile)-[rel:%s]->(role), filled from a closed single-member
 # vocabulary, so the anchor carries the INTERPOLATED type. A literal %s would
 # match no executed statement and the fault would never fire. It is NOT
 # IAM_INSTANCE_PROFILE_HAS_ROLE, which is statement metadata beside the query.
 iam_instance_profile_role_edge_operation_match="MERGE (profile)-[rel:HAS_ROLE]->(role)"
 # The CAN_ASSUME MERGE anchor cell_failgraphwrite_iam_can_assume (#6228 fault
-# half) targets: go/internal/storage/cypher/iam_can_assume_edge_writer.go:43
+# half) targets: go/internal/storage/cypher/cloud/aws/iam/can_assume_edge_writer.go:45
 # emits MERGE (principal)-[rel:%s]->(role), filled from a closed
 # single-member vocabulary, so the anchor carries the INTERPOLATED type. A
 # literal %s would match no executed statement and the fault would never
@@ -195,7 +195,7 @@ iam_instance_profile_role_edge_operation_match="MERGE (profile)-[rel:HAS_ROLE]->
 # query.
 iam_can_assume_edge_operation_match="MERGE (principal)-[rel:CAN_ASSUME]->(role)"
 # The CAN_PERFORM MERGE anchor cell_failgraphwrite_iam_can_perform (#6228
-# fault half) targets: go/internal/storage/cypher/iam_can_perform_edge_writer.go:47
+# fault half) targets: go/internal/storage/cypher/cloud/aws/iam/can_perform_edge_writer.go:49
 # bakes the static CAN_PERFORM token directly into the template
 # (CanonicalIAMCanPerformEdgeUpsertCypher carries no %s to fill), so the
 # anchor carries the literal. A `%s` form would match no executed statement
@@ -203,7 +203,7 @@ iam_can_assume_edge_operation_match="MERGE (principal)-[rel:CAN_ASSUME]->(role)"
 # nowhere in code.
 iam_can_perform_edge_operation_match="MERGE (p)-[rel:CAN_PERFORM]->(r)"
 # The USES_PROFILE MERGE anchor cell_failgraphwrite_ec2_uses_profile (#6228
-# fault half) targets: go/internal/storage/cypher/ec2_uses_profile_edge_writer.go:45
+# fault half) targets: go/internal/storage/cypher/cloud/aws/ec2/uses_profile_edge_writer.go:47
 # emits MERGE (source)-[rel:%s]->(target), filled per row from a closed
 # single-member vocabulary screened by validateEC2UsesProfileRelationshipType,
 # so the anchor carries the INTERPOLATED type. A literal %s would match no

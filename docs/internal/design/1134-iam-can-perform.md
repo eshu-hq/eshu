@@ -236,7 +236,7 @@ performance-impact declaration, and the proof gates run.
   generation's `evidence_source = 'reducer/iam-can-perform'` edges, writes the
   resolved edges, and records the skip tally.
 - New writer `IAMCanPerformEdgeWriter`
-  (`go/internal/storage/cypher/iam_can_perform_edge_writer.go`) mirrors the
+  (`go/internal/storage/cypher/cloud/aws/iam/can_perform_edge_writer.go`) mirrors the
   CAN_ESCALATE_TO static-token `MERGE`-then-`SET` shape: two uid-indexed
   `:CloudResource` MATCHes, `MERGE (p)-[rel:CAN_PERFORM]->(t)`, action set written
   wholesale in `SET`. Edge-only: no new node type, no new keyspace, no constraint.

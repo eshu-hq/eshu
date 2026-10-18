@@ -75,6 +75,205 @@ builders:
             - {}
           source_sha256: 3d29b246f8c90e30a0ae881c2edcc9613468d8c5168c5ae896733f85b47dfff8
           exempt: test-corpus helper forwarding its cypher param; exercised by conformance legs
+    - file: internal/storage/cypher/cloud/aws/ec2/block_device_kms_posture_node_writer.go
+      builders:
+        - symbol: (*EC2BlockDeviceKMSPostureNodeWriter).RetractEC2BlockDeviceKMSPostureNodes
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (resource:CloudResource) WHERE resource.ec2_block_device_kms_scope_id IN $scope_ids AND resource.ec2_block_device_kms_evidence_source = $evidence_source REMOVE resource.ec2_block_device_kms_state, resource.ec2_block_device_kms_reason, resource.ec2_block_device_volume_count, resource.ec2_block_device_encrypted_volume_count, resource.ec2_block_device_unencrypted_volume_count, resource.ec2_block_device_unresolved_volume_count, resource.ec2_block_device_kms_key_count, resource.ec2_block_device_volume_ids, resource.ec2_block_device_kms_key_ids, resource.ec2_block_device_kms_scope_id, resource.ec2_block_device_kms_generation_id, resource.ec2_block_device_kms_evidence_source, resource.ec2_block_device_kms_source_fact_id
+          source_sha256: cf286d049a590dd185744b1a5eea3b87c6ccd2c9e45b78fde1be3234e7f9795a
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+    - file: internal/storage/cypher/cloud/aws/ec2/instance_identity_node_writer.go
+      builders:
+        - symbol: (*EC2InstanceIdentityNodeWriter).RetractEC2InstanceIdentityNodes
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (r:CloudResource) WHERE r.ec2_identity_scope_id IN $scope_ids AND r.ec2_identity_evidence_source = $evidence_source REMOVE r.ami_id, r.ec2_identity_scope_id, r.ec2_identity_generation_id, r.ec2_identity_evidence_source, r.ec2_identity_source_fact_id
+          source_sha256: f39332dafcb11fd6bf7ac3148433f4b7f83956831d438564516d0a3d1372be01
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+    - file: internal/storage/cypher/cloud/aws/ec2/internet_exposure_node_writer.go
+      builders:
+        - symbol: (*EC2InternetExposureNodeWriter).RetractEC2InternetExposureNodes
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (resource:CloudResource) WHERE resource.ec2_internet_exposure_scope_id IN $scope_ids AND resource.ec2_internet_exposure_evidence_source = $evidence_source REMOVE resource.ec2_internet_exposure_state, resource.ec2_internet_exposed, resource.ec2_internet_exposure_reason, resource.ec2_internet_exposure_scope_id, resource.ec2_internet_exposure_generation_id, resource.ec2_internet_exposure_evidence_source, resource.ec2_internet_exposure_source_fact_id
+          source_sha256: 3904456028f217eb657a1104da3e789028d6fe50247e6f7e2ea8eb5a5f9ab6c5
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+    - file: internal/storage/cypher/cloud/aws/ec2/uses_profile_edge_writer.go
+      builders:
+        - symbol: (*EC2UsesProfileEdgeWriter).RetractEC2UsesProfileEdges
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (:CloudResource)-[rel:USES_PROFILE]->(:CloudResource) WHERE rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: 6b165f0f0f539d780117d7fa27a4a60bf58b9523630cef589d4a90c8fdaab41e
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+    - file: internal/storage/cypher/cloud/aws/iam/can_assume_edge_writer.go
+      builders:
+        - symbol: (*IAMCanAssumeEdgeWriter).RetractIAMCanAssumeEdges
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (:CloudResource)-[rel:CAN_ASSUME]->(:CloudResource) WHERE rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: 63cc44cac06eadcbf762069f6ee4cc31313797910bcca5343ab15c234e6ce73e
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+    - file: internal/storage/cypher/cloud/aws/iam/can_perform_edge_writer.go
+      builders:
+        - symbol: (*IAMCanPerformEdgeWriter).RetractIAMCanPerformEdges
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (p:CloudResource)-[rel:CAN_PERFORM]->() WHERE rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: fae4b01cb2749b94a392a1002f22aa423af7cad8daffc8d0b2fa1253c6ac6cac
+    - file: internal/storage/cypher/cloud/aws/iam/escalation_edge_writer.go
+      builders:
+        - symbol: (*IAMEscalationEdgeWriter).RetractIAMEscalationEdges
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (p:CloudResource)-[rel:CAN_ESCALATE_TO]->() WHERE rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: ed108ca33dcdaab38c8e615aede80e5eb088fcb09b11dcbe52e54a13677e20c4
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+    - file: internal/storage/cypher/cloud/aws/iam/instance_profile_role_edge_writer.go
+      builders:
+        - symbol: (*IAMInstanceProfileRoleEdgeWriter).RetractIAMInstanceProfileRoleEdges
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (:CloudResource)-[rel:HAS_ROLE]->(:CloudResource) WHERE rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: 32040802eb9d522b0c3d0942d648b22f6c21f13fb03c01720602a655f447119e
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+    - file: internal/storage/cypher/cloud/aws/iam/secrets_graph_writer.go
+      builders:
+        - symbol: (*SecretsIAMGraphWriter).RetractScope
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - {}
+          source_sha256: bed766f5e97b3ad1f3797a8c47b2fede4676197153bb5dea1c6bb9c20eab0ff3
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+    - file: internal/storage/cypher/cloud/aws/image/container_edge_writer.go
+      builders:
+        - symbol: (*CloudResourceContainerImageEdgeWriter).RetractCloudResourceContainerImageEdges
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (:CloudResource)-[rel:AWS_lambda_function_uses_image]->(:ContainerImage) WHERE rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: e8a71b40f86be6c5a636ea41a2bf7b640416a4efc336e204f292dd07515f7def
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+    - file: internal/storage/cypher/cloud/aws/rds/posture_node_writer.go
+      builders:
+        - symbol: (*RDSPostureNodeWriter).RetractRDSPostureNodes
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (r:CloudResource) WHERE r.rds_posture_scope_id IN $scope_ids AND r.rds_posture_evidence_source = $evidence_source REMOVE r.rds_identifier, r.rds_resource_type, r.rds_engine, r.rds_publicly_accessible, r.rds_public_exposure_state, r.rds_storage_encrypted, r.rds_kms_key_id, r.rds_iam_database_authentication_enabled, r.rds_multi_az, r.rds_deletion_protection, r.rds_backup_retention_period, r.rds_performance_insights_enabled, r.rds_performance_insights_retention_days, r.rds_performance_insights_kms_key_id, r.rds_ca_certificate_identifier, r.rds_parameter_groups, r.rds_option_groups, r.rds_security_parameters, r.rds_posture_scope_id, r.rds_posture_generation_id, r.rds_posture_evidence_source, r.rds_posture_source_fact_id
+          source_sha256: 7839fc70b649627ff15e41d5f5e9042f0bb9a98afdb269efe400c1f613f4e873
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+    - file: internal/storage/cypher/cloud/aws/relationship/workload_cloud_writer.go
+      builders:
+        - symbol: (*WorkloadCloudRelationshipWriter).RetractWorkloadCloudRelationshipEdges
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (:WorkloadInstance)-[rel:USES]->(:CloudResource) WHERE rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: eb3295d62fc8a97ffdf1cca514633f12e3fb7279d736fd6494722617aa2f5b46
+    - file: internal/storage/cypher/cloud/aws/s3/external_principal_grant_writer.go
+      builders:
+        - symbol: (*S3ExternalPrincipalGrantWriter).RetractS3ExternalPrincipalGrants
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (:CloudResource)-[rel:GRANTS_ACCESS_TO]->(:ExternalPrincipal) WHERE rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: 6f751139e1867f21688732020143936eaf2024675ca6718a8d3fa7cd92041968
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+    - file: internal/storage/cypher/cloud/aws/s3/internet_exposure_node_writer.go
+      builders:
+        - symbol: (*S3InternetExposureNodeWriter).RetractS3InternetExposureNodes
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (resource:CloudResource) WHERE resource.s3_internet_exposure_scope_id IN $scope_ids AND resource.s3_internet_exposure_evidence_source = $evidence_source REMOVE resource.s3_internet_exposure_state, resource.s3_internet_exposed, resource.s3_internet_exposure_reason, resource.s3_internet_exposure_scope_id, resource.s3_internet_exposure_generation_id, resource.s3_internet_exposure_evidence_source, resource.s3_internet_exposure_source_fact_id
+          source_sha256: 7a00056f1b7d1216561d6d765747e69d04bdef1cb7d48a7473beb0215721e422
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+    - file: internal/storage/cypher/cloud/aws/s3/logs_to_edge_writer.go
+      builders:
+        - symbol: (*S3LogsToEdgeWriter).RetractS3LogsToEdges
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (:CloudResource)-[rel:LOGS_TO]->(:CloudResource) WHERE rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: 17df19bbedaf74391e4c8d34727dfe36557c970e1659387ce1b19f8fa520f654
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+    - file: internal/storage/cypher/cloud/aws/security/group/security_reachability_edge_writer.go
+      builders:
+        - symbol: (*SecurityGroupReachabilityWriter).RetractSecurityGroupReachability
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - {}
+          source_sha256: d45f214bb3a53d521aa85239e8bd84bdf849b22775f66fa94695106cd3f3e20c
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+    - file: internal/storage/cypher/cloud/aws/security/group/security_reachability_edge_writer_ledger.go
+      builders:
+        - symbol: (*SecurityGroupReachabilityWriter).RetractSecurityGroupReachabilityByUIDs
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - {}
+          source_sha256: 97b6ee5c33bfa327382b4f973c5a32912b2ad044e3f8e7514e54c284b198997b
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+    - file: internal/storage/cypher/cloud/azure/relationship/azure_cloud_resource_edge_writer.go
+      builders:
+        - symbol: (*AzureCloudResourceEdgeWriter).RetractCloudResourceEdges
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (source:CloudResource)-[rel]->(:CloudResource) WHERE rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: 44913747475eaf3f283b01803c9abcd73c666f8912fabf666fa695d7b2194ebc
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+        - symbol: (*AzureCloudResourceEdgeWriter).RetractCloudResourceEdgesByUIDs
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (source:CloudResource)-[rel]->() WHERE source.uid IN $source_uids AND rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: 10f324c91c6d565eee78fe76ede759b091146e8c07fa5857a400c40f50315a92
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+    - file: internal/storage/cypher/cloud/gcp/relationship/gcp_cloud_resource_edge_writer.go
+      builders:
+        - symbol: (*GCPCloudResourceEdgeWriter).RetractCloudResourceEdges
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (source:CloudResource)-[rel]->(:CloudResource) WHERE rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: 4970b8af7eb10e37ea9e73f4b668cbd5584bd9130ddf9ac3dce2fb4a65f26c44
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+        - symbol: (*GCPCloudResourceEdgeWriter).RetractCloudResourceEdgesByUIDs
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (source:CloudResource)-[rel]->() WHERE source.uid IN $source_uids AND rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: 89718336ca9479364f701cc8f6884f28c5932e7130f18d72a51c59097de0224f
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+    - file: internal/storage/cypher/cloud/resource/edge_writer.go
+      builders:
+        - symbol: (*CloudResourceEdgeWriter).RetractCloudResourceEdges
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (source:CloudResource)-[rel]->(:CloudResource) WHERE rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: 121f8f1135cd57ae2d0cabace800497a272d95cce77b36d242da42e1f24fdcf5
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+        - symbol: (*CloudResourceEdgeWriter).RetractCloudResourceEdgesByUIDs
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (source:CloudResource)-[rel]->() WHERE source.uid IN $source_uids AND rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: 89b8f653ebd5ab627f96eb6aed8d661519d8d715ebf98b5ca03798415554eaff
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
     - file: internal/storage/cypher/edge/writer/deployable_unit_verify.go
       builders:
         - symbol: buildDeployableUnitEdgeProbe

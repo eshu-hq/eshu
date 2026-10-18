@@ -24,7 +24,7 @@ IFA_FAMILY_PIN_WAIT_STAGE="handler"
 # (go/internal/reducer/iamescalation/iam_escalation_materialization.go:36).
 IFA_FAMILY_PIN_WAIT_KEY="iam_escalation_materialization"
 
-# go/internal/storage/cypher/iam_escalation_edge_writer.go:40 reads
+# go/internal/storage/cypher/cloud/aws/iam/escalation_edge_writer.go:42 reads
 # `MERGE (p)-[rel:CAN_ESCALATE_TO]->(t)`. The anchor is matched against EXECUTED
 # statement text; there is no %s to fill --
 # CanonicalIAMEscalationEdgeUpsertCypher bakes the static CAN_ESCALATE_TO token

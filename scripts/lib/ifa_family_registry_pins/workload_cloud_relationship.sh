@@ -24,7 +24,7 @@ IFA_FAMILY_PIN_WAIT_STAGE="handler"
 # (go/internal/reducer/contract/domain.go:155).
 IFA_FAMILY_PIN_WAIT_KEY="workload_cloud_relationship_materialization"
 
-# go/internal/storage/cypher/workload_cloud_relationship_writer.go:23 reads
+# go/internal/storage/cypher/cloud/aws/relationship/workload_cloud_writer.go:25 reads
 # `MERGE (instance)-[rel:%s]->(resource)`. The anchor is matched against
 # EXECUTED statement text; the %s is filled from the closed single-member
 # workloadCloudRelationshipVocabulary (:15-17, `"USES": {}`), screened per row

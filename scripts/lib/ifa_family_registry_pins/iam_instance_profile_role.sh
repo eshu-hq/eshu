@@ -22,7 +22,7 @@ IFA_FAMILY_PIN_WAIT_STAGE="handler"
 # readiness row names the same domain.
 IFA_FAMILY_PIN_WAIT_KEY="iam_instance_profile_role_materialization"
 
-# go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go:22 reads
+# go/internal/storage/cypher/cloud/aws/iam/instance_profile_role_edge_writer.go:24 reads
 # `MERGE (profile)-[rel:%s]->(role)`. The anchor is matched against EXECUTED
 # statement text, so the type is pinned INTERPOLATED: the %s is filled from
 # iamInstanceProfileRoleRelationshipVocabulary, a closed single-member set

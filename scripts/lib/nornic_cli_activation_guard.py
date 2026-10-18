@@ -6,7 +6,7 @@ import ast
 import hashlib
 from pathlib import Path
 
-NORNIC_CLI_SOURCE_SHA256 = "70b8e340e8dc511bc7dfe807e6ec2f7be77d1eb0275e15c774e19016fd1abdb9"
+NORNIC_CLI_SOURCE_SHA256 = "0c1429fbdf5299101d4743287204888b27a0bc893b166ba8896cf593ff6cb896"
 NORNIC_CLI_MAIN = '''def main() -> int:
     """Check runner enrollment, then optionally a captured Go event stream."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -19,7 +19,11 @@ NORNIC_CLI_MAIN = '''def main() -> int:
         if args.events is None:
             return 0
         names = {name for tests in inventory.values() for name in tests}
-        return 0 if verify_events(args.events, names, sys.stderr) else 1
+        return (
+            0
+            if verify_events(args.events, names, PACKAGES, sys.stderr)
+            else 1
+        )
     except (OSError, ValueError, re.error) as error:
         print(error, file=sys.stderr)
         return 1'''
@@ -30,8 +34,8 @@ NORNIC_CLI_IMPORTS = (
 )
 NORNIC_CLI_ASSIGNMENTS = (
     "ROOT", "INVENTORY", "RUNNER", "RUNNER_PREFIX", "WORKFLOW",
-    "STATIC_WORKFLOW", "REGISTRY", "PACKAGE", "TEST_PATTERN",
-    "EXPECTED_FILES", "ROUTED_PATHS",
+    "STATIC_WORKFLOW", "REGISTRY", "PACKAGES", "RUNNER_PACKAGES",
+    "TEST_PATTERN", "EXPECTED_FILES", "ROUTED_PATHS",
 )
 NORNIC_CLI_VALUE_EXPRESSIONS = {
     "ROOT": "Path(__file__).resolve().parents[2]",
@@ -40,12 +44,11 @@ NORNIC_CLI_VALUE_EXPRESSIONS = {
     "WORKFLOW": 'Path(".github/workflows/e2e-tests.yml")',
     "STATIC_WORKFLOW": 'Path(".github/workflows/live-backend-tests.yml")',
     "REGISTRY": 'Path("specs/ci-gates.d/gates-09.yaml")',
-    "PACKAGE": '"github.com/eshu-hq/eshu/go/internal/storage/cypher"',
     "TEST_PATTERN": r're.compile(r"^func (Test\w+)\(", re.MULTILINE)',
 }
 NORNIC_CLI_LITERAL_SETS = {
     "EXPECTED_FILES": {
-        "go/internal/storage/cypher/cloud_resource_node_writer_heterogeneous_batch_live_test.go",
+        "go/internal/storage/cypher/cloud/resource/node_writer_heterogeneous_batch_live_test.go",
         "go/internal/storage/cypher/retrying_executor_live_test.go",
         "go/internal/storage/cypher/retrying_executor_relationship_snapshot_live_test.go",
         "go/internal/storage/cypher/semantic_entity_full_repo_retract_live_test.go",
@@ -66,6 +69,14 @@ NORNIC_CLI_LITERAL_SETS = {
         ".github/workflows/live-backend-tests.yml",
         "specs/ci-gates.d/gates-09.yaml",
     },
+    "PACKAGES": {
+        "github.com/eshu-hq/eshu/go/internal/storage/cypher",
+        "github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/resource",
+    },
+    "RUNNER_PACKAGES": {
+        "./internal/storage/cypher",
+        "./internal/storage/cypher/cloud/resource",
+    },
 }
 NORNIC_CLI_FUNCTION_SIGNATURES = {
     "_active_lines": "source: str -> list[tuple[int, str]]",
@@ -82,7 +93,7 @@ NORNIC_CLI_FUNCTION_SIGNATURES = {
     "verify_runner_text": "text: str, inventory: dict[str, list[str]] -> None",
     "verify_workflow_text": "text: str -> None",
     "verify_source_and_runner": "root: Path, inventory: dict[str, list[str]] -> None",
-    "verify_events": "path: Path, expected: set[str], output: TextIO -> bool",
+    "verify_events": "path: Path, expected: set[str], packages: frozenset[str], output: TextIO -> bool",
     "main": " -> int",
 }
 

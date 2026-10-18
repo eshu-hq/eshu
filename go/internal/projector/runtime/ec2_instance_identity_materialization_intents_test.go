@@ -19,7 +19,7 @@ import (
 // Intent when its trigger fact is present — not just that the handler and
 // writer behave correctly in isolation (which
 // ec2_instance_identity_materialization_test.go and
-// go/internal/storage/cypher/ec2_instance_identity_node_writer_test.go already
+// go/internal/storage/cypher/cloud/aws/ec2/instance_identity_node_writer_test.go already
 // cover). Without this wiring the domain would be registered but never run.
 //
 // The trigger is the ec2_instance_posture fact (#5743 residual fix): the domain

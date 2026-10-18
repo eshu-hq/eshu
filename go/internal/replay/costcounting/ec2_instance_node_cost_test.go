@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graphowner"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/ec2"
 )
 
 // ec2InstanceNodeBudgetRelPath is the committed cost budget for the
@@ -50,7 +51,7 @@ const (
 // ec2InstanceNodeFixtureRows is the deterministic input for the positive,
 // contended-loss, and N+1 scenarios: two EC2 instance rows in one
 // account/region, shaped like the production WriteEC2InstanceNodes row
-// contract (go/internal/storage/cypher/ec2_instance_node_writer.go
+// contract (go/internal/storage/cypher/cloud/aws/ec2/instance_node_writer.go
 // canonicalEC2InstanceUpsertCypher's SET clause, plus the #5007
 // source_order_key the reducer row builder stamps). EC2InstanceNodeWriter has
 // no per-label batching split — every row shares the same single UNWIND
@@ -158,7 +159,7 @@ func (b *ec2FakeOwnerBeginner) Begin(context.Context) (db.Transaction, error) {
 
 // newGatedInstrumentedEC2Writer builds the PRODUCTION EC2 write dispatch:
 // graphowner.NewEC2InstanceGatedWriter over the raw
-// cypher.EC2InstanceNodeWriter's WriteEC2InstanceNodes method, mirroring
+// ec2.EC2InstanceNodeWriter's WriteEC2InstanceNodes method, mirroring
 // go/cmd/reducer/canonical_graph_writers.go:51/59 exactly — including
 // gate.Instruments (set by go/cmd/reducer/main.go:102 in production). The
 // #5007 owner-ledger Gate is NOT a pass-through wrapper: Gate.write
@@ -187,7 +188,7 @@ func newGatedInstrumentedEC2Writer(t *testing.T, winners map[string]string) (
 	inst, manualReader := newManualReaderInstruments(t)
 	exec = &groupCountingExecutor{}
 	instrumented := &cypher.InstrumentedExecutor{Inner: exec, Instruments: inst}
-	raw := cypher.NewEC2InstanceNodeWriter(instrumented, 500)
+	raw := ec2.NewEC2InstanceNodeWriter(instrumented, 500)
 	gate := graphowner.NewGate(&ec2FakeOwnerBeginner{winners: winners})
 	gate.Instruments = inst
 	gated = graphowner.NewEC2InstanceGatedWriter(gate, raw.WriteEC2InstanceNodes)
@@ -234,7 +235,7 @@ func collectFloat64HistogramSum(rm metricdata.ResourceMetrics, name string) floa
 // ec2_instance_posture family in specs/fact-kind-registry.v1.yaml, C-14 issue
 // #4367). It drives the production GATED dispatch —
 // graphowner.EC2InstanceGatedWriter.WriteEC2InstanceNodes over the raw
-// cypher.EC2InstanceNodeWriter, per canonical_graph_writers.go:51/59 — over
+// ec2.EC2InstanceNodeWriter, per canonical_graph_writers.go:51/59 — over
 // two deterministic rows in the owned-all (non-contended) case, through a
 // real InstrumentedExecutor-backed sdkmetric.ManualReader, then asserts
 // eshu_dp_neo4j_batches_executed_total is within the committed budget.

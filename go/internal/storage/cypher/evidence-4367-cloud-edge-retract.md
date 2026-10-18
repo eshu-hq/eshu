@@ -167,7 +167,7 @@ different writers, not the five cloud writers this backfill covers:
 
 - `USES` in production is the `USES_PROFILE` relationship type, written and
   retracted by `EC2UsesProfileEdgeWriter`
-  (`go/internal/storage/cypher/ec2_uses_profile_edge_writer.go`) — an EC2
+  (`go/internal/storage/cypher/cloud/aws/ec2/uses_profile_edge_writer.go`) — an EC2
   instance to IAM instance-profile edge, unrelated to the RUNS_IMAGE/LOGS_TO/
   GRANTS_ACCESS_TO/reachability/HAS_ROLE family this backfill targets.
 - `MANAGES` corresponds to the Atlantis project `n`-relationship edge type

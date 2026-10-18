@@ -98,7 +98,7 @@ var domainDataSignatures = map[string]domainDataSignature{
 
 	// The three /cloud/resources domains all materialize onto the
 	// CloudResource label: ec2 MERGEs nodes
-	// (storage/cypher/ec2_instance_node_writer.go:33), rds and s3 decorate
+	// (storage/cypher/cloud/aws/ec2/instance_node_writer.go:33), rds and s3 decorate
 	// existing nodes with posture properties
 	// (rds_posture_node_writer.go:17, s3_internet_exposure_node_writer.go:16).
 	"ec2_instance_node_materialization":    {Markers: []string{":CloudResource"}},
@@ -120,7 +120,7 @@ var domainDataSignatures = map[string]domainDataSignature{
 
 	// s3_external_principal_grant_materialization writes
 	// (:CloudResource)-[:GRANTS_ACCESS_TO]->(:ExternalPrincipal) graph truth
-	// (storage/cypher/s3_external_principal_grant_writer.go), served since
+	// (storage/cypher/cloud/aws/s3/external_principal_grant_writer.go), served since
 	// #5643 by secrets.GraphIAMGrantPostureStore on
 	// "GET /api/v0/secrets-iam/posture-summary" (secrets/grant_posture.go).
 	"s3_external_principal_grant_materialization": {Markers: []string{":ExternalPrincipal", "s3_external_principal_grant"}},

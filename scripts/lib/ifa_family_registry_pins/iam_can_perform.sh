@@ -23,7 +23,7 @@ IFA_FAMILY_PIN_WAIT_STAGE="handler"
 # (go/internal/reducer/iamcan/iam_can_perform_materialization.go:36).
 IFA_FAMILY_PIN_WAIT_KEY="iam_can_perform_materialization"
 
-# go/internal/storage/cypher/iam_can_perform_edge_writer.go:47 reads
+# go/internal/storage/cypher/cloud/aws/iam/can_perform_edge_writer.go:49 reads
 # `MERGE (p)-[rel:CAN_PERFORM]->(r)`. The anchor is matched against EXECUTED
 # statement text; unlike iam_can_assume there is no %s to fill --
 # CanonicalIAMCanPerformEdgeUpsertCypher bakes the static CAN_PERFORM token

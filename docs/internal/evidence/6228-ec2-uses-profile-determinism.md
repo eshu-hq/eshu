@@ -2,7 +2,7 @@
 
 Wiring the `ec2_uses_profile` direct-materialization family
 (`WriteEC2UsesProfileEdges`) into the live determinism matrix touches two
-content-hot Go files — `go/internal/storage/cypher/ec2_uses_profile_edge_writer.go`
+content-hot Go files — `go/internal/storage/cypher/cloud/aws/ec2/uses_profile_edge_writer.go`
 carries the family's `MERGE (source)-[rel:USES_PROFILE]->(target)` write
 Cypher, and `go/internal/ifa/familyodu/ec2_uses_profile_family_odu.go` builds
 its fixture — so this note records the no-regression proof the

@@ -12,13 +12,14 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/rds"
 )
 
 // rdsPostureBudgetRelPath is the committed cost budget for the
 // rds_posture_materialization scenario (fact-kind-registry family
 // rds_posture, specs/fact-kind-registry.v1.yaml:273-283). Like the
 // semantic-entity and documentation-edges scenarios, this projection has no
-// committed cassette: cypher.RDSPostureNodeWriter operates over flat
+// committed cassette: rds.RDSPostureNodeWriter operates over flat
 // map[string]any rows, not a CanonicalMaterialization, so the fixture rows
 // live inline in this file and the budget records that explicitly instead of
 // pointing at a cassette path.
@@ -31,9 +32,9 @@ const rdsPostureCostEvidenceSource = "reducer/rds-posture"
 // rdsPostureFixtureRows is the deterministic input for both the positive and
 // N+1 scenarios: two RDS posture rows in one scope, shaped like the
 // production WriteRDSPostureNodes row contract
-// (go/internal/storage/cypher/rds_posture_node_writer.go
+// (go/internal/storage/cypher/cloud/aws/rds/posture_node_writer.go
 // canonicalRDSPostureUpdateCypher's SET clause, same fields as
-// rds_posture_node_writer_test.go's rdsPostureNodeRows). RDSPostureNodeWriter
+// cloud/aws/rds/posture_node_writer_test.go's rdsPostureNodeRows). RDSPostureNodeWriter
 // has exactly one Cypher template with no per-row vocabulary split, so any two
 // distinct rows are sufficient to prove the N+1 control.
 func rdsPostureFixtureRows() []map[string]any {
@@ -65,7 +66,7 @@ func rdsPostureFixtureRows() []map[string]any {
 }
 
 // newInstrumentedRDSPostureNodeWriter builds the production
-// cypher.RDSPostureNodeWriter (the writer graphowner.NewRDSPostureLockedWriter
+// rds.RDSPostureNodeWriter (the writer graphowner.NewRDSPostureLockedWriter
 // wraps at go/cmd/reducer/canonical_graph_writers.go:53/77-79 — the #5062
 // lock-only gate serializes the SAME inner WriteRDSPostureNodes call under a
 // Postgres advisory lock and does not change the Cypher statement shape, so
@@ -80,7 +81,7 @@ func rdsPostureFixtureRows() []map[string]any {
 // per statement carrying a "rows" parameter) — the PRIMARY instrument this
 // scenario asserts, not a hand-counted statement slice.
 func newInstrumentedRDSPostureNodeWriter(t *testing.T) (
-	writer *cypher.RDSPostureNodeWriter,
+	writer *rds.RDSPostureNodeWriter,
 	exec *groupCountingExecutor,
 	reader *sdkmetric.ManualReader,
 ) {
@@ -89,14 +90,14 @@ func newInstrumentedRDSPostureNodeWriter(t *testing.T) (
 	inst, manualReader := newManualReaderInstruments(t)
 	exec = &groupCountingExecutor{}
 	instrumented := &cypher.InstrumentedExecutor{Inner: exec, Instruments: inst}
-	writer = cypher.NewRDSPostureNodeWriter(instrumented, echoAllExistenceReader{}, 500)
+	writer = rds.NewRDSPostureNodeWriter(instrumented, echoAllExistenceReader{}, 500)
 	return writer, exec, manualReader
 }
 
 // TestCostBudget_RDSPostureMaterialization is the positive cost-counting gate
 // for the rds_posture_materialization reducer projection (the rds_posture
 // family in specs/fact-kind-registry.v1.yaml, C-14 issue #4367). It drives the
-// production cypher.RDSPostureNodeWriter.WriteRDSPostureNodes over two
+// production rds.RDSPostureNodeWriter.WriteRDSPostureNodes over two
 // deterministic rows through a real InstrumentedExecutor-backed
 // sdkmetric.ManualReader, then asserts eshu_dp_neo4j_batches_executed_total is
 // within the committed budget.

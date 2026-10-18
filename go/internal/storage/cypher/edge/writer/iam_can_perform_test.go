@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/iam"
 )
 
 const iamCanPerformEvidence = "reducer/iam-can-perform"
@@ -40,7 +40,7 @@ func TestIAMCanPerformEdgeWriterEmptyRowsIsNoOp(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := sourcecypher.NewIAMCanPerformEdgeWriter(executor, 0)
+	writer := iam.NewIAMCanPerformEdgeWriter(executor, 0)
 	if err := writer.WriteIAMCanPerformEdges(context.Background(), nil, "scope-1", "gen-1", iamCanPerformEvidence); err != nil {
 		t.Fatalf("WriteIAMCanPerformEdges returned error: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestIAMCanPerformEdgeWriterStaticTypeAndDualMatch(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingGroupExecutor{}
-	writer := sourcecypher.NewIAMCanPerformEdgeWriter(executor, 500)
+	writer := iam.NewIAMCanPerformEdgeWriter(executor, 500)
 	if err := writer.WriteIAMCanPerformEdges(context.Background(), iamCanPerformEdgeRows(), "scope-1", "gen-1", iamCanPerformEvidence); err != nil {
 		t.Fatalf("WriteIAMCanPerformEdges returned error: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestIAMCanPerformEdgeWriterKeepsActionsOutOfMergeKey(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingGroupExecutor{}
-	writer := sourcecypher.NewIAMCanPerformEdgeWriter(executor, 500)
+	writer := iam.NewIAMCanPerformEdgeWriter(executor, 500)
 	if err := writer.WriteIAMCanPerformEdges(context.Background(), iamCanPerformEdgeRows(), "scope-1", "gen-1", iamCanPerformEvidence); err != nil {
 		t.Fatalf("WriteIAMCanPerformEdges returned error: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestIAMCanPerformEdgeWriterStampsScopeFields(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingGroupExecutor{}
-	writer := sourcecypher.NewIAMCanPerformEdgeWriter(executor, 500)
+	writer := iam.NewIAMCanPerformEdgeWriter(executor, 500)
 	if err := writer.WriteIAMCanPerformEdges(context.Background(), iamCanPerformEdgeRows(), "scope-7", "gen-9", iamCanPerformEvidence); err != nil {
 		t.Fatalf("WriteIAMCanPerformEdges returned error: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestIAMCanPerformEdgeWriterIdempotentInputDoesNotMutateCaller(t *testing.T)
 	t.Parallel()
 
 	executor := &recordingGroupExecutor{}
-	writer := sourcecypher.NewIAMCanPerformEdgeWriter(executor, 500)
+	writer := iam.NewIAMCanPerformEdgeWriter(executor, 500)
 	rows := iamCanPerformEdgeRows()
 	if err := writer.WriteIAMCanPerformEdges(context.Background(), rows, "scope-1", "gen-1", iamCanPerformEvidence); err != nil {
 		t.Fatalf("WriteIAMCanPerformEdges returned error: %v", err)
@@ -170,7 +170,7 @@ func TestIAMCanPerformEdgeRetractScopesByEvidenceSource(t *testing.T) {
 	t.Parallel()
 
 	executor := &sqlSequentialRecordingExecutor{}
-	writer := sourcecypher.NewIAMCanPerformEdgeWriter(executor, 500)
+	writer := iam.NewIAMCanPerformEdgeWriter(executor, 500)
 	if err := writer.RetractIAMCanPerformEdges(context.Background(), []string{"scope-1"}, "gen-1", iamCanPerformEvidence); err != nil {
 		t.Fatalf("RetractIAMCanPerformEdges returned error: %v", err)
 	}
@@ -204,7 +204,7 @@ func TestIAMCanPerformEdgeRetractEmptyScopesIsNoOp(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingGroupExecutor{}
-	writer := sourcecypher.NewIAMCanPerformEdgeWriter(executor, 500)
+	writer := iam.NewIAMCanPerformEdgeWriter(executor, 500)
 	if err := writer.RetractIAMCanPerformEdges(context.Background(), nil, "gen-1", iamCanPerformEvidence); err != nil {
 		t.Fatalf("RetractIAMCanPerformEdges returned error: %v", err)
 	}

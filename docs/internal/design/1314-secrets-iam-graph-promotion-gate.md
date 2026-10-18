@@ -332,7 +332,7 @@ families plus the skip-counted cases (missing workload, missing vault hop,
 missing secret path, non-exact states, pod-identity IAM-role-unresolved) and
 duplicate-delivery idempotency. The TRUE live-backend conformance is the
 BACKEND-GATED `TestSecretsIAMGraphWriterLiveConformance` in
-`go/internal/storage/cypher/secrets_iam_graph_live_test.go`; it writes all four
+`go/internal/storage/cypher/cloud/aws/iam/secrets_graph_live_test.go`; it writes all four
 node families and five edges, reads them back, and proves scoped retract leaves
 the retained `KubernetesWorkload` and `CloudResource` endpoints intact, but
 SKIPs cleanly unless `ESHU_SECRETS_IAM_GRAPH_LIVE=1` and Bolt env are configured
@@ -366,7 +366,7 @@ Postgres read model.
 Status (#1381): proof-ladder steps 1–4 are built and green, with backend proof
 captured in `1314-secrets-iam-graph-promotion-proof-2026-06-07.md`. Step 3, the
 writer benchmark, ships as `BenchmarkSecretsIAMGraphWriter`
-(`go/internal/storage/cypher/secrets_iam_graph_writer_bench_test.go`): it writes
+(`go/internal/storage/cypher/cloud/aws/iam/secrets_graph_writer_bench_test.go`): it writes
 all four `SecretsIAM*` node families and all five resolvable `SECRETS_IAM_*`
 edge families at 5,000 rows each through the no-op group executor, isolating
 statement construction and `UNWIND` batching from graph round trips. Measured on

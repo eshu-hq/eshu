@@ -38,7 +38,7 @@ IFA_FAMILY_ASSERT_FN[iam_escalation]="ifa_iam_escalation_assert"
 IFA_FAMILY_CASSETTE_VAR[iam_escalation]="iam_escalation_cassette"
 IFA_FAMILY_EXPECTED_VAR[iam_escalation]="iam_escalation_expected_edges"
 
-# go/internal/storage/cypher/iam_escalation_edge_writer.go:40, which
+# go/internal/storage/cypher/cloud/aws/iam/escalation_edge_writer.go:42, which
 # reads `MERGE (p)-[rel:CAN_ESCALATE_TO]->(t)` in source. The anchor is
 # matched against EXECUTED statement text; there is no %s to fill —
 # CanonicalIAMEscalationEdgeUpsertCypher bakes the static CAN_ESCALATE_TO

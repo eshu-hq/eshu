@@ -301,7 +301,7 @@ func (w *ObservabilityCoverageEdgeWriter) RetractObservabilityCoverageEdgesByUID
 	if w.executor == nil {
 		return fmt.Errorf("observability coverage edge writer executor is required")
 	}
-	batches := chunkStrings(sourceUIDs, observabilityCoverageEdgeRetractUIDBatchSize)
+	batches := ChunkStrings(sourceUIDs, observabilityCoverageEdgeRetractUIDBatchSize)
 	stmts := make([]Statement, 0, len(batches))
 	for _, batch := range batches {
 		stmts = append(stmts, Statement{

@@ -93,7 +93,7 @@ no meter provider, so there is no metric.
 - `go test ./internal/storage/cypher/infra/search -count=1`
 - The census guard and writer tests in `internal/storage/cypher`.
 - The live Neo4j proof in
-  `internal/storage/cypher/search_key_live_test.go` (Neo4j only; the scale
+  `internal/storage/cypher/cloud/resource/search_key_live_test.go` (Neo4j only; the scale
   measurement in `search_key_scale_live_test.go` runs with
   `ESHU_INFRA_SEARCH_KEY_SCALE=1`).
 

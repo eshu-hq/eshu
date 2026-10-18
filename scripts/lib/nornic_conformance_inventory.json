@@ -1,5 +1,5 @@
 {
-  "go/internal/storage/cypher/cloud_resource_node_writer_heterogeneous_batch_live_test.go": [
+  "go/internal/storage/cypher/cloud/resource/node_writer_heterogeneous_batch_live_test.go": [
     "TestCloudResourceNodeWriterLiveHeterogeneousBatchNeverPersistsLiteral"
   ],
   "go/internal/storage/cypher/retrying_executor_live_test.go": [

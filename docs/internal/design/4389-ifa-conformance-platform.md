@@ -523,7 +523,7 @@ this platform exists to prevent.
 **Teeth taxonomy (build tag `ifadeterminismteeth`).** The matrix's negative
 control stamps two build-tag-gated properties onto each GCP `CloudResource`
 row (`go/internal/reducer/gcp_resource_materialization_teeth.go`,
-`go/internal/storage/cypher/cloud_resource_node_writer_teeth.go`), read by
+`go/internal/storage/cypher/cloud/resource/node_writer_teeth.go`), read by
 `scripts/verify-ifa-determinism.sh --teeth`:
 
 - `r.ifa_teeth_write_order` — wall-clock nanoseconds

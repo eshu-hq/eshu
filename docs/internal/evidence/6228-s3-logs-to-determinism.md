@@ -48,7 +48,7 @@ drove all three cells to their graph dumps with 0 failed asserts:
 ## No-Regression
 
 No-Regression Evidence: the writer file edit
-(go/internal/storage/cypher/s3_logs_to_edge_writer.go)
+(go/internal/storage/cypher/cloud/aws/s3/logs_to_edge_writer.go)
 is const-export renames ONLY (canonicalS3LogsToEdgeUpsertCypherFormat,
 retractS3LogsToEdgesCypher -> exported spellings, plus their doc comments);
 the upsert/retract Cypher text is byte-identical, no statement shape,

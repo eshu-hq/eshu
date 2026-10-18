@@ -32,8 +32,8 @@ type backendRestartTerminalGroupExecutor struct {
 func (e *backendRestartSequentialExecutor) Execute(context.Context, Statement) error {
 	if e.calls.Add(1) == 1 || e.alwaysFail {
 		return newNeo4jError(
-			nornicDBRestartTransactionStartCode,
-			nornicDBRestartTransactionStartMsg,
+			"Neo.ClientError.Transaction.TransactionStartFailed",
+			"failed to write WAL tx begin: wal: closed",
 		)
 	}
 	return nil
@@ -46,8 +46,8 @@ func (e *backendRestartGroupExecutor) Execute(context.Context, Statement) error 
 func (e *backendRestartGroupExecutor) ExecuteGroup(context.Context, []Statement) error {
 	if e.calls.Add(1) == 1 {
 		return newNeo4jError(
-			nornicDBRestartTransactionStartCode,
-			nornicDBRestartTransactionStartMsg,
+			"Neo.ClientError.Transaction.TransactionStartFailed",
+			"failed to write WAL tx begin: wal: closed",
 		)
 	}
 	return nil
@@ -123,30 +123,8 @@ func TestRetryingExecutorExecuteBackendRestartExhaustionRemainsQueueRetryable(t 
 	require.Equal(t, GraphWriteTimeoutFailureClass, classified.FailureClass())
 	var driverErr *neo4jdriver.Neo4jError
 	require.ErrorAs(t, wrapped, &driverErr)
-	require.Equal(t, nornicDBRestartTransactionStartCode, driverErr.Code)
-	require.Equal(t, nornicDBRestartTransactionStartMsg, driverErr.Msg)
-}
-
-func TestBackendRestartTransactionStartFailureRemainsQueueRetryable(t *testing.T) {
-	t.Parallel()
-
-	inner := &backendRestartGroupExecutor{}
-	writer := NewCloudResourceNodeWriter(inner, 0)
-	writerErr := writer.WriteCloudResourceNodes(
-		context.Background(),
-		[]map[string]any{{"uid": "restart-recovery-resource"}},
-		"reducer/gcp-resources",
-	)
-	handlerErr := fmt.Errorf("write canonical cloud resource nodes: %w", writerErr)
-
-	require.True(t, reducer.IsRetryable(handlerErr))
-	var classified interface{ FailureClass() string }
-	require.ErrorAs(t, handlerErr, &classified)
-	require.Equal(t, GraphWriteTimeoutFailureClass, classified.FailureClass())
-	var driverErr *neo4jdriver.Neo4jError
-	require.ErrorAs(t, handlerErr, &driverErr)
-	require.Equal(t, nornicDBRestartTransactionStartCode, driverErr.Code)
-	require.Equal(t, nornicDBRestartTransactionStartMsg, driverErr.Msg)
+	require.Equal(t, "Neo.ClientError.Transaction.TransactionStartFailed", driverErr.Code)
+	require.Equal(t, "failed to write WAL tx begin: wal: closed", driverErr.Msg)
 }
 
 func TestBackendRestartTransactionStartFailureClassificationFailsClosedForNearMisses(t *testing.T) {
@@ -159,20 +137,20 @@ func TestBackendRestartTransactionStartFailureClassificationFailsClosedForNearMi
 		{
 			name: "same code with different message",
 			err: newNeo4jError(
-				nornicDBRestartTransactionStartCode,
+				"Neo.ClientError.Transaction.TransactionStartFailed",
 				"failed to write WAL tx begin: permission denied",
 			),
 		},
 		{
 			name: "same message with different code",
 			err: newNeo4jError(
-				nornicDBTransactionCommitFailedCode,
-				nornicDBRestartTransactionStartMsg,
+				"Neo.ClientError.Transaction.TransactionCommitFailed",
+				"failed to write WAL tx begin: wal: closed",
 			),
 		},
 		{
 			name: "plain error with same message",
-			err:  fmt.Errorf("%s", nornicDBRestartTransactionStartMsg),
+			err:  fmt.Errorf("%s", "failed to write WAL tx begin: wal: closed"),
 		},
 	}
 	for _, tt := range tests {

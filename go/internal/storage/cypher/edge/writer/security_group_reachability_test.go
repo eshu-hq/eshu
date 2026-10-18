@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/security/group"
 )
 
 const sgReachabilityEvidence = "reducer/security-group-reachability"
@@ -34,7 +34,7 @@ func TestSecurityGroupRuleNodeWriterEmptyRowsIsNoOp(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := sourcecypher.NewSecurityGroupReachabilityWriter(executor, 0)
+	writer := group.NewSecurityGroupReachabilityWriter(executor, 0)
 	if err := writer.WriteSecurityGroupRuleNodes(context.Background(), nil, sgReachabilityEvidence); err != nil {
 		t.Fatalf("WriteSecurityGroupRuleNodes returned error: %v", err)
 	}
@@ -47,7 +47,7 @@ func TestSecurityGroupRuleNodeWriterMergesOnUIDOnly(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := sourcecypher.NewSecurityGroupReachabilityWriter(executor, 0)
+	writer := group.NewSecurityGroupReachabilityWriter(executor, 0)
 	if err := writer.WriteSecurityGroupRuleNodes(context.Background(), sgRuleNodeRows(1), sgReachabilityEvidence); err != nil {
 		t.Fatalf("WriteSecurityGroupRuleNodes returned error: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestSecurityGroupSGRuleEdgeWriterUsesStaticDirectionType(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingGroupExecutor{}
-	writer := sourcecypher.NewSecurityGroupReachabilityWriter(executor, 500)
+	writer := group.NewSecurityGroupReachabilityWriter(executor, 500)
 	if err := writer.WriteSecurityGroupSGRuleEdges(context.Background(), sgRuleEdgeRows(), "scope-1", "gen-1", sgReachabilityEvidence); err != nil {
 		t.Fatalf("WriteSecurityGroupSGRuleEdges returned error: %v", err)
 	}
@@ -104,7 +104,7 @@ func TestSecurityGroupSGRuleEdgeWriterRejectsUnknownRelationshipType(t *testing.
 	t.Parallel()
 
 	executor := &recordingGroupExecutor{}
-	writer := sourcecypher.NewSecurityGroupReachabilityWriter(executor, 500)
+	writer := group.NewSecurityGroupReachabilityWriter(executor, 500)
 	rows := []map[string]any{
 		{"sg_uid": "sg-a", "rule_uid": "rule-a", "relationship_type": "ALLOWS_INGRESS; DROP"},
 	}
@@ -125,7 +125,7 @@ func TestSecurityGroupToEdgeWriterUsesValidatedTargetLabel(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingGroupExecutor{}
-	writer := sourcecypher.NewSecurityGroupReachabilityWriter(executor, 500)
+	writer := group.NewSecurityGroupReachabilityWriter(executor, 500)
 	if err := writer.WriteSecurityGroupRuleEndpointEdges(context.Background(), sgToEdgeRows(), "scope-1", "gen-1", sgReachabilityEvidence); err != nil {
 		t.Fatalf("WriteSecurityGroupRuleEndpointEdges returned error: %v", err)
 	}
@@ -157,7 +157,7 @@ func TestSecurityGroupToEdgeWriterRejectsUnknownTargetLabel(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingGroupExecutor{}
-	writer := sourcecypher.NewSecurityGroupReachabilityWriter(executor, 500)
+	writer := group.NewSecurityGroupReachabilityWriter(executor, 500)
 	rows := []map[string]any{
 		{"rule_uid": "rule-a", "target_uid": "x", "target_label": "EvilLabel"},
 	}
@@ -179,7 +179,7 @@ func TestSecurityGroupReachabilityRetractScopesByEvidenceAndScope(t *testing.T) 
 	// grouped dispatch takes its sequential fallback and produces identical
 	// Execute calls.
 	executor := &sqlSequentialRecordingExecutor{}
-	writer := sourcecypher.NewSecurityGroupReachabilityWriter(executor, 500)
+	writer := group.NewSecurityGroupReachabilityWriter(executor, 500)
 	if err := writer.RetractSecurityGroupReachability(context.Background(), []string{"scope-1"}, "gen-2", sgReachabilityEvidence); err != nil {
 		t.Fatalf("RetractSecurityGroupReachability returned error: %v", err)
 	}
@@ -203,7 +203,7 @@ func TestSecurityGroupReachabilityRetractScopesByEvidenceAndScope(t *testing.T) 
 	// literal: the pre-contract copy asserted a bare [rel] shape the
 	// production retract no longer has, so it failed closed on the named
 	// alternation instead of pinning it.
-	if !strings.Contains(joined, sourcecypher.RetractSecurityGroupSGRuleEdgesCypher) {
+	if !strings.Contains(joined, group.RetractSecurityGroupSGRuleEdgesCypher) {
 		t.Fatalf("retract must remove SG->rule edges with the held production retract:\n%s", joined)
 	}
 	if !strings.Contains(joined, "(rule:SecurityGroupRule)-[rel:TO]->") {
@@ -218,7 +218,7 @@ func TestSecurityGroupRuleNodeWriterSetsNameProperty(t *testing.T) {
 	// must SET r.name from row.name so SecurityGroupRule nodes carry a non-empty
 	// human-readable name (regression for empty networking name on the Nodes page).
 	executor := &recordingExecutor{}
-	writer := sourcecypher.NewSecurityGroupReachabilityWriter(executor, 0)
+	writer := group.NewSecurityGroupReachabilityWriter(executor, 0)
 	rows := []map[string]any{{
 		"uid":         "rule-a",
 		"sg_uid":      "sg-a",
@@ -246,7 +246,7 @@ func TestSecurityGroupReachabilityRetractEmptyScopesIsNoOp(t *testing.T) {
 	t.Parallel()
 
 	executor := &sqlSequentialRecordingExecutor{}
-	writer := sourcecypher.NewSecurityGroupReachabilityWriter(executor, 500)
+	writer := group.NewSecurityGroupReachabilityWriter(executor, 500)
 	if err := writer.RetractSecurityGroupReachability(context.Background(), nil, "gen-2", sgReachabilityEvidence); err != nil {
 		t.Fatalf("RetractSecurityGroupReachability returned error: %v", err)
 	}

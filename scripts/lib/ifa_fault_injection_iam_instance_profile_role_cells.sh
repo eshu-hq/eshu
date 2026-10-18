@@ -35,7 +35,7 @@
 # under domain "iam_instance_profile_role_materialization", loads its facts via
 # FactStore.ListFactsByKind -> FROM fact_records, and writes the
 # HAS_ROLE edges DIRECTLY to the graph through its cypher writer
-# (go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go:22), then
+# (go/internal/storage/cypher/cloud/aws/iam/instance_profile_role_edge_writer.go:24), then
 # acks. There is no shared_projection_intents row and no second-stage runner
 # lease -- the two blocker kinds the registry schema offers that this family
 # cannot use (see rows/13_iam_instance_profile_role.sh).
@@ -295,7 +295,7 @@ cell_killworker_iam_instance_profile_role() {
 # marker names that write, and requires the full two-edge set to converge
 # without dead letters. Anchor read off EXECUTED statement text, not source
 # text: the writer's template reads MERGE (profile)-[rel:%s]->(role)
-# (go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go:22),
+# (go/internal/storage/cypher/cloud/aws/iam/instance_profile_role_edge_writer.go:24),
 # filled from a closed single-member vocabulary screened per row, so the
 # anchor MUST carry the INTERPOLATED type MERGE (profile)-[rel:HAS_ROLE]->(role).
 # A literal %s matches no executed statement and the fault would never fire,

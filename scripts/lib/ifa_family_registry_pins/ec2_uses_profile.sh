@@ -24,7 +24,7 @@ IFA_FAMILY_PIN_WAIT_STAGE="handler"
 # (go/internal/reducer/ec2usesprofile/ec2_uses_profile_materialization.go:35).
 IFA_FAMILY_PIN_WAIT_KEY="ec2_uses_profile_materialization"
 
-# go/internal/storage/cypher/ec2_uses_profile_edge_writer.go:45 reads
+# go/internal/storage/cypher/cloud/aws/ec2/uses_profile_edge_writer.go:47 reads
 # `MERGE (source)-[rel:%s]->(target)`. The anchor is matched against EXECUTED
 # statement text, so it carries the filled form: the one %s is substituted
 # per row from ec2UsesProfileRelationshipVocabulary, a closed single-member

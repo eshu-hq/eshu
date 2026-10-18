@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/security/group"
 )
 
 // TestSecurityGroupReachabilityRetractByUIDsAnchoredDelete proves
@@ -21,7 +21,7 @@ func TestSecurityGroupReachabilityRetractByUIDsAnchoredDelete(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := sourcecypher.NewSecurityGroupReachabilityWriter(executor, 0)
+	writer := group.NewSecurityGroupReachabilityWriter(executor, 0)
 	if err := writer.RetractSecurityGroupReachabilityByUIDs(
 		context.Background(),
 		[]string{"sg-a", "rule-a"},
@@ -59,7 +59,7 @@ func TestSecurityGroupReachabilityRetractByUIDsAnchoredDelete(t *testing.T) {
 	// full-scope variant.
 	held := false
 	for _, call := range executor.calls {
-		if call.Cypher == sourcecypher.RetractSecurityGroupSGRuleEdgesByUIDsCypher {
+		if call.Cypher == group.RetractSecurityGroupSGRuleEdgesByUIDsCypher {
 			held = true
 		}
 	}
@@ -93,7 +93,7 @@ func TestSecurityGroupReachabilityRetractByUIDsSharesSourceUIDsAcrossFamilies(t 
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := sourcecypher.NewSecurityGroupReachabilityWriter(executor, 0)
+	writer := group.NewSecurityGroupReachabilityWriter(executor, 0)
 	uids := []string{"sg-a", "rule-a", "rule-b"}
 	if err := writer.RetractSecurityGroupReachabilityByUIDs(
 		context.Background(), uids, []string{"scope-1"}, sgReachabilityEvidence,
@@ -117,7 +117,7 @@ func TestSecurityGroupReachabilityRetractByUIDsEmptyIsNoOp(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := sourcecypher.NewSecurityGroupReachabilityWriter(executor, 0)
+	writer := group.NewSecurityGroupReachabilityWriter(executor, 0)
 	if err := writer.RetractSecurityGroupReachabilityByUIDs(
 		context.Background(), nil, []string{"scope-1"}, sgReachabilityEvidence,
 	); err != nil {
@@ -140,7 +140,7 @@ func TestSecurityGroupReachabilityRetractByUIDsBatchesUids(t *testing.T) {
 	}
 
 	executor := &recordingExecutor{}
-	writer := sourcecypher.NewSecurityGroupReachabilityWriter(executor, 0)
+	writer := group.NewSecurityGroupReachabilityWriter(executor, 0)
 	if err := writer.RetractSecurityGroupReachabilityByUIDs(
 		context.Background(), uids, []string{"scope-1"}, sgReachabilityEvidence,
 	); err != nil {
@@ -165,5 +165,5 @@ func TestSecurityGroupReachabilityRetractByUIDsSatisfiesReducerInterface(t *test
 		WriteSecurityGroupRuleEndpointEdges(ctx context.Context, rows []map[string]any, scopeID, generationID, evidenceSource string) error
 		RetractSecurityGroupReachability(ctx context.Context, scopeIDs []string, generationID, evidenceSource string) error
 		RetractSecurityGroupReachabilityByUIDs(ctx context.Context, sourceUIDs []string, scopeIDs []string, evidenceSource string) error
-	} = sourcecypher.NewSecurityGroupReachabilityWriter(&recordingExecutor{}, 0)
+	} = group.NewSecurityGroupReachabilityWriter(&recordingExecutor{}, 0)
 }

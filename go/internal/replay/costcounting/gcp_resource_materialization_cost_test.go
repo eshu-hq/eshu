@@ -16,13 +16,14 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graphowner"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/resource"
 )
 
 // gcpResourceMaterializationBudgetRelPath is the committed cost budget for the
 // gcp_resource_materialization scenario (fact-kind-registry family gcp,
 // specs/fact-kind-registry.v1.yaml:154-172, reducer_domain
 // gcp_resource_materialization). Like ec2_instance_node_materialization, this
-// projection writes through the SHARED cypher.CloudResourceNodeWriter over
+// projection writes through the SHARED resource.CloudResourceNodeWriter over
 // flat map[string]any rows, not a CanonicalMaterialization, so the fixture
 // rows live inline in this file and the budget records that explicitly
 // instead of pointing at a cassette path.
@@ -52,7 +53,7 @@ const (
 // service_anchor_names, service_anchor_name_tokens) issue #4995 requires as
 // PRESENT (not omitted) keys because the pinned NornicDB backend does not
 // evaluate a missing UNWIND row map key as null in an unconditional SET
-// clause. cypher.CloudResourceNodeWriter has one Cypher template and no
+// clause. resource.CloudResourceNodeWriter has one Cypher template and no
 // per-row batching split, so any two distinct rows are sufficient to prove
 // the N+1 control.
 func gcpResourceFixtureRows() []map[string]any {
@@ -155,7 +156,7 @@ func (b *gcpFakeOwnerBeginner) Begin(context.Context) (db.Transaction, error) {
 // newGatedInstrumentedGCPResourceWriter builds the PRODUCTION GCP write
 // dispatch: graphowner.NewCloudResourceGatedWriter (the SAME gated writer
 // type AWS/Azure/GCP CloudResource nodes share, family_writers.go
-// familyCloudResource) over the raw cypher.CloudResourceNodeWriter's
+// familyCloudResource) over the raw resource.CloudResourceNodeWriter's
 // WriteCloudResourceNodes method, mirroring go/cmd/reducer/canonical_graph_writers.go:50/58
 // exactly. As with EC2/Azure, the #5007 owner-ledger Gate chunks rows, opens
 // one owner-ledger Postgres transaction per chunk against the REAL
@@ -176,7 +177,7 @@ func newGatedInstrumentedGCPResourceWriter(t *testing.T, winners map[string]stri
 	inst, manualReader := newManualReaderInstruments(t)
 	exec = &groupCountingExecutor{}
 	instrumented := &cypher.InstrumentedExecutor{Inner: exec, Instruments: inst}
-	raw := cypher.NewCloudResourceNodeWriter(instrumented, 500)
+	raw := resource.NewCloudResourceNodeWriter(instrumented, 500)
 	gate := graphowner.NewGate(&gcpFakeOwnerBeginner{winners: winners})
 	gate.Instruments = inst
 	gated = graphowner.NewCloudResourceGatedWriter(gate, raw.WriteCloudResourceNodes)
@@ -197,7 +198,7 @@ func gcpOwnedAllWinners() map[string]string {
 // gate for the gcp_resource_materialization reducer projection (the gcp
 // family in specs/fact-kind-registry.v1.yaml, C-14 issue #4367). It drives the
 // production GATED dispatch — graphowner.CloudResourceGatedWriter.WriteCloudResourceNodes
-// over the raw cypher.CloudResourceNodeWriter, per canonical_graph_writers.go:50/58 —
+// over the raw resource.CloudResourceNodeWriter, per canonical_graph_writers.go:50/58 —
 // over two deterministic rows in the owned-all (non-contended) case, through a
 // real InstrumentedExecutor-backed sdkmetric.ManualReader, then asserts
 // eshu_dp_neo4j_batches_executed_total is within the committed budget.

@@ -20,7 +20,7 @@ CloudResource join index or node uid (`cloudjoin`), the `aws_iam_permission`
 decoder (`schemadecode`), quarantine (`factdecode`), the scoped fact read
 (`factload`), or readiness phases (`gpphase`). Registration stays in the
 reducer root (`defaults_additive_domains_cloud_posture.go`), and the Cypher
-writer is `internal/storage/cypher/iam_escalation_edge_writer.go`.
+writer is `internal/storage/cypher/cloud/aws/iam/escalation_edge_writer.go`.
 
 ## Exported surface
 

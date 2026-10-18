@@ -204,21 +204,21 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 				Domain: "ec2_instance_node_materialization",
 				Evidence: []routeReadEvidence{
 					{File: "go/internal/query/cloud_resources.go", Marker: "MATCH (n:CloudResource)"},
-					{File: "go/internal/storage/cypher/ec2_instance_node_writer.go", Marker: "MERGE (r:CloudResource {uid: row.uid})"},
+					{File: "go/internal/storage/cypher/cloud/aws/ec2/instance_node_writer.go", Marker: "MERGE (r:CloudResource {uid: row.uid})"},
 				},
 			},
 			{
 				Domain: "rds_posture_materialization",
 				Evidence: []routeReadEvidence{
 					{File: "go/internal/query/cloud_resources.go", Marker: "MATCH (n:CloudResource)"},
-					{File: "go/internal/storage/cypher/rds_posture_node_writer.go", Marker: "MERGE (r:CloudResource {uid: row.uid})"},
+					{File: "go/internal/storage/cypher/cloud/aws/rds/posture_node_writer.go", Marker: "MERGE (r:CloudResource {uid: row.uid})"},
 				},
 			},
 			{
 				Domain: "s3_internet_exposure_materialization",
 				Evidence: []routeReadEvidence{
 					{File: "go/internal/query/cloud_resources.go", Marker: "MATCH (n:CloudResource)"},
-					{File: "go/internal/storage/cypher/s3_internet_exposure_node_writer.go", Marker: "MERGE (resource:CloudResource {uid: row.uid})"},
+					{File: "go/internal/storage/cypher/cloud/aws/s3/internet_exposure_node_writer.go", Marker: "MERGE (resource:CloudResource {uid: row.uid})"},
 				},
 			},
 		},

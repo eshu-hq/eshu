@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/iam"
 )
 
 // secretsIAMGraphProjectionEnabledEnv opts the reducer into live secrets/IAM
@@ -60,5 +61,5 @@ func secretsIAMGraphProjectionWriter(
 			"env_var", secretsIAMGraphProjectionEnabledEnv,
 			"domain", string(reducer.DomainSecretsIAMGraphProjection))
 	}
-	return sourcecypher.NewSecretsIAMGraphWriter(executor, batchSize), nil
+	return iam.NewSecretsIAMGraphWriter(executor, batchSize), nil
 }

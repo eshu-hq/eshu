@@ -39,7 +39,7 @@ IFA_FAMILY_ASSERT_FN[workload_cloud_relationship]="ifa_workload_cloud_relationsh
 IFA_FAMILY_CASSETTE_VAR[workload_cloud_relationship]="workload_cloud_relationship_cassette"
 IFA_FAMILY_EXPECTED_VAR[workload_cloud_relationship]="workload_cloud_relationship_expected_edges"
 
-# go/internal/storage/cypher/workload_cloud_relationship_writer.go:23, which
+# go/internal/storage/cypher/cloud/aws/relationship/workload_cloud_writer.go:25, which
 # reads `MERGE (instance)-[rel:%s]->(resource)` in source. The anchor is
 # matched against EXECUTED statement text; the %s is filled from the closed
 # single-member workloadCloudRelationshipVocabulary (:15-17, `"USES": {}`),

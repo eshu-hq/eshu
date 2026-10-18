@@ -32,8 +32,8 @@ func TestHeldRetractVariantsCoverEveryProductionDelete(t *testing.T) {
 		filepath.Join("..", "..", "code_taint_evidence_writer.go"),
 		filepath.Join("..", "..", "incident_routing_evidence_writer.go"),
 		filepath.Join("..", "..", "observability_coverage_edge_writer.go"),
-		filepath.Join("..", "..", "security_group_reachability_edge_writer.go"),
-		filepath.Join("..", "..", "security_group_reachability_edge_writer_ledger.go"),
+		filepath.Join("..", "..", "cloud", "aws", "security", "group", "security_reachability_edge_writer.go"),
+		filepath.Join("..", "..", "cloud", "aws", "security", "group", "security_reachability_edge_writer_ledger.go"),
 	}
 	found := deleteRetractConsts(t, files)
 	held := heldRetractVariantStrings()

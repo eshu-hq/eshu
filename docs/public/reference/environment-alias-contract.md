@@ -87,7 +87,7 @@ buckets, `missing_environment` tallies, and compare-handler messages are
 | Exact selector match | Case-sensitive equality (`i.environment = $environment`). Used by `service_workload_resolution.go:292-293` Cypher filters. A caller passing an alias (`"production"`) does not match a canonicalized graph value (`"prod"`). Follow-on, not migrated in this PR. |
 | Artifact-path token detection | Normalized (lowercase) token lookup via `environment.IsKnownToken`. |
 
-The USES edge exact-join in `go/internal/storage/cypher/workload_cloud_relationship_writer.go:22,25`
+The USES edge exact-join in `go/internal/storage/cypher/cloud/aws/relationship/workload_cloud_writer.go`
 is a documented follow-on that must be migrated to canonical comparison so a
 workload instance environment that was canonicalized at projection time matches
 the same-cased Cypher property on the graph node.

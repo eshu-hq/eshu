@@ -36,7 +36,7 @@ IFA_FAMILY_ASSERT_FN[iam_can_assume]="ifa_iam_can_assume_assert"
 IFA_FAMILY_CASSETTE_VAR[iam_can_assume]="iam_can_assume_cassette"
 IFA_FAMILY_EXPECTED_VAR[iam_can_assume]="iam_can_assume_expected_edges"
 
-# go/internal/storage/cypher/iam_can_assume_edge_writer.go:43, which
+# go/internal/storage/cypher/cloud/aws/iam/can_assume_edge_writer.go:45, which
 # reads `MERGE (principal)-[rel:%s]->(role)` in source. The anchor is matched
 # against EXECUTED statement text, so it carries the INTERPOLATED type: the %s
 # is filled from iamCanAssumeRelationshipVocabulary, a closed single-member set

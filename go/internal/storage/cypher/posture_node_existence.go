@@ -56,14 +56,17 @@ const postureCloudResourceExistingUIDsCypher = `UNWIND $candidate_uids AS candid
 MATCH (resource:CloudResource {uid: candidate_uid})
 RETURN resource.uid AS existing_uid`
 
-// filterRowsToExistingCloudResourceUIDs partitions rows (each of which MUST
+// FilterRowsToExistingCloudResourceUIDs partitions rows (each of which MUST
 // carry a non-empty string "uid" key) into the subset whose CloudResource
 // node is confirmed, via a separate read, to already exist. A row whose uid
 // is missing, empty, or not found by the read is dropped silently — this
 // mirrors the never-create contract the bare-MATCH statement already had (a
 // missing uid was always a no-op), it is just now enforced in Go instead of
 // relying on the anchor clause.
-func filterRowsToExistingCloudResourceUIDs(
+//
+// It is exported for the cloud posture-writer leaves, which cannot call the
+// package's unexported helpers across the split.
+func FilterRowsToExistingCloudResourceUIDs(
 	ctx context.Context,
 	reader PostureExistenceReader,
 	rows []map[string]any,

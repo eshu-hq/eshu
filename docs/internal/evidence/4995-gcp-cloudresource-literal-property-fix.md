@@ -15,7 +15,7 @@ omitted all 7 anchor/identity keys — `workload_id`, `service_name`,
 (`aws_resource_service_anchor.go`) omits the same keys when
 `applyCloudResourceServiceAnchorFields` finds no service-anchor decision.
 `canonicalCloudResourceUpsertCypher`'s shared `SET` clause
-(`go/internal/storage/cypher/cloud_resource_node_writer.go`) unconditionally
+(`go/internal/storage/cypher/cloud/resource/node_writer.go`) unconditionally
 reads all 7 `row.<key>` references for every batch row. An audit of every
 `row.<key>` reference in that 23-clause `SET` statement plus the `MERGE`
 anchor confirms these 7 were the complete set of keys the statement reads but
@@ -112,7 +112,7 @@ independently-discovered instance:
   corruption whenever its batch was heterogeneous. It now reuses
   `cloudResourceServiceAnchorFieldsAbsent` the same way.
 - **Shared-writer backstop**: `WriteCloudResourceNodes`
-  (`go/internal/storage/cypher/cloud_resource_node_writer.go`) now
+  (`go/internal/storage/cypher/cloud/resource/node_writer.go`) now
   default-fills any row key its Cypher `SET` clause reads that a caller's row
   map omits, so a *future* row builder cannot reopen this class of bug even if
   it forgets a key. See that package's README "Shared-writer row-key

@@ -19,7 +19,7 @@ import (
 // missing-vault-role, non-exact, missing-secret-path). It proves fixture intent
 // maps to exact graph-truth rows without a graph backend. The TRUE live-backend
 // conformance is the BACKEND-GATED test in
-// internal/storage/cypher/secrets_iam_graph_live_test.go, which SKIPs unless a
+// internal/storage/cypher/cloud/aws/iam/secrets_graph_live_test.go, which SKIPs unless a
 // Bolt backend env is configured. The live writer remains gated OFF by default
 // (ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED) pending target-bound
 // activation proof; this test does not register or enable it.

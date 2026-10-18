@@ -15,7 +15,7 @@ for GCP, gated on the GCP `CloudResource` node substrate from #2358.
   `go/internal/reducer/gcp_relationship_materialization.go`.
 - Join: `ExtractGCPRelationshipEdgeRows` in `go/internal/reducer/gcp_relationship_join.go`.
 - Writer: `GCPCloudResourceEdgeWriter` in
-  `go/internal/storage/cypher/gcp_cloud_resource_edge_writer.go` — a `GCP_`-prefixed
+  `go/internal/storage/cypher/cloud/gcp/relationship/gcp_cloud_resource_edge_writer.go` — a `GCP_`-prefixed
   sibling of the AWS edge writer (`GCP_RELATIONSHIP` statement label, evidence
   source `reducer/gcp-relationships`).
 - Projector trigger: `gcp.BuildRelationshipMaterializationReducerIntent`, anchored

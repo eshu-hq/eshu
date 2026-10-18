@@ -14,7 +14,7 @@ import (
 
 // TestInfraRelationshipsWhatRunsLambdaImageSurfacesOutgoingEdge is the #5738
 // regression guard for the CloudResource(Lambda)-[:AWS_lambda_function_uses_image]->
-// ContainerImage edge (#5450), which storage/cypher/cloud_resource_container_image_edge_writer.go
+// ContainerImage edge (#5450), which storage/cypher/cloud/aws/image/container_edge_writer.go
 // writes but which had no semantic query_type alias before this change --
 // #5751 (P1-B/P1-C) fixed the raw canonical-value lookup and the catalog
 // entry, but the MCP analyze_infra_relationships tool's query_type enum only

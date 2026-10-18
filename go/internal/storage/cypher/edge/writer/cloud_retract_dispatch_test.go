@@ -27,6 +27,8 @@ import (
 	"testing"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/iam"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/s3"
 )
 
 // assertSingleSequentialRetract asserts the executor saw zero ExecuteGroup
@@ -70,7 +72,7 @@ func TestS3LogsToEdgeWriterRetractNeverGroups(t *testing.T) {
 	t.Parallel()
 
 	executor := &sqlSequentialRecordingExecutor{}
-	writer := sourcecypher.NewS3LogsToEdgeWriter(executor, 0)
+	writer := s3.NewS3LogsToEdgeWriter(executor, 0)
 	if err := writer.RetractS3LogsToEdges(
 		context.Background(), []string{"scope-1"}, "gen-1", "reducer/s3-logs-to",
 	); err != nil {
@@ -88,7 +90,7 @@ func TestS3ExternalPrincipalGrantWriterRetractNeverGroups(t *testing.T) {
 	t.Parallel()
 
 	executor := &sqlSequentialRecordingExecutor{}
-	writer := sourcecypher.NewS3ExternalPrincipalGrantWriter(executor, 0)
+	writer := s3.NewS3ExternalPrincipalGrantWriter(executor, 0)
 	if err := writer.RetractS3ExternalPrincipalGrants(
 		context.Background(), []string{"scope-1"}, "gen-1", "reducer/s3-external-principal-grant",
 	); err != nil {
@@ -106,7 +108,7 @@ func TestIAMInstanceProfileRoleEdgeWriterRetractNeverGroups(t *testing.T) {
 	t.Parallel()
 
 	executor := &sqlSequentialRecordingExecutor{}
-	writer := sourcecypher.NewIAMInstanceProfileRoleEdgeWriter(executor, 0)
+	writer := iam.NewIAMInstanceProfileRoleEdgeWriter(executor, 0)
 	if err := writer.RetractIAMInstanceProfileRoleEdges(
 		context.Background(), []string{"scope-1"}, "gen-1", "reducer/iam-instance-profile-role",
 	); err != nil {

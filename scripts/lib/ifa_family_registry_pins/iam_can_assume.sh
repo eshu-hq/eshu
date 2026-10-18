@@ -23,7 +23,7 @@ IFA_FAMILY_PIN_WAIT_STAGE="handler"
 # (go/internal/reducer/iamcan/iam_can_assume_materialization.go:34).
 IFA_FAMILY_PIN_WAIT_KEY="iam_can_assume_materialization"
 
-# go/internal/storage/cypher/iam_can_assume_edge_writer.go:43 reads
+# go/internal/storage/cypher/cloud/aws/iam/can_assume_edge_writer.go:45 reads
 # `MERGE (principal)-[rel:%s]->(role)`. The anchor is matched against EXECUTED
 # statement text, so the type is pinned INTERPOLATED: the %s is filled from
 # iamCanAssumeRelationshipVocabulary, a closed single-member set

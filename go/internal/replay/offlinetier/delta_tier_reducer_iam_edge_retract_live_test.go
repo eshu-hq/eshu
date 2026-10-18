@@ -23,8 +23,8 @@
 // writers tracked in #5152.
 //
 // The test drives the REAL production writer constructors and methods
-// (cypher.NewIAMCanAssumeEdgeWriter, cypher.NewIAMEscalationEdgeWriter,
-// cypher.NewIAMCanPerformEdgeWriter) against liveExecutor, which implements
+// (iam.NewIAMCanAssumeEdgeWriter, iam.NewIAMEscalationEdgeWriter,
+// iam.NewIAMCanPerformEdgeWriter) against liveExecutor, which implements
 // GroupExecutor exactly like production's reducerNeo4jExecutor, so a retract
 // that still routed through ExecuteGroup would reproduce the under-apply
 // here. Each of the three edge types is written and retracted with an
@@ -42,6 +42,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/iam"
 )
 
 const (
@@ -95,9 +96,9 @@ func TestReducerIAMEdgeRetractGraphTruth(t *testing.T) {
 
 	seedIAMEdgeNodes(ctx, t, exec)
 
-	canAssumeWriter := cypher.NewIAMCanAssumeEdgeWriter(exec, 0)
-	escalationWriter := cypher.NewIAMEscalationEdgeWriter(exec, 0)
-	canPerformWriter := cypher.NewIAMCanPerformEdgeWriter(exec, 0)
+	canAssumeWriter := iam.NewIAMCanAssumeEdgeWriter(exec, 0)
+	escalationWriter := iam.NewIAMEscalationEdgeWriter(exec, 0)
+	canPerformWriter := iam.NewIAMCanPerformEdgeWriter(exec, 0)
 
 	// --- Write in-scope and out-of-scope rows, one call per scope. ---
 	if err := canAssumeWriter.WriteIAMCanAssumeEdges(ctx, []map[string]any{{

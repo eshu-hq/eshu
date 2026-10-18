@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/security/group"
 )
 
 // relTypeAlternation pulls every [rel:A|B] alternative out of a Cypher template.
@@ -339,7 +340,7 @@ func TestMultiTypeDirectTableDerivationsMatchWriterVocabularies(t *testing.T) {
 	for relType := range sourcecypher.ObservabilityCoverageRelationshipTypes() {
 		derived["observability_coverage"][relType] = struct{}{}
 	}
-	for relType := range sourcecypher.SecurityGroupSGRuleRelationshipTypes() {
+	for relType := range group.SecurityGroupSGRuleRelationshipTypes() {
 		derived["security_group_sg_rule"][relType] = struct{}{}
 	}
 	for _, relType := range sourcecypher.IncidentRoutingEvidenceRelationshipTypes() {

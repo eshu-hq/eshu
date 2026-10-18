@@ -116,7 +116,7 @@ func (w *CodeInterprocEvidenceWriter) WriteCodeInterprocEvidence(
 
 	stamped := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
-		cloned := cloneRowWith(row, map[string]any{
+		cloned := CloneRowWith(row, map[string]any{
 			"scope_id":        scopeID,
 			"generation_id":   generationID,
 			"evidence_source": evidenceSource,
@@ -264,7 +264,7 @@ func (w *CodeInterprocEvidenceWriter) RetractCodeInterprocEvidenceByUIDs(
 	if w.executor == nil {
 		return fmt.Errorf("code interproc evidence writer executor is required")
 	}
-	batches := chunkStrings(sourceUIDs, codeInterprocEvidenceRetractUIDBatchSize)
+	batches := ChunkStrings(sourceUIDs, codeInterprocEvidenceRetractUIDBatchSize)
 	stmts := make([]Statement, 0, len(batches))
 	for _, batch := range batches {
 		stmts = append(stmts, Statement{
@@ -298,7 +298,7 @@ func (w *CodeInterprocEvidenceWriter) RetractCodeInterprocEvidenceSourceByUIDs(
 	if w.executor == nil {
 		return fmt.Errorf("code interproc evidence writer executor is required")
 	}
-	batches := chunkStrings(sourceUIDs, codeInterprocEvidenceRetractUIDBatchSize)
+	batches := ChunkStrings(sourceUIDs, codeInterprocEvidenceRetractUIDBatchSize)
 	stmts := make([]Statement, 0, len(batches))
 	for _, batch := range batches {
 		stmts = append(stmts, Statement{
@@ -335,7 +335,7 @@ func (w *CodeInterprocEvidenceWriter) RetractStaleCodeInterprocEvidenceByUIDs(
 	if w.executor == nil {
 		return fmt.Errorf("code interproc evidence writer executor is required")
 	}
-	batches := chunkStrings(sourceUIDs, codeInterprocEvidenceRetractUIDBatchSize)
+	batches := ChunkStrings(sourceUIDs, codeInterprocEvidenceRetractUIDBatchSize)
 	stmts := make([]Statement, 0, len(batches))
 	for _, batch := range batches {
 		stmts = append(stmts, Statement{
@@ -395,9 +395,9 @@ func (w *CodeInterprocEvidenceWriter) dispatchRetract(ctx context.Context, stmts
 	return nil
 }
 
-// chunkStrings splits a slice of strings into chunks of at most chunkSize
+// ChunkStrings splits a slice of strings into chunks of at most chunkSize
 // elements.
-func chunkStrings(items []string, chunkSize int) [][]string {
+func ChunkStrings(items []string, chunkSize int) [][]string {
 	if len(items) == 0 {
 		return nil
 	}

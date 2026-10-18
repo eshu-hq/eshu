@@ -292,9 +292,10 @@ func TestRegistryReasonsCiteRealSymbols(t *testing.T) {
 }
 
 // writerFileCitation matches the multi-type DIRECT table's reason convention:
-// the writer symbol plus the cypher-package file that declares it, e.g.
-// "(SecurityGroupReachabilityWriter in security_group_reachability_edge_writer.go)".
-var writerFileCitation = regexp.MustCompile(`\(\s*([A-Za-z_]\w*)\s+in\s+([a-z0-9_]+\.go)\s*\)`)
+// the writer symbol plus the cypher-package file that declares it, relative
+// to the cypher package root, e.g.
+// "(SecurityGroupReachabilityWriter in cloud/aws/security/group/security_reachability_edge_writer.go)".
+var writerFileCitation = regexp.MustCompile(`\(\s*([A-Za-z_]\w*)\s+in\s+([a-z0-9_/]+\.go)\s*\)`)
 
 // declaredTopLevelNames returns every top-level declared name in one
 // non-test .go file: funcs, types, consts and vars, including entries inside

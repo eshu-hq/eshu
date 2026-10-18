@@ -234,7 +234,7 @@ edge in the extractor's `seen` set before the write.
   the #1144/#1134 edge write per-row time by more than ~10%, profile before merge.
 
 Benchmark Evidence: `BenchmarkEC2UsesProfileEdgeWriter`
-(`go/internal/storage/cypher/ec2_uses_profile_edge_writer_bench_test.go`) measures
+(`go/internal/storage/cypher/cloud/aws/ec2/uses_profile_edge_writer_bench_test.go`) measures
 the statement-construction and batching cost of the USES_PROFILE edge writer for a
 realistic per-scope-generation edge count (5000 rows) against a no-op group
 executor, isolating Eshu-owned write-path work (batched MATCH-MATCH-MERGE row

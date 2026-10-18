@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/security/group"
 	materialized "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/materialized"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
@@ -303,7 +304,7 @@ func MaterializedEdgeDomainEdgeTypes(domain string) (map[string]struct{}, error)
 	case "observability_coverage":
 		return edgeTypeSet(cypher.ObservabilityCoverageRelationshipTypes()), nil
 	case "security_group_sg_rule":
-		return edgeTypeSet(cypher.SecurityGroupSGRuleRelationshipTypes()), nil
+		return edgeTypeSet(group.SecurityGroupSGRuleRelationshipTypes()), nil
 	default:
 		// The single-relationship-type families resolve from the shared registry
 		// table. They are looked up rather than switched on so registering one is

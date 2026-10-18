@@ -629,7 +629,7 @@ Enumerated by hand; every member needs its own migration decision.
 | `(WorkloadInstance)-[:RUNS_ON]->(Platform)` | `instance_id` | `go/internal/reducer/workload_materializer.go:413`, `go/internal/storage/cypher/canonical.go:82`; id built independently at `go/internal/reducer/projection_helpers.go:110` |
 | `(WorkloadInstance)-[:DEPLOYMENT_SOURCE]->(Repository)` | `instance_id` | `go/internal/reducer/workload_materializer.go:393`, `go/internal/storage/cypher/canonical.go:89` |
 | `(Workload)-[:DEPENDS_ON]->(Workload)` | `workload_id`, `target_workload_id` | `go/internal/reducer/workload_materializer.go:429`, `go/internal/storage/cypher/canonical.go:114-116, 174-176` |
-| `(Workload)<-[:INSTANCE_OF]-(WorkloadInstance)-[:USES]->(CloudResource)` | `workload_id` | `go/internal/storage/cypher/workload_cloud_relationship_writer.go:21` |
+| `(Workload)<-[:INSTANCE_OF]-(WorkloadInstance)-[:USES]->(CloudResource)` | `workload_id` | `go/internal/storage/cypher/cloud/aws/relationship/workload_cloud_writer.go` |
 | `(Function)-[:RUNS_IN]->(Workload)` | resolved via `(repo)-[:DEFINES]->(w)` | `go/internal/storage/cypher/canonical_runs_in_edges.go:24-31` |
 | documentation edge onto `Workload` | `target_entity_id` | `go/internal/storage/cypher/canonical_documentation_edges.go:35` |
 | `(Workload)-[:EXPOSES_ENDPOINT]->(Endpoint)` | `workload_id` | `go/internal/reducer/workload_materializer.go:459`, anchored by `MATCH (workload:Workload {id: row.workload_id})` at `:457` |

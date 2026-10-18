@@ -45,7 +45,7 @@ type cloudResourceServiceAnchorDecision struct {
 // (the Cypher SET clause reads row.<key> by name, never by position), a
 // non-deterministic row-map dump costs a future debugger real time when
 // comparing two runs. This mirrors cloudResourceRowKeyDefaults in
-// go/internal/storage/cypher/cloud_resource_node_writer.go, the shared-writer
+// go/internal/storage/cypher/cloud/resource/node_writer.go, the shared-writer
 // backstop for the same class of key, which is a fixed-order slice for exactly
 // this reason (PR #5867 review).
 var cloudResourceServiceAnchorFieldsAbsent = []struct {

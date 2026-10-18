@@ -92,9 +92,9 @@ func TestContractFamilyDerivedTypesAreCanonicalEdgeTypes(t *testing.T) {
 	for _, relType := range IncidentRoutingEvidenceRelationshipTypes() {
 		derived[relType] = struct{}{}
 	}
-	for relType := range SecurityGroupSGRuleRelationshipTypes() {
-		derived[relType] = struct{}{}
-	}
+	// The security-group family moved to the cloud/aws/security/group leaf
+	// with its writer (#6694); its derived-types-are-canonical pin lives in
+	// the leaf's registry_contract_test.go, following the same discipline.
 	// Derived from the held write template via mergeRelTypeFromWriteCypher,
 	// never copied: if the writer template ever changes type, this follows it
 	// and the canonical-membership check below turns red on a stale registry

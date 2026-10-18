@@ -92,7 +92,7 @@ root files (verified by direct grep after a tokenizer pass):
   `iam_instance_profile_role`, `s3_logs_to` to the SG family — they can move
   together with it, no export needed.
 - The SG ledger additionally needs `cloudResourceEdgeRetractUIDBatchSize` +
-  `retractCloudResourceEdgesByUIDsCypher` from `cloud_resource_edge_writer.go`
+  `retractCloudResourceEdgesByUIDsCypher` from `edge_writer.go`
   (moves with the cloud family or hoisted first).
 - `package_registry_edge_writer.go` depends on `package_registry_canonical_writer.go`
   and belongs to the `package/registry` leaf, not this one.

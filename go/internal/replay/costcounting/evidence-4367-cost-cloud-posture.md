@@ -113,7 +113,7 @@ AuthenticatesVaultRole, UsesVaultPolicy, GrantsSecretRead). One family is
 representative of all nine because the cost shape is structurally uniform:
 
 - Every one of the nine families has exactly one fixed-const UNWIND Cypher
-  template (`go/internal/storage/cypher/secrets_iam_graph_writer.go`, ADR
+  template (`go/internal/storage/cypher/cloud/aws/iam/secrets_graph_writer.go`, ADR
   #1314 §5/§6 — no data-driven token is ever interpolated, so there is no
   per-row template split anywhere).
 - All nine `Write*` methods are one-line delegates to the SAME

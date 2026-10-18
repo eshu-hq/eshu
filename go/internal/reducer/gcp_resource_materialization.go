@@ -369,7 +369,7 @@ func gcpCloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool, 
 		sourceOrderKeyField:   sourceOrderKey(env),
 		// The 7 keys below are explicit empty-value parity fields for
 		// canonicalCloudResourceUpsertCypher's unconditional SET clause
-		// (go/internal/storage/cypher/cloud_resource_node_writer.go), which reads
+		// (go/internal/storage/cypher/cloud/resource/node_writer.go), which reads
 		// row.workload_id, row.service_name, row.service_anchor_status,
 		// row.service_anchor_source, row.service_anchor_reason,
 		// row.service_anchor_names, and row.service_anchor_name_tokens for every

@@ -137,7 +137,7 @@ func (w *CodeTaintEvidenceWriter) WriteCodeTaintEvidence(
 
 	stamped := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
-		stamped = append(stamped, cloneRowWith(row, map[string]any{
+		stamped = append(stamped, CloneRowWith(row, map[string]any{
 			"scope_id":        scopeID,
 			"generation_id":   generationID,
 			"evidence_source": evidenceSource,
@@ -245,7 +245,7 @@ func (w *CodeTaintEvidenceWriter) RetractCodeTaintEvidenceByUIDs(
 	if w.executor == nil {
 		return fmt.Errorf("code taint evidence writer executor is required")
 	}
-	batches := chunkStrings(nodeUIDs, codeTaintEvidenceRetractUIDBatchSize)
+	batches := ChunkStrings(nodeUIDs, codeTaintEvidenceRetractUIDBatchSize)
 	stmts := make([]Statement, 0, len(batches))
 	for _, batch := range batches {
 		stmts = append(stmts, Statement{
@@ -283,7 +283,7 @@ func (w *CodeTaintEvidenceWriter) RetractStaleCodeTaintEvidenceByUIDs(
 	if w.executor == nil {
 		return fmt.Errorf("code taint evidence writer executor is required")
 	}
-	batches := chunkStrings(nodeUIDs, codeTaintEvidenceRetractUIDBatchSize)
+	batches := ChunkStrings(nodeUIDs, codeTaintEvidenceRetractUIDBatchSize)
 	stmts := make([]Statement, 0, len(batches))
 	for _, batch := range batches {
 		stmts = append(stmts, Statement{
