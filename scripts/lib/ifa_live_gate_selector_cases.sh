@@ -415,20 +415,23 @@ ifa_live_gate_common_seams=(
 	'go/internal/ifa/testdata/repodependency/**|go/internal/ifa/testdata/repodependency/ifa-repo-dependency-family-expected-edges.json'
 	# kubernetes_namespace_environment + iam_instance_profile_role (#6228, #6309):
 	# moved here from the determinism-only table when the fault cells landed.
-	# iam_can_assume and ec2_uses_profile join them with the #6228 fault
-	# halves: same move, same reason.
+	# iam_can_assume, iam_can_perform, ec2_uses_profile, and s3_logs_to join
+	# them with the #6228 fault halves: same move, same reason.
 	'go/internal/storage/cypher/kubernetes_namespace_node_writer.go|go/internal/storage/cypher/kubernetes_namespace_node_writer.go'
 	'go/internal/storage/cypher/cloud/aws/iam/instance_profile_role_edge_writer.go|go/internal/storage/cypher/cloud/aws/iam/instance_profile_role_edge_writer.go'
 	'go/internal/storage/cypher/cloud/aws/iam/can_assume_edge_writer.go|go/internal/storage/cypher/cloud/aws/iam/can_assume_edge_writer.go'
 	'go/internal/storage/cypher/cloud/aws/ec2/uses_profile_edge_writer.go|go/internal/storage/cypher/cloud/aws/ec2/uses_profile_edge_writer.go'
+	'go/internal/storage/cypher/cloud/aws/s3/logs_to_edge_writer.go|go/internal/storage/cypher/cloud/aws/s3/logs_to_edge_writer.go'
 	'testdata/cassettes/kubernetesnamespaceenvironment/**|testdata/cassettes/kubernetesnamespaceenvironment/ifa-kubernetes-namespace-environment-family.json'
 	'testdata/cassettes/iaminstanceprofilerole/**|testdata/cassettes/iaminstanceprofilerole/ifa-iam-instance-profile-role-family.json'
 	'testdata/cassettes/iamcanassume/**|testdata/cassettes/iamcanassume/ifa-iam-can-assume-family.json'
 	'testdata/cassettes/ec2usesprofile/**|testdata/cassettes/ec2usesprofile/ifa-ec2-uses-profile-family.json'
+	'testdata/cassettes/s3logsto/**|testdata/cassettes/s3logsto/ifa-s3-logs-to-family.json'
 	'go/internal/ifa/testdata/kubernetesnamespaceenvironment/**|go/internal/ifa/testdata/kubernetesnamespaceenvironment/ifa-kubernetes-namespace-environment-family-expected-edges.json'
 	'go/internal/ifa/testdata/iaminstanceprofilerole/**|go/internal/ifa/testdata/iaminstanceprofilerole/ifa-iam-instance-profile-role-family-expected-edges.json'
 	'go/internal/ifa/testdata/iamcanassume/**|go/internal/ifa/testdata/iamcanassume/ifa-iam-can-assume-family-expected-edges.json'
 	'go/internal/ifa/testdata/ec2usesprofile/**|go/internal/ifa/testdata/ec2usesprofile/ifa-ec2-uses-profile-family-expected-edges.json'
+	'go/internal/ifa/testdata/s3logsto/**|go/internal/ifa/testdata/s3logsto/ifa-s3-logs-to-family-expected-edges.json'
 	'scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh|scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh'
 	'scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh|scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh'
 	'scripts/lib/ifa_fault_injection_iam_can_assume_cells.sh|scripts/lib/ifa_fault_injection_iam_can_assume_cells.sh'
@@ -443,6 +446,10 @@ ifa_live_gate_common_seams=(
 	# set already selected both gates since the determinism half; the fault
 	# half adds only the cells file beside the siblings.
 	'scripts/lib/ifa_fault_injection_ec2_uses_profile_cells.sh|scripts/lib/ifa_fault_injection_ec2_uses_profile_cells.sh'
+	# s3_logs_to (#6228 fault half): cells are a new common seam beside the
+	# siblings; writer, cassette, and expected-edge set moved here from the
+	# determinism-only table alongside, above.
+	'scripts/lib/ifa_fault_injection_s3_logs_to_cells.sh|scripts/lib/ifa_fault_injection_s3_logs_to_cells.sh'
 	'go/internal/collector/repo/git/fact_builder*.go|go/internal/collector/repo/git/fact_builder.go'
 	'go/internal/collector/repo/git/fact_builder*.go|go/internal/collector/repo/git/fact_builder_delta.go'
 	'go/internal/collector/repo/git/followup_facts.go|go/internal/collector/repo/git/followup_facts.go'

@@ -101,6 +101,9 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 	// per-family cell files, and the shared fault seams, so the stem below
 	// is read off them, not guessed.
 	"iam_can_perform": "iam_can_perform",
+	// s3_logs_to joins them with the #6228 fault half: same stem shape,
+	// read off the fault cells file and the cypher writer the triggers name.
+	"s3_logs_to": "s3_logs_to",
 }
 
 // TestEveryCoveredFamilyTriggersBothLiveGates closes the third side of the

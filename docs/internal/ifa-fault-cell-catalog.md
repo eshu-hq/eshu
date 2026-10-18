@@ -149,21 +149,24 @@ than there are entries here.
 40. baseline-ec2-uses-profile (#6228 fault half) -- family-scoped fault-free baseline; fifth direct-materialization family in this gate.
 41. kill-worker-after-claim-ec2-uses-profile (#6228 fault half) -- lease reclaim proof.
 42. fail-graph-write-once-then-succeed-ec2-uses-profile (#6228 fault half) -- USES_PROFILE retry proof.
-43. baseline-inheritance (#5996) -- family-scoped fault-free baseline.
-44. kill-worker-after-claim-inheritance (#5996) -- lease reclaim proof.
-45. fail-graph-write-once-then-succeed-inheritance (#5996) -- retry proof.
-46. baseline-shell-exec (#6001) -- family-scoped fault-free baseline.
-47. kill-worker-after-claim-shell-exec (#6001) -- lease reclaim proof.
-48. fail-graph-write-once-then-succeed-shell-exec (#6001) -- retry proof.
-49. baseline-workload-dependency (#6003) -- family-scoped fault-free baseline.
-50. kill-worker-after-claim-workload-dependency (#6003) -- lease reclaim proof.
-51. fail-graph-write-once-then-succeed-workload-dependency (#6003) -- retry proof.
-52. baseline-symbol-runtime (#5995/#6000/#5997) -- ONE baseline shared by
+43. baseline-s3-logs-to (#6228 fault half) -- family-scoped fault-free baseline; sixth direct-materialization family in this gate.
+44. kill-worker-after-claim-s3-logs-to (#6228 fault half) -- lease reclaim proof.
+45. fail-graph-write-once-then-succeed-s3-logs-to (#6228 fault half) -- LOGS_TO retry proof.
+46. baseline-inheritance (#5996) -- family-scoped fault-free baseline.
+47. kill-worker-after-claim-inheritance (#5996) -- lease reclaim proof.
+48. fail-graph-write-once-then-succeed-inheritance (#5996) -- retry proof.
+49. baseline-shell-exec (#6001) -- family-scoped fault-free baseline.
+50. kill-worker-after-claim-shell-exec (#6001) -- lease reclaim proof.
+51. fail-graph-write-once-then-succeed-shell-exec (#6001) -- retry proof.
+52. baseline-workload-dependency (#6003) -- family-scoped fault-free baseline.
+53. kill-worker-after-claim-workload-dependency (#6003) -- lease reclaim proof.
+54. fail-graph-write-once-then-succeed-workload-dependency (#6003) -- retry proof.
+55. baseline-symbol-runtime (#5995/#6000/#5997) -- ONE baseline shared by
    handles_route/runs_in/invokes_cloud_action; no kill-worker cell (ifa_fault_injection_symbol_runtime_cells.sh's header explains why).
-53. fail-graph-write-once-then-succeed-handles-route (#5995) -- HANDLES_ROUTE retry proof.
-54. fail-graph-write-once-then-succeed-runs-in (#6000) -- RUNS_IN retry proof.
-55. fail-graph-write-once-then-succeed-invokes-cloud-action (#5997) -- INVOKES_CLOUD_ACTION retry proof.
+56. fail-graph-write-once-then-succeed-handles-route (#5995) -- HANDLES_ROUTE retry proof.
+57. fail-graph-write-once-then-succeed-runs-in (#6000) -- RUNS_IN retry proof.
+58. fail-graph-write-once-then-succeed-invokes-cloud-action (#5997) -- INVOKES_CLOUD_ACTION retry proof.
 
-56. kill-worker-after-runner-lease-wait-handles-route (#6208) -- exact-key reclaim proof.
-57. kill-worker-after-runner-lease-wait-runs-in (#6208) -- exact-key reclaim proof.
-58. kill-worker-after-runner-lease-wait-invokes-cloud-action (#6208) -- exact-key reclaim proof.
+59. kill-worker-after-runner-lease-wait-handles-route (#6208) -- exact-key reclaim proof.
+60. kill-worker-after-runner-lease-wait-runs-in (#6208) -- exact-key reclaim proof.
+61. kill-worker-after-runner-lease-wait-invokes-cloud-action (#6208) -- exact-key reclaim proof.
