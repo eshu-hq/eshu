@@ -67,7 +67,7 @@ func BenchmarkSemanticEntityWriterNornicDBConcurrentDistinctRepos(b *testing.B) 
 	b.ReportAllocs()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			write := writes[int(next.Add(1))%len(writes)]
+			write := writes[int(next.Add(1))%len(writes)] // #nosec G115 -- benchmark op count is far below MaxInt64 on any realistic run
 			if _, err := writer.WriteSemanticEntities(context.Background(), write); err != nil {
 				b.Fatalf("WriteSemanticEntities() error = %v", err)
 			}

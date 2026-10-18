@@ -97,8 +97,11 @@ func TestTargetedMaintenanceSnapshotDropsConflictingScopes(t *testing.T) {
 }
 
 func partitionSet(pairs ...string) map[backfill.ScopeGenerationPartition]struct{} {
+	if len(pairs)%2 != 0 {
+		panic(fmt.Sprintf("partitionSet: odd number of pair elements (%d), want scope/generation pairs", len(pairs)))
+	}
 	result := make(map[backfill.ScopeGenerationPartition]struct{}, len(pairs)/2)
-	for i := 0; i < len(pairs); i += 2 {
+	for i := 0; i+1 < len(pairs); i += 2 {
 		result[backfill.ScopeGenerationPartition{ScopeID: pairs[i], GenerationID: pairs[i+1]}] = struct{}{}
 	}
 	return result

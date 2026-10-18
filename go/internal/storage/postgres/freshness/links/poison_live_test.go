@@ -92,7 +92,7 @@ func TestFailingLinkIsPoisonedAfterMaxAttempts(t *testing.T) {
 		}
 		if attempt < maxAttempts {
 			// Literal ruling 8.10 backoff, not Backoff() as its own oracle.
-			want := []time.Duration{30 * time.Second, time.Minute, 2 * time.Minute, 4 * time.Minute}[attempt-1]
+			want := poisonBackoff(t, attempt)
 			if record.Poisoned || !record.NextAttemptAt.Equal(clock.Add(want)) || !record.NextAttemptAt.After(lastNext) {
 				t.Fatalf("attempt %d: record %+v, want next_attempt_at %s after the failure", attempt, record, want)
 			}
@@ -143,6 +143,19 @@ func TestFailingLinkIsPoisonedAfterMaxAttempts(t *testing.T) {
 	if c := l.attempts(t, scope); c.poisonedSeq != 0 || c.poisonedAt != nil {
 		t.Fatalf("poison marker not cleared by the full link: %+v", c)
 	}
+}
+
+// poisonBackoff returns the literal ruling-8.10 backoff for a 1-based attempt:
+// 30s, 1m, 2m, 4m. Attempts are 1-based and the table covers attempts 1..4,
+// so attempt-1 always indexes inside the table.
+func poisonBackoff(t *testing.T, attempt int) time.Duration {
+	t.Helper()
+	backoffs := []time.Duration{30 * time.Second, time.Minute, 2 * time.Minute, 4 * time.Minute}
+	if attempt >= 1 && attempt-1 < len(backoffs) {
+		return backoffs[attempt-1]
+	}
+	t.Fatalf("attempt %d out of range for %d backoffs", attempt, len(backoffs))
+	return 0
 }
 
 // TestRecordFailureSkipsAHeldCursor proves the count cannot be written by a

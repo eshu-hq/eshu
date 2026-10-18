@@ -5,6 +5,7 @@ package cypher
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 
@@ -73,13 +74,5 @@ func equalStringSlice(value any, want []string) bool {
 	if !ok {
 		return false
 	}
-	if len(got) != len(want) {
-		return false
-	}
-	for i := range got {
-		if got[i] != want[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(got, want)
 }
