@@ -26,6 +26,14 @@ mkdir -p "${work}/.claude" "${work}/tmp"
 # only for the seeded-stale-counter case and the end-of-suite leak check.
 real_tmpdir="${TMPDIR:-/tmp}"
 export TMPDIR="${work}/tmp"
+# Hermeticity (#8278): the hook under test resolves $HOME/.claude/active-goal
+# and honors $CLAUDE_GOAL_FILE/$CLAUDE_GOAL_OFF, so ambient session state
+# leaks into this suite's expectations (seeded: a fake $HOME quoted seeded
+# text; a scratch $CLAUDE_GOAL_FILE was honored and overwritten). A per-run
+# fake $HOME and no ambient goal switches, the test-cursor-hooks.sh precedent.
+mkdir -p "${work}/home/.claude"
+export HOME="${work}/home"
+unset CLAUDE_GOAL_FILE CLAUDE_GOAL_OFF CLAUDE_GOAL_CONSENT CLAUDE_GOAL_MAX_NUDGES
 passed=0
 failed=0
 sid="refresh-$$"
@@ -116,13 +124,13 @@ fi
 rm -f "${goal_file}"
 submit "${sid}" '/goal keep the objective alive' "${work}" >/dev/null
 ctx="$(injected "$(submit "${sid}" 'a later, unrelated prompt' "${work}")")"
-if printf '%s' "${ctx}" | rg -q 'keep the objective alive'; then
+if rg -q 'keep the objective alive' <<<"${ctx}"; then
 	ok "a later prompt re-injects the goal (this is the staleness fix)"
 else
 	no "a later prompt re-injects the goal"
 fi
 
-if printf '%s' "${ctx}" | rg -q 'Deep-tier|do not ask the owner|Do not ask'; then
+if rg -q 'Deep-tier|do not ask the owner|Do not ask' <<<"${ctx}"; then
 	ok "the injected context carries the do-not-ask-the-owner rule"
 else
 	no "the injected context carries the do-not-ask-the-owner rule"
@@ -132,7 +140,7 @@ fi
 for i in 1 2 3 4 5 6 7 8 9 10; do
 	late="$(injected "$(submit "${sid}" "turn ${i}" "${work}")")"
 done
-if printf '%s' "${late}" | rg -q 'keep the objective alive'; then
+if rg -q 'keep the objective alive' <<<"${late}"; then
 	ok "still injected after ten further turns"
 else
 	no "still injected after ten further turns"
@@ -199,12 +207,12 @@ print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "e2e",
                   "stop_hook_active": False, "cwd": os.environ["CWD"],
                   "hook_event_name": "Stop"}))
 ' | bash "${CONTINUE}" 2>/dev/null)"
-if printf '%s' "${stop_out}" | rg -q '"decision"[[:space:]]*:[[:space:]]*"block"'; then
+if rg -q '"decision"[[:space:]]*:[[:space:]]*"block"' <<<"${stop_out}"; then
 	ok "END TO END: a goal set by /goal makes the Stop hook block"
 else
 	no "END TO END: a goal set by /goal makes the Stop hook block"
 fi
-if printf '%s' "${stop_out}" | rg -q 'finish the end to end wiring'; then
+if rg -q 'finish the end to end wiring' <<<"${stop_out}"; then
 	ok "END TO END: the Stop hook hands back the goal the producer wrote"
 else
 	no "END TO END: the Stop hook hands back the goal the producer wrote"
@@ -222,7 +230,7 @@ print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "seedstop",
                   "hook_event_name": "Stop"}))
 ' | bash "${CONTINUE}" 2>/dev/null)"
 rm -f "${seed_plant}"
-if printf '%s' "${seed_stop_out}" | rg -q '"decision"[[:space:]]*:[[:space:]]*"block"'; then
+if rg -q '"decision"[[:space:]]*:[[:space:]]*"block"' <<<"${seed_stop_out}"; then
 	ok "SEEDED: a stale counter for this sid does not release the Stop hook"
 else
 	no "SEEDED: a stale counter for this sid does not release the Stop hook"
@@ -243,7 +251,7 @@ print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "homeonly",
                   "cwd": os.environ["CWD"], "prompt": os.environ["PROMPT"],
                   "hook_event_name": "UserPromptSubmit"}))
 ' | HOME="${fake_home}" bash "${REFRESH}" 2>/dev/null)"
-if printf '%s' "$(injected "${home_out}")" | rg -q 'Home-scoped objective'; then
+if rg -q 'Home-scoped objective' <<<"$(injected "${home_out}")"; then
 	ok "a \$HOME-only goal is still refreshed (lookup matches the Stop hook)"
 else
 	no "a \$HOME-only goal is still refreshed (lookup matches the Stop hook)"
@@ -264,6 +272,8 @@ fi
 . "${repo_root}/scripts/test-goal-refresh-hook-atomic-consent-cases.sh"
 # shellcheck source=scripts/test-goal-refresh-hook-oneline-consent-cases.sh
 . "${repo_root}/scripts/test-goal-refresh-hook-oneline-consent-cases.sh"
+# shellcheck source=scripts/test-goal-refresh-hook-hermetic-cases.sh
+. "${repo_root}/scripts/test-goal-refresh-hook-hermetic-cases.sh"
 if [[ "${goal_refresh_cases_loaded:-0}" == "1" ]]; then
 	ok "the sourced case file loaded"
 else
@@ -293,6 +303,11 @@ if [[ "${goal_refresh_oneline_consent_cases_loaded:-0}" == "1" ]]; then
 	ok "the sourced oneline-consent-case file loaded"
 else
 	no "the sourced oneline-consent-case file did NOT load -- the oneline-consent cases did not run"
+fi
+if [[ "${goal_refresh_hermetic_cases_loaded:-0}" == "1" ]]; then
+	ok "the sourced hermetic-case file loaded"
+else
+	no "the sourced hermetic-case file did NOT load -- the hermeticity cases did not run"
 fi
 
 # The suite must leave no state outside its own temp dir: no MORE of this

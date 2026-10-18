@@ -19,8 +19,16 @@ CH="${repo_root}/.claude/hooks"
 
 work="$(mktemp -d)"
 trap 'rm -rf "${work}"' EXIT
-mkdir -p "${work}/.claude" "${work}/tmp"
+mkdir -p "${work}/.claude" "${work}/tmp" "${work}/home/.claude"
 export TMPDIR="${work}/tmp"
+# Hermeticity (#8278): the wrapped hooks resolve $HOME/.claude/active-goal and
+# honor $CLAUDE_GOAL_FILE/$CLAUDE_GOAL_OFF, so ambient session state leaks
+# into this suite's expectations (seeded: a fake $HOME blocked the
+# no-goal stop). A per-run fake $HOME and no ambient goal switches, the
+# test-cursor-hooks.sh precedent. Per-case CLAUDE_GOAL_FILE pins below still
+# override this for their own invocation.
+export HOME="${work}/home"
+unset CLAUDE_GOAL_FILE CLAUDE_GOAL_OFF CLAUDE_GOAL_CONSENT CLAUDE_GOAL_MAX_NUDGES
 
 passed=0
 failed=0
@@ -65,7 +73,7 @@ muse_precompact() { # [cwd]
 }
 
 verdict() { # output -> block|allow
-  if printf '%s' "$1" | rg -q '"decision"[[:space:]]*:[[:space:]]*"block"'; then printf 'block'; else printf 'allow'; fi
+  if rg -q '"decision"[[:space:]]*:[[:space:]]*"block"' <<<"$1"; then printf 'block'; else printf 'allow'; fi
 }
 
 # ── A. wiring: hooks.json + wrapper files ────────────────────────────────────
@@ -135,7 +143,7 @@ rm -f "${goal}"
 printf 'SESSION: %s\nFinish the migration.\n' "${sid}" >"${goal}"
 out="$(run_stop "$(muse_stop t2)")"
 [[ "$(verdict "${out}")" == "block" ]] && ok "Stop with active goal blocks on Muse envelope" || no "Stop with active goal blocks on Muse envelope"
-printf '%s' "${out}" | rg -q "Finish the migration" && ok "block reason quotes the goal text" || no "block reason quotes the goal text"
+rg -q "Finish the migration" <<<"${out}" && ok "block reason quotes the goal text" || no "block reason quotes the goal text"
 
 printf 'DONE\nFinished.\n' >"${goal}"
 [[ "$(verdict "$(run_stop "$(muse_stop t3)")")" == "allow" ]] && ok "Stop with DONE goal allows" || no "Stop with DONE goal allows"
@@ -169,7 +177,7 @@ fi
 export CLAUDE_GOAL_FILE="${work}/goal-refresh"
 printf 'SESSION: %s\nHold the line.\n' "${sid}" >"${CLAUDE_GOAL_FILE}"
 out="$(printf '%s' "$(muse_prompt 'continue')" | bash "${MH}/goal-refresh.sh" 2>/dev/null)"
-printf '%s' "${out}" | rg -q "Hold the line" && ok "active goal is restated on every prompt" || no "active goal is restated on every prompt"
+rg -q "Hold the line" <<<"${out}" && ok "active goal is restated on every prompt" || no "active goal is restated on every prompt"
 printf 'DONE\n' >"${CLAUDE_GOAL_FILE}"
 out="$(printf '%s' "$(muse_prompt 'continue')" | bash "${MH}/goal-refresh.sh" 2>/dev/null)"
 [[ -z "${out}" ]] && ok "retired goal stays silent" || no "retired goal stays silent"
@@ -243,7 +251,7 @@ out="$(printf '%s' "$(muse_sessionstart startup)" | bash "${MH}/on-compact.sh" 2
 [[ -z "${out}" ]] && ok "fresh SessionStart emits no compaction context" || no "fresh SessionStart emits no compaction context"
 [[ -f "/tmp/claude-skill-loaded-${sid12}-golang-engineering" ]] && ok "fresh SessionStart keeps skill markers" || no "fresh SessionStart keeps skill markers"
 out="$(printf '%s' "$(muse_sessionstart resume "${repo_root}")" | bash "${MH}/on-compact.sh" 2>/dev/null)"
-printf '%s' "${out}" | rg -q "eshu-session-lifecycle" && ok "resume re-grounds on the lifecycle skill" || no "resume re-grounds on the lifecycle skill"
+rg -q "eshu-session-lifecycle" <<<"${out}" && ok "resume re-grounds on the lifecycle skill" || no "resume re-grounds on the lifecycle skill"
 touch "/tmp/claude-skill-loaded-${sid12}-golang-engineering"
 printf '%s' "$(muse_precompact "${repo_root}")" | bash "${MH}/on-compact.sh" >/dev/null 2>&1
 [[ ! -f "/tmp/claude-skill-loaded-${sid12}-golang-engineering" ]] && ok "PreCompact clears this session's skill markers" || no "PreCompact clears this session's skill markers"

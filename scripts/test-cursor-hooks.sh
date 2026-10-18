@@ -43,9 +43,15 @@ cleanup() { cleanup_markers; cleanup_links; rm -rf "${work}"; }
 trap cleanup EXIT
 cleanup_markers
 cleanup_links
-mkdir -p "${work}/proj/.claude" "${work}/proj/scripts" "${work}/tmp" "${work}/stub"
+mkdir -p "${work}/proj/.claude" "${work}/proj/scripts" "${work}/tmp" "${work}/stub" "${work}/home/.claude"
 export TMPDIR="${work}/tmp"
-unset CLAUDE_GOAL_FILE CLAUDE_GOAL_OFF CLAUDE_GOAL_MAX_NUDGES CLAUDE_PROJECT_DIR ESHU_CURSOR_HOOK_LOG
+unset CLAUDE_GOAL_FILE CLAUDE_GOAL_OFF CLAUDE_GOAL_CONSENT CLAUDE_GOAL_MAX_NUDGES CLAUDE_PROJECT_DIR ESHU_CURSOR_HOOK_LOG
+# Hermeticity (#8278): the hooks under test resolve $HOME/.claude/active-goal,
+# so ambient session state leaks into the goal round-trip (seeded: a fake
+# $HOME blocked stops quoting the seeded text). A per-run fake $HOME; the
+# real one is kept for the home-dir skills-path case below.
+real_home="${HOME}"
+export HOME="${work}/home"
 export CURSOR_PROJECT_DIR="${repo_root}"
 
 passed=0
@@ -118,7 +124,7 @@ for event, entries in d["hooks"].items():
 PY
 )"
 if [[ -n "${wiring}" ]]; then ok ".cursor/hooks.json is valid JSON"; else no ".cursor/hooks.json is valid JSON"; fi
-printf '%s\n' "${wiring}" | rg -qx 'version=1' && ok "hooks.json declares version 1" || no "hooks.json declares version 1"
+rg -qx 'version=1' <<<"${wiring}" && ok "hooks.json declares version 1" || no "hooks.json declares version 1"
 
 # event|matcher|failClosed|script -- the full triple each hook must carry.
 for want in \
@@ -132,14 +138,14 @@ for want in \
 do
   IFS='|' read -r ev m fc script <<<"${want}"
   line="${ev}|${m}|${fc}|python3 scripts/cursor-hook.py ${ev} ${script}"
-  if printf '%s\n' "${wiring}" | rg -qxF "${line}"; then ok "wired: ${ev} ${m:-*} failClosed=${fc} -> ${script##*/}"; else no "wired: ${line}"; fi
+  if rg -qxF "${line}" <<<"${wiring}"; then ok "wired: ${ev} ${m:-*} failClosed=${fc} -> ${script##*/}"; else no "wired: ${line}"; fi
   [[ -f "${repo_root}/${script}" ]] || no "wired script exists: ${script}"
 done
 # subagentStart runs no Claude hook: the adapter only records the helper link.
-if printf '%s\n' "${wiring}" | rg -qxF 'subagentStart||False|python3 scripts/cursor-hook.py subagentStart'; then
+if rg -qxF 'subagentStart||False|python3 scripts/cursor-hook.py subagentStart' <<<"${wiring}"; then
   ok "wired: subagentStart * failClosed=False -> the adapter's helper link"
 else no "wired: subagentStart||False|python3 scripts/cursor-hook.py subagentStart"; fi
-if printf '%s\n' "${wiring}" | rg -q '[$`;&]'; then
+if rg -q '[$`;&]' <<<"${wiring}"; then
   no "hook commands are plain argv (no shell expansion, so they run with or without a shell)"
 else
   ok "hook commands are plain argv (no shell expansion, so they run with or without a shell)"
@@ -271,7 +277,7 @@ no_marker() { # label path [project]
   check "skill bridge ignores $1" '[[ ${rc} -eq 0 && "${out}" == "{}" ]] && ! ls /tmp/claude-skill-loaded-'"${sid12}"'-* >/dev/null 2>&1'
 }
 no_marker "a /etc/.agents/skills path" "/etc/.agents/skills/golang-engineering/SKILL.md"
-no_marker "a home-dir skills path" "${HOME}/.claude/skills/golang-engineering/SKILL.md"
+no_marker "a home-dir skills path" "${real_home}/.claude/skills/golang-engineering/SKILL.md"
 no_marker "another repo's skills path" "${work}/other/.codex/skills/golang-engineering/SKILL.md"
 no_marker "a ../ traversal out of the skills dir" "${repo_root}/.agents/skills/golang-engineering/../../../docs/.agents/skills/golang-engineering/SKILL.md"
 no_marker "an unknown skill id" "${repo_root}/.agents/skills/no-such-skill/SKILL.md"

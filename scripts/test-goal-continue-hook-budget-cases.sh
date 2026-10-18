@@ -47,7 +47,7 @@ printf 'Grind through six lanes.\n' >"${goal}"
 blocks=0
 for _ in 1 2 3 4 5 6; do
 	work_happened
-	printf '%s' "$(run "$(tx_payload progress)")" | rg -q '"block"' && blocks=$((blocks + 1))
+	rg -q '"block"' <<<"$(run "$(tx_payload progress)")" && blocks=$((blocks + 1))
 done
 if [[ "${blocks}" -eq 6 ]]; then
 	ok "progress between stops keeps the budget from running out"
@@ -61,7 +61,7 @@ fi
 noprog=0
 for _ in 1 2 3 4 5; do
 	said_something
-	printf '%s' "$(run "$(tx_payload narrate)")" | rg -q '"block"' && noprog=$((noprog + 1))
+	rg -q '"block"' <<<"$(run "$(tx_payload narrate)")" && noprog=$((noprog + 1))
 done
 if [[ "${noprog}" -eq 3 ]]; then
 	ok "a stop with no tool calls still burns the budget, out at three"
@@ -88,7 +88,7 @@ check "and the restored budget is a full one" block "$(run "$(tx_payload mixed)"
 ceil=0
 for _ in 1 2 3 4 5 6 7 8; do
 	work_happened
-	printf '%s' "$(run "$(tx_payload ceiling)")" | rg -q '"block"' && ceil=$((ceil + 1))
+	rg -q '"block"' <<<"$(run "$(tx_payload ceiling)")" && ceil=$((ceil + 1))
 done
 if [[ "${ceil}" -eq 8 ]]; then
 	ok "a working session is never released, with no ceiling knob involved"
@@ -108,7 +108,7 @@ print(json.dumps({"session_id": os.environ["SID"], "prompt_id": os.environ["PID"
                   "stop_hook_active": False, "cwd": os.environ["CWD"],
                   "transcript_path": os.environ["TX"], "hook_event_name": "Stop"}))
 ' | CLAUDE_GOAL_FILE="${goal}" bash "${HOOK}" 2>/dev/null)"
-	printf '%s' "${out_m}" | rg -q '"block"' && missing=$((missing + 1))
+	rg -q '"block"' <<<"${out_m}" && missing=$((missing + 1))
 done
 if [[ "${missing}" -eq 3 ]]; then
 	ok "a missing transcript falls back to the plain three-stop bound"
@@ -123,7 +123,7 @@ for _ in 1 2 3; do said_something; run "$(tx_payload audit)" >/dev/null; done
 said_something
 audit_err="$(printf '%s' "$(tx_payload audit)" | CLAUDE_GOAL_FILE="${goal}" \
 	bash "${HOOK}" 2>&1 >/dev/null)"
-if printf '%s' "${audit_err}" | rg -qi 'no progress'; then
+if rg -qi 'no progress' <<<"${audit_err}"; then
 	ok "the release-by-budget is announced on stderr"
 else
 	no "the release-by-budget is announced on stderr (got: ${audit_err})"
@@ -137,7 +137,7 @@ said_something
 check "a legacy counter file is still honoured" block "$(run "$(tx_payload legacy)")"
 said_something
 legacy_out="$(run "$(tx_payload legacy)")"
-if printf '%s' "${legacy_out}" | rg -q '"block"'; then
+if rg -q '"block"' <<<"${legacy_out}"; then
 	no "a legacy counter of 2 leaves exactly one nudge"
 else
 	ok "a legacy counter of 2 leaves exactly one nudge"
@@ -156,8 +156,8 @@ fi
 for grant in 'install deps' 'call the API' 'allow push' 'all' '*' 'push, all' 'ALL'; do
 	printf 'CONSENT: %s\nDo the work.\n' "${grant}" >"${goal}"
 	gout="$(run "$(payload "grant-${grant%% *}")")"
-	if printf '%s' "${gout}" | rg -qi 'you need consent' ||
-		! printf '%s' "${gout}" | rg -qiF "granted for: ${grant}"; then
+	if rg -qi 'you need consent' <<<"${gout}" ||
+		! rg -qiF "granted for: ${grant}" <<<"${gout}"; then
 		no "CONSENT: ${grant} is echoed and offers no consent stop"
 	else
 		ok "CONSENT: ${grant} is echoed and offers no consent stop"
@@ -171,7 +171,7 @@ done
 printf 'CONSENT: push\nSESSION: somebody-else\nTheir private objective.\n' >"${goal}"
 shadow="$(run "$(payload shadow)")"
 check "a CONSENT line cannot shadow the SESSION escape" allow "${shadow}"
-if printf '%s' "${shadow}" | rg -q 'Their private objective'; then
+if rg -q 'Their private objective' <<<"${shadow}"; then
 	no "a foreign goal is not leaked through a CONSENT line"
 else
 	ok "a foreign goal is not leaked through a CONSENT line"
@@ -181,7 +181,7 @@ fi
 printf 'CONSENT: push\nSESSION: %s\nMy objective.\n' "${sid}" >"${goal}"
 mine="$(run "$(payload mineconsent)")"
 check "a CONSENT line above my own SESSION header still blocks" block "${mine}"
-if printf '%s' "${mine}" | rg -qi 'already granted'; then
+if rg -qi 'already granted' <<<"${mine}"; then
 	ok "consent above my own header is honoured"
 else
 	no "consent above my own header is honoured"
@@ -192,7 +192,7 @@ fi
 # meant two different things to the producer and the consumer.
 printf '  CONSENT: push\nDo the work.\n' >"${goal}"
 indent="$(run "$(payload indent)")"
-if printf '%s' "${indent}" | rg -q 'CONSENT:'; then
+if rg -q 'CONSENT:' <<<"${indent}"; then
 	no "an indented CONSENT line is read the same as a flush one"
 else
 	ok "an indented CONSENT line is read the same as a flush one"
@@ -204,7 +204,7 @@ fi
 printf 'CONSENT: push, merge, deploy\nDo the work.\n' >"${goal}"
 cerr="$(printf '%s' "$(payload consenterr)" | CLAUDE_GOAL_FILE="${goal}" \
 	bash "${HOOK}" 2>&1 >/dev/null)"
-if printf '%s' "${cerr}" | rg -q 'push, merge, deploy'; then
+if rg -q 'push, merge, deploy' <<<"${cerr}"; then
 	ok "honouring consent is announced on stderr with the acts"
 else
 	no "honouring consent is announced on stderr with the acts (got: ${cerr})"
@@ -220,7 +220,7 @@ fi
 spaced_blocks=0
 for _ in 1 2 3 4 5; do
 	printf '%s\n' '{"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash"}]}}' >>"${tx}"
-	printf '%s' "$(run "$(tx_payload spaced)")" | rg -q '"block"' && spaced_blocks=$((spaced_blocks + 1))
+	rg -q '"block"' <<<"$(run "$(tx_payload spaced)")" && spaced_blocks=$((spaced_blocks + 1))
 done
 if [[ "${spaced_blocks}" -eq 5 ]]; then
 	ok "progress is detected whatever spacing the transcript uses"
@@ -252,7 +252,7 @@ check "a session id containing a slash still blocks" block "${slash_out}"
 quoted_blocks=0
 for _ in 1 2 3 4 5; do
 	printf '%s\n' '{"type":"user","message":{"content":[{"type":"tool_result","content":"the pattern is {\"type\":\"tool_use\"} in the file"}]}}' >>"${tx}"
-	printf '%s' "$(run "$(tx_payload quoted)")" | rg -q '"block"' && quoted_blocks=$((quoted_blocks + 1))
+	rg -q '"block"' <<<"$(run "$(tx_payload quoted)")" && quoted_blocks=$((quoted_blocks + 1))
 done
 if [[ "${quoted_blocks}" -eq 3 ]]; then
 	ok "a transcript quoting the pattern earns no progress credit"
@@ -269,7 +269,7 @@ printf 'SESSION: %s\nCONSENT: push\nSESSION: is the header we document\nmore goa
 	"${sid}" >"${goal}"
 body_out="$(run "$(payload bodyheader)")"
 check "a body line starting SESSION: does not disable the hook" block "${body_out}"
-if printf '%s' "${body_out}" | rg -q 'is the header we document'; then
+if rg -q 'is the header we document' <<<"${body_out}"; then
 	ok "that body line survives into the quoted goal"
 else
 	no "that body line survives into the quoted goal"
@@ -298,7 +298,7 @@ check "the same goal without a CONSENT line behaves identically" block \
 long_run=0
 for _ in $(seq 1 30); do
 	work_happened
-	printf '%s' "$(run "$(tx_payload longrun)")" | rg -q '"block"' && long_run=$((long_run + 1))
+	rg -q '"block"' <<<"$(run "$(tx_payload longrun)")" && long_run=$((long_run + 1))
 done
 if [[ "${long_run}" -eq 30 ]]; then
 	ok "a session making progress is never released by the ceiling"
@@ -311,7 +311,7 @@ fi
 stuck=0
 for _ in 1 2 3 4 5; do
 	said_something
-	printf '%s' "$(run "$(tx_payload stuckrun)")" | rg -q '"block"' && stuck=$((stuck + 1))
+	rg -q '"block"' <<<"$(run "$(tx_payload stuckrun)")" && stuck=$((stuck + 1))
 done
 if [[ "${stuck}" -eq 3 ]]; then
 	ok "a stuck session is still released after three no-progress stops"
@@ -326,7 +326,7 @@ for _ in $(seq 1 25); do work_happened; run "$(tx_payload mixedlong)" >/dev/null
 mixed=0
 for _ in 1 2 3 4; do
 	said_something
-	printf '%s' "$(run "$(tx_payload mixedlong)")" | rg -q '"block"' && mixed=$((mixed + 1))
+	rg -q '"block"' <<<"$(run "$(tx_payload mixedlong)")" && mixed=$((mixed + 1))
 done
 # Three. An earlier revision of this case said two, because the working stop
 # still spent a nudge -- and rather than question that, the expectation was
@@ -350,12 +350,12 @@ for _ in 1 2 3; do said_something; run "$(tx_payload handoff)" >/dev/null; done
 said_something
 handoff_err="$(printf '%s' "$(tx_payload handoff)" | CLAUDE_GOAL_FILE="${goal}" \
 	bash "${HOOK}" 2>&1 >/dev/null)"
-if printf '%s' "${handoff_err}" | rg -qi 'no progress'; then
+if rg -qi 'no progress' <<<"${handoff_err}"; then
 	ok "the release says it was no-progress stops that spent the budget"
 else
 	no "the release says it was no-progress stops that spent the budget (got: ${handoff_err})"
 fi
-if printf '%s' "${handoff_err}" | rg -q 'DONE' && printf '%s' "${handoff_err}" | rg -q 'BLOCKED'; then
+if rg -q 'DONE' <<<"${handoff_err}" && rg -q 'BLOCKED' <<<"${handoff_err}"; then
 	ok "the release names the two escapes the agent should have used"
 else
 	no "the release names the two escapes the agent should have used"
@@ -368,7 +368,7 @@ said_something; run "$(tx_payload warn)" >/dev/null
 said_something; run "$(tx_payload warn)" >/dev/null
 said_something
 last_out="$(run "$(tx_payload warn)")"
-if printf '%s' "${last_out}" | rg -qi 'last continuation'; then
+if rg -qi 'last continuation' <<<"${last_out}"; then
 	ok "the final nudge warns that the next stop will be allowed"
 else
 	no "the final nudge warns that the next stop will be allowed"
@@ -383,17 +383,17 @@ fi
 printf 'CONSENT: push\nSESSION: %s\nObjective line.\nconsent: make it whole-token\ntail line.\n' \
 	"${sid}" >"${goal}"
 meta_out="$(run "$(payload metaleading)")"
-if printf '%s' "${meta_out}" | rg -q 'make it whole-token'; then
+if rg -q 'make it whole-token' <<<"${meta_out}"; then
 	ok "a body line starting consent: survives into the goal"
 else
 	no "a body line starting consent: survives into the goal"
 fi
-if printf '%s' "${meta_out}" | rg -q 'GRANTED for: push'; then
+if rg -q 'GRANTED for: push' <<<"${meta_out}"; then
 	ok "the leading CONSENT line is still read as the grant"
 else
 	no "the leading CONSENT line is still read as the grant"
 fi
-if printf '%s' "${meta_out}" | rg -q 'GRANTED for:.*whole-token'; then
+if rg -q 'GRANTED for:.*whole-token' <<<"${meta_out}"; then
 	no "a body consent: line is not echoed as a grant"
 else
 	ok "a body consent: line is not echoed as a grant"
@@ -408,7 +408,7 @@ run "$(tx_payload spend)" >/dev/null
 spend=0
 for _ in 1 2 3 4; do
 	said_something
-	printf '%s' "$(run "$(tx_payload spend)")" | rg -q '"block"' && spend=$((spend + 1))
+	rg -q '"block"' <<<"$(run "$(tx_payload spend)")" && spend=$((spend + 1))
 done
 if [[ "${spend}" -eq 3 ]]; then
 	ok "a working stop spends no budget: three narrated stops still follow it"
@@ -442,17 +442,17 @@ fi
 printf 'SESSION: %s\nSESSION: this is body text\nCONSENT: this is also body text\nreal objective.\n' \
 	"${sid}" >"${goal}"
 second_out="$(run "$(payload secondsession)")"
-if printf '%s' "${second_out}" | rg -q 'GRANTED for: this is also body text'; then
+if rg -q 'GRANTED for: this is also body text' <<<"${second_out}"; then
 	no "a CONSENT line after a body SESSION line is not read as a grant"
 else
 	ok "a CONSENT line after a body SESSION line is not read as a grant"
 fi
-if printf '%s' "${second_out}" | rg -q 'CONSENT: this is also body text'; then
+if rg -q 'CONSENT: this is also body text' <<<"${second_out}"; then
 	ok "that body line survives into the goal"
 else
 	no "that body line survives into the goal"
 fi
-if printf '%s' "${second_out}" | rg -q 'SESSION: this is body text'; then
+if rg -q 'SESSION: this is body text' <<<"${second_out}"; then
 	ok "the second SESSION line survives as body text"
 else
 	no "the second SESSION line survives as body text"
@@ -461,7 +461,7 @@ fi
 # A real leading block still works: consent above the header, header, objective.
 printf 'CONSENT: push\nSESSION: %s\nreal objective.\n' "${sid}" >"${goal}"
 lead_out="$(run "$(payload realleading)")"
-if printf '%s' "${lead_out}" | rg -q 'GRANTED for: push'; then
+if rg -q 'GRANTED for: push' <<<"${lead_out}"; then
 	ok "a genuine leading CONSENT line is still the grant"
 else
 	no "a genuine leading CONSENT line is still the grant"

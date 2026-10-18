@@ -111,6 +111,13 @@ jobs:
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: scripts/test-cursor-hooks.sh
 
+      # Static self-guard for the canon scripts' assertion idiom: fails if
+      # the racy printf-piped-to-quiet-rg form (#8278) reappears. Mirrors
+      # the registry test_command so local promotion and Actions agree.
+      - name: Run agent-canon pipe-idiom guard
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
+        run: scripts/test-verify-agent-canon-pipes.sh
+
   verify:
     name: Agent hygiene gate
     timeout-minutes: 10

@@ -212,12 +212,12 @@ printf 'SESSION: %s\nDONE\nRETIRED objective.\n' "${me}" >"${tomb}/.claude/activ
 printf 'SHAREDACTIVE objective.\n' >"${tomb}/.claude/active-goal"
 tomb_r="$(refresh_decision "${me}" "${tomb}")"
 tomb_s="$(stop_decision "${me}" "${tomb}" tombstone)"
-if printf '%s' "${tomb_r}" | rg -q 'RETIRED'; then
+if rg -q 'RETIRED' <<<"${tomb_r}"; then
 	no "a retired per-session goal is never restated"
 else
 	ok "a retired per-session goal is never restated"
 fi
-if printf '%s' "${tomb_r}" | rg -q 'SHAREDACTIVE' && printf '%s' "${tomb_s}" | rg -q 'SHAREDACTIVE'; then
+if rg -q 'SHAREDACTIVE' <<<"${tomb_r}" && rg -q 'SHAREDACTIVE' <<<"${tomb_s}"; then
 	ok "a retired per-session goal falls through to the active shared goal, in both hooks"
 else
 	no "a retired per-session goal falls through to the active shared goal, in both hooks (refresher=${tomb_r:0:60} stop=${tomb_s:0:60})"
@@ -243,7 +243,7 @@ if [[ -z "${ovr_inj}" ]]; then
 else
 	no "an explicit override naming a retired goal stays retired (got: ${ovr_inj:0:60})"
 fi
-if printf '%s' "${ovr_inj}" | rg -q 'DECOY'; then
+if rg -q 'DECOY' <<<"${ovr_inj}"; then
 	no "an explicit override never falls through to another goal file"
 else
 	ok "an explicit override never falls through to another goal file"

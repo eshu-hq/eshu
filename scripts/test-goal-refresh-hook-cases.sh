@@ -43,12 +43,12 @@ else
 fi
 
 cinj="$(injected "$(submit "${sid}" 'carry on' "${cw}")")"
-if printf '%s' "${cinj}" | rg -q 'push, pr-open'; then
+if rg -q 'push, pr-open' <<<"${cinj}"; then
 	ok "the refresher restates the granted acts every turn"
 else
 	no "the refresher restates the granted acts every turn"
 fi
-if printf '%s' "${cinj}" | rg -qi 'already granted|already consented'; then
+if rg -qi 'already granted|already consented' <<<"${cinj}"; then
 	ok "the refresher says the granted acts need no further asking"
 else
 	no "the refresher says the granted acts need no further asking"
@@ -85,7 +85,7 @@ print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "consent-e2e",
                   "stop_hook_active": False, "cwd": os.environ["CWD"],
                   "hook_event_name": "Stop"}))
 ' | bash "${CONTINUE}" 2>/dev/null)"
-if printf '%s' "${consent_stop}" | rg -qi 'already granted|already consented'; then
+if rg -qi 'already granted|already consented' <<<"${consent_stop}"; then
 	ok "END TO END: /goal consent is honoured by the Stop hook"
 else
 	no "END TO END: /goal consent is honoured by the Stop hook"
@@ -101,12 +101,12 @@ mkdir -p "${sub}/.claude"
 submit "${sid}" '/goal ship the thing' "${sub}" >/dev/null
 submit "${sid}" '/goal consent install deps' "${sub}" >/dev/null
 sub_inj="$(injected "$(submit "${sid}" 'carry on' "${sub}")")"
-if printf '%s' "${sub_inj}" | rg -q 'NOT on it'; then
+if rg -q 'NOT on it' <<<"${sub_inj}"; then
 	ok "CONSENT: install deps is NAMED here too, not blanket"
 else
 	no "CONSENT: install deps is NAMED here too, not blanket"
 fi
-if printf '%s' "${sub_inj}" | rg -qi 'blanket'; then
+if rg -qi 'blanket' <<<"${sub_inj}"; then
 	no "a narrow grant containing the letters of all is not called blanket"
 else
 	ok "a narrow grant containing the letters of all is not called blanket"

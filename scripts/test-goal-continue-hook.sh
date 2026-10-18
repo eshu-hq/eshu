@@ -23,6 +23,15 @@ mkdir -p "${work}/.claude" "${work}/tmp"
 # for the seeded-stale-counter case and the end-of-suite leak check.
 real_tmpdir="${TMPDIR:-/tmp}"
 export TMPDIR="${work}/tmp"
+# Hermeticity (#8278): the hook under test resolves $HOME/.claude/active-goal
+# and honors $CLAUDE_GOAL_FILE/$CLAUDE_GOAL_OFF, so ambient session state
+# leaks into this suite's expectations (seeded: a fake $HOME turned allows
+# into blocks quoting the seeded text). A per-run fake $HOME and no ambient
+# goal switches, the test-cursor-hooks.sh precedent. Per-case
+# CLAUDE_GOAL_FILE pins below still override this for their own invocation.
+mkdir -p "${work}/home/.claude"
+export HOME="${work}/home"
+unset CLAUDE_GOAL_FILE CLAUDE_GOAL_OFF CLAUDE_GOAL_CONSENT CLAUDE_GOAL_MAX_NUDGES
 goal="${work}/goal"
 passed=0
 failed=0

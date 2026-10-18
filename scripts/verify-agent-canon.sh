@@ -118,10 +118,10 @@ if [ -d "$skills_root" ]; then
     # count as covered because the `golang-engineering` arm mentions a prefix of
     # it. Hyphens are word characters here, so \b is not enough.
     skill_pattern="(^|[^A-Za-z0-9-])${skill_name}([^A-Za-z0-9-]|$)"
-    if printf '%s' "$nudge_arms" | rg -q -- "$skill_pattern"; then
+    if rg -q -- "$skill_pattern" <<<"$nudge_arms"; then
       continue
     fi
-    if printf '%s' "$nudge_exempt" | rg -q -- "$skill_pattern"; then
+    if rg -q -- "$skill_pattern" <<<"$nudge_exempt"; then
       continue
     fi
     missing_arms+=("$skill_name")
