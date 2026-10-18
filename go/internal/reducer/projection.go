@@ -140,6 +140,13 @@ type RepoDescriptor struct {
 
 // ProjectionResult holds all outputs from BuildProjectionRows.
 type ProjectionResult struct {
+	// ScopeID and GenerationID identify the acceptance unit that produced
+	// these rows. The handler stamps them from its intent so the
+	// materializer can write them onto Workload, WorkloadInstance, and
+	// Endpoint nodes, making every node addressable by generation for
+	// retract and rebuild (#5385 section 1.2).
+	ScopeID              string
+	GenerationID         string
 	Stats                ProjectionStats
 	WorkloadRows         []WorkloadRow
 	InstanceRows         []InstanceRow

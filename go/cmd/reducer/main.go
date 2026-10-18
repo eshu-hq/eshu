@@ -262,7 +262,7 @@ func buildReducerService(
 		PlatformMaterializationWriter:      reducer.PostgresPlatformMaterializationWriter{DB: database},
 		PlatformGraphLocker:                platformGraphLockerForReducer(database),
 		WorkloadMaterializationReplayer:    workQueue,
-		WorkloadMaterializer:               newProbedWorkloadMaterializer(cypherExec, logger, instruments),
+		WorkloadMaterializer:               newProbedWorkloadMaterializer(cypherExec, logger, instruments, neo4jWorkloadSiblingLookup{reader: graphReader}),
 		InfrastructurePlatformMaterializer: reducer.NewInfrastructurePlatformMaterializer(cypherExec),
 		InfrastructurePlatformLookup:       reducer.GraphInfrastructurePlatformLookup{Graph: graphReader},
 		// The value-flow refresh emit gate (#6785) reads each producer's

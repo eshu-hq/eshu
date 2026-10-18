@@ -277,6 +277,8 @@ func (h WorkloadMaterializationHandler) Handle(
 		deploymentEnvironments,
 		infrastructurePlatforms,
 	)
+	projection.ScopeID = intent.ScopeID
+	projection.GenerationID = intent.GenerationID
 	timing.buildProjectionDuration = time.Since(buildStarted)
 
 	graphStarted := time.Now()

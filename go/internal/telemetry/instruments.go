@@ -477,6 +477,9 @@ type Instruments struct {
 	// endpoint removal, kept off ReconciliationDriftRetractions, which means
 	// collector disagreement.
 	WorkloadRepoEdgeRetractions metric.Int64Counter
+	WorkloadIdentityCollisions  metric.Int64Counter
+	WorkloadIdentityRejected    metric.Int64Counter
+	WorkloadHandleResolutions   metric.Int64Counter
 	// GitRepoSyncFailures counts per-repository git sync operations (clone,
 	// fetch, list_refs) that failed and were isolated to that one repository
 	// for the cycle rather than aborting collection for the rest of the fleet
@@ -3277,6 +3280,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register WorkloadRepoEdgeRetractions counter: %w", err)
+	}
+
+	inst.WorkloadIdentityCollisions, err = meter.Int64Counter(
+		"eshu_dp_workload_identity_collision_total",
+		metric.WithDescription("Total workload identity collisions detected at materialization dedupe, by bounded mode (same_scope_drop, cross_scope_merge); any cross_scope_merge after the repository-scoped re-key is a leaked name-only key"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkloadIdentityCollisions counter: %w", err)
 	}
 
 	inst.ReconciliationConvergence, err = meter.Int64Counter(

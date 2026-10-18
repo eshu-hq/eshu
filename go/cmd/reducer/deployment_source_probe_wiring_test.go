@@ -36,7 +36,7 @@ func TestProductionWorkloadMaterializerWiresDeploymentSourceProber(t *testing.T)
 				cypherExec := newReducerGraphWriteGate(getenv, nil).boundCypherExecutor(
 					newReducerCypherExecutor(session, nil, nil),
 				)
-				return newProbedWorkloadMaterializer(cypherExec, nil, nil), session
+				return newProbedWorkloadMaterializer(cypherExec, nil, nil, nil), session
 			}
 			projection := &reducer.ProjectionResult{
 				DeploymentSourceRows: []reducer.DeploymentSourceRow{{
