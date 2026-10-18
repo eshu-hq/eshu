@@ -15,47 +15,64 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/failure"
 )
 
 // TestCodeContentReadFailuresAnswerFixedText drives the content-backed code
 // route steps through a backend fault, a client cancel, and a stale reader
-// (#7674). It swaps queryHandlerTracer, so it must not be parallel.
+// (#7674). It swaps queryHandlerTracer through the suite, so it must not be
+// parallel.
 func TestCodeContentReadFailuresAnswerFixedText(t *testing.T) {
-	contentOnly := func(err error) *CodeHandler {
+	contentOnly := func(err error) failure.Mounter {
 		return &CodeHandler{Content: failingCodeContent{err: err}, Profile: ProfileLocalAuthoritative}
 	}
 	emptyGraph := fakeGraphReader{
 		run:       func(context.Context, string, map[string]any) ([]map[string]any, error) { return nil, nil },
 		runSingle: func(context.Context, string, map[string]any) (map[string]any, error) { return nil, nil },
 	}
-	runCodeFailureRoutes(t, []codeFailureRoute{
-		{"search content index", "/api/v0/code/search", `{"query":"renderApp","limit":10}`, codeSearchContentIndexFailedMessage, contentOnly},
-		{"topic", "/api/v0/code/topics/investigate", `{"topic":"session refresh"}`, codeTopicFailedMessage, contentOnly},
-		{"structural inventory", "/api/v0/code/structure/inventory", `{"inventory_kind":"entity","language":"go"}`, structuralInventoryFailedMessage, contentOnly},
-		{"hardcoded secrets", "/api/v0/code/security/secrets/investigate", `{}`, hardcodedSecretFailedMessage, contentOnly},
-		{"divergence findings", "/api/v0/code/divergence/findings", `{"repo_id":"repo-x","kind":"exact"}`, divergenceFindingsFailedMessage, contentOnly},
-		{"divergence report", "/api/v0/code/divergence/report", `{"repo_id":"repo-x"}`, divergenceReportFailedMessage, contentOnly},
-		{"divergence investigate", "/api/v0/code/divergence/investigate", `{"repo_id":"repo-x","kind":"exact","fingerprint":"fp"}`, divergenceMembersFailedMessage, contentOnly},
-		{"divergence investigate drifted", "/api/v0/code/divergence/investigate", `{"repo_id":"repo-x","kind":"drifted","fingerprint":"fp"}`, divergenceDriftedFailedMessage, contentOnly},
-		{"relationship story target", "/api/v0/code/relationships/story", `{"entity_id":"entity-1"}`, relationshipStoryTargetFailedMessage, contentOnly},
-		{"call chain endpoints", "/api/v0/code/call-chain", `{"start":"a","end":"b","repo_id":"repo-1"}`, callChainEndpointFailedMessage, contentOnly},
-		{
-			"relationships content fallback", "/api/v0/code/relationships", `{"entity_id":"e1"}`, relationshipContentFallbackFailedMessage,
-			func(err error) *CodeHandler {
-				return &CodeHandler{Neo4j: emptyGraph, Content: failingCodeContent{err: err}}
-			},
+	route := func(name, path, body, message string, handler func(error) failure.Mounter) failure.Route {
+		return failure.Route{
+			Name: name, Method: http.MethodPost, Path: path, Body: body, Message: message,
+			Handler: handler,
+		}
+	}
+	// As in the graph test, only some content routes open a handler span
+	// before their read fails; the rest record on the request span.
+	failure.Run(t, failure.Suite{
+		HandlerTracer: &queryHandlerTracer,
+		Routes: []failure.Route{
+			route("topic", "/api/v0/code/topics/investigate", `{"topic":"session refresh"}`, codeTopicFailedMessage, contentOnly),
+			route("structural inventory", "/api/v0/code/structure/inventory", `{"inventory_kind":"entity","language":"go"}`, structuralInventoryFailedMessage, contentOnly),
+			route("hardcoded secrets", "/api/v0/code/security/secrets/investigate", `{}`, hardcodedSecretFailedMessage, contentOnly),
+			route("divergence findings", "/api/v0/code/divergence/findings", `{"repo_id":"repo-x","kind":"exact"}`, divergenceFindingsFailedMessage, contentOnly),
+			route("divergence report", "/api/v0/code/divergence/report", `{"repo_id":"repo-x"}`, divergenceReportFailedMessage, contentOnly),
+			route("divergence investigate", "/api/v0/code/divergence/investigate", `{"repo_id":"repo-x","kind":"exact","fingerprint":"fp"}`, divergenceMembersFailedMessage, contentOnly),
+			route("divergence investigate drifted", "/api/v0/code/divergence/investigate", `{"repo_id":"repo-x","kind":"drifted","fingerprint":"fp"}`, divergenceDriftedFailedMessage, contentOnly),
 		},
-		{
-			"code flow", "/api/v0/code/flow/taint-path", `{"repo_id":"repo-1","language":"go","symbol":"handle","limit":5}`, codeFlowFailedMessage,
-			func(err error) *CodeHandler {
-				return &CodeHandler{CodeFlow: failingCodeFlow{err: err}, Profile: ProfileLocalAuthoritative}
-			},
-		},
-		{
-			"dead code scan store", "/api/v0/code/dead-code", `{"language":"go"}`, "dead-code candidate scan failed",
-			func(err error) *CodeHandler {
-				return &CodeHandler{Content: &readerFenceStore{failScan: err}, Profile: ProfileLocalAuthoritative}
-			},
+	})
+	failure.Run(t, failure.Suite{
+		Routes: []failure.Route{
+			route("search content index", "/api/v0/code/search", `{"query":"renderApp","limit":10}`, codeSearchContentIndexFailedMessage, contentOnly),
+			route("relationship story target", "/api/v0/code/relationships/story", `{"entity_id":"entity-1"}`, relationshipStoryTargetFailedMessage, contentOnly),
+			route("call chain endpoints", "/api/v0/code/call-chain", `{"start":"a","end":"b","repo_id":"repo-1"}`, callChainEndpointFailedMessage, contentOnly),
+			route(
+				"relationships content fallback", "/api/v0/code/relationships", `{"entity_id":"e1"}`, relationshipContentFallbackFailedMessage,
+				func(err error) failure.Mounter {
+					return &CodeHandler{Neo4j: emptyGraph, Content: failingCodeContent{err: err}}
+				},
+			),
+			route(
+				"code flow", "/api/v0/code/flow/taint-path", `{"repo_id":"repo-1","language":"go","symbol":"handle","limit":5}`, codeFlowFailedMessage,
+				func(err error) failure.Mounter {
+					return &CodeHandler{CodeFlow: failingCodeFlow{err: err}, Profile: ProfileLocalAuthoritative}
+				},
+			),
+			route(
+				"dead code scan store", "/api/v0/code/dead-code", `{"language":"go"}`, "dead-code candidate scan failed",
+				func(err error) failure.Mounter {
+					return &CodeHandler{Content: &readerFenceStore{failScan: err}, Profile: ProfileLocalAuthoritative}
+				},
+			),
 		},
 	})
 }
