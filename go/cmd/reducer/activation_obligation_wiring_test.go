@@ -242,6 +242,20 @@ func TestBuildReducerServiceStartsTheActivationObligationConsumerOnlyWhenEnabled
 			t.Fatalf("enabled=%t: Service.ActivationObligationRunner set = %t", enabled, got)
 		}
 	}
+
+	// Blank env means on-by-default since the #7638 flip: the service must
+	// carry the consumer without any explicit flag. This is the case that
+	// fails if buildReducerService ever drops the default-on wiring, since
+	// the explicit cases above keep passing either way.
+	db := txFakeReducerDB{fakeReducerDB: &fakeReducerDB{}}
+	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{},
+		postgres.NewSharedIntentStore(db.fakeReducerDB), stubCypherReader{}, stubCypherReader{}, func(string) string { return "" }, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("blank env: buildReducerService() error = %v", err)
+	}
+	if service.ActivationObligationRunner == nil {
+		t.Fatal("blank env: Service.ActivationObligationRunner is nil, want the default-on consumer")
+	}
 }
 
 // txFakeReducerDB is fakeReducerDB with a Begin, the transactional shape the

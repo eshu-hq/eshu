@@ -14,7 +14,7 @@ func TestIdentityCacheMaxBytes(t *testing.T) {
 	t.Parallel()
 
 	// Unset → default (0 = use default)
-	if got := identityCacheMaxBytes(obligationConsumerDisabledGetenv(func(string) string { return "" })); got != 0 {
+	if got := identityCacheMaxBytes(func(string) string { return "" }); got != 0 {
 		t.Fatalf("identityCacheMaxBytes(unset) = %d, want 0 (use default)", got)
 	}
 
