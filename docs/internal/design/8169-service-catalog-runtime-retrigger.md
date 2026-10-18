@@ -1,9 +1,10 @@
 # Service Catalog Runtime Re-trigger (#8169)
 
-**A `workload_materialization` ACK re-triggers the `service_catalog_correlation`
-rows whose committed decisions name its repository, in the same SQL statement,
-and the #7816 runtime fence also waits on pending `repo_dependency` RUNS_ON
-intents. No table, column, or migration is added.**
+**A `workload_materialization` ACK reopens the succeeded
+`service_catalog_correlation` rows whose committed decisions name its
+repository and flags any claimed or running row at the active generation, in
+the same SQL statement, and the #7816 runtime fence also waits on pending
+`repo_dependency` RUNS_ON intents. No table, column, or migration is added.**
 
 Refs #8169, #7816, #8218.
 

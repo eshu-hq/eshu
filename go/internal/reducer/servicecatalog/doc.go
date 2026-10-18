@@ -98,9 +98,9 @@
 // RuntimeProducerState.RunsOnIntentsPending), bounded from the intent's
 // created_at (#8169). A generation the fence let commit with an incomplete
 // family (no_producer, bound_exceeded) is repaired by the
-// workload_materialization ACK, which reopens or flags the catalog rows whose
-// decisions name its repository (go/internal/storage/postgres,
-// service_catalog_runtime_retrigger.go).
+// workload_materialization ACK, which reopens the succeeded catalog rows
+// whose decisions name its repository and flags any claimed or running row
+// (go/internal/storage/postgres, service_catalog_runtime_retrigger.go).
 //
 // Telemetry: the correlation handler increments
 // eshu_dp_service_catalog_correlations_total (labeled by domain and outcome)

@@ -4,9 +4,12 @@ A service generation can commit with an incomplete runtime family: the
 runtime readiness fence answers ready when a repository has no workload
 producer yet, and it commits what it can read once every in-flight producer is
 past its 30-minute bound. A `workload_materialization` ACK repairs that. In
-the same statement as the ACK, it reopens or flags the
+the same statement as the ACK, it reopens the succeeded
 `service_catalog_correlation` rows whose decisions name the acked repository
-(#8169). These signals show what each ACK re-triggered.
+and flags any claimed or running row at the active generation (an in-flight
+run's repository set is uncommitted, so a decision-keyed rule would miss a
+run that newly names the repository) (#8169). These signals show what each
+ACK re-triggered.
 
 ## Counter
 
@@ -21,7 +24,9 @@ succeeded producer ACK touched. Every label is a closed set:
 It never carries a scope id, a repository id, or a service id.
 
 A steady `none` with a rare `reopened` is normal: most workload ACKs belong to
-repositories that no catalog decision names. A `reopened` rate close to the
+repositories that no catalog decision names. A `replay_flagged` appears
+whenever a workload ACK lands while a catalog run is in flight; each flag
+costs at most one extra catalog run, which re-reads under the fence. A `reopened` rate close to the
 workload ACK rate means many catalogs name the repositories being
 re-materialized. Each reopen costs one catalog handler run; an unchanged
 repository produces no new service generation (the generation id is the
