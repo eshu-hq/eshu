@@ -5,7 +5,7 @@ package crossplane
 
 // Part is one leaf-local edge statement part: the static Cypher template,
 // its parameters, and the routing flag the parent cypher package maps onto
-// Statement{Operation, Drain}. Part carries no Statement so this leaf never
+// Statement Operation. Part carries no Statement so this leaf never
 // imports its parent (the root edge-writer adapter is the caller).
 type Part struct {
 	// Cypher is the static template to execute.
@@ -15,9 +15,6 @@ type Part struct {
 	// IsRetract marks a stale-edge retraction (parent maps to
 	// OperationCanonicalRetract); false marks an upsert.
 	IsRetract bool
-	// Drain marks a retract the NornicDB phase-group executor must run as
-	// a standalone autocommit statement (parent maps to Statement.Drain).
-	Drain bool
 }
 
 const (

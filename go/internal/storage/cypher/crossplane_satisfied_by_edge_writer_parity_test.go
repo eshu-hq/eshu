@@ -110,3 +110,39 @@ func TestCrossplaneSatisfiedByEdgeLeafParityRetractByteIdentical(t *testing.T) {
 		t.Fatal("leaf retract part must set IsRetract so the root adapter maps it to OperationCanonicalRetract")
 	}
 }
+
+func TestCrossplaneLeafMetadataKeysMatchParent(t *testing.T) {
+	t.Parallel()
+
+	// The leaf's unexported metadata keys must stay identical to the parent
+	// cypher package's StatementMetadata*Key constants: the root adapter
+	// copies Parameters through untouched, so a drift would silently fork the
+	// phase/entity-label/summary dimensions. Parameters are looked up by the
+	// PARENT keys — a leaf-side rename makes these lookups miss and fails.
+	rows := crossplaneSatisfiedByEdgeRows(3)
+	upserts := leaf.BuildUpsertParts(rows, "scope-1", "gen-1", crossplaneSatisfiedByEvidenceSource, 2)
+	if len(upserts) == 0 {
+		t.Fatal("no upsert parts built")
+	}
+	for i, p := range upserts {
+		if got := p.Parameters[StatementMetadataPhaseKey]; got != leaf.Phase {
+			t.Fatalf("upsert part[%d] Parameters[%q] = %#v, want leaf phase %q", i, StatementMetadataPhaseKey, got, leaf.Phase)
+		}
+		if got := p.Parameters[StatementMetadataEntityLabelKey]; got != leaf.EdgeLabel {
+			t.Fatalf("upsert part[%d] Parameters[%q] = %#v, want leaf edge label %q", i, StatementMetadataEntityLabelKey, got, leaf.EdgeLabel)
+		}
+		if _, ok := p.Parameters[StatementMetadataSummaryKey]; !ok {
+			t.Fatalf("upsert part[%d] missing Parameters[%q]", i, StatementMetadataSummaryKey)
+		}
+	}
+	retract := leaf.BuildRetractPart([]string{"scope-1"}, "gen-1", crossplaneSatisfiedByEvidenceSource)
+	if got := retract.Parameters[StatementMetadataPhaseKey]; got != leaf.Phase {
+		t.Fatalf("retract Parameters[%q] = %#v, want leaf phase %q", StatementMetadataPhaseKey, got, leaf.Phase)
+	}
+	if got := retract.Parameters[StatementMetadataEntityLabelKey]; got != leaf.EdgeLabel {
+		t.Fatalf("retract Parameters[%q] = %#v, want leaf edge label %q", StatementMetadataEntityLabelKey, got, leaf.EdgeLabel)
+	}
+	if _, ok := retract.Parameters[StatementMetadataSummaryKey]; !ok {
+		t.Fatalf("retract missing Parameters[%q]", StatementMetadataSummaryKey)
+	}
+}

@@ -116,7 +116,6 @@ func wrapCrossplaneParts(parts []leaf.Part) []Statement {
 			Operation:  operation,
 			Cypher:     part.Cypher,
 			Parameters: part.Parameters,
-			Drain:      part.Drain,
 		})
 	}
 	return statements
