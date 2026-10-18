@@ -50,7 +50,7 @@ func TestBuildReducerServiceWiresDefaultRuntimeAndQueue(t *testing.T) {
 	t.Parallel()
 
 	database := &fakeReducerDB{}
-	service, err := buildReducerService(context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{}, func(string) string { return "" }, nil, nil, nil, nil)
+	service, err := buildReducerService(context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{}, obligationConsumerDisabledGetenv(func(string) string { return "" }), nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
 	}
@@ -205,12 +205,12 @@ func TestBuildReducerServiceWiresSearchVectorBuildRunnerWhenLocalEmbedderEnabled
 		postgres.NewSharedIntentStore(database),
 		stubCypherReader{},
 		stubCypherReader{},
-		func(key string) string {
+		obligationConsumerDisabledGetenv(func(key string) string {
 			if key == envSemanticSearchLocalEmbedder {
 				return "hash"
 			}
 			return ""
-		},
+		}),
 		nil,
 		nil,
 		nil,
@@ -248,9 +248,10 @@ func TestBuildReducerServiceWiresSharedEdgeGroupBatchOverrides(t *testing.T) {
 	t.Parallel()
 
 	env := map[string]string{
-		"ESHU_GRAPH_BACKEND":                 "neo4j",
-		inheritanceEdgeGroupBatchSizeEnv:     "3",
-		sqlRelationshipEdgeGroupBatchSizeEnv: "4",
+		"ESHU_GRAPH_BACKEND":                   "neo4j",
+		inheritanceEdgeGroupBatchSizeEnv:       "3",
+		sqlRelationshipEdgeGroupBatchSizeEnv:   "4",
+		activationObligationConsumerEnabledEnv: "false",
 	}
 	getenv := func(key string) string { return env[key] }
 
@@ -285,6 +286,7 @@ func TestBuildReducerServiceWiresRepoDependencyRetractStatementTiming(t *testing
 
 	env := map[string]string{
 		repoDependencyRetractStatementTimingEnv: "true",
+		activationObligationConsumerEnabledEnv:  "false",
 	}
 	getenv := func(key string) string { return env[key] }
 
@@ -320,7 +322,7 @@ func TestBuildReducerServiceWiresPostgresWorkloadIdentityWriter(t *testing.T) {
 	t.Parallel()
 
 	database := &fakeReducerDB{}
-	service, err := buildReducerService(context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{}, func(string) string { return "" }, nil, nil, nil, nil)
+	service, err := buildReducerService(context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{}, obligationConsumerDisabledGetenv(func(string) string { return "" }), nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
 	}
@@ -364,7 +366,7 @@ func TestBuildReducerServiceWiresPostgresCloudAssetResolutionWriter(t *testing.T
 	t.Parallel()
 
 	database := &fakeReducerDB{}
-	service, err := buildReducerService(context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{}, func(string) string { return "" }, nil, nil, nil, nil)
+	service, err := buildReducerService(context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{}, obligationConsumerDisabledGetenv(func(string) string { return "" }), nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
 	}
@@ -414,6 +416,8 @@ func TestBuildReducerServiceWiresRetryConfigFromEnv(t *testing.T) {
 			return "2m"
 		case reducerMaxAttemptsEnv:
 			return "5"
+		case activationObligationConsumerEnabledEnv:
+			return "false"
 		default:
 			return ""
 		}

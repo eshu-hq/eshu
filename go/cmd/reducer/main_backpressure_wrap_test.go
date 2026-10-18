@@ -172,7 +172,7 @@ func TestReducerGraphWriteGateDisabledIsPassthrough(t *testing.T) {
 	t.Parallel()
 
 	probe := &poolProbeExecutor{}
-	gate := newReducerGraphWriteGate(func(string) string { return "" }, nil)
+	gate := newReducerGraphWriteGate(obligationConsumerDisabledGetenv(func(string) string { return "" }), nil)
 
 	bounded := gate.boundExecutor(probe)
 	if bounded != sourcecypher.Executor(probe) {
@@ -352,6 +352,8 @@ func TestBuildReducerServiceMaxInFlightWrapsAllWriters(t *testing.T) {
 				return "2"
 			case "ESHU_NORNICDB_CANONICAL_GROUPED_WRITES":
 				return "false"
+			case activationObligationConsumerEnabledEnv:
+				return "false"
 			default:
 				return ""
 			}
@@ -390,6 +392,8 @@ func TestBuildReducerServiceMaxInFlightWithGroupedWritesEnabled(t *testing.T) {
 				return "2"
 			case "ESHU_NORNICDB_CANONICAL_GROUPED_WRITES":
 				return "true"
+			case activationObligationConsumerEnabledEnv:
+				return "false"
 			default:
 				return ""
 			}

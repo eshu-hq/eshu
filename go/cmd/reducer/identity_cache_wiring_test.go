@@ -14,7 +14,7 @@ func TestIdentityCacheMaxBytes(t *testing.T) {
 	t.Parallel()
 
 	// Unset → default (0 = use default)
-	if got := identityCacheMaxBytes(func(string) string { return "" }); got != 0 {
+	if got := identityCacheMaxBytes(obligationConsumerDisabledGetenv(func(string) string { return "" })); got != 0 {
 		t.Fatalf("identityCacheMaxBytes(unset) = %d, want 0 (use default)", got)
 	}
 
@@ -51,12 +51,12 @@ func TestBuildReducerServiceWiresIdentityCacheEnvDisable(t *testing.T) {
 		postgres.NewSharedIntentStore(&fakeReducerDB{}),
 		stubCypherReader{},
 		stubCypherReader{},
-		func(key string) string {
+		obligationConsumerDisabledGetenv(func(key string) string {
 			if key == "ESHU_IDENTITY_CACHE_MAX_BYTES" {
 				return "-1"
 			}
 			return ""
-		},
+		}),
 		nil, nil, nil, nil,
 	)
 	if err != nil {

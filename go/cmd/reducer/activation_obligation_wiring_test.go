@@ -46,15 +46,28 @@ func activationEnv(values map[string]string) func(string) string {
 	return func(key string) string { return values[key] }
 }
 
-func TestActivationObligationConsumerIsDisabledByDefault(t *testing.T) {
+func TestActivationObligationConsumerIsEnabledByDefault(t *testing.T) {
 	t.Parallel()
-	for _, value := range []string{"", "false", "0", "not-a-bool"} {
+	runner, err := activationObligationRunnerFor(activationEnv(map[string]string{}),
+		activationWiringTxDB{activationWiringDB{t}}, nil, nil, nil)
+	if err != nil || runner == nil {
+		t.Fatalf("unset %s: runner=%v err=%v, want enabled by default", activationObligationConsumerEnabledEnv, runner, err)
+	}
+	for _, value := range []string{"false", "0"} {
 		runner, err := activationObligationRunnerFor(activationEnv(map[string]string{
 			activationObligationConsumerEnabledEnv: value,
 		}), activationWiringTxDB{activationWiringDB{t}}, nil, nil, nil)
 		if err != nil || runner != nil {
 			t.Fatalf("%s=%q: runner=%v err=%v, want disabled", activationObligationConsumerEnabledEnv, value, runner, err)
 		}
+	}
+	// Unparsable values fall back to the default (enabled), like the other
+	// reducer maintenance knobs.
+	runner, err = activationObligationRunnerFor(activationEnv(map[string]string{
+		activationObligationConsumerEnabledEnv: "not-a-bool",
+	}), activationWiringTxDB{activationWiringDB{t}}, nil, nil, nil)
+	if err != nil || runner == nil {
+		t.Fatalf("%s=%q: runner=%v err=%v, want enabled by fallback default", activationObligationConsumerEnabledEnv, "not-a-bool", runner, err)
 	}
 }
 
@@ -188,16 +201,35 @@ func TestActivationObligationConsumerRefusesANonTransactionalDatabase(t *testing
 	}
 }
 
+// obligationConsumerDisabledGetenv wraps a test getenv so the activation
+// obligation consumer stays off; do not wrap an enabling getenv. The
+// consumer is on by default since the #7638 flip, and the shared builder
+// fakes are not transactional, so builder tests that do not exercise the
+// consumer pin it off to keep their blank-env defaults meaningful.
+func obligationConsumerDisabledGetenv(getenv func(string) string) func(string) string {
+	return func(key string) string {
+		if key == activationObligationConsumerEnabledEnv {
+			return "false"
+		}
+		return getenv(key)
+	}
+}
+
 // TestBuildReducerServiceStartsTheActivationObligationConsumerOnlyWhenEnabled
 // pins the composition root: the Service carries the consumer only when the
-// flag is true.
+// flag is explicitly true, and stays without one when it is explicitly false.
+// A blank env means on-by-default since the #7638 flip, so the disabled case
+// must pass "false", not "".
 func TestBuildReducerServiceStartsTheActivationObligationConsumerOnlyWhenEnabled(t *testing.T) {
 	t.Parallel()
 	for _, enabled := range []bool{false, true} {
 		db := txFakeReducerDB{fakeReducerDB: &fakeReducerDB{}}
 		getenv := func(key string) string {
-			if enabled && key == activationObligationConsumerEnabledEnv {
-				return "true"
+			if key == activationObligationConsumerEnabledEnv {
+				if enabled {
+					return "true"
+				}
+				return "false"
 			}
 			return ""
 		}

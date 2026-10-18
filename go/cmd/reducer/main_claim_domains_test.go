@@ -21,7 +21,7 @@ func TestBuildReducerServiceWiresReducerClaimDomains(t *testing.T) {
 			string(reducer.DomainInheritanceMaterialization),
 		}, ","),
 	}
-	getenv := func(key string) string { return env[key] }
+	getenv := obligationConsumerDisabledGetenv(func(key string) string { return env[key] })
 
 	db := &fakeReducerDB{}
 	service, err := buildReducerService(

@@ -9,6 +9,8 @@ partitions only.
 Its only production caller is the activation-obligation consumer
 (`go/internal/reducer/maintenance`) through `postgres.ActivationMaintainer`,
 which runs only when `ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED` is set.
+(Dated note: as of the #7638 flip the consumer is on by default, so unset
+means it runs; this record otherwise describes the pre-flip setup.)
 
 ## Outcomes and refusals
 
@@ -141,7 +143,8 @@ transaction is the same code, and a base-versus-branch output differential of
 the whole pass is 0/0 (see Evidence). The partition-scoped entry's only
 production caller is the activation obligation consumer, which is off unless
 `ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED` is set, so no default runtime
-path runs it.
+path runs it. (Dated note: as of the #7638 flip the consumer is on by
+default; this record otherwise describes the pre-flip setup.)
 
 Performance Evidence: the cost harness measured the pass against the whole pass on a
 restored template state (PostgreSQL 18, 4 CPU / 4 GiB, 25 generations per

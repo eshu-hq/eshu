@@ -44,7 +44,7 @@ func TestBuildReducerServiceWiresDeployableUnitEdgeVerifier(t *testing.T) {
 	service, err := buildReducerService(
 		context.Background(), database, edgeAbsentGraphExecutor{}, stubCypherExecutor{},
 		postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{},
-		func(string) string { return "" }, nil, nil, nil, nil,
+		obligationConsumerDisabledGetenv(func(string) string { return "" }), nil, nil, nil, nil,
 	)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)

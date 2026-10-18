@@ -45,7 +45,7 @@ func TestBuildReducerServiceWiresCrossScopeProducerReadiness(t *testing.T) {
 	service, err := buildReducerService(
 		context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{},
 		postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{},
-		func(string) string { return "" }, nil, nil, logger, nil,
+		obligationConsumerDisabledGetenv(func(string) string { return "" }), nil, nil, logger, nil,
 	)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
@@ -132,7 +132,7 @@ func TestBuildReducerServiceWiresCrossScopeProducerReadinessForSupplyChainImpact
 	service, err := buildReducerService(
 		context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{},
 		postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{},
-		func(string) string { return "" }, nil, nil, logger, nil,
+		obligationConsumerDisabledGetenv(func(string) string { return "" }), nil, nil, logger, nil,
 	)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)

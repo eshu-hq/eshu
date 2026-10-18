@@ -31,12 +31,12 @@ func TestBuildReducerServiceWiresSharedProjectionLeaseOwner(t *testing.T) {
 		postgres.NewSharedIntentStore(db),
 		stubCypherReader{},
 		stubCypherReader{},
-		func(name string) string {
+		obligationConsumerDisabledGetenv(func(name string) string {
 			if name == sharedProjectionLeaseOwnerEnv {
 				return "shared-wiring-test"
 			}
 			return ""
-		},
+		}),
 		nil,
 		nil,
 		nil,
@@ -82,7 +82,7 @@ func TestLoadSharedProjectionLeaseOwnerUsesStableProcessIdentity(t *testing.T) {
 
 func TestSharedProjectionLeaseOwnerDiffersAcrossProcessBoots(t *testing.T) {
 	if os.Getenv(sharedProjectionLeaseOwnerHelperEnv) == "1" {
-		fmt.Println(loadSharedProjectionLeaseOwner(func(string) string { return "" }))
+		fmt.Println(loadSharedProjectionLeaseOwner(obligationConsumerDisabledGetenv(func(string) string { return "" })))
 		return
 	}
 

@@ -167,10 +167,11 @@ configuration.
   only after an operator has reviewed the wedge, and tune the poll/attempt/batch
   budget via the `ESHU_POISON_LIVENESS_*` knobs documented in
   `go/cmd/reducer/README.md` "Poison dead-letter liveness".
-- The #7584 activation obligation consumer is **off by default**
-  (`ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED=false`). When enabled it settles
-  the obligations `ProjectorQueue.Ack` writes by running the partition-scoped
-  deferred maintenance pass on the owed generation only; see
+- The #7584 activation obligation consumer is **on by default**
+  (`ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED=true` since the #7638 flip).
+  It settles the obligations `ProjectorQueue.Ack` writes by running the partition-scoped
+  deferred maintenance pass on the owed generation only; set the flag `false`
+  to restore the old pending-until-retention behavior; see
   [Resolution Engine](../services/resolution-engine.md) "Activation obligations".
   Tune it with `ESHU_ACTIVATION_OBLIGATION_LEASE` (default `30m`,
   arbiter-ruled #7638 item-2 interim: the measured 395 s full-corpus

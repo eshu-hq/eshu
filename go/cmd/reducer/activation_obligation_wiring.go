@@ -18,9 +18,10 @@ import (
 
 const (
 	// activationObligationConsumerEnabledEnv turns on the #7584 activation
-	// obligation consumer. It is off by default until the default-on decision;
-	// while off, ProjectorQueue.Ack still writes obligations and they stay
-	// pending until retention removes their generation.
+	// obligation consumer. It is on by default since the #7638 default flip;
+	// setting it to false restores the old behavior, under which
+	// ProjectorQueue.Ack still writes obligations and they stay pending
+	// until retention removes their generation.
 	activationObligationConsumerEnabledEnv = "ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED"
 	// activationObligationLeaseEnv overrides how long one claim holds an
 	// obligation (#7638 item 2, arbiter-ruled 30m interim). An unparsable
@@ -50,7 +51,7 @@ func activationObligationRunnerFor(
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) (*obligation.Runner, error) {
-	if !loadBoolOrDefault(getenv, activationObligationConsumerEnabledEnv, false) {
+	if !loadBoolOrDefault(getenv, activationObligationConsumerEnabledEnv, true) {
 		return nil, nil
 	}
 	storeDB, ok := database.(activation.Database)
