@@ -363,3 +363,37 @@ func TestServeIndexStatusSharedCallerPayloadUnchanged(t *testing.T) {
 		t.Fatalf("unscoped count statement = %#v, want the ungranted count", graph.calls)
 	}
 }
+
+// TestServeIndexStatusUnscopedEmptyIndexStays200 is the #8395 healthy branch:
+// a working graph with no repositories still answers 200 with
+// repository_count 0 and the queue remainder, not an error.
+func TestServeIndexStatusUnscopedEmptyIndexStays200(t *testing.T) {
+	t.Parallel()
+
+	graph := &indexStatusRepoGraph{}
+	handler := &StatusHandler{
+		StatusReader: fakeStatusReader{snapshot: indexStatusOtherTenantSnapshot(time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC))},
+		Neo4j:        graph,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v0/status/index", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if got, want := payload["repository_count"], float64(0); got != want {
+		t.Fatalf("repository_count = %#v, want %#v", got, want)
+	}
+	queue, ok := payload["queue"].(map[string]any)
+	if !ok {
+		t.Fatalf("queue section missing: %s", rec.Body.String())
+	}
+	if got, want := queue["total"], float64(4242); got != want {
+		t.Fatalf("queue.total = %#v, want %#v", got, want)
+	}
+}

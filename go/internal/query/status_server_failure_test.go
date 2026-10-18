@@ -210,3 +210,55 @@ func (g failingRunSingleGraph) Run(context.Context, string, map[string]any) ([]m
 func (g failingRunSingleGraph) RunSingle(context.Context, string, map[string]any) (map[string]any, error) {
 	return nil, g.err
 }
+
+// TestUnscopedIndexStatusGraphCountFailureIsNotZero is the #8395 regression:
+// the unscoped index-status graph count swallowed its error and answered 200
+// with repository_count 0, indistinguishable from a healthy empty index. A
+// failed count must surface the same way the scoped path of this route
+// answers it: the shared retryable verdict for an outage or deadline, the
+// fixed 500 otherwise, never a silent 0.
+func TestUnscopedIndexStatusGraphCountFailureIsNotZero(t *testing.T) {
+	t.Parallel()
+
+	for _, path := range indexStatusScopedPaths {
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+			route := failure.Route{
+				Name: "unscoped " + path, Path: path, Message: indexStatusRepositoryCountFailedMessage,
+				Handler: func(err error) failure.Mounter {
+					return &StatusHandler{StatusReader: fakeStatusReader{}, Neo4j: failingRunSingleGraph{err: err}}
+				},
+			}
+			suite := failure.Suite{Routes: []failure.Route{route}}
+			failure.Run(t, suite)
+
+			for _, tc := range []struct {
+				name       string
+				err        error
+				wantStatus int
+			}{
+				{name: "graph unavailable", err: fmt.Errorf("%s: %w", failure.Canary, ErrGraphUnavailable), wantStatus: http.StatusServiceUnavailable},
+				{name: "graph deadline", err: fmt.Errorf("%s: %w", failure.Canary, ErrGraphReadDeadline), wantStatus: http.StatusGatewayTimeout},
+			} {
+				rec, _ := failure.Serve(suite, route, route.Handler(tc.err), false)
+				if rec.Code != tc.wantStatus {
+					t.Errorf("%s / %s: status = %d, want %d; body = %s", route.Name, tc.name, rec.Code, tc.wantStatus, rec.Body.String())
+				}
+			}
+			// A count that answers no row is a server fault with the same
+			// fixed message, never a silent 0.
+			rec, _ := failure.Serve(suite, route, &StatusHandler{StatusReader: fakeStatusReader{}, Neo4j: failingRunSingleGraph{}}, false)
+			if rec.Code != http.StatusInternalServerError || failure.Message(rec.Body.Bytes()) != indexStatusRepositoryCountFailedMessage {
+				t.Errorf("%s / no row: status = %d, body = %s; want 500 %q", route.Name, rec.Code, rec.Body.String(), indexStatusRepositoryCountFailedMessage)
+			}
+			// A driverless production reader (local_lightweight wires a
+			// Neo4jReader with no driver, #5761) fails its count the same
+			// way, never a silent 0.
+			rec, _ = failure.Serve(suite, route, &StatusHandler{StatusReader: fakeStatusReader{}, Neo4j: NewNeo4jReader(nil, "neo4j")}, false)
+			if rec.Code != http.StatusInternalServerError || failure.Message(rec.Body.Bytes()) != indexStatusRepositoryCountFailedMessage {
+				t.Errorf("%s / driverless: status = %d, body = %s; want 500 %q", route.Name, rec.Code, rec.Body.String(), indexStatusRepositoryCountFailedMessage)
+			}
+			assertFenceCapability(t, suite, route, "operations.index_status")
+		})
+	}
+}
