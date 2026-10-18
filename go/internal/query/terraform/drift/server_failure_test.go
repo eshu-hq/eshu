@@ -7,6 +7,8 @@ import (
 	"context"
 	"net/http"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/failure"
 )
 
 // TestTerraformConfigStateDriftAnswersFixedServerFailures is the #7674
@@ -19,16 +21,19 @@ func TestTerraformConfigStateDriftAnswersFixedServerFailures(t *testing.T) {
 		path = "/api/v0/terraform/config-state-drift/findings"
 		body = `{"scope_id":"state_snapshot:s3:hash-1"}`
 	)
-	runServerFailureRoutes(t, []serverFailureRoute{
-		{
-			name: "drift count", method: http.MethodPost, path: path, body: body,
-			message: driftFindingsCountFailedMessage,
-			handler: func(err error) serverFailureMounter { return &Handler{Store: failingDriftStore{countErr: err}} },
-		},
-		{
-			name: "drift list", method: http.MethodPost, path: path, body: body,
-			message: driftFindingsListFailedMessage,
-			handler: func(err error) serverFailureMounter { return &Handler{Store: failingDriftStore{listErr: err}} },
+	failure.Run(t, failure.Suite{
+		HandlerTracer: &driftHandlerTracer,
+		Routes: []failure.Route{
+			{
+				Name: "drift count", Method: http.MethodPost, Path: path, Body: body,
+				Message: driftFindingsCountFailedMessage,
+				Handler: func(err error) failure.Mounter { return &Handler{Store: failingDriftStore{countErr: err}} },
+			},
+			{
+				Name: "drift list", Method: http.MethodPost, Path: path, Body: body,
+				Message: driftFindingsListFailedMessage,
+				Handler: func(err error) failure.Mounter { return &Handler{Store: failingDriftStore{listErr: err}} },
+			},
 		},
 	})
 }
