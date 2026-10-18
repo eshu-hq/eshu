@@ -98,14 +98,17 @@ const Freshness = `
                     },
                     "selection": {
                       "type": "object",
-                      "description": "Collector selection evidence from the scope's live selector observations (#7625). Always present; state is unknown, with live_selector_count 0 and null fields, when no selector row is live.",
+                      "description": "Collector selection evidence from the scope's live selector observations (#7625). Always present; state is unknown, with live_selector_count 0 and null fields, when no selector row is live. When reason is not_listed, classification and successor_slug carry the upstream probe verdict (#8454).",
                       "properties": {
                         "state": {"type": "string", "enum": ["selected", "not_selected", "pending_confirmation", "excluded_still_ingested", "unknown"], "description": "selected when any live selector selects the scope; not_selected when no live selector selects it, every live observation is confirmed exclusion evidence, and no generation was observed after state_since; excluded_still_ingested when the exclusion is confirmed but a generation was observed after state_since; pending_confirmation when no live selector selects the scope but an observation is not yet confirmed; unknown when no selector row is live."},
                         "reason": {"type": "string", "nullable": true, "enum": ["not_listed", "archived_excluded", "rule_excluded", null], "description": "Null when selected or unknown; otherwise the state of the most recently evaluated live observation."},
                         "state_since": {"type": "string", "format": "date-time", "nullable": true, "description": "When selected, the earliest time a live selector began selecting the scope; otherwise the latest time a live observation entered its current state. Null when unknown."},
                         "last_listed_at": {"type": "string", "format": "date-time", "nullable": true, "description": "Newest time a deciding selector's listing named the repository; null if never."},
                         "evaluated_at": {"type": "string", "format": "date-time", "nullable": true, "description": "Newest evaluation time among the deciding observations."},
-                        "live_selector_count": {"type": "integer", "description": "Number of selectors with a live observation of the scope."}
+                        "live_selector_count": {"type": "integer", "description": "Number of selectors with a live observation of the scope."},
+                        "classification": {"type": "string", "nullable": true, "enum": ["transferred", "renamed", "still_present", "not_found_or_inaccessible", null], "description": "Upstream probe verdict for a Confirmed not_listed scope (#8454); null otherwise."},
+                        "successor_slug": {"type": "string", "nullable": true, "description": "Probe full_name for a renamed or transferred verdict (#8454); null otherwise."},
+                        "successor_selected": {"type": "boolean", "description": "Whether the successor slug resolves to a selected scope, decided at read time (#8454)."}
                       }
                     },
                     "as_of": {"type": "string"},

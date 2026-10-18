@@ -140,6 +140,7 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 			CICDRunCorrelations:        cicd.NewPostgresRunCorrelationStoreWithReadStore(reader),
 			ServiceCatalogCorrelations: service.NewPostgresServiceCatalogCorrelationStoreWithReadStore(reader),
 			Freshness:                  pgstatus.NewInstrumentedRepositoryFreshnessStore(reader, instruments),
+			Selections:                 pgstatus.NewPageSelectionStore(reader),
 			Profile:                    queryProfile,
 			Logger:                     logger,
 			Instruments:                instruments,

@@ -30,6 +30,7 @@ import (
 const (
 	statusReadScopeCounts                    = "scope_counts"
 	statusReadGenerationCounts               = "generation_counts"
+	statusReadRepositorySelection            = "repository_selection"
 	statusReadGenerationTransitions          = "generation_transitions"
 	statusReadActiveWorkSummary              = "active_work_summary"
 	statusReadActiveWorkSummaryModel         = "active_work_summary_model"

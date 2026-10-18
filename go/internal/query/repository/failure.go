@@ -22,6 +22,9 @@ const (
 	repositoryListContentFailedMessage = "repository list content catalog read failed"
 	repositoryListCountFailedMessage   = "repository list count query failed"
 	repositoryListPageFailedMessage    = "repository list page query failed"
+	// repositoryListSelectionFailedMessage covers the #8454 selection
+	// annotation read: entries never serve with evidence silently missing.
+	repositoryListSelectionFailedMessage = "repository list selection annotation failed"
 
 	catalogContentRepositoriesFailedMessage = "catalog content repository read failed"
 	catalogRepositoriesFailedMessage        = "catalog repository query failed"

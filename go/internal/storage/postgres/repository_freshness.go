@@ -149,10 +149,12 @@ func (s RepositoryFreshnessStore) clock() time.Time {
 	return time.Now()
 }
 
-// readSelection summarizes scopeID's live selection observations (#7625).
+// readSelection summarizes scopeID's live selection observations (#7625),
+// annotated with the probe verdict when the reason is not_listed (#8454).
 // The scope's newest generation observed_at (rule (d)) is read only when
 // selection.Summarize needs it: the scope has live rows, none selected, all
-// confirmed. A scope with no live row summarizes to unknown.
+// confirmed. The successor's selected state resolves only when the verdict
+// carries a successor slug. A scope with no live row summarizes to unknown.
 func (s RepositoryFreshnessStore) readSelection(ctx context.Context, scopeID string) (selection.Summary, error) {
 	now := s.clock().UTC().Truncate(time.Microsecond)
 	observations, err := membershipstore.ReadLiveScopeObservations(ctx, s.queryer, scopeID, now)
@@ -165,7 +167,53 @@ func (s RepositoryFreshnessStore) readSelection(ctx context.Context, scopeID str
 	if err != nil {
 		return selection.Summary{}, fmt.Errorf("read repository freshness: read selection: %w", err)
 	}
+	var resolveErr error
+	summary = summary.WithUpstream(observations, func(slug string) bool {
+		selected, err := s.resolveSuccessorSelected(ctx, slug, now)
+		if err != nil {
+			resolveErr = err
+			return false
+		}
+		return selected
+	})
+	if resolveErr != nil {
+		return selection.Summary{}, fmt.Errorf("read repository freshness: read selection: %w", resolveErr)
+	}
 	return summary, nil
+}
+
+// resolveSuccessorSelected reports whether slug resolves to a scope with a
+// live selected row: the read-time half of the probe's successor verdict.
+// An unresolved slug is not an error; it reads as an unselected successor.
+func (s RepositoryFreshnessStore) resolveSuccessorSelected(ctx context.Context, slug string, now time.Time) (bool, error) {
+	rows, err := s.queryer.QueryContext(ctx, scopeIDBySlugQuery, []string{strings.ToLower(slug)})
+	if err != nil {
+		return false, fmt.Errorf("resolve successor scope: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var scopeIDs []string
+	for rows.Next() {
+		var scopeID, slug string
+		if err := rows.Scan(&scopeID, &slug); err != nil {
+			return false, fmt.Errorf("resolve successor scope: %w", err)
+		}
+		scopeIDs = append(scopeIDs, scopeID)
+	}
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("resolve successor scope: %w", err)
+	}
+	for _, scopeID := range scopeIDs {
+		observations, err := membershipstore.ReadLiveScopeObservations(ctx, s.queryer, scopeID, now)
+		if err != nil {
+			return false, err
+		}
+		for _, observation := range observations {
+			if observation.State == selection.StateSelected {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 // readLatestGenerationObservedAt returns MAX(observed_at) over every

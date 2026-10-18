@@ -180,7 +180,11 @@ func repositoryFreshnessSharedEnrichmentToMap(enrichment status.RepositoryFreshn
 // evidence. The block is always present: a scope with no live selector, or a
 // read that stopped before the selection lookup, renders state unknown with
 // zero live selectors and null fields. reason is null for selected and
-// unknown; absent timestamps render as null.
+// unknown; absent timestamps render as null. When the reason is not_listed
+// (#8454), the block also carries the upstream classification and the
+// successor slug the probe stored, plus whether the successor resolves to a
+// selected scope; otherwise all three read null and false, never as
+// evidence.
 func repositoryFreshnessSelectionToMap(sel status.RepositoryFreshnessSelection) map[string]any {
 	state := sel.State
 	if state == "" {
@@ -190,14 +194,25 @@ func repositoryFreshnessSelectionToMap(sel status.RepositoryFreshnessSelection) 
 	if sel.Reason != "" && state != selection.AggregateSelected && state != selection.AggregateUnknown {
 		reason = string(sel.Reason)
 	}
-	return map[string]any{
+	block := map[string]any{
 		"state":               string(state),
 		"reason":              reason,
 		"state_since":         querycontract.NullableRFC3339(sel.StateSince),
 		"last_listed_at":      querycontract.NullableRFC3339(sel.LastListedAt),
 		"evaluated_at":        querycontract.NullableRFC3339(sel.EvaluatedAt),
 		"live_selector_count": sel.LiveSelectorCount,
+		"classification":      nil,
+		"successor_slug":      nil,
+		"successor_selected":  false,
 	}
+	if sel.Reason == selection.StateNotListed && sel.Classification != "" {
+		block["classification"] = string(sel.Classification)
+		if sel.SuccessorSlug != "" {
+			block["successor_slug"] = sel.SuccessorSlug
+		}
+		block["successor_selected"] = sel.SuccessorSelected
+	}
+	return block
 }
 
 func repositoryFreshnessUnobservedPushToMap(push *status.RepositoryFreshnessUnobservedPush) map[string]any {

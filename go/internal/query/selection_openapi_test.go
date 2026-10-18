@@ -82,7 +82,7 @@ func TestOpenAPIRepositoryFreshnessSelectionSchema(t *testing.T) {
 		keys = append(keys, key)
 	}
 	slices.Sort(keys)
-	if want := []string{"evaluated_at", "last_listed_at", "live_selector_count", "reason", "state", "state_since"}; !slices.Equal(keys, want) {
+	if want := []string{"classification", "evaluated_at", "last_listed_at", "live_selector_count", "reason", "state", "state_since", "successor_selected", "successor_slug"}; !slices.Equal(keys, want) {
 		t.Fatalf("selection properties = %v, want %v", keys, want)
 	}
 
@@ -110,5 +110,20 @@ func TestOpenAPIRepositoryFreshnessSelectionSchema(t *testing.T) {
 		if field := testutil.MustMapField(t, properties, key); field["nullable"] != true || field["format"] != "date-time" {
 			t.Fatalf("selection.%s = %#v, want a nullable date-time", key, field)
 		}
+	}
+	classification := testutil.MustMapField(t, properties, "classification")
+	wantClassifications := []string{
+		string(selection.UpstreamTransferred), string(selection.UpstreamRenamed),
+		string(selection.UpstreamStillPresent), string(selection.UpstreamNotFoundOrInaccessible),
+	}
+	slices.Sort(wantClassifications)
+	if got, hasNull := stringEnum(t, classification); !slices.Equal(got, wantClassifications) || !hasNull || classification["nullable"] != true {
+		t.Fatalf("selection.classification = %#v, want the nullable closed verdict enum", classification)
+	}
+	if successor := testutil.MustMapField(t, properties, "successor_slug"); successor["nullable"] != true {
+		t.Fatalf("selection.successor_slug = %#v, want nullable", successor)
+	}
+	if selected := testutil.MustMapField(t, properties, "successor_selected"); selected["type"] != "boolean" || selected["nullable"] != nil {
+		t.Fatalf("selection.successor_selected = %#v, want a non-nullable boolean", selected)
 	}
 }

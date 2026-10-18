@@ -40,8 +40,13 @@ type Handler struct {
 	// not-configured (503), matching the sibling nil-reader checks on the
 	// status routes.
 	Freshness FreshnessReader
-	Profile   querycontract.QueryProfile
-	Logger    *slog.Logger
+	// Selections annotates GET /api/v0/repositories entries with the
+	// collector selection aggregate (#8454). Nil renders every entry
+	// unknown, matching the freshness block for a scope with no live
+	// selector.
+	Selections PageSelectionReader
+	Profile    querycontract.QueryProfile
+	Logger     *slog.Logger
 	// Instruments records eshu_dp_config_artifact_candidates_total for the
 	// story and context deployment-artifact loads (#7951). Nil records none.
 	Instruments *telemetry.Instruments
@@ -155,6 +160,11 @@ func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 		// Capture total before paging so it reflects the full filtered set.
 		total := len(repos)
 		repos, truncated := readmodel.PageRepositoryMaps(repos, page)
+		repos, err = annotateListRepositoriesWithSelection(r.Context(), h.Selections, repos)
+		if err != nil {
+			writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryListSelectionFailedMessage)
+			return
+		}
 		querycontract.WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, truncated, total), querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", querycontract.TruthBasisContentIndex, "resolved from bounded repository content catalog"))
 		return
 	}
@@ -211,6 +221,12 @@ func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 			"is_dependency": isDependency,
 		}
 		repos = append(repos, decorateRepositoryGroupEvidenceWithClusters(repo, evidence.Clusters))
+	}
+
+	repos, err = annotateListRepositoriesWithSelection(r.Context(), h.Selections, repos)
+	if err != nil {
+		writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryListSelectionFailedMessage)
+		return
 	}
 
 	querycontract.WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, truncated, total, evidence.ExtraPartialReasons...), querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", querycontract.TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))

@@ -51,6 +51,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		GenerationTransitions          []generation.TransitionJSON         `json:"generation_transitions"`
 		Scopes                         map[string]int                      `json:"scopes"`
 		Generations                    map[string]int                      `json:"generations"`
+		RepositorySelection            *repositorySelectionJSON            `json:"repository_selection,omitempty"`
 		Stages                         []StageSummary                      `json:"stages"`
 		Domains                        []domainBacklogJSON                 `json:"domains"`
 		DomainBacklogsTruncated        bool                                `json:"domain_backlogs_truncated,omitempty"`
@@ -89,6 +90,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		GenerationTransitions:          generation.TransitionsJSON(report.GenerationTransitions),
 		Scopes:                         cloneCounts(report.ScopeTotals),
 		Generations:                    cloneCounts(report.GenerationTotals),
+		RepositorySelection:            repositorySelectionJSONFrom(report.RepositorySelection),
 		Stages:                         slices.Clone(report.StageSummaries),
 		Domains:                        domainBacklogsJSON(report.DomainBacklogs),
 		DomainBacklogsTruncated:        report.DomainBacklogsTruncated,
@@ -134,6 +136,25 @@ type scopeActivityJSON struct {
 	Active    int `json:"active"`
 	Changed   int `json:"changed"`
 	Unchanged int `json:"unchanged"`
+}
+
+// repositorySelectionJSON is the aggregate repository selection section
+// (#8454): live observation rows by state, and the not_listed rows by
+// upstream probe verdict. Nil (via omitempty) when the reader surfaced no
+// selection evidence.
+type repositorySelectionJSON struct {
+	States          map[string]int `json:"states"`
+	Classifications map[string]int `json:"classifications"`
+}
+
+func repositorySelectionJSONFrom(counts RepositorySelectionCounts) *repositorySelectionJSON {
+	if counts.Empty() {
+		return nil
+	}
+	return &repositorySelectionJSON{
+		States:          cloneCounts(counts.States),
+		Classifications: cloneCounts(counts.Classifications),
+	}
 }
 
 type generationHistoryJSON struct {

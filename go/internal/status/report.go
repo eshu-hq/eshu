@@ -45,6 +45,10 @@ type RawSnapshot struct {
 	// before normal projector/reducer queue rows existed.
 	CollectorGenerationDeadLetters collector.GenerationDeadLetterSnapshot
 	CollectorFactEvidence          []collector.FactEvidence
+	// RepositorySelection counts the live repository selection observations
+	// by state and, for not_listed rows, by upstream probe classification
+	// (#8454). Empty when the reader did not surface selection evidence.
+	RepositorySelection RepositorySelectionCounts
 	// AWSCloudScansTruncated reports that the reader returned the configured
 	// row cap instead of every AWS scan tuple.
 	AWSCloudScansTruncated bool
@@ -216,18 +220,37 @@ type StageSummary struct {
 	DeadLetter int    `json:"dead_letter"`
 }
 
+// RepositorySelectionCounts is the aggregate status section for the
+// repository selection observations (#8454): live observation rows by
+// state, and the not_listed rows by upstream probe verdict. The zero value
+// (both maps empty or nil) means the reader surfaced no selection evidence
+// and renders as absent.
+type RepositorySelectionCounts struct {
+	States          map[string]int
+	Classifications map[string]int
+}
+
+// Empty reports whether no selection evidence was surfaced.
+func (c RepositorySelectionCounts) Empty() bool {
+	return len(c.States) == 0 && len(c.Classifications) == 0
+}
+
 // Report is the operator-facing summary rendered by CLI and future admin APIs.
 type Report struct {
-	AsOf                           time.Time
-	Health                         HealthSummary
-	FlowSummaries                  []FlowSummary
-	Queue                          QueueSnapshot
-	RetryPolicies                  []RetryPolicySummary
-	ScopeActivity                  ScopeActivitySnapshot
-	GenerationHistory              GenerationHistorySnapshot
-	GenerationTransitions          []generation.TransitionSnapshot
-	ScopeTotals                    map[string]int
-	GenerationTotals               map[string]int
+	AsOf                  time.Time
+	Health                HealthSummary
+	FlowSummaries         []FlowSummary
+	Queue                 QueueSnapshot
+	RetryPolicies         []RetryPolicySummary
+	ScopeActivity         ScopeActivitySnapshot
+	GenerationHistory     GenerationHistorySnapshot
+	GenerationTransitions []generation.TransitionSnapshot
+	ScopeTotals           map[string]int
+	GenerationTotals      map[string]int
+	// RepositorySelection counts the live repository selection observations
+	// by state and, for not_listed rows, by upstream probe classification
+	// (#8454). Empty when the reader did not surface selection evidence.
+	RepositorySelection            RepositorySelectionCounts
 	StageSummaries                 []StageSummary
 	DomainBacklogs                 []DomainBacklog
 	QueueBlockages                 []queue.Blockage

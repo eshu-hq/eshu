@@ -250,7 +250,12 @@ spanning five minutes), and no generation was observed after that state
 began. The always-present `selection` block carries `state` (`selected`,
 `not_selected`, `pending_confirmation`, `excluded_still_ingested`, `unknown`),
 `reason`, `state_since`, `last_listed_at`, `evaluated_at`, and
-`live_selector_count`; only `not_selected` changes the verdict. Scoped tokens
+`live_selector_count`; only `not_selected` changes the verdict. When `reason`
+is `not_listed` (#8454), the block also carries the upstream probe verdict
+`classification` (`transferred`, `renamed`, `still_present`,
+`not_found_or_inaccessible`), the probe's `successor_slug`, and whether the
+successor resolves to a selected scope (`successor_selected`); otherwise all
+three read null and false, never as evidence. Scoped tokens
 get the same shape; a repository outside the grant 404s like every route.
 
 Performance Evidence: the single-scope composite read (resolve scope,

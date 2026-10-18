@@ -68,6 +68,45 @@ func TestGetRepositoryFreshnessRendersNotSelected(t *testing.T) {
 		"last_listed_at":      "2026-10-08T11:45:00Z",
 		"evaluated_at":        "2026-10-08T12:00:00Z",
 		"live_selector_count": float64(2),
+		"classification":      nil, "successor_slug": nil, "successor_selected": false,
+	})
+}
+
+// TestGetRepositoryFreshnessRendersClassification verifies the #8454 block:
+// a Confirmed not_listed scope with a probe verdict renders the
+// classification, the successor slug, and whether the successor resolves to
+// a selected scope.
+func TestGetRepositoryFreshnessRendersClassification(t *testing.T) {
+	t.Parallel()
+
+	evaluatedAt := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
+	snapshot := testutil.FullyBuiltRepositoryFreshnessSnapshot()
+	snapshot.Selection = status.RepositoryFreshnessSelection{
+		State:             selection.AggregateNotSelected,
+		Reason:            selection.StateNotListed,
+		StateSince:        evaluatedAt.Add(-10 * time.Minute),
+		LastListedAt:      evaluatedAt.Add(-15 * time.Minute),
+		EvaluatedAt:       evaluatedAt,
+		LiveSelectorCount: 2,
+		Classification:    selection.UpstreamRenamed,
+		SuccessorSlug:     "acme/renamed-service-v2",
+		SuccessorSelected: true,
+	}
+
+	resp := serveRepositoryFreshness(t, snapshot)
+	if got, want := resp["verdict"], "not_selected"; got != want {
+		t.Fatalf("verdict = %#v, want %#v", got, want)
+	}
+	assertSelection(t, resp, map[string]any{
+		"state":               "not_selected",
+		"reason":              "not_listed",
+		"state_since":         "2026-10-08T11:50:00Z",
+		"last_listed_at":      "2026-10-08T11:45:00Z",
+		"evaluated_at":        "2026-10-08T12:00:00Z",
+		"live_selector_count": float64(2),
+		"classification":      "renamed",
+		"successor_slug":      "acme/renamed-service-v2",
+		"successor_selected":  true,
 	})
 }
 
@@ -82,6 +121,7 @@ func TestGetRepositoryFreshnessSelectionUnknownWithoutLiveRows(t *testing.T) {
 	unknown := map[string]any{
 		"state": "unknown", "reason": nil, "state_since": nil, "last_listed_at": nil,
 		"evaluated_at": nil, "live_selector_count": float64(0),
+		"classification": nil, "successor_slug": nil, "successor_selected": false,
 	}
 	for name, sel := range map[string]status.RepositoryFreshnessSelection{
 		"no live rows":           {State: selection.AggregateUnknown},
@@ -120,6 +160,7 @@ func TestGetRepositoryFreshnessSelectedRendersNullReason(t *testing.T) {
 		"state": "selected", "reason": nil, "state_since": "2026-10-08T11:00:00Z",
 		"last_listed_at": "2026-10-08T12:00:00Z", "evaluated_at": "2026-10-08T12:00:00Z",
 		"live_selector_count": float64(1),
+		"classification":      nil, "successor_slug": nil, "successor_selected": false,
 	})
 }
 

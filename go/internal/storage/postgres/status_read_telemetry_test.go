@@ -35,6 +35,7 @@ var statusSnapshotFullReads = []string{
 	"infra_inventory",
 	"producer_activity",
 	"registry_collectors",
+	"repository_selection",
 	"scope_counts",
 	"semantic_extraction",
 	"terraform_state",
