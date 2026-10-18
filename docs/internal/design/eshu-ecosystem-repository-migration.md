@@ -121,8 +121,8 @@ production callers and package contracts establish these destinations:
 | `preflight/archive`, `preflight/diagram`, and `preflight/ooxml` | Retained `eshu` parser core because Git document parsing uses them. |
 | `preflight/pdf` | Retained `eshu` parser core as a dormant format-safety classifier; it has no production caller today. |
 | `document/export` and `preflight/manifest` | `eshu-ingester` document-import capability. They have no production caller today. |
-| `mediadoc` and `preflight/media` | `eshu-ingester` document-import capability. Hosted activation remains disabled until sandbox and runtime proof pass. |
-| `ocrdoc` and `preflight/picture` | `eshu-ingester` document-import capability. Engine execution and limits move with that intake runtime. |
+| `document/media` and `preflight/media` | `eshu-ingester` document-import capability. Hosted activation remains disabled until sandbox and runtime proof pass. |
+| `document/ocr` and `preflight/picture` | `eshu-ingester` document-import capability. Engine execution and limits move with that intake runtime. |
 | `sbomdocument` | `eshu-collector-sbom-attestation`; the production SBOM runtime calls it. |
 | `ospackagevulnerability` and `osruntime` | `eshu-scanner-worker`; scanner-worker image and root-filesystem analysis call them. |
 | `secretsiam` public source-fact shapes | `eshu-sdk` fact-schema support. Provider acquisition moves with each collector; effective-access interpretation stays in Eshu core. |

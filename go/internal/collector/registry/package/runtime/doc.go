@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+// Package runtime implements the claim-driven runtime for
+// package-registry metadata collection.
+//
+// The runtime receives workflow work items planned from bounded
+// package-registry targets, fetches one explicit metadata document for the
+// claimed scope, routes it through the packages parser registry or the
+// Artifactory package wrapper backed by that same registry, and returns
+// package-registry fact envelopes through the shared collector commit boundary.
+// Package-version observations, including advisories and registry events, stay
+// inside the configured target's package and version limits. The runtime keeps
+// provider credentials in runtime-only fields and records bounded telemetry by
+// provider, ecosystem, status class, document type, and fact kind.
+package runtime

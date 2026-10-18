@@ -78,7 +78,7 @@ API call counters, throttle counters, and pagination spans.
     `containerImageNodeUIDFromDigestRef`). That function lowercases the
     registry, repository, and digest before computing the target uid, matching
     the OCI registry collector's own normalization
-    (`internal/collector/ociregistry/identity.go` `NormalizeRepositoryIdentity`/
+    (`internal/collector/registry/oci/identity.go` `NormalizeRepositoryIdentity`/
     `normalizeDigest`) for the ECR-hosted references this domain actually
     processes — Lambda container images are exclusively ECR-hosted, so the
     registry value is always a bare hostname, the shape `normalizeRegistry`

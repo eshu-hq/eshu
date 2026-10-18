@@ -49,15 +49,15 @@ surfaces:
   - category: collector
     name: oci_registry
     readiness: implemented
-    owner: internal/collector/ociregistry
+    owner: internal/collector/registry/oci
     proof: reference/collector-reducer-readiness.md#promotion-proof
     docs: [reference/collector-reducer-readiness.md]
     collector_contract:
       fact_kinds: [oci_registry.image_descriptor, oci_registry.image_index, oci_registry.image_manifest, oci_registry.image_referrer, oci_registry.image_tag_observation, oci_registry.repository, oci_registry.warning]
       projection_surfaces: [container_image_identity, sbom_attestation_attachment, supply_chain_impact]
       read_surfaces: [GET /api/v0/images, GET /api/v0/supply-chain/container-images/identities, get_container_image_identity_inventory, list_container_image_identities]
-      proof_gates: [cd go && go test ./internal/collector/ociregistry ./internal/reducer ./internal/query ./internal/mcp -count=1, scripts/verify_oci_registry_collector_helm.sh]
-      fixture_refs: [go/internal/collector/ociregistry/testdata]
+      proof_gates: [cd go && go test ./internal/collector/registry/oci ./internal/reducer ./internal/query ./internal/mcp -count=1, scripts/verify_oci_registry_collector_helm.sh]
+      fixture_refs: [go/internal/collector/registry/oci/testdata]
       truth_profile: provider_gated
   - category: collector
     name: terraform_state
@@ -94,15 +94,15 @@ surfaces:
   - category: collector
     name: package_registry
     readiness: implemented
-    owner: internal/collector/packageregistry
+    owner: internal/collector/registry/package
     proof: reference/collector-reducer-readiness.md#promotion-proof
     docs: [reference/collector-reducer-readiness.md]
     collector_contract:
       fact_kinds: [package_registry.package, package_registry.package_artifact, package_registry.package_dependency, package_registry.package_version, package_registry.registry_event, package_registry.repository_hosting, package_registry.source_hint, package_registry.vulnerability_hint, package_registry.warning]
       projection_surfaces: [package_source_correlation, supply_chain_impact]
       read_surfaces: [GET /api/v0/package-registry/correlations, GET /api/v0/package-registry/packages, list_package_registry_correlations, list_package_registry_packages]
-      proof_gates: [cd go && go test ./internal/collector/packageregistry ./internal/reducer ./internal/query ./internal/mcp -count=1]
-      fixture_refs: [go/internal/collector/packageregistry/testdata]
+      proof_gates: [cd go && go test ./internal/collector/registry/package ./internal/reducer ./internal/query ./internal/mcp -count=1]
+      fixture_refs: [go/internal/collector/registry/package/testdata]
       truth_profile: provider_gated
   - category: collector
     name: sbom_attestation

@@ -13,7 +13,7 @@ package v1
 // packageRegistryVersionRow), which DROPS a version observation missing
 // package_id, version_id, or version rather than fabricating a node under a
 // broken join. Those three fields are therefore REQUIRED. The collector
-// emitter (go/internal/collector/packageregistry/version.go
+// emitter (go/internal/collector/registry/package/version.go
 // NewPackageVersionEnvelope) fails closed on a blank version before building
 // the envelope and always derives version_id and package_id from the same
 // normalized identity, so an absent value is not a shape the emitter produces;

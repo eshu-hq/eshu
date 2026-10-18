@@ -265,13 +265,13 @@ All smokes are read-only and skip unless their live flag is set.
 
 | Provider | Required live flag | Command |
 | --- | --- | --- |
-| JFrog OCI | `ESHU_JFROG_OCI_LIVE=1` | `cd go && go test ./internal/collector/ociregistry/jfrog -run TestLiveJFrog -count=1 -v` |
-| ECR | `ESHU_ECR_OCI_LIVE=1` | `cd go && go test ./internal/collector/ociregistry/ecr -run TestLiveECR -count=1 -v` |
-| Docker Hub | `ESHU_DOCKERHUB_OCI_LIVE=1` | `cd go && go test ./internal/collector/ociregistry/dockerhub -run TestLiveDockerHub -count=1 -v` |
-| GHCR | `ESHU_GHCR_OCI_LIVE=1` | `cd go && go test ./internal/collector/ociregistry/ghcr -run TestLiveGHCR -count=1 -v` |
-| Harbor | `ESHU_HARBOR_OCI_LIVE=1` | `cd go && go test ./internal/collector/ociregistry/harbor -run TestLiveHarbor -count=1 -v` |
-| Google Artifact Registry | `ESHU_GAR_OCI_LIVE=1` | `cd go && go test ./internal/collector/ociregistry/gar -run TestLiveGAR -count=1 -v` |
-| Azure Container Registry | `ESHU_ACR_OCI_LIVE=1` | `cd go && go test ./internal/collector/ociregistry/acr -run TestLiveACR -count=1 -v` |
+| JFrog OCI | `ESHU_JFROG_OCI_LIVE=1` | `cd go && go test ./internal/collector/registry/oci/jfrog -run TestLiveJFrog -count=1 -v` |
+| ECR | `ESHU_ECR_OCI_LIVE=1` | `cd go && go test ./internal/collector/registry/oci/ecr -run TestLiveECR -count=1 -v` |
+| Docker Hub | `ESHU_DOCKERHUB_OCI_LIVE=1` | `cd go && go test ./internal/collector/registry/oci/dockerhub -run TestLiveDockerHub -count=1 -v` |
+| GHCR | `ESHU_GHCR_OCI_LIVE=1` | `cd go && go test ./internal/collector/registry/oci/ghcr -run TestLiveGHCR -count=1 -v` |
+| Harbor | `ESHU_HARBOR_OCI_LIVE=1` | `cd go && go test ./internal/collector/registry/oci/harbor -run TestLiveHarbor -count=1 -v` |
+| Google Artifact Registry | `ESHU_GAR_OCI_LIVE=1` | `cd go && go test ./internal/collector/registry/oci/gar -run TestLiveGAR -count=1 -v` |
+| Azure Container Registry | `ESHU_ACR_OCI_LIVE=1` | `cd go && go test ./internal/collector/registry/oci/acr -run TestLiveACR -count=1 -v` |
 
 Minimum provider env:
 
@@ -306,7 +306,7 @@ export ESHU_JFROG_PACKAGE_PASSWORD="${ESHU_JFROG_PACKAGE_PASSWORD:-${JFROG_PASSW
 export ESHU_JFROG_PACKAGE_BEARER_TOKEN="${ESHU_JFROG_PACKAGE_BEARER_TOKEN:-${JFROG_ACCESS_TOKEN:-${JFROG_BEARER_TOKEN:-}}}"
 
 cd go
-go test ./internal/collector/packageregistry/packageruntime \
+go test ./internal/collector/registry/package/runtime \
   -run TestLiveJFrogPackageFeed -count=1 -v
 ```
 

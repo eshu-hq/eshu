@@ -8,8 +8,8 @@
    indirection
 3. `go/cmd/collector-oci-registry/service.go` - provider client factory and
    `collector.Service` wiring
-4. `go/internal/collector/ociregistry/` - fact identity and envelope contracts
-5. `go/internal/collector/ociregistry/ociruntime/` - scan orchestration and
+4. `go/internal/collector/registry/oci/` - fact identity and envelope contracts
+5. `go/internal/collector/registry/oci/runtime/` - scan orchestration and
    runtime telemetry
 
 ## Invariants This Package Enforces
@@ -19,16 +19,16 @@
 - Facts must flow through `collector.Service` or `collector.ClaimedService` and
   `postgres.NewIngestionStore`.
 - The command package owns SDK/client wiring only; fact identity belongs in
-  `ociregistry`, and scan behavior belongs in `ociruntime`.
+  `registry/oci`, and scan behavior belongs in `registry/oci/runtime`.
 - Keep `/healthz`, `/readyz`, `/metrics`, and `/admin/status` wired through
   `app.NewHostedWithStatusServer`.
 
 ## Common Changes And How To Scope Them
 
 - Add a target JSON field in `config.go`, add a `config_test.go` case, thread
-  it into `ociruntime.TargetConfig`, and update `README.md`.
+  it into `runtime.TargetConfig`, and update `README.md`.
 - Add a provider by keeping provider-specific auth or endpoint logic in a
-  provider subpackage and returning an `ociruntime.RegistryClient`.
+  provider subpackage and returning a `runtime.RegistryClient`.
 - Change metrics by updating `go/internal/telemetry`, the telemetry reference
   docs, and this README in the same PR.
 

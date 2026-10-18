@@ -6,7 +6,7 @@ package main
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci"
 )
 
 func TestLoadRuntimeConfigResolvesTargetsAndCredentialsFromEnv(t *testing.T) {
@@ -37,7 +37,7 @@ func TestLoadRuntimeConfigResolvesTargetsAndCredentialsFromEnv(t *testing.T) {
 		t.Fatalf("len(Targets) = %d, want %d", got, want)
 	}
 	target := config.Targets[0]
-	if got, want := target.Provider, ociregistry.ProviderJFrog; got != want {
+	if got, want := target.Provider, oci.ProviderJFrog; got != want {
 		t.Fatalf("Provider = %q, want %q", got, want)
 	}
 	if got, want := target.Registry, "https://example.jfrog.io/artifactory/api/docker/docker-local"; got != want {
@@ -188,7 +188,7 @@ func TestLoadClaimedRuntimeConfigSelectsClaimEnabledOCIInstance(t *testing.T) {
 		t.Fatalf("OCI CollectorInstanceID = %q, want %q", got, want)
 	}
 	target := config.OCI.Targets[0]
-	if got, want := target.Provider, ociregistry.ProviderDockerHub; got != want {
+	if got, want := target.Provider, oci.ProviderDockerHub; got != want {
 		t.Fatalf("Provider = %q, want %q", got, want)
 	}
 	if got, want := target.Registry, "docker.io"; got != want {

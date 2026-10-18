@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/packageregistry/packageruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/package/runtime"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -65,7 +65,7 @@ func buildClaimedService(
 	}
 	config.Source.Tracer = tracer
 	config.Source.Instruments = instruments
-	source, err := packageruntime.NewClaimedSource(config.Source)
+	source, err := runtime.NewClaimedSource(config.Source)
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}

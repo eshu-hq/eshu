@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/ecr"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/ecr"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 

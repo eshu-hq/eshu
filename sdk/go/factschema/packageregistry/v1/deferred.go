@@ -29,14 +29,14 @@ package v1
 //
 // Their required sets follow the absent-vs-present-empty rule against the
 // collector emitter's own fail-closed invariants
-// (go/internal/collector/packageregistry/*.go), so the contract is accurate
+// (go/internal/collector/registry/package/*.go), so the contract is accurate
 // today even with no decode-seam consumer.
 
 // SourceHint is the schema-version-1 typed payload for the
 // "package_registry.source_hint" fact kind (Contract System v1 §3.1).
 //
 // A source hint is provenance-only evidence of a package's declared source
-// repository, homepage, or SCM URL (go/internal/collector/packageregistry/source_hint.go
+// repository, homepage, or SCM URL (go/internal/collector/registry/package/source_hint.go
 // NewSourceHintEnvelope). The emitter fails closed on a blank package identity,
 // hint_kind, and the raw-or-normalized URL (at least one of raw_url/
 // normalized_url must be non-blank), so package_id and hint_kind are REQUIRED;
@@ -98,7 +98,7 @@ type SourceHint struct {
 // "package_registry.package_artifact" fact kind (Contract System v1 §3.1).
 //
 // An artifact fact records one published binary/source artifact for a package
-// version (go/internal/collector/packageregistry/artifact.go
+// version (go/internal/collector/registry/package/artifact.go
 // NewPackageArtifactEnvelope). The emitter fails closed on a blank
 // artifact_key (after deriving package/version identity), so package_id,
 // version_id, and artifact_key are REQUIRED: package_id and version_id are the
@@ -165,7 +165,7 @@ type PackageArtifact struct {
 // "package_registry.vulnerability_hint" fact kind (Contract System v1 §3.1).
 //
 // A vulnerability hint is registry-reported advisory metadata for a package or
-// version (go/internal/collector/packageregistry/vulnerability_hint.go
+// version (go/internal/collector/registry/package/vulnerability_hint.go
 // NewVulnerabilityHintEnvelope). The emitter fails closed on a blank
 // package identity, advisory_id, and advisory_source, so package_id,
 // AdvisoryID, and AdvisorySource are REQUIRED. PackageID's SQL-loader

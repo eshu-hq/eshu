@@ -53,7 +53,7 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 			},
 		},
 		{
-			path: "ociregistry/envelope.go",
+			path: "registry/oci/envelope.go",
 			calls: []string{
 				"EncodeOCIRegistryRepository",
 				"EncodeOCIImageManifest",
@@ -64,19 +64,19 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 			},
 		},
 		{
-			path:  "ociregistry/warning.go",
+			path:  "registry/oci/warning.go",
 			calls: []string{"EncodeOCIRegistryWarning"},
 		},
 		{
-			path:  "packageregistry/envelope.go",
+			path:  "registry/package/envelope.go",
 			calls: []string{"EncodePackageRegistryPackage"},
 		},
 		{
-			path:  "packageregistry/version.go",
+			path:  "registry/package/version.go",
 			calls: []string{"EncodePackageRegistryPackageVersion"},
 		},
 		{
-			path:  "packageregistry/warning.go",
+			path:  "registry/package/warning.go",
 			calls: []string{"EncodePackageRegistryWarning"},
 		},
 		{
@@ -210,14 +210,14 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 			},
 		},
 		{
-			path: "mediadoc/extract.go",
+			path: "document/media/extract.go",
 			calls: []string{
 				"EncodeDocument",
 				"EncodeSection",
 			},
 		},
 		{
-			path: "ocrdoc/extract.go",
+			path: "document/ocr/extract.go",
 			calls: []string{
 				"EncodeDocument",
 				"EncodeSection",

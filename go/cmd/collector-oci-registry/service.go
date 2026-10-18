@@ -20,15 +20,15 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry"
-	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/acr"
-	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/dockerhub"
-	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/ecr"
-	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/gar"
-	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/ghcr"
-	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/harbor"
-	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/jfrog"
-	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/ociruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/acr"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/dockerhub"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/ecr"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/gar"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/ghcr"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/harbor"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/jfrog"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/runtime"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -81,7 +81,7 @@ func buildCollectorService(
 	committer.Logger = logger
 	committer.Instruments = instruments
 	return collector.Service{
-		Source: &ociruntime.Source{
+		Source: &runtime.Source{
 			Config:        config,
 			ClientFactory: providerFactory{},
 			Tracer:        tracer,
@@ -112,8 +112,8 @@ func buildClaimedService(
 	committer.Instruments = instruments
 	return collector.ClaimedService{
 		ControlStore: postgres.NewWorkflowControlStore(database),
-		Source: ociruntime.ClaimedSource{
-			Source: ociruntime.Source{
+		Source: runtime.ClaimedSource{
+			Source: runtime.Source{
 				Config:        config.OCI,
 				ClientFactory: providerFactory{},
 				Tracer:        tracer,
@@ -147,7 +147,7 @@ func newClaimID() string {
 
 type providerFactory struct{}
 
-func (providerFactory) Client(ctx context.Context, target ociruntime.TargetConfig) (ociruntime.RegistryClient, error) {
+func (providerFactory) Client(ctx context.Context, target runtime.TargetConfig) (runtime.RegistryClient, error) {
 	// Resolve the per-target HTTP client once so every provider honors any
 	// configured custom-CA trust (for example a localhost registry:2 over TLS).
 	// The resolved tls_mode is a low-cardinality value safe to surface to an
@@ -158,21 +158,21 @@ func (providerFactory) Client(ctx context.Context, target ociruntime.TargetConfi
 		return nil, fmt.Errorf("resolve OCI registry TLS client (tls_mode=%s): %w", target.TLSMode(), err)
 	}
 	switch target.Provider {
-	case ociregistry.ProviderDockerHub:
+	case oci.ProviderDockerHub:
 		return dockerhub.NewDistributionClient(ctx, dockerhub.Config{
 			Repository: target.Repository,
 			Username:   target.Username,
 			Password:   target.Password,
 			Client:     httpClient,
 		})
-	case ociregistry.ProviderGHCR:
+	case oci.ProviderGHCR:
 		return ghcr.NewDistributionClient(ctx, ghcr.Config{
 			Repository: target.Repository,
 			Username:   target.Username,
 			Password:   target.Password,
 			Client:     httpClient,
 		})
-	case ociregistry.ProviderJFrog:
+	case oci.ProviderJFrog:
 		return jfrog.NewDistributionClient(jfrog.Config{
 			BaseURL:       target.BaseURL,
 			RepositoryKey: target.RepositoryKey,
@@ -181,9 +181,9 @@ func (providerFactory) Client(ctx context.Context, target ociruntime.TargetConfi
 			BearerToken:   target.BearerToken,
 			Client:        httpClient,
 		})
-	case ociregistry.ProviderECR:
+	case oci.ProviderECR:
 		return newECRDistributionClient(ctx, target, httpClient)
-	case ociregistry.ProviderHarbor:
+	case oci.ProviderHarbor:
 		return harbor.NewDistributionClient(harbor.Config{
 			BaseURL:     target.Registry,
 			Repository:  target.Repository,
@@ -192,7 +192,7 @@ func (providerFactory) Client(ctx context.Context, target ociruntime.TargetConfi
 			BearerToken: target.BearerToken,
 			Client:      httpClient,
 		})
-	case ociregistry.ProviderGoogleArtifactRegistry:
+	case oci.ProviderGoogleArtifactRegistry:
 		return gar.NewDistributionClient(gar.Config{
 			RegistryHost: target.Registry,
 			Repository:   target.Repository,
@@ -201,7 +201,7 @@ func (providerFactory) Client(ctx context.Context, target ociruntime.TargetConfi
 			BearerToken:  target.BearerToken,
 			Client:       httpClient,
 		})
-	case ociregistry.ProviderAzureContainerRegistry:
+	case oci.ProviderAzureContainerRegistry:
 		return acr.NewDistributionClient(acr.Config{
 			RegistryHost: target.Registry,
 			Repository:   target.Repository,
@@ -215,7 +215,7 @@ func (providerFactory) Client(ctx context.Context, target ociruntime.TargetConfi
 	}
 }
 
-func newECRDistributionClient(ctx context.Context, target ociruntime.TargetConfig, httpClient *http.Client) (ociruntime.RegistryClient, error) {
+func newECRDistributionClient(ctx context.Context, target runtime.TargetConfig, httpClient *http.Client) (runtime.RegistryClient, error) {
 	options := make([]func(*awsconfig.LoadOptions) error, 0, 2)
 	if target.Region != "" {
 		options = append(options, awsconfig.WithRegion(target.Region))

@@ -16,7 +16,7 @@ package v1
 //
 // A registry event records a publish, delete, deprecate, or similar
 // registry-reported lifecycle event
-// (go/internal/collector/packageregistry/registry_event.go
+// (go/internal/collector/registry/package/registry_event.go
 // NewRegistryEventEnvelope). The emitter fails closed on a blank event_key and
 // event_type, so EventKey and EventType are REQUIRED. Consumed by the
 // projector's #5458 canonical extractor (packageRegistryEventRow in
@@ -80,7 +80,7 @@ type RegistryEvent struct {
 //
 // A repository-hosting fact records provider repository/feed topology (for
 // example an Artifactory repository) rather than package identity
-// (go/internal/collector/packageregistry/repository_hosting.go
+// (go/internal/collector/registry/package/repository_hosting.go
 // NewRepositoryHostingEnvelope). The emitter fails closed on a blank provider,
 // registry, and repository, so those three are REQUIRED — together they form
 // the emitter's own repositoryID ("provider://registry/repository").
@@ -129,7 +129,7 @@ type RepositoryHosting struct {
 // "package_registry.warning" fact kind (Contract System v1 §3.1).
 //
 // A warning records a non-fatal package-registry collection issue
-// (go/internal/collector/packageregistry/warning.go NewWarningEnvelope). The
+// (go/internal/collector/registry/package/warning.go NewWarningEnvelope). The
 // emitter fails closed on a blank warning_key and warning_code, so those two
 // are REQUIRED. Ecosystem's SQL-loader significance is documented on doc.go
 // and locked by package_registry_sql_schema_lockstep_test.go: the status

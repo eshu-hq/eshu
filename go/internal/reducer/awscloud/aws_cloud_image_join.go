@@ -244,7 +244,7 @@ func ExtractAWSCloudImageEdgeRows(
 //
 // The registry/repository portion AND the digest are lowercased to match the
 // OCI registry collector's own normalization
-// (internal/collector/ociregistry/identity.go NormalizeRepositoryIdentity /
+// (internal/collector/registry/oci/identity.go NormalizeRepositoryIdentity /
 // normalizeDigest): the collector unconditionally lowercases the scanned
 // registry, repository, and digest before computing repository_id/descriptor
 // identity, so the REAL :ContainerImage node uid is always lowercase

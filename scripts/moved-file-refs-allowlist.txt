@@ -226,6 +226,21 @@ docs/internal/evidence/6695-collector-archive-preflight-package-move.md:go/inter
 docs/internal/evidence/6695-collector-diagram-preflight-package-move.md:go/internal/collector/gitrepo/gitdocs/git_documentation_diagram.go
 docs/internal/evidence/6206-unwritten-entity-labels.md:go/internal/collector/gitrepo/git_snapshot_entity_buckets.go
 
+# #6695 document/registry leaf moves: dated evidence notes that cite the
+# emitter source paths as they stood when that evidence was written.
+# Repointing would falsify the record of which file produced the evidence
+# under test. The live pointers are
+# go/internal/collector/registry/oci/runtime/config_provenance.go,
+# go/internal/collector/registry/oci/identity.go, and
+# go/internal/collector/registry/oci/runtime/transport.go.
+docs/internal/evidence/5847-container-image-identity-retire.md:go/internal/collector/ociregistry/ociruntime/config_provenance.go
+docs/internal/evidence/6590-tier-cardinality.md:go/internal/collector/ociregistry/identity.go
+docs/internal/evidence/7110-collector-transient-transport.md:go/internal/collector/ociregistry/ociruntime/transport.go
+# ... and the burn-down row that mirrors that citation. The baseline records the
+# doc's citation verbatim, so it necessarily carries the same historical path;
+# rewriting it here without rewriting the doc would desynchronise the two.
+scripts/docs-citations-baseline.txt:go/internal/collector/ociregistry/ociruntime/config_provenance.go
+
 # #6781 Part B: the terraform_state row of this dated integration matrix cites
 # the projector's canonical path alongside nine other file:line citations on the
 # SAME line. verify-doc-citations keys each LINE record by its containing line's

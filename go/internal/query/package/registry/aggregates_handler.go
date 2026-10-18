@@ -241,7 +241,7 @@ func isSupportedPackageRegistryInventoryDimension(d InventoryDimension) bool {
 // validatePackageRegistryAggregateVisibility rejects out-of-contract
 // visibility filters with a 400 so a typo does not silently return zero
 // counts. The closed enum matches the ingestion contract emitted by
-// `parseVisibility` in `go/internal/collector/packageregistry/`: a missing
+// `parseVisibility` in `go/internal/collector/registry/package/`: a missing
 // or unrecognized value normalizes to `unknown`, so the aggregate must
 // accept `unknown` to let callers filter to the unresolved slice.
 func validatePackageRegistryAggregateVisibility(w http.ResponseWriter, filter AggregateFilter) bool {

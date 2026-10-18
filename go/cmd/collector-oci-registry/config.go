@@ -10,15 +10,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry"
-	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/acr"
-	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/dockerhub"
-	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/ecr"
-	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/gar"
-	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/ghcr"
-	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/harbor"
-	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/jfrog"
-	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/ociruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/acr"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/dockerhub"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/ecr"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/gar"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/ghcr"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/harbor"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/jfrog"
+	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -74,43 +74,43 @@ type claimedRuntimeConfig struct {
 	PollInterval      time.Duration
 	ClaimLeaseTTL     time.Duration
 	HeartbeatInterval time.Duration
-	OCI               ociruntime.Config
+	OCI               runtime.Config
 }
 
 type ociRuntimeConfiguration struct {
 	Targets []targetJSON `json:"targets"`
 }
 
-func loadRuntimeConfig(getenv func(string) string) (ociruntime.Config, error) {
+func loadRuntimeConfig(getenv func(string) string) (runtime.Config, error) {
 	collectorID := strings.TrimSpace(getenv(envCollectorInstanceID))
 	if collectorID == "" {
-		return ociruntime.Config{}, fmt.Errorf("%s is required", envCollectorInstanceID)
+		return runtime.Config{}, fmt.Errorf("%s is required", envCollectorInstanceID)
 	}
 	rawTargets := strings.TrimSpace(getenv(envTargetsJSON))
 	if rawTargets == "" {
-		return ociruntime.Config{}, fmt.Errorf("%s is required", envTargetsJSON)
+		return runtime.Config{}, fmt.Errorf("%s is required", envTargetsJSON)
 	}
 	var decoded []targetJSON
 	if err := json.Unmarshal([]byte(rawTargets), &decoded); err != nil {
-		return ociruntime.Config{}, fmt.Errorf("decode %s: %w", envTargetsJSON, err)
+		return runtime.Config{}, fmt.Errorf("decode %s: %w", envTargetsJSON, err)
 	}
-	targets := make([]ociruntime.TargetConfig, 0, len(decoded))
+	targets := make([]runtime.TargetConfig, 0, len(decoded))
 	for i, target := range decoded {
 		mapped, err := mapTarget(target, getenv)
 		if err != nil {
-			return ociruntime.Config{}, fmt.Errorf("target %d: %w", i, err)
+			return runtime.Config{}, fmt.Errorf("target %d: %w", i, err)
 		}
 		targets = append(targets, mapped)
 	}
 	pollInterval, err := parsePollInterval(getenv(envPollInterval))
 	if err != nil {
-		return ociruntime.Config{}, err
+		return runtime.Config{}, err
 	}
 	globalAttestation, err := parseAllowEmptySuccessor(getenv)
 	if err != nil {
-		return ociruntime.Config{}, err
+		return runtime.Config{}, err
 	}
-	return ociruntime.Config{
+	return runtime.Config{
 		CollectorInstanceID: collectorID,
 		PollInterval:        pollInterval,
 		Targets:             targets,
@@ -206,98 +206,98 @@ func validateOCIRegistryInstance(instance workflow.DesiredCollectorInstance) err
 func parseOCIRegistryRuntimeConfiguration(
 	instance workflow.DesiredCollectorInstance,
 	getenv func(string) string,
-) (ociruntime.Config, error) {
+) (runtime.Config, error) {
 	var decoded ociRuntimeConfiguration
 	if err := json.Unmarshal([]byte(instance.Configuration), &decoded); err != nil {
-		return ociruntime.Config{}, fmt.Errorf("decode OCI registry collector configuration: %w", err)
+		return runtime.Config{}, fmt.Errorf("decode OCI registry collector configuration: %w", err)
 	}
 	if len(decoded.Targets) == 0 {
-		return ociruntime.Config{}, fmt.Errorf("OCI registry collector configuration requires targets")
+		return runtime.Config{}, fmt.Errorf("OCI registry collector configuration requires targets")
 	}
-	targets := make([]ociruntime.TargetConfig, 0, len(decoded.Targets))
+	targets := make([]runtime.TargetConfig, 0, len(decoded.Targets))
 	for i, target := range decoded.Targets {
 		mapped, err := mapTarget(target, getenv)
 		if err != nil {
-			return ociruntime.Config{}, fmt.Errorf("targets[%d]: %w", i, err)
+			return runtime.Config{}, fmt.Errorf("targets[%d]: %w", i, err)
 		}
 		targets = append(targets, mapped)
 	}
 	globalAttestation, err := parseAllowEmptySuccessor(getenv)
 	if err != nil {
-		return ociruntime.Config{}, err
+		return runtime.Config{}, err
 	}
-	return ociruntime.Config{
+	return runtime.Config{
 		CollectorInstanceID: instance.InstanceID,
 		Targets:             targets,
 		AllowEmptySuccessor: globalAttestation,
 	}, nil
 }
 
-func mapTarget(target targetJSON, getenv func(string) string) (ociruntime.TargetConfig, error) {
-	provider := ociregistry.Provider(strings.TrimSpace(target.Provider))
+func mapTarget(target targetJSON, getenv func(string) string) (runtime.TargetConfig, error) {
+	provider := oci.Provider(strings.TrimSpace(target.Provider))
 	repository := strings.TrimSpace(target.Repository)
 	registry := strings.TrimSpace(firstNonBlank(target.Registry, target.RegistryHost))
 	switch provider {
-	case ociregistry.ProviderDockerHub:
+	case oci.ProviderDockerHub:
 		name, err := dockerhub.RepositoryName(repository)
 		if err != nil {
-			return ociruntime.TargetConfig{}, err
+			return runtime.TargetConfig{}, err
 		}
 		repository = name
 		if registry == "" {
 			registry = dockerhub.RegistryHost
 		}
-	case ociregistry.ProviderGHCR:
+	case oci.ProviderGHCR:
 		name, err := ghcr.RepositoryName(repository)
 		if err != nil {
-			return ociruntime.TargetConfig{}, err
+			return runtime.TargetConfig{}, err
 		}
 		repository = name
 		if registry == "" {
 			registry = ghcr.RegistryHost
 		}
-	case ociregistry.ProviderJFrog:
+	case oci.ProviderJFrog:
 		identity, err := jfrog.RepositoryIdentity(target.BaseURL, target.RepositoryKey, repository)
 		if err != nil {
-			return ociruntime.TargetConfig{}, err
+			return runtime.TargetConfig{}, err
 		}
 		registry = identity.Registry
 		repository = identity.Repository
-	case ociregistry.ProviderECR:
+	case oci.ProviderECR:
 		if registry == "" {
 			host, err := ecr.PrivateRegistryHost(target.RegistryID, target.Region)
 			if err != nil {
-				return ociruntime.TargetConfig{}, err
+				return runtime.TargetConfig{}, err
 			}
 			registry = host
 		}
-	case ociregistry.ProviderHarbor:
+	case oci.ProviderHarbor:
 		identity, err := harbor.RepositoryIdentity(target.BaseURL, repository)
 		if err != nil {
-			return ociruntime.TargetConfig{}, err
+			return runtime.TargetConfig{}, err
 		}
 		registry = identity.Registry
 		repository = identity.Repository
-	case ociregistry.ProviderGoogleArtifactRegistry:
+	case oci.ProviderGoogleArtifactRegistry:
 		host := firstNonBlank(target.RegistryHost, registry)
 		identity, err := gar.RepositoryIdentity(host, repository)
 		if err != nil {
-			return ociruntime.TargetConfig{}, err
+			return runtime.TargetConfig{}, err
 		}
 		registry = identity.Registry
 		repository = identity.Repository
-	case ociregistry.ProviderAzureContainerRegistry:
+	case oci.ProviderAzureContainerRegistry:
 		host := firstNonBlank(target.RegistryHost, registry)
 		identity, err := acr.RepositoryIdentity(host, repository)
 		if err != nil {
-			return ociruntime.TargetConfig{}, err
+			return runtime.TargetConfig{}, err
 		}
 		registry = identity.Registry
 		repository = identity.Repository
 	default:
-		return ociruntime.TargetConfig{}, fmt.Errorf("unsupported provider %q", target.Provider)
+		return runtime.TargetConfig{}, fmt.Errorf("unsupported provider %q", target.Provider)
 	}
-	return ociruntime.TargetConfig{
+	return runtime.TargetConfig{
 		Provider:      provider,
 		Registry:      registry,
 		BaseURL:       strings.TrimSpace(target.BaseURL),
@@ -308,8 +308,8 @@ func mapTarget(target targetJSON, getenv func(string) string) (ociruntime.Target
 		RegistryHost:  registry,
 		References:    target.References,
 		TagLimit:      target.TagLimit,
-		Visibility:    ociregistry.Visibility(strings.TrimSpace(target.Visibility)),
-		AuthMode:      ociregistry.AuthMode(strings.TrimSpace(target.AuthMode)),
+		Visibility:    oci.Visibility(strings.TrimSpace(target.Visibility)),
+		AuthMode:      oci.AuthMode(strings.TrimSpace(target.AuthMode)),
 		SourceURI:     strings.TrimSpace(target.SourceURI),
 		Username:      getenv(strings.TrimSpace(target.UsernameEnv)),
 		Password:      getenv(strings.TrimSpace(target.PasswordEnv)),
@@ -319,7 +319,7 @@ func mapTarget(target targetJSON, getenv func(string) string) (ociruntime.Target
 		// Only an explicitly attested repository bypasses the ingestion
 		// store's successor-emptiness backstop.
 		AllowEmptySuccessor: target.AllowEmptySuccessor,
-		TLS: ociruntime.TLSConfig{
+		TLS: runtime.TLSConfig{
 			CACertPath:         strings.TrimSpace(target.TLSCACertPath),
 			InsecureSkipVerify: target.TLSInsecureSkipVerify,
 		},

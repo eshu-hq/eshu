@@ -192,13 +192,13 @@ collector dimensions.
 Line-count marker (#2374): package-registry metadata fetches now reuse the SDK
 bounded HTTP error and default-client primitives while keeping provider-specific
 request shape and registry workflow failure classification in
-`packageruntime`. The production diff changes one provider file and adds the
+`registry/package/runtime`. The production diff changes one provider file and adds the
 SDK dependency without adding retries, sleeps, goroutines, queues, graph writes,
 database writes, collector binaries, Helm values, or runtime knobs.
 
 No-Regression Evidence (#2374): `go test ./internal/collector/sdk
-./internal/collector/packageregistry
-./internal/collector/packageregistry/packageruntime
+./internal/collector/registry/package
+./internal/collector/registry/package/runtime
 ./cmd/collector-package-registry -count=1` covers SDK default-client reuse,
 bounded SDK `HTTPError` causes for status and transport failures, the existing
 `registry_*` failure-class mapping, rate-limit sentinel matching, metadata URL
@@ -240,8 +240,8 @@ escaping, referrers capability errors, blob body caps, and registry workflow
 failure classes stay local.
 
 No-Regression Evidence (#2381): `go test ./internal/collector/sdk
-./internal/collector/ociregistry/distribution
-./internal/collector/ociregistry/ociruntime ./internal/collector/sbom/runtime
+./internal/collector/registry/oci/distribution
+./internal/collector/registry/oci/runtime ./internal/collector/sbom/runtime
 ./cmd/collector-oci-registry ./cmd/collector-sbom-attestation -count=1` covers
 SDK base URL credential rejection, default client construction, SDK HTTP error
 causes for status and transport failures, Distribution ping, tag, manifest,
