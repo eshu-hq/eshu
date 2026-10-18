@@ -82,15 +82,17 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 	// writer -- rather than guesses at paths nobody has written, which is the
 	// state the comment above describes for the remaining direct families.
 	//
-	// In the ifa-fault-injection block since #6309: both families have fault
-	// cells asserting their exact edge sets, so their inputs retrigger that
-	// gate. The both-gates check below is keyed to coverage rows, and both
-	// families are covered, so it demands the fault-side trigger -- and finds
-	// it, in the per-family cell files and the shared fault seams.
+	// In the ifa-fault-injection block since #6309: all five families have
+	// fault cells asserting their exact edge sets, so their inputs retrigger
+	// that gate. The both-gates check below is keyed to coverage rows, and
+	// all five families are covered, so it demands the fault-side trigger --
+	// and finds it, in the per-family cell files and the shared fault seams.
 	//
-	// iam_can_assume joins them with the #6228 fault half: same stem shape,
-	// read off the fault cells file and the cypher writer the triggers name.
+	// iam_can_assume, iam_can_perform and ec2_uses_profile join them with
+	// the #6228 fault halves: same stem shape, read off the fault cells
+	// files and the cypher writers the triggers name.
 	"iam_can_assume":                   "iam_can_assume",
+	"ec2_uses_profile":                 "ec2_uses_profile",
 	"iam_instance_profile_role":        "iam_instance_profile_role",
 	"kubernetes_namespace_environment": "kubernetes_namespace_environment",
 	// The fourth DIRECT family wired into a live gate (#6228 fault half).

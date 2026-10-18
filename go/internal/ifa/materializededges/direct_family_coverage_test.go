@@ -87,9 +87,10 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		EdgeTypes: []string{"CAN_ESCALATE_TO"},
 	},
 	{
-		Family:    ec2UsesProfileFamily,
-		OduName:   ifa.EC2UsesProfileFamilyOduName,
-		EdgeTypes: []string{"USES_PROFILE"},
+		Family:     ec2UsesProfileFamily,
+		OduName:    ifa.EC2UsesProfileFamilyOduName,
+		EdgeTypes:  []string{"USES_PROFILE"},
+		LiveProven: true,
 	},
 	{
 		Family:    s3LogsToFamily,

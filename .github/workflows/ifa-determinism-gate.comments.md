@@ -198,7 +198,7 @@ These are the original workflow comments in source order.
       # workflow union. The fault-cell files still select only the fault
       # registry gate during local path selection.
       # kubernetes_namespace_environment / iam_instance_profile_role (#6228)
-      # + iam_can_perform (#6228 fault half),
+      # + iam_can_perform + ec2_uses_profile (#6228 fault halves),
       # the first DIRECT-materialization families in these matrices. Mirrors
       # the paths specs/ci-gates.v1.yaml lists for BOTH the ifa-determinism
       # and ifa-fault-injection gates since #6309 landed the fault cells. The
