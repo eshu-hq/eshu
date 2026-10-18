@@ -58,6 +58,20 @@ def goal_text(prompt: str, cwd: str = "") -> str:
     return prepared_goal(body, cwd) or body
 
 
+def _is_drive(body: str, skills: set) -> bool:
+    """A drive goal names eshu-issue-driver or uses drive as a verb on epics/issues.
+
+    Whitespace is flattened so a file-based goal matches across lines. The
+    object must sit close after the verb ("drive epics #1234"), so prose
+    like "drive the latency investigation; the main issue is flaky leases"
+    does not grow a drive contract.
+    """
+    if "eshu-issue-driver" in skills:
+        return True
+    flat = " ".join(body.lower().split())
+    return bool(re.search(r"\bdrive\b.{0,30}?\b(epics?\b|issues?\s*#|#\d)", flat))
+
+
 def route(prompt: str, harness: str, cwd: str = "") -> str:
     body = goal_text(prompt, cwd)
     if not body or not SKILL_NAMES:
@@ -85,7 +99,7 @@ def route(prompt: str, harness: str, cwd: str = "") -> str:
         roles.append("develop-eshu")
     # A drive goal always needs implementation + independent review lanes,
     # even when its wording names neither ("drive epics #N to completion").
-    if "eshu-issue-driver" in skills or re.search(r"\bdrive\b.*\b(epic|issue|#\d+)", body.lower()):
+    if _is_drive(body, skills):
         for needed in ("develop-eshu-deep" if deep else "develop-eshu",
                        "review-eshu-deep" if deep else "review-eshu"):
             if needed not in roles:
@@ -123,9 +137,7 @@ def route(prompt: str, harness: str, cwd: str = "") -> str:
     # teammates (never Workflow); other harnesses use their native subagent
     # tool. This is injected context the model must follow per AGENTS.md —
     # a hook cannot force the tool call itself.
-    drive = "eshu-issue-driver" in skills or bool(
-        re.search(r"\bdrive\b.*\b(epic|issue|#\d+)", body.lower())
-    )
+    drive = _is_drive(body, skills)
     if drive:
         if harness == "muse":
             fanout = "a Workflow (parallel/pipeline over leaves) or subagent_spawn"

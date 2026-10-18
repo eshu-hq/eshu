@@ -48,11 +48,11 @@ class GoalRoleRouterTests(unittest.TestCase):
 
     def test_muse_goal_text_routes_performance_and_review(self):
         output = context("/goal Drive epic with eshu-issue-driver. Benchmark using eshu-performance-rigor; review final PR using eshu-code-review.", "muse")
-        self.assertIn("perf-eshu", output)
-        self.assertIn("review-eshu", output)
+        self.assertIn("- perf-eshu:", output)
+        self.assertIn("- review-eshu:", output)
         self.assertIn("muse-exec", output)
         # A drive goal always carries an implementation lane (drive contract).
-        self.assertIn("develop-eshu", output)
+        self.assertIn("- develop-eshu:", output)
 
     def test_muse_goal_carries_required_dispatch_and_standing_rules(self):
         """Muse parity: required (not hinted) dispatch, watcher, backlog rules."""
@@ -64,7 +64,7 @@ class GoalRoleRouterTests(unittest.TestCase):
             self.assertIn(marker, muse)
         # Same prompt must route the same roles under Claude (parity of selection).
         claude = context(prompt, "claude")
-        for marker in ("perf-eshu", "review-eshu"):
+        for marker in ("- perf-eshu:", "- review-eshu:"):
             self.assertIn(marker, claude)
             self.assertIn(marker, muse)
         # The Muse required block must not leak into other harnesses.
@@ -88,6 +88,23 @@ class GoalRoleRouterTests(unittest.TestCase):
         # A non-drive goal must not grow a drive contract.
         plain = context("/goal Diagnose the queue with eshu-diagnostic-rigor", "muse")
         self.assertNotIn("DRIVE CONTRACT", plain)
+
+    def test_drive_word_in_prose_is_not_a_drive_goal(self):
+        """'drive the investigation; the main issue is...' must not self-organize."""
+        output = context(
+            "/goal drive the latency investigation with eshu-diagnostic-rigor; "
+            "the main issue is flaky leases", "muse")
+        self.assertNotIn("DRIVE CONTRACT", output)
+        self.assertNotIn("- develop-eshu:", output)
+
+    def test_multiline_drive_goal_still_routes(self):
+        """File-based goals match across newlines after whitespace flattening."""
+        with tempfile.TemporaryDirectory() as tmp:
+            goal = Path(tmp) / "goal.txt"
+            goal.write_text("GOAL: drive\nepics #4321 to completion with eshu-code-review")
+            output = context(f"/goal {goal}", "muse", tmp)
+        self.assertIn("DRIVE CONTRACT", output)
+        self.assertIn("- develop-eshu:", output)
 
     def test_codex_debug_model_is_manifest_binding(self):
         """The router reports the Codex workhorse binding from the manifest."""
