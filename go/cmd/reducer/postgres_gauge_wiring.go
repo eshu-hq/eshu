@@ -427,6 +427,11 @@ func registerPostgresQueueGauges(
 	if err := telemetry.RegisterObservableGauges(instruments, meter, cached, nil); err != nil {
 		return fmt.Errorf("register queue observable gauges: %w", err)
 	}
+	if fenceObs, ok := queueObs.(telemetry.CorpusFenceObserver); ok {
+		if err := registerCorpusFenceGauges(refresher, instruments, meter, fenceObs); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

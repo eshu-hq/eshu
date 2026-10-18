@@ -57,6 +57,9 @@ TABLE = {
         "go/internal/storage/postgres/content_files_language_covering_index_replay_live_test.go": (
             "TestContentFilesLanguageCoveringIndexReplayConvergesLive",
         ),
+        "go/internal/storage/postgres/corpus_fence_observer_live_test.go": (
+            "TestQueueObserverStoreCorpusFenceCountsRunOnPostgres",
+        ),
         "go/internal/storage/postgres/dead_letter_recovery_lock_order_live_test.go": (
             "TestPoisonRecoveryHeldRowRaceLive",
             "TestPoisonRecoveryDropsRowChangedBeforeItsLockLive",
