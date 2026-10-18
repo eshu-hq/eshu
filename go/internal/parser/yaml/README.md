@@ -148,7 +148,7 @@ generic `type` key). Both new buckets (`flux_helm_releases`,
 `flux_helm_repositories`) are registered content entities reachable through
 `get_entity_context` (issue #5483 C1). The `RECONCILES_FROM` correlation edge
 extension from a `FluxHelmRelease` to its resolved source/chart CR is
-materialized in `go/internal/storage/cypher/canonical_flux_helm_edges.go`, not
+materialized in `go/internal/storage/cypher/canonical/flux/helm.go`, not
 by this package -- see `docs/public/languages/flux.md`.
 
 ## Exported surface

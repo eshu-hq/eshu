@@ -5,6 +5,7 @@ package querycontract
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/flux"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
@@ -61,7 +62,7 @@ type EdgeCoverage struct {
 // edgewriter.SQLRelationshipMaterializedEdgeTypes)
 // with the always-on structural CONTAINS edge and structuralEdgeTypes
 // (DEPENDS_ON, REPO_CONTAINS), plus the Crossplane (cypher.CrossplaneRelationship
-// MaterializedEdgeTypes) and Flux (cypher.FluxRelationshipMaterializedEdgeTypes)
+// MaterializedEdgeTypes) and Flux (flux.MaterializedEdgeTypes)
 // canonical edge writers. Because it reads the writer whitelists directly, a
 // new SQL relationship type or canonical edge type added to one of those
 // whitelists flips this registry automatically without a second edit here.
@@ -74,7 +75,7 @@ func materializedEdgeTypes() map[string]string {
 	for edgeType, reason := range cypher.CrossplaneRelationshipMaterializedEdgeTypes() {
 		out[edgeType] = reason
 	}
-	for edgeType, reason := range cypher.FluxRelationshipMaterializedEdgeTypes() {
+	for edgeType, reason := range flux.MaterializedEdgeTypes() {
 		out[edgeType] = reason
 	}
 	return out
