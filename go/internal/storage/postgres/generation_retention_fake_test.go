@@ -91,6 +91,9 @@ type generationRetentionFakeDB struct {
 	// arg ($1, strict `superseded_at < cutoff`) and caps at its limit arg
 	// ($2), as the live statement does.
 	expiredBlockedRows [][]any
+	// expiredBlockedErr, when set, fails the #7585 PR3 report read so
+	// telemetry failure-path tests can prove the failure signal.
+	expiredBlockedErr error
 }
 
 // isSearchIndexPredeleteStatement reports whether a statement belongs to the
@@ -153,6 +156,9 @@ func (database *generationRetentionFakeDB) QueryContext(_ context.Context, query
 		}
 		return &queueFakeRows{rows: rows}, nil
 	case strings.Contains(query, generationRetentionExpiredReportMarker):
+		if database.expiredBlockedErr != nil {
+			return nil, database.expiredBlockedErr
+		}
 		return &queueFakeRows{rows: filterGenerationRetentionExpiredRows(database.expiredBlockedRows, args)}, nil
 	}
 	return nil, sql.ErrConnDone

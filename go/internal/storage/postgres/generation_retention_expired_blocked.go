@@ -8,7 +8,10 @@ import (
 	"fmt"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // This file holds the #7585 PR1 expired-but-blocked report: a pure-Go
@@ -364,6 +367,12 @@ func scanRetentionExpiredRows(rows db.Rows) ([]generationRetentionExpiredRow, er
 // cannot drift from the deletion bound. The cutoff and the evaluations
 // share one now, so the SQL predicate and the evaluated expiry agree
 // exactly at the ceiling edge.
+//
+// A wired tracer opens the expired-report span around the read; wired
+// instruments count expired-but-blocked rows by closed reason, time the
+// read, and count read failures on the shared retention failure counter.
+// All three are optional and nil-safe: without them the report is the
+// same pure read PR2 proved.
 func (s GenerationRetentionStore) SelectExpiredGenerations(
 	ctx context.Context,
 	policy GenerationRetentionPolicy,
@@ -375,14 +384,22 @@ func (s GenerationRetentionStore) SelectExpiredGenerations(
 	if err := policy.validate(); err != nil {
 		return nil, err
 	}
+	if s.tracer != nil {
+		var span trace.Span
+		ctx, span = s.tracer.Start(ctx, telemetry.SpanGenerationRetentionExpiredReport)
+		defer span.End()
+	}
 	now := s.now()
+	reportStart := time.Now()
 	rows, err := s.database.QueryContext(ctx, generationRetentionExpiredReportQuery,
 		now.Add(-policy.HardMaxSupersededAge), policy.BatchGenerationLimit)
 	if err != nil {
+		s.recordExpiredReportFailure(ctx, err)
 		return nil, fmt.Errorf("generation retention: select expired generations: %w", err)
 	}
 	signals, err := scanRetentionExpiredRows(rows)
 	if err != nil {
+		s.recordExpiredReportFailure(ctx, err)
 		return nil, fmt.Errorf("generation retention: select expired generations: %w", err)
 	}
 	report := make([]GenerationRetentionExpiredGeneration, 0, len(signals))
@@ -395,5 +412,6 @@ func (s GenerationRetentionStore) SelectExpiredGenerations(
 			DeltaProtected: signal.deltaProtected,
 		})
 	}
+	s.recordExpiredReport(ctx, report, time.Since(reportStart))
 	return report, nil
 }
