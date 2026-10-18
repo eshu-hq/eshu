@@ -153,5 +153,5 @@ func loadPackageRegistryCassetteEnvelopes(t *testing.T, scopeID string) []facts.
 // cassette fact so a quarantine message can name the offending fact
 // deterministically.
 func packageRegistryCassetteFactID(factKind string, index int) string {
-	return "cassette:" + factKind + ":" + string(rune('0'+index))
+	return "cassette:" + factKind + ":" + string(rune('0'+index)) // #nosec G115 -- index is the fact position within one cassette scope (checked-in packageregistry scopes carry at most 6 facts), so '0'+index stays an ASCII digit
 }

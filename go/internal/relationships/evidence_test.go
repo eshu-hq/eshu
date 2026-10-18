@@ -4,6 +4,7 @@
 package relationships
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -1355,15 +1356,7 @@ func stringSlicesEqual(got any, want []string) bool {
 	if !ok {
 		return false
 	}
-	if len(values) != len(want) {
-		return false
-	}
-	for index := range values {
-		if values[index] != want[index] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(values, want)
 }
 
 func TestIsTerraformArtifactIncludesVariableFiles(t *testing.T) {

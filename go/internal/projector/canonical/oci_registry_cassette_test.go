@@ -120,5 +120,5 @@ func loadOCICassetteEnvelopes(t *testing.T) []facts.Envelope {
 // ociCassetteFactID synthesizes a stable, unique fact id for a cassette fact so
 // a quarantine message can name the offending fact deterministically.
 func ociCassetteFactID(factKind string, index int) string {
-	return "cassette:" + factKind + ":" + string(rune('0'+index))
+	return "cassette:" + factKind + ":" + string(rune('0'+index)) // #nosec G115 -- index is the fact position within one cassette scope (checked-in ociregistry scopes carry at most 4 facts), so '0'+index stays an ASCII digit
 }

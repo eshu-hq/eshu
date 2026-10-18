@@ -5,6 +5,7 @@ package projection
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"testing"
 	"time"
@@ -347,25 +348,9 @@ func (f *fakePartitionCandidateIntentStore) ListPendingDomainUnhashedIntents(
 }
 
 func equalPartitionCandidateRequests(a, b []partitionCandidateRequest) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(a, b)
 }
 
 func equalLegacyCandidateRequests(a, b []legacyCandidateRequest) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(a, b)
 }

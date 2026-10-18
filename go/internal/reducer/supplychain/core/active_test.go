@@ -326,8 +326,8 @@ func TestSupplyChainImpactHandlerStopsActiveEvidenceExpansionConservatively(t *t
 			activeCalls++
 			return []facts.Envelope{
 				packageRegistryPackageImpactFact(
-					"package-expansion-"+string(rune('a'+activeCalls)),
-					"pkg:npm/expansion-"+string(rune('a'+activeCalls)),
+					"package-expansion-"+string(rune('a'+activeCalls)), // #nosec G115 -- activeCalls counts expansion rounds capped at maxSupplyChainImpactActiveEvidenceLoads=8, so 'a'+activeCalls stays an ASCII letter
+					"pkg:npm/expansion-"+string(rune('a'+activeCalls)), // #nosec G115 -- activeCalls counts expansion rounds capped at maxSupplyChainImpactActiveEvidenceLoads=8, so 'a'+activeCalls stays an ASCII letter
 				),
 			}
 		},

@@ -6,6 +6,7 @@ package codedivergence
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -217,12 +218,7 @@ func assertDriftedRetireCall(t *testing.T, call testutil.ExecCall, scopeID, gene
 	if !ok {
 		t.Fatalf("retire keep arg type = %T, want array.StringArray", call.Args[3])
 	}
-	if len(kept) != len(keepFactIDs) {
+	if !slices.Equal([]string(kept), keepFactIDs) {
 		t.Fatalf("retire keep ids = %v, want %v", kept, keepFactIDs)
-	}
-	for i := range kept {
-		if kept[i] != keepFactIDs[i] {
-			t.Fatalf("retire keep ids = %v, want %v", kept, keepFactIDs)
-		}
 	}
 }
