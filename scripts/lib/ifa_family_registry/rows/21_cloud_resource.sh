@@ -50,7 +50,7 @@ IFA_FAMILY_ASSERT_FN[cloud_resource]="ifa_cloud_resource_assert"
 IFA_FAMILY_CASSETTE_VAR[cloud_resource]="cloud_resource_cassette"
 IFA_FAMILY_EXPECTED_VAR[cloud_resource]="cloud_resource_expected_edges"
 
-# go/internal/storage/cypher/cloud_resource_edge_writer.go's
+# go/internal/storage/cypher/cloud/resource/edge_writer.go's
 # canonicalCloudResourceEdgeUpsertCypherFormat reads
 # `MERGE (source)-[rel:%s]->(target)`. The anchor is matched against
 # EXECUTED statement text, so it carries an INTERPOLATED type: the %s is

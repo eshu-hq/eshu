@@ -117,9 +117,9 @@ func TestCloudResourcePredicateSoleCreatorCensus(t *testing.T) {
 		},
 	}
 	prefixLiterals := map[string]string{
-		"AWS_":   "go/internal/storage/cypher/cloud_resource_edge_writer.go",
-		"GCP_":   "go/internal/storage/cypher/gcp_cloud_resource_edge_writer.go",
-		"AZURE_": "go/internal/storage/cypher/azure_cloud_resource_edge_writer.go",
+		"AWS_":   "go/internal/storage/cypher/cloud/resource/edge_writer.go",
+		"GCP_":   "go/internal/storage/cypher/cloud/gcp/relationship/gcp_cloud_resource_edge_writer.go",
+		"AZURE_": "go/internal/storage/cypher/cloud/azure/relationship/azure_cloud_resource_edge_writer.go",
 	}
 	// Extra READ-SIDE files allowed to name a prefix literal: the graphdump
 	// integrity check above and the cross-repo evidence classifier, which
@@ -221,9 +221,9 @@ func TestCloudResourceWritePortHasExactlyThreeWriters(t *testing.T) {
 
 	root := repoRootDir(t)
 	want := map[string]struct{}{
-		"go/internal/storage/cypher/cloud_resource_edge_writer.go":       {},
-		"go/internal/storage/cypher/gcp_cloud_resource_edge_writer.go":   {},
-		"go/internal/storage/cypher/azure_cloud_resource_edge_writer.go": {},
+		"go/internal/storage/cypher/cloud/resource/edge_writer.go":                                {},
+		"go/internal/storage/cypher/cloud/gcp/relationship/gcp_cloud_resource_edge_writer.go":     {},
+		"go/internal/storage/cypher/cloud/azure/relationship/azure_cloud_resource_edge_writer.go": {},
 	}
 	got := map[string]struct{}{}
 	for _, rel := range cloudResourceCensusGoFiles(t) {

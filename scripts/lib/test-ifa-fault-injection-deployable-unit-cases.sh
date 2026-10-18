@@ -86,7 +86,7 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	require_fixture "deployable-unit expected-edge set path" "go/internal/ifa/testdata/deployableunit/ifa-deployable-unit-family-expected-edges.json"
 	require_fixture "deployable-unit cassette existence guard" "deployable-unit cassette not found"
 	require_fixture "deployable-unit expected-edge set existence guard" "deployable-unit expected-edge set not found"
-	require_code "deployable-unit MERGE operation_match anchor" 'deployable_unit_edge_operation_match="MERGE (source_repo)-[rel:CORRELATES_DEPLOYABLE_UNIT]->(deployment_repo)"'
+	require_anchors_lib "deployable-unit MERGE operation_match anchor" 'deployable_unit_edge_operation_match="MERGE (source_repo)-[rel:CORRELATES_DEPLOYABLE_UNIT]->(deployment_repo)"'
 	require_code "sixth binary: bootstrap-index build" "ifa_det_build_bin \"\${bin_dir}\" bootstrap-index"
 	require_driver "deployable-unit drive in every cell" 'eshu-ifa" drive -cassette "${deployable_unit_cassette}" -workers "${drive_workers}"'
 	# Four checks against the LIVE LIB itself (ifa_deployable_unit_live.sh),

@@ -170,7 +170,7 @@ run_ifa_fault_injection_cell_pins_cases() {
 	# check (Postgres attempt_count, not the reducer log -- see the helper doc for
 	# why the log grep raced the buffered-stderr flush in CI).
 	require_cells "once-then-succeed script writer" "ifa_fault_write_once_script"
-	require_code "CloudResource MERGE operation_match anchor" 'cloud_resource_operation_match="MERGE (r:CloudResource"'
+	require_anchors_lib "CloudResource MERGE operation_match anchor" 'cloud_resource_operation_match="MERGE (r:CloudResource"'
 	require_cells "queue-retry lane selected" '"queue-retry"'
 	require_cells "ESHU_IFA_FAULT_SCRIPT env wiring" "ESHU_IFA_FAULT_SCRIPT=\${fault_once_script}"
 	require_cells "non-vacuity retry check for cell 4 (baseline differential)" "ifa_fault_assert_retried_above"
@@ -207,8 +207,8 @@ run_ifa_fault_injection_cell_pins_cases() {
 	# read the reducer log: fact_work_items attempt_count does not exist for this
 	# domain's async graph writes, and the log route raced the logger's flush,
 	# which is what made this cell inert in CI while passing locally (#5974).
-	require_code "SQL edge MERGE operation_match anchor" 'sql_edge_operation_match="MERGE (source)-[rel:QUERIES_TABLE]->(target)"'
-	if rg --pcre2 --quiet -- 'sql_edge_operation_match="[^"]*CloudResource' "${script}"; then
+	require_anchors_lib "SQL edge MERGE operation_match anchor" 'sql_edge_operation_match="MERGE (source)-[rel:QUERIES_TABLE]->(target)"'
+	if rg --pcre2 --quiet -- 'sql_edge_operation_match="[^"]*CloudResource' "${anchors_lib}"; then
 		fail "sql_edge_operation_match must not be anchored to CloudResource -- that is issue #5555's exact complaint"
 	fi
 	require_sql_cells "SQL-targeted once-then-succeed script writer" "ifa_fault_write_once_script"

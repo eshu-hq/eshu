@@ -27,7 +27,7 @@ IFA_FAMILY_PIN_WAIT_STAGE="handler"
 IFA_FAMILY_PIN_WAIT_KEY="aws_relationship_materialization"
 
 # canonicalCloudResourceEdgeUpsertCypherFormat in
-# go/internal/storage/cypher/cloud_resource_edge_writer.go reads
+# go/internal/storage/cypher/cloud/resource/edge_writer.go reads
 # `MERGE (source)-[rel:%s]->(target)`. The anchor is matched against
 # EXECUTED statement text, so the type is pinned INTERPOLATED for the one
 # verb the family cassette drives first: the %s is

@@ -53,7 +53,7 @@ run_ifa_documentation_live_static_cases() {
 	require_fixture "documentation expected-edge set path" "go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"
 	require_fixture "documentation cassette existence guard" "documentation cassette not found"
 	require_fixture "documentation expected-edge set existence guard" "documentation expected-edge set not found"
-	require_code "documentation DOCUMENTS MERGE operation_match anchor" 'documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"'
+	require_anchors_lib "documentation DOCUMENTS MERGE operation_match anchor" 'documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"'
 	require_driver "documentation drive in every cell" "ifa_documentation_drive"
 	require_cells "documentation exact assertion in baseline" "ifa_documentation_assert"
 	require_cells "documentation fault-free retry baseline" '"documentation_materialization"'
@@ -204,7 +204,7 @@ run_ifa_documentation_live_static_cases() {
 	require "claimed-row proof inventory includes every lease-reclaim cell" "a claimed-row proof for cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44/47/50/53"
 	require "once-fired proof inventory includes every graph-write cell" "a once-fired marker for cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/48/51/54/56/57/58"
 	require "retry-delay inventory includes every graph-write cell" "cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/48/51/54/56/57/58's queue-retry lane"
-	require "SQL graph-write anchor has its current cell number" "cell_failgraphwrite_sql (cell 12, #5555)"
+	require_framing "SQL graph-write anchor has its current cell number" "cell_failgraphwrite_sql (cell 12, #5555)" "${anchors_lib}"
 	require_framing "delta exception leaves all other cells on baseline rationale truth" "The other forty-eight cells remain bound" "${driver_lib}"
 	# The literal-label pin that used to live here ("Run Ifa fault-injection
 	# matrix (18 cells, fresh stack per cell)") was migrated to
@@ -392,7 +392,7 @@ run_ifa_fault_injection_documentation_registry_cases() {
 	require_fixture "documentation expected-edge set path" "go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"
 	require_fixture "documentation cassette existence guard" "documentation cassette not found"
 	require_fixture "documentation expected-edge set existence guard" "documentation expected-edge set not found"
-	require_code "documentation DOCUMENTS MERGE operation_match anchor" 'documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"'
+	require_anchors_lib "documentation DOCUMENTS MERGE operation_match anchor" 'documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"'
 	require_driver "documentation drive in every cell" "ifa_documentation_drive"
 	require_cells "documentation exact assertion in baseline" "ifa_documentation_assert"
 	require_cells "documentation fault-free retry baseline" '"documentation_materialization"'
