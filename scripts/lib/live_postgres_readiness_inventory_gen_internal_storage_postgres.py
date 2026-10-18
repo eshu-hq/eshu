@@ -82,6 +82,9 @@ TABLE = {
         "go/internal/storage/postgres/fact_key_orphan_census_live_test.go": (
             "TestFactKeyOrphanCensusCountsPlantedOrphansLive",
         ),
+        "go/internal/storage/postgres/gap_admitted_anchor_index_live_test.go": (
+            "TestDeployableUnitGapAdmittedAnchorIndexLifecycleAndSeekLive",
+        ),
         "go/internal/storage/postgres/generation_freshness_reproject_live_test.go": (
             "TestStampActiveGenerationLifecycleLive",
             "TestPreparseIdentityStampsAndActiveStateLive",
@@ -218,6 +221,8 @@ TABLE = {
         "go/internal/storage/postgres/ingestion_reopen_correlation_invalidate_live_test.go": (
             "TestInvalidateDeployableUnitReopenFingerprintsForReposLive",
             "TestListAllDeployableUnitAdmittedAnchorReposLive",
+            "TestListAllDeployableUnitAdmittedAnchorReposConvergesAfterSupersedingDecisionLive",
+            "TestListAllDeployableUnitAdmittedAnchorReposBreaksDecidedAtTiesLive",
         ),
         "go/internal/storage/postgres/manifest_less_dirty_rule_answer_live_test.go": (
             "TestReducerContentionGateManifestLessDirtyRuleReturnsTheSameDefinitions",

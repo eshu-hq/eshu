@@ -184,22 +184,37 @@ const InvalidateDeployableUnitReopenFingerprintsForReposQuery = `
 DELETE FROM deployable_unit_reopen_fingerprints WHERE repo_ids && $1::text[]
 `
 
-// ListAllDeployableUnitAdmittedAnchorReposQuery lists the full distinct
-// source repository set with admitted deployable_unit_correlation decisions
-// (#8316). It carries no LIMIT: bounding the listing to a first-N prefix
-// would deterministically starve tail anchors, since every pass re-probes
-// the same prefix (#8371 review F1). The gap reconciliation probes the graph
-// in fixed-size batches instead, so every round trip stays bounded while
-// every pass covers the whole set. Rows whose canonical write never landed
-// (Written false) are excluded: no edge was ever expected for them. Rows
-// predating the Written key are included: every
-// deployable_unit_correlation admission of that era wrote its edge.
+// ListAllDeployableUnitAdmittedAnchorReposQuery lists the full admitted
+// source repository set with deployable_unit_correlation decisions (#8316).
+// It carries no LIMIT: bounding the listing to a first-N prefix would
+// deterministically starve tail anchors, since every pass re-probes the
+// same prefix (#8371 review F1). The gap reconciliation probes the graph in
+// fixed-size batches instead, so every round trip stays bounded while every
+// pass covers the whole set.
+//
+// The listing scopes to the latest decision per anchor (#8371 review P1):
+// rows for different generations coexist (decision IDs embed the
+// generation; the upsert only reconciles same-decision rewrites and nothing
+// deletes superseded rows), so an anchor admitted in one generation and
+// rejected in a later one keeps both rows. Matching ANY
+// admitted row would replay that legitimately edgeless anchor every pass;
+// keeping only latest-state-admitted rows converges the second pass to a
+// no-op. The decision_id tiebreaker keeps the choice deterministic when two
+// decisions for one anchor share an identical decided_at (#8407 review P2).
+// Rows whose canonical write never landed (Written false) are
+// excluded: no edge was ever expected for them. Rows predating the Written
+// key are included: every deployable_unit_correlation admission of that era
+// wrote its edge.
 const ListAllDeployableUnitAdmittedAnchorReposQuery = `
-SELECT DISTINCT anchor_id
-FROM admission_decisions
-WHERE domain = 'deployable_unit_correlation'
-  AND state = 'admitted'
-  AND anchor_kind = 'repository'
+SELECT anchor_id
+FROM (
+    SELECT DISTINCT ON (anchor_id) anchor_id, state, canonical_write
+    FROM admission_decisions
+    WHERE domain = 'deployable_unit_correlation'
+      AND anchor_kind = 'repository'
+    ORDER BY anchor_id, decided_at DESC, decision_id DESC
+) AS latest
+WHERE state = 'admitted'
   AND COALESCE((canonical_write ->> 'Written') IN ('true'), TRUE)
 ORDER BY anchor_id
 `

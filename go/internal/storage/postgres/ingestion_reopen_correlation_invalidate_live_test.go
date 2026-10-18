@@ -124,6 +124,19 @@ func seedGapAdmissionDecision(
 	w fingerprintGateWorld, decisionID, anchorID, state, canonicalWrite string,
 ) {
 	t.Helper()
+	seedGapAdmissionDecisionAt(t, ctx, db,
+		w.a.scopeID, w.a.genID, decisionID, anchorID, state, canonicalWrite, time.Now().UTC())
+}
+
+// seedGapAdmissionDecisionAt inserts one deployable_unit_correlation
+// admission decision over an explicit scope generation with an explicit
+// decision time, so the #8371 P1 convergence proof can order a superseding
+// decision after the row it replaces deterministically.
+func seedGapAdmissionDecisionAt(
+	t *testing.T, ctx context.Context, db *sql.DB,
+	scopeID, genID, decisionID, anchorID, state, canonicalWrite string, decidedAt time.Time,
+) {
+	t.Helper()
 	if _, err := db.ExecContext(ctx, `
 INSERT INTO admission_decisions (
     decision_id, domain, state, domain_state, scope_id, generation_id,
@@ -136,8 +149,83 @@ INSERT INTO admission_decisions (
     'repository', $5, 'deployable_unit', $1,
     0.95, 'high', 'test-pack',
     'fresh', 'test-seed',
-    'unredacted', '', 'v1', now(), now(), $6::jsonb
-)`, decisionID, state, w.a.scopeID, w.a.genID, anchorID, canonicalWrite); err != nil {
+    'unredacted', '', 'v1', $7, $7, $6::jsonb
+)`, decisionID, state, scopeID, genID, anchorID, canonicalWrite, decidedAt); err != nil {
 		t.Fatalf("seed admission decision %s: %v", decisionID, err)
+	}
+}
+
+// TestListAllDeployableUnitAdmittedAnchorReposConvergesAfterSupersedingDecisionLive
+// proves the #8371 P1 convergence guard on the real schema: the listing
+// scopes to the latest decision per anchor, so an anchor admitted in one
+// generation and rejected in a later one is excluded — the next maintenance
+// pass is a no-op for it instead of replaying the healthy item forever —
+// while a re-admitted anchor and a still-admitted anchor stay listed.
+func TestListAllDeployableUnitAdmittedAnchorReposConvergesAfterSupersedingDecisionLive(t *testing.T) {
+	dsn := reducerDomainFairnessDSN()
+	if dsn == "" {
+		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the #8371 admitted-anchors convergence proof")
+	}
+	ctx := context.Background()
+	db, _ := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	w := seedFingerprintGateWorld(t, ctx, db)
+	advanceFingerprintGateScopeGeneration(t, ctx, db, w.a.scopeID, "gen-a-2")
+	advanceFingerprintGateScopeGeneration(t, ctx, db, w.a.scopeID, "gen-a-3")
+	base := w.at
+	// repo-stale: admitted, then rejected by a later generation. The old
+	// ANY-admitted-row listing keeps it (the RED case); the latest-decision
+	// scoping drops it, so the second pass is a no-op.
+	seedGapAdmissionDecisionAt(t, ctx, db, w.a.scopeID, w.a.genID, "adm-stale-admit", "repo-stale", "admitted", `{"Written":true}`, base)
+	seedGapAdmissionDecisionAt(t, ctx, db, w.a.scopeID, "gen-a-2", "adm-stale-reject", "repo-stale", "rejected", `{"Written":true}`, base.Add(time.Hour))
+	// repo-readmit: admitted, rejected, admitted again — latest state wins.
+	seedGapAdmissionDecisionAt(t, ctx, db, w.a.scopeID, w.a.genID, "adm-readmit-1", "repo-readmit", "admitted", `{"Written":true}`, base)
+	seedGapAdmissionDecisionAt(t, ctx, db, w.a.scopeID, "gen-a-2", "adm-readmit-2", "repo-readmit", "rejected", `{"Written":true}`, base.Add(time.Hour))
+	seedGapAdmissionDecisionAt(t, ctx, db, w.a.scopeID, "gen-a-3", "adm-readmit-3", "repo-readmit", "admitted", `{"Written":true}`, base.Add(2*time.Hour))
+	// repo-steady: admitted once, never superseded.
+	seedGapAdmissionDecisionAt(t, ctx, db, w.a.scopeID, w.a.genID, "adm-steady", "repo-steady", "admitted", `{"Written":true}`, base)
+
+	store := NewRelationshipStore(SQLDB{DB: db})
+	anchors, err := store.ListAllDeployableUnitAdmittedAnchorRepos(ctx)
+	if err != nil {
+		t.Fatalf("ListAllDeployableUnitAdmittedAnchorRepos() error = %v", err)
+	}
+	want := []string{"repo-readmit", "repo-steady"}
+	if len(anchors) != len(want) {
+		t.Fatalf("admitted anchors = %#v, want %#v", anchors, want)
+	}
+	for i := range want {
+		if anchors[i] != want[i] {
+			t.Fatalf("admitted anchors = %#v, want %#v", anchors, want)
+		}
+	}
+}
+
+// TestListAllDeployableUnitAdmittedAnchorReposBreaksDecidedAtTiesLive proves
+// the #8407 P2 tiebreaker on the real schema: two decisions for one anchor
+// with an identical decided_at resolve deterministically to the
+// decision_id-DESC row on every pass, so the listing cannot flap between
+// passes. Here the tie winner is the rejection, so the anchor stays
+// excluded.
+func TestListAllDeployableUnitAdmittedAnchorReposBreaksDecidedAtTiesLive(t *testing.T) {
+	dsn := reducerDomainFairnessDSN()
+	if dsn == "" {
+		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the #8407 tiebreaker proof")
+	}
+	ctx := context.Background()
+	db, _ := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	w := seedFingerprintGateWorld(t, ctx, db)
+	stamp := w.at
+	seedGapAdmissionDecisionAt(t, ctx, db, w.a.scopeID, w.a.genID, "adm-tie-admit", "repo-tie", "admitted", `{"Written":true}`, stamp)
+	seedGapAdmissionDecisionAt(t, ctx, db, w.a.scopeID, w.a.genID, "adm-tie-reject", "repo-tie", "rejected", `{"Written":true}`, stamp)
+
+	store := NewRelationshipStore(SQLDB{DB: db})
+	for i := 0; i < 10; i++ {
+		anchors, err := store.ListAllDeployableUnitAdmittedAnchorRepos(ctx)
+		if err != nil {
+			t.Fatalf("pass %d: ListAllDeployableUnitAdmittedAnchorRepos() error = %v", i, err)
+		}
+		if len(anchors) != 0 {
+			t.Fatalf("pass %d: admitted anchors = %#v, want empty (tie must resolve to the rejection)", i, anchors)
+		}
 	}
 }

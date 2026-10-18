@@ -21,6 +21,7 @@ func TestAdmissionDecisionSchemaSQL(t *testing.T) {
 		"CREATE TABLE IF NOT EXISTS admission_decision_evidence",
 		"admission_decisions_scope_generation_domain_idx",
 		"admission_decisions_anchor_idx",
+		"deployable_unit_gap_admitted_anchor_idx",
 		"admission_decision_evidence_decision_idx",
 		"source_handles JSONB NOT NULL",
 		"canonical_write JSONB NOT NULL",

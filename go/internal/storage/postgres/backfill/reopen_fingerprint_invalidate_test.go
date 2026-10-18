@@ -40,19 +40,23 @@ func TestInvalidateDeployableUnitReopenFingerprintsForReposQueryDeletesOverlapBa
 }
 
 // TestListAllDeployableUnitAdmittedAnchorReposQueryIsFullAdmittedScan pins
-// the #8316 gap-reconciliation Postgres half: the full distinct source
-// repository set with admitted deployable_unit_correlation decisions, with
-// no LIMIT — a first-N prefix would starve tail anchors (#8371 review F1).
-// The graph probe batches the set into fixed-size UNWINDs instead.
+// the #8316 gap-reconciliation Postgres half: the admitted source repository
+// set with deployable_unit_correlation decisions, with no LIMIT — a first-N
+// prefix would starve tail anchors (#8371 review F1). The listing scopes to
+// the latest decision per anchor (#8371 review P1): an anchor admitted in
+// one generation and rejected in a later one converges to excluded, so a
+// legitimately edgeless anchor stops replaying every maintenance pass. The
+// graph probe batches the set into fixed-size UNWINDs instead.
 func TestListAllDeployableUnitAdmittedAnchorReposQueryIsFullAdmittedScan(t *testing.T) {
 	t.Parallel()
 
 	for _, fragment := range []string{
-		"DISTINCT anchor_id",
+		"DISTINCT ON (anchor_id)",
 		"FROM admission_decisions",
 		"domain = 'deployable_unit_correlation'",
-		"state = 'admitted'",
 		"anchor_kind = 'repository'",
+		"ORDER BY anchor_id, decided_at DESC",
+		"state = 'admitted'",
 		"ORDER BY anchor_id",
 	} {
 		if !strings.Contains(ListAllDeployableUnitAdmittedAnchorReposQuery, fragment) {
@@ -62,6 +66,22 @@ func TestListAllDeployableUnitAdmittedAnchorReposQueryIsFullAdmittedScan(t *test
 	}
 	if strings.Contains(ListAllDeployableUnitAdmittedAnchorReposQuery, "LIMIT") {
 		t.Fatalf("admitted anchors query must carry no LIMIT:\\n%s",
+			ListAllDeployableUnitAdmittedAnchorReposQuery)
+	}
+}
+
+// TestListAllDeployableUnitAdmittedAnchorReposQueryBreaksDecidedAtTies pins
+// the #8407 P2 tiebreaker: DISTINCT ON (anchor_id) with ORDER BY anchor_id,
+// decided_at DESC picks an arbitrary row when two decisions for one anchor
+// share an identical decided_at, so the per-pass listing would answer
+// differently across passes. The decision_id tiebreaker makes the latest-wins
+// choice deterministic.
+func TestListAllDeployableUnitAdmittedAnchorReposQueryBreaksDecidedAtTies(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(ListAllDeployableUnitAdmittedAnchorReposQuery,
+		"ORDER BY anchor_id, decided_at DESC, decision_id DESC") {
+		t.Fatalf("admitted anchors query must break decided_at ties deterministically:\n%s",
 			ListAllDeployableUnitAdmittedAnchorReposQuery)
 	}
 }

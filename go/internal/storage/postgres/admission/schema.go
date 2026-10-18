@@ -42,6 +42,19 @@ CREATE INDEX IF NOT EXISTS admission_decisions_anchor_idx
 CREATE INDEX IF NOT EXISTS admission_decisions_candidate_idx
     ON admission_decisions (candidate_kind, candidate_id, updated_at DESC);
 
+-- #8371 P2: the deployable_unit_correlation gap reconciliation lists the
+-- latest decision per repository anchor every maintenance pass
+-- (backfill.ListAllDeployableUnitAdmittedAnchorReposQuery: DISTINCT ON
+-- (anchor_id) ... ORDER BY anchor_id, decided_at DESC over domain +
+-- anchor_kind). The existing indexes lead with (scope_id, generation_id),
+-- so neither serves that per-pass listing. Partial and anchor-leading, with
+-- decided_at following so the bitmap-fed sort stays small (EXPLAIN: one
+-- Bitmap Index Scan, 18.9 ms at 120k rows).
+CREATE INDEX IF NOT EXISTS deployable_unit_gap_admitted_anchor_idx
+    ON admission_decisions (anchor_id, decided_at DESC)
+    WHERE domain = 'deployable_unit_correlation'
+      AND anchor_kind = 'repository';
+
 CREATE TABLE IF NOT EXISTS admission_decision_evidence (
     evidence_id TEXT PRIMARY KEY,
     decision_id TEXT NOT NULL REFERENCES admission_decisions(decision_id) ON DELETE CASCADE,
