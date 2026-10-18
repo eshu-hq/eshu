@@ -110,6 +110,17 @@ type vulnerabilitySuppressionScope struct {
 	Environment string
 	WorkloadID  string
 	ServiceID   string
+	// WorkloadRepositoryID is the optional workload_repository_id the
+	// collector asserts beside Scope.WorkloadID (#5385): the explicit
+	// repository the ladder restricts a handle to. It never widens a
+	// match; the vulnerability identity anchors stay authoritative.
+	WorkloadRepositoryID string
+	// WorkloadUnresolved is set by ResolveSuppressionWorkloadScopes when
+	// the scope's workload handle spans more than one repository. The
+	// suppression then applies to neither tenant: the workload dimension
+	// fails closed to no-match while the raw handle stays on the scope
+	// for audit.
+	WorkloadUnresolved bool
 }
 
 // vulnerabilitySuppression is a decoded VEX or operator-policy suppression

@@ -145,6 +145,10 @@ func decodeVulnerabilitySuppressionScope(
 		Environment: environment.Canonical(optionalSuppressionString(value.Environment)),
 		WorkloadID:  optionalSuppressionString(value.WorkloadID),
 		ServiceID:   optionalSuppressionString(value.ServiceID),
+		// WorkloadID and ServiceID decode as-is (opaque ids, no alias
+		// table); the explicit repository rides beside them for the
+		// handle ladder.
+		WorkloadRepositoryID: optionalSuppressionString(value.WorkloadRepositoryID),
 	}
 }
 

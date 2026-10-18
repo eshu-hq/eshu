@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+	"github.com/eshu-hq/eshu/go/internal/reducer/workload/handle"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
@@ -81,7 +82,9 @@ type WorkloadCloudRelationshipMaterializationHandler struct {
 	// when an aws_resource fact is quarantined as input_invalid during workload
 	// anchor extraction. Optional: a nil pointer skips the counter (the
 	// structured per-fact error log still emits).
-	Instruments *telemetry.Instruments
+	Instruments    *telemetry.Instruments
+	ScopeRepos     handle.ScopeRepos     // Nil resolves graph-wide (#5385).
+	WorkloadLookup WorkloadSiblingLookup // Nil keeps legacy rows (#5385).
 	// AffectedGraph runs the value-flow refresh emit gate over the committed
 	// workload ids. Nil skips the gate and reports affected (fail open);
 	// production wires the graph query runner.
@@ -150,6 +153,10 @@ func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 		// A non-decode error (transient fact-load or other fatal condition
 		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
 		// the durable queue triages it correctly.
+		return Result{}, err
+	}
+	rows, err = h.resolveWorkloadHandles(ctx, intent, rows, &tally)
+	if err != nil {
 		return Result{}, err
 	}
 	// Per-fact isolation: a malformed aws_resource fact (a missing required
@@ -455,7 +462,7 @@ func ExtractWorkloadCloudRelationshipRows(envelopes []facts.Envelope) ([]map[str
 			continue
 		}
 		seen[key] = struct{}{}
-		rows = append(rows, map[string]any{
+		row := map[string]any{
 			"workload_id":           workloadIDs[0],
 			"cloud_resource_uid":    cloudUID,
 			"relationship_type":     workloadCloudRelationshipRelationshipType,
@@ -469,7 +476,14 @@ func ExtractWorkloadCloudRelationshipRows(envelopes []facts.Envelope) ([]map[str
 			"source_system":         env.SourceRef.SourceSystem,
 			"source_record_id":      env.SourceRef.SourceRecordID,
 			"collector_kind":        env.CollectorKind,
-		})
+		}
+		// The optional workload_repository_id tag narrows the ladder to one
+		// repository (compatibility doc section 2.3, second row). It stays
+		// off the row when unset so existing row shapes are unchanged.
+		if repoID := workloadAnchor.WorkloadRepositoryID; repoID != "" {
+			row["workload_repository_id"] = repoID
+		}
+		rows = append(rows, row)
 	}
 	if len(rows) == 0 {
 		return nil, tally, quarantined, nil

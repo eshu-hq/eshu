@@ -17,16 +17,17 @@ import (
 const serviceCatalogGitRepositoryScopePrefix = scope.GitRepositoryScopePrefix
 
 type serviceCatalogEntityEvidence struct {
-	factID             string
-	provider           string
-	entityRef          string
-	entityType         string
-	displayName        string
-	lifecycle          string
-	tier               string
-	sourceRepositoryID string
-	serviceID          string
-	workloadID         string
+	factID               string
+	provider             string
+	entityRef            string
+	entityType           string
+	displayName          string
+	lifecycle            string
+	tier                 string
+	sourceRepositoryID   string
+	serviceID            string
+	workloadID           string
+	workloadRepositoryID string
 }
 
 type serviceCatalogEntityKey struct {
@@ -42,14 +43,15 @@ type serviceCatalogOwnershipEvidence struct {
 }
 
 type serviceCatalogRepositoryLinkEvidence struct {
-	factID         string
-	provider       string
-	entityRef      string
-	repositoryID   string
-	repositoryURL  string
-	repositoryName string
-	serviceID      string
-	workloadID     string
+	factID               string
+	provider             string
+	entityRef            string
+	repositoryID         string
+	repositoryURL        string
+	repositoryName       string
+	serviceID            string
+	workloadID           string
+	workloadRepositoryID string
 }
 
 type serviceCatalogRepositoryEvidence struct {
@@ -232,16 +234,17 @@ func serviceCatalogEntityFromFact(envelope facts.Envelope) (serviceCatalogEntity
 		return serviceCatalogEntityEvidence{}, err
 	}
 	return serviceCatalogEntityEvidence{
-		factID:             envelope.FactID,
-		provider:           stringPtrValue(entity.Provider),
-		entityRef:          entity.EntityRef,
-		entityType:         stringPtrValue(entity.EntityType),
-		displayName:        stringPtrValue(entity.DisplayName),
-		lifecycle:          stringPtrValue(entity.Lifecycle),
-		tier:               stringPtrValue(entity.Tier),
-		sourceRepositoryID: serviceCatalogSourceRepositoryID(envelope.ScopeID),
-		serviceID:          stringPtrValue(entity.ServiceID),
-		workloadID:         stringPtrValue(entity.WorkloadID),
+		factID:               envelope.FactID,
+		provider:             stringPtrValue(entity.Provider),
+		entityRef:            entity.EntityRef,
+		entityType:           stringPtrValue(entity.EntityType),
+		displayName:          stringPtrValue(entity.DisplayName),
+		lifecycle:            stringPtrValue(entity.Lifecycle),
+		tier:                 stringPtrValue(entity.Tier),
+		sourceRepositoryID:   serviceCatalogSourceRepositoryID(envelope.ScopeID),
+		serviceID:            stringPtrValue(entity.ServiceID),
+		workloadID:           stringPtrValue(entity.WorkloadID),
+		workloadRepositoryID: stringPtrValue(entity.WorkloadRepositoryID),
 	}, nil
 }
 
@@ -306,9 +309,10 @@ func serviceCatalogRepositoryLinkFromFact(envelope facts.Envelope) (serviceCatal
 			stringPtrValue(link.RawURL),
 			stringPtrValue(link.URL),
 		),
-		repositoryName: stringPtrValue(link.RepositoryName),
-		serviceID:      stringPtrValue(link.ServiceID),
-		workloadID:     stringPtrValue(link.WorkloadID),
+		repositoryName:       stringPtrValue(link.RepositoryName),
+		serviceID:            stringPtrValue(link.ServiceID),
+		workloadID:           stringPtrValue(link.WorkloadID),
+		workloadRepositoryID: stringPtrValue(link.WorkloadRepositoryID),
 	}, nil
 }
 

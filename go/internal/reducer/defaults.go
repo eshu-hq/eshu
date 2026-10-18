@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package reducer //nolint:filelength // DefaultHandlers is one wiring struct that cannot split across files; the #5385 handle-ladder dep tipped the at-cap file, and splitting the struct is out of scope.
 
 import (
 	"time"
@@ -134,6 +134,12 @@ type DefaultHandlers struct {
 	ScopeRepos                 ScopeRepositoryReader
 	ResolvedRelationshipLoader ResolvedRelationshipLoader
 	RepoDependencyIntentWriter RepoDependencyIntentWriter
+
+	// WorkloadSiblingLookup reads same-named Workload nodes for the #5385
+	// handle ladder (one workload_name index seek per handle, batched per
+	// intent). Nil keeps every consumer on legacy pass-through rows; set it
+	// alongside ScopeRepos to resolve provider-asserted workload handles.
+	WorkloadSiblingLookup WorkloadSiblingLookup
 
 	// RepoDependencyEdgeWriter writes cross-repo dependency edges resolved
 	// from durable repo-dependency intents. Optional; nil disables the

@@ -62,6 +62,14 @@ func classifyServiceCatalogEntity(
 		}
 		if decision.WorkloadID == "" {
 			decision.WorkloadID = match.link.workloadID
+			// The workload reference comes from the link: prefer its
+			// explicit repository, else the matched canonical repository
+			// the ladder may prove the name against.
+			decision.workloadRepositoryID = payloadcore.FirstNonBlank(
+				match.link.workloadRepositoryID,
+				match.link.repositoryID,
+				match.repository.repositoryID,
+			)
 		}
 		return decision
 	default:
@@ -134,18 +142,19 @@ func serviceCatalogBaseDecision(
 	owner serviceCatalogOwnershipEvidence,
 ) ServiceCatalogCorrelationDecision {
 	return ServiceCatalogCorrelationDecision{
-		Provider:        entity.provider,
-		EntityRef:       entity.entityRef,
-		EntityType:      entity.entityType,
-		DisplayName:     entity.displayName,
-		ServiceID:       entity.serviceID,
-		WorkloadID:      entity.workloadID,
-		OwnerRef:        owner.ownerRef,
-		Lifecycle:       entity.lifecycle,
-		Tier:            entity.tier,
-		ProvenanceOnly:  true,
-		DriftKind:       "repository",
-		EvidenceFactIDs: payloadcore.CompactStringSlice(entity.factID, owner.factID),
+		Provider:             entity.provider,
+		EntityRef:            entity.entityRef,
+		EntityType:           entity.entityType,
+		DisplayName:          entity.displayName,
+		ServiceID:            entity.serviceID,
+		WorkloadID:           entity.workloadID,
+		workloadRepositoryID: entity.workloadRepositoryID,
+		OwnerRef:             owner.ownerRef,
+		Lifecycle:            entity.lifecycle,
+		Tier:                 entity.tier,
+		ProvenanceOnly:       true,
+		DriftKind:            "repository",
+		EvidenceFactIDs:      payloadcore.CompactStringSlice(entity.factID, owner.factID),
 	}
 }
 

@@ -10,15 +10,16 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/workload/handle"
 )
 
-// WorkloadSibling is one Workload node sharing a bare name with a workload in
-// another repository, as read back from the graph for SAME_NAME pairing.
-type WorkloadSibling struct {
-	ID     string
-	Name   string
-	RepoID string
-}
+// WorkloadSibling is one Workload node sharing a bare name with a workload
+// in another repository, as read back from the graph for SAME_NAME pairing.
+// It is an alias for handle.Candidate (identical fields) so
+// WorkloadSiblingLookup structurally satisfies handle.SiblingReader
+// and every ladder consumer shares one adapter.
+type WorkloadSibling = handle.Candidate
 
 // WorkloadSiblingLookup lists every Workload node whose name is in names,
 // across all repositories. The materializer pairs across repositories in Go

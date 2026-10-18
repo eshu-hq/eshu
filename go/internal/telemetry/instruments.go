@@ -479,7 +479,12 @@ type Instruments struct {
 	WorkloadRepoEdgeRetractions metric.Int64Counter
 	WorkloadIdentityCollisions  metric.Int64Counter
 	WorkloadIdentityRejected    metric.Int64Counter
-	WorkloadHandleResolutions   metric.Int64Counter
+	// WorkloadHandleResolutions counts #5385 handle-ladder outcomes on the
+	// reducer surface, one point per resolved provider-asserted selector.
+	// Labels: surface (bounded: reducer), outcome (bounded: exact,
+	// unique_by_name, ambiguous, miss). A rising ambiguous count means a
+	// collector must emit workload_repository_id.
+	WorkloadHandleResolutions metric.Int64Counter
 	// GitRepoSyncFailures counts per-repository git sync operations (clone,
 	// fetch, list_refs) that failed and were isolated to that one repository
 	// for the cycle rather than aborting collection for the rest of the fleet
@@ -3288,6 +3293,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register WorkloadIdentityCollisions counter: %w", err)
+	}
+
+	inst.WorkloadHandleResolutions, err = meter.Int64Counter(
+		"eshu_dp_workload_handle_resolution_total",
+		metric.WithDescription("Total provider-asserted workload handle resolutions through the #5385 ladder, by bounded surface (reducer) and outcome (exact, unique_by_name, ambiguous, miss); rising ambiguous on reducer means a collector needs workload_repository_id"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkloadHandleResolutions counter: %w", err)
 	}
 
 	inst.ReconciliationConvergence, err = meter.Int64Counter(

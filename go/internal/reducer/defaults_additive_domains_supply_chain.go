@@ -8,6 +8,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+	"github.com/eshu-hq/eshu/go/internal/reducer/workload/handle"
 )
 
 // appendSupplyChainCorrelationAdditiveDomains registers the observability,
@@ -59,6 +60,8 @@ func appendSupplyChainCorrelationAdditiveDomains(definitions []DomainDefinition,
 			Writer:             handlers.SupplyChainImpactWriter,
 			FencingTokenIssuer: handlers.SupplyChainImpactFencingTokenIssuer,
 			Instruments:        handlers.Instruments,
+			ScopeRepos:         handlers.ScopeRepos,
+			WorkloadLookup:     handle.SiblingLookupOrNil(handlers.WorkloadSiblingLookup),
 			// #5709: supply_chain_impact is the second registered cross-scope
 			// consumer. Being in crossscope.dependencyCatalog does not gate a
 			// handler -- these two lines are what do, and

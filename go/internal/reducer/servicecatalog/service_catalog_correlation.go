@@ -13,6 +13,7 @@ import (
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/workload/handle"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -53,6 +54,7 @@ type ServiceCatalogCorrelationDecision struct {
 	RepositoryID           string
 	ServiceID              string
 	WorkloadID             string
+	workloadRepositoryID   string // Ladder hint; never persisted (#5385).
 	OwnerRef               string
 	Lifecycle              string
 	Tier                   string
@@ -165,6 +167,8 @@ type ServiceCatalogCorrelationHandler struct {
 	// vulnerabilities rows, preserving the prior families' contract.
 	VulnerabilityEvidenceLoader ServiceVulnerabilityAdvisoryLoader
 	Instruments                 *telemetry.Instruments
+	ScopeRepos                  handle.ScopeRepos // Nil resolves graph-wide (#5385).
+	WorkloadLookup              handle.Lookup     // Nil keeps legacy decisions (#5385).
 }
 
 // Handle executes one service catalog correlation reducer intent.
@@ -200,6 +204,10 @@ func (h ServiceCatalogCorrelationHandler) Handle(ctx context.Context, intent red
 	}
 	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainServiceCatalogCorrelation, intent.ScopeID, intent.GenerationID, quarantined)
 	decisions := serviceCatalogDecisionsFromIndex(index)
+	decisions, err = h.resolveWorkloadIDs(ctx, intent, decisions)
+	if err != nil {
+		return reducercontract.Result{}, err
+	}
 	counts := serviceCatalogCorrelationCounts(decisions)
 	guardrails := serviceCatalogCorrelationGuardrailStats(decisions)
 	// The corpus-fenced relationship read runs before any write (#7258): an
