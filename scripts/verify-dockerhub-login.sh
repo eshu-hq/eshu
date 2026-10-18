@@ -199,7 +199,7 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "${tmp}"' EXIT
 # yq < 4.49 keeps a "\t" escape literal, so rows never split and the gate passes empty (#8397): join with strenv(TAB). Minimum supported yq is 4.44.3, the oldest release the rows are proven on; CI pins 4.54.1.
 export TAB=$'\t'
-[[ "$(yq --version 2>/dev/null)" =~ v([0-9]+)\.([0-9]+)\.([0-9]+) ]] && (( 10#${BASH_REMATCH[1]} > 4 || (10#${BASH_REMATCH[1]} == 4 && (10#${BASH_REMATCH[2]} > 44 || (10#${BASH_REMATCH[2]} == 44 && 10#${BASH_REMATCH[3]} >= 3))) )) || { echo "verify-dockerhub-login: yq 4.44.3 or later is required" >&2; exit 1; }
+[[ "$(yq --version 2>/dev/null)" =~ v([0-9]+)\.([0-9]+)\.([0-9]+) ]] && (( 10#${BASH_REMATCH[1]} > 4 || (10#${BASH_REMATCH[1]} == 4 && (10#${BASH_REMATCH[2]} > 44 || (10#${BASH_REMATCH[2]} == 44 && 10#${BASH_REMATCH[3]} >= 3))) )) || { echo "verify-dockerhub-login: yq 4.44.3 or later is required (found: $(yq --version 2>/dev/null || echo unknown))" >&2; exit 1; }
 [[ "$(yq -n '["a","b"] | join(strenv(TAB))')" == $'a\tb' ]] || { echo "verify-dockerhub-login: yq did not join with a tab (TAB unset or yq broken)" >&2; exit 1; }
 failures=0
 fail() { printf 'verify-dockerhub-login: %s\n' "$1" >&2; failures=$((failures + 1)); }

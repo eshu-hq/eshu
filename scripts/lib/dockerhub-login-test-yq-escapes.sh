@@ -118,3 +118,45 @@ d="${QUEUE_DIR}"
 old_yq_matrix_job "${d}" m-include-ghcr '{"include": [{"cf": "docker-compose.fixture-ghcr.yaml", "svc": "db"}, {"cf": "docker-compose.fixture-ghcr.yaml", "svc": "api"}]}' 'docker compose -f ${{ matrix.cf }} up -d ${{ matrix.svc }}'
 old_yq_matrix_job "${d}" m-axis-ghcr '{"image": ["'"${ghcr_digest}"'", "'"${ghcr_buildkit}"'"]}' 'docker run --rm ${{ matrix.image }} true'
 expect_green_old_yq old-yq-matrix-cells-that-are-all-ghcr-pass "${d}"
+
+# Version floor (#8397 criterion 3, owner P2 on #8505): a fake `yq` that
+# reports an old `--version` and delegates everything else pins the floor
+# line, so dropping it turns these red. The refusal message names the found
+# version for triage.
+oldver_dir="${tmp_root}/oldver-yq"
+mkdir -p "${oldver_dir}"
+oldver_reported="v4.18.1"
+cat >"${oldver_dir}/yq" <<SHIM
+#!/usr/bin/env bash
+# Reports an old yq version, delegates everything else to the real binary.
+if [[ "\${1:-}" == "--version" ]]; then echo "yq (https://mikefarah.gitbook.io/yq/) version ${oldver_reported}"; else exec "${real_yq}" "\$@"; fi
+SHIM
+chmod +x "${oldver_dir}/yq"
+
+run_verifier_oldver() { PATH="${oldver_dir}:${PATH}" ESHU_DOCKERHUB_LOGIN_ROOT="$1" bash "${verifier}" 2>&1; }
+
+floor_case_dir="$(new_case floor-old-yq-rejects)"
+if floor_out="$(run_verifier_oldver "${floor_case_dir}")"; then
+  printf 'not ok - floor-old-yq-rejects: verifier passed under yq %s\n' "${oldver_reported}"; failures=$((failures + 1))
+elif [[ "${floor_out}" == *"yq 4.44.3 or later is required (found:"*"${oldver_reported}"* ]]; then
+  echo 'ok - floor-old-yq-rejects with the found version named'
+else
+  printf 'not ok - floor-old-yq-rejects: expected the floor message naming %s in:\n%s\n' "${oldver_reported}" "${floor_out}"; failures=$((failures + 1))
+fi
+
+unparseable_dir="${tmp_root}/unparseable-yq"
+mkdir -p "${unparseable_dir}"
+cat >"${unparseable_dir}/yq" <<SHIM
+#!/usr/bin/env bash
+# Reports an unparseable version string: the floor must fail closed on it.
+if [[ "\${1:-}" == "--version" ]]; then echo "not-a-version"; else exec "${real_yq}" "\$@"; fi
+SHIM
+chmod +x "${unparseable_dir}/yq"
+
+if unparseable_out="$(PATH="${unparseable_dir}:${PATH}" ESHU_DOCKERHUB_LOGIN_ROOT="${floor_case_dir}" bash "${verifier}" 2>&1)"; then
+  echo 'not ok - floor-unparseable-version-fails-closed: verifier passed an unparseable yq version'; failures=$((failures + 1))
+elif [[ "${unparseable_out}" == *"yq 4.44.3 or later is required (found: not-a-version)"* ]]; then
+  echo 'ok - floor-unparseable-version-fails-closed with the found string named'
+else
+  printf 'not ok - floor-unparseable-version-fails-closed: unexpected output:\n%s\n' "${unparseable_out}"; failures=$((failures + 1))
+fi
