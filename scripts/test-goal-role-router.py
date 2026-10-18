@@ -53,6 +53,22 @@ class GoalRoleRouterTests(unittest.TestCase):
         self.assertIn("muse-exec", output)
         self.assertNotIn("develop-eshu", output)
 
+    def test_muse_goal_carries_required_dispatch_and_standing_rules(self):
+        """Muse parity: required (not hinted) dispatch, watcher, backlog rules."""
+        prompt = "/goal Drive epic with eshu-issue-driver. Benchmark using eshu-performance-rigor; review final PR using eshu-code-review."
+        muse = context(prompt, "muse")
+        for marker in ("Muse REQUIRED", "read_skill", "subagent_spawn/workflow",
+                       "arm the CI Monitor watcher", "Never", "request a Copilot review",
+                       "active", "backlog (goal inventory)"):
+            self.assertIn(marker, muse)
+        # Same prompt must route the same roles under Claude (parity of selection).
+        claude = context(prompt, "claude")
+        for marker in ("perf-eshu", "review-eshu"):
+            self.assertIn(marker, claude)
+            self.assertIn(marker, muse)
+        # The Muse required block must not leak into other harnesses.
+        self.assertNotIn("Muse REQUIRED", claude)
+
     def test_codex_debug_model_is_manifest_binding(self):
         """The router reports the Codex workhorse binding from the manifest."""
         manifest = json.loads((ROOT / ".agents/roles.json").read_text())

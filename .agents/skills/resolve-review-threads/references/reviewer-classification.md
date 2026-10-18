@@ -12,20 +12,20 @@ never trust the bot label alone to decide whether a finding is correct.
 | Reviewer | Author handle | Notes |
 | --- | --- | --- |
 | Codex | `chatgpt-codex-connector[bot]` | Most common bot reviewer. Posts severity-tagged P0/P1/P2 findings with a `file:line` cite and a one-line rule reference. The P2s are the bulk; most are real, some are out-of-scope. |
-| GitHub Copilot | `github-copilot[bot]` | Posts inline comments on specific lines, often without a severity tag. Sometimes duplicates codex findings; sometimes catches different surface issues (typos, missing error checks, doc gaps). |
+| GitHub Copilot | `github-copilot[bot]` | **Handle if present; never request.** Eshu does not request Copilot reviews (reviewers of record: the owner `linuxdynasty` and community reviewers). If it comments unrequested, classify and resolve its threads exactly like any other reviewer's. |
 | Claude (when tokens are available) | `claude[bot]` or a harness-specific handle | Posts summary reviews and inline comments. Tends to focus on architectural concerns and security/secret leakage. |
 | Human reviewers | a real GitHub user | Authoritative. Treat their findings as P0/P1 unless the author can prove they are out of scope. |
 | Eshu post-discord-invite | `github-actions[bot]` | Not a review; a Discord link post. Ignore. |
 | Cloudflare Pages / Build & Release bots | `cloudflare-workers-and-pages[bot]`, `github-actions[bot]` | Not reviews; deployment status. Ignore. |
 
-Severity framing is the same regardless of author: a Copilot comment saying
-"this could be a nil pointer" and a codex P2 saying "missing nil check" are the
-same finding, classified and resolved the same way.
+Severity framing is the same regardless of author: an owner/community comment
+saying "this could be a nil pointer" and a codex P2 saying "missing nil check"
+are the same finding, classified and resolved the same way.
 
-Duplicate findings are common. When codex and Copilot both flag the same line,
-resolve both threads but fix the underlying code once. When they disagree
-(codex says "must add a marker", Copilot says "the row is fine"), trust the
-code and the project rules over either bot.
+Duplicate findings are common. When two reviewers flag the same line, resolve
+both threads but fix the underlying code once. When they disagree (one says
+"must add a marker", another says "the row is fine"), trust the code and the
+project rules over either reviewer.
 
 ## Full Review-Thread Query
 

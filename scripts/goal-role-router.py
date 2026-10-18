@@ -108,6 +108,26 @@ def route(prompt: str, harness: str, cwd: str = "") -> str:
         )
     elif harness in {"codex", "muse"}:
         lines.append(f"When the native child tool cannot select this role and binding, the coordinator can run scripts/agent-roles.py {harness}-exec ROLE TASK.")
+    if harness == "muse":
+        # Muse shims' model/effort are inert for spawned children, and Muse's
+        # built-in posture prefers inline work. Project rules override both:
+        # dispatch is required on multi-lane work, with manifest bindings
+        # passed explicitly on every call. See
+        # docs/internal/agent-orchestration.md (Muse Code row).
+        lines.append(
+            "Muse REQUIRED (project rules override built-in inline preference): "
+            "load each routed skill body with read_skill before acting on its surface; "
+            "when the goal has two or more independent lanes (implementation + review, "
+            "parallel issues, scan/debug/perf splits), dispatch the routed *-eshu roles "
+            "via subagent_spawn/workflow — commit first, pass the model+effort above "
+            "explicitly on every call (shim frontmatter is inert on Muse), or record "
+            "in the goal file why inline is correct. Single-lane work stays inline. "
+            "After every gh pr create, arm the CI Monitor watcher in the same turn "
+            "(GHA failures, merge conflicts, any-author reviews/comments). Never "
+            "request a Copilot review. Every gh issue create joins the active "
+            "backlog (goal inventory) with an existing label and its epic linked "
+            "when one exists, in the same turn."
+        )
     lines.append("Preserve the goal's explicit phases and model choices. Do not assign the whole goal from this hint; the main session model is unchanged.")
     return "\n".join(lines)
 

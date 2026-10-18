@@ -1,6 +1,6 @@
 ---
 name: resolve-review-threads
-description: Resolves GitHub PR review threads (Codex, Copilot, Claude, human) via resolveReviewThread once each finding is verified fixed at current HEAD or graded a derivable-figure P3; classifies fixed/p3-no-action/unchanged/ambiguous. Not reply authoring or the review verdict.
+description: Resolves GitHub PR review threads (owner, community, Codex, Claude, any bot that commented unrequested — Copilot is handled if present, never requested) via resolveReviewThread once each finding is verified fixed at current HEAD or graded a derivable-figure P3; classifies fixed/p3-no-action/unchanged/ambiguous. Not reply authoring or the review verdict.
 ---
 
 # Resolve Review Threads

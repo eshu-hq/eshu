@@ -82,9 +82,29 @@ Nothing here bypasses `scripts/dev/bootstrap-hooks.sh`, which installs the git
 pre-commit and pre-push hooks. The two sets are unrelated: git hooks gate
 commits and pushes, agent hooks gate tool calls.
 
+## Fresh clone on a brand-new machine
+
+Cloning `eshu-hq/eshu` anywhere and running any harness in the clone must
+load the same project rules, skills, and agents. Everything required is
+committed: `AGENTS.md`, `.agents/` (skills, Muse role shims, `roles.json`),
+`.muse/`, `.claude/`, `.codex/`, `.cursor/`, `.opencode/`, and the router
+scripts. Prove a new clone with `bash scripts/dev/check-agent-env.sh` — it
+checks host tools (`git`, `bash`, `python3` required; `gh` for PR/issue
+work), every committed harness path, role-binding drift, and hook JSON
+validity, changing nothing. Three steps are per-machine state and cannot be
+committed; the script names them: trust the workspace in Muse and start a
+new session, authenticate `gh`, and run `scripts/dev/bootstrap-hooks.sh`
+once for git hooks. An untrusted Muse session skips project hooks
+*silently* — that, not a missing `.muse/skills/` (Muse discovers
+`.agents/skills/` directly), is the usual fresh-machine failure.
+
 ## Muse Code activation
 
-The Muse port is project-level: `.muse/hooks.json` plus `.muse/hooks/`.
+The Muse port is project-level and **live**: `.muse/hooks.json` plus
+`.muse/hooks/` (7 wrappers delegating to `.claude/hooks/`). Muse
+discovers project skills from `.agents/skills/` and role definitions from
+`.agents/agents/` — there is intentionally no `.muse/skills/` or
+`.muse/agents/` copy.
 Settings are read at session start, so start a new session after changing
 either. Project hooks load only in a trusted workspace -- an untrusted
 session skips them silently, with no enforcement and no warning naming
