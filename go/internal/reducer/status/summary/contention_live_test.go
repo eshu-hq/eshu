@@ -329,7 +329,7 @@ func TestDrainActiveBackendsLive(t *testing.T) {
 		var sleeping int
 		if err := database.QueryRowContext(ctx, `
 SELECT count(*) FROM pg_stat_activity
-WHERE datname = current_database() AND state = 'active' AND query LIKE '%pg_sleep%'`).Scan(&sleeping); err != nil {
+WHERE datname = current_database() AND state = 'active' AND pid <> pg_backend_pid() AND query LIKE '%pg_sleep%'`).Scan(&sleeping); err != nil {
 			t.Fatalf("count pg_sleep backends: %v", err)
 		}
 		if sleeping > 0 {
@@ -340,13 +340,14 @@ WHERE datname = current_database() AND state = 'active' AND query LIKE '%pg_slee
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	start = time.Now()
 	drainActiveBackends(ctx, t, database)
-	if elapsed := time.Since(start); elapsed < time.Second {
-		t.Fatalf("busy drain returned in %s while a pg_sleep backend was active, want it to wait", elapsed)
-	}
-	if err := <-done; err != nil {
-		t.Fatalf("pg_sleep backend: %v", err)
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("pg_sleep backend: %v", err)
+		}
+	default:
+		t.Fatal("drain returned while the pg_sleep backend was still running, want it to wait")
 	}
 }
 
