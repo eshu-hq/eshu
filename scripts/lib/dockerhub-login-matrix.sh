@@ -14,8 +14,8 @@ matrix_expand_runs() {
   rg -q -F -e '${{ matrix.' -e '${{matrix.' "${tmp}/runs" 2>/dev/null || return 0
   yq e '.jobs | to_entries | .[] | .key as $j | ((.value.steps // []) | .[] | $j + "")' "${wf}" >"${tmp}/stepjobs.txt"
   yq e '.jobs | to_entries | .[] | .key as $j | (.value.strategy.matrix | select(tag == "!!map")) as $m | (
-      (($m.include // []) | .[] | select(tag == "!!map") | ["I", $j, (to_entries | map(select((.value | tag) != "!!map" and (.value | tag) != "!!seq") | .key + "=" + (.value | tostring)) | join(";;"))] | join("\t")),
-      ($m | to_entries | .[] | select(.key != "include" and .key != "exclude" and (.value | tag) == "!!seq") | ["X", $j, .key, ((.value | map(tostring)) | join("@@"))] | join("\t")))' "${wf}" >"${tmp}/matrix.tsv"
+      (($m.include // []) | .[] | select(tag == "!!map") | ["I", $j, (to_entries | map(select((.value | tag) != "!!map" and (.value | tag) != "!!seq") | .key + "=" + (.value | tostring)) | join(";;"))] | join(strenv(TAB))),
+      ($m | to_entries | .[] | select(.key != "include" and .key != "exclude" and (.value | tag) == "!!seq") | ["X", $j, .key, ((.value | map(tostring)) | join("@@"))] | join(strenv(TAB))))' "${wf}" >"${tmp}/matrix.tsv"
   sn=0
   while IFS= read -r sjob; do
     sn=$((sn + 1))
