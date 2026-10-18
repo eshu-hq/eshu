@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -283,12 +284,21 @@ func TestSelectExpiredGenerationsFailureRecordsFailureClass(t *testing.T) {
 
 	now := time.Now().UTC()
 	inst, reader := newExpiredReportTestInstruments(t)
+	spanRecorder := tracetest.NewSpanRecorder()
+	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spanRecorder))
 	database := &generationRetentionFakeDB{expiredBlockedErr: errors.New("connection refused")}
-	store := NewGenerationRetentionStore(database).WithInstruments(inst)
+	store := NewGenerationRetentionStore(database).WithInstruments(inst).WithTracer(tracerProvider.Tracer("test"))
 	store.Now = func() time.Time { return now }
 
 	if _, err := store.SelectExpiredGenerations(context.Background(), expiredBlockedTestPolicy()); err == nil {
 		t.Fatal("SelectExpiredGenerations() error = nil, want the store read failure")
+	}
+	spans := spanRecorder.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("ended spans = %d, want exactly 1 failed report span", len(spans))
+	}
+	if got := spans[0].Status(); got.Code != codes.Error {
+		t.Fatalf("failed report span status = %v, want codes.Error", got.Code)
 	}
 	rm := collectExpiredReportMetrics(t, reader)
 	if got := expiredReportFailureValue(t, rm); got != 1 {
