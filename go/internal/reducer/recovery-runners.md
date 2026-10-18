@@ -164,7 +164,7 @@ failure, the `poison_liveness_error` failure class.
 ## Graph Orphan Sweep
 
 `GraphOrphanSweepRunner` runs beside reducer intent workers and shared
-projection. It delegates to `storage/cypher.OrphanSweepStore`, which computes
+projection. It delegates to `storage/cypher/sweep/orphan.OrphanSweepStore`, which computes
 orphan status as a Go-side anti-join between two bounded reads per label
 (candidates with no relationship clause, and connected keys via a concrete
 relationship-variable `MATCH` anchored on those candidates' identity keys --

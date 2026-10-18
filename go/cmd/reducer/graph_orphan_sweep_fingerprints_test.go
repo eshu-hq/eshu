@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/orphan"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	sweeporphan "github.com/eshu-hq/eshu/go/internal/storage/cypher/sweep/orphan"
 )
 
 // scriptSweepReader scripts the two read shapes one sweep cycle issues:
@@ -63,7 +64,7 @@ func TestGraphOrphanSweeperInvalidatesSweptReposOnly(t *testing.T) {
 	now := time.Now().UTC()
 	reader := &scriptSweepReader{agedUnix: now.Add(-2 * time.Hour).Unix()}
 	exec := &scriptSweepExecutor{}
-	store := sourcecypher.NewOrphanSweepStore(exec, reader)
+	store := sweeporphan.NewOrphanSweepStore(exec, reader)
 	store.Now = func() time.Time { return now }
 	fingerprints := &scriptSweepFingerprints{}
 	sweeper := graphOrphanSweeper{store: store, fingerprints: fingerprints}
@@ -103,7 +104,7 @@ func TestGraphOrphanSweeperWithoutFingerprintsSkipsGapWork(t *testing.T) {
 	now := time.Now().UTC()
 	reader := &scriptSweepReader{agedUnix: now.Add(-2 * time.Hour).Unix()}
 	exec := &scriptSweepExecutor{}
-	store := sourcecypher.NewOrphanSweepStore(exec, reader)
+	store := sweeporphan.NewOrphanSweepStore(exec, reader)
 	store.Now = func() time.Time { return now }
 	sweeper := graphOrphanSweeper{store: store}
 

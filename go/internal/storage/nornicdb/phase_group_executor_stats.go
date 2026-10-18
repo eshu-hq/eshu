@@ -10,6 +10,7 @@ import (
 	"time"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	phasegroup "github.com/eshu-hq/eshu/go/internal/storage/cypher/phase/group"
 )
 
 type entityPhaseLabelStats struct {
@@ -276,7 +277,7 @@ func entityStatementLabel(stmt sourcecypher.Statement) string {
 }
 
 func allStatementsUseOperation(stmts []sourcecypher.Statement, operation sourcecypher.Operation) bool {
-	return sourcecypher.StatementsAllUseOperation(stmts, operation)
+	return phasegroup.StatementsAllUseOperation(stmts, operation)
 }
 
 func summarizePhaseGroupChunk(stmts []sourcecypher.Statement) string {
@@ -290,11 +291,11 @@ func summarizePhaseGroupChunk(stmts []sourcecypher.Statement) string {
 }
 
 func sanitizedPhaseGroupChunk(stmts []sourcecypher.Statement) []sourcecypher.Statement {
-	return sourcecypher.SanitizeStatements(stmts)
+	return phasegroup.SanitizeStatements(stmts)
 }
 
 func sanitizedStatement(stmt sourcecypher.Statement) sourcecypher.Statement {
-	return sourcecypher.SanitizeStatement(stmt)
+	return phasegroup.SanitizeStatement(stmt)
 }
 
 func summarizePhaseGroupStatement(cypher string) string {

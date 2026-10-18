@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package orphan
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // fakeAbsentProperty marks, inside a seeded key, an identity property the node
@@ -58,9 +60,9 @@ func projectedFakeOrphanKeys(nodes map[string]*fakeOrphanNode, cypher string) (s
 }
 
 // fakeOrphanGraph is an in-memory anti-join fixture shared by
-// orphan_sweep_test.go, orphan_sweep_cycle_test.go,
-// orphan_sweep_writeskip_test.go, orphan_sweep_race_test.go, and
-// orphan_sweep_observer_test.go. It exercises the real
+// sweep_test.go, cycle_test.go,
+// writeskip_test.go, race_test.go, and
+// observer_test.go. It exercises the real
 // SweepOrphanNodes/GraphOrphanNodeCounts production code (not a
 // reimplementation of its logic) against scripted node/connectivity state by
 // implementing OrphanSweepReader and Executor over an in-memory node table.
@@ -73,7 +75,7 @@ type fakeOrphanNode struct {
 type fakeOrphanGraph struct {
 	mu    sync.Mutex
 	nodes map[string]map[string]*fakeOrphanNode // label -> key -> node
-	execs []Statement
+	execs []sourcecypher.Statement
 	// s2Calls counts BuildConnectedKeysQuery reads per label, so tests can
 	// script a connectivity change that appears only starting on the Nth
 	// read (used to prove the TOCTOU re-verify guard).
@@ -308,7 +310,7 @@ func fakeOrphanKeyRow(label, encoded string) map[string]any {
 	return row
 }
 
-func (g *fakeOrphanGraph) Execute(_ context.Context, stmt Statement) error {
+func (g *fakeOrphanGraph) Execute(_ context.Context, stmt sourcecypher.Statement) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.execs = append(g.execs, stmt)

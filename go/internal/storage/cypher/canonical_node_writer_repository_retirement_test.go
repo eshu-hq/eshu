@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
@@ -96,11 +97,29 @@ type retirementPhaseGroupExecutor struct{ retirementReportingExecutor }
 
 func (e *retirementPhaseGroupExecutor) ExecutePhaseGroup(ctx context.Context, stmts []Statement) error {
 	for _, stmt := range stmts {
-		if err := e.report(ctx, SanitizeStatement(stmt)); err != nil {
+		if err := e.report(ctx, stripRetirementDiagnosticParams(stmt)); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// stripRetirementDiagnosticParams restates the phase/group leaf's
+// SanitizeStatement rule (strip `_`-prefixed diagnostic parameters) for this
+// white-box test: the production Bolt executors strip those keys before
+// reporting write counts, so the phase-group fake does the same. The test
+// cannot import the leaf (the leaf imports this package), so the rule lives
+// here too; keep the two identical.
+func stripRetirementDiagnosticParams(stmt Statement) Statement {
+	sanitized := make(map[string]any, len(stmt.Parameters))
+	for key, value := range stmt.Parameters {
+		if strings.HasPrefix(key, "_") {
+			continue
+		}
+		sanitized[key] = value
+	}
+	stmt.Parameters = sanitized
+	return stmt
 }
 
 // retirementHarness captures the writer's JSON logs and metrics.

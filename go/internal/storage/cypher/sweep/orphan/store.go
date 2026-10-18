@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package orphan
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 const (
@@ -107,10 +109,10 @@ type OrphanSweepResult struct {
 // (S2, `MATCH (n:Label {key: k})-[r]-(m)`, the only relationship primitive
 // proven reliable on both pinned backends). For EvidenceArtifact the S2
 // read checks the typed incoming source edge instead (#7322). See
-// orphan_sweep_queries.go for the read builders and
-// orphan_sweep_writes.go for the key-anchored writes.
+// queries.go for the read builders and
+// writes.go for the key-anchored writes.
 type OrphanSweepStore struct {
-	Executor   Executor
+	Executor   sourcecypher.Executor
 	Reader     OrphanSweepReader
 	CountLimit int
 	Labels     []OrphanSweepLabel
@@ -129,7 +131,7 @@ type OrphanSweepStore struct {
 }
 
 // NewOrphanSweepStore returns a graph orphan sweep store.
-func NewOrphanSweepStore(executor Executor, reader OrphanSweepReader) *OrphanSweepStore {
+func NewOrphanSweepStore(executor sourcecypher.Executor, reader OrphanSweepReader) *OrphanSweepStore {
 	return &OrphanSweepStore{
 		Executor: executor,
 		Reader:   reader,
@@ -458,13 +460,6 @@ func normalizeOrphanSweepPolicy(policy OrphanSweepPolicy) OrphanSweepPolicy {
 		policy.Now = time.Now().UTC()
 	}
 	return policy
-}
-
-func normalizePositiveInt(value int, defaultValue int) int {
-	if value <= 0 {
-		return defaultValue
-	}
-	return value
 }
 
 // sortedKeysWhere returns the keys of set for which predicate is true, sorted

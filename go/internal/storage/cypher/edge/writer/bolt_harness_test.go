@@ -199,7 +199,8 @@ func boltCount(ctx context.Context, runner *boltRetractTestRunner, cypher string
 // When unset the test skips.
 
 // boltOrphanSweepReader duplicates the live-backend OrphanSweepReader from
-// package cypher (orphan_sweep_antijoin_live_test.go) for the same reason.
+// the sweep/orphan leaf (sweep/orphan/antijoin_live_test.go)
+// for the same reason.
 type boltOrphanSweepReader struct {
 	runner *boltRetractTestRunner
 }

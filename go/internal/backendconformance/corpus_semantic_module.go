@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	phasegroup "github.com/eshu-hq/eshu/go/internal/storage/cypher/phase/group"
 )
 
 // The semantic Module cases pin what the production semantic-entity write does
@@ -148,7 +149,7 @@ func SemanticModuleWriteCases(newWriter SemanticEntityWriterFactory) ([]WriteCas
 	if err != nil {
 		return nil, err
 	}
-	canonicalImport := sourcecypher.SanitizeStatements(sourcecypher.BuildBatchedStatements(
+	canonicalImport := phasegroup.SanitizeStatements(sourcecypher.BuildBatchedStatements(
 		sourcecypher.CanonicalNodeModuleUpsertCypher,
 		sourcecypher.CanonicalModuleRows([]canonical.ModuleRow{{Name: semanticModuleImportName, Language: semanticModuleLanguage}}),
 		sourcecypher.DefaultBatchSize,
@@ -298,7 +299,7 @@ func semanticModuleStatements(
 	if len(recorder.statements) == 0 {
 		return nil, fmt.Errorf("semantic entity writer emitted no statements for %q", name)
 	}
-	return sourcecypher.SanitizeStatements(recorder.statements), nil
+	return phasegroup.SanitizeStatements(recorder.statements), nil
 }
 
 // statementRecorder captures the statements a writer dispatches without

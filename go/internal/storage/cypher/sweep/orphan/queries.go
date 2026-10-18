@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package orphan
 
 import (
 	"context"
 	"fmt"
 	"math"
 	"strings"
+
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // This file holds the two bounded orphan-sweep reads (S1 candidates, S2
@@ -15,7 +17,7 @@ import (
 // contains a relationship-existence predicate: S1 has no relationship clause
 // at all, and S2 is the one relationship primitive proven reliable on both
 // pinned NornicDB backends -- a concrete relationship-variable MATCH anchored
-// on caller-supplied keys. orphan_sweep.go computes orphan/connected status as
+// on caller-supplied keys. store.go computes orphan/connected status as
 // a Go-side anti-join over these two reads' results.
 
 // orphanSweepCandidate is one S1 row: a node eligible for orphan sweeping,
@@ -95,14 +97,14 @@ func orphanSweepKeyExpr(property string, position int) string {
 // eshu-nornicdb-pr290:3722b483c02c, `ORDER BY <return alias>` is not honored,
 // while ordering the WITH-projected values is (verified through the Bolt
 // driver, five rows across three names paged two at a time).
-func BuildCandidateOrphanNodesQuery(label OrphanSweepLabel, limit int, cursor orphanSweepKey) (Statement, bool) {
+func BuildCandidateOrphanNodesQuery(label OrphanSweepLabel, limit int, cursor orphanSweepKey) (sourcecypher.Statement, bool) {
 	match, ok := orphanLabelMatch(label)
 	if !ok {
-		return Statement{}, false
+		return sourcecypher.Statement{}, false
 	}
 	properties, ok := orphanSweepIdentityProperties(label)
 	if !ok {
-		return Statement{}, false
+		return sourcecypher.Statement{}, false
 	}
 	parameters := map[string]any{
 		"limit": normalizePositiveInt(limit, defaultOrphanSweepCountLimit),
@@ -111,8 +113,8 @@ func BuildCandidateOrphanNodesQuery(label OrphanSweepLabel, limit int, cursor or
 	if len(properties) == 1 {
 		key := properties[0]
 		parameters["cursor"] = cursorValue(cursor, 0)
-		return Statement{
-			Operation: OperationCanonicalRetract,
+		return sourcecypher.Statement{
+			Operation: sourcecypher.OperationCanonicalRetract,
 			Cypher: fmt.Sprintf(`MATCH (n:%s)
 WHERE %s
   AND n.%s > $cursor
@@ -144,8 +146,8 @@ LIMIT $limit`, match, orphanSweepNodeGuard(label), key, key, key),
 	}
 	projections = append(projections, "n.eshu_orphan_observed_at_unix AS observed_at")
 
-	return Statement{
-		Operation: OperationCanonicalRetract,
+	return sourcecypher.Statement{
+		Operation: sourcecypher.OperationCanonicalRetract,
 		Cypher: fmt.Sprintf(`MATCH (n:%s)
 WHERE %s
   AND (%s)
@@ -187,14 +189,14 @@ func cursorValue(cursor orphanSweepKey, position int) string {
 // key: reusing the RETURN alias name for the UNWIND variable silently returns
 // zero rows on the pinned NornicDB backends instead of erroring (see
 // docs/public/reference/nornicdb-pitfalls.md).
-func BuildConnectedKeysQuery(label OrphanSweepLabel, keys []orphanSweepKey) (Statement, bool) {
+func BuildConnectedKeysQuery(label OrphanSweepLabel, keys []orphanSweepKey) (sourcecypher.Statement, bool) {
 	match, ok := orphanLabelMatch(label)
 	if !ok {
-		return Statement{}, false
+		return sourcecypher.Statement{}, false
 	}
 	properties, ok := orphanSweepIdentityProperties(label)
 	if !ok {
-		return Statement{}, false
+		return sourcecypher.Statement{}, false
 	}
 	if label == OrphanSweepLabelEvidenceArtifact {
 		// The far end stays untyped on purpose: any incoming source edge
@@ -203,8 +205,8 @@ func BuildConnectedKeysQuery(label OrphanSweepLabel, keys []orphanSweepKey) (Sta
 		// the sweep delete a referenced artifact. The near end is
 		// key-anchored on the id UNIQUE constraint, so the untyped far
 		// end expands only that artifact's own incoming edges.
-		return Statement{
-			Operation: OperationCanonicalRetract,
+		return sourcecypher.Statement{
+			Operation: sourcecypher.OperationCanonicalRetract,
 			Cypher: `UNWIND $keys AS candidate_key
 MATCH (n:EvidenceArtifact {id: candidate_key})<-[r:HAS_DEPLOYMENT_EVIDENCE]-(source)
 RETURN DISTINCT n.id AS key`,
@@ -225,8 +227,8 @@ RETURN DISTINCT n.id AS key`,
 		if class != "" {
 			classWhere = "\nWHERE " + class
 		}
-		return Statement{
-			Operation: OperationCanonicalRetract,
+		return sourcecypher.Statement{
+			Operation: sourcecypher.OperationCanonicalRetract,
 			Cypher: fmt.Sprintf(`UNWIND $keys AS candidate_key
 MATCH (n:%s {%s: candidate_key})-[r]-(m)%s
 RETURN DISTINCT n.%s AS key`, match, key, classWhere, key),
@@ -236,8 +238,8 @@ RETURN DISTINCT n.%s AS key`, match, key, classWhere, key),
 		}, true
 	}
 
-	return Statement{
-		Operation: OperationCanonicalRetract,
+	return sourcecypher.Statement{
+		Operation: sourcecypher.OperationCanonicalRetract,
 		Cypher: fmt.Sprintf(`UNWIND $keys AS candidate_key
 MATCH (n:%s {%s: candidate_key.key_0})-[r]-(m)
 WHERE %s
@@ -438,6 +440,10 @@ func (s *OrphanSweepStore) readConnectedKeysChunk(
 	return out, nil
 }
 
+// int64Count coerces backend count columns to int64. It duplicates the
+// helper of the same name in the parent cypher package
+// (provenance_counts.go): this leaf imports the parent, so the two sides
+// cannot share one definition. Keep the copies behavior-identical.
 func int64Count(value any) (int64, bool) {
 	switch typed := value.(type) {
 	case int:

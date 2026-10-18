@@ -1,18 +1,22 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package orphan
 
 import (
 	"fmt"
 	"reflect"
 	"strings"
 	"testing"
+
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // forbiddenOrphanSweepPatterns are the relationship-existence predicate
 // shapes proven mis-evaluated on both pinned NornicDB backends (#5147). No
-// orphan-sweep statement may contain any of them.
+// orphan-sweep statement may contain any of them. The parent cypher package
+// carries a behavior-identical copy (forbiddenRelationshipPatterns) for its
+// gap probe; keep the copies behavior-identical.
 var forbiddenOrphanSweepPatterns = []string{
 	")--(",
 	"NOT (",
@@ -61,8 +65,8 @@ func TestBuildCandidateOrphanNodesQueryUsesStaticLabelNoRelationshipPredicate(t 
 			if !ok {
 				t.Fatalf("BuildCandidateOrphanNodesQuery(%s) ok = false, want true", label)
 			}
-			if stmt.Operation != OperationCanonicalRetract {
-				t.Fatalf("Operation = %q, want %q", stmt.Operation, OperationCanonicalRetract)
+			if stmt.Operation != sourcecypher.OperationCanonicalRetract {
+				t.Fatalf("Operation = %q, want %q", stmt.Operation, sourcecypher.OperationCanonicalRetract)
 			}
 			wants := []string{
 				fmt.Sprintf("MATCH (n:%s)", label),
@@ -303,9 +307,9 @@ func TestRepoRelationshipUpsertStampsTargetRepositoryForFutureSweeps(t *testing.
 	t.Parallel()
 
 	for _, cypher := range []string{
-		canonicalDeploysFromRepoRelationshipUpsertCypher,
-		CanonicalRepoDependencyUpsertCypher,
-		BatchCanonicalRepoDependencyUpsertCypher,
+		sourcecypher.CanonicalDeploysFromRepoRelationshipUpsertCypher,
+		sourcecypher.CanonicalRepoDependencyUpsertCypher,
+		sourcecypher.BatchCanonicalRepoDependencyUpsertCypher,
 	} {
 		for _, want := range []string{
 			"ON CREATE SET source_repo.evidence_source",

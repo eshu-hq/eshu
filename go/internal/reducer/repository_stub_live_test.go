@@ -19,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/sweep/orphan"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -216,11 +217,11 @@ func TestLiveRepositoryStubReapedAfterOwnerRetracts(t *testing.T) {
 		t.Fatalf("edges on the stub after both owner retracts = %d, want 0", got)
 	}
 
-	sweep := cypher.NewOrphanSweepStore(live.exec, liveEdgeReader{exec: live.exec})
+	sweep := orphan.NewOrphanSweepStore(live.exec, liveEdgeReader{exec: live.exec})
 	now := time.Now().UTC()
-	policy := cypher.OrphanSweepPolicy{
+	policy := orphan.OrphanSweepPolicy{
 		OrphanTTL: time.Minute, BatchLimit: 1000, CountLimit: 1000,
-		Labels: []string{string(cypher.OrphanSweepLabelRepository)},
+		Labels: []string{string(orphan.OrphanSweepLabelRepository)},
 	}
 	for _, at := range []time.Time{now, now.Add(2 * time.Minute)} {
 		policy.Now = at

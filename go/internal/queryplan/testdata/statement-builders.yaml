@@ -420,6 +420,63 @@ builders:
                 - RETURN 1 LIMIT 1
           source_sha256: bd47ba75368d78aed38754968b1d36d63f747f23f8fb08b497de8bf0b1418f6a
           exempt: strings.Builder-composed probe text is opaque to static matching; executions recorded as probe records
+    - file: internal/storage/cypher/sweep/orphan/queries.go
+      builders:
+        - symbol: BuildCandidateOrphanNodesQuery
+          count: 4
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - {}
+            - {}
+            - fragments:
+                - 'MATCH (n:'
+                - ) WHERE
+                - AND n.
+                - '> $cursor RETURN n.'
+                - AS key, n.eshu_orphan_observed_at_unix AS observed_at ORDER BY n.
+                - LIMIT $limit
+            - fragments:
+                - 'MATCH (n:'
+                - ) WHERE
+                - AND (
+                - ) WITH
+                - RETURN
+                - ', observed_at ORDER BY'
+                - LIMIT $limit
+          source_sha256: b07bafae6f06d32bc53fddf112d2c5e8049c5ea24f461d926c49cda901465781
+        - symbol: BuildConnectedKeysQuery
+          count: 5
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - {}
+            - {}
+            - template: 'UNWIND $keys AS candidate_key MATCH (n:EvidenceArtifact {id: candidate_key})<-[r:HAS_DEPLOYMENT_EVIDENCE]-(source) RETURN DISTINCT n.id AS key'
+            - fragments:
+                - 'UNWIND $keys AS candidate_key MATCH (n:'
+                - '{'
+                - ': candidate_key})-[r]-(m)'
+                - RETURN DISTINCT n.
+                - AS key
+            - fragments:
+                - 'UNWIND $keys AS candidate_key MATCH (n:'
+                - '{'
+                - ': candidate_key.key_0})-[r]-(m) WHERE'
+                - RETURN DISTINCT
+          source_sha256: ceee4b9ba02f15e31b0e3f3d5bb5ead920785792ced55c7ab29bf40282cfd979
+    - file: internal/storage/cypher/sweep/orphan/writes.go
+      builders:
+        - symbol: buildKeyAnchoredOrphanStatement
+          count: 3
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - {}
+            - {}
+            - fragments:
+                - 'UNWIND $keys AS candidate_key MATCH (n:'
+                - '{'
+                - ':'
+                - '}) WHERE'
+          source_sha256: bb30c8383a746746489be68fee4a8b793bf0645d18cc03018189c164edcea54b
     - file: internal/storage/nornicdb/phase_group_executor_drain.go
       builders:
         - symbol: (PhaseGroupExecutor).executeDrainLoop
@@ -445,7 +502,7 @@ read_exemptions:
   - callsite: internal/query/impact/entity_map_resolver.go:(*Handler).resolveEntityMapStart
     anchor: "MATCH (n:Repository {id: $from}) WHERE"
     reason: binds a slug (deployable-config) as a node id; no Repository has that literal id
-  - callsite: internal/storage/cypher/orphan_sweep_queries.go:(*OrphanSweepStore).readCandidateOrphanNodes
+  - callsite: internal/storage/cypher/sweep/orphan/queries.go:(*OrphanSweepStore).readCandidateOrphanNodes
     anchor: "WHERE n.evidence_source IS NOT NULL AND n.evidence_source <> 'projector/canonical' AND n.id > $cursor"
     reason: janitor sweep; empty is the healthy state (no non-canonical Repository nodes) on both backends across 7 executions each
   - callsite: internal/query/infra_relationship_filter.go:(*InfraHandler).getRelationships

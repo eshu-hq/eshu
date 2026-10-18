@@ -335,7 +335,7 @@ func fileNameLineKey(filePath, name string, line int) string {
 // bare shape (the bare shape is what NornicDB-targeted writers emit, #8173).
 // It matches on the Cypher text, which no executor rewrites; the summary
 // metadata key is stripped before the Bolt seam on the phase-group path
-// (SanitizeStatement).
+// (phase/group SanitizeStatement).
 func isRepositoryPathCleanupEntry(entry WriteCountEntry) bool {
 	return entry.Cypher == node.RepositoryPathCleanupCypher ||
 		entry.Cypher == node.RepositoryPathCleanupBareCypher

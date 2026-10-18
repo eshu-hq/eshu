@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/graphbackpressure"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	phasegroup "github.com/eshu-hq/eshu/go/internal/storage/cypher/phase/group"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -357,15 +358,15 @@ func bootstrapStatementPhaseGroupMode(stmt sourcecypher.Statement) string {
 }
 
 func allBootstrapStatementsUseOperation(stmts []sourcecypher.Statement, operation sourcecypher.Operation) bool {
-	return sourcecypher.StatementsAllUseOperation(stmts, operation)
+	return phasegroup.StatementsAllUseOperation(stmts, operation)
 }
 
 func bootstrapSanitizedPhaseGroupChunk(stmts []sourcecypher.Statement) []sourcecypher.Statement {
-	return sourcecypher.SanitizeStatements(stmts)
+	return phasegroup.SanitizeStatements(stmts)
 }
 
 func bootstrapSanitizedStatement(stmt sourcecypher.Statement) sourcecypher.Statement {
-	return sourcecypher.SanitizeStatement(stmt)
+	return phasegroup.SanitizeStatement(stmt)
 }
 
 func bootstrapStatementSummary(stmt sourcecypher.Statement) string {

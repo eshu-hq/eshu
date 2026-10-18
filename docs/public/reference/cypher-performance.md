@@ -1633,7 +1633,7 @@ rejected:
 
 **Adopted: chunk the existing anchored UNWIND form into fixed-size round
 trips** (`defaultOrphanSweepConnectedKeysChunkSize = 500` in
-`go/internal/storage/cypher/orphan_sweep.go`). This keeps the same bounded,
+`go/internal/storage/cypher/sweep/orphan/store.go`). This keeps the same bounded,
 CountLimit-relative, key-anchored read shape -- no relationship-existence
 predicate, no unbounded scan -- and only changes how many keys one round trip
 anchors on. Measured on the real `(*OrphanSweepStore).readConnectedKeys`

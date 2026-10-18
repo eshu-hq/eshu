@@ -13,6 +13,7 @@ import (
 	"time"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	phasegroup "github.com/eshu-hq/eshu/go/internal/storage/cypher/phase/group"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -52,7 +53,7 @@ func newFileGroupProbe(logger *slog.Logger, stmts []sourcecypher.Statement) *fil
 		return nil
 	}
 	for _, stmt := range stmts {
-		if _, _, ok := sourcecypher.CanonicalFileStatementProfile(stmt); !ok {
+		if _, _, ok := phasegroup.CanonicalFileStatementProfile(stmt); !ok {
 			return nil
 		}
 	}
@@ -77,7 +78,7 @@ func (p *fileGroupProbe) runAttempt(
 	p.lastCallbackSuccess = false
 	counts := make([]sourcecypher.StatementRetractionCounts, 0, len(stmts))
 	for index, stmt := range stmts {
-		templateID, rows, ok := sourcecypher.CanonicalFileStatementProfile(stmt)
+		templateID, rows, ok := phasegroup.CanonicalFileStatementProfile(stmt)
 		if !ok {
 			return nil, fmt.Errorf("file group contains an unknown statement")
 		}

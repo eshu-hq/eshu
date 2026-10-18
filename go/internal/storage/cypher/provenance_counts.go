@@ -6,6 +6,7 @@ package cypher
 import (
 	"context"
 	"fmt"
+	"math"
 )
 
 const (
@@ -147,4 +148,26 @@ func provenanceCountMap(rows []map[string]any, keyCol string) (map[string]int64,
 		result[key] += cnt
 	}
 	return result, nil
+}
+
+// int64Count coerces backend count columns (int widths, integral float64)
+// to int64. It duplicates the helper of the same name in the sweep/orphan
+// leaf (sweep/orphan/queries.go): the leaf imports this package, so the two
+// sides cannot share one definition. Keep the copies behavior-identical.
+func int64Count(value any) (int64, bool) {
+	switch typed := value.(type) {
+	case int:
+		return int64(typed), true
+	case int32:
+		return int64(typed), true
+	case int64:
+		return typed, true
+	case float64:
+		if typed < 0 || typed > math.MaxInt64 || math.Trunc(typed) != typed {
+			return 0, false
+		}
+		return int64(typed), true
+	default:
+		return 0, false
+	}
 }

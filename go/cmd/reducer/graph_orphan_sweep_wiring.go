@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/orphan"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	sweeporphan "github.com/eshu-hq/eshu/go/internal/storage/cypher/sweep/orphan"
 )
 
 // deployableUnitGapPostgres is the #8316 Postgres seam the sweep cycle uses
@@ -27,7 +28,7 @@ type deployableUnitGapPostgres interface {
 }
 
 type graphOrphanSweeper struct {
-	store        *sourcecypher.OrphanSweepStore
+	store        *sweeporphan.OrphanSweepStore
 	fingerprints deployableUnitGapPostgres
 }
 
@@ -41,7 +42,7 @@ func graphOrphanSweepRunnerFor(
 	if !cfg.Enabled {
 		return nil
 	}
-	store := sourcecypher.NewOrphanSweepStore(executor, reader)
+	store := sweeporphan.NewOrphanSweepStore(executor, reader)
 	store.CountLimit = cfg.Runner.Policy.CountLimit
 	return &orphan.Runner{
 		Sweeper:      graphOrphanSweeper{store: store, fingerprints: fingerprints},
@@ -54,7 +55,7 @@ func (s graphOrphanSweeper) SweepOrphanNodes(
 	ctx context.Context,
 	policy orphan.Policy,
 ) (orphan.Result, error) {
-	result, err := s.store.SweepOrphanNodes(ctx, sourcecypher.OrphanSweepPolicy{
+	result, err := s.store.SweepOrphanNodes(ctx, sweeporphan.OrphanSweepPolicy{
 		OrphanTTL:  policy.OrphanTTL,
 		BatchLimit: policy.BatchLimit,
 		CountLimit: policy.CountLimit,

@@ -12,7 +12,7 @@ flowchart LR
   A["internal/projector\nCanonicalWriter"] --> B["cypher.CanonicalNodeWriter"]
   C["internal/reducer\nSharedProjectionEdgeWriter"] --> D["cypher.EdgeWriter"]
   E["internal/reducer\nSemanticEntityMaterialization"] --> F["cypher.SemanticEntityWriter"]
-  O["internal/reducer\nGraphOrphanSweepRunner"] --> OS["cypher.OrphanSweepStore"]
+  O["internal/reducer\nGraphOrphanSweepRunner"] --> OS["orphan.OrphanSweepStore"]
   B --> G["cypher.Executor\n(backend seam)"]
   D --> G
   F --> G
@@ -1720,7 +1720,7 @@ cloud-action batch is attributable to the domain at 3 AM without new metric
 names or labels. Provenance (`confidence`, `resolution_method`,
 `evidence_source`) is carried as edge properties, not as new instrumentation.
 
-## Statement-parameter sanitization (`phase_group_sanitize.go`)
+## Statement-parameter sanitization (`phase/group/sanitize.go`)
 
 `SanitizeStatement`/`SanitizeStatements`/`SanitizeStatementParameters` strip the
 `_eshu_*` diagnostic parameters (`StatementMetadataPhaseKey` and siblings) that

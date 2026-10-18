@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package orphan
 
 import (
 	"sort"
@@ -11,7 +11,7 @@ import (
 // This file holds the orphan-sweep WHERE guards (evidence/ownership + node
 // class) applied uniformly across S1, S2, and the key-anchored writes, the
 // identity-key type the anti-join is computed over, and the process-local
-// per-label paging cursor. Keeping them here keeps orphan_sweep.go under the
+// per-label paging cursor. Keeping them here keeps store.go under the
 // file-length cap.
 
 // orphanSweepKey is one node's identity inside the class its label's sweep
@@ -78,6 +78,15 @@ func orphanSweepNodeGuard(label OrphanSweepLabel) string {
 		guard += "\n  AND " + class
 	}
 	return guard
+}
+
+// normalizePositiveInt returns value when positive, defaultValue otherwise.
+// It lives here (not in store.go) to keep store.go under the file-length cap.
+func normalizePositiveInt(value int, defaultValue int) int {
+	if value <= 0 {
+		return defaultValue
+	}
+	return value
 }
 
 // candidateCursor returns the paging cursor for a label's next S1 candidate
