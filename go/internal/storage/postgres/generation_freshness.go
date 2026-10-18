@@ -361,8 +361,9 @@ WHERE generation_id = $1`
 //
 // It acquires no locks and issues no queries: the prior generation and its
 // fact count arrive in prior, loaded before the transaction opened — or
-// flagged uncountable when no count can size it (#8362). The
-// caller marks its transaction closed and returns success on a refusal.
+// flagged orphanFallback when only the candidate's own rows size it
+// (#8362). The caller marks its transaction closed and returns success
+// on a refusal.
 func (s IngestionStore) refuseDestructiveSuccessor(
 	ctx context.Context,
 	tx db.Transaction,
@@ -374,17 +375,13 @@ func (s IngestionStore) refuseDestructiveSuccessor(
 	refuse, reason := backfill.RefuseDestructiveSuccessor(
 		prior.found, prior.factCount, successorFacts, generation.TrustedDeletion,
 	)
-	if prior.uncountable && !generation.TrustedDeletion {
-		// #8362: the prior is a delta with no base full generation, so its
-		// size is unknowable and the ratio half of the backstop cannot
-		// evaluate. The repair (usually the forced full re-parse restoring
-		// the base) still stores; only an empty successor is refused, since
-		// it retracts everything regardless of the prior's size.
-		refuse = successorFacts <= 0
-		reason = ""
-		if refuse {
-			reason = telemetry.RefreshSkipReasonDestructiveSuccessor
-		}
+	if prior.orphanFallback && !generation.TrustedDeletion && successorFacts <= 0 {
+		// #8362: the prior is a delta with no base full generation. The
+		// fallback above already sized the ratio check on the candidate's
+		// own rows; an empty successor is still refused even when that
+		// count is zero, since it retracts everything regardless of size.
+		refuse = true
+		reason = telemetry.RefreshSkipReasonDestructiveSuccessor
 	}
 	if !refuse {
 		return false, nil
@@ -397,7 +394,7 @@ func (s IngestionStore) refuseDestructiveSuccessor(
 	s.logCommitStage(ctx, scopeValue, generation, "refuse_destructive_successor", guardStart,
 		slog.String("candidate_generation_id", prior.candidate.GenerationID),
 		slog.Int("prior_fact_count", prior.factCount),
-		slog.Bool("prior_uncountable", prior.uncountable),
+		slog.Bool("prior_orphan_fallback", prior.orphanFallback),
 		slog.Int("successor_fact_count", successorFacts),
 	)
 	return true, nil
