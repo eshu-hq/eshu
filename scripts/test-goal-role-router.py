@@ -97,6 +97,14 @@ class GoalRoleRouterTests(unittest.TestCase):
         self.assertNotIn("DRIVE CONTRACT", output)
         self.assertNotIn("- develop-eshu:", output)
 
+    def test_bare_issues_drive_goal_routes_like_bare_epics(self):
+        """'drive issues to completion' matches; bare epics already did."""
+        for prompt in ("/goal drive issues to completion with eshu-code-review",
+                       "/goal drive epics to completion with eshu-code-review"):
+            output = context(prompt, "muse")
+            self.assertIn("DRIVE CONTRACT", output, prompt)
+            self.assertIn("- develop-eshu:", output, prompt)
+
     def test_multiline_drive_goal_still_routes(self):
         """File-based goals match across newlines after whitespace flattening."""
         with tempfile.TemporaryDirectory() as tmp:
