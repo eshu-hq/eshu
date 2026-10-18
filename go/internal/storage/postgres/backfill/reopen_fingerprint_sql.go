@@ -193,9 +193,10 @@ DELETE FROM deployable_unit_reopen_fingerprints WHERE repo_ids && $1::text[]
 // pass covers the whole set.
 //
 // The listing scopes to the latest decision per anchor (#8371 review P1):
-// admission rows are never UPDATED or DELETED (the upsert keys on
-// decision_id, which embeds the generation), so an anchor admitted in one
-// generation and rejected in a later one keeps both rows. Matching ANY
+// rows for different generations coexist (decision IDs embed the
+// generation; the upsert only reconciles same-decision rewrites and nothing
+// deletes superseded rows), so an anchor admitted in one generation and
+// rejected in a later one keeps both rows. Matching ANY
 // admitted row would replay that legitimately edgeless anchor every pass;
 // keeping only latest-state-admitted rows converges the second pass to a
 // no-op. Rows whose canonical write never landed (Written false) are
