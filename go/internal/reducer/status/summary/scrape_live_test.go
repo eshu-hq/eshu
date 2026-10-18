@@ -201,14 +201,14 @@ func TestScrapeStatementInventoryOnAnEmptyStoreLive(t *testing.T) {
 	onTotal, onActive := inventory(scrapeSelection(), true)
 	t.Logf("statements per scrape on an empty store: before=%d (active-work %d), reader off=%d (%d), reader on=%d (%d)",
 		beforeTotal, beforeActive, offTotal, offActive, onTotal, onActive)
-	if beforeTotal != 24 || beforeActive != 1 {
-		t.Fatalf("before = %d statements, %d active-work; want 24 and 1", beforeTotal, beforeActive)
+	if beforeTotal != 25 || beforeActive != 1 {
+		t.Fatalf("before = %d statements, %d active-work; want 25 and 1", beforeTotal, beforeActive)
 	}
-	if offTotal != 20 || offActive != 1 {
-		t.Fatalf("reader off = %d statements, %d active-work; want 20 and 1", offTotal, offActive)
+	if offTotal != 21 || offActive != 1 {
+		t.Fatalf("reader off = %d statements, %d active-work; want 21 and 1", offTotal, offActive)
 	}
-	if onTotal != 21 || onActive != 0 {
-		t.Fatalf("reader on = %d statements, %d active-work; want 21 (the clock and the row read replace it) and 0", onTotal, onActive)
+	if onTotal != 22 || onActive != 0 {
+		t.Fatalf("reader on = %d statements, %d active-work; want 22 (the clock and the row read replace it) and 0", onTotal, onActive)
 	}
 }
 
