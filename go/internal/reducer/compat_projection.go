@@ -403,9 +403,9 @@ func ProcessPartitionOnce(
 	readinessLookup GraphProjectionReadinessLookup,
 	readinessPrefetch GraphProjectionReadinessPrefetch,
 	endpointPresence EndpointPresenceLookup,
-	refreshFence SharedProjectionRefreshFenceLookup,
+	refreshFence worker.RefreshFenceLookup,
 	firstProjection FirstProjectionLookup,
-	unroutableWriter SharedProjectionUnroutableWriter,
+	unroutableWriter worker.UnroutableWriter,
 ) (result PartitionProcessResult, retErr error) {
 	return worker.ProcessPartitionOnce(ctx, now, cfg, leaseManager, reader, edgeWriter, acceptedGen, prefetch, readinessLookup, readinessPrefetch, endpointPresence, refreshFence, firstProjection, unroutableWriter)
 }

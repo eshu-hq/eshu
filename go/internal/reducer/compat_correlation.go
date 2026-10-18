@@ -121,12 +121,8 @@ type ServiceOwnershipEvidence = servicecatalog.ServiceOwnershipEvidence
 // Evidence family label constants. See
 // [servicecatalog.ServiceEvidenceFamilyOwnership] and its siblings.
 const (
-	ServiceEvidenceFamilyOwnership    = servicecatalog.ServiceEvidenceFamilyOwnership
-	ServiceEvidenceFamilyDeployment   = servicecatalog.ServiceEvidenceFamilyDeployment
-	ServiceEvidenceFamilyRuntime      = servicecatalog.ServiceEvidenceFamilyRuntime
-	ServiceEvidenceFamilyDependencies = servicecatalog.ServiceEvidenceFamilyDependencies
-	ServiceEvidenceFamilyDocs         = servicecatalog.ServiceEvidenceFamilyDocs
-	ServiceEvidenceFamilyIncidents    = servicecatalog.ServiceEvidenceFamilyIncidents
+	ServiceEvidenceFamilyOwnership = servicecatalog.ServiceEvidenceFamilyOwnership
+	ServiceEvidenceFamilyRuntime   = servicecatalog.ServiceEvidenceFamilyRuntime
 )
 
 // ServiceMaterializationWriter commits the additive per-service evidence
@@ -140,10 +136,6 @@ type ServiceMaterializationTx = servicecatalog.ServiceMaterializationTx
 // ServiceMaterializationRow is the narrow *sql.Row surface the lineage
 // writer's QueryRowContext needs. See [servicecatalog.ServiceMaterializationRow].
 type ServiceMaterializationRow = servicecatalog.ServiceMaterializationRow
-
-// ServiceMaterializationBeginner begins a ServiceMaterializationTx. See
-// [servicecatalog.ServiceMaterializationBeginner].
-type ServiceMaterializationBeginner = servicecatalog.ServiceMaterializationBeginner
 
 // PostgresServiceMaterializationWriter commits the additive per-service
 // evidence generation lineage against Postgres. See
@@ -416,14 +408,12 @@ type JVMReachabilityFactFilter = supplychaincore.JVMReachabilityFactFilter
 // root-remnant fold, issue #6061). Writer.Write MUST fail the owning cycle
 // and be idempotent (ON CONFLICT DO NOTHING keyed on intent id).
 type (
-	SharedProjectionIntentRow          = sharedintent.Row
-	SharedProjectionIntentInput        = sharedintent.Input
-	SharedProjectionAcceptanceKey      = sharedintent.AcceptanceKey
-	SharedProjectionUnroutableRow      = sharedintent.UnroutableRow
-	SharedProjectionWriteReport        = sharedintent.WriteReport
-	SharedProjectionUnroutableWriter   = worker.UnroutableWriter
-	SharedProjectionRefreshFenceLookup = worker.RefreshFenceLookup
-	FirstProjectionLookup              = worker.FirstProjectionLookup
+	SharedProjectionIntentRow     = sharedintent.Row
+	SharedProjectionIntentInput   = sharedintent.Input
+	SharedProjectionAcceptanceKey = sharedintent.AcceptanceKey
+	SharedProjectionUnroutableRow = sharedintent.UnroutableRow
+	SharedProjectionWriteReport   = sharedintent.WriteReport
+	FirstProjectionLookup         = worker.FirstProjectionLookup
 )
 
 func BuildSharedProjectionIntent(input SharedProjectionIntentInput) SharedProjectionIntentRow {

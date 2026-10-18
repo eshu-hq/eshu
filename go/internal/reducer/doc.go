@@ -281,15 +281,15 @@
 // keyed by a generation-independent service_evidence_key. Each generation
 // snapshots every evidence family the writer knows: ownership
 // (ServiceEvidenceFamilyOwnership, keyed by ServiceOwnershipEvidenceKey),
-// deployment (ServiceEvidenceFamilyDeployment, keyed by ServiceDeploymentEvidenceKey
+// deployment (servicecatalog.ServiceEvidenceFamilyDeployment, keyed by ServiceDeploymentEvidenceKey
 // over the resolved deployment relationship's generation-independent natural
 // key), runtime (ServiceEvidenceFamilyRuntime, keyed by ServiceRuntimeEvidenceKey
 // over the durable platform/environment/workload identity of each materialized
-// runtime instance), and dependencies (ServiceEvidenceFamilyDependencies, keyed
+// runtime instance), and dependencies (servicecatalog.ServiceEvidenceFamilyDependencies, keyed
 // by ServiceDependencyEvidenceKey over the resolved dependency relationship's
 // generation-independent natural key — DEPENDS_ON / USES_MODULE /
 // READS_CONFIG_FROM, the complement of the deployment family from the same
-// resolved_relationships source), and docs (ServiceEvidenceFamilyDocs, keyed by
+// resolved_relationships source), and docs (servicecatalog.ServiceEvidenceFamilyDocs, keyed by
 // ServiceDocumentationEvidenceKey over the durable external identity
 // source_system/source_record_id/document_id of each documentation fact that
 // references the service, read from fact_records and keyed by service id rather
@@ -297,7 +297,7 @@
 // source_acl_state — allowed|denied|partial|missing|stale — verbatim in its
 // payload as an access-posture axis distinct from freshness, omitted when the
 // fact asserts no bounded ACL claim and never upgraded to allowed, #2163), and
-// incidents (ServiceEvidenceFamilyIncidents, keyed by
+// incidents (servicecatalog.ServiceEvidenceFamilyIncidents, keyed by
 // ServiceIncidentEvidenceKey over the durable routing identity
 // provider/provider_incident_id/slot/evidence_kind/evidence_id of each exact
 // PagerDuty incident-routing evidence row, where evidence_id is the source fact's
