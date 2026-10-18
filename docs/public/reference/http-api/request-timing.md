@@ -13,7 +13,11 @@ split Postgres versus graph time. The value travels as a trailer rather than
 a response header because response headers flush on the handler's first body
 write; trailers are delivered for buffered and streaming (SSE) responses
 alike. Read it after consuming the full body (with curl, `curl -v` shows the
-trailer on the chunked transfer). Rejections written outside the middleware
+trailer on the chunked transfer). If a handler returns without ever writing
+a body, headers flush implicitly at handler return, so the value lands as a
+regular response header rather than a trailer: a trailer-only reader would
+miss it, while a header reader still sees it. No `/api/v0` handler is known
+to do this. Rejections written outside the middleware
 (auth, rate limiting, checkpoint gating, such as a 401/403/429) carry no
 trailer. Both the API server and the MCP server wrap their `/api/v0` muxes in
 the same middleware, so both emit it. Probes, `/metrics`, and other
