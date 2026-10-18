@@ -5,6 +5,7 @@ package query
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -27,18 +28,29 @@ const (
 	collectorStatusReadFailedMessage = "collector status read failed"
 	ingesterStatusReadFailedMessage  = "ingester status read failed"
 	indexStatusReadFailedMessage     = "index status read failed"
+	// indexStatusRepositoryCountFailedMessage is the fixed body of a failed
+	// unscoped index-status graph repository count (#8395). A failed count
+	// must surface instead of reading as an empty index, the same mapping
+	// the scoped path of this route uses.
+	indexStatusRepositoryCountFailedMessage = "index status repository count failed"
 )
 
 // Capability-matrix keys for the root status read routes (#8227). Each names
 // the key a reader-fence 503 carries in error.capability, the operator signal
-// for which route a stale or timed-out PostgreSQL reader fenced. The index
-// key covers both the unscoped snapshot read and the scoped graph count.
+// for which route a stale or timed-out reader fenced. The index key covers
+// the unscoped snapshot read and both the scoped and unscoped graph counts.
 const (
 	pipelineStatusCapability  = "operations.pipeline_status"
 	collectorStatusCapability = "operations.collector_status"
 	ingesterStatusCapability  = "operations.ingester_status"
 	indexStatusCapability     = "operations.index_status"
 )
+
+// errIndexStatusRepositoryCountNoRow is the server fault recorded on the
+// request span when the unscoped repository count answers no row. A count
+// query always returns exactly one row, so there is no backend error of its
+// own and this sentinel stands in for one.
+var errIndexStatusRepositoryCountNoRow = errors.New("index status repository count query returned no row")
 
 // StatusHandler provides HTTP endpoints for pipeline status queries.
 type StatusHandler struct {
@@ -261,13 +273,31 @@ func (h *StatusHandler) getIndexStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Query Neo4j for repository count if available
+	// Query Neo4j for repository count if available. A failed count surfaces
+	// instead of reading as an empty index (#8395): the shared retryable
+	// graph verdict answers first (an outage 503, a deadline 504), any other
+	// failure or a missing row answers the fixed 500, the same mapping the
+	// scoped path of this route uses. A nil GraphQuery keeps the historical
+	// 200 with repository_count 0: with no query wired there is no read to
+	// fail. No production wiring does this: cmd/api and cmd/mcp-server
+	// always wire a Neo4jReader, so a deployment without a graph driver
+	// fails its count through the driverless reader and answers the fixed
+	// 500, never a silent 0.
 	var repoCount int
 	if h.Neo4j != nil {
 		row, qErr := h.Neo4j.RunSingle(r.Context(), "MATCH (r:Repository) RETURN count(r) as count", nil)
-		if qErr == nil && row != nil {
-			repoCount = IntVal(row, "count")
+		if qErr != nil {
+			if WriteGraphReadError(w, r, qErr, indexStatusCapability) {
+				return
+			}
+			tracing.WriteServerFailure(w, r, qErr, http.StatusInternalServerError, indexStatusRepositoryCountFailedMessage)
+			return
 		}
+		if row == nil {
+			tracing.WriteServerFailure(w, r, errIndexStatusRepositoryCountNoRow, http.StatusInternalServerError, indexStatusRepositoryCountFailedMessage)
+			return
+		}
+		repoCount = IntVal(row, "count")
 	}
 
 	payload := map[string]any{

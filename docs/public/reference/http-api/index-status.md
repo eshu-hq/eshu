@@ -27,7 +27,18 @@ A shared-key caller receives the full deployment-wide report: `status`,
 
 `repository_count` is counted over the caller's granted repositories and
 ingestion scopes inside the graph query, and a caller with no grant gets `0`
-without a graph query. The withheld sections are process-global: they cannot be
+without a graph query.
+
+An unscoped (shared-key) caller reads the status snapshot first and then the
+same graph repository count over the whole deployment. A failed count
+surfaces the same way as for a scoped caller: a graph outage answers the
+retryable `503` with `Retry-After`, a graph read deadline answers `504`, and
+any other failed count answers `500` `index status repository count failed`,
+never a silent `repository_count: 0`. A nil graph query keeps the historical
+`200` with `repository_count: 0`: with no query wired there is no read to
+fail. No production wiring does this: both servers always wire a graph
+reader, so a deployment without a graph driver answers the fixed `500`
+through its driverless reader. The withheld sections are process-global: they cannot be
 attributed to a grant, and a `queue_blockages` row reports `conflict_key` as
 `COALESCE(conflict_key, scope_id)`, a raw scope id. They are withheld whole and
 the status snapshot is not read for a scoped caller, the same posture as the

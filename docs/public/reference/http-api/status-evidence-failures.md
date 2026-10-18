@@ -47,7 +47,7 @@ none; the other routes on this page already carried theirs.
 | `GET /api/v0/status/pipeline` | `operations.pipeline_status` |
 | `GET /api/v0/status/collectors`, `GET /api/v0/collectors` | `operations.collector_status` |
 | `GET /api/v0/status/ingesters/{ingester}`, `GET /api/v0/ingesters/{ingester}` | `operations.ingester_status` |
-| `GET /api/v0/status/index`, `GET /api/v0/index-status` | `operations.index_status` (also on the scoped graph-count `503`) |
+| `GET /api/v0/status/index`, `GET /api/v0/index-status` | `operations.index_status` (also on the scoped and unscoped graph-count `503`s) |
 | `GET /api/v0/status/hosted-readiness` | `operations.hosted_readiness_status` |
 | `GET /api/v0/status/freshness-causality` | `operations.freshness_causality_status` |
 | `GET /api/v0/status/collector-readiness`, `GET /api/v0/collector-readiness` | `operations.collector_readiness_status` |
@@ -68,6 +68,13 @@ reads, chosen by the caller:
   with `Retry-After`. Any other failure answers `500`
   `index status read failed`. An unconfigured status reader answers `503`
   `status reader not configured` with no `Retry-After`.
+  Once the snapshot read succeeds, the caller also reads the graph repository
+  count, and a failed count surfaces instead of reading as an empty index: a
+  graph outage answers the retryable `503` with `Retry-After`, a graph read
+  deadline answers `504`, and any other failure, or a count that returns no
+  row, answers `500` `index status repository count failed`. A nil graph query
+  keeps the historical `200` with `repository_count: 0` (no production wiring
+  does this); a wired-but-driverless reader answers the fixed `500`.
 - A scoped caller does not read the status snapshot. Its only read is the
   granted-repository count in the graph, and a caller with no grant makes no
   read. A graph outage answers the retryable `503` with `Retry-After`. A graph
@@ -85,6 +92,7 @@ reads, chosen by the caller:
 | `GET /api/v0/status/ingesters/{ingester}`, `GET /api/v0/ingesters/{ingester}` | status snapshot read | `ingester status read failed` |
 | `GET /api/v0/status/index`, `GET /api/v0/index-status` | status snapshot read (unscoped caller) | `index status read failed` |
 | `GET /api/v0/status/index`, `GET /api/v0/index-status` | graph repository count (scoped caller) | `scoped index status repository count failed` |
+| `GET /api/v0/status/index`, `GET /api/v0/index-status` | graph repository count (unscoped caller) | `index status repository count failed` |
 | `GET /api/v0/status/hosted-readiness` | status snapshot read | `hosted readiness status read failed` |
 | `GET /api/v0/status/freshness-causality` | status snapshot read | `freshness causality status read failed` |
 | `GET /api/v0/status/collector-readiness`, `GET /api/v0/collector-readiness` | status snapshot read | `collector readiness status read failed` |
@@ -131,3 +139,27 @@ with no `Retry-After`.
   client-cancel contract.
 - [Admin Route Failures](admin-failures.md) for the same contract on the
   `/api/v0/admin/*` routes.
+
+## Unscoped graph-count evidence (#8395)
+
+No-Regression Evidence (#8395): baseline `go test ./internal/query -run
+TestUnscopedIndexStatusGraphCountFailureIsNotZero -count=1` on the pre-fix
+tree answers every graph-count failure with 200 and `repository_count: 0`;
+after the fix the same run is green with 503 on a graph outage, 504 on a
+graph read deadline, and 500 `index status repository count failed`
+otherwise, while `TestServeIndexStatusUnscopedEmptyIndexStays200` pins the
+healthy empty index at 200 with `repository_count: 0`, `queue.total` intact,
+and exactly one graph read. Backend: handler-level fakes plus the production
+driverless `Neo4jReader` (no live backend); Go 1.26.9. Full
+`go test ./internal/query ./internal/queryplan -count=1` green (~15s). This
+is safe because the success path issues the same single COUNT statement as
+before (the Cypher text is unchanged and still gated on a wired graph),
+retryability comes from the shared `WriteGraphReadError` classifier rather
+than new logic, and no backend error text reaches the body (pinned by the
+failure harness on every case).
+
+No-Observability-Change: this change adds no metric instrument, label, log
+line, or new span. The success path emits the same spans as before, and the
+new failure answers reuse this route's existing `WriteServerFailure` shape
+(the same helper the snapshot-read failure already calls). Operators keep
+diagnosing this route through the HTTP status and the fixed error body.
