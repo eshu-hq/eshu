@@ -77,7 +77,8 @@ var (
 		regexp.MustCompile("(?is)\\bCREATE\\s+(?:OR\\s+REPLACE\\s+)?(?:CONSTRAINT\\s+)?TRIGGER\\b[^;`]*?\\bON\\s+" + resolvedTable),
 		regexp.MustCompile("(?is)\\bALTER\\s+TABLE\\s+(?:IF\\s+EXISTS\\s+)?(?:ONLY\\s+)?" + resolvedTable + "[^;`]*?\\b(?:REFERENCES|FOREIGN\\s+KEY)\\b"),
 		regexp.MustCompile("(?is)\\bCREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?" + resolvedTable + "[^;`]*?\\bREFERENCES\\b"),
-		regexp.MustCompile("(?is)\\bCREATE\\s+RULE\\b[^;`]*?\\bON\\s+" + resolvedTable),
+		// A rule names its table as ON <event> TO <table>, never ON <table>.
+		regexp.MustCompile("(?is)\\bCREATE\\s+(?:OR\\s+REPLACE\\s+)?RULE\\b[^;`]*?\\bON\\s+(?:SELECT|INSERT|UPDATE|DELETE)\\s+TO\\s+" + resolvedTable),
 	}
 	sqlLineComment  = regexp.MustCompile(`(?m)--[^\n]*`)
 	sqlBlockComment = regexp.MustCompile(`(?s)/\*.*?\*/`)
@@ -110,17 +111,19 @@ func stripGoComments(src string) string {
 	return string(b)
 }
 
-// stripScanComments removes Go or SQL comments (per file kind) plus SQL
-// block comments, so prose cannot trip or hide a finding. Block comments are
-// stripped even inside Go literals because a SQL hint (UPDATE /*hint*/ t)
-// sits inside the literal, out of reach of the Go scanner.
+// stripScanComments removes SQL block comments first, then Go or SQL
+// comments per file kind, so prose cannot trip or hide a finding. Block
+// comments go first because a "--" inside one (/* -- x */ UPDATE t) would
+// otherwise run the line-comment strip to end-of-line and eat the real
+// statement after it. Block comments are stripped even inside Go literals
+// because a SQL hint (UPDATE /*hint*/ t) sits inside the literal, out of
+// reach of the Go scanner.
 func stripScanComments(name, src string) string {
+	src = sqlBlockComment.ReplaceAllString(src, " ")
 	if strings.HasSuffix(name, ".sql") {
-		src = sqlLineComment.ReplaceAllString(src, "")
-	} else {
-		src = stripGoComments(src)
+		return sqlLineComment.ReplaceAllString(src, "")
 	}
-	return sqlBlockComment.ReplaceAllString(src, " ")
+	return stripGoComments(src)
 }
 
 // scanResolvedRowMutations reports every place a source set can change or
@@ -276,6 +279,9 @@ func TestResolvedRelationshipsAppendOnlyGuardBitesOnPlantedWriters(t *testing.T)
 		"blockcmt.sql":            "UPDATE /*hint*/ resolved_relationships SET confidence = 1;\n",
 		"spaced_schema.go":        "package x\nconst q = `DELETE FROM public . resolved_relationships WHERE generation_id = $1`\n",
 		"mixed_case_update.go":    "package x\nconst q = `UPDATE Resolved_Relationships SET confidence = 1`\n",
+		"rule.sql":                "CREATE RULE rr AS ON DELETE TO resolved_relationships DO INSTEAD NOTHING;\n",
+		"rule_replace.sql":        "CREATE OR REPLACE RULE rr AS ON UPDATE TO public.resolved_relationships DO INSTEAD NOTHING;\n",
+		"blockcmt_dashes.sql":     "/* -- x */ UPDATE resolved_relationships SET confidence = 1;\n",
 	} {
 		got := scanResolvedRowMutations(map[string]string{name: planted})
 		if len(got) == 0 {

@@ -66,8 +66,10 @@ WHERE scope_id = $1 AND status = 'active'`, scopeID); err != nil {
 
 // upsertFingerprintGateDeploysFrom writes one resolved DEPLOYS_FROM row into
 // generationID through the production resolution upsert. Entity ids are set,
-// as every resolved row on a real corpus carries them: resolved_id hashes the
-// entity ids and the batch ordinal, not the repository ids. Writing into an
+// as every resolved row on a real corpus carries them: resolved_id is a pure
+// function of the unique-index identity (generation, COALESCE(entity id,
+// repo id) on both ends, relationship type) with no ordinal input (#8299).
+// Writing into an
 // already-active generation is the append-to-active-generation shape a
 // re-run deployment_mapping produces.
 func upsertFingerprintGateDeploysFrom(t *testing.T, ctx context.Context, db *sql.DB, generationID, sourceRepo, targetRepo string) {
