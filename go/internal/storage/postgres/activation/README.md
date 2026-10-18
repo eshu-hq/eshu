@@ -86,6 +86,33 @@ clock (`activationDatabaseClock`) because a disposable container ran 32–79 ms
 ahead of its host. The maintenance deadline's margin (a fifth of the lease) also
 absorbs this skew.
 
+## Off-state observability
+
+The obligation gauges (`eshu_dp_activation_obligations{status}`,
+`eshu_dp_activation_obligation_oldest_open_age_seconds`, and the rest of the
+`eshu_dp_activation_obligation_*` family) are emitted by the consumer
+(`Runner`; the census runs in `housekeep`), so while
+`ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED=false` they are absent: the
+wiring returns no runner and nothing publishes the census. The Ack path still
+writes one `activation_obligations` row per activated generation, so the
+pending pile is visible in SQL. Open states are `pending` and `leased`;
+`completed`, `obsolete`, and `inapplicable` are terminal. This fallback mirrors
+the census query (`statsQuery` in `backlog.go`, global derived by `max` in
+`Stats`): per-state counts over all states plus a per-state oldest-open age.
+The `FILTER` admits only pending/leased rows inside each group, so each row
+carries its own state's oldest age — 0 on terminal-state rows — and the global
+oldest-open age is the `MAX` over rows. States with no rows are absent, and an
+empty table yields no rows at all; the gauges report explicit zeros instead.
+
+```sql
+SELECT state, count(*),
+       COALESCE(EXTRACT(EPOCH FROM clock_timestamp() - min(created_at)
+           FILTER (WHERE state IN ('pending', 'leased'))), 0)
+           AS oldest_open_age_seconds
+  FROM activation_obligations
+ GROUP BY state;
+```
+
 ## Rollout order
 
 Migration 160 must exist before any binary that Acks runs
