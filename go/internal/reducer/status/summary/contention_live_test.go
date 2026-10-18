@@ -304,6 +304,35 @@ func (l *computeLog) maxDuration() time.Duration {
 	return longest
 }
 
+// TestDrainActiveBackendsLive proves the #7814 drain: it returns at once
+// when no other backend is active, and it waits while one is. A no-op drain
+// fails the busy case, which is the regression this guards.
+func TestDrainActiveBackendsLive(t *testing.T) {
+	ctx, database := openWriterDatabase(t)
+	database.SetMaxOpenConns(4)
+
+	start := time.Now()
+	drainActiveBackends(ctx, t, database)
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Fatalf("idle drain took %s, want under 2s", elapsed)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := database.ExecContext(ctx, `SELECT pg_sleep(2)`)
+		done <- err
+	}()
+	time.Sleep(300 * time.Millisecond) // let the sleeper backend go active
+	start = time.Now()
+	drainActiveBackends(ctx, t, database)
+	if elapsed := time.Since(start); elapsed < time.Second {
+		t.Fatalf("busy drain returned in %s while a pg_sleep backend was active, want it to wait", elapsed)
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("pg_sleep backend: %v", err)
+	}
+}
+
 // sumIntForModel sums an Int64 counter's points for one model_key and outcome.
 func sumIntForModel(t *testing.T, reader *sdkmetric.ManualReader, name, model, outcome string) int64 {
 	t.Helper()
