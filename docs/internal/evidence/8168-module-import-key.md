@@ -74,8 +74,14 @@ production Neo4j schema. It skips unless the backend reports the Neo4j kernel.
 
 ```text
 ESHU_CYPHER_BOLT_DSN=bolt://127.0.0.1:17687 ESHU_CYPHER_BOLT_DATABASE=neo4j \
-  go test ./internal/storage/cypher/ -run TestLiveCanonicalModuleConcurrentWritersKeepOneNodePerKey -count=1 -v
+  go test -tags live_nornicdb_answer_truth ./internal/storage/cypher/ \
+  -run TestLiveCanonicalModuleConcurrentWritersKeepOneNodePerKey -count=1 -v
 ```
+
+Both new live tests carry the `live_nornicdb_answer_truth` build tag and are
+`ci` rows (Neo4j leg) in `specs/live-tests.d/`, so the live-backend CI job
+runs them on a fresh Neo4j per file; they skip on the NornicDB leg. The RED
+row below was measured before the tag was added, with the same test body.
 
 | Run | Workers | Duplicate iterations | Extra nodes | IMPORTS mismatches | Tx errors (deadlocks) | Exit |
 | --- | ---: | ---: | ---: | ---: | --- | ---: |
@@ -152,7 +158,10 @@ canonicalNodeImportEdgeCypher trace: {... UnwindMergeChainBatch:true ... MergeSc
 
 ## Performance Evidence
 
-Not comparable to the repo-scale contract; these are local proxies only.
+Performance Evidence: baseline origin/main `15fcdcdcb` against this branch, on
+the pinned Neo4j (`neo4j@sha256:eabfbb04…`, 2026.08.1) and NornicDB
+(`orneryd/nornicdb@v1.0.45` in-process) backends. These are local proxies,
+not comparable to the repo-scale contract.
 
 NornicDB in-process MERGE, `GOMAXPROCS=1 -benchtime=300x -count=5`, median
 ns/op, legacy `(name, lang)` statement vs the production `import_key`

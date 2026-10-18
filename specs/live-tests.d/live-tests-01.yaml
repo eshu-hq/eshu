@@ -63,6 +63,11 @@ tests:
     class: scheduled
     reason: isolated Neo4j canary startup proof requires a disposable PostgreSQL database and an explicit Neo4j endpoint; not compatible with the deterministic live-backend runner
     backends: neo4j
+  - file: go/cmd/bootstrap-data-plane/module_import_key_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "#8168 seeded Neo4j proof of the bootstrap Module import_key migration on a fresh backend: canonical duplicates, a lang-less node, an adopted semantic node, a same-key semantic node, and a keyed-plus-unkeyed pair; asserts one keyed node per key with IMPORTS counts and properties kept, semantic nodes and CONTAINS untouched, the constraint present, and zero writes on a second run; Neo4j-only (NornicDB gets no populated-store migration); local run 0.7 s"
+    backends: neo4j
   - file: go/cmd/bootstrap-data-plane/postgres_schema_tracking_live_test.go
     tag: integration
     class: scheduled

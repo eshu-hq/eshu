@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
+//go:build live_nornicdb_answer_truth
+
 package main
 
 import (
@@ -14,9 +16,11 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
-// migrationLiveEnv opts in to the migration live test. The migration is
-// global by design -- it rewrites every canonical Module in the database -- so
-// the DSN alone is not consent: point it only at a disposable Neo4j.
+// migrationLiveEnv opts in to the migration live test on a developer backend.
+// The migration is global by design -- it rewrites every canonical Module in
+// the database -- so a DSN alone is not consent: point it only at a disposable
+// Neo4j. The live-backend CI runner gives each ledger file a fresh backend and
+// exports ESHU_LIVE_GRAPH_BACKEND, which also enables the test.
 const migrationLiveEnv = "ESHU_MODULE_IMPORT_KEY_MIGRATION_LIVE"
 
 const migLivePrefix = "mig8168-"
@@ -80,14 +84,22 @@ func (r *countingRunner) scalar(ctx context.Context, t *testing.T, cypher string
 // their CONTAINS edges untouched, and keep the constraint; the second run must
 // write nothing.
 func TestLiveModuleImportKeyMigrationCollapsesKeysAndRepoints(t *testing.T) {
-	if os.Getenv(migrationLiveEnv) != "1" {
+	dsn := strings.TrimSpace(os.Getenv("ESHU_CYPHER_BOLT_DSN"))
+	database := strings.TrimSpace(os.Getenv("ESHU_CYPHER_BOLT_DATABASE"))
+	switch liveBackend := strings.TrimSpace(os.Getenv("ESHU_LIVE_GRAPH_BACKEND")); {
+	case liveBackend != "":
+		// The live-backend CI runner: a fresh backend per ledger file.
+		if liveBackend != "neo4j" {
+			t.Skipf("ESHU_LIVE_GRAPH_BACKEND = %q; the migration runs on Neo4j only", liveBackend)
+		}
+		dsn = strings.TrimSpace(os.Getenv("ESHU_NEO4J_URI"))
+		database = strings.TrimSpace(os.Getenv("ESHU_LIVE_GRAPH_DATABASE"))
+	case os.Getenv(migrationLiveEnv) != "1":
 		t.Skipf("set %s=1 and ESHU_CYPHER_BOLT_DSN to a disposable Neo4j to run", migrationLiveEnv)
 	}
-	dsn := strings.TrimSpace(os.Getenv("ESHU_CYPHER_BOLT_DSN"))
 	if dsn == "" {
-		t.Skip("ESHU_CYPHER_BOLT_DSN not set")
+		t.Skip("no Neo4j URI set")
 	}
-	database := strings.TrimSpace(os.Getenv("ESHU_CYPHER_BOLT_DATABASE"))
 	if database == "" {
 		database = "neo4j"
 	}

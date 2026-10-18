@@ -63,6 +63,11 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/module_concurrency_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "#8168 seeded Neo4j proof that concurrent canonical writers keep one Module node per import_key: 2 and 8 workers at a barrier, 100 iterations each, production Module and IMPORTS statements in explicit transactions with no driver retry; asserts zero duplicates, exact IMPORTS counts, and zero DeadlockDetected (RED on the pre-#8168 writer: 99/100 and 100/100 duplicate iterations); Neo4j-only because it proves Neo4j locking; local runs 4.6 s to 10.4 s on a loaded shared host"
+    backends: neo4j
   - file: go/internal/storage/cypher/oci_tag_first_observed_prove_theory_live_test.go
     tag: ~
     class: scheduled

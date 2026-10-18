@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
+//go:build live_nornicdb_answer_truth
+
 package cypher
 
 import (
@@ -24,9 +26,10 @@ import (
 // imports such as Go `context` and `fmt` that nearly every repository names.
 const moduleConcurrencyKeys = 4
 
-// moduleConcurrencyDefaultIterations is the per-worker-count iteration floor
-// the #8168 ruling requires. ESHU_MODULE_CONCURRENCY_ITERATIONS raises it.
-const moduleConcurrencyDefaultIterations = 100
+// moduleConcurrencyIterations is the per-worker-count iteration count the
+// #8168 ruling requires. Without the fix, 99 of 100 iterations duplicated at 2
+// workers, so 100 makes a regression all but certain to fail.
+const moduleConcurrencyIterations = 100
 
 // moduleConcurrencyTotals accumulates one worker count's outcome across every
 // iteration, so a failure reports the duplicate and error counts, not only the
@@ -60,10 +63,12 @@ type moduleConcurrencyTotals struct {
 // that it is unique, so each transaction creates its own node for a key the
 // other has not committed yet.
 //
-// Gate: ESHU_CYPHER_BOLT_DSN must point at a Neo4j backend; the test skips on
-// any other kernel because the locking it proves is Neo4j's.
+// Gate: build tag live_nornicdb_answer_truth, and ESHU_CYPHER_BOLT_DSN or
+// ESHU_NEO4J_URI (the live-backend CI runner's variable) pointing at a Neo4j
+// backend; the test skips on any other kernel because the locking it proves is
+// Neo4j's.
 func TestLiveCanonicalModuleConcurrentWritersKeepOneNodePerKey(t *testing.T) {
-	runner := openBoltTestRunner(t)
+	runner := openModuleConcurrencyRunner(t)
 	t.Cleanup(func() { runner.close(context.Background()) })
 	ctx := context.Background()
 	requireNeo4jKernel(ctx, t, runner)
@@ -72,14 +77,7 @@ func TestLiveCanonicalModuleConcurrentWritersKeepOneNodePerKey(t *testing.T) {
 		t.Fatalf("apply production Neo4j schema: %v", err)
 	}
 
-	iterations := moduleConcurrencyDefaultIterations
-	if raw := strings.TrimSpace(os.Getenv("ESHU_MODULE_CONCURRENCY_ITERATIONS")); raw != "" {
-		parsed, err := strconv.Atoi(raw)
-		if err != nil || parsed < moduleConcurrencyDefaultIterations {
-			t.Fatalf("ESHU_MODULE_CONCURRENCY_ITERATIONS=%q: want an integer >= %d", raw, moduleConcurrencyDefaultIterations)
-		}
-		iterations = parsed
-	}
+	iterations := moduleConcurrencyIterations
 	runID := strconv.FormatInt(time.Now().UnixNano(), 36)
 	writer := NewCanonicalNodeWriter(&boltTestExecutor{runner: runner}, DefaultBatchSize, nil)
 
@@ -225,6 +223,35 @@ func runExplicitTransaction(ctx context.Context, runner *boltRetractTestRunner, 
 		}
 	}
 	return tx.Commit(ctx)
+}
+
+// openModuleConcurrencyRunner connects to ESHU_CYPHER_BOLT_DSN, or to
+// ESHU_NEO4J_URI as the live-backend CI runner exports it, and skips when
+// neither is set.
+func openModuleConcurrencyRunner(t *testing.T) *boltRetractTestRunner {
+	t.Helper()
+	if strings.TrimSpace(os.Getenv("ESHU_CYPHER_BOLT_DSN")) != "" {
+		return openBoltTestRunner(t)
+	}
+	uri := strings.TrimSpace(os.Getenv("ESHU_NEO4J_URI"))
+	if uri == "" {
+		t.Skip("ESHU_CYPHER_BOLT_DSN and ESHU_NEO4J_URI not set; skipping live Neo4j test")
+	}
+	database := strings.TrimSpace(os.Getenv("ESHU_LIVE_GRAPH_DATABASE"))
+	if database == "" {
+		database = "neo4j"
+	}
+	driver, err := neo4jdriver.NewDriverWithContext(uri, neo4jdriver.NoAuth())
+	if err != nil {
+		t.Fatalf("open bolt driver %q: %v", uri, err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := driver.VerifyConnectivity(ctx); err != nil {
+		_ = driver.Close(ctx)
+		t.Fatalf("verify bolt connectivity %q: %v", uri, err)
+	}
+	return &boltRetractTestRunner{driver: driver, databaseName: database}
 }
 
 // requireNeo4jKernel skips the test unless the backend reports the Neo4j
