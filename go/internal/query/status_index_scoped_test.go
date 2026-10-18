@@ -389,6 +389,9 @@ func TestServeIndexStatusUnscopedEmptyIndexStays200(t *testing.T) {
 	if got, want := payload["repository_count"], float64(0); got != want {
 		t.Fatalf("repository_count = %#v, want %#v", got, want)
 	}
+	if got := graph.callCount(); got != 1 {
+		t.Fatalf("graph reads = %d, want exactly the single repository count", got)
+	}
 	queue, ok := payload["queue"].(map[string]any)
 	if !ok {
 		t.Fatalf("queue section missing: %s", rec.Body.String())
