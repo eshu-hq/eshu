@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
 )
 
 func TestNewIncidentRecordEnvelopeKeepsUnlinkedPagerDutyIncidentUseful(t *testing.T) {
@@ -21,7 +22,7 @@ func TestNewIncidentRecordEnvelopeKeepsUnlinkedPagerDutyIncidentUseful(t *testin
 		t.Fatalf("NewIncidentRecordEnvelope() error = %v, want nil", err)
 	}
 
-	if got, want := env.FactKind, facts.IncidentRecordFactKind; got != want {
+	if got, want := env.FactKind, factsincident.IncidentRecordFactKind; got != want {
 		t.Fatalf("FactKind = %q, want %q", got, want)
 	}
 	if got, want := env.SourceConfidence, facts.SourceConfidenceReported; got != want {
@@ -80,7 +81,7 @@ func TestNewLifecycleEventEnvelopeUsesLogEntryIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewLifecycleEventEnvelope() error = %v, want nil", err)
 	}
-	if got, want := env.FactKind, facts.IncidentLifecycleEventFactKind; got != want {
+	if got, want := env.FactKind, factsincident.IncidentLifecycleEventFactKind; got != want {
 		t.Fatalf("FactKind = %q, want %q", got, want)
 	}
 	if got, want := env.SourceRef.SourceRecordID, "R1"; got != want {
@@ -108,7 +109,7 @@ func TestNewChangeRecordEnvelopeRedactsLinkedURLs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewChangeRecordEnvelope() error = %v, want nil", err)
 	}
-	if got, want := env.FactKind, facts.ChangeRecordFactKind; got != want {
+	if got, want := env.FactKind, factsincident.ChangeRecordFactKind; got != want {
 		t.Fatalf("FactKind = %q, want %q", got, want)
 	}
 	links, ok := env.Payload["links"].([]map[string]string)

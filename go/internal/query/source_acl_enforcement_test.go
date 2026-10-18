@@ -10,8 +10,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 )
 
 // TestDocumentationHandlerDisclosesDeniedFindingOnWire proves the approved
@@ -371,12 +371,12 @@ func TestSemanticEvidenceRowEnforcement(t *testing.T) {
 
 	deniedRaw := map[string]any{
 		"fact_id":   "fact:denied",
-		"fact_kind": facts.SemanticDocumentationObservationFactKind,
+		"fact_kind": semantic.SemanticDocumentationObservationFactKind,
 		"payload": map[string]any{
 			"observation_type":    "deployment_claim",
 			"observation_text":    "SECRET semantic observation text",
-			"freshness_state":     facts.SemanticFreshnessFresh,
-			"admission_state":     facts.SemanticAdmissionPartial,
+			"freshness_state":     semantic.SemanticFreshnessFresh,
+			"admission_state":     semantic.SemanticAdmissionPartial,
 			"corroboration_state": "uncorroborated",
 			"evidence_refs":       []any{map[string]any{"kind": "doc", "id": "doc:1"}},
 			"acl_summary":         map[string]any{"source_acl_state": docs.SourceACLStateDenied},
@@ -396,10 +396,10 @@ func TestSemanticEvidenceRowEnforcement(t *testing.T) {
 		t.Fatalf("denied semantic row leaked evidence_refs: %#v", deniedRow)
 	}
 	// #2138: admission/freshness/corroboration preserved, not collapsed.
-	if deniedRow["admission_state"] != facts.SemanticAdmissionPartial {
+	if deniedRow["admission_state"] != semantic.SemanticAdmissionPartial {
 		t.Fatalf("admission_state collapsed on denied semantic row: %#v", deniedRow)
 	}
-	if deniedRow["freshness_state"] != facts.SemanticFreshnessFresh {
+	if deniedRow["freshness_state"] != semantic.SemanticFreshnessFresh {
 		t.Fatalf("freshness_state collapsed on denied semantic row: %#v", deniedRow)
 	}
 	if deniedRow["source_acl_state"] != docs.SourceACLStateDenied {
@@ -408,7 +408,7 @@ func TestSemanticEvidenceRowEnforcement(t *testing.T) {
 
 	allowedRaw := map[string]any{
 		"fact_id":   "fact:allowed",
-		"fact_kind": facts.SemanticDocumentationObservationFactKind,
+		"fact_kind": semantic.SemanticDocumentationObservationFactKind,
 		"payload": map[string]any{
 			"observation_type": "deployment_claim",
 			"observation_text": "readable semantic observation",

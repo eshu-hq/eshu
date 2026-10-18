@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 )
 
 // legacyDocumentationTargetFactsSQL is the single-statement target-facts read
@@ -23,7 +23,7 @@ func legacyDocumentationTargetFactsSQL(filter documentationFindingFilter) (strin
 	parts := newDocumentationTargetFactsParts(filter)
 	args := append(append([]any{}, parts.args...), parts.limit+1)
 	kindClause := "fact_records.fact_kind IN ('" + docs.EntityMentionFactKind + "', '" +
-		docs.ClaimCandidateFactKind + "', '" + facts.SemanticDocumentationObservationFactKind + "')"
+		docs.ClaimCandidateFactKind + "', '" + semantic.SemanticDocumentationObservationFactKind + "')"
 	clauses := append([]string{kindClause}, parts.clauses...)
 	return fmt.Sprintf(`
 SELECT %s AS payload
@@ -50,24 +50,24 @@ func TestBuildDocumentationTargetFactsSQLSplitsIndexedAndSemanticBranches(t *tes
 	if len(branches) != 2 {
 		t.Fatalf("statement has %d UNION ALL branches, want 2:\n%s", len(branches), query)
 	}
-	indexed, semantic := branches[0], branches[1]
+	indexed, semanticBranch := branches[0], branches[1]
 
 	mention := "'" + docs.EntityMentionFactKind + "'"
 	claim := "'" + docs.ClaimCandidateFactKind + "'"
-	semanticKind := "'" + facts.SemanticDocumentationObservationFactKind + "'"
+	semanticKind := "'" + semantic.SemanticDocumentationObservationFactKind + "'"
 	if !strings.Contains(indexed, "fact_records.fact_kind IN ("+mention+", "+claim+")") {
 		t.Fatalf("indexed branch must list exactly the GIN-covered kinds:\n%s", indexed)
 	}
 	if strings.Contains(indexed, semanticKind) {
 		t.Fatalf("indexed branch must not name the semantic kind (it is outside the GIN predicate):\n%s", indexed)
 	}
-	if !strings.Contains(semantic, "fact_records.fact_kind = "+semanticKind) {
-		t.Fatalf("semantic branch must read the semantic kind:\n%s", semantic)
+	if !strings.Contains(semanticBranch, "fact_records.fact_kind = "+semanticKind) {
+		t.Fatalf("semantic branch must read the semantic kind:\n%s", semanticBranch)
 	}
-	if strings.Contains(semantic, mention) || strings.Contains(semantic, claim) {
-		t.Fatalf("semantic branch must not read the indexed kinds:\n%s", semantic)
+	if strings.Contains(semanticBranch, mention) || strings.Contains(semanticBranch, claim) {
+		t.Fatalf("semantic branch must not read the indexed kinds:\n%s", semanticBranch)
 	}
-	for name, branch := range map[string]string{"indexed": indexed, "semantic": semantic} {
+	for name, branch := range map[string]string{"indexed": indexed, "semantic": semanticBranch} {
 		for _, want := range []string{
 			"fact_records.is_tombstone = FALSE",
 			"fact_records.payload @>",

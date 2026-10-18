@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 )
 
 func TestDocumentationHandlerListsCollectedFacts(t *testing.T) {
@@ -279,7 +279,7 @@ func TestNormalizeDocumentationFactKindAcceptsSemanticDocumentationObservation(t
 	t.Parallel()
 
 	for _, raw := range []string{
-		facts.SemanticDocumentationObservationFactKind,
+		semantic.SemanticDocumentationObservationFactKind,
 		documentationFactKindAliasSemanticObservation,
 		documentationFactKindAliasDocumentationObservation,
 		documentationFactKindAliasSemanticDocumentationObservation,
@@ -288,7 +288,7 @@ func TestNormalizeDocumentationFactKindAcceptsSemanticDocumentationObservation(t
 		if !ok {
 			t.Fatalf("normalizeDocumentationFactKind(%q) rejected semantic observation alias", raw)
 		}
-		if got, want := got, facts.SemanticDocumentationObservationFactKind; got != want {
+		if got, want := got, semantic.SemanticDocumentationObservationFactKind; got != want {
 			t.Fatalf("normalizeDocumentationFactKind(%q) = %q, want %q", raw, got, want)
 		}
 	}
@@ -312,7 +312,7 @@ func TestDocumentationHandlerAllowsSemanticObservationFactDiscovery(t *testing.T
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if got, want := captured.FactKind, facts.SemanticDocumentationObservationFactKind; got != want {
+	if got, want := captured.FactKind, semantic.SemanticDocumentationObservationFactKind; got != want {
 		t.Fatalf("FactKind = %q, want %q", got, want)
 	}
 }
@@ -491,7 +491,7 @@ func TestBuildDocumentationFactsSQLDefaultAllowlistIncludesSemanticDocumentation
 		docs.LinkFactKind,
 		docs.EntityMentionFactKind,
 		docs.ClaimCandidateFactKind,
-		facts.SemanticDocumentationObservationFactKind,
+		semantic.SemanticDocumentationObservationFactKind,
 	} {
 		if !strings.Contains(query, "'"+want+"'") {
 			t.Fatalf("documentation facts default SQL allowlist missing %q: %s", want, query)
@@ -500,7 +500,7 @@ func TestBuildDocumentationFactsSQLDefaultAllowlistIncludesSemanticDocumentation
 	for _, unexpected := range []string{
 		docs.FindingFactKind,
 		docs.EvidencePacketFactKind,
-		facts.SemanticCodeHintFactKind,
+		semantic.SemanticCodeHintFactKind,
 	} {
 		if strings.Contains(query, "'"+unexpected+"'") {
 			t.Fatalf("documentation facts default SQL allowlist includes %q, want provenance-only documentation facts: %s", unexpected, query)
@@ -545,7 +545,7 @@ func TestOpenAPISpecIncludesDocumentationFacts(t *testing.T) {
 		documentationFactKindAliasSemanticObservation,
 		documentationFactKindAliasDocumentationObservation,
 		documentationFactKindAliasSemanticDocumentationObservation,
-		facts.SemanticDocumentationObservationFactKind,
+		semantic.SemanticDocumentationObservationFactKind,
 	} {
 		if !openAPIStringListIncludes(factKindEnum, name) {
 			t.Fatalf("documentation facts OpenAPI fact_kind enum missing %q", name)

@@ -168,7 +168,10 @@ var quotedLiteralPattern = regexp.MustCompile(`'([A-Za-z0-9_.]+)'`)
 // Each #6950 batch extends this list for the
 // family spellings it introduces; the identifier still resolves through
 // factsConstValues, so an unknown spelling simply matches nothing.
-var factsPackageIdentRefPattern = regexp.MustCompile(`(?:facts|docs|factsdocs|cloud|chain)\.(\w*FactKind\w*)\b`)
+// The #6951 batches add `semantic` (bare import), plus the `factsincident`
+// and `factsidentity` aliases used where a bare `incident` or `identity`
+// qualifier would collide with a same-named package, variable, or parameter.
+var factsPackageIdentRefPattern = regexp.MustCompile(`(?:facts|docs|factsdocs|cloud|chain|semantic|factsincident|factsidentity)\.(\w*FactKind\w*)\b`)
 
 // realConsumerEvidence is the computed set of fact kinds with a detectable
 // real consumer, derived from source rather than from registry metadata.

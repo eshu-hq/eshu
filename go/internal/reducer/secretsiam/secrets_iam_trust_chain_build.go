@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
@@ -214,36 +215,36 @@ func buildSecretsIAMIndex(envelopes []facts.Envelope) (secretsIAMIndex, []factde
 		}
 		var fatal error
 		switch envelope.FactKind {
-		case facts.KubernetesServiceAccountFactKind:
+		case factsidentity.KubernetesServiceAccountFactKind:
 			fatal = indexKubernetesServiceAccount(&index, envelope, &quarantined)
-		case facts.KubernetesWorkloadIdentityUseFactKind:
+		case factsidentity.KubernetesWorkloadIdentityUseFactKind:
 			fatal = indexKubernetesWorkloadIdentityUse(&index, envelope, &quarantined)
-		case facts.EKSIRSAAnnotationFactKind:
+		case factsidentity.EKSIRSAAnnotationFactKind:
 			fatal = indexEKSIRSAAnnotation(&index, envelope, &quarantined)
-		case facts.EKSPodIdentityAssociationFactKind:
+		case factsidentity.EKSPodIdentityAssociationFactKind:
 			fatal = indexEKSPodIdentityAssociation(&index, envelope, &quarantined)
-		case facts.VaultAuthRoleFactKind:
+		case factsidentity.VaultAuthRoleFactKind:
 			fatal = indexVaultAuthRole(&index, envelope, &quarantined)
-		case facts.AWSIAMPrincipalFactKind:
+		case factsidentity.AWSIAMPrincipalFactKind:
 			fatal = indexAWSIAMPrincipal(&index, envelope, &quarantined)
-		case facts.AWSIAMTrustPolicyFactKind:
+		case factsidentity.AWSIAMTrustPolicyFactKind:
 			addByKey(index.iamTrusts, payloadcore.PayloadString(envelope.Payload, "role_arn"), envelope)
-		case facts.VaultACLPolicyFactKind:
+		case factsidentity.VaultACLPolicyFactKind:
 			fatal = indexVaultACLPolicy(&index, envelope, &quarantined)
-		case facts.VaultKVMetadataFactKind:
+		case factsidentity.VaultKVMetadataFactKind:
 			fatal = indexVaultKVMetadata(&index, envelope, &quarantined)
-		case facts.GCPIAMPrincipalFactKind:
+		case factsidentity.GCPIAMPrincipalFactKind:
 			// deferred: gcp_iam lane, Wave 4d types vault/k8s only.
 			addByKey(index.gcpPrincipals, payloadcore.PayloadString(envelope.Payload, "principal_fingerprint"), envelope)
-		case facts.GCPIAMTrustPolicyFactKind:
+		case factsidentity.GCPIAMTrustPolicyFactKind:
 			// deferred: gcp_iam lane, Wave 4d types vault/k8s only.
 			addByKey(index.gcpTrusts, payloadcore.PayloadString(envelope.Payload, "target_service_account_email_digest"), envelope)
-		case facts.KubernetesGCPWorkloadIdentityBindingFactKind:
+		case factsidentity.KubernetesGCPWorkloadIdentityBindingFactKind:
 			fatal = indexKubernetesGCPWorkloadIdentityBinding(&index, envelope, &quarantined)
-		case facts.GCPIAMPermissionPolicyFactKind:
+		case factsidentity.GCPIAMPermissionPolicyFactKind:
 			// deferred: gcp_iam lane, Wave 4d types vault/k8s only.
 			addByKey(index.gcpPermissions, payloadcore.PayloadString(envelope.Payload, "principal_fingerprint"), envelope)
-		case facts.SecretsIAMCoverageWarningFactKind:
+		case factsidentity.SecretsIAMCoverageWarningFactKind:
 			index.coverage = append(index.coverage, envelope)
 		}
 		if fatal != nil {

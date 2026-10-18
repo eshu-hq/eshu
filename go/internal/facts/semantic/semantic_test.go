@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package facts
+package semantic
 
 import (
 	"encoding/json"
@@ -447,7 +447,9 @@ func semanticDocumentationObservationFixture() SemanticDocumentationObservationP
 		FreshnessState: SemanticFreshnessFresh,
 		AdmissionState: SemanticAdmissionDocumentationFindingCandidate,
 		EvidenceRefs: []docs.EvidenceRef{
-			{Kind: "documentation_section", ID: "section:deployment", Confidence: SourceConfidenceObserved},
+			// "observed" echoes facts.SourceConfidenceObserved; this package
+			// cannot import the facts root (the root imports this package).
+			{Kind: "documentation_section", ID: "section:deployment", Confidence: "observed"},
 		},
 	}
 }

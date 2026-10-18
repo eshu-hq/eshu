@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
 	conformance "github.com/eshu-hq/eshu/sdk/go/collector/conformance"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
@@ -68,7 +69,7 @@ func emitterConformanceCases() []emitterConformanceCase {
 			},
 		},
 		{
-			name: facts.AWSIAMPrincipalFactKind,
+			name: factsidentity.AWSIAMPrincipalFactKind,
 			build: func() (facts.Envelope, error) {
 				return posture.NewPrincipalEnvelope(principalObservation())
 			},

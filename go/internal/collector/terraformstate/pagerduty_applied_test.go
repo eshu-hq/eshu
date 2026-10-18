@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
 )
 
 func TestParserEmitsAppliedPagerDutyIncidentRoutingFacts(t *testing.T) {
@@ -26,7 +26,7 @@ func TestParserEmitsAppliedPagerDutyIncidentRoutingFacts(t *testing.T) {
 	]}`
 
 	result := parseFixtureFacts(t, state)
-	applied := factsByKind(result, facts.IncidentRoutingAppliedPagerDutyResourceFactKind)
+	applied := factsByKind(result, factsincident.IncidentRoutingAppliedPagerDutyResourceFactKind)
 	if got, want := len(applied), 6; got != want {
 		t.Fatalf("applied PagerDuty fact count = %d, want %d: %#v", got, want, applied)
 	}
@@ -65,7 +65,7 @@ func TestParserEmitsAppliedPagerDutyIncidentRoutingFacts(t *testing.T) {
 		t.Fatalf("integration_key leaked in payload: %#v", integration.Payload)
 	}
 
-	warnings := factsByKind(result, facts.IncidentRoutingCoverageWarningFactKind)
+	warnings := factsByKind(result, factsincident.IncidentRoutingCoverageWarningFactKind)
 	warning := factByPayloadValue(t, warnings, "resource_type", "pagerduty_user")
 	if got, want := warning.Payload["outcome"], "unsupported"; got != want {
 		t.Fatalf("warning outcome = %#v, want %#v", got, want)
@@ -91,7 +91,7 @@ func TestParserEmitsAppliedPagerDutyAlertRouteFacts(t *testing.T) {
 	]}`
 
 	result := parseFixtureFacts(t, state)
-	routes := factsByKind(result, facts.IncidentRoutingAppliedAlertRouteFactKind)
+	routes := factsByKind(result, factsincident.IncidentRoutingAppliedAlertRouteFactKind)
 	if got, want := len(routes), 6; got != want {
 		t.Fatalf("applied alert-route fact count = %d, want %d: %#v", got, want, routes)
 	}

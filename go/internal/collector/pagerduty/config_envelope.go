@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
@@ -79,10 +80,10 @@ func NewObservedPagerDutyServiceEnvelope(ctx EnvelopeContext, service ConfigServ
 	}); err != nil {
 		return facts.Envelope{}, err
 	}
-	stableKey := providerStableKey(facts.IncidentRoutingObservedPagerDutyServiceFactKind, ctx.ScopeID, service.ID)
+	stableKey := providerStableKey(factsincident.IncidentRoutingObservedPagerDutyServiceFactKind, ctx.ScopeID, service.ID)
 	return incidentRoutingEnvelope(
 		ctx,
-		facts.IncidentRoutingObservedPagerDutyServiceFactKind,
+		factsincident.IncidentRoutingObservedPagerDutyServiceFactKind,
 		stableKey,
 		payload,
 		sourceURI,
@@ -162,13 +163,13 @@ func NewObservedPagerDutyIntegrationEnvelope(
 		return facts.Envelope{}, err
 	}
 	stableKey := providerStableKey(
-		facts.IncidentRoutingObservedPagerDutyIntegrationFactKind,
+		factsincident.IncidentRoutingObservedPagerDutyIntegrationFactKind,
 		ctx.ScopeID,
 		firstNonBlank(integration.ServiceID, "service")+":"+integration.ID,
 	)
 	return incidentRoutingEnvelope(
 		ctx,
-		facts.IncidentRoutingObservedPagerDutyIntegrationFactKind,
+		factsincident.IncidentRoutingObservedPagerDutyIntegrationFactKind,
 		stableKey,
 		payload,
 		sourceURI,
@@ -212,7 +213,7 @@ func NewPagerDutyConfigCoverageWarningEnvelope(ctx EnvelopeContext, warning Conf
 	}); err != nil {
 		return facts.Envelope{}, err
 	}
-	stableKey := facts.StableID(facts.IncidentRoutingCoverageWarningFactKind, map[string]any{
+	stableKey := facts.StableID(factsincident.IncidentRoutingCoverageWarningFactKind, map[string]any{
 		"provider":       ProviderPagerDuty,
 		"scope_id":       ctx.ScopeID,
 		"resource_class": resourceClass,
@@ -221,7 +222,7 @@ func NewPagerDutyConfigCoverageWarningEnvelope(ctx EnvelopeContext, warning Conf
 	})
 	return incidentRoutingEnvelope(
 		ctx,
-		facts.IncidentRoutingCoverageWarningFactKind,
+		factsincident.IncidentRoutingCoverageWarningFactKind,
 		stableKey,
 		payload,
 		ctx.SourceURI,
@@ -237,7 +238,7 @@ func incidentRoutingEnvelope(
 	sourceURI string,
 	recordID string,
 ) facts.Envelope {
-	version, _ := facts.IncidentRoutingSchemaVersion(kind)
+	version, _ := factsincident.IncidentRoutingSchemaVersion(kind)
 	return facts.Envelope{
 		FactID: facts.StableID("IncidentRoutingFact", map[string]any{
 			"fact_kind":     kind,

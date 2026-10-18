@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -99,11 +99,11 @@ func (h *SemanticEvidenceHandler) profile() QueryProfile {
 }
 
 func (h *SemanticEvidenceHandler) listDocumentationObservations(w http.ResponseWriter, r *http.Request) {
-	h.listSemanticEvidence(w, r, semanticDocumentationObservationsCapability, facts.SemanticDocumentationObservationFactKind, "observations")
+	h.listSemanticEvidence(w, r, semanticDocumentationObservationsCapability, semantic.SemanticDocumentationObservationFactKind, "observations")
 }
 
 func (h *SemanticEvidenceHandler) listCodeHints(w http.ResponseWriter, r *http.Request) {
-	h.listSemanticEvidence(w, r, semanticCodeHintsCapability, facts.SemanticCodeHintFactKind, "code_hints")
+	h.listSemanticEvidence(w, r, semanticCodeHintsCapability, semantic.SemanticCodeHintFactKind, "code_hints")
 }
 
 func (h *SemanticEvidenceHandler) listSemanticEvidence(
@@ -114,7 +114,7 @@ func (h *SemanticEvidenceHandler) listSemanticEvidence(
 	responseKey string,
 ) {
 	route := "/api/v0/semantic/documentation-observations"
-	if factKind == facts.SemanticCodeHintFactKind {
+	if factKind == semantic.SemanticCodeHintFactKind {
 		route = "/api/v0/semantic/code-hints"
 	}
 	r, span := startQueryHandlerSpan(r, telemetry.SpanQuerySemanticEvidence, "GET "+route, capability)

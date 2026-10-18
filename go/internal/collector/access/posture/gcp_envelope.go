@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 )
 
 // NewGCPPrincipalEnvelope builds the durable gcp_iam_principal source fact for
@@ -30,7 +31,7 @@ func NewGCPPrincipalEnvelope(observation GCPPrincipalObservation) (facts.Envelop
 	// can be granted at project, folder, and organization level, so folding the
 	// observation project into the key would split one identity into several
 	// non-idempotent principal facts. project_id stays descriptive payload only.
-	stableKey := facts.StableID(facts.GCPIAMPrincipalFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.GCPIAMPrincipalFactKind, map[string]any{
 		"principal_fingerprint": fingerprint,
 		"principal_type":        PrincipalTypeGCPServiceAccount,
 	})
@@ -40,7 +41,7 @@ func NewGCPPrincipalEnvelope(observation GCPPrincipalObservation) (facts.Envelop
 	payload["member_class"] = memberClass
 	return newEnvelope(
 		gcpToEnvelopeContext(observation.Context),
-		facts.GCPIAMPrincipalFactKind,
+		factsidentity.GCPIAMPrincipalFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, fingerprint),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),
@@ -77,7 +78,7 @@ func NewGCPPermissionPolicyEnvelope(observation GCPPermissionPolicyObservation) 
 	// The CAI resource_full_name already encodes the resource's project, so it is
 	// not folded into the key separately; identity is (principal, role, resource,
 	// condition).
-	stableKey := facts.StableID(facts.GCPIAMPermissionPolicyFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.GCPIAMPermissionPolicyFactKind, map[string]any{
 		"principal_fingerprint": fingerprint,
 		"role":                  role,
 		"resource_full_name":    resourceName,
@@ -97,7 +98,7 @@ func NewGCPPermissionPolicyEnvelope(observation GCPPermissionPolicyObservation) 
 	}
 	return newEnvelope(
 		gcpToEnvelopeContext(observation.Context),
-		facts.GCPIAMPermissionPolicyFactKind,
+		factsidentity.GCPIAMPermissionPolicyFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, fingerprint+"|"+role+"|"+resourceName),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),

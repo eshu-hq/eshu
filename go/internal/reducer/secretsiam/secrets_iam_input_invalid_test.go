@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 )
 
 // TestBuildSecretsIAMTrustChainReadModelsQuarantinesVaultAuthRoleMissingRoleJoinKey
@@ -47,10 +48,10 @@ func TestBuildSecretsIAMTrustChainReadModelsQuarantinesVaultAuthRoleMissingRoleJ
 	// required field.
 	malformedVaultRole := facts.Envelope{
 		FactID:        "malformed-vault-auth-role",
-		FactKind:      facts.VaultAuthRoleFactKind,
+		FactKind:      factsidentity.VaultAuthRoleFactKind,
 		ScopeID:       "vault-scope",
 		GenerationID:  "vault-gen",
-		SchemaVersion: facts.SecretsIAMSchemaVersionV1,
+		SchemaVersion: factsidentity.SecretsIAMSchemaVersionV1,
 		Payload: map[string]any{
 			// "role_join_key" intentionally absent.
 			"provider":                        "vault",
@@ -66,30 +67,30 @@ func TestBuildSecretsIAMTrustChainReadModelsQuarantinesVaultAuthRoleMissingRoleJ
 	// the isolation half of the contract: valid facts are unaffected by a
 	// poisoned sibling.
 	validEnvelopes := []facts.Envelope{
-		secretsIAMReducerFact("sa", facts.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("sa", factsidentity.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 		}),
-		secretsIAMReducerFact("workload", facts.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("workload", factsidentity.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 			"workload_object_id":       "workload-stable-id",
 			"workload_kind":            "deployments",
 		}),
-		secretsIAMReducerFact("irsa", facts.EKSIRSAAnnotationFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("irsa", factsidentity.EKSIRSAAnnotationFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                         "kubernetes",
 			"service_account_join_key":         serviceAccountKey,
 			"role_arn":                         roleARN,
 			"web_identity_subject_fingerprint": subjectFingerprint,
 		}),
-		secretsIAMReducerFact("principal", facts.AWSIAMPrincipalFactKind, "aws-scope", "aws-gen", map[string]any{
+		secretsIAMReducerFact("principal", factsidentity.AWSIAMPrincipalFactKind, "aws-scope", "aws-gen", map[string]any{
 			"provider":       "aws_iam",
 			"principal_arn":  roleARN,
 			"principal_type": "aws_iam_role",
 			"account_id":     "123456789012",
 			"region":         "us-east-1",
 		}),
-		secretsIAMReducerFact("trust", facts.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
+		secretsIAMReducerFact("trust", factsidentity.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
 			"provider":                          "aws_iam",
 			"role_arn":                          roleARN,
 			"effect":                            "Allow",
@@ -97,7 +98,7 @@ func TestBuildSecretsIAMTrustChainReadModelsQuarantinesVaultAuthRoleMissingRoleJ
 			"web_identity_subject_fingerprints": []string{subjectFingerprint},
 			"web_identity_subject_wildcard":     false,
 		}),
-		secretsIAMReducerFact("vault-role-valid", facts.VaultAuthRoleFactKind, "vault-scope", "vault-gen", map[string]any{
+		secretsIAMReducerFact("vault-role-valid", factsidentity.VaultAuthRoleFactKind, "vault-scope", "vault-gen", map[string]any{
 			"provider":                        "vault",
 			"auth_method":                     "kubernetes",
 			"role_join_key":                   "sha256:vault-role-valid",
@@ -105,7 +106,7 @@ func TestBuildSecretsIAMTrustChainReadModelsQuarantinesVaultAuthRoleMissingRoleJ
 			"bound_service_account_join_keys": []string{serviceAccountKey},
 			"token_policy_join_keys":          []string{policyKey},
 		}),
-		secretsIAMReducerFact("vault-policy", facts.VaultACLPolicyFactKind, "vault-scope", "vault-gen", map[string]any{
+		secretsIAMReducerFact("vault-policy", factsidentity.VaultACLPolicyFactKind, "vault-scope", "vault-gen", map[string]any{
 			"provider":        "vault",
 			"policy_join_key": policyKey,
 			"rules": []map[string]any{{
@@ -113,7 +114,7 @@ func TestBuildSecretsIAMTrustChainReadModelsQuarantinesVaultAuthRoleMissingRoleJ
 				"capabilities":     []string{"read"},
 			}},
 		}),
-		secretsIAMReducerFact("vault-kv", facts.VaultKVMetadataFactKind, "vault-scope", "vault-gen", map[string]any{
+		secretsIAMReducerFact("vault-kv", factsidentity.VaultKVMetadataFactKind, "vault-scope", "vault-gen", map[string]any{
 			"provider":            "vault",
 			"mount_join_key":      mountKey,
 			"kv_path_fingerprint": kvPathFingerprint,
@@ -178,10 +179,10 @@ func TestBuildSecretsIAMTrustChainReadModelsQuarantinesK8sServiceAccountMissingJ
 	// ABSENT.
 	malformedServiceAccount := facts.Envelope{
 		FactID:        "malformed-k8s-service-account",
-		FactKind:      facts.KubernetesServiceAccountFactKind,
+		FactKind:      factsidentity.KubernetesServiceAccountFactKind,
 		ScopeID:       "k8s-scope",
 		GenerationID:  "k8s-gen",
-		SchemaVersion: facts.SecretsIAMSchemaVersionV1,
+		SchemaVersion: factsidentity.SecretsIAMSchemaVersionV1,
 		Payload: map[string]any{
 			// "service_account_join_key" intentionally absent.
 			"provider": "kubernetes",
@@ -189,30 +190,30 @@ func TestBuildSecretsIAMTrustChainReadModelsQuarantinesK8sServiceAccountMissingJ
 	}
 
 	validEnvelopes := []facts.Envelope{
-		secretsIAMReducerFact("sa-valid", facts.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("sa-valid", factsidentity.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 		}),
-		secretsIAMReducerFact("workload", facts.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("workload", factsidentity.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 			"workload_object_id":       "workload-stable-id",
 			"workload_kind":            "deployments",
 		}),
-		secretsIAMReducerFact("irsa", facts.EKSIRSAAnnotationFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("irsa", factsidentity.EKSIRSAAnnotationFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                         "kubernetes",
 			"service_account_join_key":         serviceAccountKey,
 			"role_arn":                         roleARN,
 			"web_identity_subject_fingerprint": subjectFingerprint,
 		}),
-		secretsIAMReducerFact("principal", facts.AWSIAMPrincipalFactKind, "aws-scope", "aws-gen", map[string]any{
+		secretsIAMReducerFact("principal", factsidentity.AWSIAMPrincipalFactKind, "aws-scope", "aws-gen", map[string]any{
 			"provider":       "aws_iam",
 			"principal_arn":  roleARN,
 			"principal_type": "aws_iam_role",
 			"account_id":     "123456789012",
 			"region":         "us-east-1",
 		}),
-		secretsIAMReducerFact("trust", facts.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
+		secretsIAMReducerFact("trust", factsidentity.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
 			"provider":                          "aws_iam",
 			"role_arn":                          roleARN,
 			"effect":                            "Allow",
@@ -220,7 +221,7 @@ func TestBuildSecretsIAMTrustChainReadModelsQuarantinesK8sServiceAccountMissingJ
 			"web_identity_subject_fingerprints": []string{subjectFingerprint},
 			"web_identity_subject_wildcard":     false,
 		}),
-		secretsIAMReducerFact("vault-role", facts.VaultAuthRoleFactKind, "vault-scope", "vault-gen", map[string]any{
+		secretsIAMReducerFact("vault-role", factsidentity.VaultAuthRoleFactKind, "vault-scope", "vault-gen", map[string]any{
 			"provider":                        "vault",
 			"auth_method":                     "kubernetes",
 			"role_join_key":                   "sha256:vault-role",
@@ -228,7 +229,7 @@ func TestBuildSecretsIAMTrustChainReadModelsQuarantinesK8sServiceAccountMissingJ
 			"bound_service_account_join_keys": []string{serviceAccountKey},
 			"token_policy_join_keys":          []string{policyKey},
 		}),
-		secretsIAMReducerFact("vault-policy", facts.VaultACLPolicyFactKind, "vault-scope", "vault-gen", map[string]any{
+		secretsIAMReducerFact("vault-policy", factsidentity.VaultACLPolicyFactKind, "vault-scope", "vault-gen", map[string]any{
 			"provider":        "vault",
 			"policy_join_key": policyKey,
 			"rules": []map[string]any{{
@@ -236,7 +237,7 @@ func TestBuildSecretsIAMTrustChainReadModelsQuarantinesK8sServiceAccountMissingJ
 				"capabilities":     []string{"read"},
 			}},
 		}),
-		secretsIAMReducerFact("vault-kv", facts.VaultKVMetadataFactKind, "vault-scope", "vault-gen", map[string]any{
+		secretsIAMReducerFact("vault-kv", factsidentity.VaultKVMetadataFactKind, "vault-scope", "vault-gen", map[string]any{
 			"provider":            "vault",
 			"mount_join_key":      mountKey,
 			"kv_path_fingerprint": kvPathFingerprint,
@@ -296,10 +297,10 @@ func TestBuildSecretsIAMTrustChainReadModelsQuarantinesGCPBindingMissingEmailDig
 	// gcp_service_account_email_digest is ABSENT.
 	malformedBinding := facts.Envelope{
 		FactID:        "malformed-gcp-binding",
-		FactKind:      facts.KubernetesGCPWorkloadIdentityBindingFactKind,
+		FactKind:      factsidentity.KubernetesGCPWorkloadIdentityBindingFactKind,
 		ScopeID:       "k8s-scope",
 		GenerationID:  "k8s-gen",
-		SchemaVersion: facts.SecretsIAMSchemaVersionV1,
+		SchemaVersion: factsidentity.SecretsIAMSchemaVersionV1,
 		Payload: map[string]any{
 			// "gcp_service_account_email_digest" intentionally absent.
 			"provider":                 "kubernetes",
@@ -309,24 +310,24 @@ func TestBuildSecretsIAMTrustChainReadModelsQuarantinesGCPBindingMissingEmailDig
 	}
 
 	validEnvelopes := []facts.Envelope{
-		secretsIAMReducerFact("sa", facts.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("sa", factsidentity.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 		}),
-		secretsIAMReducerFact("workload", facts.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("workload", factsidentity.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 			"workload_object_id":       "workload-stable-id",
 			"workload_kind":            "deployments",
 		}),
-		secretsIAMReducerFact("k8s-gcp-binding-valid", facts.KubernetesGCPWorkloadIdentityBindingFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("k8s-gcp-binding-valid", factsidentity.KubernetesGCPWorkloadIdentityBindingFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                                  "kubernetes",
 			"service_account_join_key":                  serviceAccountKey,
 			"gcp_service_account_email_digest":          targetEmailDigest,
 			"gcp_workload_identity_subject_fingerprint": subjectFingerprint,
 		}),
 		gcpPrincipalFact(targetFingerprint),
-		secretsIAMReducerFact("gcp-trust", facts.GCPIAMTrustPolicyFactKind, "gcp-scope", "gcp-gen", map[string]any{
+		secretsIAMReducerFact("gcp-trust", factsidentity.GCPIAMTrustPolicyFactKind, "gcp-scope", "gcp-gen", map[string]any{
 			"provider":                                  "gcp_iam",
 			"target_principal_fingerprint":              targetFingerprint,
 			"target_service_account_email_digest":       targetEmailDigest,

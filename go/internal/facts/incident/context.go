@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package facts
+package incident
 
 import (
 	"slices"
@@ -57,7 +57,7 @@ func IncidentContextSchemaVersion(factKind string) (string, bool) {
 // the registry, shards, and catalog from it.
 var IncidentContextFamilyDeclaration = contract.Declare(contract.Family{
 	ID:                     "incident_context",
-	FactDir:                "go/internal/facts",
+	FactDir:                "go/internal/facts/incident",
 	OwnerRepository:        "eshu-hq/eshu",
 	LifecycleOwner:         "go/internal/facts",
 	SchemaVersion:          "1.0.0",

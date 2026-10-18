@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 )
 
 func TestGCPFactKindRegistry(t *testing.T) {
@@ -117,19 +118,19 @@ func gcpFactConsumptionDecisions() []gcpFactConsumptionDecision {
 			Rationale: "raw IAM binding observations stay policy provenance while gcp_iam_principal, gcp_iam_permission_policy, and gcp_iam_trust_policy carry admitted correlation input",
 		},
 		{
-			FactKind:  facts.GCPIAMPrincipalFactKind,
+			FactKind:  factsidentity.GCPIAMPrincipalFactKind,
 			Decision:  gcpFactDecisionConsumed,
 			Consumer:  "secrets_iam_trust_chain reducer",
 			Rationale: "service-account principal evidence joins GCP permission and trust facts through a redaction-safe member fingerprint",
 		},
 		{
-			FactKind:  facts.GCPIAMTrustPolicyFactKind,
+			FactKind:  factsidentity.GCPIAMTrustPolicyFactKind,
 			Decision:  gcpFactDecisionConsumed,
 			Consumer:  "secrets_iam_trust_chain reducer",
 			Rationale: "service-account impersonation trust evidence is admitted only when downstream GCP or Kubernetes anchors prove the chain",
 		},
 		{
-			FactKind:  facts.GCPIAMPermissionPolicyFactKind,
+			FactKind:  factsidentity.GCPIAMPermissionPolicyFactKind,
 			Decision:  gcpFactDecisionConsumed,
 			Consumer:  "secrets_iam_trust_chain reducer",
 			Rationale: "permission grants provide the role and resource capability side of admitted GCP secrets/IAM trust paths",
@@ -192,7 +193,7 @@ func TestGCPFactKindsHaveConsumptionDecisions(t *testing.T) {
 
 func gcpFactKindsRequiringConsumptionDecision() []string {
 	kinds := cloud.GCPFactKinds()
-	for _, kind := range facts.SecretsIAMFactKinds() {
+	for _, kind := range factsidentity.SecretsIAMFactKinds() {
 		if strings.HasPrefix(kind, "gcp_") && !slices.Contains(kinds, kind) {
 			kinds = append(kinds, kind)
 		}

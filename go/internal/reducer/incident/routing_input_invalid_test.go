@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
@@ -123,7 +124,7 @@ func TestIncidentRoutingMaterializationQuarantinesMissingRequiredField(t *testin
 	raw.Facts = append(raw.Facts, facts.Envelope{
 		FactID:        "applied-broken-1",
 		ScopeID:       "scope-pagerduty",
-		FactKind:      facts.IncidentRoutingAppliedPagerDutyResourceFactKind,
+		FactKind:      factsincident.IncidentRoutingAppliedPagerDutyResourceFactKind,
 		SchemaVersion: "1.0.0",
 		Payload:       malformedApplied,
 	})
@@ -162,7 +163,7 @@ func TestIncidentRoutingMissingRequiredFieldDecodeError(t *testing.T) {
 	t.Parallel()
 
 	env := facts.Envelope{
-		FactKind:      facts.IncidentRoutingAppliedPagerDutyResourceFactKind,
+		FactKind:      factsincident.IncidentRoutingAppliedPagerDutyResourceFactKind,
 		SchemaVersion: "1.0.0",
 		Payload: map[string]any{
 			"source_class":            "applied",
@@ -245,10 +246,10 @@ func benchmarkIncidentRoutingRawEvidence(b *testing.B, incidentCount int) Incide
 	for i := 0; i < incidentCount; i++ {
 		envelopes = append(
 			envelopes,
-			facts.Envelope{FactID: "incident", ScopeID: "scope", FactKind: facts.IncidentRecordFactKind, SchemaVersion: "1.0.0", Payload: incidentPayload},
-			facts.Envelope{FactID: "applied", ScopeID: "scope", FactKind: facts.IncidentRoutingAppliedPagerDutyResourceFactKind, SchemaVersion: "1.0.0", Payload: appliedPayload},
-			facts.Envelope{FactID: "observed", ScopeID: "scope", FactKind: facts.IncidentRoutingObservedPagerDutyServiceFactKind, SchemaVersion: "1.0.0", Payload: observedPayload},
-			facts.Envelope{FactID: "warning", ScopeID: "scope", FactKind: facts.IncidentRoutingCoverageWarningFactKind, SchemaVersion: "1.0.0", Payload: warningPayload},
+			facts.Envelope{FactID: "incident", ScopeID: "scope", FactKind: factsincident.IncidentRecordFactKind, SchemaVersion: "1.0.0", Payload: incidentPayload},
+			facts.Envelope{FactID: "applied", ScopeID: "scope", FactKind: factsincident.IncidentRoutingAppliedPagerDutyResourceFactKind, SchemaVersion: "1.0.0", Payload: appliedPayload},
+			facts.Envelope{FactID: "observed", ScopeID: "scope", FactKind: factsincident.IncidentRoutingObservedPagerDutyServiceFactKind, SchemaVersion: "1.0.0", Payload: observedPayload},
+			facts.Envelope{FactID: "warning", ScopeID: "scope", FactKind: factsincident.IncidentRoutingCoverageWarningFactKind, SchemaVersion: "1.0.0", Payload: warningPayload},
 		)
 	}
 	return IncidentRoutingRawEvidence{Facts: envelopes}
@@ -320,8 +321,8 @@ func TestCoverageWarningWithoutResourceClassProjects(t *testing.T) {
 
 	raw := IncidentRoutingRawEvidence{
 		Facts: []facts.Envelope{
-			{FactID: "incident-fact-1", ScopeID: "scope-pagerduty", FactKind: facts.IncidentRecordFactKind, SchemaVersion: "1.0.0", Payload: incidentPayload},
-			{FactID: "warning-fact-1", ScopeID: "scope-pagerduty", FactKind: facts.IncidentRoutingCoverageWarningFactKind, SchemaVersion: "1.0.0", Payload: tfStateWarningPayload},
+			{FactID: "incident-fact-1", ScopeID: "scope-pagerduty", FactKind: factsincident.IncidentRecordFactKind, SchemaVersion: "1.0.0", Payload: incidentPayload},
+			{FactID: "warning-fact-1", ScopeID: "scope-pagerduty", FactKind: factsincident.IncidentRoutingCoverageWarningFactKind, SchemaVersion: "1.0.0", Payload: tfStateWarningPayload},
 		},
 	}
 
@@ -383,8 +384,8 @@ func TestAppliedResourceClassWhitespaceIsTrimmedBeforeServiceFilter(t *testing.T
 
 	raw := IncidentRoutingRawEvidence{
 		Facts: []facts.Envelope{
-			{FactID: "incident-fact-1", ScopeID: "scope-pagerduty", FactKind: facts.IncidentRecordFactKind, SchemaVersion: "1.0.0", Payload: incidentPayload},
-			{FactID: "applied-padded-1", ScopeID: "scope-pagerduty", FactKind: facts.IncidentRoutingAppliedPagerDutyResourceFactKind, SchemaVersion: "1.0.0", Payload: appliedPayload},
+			{FactID: "incident-fact-1", ScopeID: "scope-pagerduty", FactKind: factsincident.IncidentRecordFactKind, SchemaVersion: "1.0.0", Payload: incidentPayload},
+			{FactID: "applied-padded-1", ScopeID: "scope-pagerduty", FactKind: factsincident.IncidentRoutingAppliedPagerDutyResourceFactKind, SchemaVersion: "1.0.0", Payload: appliedPayload},
 		},
 	}
 

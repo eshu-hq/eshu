@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -213,7 +214,7 @@ func (s *ClaimedSource) recordClaimedTelemetry(
 			telemetry.AttrSource(secretsIAMSourceVault),
 			telemetry.AttrFactKind(env.FactKind),
 		))
-		if env.FactKind == facts.SecretsIAMCoverageWarningFactKind {
+		if env.FactKind == factsidentity.SecretsIAMCoverageWarningFactKind {
 			s.instruments.SecretsIAMSourcePartialScope.Add(ctx, 1, metric.WithAttributes(
 				telemetry.AttrSource(secretsIAMSourceVault),
 				telemetry.AttrReason(payloadStringValue(env.Payload, "resource_scope")),

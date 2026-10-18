@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 )
 
 // buildSecretsIAMHandlerBenchmarkCorpus returns a realistic per-scope-
@@ -41,30 +42,30 @@ func buildSecretsIAMHandlerBenchmarkCorpus(count int) []facts.Envelope {
 		kvPathFingerprint := fmt.Sprintf("sha256:kv-%d", i)
 
 		envelopes = append(envelopes,
-			secretsIAMReducerFact(fmt.Sprintf("sa-%d", i), facts.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
+			secretsIAMReducerFact(fmt.Sprintf("sa-%d", i), factsidentity.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
 				"provider":                 "kubernetes",
 				"service_account_join_key": serviceAccountKey,
 			}),
-			secretsIAMReducerFact(fmt.Sprintf("workload-%d", i), facts.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
+			secretsIAMReducerFact(fmt.Sprintf("workload-%d", i), factsidentity.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
 				"provider":                 "kubernetes",
 				"service_account_join_key": serviceAccountKey,
 				"workload_object_id":       fmt.Sprintf("workload-%d", i),
 				"workload_kind":            "deployments",
 			}),
-			secretsIAMReducerFact(fmt.Sprintf("irsa-%d", i), facts.EKSIRSAAnnotationFactKind, "k8s-scope", "k8s-gen", map[string]any{
+			secretsIAMReducerFact(fmt.Sprintf("irsa-%d", i), factsidentity.EKSIRSAAnnotationFactKind, "k8s-scope", "k8s-gen", map[string]any{
 				"provider":                         "kubernetes",
 				"service_account_join_key":         serviceAccountKey,
 				"role_arn":                         roleARN,
 				"web_identity_subject_fingerprint": subjectFingerprint,
 			}),
-			secretsIAMReducerFact(fmt.Sprintf("principal-%d", i), facts.AWSIAMPrincipalFactKind, "aws-scope", "aws-gen", map[string]any{
+			secretsIAMReducerFact(fmt.Sprintf("principal-%d", i), factsidentity.AWSIAMPrincipalFactKind, "aws-scope", "aws-gen", map[string]any{
 				"provider":       "aws_iam",
 				"principal_arn":  roleARN,
 				"principal_type": "aws_iam_role",
 				"account_id":     "123456789012",
 				"region":         "us-east-1",
 			}),
-			secretsIAMReducerFact(fmt.Sprintf("trust-%d", i), facts.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
+			secretsIAMReducerFact(fmt.Sprintf("trust-%d", i), factsidentity.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
 				"provider":                          "aws_iam",
 				"role_arn":                          roleARN,
 				"effect":                            "Allow",
@@ -72,7 +73,7 @@ func buildSecretsIAMHandlerBenchmarkCorpus(count int) []facts.Envelope {
 				"web_identity_subject_fingerprints": []string{subjectFingerprint},
 				"web_identity_subject_wildcard":     false,
 			}),
-			secretsIAMReducerFact(fmt.Sprintf("vault-role-%d", i), facts.VaultAuthRoleFactKind, "vault-scope", "vault-gen", map[string]any{
+			secretsIAMReducerFact(fmt.Sprintf("vault-role-%d", i), factsidentity.VaultAuthRoleFactKind, "vault-scope", "vault-gen", map[string]any{
 				"provider":                        "vault",
 				"auth_method":                     "kubernetes",
 				"role_join_key":                   fmt.Sprintf("sha256:vault-role-%d", i),
@@ -80,7 +81,7 @@ func buildSecretsIAMHandlerBenchmarkCorpus(count int) []facts.Envelope {
 				"bound_service_account_join_keys": []string{serviceAccountKey},
 				"token_policy_join_keys":          []string{policyKey},
 			}),
-			secretsIAMReducerFact(fmt.Sprintf("vault-policy-%d", i), facts.VaultACLPolicyFactKind, "vault-scope", "vault-gen", map[string]any{
+			secretsIAMReducerFact(fmt.Sprintf("vault-policy-%d", i), factsidentity.VaultACLPolicyFactKind, "vault-scope", "vault-gen", map[string]any{
 				"provider":        "vault",
 				"policy_join_key": policyKey,
 				// A multi-rule array: the []VaultACLPolicyRule nested-struct
@@ -101,7 +102,7 @@ func buildSecretsIAMHandlerBenchmarkCorpus(count int) []facts.Envelope {
 					},
 				},
 			}),
-			secretsIAMReducerFact(fmt.Sprintf("vault-kv-%d", i), facts.VaultKVMetadataFactKind, "vault-scope", "vault-gen", map[string]any{
+			secretsIAMReducerFact(fmt.Sprintf("vault-kv-%d", i), factsidentity.VaultKVMetadataFactKind, "vault-scope", "vault-gen", map[string]any{
 				"provider":            "vault",
 				"mount_join_key":      mountKey,
 				"kv_path_fingerprint": kvPathFingerprint,

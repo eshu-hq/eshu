@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -63,7 +63,7 @@ func TestClaimedSourceUsesWorkflowGenerationAndFence(t *testing.T) {
 		t.Fatalf("generation = %+v, want workflow generation %q", gen.Generation, item.GenerationID)
 	}
 	for env := range gen.Facts {
-		if env.FactKind == facts.VaultAuthMountFactKind {
+		if env.FactKind == factsidentity.VaultAuthMountFactKind {
 			if env.FencingToken != item.CurrentFencingToken {
 				t.Fatalf("fact fencing token = %d, want %d", env.FencingToken, item.CurrentFencingToken)
 			}

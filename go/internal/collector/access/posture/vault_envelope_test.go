@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -28,7 +28,7 @@ func TestNewVaultKVMetadataEnvelopeRedactsPathAndCustomMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewVaultKVMetadataEnvelope() error = %v", err)
 	}
-	assertFact(t, env, facts.VaultKVMetadataFactKind)
+	assertFact(t, env, factsidentity.VaultKVMetadataFactKind)
 	assertPayloadString(t, env.Payload, "provider", ProviderVault)
 	if got, _ := env.Payload["path_depth"].(int); got != 3 {
 		t.Fatalf("path_depth = %d, want 3", got)
@@ -123,7 +123,7 @@ func TestNewVaultAuthRoleAndPolicyEnvelopesRedactNamesAndPaths(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewVaultAuthRoleEnvelope() error = %v", err)
 	}
-	assertFact(t, role, facts.VaultAuthRoleFactKind)
+	assertFact(t, role, factsidentity.VaultAuthRoleFactKind)
 	assertPayloadString(t, role.Payload, "auth_method", VaultAuthMethodKubernetes)
 	if payloadContains(role.Payload, "payments-api") ||
 		payloadContains(role.Payload, "checkout-sa") ||
@@ -146,7 +146,7 @@ func TestNewVaultAuthRoleAndPolicyEnvelopesRedactNamesAndPaths(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewVaultACLPolicyEnvelope() error = %v", err)
 	}
-	assertFact(t, policy, facts.VaultACLPolicyFactKind)
+	assertFact(t, policy, factsidentity.VaultACLPolicyFactKind)
 	if payloadContains(policy.Payload, "prod-payments-read") ||
 		payloadContains(policy.Payload, "payments") ||
 		payloadContains(policy.Payload, "api-key") ||
@@ -206,7 +206,7 @@ func TestNewVaultIdentityAndMountEnvelopesRedactIdentifiers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewVaultAuthMountEnvelope() error = %v", err)
 	}
-	assertFact(t, mount, facts.VaultAuthMountFactKind)
+	assertFact(t, mount, factsidentity.VaultAuthMountFactKind)
 	if payloadContains(mount.Payload, "auth/kubernetes") || payloadContains(mount.Payload, "auth_kubernetes_123456") {
 		t.Fatalf("Vault auth mount payload leaked raw mount path or accessor: %#v", mount.Payload)
 	}
@@ -221,7 +221,7 @@ func TestNewVaultIdentityAndMountEnvelopesRedactIdentifiers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewVaultSecretEngineMountEnvelope() error = %v", err)
 	}
-	assertFact(t, engine, facts.VaultSecretEngineMountFactKind)
+	assertFact(t, engine, factsidentity.VaultSecretEngineMountFactKind)
 	assertPayloadString(t, engine.Payload, "mount_type", VaultSecretEngineKVV2)
 	if payloadContains(engine.Payload, "secret/") || payloadContains(engine.Payload, "kv_secret_123456") {
 		t.Fatalf("Vault secret engine payload leaked raw mount path or accessor: %#v", engine.Payload)
@@ -238,7 +238,7 @@ func TestNewVaultIdentityAndMountEnvelopesRedactIdentifiers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewVaultIdentityEntityEnvelope() error = %v", err)
 	}
-	assertFact(t, entity, facts.VaultIdentityEntityFactKind)
+	assertFact(t, entity, factsidentity.VaultIdentityEntityFactKind)
 	if payloadContains(entity.Payload, "entity-payments-prod") || payloadContains(entity.Payload, "payments-prod") {
 		t.Fatalf("Vault identity entity payload leaked raw entity identifier: %#v", entity.Payload)
 	}
@@ -254,7 +254,7 @@ func TestNewVaultIdentityAndMountEnvelopesRedactIdentifiers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewVaultIdentityAliasEnvelope() error = %v", err)
 	}
-	assertFact(t, alias, facts.VaultIdentityAliasFactKind)
+	assertFact(t, alias, factsidentity.VaultIdentityAliasFactKind)
 	if payloadContains(alias.Payload, "checkout-sa") ||
 		payloadContains(alias.Payload, "payments") ||
 		payloadContains(alias.Payload, "alias-checkout-sa") {
@@ -275,7 +275,7 @@ func TestNewVaultCoverageWarningEnvelopeRedactsMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewVaultCoverageWarningEnvelope() error = %v", err)
 	}
-	assertFact(t, env, facts.SecretsIAMCoverageWarningFactKind)
+	assertFact(t, env, factsidentity.SecretsIAMCoverageWarningFactKind)
 	assertPayloadString(t, env.Payload, "source_state", SourceStatePermissionHidden)
 	if _, ok := env.Payload["message"]; ok {
 		t.Fatalf("Vault warning payload stored raw message: %#v", env.Payload)

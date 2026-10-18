@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -89,9 +90,9 @@ func TestClaimedSourceEmitsPagerDutyIncidentLifecycleAndChangeFacts(t *testing.T
 	envs := drainFacts(collected.Facts)
 	counts := factKindCounts(envs)
 	wantCounts := map[string]int{
-		facts.IncidentRecordFactKind:         2,
-		facts.IncidentLifecycleEventFactKind: 1,
-		facts.ChangeRecordFactKind:           1,
+		factsincident.IncidentRecordFactKind:         2,
+		factsincident.IncidentLifecycleEventFactKind: 1,
+		factsincident.ChangeRecordFactKind:           1,
 	}
 	for kind, want := range wantCounts {
 		if got := counts[kind]; got != want {
@@ -151,17 +152,17 @@ func TestClaimedSourceEmitsCoverageWarningForDeniedRelatedChangeEvents(t *testin
 	}
 	envs := drainFacts(collected.Facts)
 	counts := factKindCounts(envs)
-	if got, want := counts[facts.IncidentRecordFactKind], 1; got != want {
+	if got, want := counts[factsincident.IncidentRecordFactKind], 1; got != want {
 		t.Fatalf("incident facts = %d, want %d; counts %#v", got, want, counts)
 	}
-	if got, want := counts[facts.IncidentLifecycleEventFactKind], 1; got != want {
+	if got, want := counts[factsincident.IncidentLifecycleEventFactKind], 1; got != want {
 		t.Fatalf("lifecycle facts = %d, want %d; counts %#v", got, want, counts)
 	}
-	if got, want := counts[facts.IncidentRoutingCoverageWarningFactKind], 1; got != want {
+	if got, want := counts[factsincident.IncidentRoutingCoverageWarningFactKind], 1; got != want {
 		t.Fatalf("coverage warning facts = %d, want %d; counts %#v", got, want, counts)
 	}
 	for _, env := range envs {
-		if env.FactKind != facts.IncidentRoutingCoverageWarningFactKind {
+		if env.FactKind != factsincident.IncidentRoutingCoverageWarningFactKind {
 			continue
 		}
 		if got, want := env.Payload["resource_class"], ConfigResourceClassRelatedChangeEvent; got != want {

@@ -16,6 +16,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/mcp"
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -233,12 +236,12 @@ func collectorFactKinds() map[string][]string {
 			cloud.RDSPostureFactKinds(),
 			cloud.S3BucketPostureFactKinds(),
 			cloud.S3ExternalPrincipalGrantFactKinds(),
-			filterFactKinds(facts.SecretsIAMFactKinds(), "aws_", "eks_"),
+			filterFactKinds(factsidentity.SecretsIAMFactKinds(), "aws_", "eks_"),
 		),
 		string(scope.CollectorAzure): cloud.AzureFactKinds(),
 		string(scope.CollectorGCP): appendFactKinds(
 			cloud.GCPFactKinds(),
-			filterFactKinds(facts.SecretsIAMFactKinds(), "gcp_"),
+			filterFactKinds(factsidentity.SecretsIAMFactKinds(), "gcp_"),
 		),
 		string(scope.CollectorTerraformState):            cloud.TerraformStateFactKinds(),
 		string(scope.CollectorDocumentation):             docs.FactKinds(),
@@ -249,17 +252,17 @@ func collectorFactKinds() map[string][]string {
 		string(scope.CollectorSecurityAlert):             facts.SecurityAlertFactKinds(),
 		string(scope.CollectorCICDRun):                   facts.CICDRunFactKinds(),
 		string(scope.CollectorPagerDuty): appendFactKinds(
-			facts.IncidentContextFactKinds(),
-			facts.IncidentRoutingFactKinds(),
+			factsincident.IncidentContextFactKinds(),
+			factsincident.IncidentRoutingFactKinds(),
 		),
 		string(scope.CollectorJira):               facts.WorkItemFactKinds(),
 		string(scope.CollectorScannerWorker):      facts.ScannerWorkerFactKinds(),
-		string(scope.CollectorSemanticExtraction): facts.SemanticFactKinds(),
+		string(scope.CollectorSemanticExtraction): semantic.SemanticFactKinds(),
 		string(scope.CollectorKubernetesLive): appendFactKinds(
 			cloud.KubernetesLiveFactKinds(),
-			filterFactKinds(facts.SecretsIAMFactKinds(), "k8s_", "eks_"),
+			filterFactKinds(factsidentity.SecretsIAMFactKinds(), "k8s_", "eks_"),
 		),
-		string(scope.CollectorVaultLive):       filterFactKinds(facts.SecretsIAMFactKinds(), "vault_", "secrets_iam_"),
+		string(scope.CollectorVaultLive):       filterFactKinds(factsidentity.SecretsIAMFactKinds(), "vault_", "secrets_iam_"),
 		string(scope.CollectorPrometheusMimir): facts.ObservabilityFactKinds(),
 		string(scope.CollectorTempo):           facts.ObservabilityFactKinds(),
 		string(scope.CollectorGrafana):         facts.ObservabilityFactKinds(),

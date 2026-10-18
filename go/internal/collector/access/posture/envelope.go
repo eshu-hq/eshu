@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	secretsiamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/secretsiam/v1"
 )
 
@@ -26,7 +27,7 @@ func NewPrincipalEnvelope(observation PrincipalObservation) (facts.Envelope, err
 	if principalType == "" {
 		return facts.Envelope{}, fmt.Errorf("secrets iam principal observation requires principal_type")
 	}
-	stableKey := facts.StableID(facts.AWSIAMPrincipalFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.AWSIAMPrincipalFactKind, map[string]any{
 		"account_id":     observation.Context.AccountID,
 		"principal_arn":  principalARN,
 		"principal_type": principalType,
@@ -38,7 +39,7 @@ func NewPrincipalEnvelope(observation PrincipalObservation) (facts.Envelope, err
 	}
 	return newEnvelope(
 		observation.Context,
-		facts.AWSIAMPrincipalFactKind,
+		factsidentity.AWSIAMPrincipalFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, principalARN),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),
@@ -77,7 +78,7 @@ func NewTrustPolicyEnvelope(observation TrustPolicyObservation) (facts.Envelope,
 		"web_identity_subjects": strings.Join(webIdentitySubjects, ","),
 	}
 	addConditionSummaryIdentity(stableIdentity, conditionKeys, conditionOperators)
-	stableKey := facts.StableID(facts.AWSIAMTrustPolicyFactKind, stableIdentity)
+	stableKey := facts.StableID(factsidentity.AWSIAMTrustPolicyFactKind, stableIdentity)
 	payload, err := trustPolicyPayload(
 		observation.Context,
 		roleARN,
@@ -95,7 +96,7 @@ func NewTrustPolicyEnvelope(observation TrustPolicyObservation) (facts.Envelope,
 	}
 	return newEnvelope(
 		observation.Context,
-		facts.AWSIAMTrustPolicyFactKind,
+		factsidentity.AWSIAMTrustPolicyFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, trustPolicySourceID(roleARN, statementSID, effect, actions)),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),
@@ -147,7 +148,7 @@ func NewPermissionPolicyEnvelope(observation PermissionPolicyObservation) (facts
 		"statement_sid": statementSID,
 	}
 	addConditionSummaryIdentity(stableIdentity, conditionKeys, conditionOperators)
-	stableKey := facts.StableID(facts.AWSIAMPermissionPolicyFactKind, stableIdentity)
+	stableKey := facts.StableID(factsidentity.AWSIAMPermissionPolicyFactKind, stableIdentity)
 	payload, err := permissionPolicyPayload(
 		observation.Context,
 		observation,
@@ -169,7 +170,7 @@ func NewPermissionPolicyEnvelope(observation PermissionPolicyObservation) (facts
 	}
 	return newEnvelope(
 		observation.Context,
-		facts.AWSIAMPermissionPolicyFactKind,
+		factsidentity.AWSIAMPermissionPolicyFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, permissionPolicySourceID(principalARN, policySource, policyARN, policyName, statementSID, effect, actions)),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),
@@ -189,7 +190,7 @@ func NewPolicyAttachmentEnvelope(observation PolicyAttachmentObservation) (facts
 		return facts.Envelope{}, fmt.Errorf("secrets iam policy attachment observation requires principal_arn and policy_arn")
 	}
 	policySource := firstNonBlank(observation.PolicySource, PolicySourceAttachedManaged)
-	stableKey := facts.StableID(facts.AWSIAMPolicyAttachmentFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.AWSIAMPolicyAttachmentFactKind, map[string]any{
 		"account_id":    observation.Context.AccountID,
 		"policy_arn":    policyARN,
 		"policy_source": policySource,
@@ -202,7 +203,7 @@ func NewPolicyAttachmentEnvelope(observation PolicyAttachmentObservation) (facts
 	}
 	return newEnvelope(
 		observation.Context,
-		facts.AWSIAMPolicyAttachmentFactKind,
+		factsidentity.AWSIAMPolicyAttachmentFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, principalARN+"#attachment#"+policyARN),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),
@@ -222,7 +223,7 @@ func NewPermissionBoundaryEnvelope(observation PermissionBoundaryObservation) (f
 	if principalARN == "" || boundaryPolicyARN == "" {
 		return facts.Envelope{}, fmt.Errorf("secrets iam permission boundary observation requires principal_arn and boundary_policy_arn")
 	}
-	stableKey := facts.StableID(facts.AWSIAMPermissionBoundaryFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.AWSIAMPermissionBoundaryFactKind, map[string]any{
 		"account_id":          observation.Context.AccountID,
 		"boundary_policy_arn": boundaryPolicyARN,
 		"principal_arn":       principalARN,
@@ -234,7 +235,7 @@ func NewPermissionBoundaryEnvelope(observation PermissionBoundaryObservation) (f
 	}
 	return newEnvelope(
 		observation.Context,
-		facts.AWSIAMPermissionBoundaryFactKind,
+		factsidentity.AWSIAMPermissionBoundaryFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, principalARN+"#boundary#"+boundaryPolicyARN),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),
@@ -253,7 +254,7 @@ func NewInstanceProfileEnvelope(observation InstanceProfileObservation) (facts.E
 		return facts.Envelope{}, fmt.Errorf("secrets iam instance profile observation requires profile_arn")
 	}
 	roleARNs := normalizePatternList(observation.RoleARNs)
-	stableKey := facts.StableID(facts.AWSIAMInstanceProfileFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.AWSIAMInstanceProfileFactKind, map[string]any{
 		"account_id":  observation.Context.AccountID,
 		"profile_arn": profileARN,
 		"region":      observation.Context.Region,
@@ -264,7 +265,7 @@ func NewInstanceProfileEnvelope(observation InstanceProfileObservation) (facts.E
 	}
 	return newEnvelope(
 		observation.Context,
-		facts.AWSIAMInstanceProfileFactKind,
+		factsidentity.AWSIAMInstanceProfileFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, profileARN),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),
@@ -284,7 +285,7 @@ func NewAccessAnalyzerFindingEnvelope(observation AccessAnalyzerFindingObservati
 		return facts.Envelope{}, fmt.Errorf("secrets iam access analyzer finding observation requires finding_id or resource_arn")
 	}
 	conditionKeys := normalizeKeyList(observation.ConditionKeys)
-	stableKey := facts.StableID(facts.AWSIAMAccessAnalyzerFindingFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.AWSIAMAccessAnalyzerFindingFactKind, map[string]any{
 		"account_id":   observation.Context.AccountID,
 		"analyzer_arn": strings.TrimSpace(observation.AnalyzerARN),
 		"finding_id":   findingID,
@@ -297,7 +298,7 @@ func NewAccessAnalyzerFindingEnvelope(observation AccessAnalyzerFindingObservati
 	}
 	return newEnvelope(
 		observation.Context,
-		facts.AWSIAMAccessAnalyzerFindingFactKind,
+		factsidentity.AWSIAMAccessAnalyzerFindingFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, firstNonBlank(findingID, resourceARN)),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),
@@ -317,7 +318,7 @@ func NewCoverageWarningEnvelope(observation CoverageWarningObservation) (facts.E
 	if warningKind == "" || sourceState == "" {
 		return facts.Envelope{}, fmt.Errorf("secrets iam coverage warning observation requires warning_kind and source_state")
 	}
-	stableKey := facts.StableID(facts.SecretsIAMCoverageWarningFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.SecretsIAMCoverageWarningFactKind, map[string]any{
 		"account_id":   observation.Context.AccountID,
 		"generation":   observation.Context.GenerationID,
 		"region":       observation.Context.Region,
@@ -330,7 +331,7 @@ func NewCoverageWarningEnvelope(observation CoverageWarningObservation) (facts.E
 	}
 	return newEnvelope(
 		observation.Context,
-		facts.SecretsIAMCoverageWarningFactKind,
+		factsidentity.SecretsIAMCoverageWarningFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, warningKind),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),
@@ -352,7 +353,7 @@ func newEnvelope(
 		GenerationID:     strings.TrimSpace(ctx.GenerationID),
 		FactKind:         factKind,
 		StableFactKey:    stableKey,
-		SchemaVersion:    facts.SecretsIAMSchemaVersionV1,
+		SchemaVersion:    factsidentity.SecretsIAMSchemaVersionV1,
 		CollectorKind:    CollectorKind,
 		FencingToken:     ctx.FencingToken,
 		SourceConfidence: facts.SourceConfidenceReported,

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
@@ -196,9 +197,9 @@ func exactIncidentRoutingRawEvidence(t *testing.T) IncidentRoutingRawEvidence {
 
 	return IncidentRoutingRawEvidence{
 		Facts: []facts.Envelope{
-			{FactID: "incident-fact-1", ScopeID: "scope-pagerduty", FactKind: facts.IncidentRecordFactKind, SchemaVersion: "1.0.0", Payload: incidentPayload},
-			{FactID: "applied-fact-1", ScopeID: "scope-pagerduty", FactKind: facts.IncidentRoutingAppliedPagerDutyResourceFactKind, SchemaVersion: "1.0.0", Payload: appliedPayload},
-			{FactID: "observed-fact-1", ScopeID: "scope-pagerduty", FactKind: facts.IncidentRoutingObservedPagerDutyServiceFactKind, SchemaVersion: "1.0.0", Payload: observedPayload},
+			{FactID: "incident-fact-1", ScopeID: "scope-pagerduty", FactKind: factsincident.IncidentRecordFactKind, SchemaVersion: "1.0.0", Payload: incidentPayload},
+			{FactID: "applied-fact-1", ScopeID: "scope-pagerduty", FactKind: factsincident.IncidentRoutingAppliedPagerDutyResourceFactKind, SchemaVersion: "1.0.0", Payload: appliedPayload},
+			{FactID: "observed-fact-1", ScopeID: "scope-pagerduty", FactKind: factsincident.IncidentRoutingObservedPagerDutyServiceFactKind, SchemaVersion: "1.0.0", Payload: observedPayload},
 		},
 		Declared: []IncidentRoutingDeclaredEvidence{{
 			EntityID:              "declared-entity-1",

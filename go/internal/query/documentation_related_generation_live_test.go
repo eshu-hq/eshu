@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
@@ -52,7 +52,7 @@ func TestDocumentationRelatedReadsBindActiveGenerationLive(t *testing.T) {
 			kinds: []string{
 				docs.EntityMentionFactKind,
 				docs.ClaimCandidateFactKind,
-				facts.SemanticDocumentationObservationFactKind,
+				semantic.SemanticDocumentationObservationFactKind,
 			},
 			build: func(scope, generation string) (string, []any) {
 				return buildDocumentationTargetFactsSQL(documentationFindingFilter{
@@ -62,20 +62,20 @@ func TestDocumentationRelatedReadsBindActiveGenerationLive(t *testing.T) {
 		},
 		{
 			name:  "semantic observations",
-			kinds: []string{facts.SemanticDocumentationObservationFactKind},
+			kinds: []string{semantic.SemanticDocumentationObservationFactKind},
 			build: func(scope, generation string) (string, []any) {
 				return buildSemanticEvidenceSQL(semanticEvidenceFilter{
-					FactKind: facts.SemanticDocumentationObservationFactKind,
+					FactKind: semantic.SemanticDocumentationObservationFactKind,
 					ScopeID:  scope, GenerationID: generation, Limit: 20,
 				})
 			},
 		},
 		{
 			name:  "semantic code hints",
-			kinds: []string{facts.SemanticCodeHintFactKind},
+			kinds: []string{semantic.SemanticCodeHintFactKind},
 			build: func(scope, generation string) (string, []any) {
 				return buildSemanticEvidenceSQL(semanticEvidenceFilter{
-					FactKind: facts.SemanticCodeHintFactKind,
+					FactKind: semantic.SemanticCodeHintFactKind,
 					ScopeID:  scope, GenerationID: generation, Limit: 20,
 				})
 			},
@@ -104,14 +104,14 @@ func TestDocumentationRelatedReadsBindActiveGenerationLive(t *testing.T) {
 			name, generation string
 			want             []string
 		}{
-			{"active", docFactsGenNew, []string{"fact:" + docFactsGenNew + ":" + facts.SemanticCodeHintFactKind}},
+			{"active", docFactsGenNew, []string{"fact:" + docFactsGenNew + ":" + semantic.SemanticCodeHintFactKind}},
 			{"superseded", docFactsGenOld, nil},
 			{"no active", docFactsGenB, nil},
 		} {
 			t.Run(state.name, func(t *testing.T) {
-				factID := "fact:" + state.generation + ":" + facts.SemanticCodeHintFactKind
+				factID := "fact:" + state.generation + ":" + semantic.SemanticCodeHintFactKind
 				query, args := buildSemanticEvidenceSQL(semanticEvidenceFilter{
-					FactKind: facts.SemanticCodeHintFactKind,
+					FactKind: semantic.SemanticCodeHintFactKind,
 					FactID:   factID,
 					Limit:    20,
 				})
@@ -119,9 +119,9 @@ func TestDocumentationRelatedReadsBindActiveGenerationLive(t *testing.T) {
 				assertDocumentationFactIDs(t, got, state.want)
 			})
 		}
-		factID := "fact:" + docFactsGenOld + ":" + facts.SemanticCodeHintFactKind
+		factID := "fact:" + docFactsGenOld + ":" + semantic.SemanticCodeHintFactKind
 		query, args := buildSemanticEvidenceSQL(semanticEvidenceFilter{
-			FactKind: facts.SemanticCodeHintFactKind,
+			FactKind: semantic.SemanticCodeHintFactKind,
 			FactID:   factID, GenerationID: docFactsGenOld, Limit: 20,
 		})
 		assertDocumentationFactIDs(t,
@@ -193,27 +193,27 @@ ORDER BY f.observed_at DESC, f.fact_id DESC`, tc.kinds)
 			findings.Freshness.State != querycontract.FreshnessUnavailable {
 			t.Fatalf("failed scope findings state = %#v", findings)
 		}
-		semantic, err := reader.SemanticEvidence(ctx, semanticEvidenceFilter{
-			FactKind: facts.SemanticCodeHintFactKind,
+		semState, err := reader.SemanticEvidence(ctx, semanticEvidenceFilter{
+			FactKind: semantic.SemanticCodeHintFactKind,
 			ScopeID:  docFactsScopeA, GenerationID: docFactsGenOld,
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(semantic.Rows) != 1 || semantic.Binding.IsActive ||
-			semantic.Freshness.State != querycontract.FreshnessStale {
-			t.Fatalf("historical semantic state = %#v", semantic)
+		if len(semState.Rows) != 1 || semState.Binding.IsActive ||
+			semState.Freshness.State != querycontract.FreshnessStale {
+			t.Fatalf("historical semantic state = %#v", semState)
 		}
-		semantic, err = reader.SemanticEvidence(ctx, semanticEvidenceFilter{
-			FactKind: facts.SemanticCodeHintFactKind, ScopeID: docFactsScopeB,
+		semState, err = reader.SemanticEvidence(ctx, semanticEvidenceFilter{
+			FactKind: semantic.SemanticCodeHintFactKind, ScopeID: docFactsScopeB,
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(semantic.Rows) != 0 ||
-			semantic.EmptyReason != querycontract.DocumentationFactEmptyNoActiveGeneration ||
-			semantic.Freshness.State != querycontract.FreshnessUnavailable {
-			t.Fatalf("failed scope semantic state = %#v", semantic)
+		if len(semState.Rows) != 0 ||
+			semState.EmptyReason != querycontract.DocumentationFactEmptyNoActiveGeneration ||
+			semState.Freshness.State != querycontract.FreshnessUnavailable {
+			t.Fatalf("failed scope semantic state = %#v", semState)
 		}
 	})
 	t.Run("scope labels honor caller grants", func(t *testing.T) {
@@ -228,16 +228,16 @@ ORDER BY f.observed_at DESC, f.fact_id DESC`, tc.kinds)
 			findings.Binding.GenerationID != "" {
 			t.Fatalf("out-of-grant findings disclosed scope state: %#v", findings)
 		}
-		semantic, err := reader.SemanticEvidence(ctx, semanticEvidenceFilter{
-			FactKind: facts.SemanticDocumentationObservationFactKind,
+		semState, err := reader.SemanticEvidence(ctx, semanticEvidenceFilter{
+			FactKind: semantic.SemanticDocumentationObservationFactKind,
 			ScopeID:  docFactsScopeA, AllowedScopeIDs: []string{docFactsScopeD},
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(semantic.Rows) != 0 || semantic.EmptyReason != querycontract.DocumentationFactEmptyScopeNotFound ||
-			semantic.Binding.GenerationID != "" {
-			t.Fatalf("out-of-grant semantic evidence disclosed scope state: %#v", semantic)
+		if len(semState.Rows) != 0 || semState.EmptyReason != querycontract.DocumentationFactEmptyScopeNotFound ||
+			semState.Binding.GenerationID != "" {
+			t.Fatalf("out-of-grant semantic evidence disclosed scope state: %#v", semState)
 		}
 	})
 }
@@ -268,8 +268,8 @@ FROM unnest($3::text[]) AS kinds(kind)`, pair.scope, pair.generation, []string{
 			docs.FindingFactKind,
 			docs.EntityMentionFactKind,
 			docs.ClaimCandidateFactKind,
-			facts.SemanticDocumentationObservationFactKind,
-			facts.SemanticCodeHintFactKind,
+			semantic.SemanticDocumentationObservationFactKind,
+			semantic.SemanticCodeHintFactKind,
 		})
 		if err != nil {
 			t.Fatalf("seed related rows: %v", err)

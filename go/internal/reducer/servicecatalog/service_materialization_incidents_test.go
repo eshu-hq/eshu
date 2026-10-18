@@ -12,6 +12,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
 )
 
 // appliedRoutingRecord is a fully durable applied-slot incident routing record
@@ -22,8 +23,8 @@ func appliedRoutingRecord() ServiceIncidentRecord {
 		Provider:           "pagerduty",
 		ProviderIncidentID: "PINC-1",
 		Slot:               "applied_routing",
-		EvidenceKind:       facts.IncidentRoutingAppliedPagerDutyResourceFactKind,
-		EvidenceID:         facts.IncidentRoutingAppliedPagerDutyResourceFactKind + ":applied_pagerduty_resource:service:PSVC",
+		EvidenceKind:       factsincident.IncidentRoutingAppliedPagerDutyResourceFactKind,
+		EvidenceID:         factsincident.IncidentRoutingAppliedPagerDutyResourceFactKind + ":applied_pagerduty_resource:service:PSVC",
 		TruthLabel:         "exact",
 		ProviderObjectID:   "PSVC",
 		DeclaredMatchState: "match",
@@ -89,7 +90,7 @@ func TestServiceIncidentEvidenceKeyDistinguishesRoutingShape(t *testing.T) {
 	differentEvidence := base
 	differentEvidence.EvidenceID = base.EvidenceID + ":other"
 	differentKind := base
-	differentKind.EvidenceKind = facts.IncidentRoutingObservedPagerDutyServiceFactKind
+	differentKind.EvidenceKind = factsincident.IncidentRoutingObservedPagerDutyServiceFactKind
 	differentProvider := base
 	differentProvider.Provider = "opsgenie"
 

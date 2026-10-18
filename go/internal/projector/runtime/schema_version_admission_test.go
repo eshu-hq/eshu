@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -159,7 +160,7 @@ func TestBuildProjectionRejectsUnsupportedSecretsIAMSchemaVersion(t *testing.T) 
 			FactID:        "secrets-iam-service-account-1",
 			ScopeID:       scopeValue.ScopeID,
 			GenerationID:  generation.GenerationID,
-			FactKind:      facts.KubernetesServiceAccountFactKind,
+			FactKind:      factsidentity.KubernetesServiceAccountFactKind,
 			SchemaVersion: "0.0.0",
 			CollectorKind: "secrets_iam_posture",
 			Payload: map[string]any{

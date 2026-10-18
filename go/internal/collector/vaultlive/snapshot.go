@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -174,7 +175,7 @@ func (s *SnapshotSource) collectTarget(ctx context.Context, config Config, targe
 			))
 			// A coverage warning marks a family with partial coverage; the
 			// resource_scope (a bounded family enum) is the partial reason.
-			if env.FactKind == facts.SecretsIAMCoverageWarningFactKind {
+			if env.FactKind == factsidentity.SecretsIAMCoverageWarningFactKind {
 				s.Instruments.SecretsIAMSourcePartialScope.Add(ctx, 1, metric.WithAttributes(
 					telemetry.AttrSource(secretsIAMSourceVault),
 					telemetry.AttrReason(payloadStringValue(env.Payload, "resource_scope")),
@@ -253,7 +254,7 @@ func scopeFreshnessSeconds(now, observedAt time.Time) float64 {
 // part of the cluster (one or more Vault family lists failed).
 func hasCoverageWarning(envelopes []facts.Envelope) bool {
 	for _, env := range envelopes {
-		if env.FactKind == facts.SecretsIAMCoverageWarningFactKind {
+		if env.FactKind == factsidentity.SecretsIAMCoverageWarningFactKind {
 			return true
 		}
 	}

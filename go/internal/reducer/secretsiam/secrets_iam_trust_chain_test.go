@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -22,30 +23,30 @@ func TestBuildSecretsIAMTrustChainReadModelsAdmitsExactWorkloadToVaultPath(t *te
 	mountKey := "sha256:vault-mount"
 	kvPathFingerprint := "sha256:kv-path"
 	envelopes := []facts.Envelope{
-		secretsIAMReducerFact("sa", facts.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("sa", factsidentity.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 		}),
-		secretsIAMReducerFact("workload", facts.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("workload", factsidentity.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 			"workload_object_id":       "workload-stable-id",
 			"workload_kind":            "deployments",
 		}),
-		secretsIAMReducerFact("irsa", facts.EKSIRSAAnnotationFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("irsa", factsidentity.EKSIRSAAnnotationFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                         "kubernetes",
 			"service_account_join_key":         serviceAccountKey,
 			"role_arn":                         roleARN,
 			"web_identity_subject_fingerprint": subjectFingerprint,
 		}),
-		secretsIAMReducerFact("principal", facts.AWSIAMPrincipalFactKind, "aws-scope", "aws-gen", map[string]any{
+		secretsIAMReducerFact("principal", factsidentity.AWSIAMPrincipalFactKind, "aws-scope", "aws-gen", map[string]any{
 			"provider":       "aws_iam",
 			"principal_arn":  roleARN,
 			"principal_type": "aws_iam_role",
 			"account_id":     "123456789012",
 			"region":         "us-east-1",
 		}),
-		secretsIAMReducerFact("trust", facts.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
+		secretsIAMReducerFact("trust", factsidentity.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
 			"provider":                          "aws_iam",
 			"role_arn":                          roleARN,
 			"effect":                            "Allow",
@@ -53,7 +54,7 @@ func TestBuildSecretsIAMTrustChainReadModelsAdmitsExactWorkloadToVaultPath(t *te
 			"web_identity_subject_fingerprints": []string{subjectFingerprint},
 			"web_identity_subject_wildcard":     false,
 		}),
-		secretsIAMReducerFact("vault-role", facts.VaultAuthRoleFactKind, "vault-scope", "vault-gen", map[string]any{
+		secretsIAMReducerFact("vault-role", factsidentity.VaultAuthRoleFactKind, "vault-scope", "vault-gen", map[string]any{
 			"provider":                        "vault",
 			"auth_method":                     "kubernetes",
 			"role_join_key":                   "sha256:vault-role",
@@ -61,7 +62,7 @@ func TestBuildSecretsIAMTrustChainReadModelsAdmitsExactWorkloadToVaultPath(t *te
 			"bound_service_account_join_keys": []string{serviceAccountKey},
 			"token_policy_join_keys":          []string{policyKey},
 		}),
-		secretsIAMReducerFact("vault-policy", facts.VaultACLPolicyFactKind, "vault-scope", "vault-gen", map[string]any{
+		secretsIAMReducerFact("vault-policy", factsidentity.VaultACLPolicyFactKind, "vault-scope", "vault-gen", map[string]any{
 			"provider":        "vault",
 			"policy_join_key": policyKey,
 			"rules": []map[string]any{{
@@ -69,7 +70,7 @@ func TestBuildSecretsIAMTrustChainReadModelsAdmitsExactWorkloadToVaultPath(t *te
 				"capabilities":     []string{"read"},
 			}},
 		}),
-		secretsIAMReducerFact("vault-kv", facts.VaultKVMetadataFactKind, "vault-scope", "vault-gen", map[string]any{
+		secretsIAMReducerFact("vault-kv", factsidentity.VaultKVMetadataFactKind, "vault-scope", "vault-gen", map[string]any{
 			"provider":            "vault",
 			"mount_join_key":      mountKey,
 			"kv_path_fingerprint": kvPathFingerprint,
@@ -113,11 +114,11 @@ func TestBuildSecretsIAMTrustChainReadModelsRejectsNameCoincidence(t *testing.T)
 	t.Parallel()
 
 	envelopes := []facts.Envelope{
-		secretsIAMReducerFact("sa", facts.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("sa", factsidentity.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": "sha256:sa-a",
 		}),
-		secretsIAMReducerFact("vault-role", facts.VaultAuthRoleFactKind, "vault-scope", "vault-gen", map[string]any{
+		secretsIAMReducerFact("vault-role", factsidentity.VaultAuthRoleFactKind, "vault-scope", "vault-gen", map[string]any{
 			"provider":                        "vault",
 			"auth_method":                     "kubernetes",
 			"role_join_key":                   "sha256:vault-role",
@@ -144,7 +145,7 @@ func TestBuildSecretsIAMTrustChainReadModelsKeepsWildcardTrustAsPostureEvidence(
 
 	roleARN := "arn:aws:iam::123456789012:role/broad"
 	envelopes := []facts.Envelope{
-		secretsIAMReducerFact("trust", facts.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
+		secretsIAMReducerFact("trust", factsidentity.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
 			"provider":                      "aws_iam",
 			"role_arn":                      roleARN,
 			"effect":                        "Allow",
@@ -173,7 +174,7 @@ func TestBuildSecretsIAMTrustChainReadModelsIgnoresDenyWildcardTrustPosture(t *t
 	t.Parallel()
 
 	envelopes := []facts.Envelope{
-		secretsIAMReducerFact("trust", facts.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
+		secretsIAMReducerFact("trust", factsidentity.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
 			"provider":                      "aws_iam",
 			"role_arn":                      "arn:aws:iam::123456789012:role/denied",
 			"effect":                        "Deny",
@@ -197,35 +198,35 @@ func TestBuildSecretsIAMTrustChainReadModelsRejectsWildcardVaultSelector(t *test
 	serviceAccountKey := "sha256:sa-checkout-payments"
 	roleARN := "arn:aws:iam::123456789012:role/payments-pod-identity"
 	envelopes := []facts.Envelope{
-		secretsIAMReducerFact("sa", facts.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("sa", factsidentity.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 		}),
-		secretsIAMReducerFact("workload", facts.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("workload", factsidentity.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 			"workload_object_id":       "workload-stable-id",
 		}),
-		secretsIAMReducerFact("pod-identity", facts.EKSPodIdentityAssociationFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("pod-identity", factsidentity.EKSPodIdentityAssociationFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 			"role_arn":                 roleARN,
 		}),
-		secretsIAMReducerFact("principal", facts.AWSIAMPrincipalFactKind, "aws-scope", "aws-gen", map[string]any{
+		secretsIAMReducerFact("principal", factsidentity.AWSIAMPrincipalFactKind, "aws-scope", "aws-gen", map[string]any{
 			"provider":       "aws_iam",
 			"principal_arn":  roleARN,
 			"principal_type": "aws_iam_role",
 			"account_id":     "123456789012",
 			"region":         "us-east-1",
 		}),
-		secretsIAMReducerFact("trust", facts.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
+		secretsIAMReducerFact("trust", factsidentity.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
 			"provider":          "aws_iam",
 			"role_arn":          roleARN,
 			"effect":            "Allow",
 			"actions":           []string{"sts:AssumeRole"},
 			"assume_principals": []string{"pods.eks.amazonaws.com"},
 		}),
-		secretsIAMReducerFact("vault-role", facts.VaultAuthRoleFactKind, "vault-scope", "vault-gen", map[string]any{
+		secretsIAMReducerFact("vault-role", factsidentity.VaultAuthRoleFactKind, "vault-scope", "vault-gen", map[string]any{
 			"provider":                        "vault",
 			"auth_method":                     "kubernetes",
 			"role_join_key":                   "sha256:vault-role",
@@ -254,35 +255,35 @@ func TestBuildSecretsIAMTrustChainReadModelsAdmitsExactEKSPodIdentity(t *testing
 	roleARN := "arn:aws:iam::123456789012:role/payments-pod-identity"
 	policyKey := "sha256:vault-policy"
 	envelopes := []facts.Envelope{
-		secretsIAMReducerFact("sa", facts.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("sa", factsidentity.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 		}),
-		secretsIAMReducerFact("workload", facts.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("workload", factsidentity.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 			"workload_object_id":       "workload-stable-id",
 		}),
-		secretsIAMReducerFact("pod-identity", facts.EKSPodIdentityAssociationFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("pod-identity", factsidentity.EKSPodIdentityAssociationFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 			"role_arn":                 roleARN,
 		}),
-		secretsIAMReducerFact("principal", facts.AWSIAMPrincipalFactKind, "aws-scope", "aws-gen", map[string]any{
+		secretsIAMReducerFact("principal", factsidentity.AWSIAMPrincipalFactKind, "aws-scope", "aws-gen", map[string]any{
 			"provider":       "aws_iam",
 			"principal_arn":  roleARN,
 			"principal_type": "aws_iam_role",
 			"account_id":     "123456789012",
 			"region":         "us-east-1",
 		}),
-		secretsIAMReducerFact("trust", facts.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
+		secretsIAMReducerFact("trust", factsidentity.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
 			"provider":          "aws_iam",
 			"role_arn":          roleARN,
 			"effect":            "Allow",
 			"actions":           []string{"sts:AssumeRole"},
 			"assume_principals": []string{"pods.eks.amazonaws.com"},
 		}),
-		secretsIAMReducerFact("vault-role", facts.VaultAuthRoleFactKind, "vault-scope", "vault-gen", map[string]any{
+		secretsIAMReducerFact("vault-role", factsidentity.VaultAuthRoleFactKind, "vault-scope", "vault-gen", map[string]any{
 			"provider":                        "vault",
 			"auth_method":                     "kubernetes",
 			"role_join_key":                   "sha256:vault-role",
@@ -308,11 +309,11 @@ func TestBuildSecretsIAMTrustChainReadModelsEmitsStaleGenerationGap(t *testing.T
 
 	serviceAccountKey := "sha256:sa-checkout-payments"
 	envelopes := []facts.Envelope{
-		secretsIAMReducerFact("sa", facts.KubernetesServiceAccountFactKind, "k8s-scope", "new-gen", map[string]any{
+		secretsIAMReducerFact("sa", factsidentity.KubernetesServiceAccountFactKind, "k8s-scope", "new-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 		}),
-		secretsIAMReducerFact("workload", facts.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "old-gen", map[string]any{
+		secretsIAMReducerFact("workload", factsidentity.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "old-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 			"workload_object_id":       "workload-stable-id",
@@ -334,7 +335,7 @@ func TestSecretsIAMTrustChainHandlerLoadsEvidenceAndWritesReadModels(t *testing.
 
 	loader := &recordingSecretsIAMTrustChainEvidenceLoader{
 		envelopes: []facts.Envelope{
-			secretsIAMReducerFact("coverage", facts.SecretsIAMCoverageWarningFactKind, "aws-scope", "aws-gen", map[string]any{
+			secretsIAMReducerFact("coverage", factsidentity.SecretsIAMCoverageWarningFactKind, "aws-scope", "aws-gen", map[string]any{
 				"provider":       "aws_iam",
 				"warning_kind":   "scp_uncollected",
 				"source_state":   "unsupported",
@@ -374,7 +375,7 @@ func secretsIAMReducerFact(
 	generationID string,
 	payload map[string]any,
 ) facts.Envelope {
-	version, _ := facts.SecretsIAMSchemaVersion(factKind)
+	version, _ := factsidentity.SecretsIAMSchemaVersion(factKind)
 	return facts.Envelope{
 		FactID:        factID,
 		ScopeID:       scopeID,

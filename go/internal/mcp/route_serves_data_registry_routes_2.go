@@ -185,7 +185,7 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 
 	// SemanticEvidenceHandler.listDocumentationObservations reads the
 	// SOURCE kind semantic.documentation_observation directly: the SQL is
-	// built from facts.SemanticDocumentationObservationFactKind
+	// built from semantic.SemanticDocumentationObservationFactKind
 	// (semantic_evidence.go:91, semantic_evidence_read_model.go:16-18,265).
 	// The handler's Content field is deliberately `any` (wired to
 	// *query.ContentReader in cmd/api), so the claim is marker-based.
@@ -202,7 +202,7 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 		Served: []routeServedDomain{{
 			Domain: "semantic_entity_materialization",
 			Evidence: []routeReadEvidence{
-				{File: "go/internal/query/semantic_evidence.go", Marker: "facts.SemanticDocumentationObservationFactKind"},
+				{File: "go/internal/query/semantic_evidence.go", Marker: "semantic.SemanticDocumentationObservationFactKind"},
 				{File: "go/internal/query/semantic_evidence_read_model.go", Marker: "fact_records.fact_kind"},
 			},
 		}},

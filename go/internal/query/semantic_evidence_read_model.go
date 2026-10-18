@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -274,9 +274,9 @@ func semanticEvidencePublicRow(raw map[string]any) map[string]any {
 
 func semanticEvidenceTruthBasis(factKind string) string {
 	switch factKind {
-	case facts.SemanticDocumentationObservationFactKind:
+	case semantic.SemanticDocumentationObservationFactKind:
 		return "semantic_observation"
-	case facts.SemanticCodeHintFactKind:
+	case semantic.SemanticCodeHintFactKind:
 		return "code_hint"
 	default:
 		return "semantic_evidence"

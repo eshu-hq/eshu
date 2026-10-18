@@ -3,7 +3,7 @@
 # Fact family: semantic
 
 - Canonical fact owner: `eshu-hq/eshu`
-- Fact definitions: `go/internal/facts` (declared at go/internal/facts/semantic.go:442)
+- Fact definitions: `go/internal/facts/semantic` (declared at go/internal/facts/semantic/semantic.go:443)
 - Reducer domain: `semantic_entity_materialization`
 - Read surface: `GET /api/v0/semantic/documentation-observations`
 

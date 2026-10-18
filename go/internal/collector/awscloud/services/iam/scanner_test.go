@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 )
 
 func TestScannerEmitsIAMResourcesAndRelationships(t *testing.T) {
@@ -257,13 +258,13 @@ func TestScannerEmitsSecretsIAMPostureSourceFacts(t *testing.T) {
 
 	counts := factKindCounts(envelopes)
 	wantCounts := map[string]int{
-		facts.AWSIAMPrincipalFactKind:           3,
-		facts.AWSIAMTrustPolicyFactKind:         1,
-		facts.AWSIAMPermissionPolicyFactKind:    4,
-		facts.AWSIAMPolicyAttachmentFactKind:    2,
-		facts.AWSIAMPermissionBoundaryFactKind:  2,
-		facts.AWSIAMInstanceProfileFactKind:     1,
-		facts.SecretsIAMCoverageWarningFactKind: 1,
+		factsidentity.AWSIAMPrincipalFactKind:           3,
+		factsidentity.AWSIAMTrustPolicyFactKind:         1,
+		factsidentity.AWSIAMPermissionPolicyFactKind:    4,
+		factsidentity.AWSIAMPolicyAttachmentFactKind:    2,
+		factsidentity.AWSIAMPermissionBoundaryFactKind:  2,
+		factsidentity.AWSIAMInstanceProfileFactKind:     1,
+		factsidentity.SecretsIAMCoverageWarningFactKind: 1,
 	}
 	for factKind, want := range wantCounts {
 		if counts[factKind] != want {
@@ -271,8 +272,8 @@ func TestScannerEmitsSecretsIAMPostureSourceFacts(t *testing.T) {
 		}
 	}
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.AWSIAMPermissionPolicyFactKind ||
-			envelope.FactKind == facts.AWSIAMTrustPolicyFactKind {
+		if envelope.FactKind == factsidentity.AWSIAMPermissionPolicyFactKind ||
+			envelope.FactKind == factsidentity.AWSIAMTrustPolicyFactKind {
 			if envelope.CollectorKind != posture.CollectorKind {
 				t.Fatalf("%s CollectorKind = %q, want %q", envelope.FactKind, envelope.CollectorKind, posture.CollectorKind)
 			}

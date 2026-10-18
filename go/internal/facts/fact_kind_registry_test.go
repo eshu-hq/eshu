@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 )
 
 func TestGeneratedFactKindRegistryCoversCoreContracts(t *testing.T) {
@@ -99,13 +101,13 @@ func TestValidateFactKindRegistryCatchesDrift(t *testing.T) {
 			name: "semantic fact without policy gate",
 			mutate: func(entries []FactKindRegistryEntry) []FactKindRegistryEntry {
 				for i := range entries {
-					if entries[i].Kind == SemanticCodeHintFactKind {
+					if entries[i].Kind == semantic.SemanticCodeHintFactKind {
 						entries[i].TruthProfile = FactKindTruthOptionalSemantic
 						entries[i].PolicyGate = ""
 						return entries
 					}
 				}
-				t.Fatalf("test fixture missing %q", SemanticCodeHintFactKind)
+				t.Fatalf("test fixture missing %q", semantic.SemanticCodeHintFactKind)
 				return entries
 			},
 			wantErr: "policy_gate",
@@ -206,9 +208,9 @@ func TestValidateFactKindRegistryAcceptsPopulatedV11Fields(t *testing.T) {
 func TestFactKindRegistryClassifiesSemanticFacts(t *testing.T) {
 	t.Parallel()
 
-	entry, ok := FactKindRegistryEntryFor(SemanticDocumentationObservationFactKind)
+	entry, ok := FactKindRegistryEntryFor(semantic.SemanticDocumentationObservationFactKind)
 	if !ok {
-		t.Fatalf("FactKindRegistryEntryFor(%q) ok = false, want true", SemanticDocumentationObservationFactKind)
+		t.Fatalf("FactKindRegistryEntryFor(%q) ok = false, want true", semantic.SemanticDocumentationObservationFactKind)
 	}
 	if entry.TruthProfile != FactKindTruthOptionalSemantic {
 		t.Fatalf("semantic truth profile = %q, want %q", entry.TruthProfile, FactKindTruthOptionalSemantic)
@@ -327,7 +329,7 @@ func TestReducerCloudAssetResolutionRegistryIsAdmissionExempt(t *testing.T) {
 func TestW1fTypedFamiliesCarryPayloadSchemas(t *testing.T) {
 	t.Parallel()
 
-	for _, kind := range append(append([]string{}, WorkItemFactKinds()...), append(IncidentContextFactKinds(), IncidentRoutingFactKinds()...)...) {
+	for _, kind := range append(append([]string{}, WorkItemFactKinds()...), append(factsincident.IncidentContextFactKinds(), factsincident.IncidentRoutingFactKinds()...)...) {
 		kind := kind
 		t.Run(kind, func(t *testing.T) {
 			t.Parallel()

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -79,7 +79,7 @@ func TestSnapshotSourceYieldsGenerationPerTarget(t *testing.T) {
 		}
 		var kinds int
 		for env := range gen.Facts {
-			if env.FactKind == facts.VaultAuthMountFactKind {
+			if env.FactKind == factsidentity.VaultAuthMountFactKind {
 				kinds++
 			}
 		}

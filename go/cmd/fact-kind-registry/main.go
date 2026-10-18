@@ -17,6 +17,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
@@ -430,8 +433,8 @@ func liveFamilies() []liveFamily {
 		{"documentation", docs.FactKinds, docs.SchemaVersion},
 		{"ec2_instance_posture", cloud.EC2InstancePostureFactKinds, cloud.EC2InstancePostureSchemaVersion},
 		{"gcp", cloud.GCPFactKinds, cloud.GCPSchemaVersion},
-		{"incident_context", facts.IncidentContextFactKinds, facts.IncidentContextSchemaVersion},
-		{"incident_routing", facts.IncidentRoutingFactKinds, facts.IncidentRoutingSchemaVersion},
+		{"incident_context", factsincident.IncidentContextFactKinds, factsincident.IncidentContextSchemaVersion},
+		{"incident_routing", factsincident.IncidentRoutingFactKinds, factsincident.IncidentRoutingSchemaVersion},
 		{"kubernetes_live", cloud.KubernetesLiveFactKinds, cloud.KubernetesLiveSchemaVersion},
 		{"observability", facts.ObservabilityFactKinds, facts.ObservabilitySchemaVersion},
 		{"oci_registry", chain.OCIRegistryFactKinds, chain.OCIRegistrySchemaVersion},
@@ -443,9 +446,9 @@ func liveFamilies() []liveFamily {
 		{"s3_external_principal_grant", cloud.S3ExternalPrincipalGrantFactKinds, cloud.S3ExternalPrincipalGrantSchemaVersion},
 		{"sbom_attestation", chain.SBOMAttestationFactKinds, chain.SBOMAttestationSchemaVersion},
 		{"scanner_worker", facts.ScannerWorkerFactKinds, facts.ScannerWorkerSchemaVersion},
-		{"secrets_iam", facts.SecretsIAMFactKinds, facts.SecretsIAMSchemaVersion},
+		{"secrets_iam", factsidentity.SecretsIAMFactKinds, factsidentity.SecretsIAMSchemaVersion},
 		{"security_alert", facts.SecurityAlertFactKinds, facts.SecurityAlertSchemaVersion},
-		{"semantic", facts.SemanticFactKinds, facts.SemanticSchemaVersion},
+		{"semantic", semantic.SemanticFactKinds, semantic.SemanticSchemaVersion},
 		{"service_catalog", facts.ServiceCatalogFactKinds, facts.ServiceCatalogSchemaVersion},
 		{"submodule", facts.SubmoduleFactKinds, facts.SubmoduleSchemaVersion},
 		{"terraform_state", cloud.TerraformStateFactKinds, cloud.TerraformStateSchemaVersion},

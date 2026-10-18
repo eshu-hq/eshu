@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -46,8 +47,8 @@ func TestBuildReducerIntent(t *testing.T) {
 	t.Run("queues from incident.record, anchored to the earliest fact", func(t *testing.T) {
 		t.Parallel()
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			incidentEnvelope("incident-fact-1", facts.IncidentRecordFactKind, "pagerduty", "pagerduty"),
-			incidentEnvelope("incident-fact-2", facts.IncidentRecordFactKind, "pagerduty", "pagerduty"),
+			incidentEnvelope("incident-fact-1", factsincident.IncidentRecordFactKind, "pagerduty", "pagerduty"),
+			incidentEnvelope("incident-fact-2", factsincident.IncidentRecordFactKind, "pagerduty", "pagerduty"),
 		})
 		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
@@ -67,7 +68,7 @@ func TestBuildReducerIntent(t *testing.T) {
 
 	t.Run("queues from each incident_routing source fact kind", func(t *testing.T) {
 		t.Parallel()
-		for _, kind := range facts.IncidentRoutingFactKinds() {
+		for _, kind := range factsincident.IncidentRoutingFactKinds() {
 			lookup := projectorintent.NewFactLookup([]facts.Envelope{
 				incidentEnvelope("routing-fact-1", kind, "pagerduty", "pagerduty"),
 			})
@@ -87,8 +88,8 @@ func TestBuildReducerIntent(t *testing.T) {
 		// order, so it must win even though incident.record is the first
 		// candidate kind the builder lists.
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			incidentEnvelope("routing-fact-1", facts.IncidentRoutingObservedPagerDutyServiceFactKind, "pagerduty", "pagerduty"),
-			incidentEnvelope("incident-fact-1", facts.IncidentRecordFactKind, "pagerduty", "pagerduty"),
+			incidentEnvelope("routing-fact-1", factsincident.IncidentRoutingObservedPagerDutyServiceFactKind, "pagerduty", "pagerduty"),
+			incidentEnvelope("incident-fact-1", factsincident.IncidentRecordFactKind, "pagerduty", "pagerduty"),
 		})
 		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
@@ -102,7 +103,7 @@ func TestBuildReducerIntent(t *testing.T) {
 	t.Run("falls back to CollectorKind when SourceSystem is blank", func(t *testing.T) {
 		t.Parallel()
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			incidentEnvelope("incident-fact-1", facts.IncidentRecordFactKind, "", "pagerduty_collector"),
+			incidentEnvelope("incident-fact-1", factsincident.IncidentRecordFactKind, "", "pagerduty_collector"),
 		})
 		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {

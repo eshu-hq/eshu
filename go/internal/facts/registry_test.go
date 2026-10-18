@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
@@ -20,7 +21,7 @@ func TestCoreFactKindRegistryIncludesKnownFamilies(t *testing.T) {
 		cloud.AzureCloudResourceFactKind,
 		cloud.TerraformStateResourceFactKind,
 		ServiceCatalogScorecardResultFactKind,
-		SemanticCodeHintFactKind,
+		semantic.SemanticCodeHintFactKind,
 		chain.VulnerabilitySuppressionFactKind,
 	} {
 		if !slices.Contains(kinds, want) {

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 )
 
 func gcpTestContext() GCPEnvelopeContext {
@@ -34,8 +34,8 @@ func TestNewGCPPrincipalEnvelope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewGCPPrincipalEnvelope error = %v", err)
 	}
-	if env.FactKind != facts.GCPIAMPrincipalFactKind {
-		t.Fatalf("FactKind = %q, want %q", env.FactKind, facts.GCPIAMPrincipalFactKind)
+	if env.FactKind != factsidentity.GCPIAMPrincipalFactKind {
+		t.Fatalf("FactKind = %q, want %q", env.FactKind, factsidentity.GCPIAMPrincipalFactKind)
 	}
 	if got := env.Payload["provider"]; got != ProviderGCPIAM {
 		t.Fatalf("provider = %v, want %q", got, ProviderGCPIAM)
@@ -81,8 +81,8 @@ func TestNewGCPPermissionPolicyEnvelope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewGCPPermissionPolicyEnvelope error = %v", err)
 	}
-	if env.FactKind != facts.GCPIAMPermissionPolicyFactKind {
-		t.Fatalf("FactKind = %q, want %q", env.FactKind, facts.GCPIAMPermissionPolicyFactKind)
+	if env.FactKind != factsidentity.GCPIAMPermissionPolicyFactKind {
+		t.Fatalf("FactKind = %q, want %q", env.FactKind, factsidentity.GCPIAMPermissionPolicyFactKind)
 	}
 	if got := env.Payload["principal_fingerprint"]; got != "sha256:abc" {
 		t.Fatalf("principal_fingerprint = %v (must match the principal fact join key)", got)
@@ -140,8 +140,8 @@ func TestNewGCPTrustPolicyEnvelopeJoinsTargetAndWorkloadIdentitySubject(t *testi
 	if err != nil {
 		t.Fatalf("NewGCPTrustPolicyEnvelope error = %v", err)
 	}
-	if env.FactKind != facts.GCPIAMTrustPolicyFactKind {
-		t.Fatalf("FactKind = %q, want %q", env.FactKind, facts.GCPIAMTrustPolicyFactKind)
+	if env.FactKind != factsidentity.GCPIAMTrustPolicyFactKind {
+		t.Fatalf("FactKind = %q, want %q", env.FactKind, factsidentity.GCPIAMTrustPolicyFactKind)
 	}
 	if got := env.Payload["target_principal_fingerprint"]; got != "sha256:gcp-service-account" {
 		t.Fatalf("target_principal_fingerprint = %v", got)

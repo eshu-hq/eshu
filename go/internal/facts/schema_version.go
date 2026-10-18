@@ -12,6 +12,9 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
@@ -82,8 +85,8 @@ var schemaVersionFamilies = []schemaVersionFamily{
 	{CodeownersFactKinds, CodeownersSchemaVersion},
 	{cloud.EC2InstancePostureFactKinds, cloud.EC2InstancePostureSchemaVersion},
 	{cloud.GCPFactKinds, cloud.GCPSchemaVersion},
-	{IncidentContextFactKinds, IncidentContextSchemaVersion},
-	{IncidentRoutingFactKinds, IncidentRoutingSchemaVersion},
+	{factsincident.IncidentContextFactKinds, factsincident.IncidentContextSchemaVersion},
+	{factsincident.IncidentRoutingFactKinds, factsincident.IncidentRoutingSchemaVersion},
 	{cloud.KubernetesLiveFactKinds, cloud.KubernetesLiveSchemaVersion},
 	{ObservabilityFactKinds, ObservabilitySchemaVersion},
 	{chain.OCIRegistryFactKinds, chain.OCIRegistrySchemaVersion},
@@ -95,9 +98,9 @@ var schemaVersionFamilies = []schemaVersionFamily{
 	{cloud.S3ExternalPrincipalGrantFactKinds, cloud.S3ExternalPrincipalGrantSchemaVersion},
 	{chain.SBOMAttestationFactKinds, chain.SBOMAttestationSchemaVersion},
 	{ScannerWorkerFactKinds, ScannerWorkerSchemaVersion},
-	{SecretsIAMFactKinds, SecretsIAMSchemaVersion},
+	{factsidentity.SecretsIAMFactKinds, factsidentity.SecretsIAMSchemaVersion},
 	{SecurityAlertFactKinds, SecurityAlertSchemaVersion},
-	{SemanticFactKinds, SemanticSchemaVersion},
+	{semantic.SemanticFactKinds, semantic.SemanticSchemaVersion},
 	{ServiceCatalogFactKinds, ServiceCatalogSchemaVersion},
 	{SubmoduleFactKinds, SubmoduleSchemaVersion},
 	{cloud.TerraformStateFactKinds, cloud.TerraformStateSchemaVersion},

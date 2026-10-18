@@ -9,4 +9,4 @@ producers:
     - secrets-iam-posture
 reducer_bindings:
     - iamcan/iamcan_handle_secrets_iam
-declaration: go/internal/facts/secrets_iam.go:190
+declaration: go/internal/facts/identity/iam.go:190

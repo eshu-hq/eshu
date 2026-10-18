@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 	"github.com/eshu-hq/eshu/go/internal/semanticcode"
 )
 
@@ -47,11 +47,11 @@ func emitCodeHintRow(t *testing.T) map[string]any {
 		HintType:         "relationship",
 		RelationshipKind: "calls",
 		HintText:         "main appears to call the shared logging helper",
-		Subject: facts.SemanticCodeEntityRef{
+		Subject: semantic.SemanticCodeEntityRef{
 			EntityKind: "function",
 			EntityID:   "entity:orders-api:main.go:main",
 		},
-		Confidence: facts.SemanticConfidenceMedium,
+		Confidence: semantic.SemanticConfidenceMedium,
 	}})
 	if err != nil {
 		t.Fatalf("Emit() error = %v", err)
@@ -120,8 +120,8 @@ func TestCodeHintsReadAnswersFromTheRealProducer(t *testing.T) {
 	}
 
 	hint, _ := hints[0].(map[string]any)
-	if got := hint["fact_kind"]; got != facts.SemanticCodeHintFactKind {
-		t.Errorf("fact_kind = %v, want %q", got, facts.SemanticCodeHintFactKind)
+	if got := hint["fact_kind"]; got != semantic.SemanticCodeHintFactKind {
+		t.Errorf("fact_kind = %v, want %q", got, semantic.SemanticCodeHintFactKind)
 	}
 	if got := hint["truth_basis"]; got != "code_hint" {
 		t.Errorf("truth_basis = %v, want code_hint", got)
@@ -131,10 +131,10 @@ func TestCodeHintsReadAnswersFromTheRealProducer(t *testing.T) {
 	}
 	// The two fields that keep a hint from being read as a fact. A caller that
 	// cannot see these has no way to know the hint is not corroborated truth.
-	if got := hint["promotion_policy"]; got != facts.SemanticPromotionRequiresDeterministicEvidence {
-		t.Errorf("promotion_policy = %v, want %q", got, facts.SemanticPromotionRequiresDeterministicEvidence)
+	if got := hint["promotion_policy"]; got != semantic.SemanticPromotionRequiresDeterministicEvidence {
+		t.Errorf("promotion_policy = %v, want %q", got, semantic.SemanticPromotionRequiresDeterministicEvidence)
 	}
-	if got := hint["corroboration_state"]; got != facts.SemanticCorroborationUncorroborated {
-		t.Errorf("corroboration_state = %v, want %q", got, facts.SemanticCorroborationUncorroborated)
+	if got := hint["corroboration_state"]; got != semantic.SemanticCorroborationUncorroborated {
+		t.Errorf("corroboration_state = %v, want %q", got, semantic.SemanticCorroborationUncorroborated)
 	}
 }

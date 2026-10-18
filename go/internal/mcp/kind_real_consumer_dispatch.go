@@ -37,9 +37,9 @@ import (
 // This is the raw-envelope sibling of the decode-seam and direct-decode-call
 // signals: several reducer handlers switch on envelope.FactKind and process
 // the envelope's payload fields directly
-// (facts.SecretsIAMCoverageWarningFactKind in
+// (factsidentity.SecretsIAMCoverageWarningFactKind in
 // go/internal/reducer/secretsiam/secrets_iam_trust_chain_build.go's
-// `case facts.SecretsIAMCoverageWarningFactKind:` and
+// `case factsidentity.SecretsIAMCoverageWarningFactKind:` and
 // facts.ObservabilitySourceInstanceFactKind in
 // go/internal/reducer/obscoverage/observability_coverage_metadata.go's
 // `envelope.FactKind == facts.ObservabilitySourceInstanceFactKind` are the
@@ -124,7 +124,8 @@ func factsDispatchedKinds(dirs []string, factsConstValues map[string]string) (ma
 // the file already imports another docs package, plus `cloud` for the
 // batch-4 cloud families and `chain` for the batch-4 supply-chain families).
 // Each #6950 batch extends factsPackageSelectorNames
-// for the family spellings it introduces.
+// for the family spellings it introduces, as do the #6951 batches
+// (`semantic`, `factsincident`, `factsidentity`).
 func factsSelectorWireKind(expr ast.Expr, factsConstValues map[string]string) (string, bool) {
 	sel, ok := expr.(*ast.SelectorExpr)
 	if !ok {
@@ -142,11 +143,14 @@ func factsSelectorWireKind(expr ast.Expr, factsConstValues map[string]string) (s
 // go/internal/facts-tree FactKind constant: the root plus every #6950 batch's
 // migrated family spelling. Keep in sync with factsPackageIdentRefPattern.
 var factsPackageSelectorNames = map[string]bool{
-	"facts":     true,
-	"docs":      true,
-	"factsdocs": true,
-	"cloud":     true,
-	"chain":     true,
+	"facts":         true,
+	"docs":          true,
+	"factsdocs":     true,
+	"cloud":         true,
+	"chain":         true,
+	"semantic":      true,
+	"factsincident": true,
+	"factsidentity": true,
 }
 
 // reducerSeamDir is the one entry in realConsumerDecodeSeamDirs that names a

@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 )
 
 const (
@@ -105,11 +106,11 @@ func (e *Emitter) Emit(ctx context.Context, section doctruth.SectionInput, obser
 		if err != nil {
 			return nil, err
 		}
-		if err := facts.ValidateSemanticDocumentationObservationPayload(payload); err != nil {
+		if err := semantic.ValidateSemanticDocumentationObservationPayload(payload); err != nil {
 			return nil, fmt.Errorf("semantic documentation observation payload: %w", err)
 		}
-		stableKey := facts.SemanticDocumentationObservationStableID(payload)
-		payloadMap, err := facts.EncodeSemanticDocumentationObservation(payload)
+		stableKey := semantic.SemanticDocumentationObservationStableID(payload)
+		payloadMap, err := semantic.EncodeSemanticDocumentationObservation(payload)
 		if err != nil {
 			return nil, err
 		}
@@ -117,9 +118,9 @@ func (e *Emitter) Emit(ctx context.Context, section doctruth.SectionInput, obser
 			FactID:           stableKey,
 			ScopeID:          section.ScopeID,
 			GenerationID:     section.GenerationID,
-			FactKind:         facts.SemanticDocumentationObservationFactKind,
+			FactKind:         semantic.SemanticDocumentationObservationFactKind,
 			StableFactKey:    stableKey,
-			SchemaVersion:    facts.SemanticFactSchemaVersion,
+			SchemaVersion:    semantic.SemanticFactSchemaVersion,
 			CollectorKind:    CollectorKind,
 			SourceConfidence: facts.SourceConfidenceDerived,
 			ObservedAt:       e.observedAt(section),
@@ -160,16 +161,16 @@ func normalizeConfig(config Config) Config {
 		config.ExtractorVersion = DefaultExtractorVersion
 	}
 	if config.ExtractionMode == "" {
-		config.ExtractionMode = facts.SemanticExtractionModeAssistant
+		config.ExtractionMode = semantic.SemanticExtractionModeAssistant
 	}
 	if config.PolicyState == "" {
-		config.PolicyState = facts.SemanticPolicyAllowed
+		config.PolicyState = semantic.SemanticPolicyAllowed
 	}
 	if config.RedactionState == "" {
-		config.RedactionState = facts.SemanticRedactionSkippedNoSensitiveContent
+		config.RedactionState = semantic.SemanticRedactionSkippedNoSensitiveContent
 	}
 	if config.FreshnessState == "" {
-		config.FreshnessState = facts.SemanticFreshnessFresh
+		config.FreshnessState = semantic.SemanticFreshnessFresh
 	}
 	return config
 }
@@ -181,15 +182,15 @@ func validateConfig(config Config) error {
 	if strings.TrimSpace(config.Provider.ProviderKind) == "" {
 		return fmt.Errorf("provider_kind must not be blank")
 	}
-	probe := facts.SemanticDocumentationObservationPayload{
+	probe := semantic.SemanticDocumentationObservationPayload{
 		ObservationID:   "config-probe",
 		ObservationType: "config_probe",
 		ObservationHash: "sha256:config-probe",
-		Source: facts.SemanticSourceRef{
+		Source: semantic.SemanticSourceRef{
 			SourceID:    "config-probe",
-			SourceClass: facts.SemanticSourceClassDocumentation,
+			SourceClass: semantic.SemanticSourceClassDocumentation,
 		},
-		Chunk: facts.SemanticChunkRef{
+		Chunk: semantic.SemanticChunkRef{
 			ChunkID:          "config-probe",
 			ChunkHash:        "sha256:config-probe",
 			SourceHash:       "sha256:config-probe",
@@ -198,16 +199,16 @@ func validateConfig(config Config) error {
 			ExtractorVersion: config.ExtractorVersion,
 			ExtractionMode:   config.ExtractionMode,
 		},
-		Provider: facts.SemanticProviderRef{
+		Provider: semantic.SemanticProviderRef{
 			ProviderProfileID: config.Provider.ProviderProfileID,
 			ProviderKind:      config.Provider.ProviderKind,
 		},
 		PolicyState:    config.PolicyState,
 		RedactionState: config.RedactionState,
 		FreshnessState: config.FreshnessState,
-		AdmissionState: facts.SemanticAdmissionProvenanceOnly,
+		AdmissionState: semantic.SemanticAdmissionProvenanceOnly,
 	}
-	if err := facts.ValidateSemanticDocumentationObservationPayload(probe); err != nil {
+	if err := semantic.ValidateSemanticDocumentationObservationPayload(probe); err != nil {
 		return fmt.Errorf("semantic documentation emitter config: %w", err)
 	}
 	return nil
@@ -232,15 +233,15 @@ func validateSection(section doctruth.SectionInput) error {
 	return nil
 }
 
-func (e *Emitter) payload(section doctruth.SectionInput, observation MockObservation, index int) (facts.SemanticDocumentationObservationPayload, error) {
+func (e *Emitter) payload(section doctruth.SectionInput, observation MockObservation, index int) (semantic.SemanticDocumentationObservationPayload, error) {
 	observationType := strings.TrimSpace(observation.ObservationType)
 	if observationType == "" {
-		return facts.SemanticDocumentationObservationPayload{}, fmt.Errorf("observation_type must not be blank")
+		return semantic.SemanticDocumentationObservationPayload{}, fmt.Errorf("observation_type must not be blank")
 	}
 
 	admissionState := strings.TrimSpace(observation.AdmissionState)
 	if admissionState == "" {
-		admissionState = facts.SemanticAdmissionProvenanceOnly
+		admissionState = semantic.SemanticAdmissionProvenanceOnly
 	}
 	redactionState := e.config.RedactionState
 	observationText := strings.TrimSpace(observation.ObservationText)
@@ -250,21 +251,21 @@ func (e *Emitter) payload(section doctruth.SectionInput, observation MockObserva
 	missingEvidence := compactStrings(observation.MissingEvidence)
 	unsupportedReason := strings.TrimSpace(observation.UnsupportedReason)
 	redactionSummary := e.config.RedactionSummary
-	if redactionState == facts.SemanticRedactionUnsafePayload {
-		admissionState = facts.SemanticAdmissionProvenanceOnly
-		observationType = facts.SemanticRedactionUnsafePayload
+	if redactionState == semantic.SemanticRedactionUnsafePayload {
+		admissionState = semantic.SemanticAdmissionProvenanceOnly
+		observationType = semantic.SemanticRedactionUnsafePayload
 		observationText = ""
 		observationHash = ""
 		confidence = ""
 		confidenceRationale = ""
 		missingEvidence = nil
-		unsupportedReason = facts.SemanticRedactionUnsafePayload
+		unsupportedReason = semantic.SemanticRedactionUnsafePayload
 		if redactionSummary == "" {
 			redactionSummary = "unsafe payload rejected before provider egress"
 		}
 	}
 	if !semanticDocsAdmissionStateAllowed(admissionState) {
-		return facts.SemanticDocumentationObservationPayload{}, fmt.Errorf(
+		return semantic.SemanticDocumentationObservationPayload{}, fmt.Errorf(
 			"semantic documentation emitter admission_state %q must stay provenance-only or finding-candidate before reducer admission",
 			admissionState,
 		)
@@ -290,7 +291,7 @@ func (e *Emitter) payload(section doctruth.SectionInput, observation MockObserva
 		"observation_hash": observationHash,
 	})
 
-	return facts.SemanticDocumentationObservationPayload{
+	return semantic.SemanticDocumentationObservationPayload{
 		ObservationID:       observationID,
 		ObservationType:     observationType,
 		ObservationText:     observationText,
@@ -299,15 +300,15 @@ func (e *Emitter) payload(section doctruth.SectionInput, observation MockObserva
 		ConfidenceRationale: confidenceRationale,
 		MissingEvidence:     missingEvidence,
 		UnsupportedReason:   unsupportedReason,
-		Source: facts.SemanticSourceRef{
+		Source: semantic.SemanticSourceRef{
 			SourceID:       semanticSourceID(section),
-			SourceClass:    facts.SemanticSourceClassDocumentation,
+			SourceClass:    semantic.SemanticSourceClassDocumentation,
 			SourceHandle:   section.CanonicalURI,
 			DocumentID:     section.DocumentID,
 			ExternalAnchor: uriFragment(section.CanonicalURI),
 			SectionID:      section.SectionID,
 		},
-		Chunk: facts.SemanticChunkRef{
+		Chunk: semantic.SemanticChunkRef{
 			ChunkID:          semanticChunkID(e.config, section),
 			ChunkHash:        section.ExcerptHash,
 			SourceHash:       section.RevisionID,
@@ -316,7 +317,7 @@ func (e *Emitter) payload(section doctruth.SectionInput, observation MockObserva
 			ExtractorVersion: e.config.ExtractorVersion,
 			ExtractionMode:   e.config.ExtractionMode,
 		},
-		Provider: facts.SemanticProviderRef{
+		Provider: semantic.SemanticProviderRef{
 			ProviderProfileID: e.config.Provider.ProviderProfileID,
 			ProviderKind:      e.config.Provider.ProviderKind,
 			ModelID:           e.config.Provider.ModelID,
@@ -340,8 +341,8 @@ func (e *Emitter) payload(section doctruth.SectionInput, observation MockObserva
 
 func semanticDocsAdmissionStateAllowed(state string) bool {
 	switch state {
-	case facts.SemanticAdmissionProvenanceOnly,
-		facts.SemanticAdmissionDocumentationFindingCandidate:
+	case semantic.SemanticAdmissionProvenanceOnly,
+		semantic.SemanticAdmissionDocumentationFindingCandidate:
 		return true
 	default:
 		return false

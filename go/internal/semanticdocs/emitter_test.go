@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 )
 
 func TestEmitterBuildsValidDocumentationObservationEnvelope(t *testing.T) {
@@ -33,9 +34,9 @@ func TestEmitterBuildsValidDocumentationObservationEnvelope(t *testing.T) {
 	envelopes, err := emitter.Emit(context.Background(), semanticSectionFixture(), []MockObservation{{
 		ObservationType:     "runbook_step",
 		ObservationText:     "Payment service deploys through the production Helm release.",
-		Confidence:          facts.SemanticConfidenceHigh,
+		Confidence:          semantic.SemanticConfidenceHigh,
 		ConfidenceRationale: "bounded runbook section names one service and one release",
-		AdmissionState:      facts.SemanticAdmissionDocumentationFindingCandidate,
+		AdmissionState:      semantic.SemanticAdmissionDocumentationFindingCandidate,
 	}})
 	if err != nil {
 		t.Fatalf("Emit() error = %v, want nil", err)
@@ -45,10 +46,10 @@ func TestEmitterBuildsValidDocumentationObservationEnvelope(t *testing.T) {
 	}
 
 	envelope := envelopes[0]
-	if got, want := envelope.FactKind, facts.SemanticDocumentationObservationFactKind; got != want {
+	if got, want := envelope.FactKind, semantic.SemanticDocumentationObservationFactKind; got != want {
 		t.Fatalf("FactKind = %q, want %q", got, want)
 	}
-	if got, want := envelope.SchemaVersion, facts.SemanticFactSchemaVersion; got != want {
+	if got, want := envelope.SchemaVersion, semantic.SemanticFactSchemaVersion; got != want {
 		t.Fatalf("SchemaVersion = %q, want %q", got, want)
 	}
 	if got, want := envelope.CollectorKind, CollectorKind; got != want {
@@ -77,10 +78,10 @@ func TestEmitterBuildsValidDocumentationObservationEnvelope(t *testing.T) {
 	}
 
 	payload := semanticPayloadFromEnvelope(t, envelope)
-	if err := facts.ValidateSemanticDocumentationObservationPayload(payload); err != nil {
+	if err := semantic.ValidateSemanticDocumentationObservationPayload(payload); err != nil {
 		t.Fatalf("ValidateSemanticDocumentationObservationPayload() error = %v, want nil", err)
 	}
-	if got, want := payload.Source.SourceClass, facts.SemanticSourceClassDocumentation; got != want {
+	if got, want := payload.Source.SourceClass, semantic.SemanticSourceClassDocumentation; got != want {
 		t.Fatalf("Source.SourceClass = %q, want %q", got, want)
 	}
 	if got, want := payload.Source.DocumentID, "doc:runbook"; got != want {
@@ -104,19 +105,19 @@ func TestEmitterBuildsValidDocumentationObservationEnvelope(t *testing.T) {
 	if got, want := payload.Chunk.ExtractorVersion, DefaultExtractorVersion; got != want {
 		t.Fatalf("Chunk.ExtractorVersion = %q, want %q", got, want)
 	}
-	if got, want := payload.Chunk.ExtractionMode, facts.SemanticExtractionModeAssistant; got != want {
+	if got, want := payload.Chunk.ExtractionMode, semantic.SemanticExtractionModeAssistant; got != want {
 		t.Fatalf("Chunk.ExtractionMode = %q, want %q", got, want)
 	}
 	if got, want := payload.Provider.ProviderProfileID, "semantic-docs-test"; got != want {
 		t.Fatalf("Provider.ProviderProfileID = %q, want %q", got, want)
 	}
-	if got, want := payload.PolicyState, facts.SemanticPolicyAllowed; got != want {
+	if got, want := payload.PolicyState, semantic.SemanticPolicyAllowed; got != want {
 		t.Fatalf("PolicyState = %q, want %q", got, want)
 	}
-	if got, want := payload.RedactionState, facts.SemanticRedactionSkippedNoSensitiveContent; got != want {
+	if got, want := payload.RedactionState, semantic.SemanticRedactionSkippedNoSensitiveContent; got != want {
 		t.Fatalf("RedactionState = %q, want %q", got, want)
 	}
-	if got, want := payload.FreshnessState, facts.SemanticFreshnessFresh; got != want {
+	if got, want := payload.FreshnessState, semantic.SemanticFreshnessFresh; got != want {
 		t.Fatalf("FreshnessState = %q, want %q", got, want)
 	}
 	if got, want := payload.ObservedAt, "2026-06-08T15:04:05Z"; got != want {
@@ -138,7 +139,7 @@ func TestEmitterUnsafeRedactionForcesProvenanceOnlyAndDropsObservationText(t *te
 			ProviderProfileID: "semantic-docs-test",
 			ProviderKind:      ProviderKindMock,
 		},
-		RedactionState: facts.SemanticRedactionUnsafePayload,
+		RedactionState: semantic.SemanticRedactionUnsafePayload,
 		ObservedAt:     fixedObservationTime,
 	})
 	if err != nil {
@@ -149,23 +150,23 @@ func TestEmitterUnsafeRedactionForcesProvenanceOnlyAndDropsObservationText(t *te
 		ObservationType:     "unsafe-type-text",
 		ObservationText:     "unsafe-observation-text",
 		ObservationHash:     "sha256:unsafe-model-supplied-hash",
-		Confidence:          facts.SemanticConfidenceHigh,
+		Confidence:          semantic.SemanticConfidenceHigh,
 		ConfidenceRationale: "unsafe-rationale-text",
 		MissingEvidence:     []string{"unsafe-missing-evidence"},
 		UnsupportedReason:   "unsafe-unsupported-reason",
-		AdmissionState:      facts.SemanticAdmissionDocumentationFindingCandidate,
+		AdmissionState:      semantic.SemanticAdmissionDocumentationFindingCandidate,
 	}})
 	if err != nil {
 		t.Fatalf("Emit() error = %v, want nil", err)
 	}
 	payload := semanticPayloadFromEnvelope(t, envelopes[0])
-	if got, want := payload.AdmissionState, facts.SemanticAdmissionProvenanceOnly; got != want {
+	if got, want := payload.AdmissionState, semantic.SemanticAdmissionProvenanceOnly; got != want {
 		t.Fatalf("AdmissionState = %q, want %q", got, want)
 	}
-	if got, want := payload.RedactionState, facts.SemanticRedactionUnsafePayload; got != want {
+	if got, want := payload.RedactionState, semantic.SemanticRedactionUnsafePayload; got != want {
 		t.Fatalf("RedactionState = %q, want %q", got, want)
 	}
-	if got, want := payload.ObservationType, facts.SemanticRedactionUnsafePayload; got != want {
+	if got, want := payload.ObservationType, semantic.SemanticRedactionUnsafePayload; got != want {
 		t.Fatalf("ObservationType = %q, want %q", got, want)
 	}
 	if payload.ObservationText != "" {
@@ -180,7 +181,7 @@ func TestEmitterUnsafeRedactionForcesProvenanceOnlyAndDropsObservationText(t *te
 	if len(payload.MissingEvidence) != 0 {
 		t.Fatalf("MissingEvidence = %#v, want empty for unsafe payload", payload.MissingEvidence)
 	}
-	if got, want := payload.UnsupportedReason, facts.SemanticRedactionUnsafePayload; got != want {
+	if got, want := payload.UnsupportedReason, semantic.SemanticRedactionUnsafePayload; got != want {
 		t.Fatalf("UnsupportedReason = %q, want %q", got, want)
 	}
 	if payload.ObservationHash == "sha256:unsafe-model-supplied-hash" {
@@ -337,20 +338,20 @@ func TestEmitterRejectsMissingProviderAndReplayProvenance(t *testing.T) {
 	}
 	if _, err := emitter.Emit(context.Background(), semanticSectionFixture(), []MockObservation{{
 		ObservationType: "summary",
-		AdmissionState:  facts.SemanticAdmissionExact,
+		AdmissionState:  semantic.SemanticAdmissionExact,
 	}}); err == nil {
 		t.Fatal("Emit() error = nil, want reducer admission state rejected before reducer")
 	}
 }
 
-func semanticPayloadFromEnvelope(t *testing.T, envelope facts.Envelope) facts.SemanticDocumentationObservationPayload {
+func semanticPayloadFromEnvelope(t *testing.T, envelope facts.Envelope) semantic.SemanticDocumentationObservationPayload {
 	t.Helper()
 
 	encoded, err := json.Marshal(envelope.Payload)
 	if err != nil {
 		t.Fatalf("json.Marshal(payload map) error = %v, want nil", err)
 	}
-	var payload facts.SemanticDocumentationObservationPayload
+	var payload semantic.SemanticDocumentationObservationPayload
 	if err := json.Unmarshal(encoded, &payload); err != nil {
 		t.Fatalf("json.Unmarshal(payload) error = %v, want nil; json=%s", err, encoded)
 	}
@@ -363,7 +364,7 @@ func emitOneStableFactKey(t *testing.T, emitter *Emitter, section doctruth.Secti
 	envelopes, err := emitter.Emit(context.Background(), section, []MockObservation{{
 		ObservationType: "summary",
 		ObservationText: text,
-		AdmissionState:  facts.SemanticAdmissionDocumentationFindingCandidate,
+		AdmissionState:  semantic.SemanticAdmissionDocumentationFindingCandidate,
 	}})
 	if err != nil {
 		t.Fatalf("Emit() error = %v, want nil", err)

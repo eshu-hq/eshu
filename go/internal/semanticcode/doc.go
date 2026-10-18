@@ -27,7 +27,7 @@
 // carries PromotionPolicy = requires_deterministic_evidence and an explicit
 // CorroborationState, so a hint cannot be read as a canonical relationship no
 // matter how confident the provider was. That boundary is enforced by
-// facts.ValidateSemanticCodeHintPayload, which this package runs on every
+// semantic.ValidateSemanticCodeHintPayload, which this package runs on every
 // payload before emitting it: a hint that cannot state its corroboration
 // state is a hint that does not ship.
 package semanticcode

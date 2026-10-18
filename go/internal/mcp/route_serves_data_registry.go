@@ -130,7 +130,7 @@ var domainDataSignatures = map[string]domainDataSignature{
 	"security_alert_reconciliation": {Markers: []string{"reducer_security_alert_reconciliation"}, StoreTypes: []string{"SecurityAlertReconciliationStore"}},
 
 	// The semantic read model builds SQL from the Go constant identifier.
-	"semantic_entity_materialization": {Markers: []string{"facts.SemanticDocumentationObservationFactKind"}},
+	"semantic_entity_materialization": {Markers: []string{"semantic.SemanticDocumentationObservationFactKind"}},
 
 	"service_catalog_correlation": {Markers: []string{"reducer_service_catalog_correlation"}, StoreTypes: []string{"CatalogCorrelationStore"}},
 

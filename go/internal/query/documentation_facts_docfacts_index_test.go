@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -35,7 +35,7 @@ func TestBuildDocumentationFactsSQLBindsCollectedKindsLiterally(t *testing.T) {
 		docs.LinkFactKind,
 		docs.EntityMentionFactKind,
 		docs.ClaimCandidateFactKind,
-		facts.SemanticDocumentationObservationFactKind,
+		semantic.SemanticDocumentationObservationFactKind,
 	} {
 		t.Run(kind, func(t *testing.T) {
 			t.Parallel()
@@ -161,7 +161,7 @@ func TestBuildDocumentationFactsSQLKeepsScopeBoundKindsParameterized(t *testing.
 		docs.LinkFactKind,
 		docs.EntityMentionFactKind,
 		docs.ClaimCandidateFactKind,
-		facts.SemanticDocumentationObservationFactKind,
+		semantic.SemanticDocumentationObservationFactKind,
 	} {
 		t.Run(kind, func(t *testing.T) {
 			t.Parallel()

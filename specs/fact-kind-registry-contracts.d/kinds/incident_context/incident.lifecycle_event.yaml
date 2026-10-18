@@ -10,4 +10,4 @@ producers:
 disposition: read_only
 no_reducer_reason: Consumed by read surfaces only; no reducer domain decodes it.
 no_reducer_evidence: read consumption in go/internal/query/incident/store
-declaration: go/internal/facts/incident_context.go:72
+declaration: go/internal/facts/incident/context.go:72

@@ -42,7 +42,7 @@ type Source struct {
 //
 // Collection is per-family resilient: a single family's list failure (for
 // example a permission-scoped read) emits a redacted secrets_iam_coverage_warning
-// fact (facts.SecretsIAMCoverageWarningFactKind; source_state=partial,
+// fact (factsidentity.SecretsIAMCoverageWarningFactKind; source_state=partial,
 // resource_scope=<family>) and collection
 // continues, so one denied family does not lose the whole generation. The
 // partial state is therefore explicit in the facts, never silently complete.

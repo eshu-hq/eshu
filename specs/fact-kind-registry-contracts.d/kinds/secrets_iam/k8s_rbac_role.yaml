@@ -10,4 +10,4 @@ producers:
 disposition: unconsumed
 no_reducer_reason: 'Round-2 verified no real consumer: searches for the kind constant and wire literal across reducer, projector, query, storage, and relationships trees returned no consumption.'
 no_reducer_evidence: 'go/internal/mcp/kind_disclosure_ledger.go (kindDisclosureEntries, #5474 backfill)'
-declaration: go/internal/facts/secrets_iam.go:202
+declaration: go/internal/facts/identity/iam.go:202

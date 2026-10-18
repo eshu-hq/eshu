@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iampolicy"
 )
 
@@ -15,7 +16,7 @@ const canPerformBoundaryPolicyARN = "arn:aws:iam::111122223333:policy/developer-
 
 func canPerformBoundaryEnvelope(principalARN string) facts.Envelope {
 	return facts.Envelope{
-		FactKind: facts.AWSIAMPermissionBoundaryFactKind,
+		FactKind: factsidentity.AWSIAMPermissionBoundaryFactKind,
 		Payload: map[string]any{
 			"account_id":          iamEscAccount,
 			"region":              iamEscRegion,

@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
@@ -189,7 +190,7 @@ func (h IAMCanPerformMaterializationHandler) Handle(
 		[]string{
 			cloud.AWSResourceFactKind,
 			cloud.AWSIAMPermissionFactKind,
-			facts.AWSIAMPermissionBoundaryFactKind,
+			factsidentity.AWSIAMPermissionBoundaryFactKind,
 			cloud.AWSResourcePolicyPermissionFactKind,
 		},
 	)
@@ -452,7 +453,7 @@ func splitIAMCanPerformEnvelopes(envelopes []facts.Envelope) (resources, permiss
 			resources = append(resources, env)
 		case cloud.AWSIAMPermissionFactKind:
 			permissions = append(permissions, env)
-		case facts.AWSIAMPermissionBoundaryFactKind:
+		case factsidentity.AWSIAMPermissionBoundaryFactKind:
 			permissionBoundaries = append(permissionBoundaries, env)
 		case cloud.AWSResourcePolicyPermissionFactKind:
 			resourcePolicies = append(resourcePolicies, env)

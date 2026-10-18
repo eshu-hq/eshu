@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
@@ -156,7 +157,7 @@ func (p *stateParser) emitAppliedPagerDutyResource(
 
 	stableKey := "applied_pagerduty_resource:" + address
 	return p.emitBodyFact(p.incidentRoutingEnvelope(
-		facts.IncidentRoutingAppliedPagerDutyResourceFactKind,
+		factsincident.IncidentRoutingAppliedPagerDutyResourceFactKind,
 		stableKey,
 		payload,
 		address,
@@ -229,7 +230,7 @@ func (p *stateParser) emitAppliedAlertRoute(
 
 	stableKey := "applied_alert_route:" + address
 	return p.emitBodyFact(p.incidentRoutingEnvelope(
-		facts.IncidentRoutingAppliedAlertRouteFactKind,
+		factsincident.IncidentRoutingAppliedAlertRouteFactKind,
 		stableKey,
 		payload,
 		address,
@@ -264,7 +265,7 @@ func (p *stateParser) emitIncidentRoutingCoverageWarning(resource resourceContex
 	})
 	stableKey := "coverage_warning:" + reason + ":" + address
 	return p.emitBodyFact(p.incidentRoutingEnvelope(
-		facts.IncidentRoutingCoverageWarningFactKind,
+		factsincident.IncidentRoutingCoverageWarningFactKind,
 		stableKey,
 		payload,
 		address,
@@ -294,7 +295,7 @@ func (p *stateParser) incidentRoutingBasePayload(resource resourceContext, addre
 }
 
 func (p *stateParser) incidentRoutingEnvelope(kind string, stableKey string, payload map[string]any, sourceRecordID string) facts.Envelope {
-	version, _ := facts.IncidentRoutingSchemaVersion(kind)
+	version, _ := factsincident.IncidentRoutingSchemaVersion(kind)
 	key := kind + ":" + stableKey
 	return facts.Envelope{
 		FactID: facts.StableID("IncidentRoutingFact", map[string]any{
