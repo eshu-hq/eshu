@@ -2,9 +2,15 @@
 
 ## Scope
 
-Base: `origin/main` at `6f9ec5ff9` after a fifth conflict-free
-rebase (base delta touches postgres, query-evidence, and ci-gate files,
-all file-disjoint from this slice; reversion scan empty).
+Base: `origin/main` at `effc33a4a0` after a sixth rebase
+with two resolutions: `go/cmd/collector-oci-registry/config.go` kept
+main's new trusted-deletion attestation wiring under the renamed
+`runtime` package name, and main's new
+`source_trusted_deletion_test.go` moved to
+`collector/registry/oci/runtime` with `package runtime` plus new
+import paths (behavior-neutral; oci/cmd suites green). Fifth rebase
+base was `6f9ec5ff9` (conflict-free; disjoint postgres,
+query-evidence, ci-gate files; reversion scan empty).
 Fourth rebase base was `668f4971c77f` (2 disjoint query-contract
 files). Third rebase base was `54a73a48c` (7 disjoint docs/specs
 files). Second rebase base was `7cabdbf0f1e2`
