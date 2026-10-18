@@ -257,17 +257,17 @@ MERGE (src)-[rel:%s]->(tgt)%s`, sourceMatch, targetMatch, relType, relSetClause)
 
 	// Build row maps.
 	rowMaps := make([]map[string]any, len(rows))
-	for i := range rows {
+	for i, row := range rows {
 		m := make(map[string]any)
 		for _, k := range sourceKeyNames {
-			m["src_"+k] = rows[i].SourceKey[k]
+			m["src_"+k] = row.SourceKey[k]
 		}
 		for _, k := range targetKeyNames {
-			m["tgt_"+k] = rows[i].TargetKey[k]
+			m["tgt_"+k] = row.TargetKey[k]
 		}
 		for _, k := range relPropKeys {
-			if rows[i].RelProps != nil {
-				m["rel_"+k] = rows[i].RelProps[k]
+			if row.RelProps != nil {
+				m["rel_"+k] = row.RelProps[k]
 			}
 		}
 		rowMaps[i] = m
