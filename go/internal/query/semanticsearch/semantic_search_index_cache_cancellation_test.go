@@ -65,7 +65,7 @@ func testPersistedSemanticSearchLiveWaiterRetry(
 
 	second := make(chan error, 1)
 	go func() {
-		_, err := hybrid.Search(context.Background(), query)
+		_, err := hybrid.Search(t.Context(), query)
 		second <- err
 	}()
 	waitForSemanticSearchSnapshotLoad(t, snapshots.loaded, "live waiter")

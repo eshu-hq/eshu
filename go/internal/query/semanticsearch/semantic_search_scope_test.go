@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -446,13 +447,5 @@ func TestPostgresSemanticSearchScopeResolverRejectsMultipleActiveScopes(t *testi
 }
 
 func semanticSearchAnySlicesEqual(left, right []any) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for i := range left {
-		if left[i] != right[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(left, right)
 }

@@ -606,15 +606,7 @@ func TestFilterDeadCodeResultsBatchesSQLGraphIncomingProbes(t *testing.T) {
 }
 
 func equalIntSlices(got, want []int) bool {
-	if len(got) != len(want) {
-		return false
-	}
-	for i := range got {
-		if got[i] != want[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(got, want)
 }
 
 func equalStringSliceMaps(got, want map[string][]string) bool {

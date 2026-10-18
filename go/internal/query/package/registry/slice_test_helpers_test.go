@@ -3,6 +3,8 @@
 
 package registry
 
+import "slices"
+
 // equalStringSlices, equalPacketStringSlices, and stringSliceContains are this
 // family's own copies of three trivial, widely-shared root test helpers
 // (code_dead_code_contract_test.go, documentation_packet_authz_test.go,
@@ -14,29 +16,13 @@ package registry
 // equalStringSlices reports whether got and want hold the same strings in the
 // same order.
 func equalStringSlices(got, want []string) bool {
-	if len(got) != len(want) {
-		return false
-	}
-	for i := range got {
-		if got[i] != want[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(got, want)
 }
 
 // equalPacketStringSlices reports whether a and b hold the same strings in
 // the same order.
 func equalPacketStringSlices(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(a, b)
 }
 
 // stringSliceContains reports whether want appears anywhere in values.
