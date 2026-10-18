@@ -360,6 +360,52 @@ func TestFactStoreListFactsPrunedSupersededBaseRefuses(t *testing.T) {
 	}
 }
 
+// A failing retention probe on a superseded base refuses (#8181): the probe
+// cannot confirm the base survived retention intact, and the surviving base
+// rows below model a half-pruned base, so overlaying them would project a
+// complete-looking tree from a partial base. The read fails closed with the
+// existing refused outcome instead of projecting the survivors.
+func TestFactStoreListFactsProbeErrorOnSupersededBaseRefuses(t *testing.T) {
+	t.Parallel()
+
+	inst, reader := newDeltaUnionTestInstruments(t)
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: deltaUnionDeltaRows()},
+			{rows: [][]any{{true, "commit-base"}}},
+			{rows: [][]any{{"gen-base-1", "superseded"}}},
+			{rows: nil, err: errors.New("retention probe outage")},
+			{rows: deltaUnionBaseRows()},
+		},
+	}
+	store := NewFactStore(db).WithInstruments(inst)
+
+	loaded, err := store.ListFacts(context.Background(), "scope-1", "gen-delta-1")
+	if loaded != nil {
+		t.Fatalf("ListFacts() = %d facts, want nil on refusal (no partial projection)", len(loaded))
+	}
+	var missing *projector.DeltaBaseMissingError
+	if !errors.As(err, &missing) {
+		t.Fatalf("ListFacts() error = %v, want DeltaBaseMissingError", err)
+	}
+	if missing.ScopeID != "scope-1" || missing.GenerationID != "gen-delta-1" || missing.BaselineCommitSHA != "commit-base" {
+		t.Fatalf("refusal = %+v, want scope/generation/baseline", missing)
+	}
+	if got, want := len(db.queries), 4; got != want {
+		t.Fatalf("query count = %d, want %d (no base facts read after refusal)", got, want)
+	}
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if got := deltaUnionOutcomeValue(t, rm, string(projector.DeltaUnionBaseMissingRefused)); got != 1 {
+		t.Fatalf("union_base_missing_refused = %d, want 1 (existing outcome label)", got)
+	}
+	if got := deltaUnionOutcomeValue(t, rm, string(projector.DeltaUnionResolveFailed)); got != 0 {
+		t.Fatalf("union_resolve_failed = %d, want 0 (a probe outage is a refusal, not a retry)", got)
+	}
+}
+
 // newDeltaUnionTestInstruments builds instruments over a manual reader so
 // union outcome tests can assert the exact counted outcome.
 func newDeltaUnionTestInstruments(t *testing.T) (*telemetry.Instruments, *sdkmetric.ManualReader) {
