@@ -162,11 +162,8 @@ func TestCostBudget_ContainerImageIdentity(t *testing.T) {
 	// recorded by the production postgres.InstrumentedDB.ExecContext wrapper,
 	// NOT by a hand-counted call slice.
 	writes := collectAttributedHistogramCount(rm, "eshu_dp_postgres_query_duration_seconds", "operation", "write")
-	maxWrites, ok := budget.Budgets["eshu_dp_postgres_query_duration_seconds"]
-	if !ok {
-		t.Fatal("budget missing required key eshu_dp_postgres_query_duration_seconds")
-	}
-	if writes > uint64(maxWrites) {
+	maxWrites := checkedBudgetLimit(t, budget, "eshu_dp_postgres_query_duration_seconds")
+	if writes > maxWrites {
 		t.Fatalf(
 			"eshu_dp_postgres_query_duration_seconds write observations = %d exceeds budget %d "+
 				"(scenario=%s): algorithmic regression detected",
@@ -236,12 +233,9 @@ func TestCostBudget_ContainerImageIdentity_N1_ExceedsBudget(t *testing.T) {
 	}
 
 	writes := collectAttributedHistogramCount(rm, "eshu_dp_postgres_query_duration_seconds", "operation", "write")
-	maxWrites, ok := budget.Budgets["eshu_dp_postgres_query_duration_seconds"]
-	if !ok {
-		t.Fatal("budget has no eshu_dp_postgres_query_duration_seconds entry")
-	}
+	maxWrites := checkedBudgetLimit(t, budget, "eshu_dp_postgres_query_duration_seconds")
 
-	if writes <= uint64(maxWrites) {
+	if writes <= maxWrites {
 		t.Fatalf(
 			"N+1 negative control: eshu_dp_postgres_query_duration_seconds write observations = %d did NOT "+
 				"exceed budget %d — budget is too loose to catch N+1 regressions or the negative control is "+

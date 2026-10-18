@@ -40,6 +40,30 @@ func loadBudgetFrom(t *testing.T, path string) costBudget {
 	return b
 }
 
+// checkedBudgetLimit returns the committed budget limit for key as a uint64,
+// failing the test when the key is missing or the limit is negative. Budget
+// limits arrive from committed JSON as int64 while observation counts are
+// uint64, so comparing the two needs a conversion gosec flags as G115
+// (integer overflow conversion). The missing-key and negative guards above
+// are the real bound: committed budgets are small non-negative counts, and a
+// negative budget would otherwise wrap to a huge uint64 and silently pass
+// every assertion. Each t.Fatalf carries an explicit return because gosec
+// does not treat t.Fatalf as terminating.
+func checkedBudgetLimit(t *testing.T, budget costBudget, key string) uint64 {
+	t.Helper()
+
+	limit, ok := budget.Budgets[key]
+	if !ok {
+		t.Fatalf("budget missing required key %s", key)
+		return 0
+	}
+	if limit < 0 {
+		t.Fatalf("budget key %s limit = %d, want >= 0", key, limit)
+		return 0
+	}
+	return uint64(limit)
+}
+
 // groupCountingExecutor is an in-memory Executor+GroupExecutor that records
 // each Execute and ExecuteGroup call and the total statement count. It is
 // shared by the semantic-entity and documentation-edges cost scenarios: each
