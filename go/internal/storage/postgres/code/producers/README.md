@@ -16,7 +16,7 @@ rules, the three manifest statements (`PackageManifestsQuery`,
 package owns `LoadActiveCodeCallSymbolDefinitionFacts`, the definition scan and
 its keyset paging, and the load log line. The Go parser owns the key shape and
 the import-path rule this package mirrors: `internal/parser/golang/scip_symbols.go`
-and `internal/parser/go_package_module_import_path.go`.
+and `internal/parser/golang/module_import_path.go`.
 
 ## Exported surface
 
