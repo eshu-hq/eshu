@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
+	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
 
 const (
@@ -198,12 +199,18 @@ func (h *Handler) listCatalogWorkloadIdentitiesFromContent(
 	}
 	workloads := make([]catalogWorkload, 0, len(identities))
 	for _, identity := range identities {
-		if strings.TrimSpace(identity.Name) == "" {
+		// The id is synthesized from (repo_id, name) through the same
+		// workloadid constructor the graph write path uses, so an
+		// identity-only row carries the scoped id its materialized sibling
+		// would (#5385). Hand-built "workload:"+name strings are what let
+		// two repositories' same-named workloads share one id.
+		name := workloadid.StripWorkloadHandlePrefix(identity.Name)
+		if name == "" {
 			continue
 		}
 		workloads = append(workloads, catalogWorkload{
-			ID:                    "workload:" + strings.TrimPrefix(identity.Name, "workload:"),
-			Name:                  strings.TrimPrefix(identity.Name, "workload:"),
+			ID:                    workloadid.NewWorkloadID(identity.RepoID, name).String(),
+			Name:                  name,
 			Kind:                  "service",
 			RepoID:                identity.RepoID,
 			RepoName:              identity.RepoName,
@@ -318,11 +325,16 @@ func mergeCatalogWorkloads(
 	return merged[:limit], true
 }
 
+// catalogWorkloadKey keys the graph/identity merge by (repo_id, name), not
+// by name alone: after the re-key two repositories can own same-named
+// workloads, and a name-only key merges those split siblings back into one
+// row (#5385). The same pair from both sources still dedupes.
 func catalogWorkloadKey(workload catalogWorkload) string {
-	if workload.Name != "" {
-		return strings.ToLower(workload.Name)
+	name := workload.Name
+	if name == "" {
+		name = strings.TrimPrefix(workload.ID, "workload:")
 	}
-	return strings.ToLower(strings.TrimPrefix(workload.ID, "workload:"))
+	return strings.ToLower(workload.RepoID) + "\x00" + strings.ToLower(name)
 }
 
 func serviceCatalogRows(workloads []catalogWorkload) []catalogWorkload {

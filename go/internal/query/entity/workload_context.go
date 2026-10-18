@@ -14,6 +14,7 @@ import (
 	repositorycontract "github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
+	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
 
 // fetchWorkloadContext queries graph-backed workload context with a custom
@@ -285,8 +286,15 @@ func (h *Handler) FetchServiceReadModelWorkloadContext(ctx context.Context, serv
 			limitations = append(limitations, repository.RelationshipsReadDegradedReason)
 		}
 	}
+	// The id is synthesized from (repo_id, name) through the same
+	// workloadid constructor the graph write path uses, so this identity-only
+	// row agrees with the materialized node id for the same pair (the graph
+	// path above emits the node's id property directly). The separate handle
+	// keeps the stable public workload:<name> string existing clients
+	// display (#5385 compatibility doc section 1.4).
 	return map[string]any{
-		"id":                     "workload:" + workloadName,
+		"id":                     workloadid.NewWorkloadID(repo.ID, workloadName).String(),
+		"handle":                 workloadid.FormatWorkloadHandle(workloadName),
 		"name":                   workloadName,
 		"kind":                   "service",
 		"repo_id":                repo.ID,

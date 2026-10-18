@@ -161,7 +161,12 @@ func TestInvestigateChangeSurfaceUsesBoundedTraversal(t *testing.T) {
 	}
 }
 
-func TestInvestigateChangeSurfaceResolvesBareServiceNameByCanonicalWorkloadID(t *testing.T) {
+// TestInvestigateChangeSurfaceResolvesBareServiceNameByHandleLadder pins the
+// #5385 handle ladder for a bare service name: rung 1 probes the exact node
+// id, rung 2 probes the bare workload name within the grant (the old
+// canonical-id probe built "workload:"+name and matched {id}; the ladder
+// matches {name} so it keeps working once ids carry the repository).
+func TestInvestigateChangeSurfaceResolvesBareServiceNameByHandleLadder(t *testing.T) {
 	t.Parallel()
 
 	graph := &recordingChangeSurfaceGraph{runRows: [][]map[string]any{
@@ -190,10 +195,13 @@ func TestInvestigateChangeSurfaceResolvesBareServiceNameByCanonicalWorkloadID(t 
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
 	if got, want := len(graph.runCalls), 3; got != want {
-		t.Fatalf("graph Run calls = %d, want exact id probe, canonical workload id probe, and traversal", got)
+		t.Fatalf("graph Run calls = %d, want exact id probe, ladder bare-name probe, and traversal", got)
 	}
-	if got, want := graph.runCalls[1].params["target"], "workload:svc-catalog"; got != want {
+	if got, want := graph.runCalls[1].params["target"], "svc-catalog"; got != want {
 		t.Fatalf("second resolver target = %#v, want %#v", got, want)
+	}
+	if cypher := graph.runCalls[1].cypher; !strings.Contains(cypher, "MATCH (n:Workload {name: $target})") {
+		t.Fatalf("second resolver cypher = %s, want the ladder bare-name probe", cypher)
 	}
 
 	data := decodeChangeSurfaceData(t, w)
@@ -239,7 +247,10 @@ func TestInvestigateChangeSurfaceDoesNotResolveWrongServiceNameByRepoOnly(t *tes
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
-	if got, want := len(graph.runCalls), 4; got != want {
+	// Three probes, not four: the old phase-3 bare-name fallback is subsumed
+	// by the rung-2 ladder probe (#5385), so a miss runs exact id, bare
+	// name, and repo-scoped probes, then stops without traversal.
+	if got, want := len(graph.runCalls), 3; got != want {
 		t.Fatalf("graph Run calls = %d, want resolver probes without traversal", got)
 	}
 	repoScopedCypher := graph.runCalls[2].cypher
