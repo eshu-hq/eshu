@@ -213,7 +213,7 @@ Two `missing` entries cover the Repository path-conflict cleanup (#8240). On
 every non-first, non-delta materialization of a Repository (the corpus gate's
 second generation of its two staged repositories), the Neo4j writer sends the
 attributed retirement (`OPTIONAL MATCH` edge collection, `DETACH DELETE`,
-`RETURN dropped`) and the NornicDB writer sends the bare `DETACH DELETE`,
+`RETURN retired_id, dropped`) and the NornicDB writer sends the bare `DETACH DELETE`,
 because NornicDB drops the id guard on the attributed shape (#8173). The
 statement deletes only when a different-id Repository holds the path; in the
 captures nothing was re-keyed and every record deleted 0 nodes. Both statements match the same path and `r.id <> $repo_id`

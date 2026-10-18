@@ -37,10 +37,14 @@ func cleanupStatements(t *testing.T, bare bool) []Statement {
 // (Neo4j) and bare (NornicDB) statements must select and delete the same
 // Repository rows: same path anchor, same id guard, DETACH DELETE of the
 // matched node. The attributed shape may add only the incident-edge
-// collection (OPTIONAL MATCH ... WITH r, collect(...)) between the guard and
-// the delete, and the RETURN record after it. Any extra filter or a changed
-// guard would make the two backends retire different nodes, so the
-// allowlist could no longer call the one-sided recording benign.
+// collection (OPTIONAL MATCH ... WITH r, r.id AS retired_id, collect(...))
+// between the guard and the delete, and the RETURN record after it. The
+// retired_id column is a function of r, so adding it to the WITH grouping
+// keeps the aggregation one row per retired node (#8371 bound it before the
+// delete so the RETURN never reads a property off a deleted node). Any extra
+// filter or a changed guard would make the two backends retire different
+// nodes, so the allowlist could no longer call the one-sided recording
+// benign.
 func TestRepositoryPathCleanupShapesRetireTheSameSet(t *testing.T) {
 	t.Parallel()
 	attributed := strings.Join(strings.Fields(canonicalNodeRepositoryPathCleanupCypher), " ")
@@ -59,7 +63,7 @@ func TestRepositoryPathCleanupShapesRetireTheSameSet(t *testing.T) {
 	if !ok {
 		t.Fatalf("attributed shape has no %q: %q", deleteClause, attributed)
 	}
-	const collection = "OPTIONAL MATCH (r)-[rel]-(other) WITH r, collect(CASE WHEN rel IS NULL THEN NULL ELSE " +
+	const collection = "OPTIONAL MATCH (r)-[rel]-(other) WITH r, r.id AS retired_id, collect(CASE WHEN rel IS NULL THEN NULL ELSE " +
 		"{t: type(rel), dir: CASE WHEN startNode(rel) = r THEN 'out' ELSE 'in' END, src: rel.evidence_source} END) AS dropped"
 	// Compare the whole clause, not keywords: LIMIT, SKIP, ORDER BY, UNWIND,
 	// or a changed grouping would shrink or reshape the retired set while a
@@ -67,8 +71,8 @@ func TestRepositoryPathCleanupShapesRetireTheSameSet(t *testing.T) {
 	if before != collection {
 		t.Fatalf("attributed collection = %q, want exactly %q; it must not change the retired set", before, collection)
 	}
-	if after != " RETURN dropped" {
-		t.Fatalf("attributed tail after the delete = %q, want %q", after, " RETURN dropped")
+	if after != " RETURN retired_id, dropped" {
+		t.Fatalf("attributed tail after the delete = %q, want %q", after, " RETURN retired_id, dropped")
 	}
 }
 
