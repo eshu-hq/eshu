@@ -29,8 +29,8 @@ fi
 
 # Verified against ripgrep's own published .sha256 for this release; do not
 # change without re-verifying upstream.
-readonly ESHU_CI_APT_PINNED_RIPGREP_URL="https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz"
-readonly ESHU_CI_APT_PINNED_RIPGREP_SHA256="4cf9f2741e6c465ffdb7c26f38056a59e2a2544b51f7cc128ef28337eeae4d8e"
+readonly ESHU_CI_APT_PINNED_RIPGREP_URL="https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-x86_64-unknown-linux-musl.tar.gz"
+readonly ESHU_CI_APT_PINNED_RIPGREP_SHA256="33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c"
 
 # RIPGREP_WORK_DIR is set only once install_ripgrep_pinned_binary actually
 # runs; the EXIT trap below is a no-op otherwise.

@@ -25,7 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 ARG GO_VERSION=1.26.9
-ARG RIPGREP_VERSION=14.1.1
+ARG RIPGREP_VERSION=15.2.0
 ARG YQ_VERSION=4.54.1
 ARG DOCKER_VERSION=29.1.3
 ARG COMPOSE_VERSION=2.40.3
@@ -34,14 +34,14 @@ RUN set -eux; \
     case "${TARGETARCH}" in \
       amd64) go_sha=42d158b4d8f7b61ac0a830567c940a86098fb7aac52e467a5ebec03ef5cc2f8d; \
              rg_target=x86_64-unknown-linux-musl; \
-             rg_sha=4cf9f2741e6c465ffdb7c26f38056a59e2a2544b51f7cc128ef28337eeae4d8e; \
+             rg_sha=33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c; \
              yq_sha=8e34fc298390875de416e6a4afcb8cabeceb25d9aa8506c1a2f9353cf702ea5f; \
              docker_arch=x86_64; \
              docker_sha=c019c608ba2bb009dd673f3230e4d743f36a78d36166c6c2444c05d0aa9ff0d9; \
              compose_sha=dba9d98e1ba5bfe11d88c99b9bd32fc4a0624a30fafe68eea34d61a3e42fd372 ;; \
       arm64) go_sha=4a97373d49fcacdcf3694fea368a500b00ee3e963974f3e7514132717632f052; \
              rg_target=aarch64-unknown-linux-gnu; \
-             rg_sha=c827481c4ff4ea10c9dc7a4022c8de5db34a5737cb74484d62eb94a95841ab2f; \
+             rg_sha=a740b91c82eaf9914cfedd353572f2791cbe0162c84101ee0951058f4dcbc90d; \
              yq_sha=189088da0c6429ec5178dfaab1a114805f6cab0b61b165ab236efedf1d57a71b; \
              docker_arch=aarch64; \
              docker_sha=2219f3ac48727d8c5546b13d5d271a58856188ecb8ff1f71f9e2f9aefde3ea76; \

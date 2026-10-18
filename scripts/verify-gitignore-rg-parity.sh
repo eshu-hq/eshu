@@ -8,8 +8,13 @@
 # `git check-ignore` correctly reported them as tracked; the count grows
 # with the tree). A new `go/<binary>` line whose basename collides with a
 # source directory would reintroduce the prune with exit code 0 and no
-# warning. The prune needs a relativizing rg (14.1.1 does; 15.2.0 does not);
-# CI pins checksum-verified 14.1.1 via scripts/ci/install-apt-packages.sh.
+# warning. The prune needs a relativizing rg: 14.1.1 does, 15.2.0 does not
+# (upstream fixed the relativization), so this gate enforces a 15.2.0 floor
+# and CI pins checksum-verified 15.2.0 via
+# scripts/ci/install-apt-packages.sh. The `.claude/*` ignored tree (#7771)
+# pruned 32 tracked files from a `.claude/` search root on 14.1.1 with no
+# working negation spelling; on the floor rg the existing negations apply
+# and the root is covered like every other root.
 #
 # The check walks every search root where an anchored pattern can relativize:
 # the repo root, every top-level directory, and every second-level directory
@@ -34,7 +39,7 @@
 # Exit codes:
 #   0 -- every tracked file is visible to rg from every search root.
 #   1 -- at least one root hides tracked files from rg; details on stderr.
-#   2 -- rg is not installed.
+#   2 -- rg is not installed, or is below the 15.2.0 floor.
 set -euo pipefail
 
 repo_root="${ESHU_RG_PARITY_REPO_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
@@ -44,6 +49,38 @@ command -v rg >/dev/null 2>&1 || {
 	printf 'verify-gitignore-rg-parity: rg not found on PATH\n' >&2
 	exit 2
 }
+
+# rg minimum-version floor (#7771): the parity walk below is only meaningful
+# on rg >= 15.2.0, which no longer relativizes anchored parent-.gitignore
+# patterns under subdirectory search roots (14.1.1 does, hiding tracked files
+# with exit 0). Refusing an old rg with exit 2 names the true cause; without
+# this floor, un-skipping .claude/ would turn every pre-15.2.0 rg into a
+# misleading "tracked files hidden" parity RED.
+version_at_least() {
+	# $1 = have (X.Y.Z), $2 = want (X.Y.Z); exit 0 iff have >= want.
+	# Numeric field comparison so 15.10.0 beats 15.2.0. Anything
+	# unparseable fails closed: an unknown rg cannot prove census parity.
+	local have="$1" want="$2" rest h_major h_minor h_patch w_major w_minor w_patch
+	rest="${have#*.}"; h_major="${have%%.*}"
+	h_minor="${rest%%.*}"; h_patch="${rest#*.}"
+	rest="${want#*.}"; w_major="${want%%.*}"
+	w_minor="${rest%%.*}"; w_patch="${rest#*.}"
+	case "$h_major$h_minor$h_patch$w_major$w_minor$w_patch" in
+		'' | *[!0-9]*) return 1 ;;
+	esac
+	[ "$h_major" -gt "$w_major" ] && return 0
+	[ "$h_major" -lt "$w_major" ] && return 1
+	[ "$h_minor" -gt "$w_minor" ] && return 0
+	[ "$h_minor" -lt "$w_minor" ] && return 1
+	[ "$h_patch" -ge "$w_patch" ]
+}
+
+rg_floor="15.2.0"
+rg_have="$(rg --version 2>/dev/null | awk 'NR==1 {for (i=1; i<=NF; i++) if ($i ~ /^[0-9]+\.[0-9]+\.[0-9]+/) {print $i; exit}}')"
+if [ -z "${rg_have:-}" ] || ! version_at_least "$rg_have" "$rg_floor"; then
+	printf 'verify-gitignore-rg-parity: rg %s is below the %s floor (#7771); census searches need rg >= %s\n' "${rg_have:-unknown}" "$rg_floor" "$rg_floor" >&2
+	exit 2
+fi
 
 failures=0
 roots_checked=0
@@ -102,13 +139,6 @@ done
 for d in .*/; do
 	case "$d" in
 		./ | ../ | .git/) continue ;;
-		# .claude/ is the one known-unfixable root: the `.claude/*` ignore
-		# prunes 32 tracked files from a `.claude/` search root and no
-		# negation spelling re-includes nested files there (four shapes
-		# tried). Tracked in #7771; re-add this root when that lands. The
-		# skip is fail-open ONLY for that root: every other root, and any
-		# future anchored pattern that relativizes badly, still fails.
-		.claude/) continue ;;
 	esac
 	[ -e "$d" ] || continue
 	check_root "$d"
