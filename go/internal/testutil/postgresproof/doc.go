@@ -22,4 +22,9 @@
 // ListSchemaObjects returns the sorted definition-level inventory of one
 // schema, shared by the isolated-schema guards so their fingerprints cannot
 // drift apart; FirstSchemaObjects caps a failure listing.
+//
+// RaisePoolForConcurrentClaimers sizes a proof pool so concurrent claim
+// loops never serialize behind one connection: one pinned connection per
+// claimer plus spare connections for seeding, assertions, and cleanup,
+// kept idle at the same count; it returns the limit it set.
 package postgresproof

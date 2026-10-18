@@ -452,5 +452,10 @@ TABLE = {
         "go/internal/storage/postgres/trigger_bootstrap_parity_live_test.go": (
             "TestWebhookTriggerStoreRunsOnBootstrapSchemaLive",
         ),
+        "go/internal/storage/postgres/workflow_control_claim_depth_live_test.go": (
+            "TestWorkflowClaimDepthEightClaimersDrainExactlyOnce",
+            "TestWorkflowClaimDepthStarvationProbeMeasuresFIFOFloor",
+            "TestClaimDepthAnalysisHelpers",
+        ),
     },
 }

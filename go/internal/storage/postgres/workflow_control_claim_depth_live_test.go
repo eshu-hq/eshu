@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8468 claim-issuance-under-depth harness proofs on real PostgreSQL: eight concurrent claimers on eight distinct pinned backends drain a seeded workflow backlog exactly once (no duplicate work-item or claim grant under SKIP LOCKED and the Read Committed EvalPlanQual recheck, one completed claim row per item), and the starvation probe records the shipped FIFO floor (a small fairness key seeded behind a 500-item large key is first granted only at or after grant 493, 500 - 8 + 1) so a pacing or fairness mechanism that engages and never releases small keys fails here instead of shipping unseen; isolated schema from ESHU_POSTGRES_DSN with the full bootstrap applied by the harness opener; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_POSTGRES_DSN
+
 import (
 	"testing"
 	"time"
@@ -74,7 +78,8 @@ SELECT
 // pacing code exists: asserting the fair bound (small-key first grant
 // before the large backlog drains) against the shipped selector fails on
 // real Postgres today (measured: first small grants land only after all
-// 500 large grants, against a fair bound of 493), so a pacing or fairness
+// 500 large grants, at or past the FIFO floor of 493, which is
+// largeCount - claimers + 1), so a pacing or fairness
 // mechanism that engages and never releases small keys is caught here
 // instead of shipping unseen.
 func TestWorkflowClaimDepthStarvationProbeMeasuresFIFOFloor(t *testing.T) {
