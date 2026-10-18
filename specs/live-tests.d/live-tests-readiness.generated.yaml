@@ -487,7 +487,7 @@ tests:
   - file: go/internal/storage/postgres/gap_admitted_anchor_index_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8316 migration 197 lifecycle and seek proof: the deployable_unit_gap_admitted_anchor_idx partial index applies and reapplies cleanly, the per-pass latest-decision listing plans as an index seek over it with exact rows, and rollback plus rebuild round-trips; isolated schema from ESHU_POSTGRES_TEST_DSN; enrolled in the live-postgres-readiness runner"
+    reason: "#8316 migration 198 lifecycle and seek proof: the deployable_unit_gap_admitted_anchor_idx partial index applies and reapplies cleanly, the per-pass latest-decision listing plans as an index seek over it with exact rows, and rollback plus rebuild round-trips; isolated schema from ESHU_POSTGRES_TEST_DSN; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/generation_freshness_reproject_live_test.go
     tag: ~

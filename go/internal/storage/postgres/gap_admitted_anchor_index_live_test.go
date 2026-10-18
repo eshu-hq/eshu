@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8316 migration 197 lifecycle and seek proof: the deployable_unit_gap_admitted_anchor_idx partial index applies and reapplies cleanly, the per-pass latest-decision listing plans as an index seek over it with exact rows, and rollback plus rebuild round-trips; isolated schema from ESHU_POSTGRES_TEST_DSN; enrolled in the live-postgres-readiness runner
+//eshu:readiness:reason #8316 migration 198 lifecycle and seek proof: the deployable_unit_gap_admitted_anchor_idx partial index applies and reapplies cleanly, the per-pass latest-decision listing plans as an index seek over it with exact rows, and rollback plus rebuild round-trips; isolated schema from ESHU_POSTGRES_TEST_DSN; enrolled in the live-postgres-readiness runner
 //eshu:readiness:env ESHU_POSTGRES_TEST_DSN
 
 import (
@@ -22,7 +22,7 @@ import (
 )
 
 // TestDeployableUnitGapAdmittedAnchorIndexLifecycleAndSeekLive proves
-// migration 197 (deployable_unit_gap_admitted_anchor_idx) on a live
+// migration 198 (deployable_unit_gap_admitted_anchor_idx) on a live
 // Postgres against the per-pass listing it serves: the admitted-anchor
 // probe over anchors with multi-generation decision history plus
 // other-domain noise.

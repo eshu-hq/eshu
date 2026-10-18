@@ -79,14 +79,14 @@ measured at 1.4 ms on 20k rows; no index was added there (index doctrine:
 hot path plus usable predicate shape).
 
 The admitted-anchors listing carries one partial index since #8371 review
-P2 (`deployable_unit_gap_admitted_anchor_idx`, migration 197, mirrored in
+P2 (`deployable_unit_gap_admitted_anchor_idx`, migration 198, mirrored in
 `admissionstore.AdmissionDecisionSchemaSQL`): the P1 rescoping to the
 latest decision per anchor reads `DISTINCT ON (anchor_id) ... ORDER BY
 anchor_id, decided_at DESC` over `domain + anchor_kind`, which neither
 `(scope_id, generation_id)`-leading index serves. The index is partial and
 anchor-leading with `decided_at` following, so the per-pass listing reads
 in index order. New-database DDL rides `EnsureSchema`; existing
-deployments converge through migration 197 (`CREATE INDEX CONCURRENTLY IF
+deployments converge through migration 198 (`CREATE INDEX CONCURRENTLY IF
 NOT EXISTS`, one statement per file, per the coordinator's
 sole-concurrent-index rule).
 
@@ -177,7 +177,7 @@ two counters; the retirement report keeps its existing `canonical
 repository retired` line and counters, with observer failures on a WARN
 under the same message family.
 
-## Follow-up: migration 197 convergence guard and partial index
+## Follow-up: migration 198 convergence guard and partial index
 
 Performance Evidence: baseline per-pass listing seq-scans plus
 DISTINCT-sorts all retained admission history with no supporting index;
