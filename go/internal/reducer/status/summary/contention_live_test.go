@@ -94,6 +94,10 @@ func TestWritersBesideTheProductionClaimLoopLive(t *testing.T) {
 	tfAsOfs.wait()
 	loaded := claims.phase()
 	claims.stop()
+	// The stop joins the client goroutines, but a server backend can still be
+	// finishing its last claim iteration; drain it before the final pass so
+	// the stored-vs-live equality reads settled state (#7814).
+	drainActiveBackends(ctx, t, database)
 
 	if claims.errorCount() != 0 {
 		t.Fatalf("claim loop errors = %d (first: %v), want 0", claims.errorCount(), claims.firstError())

@@ -130,6 +130,39 @@ func (l *claimLoop) firstError() error {
 	return l.errs[0]
 }
 
+// drainActiveBackends waits until no other client backend on this database is
+// still active. The claim loop's stop joins the client goroutines, but a
+// server backend can still be finishing the iteration the join released; the
+// final stored-vs-live equality must not run until that backend has settled,
+// or it reads a torn claimed<->pending view. It fails loudly with the session
+// list when backends stay active past the bound.
+func drainActiveBackends(ctx context.Context, t *testing.T, database *sql.DB) {
+	t.Helper()
+	start := time.Now()
+	deadline := start.Add(15 * time.Second)
+	for {
+		var active int
+		if err := database.QueryRowContext(ctx, `
+SELECT count(*)
+FROM pg_stat_activity
+WHERE datname = current_database()
+  AND backend_type = 'client backend'
+  AND state = 'active'
+  AND pid <> pg_backend_pid()`).Scan(&active); err != nil {
+			t.Fatalf("count active backends: %v", err)
+		}
+		if active == 0 {
+			t.Logf("drained claim-loop server backends in %s", time.Since(start).Round(time.Millisecond))
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("claim-loop server backends still active after %s; sessions:\n%s",
+				time.Since(start).Round(time.Millisecond), sessionDump(ctx, database))
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
 // lockSampler counts, every 100 ms, ungranted locks held or caused by a
 // writer backend (identified by its application_name).
 type lockSampler struct {
