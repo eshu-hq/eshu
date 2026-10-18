@@ -73,9 +73,10 @@ SELECT
 // This is also the stuck-pacing case #8468 requires to fail before any
 // pacing code exists: asserting the fair bound (small-key first grant
 // before the large backlog drains) against the shipped selector fails on
-// real Postgres today (measured: first small grant seq 501 against a bound
-// of 493), so a pacing or fairness mechanism that engages and never
-// releases small keys is caught here instead of shipping unseen.
+// real Postgres today (measured: first small grants land only after all
+// 500 large grants, against a fair bound of 493), so a pacing or fairness
+// mechanism that engages and never releases small keys is caught here
+// instead of shipping unseen.
 func TestWorkflowClaimDepthStarvationProbeMeasuresFIFOFloor(t *testing.T) {
 	database, store, ctx, poolLimit := openClaimDepthHarness(t, claimDepthClaimers)
 	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
