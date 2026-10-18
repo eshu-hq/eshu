@@ -6,7 +6,6 @@ package git
 import (
 	"context"
 	"errors"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -49,59 +48,91 @@ func TestPreparseConfigForCoversTheSnapshotter(t *testing.T) {
 	}
 }
 
-type fakeFileInfo struct {
-	size    int64
-	modTime time.Time
-}
-
-func (f fakeFileInfo) Name() string       { return "scip-go" }
-func (f fakeFileInfo) Size() int64        { return f.size }
-func (f fakeFileInfo) Mode() fs.FileMode  { return 0o755 }
-func (f fakeFileInfo) ModTime() time.Time { return f.modTime }
-func (f fakeFileInfo) IsDir() bool        { return false }
-func (f fakeFileInfo) Sys() any           { return nil }
-
 // TestPreparseConfigForFoldsEachInput: each snapshotter or dependency input
-// changes the identity built from PreparseConfigFor, and the SCIP binary is
-// read through lookPath and stat.
+// changes the identity built from PreparseConfigFor, and the SCIP binary
+// content is read through lookPath and readFile.
 func TestPreparseConfigForFoldsEachInput(t *testing.T) {
 	t.Parallel()
-	stat := func(size int64) func(string) (os.FileInfo, error) {
-		return func(string) (os.FileInfo, error) { return fakeFileInfo{size: size, modTime: time.Unix(1, 0)}, nil }
+	readFile := func(content string) func(string) ([]byte, error) {
+		return func(string) ([]byte, error) { return []byte(content), nil }
 	}
 	lookPath := func(name string) (string, error) { return "/bin/" + name, nil }
 	base := NativeRepositorySnapshotter{SCIP: SnapshotSCIPConfig{Enabled: true, Languages: []string{"go"}}}
-	identity := func(s NativeRepositorySnapshotter, sync RepoSyncConfig, look func(string) (string, error), st func(string) (os.FileInfo, error)) string {
-		return preparse.Identity("v", "c", "main", PreparseConfigFor(s, sync, look, st))
+	identity := func(s NativeRepositorySnapshotter, sync RepoSyncConfig, look func(string) (string, error), read func(string) ([]byte, error)) string {
+		return preparse.Identity("v", "c", "main", PreparseConfigFor(s, sync, look, read))
 	}
-	want := identity(base, RepoSyncConfig{}, lookPath, stat(1))
-	config := PreparseConfigFor(base, RepoSyncConfig{}, lookPath, stat(1))
-	if len(config.SCIPBinaries) != 1 || config.SCIPBinaries[0].Path != "/bin/scip-go" || config.SCIPBinaries[0].Size != 1 {
-		t.Fatalf("SCIP binaries = %+v, want /bin/scip-go size 1", config.SCIPBinaries)
+	want := identity(base, RepoSyncConfig{}, lookPath, readFile("scip-go-binary-v1"))
+	config := PreparseConfigFor(base, RepoSyncConfig{}, lookPath, readFile("scip-go-binary-v1"))
+	if len(config.SCIPBinaries) != 1 || config.SCIPBinaries[0].Digest == "" || config.SCIPBinaries[0].Missing {
+		t.Fatalf("SCIP binaries = %+v, want one digested scip-go", config.SCIPBinaries)
 	}
 	cells := map[string]string{
 		"ignored glob": identity(NativeRepositorySnapshotter{SCIP: base.SCIP, DiscoveryOptions: discovery.Options{
 			IgnoredPathGlobs: []discovery.PathGlobRule{{Pattern: "gen/**", Reason: "generated"}},
-		}}, RepoSyncConfig{}, lookPath, stat(1)),
+		}}, RepoSyncConfig{}, lookPath, readFile("scip-go-binary-v1")),
 		"preserved glob": identity(NativeRepositorySnapshotter{SCIP: base.SCIP, DiscoveryOptions: discovery.Options{
 			PreservedPathGlobs: []string{"docs/**"},
-		}}, RepoSyncConfig{}, lookPath, stat(1)),
-		"emit dataflow":      identity(NativeRepositorySnapshotter{SCIP: base.SCIP, EmitDataflow: true}, RepoSyncConfig{}, lookPath, stat(1)),
-		"scip off":           identity(NativeRepositorySnapshotter{}, RepoSyncConfig{}, lookPath, stat(1)),
-		"scip language":      identity(NativeRepositorySnapshotter{SCIP: SnapshotSCIPConfig{Enabled: true, Languages: []string{"go", "python"}}}, RepoSyncConfig{}, lookPath, stat(1)),
-		"scip binary change": identity(base, RepoSyncConfig{}, lookPath, stat(2)),
+		}}, RepoSyncConfig{}, lookPath, readFile("scip-go-binary-v1")),
+		"emit dataflow":      identity(NativeRepositorySnapshotter{SCIP: base.SCIP, EmitDataflow: true}, RepoSyncConfig{}, lookPath, readFile("scip-go-binary-v1")),
+		"scip off":           identity(NativeRepositorySnapshotter{}, RepoSyncConfig{}, lookPath, readFile("scip-go-binary-v1")),
+		"scip language":      identity(NativeRepositorySnapshotter{SCIP: SnapshotSCIPConfig{Enabled: true, Languages: []string{"go", "python"}}}, RepoSyncConfig{}, lookPath, readFile("scip-go-binary-v1")),
+		"scip binary change": identity(base, RepoSyncConfig{}, lookPath, readFile("scip-go-binary-v2")),
 		"scip binary missing": identity(base, RepoSyncConfig{}, func(string) (string, error) {
 			return "", errors.New("not found")
-		}, stat(1)),
-		"dependency mode": identity(base, RepoSyncConfig{DependencyMode: true}, lookPath, stat(1)),
-		"dependency name": identity(base, RepoSyncConfig{DependencyName: "pkg"}, lookPath, stat(1)),
-		"dependency lang": identity(base, RepoSyncConfig{DependencyLanguage: "go"}, lookPath, stat(1)),
-		"gitlab host":     identity(base, RepoSyncConfig{GitlabHost: "gitlab.acme.example"}, lookPath, stat(1)),
+		}, readFile("scip-go-binary-v1")),
+		"scip binary unreadable": identity(base, RepoSyncConfig{}, lookPath, func(string) ([]byte, error) {
+			return nil, errors.New("permission denied")
+		}),
+		"dependency mode": identity(base, RepoSyncConfig{DependencyMode: true}, lookPath, readFile("scip-go-binary-v1")),
+		"dependency name": identity(base, RepoSyncConfig{DependencyName: "pkg"}, lookPath, readFile("scip-go-binary-v1")),
+		"dependency lang": identity(base, RepoSyncConfig{DependencyLanguage: "go"}, lookPath, readFile("scip-go-binary-v1")),
+		"gitlab host":     identity(base, RepoSyncConfig{GitlabHost: "gitlab.acme.example"}, lookPath, readFile("scip-go-binary-v1")),
 	}
 	for name, got := range cells {
 		if got == want {
 			t.Errorf("%s: identity did not change", name)
 		}
+	}
+	relocated := identity(base, RepoSyncConfig{}, func(name string) (string, error) {
+		return "/opt/indexers/" + name, nil
+	}, readFile("scip-go-binary-v1"))
+	if relocated != want {
+		t.Errorf("relocated indexer binary changed the identity: got %q, want %q", relocated, want)
+	}
+}
+
+// TestPreparseConfigForIgnoresBinaryFilesystemMetadata (#8132): two indexer
+// binaries with equal content but different paths and modification times
+// build equal identities, so a rebuilt image that changes no indexer output
+// keeps its stored identities; different content changes the identity.
+func TestPreparseConfigForIgnoresBinaryFilesystemMetadata(t *testing.T) {
+	t.Parallel()
+	writeIndexer := func(content string, modTime time.Time) string {
+		path := filepath.Join(t.TempDir(), "scip-go")
+		if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+		if err := os.Chtimes(path, modTime, modTime); err != nil {
+			t.Fatalf("Chtimes: %v", err)
+		}
+		return path
+	}
+	first := writeIndexer("scip-go-binary-v1", time.Unix(1_000, 0))
+	second := writeIndexer("scip-go-binary-v1", time.Unix(2_000, 0))
+	if first == second {
+		t.Fatal("test setup: expected two indexer paths")
+	}
+	base := NativeRepositorySnapshotter{SCIP: SnapshotSCIPConfig{Enabled: true, Languages: []string{"go"}}}
+	identityFor := func(path string) string {
+		lookPath := func(string) (string, error) { return path, nil }
+		return preparse.Identity("v", "c", "main", PreparseConfigFor(base, RepoSyncConfig{}, lookPath, nil))
+	}
+	if got, want := identityFor(second), identityFor(first); got != want {
+		t.Fatalf("equal indexer content with different path and mtime: identities differ:\ngot  %q\nwant %q", got, want)
+	}
+	upgraded := writeIndexer("scip-go-binary-v2", time.Unix(2_000, 0))
+	if got := identityFor(upgraded); got == identityFor(first) {
+		t.Fatalf("changed indexer content did not change the identity: %q", got)
 	}
 }
 

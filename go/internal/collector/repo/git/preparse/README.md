@@ -67,6 +67,10 @@ refresh-skip reasons), `pkg/log`, and OpenTelemetry metric and trace.
   value to the snapshotter and the selectors, so the stamped identity and the
   compared identity cannot drift. Each binary's wiring guard test fails when a
   selector that can force a reconcile has no `Preparse` source.
+- The SCIP terms fold each indexer binary's SHA-256 content digest, never its
+  path, size, or modification time: a rebuilt image that changes no indexer
+  output keeps every stored identity (#8132). A changed digest (a new indexer
+  version) or a missing binary changes the identity and forces a re-parse.
 - Any doubt parses: every outcome but `skipped`, `stamped_without_parse`,
   and `reprojection_pending` parses as before.
 - The valve: `MaxSkips` 0 never skips; N parses at least every N intervals. A
