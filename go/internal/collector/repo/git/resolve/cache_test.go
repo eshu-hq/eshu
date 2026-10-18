@@ -331,6 +331,30 @@ func TestNoInjectionUnderProxyOrKillSwitchOrIPHost(t *testing.T) {
 	}
 }
 
+// TestRequestRefreshUnderProxySkipsLookup: with a proxy set, Args never
+// pins, so a refresh lookup could never be used and the retry would wait
+// for it in vain. RequestRefresh must return nil and queue no lookup.
+func TestRequestRefreshUnderProxySkipsLookup(t *testing.T) {
+	lookup := &fakeLookup{results: []lookupResult{{ips: []net.IP{net.ParseIP("10.0.0.1")}}}}
+	cache, reader := testCache(t, lookup, nil, func(_ *Settings, o *Options) {
+		o.Getenv = func(key string) string {
+			if key == "HTTPS_PROXY" {
+				return "http://proxy.example:3128"
+			}
+			return ""
+		}
+	})
+	if ch := cache.RequestRefresh("github.com"); ch != nil {
+		t.Fatalf("RequestRefresh under proxy = %v, want nil (no lookup queued)", ch)
+	}
+	if n := lookup.calls.Load(); n != 0 {
+		t.Fatalf("lookups = %d, want 0 under proxy", n)
+	}
+	if n := counterValue(t, reader, "eshu_dp_git_resolve_cache_refresh_requests_total", map[string]string{"host": "github.com", "reason": "failure"}); n != 0 {
+		t.Fatalf("refresh_requests_total{failure} = %d, want 0 under proxy", n)
+	}
+}
+
 // TestArgsArePerHost: two providers keep separate entries and pins.
 func TestArgsArePerHost(t *testing.T) {
 	byHost := map[string][]net.IP{
