@@ -12,6 +12,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'go/internal/query/supply/chain/**'
       - 'go/internal/query/supply/chain/impact/**'
       - 'go/internal/query/admin/**'
       - 'go/internal/query/content_reader_dead_code*.go'
@@ -66,6 +67,7 @@ on:
   push:
     branches: [main]
     paths:
+      - 'go/internal/query/supply/chain/**'
       - 'go/internal/query/supply/chain/impact/**'
       - 'go/internal/query/admin/**'
       - 'go/internal/query/content_reader_dead_code*.go'
