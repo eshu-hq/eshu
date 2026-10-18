@@ -25,7 +25,8 @@
 //     though the K8sResource claim node itself is untouched.
 //
 // Both are asserted by rel.scope_id + evidence_source (the retract Cypher's
-// own predicate, matching retractCrossplaneSatisfiedByEdgesCypher) and never
+// own predicate, matching leaf.RetractSatisfiedByEdgesCypher
+// (go/internal/storage/cypher/canonical/crossplane/edges.go)) and never
 // by endpoint-node properties -- K8sResource and CrossplaneXRD are
 // cross-generation canonical nodes with no reducer scope_id of their own, so
 // a node-scoped assertion would not prove the edge-scoped retract.

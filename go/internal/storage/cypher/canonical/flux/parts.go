@@ -28,7 +28,8 @@ type Part struct {
 // MaterializedEdgeTypes exposes to the blast-radius
 // edge-materialization coverage registry
 // (go/internal/query/querycontract/edge_materialization_coverage.go),
-// mirroring crossplaneSatisfiedByWriteReasons.
+// mirroring crossplane MaterializedEdgeTypes
+// (go/internal/storage/cypher/canonical/crossplane/edges.go).
 var fluxReconcilesFromWriteReasons = map[string]string{
 	"RECONCILES_FROM": "FluxKustomization spec.sourceRef or FluxHelmRelease spec.chart.spec.sourceRef/spec.chartRef resolved against exactly one source CR (FluxGitRepository/FluxOCIRepository/FluxBucket/FluxHelmRepository) via the shared deterministic same-repo namespace/name tiers (T1-T4); never fabricated across a namespace mismatch, dangling ref, unresolved ambiguity, an unmapped ref kind (chartRef kind HelmChart is deliberately never linked -- it names a different graph label, the Chart.yaml directory), or an invalid both-chart-and-chartRef HelmRelease",
 }
