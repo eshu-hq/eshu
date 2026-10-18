@@ -2,6 +2,14 @@
 
 Found while working #4594.
 
+> **Update (#8168):** the identity is still (name, language), but the
+> canonical writer now MERGEs on the single property `import_key`
+> (name + "@" + language) under the `module_import_key` uniqueness
+> constraint, because a constraint-free MERGE created duplicate nodes under
+> concurrent writers. The `{name, lang}` MERGE and MATCH quoted below, and the
+> `module_name_lookup` hot-path trace, describe the pre-#8168 statements. See
+> [8168-module-import-key.md](8168-module-import-key.md).
+
 ## The problem
 
 The canonical import-graph `Module` node was MERGEd on its name alone:

@@ -22,7 +22,7 @@ fail it, because canonical-node-rows mode ignores the retract mode
 | --- | --- | --- |
 | absent file | Module row, File never written | none |
 | present file | File seeded, then the same row shape | one contained Module, uid set, `parser/semantic-entities` |
-| canonical import | absent-file Module row, then the production `CanonicalNodeModuleUpsertCypher` for the same `(name, lang)` | one Module, `uid` null, `projector/canonical` |
+| canonical import | absent-file Module row, then the production `CanonicalNodeModuleUpsertCypher` for the same `(name, lang)` | one Module on that import_key, `uid` null, `projector/canonical` |
 
 ### Why "no Module" is the correct absent-file outcome
 
@@ -36,10 +36,13 @@ fail it, because canonical-node-rows mode ignores the retract mode
 - A semantic Module with no File has no `CONTAINS` edge, and the `:Module`
   orphan sweep only acts on `n.uid IS NULL` (`orphanSweepClassPredicate`). So
   only the next repo-scoped semantic retract removes it.
-- It captures the import graph. `MERGE (m:Module {name, lang})` matches any
-  Module with that name and language, so a later canonical import binds to the
-  stray semantic node and overwrites its `evidence_source`. No uid-NULL node is
-  created. This is #6968's mechanism, and the third case pins it.
+- It captured the import graph. The pre-#8168 `MERGE (m:Module {name, lang})`
+  matched any Module with that name and language, so a later canonical import
+  bound to the stray semantic node and overwrote its `evidence_source`. No
+  uid-NULL node was created. That was #6968's mechanism. Since #8168 the
+  canonical MERGE keys on `import_key`, which semantic nodes never carry, so
+  the third case now reads the canonical node on its import_key and both
+  backends return the correct row (see "#8168 update" below).
 
 ### Per-backend pins (BackendOverride)
 
@@ -95,6 +98,26 @@ ESHU_GRAPH_BACKEND=neo4j NEO4J_PASSWORD=change-me ./scripts/verify_backend_confo
 In CI the same script is the "Run live backend conformance" step of
 `e2e-tests.yml` (`test (nornicdb)` / `test (neo4j)`, registry row `e2e-tests`).
 A case that passes on a pin logs `pinned divergence #6968`.
+
+### #8168 update: canonical-import pin removed (2026-10-18)
+
+The canonical import upsert now MERGEs on `import_key` (name + "@" + lang)
+under the `module_import_key` constraint, and the read case reads
+`MATCH (m:Module {import_key: $import_key})`. The NornicDB override on that
+case was deleted. Both lanes were run live with
+`scripts/verify_backend_conformance_live.sh`, each on its own fresh container
+of the pinned image:
+
+- NornicDB (`nornicdb-amd64-cpu@sha256:74a8ed7b…`): `TestLiveBackendConformance`
+  PASS; `canonical import module stays uid-null (1 rows)` with no pinned
+  divergence, so NornicDB now returns the uid-NULL row. The absent-file case
+  still passes on its #6968 pin; the stray semantic node remains, and the
+  canonical write no longer touches it. A second full script run exited 0
+  (the first run's tail failed `TestLiveNornicDBRetryConflictClassificationContract`
+  once; it passed in isolation on this branch and on origin/main, and did not
+  recur).
+- Neo4j (`neo4j@sha256:eabfbb04…`): `TestLiveBackendConformance` PASS, every
+  case on the default rows.
 
 ## Current state: value-flow statements and answer-truth shapes (2026-09-18)
 

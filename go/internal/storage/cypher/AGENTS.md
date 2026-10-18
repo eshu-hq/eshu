@@ -17,8 +17,8 @@
 
 ## Invariants this package enforces
 
-- **Idempotency** — every write path uses MERGE or ON CONFLICT semantics; no
-  unconditional CREATE. `doc.go` states this as a package invariant.
+- **Idempotency** — MERGE or ON CONFLICT on every write path, no unconditional
+  CREATE (`doc.go`); canonical Module MERGE keys on constrained, sorted `import_key` (#8168).
 - **Phase order** — `CanonicalNodeWriter.Write` phases run strictly in order:
   retract → repository_cleanup → repository → directories → files → entities →
   entity_retract → entity_containment → terraform_state → oci_registry →

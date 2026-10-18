@@ -61,7 +61,9 @@ const (
 )
 
 // semanticModuleDivergence is the tracking issue for the NornicDB outcome the
-// absent-File and canonical-import reads pin until the write path is fixed.
+// absent-File read pins until the write path is fixed. The canonical-import
+// read no longer needs it: since #8168 the import_key MERGE never binds the
+// stray node.
 const semanticModuleDivergence = "#6968 NornicDB merge-first semantic Module write creates the node when its File is absent"
 
 // Fixture values. Each case owns its repo id, so one case's repo retract can

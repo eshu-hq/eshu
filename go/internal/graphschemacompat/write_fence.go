@@ -63,10 +63,11 @@ const DefaultWriteFenceInterval = 30 * time.Second
 // start condition. Stopping those writers is the manual procedure in
 // docs/public/deployment/service-runtimes-bootstrap.md.
 //
-// The #6102 Module cutover is unaffected, because no unfenced writer keys a
-// Module node on name: the canonical `MERGE (m:Module {name, lang})` belongs to
-// CanonicalNodeWriter, the reducer's only Module upsert MERGEs on uid, and the
-// orphan sweep already keys Module on (name, lang). Other labels are less
+// The #6102 and #8168 Module cutovers are unaffected, because no unfenced
+// writer keys a Module node on name or import_key: the canonical
+// `MERGE (m:Module {import_key})` belongs to CanonicalNodeWriter, the reducer's
+// only Module upsert MERGEs on uid, and the orphan sweep keys canonical Module
+// on (name, lang), which every keyed node still carries. Other labels are less
 // lucky. Unfenced reducer writers MERGE nine labels on a key that is not uid --
 // Repository, EvidenceArtifact, CloudAction, Workload, WorkloadInstance,
 // Platform, and Endpoint on id, CodeownerTeam on ref, and Environment on name --

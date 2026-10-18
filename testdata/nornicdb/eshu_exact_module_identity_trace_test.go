@@ -18,16 +18,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// canonicalNodeModuleUpsertLegacyCypher is a verbatim copy of the pre-change
-// Eshu statement: MERGE on the module name alone, with the language settled by
-// coalesce(). It is reproduced here, not read from Eshu source, so this harness
-// can measure the OLD and NEW shapes side by side on the same pinned backend,
-// same schema, and same populated store. That is the before/after the hot-path
-// cost claim rests on.
+// canonicalNodeModuleUpsertLegacyCypher is a verbatim copy of the pre-#8168
+// Eshu statement: MERGE on (name, lang) with no uniqueness constraint behind
+// it, and an unconditional SET. It is reproduced here, not read from Eshu
+// source, so this harness can measure the OLD and NEW shapes side by side on
+// the same pinned backend, same schema, and same populated store.
 const canonicalNodeModuleUpsertLegacyCypher = `UNWIND $rows AS row
-MERGE (m:Module {name: row.name})
-SET m.lang = coalesce(m.lang, row.language),
-    m.evidence_source = 'projector/canonical'`
+MERGE (m:Module {name: row.name, lang: row.language})
+SET m.evidence_source = 'projector/canonical'`
 
 // readEshuModuleConst reads a named Go string constant out of Eshu's source, so
 // the harness executes the production query text rather than a paraphrase of
@@ -62,22 +60,17 @@ func readEshuModuleConst(tb testing.TB, path, name string) string {
 	return ""
 }
 
-// moduleTraceStore builds a store carrying the production Module schema index
-// plus a populated Module label, so the MERGE lookup is measured against a
-// realistic candidate set rather than an empty label.
+// moduleTraceStore builds a store carrying the production Module schema --
+// the module_import_key uniqueness constraint and the module_name_lookup
+// index -- plus a populated Module label, so the MERGE lookup is measured
+// against a realistic candidate set rather than an empty label.
 //
-// The population deliberately mixes both node classes that share the Module
-// label in production: canonical import-graph modules (name + lang, no uid) and
-// semantic declaration modules (uid-keyed, also carrying name and lang). Both
-// sit in the module_name_lookup index, so both are candidates for a name
-// lookup -- which is why the same-name candidate count is the number that
-// decides whether (name, lang) costs more than (name).
-//
-// The seeded semantic modules carry a THIRD language on purpose. A semantic
-// module sharing both the name and the language of a canonical import module is
-// adopted by the canonical MERGE, which is pre-existing behavior (the old
-// {name} key adopted it on the name alone, so the new key adopts strictly less
-// often) but would make the identity readback below ambiguous.
+// The population mixes both node classes that share the Module label in
+// production: canonical import-graph modules (import_key, no uid) and semantic
+// declaration modules (uid-keyed, carrying name and lang but no import_key).
+// The seeded semantic modules share BOTH the name and the language of the
+// canonical rows on purpose: the pre-#8168 (name, lang) MERGE adopted such a
+// node, and the import_key MERGE must not (#8168 ruling: adoption dropped).
 func moduleTraceStore(tb testing.TB, namespace string, sameNameCount int) *StorageExecutor {
 	tb.Helper()
 	baseStore := newTestMemoryEngine(tb)
@@ -86,6 +79,9 @@ func moduleTraceStore(tb testing.TB, namespace string, sameNameCount int) *Stora
 	ctx := context.Background()
 
 	_, err := exec.Execute(ctx,
+		"CREATE CONSTRAINT module_import_key IF NOT EXISTS FOR (m:Module) REQUIRE m.import_key IS UNIQUE", nil)
+	require.NoError(tb, err)
+	_, err = exec.Execute(ctx,
 		"CREATE INDEX module_name_lookup IF NOT EXISTS FOR (m:Module) ON (m.name)", nil)
 	require.NoError(tb, err)
 	_, err = exec.Execute(ctx,
@@ -102,7 +98,7 @@ func moduleTraceStore(tb testing.TB, namespace string, sameNameCount int) *Stora
 
 	for i := 0; i < sameNameCount; i++ {
 		_, err = exec.Execute(ctx,
-			"CREATE (:Module {name: 'time', lang: 'ruby', uid: $uid})",
+			"CREATE (:Module {name: 'time', lang: 'go', uid: $uid})",
 			map[string]interface{}{"uid": fmt.Sprintf("semantic-module-%d", i)})
 		require.NoError(tb, err)
 	}
@@ -111,20 +107,20 @@ func moduleTraceStore(tb testing.TB, namespace string, sameNameCount int) *Stora
 
 func moduleUpsertRows() []map[string]interface{} {
 	return []map[string]interface{}{
-		{"name": "time", "language": "go"},
-		{"name": "time", "language": "python"},
+		{"import_key": "time@go", "name": "time", "language": "go"},
+		{"import_key": "time@python", "name": "time", "language": "python"},
 	}
 }
 
 func importEdgeRows() []map[string]interface{} {
 	return []map[string]interface{}{
 		{
-			"file_path": "/repo/go/main.go", "module_name": "time", "module_language": "go",
+			"file_path": "/repo/go/main.go", "module_import_key": "time@go",
 			"imported_name": "", "alias": "", "line_number": 3,
 			"generation_id": "generation-a",
 		},
 		{
-			"file_path": "/repo/py/main.py", "module_name": "time", "module_language": "python",
+			"file_path": "/repo/py/main.py", "module_import_key": "time@python",
 			"imported_name": "", "alias": "", "line_number": 1,
 			"generation_id": "generation-a",
 		},
@@ -135,19 +131,17 @@ func importEdgeRows() []map[string]interface{} {
 // Eshu Module statements inside the pinned NornicDB package so the test can
 // inspect its internal hot-path trace.
 //
-// The claim under test: moving the canonical Module MERGE key from {name} to
-// {name, lang} does NOT push the write off the schema-lookup path onto a full
-// Module label scan. NornicDB's findMergeNode tries an exact composite index,
-// then a unique constraint, then the smallest single-property index candidate
-// set, and only marks MergeScanFallbackUsed when none of those matched. Module
-// cannot take a uniqueness constraint (the semantic entity path shares the
-// label and MERGEs on uid) and this schema has no composite index, so the
-// existing single-property module_name_lookup index is what must carry it.
+// The claim under test: the #8168 import_key MERGE and the IMPORTS MATCH on
+// module_import_key resolve through the module_import_key unique constraint,
+// not a full Module label scan. NornicDB's findMergeNode tries an exact
+// composite index, then a unique constraint, then the smallest single-property
+// index candidate set, and only marks MergeScanFallbackUsed when none of those
+// matched.
 func TestEshuExactModuleIdentityQueriesUseIndexedMergeHotPath(t *testing.T) {
 	eshuRoot := os.Getenv("ESHU_ROOT")
 	require.NotEmpty(t, eshuRoot)
 
-	cypherFile := filepath.Join(eshuRoot, "go/internal/storage/cypher/canonical/node/templates.go")
+	cypherFile := filepath.Join(eshuRoot, "go/internal/storage/cypher/module_identity.go")
 	ctx := context.Background()
 	exec := moduleTraceStore(t, "eshu-exact-module-identity", 25)
 
@@ -182,7 +176,13 @@ func TestEshuExactModuleIdentityQueriesUseIndexedMergeHotPath(t *testing.T) {
 	}
 
 	// The identity holds on the backend: two canonical import modules, one per
-	// language, and each file's IMPORTS edge on its own language's module.
+	// language, created beside (not adopting) the same-name semantic modules,
+	// and each file's IMPORTS edge on its own language's canonical module.
+	semantic, err := exec.Execute(ctx,
+		"MATCH (m:Module {name: 'time'}) WHERE m.uid IS NOT NULL AND m.import_key IS NULL AND m.evidence_source IS NULL RETURN count(m) AS n", nil)
+	require.NoError(t, err)
+	require.Len(t, semantic.Rows, 1)
+	require.EqualValues(t, 25, semantic.Rows[0][0])
 	modules, err := exec.Execute(ctx,
 		"MATCH (m:Module {name: 'time'}) WHERE m.uid IS NULL RETURN m.lang AS lang ORDER BY m.lang", nil)
 	require.NoError(t, err)
@@ -192,7 +192,7 @@ func TestEshuExactModuleIdentityQueriesUseIndexedMergeHotPath(t *testing.T) {
 	require.Equal(t, "python", modules.Rows[1][0])
 
 	edges, err := exec.Execute(ctx,
-		"MATCH (f:File)-[:IMPORTS]->(m:Module) RETURN f.path AS path, m.lang AS lang ORDER BY f.path", nil)
+		"MATCH (f:File)-[:IMPORTS]->(m:Module) WHERE m.uid IS NULL RETURN f.path AS path, m.lang AS lang ORDER BY f.path", nil)
 	require.NoError(t, err)
 	require.Equal(t, []string{"path", "lang"}, edges.Columns)
 	require.Len(t, edges.Rows, 2)
@@ -200,18 +200,17 @@ func TestEshuExactModuleIdentityQueriesUseIndexedMergeHotPath(t *testing.T) {
 	require.Equal(t, "python", edges.Rows[1][1])
 }
 
-// BenchmarkEshuModuleUpsertMergeKey measures the canonical Module upsert with
-// the legacy {name} key against the (name, lang) key on the same pinned
-// backend, same schema, and the same same-name candidate population. Both
-// shapes resolve through the same module_name_lookup index and therefore load
-// the same candidate set; the only added work is comparing one more property
-// per candidate in Go.
+// BenchmarkEshuModuleUpsertMergeKey measures the pre-#8168 (name, lang)
+// upsert against the import_key upsert on the same pinned backend, same schema,
+// and the same same-name candidate population. The legacy shape resolves
+// through module_name_lookup and filters lang on the candidates; the new shape
+// resolves through the module_import_key unique constraint.
 func BenchmarkEshuModuleUpsertMergeKey(b *testing.B) {
 	eshuRoot := os.Getenv("ESHU_ROOT")
 	if eshuRoot == "" {
 		b.Skip("ESHU_ROOT not set")
 	}
-	cypherFile := filepath.Join(eshuRoot, "go/internal/storage/cypher/canonical/node/templates.go")
+	cypherFile := filepath.Join(eshuRoot, "go/internal/storage/cypher/module_identity.go")
 	ctx := context.Background()
 
 	for _, sameNameCount := range []int{1, 25, 200} {
@@ -220,8 +219,8 @@ func BenchmarkEshuModuleUpsertMergeKey(b *testing.B) {
 			constant string
 			fromEshu bool
 		}{
-			{name: "legacy-name-only", constant: canonicalNodeModuleUpsertLegacyCypher},
-			{name: "name-and-lang", constant: "ModuleUpsertCypher", fromEshu: true},
+			{name: "legacy-name-and-lang", constant: canonicalNodeModuleUpsertLegacyCypher},
+			{name: "import-key", constant: "canonicalNodeModuleUpsertCypher", fromEshu: true},
 		} {
 			b.Run(fmt.Sprintf("candidates=%d/%s", sameNameCount, variant.name), func(b *testing.B) {
 				exec := moduleTraceStore(b, fmt.Sprintf("bench-%d-%s", sameNameCount, variant.name), sameNameCount)

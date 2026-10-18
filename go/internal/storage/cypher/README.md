@@ -144,8 +144,8 @@ The per-label identity key mirrors the canonical writers' MERGE identity:
 `evidence_source='projector/canonical'` so active source-local repository
 nodes remain owned by the canonical writer even when a repository has no graph
 relationships yet. `Module.name` is not unique across node classes (canonical
-imported modules are MERGEd on `{name}` with no `uid`; semantic module entities
-are MERGEd on `{uid}` and also carry a name), so the Module sweep -- which owns
+imported modules are MERGEd on `{import_key}` with no `uid`, #8168; semantic
+module entities are MERGEd on `{uid}` and carry a name), so the Module sweep -- which owns
 only the canonical imports -- additionally restricts S1, S2, and its writes to
 `n.uid IS NULL`; without this a connected same-name semantic module would mask
 a canonical orphan and the writes would target the semantic node too.
