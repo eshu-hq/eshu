@@ -208,6 +208,112 @@ const sweepDocumentsBatchQuery = `-- retention: search index documents orphan sw
 WITH ` + orphanGenerationCTE + `,
 ` + documentsBatchBody
 
+// SupersededSweepCandidateLimit is the most superseded generations one
+// #8231 sweep lists. The sweep still counts every listed generation it does
+// not drain as unswept, so a larger backlog drains over later sweeps. There
+// is no knob: the pass budget already bounds the work.
+const SupersededSweepCandidateLimit = 1000
+
+// supersededEligibleCTE mirrors eligibleGenerationCTE and adds the #8231
+// fail-closed line: the scope's active pointer must be NOT NULL. Without it
+// a NULL pointer reads as "distinct from" every generation id and the batch
+// would delete a generation no active-generation reader can be distinguished
+// from. A missing generation row still yields no eligible row, so the batch
+// deletes nothing. $1 scope id, $2 generation id.
+const supersededEligibleCTE = `eligible AS MATERIALIZED (
+    SELECT 1 AS ok
+    FROM scope_generations AS generation
+    JOIN ingestion_scopes AS scope
+      ON scope.scope_id = generation.scope_id
+    WHERE generation.generation_id = $2
+      AND generation.scope_id = $1
+      AND generation.status = 'superseded'
+      AND generation.superseded_at IS NOT NULL
+      AND scope.active_generation_id IS NOT NULL
+      AND scope.active_generation_id IS DISTINCT FROM $2
+      AND NOT EXISTS (
+          SELECT 1
+          FROM fact_work_items AS work
+          WHERE work.generation_id = $2
+            AND work.status IN ('claimed', 'running', 'retrying')
+      )
+)`
+
+// sweepSupersededTermsBatchQuery deletes one keyset page of a superseded
+// generation's eshu_search_index_terms rows: deleteTermsBatchQuery with the
+// fail-closed #8231 eligibility CTE. Same arguments and result row.
+const sweepSupersededTermsBatchQuery = `-- retention: search index superseded terms sweep batch
+WITH ` + supersededEligibleCTE + `,
+` + termsBatchBody
+
+// sweepSupersededDocumentsBatchQuery is sweepSupersededTermsBatchQuery for
+// eshu_search_index_documents.
+const sweepSupersededDocumentsBatchQuery = `-- retention: search index superseded documents sweep batch
+WITH ` + supersededEligibleCTE + `,
+` + documentsBatchBody
+
+// deleteSupersededStatsBatchQuery deletes one swept generation's single
+// eshu_search_index_stats row under the same fail-closed eligibility. It
+// runs after the generation's terms and documents drain, in its own batch
+// transaction. $1 scope id, $2 generation id.
+const deleteSupersededStatsBatchQuery = `-- retention: search index superseded stats sweep batch
+WITH ` + supersededEligibleCTE + `,
+deleted AS (
+    DELETE FROM eshu_search_index_stats AS stats
+    WHERE stats.scope_id = $1
+      AND stats.generation_id = $2
+      AND EXISTS (SELECT 1 FROM eligible)
+    RETURNING 1
+)
+SELECT EXISTS (SELECT 1 FROM eligible),
+    (SELECT count(*) FROM deleted)
+`
+
+// supersededSweepCandidatesQuery lists the superseded generations a #8231
+// sweep may drain, oldest first: terminal superseded rows the scope's live
+// (NOT NULL) active pointer does not name, with no claimed, running, or
+// retrying work item, that still hold search index rows in any of the three
+// tables. A generation whose facts stay held but whose index rows are gone
+// is not listed. $1 listing cap.
+const supersededSweepCandidatesQuery = `-- retention: search index superseded sweep candidates
+SELECT generation.scope_id, generation.generation_id
+FROM scope_generations AS generation
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = generation.scope_id
+WHERE generation.status = 'superseded'
+  AND generation.superseded_at IS NOT NULL
+  AND scope.active_generation_id IS NOT NULL
+  AND scope.active_generation_id IS DISTINCT FROM generation.generation_id
+  AND NOT EXISTS (
+      SELECT 1
+      FROM fact_work_items AS work
+      WHERE work.generation_id = generation.generation_id
+        AND work.status IN ('claimed', 'running', 'retrying')
+  )
+  AND (
+      EXISTS (
+          SELECT 1
+          FROM eshu_search_index_terms AS term
+          WHERE term.scope_id = generation.scope_id
+            AND term.generation_id = generation.generation_id
+      )
+      OR EXISTS (
+          SELECT 1
+          FROM eshu_search_index_documents AS document
+          WHERE document.scope_id = generation.scope_id
+            AND document.generation_id = generation.generation_id
+      )
+      OR EXISTS (
+          SELECT 1
+          FROM eshu_search_index_stats AS stats
+          WHERE stats.scope_id = generation.scope_id
+            AND stats.generation_id = generation.generation_id
+      )
+  )
+ORDER BY generation.superseded_at, generation.generation_id
+LIMIT $1
+`
+
 // termsLeavesQuery lists the leaf partitions of eshu_search_index_terms as
 // regclass text, which PostgreSQL quotes and schema-qualifies as the
 // search_path needs, so the census can name each leaf safely. It returns no

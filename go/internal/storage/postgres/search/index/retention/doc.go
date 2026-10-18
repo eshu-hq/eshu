@@ -46,5 +46,17 @@
 // retention runner calls SweepOrphans after its pass, outside any retention
 // transaction.
 //
+// SweepSuperseded removes the index rows of still-existing superseded
+// generations whose facts the history hold keeps (#8231): terms and documents
+// in committed keyset batches plus the generation's stats row, oldest first,
+// each batch re-checking in its own snapshot that the generation row exists,
+// is terminal superseded, is not the scope's live active generation, and has
+// no live work. A NULL active pointer or a missing generation row deletes
+// nothing. The runner calls it after the orphan sweep, at most once per poll
+// interval, only when its superseded-sweep policy is enabled (off by
+// default), and still outside any retention transaction. Facts are never
+// touched: a swept generation's index rebuilds on demand by re-running the
+// search-document projection from the held facts, never eagerly.
+//
 // This package must not import the parent postgres package.
 package indexretention

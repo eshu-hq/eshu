@@ -57,6 +57,11 @@ type Report struct {
 	Batches          int // committed batch transactions; a rolled-back attempt is not counted
 	TermsDeleted     int64
 	DocumentsDeleted int64
+	// StatsDeleted counts the generation's eshu_search_index_stats rows the
+	// #8231 superseded sweep removed after its terms and documents drained.
+	// The pre-delete and orphan sweep never set it: their generations are
+	// pruned with their stats row cascading.
+	StatsDeleted int64
 	// KeysetDuration is the forward keyset walk; SweepDuration is every
 	// from-start re-sweep after the first short page, the walk over the dead
 	// index entries the keyset pass left behind.
@@ -68,7 +73,7 @@ type Report struct {
 func (r Report) Drained() bool { return r.Outcome == OutcomeDrained }
 
 // Rows is the rows the generation's batches deleted in this pass.
-func (r Report) Rows() int64 { return r.TermsDeleted + r.DocumentsDeleted }
+func (r Report) Rows() int64 { return r.TermsDeleted + r.DocumentsDeleted + r.StatsDeleted }
 
 // Budget bounds one pass's pre-delete across generations: the rows it may
 // delete and the wall-clock deadline. The first batch of a pass always runs,
@@ -90,6 +95,11 @@ type Budget struct {
 	committed int
 	// afterBatch, set only by tests, runs after each batch attempt.
 	afterBatch func()
+	// onBatch, set only by the #8231 superseded pass, runs after each
+	// committed batch with the context, the generation, the table label,
+	// and the rows the batch deleted, so the sweep logs one line per batch.
+	// The pre-delete and orphan passes leave it nil and log per generation.
+	onBatch func(context.Context, Generation, string, int64)
 }
 
 // Batches is the batch transactions the pass committed so far. A busy lock,
@@ -112,6 +122,10 @@ type cursor struct{ first, second string }
 
 // table is one search index table the pre-delete drains, in drain order.
 type table struct {
+	// label is the table's metric label, reported to the budget's onBatch
+	// hook with each committed batch. The pre-delete and orphan table sets
+	// leave it empty: their passes never set the hook.
+	label string
 	query string
 	args  func(Generation, cursor) []any
 	// add charges deleted rows to the report's counter for the table.
@@ -174,7 +188,7 @@ type batchResult struct {
 // so far with an empty Outcome; a rerun converges because every batch is
 // idempotent and committed batches stay deleted.
 func Drain(ctx context.Context, database db.Beginner, generation Generation, budget *Budget) (Report, error) {
-	return drain(ctx, database, generation, budget, predeleteTables)
+	return drain(ctx, database, generation, budget, predeleteTables[:])
 }
 
 // SweepOrphan is Drain for an orphan generation (#7427 PR2): the same
@@ -184,12 +198,12 @@ func Drain(ctx context.Context, database db.Beginner, generation Generation, bud
 // it, re-checked in the batch's own snapshot. A generation that exists, in
 // any status, ends OutcomeIneligible with no row deleted.
 func SweepOrphan(ctx context.Context, database db.Beginner, generation Generation, budget *Budget) (Report, error) {
-	return drain(ctx, database, generation, budget, orphanTables)
+	return drain(ctx, database, generation, budget, orphanTables[:])
 }
 
-// drain runs one generation's batches over a table set for Drain and
-// SweepOrphan.
-func drain(ctx context.Context, database db.Beginner, generation Generation, budget *Budget, specs [2]table) (Report, error) {
+// drain runs one generation's batches over a table set for Drain,
+// SweepOrphan, and the #8231 superseded sweep.
+func drain(ctx context.Context, database db.Beginner, generation Generation, budget *Budget, specs []table) (Report, error) {
 	report := Report{Generation: generation, Outcome: OutcomeDrained}
 	for _, spec := range specs {
 		if outcome, err := drainTable(ctx, database, spec, &report, budget); err != nil || outcome != OutcomeDrained {
@@ -232,6 +246,9 @@ func drainTable(ctx context.Context, database db.Beginner, spec table, report *R
 		budget.committed++
 		spec.add(report, result.deleted)
 		budget.rows += result.deleted
+		if budget.onBatch != nil {
+			budget.onBatch(ctx, report.Generation, spec.label, result.deleted)
+		}
 		switch {
 		case result.selected >= BatchRows:
 			at = result.last

@@ -26,6 +26,10 @@ side-runner startup loop in the reducer root.
 - `OrphanSweeper`, `OrphanSweepResult` — the #7427 PR2 search index orphan
   census and sweep port; `Runner.OrphanSweeper` and `Runner.Now` (sweep
   cadence clock)
+- `SupersededSweeper`, `SupersededSweepResult` — the flagged #8231 search
+  index superseded sweep port; `Runner.SupersededSweeper` runs after the
+  orphan sweep when `Policy.SearchIndexSupersededSweepEnabled` is set (off
+  by default)
 
 See `doc.go` for the full contract.
 
@@ -53,7 +57,11 @@ Never `internal/reducer`.
   `eshu_dp_search_index_orphan_generations{table}` and
   `eshu_dp_search_index_orphan_rows_swept_total{table}` (#7427 PR2 orphan
   census and sweep; phases `census_search_index_orphans` and
-  `sweep_search_index_orphans`; failure reason `search_index_orphan_sweep`)
+  `sweep_search_index_orphans`; failure reason `search_index_orphan_sweep`),
+  `eshu_dp_search_index_superseded_rows_swept_total{table}` (#8231 flagged
+  superseded sweep; tables add `eshu_search_index_stats`; phases
+  `census_search_index_superseded` and `sweep_search_index_superseded`;
+  failure reason `search_index_superseded_sweep`)
 - Spans: none; the drain runs inline in the side-runner goroutine
 - Logs: `generation retention cycle completed` (pruned/skipped totals,
   ledger share, lock hold, `search_index_batches`); WARN when the ledger delete differs from
@@ -64,7 +72,12 @@ Never `internal/reducer`.
   `factkeys.OrphanCensusSQL`); `generation retention search index orphan
   sweep completed` (pairs_scanned, orphan_generations, rows_swept, batches
   committed, unswept_generations) and ERROR `generation retention search
-  index orphan sweep failed`
+  index orphan sweep failed`; `generation retention search index superseded
+  sweep completed` (candidates, rows_swept, batches, unswept_generations),
+  per-batch `generation retention search index superseded batch committed`
+  (scope_id, generation_id, table, batch_rows_deleted), and ERROR
+  `generation retention search index superseded sweep failed` (all #8231,
+  only when the sweep is enabled)
 
 ## Gotchas / invariants
 

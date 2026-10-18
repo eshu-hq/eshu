@@ -60,6 +60,11 @@ type Policy struct {
 	// (#7427, #8281 review): one cap, so lowering it for WAL or I/O pressure
 	// bounds both. Unset (0) leaves each side's 2,000,000-row default.
 	SearchIndexPredeleteRowCap int64
+	// SearchIndexSupersededSweepEnabled opts into the #8231 superseded
+	// sweep: index rows of still-existing superseded generations are
+	// removed while their facts stay held. Off by default; enablement stays
+	// held until the issue's gate-(b) dead-tuple/bloat evidence lands.
+	SearchIndexSupersededSweepEnabled bool
 }
 
 // Result summarizes one bounded cleanup transaction.
@@ -141,11 +146,17 @@ type Runner struct {
 	// OrphanSweeper, when set, sweeps search index rows of generations that
 	// no longer exist once per poll interval, after the pass (#7427 PR2).
 	OrphanSweeper OrphanSweeper
+	// SupersededSweeper, when set and enabled by the policy, sweeps search
+	// index rows of still-existing superseded generations once per poll
+	// interval, after the orphan sweep (#8231).
+	SupersededSweeper SupersededSweeper
 	// Now is the clock for the sweep cadence; nil uses time.Now.
 	Now func() time.Time
 	// lastOrphanSweep is when the last sweep started. A Runner is driven by
 	// one goroutine, so it needs no lock.
 	lastOrphanSweep time.Time
+	// lastSupersededSweep is when the last superseded sweep started (#8231).
+	lastSupersededSweep time.Time
 }
 
 // Run drains eligible retention batches until the context is cancelled. A
@@ -223,6 +234,9 @@ func (r *Runner) RunOnce(ctx context.Context) (Result, error) {
 	// never holds or waits on a retention scope lock, and it runs even when
 	// the prune failed: it depends on neither the prune nor its key indexes.
 	r.sweepOrphansIfDue(ctx, policy.SearchIndexPredeleteDeadline, policy.SearchIndexPredeleteRowCap)
+	// The superseded sweep (#8231) follows the orphan sweep under its own
+	// flag and cadence, still outside the prune transaction.
+	r.sweepSupersededIfDue(ctx, policy.SearchIndexPredeleteDeadline, policy.SearchIndexPredeleteRowCap)
 	if err != nil {
 		return Result{}, fmt.Errorf("prune superseded generations: %w", err)
 	}

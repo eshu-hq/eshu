@@ -1832,6 +1832,10 @@ type Instruments struct {
 	// search index orphan census and sweep by table (#7427 PR2).
 	SearchIndexOrphanGenerations metric.Int64Gauge
 	SearchIndexOrphanRowsSwept   metric.Int64Counter
+	// SearchIndexSupersededRowsSwept counts the search index rows the #8231
+	// superseded sweep deleted from a still-existing superseded generation,
+	// by table (terms, documents, stats).
+	SearchIndexSupersededRowsSwept metric.Int64Counter
 	// ChangedSinceLinkDuration, ChangedSinceLinkDeltaRows and
 	// ChangedSinceLinkKeys describe committed links by link_kind.
 	ChangedSinceLinkDuration  metric.Float64Histogram

@@ -272,6 +272,44 @@ SELECT (SELECT count(*) FROM relationship) AS relationship_reference_candidate_k
     (SELECT count(*) FROM registry) AS package_registry_identity_keys
 ```
 
+## Symptom: search index tables keep growing
+
+`eshu_search_index_terms` or `eshu_search_index_documents` grows while
+retention holds superseded generations for the fact-history window. Readers
+join the scope's active generation, so a superseded generation's index rows
+are read-invisible; they are derived from facts the hold keeps anyway.
+
+- **Census:** run the attribution query
+  (`docs/internal/evidence/7932-storage-attribution.sql`) on a replica with
+  the deployed settings to confirm the bytes sit in superseded generations'
+  index rows rather than live bloat.
+- **Flag:** `ESHU_GENERATION_RETENTION_SEARCH_INDEX_SUPERSEDED_SWEEP_ENABLED`
+  (bool, default `false`). With the switch off the sweep issues no SQL.
+  Enablement is HELD until primary dead-tuple/bloat measurements for the
+  terms and documents families are attached to #8231 — do not enable on
+  row-count estimates alone.
+- **Metric:** `eshu_dp_search_index_superseded_rows_swept_total{table}`
+  moves per swept table while the sweep drains the backlog; phases
+  `census_search_index_superseded` and `sweep_search_index_superseded` on
+  `eshu_dp_generation_retention_phase_duration_seconds` time the listing and
+  the batches.
+- **Log:** one `generation retention search index superseded batch committed`
+  line per committed batch (`scope_id`, `generation_id`, `table`,
+  `batch_rows_deleted`); the per-run `generation retention search index
+  superseded sweep completed` line carries `candidates`, `rows_swept`,
+  `batches`, and `unswept_generations`. A backlog that does not fall across
+  runs with rising `unswept_generations` means batches keep finding their
+  generations ineligible — check the per-generation `... superseded
+  generation swept` outcome (`ineligible` with live work or a moved active
+  pointer; the sweep never touches those).
+- **Safe remediation:** none needed for correctness — answers stay correct
+  while the rows sit there; the cost is storage. To stop a running sweep,
+  unset the flag and roll the reducer; committed batches stay deleted and
+  later passes list nothing new. To restore a swept generation's index,
+  re-run its search-document projection from the held facts (rebuild on
+  demand, never eager). See [Generation Retention Search Index
+  Pre-Delete](../reference/telemetry/generation-retention-search-index.md#superseded-sweep-flagged-8231).
+
 ## Escalation and proof
 
 - For freshness causality across many scopes, the console **Freshness** dashboard

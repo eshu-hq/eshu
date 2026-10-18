@@ -18,4 +18,12 @@
 // index orphan census and sweep (#7427 PR2) after the prune returns, at most
 // once per poll interval, and reports it on its own gauge, counter, phases
 // and log line; a sweep failure is counted but does not fail the pass.
+//
+// When [Runner.SupersededSweeper] is set and
+// [Policy.SearchIndexSupersededSweepEnabled] holds, [Runner.RunOnce] then
+// runs the flagged superseded sweep (#8231) under its own once-per-interval
+// cadence: index rows of still-existing superseded generations are removed
+// in committed batches while their facts stay held, reported on the
+// superseded rows-swept counter, its two phases, per-batch and per-run log
+// lines; a sweep failure is counted but does not fail the pass.
 package retention

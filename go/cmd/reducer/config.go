@@ -45,6 +45,11 @@ const (
 	generationRetentionBatchRowLimitEnv            = "ESHU_GENERATION_RETENTION_BATCH_ROW_LIMIT"
 	generationRetentionPolicyScopeEnv              = "ESHU_GENERATION_RETENTION_POLICY_SCOPE"
 	generationRetentionPolicyRevisionEnv           = "ESHU_GENERATION_RETENTION_POLICY_REVISION"
+	// generationRetentionSearchIndexSupersededSweepEnabledEnv opts into the
+	// #8231 superseded search index sweep. Default is false: with the switch
+	// off the sweep issues no SQL. Enablement stays held until the issue's
+	// gate-(b) dead-tuple/bloat evidence lands.
+	generationRetentionSearchIndexSupersededSweepEnabledEnv = "ESHU_GENERATION_RETENTION_SEARCH_INDEX_SUPERSEDED_SWEEP_ENABLED"
 
 	generationLivenessEnabledEnv            = "ESHU_GENERATION_LIVENESS_ENABLED"
 	generationLivenessPollIntervalEnv       = "ESHU_GENERATION_LIVENESS_POLL_INTERVAL"

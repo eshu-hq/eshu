@@ -29,6 +29,12 @@ transitively.
   `PruneSupersededGenerations` returns, never inside it, so the sweep never
   holds or waits on a retention scope lock. Keep the poll-interval cadence
   gate (`TestGenerationRetentionRunnerSweepsOrphansOncePerPollInterval`).
+- `RunOnce` runs the flagged superseded sweep (#8231) only after the orphan
+  sweep, under its own flag (`Policy.SearchIndexSupersededSweepEnabled`, off
+  by default) and its own poll-interval cadence gate
+  (`TestGenerationRetentionRunnerSweepsSupersededOncePerPollInterval` and the
+  off-by-default test). Never enable the flag until the issue's gate-(b)
+  dead-tuple/bloat evidence lands.
 
 ## Gates that will fire on your change
 
