@@ -109,3 +109,17 @@ if rg -q 'filter=all' "${FIXTURES}/calls.log"; then ok=1; fi
 rg -q 'check-runs\?per_page=100 ' "${FIXTURES}/calls.log" || ok=1
 [[ "$(jq '[.check_runs[] | [.name, (.check_suite.id // 0)]] | (length - (unique | length))' "${FIXTURES}/check-runs.json")" -eq 0 ]] || ok=1
 check "GREEN the request has no filter=all and rows are unique per (name, suite)" "${ok}"
+
+# S6: a row with no check_suite projects to suite 0. Suite 0 is never
+# superseded: a required-context failure with a missing suite stays tallied and
+# stays the context's state beside a newer suite's success (fail-closed).
+new_case suite-required-null-suite-failure
+drop_row go-core-complete
+add_rows "$(jq -nc '{id:5,name:"go-core-complete",status:"completed",conclusion:"failure",check_suite:null}')" \
+	"$(run_row 6 go-core-complete completed '"success"' 20)"
+expect_red "required context failed with a missing check_suite beside a newer suite's success" checks
+ok=0
+rg -q 'go-core-complete=failure; ' <<<"${OUT}" || ok=1
+rg -q '^FAIL checks +fail=1: go-core-complete' <<<"${OUT}" || ok=1
+if rg -q 'superseded suite' <<<"${OUT}"; then ok=1; fi
+check "RED a missing check_suite is never superseded and the failure is named" "${ok}"

@@ -272,11 +272,12 @@ else
 	# All rows count here, across every suite: fail-closed. The one exception is
 	# the three required contexts (pinned to one workflow and job each, see the
 	# required-context loop below): only their newest suite's rows are tallied,
-	# so a stale failure in an older suite does not keep the arm red.
+	# so a stale failure in an older suite does not keep the arm red. Suite 0 is
+	# a row with no check_suite: it is never superseded and always tallied.
 	tally_json="$(jq -c '
 		["go-core-complete", "go-race-complete", "required-gates-complete"] as $req
-		| (reduce .[] as $r ({}; .[$r.name] = ([(.[$r.name] // 0), $r.suite] | max))) as $top
-		| [.[] | select(((.name | IN($req[])) | not) or .suite == $top[.name])]' <<<"${checks_json}")"
+		| (reduce .[] as $r ({}; if $r.suite == 0 then . else .[$r.name] = ([(.[$r.name] // 0), $r.suite] | max) end)) as $top
+		| [.[] | select(((.name | IN($req[])) | not) or .suite == 0 or .suite == $top[.name])]' <<<"${checks_json}")"
 	total="$(jq 'length' <<<"${checks_json}")"
 	failing_sel='select(.status == "completed" and (.conclusion | IN("failure","cancelled","timed_out","action_required")))'
 	pending_sel='select(.status != "completed")'
@@ -319,14 +320,14 @@ for ctx in go-core-complete go-race-complete required-gates-complete; do
 		[.[] | select(.name == $c)] as $all
 		| if ($all | length) == 0 then "absent"
 		  else ($all | map(.suite) | max) as $top
-		  | [$all[] | select(.suite == $top)] as $r
+		  | [$all[] | select(.suite == $top or .suite == 0)] as $r
 		  | if all($r[]; .status == "completed" and .conclusion == "success") then "success"
 		    elif any($r[]; .status != "completed") then "pending"
 		    else ([$r[] | select(.conclusion != "success") | .conclusion] | first // "unknown") end end' <<<"${checks_json}" 2>/dev/null)"
 	superseded="$(jq -r --arg c "${ctx}" '
 		[.[] | select(.name == $c)] as $all
 		| ($all | map(.suite) | max) as $top
-		| [$all[] | select(.suite != $top and (.status != "completed" or .conclusion != "success")) | .suite]
+		| [$all[] | select(.suite != $top and .suite != 0 and (.status != "completed" or .conclusion != "success")) | .suite]
 		| unique | map(tostring) | join(", ")' <<<"${checks_json}" 2>/dev/null)"
 	if [[ -n "${superseded}" ]]; then
 		note checks "${ctx}: newest suite $(jq -r --arg c "${ctx}" '[.[] | select(.name == $c) | .suite] | max' <<<"${checks_json}") wins; superseded suite(s): ${superseded}"
