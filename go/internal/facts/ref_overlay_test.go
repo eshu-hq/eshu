@@ -108,7 +108,7 @@ func TestRefOverlayScopeIDNeverCollidesWithBareRepoScope(t *testing.T) {
 
 	for _, ref := range []string{"main", "env/prod", "v1.2.3", "a1b2c3d4"} {
 		got := RefOverlayScopeID("repo-1", ref)
-		if got == "repo-1" {
+		if got == scope.GitRepositoryScopePrefix+"repo-1" {
 			t.Fatalf("RefOverlayScopeID(repo-1, %q) collides with the bare repo scope", ref)
 		}
 		if !strings.Contains(got, "@"+ref) {
