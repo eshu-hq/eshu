@@ -106,6 +106,7 @@ done <"${fake}/envs"
 export PATH="${seed_dir}/bin:${PATH}"
 
 checker="${repo_root}/scripts/lib/live_postgres_readiness_results.py"
+cases_lib="${repo_root}/scripts/lib/live_postgres_readiness_proof_cases.py"
 packages=()
 proofs=()
 # load_proofs fills packages and "package|test" entries, in the runner's order,
