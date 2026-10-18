@@ -10,8 +10,8 @@
 
 ## Invariants
 
-- `GoModuleName` must read a go.mod exactly as `goModulePath` in
-  `internal/parser/go_package_module_import_path.go` does, including its
+- `GoModuleName` must read a go.mod exactly as `golang.GoModulePath` in
+  `internal/parser/golang/module_import_path.go` does, including its
   line-ending normalization. `TestGoModuleNameMatchesTheImportPathTheParserStamps`
   drives the parser's public pre-scan with the same inputs; if the parser's rule changes,
   change this function in the same pull request or the anchor silently drops

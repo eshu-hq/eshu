@@ -180,10 +180,11 @@ assembly, and dbt SQL lineage callbacks remain in this package. The
 `shared_bridge.go` wrapper converts parent `Options` into shared adapter
 options so child adapters do not import the dispatcher.
 
-dbt SQL lineage extraction now lives in the dbt SQL helper subpackage. The
-parent parser keeps `ColumnLineage`, `CompiledModelLineage`, and the
-`extractCompiledModelLineage` compatibility wrapper because JSON dbt manifest
-parsing receives lineage through a parent-supplied callback.
+dbt SQL lineage extraction now lives in the dbt SQL helper subpackage
+(`dbtsql.ExtractCompiledModelLineage`). The lineage record types live in
+the JSON helper subpackage (`jsonparser.ColumnLineage`,
+`jsonparser.CompiledModelLineage`), and the parent calls the helper
+directly — no parent-owned compatibility wrapper remains.
 
 `Engine.PreScanRepositoryPathsWithWorkers` runs a pre-scan pass that extracts
 import names, package-level interface references, type references, and
@@ -288,7 +289,6 @@ parser path.
   Dockerfile runtime metadata extraction
 - `ExtractGroovyPipelineMetadata(sourceText)` — exported utility for Groovy
   pipeline metadata extraction
-- `ColumnLineage`, `CompiledModelLineage` — dbt/SQL lineage records
 
 ## Registered languages and tree-sitter support
 
@@ -562,7 +562,7 @@ alter what those signals report.
 
 ## Gated content-metadata inference
 
-`inferContentMetadata` (`templated_detection.go`) runs several regex scans (a
+`inferContentMetadata` (`content/infer.go`) runs several regex scans (a
 Go template line-control scan, a Terraform `templatefile()` scan, and the
 marker scans described in [Hoisted marker scan](#hoisted-marker-scan) below)
 to populate `artifact_type`, `template_dialect`, and `iac_relevant` after every
@@ -571,11 +571,11 @@ roughly 7.5ms on a large PHP/JS file, about 5% of `ParsePath` wall time across
 the corpus, even though most files carry no IaC/template signal at all and
 always resolve to the zero `contentMetadata{}`.
 
-`shouldSkipContentMetadata` (`content_metadata_gate.go`) gates the call in
+`shouldSkipContentMetadata` (`content/gate.go`) gates the call in
 `Engine.ParsePath`: it returns `true` (skip, use the zero value) only when
 none of `inferContentMetadata`'s own trigger conditions can apply --- derived
 directly from a full line-by-line audit of every branch in
-`templated_detection.go`:
+`content/infer.go`:
 
 - no suffix returned by `splitSuffixes` (i.e. every dot-segment in the
   basename, not just the last one) is in `{.yaml, .yml, .hcl, .tf, .tfvars,
