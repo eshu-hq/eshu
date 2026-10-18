@@ -48,7 +48,8 @@ CREATE INDEX IF NOT EXISTS admission_decisions_candidate_idx
 -- (anchor_id) ... ORDER BY anchor_id, decided_at DESC over domain +
 -- anchor_kind). The existing indexes lead with (scope_id, generation_id),
 -- so neither serves that per-pass listing. Partial and anchor-leading, with
--- decided_at following so the DISTINCT ON reads in index order with no sort.
+-- decided_at following so the bitmap-fed sort stays small (EXPLAIN: one
+-- Bitmap Index Scan, 18.9 ms at 120k rows).
 CREATE INDEX IF NOT EXISTS deployable_unit_gap_admitted_anchor_idx
     ON admission_decisions (anchor_id, decided_at DESC)
     WHERE domain = 'deployable_unit_correlation'
