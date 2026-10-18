@@ -23,9 +23,10 @@ const (
 	// pending until retention removes their generation.
 	activationObligationConsumerEnabledEnv = "ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED"
 	// activationObligationLeaseEnv overrides how long one claim holds an
-	// obligation (#7638 item 3). An unparsable or non-positive value uses
-	// the default, as the other reducer maintenance knobs do; lease sizing
-	// awaits the full-corpus p99, so the default is unchanged.
+	// obligation (#7638 item 2, arbiter-ruled 30m interim). An unparsable
+	// or non-positive value uses the default, as the other reducer
+	// maintenance knobs do; lower the default back only when a rewrite
+	// re-measures the pass p99 far below the lease-minus-a-fifth deadline.
 	activationObligationLeaseEnv = "ESHU_ACTIVATION_OBLIGATION_LEASE"
 	// activationObligationPollIntervalEnv overrides the wait after a cycle
 	// that claimed nothing. An unparsable or non-positive value uses the
