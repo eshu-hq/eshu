@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
@@ -138,7 +139,9 @@ func (s GenerationRetentionStore) recordExpiredReportFailure(ctx context.Context
 			telemetry.AttrReason(generationRetentionExpiredReportFailureReason),
 		))
 	}
-	trace.SpanFromContext(ctx).RecordError(err)
+	span := trace.SpanFromContext(ctx)
+	span.RecordError(err)
+	span.SetStatus(codes.Error, err.Error())
 	if s.logger == nil {
 		return
 	}
