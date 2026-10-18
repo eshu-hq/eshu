@@ -1,636 +1,349 @@
-# Generated fact-kind registry contract v1.
-# This is the source input for go/internal/facts/fact_kind_registry.generated.go
-# and go/internal/facts/FACT_KIND_REGISTRIES.md. Keep fact kind, schema version,
-# reducer domain, projection, admission, read surface, owner, and truth-profile
-# naming aligned with specs/surface-inventory.v1.yaml and
-# specs/evidence-continuity.v1.yaml.
-#
-# v1.1.0 adds three additive, optional fields (per kind, with the same
-# per-kind override pattern as schema_version_overrides /
-# read_surface_overrides):
-#   - payload_schema / payload_schema_overrides: repo-relative path to the
-#     checked-in JSON Schema artifact under sdk/go/factschema/schema/ that
-#     describes a kind's payload shape. A dangling reference fails the
-#     generator closed. Most kinds leave this unset until their payload is
-#     migrated to a typed sdk/go/factschema struct (family-by-family plan,
-#     docs/internal/design/contract-system-v1.md section 7).
-#   - deprecated_in / deprecated_in_overrides: semver marker for when a kind
-#     was deprecated.
-#   - removed_in / removed_in_overrides: semver marker for when a kind is
-#     scheduled for removal. Requires deprecated_in to also be set.
-# See docs/public/reference/fact-schema-versioning.md for the full contract.
-version: "1.1.0"
+# Generated fact-kind registry contract v1. DO NOT EDIT.
+# Source of truth: typed fact-family declarations in Go source
+# (contract.Declare beside fact definitions, contract.Bind beside
+# reducer implementations). Regenerate with
+# scripts/generate-fact-kind-registry.sh. Producer, disposition,
+# evidence, and reducer-binding metadata lives in the generated
+# shards under specs/fact-kind-registry-contracts.d/. This file keeps
+# the legacy v1.1 family, kind, schema, admission, and reducer_dir
+# semantics for existing consumers.
+version: 1.1.0
 families:
-  documentation:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    schema_version_overrides: {documentation_section: "1.1.0"}
-    reducer_domain: documentation_materialization
-    projection_hook: documentation_evidence
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/documentation/facts"
-    truth_profile: deterministic
-    provider_key_independent: true
-    payload_schema_overrides:
-      documentation_claim_candidate: "sdk/go/factschema/schema/documentation_claim_candidate.v1.schema.json"
-      documentation_document: "sdk/go/factschema/schema/documentation_document.v1.schema.json"
-      documentation_entity_mention: "sdk/go/factschema/schema/documentation_entity_mention.v1.schema.json"
-      documentation_evidence_packet: "sdk/go/factschema/schema/documentation_evidence_packet.v1.schema.json"
-      documentation_finding: "sdk/go/factschema/schema/documentation_finding.v1.schema.json"
-      documentation_link: "sdk/go/factschema/schema/documentation_link.v1.schema.json"
-      documentation_section: "sdk/go/factschema/schema/documentation_section.v1.schema.json"
-      documentation_source: "sdk/go/factschema/schema/documentation_source.v1.schema.json"
-    kinds: [documentation_claim_candidate, documentation_document, documentation_entity_mention, documentation_evidence_packet, documentation_finding, documentation_link, documentation_section, documentation_source]
-  aws:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    reducer_domain: aws_cloud_runtime_drift
-    projection_hook: cloud_asset_resolution
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/cloud/inventory"
-    truth_profile: provider_gated
-    provider_key_independent: false
-    payload_schema_overrides:
-      aws_dns_record: "sdk/go/factschema/schema/aws_dns_record.v1.schema.json"
-      aws_iam_permission: "sdk/go/factschema/schema/aws_iam_permission.v1.schema.json"
-      aws_image_reference: "sdk/go/factschema/schema/aws_image_reference.v1.schema.json"
-      aws_relationship: "sdk/go/factschema/schema/aws_relationship.v1.schema.json"
-      aws_resource: "sdk/go/factschema/schema/aws_resource.v1.schema.json"
-      aws_resource_policy_permission: "sdk/go/factschema/schema/aws_resource_policy_permission.v1.schema.json"
-      aws_security_group_rule: "sdk/go/factschema/schema/aws_security_group_rule.v1.schema.json"
-      aws_warning: "sdk/go/factschema/schema/aws_warning.v1.schema.json"
-    kinds: [aws_dns_record, aws_iam_permission, aws_image_reference, aws_relationship, aws_resource, aws_resource_policy_permission, aws_security_group_rule, aws_tag_observation, aws_warning]
-  azure:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    reducer_domain: azure_resource_materialization
-    projection_hook: multi_cloud_runtime_drift
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/cloud/inventory"
-    truth_profile: provider_gated
-    provider_key_independent: false
-    payload_schema_overrides:
-      azure_cloud_relationship: "sdk/go/factschema/schema/azure_cloud_relationship.v1.schema.json"
-      azure_cloud_resource: "sdk/go/factschema/schema/azure_cloud_resource.v1.schema.json"
-      azure_collection_warning: "sdk/go/factschema/schema/azure_collection_warning.v1.schema.json"
-      azure_dns_record: "sdk/go/factschema/schema/azure_dns_record.v1.schema.json"
-      azure_identity_observation: "sdk/go/factschema/schema/azure_identity_observation.v1.schema.json"
-      azure_image_reference: "sdk/go/factschema/schema/azure_image_reference.v1.schema.json"
-      azure_resource_change: "sdk/go/factschema/schema/azure_resource_change.v1.schema.json"
-      azure_tag_observation: "sdk/go/factschema/schema/azure_tag_observation.v1.schema.json"
-    kinds: [azure_cloud_relationship, azure_cloud_resource, azure_collection_warning, azure_dns_record, azure_identity_observation, azure_image_reference, azure_resource_change, azure_tag_observation]
-  ci_cd_run:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    reducer_domain: ci_cd_run_correlation
-    projection_hook: ci_cd_run_correlation
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/ci-cd/run-correlations"
-    truth_profile: provider_gated
-    provider_key_independent: false
-    payload_schema_overrides:
-      ci.run: "sdk/go/factschema/schema/ci.run.v1.schema.json"
-      ci.artifact: "sdk/go/factschema/schema/ci.artifact.v1.schema.json"
-      ci.environment_observation: "sdk/go/factschema/schema/ci.environment_observation.v1.schema.json"
-      ci.deployment_event: "sdk/go/factschema/schema/ci.deployment_event.v1.schema.json"
-      ci.trigger_edge: "sdk/go/factschema/schema/ci.trigger_edge.v1.schema.json"
-      ci.step: "sdk/go/factschema/schema/ci.step.v1.schema.json"
-      ci.workflow_image_evidence: "sdk/go/factschema/schema/ci.workflow_image_evidence.v1.schema.json"
-    kinds: [ci.artifact, ci.deployment_event, ci.environment_observation, ci.job, ci.pipeline_definition, ci.run, ci.step, ci.trigger_edge, ci.warning, ci.workflow_image_evidence]
-    # ci.job, ci.pipeline_definition, and ci.warning are registry-disclosed:
-    # they have no reducer decode call today and no graph-projection path in
-    # policy v1 (#5472), so they produce no graph or Postgres read-model
-    # output. Their absence from payload_schema_overrides above is deliberate
-    # and is itself the marker (same convention as the service_catalog family
-    # below): mapping a payload_schema would assert a payload contract for a
-    # kind no handler reads. The matching enforced disclosure lives in
-    # go/internal/mcp/kind_disclosure_ledger.go; adding a decode seam for any
-    # of the three means removing its ledger entry and adding its schema in
-    # the same change (#5428).
-  # code is an admission-exempt family (registry v1.1, issue #4752). It records
-  # the payload_schema contract for the legacy git code-graph kinds (file,
-  # repository) WITHOUT enrolling them in schema-version admission. These kinds
-  # predate the versioned-admission regime and flow as CompatibilityUnknownKind
-  # today; admission_exempt keeps that runtime behavior identical (no schema
-  # version, no collector stamp, no fixture ripple) while still checking in
-  # their JSON Schema references. This is the reusable pattern for the other
-  # version-less git kinds (code_dataflow_*, taint, interproc, function_summary)
-  # should they later register a payload_schema. See
-  # docs/public/reference/fact-schema-versioning.md.
-  code:
-    lifecycle_owner: go/internal/facts
-    admission_exempt: true
-    reducer_domain: code_graph_projection
-    projection_hook: canonical_code_graph
-    admission_hook: none
-    # repository fact read truth is the repositories route (repository rows).
-    # file fact read truth is the file listing, which that route does NOT
-    # return; it is served through the MCP file tools. read_surface_overrides
-    # points file at list_repository_files so its coverage exercises file rows
-    read_surface: "GET /api/v0/repositories"
-    read_surface_overrides: {file: "list_repository_files"}
-    truth_profile: deterministic
-    provider_key_independent: true
-    payload_schema_overrides:
-      file: "sdk/go/factschema/schema/file.v1.schema.json"
-      repository: "sdk/go/factschema/schema/repository.v1.schema.json"
-    kinds: [file, repository]
-  reducer_derived:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    reducer_domain: reducer_derived_findings
-    projection_hook: reducer_derived_read_model
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/supply-chain/impact/findings"
-    read_surface_overrides: {reducer_aws_cloud_runtime_drift_finding: "POST /api/v0/aws/runtime-drift/findings", reducer_multi_cloud_runtime_drift_finding: "POST /api/v0/cloud/runtime-drift/findings", reducer_package_ownership_correlation: "GET /api/v0/package-registry/correlations", reducer_package_consumption_correlation: "GET /api/v0/package-registry/correlations", reducer_package_publication_correlation: "GET /api/v0/package-registry/correlations", reducer_terraform_config_state_drift_finding: "POST /api/v0/terraform/config-state-drift/findings", reducer_code_drifted_finding: "POST /api/v0/code/divergence/findings"}
-    truth_profile: provider_gated
-    provider_key_independent: false
-    payload_schema_overrides: {reducer_supply_chain_impact_finding: "sdk/go/factschema/schema/reducer_supply_chain_impact_finding.v1.schema.json", reducer_aws_cloud_runtime_drift_finding: "sdk/go/factschema/schema/reducer_aws_cloud_runtime_drift_finding.v1.schema.json", reducer_multi_cloud_runtime_drift_finding: "sdk/go/factschema/schema/reducer_multi_cloud_runtime_drift_finding.v1.schema.json", reducer_package_ownership_correlation: "sdk/go/factschema/schema/reducer_package_ownership_correlation.v1.schema.json", reducer_package_consumption_correlation: "sdk/go/factschema/schema/reducer_package_consumption_correlation.v1.schema.json", reducer_package_publication_correlation: "sdk/go/factschema/schema/reducer_package_publication_correlation.v1.schema.json", reducer_terraform_config_state_drift_finding: "sdk/go/factschema/schema/reducer_terraform_config_state_drift_finding.v1.schema.json", reducer_code_drifted_finding: "sdk/go/factschema/schema/reducer_code_drifted_finding.v1.schema.json"}
-    kinds: [reducer_supply_chain_impact_finding, reducer_aws_cloud_runtime_drift_finding, reducer_multi_cloud_runtime_drift_finding, reducer_package_ownership_correlation, reducer_package_consumption_correlation, reducer_package_publication_correlation, reducer_terraform_config_state_drift_finding, reducer_code_drifted_finding]
-  reducer_internal: {lifecycle_owner: go/internal/facts, admission_exempt: true, reducer_domain: cloud_asset_resolution, projection_hook: cloud_asset_resolution, admission_hook: none, read_surface: none, truth_profile: deterministic, provider_key_independent: true, kinds: [reducer_cloud_asset_resolution]}
-  ec2_instance_posture:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    reducer_domain: ec2_instance_node_materialization
-    projection_hook: ec2_instance_posture
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/cloud/resources"
-    truth_profile: provider_gated
-    provider_key_independent: false
-    kinds: [ec2_instance_posture]
-  gcp:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    schema_version_overrides: {gcp_cloud_resource: "1.1.0"}
-    reducer_domain: gcp_resource_materialization
-    projection_hook: multi_cloud_runtime_drift
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/cloud/inventory"
-    truth_profile: provider_gated
-    provider_key_independent: false
-    payload_schema_overrides:
-      gcp_cloud_relationship: "sdk/go/factschema/schema/gcp_cloud_relationship.v1.schema.json"
-      gcp_cloud_resource: "sdk/go/factschema/schema/gcp_cloud_resource.v1.schema.json"
-      gcp_collection_warning: "sdk/go/factschema/schema/gcp_collection_warning.v1.schema.json"
-      gcp_dns_record: "sdk/go/factschema/schema/gcp_dns_record.v1.schema.json"
-      gcp_iam_policy_observation: "sdk/go/factschema/schema/gcp_iam_policy_observation.v1.schema.json"
-      gcp_image_reference: "sdk/go/factschema/schema/gcp_image_reference.v1.schema.json"
-      gcp_tag_observation: "sdk/go/factschema/schema/gcp_tag_observation.v1.schema.json"
-    kinds: [gcp_cloud_relationship, gcp_cloud_resource, gcp_collection_warning, gcp_dns_record, gcp_iam_policy_observation, gcp_image_reference, gcp_tag_observation]
-  incident_context:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    reducer_domain: incident_repository_correlation
-    projection_hook: incident_context_read_model
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/incidents/{incident_id}/context"
-    truth_profile: provider_gated
-    provider_key_independent: false
-    payload_schema_overrides:
-      change.record: "sdk/go/factschema/schema/change.record.v1.schema.json"
-      incident.lifecycle_event: "sdk/go/factschema/schema/incident.lifecycle_event.v1.schema.json"
-      incident.record: "sdk/go/factschema/schema/incident.record.v1.schema.json"
-    kinds: [change.record, incident.lifecycle_event, incident.record]
-  incident_routing:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    reducer_domain: incident_routing_materialization
-    projection_hook: incident_routing_materialization
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/incidents/{incident_id}/context"
-    truth_profile: provider_gated
-    provider_key_independent: false
-    payload_schema_overrides:
-      incident_routing.applied_alert_route: "sdk/go/factschema/schema/incident_routing.applied_alert_route.v1.schema.json"
-      incident_routing.applied_pagerduty_resource: "sdk/go/factschema/schema/incident_routing.applied_pagerduty_resource.v1.schema.json"
-      incident_routing.coverage_warning: "sdk/go/factschema/schema/incident_routing.coverage_warning.v1.schema.json"
-      incident_routing.observed_pagerduty_integration: "sdk/go/factschema/schema/incident_routing.observed_pagerduty_integration.v1.schema.json"
-      incident_routing.observed_pagerduty_service: "sdk/go/factschema/schema/incident_routing.observed_pagerduty_service.v1.schema.json"
-    kinds: [incident_routing.applied_alert_route, incident_routing.applied_pagerduty_resource, incident_routing.coverage_warning, incident_routing.observed_pagerduty_integration, incident_routing.observed_pagerduty_service]
-  kubernetes_live:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    schema_version_overrides: {kubernetes_live.pod_template: "1.3.0"}
-    reducer_domain: kubernetes_correlation
-    projection_hook: kubernetes_correlation
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/kubernetes/correlations"
-    truth_profile: provider_gated
-    provider_key_independent: false
-    payload_schema_overrides:
-      kubernetes_live.pod_template: "sdk/go/factschema/schema/kubernetes_live.pod_template.v1.schema.json"
-      kubernetes_live.relationship: "sdk/go/factschema/schema/kubernetes_live.relationship.v1.schema.json"
-      kubernetes_live.warning: "sdk/go/factschema/schema/kubernetes_live.warning.v1.schema.json"
-      kubernetes_live.namespace: "sdk/go/factschema/schema/kubernetes_live.namespace.v1.schema.json"
-    kinds: [kubernetes_live.pod_template, kubernetes_live.relationship, kubernetes_live.warning, kubernetes_live.namespace]
-  observability:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    reducer_domain: observability_coverage_correlation
-    projection_hook: observability_coverage_correlation
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/observability/coverage/correlations"
-    truth_profile: provider_gated
-    provider_key_independent: false
-    payload_schema_overrides:
-      observability.declared_folder: "sdk/go/factschema/schema/observability.declared_folder.v1.schema.json"
-      observability.declared_dashboard: "sdk/go/factschema/schema/observability.declared_dashboard.v1.schema.json"
-      observability.declared_datasource: "sdk/go/factschema/schema/observability.declared_datasource.v1.schema.json"
-      observability.declared_alert_rule: "sdk/go/factschema/schema/observability.declared_alert_rule.v1.schema.json"
-      observability.declared_scrape_config: "sdk/go/factschema/schema/observability.declared_scrape_config.v1.schema.json"
-      observability.declared_metric_rule: "sdk/go/factschema/schema/observability.declared_metric_rule.v1.schema.json"
-      observability.declared_metric_route: "sdk/go/factschema/schema/observability.declared_metric_route.v1.schema.json"
-      observability.declared_log_route: "sdk/go/factschema/schema/observability.declared_log_route.v1.schema.json"
-      observability.declared_trace_route: "sdk/go/factschema/schema/observability.declared_trace_route.v1.schema.json"
-      observability.applied_resource: "sdk/go/factschema/schema/observability.applied_resource.v1.schema.json"
-      observability.applied_sync_state: "sdk/go/factschema/schema/observability.applied_sync_state.v1.schema.json"
-      observability.observed_dashboard: "sdk/go/factschema/schema/observability.observed_dashboard.v1.schema.json"
-      observability.observed_target: "sdk/go/factschema/schema/observability.observed_target.v1.schema.json"
-      observability.observed_rule: "sdk/go/factschema/schema/observability.observed_rule.v1.schema.json"
-      observability.observed_log_signal: "sdk/go/factschema/schema/observability.observed_log_signal.v1.schema.json"
-      observability.observed_trace_signal: "sdk/go/factschema/schema/observability.observed_trace_signal.v1.schema.json"
-      observability.coverage_warning: "sdk/go/factschema/schema/observability.coverage_warning.v1.schema.json"
-      observability.source_instance: "sdk/go/factschema/schema/observability.source_instance.v1.schema.json"
-    kinds: [observability.applied_resource, observability.applied_sync_state, observability.coverage_warning, observability.declared_alert_rule, observability.declared_dashboard, observability.declared_datasource, observability.declared_folder, observability.declared_log_route, observability.declared_metric_route, observability.declared_metric_rule, observability.declared_scrape_config, observability.declared_trace_route, observability.observed_dashboard, observability.observed_log_signal, observability.observed_rule, observability.observed_target, observability.observed_trace_signal, observability.source_instance]
-  oci_registry:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    reducer_domain: container_image_identity
-    projection_hook: container_image_identity
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/images"
-    truth_profile: provider_gated
-    provider_key_independent: false
-    payload_schema_overrides: {oci_registry.repository: "sdk/go/factschema/schema/oci_registry.repository.v1.schema.json", oci_registry.image_manifest: "sdk/go/factschema/schema/oci_registry.image_manifest.v1.schema.json", oci_registry.image_index: "sdk/go/factschema/schema/oci_registry.image_index.v1.schema.json", oci_registry.image_descriptor: "sdk/go/factschema/schema/oci_registry.image_descriptor.v1.schema.json", oci_registry.image_tag_observation: "sdk/go/factschema/schema/oci_registry.image_tag_observation.v1.schema.json", oci_registry.image_referrer: "sdk/go/factschema/schema/oci_registry.image_referrer.v1.schema.json", oci_registry.warning: "sdk/go/factschema/schema/oci_registry.warning.v1.schema.json"}
-    kinds: [oci_registry.image_descriptor, oci_registry.image_index, oci_registry.image_manifest, oci_registry.image_referrer, oci_registry.image_tag_observation, oci_registry.repository, oci_registry.warning]
-  package_registry:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    reducer_domain: package_source_correlation
-    projection_hook: package_source_correlation
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/package-registry/packages"
-    truth_profile: provider_gated
-    provider_key_independent: false
-    payload_schema_overrides:
-      package_registry.package: "sdk/go/factschema/schema/package_registry.package.v1.schema.json"
-      package_registry.package_version: "sdk/go/factschema/schema/package_registry.package_version.v1.schema.json"
-      package_registry.package_dependency: "sdk/go/factschema/schema/package_registry.package_dependency.v1.schema.json"
-      package_registry.source_hint: "sdk/go/factschema/schema/package_registry.source_hint.v1.schema.json"
-      # package_artifact gained a real consumer in #5458: the projector decode
-      # wrapper (go/internal/projector/decode/package_registry.go)
-      # and canonical extractor (go/internal/projector/canonical/package_registry.go)
-      # project it onto a PackageArtifact node carrying the per-artifact hash
-      # digests the PackageVersion node's checksum_algorithms property drops.
-      package_registry.package_artifact: "sdk/go/factschema/schema/package_registry.package_artifact.v1.schema.json"
-      package_registry.vulnerability_hint: "sdk/go/factschema/schema/package_registry.vulnerability_hint.v1.schema.json"
-      # vulnerability_hint is join-key-only evidence: the Postgres active-evidence
-      # query (go/internal/storage/postgres/facts_active_supply_chain_impact.go:46)
-      # filters on its fact_kind column but never decodes its payload; the projector
-      # (go/internal/projector/canonical/package_registry.go:120-123) intentionally
-      # does not consume it, and no reducer decode seam exists for it. It has no
-      # direct read surface of its own.
-      # #5458 formalized this as a deliberate KEEP DISCLOSURE decision, not a
-      # silently dead kind: registry-native advisory corroboration overlaps the
-      # dedicated vulnerability_intelligence family and epic #5462's
-      # supply-chain-impact reconciliation. Any future decode-side consumer for
-      # this kind is explicitly deferred to and owned by #5462, not built here.
-      # registry_event gained a real consumer in #5458's registry_event slice:
-      # the projector decode wrapper (go/internal/projector/decode/package_registry.go)
-      # and canonical extractor (go/internal/projector/canonical/package_registry.go)
-      # project it onto a RegistryEvent node -- the per-version
-      # publish/yank/unyank/deprecate/delete/unlist lifecycle timeline the
-      # epic names -- linked to its owning PackageVersion by a
-      # HAS_REGISTRY_EVENT edge.
-      package_registry.registry_event: "sdk/go/factschema/schema/package_registry.registry_event.v1.schema.json"
-      package_registry.repository_hosting: "sdk/go/factschema/schema/package_registry.repository_hosting.v1.schema.json"
-      # repository_hosting is Artifactory/registry feed topology
-      # (provider/registry/repository/upstream_url describing WHERE a package is
-      # hosted), not a package-to-source-commit binding. #5458 formalized this as
-      # a deliberate KEEP DISCLOSURE decision: no graph consumer advances the
-      # provenance backbone epic #5455 is building from this kind, and none is
-      # planned. Revisit only if a future read surface needs registry-hosting
-      # feed topology rather than package-to-source binding.
-      package_registry.warning: "sdk/go/factschema/schema/package_registry.warning.v1.schema.json"
-    kinds: [package_registry.package, package_registry.package_artifact, package_registry.package_dependency, package_registry.package_version, package_registry.registry_event, package_registry.repository_hosting, package_registry.source_hint, package_registry.vulnerability_hint, package_registry.warning]
-  rds_posture:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    reducer_domain: rds_posture_materialization
-    projection_hook: rds_posture_materialization
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/cloud/resources"
-    truth_profile: provider_gated
-    provider_key_independent: false
-    payload_schema: "sdk/go/factschema/schema/rds_instance_posture.v1.schema.json"
-    kinds: [rds_instance_posture]
-  s3_bucket_posture:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    reducer_domain: s3_internet_exposure_materialization
-    projection_hook: s3_bucket_posture
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/cloud/resources"
-    truth_profile: provider_gated
-    provider_key_independent: false
-    payload_schema: "sdk/go/factschema/schema/s3_bucket_posture.v1.schema.json"
-    kinds: [s3_bucket_posture]
-  s3_external_principal_grant:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    reducer_domain: s3_external_principal_grant_materialization
-    projection_hook: s3_external_principal_grant_materialization
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/secrets-iam/posture-summary"
-    truth_profile: provider_gated
-    provider_key_independent: false
-    payload_schema: "sdk/go/factschema/schema/s3_external_principal_grant.v1.schema.json"
-    kinds: [s3_external_principal_grant]
-  sbom_attestation:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.1.0"
-    reducer_domain: sbom_attestation_attachment
-    projection_hook: sbom_attestation_attachment
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/supply-chain/sbom-attestations/attachments"
-    # sbom.dependency_relationship and sbom.external_reference are decoded by
-    # buildSBOMAttachmentIndex (go/internal/reducer/sbomattest/sbom_attestation_attachment_index.go)
-    # and surfaced on the attachments read surface as bounded, write-time
-    # capped dependency_relationships/external_references evidence (#5370).
-    # attestation.slsa_provenance is emitted by the SBOM runtime collector
-    # (go/internal/collector/sbom/runtime/attestation.go), decoded and joined
-    # by statement_id in buildSBOMAttachmentIndex, and surfaced as the
-    # attachments read surface's slsa_provenance_predicate_type and
-    # slsa_provenance_builder_id fields (#5371). schema_version 1.1.0 (#5456)
-    # adds additive-optional materials[]/config_source fields to the retained
-    # predicate body, surfaced as slsa_provenance_materials/
-    # slsa_provenance_config_source on the same read surface; a SLSA-bound
-    # digest-to-commit anchor derived from config_source also feeds a new
-    # reducer_container_image_identity provenance tier
-    # (slsa_provenance_commit) that outranks oci_config_source_label and
-    # ci_run_commit (go/internal/reducer/containerimage/container_image_identity.go).
-    truth_profile: provider_gated
-    provider_key_independent: false
-    payload_schema_overrides:
-      sbom.document: "sdk/go/factschema/schema/sbom.document.v1.schema.json"
-      sbom.component: "sdk/go/factschema/schema/sbom.component.v1.schema.json"
-      sbom.dependency_relationship: "sdk/go/factschema/schema/sbom.dependency_relationship.v1.schema.json"
-      sbom.external_reference: "sdk/go/factschema/schema/sbom.external_reference.v1.schema.json"
-      sbom.warning: "sdk/go/factschema/schema/sbom.warning.v1.schema.json"
-      attestation.statement: "sdk/go/factschema/schema/attestation.statement.v1.schema.json"
-      attestation.signature_verification: "sdk/go/factschema/schema/attestation.signature_verification.v1.schema.json"
-      attestation.slsa_provenance: "sdk/go/factschema/schema/attestation.slsa_provenance.v1.schema.json"
-    kinds: [attestation.signature_verification, attestation.slsa_provenance, attestation.statement, sbom.component, sbom.dependency_relationship, sbom.document, sbom.external_reference, sbom.warning]
-  scanner_worker:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    reducer_domain: supply_chain_impact
-    reducer_dir: go/internal/reducer/supplychain/core
-    projection_hook: supply_chain_impact
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/supply-chain/impact/findings"
-    truth_profile: fixture_gated
-    provider_key_independent: false
-    payload_schema_overrides: {scanner_worker.analysis: "sdk/go/factschema/schema/scanner_worker.analysis.v1.schema.json", scanner_worker.warning: "sdk/go/factschema/schema/scanner_worker.warning.v1.schema.json"}
-    kinds: [scanner_worker.analysis, scanner_worker.warning]
-  secrets_iam:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    reducer_domain: secrets_iam_trust_chain
-    projection_hook: secrets_iam_graph_projection
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/secrets-iam/posture-summary"
-    truth_profile: provider_gated
-    provider_key_independent: false
-    # payload_schema_overrides covers the full secrets_iam source-contract
-    # matrix. Some kinds are consumed by reducer decode seams today and the
-    # loader-side second-decode path follows in W2c (#4796), but admission must
-    # validate every emitted source fact against the typed schema at the family
-    # boundary.
-    payload_schema_overrides:
-      aws_iam_access_analyzer_finding: "sdk/go/factschema/schema/aws_iam_access_analyzer_finding.v1.schema.json"
-      aws_iam_instance_profile: "sdk/go/factschema/schema/aws_iam_instance_profile.v1.schema.json"
-      aws_iam_permission_boundary: "sdk/go/factschema/schema/aws_iam_permission_boundary.v1.schema.json"
-      aws_iam_permission_policy: "sdk/go/factschema/schema/aws_iam_permission_policy.v1.schema.json"
-      aws_iam_policy_attachment: "sdk/go/factschema/schema/aws_iam_policy_attachment.v1.schema.json"
-      aws_iam_principal: "sdk/go/factschema/schema/aws_iam_principal.v1.schema.json"
-      aws_iam_trust_policy: "sdk/go/factschema/schema/aws_iam_trust_policy.v1.schema.json"
-      eks_irsa_annotation: "sdk/go/factschema/schema/eks_irsa_annotation.v1.schema.json"
-      eks_pod_identity_association: "sdk/go/factschema/schema/eks_pod_identity_association.v1.schema.json"
-      gcp_iam_permission_policy: "sdk/go/factschema/schema/gcp_iam_permission_policy.v1.schema.json"
-      gcp_iam_principal: "sdk/go/factschema/schema/gcp_iam_principal.v1.schema.json"
-      gcp_iam_trust_policy: "sdk/go/factschema/schema/gcp_iam_trust_policy.v1.schema.json"
-      k8s_gcp_workload_identity_binding: "sdk/go/factschema/schema/k8s_gcp_workload_identity_binding.v1.schema.json"
-      k8s_rbac_binding: "sdk/go/factschema/schema/k8s_rbac_binding.v1.schema.json"
-      k8s_rbac_role: "sdk/go/factschema/schema/k8s_rbac_role.v1.schema.json"
-      k8s_service_account: "sdk/go/factschema/schema/k8s_service_account.v1.schema.json"
-      k8s_service_account_token_posture: "sdk/go/factschema/schema/k8s_service_account_token_posture.v1.schema.json"
-      k8s_workload_identity_use: "sdk/go/factschema/schema/k8s_workload_identity_use.v1.schema.json"
-      secrets_iam_coverage_warning: "sdk/go/factschema/schema/secrets_iam_coverage_warning.v1.schema.json"
-      vault_acl_policy: "sdk/go/factschema/schema/vault_acl_policy.v1.schema.json"
-      vault_auth_mount: "sdk/go/factschema/schema/vault_auth_mount.v1.schema.json"
-      vault_auth_role: "sdk/go/factschema/schema/vault_auth_role.v1.schema.json"
-      vault_identity_alias: "sdk/go/factschema/schema/vault_identity_alias.v1.schema.json"
-      vault_identity_entity: "sdk/go/factschema/schema/vault_identity_entity.v1.schema.json"
-      vault_kv_metadata: "sdk/go/factschema/schema/vault_kv_metadata.v1.schema.json"
-      vault_secret_engine_mount: "sdk/go/factschema/schema/vault_secret_engine_mount.v1.schema.json"
-    kinds: [aws_iam_access_analyzer_finding, aws_iam_instance_profile, aws_iam_permission_boundary, aws_iam_permission_policy, aws_iam_policy_attachment, aws_iam_principal, aws_iam_trust_policy, eks_irsa_annotation, eks_pod_identity_association, gcp_iam_permission_policy, gcp_iam_principal, gcp_iam_trust_policy, k8s_gcp_workload_identity_binding, k8s_rbac_binding, k8s_rbac_role, k8s_service_account, k8s_service_account_token_posture, k8s_workload_identity_use, secrets_iam_coverage_warning, vault_acl_policy, vault_auth_mount, vault_auth_role, vault_identity_alias, vault_identity_entity, vault_kv_metadata, vault_secret_engine_mount]
-  security_alert:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    reducer_domain: security_alert_reconciliation
-    projection_hook: security_alert_reconciliation
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/supply-chain/security-alerts/reconciliations"
-    truth_profile: provider_gated
-    provider_key_independent: false
-    payload_schema_overrides: {security_alert.repository_alert: "sdk/go/factschema/schema/security_alert.repository_alert.v1.schema.json"}
-    kinds: [security_alert.repository_alert]
-  semantic:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    reducer_domain: semantic_entity_materialization
-    projection_hook: semantic_evidence
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/semantic/documentation-observations"
-    read_surface_overrides: {semantic.code_hint: "GET /api/v0/semantic/code-hints"}
-    truth_profile: optional_semantic
-    policy_gate: semanticpolicy
-    provider_key_independent: false
-    payload_schema_overrides:
-      semantic.code_hint: "sdk/go/factschema/schema/semantic.code_hint.v1.schema.json"
-      semantic.documentation_observation: "sdk/go/factschema/schema/semantic.documentation_observation.v1.schema.json"
-    kinds: [semantic.code_hint, semantic.documentation_observation]
-  service_catalog:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    reducer_domain: service_catalog_correlation
-    projection_hook: service_catalog_correlation
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/service-catalog/correlations"
-    truth_profile: deterministic
-    provider_key_independent: true
-    # payload_schema_overrides covers the four kinds a real consumer decodes:
-    # three via the reducer correlation index's decode seam
-    # (factschema_decode_servicecatalog.go) and one (operational_link) via a
-    # raw-SQL JSONB loader in go/internal/query. The remaining five kinds
-    # (api_link, dependency, scorecard_definition, scorecard_result, warning)
-    # have no decode-side consumer today and are intentionally absent —
-    # mapping them would assert a payload contract for a kind no handler
-    # reads.
-    payload_schema_overrides:
-      service_catalog.entity: "sdk/go/factschema/schema/service_catalog.entity.v1.schema.json"
-      service_catalog.ownership: "sdk/go/factschema/schema/service_catalog.ownership.v1.schema.json"
-      service_catalog.repository_link: "sdk/go/factschema/schema/service_catalog.repository_link.v1.schema.json"
-      service_catalog.operational_link: "sdk/go/factschema/schema/service_catalog.operational_link.v1.schema.json"
-    kinds: [service_catalog.api_link, service_catalog.dependency, service_catalog.entity, service_catalog.operational_link, service_catalog.ownership, service_catalog.repository_link, service_catalog.scorecard_definition, service_catalog.scorecard_result, service_catalog.warning]
-  submodule:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    reducer_domain: submodule_pin
-    projection_hook: submodule_pin
-    admission_hook: facts.ValidateSchemaVersion
-    # read_surface: none is intentional, not a placeholder. The submodule.pin
-    # family is consumed end to end (issue #5420 Phase 3): the collector emits
-    # it and the submodule_pin reducer domain projects
-    # Repository-[:PINS_SUBMODULE]->Repository edges, which are queryable through
-    # the generic graph tools, so this family needs no dedicated read_surface
-    # route.
-    read_surface: none
-    truth_profile: deterministic
-    provider_key_independent: true
-    payload_schema_overrides:
-      submodule.pin: "sdk/go/factschema/schema/submodule.pin.v1.schema.json"
-    kinds: [submodule.pin]
-  codeowners:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    reducer_domain: codeowners_ownership
-    projection_hook: codeowners_ownership
-    admission_hook: facts.ValidateSchemaVersion
-    # Issue #5419 Phase 4 (branch-aware CODEOWNERS ingestion, epic #5415) wired
-    # the live read surface: GET /api/v0/codeowners/ownership
-    # (go/internal/query/codeowners/ownership.go) reads the Phase 3
-    # DECLARES_CODEOWNER graph edges and resolves an effective_owner via
-    # manifest-vs-codeowners precedence. TestFactKindRegistryReadSurfacesResolveToLiveRoutes
-    # (go/internal/mcp/read_surface_consumer_existence_test.go) checks this
-    # literal against the live, implemented API route inventory.
-    read_surface: "GET /api/v0/codeowners/ownership"
-    truth_profile: deterministic
-    provider_key_independent: true
-    # payload_schema_overrides is set even though no decode-side consumer
-    # exists yet (unlike the service_catalog convention above): the consumer
-    # (a reducer or query handler calling factschema.DecodeCodeownersOwnership)
-    # lands in Phase 3 of this same issue (#5419), in a later change. This
-    # struct/schema/fixture-pack landed in Phase 1 so Phase 3 has a validated
-    # seam ready, mirroring how service_catalog.operational_link and several
-    # other kinds across this registry are typed ahead of their read-path
-    # consumer.
-    payload_schema_overrides:
-      codeowners.ownership: "sdk/go/factschema/schema/codeowners.ownership.v1.schema.json"
-    kinds: [codeowners.ownership]
-  terraform_state:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    reducer_domain: config_state_drift
-    projection_hook: terraform_relationship_projection
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/iac/resources"
-    truth_profile: deterministic
-    provider_key_independent: true
-    # terraform_state_resource, _module, _output, _snapshot, and
-    # _tag_observation are consumed by the projector (go/internal/projector/
-    # tfstate_canonical.go) and/or the reducer (aws_cloud_runtime_drift_writer.go,
-    # reducer/multicloudruntimedrift/multi_cloud_runtime_drift_writer.go).
-    # terraform_state_provider_binding
-    # gained a projector consumer in #5446
-    # (terraformStateProviderBindingsByResource in
-    # go/internal/projector/canonical/terraform_state.go), joined onto each
-    # TerraformStateResource row's Provider/ProviderSourceAddress/
-    # ProviderAlias fields. terraform_state_candidate and _warning still have
-    # NO reducer/projector consumer (projector/tfstate_canonical.go's
-    # extractTerraformStateRows doc comment declares them intentionally not
-    # consumed). candidate's own storage/postgres touch
-    # (tfstate_backend_queries.go:313, a backend-path-resolution SQL filter
-    # reading payload->>'relative_path') is deliberately excluded from the mcp
-    # package's real-consumer signal by design
-    # (go/internal/mcp/kind_real_consumer.go's realConsumerRawSQLDir doc
-    # comment scopes that signal to go/internal/query only) and is not treated
-    # as consumption here either -- see
-    # TestKindConsumerExistenceBITES_TeethProof's
-    # toothless_signal_would_pass_but_real_signal_fails case for the test
-    # proof that candidate has no detected real consumer today. None are
-    # consumed by go/internal/relationships.
-    payload_schema_overrides:
-      terraform_state_snapshot: "sdk/go/factschema/schema/terraform_state_snapshot.v1.schema.json"
-      terraform_state_resource: "sdk/go/factschema/schema/terraform_state_resource.v1.schema.json"
-      terraform_state_module: "sdk/go/factschema/schema/terraform_state_module.v1.schema.json"
-      terraform_state_output: "sdk/go/factschema/schema/terraform_state_output.v1.schema.json"
-      terraform_state_tag_observation: "sdk/go/factschema/schema/terraform_state_tag_observation.v1.schema.json"
-      terraform_state_candidate: "sdk/go/factschema/schema/terraform_state_candidate.v1.schema.json"
-      terraform_state_provider_binding: "sdk/go/factschema/schema/terraform_state_provider_binding.v1.schema.json"
-      terraform_state_warning: "sdk/go/factschema/schema/terraform_state_warning.v1.schema.json"
-    kinds: [terraform_state_candidate, terraform_state_module, terraform_state_output, terraform_state_provider_binding, terraform_state_resource, terraform_state_snapshot, terraform_state_tag_observation, terraform_state_warning]
-  vulnerability_intelligence:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    reducer_domain: supply_chain_impact
-    reducer_dir: go/internal/reducer/supplychain/core
-    projection_hook: vulnerability_source_state
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/supply-chain/impact/findings"
-    truth_profile: provider_gated
-    provider_key_independent: false
-    # payload_schema_overrides covers ten of eleven kinds. Eight are read
-    # through a reducer decode seam (factschema_decode_vulnerability.go); two
-    # more (reference, source_snapshot) have no reducer decode call but are
-    # typed anyway (issue #4717) so the go/internal/query SQL-schema lockstep
-    # test can lock their raw-SQL `payload->>'field'` reads to a committed
-    # schema. Only "warning" is intentionally absent — it has neither a
-    # reducer decode call nor a raw-SQL read-model consumer, so mapping it
-    # would assert a payload contract for a kind nothing reads.
-    payload_schema_overrides:
-      vulnerability.cve: "sdk/go/factschema/schema/vulnerability.cve.v1.schema.json"
-      vulnerability.affected_package: "sdk/go/factschema/schema/vulnerability.affected_package.v1.schema.json"
-      vulnerability.affected_product: "sdk/go/factschema/schema/vulnerability.affected_product.v1.schema.json"
-      vulnerability.os_package: "sdk/go/factschema/schema/vulnerability.os_package.v1.schema.json"
-      vulnerability.epss_score: "sdk/go/factschema/schema/vulnerability.epss_score.v1.schema.json"
-      vulnerability.known_exploited: "sdk/go/factschema/schema/vulnerability.known_exploited.v1.schema.json"
-      vulnerability.go_module_evidence: "sdk/go/factschema/schema/vulnerability.go_module_evidence.v1.schema.json"
-      vulnerability.go_call_reachability: "sdk/go/factschema/schema/vulnerability.go_call_reachability.v1.schema.json"
-      vulnerability.reference: "sdk/go/factschema/schema/vulnerability.reference.v1.schema.json"
-      vulnerability.source_snapshot: "sdk/go/factschema/schema/vulnerability.source_snapshot.v1.schema.json"
-    kinds: [vulnerability.affected_package, vulnerability.affected_product, vulnerability.cve, vulnerability.epss_score, vulnerability.go_call_reachability, vulnerability.go_module_evidence, vulnerability.known_exploited, vulnerability.os_package, vulnerability.reference, vulnerability.source_snapshot, vulnerability.warning]
-  vulnerability_suppression:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.1.0"
-    reducer_domain: supply_chain_impact
-    reducer_dir: go/internal/reducer/supplychain/core
-    projection_hook: vulnerability_suppression_admission
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/supply-chain/impact/findings"
-    truth_profile: provider_gated
-    provider_key_independent: false
-    payload_schema_overrides:
-      vulnerability.suppression: "sdk/go/factschema/schema/vulnerability.suppression.v1.schema.json"
-    kinds: [vulnerability.suppression]
-  work_item:
-    lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
-    reducer_domain: incident_repository_correlation
-    projection_hook: work_item_evidence_read_model
-    admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/work-items/evidence"
-    truth_profile: provider_gated
-    provider_key_independent: false
-    payload_schema_overrides:
-      work_item.external_link: "sdk/go/factschema/schema/work_item.external_link.v1.schema.json"
-      work_item.field_metadata: "sdk/go/factschema/schema/work_item.field_metadata.v1.schema.json"
-      work_item.issue_type_metadata: "sdk/go/factschema/schema/work_item.issue_type_metadata.v1.schema.json"
-      work_item.metadata_warning: "sdk/go/factschema/schema/work_item.metadata_warning.v1.schema.json"
-      work_item.project_metadata: "sdk/go/factschema/schema/work_item.project_metadata.v1.schema.json"
-      work_item.record: "sdk/go/factschema/schema/work_item.record.v1.schema.json"
-      work_item.status_metadata: "sdk/go/factschema/schema/work_item.status_metadata.v1.schema.json"
-      work_item.transition: "sdk/go/factschema/schema/work_item.transition.v1.schema.json"
-      work_item.workflow_metadata: "sdk/go/factschema/schema/work_item.workflow_metadata.v1.schema.json"
-    kinds: [work_item.external_link, work_item.field_metadata, work_item.issue_type_metadata, work_item.metadata_warning, work_item.project_metadata, work_item.record, work_item.status_metadata, work_item.transition, work_item.workflow_metadata]
+    aws:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: aws_cloud_runtime_drift
+        projection_hook: cloud_asset_resolution
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/cloud/inventory"
+        truth_profile: provider_gated
+        provider_key_independent: false
+        payload_schema_overrides: {aws_dns_record: sdk/go/factschema/schema/aws_dns_record.v1.schema.json, aws_iam_permission: sdk/go/factschema/schema/aws_iam_permission.v1.schema.json, aws_image_reference: sdk/go/factschema/schema/aws_image_reference.v1.schema.json, aws_relationship: sdk/go/factschema/schema/aws_relationship.v1.schema.json, aws_resource: sdk/go/factschema/schema/aws_resource.v1.schema.json, aws_resource_policy_permission: sdk/go/factschema/schema/aws_resource_policy_permission.v1.schema.json, aws_security_group_rule: sdk/go/factschema/schema/aws_security_group_rule.v1.schema.json, aws_warning: sdk/go/factschema/schema/aws_warning.v1.schema.json}
+        kinds: [aws_dns_record, aws_iam_permission, aws_image_reference, aws_relationship, aws_resource, aws_resource_policy_permission, aws_security_group_rule, aws_tag_observation, aws_warning]
+    azure:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: azure_resource_materialization
+        projection_hook: multi_cloud_runtime_drift
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/cloud/inventory"
+        truth_profile: provider_gated
+        provider_key_independent: false
+        payload_schema_overrides: {azure_cloud_relationship: sdk/go/factschema/schema/azure_cloud_relationship.v1.schema.json, azure_cloud_resource: sdk/go/factschema/schema/azure_cloud_resource.v1.schema.json, azure_collection_warning: sdk/go/factschema/schema/azure_collection_warning.v1.schema.json, azure_dns_record: sdk/go/factschema/schema/azure_dns_record.v1.schema.json, azure_identity_observation: sdk/go/factschema/schema/azure_identity_observation.v1.schema.json, azure_image_reference: sdk/go/factschema/schema/azure_image_reference.v1.schema.json, azure_resource_change: sdk/go/factschema/schema/azure_resource_change.v1.schema.json, azure_tag_observation: sdk/go/factschema/schema/azure_tag_observation.v1.schema.json}
+        kinds: [azure_cloud_relationship, azure_cloud_resource, azure_collection_warning, azure_dns_record, azure_identity_observation, azure_image_reference, azure_resource_change, azure_tag_observation]
+    ci_cd_run:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: ci_cd_run_correlation
+        projection_hook: ci_cd_run_correlation
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/ci-cd/run-correlations"
+        truth_profile: provider_gated
+        provider_key_independent: false
+        payload_schema_overrides: {ci.artifact: sdk/go/factschema/schema/ci.artifact.v1.schema.json, ci.deployment_event: sdk/go/factschema/schema/ci.deployment_event.v1.schema.json, ci.environment_observation: sdk/go/factschema/schema/ci.environment_observation.v1.schema.json, ci.run: sdk/go/factschema/schema/ci.run.v1.schema.json, ci.step: sdk/go/factschema/schema/ci.step.v1.schema.json, ci.trigger_edge: sdk/go/factschema/schema/ci.trigger_edge.v1.schema.json, ci.workflow_image_evidence: sdk/go/factschema/schema/ci.workflow_image_evidence.v1.schema.json}
+        kinds: [ci.artifact, ci.deployment_event, ci.environment_observation, ci.job, ci.pipeline_definition, ci.run, ci.step, ci.trigger_edge, ci.warning, ci.workflow_image_evidence]
+    code:
+        lifecycle_owner: go/internal/facts
+        admission_exempt: true
+        reducer_domain: code_graph_projection
+        projection_hook: canonical_code_graph
+        admission_hook: none
+        read_surface: "GET /api/v0/repositories"
+        read_surface_overrides: {file: "list_repository_files"}
+        truth_profile: deterministic
+        provider_key_independent: true
+        payload_schema_overrides: {file: sdk/go/factschema/schema/file.v1.schema.json, repository: sdk/go/factschema/schema/repository.v1.schema.json}
+        kinds: [file, repository]
+    codeowners:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: codeowners_ownership
+        projection_hook: codeowners_ownership
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/codeowners/ownership"
+        truth_profile: deterministic
+        provider_key_independent: true
+        payload_schema_overrides: {codeowners.ownership: sdk/go/factschema/schema/codeowners.ownership.v1.schema.json}
+        kinds: [codeowners.ownership]
+    documentation:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        schema_version_overrides: {documentation_section: 1.1.0}
+        reducer_domain: documentation_materialization
+        projection_hook: documentation_evidence
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/documentation/facts"
+        truth_profile: deterministic
+        provider_key_independent: true
+        payload_schema_overrides: {documentation_claim_candidate: sdk/go/factschema/schema/documentation_claim_candidate.v1.schema.json, documentation_document: sdk/go/factschema/schema/documentation_document.v1.schema.json, documentation_entity_mention: sdk/go/factschema/schema/documentation_entity_mention.v1.schema.json, documentation_evidence_packet: sdk/go/factschema/schema/documentation_evidence_packet.v1.schema.json, documentation_finding: sdk/go/factschema/schema/documentation_finding.v1.schema.json, documentation_link: sdk/go/factschema/schema/documentation_link.v1.schema.json, documentation_section: sdk/go/factschema/schema/documentation_section.v1.schema.json, documentation_source: sdk/go/factschema/schema/documentation_source.v1.schema.json}
+        kinds: [documentation_claim_candidate, documentation_document, documentation_entity_mention, documentation_evidence_packet, documentation_finding, documentation_link, documentation_section, documentation_source]
+    ec2_instance_posture:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: ec2_instance_node_materialization
+        projection_hook: ec2_instance_posture
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/cloud/resources"
+        truth_profile: provider_gated
+        provider_key_independent: false
+        kinds: [ec2_instance_posture]
+    gcp:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        schema_version_overrides: {gcp_cloud_resource: 1.1.0}
+        reducer_domain: gcp_resource_materialization
+        projection_hook: multi_cloud_runtime_drift
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/cloud/inventory"
+        truth_profile: provider_gated
+        provider_key_independent: false
+        payload_schema_overrides: {gcp_cloud_relationship: sdk/go/factschema/schema/gcp_cloud_relationship.v1.schema.json, gcp_cloud_resource: sdk/go/factschema/schema/gcp_cloud_resource.v1.schema.json, gcp_collection_warning: sdk/go/factschema/schema/gcp_collection_warning.v1.schema.json, gcp_dns_record: sdk/go/factschema/schema/gcp_dns_record.v1.schema.json, gcp_iam_policy_observation: sdk/go/factschema/schema/gcp_iam_policy_observation.v1.schema.json, gcp_image_reference: sdk/go/factschema/schema/gcp_image_reference.v1.schema.json, gcp_tag_observation: sdk/go/factschema/schema/gcp_tag_observation.v1.schema.json}
+        kinds: [gcp_cloud_relationship, gcp_cloud_resource, gcp_collection_warning, gcp_dns_record, gcp_iam_policy_observation, gcp_image_reference, gcp_tag_observation]
+    incident_context:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: incident_repository_correlation
+        projection_hook: incident_context_read_model
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/incidents/{incident_id}/context"
+        truth_profile: provider_gated
+        provider_key_independent: false
+        payload_schema_overrides: {change.record: sdk/go/factschema/schema/change.record.v1.schema.json, incident.lifecycle_event: sdk/go/factschema/schema/incident.lifecycle_event.v1.schema.json, incident.record: sdk/go/factschema/schema/incident.record.v1.schema.json}
+        kinds: [change.record, incident.lifecycle_event, incident.record]
+    incident_routing:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: incident_routing_materialization
+        projection_hook: incident_routing_materialization
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/incidents/{incident_id}/context"
+        truth_profile: provider_gated
+        provider_key_independent: false
+        payload_schema_overrides: {incident_routing.applied_alert_route: sdk/go/factschema/schema/incident_routing.applied_alert_route.v1.schema.json, incident_routing.applied_pagerduty_resource: sdk/go/factschema/schema/incident_routing.applied_pagerduty_resource.v1.schema.json, incident_routing.coverage_warning: sdk/go/factschema/schema/incident_routing.coverage_warning.v1.schema.json, incident_routing.observed_pagerduty_integration: sdk/go/factschema/schema/incident_routing.observed_pagerduty_integration.v1.schema.json, incident_routing.observed_pagerduty_service: sdk/go/factschema/schema/incident_routing.observed_pagerduty_service.v1.schema.json}
+        kinds: [incident_routing.applied_alert_route, incident_routing.applied_pagerduty_resource, incident_routing.coverage_warning, incident_routing.observed_pagerduty_integration, incident_routing.observed_pagerduty_service]
+    kubernetes_live:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        schema_version_overrides: {kubernetes_live.pod_template: 1.3.0}
+        reducer_domain: kubernetes_correlation
+        projection_hook: kubernetes_correlation
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/kubernetes/correlations"
+        truth_profile: provider_gated
+        provider_key_independent: false
+        payload_schema_overrides: {kubernetes_live.namespace: sdk/go/factschema/schema/kubernetes_live.namespace.v1.schema.json, kubernetes_live.pod_template: sdk/go/factschema/schema/kubernetes_live.pod_template.v1.schema.json, kubernetes_live.relationship: sdk/go/factschema/schema/kubernetes_live.relationship.v1.schema.json, kubernetes_live.warning: sdk/go/factschema/schema/kubernetes_live.warning.v1.schema.json}
+        kinds: [kubernetes_live.namespace, kubernetes_live.pod_template, kubernetes_live.relationship, kubernetes_live.warning]
+    observability:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: observability_coverage_correlation
+        projection_hook: observability_coverage_correlation
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/observability/coverage/correlations"
+        truth_profile: provider_gated
+        provider_key_independent: false
+        payload_schema_overrides: {observability.applied_resource: sdk/go/factschema/schema/observability.applied_resource.v1.schema.json, observability.applied_sync_state: sdk/go/factschema/schema/observability.applied_sync_state.v1.schema.json, observability.coverage_warning: sdk/go/factschema/schema/observability.coverage_warning.v1.schema.json, observability.declared_alert_rule: sdk/go/factschema/schema/observability.declared_alert_rule.v1.schema.json, observability.declared_dashboard: sdk/go/factschema/schema/observability.declared_dashboard.v1.schema.json, observability.declared_datasource: sdk/go/factschema/schema/observability.declared_datasource.v1.schema.json, observability.declared_folder: sdk/go/factschema/schema/observability.declared_folder.v1.schema.json, observability.declared_log_route: sdk/go/factschema/schema/observability.declared_log_route.v1.schema.json, observability.declared_metric_route: sdk/go/factschema/schema/observability.declared_metric_route.v1.schema.json, observability.declared_metric_rule: sdk/go/factschema/schema/observability.declared_metric_rule.v1.schema.json, observability.declared_scrape_config: sdk/go/factschema/schema/observability.declared_scrape_config.v1.schema.json, observability.declared_trace_route: sdk/go/factschema/schema/observability.declared_trace_route.v1.schema.json, observability.observed_dashboard: sdk/go/factschema/schema/observability.observed_dashboard.v1.schema.json, observability.observed_log_signal: sdk/go/factschema/schema/observability.observed_log_signal.v1.schema.json, observability.observed_rule: sdk/go/factschema/schema/observability.observed_rule.v1.schema.json, observability.observed_target: sdk/go/factschema/schema/observability.observed_target.v1.schema.json, observability.observed_trace_signal: sdk/go/factschema/schema/observability.observed_trace_signal.v1.schema.json, observability.source_instance: sdk/go/factschema/schema/observability.source_instance.v1.schema.json}
+        kinds: [observability.applied_resource, observability.applied_sync_state, observability.coverage_warning, observability.declared_alert_rule, observability.declared_dashboard, observability.declared_datasource, observability.declared_folder, observability.declared_log_route, observability.declared_metric_route, observability.declared_metric_rule, observability.declared_scrape_config, observability.declared_trace_route, observability.observed_dashboard, observability.observed_log_signal, observability.observed_rule, observability.observed_target, observability.observed_trace_signal, observability.source_instance]
+    oci_registry:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: container_image_identity
+        projection_hook: container_image_identity
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/images"
+        truth_profile: provider_gated
+        provider_key_independent: false
+        payload_schema_overrides: {oci_registry.image_descriptor: sdk/go/factschema/schema/oci_registry.image_descriptor.v1.schema.json, oci_registry.image_index: sdk/go/factschema/schema/oci_registry.image_index.v1.schema.json, oci_registry.image_manifest: sdk/go/factschema/schema/oci_registry.image_manifest.v1.schema.json, oci_registry.image_referrer: sdk/go/factschema/schema/oci_registry.image_referrer.v1.schema.json, oci_registry.image_tag_observation: sdk/go/factschema/schema/oci_registry.image_tag_observation.v1.schema.json, oci_registry.repository: sdk/go/factschema/schema/oci_registry.repository.v1.schema.json, oci_registry.warning: sdk/go/factschema/schema/oci_registry.warning.v1.schema.json}
+        kinds: [oci_registry.image_descriptor, oci_registry.image_index, oci_registry.image_manifest, oci_registry.image_referrer, oci_registry.image_tag_observation, oci_registry.repository, oci_registry.warning]
+    package_registry:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: package_source_correlation
+        projection_hook: package_source_correlation
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/package-registry/packages"
+        truth_profile: provider_gated
+        provider_key_independent: false
+        payload_schema_overrides: {package_registry.package: sdk/go/factschema/schema/package_registry.package.v1.schema.json, package_registry.package_artifact: sdk/go/factschema/schema/package_registry.package_artifact.v1.schema.json, package_registry.package_dependency: sdk/go/factschema/schema/package_registry.package_dependency.v1.schema.json, package_registry.package_version: sdk/go/factschema/schema/package_registry.package_version.v1.schema.json, package_registry.registry_event: sdk/go/factschema/schema/package_registry.registry_event.v1.schema.json, package_registry.repository_hosting: sdk/go/factschema/schema/package_registry.repository_hosting.v1.schema.json, package_registry.source_hint: sdk/go/factschema/schema/package_registry.source_hint.v1.schema.json, package_registry.vulnerability_hint: sdk/go/factschema/schema/package_registry.vulnerability_hint.v1.schema.json, package_registry.warning: sdk/go/factschema/schema/package_registry.warning.v1.schema.json}
+        kinds: [package_registry.package, package_registry.package_artifact, package_registry.package_dependency, package_registry.package_version, package_registry.registry_event, package_registry.repository_hosting, package_registry.source_hint, package_registry.vulnerability_hint, package_registry.warning]
+    rds_posture:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: rds_posture_materialization
+        projection_hook: rds_posture_materialization
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/cloud/resources"
+        truth_profile: provider_gated
+        provider_key_independent: false
+        payload_schema: sdk/go/factschema/schema/rds_instance_posture.v1.schema.json
+        kinds: [rds_instance_posture]
+    reducer_derived:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: reducer_derived_findings
+        projection_hook: reducer_derived_read_model
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/supply-chain/impact/findings"
+        read_surface_overrides: {reducer_aws_cloud_runtime_drift_finding: "POST /api/v0/aws/runtime-drift/findings", reducer_code_drifted_finding: "POST /api/v0/code/divergence/findings", reducer_multi_cloud_runtime_drift_finding: "POST /api/v0/cloud/runtime-drift/findings", reducer_package_consumption_correlation: "GET /api/v0/package-registry/correlations", reducer_package_ownership_correlation: "GET /api/v0/package-registry/correlations", reducer_package_publication_correlation: "GET /api/v0/package-registry/correlations", reducer_terraform_config_state_drift_finding: "POST /api/v0/terraform/config-state-drift/findings"}
+        truth_profile: provider_gated
+        provider_key_independent: false
+        payload_schema_overrides: {reducer_aws_cloud_runtime_drift_finding: sdk/go/factschema/schema/reducer_aws_cloud_runtime_drift_finding.v1.schema.json, reducer_code_drifted_finding: sdk/go/factschema/schema/reducer_code_drifted_finding.v1.schema.json, reducer_multi_cloud_runtime_drift_finding: sdk/go/factschema/schema/reducer_multi_cloud_runtime_drift_finding.v1.schema.json, reducer_package_consumption_correlation: sdk/go/factschema/schema/reducer_package_consumption_correlation.v1.schema.json, reducer_package_ownership_correlation: sdk/go/factschema/schema/reducer_package_ownership_correlation.v1.schema.json, reducer_package_publication_correlation: sdk/go/factschema/schema/reducer_package_publication_correlation.v1.schema.json, reducer_supply_chain_impact_finding: sdk/go/factschema/schema/reducer_supply_chain_impact_finding.v1.schema.json, reducer_terraform_config_state_drift_finding: sdk/go/factschema/schema/reducer_terraform_config_state_drift_finding.v1.schema.json}
+        kinds: [reducer_aws_cloud_runtime_drift_finding, reducer_code_drifted_finding, reducer_multi_cloud_runtime_drift_finding, reducer_package_consumption_correlation, reducer_package_ownership_correlation, reducer_package_publication_correlation, reducer_supply_chain_impact_finding, reducer_terraform_config_state_drift_finding]
+    reducer_internal:
+        lifecycle_owner: go/internal/facts
+        admission_exempt: true
+        reducer_domain: cloud_asset_resolution
+        projection_hook: cloud_asset_resolution
+        admission_hook: none
+        read_surface: "none"
+        truth_profile: deterministic
+        provider_key_independent: true
+        kinds: [reducer_cloud_asset_resolution]
+    s3_bucket_posture:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: s3_internet_exposure_materialization
+        projection_hook: s3_bucket_posture
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/cloud/resources"
+        truth_profile: provider_gated
+        provider_key_independent: false
+        payload_schema: sdk/go/factschema/schema/s3_bucket_posture.v1.schema.json
+        kinds: [s3_bucket_posture]
+    s3_external_principal_grant:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: s3_external_principal_grant_materialization
+        projection_hook: s3_external_principal_grant_materialization
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/secrets-iam/posture-summary"
+        truth_profile: provider_gated
+        provider_key_independent: false
+        payload_schema: sdk/go/factschema/schema/s3_external_principal_grant.v1.schema.json
+        kinds: [s3_external_principal_grant]
+    sbom_attestation:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.1.0
+        reducer_domain: sbom_attestation_attachment
+        projection_hook: sbom_attestation_attachment
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/supply-chain/sbom-attestations/attachments"
+        truth_profile: provider_gated
+        provider_key_independent: false
+        payload_schema_overrides: {attestation.signature_verification: sdk/go/factschema/schema/attestation.signature_verification.v1.schema.json, attestation.slsa_provenance: sdk/go/factschema/schema/attestation.slsa_provenance.v1.schema.json, attestation.statement: sdk/go/factschema/schema/attestation.statement.v1.schema.json, sbom.component: sdk/go/factschema/schema/sbom.component.v1.schema.json, sbom.dependency_relationship: sdk/go/factschema/schema/sbom.dependency_relationship.v1.schema.json, sbom.document: sdk/go/factschema/schema/sbom.document.v1.schema.json, sbom.external_reference: sdk/go/factschema/schema/sbom.external_reference.v1.schema.json, sbom.warning: sdk/go/factschema/schema/sbom.warning.v1.schema.json}
+        kinds: [attestation.signature_verification, attestation.slsa_provenance, attestation.statement, sbom.component, sbom.dependency_relationship, sbom.document, sbom.external_reference, sbom.warning]
+    scanner_worker:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: supply_chain_impact
+        reducer_dir: go/internal/reducer/supplychain/core
+        projection_hook: supply_chain_impact
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/supply-chain/impact/findings"
+        truth_profile: fixture_gated
+        provider_key_independent: false
+        payload_schema_overrides: {scanner_worker.analysis: sdk/go/factschema/schema/scanner_worker.analysis.v1.schema.json, scanner_worker.warning: sdk/go/factschema/schema/scanner_worker.warning.v1.schema.json}
+        kinds: [scanner_worker.analysis, scanner_worker.warning]
+    secrets_iam:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: secrets_iam_trust_chain
+        projection_hook: secrets_iam_graph_projection
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/secrets-iam/posture-summary"
+        truth_profile: provider_gated
+        provider_key_independent: false
+        payload_schema_overrides: {aws_iam_access_analyzer_finding: sdk/go/factschema/schema/aws_iam_access_analyzer_finding.v1.schema.json, aws_iam_instance_profile: sdk/go/factschema/schema/aws_iam_instance_profile.v1.schema.json, aws_iam_permission_boundary: sdk/go/factschema/schema/aws_iam_permission_boundary.v1.schema.json, aws_iam_permission_policy: sdk/go/factschema/schema/aws_iam_permission_policy.v1.schema.json, aws_iam_policy_attachment: sdk/go/factschema/schema/aws_iam_policy_attachment.v1.schema.json, aws_iam_principal: sdk/go/factschema/schema/aws_iam_principal.v1.schema.json, aws_iam_trust_policy: sdk/go/factschema/schema/aws_iam_trust_policy.v1.schema.json, eks_irsa_annotation: sdk/go/factschema/schema/eks_irsa_annotation.v1.schema.json, eks_pod_identity_association: sdk/go/factschema/schema/eks_pod_identity_association.v1.schema.json, gcp_iam_permission_policy: sdk/go/factschema/schema/gcp_iam_permission_policy.v1.schema.json, gcp_iam_principal: sdk/go/factschema/schema/gcp_iam_principal.v1.schema.json, gcp_iam_trust_policy: sdk/go/factschema/schema/gcp_iam_trust_policy.v1.schema.json, k8s_gcp_workload_identity_binding: sdk/go/factschema/schema/k8s_gcp_workload_identity_binding.v1.schema.json, k8s_rbac_binding: sdk/go/factschema/schema/k8s_rbac_binding.v1.schema.json, k8s_rbac_role: sdk/go/factschema/schema/k8s_rbac_role.v1.schema.json, k8s_service_account: sdk/go/factschema/schema/k8s_service_account.v1.schema.json, k8s_service_account_token_posture: sdk/go/factschema/schema/k8s_service_account_token_posture.v1.schema.json, k8s_workload_identity_use: sdk/go/factschema/schema/k8s_workload_identity_use.v1.schema.json, secrets_iam_coverage_warning: sdk/go/factschema/schema/secrets_iam_coverage_warning.v1.schema.json, vault_acl_policy: sdk/go/factschema/schema/vault_acl_policy.v1.schema.json, vault_auth_mount: sdk/go/factschema/schema/vault_auth_mount.v1.schema.json, vault_auth_role: sdk/go/factschema/schema/vault_auth_role.v1.schema.json, vault_identity_alias: sdk/go/factschema/schema/vault_identity_alias.v1.schema.json, vault_identity_entity: sdk/go/factschema/schema/vault_identity_entity.v1.schema.json, vault_kv_metadata: sdk/go/factschema/schema/vault_kv_metadata.v1.schema.json, vault_secret_engine_mount: sdk/go/factschema/schema/vault_secret_engine_mount.v1.schema.json}
+        kinds: [aws_iam_access_analyzer_finding, aws_iam_instance_profile, aws_iam_permission_boundary, aws_iam_permission_policy, aws_iam_policy_attachment, aws_iam_principal, aws_iam_trust_policy, eks_irsa_annotation, eks_pod_identity_association, gcp_iam_permission_policy, gcp_iam_principal, gcp_iam_trust_policy, k8s_gcp_workload_identity_binding, k8s_rbac_binding, k8s_rbac_role, k8s_service_account, k8s_service_account_token_posture, k8s_workload_identity_use, secrets_iam_coverage_warning, vault_acl_policy, vault_auth_mount, vault_auth_role, vault_identity_alias, vault_identity_entity, vault_kv_metadata, vault_secret_engine_mount]
+    security_alert:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: security_alert_reconciliation
+        projection_hook: security_alert_reconciliation
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/supply-chain/security-alerts/reconciliations"
+        truth_profile: provider_gated
+        provider_key_independent: false
+        payload_schema_overrides: {security_alert.repository_alert: sdk/go/factschema/schema/security_alert.repository_alert.v1.schema.json}
+        kinds: [security_alert.repository_alert]
+    semantic:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: semantic_entity_materialization
+        projection_hook: semantic_evidence
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/semantic/documentation-observations"
+        read_surface_overrides: {semantic.code_hint: "GET /api/v0/semantic/code-hints"}
+        truth_profile: optional_semantic
+        policy_gate: semanticpolicy
+        provider_key_independent: false
+        payload_schema_overrides: {semantic.code_hint: sdk/go/factschema/schema/semantic.code_hint.v1.schema.json, semantic.documentation_observation: sdk/go/factschema/schema/semantic.documentation_observation.v1.schema.json}
+        kinds: [semantic.code_hint, semantic.documentation_observation]
+    service_catalog:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: service_catalog_correlation
+        projection_hook: service_catalog_correlation
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/service-catalog/correlations"
+        truth_profile: deterministic
+        provider_key_independent: true
+        payload_schema_overrides: {service_catalog.entity: sdk/go/factschema/schema/service_catalog.entity.v1.schema.json, service_catalog.operational_link: sdk/go/factschema/schema/service_catalog.operational_link.v1.schema.json, service_catalog.ownership: sdk/go/factschema/schema/service_catalog.ownership.v1.schema.json, service_catalog.repository_link: sdk/go/factschema/schema/service_catalog.repository_link.v1.schema.json}
+        kinds: [service_catalog.api_link, service_catalog.dependency, service_catalog.entity, service_catalog.operational_link, service_catalog.ownership, service_catalog.repository_link, service_catalog.scorecard_definition, service_catalog.scorecard_result, service_catalog.warning]
+    submodule:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: submodule_pin
+        projection_hook: submodule_pin
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "none"
+        truth_profile: deterministic
+        provider_key_independent: true
+        payload_schema_overrides: {submodule.pin: sdk/go/factschema/schema/submodule.pin.v1.schema.json}
+        kinds: [submodule.pin]
+    terraform_state:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: config_state_drift
+        projection_hook: terraform_relationship_projection
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/iac/resources"
+        truth_profile: deterministic
+        provider_key_independent: true
+        payload_schema_overrides: {terraform_state_candidate: sdk/go/factschema/schema/terraform_state_candidate.v1.schema.json, terraform_state_module: sdk/go/factschema/schema/terraform_state_module.v1.schema.json, terraform_state_output: sdk/go/factschema/schema/terraform_state_output.v1.schema.json, terraform_state_provider_binding: sdk/go/factschema/schema/terraform_state_provider_binding.v1.schema.json, terraform_state_resource: sdk/go/factschema/schema/terraform_state_resource.v1.schema.json, terraform_state_snapshot: sdk/go/factschema/schema/terraform_state_snapshot.v1.schema.json, terraform_state_tag_observation: sdk/go/factschema/schema/terraform_state_tag_observation.v1.schema.json, terraform_state_warning: sdk/go/factschema/schema/terraform_state_warning.v1.schema.json}
+        kinds: [terraform_state_candidate, terraform_state_module, terraform_state_output, terraform_state_provider_binding, terraform_state_resource, terraform_state_snapshot, terraform_state_tag_observation, terraform_state_warning]
+    vulnerability_intelligence:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: supply_chain_impact
+        reducer_dir: go/internal/reducer/supplychain/core
+        projection_hook: vulnerability_source_state
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/supply-chain/impact/findings"
+        truth_profile: provider_gated
+        provider_key_independent: false
+        payload_schema_overrides: {vulnerability.affected_package: sdk/go/factschema/schema/vulnerability.affected_package.v1.schema.json, vulnerability.affected_product: sdk/go/factschema/schema/vulnerability.affected_product.v1.schema.json, vulnerability.cve: sdk/go/factschema/schema/vulnerability.cve.v1.schema.json, vulnerability.epss_score: sdk/go/factschema/schema/vulnerability.epss_score.v1.schema.json, vulnerability.go_call_reachability: sdk/go/factschema/schema/vulnerability.go_call_reachability.v1.schema.json, vulnerability.go_module_evidence: sdk/go/factschema/schema/vulnerability.go_module_evidence.v1.schema.json, vulnerability.known_exploited: sdk/go/factschema/schema/vulnerability.known_exploited.v1.schema.json, vulnerability.os_package: sdk/go/factschema/schema/vulnerability.os_package.v1.schema.json, vulnerability.reference: sdk/go/factschema/schema/vulnerability.reference.v1.schema.json, vulnerability.source_snapshot: sdk/go/factschema/schema/vulnerability.source_snapshot.v1.schema.json}
+        kinds: [vulnerability.affected_package, vulnerability.affected_product, vulnerability.cve, vulnerability.epss_score, vulnerability.go_call_reachability, vulnerability.go_module_evidence, vulnerability.known_exploited, vulnerability.os_package, vulnerability.reference, vulnerability.source_snapshot, vulnerability.warning]
+    vulnerability_suppression:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.1.0
+        reducer_domain: supply_chain_impact
+        reducer_dir: go/internal/reducer/supplychain/core
+        projection_hook: vulnerability_suppression_admission
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/supply-chain/impact/findings"
+        truth_profile: provider_gated
+        provider_key_independent: false
+        payload_schema_overrides: {vulnerability.suppression: sdk/go/factschema/schema/vulnerability.suppression.v1.schema.json}
+        kinds: [vulnerability.suppression]
+    work_item:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: incident_repository_correlation
+        projection_hook: work_item_evidence_read_model
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "GET /api/v0/work-items/evidence"
+        truth_profile: provider_gated
+        provider_key_independent: false
+        payload_schema_overrides: {work_item.external_link: sdk/go/factschema/schema/work_item.external_link.v1.schema.json, work_item.field_metadata: sdk/go/factschema/schema/work_item.field_metadata.v1.schema.json, work_item.issue_type_metadata: sdk/go/factschema/schema/work_item.issue_type_metadata.v1.schema.json, work_item.metadata_warning: sdk/go/factschema/schema/work_item.metadata_warning.v1.schema.json, work_item.project_metadata: sdk/go/factschema/schema/work_item.project_metadata.v1.schema.json, work_item.record: sdk/go/factschema/schema/work_item.record.v1.schema.json, work_item.status_metadata: sdk/go/factschema/schema/work_item.status_metadata.v1.schema.json, work_item.transition: sdk/go/factschema/schema/work_item.transition.v1.schema.json, work_item.workflow_metadata: sdk/go/factschema/schema/work_item.workflow_metadata.v1.schema.json}
+        kinds: [work_item.external_link, work_item.field_metadata, work_item.issue_type_metadata, work_item.metadata_warning, work_item.project_metadata, work_item.record, work_item.status_metadata, work_item.transition, work_item.workflow_metadata]

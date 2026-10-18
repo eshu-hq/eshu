@@ -3,7 +3,11 @@
 
 package cloud
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/contract"
+)
 
 const (
 	// S3BucketPostureFactKind identifies one derived S3 bucket security-posture
@@ -42,3 +46,28 @@ func S3BucketPostureSchemaVersion(factKind string) (string, bool) {
 	version, ok := s3BucketPostureSchemaVersions[factKind]
 	return version, ok
 }
+
+// S3BucketPostureFamilyDeclaration is the typed fact-family contract declaration for the
+// s3_bucket_posture family (issue #6629). It is build-time metadata: the
+// fact-kind-registry generator discovers it statically and derives
+// the registry, shards, and catalog from it.
+var S3BucketPostureFamilyDeclaration = contract.Declare(contract.Family{
+	ID:                     "s3_bucket_posture",
+	FactDir:                "go/internal/facts/cloud",
+	OwnerRepository:        "eshu-hq/eshu",
+	LifecycleOwner:         "go/internal/facts",
+	SchemaVersion:          "1.0.0",
+	ReducerDomain:          "s3_internet_exposure_materialization",
+	ProjectionHook:         "s3_bucket_posture",
+	AdmissionHook:          "facts.ValidateSchemaVersion",
+	ReadSurface:            "GET /api/v0/cloud/resources",
+	TruthProfile:           "provider_gated",
+	ProviderKeyIndependent: false,
+	PayloadSchema:          "sdk/go/factschema/schema/s3_bucket_posture.v1.schema.json",
+	Kinds: []contract.Kind{
+		{Kind: "s3_bucket_posture"},
+	},
+	Producers: []contract.Producer{
+		{ID: "collector-aws-cloud", Repository: "eshu-hq/eshu", Path: "go/internal/collector/awscloud", PlannedRepository: "eshu-hq/eshu-collector-aws-cloud", AuthorityMode: "core_issued_grant", Kinds: []string{"s3_bucket_posture"}},
+	},
+})

@@ -3,7 +3,11 @@
 
 package facts
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/contract"
+)
 
 const (
 	// SubmodulePinFactKind identifies one declared or observed git submodule
@@ -38,3 +42,27 @@ func SubmoduleSchemaVersion(factKind string) (string, bool) {
 	version, ok := submoduleSchemaVersions[factKind]
 	return version, ok
 }
+
+// SubmoduleFamilyDeclaration is the typed fact-family contract declaration for the
+// submodule family (issue #6629). It is build-time metadata: the
+// fact-kind-registry generator discovers it statically and derives
+// the registry, shards, and catalog from it.
+var SubmoduleFamilyDeclaration = contract.Declare(contract.Family{
+	ID:                     "submodule",
+	FactDir:                "go/internal/facts",
+	OwnerRepository:        "eshu-hq/eshu",
+	LifecycleOwner:         "go/internal/facts",
+	SchemaVersion:          "1.0.0",
+	ReducerDomain:          "submodule_pin",
+	ProjectionHook:         "submodule_pin",
+	AdmissionHook:          "facts.ValidateSchemaVersion",
+	ReadSurface:            "none",
+	TruthProfile:           "deterministic",
+	ProviderKeyIndependent: true,
+	Kinds: []contract.Kind{
+		{Kind: "submodule.pin", PayloadSchema: "sdk/go/factschema/schema/submodule.pin.v1.schema.json"},
+	},
+	Producers: []contract.Producer{
+		{ID: "git-core", Repository: "eshu-hq/eshu", Path: "go/internal/collector/repo", AuthorityMode: "core_owned", Kinds: []string{"submodule.pin"}},
+	},
+})

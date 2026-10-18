@@ -3,7 +3,11 @@
 
 package facts
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/contract"
+)
 
 const (
 	// CICDPipelineDefinitionFactKind identifies one provider workflow or
@@ -75,3 +79,37 @@ func CICDRunSchemaVersion(factKind string) (string, bool) {
 	version, ok := cicdRunSchemaVersions[factKind]
 	return version, ok
 }
+
+// CICDRunFamilyDeclaration is the typed fact-family contract declaration for the
+// ci_cd_run family (issue #6629). It is build-time metadata: the
+// fact-kind-registry generator discovers it statically and derives
+// the registry, shards, and catalog from it.
+var CICDRunFamilyDeclaration = contract.Declare(contract.Family{
+	ID:                     "ci_cd_run",
+	FactDir:                "go/internal/facts",
+	OwnerRepository:        "eshu-hq/eshu",
+	LifecycleOwner:         "go/internal/facts",
+	SchemaVersion:          "1.0.0",
+	ReducerDomain:          "ci_cd_run_correlation",
+	ProjectionHook:         "ci_cd_run_correlation",
+	AdmissionHook:          "facts.ValidateSchemaVersion",
+	ReadSurface:            "GET /api/v0/ci-cd/run-correlations",
+	TruthProfile:           "provider_gated",
+	ProviderKeyIndependent: false,
+	Kinds: []contract.Kind{
+		{Kind: "ci.artifact", PayloadSchema: "sdk/go/factschema/schema/ci.artifact.v1.schema.json"},
+		{Kind: "ci.deployment_event", PayloadSchema: "sdk/go/factschema/schema/ci.deployment_event.v1.schema.json"},
+		{Kind: "ci.environment_observation", PayloadSchema: "sdk/go/factschema/schema/ci.environment_observation.v1.schema.json"},
+		{Kind: "ci.job", Disposition: "unconsumed", NoReducerReason: "Emitted by the CI/CD collector with no reducer decode call today (deferred by design).", NoReducerEvidence: "go/internal/mcp/kind_disclosure_ledger.go (kindDisclosureEntries)"},
+		{Kind: "ci.pipeline_definition", Disposition: "unconsumed", NoReducerReason: "Emitted by the CI/CD collector with no reducer decode call today (deferred by design).", NoReducerEvidence: "go/internal/mcp/kind_disclosure_ledger.go (kindDisclosureEntries)"},
+		{Kind: "ci.run", PayloadSchema: "sdk/go/factschema/schema/ci.run.v1.schema.json"},
+		{Kind: "ci.step", PayloadSchema: "sdk/go/factschema/schema/ci.step.v1.schema.json"},
+		{Kind: "ci.trigger_edge", PayloadSchema: "sdk/go/factschema/schema/ci.trigger_edge.v1.schema.json"},
+		{Kind: "ci.warning", Disposition: "unconsumed", NoReducerReason: "Emitted by the CI/CD collector with no reducer decode call today (deferred by design).", NoReducerEvidence: "go/internal/mcp/kind_disclosure_ledger.go (kindDisclosureEntries)"},
+		{Kind: "ci.workflow_image_evidence", PayloadSchema: "sdk/go/factschema/schema/ci.workflow_image_evidence.v1.schema.json"},
+	},
+	Producers: []contract.Producer{
+		{ID: "collector-cicd-run", Repository: "eshu-hq/eshu", Path: "go/internal/collector/cicdrun", PlannedRepository: "eshu-hq/eshu-collector-cicd-run", AuthorityMode: "core_issued_grant", Kinds: []string{"ci.artifact", "ci.deployment_event", "ci.environment_observation", "ci.job", "ci.pipeline_definition", "ci.run", "ci.step", "ci.trigger_edge", "ci.warning"}},
+		{ID: "git-core", Repository: "eshu-hq/eshu", Path: "go/internal/collector/repo", AuthorityMode: "core_owned", Kinds: []string{"ci.workflow_image_evidence"}},
+	},
+})

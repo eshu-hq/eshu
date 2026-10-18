@@ -4,8 +4,7 @@ This page enumerates every observable stage in the Eshu data plane and the metri
 
 ## How To Read This Doc
 
-- The table is machine-parseable: stable column order `stage | file:line | required metric name(s) | category`.
-- One row per stage. The metric column lists every registered name an operator needs to read at 3 AM, comma-separated. The category column names the owning sub-package or seam.
+- The table is machine-parseable: stable column order `stage | file:line | required metric name(s) | category`, one row per stage. The metric column lists every registered name an operator needs to read at 3 AM, comma-separated. The category column names the owning sub-package or seam.
 - `file:line` points at the Go file that emits the signal, not the contract. When the source spans several call sites, it points at the dispatch chokepoint.
 - The script (X2) grep-parses this table; do not rename columns or insert prose between rows in a section.
 
@@ -17,6 +16,7 @@ The reducer drains queue work items through the worker pool, projects shared edg
 | stage | file:line | required metric name(s) | category |
 | --- | --- | --- | --- |
 | package-consumption sidecar repair (#7088, #7663 paged scope rebuild) | go/cmd/reducer/package_manifest_backfill.go, go/internal/storage/postgres/consumption/rebuild.go | `eshu_dp_package_manifest_backfill_passes_total`, `eshu_dp_package_manifest_backfill_duration_seconds`, `eshu_dp_package_manifest_backfill_last_success_unixtime`, `eshu_dp_package_manifest_backfill_dirty_scopes`, `eshu_dp_package_manifest_backfill_cursor_updated_unixtime`, `eshu_dp_package_manifest_backfill_ready`, `eshu_dp_package_manifest_backfill_page_duration_seconds`, `eshu_dp_package_manifest_backfill_scope_lock_wait_seconds`, `eshu_dp_package_manifest_backfill_scope_rebuilds_total` | reducer maintenance |
+| fact-family contract bindings (#6629) | go/internal/reducer/fact_bindings.go, go/internal/reducer/*/fact_bindings.go, go/internal/reducer/*/*/fact_bindings.go, go/internal/reducer/*/*/*/fact_bindings.go | `No-Observability-Change: build-time contract declarations (contract.Bind identity values read only by the fact-kind-registry generator's static scan); no stage behavior, queue work, retry, storage call, or graph work changes and no signal is emitted. Reducer execution remains covered by eshu_dp_queue_claim_duration_seconds and eshu_dp_reducer_intents_enqueued_total` | reducer runtime |
 | queue claim | go/internal/reducer/service.go:189 | `eshu_dp_queue_claim_duration_seconds`, `eshu_dp_reducer_queue_wait_seconds`, `eshu_dp_queue_depth`, `eshu_dp_worker_pool_active` | reducer runtime |
 | intent enqueue | go/internal/projector/runtime/projection.go (`Runtime.Project`) | `eshu_dp_reducer_intents_enqueued_total` | reducer runtime |
 | intent contract boundary | go/internal/projector/intent/contract.go | `No-Observability-Change: dependency-neutral reducer-intent value and source-label helper shared by root assembly and extracted family packages; it performs no projection, queue write, retry, storage call, or graph work and emits no signal of its own. Root intent assembly and enqueue remain covered by eshu_dp_reducer_intents_enqueued_total (intent enqueue row above)` | reducer runtime |
