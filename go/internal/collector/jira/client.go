@@ -377,16 +377,19 @@ func (c HTTPClient) doJSON(
 	out any,
 ) error {
 	return sdk.DoJSON(ctx, sdk.JSONRequest{
-		Provider:    "jira",
-		Method:      method,
-		BaseURL:     c.baseURL,
-		Endpoint:    endpoint,
-		Query:       query,
-		Body:        body,
-		Out:         out,
-		Client:      c.httpClient,
-		Headers:     c.setAuth,
-		StatusError: jiraStatusError,
+		Provider:  "jira",
+		Method:    method,
+		BaseURL:   c.baseURL,
+		Endpoint:  endpoint,
+		Operation: jiraOperationForEndpoint(endpoint),
+		Query:     query,
+		Body:      body,
+		Out:       out,
+		Client:    c.httpClient,
+		Headers:   c.setAuth,
+		StatusError: func(response *http.Response) error {
+			return jiraStatusErrorWithOperation(response, jiraOperationForEndpoint(endpoint))
+		},
 	})
 }
 
