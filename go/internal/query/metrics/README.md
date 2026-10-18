@@ -37,7 +37,10 @@ so a test that installs its own meter provider first still records to it.
 Unchanged by the #6642 move. The middleware also announces and sets a
 `Server-Timing: total;dur=<ms>` trailer per request (a trailer, not a header,
 because headers flush on the handler's first Write); see `request.go` and
-`request_timing_test.go` (#7733).
+`request_timing_test.go` (#7733). The announcement is gated: 1xx/204/304,
+HEAD, and handlers that return without writing never announce, because a
+`Trailer` header on a bodyless response crashes Node-based proxies
+(`ERR_HTTP_TRAILER_INVALID`, seen on a 204 in the SSO E2E gate).
 
 ## Gotchas / invariants
 

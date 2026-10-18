@@ -4,7 +4,9 @@
 package metrics
 
 import (
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -76,6 +78,91 @@ func TestRequestMiddlewareServerTimingTrailerSurvivesStreaming(t *testing.T) {
 	if total < 50 {
 		t.Fatalf("streamed route total = %.1fms, want >= 50ms", total)
 	}
+}
+
+// TestRequestMiddlewareBodylessResponsesOmitTrailerAnnouncement proves a
+// handler that writes no body never emits a Trailer announcement header
+// (issue #7733 follow-up: the unconditional announcement crashed Node-based
+// proxies such as the Vite dev server with ERR_HTTP_TRAILER_INVALID, failing
+// the SSO E2E gate on #8482 while the test-only #8481 stayed green).
+// Trailer headers are invalid on Content-Length responses, so the middleware
+// must only announce when body bytes actually flow.
+func TestRequestMiddlewareBodylessResponsesOmitTrailerAnnouncement(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v0/empty", func(_ http.ResponseWriter, _ *http.Request) {})
+	mux.HandleFunc("GET /api/v0/accepted", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	})
+	mux.HandleFunc("GET /api/v0/nocontent", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("GET /api/v0/explicit-ok", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+	srv := httptest.NewServer(RequestMiddleware(mux))
+	t.Cleanup(srv.Close)
+
+	// Raw-wire reads: the Go client folds a Trailer announcement out of
+	// resp.Header, which would hide exactly what crashes a Node proxy, so
+	// bodyless routes are asserted on the raw header block instead.
+	for _, target := range []string{"/api/v0/empty", "/api/v0/nocontent"} {
+		raw := rawWireHeaders(t, "GET", srv.URL+target)
+		if hasHeaderLine(raw, "Trailer:") {
+			t.Fatalf("GET %s raw headers announce a trailer on a bodyless response:\n%s", target, raw)
+		}
+	}
+
+	// Known residual, pinned: an explicit body-allowed status with no
+	// following body (the MCP 202 shape) still announces, as before this
+	// change. Holding that send would re-emit a stored status and trip the
+	// #7674 guard, so it stays a tracked follow-up; MCP-identity E2E is
+	// green with it.
+	if raw := rawWireHeaders(t, "GET", srv.URL+"/api/v0/accepted"); !hasHeaderLine(raw, "Trailer:") {
+		t.Fatalf("GET /api/v0/accepted raw headers lost the announcement; residual behavior changed:\n%s", raw)
+	}
+
+	// An explicit status followed by a body still delivers the trailer:
+	// the announcement rides the header block flushed by the first Write.
+	if total := serverTimingTrailer(t, srv.URL+"/api/v0/explicit-ok"); total < 0 {
+		t.Fatal("explicit-200 route Server-Timing trailer missing (announcement lost)")
+	}
+
+	// HEAD responses carry no body, so they must not announce either.
+	if raw := rawWireHeaders(t, "HEAD", srv.URL+"/api/v0/explicit-ok"); hasHeaderLine(raw, "Trailer:") {
+		t.Fatalf("HEAD raw headers announce a trailer:\n%s", raw)
+	}
+}
+
+// rawWireHeaders issues one raw HTTP/1.1 request over TCP and returns the
+// response header block verbatim, so assertions see what a proxy sees.
+func rawWireHeaders(t *testing.T, method, target string) string {
+	t.Helper()
+	u := strings.TrimPrefix(target, "http://")
+	host, path, _ := strings.Cut(u, "/")
+	conn, err := net.Dial("tcp", host)
+	if err != nil {
+		t.Fatalf("dial %s error = %v", host, err)
+	}
+	defer func() { _ = conn.Close() }()
+	_, _ = fmt.Fprintf(conn, "%s /%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", method, path, host)
+	raw, err := io.ReadAll(conn)
+	if err != nil {
+		t.Fatalf("read raw response error = %v", err)
+	}
+	head, _, _ := strings.Cut(string(raw), "\r\n\r\n")
+	return head
+}
+
+// hasHeaderLine reports whether the raw header block carries a line for the
+// named header (prefix match up to the colon).
+func hasHeaderLine(block, name string) bool {
+	for line := range strings.Lines(block) {
+		if strings.HasPrefix(line, name) {
+			return true
+		}
+	}
+	return false
 }
 
 // serverTimingTrailer GETs target through the real wire, consumes the body,
