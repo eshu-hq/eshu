@@ -4,10 +4,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"reflect"
 	"sort"
 	"strings"
@@ -108,10 +108,12 @@ func TestChangedPathsForMergeGroupFailsOnAnEmptyDiff(t *testing.T) {
 // mergeGroupRuns is newest-first, as GitHub returns it: a newer Build Test
 // run (suite 11) supersedes an older one (suite 10), and a pull_request run
 // for the same SHA (suite 30) belongs to a different event.
+// Every merge_group run carries its head branch and SHA, as the real runs
+// API does, so rows joined to them can name the tree they evaluated (#8336).
 const mergeGroupRuns = `[{"workflow_runs":[
-	{"id":12,"name":"Build Test","event":"merge_group","conclusion":null,"check_suite_id":11},
-	{"id":11,"name":"Build Test","event":"merge_group","conclusion":"cancelled","check_suite_id":10},
-	{"id":21,"name":"Static Contract Gates","event":"merge_group","conclusion":"success","check_suite_id":20},
+	{"id":12,"name":"Build Test","event":"merge_group","conclusion":null,"check_suite_id":11,"head_branch":"` + queueBranchFixture + `","head_sha":"` + headSHAFixture + `"},
+	{"id":11,"name":"Build Test","event":"merge_group","conclusion":"cancelled","check_suite_id":10,"head_branch":"` + queueBranchFixture + `","head_sha":"` + headSHAFixture + `"},
+	{"id":21,"name":"Static Contract Gates","event":"merge_group","conclusion":"success","check_suite_id":20,"head_branch":"` + queueBranchFixture + `","head_sha":"` + headSHAFixture + `"},
 	{"id":31,"name":"Frontend","event":"pull_request","conclusion":"success","check_suite_id":30}
 ]}]`
 
@@ -137,10 +139,10 @@ func TestReadMergeGroupChecksJoinsCheckRunsToTheNewestMergeGroupRun(t *testing.T
 		t.Fatalf("readMergeGroupChecks: %v", err)
 	}
 	want := []checkRollup{
-		{Name: "go-core-complete", State: "IN_PROGRESS", Bucket: "pending", Workflow: "Build Test", Event: "merge_group", RunID: 12},
-		{Name: "Verify OpenAPI gate", State: "SUCCESS", Bucket: "pass", Workflow: "Static Contract Gates", Event: "merge_group", RunID: 21},
-		{Name: "Verify route coverage gate", State: "FAILURE", Bucket: "fail", Workflow: "Static Contract Gates", Event: "merge_group", RunID: 21},
-		{Name: "skipped leg", State: "SKIPPED", Bucket: "skipping", Workflow: "Static Contract Gates", Event: "merge_group", RunID: 21},
+		{Name: "go-core-complete", State: "IN_PROGRESS", Bucket: "pending", Workflow: "Build Test", Event: "merge_group", RunID: 12, HeadBranch: queueBranchFixture, HeadSHA: headSHAFixture},
+		{Name: "Verify OpenAPI gate", State: "SUCCESS", Bucket: "pass", Workflow: "Static Contract Gates", Event: "merge_group", RunID: 21, HeadBranch: queueBranchFixture, HeadSHA: headSHAFixture},
+		{Name: "Verify route coverage gate", State: "FAILURE", Bucket: "fail", Workflow: "Static Contract Gates", Event: "merge_group", RunID: 21, HeadBranch: queueBranchFixture, HeadSHA: headSHAFixture},
+		{Name: "skipped leg", State: "SKIPPED", Bucket: "skipping", Workflow: "Static Contract Gates", Event: "merge_group", RunID: 21, HeadBranch: queueBranchFixture, HeadSHA: headSHAFixture},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("checks =\n%#v\nwant\n%#v", got, want)
@@ -251,9 +253,18 @@ func TestAwaitMergeGroupRequiredChecksFailsClosedOnRedGate(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	err := awaitMergeGroupRequiredChecks(ctx, runner, "eshu-hq/eshu", headSHAFixture, required, time.Millisecond, io.Discard)
+	// The judged failure must carry its tree, not just its run id: without
+	// the findingForCheck copy below, this line names run 21 alone and the
+	// assertion fails (#8336). The branch@short form (no spaces)
+	// is the finding suffix; the await header prints the same branch and
+	// full SHA with spaces around `@`, so it cannot satisfy this.
+	var out bytes.Buffer
+	err := awaitMergeGroupRequiredChecks(ctx, runner, "eshu-hq/eshu", headSHAFixture, queueBranchFixture, required, time.Millisecond, &out)
 	if !errors.Is(err, errGateFailed) {
 		t.Fatalf("err = %v; want errGateFailed for the red route-coverage gate", err)
+	}
+	if want := "(run 21 merge_group " + queueBranchFixture + "@" + headSHAFixture[:8] + ")"; !strings.Contains(out.String(), want) {
+		t.Fatalf("judged failure carries no tree beside its run id, want %q in:\n%s", want, out.String())
 	}
 }
 

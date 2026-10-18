@@ -101,10 +101,17 @@ type PublisherRun struct {
 	// order. Empty means the publisher posted nothing at all, which is the
 	// contract for the still-running exit code.
 	Publishes []PublishedStatus
-	// ExitCode is the shell's exit status. The publisher ends with
-	// `[[ "${state}" == "success" ]]`, so a non-zero code here is the normal
-	// result for every non-passing outcome; it is captured for diagnosis, not
-	// asserted on.
+	// ExitCode is the shell's exit status. The publisher exits zero once it
+	// has published a terminal verdict (#8336: the verdict travels on the
+	// posted status, and the aggregate run is filed under the main tip
+	// whatever it aggregated, so a published failure must not fail the run).
+	// That includes the unclassified arms: an empty AGGREGATE_CODE with a
+	// good pending write and an aggregation breakdown (code 12, like any
+	// other unanticipated code) post `error` on the evaluated SHA and exit
+	// 0. A non-zero code means the pending-step classification failed on
+	// pull_request (which posts `error` first and still exits 1), or the
+	// script died before publishing at all; it is captured for diagnosis,
+	// not asserted on.
 	ExitCode int
 	// Output is the combined stdout/stderr, carried into error messages so a
 	// failure names what the shell actually said.
@@ -290,8 +297,12 @@ func (h *publisherHarness) evaluate(pendingOutcome, aggregateCode string) (Publi
 	switch {
 	case runErr == nil:
 	case errors.As(runErr, &exitErr):
-		// Expected for every non-passing outcome: the publisher's own closing
-		// `[[ "${state}" == "success" ]]` is what fails the step.
+		// Expected when the script dies before publishing, or when the
+		// pending-step classification failed on pull_request: the publisher
+		// exits zero once a terminal verdict is posted (#8336, including
+		// the `error` an unclassified aggregate or breakdown posts), so a
+		// non-zero code means no verdict went out or no verdict was
+		// reached.
 		result.ExitCode = exitErr.ExitCode()
 	default:
 		return PublisherRun{}, fmt.Errorf(

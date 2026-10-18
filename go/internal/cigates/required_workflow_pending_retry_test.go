@@ -185,3 +185,31 @@ func TestRequiredWorkflowTerminalStillErrorsPullRequestSetupFailure(t *testing.T
 	}
 	assertRequiredStatusCall(t, got.calls, "error")
 }
+
+// TestRequiredWorkflowTerminalPostsErrorAndExitsZeroForUnclassifiedPullRequest
+// pins the #8336 semantics for the arm the exit-zero publisher test cannot
+// reach: a pull_request whose pending write landed but whose aggregate never
+// classified the gates (AGGREGATE_CODE empty). The terminal step posts
+// `error` on the evaluated SHA -- the head stays blocked -- and exits 0, so
+// a verdict that was never produced cannot repaint main red. Only a
+// pending-step classification failure still exits 1 (the sibling test above);
+// EvaluatePublisher always runs the merge_group event, where an empty code
+// publishes nothing at all, so this arm is pinned here on the production
+// step instead.
+func TestRequiredWorkflowTerminalPostsErrorAndExitsZeroForUnclassifiedPullRequest(t *testing.T) {
+	t.Parallel()
+
+	terminal := requiredStepNamed(t, repositoryRequiredWorkflowSteps(t), "Publish terminal required status")
+	const oneOpen = `[{"number":7206,"state":"open","head":{"sha":"probe-head"}}]`
+	got := runRequiredStepWithPRs(t, terminal, "pull_request", oneOpen, map[string]string{
+		"PR_DISPOSITION":  "active",
+		"PR_NUMBER":       "7206",
+		"PENDING_OUTCOME": "success",
+		"AGGREGATE_CODE":  "",
+	})
+	if got.err != nil {
+		t.Fatalf("an unclassified pull_request aggregate must post error and exit zero: %v\n%s",
+			got.err, got.output)
+	}
+	assertRequiredStatusCall(t, got.calls, "error")
+}

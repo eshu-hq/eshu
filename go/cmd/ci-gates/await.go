@@ -131,6 +131,12 @@ type checkRollup struct {
 	// `gh pr checks` predate run attribution and carry zero, which the log
 	// formatter omits. Zero is never a real run id.
 	RunID int64 `json:"run_id,omitempty"`
+	// HeadBranch and HeadSHA name the tree the owning run was created for,
+	// read from the same runs listing as the suite join. Rows read through
+	// `gh pr checks` carry neither. They travel with the row so a judged
+	// finding can name its evaluated tree beside its run (#8336).
+	HeadBranch string `json:"head_branch,omitempty"`
+	HeadSHA    string `json:"head_sha,omitempty"`
 }
 
 type requiredCheckFinding struct {
@@ -142,6 +148,14 @@ type requiredCheckFinding struct {
 	// await log says which event's verdict a failure came from. Zero means
 	// the source row carried no attribution and is omitted from the log.
 	RunID int64
+	// Event is the triggering event whose run was judged. Empty normalises
+	// to pull_request, the original aggregation mode.
+	Event string
+	// HeadBranch and HeadSHA name the owning run's tree, carried from the
+	// judged check row. Empty when the source row carried no attribution;
+	// the await header names the tree in that case (#8336).
+	HeadBranch string
+	HeadSHA    string
 }
 
 type requiredCheckEvaluation struct {
@@ -289,11 +303,11 @@ func evaluateRequiredChecks(
 		// pins that second ordering so it cannot invert unnoticed.
 		switch {
 		case gateFailure != nil:
-			evaluation.Failed = append(evaluation.Failed, findingFor(gate, gateFailure.State, gateFailure.RunID))
+			evaluation.Failed = append(evaluation.Failed, findingForCheck(gate, *gateFailure, gateFailure.State))
 		case gatePending:
 			evaluation.Pending = append(evaluation.Pending, findingFor(gate, "PENDING", 0))
 		case gateCancellation != nil:
-			evaluation.Cancelled = append(evaluation.Cancelled, findingFor(gate, gateCancellation.State, gateCancellation.RunID))
+			evaluation.Cancelled = append(evaluation.Cancelled, findingForCheck(gate, *gateCancellation, gateCancellation.State))
 		}
 	}
 	return evaluation
@@ -314,34 +328,6 @@ func matchingChecks(gate resolvedRequiredGate, checks []checkRollup) []checkRoll
 		}
 	}
 	return exact
-}
-
-func findingFor(gate resolvedRequiredGate, state string, runID int64) requiredCheckFinding {
-	return requiredCheckFinding{
-		WorkflowName: gate.WorkflowName,
-		Job:          gate.Job,
-		GateIDs:      append([]string(nil), gate.GateIDs...),
-		State:        state,
-		RunID:        runID,
-	}
-}
-
-// awaitPRRequiredChecks waits for the selected gates' pull_request check rows
-// on a PR head, read through `gh pr checks`.
-func awaitPRRequiredChecks(
-	ctx context.Context,
-	runner ghRunner,
-	repo string,
-	pr int,
-	headSHA string,
-	required []resolvedRequiredGate,
-	pollInterval time.Duration,
-	out io.Writer,
-) error {
-	readChecks := func(ctx context.Context) ([]checkRollup, error) {
-		return readPRChecks(ctx, runner, repo, pr)
-	}
-	return awaitRequiredChecks(ctx, runner, repo, headSHA, eventPullRequest, readChecks, required, pollInterval, out)
 }
 
 // awaitRequiredChecks polls readChecks until every selected gate reaches a
@@ -450,23 +436,4 @@ func awaitRequiredChecks(
 			}
 		}
 	}
-}
-
-func formatFindings(findings []requiredCheckFinding) string {
-	parts := make([]string, 0, len(findings))
-	for _, finding := range findings {
-		detail := finding.WorkflowName + " / " + finding.Job + " [" + strings.Join(finding.GateIDs, ",") + "]"
-		if finding.State != "" {
-			detail += "=" + finding.State
-		}
-		// The run id says which event's verdict was judged (#8053): without
-		// it a failure line cannot tell the newest event's failure from a
-		// superseded event's. Zero means the source row carried no
-		// attribution and is omitted, never printed as "run 0".
-		if finding.RunID != 0 {
-			detail += fmt.Sprintf(" (run %d)", finding.RunID)
-		}
-		parts = append(parts, detail)
-	}
-	return strings.Join(parts, "; ")
 }
