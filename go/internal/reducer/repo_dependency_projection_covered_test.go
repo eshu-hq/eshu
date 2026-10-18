@@ -73,7 +73,7 @@ func TestRepoDependencyProjectionRunnerDrainsCoveredGenerations(t *testing.T) {
 	}
 
 	result, _, _, err := runner.processAcceptanceUnit(
-		context.Background(), now, repoID, reader, PartitionProcessResult{}, now,
+		context.Background(), now, repoID, reader, PartitionProcessResult{}, now, nil,
 	)
 	if err != nil {
 		t.Fatalf("processAcceptanceUnit() error = %v", err)
@@ -126,7 +126,7 @@ func TestRepoDependencyProjectionRunnerKeepsUncoveredGenerations(t *testing.T) {
 	}
 
 	result, _, _, err := runner.processAcceptanceUnit(
-		context.Background(), now, repoID, reader, PartitionProcessResult{}, now,
+		context.Background(), now, repoID, reader, PartitionProcessResult{}, now, nil,
 	)
 	if err != nil {
 		t.Fatalf("processAcceptanceUnit() error = %v", err)

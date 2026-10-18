@@ -6,6 +6,7 @@ package worker
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -151,9 +152,9 @@ func TestDrainAbsentAcceptanceMarksDrainableAndClearsMap(t *testing.T) {
 	}
 	absent := map[string]sharedintent.Row{gone.IntentID: gone, present.IntentID: present}
 
-	drained, torn, err := DrainAbsentAcceptance(
+	drained, keptIDs, err := DrainAbsentAcceptance(
 		context.Background(), time.Now().UTC(), AcceptanceTelemetry{},
-		"test_runner", domain, reader, absent,
+		"test_runner", domain, reader, absent, nil,
 	)
 	if err != nil {
 		t.Fatalf("DrainAbsentAcceptance() error = %v", err)
@@ -161,8 +162,8 @@ func TestDrainAbsentAcceptanceMarksDrainableAndClearsMap(t *testing.T) {
 	if len(drained) != 1 || drained[0] != gone.IntentID {
 		t.Fatalf("drained = %v, want [%q]", drained, gone.IntentID)
 	}
-	if torn != 1 {
-		t.Fatalf("torn = %d, want 1 for the generation-present row", torn)
+	if len(keptIDs) != 1 || keptIDs[0] != present.IntentID {
+		t.Fatalf("keptIDs = %v, want [%q] for the generation-present row", keptIDs, present.IntentID)
 	}
 	if len(reader.completedIDs) != 1 || reader.completedIDs[0] != gone.IntentID {
 		t.Fatalf("marked = %v, want [%q]", reader.completedIDs, gone.IntentID)
@@ -179,21 +180,125 @@ func TestDrainAbsentAcceptanceEmptyMapCostsNoMark(t *testing.T) {
 	t.Parallel()
 
 	reader := &stubAbsentGenerationReader{gone: map[string]struct{}{"gen-gone": {}}}
-	drained, torn, err := DrainAbsentAcceptance(
+	drained, keptIDs, err := DrainAbsentAcceptance(
 		context.Background(), time.Now().UTC(), AcceptanceTelemetry{},
-		"test_runner", reducercontract.DomainWorkloadDependency, reader, map[string]sharedintent.Row{},
+		"test_runner", reducercontract.DomainWorkloadDependency, reader, map[string]sharedintent.Row{}, nil,
 	)
 	if err != nil {
 		t.Fatalf("DrainAbsentAcceptance() error = %v", err)
 	}
-	if len(drained) != 0 || torn != 0 {
-		t.Fatalf("drained = %v, torn = %d, want both zero", drained, torn)
+	if len(drained) != 0 || len(keptIDs) != 0 {
+		t.Fatalf("drained = %v, keptIDs = %v, want both empty", drained, keptIDs)
 	}
 	if len(reader.completedIDs) != 0 {
 		t.Fatalf("marked = %v, want no mark call for empty input", reader.completedIDs)
 	}
 	if reader.probeCalls != 0 {
 		t.Fatalf("probe calls = %d, want 0 for empty input", reader.probeCalls)
+	}
+}
+
+// warnCountingHandler counts Warn-level records so a test can prove the
+// torn-write WARN fires once per row per cycle, not once per drain.
+type warnCountingHandler struct {
+	warns *int
+}
+
+func (h warnCountingHandler) Enabled(_ context.Context, level slog.Level) bool {
+	return level >= slog.LevelWarn
+}
+
+func (h warnCountingHandler) Handle(_ context.Context, r slog.Record) error {
+	if r.Level == slog.LevelWarn {
+		*h.warns++
+	}
+	return nil
+}
+
+func (h warnCountingHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+
+func (h warnCountingHandler) WithGroup(string) slog.Handler { return h }
+
+// TestDrainAbsentAcceptanceReportsTornWriteOnceAcrossDrains reproduces the
+// #8509 double-report: the hit-path drain WARNs and counts every torn row in
+// the scanned window, then the unit-level drain re-WARNs and re-counts the
+// same rows. The first drain simulates the selection window (one
+// generation-gone orphan plus one torn write); the second simulates the
+// selected unit's reload carrying the same torn row, with the first drain's
+// kept ids excluded. The torn row must WARN and count exactly once across
+// both drains, while a genuinely new torn row in the unit load is still
+// reported and the drained orphan is still marked exactly once.
+func TestDrainAbsentAcceptanceReportsTornWriteOnceAcrossDrains(t *testing.T) {
+	t.Parallel()
+
+	domain := reducercontract.DomainWorkloadDependency
+	gone := selectionTestRow(domain, "scope-gone", "unit-gone", "gen-gone", 1)
+	torn := selectionTestRow(domain, "scope-torn", "unit-torn", "gen-present", 2)
+	freshTorn := selectionTestRow(domain, "scope-fresh", "unit-fresh", "gen-present", 3)
+	reader := &stubAbsentGenerationReader{
+		stubSharedIntentReader: stubSharedIntentReader{},
+		gone:                   map[string]struct{}{"gen-gone": {}},
+	}
+	var warns int
+	tel := AcceptanceTelemetry{
+		Logger: slog.New(warnCountingHandler{warns: &warns}),
+	}
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	window := map[string]sharedintent.Row{gone.IntentID: gone, torn.IntentID: torn}
+	drained, keptIDs, err := DrainAbsentAcceptance(
+		ctx, now, tel, "test_runner", domain, reader, window, nil,
+	)
+	if err != nil {
+		t.Fatalf("DrainAbsentAcceptance() error = %v", err)
+	}
+	if len(drained) != 1 || drained[0] != gone.IntentID {
+		t.Fatalf("drained = %v, want [%q]", drained, gone.IntentID)
+	}
+	if len(keptIDs) != 1 || keptIDs[0] != torn.IntentID {
+		t.Fatalf("keptIDs = %v, want [%q]", keptIDs, torn.IntentID)
+	}
+	if warns != 1 {
+		t.Fatalf("warns = %d, want 1 for the selection-window torn row", warns)
+	}
+
+	reported := make(map[string]struct{}, len(keptIDs))
+	for _, id := range keptIDs {
+		reported[id] = struct{}{}
+	}
+	unit := map[string]sharedintent.Row{torn.IntentID: torn}
+	unitDrained, unitKeptIDs, err := DrainAbsentAcceptance(
+		ctx, now, tel, "test_runner", domain, reader, unit, reported,
+	)
+	if err != nil {
+		t.Fatalf("DrainAbsentAcceptance() error = %v", err)
+	}
+	if len(unitDrained) != 0 {
+		t.Fatalf("unit drained = %v, want none: the orphan is already completed", unitDrained)
+	}
+	if len(unitKeptIDs) != 0 {
+		t.Fatalf("unit keptIDs = %v, want none: the torn row was already reported", unitKeptIDs)
+	}
+	if warns != 1 {
+		t.Fatalf("warns = %d, want still 1: the unit drain must not re-WARN the same row", warns)
+	}
+
+	unitWithFresh := map[string]sharedintent.Row{torn.IntentID: torn, freshTorn.IntentID: freshTorn}
+	_, freshKeptIDs, err := DrainAbsentAcceptance(
+		ctx, now, tel, "test_runner", domain, reader, unitWithFresh, reported,
+	)
+	if err != nil {
+		t.Fatalf("DrainAbsentAcceptance() error = %v", err)
+	}
+	if len(freshKeptIDs) != 1 || freshKeptIDs[0] != freshTorn.IntentID {
+		t.Fatalf("fresh keptIDs = %v, want [%q]: the exclusion must not swallow new rows", freshKeptIDs, freshTorn.IntentID)
+	}
+	if warns != 2 {
+		t.Fatalf("warns = %d, want 2: the genuinely new torn row still WARNs once", warns)
+	}
+	if len(reader.completedIDs) != 1 || reader.completedIDs[0] != gone.IntentID {
+		t.Fatalf("marked = %v, want exactly [%q]: the drain marks once across all drains", reader.completedIDs, gone.IntentID)
 	}
 }
 

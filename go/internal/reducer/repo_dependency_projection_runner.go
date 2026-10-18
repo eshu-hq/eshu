@@ -224,7 +224,7 @@ func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now ti
 	defer func() { _ = stopHeartbeat() }()
 
 	selectionStart := time.Now()
-	acceptanceUnitID, selectionDrained, selectionTorn, err := r.selectAcceptanceUnitWork(workCtx, now)
+	acceptanceUnitID, selectionDrained, selectionTornIDs, err := r.selectAcceptanceUnitWork(workCtx, now)
 	result.SelectionDurationSeconds = time.Since(selectionStart).Seconds()
 	if err != nil {
 		result.LeaseAcquired = true
@@ -232,9 +232,14 @@ func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now ti
 	}
 	// The selection drain (#7853) already marked these completed and recorded
 	// its metric; the counts ride the result while processAcceptanceUnit adds
-	// the selected unit's own drain counts.
+	// the selected unit's own drain counts. The selection's torn ids ride
+	// the exclusion so each torn row WARNs and counts once per cycle (#8509).
 	result.AbsentGenerationGoneIntents = selectionDrained
-	result.AbsentAcceptanceTornWrites = selectionTorn
+	result.AbsentAcceptanceTornWrites = len(selectionTornIDs)
+	reportedTorn := make(map[string]struct{}, len(selectionTornIDs))
+	for _, id := range selectionTornIDs {
+		reportedTorn[id] = struct{}{}
+	}
 	if acceptanceUnitID == "" {
 		result.LeaseAcquired = true
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
@@ -265,7 +270,7 @@ func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now ti
 		func(gateCtx context.Context, reader RepoDependencyProjectionIntentReader) error {
 			var processErr error
 			processed, active, writtenGroups, processErr = r.processAcceptanceUnit(
-				gateCtx, now, acceptanceUnitID, reader, result, cycleStart,
+				gateCtx, now, acceptanceUnitID, reader, result, cycleStart, reportedTorn,
 			)
 			return processErr
 		},
@@ -312,7 +317,7 @@ func repoDependencyNeedsRetract(rows []SharedProjectionIntentRow, staleIDs []str
 	return false
 }
 
-func (r *RepoDependencyProjectionRunner) selectAcceptanceUnitWork(ctx context.Context, now time.Time) (string, int, int, error) {
+func (r *RepoDependencyProjectionRunner) selectAcceptanceUnitWork(ctx context.Context, now time.Time) (string, int, []string, error) {
 	scanLimit := r.Config.batchLimit()
 	if scanLimit > maxRepoDependencyAcceptanceScanLimit {
 		scanLimit = maxRepoDependencyAcceptanceScanLimit
@@ -324,41 +329,55 @@ func (r *RepoDependencyProjectionRunner) selectAcceptanceUnitWork(ctx context.Co
 	// so a rescan after a cap-continue never re-marks them.
 	absentRows := make(map[string]SharedProjectionIntentRow)
 	absentDrained := 0
+	// reportedTorn accumulates the torn-write ids already WARNed and
+	// counted this selection, and tornIDs carries them to the exit paths
+	// and on to the unit drain so each torn row WARNs and counts once per
+	// cycle (#8509). Kept rows stay in absentRows across cap-continue
+	// rescans, so without the exclusion each rescan would re-report them.
+	reportedTorn := make(map[string]struct{})
+	var tornIDs []string
 	acceptanceTelemetry := worker.AcceptanceTelemetry{Instruments: r.Instruments, Logger: r.Logger}
 	// drainAbsent marks the accumulated absent-acceptance rows whose scope
 	// generation is gone (#7853). It runs at most once per exit path, so a
 	// call costs one generation probe per window that reaches an exit plus
 	// one per cap-continue, each making permanent progress; a call with no
 	// absent rows costs no query.
-	drainAbsent := func() ([]string, int, error) {
-		drained, torn, err := worker.DrainAbsentAcceptance(
+	drainAbsent := func() ([]string, []string, error) {
+		drained, kept, err := worker.DrainAbsentAcceptance(
 			ctx, now, acceptanceTelemetry,
-			"repo_dependency_projection", DomainRepoDependency, r.IntentReader, absentRows,
+			"repo_dependency_projection", DomainRepoDependency, r.IntentReader, absentRows, reportedTorn,
 		)
 		if err != nil {
-			return nil, 0, err
+			return nil, nil, err
 		}
 		absentDrained += len(drained)
-		return drained, torn, nil
+		for _, id := range kept {
+			if _, ok := reportedTorn[id]; !ok {
+				reportedTorn[id] = struct{}{}
+				tornIDs = append(tornIDs, id)
+			}
+		}
+		sort.Strings(tornIDs)
+		return drained, tornIDs, nil
 	}
 
 	for {
 		pending, err := r.IntentReader.ListPendingDomainIntents(ctx, DomainRepoDependency, scanLimit)
 		if err != nil {
-			return "", 0, 0, fmt.Errorf("list pending repo dependency intents: %w", err)
+			return "", 0, nil, fmt.Errorf("list pending repo dependency intents: %w", err)
 		}
 		if len(pending) == 0 {
 			// An empty rescan after a cap-continue drain means the drain
-			// took the whole window: report what it drained. Kept torn
-			// rows would still be pending, so the torn count here is zero.
-			return "", absentDrained, 0, nil
+			// took the whole window: report what it drained. Cumulative
+			// torn ids ride along so the unit drain skips them.
+			return "", absentDrained, tornIDs, nil
 		}
 
 		lookup := r.AcceptedGen
 		if r.AcceptedGenPrefetch != nil {
 			resolvedLookup, err := r.AcceptedGenPrefetch(ctx, pending)
 			if err != nil {
-				return "", 0, 0, fmt.Errorf("prefetch accepted generations: %w", err)
+				return "", 0, nil, fmt.Errorf("prefetch accepted generations: %w", err)
 			}
 			lookup = resolvedLookup
 		}
@@ -368,7 +387,7 @@ func (r *RepoDependencyProjectionRunner) selectAcceptanceUnitWork(ctx context.Co
 		for _, row := range pending {
 			unitID, ok := repoDependencyAcceptanceUnitID(row)
 			if !ok {
-				return "", 0, 0, fmt.Errorf("pending repo dependency intent %q is missing acceptance unit", row.IntentID)
+				return "", 0, nil, fmt.Errorf("pending repo dependency intent %q is missing acceptance unit", row.IntentID)
 			}
 			if _, seen := acceptedByUnit[unitID]; !seen {
 				order = append(order, unitID)
@@ -376,7 +395,7 @@ func (r *RepoDependencyProjectionRunner) selectAcceptanceUnitWork(ctx context.Co
 			}
 			key, ok := row.AcceptanceKey()
 			if !ok {
-				return "", 0, 0, fmt.Errorf(
+				return "", 0, nil, fmt.Errorf(
 					"pending repo dependency intent %q is missing scope, acceptance unit, or source run",
 					row.IntentID,
 				)
@@ -399,22 +418,22 @@ func (r *RepoDependencyProjectionRunner) selectAcceptanceUnitWork(ctx context.Co
 				// Drain the generation-gone orphans scanned on the way to
 				// this unit before returning it; a drain error fails the
 				// cycle rather than dropping or keeping rows.
-				_, torn, err := drainAbsent()
+				_, kept, err := drainAbsent()
 				if err != nil {
-					return "", 0, 0, err
+					return "", 0, nil, err
 				}
-				return unitID, absentDrained, torn, nil
+				return unitID, absentDrained, kept, nil
 			}
 		}
 
 		if len(pending) < scanLimit {
 			// Drain the generation-gone orphans in this final window before
 			// reporting the miss, so the next cycle scans past them.
-			_, torn, err := drainAbsent()
+			_, kept, err := drainAbsent()
 			if err != nil {
-				return "", 0, 0, err
+				return "", 0, nil, err
 			}
-			return "", absentDrained, torn, nil
+			return "", absentDrained, kept, nil
 		}
 		if scanLimit >= maxRepoDependencyAcceptanceScanLimit {
 			// At the cap with absent rows, drain the generation-gone subset
@@ -425,12 +444,12 @@ func (r *RepoDependencyProjectionRunner) selectAcceptanceUnitWork(ctx context.Co
 			// keeps a torn-write backlog from rescanning forever.
 			newlyDrained, _, err := drainAbsent()
 			if err != nil {
-				return "", 0, 0, err
+				return "", 0, nil, err
 			}
 			if len(newlyDrained) > 0 {
 				continue
 			}
-			return "", 0, 0, fmt.Errorf(
+			return "", 0, nil, fmt.Errorf(
 				"repo dependency acceptance scan reached cap (%d) before locating accepted work",
 				maxRepoDependencyAcceptanceScanLimit,
 			)

@@ -190,8 +190,8 @@ func TestCodeCallSelectionKeepsTornWritePending(t *testing.T) {
 	if result.AbsentDrained != 0 {
 		t.Fatalf("AbsentDrained = %d, want 0: the generation still exists", result.AbsentDrained)
 	}
-	if result.AbsentTorn != 1 {
-		t.Fatalf("AbsentTorn = %d, want 1", result.AbsentTorn)
+	if len(result.AbsentTornIDs) != 1 {
+		t.Fatalf("AbsentTornIDs = %v, want 1 torn row", result.AbsentTornIDs)
 	}
 	if len(inner.marked) != 0 {
 		t.Fatalf("marked = %v, want no mark for a torn write", inner.marked)

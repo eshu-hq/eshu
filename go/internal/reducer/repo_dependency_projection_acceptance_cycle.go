@@ -24,6 +24,7 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 	reader RepoDependencyProjectionIntentReader,
 	result PartitionProcessResult,
 	cycleStart time.Time,
+	alreadyReportedTorn map[string]struct{},
 ) (PartitionProcessResult, []SharedProjectionIntentRow, int, error) {
 	loadAllStart := time.Now()
 	rows, err := r.loadAllAcceptanceUnitIntents(ctx, reader, acceptanceUnitID)
@@ -52,7 +53,7 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 
 	active, staleIDs := FilterAuthoritativeIntents(rows, lookup)
 
-	unitAbsentDrained, unitAbsentTorn, err := r.drainUnitAbsentAcceptance(ctx, now, reader, rows, active, staleIDs)
+	unitAbsentDrained, unitAbsentTorn, err := r.drainUnitAbsentAcceptance(ctx, now, reader, rows, active, staleIDs, alreadyReportedTorn)
 	if err != nil {
 		result.LeaseAcquired = true
 		return result, nil, 0, err
@@ -188,7 +189,8 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 // whose scope generation is gone (#7853): the acceptance row can vanish
 // between selection and this load. It drains the generation-gone subset
 // inline and keeps torn writes pending. The metric is recorded in the drain,
-// exactly once.
+// exactly once. Torn rows the selection already reported ride
+// alreadyReportedTorn so each row WARNs and counts once per cycle (#8509).
 //
 // Drained unit rows stay OUT of the caller's stale set: they are already
 // marked completed inside the drain, and joining staleIDs would mark them
@@ -202,20 +204,21 @@ func (r *RepoDependencyProjectionRunner) drainUnitAbsentAcceptance(
 	rows []SharedProjectionIntentRow,
 	active []SharedProjectionIntentRow,
 	staleIDs []string,
+	alreadyReportedTorn map[string]struct{},
 ) (drainedCount, tornCount int, err error) {
 	acceptanceTelemetry := worker.AcceptanceTelemetry{Instruments: r.Instruments, Logger: r.Logger}
 	unitAbsent := make(map[string]SharedProjectionIntentRow, len(rows))
 	for _, row := range worker.AbsentAcceptanceRows(rows, active, staleIDs) {
 		unitAbsent[row.IntentID] = row
 	}
-	unitDrained, unitTorn, err := worker.DrainAbsentAcceptance(
+	unitDrained, unitKeptIDs, err := worker.DrainAbsentAcceptance(
 		ctx, now, acceptanceTelemetry,
-		"repo_dependency_projection", DomainRepoDependency, reader, unitAbsent,
+		"repo_dependency_projection", DomainRepoDependency, reader, unitAbsent, alreadyReportedTorn,
 	)
 	if err != nil {
 		return 0, 0, fmt.Errorf("drain absent acceptance rows: %w", err)
 	}
-	return len(unitDrained), unitTorn, nil
+	return len(unitDrained), len(unitKeptIDs), nil
 }
 
 func validateRepoDependencySourceRepositoryIdentity(

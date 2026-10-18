@@ -154,6 +154,15 @@ func SplitAbsentAcceptanceRows(
 // drained count is metered under acceptance_absent_generation_gone exactly
 // once, here; callers must not record it again. Per-unit callers join the
 // returned ids into their stale set so the rows count as processed.
+//
+// alreadyReported carries the torn-write ids an earlier drain this cycle
+// already WARNed and counted (#8509): the hit-path drain reports every torn
+// row in the scanned window, including older same-unit siblings the
+// unit-level drain reloads. Reported rows are excluded from this drain's
+// WARN and kept ids so each torn row WARNs and counts once per cycle. The
+// exclusion never skips draining: generation-gone rows cannot reappear
+// (completed rows are not reloaded), so only the torn side overlaps. A nil
+// map reports every kept row.
 func DrainAbsentAcceptance(
 	ctx context.Context,
 	now time.Time,
@@ -162,9 +171,10 @@ func DrainAbsentAcceptance(
 	domain string,
 	reader IntentReader,
 	absent map[string]sharedintent.Row,
-) (drained []string, torn int, err error) {
+	alreadyReported map[string]struct{},
+) (drained []string, keptIDs []string, err error) {
 	if len(absent) == 0 {
-		return nil, 0, nil
+		return nil, nil, nil
 	}
 	rows := make([]sharedintent.Row, 0, len(absent))
 	for _, row := range absent {
@@ -174,11 +184,22 @@ func DrainAbsentAcceptance(
 
 	drainable, kept, err := SplitAbsentAcceptanceRows(ctx, reader, rows)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
-	LogAbsentAcceptanceTornWrites(ctx, tel.Logger, runner, domain, kept)
+	fresh := kept[:0]
+	for _, row := range kept {
+		if _, ok := alreadyReported[row.IntentID]; !ok {
+			fresh = append(fresh, row)
+		}
+	}
+	LogAbsentAcceptanceTornWrites(ctx, tel.Logger, runner, domain, fresh)
+	keptIDs = make([]string, 0, len(fresh))
+	for _, row := range fresh {
+		keptIDs = append(keptIDs, row.IntentID)
+	}
+	sort.Strings(keptIDs)
 	if len(drainable) == 0 {
-		return nil, len(kept), nil
+		return nil, keptIDs, nil
 	}
 	ids := make([]string, 0, len(drainable))
 	for _, row := range drainable {
@@ -187,7 +208,7 @@ func DrainAbsentAcceptance(
 	sort.Strings(ids)
 	affected, err := reader.MarkIntentsCompleted(ctx, ids, now)
 	if err != nil {
-		return nil, 0, fmt.Errorf("mark absent-acceptance drain completed: %w", err)
+		return nil, nil, fmt.Errorf("mark absent-acceptance drain completed: %w", err)
 	}
 	if tel.Logger != nil && affected < int64(len(ids)) {
 		tel.Logger.WarnContext(
@@ -204,7 +225,7 @@ func DrainAbsentAcceptance(
 		delete(absent, id)
 	}
 	tel.RecordAbsentGenerationGoneIntents(ctx, runner, domain, len(ids))
-	return ids, len(kept), nil
+	return ids, keptIDs, nil
 }
 
 // LogAbsentAcceptanceTornWrites emits the one bounded WARN per cycle a

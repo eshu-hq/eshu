@@ -354,14 +354,20 @@ func (r *Runner) processPartitionOnce(
 	// Absent-acceptance drain for the selected unit (#7853): the acceptance
 	// row can vanish between selection and this load. Drain the
 	// generation-gone subset inline and keep torn writes pending. The
-	// metric is recorded in the drain, exactly once.
+	// metric is recorded in the drain, exactly once. Torn rows the
+	// selection already reported ride the exclusion so each row WARNs and
+	// counts once per cycle (#8509).
 	unitAbsent := make(map[string]sharedintent.Row, len(rows))
 	for _, row := range worker.AbsentAcceptanceRows(rows, active, staleIDs) {
 		unitAbsent[row.IntentID] = row
 	}
-	unitDrained, unitTorn, err := worker.DrainAbsentAcceptance(
+	reportedTorn := make(map[string]struct{}, len(selection.AbsentTornIDs))
+	for _, id := range selection.AbsentTornIDs {
+		reportedTorn[id] = struct{}{}
+	}
+	unitDrained, unitKeptIDs, err := worker.DrainAbsentAcceptance(
 		ctx, now, acceptanceTelemetry,
-		"code_call_projection", reducercontract.DomainCodeCalls, r.IntentReader, unitAbsent,
+		"code_call_projection", reducercontract.DomainCodeCalls, r.IntentReader, unitAbsent, reportedTorn,
 	)
 	if err != nil {
 		return worker.PartitionProcessResult{
@@ -376,7 +382,7 @@ func (r *Runner) processPartitionOnce(
 	// absent-generation-gone reason recorded in the drain. Torn rows stay
 	// pending and were WARNed in the drain.
 	unitAbsentDrained := len(unitDrained)
-	unitAbsentTorn := unitTorn
+	unitAbsentTorn := len(unitKeptIDs)
 
 	// Drain rows covered by a newer emitted full generation (#7165): the
 	// successor re-emits their edges, so replaying them would be a wasted
@@ -406,7 +412,7 @@ func (r *Runner) processPartitionOnce(
 			SelectionDurationSeconds:    selection.SelectionDurationSeconds,
 			SelectionPhases:             selection.SelectionPhases,
 			AbsentGenerationGoneIntents: selection.AbsentDrained,
-			AbsentAcceptanceTornWrites:  selection.AbsentTorn + unitAbsentTorn,
+			AbsentAcceptanceTornWrites:  len(selection.AbsentTornIDs) + unitAbsentTorn,
 		}
 		r.recordCodeCallTiming(ctx, result)
 		return result, nil
@@ -422,7 +428,7 @@ func (r *Runner) processPartitionOnce(
 		StaleIntents:                  len(staleIDs),
 		CoveredByFullSuccessorIntents: len(drainable),
 		AbsentGenerationGoneIntents:   selection.AbsentDrained + unitAbsentDrained,
-		AbsentAcceptanceTornWrites:    selection.AbsentTorn + unitAbsentTorn,
+		AbsentAcceptanceTornWrites:    len(selection.AbsentTornIDs) + unitAbsentTorn,
 	}
 	processingStart := time.Now()
 	writtenGroups := 0

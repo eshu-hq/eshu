@@ -28,9 +28,11 @@ type codeCallSelectionResult struct {
 	// AbsentDrained counts absent-acceptance rows this selection marked
 	// completed because their scope generation is gone (#7853).
 	AbsentDrained int
-	// AbsentTorn counts absent-acceptance rows left pending because their
-	// scope generation still exists (#7853). They are never drained.
-	AbsentTorn int
+	// AbsentTornIDs are the absent-acceptance rows left pending because
+	// their scope generation still exists (#7853). They are never drained.
+	// The ids ride to the unit drain so each torn row WARNs and counts
+	// once per cycle (#8509).
+	AbsentTornIDs []string
 }
 
 type acceptedGenerationCacheEntry struct {
@@ -81,22 +83,36 @@ func (r *Runner) selectAcceptanceUnitPartitionWorkWithStats(
 	// so a rescan after a cap-continue never re-marks them.
 	absentRows := make(map[string]sharedintent.Row)
 	absentDrained := 0
+	// reportedTorn accumulates the torn-write ids already WARNed and
+	// counted this selection, and tornIDs carries them to the exit paths.
+	// Kept rows stay in absentRows across cap-continue rescans, so without
+	// the exclusion each rescan would re-WARN and re-count them; with it
+	// each torn row reports once per selection (#8509).
+	reportedTorn := make(map[string]struct{})
+	var tornIDs []string
 	selectionPhases := worker.SelectionPhaseDurations{}
 	// drainAbsent marks the accumulated absent-acceptance rows whose scope
 	// generation is gone (#7853). It runs at most once per exit path, so a
 	// call costs one generation probe per window that reaches an exit plus
 	// one per cap-continue, each making permanent progress; a call with no
 	// absent rows costs no query.
-	drainAbsent := func() (drained []string, torn int, err error) {
-		drained, torn, err = worker.DrainAbsentAcceptance(
+	drainAbsent := func() (drained []string, kept []string, err error) {
+		drained, kept, err = worker.DrainAbsentAcceptance(
 			ctx, now, acceptanceTelemetry,
-			"code_call_projection", reducercontract.DomainCodeCalls, r.IntentReader, absentRows,
+			"code_call_projection", reducercontract.DomainCodeCalls, r.IntentReader, absentRows, reportedTorn,
 		)
 		if err != nil {
-			return nil, 0, err
+			return nil, nil, err
 		}
 		absentDrained += len(drained)
-		return drained, torn, nil
+		for _, id := range kept {
+			if _, ok := reportedTorn[id]; !ok {
+				reportedTorn[id] = struct{}{}
+				tornIDs = append(tornIDs, id)
+			}
+		}
+		sort.Strings(tornIDs)
+		return drained, tornIDs, nil
 	}
 	for {
 		candidateLoadStart := time.Now()
@@ -119,11 +135,13 @@ func (r *Runner) selectAcceptanceUnitPartitionWorkWithStats(
 			})
 			// An empty rescan after a cap-continue drain means the drain
 			// took the whole window: report what it drained. Kept torn
-			// rows would still be pending, so the torn count here is zero.
+			// rows would still be pending, so no torn row is outstanding
+			// here; the cumulative ids ride along for uniformity.
 			return codeCallSelectionResult{
 				SelectionDurationSeconds: time.Since(start).Seconds(),
 				SelectionPhases:          selectionPhases,
 				AbsentDrained:            absentDrained,
+				AbsentTornIDs:            tornIDs,
 			}, nil
 		}
 
@@ -302,7 +320,7 @@ func (r *Runner) selectAcceptanceUnitPartitionWorkWithStats(
 			// Drain the generation-gone orphans scanned on the way to this
 			// unit before returning it; a drain error fails the cycle
 			// rather than dropping or keeping rows.
-			_, torn, err := drainAbsent()
+			_, kept, err := drainAbsent()
 			if err != nil {
 				acceptanceTelemetry.RecordLookup(ctx, worker.AcceptanceLookupEvent{
 					Runner:   "code_call_projection",
@@ -320,7 +338,7 @@ func (r *Runner) selectAcceptanceUnitPartitionWorkWithStats(
 				SelectionDurationSeconds:    time.Since(start).Seconds(),
 				SelectionPhases:             selectionPhases,
 				AbsentDrained:               absentDrained,
-				AbsentTorn:                  torn,
+				AbsentTornIDs:               kept,
 			}, nil
 		}
 
@@ -343,7 +361,7 @@ func (r *Runner) selectAcceptanceUnitPartitionWorkWithStats(
 			})
 			// Drain the generation-gone orphans in this final window before
 			// reporting the miss, so the next cycle scans past them.
-			_, torn, err := drainAbsent()
+			_, kept, err := drainAbsent()
 			if err != nil {
 				acceptanceTelemetry.RecordLookup(ctx, worker.AcceptanceLookupEvent{
 					Runner:   "code_call_projection",
@@ -359,7 +377,7 @@ func (r *Runner) selectAcceptanceUnitPartitionWorkWithStats(
 				SelectionDurationSeconds:    time.Since(start).Seconds(),
 				SelectionPhases:             selectionPhases,
 				AbsentDrained:               absentDrained,
-				AbsentTorn:                  torn,
+				AbsentTornIDs:               kept,
 			}, nil
 		}
 		if scanLimit >= acceptanceScanLimit {

@@ -93,7 +93,7 @@ func TestRepoDependencySelectionDrainsGenerationGoneOrphan(t *testing.T) {
 		Config:       RepoDependencyProjectionRunnerConfig{BatchLimit: 100},
 	}
 
-	unitID, drained, torn, err := runner.selectAcceptanceUnitWork(context.Background(), now)
+	unitID, drained, tornIDs, err := runner.selectAcceptanceUnitWork(context.Background(), now)
 	if err != nil {
 		t.Fatalf("selectAcceptanceUnitWork() error = %v", err)
 	}
@@ -103,8 +103,8 @@ func TestRepoDependencySelectionDrainsGenerationGoneOrphan(t *testing.T) {
 	if drained != 1 {
 		t.Fatalf("drained = %d, want 1", drained)
 	}
-	if torn != 0 {
-		t.Fatalf("torn = %d, want 0", torn)
+	if len(tornIDs) != 0 {
+		t.Fatalf("tornIDs = %v, want none", tornIDs)
 	}
 	if !repoDependencyMarkedContains(inner.marked, "orphan-1") {
 		t.Fatalf("marked = %v, want the generation-gone orphan completed", inner.marked)
@@ -218,7 +218,7 @@ func TestRepoDependencySelectionKeepsTornWritePending(t *testing.T) {
 		Config:       RepoDependencyProjectionRunnerConfig{BatchLimit: 100},
 	}
 
-	unitID, drained, torn, err := runner.selectAcceptanceUnitWork(context.Background(), now)
+	unitID, drained, tornIDs, err := runner.selectAcceptanceUnitWork(context.Background(), now)
 	if err != nil {
 		t.Fatalf("selectAcceptanceUnitWork() error = %v", err)
 	}
@@ -228,8 +228,8 @@ func TestRepoDependencySelectionKeepsTornWritePending(t *testing.T) {
 	if drained != 0 {
 		t.Fatalf("drained = %d, want 0: the generation still exists", drained)
 	}
-	if torn != 1 {
-		t.Fatalf("torn = %d, want 1", torn)
+	if len(tornIDs) != 1 {
+		t.Fatalf("tornIDs = %v, want 1 torn row", tornIDs)
 	}
 	if len(inner.marked) != 0 {
 		t.Fatalf("marked = %v, want no mark for a torn write", inner.marked)
