@@ -203,6 +203,9 @@ TABLE = {
             "TestDeployableUnitReopenFingerprintZeroCandidateLive",
             "TestDeployableUnitReopenFingerprintGatesTargetedPassLive",
         ),
+        "go/internal/storage/postgres/ingestion_reopen_correlation_fingerprint_interleave_live_test.go": (
+            "TestDeployableUnitReopenFingerprintInterleavePassVsClaimVsAckVsWriteLive",
+        ),
         "go/internal/storage/postgres/ingestion_reopen_correlation_fingerprint_live_test.go": (
             "TestDeployableUnitReopenFingerprintGateLive",
             "TestDeployableUnitReopenFingerprintKeepsReadSnapshotLive",
