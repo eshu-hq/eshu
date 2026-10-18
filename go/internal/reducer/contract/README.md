@@ -77,8 +77,10 @@ spans, counters, and structured logs around contract handlers.
   generations committed after the intent's, or the decision depends on queue
   timing and backend-diff legs record different retracts. The reason is one
   of the closed `RetractReasons`; callers record it, this package does not.
-  `already_committed` is not returned by this predicate: a handler whose wait
-  decision skips the whole commit (CAN_PERFORM) records it itself.
+  The predicate returns only `first_generation`, `prior_generation`,
+  `retry_attempt`, and `check_unwired`. A handler records the other two
+  itself: CAN_PERFORM sets `recommit` when it re-commits the same generation,
+  and `already_committed` when its wait decision skips the whole commit.
 
 No-Regression Evidence: #6100 moves the existing value types and validation
 methods without changing fields, constants, lifecycle rules, or registry order.
@@ -184,3 +186,4 @@ Observability Evidence: #8167 adds the `skip_retract_reason` log key (closed
 `RetractReasons` set) beside the existing `skip_retract` key, and the
 `RUNS_IMAGE` and `CAN_PERFORM` handlers set both as attributes on their
 handler spans. The decision helper itself emits nothing; callers record it.
+Other materializers log `skip_retract` without a reason until they migrate.

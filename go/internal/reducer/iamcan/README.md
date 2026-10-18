@@ -74,7 +74,7 @@ re-commit always retracts (reason `recommit`). An evaluation whose wait
 decision finds the commit already done runs no retract and logs
 `skip_retract=true` with reason `already_committed`. The handler span and the
 completion log carry `skip_retract` and `skip_retract_reason`, and the reason
-is never empty.
+is never empty on this handler.
 
 A newer pending generation beside an active one does not defer. A resource
 added in a later target generation waits for the next IAM generation; the
