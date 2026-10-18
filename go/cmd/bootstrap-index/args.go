@@ -41,14 +41,14 @@ func parseBootstrapArgs(args []string) (bootstrapArgs, error) {
 			}
 			parsed.Force = value
 		case arg == "--path":
-			if i+1 >= len(args) {
+			// Slicing past the flag keeps the bounds check and the read on the
+			// same slice, so the missing-value guard is explicit.
+			rest := args[i+1:]
+			if len(rest) == 0 || strings.TrimSpace(rest[0]) == "" {
 				return bootstrapArgs{}, fmt.Errorf("missing value for --path")
 			}
 			i++
-			if strings.TrimSpace(args[i]) == "" {
-				return bootstrapArgs{}, fmt.Errorf("missing value for --path")
-			}
-			parsed.Path = args[i]
+			parsed.Path = rest[0]
 		case strings.HasPrefix(arg, "--path="):
 			value := strings.TrimSpace(strings.TrimPrefix(arg, "--path="))
 			if value == "" {

@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
@@ -76,16 +77,9 @@ func (r *recordingGroupChunkExecutor) ExecuteGroup(_ context.Context, stmts []so
 	return nil
 }
 
+// equalIntSlices reports whether got and want hold the same ints in order.
 func equalIntSlices(got []int, want []int) bool {
-	if len(got) != len(want) {
-		return false
-	}
-	for i := range got {
-		if got[i] != want[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(got, want)
 }
 
 func statementsContaining(stmts []sourcecypher.Statement, needle string) []sourcecypher.Statement {
