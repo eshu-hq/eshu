@@ -322,7 +322,24 @@ func TestDrainActiveBackendsLive(t *testing.T) {
 		_, err := database.ExecContext(ctx, `SELECT pg_sleep(2)`)
 		done <- err
 	}()
-	time.Sleep(300 * time.Millisecond) // let the sleeper backend go active
+	// Wait until the sleeper is actually active server-side; a fixed sleep
+	// would false-red when connection setup outlasts it on a loaded runner.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		var sleeping int
+		if err := database.QueryRowContext(ctx, `
+SELECT count(*) FROM pg_stat_activity
+WHERE datname = current_database() AND state = 'active' AND query LIKE '%pg_sleep%'`).Scan(&sleeping); err != nil {
+			t.Fatalf("count pg_sleep backends: %v", err)
+		}
+		if sleeping > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("pg_sleep backend never went active; sessions:\n%s", sessionDump(ctx, database))
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 	start = time.Now()
 	drainActiveBackends(ctx, t, database)
 	if elapsed := time.Since(start); elapsed < time.Second {
