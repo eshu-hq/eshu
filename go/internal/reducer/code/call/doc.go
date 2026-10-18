@@ -25,9 +25,8 @@
 // (materialization.BuildIntentRows). [projection] (code/call/projection)
 // holds the code-call projection runner, which imports this package directly
 // for PartitionKeyVersion, PayloadBool, the evidence-source constants, and
-// AcceptanceScanLimit. External callers use codecall.ExtractRows directly;
-// reducer.ExtractAllCodeRelationshipRows keeps its root spelling through
-// that same stanza until its callers migrate (#6626).
+// AcceptanceScanLimit. External callers use codecall.ExtractRows and
+// codecall.ExtractAllRelationshipRows directly (#6626).
 //
 // shared.EntityIndex is the shared substrate: the resolvers, the materialization
 // helpers, and [materialization]'s handles_route, runs_in, invokes_cloud_action,

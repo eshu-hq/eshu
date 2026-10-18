@@ -20,7 +20,7 @@ import (
 // repo_dependency vacuity guard against the family's hand-derived
 // expected-edge-set fixture. It proves the guard runs the real
 // DiscoveredEvidence -> relationships.Resolve ->
-// reducer.ExtractRepoDependencyIntentRows chain over the cataloged Odù's own
+// crossrepo.ExtractRepoDependencyIntentRows chain over the cataloged Odù's own
 // facts and reproduces exactly the seven edges the Terraform, Docker Compose,
 // ArgoCD, and Kubernetes evidence implies -- never a hand-authored resolved
 // relationship or endpoint identity.

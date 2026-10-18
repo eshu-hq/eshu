@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/ifa"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/owners"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 	materialized "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/materialized"
 )
@@ -132,9 +132,9 @@ func TestCodeownersFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 	}
 
 	generationID := codeownersOwnershipFamilyGenerationID(odu.Facts)
-	rows, quarantined, err := reducer.ExtractCodeownersOwnershipEdgeRowsWithQuarantine(odu.Facts, generationID)
+	rows, quarantined, err := owners.ExtractEdgeRowsWithQuarantine(odu.Facts, generationID)
 	if err != nil {
-		t.Fatalf("ExtractCodeownersOwnershipEdgeRowsWithQuarantine: %v", err)
+		t.Fatalf("owners.ExtractEdgeRowsWithQuarantine: %v", err)
 	}
 	if len(quarantined) > 0 {
 		t.Fatalf("%d fact(s) quarantined; the cassette no longer validates against the codeowners.ownership contract", len(quarantined))

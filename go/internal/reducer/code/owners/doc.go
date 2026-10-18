@@ -20,11 +20,11 @@
 // whole-repo (issue #5419 P1).
 //
 // The reducer root imports this package as owners. It keeps the exported
-// CodeownersOwnershipEdgeMaterializationHandler/
-// ExtractCodeownersOwnershipEdgeRowsWithQuarantine spellings, and the
+// CodeownersOwnershipEdgeMaterializationHandler spelling, and the
 // unexported codeownersMaterializationFactKinds/
 // loadCodeownersOwnershipMaterializationFacts call sites, through the
-// codeowners stanza of the reducer root's compat surface.
+// codeowners stanza of the reducer root's compat surface. External callers
+// name ExtractEdgeRowsWithQuarantine here directly (#6626).
 //
 // Dependency rule: from the reducer tree this package imports only the
 // shared tier (contract, factdecode, factload, payloadcore, schemadecode,

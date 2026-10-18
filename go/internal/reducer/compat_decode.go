@@ -381,9 +381,9 @@ func codeFunctionSummaryDomainDefinition() DomainDefinition {
 // The codeowners.ownership fact extraction, materialization, and delta-scope
 // family moved to [owners] (go/internal/reducer/code/owners). Every entry
 // keeps the reducer.X spelling for the additive-domain registry's handler
-// wiring, internal/ifa/materializededges' cross-check, and the reducer
-// root's factload_materialization_bench_test.go corpus-coverage guard. Each
-// entry is deleted once its last caller names [owners] directly.
+// wiring and the reducer root's factload_materialization_bench_test.go
+// corpus-coverage guard. Each entry is deleted once its last caller names
+// [owners] directly.
 
 // CodeownersOwnershipEdgeMaterializationHandler is the root spelling of
 // [owners.Handler].
@@ -393,17 +393,6 @@ type CodeownersOwnershipEdgeMaterializationHandler = owners.Handler
 // [owners.MaterializationFactKinds]. The reducer root's
 // factload_materialization_bench_test.go corpus-coverage guard reads it.
 var codeownersMaterializationFactKinds = owners.MaterializationFactKinds()
-
-// ExtractCodeownersOwnershipEdgeRowsWithQuarantine forwards to
-// [owners.ExtractEdgeRowsWithQuarantine]. internal/ifa/
-// materializededges calls this as
-// reducer.ExtractCodeownersOwnershipEdgeRowsWithQuarantine.
-func ExtractCodeownersOwnershipEdgeRowsWithQuarantine(
-	envelopes []facts.Envelope,
-	generationID string,
-) ([]map[string]any, []quarantinedFact, error) {
-	return owners.ExtractEdgeRowsWithQuarantine(envelopes, generationID)
-}
 
 // loadCodeownersOwnershipMaterializationFacts forwards to
 // [owners.LoadMaterializationFacts]. The reducer root's

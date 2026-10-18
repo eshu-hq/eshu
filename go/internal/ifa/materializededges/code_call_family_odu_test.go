@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 )
 
@@ -48,7 +48,7 @@ func TestCodeCallFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 		t.Fatal("expected-edge set is empty; an empty expectation makes this guard vacuous")
 	}
 
-	_, codeCallRows, _, metaclassRows := reducer.ExtractAllCodeRelationshipRows(odu.Facts)
+	_, codeCallRows, _, metaclassRows := codecall.ExtractAllRelationshipRows(odu.Facts)
 
 	actual := map[string]int{}
 	for _, row := range codeCallRows {

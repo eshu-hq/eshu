@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/ifa"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/owners"
 )
 
 // codeownersOwnershipFamily is the materialized-edge family key this guard
@@ -82,9 +82,9 @@ func resolveCodeownersOwnershipMaterializedEdges(odu ifa.Odu, expectedEdgesPath 
 	}
 
 	generationID := codeownersOwnershipFamilyGenerationID(odu.Facts)
-	rows, quarantined, err := reducer.ExtractCodeownersOwnershipEdgeRowsWithQuarantine(odu.Facts, generationID)
+	rows, quarantined, err := owners.ExtractEdgeRowsWithQuarantine(odu.Facts, generationID)
 	if err != nil {
-		return false, fmt.Sprintf("odù %q: ExtractCodeownersOwnershipEdgeRowsWithQuarantine failed: %v", odu.Name, err)
+		return false, fmt.Sprintf("odù %q: owners.ExtractEdgeRowsWithQuarantine failed: %v", odu.Name, err)
 	}
 	if len(quarantined) > 0 {
 		return false, fmt.Sprintf("odù %q: %d fact(s) quarantined by the decoder; the fixture no longer validates against the codeowners.ownership contract, so any edge set derived from the survivors understates what it claims to prove", odu.Name, len(quarantined))
@@ -97,7 +97,7 @@ func resolveCodeownersOwnershipMaterializedEdges(odu ifa.Odu, expectedEdgesPath 
 	if mismatch := compareCodeownersOwnershipExpectedEdges(odu.Name, expected, actual); mismatch != "" {
 		return false, mismatch
 	}
-	return true, fmt.Sprintf("odù %q: ExtractCodeownersOwnershipEdgeRowsWithQuarantine reproduces the expected %d-edge set exactly (by relationship_type/source/target plus the declared pattern/source_path identity) across all %d registry type(s)", odu.Name, len(expected), len(registry))
+	return true, fmt.Sprintf("odù %q: owners.ExtractEdgeRowsWithQuarantine reproduces the expected %d-edge set exactly (by relationship_type/source/target plus the declared pattern/source_path identity) across all %d registry type(s)", odu.Name, len(expected), len(registry))
 }
 
 // codeownersOwnershipRowsToExpectedEdges adapts
