@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/ifa"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/owners"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 	materialized "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/materialized"
 )
@@ -132,7 +132,7 @@ func TestCodeownersFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 	}
 
 	generationID := codeownersOwnershipFamilyGenerationID(odu.Facts)
-	rows, quarantined, err := reducer.ExtractCodeownersOwnershipEdgeRowsWithQuarantine(odu.Facts, generationID)
+	rows, quarantined, err := owners.ExtractEdgeRowsWithQuarantine(odu.Facts, generationID)
 	if err != nil {
 		t.Fatalf("ExtractCodeownersOwnershipEdgeRowsWithQuarantine: %v", err)
 	}

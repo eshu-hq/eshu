@@ -339,17 +339,6 @@ func BuildHandlesRouteIntentRowsForQueryProof(envelopes []facts.Envelope) []Shar
 	return materialization.BuildRouteIntentRowsForQueryProof(envelopes)
 }
 
-// ExtractAllCodeRelationshipRows forwards to
-// [codecall.ExtractAllRelationshipRows].
-func ExtractAllCodeRelationshipRows(envelopes []facts.Envelope) (
-	codeCallRepoIDs []string,
-	codeCallRows []map[string]any,
-	metaclassRepoIDs []string,
-	metaclassRows []map[string]any,
-) {
-	return codecall.ExtractAllRelationshipRows(envelopes)
-}
-
 // buildCodeCallProjectionContexts forwards to
 // [schemadecode.BuildProjectionContexts]. Kept for the root-only sibling
 // cross-domain proofs (rationale_edge_materialization.go and its partition

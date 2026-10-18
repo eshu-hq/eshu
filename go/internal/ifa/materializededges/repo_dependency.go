@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -26,14 +27,14 @@ import (
 const repoDependencyEdgesFamily = "repo_dependency"
 
 // repoDependencyGuardClock is the fixed, deterministic wall-clock reading
-// this guard hands to reducer.ExtractRepoDependencyIntentRows for every row's
+// this guard hands to crossrepo.ExtractRepoDependencyIntentRows for every row's
 // CreatedAt. go/internal/ifa/AGENTS.md forbids wall-clock time inside Ifá
 // derivation; CreatedAt is never part of the edge-identity comparison this
 // guard performs (mirrors deployableUnitGuardClock's role exactly).
 var repoDependencyGuardClock = time.Date(2026, 8, 19, 0, 0, 0, 0, time.UTC)
 
 // repoDependencyGuardSourceRunID is the fixed source_run_id this guard hands
-// to reducer.ExtractRepoDependencyIntentRows. Production derives this from
+// to crossrepo.ExtractRepoDependencyIntentRows. Production derives this from
 // the scope ID being resolved (crossRepoContributionSourceRunID); the guard
 // hard-codes it instead because it is never part of the edge-identity
 // comparison this guard performs (Payload carries it, but ExpectedEdge only
@@ -66,7 +67,7 @@ func repoDependencyFamilyExpectedEdgesPath(repoRoot string) string {
 // conversion from resolved relationships to repo_dependency intent rows
 // (buildResolvedEdgeIntentRow, cross_repo_intent_row.go) is itself a pure
 // function of `resolved` alone, exposed to this package as
-// reducer.ExtractRepoDependencyIntentRows. A guard that hand-authored a
+// crossrepo.ExtractRepoDependencyIntentRows. A guard that hand-authored a
 // relationships.ResolvedRelationship instead would certify an edge no live
 // graph backend could actually reach, the same false-green class the #5351
 // live-proof finding warns about for endpoint identity that
@@ -92,7 +93,7 @@ func repoDependencyFamilyExpectedEdgesPath(repoRoot string) string {
 // source, terragrunt config_path, Docker Compose depends_on/build-context, or
 // Terraform IAM SSM-read evidence discovery; a regression in
 // relationships.Resolve's confidence gating for any of those six evidence
-// kinds; a regression in reducer.ExtractRepoDependencyIntentRows'/
+// kinds; a regression in crossrepo.ExtractRepoDependencyIntentRows'/
 // buildResolvedEdgeIntentRow's per-type routing (repo_id/target_repo_id
 // payload keys); and a regression in the catalog matcher's same-repo
 // exclusion or token-boundary discipline (the self-reference and near-miss-
@@ -135,9 +136,9 @@ func resolveRepoDependencyMaterializedEdges(odu ifa.Odu, expectedEdgesPath strin
 	if err != nil {
 		return false, err.Error()
 	}
-	rows, _ := reducer.ExtractRepoDependencyIntentRows(resolved, sourceScopeID, repoDependencyGuardSourceRunID, sourceGenerationID, repoDependencyGuardClock)
+	rows, _ := crossrepo.ExtractRepoDependencyIntentRows(resolved, sourceScopeID, repoDependencyGuardSourceRunID, sourceGenerationID, repoDependencyGuardClock)
 	if len(rows) != len(resolved) {
-		return false, fmt.Sprintf("odù %q: reducer.ExtractRepoDependencyIntentRows dropped %d of %d resolved relationships (a dropped row means its resolved relationship carried no target_repo_id/platform_id); every relationship this Odù resolves is expected to route to a row", odu.Name, len(resolved)-len(rows), len(resolved))
+		return false, fmt.Sprintf("odù %q: crossrepo.ExtractRepoDependencyIntentRows dropped %d of %d resolved relationships (a dropped row means its resolved relationship carried no target_repo_id/platform_id); every relationship this Odù resolves is expected to route to a row", odu.Name, len(resolved)-len(rows), len(resolved))
 	}
 
 	actual := make([]ExpectedEdge, 0, len(rows))
@@ -162,7 +163,7 @@ func resolveRepoDependencyMaterializedEdges(odu ifa.Odu, expectedEdgesPath strin
 	}
 
 	return true, fmt.Sprintf(
-		"odù %q: DiscoveredEvidence -> relationships.Resolve -> reducer.ExtractRepoDependencyIntentRows reproduces the expected %d-edge set exactly across all %d registry types; ExtractWorkloadCandidates -> BuildProjectionRows derives RUNS_ON's unique WorkloadInstance and CanonicalPlatformID derives its required Platform; the self-reference/near-miss-alias negative cases produced zero spurious evidence",
+		"odù %q: DiscoveredEvidence -> relationships.Resolve -> crossrepo.ExtractRepoDependencyIntentRows reproduces the expected %d-edge set exactly across all %d registry types; ExtractWorkloadCandidates -> BuildProjectionRows derives RUNS_ON's unique WorkloadInstance and CanonicalPlatformID derives its required Platform; the self-reference/near-miss-alias negative cases produced zero spurious evidence",
 		odu.Name, len(expected), len(registry),
 	)
 }

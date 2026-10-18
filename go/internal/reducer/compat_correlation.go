@@ -36,7 +36,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
-	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
 // Stanza: service_catalog_correlation_compat.go (merged; do not recreate this file).
@@ -300,19 +299,6 @@ type RepoDependencyIntentWriter = crossrepo.RepoDependencyIntentWriter
 // CrossRepoRelationshipHandler resolves cross-repository relationships from
 // persisted evidence facts. Alias for [crossrepo.CrossRepoRelationshipHandler].
 type CrossRepoRelationshipHandler = crossrepo.CrossRepoRelationshipHandler
-
-// ExtractRepoDependencyIntentRows exposes the resolved-relationship to
-// intent-row conversion for Ifá's materialized-edge vacuity guards. Forwards to
-// [crossrepo.ExtractRepoDependencyIntentRows].
-func ExtractRepoDependencyIntentRows(
-	resolved []relationships.ResolvedRelationship,
-	scopeID string,
-	sourceRunID string,
-	generationID string,
-	createdAt time.Time,
-) ([]sharedintent.Row, map[string]int) {
-	return crossrepo.ExtractRepoDependencyIntentRows(resolved, scopeID, sourceRunID, generationID, createdAt)
-}
 
 // Stanza: sbom_attestation_attachment_compat.go (merged; do not recreate this file).
 // This file is the transitional compatibility surface for the sbom_attestation

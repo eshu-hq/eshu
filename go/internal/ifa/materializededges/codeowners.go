@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/ifa"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/owners"
 )
 
 // codeownersOwnershipFamily is the materialized-edge family key this guard
@@ -82,7 +82,7 @@ func resolveCodeownersOwnershipMaterializedEdges(odu ifa.Odu, expectedEdgesPath 
 	}
 
 	generationID := codeownersOwnershipFamilyGenerationID(odu.Facts)
-	rows, quarantined, err := reducer.ExtractCodeownersOwnershipEdgeRowsWithQuarantine(odu.Facts, generationID)
+	rows, quarantined, err := owners.ExtractEdgeRowsWithQuarantine(odu.Facts, generationID)
 	if err != nil {
 		return false, fmt.Sprintf("odù %q: ExtractCodeownersOwnershipEdgeRowsWithQuarantine failed: %v", odu.Name, err)
 	}

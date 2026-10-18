@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
 )
 
 // codeCallExpectedEdgesRelPath is the code_calls expected-edge fixture,
@@ -59,7 +59,7 @@ func resolveCodeCallMaterializedEdges(odu ifa.Odu, expectedEdgesPath string) (bo
 		return false, fmt.Sprintf("odù %q: expected-edge set does not cover all registry types, missing: %v", odu.Name, missing)
 	}
 
-	codeRepoIDs, codeRows, metaclassRepoIDs, metaclassRows := reducer.ExtractAllCodeRelationshipRows(odu.Facts)
+	codeRepoIDs, codeRows, metaclassRepoIDs, metaclassRows := codecall.ExtractAllRelationshipRows(odu.Facts)
 	if len(codeRepoIDs) == 0 || len(metaclassRepoIDs) == 0 {
 		return false, fmt.Sprintf("odù %q: production extractor returned empty repository scope (code=%v metaclass=%v)", odu.Name, codeRepoIDs, metaclassRepoIDs)
 	}

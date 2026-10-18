@@ -63,7 +63,7 @@ func TestWorkloadDependencyFamilyGraphLookupMatchesProductionAnchoring(t *testin
 // the workload_dependency vacuity guard against the family's hand-derived
 // expected-edge-set fixture. It proves the guard runs the real two-seam
 // chain -- DiscoveredEvidence -> relationships.Resolve ->
-// reducer.ExtractRepoDependencyIntentRows for the repo edge, and
+// crossrepo.ExtractRepoDependencyIntentRows for the repo edge, and
 // reducer.ExtractWorkloadCandidates -> BuildProjectionRowsWithInfrastructurePlatforms
 // for the workload map -- over the cataloged Odù's own facts, feeding the
 // real reducer.ReconcileWorkloadDependencyEdges, and reproduces exactly the

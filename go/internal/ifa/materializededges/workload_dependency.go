@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -29,7 +30,7 @@ const workloadDependencyEdgesFamily = "workload_dependency"
 const workloadDependencyRelationshipType = "DEPENDS_ON"
 
 // workloadDependencyGuardClock is the fixed, deterministic wall-clock reading
-// this guard hands to reducer.ExtractRepoDependencyIntentRows for every repo-
+// this guard hands to crossrepo.ExtractRepoDependencyIntentRows for every repo-
 // edge row's CreatedAt. go/internal/ifa/AGENTS.md forbids wall-clock time
 // inside Ifá derivation; CreatedAt is never part of the edge-identity
 // comparison this guard performs (mirrors repoDependencyGuardClock's role
@@ -39,7 +40,7 @@ const workloadDependencyRelationshipType = "DEPENDS_ON"
 var workloadDependencyGuardClock = time.Date(2026, 8, 19, 0, 0, 0, 0, time.UTC)
 
 // workloadDependencyGuardSourceRunID is the fixed source_run_id this guard
-// hands to reducer.ExtractRepoDependencyIntentRows. Never part of the edge-
+// hands to crossrepo.ExtractRepoDependencyIntentRows. Never part of the edge-
 // identity comparison this guard performs (mirrors
 // repoDependencyGuardSourceRunID).
 const workloadDependencyGuardSourceRunID = "ifa-workload-dependency-guard-run"
@@ -123,7 +124,7 @@ func (l workloadDependencyFamilyGraphLookup) ListWorkloadDependencyEdges(_ conte
 //     derived through the EXACT SAME backend-free seam
 //     resolveRepoDependencyMaterializedEdges already runs over this Odù's own
 //     facts -- DiscoveredEvidence -> relationships.Resolve -> the resolved
-//     rows reducer.ExtractRepoDependencyIntentRows routes to relationship_type
+//     rows crossrepo.ExtractRepoDependencyIntentRows routes to relationship_type
 //     "DEPENDS_ON". A guard that hand-authored a reducer.RepoDependencyEdge
 //     instead would certify a repo pair no live evidence-resolution path
 //     could actually produce, the same false-green class the #5351 live-proof
@@ -148,7 +149,7 @@ func (l workloadDependencyFamilyGraphLookup) ListWorkloadDependencyEdges(_ conte
 //
 // What this guard DOES catch: a regression in Docker Compose depends_on
 // evidence discovery or resolution; a regression in
-// reducer.ExtractRepoDependencyIntentRows' DEPENDS_ON routing; a regression in
+// crossrepo.ExtractRepoDependencyIntentRows' DEPENDS_ON routing; a regression in
 // reducer.ExtractWorkloadCandidates'/BuildProjectionRowsWithInfrastructurePlatforms'
 // Kubernetes-Deployment-to-workload-candidate admission; and a regression in
 // ReconcileWorkloadDependencyEdges' endpoint ownership. What it
@@ -187,7 +188,7 @@ func resolveWorkloadDependencyMaterializedEdges(odu ifa.Odu, expectedEdgesPath s
 	if len(resolved) == 0 {
 		return false, fmt.Sprintf("odù %q: the production evidence/resolution seams (DiscoveredEvidence -> relationships.Resolve) found zero resolved relationships in its own facts; workload_dependency cannot admit any edge without at least one resolved repo-to-repo DEPENDS_ON relationship", odu.Name)
 	}
-	depRows, _ := reducer.ExtractRepoDependencyIntentRows(resolved, first.ScopeID, workloadDependencyGuardSourceRunID, first.GenerationID, workloadDependencyGuardClock)
+	depRows, _ := crossrepo.ExtractRepoDependencyIntentRows(resolved, first.ScopeID, workloadDependencyGuardSourceRunID, first.GenerationID, workloadDependencyGuardClock)
 	repoEdges := workloadDependencyRepoEdgesFromRows(depRows)
 	if len(repoEdges) != 3 {
 		return false, fmt.Sprintf("odù %q: evidence resolution produced %d repo-to-repo DEPENDS_ON edge(s), want exactly 3 (two production-positive pairs and an orphan pair that the production-shaped lookup must filter out)", odu.Name, len(repoEdges))
@@ -258,7 +259,7 @@ func workloadDependencyRepoIDSet(repoIDs []string) map[string]struct{} {
 }
 
 // workloadDependencyRepoEdgesFromRows narrows
-// reducer.ExtractRepoDependencyIntentRows' output to the rows this family
+// crossrepo.ExtractRepoDependencyIntentRows' output to the rows this family
 // cares about (relationship_type "DEPENDS_ON"), projecting them onto
 // reducer.RepoDependencyEdge -- the exact input shape
 // reducer.WorkloadDependencyGraphLookup.ListRepoDependencyEdges returns.

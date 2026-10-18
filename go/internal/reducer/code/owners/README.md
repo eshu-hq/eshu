@@ -37,9 +37,8 @@ boundary).
 | `LoadMaterializationFacts` / `MaterializationFactKinds` | the scoped fact-kind loader for `repository`/`codeowners.ownership`, and the kind set it requests |
 
 The reducer root wires `Handler` in `defaults_domain_catalog.go`, keeping the
-`reducer.CodeownersOwnershipEdgeMaterializationHandler`/
-`reducer.ExtractCodeownersOwnershipEdgeRowsWithQuarantine` spellings through
-the codeowners stanza of `compat_projection.go`.
+`reducer.CodeownersOwnershipEdgeMaterializationHandler` spelling through the
+codeowners stanza of `compat_decode.go`.
 
 ## Dependencies
 
