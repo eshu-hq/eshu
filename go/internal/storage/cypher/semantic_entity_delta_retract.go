@@ -29,39 +29,27 @@ func (w *SemanticEntityWriter) semanticDeltaRetractStatements(filePaths []string
 	if w.writeMode == semanticEntityWriteModeCanonicalNodeRows {
 		return w.semanticDeltaCanonicalNodeRetractStatements(filePaths)
 	}
+	// Dedicated edge retract first, edgeless-node reap second (#8359).
 	if w.retractMode != semanticEntityRetractModeLabelScoped {
-		return []Statement{{
-			Operation: OperationCanonicalRetract,
-			Cypher:    semanticEntityDeltaRetractCypher,
-			Parameters: map[string]any{
-				"file_paths":                filePaths,
-				"evidence_source":           semanticEntityEvidenceSource,
-				StatementMetadataSummaryKey: semanticEntityDeltaRetractStatementSummary("all", filePaths),
-			},
-		}}
+		return []Statement{
+			semanticDeltaEdgeRetractStatement(RetractSemanticEntityContainmentDeltaEdgesCypher, "all", filePaths),
+			semanticDeltaEdgeRetractStatement(RetractSemanticEntityContainmentDeltaNodeScopedEdgesCypher, "all", filePaths),
+			semanticDeltaEdgeRetractStatement(semanticEntityDeltaReapCypher, "all", filePaths),
+		}
 	}
 
-	plans := semanticEntityPlans()
-	stmts := make([]Statement, 0, len(plans))
-	for _, plan := range plans {
-		stmts = append(stmts, Statement{
-			Operation: OperationCanonicalRetract,
-			Cypher:    semanticEntityDeltaLabelRetractCypher(plan.label),
-			Parameters: map[string]any{
-				"file_paths":                    filePaths,
-				"evidence_source":               semanticEntityEvidenceSource,
-				StatementMetadataEntityLabelKey: plan.label,
-				StatementMetadataSummaryKey:     semanticEntityDeltaRetractStatementSummary(plan.label, filePaths),
-			},
-		})
+	stmts := semanticDeltaLabelEdgeRetractStatements(filePaths)
+	for _, plan := range semanticEntityPlans() {
+		stmts = append(stmts, semanticDeltaEdgeRetractStatement(semanticEntityDeltaLabelReapCypher(plan.label), plan.label, filePaths))
 	}
 	return stmts
 }
 
 func (w *SemanticEntityWriter) semanticDeltaCanonicalNodeRetractStatements(filePaths []string) []Statement {
-	plans := semanticEntityPlans()
-	stmts := make([]Statement, 0, len(plans))
-	for _, plan := range plans {
+	// The dedicated delta edge retract leads in canonical-node mode for
+	// the same single-writer fence as the full-repo path (#8359).
+	stmts := semanticDeltaLabelEdgeRetractStatements(filePaths)
+	for _, plan := range semanticEntityPlans() {
 		if semanticEntityCanonicalNodeOwnedLabel(plan.label) {
 			props := semanticEntityClearPropertiesForLabel(plan.label)
 			if len(props) == 0 {
@@ -78,16 +66,7 @@ func (w *SemanticEntityWriter) semanticDeltaCanonicalNodeRetractStatements(fileP
 			})
 			continue
 		}
-		stmts = append(stmts, Statement{
-			Operation: OperationCanonicalRetract,
-			Cypher:    semanticEntityDeltaLabelRetractCypher(plan.label),
-			Parameters: map[string]any{
-				"file_paths":                    filePaths,
-				"evidence_source":               semanticEntityEvidenceSource,
-				StatementMetadataEntityLabelKey: plan.label,
-				StatementMetadataSummaryKey:     semanticEntityDeltaRetractStatementSummary(plan.label, filePaths),
-			},
-		})
+		stmts = append(stmts, semanticDeltaEdgeRetractStatement(semanticEntityDeltaLabelReapCypher(plan.label), plan.label, filePaths))
 	}
 	return stmts
 }

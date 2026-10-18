@@ -436,39 +436,32 @@ func (w *SemanticEntityWriter) semanticRetractStatements(repoIDs []string) []Sta
 	if w.writeMode == semanticEntityWriteModeCanonicalNodeRows {
 		return w.semanticCanonicalNodeRetractStatements(repoIDs)
 	}
+	// Dedicated edge retract first, edgeless-node reap second (#8359): the
+	// reap can only delete a node once the edge retract (and every other
+	// writer's own retract) has taken its edges, so no foreign edge dies
+	// with a shared node.
 	if w.retractMode != semanticEntityRetractModeLabelScoped {
-		return []Statement{{
-			Operation: OperationCanonicalRetract,
-			Cypher:    semanticEntityRetractCypher,
-			Parameters: map[string]any{
-				"repo_ids":                  repoIDs,
-				"evidence_source":           semanticEntityEvidenceSource,
-				StatementMetadataSummaryKey: semanticEntityRetractStatementSummary("all", repoIDs),
-			},
-		}}
+		return []Statement{
+			semanticEdgeRetractStatement(RetractSemanticEntityContainmentEdgesCypher, "all", repoIDs),
+			semanticEdgeRetractStatement(RetractSemanticEntityContainmentNodeScopedEdgesCypher, "all", repoIDs),
+			semanticEdgeRetractStatement(semanticEntityReapCypher, "all", repoIDs),
+		}
 	}
 
-	plans := semanticEntityPlans()
-	stmts := make([]Statement, 0, len(plans))
-	for _, plan := range plans {
-		stmts = append(stmts, Statement{
-			Operation: OperationCanonicalRetract,
-			Cypher:    semanticEntityLabelRetractCypher(plan.label),
-			Parameters: map[string]any{
-				"repo_ids":                      repoIDs,
-				"evidence_source":               semanticEntityEvidenceSource,
-				StatementMetadataEntityLabelKey: plan.label,
-				StatementMetadataSummaryKey:     semanticEntityRetractStatementSummary(plan.label, repoIDs),
-			},
-		})
+	stmts := semanticLabelEdgeRetractStatements(repoIDs)
+	for _, plan := range semanticEntityPlans() {
+		stmts = append(stmts, semanticEdgeRetractStatement(semanticEntityLabelReapCypher(plan.label), plan.label, repoIDs))
 	}
 	return stmts
 }
 
 func (w *SemanticEntityWriter) semanticCanonicalNodeRetractStatements(repoIDs []string) []Statement {
-	plans := semanticEntityPlans()
-	stmts := make([]Statement, 0, len(plans))
-	for _, plan := range plans {
+	// The dedicated edge retract leads even in canonical-node mode: this
+	// writer still owns Module/Variable containment and Rust ImplBlock
+	// ownership edges there, and the evidence_source fence keeps it off
+	// the canonical writer's CONTAINS edges (#8359 single-writer fence).
+	stmts := semanticLabelEdgeRetractStatements(repoIDs)
+	for _, plan := range semanticEntityPlans() {
 		if semanticEntityCanonicalNodeOwnedLabel(plan.label) {
 			props := semanticEntityClearPropertiesForLabel(plan.label)
 			if len(props) == 0 {
@@ -485,16 +478,7 @@ func (w *SemanticEntityWriter) semanticCanonicalNodeRetractStatements(repoIDs []
 			})
 			continue
 		}
-		stmts = append(stmts, Statement{
-			Operation: OperationCanonicalRetract,
-			Cypher:    semanticEntityLabelRetractCypher(plan.label),
-			Parameters: map[string]any{
-				"repo_ids":                      repoIDs,
-				"evidence_source":               semanticEntityEvidenceSource,
-				StatementMetadataEntityLabelKey: plan.label,
-				StatementMetadataSummaryKey:     semanticEntityRetractStatementSummary(plan.label, repoIDs),
-			},
-		})
+		stmts = append(stmts, semanticEdgeRetractStatement(semanticEntityLabelReapCypher(plan.label), plan.label, repoIDs))
 	}
 	return stmts
 }

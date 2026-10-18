@@ -116,7 +116,7 @@ func AllStatementsAreReplaySafe(stmts []Statement) bool {
 		if isMergeShapedCypher(s.Cypher) {
 			continue
 		}
-		if isIdempotentRetractStatement(s) {
+		if isIdempotentRetractStatement(s) || isEdgelessNodeReapStatement(s) {
 			continue
 		}
 		return false

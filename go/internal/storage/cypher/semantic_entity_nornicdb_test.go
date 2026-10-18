@@ -110,7 +110,7 @@ func TestSemanticEntityCanonicalNodeRowsKeepsSemanticOwnedModuleContainment(t *t
 	if !strings.Contains(cypher, "MATCH (f:File {path: row.file_path})") {
 		t.Fatalf("cypher = %q, want Module file match because canonical Module uses name key", cypher)
 	}
-	if !strings.Contains(cypher, "MERGE (f)-[:CONTAINS]->(n)") {
+	if !strings.Contains(cypher, "MERGE (f)-[rel:CONTAINS]->(n)") {
 		t.Fatalf("cypher = %q, want Module containment to remain semantic-owned", cypher)
 	}
 }
@@ -133,7 +133,7 @@ func TestSemanticEntityCanonicalNodeRowsRewritesOnlyCanonicalOwnedLabels(t *test
 				}
 				return
 			}
-			if !strings.Contains(cypher, "MERGE (f)-[:CONTAINS]->(n)") {
+			if !strings.Contains(cypher, "MERGE (f)-[rel:CONTAINS]->(n)") {
 				t.Fatalf("cypher = %q, want containment retained for semantic-owned %s", cypher, plan.label)
 			}
 		})
@@ -185,8 +185,11 @@ func TestSemanticEntityCanonicalNodeRowsClearPropertiesWithoutDeletingCanonicalN
 		t.Fatal("missing Module retract statement")
 	}
 	moduleRetract := executor.calls[moduleRetractIndex]
-	if !strings.Contains(moduleRetract.Cypher, "DETACH DELETE n") {
-		t.Fatalf("module retract cypher = %q, want semantic-owned Module delete", moduleRetract.Cypher)
+	// #8359: semantic-owned Module nodes are reaped only once edgeless,
+	// never DETACH DELETEd with their foreign edges.
+	if !strings.Contains(moduleRetract.Cypher, "NOT EXISTS") || !strings.Contains(moduleRetract.Cypher, "DELETE n") ||
+		strings.Contains(moduleRetract.Cypher, "DETACH DELETE") {
+		t.Fatalf("module retract cypher = %q, want semantic-owned edgeless Module reap", moduleRetract.Cypher)
 	}
 }
 
@@ -209,7 +212,7 @@ func TestSemanticEntityWriterWithMergeFirstRowsUsesNornicDBHotPathShape(t *testi
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
 
-	upsert := executor.calls[len(semanticEntityPlans())]
+	upsert := semanticNonRetractCalls(executor.calls)[0]
 	if !strings.Contains(upsert.Cypher, "UNWIND $rows AS row\nMERGE (n:Function {uid: row.entity_id})") {
 		t.Fatalf("upsert cypher = %q, want merge-first function shape", upsert.Cypher)
 	}
@@ -288,11 +291,12 @@ func TestSemanticEntityWriterWithParameterizedRowsAvoidsInlineSemanticMetadata(t
 	if got, want := result.CanonicalWrites, 1; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
-	if got, want := len(executor.calls), 2; got != want {
-		t.Fatalf("executor calls = %d, want %d", got, want)
+	upserts := semanticNonRetractCalls(executor.calls)
+	if got, want := len(upserts), 1; got != want {
+		t.Fatalf("upsert calls = %d, want %d", got, want)
 	}
 
-	stmt := executor.calls[1]
+	stmt := upserts[0]
 	if strings.Contains(stmt.Cypher, "shortestPath") {
 		t.Fatalf("upsert cypher inlined shortestPath metadata: %s", stmt.Cypher)
 	}
@@ -334,26 +338,34 @@ func TestSemanticEntityWriterWithLabelScopedRetractSplitsBroadRetractByLabel(t *
 	}
 
 	plans := semanticEntityPlans()
-	if got, want := len(executor.calls), len(plans)+1; got != want {
+	// #8359: per label a File edge pair, an ImplBlock pair into Function,
+	// then per-label reaps — single-label endpoints throughout (a label
+	// alternation in a relationship pattern matches nothing on NornicDB).
+	edgeRetracts := 2*len(plans) + 2
+	if got, want := len(executor.calls), edgeRetracts+len(plans)+1; got != want {
 		t.Fatalf("executor calls = %d, want %d", got, want)
 	}
-	for i, plan := range plans {
+	for i := 0; i < edgeRetracts+len(plans); i++ {
 		stmt := executor.calls[i]
 		if stmt.Operation != OperationCanonicalRetract {
 			t.Fatalf("call[%d].Operation = %q, want %q", i, stmt.Operation, OperationCanonicalRetract)
 		}
 		if strings.Contains(stmt.Cypher, "|") {
-			t.Fatalf("call[%d].Cypher = %q, want label-scoped retract without pipe labels", i, stmt.Cypher)
+			t.Fatalf("call[%d].Cypher = %q, want single-label endpoints without alternation", i, stmt.Cypher)
 		}
-		if !strings.Contains(stmt.Cypher, "MATCH (n:"+plan.label+")") {
-			t.Fatalf("call[%d].Cypher = %q, want label %q", i, stmt.Cypher, plan.label)
+		label, _ := stmt.Parameters[StatementMetadataEntityLabelKey].(string)
+		if label == "" {
+			t.Fatalf("call[%d] carries no label metadata", i)
 		}
-		if got, want := stmt.Parameters[StatementMetadataEntityLabelKey], plan.label; got != want {
-			t.Fatalf("call[%d] label metadata = %#v, want %#v", i, got, want)
+		if i < edgeRetracts && !strings.Contains(stmt.Cypher, "-[rel:CONTAINS]->(n:"+label+")") {
+			t.Fatalf("call[%d].Cypher = %q, want CONTAINS edge retract into %q", i, stmt.Cypher, label)
+		}
+		if i >= edgeRetracts && !strings.Contains(stmt.Cypher, "MATCH (n:"+label+")") {
+			t.Fatalf("call[%d].Cypher = %q, want edgeless reap of %q", i, stmt.Cypher, label)
 		}
 	}
 
-	upsert := executor.calls[len(plans)]
+	upsert := executor.calls[edgeRetracts+len(plans)]
 	if upsert.Operation != OperationCanonicalUpsert {
 		t.Fatalf("last call Operation = %q, want %q", upsert.Operation, OperationCanonicalUpsert)
 	}
@@ -412,7 +424,7 @@ func TestSemanticEntityCanonicalNodeRowsUpsertVariableIsMergeFirstWithContainmen
 	if !strings.Contains(cypher, "MATCH (f:File {path: row.file_path})") {
 		t.Fatalf("cypher = %q, want File match for containment", cypher)
 	}
-	if !strings.Contains(cypher, "MERGE (f)-[:CONTAINS]->(n)") {
+	if !strings.Contains(cypher, "MERGE (f)-[rel:CONTAINS]->(n)") {
 		t.Fatalf("cypher = %q, want Variable containment retained", cypher)
 	}
 	if !strings.Contains(cypher, "n.evidence_source = row.evidence_source") {
@@ -420,11 +432,13 @@ func TestSemanticEntityCanonicalNodeRowsUpsertVariableIsMergeFirstWithContainmen
 	}
 }
 
-// TestSemanticEntityCanonicalNodeRowsRetractsVariableByDetachDelete guards the
-// retract half of #5156: once Variable is semantic-owned, stale Variable
-// nodes must be removed by DETACH DELETE scoped to evidence_source, not by
-// the canonical-node-owned property-clear (REMOVE) path.
-func TestSemanticEntityCanonicalNodeRowsRetractsVariableByDetachDelete(t *testing.T) {
+// TestSemanticEntityCanonicalNodeRowsRetractsVariableByEdgelessReap guards
+// the retract half of #5156 as amended by #8359: once Variable is
+// semantic-owned, stale Variable nodes must be removed by the
+// evidence_source-scoped edgeless reap (following the dedicated CONTAINS
+// edge retract), not by the canonical-node-owned property-clear (REMOVE)
+// path and not by a DETACH DELETE that takes foreign edges with the node.
+func TestSemanticEntityCanonicalNodeRowsRetractsVariableByEdgelessReap(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
@@ -460,8 +474,11 @@ func TestSemanticEntityCanonicalNodeRowsRetractsVariableByDetachDelete(t *testin
 		t.Fatal("missing Variable retract statement")
 	}
 	retract := executor.calls[variableRetractIndex]
-	if !strings.Contains(retract.Cypher, "DETACH DELETE n") {
-		t.Fatalf("Variable retract cypher = %q, want DETACH DELETE (semantic-owned), not property clear", retract.Cypher)
+	if !strings.Contains(retract.Cypher, "NOT EXISTS") || !strings.HasSuffix(strings.TrimSpace(retract.Cypher), "DELETE n") {
+		t.Fatalf("Variable retract cypher = %q, want edgeless reap (semantic-owned), not property clear", retract.Cypher)
+	}
+	if strings.Contains(retract.Cypher, "DETACH DELETE") {
+		t.Fatalf("Variable retract cypher = %q, want no DETACH DELETE of a shared node", retract.Cypher)
 	}
 	if strings.Contains(retract.Cypher, "REMOVE") {
 		t.Fatalf("Variable retract cypher = %q, want no REMOVE-based property clear", retract.Cypher)

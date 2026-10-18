@@ -103,6 +103,11 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		OduName:   ifa.KubernetesCorrelationFamilyOduName,
 		EdgeTypes: []string{"RUNS_IMAGE"},
 	},
+	{
+		Family:    semanticEntityContainmentFamily,
+		OduName:   ifa.SemanticEntityContainmentFamilyOduName,
+		EdgeTypes: []string{"CONTAINS"},
+	},
 }
 
 // guardedDirectFamilyCoverageEntry builds the coverage entry a ledger row for

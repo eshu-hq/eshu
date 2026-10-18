@@ -58,11 +58,12 @@ func TestSemanticEntityWriterWritesRustImplBlocksAndOwnershipEdges(t *testing.T)
 	if got, want := result.CanonicalWrites, 2; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
-	if got, want := len(executor.calls), 4; got != want {
-		t.Fatalf("executor calls = %d, want %d", got, want)
+	upserts := semanticNonRetractCalls(executor.calls)
+	if got, want := len(upserts), 3; got != want {
+		t.Fatalf("upsert calls = %d, want %d", got, want)
 	}
 
-	implRows := executor.calls[1].Parameters["rows"].([]map[string]any)
+	implRows := upserts[0].Parameters["rows"].([]map[string]any)
 	if got, want := len(implRows), 1; got != want {
 		t.Fatalf("impl row count = %d, want %d", got, want)
 	}
@@ -75,22 +76,22 @@ func TestSemanticEntityWriterWritesRustImplBlocksAndOwnershipEdges(t *testing.T)
 	if got, want := implRows[0]["target"], "Point"; got != want {
 		t.Fatalf("impl target = %#v, want %#v", got, want)
 	}
-	if !strings.Contains(executor.calls[1].Cypher, "MERGE (n:ImplBlock {uid: row.entity_id})") {
-		t.Fatalf("impl cypher missing ImplBlock merge: %s", executor.calls[1].Cypher)
+	if !strings.Contains(upserts[0].Cypher, "MERGE (n:ImplBlock {uid: row.entity_id})") {
+		t.Fatalf("impl cypher missing ImplBlock merge: %s", upserts[0].Cypher)
 	}
 
-	functionRows := executor.calls[2].Parameters["rows"].([]map[string]any)
+	functionRows := upserts[1].Parameters["rows"].([]map[string]any)
 	if got, want := len(functionRows), 1; got != want {
 		t.Fatalf("function row count = %d, want %d", got, want)
 	}
 	if got, want := functionRows[0]["impl_context"], "Point"; got != want {
 		t.Fatalf("function impl_context = %#v, want %#v", got, want)
 	}
-	if !strings.Contains(executor.calls[2].Cypher, "n.impl_context = row.impl_context") {
-		t.Fatalf("function cypher missing impl_context property: %s", executor.calls[2].Cypher)
+	if !strings.Contains(upserts[1].Cypher, "n.impl_context = row.impl_context") {
+		t.Fatalf("function cypher missing impl_context property: %s", upserts[1].Cypher)
 	}
 
-	ownershipRows := executor.calls[3].Parameters["rows"].([]map[string]any)
+	ownershipRows := upserts[2].Parameters["rows"].([]map[string]any)
 	if got, want := len(ownershipRows), 1; got != want {
 		t.Fatalf("ownership row count = %d, want %d", got, want)
 	}
@@ -100,7 +101,7 @@ func TestSemanticEntityWriterWritesRustImplBlocksAndOwnershipEdges(t *testing.T)
 	if got, want := ownershipRows[0]["function_id"], "fn-new"; got != want {
 		t.Fatalf("ownership function_id = %#v, want %#v", got, want)
 	}
-	if !strings.Contains(executor.calls[3].Cypher, "MERGE (impl)-[:CONTAINS]->(fn)") {
-		t.Fatalf("ownership cypher missing CONTAINS edge: %s", executor.calls[3].Cypher)
+	if !strings.Contains(upserts[2].Cypher, "MERGE (impl)-[rel:CONTAINS]->(fn)") {
+		t.Fatalf("ownership cypher missing CONTAINS edge: %s", upserts[2].Cypher)
 	}
 }

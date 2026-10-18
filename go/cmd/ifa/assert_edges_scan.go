@@ -51,7 +51,7 @@ func scanMaterializedEdges(
 		// with a proven type collision carry constraints, and the cypher-side
 		// guard requires them to be total over the family's registered types.
 		if endpoint, constrained := endpoints[edge.Type]; constrained {
-			if !hasLabel(edge.FromLabels, endpoint.FromLabel) || !hasLabel(edge.ToLabels, endpoint.ToLabel) {
+			if !endpoint.MatchesFrom(edge.FromLabels) || !endpoint.MatchesTo(edge.ToLabels) {
 				return nil
 			}
 			// Counted before the provenance filter below, which would otherwise

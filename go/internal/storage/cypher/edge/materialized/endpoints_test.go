@@ -4,6 +4,7 @@
 package materialized
 
 import (
+	"reflect"
 	"sort"
 	"testing"
 
@@ -82,9 +83,23 @@ func TestEndpointConstraintsCoverEveryRegisteredType(t *testing.T) {
 					orphaned)
 			}
 			for edgeType, endpoint := range constraints {
-				if endpoint.FromLabel == "" || endpoint.ToLabel == "" {
-					t.Errorf("edge type %q has a blank endpoint label (from=%q to=%q); a blank label would match nothing and silently drop the type",
-						edgeType, endpoint.FromLabel, endpoint.ToLabel)
+				// A side is declared by its single label or by a non-empty
+				// any-of set (#8359); neither present, or a blank entry in
+				// the set, would match nothing and silently drop the type.
+				for side, singleAndSet := range map[string][2]any{
+					"from": {endpoint.FromLabel, endpoint.FromLabels},
+					"to":   {endpoint.ToLabel, endpoint.ToLabels},
+				} {
+					single, _ := singleAndSet[0].(string)
+					set, _ := singleAndSet[1].([]string)
+					if single == "" && len(set) == 0 {
+						t.Errorf("edge type %q has no %s endpoint label; it would match nothing and silently drop the type", edgeType, side)
+					}
+					for _, label := range set {
+						if label == "" {
+							t.Errorf("edge type %q has a blank %s endpoint label in its set", edgeType, side)
+						}
+					}
 				}
 			}
 		})
@@ -113,7 +128,7 @@ func TestSharedEdgeTypesAreDisambiguatedByEndpoints(t *testing.T) {
 
 	repoDependsOn := repoConstraints["DEPENDS_ON"]
 	workloadDependsOn := workloadConstraints["DEPENDS_ON"]
-	if repoDependsOn == workloadDependsOn {
+	if reflect.DeepEqual(repoDependsOn, workloadDependsOn) {
 		t.Fatalf("both families constrain DEPENDS_ON to %+v; identical endpoints cannot partition the shared type, so each family's exact set would see the other's edges as extras",
 			repoDependsOn)
 	}

@@ -42,19 +42,20 @@ func TestSemanticEntityWriterWritesTSXFunctionFragmentMetadata(t *testing.T) {
 	if got, want := result.CanonicalWrites, 1; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
-	if got, want := len(executor.calls), 2; got != want {
-		t.Fatalf("executor calls = %d, want %d", got, want)
+	upserts := semanticNonRetractCalls(executor.calls)
+	if got, want := len(upserts), 1; got != want {
+		t.Fatalf("upsert calls = %d, want %d", got, want)
 	}
 
-	functionRows := executor.calls[1].Parameters["rows"].([]map[string]any)
+	functionRows := upserts[0].Parameters["rows"].([]map[string]any)
 	if got, want := len(functionRows), 1; got != want {
 		t.Fatalf("function row count = %d, want %d", got, want)
 	}
 	if got, want := functionRows[0]["jsx_fragment_shorthand"], true; got != want {
 		t.Fatalf("function jsx_fragment_shorthand = %#v, want %#v", got, want)
 	}
-	if !strings.Contains(executor.calls[1].Cypher, "n.jsx_fragment_shorthand = row.jsx_fragment_shorthand") {
-		t.Fatalf("function cypher missing jsx_fragment_shorthand assignment: %s", executor.calls[1].Cypher)
+	if !strings.Contains(upserts[0].Cypher, "n.jsx_fragment_shorthand = row.jsx_fragment_shorthand") {
+		t.Fatalf("function cypher missing jsx_fragment_shorthand assignment: %s", upserts[0].Cypher)
 	}
 }
 
@@ -89,19 +90,20 @@ func TestSemanticEntityWriterWritesTSXVariableComponentTypeAssertionMetadata(t *
 	if got, want := result.CanonicalWrites, 1; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
-	if got, want := len(executor.calls), 2; got != want {
-		t.Fatalf("executor calls = %d, want %d", got, want)
+	upserts := semanticNonRetractCalls(executor.calls)
+	if got, want := len(upserts), 1; got != want {
+		t.Fatalf("upsert calls = %d, want %d", got, want)
 	}
 
-	variableRows := executor.calls[1].Parameters["rows"].([]map[string]any)
+	variableRows := upserts[0].Parameters["rows"].([]map[string]any)
 	if got, want := len(variableRows), 1; got != want {
 		t.Fatalf("variable row count = %d, want %d", got, want)
 	}
 	if got, want := variableRows[0]["component_type_assertion"], "ComponentType"; got != want {
 		t.Fatalf("variable component_type_assertion = %#v, want %#v", got, want)
 	}
-	if !strings.Contains(executor.calls[1].Cypher, "n.component_type_assertion = row.component_type_assertion") {
-		t.Fatalf("variable cypher missing component_type_assertion assignment: %s", executor.calls[1].Cypher)
+	if !strings.Contains(upserts[0].Cypher, "n.component_type_assertion = row.component_type_assertion") {
+		t.Fatalf("variable cypher missing component_type_assertion assignment: %s", upserts[0].Cypher)
 	}
 }
 
@@ -137,18 +139,19 @@ func TestSemanticEntityWriterWritesTSXComponentWrapperMetadata(t *testing.T) {
 	if got, want := result.CanonicalWrites, 1; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
-	if got, want := len(executor.calls), 2; got != want {
-		t.Fatalf("executor calls = %d, want %d", got, want)
+	upserts := semanticNonRetractCalls(executor.calls)
+	if got, want := len(upserts), 1; got != want {
+		t.Fatalf("upsert calls = %d, want %d", got, want)
 	}
 
-	componentRows := executor.calls[1].Parameters["rows"].([]map[string]any)
+	componentRows := upserts[0].Parameters["rows"].([]map[string]any)
 	if got, want := len(componentRows), 1; got != want {
 		t.Fatalf("component row count = %d, want %d", got, want)
 	}
 	if got, want := componentRows[0]["component_wrapper_kind"], "memo"; got != want {
 		t.Fatalf("component component_wrapper_kind = %#v, want %#v", got, want)
 	}
-	if !strings.Contains(executor.calls[1].Cypher, "n.component_wrapper_kind = row.component_wrapper_kind") {
-		t.Fatalf("component cypher missing component_wrapper_kind assignment: %s", executor.calls[1].Cypher)
+	if !strings.Contains(upserts[0].Cypher, "n.component_wrapper_kind = row.component_wrapper_kind") {
+		t.Fatalf("component cypher missing component_wrapper_kind assignment: %s", upserts[0].Cypher)
 	}
 }

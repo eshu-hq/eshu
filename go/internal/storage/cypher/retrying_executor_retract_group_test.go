@@ -40,7 +40,7 @@ func TestClassifyRetryableGraphWriteGroupErrorRetriesIdempotentRetractWithMerge(
 		"full repo retract then upsert": {
 			{
 				Operation: OperationCanonicalRetract,
-				Cypher:    semanticEntityLabelRetractCypher("Variable"),
+				Cypher:    semanticEntityLabelEdgeRetractCypher("File", "Variable"),
 			},
 			{
 				Operation: OperationCanonicalUpsert,
@@ -50,7 +50,7 @@ func TestClassifyRetryableGraphWriteGroupErrorRetriesIdempotentRetractWithMerge(
 		"delta retract then upsert": {
 			{
 				Operation: OperationCanonicalRetract,
-				Cypher:    semanticEntityDeltaLabelRetractCypher("Variable"),
+				Cypher:    semanticEntityDeltaLabelEdgeRetractCypher("File", "Variable"),
 			},
 			{
 				Operation: OperationCanonicalUpsert,
@@ -68,7 +68,9 @@ func TestClassifyRetryableGraphWriteGroupErrorRetriesIdempotentRetractWithMerge(
 			},
 		},
 		"broad multi-label retract then upsert": {
-			{Operation: OperationCanonicalRetract, Cypher: semanticEntityRetractCypher},
+			{Operation: OperationCanonicalRetract, Cypher: RetractSemanticEntityContainmentEdgesCypher},
+			{Operation: OperationCanonicalRetract, Cypher: RetractSemanticEntityContainmentNodeScopedEdgesCypher},
+			{Operation: OperationCanonicalRetract, Cypher: semanticEntityReapCypher},
 			{
 				Operation: OperationCanonicalUpsert,
 				Cypher:    semanticEntityBatchedPropertiesUpsertCypher("Variable"),
@@ -267,6 +269,22 @@ func TestClassifyRetryableGraphWriteGroupErrorKeepsNonIdempotentGroupsTerminal(t
 		"retract mixing a bound membership with a graph-state term": {
 			Operation: OperationCanonicalRetract,
 			Cypher:    "MATCH (n:Variable)\nWHERE n.repo_id IN $repo_ids\n  AND n.stale\nDETACH DELETE n",
+		},
+		// The edgeless-reap exception (#8359) is shape-bound, not a general
+		// NOT EXISTS pass. A reap whose outer predicate is unbounded, or
+		// that DETACHes (taking a racing foreign edge with the node), or
+		// that writes while reaping, must stay terminal.
+		"edgeless reap with an unbounded outer predicate": {
+			Operation: OperationCanonicalRetract,
+			Cypher:    "MATCH (n:Variable)\nWHERE n.stale\n  AND NOT EXISTS { MATCH (n)-[]-() }\nDELETE n",
+		},
+		"edgeless reap that detaches": {
+			Operation: OperationCanonicalRetract,
+			Cypher:    "MATCH (n:Variable)\nWHERE n.repo_id IN $repo_ids\n  AND n.evidence_source = $evidence_source\n  AND NOT EXISTS { MATCH (n)-[]-() }\nDETACH DELETE n",
+		},
+		"edgeless reap that also writes": {
+			Operation: OperationCanonicalRetract,
+			Cypher:    "MATCH (n:Variable)\nWHERE n.repo_id IN $repo_ids\n  AND n.evidence_source = $evidence_source\n  AND NOT EXISTS { MATCH (n)-[]-() }\nSET n.reaped = true\nDELETE n",
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

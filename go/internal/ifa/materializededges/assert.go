@@ -41,6 +41,11 @@ type ExpectedEdge struct {
 	// Properties carries SET-only relationship properties whose values the
 	// fixture asserts even though they do not participate in MERGE identity.
 	Properties map[string]string `json:"properties,omitempty"`
+	// RepoID is the fixture's single owning repository (sql.go's
+	// sqlRelationshipExpectedEdge documents which family populates it).
+	// Scope metadata only: Key() deliberately excludes it, so a fixture
+	// that gains a repo declaration compares identically to one without.
+	RepoID string `json:"repo_id,omitempty"`
 }
 
 // Key is the canonical set-membership key for exact-set comparison: a

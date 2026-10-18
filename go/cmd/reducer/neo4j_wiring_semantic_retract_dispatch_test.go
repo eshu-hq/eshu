@@ -46,8 +46,10 @@ func anyReducerCypherContains(cyphers []string, sub string) bool {
 // TestSemanticEntityWriterForGraphBackendNornicDBGroupsRetractWithUpserts
 // proves the FACTORY (semanticEntityWriterForGraphBackend) leaves the NornicDB
 // semantic retract inside the grouped, atomic transaction: driven by a
-// group-capable executor, the Module DETACH DELETE retract and the UNWIND
-// upserts both route through ExecuteGroup, with nothing on autocommit Execute.
+// group-capable executor, the Module CONTAINS edge retract (DELETE rel) and
+// the UNWIND upserts both route through ExecuteGroup, with nothing on
+// autocommit Execute. There is no DETACH DELETE anywhere: #8359 replaced the
+// shared-node delete with per-label edge retracts plus an edgeless-node reap.
 //
 // This inverts the #4367 assertion it replaces, deliberately. That one required
 // the retract on autocommit Execute because grouped DETACH DELETEs under-applied
@@ -73,8 +75,11 @@ func TestSemanticEntityWriterForGraphBackendNornicDBGroupsRetractWithUpserts(t *
 	if len(exec.executeCyphers) != 0 {
 		t.Fatalf("NornicDB factory: %d statement(s) routed through autocommit Execute, want 0 — retract and upsert must commit in one atomic ExecuteGroup", len(exec.executeCyphers))
 	}
-	if !anyReducerCypherContains(exec.groupCyphers, "DETACH DELETE") {
-		t.Fatal("NornicDB factory: the Module DETACH DELETE retract must be inside the grouped transaction with the upserts")
+	if !anyReducerCypherContains(exec.groupCyphers, "MATCH (src:File)-[rel:CONTAINS]->(n:Module)") {
+		t.Fatal("NornicDB factory: the Module CONTAINS edge retract must be inside the grouped transaction with the upserts")
+	}
+	if anyReducerCypherContains(exec.groupCyphers, "DETACH DELETE") {
+		t.Fatal("NornicDB factory: no DETACH DELETE may run against nodes shared with the canonical writer")
 	}
 	if !anyReducerCypherContains(exec.groupCyphers, "UNWIND $rows AS row") {
 		t.Fatal("NornicDB factory: upserts must still batch through ExecuteGroup")

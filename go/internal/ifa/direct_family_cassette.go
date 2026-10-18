@@ -50,6 +50,7 @@ const (
 	ec2UsesProfileFamilyCassettePath                 = "testdata/cassettes/ec2usesprofile/ifa-ec2-uses-profile-family.json"
 	s3LogsToFamilyCassettePath                       = "testdata/cassettes/s3logsto/ifa-s3-logs-to-family.json"
 	kubernetesCorrelationFamilyCassettePath          = "testdata/cassettes/kubernetescorrelation/ifa-kubernetes-correlation-family.json"
+	semanticEntityContainmentFamilyCassettePath      = "testdata/cassettes/semanticentitycontainment/ifa-semantic-entity-containment-family.json"
 )
 
 // KubernetesNamespaceEnvironmentFamilyCassetteFullPath joins repoRoot onto the
@@ -85,14 +86,20 @@ type directFamilyCassetteFile struct {
 		ObservedAt    string            `json:"observed_at"`
 		TriggerKind   string            `json:"trigger_kind"`
 		Facts         []struct {
-			FactKind         string         `json:"fact_kind"`
-			StableFactKey    string         `json:"stable_fact_key"`
-			SchemaVersion    string         `json:"schema_version"`
-			CollectorKind    string         `json:"collector_kind"`
-			FencingToken     int64          `json:"fencing_token"`
-			SourceConfidence string         `json:"source_confidence"`
-			IsTombstone      bool           `json:"is_tombstone,omitempty"`
-			Payload          map[string]any `json:"payload"`
+			FactKind         string `json:"fact_kind"`
+			StableFactKey    string `json:"stable_fact_key"`
+			SchemaVersion    string `json:"schema_version"`
+			CollectorKind    string `json:"collector_kind"`
+			FencingToken     int64  `json:"fencing_token"`
+			SourceConfidence string `json:"source_confidence"`
+			IsTombstone      bool   `json:"is_tombstone,omitempty"`
+			// SourceURI is projected (unlike the transport fields below)
+			// because the semantic extractor reads the entity's file path
+			// from it: dropping it would make the semantic family's
+			// cassette extract zero rows while its compiled Odù extracts
+			// the fixture set.
+			SourceURI string         `json:"source_uri,omitempty"`
+			Payload   map[string]any `json:"payload"`
 		} `json:"facts"`
 	} `json:"scopes"`
 }
@@ -201,6 +208,19 @@ func KubernetesCorrelationFamilyCassetteFullPath(repoRoot string) string {
 	return filepath.Join(repoRoot, kubernetesCorrelationFamilyCassettePath)
 }
 
+// SemanticEntityContainmentFamilyCassetteFullPath joins repoRoot onto the
+// committed semantic_entity_containment family cassette path.
+func SemanticEntityContainmentFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, semanticEntityContainmentFamilyCassettePath)
+}
+
+// LoadSemanticEntityContainmentFamilyOdu reads the committed cassette and
+// projects it onto the fact envelopes the semantic extractor consumes, the
+// semantic_entity_containment counterpart to the loaders above.
+func LoadSemanticEntityContainmentFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	return loadDirectFamilyOdu(cassettePath, SemanticEntityContainmentFamilyOduName)
+}
+
 // LoadKubernetesCorrelationFamilyOdu reads the committed cassette and projects
 // it onto the fact envelopes the reducer's extractor consumes, the
 // kubernetes_correlation counterpart to LoadS3LogsToFamilyOdu.
@@ -260,6 +280,7 @@ func loadDirectFamilyOdu(cassettePath, oduName string) (familyodu.Odu, error) {
 			CollectorKind:    fact.CollectorKind,
 			SourceConfidence: fact.SourceConfidence,
 			IsTombstone:      fact.IsTombstone,
+			SourceRef:        facts.Ref{SourceURI: fact.SourceURI},
 			Payload:          fact.Payload,
 		})
 	}

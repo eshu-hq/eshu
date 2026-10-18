@@ -62,6 +62,8 @@ func parseAssertEdgesFlags(args []string, stderr io.Writer) (assertEdgesOptions,
 // set. Most families compare count and (relationship_type, source_uid,
 // target_uid) triples. rationale_edges instead compares every raw source,
 // relationship, and target field within its one-repository fixture scope.
+// semantic_entity_containment compares the same triples as most families,
+// but scoped to its fixture repo first (rationale-pattern scope).
 //
 // This is the assertion the P2 determinism digest alone cannot make: digest
 // equality across N∈{1,2,4} proves the graph is worker-count-invariant, but a
@@ -93,6 +95,23 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 	if err != nil {
 		return fmt.Errorf("ifa assert-edges: %w", err)
 	}
+	if o.domain == "semantic_entity_containment" {
+		repoID, expected, err := materializededges.LoadSemanticEntityContainmentExpectedEdges(o.expected)
+		if err != nil {
+			return fmt.Errorf("ifa assert-edges: %w", err)
+		}
+		reader, closeFn, err := openAssertEdgesReader(ctx)
+		if err != nil {
+			return fmt.Errorf("ifa assert-edges: open graph backend: %w", err)
+		}
+		defer closeFn()
+		if err := assertSemanticEntityContainmentEdges(ctx, reader, repoID, expected); err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintf(stdout, "ifa assert-edges: domain=%s expected=%d edges matched exactly\n", o.domain, len(expected))
+		return nil
+	}
+
 	if o.domain == "rationale_edges" {
 		repoID, expected, err := materializededges.LoadRationaleExpectedEdgeRecords(o.expected)
 		if err != nil {

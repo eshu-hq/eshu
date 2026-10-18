@@ -178,7 +178,8 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		RetractCypher:  sourcecypher.RetractRationaleEdgesCypher,
 		IdentityCypher: sourcecypher.BatchCanonicalRationaleExplainsEdgeCypher,
 	},
-	// The nine DIRECT-materialization families registered here (#6228).
+	// The ten DIRECT-materialization families registered here (#6228; #8359
+	// for semantic_entity_containment).
 	// Unlike every entry above them, these reach the graph straight from their
 	// own reducer port with no shared-projection intent row in between, so
 	// reducer.DirectMaterializedEdgeFamilies() enumerates them rather than
@@ -370,6 +371,24 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 			sourcecypher.RetractStaleCodeTaintEvidenceByUIDsCypher,
 		},
 		IdentityCypher: sourcecypher.CodeTaintEvidenceUpsertCypher,
+	},
+	// semantic_entity_containment shares its CONTAINS type with the canonical
+	// node writer, so it registers only since #8359 gave it a dedicated
+	// edge retract (the #6228 verdict excluded its old shared-node DETACH
+	// DELETE). RetractCypher holds the stamped-edge retract; the node-scoped
+	// and delta variants join RetractVariants — the drift guard pins every
+	// held variant's alternation against CONTAINS. Edgeless-node reaps stay
+	// unheld (they delete nodes, never edges). Endpoint labels plus the rel
+	// stamp fence the canonical population out — see endpoints.go.
+	"semantic_entity_containment": {
+		EdgeTypes:     map[string]string{"CONTAINS": "file/impl-block to semantic entity containment (semantic entity writer templates in semantic_entity_statements.go)"},
+		RetractCypher: sourcecypher.RetractSemanticEntityContainmentEdgesCypher,
+		RetractVariants: []string{
+			sourcecypher.RetractSemanticEntityContainmentNodeScopedEdgesCypher,
+			sourcecypher.RetractSemanticEntityContainmentDeltaEdgesCypher,
+			sourcecypher.RetractSemanticEntityContainmentDeltaNodeScopedEdgesCypher,
+		},
+		IdentityCypher: sourcecypher.SemanticEntityContainmentUpsertCypher,
 	},
 }
 

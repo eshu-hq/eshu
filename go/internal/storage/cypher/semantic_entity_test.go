@@ -104,17 +104,20 @@ func TestSemanticEntityWriterWritesAnnotationTypedefTypeAliasComponentAndFunctio
 	if got, want := result.CanonicalWrites, 5; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
-	if got, want := len(executor.calls), 6; got != want {
-		t.Fatalf("executor calls = %d, want %d", got, want)
+	upserts := semanticNonRetractCalls(executor.calls)
+	if got, want := len(upserts), 5; got != want {
+		t.Fatalf("upsert calls = %d, want %d", got, want)
 	}
 	if executor.calls[0].Operation != OperationCanonicalRetract {
 		t.Fatalf("call[0].Operation = %q, want %q", executor.calls[0].Operation, OperationCanonicalRetract)
 	}
-	if !strings.Contains(executor.calls[0].Cypher, "DETACH DELETE n") {
-		t.Fatalf("call[0].Cypher missing DETACH DELETE: %s", executor.calls[0].Cypher)
+	// #8359: the retract deletes this writer's CONTAINS edges; it must
+	// never DETACH DELETE the shared nodes.
+	if !strings.Contains(executor.calls[0].Cypher, "[rel:CONTAINS]") || strings.Contains(executor.calls[0].Cypher, "DETACH DELETE") {
+		t.Fatalf("call[0].Cypher is not the dedicated edge retract: %s", executor.calls[0].Cypher)
 	}
 
-	annotationRows := executor.calls[1].Parameters["rows"].([]map[string]any)
+	annotationRows := upserts[0].Parameters["rows"].([]map[string]any)
 	if got, want := len(annotationRows), 1; got != want {
 		t.Fatalf("annotation row count = %d, want %d", got, want)
 	}
@@ -124,22 +127,22 @@ func TestSemanticEntityWriterWritesAnnotationTypedefTypeAliasComponentAndFunctio
 	if got, want := annotationRows[0]["target_kind"], "method_declaration"; got != want {
 		t.Fatalf("annotation target_kind = %#v, want %#v", got, want)
 	}
-	if !strings.Contains(executor.calls[1].Cypher, "MERGE (n:Annotation {uid: row.entity_id})") {
-		t.Fatalf("annotation cypher missing Annotation merge: %s", executor.calls[1].Cypher)
+	if !strings.Contains(upserts[0].Cypher, "MERGE (n:Annotation {uid: row.entity_id})") {
+		t.Fatalf("annotation cypher missing Annotation merge: %s", upserts[0].Cypher)
 	}
 
-	typedefRows := executor.calls[2].Parameters["rows"].([]map[string]any)
+	typedefRows := upserts[1].Parameters["rows"].([]map[string]any)
 	if got, want := len(typedefRows), 1; got != want {
 		t.Fatalf("typedef row count = %d, want %d", got, want)
 	}
 	if got, want := typedefRows[0]["type"], "int"; got != want {
 		t.Fatalf("typedef type = %#v, want %#v", got, want)
 	}
-	if !strings.Contains(executor.calls[2].Cypher, "MERGE (n:Typedef {uid: row.entity_id})") {
-		t.Fatalf("typedef cypher missing Typedef merge: %s", executor.calls[2].Cypher)
+	if !strings.Contains(upserts[1].Cypher, "MERGE (n:Typedef {uid: row.entity_id})") {
+		t.Fatalf("typedef cypher missing Typedef merge: %s", upserts[1].Cypher)
 	}
 
-	typeAliasRows := executor.calls[3].Parameters["rows"].([]map[string]any)
+	typeAliasRows := upserts[2].Parameters["rows"].([]map[string]any)
 	if got, want := len(typeAliasRows), 1; got != want {
 		t.Fatalf("type alias row count = %d, want %d", got, want)
 	}
@@ -153,11 +156,11 @@ func TestSemanticEntityWriterWritesAnnotationTypedefTypeAliasComponentAndFunctio
 	if got, want := len(typeParameters), 1; got != want || typeParameters[0] != "T" {
 		t.Fatalf("type alias type_parameters = %#v, want [T]", typeParameters)
 	}
-	if !strings.Contains(executor.calls[3].Cypher, "MERGE (n:TypeAlias {uid: row.entity_id})") {
-		t.Fatalf("type alias cypher missing TypeAlias merge: %s", executor.calls[3].Cypher)
+	if !strings.Contains(upserts[2].Cypher, "MERGE (n:TypeAlias {uid: row.entity_id})") {
+		t.Fatalf("type alias cypher missing TypeAlias merge: %s", upserts[2].Cypher)
 	}
 
-	componentRows := executor.calls[4].Parameters["rows"].([]map[string]any)
+	componentRows := upserts[3].Parameters["rows"].([]map[string]any)
 	if got, want := len(componentRows), 1; got != want {
 		t.Fatalf("component row count = %d, want %d", got, want)
 	}
@@ -170,11 +173,11 @@ func TestSemanticEntityWriterWritesAnnotationTypedefTypeAliasComponentAndFunctio
 	if got, want := componentRows[0]["component_type_assertion"], "ComponentType"; got != want {
 		t.Fatalf("component component_type_assertion = %#v, want %#v", got, want)
 	}
-	if !strings.Contains(executor.calls[4].Cypher, "MERGE (n:Component {uid: row.entity_id})") {
-		t.Fatalf("component cypher missing Component merge: %s", executor.calls[4].Cypher)
+	if !strings.Contains(upserts[3].Cypher, "MERGE (n:Component {uid: row.entity_id})") {
+		t.Fatalf("component cypher missing Component merge: %s", upserts[3].Cypher)
 	}
 
-	functionRows := executor.calls[5].Parameters["rows"].([]map[string]any)
+	functionRows := upserts[4].Parameters["rows"].([]map[string]any)
 	if got, want := len(functionRows), 1; got != want {
 		t.Fatalf("function row count = %d, want %d", got, want)
 	}
@@ -187,11 +190,11 @@ func TestSemanticEntityWriterWritesAnnotationTypedefTypeAliasComponentAndFunctio
 	if got, want := functionRows[0]["parameter_count"], 3; got != want {
 		t.Fatalf("function parameter_count = %#v, want %#v", got, want)
 	}
-	if !strings.Contains(executor.calls[5].Cypher, "n.parameter_count = row.parameter_count") {
-		t.Fatalf("function cypher missing parameter_count projection: %s", executor.calls[5].Cypher)
+	if !strings.Contains(upserts[4].Cypher, "n.parameter_count = row.parameter_count") {
+		t.Fatalf("function cypher missing parameter_count projection: %s", upserts[4].Cypher)
 	}
-	if !strings.Contains(executor.calls[5].Cypher, "MERGE (n:Function {uid: row.entity_id})") {
-		t.Fatalf("function cypher missing Function merge: %s", executor.calls[5].Cypher)
+	if !strings.Contains(upserts[4].Cypher, "MERGE (n:Function {uid: row.entity_id})") {
+		t.Fatalf("function cypher missing Function merge: %s", upserts[4].Cypher)
 	}
 }
 
@@ -243,11 +246,12 @@ func TestSemanticEntityWriterWritesPythonFunctionSemanticMetadata(t *testing.T) 
 	if got, want := result.CanonicalWrites, 2; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
-	if got, want := len(executor.calls), 2; got != want {
-		t.Fatalf("executor calls = %d, want %d", got, want)
+	upserts := semanticNonRetractCalls(executor.calls)
+	if got, want := len(upserts), 1; got != want {
+		t.Fatalf("upsert calls = %d, want %d", got, want)
 	}
 
-	functionRows := executor.calls[1].Parameters["rows"].([]map[string]any)
+	functionRows := upserts[0].Parameters["rows"].([]map[string]any)
 	if got, want := len(functionRows), 2; got != want {
 		t.Fatalf("function row count = %d, want %d", got, want)
 	}
@@ -290,7 +294,7 @@ func TestSemanticEntityWriterWritesPythonFunctionSemanticMetadata(t *testing.T) 
 	if got, ok := lambda["decorators"].([]string); ok && len(got) != 0 {
 		t.Fatalf("lambda decorators = %#v, want empty or absent", got)
 	}
-	if cypher := executor.calls[1].Cypher; !strings.Contains(cypher, "n.decorators = row.decorators") || !strings.Contains(cypher, "n.async = row.async") || !strings.Contains(cypher, "n.semantic_kind = coalesce(row.semantic_kind, row.entity_type)") {
+	if cypher := upserts[0].Cypher; !strings.Contains(cypher, "n.decorators = row.decorators") || !strings.Contains(cypher, "n.async = row.async") || !strings.Contains(cypher, "n.semantic_kind = coalesce(row.semantic_kind, row.entity_type)") {
 		t.Fatalf("function cypher missing python metadata assignments: %s", cypher)
 	}
 }
@@ -327,19 +331,20 @@ func TestSemanticEntityWriterWritesGoFunctionClassContextMetadata(t *testing.T) 
 	if got, want := result.CanonicalWrites, 1; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
-	if got, want := len(executor.calls), 2; got != want {
-		t.Fatalf("executor calls = %d, want %d", got, want)
+	upserts := semanticNonRetractCalls(executor.calls)
+	if got, want := len(upserts), 1; got != want {
+		t.Fatalf("upsert calls = %d, want %d", got, want)
 	}
 
-	functionRows := executor.calls[1].Parameters["rows"].([]map[string]any)
+	functionRows := upserts[0].Parameters["rows"].([]map[string]any)
 	if got, want := len(functionRows), 1; got != want {
 		t.Fatalf("function row count = %d, want %d", got, want)
 	}
 	if got, want := functionRows[0]["class_context"], "CodeHandler"; got != want {
 		t.Fatalf("function class_context = %#v, want %#v", got, want)
 	}
-	if !strings.Contains(executor.calls[1].Cypher, "n.class_context = row.class_context") {
-		t.Fatalf("function cypher missing class_context projection: %s", executor.calls[1].Cypher)
+	if !strings.Contains(upserts[0].Cypher, "n.class_context = row.class_context") {
+		t.Fatalf("function cypher missing class_context projection: %s", upserts[0].Cypher)
 	}
 }
 
@@ -369,7 +374,7 @@ func TestSemanticEntityWriterIncludesNullableOptionalFunctionProperties(t *testi
 		t.Fatalf("WriteSemanticEntities() error = %v", err)
 	}
 
-	functionRows := executor.calls[1].Parameters["rows"].([]map[string]any)
+	functionRows := semanticNonRetractCalls(executor.calls)[0].Parameters["rows"].([]map[string]any)
 	row := functionRows[0]
 	for _, key := range []string{"docstring", "method_kind", "class_context", "context", "type_parameters"} {
 		value, ok := row[key]
@@ -413,19 +418,20 @@ func TestSemanticEntityWriterWritesKotlinSecondaryConstructorSemanticMetadata(t 
 	if got, want := result.CanonicalWrites, 1; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
-	if got, want := len(executor.calls), 2; got != want {
-		t.Fatalf("executor calls = %d, want %d", got, want)
+	upserts := semanticNonRetractCalls(executor.calls)
+	if got, want := len(upserts), 1; got != want {
+		t.Fatalf("upsert calls = %d, want %d", got, want)
 	}
 
-	functionRows := executor.calls[1].Parameters["rows"].([]map[string]any)
+	functionRows := upserts[0].Parameters["rows"].([]map[string]any)
 	if got, want := len(functionRows), 1; got != want {
 		t.Fatalf("function row count = %d, want %d", got, want)
 	}
 	if got, want := functionRows[0]["constructor_kind"], "secondary"; got != want {
 		t.Fatalf("function constructor_kind = %#v, want %#v", got, want)
 	}
-	if !strings.Contains(executor.calls[1].Cypher, "n.constructor_kind = row.constructor_kind") {
-		t.Fatalf("function cypher missing constructor_kind projection: %s", executor.calls[1].Cypher)
+	if !strings.Contains(upserts[0].Cypher, "n.constructor_kind = row.constructor_kind") {
+		t.Fatalf("function cypher missing constructor_kind projection: %s", upserts[0].Cypher)
 	}
 }
 
@@ -460,18 +466,19 @@ func TestSemanticEntityWriterWritesElixirGuardFunctionMetadata(t *testing.T) {
 	if got, want := result.CanonicalWrites, 1; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
-	if got, want := len(executor.calls), 2; got != want {
-		t.Fatalf("executor calls = %d, want %d", got, want)
+	upserts := semanticNonRetractCalls(executor.calls)
+	if got, want := len(upserts), 1; got != want {
+		t.Fatalf("upsert calls = %d, want %d", got, want)
 	}
 
-	functionRows := executor.calls[1].Parameters["rows"].([]map[string]any)
+	functionRows := upserts[0].Parameters["rows"].([]map[string]any)
 	if got, want := len(functionRows), 1; got != want {
 		t.Fatalf("function row count = %d, want %d", got, want)
 	}
 	if got, want := functionRows[0]["semantic_kind"], "guard"; got != want {
 		t.Fatalf("function semantic_kind = %#v, want %#v", got, want)
 	}
-	if !strings.Contains(executor.calls[1].Cypher, "MERGE (n:Function {uid: row.entity_id})") {
-		t.Fatalf("function cypher missing Function merge: %s", executor.calls[1].Cypher)
+	if !strings.Contains(upserts[0].Cypher, "MERGE (n:Function {uid: row.entity_id})") {
+		t.Fatalf("function cypher missing Function merge: %s", upserts[0].Cypher)
 	}
 }

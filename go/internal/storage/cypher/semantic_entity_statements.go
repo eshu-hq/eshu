@@ -25,7 +25,8 @@ SET n.id = row.entity_id,
     n.target_kind = row.target_kind,
     n.semantic_kind = coalesce(row.semantic_kind, row.entity_type),
     n.evidence_source = row.evidence_source
-MERGE (f)-[:CONTAINS]->(n)`
+MERGE (f)-[rel:CONTAINS]->(n)
+SET rel.evidence_source = row.evidence_source`
 
 	semanticTypedefUpsertCypher = `UNWIND $rows AS row
 MATCH (f:File {path: row.file_path})
@@ -43,7 +44,8 @@ SET n.id = row.entity_id,
     n.type = row.type,
     n.semantic_kind = coalesce(row.semantic_kind, row.entity_type),
     n.evidence_source = row.evidence_source
-MERGE (f)-[:CONTAINS]->(n)`
+MERGE (f)-[rel:CONTAINS]->(n)
+SET rel.evidence_source = row.evidence_source`
 
 	semanticTypeAliasUpsertCypher = `UNWIND $rows AS row
 MATCH (f:File {path: row.file_path})
@@ -62,7 +64,8 @@ SET n.id = row.entity_id,
     n.type_parameters = row.type_parameters,
     n.semantic_kind = coalesce(row.semantic_kind, row.entity_type),
     n.evidence_source = row.evidence_source
-MERGE (f)-[:CONTAINS]->(n)`
+MERGE (f)-[rel:CONTAINS]->(n)
+SET rel.evidence_source = row.evidence_source`
 
 	semanticTypeAnnotationUpsertCypher = `UNWIND $rows AS row
 MATCH (f:File {path: row.file_path})
@@ -82,7 +85,8 @@ SET n.id = row.entity_id,
     n.type = row.type,
     n.semantic_kind = coalesce(row.semantic_kind, row.entity_type),
     n.evidence_source = row.evidence_source
-MERGE (f)-[:CONTAINS]->(n)`
+MERGE (f)-[rel:CONTAINS]->(n)
+SET rel.evidence_source = row.evidence_source`
 
 	semanticComponentUpsertCypher = `UNWIND $rows AS row
 MATCH (f:File {path: row.file_path})
@@ -103,7 +107,8 @@ SET n.id = row.entity_id,
 	n.component_wrapper_kind = row.component_wrapper_kind,
 	n.semantic_kind = coalesce(row.semantic_kind, row.entity_type),
 	n.evidence_source = row.evidence_source
-MERGE (f)-[:CONTAINS]->(n)`
+MERGE (f)-[rel:CONTAINS]->(n)
+SET rel.evidence_source = row.evidence_source`
 
 	semanticImplBlockUpsertCypher = `UNWIND $rows AS row
 MATCH (f:File {path: row.file_path})
@@ -123,7 +128,8 @@ SET n.id = row.entity_id,
     n.target = row.target,
     n.semantic_kind = coalesce(row.semantic_kind, row.entity_type),
     n.evidence_source = row.evidence_source
-MERGE (f)-[:CONTAINS]->(n)`
+MERGE (f)-[rel:CONTAINS]->(n)
+SET rel.evidence_source = row.evidence_source`
 
 	semanticProtocolUpsertCypher = `UNWIND $rows AS row
 MATCH (f:File {path: row.file_path})
@@ -141,7 +147,8 @@ SET n.id = row.entity_id,
     n.module_kind = row.module_kind,
     n.semantic_kind = coalesce(row.semantic_kind, row.entity_type),
     n.evidence_source = row.evidence_source
-MERGE (f)-[:CONTAINS]->(n)`
+MERGE (f)-[rel:CONTAINS]->(n)
+SET rel.evidence_source = row.evidence_source`
 
 	semanticProtocolImplementationUpsertCypher = `UNWIND $rows AS row
 MATCH (f:File {path: row.file_path})
@@ -161,7 +168,8 @@ SET n.id = row.entity_id,
     n.implemented_for = row.implemented_for,
     n.semantic_kind = coalesce(row.semantic_kind, row.entity_type),
     n.evidence_source = row.evidence_source
-MERGE (f)-[:CONTAINS]->(n)`
+MERGE (f)-[rel:CONTAINS]->(n)
+SET rel.evidence_source = row.evidence_source`
 
 	semanticVariableUpsertCypher = `UNWIND $rows AS row
 MATCH (f:File {path: row.file_path})
@@ -181,7 +189,8 @@ SET n.id = row.entity_id,
 	    n.component_type_assertion = row.component_type_assertion,
 	    n.semantic_kind = coalesce(row.semantic_kind, row.entity_type),
 	    n.evidence_source = row.evidence_source
-	MERGE (f)-[:CONTAINS]->(n)`
+	MERGE (f)-[rel:CONTAINS]->(n)
+SET rel.evidence_source = row.evidence_source`
 
 	semanticModuleUpsertCypher = `UNWIND $rows AS row
 MATCH (f:File {path: row.file_path})
@@ -202,7 +211,8 @@ SET n.id = row.entity_id,
     n.declaration_merge_kinds = row.declaration_merge_kinds,
     n.semantic_kind = coalesce(row.semantic_kind, row.entity_type),
     n.evidence_source = row.evidence_source
-MERGE (f)-[:CONTAINS]->(n)`
+MERGE (f)-[rel:CONTAINS]->(n)
+SET rel.evidence_source = row.evidence_source`
 
 	semanticFunctionUpsertCypher = `UNWIND $rows AS row
 MATCH (f:File {path: row.file_path})
@@ -234,44 +244,23 @@ SET n.id = row.entity_id,
     n.async = row.async,
     n.semantic_kind = coalesce(row.semantic_kind, row.entity_type),
     n.evidence_source = row.evidence_source
-MERGE (f)-[:CONTAINS]->(n)`
+MERGE (f)-[rel:CONTAINS]->(n)
+SET rel.evidence_source = row.evidence_source`
 
 	semanticRustImplBlockOwnershipCypher = `UNWIND $rows AS row
 MATCH (impl:ImplBlock {uid: row.impl_block_id})
 MATCH (fn:Function {uid: row.function_id})
-MERGE (impl)-[:CONTAINS]->(fn)`
-
-	semanticEntityRetractCypher = `MATCH (n:Annotation|Typedef|TypeAlias|TypeAnnotation|Component|Module|ImplBlock|Protocol|ProtocolImplementation|Variable|Function)
-WHERE n.repo_id IN $repo_ids
-  AND n.evidence_source = $evidence_source
-DETACH DELETE n`
-
-	semanticEntityDeltaRetractCypher = `MATCH (n:Annotation|Typedef|TypeAlias|TypeAnnotation|Component|Module|ImplBlock|Protocol|ProtocolImplementation|Variable|Function)
-WHERE n.path IN $file_paths
-  AND n.evidence_source = $evidence_source
-DETACH DELETE n`
+MERGE (impl)-[rel:CONTAINS]->(fn)
+SET rel.evidence_source = row.evidence_source`
 )
-
-func semanticEntityLabelRetractCypher(label string) string {
-	return "MATCH (n:" + label + ")\n" +
-		"WHERE n.repo_id IN $repo_ids\n" +
-		"  AND n.evidence_source = $evidence_source\n" +
-		"DETACH DELETE n"
-}
-
-func semanticEntityDeltaLabelRetractCypher(label string) string {
-	return "MATCH (n:" + label + ")\n" +
-		"WHERE n.path IN $file_paths\n" +
-		"  AND n.evidence_source = $evidence_source\n" +
-		"DETACH DELETE n"
-}
 
 // anchor-census: dynamic-label writer; label set bounded by TestSemanticEntityUpsertLabelsAreAnchorLabels
 func semanticEntitySingleRowUpsertCypher(label string) string {
 	return "MATCH (f:File {path: $file_path})\n" +
 		"MERGE (n:" + label + " {uid: $entity_id})\n" +
 		"SET n += $properties\n" +
-		"MERGE (f)-[:CONTAINS]->(n)"
+		"MERGE (f)-[rel:CONTAINS]->(n)\n" +
+		"SET rel.evidence_source = $properties.evidence_source"
 }
 
 // anchor-census: dynamic-label writer; label set bounded by TestSemanticEntityUpsertLabelsAreAnchorLabels
@@ -280,13 +269,14 @@ func semanticEntityBatchedPropertiesUpsertCypher(label string) string {
 		"MATCH (f:File {path: row.file_path})\n" +
 		"MERGE (n:" + label + " {uid: row.entity_id})\n" +
 		"SET n += row.properties\n" +
-		"MERGE (f)-[:CONTAINS]->(n)"
+		"MERGE (f)-[rel:CONTAINS]->(n)\n" +
+		"SET rel.evidence_source = row.properties.evidence_source"
 }
 
 func semanticEntityMergeFirstRowsUpsertCypher(cypher string) string {
 	const unwindLine = "UNWIND $rows AS row\n"
 	const fileMatchLine = "MATCH (f:File {path: row.file_path})\n"
-	const containmentMerge = "MERGE (f)-[:CONTAINS]->(n)"
+	const containmentMerge = "MERGE (f)-[rel:CONTAINS]->(n)"
 
 	if !strings.HasPrefix(cypher, unwindLine+fileMatchLine) {
 		return cypher
@@ -304,8 +294,9 @@ func semanticEntityCanonicalNodeRowsUpsertCypher(label string, cypher string) st
 		return semanticEntityMergeFirstRowsUpsertCypher(cypher)
 	}
 	const fileMatchLine = "MATCH (f:File {path: row.file_path})"
-	const containmentMerge = "MERGE (f)-[:CONTAINS]->(n)"
+	const containmentMerge = "MERGE (f)-[rel:CONTAINS]->(n)"
 	const evidenceSourceAssignment = "n.evidence_source = row.evidence_source"
+	const relEvidenceSourceAssignment = "SET rel.evidence_source = row.evidence_source"
 
 	rewritten := semanticEntityMergeFirstRowsUpsertCypher(cypher)
 	// anchor-census: dynamic-label writer; label set bounded by TestSemanticEntityUpsertLabelsAreAnchorLabels
@@ -321,6 +312,7 @@ func semanticEntityCanonicalNodeRowsUpsertCypher(label string, cypher string) st
 		trimmed := strings.TrimSpace(line)
 		if trimmed == fileMatchLine ||
 			trimmed == containmentMerge ||
+			trimmed == relEvidenceSourceAssignment ||
 			strings.Contains(trimmed, evidenceSourceAssignment) {
 			continue
 		}

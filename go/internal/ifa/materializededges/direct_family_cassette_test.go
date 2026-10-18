@@ -145,6 +145,12 @@ func directFamilyCassetteCases() []directFamilyCassetteCase {
 			cassettePath: ifa.KubernetesCorrelationFamilyCassetteFullPath,
 			load:         ifa.LoadKubernetesCorrelationFamilyOdu,
 		},
+		{
+			name:         ifa.SemanticEntityContainmentFamilyOduName,
+			compiled:     ifa.SemanticEntityContainmentFamilyOdu,
+			cassettePath: ifa.SemanticEntityContainmentFamilyCassetteFullPath,
+			load:         ifa.LoadSemanticEntityContainmentFamilyOdu,
+		},
 	}
 }
 

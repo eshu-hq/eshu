@@ -58,27 +58,28 @@ func TestSemanticEntityWriterWritesElixirProtocolNodes(t *testing.T) {
 	if got, want := result.CanonicalWrites, 2; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
-	if got, want := len(executor.calls), 3; got != want {
-		t.Fatalf("executor calls = %d, want %d", got, want)
+	upserts := semanticNonRetractCalls(executor.calls)
+	if got, want := len(upserts), 2; got != want {
+		t.Fatalf("upsert calls = %d, want %d", got, want)
 	}
 
-	protocolRows := executor.calls[1].Parameters["rows"].([]map[string]any)
+	protocolRows := upserts[0].Parameters["rows"].([]map[string]any)
 	if got, want := protocolRows[0]["module_kind"], "protocol"; got != want {
 		t.Fatalf("protocol module_kind = %#v, want %#v", got, want)
 	}
-	if !strings.Contains(executor.calls[1].Cypher, "MERGE (n:Protocol {uid: row.entity_id})") {
-		t.Fatalf("protocol cypher missing Protocol merge: %s", executor.calls[1].Cypher)
+	if !strings.Contains(upserts[0].Cypher, "MERGE (n:Protocol {uid: row.entity_id})") {
+		t.Fatalf("protocol cypher missing Protocol merge: %s", upserts[0].Cypher)
 	}
 
-	implementationRows := executor.calls[2].Parameters["rows"].([]map[string]any)
+	implementationRows := upserts[1].Parameters["rows"].([]map[string]any)
 	if got, want := implementationRows[0]["protocol"], "Demo.Serializable"; got != want {
 		t.Fatalf("implementation protocol = %#v, want %#v", got, want)
 	}
 	if got, want := implementationRows[0]["implemented_for"], "Demo.Worker"; got != want {
 		t.Fatalf("implementation implemented_for = %#v, want %#v", got, want)
 	}
-	if !strings.Contains(executor.calls[2].Cypher, "MERGE (n:ProtocolImplementation {uid: row.entity_id})") {
-		t.Fatalf("implementation cypher missing ProtocolImplementation merge: %s", executor.calls[2].Cypher)
+	if !strings.Contains(upserts[1].Cypher, "MERGE (n:ProtocolImplementation {uid: row.entity_id})") {
+		t.Fatalf("implementation cypher missing ProtocolImplementation merge: %s", upserts[1].Cypher)
 	}
 }
 
@@ -114,18 +115,19 @@ func TestSemanticEntityWriterWritesElixirModuleAttributeNodes(t *testing.T) {
 	if got, want := result.CanonicalWrites, 1; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
-	if got, want := len(executor.calls), 2; got != want {
-		t.Fatalf("executor calls = %d, want %d", got, want)
+	upserts := semanticNonRetractCalls(executor.calls)
+	if got, want := len(upserts), 1; got != want {
+		t.Fatalf("upsert calls = %d, want %d", got, want)
 	}
 
-	rows := executor.calls[1].Parameters["rows"].([]map[string]any)
+	rows := upserts[0].Parameters["rows"].([]map[string]any)
 	if got, want := rows[0]["attribute_kind"], "module_attribute"; got != want {
 		t.Fatalf("row[attribute_kind] = %#v, want %#v", got, want)
 	}
 	if got, want := rows[0]["value"], "5_000"; got != want {
 		t.Fatalf("row[value] = %#v, want %#v", got, want)
 	}
-	if !strings.Contains(executor.calls[1].Cypher, "MERGE (n:Variable {uid: row.entity_id})") {
-		t.Fatalf("cypher missing Variable merge: %s", executor.calls[1].Cypher)
+	if !strings.Contains(upserts[0].Cypher, "MERGE (n:Variable {uid: row.entity_id})") {
+		t.Fatalf("cypher missing Variable merge: %s", upserts[0].Cypher)
 	}
 }
