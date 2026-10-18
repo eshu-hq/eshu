@@ -105,3 +105,50 @@ func TestModuleImportKeyMigrationCypherShape(t *testing.T) {
 		t.Error("re-point Cypher deletes a node; it must only move IMPORTS edges off the semantic Module")
 	}
 }
+
+// TestAdoptionCannotMarkBeforeTheModuleMigration proves the adoption path,
+// which skips the graph DDL, still cannot write the schema marker until the
+// Module import_key migration has run and verified: a complete catalog with an
+// unkeyed canonical Module, or a failed collapse, leaves the marker unset and
+// applies no DDL.
+func TestAdoptionCannotMarkBeforeTheModuleMigration(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		runner  func(*[]string) *fakeGraphRunner
+		wantErr string
+	}{
+		{
+			name:    "unkeyed canonical module",
+			runner:  func(e *[]string) *fakeGraphRunner { return &fakeGraphRunner{events: e, moduleUnkeyed: 1} },
+			wantErr: "1 unkeyed canonical Module nodes",
+		},
+		{
+			name: "collapse fails",
+			runner: func(e *[]string) *fakeGraphRunner {
+				return &fakeGraphRunner{events: e, moduleErr: errors.New("leader switch")}
+			},
+			wantErr: "module import key collapse: leader switch",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var events []string
+			db, ddl, err := runNeo4jAdoption(t, tc.runner(&events), &events)
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("run() error = %v, want %q", err, tc.wantErr)
+			}
+			if ddl {
+				t.Fatal("adoption applied DDL")
+			}
+			if markerWritten(db) {
+				t.Fatalf("adoption wrote the schema marker before the Module migration verified; events = %v", events)
+			}
+			if !strings.Contains(strings.Join(events, ","), "module_collapse") {
+				t.Fatalf("events = %v, want the Module migration to have run on the adoption path", events)
+			}
+		})
+	}
+}

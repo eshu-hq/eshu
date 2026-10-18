@@ -42,7 +42,10 @@ Two additions beyond the ruling text, both measured:
    runs after the DDL. Keying in a separate pass after the constraint would
    fail on any duplicate a racing old writer created; the per-group step folds
    it in. It also runs in the adoption path, because adoption writes the
-   marker without the DDL pass.
+   marker without the DDL pass. `TestAdoptionCannotMarkBeforeTheModuleMigration`
+   proves adoption leaves the marker unset when the migration fails or leaves
+   an unkeyed node; with the migration removed from the adoption gate it goes
+   RED.
 
 ## Theory proof (before the production change)
 
