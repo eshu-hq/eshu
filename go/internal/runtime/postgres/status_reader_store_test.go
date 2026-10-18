@@ -107,7 +107,11 @@ func TestSnapshotStatusReaderRealStoreQueryScanDecodeErrorsRollback(t *testing.T
 	}{
 		{"query", 1, nil, queryErr, queryErr},
 		{"scan", 1, &oneBadStatusRow{scanErr: scanErr}, nil, scanErr},
-		{"decode", 4, &oneBadStatusRow{decode: true}, nil, nil},
+		// Decode faults the stage-counts read: the repository selection
+		// counts read (#8454) is now the 4th query, and its scan shape
+		// (*string, *string, *int64) cannot take this mock's
+		// (*string, *int64, *string) row.
+		{"decode", 5, &oneBadStatusRow{decode: true}, nil, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			tx := &emptyStatusTx{snapshotTxStub: &snapshotTxStub{}, faultAt: tc.at, faultRows: tc.rows, faultErr: tc.queryErr}
