@@ -1,0 +1,28 @@
+docs/public/reference/collector-extraction-policy.md
+  h_78a442cba0b3e6 61
+go/cmd/eshu/component_extraction_readiness_test.go
+  h_78a442cba0b3e6 134-144
+go/internal/extraction/README.md
+  h_78a442cba0b3e6 25-26
+go/internal/extraction/catalog.go
+  h_78a442cba0b3e6 48,52-69,96
+go/internal/extraction/evaluate.go
+  h_78a442cba0b3e6 16-19,122
+go/internal/extraction/evaluate_test.go
+  h_78a442cba0b3e6 102-112,190-192,200,210-211
+go/internal/extraction/extraction.go
+  h_78a442cba0b3e6 69-73,85
+go/internal/query/collector_extraction_readiness_test.go
+  h_78a442cba0b3e6 142-152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4d3431e703e5a2c96413e319502dc1a8be4950d0",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
