@@ -145,6 +145,12 @@ func (s FactStore) resolveDeltaUnionBase(
 			// stays out of the outcome labels (no new cardinality); the
 			// refusal routes through the reindex watermark path so the
 			// next selection forces the full re-parse.
+			if s.logger != nil {
+				s.logger.DebugContext(ctx, "delta union retention probe failed; refusing closed",
+					log.ScopeID(scopeID),
+					slog.String("generation_id", generationID),
+					slog.Any("probe_error", err))
+			}
 			return "", baseline, false, deltaBaseMissing(scopeID, generationID, baseline)
 		}
 		if pruned {

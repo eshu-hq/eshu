@@ -378,7 +378,9 @@ func TestFactStoreListFactsProbeErrorOnSupersededBaseRefuses(t *testing.T) {
 			{rows: deltaUnionBaseRows()},
 		},
 	}
-	store := NewFactStore(db).WithInstruments(inst)
+	var logs bytes.Buffer
+	store := NewFactStore(db).WithInstruments(inst).WithLogger(
+		slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})))
 
 	loaded, err := store.ListFacts(context.Background(), "scope-1", "gen-delta-1")
 	if loaded != nil {
@@ -403,6 +405,10 @@ func TestFactStoreListFactsProbeErrorOnSupersededBaseRefuses(t *testing.T) {
 	}
 	if got := deltaUnionOutcomeValue(t, rm, string(projector.DeltaUnionResolveFailed)); got != 0 {
 		t.Fatalf("union_resolve_failed = %d, want 0 (a probe outage is a refusal, not a retry)", got)
+	}
+	if logged := logs.String(); !strings.Contains(logged, "delta union retention probe failed; refusing closed") ||
+		!strings.Contains(logged, "retention probe outage") {
+		t.Fatalf("refusal log = %q, want the probe-failure debug line carrying the cause", logged)
 	}
 }
 
