@@ -5,7 +5,7 @@
 // repository_selection_observations (#7625) and implements membership.Store
 // for the git collector's githubOrg listing evaluation.
 //
-// ObservationStore has four operations:
+// ObservationStore has five operations:
 //
 //   - KnownScopes reads one org's git repository scopes from
 //     ingestion_scopes, matching the repo slug org case-insensitively,
@@ -21,9 +21,17 @@
 //   - DeleteExpiredObservations (#7774) deletes rows of any selector that
 //     stayed expired for the grace past their own liveness window, in bounded
 //     batches of one statement each, skipping rows another transaction holds.
-//     It never deletes a not_listed row, which the mass-miss guard reads.
+//     A not_listed row, which the mass-miss guard reads, is deleted only for
+//     an abandoned selector (#7840, below).
+//   - UpsertSelectorCycle (#7840) advances the selector's row in
+//     repository_selectors (migration 200): one advance-only upsert per
+//     cycle, including guard-tripped cycles that write no observations. The
+//     sweep deletes a not_listed row only when its selector's marker is
+//     missing or older than the row's window plus grace, so a selector that
+//     still cycles keeps its guard history while an abandoned selector's
+//     rows are reclaimed.
 //
 // The store deletes only those long-expired observation rows, never a live
-// or not_listed one, and never writes ingestion_scopes or the graph. It must
-// not import the parent postgres package.
+// one, and never writes ingestion_scopes or the graph. It must not import
+// the parent postgres package.
 package membershipstore

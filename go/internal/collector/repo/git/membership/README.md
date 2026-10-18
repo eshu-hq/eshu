@@ -181,8 +181,12 @@ failed discovery, or no observer wired) sweeps nothing. After that
 request's `evaluated`, `guard_tripped`, or `listing_truncated` outcome, `Observer` calls
 `Store.DeleteExpiredObservations(now, ExpiredObservationGrace)` once. That
 deletes rows of every selector whose `evaluated_at` plus their own liveness
-window plus `ExpiredObservationGrace` has passed (#7774), except `not_listed`
-rows, which are never deleted. Rows orphaned by a credential rotation, rules
+window plus `ExpiredObservationGrace` has passed (#7774). A `not_listed` row
+is deleted only for an abandoned selector (#7840): every cycle, whatever its
+outcome, first advances its own selector's `repository_selectors` marker via
+`Store.UpsertSelectorCycle`, and the sweep reclaims a `not_listed` row only
+when its selector's marker is missing or older than the row's window plus
+the grace. Rows orphaned by a credential rotation, rules
 change, or owner change are the target. A failed store read or a failed upsert
 on that request skips the sweep for the cycle. A truncated listing still
 sweeps: it writes no rows, and the predicate is time-based and never reads the
@@ -206,10 +210,16 @@ unlisted. What a selector does lose past its window plus the grace:
 
 The grace still matters for those: a selector that resumes inside it keeps
 its full history and logs `liveness_lapsed`. Explicit selectors write no
-`not_listed` rows, so the exception never applies to them. The cost is that
-an abandoned selector's `not_listed` rows stay forever. They are bounded by
-the selectors ever created times the scopes each had unlisted, freshness
-reads only live rows, and `Evaluate` reads only its own selector.
+`not_listed` rows, so the reclaim never applies to them. Since #7840 an
+abandoned selector's `not_listed` rows are reclaimed once its marker is
+older than window plus grace: the marker is what separates "still cycling
+but guard-tripped" (writes no rows, advances the marker) from "gone". A
+selector silent for longer than that that later revives re-confirms its
+unlisted scopes from pending; it does not trip, because the cycle that read
+the priors rewrites the rows. Reclaimed rows count on
+`eshu_dp_collector_repository_selection_not_listed_reclaimed_total` and the
+evaluated log's `not_listed_reclaimed_count`; a failed marker write is
+`failure_class=selector_cycle_upsert` and changes no outcome.
 
 ## Evidence
 

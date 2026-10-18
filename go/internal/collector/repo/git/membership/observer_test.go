@@ -38,15 +38,25 @@ type fakeStore struct {
 	knownHosts  []string
 	knownByHost map[string][]KnownScope
 	// sweeps records every DeleteExpiredObservations call; it returns
-	// sweepDeleted and sweepErr.
-	sweeps       []sweepCall
-	sweepDeleted int64
-	sweepErr     error
+	// sweepDeleted, sweepReclaimed, and sweepErr.
+	sweeps         []sweepCall
+	sweepDeleted   int64
+	sweepReclaimed int64
+	sweepErr       error
+	// touches records every UpsertSelectorCycle call; it returns touchErr.
+	touches  []touchCall
+	touchErr error
 }
 
 type sweepCall struct {
 	now   time.Time
 	grace time.Duration
+}
+
+type touchCall struct {
+	selector Selector
+	at       time.Time
+	window   time.Duration
 }
 
 type classificationCall struct {
@@ -55,9 +65,14 @@ type classificationCall struct {
 	classifiedAt time.Time
 }
 
-func (s *fakeStore) DeleteExpiredObservations(_ context.Context, now time.Time, grace time.Duration) (int64, error) {
+func (s *fakeStore) DeleteExpiredObservations(_ context.Context, now time.Time, grace time.Duration) (SweepCounts, error) {
 	s.sweeps = append(s.sweeps, sweepCall{now: now, grace: grace})
-	return s.sweepDeleted, s.sweepErr
+	return SweepCounts{Deleted: s.sweepDeleted, NotListedReclaimed: s.sweepReclaimed}, s.sweepErr
+}
+
+func (s *fakeStore) UpsertSelectorCycle(_ context.Context, selector Selector, cycleAt time.Time, window time.Duration) error {
+	s.touches = append(s.touches, touchCall{selector: selector, at: cycleAt, window: window})
+	return s.touchErr
 }
 
 func (s *fakeStore) expected() Selector {

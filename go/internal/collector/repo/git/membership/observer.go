@@ -36,6 +36,11 @@ const (
 	// FailureClassExpiredSweep means deleting expired observation rows
 	// failed. The evaluation outcome stands.
 	FailureClassExpiredSweep = "expired_sweep"
+	// FailureClassSelectorCycleUpsert means writing the selector's
+	// per-cycle liveness marker (#7840) failed. The evaluation outcome
+	// stands; only a marker stale for a full window plus grace lets the
+	// sweep reclaim the selector's not_listed rows.
+	FailureClassSelectorCycleUpsert = "selector_cycle_upsert"
 	// FailureClassClassificationUpsert means writing upstream probe
 	// classifications failed. The evaluation outcome stands and the next
 	// cycle re-probes: every unclassified Confirmed not_listed row is a
@@ -43,10 +48,19 @@ const (
 	FailureClassClassificationUpsert = "classification_upsert"
 )
 
+// SweepCounts are the rows one DeleteExpiredObservations call deleted:
+// Deleted in total, of which NotListedReclaimed were abandoned selectors'
+// not_listed rows (#7840).
+type SweepCounts struct {
+	Deleted            int64
+	NotListedReclaimed int64
+}
+
 // Store persists selection observations. KnownScopes and Observations are
 // plain reads that take no row locks; UpsertObservations writes one batch in
 // one statement and only advances rows older than the batch;
-// DeleteExpiredObservations deletes long-expired rows in bounded batches.
+// DeleteExpiredObservations deletes long-expired rows in bounded batches;
+// UpsertSelectorCycle advances a selector's per-cycle liveness marker.
 type Store interface {
 	// KnownScopes returns the git default-branch repository scopes in
 	// partition: first-segment owner match, or path-prefix match for a
@@ -61,10 +75,19 @@ type Store interface {
 	// DeleteExpiredObservations deletes rows of every selector whose
 	// evaluated_at plus their own liveness window plus grace is before now,
 	// in bounded batches, and returns the rows deleted, including those
-	// deleted before an error. It never deletes a not_listed row, which
-	// Evaluate's mass-miss guard reads, or a row inside its window or the
-	// grace after it.
-	DeleteExpiredObservations(ctx context.Context, now time.Time, grace time.Duration) (int64, error)
+	// deleted before an error. It never deletes a row inside its window or
+	// the grace after it. A not_listed row, which Evaluate's mass-miss
+	// guard reads, is deleted only when its selector's cycle marker is
+	// missing or older than the row's window plus grace (#7840): a
+	// selector that still cycles, even one whose guard trips every cycle,
+	// keeps its guard history.
+	DeleteExpiredObservations(ctx context.Context, now time.Time, grace time.Duration) (SweepCounts, error)
+	// UpsertSelectorCycle records that selector ran a cycle at cycleAt with
+	// liveness window window (#7840). The marker only advances: a replay or
+	// a lagging replica at an older cycle time changes nothing. Every cycle
+	// writes it, including a guard-tripped or listing-truncated one, so the
+	// sweep can tell a live selector from an abandoned one.
+	UpsertSelectorCycle(ctx context.Context, selector Selector, cycleAt time.Time, window time.Duration) error
 	// UpsertClassifications writes probe verdicts for the selector's
 	// Confirmed not_listed rows: one row per probed scope with its upstream
 	// classification, successor slug, and probe time. Rows whose probe was
@@ -111,21 +134,37 @@ type Observer struct {
 // also logs git_repository_selection_liveness_lapsed: the selector's rows had
 // expired and read as unknown until this evaluation.
 //
+// Every cycle with a wired store also advances the selector's liveness
+// marker (#7840), whatever the outcome: a guard-tripped cycle writes no
+// observation rows, so the marker is the only proof its selector is still
+// cycling. A marker failure is logged as the selector_cycle_upsert failure
+// class and leaves the outcome unchanged. The marker is written before the
+// sweep, so this cycle's own sweep can never reclaim this selector's rows.
+//
 // When req.SweepExpired is set, a store is wired, and no store call failed
 // (an evaluated, guard-tripped, or listing-truncated outcome), it then sweeps
-// rows of every selector that expired more than ExpiredObservationGrace ago,
-// never not_listed rows. A truncated listing still sweeps: the predicate is
-// time-based and independent of the listing, so a repo limit held below the
-// org size cannot stop the drain. A sweep failure is logged as the
-// expired_sweep failure class and leaves the outcome unchanged.
+// rows of every selector that expired more than ExpiredObservationGrace ago.
+// A not_listed row is swept only for a selector whose marker is missing or
+// older than the row's window plus the grace. A truncated listing still
+// sweeps: the predicate is time-based and independent of the listing, so a
+// repo limit held below the org size cannot stop the drain. A sweep failure
+// is logged as the expired_sweep failure class and leaves the outcome
+// unchanged.
 func (o Observer) Observe(ctx context.Context, req Request) Result {
 	result, failureClass, err := o.evaluate(ctx, req)
 	if failureClass != "" {
 		result.Outcome = OutcomeStoreError
 		o.storeFailed(ctx, req, failureClass, err)
 	}
+	if o.Store != nil {
+		if err := o.Store.UpsertSelectorCycle(ctx, req.Selector, req.Now, livenessWindow(req.LivenessWindow)); err != nil {
+			o.storeFailed(ctx, req, FailureClassSelectorCycleUpsert, err)
+		}
+	}
 	if req.SweepExpired && o.Store != nil && sweepsAfter(result.Outcome) {
-		result.ExpiredDeleted, err = o.Store.DeleteExpiredObservations(ctx, req.Now, ExpiredObservationGrace)
+		var counts SweepCounts
+		counts, err = o.Store.DeleteExpiredObservations(ctx, req.Now, ExpiredObservationGrace)
+		result.ExpiredDeleted, result.NotListedReclaimed = counts.Deleted, counts.NotListedReclaimed
 		if err != nil {
 			o.storeFailed(ctx, req, FailureClassExpiredSweep, err)
 		}
@@ -317,6 +356,11 @@ func (o Observer) record(ctx context.Context, selectorKind string, result Result
 			telemetry.AttrCollectorKind(collectorKind),
 		))
 	}
+	if result.NotListedReclaimed > 0 && o.Instruments.RepositorySelectionNotListedReclaimed != nil {
+		o.Instruments.RepositorySelectionNotListedReclaimed.Add(ctx, result.NotListedReclaimed, metric.WithAttributes(
+			telemetry.AttrCollectorKind(collectorKind),
+		))
+	}
 	if o.Instruments.RepositorySelectionEvaluations != nil {
 		o.Instruments.RepositorySelectionEvaluations.Add(ctx, 1, metric.WithAttributes(
 			telemetry.AttrCollectorKind(collectorKind),
@@ -390,6 +434,7 @@ func (o Observer) logEvaluated(ctx context.Context, req Request, result Result, 
 		slog.Int64("liveness_window_seconds", int64(window/time.Second)),
 		slog.String("outcome", string(result.Outcome)),
 		slog.Int64("expired_deleted_count", result.ExpiredDeleted),
+		slog.Int64("not_listed_reclaimed_count", result.NotListedReclaimed),
 		slog.Any("not_listed_sample", result.NotListedSample),
 		slog.Int("probed_count", probed),
 		slog.Any("probe_outcomes", result.ProbeOutcomes),

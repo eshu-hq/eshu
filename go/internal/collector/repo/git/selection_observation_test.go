@@ -166,8 +166,12 @@ func (failingSelectionStore) UpsertObservations(context.Context, membership.Batc
 	return errors.New("postgres unavailable")
 }
 
-func (failingSelectionStore) DeleteExpiredObservations(context.Context, time.Time, time.Duration) (int64, error) {
-	return 0, errors.New("postgres unavailable")
+func (failingSelectionStore) DeleteExpiredObservations(context.Context, time.Time, time.Duration) (membership.SweepCounts, error) {
+	return membership.SweepCounts{}, errors.New("postgres unavailable")
+}
+
+func (failingSelectionStore) UpsertSelectorCycle(context.Context, membership.Selector, time.Time, time.Duration) error {
+	return errors.New("postgres unavailable")
 }
 
 func (failingSelectionStore) UpsertClassifications(context.Context, string, []membership.ClassificationRow, time.Time) error {

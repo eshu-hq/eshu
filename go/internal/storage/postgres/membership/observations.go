@@ -156,28 +156,40 @@ const (
 )
 
 // deleteExpiredObservationsQuery deletes one batch of rows, by primary key,
-// whose own liveness window plus the grace period ended before $1. It never
-// deletes a $4 (not_listed) row: membership.Evaluate reads that history to
-// keep scopes already confirmed missing out of the mass-miss guard, so
-// deleting it could trip the guard forever once access returns. Each batch
-// is its own statement, so locks last one batch. SKIP LOCKED passes over a
-// row an upsert holds, and FOR UPDATE rechecks the expiry predicate against
-// the newest row version, so a row renewed before the lock is never deleted.
-// The batch is unordered on purpose: the sweep never waits on a lock, so no
-// lock order is needed, and an ORDER BY forces a full primary-key index scan
-// on every steady-state probe that finds nothing to delete.
+// whose own liveness window plus the grace period ended before $1, and
+// returns each deleted row's state so the caller can count reclaimed
+// not_listed rows. A $4 (not_listed) row is deleted only when its selector
+// is abandoned -- no repository_selectors marker, or a marker older than the
+// row's own window plus grace (#7840): membership.Evaluate reads that
+// history to keep scopes already confirmed missing out of the mass-miss
+// guard, so deleting it for a selector that still cycles (a guard-tripped
+// cycle writes no rows, only the marker) could trip the guard forever once
+// access returns. The marker is read from the statement snapshot, so a
+// selector silent for window plus grace that revives in the same instant as
+// a sweep can lose its history; its next evaluation then re-confirms from
+// pending instead of tripping (the cycle that read the priors rewrites the
+// rows). Each batch is its own statement, so locks last one batch. SKIP
+// LOCKED passes over a row an upsert holds, and FOR UPDATE rechecks the
+// expiry predicate against the newest row version, so a row renewed before
+// the lock is never deleted. The batch is unordered on purpose: the sweep
+// never waits on a lock, so no lock order is needed, and an ORDER BY forces
+// a full primary-key index scan on every steady-state probe that finds
+// nothing to delete.
 const deleteExpiredObservationsQuery = `
 WITH doomed AS (
-    SELECT scope_id, selector_id
-    FROM repository_selection_observations
-    WHERE state <> $4
-      AND evaluated_at + make_interval(secs => liveness_window_seconds) + make_interval(secs => $2::bigint) < $1::timestamptz
+    SELECT o.scope_id, o.selector_id
+    FROM repository_selection_observations o
+    LEFT JOIN repository_selectors s ON s.selector_id = o.selector_id
+    WHERE o.evaluated_at + make_interval(secs => o.liveness_window_seconds) + make_interval(secs => $2::bigint) < $1::timestamptz
+      AND (o.state <> $4 OR s.selector_id IS NULL
+           OR s.last_cycle_at + make_interval(secs => o.liveness_window_seconds) + make_interval(secs => $2::bigint) < $1::timestamptz)
     LIMIT $3
-    FOR UPDATE SKIP LOCKED
+    FOR UPDATE OF o SKIP LOCKED
 )
 DELETE FROM repository_selection_observations o
 USING doomed d
 WHERE o.scope_id = d.scope_id AND o.selector_id = d.selector_id
+RETURNING o.state
 `
 
 var _ membership.Store = ObservationStore{}
@@ -379,34 +391,59 @@ func validClassification(c membership.UpstreamClassification) bool {
 // plus their own liveness window plus grace is before now. It runs batches of
 // expiredSweepBatchSize rows, stops at the first short batch or after
 // expiredSweepMaxBatches, and returns the rows deleted, including those
-// deleted before an error. A not_listed row, a row still inside its window,
-// or a row inside the grace after it is never deleted.
-func (s ObservationStore) DeleteExpiredObservations(ctx context.Context, now time.Time, grace time.Duration) (int64, error) {
+// deleted before an error. A row still inside its window or the grace after
+// it is never deleted; a not_listed row is deleted only for an abandoned
+// selector (see deleteExpiredObservationsQuery, #7840) and is counted in
+// NotListedReclaimed.
+func (s ObservationStore) DeleteExpiredObservations(ctx context.Context, now time.Time, grace time.Duration) (membership.SweepCounts, error) {
 	switch {
 	case s.database == nil:
-		return 0, errors.New("repository selection store database is required")
+		return membership.SweepCounts{}, errors.New("repository selection store database is required")
 	case now.IsZero():
-		return 0, errors.New("delete expired repository selection observations: now is required")
+		return membership.SweepCounts{}, errors.New("delete expired repository selection observations: now is required")
 	case grace < 0:
-		return 0, fmt.Errorf("delete expired repository selection observations: grace must not be negative, got %v", grace)
+		return membership.SweepCounts{}, fmt.Errorf("delete expired repository selection observations: grace must not be negative, got %v", grace)
 	}
-	var deleted int64
+	var counts membership.SweepCounts
 	for range expiredSweepMaxBatches {
-		result, err := s.database.ExecContext(ctx, deleteExpiredObservationsQuery,
-			now.UTC(), int64(grace/time.Second), expiredSweepBatchSize, string(membership.StateNotListed))
+		batch, err := s.deleteExpiredBatch(ctx, now, grace)
+		counts.Deleted += batch.Deleted
+		counts.NotListedReclaimed += batch.NotListedReclaimed
 		if err != nil {
-			return deleted, fmt.Errorf("delete expired repository selection observations: %w", err)
+			return counts, err
 		}
-		n, err := result.RowsAffected()
-		if err != nil {
-			return deleted, fmt.Errorf("delete expired repository selection observations: rows affected: %w", err)
-		}
-		deleted += n
-		if n < expiredSweepBatchSize {
+		if batch.Deleted < expiredSweepBatchSize {
 			break
 		}
 	}
-	return deleted, nil
+	return counts, nil
+}
+
+// deleteExpiredBatch deletes one sweep batch and counts its rows by the
+// states RETURNING reports. A scan or iteration error returns the counts
+// read so far: those rows are deleted even though the batch failed.
+func (s ObservationStore) deleteExpiredBatch(ctx context.Context, now time.Time, grace time.Duration) (membership.SweepCounts, error) {
+	rows, err := s.database.QueryContext(ctx, deleteExpiredObservationsQuery,
+		now.UTC(), int64(grace/time.Second), expiredSweepBatchSize, string(membership.StateNotListed))
+	if err != nil {
+		return membership.SweepCounts{}, fmt.Errorf("delete expired repository selection observations: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var counts membership.SweepCounts
+	for rows.Next() {
+		var state string
+		if err := rows.Scan(&state); err != nil {
+			return counts, fmt.Errorf("delete expired repository selection observations: %w", err)
+		}
+		counts.Deleted++
+		if membership.State(state) == membership.StateNotListed {
+			counts.NotListedReclaimed++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return counts, fmt.Errorf("delete expired repository selection observations: %w", err)
+	}
+	return counts, nil
 }
 
 // validateBatch checks the batch header and returns its rows sorted by scope

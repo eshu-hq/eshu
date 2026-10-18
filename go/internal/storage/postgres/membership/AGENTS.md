@@ -21,10 +21,12 @@
   projector locks those rows first.
 - The only deletion is `DeleteExpiredObservations` (#7774): rows strictly past
   their own liveness window plus the grace, in bounded `SKIP LOCKED` batches.
-  Never delete a `not_listed` row (the mass-miss guard reads them), a live
-  row, or an in-grace row, and never delete or hide a scope. Keep
-  `TestObservationStoreSweepLive` green: it fails a `not_listed`, window,
-  boundary, grace, or lock-wait mutant.
+  A `not_listed` row (the mass-miss guard reads them) may be deleted only
+  when its selector's `repository_selectors` marker is missing or older than
+  the row's window plus grace (#7840); never delete a live or in-grace row,
+  and never delete or hide a scope. Keep `TestObservationStoreSweepLive`
+  green: it fails a `not_listed`, window, boundary, grace, or lock-wait
+  mutant. `UpsertSelectorCycle` is advance-only, like the upsert.
 - Keep the sweep batch unordered. An `ORDER BY` forces a full primary-key scan
   on every steady-state probe; the README has the measurement.
 - This package must not import the parent `postgres` package (tests may).
