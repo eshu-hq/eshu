@@ -12,24 +12,33 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/graph"
 )
 
-func TestDropOversizedIndexKeysModuleNameBoundary(t *testing.T) {
+// TestDropOversizedIndexKeysModuleImportKeyBoundary measures the canonical
+// Module's widest index key, its import_key (name + "@" + language, #8168),
+// not the name alone: a name that fits module_name_lookup can still overflow
+// the module_import_key constraint, and that rejection would fail the whole
+// repository transaction.
+func TestDropOversizedIndexKeysModuleImportKeyBoundary(t *testing.T) {
 	t.Parallel()
 
+	const suffix = "@typescript"
+	nameLimit := MaxIndexedKeyBytes - len(suffix)
 	tests := []struct {
 		name     string
 		value    string
 		wantKept bool
 	}{
-		{name: "limit minus one", value: strings.Repeat("a", MaxIndexedKeyBytes-1), wantKept: true},
-		{name: "at limit", value: strings.Repeat("a", MaxIndexedKeyBytes), wantKept: true},
-		{name: "limit plus one", value: strings.Repeat("a", MaxIndexedKeyBytes+1), wantKept: false},
+		{name: "key limit minus one", value: strings.Repeat("a", nameLimit-1), wantKept: true},
+		{name: "key at limit", value: strings.Repeat("a", nameLimit), wantKept: true},
+		{name: "key limit plus one", value: strings.Repeat("a", nameLimit+1), wantKept: false},
+		{name: "name at limit overflows the key", value: strings.Repeat("a", MaxIndexedKeyBytes), wantKept: false},
 		// The limit is UTF-8 bytes, not characters: Neo4j sizes the index key
-		// by its encoded bytes. 2667 three-byte runes are 8001 bytes but only
-		// 2667 characters, so a rune-counting guard would wrongly keep this.
-		{name: "three byte runes over limit", value: strings.Repeat("€", 2667), wantKept: false},
-		{name: "three byte runes under limit", value: strings.Repeat("€", 2666), wantKept: true},
-		{name: "four byte runes at limit", value: strings.Repeat("😀", MaxIndexedKeyBytes/4), wantKept: true},
-		{name: "four byte runes over limit", value: strings.Repeat("😀", MaxIndexedKeyBytes/4+1), wantKept: false},
+		// by its encoded bytes. 2663 three-byte runes are 7989 bytes, 8000
+		// with the suffix; one more rune is 8003, which a rune-counting guard
+		// would wrongly keep.
+		{name: "three byte runes at limit", value: strings.Repeat("€", 2663), wantKept: true},
+		{name: "three byte runes over limit", value: strings.Repeat("€", 2664), wantKept: false},
+		{name: "four byte runes under limit", value: strings.Repeat("😀", nameLimit/4), wantKept: true},
+		{name: "four byte runes over limit", value: strings.Repeat("😀", nameLimit/4+1), wantKept: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -59,13 +68,29 @@ func TestDropOversizedIndexKeysModuleNameBoundary(t *testing.T) {
 				t.Fatalf("dropped len = %d, want 1", len(dropped))
 			}
 			d := dropped[0]
-			if d.Label != "Module" || d.Property != "name" {
-				t.Fatalf("dropped label/property = %q/%q, want Module/name", d.Label, d.Property)
+			if d.Label != "Module" || d.Property != "import_key" {
+				t.Fatalf("dropped label/property = %q/%q, want Module/import_key", d.Label, d.Property)
 			}
-			if d.KeyBytes != len(tt.value) {
-				t.Fatalf("KeyBytes = %d, want %d", d.KeyBytes, len(tt.value))
+			if d.KeyBytes != len(tt.value)+len(suffix) {
+				t.Fatalf("KeyBytes = %d, want %d", d.KeyBytes, len(tt.value)+len(suffix))
 			}
 		})
+	}
+}
+
+// TestDropOversizedIndexKeysDropsImportOfOverflowingModuleKey proves an
+// IMPORTS row goes with its Module when only the language suffix overflows.
+func TestDropOversizedIndexKeysDropsImportOfOverflowingModuleKey(t *testing.T) {
+	t.Parallel()
+
+	name := strings.Repeat("n", MaxIndexedKeyBytes)
+	mat := CanonicalMaterialization{
+		Modules: []ModuleRow{{Name: name, Language: "go"}},
+		Imports: []ImportRow{{FilePath: "/r/a.go", ModuleName: name, ModuleLanguage: "go"}},
+	}
+	got, dropped := DropOversizedIndexKeys(mat)
+	if len(got.Modules) != 0 || len(got.Imports) != 0 || len(dropped) != 1 {
+		t.Fatalf("kept %d modules and %d imports, dropped %d; want 0, 0, 1", len(got.Modules), len(got.Imports), len(dropped))
 	}
 }
 
@@ -162,7 +187,7 @@ func TestDropOversizedIndexKeysDropsRowsReferencingOversizedKeys(t *testing.T) {
 	for _, d := range dropped {
 		labels = append(labels, d.Label+"."+d.Property)
 	}
-	if want := []string{"Module.name", "Parameter.name"}; !reflect.DeepEqual(labels, want) {
+	if want := []string{"Module.import_key", "Parameter.name"}; !reflect.DeepEqual(labels, want) {
 		t.Fatalf("dropped = %v, want %v", labels, want)
 	}
 }

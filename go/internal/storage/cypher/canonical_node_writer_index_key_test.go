@@ -114,8 +114,8 @@ func TestCanonicalNodeWriterSkipsOversizedIndexKeys(t *testing.T) {
 	module := warns[0]
 	for key, want := range map[string]any{
 		"scope_id": "scope-1", "repo_id": "repo-1", "generation_id": "gen-1",
-		"node_label": "Module", "property": "name",
-		"key_bytes": float64(32473), "limit_bytes": float64(canonical.MaxIndexedKeyBytes),
+		"node_label": "Module", "property": "import_key",
+		"key_bytes": float64(32473 + len("@typescript")), "limit_bytes": float64(canonical.MaxIndexedKeyBytes),
 	} {
 		if module[key] != want {
 			t.Fatalf("module WARN %s = %v, want %v", key, module[key], want)

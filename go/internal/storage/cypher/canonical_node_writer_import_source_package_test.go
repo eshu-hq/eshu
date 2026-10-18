@@ -73,7 +73,8 @@ func TestCanonicalNodeWriterCarriesImportSourcePackage(t *testing.T) {
 		"com.acme.other.Helper":  "com.acme",
 	}
 	for _, row := range rows {
-		module, _ := row["module_name"].(string)
+		key, _ := row["module_import_key"].(string)
+		module := key[:max(strings.LastIndex(key, "@"), 0)]
 		value, present := row["source_package"]
 		pkg, isString := value.(string)
 		if !present || !isString {

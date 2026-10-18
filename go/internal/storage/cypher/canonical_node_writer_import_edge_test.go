@@ -55,13 +55,13 @@ func phaseOrderMaterialization() canonical.CanonicalMaterialization {
 // its neighbour TestCanonicalNodeWriterWritePhaseOrder cannot cover. That test
 // drives a fake executor and asserts only the ORDER of the emitted phases, so a
 // materialization whose ImportRow carries no ModuleLanguage still produces an
-// IMPORTS statement -- with module_language "" -- and the phase order is
+// IMPORTS statement -- with an import key ending in "@" -- and the phase order is
 // unchanged. It passes, and the edge would never land.
 //
 // This reads the emitted parameters instead: every IMPORTS row's
-// (module_name, module_language) must appear among the rows the Module phase
+// module_import_key must appear among the import_key values the Module phase
 // MERGEs, because the writer resolves the edge target with
-// `MATCH (m:Module {name: row.module_name, lang: row.module_language})`. A
+// `MATCH (m:Module {import_key: row.module_import_key})` (#8168). A
 // MATCH that finds nothing yields no row, so the MERGE never runs and nothing
 // errors or logs.
 //
@@ -78,17 +78,15 @@ func TestCanonicalNodeWriterImportEdgeRowsResolveToAnEmittedModule(t *testing.T)
 		t.Fatalf("Write() error = %v", err)
 	}
 
-	type moduleKey struct{ name, lang string }
-	merged := map[moduleKey]struct{}{}
+	merged := map[string]struct{}{}
 	imported := make([]map[string]any, 0, 1)
 	for _, call := range exec.calls {
 		rows, _ := call.Parameters["rows"].([]map[string]any)
 		switch {
 		case strings.Contains(call.Cypher, "MERGE (m:Module"):
 			for _, row := range rows {
-				name, _ := row["name"].(string)
-				lang, _ := row["language"].(string)
-				merged[moduleKey{name: name, lang: lang}] = struct{}{}
+				key, _ := row["import_key"].(string)
+				merged[key] = struct{}{}
 			}
 		case strings.Contains(call.Cypher, "[r:IMPORTS]->"):
 			imported = append(imported, rows...)
@@ -100,11 +98,10 @@ func TestCanonicalNodeWriterImportEdgeRowsResolveToAnEmittedModule(t *testing.T)
 			len(merged), len(imported))
 	}
 	for _, row := range imported {
-		name, _ := row["module_name"].(string)
-		lang, _ := row["module_language"].(string)
-		if _, ok := merged[moduleKey{name: name, lang: lang}]; !ok {
-			t.Fatalf("IMPORTS row %+v targets Module{name=%q, lang=%q}, which the Module phase never MERGEd; "+
-				"the MATCH would bind no node and the edge would be dropped without an error", row, name, lang)
+		key, _ := row["module_import_key"].(string)
+		if _, ok := merged[key]; !ok {
+			t.Fatalf("IMPORTS row %+v targets Module{import_key=%q}, which the Module phase never MERGEd; "+
+				"the MATCH would bind no node and the edge would be dropped without an error", row, key)
 		}
 	}
 }

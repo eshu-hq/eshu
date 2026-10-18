@@ -8,8 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
-
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
@@ -120,8 +118,8 @@ func TestLiveCanonicalWriteSkipsOversizedIndexKeys(t *testing.T) {
 
 	// Preconditions: the backend rejects the unguarded rows. Without these the
 	// rest of the test could pass on a backend that never had the problem.
-	rawErr := boltWriteStatement(ctx, runner, node.ModuleUpsertCypher,
-		map[string]any{"rows": []map[string]any{{"name": bigModule, "language": "typescript"}}})
+	rawErr := boltWriteStatement(ctx, runner, canonicalNodeModuleUpsertCypher,
+		map[string]any{"rows": CanonicalModuleRows([]canonical.ModuleRow{{Name: bigModule, Language: "typescript"}})})
 	if rawErr == nil || !strings.Contains(rawErr.Error(), "too large to index") {
 		t.Fatalf("raw oversized Module upsert error = %v, want the backend's 'too large to index' rejection", rawErr)
 	}
@@ -178,7 +176,9 @@ func applyIndexKeyLiveSchema(ctx context.Context, t *testing.T, runner *boltRetr
 }
 
 func indexKeyLiveMaterialization(generation string, first bool, bigModule, bigName, midName string) canonical.CanonicalMaterialization {
-	limitModule := indexKeyLiveLimitPrefix + strings.Repeat("m", canonical.MaxIndexedKeyBytes-len(indexKeyLiveLimitPrefix))
+	// Exactly at the bound for the Module import_key, name + "@typescript".
+	limitModule := indexKeyLiveLimitPrefix +
+		strings.Repeat("m", canonical.MaxIndexedKeyBytes-len(indexKeyLiveLimitPrefix)-len("@typescript"))
 	// Exactly at the bound for the (name, path, line_number) node key.
 	limitFunction := indexKeyLiveLimitPrefix +
 		strings.Repeat("l", canonical.MaxIndexedKeyBytes-len(indexKeyLiveLimitPrefix)-len(indexKeyLiveFilePath))

@@ -45,12 +45,16 @@ type SchemaApplication struct {
 // MERGE/MATCH identity, add the line, and give the resulting fingerprint no
 // compatible predecessors in graphSchemaCompatibleFingerprints.
 var graphWriteIdentityContract = []string{
-	// Canonical import-graph Module (#6102). See
-	// node.ModuleUpsertCypher and node.ImportEdgeCypher in
-	// go/internal/storage/cypher. Semantic Module entities are unaffected:
-	// they MERGE on uid, which the uid uniqueness constraint already records
-	// as DDL.
-	"Module=name,lang",
+	// Canonical import-graph Module (#6102, then #8168). See
+	// canonicalNodeModuleUpsertCypher and canonicalNodeImportEdgeCypher in
+	// go/internal/storage/cypher. #8168 moved the key from (name, lang) to the
+	// single import_key property the module_import_key constraint covers. A
+	// writer on the previous release MERGEs on (name, lang) and never sets
+	// import_key, so after the migration it would mint a second node beside
+	// each canonical one; the line change refuses it. Semantic Module
+	// entities are unaffected: they MERGE on uid, which the uid uniqueness
+	// constraint already records as DDL.
+	"Module=import_key",
 }
 
 // graphWriteIdentityDigestSection separates the write-identity contract from
@@ -61,32 +65,25 @@ const graphWriteIdentityDigestSection = "graph-write-identity-contract"
 
 const (
 	// graphSchemaNeo4jFingerprint and graphSchemaNornicDBFingerprint are the
-	// current schema digests. They now cover the graphWriteIdentityContract
-	// section as well as the DDL, which is what moved them for the #6102 Module
-	// (name, lang) identity cutover -- that change adds no DDL, so before the
-	// section existed an older writer computed the identical digest and was
-	// admitted.
+	// current schema digests. They cover the graphWriteIdentityContract section
+	// as well as the DDL.
 	//
+	// The current values are the #8168 Module import_key cutover: the
+	// module_import_key constraint plus the Module=import_key identity line.
 	// This bump is NOT additive, and it deliberately lists no compatible
 	// predecessors (see graphSchemaCompatibleFingerprints). A writer on the
-	// previous release resolves an import-edge target by module name alone, so
-	// once both language nodes exist it binds the wrong one. It must stop
+	// previous release MERGEs Module on (name, lang) and never sets import_key,
+	// so it would mint a second node beside every canonical one. It must stop
 	// before writing, not write a graph an operator then has to repair.
 	//
-	// The DDL itself is byte-identical to the pre-cutover schema recorded in
-	// graphSchemaNeo4jPreModuleIdentityFingerprint below, so bootstrap applies
-	// exactly the same statements it did before.
-	// The current values carry the #6541 directory_repo_id index. That bump IS
-	// additive and lists its predecessor as compatible: the index backs the
-	// directory language-query route's seek and changes no MERGE or MATCH
-	// identity, so a writer on the previous schema writes exactly the same
-	// graph -- it merely reads that one route more slowly.
-	// The #6793 tf_module/tf_output evidence_source indexes and the Neo4j-only
-	// #7057 Rationale/DocumentationSection uid indexes are additive too, as are
-	// the #7095/#7097 constraint retirements and the Neo4j-only #7245
-	// infra_search_key_ft index; see schema_predecessors.go.
-	graphSchemaNeo4jFingerprint    = "3e957407c08d6cf2d6cc28c47ab4272b60044d87de7abd47860f2ffc2fb039b9"
-	graphSchemaNornicDBFingerprint = "8dfe89b1768205432074d1bf45730f897f11515391a80968178d4956b8103944"
+	// The previous values (graphSchemaNeo4jPreModuleImportKeyFingerprint in
+	// schema_predecessors.go) were the #6102 (name, lang) cutover plus the
+	// additive index bumps after it: #6541 directory_repo_id, #6793
+	// tf_module/tf_output evidence_source, the Neo4j-only #7057 uid indexes,
+	// the #7095/#7097 constraint retirements, #7675, and the Neo4j-only #7245
+	// infra_search_key_ft index.
+	graphSchemaNeo4jFingerprint    = "fffcd262a37b3af8ca39eced432e59103f41fe0c778d0378b7ff4f7bf0f3230c"
+	graphSchemaNornicDBFingerprint = "443f528a41e80081f1f1731f64c0a1f0ede77a47e31f6e487576c5583466245a"
 
 	// graphSchemaNeo4jPreDirectoryRepoIDIndexFingerprint and its NornicDB peer
 	// are the digests immediately before that index was added, which is the

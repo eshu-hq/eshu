@@ -105,7 +105,7 @@ func TestCanonicalCodeStructureNodesStampOrphanSweepMetadata(t *testing.T) {
 		},
 		{
 			name:   "imported module",
-			cypher: node.ModuleUpsertCypher,
+			cypher: canonicalNodeModuleUpsertCypher,
 			fragments: []string{
 				"m.evidence_source = 'projector/canonical'",
 			},

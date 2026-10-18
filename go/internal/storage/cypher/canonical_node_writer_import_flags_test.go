@@ -81,7 +81,8 @@ func TestCanonicalNodeWriterCarriesImportFlagsAsExplicitBooleans(t *testing.T) {
 		"./e": {false, false, false},
 	}
 	for _, row := range rows {
-		module, _ := row["module_name"].(string)
+		key, _ := row["module_import_key"].(string)
+		module := key[:max(strings.LastIndex(key, "@"), 0)]
 		var got [3]bool
 		for i, key := range []string{"type_only", "deferred", "inferred"} {
 			value, present := row[key]

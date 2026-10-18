@@ -74,6 +74,20 @@ const graphSchemaNeo4jPreFulltextModernFormFingerprint = "675dafc901ff633999440f
 // a key past the index term limit either.
 const graphSchemaNeo4jPreInfraSearchKeyIndexesFingerprint = "ac31ec4947f1586093c5518a8b2edb31ddc0e2e462e2091e551af776aeee9c3e"
 
+// graphSchemaNeo4jPreModuleImportKeyFingerprint and its NornicDB peer are the
+// digests immediately before #8168 moved the canonical Module identity from
+// (name, lang) to import_key and added the module_import_key constraint (the
+// #7245 infra_search_key_ft tip). The bump is a write-identity cutover, so the
+// current fingerprint lists neither of them, nor anything they admitted: a
+// writer on that schema MERGEs Module on (name, lang) and never sets
+// import_key, so after the bootstrap migration keys every canonical node it
+// would create a second node beside each one. Their own compatibility entries
+// below are kept, keyed by these values, as the record of what they admitted.
+const (
+	graphSchemaNeo4jPreModuleImportKeyFingerprint    = "3e957407c08d6cf2d6cc28c47ab4272b60044d87de7abd47860f2ffc2fb039b9"
+	graphSchemaNornicDBPreModuleImportKeyFingerprint = "8dfe89b1768205432074d1bf45730f897f11515391a80968178d4956b8103944"
+)
+
 // graphSchemaCompatibleFingerprints lists additive predecessor schema
 // fingerprints that older graph writers may safely use after bootstrap records
 // the current marker. The key is the schema fingerprint that was applied; the
@@ -91,7 +105,8 @@ const graphSchemaNeo4jPreInfraSearchKeyIndexesFingerprint = "ac31ec4947f1586093c
 // decision with it.
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	SchemaBackendNeo4j: {
-		graphSchemaNeo4jFingerprint: {
+		graphSchemaNeo4jFingerprint: {},
+		graphSchemaNeo4jPreModuleImportKeyFingerprint: {
 			graphSchemaNeo4jPreInfraSearchKeyIndexesFingerprint,
 			graphSchemaNeo4jPreFulltextModernFormFingerprint,
 			graphSchemaNeo4jPreRetiredNarrowConstraintsFingerprint,
@@ -120,7 +135,8 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 		},
 	},
 	SchemaBackendNornicDB: {
-		graphSchemaNornicDBFingerprint: {
+		graphSchemaNornicDBFingerprint: {},
+		graphSchemaNornicDBPreModuleImportKeyFingerprint: {
 			graphSchemaNornicDBPreRetiredNarrowConstraintsFingerprint,
 			graphSchemaNornicDBPreInfraEvidenceSourceIndexFingerprint,
 			graphSchemaNornicDBPreDirectoryRepoIDIndexFingerprint,

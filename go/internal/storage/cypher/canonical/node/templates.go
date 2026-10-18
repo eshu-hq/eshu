@@ -366,77 +366,13 @@ MERGE (f)-[rel:CONTAINS]->(n)
 SET rel.evidence_source = 'projector/canonical',
     rel.generation_id = row.generation_id`
 
-// --- Phase F: Module Cypher ---
-
-// ModuleUpsertCypher MERGEs the import-graph Module node on
-// (name, lang), which is its identity: a Go `time` and a Python `time` are
-// unrelated modules that share a name, while two repositories importing the
-// same Go `time` share one node. Repository and scope are deliberately NOT in
-// the key -- that shared node IS the cross-repository dependency link, and the
-// relationships catalog records the same intent by marking IMPORTS
-// targetAttributable=false (Module carries no tenant attribution).
+// --- Phase F/G: Module and IMPORTS Cypher ---
 //
-// Keying on name alone minted one global node per name and left the language
-// to `coalesce(m.lang, row.language)`. That is not merely first-writer-wins:
-// measured against the pinned NornicDB build, an UNWIND batch carrying both
-// languages evaluated every row's SET against the pre-batch property snapshot,
-// so the LAST row won and the stamped language tracked batch order. The graph
-// then asserted that a Go file imports a Python module, and a query filtering
-// `(m:Module {name: 'time', lang: 'go'})` silently missed every Go importer.
-//
-// The MERGE stays on the schema hot path with the existing single-property
-// `module_name_lookup` index: NornicDB's findMergeNode prefers an exact
-// composite index, then a unique constraint, then the smallest single-property
-// index candidate set, and only falls back to a label scan when NONE of those
-// matched. The name index still serves the anchor, and the candidate set is
-// identical to the pre-change lookup, so the row is filtered on lang in Go
-// rather than scanned for. Module cannot take a uniqueness constraint on name
-// (the semantic entity path MERGEs Module on uid and shares this label), which
-// is why the index, not a constraint, is the anchor.
-const ModuleUpsertCypher = `UNWIND $rows AS row
-MERGE (m:Module {name: row.name, lang: row.language})
-SET m.evidence_source = 'projector/canonical'`
-
-// CanonicalNodeModuleUpsertCypher is the import-graph Module upsert that
-// CanonicalNodeWriter batches with row keys `name` and `language`. It is
-// exported only so internal/backendconformance can run the exact production
-// statement against both backends; production callers go through the writer.
-const CanonicalNodeModuleUpsertCypher = ModuleUpsertCypher
+// canonicalNodeModuleUpsertCypher and canonicalNodeImportEdgeCypher live in
+// module_identity.go beside the import_key and row-order helpers
+// they depend on (#8168).
 
 // --- Phase G: Structural edge Cypher ---
-
-// ImportEdgeCypher wires each file to the module it imports. The
-// target is resolved on the full (name, lang) Module identity, using the
-// importing file's own language: matching on name alone would resolve every
-// same-named module and attach one file to all of them, which is a worse
-// accuracy failure than the collapsed node it replaced.
-//
-// type_only, deferred, and inferred (issue #7345) are the parser's import flags
-// folded across the (file, module) pair; see foldImportFlags in
-// projector/canonical. They are SET unconditionally and always as explicit
-// booleans. The MERGE matches on endpoints, so a re-projected edge is an
-// existing edge, and only an unconditional SET of an explicit false overwrites a
-// stale true; a CASE-guarded or write-only-true SET would keep it. The SET reads
-// only the row, never the existing edge, so it is not exposed to the
-// pre-batch-snapshot behavior described on ModuleUpsertCypher.
-// An edge written before this change has no flag property at all, which a reader
-// must treat as "flags unknown", not as false.
-//
-// source_package (issues #7347/#7348/#7349) is the importing file's own
-// package: the Go package import path, the owning npm package name, or
-// the owning Java package, derived by the projector. It is SET
-// unconditionally and always as an explicit string for the same
-// stale-overwrite reason; an edge written before it existed has no
-// such property, which a package-cycle reader must treat as
-// "package unknown" and exclude, never as an empty package.
-const ImportEdgeCypher = `UNWIND $rows AS row
-MATCH (f:File {path: row.file_path})
-MATCH (m:Module {name: row.module_name, lang: row.module_language})
-MERGE (f)-[r:IMPORTS]->(m)
-SET r.imported_name = row.imported_name, r.alias = row.alias, r.line_number = row.line_number,
-    r.evidence_source = 'projector/canonical', r.generation_id = row.generation_id,
-    r.type_only = row.type_only, r.deferred = row.deferred, r.inferred = row.inferred,
-    r.source_package = row.source_package`
 
 // HasParameterEdgeCypher upserts Parameter nodes and the
 // HAS_PARAMETER relationship from Function to Parameter. The SET assignments
