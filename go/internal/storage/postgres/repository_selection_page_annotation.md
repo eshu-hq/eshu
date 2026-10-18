@@ -20,8 +20,8 @@ never disagree (`TestSummarizePageEqualsSingleScopeSummarize` pins it); the
 status snapshot carries the same evidence as counts by state and verdict
 (`readRepositorySelectionCounts`, one GROUP BY over live rows).
 
-Performance Evidence (prove-theory-first shim, throwaway Postgres 18.6 with
-`statement_timeout`, migrations 166+199 DDL): at the 802-scope QA shape the
+Performance Evidence (prove-theory-first shim): throwaway Postgres 18.6 with
+`statement_timeout`, migrations 166+199 DDL; at the 802-scope QA shape the
 live-rows batch runs 0.3 ms, the generations batch 3.3 ms, the slug
 resolution 0.15 ms, the successor resolution 0.14 ms, and the status counts
 GROUP BY 0.2 ms. At a 100k-scope / 500k-generation stress shape the
