@@ -88,7 +88,7 @@ func TestReducerClaimFencesConcurrentClaimersOnSharedConflictKey(t *testing.T) {
 	var (
 		mu          sync.Mutex
 		liveByOwner = map[string]string{} // owner -> work_item_id currently held
-		maxLive     int32
+		maxLive     int64
 		claimedIDs  = map[string]int{}
 		start       = make(chan struct{})
 		wg          sync.WaitGroup
@@ -110,8 +110,8 @@ func TestReducerClaimFencesConcurrentClaimersOnSharedConflictKey(t *testing.T) {
 			mu.Lock()
 			liveByOwner[q.LeaseOwner] = intent.IntentID
 			claimedIDs[intent.IntentID]++
-			if n := int32(len(liveByOwner)); n > atomic.LoadInt32(&maxLive) {
-				atomic.StoreInt32(&maxLive, n)
+			if n := int64(len(liveByOwner)); n > atomic.LoadInt64(&maxLive) {
+				atomic.StoreInt64(&maxLive, n)
 			}
 			mu.Unlock()
 		}(queues[i])
@@ -125,7 +125,7 @@ func TestReducerClaimFencesConcurrentClaimersOnSharedConflictKey(t *testing.T) {
 	// never expires during the race, the count of simultaneously-held leases is
 	// the count of distinct items claimed without release. A correct fence lets
 	// at most one through.
-	if got := int(atomic.LoadInt32(&maxLive)); got > 1 {
+	if got := int(atomic.LoadInt64(&maxLive)); got > 1 {
 		t.Fatalf("simultaneous live leases on shared conflict key = %d, want <= 1; "+
 			"conflict fence let concurrent claimers race the same graph hot spot (issue #3558): claimed=%v",
 			got, claimedIDs)

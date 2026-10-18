@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -439,13 +440,5 @@ func TestBrowserSessionStoreSwitchesActiveWorkspaceByHash(t *testing.T) {
 }
 
 func sameStrings(got, want []string) bool {
-	if len(got) != len(want) {
-		return false
-	}
-	for i := range got {
-		if got[i] != want[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(got, want)
 }

@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -304,15 +305,7 @@ func TestGraphEndpointPresenceSchemaSQL(t *testing.T) {
 }
 
 func equalStringSlices(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(a, b)
 }
 
 // graphEndpointPresenceRow mirrors the stored tuple for the in-memory fake DB.

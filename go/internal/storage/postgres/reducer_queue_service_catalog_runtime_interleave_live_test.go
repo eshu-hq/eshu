@@ -11,6 +11,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"math/rand/v2"
 	"sync"
 	"sync/atomic"
@@ -157,7 +158,7 @@ func TestReducerContentionGateServiceCatalogRuntimeFenceConcurrentWorkers(t *tes
 		go func(worker int, db *sql.DB) {
 			defer wg.Done()
 			queue := runtimeFenceQueue(db, "catalog-worker", reducer.DomainServiceCatalogCorrelation, nil)
-			queue.LeaseOwner = queue.LeaseOwner + "-" + string(rune('a'+worker))
+			queue.LeaseOwner = fmt.Sprintf("%s-%c", queue.LeaseOwner, 'a'+worker)
 			queue.RetryDelay = time.Millisecond
 			handler := p.handler(db)
 			for {

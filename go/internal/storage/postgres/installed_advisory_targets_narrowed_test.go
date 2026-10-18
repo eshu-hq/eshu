@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 	"unicode"
+	"unicode/utf8"
 )
 
 // parseEscapeStringLiteral decodes the Postgres escape-string literal
@@ -44,6 +45,10 @@ func parseEscapeStringLiteral(t *testing.T, literal string) []rune {
 			value, err := strconv.ParseUint(body[i+2:i+6], 16, 32)
 			if err != nil {
 				t.Fatalf("bad \\u escape in %q: %v", literal, err)
+			}
+			if value > utf8.MaxRune {
+				t.Fatalf("\\u escape %q in %q is not a valid rune", body[i+2:i+6], literal)
+				return nil
 			}
 			out, i = append(out, rune(value)), i+6
 		default:

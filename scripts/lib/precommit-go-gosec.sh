@@ -8,6 +8,14 @@
 #                      is what the registry row `gosec-changed` runs in
 #                      `make pre-push`, `make pre-pr` and `make security-preflight`
 #
+# SCOPE: PRODUCTION CODE ONLY (#8341). Every arm and the CI gosec job run gosec
+# without -tests, so `_test.go` files are excluded by design: the gate and the
+# Security tab never see them. A hidden finding class in test code is the price
+# of that choice, so #8341 triaged the sixteen G115/G602 findings that a
+# tests-on scan found in go/internal/storage/postgres. To scan tests too, run
+# golangci-lint with only gosec enabled and run.tests on (see
+# docs/public/reference/local-testing/pre-commit-hooks.md).
+#
 # FAIL CLOSED (#8335). These arms used to send gosec's output to /dev/null, run
 # with -no-fail and read the SARIF with `jq ... || echo 0`, so gosec exiting 0
 # with no file, an empty file or non-JSON counted as zero findings. The pinned

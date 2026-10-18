@@ -18,6 +18,7 @@ import (
 // Returns ("", false) if the sequence is non-decreasing (the normal case).
 func firstNonDecreasingViolation(defs []Definition) (msg string, ok bool) {
 	var prevVersion int
+	var prevDef Definition
 	for i, def := range defs {
 		base := filepath.Base(def.Path)
 		versionStr, _, found := strings.Cut(base, "_")
@@ -42,11 +43,12 @@ func firstNonDecreasingViolation(defs []Definition) (msg string, ok bool) {
 			return fmt.Sprintf(
 				"definition[%d] Name=%q Path=%q version=%d: version decreased from previous definition[%d] Name=%q Path=%q version=%d",
 				i, def.Name, def.Path, version,
-				i-1, defs[i-1].Name, defs[i-1].Path, prevVersion,
+				i-1, prevDef.Name, prevDef.Path, prevVersion,
 			), true
 		}
 
 		prevVersion = version
+		prevDef = def
 	}
 	return "", false
 }
