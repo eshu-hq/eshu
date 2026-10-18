@@ -20,8 +20,8 @@ import (
 //
 // The test asserts the rule, not a list: any Deployment or StatefulSet
 // container running an Eshu binary without a /readyz readinessProbe fails,
-// including future workloads and both resolution-engine shapes (single
-// Deployment and per-lane Deployments).
+// including future workloads covered by these renders and both
+// resolution-engine shapes (single Deployment and per-lane Deployments).
 func TestHelmEshuWorkloadsServingReadyzHaveReadinessProbe(t *testing.T) {
 	t.Parallel()
 
