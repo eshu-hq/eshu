@@ -214,6 +214,17 @@ type Registry struct {
 	// configured as required by the live GitHub ruleset.
 	RequiredStatusChecks []RequiredStatusCheck
 	gateFragments        []string
+	// mergeGroupSlim is the owner-fixed ordered set of gate IDs the
+	// merge_group lane selects (#7859 P3). It replaces changed-path matching
+	// on the merge_group event only; pull-request selection never reads it.
+	mergeGroupSlim []string
+}
+
+// MergeGroupSlim returns the owner-fixed ordered set of gate IDs the
+// merge_group lane selects, in registry order. The returned slice does not
+// alias Registry.
+func (r *Registry) MergeGroupSlim() []string {
+	return append([]string(nil), r.mergeGroupSlim...)
 }
 
 // validCategories is the closed set of allowed Category values.
@@ -397,6 +408,10 @@ func Load(path string) (*Registry, error) {
 			File:   file,
 			Reason: strings.TrimSpace(nf.Reason),
 		})
+	}
+
+	if err := parseMergeGroupSlim(path, parsed.MergeGroupSlimGates, seenIDs, reg); err != nil {
+		return nil, err
 	}
 
 	for i, rf := range parsed.RequiredStatusChecks {

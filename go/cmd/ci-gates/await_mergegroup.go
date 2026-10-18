@@ -59,17 +59,15 @@ func validateAwaitTarget(event string, pr int, baseRef, mergeGroupBranch string)
 	return nil
 }
 
-// runAwaitMergeGroup selects the blocking gates for everything the merge group
-// commit adds on top of its fixed base SHA and waits for their merge_group
-// check rows.
-//
-// The base is the group's parent commit, read from the queue branch name, not
-// the moving baseRef branch: once the queue merges the group, baseRef IS the
-// group head and a compare against it is empty (#7281). The diff is three-dot
-// (merge base of the base SHA and the group head), so a late run evaluates the
-// same diff the queue evaluated. The leaf workflows use the same fixed-base selection and union the head
-// registry with the trusted default-branch policy. Unselected payload skips
-// expensive steps but retains check rows; selected payload must actually run.
+// runAwaitMergeGroup selects the registry's merge_group slim set and waits
+// for its merge_group check rows. Changed paths play no role: the fixed set
+// is the selection (#7859 P3), so no compare call is made and a late run
+// after the queue fast-forwards baseRef evaluates the same set it always
+// does. The queue branch is still parsed to fail closed on a malformed
+// branch: a run that cannot name its group must never pass vacuously. The
+// leaf workflows use the same fixed-set selection and union the head registry
+// with the trusted default-branch policy. Unselected payload skips expensive
+// steps but retains check rows; selected payload must actually run.
 func runAwaitMergeGroup(
 	ctx context.Context,
 	runner ghRunner,
@@ -77,11 +75,10 @@ func runAwaitMergeGroup(
 	root, repo, baseRef, mergeGroupBranch, headSHA string,
 	pollInterval time.Duration,
 ) error {
-	paths, truncated, err := mergeGroupChangedPaths(ctx, runner, repo, baseRef, mergeGroupBranch, headSHA)
-	if err != nil {
+	if _, err := mergeGroupBaseSHA(mergeGroupBranch, baseRef); err != nil {
 		return err
 	}
-	resolved, err := selectRequiredGates(reg, root, paths, truncated)
+	resolved, err := selectSlimRequiredGates(reg, root)
 	if err != nil {
 		return err
 	}
@@ -91,10 +88,31 @@ func runAwaitMergeGroup(
 	return awaitMergeGroupRequiredChecks(ctx, runner, repo, headSHA, resolved, pollInterval, os.Stdout)
 }
 
+// selectSlimRequiredGates resolves the registry's merge_group slim set to
+// its workflow jobs. A slim set that names no gate is a registry defect, not
+// an empty diff: it fails closed rather than passing the queue vacuously.
+func selectSlimRequiredGates(reg *cigates.Registry, root string) ([]resolvedRequiredGate, error) {
+	slim, err := reg.SlimGates()
+	if err != nil {
+		return nil, err
+	}
+	if len(slim) == 0 {
+		return nil, fmt.Errorf("merge_group slim set is empty")
+	}
+	resolved, err := resolveRequiredGateWorkflows(root, slim)
+	if err != nil {
+		return nil, err
+	}
+	_, _ = fmt.Fprintf(os.Stdout, "required-gates: selected %d merge_group slim workflow job(s)\n", len(resolved))
+	return resolved, nil
+}
+
 // mergeGroupChangedPaths resolves the group's fixed base SHA from its queue
 // branch and lists the paths changed since it. It fails closed, with an error
 // distinct from an empty diff, when the base SHA cannot be determined: falling
 // back to the moving baseRef would reintroduce the empty late-run compare.
+// Retained although no production caller remains after the fixed-set cutover:
+// its tests pin the fixed-base compare discipline (#7281) the queue still relies on.
 func mergeGroupChangedPaths(ctx context.Context, runner ghRunner, repo, baseRef, mergeGroupBranch, headSHA string) (paths []string, truncated bool, err error) {
 	baseSHA, err := mergeGroupBaseSHA(mergeGroupBranch, baseRef)
 	if err != nil {

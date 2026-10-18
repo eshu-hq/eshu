@@ -128,6 +128,54 @@ jobs:
       - name: Verify dirgate (derived ratchet)
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dirgate')) }}
         run: bash scripts/verify-dirgate.sh --ci
+  merge-group-slim:
+    needs: [queue-selection, changes]
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
+      - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'merge-group-slim')) }}
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+      - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'merge-group-slim')) }}
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Install ripgrep
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'merge-group-slim')) }}
+        run: scripts/ci/install-apt-packages.sh ripgrep
+      - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'merge-group-slim')) }}
+        run: scripts/ci/go-mod-download-retry.sh
+      - name: Build all Go binaries
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'merge-group-slim')) }}
+        working-directory: go
+        run: go build ./...
+      - name: Scoped go vet (changed packages plus direct importers)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'merge-group-slim')) }}
+        run: bash scripts/verify-merge-group-slim-vet.sh
+      - name: Go 500-line file cap
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'merge-group-slim')) }}
+        run: bash scripts/dev/precommit-go.sh filecap-all
+      - name: Migration sequence uniqueness
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'merge-group-slim')) }}
+        working-directory: go
+        run: go test ./internal/storage/postgres/migrations/ -run 'TestBootstrapDefinitionsHaveUniqueSequenceNumbers' -count=1
+      - name: Generated collector entrypoints parity
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'merge-group-slim')) }}
+        run: |
+          scripts/test-verify-collector-entrypoints-generated.sh
+          scripts/verify-collector-entrypoints-generated.sh
+      - name: Context and story reference layout
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'merge-group-slim')) }}
+        run: scripts/test-context-stories-doc-split.sh
   verify-contracts:
     needs: [queue-selection, changes]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
