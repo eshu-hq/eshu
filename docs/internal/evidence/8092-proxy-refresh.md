@@ -14,6 +14,8 @@ No-Regression Evidence:
   lookup observed) and passes after (zero lookups), RED-to-GREEN.
 - Backend/version: hermetic unit tests with fake env (`HTTPS_PROXY` set) and
   the in-repo fake-git harness; no live network. Go toolchain per `go.mod`.
+  `go test -race ./internal/collector/repo/git/resolve/ -count=1` exits 0
+  (1.2 s, this branch).
 - Input shape: proxy env set/unset crossed with qualifying failure; SSH,
   IP-literal, and cache-off configs keep their existing bypass behavior.
 - Why safe: the proxy path now does strictly less work than the baseline
