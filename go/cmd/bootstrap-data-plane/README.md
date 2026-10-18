@@ -135,17 +135,35 @@ cannot fail). Then three plain-Cypher statements run, each bounded by
    Module fails the run and leaves the marker unset.
 
 Every step skips what is already migrated, so a rerun resumes and a clean
-rerun writes nothing. Schema adoption runs the same migration before its
-marker (`neo4jAdoptionGate`). Writers are fenced while it runs: a new writer
-needs the new fingerprint, which the marker records only after the verify;
-an older writer is refused once it is recorded (`Module=import_key` in the
-write-identity contract). Lock scope is one batch; nothing else writes Module
-nodes during bootstrap. Rollback: `DROP CONSTRAINT module_import_key IF
-EXISTS` plus the previous release; `import_key` stays on the nodes and is
-harmless to it. The collapse is destructive (duplicate canonical nodes are
-deleted after their edges move) and was approved for canonical duplicates
-only. NornicDB is not supported for deployment and gets no populated-store
-migration; a fresh NornicDB graph needs none.
+rerun writes nothing. Step 1 also sets the keeper's `lang` to the group's
+language, so a legacy node written with no `lang` ends with `lang = ''`, the
+value the writer gives a new node for that key. Schema adoption runs the same
+migration before its marker (`neo4jAdoptionGate`).
+
+**Precondition: stop the previous release's writers first.** Nothing fences
+them while the migration runs. The Helm schema Job is a pre-upgrade hook, so
+the outgoing ingester, projector, and resolution engine pods keep writing
+(name, lang) Module nodes until an operator scales them down, and an active
+`eshu-bootstrap-index` keeps writing until it finishes. The fingerprint
+refuses an old writer only after the marker is written: at its startup, or at
+the write path's next recheck (`graphschemacompat.DefaultWriteFenceInterval`,
+30 s). While one still runs, the verify step fails on every rerun. That is
+safe: the marker stays unset and nothing is lost. The ERROR log
+`bootstrap.graph.module_import_key.incomplete` and the returned error carry
+both counts, the instruction to stop those writers, and the procedure in
+[Deployment Contract](../../../docs/public/deployment/service-runtimes-bootstrap.md#deployment-contract).
+Stop or scale them to zero, then rerun bootstrap.
+
+A writer on the new fingerprint starts only after the marker is written, so
+it never meets an unkeyed canonical node. `eshu-bootstrap-index` applies the
+schema itself when the marker is missing; on Neo4j it runs the same verify
+statement first and refuses to write the marker over unmigrated Modules,
+naming this binary. Lock scope is one batch. Rollback: `DROP CONSTRAINT
+module_import_key IF EXISTS` plus the previous release; `import_key` stays on
+the nodes and is harmless to it. The collapse is destructive (duplicate
+canonical nodes are deleted after their edges move) and was approved for
+canonical duplicates only. NornicDB is not supported for deployment and gets
+no populated-store migration; a fresh NornicDB graph needs none.
 
 ## Telemetry
 
@@ -170,10 +188,13 @@ probe refuses, `bootstrap.graph.infra_search_key.label_backfilled` per label
 `population_percent`, and `await_error` when the wait errored), plus `bootstrap.graph.infra_search_key.index_failed`
 (ERROR) for a `FAILED` index. The Module migration emits
 `bootstrap.graph.module_import_key.migrated` (`keyed_groups`,
-`moved_imports`, `deleted_duplicates`, `repointed_imports`,
+`imports_on_duplicates`, `deleted_duplicates`, `repointed_imports`,
 `unkeyed_remaining`, `adopted_imports_remaining`, `duration_seconds`), or
-`bootstrap.graph.module_import_key.incomplete` (ERROR, same fields) when the
-verify refuses the marker.
+`bootstrap.graph.module_import_key.incomplete` (ERROR, the same fields plus
+`runbook`) when the verify refuses the marker. `imports_on_duplicates` counts
+the IMPORTS edges found on the deleted duplicates; each was moved to the
+keeper or folded into the keeper's own edge from that file, so it is not a
+count of edges created.
 With adoption-only enabled, an incomplete catalog also returns a bounded
 refusal error; `runtime.startup.failed` records that error at the top level.
 Postgres bootstrap uses this runtime's structured logger for each started and

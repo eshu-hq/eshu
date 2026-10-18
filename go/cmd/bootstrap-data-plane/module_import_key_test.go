@@ -31,6 +31,60 @@ func TestRunLeavesTheMarkerUnsetWhileModulesStayUnkeyed(t *testing.T) {
 	}
 }
 
+// TestModuleImportKeyIncompleteErrorNamesTheWriterPrecondition proves the
+// refusal tells the operator what to do, not only that it failed. The usual
+// cause of a failed verify is a writer from the previous release still running:
+// the Helm schema Job is a pre-upgrade hook, so old pods keep writing while it
+// runs, and the fingerprint refuses them only after the marker is written. The
+// error and the ERROR log must carry both counts, the instruction to stop those
+// writers first, and where the procedure is documented.
+func TestModuleImportKeyIncompleteErrorNamesTheWriterPrecondition(t *testing.T) {
+	t.Parallel()
+
+	var events []string
+	var logs bytes.Buffer
+	runner := &fakeGraphRunner{events: &events, moduleUnkeyed: 197, moduleAdopted: 50}
+	db, err := runWithGraphRunner(t, "neo4j", runner, &events, &logs)
+	if err == nil {
+		t.Fatal("run() error = nil, want the incomplete-migration refusal")
+	}
+	for _, want := range []string{
+		"197 unkeyed canonical Module nodes",
+		"50 IMPORTS edges on semantic Modules",
+		"stop or scale to zero every ingester, projector, resolution engine, and eshu-bootstrap-index from the previous release",
+		"then rerun bootstrap",
+		moduleImportKeyRunbook,
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("run() error = %q, missing %q", err.Error(), want)
+		}
+	}
+	if markerWritten(db) {
+		t.Fatal("schema marker written while the migration is incomplete")
+	}
+	for _, want := range []string{`"unkeyed_remaining":197`, `"adopted_imports_remaining":50`, `"runbook":"` + moduleImportKeyRunbook + `"`} {
+		if !strings.Contains(logs.String(), want) {
+			t.Errorf("incomplete log missing %s: %s", want, logs.String())
+		}
+	}
+}
+
+// TestRunLeavesTheMarkerUnsetOnAnUnreadableVerify proves the verify answer is
+// read strictly: a verify that returns no row is a refusal, not two zeros.
+func TestRunLeavesTheMarkerUnsetOnAnUnreadableVerify(t *testing.T) {
+	t.Parallel()
+
+	var events []string
+	var logs bytes.Buffer
+	db, err := runWithGraphRunner(t, "neo4j", &fakeGraphRunner{events: &events, moduleVerifyEmpty: true}, &events, &logs)
+	if err == nil || !strings.Contains(err.Error(), "module import key verify") {
+		t.Fatalf("run() error = %v, want the verify refusal", err)
+	}
+	if markerWritten(db) {
+		t.Fatal("schema marker written on a verify that returned no row")
+	}
+}
+
 // TestRunStopsBeforeTheMarkerWhenTheCollapseFails proves a failed collapse
 // statement stops the run with its stage named, and nothing after it runs.
 func TestRunStopsBeforeTheMarkerWhenTheCollapseFails(t *testing.T) {
@@ -65,10 +119,15 @@ func TestRunLogsTheModuleMigrationCounts(t *testing.T) {
 	if !markerWritten(db) {
 		t.Fatal("schema marker not written after a clean migration")
 	}
-	for _, want := range []string{"bootstrap.graph.module_import_key.migrated", `"unkeyed_remaining":0`, `"repointed_imports":0`} {
+	for _, want := range []string{"bootstrap.graph.module_import_key.migrated", `"unkeyed_remaining":0`, `"repointed_imports":0`, `"imports_on_duplicates":0`} {
 		if !strings.Contains(logs.String(), want) {
 			t.Errorf("logs missing %s", want)
 		}
+	}
+	// moved_imports counted the edges matched on the duplicates, not the edges
+	// created, so it overstated the move (95,000 logged, 5,000 created).
+	if strings.Contains(logs.String(), "moved_imports") {
+		t.Errorf("logs still carry the misleading moved_imports field: %s", logs.String())
 	}
 }
 
@@ -82,7 +141,9 @@ func TestModuleImportKeyMigrationCypherShape(t *testing.T) {
 	for _, want := range []string{
 		"WHERE m.uid IS NULL AND m.import_key IS NULL AND m.name IS NOT NULL",
 		"WITH n ORDER BY n.import_key IS NULL, elementId(n)",
-		"SET keeper.import_key = name + '@' + lang",
+		// The keeper also takes the group's language, so a legacy node written
+		// with no lang ends with lang = '' like the node the writer would mint.
+		"SET keeper.import_key = name + '@' + lang, keeper.lang = lang",
 		"ON CREATE SET k = properties(r)",
 		"DETACH DELETE extra",
 		"} IN TRANSACTIONS OF $batch_size ROWS",

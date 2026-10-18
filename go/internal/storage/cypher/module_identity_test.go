@@ -161,3 +161,27 @@ func TestImportEdgeRowsSortByModuleImportKey(t *testing.T) {
 		t.Fatalf("rows for one (module, file) pair keep line order: second row line = %v, want 2", rows[1]["line_number"])
 	}
 }
+
+// TestParseCanonicalModuleImportKeyPendingFailsClosed proves the pending-check
+// answer is read strictly: both binaries write the schema marker only on a
+// parsed zero, so a missing row, a missing column, or a non-integer value must
+// be an error, never a silent zero that admits import_key writers.
+func TestParseCanonicalModuleImportKeyPendingFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	unkeyed, adopted, err := ParseCanonicalModuleImportKeyPending([]map[string]any{{"unkeyed": int64(197), "adopted_imports": int64(50)}})
+	if err != nil || unkeyed != 197 || adopted != 50 {
+		t.Fatalf("parse = (%d, %d, %v), want (197, 50, nil)", unkeyed, adopted, err)
+	}
+	for name, rows := range map[string][]map[string]any{
+		"no row":         nil,
+		"two rows":       {{"unkeyed": int64(0), "adopted_imports": int64(0)}, {"unkeyed": int64(0), "adopted_imports": int64(0)}},
+		"missing column": {{"unkeyed": int64(0)}},
+		"string value":   {{"unkeyed": "0", "adopted_imports": int64(0)}},
+		"float value":    {{"unkeyed": int64(0), "adopted_imports": 0.0}},
+	} {
+		if _, _, err := ParseCanonicalModuleImportKeyPending(rows); err == nil {
+			t.Errorf("%s: parse error = nil, want a refusal", name)
+		}
+	}
+}

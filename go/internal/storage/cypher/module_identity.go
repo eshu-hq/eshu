@@ -5,6 +5,7 @@ package cypher
 
 import (
 	"cmp"
+	"fmt"
 	"slices"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
@@ -78,6 +79,60 @@ SET r.imported_name = row.imported_name, r.alias = row.alias, r.line_number = ro
     r.evidence_source = 'projector/canonical', r.generation_id = row.generation_id,
     r.type_only = row.type_only, r.deferred = row.deferred, r.inferred = row.inferred,
     r.source_package = row.source_package`
+
+// CanonicalModuleImportKeyPendingCypher counts what a graph written before
+// #8168 still holds and the import_key writer must never meet: canonical
+// Module nodes (uid IS NULL) without an import_key, and IMPORTS edges on a
+// uid-bearing (semantic) Module that the old (name, lang) MERGE adopted. It
+// returns one row with the columns `unkeyed` and `adopted_imports`. Both must
+// be zero before a schema marker with the Module=import_key contract is
+// written: eshu-bootstrap-data-plane runs it as the last step of the Module
+// migration, and eshu-bootstrap-index runs it before it marks a schema it
+// applied itself. It reads every Module node, so it belongs on the schema
+// path, never on a request path.
+const CanonicalModuleImportKeyPendingCypher = `CALL () {
+  MATCH (m:Module)
+  WHERE m.uid IS NULL AND m.import_key IS NULL AND m.name IS NOT NULL
+  RETURN count(m) AS unkeyed
+}
+CALL () {
+  MATCH ()-[r:IMPORTS]->(s:Module)
+  WHERE s.uid IS NOT NULL
+  RETURN count(r) AS adopted_imports
+}
+RETURN unkeyed, adopted_imports`
+
+// ParseCanonicalModuleImportKeyPending reads the one row
+// CanonicalModuleImportKeyPendingCypher returns. It fails on anything but one
+// row with integer `unkeyed` and `adopted_imports` columns, so a caller that
+// writes the schema marker only on two zeros can never read a malformed answer
+// as a clean graph.
+func ParseCanonicalModuleImportKeyPending(rows []map[string]any) (unkeyed, adoptedImports int64, err error) {
+	if len(rows) != 1 {
+		return 0, 0, fmt.Errorf("module import key pending check returned %d rows, want 1", len(rows))
+	}
+	unkeyed, okUnkeyed := rows[0]["unkeyed"].(int64)
+	adoptedImports, okAdopted := rows[0]["adopted_imports"].(int64)
+	if !okUnkeyed || !okAdopted {
+		return 0, 0, fmt.Errorf("module import key pending check returned %v, want integer unkeyed and adopted_imports", rows[0])
+	}
+	return unkeyed, adoptedImports, nil
+}
+
+// CanonicalModuleDuplicateKeysCypher is the duplicate query from issue #8168:
+// one row per (name, lang) that more than one keyed canonical Module carries.
+// The module_import_key constraint makes any row impossible, so zero rows is
+// the invariant the golden-corpus gate holds a replayed graph to.
+const CanonicalModuleDuplicateKeysCypher = `MATCH (m:Module) WHERE m.import_key IS NOT NULL
+WITH m.name AS name, m.lang AS lang, count(m) AS n WHERE n > 1
+RETURN name, lang, n`
+
+// CanonicalModuleUnkeyedCountCypher returns one row whose `unkeyed` column
+// counts canonical Module nodes (uid IS NULL) without an import_key. Every
+// canonical Module the writer creates carries one, so a fresh graph holds
+// zero; the golden-corpus gate holds a replayed graph to that.
+const CanonicalModuleUnkeyedCountCypher = `MATCH (m:Module) WHERE m.uid IS NULL AND m.import_key IS NULL
+RETURN count(m) AS unkeyed`
 
 // CanonicalModuleImportKey returns the identity key of the canonical
 // import-graph Module for name and language: name + "@" + language. It is the

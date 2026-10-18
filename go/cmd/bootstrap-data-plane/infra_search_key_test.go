@@ -26,20 +26,26 @@ type fakeGraphRunner struct {
 	// moduleUnkeyed is what the Module import_key verify step reports, and
 	// moduleErr makes the collapse step fail.
 	moduleUnkeyed int64
+	moduleAdopted int64
 	moduleErr     error
+	// moduleVerifyEmpty makes the verify step return no row.
+	moduleVerifyEmpty bool
 }
 
 func (r *fakeGraphRunner) Run(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 	switch {
 	case cypher == moduleImportKeyCollapseCypher:
 		*r.events = append(*r.events, "module_collapse")
-		return []map[string]any{{"keyed": int64(0), "moved": int64(0), "deleted": int64(0)}}, r.moduleErr
+		return []map[string]any{{"keyed": int64(0), "on_duplicates": int64(0), "deleted": int64(0)}}, r.moduleErr
 	case cypher == moduleImportKeyRepointCypher:
 		*r.events = append(*r.events, "module_repoint")
 		return []map[string]any{{"repointed": int64(0)}}, nil
 	case cypher == moduleImportKeyVerifyCypher:
 		*r.events = append(*r.events, "module_verify")
-		return []map[string]any{{"unkeyed": r.moduleUnkeyed, "adopted_imports": int64(0)}}, nil
+		if r.moduleVerifyEmpty {
+			return nil, nil
+		}
+		return []map[string]any{{"unkeyed": r.moduleUnkeyed, "adopted_imports": r.moduleAdopted}}, nil
 	case cypher == search.OversizedKeyCountCypher():
 		*r.events = append(*r.events, "probe")
 		return []map[string]any{{"oversized": r.oversized}}, nil

@@ -39,7 +39,12 @@
   key backfill, before `markGraphSchemaApplied`, and adoption runs it through
   `neo4jAdoptionGate` (#8168). Keep collapse and keying in one per-group step:
   keying before collapsing would hit the constraint on a duplicate. Never
-  write the marker while the verify reports an unkeyed canonical Module.
+  write the marker while the verify reports an unkeyed canonical Module, and
+  never read a malformed verify answer as zero
+  (`ParseCanonicalModuleImportKeyPending`). Nothing fences the previous
+  release's writers while it runs; do not document a fence. The incomplete
+  error must keep telling the operator to stop them
+  (`TestModuleImportKeyIncompleteErrorNamesTheWriterPrecondition`).
 - **Write session only** — `neo4jSchemaExecutor` always opens a session with
   `AccessModeWrite`; it must not be pointed at a read replica. Enforced at
   `main.go:226`.

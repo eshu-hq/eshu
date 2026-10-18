@@ -72,7 +72,8 @@ func (r *countingRunner) scalar(ctx context.Context, t *testing.T, cypher string
 // way a pre-#8168 release leaves it and runs the bootstrap migration twice:
 //   - three canonical duplicates of one (name, lang), each imported by its own
 //     file, plus one file importing two of them;
-//   - a lang-less legacy node and an empty-lang node for one name;
+//   - a lang-less legacy node and an empty-lang node for one name, and a
+//     lone lang-less node, whose keeper must end with the empty string as lang;
 //   - a uid-bearing (semantic) node the old canonical MERGE adopted, with an
 //     IMPORTS edge and its own CONTAINS edge;
 //   - a semantic node sharing a duplicate's (name, lang), with CONTAINS;
@@ -136,7 +137,8 @@ func TestLiveModuleImportKeyMigrationCollapsesKeysAndRepoints(t *testing.T) {
 	             (l2:Module {name: $p + 'legacy', lang: '', evidence_source: 'projector/canonical'}),
 	             (a:Module {uid: $p + 'u1', name: $p + 'adopted', lang: 'typescript', evidence_source: 'projector/canonical'}),
 	             (s:Module {uid: $p + 'u2', name: $p + 'dup', lang: 'go', evidence_source: 'parser/semantic-entities'}),
-	             (w:Module {name: $p + 'win', lang: 'go', evidence_source: 'projector/canonical'})
+	             (w:Module {name: $p + 'win', lang: 'go', evidence_source: 'projector/canonical'}),
+	             (:Module {name: $p + 'nolang'})
 	      WITH d1, d2, d3, l1, l2, a, s, w
 	      MATCH (f1:File {path: $p + 'f1'}), (f2:File {path: $p + 'f2'}), (f3:File {path: $p + 'f3'}),
 	            (f4:File {path: $p + 'f4'}), (f5:File {path: $p + 'f5'}), (f6:File {path: $p + 'f6'}),
@@ -208,6 +210,14 @@ func TestLiveModuleImportKeyMigrationCollapsesKeysAndRepoints(t *testing.T) {
 	      AND m.name = $name AND m.lang = 'go' RETURN count(m) AS n`,
 		map[string]any{"uid": migLivePrefix + "u2", "name": migLivePrefix + "dup"}); n != 1 {
 		t.Error("semantic node u2 properties changed")
+	}
+	if n := runner.scalar(ctx, t, `MATCH (m:Module) WHERE m.uid IS NULL AND m.name STARTS WITH $p AND m.lang IS NULL
+	      RETURN count(m) AS n`, map[string]any{"p": migLivePrefix}); n != 0 {
+		t.Errorf("%d canonical keepers still have no lang, want 0: the collapse must set lang = '' on a lang-less group", n)
+	}
+	if n := runner.scalar(ctx, t, `MATCH (m:Module {import_key: $key}) WHERE m.uid IS NULL AND m.lang = '' RETURN count(m) AS n`,
+		map[string]any{"key": migLivePrefix + "nolang@"}); n != 1 {
+		t.Errorf("lone lang-less node: %d nodes keyed %snolang@ with lang = '', want 1", n, migLivePrefix)
 	}
 	if n := runner.scalar(ctx, t, `SHOW CONSTRAINTS YIELD name WHERE name = 'module_import_key' RETURN count(*) AS n`, nil); n != 1 {
 		t.Errorf("module_import_key constraint count = %d, want 1", n)

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -24,6 +25,11 @@ const (
 	moduleImportKeyEdgeBatch  = 1000
 )
 
+// moduleImportKeyRunbook is the deployment procedure an incomplete migration
+// points the operator at: stop the previous release's writers before the
+// schema bootstrap runs.
+const moduleImportKeyRunbook = "docs/public/deployment/service-runtimes-bootstrap.md#deployment-contract"
+
 // moduleImportKeyCollapseCypher collapses and keys the canonical import-graph
 // Module nodes a writer before #8168 left behind. Those writers MERGEd Module
 // on (name, lang) with no uniqueness constraint, so concurrent projections
@@ -31,9 +37,12 @@ const (
 //
 // It drives one row per (name, lang or the empty string) that still has an unkeyed
 // canonical node (uid IS NULL). Per group it keeps one node -- an
-// already-keyed node first, else the lowest elementId -- keys it, moves every
-// other node's incoming IMPORTS edges onto it (an edge the keeper already has
-// from that file keeps its own properties), and deletes the others. Keying and
+// already-keyed node first, else the lowest elementId -- keys it, and sets its
+// lang to the group's language, so a legacy node written with no lang ends
+// with the empty string, the value the writer gives a new node for that key.
+// It moves every other node's incoming IMPORTS edges onto the keeper (an edge
+// the keeper already has from that file keeps its own properties), and
+// deletes the others. Keying and
 // collapsing in one per-group step means the module_import_key constraint,
 // applied before this runs, can never reject the key: no other node of the
 // group still holds it. A node a writer created between an interrupted run and
@@ -50,7 +59,7 @@ CALL (name, lang) {
   WITH n ORDER BY n.import_key IS NULL, elementId(n)
   WITH collect(n) AS nodes
   WITH head(nodes) AS keeper, tail(nodes) AS extras
-  SET keeper.import_key = name + '@' + lang
+  SET keeper.import_key = name + '@' + lang, keeper.lang = lang
   WITH keeper, extras
   CALL (keeper, extras) {
     UNWIND extras AS extra
@@ -58,14 +67,14 @@ CALL (name, lang) {
       MATCH (f)-[r:IMPORTS]->(extra)
       MERGE (f)-[k:IMPORTS]->(keeper)
       ON CREATE SET k = properties(r)
-      RETURN count(r) AS moved
+      RETURN count(r) AS on_duplicate
     }
     DETACH DELETE extra
-    RETURN sum(moved) AS moved, count(extra) AS deleted
+    RETURN sum(on_duplicate) AS on_duplicates, count(extra) AS deleted
   }
-  RETURN moved, deleted
+  RETURN on_duplicates, deleted
 } IN TRANSACTIONS OF $batch_size ROWS
-RETURN count(*) AS keyed, coalesce(sum(moved), 0) AS moved, coalesce(sum(deleted), 0) AS deleted`
+RETURN count(*) AS keyed, coalesce(sum(on_duplicates), 0) AS on_duplicates, coalesce(sum(deleted), 0) AS deleted`
 
 // moduleImportKeyRepointCypher moves every IMPORTS edge that targets a
 // uid-bearing (semantic) Module onto the canonical node for the same name and
@@ -87,26 +96,27 @@ CALL (f, r, s) {
 RETURN count(*) AS repointed`
 
 // moduleImportKeyVerifyCypher counts what the migration must leave at zero:
-// canonical nodes without a key, and IMPORTS edges on a semantic node.
-const moduleImportKeyVerifyCypher = `CALL () {
-  MATCH (m:Module)
-  WHERE m.uid IS NULL AND m.import_key IS NULL AND m.name IS NOT NULL
-  RETURN count(m) AS unkeyed
-}
-CALL () {
-  MATCH ()-[r:IMPORTS]->(s:Module)
-  WHERE s.uid IS NOT NULL
-  RETURN count(r) AS adopted_imports
-}
-RETURN unkeyed, adopted_imports`
+// canonical nodes without a key, and IMPORTS edges on a semantic node. It is
+// the same statement bootstrap-index runs before it marks a schema it applied
+// itself, so both binaries refuse the marker on the same evidence.
+const moduleImportKeyVerifyCypher = sourcecypher.CanonicalModuleImportKeyPendingCypher
 
 // migrateModuleImportKeys runs the #8168 canonical Module migration on Neo4j:
 // collapse and key, re-point adopted IMPORTS, then verify. It runs after the
-// graph DDL created module_import_key and before the schema marker, so no
-// writer on the new fingerprint is admitted until every canonical node is
-// keyed, and every writer on an older fingerprint is refused once the marker
-// lands. Any failure leaves the marker unset; the next bootstrap resumes,
-// because every step skips the nodes and edges already migrated.
+// graph DDL created module_import_key and before the schema marker. A writer
+// on the new fingerprint starts only after the marker is written, and
+// bootstrap-index refuses to write that marker itself while the same verify
+// finds unmigrated nodes, so no such writer meets an unkeyed canonical node.
+//
+// Nothing fences a writer from the previous release while this runs. The Helm
+// schema Job is a pre-upgrade hook, so old pods keep writing (name, lang)
+// Module nodes until an operator stops them, and the fingerprint refuses them
+// only after the marker is written (at startup, or at the write path's next
+// recheck, about 30 s later). Such a writer makes the verify fail on every
+// rerun; that is safe, because the marker stays unset and nothing is lost, and
+// the error tells the operator to stop those writers first. Any failure leaves
+// the marker unset; the next bootstrap resumes, because every step skips the
+// nodes and edges already migrated.
 func migrateModuleImportKeys(ctx context.Context, runner search.Runner, logger *slog.Logger) error {
 	if runner == nil {
 		return errors.New("module import key migration requires a graph query runner")
@@ -124,11 +134,16 @@ func migrateModuleImportKeys(ctx context.Context, runner search.Runner, logger *
 	if err != nil {
 		return fmt.Errorf("module import key verify: %w", err)
 	}
-	unkeyed := firstRowInt(verify, "unkeyed")
-	adopted := firstRowInt(verify, "adopted_imports")
+	unkeyed, adopted, err := sourcecypher.ParseCanonicalModuleImportKeyPending(verify)
+	if err != nil {
+		return fmt.Errorf("module import key verify: %w", err)
+	}
 	counts := []any{
 		"keyed_groups", firstRowInt(collapse, "keyed"),
-		"moved_imports", firstRowInt(collapse, "moved"),
+		// IMPORTS edges found on the deleted duplicates. Each is moved onto
+		// the keeper, or folded into the keeper's own edge from that file, so
+		// it is not a count of edges created.
+		"imports_on_duplicates", firstRowInt(collapse, "on_duplicates"),
 		"deleted_duplicates", firstRowInt(collapse, "deleted"),
 		"repointed_imports", firstRowInt(repoint, "repointed"),
 		"unkeyed_remaining", unkeyed,
@@ -137,9 +152,11 @@ func migrateModuleImportKeys(ctx context.Context, runner search.Runner, logger *
 	}
 	if unkeyed != 0 || adopted != 0 {
 		logger.ErrorContext(ctx, "module import key migration incomplete; schema marker not written",
-			append([]any{telemetry.EventAttr("bootstrap.graph.module_import_key.incomplete")}, counts...)...)
-		return fmt.Errorf("module import key migration left %d unkeyed canonical Module nodes and %d IMPORTS edges on semantic Modules; rerun bootstrap",
-			unkeyed, adopted)
+			append([]any{telemetry.EventAttr("bootstrap.graph.module_import_key.incomplete"), "runbook", moduleImportKeyRunbook}, counts...)...)
+		return fmt.Errorf("module import key migration left %d unkeyed canonical Module nodes and %d IMPORTS edges on semantic Modules; "+
+			"the usual cause is a writer from the previous release still running: stop or scale to zero every ingester, projector, "+
+			"resolution engine, and eshu-bootstrap-index from the previous release, then rerun bootstrap (%s)",
+			unkeyed, adopted, moduleImportKeyRunbook)
 	}
 	logger.InfoContext(ctx, "module import key migration complete",
 		append([]any{telemetry.EventAttr("bootstrap.graph.module_import_key.migrated")}, counts...)...)
