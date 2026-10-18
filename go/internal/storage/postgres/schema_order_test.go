@@ -485,4 +485,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// documentation_link, mirroring
 	// fact_records_documentation_target_refs_idx.
 	"fact_records_documentation_collected_target_refs_idx",
+	// Migration 197 (#5393 Phase 1) adds the branch-overlay deltas table
+	// plus its bases ledger; canonical content_files stays default-only.
+	"content_file_ref_deltas",
 }
