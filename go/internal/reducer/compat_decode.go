@@ -149,13 +149,10 @@ type reducerFactRow = factwrite.Row
 // reducerFactVersionedRow is one row of a versioned reducer fact batch insert.
 type reducerFactVersionedRow = factwrite.VersionedRow
 
-// Batch-insert statement fragments and the chunk size the writers use.
+// Batch-insert statements and the chunk size the writers use.
 const (
-	reducerFactBatchInsertPrefix   = factwrite.BatchInsertPrefix
-	reducerFactBatchInsertSource   = factwrite.BatchInsertSource
-	reducerFactBatchInsertConflict = factwrite.BatchInsertConflict
-	reducerFactBatchInsertQuery    = factwrite.BatchInsertQuery
-	reducerFactBatchSize           = factwrite.BatchSize
+	reducerFactBatchInsertQuery = factwrite.BatchInsertQuery
+	reducerFactBatchSize        = factwrite.BatchSize
 
 	reducerFactBatchInsertVersionedQuery = factwrite.BatchInsertVersionedQuery
 
