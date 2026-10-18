@@ -6,77 +6,30 @@ package cypher
 import (
 	"context"
 	"fmt"
+
+	leaf "github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/crossplane"
 )
 
-// canonicalPhaseCrossplaneSatisfiedByEdge names the Crossplane Claim -> XRD
-// SATISFIED_BY edge projection phase for grouped-backend statement metadata
-// and diagnostics.
-const canonicalPhaseCrossplaneSatisfiedByEdge = "crossplane_satisfied_by_edge"
+// This file is a thin adapter over the canonical/crossplane leaf: it owns the
+// Executor-backed writer API and Statement wrapping, while the leaf owns the
+// Cypher templates, row shaping, the write-reason registry, and
+// statement-free parts. Existing callers keep compiling unchanged.
 
-// crossplaneSatisfiedByEdgeLabel is the fixed relationship type this writer
-// produces, doubling as the bounded entity-label tag for statement metadata
-// and the edge-projection counter dimension.
-const crossplaneSatisfiedByEdgeLabel = "SATISFIED_BY"
+const (
+	canonicalPhaseCrossplaneSatisfiedByEdge = leaf.Phase
+	crossplaneSatisfiedByEdgeLabel          = leaf.EdgeLabel
+	crossplaneSatisfiedByEvidenceSource     = leaf.EvidenceSource
 
-// crossplaneSatisfiedByEvidenceSource tags SATISFIED_BY edges written by this
-// reducer domain so the prior-generation retract path scopes its delete to
-// this writer's edges and never touches an edge owned by another writer.
-const crossplaneSatisfiedByEvidenceSource = "reducer/crossplane-satisfied-by"
+	canonicalCrossplaneSatisfiedByEdgeUpsertCypher = leaf.SatisfiedByEdgeUpsertCypher
+	retractCrossplaneSatisfiedByEdgesCypher        = leaf.RetractSatisfiedByEdgesCypher
+)
 
-// canonicalCrossplaneSatisfiedByEdgeUpsertCypher batches SATISFIED_BY edge
-// upserts between an already-materialized K8sResource node (the Claim) and
-// the CrossplaneXRD node it resolved against. Both node labels are fixed,
-// closed-vocabulary constants (never data-driven), so unlike the RUNS_IMAGE
-// writer this template needs no runtime label validation. The relationship
-// type is the static SATISFIED_BY token, kept out of the MERGE property map
-// so NornicDB uses its relationship hot path. Two MATCHes precede the MERGE
-// so a row whose Claim or XRD node is absent produces no edge and no
-// fabricated node — the edge self-heals on a later generation once both
-// endpoints commit.
-const canonicalCrossplaneSatisfiedByEdgeUpsertCypher = `UNWIND $rows AS row
-MATCH (claim:K8sResource {uid: row.claim_uid})
-MATCH (xrd:CrossplaneXRD {uid: row.xrd_uid})
-MERGE (claim)-[rel:SATISFIED_BY]->(xrd)
-SET rel.resolution_mode = row.resolution_mode,
-    rel.claim_group = row.claim_group,
-    rel.claim_kind = row.claim_kind,
-    rel.scope_id = row.scope_id,
-    rel.generation_id = row.generation_id,
-    rel.evidence_source = row.evidence_source`
-
-// retractCrossplaneSatisfiedByEdgesCypher removes this reducer's SATISFIED_BY
-// edges for a set of scopes before a fresh generation reprojects them. The
-// scope predicate filters on the edge's own scope_id, not either endpoint
-// node's: K8sResource and CrossplaneXRD nodes are cross-generation canonical
-// and carry no reducer scope_id, so a node-scoped predicate would make the
-// retract a silent no-op that leaks stale edges across generations.
-const retractCrossplaneSatisfiedByEdgesCypher = `MATCH (:K8sResource)-[rel:SATISFIED_BY]->(:CrossplaneXRD)
-WHERE rel.scope_id IN $scope_ids
-  AND rel.evidence_source = $evidence_source
-DELETE rel`
-
-// crossplaneSatisfiedByWriteReasons is the single source of truth for the
-// relationship types this writer accepts, mirroring
-// sqlRelationshipWriteReasons (edge/writer/sql.go). It backs
-// CrossplaneRelationshipMaterializedEdgeTypes, the registry-derived accessor
-// the blast-radius edge-materialization coverage registry
-// (go/internal/query/edge_materialization_coverage.go) merges in, so
-// SATISFIED_BY flips from "no_writer" to materialized:true automatically once
-// this writer is wired — no second hand-maintained list.
-var crossplaneSatisfiedByWriteReasons = map[string]string{
-	"SATISFIED_BY": "Crossplane Claim (K8sResource) resolved against exactly one CrossplaneXRD by (group, kind) == (spec.group, spec.claimNames.kind)",
-}
-
-// CrossplaneRelationshipMaterializedEdgeTypes returns a defensive copy of
-// crossplaneSatisfiedByWriteReasons: the graph relationship types the
+// CrossplaneRelationshipMaterializedEdgeTypes forwards to the
+// canonical/crossplane leaf registry: the graph relationship types the
 // Crossplane edge writer actually accepts, mapped to the write reason
 // recorded on each MERGEd edge. Mirrors SQLRelationshipMaterializedEdgeTypes.
 func CrossplaneRelationshipMaterializedEdgeTypes() map[string]string {
-	out := make(map[string]string, len(crossplaneSatisfiedByWriteReasons))
-	for edgeType, reason := range crossplaneSatisfiedByWriteReasons {
-		out[edgeType] = reason
-	}
-	return out
+	return leaf.MaterializedEdgeTypes()
 }
 
 // CrossplaneSatisfiedByEdgeWriter materializes resolved Crossplane Claim ->
@@ -125,31 +78,8 @@ func (w *CrossplaneSatisfiedByEdgeWriter) WriteCrossplaneSatisfiedByEdges(
 		return fmt.Errorf("crossplane satisfied-by edge writer executor is required")
 	}
 
-	cloned := make([]map[string]any, 0, len(rows))
-	for _, row := range rows {
-		clone := make(map[string]any, len(row)+3)
-		for key, value := range row {
-			clone[key] = value
-		}
-		clone["scope_id"] = scopeID
-		clone["generation_id"] = generationID
-		clone["evidence_source"] = evidenceSource
-		cloned = append(cloned, clone)
-	}
-
-	batches := BuildBatchedStatements(canonicalCrossplaneSatisfiedByEdgeUpsertCypher, cloned, w.batchSize)
-	for index := range batches {
-		batchRows := batches[index].Parameters["rows"].([]map[string]any)
-		batches[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseCrossplaneSatisfiedByEdge
-		batches[index].Parameters[StatementMetadataEntityLabelKey] = crossplaneSatisfiedByEdgeLabel
-		batches[index].Parameters[StatementMetadataSummaryKey] = fmt.Sprintf(
-			"edge=%s rows=%d",
-			crossplaneSatisfiedByEdgeLabel,
-			len(batchRows),
-		)
-	}
-
-	return w.dispatch(ctx, batches)
+	parts := leaf.BuildUpsertParts(rows, scopeID, generationID, evidenceSource, w.batchSize)
+	return w.dispatch(ctx, wrapCrossplaneParts(parts))
 }
 
 // RetractCrossplaneSatisfiedByEdges removes this writer's SATISFIED_BY edges
@@ -169,24 +99,30 @@ func (w *CrossplaneSatisfiedByEdgeWriter) RetractCrossplaneSatisfiedByEdges(
 		return fmt.Errorf("crossplane satisfied-by edge writer executor is required")
 	}
 
-	stmt := Statement{
-		Operation: OperationCanonicalRetract,
-		Cypher:    retractCrossplaneSatisfiedByEdgesCypher,
-		Parameters: map[string]any{
-			"scope_ids":                     scopeIDs,
-			"evidence_source":               evidenceSource,
-			StatementMetadataPhaseKey:       canonicalPhaseCrossplaneSatisfiedByEdge,
-			StatementMetadataEntityLabelKey: crossplaneSatisfiedByEdgeLabel,
-			StatementMetadataSummaryKey: fmt.Sprintf(
-				"edge=%s retract scopes=%d generation=%s",
-				crossplaneSatisfiedByEdgeLabel,
-				len(scopeIDs),
-				generationID,
-			),
-		},
-	}
+	part := leaf.BuildRetractPart(scopeIDs, generationID, evidenceSource)
+	return w.dispatchRetract(ctx, wrapCrossplaneParts([]leaf.Part{part}))
+}
 
-	return w.dispatchRetract(ctx, []Statement{stmt})
+// wrapCrossplaneParts converts the canonical/crossplane leaf's
+// statement-free parts into executable Statements, preserving order.
+func wrapCrossplaneParts(parts []leaf.Part) []Statement {
+	if len(parts) == 0 {
+		return nil
+	}
+	statements := make([]Statement, 0, len(parts))
+	for _, part := range parts {
+		operation := OperationCanonicalUpsert
+		if part.IsRetract {
+			operation = OperationCanonicalRetract
+		}
+		statements = append(statements, Statement{
+			Operation:  operation,
+			Cypher:     part.Cypher,
+			Parameters: part.Parameters,
+			Drain:      part.Drain,
+		})
+	}
+	return statements
 }
 
 // dispatch runs the prepared statements as one atomic group when the executor
