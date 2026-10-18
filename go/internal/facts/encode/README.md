@@ -20,8 +20,8 @@ nested family cannot import the facts root back to reach a shared helper.
 
 Owns the stable-ID algorithm and the payload pointer/decode helpers. Does
 not own fact-kind vocabulary, schema versions, or any encoder's field
-mapping — those stay in the facts root (`semantic_encode.go`) and each
-nested family (`docs/encode.go`).
+mapping — those stay in each owning family (`semantic/encode.go`,
+`docs/encode.go`).
 
 ## Exported surface
 
@@ -38,7 +38,7 @@ nested family (`docs/encode.go`).
 
 There is deliberately no exported two-value `(payload, err)` form. Each
 owning package keeps its own four-line unexported `jsonShapePayload` adapter
-(`docs/encode.go` and the facts root's `semantic_encode.go`) so the error an
+(`docs/encode.go` and `semantic/encode.go`) so the error an
 encoder returns is returned by same-package code and keeps its original
 text — routing it back out through this package would make every encoder
 return an unwrapped error from an external package, which `wrapcheck`
