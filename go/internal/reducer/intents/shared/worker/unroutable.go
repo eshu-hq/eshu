@@ -11,8 +11,8 @@ import (
 
 // UnroutableWriter persists durable rows for intents that could not be
 // routed to a write statement (moved here from the reducer root's
-// SharedProjectionUnroutableWriter, issue #6061; the root keeps that name as
-// an alias).
+// SharedProjectionUnroutableWriter, issue #6061; the root alias was removed
+// with its last caller in #6626 batch 6).
 //
 // Unlike QuarantinedFactWriter, a failure here MUST fail the owning cycle. The
 // two are not analogous despite the similar shape: a quarantined fact is

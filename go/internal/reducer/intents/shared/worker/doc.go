@@ -94,9 +94,7 @@
 // SharedProjectionPartitionCandidateReader ([PartitionCandidateReader]),
 // SharedProjectionUnhashedCandidateReader ([UnhashedCandidateReader]),
 // LatestIntentsByRepoAndPartition, FilterAuthoritativeIntents,
-// SharedProjectionRefreshFenceLookup ([RefreshFenceLookup]),
-// FirstProjectionLookup, SharedProjectionUnroutableWriter (aliased to
-// [UnroutableWriter]), sharedAcceptanceLookupEvent
+// FirstProjectionLookup, sharedAcceptanceLookupEvent
 // ([AcceptanceLookupEvent]), sharedAcceptanceTelemetry
 // ([AcceptanceTelemetry]), the unexported default* constants (aliased to
 // [DefaultBatchLimit], [DefaultPollInterval], [DefaultEvidenceSource]),
