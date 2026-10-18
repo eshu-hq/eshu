@@ -179,7 +179,7 @@ func (s *proofRepoDependencyStore) ListAcceptanceUnitDomainIntents(_ context.Con
 	return truncateRowsForLimit(rows, limit), nil
 }
 
-func (s *proofRepoDependencyStore) MarkIntentsCompleted(_ context.Context, intentIDs []string, _ time.Time) error {
+func (s *proofRepoDependencyStore) MarkIntentsCompleted(_ context.Context, intentIDs []string, _ time.Time) (int64, error) {
 	s.mu.Lock()
 	for _, intentID := range intentIDs {
 		s.completed[intentID] = struct{}{}
@@ -190,7 +190,7 @@ func (s *proofRepoDependencyStore) MarkIntentsCompleted(_ context.Context, inten
 	if done && onAllCompleted != nil {
 		onAllCompleted()
 	}
-	return nil
+	return int64(len(intentIDs)), nil
 }
 
 func (s *proofRepoDependencyStore) ClaimPartitionLease(_ context.Context, domain string, partitionID, partitionCount int, owner string, _ time.Duration) (bool, error) {

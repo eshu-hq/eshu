@@ -332,6 +332,9 @@ func (r *Runner) processPartitionWithTelemetry(
 	acceptanceTelemetry.RecordSupersededGenerationIntents(
 		ctx, "shared_projection", domain, result.SupersededGenerationIntents,
 	)
+	acceptanceTelemetry.RecordAbsentGenerationGoneIntents(
+		ctx, "shared_projection", domain, result.AbsentGenerationGoneIntents,
+	)
 	if result.BlockedReadiness > 0 && r.Logger != nil {
 		// Blocked rows on a superseded generation with no in-flight producer
 		// drain as stale after the readiness gate (#7121); rows whose producer is

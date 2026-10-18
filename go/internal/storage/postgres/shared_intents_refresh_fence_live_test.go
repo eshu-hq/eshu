@@ -59,7 +59,7 @@ func TestSharedIntentStoreGenerationRefreshFenceAgainstPostgres(t *testing.T) {
 	if err := store.UpsertIntents(ctx, []reducer.SharedProjectionIntentRow{initial}); err != nil {
 		t.Fatalf("upsert initial refresh: %v", err)
 	}
-	if err := store.MarkIntentsCompleted(ctx, []string{initial.IntentID}, now.Add(time.Second)); err != nil {
+	if _, err := store.MarkIntentsCompleted(ctx, []string{initial.IntentID}, now.Add(time.Second)); err != nil {
 		t.Fatalf("complete initial refresh: %v", err)
 	}
 	assertGenerationRefreshFenceReady(t, ctx, store, "gen-1", initial.PartitionKey, true)
@@ -88,7 +88,7 @@ func TestSharedIntentStoreGenerationRefreshFenceAgainstPostgres(t *testing.T) {
 		t.Fatalf("upsert next-generation refresh: %v", err)
 	}
 	assertGenerationRefreshFenceReady(t, ctx, store, "gen-2", nextGeneration.PartitionKey, false)
-	if err := store.MarkIntentsCompleted(ctx, []string{nextGeneration.IntentID}, now.Add(4*time.Second)); err != nil {
+	if _, err := store.MarkIntentsCompleted(ctx, []string{nextGeneration.IntentID}, now.Add(4*time.Second)); err != nil {
 		t.Fatalf("complete next-generation refresh: %v", err)
 	}
 	assertGenerationRefreshFenceReady(t, ctx, store, "gen-2", nextGeneration.PartitionKey, true)

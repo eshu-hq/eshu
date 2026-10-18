@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package projection
+package projection //nolint:filelength // 516 lines (base 467): the #7853 unit-level absent-acceptance drain and mark-count WARN live in processPartitionOnce next to the batch they mark; extracting them would split one cycle's mark path across files.
 
 import (
 	"context"
@@ -21,6 +21,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const (
@@ -44,7 +45,10 @@ const DefaultAcceptanceScanLimit = codecall.AcceptanceScanLimit
 type IntentReader interface {
 	ListPendingDomainIntents(ctx context.Context, domain string, limit int) ([]sharedintent.Row, error)
 	ListPendingAcceptanceUnitIntents(ctx context.Context, key sharedintent.AcceptanceKey, domain string, limit int) ([]sharedintent.Row, error)
-	MarkIntentsCompleted(ctx context.Context, intentIDs []string, completedAt time.Time) error
+	// MarkIntentsCompleted marks intents completed and returns the rows
+	// matched, so the caller can log a batch whose rows vanished mid-cycle
+	// instead of reporting silent success (#7853).
+	MarkIntentsCompleted(ctx context.Context, intentIDs []string, completedAt time.Time) (int64, error)
 }
 
 // PartitionIntentReader reads pending code-call rows for one
@@ -347,6 +351,33 @@ func (r *Runner) processPartitionOnce(
 	active, staleIDs := worker.FilterAuthoritativeIntents(rows, lookup)
 	acceptanceTelemetry.RecordStaleIntents(ctx, "code_call_projection", reducercontract.DomainCodeCalls, len(staleIDs))
 
+	// Absent-acceptance drain for the selected unit (#7853): the acceptance
+	// row can vanish between selection and this load. Drain the
+	// generation-gone subset inline and keep torn writes pending. The
+	// metric is recorded in the drain, exactly once.
+	unitAbsent := make(map[string]sharedintent.Row, len(rows))
+	for _, row := range worker.AbsentAcceptanceRows(rows, active, staleIDs) {
+		unitAbsent[row.IntentID] = row
+	}
+	unitDrained, unitTorn, err := worker.DrainAbsentAcceptance(
+		ctx, now, acceptanceTelemetry,
+		"code_call_projection", reducercontract.DomainCodeCalls, r.IntentReader, unitAbsent,
+	)
+	if err != nil {
+		return worker.PartitionProcessResult{
+			LeaseAcquired:             true,
+			LeaseClaimDurationSeconds: leaseClaimDuration,
+			SelectionDurationSeconds:  selection.SelectionDurationSeconds,
+		}, fmt.Errorf("drain absent acceptance rows: %w", err)
+	}
+	// Drained unit rows stay OUT of the stale set: they are already marked
+	// completed inside the drain, and joining staleIDs would mark them
+	// twice and double-count them as processed. They count under the
+	// absent-generation-gone reason recorded in the drain. Torn rows stay
+	// pending and were WARNed in the drain.
+	unitAbsentDrained := len(unitDrained)
+	unitAbsentTorn := unitTorn
+
 	// Drain rows covered by a newer emitted full generation (#7165): the
 	// successor re-emits their edges, so replaying them would be a wasted
 	// retract/write cycle. Drained rows join the stale set and are marked
@@ -366,7 +397,7 @@ func (r *Runner) processPartitionOnce(
 	}
 	active = kept
 	acceptanceTelemetry.RecordCoveredByFullSuccessorIntents(ctx, "code_call_projection", reducercontract.DomainCodeCalls, len(drainable))
-	if len(active) == 0 && len(staleIDs) == 0 {
+	if len(active) == 0 && len(staleIDs) == 0 && unitAbsentDrained == 0 {
 		result := worker.PartitionProcessResult{
 			LeaseAcquired:               true,
 			BlockedReadiness:            selection.BlockedReadiness,
@@ -374,6 +405,8 @@ func (r *Runner) processPartitionOnce(
 			LeaseClaimDurationSeconds:   leaseClaimDuration,
 			SelectionDurationSeconds:    selection.SelectionDurationSeconds,
 			SelectionPhases:             selection.SelectionPhases,
+			AbsentGenerationGoneIntents: selection.AbsentDrained,
+			AbsentAcceptanceTornWrites:  selection.AbsentTorn + unitAbsentTorn,
 		}
 		r.recordCodeCallTiming(ctx, result)
 		return result, nil
@@ -388,6 +421,8 @@ func (r *Runner) processPartitionOnce(
 		SelectionPhases:               selection.SelectionPhases,
 		StaleIntents:                  len(staleIDs),
 		CoveredByFullSuccessorIntents: len(drainable),
+		AbsentGenerationGoneIntents:   selection.AbsentDrained + unitAbsentDrained,
+		AbsentAcceptanceTornWrites:    selection.AbsentTorn + unitAbsentTorn,
 	}
 	processingStart := time.Now()
 	writtenGroups := 0
@@ -440,10 +475,24 @@ func (r *Runner) processPartitionOnce(
 	}
 	if len(processedIDs) > 0 {
 		markStart := time.Now()
-		if err := r.IntentReader.MarkIntentsCompleted(ctx, processedIDs, now); err != nil {
+		affected, err := r.IntentReader.MarkIntentsCompleted(ctx, processedIDs, now)
+		if err != nil {
 			return result, fmt.Errorf("mark code call intents completed: %w", err)
 		}
 		result.MarkCompletedDurationSeconds = time.Since(markStart).Seconds()
+		// A short mark is a WARN, not an error: the missing rows were
+		// deleted or completed concurrently (#7853).
+		if affected < int64(len(processedIDs)) && r.Logger != nil {
+			r.Logger.WarnContext(
+				ctx,
+				"code call projection marked fewer intents completed than requested; rows were deleted or completed concurrently",
+				slog.String("runner", "code_call_projection"),
+				log.Domain(reducercontract.DomainCodeCalls),
+				slog.Int("requested_intents", len(processedIDs)),
+				slog.Int64("completed_intents", affected),
+				telemetry.PhaseAttr(telemetry.PhaseShared),
+			)
+		}
 	}
 
 	result.ProcessedIntents = len(processedIDs)

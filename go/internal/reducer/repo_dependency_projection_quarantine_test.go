@@ -362,6 +362,6 @@ func (blockingRepoDependencyIntentReader) ListAcceptanceUnitDomainIntents(
 	return nil, errors.New("unexpected acceptance-unit load")
 }
 
-func (blockingRepoDependencyIntentReader) MarkIntentsCompleted(context.Context, []string, time.Time) error {
-	return errors.New("unexpected intent completion")
+func (blockingRepoDependencyIntentReader) MarkIntentsCompleted(context.Context, []string, time.Time) (int64, error) {
+	return 0, errors.New("unexpected intent completion")
 }

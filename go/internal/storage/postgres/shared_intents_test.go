@@ -237,8 +237,12 @@ func TestSharedIntentStoreMarkIntentsCompleted(t *testing.T) {
 	}
 
 	completedAt := now.Add(time.Minute)
-	if err := store.MarkIntentsCompleted(ctx, []string{"si-mark-1"}, completedAt); err != nil {
+	affected, err := store.MarkIntentsCompleted(ctx, []string{"si-mark-1"}, completedAt)
+	if err != nil {
 		t.Fatalf("MarkIntentsCompleted: %v", err)
+	}
+	if affected != 1 {
+		t.Errorf("MarkIntentsCompleted affected = %d, want 1", affected)
 	}
 
 	// Verify it no longer appears in pending.

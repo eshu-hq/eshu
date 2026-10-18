@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package projection
+package projection //nolint:filelength // 557 lines (base 473): the #7853 absent-acceptance accumulation, drain closure, and exit-path drains close over the selection loop's locals; extracting them would split one scan's progress proof across files.
 
 import (
 	"context"
@@ -25,6 +25,12 @@ type codeCallSelectionResult struct {
 	MaxBlockedIntentWaitSeconds float64
 	SelectionDurationSeconds    float64
 	SelectionPhases             worker.SelectionPhaseDurations
+	// AbsentDrained counts absent-acceptance rows this selection marked
+	// completed because their scope generation is gone (#7853).
+	AbsentDrained int
+	// AbsentTorn counts absent-acceptance rows left pending because their
+	// scope generation still exists (#7853). They are never drained.
+	AbsentTorn int
 }
 
 type acceptedGenerationCacheEntry struct {
@@ -69,7 +75,29 @@ func (r *Runner) selectAcceptanceUnitPartitionWorkWithStats(
 	acceptedGenerationsByKey := make(map[sharedintent.AcceptanceKey]acceptedGenerationCacheEntry)
 	readinessByKey := make(map[gpphase.PhaseKey]readinessCacheEntry)
 	acceptanceRowsByKey := make(map[sharedintent.AcceptanceKey][]sharedintent.Row)
+	// absentRows accumulates the pending rows skipped for absent acceptance
+	// across widen rounds, keyed by intent id. The #7853 drain below marks
+	// the generation-gone subset completed and deletes them from this map,
+	// so a rescan after a cap-continue never re-marks them.
+	absentRows := make(map[string]sharedintent.Row)
+	absentDrained := 0
 	selectionPhases := worker.SelectionPhaseDurations{}
+	// drainAbsent marks the accumulated absent-acceptance rows whose scope
+	// generation is gone (#7853). It runs at most once per exit path, so a
+	// call costs one generation probe per window that reaches an exit plus
+	// one per cap-continue, each making permanent progress; a call with no
+	// absent rows costs no query.
+	drainAbsent := func() (drained []string, torn int, err error) {
+		drained, torn, err = worker.DrainAbsentAcceptance(
+			ctx, now, acceptanceTelemetry,
+			"code_call_projection", reducercontract.DomainCodeCalls, r.IntentReader, absentRows,
+		)
+		if err != nil {
+			return nil, 0, err
+		}
+		absentDrained += len(drained)
+		return drained, torn, nil
+	}
 	for {
 		candidateLoadStart := time.Now()
 		pending, err := r.listPendingPartitionCandidates(ctx, partitionID, partitionCount, scanLimit)
@@ -89,9 +117,13 @@ func (r *Runner) selectAcceptanceUnitPartitionWorkWithStats(
 				Result:   "miss",
 				Duration: time.Since(start).Seconds(),
 			})
+			// An empty rescan after a cap-continue drain means the drain
+			// took the whole window: report what it drained. Kept torn
+			// rows would still be pending, so the torn count here is zero.
 			return codeCallSelectionResult{
 				SelectionDurationSeconds: time.Since(start).Seconds(),
 				SelectionPhases:          selectionPhases,
+				AbsentDrained:            absentDrained,
 			}, nil
 		}
 
@@ -202,6 +234,10 @@ func (r *Runner) selectAcceptanceUnitPartitionWorkWithStats(
 			}
 			acceptedGeneration, ok := acceptedByKey[key]
 			if !ok {
+				// Absent acceptance: accumulate for the #7853 drain at the
+				// exit paths. Keyless rows already errored above, so every
+				// row here carries a key.
+				absentRows[row.IntentID] = row
 				continue
 			}
 			if gated && (readinessLookup != nil || len(readinessByKey) > 0) {
@@ -263,6 +299,19 @@ func (r *Runner) selectAcceptanceUnitPartitionWorkWithStats(
 				Result:   "hit",
 				Duration: time.Since(start).Seconds(),
 			})
+			// Drain the generation-gone orphans scanned on the way to this
+			// unit before returning it; a drain error fails the cycle
+			// rather than dropping or keeping rows.
+			_, torn, err := drainAbsent()
+			if err != nil {
+				acceptanceTelemetry.RecordLookup(ctx, worker.AcceptanceLookupEvent{
+					Runner:   "code_call_projection",
+					Result:   "error",
+					Duration: time.Since(start).Seconds(),
+					Err:      err,
+				})
+				return codeCallSelectionResult{}, err
+			}
 			return codeCallSelectionResult{
 				Key:                         key,
 				PartitionKey:                row.PartitionKey,
@@ -270,6 +319,8 @@ func (r *Runner) selectAcceptanceUnitPartitionWorkWithStats(
 				MaxBlockedIntentWaitSeconds: maxBlockedWait,
 				SelectionDurationSeconds:    time.Since(start).Seconds(),
 				SelectionPhases:             selectionPhases,
+				AbsentDrained:               absentDrained,
+				AbsentTorn:                  torn,
 			}, nil
 		}
 
@@ -290,14 +341,47 @@ func (r *Runner) selectAcceptanceUnitPartitionWorkWithStats(
 				Result:   "miss",
 				Duration: time.Since(start).Seconds(),
 			})
+			// Drain the generation-gone orphans in this final window before
+			// reporting the miss, so the next cycle scans past them.
+			_, torn, err := drainAbsent()
+			if err != nil {
+				acceptanceTelemetry.RecordLookup(ctx, worker.AcceptanceLookupEvent{
+					Runner:   "code_call_projection",
+					Result:   "error",
+					Duration: time.Since(start).Seconds(),
+					Err:      err,
+				})
+				return codeCallSelectionResult{}, err
+			}
 			return codeCallSelectionResult{
 				BlockedReadiness:            blockedCount,
 				MaxBlockedIntentWaitSeconds: maxBlockedWait,
 				SelectionDurationSeconds:    time.Since(start).Seconds(),
 				SelectionPhases:             selectionPhases,
+				AbsentDrained:               absentDrained,
+				AbsentTorn:                  torn,
 			}, nil
 		}
 		if scanLimit >= acceptanceScanLimit {
+			// At the cap with absent rows, drain the generation-gone subset
+			// and rescan instead of erroring: the drained window advancing
+			// is progress, and the healthy unit past it becomes selectable.
+			// Only a cap with nothing newly drainable still errors; the
+			// per-call (not cumulative) count is what proves progress and
+			// keeps a torn-write backlog from rescanning forever.
+			newlyDrained, _, err := drainAbsent()
+			if err != nil {
+				acceptanceTelemetry.RecordLookup(ctx, worker.AcceptanceLookupEvent{
+					Runner:   "code_call_projection",
+					Result:   "error",
+					Duration: time.Since(start).Seconds(),
+					Err:      err,
+				})
+				return codeCallSelectionResult{}, err
+			}
+			if len(newlyDrained) > 0 {
+				continue
+			}
 			acceptanceTelemetry.RecordLookup(ctx, worker.AcceptanceLookupEvent{
 				Runner:   "code_call_projection",
 				Result:   "error",

@@ -30,8 +30,17 @@ type PartitionBatchResult struct {
 	// mismatch. StaleCount is the total.
 	SupersededGenerationCount int
 	SupersededIDs             []string
-	BlockedCount              int
-	TerminalCount             int
+	// AbsentDrainedIDs are absent-acceptance rows whose scope generation is
+	// gone (#7853). They join the mark-completed batch downstream but are
+	// NOT part of StaleIDs/StaleCount: they drain under their own
+	// acceptance_absent_generation_gone reason, not acceptance_mismatch.
+	AbsentDrainedIDs []string
+	// AbsentKeptRows are absent-acceptance rows whose scope generation
+	// still exists (torn writes). They are never drained; the caller counts
+	// and WARNs on them.
+	AbsentKeptRows []sharedintent.Row
+	BlockedCount   int
+	TerminalCount  int
 	// IndexedSelection is true when candidates were read through the indexed
 	// partition predicate rather than the in-memory domain scan. It is a bounded
 	// operator signal for diagnosing which selection path a domain used.
@@ -177,9 +186,14 @@ func SelectPartitionBatch(
 	}
 
 	// Indexed candidate readers (Postgres) return only this partition's pending
-	// rows, so the scan never dilutes across partitions and cannot starve at the
-	// scan cap. Readers without the candidate interface keep the in-memory
-	// domain scan with its widen-and-cap behavior unchanged.
+	// rows, so the scan never dilutes across partitions. It CAN still starve
+	// within one partition at the scan cap: a window full of unprocessable
+	// rows (absent-acceptance orphans, readiness-blocked rows) keeps later
+	// rows past the cap forever. The #7853 absent-acceptance drain below
+	// removes generation-gone orphans so the window advances; torn-write
+	// rows (generation present) still occupy the window and are counted and
+	// WARNed, never drained. Readers without the candidate interface keep
+	// the in-memory domain scan with its widen-and-cap behavior unchanged.
 	_, indexed := reader.(PartitionCandidateReader)
 
 	// Prefetch telemetry rides on the context so the frozen prefetch
@@ -298,7 +312,37 @@ func SelectPartitionBatch(
 		// route-only backlog from stalling, so they count toward returning a batch.
 		// Blocked rows drained as superseded are progress for the same reason: a
 		// window full of orphans must not widen the scan toward the cap.
-		if len(readyRows) >= batchLimit || len(terminalRows) > 0 || len(generationSupersededIDs) > 0 || seenAll {
+		//
+		// The indexed cap return joins this branch: reaching the cap means the
+		// window is full, so this round IS the final one and runs the
+		// absent-acceptance probe below. Ready rows past this point are
+		// already within the batch limit (a fuller batch would have returned
+		// above), so the truncation stays a no-op for the cap path.
+		if len(readyRows) >= batchLimit || len(terminalRows) > 0 || len(generationSupersededIDs) > 0 || seenAll ||
+			scanLimit >= maxSharedSelectionScanLimit {
+			if !indexed && scanLimit >= maxSharedSelectionScanLimit && !seenAll &&
+				len(readyRows) < batchLimit && len(terminalRows) == 0 && len(generationSupersededIDs) == 0 {
+				return fail(scanCapError(domain, partitionID, partitionCount))
+			}
+			// Absent-acceptance drain (#7853): rows whose acceptance row is
+			// absent never reach active or stale above. Drain the ones whose
+			// scope generation is gone so the window advances past them;
+			// generation-present rows stay pending as torn writes. This is
+			// the only generation probe this call issues: widen rounds skip
+			// it (their windows are strict prefixes of this one), an empty
+			// input costs no query, and error returns stay fail-closed with
+			// no drain. A window full of generation-gone orphans returns
+			// here instead of widening toward the cap.
+			drained, kept, err := SplitAbsentAcceptanceRows(
+				ctx, reader, AbsentAcceptanceRows(partitionRows, active, mismatchIDs),
+			)
+			if err != nil {
+				return fail(fmt.Errorf("split absent acceptance rows: %w", err))
+			}
+			absentDrainedIDs := make([]string, 0, len(drained))
+			for _, row := range drained {
+				absentDrainedIDs = append(absentDrainedIDs, row.IntentID)
+			}
 			if len(readyRows) > batchLimit {
 				readyRows = readyRows[:batchLimit]
 			}
@@ -310,6 +354,8 @@ func SelectPartitionBatch(
 				StaleCount:                len(staleIDs),
 				SupersededGenerationCount: len(generationSupersededIDs),
 				SupersededIDs:             supersededIntentIDs,
+				AbsentDrainedIDs:          absentDrainedIDs,
+				AbsentKeptRows:            kept,
 				BlockedCount:              len(blockedRows),
 				TerminalCount:             len(terminalRows),
 				IndexedSelection:          indexed,
@@ -319,26 +365,6 @@ func SelectPartitionBatch(
 			}, nil
 		}
 
-		if scanLimit >= maxSharedSelectionScanLimit {
-			if indexed {
-				return PartitionBatchResult{
-					LatestRows:                readyRows,
-					BlockedRows:               blockedRows,
-					TerminalRows:              terminalRows,
-					StaleIDs:                  staleIDs,
-					StaleCount:                len(staleIDs),
-					SupersededGenerationCount: len(generationSupersededIDs),
-					SupersededIDs:             supersededIntentIDs,
-					BlockedCount:              len(blockedRows),
-					TerminalCount:             len(terminalRows),
-					IndexedSelection:          indexed,
-					UnhashedFallbackRows:      unhashedFallback,
-					SelectionRounds:           rounds,
-					PrefetchStats:             prefetchStats,
-				}, nil
-			}
-			return fail(scanCapError(domain, partitionID, partitionCount))
-		}
 		scanLimit = widenScanLimit(scanLimit)
 	}
 }

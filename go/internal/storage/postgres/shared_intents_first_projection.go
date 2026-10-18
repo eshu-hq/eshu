@@ -195,6 +195,70 @@ func (s *SharedIntentStore) SupersededGenerationIDs(
 	return superseded, nil
 }
 
+// absentGenerationIDsSQL returns which of the batch's generation ids have no
+// scope_generations row at all (#7853). generation_id is scope_generations'
+// primary key, so the ANY() probe is a bounded primary-key lookup over at
+// most the distinct generations of one selection window, one round trip per
+// call. Only absent ids are returned; the caller drains the absent-acceptance
+// rows that carry them and leaves every other absent-acceptance row pending.
+// A retry re-upserts the same intent_id and the intent upsert never reopens
+// completed_at, so draining a generation-present row would lose its edge
+// permanently.
+//
+// It keys on row absence, never on "not the scope's active generation" (that
+// races activation) and never on status: an absent row means no acceptance
+// row can name the generation (the acceptance foreign key requires the row),
+// so the intent can never become authoritative. Generation identity is
+// stable: retention pruning already deletes generation rows assuming an id is
+// never reused, and the #7766 arbiter ruling this drain implements rests on
+// the same assumption.
+const absentGenerationIDsSQL = `
+SELECT g.generation_id
+FROM scope_generations AS g
+WHERE g.generation_id = ANY($1::text[])
+`
+
+// AbsentGenerationIDs returns the subset of generationIDs that have no
+// scope_generations row. The shared projection workers use it to drain
+// absent-acceptance intents whose generation is gone (#7853); a generation
+// that is present keeps its absent-acceptance rows pending as torn writes.
+// Ids that are not scope generations are absent by definition and are
+// returned, which drains them. An empty input performs no query; a query
+// error is returned so the caller fails the selection instead of guessing.
+func (s *SharedIntentStore) AbsentGenerationIDs(
+	ctx context.Context,
+	generationIDs []string,
+) (map[string]struct{}, error) {
+	if len(generationIDs) == 0 {
+		return nil, nil
+	}
+
+	sqlRows, err := s.database.QueryContext(ctx, absentGenerationIDsSQL, generationIDs)
+	if err != nil {
+		return nil, fmt.Errorf("query absent generations: %w", err)
+	}
+	defer func() { _ = sqlRows.Close() }()
+
+	present := make(map[string]struct{}, len(generationIDs))
+	for sqlRows.Next() {
+		var generationID string
+		if err := sqlRows.Scan(&generationID); err != nil {
+			return nil, fmt.Errorf("scan absent generation: %w", err)
+		}
+		present[generationID] = struct{}{}
+	}
+	if err := sqlRows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate absent generations: %w", err)
+	}
+	absent := make(map[string]struct{}, len(generationIDs)-len(present))
+	for _, generationID := range generationIDs {
+		if _, ok := present[generationID]; !ok {
+			absent[generationID] = struct{}{}
+		}
+	}
+	return absent, nil
+}
+
 // coveredByEmittedFullSuccessorSQL returns which of the batch's generation ids
 // sit on superseded scope generations a newer emitted full generation covers
 // (#7165). A covered generation's pending rows are redundant: the newer full

@@ -89,7 +89,7 @@ func (f *fakeCodeCallIntentStore) ListPendingAcceptanceUnitIntents(_ context.Con
 	return rows, nil
 }
 
-func (f *fakeCodeCallIntentStore) MarkIntentsCompleted(_ context.Context, intentIDs []string, _ time.Time) error {
+func (f *fakeCodeCallIntentStore) MarkIntentsCompleted(_ context.Context, intentIDs []string, _ time.Time) (int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -111,7 +111,7 @@ func (f *fakeCodeCallIntentStore) MarkIntentsCompleted(_ context.Context, intent
 			}
 		}
 	}
-	return nil
+	return int64(len(intentIDs)), nil
 }
 
 func (f *fakeCodeCallIntentStore) ClaimPartitionLease(_ context.Context, _ string, _, _ int, _ string, _ time.Duration) (bool, error) {

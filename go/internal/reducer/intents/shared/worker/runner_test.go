@@ -51,7 +51,7 @@ func (f *fakeSharedIntentReader) ListPendingDomainIntents(_ context.Context, dom
 	return result, nil
 }
 
-func (f *fakeSharedIntentReader) MarkIntentsCompleted(_ context.Context, intentIDs []string, completedAt time.Time) error {
+func (f *fakeSharedIntentReader) MarkIntentsCompleted(_ context.Context, intentIDs []string, completedAt time.Time) (int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -66,7 +66,7 @@ func (f *fakeSharedIntentReader) MarkIntentsCompleted(_ context.Context, intentI
 			f.intents[i].CompletedAt = &t
 		}
 	}
-	return nil
+	return int64(len(intentIDs)), nil
 }
 
 type fakeLeaseManager struct {

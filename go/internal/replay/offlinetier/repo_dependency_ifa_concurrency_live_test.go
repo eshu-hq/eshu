@@ -358,7 +358,7 @@ func (s *repoDependencyIfaStore) MarkIntentsCompleted(
 	_ context.Context,
 	intentIDs []string,
 	_ time.Time,
-) error {
+) (int64, error) {
 	s.mu.Lock()
 	for _, intentID := range intentIDs {
 		s.completed[intentID] = struct{}{}
@@ -369,7 +369,7 @@ func (s *repoDependencyIfaStore) MarkIntentsCompleted(
 	if drained && onDrained != nil {
 		onDrained()
 	}
-	return nil
+	return int64(len(intentIDs)), nil
 }
 
 func (s *repoDependencyIfaStore) ClaimPartitionLease(

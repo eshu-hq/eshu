@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package postgres //nolint:filelength // 504 lines (base 494): the #7853 RowsAffected return on MarkIntentsCompleted and its rows-matched contract comment stay next to the statement they describe.
 
 import (
 	"context"
@@ -262,17 +262,27 @@ func (s *SharedIntentStore) ListPendingDomainIntents(ctx context.Context, domain
 }
 
 // MarkIntentsCompleted marks intents as completed by setting completed_at.
-func (s *SharedIntentStore) MarkIntentsCompleted(ctx context.Context, intentIDs []string, completedAt time.Time) error {
+// It returns the number of rows the update matched, so the caller can tell a
+// fully applied batch from a batch whose rows were deleted mid-cycle: a
+// 0-row update after a non-empty request is a silent no-op the worker logs
+// (#7853). A row already completed still matches (the statement does not
+// filter on completed_at IS NULL), so the count is "rows matched", not "rows
+// newly completed".
+func (s *SharedIntentStore) MarkIntentsCompleted(ctx context.Context, intentIDs []string, completedAt time.Time) (int64, error) {
 	if len(intentIDs) == 0 {
-		return nil
+		return 0, nil
 	}
 
-	_, err := s.database.ExecContext(ctx, markIntentsCompletedSQL, completedAt, intentIDs)
+	result, err := s.database.ExecContext(ctx, markIntentsCompletedSQL, completedAt, intentIDs)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("count completed shared intents: %w", err)
+	}
+	return affected, nil
 }
 
 // ClaimPartitionLease attempts to claim a partition lease. Returns true if the

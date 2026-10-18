@@ -49,7 +49,7 @@ func (r cancelingRepoDependencyIntentReader) ListAcceptanceUnitDomainIntents(
 
 func (r cancelingRepoDependencyIntentReader) MarkIntentsCompleted(
 	ctx context.Context, intentIDs []string, completedAt time.Time,
-) error {
+) (int64, error) {
 	return r.inner.MarkIntentsCompleted(ctx, intentIDs, completedAt)
 }
 
@@ -76,7 +76,7 @@ func (r cancelThenListRepoDependencyIntentReader) ListAcceptanceUnitDomainIntent
 
 func (r cancelThenListRepoDependencyIntentReader) MarkIntentsCompleted(
 	ctx context.Context, intentIDs []string, completedAt time.Time,
-) error {
+) (int64, error) {
 	return r.inner.MarkIntentsCompleted(ctx, intentIDs, completedAt)
 }
 

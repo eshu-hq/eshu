@@ -80,11 +80,16 @@ func (t AcceptanceTelemetry) RecordLookup(ctx context.Context, event AcceptanceL
 // materialization ran, so no phase row will ever unblock it;
 // covered_by_full_successor is an intent whose superseded generation is
 // covered by a newer emitted full generation (#7165): the successor re-emits
-// its edges, so replaying it would be a wasted retract/write cycle.
+// its edges, so replaying it would be a wasted retract/write cycle;
+// acceptance_absent_generation_gone is an intent whose acceptance row is
+// absent and whose scope_generations row is absent (#7853): the generation
+// was cascade-deleted or never committed, so the intent can never become
+// authoritative and would otherwise starve its partition forever.
 const (
 	StaleReasonAcceptanceMismatch     = "acceptance_mismatch"
 	StaleReasonGenerationSuperseded   = "generation_superseded"
 	StaleReasonCoveredByFullSuccessor = "covered_by_full_successor"
+	StaleReasonAbsentGenerationGone   = "acceptance_absent_generation_gone"
 )
 
 // RecordStaleIntents records stale intents drained because the accepted
@@ -107,6 +112,16 @@ func (t AcceptanceTelemetry) RecordSupersededGenerationIntents(ctx context.Conte
 // churn and from orphan cleanup.
 func (t AcceptanceTelemetry) RecordCoveredByFullSuccessorIntents(ctx context.Context, runner string, domain string, count int) {
 	t.recordStale(ctx, runner, domain, StaleReasonCoveredByFullSuccessor, "shared projection drained intents covered by an emitted full successor", count)
+}
+
+// RecordAbsentGenerationGoneIntents records intents drained because their
+// acceptance row is absent and their scope generation is gone (#7853). The
+// reason attribute keeps them apart from acceptance mismatches, superseded
+// generations, and covered successors so operators can tell orphan cleanup
+// from churn. Torn-write rows (generation present) are never drained and are
+// never counted here; they are counted by the caller's torn-write WARN.
+func (t AcceptanceTelemetry) RecordAbsentGenerationGoneIntents(ctx context.Context, runner string, domain string, count int) {
+	t.recordStale(ctx, runner, domain, StaleReasonAbsentGenerationGone, "shared projection drained intents with absent acceptance and gone generation", count)
 }
 
 func (t AcceptanceTelemetry) recordStale(
