@@ -20,10 +20,12 @@ the remote validation host; the resume runbook there was followed verbatim).
 - Fixture: two filesystem repos — `deploy-source` (Flux
   `GitRepository/deploy-target` linkage + deployment manifest referencing the
   target) and `deploy-target`. Bootstrap converged: the drive log read 32/32
-  succeeded with zero failed (unit: `fact_work_items` rows, the same queue
-  unit the item-9 arm reports as 17/17 and 33/33; queue fully drained at
-  converge), and both first-gen obligations completed. (The table has since
-  grown with later generations.)
+  succeeded with zero failed (unit: `fact_work_items` rows — the item-9
+  note reports 33/33 succeeded total with the per-generation breakdown
+  16 baseline + 16 quiet + 1 `eshu:global:genesis`; queue fully drained at
+  converge),
+  and both first-gen obligations completed. (The table has since grown
+  with later generations.)
 
 ## Flag-on arm: GREEN
 

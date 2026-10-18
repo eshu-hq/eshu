@@ -38,8 +38,11 @@ built binaries at this scale: the obligation completed in ~11 s.
 Mutation to completed in ~11 s — the same fence-then-complete shape as the
 two-repo flag-on arm, not a hold. `rg -i no_memo_baseline` over all item-9
 service logs: zero lines. `refusal`: zero lines. `fact_work_items` ended
-33/33 succeeded with nothing pending or retrying. No new generations after
-12:50:01.
+33/33 succeeded with nothing pending or retrying (per-generation breakdown:
+16 baseline + 16 quiet + 1 `eshu:global:genesis`, coordinator-counted).
+Observation window 12:50:01–13:01:31Z (11.5 min, drive-agent-reported), and
+coordinator-verified no new generations from 12:50:01 through 13:42:51Z
+(`max(observed_at)` unchanged, 52+ min).
 
 ## Consequence for the default flip
 
@@ -55,9 +58,10 @@ do not re-run single-repo holds at this scale as flip evidence.
 
 1. Timestamps and log lines above were re-read by the coordinator through
    `docker exec … psql` and `docker logs`; the stack build, port picks, and
-   11.5-minute observation window are drive-agent-reported and were
-   sanity-checked (container uptimes, obligation states) but not
-   line-by-line replayed.
+   first 11.5 minutes of the observation window are drive-agent-reported and
+   were sanity-checked (container uptimes, obligation states) but not
+   line-by-line replayed. The extension to 13:42:51Z and the per-generation
+   work-item breakdown are coordinator-counted.
 2. The item-9 stack is left keep-live for further arms; retention mode is
    stop-and-preserve until the flip decision lands, then destroy with the
    item-1 stack. Teardown must name project `7638item9` exactly — never
