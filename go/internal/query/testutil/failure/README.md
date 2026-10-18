@@ -34,7 +34,9 @@ is passed here by pointer.
   earlier step. `Route.Stage`
   additionally checks the step's stage-log verdict (`StageLogVerdict`): one
   `stage_failed` line for a fault, one `stage_canceled` line for a client
-  cancel, none for a mapped fence verdict.
+  cancel, none for a mapped fence verdict. `Route.HandlerSpanName`, when
+  non-empty, pins the telemetry name of the handler span the step opens
+  (`HandlerSpanName`); empty means the name is not checked.
 - `Run(t, suite)` — drives every route through every case and reports each
   wrong answer as a test error named `route / case`. It opens no subtests:
   a `t.Run` call in this non-test file would count as an unregistered query
@@ -43,7 +45,7 @@ is passed here by pointer.
   joins every violation.
 - `Evaluate(suite, route, case)` — the violations as `[]Violation`, each
   naming the `Assertion` it broke. `Assertions()` lists every assertion
-  `Check` makes (21, one exported constant each).
+  `Check` makes (22, one exported constant each).
 - `Cases`, `Case`, `Kind` (`Fault`, `ClientCancel`, `InnerCancel`,
   `ReaderFence`) and `Canary` — the failure table.
 - `Serve` and `Message` — one request on a recording tracer, and the error

@@ -35,6 +35,9 @@ type wrongSample struct {
 	stage *failure.StageLog
 	// spanName sets Route.HandlerSpanName for the handler-span-name option.
 	spanName string
+	// spanless answers on the request span with no handler span of its
+	// own, for the spanless single-span bound.
+	spanless bool
 }
 
 // wrongSamples holds one sample per assertion Check makes.
@@ -73,6 +76,15 @@ var wrongSamples = []wrongSample{
 		},
 	},
 	{assertion: failure.HandlerSpanName, respond: correct, spanName: "probe.other"},
+	{assertion: failure.OnlyRequestSpan, respond: rogue, spanless: true},
+}
+
+// rogue answers correctly but opens a span of its own on the request
+// tracer, which a spanless suite must reject.
+func rogue(w http.ResponseWriter, r *http.Request, err error) {
+	_, span := trace.SpanFromContext(r.Context()).TracerProvider().Tracer("probe").Start(r.Context(), "probe.rogue")
+	defer span.End()
+	correct(w, r, err)
 }
 
 // fault reports whether err is a server fault the route must answer 500:

@@ -51,6 +51,9 @@ const (
 	// OneHandlerSpan: with a HandlerTracer, exactly one span opens directly
 	// under the request span.
 	OneHandlerSpan Assertion = "exactly one handler span"
+	// OnlyRequestSpan: without a HandlerTracer, no span besides the request
+	// span ends. A handler that starts opening spans of its own fails.
+	OnlyRequestSpan Assertion = "no spans besides the request span"
 	// HandlerSpanName: the handler span carries the route's telemetry name.
 	HandlerSpanName Assertion = "handler span has the route's telemetry name"
 	// FaultSpanError: a Fault or InnerCancel sets span status Error.
@@ -83,7 +86,7 @@ func Assertions() []Assertion {
 	return []Assertion{
 		NoCanaryInBody, FaultStatus, CustomFaultStatus, ClientCancelStatus, InnerCancelStatus,
 		FenceStatus, FenceCode, FenceRetryAfter, FixedMessage, PlainDetailBody, OneHandlerSpan,
-		HandlerSpanName,
+		OnlyRequestSpan, HandlerSpanName,
 		FaultSpanError, FaultSpanDescription, FaultOneException, FaultNoCancelEvent,
 		CancelSpanUnset, CancelNoException, CancelOneEvent, CancelEventNoAttributes,
 		StageLogVerdict,
@@ -286,6 +289,12 @@ func answerViolations(route Route, kind Kind, rec *httptest.ResponseRecorder) ([
 // spanViolations finds the span the route marks and checks its status and
 // events for kind.
 func spanViolations(message, spanName string, kind Kind, handlerSpan bool, ended []sdktrace.ReadOnlySpan) ([]Violation, error) {
+	if !handlerSpan && len(ended) != 1 {
+		return []Violation{{
+			Assertion: OnlyRequestSpan,
+			Detail:    fmt.Sprintf("ended spans = %d, want 1", len(ended)),
+		}}, nil
+	}
 	span, found, err := markedSpan(handlerSpan, ended)
 	if err != nil || span == nil {
 		return found, err
