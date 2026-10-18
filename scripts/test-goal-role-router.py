@@ -51,7 +51,8 @@ class GoalRoleRouterTests(unittest.TestCase):
         self.assertIn("perf-eshu", output)
         self.assertIn("review-eshu", output)
         self.assertIn("muse-exec", output)
-        self.assertNotIn("develop-eshu", output)
+        # A drive goal always carries an implementation lane (drive contract).
+        self.assertIn("develop-eshu", output)
 
     def test_muse_goal_carries_required_dispatch_and_standing_rules(self):
         """Muse parity: required (not hinted) dispatch, watcher, backlog rules."""
@@ -68,6 +69,25 @@ class GoalRoleRouterTests(unittest.TestCase):
             self.assertIn(marker, muse)
         # The Muse required block must not leak into other harnesses.
         self.assertNotIn("Muse REQUIRED", claude)
+
+    def test_drive_goal_self_organizes_without_subagent_prompting(self):
+        """'/goal drive epics #N using eshu-issue-driver' needs no extra prompting."""
+        prompt = "/goal drive epics #4321, #4356 using eshu-issue-driver skill to completion"
+        for harness, fanout in (("muse", "a Workflow (parallel/pipeline over leaves) or subagent_spawn"),
+                                ("claude", "native subagents / team teammates (Agent tool; teammates load named skills explicitly) — not Workflow"),
+                                ("codex", "native subagents in parallel")):
+            output = context(prompt, harness)
+            for marker in ("DRIVE CONTRACT (no further prompting needed)",
+                           "Decompose each epic into deduplicated leaves",
+                           "worktree per leaf", "independent review-eshu review",
+                           "only the coordinator runs make pre-push",
+                           "commit before dispatch",
+                           "arm the CI watcher in the same turn",
+                           "active backlog (goal inventory)", fanout):
+                self.assertIn(marker, output, f"{harness} missing: {marker}")
+        # A non-drive goal must not grow a drive contract.
+        plain = context("/goal Diagnose the queue with eshu-diagnostic-rigor", "muse")
+        self.assertNotIn("DRIVE CONTRACT", plain)
 
     def test_codex_debug_model_is_manifest_binding(self):
         """The router reports the Codex workhorse binding from the manifest."""

@@ -83,6 +83,13 @@ def route(prompt: str, harness: str, cwd: str = "") -> str:
         roles.append("arbiter-eshu")
     if "golang-engineering" in skills and not roles:
         roles.append("develop-eshu")
+    # A drive goal always needs implementation + independent review lanes,
+    # even when its wording names neither ("drive epics #N to completion").
+    if "eshu-issue-driver" in skills or re.search(r"\bdrive\b.*\b(epic|issue|#\d+)", body.lower()):
+        for needed in ("develop-eshu-deep" if deep else "develop-eshu",
+                       "review-eshu-deep" if deep else "review-eshu"):
+            if needed not in roles:
+                roles.append(needed)
     if not roles:
         roles.append("scan-eshu")
     # A named coordinator skill does not become a leaf-agent job.
@@ -108,6 +115,45 @@ def route(prompt: str, harness: str, cwd: str = "") -> str:
         )
     elif harness in {"codex", "muse"}:
         lines.append(f"When the native child tool cannot select this role and binding, the coordinator can run scripts/agent-roles.py {harness}-exec ROLE TASK.")
+    # Drive contract: "/goal drive epics #N, #M using eshu-issue-driver" (or
+    # the same shape in plain words) must self-organize without the owner
+    # also prompting for subagents/workflows. The coordinator keeps issue/PR
+    # ownership; leaves fan out to leaf roles. Fan-out is harness-native:
+    # Workflow on Muse only; Claude uses its native subagents / team
+    # teammates (never Workflow); other harnesses use their native subagent
+    # tool. This is injected context the model must follow per AGENTS.md —
+    # a hook cannot force the tool call itself.
+    drive = "eshu-issue-driver" in skills or bool(
+        re.search(r"\bdrive\b.*\b(epic|issue|#\d+)", body.lower())
+    )
+    if drive:
+        if harness == "muse":
+            fanout = "a Workflow (parallel/pipeline over leaves) or subagent_spawn"
+        elif harness == "claude":
+            fanout = "native subagents / team teammates (Agent tool; teammates load named skills explicitly) — not Workflow"
+        else:
+            fanout = "native subagents in parallel"
+        lines.append(
+            "DRIVE CONTRACT (no further prompting needed): the coordinator loads "
+            "eshu-issue-driver now and owns epic/issue/PR state end to end. "
+            "Decompose each epic into deduplicated leaves, present the numbered "
+            "execution order, then drive every leaf to merged/closed: worktree "
+            "per leaf, minimum skills per touched surface, TDD + focused proof, "
+            "independent review-eshu review, promotion (only the coordinator "
+            "runs make pre-push / pushes / merges). Independent leaves MUST fan "
+            f"out via {fanout} to the routed *-eshu roles above (scan for "
+            "evidence, debug for unknown cause, develop for implementation, "
+            "perf for measurements, review for the verdict, arbiter-eshu for "
+            "unsettled decisions) — commit before dispatch, one surface per "
+            "dispatch, re-verify every child finding before acting on it. "
+            "Sequential-only work (shared files, ordered dependencies) stays "
+            "coordinator-driven; record that call in the goal file. After "
+            "every gh pr create, arm the CI watcher in the same turn. Every "
+            "issue created during the drive joins the active backlog (goal "
+            "inventory) with an existing label and its epic linked when one "
+            "exists. Do not end the goal while any leaf, PR, review thread, "
+            "or session-created issue is open without a recorded disposition."
+        )
     if harness == "muse":
         # Muse shims' model/effort are inert for spawned children, and Muse's
         # built-in posture prefers inline work. Project rules override both:
