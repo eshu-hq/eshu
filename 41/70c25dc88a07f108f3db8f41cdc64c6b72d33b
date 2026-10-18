@@ -1,0 +1,100 @@
+specs/replay-depth-requirements.v1.yaml
+  s_76d6d17649b056::t_06f1d6be3a8b71 247
+go/internal/projector/README.md
+  s_76d6d17649b056::t_9459c04c89ad31 188
+go/internal/storage/cypher/tfstate_state_match_edge_retract.go
+  s_76d6d17649b056::t_24b390cafe77ce 8,12
+go/internal/storage/cypher/canonical/terraform/attributes_test.go
+  s_76d6d17649b056::t_412a07282c4f52 13,224,226,230,244,264,269,281,292,307,310,313,316,327,334,345,366,374,386-387,389-390,392,395,408-409,421-422,435,438,441
+  s_76d6d17649b056::t_0c4617944ff7ce 4
+go/internal/storage/cypher/canonical/terraform/rows.go
+  s_76d6d17649b056::t_3407003d8aa9df 12-14,17,24,57,68,94
+  s_76d6d17649b056::t_c134701864c570 16,67,93
+  s_76d6d17649b056::t_b70e400a7fa386 4
+  s_76d6d17649b056::t_564e534fd3fd65 30
+go/internal/storage/cypher/canonical/terraform/doc.go
+  s_76d6d17649b056::t_7ce8ca7354fc84 1-7
+go/internal/storage/cypher/tfstate_statement_adapter_test.go
+  s_76d6d17649b056::t_dedc53099dda66 40-41
+  s_76d6d17649b056::t_fc4713896c0d3f 1-39,42-61
+testdata/golden/e2e-20repo-snapshot.json
+  s_76d6d17649b056::t_4fde5bd45aceed 2005
+docs/internal/evidence/5446-tfstate-attrs-provider-performance.md
+  s_76d6d17649b056::t_f0d03b1efee668 9
+go/internal/storage/cypher/README.md
+  s_76d6d17649b056::t_60f08f0316bf6d 402
+go/internal/storage/cypher/canonical/terraform/state_match_retract.go
+  s_76d6d17649b056::t_3fcfd0d22f3b80 189-191
+  s_76d6d17649b056::t_b70e400a7fa386 1-9,11-12,15-21,23-26,28-36,38-42,44-46,48-54,56,58-59,61-63,65-89,91-142,144-149,151-160,162,164-179,182-186,188,192-202
+  s_76d6d17649b056::t_2ea243729e90a4 163,180-181
+  s_76d6d17649b056::t_3407003d8aa9df 10,13-14,22,27,37,43,47,55,57,60,64,90,143,150,161,187
+go/internal/storage/cypher/canonical/terraform/parts.go
+  s_76d6d17649b056::t_3fcfd0d22f3b80 25-29,43
+  s_76d6d17649b056::t_2cde9779a3d2d1 1-5,8-10,14,21-23,30-38,40-42,45-51
+  s_76d6d17649b056::t_c134701864c570 11-13,15-20
+  s_76d6d17649b056::t_65d82d7b211329 39
+  s_76d6d17649b056::t_265f6ef0421e8a 6-7
+  s_76d6d17649b056::t_1701d2fd229044 24,44
+go/internal/storage/cypher/canonical/terraform/README.md
+  s_76d6d17649b056::t_7ce8ca7354fc84 1-39,52-55
+  s_76d6d17649b056::t_092acbe3ceb314 40-43,48-51
+  s_76d6d17649b056::t_a8afc493a77e94 44-47
+go/internal/projector/canonical/terraform_state_types.go
+  s_76d6d17649b056::t_7512e12aca3b9a 35
+go/internal/storage/cypher/tfstate_canonical_writer_retract.go
+  s_76d6d17649b056::t_3fcfd0d22f3b80 12,14-15
+  s_76d6d17649b056::t_24b390cafe77ce 8,11,13,16,19,23
+go/internal/storage/cypher/canonical/terraform/attribute_promotion.go
+  s_76d6d17649b056::t_412a07282c4f52 12,17,19,26,83,137,145,149,156,160,164,170,175,188-189,195,200,210,219,232,257-258,262,267
+  s_76d6d17649b056::t_24b390cafe77ce 28
+  s_76d6d17649b056::t_b70e400a7fa386 4
+go/internal/storage/cypher/canonical/terraform/state_match.go
+  s_76d6d17649b056::t_38dd1e8e777af7 247
+  s_76d6d17649b056::t_3407003d8aa9df 29,52,63,85,96,112-113,151,218,226,248,256
+  s_76d6d17649b056::t_b70e400a7fa386 1-28,30-51,53-62,64-84,86-95,97-111,114,116-117,119,121-138,140-150,152-161,163-164,166,168-188,190-217,219-225,227-230,232-246,249,251-255,257-260,262-266
+  s_76d6d17649b056::t_e7488db7b8f4d9 115,118,120,139,162,165,167,189,231,250,261
+go/internal/storage/cypher/canonical/terraform/retract.go
+  s_76d6d17649b056::t_3fcfd0d22f3b80 127,164,230-231,243-244
+  s_76d6d17649b056::t_b70e400a7fa386 1-9,11-53,55-58,60-72,74-76,78-80,82-84,86-88,90-98,100-102,104-105,109-117,120-124,126,128-138,140-143,146-154,157-161,163,165-175,177,181-215,219-227,229,232-240,242,245-253
+  s_76d6d17649b056::t_042507defa367a 108,118-119,145,155-156,218
+  s_76d6d17649b056::t_c134701864c570 106-107,144,216-217
+  s_76d6d17649b056::t_3407003d8aa9df 10,54,59,73,77,81,85,89,99,103,125,139,162,176,178-180,228,241
+go/internal/storage/cypher/tfstate_canonical_writer.go
+  s_76d6d17649b056::t_e9ebbeb6351d18 14-16
+  s_76d6d17649b056::t_24b390cafe77ce 8,13,17,19,21-22,25-27,29-30,33-34,37-41,43,46,49
+  s_76d6d17649b056::t_3fcfd0d22f3b80 44-45,47-48
+go/internal/storage/cypher/canonical/terraform/attributes_bench_test.go
+  s_76d6d17649b056::t_32efc499fea4f3 9,63
+  s_76d6d17649b056::t_0c4617944ff7ce 4,19
+go/internal/storage/cypher/canonical/terraform/writer.go
+  s_76d6d17649b056::t_b70e400a7fa386 1-27,29-36,38-61,63-66,68-99,101-102,105-134,136-137,140-145,147-159,161-180,182-205,207-211,213-226,228-248,251-267,271,275-276,281-284,286-287,292-297,302-305,308-312,314,316-317,322,324-340,344-350,352-367,371
+  s_76d6d17649b056::t_c3fc1dd0e9e306 277,288,298
+  s_76d6d17649b056::t_3fcfd0d22f3b80 351
+  s_76d6d17649b056::t_5632545441c7a1 270,272-274,280,285,291,301,306-307,315,320,342-343,370
+  s_76d6d17649b056::t_412a07282c4f52 103-104,138-139,146
+  s_76d6d17649b056::t_c134701864c570 268-269,318-319,368
+  s_76d6d17649b056::t_3407003d8aa9df 28,37,62,67,100,135,160,181,206,212,227,249-250,278-279,289-290,299-300,313,321,323,341
+  s_76d6d17649b056::t_38dd1e8e777af7 369
+go/internal/storage/cypher/tfstate_state_match_edge.go
+  s_76d6d17649b056::t_24b390cafe77ce 10,13-17,19-20,23-24,28
+docs/internal/evidence/5441-edge-node-properties.md
+  s_76d6d17649b056::t_3abd3b36133489 29
+go/internal/storage/cypher/canonical/terraform/AGENTS.md
+  s_76d6d17649b056::t_7ce8ca7354fc84 1-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4170c25dc88a07f108f3db8f41cdc64c6b72d33b",
+  "prompts": {},
+  "sessions": {
+    "s_76d6d17649b056": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a14fdb-25a0-75c3-b871-d30f853d66b6",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
