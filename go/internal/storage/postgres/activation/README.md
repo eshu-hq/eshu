@@ -86,6 +86,26 @@ clock (`activationDatabaseClock`) because a disposable container ran 32–79 ms
 ahead of its host. The maintenance deadline's margin (a fifth of the lease) also
 absorbs this skew.
 
+## Off-state observability
+
+The obligation gauges (`eshu_dp_activation_obligations{status}`,
+`eshu_dp_activation_obligation_oldest_open_age_seconds`, and the rest of the
+`eshu_dp_activation_obligation_*` family) are emitted by the consumer's
+housekeeping (`Runner.housekeep`), so while
+`ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED=false` they are absent: the
+wiring returns no runner and nothing publishes the census. The Ack path still
+writes one `activation_obligations` row per activated generation, so the
+pending pile is visible in SQL. Open states are `pending` and `leased`;
+`completed`, `obsolete`, and `inapplicable` are terminal.
+
+```sql
+SELECT state, count(*),
+       max(clock_timestamp() - created_at) AS oldest_open_age
+  FROM activation_obligations
+ WHERE state IN ('pending', 'leased')
+ GROUP BY state;
+```
+
 ## Rollout order
 
 Migration 160 must exist before any binary that Acks runs
