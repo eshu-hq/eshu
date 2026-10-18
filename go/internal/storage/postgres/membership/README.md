@@ -29,7 +29,7 @@ native selector, which observes in githubOrg, gitlabGroup, and explicit mode.
 
 - `ObservationStore` with `NewObservationStore(database db.ExecQueryer)`.
 - `KnownScopes`, `Observations`, `UpsertObservations`,
-  `DeleteExpiredObservations`.
+  `UpsertClassifications` (#8454), `DeleteExpiredObservations`.
 
 See `doc.go` for the godoc contract.
 
@@ -42,7 +42,8 @@ See `doc.go` for the godoc contract.
 
 None of its own. Store errors return to `membership.Observer`, which logs
 `git_repository_selection_store_failed` with `failure_class`
-(`known_scopes_read`, `observations_read`, `upsert`) and counts
+(`known_scopes_read`, `observations_read`, `upsert`, `classification_upsert`
+for a failed verdict write, which leaves the outcome `evaluated`) and counts
 `eshu_dp_collector_repository_selection_evaluations_total{outcome="store_error"}`.
 A sweep error logs `failure_class=expired_sweep` without changing the outcome,
 and the rows deleted count on
@@ -276,6 +277,52 @@ the `store_error` outcome on
 `eshu_dp_collector_repository_selection_evaluations_total`; Postgres latency
 for these statements appears on the instrumented database handle the
 binaries pass in (`eshu_dp_postgres_query_duration_seconds`).
+
+### Probe verdicts (#8454)
+
+Migration 199 adds three nullable columns to
+`repository_selection_observations`: `upstream_classification` (CHECK
+`transferred`, `renamed`, `still_present`, `not_found_or_inaccessible`),
+`successor_slug`, and `classified_at`. `UpsertClassifications` writes one
+selector's probe verdicts in one statement: only `not_listed` rows advance,
+and only when the stored `classified_at` is older than the probe time, so a
+lagging replica never overwrites a newer verdict. The evaluation upsert
+clears all three columns whenever it writes any other state (mirrored by
+`membership.project`), so a relisted scope never carries a stale verdict.
+The reads (`Observations`, `ReadLiveScopeObservations`) return the verdict
+with the row; `TestObservationStoreClassificationLive` pins the round trip,
+the stale guard, the relist clear, and the CHECK against real PostgreSQL 18.
+
+Performance Evidence (#8454, prove-theory-first): PostgreSQL 18.6, a scratch
+schema at the 802-scope QA shape (one selector, 25 confirmed `not_listed`,
+migration 166 DDL plus 199), the exact production UPDATE with a 2-row probe
+batch, `EXPLAIN (ANALYZE, BUFFERS)`:
+
+```text
+Update on repository_selection_observations o  (actual time=0.087..0.087 rows=0.00 loops=1)
+  Buffers: shared hit=27
+  ->  Nested Loop
+        ->  Subquery Scan on s (rows=2, quicksort on scope_id, 25kB)
+        ->  Memoize
+              ->  Index Scan using repository_selection_observations_pkey
+                    Index Cond: ((scope_id = s.scope_id) AND (selector_id = 'sel'::text))
+```
+
+One PK probe per verdict row, 0.087 ms for the batch at QA shape; the batch
+is capped at 25 rows per cycle. No new index: the primary key serves the
+write. Migration 199 re-ran cleanly on the seeded schema (idempotent
+`ADD COLUMN IF NOT EXISTS` plus a guarded CHECK add), the way bootstrap
+re-applies every migration on every boot.
+
+Observability Evidence (#8454): the store emits no signal of its own. Probe
+answers count on
+`eshu_dp_collector_repository_selection_probe_total{outcome}` (`transferred`,
+`renamed`, `still_present`, `not_found_or_inaccessible`, `kept_prior`), the
+post-cycle verdicts sample on
+`eshu_dp_collector_repository_selection_classifications{classification}`
+(`unclassified` while no probe has reported), and a failed verdict write
+logs WARN `git_repository_selection_store_failed` with
+`failure_class=classification_upsert` while the outcome stays `evaluated`.
 
 ## Verification
 

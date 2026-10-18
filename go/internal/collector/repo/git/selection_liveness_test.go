@@ -66,6 +66,10 @@ func (*recordingBatchStore) DeleteExpiredObservations(context.Context, time.Time
 	return 0, nil
 }
 
+func (*recordingBatchStore) UpsertClassifications(context.Context, string, []membership.ClassificationRow, time.Time) error {
+	return nil
+}
+
 // TestConfiguredSelectionLivenessWindowIsWrittenOnEveryRow loads a 72h
 // window from the environment and proves the batch the observer writes, and
 // so liveness_window_seconds on every stored row, carries it.

@@ -103,6 +103,18 @@ func registerRepositorySelection(meter metric.Meter, inst *Instruments) error {
 	); err != nil {
 		return fmt.Errorf("register RepositorySelectionScopes gauge: %w", err)
 	}
+	if inst.RepositorySelectionProbe, err = meter.Int64Counter(
+		"eshu_dp_collector_repository_selection_probe_total",
+		metric.WithDescription("Git collector upstream classification probe answers by collector_kind and outcome (transferred, renamed, still_present, not_found_or_inaccessible, kept_prior); kept_prior means the probe was inconclusive and the prior verdict stands (#8454)"),
+	); err != nil {
+		return fmt.Errorf("register RepositorySelectionProbe counter: %w", err)
+	}
+	if inst.RepositorySelectionClassifications, err = meter.Int64Gauge(
+		"eshu_dp_collector_repository_selection_classifications",
+		metric.WithDescription("Confirmed not_listed repository scopes of the probing githubOrg selector by collector_kind and classification (transferred, renamed, still_present, not_found_or_inaccessible, unclassified), sampled after each evaluated cycle that probed (#8454)"),
+	); err != nil {
+		return fmt.Errorf("register RepositorySelectionClassifications gauge: %w", err)
+	}
 	if inst.RepositoryListingRequests, err = meter.Int64Counter(
 		"eshu_dp_collector_repository_listing_requests_total",
 		metric.WithDescription("Git collector repository listing requests by collector_kind, provider (gitlab), and outcome (success, retried, rate_limited, http_error, transport_error, decode_error) (#7765)"),
@@ -128,4 +140,25 @@ func AttrState(v string) attribute.KeyValue {
 // of the repository selector an evaluation counter sample belongs to.
 func AttrSelectorKind(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionSelectorKind, v)
+}
+
+// Closed probe outcome and classification values for
+// eshu_dp_collector_repository_selection_probe_total and
+// eshu_dp_collector_repository_selection_classifications (#8454). The four
+// verdicts reuse the stored classification strings; the two sentinels below
+// cover the inconclusive probe and the never-probed row.
+const (
+	// RepositorySelectionProbeOutcomeKeptPrior means the probe was
+	// inconclusive (5xx, rate-limit, network, or decode failure, or a
+	// probe error) and the prior verdict stands unwritten.
+	RepositorySelectionProbeOutcomeKeptPrior = "kept_prior"
+	// RepositorySelectionClassificationUnclassified means no probe has
+	// reported for the scope yet.
+	RepositorySelectionClassificationUnclassified = "unclassified"
+)
+
+// AttrClassification returns a classification attribute naming the closed
+// upstream classification of a probe counter or gauge sample.
+func AttrClassification(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionClassification, v)
 }

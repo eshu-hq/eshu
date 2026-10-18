@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -35,6 +36,11 @@ const (
 	// FailureClassExpiredSweep means deleting expired observation rows
 	// failed. The evaluation outcome stands.
 	FailureClassExpiredSweep = "expired_sweep"
+	// FailureClassClassificationUpsert means writing upstream probe
+	// classifications failed. The evaluation outcome stands and the next
+	// cycle re-probes: every unclassified Confirmed not_listed row is a
+	// target again.
+	FailureClassClassificationUpsert = "classification_upsert"
 )
 
 // Store persists selection observations. KnownScopes and Observations are
@@ -59,6 +65,12 @@ type Store interface {
 	// Evaluate's mass-miss guard reads, or a row inside its window or the
 	// grace after it.
 	DeleteExpiredObservations(ctx context.Context, now time.Time, grace time.Duration) (int64, error)
+	// UpsertClassifications writes probe verdicts for the selector's
+	// Confirmed not_listed rows: one row per probed scope with its upstream
+	// classification, successor slug, and probe time. Rows whose probe was
+	// inconclusive never reach the store; their prior verdict stands. An
+	// empty batch writes nothing.
+	UpsertClassifications(ctx context.Context, selectorID string, rows []ClassificationRow, classifiedAt time.Time) error
 }
 
 // Request is one cycle's evaluation request from the git collector.
@@ -76,6 +88,11 @@ type Request struct {
 	LivenessWindow time.Duration
 	Listing        Listing
 	SweepExpired   bool
+	// Probe answers one Confirmed not_listed scope's upstream state. Nil
+	// disables probing; the git collector sets it for github_org selectors
+	// only, bound to the listing credential, so gitlab_group and explicit
+	// rows are never probed.
+	Probe ProbeFunc
 }
 
 // Observer evaluates one selector per cycle and records the outcome. It never
@@ -190,11 +207,94 @@ func (o Observer) evaluate(ctx context.Context, req Request) (Result, string, er
 		if err := o.Store.UpsertObservations(ctx, result.Batch); err != nil {
 			return result, FailureClassUpsert, fmt.Errorf("upsert %d repository selection observations: %w", len(result.Batch.Rows), err)
 		}
+		if req.Selector.Kind == KindGitHubOrg && req.Probe != nil {
+			o.classifyProbed(ctx, req, known, prior, &result)
+		}
 	case OutcomeListingTruncated, OutcomeStoreError:
 		// Unreachable: a truncated listing returned above, and Evaluate never
 		// reports a store error.
 	}
 	return result, "", nil
+}
+
+// classifyProbed probes the selector's Confirmed not_listed rows and writes
+// the verdicts (#8454). Targets come from the post-write projection joined
+// with the prior classifications, so a scope this very cycle confirmed
+// probes at once instead of waiting one more. An inconclusive probe keeps
+// the prior verdict and writes nothing; a probe error counts as kept_prior,
+// never as a failed cycle. A failed classification write is the
+// classification_upsert WARN class and leaves the evaluation outcome
+// unchanged, with no gauge sample: the gauge never reports what the store
+// does not hold.
+func (o Observer) classifyProbed(ctx context.Context, req Request, known []KnownScope, prior []Observation, result *Result) {
+	result.ProbeRan = true
+	result.ProbeOutcomes = make(map[string]int)
+	priorByScope := make(map[string]Observation, len(prior))
+	for _, observation := range prior {
+		priorByScope[observation.ScopeID] = observation
+	}
+	knownByScope := make(map[string]KnownScope, len(known))
+	for _, scope := range known {
+		knownByScope[scope.ScopeID] = scope
+	}
+	merged := make([]Observation, 0, len(result.Projected))
+	for _, projected := range result.Projected {
+		if previous, ok := priorByScope[projected.ScopeID]; ok {
+			projected.Classification = previous.Classification
+			projected.SuccessorSlug = previous.SuccessorSlug
+			projected.ClassifiedAt = previous.ClassifiedAt
+		}
+		merged = append(merged, projected)
+	}
+	targets := SelectProbeTargets(merged, knownByScope, req.Selector.Owner, req.Now)
+	updated := make(map[string]ClassificationRow, len(targets))
+	for _, target := range targets {
+		answer, err := req.Probe(ctx, target)
+		if err != nil {
+			result.ProbeOutcomes[telemetry.RepositorySelectionProbeOutcomeKeptPrior]++
+			continue
+		}
+		classification, successor, update := Classify(target, answer)
+		if !update {
+			result.ProbeOutcomes[telemetry.RepositorySelectionProbeOutcomeKeptPrior]++
+			continue
+		}
+		result.ProbeOutcomes[string(classification)]++
+		updated[target.ScopeID] = ClassificationRow{ScopeID: target.ScopeID, Classification: classification, SuccessorSlug: successor}
+	}
+	rows := make([]ClassificationRow, 0, len(updated))
+	for _, row := range updated {
+		rows = append(rows, row)
+	}
+	slices.SortFunc(rows, func(a, b ClassificationRow) int { return strings.Compare(a.ScopeID, b.ScopeID) })
+	if len(rows) > 0 {
+		if err := o.Store.UpsertClassifications(ctx, req.Selector.ID, rows, result.Batch.EvaluatedAt); err != nil {
+			o.storeFailed(ctx, req, FailureClassClassificationUpsert, fmt.Errorf("upsert %d repository selection classifications: %w", len(rows), err))
+			return
+		}
+	}
+	result.Classifications = postCycleClassifications(merged, updated)
+}
+
+// postCycleClassifications counts merged's Confirmed not_listed rows by
+// classification after applying updated verdicts, reporting an empty
+// classification as unclassified.
+func postCycleClassifications(merged []Observation, updated map[string]ClassificationRow) map[string]int {
+	counts := make(map[string]int)
+	for _, observation := range merged {
+		if observation.State != StateNotListed || !Confirmed(observation) {
+			continue
+		}
+		classification := string(observation.Classification)
+		if row, ok := updated[observation.ScopeID]; ok {
+			classification = string(row.Classification)
+		}
+		if classification == "" {
+			classification = telemetry.RepositorySelectionClassificationUnclassified
+		}
+		counts[classification]++
+	}
+	return counts
 }
 
 func (o Observer) storeFailed(ctx context.Context, req Request, failureClass string, err error) {
@@ -241,11 +341,33 @@ func (o Observer) record(ctx context.Context, selectorKind string, result Result
 			telemetry.AttrState(state),
 		))
 	}
+	if result.ProbeRan {
+		if o.Instruments.RepositorySelectionProbe != nil {
+			for outcome, count := range result.ProbeOutcomes {
+				o.Instruments.RepositorySelectionProbe.Add(ctx, int64(count), metric.WithAttributes(
+					telemetry.AttrCollectorKind(collectorKind),
+					telemetry.AttrOutcome(outcome),
+				))
+			}
+		}
+		if o.Instruments.RepositorySelectionClassifications != nil && result.Classifications != nil {
+			for classification, count := range result.Classifications {
+				o.Instruments.RepositorySelectionClassifications.Record(ctx, int64(count), metric.WithAttributes(
+					telemetry.AttrCollectorKind(collectorKind),
+					telemetry.AttrClassification(classification),
+				))
+			}
+		}
+	}
 }
 
 func (o Observer) logEvaluated(ctx context.Context, req Request, result Result, gap, window time.Duration) {
 	if o.Logger == nil {
 		return
+	}
+	probed := 0
+	for _, count := range result.ProbeOutcomes {
+		probed += count
 	}
 	o.Logger.InfoContext(ctx, "git_repository_selection_evaluated",
 		log.CollectorKind(collectorKind),
@@ -267,6 +389,9 @@ func (o Observer) logEvaluated(ctx context.Context, req Request, result Result, 
 		slog.String("outcome", string(result.Outcome)),
 		slog.Int64("expired_deleted_count", result.ExpiredDeleted),
 		slog.Any("not_listed_sample", result.NotListedSample),
+		slog.Int("probed_count", probed),
+		slog.Any("probe_outcomes", result.ProbeOutcomes),
+		slog.Any("classifications", result.Classifications),
 	)
 }
 

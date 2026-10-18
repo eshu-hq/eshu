@@ -1922,6 +1922,20 @@ type Instruments struct {
 	// archived_excluded, rule_excluded) (#7625).
 	RepositorySelectionScopes metric.Int64Gauge
 
+	// RepositorySelectionProbe counts git collector upstream classification
+	// probe answers (#8454) by collector_kind and a closed outcome: the
+	// classification (transferred, renamed, still_present,
+	// not_found_or_inaccessible), or kept_prior when the probe was
+	// inconclusive (5xx, rate-limit, network, or decode failure, or a probe
+	// error) and the prior verdict stands.
+	RepositorySelectionProbe metric.Int64Counter
+
+	// RepositorySelectionClassifications samples, after each evaluated
+	// github_org cycle that probed, the selector's Confirmed not_listed
+	// repository scopes by collector_kind and classification (the four
+	// verdicts, or unclassified when no probe has reported yet) (#8454).
+	RepositorySelectionClassifications metric.Int64Gauge
+
 	// RepositorySelectionObservationsDeleted counts expired
 	// repository_selection_observations rows the git collector's sweep
 	// deleted (#7774), by collector_kind.

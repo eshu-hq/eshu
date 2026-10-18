@@ -42,16 +42,14 @@ type RepositorySelectionObserver interface {
 // every shard sees the same selection and N writers would race on the same
 // observation rows. Filesystem mode has no remote identity to observe.
 func (s NativeRepositorySelector) observeSelection(
-	ctx context.Context,
-	discovered RepositorySelection,
-	observedAt time.Time,
+	ctx context.Context, discovered RepositorySelection, observedAt time.Time, token string,
 ) {
 	if s.SelectionObserver == nil || s.Config.RepoShardIndex != 0 {
 		return
 	}
 	switch s.Config.SourceMode {
 	case "githubOrg":
-		s.SelectionObserver.Observe(ctx, githubOrgSelectionRequest(s.Config, discovered, observedAt))
+		observeGitHubOrgSelection(s, ctx, discovered, observedAt, token)
 	case "gitlabGroup":
 		s.SelectionObserver.Observe(ctx, gitlabGroupSelectionRequest(s.Config, discovered, observedAt))
 	case "explicit":

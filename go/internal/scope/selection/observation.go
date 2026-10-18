@@ -47,6 +47,12 @@ type Observation struct {
 	// LivenessWindow is how long after EvaluatedAt the row still counts; the
 	// writing collector stores its ESHU_REPO_SELECTION_LIVENESS_WINDOW.
 	LivenessWindow time.Duration
+	// Classification, SuccessorSlug, and ClassifiedAt are the upstream probe
+	// verdict (#8454): meaningful only for not_listed rows, empty and zero
+	// otherwise. An empty Classification means no probe has reported yet.
+	Classification UpstreamClassification
+	SuccessorSlug  string
+	ClassifiedAt   time.Time
 }
 
 // Live reports whether o still counts at now: evaluated_at + liveness window

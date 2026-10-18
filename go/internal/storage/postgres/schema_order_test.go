@@ -491,4 +491,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// Migration 198 (#8316) serves the per-pass latest-decision-per-anchor
 	// listing with a partial anchor-leading index.
 	"deployable_unit_gap_admitted_anchor_idx",
+	// Migration 199 (#8454) stores the upstream classification probe
+	// verdict on repository_selection_observations. No read path change.
+	"repository_selection_observation_classification",
 }

@@ -21,7 +21,8 @@ import (
 // equal at the window boundary.
 const liveScopeObservationsQuery = `
 SELECT selector_id, state, last_listed_at, state_since, state_cycle_count,
-       evaluated_at, liveness_window_seconds
+       evaluated_at, liveness_window_seconds,
+       upstream_classification, successor_slug, classified_at
 FROM repository_selection_observations
 WHERE scope_id = $1
   AND evaluated_at + make_interval(secs => liveness_window_seconds) >= $2
@@ -50,14 +51,18 @@ func ReadLiveScopeObservations(ctx context.Context, queryer db.Queryer, scopeID 
 	var observations []selection.Observation
 	for rows.Next() {
 		var (
-			observation   selection.Observation
-			state         string
-			lastListedAt  sql.NullTime
-			windowSeconds int
+			observation    selection.Observation
+			state          string
+			lastListedAt   sql.NullTime
+			windowSeconds  int
+			classification sql.NullString
+			successor      sql.NullString
+			classifiedAt   sql.NullTime
 		)
 		if err := rows.Scan(
 			&observation.SelectorID, &state, &lastListedAt, &observation.StateSince,
 			&observation.StateCycleCount, &observation.EvaluatedAt, &windowSeconds,
+			&classification, &successor, &classifiedAt,
 		); err != nil {
 			return nil, fmt.Errorf("read live repository selection observations: %w", err)
 		}
@@ -68,6 +73,13 @@ func ReadLiveScopeObservations(ctx context.Context, queryer db.Queryer, scopeID 
 		observation.StateSince = observation.StateSince.UTC()
 		observation.EvaluatedAt = observation.EvaluatedAt.UTC()
 		observation.LivenessWindow = time.Duration(windowSeconds) * time.Second
+		observation.Classification = selection.UpstreamClassification(classification.String)
+		if successor.Valid {
+			observation.SuccessorSlug = successor.String
+		}
+		if classifiedAt.Valid {
+			observation.ClassifiedAt = classifiedAt.Time.UTC()
+		}
 		observations = append(observations, observation)
 	}
 	if err := rows.Err(); err != nil {

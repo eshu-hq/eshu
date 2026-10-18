@@ -22,9 +22,24 @@ func TestReadLiveScopeObservationsBindsTheLiveFilter(t *testing.T) {
 
 	now := time.Date(2026, 10, 8, 6, 0, 0, 123456789, time.FixedZone("EDT", -4*3600))
 	listedAt := now.Add(-time.Hour)
+	classifiedAt := now.Add(-time.Hour).UTC()
 	database := &fake.ExecQueryer{QueryResponses: []fake.Rows{{Data: [][]any{
-		{"sel-a@app:1:2", "not_listed", sql.NullTime{}, listedAt, 2, now.Add(-time.Minute), 172800},
-		{"sel-b@token:abc", "selected", sql.NullTime{Time: listedAt, Valid: true}, listedAt, 1, listedAt, 3600},
+		{
+			"sel-a@app:1:2", "not_listed",
+			sql.NullTime{},
+			listedAt, 2, now.Add(-time.Minute), 172800,
+			sql.NullString{String: "renamed", Valid: true},
+			sql.NullString{String: "acme/a-v2", Valid: true},
+			sql.NullTime{Time: classifiedAt, Valid: true},
+		},
+		{
+			"sel-b@token:abc", "selected",
+			sql.NullTime{Time: listedAt, Valid: true},
+			listedAt, 1, listedAt, 3600,
+			sql.NullString{},
+			sql.NullString{},
+			sql.NullTime{},
+		},
 	}}}}
 	got, err := membershipstore.ReadLiveScopeObservations(context.Background(), database, "scope:a", now)
 	if err != nil {
@@ -34,6 +49,7 @@ func TestReadLiveScopeObservationsBindsTheLiveFilter(t *testing.T) {
 		{
 			SelectorID: "sel-a@app:1:2", State: selection.StateNotListed, StateSince: listedAt.UTC(),
 			StateCycleCount: 2, EvaluatedAt: now.Add(-time.Minute).UTC(), LivenessWindow: 48 * time.Hour,
+			Classification: selection.UpstreamRenamed, SuccessorSlug: "acme/a-v2", ClassifiedAt: classifiedAt,
 		},
 		{
 			SelectorID: "sel-b@token:abc", State: selection.StateSelected, LastListedAt: listedAt.UTC(),

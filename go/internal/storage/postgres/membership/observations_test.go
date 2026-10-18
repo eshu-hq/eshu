@@ -65,18 +65,25 @@ func TestObservationStoreObservationsMapsNullsAndUTC(t *testing.T) {
 
 	listedAt := time.Date(2026, 10, 8, 5, 0, 0, 0, time.FixedZone("EDT", -4*3600))
 	since := listedAt.Add(-time.Hour)
+	classifiedAt := evaluatedAt.Add(-time.Hour)
 	database := &fake.ExecQueryer{QueryResponses: []fake.Rows{{Data: [][]any{
 		{
 			"git-repository-scope:a", "selected",
 			sql.NullInt64{Int64: 7, Valid: true},
 			sql.NullTime{Time: listedAt, Valid: true},
 			since, 3, evaluatedAt, 172800,
+			sql.NullString{},
+			sql.NullString{},
+			sql.NullTime{},
 		},
 		{
 			"git-repository-scope:b", "not_listed",
 			sql.NullInt64{},
 			sql.NullTime{},
 			listedAt, 2, evaluatedAt, 3600,
+			sql.NullString{String: "transferred", Valid: true},
+			sql.NullString{String: "archive/b", Valid: true},
+			sql.NullTime{Time: classifiedAt, Valid: true},
 		},
 	}}}}
 	got, err := membershipstore.NewObservationStore(database).Observations(context.Background(), testSelector.ID)
@@ -92,6 +99,8 @@ func TestObservationStoreObservationsMapsNullsAndUTC(t *testing.T) {
 		{
 			ScopeID: "git-repository-scope:b", State: membership.StateNotListed,
 			StateSince: listedAt.UTC(), StateCycleCount: 2, EvaluatedAt: evaluatedAt.UTC(), LivenessWindow: time.Hour,
+			Classification: membership.UpstreamTransferred, SuccessorSlug: "archive/b",
+			ClassifiedAt: classifiedAt.UTC(),
 		},
 	}
 	if !reflect.DeepEqual(got, want) {

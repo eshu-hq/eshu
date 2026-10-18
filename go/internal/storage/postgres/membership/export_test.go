@@ -32,3 +32,11 @@ const (
 // LiveScopeObservationsQuery exposes liveScopeObservationsQuery so external
 // tests can assert on its live filter.
 const LiveScopeObservationsQuery = liveScopeObservationsQuery
+
+// UpsertClassificationsQuery exposes upsertClassificationsQuery so external
+// tests can assert on its not_listed guard and advance-only predicate.
+const UpsertClassificationsQuery = upsertClassificationsQuery
+
+// ObservationsQuery exposes observationsQuery so external tests can assert
+// it selects the probe columns.
+const ObservationsQuery = observationsQuery

@@ -11,7 +11,12 @@
 // repository scopes and the selector's prior observations, and returns the
 // rows to upsert plus the projected per-scope state. Observer wraps Evaluate
 // with the Store reads and the single upsert, the outcome counter, the state
-// gauge, and the structured logs.
+// gauge, and the structured logs. On an evaluated githubOrg cycle with a
+// probe function, Observer also classifies the Confirmed not_listed rows
+// against the upstream API (at most 25 per cycle, oldest first) and writes
+// the verdicts: transferred, renamed, still_present, or
+// not_found_or_inaccessible (#8454). An inconclusive probe keeps the prior
+// verdict and never fails the cycle.
 //
 // The package only records evidence. It never deletes, hides, or retires a
 // scope and never writes the graph. At most once per cycle, on the request marked

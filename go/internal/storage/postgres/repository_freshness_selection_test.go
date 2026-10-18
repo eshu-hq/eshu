@@ -38,9 +38,10 @@ func freshnessSelectionStore(queryer *fakeQueryer) RepositoryFreshnessStore {
 
 // selectionRow is one live selection lookup row: selector_id, state,
 // last_listed_at, state_since, state_cycle_count, evaluated_at,
-// liveness_window_seconds (48h).
+// liveness_window_seconds (48h), upstream_classification, successor_slug,
+// classified_at (all unclassified here).
 func selectionRow(selectorID, state string, lastListed any, stateSince time.Time, cycles int64, evaluatedAt time.Time) []any {
-	return []any{selectorID, state, lastListed, stateSince, cycles, evaluatedAt, int64(172800)}
+	return []any{selectorID, state, lastListed, stateSince, cycles, evaluatedAt, int64(172800), nil, nil, nil}
 }
 
 func latestGenerationRow(observedAt any) fakeRows {

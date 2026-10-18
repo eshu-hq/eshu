@@ -93,6 +93,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"writer",
 		"state",
 		"selector_kind",
+		"classification",
 		"model_key",
 		"resolved_by",
 		"table",

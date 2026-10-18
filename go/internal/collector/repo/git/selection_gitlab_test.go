@@ -283,7 +283,7 @@ func TestObserveSelectionGitLabGroupShardZeroOnly(t *testing.T) {
 	}
 
 	observer := &recordingSelectionObserver{}
-	newSelector(0, observer).observeSelection(context.Background(), discovered, now)
+	newSelector(0, observer).observeSelection(context.Background(), discovered, now, "")
 	if len(observer.requests) != 1 {
 		t.Fatalf("shard 0 observations = %d, want 1", len(observer.requests))
 	}
@@ -296,7 +296,7 @@ func TestObserveSelectionGitLabGroupShardZeroOnly(t *testing.T) {
 	}
 
 	other := &recordingSelectionObserver{}
-	newSelector(1, other).observeSelection(context.Background(), discovered, now)
+	newSelector(1, other).observeSelection(context.Background(), discovered, now, "")
 	if len(other.requests) != 0 {
 		t.Fatalf("shard 1 observations = %d, want 0", len(other.requests))
 	}

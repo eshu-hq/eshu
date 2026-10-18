@@ -86,6 +86,12 @@ const (
 	// counter (#7625, #7765) with the closed selector kind: github_org,
 	// explicit, or gitlab_group.
 	MetricDimensionSelectorKind = "selector_kind"
+	// MetricDimensionClassification labels the repository selection probe
+	// counter and classification gauge (#8454) with the closed upstream
+	// classification: transferred, renamed, still_present,
+	// not_found_or_inaccessible, kept_prior (counter only), or unclassified
+	// (gauge only).
+	MetricDimensionClassification = "classification"
 	// MetricDimensionGuardrail labels counters for bounded guardrail classes
 	// that are not admission or correlation outcomes.
 	MetricDimensionGuardrail = "guardrail"
