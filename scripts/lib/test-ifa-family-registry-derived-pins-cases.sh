@@ -91,7 +91,6 @@ IFA_FAMILY_PINS_NAMES=(
 	ec2_uses_profile
 	s3_logs_to
 	kubernetes_correlation
-	semantic_entity_containment
 )
 
 ifa_family_registry_pins_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ifa_family_registry_pins"
