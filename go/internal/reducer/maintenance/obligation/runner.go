@@ -45,10 +45,13 @@ const (
 
 // DefaultActivationLease is how long one claim holds an obligation when the
 // operator sets no ESHU_ACTIVATION_OBLIGATION_LEASE override. An obligation
-// left open is retried after its lease expires. The value is unchanged by
-// #7638 item 3: lease sizing awaits the full-corpus p99, which is unmeasured,
-// so no tuned value is prescribed here.
-const DefaultActivationLease = 2 * time.Minute
+// left open is retried after its lease expires. The 30-minute interim value
+// is the arbiter-ruled #7638 item-2 default: the measured 395 s full-corpus
+// (984-scope) pass fits inside the lease-minus-a-fifth deadline (24 minutes),
+// while the 2-minute default timed out (8 timeouts, 0 completions) and 30
+// minutes completed 3/3. Lower back only when a rewrite re-measures the pass
+// p99 far below the deadline.
+const DefaultActivationLease = 30 * time.Minute
 
 // DefaultActivationPollInterval is the wait after a cycle that claimed
 // nothing when the operator sets no ESHU_ACTIVATION_OBLIGATION_POLL_INTERVAL

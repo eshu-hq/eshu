@@ -78,11 +78,11 @@ func TestActivationObligationConsumerWiresTheTargetedMaintainer(t *testing.T) {
 	}
 }
 
-// TestActivationObligationConsumerKnobsFlowIntoConfig pins the #7638 item-3
+// TestActivationObligationConsumerKnobsFlowIntoConfig pins the #7638 item-2
 // tuning knobs: valid durations and worker counts flow into the runner
 // Config, while empty or unparsable values fall back to the owning package's
-// defaults without failing startup. A disabled consumer still yields no
-// runner even when the knobs are set.
+// defaults (lease 30m interim) without failing startup. A disabled consumer
+// still yields no runner even when the knobs are set.
 func TestActivationObligationConsumerKnobsFlowIntoConfig(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
