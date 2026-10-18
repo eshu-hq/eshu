@@ -194,6 +194,7 @@ ifa:
   - 'testdata/cassettes/iaminstanceprofilerole/**'
   - 'testdata/cassettes/iamcanassume/**'
   - 'testdata/cassettes/iamcanperform/**'
+  - 'testdata/cassettes/ec2usesprofile/**'
   - 'testdata/cassettes/kubernetesnamespaceenvironment/**'
   - 'testdata/cassettes/rationale/**'
   - 'testdata/cassettes/repodependency/**'

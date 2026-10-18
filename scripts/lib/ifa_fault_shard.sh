@@ -137,8 +137,9 @@ IFA_FAULT_ALL_CELLS=(
 	cell_killworker_submodule_pin
 	cell_failgraphwrite_submodule_pin
 	# kubernetes_namespace_environment + iam_instance_profile_role (#6309) +
-	# iam_can_assume (#6228 fault half): the direct-materialization families
-	# in this gate, same family-scoped-baseline-plus-two shape as
+	# iam_can_assume + ec2_uses_profile (#6228 fault halves): the
+	# direct-materialization families in this gate, same
+	# family-scoped-baseline-plus-two shape as
 	# codeowners_ownership_edges above (cell_kind=custom on a
 	# table_lock:fact_records blocker). Each baseline writes its own
 	# digests[baseline_<family>], so each trio must stay co-located -- see
@@ -160,6 +161,14 @@ IFA_FAULT_ALL_CELLS=(
 	cell_baseline_iam_can_perform
 	cell_killworker_iam_can_perform
 	cell_failgraphwrite_iam_can_perform
+	# ec2_uses_profile (#6228 fault half): fifth direct-materialization
+	# family in this gate, same family-scoped-baseline-plus-two shape as the
+	# #6309 trios and the iam_can_assume trio above. Its baseline writes
+	# digests[baseline_ec2_uses_profile], so the trio must stay co-located --
+	# see IFA_FAULT_ATOMIC_GROUPS below.
+	cell_baseline_ec2_uses_profile
+	cell_killworker_ec2_uses_profile
+	cell_failgraphwrite_ec2_uses_profile
 	cell_baseline_inheritance
 	cell_killworker_inheritance
 	cell_failgraphwrite_inheritance
@@ -215,6 +224,7 @@ IFA_FAULT_ATOMIC_GROUPS=(
 	"cell_baseline_iam_instance_profile_role cell_killworker_iam_instance_profile_role cell_failgraphwrite_iam_instance_profile_role"
 	"cell_baseline_iam_can_assume cell_killworker_iam_can_assume cell_failgraphwrite_iam_can_assume"
 	"cell_baseline_iam_can_perform cell_killworker_iam_can_perform cell_failgraphwrite_iam_can_perform"
+	"cell_baseline_ec2_uses_profile cell_killworker_ec2_uses_profile cell_failgraphwrite_ec2_uses_profile"
 	"cell_baseline_inheritance cell_killworker_inheritance cell_failgraphwrite_inheritance"
 	"cell_baseline_shell_exec cell_killworker_shell_exec cell_failgraphwrite_shell_exec"
 	"cell_baseline_workload_dependency cell_killworker_workload_dependency cell_failgraphwrite_workload_dependency"

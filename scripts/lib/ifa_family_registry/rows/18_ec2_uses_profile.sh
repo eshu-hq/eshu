@@ -5,10 +5,16 @@
 # the schema and every array declaration this file assigns into. Read
 # rows/13_iam_instance_profile_role.sh's header first -- it explains what
 # a DIRECT-materialization family is and which blocker kinds are unavailable to
-# one. This row carries NO fault cells yet: the determinism gate drives it
-# through the shared N={1,2,4} cell below, and the fault-injection area stays
-# untouched (cell_kind=custom is rejected by the generic dispatchers, and no
-# custom cell file exists, so the fault gate never dispatches this family).
+# one.
+#
+# FAULT CELLS LANDED (#6228 fault half). scripts/verify-ifa-fault-injection.sh
+# drives and asserts this row through
+# scripts/lib/ifa_fault_injection_ec2_uses_profile_cells.sh
+# (baseline/killworker/failgraphwrite trio, dispatched in shard order with a
+# co-location atomic group). cell_kind=custom below records the hand-written
+# dispatch; specs/ci-gates.v1.yaml gives this family ifa-fault-injection
+# triggers so an edit to its cassette or its writer re-runs the matrix that
+# observes it.
 
 # Hand-derived, and non-vacuous once the determinism gate drives it:
 # EC2UsesProfileMaterializationHandler embeds `FactLoader factload.FactLoader`
@@ -16,7 +22,7 @@
 # and Handle refuses to run without it (:149) before passing it to
 # factload.LoadFactsForKinds (:182). The handler reads fact_records AFTER
 # claiming its work item, so an ACCESS EXCLUSIVE lock on that table would hold
-# it genuinely in flight -- the blocker_kind a future fault cell would take.
+# it genuinely in flight -- the blocker_kind this row's fault cell takes.
 # Same table and same reasoning as rows/13; see that row for why
 # fact_work_items is the wrong target.
 IFA_FAMILY_BLOCKER_KIND[ec2_uses_profile]="table_lock:fact_records"
@@ -53,19 +59,19 @@ IFA_FAMILY_EXPECTED_VAR[ec2_uses_profile]="ec2_uses_profile_expected_edges"
 # graph. The type is read off the template, never derived from the port or
 # family name.
 IFA_FAMILY_ANCHOR[ec2_uses_profile]="MERGE (source)-[rel:USES_PROFILE]->(target)"
-# custom, prospectively: no fault cell file exists for this family yet, and the
-# generic public dispatchers reject `cell_kind=custom`, so the fault gate
-# cannot dispatch it by accident. Flip only with a proven fault cell, never to
-# generic without the lifecycle the generic header demands.
+# custom, same dispatch shape as rows/12-13: hand-written cells, dispatched by
+# name. The generic table_lock path has never run live and its mandatory
+# precondition assumes a `domain` column fact_records does not have
+# (scripts/lib/ifa_fault_generic_table_lock.sh's header).
 IFA_FAMILY_CELL_KIND[ec2_uses_profile]="custom"
 
 # Not a shared_intent_lock family, so no retry baseline is required. Declared
 # empty rather than omitted -- see rows/12 for why an absent key is worse.
 IFA_FAMILY_RETRY_BASELINE_VAR[ec2_uses_profile]=""
 
-# 0: drive_all_cassettes does not produce this family, and no fault cell
-# drives it either; each determinism cell drives it through
-# DRIVE_FN/CASSETTE_VAR instead.
+# 0 on the same footing as rows/12-13: drive_all_cassettes does not produce
+# this family; each fault cell drives it through DRIVE_FN/CASSETTE_VAR
+# instead.
 IFA_FAMILY_FAULT_SHARED_DRIVE[ec2_uses_profile]="0"
 
 IFA_FAMILY_HANDLER_GO_FILE[ec2_uses_profile]="go/internal/reducer/ec2usesprofile/ec2_uses_profile_materialization.go"

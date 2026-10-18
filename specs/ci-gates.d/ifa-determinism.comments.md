@@ -117,7 +117,7 @@
       # documentation family learned the hard way that a correct literal stops
       # being correct the moment the writer splits into a second file.
       # kubernetes_namespace_environment / iam_instance_profile_role (#6228)
-      # + iam_can_perform (#6228 fault half):
+      # + iam_can_perform + ec2_uses_profile (#6228 fault halves):
       # the first DIRECT-materialization families in a live gate. Each carries
       # its own Odù builder, committed cassette and expected-edge directory,
       # plus the reducer handler and cypher writer whose output the exact-set
@@ -209,7 +209,7 @@
       # #6162: the determinism-matrix job pre-warms Go modules through this
       # shared retry helper before its first build/test step.
       # kubernetes_namespace_environment + iam_instance_profile_role (#6309)
-      # + iam_can_perform (#6228 fault half):
+      # + iam_can_perform + ec2_uses_profile (#6228 fault halves):
       # same deliberate reach into the fault surface as the inheritance/
       # shell_exec literals above.
       # #6147 PR-0 family-registry extraction: shared with ifa-fault-injection

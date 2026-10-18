@@ -45,8 +45,8 @@ ifa_live_gate_determinism_only_seams=(
 	# families. The other seven of the thirteen triggers were already matched
 	# on BOTH gates by 'go/internal/ifa/*.go', 'go/internal/reducer/**' and
 	# 'scripts/lib/ifa_*_live*.sh' (each with its own seam above).
-	# workload_cloud_relationship,
-	# iam_escalation, ec2_uses_profile, s3_logs_to, and
+	# workload_cloud_relationship, iam_escalation,
+	# s3_logs_to, and
 	# kubernetes_correlation (#6228) keep their three each here: none has
 	# fault cells by design (cell_kind=custom,
 	# generic dispatchers reject them), so the Odus, cassettes, and
@@ -65,6 +65,14 @@ ifa_live_gate_determinism_only_seams=(
 	# still selects determinism alone -- the same position the two #6309
 	# siblings' Odus hold (matched on determinism by the registry, with no
 	# fault trigger naming them).
+	# ec2_uses_profile's cassette and expected-edge set moved to
+	# ifa_live_gate_common_seams when its fault cells landed (#6228 fault
+	# half): they are the fault cells' own inputs, so they must retrigger
+	# the fault gate too. Its Odù stays here: the fault cells drive the
+	# committed cassette JSON, never the Odù source, so an Odù-only edit
+	# still selects determinism alone -- the same position the two #6309
+	# siblings' Odus hold (matched on determinism by the registry, with no
+	# fault trigger naming them).
 	'go/internal/ifa/familyodu/iam_can_assume_family_odu.go|go/internal/ifa/familyodu/iam_can_assume_family_odu.go'
 	'go/internal/ifa/familyodu/iam_can_perform_family_odu.go|go/internal/ifa/familyodu/iam_can_perform_family_odu.go'
 	'go/internal/ifa/familyodu/workload_cloud_relationship_family_odu.go|go/internal/ifa/familyodu/workload_cloud_relationship_family_odu.go'
@@ -74,8 +82,6 @@ ifa_live_gate_determinism_only_seams=(
 	'testdata/cassettes/iamescalation/**|testdata/cassettes/iamescalation/ifa-iam-escalation-family.json'
 	'go/internal/ifa/testdata/iamescalation/**|go/internal/ifa/testdata/iamescalation/ifa-iam-escalation-family-expected-edges.json'
 	'go/internal/ifa/familyodu/ec2_uses_profile_family_odu.go|go/internal/ifa/familyodu/ec2_uses_profile_family_odu.go'
-	'testdata/cassettes/ec2usesprofile/**|testdata/cassettes/ec2usesprofile/ifa-ec2-uses-profile-family.json'
-	'go/internal/ifa/testdata/ec2usesprofile/**|go/internal/ifa/testdata/ec2usesprofile/ifa-ec2-uses-profile-family-expected-edges.json'
 	'go/internal/ifa/familyodu/s3_logs_to_family_odu.go|go/internal/ifa/familyodu/s3_logs_to_family_odu.go'
 	'testdata/cassettes/s3logsto/**|testdata/cassettes/s3logsto/ifa-s3-logs-to-family.json'
 	'go/internal/ifa/testdata/s3logsto/**|go/internal/ifa/testdata/s3logsto/ifa-s3-logs-to-family-expected-edges.json'

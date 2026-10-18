@@ -44,6 +44,7 @@ ifa_live_gate_fault_only_seams=(
 	'scripts/lib/test-ifa-fault-injection-*.sh|scripts/lib/test-ifa-fault-injection-kubernetes-namespace-environment-cases.sh'
 	'scripts/lib/test-ifa-fault-injection-*.sh|scripts/lib/test-ifa-fault-injection-iam-instance-profile-role-cases.sh'
 	'scripts/lib/test-ifa-fault-injection-*.sh|scripts/lib/test-ifa-fault-injection-iam-can-assume-cases.sh'
+	'scripts/lib/test-ifa-fault-injection-*.sh|scripts/lib/test-ifa-fault-injection-ec2-uses-profile-cases.sh'
 	# handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997):
 	# fault-only, same shape as submodule_pin's cells file immediately
 	# above -- verify-ifa-determinism.sh never sources a *_cells.sh file for
