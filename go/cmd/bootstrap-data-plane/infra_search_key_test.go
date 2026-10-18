@@ -23,10 +23,23 @@ type fakeGraphRunner struct {
 	// awaitErr and stateErr make db.awaitIndex or the state read fail.
 	awaitErr error
 	stateErr error
+	// moduleUnkeyed is what the Module import_key verify step reports, and
+	// moduleErr makes the collapse step fail.
+	moduleUnkeyed int64
+	moduleErr     error
 }
 
 func (r *fakeGraphRunner) Run(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 	switch {
+	case cypher == moduleImportKeyCollapseCypher:
+		*r.events = append(*r.events, "module_collapse")
+		return []map[string]any{{"keyed": int64(0), "moved": int64(0), "deleted": int64(0)}}, r.moduleErr
+	case cypher == moduleImportKeyRepointCypher:
+		*r.events = append(*r.events, "module_repoint")
+		return []map[string]any{{"repointed": int64(0)}}, nil
+	case cypher == moduleImportKeyVerifyCypher:
+		*r.events = append(*r.events, "module_verify")
+		return []map[string]any{{"unkeyed": r.moduleUnkeyed, "adopted_imports": int64(0)}}, nil
 	case cypher == search.OversizedKeyCountCypher():
 		*r.events = append(*r.events, "probe")
 		return []map[string]any{{"oversized": r.oversized}}, nil
@@ -93,7 +106,7 @@ func TestRunProbesBeforeDDLAndBackfillsBeforeTheMarker(t *testing.T) {
 	for range graph.InfraSearchKeyLabels() {
 		want = append(want, "backfill")
 	}
-	want = append(want, "await_index", "index_state")
+	want = append(want, "await_index", "index_state", "module_collapse", "module_repoint", "module_verify")
 	if strings.Join(events, ",") != strings.Join(want, ",") {
 		t.Fatalf("events = %v, want %v", events, want)
 	}

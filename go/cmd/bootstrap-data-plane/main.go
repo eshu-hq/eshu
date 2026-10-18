@@ -241,7 +241,7 @@ func run(
 			}
 		} else {
 			adopted, actualNames, err := adoptExistingGraphSchema(ctx, statementTimeout, database, nd.inspector, logger, schemaApplication,
-				infraSearchKeyAdoptionGate(ctx, backend, keyRunner, logger, awaitSeconds))
+				neo4jAdoptionGate(ctx, backend, keyRunner, logger, awaitSeconds))
 			if err != nil {
 				return err
 			}
@@ -270,6 +270,9 @@ func run(
 	}
 	if backend == graph.SchemaBackendNeo4j {
 		if err = backfillInfraSearchKeys(ctx, keyRunner, logger, awaitSeconds); err != nil {
+			return err
+		}
+		if err = migrateModuleImportKeys(ctx, keyRunner, logger); err != nil {
 			return err
 		}
 	}

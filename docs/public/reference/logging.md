@@ -67,6 +67,8 @@ drift/extraction, and query-stage timing events. Examples include:
 - `bootstrap.graph.infra_search_key.backfilled`
 - `bootstrap.graph.infra_search_key.index_state`
 - `bootstrap.graph.infra_search_key.index_failed`
+- `bootstrap.graph.module_import_key.migrated`
+- `bootstrap.graph.module_import_key.incomplete`
 - `documentation.drift.completed`
 - `documentation.extraction.completed`
 - `service_query.stage_started`
