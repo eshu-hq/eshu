@@ -82,7 +82,7 @@ func TestLoadSharedProjectionLeaseOwnerUsesStableProcessIdentity(t *testing.T) {
 
 func TestSharedProjectionLeaseOwnerDiffersAcrossProcessBoots(t *testing.T) {
 	if os.Getenv(sharedProjectionLeaseOwnerHelperEnv) == "1" {
-		fmt.Println(loadSharedProjectionLeaseOwner(obligationConsumerDisabledGetenv(func(string) string { return "" })))
+		fmt.Println(loadSharedProjectionLeaseOwner(func(string) string { return "" }))
 		return
 	}
 
