@@ -47,7 +47,7 @@ func TestResolveRouteMapsQualifiedInvestigateServiceSelector(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.Path, "/api/v0/investigations/services/payments-api"; got != want {
+	if got, want := route.Path, "/api/v0/investigations/services/workload:payments-api"; got != want {
 		t.Fatalf("path = %q, want %q", got, want)
 	}
 	if got, want := route.Query["service_id"], "workload:payments-api"; got != want {

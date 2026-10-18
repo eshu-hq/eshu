@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
+	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
 
 // Route selects the internal HTTP request for a service-context tool
@@ -155,24 +156,33 @@ func serviceStoryRepositorySelector(args routecontract.Arguments) string {
 }
 
 // normalizeQualifiedIdentifier strips a "<type>:" prefix from a qualified
-// service identifier (for example "workload:payments-api" ->
-// "payments-api") before it is used as an HTTP path segment. A value with no
-// colon, or an empty head or tail around the colon, passes through
-// unchanged.
+// service identifier (for example "service:payments-api" -> "payments-api")
+// before it is used as an HTTP path segment. A workload: selector — the
+// public handle or the full scoped id per workloadid.ClassifyWorkloadSelector
+// — is forwarded whole so the API handle ladder resolves it server-side
+// (#5385). A value with no colon, or an empty head or tail around the colon,
+// passes through unchanged.
 func normalizeQualifiedIdentifier(value string) string {
-	if head, tail, ok := strings.Cut(value, ":"); ok && head != "" && tail != "" {
-		return tail
-	}
-	return value
-}
-
-// canonicalWorkloadIdentifier returns value unchanged when it carries the
-// canonical "workload:" prefix, or an empty string otherwise, so a
-// route builder can forward it as a service_id query parameter only when it
-// is genuinely a workload-qualified identifier.
-func canonicalWorkloadIdentifier(value string) string {
-	if head, tail, ok := strings.Cut(value, ":"); ok && head == "workload" && tail != "" {
+	switch workloadid.ClassifyWorkloadSelector(value) {
+	case workloadid.SelectorKindHandle, workloadid.SelectorKindFullID:
+		return value
+	default:
+		if head, tail, ok := strings.Cut(value, ":"); ok && head != "" && tail != "" {
+			return tail
+		}
 		return value
 	}
-	return ""
+}
+
+// canonicalWorkloadIdentifier returns value unchanged when it is a workload:
+// handle or full scoped id per workloadid.ClassifyWorkloadSelector, or an
+// empty string otherwise, so a route builder forwards it as a service_id
+// query parameter only when it is genuinely a workload-qualified identifier.
+func canonicalWorkloadIdentifier(value string) string {
+	switch workloadid.ClassifyWorkloadSelector(value) {
+	case workloadid.SelectorKindHandle, workloadid.SelectorKindFullID:
+		return value
+	default:
+		return ""
+	}
 }

@@ -25,7 +25,7 @@ func TestResolveRouteMapsQualifiedServiceIDToServicePath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.Path, "/api/v0/services/sample-service-api/context"; got != want {
+	if got, want := route.Path, "/api/v0/services/workload:sample-service-api/context"; got != want {
 		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 	if got, want := route.Query["environment"], "prod"; got != want {
@@ -43,7 +43,7 @@ func TestResolveRouteMapsServiceStoryQualifiedIDToExactSelector(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.Path, "/api/v0/services/sample-service-api/story"; got != want {
+	if got, want := route.Path, "/api/v0/services/workload:sample-service-api/story"; got != want {
 		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 	if got, want := route.Query["service_id"], "workload:sample-service-api"; got != want {
@@ -181,7 +181,7 @@ func TestDispatchToolServiceStoryPreservesSpecCountConsistency(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/v0/services/sample-service-api/story", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/v0/services/workload:sample-service-api/story", func(w http.ResponseWriter, r *http.Request) {
 		if got, want := r.Header.Get("Accept"), query.EnvelopeMIMEType; got != want {
 			t.Fatalf("Accept = %q, want %q", got, want)
 		}

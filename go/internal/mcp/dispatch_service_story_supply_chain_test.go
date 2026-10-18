@@ -16,7 +16,7 @@ func TestDispatchToolServiceStoryPreservesSupplyChainTrace(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/v0/services/api/story", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/v0/services/workload:api/story", func(w http.ResponseWriter, r *http.Request) {
 		if got, want := r.Header.Get("Accept"), "application/eshu.envelope+json"; got != want {
 			t.Fatalf("Accept = %q, want %q", got, want)
 		}
