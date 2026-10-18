@@ -58,7 +58,7 @@ func TestRefDeltaMigrationTouchesNoCanonicalTable(t *testing.T) {
 
 // TestRefDeltaSchemaSQLDeclaresOverlayTables pins the Go DDL side of the
 // parity contract: every table, column, and index RefDeltaSchemaSQL creates
-// must exist under the same name in migration 196, which
+// must exist under the same name in migration 197, which
 // TestDDLMigrationParity enforces across the whole tree.
 func TestRefDeltaSchemaSQLDeclaresOverlayTables(t *testing.T) {
 	t.Parallel()

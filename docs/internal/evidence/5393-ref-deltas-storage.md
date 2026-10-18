@@ -1,7 +1,7 @@
 # #5393 Phase 1 Storage Evidence: `content_file_ref_deltas` Overlay
 
 Phase 1 storage slice for the branch-aware coverage epic (#5393): migration
-`196_content_file_ref_deltas.sql` plus `RefDeltaStore`
+`197_content_file_ref_deltas.sql` plus `RefDeltaStore`
 (`go/internal/storage/postgres/content_ref_deltas.go`). New overlay tables
 only. No existing statement, index, worker, lease, queue, or read path is
 modified; the store has no callers yet, so no runtime behavior changes.
