@@ -85,7 +85,7 @@ func runAwaitMergeGroup(
 	for i := range resolved {
 		resolved[i].Event = eventMergeGroup
 	}
-	return awaitMergeGroupRequiredChecks(ctx, runner, repo, headSHA, resolved, pollInterval, os.Stdout)
+	return awaitMergeGroupRequiredChecks(ctx, runner, repo, headSHA, mergeGroupBranch, resolved, pollInterval, os.Stdout)
 }
 
 // selectSlimRequiredGates resolves the registry's merge_group slim set to
@@ -167,11 +167,12 @@ func changedPathsForMergeGroup(ctx context.Context, runner ghRunner, repo, baseS
 func awaitMergeGroupRequiredChecks(
 	ctx context.Context,
 	runner ghRunner,
-	repo, headSHA string,
+	repo, headSHA, mergeGroupBranch string,
 	required []resolvedRequiredGate,
 	pollInterval time.Duration,
 	out io.Writer,
 ) error {
+	printAwaitHeader(out, eventMergeGroup, mergeGroupBranch, headSHA)
 	readChecks := func(ctx context.Context) ([]checkRollup, error) {
 		return readMergeGroupChecks(ctx, runner, repo, headSHA)
 	}
@@ -207,6 +208,8 @@ func readEventChecks(ctx context.Context, runner ghRunner, repo, headSHA, event 
 			ID           int64  `json:"id"`
 			Name         string `json:"name"`
 			Event        string `json:"event"`
+			HeadBranch   string `json:"head_branch"`
+			HeadSHA      string `json:"head_sha"`
 			CheckSuiteID int64  `json:"check_suite_id"`
 		} `json:"workflow_runs"`
 	}
@@ -219,8 +222,10 @@ func readEventChecks(ctx context.Context, runner ghRunner, repo, headSHA, event 
 	// completed rows would satisfy a gate the current attempt has not run yet.
 	// On an id tie (only when ids are absent) the first-seen run is kept.
 	type newestRun struct {
-		id    int64
-		suite int64
+		id         int64
+		suite      int64
+		headBranch string
+		headSHA    string
 	}
 	newest := make(map[string]newestRun)
 	for _, page := range runPages {
@@ -231,14 +236,14 @@ func readEventChecks(ctx context.Context, runner ghRunner, repo, headSHA, event 
 			if current, seen := newest[run.Name]; seen && run.ID <= current.id {
 				continue
 			}
-			newest[run.Name] = newestRun{id: run.ID, suite: run.CheckSuiteID}
+			newest[run.Name] = newestRun{id: run.ID, suite: run.CheckSuiteID, headBranch: run.HeadBranch, headSHA: run.HeadSHA}
 		}
 	}
 	suiteWorkflow := make(map[int64]string, len(newest))
-	suiteRunID := make(map[int64]int64, len(newest))
+	suiteRun := make(map[int64]newestRun, len(newest))
 	for name, run := range newest {
 		suiteWorkflow[run.suite] = name
-		suiteRunID[run.suite] = run.id
+		suiteRun[run.suite] = run
 	}
 
 	checksEndpoint := "repos/" + repo + "/commits/" + url.PathEscape(headSHA) + "/check-runs?per_page=100&filter=latest"
@@ -271,12 +276,14 @@ func readEventChecks(ctx context.Context, runner ghRunner, repo, headSHA, event 
 				state = run.Conclusion
 			}
 			rows = append(rows, checkRollup{
-				Name:     run.Name,
-				State:    strings.ToUpper(state),
-				Bucket:   checkRunBucket(run.Status, run.Conclusion),
-				Workflow: workflow,
-				Event:    event,
-				RunID:    suiteRunID[run.CheckSuite.ID],
+				Name:       run.Name,
+				State:      strings.ToUpper(state),
+				Bucket:     checkRunBucket(run.Status, run.Conclusion),
+				Workflow:   workflow,
+				Event:      event,
+				RunID:      suiteRun[run.CheckSuite.ID].id,
+				HeadBranch: suiteRun[run.CheckSuite.ID].headBranch,
+				HeadSHA:    suiteRun[run.CheckSuite.ID].headSHA,
 			})
 		}
 	}

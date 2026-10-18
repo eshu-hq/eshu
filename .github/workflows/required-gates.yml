@@ -379,7 +379,24 @@ jobs:
             -f context=required-gates-complete \
             -f description="${description}" \
             -f target_url="${TARGET_URL}"
-          [[ "${state}" == "success" ]]
+          # #8336: the verdict travels on the posted status, not on this run.
+          # A workflow_run run is always filed under the main tip whatever it
+          # aggregated, so failing here for a verdict published on a PR head
+          # or queue commit republishes that verdict as main red (PR #8334's
+          # merge-preview mirror failure concluded 9 runs as failure on
+          # cae18b49). Exit zero once a terminal verdict is published: the
+          # posted failure/error still blocks the PR or queue entry, because
+          # the ruleset requires success. Only a pending-step classification
+          # failure on pull_request still exits 1 below. An unclassified
+          # aggregate with a good pending write (AGGREGATE_CODE empty) and an
+          # aggregation breakdown (code 12, like any other unanticipated
+          # code) post `error` on the evaluated SHA and exit 0: the posted
+          # status keeps the head blocked, and the green run keeps the
+          # breakdown visible in the log instead of repainting main red.
+          if [[ "${PENDING_OUTCOME}" != "success" ]]; then
+            exit 1
+          fi
+          exit 0
 
   verify-live-ruleset:
     if: ${{ github.event_name != 'workflow_run' }}

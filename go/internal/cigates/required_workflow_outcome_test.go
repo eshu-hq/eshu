@@ -139,7 +139,11 @@ func TestCheckRequiredStatusWorkflows_AcceptsAnEpilogueComment(t *testing.T) {
 // the one status this repository's ruleset requires on `main`.
 //
 // Nothing here looks for the comment, the assignment, or their order. The
-// publisher is run and the posted state is read.
+// publisher is run and the posted state is read. (The step used to close with
+// `[[ "${state}" == "success" ]]`, failing the main-filed run for a verdict
+// published on a PR head; since #8336 it exits zero once published. That
+// closing line is behaviour, not prose, so the exit-zero test further below
+// pins the new shape while every attack here still pins the posted values.)
 func TestCheckRequiredStatusWorkflows_RejectsAStateAssignmentBehindADecoyComment(t *testing.T) {
 	t.Parallel()
 
@@ -364,6 +368,43 @@ func TestCheckRequiredStatusWorkflows_AcceptsTheRepositorysOwnPublisher(t *testi
 	check := RequiredStatusCheck{Context: "required-gates-complete"}
 	if errs := validatePublishedOutcomes(step, check); len(errs) != 0 {
 		t.Fatalf("the repository's own publisher must satisfy its published-status contract, got %v", errs)
+	}
+}
+
+// TestCheckRequiredStatusWorkflows_RepositoryPublisherExitsZeroAfterPostingVerdicts
+// is #8336: a pull-request merge-preview failure (PR #8334's registry-mirror
+// failure on refs/remotes/pull/8334/merge) was published correctly on the PR
+// head, yet the aggregate's own runs concluded failure 9 times filed under the
+// main tip (workflow_run runs always report the default-branch head, and the
+// row JSON carries no PR attribution). The verdict travels on the posted
+// status, which still blocks the PR; the run must exit zero once it has
+// published. That includes the breakdown arms: code 12 (aggregation broke)
+// and the unclassified probe both post `error` and exit 0 here, by choice.
+// The empty-AGGREGATE_CODE arm is pinned separately for pull_request in
+// TestRequiredWorkflowTerminalPostsErrorAndExitsZeroForUnclassifiedPullRequest,
+// because this harness always evaluates the merge_group event, where an empty
+// code publishes nothing and leaves the head for the next run. Only a
+// pending-step classification failure on pull_request still exits 1, pinned in
+// TestRequiredWorkflowTerminalStillErrorsPullRequestSetupFailure.
+func TestCheckRequiredStatusWorkflows_RepositoryPublisherExitsZeroAfterPostingVerdicts(t *testing.T) {
+	t.Parallel()
+
+	run, err := TerminalPublisherRun(repositoryRequiredGatesWorkflow(t))
+	if err != nil {
+		t.Fatalf("locate the repository's terminal publisher: %v", err)
+	}
+	for _, code := range []int{awaitExitPassedCode, awaitExitGateFailedCode, awaitExitBrokenCode, awaitExitGateCancelledCode, publisherUnclassifiedProbeCode} {
+		observed, err := EvaluatePublisher(run, code)
+		if err != nil {
+			t.Fatalf("evaluate repository publisher for %d: %v", code, err)
+		}
+		if len(observed.Publishes) != 1 {
+			t.Fatalf("code %d published %d statuses, want exactly 1: %+v", code, len(observed.Publishes), observed)
+		}
+		if observed.ExitCode != 0 {
+			t.Errorf("code %d posted state=%q but exited %d; a published verdict must not fail the main-filed aggregate run",
+				code, observed.Publishes[0].State, observed.ExitCode)
+		}
 	}
 }
 
