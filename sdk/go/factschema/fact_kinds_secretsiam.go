@@ -5,7 +5,7 @@ package factschema
 
 // The secrets_iam family fact-kind strings are UNDERSCORE-separated, like
 // the aws/gcp/azure kinds. The values here MATCH the wire strings the
-// secrets_iam posture collector emits (go/internal/facts.VaultAuthRoleFactKind
+// secrets_iam posture collector emits (go/internal/facts/identity.VaultAuthRoleFactKind
 // and siblings) byte-for-byte; the reducer-side drift lock
 // TestFactSchemaKindsMatchWireFactKinds asserts each stays byte-equal to
 // its facts.*FactKind counterpart. The legacy aws_iam_principal constant

@@ -42,8 +42,8 @@ Importing anything above `encode` in that chain re-creates the cycle
   directory-name stutter) with a doc comment stating exactly what absence
   means for that type, mirroring `IntPtr`/`StringPtr`/`BoolPtr`'s
   zero-is-absent contract or explicitly saying why a new helper differs.
-- **Wire a new nested family's import of this package** — `docs` and the
-  facts root's own `semantic_encode.go` already do this (see `README.md`'s
+- **Wire a new nested family's import of this package** — `docs` and
+  `semantic/encode.go` already do this (see `README.md`'s
   "Depended on by"): add the
   `github.com/eshu-hq/eshu/go/internal/facts/encode` import and qualify
   each call site (`encode.StringPtr`, not an unexported local `stringPtr`).

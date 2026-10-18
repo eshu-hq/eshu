@@ -24,7 +24,7 @@
 // These are the first DOTTED fact kinds in the contracts module: the wire
 // strings carry namespace dots (for example "incident.record"), unlike the
 // underscore-separated aws/iam family. The dots are a property of the wire
-// kind the collector already emits (go/internal/facts.IncidentRecordFactKind);
+// kind the collector already emits (go/internal/facts/incident.IncidentRecordFactKind);
 // this package MATCHES them exactly and never invents or renames them. Nothing
 // in the schema-generation, decode, or drift-lock tooling parses the kind
 // string for a separator, so a dotted kind needs no special handling beyond a
