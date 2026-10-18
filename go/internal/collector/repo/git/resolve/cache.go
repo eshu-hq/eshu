@@ -235,14 +235,15 @@ func (c *Cache) cachedArgs(host string, port int) []string {
 // RequestRefresh asks for a fresh lookup of host after a resolve or
 // connect failure. It never blocks. The returned channel closes when that
 // lookup finishes; it is the same channel for every caller that joins an
-// in-flight lookup, nil when the cache is off, and already closed when the
-// minimum gap suppresses the request.
+// in-flight lookup, nil when the cache is off or a proxy is set (the
+// lookup's result could never pin, mirroring Args), and already closed
+// when the minimum gap suppresses the request.
 func (c *Cache) RequestRefresh(host string) <-chan struct{} {
 	if !c.Enabled() {
 		return nil
 	}
 	host = normalizeHost(host)
-	if host == "" {
+	if host == "" || proxyIsSet(c.getenv) {
 		return nil
 	}
 	return c.request(host, ReasonFailure)
