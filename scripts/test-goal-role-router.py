@@ -58,8 +58,8 @@ class GoalRoleRouterTests(unittest.TestCase):
         prompt = "/goal Drive epic with eshu-issue-driver. Benchmark using eshu-performance-rigor; review final PR using eshu-code-review."
         muse = context(prompt, "muse")
         for marker in ("Muse REQUIRED", "read_skill", "subagent_spawn/workflow",
-                       "arm the CI Monitor watcher", "Never", "request a Copilot review",
-                       "active", "backlog (goal inventory)"):
+                       "arm the CI Monitor watcher", "Never request a Copilot review",
+                       "active backlog (goal inventory)"):
             self.assertIn(marker, muse)
         # Same prompt must route the same roles under Claude (parity of selection).
         claude = context(prompt, "claude")
