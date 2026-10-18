@@ -44,7 +44,9 @@ func syncGitRepositoriesWithLogger(
 		// each sweep rebinds this runtime's instruments and logger, and
 		// the retry loop's refresh hook points at it (#8092).
 		config.ResolveCache.Bind(baseline.Instruments, logger)
-		ctx = deadline.WithRefreshRequester(ctx, config.ResolveCache)
+		if !usesSSHRemote(config) {
+			ctx = deadline.WithRefreshRequester(ctx, config.ResolveCache)
+		}
 	}
 	token, err := resolveGitToken(ctx, config)
 	if err != nil && (config.SourceMode == "githubOrg" || config.SourceMode == "gitlabGroup") {

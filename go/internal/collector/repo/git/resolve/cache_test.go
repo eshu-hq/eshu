@@ -353,3 +353,24 @@ func TestArgsArePerHost(t *testing.T) {
 		t.Fatalf("gitlab Args = %v, want %v", got, want)
 	}
 }
+
+// TestClosedCachePinsNothing: Close promises a closed cache pins nothing,
+// so Args returns no pin after Close even for a host whose addresses were
+// already cached, and no further lookup starts.
+func TestClosedCachePinsNothing(t *testing.T) {
+	lookup := &fakeLookup{results: []lookupResult{
+		{ips: []net.IP{net.ParseIP("10.0.0.1")}},
+	}}
+	cache, _ := testCache(t, lookup, nil, nil)
+	want := []string{"-c", "http.curloptResolve=github.com:443:10.0.0.1"}
+	if got := cache.Args(context.Background(), "github.com", 443); !slices.Equal(got, want) {
+		t.Fatalf("Args before Close = %v, want %v", got, want)
+	}
+	cache.Close()
+	if got := cache.Args(context.Background(), "github.com", 443); got != nil {
+		t.Fatalf("Args after Close = %v, want nil (a closed cache pins nothing)", got)
+	}
+	if n := lookup.calls.Load(); n != 1 {
+		t.Fatalf("lookups = %d, want exactly 1 (no lookup after Close)", n)
+	}
+}

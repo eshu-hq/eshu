@@ -372,3 +372,72 @@ esac
 		t.Fatalf("attempt 2 argv = %v, want refreshed pin %q and not %q", fetches[1], second, first)
 	}
 }
+
+// TestSSHFetchFailureNeverResolves is the SSH half of the #8092 gate: an
+// SSH remote's pin can never emit (resolveCacheArgs already returns nil),
+// so a resolver-class fetch failure must not reach the resolve package at
+// all — no refresh lookup, no enrolment of the host in periodic refresh.
+// The fetch still retries and recovers; only the lookup must be absent.
+func TestSSHFetchFailureNeverResolves(t *testing.T) {
+	reposDir := t.TempDir()
+	repoPath := makeManagedRepo(t, reposDir, "github/org/repo-a")
+	argvFile := filepath.Join(t.TempDir(), "argv")
+	binDir, stateDir := t.TempDir(), t.TempDir()
+	script := `#!/bin/sh
+printf '%s\n' "$@" >> "` + argvFile + `"
+printf '@@END@@\n' >> "` + argvFile + `"
+case "$*" in
+	*"symbolic-ref refs/remotes/origin/HEAD"*) printf "refs/remotes/origin/main\n" ;;
+	*"fetch --progress"*)
+		n=$(cat "` + stateDir + `/n" 2>/dev/null || echo 0)
+		n=$((n+1))
+		echo "$n" > "` + stateDir + `/n"
+		if [ "$n" = 1 ]; then
+			echo "fatal: unable to access 'https://github.com/org/repo-a.git/': Could not resolve host: github.com" >&2
+			exit 128
+		fi
+		;;
+	*"rev-parse refs/remotes/origin/main"*) printf "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n" ;;
+	*"ls-remote"*)
+		printf "ref: refs/heads/main\tHEAD\n"
+		printf "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\trefs/heads/main\n"
+		;;
+esac
+`
+	if err := os.WriteFile(filepath.Join(binDir, "git"), []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake git: %v", err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	var lookups atomic.Int64
+	cache := resolve.New(
+		resolve.Settings{Enabled: true, LookupTimeout: 2 * time.Second, MinGap: time.Millisecond, RefreshInterval: time.Hour},
+		resolve.Options{
+			Lookup: func(_ context.Context, _ string) ([]net.IP, error) {
+				lookups.Add(1)
+				return []net.IP{net.ParseIP("192.0.2.1")}, nil
+			},
+			Getenv: func(string) string { return "" },
+		},
+	)
+	t.Cleanup(cache.Close)
+
+	instruments, _ := newSyncIsolationInstruments(t)
+	logger := slog.New(slog.DiscardHandler)
+	config := syncIsolationTestConfig(reposDir)
+	config.GitAuthMethod = "ssh"
+	config.GitDeadlines = retryTestLimits(0)
+	config.ResolveCache = cache
+
+	synced, err := syncGitRepositoriesWithLogger(context.Background(), config,
+		[]string{"github/org/repo-a"}, logger, gitDeltaBaseline{Instruments: instruments})
+	if err != nil {
+		t.Fatalf("syncGitRepositoriesWithLogger() error = %v", err)
+	}
+	if len(synced.SelectedRepoPaths) != 1 || synced.SelectedRepoPaths[0] != repoPath {
+		t.Fatalf("SelectedRepoPaths = %v, want only %q (the fetch recovered on its retry)", synced.SelectedRepoPaths, repoPath)
+	}
+	if got := lookups.Load(); got != 0 {
+		t.Fatalf("resolver lookups = %d, want 0 for an SSH config through a failing fetch", got)
+	}
+}

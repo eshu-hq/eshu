@@ -222,6 +222,9 @@ func (c *Cache) Args(ctx context.Context, host string, port int) []string {
 func (c *Cache) cachedArgs(host string, port int) []string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.closed {
+		return nil
+	}
 	addrs, ok := c.addrs[host]
 	if !ok || len(addrs) == 0 {
 		return nil
