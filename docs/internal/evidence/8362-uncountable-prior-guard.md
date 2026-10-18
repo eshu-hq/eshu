@@ -25,14 +25,17 @@ The named generation is the scope's active generation.
 
 ## Fix
 
-`successorPriorForGuard` degrades a missing-base count failure to an
-uncountable prior (`successorPrior.uncountable`) instead of failing the commit.
-Every other count failure still fails closed. `refuseDestructiveSuccessor` in
-`go/internal/storage/postgres/generation_freshness.go` then keeps only the
-emptiness check for an uncountable prior: a non-empty successor stores (the
-repair lands and the watermark can converge), while an empty successor is still
-refused under the destructive-successor reason, since it retracts everything
-regardless of the prior's size. The trusted-deletion escape hatch is unchanged.
+`successorPriorForGuard` handles a missing-base count failure by falling back
+to the candidate generation's own `fact_records` count
+(`successorPrior.orphanFallback`) instead of failing the commit. Every other
+count failure, and a fallback failure, still fails closed.
+`refuseDestructiveSuccessor` in
+`go/internal/storage/postgres/generation_freshness.go` then runs the normal
+`#7926` predicate against that fallback count, and still refuses an empty
+successor over a found orphan prior even when the fallback count is zero: a
+sharply shrunken successor is refused, the repair (the forced full re-parse)
+still stores, and an empty successor retracts everything regardless of the
+prior's size. The trusted-deletion escape hatch is unchanged.
 
 The forced sync path already snapshots full; the commit was the layer blocking
 the repair, not the snapshot kind. The projector-side missing-base refusals
@@ -41,26 +44,27 @@ mark the generation superseded and record a reindex watermark.
 
 ## Proof
 
-No-Regression Evidence (#8362): three hermetic fixture tests in
+No-Regression Evidence (#8362): five hermetic fixture tests in
 `go/internal/storage/postgres/ingestion_successor_uncountable_prior_test.go`
 run against the store fakes, plus the five pre-existing `#7926` backstop
-tests. Before the fix, the forced-full commit failed with the exact error
-above; after the fix all eight pass:
+tests. Before the hardening, a sharply shrunken successor over an orphan
+prior stored and a fallback failure was ignored; after it both fail closed
+as refused or errored, and all ten pass:
 
 ```text
-go test ./internal/storage/postgres/ -run 'TestCommitStoresForcedFullOverMissingBasePrior|TestCommitRefusesEmptySuccessorOverMissingBasePrior|TestCommitFailsClosedOnPriorCountError|TestCommitRefusesEmptySuccessorOverContentBearingPrior|TestCommitRefusesSharplyShrunkenSuccessor|TestCommitStoresTrustedEmptySuccessor|TestCommitStoresEmptySuccessorOverEmptyPrior|TestCommitStoresMildlyShrunkenSuccessor' -count=1
+go test ./internal/storage/postgres/ -run 'TestCommitStoresForcedFullOverMissingBasePrior|TestCommitRefusesEmptySuccessorOverMissingBasePrior|TestCommitRefusesSharplyShrunkenSuccessorOverMissingBasePrior|TestCommitFailsClosedOnFallbackCountError|TestCommitFailsClosedOnPriorCountError|TestCommitRefusesEmptySuccessorOverContentBearingPrior|TestCommitRefusesSharplyShrunkenSuccessor|TestCommitStoresTrustedEmptySuccessor|TestCommitStoresEmptySuccessorOverEmptyPrior|TestCommitStoresMildlyShrunkenSuccessor' -count=1
 ok  github.com/eshu-hq/eshu/go/internal/storage/postgres
 ```
 
-The full `go/internal/storage/postgres` suite, the `backfill`, `projector`,
-`collector`, and `collector/repo/git` suites, `go vet`, `gofmt`, and
-`git diff --check` are clean. The change adds no query, statement, lock, or
-worker on any success path: the `errors.As` branch runs only when `CountFacts`
-already failed, and the degrade path issues fewer reads than the failure it
-replaces, so no plan or benchmark evidence applies.
+The change adds one bounded read only on the missing-base branch: the
+candidate's own `fact_records` count (`countFactsQuery`, one
+scope/generation). The `errors.As` branch runs only when `CountFacts`
+already failed, so success paths, locks, and workers are unchanged and no
+plan or benchmark evidence applies.
 
-Observability Evidence (#8362): the degrade records a
-`successor_prior_uncountable` ingestion commit stage
-(`candidate_generation_id` attached), and the refusal log for an uncountable
-prior carries `prior_uncountable=true` alongside `prior_fact_count=0`, so an
-operator can tell an unknowable prior from an empty one.
+Observability Evidence (#8362): the fallback records a
+`successor_prior_orphan_fallback` ingestion commit stage
+(`candidate_generation_id` and `prior_fact_count_fallback` attached), and
+the refusal log carries `prior_orphan_fallback=true` alongside
+`prior_fact_count`, so an operator can tell a fallback-sized prior from a
+union-sized one.
