@@ -73,14 +73,22 @@ gap reconciliation, with no periodic replay and no worker serialization.
 
 ## Index notes
 
-No index was added (index doctrine: hot path plus usable predicate shape).
 The invalidation seq-scans the fingerprint table (one row per succeeded
 item) and runs only when a deleter actually removed a node — rare, and
-measured at 1.4 ms on 20k rows. The admitted-anchors listing is one indexed
-scan per maintenance pass: production EXPLAIN shows a Bitmap Index Scan on
-the existing `admission_decisions_scope_generation_domain_idx` returning
-94 anchors, the same single scan with or without LIMIT. If production row
-counts move the cost, the follow-up adds the index with its own proof.
+measured at 1.4 ms on 20k rows; no index was added there (index doctrine:
+hot path plus usable predicate shape).
+
+The admitted-anchors listing carries one partial index since #8371 review
+P2 (`deployable_unit_gap_admitted_anchor_idx`, migration 196, mirrored in
+`admissionstore.AdmissionDecisionSchemaSQL`): the P1 rescoping to the
+latest decision per anchor reads `DISTINCT ON (anchor_id) ... ORDER BY
+anchor_id, decided_at DESC` over `domain + anchor_kind`, which neither
+`(scope_id, generation_id)`-leading index serves. The index is partial and
+anchor-leading with `decided_at` following, so the per-pass listing reads
+in index order. New-database DDL rides `EnsureSchema`; existing
+deployments converge through migration 196 (`CREATE INDEX CONCURRENTLY IF
+NOT EXISTS`, one statement per file, per the coordinator's
+sole-concurrent-index rule).
 
 ## Measurements
 
@@ -97,13 +105,22 @@ the shipped tables, `VACUUM ANALYZE`d before each run:
   `SELECT DISTINCT anchor_id ... WHERE domain/state/anchor_kind ... LIMIT 500`
   — 2.628 ms, 871 shared-hit buffers (bounded form, since removed).
   Production EXPLAIN of the unbounded form: one Bitmap Index Scan on the
-  existing domain/state index, 94 anchors. Conclusion: the listing costs
-  single-digit milliseconds in both forms; no covering index.
+  existing domain/state index, 94 anchors. Conclusion at that time: the
+  listing costs single-digit milliseconds in both forms; no covering index.
+- #8371 P1/P2 rescoping, same scratch setup (local PostgreSQL 18.6,
+  `VACUUM ANALYZE`d): 120,000 admission decisions, 15,000 matching
+  `domain + anchor_kind` (1,500 anchors x ~10 generations), 105,000
+  other-domain noise rows. `EXPLAIN (ANALYZE, BUFFERS)` of the new
+  latest-decision-per-anchor listing: one Bitmap Index Scan on
+  `deployable_unit_gap_admitted_anchor_idx` (index searches: 1, 93 shared-hit
+  buffers), no Seq Scan, 18.9 ms execution. Conclusion: the new query uses
+  the new partial index at a realistic retained-history distribution.
 
-Live proof on the full 211-migration bootstrap schema, local PostgreSQL
+Live proof on the full 214-migration bootstrap schema, local PostgreSQL
 18.6, isolated schema per test
 (`TestInvalidateDeployableUnitReopenFingerprintsForReposLive`,
-`TestListAllDeployableUnitAdmittedAnchorReposLive`):
+`TestListAllDeployableUnitAdmittedAnchorReposLive`,
+`TestListAllDeployableUnitAdmittedAnchorReposConvergesAfterSupersedingDecisionLive`):
 
 - Invalidation deletes exactly the rows whose repo_ids contain the removed
   repository (2 of 3), keeps the unrelated row, and no-ops on empty and
@@ -111,6 +128,11 @@ Live proof on the full 211-migration bootstrap schema, local PostgreSQL
 - The admitted-anchors listing returns Written=true plus legacy (no Written
   key) anchors, excludes Written=false, rejected, and other-domain rows,
   and returns empty for limit 0.
+- The convergence proof seeds admit-then-reject (excluded: the second pass
+  is a no-op), admit-reject-readmit (listed: latest state wins), and
+  admit-only (listed) anchors over three generations and asserts the exact
+  listed set. It fails on the pre-P1 query (the stale anchor is listed)
+  and passes after.
 
 Graph side:
 
@@ -136,14 +158,15 @@ Graph side:
   one bounded replay.
 
 Performance Evidence: scratch EXPLAIN (ANALYZE, BUFFERS) above (Postgres
-18.6, 20k/50k rows), production EXPLAIN of the unbounded listing (one
-bitmap-indexed scan, 94 anchors), live functional proof on the full
-bootstrap schema, and direct probe measurement on the pinned NornicDB
-backend (~0.25 s per 500-anchor batch); no hot-path regression: the
-retirement MATCH spine is unchanged, the invalidation runs only on actual
-deletions, and each pass issues one indexed listing plus one ~0.25 s
-bounded round trip per 500-anchor batch (one batch at the current 94-anchor
-scale).
+18.6, 20k/50k rows), scratch EXPLAIN of the rescoped listing (one Bitmap
+Index Scan on `deployable_unit_gap_admitted_anchor_idx`, 120k rows, 18.9
+ms), live functional proof on the full bootstrap schema (including the
+admit-reject convergence proof), and direct probe measurement on the
+pinned NornicDB backend (~0.25 s per 500-anchor batch); no hot-path
+regression: the retirement MATCH spine is unchanged, the invalidation runs
+only on actual deletions, and each pass issues one indexed listing plus
+one ~0.25 s bounded round trip per 500-anchor batch (one batch at the
+current 94-anchor scale).
 
 Observability Evidence: one new phase completion log line plus duration
 metric, `deployable_unit_gap_reconciliation` (completion with

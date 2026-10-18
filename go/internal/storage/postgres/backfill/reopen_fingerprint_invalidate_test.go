@@ -40,19 +40,23 @@ func TestInvalidateDeployableUnitReopenFingerprintsForReposQueryDeletesOverlapBa
 }
 
 // TestListAllDeployableUnitAdmittedAnchorReposQueryIsFullAdmittedScan pins
-// the #8316 gap-reconciliation Postgres half: the full distinct source
-// repository set with admitted deployable_unit_correlation decisions, with
-// no LIMIT — a first-N prefix would starve tail anchors (#8371 review F1).
-// The graph probe batches the set into fixed-size UNWINDs instead.
+// the #8316 gap-reconciliation Postgres half: the admitted source repository
+// set with deployable_unit_correlation decisions, with no LIMIT — a first-N
+// prefix would starve tail anchors (#8371 review F1). The listing scopes to
+// the latest decision per anchor (#8371 review P1): an anchor admitted in
+// one generation and rejected in a later one converges to excluded, so a
+// legitimately edgeless anchor stops replaying every maintenance pass. The
+// graph probe batches the set into fixed-size UNWINDs instead.
 func TestListAllDeployableUnitAdmittedAnchorReposQueryIsFullAdmittedScan(t *testing.T) {
 	t.Parallel()
 
 	for _, fragment := range []string{
-		"DISTINCT anchor_id",
+		"DISTINCT ON (anchor_id)",
 		"FROM admission_decisions",
 		"domain = 'deployable_unit_correlation'",
-		"state = 'admitted'",
 		"anchor_kind = 'repository'",
+		"ORDER BY anchor_id, decided_at DESC",
+		"state = 'admitted'",
 		"ORDER BY anchor_id",
 	} {
 		if !strings.Contains(ListAllDeployableUnitAdmittedAnchorReposQuery, fragment) {
