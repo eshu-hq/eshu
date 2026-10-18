@@ -314,6 +314,13 @@ func run() error {
 		// CODEOWNERS ingestion, epic #5415): the contract only. No collector
 		// or reducer/query consumer exists yet for this kind.
 		{name: "codeowners.ownership.v1.schema.json", generate: schemagen.CodeownersOwnershipSchema},
+		// The ref_overlay family is Phase 1 of epic #5393 (branch-aware
+		// coverage): the contract only. The branch observation kind is
+		// DOTTED like its submodule/codeowners siblings; the divergence
+		// kind keeps the exact bare wire string the epic names. No
+		// collector, reducer, or query consumer exists yet for either kind.
+		{name: "ref_overlay.branch_observation.v1.schema.json", generate: schemagen.RefOverlayBranchObservationSchema},
+		{name: "config_key_divergence.v1.schema.json", generate: schemagen.ConfigKeyDivergenceSchema},
 	}
 
 	for _, target := range targets {

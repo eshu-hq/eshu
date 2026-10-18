@@ -1,0 +1,43 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/ref_overlay/v1/config_key_divergence.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "config_key": {
+      "type": "string"
+    },
+    "diverged": {
+      "type": "boolean"
+    },
+    "env": {
+      "type": "string"
+    },
+    "ref": {
+      "type": "string"
+    },
+    "repo_id": {
+      "type": "string"
+    },
+    "value_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "repo_id",
+    "ref",
+    "config_key",
+    "env",
+    "diverged"
+  ],
+  "title": "Eshu config_key_divergence Payload (schema version 1)",
+  "type": "object"
+}

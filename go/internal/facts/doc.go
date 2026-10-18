@@ -142,6 +142,7 @@
 // unsupported analyzer evidence; reducers remain responsible for admitting
 // any user-facing findings from that evidence. CODEOWNERS, submodule, and
 // reducer-derived fact kind constants and schema-version helpers live here
-// for repository ownership declarations, submodule pointers, and the facts
-// the reducer itself emits.
+// for repository ownership declarations, submodule pointers, isolated
+// branch/config overlay observations (ref_overlay, issue #5393), and the
+// facts the reducer itself emits.
 package facts

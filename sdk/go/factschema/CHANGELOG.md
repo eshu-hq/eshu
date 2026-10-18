@@ -22,6 +22,12 @@ version — pinning this module pins the fixture pack too.
 
 ### Added
 
+- New `ref_overlay/v1` package with `Decode`/`Encode` seams, schemas, and
+  fixture-pack entries for epic #5393 Phase 1 (contract only — no collector,
+  reducer, or query consumer yet): `ref_overlay.branch_observation` (one
+  deployment-referenced non-default ref with its resolution state) and
+  `config_key_divergence` (one per-environment config-key divergence row
+  carrying keys plus a divergence boolean only — no values, no hashes).
 - `codegraph/v1` `Import` gains three optional booleans, `type_only`, `deferred`
   and `inferred` (json tags of the same names, `omitempty`). A parser sets one
   only when it is true. An additive optional field is a minor change.

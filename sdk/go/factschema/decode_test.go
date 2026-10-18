@@ -29,6 +29,7 @@ import (
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 	reducerderivedv1 "github.com/eshu-hq/eshu/sdk/go/factschema/reducerderived/v1"
+	refOverlayV1 "github.com/eshu-hq/eshu/sdk/go/factschema/ref_overlay/v1"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 	scannerworkerv1 "github.com/eshu-hq/eshu/sdk/go/factschema/scannerworker/v1"
 	secretsiamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/secretsiam/v1"
@@ -469,6 +470,8 @@ var payloadContracts = []struct {
 	{FactKindServiceCatalogOperationalLink, "service_catalog.operational_link.v1.schema.json", reflect.TypeOf(servicecatalogv1.OperationalLink{})},
 	{FactKindSubmodulePin, "submodule.pin.v1.schema.json", reflect.TypeOf(submodulev1.Pin{})},
 	{FactKindCodeownersOwnership, "codeowners.ownership.v1.schema.json", reflect.TypeOf(codeownersv1.Ownership{})},
+	{FactKindRefOverlayBranchObservation, "ref_overlay.branch_observation.v1.schema.json", reflect.TypeOf(refOverlayV1.BranchObservation{})},
+	{FactKindConfigKeyDivergence, "config_key_divergence.v1.schema.json", reflect.TypeOf(refOverlayV1.ConfigKeyDivergence{})},
 }
 
 // TestPayloadContractsCoverAllSchemas fails if the payloadContracts registry

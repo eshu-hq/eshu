@@ -142,6 +142,15 @@ var grandfatheredUnconsumedKinds = map[string]string{
 	"vault_identity_alias":                            "d4764e55b34e45dee4023385fc8609119d44e55a3bfabcab6a48ef2fe8021767",
 	"vault_identity_entity":                           "738d59bc2a82269eeba3b28ed698fcd3315addd99d72855a10c1ce3ab497a02c",
 	"vault_secret_engine_mount":                       "8f7ca30ced8d2e2d219bc06ddd46d382ee19b58212c2354861f183df2e717ce5",
+
+	// eshu-hq/eshu#5393 Phase 1 contract-only kinds (ref_overlay family).
+	// The ref-extraction emitter, the config-divergence emitter, and their
+	// read surfaces land in sibling Phase 1 leaves; until they do these
+	// kinds have no reducer, projector, query, storage, or relationships
+	// consumer. Remove each entry the moment its consumer lands — the gate
+	// fails on a disclosed kind with live consumer evidence.
+	"ref_overlay.branch_observation": "5b3e77a9de688c4a4fc27153fe26a8602d8d0734881d07f491a816d57e93e987",
+	"config_key_divergence":          "03a16ac79f202c0175485ad9e93febec85d6b37f140feaacfcecaec23f1942f3",
 }
 
 // kindDisclosureDigest computes the SHA-256 digest of the disclosure entry
@@ -265,6 +274,17 @@ var kindDisclosureEntries = []kindDisclosureEntry{
 	{Family: "secrets_iam_trust_chain", Kind: "vault_identity_alias", Reason: "round-2 re-verify (2026-07-21): `rg -n \"VaultIdentityAliasFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"vault_identity_alias\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
 	{Family: "secrets_iam_trust_chain", Kind: "vault_identity_entity", Reason: "round-2 re-verify (2026-07-21): `rg -n \"VaultIdentityEntityFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"vault_identity_entity\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
 	{Family: "secrets_iam_trust_chain", Kind: "vault_secret_engine_mount", Reason: "round-2 re-verify (2026-07-21): `rg -n \"VaultSecretEngineMountFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"vault_secret_engine_mount\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
+
+	// eshu-hq/eshu#5393 Phase 1 contract-only kinds (ref_overlay family).
+	// Each Reason carries the exact `rg` commands run against every
+	// real-consumer-signal directory for both the kind's
+	// facts.<Kind>FactKind identifier and its wire-string literal, with the
+	// confirmed-empty result — independently falsifiable per kind, per
+	// noRealConsumerFound2026Q3's auditability standard. The emission and
+	// read-surface consumers land in sibling Phase 1 leaves, which must
+	// remove these entries when they do.
+	{Family: "ref_overlay_isolation", Kind: "ref_overlay.branch_observation", Reason: "eshu-hq/eshu#5393 Phase 1 contract-only kind (ref-extraction emitter and ref-scoped read surface land in sibling leaves): `rg -n \"RefOverlayBranchObservationFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"ref_overlay.branch_observation\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
+	{Family: "ref_overlay_isolation", Kind: "config_key_divergence", Reason: "eshu-hq/eshu#5393 Phase 1 contract-only kind (config-divergence emitter and dedicated divergence surface land in sibling leaves): `rg -n \"ConfigKeyDivergenceFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"config_key_divergence\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
 }
 
 // isKindDisclosed returns true if kind is pinned in the disclosure ledger at
