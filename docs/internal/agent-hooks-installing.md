@@ -101,7 +101,8 @@ once for git hooks. An untrusted Muse session skips project hooks
 ## Muse Code activation
 
 The Muse port is project-level and **live**: `.muse/hooks.json` plus
-`.muse/hooks/` (7 wrappers delegating to `.claude/hooks/`). Muse
+`.muse/hooks/` (7 wrappers delegating to `.claude/hooks/`, plus the
+Muse-native `guard-spawn.sh` dispatch guard). Muse
 discovers project skills from `.agents/skills/` and role definitions from
 `.agents/agents/` — there is intentionally no `.muse/skills/` or
 `.muse/agents/` copy.

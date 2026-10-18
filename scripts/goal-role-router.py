@@ -167,18 +167,17 @@ def route(prompt: str, harness: str, cwd: str = "") -> str:
             "or session-created issue is open without a recorded disposition."
         )
     if harness == "muse":
-        # Muse shims' model/effort are inert for spawned children, and Muse's
-        # built-in posture prefers inline work. Project rules override both:
-        # dispatch is required on multi-lane work, with manifest bindings
-        # passed explicitly on every call. See
-        # docs/internal/agent-orchestration.md (Muse Code row).
+        # Muse's built-in posture prefers inline work; project rules override
+        # it. Native subagent_spawn applies each definition's model (proven
+        # live); workflow children still need explicit per-call bindings.
+        # See docs/internal/agent-orchestration.md (Muse Code row).
         lines.append(
             "Muse REQUIRED (project rules override built-in inline preference): "
             "load each routed skill body with read_skill before acting on its surface; "
             "when the goal has two or more independent lanes (implementation + review, "
             "parallel issues, scan/debug/perf splits), dispatch the routed *-eshu roles "
-            "via subagent_spawn/workflow — commit first, pass the model+effort above "
-            "explicitly on every call (shim frontmatter is inert on Muse), or record "
+            "via subagent_spawn/workflow — commit first; native spawns apply the "
+            "definition model above, workflow children take it explicitly per call — or record "
             "in the goal file why inline is correct. Single-lane work stays inline. "
             "After every gh pr create, arm the CI Monitor watcher in the same turn "
             "(GHA failures, merge conflicts, any-author reviews/comments). Never "
@@ -243,12 +242,72 @@ def claude_dispatch(payload: dict) -> str:
     }})
 
 
+def muse_dispatch(payload: dict) -> str:
+    """Muse spawn guard: typo/override protection, not the launch mechanism.
+
+    Native subagent_spawn already applies each definition's model (proven
+    live: arbiter-eshu ran muse-wonder-full-1.0), so this guard is not what
+    makes Eshu roles launch correctly. It earns its keep by blocking
+    unknown *-eshu role names (typos) and explicit wrong-tier model/effort
+    overrides on spawn shapes that carry them. Passes everything else
+    (including non-Eshu spawns) untouched. Returns block reason or "".
+    """
+    if payload.get("tool_name") not in {"subagent_spawn", "workflow"}:
+        return ""
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, dict):
+        return ""
+    role_name = None
+    for key in ("subagent_type", "agentType", "role"):
+        value = tool_input.get(key)
+        if isinstance(value, str) and value:
+            role_name = value
+            break
+    if role_name is None:
+        return ""
+    manifest = json.loads((ROOT / ".agents/roles.json").read_text())
+    role = manifest["roles"].get(role_name)
+    if role is None:
+        if "eshu" in role_name:
+            return (
+                f"Eshu dispatch guard: unknown Eshu role '{role_name}'. "
+                "Use a role from .agents/roles.json (scan/develop/debug/perf/"
+                "review/arbiter-eshu and -deep variants)."
+            )
+        return ""
+    if "base" in role:
+        role = {**manifest["roles"][role["base"]], **role}
+    binding = manifest["models"]["muse"][role["tier"]]
+    for key in ("model", "effort"):
+        got = tool_input.get(key)
+        if isinstance(got, str) and got and got != binding[key]:
+            return (
+                f"Eshu dispatch guard: {role_name} must run {binding['model']} "
+                f"effort={binding['effort']} per .agents/roles.json muse tiers; "
+                f"got {key}={got}. Remove the override (or dispatch via "
+                f"scripts/agent-roles.py muse-exec {role_name} TASK)."
+            )
+    return ""
+
+
 def main() -> None:
+    harness = sys.argv[1] if len(sys.argv) > 1 else ""
     try:
         payload = json.load(sys.stdin)
-        harness = sys.argv[1] if len(sys.argv) > 1 else ""
         prompt = str(payload.get("prompt", ""))
         cwd = str(payload.get("cwd", ""))
+        if harness == "muse-dispatch":
+            # Spawn guard: fail closed like scripts/guard-codex-spawn.py.
+            # A malformed payload must not silently disable the guard.
+            try:
+                reason = muse_dispatch(payload)
+            except (OSError, ValueError, TypeError, KeyError) as exc:
+                print(f"Eshu dispatch guard could not validate spawn: {exc}", file=sys.stderr)
+                sys.exit(2)
+            if reason:
+                print(reason, file=sys.stderr)
+                sys.exit(2)
+            return
         if harness == "claude-dispatch":
             result = claude_dispatch(payload)
             if result:
