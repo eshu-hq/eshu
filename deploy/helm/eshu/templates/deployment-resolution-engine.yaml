@@ -67,11 +67,29 @@ spec:
             {{- include "eshu.renderNeo4jAuthEnv" . | nindent 12 }}
             {{- include "eshu.renderEnvMaps" (list .Values.env .Values.resolutionEngine.env) | nindent 12 }}
           ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
             {{- if .Values.observability.prometheus.enabled }}
             - name: metrics
               containerPort: {{ .Values.observability.prometheus.port }}
               protocol: TCP
             {{- end }}
+          # Readiness uses /readyz, which includes the status_schema ledger
+          # check: the pod stays not-Ready until the migration ledger matches
+          # the embedded migrations, so a rollout with a pending migration
+          # waits for the schema Job. failureThreshold debounces transient
+          # blips: the pod is only marked not-Ready after 3 consecutive
+          # failures (~45s), preventing flapping on a brief dependency hiccup.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
           resources:
             {{- toYaml .Values.resolutionEngine.resources | nindent 12 }}
           volumeMounts:
@@ -165,11 +183,29 @@ spec:
             {{- include "eshu.renderNeo4jAuthEnv" $root | nindent 12 }}
             {{- include "eshu.renderEnvMaps" (list $root.Values.env $root.Values.resolutionEngine.env $lane.env) | nindent 12 }}
           ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
             {{- if $root.Values.observability.prometheus.enabled }}
             - name: metrics
               containerPort: {{ $root.Values.observability.prometheus.port }}
               protocol: TCP
             {{- end }}
+          # Readiness uses /readyz, which includes the status_schema ledger
+          # check: the pod stays not-Ready until the migration ledger matches
+          # the embedded migrations, so a rollout with a pending migration
+          # waits for the schema Job. failureThreshold debounces transient
+          # blips: the pod is only marked not-Ready after 3 consecutive
+          # failures (~45s), preventing flapping on a brief dependency hiccup.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
           resources:
             {{- toYaml $resources | nindent 12 }}
           volumeMounts:

@@ -314,6 +314,62 @@ func TestMountStatusServerStartsDedicatedMetricsServer(t *testing.T) {
 	}
 }
 
+// TestNewHostedWithStatusServerStaleLedgerMakesReadyzUnavailable is the issue
+// #8242 writer contract: the ingester and the resolution engine build their
+// admin mux through NewHostedWithStatusServer, which always includes the
+// status_schema ledger probe. A stale ledger must surface as 503 on /readyz
+// while /healthz stays green, so the chart readinessProbes hold both writers
+// not-Ready until the schema Job finishes. The adjacent
+// TestNewStatusAdminServerSurfacesReaderFailureThroughReadyz covers the same
+// 503 through runtime.NewStatusAdminServer with a generic dependency error;
+// nothing covered the writer constructor with the ledger cause.
+func TestNewHostedWithStatusServerStaleLedgerMakesReadyzUnavailable(t *testing.T) {
+	t.Setenv("ESHU_LISTEN_ADDR", reserveTCPAddress(t))
+	t.Setenv("ESHU_METRICS_ADDR", reserveTCPAddress(t))
+
+	stale := errors.New(`current Postgres schema migration "20260301000000_guard_ledger.sql" is not recorded`)
+	hosted, err := NewHostedWithStatusServer("ingester", runtime.ContextRunner{}, &fakeStatusReader{err: stale})
+	if err != nil {
+		t.Fatalf("NewHostedWithStatusServer() error = %v, want nil", err)
+	}
+	if err := hosted.Lifecycle.Start(context.Background()); err != nil {
+		t.Fatalf("Lifecycle.Start() error = %v, want nil", err)
+	}
+	defer func() {
+		_ = hosted.Lifecycle.Stop(context.Background())
+	}()
+
+	readyResponse, err := http.Get("http://" + hosted.Config.ListenAddr + "/readyz")
+	if err != nil {
+		t.Fatalf("GET /readyz error = %v, want nil", err)
+	}
+	defer func() {
+		_ = readyResponse.Body.Close()
+	}()
+	readyBody, err := io.ReadAll(readyResponse.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v, want nil", err)
+	}
+	if got, want := readyResponse.StatusCode, http.StatusServiceUnavailable; got != want {
+		t.Fatalf("GET /readyz status = %d, want %d", got, want)
+	}
+	if got := string(readyBody); !strings.Contains(got, "status_schema") ||
+		!strings.Contains(got, "20260301000000_guard_ledger.sql") {
+		t.Fatalf("GET /readyz body = %q, want status_schema ledger cause", got)
+	}
+
+	liveResponse, err := http.Get("http://" + hosted.Config.ListenAddr + "/healthz")
+	if err != nil {
+		t.Fatalf("GET /healthz error = %v, want nil", err)
+	}
+	defer func() {
+		_ = liveResponse.Body.Close()
+	}()
+	if got, want := liveResponse.StatusCode, http.StatusOK; got != want {
+		t.Fatalf("GET /healthz status = %d, want %d", got, want)
+	}
+}
+
 type stubLifecycle struct {
 	startCalls int
 	stopCalls  int

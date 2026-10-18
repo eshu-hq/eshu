@@ -150,11 +150,30 @@ spec:
                   key: {{ .Values.repoSync.auth.token.tokenKey }}
             {{- end }}
           ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
             {{- if .Values.observability.prometheus.enabled }}
             - name: metrics
               containerPort: {{ .Values.observability.prometheus.port }}
               protocol: TCP
             {{- end }}
+          # Readiness uses /readyz, which includes the status_schema ledger
+          # check: the pod stays not-Ready until the migration ledger matches
+          # the embedded migrations, so a rollout with a pending migration
+          # waits for the schema Job before the StatefulSet moves on.
+          # failureThreshold debounces transient blips: the pod is only
+          # marked not-Ready after 3 consecutive failures (~45s), preventing
+          # flapping on a brief dependency hiccup.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
           volumeMounts:
             - name: data
               mountPath: /data
