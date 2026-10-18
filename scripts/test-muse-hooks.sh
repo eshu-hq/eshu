@@ -92,7 +92,7 @@ else
   no ".muse/hooks.json is valid JSON (missing file or python3)"
 fi
 
-for w in goal-continue goal-refresh skill-nudge skill-loaded guard-live-gate on-compact eshu-doc-staleness; do
+for w in goal-continue goal-refresh skill-nudge skill-loaded guard-live-gate guard-spawn on-compact eshu-doc-staleness; do
   if [[ -f "${MH}/${w}.sh" ]]; then
     ok "wrapper exists: .muse/hooks/${w}.sh"
   else
@@ -105,7 +105,7 @@ done
 [[ -f "${MH}/lib/muse-root.sh" ]] || no "shared lib .muse/hooks/lib/muse-root.sh exists"
 
 if [[ -f "${repo_root}/.muse/hooks.json" ]]; then
-  for w in goal-continue goal-refresh skill-nudge skill-loaded guard-live-gate on-compact eshu-doc-staleness; do
+  for w in goal-continue goal-refresh skill-nudge skill-loaded guard-live-gate guard-spawn on-compact eshu-doc-staleness; do
     if rg -q "\.muse/hooks/${w}\.sh" "${repo_root}/.muse/hooks.json"; then
       ok "hooks.json routes to ${w}.sh"
     else
@@ -119,7 +119,7 @@ if [[ -f "${repo_root}/.muse/hooks.json" ]]; then
       no "hooks.json wires event ${ev}"
     fi
   done
-  for tool in write_file edit_file bash read_skill; do
+  for tool in write_file edit_file bash read_skill subagent_spawn workflow; do
     if rg -q "\"${tool}\"" "${repo_root}/.muse/hooks.json"; then
       ok "hooks.json matches Muse tool ${tool}"
     else
@@ -286,6 +286,18 @@ for layout in active done foreign blocked; do
   m="$(verdict "${m_out}")"
   if [[ "${c}" == "${m}" ]]; then ok "parity ${layout}: both ${c}"; else no "parity ${layout}: claude=${c} muse=${m}"; fi
 done
+
+# ── J. dispatch guard: wrong-tier Eshu spawns blocked, others pass ──────────
+
+spawn() { # tool_input-json -> exit code on stdout
+  printf '{"tool_name":"subagent_spawn","tool_input":%s,"cwd":"%s","hook_event_name":"PreToolUse"}' "$1" "${repo_root}" \
+    | bash "${MH}/guard-spawn.sh" >/dev/null 2>&1; printf '%s' "$?"
+}
+[[ "$(spawn '{"subagent_type":"arbiter-eshu","role":"arbiter"}')" -eq 0 ]] && ok "guard allows arbiter-eshu with no override" || no "guard allows arbiter-eshu with no override"
+[[ "$(spawn '{"subagent_type":"arbiter-eshu","model":"muse-spark-1.3"}')" -eq 2 ]] && ok "guard blocks wrong-model arbiter-eshu" || no "guard blocks wrong-model arbiter-eshu"
+[[ "$(spawn '{"subagent_type":"arbiter-eshu","model":"muse-wonder-full-1.0","effort":"xhigh"}')" -eq 0 ]] && ok "guard allows manifest-tier arbiter-eshu" || no "guard allows manifest-tier arbiter-eshu"
+[[ "$(spawn '{"subagent_type":"bogus-eshu"}')" -eq 2 ]] && ok "guard blocks unknown Eshu role" || no "guard blocks unknown Eshu role"
+[[ "$(spawn '{"subagent_type":"general-purpose"}')" -eq 0 ]] && ok "guard passes non-Eshu spawn through" || no "guard passes non-Eshu spawn through"
 
 rm -f "/tmp/claude-skill-loaded-${sid12}-"* "/tmp/claude-skill-override-${sid12}"
 

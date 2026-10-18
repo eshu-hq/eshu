@@ -49,9 +49,10 @@ Keep outward-facing comments and review requests within user authorization.
   `pgrep -f "make pre-pr"` has failed to match a running gate and been misread
   as the process having died.
 - Fetch ALL inline + bot review comments:
-  `gh api repos/eshu-hq/eshu/pulls/<n>/comments`. Treat every reviewer
-  uniformly — **codex (`chatgpt-codex-connector[bot]`), GitHub Copilot
-  (`github-copilot[bot]`), Cursor, Claude, and human reviewers** — by reading
+  `gh api repos/eshu-hq/eshu/pulls/<n>/comments`. Treat every reviewer who
+  actually commented uniformly — the owner (`linuxdynasty`), community
+  reviewers, codex (`chatgpt-codex-connector[bot]`), Cursor, Claude, and any
+  other human or bot author, including this session's own comments — by reading
   the comment body and the cited `file:line`, not by trusting (or skipping) a
   bot label. Address each; resolve a thread only after the referenced code is
   fixed in HEAD (classify each unresolved thread `fixed` / `p3-no-action` /
@@ -59,16 +60,17 @@ Keep outward-facing comments and review requests within user authorization.
   through the review-thread API; the `p3-no-action` conditions are in
   `resolve-review-threads`). Duplicate findings across bots: fix the code once, resolve
   both threads. When bots disagree, trust the code and the project rules.
-- **If GitHub Copilot returns "couldn't review any files"** on its first pass,
-  re-request the review immediately via `gh pr edit <n> --add-reviewer @copilot`
-  (reviewer re-requests use `gh pr edit`, not `gh pr review`) and poll again
-  before proceeding. An empty first review is not a pass — it is a failed
-  request that must be retried.
+- **Never request a GitHub Copilot review.** Do not run
+  `gh pr edit --add-reviewer @copilot`, do not wait for Copilot, and do not
+  treat Copilot silence as a missing review. The reviewers of record are the
+  owner and anyone from the community who chooses to review. If Copilot (or
+  any unrequested bot) comments anyway, handle that comment like any other
+  present reviewer's — read it, disposition it, resolve when fixed.
 - **If no external reviewer produces a review, dispatch a replacement.**
   A quota message is NOT a review and NOT a retryable failure — re-requesting it
-  only burns polls. Recognise the shape rather than the exact wording: Copilot
-  posts "reached their quota limit", `chatgpt-codex-connector[bot]` posts
-  "reached your Codex usage limits". More than one can be down at the same time,
+  only burns polls. Recognise the shape rather than the exact wording, e.g.
+  `chatgpt-codex-connector[bot]` posts "reached your Codex usage limits".
+  More than one can be down at the same time,
   and when all of them are, a PR silently drops to zero external review while
   every other gate stays green.
 

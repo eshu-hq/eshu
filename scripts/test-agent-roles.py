@@ -91,9 +91,10 @@ def main():
             muse_model = manifest["models"]["muse"][tier]
             assert "model: " + muse_model["model"] + "\n" in muse_front
             assert "effort: " + muse_model["effort"] + "\n" in muse_front
-            # Definition-carried model/effort stay inert for spawned children;
-            # the file must say so or a coordinator will misread the pin.
-            assert "subagent_spawn" in muse_binding and "inert" in muse_binding
+            # Native subagent_spawn applies the definition's model (proven
+            # live); the file must say so or a coordinator will misread the pin.
+            assert "native subagent_spawn applies" in muse_binding
+            assert "inert" not in muse_binding
             assert "do not dispatch" in muse_binding
             if access == "read":
                 assert "Do not edit source files" in muse_binding

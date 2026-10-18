@@ -443,12 +443,7 @@ check commands, see
 
 ## Orchestration, PR, And CI Discipline
 
-- For substantive implementation, review, and research, the orchestrator should use
-  bounded subagents when independent work or review adds value. Match model
-  capability to task difficulty with the tier map in
-  [Agent Orchestration Model](docs/internal/agent-orchestration.md#roles-models-and-tools).
-  A subagent never downgrades its own model. Leaf agents (executor, debugger,
-  reviewer, performance engineer) do not dispatch.
+- For substantive implementation, review, and research, the orchestrator MUST use bounded subagents/workflows on two or more independent lanes (or record why inline is correct); single-lane work stays inline. On Muse this overrides the built-in inline preference (native spawns apply each definition's manifest model; workflow children take it per call), per the tier map in [Agent Orchestration Model](docs/internal/agent-orchestration.md#roles-models-and-tools). A subagent never downgrades its own model. Leaf agents do not dispatch. After every `gh pr create`, arm the CI watcher in the same turn (GHA failures, merge conflicts, any-author reviews/comments; `eshu-session-lifecycle` babysit-prs). NEVER request a GitHub Copilot review. Every issue created during a goal joins the active backlog (goal inventory) with an existing label and its epic linked when one exists (`eshu-issue-driver`).
 - Only the **orchestrator** runs `make pre-push`, exactly once, immediately
   before the push. It also runs `make pre-pr` or `make pre-pr-full` when the
   change needs that deeper, optional preflight. Subagents MUST NOT run these:

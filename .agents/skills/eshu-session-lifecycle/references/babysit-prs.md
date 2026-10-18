@@ -8,14 +8,28 @@ Triggers: a PR you created is open; review bots are running; CI is in flight;
 
 ## Steps
 
-1. **Arm one watcher over all your open PRs, not one per PR.** A per-PR watcher
-   misses the interesting case, which is two of your PRs colliding on the same
-   path. Poll about every 60 seconds — the same cadence as
+1. **Arm the CI watcher in the same turn as every `gh pr create` (and every
+   push that opens or revives a PR you own).** Run one watcher process over
+   all your open PRs and rebuild its watched set on each new PR — a watcher
+   armed only at session start misses PRs created later, and a purely per-PR
+   watcher misses two of your PRs colliding on the same path. Never end the
+   turn that created a PR without a live watcher covering it. On Muse Code
+   the watcher is the Monitor tool: one filtered poll loop emitting sparse
+   state-change lines only, never raw logs. Poll about every 60 seconds — the
+   same cadence as
    [monitoring.md](../../eshu-issue-driver/references/monitoring.md) and
    [sustained-drives.md](../../eshu-issue-driver/references/sustained-drives.md),
    so a drive that both drives issues and babysits PRs is not asked to hold two
    cadences at once — and act on the first signal rather than waiting for the
-   full check set to finish.
+   full check set to finish. The watcher MUST cover all three signal classes:
+   (a) GitHub Actions failures, including a cancelled blocking gate;
+   (b) merge conflicts (`mergeable` becoming `CONFLICTING`, or `UNKNOWN` for
+   more than one poll); (c) new reviews, issue comments, and inline threads
+   from **any** author — the owner (`linuxdynasty`), community reviewers, any
+   bot that commented unrequested, and this session's own comments. Re-resolve
+   the head SHA on every poll; a read against a stale SHA is discarded.
+   Tell every subagent/workflow you dispatch that owns a PR to arm the same
+   watcher for its PRs; never take over a peer-owned PR to watch it.
 
 2. **Scope "yours" correctly.** The GitHub account is shared by concurrent
    agents, so `--author` is not ownership. A PR is yours when you can point at

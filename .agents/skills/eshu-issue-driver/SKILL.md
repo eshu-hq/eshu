@@ -106,10 +106,16 @@ liveness misjudgement.
    Use `--force-with-lease` for an authorized rebase of an already-pushed branch.
    No edits may occur between verified attestation and push. Make the PR title,
    description, and affected docs match the final change and its proof.
-7. Collect current GitHub checks, mergeability, review bodies, issue comments,
+7. Arm the CI watcher in the same turn as the `gh pr create` (see
+   `eshu-session-lifecycle` babysit-prs step 1: one watcher, rebuilt set,
+   GHA failures + merge conflicts + any-author reviews/comments/threads;
+   Monitor tool on Muse). Collect current GitHub checks, mergeability,
+   review bodies, issue comments,
    and review threads immediately after publication. During an authorized
    merge/closure drive, follow [monitoring.md](references/monitoring.md) for
    stable check reads, cancelled gates, findings, and unavailable reviewers.
+   Never request a GitHub Copilot review; handle any unrequested Copilot
+   comment like any present reviewer's.
    Every requested reviewer must have a disposition. If none produces a review
    after retries, obtain the additional independent review specified there;
    the author-side verdict cannot be relabelled as that replacement.
@@ -131,6 +137,28 @@ For long-running `/goal` drives, load [sustained-drives.md](references/sustained
 for goal composition and bounded waiter/liveness mechanics. The skill does not
 create a goal or schedule future work by itself.
 
+## Issues Created During A Goal
+
+Every GitHub issue this session creates as part of a goal MUST, in the same
+turn that creates it and before work on it starts:
+
+1. Be added to the active backlog: the active goal file's issue inventory
+   (and the GitHub Project/milestone, when the goal names one and access
+   allows — never invent a project number). A created issue outside the goal
+   inventory is an orphan and a rule violation.
+2. Carry at least one **existing** label, chosen from `gh label list` output.
+   Never invent a label; if no existing label fits, say so in the issue and
+   the goal inventory instead of creating one silently.
+3. Be linked to its epic when one exists: search open `type:epic` issues
+   (`gh issue list --label type:epic --state open`), add `Part of #<epic>` to
+   the body and reference the epic from the goal inventory. When no epic fits,
+   state that explicitly in the inventory.
+4. Be worked as in-goal work (a parallel lane where safe) until the goal is
+   complete with no leftover session-created issues, or explicitly deferred
+   with the owner's agreement recorded.
+
+Tell every subagent/workflow on the goal to follow this for issues it creates.
+
 ## Defects Found During The Drive
 
 Fix related defects inline when they fit the authorized change and its proof.
@@ -139,6 +167,8 @@ A defect needing an owner design decision, unrelated projected-truth changes,
 or unavailable infrastructure may need separate work. Obtain owner agreement
 before creating a follow-up issue unless that act and scope are already granted;
 link it to the originating issue and epic. Do not expand the drive silently.
+A follow-up issue created under this section follows
+[Issues Created During A Goal](#issues-created-during-a-goal) in full.
 
 ## Completion Evidence
 

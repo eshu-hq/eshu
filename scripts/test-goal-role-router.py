@@ -48,10 +48,63 @@ class GoalRoleRouterTests(unittest.TestCase):
 
     def test_muse_goal_text_routes_performance_and_review(self):
         output = context("/goal Drive epic with eshu-issue-driver. Benchmark using eshu-performance-rigor; review final PR using eshu-code-review.", "muse")
-        self.assertIn("perf-eshu", output)
-        self.assertIn("review-eshu", output)
+        self.assertIn("- perf-eshu:", output)
+        self.assertIn("- review-eshu:", output)
         self.assertIn("muse-exec", output)
-        self.assertNotIn("develop-eshu", output)
+        # A drive goal always carries an implementation lane (drive contract).
+        self.assertIn("- develop-eshu:", output)
+
+    def test_muse_goal_carries_required_dispatch_and_standing_rules(self):
+        """Muse parity: required (not hinted) dispatch, watcher, backlog rules."""
+        prompt = "/goal Drive epic with eshu-issue-driver. Benchmark using eshu-performance-rigor; review final PR using eshu-code-review."
+        muse = context(prompt, "muse")
+        for marker in ("Muse REQUIRED", "read_skill", "subagent_spawn/workflow",
+                       "arm the CI Monitor watcher", "Never request a Copilot review",
+                       "active backlog (goal inventory)"):
+            self.assertIn(marker, muse)
+        # Same prompt must route the same roles under Claude (parity of selection).
+        claude = context(prompt, "claude")
+        for marker in ("- perf-eshu:", "- review-eshu:"):
+            self.assertIn(marker, claude)
+            self.assertIn(marker, muse)
+        # The Muse required block must not leak into other harnesses.
+        self.assertNotIn("Muse REQUIRED", claude)
+
+    def test_drive_goal_self_organizes_without_subagent_prompting(self):
+        """'/goal drive epics #N using eshu-issue-driver' needs no extra prompting."""
+        prompt = "/goal drive epics #4321, #4356 using eshu-issue-driver skill to completion"
+        for harness, fanout in (("muse", "a Workflow (parallel/pipeline over leaves) or subagent_spawn"),
+                                ("claude", "native subagents / team teammates (Agent tool; teammates load named skills explicitly) — not Workflow"),
+                                ("codex", "native subagents in parallel")):
+            output = context(prompt, harness)
+            for marker in ("DRIVE CONTRACT (no further prompting needed)",
+                           "Decompose each epic into deduplicated leaves",
+                           "worktree per leaf", "independent review-eshu review",
+                           "only the coordinator runs make pre-push",
+                           "commit before dispatch",
+                           "arm the CI watcher in the same turn",
+                           "active backlog (goal inventory)", fanout):
+                self.assertIn(marker, output, f"{harness} missing: {marker}")
+        # A non-drive goal must not grow a drive contract.
+        plain = context("/goal Diagnose the queue with eshu-diagnostic-rigor", "muse")
+        self.assertNotIn("DRIVE CONTRACT", plain)
+
+    def test_drive_word_in_prose_is_not_a_drive_goal(self):
+        """'drive the investigation; the main issue is...' must not self-organize."""
+        output = context(
+            "/goal drive the latency investigation with eshu-diagnostic-rigor; "
+            "the main issue is flaky leases", "muse")
+        self.assertNotIn("DRIVE CONTRACT", output)
+        self.assertNotIn("- develop-eshu:", output)
+
+    def test_multiline_drive_goal_still_routes(self):
+        """File-based goals match across newlines after whitespace flattening."""
+        with tempfile.TemporaryDirectory() as tmp:
+            goal = Path(tmp) / "goal.txt"
+            goal.write_text("GOAL: drive\nepics #4321 to completion with eshu-code-review")
+            output = context(f"/goal {goal}", "muse", tmp)
+        self.assertIn("DRIVE CONTRACT", output)
+        self.assertIn("- develop-eshu:", output)
 
     def test_codex_debug_model_is_manifest_binding(self):
         """The router reports the Codex workhorse binding from the manifest."""

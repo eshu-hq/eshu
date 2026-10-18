@@ -53,6 +53,24 @@
             "command": "r=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; exec \"$r/.muse/hooks/guard-live-gate.sh\""
           }
         ]
+      },
+      {
+        "matcher": "subagent_spawn",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "r=$(git rev-parse --show-toplevel 2>/dev/null) || { echo 'Eshu dispatch guard cannot resolve the active worktree' >&2; exit 2; }; exec \"$r/.muse/hooks/guard-spawn.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "workflow",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "r=$(git rev-parse --show-toplevel 2>/dev/null) || { echo 'Eshu dispatch guard cannot resolve the active worktree' >&2; exit 2; }; exec \"$r/.muse/hooks/guard-spawn.sh\""
+          }
+        ]
       }
     ],
     "PostToolUse": [

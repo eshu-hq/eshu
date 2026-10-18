@@ -20,6 +20,7 @@ payloads are per-harness (the canon rule in `agent-hooks.md` applies).
 | `skill-nudge.sh` | PreToolUse | `write_file`, `edit_file` (separate entries) | `skill-nudge.sh` |
 | `skill-loaded.sh` | PostToolUse | `read_skill` | `skill-loaded.sh` |
 | `guard-live-gate.sh` | PreToolUse | `bash` | `guard-live-gate.sh` |
+| `guard-spawn.sh` | PreToolUse | `subagent_spawn`, `workflow` (separate entries) | `goal-role-router.py muse-dispatch` (no Claude sibling; Muse's analogue of Claude's `PreToolUse: Agent` dispatch) |
 | `on-compact.sh` | SessionStart, PreCompact | — | `on-compact.sh` |
 | `eshu-doc-staleness.sh` | PostToolUse | `write_file`, `edit_file` | `eshu-doc-staleness.sh` |
 

@@ -58,6 +58,20 @@ def goal_text(prompt: str, cwd: str = "") -> str:
     return prepared_goal(body, cwd) or body
 
 
+def _is_drive(body: str, skills: set) -> bool:
+    """A drive goal names eshu-issue-driver or uses drive as a verb on epics/issues.
+
+    Whitespace is flattened so a file-based goal matches across lines. The
+    object must sit close after the verb ("drive epics #1234"), so prose
+    like "drive the latency investigation; the main issue is flaky leases"
+    does not grow a drive contract.
+    """
+    if "eshu-issue-driver" in skills:
+        return True
+    flat = " ".join(body.lower().split())
+    return bool(re.search(r"\bdrive\b.{0,30}?\b(epics?\b|issues?\s*#|#\d)", flat))
+
+
 def route(prompt: str, harness: str, cwd: str = "") -> str:
     body = goal_text(prompt, cwd)
     if not body or not SKILL_NAMES:
@@ -83,6 +97,13 @@ def route(prompt: str, harness: str, cwd: str = "") -> str:
         roles.append("arbiter-eshu")
     if "golang-engineering" in skills and not roles:
         roles.append("develop-eshu")
+    # A drive goal always needs implementation + independent review lanes,
+    # even when its wording names neither ("drive epics #N to completion").
+    if _is_drive(body, skills):
+        for needed in ("develop-eshu-deep" if deep else "develop-eshu",
+                       "review-eshu-deep" if deep else "review-eshu"):
+            if needed not in roles:
+                roles.append(needed)
     if not roles:
         roles.append("scan-eshu")
     # A named coordinator skill does not become a leaf-agent job.
@@ -108,6 +129,62 @@ def route(prompt: str, harness: str, cwd: str = "") -> str:
         )
     elif harness in {"codex", "muse"}:
         lines.append(f"When the native child tool cannot select this role and binding, the coordinator can run scripts/agent-roles.py {harness}-exec ROLE TASK.")
+    # Drive contract: "/goal drive epics #N, #M using eshu-issue-driver" (or
+    # the same shape in plain words) must self-organize without the owner
+    # also prompting for subagents/workflows. The coordinator keeps issue/PR
+    # ownership; leaves fan out to leaf roles. Fan-out is harness-native:
+    # Workflow on Muse only; Claude uses its native subagents / team
+    # teammates (never Workflow); other harnesses use their native subagent
+    # tool. This is injected context the model must follow per AGENTS.md —
+    # a hook cannot force the tool call itself.
+    drive = _is_drive(body, skills)
+    if drive:
+        if harness == "muse":
+            fanout = "a Workflow (parallel/pipeline over leaves) or subagent_spawn"
+        elif harness == "claude":
+            fanout = "native subagents / team teammates (Agent tool; teammates load named skills explicitly) — not Workflow"
+        else:
+            fanout = "native subagents in parallel"
+        lines.append(
+            "DRIVE CONTRACT (no further prompting needed): the coordinator loads "
+            "eshu-issue-driver now and owns epic/issue/PR state end to end. "
+            "Decompose each epic into deduplicated leaves, present the numbered "
+            "execution order, then drive every leaf to merged/closed: worktree "
+            "per leaf, minimum skills per touched surface, TDD + focused proof, "
+            "independent review-eshu review, promotion (only the coordinator "
+            "runs make pre-push / pushes / merges). Independent leaves MUST fan "
+            f"out via {fanout} to the routed *-eshu roles above (scan for "
+            "evidence, debug for unknown cause, develop for implementation, "
+            "perf for measurements, review for the verdict, arbiter-eshu for "
+            "unsettled decisions) — commit before dispatch, one surface per "
+            "dispatch, re-verify every child finding before acting on it. "
+            "Sequential-only work (shared files, ordered dependencies) stays "
+            "coordinator-driven; record that call in the goal file. After "
+            "every gh pr create, arm the CI watcher in the same turn. Every "
+            "issue created during the drive joins the active backlog (goal "
+            "inventory) with an existing label and its epic linked when one "
+            "exists. Do not end the goal while any leaf, PR, review thread, "
+            "or session-created issue is open without a recorded disposition."
+        )
+    if harness == "muse":
+        # Muse's built-in posture prefers inline work; project rules override
+        # it. Native subagent_spawn applies each definition's model (proven
+        # live); workflow children still need explicit per-call bindings.
+        # See docs/internal/agent-orchestration.md (Muse Code row).
+        lines.append(
+            "Muse REQUIRED (project rules override built-in inline preference): "
+            "load each routed skill body with read_skill before acting on its surface; "
+            "when the goal has two or more independent lanes (implementation + review, "
+            "parallel issues, scan/debug/perf splits), dispatch the routed *-eshu roles "
+            "via subagent_spawn/workflow — commit first; native spawns apply the "
+            "definition model above, workflow children take it explicitly per call — or record "
+            "in the goal file why inline is correct. Single-lane work stays inline. "
+            "After every gh pr create, arm the CI Monitor watcher in the same turn "
+            "(GHA failures, merge conflicts, any-author reviews/comments). Never "
+            "request a Copilot review. Every gh issue create joins the active "
+            "backlog (goal inventory) with an existing label and its epic linked "
+            "when one exists, in the same turn."
+        )
     lines.append("Preserve the goal's explicit phases and model choices. Do not assign the whole goal from this hint; the main session model is unchanged.")
     return "\n".join(lines)
 
@@ -165,12 +242,72 @@ def claude_dispatch(payload: dict) -> str:
     }})
 
 
+def muse_dispatch(payload: dict) -> str:
+    """Muse spawn guard: typo/override protection, not the launch mechanism.
+
+    Native subagent_spawn already applies each definition's model (proven
+    live: arbiter-eshu ran muse-wonder-full-1.0), so this guard is not what
+    makes Eshu roles launch correctly. It earns its keep by blocking
+    unknown *-eshu role names (typos) and explicit wrong-tier model/effort
+    overrides on spawn shapes that carry them. Passes everything else
+    (including non-Eshu spawns) untouched. Returns block reason or "".
+    """
+    if payload.get("tool_name") not in {"subagent_spawn", "workflow"}:
+        return ""
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, dict):
+        return ""
+    role_name = None
+    for key in ("subagent_type", "agentType", "role"):
+        value = tool_input.get(key)
+        if isinstance(value, str) and value:
+            role_name = value
+            break
+    if role_name is None:
+        return ""
+    manifest = json.loads((ROOT / ".agents/roles.json").read_text())
+    role = manifest["roles"].get(role_name)
+    if role is None:
+        if "eshu" in role_name:
+            return (
+                f"Eshu dispatch guard: unknown Eshu role '{role_name}'. "
+                "Use a role from .agents/roles.json (scan/develop/debug/perf/"
+                "review/arbiter-eshu and -deep variants)."
+            )
+        return ""
+    if "base" in role:
+        role = {**manifest["roles"][role["base"]], **role}
+    binding = manifest["models"]["muse"][role["tier"]]
+    for key in ("model", "effort"):
+        got = tool_input.get(key)
+        if isinstance(got, str) and got and got != binding[key]:
+            return (
+                f"Eshu dispatch guard: {role_name} must run {binding['model']} "
+                f"effort={binding['effort']} per .agents/roles.json muse tiers; "
+                f"got {key}={got}. Remove the override (or dispatch via "
+                f"scripts/agent-roles.py muse-exec {role_name} TASK)."
+            )
+    return ""
+
+
 def main() -> None:
+    harness = sys.argv[1] if len(sys.argv) > 1 else ""
     try:
         payload = json.load(sys.stdin)
-        harness = sys.argv[1] if len(sys.argv) > 1 else ""
         prompt = str(payload.get("prompt", ""))
         cwd = str(payload.get("cwd", ""))
+        if harness == "muse-dispatch":
+            # Spawn guard: fail closed like scripts/guard-codex-spawn.py.
+            # A malformed payload must not silently disable the guard.
+            try:
+                reason = muse_dispatch(payload)
+            except (OSError, ValueError, TypeError, KeyError) as exc:
+                print(f"Eshu dispatch guard could not validate spawn: {exc}", file=sys.stderr)
+                sys.exit(2)
+            if reason:
+                print(reason, file=sys.stderr)
+                sys.exit(2)
+            return
         if harness == "claude-dispatch":
             result = claude_dispatch(payload)
             if result:
