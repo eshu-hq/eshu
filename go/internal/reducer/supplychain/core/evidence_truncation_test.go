@@ -37,8 +37,8 @@ func expandingImpactLoader() *stubSupplyChainImpactFactLoader {
 			calls++
 			return []facts.Envelope{
 				packageRegistryPackageImpactFact(
-					"package-expansion-"+string(rune('a'+calls)),
-					"pkg:npm/expansion-"+string(rune('a'+calls)),
+					"package-expansion-"+string(rune('a'+calls)), // #nosec G115 -- calls counts expansion rounds capped at maxSupplyChainImpactActiveEvidenceLoads=8, so 'a'+calls stays an ASCII letter
+					"pkg:npm/expansion-"+string(rune('a'+calls)), // #nosec G115 -- calls counts expansion rounds capped at maxSupplyChainImpactActiveEvidenceLoads=8, so 'a'+calls stays an ASCII letter
 				),
 			}
 		},

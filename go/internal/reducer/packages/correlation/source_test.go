@@ -6,6 +6,7 @@ package correlation
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -622,15 +623,7 @@ func boolPtr(value bool) *bool {
 }
 
 func sameStrings(left, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for idx := range left {
-		if left[idx] != right[idx] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(left, right)
 }
 
 func packageSourceStringsContain(values []string, want string) bool {

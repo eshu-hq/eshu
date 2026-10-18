@@ -3,7 +3,10 @@
 
 package reducer
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestFrameworkAPIEndpointSignalsPreserveRouteEntryMethodPairs(t *testing.T) {
 	t.Parallel()
@@ -93,13 +96,8 @@ func assertEndpointMethods(t *testing.T, got map[string][]string, path string, w
 	if !ok {
 		t.Fatalf("methodsByPath missing %q: %#v", path, got)
 	}
-	if len(methods) != len(want) {
+	if !slices.Equal(methods, want) {
 		t.Fatalf("methodsByPath[%q] = %#v, want %#v", path, methods, want)
-	}
-	for i := range methods {
-		if methods[i] != want[i] {
-			t.Fatalf("methodsByPath[%q] = %#v, want %#v", path, methods, want)
-		}
 	}
 }
 

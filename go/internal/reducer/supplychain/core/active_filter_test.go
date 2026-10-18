@@ -4,6 +4,7 @@
 package core
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -66,13 +67,5 @@ func TestSupplyChainImpactFollowUpFilterTracksAdvisoryIDs(t *testing.T) {
 }
 
 func equalSuppressionAnchorSlices(got, want []string) bool {
-	if len(got) != len(want) {
-		return false
-	}
-	for i := range got {
-		if got[i] != want[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(got, want)
 }

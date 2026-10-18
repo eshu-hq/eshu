@@ -6,6 +6,7 @@ package reducer
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -284,13 +285,5 @@ func (w *overlapRecordingRepoDependencyWriter) writeBatchSizes() []int {
 }
 
 func equalIntSlices(left, right []int) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for i := range left {
-		if left[i] != right[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(left, right)
 }
