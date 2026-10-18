@@ -430,6 +430,17 @@ TABLE = {
         "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_readiness_live_test.go": (
             "TestReducerContentionGateServiceCatalogRuntimeFenceKeepsItsAttemptBudget",
         ),
+        "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_batch_live_test.go": (
+            "TestReducerContentionGateServiceCatalogRetriggerBatchAckAndTelemetry",
+        ),
+        "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_fence_live_test.go": (
+            "TestReducerContentionGateServiceCatalogFenceWaitsOnRunsOnIntent",
+            "TestReducerContentionGateServiceCatalogConcurrentAcksReopenOnce",
+        ),
+        "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_live_test.go": (
+            "TestReducerContentionGateServiceCatalogRetriggerRepairsNoProducerGeneration",
+            "TestReducerContentionGateServiceCatalogRetriggerFlagsClaimedRow",
+        ),
         "go/internal/storage/postgres/relationship_activation_wake_live_test.go": (
             "TestActivationWakesOwnGateConsumersLive",
         ),

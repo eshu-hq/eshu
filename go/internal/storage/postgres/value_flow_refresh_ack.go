@@ -47,7 +47,15 @@ func shouldEmitValueFlowRefresh(result reducer.Result) bool {
 // cross_scope_completion_ack_epoch like the other emitting ACKs, so the
 // rolling-upgrade fallback trigger (which fires only on a preserved epoch)
 // never double-emits a new-path ACK — including a gate-suppressed one.
-const ackValueFlowRefreshProducerReducerWorkQuery = `
+const ackValueFlowRefreshProducerReducerWorkQuery = ackValueFlowRefreshProducerReducerWorkCTEs + `
+SELECT 1 FROM acknowledged
+`
+
+// ackValueFlowRefreshProducerReducerWorkCTEs is the single-item ACK and emit
+// CTE list both the value-flow ACK and the workload_materialization ACK
+// (service_catalog_runtime_retrigger.go, #8169) compose. acknowledged returns
+// the scope_id so the workload ACK can name the repository it re-triggers.
+const ackValueFlowRefreshProducerReducerWorkCTEs = `
 WITH acknowledged AS MATERIALIZED (
     UPDATE fact_work_items AS work
     SET status = 'succeeded', lease_owner = NULL, claim_until = NULL,
@@ -62,7 +70,7 @@ WITH acknowledged AS MATERIALIZED (
       AND status IN ('claimed', 'running')
       AND claim_until > clock_timestamp()
       AND last_attempt_at = $4
-    RETURNING work.work_item_id, work.status
+    RETURNING work.work_item_id, work.status, work.scope_id
 ), emission_clock AS MATERIALIZED (
     SELECT clock_timestamp() AS emitted_at
 ), emitted AS (
@@ -86,9 +94,7 @@ WITH acknowledged AS MATERIALIZED (
         END,
         updated_at = EXCLUDED.updated_at
     RETURNING 1
-)
-SELECT 1 FROM acknowledged
-`
+)`
 
 // ackValueFlowRefreshProducerReducerWorkBatchQuery ACKs one domain's
 // refresh-producer batch and emits a completion event covering only the
@@ -102,7 +108,16 @@ func ackValueFlowRefreshProducerReducerWorkBatchQuery(
 	claimedAts []time.Time,
 	emitIDs []string,
 ) (string, []any) {
-	return `
+	return ackValueFlowRefreshProducerReducerWorkBatchCTEs + `
+SELECT 1 FROM acknowledged
+`, []any{now, leaseOwner, ids, claimedAts, domain, emitIDs}
+}
+
+// ackValueFlowRefreshProducerReducerWorkBatchCTEs is the batch ACK and emit
+// CTE list the value-flow batch ACK and the workload_materialization batch
+// ACK (#8169) compose. Its binds are $1 now, $2 lease owner, $3 ids, $4 claim
+// times, $5 domain, $6 emit ids.
+const ackValueFlowRefreshProducerReducerWorkBatchCTEs = `
 WITH requested AS MATERIALIZED (
     SELECT id, claimed_at, 'reducer'::text AS expected_stage,
            $5::text AS expected_domain
@@ -137,7 +152,7 @@ SET status = 'succeeded',
     failure_details = NULL
 WHERE work.work_item_id IN (SELECT work_item_id FROM locked_work)
   AND (SELECT count(*) FROM locked_work) > 0
-RETURNING work.work_item_id, work.status
+RETURNING work.work_item_id, work.status, work.scope_id
 ), emission_clock AS MATERIALIZED (
     SELECT clock_timestamp() AS emitted_at
 ), emitted AS (
@@ -162,10 +177,7 @@ ON CONFLICT (producer_domain) WHERE status IN ('pending', 'retrying') DO UPDATE 
     END,
     updated_at = EXCLUDED.updated_at
 RETURNING 1
-)
-SELECT 1 FROM acknowledged
-`, []any{now, leaseOwner, ids, claimedAts, domain, emitIDs}
-}
+)`
 
 // valueFlowRefreshAckGroup is one domain's batch slice: every id is ACKed,
 // only emitIDs contribute to the completion event.

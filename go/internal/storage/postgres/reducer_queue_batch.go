@@ -112,6 +112,16 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, re
 
 	unrelatedIntents, refreshGroups := splitValueFlowRefreshAckIntents(unrelatedIntents, resultByID)
 	for _, group := range refreshGroups {
+		if group.domain == reducer.DomainWorkloadMaterialization { // #8169 catalog re-trigger
+			complete, err := q.ackWorkloadMaterializationGroup(ctx, now, group)
+			if err != nil {
+				return err
+			}
+			if !complete {
+				claimRejected, keptCommitted = true, false
+			}
+			continue
+		}
 		query, args := ackValueFlowRefreshProducerReducerWorkBatchQuery(
 			now,
 			q.LeaseOwner,

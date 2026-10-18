@@ -673,6 +673,12 @@ type Instruments struct {
 	// decisions of the service catalog correlation handler by reducer domain and
 	// closed outcome: ready, no_producer, deferred, bound_exceeded.
 	ServiceCatalogRuntimeReadiness metric.Int64Counter
+	// ServiceCatalogRuntimeRetrigger counts the #8169 re-trigger of service
+	// catalog correlation by a succeeded workload_materialization ACK, by the
+	// producer domain (domain) and closed outcome: reopened and replay_flagged
+	// add the catalog rows touched, none adds one per ACK statement that
+	// matched no catalog row.
+	ServiceCatalogRuntimeRetrigger metric.Int64Counter
 	// IncidentRepositoryCorrelations counts reducer-owned durable
 	// incident-routing-to-repository correlation decisions by reducer domain and
 	// outcome (exact, derived, ambiguous, unresolved, rejected). Only exact and
@@ -5648,6 +5654,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerProducerActivationInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerServiceCatalogRuntimeRetrigger(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerServiceCatalogRuntimeReadiness(meter, inst); err != nil {

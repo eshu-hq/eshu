@@ -904,6 +904,21 @@ tests:
     class: postgres_ci
     reason: "#7816 disposable PostgreSQL 18 proof that the service_catalog_correlation_runtime_not_ready deferral keeps attempt_count frozen at 1 past MaxAttempts on the real queue and commits both runtime rows once the producer acks; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local run about 2s on postgres:18; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_batch_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8169 disposable PostgreSQL 18 proof that the batch workload_materialization ACK re-triggers the linked service catalog row once and records eshu_dp_service_catalog_runtime_retrigger_total and the re-trigger log line; a later ACK with nothing to re-trigger records outcome none. Local run about 2s on postgres:18; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_fence_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8169 disposable PostgreSQL 18 proof that a pending repo_dependency RUNS_ON intent holds the service catalog runtime fence with nothing written, and that two concurrent workload_materialization ACKs on separate connections reopen the catalog row once and produce one catalog run. Local run about 3s on postgres:18; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8169 disposable PostgreSQL 18 proof that a workload_materialization ACK re-triggers the service_catalog_correlation rows whose decisions name its repository: a succeeded row reopens, a claimed row is flagged for replay, and the next catalog run commits a generation carrying the runtime family. Local run about 3s on postgres:18; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/relationship_activation_wake_live_test.go
     tag: ~
     class: postgres_ci

@@ -102,6 +102,19 @@ fails otherwise. This package imports `reducer/crossscope` for the elapsed
 bound and the cycle anchor the log line reports; that is a downward import to
 a shared tier.
 
+The `repo_dependency` shared projection is the second RUNS_ON writer (#8169).
+It is fenced through its pending `shared_projection_intents` rows:
+`runtimeSharedIntentProducerDomains` names its domain and the guard classifies
+`canonical_relationships.go` as its `sharedIntentProducer`. Its bound counts
+from the intent's `created_at` (`RuntimeProducerState.workableAnchor`, the
+later of the two anchors). Repair of a generation the fence let commit
+(no_producer, bound_exceeded) is not this package's job: the
+`workload_materialization` ACK re-triggers the catalog in
+`go/internal/storage/postgres/service_catalog_runtime_retrigger.go`, keyed on
+the `repository_id` of this handler's own correlation decisions. Keep the
+decision payload's `repository_id` equal to the repository the fence and the
+runtime read use (`serviceRepositoryIndex`), or the re-trigger misses.
+
 The bound is measured per in-flight repository from
 `RuntimeProducerState.NewestInFlightWorkableAt` (the producer row's
 last-workable time, `GREATEST(COALESCE(reopened_at, created_at),

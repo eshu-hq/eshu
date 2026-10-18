@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -172,6 +173,10 @@ type ReducerQueue struct {
 	// (eshu_dp_reducer_retry_surge_total, #4450). Nil is safe (no-op) so
 	// existing callers that do not wire it keep working.
 	Instruments *telemetry.Instruments
+	// Logger receives the #8169 service catalog re-trigger log line written
+	// when a workload_materialization ACK reopens or flags a catalog row. Nil
+	// falls back to slog.Default().
+	Logger *slog.Logger
 
 	// ClaimDomain optionally restricts this queue instance to one reducer domain.
 	// Prefer ClaimDomains for new multi-domain reducer lanes.
@@ -438,6 +443,19 @@ func (q ReducerQueue) Ack(ctx context.Context, intent reducer.Intent, result red
 	if isValueFlowRefreshProducer(intent.Domain) {
 		query = ackValueFlowRefreshProducerReducerWorkQuery
 		args = append(args, string(intent.Domain), shouldEmitValueFlowRefresh(result))
+	}
+	if intent.Domain == reducer.DomainWorkloadMaterialization {
+		// #8169: the workload ACK also re-triggers the service catalog
+		// correlation rows whose decisions name this repository.
+		matched, retrigger, err := q.ackWorkloadMaterialization(ctx, args)
+		if err != nil {
+			return err
+		}
+		if !matched {
+			return ErrReducerClaimRejected
+		}
+		q.recordServiceCatalogRetrigger(ctx, intent.Domain, intent.ScopeID, 1, retrigger)
+		return nil
 	}
 	execResult, err := q.database.ExecContext(ctx, query, args...)
 	if err != nil {

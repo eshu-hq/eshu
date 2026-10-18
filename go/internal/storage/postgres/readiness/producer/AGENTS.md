@@ -22,6 +22,14 @@ Scoped instructions for this package. The root `AGENTS.md` still applies.
   without it a live run longer than 30 minutes reads as exceeded.
   `claim_until` is non-NULL only on claimed and running rows (retry, ack,
   fail, and dead-letter set it NULL). Never use `updated_at`.
+- Keep both halves in ONE statement (`RuntimeProducerAndRunsOnStatesQuery`,
+  #8169). The repo_dependency runner commits the RUNS_ON write, the workload
+  replay, and the intent completion separately; two statements can read the
+  producer before the replay and the intent after its completion and see
+  neither in flight.
+- The RUNS_ON half keys on `repository_id` only. Do not join it to
+  `ingestion_scopes.active_generation_id`: whether the intent's
+  `generation_id` is a scope generation is not proven.
 - Return an error, never an empty map, when the database cannot answer. An
   empty answer reads as ready and commits runtime evidence read before the
   producer's write.

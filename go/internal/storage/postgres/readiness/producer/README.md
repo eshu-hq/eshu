@@ -61,6 +61,28 @@ match, because the join pins `work.generation_id = scope.active_generation_id`.
 A repository id maps to the `git-repository-scope:<repo_id>` scope the git
 collector registers. A scope with no row is absent from the result.
 
+## The RUNS_ON intent half (#8169)
+
+`RunsOnIntentStatesQuery` counts each requested repository's pending
+`repo_dependency` intents in `shared_projection_intents` with
+`payload.relationship_type = 'RUNS_ON'` and `completed_at IS NULL`, keyed on
+`repository_id` (equal to the acceptance unit and `payload.repo_id`; the
+runner rejects any other row), with the newest `created_at` as the bound
+anchor. It is the second writer of the RUNS_ON surface, and its queue is not
+`fact_work_items`. The store runs both halves as one statement,
+`RuntimeProducerAndRunsOnStatesQuery` (UNION ALL), so one snapshot sees either
+the pending intent or the workload row the runner reopens before it completes
+the intent. A repository with only pending intents appears with
+`RunsOnIntentsPending` set and `Total` zero.
+
+Performance Evidence (#8169): disposable Postgres 18, all 213 migrations,
+875,000 intents (4,973 pending) over 10,000 repositories. The plan is a bitmap
+scan of `shared_projection_intents_repo_run_idx` on `(repository_id,
+projection_domain)`, with `completed_at` and the relationship type filtered on
+the heap rows of the requested repositories. There is no sequential scan.
+`pgbench -M prepared`, 4 clients, 8 s: one repository 0.120 ms mean, fifty
+repositories 0.976 ms.
+
 ## Plan evidence
 
 Performance Evidence: measured on a disposable Postgres 18 with all 196

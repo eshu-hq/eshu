@@ -74,9 +74,12 @@ func TestRuntimeProducerStatesMapsRepositoriesToScopesAndBack(t *testing.T) {
 
 	workableAt := time.Date(2026, time.October, 15, 11, 59, 0, 0, time.UTC)
 	leaseEnd := workableAt.Add(time.Minute)
+	intentAt := workableAt.Add(-time.Hour)
 	fake := &fakeQueryer{rows: [][]any{
-		{"git-repository-scope:repository:r_a", 1, 0, 2, 0, 4, workableAt, leaseEnd},
-		{"git-repository-scope:repository:r_c", 0, 0, 0, 0, 2, nil, nil},
+		{"producer", "git-repository-scope:repository:r_a", 1, 0, 2, 0, 4, workableAt, leaseEnd},
+		{"producer", "git-repository-scope:repository:r_c", 0, 0, 0, 0, 2, nil, nil},
+		{"runs_on", "repository:r_c", 3, 0, 0, 0, 0, intentAt, nil},
+		{"runs_on", "repository:r_b", 1, 0, 0, 0, 0, intentAt, nil},
 	}}
 	states, err := Store{DB: fake}.RuntimeProducerStates(context.Background(),
 		[]string{"repository:r_a", " repository:r_b ", "repository:r_a", "", "repository:r_c"}, workloadProducer)
@@ -89,14 +92,27 @@ func TestRuntimeProducerStatesMapsRepositoriesToScopesAndBack(t *testing.T) {
 	if got, want := fake.args[1], []string{"workload_materialization"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("domains = %v, want %v", got, want)
 	}
+	if got, want := fake.args[2], []string{"repository:r_a", "repository:r_b", "repository:r_c"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("RUNS_ON repository ids = %v, want %v", got, want)
+	}
+	if got, want := fake.args[3], []string{"repo_dependency"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("shared intent domains = %v, want %v", got, want)
+	}
 	want := map[string]servicecatalog.RuntimeProducerState{
 		"repository:r_a": {Pending: 1, Claimed: 2, Total: 4, NewestInFlightWorkableAt: workableAt, NewestInFlightClaimUntil: leaseEnd},
-		"repository:r_c": {Total: 2},
+		"repository:r_b": {RunsOnIntentsPending: 1, NewestRunsOnIntentCreatedAt: intentAt},
+		"repository:r_c": {Total: 2, RunsOnIntentsPending: 3, NewestRunsOnIntentCreatedAt: intentAt},
 	}
 	if !reflect.DeepEqual(states, want) {
-		t.Fatalf("states = %+v, want %+v (r_b absent: no producer row; r_c NULL anchor reads zero)", states, want)
+		t.Fatalf("states = %+v, want %+v (r_b only a pending RUNS_ON intent; r_c NULL producer anchor reads zero)", states, want)
 	}
 	for _, fragment := range []string{
+		"intent.repository_id = ANY($3::text[])",
+		"intent.projection_domain = ANY($4::text[])",
+		"intent.completed_at IS NULL",
+		"intent.payload->>'relationship_type' = 'RUNS_ON'",
+		"max(intent.created_at)",
+		"UNION ALL",
 		"work.generation_id = scope.active_generation_id",
 		"max(GREATEST(COALESCE(work.reopened_at, work.created_at),",
 		"COALESCE(work.last_attempt_at, work.created_at),",
@@ -139,10 +155,15 @@ func TestRuntimeProducerStatesReturnsErrorsNeverEmptyState(t *testing.T) {
 		context.Background(), []string{"repository:r_a"}, workloadProducer); err == nil {
 		t.Fatal("query error swallowed; a store that cannot answer must return an error")
 	}
-	unrequested := &fakeQueryer{rows: [][]any{{"git-repository-scope:repository:r_z", 0, 0, 0, 0, 1, nil, nil}}}
-	if _, err := (Store{DB: unrequested}).RuntimeProducerStates(
-		context.Background(), []string{"repository:r_a"}, workloadProducer); err == nil {
-		t.Fatal("row for an unrequested scope accepted")
+	for name, row := range map[string][]any{
+		"unrequested scope":      {"producer", "git-repository-scope:repository:r_z", 0, 0, 0, 0, 1, nil, nil},
+		"unrequested repository": {"runs_on", "repository:r_z", 1, 0, 0, 0, 0, time.Now(), nil},
+		"unknown kind":           {"other", "repository:r_a", 1, 0, 0, 0, 0, nil, nil},
+	} {
+		if _, err := (Store{DB: &fakeQueryer{rows: [][]any{row}}}).RuntimeProducerStates(
+			context.Background(), []string{"repository:r_a"}, workloadProducer); err == nil {
+			t.Fatalf("%s row accepted", name)
+		}
 	}
 	if _, err := (Store{}).RuntimeProducerStates(context.Background(), []string{"repository:r_a"}, workloadProducer); err == nil {
 		t.Fatal("nil database accepted")

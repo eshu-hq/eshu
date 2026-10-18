@@ -87,6 +87,29 @@ func RuntimeProducerDomains() []reducercontract.Domain {
 	return slices.Clone(runtimeProducerDomains)
 }
 
+// runtimeSharedIntentProducerDomains is the shared_projection_intents
+// projection domain set whose pending RUNS_ON intents also hold the fence
+// (#8169). The repo_dependency runner writes RUNS_ON onto an existing
+// WorkloadInstance from a shared intent, not a fact_work_items row, and
+// RuntimePlatformKind is part of the runtime identity, so a catalog read while
+// that intent is pending can miss a platform row.
+// TestRuntimeProducerSetCoversEveryRuntimeWriter pins it against source.
+var runtimeSharedIntentProducerDomains = []reducercontract.Domain{
+	reducercontract.DomainRepoDependency,
+}
+
+// RuntimeSharedIntentProducerDomains returns a copy of the shared-intent
+// projection domains whose pending RUNS_ON intents the runtime fence waits on.
+func RuntimeSharedIntentProducerDomains() []reducercontract.Domain {
+	return slices.Clone(runtimeSharedIntentProducerDomains)
+}
+
+// Producer kinds named on the fence log lines (producer_kind).
+const (
+	runtimeProducerKindWorkload   = "workload_materialization"
+	runtimeProducerKindDependency = "repo_dependency"
+)
+
 // RuntimeProducerState counts one repository's producer work items at its
 // active generation, by queue status. Total counts every status, terminal
 // ones included, so a zero Total means the repository has no producer work at
@@ -110,18 +133,39 @@ type RuntimeProducerState struct {
 	// the repository's in-flight producer rows. claim_until is set only on
 	// claimed and running rows, so it is zero when none holds a lease.
 	NewestInFlightClaimUntil time.Time
+	// RunsOnIntentsPending counts the repository's repo_dependency
+	// shared_projection_intents rows with relationship_type RUNS_ON that are
+	// not completed (#8169). Total does not include them.
+	RunsOnIntentsPending int
+	// NewestRunsOnIntentCreatedAt is the latest created_at across those
+	// pending intents, the intent's elapsed-bound anchor. It is zero when none
+	// is pending.
+	NewestRunsOnIntentCreatedAt time.Time
 }
 
-// InFlight reports how many producer work items are not yet terminal.
+// InFlight reports how many producer work items and pending RUNS_ON intents
+// are not yet terminal.
 func (s RuntimeProducerState) InFlight() int {
-	return s.Pending + s.Retrying + s.Claimed + s.Running
+	return s.Pending + s.Retrying + s.Claimed + s.Running + s.RunsOnIntentsPending
+}
+
+// workableAnchor is the later of the in-flight producer rows' last-workable
+// time and the pending RUNS_ON intents' newest created_at: the bound counts
+// from the most recent sign of life of either producer. It is zero only when
+// neither is known.
+func (s RuntimeProducerState) workableAnchor() time.Time {
+	if s.NewestRunsOnIntentCreatedAt.After(s.NewestInFlightWorkableAt) {
+		return s.NewestRunsOnIntentCreatedAt
+	}
+	return s.NewestInFlightWorkableAt
 }
 
 // RuntimeProducerReadiness reports, per repository, the state of the producer
-// work that writes the repository's WorkloadInstance nodes. Only work items at
-// the repository scope's ACTIVE generation count: a newer pending generation
-// is a later cycle and an older one is superseded. A repository with no
-// producer row there is absent from the result. An error means the question
+// work that writes the repository's WorkloadInstance nodes and RUNS_ON edges.
+// Only work items at the repository scope's ACTIVE generation count: a newer
+// pending generation is a later cycle and an older one is superseded. Pending
+// RUNS_ON intents of the shared-intent producer domains count by repository_id
+// (#8169). A repository with neither is absent from the result. An error means the question
 // could not be answered and must never be read as ready or not ready.
 type RuntimeProducerReadiness interface {
 	RuntimeProducerStates(
@@ -150,7 +194,7 @@ func (e runtimeNotReadyError) Error() string {
 		more = fmt.Sprintf(" and %d more", extra)
 	}
 	return fmt.Sprintf(
-		"workload materialization in flight for %d correlated repositor(ies) %v%s of service catalog scope %s generation %s; deferring service catalog correlation rather than committing runtime evidence read before the WorkloadInstance write",
+		"runtime producer (workload materialization or pending repo_dependency RUNS_ON intent) in flight for %d correlated repositor(ies) %v%s of service catalog scope %s generation %s; deferring service catalog correlation rather than committing runtime evidence read before the WorkloadInstance or RUNS_ON write",
 		len(e.repoIDs), sample, more, e.scopeID, e.generationID,
 	)
 }
@@ -230,7 +274,7 @@ func runtimeProducerBound(
 	allExceeded := len(inFlight) > 0
 	var oldest time.Time
 	for _, repoID := range inFlight {
-		workable := states[repoID].NewestInFlightWorkableAt
+		workable := states[repoID].workableAnchor()
 		if workable.IsZero() {
 			allExceeded = false
 			continue
@@ -262,6 +306,7 @@ func runtimeReadinessInFlight(
 		totals.Claimed += state.Claimed
 		totals.Running += state.Running
 		totals.Total += state.Total
+		totals.RunsOnIntentsPending += state.RunsOnIntentsPending
 		if state.NewestInFlightClaimUntil.After(totals.NewestInFlightClaimUntil) {
 			totals.NewestInFlightClaimUntil = state.NewestInFlightClaimUntil
 		}
@@ -334,6 +379,8 @@ func logRuntimeReadiness(
 		slog.Int("producer_retrying", totals.Retrying),
 		slog.Int("producer_claimed", totals.Claimed),
 		slog.Int("producer_running", totals.Running),
+		slog.Int("runs_on_intents_pending", totals.RunsOnIntentsPending),
+		slog.Any("producer_kind", runtimeProducerKinds(totals)),
 		slog.Duration("producer_max_wait", crossscope.ProducerReadinessMaxWait),
 	}
 	if !oldestProducerWorkable.IsZero() {
@@ -346,4 +393,19 @@ func logRuntimeReadiness(
 		attrs = append(attrs, slog.Duration("elapsed_since_cycle_start", now.Sub(anchor)))
 	}
 	logger.LogAttrs(ctx, level, message, attrs...)
+}
+
+// runtimeProducerKinds names the producer kinds still in flight in totals, in
+// a fixed order, for the producer_kind log key: workload_materialization when
+// a fact_work_items producer row is in flight, repo_dependency when a RUNS_ON
+// intent is pending. It is empty on a ready outcome.
+func runtimeProducerKinds(totals RuntimeProducerState) []string {
+	kinds := make([]string, 0, 2)
+	if totals.Pending+totals.Retrying+totals.Claimed+totals.Running > 0 {
+		kinds = append(kinds, runtimeProducerKindWorkload)
+	}
+	if totals.RunsOnIntentsPending > 0 {
+		kinds = append(kinds, runtimeProducerKindDependency)
+	}
+	return kinds
 }

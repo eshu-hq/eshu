@@ -29,9 +29,12 @@ var runtimeSurfaceWritePattern = regexp.MustCompile(
 // production caller" lists the symbols that must stay unreferenced, so the
 // reason is checked, not just stated.
 type runtimeWriterClass struct {
-	producer            reducercontract.Domain
-	excluded            string
-	mustNotBeReferenced []string
+	producer reducercontract.Domain
+	// sharedIntentProducer is the shared_projection_intents projection domain
+	// whose pending RUNS_ON intents the fence waits on (#8169).
+	sharedIntentProducer reducercontract.Domain
+	excluded             string
+	mustNotBeReferenced  []string
 }
 
 // runtimeWriterClasses is the enumerated producer set of the #7816 fence, by
@@ -41,12 +44,12 @@ var runtimeWriterClasses = map[string]runtimeWriterClass{
 	"internal/reducer/workload_materializer.go": {
 		producer: reducercontract.DomainWorkloadMaterialization,
 	},
+	// The repo_dependency shared projection (edge/writer/writer.go, evidence
+	// source resolver/cross-repo) adds RUNS_ON to an existing WorkloadInstance.
+	// Its queue is shared_projection_intents, so the fence waits on its pending
+	// RUNS_ON intents (#8169).
 	"internal/storage/cypher/canonical_relationships.go": {
-		excluded: "repo_dependency shared projection (edge/writer/writer.go, evidence_source " +
-			"resolver/cross-repo) adds RUNS_ON to an existing WorkloadInstance. Its queue is " +
-			"shared_projection_intents, not fact_work_items, so the #7816 fence does not wait on it. " +
-			"Residual: a catalog read while that RUNS_ON intent is still pending can miss a platform " +
-			"row; repairing a generation committed on partial input is #8169.",
+		sharedIntentProducer: reducercontract.DomainRepoDependency,
 	},
 	"internal/storage/cypher/canonical.go": {
 		excluded: "BuildCanonicalWorkloadInstanceUpsert and BuildCanonicalRuntimePlatformUpsert " +
@@ -146,6 +149,7 @@ func runtimeProducerSetProblems(
 	root string,
 	classes map[string]runtimeWriterClass,
 	producers []reducercontract.Domain,
+	sharedProducers []reducercontract.Domain,
 ) []string {
 	t.Helper()
 	var problems []string
@@ -162,6 +166,7 @@ func runtimeProducerSetProblems(
 	}
 	sort.Strings(tabled)
 	fenced := map[reducercontract.Domain]bool{}
+	sharedFenced := map[reducercontract.Domain]bool{}
 	for _, path := range tabled {
 		class := classes[path]
 		if !slices.Contains(found, path) {
@@ -172,6 +177,12 @@ func runtimeProducerSetProblems(
 			fenced[class.producer] = true
 			if !slices.Contains(producers, class.producer) {
 				problems = append(problems, "producer domain "+string(class.producer)+" of "+path+" is not in runtimeProducerDomains")
+			}
+		case class.sharedIntentProducer != "":
+			sharedFenced[class.sharedIntentProducer] = true
+			if !slices.Contains(sharedProducers, class.sharedIntentProducer) {
+				problems = append(problems, "shared intent producer domain "+string(class.sharedIntentProducer)+" of "+path+
+					" is not in runtimeSharedIntentProducerDomains")
 			}
 		case strings.TrimSpace(class.excluded) == "":
 			problems = append(problems, "classification "+path+" names neither a producer domain nor an exclusion reason")
@@ -187,6 +198,11 @@ func runtimeProducerSetProblems(
 			problems = append(problems, "runtimeProducerDomains entry "+string(producer)+" has no classified writer")
 		}
 	}
+	for _, producer := range sharedProducers {
+		if !sharedFenced[producer] {
+			problems = append(problems, "runtimeSharedIntentProducerDomains entry "+string(producer)+" has no classified writer")
+		}
+	}
 	return problems
 }
 
@@ -196,7 +212,8 @@ func runtimeProducerSetProblems(
 func TestRuntimeProducerSetCoversEveryRuntimeWriter(t *testing.T) {
 	t.Parallel()
 
-	if problems := runtimeProducerSetProblems(t, goModuleRoot, runtimeWriterClasses, RuntimeProducerDomains()); len(problems) > 0 {
+	if problems := runtimeProducerSetProblems(t, goModuleRoot, runtimeWriterClasses,
+		RuntimeProducerDomains(), RuntimeSharedIntentProducerDomains()); len(problems) > 0 {
 		t.Fatalf("runtime producer set drifted from source:\n  %s", strings.Join(problems, "\n  "))
 	}
 }
@@ -220,18 +237,22 @@ func TestRuntimeProducerSetGuardFailsOnSeededDrift(t *testing.T) {
 	}
 	write("internal/reducer/workload_materializer.go", "package reducer\nconst q = `MERGE (i:WorkloadInstance {id: row.instance_id})`\n")
 	write("internal/storage/cypher/canonical.go", "package cypher\nconst q = `MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)`\nfunc BuildCanonicalWorkloadInstanceUpsert() {}\n")
+	write("internal/storage/cypher/canonical_relationships.go", "package cypher\nconst q = `MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)`\n")
 	classes := map[string]runtimeWriterClass{
-		"internal/reducer/workload_materializer.go": runtimeWriterClasses["internal/reducer/workload_materializer.go"],
-		"internal/storage/cypher/canonical.go":      runtimeWriterClasses["internal/storage/cypher/canonical.go"],
+		"internal/reducer/workload_materializer.go":          runtimeWriterClasses["internal/reducer/workload_materializer.go"],
+		"internal/storage/cypher/canonical.go":               runtimeWriterClasses["internal/storage/cypher/canonical.go"],
+		"internal/storage/cypher/canonical_relationships.go": runtimeWriterClasses["internal/storage/cypher/canonical_relationships.go"],
 	}
 	producers := []reducercontract.Domain{reducercontract.DomainWorkloadMaterialization}
-	if problems := runtimeProducerSetProblems(t, root, classes, producers); len(problems) > 0 {
+	shared := []reducercontract.Domain{reducercontract.DomainRepoDependency}
+	if problems := runtimeProducerSetProblems(t, root, classes, producers, shared); len(problems) > 0 {
 		t.Fatalf("clean seeded tree reported problems: %v", problems)
 	}
 
 	cases := map[string]struct {
 		seed      func()
 		producers []reducercontract.Domain
+		shared    []reducercontract.Domain
 		want      string
 	}{
 		"new writer": {
@@ -239,6 +260,7 @@ func TestRuntimeProducerSetGuardFailsOnSeededDrift(t *testing.T) {
 				write("internal/reducer/newfamily/writer.go", "package newfamily\nconst q = `UNWIND $rows AS row\nMERGE (instance:WorkloadInstance {id: row.id})`\n")
 			},
 			producers: producers,
+			shared:    shared,
 			want:      "unclassified runtime-surface writer internal/reducer/newfamily/writer.go",
 		},
 		"excluded builder gains a caller": {
@@ -246,17 +268,25 @@ func TestRuntimeProducerSetGuardFailsOnSeededDrift(t *testing.T) {
 				write("cmd/reducer/wiring.go", "package main\nvar _ = cypher.BuildCanonicalWorkloadInstanceUpsert\n")
 			},
 			producers: producers,
+			shared:    shared,
 			want:      "claims BuildCanonicalWorkloadInstanceUpsert has no production caller",
 		},
 		"producer dropped from the fence": {
 			seed:      func() {},
 			producers: nil,
+			shared:    shared,
 			want:      "producer domain workload_materialization of internal/reducer/workload_materializer.go is not in runtimeProducerDomains",
+		},
+		"shared intent producer dropped from the fence": {
+			seed:      func() {},
+			producers: producers,
+			shared:    nil,
+			want:      "shared intent producer domain repo_dependency of internal/storage/cypher/canonical_relationships.go is not in runtimeSharedIntentProducerDomains",
 		},
 	}
 	for name, tc := range cases {
 		tc.seed()
-		problems := runtimeProducerSetProblems(t, root, classes, tc.producers)
+		problems := runtimeProducerSetProblems(t, root, classes, tc.producers, tc.shared)
 		if !slices.ContainsFunc(problems, func(p string) bool { return strings.Contains(p, tc.want) }) {
 			t.Fatalf("%s: problems = %v, want one containing %q", name, problems, tc.want)
 		}
