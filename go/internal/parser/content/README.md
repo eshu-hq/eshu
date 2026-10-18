@@ -49,3 +49,29 @@ duration metric on the calling path.
 ## Related docs
 
 - `docs/internal/naming.md` (rules 2 and 3 behind the `content/` split)
+
+## No-Regression Evidence
+
+The `content/` split moves `Infer`/`ShouldSkip` out of the parser root
+without changing what they compute: the engine call sites repoint to the
+same functions, and the generative equivalence test in `gate_test.go`
+pins gate-equals-infer across the signal cartesian product.
+
+- Baseline: origin/main 882dd9d, linux/arm64, `go test -benchtime=1x`
+  (single-shot execution parity, not a timing claim).
+- After: this branch at df515df38 (tree-identical to c7885c07b per
+  equal patch-id daaafe42), same host, same command.
+- Input shape: synthetic large gated PHP (400 methods), large nginx
+  config (400 blocks), large gated PHP through `ParsePath`.
+- Measurement: Unconditional 2630301 → 2472421 ns/op; Gated 127871 →
+  130743 ns/op; ParsePath end-to-end 136415856 → 135414223 ns/op.
+  Same order of magnitude throughout; the end-to-end figure is dominated
+  by `ParsePath` fixed costs outside inference.
+- Telemetry: no new metric, span, or log line; inference cost stays under
+  the existing file parse duration metric on the calling path.
+
+## No-Observability-Change
+
+This package emits no metric, span, status field, or runtime knob of its
+own. It is diagnosed through the existing file parse duration metric that
+already covers the calling path.
