@@ -488,4 +488,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// Migration 197 (#5393 Phase 1) adds the branch-overlay deltas table
 	// plus its bases ledger; canonical content_files stays default-only.
 	"content_file_ref_deltas",
+	// Migration 198 (#8316) serves the per-pass latest-decision-per-anchor
+	// listing with a partial anchor-leading index.
+	"deployable_unit_gap_admitted_anchor_idx",
 }
