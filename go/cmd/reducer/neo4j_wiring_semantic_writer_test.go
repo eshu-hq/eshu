@@ -117,8 +117,16 @@ func TestSemanticEntityWriterForGraphBackendUsesOwnershipScopedRetractForNornicD
 		t.Fatalf("WriteSemanticEntities() error = %v", err)
 	}
 
+	// The NornicDB factory wires canonical-node rows with the label-scoped
+	// dedicated CONTAINS edge retract (#8359): per-label stamped edge
+	// retracts plus node-scoped variants (2 per plan, plus the
+	// ImplBlock-source pair into Function), then one clear/reap statement
+	// per plan — 24 edge retracts + 11 clear/reap = 35 retracts. No
+	// statement may DETACH DELETE: shared nodes outlive any single
+	// writer's edges.
 	var retracts int
 	var functionRetract, moduleRetract sourcecypher.Statement
+	var sawFunctionFileEdgeRetract, sawFunctionImplBlockEdgeRetract bool
 	for _, call := range executor.calls {
 		if call.Operation != sourcecypher.OperationCanonicalRetract {
 			continue
@@ -133,18 +141,30 @@ func TestSemanticEntityWriterForGraphBackendUsesOwnershipScopedRetractForNornicD
 		if strings.Contains(call.Cypher, "|") {
 			t.Fatalf("NornicDB retract cypher = %q, want one label per statement", call.Cypher)
 		}
-		if !strings.Contains(call.Cypher, "MATCH (n:") {
+		if strings.Contains(call.Cypher, "DETACH DELETE") {
+			t.Fatalf("NornicDB retract cypher = %q, want no DETACH DELETE on shared nodes", call.Cypher)
+		}
+		if !strings.Contains(call.Cypher, "MATCH (") {
 			t.Fatalf("NornicDB retract cypher = %q, want label-scoped MATCH", call.Cypher)
 		}
+		switch {
+		case strings.Contains(call.Cypher, "MATCH (src:File)-[rel:CONTAINS]->(n:Function)"):
+			sawFunctionFileEdgeRetract = true
+		case strings.Contains(call.Cypher, "MATCH (src:ImplBlock)-[rel:CONTAINS]->(n:Function)"):
+			sawFunctionImplBlockEdgeRetract = true
+		}
 	}
-	if got, want := retracts, 11; got != want {
+	if got, want := retracts, 35; got != want {
 		t.Fatalf("retract statement count = %d, want %d", got, want)
+	}
+	if !sawFunctionFileEdgeRetract {
+		t.Fatal("missing File-source Function CONTAINS edge retract")
+	}
+	if !sawFunctionImplBlockEdgeRetract {
+		t.Fatal("missing ImplBlock-source Function CONTAINS edge retract (Rust ownership)")
 	}
 	if functionRetract.Cypher == "" {
 		t.Fatal("missing Function retract statement")
-	}
-	if strings.Contains(functionRetract.Cypher, "DETACH DELETE") {
-		t.Fatalf("Function retract cypher = %q, want semantic property clear", functionRetract.Cypher)
 	}
 	if !strings.Contains(functionRetract.Cypher, "REMOVE n.impl_context") {
 		t.Fatalf("Function retract cypher = %q, want semantic property REMOVE", functionRetract.Cypher)
@@ -152,8 +172,11 @@ func TestSemanticEntityWriterForGraphBackendUsesOwnershipScopedRetractForNornicD
 	if moduleRetract.Cypher == "" {
 		t.Fatal("missing Module retract statement")
 	}
-	if !strings.Contains(moduleRetract.Cypher, "DETACH DELETE n") {
-		t.Fatalf("Module retract cypher = %q, want semantic-owned Module delete", moduleRetract.Cypher)
+	if !strings.Contains(moduleRetract.Cypher, "NOT EXISTS") {
+		t.Fatalf("Module retract cypher = %q, want edgeless-node reap guard", moduleRetract.Cypher)
+	}
+	if !strings.Contains(moduleRetract.Cypher, "DELETE n") {
+		t.Fatalf("Module retract cypher = %q, want semantic-owned Module reap", moduleRetract.Cypher)
 	}
 }
 
@@ -178,7 +201,12 @@ func TestSemanticEntityWriterForGraphBackendKeepsBroadRetractForNeo4j(t *testing
 		t.Fatalf("WriteSemanticEntities() error = %v", err)
 	}
 
+	// The Neo4j factory keeps the broad (non-label-scoped) dedicated
+	// CONTAINS edge retract (#8359): a stamped edge retract, a node-scoped
+	// edge retract for pre-stamp edges, and the edgeless-node reap. Nodes
+	// are never DETACH DELETEd: they are shared with the canonical writer.
 	var retracts int
+	var sawStampedEdgeRetract, sawNodeScopedEdgeRetract, sawReap bool
 	for _, call := range executor.calls {
 		if call.Operation != sourcecypher.OperationCanonicalRetract {
 			continue
@@ -187,9 +215,31 @@ func TestSemanticEntityWriterForGraphBackendKeepsBroadRetractForNeo4j(t *testing
 		if !strings.Contains(call.Cypher, ":Annotation|Typedef|TypeAlias") {
 			t.Fatalf("Neo4j retract cypher = %q, want broad pipe-label retract", call.Cypher)
 		}
+		if strings.Contains(call.Cypher, "DETACH DELETE") {
+			t.Fatalf("Neo4j retract cypher = %q, want no DETACH DELETE on shared nodes", call.Cypher)
+		}
+		switch {
+		case strings.Contains(call.Cypher, "[rel:CONTAINS]") && strings.Contains(call.Cypher, "rel.evidence_source"):
+			sawStampedEdgeRetract = true
+		case strings.Contains(call.Cypher, "[rel:CONTAINS]") && strings.Contains(call.Cypher, "n.evidence_source"):
+			sawNodeScopedEdgeRetract = true
+		case strings.Contains(call.Cypher, "NOT EXISTS") && strings.Contains(call.Cypher, "DELETE n"):
+			sawReap = true
+		default:
+			t.Fatalf("Neo4j retract cypher = %q, want stamped edge retract, node-scoped edge retract, or edgeless reap", call.Cypher)
+		}
 	}
-	if got, want := retracts, 1; got != want {
+	if got, want := retracts, 3; got != want {
 		t.Fatalf("retract statement count = %d, want %d", got, want)
+	}
+	if !sawStampedEdgeRetract {
+		t.Fatal("missing broad stamped CONTAINS edge retract")
+	}
+	if !sawNodeScopedEdgeRetract {
+		t.Fatal("missing broad node-scoped CONTAINS edge retract")
+	}
+	if !sawReap {
+		t.Fatal("missing broad edgeless-node reap")
 	}
 }
 
