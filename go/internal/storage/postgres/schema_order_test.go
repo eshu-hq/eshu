@@ -494,4 +494,8 @@ var orderedBootstrapDefinitionNames = []string{
 	// Migration 199 (#8454) stores the upstream classification probe
 	// verdict on repository_selection_observations. No read path change.
 	"repository_selection_observation_classification",
+	// Migration 200 (#7840) adds the per-selector liveness marker the
+	// expired-observation sweep joins to reclaim abandoned not_listed
+	// rows. No read path change.
+	"repository_selectors",
 }
