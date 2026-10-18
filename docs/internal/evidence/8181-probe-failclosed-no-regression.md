@@ -18,7 +18,9 @@ half-pruned superseded base plus a failing probe. Query count is identical
 on every path: one indexed probe for superseded bases only, served by
 `generation_retention_events_generation_idx`, so no plan change is possible.
 
-No-Observability-Change (#8181): the refusal flows through the existing
+Observability (#8181): the refusal flows through the existing
 `union_base_missing_refused` outcome via `recordDeltaUnionRefused`, with the
-existing counter, span event, and log line. No new label or signal was
-added, and the forced-full path after refusal is untouched.
+existing counter, span event, and log line. No new label was added. One
+new debug-level log line at the probe-error refusal site carries the probe
+cause (owner P2 on PR #8478); it adds no metric cardinality, and the
+forced-full path after refusal is untouched.
