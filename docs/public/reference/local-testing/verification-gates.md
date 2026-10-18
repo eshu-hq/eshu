@@ -370,14 +370,15 @@ never publishes for a push, so those runs were pure noise; the filter drops
 them at the trigger ([#7111](https://github.com/eshu-hq/eshu/issues/7111)).
 
 This removes only the push half of the fan-in, roughly a fifth of the
-`Required Gates` runs in a busy window. Merge-queue entries (about 22 workflows,
-so about 44 events per queue commit) and pull-request heads (about 16 to 19
+`Required Gates` runs in a busy window. Pull-request heads (about 16 to 19
 workflows each) still fan into their own per-SHA group and still cancel most of
-their runs. Removing that remainder needs a different trigger or concurrency
+their runs. Merge-queue entries did the same (about 44 events per queue commit)
+until the queue was turned off on 2026-10-16. Removing that remainder needs a different trigger or concurrency
 key and is tracked separately.
 
-Pull-request heads and merge-queue heads (`gh-readonly-queue/main/...`) are
-never named `main`, so `required-gates-complete` still publishes for both. The
+Pull-request heads, and merge-queue heads (`gh-readonly-queue/main/...`) while a
+queue existed, are never named `main`, so `required-gates-complete` still
+publishes for them. The
 `ci-gates` registry check rejects any other branch filter on that trigger: a
 `branches` allowlist or a wider exclusion would stop aggregating some pull
 requests. A pull request whose head branch is literally `main`, for example one
@@ -385,11 +386,10 @@ opened from a fork's `main`, is not aggregated; re-push it from a differently
 named branch.
 
 To confirm after a merge: push-event `Required Gates` runs for the new `main`
-SHA should drop to zero, and the first merge-queue entry and a pull-request head
-should still carry a `required-gates-complete` status
+SHA should drop to zero, and a pull-request head should still carry a
+`required-gates-complete` status
 (`gh api repos/eshu-hq/eshu/commits/<sha>/statuses`). `gh run list --workflow
-required-gates.yml --branch main` also lists pull-request and merge-queue
-aggregates, because a `workflow_run` run reports the default-branch tip as its
+required-gates.yml --branch main` also lists pull-request aggregates, because a `workflow_run` run reports the default-branch tip as its
 own head, so it cannot show the drop on its own.
 
 ## Required Gates Pull Request Identity

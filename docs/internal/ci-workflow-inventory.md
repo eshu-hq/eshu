@@ -4,11 +4,17 @@ Snapshot: 2026-10-10. This inventory distinguishes merge-blocking product proof
 from advisory diagnostics and automation. Recommendations below are follow-up
 work, not permission to remove checks in this change.
 
+Update 2026-10-16 (#8288): the owner turned the `main` merge queue off after an
+entry sat for more than six hours. The queue figures below (three entries, a
+90-minute response timeout, merge-group starts) describe the retired queue and
+are kept as the measured history. PRs now merge on the required checks of the
+PR head, and no `merge_group` run fires.
+
 ## Measured bottleneck
 
 The active main ruleset requires `go-core-complete`, `go-race-complete`, and
 `required-gates-complete`. The last status aggregates registry-selected blocking
-gates. The queue builds up to three entries and has a 90-minute response timeout.
+gates. The retired queue built up to three entries and had a 90-minute response timeout.
 All 23 source workflows currently start for each merge group; most jobs started
 within seconds to one minute in the inspected sample (400 runs, 18 group heads).
 Runner waiting was not the dominant delay in that sample.
@@ -29,7 +35,10 @@ PR #7913 separately changes PostgreSQL readiness and is outside this patch.
 ## Scheduling design
 
 `queue-selection.yml` is a shared scheduling helper, not an additional required
-check. It reuses `ci-gates` fixed-base merge-group selection, including renamed
+check. Its selection work runs only on `merge_group` events (any other event
+emits `selected=true` and an empty job list). `main` has had no merge queue
+since 2026-10-16 (#8288), so that selection is currently dead code. It reuses
+`ci-gates` fixed-base merge-group selection, including renamed
 paths and the conservative 300-file truncation rule. It unions the head registry
 with the trusted default-branch registry so policy edits cannot suppress work the
 trusted publisher still expects. The trusted root and ordered fragments come

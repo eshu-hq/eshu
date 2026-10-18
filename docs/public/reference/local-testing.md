@@ -27,7 +27,7 @@ Use this fixed promotion order before opening or updating a PR:
 `make pre-push` is the fast local floor run before every push, scoped to
 changed packages/paths: `go test` and `go test -race`, the file cap, gofumpt/lint/build/vet,
 `go vet ./...` on the merge of HEAD with the `origin/main` commit its summary names (the [merge step](local-testing/pre-push-merge.md);
-a conflict fails closed; the merge queue re-tests the exact landing merge and is its authority), the
+a conflict fails closed; `main` has no merge queue, so the required checks on the PR head are the authority), the
 registry-selected blocking exactness/telemetry/hygiene/docs/security/frontend gates, and the
 advisory docs-contradiction gate. No live lane, no push stamp (removed —
 see [agent-git-hygiene.md](https://github.com/eshu-hq/eshu/blob/main/docs/internal/agent-git-hygiene.md)). Push-hook bounds and bypass policy: [push stalls and bounds](local-testing/pre-commit-hooks.md#push-stalls-and-bounds).
@@ -162,7 +162,7 @@ base, head, diff, worktree, submodules, claims, packet, and verdict are
 byte-for-byte the reviewed inputs. A failure names the changed binding. A rebase
 follows the `eshu-code-review` Rebase Waiver table. Any other change needs a new
 full review. This receipt is local proof for the agent workflow. It does not
-replace GitHub review or a required hosted check, and `make pre-push` does not require community contributors to create one. Before a merge-queue enqueue, run the [pre-enqueue check](local-testing/pre-enqueue-check.md).
+replace GitHub review or a required hosted check, and `make pre-push` does not require community contributors to create one. Before a merge, run the [pre-merge check](local-testing/pre-enqueue-check.md).
 
 For frontend changes, a separate focused preflight mirrors `.github/workflows/frontend.yml`
 (#4216) — root-site and console typecheck/test/build, console a11y (critical +

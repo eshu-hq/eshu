@@ -118,12 +118,13 @@ liveness misjudgement.
    remains valid, and independent review requirements are met. Confirm local
    HEAD equals the PR head, execute the merge, and verify `MERGED` through the
    GitHub API. Existing session authorization applies without repeated consent.
-   Immediately before the arbiter review of an enqueue, run
+   Immediately before the arbiter review of a merge, run
    `bash scripts/dev/pre-enqueue-check.sh <pr> <reviewed-head-sha>` and hand
-   its output to the arbiter. The script checks merge-tree against the merge
-   queue's tip as well as against `origin/main`. A clean merge-tree against
-   main can still conflict in the merge group: #7298 collided with #7295, which
-   was already queued, on a generated `ci-gates.md` row. The script is one
+   its output to the arbiter. The script checks merge-tree against
+   `origin/main`; its merge-queue arm passes with "queue empty" because `main`
+   has no merge queue (#8288). A clean merge-tree against main can still
+   conflict with a sibling PR that merges first: #7298 collided with #7295 on
+   a generated `ci-gates.md` row. The script is one
    read, so it does not replace the two stable CI reads.
 
 For long-running `/goal` drives, load [sustained-drives.md](references/sustained-drives.md)
