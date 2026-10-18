@@ -4,7 +4,7 @@
 package membershipstore_test
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #7774/#7840 disposable PostgreSQL 18 proof of the expired repository_selection_observations sweep: only rows strictly past their own liveness window plus the grace are deleted (live, in-grace, boundary, and long-window rows are kept); not_listed rows of a selector whose cycle marker is fresh are never deleted, so a guard-tripped selector whose rows all expired still evaluates instead of tripping the mass-miss guard, while not_listed rows of abandoned selectors (stale or missing marker) are reclaimed and counted apart; a 1,203-row backlog drains in batches and a backlog past the batch cap stops at the cap and finishes on the next call; a row an open evaluation holds is skipped without waiting and kept once renewed; and an evaluation that collides with an in-flight delete waits, then inserts a fresh row. Enrolled in the live-postgres-readiness runner; 1.70-1.97s of test time on postgres:18.6 on 2026-10-09; wall time is logged, not gated
+//eshu:readiness:reason #7774/#7840 disposable PostgreSQL 18 proof of the expired repository_selection_observations sweep: only rows strictly past their own liveness window plus the grace are deleted (live, in-grace, boundary, and long-window rows are kept); not_listed rows of a selector whose cycle marker is fresh are never deleted, so a guard-tripped selector whose rows all expired still evaluates instead of tripping the mass-miss guard, while not_listed rows of abandoned selectors (stale or missing marker) are reclaimed and counted apart; a reclaimed selector that revives re-confirms from pending below the mass-miss guard threshold and trips like a first-ever evaluation above it until the drift shrinks; a 1,203-row backlog drains in batches and a backlog past the batch cap stops at the cap and finishes on the next call; a row an open evaluation holds is skipped without waiting and kept once renewed; and an evaluation that collides with an in-flight delete waits, then inserts a fresh row. Enrolled in the live-postgres-readiness runner; 1.70-1.97s of test time on postgres:18.6 on 2026-10-09; wall time is logged, not gated
 //eshu:readiness:env ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE ESHU_GENERATION_RETENTION_PROOF_DSN
 
 import (
@@ -43,6 +43,9 @@ import (
 //  7. not_listed rows of abandoned selectors -- a stale marker, or no
 //     marker at all -- are reclaimed once past window plus grace and
 //     counted apart from ordinary expired deletions (#7840).
+//  8. A reclaimed selector that revives re-confirms from pending below the
+//     mass-miss guard threshold and trips like a first-ever evaluation,
+//     writing nothing, above it, until the drift shrinks (#7840).
 //
 // It runs in the live-postgres-readiness runner. Run locally with a disposable
 // PostgreSQL 18 administrative database:
@@ -91,6 +94,7 @@ func TestObservationStoreSweepLive(t *testing.T) {
 	assertRacingEvaluationIsNotLost(ctx, t, sqlDB, store, now, expired)
 	assertNotListedHistoryKeepsGuardClear(ctx, t, sqlDB, store, now, grace, expired)
 	assertAbandonedNotListedRowsAreReclaimed(ctx, t, sqlDB, store, now, grace, expired)
+	assertReclaimedSelectorReviveThreshold(ctx, t, sqlDB, store, now, grace, expired)
 }
 
 // assertNotListedHistoryKeepsGuardClear seeds a github_org selector whose 30
@@ -200,6 +204,88 @@ FROM generate_series(1, 3) AS g`, expired.Add(-time.Hour)); err != nil {
 	}
 	if remaining[stale.ID] != 0 || remaining["sel:nomarker"] != 0 {
 		t.Fatalf("remaining = %v, want no stale or markerless rows left", remaining)
+	}
+}
+
+// assertReclaimedSelectorReviveThreshold revives abandoned selectors whose
+// not_listed history the sweep reclaimed, on both sides of the mass-miss
+// guard threshold max(10, ceil(10% of 30)) = 10 (#7840). With no not_listed
+// prior left, every unlisted scope counts as newly unlisted: below the
+// threshold the revive re-confirms from pending, and above it the revive
+// trips like a first-ever evaluation and writes nothing until drift shrinks.
+func assertReclaimedSelectorReviveThreshold(ctx context.Context, t *testing.T, sqlDB *sql.DB, store membershipstore.ObservationStore, now time.Time, grace time.Duration, expired time.Time) {
+	t.Helper()
+	cases := []struct {
+		owner    string
+		appID    string
+		install  string
+		missing  int
+		want     membership.Outcome
+		wantPend int
+	}{
+		{owner: "revsmall", appID: "11", install: "12", missing: 5, want: membership.OutcomeEvaluated, wantPend: 5},
+		{owner: "revbig", appID: "13", install: "14", missing: 20, want: membership.OutcomeGuardTripped, wantPend: 0},
+	}
+	for _, tc := range cases {
+		selector := membership.NewGitHubOrgSelector("githubOrg", tc.owner, nil, false, membership.GitHubAppPrincipal(tc.appID, tc.install))
+		known := make([]membership.KnownScope, 30)
+		listing := membership.Listing{Complete: true}
+		for i := range known {
+			known[i] = membership.KnownScope{ScopeID: fmt.Sprintf("scope:%s-%02d", tc.owner, i), Slug: fmt.Sprintf("%s/repo-%02d", tc.owner, i)}
+			if i >= tc.missing {
+				listing.Repositories = append(listing.Repositories, membership.ListedRepository{
+					ScopeID: known[i].ScopeID, Slug: known[i].Slug, GitHubID: int64(900 + i), State: membership.StateSelected,
+				})
+				continue
+			}
+			if _, err := sqlDB.ExecContext(ctx, `
+INSERT INTO repository_selection_observations (scope_id, selector_id, selector_kind, selector_owner, state,
+    state_since, state_cycle_count, evaluated_at, liveness_window_seconds)
+VALUES ($1, $2, 'github_org', $3, 'not_listed', $4, 5, $4, 3600)`, known[i].ScopeID, selector.ID, tc.owner, expired.Add(-time.Hour)); err != nil {
+				t.Fatalf("%s: seed %s: %v", tc.owner, known[i].ScopeID, err)
+			}
+		}
+		// No marker: the selector is abandoned, so the sweep reclaims its
+		// not_listed history before the revive reads any prior.
+		counts, err := store.DeleteExpiredObservations(ctx, now, grace)
+		if err != nil {
+			t.Fatalf("%s: DeleteExpiredObservations() error = %v", tc.owner, err)
+		}
+		if want := (membership.SweepCounts{Deleted: int64(tc.missing), NotListedReclaimed: int64(tc.missing)}); counts != want {
+			t.Fatalf("%s: sweep counts = %+v, want %+v: only its reclaimed not_listed rows", tc.owner, counts, want)
+		}
+		prior := readByScope(ctx, t, store, selector.ID)
+		if len(prior) != 0 {
+			t.Fatalf("%s: rows left after reclaim = %d, want 0", tc.owner, len(prior))
+		}
+		result := membership.Evaluate(membership.Input{
+			Selector: selector, Now: now, LivenessWindow: time.Hour, Listing: listing, Known: known, Prior: slices.Collect(maps.Values(prior)),
+		})
+		if result.Outcome != tc.want || result.Counts.NewlyUnlisted != tc.missing || result.GuardThreshold != 10 {
+			t.Fatalf("%s: revive outcome = %q newly unlisted %d threshold %d, want %q %d 10", tc.owner, result.Outcome, result.Counts.NewlyUnlisted, result.GuardThreshold, tc.want, tc.missing)
+		}
+		if tc.want == membership.OutcomeGuardTripped && (len(result.Batch.Rows) != 0 || len(result.Projected) != 0) {
+			t.Fatalf("%s: guard-tripped revive wrote %d rows, want none", tc.owner, len(result.Batch.Rows))
+		}
+		if tc.want == membership.OutcomeEvaluated && (result.Scopes.NotListedPending != tc.wantPend || result.Scopes.NotListed != 0) {
+			t.Fatalf("%s: revive scopes = %+v, want %d pending and none confirmed", tc.owner, result.Scopes, tc.wantPend)
+		}
+		if tc.want == membership.OutcomeGuardTripped {
+			// The trip holds only until the drift shrinks: relisting all
+			// but five of the missing scopes lets the same selector
+			// evaluate again, re-confirming the five from pending.
+			shrunk := listing
+			shrunk.Repositories = slices.Clone(listing.Repositories)
+			for _, scope := range known[5:tc.missing] {
+				shrunk.Repositories = append(shrunk.Repositories, membership.ListedRepository{ScopeID: scope.ScopeID, Slug: scope.Slug, GitHubID: 999, State: membership.StateSelected})
+			}
+			again := membership.Evaluate(membership.Input{
+				Selector: selector, Now: now, LivenessWindow: time.Hour, Listing: shrunk, Known: known, Prior: slices.Collect(maps.Values(prior)),
+			})
+			if again.Outcome != membership.OutcomeEvaluated || again.Counts.NewlyUnlisted != 5 || again.Scopes.NotListedPending != 5 || again.Scopes.NotListed != 0 {
+				t.Fatalf("%s: shrunk-drift revive = %q newly %d scopes %+v, want evaluated with 5 newly and 5 pending", tc.owner, again.Outcome, again.Counts.NewlyUnlisted, again.Scopes)
+			}
+		}
 	}
 }
 

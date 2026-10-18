@@ -31,9 +31,11 @@ const (
 // cycle writes no rows, only the marker) could trip the guard forever once
 // access returns. The marker is read from the statement snapshot, so a
 // selector silent for window plus grace that revives in the same instant as
-// a sweep can lose its history; its next evaluation then re-confirms from
-// pending instead of tripping (the cycle that read the priors rewrites the
-// rows). That revive-in-the-same-instant race is bounded and accepted, not
+// a sweep can lose its history; its next evaluation re-confirms from
+// pending while the drift stays within the mass-miss guard threshold, and
+// trips like a first-ever evaluation (until the drift shrinks) when it does
+// not (the cycle that read the priors rewrites the rows). That
+// revive-in-the-same-instant race is bounded and accepted, not
 // prevented (P3-1). Each batch is its own statement, so locks last one
 // batch. SKIP LOCKED passes over a row an upsert holds, and FOR UPDATE rechecks the
 // expiry predicate against the newest row version, so a row renewed before

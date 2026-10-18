@@ -215,8 +215,11 @@ abandoned selector's `not_listed` rows are reclaimed once its marker is
 older than window plus grace: the marker is what separates "still cycling
 but guard-tripped" (writes no rows, advances the marker) from "gone". A
 selector silent for longer than that that later revives re-confirms its
-unlisted scopes from pending; it does not trip, because the cycle that read
-the priors rewrites the rows. Reclaimed rows count on
+unlisted scopes from pending while the drift stays within the mass-miss
+guard threshold, because the cycle that read the priors rewrites the rows;
+past the threshold it trips like a first-ever evaluation until the drift
+shrinks, since with no `not_listed` prior every unlisted scope counts as
+newly unlisted. Reclaimed rows count on
 `eshu_dp_collector_repository_selection_not_listed_reclaimed_total` and the
 evaluated log's `not_listed_reclaimed_count`; a failed marker write is
 `failure_class=selector_cycle_upsert` and changes no outcome.

@@ -15,7 +15,10 @@ import (
 
 // Every cycle writes the selector liveness marker, including a guard-tripped
 // cycle that writes no observation rows (#7840): the fresh marker is what
-// keeps that selector's not_listed guard history out of the reclaim.
+// keeps that selector's not_listed guard history out of the reclaim. A
+// store_error cycle touches it too: an erroring selector is not abandoned,
+// so writing the marker on error is the safe direction, and the touch never
+// changes the cycle's outcome.
 func TestObserverTouchesSelectorCycleOnEveryOutcome(t *testing.T) {
 	t.Parallel()
 
@@ -23,18 +26,20 @@ func TestObserverTouchesSelectorCycleOnEveryOutcome(t *testing.T) {
 	truncated := listing
 	truncated.Complete = false
 	cases := []struct {
-		name    string
-		listing Listing
-		outcome Outcome
+		name     string
+		listing  Listing
+		knownErr error
+		outcome  Outcome
 	}{
 		{name: "evaluated", listing: listing, outcome: OutcomeEvaluated},
 		{name: "guard tripped", listing: Listing{Complete: true}, outcome: OutcomeGuardTripped},
 		{name: "listing truncated", listing: truncated, outcome: OutcomeListingTruncated},
+		{name: "store error", listing: listing, knownErr: errors.New("conn reset"), outcome: OutcomeStoreError},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			store := &fakeStore{known: known}
+			store := &fakeStore{known: known, knownErr: tc.knownErr}
 			h := newObserverHarness(t, store)
 			request := qaRequest(tc.listing)
 			result := h.observer.Observe(context.Background(), request)
