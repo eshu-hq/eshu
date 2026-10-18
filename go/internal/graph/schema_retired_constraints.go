@@ -64,7 +64,7 @@ func retiredConstraintDrops(names []string) []string {
 
 // neo4jRetiredConstraintPathIndexes keep the reads the dropped path
 // constraints served. The canonical delta entity retract
-// (canonicalNodeRetractDeltaEntityTemplate) filters `n.path IN $file_paths`,
+// (node.RetractDeltaEntityTemplate) filters `n.path IN $file_paths`,
 // and PROFILE on neo4j:2026-community showed it seeking the unique path index
 // for these three labels. The composite (name, path) constraints on
 // TerraformModule and HelmChart served no read, since no query filters those

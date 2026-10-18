@@ -252,8 +252,8 @@ func sqlFamilyRepositoryFact(generationID string, delta bool, deltaRelativePaths
 
 // sqlFamilySchemaFileFact carries the "file" fact for db/schema.sql itself
 // (#5351 live-proof finding): every SQL content_entity fact's containment
-// write (cypher.canonicalNodeEntityUpsertWithContainmentTemplate,
-// go/internal/storage/cypher/canonical_node_cypher.go) is
+// write (node.EntityUpsertWithContainmentTemplate,
+// go/internal/storage/cypher/canonical/node/templates.go) is
 // `UNWIND $rows AS row MATCH (f:File {path: row.file_path}) MERGE (n:%s
 // {uid: row.entity_id}) ...` — an UNWIND+MATCH INNER JOIN. Without a File
 // node at db/schema.sql already present, every row's MATCH fails and the

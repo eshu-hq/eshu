@@ -6,8 +6,8 @@ package offlinetier_test
 // canonical_refresh_edge_writeloss_live_test.go is the P0 follow-up regression
 // for the two write-loss defects documented in
 // docs/internal/evidence/5652-nornic-bare-match-writeloss.md Part 3 (the
-// UNWIND-batched canonicalNodeRefreshCurrent*Cypher DELETE statements in
-// go/internal/storage/cypher/canonical_node_cypher.go). It drives the REAL
+// UNWIND-batched node.RefreshCurrent*Cypher DELETE statements in
+// go/internal/storage/cypher/canonical/node/templates.go). It drives the REAL
 // production CanonicalNodeWriter through the REAL NornicDB PhaseGroupExecutor
 // (the same call site delta_tier_live_test.go uses), not a synthetic
 // standalone Cypher harness, because the dispatch mode -- managed transaction
@@ -74,7 +74,7 @@ func refreshBaseMaterialization(genID string, first bool) canonical.CanonicalMat
 }
 
 // TestRefreshFileImportEdgesGraphTruth proves
-// canonicalNodeRefreshCurrentFileImportEdgesCypher's stale-IMPORTS-edge
+// node.RefreshCurrentFileImportEdgesCypher's stale-IMPORTS-edge
 // cleanup actually deletes the edge, through the real production writer and
 // PhaseGroupExecutor: gen1 seeds a File that imports moduleA; gen2 keeps the
 // same File but drops the import. The retract phase must remove the stale
@@ -136,7 +136,7 @@ func TestRefreshFileImportEdgesGraphTruth(t *testing.T) {
 	}
 	t.Logf("IMPORTS edge count after gen2 (stale import dropped): %d (want 0)", afterCount)
 	if afterCount != 0 {
-		t.Fatalf("stale IMPORTS edge survived gen2 retract: count = %d, want 0 -- canonicalNodeRefreshCurrentFileImportEdgesCypher did not delete it", afterCount)
+		t.Fatalf("stale IMPORTS edge survived gen2 retract: count = %d, want 0 -- node.RefreshCurrentFileImportEdgesCypher did not delete it", afterCount)
 	}
 
 	fileStillPresent, err := exec.count(ctx, `MATCH (f:File {path: $path}) RETURN count(f)`, map[string]any{"path": filePath})
@@ -149,7 +149,7 @@ func TestRefreshFileImportEdgesGraphTruth(t *testing.T) {
 }
 
 // TestRefreshDirectoryFileEdgesGraphTruth proves
-// canonicalNodeRefreshCurrentDirectoryFileEdgesCypher's stale
+// node.RefreshCurrentDirectoryFileEdgesCypher's stale
 // Directory-[:CONTAINS]->File cleanup actually deletes the OLD containment
 // edge when a File moves to a different Directory between generations,
 // through the real production writer and PhaseGroupExecutor.
@@ -206,7 +206,7 @@ func TestRefreshDirectoryFileEdgesGraphTruth(t *testing.T) {
 	}
 	t.Logf("old dir-a CONTAINS edge count after gen2 (file moved to dir-b): %d (want 0)", oldEdgeCount)
 	if oldEdgeCount != 0 {
-		t.Fatalf("stale dir-a CONTAINS edge survived gen2 retract: count = %d, want 0 -- canonicalNodeRefreshCurrentDirectoryFileEdgesCypher did not delete it", oldEdgeCount)
+		t.Fatalf("stale dir-a CONTAINS edge survived gen2 retract: count = %d, want 0 -- node.RefreshCurrentDirectoryFileEdgesCypher did not delete it", oldEdgeCount)
 	}
 
 	newEdgeCount, err := exec.count(ctx,
@@ -221,7 +221,7 @@ func TestRefreshDirectoryFileEdgesGraphTruth(t *testing.T) {
 }
 
 // TestRefreshDirectoryParentEdgesGraphTruth proves
-// canonicalNodeRefreshCurrentDirectoryParentEdgesCypher's stale
+// node.RefreshCurrentDirectoryParentEdgesCypher's stale
 // Directory-[:CONTAINS]->Directory reparent cleanup deletes the OLD parent
 // edge when a directory moves to a new parent between generations, through
 // the real production writer and PhaseGroupExecutor. This is a dedicated,
@@ -280,7 +280,7 @@ func TestRefreshDirectoryParentEdgesGraphTruth(t *testing.T) {
 	}
 	t.Logf("old dir-a -> child CONTAINS edge count after gen2 reparent: %d (want 0)", oldEdgeCount)
 	if oldEdgeCount != 0 {
-		t.Fatalf("stale dir-a -> child CONTAINS edge survived gen2 reparent retract: count = %d, want 0 -- canonicalNodeRefreshCurrentDirectoryParentEdgesCypher did not delete it", oldEdgeCount)
+		t.Fatalf("stale dir-a -> child CONTAINS edge survived gen2 reparent retract: count = %d, want 0 -- node.RefreshCurrentDirectoryParentEdgesCypher did not delete it", oldEdgeCount)
 	}
 
 	newEdgeCount, err := exec.count(ctx,

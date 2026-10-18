@@ -25,7 +25,7 @@ type DeltaMaterialization struct {
 	Gen1 canonical.CanonicalMaterialization
 	// Gen2 is the canonical materialization for the second generation. Its
 	// FirstGeneration field is false, which enables the production retract
-	// statements (canonicalNodeRetractDirectoriesCypher etc.) to fire and
+	// statements (node.RetractDirectoriesCypher etc.) to fire and
 	// remove entities that are absent from or tombstoned in gen2.
 	Gen2 canonical.CanonicalMaterialization
 	// TombstonedDirectoryPaths is the set of directory paths that appear as
@@ -47,8 +47,8 @@ type DeltaMaterialization struct {
 // The gen2 CanonicalMaterialization is returned with FirstGeneration=false so
 // the production retract phase fires: directories and files absent from gen2
 // (including tombstoned ones) are DETACH DELETE'd from the graph by the
-// production canonicalNodeRetractDirectoriesCypher and
-// canonicalNodeRetractDeltaDeletedFilesCypher templates.
+// production node.RetractDirectoriesCypher and
+// node.RetractDeltaDeletedFilesCypher templates.
 //
 // It returns an error when either generation's fact stream errors, when gen1
 // has no repository fact (bad baseline cassette), or when gen2's surviving

@@ -4,7 +4,7 @@
 package offlinetier_test
 
 // File-retract coverage (C-14 #4367). A File tombstoned in gen2 is removed by the
-// production delta file retract (canonicalNodeRetractDeltaDeletedFilesCypher) on a
+// production delta file retract (node.RetractDeltaDeletedFilesCypher) on a
 // real NornicDB, while a surviving File remains. This exercises the offline
 // delta tier's new tombstoned-file collection: DeltaMaterializationFromGenerations
 // now maps gen2 tombstoned git.file facts into DeltaDeletedFilePaths, mirroring

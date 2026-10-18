@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package node
 
 // Cypher templates for canonical node projection phases.
 // These are used by CanonicalNodeWriter in strict phase order.
 
 // --- Phase A: Retraction Cypher ---
 
-const canonicalNodeRetractFilesCypher = `MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)
+const RetractFilesCypher = `MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)
 WHERE f.repo_id = $repo_id AND f.evidence_source = 'projector/canonical' AND f.generation_id <> $generation_id
 DETACH DELETE f`
 
-const canonicalNodeRetractRemovedFilesCypher = `MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)
+const RetractRemovedFilesCypher = `MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)
 WHERE f.repo_id = $repo_id AND f.evidence_source = 'projector/canonical' AND f.generation_id <> $generation_id
   AND (f.path IS NULL OR NOT (f.path IN $file_paths))
 DETACH DELETE f`
@@ -27,52 +27,52 @@ DETACH DELETE f`
 // grouped-transaction-safe (see nornicdb-pitfalls.md), so the rewrite keeps
 // batching, replay safety, and the anchor-direction rule (every traversal
 // still expands from its bound variable).
-const canonicalNodeRetractDeltaDeletedFilesCypher = `MATCH (f:File)
+const RetractDeltaDeletedFilesCypher = `MATCH (f:File)
 WHERE f.path IN $file_paths
   AND f.repo_id = $repo_id AND f.evidence_source = 'projector/canonical'
 DETACH DELETE f`
 
-const canonicalNodeRetractDeltaDeletedDirectoryEdgesCypher = `MATCH (d:Directory)
+const RetractDeltaDeletedDirectoryEdgesCypher = `MATCH (d:Directory)
 WHERE d.path IN $directory_paths
   AND d.repo_id = $repo_id
   AND d.evidence_source = 'projector/canonical'
 MATCH (d)-[r:CONTAINS]-()
 DELETE r`
 
-const canonicalNodeRetractDeltaDeletedDirectoriesCypher = `MATCH (d:Directory)
+const RetractDeltaDeletedDirectoriesCypher = `MATCH (d:Directory)
 WHERE d.path IN $directory_paths
   AND d.repo_id = $repo_id
   AND d.evidence_source = 'projector/canonical'
 DETACH DELETE d`
 
-const canonicalNodeRetractDeltaEmptyDirectoriesCypher = `MATCH (d:Directory)
+const RetractDeltaEmptyDirectoriesCypher = `MATCH (d:Directory)
 WHERE d.path IN $directory_paths
   AND d.repo_id = $repo_id
   AND NOT EXISTS { MATCH (d)-[:CONTAINS]->(:File) }
   AND NOT EXISTS { MATCH (d)-[:CONTAINS]->(:Directory) }
 DETACH DELETE d`
 
-const canonicalNodeRetractEntityTemplate = `MATCH (n:%s)
+const RetractEntityTemplate = `MATCH (n:%s)
 WHERE n.repo_id = $repo_id AND n.evidence_source = 'projector/canonical' AND n.generation_id <> $generation_id
 DETACH DELETE n`
 
-const canonicalNodeRetractDeltaEntityTemplate = `MATCH (n:%s)
+const RetractDeltaEntityTemplate = `MATCH (n:%s)
 WHERE n.repo_id = $repo_id AND n.evidence_source = 'projector/canonical'
   AND n.path IN $file_paths AND n.generation_id <> $generation_id
 DETACH DELETE n`
 
-const canonicalNodeRetractDirectoriesCypher = `MATCH (d:Directory)
+const RetractDirectoriesCypher = `MATCH (d:Directory)
 WHERE d.repo_id = $repo_id AND d.generation_id <> $generation_id
   AND (d.path IS NULL OR NOT (d.path IN $directory_paths))
 DETACH DELETE d`
 
-const canonicalNodeRefreshCurrentFileImportEdgesCypher = `UNWIND $file_paths AS file_path
+const RefreshCurrentFileImportEdgesCypher = `UNWIND $file_paths AS file_path
 MATCH (f:File {path: file_path})
 MATCH (f)-[r:IMPORTS]->(:Module)
 DELETE r`
 
-// canonicalNodeRefreshCurrentDirectoryFileEdgesCypher and
-// canonicalNodeRefreshCurrentDirectoryParentEdgesCypher both walk a CONTAINS
+// RefreshCurrentDirectoryFileEdgesCypher and
+// RefreshCurrentDirectoryParentEdgesCypher both walk a CONTAINS
 // edge INTO a node the statement has already anchored by indexed path. Both are
 // written from the anchored node outward, with a `<-` arrow, rather than from
 // the unbound `(:Directory)` side.
@@ -88,26 +88,26 @@ DELETE r`
 // input row and independent of how many rows a chunk carries. Reading from the
 // anchored side instead matches the identical edges out of that node's own
 // adjacency. Same rewrite as the workload catalog queries in #3466 and #1731.
-const canonicalNodeRefreshCurrentDirectoryFileEdgesCypher = `UNWIND $file_paths AS file_path
+const RefreshCurrentDirectoryFileEdgesCypher = `UNWIND $file_paths AS file_path
 MATCH (f:File {path: file_path})
 MATCH (f)<-[r:CONTAINS]-(:Directory)
 DELETE r`
 
-const canonicalNodeRefreshCurrentDirectoryParentEdgesCypher = `UNWIND $rows AS row
+const RefreshCurrentDirectoryParentEdgesCypher = `UNWIND $rows AS row
 MATCH (d:Directory {path: row.path})<-[r:CONTAINS]-(p:Directory)
 WHERE d.repo_id = $repo_id
   AND d.evidence_source = 'projector/canonical'
   AND p.path <> row.parent_path
 DELETE r`
 
-const canonicalNodeRefreshCurrentEntityContainmentEdgesTemplate = `UNWIND $rows AS row
+const RefreshCurrentEntityContainmentEdgesTemplate = `UNWIND $rows AS row
 MATCH (n:%s {uid: row.parent_entity_id})-[r:CONTAINS]->(m)
 WHERE n.evidence_source = 'projector/canonical'
   AND m.evidence_source = 'projector/canonical'
   AND (m.uid IS NULL OR NOT (m.uid IN row.child_entity_ids))
 DELETE r`
 
-const canonicalNodeRetractParametersCypher = `MATCH (p:Parameter)
+const RetractParametersCypher = `MATCH (p:Parameter)
 WHERE p.path IN $file_paths AND p.evidence_source = 'projector/canonical'
   AND p.generation_id <> $generation_id
 DETACH DELETE p`
@@ -117,7 +117,7 @@ DETACH DELETE p`
 // There is deliberately no by-id Repository delete here (#7285): the node is
 // MERGEd in place so edges owned by other writers survive re-projection.
 
-// canonicalNodeRepositoryPathCleanupCypher retires a DIFFERENT-id
+// RepositoryPathCleanupCypher retires a DIFFERENT-id
 // Repository still holding the projected path (#7324). The incident-edge
 // collection runs in the SAME statement, before the delete, so the
 // attribution describes exactly the relationships the delete drops: a
@@ -139,31 +139,31 @@ DETACH DELETE p`
 // node in steady state, and corrupts the RETURN projection to the literal
 // "dropped" (live probe #8173: steady state deleted 1 node + 1
 // relationship, record value "dropped"). Writers targeting NornicDB MUST
-// emit canonicalNodeRepositoryPathCleanupBareCypher instead (see
+// emit RepositoryPathCleanupBareCypher instead (see
 // WithBareRepositoryRetirement): the bare shape is correct on both
 // backends, and its entries report through the unattributed
 // (attribution=false) path. A NornicDB retirement therefore reports no
 // retired id; its fingerprint invalidation comes from the #8316 gap
 // reconciliation, not from this RETURN.
-const canonicalNodeRepositoryPathCleanupCypher = `MATCH (r:Repository {path: $path})
+const RepositoryPathCleanupCypher = `MATCH (r:Repository {path: $path})
 WHERE r.id <> $repo_id
 OPTIONAL MATCH (r)-[rel]-(other)
 WITH r, r.id AS retired_id, collect(CASE WHEN rel IS NULL THEN NULL ELSE {t: type(rel), dir: CASE WHEN startNode(rel) = r THEN 'out' ELSE 'in' END, src: rel.evidence_source} END) AS dropped
 DETACH DELETE r
 RETURN retired_id, dropped`
 
-// canonicalNodeRepositoryPathCleanupBareCypher is the pre-split retirement
+// RepositoryPathCleanupBareCypher is the pre-split retirement
 // shape: the same path anchor and id guard, no incident-edge collection, no
 // RETURN record. It is correct on both backends (live probe: steady state
 // deletes 0 nodes on NornicDB and Neo4j) and is the shape every
 // NornicDB-targeted writer emits. Its entries carry no Dropped collection,
 // so the report logs attribution=false and moves only
 // eshu_dp_canonical_repository_retirements_total.
-const canonicalNodeRepositoryPathCleanupBareCypher = `MATCH (r:Repository {path: $path})
+const RepositoryPathCleanupBareCypher = `MATCH (r:Repository {path: $path})
 WHERE r.id <> $repo_id
 DETACH DELETE r`
 
-const canonicalNodeRepositoryUpsertCypher = `MERGE (r:Repository {id: $repo_id})
+const RepositoryUpsertCypher = `MERGE (r:Repository {id: $repo_id})
 SET r.name = $name, r.path = $path, r.local_path = $local_path,
     r.remote_url = $remote_url, r.repo_slug = $repo_slug,
     r.has_remote = $has_remote, r.scope_id = $scope_id,
@@ -192,20 +192,20 @@ SET r.name = $name, r.path = $path, r.local_path = $local_path,
 // cases — so the edge phase stays inline there; only multi-label package_registry
 // edges are deferred. Neo4j is unaffected.)
 
-const canonicalNodeDirectoryNodeCypher = `UNWIND $rows AS row
+const DirectoryNodeCypher = `UNWIND $rows AS row
 MERGE (d:Directory {path: row.path})
 SET d.name = row.name, d.repo_id = row.repo_id,
     d.scope_id = row.scope_id, d.generation_id = row.generation_id,
     d.evidence_source = 'projector/canonical'`
 
-const canonicalNodeDirectoryDepth0EdgeCypher = `UNWIND $rows AS row
+const DirectoryDepth0EdgeCypher = `UNWIND $rows AS row
 MATCH (r:Repository {id: row.repo_id})
 MATCH (d:Directory {path: row.path})
 MERGE (r)-[rel:CONTAINS]->(d)
 SET rel.evidence_source = 'projector/canonical',
     rel.generation_id = row.generation_id`
 
-const canonicalNodeDirectoryDepthNEdgeCypher = `UNWIND $rows AS row
+const DirectoryDepthNEdgeCypher = `UNWIND $rows AS row
 MATCH (p:Directory {path: row.parent_path})
 MATCH (d:Directory {path: row.path})
 MERGE (p)-[rel:CONTAINS]->(d)
@@ -214,7 +214,7 @@ SET rel.evidence_source = 'projector/canonical',
 
 // --- Phase D: File Cypher ---
 
-const canonicalNodeFileUpdateExistingCypher = `UNWIND $rows AS row
+const FileUpdateExistingCypher = `UNWIND $rows AS row
 MATCH (f:File {path: row.path})
 SET f.name = row.name, f.relative_path = row.relative_path,
     f.uid = row.uid,
@@ -239,7 +239,7 @@ SET dirRel.evidence_source = 'projector/canonical',
 // uncorrelated existence subquery by loading every File node per row and never
 // matches row.path, so it scanned the whole label and re-stamped existing
 // files (#6798).
-const canonicalNodeFileCreateMissingCypher = `UNWIND $rows AS row
+const FileCreateMissingCypher = `UNWIND $rows AS row
 OPTIONAL MATCH (existing:File {path: row.path})
 WITH row, existing
 WHERE existing IS NULL
@@ -259,7 +259,7 @@ MERGE (d)-[dirRel:CONTAINS]->(f)
 SET dirRel.evidence_source = 'projector/canonical',
     dirRel.generation_id = row.generation_id`
 
-const canonicalNodeFileFirstGenerationMergeCypher = `UNWIND $rows AS row
+const FileFirstGenerationMergeCypher = `UNWIND $rows AS row
 MATCH (r:Repository {id: row.repo_id})
 MATCH (d:Directory {path: row.dir_path})
 MERGE (f:File {path: row.path})
@@ -276,7 +276,7 @@ MERGE (d)-[dirRel:CONTAINS]->(f)
 SET dirRel.evidence_source = 'projector/canonical',
     dirRel.generation_id = row.generation_id`
 
-const canonicalNodeRootFileUpdateExistingCypher = `UNWIND $rows AS row
+const RootFileUpdateExistingCypher = `UNWIND $rows AS row
 MATCH (f:File {path: row.path})
 SET f.name = row.name, f.relative_path = row.relative_path,
     f.uid = row.uid,
@@ -290,7 +290,7 @@ MERGE (r)-[repoRel:REPO_CONTAINS]->(f)
 SET repoRel.evidence_source = 'projector/canonical',
     repoRel.generation_id = row.generation_id`
 
-const canonicalNodeRootFileCreateMissingCypher = `UNWIND $rows AS row
+const RootFileCreateMissingCypher = `UNWIND $rows AS row
 OPTIONAL MATCH (existing:File {path: row.path})
 WITH row, existing
 WHERE existing IS NULL
@@ -306,7 +306,7 @@ MERGE (r)-[repoRel:REPO_CONTAINS]->(f)
 SET repoRel.evidence_source = 'projector/canonical',
     repoRel.generation_id = row.generation_id`
 
-const canonicalNodeRootFileFirstGenerationMergeCypher = `UNWIND $rows AS row
+const RootFileFirstGenerationMergeCypher = `UNWIND $rows AS row
 MATCH (r:Repository {id: row.repo_id})
 MERGE (f:File {path: row.path})
 SET f.name = row.name, f.relative_path = row.relative_path,
@@ -321,20 +321,20 @@ SET repoRel.evidence_source = 'projector/canonical',
 
 // --- Phase E: Entity Cypher (template — label inserted via fmt.Sprintf) ---
 
-// canonicalNodeEntityUpsertTemplate is formatted with the graph label at write
+// EntityUpsertTemplate is formatted with the graph label at write
 // time. It intentionally writes only the entity node so rows can batch across
 // files and stay aligned with NornicDB's simple UNWIND/MERGE hot path.
 // anchor-census: dynamic-label writer; label set bounded by TestEntityUpsertTemplateLabelsAreAnchorLabels
-const canonicalNodeEntityUpsertTemplate = `UNWIND $rows AS row
+const EntityUpsertTemplate = `UNWIND $rows AS row
 MERGE (n:%s {uid: row.entity_id})
 SET n += row.props`
 
 // anchor-census: dynamic-label writer; label set bounded by TestEntityUpsertTemplateLabelsAreAnchorLabels
-const canonicalNodeEntitySingletonUpsertTemplate = `MERGE (n:%s {uid: $entity_id})
+const EntitySingletonUpsertTemplate = `MERGE (n:%s {uid: $entity_id})
 SET n += $props`
 
 // anchor-census: dynamic-label writer; label set bounded by TestEntityUpsertTemplateLabelsAreAnchorLabels
-const canonicalNodeEntityFileScopedUpsertWithContainmentTemplate = `UNWIND $rows AS row
+const EntityFileScopedUpsertWithContainmentTemplate = `UNWIND $rows AS row
 MATCH (f:File {path: $file_path})
 MERGE (n:%s {uid: row.entity_id})
 SET n += row.props
@@ -343,7 +343,7 @@ SET rel.evidence_source = 'projector/canonical',
     rel.generation_id = row.generation_id`
 
 // anchor-census: dynamic-label writer; label set bounded by TestEntityUpsertTemplateLabelsAreAnchorLabels
-const canonicalNodeEntityUpsertWithContainmentTemplate = `UNWIND $rows AS row
+const EntityUpsertWithContainmentTemplate = `UNWIND $rows AS row
 MATCH (f:File {path: row.file_path})
 MERGE (n:%s {uid: row.entity_id})
 SET n += row.props
@@ -352,14 +352,14 @@ SET rel.evidence_source = 'projector/canonical',
     rel.generation_id = row.generation_id`
 
 // anchor-census: dynamic-label writer; label set bounded by TestEntityUpsertTemplateLabelsAreAnchorLabels
-const canonicalNodeEntitySingletonUpsertWithContainmentTemplate = `MATCH (f:File {path: $file_path})
+const EntitySingletonUpsertWithContainmentTemplate = `MATCH (f:File {path: $file_path})
 MERGE (n:%s {uid: $entity_id})
 SET n += $props
 MERGE (f)-[rel:CONTAINS]->(n)
 SET rel.evidence_source = 'projector/canonical',
     rel.generation_id = $generation_id`
 
-const canonicalNodeEntityContainmentEdgeTemplate = `UNWIND $rows AS row
+const EntityContainmentEdgeTemplate = `UNWIND $rows AS row
 MATCH (f:File {path: $file_path})
 MATCH (n:%s {uid: row.entity_id})
 MERGE (f)-[rel:CONTAINS]->(n)
@@ -368,7 +368,7 @@ SET rel.evidence_source = 'projector/canonical',
 
 // --- Phase F: Module Cypher ---
 
-// canonicalNodeModuleUpsertCypher MERGEs the import-graph Module node on
+// ModuleUpsertCypher MERGEs the import-graph Module node on
 // (name, lang), which is its identity: a Go `time` and a Python `time` are
 // unrelated modules that share a name, while two repositories importing the
 // same Go `time` share one node. Repository and scope are deliberately NOT in
@@ -393,7 +393,7 @@ SET rel.evidence_source = 'projector/canonical',
 // rather than scanned for. Module cannot take a uniqueness constraint on name
 // (the semantic entity path MERGEs Module on uid and shares this label), which
 // is why the index, not a constraint, is the anchor.
-const canonicalNodeModuleUpsertCypher = `UNWIND $rows AS row
+const ModuleUpsertCypher = `UNWIND $rows AS row
 MERGE (m:Module {name: row.name, lang: row.language})
 SET m.evidence_source = 'projector/canonical'`
 
@@ -401,11 +401,11 @@ SET m.evidence_source = 'projector/canonical'`
 // CanonicalNodeWriter batches with row keys `name` and `language`. It is
 // exported only so internal/backendconformance can run the exact production
 // statement against both backends; production callers go through the writer.
-const CanonicalNodeModuleUpsertCypher = canonicalNodeModuleUpsertCypher
+const CanonicalNodeModuleUpsertCypher = ModuleUpsertCypher
 
 // --- Phase G: Structural edge Cypher ---
 
-// canonicalNodeImportEdgeCypher wires each file to the module it imports. The
+// ImportEdgeCypher wires each file to the module it imports. The
 // target is resolved on the full (name, lang) Module identity, using the
 // importing file's own language: matching on name alone would resolve every
 // same-named module and attach one file to all of them, which is a worse
@@ -418,7 +418,7 @@ const CanonicalNodeModuleUpsertCypher = canonicalNodeModuleUpsertCypher
 // existing edge, and only an unconditional SET of an explicit false overwrites a
 // stale true; a CASE-guarded or write-only-true SET would keep it. The SET reads
 // only the row, never the existing edge, so it is not exposed to the
-// pre-batch-snapshot behavior described on canonicalNodeModuleUpsertCypher.
+// pre-batch-snapshot behavior described on ModuleUpsertCypher.
 // An edge written before this change has no flag property at all, which a reader
 // must treat as "flags unknown", not as false.
 //
@@ -429,7 +429,7 @@ const CanonicalNodeModuleUpsertCypher = canonicalNodeModuleUpsertCypher
 // stale-overwrite reason; an edge written before it existed has no
 // such property, which a package-cycle reader must treat as
 // "package unknown" and exclude, never as an empty package.
-const canonicalNodeImportEdgeCypher = `UNWIND $rows AS row
+const ImportEdgeCypher = `UNWIND $rows AS row
 MATCH (f:File {path: row.file_path})
 MATCH (m:Module {name: row.module_name, lang: row.module_language})
 MERGE (f)-[r:IMPORTS]->(m)
@@ -438,14 +438,14 @@ SET r.imported_name = row.imported_name, r.alias = row.alias, r.line_number = ro
     r.type_only = row.type_only, r.deferred = row.deferred, r.inferred = row.inferred,
     r.source_package = row.source_package`
 
-// canonicalNodeHasParameterEdgeCypher upserts Parameter nodes and the
+// HasParameterEdgeCypher upserts Parameter nodes and the
 // HAS_PARAMETER relationship from Function to Parameter. The SET assignments
 // for p and rel are split into two clauses (one per target variable) so
 // NornicDB's executeUnwindMergeChainBatch fast path engages — its
 // parseUnwindSimpleSetAssignments helper enforces single-variable SET bodies
 // and bails the whole chain-batch plan on a multi-variable SET. The split is
 // semantically equivalent per Cypher spec.
-const canonicalNodeHasParameterEdgeCypher = `UNWIND $rows AS row
+const HasParameterEdgeCypher = `UNWIND $rows AS row
 MATCH (fn:Function {name: row.func_name, path: row.file_path, line_number: row.func_line})
 MERGE (p:Parameter {name: row.param_name, path: row.file_path, function_line_number: row.func_line})
 SET p.evidence_source = 'projector/canonical',
@@ -454,14 +454,14 @@ MERGE (fn)-[rel:HAS_PARAMETER]->(p)
 SET rel.evidence_source = 'projector/canonical',
     rel.generation_id = row.generation_id`
 
-const canonicalNodeClassContainsFuncEdgeCypher = `UNWIND $rows AS row
+const ClassContainsFuncEdgeCypher = `UNWIND $rows AS row
 MATCH (c:Class {name: row.class_name, path: row.file_path})
 MATCH (fn:Function {name: row.func_name, path: row.file_path, line_number: row.func_line})
 MERGE (c)-[rel:CONTAINS]->(fn)
 SET rel.evidence_source = 'projector/canonical',
     rel.generation_id = row.generation_id`
 
-const canonicalNodeNestedFuncEdgeCypher = `UNWIND $rows AS row
+const NestedFuncEdgeCypher = `UNWIND $rows AS row
 MATCH (outer:Function {name: row.outer_name, path: row.file_path})
 MATCH (inner:Function {name: row.inner_name, path: row.file_path, line_number: row.inner_line})
 MERGE (outer)-[rel:CONTAINS]->(inner)

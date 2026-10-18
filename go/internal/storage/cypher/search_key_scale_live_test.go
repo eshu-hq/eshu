@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
+
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
@@ -134,7 +136,7 @@ func TestLiveInfraSearchKeyBackfillScale(t *testing.T) {
 			"name": fmt.Sprintf("var_%d", i), "id": fmt.Sprintf("%sp-%d", prefix, i), "path": "/zz7245/scale/vars.tf",
 		}})
 	}
-	base := fmt.Sprintf(canonicalNodeEntityUpsertTemplate, "TerraformVariable")
+	base := fmt.Sprintf(node.EntityUpsertTemplate, "TerraformVariable")
 	for _, d := range []search.Dialect{search.Off, search.On} {
 		g.must(ctx, t, "MATCH (n:TerraformVariable) WHERE n.uid STARTS WITH $p DETACH DELETE n", map[string]any{"p": prefix + "p-"})
 		hits, elapsed := g.profileDBHits(ctx, t, "PROFILE "+search.Statement(d, "TerraformVariable", "n", base), map[string]any{"rows": rows})

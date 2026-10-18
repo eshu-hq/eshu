@@ -127,7 +127,7 @@ func TestIngesterNornicDBProbedDrainLiveKeepsCurrentGeneration(t *testing.T) {
 	retractRepo := func(repo string) error {
 		return phase.ExecutePhaseGroup(ctx, []sourcecypher.Statement{{
 			Operation: sourcecypher.OperationCanonicalRetract,
-			// The production canonicalNodeRetractEntityTemplate shape.
+			// The production node.RetractEntityTemplate shape.
 			Cypher: fmt.Sprintf("MATCH (n:%s)\n"+
 				"WHERE n.repo_id = $repo_id AND n.evidence_source = 'projector/canonical' AND n.generation_id <> $generation_id\n"+
 				"DETACH DELETE n", label),

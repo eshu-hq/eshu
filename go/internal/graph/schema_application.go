@@ -46,7 +46,7 @@ type SchemaApplication struct {
 // compatible predecessors in graphSchemaCompatibleFingerprints.
 var graphWriteIdentityContract = []string{
 	// Canonical import-graph Module (#6102). See
-	// canonicalNodeModuleUpsertCypher and canonicalNodeImportEdgeCypher in
+	// node.ModuleUpsertCypher and node.ImportEdgeCypher in
 	// go/internal/storage/cypher. Semantic Module entities are unaffected:
 	// they MERGE on uid, which the uid uniqueness constraint already records
 	// as DDL.

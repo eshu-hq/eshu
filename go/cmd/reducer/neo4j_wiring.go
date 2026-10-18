@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
+
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/graph/capture"
@@ -109,7 +111,7 @@ func (r neo4jSessionRunner) transactionConfigurers() []func(*neo4jdriver.Transac
 
 // QueryCypherExists runs a read-only Cypher query and returns true if at
 // least one row is returned. This implements neo4j.CypherReader for the
-// CanonicalNodeChecker pre-flight check, and (#5998 review F8) the
+// node.Checker pre-flight check, and (#5998 review F8) the
 // cypherProber capability cypherRunnerStatementExecutor.ExecuteProbe uses for
 // the rationale retract probe guard.
 //
@@ -123,7 +125,7 @@ func (r neo4jSessionRunner) transactionConfigurers() []func(*neo4jdriver.Transac
 // probe-specific knob: a hung probe blocking the retract while holding its
 // partition lease is exactly the failure class that ceiling already exists to
 // bound, and every consumer of this shared read primitive (both
-// CanonicalNodeChecker and the rationale probe guard) benefits identically.
+// node.Checker and the rationale probe guard) benefits identically.
 // On plain Neo4j r.TxTimeout carries ESHU_CANONICAL_WRITE_TIMEOUT when an
 // operator sets it, else the 300s default (reducerTransactionTimeout, issue
 // #7471); only an explicit non-positive duration leaves it 0 and this probe
@@ -136,7 +138,7 @@ func (r neo4jSessionRunner) QueryCypherExists(ctx context.Context, cypher string
 	// AccessModeWrite for a read-only statement is deliberate, and it is a
 	// correctness choice rather than a copy-paste slip. Both callers of this
 	// primitive read in order to decide whether to mutate: the rationale probe
-	// guard skips a DELETE when this returns false, and CanonicalNodeChecker
+	// guard skips a DELETE when this returns false, and node.Checker
 	// gates a write on whether a node already exists. Neither session shares a
 	// BookmarkManager with the write session that follows it, so on a routed
 	// Neo4j deployment an AccessModeRead session can be served by a lagging
@@ -150,7 +152,7 @@ func (r neo4jSessionRunner) QueryCypherExists(ctx context.Context, cypher string
 	// on that image could not have surfaced this.
 	//
 	// On today's tree the leader-load half of that trade is theoretical:
-	// NewCanonicalNodeChecker has no production call site (only the type in
+	// node.NewChecker has no production call site (only the type in
 	// storage/cypher and the interface in internal/reducer, whose own doc says
 	// the code-call handler no longer uses it), so the probe guard is the sole
 	// live consumer. That matters if the checker is ever revived, because its
@@ -243,7 +245,7 @@ func (c reducerNeo4jDriverCloser) Close() error {
 // applyReducerCapture decorates the reducer's wrappable graph seams: the
 // canonical write chain above its retry seam (logical statements, so a
 // transient retry never re-records) and the query read facet. The
-// existence-probe facet (sourcecypher.CypherReader) and the materializer
+// existence-probe facet (node.CypherReader) and the materializer
 // chain below its own retry seam are covered separately: the probe facet
 // has no capture-shaped method, and the materializer adapter is wrapped
 // inside newReducerCypherExecutor. A nil session returns both seams
@@ -255,7 +257,7 @@ func applyReducerCapture(session *capture.Session, exec sourcecypher.Executor, r
 // openReducerNeo4jAdapters opens a Neo4j driver and returns the executor
 // adapters needed by the reducer: one for EdgeWriter (sourcecypher.Executor),
 // one for WorkloadMaterializer (reducer.CypherExecutor), and one for
-// pre-flight canonical node checks (sourcecypher.CypherReader). Both
+// pre-flight canonical node checks (node.CypherReader). Both
 // executor adapters hold a persistent *sourcecypher.RetryingExecutor built
 // once here (#5048) rather than a fresh one per call (the removed
 // executeReducerCypherWithRetry); instruments is wired onto both so
@@ -265,7 +267,7 @@ func openReducerNeo4jAdapters(
 	parent context.Context,
 	getenv func(string) string,
 	instruments *telemetry.Instruments,
-) (sourcecypher.Executor, reducer.CypherExecutor, sourcecypher.CypherReader, query.GraphQuery, io.Closer, error) {
+) (sourcecypher.Executor, reducer.CypherExecutor, node.CypherReader, query.GraphQuery, io.Closer, error) {
 	graphBackend, err := runtimecfg.LoadGraphBackend(getenv)
 	if err != nil {
 		return nil, nil, nil, nil, nil, err

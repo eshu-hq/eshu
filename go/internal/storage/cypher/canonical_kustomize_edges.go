@@ -93,7 +93,7 @@ DELETE r`
 // Class/Interface/Trait/etc. nodes as their class-inheritance parent-class
 // list (go/internal/parser/python/language.go and siblings), reaching the
 // graph through the generic content-entity metadata passthrough
-// (canonicalEntityMetadataProperties). Writing base_refs explicitly, instead
+// (node.EntityMetadataProperties). Writing base_refs explicitly, instead
 // of relying on that passthrough, keeps this contract-owned field
 // unambiguous and independent of the generic pipeline's reserved-key policy.
 //

@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 // #7324 contract A, static half. Re-projecting a Repository keeps the node
@@ -23,8 +25,8 @@ import (
 //
 //   - Rule 1: the only statically visible statements that may delete a
 //     Repository node are the two path-conflict retirement shapes —
-//     canonicalNodeRepositoryPathCleanupCypher (attributed, Neo4j-only)
-//     and canonicalNodeRepositoryPathCleanupBareCypher (bare, what
+//     node.RepositoryPathCleanupCypher (attributed, Neo4j-only)
+//     and node.RepositoryPathCleanupBareCypher (bare, what
 //     NornicDB writers emit, #8173) — the retirement the repository_path
 //     UNIQUE constraint requires, and they are the only deletes that drop
 //     edges with a Repository. Identity is the constants themselves
@@ -162,8 +164,8 @@ func repositoryDeleteScan(text string) (violations []string, nodeDeletes, incomi
 	}
 	incoming := repositoryIncomingRelationships(text, bindings)
 	normalized := normalizeCypherWhitespace(text)
-	isPathCleanup := normalized == normalizeCypherWhitespace(canonicalNodeRepositoryPathCleanupCypher) ||
-		normalized == normalizeCypherWhitespace(canonicalNodeRepositoryPathCleanupBareCypher)
+	isPathCleanup := normalized == normalizeCypherWhitespace(node.RepositoryPathCleanupCypher) ||
+		normalized == normalizeCypherWhitespace(node.RepositoryPathCleanupBareCypher)
 	for _, match := range cypherDeletePattern.FindAllStringSubmatch(text, -1) {
 		for _, variable := range strings.Split(match[2], ",") {
 			variable = strings.TrimSpace(variable)
@@ -361,8 +363,8 @@ func TestRepositoryDeleteViolationsDetectsSeededDeletes(t *testing.T) {
 		{"aliased node delete", "MATCH (r:Repository {id: $id}) WITH r AS gone DETACH DELETE gone", []string{rule1("gone")}},
 		{"label predicate node delete", "MATCH (n) WHERE n:Repository AND n.path = $p DETACH DELETE n", []string{rule1("n")}},
 		{"path cleanup with its guard removed", "MATCH (r:Repository {path: $path})\nDETACH DELETE r", []string{rule1("r")}},
-		{"the path cleanup constant", canonicalNodeRepositoryPathCleanupCypher, nil},
-		{"the bare path cleanup constant", canonicalNodeRepositoryPathCleanupBareCypher, nil},
+		{"the path cleanup constant", node.RepositoryPathCleanupCypher, nil},
+		{"the bare path cleanup constant", node.RepositoryPathCleanupBareCypher, nil},
 		{"the bare path cleanup, reflowed", "MATCH (r:Repository {path: $path})  WHERE r.id <> $repo_id\n\n DETACH DELETE r", nil},
 		{"the path cleanup, reflowed", "MATCH (r:Repository {path: $path})  WHERE r.id <> $repo_id\n\n OPTIONAL MATCH (r)-[rel]-(other)\n WITH r, r.id AS retired_id, collect(CASE WHEN rel IS NULL THEN NULL ELSE {t: type(rel), dir: CASE WHEN startNode(rel) = r THEN 'out' ELSE 'in' END, src: rel.evidence_source} END) AS dropped\n DETACH DELETE r\n RETURN retired_id, dropped", nil},
 		{"incoming delete, no evidence scope", "MATCH (w:Workload)-[rel:DEPLOYS_FROM]->(r:Repository {id: $id}) DELETE rel", []string{rule2("rel")}},

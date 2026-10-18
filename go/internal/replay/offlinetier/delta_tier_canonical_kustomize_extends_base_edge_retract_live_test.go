@@ -127,7 +127,7 @@ func kustomizeExtendsBaseGen1Materialization() canonical.CanonicalMaterializatio
 		},
 		// The base file is nested one level under the repo root, so its File
 		// write's dir_path MUST resolve an already-written Directory node
-		// (canonicalNodeFileFirstGenerationMergeCypher: MATCH (d:Directory
+		// (node.FileFirstGenerationMergeCypher: MATCH (d:Directory
 		// {path: row.dir_path})) -- omitting this Directory row silently
 		// drops the whole base File row (and therefore its KustomizeOverlay
 		// entity's containment MATCH) with no error, reproduced directly

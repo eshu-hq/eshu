@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
+
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
@@ -179,7 +181,7 @@ func TestCanonicalNodeRefreshStructuralEdgesSeedsFromFilePath(t *testing.T) {
 	}{
 		{
 			name:   "imports",
-			cypher: canonicalNodeRefreshCurrentFileImportEdgesCypher,
+			cypher: node.RefreshCurrentFileImportEdgesCypher,
 			want: `UNWIND $file_paths AS file_path
 MATCH (f:File {path: file_path})
 MATCH (f)-[r:IMPORTS]->(:Module)
@@ -187,7 +189,7 @@ DELETE r`,
 		},
 		{
 			name:   "directory contains",
-			cypher: canonicalNodeRefreshCurrentDirectoryFileEdgesCypher,
+			cypher: node.RefreshCurrentDirectoryFileEdgesCypher,
 			// Anchored on the File, reading the CONTAINS edge inbound. The
 			// `(:Directory)-[r:CONTAINS]->(f)` form scanned the whole
 			// Directory population per input row (issue #4207).
@@ -198,7 +200,7 @@ DELETE r`,
 		},
 		{
 			name:   "delta deleted directory edges",
-			cypher: canonicalNodeRetractDeltaDeletedDirectoryEdgesCypher,
+			cypher: node.RetractDeltaDeletedDirectoryEdgesCypher,
 			// Positive IN worklist, not an UNWIND seed: the UNWIND-seeded
 			// compound shape costs ~90s per execution on the pinned
 			// NornicDB v1.3.3 backend at 600k-node scale (issue #6715).
@@ -212,7 +214,7 @@ DELETE r`,
 		},
 		{
 			name:   "delta deleted directories",
-			cypher: canonicalNodeRetractDeltaDeletedDirectoriesCypher,
+			cypher: node.RetractDeltaDeletedDirectoriesCypher,
 			// Positive IN worklist (issue #6715): the UNWIND-seeded
 			// compound shape costs ~87s per execution on v1.3.3.
 			want: `MATCH (d:Directory)
@@ -223,7 +225,7 @@ DETACH DELETE d`,
 		},
 		{
 			name:   "directory parent contains",
-			cypher: canonicalNodeRefreshCurrentDirectoryParentEdgesCypher,
+			cypher: node.RefreshCurrentDirectoryParentEdgesCypher,
 			// Anchored on the child Directory's indexed path, reading the
 			// parent CONTAINS edge inbound (issue #4207).
 			want: `UNWIND $rows AS row
@@ -304,7 +306,7 @@ func TestCanonicalNodeRefreshDirectoryParentEdgesUsesCurrentDirectoryPaths(t *te
 func TestCanonicalNodeRefreshStructuralEdgesKeepFilePathChunks(t *testing.T) {
 	t.Parallel()
 
-	filePaths := make([]string, canonicalNodeRefreshFilePathBatchSize+1)
+	filePaths := make([]string, node.RefreshFilePathBatchSize+1)
 	for i := range filePaths {
 		filePaths[i] = fmt.Sprintf("/repo/file-%03d.go", i)
 	}
@@ -313,15 +315,15 @@ func TestCanonicalNodeRefreshStructuralEdgesKeepFilePathChunks(t *testing.T) {
 		name   string
 		cypher string
 	}{
-		{name: "imports", cypher: canonicalNodeRefreshCurrentFileImportEdgesCypher},
-		{name: "directory contains", cypher: canonicalNodeRefreshCurrentDirectoryFileEdgesCypher},
+		{name: "imports", cypher: node.RefreshCurrentFileImportEdgesCypher},
+		{name: "directory contains", cypher: node.RefreshCurrentDirectoryFileEdgesCypher},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			stmts := buildStringSliceRetractStatements(
 				tt.cypher,
 				"file_paths",
 				filePaths,
-				canonicalNodeRefreshFilePathBatchSize,
+				node.RefreshFilePathBatchSize,
 			)
 			if len(stmts) != 2 {
 				t.Fatalf("statements = %d, want 2 chunks", len(stmts))
@@ -334,8 +336,8 @@ func TestCanonicalNodeRefreshStructuralEdgesKeepFilePathChunks(t *testing.T) {
 			if !ok {
 				t.Fatalf("second file_paths type = %T, want []string", stmts[1].Parameters["file_paths"])
 			}
-			if len(first) != canonicalNodeRefreshFilePathBatchSize {
-				t.Fatalf("first chunk length = %d, want %d", len(first), canonicalNodeRefreshFilePathBatchSize)
+			if len(first) != node.RefreshFilePathBatchSize {
+				t.Fatalf("first chunk length = %d, want %d", len(first), node.RefreshFilePathBatchSize)
 			}
 			if len(second) != 1 {
 				t.Fatalf("second chunk length = %d, want 1", len(second))

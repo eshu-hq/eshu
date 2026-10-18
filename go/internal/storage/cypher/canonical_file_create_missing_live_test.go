@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 const fileCreateMissingRepoID = "live-6798-file-create-missing"
@@ -65,16 +67,16 @@ func TestCanonicalFileCreateMissingSkipsExistingFilesLive(t *testing.T) {
 	}{
 		// File rows are not de-duplicated by path, so one batch can carry the
 		// same missing path twice; it must still create a single node.
-		{name: "nested", stmt: Statement{Cypher: canonicalNodeFileCreateMissingCypher, Parameters: map[string]any{"rows": []any{
+		{name: "nested", stmt: Statement{Cypher: node.FileCreateMissingCypher, Parameters: map[string]any{"rows": []any{
 			row("/live-6798/src/existing.go", "/live-6798/src"),
 			row("/live-6798/src/missing.go", "/live-6798/src"),
 			row("/live-6798/src/missing.go", "/live-6798/src"),
 		}}}},
 		// The common re-ingest batch: every file already exists.
-		{name: "all existing", stmt: Statement{Cypher: canonicalNodeFileCreateMissingCypher, Parameters: map[string]any{"rows": []any{
+		{name: "all existing", stmt: Statement{Cypher: node.FileCreateMissingCypher, Parameters: map[string]any{"rows": []any{
 			row("/live-6798/src/existing.go", "/live-6798/src"),
 		}}}},
-		{name: "root", stmt: Statement{Cypher: canonicalNodeRootFileCreateMissingCypher, Parameters: map[string]any{"rows": []any{
+		{name: "root", stmt: Statement{Cypher: node.RootFileCreateMissingCypher, Parameters: map[string]any{"rows": []any{
 			row("/live-6798/existing-root.go", ""),
 			row("/live-6798/missing-root.go", ""),
 		}}}},

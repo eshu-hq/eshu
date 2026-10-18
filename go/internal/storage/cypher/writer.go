@@ -204,7 +204,7 @@ func isIdempotentRetractStatement(stmt Statement) bool {
 // why everyConjunctIsBounded requires every AND/OR term to name a $param.
 //
 // An open-ended predicate inverts that. `p.generation_id <> $generation_id`
-// (canonicalNodeRetractParametersCypher) matches every generation EXCEPT this
+// (node.RetractParametersCypher) matches every generation EXCEPT this
 // writer's, so a Parameter a concurrent writer commits on a different
 // generation between the failed attempt and the replay is newly in range and
 // gets deleted -- a node the first attempt never saw. `NOT (d.path IN

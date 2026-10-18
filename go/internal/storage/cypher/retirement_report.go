@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
+
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"go.opentelemetry.io/otel/metric"
 
@@ -47,12 +49,12 @@ func ReportRetirementWriteCounts(ctx context.Context, cypher string, params map[
 // path-conflict retirement statement. Bolt seams use it to decide whether a
 // RETURN record is waiting to be consumed; identity is the constant
 // itself, the same equality the Rule 1 guard pins. The bare retirement
-// shape (canonicalNodeRepositoryPathCleanupBareCypher, what NornicDB writers
+// shape (node.RepositoryPathCleanupBareCypher, what NornicDB writers
 // emit) carries no RETURN record, so it is deliberately not matched here:
 // CollectRetirementReport leaves its result untouched and its entry
 // stays unattributed.
 func IsRepositoryPathCleanupCypher(cypher string) bool {
-	return cypher == canonicalNodeRepositoryPathCleanupCypher
+	return cypher == node.RepositoryPathCleanupCypher
 }
 
 // CollectRetirementReport consumes the retirement statement's RETURN records

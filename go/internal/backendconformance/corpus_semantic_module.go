@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 // The semantic Module cases pin what the production semantic-entity write does
@@ -143,7 +144,7 @@ func SemanticModuleWriteCases(newWriter SemanticEntityWriterFactory) ([]WriteCas
 		return nil, err
 	}
 	canonicalImport := sourcecypher.SanitizeStatements(sourcecypher.BuildBatchedStatements(
-		sourcecypher.CanonicalNodeModuleUpsertCypher,
+		node.CanonicalNodeModuleUpsertCypher,
 		[]map[string]any{{"name": semanticModuleImportName, "language": semanticModuleLanguage}},
 		sourcecypher.DefaultBatchSize,
 	))

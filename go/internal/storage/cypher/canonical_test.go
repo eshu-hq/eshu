@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 func TestBuildCanonicalWorkloadUpsertStatement(t *testing.T) {
@@ -318,8 +320,8 @@ func TestCanonicalFileUpsertStatementsWriteUIDFromPath(t *testing.T) {
 	t.Parallel()
 
 	for name, cypher := range map[string]string{
-		"update_existing": canonicalNodeFileUpdateExistingCypher,
-		"create_missing":  canonicalNodeFileCreateMissingCypher,
+		"update_existing": node.FileUpdateExistingCypher,
+		"create_missing":  node.FileCreateMissingCypher,
 	} {
 		if !strings.Contains(cypher, "f.uid = row.uid") {
 			t.Fatalf("%s file upsert cypher missing File uid assignment: %s", name, cypher)

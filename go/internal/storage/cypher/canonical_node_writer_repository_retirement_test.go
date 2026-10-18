@@ -11,6 +11,8 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
+
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
@@ -18,7 +20,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// #7324: the path-conflict retirement (canonicalNodeRepositoryPathCleanupCypher)
+// #7324: the path-conflict retirement (node.RepositoryPathCleanupCypher)
 // is the one statement contract A lets DETACH DELETE a Repository, and it
 // drops every relationship on the retired node. These hermetic tests pin how
 // the writer reports it from the executor's write summary on every executor
@@ -53,15 +55,15 @@ type retirementReportingExecutor struct {
 
 func (e *retirementReportingExecutor) report(ctx context.Context, stmt Statement) error {
 	e.statements++
-	if stmt.Cypher == canonicalNodeRepositoryPathCleanupCypher && e.failCleanup {
+	if stmt.Cypher == node.RepositoryPathCleanupCypher && e.failCleanup {
 		return errors.New("injected cleanup failure")
 	}
-	if stmt.Cypher == canonicalNodeRepositoryUpsertCypher && e.failAfterCleanup {
+	if stmt.Cypher == node.RepositoryUpsertCypher && e.failAfterCleanup {
 		return errors.New("injected failure after the cleanup reported")
 	}
 	counters := WriteCounters{}
 	var dropped []DroppedEdge
-	if stmt.Cypher == canonicalNodeRepositoryPathCleanupCypher {
+	if stmt.Cypher == node.RepositoryPathCleanupCypher {
 		counters = e.cleanupCounters
 		dropped = e.cleanupDropped
 	}

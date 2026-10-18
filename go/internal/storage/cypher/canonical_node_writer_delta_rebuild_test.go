@@ -25,6 +25,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -206,11 +208,11 @@ func TestDeltaGenerationNormalProjectionKeepsUnchangedBaseFiles(t *testing.T) {
 	}
 
 	for _, stmt := range stmtsB {
-		if stmt.Cypher == canonicalNodeRetractFilesCypher || stmt.Cypher == canonicalNodeRetractRemovedFilesCypher {
+		if stmt.Cypher == node.RetractFilesCypher || stmt.Cypher == node.RetractRemovedFilesCypher {
 			t.Fatalf("delta gen B emitted a full File retract:\n%s", stmt.Cypher)
 		}
 		if strings.Contains(stmt.Cypher, ":File") && strings.Contains(stmt.Cypher, "DELETE f") {
-			if stmt.Cypher != canonicalNodeRetractDeltaDeletedFilesCypher {
+			if stmt.Cypher != node.RetractDeltaDeletedFilesCypher {
 				t.Fatalf("delta gen B emitted an unexpected File-deleting statement:\n%s", stmt.Cypher)
 			}
 			paths, _ := stmt.Parameters["file_paths"].([]string)

@@ -7,9 +7,9 @@ import "sort"
 
 // fileAndDirectoryRetractLabels are the structural graph node labels the retract
 // phase tombstones outside the per-domain entity-label sets: File (via
-// canonicalNodeRetractFilesCypher / canonicalNodeRetractRemovedFilesCypher and the
-// delta canonicalNodeRetractDeltaDeletedFilesCypher) and Directory (via the delta
-// canonicalNodeRetractDeltaEmptyDirectoriesCypher — the #4186 directory-tombstone
+// node.RetractFilesCypher / node.RetractRemovedFilesCypher and the
+// delta node.RetractDeltaDeletedFilesCypher) and Directory (via the delta
+// node.RetractDeltaEmptyDirectoriesCypher — the #4186 directory-tombstone
 // class itself). They are retracted by dedicated statements in
 // buildRetractStatements/buildDeltaRetractStatements rather than the entity-label
 // scan, so they must be added explicitly or the delta denominator would omit the

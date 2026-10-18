@@ -54,7 +54,10 @@ func (s *censusScanner) scanDirectKeyWrites() []censusFinding {
 			if _, isIdent := n.(*ast.Ident); isIdent {
 				return true
 			}
-			folded, ok := s.fold(f.dir, n, 0)
+			if _, isSel := n.(*ast.SelectorExpr); isSel {
+				return true
+			}
+			folded, ok := s.fold(f, n, 0)
 			if !ok {
 				return true
 			}

@@ -59,19 +59,37 @@ func parseCypherPackageWithReducerPorts(
 	root := newCypherPackageSource()
 	ports := map[string]struct{}{}
 	for _, tags := range cypherScanBuildTags {
+		// The canonical/node leaf holds a reducer-port implementation
+		// (node.Checker); the flux/inheritance leaves hold none, and their
+		// leaf-local helpers would collide with same-named root helpers in
+		// the merged key space, so only the node leaf is scanned.
+		patterns := []string{
+			"./internal/storage/cypher",
+			"./internal/storage/cypher/canonical/node",
+			"./internal/storage/cypher/edge/...",
+			"./internal/reducer/...",
+		}
+		// Scratch module trees (port-roots fixtures) do not carry every leaf;
+		// a pattern with no directory under test is skipped, not fatal.
+		var present []string
+		for _, pattern := range patterns {
+			base := strings.TrimSuffix(pattern, "/...")
+			if _, err := os.Stat(filepath.Join(goRoot, base)); err == nil {
+				present = append(present, pattern)
+			}
+		}
 		loaded := loadTypedPackages(
 			t,
 			goRoot,
 			tags,
-			"./internal/storage/cypher",
-			"./internal/storage/cypher/edge/...",
-			"./internal/reducer/...",
+			present...,
 		)
 		var cypherPackages []*packages.Package
 		var reducerPackages []*packages.Package
 		for _, pkg := range loaded {
 			switch {
 			case strings.HasSuffix(pkg.PkgPath, "/internal/storage/cypher"),
+				strings.HasSuffix(pkg.PkgPath, "/internal/storage/cypher/canonical/node"),
 				strings.Contains(pkg.PkgPath, "/internal/storage/cypher/edge/"):
 				cypherPackages = append(cypherPackages, pkg)
 			case strings.Contains(pkg.PkgPath, "/internal/reducer"):

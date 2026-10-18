@@ -322,7 +322,7 @@ func TestPromoteTerraformResourceAttributesExcludesSensitiveOrUnbounded(t *testi
 // TestPromoteTerraformResourceAttributesRejectsListValuedAttributes is P2
 // finding F4: an allowlisted attribute whose raw value is unexpectedly a
 // list ([]string or []any) must never be promoted as a list property.
-// canonicalGraphPropertyValue (reused here for scalar normalization) also
+// node.GraphPropertyValue (reused here for scalar normalization) also
 // accepts []string/[]any for the generic entity-metadata path, so
 // promoteTerraformResourceAttributes must gate on scalar kinds itself
 // before calling it, or a malformed/future-drifted attribute value would

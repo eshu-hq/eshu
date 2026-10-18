@@ -17,7 +17,7 @@
 //
 // Each shipped builder is exercised twice against a two-repository graph seeded
 // through the same labels, relationship types and properties the canonical
-// projector writes (go/internal/storage/cypher/canonical_node_cypher.go and
+// projector writes (go/internal/storage/cypher/canonical/node/templates.go and
 // semantic_entity_statements.go): once with the caller's grant and once
 // unscoped. The out-of-grant repository is seeded with SIX rows to the granted
 // repository's ONE, sorts first under every builder's ORDER BY, and the row

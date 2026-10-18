@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
+
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -20,13 +22,14 @@ import (
 func TestRepositoryPathCleanupCypherBindsRetiredIDPreDelete(t *testing.T) {
 	t.Parallel()
 
+	template := node.RepositoryPathCleanupCypher
 	for _, fragment := range []string{
 		"r.id AS retired_id",
 		"RETURN retired_id, dropped",
 	} {
-		if !strings.Contains(canonicalNodeRepositoryPathCleanupCypher, fragment) {
+		if !strings.Contains(template, fragment) {
 			t.Fatalf("attributed retirement Cypher missing %q:\n%s",
-				fragment, canonicalNodeRepositoryPathCleanupCypher)
+				fragment, template)
 		}
 	}
 }
@@ -66,7 +69,7 @@ func TestCollectRetiredRepositoryIDsReturnsEveryRetiredRow(t *testing.T) {
 		retirementRecord("repo-old-2", []any{}),
 	}}
 	got := CollectRetiredRepositoryIDs(
-		context.Background(), canonicalNodeRepositoryPathCleanupCypher, result)
+		context.Background(), node.RepositoryPathCleanupCypher, result)
 	if !reflect.DeepEqual(got, []string{"repo-old-1", "repo-old-2"}) {
 		t.Fatalf("CollectRetiredRepositoryIDs() = %#v, want both retired ids", got)
 	}
@@ -79,7 +82,7 @@ func TestCollectRetirementReportStaysUnattributedWithZeroRows(t *testing.T) {
 	t.Parallel()
 
 	report := CollectRetirementReport(
-		context.Background(), canonicalNodeRepositoryPathCleanupCypher, &stubRetirementResult{})
+		context.Background(), node.RepositoryPathCleanupCypher, &stubRetirementResult{})
 	if report.RetiredIDs != nil || report.Dropped != nil {
 		t.Fatalf("CollectRetirementReport() with zero rows = %#v, want zero report", report)
 	}
@@ -95,7 +98,7 @@ func TestCollectRetiredRepositoryIDsIgnoresNonRetirementStatements(t *testing.T)
 		retirementRecord("repo-old-1", []any{}),
 	}}
 	if got := CollectRetiredRepositoryIDs(
-		context.Background(), canonicalNodeRepositoryUpsertCypher, result); got != nil {
+		context.Background(), node.RepositoryUpsertCypher, result); got != nil {
 		t.Fatalf("CollectRetiredRepositoryIDs(upsert) = %#v, want nil", got)
 	}
 	if result.pos != 0 {

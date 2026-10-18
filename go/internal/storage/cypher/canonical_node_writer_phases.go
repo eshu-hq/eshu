@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
+
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
@@ -34,7 +36,7 @@ func (w *CanonicalNodeWriter) buildRepositoryStatements(mat canonical.CanonicalM
 	}
 	return []Statement{{
 		Operation:  OperationCanonicalUpsert,
-		Cypher:     canonicalNodeRepositoryUpsertCypher,
+		Cypher:     node.RepositoryUpsertCypher,
 		Parameters: params,
 	}}
 }
@@ -60,14 +62,14 @@ func (w *CanonicalNodeWriter) buildRepositoryCleanupStatements(mat canonical.Can
 		return nil
 	}
 	r := mat.Repository
-	cleanupCypher := canonicalNodeRepositoryPathCleanupCypher
+	cleanupCypher := node.RepositoryPathCleanupCypher
 	if w.repositoryRetirementBare {
 		// NornicDB drops the id guard on the attributed shape's
 		// OPTIONAL MATCH + WITH collect composition (#8173). The bare
 		// shape carries the same anchor, guard, params, and summary
 		// key, so capture and reporting treat both identically; only
 		// the Dropped collection is absent (attribution=false).
-		cleanupCypher = canonicalNodeRepositoryPathCleanupBareCypher
+		cleanupCypher = node.RepositoryPathCleanupBareCypher
 	}
 	return []Statement{
 		{
@@ -111,7 +113,7 @@ func (w *CanonicalNodeWriter) buildDirectoryNodeStatements(mat canonical.Canonic
 	for i, d := range mat.Directories {
 		rows[i] = directoryRowParams(d, mat)
 	}
-	return BuildBatchedStatements(canonicalNodeDirectoryNodeCypher, rows, w.batchSize)
+	return BuildBatchedStatements(node.DirectoryNodeCypher, rows, w.batchSize)
 }
 
 // buildDirectoryEdgeStatements wires each Directory to its parent: the
@@ -145,9 +147,9 @@ func (w *CanonicalNodeWriter) buildDirectoryEdgeStatements(mat canonical.Canonic
 			rows[i] = directoryRowParams(d, mat)
 		}
 
-		cypher := canonicalNodeDirectoryDepthNEdgeCypher
+		cypher := node.DirectoryDepthNEdgeCypher
 		if depth == 0 {
-			cypher = canonicalNodeDirectoryDepth0EdgeCypher
+			cypher = node.DirectoryDepth0EdgeCypher
 		}
 
 		stmts = append(stmts, BuildBatchedStatements(cypher, rows, w.batchSize)...)
@@ -189,16 +191,16 @@ func (w *CanonicalNodeWriter) buildFileStatements(mat canonical.CanonicalMateria
 		batchSize = w.fileBatchSize
 	}
 	nestedCyphers := []string{
-		canonicalNodeFileUpdateExistingCypher,
-		canonicalNodeFileCreateMissingCypher,
+		node.FileUpdateExistingCypher,
+		node.FileCreateMissingCypher,
 	}
 	rootCyphers := []string{
-		canonicalNodeRootFileUpdateExistingCypher,
-		canonicalNodeRootFileCreateMissingCypher,
+		node.RootFileUpdateExistingCypher,
+		node.RootFileCreateMissingCypher,
 	}
 	if mat.FirstGeneration {
-		nestedCyphers = []string{canonicalNodeFileFirstGenerationMergeCypher}
-		rootCyphers = []string{canonicalNodeRootFileFirstGenerationMergeCypher}
+		nestedCyphers = []string{node.FileFirstGenerationMergeCypher}
+		rootCyphers = []string{node.RootFileFirstGenerationMergeCypher}
 	}
 	stmts = append(stmts, w.buildFileStatementsForRows(nestedRows, batchSize, nestedCyphers)...)
 	stmts = append(stmts, w.buildFileStatementsForRows(rootRows, batchSize, rootCyphers)...)
@@ -253,7 +255,7 @@ func (w *CanonicalNodeWriter) buildModuleStatements(mat canonical.CanonicalMater
 		}
 	}
 
-	return BuildBatchedStatements(canonicalNodeModuleUpsertCypher, rows, w.batchSize)
+	return BuildBatchedStatements(node.ModuleUpsertCypher, rows, w.batchSize)
 }
 
 // --- Phase G: Structural edges ---
@@ -290,7 +292,7 @@ func (w *CanonicalNodeWriter) buildStructuralEdgeStatements(mat canonical.Canoni
 			rows[i] = map[string]any{
 				"file_path": imp.FilePath,
 				// module_name and module_language together resolve the target
-				// Module node; see canonicalNodeImportEdgeCypher.
+				// Module node; see node.ImportEdgeCypher.
 				"module_name":     imp.ModuleName,
 				"module_language": imp.ModuleLanguage,
 				"imported_name":   imp.ImportedName,
@@ -310,7 +312,7 @@ func (w *CanonicalNodeWriter) buildStructuralEdgeStatements(mat canonical.Canoni
 				"inferred":  imp.Inferred,
 			}
 		}
-		stmts = append(stmts, BuildBatchedStatements(canonicalNodeImportEdgeCypher, rows, w.batchSize)...)
+		stmts = append(stmts, BuildBatchedStatements(node.ImportEdgeCypher, rows, w.batchSize)...)
 	}
 
 	// HAS_PARAMETER edges
@@ -325,7 +327,7 @@ func (w *CanonicalNodeWriter) buildStructuralEdgeStatements(mat canonical.Canoni
 				"generation_id": mat.GenerationID,
 			}
 		}
-		stmts = append(stmts, BuildBatchedStatements(canonicalNodeHasParameterEdgeCypher, rows, w.batchSize)...)
+		stmts = append(stmts, BuildBatchedStatements(node.HasParameterEdgeCypher, rows, w.batchSize)...)
 	}
 
 	// Class CONTAINS Function edges
@@ -340,7 +342,7 @@ func (w *CanonicalNodeWriter) buildStructuralEdgeStatements(mat canonical.Canoni
 				"generation_id": mat.GenerationID,
 			}
 		}
-		stmts = append(stmts, BuildBatchedStatements(canonicalNodeClassContainsFuncEdgeCypher, rows, w.batchSize)...)
+		stmts = append(stmts, BuildBatchedStatements(node.ClassContainsFuncEdgeCypher, rows, w.batchSize)...)
 	}
 
 	// Nested Function CONTAINS edges
@@ -355,7 +357,7 @@ func (w *CanonicalNodeWriter) buildStructuralEdgeStatements(mat canonical.Canoni
 				"generation_id": mat.GenerationID,
 			}
 		}
-		stmts = append(stmts, BuildBatchedStatements(canonicalNodeNestedFuncEdgeCypher, rows, w.batchSize)...)
+		stmts = append(stmts, BuildBatchedStatements(node.NestedFuncEdgeCypher, rows, w.batchSize)...)
 	}
 
 	return stmts

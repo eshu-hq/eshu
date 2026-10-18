@@ -11,6 +11,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
+
 	"github.com/eshu-hq/eshu/go/internal/app"
 	"github.com/eshu-hq/eshu/go/internal/graph/anchor"
 	"github.com/eshu-hq/eshu/go/internal/graphschemacompat"
@@ -18,7 +20,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/census"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -183,7 +184,7 @@ func startIDAnchorCensus(
 // Neo4j-only statement in every golden-corpus capture and show up as a backend
 // divergence. It falls back to the decorated reader when the raw port is not a
 // single-row reader, and returns nil when neither is configured.
-func idAnchorCensusReader(raw sourcecypher.CypherReader, decorated query.GraphQuery) anchor.RowReader {
+func idAnchorCensusReader(raw node.CypherReader, decorated query.GraphQuery) anchor.RowReader {
 	if rowReader, ok := raw.(anchor.RowReader); ok {
 		return rowReader
 	}

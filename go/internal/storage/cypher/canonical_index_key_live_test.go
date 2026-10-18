@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
+
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
@@ -118,7 +120,7 @@ func TestLiveCanonicalWriteSkipsOversizedIndexKeys(t *testing.T) {
 
 	// Preconditions: the backend rejects the unguarded rows. Without these the
 	// rest of the test could pass on a backend that never had the problem.
-	rawErr := boltWriteStatement(ctx, runner, canonicalNodeModuleUpsertCypher,
+	rawErr := boltWriteStatement(ctx, runner, node.ModuleUpsertCypher,
 		map[string]any{"rows": []map[string]any{{"name": bigModule, "language": "typescript"}}})
 	if rawErr == nil || !strings.Contains(rawErr.Error(), "too large to index") {
 		t.Fatalf("raw oversized Module upsert error = %v, want the backend's 'too large to index' rejection", rawErr)

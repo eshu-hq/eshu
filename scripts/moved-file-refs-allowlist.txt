@@ -336,3 +336,26 @@ docs/internal/evidence/5709-quiescence-probe.md:go/internal/storage/postgres/sco
 # storage/postgres dirgate count at 321. The #6693 crossplane-leaf note lists
 # the files that move touched at the time; repointing would falsify that record.
 docs/internal/evidence/6693-crossplane-leaf.md:go/internal/storage/postgres/projector_queue_crossplane_redrive_hook.go
+
+# #6694 canonical/node slice: dated evidence notes and run artifacts that
+# record the canonical writer source paths as they stood when the evidence
+# was written. Repointing would falsify the record of which file held the
+# templates, label sets, and checker at that time. The live paths are
+# go/internal/storage/cypher/canonical/node/templates.go (node-phase
+# templates), .../retract_labels.go (retract label sets), .../metadata.go
+# (entity-metadata helpers), and .../check.go (code-target checker).
+docs/internal/evidence/4594-graph-rebuild-from-facts.md:go/internal/storage/cypher/canonical_node_cypher.go
+docs/internal/evidence/5346-sql-migrates-performance.md:go/internal/storage/cypher/canonical_node_writer_retract_labels.go
+docs/internal/evidence/5652-followup-file-directory-edge-writeloss-investigation.md:go/internal/storage/cypher/canonical_node_cypher.go
+docs/internal/evidence/6541-directory-query-s2-corpus-timing.md:go/internal/storage/cypher/canonical_node_cypher.go
+docs/internal/evidence/6541-directory-file-ownership.md:go/internal/storage/cypher/canonical_node_cypher.go
+docs/internal/evidence/module-node-identity-6106-review-follow-ups.md:go/internal/storage/cypher/canonical_node_cypher.go
+docs/internal/evidence/module-identity-hotpath-trace.txt:go/internal/storage/cypher/canonical_node_cypher.go
+docs/internal/evidence/6786-nornicdb-label-predicates.md:go/internal/storage/cypher/canonical_check.go
+docs/internal/evidence/6793-infra-read-model.md:go/internal/storage/cypher/canonical_node_writer_metadata.go
+docs/internal/evidence/7057-divergence-uid-anchor.md:go/internal/storage/cypher/canonical_node_cypher.go
+docs/internal/evidence/7130-ack-superseded-generation-guard.md:go/internal/storage/cypher/canonical_node_cypher.go
+docs/internal/evidence/7212-schema-closed-anchor.md:go/internal/storage/cypher/canonical_node_cypher.go
+docs/internal/evidence/7380-entity-context-single-anchor.md:go/internal/storage/cypher/canonical_node_cypher.go
+go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md:go/internal/storage/cypher/canonical_node_cypher.go
+go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md:go/internal/storage/cypher/canonical_node_writer_retract_labels.go

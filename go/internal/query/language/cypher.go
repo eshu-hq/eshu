@@ -220,7 +220,7 @@ func buildRepositoryCypher(language, query, repoID string, limit int, access que
 //
 // Why the second ownership check matters. Directory identity is `path` alone:
 // `MERGE (d:Directory {path: row.path}) SET d.repo_id = row.repo_id`
-// (canonicalNodeDirectoryNodeCypher), so repo_id is mutable. The production
+// (node.DirectoryNodeCypher), so repo_id is mutable. The production
 // phase-group executor commits the `directories` phase in its OWN transaction ahead of the
 // `directory_edges` and `files` phases that write this statement's CONTAINS
 // edges (buildPhases in go/internal/storage/cypher/canonical_node_writer.go;
@@ -228,7 +228,7 @@ func buildRepositoryCypher(language, query, repoID string, limit int, access que
 // CanonicalNodeWriter.Write). A reader can therefore see a new repo_id on a
 // directory still holding the previous generation's edges, because the prune
 // that clears them is keyed on the CURRENT generation's file paths only
-// (canonicalNodeRefreshCurrentDirectoryFileEdgesCypher). The #6703 fixture
+// (node.RefreshCurrentDirectoryFileEdgesCypher). The #6703 fixture
 // proves that window used to inflate file_count. Matching the File's owner
 // inside the same pattern closes that aggregate leak without returning a File
 // id, name, or path. The inline form is required for compatibility: a trailing

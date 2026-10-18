@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package node
 
 import "strings"
 
-var canonicalEntityMetadataReservedProperties = map[string]struct{}{
+var EntityMetadataReservedProperties = map[string]struct{}{
 	"end_line":        {},
 	"evidence_source": {},
 	"generation_id":   {},
@@ -28,7 +28,7 @@ var canonicalEntityMetadataReservedProperties = map[string]struct{}{
 	"exactness_blockers":   {},
 }
 
-func canonicalEntityMetadataProperties(row map[string]any) map[string]any {
+func EntityMetadataProperties(row map[string]any) map[string]any {
 	metadata, ok := row["entity_metadata"].(map[string]any)
 	if !ok || len(metadata) == 0 {
 		return nil
@@ -40,10 +40,10 @@ func canonicalEntityMetadataProperties(row map[string]any) map[string]any {
 		if key == "" {
 			continue
 		}
-		if _, reserved := canonicalEntityMetadataReservedProperties[key]; reserved {
+		if _, reserved := EntityMetadataReservedProperties[key]; reserved {
 			continue
 		}
-		if normalized, ok := canonicalGraphPropertyValue(value); ok {
+		if normalized, ok := GraphPropertyValue(value); ok {
 			result[key] = normalized
 		}
 	}
@@ -53,7 +53,7 @@ func canonicalEntityMetadataProperties(row map[string]any) map[string]any {
 	return result
 }
 
-func canonicalGraphPropertyValue(value any) (any, bool) {
+func GraphPropertyValue(value any) (any, bool) {
 	switch typed := value.(type) {
 	case string:
 		trimmed := strings.TrimSpace(typed)
@@ -78,28 +78,28 @@ func canonicalGraphPropertyValue(value any) (any, bool) {
 	case float64:
 		return typed, true
 	case []string:
-		out := canonicalStringList(typed)
+		out := StringList(typed)
 		return out, len(out) > 0
 	case []any:
-		out := canonicalAnyStringList(typed)
+		out := AnyStringList(typed)
 		return out, len(out) > 0
 	default:
 		return nil, false
 	}
 }
 
-func canonicalTypeScriptClassFamilyMetadata(row map[string]any) map[string]any {
+func TypeScriptClassFamilyMetadata(row map[string]any) map[string]any {
 	metadata, ok := row["entity_metadata"].(map[string]any)
 	if !ok || len(metadata) == 0 {
 		return nil
 	}
 
-	language := canonicalMetadataString(row, "language")
+	language := MetadataString(row, "language")
 	if language != "typescript" && language != "tsx" {
 		return nil
 	}
 
-	label := canonicalMetadataString(row, "label")
+	label := MetadataString(row, "label")
 	switch label {
 	case "Class", "Interface", "Enum":
 	default:
@@ -107,19 +107,19 @@ func canonicalTypeScriptClassFamilyMetadata(row map[string]any) map[string]any {
 	}
 
 	result := map[string]any{}
-	if decorators := canonicalMetadataStringSlice(metadata, "decorators"); len(decorators) > 0 {
+	if decorators := MetadataStringSlice(metadata, "decorators"); len(decorators) > 0 {
 		result["decorators"] = decorators
 	}
-	if typeParameters := canonicalMetadataStringSlice(metadata, "type_parameters"); len(typeParameters) > 0 {
+	if typeParameters := MetadataStringSlice(metadata, "type_parameters"); len(typeParameters) > 0 {
 		result["type_parameters"] = typeParameters
 	}
-	if group := canonicalMetadataString(metadata, "declaration_merge_group"); group != "" {
+	if group := MetadataString(metadata, "declaration_merge_group"); group != "" {
 		result["declaration_merge_group"] = group
 	}
-	if count := canonicalMetadataInt(metadata, "declaration_merge_count"); count > 0 {
+	if count := MetadataInt(metadata, "declaration_merge_count"); count > 0 {
 		result["declaration_merge_count"] = count
 	}
-	if kinds := canonicalMetadataStringSlice(metadata, "declaration_merge_kinds"); len(kinds) > 0 {
+	if kinds := MetadataStringSlice(metadata, "declaration_merge_kinds"); len(kinds) > 0 {
 		result["declaration_merge_kinds"] = kinds
 	}
 	if len(result) == 0 {
@@ -128,7 +128,7 @@ func canonicalTypeScriptClassFamilyMetadata(row map[string]any) map[string]any {
 	return result
 }
 
-func canonicalStringList(input []string) []string {
+func StringList(input []string) []string {
 	out := make([]string, 0, len(input))
 	for _, item := range input {
 		if trimmed := strings.TrimSpace(item); trimmed != "" {
@@ -141,7 +141,7 @@ func canonicalStringList(input []string) []string {
 	return out
 }
 
-func canonicalAnyStringList(input []any) []string {
+func AnyStringList(input []any) []string {
 	out := make([]string, 0, len(input))
 	for _, item := range input {
 		text, ok := item.(string)
@@ -158,7 +158,7 @@ func canonicalAnyStringList(input []any) []string {
 	return out
 }
 
-func canonicalMetadataString(row map[string]any, key string) string {
+func MetadataString(row map[string]any, key string) string {
 	value, ok := row[key]
 	if !ok || value == nil {
 		return ""
@@ -170,7 +170,7 @@ func canonicalMetadataString(row map[string]any, key string) string {
 	return strings.TrimSpace(text)
 }
 
-func canonicalMetadataStringSlice(metadata map[string]any, key string) []string {
+func MetadataStringSlice(metadata map[string]any, key string) []string {
 	value, ok := metadata[key]
 	if !ok || value == nil {
 		return nil
@@ -178,15 +178,15 @@ func canonicalMetadataStringSlice(metadata map[string]any, key string) []string 
 
 	switch typed := value.(type) {
 	case []string:
-		return canonicalStringList(typed)
+		return StringList(typed)
 	case []any:
-		return canonicalAnyStringList(typed)
+		return AnyStringList(typed)
 	default:
 		return nil
 	}
 }
 
-func canonicalMetadataInt(metadata map[string]any, key string) int {
+func MetadataInt(metadata map[string]any, key string) int {
 	value, ok := metadata[key]
 	if !ok || value == nil {
 		return 0
