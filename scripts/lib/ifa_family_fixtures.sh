@@ -172,9 +172,10 @@ s3_logs_to_expected_edges="${repo_root}/go/internal/ifa/testdata/s3logsto/ifa-s3
 kubernetes_correlation_cassette="${repo_root}/testdata/cassettes/kubernetescorrelation/ifa-kubernetes-correlation-family.json"
 kubernetes_correlation_expected_edges="${repo_root}/go/internal/ifa/testdata/kubernetescorrelation/ifa-kubernetes-correlation-family-expected-edges.json"
 # semantic_entity_containment family cassette (#8359, #6228 arbiter verdict
-# (a)): the repo-scoped four-edge CONTAINS family. Driven uniformly into
-# every N-cell on the determinism gate through its registry row (shared
-# cell, no dedicated cell, no sibling subtraction). Like every cassette
+# (a)): the repo-scoped four-edge CONTAINS family. Per the 2026-10-18 owner
+# direction the family stays fully waived for the determinism gate (no
+# registry row); the cassette/expected set are held by the
+# corpus/live-backend gates instead. Like every cassette
 # above, a projection of its compiled Odù -- and
 # TestDirectFamilyCassettesMatchTheirCompiledOdu holds it to that -- carrying
 # the repository fact, the three typed file facts the File endpoints project
