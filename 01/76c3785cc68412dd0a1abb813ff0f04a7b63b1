@@ -1,0 +1,14 @@
+go/internal/reducer/evidence-6626-batch6-bucket2-decode-consts.md
+  h_78a442cba0b3e6 1-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0176c3785cc68412dd0a1abb813ff0f04a7b63b1",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
