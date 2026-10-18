@@ -5,7 +5,7 @@
 1. `README.md` and `doc.go` in this directory.
 2. `../../../../AGENTS.md` and `../../../../README.md` for projector-wide invariants.
 3. `../../../../intent/AGENTS.md` for the neutral builder contract.
-4. `../../../../scope_generation_intents.go` for root-owned assembly order; this probe
+4. `../../../../runtime/scope_generation_intents.go` for root-owned assembly order; this probe
    runs first, immediately after the package-source-correlation probe and
    before the multi-cloud-runtime-drift probe.
 5. `go/internal/reducer/awscloud/aws_cloud_runtime_drift.go` and
@@ -41,13 +41,13 @@
 
 - **Changing the reason string or the entity key.** Both are asserted
   verbatim by the package tests and by the root fan-out parity fixture
-  (`../../../../scope_generation_intents_fanout_parity_test.go`); change them
+  (`../../../../runtime/scope_generation_intents_fanout_parity_test.go`); change them
   together.
 - **Changing the trigger kind.** This is a correctness decision, not a
   cleanup: gating on anything other than bare `aws_resource` presence changes
   when the reducer gets a chance to re-run its ARN join and re-classify
   drift, including retraction cases. Update the root dispatch tests in
-  `../../../../aws_cloud_runtime_drift_projection_test.go` in the same change.
+  `../../../../runtime/aws_cloud_drift_projection_test.go` in the same change.
 
 ## Failure modes
 
@@ -68,7 +68,7 @@
   before the extraction.** `intentForDomain` (14 dependents) and
   `awsResourceEnvelope` (4 dependents) both lived in the pre-extraction root
   test file. They moved to a new root file,
-  `../../../../reducer_intent_test_helpers_test.go`, rather than into this package —
+  `../../../../runtime/reducer_intent_test_helpers_test.go`, rather than into this package —
   they are dispatch-level fixtures for `buildProjection`, a root-only
   function this package cannot call. Do not re-introduce a copy of either
   helper here; the child's own tests build fixtures locally
@@ -79,7 +79,7 @@
   test coverage for the `aws_resource_materialization` builder, which at that
   time was still the root file `aws_resource_materialization_intents.go`. That
   coverage moved into a new root file matching the builder's own name, and
-  survives today as `../../../../aws_resource_materialization_projection_test.go` —
+  survives today as `../../../../runtime/aws_resource_materialization_projection_test.go` —
   the builder itself was extracted into `../../resource/` shortly afterwards,
   also under #6057, and the root file was renamed to match the dispatch-level
   role it kept.
@@ -117,7 +117,7 @@
 ## Verification
 
 Use TDD. Run the focused child tests, the root dispatcher tests in
-`../../../../aws_cloud_runtime_drift_projection_test.go`, the root ordered fan-out
+`../../../../runtime/aws_cloud_drift_projection_test.go`, the root ordered fan-out
 parity and probe-count tests, `go test ./internal/mcp/ -run
 TestRouteServesDataRegistry`, package-doc verification, the projector package
 tree, telemetry coverage, and the golden-corpus gates selected by the changed
