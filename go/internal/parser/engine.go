@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/content"
+	javaparser "github.com/eshu-hq/eshu/go/internal/parser/java"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
@@ -76,9 +78,9 @@ func (e *Engine) ParsePath(
 	}
 	if source, readErr := readSource(resolvedPath); readErr == nil {
 		sourceText := string(source)
-		var metadata contentMetadata
-		if !shouldSkipContentMetadata(resolvedPath, sourceText) {
-			metadata = inferContentMetadata(resolvedPath, sourceText)
+		var metadata content.Metadata
+		if !content.ShouldSkip(resolvedPath, sourceText) {
+			metadata = content.Infer(resolvedPath, sourceText)
 		}
 		if strings.TrimSpace(metadata.ArtifactType) != "" {
 			payload["artifact_type"] = metadata.ArtifactType
@@ -414,7 +416,7 @@ func (e *Engine) parseDefinition(
 	case "java":
 		return e.parseJava(resolvedPath, isDependency, options)
 	case "java_metadata":
-		return parseJavaMetadata(resolvedPath, isDependency)
+		return javaparser.ParseMetadata(resolvedPath, isDependency)
 	case "kotlin":
 		return e.parseKotlin(repoRoot, resolvedPath, isDependency, options)
 	case "nuget_project":

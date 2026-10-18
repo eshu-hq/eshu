@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package golang
 
 import (
 	"os"
@@ -11,7 +11,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
-func goModulePath(repoRoot string) string {
+// GoModulePath reports the module path declared by the go.mod in repoRoot,
+// or "" when no readable go.mod names a module. See issue #6306 for the
+// bare-CR normalization this read depends on.
+func GoModulePath(repoRoot string) string {
 	body, err := os.ReadFile(filepath.Join(repoRoot, "go.mod")) // #nosec G304 -- reads go.mod at a path derived from the scan target repo root
 	if err != nil {
 		return ""
@@ -31,7 +34,10 @@ func goModulePath(repoRoot string) string {
 	return ""
 }
 
-func goImportPathForNearestModule(repoRoot string, packageDir string, modulePathsByDir map[string]string) (string, bool) {
+// GoImportPathForNearestModule resolves packageDir to its Go import path by
+// walking up to the nearest enclosing module, caching go.mod reads in
+// modulePathsByDir.
+func GoImportPathForNearestModule(repoRoot string, packageDir string, modulePathsByDir map[string]string) (string, bool) {
 	resolvedRepoRoot := filepath.Clean(repoRoot)
 	dir := filepath.Clean(packageDir)
 	for {
@@ -41,7 +47,7 @@ func goImportPathForNearestModule(repoRoot string, packageDir string, modulePath
 		}
 		modulePath, ok := modulePathsByDir[dir]
 		if !ok {
-			modulePath = goModulePath(dir)
+			modulePath = GoModulePath(dir)
 			modulePathsByDir[dir] = modulePath
 		}
 		if modulePath != "" {

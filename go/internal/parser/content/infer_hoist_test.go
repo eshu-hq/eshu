@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package content
 
 import (
 	"fmt"
@@ -11,14 +11,14 @@ import (
 )
 
 // TestInferContentMetadataHoistEquivalence is the output-preserving proof for
-// issue #4805: inferContentMetadata used to call inferRootFamily, which
+// issue #4805: Infer used to call inferRootFamily, which
 // internally re-scanned the same five marker regexes (goExpressionRE,
 // jinjaStatementRE, tfInterpolationRE, tfDirectiveRE, tfTemplatefileRE) that
-// inferContentMetadata itself scans again a few lines later. The fix hoists
-// those marker scans to run once in inferContentMetadata and passes the
+// Infer itself scans again a few lines later. The fix hoists
+// those marker scans to run once in Infer and passes the
 // results down to inferRootFamily via the contentMarkers struct.
 //
-// This test asserts inferContentMetadata's result is byte-identical across a
+// This test asserts Infer's result is byte-identical across a
 // battery of shapes chosen to exercise every branch that reads a marker
 // signal: plain source with no markers, real IaC (.tf/.conf), ansible paths,
 // Helm/Argo template paths, GitHub Actions workflows, and content carrying
@@ -310,7 +310,7 @@ runcmd:
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := inferContentMetadata(filepath.FromSlash(tt.relativePath), tt.content)
+			got := Infer(filepath.FromSlash(tt.relativePath), tt.content)
 			if got.ArtifactType != tt.wantArtifact {
 				t.Errorf("ArtifactType = %q, want %q", got.ArtifactType, tt.wantArtifact)
 			}
@@ -330,7 +330,7 @@ runcmd:
 // (the hasTFMarkers && isTerraformTemplateSuffix branch) actually executes,
 // unlike a plain .tf file which resolves through the anySuffix(isHCLSuffix)
 // fast path before ever looking at markers. blockCount controls file size so
-// the marker regex cost is measurable against total inferContentMetadata
+// the marker regex cost is measurable against total Infer
 // wall time.
 func generateLargeTFTemplateSource(blockCount int) string {
 	var b strings.Builder
@@ -351,9 +351,9 @@ func generateLargeTFTemplateSource(blockCount int) string {
 // iteration so the memoization does not hide the cost), so this measures
 // the same single-scan-per-call cost the #4805 hoist introduced, not zero.
 // BenchmarkInferContentMetadataTFTemplateBeforeHoist measures the full,
-// still-necessary inferContentMetadata call for a file this shape actually
+// still-necessary Infer call for a file this shape actually
 // requires full inference for (real IaC markers, not gated by
-// shouldSkipContentMetadata). Comparing this pair's allocs/op and ns/op
+// ShouldSkip). Comparing this pair's allocs/op and ns/op
 // against the pre-hoist implementation (recorded in the PR's performance
 // evidence) is the proof that the marker regexes now run once instead of
 // twice per call.
@@ -363,7 +363,7 @@ func BenchmarkInferContentMetadataTFTemplateBeforeHoist(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		_ = inferContentMetadata(path, content)
+		_ = Infer(path, content)
 	}
 }
 
@@ -389,7 +389,7 @@ func BenchmarkInferRootFamilyAloneTFTemplate(b *testing.B) {
 // regression proof: a large, marker-free .tf file resolves through
 // inferRootFamily's first case (anySuffix(suffixes, isHCLSuffix)) on path
 // alone. Before the lazy fix, the #4805 hoist made the three TF-marker
-// MatchString scans run eagerly for every inferContentMetadata call,
+// MatchString scans run eagerly for every Infer call,
 // including this one, even though inferRootFamily never reads
 // markers.hasTFMarkers on this path -- a hot-path regression for the most
 // common large-IaC-file shape (the opposite of the intended #4805 win).
@@ -403,7 +403,7 @@ func BenchmarkInferContentMetadataPathOnlyTFNoMarkers(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		_ = inferContentMetadata(path, content)
+		_ = Infer(path, content)
 	}
 }
 

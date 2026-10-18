@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
+	golangparser "github.com/eshu-hq/eshu/go/internal/parser/golang"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
@@ -394,7 +395,7 @@ func TestParsePathBareCRUnderCollectorPrimedSource(t *testing.T) {
 	}
 }
 
-// TestParsePathBareCRGoModuleImportPath covers goModulePath, which reads
+// TestParsePathBareCRGoModuleImportPath covers golang.GoModulePath, which reads
 // go.mod with its own os.ReadFile and splits it on '\n'. On a bare-CR go.mod
 // the whole file is one line, strings.Fields sees far more than the two
 // tokens the module directive is recognised by, and the module path resolves
@@ -412,8 +413,8 @@ func TestParsePathBareCRGoModuleImportPath(t *testing.T) {
 			if err := os.WriteFile(filepath.Join(repoRoot, "go.mod"), []byte(goMod), 0o600); err != nil {
 				t.Fatalf("WriteFile(go.mod) error = %v, want nil", err)
 			}
-			if got := goModulePath(repoRoot); got != "github.com/example/widget" {
-				t.Fatalf("goModulePath(eol=%s) = %q, want %q", variant.name, got, "github.com/example/widget")
+			if got := golangparser.GoModulePath(repoRoot); got != "github.com/example/widget" {
+				t.Fatalf("GoModulePath(eol=%s) = %q, want %q", variant.name, got, "github.com/example/widget")
 			}
 		})
 	}

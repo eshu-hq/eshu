@@ -4,6 +4,7 @@
 package parser
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/parser/dbtsql"
 	jsonparser "github.com/eshu-hq/eshu/go/internal/parser/json"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
@@ -26,7 +27,7 @@ func jsonLineageExtractor(
 	modelName string,
 	relationColumnNames map[string][]string,
 ) jsonparser.CompiledModelLineage {
-	lineage := extractCompiledModelLineage(compiledSQL, modelName, relationColumnNames)
+	lineage := dbtsql.ExtractCompiledModelLineage(compiledSQL, modelName, relationColumnNames)
 	columnLineage := make([]jsonparser.ColumnLineage, 0, len(lineage.ColumnLineage))
 	for _, item := range lineage.ColumnLineage {
 		columnLineage = append(columnLineage, jsonparser.ColumnLineage{

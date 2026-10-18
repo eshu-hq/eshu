@@ -6,6 +6,8 @@ package parser
 import (
 	"path/filepath"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/content"
 )
 
 func parseRawText(path string, isDependency bool) map[string]any {
@@ -13,7 +15,7 @@ func parseRawText(path string, isDependency bool) map[string]any {
 	payload["modules"] = []map[string]any{}
 	payload["module_inclusions"] = []map[string]any{}
 	if source, err := readSource(path); err == nil {
-		metadata := inferContentMetadata(filepath.Clean(path), string(source))
+		metadata := content.Infer(filepath.Clean(path), string(source))
 		if metadata.ArtifactType != "" {
 			payload["artifact_type"] = metadata.ArtifactType
 		}
@@ -28,7 +30,7 @@ func parseRawText(path string, isDependency bool) map[string]any {
 func rawTextLanguageForPath(path string) string {
 	name := strings.ToLower(filepath.Base(path))
 	extensionSet := make(map[string]struct{})
-	for _, suffix := range splitSuffixes(path) {
+	for _, suffix := range content.SplitSuffixes(path) {
 		extensionSet[suffix] = struct{}{}
 	}
 
@@ -51,20 +53,6 @@ func rawTextLanguageForPath(path string) string {
 		return "template"
 	}
 	return "raw_text"
-}
-
-func splitSuffixes(path string) []string {
-	base := filepath.Base(path)
-	parts := strings.Split(base, ".")
-	if len(parts) <= 1 {
-		return nil
-	}
-
-	suffixes := make([]string, 0, len(parts)-1)
-	for i := 1; i < len(parts); i++ {
-		suffixes = append(suffixes, "."+strings.ToLower(parts[i]))
-	}
-	return suffixes
 }
 
 func hasAny(values map[string]struct{}, keys ...string) bool {

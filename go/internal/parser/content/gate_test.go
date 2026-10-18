@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package content
 
 import (
 	"path/filepath"
@@ -10,14 +10,14 @@ import (
 )
 
 // TestShouldSkipContentMetadataEquivalence is the mandatory 0/0 exact-equivalence
-// proof for issue #4768. inferContentMetadata is ~7.5ms on a large PHP/JS file
+// proof for issue #4768. Infer is ~7.5ms on a large PHP/JS file
 // (three regex scans: goLineControlRE, tfTemplatefileRE, and inferRootFamily's
-// internal re-scan). shouldSkipContentMetadata lets ParsePath skip that call and
-// use the contentMetadata{} zero value whenever the answer is provably identical
-// to running inferContentMetadata unconditionally.
+// internal re-scan). ShouldSkip lets ParsePath skip that call and
+// use the Metadata{} zero value whenever the answer is provably identical
+// to running Infer unconditionally.
 //
-// Every case below asserts inferContentMetadata(path, content) against the
-// contentMetadata the gate implies (zero value when skip=true, the real call's
+// Every case below asserts Infer(path, content) against the
+// Metadata the gate implies (zero value when skip=true, the real call's
 // result when skip=false), so a widened gate that starts skipping a
 // path-triggered or content-triggered case fails this test immediately.
 func TestShouldSkipContentMetadataEquivalence(t *testing.T) {
@@ -160,20 +160,20 @@ func TestShouldSkipContentMetadataEquivalence(t *testing.T) {
 			t.Parallel()
 
 			path := filepath.FromSlash(tt.relativePath)
-			gotSkip := shouldSkipContentMetadata(path, tt.content)
+			gotSkip := ShouldSkip(path, tt.content)
 			if gotSkip != tt.wantSkip {
-				t.Fatalf("shouldSkipContentMetadata(%q) = %t, want %t", tt.relativePath, gotSkip, tt.wantSkip)
+				t.Fatalf("ShouldSkip(%q) = %t, want %t", tt.relativePath, gotSkip, tt.wantSkip)
 			}
 
-			var got contentMetadata
+			var got Metadata
 			if gotSkip {
-				got = contentMetadata{}
+				got = Metadata{}
 			} else {
-				got = inferContentMetadata(path, tt.content)
+				got = Infer(path, tt.content)
 			}
-			want := inferContentMetadata(path, tt.content)
+			want := Infer(path, tt.content)
 			if got != want {
-				t.Fatalf("gate result mismatch for %q: got %+v, want %+v (unconditional inferContentMetadata)", tt.relativePath, got, want)
+				t.Fatalf("gate result mismatch for %q: got %+v, want %+v (unconditional Infer)", tt.relativePath, got, want)
 			}
 		})
 	}
@@ -184,8 +184,8 @@ func TestShouldSkipContentMetadataEquivalence(t *testing.T) {
 // it enumerates a cartesian product of {registered extensions, including
 // multi-dot shapes} x {directory contexts} x {content signals} and asserts,
 // for every generated (path, content) pair, that
-// shouldSkip==true IMPLIES inferContentMetadata(path, content) ==
-// contentMetadata{}. A hand-picked example list can miss a trigger class the
+// shouldSkip==true IMPLIES Infer(path, content) ==
+// Metadata{}. A hand-picked example list can miss a trigger class the
 // author didn't think to test; this loop cannot skip a combination by
 // omission the way a manual list can, because every basename/extension is
 // crossed with every directory and every content shape.
@@ -207,7 +207,7 @@ func TestShouldSkipContentMetadataGeneratedEquivalence(t *testing.T) {
 
 	basenames := []string{
 		// single-extension shapes, one per suffix-matching helper in
-		// templated_detection.go, plus a few representative plain-source names.
+		// infer.go, plus a few representative plain-source names.
 		"config.yaml", "config.yml",
 		"main.hcl", "main.tf", "vars.tfvars",
 		"helper.tpl", "config.tftpl",
@@ -266,15 +266,15 @@ func TestShouldSkipContentMetadataGeneratedEquivalence(t *testing.T) {
 				}
 				path := filepath.FromSlash(relativePath)
 
-				gotSkip := shouldSkipContentMetadata(path, content)
+				gotSkip := ShouldSkip(path, content)
 				if !gotSkip {
 					continue
 				}
 
-				want := inferContentMetadata(path, content)
-				if want != (contentMetadata{}) {
+				want := Infer(path, content)
+				if want != (Metadata{}) {
 					t.Errorf(
-						"shouldSkipContentMetadata(%q, content=%s) = true, but inferContentMetadata returned non-zero %+v -- gate is not a superset",
+						"ShouldSkip(%q, content=%s) = true, but Infer returned non-zero %+v -- gate is not a superset",
 						relativePath, contentName, want,
 					)
 				}
@@ -301,7 +301,7 @@ func TestShouldSkipContentMetadataGeneratedEquivalenceFailsOnUnfixedGate(t *test
 		// deliberately missing .conf/.cfg/.cnf/.kcl, matching the rejected gate
 	}
 	preFixSkip := func(path string, content string) bool {
-		suffixes := splitSuffixes(path)
+		suffixes := SplitSuffixes(path)
 		if len(suffixes) > 0 {
 			// deliberately last-suffix-only, matching the rejected gate
 			if _, gated := preFixExtensions[suffixes[len(suffixes)-1]]; gated {
@@ -355,8 +355,8 @@ func TestShouldSkipContentMetadataGeneratedEquivalenceFailsOnUnfixedGate(t *test
 				if !preFixSkip(path, content) {
 					continue
 				}
-				want := inferContentMetadata(path, content)
-				if want != (contentMetadata{}) {
+				want := Infer(path, content)
+				if want != (Metadata{}) {
 					foundMismatch = true
 				}
 			}
@@ -379,7 +379,7 @@ func TestShouldSkipContentMetadataTooWideIsCaught(t *testing.T) {
 	// A too-wide gate that ignores path segments entirely and only looks at
 	// extension. This is the exact regression the real gate must not become.
 	tooWideSkip := func(path string) bool {
-		suffixes := splitSuffixes(path)
+		suffixes := SplitSuffixes(path)
 		if len(suffixes) == 0 {
 			return true
 		}
@@ -399,9 +399,9 @@ func TestShouldSkipContentMetadataTooWideIsCaught(t *testing.T) {
 		t.Fatalf("test setup invalid: expected the too-wide gate to skip %q", path)
 	}
 
-	got := contentMetadata{}
-	want := inferContentMetadata(path, content)
+	got := Metadata{}
+	want := Infer(path, content)
 	if got == want {
-		t.Fatalf("expected too-wide gate mismatch to be detectable, but zero value equaled real inferContentMetadata result %+v -- test fixture no longer proves the trap", want)
+		t.Fatalf("expected too-wide gate mismatch to be detectable, but zero value equaled real Infer result %+v -- test fixture no longer proves the trap", want)
 	}
 }
