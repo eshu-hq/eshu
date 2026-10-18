@@ -1,0 +1,22 @@
+go/internal/reducer/compat_correlation.go
+  h_78a442cba0b3e6 124-125,411-416
+go/internal/reducer/compat_projection.go
+  h_78a442cba0b3e6 406,408
+go/internal/reducer/doc.go
+  h_78a442cba0b3e6 284,288,292,300
+go/internal/storage/postgres/README.md
+  h_78a442cba0b3e6 640,643
+go/internal/storage/postgres/shared_projection_unroutable_intents.go
+  h_78a442cba0b3e6 78,105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "42ca8ad88d168f4013cdc1fee3e73610b08f78b3",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
