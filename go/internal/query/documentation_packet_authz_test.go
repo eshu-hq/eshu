@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -186,15 +187,7 @@ func doScopedPacketRequest(t *testing.T, handler http.Handler, path string) {
 }
 
 func equalPacketStringSlices(a []string, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(a, b)
 }
 
 // assertStringSet asserts a missing-evidence slice holds exactly the wanted

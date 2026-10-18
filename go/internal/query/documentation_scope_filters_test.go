@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -139,15 +140,7 @@ func TestDocumentationHandlerListsScopeMetadataInFindings(t *testing.T) {
 }
 
 func equalDocumentationAnySlice(got []any, want []any) bool {
-	if len(got) != len(want) {
-		return false
-	}
-	for i := range got {
-		if got[i] != want[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(got, want)
 }
 
 func documentationArgsContain(args []any, want string) bool {

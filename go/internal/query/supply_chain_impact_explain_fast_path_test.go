@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -172,13 +173,5 @@ func supplyChainExplanationTestRow(findingID string) []driver.Value {
 }
 
 func equalExplanationQueries(left []string, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(left, right)
 }

@@ -159,7 +159,7 @@ func queryEncodeTestWAV(t *testing.T, durationMillis int) []byte {
 	dataSize := byteRate * durationMillis / 1000
 	var buffer bytes.Buffer
 	queryWriteString(t, &buffer, "RIFF")
-	queryWriteUint32(t, &buffer, uint32(36+dataSize))
+	queryWriteUint32(t, &buffer, uint32(36+dataSize)) // #nosec G115 -- test WAV builder: the sole caller passes durationMillis=3000 so dataSize=48000, far below MaxUint32
 	queryWriteString(t, &buffer, "WAVE")
 	queryWriteString(t, &buffer, "fmt ")
 	queryWriteUint32(t, &buffer, 16)
@@ -170,7 +170,7 @@ func queryEncodeTestWAV(t *testing.T, durationMillis int) []byte {
 	queryWriteUint16(t, &buffer, channels*bytesPerSample)
 	queryWriteUint16(t, &buffer, bitsPerSample)
 	queryWriteString(t, &buffer, "data")
-	queryWriteUint32(t, &buffer, uint32(dataSize))
+	queryWriteUint32(t, &buffer, uint32(dataSize)) // #nosec G115 -- test WAV builder: the sole caller passes durationMillis=3000 so dataSize=48000, far below MaxUint32
 	buffer.Write(make([]byte, dataSize))
 	return buffer.Bytes()
 }
@@ -184,7 +184,7 @@ func queryWriteString(t *testing.T, buffer *bytes.Buffer, value string) {
 
 func queryWriteUint16(t *testing.T, buffer *bytes.Buffer, value int) {
 	t.Helper()
-	if err := binary.Write(buffer, binary.LittleEndian, uint16(value)); err != nil {
+	if err := binary.Write(buffer, binary.LittleEndian, uint16(value)); err != nil { // #nosec G115 -- callers pass only small WAV header constants (format tag 1, 1 channel, 2 bytes/sample, 16 bits/sample), far below MaxUint16
 		t.Fatalf("binary.Write(%d) error = %v, want nil", value, err)
 	}
 }

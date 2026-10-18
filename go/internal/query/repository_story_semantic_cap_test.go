@@ -31,7 +31,7 @@ type semanticListStore struct {
 
 func (s *semanticListStore) ListRepoEntities(_ context.Context, repoID string, limit int) ([]querycontract.EntityContent, error) {
 	s.entityRequested.Store(true)
-	s.entityLimit.Store(int32(limit))
+	s.entityLimit.Store(int32(limit)) // #nosec G115 -- limit is the production ListRepoEntities int parameter; tests pass RepositorySemanticEntityLimit scale (~5001), far below MaxInt32
 	rows := make([]querycontract.EntityContent, 0, min(limit, s.entityCount))
 	for i := 0; i < s.entityCount && i < limit; i++ {
 		rows = append(rows, querycontract.EntityContent{
@@ -45,7 +45,7 @@ func (s *semanticListStore) ListRepoEntities(_ context.Context, repoID string, l
 func (s *semanticListStore) ListRepoFiles(_ context.Context, repoID string, limit int) ([]querycontract.FileContent, error) {
 	s.fileRequested.Store(true)
 	s.fileCalls.Add(1)
-	s.fileLimit.Store(int32(limit))
+	s.fileLimit.Store(int32(limit)) // #nosec G115 -- limit is the production ListRepoFiles int parameter; tests pass RepositorySemanticEntityLimit scale (~5001), far below MaxInt32
 	rows := make([]querycontract.FileContent, 0, min(limit, s.fileCount))
 	for i := 0; i < s.fileCount && i < limit; i++ {
 		rows = append(rows, querycontract.FileContent{
