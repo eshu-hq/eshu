@@ -129,7 +129,7 @@ export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7688}"
 : "${ESHU_POSTGRES_PASSWORD:=change-me}"
 : "${ESHU_NEO4J_PASSWORD:=change-me}"
 # Headroom over this gate's two slowest natural recovery mechanics: the fixed
-# 1-minute reducer lease (cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38) and the default 30s (+jitter)
+# 1-minute reducer lease (cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44) and the default 30s (+jitter)
 # reducer retry delay (cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/47/48/49's queue-retry lane) -- see go/cmd/reducer/
 # main_helpers.go and go/internal/runtime/retry_policy.go.
 : "${GATE_DRAIN_TIMEOUT:=4m}"
