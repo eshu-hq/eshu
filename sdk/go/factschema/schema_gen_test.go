@@ -173,6 +173,8 @@ func TestSchemasHaveNoDrift(t *testing.T) {
 		{file: "service_catalog.operational_link.v1.schema.json", generate: schemagen.ServiceCatalogOperationalLinkSchema},
 		{file: "submodule.pin.v1.schema.json", generate: schemagen.SubmodulePinSchema},
 		{file: "codeowners.ownership.v1.schema.json", generate: schemagen.CodeownersOwnershipSchema},
+		{file: "ref_overlay.branch_observation.v1.schema.json", generate: schemagen.RefOverlayBranchObservationSchema},
+		{file: "config_key_divergence.v1.schema.json", generate: schemagen.ConfigKeyDivergenceSchema},
 		{file: "documentation_claim_candidate.v1.schema.json", generate: schemagen.DocumentationClaimCandidateSchema},
 		{file: "documentation_document.v1.schema.json", generate: schemagen.DocumentationDocumentSchema},
 		{file: "documentation_entity_mention.v1.schema.json", generate: schemagen.DocumentationEntityMentionSchema},

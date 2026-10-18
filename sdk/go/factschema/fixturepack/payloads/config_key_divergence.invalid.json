@@ -1,0 +1,7 @@
+{
+  "collector_instance_id": "collector-1",
+  "repo_id": "github.com/eshu-hq/eshu",
+  "ref": "env/prod",
+  "config_key": "service.api_endpoint",
+  "env": "prod"
+}

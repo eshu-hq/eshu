@@ -1,0 +1,6 @@
+{
+  "collector_instance_id": "collector-1",
+  "ref": "env/prod",
+  "ref_kind": "branch",
+  "resolvability": "mobile"
+}

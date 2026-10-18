@@ -98,6 +98,7 @@ var schemaVersionFamilies = []schemaVersionFamily{
 	{SecurityAlertFactKinds, SecurityAlertSchemaVersion},
 	{SemanticFactKinds, SemanticSchemaVersion},
 	{ServiceCatalogFactKinds, ServiceCatalogSchemaVersion},
+	{RefOverlayFactKinds, RefOverlaySchemaVersion},
 	{SubmoduleFactKinds, SubmoduleSchemaVersion},
 	{cloud.TerraformStateFactKinds, cloud.TerraformStateSchemaVersion},
 	{chain.VulnerabilityIntelligenceFactKinds, chain.VulnerabilityIntelligenceSchemaVersion},

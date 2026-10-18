@@ -87,6 +87,8 @@ var factSchemaWireKindCases = []struct {
 	{"k8s_service_account_token_posture", factschema.FactKindKubernetesServiceAccountTokenPosture, facts.KubernetesServiceAccountTokenPostureFactKind},
 	{"secrets_iam_coverage_warning", factschema.FactKindSecretsIAMCoverageWarning, facts.SecretsIAMCoverageWarningFactKind},
 	{"security_alert.repository_alert", factschema.FactKindSecurityAlertRepositoryAlert, facts.SecurityAlertRepositoryAlertFactKind},
+	{"ref_overlay.branch_observation", factschema.FactKindRefOverlayBranchObservation, facts.RefOverlayBranchObservationFactKind},
+	{"config_key_divergence", factschema.FactKindConfigKeyDivergence, facts.ConfigKeyDivergenceFactKind},
 	{"observability.declared_folder", factschema.FactKindObservabilityDeclaredFolder, facts.ObservabilityDeclaredFolderFactKind},
 	{"observability.declared_dashboard", factschema.FactKindObservabilityDeclaredDashboard, facts.ObservabilityDeclaredDashboardFactKind},
 	{"observability.declared_datasource", factschema.FactKindObservabilityDeclaredDatasource, facts.ObservabilityDeclaredDatasourceFactKind},
