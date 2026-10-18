@@ -100,10 +100,17 @@ func TestAnchorKeyRoundTrips(t *testing.T) {
 // evaluation commits and defers, an unchanged poll asks only about the missing
 // anchor and commits nothing, and a poll after the instance appears falls back
 // to the full evaluation, which commits and clears the ledger.
+//
+// The anchors are full repository-scoped ids (#5385): the cheap poll replays
+// the ledger's frozen keys verbatim, so only converged-format keys may take
+// it. Handle-form keys fall back to the full evaluation (see
+// TestWaitPollFallsBackOnHandleFormAnchors).
 func TestWaitCommitsFirstThenPollsCheaply(t *testing.T) {
 	t.Parallel()
+	scopedProd := Anchor{WorkloadID: "workload:repository:r_alpha:checkout", Environment: "prod"}
+	scopedStage := Anchor{WorkloadID: "workload:repository:r_alpha:checkout", Environment: "stage"}
 	clock := time.Date(2026, time.September, 19, 9, 0, 0, 0, time.UTC)
-	lookup := &countingLookup{existing: map[Anchor]struct{}{prod: {}}}
+	lookup := &countingLookup{existing: map[Anchor]struct{}{scopedProd: {}}}
 	ledger := &ledgerStub{rows: map[string]crossscope.ReadinessWait{}}
 	wait := Wait{Lookup: lookup, Ledger: ledger, Now: func() time.Time { return clock }}
 	intent := waitTestIntent("gen-1", clock)
@@ -115,8 +122,8 @@ func TestWaitCommitsFirstThenPollsCheaply(t *testing.T) {
 	if _, handled, _ := wait.Poll(context.Background(), intent, existing, found); handled {
 		t.Fatal("Poll handled an evaluation with no ledger row")
 	}
-	eval, err := wait.Evaluate(context.Background(), intent, existing, found, []Anchor{stage, prod})
-	if err != nil || !eval.Decision.Commit || !eval.Decision.Defer || !slices.Equal(eval.Missing, []Anchor{stage}) {
+	eval, err := wait.Evaluate(context.Background(), intent, existing, found, []Anchor{scopedStage, scopedProd})
+	if err != nil || !eval.Decision.Commit || !eval.Decision.Defer || !slices.Equal(eval.Missing, []Anchor{scopedStage}) {
 		t.Fatalf("first Evaluate = %+v (err %v), want commit, defer, missing [stage]", eval, err)
 	}
 	if err := wait.Finish(context.Background(), intent, eval); err != nil {
@@ -129,23 +136,59 @@ func TestWaitCommitsFirstThenPollsCheaply(t *testing.T) {
 	if err != nil || !handled || polled.Decision.Commit || !polled.Decision.Defer {
 		t.Fatalf("unchanged Poll = %+v handled %v err %v, want a defer with no commit", polled, handled, err)
 	}
-	if last := lookup.calls[len(lookup.calls)-1]; !slices.Equal(last, []Anchor{stage}) {
+	if last := lookup.calls[len(lookup.calls)-1]; !slices.Equal(last, []Anchor{scopedStage}) {
 		t.Fatalf("poll looked up %v, want only the missing anchor", last)
 	}
 	if ledger.upserts != 1 {
 		t.Fatalf("ledger upserts = %d, want 1 (the unchanged poll writes nothing)", ledger.upserts)
 	}
 
-	lookup.existing = map[Anchor]struct{}{prod: {}, stage: {}}
+	lookup.existing = map[Anchor]struct{}{scopedProd: {}, scopedStage: {}}
 	if _, handled, _ := wait.Poll(context.Background(), intent, existing, found); handled {
 		t.Fatal("Poll handled a resolved anchor, want the full-evaluation fallback")
 	}
-	eval, err = wait.Evaluate(context.Background(), intent, existing, found, []Anchor{stage, prod})
+	eval, err = wait.Evaluate(context.Background(), intent, existing, found, []Anchor{scopedStage, scopedProd})
 	if err != nil || !eval.Decision.Commit || eval.Decision.Defer || !eval.Decision.Clear {
 		t.Fatalf("resolved Evaluate = %+v (err %v), want commit and clear", eval, err)
 	}
 	if err := wait.Finish(context.Background(), intent, eval); err != nil || ledger.clears != 1 {
 		t.Fatalf("Finish() err %v clears %d, want the row cleared", err, ledger.clears)
+	}
+}
+
+// TestWaitPollFallsBackOnHandleFormAnchors is the #5385 re-key guard for the
+// cheap poll: a ledger row frozen before the workload pipeline materialized
+// its nodes holds handle-form anchors (the first evaluation's resolution
+// missed, so the row kept the fact-asserted handle). Replaying those keys
+// verbatim can never converge once node ids are repository-scoped — no node
+// carries a bare-handle id — so the poll must decline (handled=false) and let
+// the caller run the full evaluation, which re-resolves against the current
+// graph. Without this fallback the intent defers until MaxWait and the USES
+// edges never commit.
+func TestWaitPollFallsBackOnHandleFormAnchors(t *testing.T) {
+	t.Parallel()
+	clock := time.Date(2026, time.September, 19, 9, 0, 0, 0, time.UTC)
+	lookup := &countingLookup{existing: map[Anchor]struct{}{}}
+	ledger := &ledgerStub{rows: map[string]crossscope.ReadinessWait{}}
+	wait := Wait{Lookup: lookup, Ledger: ledger, Now: func() time.Time { return clock }}
+	intent := waitTestIntent("gen-1", clock)
+
+	existing, found, err := wait.Read(context.Background(), intent)
+	if err != nil || found {
+		t.Fatalf("Read() = found %v err %v, want no row", found, err)
+	}
+	eval, err := wait.Evaluate(context.Background(), intent, existing, found, []Anchor{stage, prod})
+	if err != nil || !eval.Decision.Commit || !eval.Decision.Defer {
+		t.Fatalf("first Evaluate = %+v (err %v), want commit and defer", eval, err)
+	}
+	if err := wait.Finish(context.Background(), intent, eval); err != nil {
+		t.Fatalf("Finish() error = %v", err)
+	}
+
+	clock = clock.Add(30 * time.Second)
+	existing, found, _ = wait.Read(context.Background(), intent)
+	if _, handled, err := wait.Poll(context.Background(), intent, existing, found); err != nil || handled {
+		t.Fatalf("Poll = handled %v err %v, want the full-evaluation fallback for handle-form anchors", handled, err)
 	}
 }
 

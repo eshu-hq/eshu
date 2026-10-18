@@ -18,7 +18,7 @@ func TestBuildRepoDependencyRowsEmpty(t *testing.T) {
 func TestBuildRepoDependencyRowsSingleDependency(t *testing.T) {
 	t.Parallel()
 	descriptors := []RepoDescriptor{
-		{RepoID: "repo-a", RepoName: "svc-a", WorkloadID: "workload:svc-a"},
+		{RepoID: "repo-a", RepoName: "svc-a", WorkloadID: "workload:repo-a:svc-a"},
 	}
 	dependenciesByRepo := map[string][]string{
 		"repo-a": {"svc-b"},
@@ -45,8 +45,8 @@ func TestBuildRepoDependencyRowsSingleDependency(t *testing.T) {
 func TestBuildRepoDependencyRowsDeduplicates(t *testing.T) {
 	t.Parallel()
 	descriptors := []RepoDescriptor{
-		{RepoID: "repo-a", RepoName: "svc-a", WorkloadID: "workload:svc-a"},
-		{RepoID: "repo-a", RepoName: "svc-a", WorkloadID: "workload:svc-a"},
+		{RepoID: "repo-a", RepoName: "svc-a", WorkloadID: "workload:repo-a:svc-a"},
+		{RepoID: "repo-a", RepoName: "svc-a", WorkloadID: "workload:repo-a:svc-a"},
 	}
 	dependenciesByRepo := map[string][]string{
 		"repo-a": {"svc-b"},
@@ -64,7 +64,7 @@ func TestBuildRepoDependencyRowsDeduplicates(t *testing.T) {
 func TestBuildRepoDependencyRowsSkipsUnknownTarget(t *testing.T) {
 	t.Parallel()
 	descriptors := []RepoDescriptor{
-		{RepoID: "repo-a", RepoName: "svc-a", WorkloadID: "workload:svc-a"},
+		{RepoID: "repo-a", RepoName: "svc-a", WorkloadID: "workload:repo-a:svc-a"},
 	}
 	dependenciesByRepo := map[string][]string{
 		"repo-a": {"unknown-svc"},
@@ -87,7 +87,7 @@ func TestBuildWorkloadDependencyRowsEmpty(t *testing.T) {
 func TestBuildWorkloadDependencyRowsSingleDependency(t *testing.T) {
 	t.Parallel()
 	descriptors := []RepoDescriptor{
-		{RepoID: "repo-a", RepoName: "svc-a", WorkloadID: "workload:svc-a"},
+		{RepoID: "repo-a", RepoName: "svc-a", WorkloadID: "workload:repo-a:svc-a"},
 	}
 	dependenciesByRepo := map[string][]string{
 		"repo-a": {"svc-b"},
@@ -100,11 +100,11 @@ func TestBuildWorkloadDependencyRowsSingleDependency(t *testing.T) {
 	if len(rows) != 1 {
 		t.Fatalf("len = %d, want 1", len(rows))
 	}
-	if rows[0].WorkloadID != "workload:svc-a" {
-		t.Fatalf("WorkloadID = %q, want workload:svc-a", rows[0].WorkloadID)
+	if rows[0].WorkloadID != "workload:repo-a:svc-a" {
+		t.Fatalf("WorkloadID = %q, want workload:repo-a:svc-a", rows[0].WorkloadID)
 	}
-	if rows[0].TargetWorkloadID != "workload:svc-b" {
-		t.Fatalf("TargetWorkloadID = %q, want workload:svc-b", rows[0].TargetWorkloadID)
+	if rows[0].TargetWorkloadID != "workload:repo-b:svc-b" {
+		t.Fatalf("TargetWorkloadID = %q, want workload:repo-b:svc-b", rows[0].TargetWorkloadID)
 	}
 	if rows[0].RepoID != "repo-a" {
 		t.Fatalf("RepoID = %q, want repo-a", rows[0].RepoID)
@@ -117,7 +117,7 @@ func TestBuildWorkloadDependencyRowsSingleDependency(t *testing.T) {
 func TestBuildWorkloadDependencyRowsDropsBlankDepName(t *testing.T) {
 	t.Parallel()
 	descriptors := []RepoDescriptor{
-		{RepoID: "repo-a", RepoName: "svc-a", WorkloadID: "workload:svc-a"},
+		{RepoID: "repo-a", RepoName: "svc-a", WorkloadID: "workload:repo-a:svc-a"},
 	}
 	dependenciesByRepo := map[string][]string{
 		"repo-a": {""},
@@ -137,8 +137,8 @@ func TestBuildWorkloadDependencyRowsDropsBlankDepName(t *testing.T) {
 func TestBuildWorkloadDependencyRowsDeduplicates(t *testing.T) {
 	t.Parallel()
 	descriptors := []RepoDescriptor{
-		{RepoID: "repo-a", RepoName: "svc-a", WorkloadID: "workload:svc-a"},
-		{RepoID: "repo-a", RepoName: "svc-a", WorkloadID: "workload:svc-a"},
+		{RepoID: "repo-a", RepoName: "svc-a", WorkloadID: "workload:repo-a:svc-a"},
+		{RepoID: "repo-a", RepoName: "svc-a", WorkloadID: "workload:repo-a:svc-a"},
 	}
 	dependenciesByRepo := map[string][]string{
 		"repo-a": {"svc-b"},
@@ -156,7 +156,7 @@ func TestBuildWorkloadDependencyRowsDeduplicates(t *testing.T) {
 func TestBuildWorkloadDependencyRowsMultipleDependencies(t *testing.T) {
 	t.Parallel()
 	descriptors := []RepoDescriptor{
-		{RepoID: "repo-a", RepoName: "svc-a", WorkloadID: "workload:svc-a"},
+		{RepoID: "repo-a", RepoName: "svc-a", WorkloadID: "workload:repo-a:svc-a"},
 	}
 	dependenciesByRepo := map[string][]string{
 		"repo-a": {"svc-b", "svc-c"},

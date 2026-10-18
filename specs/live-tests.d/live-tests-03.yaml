@@ -197,6 +197,10 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/reducer/workload_regeneration_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "deterministic nonce-scoped #5385 T4 regeneration proof through the real WorkloadMaterializationHandler: a non-first non-delta generation re-derives the same workload:<repo_id>:<name> ids so MERGEs re-attach instead of duplicating, cross-scope USES/DOCUMENTS edges survive, and the renamed workload's stale DEFINES is retracted leaving only the surviving scoped workload; local neo4j:2026-community runs took 0.24s warm and 6.6s with a cold container on a shared host; runs on both backends in the live-backend CI job"
   - file: go/internal/replay/offlinetier/canonical_file_edge_writeloss_live_test.go
     tag: ~
     class: scheduled

@@ -90,13 +90,13 @@ func TestWorkloadMaterializationHandlerReconcilesWorkloadDependencies(t *testing
 			{SourceRepoID: "repo-service-a", TargetRepoID: "repo-service-b"},
 		},
 		workloads: []RepoWorkload{
-			{RepoID: "repo-service-b", WorkloadID: "workload:service-b"},
+			{RepoID: "repo-service-b", WorkloadID: "workload:repo-service-b:service-b"},
 		},
 		workloadDependencyRows: []ExistingWorkloadDependencyEdge{
 			{
 				RepoID:           "repo-service-a",
-				WorkloadID:       "workload:service-a",
-				TargetWorkloadID: "workload:old-service",
+				WorkloadID:       "workload:repo-service-a:service-a",
+				TargetWorkloadID: "workload:repo-service-b:old-service",
 			},
 		},
 	}
@@ -139,10 +139,10 @@ func TestWorkloadMaterializationHandlerReconcilesWorkloadDependencies(t *testing
 	}
 
 	writeRow := edgeWriter.writeCalls[0].rows[0]
-	if got, want := payloadStringAny(writeRow.Payload, "workload_id"), "workload:service-a"; got != want {
+	if got, want := payloadStringAny(writeRow.Payload, "workload_id"), "workload:repo-service-a:service-a"; got != want {
 		t.Fatalf("payload.workload_id = %q, want %q", got, want)
 	}
-	if got, want := payloadStringAny(writeRow.Payload, "target_workload_id"), "workload:service-b"; got != want {
+	if got, want := payloadStringAny(writeRow.Payload, "target_workload_id"), "workload:repo-service-b:service-b"; got != want {
 		t.Fatalf("payload.target_workload_id = %q, want %q", got, want)
 	}
 	if result.CanonicalWrites == 0 {

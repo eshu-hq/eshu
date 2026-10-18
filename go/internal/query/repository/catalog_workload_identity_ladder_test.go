@@ -29,6 +29,7 @@ func TestListCatalogWorkloadIdentitiesSynthesizeScopedIDs(t *testing.T) {
 				{Name: "checkout", RepoID: "repository:r_b", RepoName: "beta"},
 				{Name: "workload:legacy-prefixed", RepoID: "repository:r_a", RepoName: "alpha"},
 				{Name: "   ", RepoID: "repository:r_a", RepoName: "alpha"},
+				{Name: "checkout", RepoID: "   ", RepoName: "alpha"},
 			},
 		},
 	}
@@ -56,7 +57,7 @@ func TestListCatalogWorkloadIdentitiesSynthesizeScopedIDs(t *testing.T) {
 		}
 	}
 	if len(rows) != 3 {
-		t.Fatalf("identity rows = %d, want 3 (the blank name yields no row)", len(rows))
+		t.Fatalf("identity rows = %d, want 3 (blank name and blank repo yield no row)", len(rows))
 	}
 
 	// Split siblings must not merge: two repositories, one shared name.

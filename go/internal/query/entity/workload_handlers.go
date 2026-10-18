@@ -11,7 +11,23 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
+	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
+
+// workloadContextLookupClause maps a caller-supplied workload selector to the
+// lookup rung fetchWorkloadContextDecision runs. #5385 flip wave: a workload:
+// handle matches no post-flip node id, so it reads the bounded name-candidate
+// rung with the stripped bare name; the existing lookupWorkloadRows name
+// branch then applies grant admission with lowest-admitted-id-wins. Full
+// scoped ids keep the exact unique-constrained id rung. Bare inputs keep the
+// id rung unchanged: they matched nothing before the flip and still match
+// nothing, so no contract widens.
+func workloadContextLookupClause(workloadID string) (string, map[string]any) {
+	if workloadid.ClassifyWorkloadSelector(workloadID) == workloadid.SelectorKindHandle {
+		return "w.name = $workload_id", map[string]any{"workload_id": workloadid.StripWorkloadHandlePrefix(workloadID)}
+	}
+	return "w.id = $workload_id", map[string]any{"workload_id": workloadID}
+}
 
 // GetWorkloadContext retrieves the context for a specific workload. Exported so the staying contract endpoint test keeps driving the handler; see #6060. The
 // response carries the canonical truth envelope plus an additive result_limits
@@ -36,7 +52,8 @@ func (h *Handler) GetWorkloadContext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, err := h.fetchWorkloadContext(r.Context(), "w.id = $workload_id", map[string]any{"workload_id": workloadID})
+	whereClause, lookupParams := workloadContextLookupClause(workloadID)
+	ctx, err := h.fetchWorkloadContext(r.Context(), whereClause, lookupParams)
 	if err != nil {
 		writeReadFailure(w, r, err, "platform_impact.context_overview", workloadContextQueryFailedMessage)
 		return
@@ -88,7 +105,8 @@ func (h *Handler) GetWorkloadStory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, err := h.fetchWorkloadContext(r.Context(), "w.id = $workload_id", map[string]any{"workload_id": workloadID})
+	whereClause, lookupParams := workloadContextLookupClause(workloadID)
+	ctx, err := h.fetchWorkloadContext(r.Context(), whereClause, lookupParams)
 	if err != nil {
 		writeReadFailure(w, r, err, "platform_impact.context_overview", workloadStoryQueryFailedMessage)
 		return
@@ -116,11 +134,18 @@ func (h *Handler) GetWorkloadStory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	story := buildWorkloadStory(ctx)
+	// #5385 flip wave: echo the resolved node id, not the raw path param.
+	// A handle request resolves to the scoped node; echoing the handle
+	// would re-emit the retired handle==id equation the flip removes.
+	resolvedID := querycontract.StringVal(ctx, "id")
+	if resolvedID == "" {
+		resolvedID = workloadID
+	}
 	response := map[string]any{
-		"workload_id":     workloadID,
+		"workload_id":     resolvedID,
 		"name":            ctx["name"],
 		"story":           story,
-		"result_limits":   querycontract.WorkloadContextResultLimits(ctx, workloadID, "story"),
+		"result_limits":   querycontract.WorkloadContextResultLimits(ctx, resolvedID, "story"),
 		"partial_reasons": querycontract.ContextPartialReasons(ctx),
 	}
 	evidence.AttachEvidenceBoundaries(response, "get_workload_story")

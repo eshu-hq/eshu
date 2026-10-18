@@ -73,7 +73,7 @@ func TestGoldenSnapshotGroupARemainingCapabilitiesAreNonVacuous(t *testing.T) {
 		{
 			slug: "prod-catalog", key: "GET /api/v0/catalog?limit=2000&offset=0", http: true, minimum: 1, maximum: 2000, resultsField: "repositories",
 			required: []string{"repositories", "workloads", "services", "counts", "count", "limit", "truncated", "workloads_truncated"},
-			values:   map[string]any{"limit": float64(2000), "repositories[].id": goRepo, "workloads[].id": "workload:deployable-config", "services[].id": "workload:deployable-config"},
+			values:   map[string]any{"limit": float64(2000), "repositories[].id": goRepo, "workloads[].id": "workload:repository:r_217415d9:deployable-config", "services[].id": "workload:repository:r_217415d9:deployable-config"},
 		},
 		{
 			slug: "prod-ci-cd-run-correlation-aggregate", key: "count_ci_cd_run_correlations",

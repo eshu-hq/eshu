@@ -146,8 +146,8 @@ func TestGoldenDeployableFixtureMaterializesTwoCanonicalEnvironments(t *testing.
 	instanceIDs := []string{projection.InstanceRows[0].InstanceID, projection.InstanceRows[1].InstanceID}
 	slices.Sort(instanceIDs)
 	if want := []string{
-		"workload-instance:deployable-source:prod",
-		"workload-instance:deployable-source:stage",
+		"workload-instance:repo-deployable-source:deployable-source:prod",
+		"workload-instance:repo-deployable-source:deployable-source:stage",
 	}; !slices.Equal(instanceIDs, want) {
 		t.Fatalf("instance IDs = %v, want %v", instanceIDs, want)
 	}
@@ -161,21 +161,21 @@ func TestGoldenDeployableFixtureMaterializesTwoCanonicalEnvironments(t *testing.
 		t.Fatalf("InstancesWritten = %d, want %d", got, want)
 	}
 	for environment, instanceID := range map[string]string{
-		"prod":  "workload-instance:deployable-source:prod",
-		"stage": "workload-instance:deployable-source:stage",
+		"prod":  "workload-instance:repo-deployable-source:deployable-source:prod",
+		"stage": "workload-instance:repo-deployable-source:deployable-source:stage",
 	} {
 		if !fakeCallContainsRow(executor.calls, batchWorkloadInstanceNodeUpsertCypher, map[string]any{
 			"instance_id": instanceID,
-			"workload_id": "workload:deployable-source",
+			"workload_id": "workload:repo-deployable-source:deployable-source",
 			"environment": environment,
 		}) {
 			t.Errorf("WorkloadInstance graph upsert missing %q in %q", instanceID, environment)
 		}
 		if !fakeCallContainsRow(executor.calls, batchWorkloadInstanceOfEdgeUpsertCypher, map[string]any{
 			"instance_id": instanceID,
-			"workload_id": "workload:deployable-source",
+			"workload_id": "workload:repo-deployable-source:deployable-source",
 		}) {
-			t.Errorf("INSTANCE_OF graph upsert missing %q -> workload:deployable-source", instanceID)
+			t.Errorf("INSTANCE_OF graph upsert missing %q -> workload:repo-deployable-source:deployable-source", instanceID)
 		}
 		if !fakeCallContainsRow(executor.calls, batchDeploymentSourceUpsertCypher, map[string]any{
 			"instance_id":        instanceID,

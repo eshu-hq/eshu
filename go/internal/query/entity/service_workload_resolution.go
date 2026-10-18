@@ -139,6 +139,20 @@ func (h *Handler) collectServiceWorkloadCandidates(
 			return nil, false, err
 		}
 		all = append(all, rows...)
+		// #5385 flip wave: a workload: handle service_id (forwarded by the
+		// MCP service story and intelligence-report routes) matches no
+		// post-flip node id, so fall back to the stripped-name probe exactly
+		// like the ServiceName ladder below. A full scoped id still resolves
+		// on rung 1 and never reaches rung 2 with a phantom name, because
+		// StripWorkloadHandlePrefix passes non-handles through unchanged and
+		// the id probe already matched them.
+		if len(all) == 0 && workloadid.ClassifyWorkloadSelector(selector.ServiceID) == workloadid.SelectorKindHandle {
+			rows, err := h.QueryServiceWorkloadCandidates(ctx, "w.name = $service_id", "service_id", workloadid.StripWorkloadHandlePrefix(selector.ServiceID), selector, repoID, limit, "workload_name")
+			if err != nil {
+				return nil, false, err
+			}
+			all = append(all, rows...)
+		}
 	} else {
 		// Ladder rung 1 probes the full selector string as a node id; rung
 		// 2 probes the stripped bare name (#5385). A prefixed handle must

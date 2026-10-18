@@ -133,7 +133,7 @@ func TestFetchServiceWorkloadContextNameDenialThenIDAdmitCountsNoDenial(t *testi
 		RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "w.name = $service_name"):
-				return map[string]any{"id": "workload:legacy", "name": "workload:api", "repo_id": "repo-b"}, nil
+				return map[string]any{"id": "workload:repo-b:api", "name": "api", "repo_id": "repo-b"}, nil
 			case strings.Contains(cypher, "w.id = $service_name"):
 				return map[string]any{"id": "workload:api", "name": "api", "repo_id": "repo-a"}, nil
 			default:
@@ -148,7 +148,7 @@ func TestFetchServiceWorkloadContextNameDenialThenIDAdmitCountsNoDenial(t *testi
 				}
 				return nil, nil
 			case strings.Contains(cypher, "w.name = $service_name"):
-				return []map[string]any{{"id": "workload:legacy", "name": "workload:api", "repo_id": "repo-b", "defining": []any{}}}, nil
+				return []map[string]any{{"id": "workload:repo-b:api", "name": "api", "repo_id": "repo-b", "defining": []any{"repo-b"}}}, nil
 			default:
 				return nil, nil
 			}
@@ -178,7 +178,7 @@ func TestFetchServiceWorkloadContextDeniedByAllLookupsCountsOneDenial(t *testing
 		RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "w.name = $service_name"):
-				return map[string]any{"id": "workload:legacy", "name": "workload:api", "repo_id": "repo-b"}, nil
+				return map[string]any{"id": "workload:repo-b:api", "name": "api", "repo_id": "repo-b"}, nil
 			case strings.Contains(cypher, "w.id = $service_name"):
 				return map[string]any{"id": "workload:api", "name": "api", "repo_id": "repo-c"}, nil
 			default:
@@ -187,7 +187,7 @@ func TestFetchServiceWorkloadContextDeniedByAllLookupsCountsOneDenial(t *testing
 		},
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			if strings.Contains(cypher, "w.name = $service_name") && !strings.Contains(cypher, "<-[:DEFINES]-") {
-				return []map[string]any{{"id": "workload:legacy", "name": "workload:api", "repo_id": "repo-b", "defining": []any{}}}, nil
+				return []map[string]any{{"id": "workload:repo-b:api", "name": "api", "repo_id": "repo-b", "defining": []any{"repo-b"}}}, nil
 			}
 			return nil, nil
 		},

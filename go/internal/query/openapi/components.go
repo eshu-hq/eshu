@@ -136,6 +136,7 @@ const components = `  "components": {
           "repo_name": {"type": "string"},
           "environments": {"type": "array", "items": {"type": "string"}},
           "instance_count": {"type": "integer"},
+          "same_name_siblings": {"type": "integer", "description": "SAME_NAME sibling workloads admitted by the caller grant (Decision D2, #5385); 0 when no admitted sibling shares the name."},
           "materialization_status": {"type": "string"}
         }
       },

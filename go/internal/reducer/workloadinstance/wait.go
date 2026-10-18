@@ -11,6 +11,7 @@ import (
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+	"github.com/eshu-hq/eshu/go/internal/workloadid"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
@@ -107,6 +108,18 @@ func (w Wait) Poll(
 	for _, key := range existing.MissingKeys {
 		anchor, ok := ParseAnchorKey(key)
 		if !ok {
+			return Evaluation{}, false, nil
+		}
+		// The cheap poll replays the ledger's frozen keys verbatim. A
+		// handle-form key means the freezing evaluation resolved nothing:
+		// its nodes had not materialized yet, so the row kept the
+		// fact-asserted handle. Replaying that key can never converge once
+		// node ids are repository-scoped (#5385) — no node carries a
+		// bare-handle id — so decline and let the caller run the full
+		// evaluation, which re-resolves against the current graph. Without
+		// this fallback the intent defers until MaxWait and its edges never
+		// commit.
+		if workloadid.ClassifyWorkloadSelector(anchor.WorkloadID) != workloadid.SelectorKindFullID {
 			return Evaluation{}, false, nil
 		}
 		anchors = append(anchors, anchor)

@@ -12,9 +12,10 @@ import (
 //
 // It exists as a distinct type so the compiler, rather than text search, can
 // enumerate every place the identifier is constructed. That matters because the
-// identifier is due to change: it is currently built from the workload name
-// alone, so two repositories with a same-named workload produce the same id and
-// collapse onto one node (#5385).
+// identifier used to be built from the workload name alone, so two
+// repositories with a same-named workload produced the same id and collapsed
+// onto one node (#5385); the constructors now emit the repository-scoped key,
+// and nothing outside this package can mint an id on another format.
 //
 // Section 4 of docs/internal/design/5385-workload-identity-key.md is a
 // hand-maintained inventory of those places, and it has been wrong three times.
@@ -47,38 +48,42 @@ type WorkloadInstanceID struct {
 
 // NewWorkloadID builds the canonical Workload identifier.
 //
-// repoID is accepted but deliberately unused: the current format is name-only,
-// and that is precisely the defect #5385 describes. Taking the repository at
-// every call site now means the re-key becomes a change inside this function
-// rather than a change at every caller, which is the whole reason to do this
-// before the format moves.
+// The format is repository-scoped, workload:<repo_id>:<name> (#5385 Option C):
+// two repositories with a same-named workload produce distinct ids, so their
+// nodes, DEFINES edges, and instances no longer collapse onto one node.
 //
-// A blank workload name yields the empty id rather than a bare "workload:"
-// prefix, because that prefix would MERGE every blank-named candidate onto one
-// shared node.
+// A blank repository or workload name yields the empty id rather than an
+// identifier with an empty segment, because that segment would MERGE every
+// candidate missing it onto one shared node. A colon inside the workload name
+// is rejected for the same fail-closed reason: the composite has no parser,
+// so a colon-bearing name would make the key ambiguous to a human reader
+// (compatibility doc decision "Colon rejection"). The repository segment is
+// exempt: canonical repo ids carry their own prefix. Callers drop the empty
+// id.
 func NewWorkloadID(repoID, workloadName string) WorkloadID {
-	_ = repoID // reserved for the repository-scoped key; see #5385.
+	repo := strings.TrimSpace(repoID)
 	name := strings.TrimSpace(workloadName)
-	if name == "" {
+	if repo == "" || name == "" || strings.Contains(name, ":") {
 		return WorkloadID{}
 	}
-	return WorkloadID{v: fmt.Sprintf("workload:%s", name)}
+	return WorkloadID{v: fmt.Sprintf("workload:%s:%s", repo, name)}
 }
 
 // NewWorkloadInstanceID builds the canonical WorkloadInstance identifier.
 //
-// repoID is accepted and unused for the same reason as NewWorkloadID. A blank
-// workload name or environment yields the empty id rather than an identifier
+// The format derives from the scoped workload key:
+// workload-instance:<repo_id>:<name>:<environment>. A blank repository,
+// workload name, or environment yields the empty id rather than an identifier
 // with an empty segment, which would collide across every candidate missing
 // that segment.
 func NewWorkloadInstanceID(repoID, workloadName, environment string) WorkloadInstanceID {
-	_ = repoID // reserved for the repository-scoped key; see #5385.
+	repo := strings.TrimSpace(repoID)
 	name := strings.TrimSpace(workloadName)
 	env := strings.TrimSpace(environment)
-	if name == "" || env == "" {
+	if repo == "" || name == "" || env == "" || strings.Contains(name, ":") || strings.Contains(env, ":") {
 		return WorkloadInstanceID{}
 	}
-	return WorkloadInstanceID{v: fmt.Sprintf("workload-instance:%s:%s", name, env)}
+	return WorkloadInstanceID{v: fmt.Sprintf("workload-instance:%s:%s:%s", repo, name, env)}
 }
 
 // String returns the identifier as a plain string, for the Cypher parameters,

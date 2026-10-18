@@ -253,8 +253,8 @@ func TestBuildProjectionRowsSingleCandidate(t *testing.T) {
 	if wl.RepoID != "repo-1" {
 		t.Fatalf("RepoID = %q, want repo-1", wl.RepoID)
 	}
-	if wl.WorkloadID != "workload:my-api" {
-		t.Fatalf("WorkloadID = %q, want workload:my-api", wl.WorkloadID)
+	if wl.WorkloadID != "workload:repo-1:my-api" {
+		t.Fatalf("WorkloadID = %q, want workload:repo-1:my-api", wl.WorkloadID)
 	}
 	if wl.WorkloadKind != "service" {
 		t.Fatalf("WorkloadKind = %q, want service", wl.WorkloadKind)
@@ -268,7 +268,7 @@ func TestBuildProjectionRowsSingleCandidate(t *testing.T) {
 		t.Fatalf("Stats.Instances = %d, want 1", result.Stats.Instances)
 	}
 	inst := result.InstanceRows[0]
-	if inst.InstanceID != "workload-instance:my-api:prod" {
+	if inst.InstanceID != "workload-instance:repo-1:my-api:prod" {
 		t.Fatalf("InstanceID = %q", inst.InstanceID)
 	}
 	if inst.Environment != "prod" {
@@ -279,7 +279,7 @@ func TestBuildProjectionRowsSingleCandidate(t *testing.T) {
 	if len(result.RepoDescriptors) != 1 {
 		t.Fatalf("RepoDescriptors len = %d, want 1", len(result.RepoDescriptors))
 	}
-	if result.RepoDescriptors[0].WorkloadID != "workload:my-api" {
+	if result.RepoDescriptors[0].WorkloadID != "workload:repo-1:my-api" {
 		t.Fatalf("RepoDescriptor WorkloadID = %q", result.RepoDescriptors[0].WorkloadID)
 	}
 }
@@ -312,7 +312,7 @@ func TestBuildProjectionRowsMaterializesAPIEndpointRows(t *testing.T) {
 		t.Fatalf("len(EndpointRows) = %d, want %d", got, want)
 	}
 	endpoint := result.EndpointRows[0]
-	if got, want := endpoint.WorkloadID, "workload:service-api"; got != want {
+	if got, want := endpoint.WorkloadID, "workload:repo-service-api:service-api"; got != want {
 		t.Fatalf("endpoint.WorkloadID = %q, want %q", got, want)
 	}
 	if got, want := endpoint.Path, "/widgets"; got != want {
@@ -353,7 +353,7 @@ func TestBuildProjectionRowsUsesExplicitWorkloadName(t *testing.T) {
 	if len(result.WorkloadRows) != 1 {
 		t.Fatalf("len(WorkloadRows) = %d, want 1", len(result.WorkloadRows))
 	}
-	if got, want := result.WorkloadRows[0].WorkloadID, "workload:api"; got != want {
+	if got, want := result.WorkloadRows[0].WorkloadID, "workload:repo-1:api"; got != want {
 		t.Fatalf("WorkloadID = %q, want %q", got, want)
 	}
 	if got, want := result.WorkloadRows[0].WorkloadName, "api"; got != want {
@@ -362,7 +362,7 @@ func TestBuildProjectionRowsUsesExplicitWorkloadName(t *testing.T) {
 	if len(result.InstanceRows) != 1 {
 		t.Fatalf("len(InstanceRows) = %d, want 1", len(result.InstanceRows))
 	}
-	if got, want := result.InstanceRows[0].InstanceID, "workload-instance:api:production"; got != want {
+	if got, want := result.InstanceRows[0].InstanceID, "workload-instance:repo-1:api:production"; got != want {
 		t.Fatalf("InstanceID = %q, want %q", got, want)
 	}
 }
@@ -426,22 +426,22 @@ func TestBuildProjectionRowsUsesMultipleDeploymentSources(t *testing.T) {
 	if got, want := len(result.DeploymentSourceRows), 3; got != want {
 		t.Fatalf("len(DeploymentSourceRows) = %d, want %d", got, want)
 	}
-	if !hasDeploymentSourceRow(result.DeploymentSourceRows, "workload-instance:my-api:current", "deploy-current") {
+	if !hasDeploymentSourceRow(result.DeploymentSourceRows, "workload-instance:repo-1:my-api:current", "deploy-current") {
 		t.Fatal("missing current deployment source row")
 	}
-	if !hasDeploymentSourceRow(result.DeploymentSourceRows, "workload-instance:my-api:poc", "deploy-next") {
+	if !hasDeploymentSourceRow(result.DeploymentSourceRows, "workload-instance:repo-1:my-api:poc", "deploy-next") {
 		t.Fatal("missing poc deployment source row")
 	}
-	if !hasDeploymentSourceRow(result.DeploymentSourceRows, "workload-instance:my-api:new", "deploy-next") {
+	if !hasDeploymentSourceRow(result.DeploymentSourceRows, "workload-instance:repo-1:my-api:new", "deploy-next") {
 		t.Fatal("missing new deployment source row")
 	}
-	if !hasRuntimePlatformRow(result.RuntimePlatformRows, "workload-instance:my-api:current", "kubernetes") {
+	if !hasRuntimePlatformRow(result.RuntimePlatformRows, "workload-instance:repo-1:my-api:current", "kubernetes") {
 		t.Fatal("missing current kubernetes runtime platform")
 	}
-	if !hasRuntimePlatformRow(result.RuntimePlatformRows, "workload-instance:my-api:poc", "kubernetes") {
+	if !hasRuntimePlatformRow(result.RuntimePlatformRows, "workload-instance:repo-1:my-api:poc", "kubernetes") {
 		t.Fatal("missing poc kubernetes runtime platform")
 	}
-	if !hasRuntimePlatformRow(result.RuntimePlatformRows, "workload-instance:my-api:new", "kubernetes") {
+	if !hasRuntimePlatformRow(result.RuntimePlatformRows, "workload-instance:repo-1:my-api:new", "kubernetes") {
 		t.Fatal("missing new kubernetes runtime platform")
 	}
 }
@@ -495,7 +495,7 @@ func TestBuildProjectionRowsRuntimePlatformFromResourceKinds(t *testing.T) {
 	if plat.PlatformKind != "kubernetes" {
 		t.Fatalf("PlatformKind = %q, want kubernetes", plat.PlatformKind)
 	}
-	if plat.InstanceID != "workload-instance:my-api:prod" {
+	if plat.InstanceID != "workload-instance:repo-1:my-api:prod" {
 		t.Fatalf("InstanceID = %q", plat.InstanceID)
 	}
 	if plat.PlatformName != "prod" {
@@ -573,13 +573,13 @@ func TestBuildProjectionRowsAddsProvisionedInfrastructurePlatforms(t *testing.T)
 	if got := len(result.InstanceRows); got != 2 {
 		t.Fatalf("len(InstanceRows) = %d, want 2", got)
 	}
-	if !hasRuntimePlatformRow(result.RuntimePlatformRows, "workload-instance:service-api:prod", "kubernetes") {
+	if !hasRuntimePlatformRow(result.RuntimePlatformRows, "workload-instance:repo-service:service-api:prod", "kubernetes") {
 		t.Fatal("missing kubernetes runtime platform for prod deployment environment")
 	}
-	if !hasRuntimePlatformRow(result.RuntimePlatformRows, "workload-instance:service-api:prod", "ecs") {
+	if !hasRuntimePlatformRow(result.RuntimePlatformRows, "workload-instance:repo-service:service-api:prod", "ecs") {
 		t.Fatal("missing ecs runtime platform for prod infrastructure environment")
 	}
-	if !hasRuntimePlatformRow(result.RuntimePlatformRows, "workload-instance:service-api:qa", "ecs") {
+	if !hasRuntimePlatformRow(result.RuntimePlatformRows, "workload-instance:repo-service:service-api:qa", "ecs") {
 		t.Fatal("missing ecs runtime platform for qa infrastructure environment")
 	}
 }
@@ -627,16 +627,16 @@ func TestBuildProjectionRowsAddsMultipleProvisionedInfrastructurePlatforms(t *te
 
 	result := BuildProjectionRowsWithInfrastructurePlatforms(candidates, deploymentEnvs, infraPlatforms)
 
-	if !hasRuntimePlatformRow(result.RuntimePlatformRows, "workload-instance:service-api:current", "ecs") {
+	if !hasRuntimePlatformRow(result.RuntimePlatformRows, "workload-instance:repo-service:service-api:current", "ecs") {
 		t.Fatal("missing current ecs runtime platform")
 	}
-	if !hasRuntimePlatformRow(result.RuntimePlatformRows, "workload-instance:service-api:current", "eks") {
+	if !hasRuntimePlatformRow(result.RuntimePlatformRows, "workload-instance:repo-service:service-api:current", "eks") {
 		t.Fatal("missing current eks runtime platform")
 	}
-	if !hasRuntimePlatformRow(result.RuntimePlatformRows, "workload-instance:service-api:poc", "ecs") {
+	if !hasRuntimePlatformRow(result.RuntimePlatformRows, "workload-instance:repo-service:service-api:poc", "ecs") {
 		t.Fatal("missing poc ecs runtime platform")
 	}
-	if !hasRuntimePlatformRow(result.RuntimePlatformRows, "workload-instance:service-api:poc", "eks") {
+	if !hasRuntimePlatformRow(result.RuntimePlatformRows, "workload-instance:repo-service:service-api:poc", "eks") {
 		t.Fatal("missing poc eks runtime platform")
 	}
 }
@@ -958,7 +958,7 @@ func TestNamespaceEnvironmentFallbackNormalizesMixedCase(t *testing.T) {
 	if got, want := result.InstanceRows[0].Environment, "prod"; got != want {
 		t.Fatalf("InstanceRows[0].Environment = %q, want %q (namespace %q must canonicalize, not just lowercase)", got, want, "Production")
 	}
-	if got, want := result.InstanceRows[0].InstanceID, "workload-instance:mixed-case-ns:prod"; got != want {
+	if got, want := result.InstanceRows[0].InstanceID, "workload-instance:repo-mixed-case-ns:mixed-case-ns:prod"; got != want {
 		t.Fatalf("InstanceRows[0].InstanceID = %q, want %q", got, want)
 	}
 }

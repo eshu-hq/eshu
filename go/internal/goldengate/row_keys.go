@@ -14,7 +14,9 @@ package goldengate
 // string literal under go/internal, go/cmd, and go/pkg and fails on a missing
 // or stale key, so edit it only to match what that test prints.
 var writePathRowKeys = map[string]struct{}{
+	"a":              {},
 	"action":         {},
+	"b":              {},
 	"actions":        {},
 	"actor":          {},
 	"address":        {},

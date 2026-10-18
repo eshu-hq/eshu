@@ -4,16 +4,16 @@
   "edges": [
     {
       "relationship_type": "DEPENDS_ON",
-      "source_entity_id": "workload:workload-dependency-source",
-      "target_entity_id": "workload:workload-dependency-target",
+      "source_entity_id": "workload:repo-ifa-workload-dependency-source:workload-dependency-source",
+      "target_entity_id": "workload:repo-ifa-workload-dependency-target:workload-dependency-target",
       "identity": {
         "identity_key": "canonical"
       }
     },
     {
       "relationship_type": "DEPENDS_ON",
-      "source_entity_id": "workload:workload-dependency-multi-source",
-      "target_entity_id": "workload:workload-dependency-multi-target",
+      "source_entity_id": "workload:repo-ifa-workload-dependency-multi-source:workload-dependency-multi-source",
+      "target_entity_id": "workload:repo-ifa-workload-dependency-multi-target:workload-dependency-multi-target",
       "identity": {
         "identity_key": "canonical"
       }

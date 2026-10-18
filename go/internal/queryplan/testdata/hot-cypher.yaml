@@ -179,6 +179,33 @@ entries:
         - AllNodesScan
         - CartesianProduct
     cypher_sha256: "d12bf86cbc4a55ae7255a7953e28968a843be9e3a8081dee6124871d2ae896ae"
+  - id: QP-DEPLOY-CATALOG-WORKLOAD-SIBLINGS
+    domain: deployable
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/repository/catalog_workload_environments.go
+      symbol: CatalogWorkloadSiblingCypher
+      source_sha256: 70426c7b26c98024a04496a39c2523961785da56d974fa0374153437b885cc71
+      line_hint: 123
+    required_anchors:
+      - label: Workload
+        property: id
+    required_schema:
+      - workload_id
+      - nornicdb_workload_id_lookup
+    requires_order: true
+    caveats:
+      - Bounded to the limited workload id set ($ids) from the catalog base query so the sibling lookup never walks every SAME_NAME edge (issue #3389). Sibling admission is decided Go-side against the caller grant (Decision D2, #5385), keeping this query grant-free on both backends.
+    plan:
+      operators:
+        - NodeIndexSeek
+        - Expand
+        - Sort
+      forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+    cypher_sha256: "4feff7e66979cd57744ec8ed89b6d43604211bf4b376ae1af830c529f269c22f"
   - id: QP-SVC-RESOLVE
     domain: service
     backend: nornicdb

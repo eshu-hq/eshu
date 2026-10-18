@@ -249,6 +249,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		"QP-REPOSITORY-DEPENDS-ON-GROUP-SIZES":            repository.RepositoryDependencyGroupSizeCypher,
 		"QP-DEPLOY-CATALOG-WORKLOAD-REPO":                 repository.CatalogWorkloadRepoCypher,
 		"QP-DEPLOY-CATALOG-WORKLOAD-INSTANCE":             repository.CatalogWorkloadInstanceEnvironmentCypher,
+		"QP-DEPLOY-CATALOG-WORKLOAD-SIBLINGS":             repository.CatalogWorkloadSiblingCypher,
 		"QP-SVC-RESOLVE":                                  serviceResolve,
 		"QP-SVC-CONTEXT":                                  serviceContext,
 		"QP-SVC-RUNTIME-TOPOLOGY":                         serviceRuntimeTopology,

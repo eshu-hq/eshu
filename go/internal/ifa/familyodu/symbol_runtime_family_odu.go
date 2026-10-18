@@ -169,9 +169,9 @@ const (
 
 	// SymbolRuntimeFamilyWorkloadID is the deterministic (non-hashed)
 	// workload id BuildProjectionRows derives:
-	// fmt.Sprintf("workload:%s", workloadName), where workloadName falls
+	// workload:<repo_id>:<workloadName> (#5385), where workloadName falls
 	// back to the repository's Name (WorkloadName is never set here).
-	SymbolRuntimeFamilyWorkloadID = "workload:" + symbolRuntimeFamilyRepoName
+	SymbolRuntimeFamilyWorkloadID = "workload:" + SymbolRuntimeFamilyRepoID + ":" + symbolRuntimeFamilyRepoName
 
 	// SymbolRuntimeFamilyEndpointID and SymbolRuntimeFamilyHealthEndpointID
 	// are stableAPIEndpointID(SymbolRuntimeFamilyRepoID,
@@ -182,8 +182,8 @@ const (
 	// hand-typed) by TestSymbolRuntimeFamilyWorkloadAndEndpointIDLiterals,
 	// which computes the same sha256 over the same three inputs for each
 	// path.
-	SymbolRuntimeFamilyEndpointID       = "endpoint:f8c7b9f9a7ebdd90ea596f67"
-	SymbolRuntimeFamilyHealthEndpointID = "endpoint:12ae7628fc25a1abb76d2d2f"
+	SymbolRuntimeFamilyEndpointID       = "endpoint:84bcddfc4a8cec0d5e896db3"
+	SymbolRuntimeFamilyHealthEndpointID = "endpoint:a803276feed3adb9569af0fb"
 
 	// SymbolRuntimeFamilyActionID is cloudActionIDPrefix + the resolved
 	// action: "cloud-action:" + SymbolRuntimeFamilyCloudAction.

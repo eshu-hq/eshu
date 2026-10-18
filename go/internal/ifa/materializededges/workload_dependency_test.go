@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
+	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
 
 func TestWorkloadDependencyFamilyGraphLookupMatchesProductionAnchoring(t *testing.T) {
@@ -136,7 +137,7 @@ func TestResolveWorkloadDependencyMaterializedEdgesRejectsWrongExpectedSet(t *te
 	odu := ifa.WorkloadDependencyFamilyOdu().Odu
 	wrongPath := filepath.Join(t.TempDir(), "wrong-expected-edges.json")
 	writeWorkloadDependencyExpectedEdgesFixture(t, wrongPath, []map[string]string{
-		{"relationship_type": "DEPENDS_ON", "source_entity_id": "workload:workload-dependency-source", "target_entity_id": "workload:not-the-real-target"},
+		{"relationship_type": "DEPENDS_ON", "source_entity_id": workloadid.NewWorkloadID(ifa.WorkloadDependencyFamilySourceRepoID, "workload-dependency-source").String(), "target_entity_id": "workload:not-the-real-target"},
 	})
 
 	ok, detail := resolveWorkloadDependencyMaterializedEdges(odu, wrongPath)
@@ -153,8 +154,8 @@ func TestResolveWorkloadDependencyMaterializedEdgesAdmitsBothProductionPairs(t *
 	odu := ifa.WorkloadDependencyFamilyOdu().Odu
 	path := filepath.Join(t.TempDir(), "two-production-pairs-expected-edges.json")
 	writeWorkloadDependencyExpectedEdgesFixture(t, path, []map[string]string{
-		{"relationship_type": "DEPENDS_ON", "source_entity_id": "workload:workload-dependency-source", "target_entity_id": "workload:workload-dependency-target"},
-		{"relationship_type": "DEPENDS_ON", "source_entity_id": "workload:workload-dependency-multi-source", "target_entity_id": "workload:workload-dependency-multi-target"},
+		{"relationship_type": "DEPENDS_ON", "source_entity_id": workloadid.NewWorkloadID(ifa.WorkloadDependencyFamilySourceRepoID, "workload-dependency-source").String(), "target_entity_id": workloadid.NewWorkloadID(ifa.WorkloadDependencyFamilyTargetRepoID, "workload-dependency-target").String()},
+		{"relationship_type": "DEPENDS_ON", "source_entity_id": workloadid.NewWorkloadID(ifa.WorkloadDependencyFamilyMultiSourceRepoID, "workload-dependency-multi-source").String(), "target_entity_id": workloadid.NewWorkloadID(ifa.WorkloadDependencyFamilyMultiTargetRepoID, "workload-dependency-multi-target").String()},
 	})
 
 	ok, detail := resolveWorkloadDependencyMaterializedEdges(odu, path)
@@ -172,8 +173,8 @@ func TestResolveWorkloadDependencyMaterializedEdgesRejectsOrphanPairInFixture(t 
 	odu := ifa.WorkloadDependencyFamilyOdu().Odu
 	path := filepath.Join(t.TempDir(), "orphan-expected-edges.json")
 	writeWorkloadDependencyExpectedEdgesFixture(t, path, []map[string]string{
-		{"relationship_type": "DEPENDS_ON", "source_entity_id": "workload:workload-dependency-source", "target_entity_id": "workload:workload-dependency-target"},
-		{"relationship_type": "DEPENDS_ON", "source_entity_id": "workload:workload-dependency-multi-source", "target_entity_id": "workload:workload-dependency-multi-target"},
+		{"relationship_type": "DEPENDS_ON", "source_entity_id": workloadid.NewWorkloadID(ifa.WorkloadDependencyFamilySourceRepoID, "workload-dependency-source").String(), "target_entity_id": workloadid.NewWorkloadID(ifa.WorkloadDependencyFamilyTargetRepoID, "workload-dependency-target").String()},
+		{"relationship_type": "DEPENDS_ON", "source_entity_id": workloadid.NewWorkloadID(ifa.WorkloadDependencyFamilyMultiSourceRepoID, "workload-dependency-multi-source").String(), "target_entity_id": workloadid.NewWorkloadID(ifa.WorkloadDependencyFamilyMultiTargetRepoID, "workload-dependency-multi-target").String()},
 		{"relationship_type": "DEPENDS_ON", "source_entity_id": "workload:workload-dependency-orphan-source-persisted", "target_entity_id": "workload:workload-dependency-orphan-target-persisted"},
 	})
 
@@ -191,12 +192,12 @@ func TestWorkloadDependencyAssertSelectiveAdmissionCatchesMissingAndExtra(t *tes
 	t.Parallel()
 
 	positive := reducer.WorkloadDependencyEdgeRow{
-		RepoID: ifa.WorkloadDependencyFamilySourceRepoID, WorkloadID: "workload:workload-dependency-source",
-		TargetRepoID: ifa.WorkloadDependencyFamilyTargetRepoID, TargetWorkloadID: "workload:workload-dependency-target",
+		RepoID: ifa.WorkloadDependencyFamilySourceRepoID, WorkloadID: workloadid.NewWorkloadID(ifa.WorkloadDependencyFamilySourceRepoID, "workload-dependency-source").String(),
+		TargetRepoID: ifa.WorkloadDependencyFamilyTargetRepoID, TargetWorkloadID: workloadid.NewWorkloadID(ifa.WorkloadDependencyFamilyTargetRepoID, "workload-dependency-target").String(),
 	}
 	multiLeak := reducer.WorkloadDependencyEdgeRow{
-		RepoID: ifa.WorkloadDependencyFamilyMultiSourceRepoID, WorkloadID: "workload:workload-dependency-multi-source",
-		TargetRepoID: ifa.WorkloadDependencyFamilyMultiTargetRepoID, TargetWorkloadID: "workload:workload-dependency-multi-target",
+		RepoID: ifa.WorkloadDependencyFamilyMultiSourceRepoID, WorkloadID: workloadid.NewWorkloadID(ifa.WorkloadDependencyFamilyMultiSourceRepoID, "workload-dependency-multi-source").String(),
+		TargetRepoID: ifa.WorkloadDependencyFamilyMultiTargetRepoID, TargetWorkloadID: workloadid.NewWorkloadID(ifa.WorkloadDependencyFamilyMultiTargetRepoID, "workload-dependency-multi-target").String(),
 	}
 	orphanLeak := reducer.WorkloadDependencyEdgeRow{
 		RepoID: ifa.WorkloadDependencyFamilyOrphanSourceRepoID, WorkloadID: ifa.WorkloadDependencyFamilyOrphanSourcePersistedWorkloadID,

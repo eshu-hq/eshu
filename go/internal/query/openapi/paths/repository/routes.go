@@ -192,8 +192,9 @@ const Routes = `
       "get": {
         "tags": ["catalog"],
         "summary": "List catalog entities",
-        "description": "Returns bounded repository, workload, and service handles for catalog navigation.",
+        "description": "Returns bounded repository, workload, and service handles for catalog navigation. Scoped tokens receive rows intersected with the caller's granted repositories; same-name sibling counts exclude workloads outside the grant.",
         "operationId": "listCatalog",
+        "x-scoped-token-support": true,
         "parameters": [
           {
             "name": "limit",
@@ -204,6 +205,7 @@ const Routes = `
           }
         ],
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {

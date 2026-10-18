@@ -12,6 +12,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
@@ -79,6 +80,46 @@ func requireInstancesNotReady(t *testing.T, err error) {
 	}
 }
 
+// scopedWaitAnchors models the post-resolution row state (#5385): the
+// extractor rows reaching the wait carry converged repository-scoped ids, so
+// the ledger freezes keys the cheap poll can replay. Handle-form rows take
+// the full-evaluation fallback instead (see TestWaitPollFallsBackOnHandleFormAnchors).
+var (
+	scopedWaitProdAnchor  = workloadinstance.Anchor{WorkloadID: "workload:repository:r_app:app", Environment: "prod"}
+	scopedWaitStageAnchor = workloadinstance.Anchor{WorkloadID: "workload:repository:r_app:app", Environment: "stage"}
+)
+
+func scopedWaitRoleEnvelope(factID, environment string) facts.Envelope {
+	return workloadCloudAWSResourceEnvelope(factID, map[string]any{
+		"arn":                 "arn:aws:iam::123456789012:role/app-role",
+		"resource_id":         "arn:aws:iam::123456789012:role/app-role",
+		"resource_type":       "aws_iam_role",
+		"name":                "app-role",
+		"account_id":          "123456789012",
+		"region":              "us-east-1",
+		"service_kind":        "iam",
+		"correlation_anchors": []any{"arn:aws:iam::123456789012:role/app-role"},
+		"workload_id":         "workload:repository:r_app:app",
+		"environment":         environment,
+		"attributes":          map[string]any{},
+	})
+}
+
+func scopedWaitHandler(
+	lookup workloadinstance.ExistenceLookup,
+	writer *recordingWorkloadCloudRelationshipWriter,
+) WorkloadCloudRelationshipMaterializationHandler {
+	return WorkloadCloudRelationshipMaterializationHandler{
+		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
+			scopedWaitRoleEnvelope("fact-prod", "prod"),
+			scopedWaitRoleEnvelope("fact-stage", "stage"),
+		}},
+		EdgeWriter:                writer,
+		ReadinessLookup:           readyLookup(true, true),
+		WorkloadInstanceExistence: lookup,
+	}
+}
+
 // TestWorkloadCloudRelationshipCommitsBeforeWaitingOnInstances is §4.5 item 7
 // for USES: the first evaluation commits every row (the missing stage anchor
 // is a MATCH no-op) and then defers; an unchanged poll touches neither the
@@ -88,9 +129,9 @@ func TestWorkloadCloudRelationshipCommitsBeforeWaitingOnInstances(t *testing.T) 
 	t.Parallel()
 	clock := time.Date(2026, time.September, 19, 9, 0, 0, 0, time.UTC)
 	ledger := &usesWaitLedger{rows: map[string]crossscope.ReadinessWait{}}
-	lookup := &fakeWorkloadInstanceExistence{existing: map[workloadinstance.Anchor]struct{}{prodAnchor: {}}}
+	lookup := &fakeWorkloadInstanceExistence{existing: map[workloadinstance.Anchor]struct{}{scopedWaitProdAnchor: {}}}
 	first := &recordingWorkloadCloudRelationshipWriter{}
-	handler := instanceReadinessHandler(lookup, first)
+	handler := scopedWaitHandler(lookup, first)
 	handler.ReadinessWaits = ledger
 	handler.Now = func() time.Time { return clock }
 	factLoader := handler.FactLoader.(*stubFactLoader)
@@ -118,7 +159,7 @@ func TestWorkloadCloudRelationshipCommitsBeforeWaitingOnInstances(t *testing.T) 
 	}
 
 	clock = clock.Add(30 * time.Second)
-	lookup.existing = map[workloadinstance.Anchor]struct{}{prodAnchor: {}, stageAnchor: {}}
+	lookup.existing = map[workloadinstance.Anchor]struct{}{scopedWaitProdAnchor: {}, scopedWaitStageAnchor: {}}
 	resolved := &recordingWorkloadCloudRelationshipWriter{}
 	handler.EdgeWriter = resolved
 	result, err = handler.Handle(context.Background(), intent)

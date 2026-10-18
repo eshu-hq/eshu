@@ -419,6 +419,7 @@ nav:
     - Hosted Ops Alert Pack: operate/hosted-ops-alert-pack.md
     - Tuning Playbook: operate/tuning-playbook.md
     - Rebuild the Graph From Facts: operate/graph-rebuild-from-facts.md
+    - Workload Identity Cutover: operate/workload-identity-cutover-runbook.md
     - Delta-Base Union: operate/graph-delta-union.md
     - Troubleshooting: operate/troubleshooting.md
     - Park-Holder Runbook: operate/park-holder-runbook.md

@@ -149,27 +149,6 @@ func (h *Handler) compareEnvironments(w http.ResponseWriter, r *http.Request) {
 	querycontract.WriteSuccess(w, r, http.StatusOK, resp, querycontract.BuildTruthEnvelope(h.profile(), Capability, querycontract.TruthBasisHybrid, "compared environment state from workload and cloud-resource evidence"))
 }
 
-// fetchWorkload queries Neo4j for the workload by ID.
-func (h *Handler) fetchWorkload(ctx context.Context, workloadID string) (map[string]any, error) {
-	cypher := `
-		MATCH (w:Workload) WHERE w.id = $workload_id
-		RETURN w.id as id, w.name as name, w.kind as kind, w.repo_id as repo_id
-	`
-	row, err := h.Neo4j.RunSingle(ctx, cypher, map[string]any{"workload_id": workloadID})
-	if err != nil {
-		return nil, err
-	}
-	if row == nil {
-		return nil, nil
-	}
-	return map[string]any{
-		"id":      compareStringVal(row, "id"),
-		"name":    compareStringVal(row, "name"),
-		"kind":    compareStringVal(row, "kind"),
-		"repo_id": compareStringVal(row, "repo_id"),
-	}, nil
-}
-
 // environmentSnapshot fetches the instance and cloud resources for one environment.
 func (h *Handler) environmentSnapshot(
 	ctx context.Context,

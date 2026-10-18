@@ -110,9 +110,13 @@ func resolveWorkloadCloudRelationshipMaterializedEdges(odu ifa.Odu, expectedEdge
 // from the extractor row: the write template MATCHes
 // `(workload:Workload {id: row.workload_id})<-[:INSTANCE_OF]-(instance)` and
 // MERGEs the edge off the INSTANCE, so the live graph keys the source by the
-// instance id, not the workload id. The instance id format mirrors
-// reducer.projection's `workload-instance:<name>:<environment>` (the
-// workload id is `workload:<name>` by the same construction). Keying the
+// instance id, not the workload id. The mapping is format-preserving:
+// a scoped `workload:<repo_id>:<name>` yields the scoped
+// `workload-instance:<repo_id>:<name>:<environment>` the reducer projection
+// writes, while a legacy handle yields the handle-derived form. Production
+// rows pass through the reducer handle ladder before the commit, so the
+// writer only ever MATCHes resolved scoped ids; the handle-derived form
+// describes the offline extractor output, never graph truth. Keying the
 // expected source by the workload id would pass offline while describing an
 // edge triple the writer never creates, and no correct live graph could match
 // the fixture.
