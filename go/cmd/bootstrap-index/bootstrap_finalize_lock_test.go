@@ -90,7 +90,7 @@ func (r *lockedRun) execute() error {
 		secretLines,
 		func(context.Context, bootstrapDB, func(string) string, *slog.Logger) error { return nil },
 		func(context.Context, bootstrapDB, func(string) string, trace.Tracer, *telemetry.Instruments) (graphDeps, error) {
-			return graphDeps{writer: &noopCanonicalWriter{}, close: func() error { return nil }}, nil
+			return graphDeps{writer: &noopCanonicalWriter{}, close: func() error { return nil }, gapReconciler: stubNoopGapReconciliation()}, nil
 		},
 		func(context.Context, bootstrapDB, func(string) string, trace.Tracer, *telemetry.Instruments, *slog.Logger) (collectorDeps, error) {
 			r.record("collector_build")

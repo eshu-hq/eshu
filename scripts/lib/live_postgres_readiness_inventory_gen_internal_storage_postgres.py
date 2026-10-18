@@ -212,6 +212,10 @@ TABLE = {
             "TestDeployableUnitReopenFingerprintWriteIsMonotonicLive",
             "TestDeployableUnitReopenFingerprintCascadesWithWorkItemLive",
         ),
+        "go/internal/storage/postgres/ingestion_reopen_correlation_invalidate_live_test.go": (
+            "TestInvalidateDeployableUnitReopenFingerprintsForReposLive",
+            "TestListAllDeployableUnitAdmittedAnchorReposLive",
+        ),
         "go/internal/storage/postgres/manifest_less_dirty_rule_answer_live_test.go": (
             "TestReducerContentionGateManifestLessDirtyRuleReturnsTheSameDefinitions",
             "TestReducerContentionGateManifestLessDirtyRuleNaiveRuleLosesTheHole",

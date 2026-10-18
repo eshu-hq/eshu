@@ -73,8 +73,18 @@ type Result struct {
 	Deleted       map[string]int64
 	// Skipped counts write statements that were not executed because
 	// a preceding cheap count query returned zero.
-	Skipped  map[string]int64
-	Duration time.Duration
+	Skipped map[string]int64
+	// InvalidatedFingerprints counts the deployable_unit_correlation
+	// reopen fingerprint rows the cycle deleted after the graph commit:
+	// swept repositories (push, #8316). Gap reconciliation lives in the
+	// maintenance pass, never in the sweep, so the sweep deletes no gap
+	// rows here.
+	InvalidatedFingerprints int64
+	// DeployableUnitGapRepos is retained for the result shape and stays 0
+	// from the sweep: gap reconciliation lives in the maintenance pass
+	// (#8316, #8371).
+	DeployableUnitGapRepos int
+	Duration               time.Duration
 }
 
 // Sweeper runs one bounded orphan-node cleanup cycle.
@@ -253,6 +263,8 @@ func (r *Runner) recordResult(ctx context.Context, result Result) {
 		slog.Any("deleted_by_label", result.Deleted),
 		slog.Int64("writes_skipped_total", graphOrphanSweepTotal(result.Skipped)),
 		slog.Any("skipped_by_label", result.Skipped),
+		slog.Int64("deployable_unit_fingerprints_invalidated", result.InvalidatedFingerprints),
+		slog.Int("deployable_unit_gap_repos", result.DeployableUnitGapRepos),
 		slog.Float64("duration_seconds", result.Duration.Seconds()),
 		telemetry.PhaseAttr(telemetry.PhaseReduction),
 	)

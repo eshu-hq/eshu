@@ -83,7 +83,7 @@ func TestBootstrapCanonicalExecutorCapturesStatements(t *testing.T) {
 // datastore opens.
 func TestOpenBootstrapCanonicalWriterFailsClosedOnCaptureFlagWithoutDir(t *testing.T) {
 	t.Setenv("ESHU_DIFFERENTIAL_CAPTURE", "1")
-	_, _, err := openBootstrapCanonicalWriter(context.Background(), nil, func(string) string { return "" }, nil, nil)
+	_, _, _, err := openBootstrapCanonicalWriter(context.Background(), nil, func(string) string { return "" }, nil, nil)
 	if err == nil {
 		t.Fatal("openBootstrapCanonicalWriter() error = nil, want fail-closed capture error")
 	}

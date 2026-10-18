@@ -370,3 +370,54 @@ func (s *RelationshipStore) RecordDeployableUnitReopenFingerprint(
 	}
 	return nil
 }
+
+// InvalidateDeployableUnitReopenFingerprintsForRepos deletes the reopen
+// fingerprint rows of every deployable_unit_correlation item whose recorded
+// repository set contains any of repoIDs (#8316). Both Repository deleters
+// call it after the graph commit: the path-conflict retirement with its
+// retired id, the orphan sweep with its swept Repository keys. The graph
+// delete and this Postgres delete are not one transaction (separate stores),
+// so the call is idempotent best-effort right after the commit: a crash
+// between the two is closed by the gap reconciliation, which re-derives the
+// same missing-edge set. A missing row always re-opens on the next
+// maintenance pass, so deleting a row the next pass would recompute anyway
+// only costs one replay. Empty input deletes nothing. It returns the number
+// of fingerprint rows deleted.
+func (s *RelationshipStore) InvalidateDeployableUnitReopenFingerprintsForRepos(
+	ctx context.Context,
+	repoIDs []string,
+) (int64, error) {
+	if len(repoIDs) == 0 {
+		return 0, nil
+	}
+	query := backfill.InvalidateDeployableUnitReopenFingerprintsForReposQuery
+	var arg any = array.StringArray(repoIDs)
+	if len(repoIDs) == 1 {
+		query = backfill.InvalidateDeployableUnitReopenFingerprintsForRepoQuery
+		arg = repoIDs[0]
+	}
+	result, err := s.database.ExecContext(ctx, query, arg)
+	if err != nil {
+		return 0, fmt.Errorf("invalidate deployable unit reopen fingerprints: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("invalidate deployable unit reopen fingerprints: rows affected: %w", err)
+	}
+	return affected, nil
+}
+
+// ListAllDeployableUnitAdmittedAnchorRepos lists the full distinct source
+// repository set with admitted deployable_unit_correlation decisions
+// (#8316), for the gap-reconciliation graph probe. It carries no LIMIT:
+// the probe batches the set into fixed-size graph round trips instead, so
+// no tail anchor starves (#8371 review F1).
+func (s *RelationshipStore) ListAllDeployableUnitAdmittedAnchorRepos(
+	ctx context.Context,
+) ([]string, error) {
+	rows, err := s.database.QueryContext(ctx, backfill.ListAllDeployableUnitAdmittedAnchorReposQuery)
+	if err != nil {
+		return nil, fmt.Errorf("list deployable_unit_correlation admitted anchors: %w", err)
+	}
+	return backfill.ScanDeployableUnitAdmittedAnchorRepos(rows)
+}

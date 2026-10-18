@@ -88,7 +88,7 @@ func TestPipelinedBootstrapRunsCoveringBackfillAfterProjectorDrain(t *testing.T)
 
 	err := runPipelined(
 		context.Background(),
-		collectorDeps{source: &fakeSource{generations: nil}, committer: probe},
+		collectorDeps{source: &fakeSource{generations: nil}, committer: probe, gapReconciler: stubNoopGapReconciliation()},
 		projectorDeps{
 			workSource: &concurrentWorkSource{
 				items: []projector.ScopeGenerationWork{{Scope: scope.IngestionScope{ScopeID: "s1"}}},
@@ -133,7 +133,7 @@ func TestPipelinedBootstrapCoveringBackfillFailureIsFatal(t *testing.T) {
 
 	err := runPipelined(
 		context.Background(),
-		collectorDeps{source: &fakeSource{generations: nil}, committer: probe},
+		collectorDeps{source: &fakeSource{generations: nil}, committer: probe, gapReconciler: stubNoopGapReconciliation()},
 		projectorDeps{
 			workSource:    &concurrentWorkSource{items: nil},
 			factStore:     &fakeFactStore{},

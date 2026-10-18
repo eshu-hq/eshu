@@ -290,6 +290,40 @@ func runPipelined(
 	// retirement. This closes the outcome-keyed replay gap from #5847 and keeps
 	// the bounded-degradation and stale-writer safeguards from #5854 and #5740.
 	//
+	// Gap reconciliation (#8316) runs before the correlation reopen below:
+	// admitted deployable_unit_correlation anchors with no incident edge in
+	// the graph have their fingerprint rows deleted here, so the reopen
+	// that follows re-projects the lost edges in this same pass. It must
+	// run here, never in the reducer sweep cycle: any sweep-cycle statement
+	// against admission_decisions parks a second waiter behind the
+	// fault-injection kill cell's exclusive lock, which its exact-equality
+	// census can never align (#8371).
+	if cd.gapReconciler == nil {
+		return fmt.Errorf("deployable unit gap reconciler is required: refusing to run the maintenance pass without the gap repair")
+	}
+	gapReconcileStart := time.Now()
+	gapRepos, gapInvalidated, err := cd.gapReconciler.Reconcile(ctx)
+	if err != nil {
+		recordPhase("deployable_unit_gap_reconciliation", gapReconcileStart)
+		if logger != nil {
+			logger.ErrorContext(
+				ctx, "deployable unit gap reconciliation failed",
+				log.Err(err),
+				telemetry.FailureClassAttr("deployable_unit_gap_reconciliation_failure"),
+			)
+		}
+		return fmt.Errorf("deployable unit gap reconciliation fatal: %w", err)
+	}
+	recordPhase("deployable_unit_gap_reconciliation", gapReconcileStart)
+	if logger != nil {
+		logger.InfoContext(
+			ctx, "deployable unit gap reconciliation completed",
+			slog.Int("deployable_unit_gap_repos", len(gapRepos)),
+			slog.Int64("deployable_unit_fingerprints_invalidated", gapInvalidated),
+			telemetry.PhaseAttr(telemetry.PhaseEmission),
+		)
+	}
+
 	// deployable_unit_correlation is reopened through the changed-evidence
 	// gate (#8283): an item whose recorded input fingerprint still matches is
 	// left succeeded, and an item with no fingerprint row always re-opens. Input a

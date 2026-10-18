@@ -91,7 +91,7 @@ func TestRunBeginsSecretLinesDeferralBeforeWritesAndFinalizesAfterThePipeline(t 
 		},
 		func(context.Context, bootstrapDB, func(string) string, trace.Tracer, *telemetry.Instruments) (graphDeps, error) {
 			record("graph_open")
-			return graphDeps{writer: &noopCanonicalWriter{}, close: func() error { return nil }}, nil
+			return graphDeps{writer: &noopCanonicalWriter{}, close: func() error { return nil }, gapReconciler: stubNoopGapReconciliation()}, nil
 		},
 		func(context.Context, bootstrapDB, func(string) string, trace.Tracer, *telemetry.Instruments, *slog.Logger) (collectorDeps, error) {
 			record("collector_build")

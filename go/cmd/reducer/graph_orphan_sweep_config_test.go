@@ -59,13 +59,13 @@ func TestLoadGraphOrphanSweepConfigCanDisableRunner(t *testing.T) {
 }
 
 func TestGraphOrphanSweepRunnerForConfig(t *testing.T) {
-	disabled := graphOrphanSweepRunnerFor(stubGraphExecutor{}, stubCypherReader{}, stubGraphOrphanLeaseManager{}, graphOrphanSweepConfig{})
+	disabled := graphOrphanSweepRunnerFor(stubGraphExecutor{}, stubCypherReader{}, stubGraphOrphanLeaseManager{}, graphOrphanSweepConfig{}, nil)
 	require.Nil(t, disabled)
 
 	enabled := graphOrphanSweepRunnerFor(stubGraphExecutor{}, stubCypherReader{}, stubGraphOrphanLeaseManager{}, graphOrphanSweepConfig{
 		Enabled: true,
 		Runner:  loadGraphOrphanSweepConfig(func(string) string { return "" }).Runner,
-	})
+	}, nil)
 	require.NotNil(t, enabled)
 	require.Equal(t, time.Hour, enabled.Config.PollInterval)
 	require.NotNil(t, enabled.LeaseManager)
