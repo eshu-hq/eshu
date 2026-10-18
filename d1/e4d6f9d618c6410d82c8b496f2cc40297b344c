@@ -1,0 +1,16 @@
+go/internal/storage/cypher/canonical/crossplane/parts.go
+  h_78a442cba0b3e6 8
+go/internal/storage/cypher/crossplane_satisfied_by_edge_writer_parity_test.go
+  h_78a442cba0b3e6 113-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d1e4d6f9d618c6410d82c8b496f2cc40297b344c",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
