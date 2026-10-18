@@ -9,6 +9,7 @@ TABLE = {
     "./internal/reducer/status/summary": {
         "go/internal/reducer/status/summary/contention_live_test.go": (
             "TestWritersBesideTheProductionClaimLoopLive",
+            "TestDrainActiveBackendsLive",
         ),
         "go/internal/reducer/status/summary/reader_live_test.go": (
             "TestReaderServesWhatTheWriterStoredEqualToLiveLive",
