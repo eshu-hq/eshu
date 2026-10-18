@@ -24,10 +24,12 @@ set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$here/.." && pwd)"
 
-# Every script the agent-canon gate executes: the verifier, its test mirror
-# (plus the two lib case files the mirror sources), the hook suites, and
-# every companion they source. This guard itself is last: it must pass its
-# own scan.
+# Every script the agent-canon gate executes: the verifier
+# (verify-agent-canon.sh), its test mirror (plus the two lib case files the
+# mirror sources), the hook suites, and every companion they source. This
+# guard itself is last: it must pass its own scan. The registry-drift check
+# below pins this list to the gate's trigger paths, so a future canon script
+# cannot slip past unscanned.
 canon_scripts=(
   "scripts/verify-agent-canon.sh"
   "scripts/test-verify-agent-hygiene.sh"
@@ -50,6 +52,74 @@ canon_scripts=(
   "scripts/test-cursor-hooks-helper-cases.sh"
   "scripts/test-verify-agent-canon-pipes.sh"
 )
+
+# Agent-canon trigger-path shell scripts this scan deliberately does NOT
+# cover, with why. verify-no-ai-attribution.sh shares the hygiene workflow
+# but belongs to the no-ai-attribution gate: it asserts attribution text, not
+# hook behavior, so the pipe-idiom scan is not its owner. A new trigger-path
+# script belongs in NEITHER list until someone classifies it here, and the
+# drift check below fails until they do.
+canon_trigger_exceptions=(
+  "scripts/verify-no-ai-attribution.sh"
+)
+
+# Prints every scripts/*.sh trigger path of the agent-canon gate entry in the
+# given registry file, one per line, with registry globs expanded against the
+# tree. Reads the registry by file argument and matches trigger lines with a
+# shell pattern, never with a piped reader, so this function itself carries
+# none of the banned shapes it protects.
+registry_trigger_scripts() { # registry-file
+  local file="$1" in_entry=0 line pat e
+  while IFS= read -r line; do
+    case "$line" in
+      *"- id: agent-canon"*) in_entry=1 ;;
+      "  - id: "*)
+        if [ "$in_entry" -eq 1 ]; then break; fi ;;
+    esac
+    if [ "$in_entry" -eq 0 ]; then continue; fi
+    # Trigger lines are double-quoted today; the match also accepts single
+    # quotes and a trailing comment so a future style change fails loudly in
+    # the seed/real checks (as an unclassified entry or a miss) rather than
+    # silently skipping the line.
+    if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*[\'\"]([^\"\']+)[\'\"]([[:space:]]*(#.*)?)?$ ]]; then
+      pat="${BASH_REMATCH[1]}"
+      case "$pat" in
+        scripts/*.sh)
+          if [[ "$pat" == *[*?\[]* ]]; then
+            while IFS= read -r e; do
+              printf '%s\n' "${e#"$repo_root"/}"
+            done < <(compgen -G "$repo_root/$pat" || true)
+          else
+            printf '%s\n' "$pat"
+          fi
+          ;;
+      esac
+    fi
+  done < "$file"
+}
+
+# Prints the registry trigger-path shell scripts that are neither scanned in
+# canon_scripts nor classified in canon_trigger_exceptions. Empty output means
+# the scan covers the whole trigger family.
+unclassified_trigger_scripts() { # registry-file
+  local file="$1" rel candidate found seen_dupe
+  registry_trigger_scripts "$file" >"$tmp/triggers.txt"
+  local -a seen=()
+  while IFS= read -r rel; do
+    if [ -z "$rel" ]; then continue; fi
+    seen_dupe=0
+    for candidate in "${seen[@]:-}"; do
+      if [ "$candidate" = "$rel" ]; then seen_dupe=1; break; fi
+    done
+    if [ "$seen_dupe" -eq 1 ]; then continue; fi
+    seen+=("$rel")
+    found=0
+    for candidate in "${canon_scripts[@]}" "${canon_trigger_exceptions[@]}"; do
+      if [ "$candidate" = "$rel" ]; then found=1; break; fi
+    done
+    if [ "$found" -eq 0 ]; then printf '%s\n' "$rel"; fi
+  done < "$tmp/triggers.txt"
+}
 
 # Fragment-built detector. stage1 finds a writer piped into the reader;
 # stage2 keeps only the quiet invocations (short-flag bundle holding q, or
@@ -80,7 +150,7 @@ trap 'rm -rf "$tmp"' EXIT
 
 # A listed script that no longer exists is drift, not a pass.
 missing=0
-for rel in "${canon_scripts[@]}"; do
+for rel in "${canon_scripts[@]}" "${canon_trigger_exceptions[@]}"; do
   if [ ! -f "$repo_root/$rel" ]; then
     no "canon scan target missing: $rel"
     missing=1
@@ -88,6 +158,39 @@ for rel in "${canon_scripts[@]}"; do
 done
 if [ "$missing" -eq 0 ]; then
   ok "all canon scan targets exist"
+fi
+
+# Seeded RED: a registry fixture naming a trigger-path script that is neither
+# scanned nor classified must come back unclassified, by name. If this case
+# ever stops flagging the fixture, the drift guard below is vacuous.
+cat >"$tmp/seed-registry.yaml" <<'EOF'
+  - id: agent-canon
+    triggers:
+      - "scripts/test-verify-agent-hygiene.sh"
+      - "scripts/seeded-unlisted.sh"
+      - 'scripts/seeded-single-quoted.sh'  # non-double-quote style
+  - id: next-gate
+    triggers:
+      - "scripts/seeded-other-gate.sh"
+EOF
+seed_unclassified="$(unclassified_trigger_scripts "$tmp/seed-registry.yaml")"
+seed_expected="$(printf 'scripts/seeded-unlisted.sh\nscripts/seeded-single-quoted.sh')"
+if [ "$seed_unclassified" = "$seed_expected" ]; then
+  ok "drift guard flags an unlisted trigger-path script by name (either quote style)"
+else
+  no "drift guard missed a planted unlisted trigger script -- coverage can silently rot"
+fi
+
+# The real drift check: every scripts/*.sh trigger of the agent-canon gate
+# entry is either scanned above or classified in canon_trigger_exceptions.
+# A future canon script added to the registry without classification fails
+# here until someone lists it, so coverage cannot silently rot.
+real_unclassified="$(unclassified_trigger_scripts "$repo_root/specs/ci-gates.d/gates-02.yaml")"
+if [ -z "$real_unclassified" ]; then
+  ok "every agent-canon trigger-path script is scanned or classified"
+else
+  no "agent-canon trigger-path scripts escape the scan:"
+  printf '%s\n' "$real_unclassified" >&2
 fi
 
 # Seeded RED: the detector must fire on the banned shapes, in both the short
