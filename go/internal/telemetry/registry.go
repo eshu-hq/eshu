@@ -200,6 +200,7 @@ var spanNames = []string{
 	SpanReducerActivationObligationSettle,
 	SpanReducerProducerActivationSettle,
 	SpanReducerStatusSummaryPass,
+	SpanGenerationRetentionExpiredReport,
 }
 
 var logKeys = []string{
