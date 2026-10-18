@@ -145,6 +145,64 @@ func TestRepoDependencyShardedReaderForwardsAbsentGenerationProbe(t *testing.T) 
 	}
 }
 
+func TestRepoDependencySelectionDrainsAtCapAndRescans(t *testing.T) {
+	t.Parallel()
+
+	// A full 10,000-row cap window of generation-gone orphans ahead of the
+	// healthy unit: pre-#7853 the selection errored at the cap and the
+	// healthy unit starved. Post-fix the cap drains and rescans past them.
+	now := time.Date(2026, time.October, 18, 12, 0, 0, 0, time.UTC)
+	rows := make([]SharedProjectionIntentRow, 0, maxRepoDependencyAcceptanceScanLimit+1)
+	gone := make(map[string]struct{}, maxRepoDependencyAcceptanceScanLimit)
+	for i := 0; i < maxRepoDependencyAcceptanceScanLimit; i++ {
+		gen := "gen-cap-orphan-gone"
+		gone[gen] = struct{}{}
+		rows = append(rows, SharedProjectionIntentRow{
+			IntentID:         "orphan-cap-" + string(rune('a'+(i%26))) + "-" + string(rune('a'+((i/26)%26))) + "-" + string(rune('a'+((i/676)%26))),
+			ProjectionDomain: DomainRepoDependency,
+			PartitionKey:     "partition-orphan",
+			ScopeID:          "scope-orphan",
+			AcceptanceUnitID: "repository:r_orphan",
+			RepositoryID:     "repository:r_orphan",
+			SourceRunID:      "run-orphan",
+			GenerationID:     gen,
+			CreatedAt:        now.Add(time.Duration(i) * time.Nanosecond),
+		})
+	}
+	rows = append(rows, SharedProjectionIntentRow{
+		IntentID:         "healthy-1",
+		ProjectionDomain: DomainRepoDependency,
+		PartitionKey:     "partition-healthy",
+		ScopeID:          "scope-healthy",
+		AcceptanceUnitID: "repository:r_healthy",
+		RepositoryID:     "repository:r_healthy",
+		SourceRunID:      "run-healthy",
+		GenerationID:     "gen-healthy",
+		CreatedAt:        now.Add(time.Duration(maxRepoDependencyAcceptanceScanLimit+1) * time.Nanosecond),
+	})
+	inner := &fakeRepoDependencyIntentStore{pendingByDomain: rows}
+	reader := &absentGenerationRepoDependencyStore{
+		fakeRepoDependencyIntentStore: inner,
+		gone:                          gone,
+	}
+	runner := RepoDependencyProjectionRunner{
+		IntentReader: reader,
+		AcceptedGen:  repoDependencyAbsentAcceptanceLookup,
+		Config:       RepoDependencyProjectionRunnerConfig{BatchLimit: 100},
+	}
+
+	unitID, drained, _, err := runner.selectAcceptanceUnitWork(context.Background(), now)
+	if err != nil {
+		t.Fatalf("selectAcceptanceUnitWork() error = %v, want drain-and-rescan past the cap", err)
+	}
+	if unitID != "repository:r_healthy" {
+		t.Fatalf("selected unit = %q, want the healthy unit past the drained cap window", unitID)
+	}
+	if drained != maxRepoDependencyAcceptanceScanLimit {
+		t.Fatalf("drained = %d, want %d", drained, maxRepoDependencyAcceptanceScanLimit)
+	}
+}
+
 func TestRepoDependencySelectionKeepsTornWritePending(t *testing.T) {
 	t.Parallel()
 

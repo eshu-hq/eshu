@@ -107,6 +107,64 @@ func TestCodeCallSelectionDrainsGenerationGoneOrphan(t *testing.T) {
 	}
 }
 
+func TestCodeCallSelectionDrainsAtCapAndRescans(t *testing.T) {
+	t.Parallel()
+
+	// 11 generation-gone orphans ahead of the healthy unit with a scan cap
+	// of 10: pre-#7853 the selection errored at the cap and the healthy
+	// unit starved. Post-fix the cap drains and rescans past the orphans.
+	now := time.Date(2026, time.October, 18, 12, 0, 0, 0, time.UTC)
+	rows := make([]sharedintent.Row, 0, 12)
+	gone := make(map[string]struct{}, 11)
+	for i := 0; i < 11; i++ {
+		gen := "gen-orphan-gone-" + string(rune('a'+i))
+		gone[gen] = struct{}{}
+		rows = append(rows, sharedintent.Row{
+			IntentID:         "orphan-cap-" + string(rune('a'+i)),
+			ProjectionDomain: reducercontract.DomainCodeCalls,
+			PartitionKey:     "caller->callee-orphan",
+			ScopeID:          "scope-orphan",
+			AcceptanceUnitID: "repo-orphan",
+			RepositoryID:     "repo-orphan",
+			SourceRunID:      "run-orphan",
+			GenerationID:     gen,
+			CreatedAt:        now.Add(time.Duration(i) * time.Millisecond),
+		})
+	}
+	rows = append(rows, sharedintent.Row{
+		IntentID:         "accepted-1",
+		ProjectionDomain: reducercontract.DomainCodeCalls,
+		PartitionKey:     "caller->callee-accepted",
+		ScopeID:          "scope-accepted",
+		AcceptanceUnitID: "repo-accepted",
+		RepositoryID:     "repo-accepted",
+		SourceRunID:      "run-accepted",
+		GenerationID:     "gen-accepted",
+		CreatedAt:        now.Add(time.Second),
+	})
+	inner := &fakeCodeCallIntentStore{pendingByDomain: rows}
+	reader := &absentGenerationCodeCallStore{
+		fakeCodeCallIntentStore: inner,
+		gone:                    gone,
+	}
+	runner := Runner{
+		IntentReader: reader,
+		AcceptedGen:  codeCallAbsentAcceptanceLookup,
+		Config:       RunnerConfig{BatchLimit: 2, AcceptanceScanLimit: 10},
+	}
+
+	result, err := runner.selectAcceptanceUnitWorkWithStats(context.Background(), now)
+	if err != nil {
+		t.Fatalf("selectAcceptanceUnitWorkWithStats() error = %v, want drain-and-rescan past the cap", err)
+	}
+	if result.Key.ScopeID != "scope-accepted" {
+		t.Fatalf("selected scope = %q, want %q past the drained cap window", result.Key.ScopeID, "scope-accepted")
+	}
+	if result.AbsentDrained != 11 {
+		t.Fatalf("AbsentDrained = %d, want 11", result.AbsentDrained)
+	}
+}
+
 func TestCodeCallSelectionKeepsTornWritePending(t *testing.T) {
 	t.Parallel()
 
