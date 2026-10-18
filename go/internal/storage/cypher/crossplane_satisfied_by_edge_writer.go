@@ -19,9 +19,6 @@ const (
 	canonicalPhaseCrossplaneSatisfiedByEdge = leaf.Phase
 	crossplaneSatisfiedByEdgeLabel          = leaf.EdgeLabel
 	crossplaneSatisfiedByEvidenceSource     = leaf.EvidenceSource
-
-	canonicalCrossplaneSatisfiedByEdgeUpsertCypher = leaf.SatisfiedByEdgeUpsertCypher
-	retractCrossplaneSatisfiedByEdgesCypher        = leaf.RetractSatisfiedByEdgesCypher
 )
 
 // CrossplaneRelationshipMaterializedEdgeTypes forwards to the

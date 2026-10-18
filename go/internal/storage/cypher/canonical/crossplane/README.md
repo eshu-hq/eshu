@@ -46,6 +46,9 @@ None. The parent writer executes parts through its existing instrumentation.
 
 ## No-Regression Evidence
 
+No-Regression Evidence: the move changes no statement text, parameter shape,
+row cloning, batching, or dispatch order — the proof below pins each one.
+
 `go test ./internal/storage/cypher/canonical/crossplane -count=1` and the
 root parity tests
 (`TestCrossplaneSatisfiedByEdgeLeafParityUpsertByteIdentical`,
