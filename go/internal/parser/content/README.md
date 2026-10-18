@@ -50,7 +50,7 @@ duration metric on the calling path.
 
 - `docs/internal/naming.md` (rules 2 and 3 behind the `content/` split)
 
-## No-Regression Evidence
+## No-Regression Evidence: content/ split moves inference with identical results
 
 The `content/` split moves `Infer`/`ShouldSkip` out of the parser root
 without changing what they compute: the engine call sites repoint to the
@@ -70,7 +70,7 @@ pins gate-equals-infer across the signal cartesian product.
 - Telemetry: no new metric, span, or log line; inference cost stays under
   the existing file parse duration metric on the calling path.
 
-## No-Observability-Change
+## No-Observability-Change: no new metric, span, or log line
 
 This package emits no metric, span, status field, or runtime knob of its
 own. It is diagnosed through the existing file parse duration metric that
