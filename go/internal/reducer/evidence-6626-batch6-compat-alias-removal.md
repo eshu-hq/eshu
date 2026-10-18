@@ -40,7 +40,8 @@ when this file is excluded; the note itself names each spelling once, and no
 code, test, script, or other doc references any of them). No graph query,
 queue, worker, lease, batch, runtime knob, or storage contract changes.
 Proof on this head: `go build` of the touched trees exits 0 and `go vet` is
-clean on the touched packages (a full-module `./...` build/vet additionally
+clean on the touched packages under the pinned promotion toolchain
+(`go1.26.6`, `CC=clang`; a full-module `./...` build/vet additionally
 passes where the toolchain resolves third-party cgo; it is environment-limited
 by `go-sitter-forest/perl` vs system GCC in some worktrees, untouched by this
 diff). No backend/version applies: no graph or query surface is touched.
