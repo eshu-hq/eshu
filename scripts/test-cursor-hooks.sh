@@ -53,6 +53,9 @@ unset CLAUDE_GOAL_FILE CLAUDE_GOAL_OFF CLAUDE_GOAL_CONSENT CLAUDE_GOAL_MAX_NUDGE
 real_home="${HOME}"
 export HOME="${work}/home"
 export CURSOR_PROJECT_DIR="${repo_root}"
+# Pin the hermeticity header: if the fake HOME or an unset above is dropped,
+# fail here instead of letting ambient state silently skew the suite.
+[[ "${HOME}" == "${work}/home" && -z "${CLAUDE_GOAL_FILE:-}" && -z "${CLAUDE_GOAL_OFF:-}" && -z "${CLAUDE_GOAL_CONSENT:-}" && -z "${CLAUDE_GOAL_MAX_NUDGES:-}" && -z "${CLAUDE_PROJECT_DIR:-}" && -z "${ESHU_CURSOR_HOOK_LOG:-}" ]] || { printf 'NOT OK - suite hermeticity header broken\n' >&2; exit 1; }
 
 passed=0
 failed=0
