@@ -30,7 +30,11 @@ workflow_run_files() {
 	local existing=() f
 	for f in "${files[@]}"; do [[ -f "${f}" ]] && existing+=("${f}"); done
 	[[ ${#existing[@]} -gt 0 ]] || return 0
-	yq -N 'select((.on | tag) == "!!map" and (.on | has("workflow_run"))) | .name + "\t" + filename' "${existing[@]}" |
+	# The tab joins name and file through strenv, not a "\t" literal in the
+	# expression: yq < 4.49 does not interpret string escapes (#8354), so the
+	# literal made this list empty and the watcher skipped every workflow_run
+	# listing.
+	TAB=$'\t' yq -N 'select((.on | tag) == "!!map" and (.on | has("workflow_run"))) | .name + strenv(TAB) + filename' "${existing[@]}" |
 		awk -F'\t' 'NR == FNR { want[$0] = 1; next } ($1 in want) { n = split($2, p, "/"); print p[n] }' \
 			<(required_workflows) -
 }
