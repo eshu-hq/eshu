@@ -1,0 +1,16 @@
+go/internal/reducer/intents/shared/worker/doc.go
+  h_78a442cba0b3e6 97
+go/internal/reducer/intents/shared/worker/unroutable.go
+  h_78a442cba0b3e6 14-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "41b970c567ba09609ba0a7e8799dd4545b5577b1",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
