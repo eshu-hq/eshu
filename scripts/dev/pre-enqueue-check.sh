@@ -244,7 +244,8 @@ fi
 # query times out on this repository. The endpoint's default filter=latest
 # returns the latest run per name within each check suite; a re-triggered
 # workflow on the same SHA adds a second suite, and every suite's rows count
-# except for the three required contexts, where the newest suite wins. Never
+# except for the three required contexts, where the newest suite wins (older
+# suites' rows of those names leave the tally, see tally_json). Never
 # filter=all, and never collapse by name: one job name defined by 13 workflows
 # is 13 distinct checks, and a newer pass must not hide an older failure. A run
 # is judged by its status and conclusion, never by its name, because check NAMES
@@ -268,13 +269,20 @@ else
 	# completed + success/skipped/neutral is fine; completed + failure,
 	# cancelled, timed_out or action_required fails; not completed is pending;
 	# any other conclusion (stale, null, ...) is unclassified and fails closed.
-	# All rows count here, across every suite: fail-closed.
+	# All rows count here, across every suite: fail-closed. The one exception is
+	# the three required contexts (pinned to one workflow and job each, see the
+	# required-context loop below): only their newest suite's rows are tallied,
+	# so a stale failure in an older suite does not keep the arm red.
+	tally_json="$(jq -c '
+		["go-core-complete", "go-race-complete", "required-gates-complete"] as $req
+		| (reduce .[] as $r ({}; .[$r.name] = ([(.[$r.name] // 0), $r.suite] | max))) as $top
+		| [.[] | select(((.name | IN($req[])) | not) or .suite == $top[.name])]' <<<"${checks_json}")"
 	total="$(jq 'length' <<<"${checks_json}")"
 	failing_sel='select(.status == "completed" and (.conclusion | IN("failure","cancelled","timed_out","action_required")))'
 	pending_sel='select(.status != "completed")'
-	pending="$(jq "[.[] | ${pending_sel}] | length" <<<"${checks_json}")"
-	failing="$(jq "[.[] | ${failing_sel}] | length" <<<"${checks_json}")"
-	unknown="$(jq '[.[] | select(.status == "completed" and (.conclusion | IN("success","skipped","neutral","failure","cancelled","timed_out","action_required") | not))] | length' <<<"${checks_json}")"
+	pending="$(jq "[.[] | ${pending_sel}] | length" <<<"${tally_json}")"
+	failing="$(jq "[.[] | ${failing_sel}] | length" <<<"${tally_json}")"
+	unknown="$(jq '[.[] | select(.status == "completed" and (.conclusion | IN("success","skipped","neutral","failure","cancelled","timed_out","action_required") | not))] | length' <<<"${tally_json}")"
 	note checks "rows=${total} pending=${pending} fail=${failing} unknown=${unknown}"
 	# A name with rows in more than one suite has no GitHub-defined winner.
 	while IFS= read -r multi_line; do
@@ -287,8 +295,8 @@ else
 	# selector picks; the orphan hint is appended when a picked name is multi-suite.
 	bad_entry() {
 		local names hits hint=""
-		names="$(jq -r "[.[] | $3 | .name] | unique | join(\", \")" <<<"${checks_json}")"
-		hits="$(jq --argjson m "${multi_names}" "[.[] | $3 | .name | select(IN(\$m[]))] | length" <<<"${checks_json}")"
+		names="$(jq -r "[.[] | $3 | .name] | unique | join(\", \")" <<<"${tally_json}")"
+		hits="$(jq --argjson m "${multi_names}" "[.[] | $3 | .name | select(IN(\$m[]))] | length" <<<"${tally_json}")"
 		[[ "${hits}" -eq 0 ]] || hint="${orphan_hint}"
 		checks_bad+=("$1=$2: ${names}${hint}")
 	}
@@ -305,7 +313,7 @@ status_json="$("${GH}" api "repos/${repo}/commits/${want}/status?per_page=100" 2
 # workflow, and only the NEWEST suite (max suite id, then all its rows) decides
 # the context. GitHub: "Using the same job name in multiple workflows can cause
 # ambiguous status check results" (About protected branches). A superseded
-# suite is named in a note; it still counts in the all-rows tally above.
+# suite is named in a note and its rows are excluded from the tally above.
 for ctx in go-core-complete go-race-complete required-gates-complete; do
 	ctx_state="$(jq -r --arg c "${ctx}" '
 		[.[] | select(.name == $c)] as $all

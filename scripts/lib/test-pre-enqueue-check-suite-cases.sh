@@ -32,19 +32,38 @@ add_rows() {
 }
 
 # S1: an older suite's failure on a required context is superseded by the newest
-# suite's success. The context reads success and the note names the old suite;
-# the strict all-rows count still sees the old failure, so the arm stays red.
+# suite's success. The context reads success, the superseded row leaves the
+# pending/fail tally, the note names the old suite, and the arm passes.
 new_case suite-required-older-failure
 drop_row go-core-complete
 add_rows "$(run_row 1 go-core-complete completed '"failure"' 10)" \
 	"$(run_row 2 go-core-complete completed '"success"' 20)"
-expect_red "required context failed in an older suite, passed in the newest" checks
+run
 ok=0
-if rg -q 'go-core-complete=' <<<"${OUT}"; then ok=1; fi
+[[ "${RC}" -eq 0 ]] || ok=1
+[[ "$(fail_lines)" == 0 ]] || ok=1
+rg -q 'checks +rows=7 pending=0 fail=0 unknown=0$' <<<"${OUT}" || ok=1
 rg -q '^     checks +go-core-complete: newest suite 20 wins; superseded suite\(s\): 10$' <<<"${OUT}" || ok=1
 rg -q '^     checks +multi-suite: go-core-complete \(2 suites: 10, 20\)$' <<<"${OUT}" || ok=1
-rg -q "^FAIL checks +fail=1: go-core-complete -- ${hint}" <<<"${OUT}" || ok=1
-check "RED the newest suite wins for the context; the old failure is named and counted" "${ok}"
+rg -q '^PASS checks ' <<<"${OUT}" || ok=1
+check "GREEN the newest suite wins: the older required-context failure is not tallied" "${ok}"
+[[ "${ok}" -eq 0 ]] || printf '%s\n' "${OUT}" | sed 's/^/    | /'
+
+# S1b: a queued or in-progress row in a superseded suite of a required context
+# is not pending once the newest suite is done; the note still names it.
+for st in queued in_progress; do
+	new_case "suite-required-older-${st}"
+	drop_row go-race-complete
+	add_rows "$(run_row 1 go-race-complete "${st}" null 10)" \
+		"$(run_row 2 go-race-complete completed '"success"' 20)"
+	run
+	ok=0
+	[[ "${RC}" -eq 0 ]] || ok=1
+	rg -q 'checks +rows=7 pending=0 fail=0 unknown=0$' <<<"${OUT}" || ok=1
+	rg -q '^     checks +go-race-complete: newest suite 20 wins; superseded suite\(s\): 10$' <<<"${OUT}" || ok=1
+	check "GREEN a superseded ${st} required-context row is not pending" "${ok}"
+	[[ "${ok}" -eq 0 ]] || printf '%s\n' "${OUT}" | sed 's/^/    | /'
+done
 
 # S2: the newest suite's failure is not hidden by an older success.
 new_case suite-required-newer-failure
