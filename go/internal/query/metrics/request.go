@@ -5,6 +5,7 @@ package metrics
 
 import (
 	"bufio"
+	"fmt"
 	"net"
 	"net/http"
 	"strconv"
@@ -74,6 +75,16 @@ func apiRequestMetrics() *apiRequestInstruments {
 // registered routes rather than the unbounded concrete request paths. Requests
 // that match no route are labeled "unmatched".
 //
+// It also exposes the per-request handler total as a Server-Timing trailer
+// ("Server-Timing: total;dur=<ms>") so a slow call can be attributed without
+// guessing (issue #7733). A trailer, not a response header, is deliberate:
+// net/http flushes response headers on the handler's first body Write, so a
+// header set after mux.ServeHTTP returns is silently dropped on the wire,
+// while an announced trailer is delivered for buffered and streaming (SSE)
+// responses alike. The trailer carries only the total this seam brackets;
+// the middleware cannot split Postgres versus graph time without invasive
+// per-store plumbing, so no finer stage is reported.
+//
 // It wraps the application mux only; the admin surface (probes, /metrics) is
 // served by a separate mux and is intentionally not counted.
 func RequestMiddleware(mux *http.ServeMux) http.Handler {
@@ -87,11 +98,32 @@ func RequestMiddleware(mux *http.ServeMux) http.Handler {
 			route = "unmatched"
 		}
 
+		// Announce the trailer before the delegate runs: the announcement
+		// must be in the wire headers before the first Write flushes them.
+		w.Header().Add("Trailer", "Server-Timing")
 		recorder := &statusCapturingResponseWriter{ResponseWriter: w, status: http.StatusOK}
 		start := time.Now()
 		mux.ServeHTTP(recorder, r)
-		recordAPIRequest(r, route, recorder.status, time.Since(start))
+		elapsed := time.Since(start)
+		w.Header().Set("Server-Timing", formatServerTiming(elapsed))
+		recordAPIRequest(r, route, recorder.status, elapsed)
 	})
+}
+
+// serverTimingStageTotal is the only Server-Timing stage RequestMiddleware
+// reports: the handler total in milliseconds. The name set stays fixed at
+// one stage so clients can parse it without negotiation.
+const serverTimingStageTotal = "total"
+
+// formatServerTiming renders the Server-Timing field value for one handler
+// total, e.g. "total;dur=12.3". Durations live only in this field, never in
+// metric labels, so no cardinality grows with request traffic.
+func formatServerTiming(elapsed time.Duration) string {
+	ms := elapsed.Seconds() * 1000
+	if ms < 0 {
+		ms = 0
+	}
+	return fmt.Sprintf("%s;dur=%.1f", serverTimingStageTotal, ms)
 }
 
 // recordAPIRequest records the request duration and, for server errors, a

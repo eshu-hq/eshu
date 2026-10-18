@@ -34,7 +34,10 @@ metric API.
 `eshu_dp_api_request_errors_total`, labeled by `route` and `status_class`. The
 instruments resolve inside a `sync.Once` on first use, not in a package var,
 so a test that installs its own meter provider first still records to it.
-Unchanged by the #6642 move.
+Unchanged by the #6642 move. The middleware also announces and sets a
+`Server-Timing: total;dur=<ms>` trailer per request (a trailer, not a header,
+because headers flush on the handler's first Write); see `request.go` and
+`request_timing_test.go` (#7733).
 
 ## Gotchas / invariants
 
