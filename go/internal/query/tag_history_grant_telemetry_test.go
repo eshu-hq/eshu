@@ -190,7 +190,7 @@ func tagHistoryExportedSurface(t *testing.T, rm metricdata.ResourceMetrics) []ta
 					points = append(points, tagHistoryExportedPoint{
 						Metric: m.Name,
 						Attrs:  tagHistoryAttrKey(t, m.Name, dp.Attributes, allowedKeys),
-						Value:  int64(dp.Count),
+						Value:  int64(dp.Count), // #nosec G115 -- dp.Count is a histogram bucket count from in-test meter observations (test-scale counts), far below MaxInt64
 					})
 				}
 			default:

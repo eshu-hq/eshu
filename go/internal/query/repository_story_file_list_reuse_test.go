@@ -24,7 +24,7 @@ type listRepoFilesCountingStore struct {
 
 func (s *listRepoFilesCountingStore) ListRepoFiles(ctx context.Context, repoID string, limit int) ([]querycontract.FileContent, error) {
 	s.calls.Add(1)
-	s.limit.Store(int32(limit))
+	s.limit.Store(int32(limit)) // #nosec G115 -- limit is the production ListRepoFiles int parameter; tests pass RepositorySemanticEntityLimit scale (~5001), far below MaxInt32
 	return s.ContentStore.ListRepoFiles(ctx, repoID, limit)
 }
 

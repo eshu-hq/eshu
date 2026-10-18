@@ -153,7 +153,7 @@ func TestNonBlankSpaceSetMatchesGoOverEveryRuneLive(t *testing.T) {
 		if err := rows.Scan(&cp); err != nil {
 			t.Fatalf("scan: %v", err)
 		}
-		trimmed[rune(cp)] = true
+		trimmed[rune(cp)] = true // #nosec G115 -- cp is scanned from generate_series(1,1114111) excluding surrogates, so it is a valid code point within rune range
 	}
 	if err := rows.Err(); err != nil {
 		t.Fatalf("rows: %v", err)
