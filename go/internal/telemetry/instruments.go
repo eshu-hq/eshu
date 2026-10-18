@@ -339,6 +339,19 @@ type Instruments struct {
 	GenerationRetentionRowsPruned   metric.Int64Counter
 	GenerationRetentionFailures     metric.Int64Counter
 	GenerationRetentionSkipped      metric.Int64Counter
+	// GenerationRetentionExpiredBlocked counts expired superseded
+	// generations retained by a safety exception (#7585 PR3), by the closed
+	// blocked reason (active_current, live_work, retrying, dependency_pin).
+	// Only expired-but-blocked rows count: eligible rows need no attention
+	// and scoped-out rows (uncovered #7472, delta-protected #7802) are
+	// outside the verdict. No scope or generation identifier is ever a
+	// label; identifiers ride span events and structured logs.
+	GenerationRetentionExpiredBlocked metric.Int64Counter
+	// GenerationRetentionExpiredReportDuration records one
+	// expired-generations live-signal report read (#7585 PR3): the
+	// lock-free SELECT plus the in-memory evaluation. One sample per
+	// successful report, no labels.
+	GenerationRetentionExpiredReportDuration metric.Float64Histogram
 	// GenerationRetentionOverLimitBatches counts retention batches of one
 	// generation admitted over BatchRowLimit by its changed-since ledger rows
 	// (#7127); registered with the changed-since instruments.
@@ -5445,6 +5458,10 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	if err := registerGenerationRetentionPhaseInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+
+	if err := registerGenerationRetentionExpiredReportInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 

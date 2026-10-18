@@ -19,6 +19,19 @@ var generationRetentionPhaseBuckets = []float64{0.001, 0.01, 0.05, 0.1, 0.5, 1, 
 // tables, and the default 2,000,000-row cap is about 100 full batches.
 var generationRetentionSearchIndexBatchBuckets = []float64{1, 2, 4, 8, 16, 32, 64, 128, 256, 512}
 
+// SpanGenerationRetentionExpiredReport wraps one expired-generations
+// live-signal report read (#7585 PR3): the lock-free SELECT plus the
+// in-memory evaluation. The span carries the report counts; each
+// expired-but-blocked generation adds one
+// generation_retention.expired_blocked event carrying its scope_id,
+// generation_id, reason, and age. Scope and generation identifiers stay
+// in span events and structured logs, never in metric labels.
+const SpanGenerationRetentionExpiredReport = "generation_retention.expired_report"
+
+// GenerationRetentionExpiredBlockedEvent is the span event one
+// expired-but-blocked generation adds to the expired-report span.
+const GenerationRetentionExpiredBlockedEvent = "generation_retention.expired_blocked"
+
 // registerGenerationRetentionPhaseInstruments registers the per-phase,
 // scope-lock-hold and search index pre-delete batch histograms of the
 // generation retention cycle, and the search index orphan census gauge and
@@ -62,6 +75,32 @@ func registerGenerationRetentionPhaseInstruments(meter metric.Meter, inst *Instr
 		metric.WithUnit("{row}"),
 	); err != nil {
 		return fmt.Errorf("register SearchIndexOrphanRowsSwept counter: %w", err)
+	}
+	return nil
+}
+
+// registerGenerationRetentionExpiredReportInstruments registers the
+// expired-generations live-signal report instruments (#7585 PR3) on inst:
+// the expired-but-blocked counter by closed blocked reason and the report
+// duration histogram. The report's failures reuse the shared
+// GenerationRetentionFailures counter with the expired_report_error reason,
+// so no new failure instrument is registered here.
+func registerGenerationRetentionExpiredReportInstruments(meter metric.Meter, inst *Instruments) error {
+	var err error
+	if inst.GenerationRetentionExpiredBlocked, err = meter.Int64Counter(
+		"eshu_dp_generation_retention_expired_blocked_total",
+		metric.WithDescription("Expired superseded generations retained by a safety exception, by closed blocked reason (active_current, live_work, retrying, dependency_pin)"),
+		metric.WithUnit("{generation}"),
+	); err != nil {
+		return fmt.Errorf("register GenerationRetentionExpiredBlocked counter: %w", err)
+	}
+	if inst.GenerationRetentionExpiredReportDuration, err = meter.Float64Histogram(
+		"eshu_dp_generation_retention_expired_report_duration_seconds",
+		metric.WithDescription("One expired-generations live-signal report read: the lock-free SELECT plus the in-memory evaluation"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(generationRetentionPhaseBuckets...),
+	); err != nil {
+		return fmt.Errorf("register GenerationRetentionExpiredReportDuration histogram: %w", err)
 	}
 	return nil
 }
