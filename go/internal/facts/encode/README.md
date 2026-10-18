@@ -64,9 +64,9 @@ Four files, and no others (`rg -l '"github.com/eshu-hq/eshu/go/internal/facts/en
 - `go/internal/facts/docs/encode.go` — calls `encode.StringPtr`,
   `encode.BoolPtr`, `encode.StringValue`, `encode.StringPtrFromMap`,
   `encode.IntPtrFromMap` and `encode.JSONShapeMap` to build its payloads.
-- `go/internal/facts/semantic_encode.go` — calls `encode.StringPtr`,
+- `go/internal/facts/semantic/encode.go` — calls `encode.StringPtr`,
   `encode.IntPtr` and `encode.JSONShapeMap` in place of the unexported
-  `stringPtr`/`intPtr` helpers it used before the move.
+  `stringPtr`/`intPtr` helpers it used before the move (issue #6951).
 
 ## Telemetry
 

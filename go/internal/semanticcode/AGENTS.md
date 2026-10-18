@@ -7,7 +7,7 @@
 3. `go/internal/semanticcode/emitter.go`
 4. `go/internal/semanticdocs/AGENTS.md` — the documentation twin; keep the two
    packages' invariants aligned rather than letting them drift apart
-5. `go/internal/facts/semantic.go`
+5. `go/internal/facts/semantic/semantic.go`
 
 ## Invariants
 

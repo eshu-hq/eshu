@@ -25,7 +25,7 @@ package v1
 // cloud-inventory IAM binding OBSERVATION (fingerprinted evidence only, no
 // resolved principal/trust-chain graph write), distinct from
 // gcp_iam_principal / gcp_iam_trust_policy / gcp_iam_permission_policy, which
-// live in go/internal/facts/secrets_iam.go and are out of this family's scope.
+// live in go/internal/facts/identity/iam.go and are out of this family's scope.
 type IAMPolicyObservation struct {
 	// FullResourceName is the CAI full resource name the policy binding is
 	// attached to. Required.

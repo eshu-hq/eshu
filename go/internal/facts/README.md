@@ -145,6 +145,9 @@ contract, including its private-data boundary; read its `doc.go` and
 | [`supply/chain/`](supply/chain/README.md) | OCI registry, language package registry, SBOM and attestation, vulnerability intelligence, and vulnerability suppression evidence |
 | [`encode/`](encode/README.md) | Shared payload substrate: `StableID` and the pointer/JSON-shape helpers a family's encoders use |
 | [`contract/`](contract/README.md) | Dependency-neutral fact-family contract model: the `Family`/`Kind`/`Producer`/`Binding` declarations the registry generator discovers statically (issue #6629) |
+| [`identity/`](identity/README.md) | The secrets/IAM posture fact family: IAM principals, trust and permission policy statements, Vault and Kubernetes identity evidence, and coverage warnings |
+| [`incident/`](incident/README.md) | The incident family: incident-context and incident-routing (PagerDuty/alert-route) source evidence |
+| [`semantic/`](semantic/README.md) | Semantic evidence: LLM-assisted documentation observations and code hints |
 
 The `docs/` package is named `docs`, not `documentation`, because `go/build`
 excludes every `.go` file in a package named `documentation`; see
@@ -158,15 +161,18 @@ a thin forwarder, so a caller that spelled a moved name `facts.X` got the
 same type and the same value it did before. Issue #6950 moved every
 caller onto the nested packages and deleted each emptied entry, so no
 compat surface remains — every caller spells moved names `cloud.X`,
-`docs.X`, and so on directly. Nesting the
-`security_alert.go` / `secrets_iam.go` /
-`incident_*.go` groups and the remaining single-file families is issue
-#6951; the cap is already satisfied without them.
+`docs.X`, and so on directly. Issue #6951 nested the `incident_*.go`
+group into `incident/`, the semantic group into `semantic/`, and the
+`secrets_iam.go` group into a flat `identity/` package. Nesting
+`security_alert.go` and the remaining single-file families is still
+open; the cap is already satisfied without them.
 
 ## Dependencies
 
 - `internal/facts/cloud`, `internal/facts/code`, `internal/facts/docs`,
   `internal/facts/supply/chain` — the nested fact families (issue #6776).
+- `internal/facts/identity`, `internal/facts/incident`,
+  `internal/facts/semantic` — the nested fact families (issue #6951).
   This package imports them to build `schemaVersionFamilies` and to re-export
   their pre-move spellings from its `compat_*.go` files, so the dependency
   runs root → family and never the other way.

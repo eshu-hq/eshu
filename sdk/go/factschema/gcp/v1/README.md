@@ -31,7 +31,7 @@ errors instead of slipping through as zero values.
 
 `gcp_iam_principal`, `gcp_iam_trust_policy`, and `gcp_iam_permission_policy`
 are also **out of scope**: they belong to the `secrets_iam` fact family
-(`go/internal/facts/secrets_iam.go`), a distinct family boundary this package
+(`go/internal/facts/identity/iam.go`), a distinct family boundary this package
 does not type.
 
 ## Ownership boundary

@@ -75,7 +75,7 @@
 // # Families that remain here
 //
 // Secrets/IAM posture fact kind constants and schema-version helpers live
-// here for source facts reported by the secrets_iam_posture family: IAM
+// in go/internal/facts/identity for source facts reported by the secrets_iam_posture family: IAM
 // principals, trust policy statements, permission policy statements, policy
 // attachments, permissions boundaries, instance profiles, optional Access
 // Analyzer findings, Kubernetes ServiceAccount and RBAC metadata, workload
@@ -97,10 +97,11 @@
 // provider alert evidence; reducers reconcile those alerts with owned
 // dependency and impact facts.
 //
-// Incident-context fact kind constants and schema-version helpers live here
-// for incident, lifecycle-event, and change-event source evidence reported
-// by incident systems. Incident-routing fact kind constants and
-// schema-version helpers live here for applied PagerDuty and alert-route
+// Incident-context fact kind constants and schema-version helpers live in
+// go/internal/facts/incident for incident, lifecycle-event, and
+// change-event source evidence reported by incident systems.
+// Incident-routing fact kind constants and schema-version helpers live in
+// go/internal/facts/incident for applied PagerDuty and alert-route
 // evidence observed from Terraform state and optional live PagerDuty
 // service/integration observations; reducers compare that evidence with
 // declared source and applied/live provider facts before presenting routing
@@ -120,8 +121,9 @@
 // routes, and coverage warnings; reducers compare those facts before
 // presenting coverage or drift truth.
 //
-// Semantic evidence fact kind constants and schema-version helpers live here
-// for optional LLM-assisted documentation observations and code hints. They
+// Semantic evidence fact kind constants and schema-version helpers live in
+// go/internal/facts/semantic for optional LLM-assisted documentation
+// observations and code hints. They
 // preserve source, chunk, provider-profile, prompt-version, redaction,
 // policy, confidence, freshness, and replay metadata while keeping model
 // output provenance-only until reducer or query consumers admit it. Semantic
