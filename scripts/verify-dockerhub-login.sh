@@ -197,9 +197,9 @@ root="$(cd "${root}" && pwd -P)"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "${tmp}"' EXIT
-# yq < 4.49 keeps a "\t" escape literal in an expression, so rows never split and the
-# gate passes with nothing in scope (#8397, #8354): join with strenv(TAB). CI pins 4.54.1.
+# yq < 4.49 keeps a "\t" escape literal, so rows never split and the gate passes empty (#8397): join with strenv(TAB). CI pins 4.54.1.
 export TAB=$'\t'
+[[ "$(yq -n '["a","b"] | join(strenv(TAB))')" == $'a\tb' ]] || { echo "verify-dockerhub-login: yq did not join with a tab (TAB unset or yq broken)" >&2; exit 1; }
 failures=0
 fail() { printf 'verify-dockerhub-login: %s\n' "$1" >&2; failures=$((failures + 1)); }
 b64d() { base64 -d 2>/dev/null || base64 -D; }

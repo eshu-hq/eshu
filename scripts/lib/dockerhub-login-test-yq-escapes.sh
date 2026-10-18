@@ -66,7 +66,13 @@ d="$(new_case old-yq-service-row)"
 yq e -i 'del(.jobs.contention-gate.services.postgres.credentials)' "${d}/.github/workflows/legacy-hub.yml"
 expect_red_old_yq old-yq-service-without-credentials "${d}" 'legacy-hub.yml:contention-gate: service postgres'
 
-# jobs.tsv, container rows: a Hub container without credentials.
+# jobs.tsv, string-form container row (`container: postgres:18`): its join is a
+# separate expression from the map form below.
+d="$(new_case old-yq-container-string-row)"
+yq e -i '.jobs.fixture-container-str = {"runs-on": "ubuntu-latest", "container": "postgres:18", "steps": [{"run": "echo ok"}]}' "${d}/.github/workflows/verify-agent-hygiene.yml"
+expect_red_old_yq old-yq-container-string-without-credentials "${d}" 'verify-agent-hygiene.yml:fixture-container-str: container (postgres:18) pulls from Docker Hub at job init without credentials'
+
+# jobs.tsv, map-form container rows: a Hub container without credentials.
 d="$(new_case old-yq-container-row)"
 yq e -i '.jobs.fixture-container = {"runs-on": "ubuntu-latest", "container": {"image": "postgres:18"}, "steps": [{"run": "echo ok"}]}' "${d}/.github/workflows/verify-agent-hygiene.yml"
 expect_red_old_yq old-yq-container-without-credentials "${d}" 'verify-agent-hygiene.yml:fixture-container: container (postgres:18) pulls from Docker Hub at job init without credentials'
