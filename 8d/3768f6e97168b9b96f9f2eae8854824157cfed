@@ -1,0 +1,14 @@
+go/internal/storage/cypher/canonical/crossplane/README.md
+  h_78a442cba0b3e6 49-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8d3768f6e97168b9b96f9f2eae8854824157cfed",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
