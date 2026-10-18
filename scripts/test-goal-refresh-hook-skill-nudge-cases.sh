@@ -25,7 +25,7 @@ mkdir -p "${nw}/.claude" "${nw}/.agents/skills/golang-engineering" \
 # ── named, unloaded: nudge ──────────────────────────────────────────────────
 submit "${nudge_sid}" '/goal fix the bug per the golang-engineering skill' "${nw}" >/dev/null
 n1="$(injected "$(submit "${nudge_sid}" 'carry on' "${nw}")")"
-if printf '%s' "${n1}" | rg -q 'load `golang-engineering` now'; then
+if rg -q 'load `golang-engineering` now' <<<"${n1}"; then
 	ok "a named, unloaded skill gets the nudge"
 else
 	no "a named, unloaded skill gets the nudge (got: ${n1})"
@@ -34,7 +34,7 @@ fi
 # ── named, loaded: no nudge ─────────────────────────────────────────────────
 touch "${nudge_marker}"
 n2="$(injected "$(submit "${nudge_sid}" 'carry on again' "${nw}")")"
-if printf '%s' "${n2}" | rg -q 'load `golang-engineering` now'; then
+if rg -q 'load `golang-engineering` now' <<<"${n2}"; then
 	no "a named, loaded skill gets no nudge"
 else
 	ok "a named, loaded skill gets no nudge"
@@ -47,7 +47,7 @@ mkdir -p "${nw2}/.claude" "${nw2}/.agents/skills/golang-engineering" \
 	"${nw2}/.agents/skills/eshu-code-review"
 submit "${nudge_sid}" '/goal ship the not-a-real-skill feature' "${nw2}" >/dev/null
 n3="$(injected "$(submit "${nudge_sid}" 'carry on' "${nw2}")")"
-if printf '%s' "${n3}" | rg -q 'load `'; then
+if rg -q 'load `' <<<"${n3}"; then
 	no "a name that is not a real skill gets no nudge"
 else
 	ok "a name that is not a real skill gets no nudge"
@@ -59,7 +59,7 @@ mkdir -p "${nw3}/.claude" "${nw3}/.agents/skills/golang-engineering" \
 	"${nw3}/.agents/skills/eshu-code-review"
 submit "${nudge_sid}" '/goal read the golang-engineering-notes doc first' "${nw3}" >/dev/null
 n4="$(injected "$(submit "${nudge_sid}" 'carry on' "${nw3}")")"
-if printf '%s' "${n4}" | rg -q 'load `golang-engineering` now'; then
+if rg -q 'load `golang-engineering` now' <<<"${n4}"; then
 	no "a longer identifier does not fire a shorter skill id's nudge"
 else
 	ok "a longer identifier does not fire a shorter skill id's nudge"
@@ -79,7 +79,7 @@ mkdir -p "${nw4}/.agents/skills/golang-engineering" \
 	"${nw4}/.agents/skills/eshu-code-review" "${nw4}/go/.claude"
 submit "${nudge_sid}" '/goal fix the bug per the golang-engineering skill' "${nw4}/go" >/dev/null
 n5="$(injected "$(submit "${nudge_sid}" 'carry on' "${nw4}/go")")"
-if printf '%s' "${n5}" | rg -q 'load `golang-engineering` now'; then
+if rg -q 'load `golang-engineering` now' <<<"${n5}"; then
 	ok "a cwd one level below the root still gets the nudge"
 else
 	no "a cwd one level below the root still gets the nudge (got: ${n5})"
@@ -112,8 +112,8 @@ if [[ -z "${cwdless_err}" ]]; then
 else
 	no "a cwd-less payload emits no error while nudging (got: ${cwdless_err})"
 fi
-if printf '%s' "$(injected "${cwdless_out}")" | rg -q 'fix the bug per the golang-engineering skill' &&
-	! printf '%s' "$(injected "${cwdless_out}")" | rg -q 'load `golang-engineering` now'; then
+if rg -q 'fix the bug per the golang-engineering skill' <<<"$(injected "${cwdless_out}")" &&
+	! rg -q 'load `golang-engineering` now' <<<"$(injected "${cwdless_out}")"; then
 	ok "a cwd-less payload still refreshes the goal but fires no skill nudge"
 else
 	no "a cwd-less payload still refreshes the goal but fires no skill nudge (got: ${cwdless_out})"

@@ -48,17 +48,17 @@ else
 fi
 
 astop="$(stop_with_env "${asid}" "${acw}" e2e-atomic 'push, pr-open')"
-if printf '%s' "${astop}" | rg -q '"decision"[[:space:]]*:[[:space:]]*"block"'; then
+if rg -q '"decision"[[:space:]]*:[[:space:]]*"block"' <<<"${astop}"; then
 	ok "ATOMIC: the goal is still open, so the Stop hook still asks for progress"
 else
 	no "ATOMIC: the goal is still open, so the Stop hook still asks for progress"
 fi
-if printf '%s' "${astop}" | rg -q 'OWNER CONSENT ALREADY GRANTED for: push, pr-open'; then
+if rg -q 'OWNER CONSENT ALREADY GRANTED for: push, pr-open' <<<"${astop}"; then
 	ok "ATOMIC: the Stop hook honours the launcher-side grant on the FIRST stop"
 else
 	no "ATOMIC: the Stop hook honours the launcher-side grant on the FIRST stop (got: ${astop})"
 fi
-if printf '%s' "${astop}" | rg -qF 'you need consent for an irreversible act (push, merge, deploy, delete, data mutation, anything outward-facing)'; then
+if rg -qF 'you need consent for an irreversible act (push, merge, deploy, delete, data mutation, anything outward-facing)' <<<"${astop}"; then
 	no "ATOMIC: the Stop hook must not ask about push -- it was already granted"
 else
 	ok "ATOMIC: the Stop hook does not ask about push"
@@ -79,12 +79,12 @@ bstop="$(stop_with_env "${bsid}" "${bcw}" e2e-body-mention '')"
 # The Stop hook no longer offers a consent stop reason at all, so the grant
 # banner below is the only signal a mention was misread as a grant. This case
 # pins that the goal itself is still open.
-if printf '%s' "${bstop}" | rg -q '"decision": *"block"'; then
+if rg -q '"decision": *"block"' <<<"${bstop}"; then
 	ok "CONTROL: a body line merely mentioning consent leaves the goal open"
 else
 	no "CONTROL: a body line merely mentioning consent leaves the goal open (got: ${bstop})"
 fi
-if printf '%s' "${bstop}" | rg -q 'OWNER CONSENT ALREADY GRANTED'; then
+if rg -q 'OWNER CONSENT ALREADY GRANTED' <<<"${bstop}"; then
 	no "CONTROL: mentioning consent in prose must not grant anything"
 else
 	ok "CONTROL: mentioning consent in prose grants nothing"

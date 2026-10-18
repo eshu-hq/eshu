@@ -68,7 +68,7 @@ sys.exit(37)
 ROLE_GENERATOR
 if output="$("$tmp/role-gate/scripts/verify-agent-canon.sh" 2>&1)"; then
   no "agent-canon should check role bindings in its real-root branch"
-elif printf '%s' "$output" | rg -Fq 'role generator fixture invoked in check mode'; then
+elif rg -Fq 'role generator fixture invoked in check mode' <<<"$output"; then
   ok "agent-canon checks role bindings in its real-root branch"
 else
   no "agent-canon failed before checking role bindings"

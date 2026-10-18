@@ -134,12 +134,12 @@ printf 'SESSION: %s\nSession A has its own goal.\n' "${sid_a}" >"${par}/.claude/
 
 a_out="$(stop_in "${sid_a}" par1 "${par}")"
 check "a session with its own goal file blocks" block "${a_out}"
-if printf '%s' "${a_out}" | rg -q 'Session A has its own goal'; then
+if rg -q 'Session A has its own goal' <<<"${a_out}"; then
 	ok "the per-session goal file is preferred over the shared one"
 else
 	no "the per-session goal file is preferred over the shared one"
 fi
-if printf '%s' "${a_out}" | rg -q 'Session B owns the shared file'; then
+if rg -q 'Session B owns the shared file' <<<"${a_out}"; then
 	no "another session's goal is never handed to this one"
 else
 	ok "another session's goal is never handed to this one"
@@ -147,7 +147,7 @@ fi
 
 b_out="$(stop_in "${sid_b}" par2 "${par}")"
 check "the session that owns the shared file still blocks on it" block "${b_out}"
-if printf '%s' "${b_out}" | rg -q 'Session B owns the shared file'; then
+if rg -q 'Session B owns the shared file' <<<"${b_out}"; then
 	ok "the shared file still works for the session that owns it"
 else
 	no "the shared file still works for the session that owns it"
@@ -167,7 +167,7 @@ print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "par4",
                   "stop_hook_active": False, "cwd": os.environ["CWD"],
                   "hook_event_name": "Stop"}))
 ')" | CLAUDE_GOAL_FILE="${goal}" bash "${HOOK}" 2>/dev/null)"
-if printf '%s' "${ovr}" | rg -q 'Explicit override goal'; then
+if rg -q 'Explicit override goal' <<<"${ovr}"; then
 	ok "CLAUDE_GOAL_FILE still outranks the per-session file"
 else
 	no "CLAUDE_GOAL_FILE still outranks the per-session file"

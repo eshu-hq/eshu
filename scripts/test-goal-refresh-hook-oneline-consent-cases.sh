@@ -44,7 +44,7 @@ else
 fi
 
 olinj="$(injected "$(submit "${olsid}" 'carry on' "${olw}")")"
-if printf '%s' "${olinj}" | rg -q 'OWNER CONSENT ALREADY GRANTED for: push, pr-open'; then
+if rg -q 'OWNER CONSENT ALREADY GRANTED for: push, pr-open' <<<"${olinj}"; then
 	ok "ONELINE: the refresher restates the grant on the very next turn"
 else
 	no "ONELINE: the refresher restates the grant on the very next turn (got: ${olinj})"
@@ -56,12 +56,12 @@ print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "oneline-e2e",
                   "stop_hook_active": False, "cwd": os.environ["CWD"],
                   "hook_event_name": "Stop"}))
 ' | bash "${CONTINUE}" 2>/dev/null)"
-if printf '%s' "${olstop}" | rg -q 'OWNER CONSENT ALREADY GRANTED for: push, pr-open'; then
+if rg -q 'OWNER CONSENT ALREADY GRANTED for: push, pr-open' <<<"${olstop}"; then
 	ok "ONELINE: goal-continue.sh honours the grant on the FIRST stop, no second command needed"
 else
 	no "ONELINE: goal-continue.sh honours the grant on the FIRST stop (got: ${olstop})"
 fi
-if printf '%s' "${olstop}" | rg -qF 'you need consent for an irreversible act (push, merge, deploy, delete, data mutation, anything outward-facing)'; then
+if rg -qF 'you need consent for an irreversible act (push, merge, deploy, delete, data mutation, anything outward-facing)' <<<"${olstop}"; then
 	no "ONELINE: goal-continue.sh must not ask about push -- it was already granted"
 else
 	ok "ONELINE: goal-continue.sh does not ask about push"
@@ -91,7 +91,7 @@ if [[ -f "${eagoal}" ]]; then
 else
 	ok "EMPTY ACTS: /goal consent -- text writes nothing"
 fi
-if printf '%s' "${eaerr}" | rg -qi 'non-empty'; then
+if rg -qi 'non-empty' <<<"${eaerr}"; then
 	ok "EMPTY ACTS: the rejection is reported on stderr"
 else
 	no "EMPTY ACTS: the rejection is reported on stderr (got: ${eaerr})"
@@ -110,7 +110,7 @@ if [[ -f "${etgoal}" ]]; then
 else
 	ok "EMPTY TEXT: /goal consent push -- writes nothing"
 fi
-if printf '%s' "${eterr}" | rg -qi 'non-empty'; then
+if rg -qi 'non-empty' <<<"${eterr}"; then
 	ok "EMPTY TEXT: the rejection is reported on stderr"
 else
 	no "EMPTY TEXT: the rejection is reported on stderr (got: ${eterr})"

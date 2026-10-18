@@ -126,7 +126,7 @@ blocks() {
   local path="$repo_root/$1" want="$2" out rc
   out=$(payload "${run_tag}${sid}" "$path" | bash "$hooks_dir/skill-nudge.sh" 2>&1)
   rc=$?
-  if [ "$rc" -eq 2 ] && printf '%s' "$out" | rg -Fq -- "$want"; then
+  if [ "$rc" -eq 2 ] && rg -Fq -- "$want" <<<"$out"; then
     printf 'ok - %s blocks, naming %s\n' "$1" "$want"
     passed=$((passed + 1))
   else
@@ -231,8 +231,8 @@ touch "/tmp/claude-skill-loaded-${probe_sid}-concurrency-deadlock-rigor"
 out=$(payload "$probe_sid" "$repo_root/go/internal/queue/claim.go" \
   | bash "$hooks_dir/skill-nudge.sh" 2>&1)
 rc=$?
-if [ "$rc" -eq 2 ] && printf '%s' "$out" | rg -Fq 'eshu-postgres-rigor' \
-   && ! printf '%s' "$out" | rg -Fq 'concurrency-deadlock-rigor'; then
+if [ "$rc" -eq 2 ] && rg -Fq 'eshu-postgres-rigor' <<<"$out" \
+   && ! rg -Fq 'concurrency-deadlock-rigor' <<<"$out"; then
   printf 'ok - a partially satisfied arm still blocks, naming only what is missing\n'
   passed=$((passed + 1))
 else
@@ -399,7 +399,7 @@ rc=$?
 kill "$fake_pid" 2>/dev/null
 wait "$fake_pid" 2>/dev/null
 rm -rf "$fakebin"
-if [ "$rc" -eq 2 ] && printf '%s' "$out" | rg -Fq 'ci-gates run is already in flight'; then
+if [ "$rc" -eq 2 ] && rg -Fq 'ci-gates run is already in flight' <<<"$out"; then
   printf 'ok - a running ci-gates process blocks the gate\n'
   passed=$((passed + 1))
 else
@@ -455,7 +455,7 @@ else
       | bash "$hooks_dir/guard-live-gate.sh" 2>&1)
     rc=$?
     stop_port_listener
-    if [ "$rc" -eq 2 ] && printf '%s' "$out" | rg -Fq '7687'; then
+    if [ "$rc" -eq 2 ] && rg -Fq '7687' <<<"$out"; then
       printf 'ok - a Postgres-only override still blocks when Bolt is bound\n'
       passed=$((passed + 1))
     else
@@ -489,7 +489,7 @@ else
       | bash "$hooks_dir/guard-live-gate.sh" 2>&1)
     rc=$?
     stop_port_listener
-    if [ "$rc" -eq 2 ] && printf '%s' "$out" | rg -Fq '15432'; then
+    if [ "$rc" -eq 2 ] && rg -Fq '15432' <<<"$out"; then
       printf 'ok - a bound port 15432 blocks the gate\n'
       passed=$((passed + 1))
     else
@@ -616,7 +616,7 @@ json.dump(cfg, open(sys.argv[2], "w"))
 ' "$settings" "$bad_settings" 2>/dev/null
 caught=$(wiring_report "$bad_settings")
 rm -f "$bad_settings"
-if printf '%s' "$caught" | rg -Fq 'skill-loaded.sh'; then
+if rg -Fq 'skill-loaded.sh' <<<"$caught"; then
   printf 'ok - the wiring check catches a hook moved to the wrong event\n'
   passed=$((passed + 1))
 else

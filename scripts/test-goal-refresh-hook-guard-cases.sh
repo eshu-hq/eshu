@@ -43,12 +43,12 @@ fi
 
 inj_a="$(injected "$(submit "${sid_a}" 'carry on' "${pw}")")"
 inj_b="$(injected "$(submit "${sid_b}" 'carry on' "${pw}")")"
-if printf '%s' "${inj_a}" | rg -q 'lane A' && ! printf '%s' "${inj_a}" | rg -q 'lane B'; then
+if rg -q 'lane A' <<<"${inj_a}" && ! rg -q 'lane B' <<<"${inj_a}"; then
 	ok "session A is refreshed with only its own goal"
 else
 	no "session A is refreshed with only its own goal"
 fi
-if printf '%s' "${inj_b}" | rg -q 'lane B' && ! printf '%s' "${inj_b}" | rg -q 'lane A'; then
+if rg -q 'lane B' <<<"${inj_b}" && ! rg -q 'lane A' <<<"${inj_b}"; then
 	ok "session B is refreshed with only its own goal"
 else
 	no "session B is refreshed with only its own goal"
@@ -61,7 +61,7 @@ if [[ -z "$(submit "${sid_a}" 'anything' "${pw}")" ]]; then
 else
 	no "/goal done retires only the caller's goal"
 fi
-if printf '%s' "$(injected "$(submit "${sid_b}" 'anything' "${pw}")")" | rg -q 'lane B'; then
+if rg -q 'lane B' <<<"$(injected "$(submit "${sid_b}" 'anything' "${pw}")")"; then
 	ok "the other session's goal survives that retirement"
 else
 	no "the other session's goal survives that retirement"
@@ -75,7 +75,7 @@ print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "par-e2e",
                   "stop_hook_active": False, "cwd": os.environ["CWD"],
                   "hook_event_name": "Stop"}))
 ' | bash "${CONTINUE}" 2>/dev/null)"
-if printf '%s' "${par_stop}" | rg -q 'lane B' && ! printf '%s' "${par_stop}" | rg -q 'lane A'; then
+if rg -q 'lane B' <<<"${par_stop}" && ! rg -q 'lane A' <<<"${par_stop}"; then
 	ok "END TO END: the Stop hook enforces each session's own goal"
 else
 	no "END TO END: the Stop hook enforces each session's own goal"
@@ -132,7 +132,7 @@ print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "noopc",
                   "cwd": os.environ["CWD"], "prompt": os.environ["PROMPT"],
                   "hook_event_name": "UserPromptSubmit"}))
 ' | HOME="${work}/no-such-home" bash "${REFRESH}" 2>&1 >/dev/null)"
-if printf '%s' "${noop_err}" | rg -qi 'consent'; then
+if rg -qi 'consent' <<<"${noop_err}"; then
 	ok "a consent with no goal file to write says so on stderr"
 else
 	no "a consent with no goal file to write says so on stderr (got: ${noop_err})"
@@ -232,8 +232,8 @@ print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "envc",
 # `push` -- which the NO-consent sentence also contains ("Ask only for consent
 # on an irreversible act (push, merge, deploy, ...)") -- so it passed with the
 # branch deleted: the vacuous-test defect it was written to prevent, inside it.
-if printf '%s' "${env_inj}" | rg -qi 'already granted' &&
-	printf '%s' "${env_inj}" | rg -q 'pr-open'; then
+if rg -qi 'already granted' <<<"${env_inj}" &&
+	rg -q 'pr-open' <<<"${env_inj}"; then
 	ok "CLAUDE_GOAL_CONSENT reaches the per-turn restatement"
 else
 	no "CLAUDE_GOAL_CONSENT reaches the per-turn restatement"
@@ -258,7 +258,7 @@ if [[ "$(head -1 "${fh2}/.claude/active-goal")" == DONE* ]]; then
 else
 	ok "/goal done does not retire the machine-wide goal file"
 fi
-if printf '%s' "${retire_err}" | rg -qi 'machine-wide'; then
+if rg -qi 'machine-wide' <<<"${retire_err}"; then
 	ok "the refused retirement says so on stderr"
 else
 	no "the refused retirement says so on stderr (got: ${retire_err})"
@@ -279,7 +279,7 @@ import json, os
 print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "nocwd",
                   "prompt": "carry on", "hook_event_name": "UserPromptSubmit"}))
 ' | HOME="${nc_home}" bash "${REFRESH}" 2>/dev/null)"
-if printf '%s' "$(injected "${nocwd_out}")" | rg -q 'Home-scoped objective with no cwd'; then
+if rg -q 'Home-scoped objective with no cwd' <<<"$(injected "${nocwd_out}")"; then
 	ok "a payload with no cwd still refreshes the \$HOME goal"
 else
 	no "a payload with no cwd still refreshes the \$HOME goal"
@@ -292,7 +292,7 @@ import json, os
 print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "nocwdstop",
                   "stop_hook_active": False, "hook_event_name": "Stop"}))
 ' | HOME="${nc_home}" bash "${CONTINUE}" 2>/dev/null)"
-if printf '%s' "${nocwd_stop}" | rg -q '"decision"[[:space:]]*:[[:space:]]*"block"'; then
+if rg -q '"decision"[[:space:]]*:[[:space:]]*"block"' <<<"${nocwd_stop}"; then
 	ok "PARITY: both hooks act on the same cwd-less payload"
 else
 	no "PARITY: both hooks act on the same cwd-less payload"
@@ -310,7 +310,7 @@ if [[ -e "-/.claude" ]] || [[ -e "./-" ]]; then
 else
 	ok "a cwd-less /goal writes no goal file"
 fi
-if printf '%s' "$(injected "${nocwd_write}")" | rg -q 'set something'; then
+if rg -q 'set something' <<<"$(injected "${nocwd_write}")"; then
 	no "a cwd-less /goal does not become the goal"
 else
 	ok "a cwd-less /goal does not become the goal"
@@ -333,7 +333,7 @@ print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "missing",
                   "cwd": os.environ["CWD"], "prompt": os.environ["PROMPT"],
                   "hook_event_name": "UserPromptSubmit"}))
 ' | HOME="${work}/no-home-at-all" bash "${REFRESH}" 2>&1 >/dev/null)"
-	if printf '%s' "${miss_err}" | rg -qi 'no goal file'; then
+	if rg -qi 'no goal file' <<<"${miss_err}"; then
 		ok "/goal ${action} with no goal file reports nonexistence, not ownership"
 	else
 		no "/goal ${action} with no goal file reports nonexistence, not ownership (got: ${miss_err})"
@@ -354,7 +354,7 @@ print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "remedy",
                   "cwd": os.environ["CWD"], "prompt": os.environ["PROMPT"],
                   "hook_event_name": "UserPromptSubmit"}))
 ' | HOME="${rh}" bash "${REFRESH}" 2>&1 >/dev/null)"
-if printf '%s' "${remedy_err}" | rg -qi 'set a goal here first|set one with'; then
+if rg -qi 'set a goal here first|set one with' <<<"${remedy_err}"; then
 	no "a refused retirement is not told to set a goal"
 else
 	ok "a refused retirement is not told to set a goal"
@@ -365,7 +365,7 @@ print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "remedy2",
                   "cwd": os.environ["CWD"], "prompt": os.environ["PROMPT"],
                   "hook_event_name": "UserPromptSubmit"}))
 ' | HOME="${work}/no-home-either" bash "${REFRESH}" 2>&1 >/dev/null)"
-if printf '%s' "${missing_retire}" | rg -qi 'nothing to retire'; then
+if rg -qi 'nothing to retire' <<<"${missing_retire}"; then
 	ok "retiring a goal that does not exist says there is nothing to retire"
 else
 	no "retiring a goal that does not exist says there is nothing to retire (got: ${missing_retire})"
@@ -377,7 +377,7 @@ print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "remedy3",
                   "cwd": os.environ["CWD"], "prompt": os.environ["PROMPT"],
                   "hook_event_name": "UserPromptSubmit"}))
 ' | HOME="${work}/no-home-either" bash "${REFRESH}" 2>&1 >/dev/null)"
-if printf '%s' "${missing_consent}" | rg -qi 'set one with'; then
+if rg -qi 'set one with' <<<"${missing_consent}"; then
 	ok "a consent with nothing to attach to is still told to set a goal"
 else
 	no "a consent with nothing to attach to is still told to set a goal"
@@ -398,12 +398,12 @@ mkdir -p "${bl}/.claude"
 submit "${sid}" '/goal ship the thing' "${bl}" >/dev/null
 submit "${sid}" '/goal consent all' "${bl}" >/dev/null
 bl_inj="$(injected "$(submit "${sid}" 'carry on' "${bl}")")"
-if printf '%s' "${bl_inj}" | rg -q 'NOT on it'; then
+if rg -q 'NOT on it' <<<"${bl_inj}"; then
 	no "a blanket grant is not described as a list to check against"
 else
 	ok "a blanket grant is not described as a list to check against"
 fi
-if printf '%s' "${bl_inj}" | rg -qi 'blanket'; then
+if rg -qi 'blanket' <<<"${bl_inj}"; then
 	ok "a blanket grant says so"
 else
 	no "a blanket grant says so"
@@ -415,7 +415,7 @@ mkdir -p "${nm}/.claude"
 submit "${sid}" '/goal ship the other thing' "${nm}" >/dev/null
 submit "${sid}" '/goal consent push' "${nm}" >/dev/null
 nm_inj="$(injected "$(submit "${sid}" 'carry on' "${nm}")")"
-if printf '%s' "${nm_inj}" | rg -q 'NOT on it'; then
+if rg -q 'NOT on it' <<<"${nm_inj}"; then
 	ok "a named grant still says to ask for acts not on the list"
 else
 	no "a named grant still says to ask for acts not on the list"
