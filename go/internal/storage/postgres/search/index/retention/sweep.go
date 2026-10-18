@@ -83,9 +83,9 @@ var supersededTables = []table{
 // (missing row or NULL active pointer deletes nothing). A generation pruned
 // between the listing and a batch turns its leftover rows into orphans,
 // which the unchanged orphan census and sweep remove on their own cadence.
-// Facts are never touched, so a swept generation's index rebuilds on demand
-// by re-running the search-document projection from the held facts; the
-// sweep itself never rebuilds eagerly.
+// Facts are never touched, so a swept generation's index can be rebuilt by a
+// future backfill from the held facts; no automated restore path exists
+// today, and the sweep itself never rebuilds eagerly.
 func SweepSuperseded(ctx context.Context, database Database, deadline time.Time, rowCap int64, logger *slog.Logger) (SupersededSweep, error) {
 	started := time.Now()
 	candidates, err := listSupersededCandidates(ctx, database)

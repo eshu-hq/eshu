@@ -55,8 +55,8 @@
 // nothing. The runner calls it after the orphan sweep, at most once per poll
 // interval, only when its superseded-sweep policy is enabled (off by
 // default), and still outside any retention transaction. Facts are never
-// touched: a swept generation's index rebuilds on demand by re-running the
-// search-document projection from the held facts, never eagerly.
+// touched: facts stay held, so a swept generation's index can be rebuilt by
+// a future backfill; no automated restore path exists today, never eager.
 //
 // This package must not import the parent postgres package.
 package indexretention

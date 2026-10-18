@@ -61,7 +61,8 @@ run (`candidates`, `rows_swept`, `batches`, `unswept_generations`).
 **Rollback.** The sweep deletes derived rows only; facts are never touched.
 To stop: unset the flag and roll the reducer — committed batches stay
 deleted, later passes simply list nothing new. To restore a swept
-generation's index (rebuild on demand, never eager): re-run the
-search-document projection for that generation from the held facts; the
-index writer upserts are idempotent, so the rebuild converges without
+generation's index (never eager): facts stay held, so the index can be rebuilt
+by a future backfill projection for that generation; no automated restore
+path exists today. The index writer upserts are idempotent, so a rebuild
+converges without
 touching any other generation. There is no eager rebuild after a sweep.
