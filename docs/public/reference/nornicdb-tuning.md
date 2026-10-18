@@ -355,7 +355,7 @@ raising the batch again.
 
 ## Orphan Sweep Candidate And Connectivity-Read Sizing
 
-`OrphanSweepStore` (#5147, `go/internal/storage/cypher/orphan_sweep.go`) reads
+`OrphanSweepStore` (#5147, `go/internal/storage/cypher/sweep/orphan/store.go`) reads
 per-label orphan candidates (S1, bounded by `CountLimit`) and then checks
 their connectivity (S2, a key-anchored `MATCH`) before marking or sweeping.
 

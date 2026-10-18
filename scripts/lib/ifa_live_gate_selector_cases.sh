@@ -79,7 +79,7 @@ ifa_live_gate_common_seams=(
 	'go/internal/storage/postgres/queue/backoff.go|go/internal/storage/postgres/queue/backoff.go'
 	'go/internal/storage/cypher/writer.go|go/internal/storage/cypher/writer.go'
 	'go/internal/storage/cypher/phase_group_metadata.go|go/internal/storage/cypher/phase_group_metadata.go'
-	'go/internal/storage/cypher/phase_group_sanitize.go|go/internal/storage/cypher/phase_group_sanitize.go'
+	'go/internal/storage/cypher/phase/group/sanitize.go|go/internal/storage/cypher/phase/group/sanitize.go'
 	'go/internal/storage/cypher/statement_chunk.go|go/internal/storage/cypher/statement_chunk.go'
 	'go/internal/storage/cypher/bounded_retract_drain.go|go/internal/storage/cypher/bounded_retract_drain.go'
 	'go/internal/storage/cypher/reconciliation_drift_metrics.go|go/internal/storage/cypher/reconciliation_drift_metrics.go'

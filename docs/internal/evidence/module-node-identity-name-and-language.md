@@ -106,7 +106,7 @@ generation-retract.** Canonical import Module nodes carry no `repo_id` and no
 $repo_id AND ... n.generation_id <> $generation_id` — cannot match one; there is
 no generation-retract path for this label at all. The orphan sweep owns them
 explicitly: `OrphanSweepLabelModule` with the class predicate `n.uid IS NULL`
-(go/internal/storage/cypher/orphan_sweep_guards.go), which selects exactly the
+(go/internal/storage/cypher/sweep/orphan/guards.go), which selects exactly the
 canonical import modules and excludes the uid-keyed semantic ones. A
 disconnected node is marked, then deleted after `defaultOrphanSweepTTL`
 (7 days).
