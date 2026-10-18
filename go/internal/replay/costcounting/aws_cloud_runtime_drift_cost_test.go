@@ -282,11 +282,8 @@ func TestCostBudget_AWSCloudRuntimeDrift(t *testing.T) {
 	// by the production postgres.InstrumentedDB.ExecContext wrapper, NOT by a
 	// hand-counted call slice.
 	observations := collectHistogramCount(rm, "eshu_dp_postgres_query_duration_seconds")
-	maxObservations, ok := budget.Budgets["eshu_dp_postgres_query_duration_seconds"]
-	if !ok {
-		t.Fatal("budget missing required key eshu_dp_postgres_query_duration_seconds")
-	}
-	if int64(observations) > maxObservations {
+	maxObservations := checkedBudgetLimit(t, budget, "eshu_dp_postgres_query_duration_seconds")
+	if observations > maxObservations {
 		t.Fatalf(
 			"eshu_dp_postgres_query_duration_seconds observations = %d exceeds budget %d "+
 				"(scenario=%s): algorithmic regression detected",
@@ -365,12 +362,9 @@ func TestCostBudget_AWSCloudRuntimeDrift_N1_ExceedsBudget(t *testing.T) {
 	}
 
 	observations := collectHistogramCount(rm, "eshu_dp_postgres_query_duration_seconds")
-	maxObservations, ok := budget.Budgets["eshu_dp_postgres_query_duration_seconds"]
-	if !ok {
-		t.Fatal("budget has no eshu_dp_postgres_query_duration_seconds entry")
-	}
+	maxObservations := checkedBudgetLimit(t, budget, "eshu_dp_postgres_query_duration_seconds")
 
-	if int64(observations) <= maxObservations {
+	if observations <= maxObservations {
 		t.Fatalf(
 			"N+1 negative control: eshu_dp_postgres_query_duration_seconds observations = %d did NOT exceed "+
 				"budget %d — budget is too loose to catch duplicate-invocation regressions or the negative "+
@@ -427,12 +421,9 @@ func TestCostBudget_AWSCloudRuntimeDrift_WithinCallN1_ExceedsBudget(t *testing.T
 	}
 
 	observations := collectHistogramCount(rm, "eshu_dp_postgres_query_duration_seconds")
-	maxObservations, ok := budget.Budgets["eshu_dp_postgres_query_duration_seconds"]
-	if !ok {
-		t.Fatal("budget has no eshu_dp_postgres_query_duration_seconds entry")
-	}
+	maxObservations := checkedBudgetLimit(t, budget, "eshu_dp_postgres_query_duration_seconds")
 
-	if int64(observations) <= maxObservations {
+	if observations <= maxObservations {
 		t.Fatalf(
 			"within-call N+1 negative control: eshu_dp_postgres_query_duration_seconds observations = %d did "+
 				"NOT exceed budget %d — budget is too loose to catch N+1 regressions or the negative control is "+

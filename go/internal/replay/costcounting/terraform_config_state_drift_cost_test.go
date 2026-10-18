@@ -159,14 +159,11 @@ func TestCostBudget_TerraformConfigStateDrift(t *testing.T) {
 	// PRIMARY assertion: read eshu_dp_postgres_query_duration_seconds's
 	// write-attributed observation count off the real otel reader.
 	writes := collectAttributedHistogramCount(rm, "eshu_dp_postgres_query_duration_seconds", "operation", "write")
-	maxWrites, ok := budget.Budgets["eshu_dp_postgres_query_duration_seconds"]
-	if !ok {
-		t.Fatal("budget missing required key eshu_dp_postgres_query_duration_seconds")
-	}
+	maxWrites := checkedBudgetLimit(t, budget, "eshu_dp_postgres_query_duration_seconds")
 	if writes == 0 {
 		t.Fatal("eshu_dp_postgres_query_duration_seconds write observations = 0: instrument not recording (false green guard)")
 	}
-	if writes != uint64(maxWrites) {
+	if writes != maxWrites {
 		t.Fatalf(
 			"eshu_dp_postgres_query_duration_seconds write observations = %d, want exactly budget %d "+
 				"(scenario=%s): every count change requires a budget refresh",
@@ -228,12 +225,9 @@ func TestCostBudget_TerraformConfigStateDrift_N1_ExceedsBudget(t *testing.T) {
 	}
 
 	writes := collectAttributedHistogramCount(rm, "eshu_dp_postgres_query_duration_seconds", "operation", "write")
-	maxWrites, ok := budget.Budgets["eshu_dp_postgres_query_duration_seconds"]
-	if !ok {
-		t.Fatal("budget has no eshu_dp_postgres_query_duration_seconds entry")
-	}
+	maxWrites := checkedBudgetLimit(t, budget, "eshu_dp_postgres_query_duration_seconds")
 
-	if writes <= uint64(maxWrites) {
+	if writes <= maxWrites {
 		t.Fatalf(
 			"N+1 negative control: eshu_dp_postgres_query_duration_seconds write observations = %d did NOT "+
 				"exceed budget %d — budget is too loose to catch N+1 regressions or the negative control is "+
