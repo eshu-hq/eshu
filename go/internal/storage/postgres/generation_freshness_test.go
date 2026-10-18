@@ -273,7 +273,7 @@ func TestPriorGenerationCheck(t *testing.T) {
 			wantPrior: true,
 		},
 		{
-			name:         "false when only a newer generation exists",
+			name:         "wrapper maps a false row when the fake reports no older generation",
 			scopeID:      "scope-123",
 			generationID: "gen-old",
 			database: &generationFreshnessTestDB{
@@ -412,7 +412,8 @@ func (database *generationFreshnessTestDB) QueryContext(_ context.Context, query
 		generationID := args[1].(string)
 		// generations lists the scope's rows oldest first in activation
 		// order. The live proof (generation_prior_check_live_test.go) owns
-		// the SQL semantics; this fake only feeds the Go wrapper.
+		// the SQL semantics. This fake ignores the SQL text and only feeds the
+		// Go wrapper, so no case here proves what the statement does.
 		exists := false
 		intentIndex := slices.Index(database.generations[scopeID], generationID)
 		switch {

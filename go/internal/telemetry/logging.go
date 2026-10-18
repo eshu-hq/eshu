@@ -245,6 +245,7 @@ const LogKeySkipRetract = "skip_retract"
 
 // LogKeySkipRetractReason is the closed reason behind LogKeySkipRetract: one
 // of the reducer contract's RetractReasons (first_generation,
-// prior_generation, retry_attempt, check_unwired, recommit). It is also the
-// span attribute key, and its bounded set keeps it safe as a label (#8167).
+// prior_generation, retry_attempt, check_unwired, recommit, already_committed).
+// It is never empty when LogKeySkipRetract is logged. It is also the span
+// attribute key, and its bounded set keeps it safe as a label (#8167).
 const LogKeySkipRetractReason = "skip_retract_reason"

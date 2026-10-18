@@ -47,8 +47,9 @@ type iamCanPerformTiming struct {
 	edgeCount               int
 	tally                   iamCanPerformTally
 	skipRetract             bool
-	// retractReason is the shared retract decision reason (#8167); it is
-	// empty when the wait decision deferred the commit and nothing ran.
+	// retractReason is the shared retract decision reason (#8167), always one
+	// of reducercontract.RetractReasons; already_committed when the wait
+	// decision skipped the commit.
 	retractReason   string
 	loadDuration    time.Duration
 	extractDuration time.Duration

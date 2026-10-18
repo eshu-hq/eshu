@@ -77,6 +77,8 @@ spans, counters, and structured logs around contract handlers.
   generations committed after the intent's, or the decision depends on queue
   timing and backend-diff legs record different retracts. The reason is one
   of the closed `RetractReasons`; callers record it, this package does not.
+  `already_committed` is not returned by this predicate: a handler whose wait
+  decision skips the whole commit (CAN_PERFORM) records it itself.
 
 No-Regression Evidence: #6100 moves the existing value types and validation
 methods without changing fields, constants, lifecycle rules, or registry order.

@@ -89,6 +89,7 @@ func TestRetractReasonsClosedSet(t *testing.T) {
 		RetractReasonRetryAttempt,
 		RetractReasonCheckUnwired,
 		RetractReasonRecommit,
+		RetractReasonAlreadyCommitted,
 	}
 	if got := RetractReasons(); !slices.Equal(got, want) {
 		t.Fatalf("RetractReasons() = %v, want %v", got, want)

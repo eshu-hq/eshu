@@ -30,6 +30,11 @@ const (
 	// generation it already committed (for example a cross-scope target
 	// became ready), and the resolved set can shrink between commits.
 	RetractReasonRecommit = "recommit"
+	// RetractReasonAlreadyCommitted skips the retract: the handler's wait
+	// decision found this generation, queue cycle, and missing set already
+	// committed, so the evaluation ran no commit at all. It is not a
+	// first-generation skip; the earlier commit owns the retract.
+	RetractReasonAlreadyCommitted = "already_committed"
 )
 
 // RetractReasons returns the closed retract decision reason set in a stable
@@ -41,11 +46,14 @@ func RetractReasons() []string {
 		RetractReasonRetryAttempt,
 		RetractReasonCheckUnwired,
 		RetractReasonRecommit,
+		RetractReasonAlreadyCommitted,
 	}
 }
 
 // RetractDecision is a materializer's decision about its scope-wide retract.
-// Skip is true only for RetractReasonFirstGeneration.
+// DecideFirstGenerationRetract sets Skip only for RetractReasonFirstGeneration.
+// A handler whose wait decision skips the whole commit records Skip with
+// RetractReasonAlreadyCommitted itself.
 type RetractDecision struct {
 	// Skip reports that the retract must not run.
 	Skip bool

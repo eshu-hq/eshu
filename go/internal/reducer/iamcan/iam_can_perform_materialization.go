@@ -226,7 +226,11 @@ func (h IAMCanPerformMaterializationHandler) Handle(
 	// The commit is the scope-wide retract plus rewrite, skipped only when the
 	// ledger shows this generation, queue cycle, and missing set already
 	// committed. Missing targets are left out of the rewrite (unresolved).
-	var commit iamCanPerformCommit
+	// An evaluation whose decision skips the commit ran no retract either; the
+	// log and span say so with the closed already_committed reason.
+	commit := iamCanPerformCommit{retract: reducercontract.RetractDecision{
+		Skip: true, Reason: reducercontract.RetractReasonAlreadyCommitted,
+	}}
 	if decision.Commit {
 		recommit := crossscope.CommittedInGeneration(existingWait, waitFound, intent.GenerationID)
 		if commit, err = h.commitEdges(ctx, intent, result.Edges, recommit); err != nil {
@@ -236,6 +240,11 @@ func (h IAMCanPerformMaterializationHandler) Handle(
 		if h.CrossScopeTargets != nil {
 			h.recordCrossScopeOutcomes(ctx, settledOutcomes(crossScope.outcomes, decision))
 		}
+	} else {
+		trace.SpanFromContext(ctx).SetAttributes(
+			attribute.Bool(telemetry.LogKeySkipRetract, commit.retract.Skip),
+			attribute.String(telemetry.LogKeySkipRetractReason, commit.retract.Reason),
+		)
 	}
 	// The ledger is written only after the graph commit: a crash between the
 	// two re-commits once, idempotently, and never skips a commit.
@@ -252,7 +261,7 @@ func (h IAMCanPerformMaterializationHandler) Handle(
 		resourcePolicyCount:     len(resourcePolicyEnvelopes),
 		edgeCount:               commit.writes,
 		tally:                   result.Tally,
-		skipRetract:             commit.retract.Skip || !decision.Commit,
+		skipRetract:             commit.retract.Skip,
 		retractReason:           commit.retract.Reason,
 		loadDuration:            loadDuration,
 		extractDuration:         extractDuration,
