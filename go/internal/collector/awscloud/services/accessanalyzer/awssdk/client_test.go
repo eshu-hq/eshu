@@ -5,6 +5,7 @@ package awssdk
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -177,15 +178,7 @@ func TestClientCapsUnusedFindingDetailReads(t *testing.T) {
 }
 
 func equalFindingCounts(got []accessanalyzerservice.FindingCount, want []accessanalyzerservice.FindingCount) bool {
-	if len(got) != len(want) {
-		return false
-	}
-	for i := range got {
-		if got[i] != want[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(got, want)
 }
 
 func unusedFindingSummaries(count int) []awsaccessanalyzertypes.FindingSummaryV2 {

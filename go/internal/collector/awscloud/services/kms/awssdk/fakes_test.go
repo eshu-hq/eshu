@@ -5,6 +5,7 @@ package awssdk
 
 import (
 	"context"
+	"slices"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awskms "github.com/aws/aws-sdk-go-v2/service/kms"
@@ -142,15 +143,7 @@ func (f *fakeKMSAPI) GetKeyPolicy(_ context.Context, input *awskms.GetKeyPolicyI
 }
 
 func equalStrings(left, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for i := range left {
-		if left[i] != right[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(left, right)
 }
 
 var _ apiClient = (*fakeKMSAPI)(nil)

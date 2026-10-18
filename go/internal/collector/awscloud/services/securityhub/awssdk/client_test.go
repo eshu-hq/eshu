@@ -6,6 +6,7 @@ package awssdk
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -261,15 +262,7 @@ func testBoundary() awscloud.Boundary {
 }
 
 func stringSlicesEqual(left []string, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(left, right)
 }
 
 func mustJSON(t *testing.T, value any) string {

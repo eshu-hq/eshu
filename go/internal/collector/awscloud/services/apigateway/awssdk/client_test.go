@@ -5,6 +5,7 @@ package awssdk
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -191,15 +192,7 @@ func TestClientSnapshotReadsRESTAndV2MetadataOnly(t *testing.T) {
 }
 
 func reflectDeepEqualStrings(got []string, want []string) bool {
-	if len(got) != len(want) {
-		return false
-	}
-	for i := range got {
-		if got[i] != want[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(got, want)
 }
 
 type fakeRESTAPI struct {
