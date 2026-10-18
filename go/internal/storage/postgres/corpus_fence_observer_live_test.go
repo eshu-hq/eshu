@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8247 disposable PostgreSQL proof that the corpus-fence gauge statement counts exactly the fence holders and the active-generation retrying resolution-not-ready consumers with the oldest deferred age, and plans on the fact_work_items stage/domain/status index at 20k filler rows; isolated schema; 3.89s locally on PostgreSQL 16; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_POSTGRES_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"
