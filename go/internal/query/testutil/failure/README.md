@@ -110,12 +110,16 @@ mutate `check.go` on disk for it, not with `-overlay`.
 
 ## Remainder
 
-`service`, `terraform/drift` and `workitem` (#8172 slice 1) and `secrets`,
-`iac` and `package/registry` (#8172 slice 2) now run through `Run`, on top of
-the earlier retrofits. Six families still carry a custom harness this one
-does not yet cover (stage logs, a 504 fault status, write paths with no
-fence, sentinel 503s): `supply/chain`, `impact`, `entity`, `codequery`,
-`contentread` and `selector`. #8172 tracks moving them here.
+`service`, `terraform/drift` and `workitem` (#8172 slice 1), `secrets`,
+`iac` and `package/registry` (#8172 slice 2), and `codequery` and
+`contentread` (#8172 slice 4) now run through `Run`, on top of the earlier
+retrofits. Four families still carry a custom harness this one does not yet
+cover (stage logs, a 504 fault status, write paths with no fence, sentinel
+503s, typed selector 404/400 answers): `supply/chain`, `impact`, `entity`
+and `selector`. #8172 tracks moving them here. `codequery` keeps its
+sentinel-503 test on the local serve/assert helpers, and `selector` keeps its
+typed-answer test: `Run` asserts one fixed message with 500/499/503
+statuses, which cannot express per-class 404/400 answers.
 
 No-Regression Evidence (#8172 slice 2): test-only change. `Route.PlainDetail`
 adds one body-shape check to `Check`, off unless a route sets it. The three
@@ -124,6 +128,19 @@ costs are unchanged. Their `go test` packages run in under 2 s each.
 
 No-Observability-Change (#8172 slice 2): the new assertion reads the response
 body only. It emits no signal and adds no span, metric, or log.
+
+No-Regression Evidence (#8172 slice 4): test-only change. No helper change:
+every converted route fits the existing `Route` fields (`Method`, `Body`,
+`Message`, `Handler`) and the existing span split (a `HandlerTracer` suite
+for routes that open a handler span, a tracer-less suite checking the request
+span for routes that record there, as the old harnesses did by falling back
+to it). The two converted families change no production code, so their read
+paths, bounds, and costs are unchanged. Their `go test` packages run in under
+1 s each (codequery 0.08 s, contentread 0.04 s, failure 0.14 s).
+
+No-Observability-Change (#8172 slice 4): the conversion reads responses and
+the existing handler/request spans only. It emits no signal and adds no span,
+metric, or log.
 
 No-Regression Evidence: test-only package with no production importer
 (`internal/queryplan`'s production-import guard rejects one). The `MATCH (n)`
