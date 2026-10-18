@@ -26,6 +26,7 @@ git/                     selection + snapshot + source (the tangled core)
   workflow/image/        CI workflow container image evidence
   membership/            githubOrg repository selection observations (#7625)
   deadline/              per-command git deadlines for the sync loop (#8052)
+  resolve/          per-host curloptResolve address cache (#8092)
 ```
 
 Imports run one way: `git -> leaf -> model`. No leaf imports `git`.
@@ -133,6 +134,41 @@ failure keeps `repo_id`, `ref` and `error` only). It is not a
 cycle continue. A clone that outlives its
 deadline fails every cycle, so size `ESHU_GIT_CLONE_TIMEOUT_SECONDS` for the largest repository you index.
 See `deadline/README.md`.
+
+The deadlines bound a resolver stall; the address cache removes the lookup
+from the fetch path (#8092). The `resolve` subpackage resolves each
+provider host once with Go's resolver (5 s by default,
+`ESHU_GIT_RESOLVE_CACHE_LOOKUP_SECONDS`) on a single receiver goroutine and
+pins every A and AAAA address into clone, fetch, pinned-ref fetch, and both
+`ls-remote` calls as `-c http.curloptResolve`, rebuilt per attempt so a retry
+after a refresh pins the fresh set. A retry whose attempt died at its deadline
+or with a closed curl wording row (resolve, connect, or reset text — never an
+HTTP, auth, or pack answer, and never a plain local `operation timed out`)
+requests a refresh through the #8091 hook, single-flight per host with a 30 s
+minimum gap; an hourly background refresh (`ESHU_GIT_RESOLVE_CACHE_REFRESH_SECONDS`)
+travels the same path. A failed refresh keeps the last good set, the first
+command for a host falls back unpinned after the lookup deadline
+(`eshu_dp_git_resolve_cache_fallback_total{reason="cache_empty"}`), nothing is
+pinned under a proxy setting (`reason="proxy_set"`) or for SSH remotes, and
+`ESHU_GIT_RESOLVE_CACHE=off` turns the cache off. See `resolve/README.md`.
+
+Performance Evidence (#8092): the pinned path costs one map read per network
+command and one lookup per host per hour in place of one lookup per git
+process; the issue's shim measured a pinned `ls-remote` at 0.45–0.6 s with DNS
+black-holed where the unpinned command failed after about 12 s.
+`TestConcurrentRefreshSingleFlight` (resolve, `-race`) proves 32
+concurrent failure requests start exactly one lookup, and
+`TestNetworkCommandsCarryCurlResolvePin` proves the pin rides clone, fetch,
+pinned-ref fetch, and `ls-remote` argv ahead of the subcommand. Terminal
+counts are unchanged: the pin only skips curl's own lookup, so the same refs
+and packs arrive.
+
+Observability Evidence (#8092): `eshu_dp_git_resolve_cache_lookups_total`,
+`eshu_dp_git_resolve_cache_refresh_requests_total`,
+`eshu_dp_git_resolve_cache_fallback_total`, and
+`eshu_dp_git_resolve_cache_lookup_duration_seconds`, the
+`git.resolve_cache.lookup` span, and the `git resolve cache lookup` log lines,
+asserted from recorded runs in the resolve tests.
 
 ## Directory size
 

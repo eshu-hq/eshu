@@ -13,9 +13,9 @@ import (
 )
 
 // DefaultRefreshWait is the longest a retry waits for a RefreshRequester's
-// lookup after a resolve or connect failure. The later per-host address cache
-// owns the real lookup deadline; this bound keeps the hook from stretching a
-// retry if it ever returns a channel that never closes.
+// lookup after a resolve or connect failure. The per-host address cache
+// (#8092) owns the real lookup deadline; this bound keeps the hook from
+// stretching a retry if it ever returns a channel that never closes.
 const DefaultRefreshWait = 5 * time.Second
 
 // Command is one network git command the retry loop may run more than once.
@@ -66,11 +66,12 @@ func (f *Failure) Error() string { return f.Err.Error() }
 // Unwrap returns the underlying error.
 func (f *Failure) Unwrap() error { return f.Err }
 
-// RefreshRequester is the hook for the later per-host address cache. After a
-// resolve or connect failure the loop calls RequestRefresh with the provider
-// host. The call must not block. The returned channel, when not nil, closes
-// when the lookup finishes, and the retry waits for it up to DefaultRefreshWait.
-// The default requester does nothing.
+// RefreshRequester is the hook the per-host address cache (#8092) plugs
+// into. After a failure the closed trigger set names (shouldRefreshAddresses)
+// the loop calls RequestRefresh with the provider host. The call must not
+// block. The returned channel, when not nil, closes when the lookup finishes,
+// and the retry waits for it up to DefaultRefreshWait. The default requester
+// does nothing.
 type RefreshRequester interface {
 	RequestRefresh(host string) <-chan struct{}
 }
@@ -131,7 +132,10 @@ func sleepContext(ctx context.Context, d time.Duration) error {
 	case <-ctx.Done():
 		return ctx.Err() //nolint:wrapcheck // the context error is the shutdown signal itself
 	case <-timer.C:
-		return nil
+		// A timer that fires as the context ends can win the select; the
+		// context check keeps a shutdown from reading as a completed
+		// sleep (note N6 on #8091).
+		return ctx.Err() //nolint:wrapcheck // the context error is the shutdown signal itself
 	}
 }
 
@@ -209,7 +213,7 @@ func RunRetrying(ctx context.Context, limits Limits, c Command) error {
 		report.backoff = spread(limits.retryBackoff())
 		lastBackoff = report.backoff
 		var refreshed <-chan struct{}
-		if needsAddressRefresh(report.class) {
+		if shouldRefreshAddresses(report.class, report.stderr) {
 			refreshed = requester.RequestRefresh(c.Host)
 		}
 		recordAttempt(ctx, sweep, report)
@@ -234,16 +238,18 @@ func takeRetry(sweep *sweepState) (willRetry, exhausted bool) {
 
 // waitForRefresh waits for the address refresh the requester started, up to
 // DefaultRefreshWait. It reports true when the context ended first: the caller
-// is shutting down and the retry must not start.
+// is shutting down and the retry must not start. The context is re-checked
+// after a refresh or timer win, because select may pick that case when both
+// are ready (note N6 on #8091).
 func waitForRefresh(ctx context.Context, refreshed <-chan struct{}) bool {
 	timer := time.NewTimer(DefaultRefreshWait)
 	defer timer.Stop()
 	select {
 	case <-refreshed:
-		return false
+		return ctx.Err() != nil
 	case <-ctx.Done():
 		return true
 	case <-timer.C:
-		return false
+		return ctx.Err() != nil
 	}
 }

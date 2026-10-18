@@ -39,6 +39,13 @@ func syncGitRepositoriesWithLogger(
 		return GitSyncSelection{}, fmt.Errorf("create repos dir %q: %w", config.ReposDir, err)
 	}
 	ctx = deadline.WithSweep(deadline.WithMetrics(ctx, baseline.Instruments), config.GitDeadlines, logger)
+	if config.ResolveCache != nil {
+		// The cache outlives one sweep (it is built at config load), so
+		// each sweep rebinds this runtime's instruments and logger, and
+		// the retry loop's refresh hook points at it (#8092).
+		config.ResolveCache.Bind(baseline.Instruments, logger)
+		ctx = deadline.WithRefreshRequester(ctx, config.ResolveCache)
+	}
 	token, err := resolveGitToken(ctx, config)
 	if err != nil && (config.SourceMode == "githubOrg" || config.SourceMode == "gitlabGroup") {
 		return GitSyncSelection{}, err

@@ -193,8 +193,10 @@ func (r *recordingRefresh) RequestRefresh(host string) <-chan struct{} {
 }
 
 // TestRunRetryingRequestsAddressRefreshOnResolveOrConnect proves the hook for
-// the later per-host address cache: resolve and connect classes ask for a
-// refresh of the host, other classes do not, and the request never blocks.
+// the per-host address cache: the closed curl wording set of #8092 asks for a
+// refresh of the host (a connection reset is in it — superseding the narrower
+// resolve/connect-only seam), other text does not, and the request never
+// blocks.
 func TestRunRetryingRequestsAddressRefreshOnResolveOrConnect(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -203,7 +205,7 @@ func TestRunRetryingRequestsAddressRefreshOnResolveOrConnect(t *testing.T) {
 	}{
 		{"resolve", dnsStderr, []string{"github.com"}},
 		{"connect", "fatal: unable to access 'https://github.com/o/r.git/': Failed to connect to github.com port 443", []string{"github.com"}},
-		{"reset", hungUp, nil},
+		{"reset", hungUp, []string{"github.com"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

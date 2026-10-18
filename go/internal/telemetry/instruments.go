@@ -461,6 +461,22 @@ type Instruments struct {
 	// not retried because the per-sweep retry budget was spent (#8091). Label:
 	// scope (closed: sweep).
 	GitCommandRetryBudgetExhausted metric.Int64Counter
+	// GitResolveCacheLookups counts Go-resolver lookups of a git provider host
+	// for the per-host curloptResolve address cache (#8092). Labels: host (the
+	// provider host), result (success, error, empty).
+	GitResolveCacheLookups metric.Int64Counter
+	// GitResolveCacheRefreshRequests counts address-refresh requests to the
+	// cache (#8092). Labels: host, reason (initial, failure, periodic,
+	// suppressed — a request inside the per-host minimum gap that started no
+	// lookup).
+	GitResolveCacheRefreshRequests metric.Int64Counter
+	// GitResolveCacheFallback counts network git commands that ran without a
+	// curloptResolve pin (#8092). Labels: host, reason (cache_empty,
+	// proxy_set).
+	GitResolveCacheFallback metric.Int64Counter
+	// GitResolveCacheLookupDuration is the wall time of one cache lookup in
+	// seconds (#8092). Labels: host, result.
+	GitResolveCacheLookupDuration metric.Float64Histogram
 	// GitHubAPIAttempts counts every attempt of a GitHub REST call the git
 	// collector's discovery makes, including the first (#8084). Labels:
 	// operation (list, mint), failure_class (none on success, else server_error,
@@ -3071,6 +3087,44 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register GitCommandAttemptDuration histogram: %w", err)
+	}
+
+	inst.GitResolveCacheLookups, err = meter.Int64Counter(
+		"eshu_dp_git_resolve_cache_lookups_total",
+		metric.WithDescription("Total Go-resolver lookups of a git provider host for the curloptResolve address cache, by bounded host and result (success, error, empty)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GitResolveCacheLookups counter: %w", err)
+	}
+
+	inst.GitResolveCacheRefreshRequests, err = meter.Int64Counter(
+		"eshu_dp_git_resolve_cache_refresh_requests_total",
+		metric.WithDescription("Total address-refresh requests to the git resolve cache, by bounded host and reason (initial, failure, periodic, suppressed)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GitResolveCacheRefreshRequests counter: %w", err)
+	}
+
+	inst.GitResolveCacheFallback, err = meter.Int64Counter(
+		"eshu_dp_git_resolve_cache_fallback_total",
+		metric.WithDescription("Total network git commands that ran without a curloptResolve pin, by bounded host and reason (cache_empty, proxy_set)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GitResolveCacheFallback counter: %w", err)
+	}
+
+	// Same boundaries as the documented fetch-duration-seconds set: the 5 s
+	// default lookup deadline and the 60 s maximum are both boundaries, so a
+	// fast cached answer and a lookup that ran out its whole budget split.
+	gitResolveBuckets := []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
+	inst.GitResolveCacheLookupDuration, err = meter.Float64Histogram(
+		"eshu_dp_git_resolve_cache_lookup_duration_seconds",
+		metric.WithDescription("Wall time of each git resolve cache lookup in seconds, by bounded host and result (success, error, empty)"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(gitResolveBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GitResolveCacheLookupDuration histogram: %w", err)
 	}
 
 	inst.DeltaBaselineFallbacks, err = meter.Int64Counter(
