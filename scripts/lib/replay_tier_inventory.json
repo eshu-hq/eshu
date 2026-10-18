@@ -22,7 +22,7 @@
       ]
     },
     "go/internal/replay/offlinetier/delta_tier_file_retract_live_test.go": {
-      "sha256": "4d7eded2dc3769616e449e272b07278da8fdf57233c50516fd4bc71bc72b2941",
+      "sha256": "3477c8a0c2e0847e4b68d34fc81e8c09334c0322e6fca1f7e5327974062d2912",
       "tests": [
         "TestDeltaFileRetractGraphTruth"
       ]
