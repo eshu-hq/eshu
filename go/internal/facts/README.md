@@ -173,15 +173,40 @@ open; the cap is already satisfied without them.
   `internal/facts/supply/chain` — the nested fact families (issue #6776).
 - `internal/facts/identity`, `internal/facts/incident`,
   `internal/facts/semantic` — the nested fact families (issue #6951).
-  This package imports them to build `schemaVersionFamilies` and to re-export
-  their pre-move spellings from its `compat_*.go` files, so the dependency
-  runs root → family and never the other way.
+  This package imports them to build `schemaVersionFamilies`, so the
+  dependency runs root → family and never the other way.
 - `internal/facts/encode` — `StableID` and the payload pointer/JSON-shape
   helpers shared with the nested families.
 
 Nothing else. `internal/facts` and everything under it depend only on the Go
 standard library, `internal/semanticpolicy`, and the `sdk/go/factschema`
 contracts module.
+
+## No-Regression Evidence: nesting keeps wire truth identical
+
+The #6951 move relocates the incident, semantic, and identity families
+without changing what they compute: kind strings, schema versions, and
+query shapes are byte-identical, and every caller edit outside the moved
+files only changes the import qualifier (`semantic`, `factsincident`,
+`factsidentity`).
+
+- Baseline: origin/main b268a831f. After: this branch at e0f59dc70;
+  commits after that point touch docs and comments only, so the
+  measured code tree is unchanged.
+- Backend: none touched (no graph, SQL, or queue change); the consumer
+  gate and registry validation run in-process.
+- Input shape: the full 182-kind generated registry plus the focused
+  test waves (facts tree, mcp, reducer, query, touched collectors).
+- Row counts: all 182 registry kinds resolve; the consumer gate went
+  RED on the move (3 kinds undetected) and GREEN after the qualifier
+  fix, so the gate still sees every consumer it saw before.
+- The change is safe because no value, branch, or query changed — only
+  file locations and import spellings.
+
+## No-Observability-Change: no new metric, span, or log line
+
+This move adds no runtime path, so there is nothing new to observe.
+The package still emits no metrics, spans, or logs.
 
 ## Telemetry
 
