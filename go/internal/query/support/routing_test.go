@@ -252,7 +252,7 @@ func TestRepositoryIDTrimSetMatchesGoTrimSpace(t *testing.T) {
 			if err != nil {
 				t.Fatalf("bad unicode escape at %d of %q: %v", i, literal, err)
 			}
-			got[rune(code)] = true
+			got[rune(code)] = true // #nosec G115 -- code is a 4-hex-digit \u escape parsed by ParseUint, so it is at most U+FFFF, far below MaxRune
 			i += 6
 		default:
 			t.Fatalf("unhandled escape %q at %d of %q", literal[i:i+2], i, literal)
