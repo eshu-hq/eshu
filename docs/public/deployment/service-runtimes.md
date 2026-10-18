@@ -41,6 +41,15 @@ Long-running HTTP runtimes expose the shared admin surface:
   `/admin/replay-collector-generations` only on runtimes configured with the
   recovery handler
 
+Pod readiness gates on the migration ledger. Every chart workload with a
+`readinessProbe` probes `/readyz`, which includes the `status_schema` check
+that the `eshu_schema_migrations` ledger matches the embedded migrations.
+That covers the API and MCP Server Deployments as well as the writer
+workloads: the ingester `StatefulSet` and the resolution-engine `Deployment`,
+including every per-lane resolution-engine `Deployment` (#8242). A rollout
+with a pending migration therefore holds both writers not-Ready until the
+schema Job finishes, instead of running them against an older schema.
+
 A green pod is not proof that indexing finished. Use the completeness routes
 before treating a graph as current:
 
