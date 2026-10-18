@@ -41,7 +41,7 @@ type runtimeWriterClass struct {
 // source file relative to the go module root. Every file the scan finds must
 // be here and every entry must still be found.
 var runtimeWriterClasses = map[string]runtimeWriterClass{
-	"internal/reducer/workload_materializer.go": {
+	"internal/reducer/materializer_templates.go": {
 		producer: reducercontract.DomainWorkloadMaterialization,
 	},
 	// The repo_dependency shared projection (edge/writer/writer.go, evidence
@@ -235,11 +235,11 @@ func TestRuntimeProducerSetGuardFailsOnSeededDrift(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	write("internal/reducer/workload_materializer.go", "package reducer\nconst q = `MERGE (i:WorkloadInstance {id: row.instance_id})`\n")
+	write("internal/reducer/materializer_templates.go", "package reducer\nconst q = `MERGE (i:WorkloadInstance {id: row.instance_id})`\n")
 	write("internal/storage/cypher/canonical.go", "package cypher\nconst q = `MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)`\nfunc BuildCanonicalWorkloadInstanceUpsert() {}\n")
 	write("internal/storage/cypher/canonical_relationships.go", "package cypher\nconst q = `MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)`\n")
 	classes := map[string]runtimeWriterClass{
-		"internal/reducer/workload_materializer.go":          runtimeWriterClasses["internal/reducer/workload_materializer.go"],
+		"internal/reducer/materializer_templates.go":         runtimeWriterClasses["internal/reducer/materializer_templates.go"],
 		"internal/storage/cypher/canonical.go":               runtimeWriterClasses["internal/storage/cypher/canonical.go"],
 		"internal/storage/cypher/canonical_relationships.go": runtimeWriterClasses["internal/storage/cypher/canonical_relationships.go"],
 	}
@@ -275,7 +275,7 @@ func TestRuntimeProducerSetGuardFailsOnSeededDrift(t *testing.T) {
 			seed:      func() {},
 			producers: nil,
 			shared:    shared,
-			want:      "producer domain workload_materialization of internal/reducer/workload_materializer.go is not in runtimeProducerDomains",
+			want:      "producer domain workload_materialization of internal/reducer/materializer_templates.go is not in runtimeProducerDomains",
 		},
 		"shared intent producer dropped from the fence": {
 			seed:      func() {},
