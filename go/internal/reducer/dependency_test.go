@@ -5,6 +5,8 @@ package reducer
 
 import (
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
 
 func TestBuildRepoDependencyRowsEmpty(t *testing.T) {
@@ -78,7 +80,7 @@ func TestBuildRepoDependencyRowsSkipsUnknownTarget(t *testing.T) {
 
 func TestBuildWorkloadDependencyRowsEmpty(t *testing.T) {
 	t.Parallel()
-	rows := BuildWorkloadDependencyRows(nil, nil, nil)
+	rows := BuildWorkloadDependencyRows(nil, nil, nil, nil)
 	if len(rows) != 0 {
 		t.Fatalf("len = %d, want 0", len(rows))
 	}
@@ -96,7 +98,7 @@ func TestBuildWorkloadDependencyRowsSingleDependency(t *testing.T) {
 		"svc-b": "repo-b",
 	}
 
-	rows := BuildWorkloadDependencyRows(descriptors, dependenciesByRepo, targetRepoIDs)
+	rows := BuildWorkloadDependencyRows(descriptors, dependenciesByRepo, targetRepoIDs, nil)
 	if len(rows) != 1 {
 		t.Fatalf("len = %d, want 1", len(rows))
 	}
@@ -128,9 +130,37 @@ func TestBuildWorkloadDependencyRowsDropsBlankDepName(t *testing.T) {
 		"": "repo-b",
 	}
 
-	rows := BuildWorkloadDependencyRows(descriptors, dependenciesByRepo, targetRepoIDs)
+	rows := BuildWorkloadDependencyRows(descriptors, dependenciesByRepo, targetRepoIDs, nil)
 	if len(rows) != 0 {
 		t.Fatalf("len = %d, want 0 (blank depName must not emit rows)", len(rows))
+	}
+}
+
+// The blank-depName drop above must be counted in the tally that feeds
+// eshu_dp_workload_identity_rejected_total: a drop is counted, never silent
+// (#5385).
+func TestBuildWorkloadDependencyRowsTalliesBlankDepName(t *testing.T) {
+	t.Parallel()
+	descriptors := []RepoDescriptor{
+		{RepoID: "repo-a", RepoName: "svc-a", WorkloadID: "workload:repo-a:svc-a"},
+	}
+	dependenciesByRepo := map[string][]string{
+		"repo-a": {"", "svc:b"},
+	}
+	targetRepoIDs := map[string]string{
+		"":      "repo-b",
+		"svc:b": "repo-b",
+	}
+	var tally workloadid.RejectionTally
+	rows := BuildWorkloadDependencyRows(descriptors, dependenciesByRepo, targetRepoIDs, &tally)
+	if len(rows) != 0 {
+		t.Fatalf("len = %d, want 0 (blank and colon names must not emit rows)", len(rows))
+	}
+	if tally.BlankSegment != 1 {
+		t.Errorf("tally.BlankSegment = %d, want 1", tally.BlankSegment)
+	}
+	if tally.ColonInName != 1 {
+		t.Errorf("tally.ColonInName = %d, want 1", tally.ColonInName)
 	}
 }
 
@@ -147,7 +177,7 @@ func TestBuildWorkloadDependencyRowsDeduplicates(t *testing.T) {
 		"svc-b": "repo-b",
 	}
 
-	rows := BuildWorkloadDependencyRows(descriptors, dependenciesByRepo, targetRepoIDs)
+	rows := BuildWorkloadDependencyRows(descriptors, dependenciesByRepo, targetRepoIDs, nil)
 	if len(rows) != 1 {
 		t.Fatalf("len = %d, want 1 (deduplicated)", len(rows))
 	}
@@ -166,7 +196,7 @@ func TestBuildWorkloadDependencyRowsMultipleDependencies(t *testing.T) {
 		"svc-c": "repo-c",
 	}
 
-	rows := BuildWorkloadDependencyRows(descriptors, dependenciesByRepo, targetRepoIDs)
+	rows := BuildWorkloadDependencyRows(descriptors, dependenciesByRepo, targetRepoIDs, nil)
 	if len(rows) != 2 {
 		t.Fatalf("len = %d, want 2", len(rows))
 	}

@@ -92,5 +92,77 @@ func NewWorkloadInstanceID(repoID, workloadName, environment string) WorkloadIns
 // construction enumerable, and changes no identifier value.
 func (id WorkloadID) String() string { return id.v }
 
+// RejectionReason is the bounded reason a candidate's inputs cannot mint a
+// repository-scoped identity. The values match the reason label on
+// eshu_dp_workload_identity_rejected_total
+// (docs/internal/design/5385-workload-identity-migration.md): a drop is
+// counted, never silent (#5385).
+type RejectionReason string
+
+const (
+	// RejectionBlankSegment counts a blank repository, workload name, or
+	// environment segment.
+	RejectionBlankSegment RejectionReason = "blank_segment"
+	// RejectionColonInName counts a colon inside the workload name, which
+	// would make the composite key ambiguous to a human reader.
+	RejectionColonInName RejectionReason = "colon_in_name"
+	// RejectionColonInEnvironment counts a colon inside the environment
+	// segment of a workload-instance identity.
+	RejectionColonInEnvironment RejectionReason = "colon_in_environment"
+)
+
+// RejectionTally counts identity rejections by reason for one projection
+// build. The zero value is ready to use; a nil tally discards every note so
+// read-only rebuilds of the same rows (keep-lists, Ifa edges) share the
+// builders without double-counting the write path's emission.
+type RejectionTally struct {
+	BlankSegment       int
+	ColonInName        int
+	ColonInEnvironment int
+}
+
+// Note counts one rejection. Nil-safe: a nil tally drops the note.
+func (t *RejectionTally) Note(reason RejectionReason) {
+	if t == nil {
+		return
+	}
+	switch reason {
+	case RejectionBlankSegment:
+		t.BlankSegment++
+	case RejectionColonInName:
+		t.ColonInName++
+	case RejectionColonInEnvironment:
+		t.ColonInEnvironment++
+	}
+}
+
+// Empty reports whether no rejection was noted.
+func (t RejectionTally) Empty() bool {
+	return t.BlankSegment == 0 && t.ColonInName == 0 && t.ColonInEnvironment == 0
+}
+
+// ClassifyWorkloadRejection reports why the workload constructor returned the
+// empty id for these inputs. Call it only then: with a non-blank repository
+// and name the only remaining rejection is a colon in the name.
+func ClassifyWorkloadRejection(repoID, workloadName string) RejectionReason {
+	if strings.TrimSpace(repoID) == "" || strings.TrimSpace(workloadName) == "" {
+		return RejectionBlankSegment
+	}
+	return RejectionColonInName
+}
+
+// ClassifyInstanceRejection reports why the workload-instance constructor
+// returned the empty id for these inputs. Call it only then.
+func ClassifyInstanceRejection(repoID, workloadName, environment string) RejectionReason {
+	if strings.TrimSpace(repoID) == "" || strings.TrimSpace(workloadName) == "" ||
+		strings.TrimSpace(environment) == "" {
+		return RejectionBlankSegment
+	}
+	if strings.Contains(workloadName, ":") {
+		return RejectionColonInName
+	}
+	return RejectionColonInEnvironment
+}
+
 // String returns the identifier as a plain string. See WorkloadID.String.
 func (id WorkloadInstanceID) String() string { return id.v }

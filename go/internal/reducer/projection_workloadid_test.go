@@ -9,6 +9,41 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
 
+// A colon-bearing workload name must never mint an identifier: the
+// constructor returns the empty id, the builder drops the candidate's rows
+// instead of emitting them (fail-closed, #5385), and the drop is counted in
+// the tally that feeds eshu_dp_workload_identity_rejected_total -- a drop is
+// counted, never silent.
+func TestProjectionColonNameDropsRowsAndTallies(t *testing.T) {
+	t.Parallel()
+	candidates := []WorkloadCandidate{
+		{
+			RepoID:        "repo:alpha",
+			RepoName:      "checkout",
+			WorkloadName:  "api:v2",
+			ResourceKinds: []string{"Deployment", "Service"},
+			Confidence:    0.98,
+			Provenance:    []string{"k8s_resource"},
+		},
+	}
+	deploymentEnvs := map[string][]string{
+		"repo:alpha": {"production"},
+	}
+	var tally workloadid.RejectionTally
+	result := BuildProjectionRowsWithInfrastructurePlatforms(candidates, deploymentEnvs, nil, &tally)
+	for _, row := range result.WorkloadRows {
+		if row.WorkloadName == "api:v2" {
+			t.Errorf("WorkloadRows contains colon-name row with id %q: must be dropped fail-closed", row.WorkloadID)
+		}
+	}
+	if len(result.RepoDescriptors) != 0 {
+		t.Errorf("RepoDescriptors len = %d, want 0: no descriptor may carry an empty workload id", len(result.RepoDescriptors))
+	}
+	if tally.ColonInName != 1 {
+		t.Errorf("tally.ColonInName = %d, want 1: the drop must be counted", tally.ColonInName)
+	}
+}
+
 // Every identifier BuildProjectionRows emits must equal the workloadid
 // constructor recomputed from the row's own fields. This pins that rows
 // track the single constructors (#5385): a future format divergence
@@ -121,7 +156,7 @@ func TestProvisionedRuntimePlatformRowsMatchConstructors(t *testing.T) {
 			},
 		},
 	}
-	result := BuildProjectionRowsWithInfrastructurePlatforms(candidates, deploymentEnvs, infraPlatforms)
+	result := BuildProjectionRowsWithInfrastructurePlatforms(candidates, deploymentEnvs, infraPlatforms, nil)
 	if len(result.RuntimePlatformRows) == 0 {
 		t.Fatal("expected runtime platform rows, got none: vacuous pass guard")
 	}

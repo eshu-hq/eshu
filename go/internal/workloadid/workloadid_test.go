@@ -141,3 +141,47 @@ func TestConstructorsRejectBlankSegments(t *testing.T) {
 		})
 	}
 }
+
+// TestClassifyRejections pins the tally attribution: blank segments group
+// under blank_segment, a colon-bearing name under colon_in_name, and a
+// colon-bearing environment under colon_in_environment. The emission test in
+// the reducer package proves these labels reach the counter verbatim.
+func TestClassifyRejections(t *testing.T) {
+	t.Parallel()
+	if got := ClassifyWorkloadRejection("", "checkout"); got != RejectionBlankSegment {
+		t.Errorf("ClassifyWorkloadRejection blank repo = %q, want blank_segment", got)
+	}
+	if got := ClassifyWorkloadRejection("repo:alpha", ""); got != RejectionBlankSegment {
+		t.Errorf("ClassifyWorkloadRejection blank name = %q, want blank_segment", got)
+	}
+	if got := ClassifyWorkloadRejection("repo:alpha", "api:v2"); got != RejectionColonInName {
+		t.Errorf("ClassifyWorkloadRejection colon name = %q, want colon_in_name", got)
+	}
+	if got := ClassifyInstanceRejection("repo:alpha", "checkout", ""); got != RejectionBlankSegment {
+		t.Errorf("ClassifyInstanceRejection blank env = %q, want blank_segment", got)
+	}
+	if got := ClassifyInstanceRejection("repo:alpha", "api:v2", "prod"); got != RejectionColonInName {
+		t.Errorf("ClassifyInstanceRejection colon name = %q, want colon_in_name", got)
+	}
+	if got := ClassifyInstanceRejection("repo:alpha", "checkout", "us:east"); got != RejectionColonInEnvironment {
+		t.Errorf("ClassifyInstanceRejection colon env = %q, want colon_in_environment", got)
+	}
+}
+
+// TestRejectionTallyNoteNilSafe pins the nil-tally contract read-only row
+// rebuilds rely on: notes are discarded, never panicking.
+func TestRejectionTallyNoteNilSafe(t *testing.T) {
+	t.Parallel()
+	var tally *RejectionTally
+	tally.Note(RejectionBlankSegment)
+	tally.Note(RejectionColonInName)
+	tally.Note(RejectionColonInEnvironment)
+	var zero RejectionTally
+	if !zero.Empty() {
+		t.Error("zero RejectionTally Empty() = false, want true")
+	}
+	zero.Note(RejectionBlankSegment)
+	if zero.Empty() || zero.BlankSegment != 1 {
+		t.Errorf("noted tally = %+v, want one blank_segment", zero)
+	}
+}

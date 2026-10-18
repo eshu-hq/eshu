@@ -89,6 +89,7 @@ func provisionedRuntimePlatformRows(
 	confidence float64,
 	deploymentEnvironments map[string][]string,
 	infrastructurePlatforms map[string][]InfrastructurePlatformRow,
+	tally *workloadid.RejectionTally,
 ) []RuntimePlatformRow {
 	if len(candidate.ProvisioningRepoIDs) == 0 || len(infrastructurePlatforms) == 0 {
 		return nil
@@ -112,14 +113,16 @@ func provisionedRuntimePlatformRows(
 				// provisioning repositories; the instance belongs to the
 				// workload's own repository, which is what the row below
 				// records and what projection.go passes at the sibling site.
-				// The argument is inert today because the constructor ignores
-				// it, so the two sites still produce the same string and dedup
-				// into one entry -- but under the #5385 re-key the wrong one
-				// here would key a second node for the same instance.
+				// Under the #5385 re-key the constructor scopes the id by this
+				// repository, so the wrong one here would key a second node
+				// for the same instance.
 				instanceID := workloadid.NewWorkloadInstanceID(candidate.RepoID, workloadName, environment).String()
 				if instanceID == "" {
-					// Same blank-environment drop as the deployment-env
-					// sibling site in projection.go (#6580 P1).
+					// Same drop as the deployment-env sibling site in
+					// projection.go (#6580 P1): a blank environment or a
+					// colon-bearing name or environment mints no id, so
+					// the row is dropped and the drop is counted (#5385).
+					tally.Note(workloadid.ClassifyInstanceRejection(candidate.RepoID, workloadName, environment))
 					continue
 				}
 				rows = append(rows, RuntimePlatformRow{

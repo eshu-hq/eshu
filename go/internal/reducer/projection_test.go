@@ -568,7 +568,7 @@ func TestBuildProjectionRowsAddsProvisionedInfrastructurePlatforms(t *testing.T)
 		},
 	}
 
-	result := BuildProjectionRowsWithInfrastructurePlatforms(candidates, deploymentEnvs, infraPlatforms)
+	result := BuildProjectionRowsWithInfrastructurePlatforms(candidates, deploymentEnvs, infraPlatforms, nil)
 
 	if got := len(result.InstanceRows); got != 2 {
 		t.Fatalf("len(InstanceRows) = %d, want 2", got)
@@ -625,7 +625,7 @@ func TestBuildProjectionRowsAddsMultipleProvisionedInfrastructurePlatforms(t *te
 		},
 	}
 
-	result := BuildProjectionRowsWithInfrastructurePlatforms(candidates, deploymentEnvs, infraPlatforms)
+	result := BuildProjectionRowsWithInfrastructurePlatforms(candidates, deploymentEnvs, infraPlatforms, nil)
 
 	if !hasRuntimePlatformRow(result.RuntimePlatformRows, "workload-instance:repo-service:service-api:current", "ecs") {
 		t.Fatal("missing current ecs runtime platform")
@@ -672,7 +672,7 @@ func TestBuildProjectionRowsSkipsGenericProvisionedDependencyPlatforms(t *testin
 		},
 	}
 
-	result := BuildProjectionRowsWithInfrastructurePlatforms(candidates, deploymentEnvs, infraPlatforms)
+	result := BuildProjectionRowsWithInfrastructurePlatforms(candidates, deploymentEnvs, infraPlatforms, nil)
 
 	if got := len(result.RuntimePlatformRows); got != 0 {
 		t.Fatalf("len(RuntimePlatformRows) = %d, want 0 for generic dependency evidence", got)
@@ -705,7 +705,7 @@ func TestBuildProjectionRowsSkipsAmbiguousProvisionedInfrastructurePlatforms(t *
 		},
 	}
 
-	result := BuildProjectionRowsWithInfrastructurePlatforms(candidates, deploymentEnvs, infraPlatforms)
+	result := BuildProjectionRowsWithInfrastructurePlatforms(candidates, deploymentEnvs, infraPlatforms, nil)
 
 	if got := len(result.RuntimePlatformRows); got != 0 {
 		t.Fatalf("len(RuntimePlatformRows) = %d, want 0 for ambiguous infrastructure platforms", got)

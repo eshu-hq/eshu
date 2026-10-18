@@ -12,6 +12,8 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/handle"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
 
 // WorkloadSibling is one Workload node sharing a bare name with a workload
@@ -178,4 +180,30 @@ func (m *WorkloadMaterializer) recordWorkloadIdentityCollision(ctx context.Conte
 	}
 	m.Instruments.WorkloadIdentityCollisions.Add(ctx, 1,
 		metric.WithAttributes(attribute.String("mode", mode)))
+}
+
+// recordWorkloadIdentityRejections counts one projection build's identity
+// rejections by reason for eshu_dp_workload_identity_rejected_total. The
+// workload materialization handler owns the emission: the tally is built by
+// BuildProjectionRowsWithInfrastructurePlatforms on the write path, and
+// read-only rebuilds (keep-lists, Ifa edges) pass a nil tally so a drop is
+// emitted exactly once. Nil-safe.
+func recordWorkloadIdentityRejections(ctx context.Context, instruments *telemetry.Instruments, tally workloadid.RejectionTally) {
+	if instruments == nil || instruments.WorkloadIdentityRejected == nil {
+		return
+	}
+	for _, rejection := range []struct {
+		reason workloadid.RejectionReason
+		count  int
+	}{
+		{workloadid.RejectionBlankSegment, tally.BlankSegment},
+		{workloadid.RejectionColonInName, tally.ColonInName},
+		{workloadid.RejectionColonInEnvironment, tally.ColonInEnvironment},
+	} {
+		if rejection.count == 0 {
+			continue
+		}
+		instruments.WorkloadIdentityRejected.Add(ctx, int64(rejection.count),
+			metric.WithAttributes(attribute.String("reason", string(rejection.reason))))
+	}
 }

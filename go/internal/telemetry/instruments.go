@@ -3295,6 +3295,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register WorkloadIdentityCollisions counter: %w", err)
 	}
 
+	inst.WorkloadIdentityRejected, err = meter.Int64Counter(
+		"eshu_dp_workload_identity_rejected_total",
+		metric.WithDescription("Total workload and workload-instance candidates dropped at materialization for an unusable repository-scoped identity, by bounded reason (blank_segment, colon_in_name, colon_in_environment); a drop is counted, never silent (#5385)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkloadIdentityRejected counter: %w", err)
+	}
+
 	inst.WorkloadHandleResolutions, err = meter.Int64Counter(
 		"eshu_dp_workload_handle_resolution_total",
 		metric.WithDescription("Total provider-asserted workload handle resolutions through the #5385 ladder, by bounded surface (reducer) and outcome (exact, unique_by_name, ambiguous, miss); rising ambiguous on reducer means a collector needs workload_repository_id"),

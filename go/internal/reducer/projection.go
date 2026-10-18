@@ -247,7 +247,9 @@ func BuildProjectionRows(
 	candidates []WorkloadCandidate,
 	deploymentEnvironments map[string][]string,
 ) *ProjectionResult {
-	return BuildProjectionRowsWithInfrastructurePlatforms(candidates, deploymentEnvironments, nil)
+	// Nil tally: this wrapper serves tests and read-only rebuilds; the write
+	// path counts through its own tally so a drop is emitted exactly once.
+	return BuildProjectionRowsWithInfrastructurePlatforms(candidates, deploymentEnvironments, nil, nil)
 }
 
 // BuildProjectionRowsWithInfrastructurePlatforms builds batched projection
@@ -257,6 +259,7 @@ func BuildProjectionRowsWithInfrastructurePlatforms(
 	candidates []WorkloadCandidate,
 	deploymentEnvironments map[string][]string,
 	infrastructurePlatforms map[string][]InfrastructurePlatformRow,
+	tally *workloadid.RejectionTally,
 ) *ProjectionResult {
 	result := &ProjectionResult{}
 	seenWorkloads := make(map[string]struct{})
@@ -266,11 +269,17 @@ func BuildProjectionRowsWithInfrastructurePlatforms(
 	seenEndpoints := make(map[string]int)
 
 	for _, candidate := range candidates {
-		if candidate.RepoID == "" || candidate.RepoName == "" {
+		if candidate.RepoID == "" {
+			// No repository segment: no scoped identity is mintable.
+			tally.Note(workloadid.RejectionBlankSegment)
+			continue
+		}
+		if candidate.RepoName == "" {
 			continue
 		}
 		workloadName := candidateWorkloadName(candidate)
 		if workloadName == "" {
+			tally.Note(workloadid.RejectionBlankSegment)
 			continue
 		}
 		confidence := normalizedCandidateConfidence(candidate.Confidence)
@@ -286,6 +295,15 @@ func BuildProjectionRowsWithInfrastructurePlatforms(
 		}
 
 		workloadID := workloadid.NewWorkloadID(candidate.RepoID, workloadName).String()
+		if workloadID == "" {
+			// Repo and name are non-blank here, so the constructor refused
+			// a colon in the name. The descriptor and rows below must not
+			// carry an empty id: emitting them would key a shared edge row
+			// and a bare node every colon-bearing candidate collapses
+			// onto, so the candidate is dropped fail-closed (#5385).
+			tally.Note(workloadid.ClassifyWorkloadRejection(candidate.RepoID, workloadName))
+			continue
+		}
 		workloadKind := InferWorkloadKind(workloadName, candidate.ResourceKinds)
 		provenance := append([]string(nil), candidate.Provenance...)
 
@@ -340,7 +358,9 @@ func BuildProjectionRowsWithInfrastructurePlatforms(
 				// affected candidate onto one shared node, so the row is
 				// dropped instead (#6580 P1). Unreachable on production
 				// inputs (environments arrive Canonicalized and gated),
-				// hence outside the byte-identity proof.
+				// hence outside the byte-identity proof. Counted either
+				// way: a drop is counted, never silent (#5385).
+				tally.Note(workloadid.ClassifyInstanceRejection(candidate.RepoID, workloadName, environment))
 				continue
 			}
 
@@ -412,6 +432,7 @@ func BuildProjectionRowsWithInfrastructurePlatforms(
 			confidence,
 			deploymentEnvironments,
 			infrastructurePlatforms,
+			tally,
 		) {
 			if _, ok := seenInstances[row.InstanceID]; !ok {
 				seenInstances[row.InstanceID] = struct{}{}
