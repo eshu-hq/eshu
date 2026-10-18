@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 // cleanupStatements runs the production writer for a re-keyed repository and
@@ -24,8 +26,8 @@ func cleanupStatements(t *testing.T, bare bool) []Statement {
 	}
 	var out []Statement
 	for _, stmt := range exec.calls {
-		if stmt.Cypher == canonicalNodeRepositoryPathCleanupCypher ||
-			stmt.Cypher == canonicalNodeRepositoryPathCleanupBareCypher {
+		if stmt.Cypher == node.RepositoryPathCleanupCypher ||
+			stmt.Cypher == node.RepositoryPathCleanupBareCypher {
 			out = append(out, stmt)
 		}
 	}
@@ -47,8 +49,8 @@ func cleanupStatements(t *testing.T, bare bool) []Statement {
 // benign.
 func TestRepositoryPathCleanupShapesRetireTheSameSet(t *testing.T) {
 	t.Parallel()
-	attributed := strings.Join(strings.Fields(canonicalNodeRepositoryPathCleanupCypher), " ")
-	bare := strings.Join(strings.Fields(canonicalNodeRepositoryPathCleanupBareCypher), " ")
+	attributed := strings.Join(strings.Fields(node.RepositoryPathCleanupCypher), " ")
+	bare := strings.Join(strings.Fields(node.RepositoryPathCleanupBareCypher), " ")
 
 	const matchAndGuard = "MATCH (r:Repository {path: $path}) WHERE r.id <> $repo_id"
 	const deleteClause = "DETACH DELETE r"
@@ -87,10 +89,10 @@ func TestRepositoryPathCleanupShapeFollowsWriterBackend(t *testing.T) {
 	if len(neo4j) != 1 || len(nornic) != 1 {
 		t.Fatalf("cleanup statements neo4j=%d nornicdb=%d, want 1 each", len(neo4j), len(nornic))
 	}
-	if neo4j[0].Cypher != canonicalNodeRepositoryPathCleanupCypher {
+	if neo4j[0].Cypher != node.RepositoryPathCleanupCypher {
 		t.Fatal("default writer must emit the attributed shape")
 	}
-	if nornic[0].Cypher != canonicalNodeRepositoryPathCleanupBareCypher {
+	if nornic[0].Cypher != node.RepositoryPathCleanupBareCypher {
 		t.Fatal("bare-retirement writer must emit the bare shape")
 	}
 	if !reflect.DeepEqual(neo4j[0].Parameters, nornic[0].Parameters) {
