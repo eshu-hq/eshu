@@ -155,7 +155,7 @@ High-signal invariants for this package:
   only while it holds the shared side of the journal pass's try-only key
   (`linksfreshnessstore.AckJournalGateSQL`); a missed gate writes nothing and
   does not wait. Both statements are derived from the shipped ones; off, Ack
-  sends exactly the statements it sent before. Nothing reads the ledger yet.
+  sends exactly the statements it sent before. The ledger is read only under `ESHU_CHANGED_SINCE_LEDGER_READ_ENABLED` (PR-3c, dark).
   Each committed flag-on Ack counts `eshu_dp_changed_since_ack_journal_total`
   by `outcome` (`journaled`, `exists`, `gate_skipped`); a gate skip also logs
   INFO with `scope_id` and `generation_id`, sampled: the first skip in the

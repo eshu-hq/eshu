@@ -6,6 +6,7 @@ package main
 import (
 	"database/sql"
 	"log/slog"
+	"os"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -30,9 +31,20 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/status"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	linksfreshnessstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/governance/audit"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// newLedgerReadStatusStore builds the changed-since reader with the PR-3c
+// ledger-read switch resolved once per process (#7127), mirroring
+// cmd/api/wiring_handlers.go. The flag defaults off: the read path then
+// issues no ledger SQL.
+func newLedgerReadStatusStore(reader db.Queryer) pgstatus.StatusStore {
+	store := pgstatus.NewStatusStore(reader)
+	store.LedgerReadEnabled = linksfreshnessstore.ReadEnabled(os.Getenv)
+	return store
+}
 
 // newMCPQueryRouter and newMCPQueryRouterWithSemanticEmbedding build the
 // full query.APIRouter wiring for the standalone MCP server, mirroring
@@ -328,7 +340,7 @@ func newMCPQueryRouterWithSemanticEmbeddingWithReadStore(
 		},
 		Freshness: &query.FreshnessHandler{
 			Generations:         pgstatus.NewStatusStore(reader),
-			ChangedSince:        pgstatus.NewStatusStore(reader),
+			ChangedSince:        newLedgerReadStatusStore(reader),
 			ServiceChangedSince: pgstatus.NewStatusStore(reader),
 			Profile:             queryProfile,
 		},

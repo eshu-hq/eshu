@@ -117,6 +117,25 @@ func (s StatusStore) ComputeChangedSinceDelta(
 		return summary, nil
 	}
 
+	// PR-3c (#7127): with the ledger-read switch on, answer from the link
+	// ledger when a link chain covers the window. Every miss falls back to
+	// the legacy diff below, so the wire contract never changes; flag off,
+	// no ledger SQL is issued at all.
+	if s.LedgerReadEnabled {
+		categories, outcome, served := s.tryLedgerRead(
+			ctx,
+			scope.scopeID,
+			prior.generationID,
+			scope.currentGenerationID,
+			filter.SampleLimit,
+		)
+		s.recordChangedSinceLedgerRead(ctx, outcome)
+		if served {
+			summary.Categories = categories
+			return summary, nil
+		}
+	}
+
 	categories, err := s.changedSinceCategories(
 		ctx,
 		scope.scopeID,
