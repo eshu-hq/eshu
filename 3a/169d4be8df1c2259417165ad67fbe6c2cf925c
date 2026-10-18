@@ -1,0 +1,14 @@
+go/internal/extraction/catalog.go
+  h_78a442cba0b3e6 63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3a169d4be8df1c2259417165ad67fbe6c2cf925c",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
