@@ -162,7 +162,7 @@ base, head, diff, worktree, submodules, claims, packet, and verdict are
 byte-for-byte the reviewed inputs. A failure names the changed binding. A rebase
 follows the `eshu-code-review` Rebase Waiver table. Any other change needs a new
 full review. This receipt is local proof for the agent workflow. It does not
-replace GitHub review or a required hosted check, and `make pre-push` does not require community contributors to create one. Before a merge, run the [pre-merge check](local-testing/pre-enqueue-check.md).
+replace GitHub review or a required hosted check, and `make pre-push` does not require community contributors to create one. Before a merge, run the [pre-merge check](local-testing/pre-merge-check.md).
 
 For frontend changes, a separate focused preflight mirrors `.github/workflows/frontend.yml`
 (#4216) — root-site and console typecheck/test/build, console a11y (critical +
