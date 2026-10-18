@@ -50,6 +50,9 @@ live selector stopped selecting, the value G is compared against.
 ## Exported surface
 
 - `State` and its four constants: the stored per-selector states.
+- `UpstreamClassification` and its four constants (#8454): the probe verdict
+  for a `Confirmed` `not_listed` row (`transferred`, `renamed`,
+  `still_present`, `not_found_or_inaccessible`). Empty means unclassified.
 - `Observation`: one stored row.
 - `ConfirmationMinSpan`, `Live`, `Confirmed`: the row predicates.
 - `Aggregate` and its five constants, `Summary`, `Summarize`: the
@@ -75,7 +78,8 @@ reader records `eshu_dp_repository_freshness_query_duration_seconds` and
   gauge and the freshness verdict must agree, and they only do while both
   call this package.
 - `unknown` means "no evidence", not "selected".
-- The state values match the migration 166 CHECK constraint.
+- The state values match the migration 166 CHECK constraint; the
+  classification values match the migration 199 CHECK constraint.
 
 ## Related docs
 

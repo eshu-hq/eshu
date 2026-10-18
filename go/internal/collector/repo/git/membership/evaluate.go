@@ -100,7 +100,12 @@ type ScopeCounts struct {
 // for OutcomeEvaluated; Projected is the post-write observation per row.
 // PreviousEvaluatedAt is the selector's newest prior evaluated_at, zero on
 // its first evaluation. ExpiredDeleted is set only by Observer: the expired
-// rows its sweep deleted this cycle.
+// rows its sweep deleted this cycle. ProbeRan, ProbeOutcomes, and
+// Classifications are set only by Observer, on an evaluated github_org cycle
+// with a probe function: whether the probe ran, its answers by outcome (the
+// classification, or kept_prior when inconclusive), and the selector's
+// Confirmed not_listed rows by post-cycle classification (empty reported as
+// unclassified). A failed classification write leaves Classifications nil.
 type Result struct {
 	Outcome             Outcome
 	Batch               Batch
@@ -111,6 +116,9 @@ type Result struct {
 	NotListedSample     []string
 	GuardThreshold      int
 	ExpiredDeleted      int64
+	ProbeRan            bool
+	ProbeOutcomes       map[string]int
+	Classifications     map[string]int
 }
 
 // Evaluate decides one selector's observation batch from a listing, the known

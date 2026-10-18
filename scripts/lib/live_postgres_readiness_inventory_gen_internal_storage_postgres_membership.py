@@ -16,6 +16,9 @@ TABLE = {
         "go/internal/storage/postgres/membership/live_read_live_test.go": (
             "TestLiveFilterParityLive",
         ),
+        "go/internal/storage/postgres/membership/observations_classification_live_test.go": (
+            "TestObservationStoreClassificationLive",
+        ),
         "go/internal/storage/postgres/membership/observations_live_test.go": (
             "TestObservationStoreLive",
         ),

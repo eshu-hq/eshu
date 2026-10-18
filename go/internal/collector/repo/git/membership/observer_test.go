@@ -20,15 +20,18 @@ import (
 )
 
 type fakeStore struct {
-	selector   Selector
-	known      []KnownScope
-	prior      []Observation
-	knownErr   error
-	priorErr   error
-	upsertErr  error
-	knownCalls int
-	priorCalls int
-	upserts    []Batch
+	selector    Selector
+	known       []KnownScope
+	prior       []Observation
+	knownErr    error
+	priorErr    error
+	upsertErr   error
+	knownCalls  int
+	priorCalls  int
+	upserts     []Batch
+	classifyErr error
+	// classifications records every UpsertClassifications call.
+	classifications []classificationCall
 	// knownHosts records every KnownScopes host argument. When knownByHost
 	// is non-nil, KnownScopes returns knownByHost[host] instead of known,
 	// the way the Postgres store filters by remote host.
@@ -44,6 +47,12 @@ type fakeStore struct {
 type sweepCall struct {
 	now   time.Time
 	grace time.Duration
+}
+
+type classificationCall struct {
+	selectorID   string
+	rows         []ClassificationRow
+	classifiedAt time.Time
 }
 
 func (s *fakeStore) DeleteExpiredObservations(_ context.Context, now time.Time, grace time.Duration) (int64, error) {
@@ -81,6 +90,11 @@ func (s *fakeStore) Observations(_ context.Context, selectorID string) ([]Observ
 func (s *fakeStore) UpsertObservations(_ context.Context, batch Batch) error {
 	s.upserts = append(s.upserts, batch)
 	return s.upsertErr
+}
+
+func (s *fakeStore) UpsertClassifications(_ context.Context, selectorID string, rows []ClassificationRow, classifiedAt time.Time) error {
+	s.classifications = append(s.classifications, classificationCall{selectorID: selectorID, rows: rows, classifiedAt: classifiedAt})
+	return s.classifyErr
 }
 
 type observerHarness struct {

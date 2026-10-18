@@ -54,7 +54,14 @@ sample the scope gauge. Filesystem mode and bootstrap-index never observe.
 - `Observation`, `Row`, `Batch`, `State`, `Confirmed`: the row contract.
   `State` aliases `selection.State` and `Confirmed` delegates to
   `selection.Confirmed` (`go/internal/scope/selection`), the definition the
-  repository freshness `not_selected` verdict also uses.
+  repository freshness `not_selected` verdict also uses. `Observation` also
+  carries the probe verdict (`Classification`, `SuccessorSlug`,
+  `ClassifiedAt`).
+- `ProbeTarget`, `ProbeResult`, `ProbeFunc`, `ClassificationRow`,
+  `UpstreamClassification`, `SelectProbeTargets`, `Classify`: the upstream
+  classification probe (#8454). `Request.Probe` carries the probe function;
+  the git collector sets it for `github_org` selectors only, bound to the
+  listing credential.
 
 ## Evaluation rules
 
@@ -68,6 +75,8 @@ sample the scope gauge. Filesystem mode and bootstrap-index never observe.
 | Liveness | Every row stores `liveness_window_seconds` from `ESHU_REPO_SELECTION_LIVENESS_WINDOW` (default 48h, minimum 1h). A row counts while `evaluated_at + window >= now`. The window does not depend on the gap between cycles. |
 | Replay | An upsert with an `evaluated_at` that is not newer than the stored row changes nothing. |
 | Store errors | Never fail the cycle; logged and counted as `store_error`. |
+| Probe targets (#8454) | After an `evaluated` cycle of a `github_org` selector with a probe function, the observer probes the `Confirmed` `not_listed` rows: oldest `state_since` first, at most 25 per cycle, skipping rows classified within their liveness window (re-probe at most once per window). `gitlab_group` and `explicit` rows are never probed, and unconfirmed, listed, or slug-less rows are not targets. |
+| Probe verdicts (#8454) | By stored id (`GET /repositories/{id}`, `/repos/{slug}` fallback when the id is 0) with the listing credential: `transferred` (200, different owner), `renamed` (200, same owner, new name; the successor slug is stored, resolution at read time only), `still_present` (200, same name: the listing missed a present repository), `not_found_or_inaccessible` (404, never "deleted"). A 5xx, rate-limit, network, decode, or probe error keeps the prior verdict and writes nothing, counted as `kept_prior`. A failed verdict write logs WARN `git_repository_selection_store_failed` with `failure_class=classification_upsert` and leaves the outcome `evaluated`. |
 
 The selector id is `<config hash>@<principal>`. The principal names the
 credential that listed the repositories: `app:<app_id>:<installation_id>` for
@@ -138,6 +147,13 @@ To confirm the cause, check the `not_listed_sample` slugs on GitHub:
   `not_listed`, `archived_excluded`, `rule_excluded`. Sampled only on
   `evaluated` cycles of a `github_org` or `gitlab_group` selector; explicit
   selectors would overwrite the sample with a partial count.
+- Counter `eshu_dp_collector_repository_selection_probe_total`
+  `{collector_kind="git",outcome}` (#8454), outcomes `transferred`,
+  `renamed`, `still_present`, `not_found_or_inaccessible`, `kept_prior`.
+- Gauge `eshu_dp_collector_repository_selection_classifications`
+  `{collector_kind="git",classification}` (#8454), the probing selector's
+  `Confirmed` `not_listed` scopes by verdict, `unclassified` when no probe
+  has reported yet. Sampled only when the probe ran and its write succeeded.
 - Logs: INFO `git_repository_selection_evaluated` every cycle, carrying the
   outcome and counts; plus WARN `git_repository_selection_guard_tripped`,
   `git_repository_selection_listing_truncated`, or

@@ -75,12 +75,38 @@ WHERE source_system = 'git'
   AND ($2 = '' OR lower(split_part(payload->>'remote_url', '/', 3)) = $2)
 `
 
-// observationsQuery reads every stored observation of one selector.
+// observationsQuery reads every stored observation of one selector,
+// including the upstream probe verdict (#8454).
 const observationsQuery = `
 SELECT scope_id, state, github_repo_id, last_listed_at, state_since,
-       state_cycle_count, evaluated_at, liveness_window_seconds
+       state_cycle_count, evaluated_at, liveness_window_seconds,
+       upstream_classification, successor_slug, classified_at
 FROM repository_selection_observations
 WHERE selector_id = $1
+`
+
+// upsertClassificationsQuery writes probe verdicts for one selector's
+// Confirmed not_listed rows. Only not_listed rows advance, and only when the
+// stored classified_at is older than the probe time, so a lagging replica's
+// probe never overwrites a newer verdict. The batch is sorted by scope_id
+// in Go and re-sorted in the subquery, so concurrent writers meet the rows
+// in one order; shard 0 is still the selector's only writer per cycle.
+// Inconclusive probes never reach this statement; their prior verdict stands
+// untouched.
+const upsertClassificationsQuery = `
+UPDATE repository_selection_observations AS o SET
+    upstream_classification = s.classification,
+    successor_slug = NULLIF(s.successor_slug, ''),
+    classified_at = $2::timestamptz
+FROM (
+    SELECT scope_id, classification, successor_slug
+    FROM unnest($3::text[], $4::text[], $5::text[]) AS t(scope_id, classification, successor_slug)
+    ORDER BY scope_id
+) AS s
+WHERE o.scope_id = s.scope_id
+  AND o.selector_id = $1
+  AND o.state = 'not_listed'
+  AND (o.classified_at IS NULL OR o.classified_at <= $2::timestamptz)
 `
 
 // upsertObservationsQuery writes one evaluation in one statement. Rows are
@@ -88,8 +114,11 @@ WHERE selector_id = $1
 // rows in the same order and cannot deadlock. A stored row only advances when
 // the batch is newer, so a replay or a lagging replica changes nothing. In the
 // DO UPDATE arm o is the stored row: a repeated state keeps state_since and
-// adds a cycle, a changed state restarts both at the batch time. This must
-// match membership's project function; the live store test pins it.
+// adds a cycle, a changed state restarts both at the batch time. A probe
+// verdict belongs to a not_listed row: any other state clears the three probe
+// columns, so a relisted scope never carries a stale verdict and re-probes
+// fresh if it unlists again. This must match membership's project function;
+// the live store test pins it.
 const upsertObservationsQuery = `
 INSERT INTO repository_selection_observations AS o (
     scope_id, selector_id, selector_kind, selector_owner, state, github_repo_id,
@@ -111,7 +140,10 @@ ON CONFLICT (scope_id, selector_id) DO UPDATE SET
     state_since = CASE WHEN o.state = EXCLUDED.state THEN o.state_since ELSE EXCLUDED.state_since END,
     state_cycle_count = CASE WHEN o.state = EXCLUDED.state THEN o.state_cycle_count + 1 ELSE 1 END,
     evaluated_at = EXCLUDED.evaluated_at,
-    liveness_window_seconds = EXCLUDED.liveness_window_seconds
+    liveness_window_seconds = EXCLUDED.liveness_window_seconds,
+    upstream_classification = CASE WHEN EXCLUDED.state = 'not_listed' THEN o.upstream_classification ELSE NULL END,
+    successor_slug = CASE WHEN EXCLUDED.state = 'not_listed' THEN o.successor_slug ELSE NULL END,
+    classified_at = CASE WHEN EXCLUDED.state = 'not_listed' THEN o.classified_at ELSE NULL END
 WHERE o.evaluated_at < EXCLUDED.evaluated_at
 `
 
@@ -220,15 +252,19 @@ func (s ObservationStore) Observations(ctx context.Context, selectorID string) (
 	var observations []membership.Observation
 	for rows.Next() {
 		var (
-			observation   membership.Observation
-			state         string
-			githubRepoID  sql.NullInt64
-			lastListedAt  sql.NullTime
-			windowSeconds int
+			observation    membership.Observation
+			state          string
+			githubRepoID   sql.NullInt64
+			lastListedAt   sql.NullTime
+			windowSeconds  int
+			classification sql.NullString
+			successor      sql.NullString
+			classifiedAt   sql.NullTime
 		)
 		if err := rows.Scan(
 			&observation.ScopeID, &state, &githubRepoID, &lastListedAt, &observation.StateSince,
 			&observation.StateCycleCount, &observation.EvaluatedAt, &windowSeconds,
+			&classification, &successor, &classifiedAt,
 		); err != nil {
 			return nil, fmt.Errorf("read repository selection observations: %w", err)
 		}
@@ -240,6 +276,13 @@ func (s ObservationStore) Observations(ctx context.Context, selectorID string) (
 		observation.StateSince = observation.StateSince.UTC()
 		observation.EvaluatedAt = observation.EvaluatedAt.UTC()
 		observation.LivenessWindow = time.Duration(windowSeconds) * time.Second
+		observation.Classification = membership.UpstreamClassification(classification.String)
+		if successor.Valid {
+			observation.SuccessorSlug = successor.String
+		}
+		if classifiedAt.Valid {
+			observation.ClassifiedAt = classifiedAt.Time.UTC()
+		}
 		observations = append(observations, observation)
 	}
 	if err := rows.Err(); err != nil {
@@ -278,6 +321,58 @@ func (s ObservationStore) UpsertObservations(ctx context.Context, batch membersh
 		return fmt.Errorf("upsert repository selection observations: %w", err)
 	}
 	return nil
+}
+
+// UpsertClassifications writes rows' probe verdicts for one selector in one
+// statement. Rows are sorted by scope id; a blank scope id, a blank selector
+// id, a zero classified_at, or an unknown classification is rejected before
+// anything is written. An empty row set writes nothing.
+func (s ObservationStore) UpsertClassifications(ctx context.Context, selectorID string, rows []membership.ClassificationRow, classifiedAt time.Time) error {
+	if s.database == nil {
+		return errors.New("repository selection store database is required")
+	}
+	if strings.TrimSpace(selectorID) == "" {
+		return errors.New("upsert repository selection classifications: selector id must not be blank")
+	}
+	if classifiedAt.IsZero() {
+		return errors.New("upsert repository selection classifications: classified_at is required")
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	sorted := slices.Clone(rows)
+	slices.SortFunc(sorted, func(a, b membership.ClassificationRow) int { return cmp.Compare(a.ScopeID, b.ScopeID) })
+	scopeIDs := make([]string, len(sorted))
+	classifications := make([]string, len(sorted))
+	successors := make([]string, len(sorted))
+	for i, row := range sorted {
+		if strings.TrimSpace(row.ScopeID) == "" {
+			return errors.New("upsert repository selection classifications: scope id must not be blank")
+		}
+		if !validClassification(row.Classification) {
+			return fmt.Errorf("upsert repository selection classifications: scope %s has unknown classification %q", row.ScopeID, row.Classification)
+		}
+		scopeIDs[i], classifications[i], successors[i] = row.ScopeID, string(row.Classification), row.SuccessorSlug
+	}
+	if _, err := s.database.ExecContext(ctx, upsertClassificationsQuery,
+		selectorID, classifiedAt.UTC(), scopeIDs, classifications, successors,
+	); err != nil {
+		return fmt.Errorf("upsert repository selection classifications: %w", err)
+	}
+	return nil
+}
+
+// validClassification reports whether c is a storable probe verdict. It
+// mirrors membership's rule without importing the collector writer package:
+// this store must not import its callers.
+func validClassification(c membership.UpstreamClassification) bool {
+	switch c {
+	case membership.UpstreamTransferred, membership.UpstreamRenamed,
+		membership.UpstreamStillPresent, membership.UpstreamNotFoundOrInaccessible:
+		return true
+	default:
+		return false
+	}
 }
 
 // DeleteExpiredObservations deletes rows of every selector whose evaluated_at

@@ -26,7 +26,10 @@ const (
 // selector. Zero times and a zero GitHubRepoID stand for SQL NULL.
 // StateSince is when the row entered State and StateCycleCount is how many
 // evaluations in a row have written State; LivenessWindow is the window the
-// writing collector was configured with.
+// writing collector was configured with. Classification, SuccessorSlug, and
+// ClassifiedAt are the upstream probe verdict (#8454): meaningful only for
+// not_listed rows, empty and zero otherwise. An empty Classification means
+// no probe has reported yet.
 type Observation struct {
 	ScopeID         string
 	State           State
@@ -36,6 +39,9 @@ type Observation struct {
 	StateCycleCount int
 	EvaluatedAt     time.Time
 	LivenessWindow  time.Duration
+	Classification  UpstreamClassification
+	SuccessorSlug   string
+	ClassifiedAt    time.Time
 }
 
 // Confirmed reports whether an excluded observation passed confirmation. It
@@ -76,7 +82,8 @@ type Batch struct {
 // post-write state without a read back: an advance-only no-op when prior is
 // not older; otherwise state_since and state_cycle_count carry over (plus one
 // cycle) when the state repeats and restart at now and 1 when it changes or
-// the row is new; last_listed_at moves to now on any listing.
+// the row is new; last_listed_at moves to now on any listing; the probe
+// verdict carries over only for a not_listed row and clears otherwise.
 func project(prior Observation, hasPrior bool, row Row, now time.Time, window time.Duration) Observation {
 	if hasPrior && !prior.EvaluatedAt.Before(now) {
 		return prior
@@ -98,6 +105,14 @@ func project(prior Observation, hasPrior bool, row Row, now time.Time, window ti
 		if prior.State == row.State {
 			next.StateSince = prior.StateSince
 			next.StateCycleCount = prior.StateCycleCount + 1
+		}
+		// A probe verdict belongs to a not_listed row: any other state
+		// clears it, mirroring the upsert SQL, so a relisted scope never
+		// carries a stale verdict.
+		if row.State == StateNotListed {
+			next.Classification = prior.Classification
+			next.SuccessorSlug = prior.SuccessorSlug
+			next.ClassifiedAt = prior.ClassifiedAt
 		}
 	}
 	if row.State != StateNotListed {

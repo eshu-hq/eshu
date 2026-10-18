@@ -111,7 +111,7 @@ func (s *NativeRepositorySelector) selectRepositories(
 	if err != nil {
 		return SelectionBatch{}, err
 	}
-	s.observeSelection(ctx, selection, observedAt)
+	s.observeSelection(ctx, selection, observedAt, token)
 	repositoryIDs := filterRepositoryIDsByShard(selection.RepositoryIDs, s.Config)
 	if s.Config.RepoShardCount > 1 && s.Logger != nil {
 		s.Logger.InfoContext(

@@ -191,6 +191,10 @@ func (*ownerKnownStore) DeleteExpiredObservations(context.Context, time.Time, ti
 	return 0, nil
 }
 
+func (*ownerKnownStore) UpsertClassifications(context.Context, string, []membership.ClassificationRow, time.Time) error {
+	return nil
+}
+
 // TestExplicitSelectionWritesSelectedRowsOnlyForScopedRepositories runs the
 // real observer: acme/web has no scope yet and gets no row, the unconfigured
 // acme/legacy scope is left alone, and every written row is selected.

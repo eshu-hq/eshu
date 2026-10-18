@@ -170,6 +170,10 @@ func (failingSelectionStore) DeleteExpiredObservations(context.Context, time.Tim
 	return 0, errors.New("postgres unavailable")
 }
 
+func (failingSelectionStore) UpsertClassifications(context.Context, string, []membership.ClassificationRow, time.Time) error {
+	return errors.New("postgres unavailable")
+}
+
 func TestNativeRepositorySelectorSelectionStoreErrorDoesNotFailTheCycle(t *testing.T) {
 	t.Parallel()
 
