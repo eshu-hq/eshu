@@ -41,6 +41,10 @@ const (
 	// FixedMessage: every case but ReaderFence answers exactly the route's
 	// fixed message.
 	FixedMessage Assertion = "body is the fixed message"
+	// PlainDetailBody: with Route.PlainDetail, every case but ReaderFence
+	// answers the fixed message as a plain {"detail": ...} body, not the error
+	// envelope.
+	PlainDetailBody Assertion = "fixed message is a plain detail body"
 	// OneHandlerSpan: with a HandlerTracer, exactly one span opens directly
 	// under the request span.
 	OneHandlerSpan Assertion = "exactly one handler span"
@@ -69,7 +73,7 @@ const (
 func Assertions() []Assertion {
 	return []Assertion{
 		NoCanaryInBody, FaultStatus, ClientCancelStatus, InnerCancelStatus,
-		FenceStatus, FenceCode, FenceRetryAfter, FixedMessage, OneHandlerSpan,
+		FenceStatus, FenceCode, FenceRetryAfter, FixedMessage, PlainDetailBody, OneHandlerSpan,
 		FaultSpanError, FaultSpanDescription, FaultOneException, FaultNoCancelEvent,
 		CancelSpanUnset, CancelNoException, CancelOneEvent, CancelEventNoAttributes,
 	}
@@ -111,7 +115,7 @@ func Check(s Suite, route Route, tc Case) error {
 // missing request span, not a wrong route.
 func Evaluate(s Suite, route Route, tc Case) ([]Violation, error) {
 	rec, ended := Serve(s, route, route.Handler(tc.Err), tc.Kind == ClientCancel)
-	found, err := answerViolations(route.Message, tc.Kind, rec)
+	found, err := answerViolations(route, tc.Kind, rec)
 	if err != nil || tc.Kind == ReaderFence {
 		return found, err
 	}
@@ -141,7 +145,7 @@ func statusAssertion(kind Kind) (int, Assertion, error) {
 
 // answerViolations checks the body for a leak, the status for kind, and the
 // fence envelope or the fixed message.
-func answerViolations(message string, kind Kind, rec *httptest.ResponseRecorder) ([]Violation, error) {
+func answerViolations(route Route, kind Kind, rec *httptest.ResponseRecorder) ([]Violation, error) {
 	want, statusCheck, err := statusAssertion(kind)
 	if err != nil {
 		return nil, err
@@ -168,8 +172,11 @@ func answerViolations(message string, kind Kind, rec *httptest.ResponseRecorder)
 		}
 		return found, nil
 	}
-	if got := Message(rec.Body.Bytes()); got != message {
-		found = append(found, Violation{FixedMessage, fmt.Sprintf("body message = %q, want %q; body = %s", got, message, body)})
+	if got := Message(rec.Body.Bytes()); got != route.Message {
+		found = append(found, Violation{FixedMessage, fmt.Sprintf("body message = %q, want %q; body = %s", got, route.Message, body)})
+	}
+	if route.PlainDetail && plainDetail(rec.Body.Bytes()) == "" {
+		found = append(found, Violation{PlainDetailBody, "body has no plain detail text; body = " + body})
 	}
 	return found, nil
 }
@@ -250,6 +257,18 @@ func markedSpan(handlerSpan bool, ended []sdktrace.ReadOnlySpan) (sdktrace.ReadO
 		return nil, []Violation{{OneHandlerSpan, fmt.Sprintf("spans under the request span = %d, want 1", len(children))}}, nil
 	}
 	return children[0], nil, nil
+}
+
+// plainDetail returns the text of a plain {"detail": ...} body, or "" for any
+// other body.
+func plainDetail(body []byte) string {
+	var plain struct {
+		Detail string `json:"detail"`
+	}
+	if json.Unmarshal(body, &plain) != nil {
+		return ""
+	}
+	return plain.Detail
 }
 
 // Message returns the text of an error body in either shape: the plain

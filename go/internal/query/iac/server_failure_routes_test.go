@@ -10,7 +10,20 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/failure"
 )
+
+// iacFailureSuite wraps routes in a suite on the package handler tracer.
+func iacFailureSuite(routes ...failure.Route) failure.Suite {
+	return failure.Suite{HandlerTracer: &iacHandlerTracer, Routes: routes}
+}
+
+// runIACFailureRoutes drives every route through every failure case. It swaps
+// iacHandlerTracer, so callers must not be parallel.
+func runIACFailureRoutes(t *testing.T, routes []failure.Route) {
+	t.Helper()
+	failure.Run(t, iacFailureSuite(routes...))
+}
 
 const (
 	iacFailureAccountBody = `{"account_id":"123456789012"}`
@@ -21,20 +34,20 @@ const (
 
 // managementCountFails and managementListFails build a handler whose
 // management count or list read fails with err.
-func managementCountFails(err error) *Handler {
+func managementCountFails(err error) failure.Mounter {
 	return &Handler{Management: failingManagementStore{countErr: err}}
 }
 
-func managementListFails(err error) *Handler {
+func managementListFails(err error) failure.Mounter {
 	return &Handler{Management: failingManagementStore{listErr: err}}
 }
 
 // managementCountListRoutes returns the count and list failure sites of one
 // route that reads the management store twice.
-func managementCountListRoutes(name, path, body, countMessage, listMessage string) []iacFailureRoute {
-	return []iacFailureRoute{
-		{name: name + " count", method: http.MethodPost, path: path, body: body, message: countMessage, handler: managementCountFails},
-		{name: name + " list", method: http.MethodPost, path: path, body: body, message: listMessage, handler: managementListFails},
+func managementCountListRoutes(name, path, body, countMessage, listMessage string) []failure.Route {
+	return []failure.Route{
+		{Name: name + " count", Method: http.MethodPost, Path: path, Body: body, Message: countMessage, Handler: managementCountFails},
+		{Name: name + " list", Method: http.MethodPost, Path: path, Body: body, Message: listMessage, Handler: managementListFails},
 	}
 }
 
@@ -43,7 +56,7 @@ func managementCountListRoutes(name, path, body, countMessage, listMessage strin
 // store's error text, skipped the reader-fence 503, and answered a client
 // cancel as a server fault. Not parallel: it swaps iacHandlerTracer.
 func TestIaCManagementRoutesAnswerFixedServerFailures(t *testing.T) {
-	var routes []iacFailureRoute
+	var routes []failure.Route
 	routes = append(routes, managementCountListRoutes("unmanaged resources", "/api/v0/iac/unmanaged-resources",
 		iacFailureAccountBody, unmanagedResourcesCountFailedMessage, unmanagedResourcesListFailedMessage)...)
 	routes = append(routes, managementCountListRoutes("terraform import plan", "/api/v0/iac/terraform-import-plan/candidates",
@@ -60,10 +73,10 @@ func TestIaCManagementRoutesAnswerFixedServerFailures(t *testing.T) {
 		iacFailureExactBody, managementStatusReadFailedMessage, managementStatusReadFailedMessage)...)
 	routes = append(routes, managementCountListRoutes("management explanation", "/api/v0/iac/management-status/explain",
 		iacFailureExactBody, managementExplanationReadFailedMessage, managementExplanationReadFailedMessage)...)
-	routes = append(routes, iacFailureRoute{
-		name: "replatforming selectors", method: http.MethodGet, path: "/api/v0/replatforming/selectors",
-		message: replatformingSelectorsFailedMessage,
-		handler: func(err error) *Handler { return &Handler{Management: failingManagementStore{selectorErr: err}} },
+	routes = append(routes, failure.Route{
+		Name: "replatforming selectors", Method: http.MethodGet, Path: "/api/v0/replatforming/selectors",
+		Message: replatformingSelectorsFailedMessage,
+		Handler: func(err error) failure.Mounter { return &Handler{Management: failingManagementStore{selectorErr: err}} },
 	})
 	runIACFailureRoutes(t, routes)
 }
@@ -75,18 +88,18 @@ func TestIaCResourcesAnswerFixedServerFailures(t *testing.T) {
 	hydrated := func() []map[string]any {
 		return []map[string]any{iacResourceRepoNode(candidate.ID, candidate.Name, "aws_s3_bucket", "aws", "repository:r_active")}
 	}
-	runIACFailureRoutes(t, []iacFailureRoute{
+	runIACFailureRoutes(t, []failure.Route{
 		{
-			name: "inventory search", method: http.MethodGet, path: "/api/v0/iac/resources?limit=5",
-			message: iacResourcesSearchFailedMessage,
-			handler: func(err error) *Handler {
+			Name: "inventory search", Method: http.MethodGet, Path: "/api/v0/iac/resources?limit=5",
+			Message: iacResourcesSearchFailedMessage,
+			Handler: func(err error) failure.Mounter {
 				return &Handler{Graph: &stubIaCResourceGraph{}, Inventory: failingInventoryStore{searchErr: err}}
 			},
 		},
 		{
-			name: "graph hydration", method: http.MethodGet, path: "/api/v0/iac/resources?limit=5",
-			message: iacResourcesGraphFailedMessage,
-			handler: func(err error) *Handler {
+			Name: "graph hydration", Method: http.MethodGet, Path: "/api/v0/iac/resources?limit=5",
+			Message: iacResourcesGraphFailedMessage,
+			Handler: func(err error) failure.Mounter {
 				return &Handler{
 					Graph:     &stubIaCResourceGraph{err: err},
 					Inventory: failingInventoryStore{candidates: []InventoryCandidate{candidate}},
@@ -94,9 +107,9 @@ func TestIaCResourcesAnswerFixedServerFailures(t *testing.T) {
 			},
 		},
 		{
-			name: "facet summary", method: http.MethodGet, path: "/api/v0/iac/resources?limit=5&include_facets=true",
-			message: iacResourcesSummaryFailedMessage,
-			handler: func(err error) *Handler {
+			Name: "facet summary", Method: http.MethodGet, Path: "/api/v0/iac/resources?limit=5&include_facets=true",
+			Message: iacResourcesSummaryFailedMessage,
+			Handler: func(err error) failure.Mounter {
 				return &Handler{
 					Graph:     &stubIaCResourceGraph{rows: hydrated()},
 					Inventory: failingInventoryStore{candidates: []InventoryCandidate{candidate}, summaryErr: err},
@@ -110,27 +123,27 @@ func TestIaCResourcesAnswerFixedServerFailures(t *testing.T) {
 // reader fence 503 was already answered (#7523); the 500 carried the store's
 // error text and a client cancel read as a server fault.
 func TestDeadIaCAnswersFixedServerFailures(t *testing.T) {
-	reachability := func(site string) func(error) *Handler {
-		return func(err error) *Handler {
+	reachability := func(site string) func(error) failure.Mounter {
+		return func(err error) failure.Mounter {
 			return &Handler{Reachability: readerFenceReachability{site: site, err: err}}
 		}
 	}
-	runIACFailureRoutes(t, []iacFailureRoute{
+	runIACFailureRoutes(t, []failure.Route{
 		{
-			name: "count", method: http.MethodPost, path: "/api/v0/iac/dead", body: iacFailureDeadBody,
-			message: deadIaCCountFailedMessage, handler: reachability("count"),
+			Name: "count", Method: http.MethodPost, Path: "/api/v0/iac/dead", Body: iacFailureDeadBody,
+			Message: deadIaCCountFailedMessage, Handler: reachability("count"),
 		},
 		{
-			name: "list", method: http.MethodPost, path: "/api/v0/iac/dead", body: iacFailureDeadBody,
-			message: deadIaCListFailedMessage, handler: reachability("list"),
+			Name: "list", Method: http.MethodPost, Path: "/api/v0/iac/dead", Body: iacFailureDeadBody,
+			Message: deadIaCListFailedMessage, Handler: reachability("list"),
 		},
 		{
-			name: "has rows", method: http.MethodPost, path: "/api/v0/iac/dead", body: iacFailureDeadBody,
-			message: deadIaCRowsCheckFailedMessage, handler: reachability("has_rows"),
+			Name: "has rows", Method: http.MethodPost, Path: "/api/v0/iac/dead", Body: iacFailureDeadBody,
+			Message: deadIaCRowsCheckFailedMessage, Handler: reachability("has_rows"),
 		},
 		{
-			name: "content files", method: http.MethodPost, path: "/api/v0/iac/dead", body: iacFailureDeadBody,
-			message: deadIaCFilesFailedMessage, handler: func(err error) *Handler {
+			Name: "content files", Method: http.MethodPost, Path: "/api/v0/iac/dead", Body: iacFailureDeadBody,
+			Message: deadIaCFilesFailedMessage, Handler: func(err error) failure.Mounter {
 				return &Handler{Content: readerFenceContent{filesErr: err}}
 			},
 		},
@@ -142,37 +155,49 @@ func TestDeadIaCAnswersFixedServerFailures(t *testing.T) {
 // error quotes that id. The body is fixed text and the span records the cause.
 func TestReplatformingPlanValidationFailureAnswersFixedMessage(t *testing.T) {
 	finding := ManagementFindingRow{
-		ID: "finding:" + iacFailureCanary, ARN: "arn:aws:s3:::orders", ScopeID: "aws:123456789012:us-east-1:s3",
+		ID: "finding:" + failure.Canary, ARN: "arn:aws:s3:::orders", ScopeID: "aws:123456789012:us-east-1:s3",
 		AccountID: "123456789012", Region: "us-east-1", ResourceType: "s3_bucket",
 		FindingKind: FindingKindUnmanagedCloudResource, ManagementStatus: "unmanaged",
 	}
-	handler := &Handler{Management: failingManagementStore{rows: []ManagementFindingRow{finding, finding}}}
-	rec, ended := serveIACTraced(t, handler, http.MethodPost, ReplatformingPlanRoute, iacFailurePlanBody, false)
-	assertIACFailure(t, replatformingPlanValidationFailedMessage, iacFailureCases()[0], rec, ended)
+	route := failure.Route{
+		Name: "plan validation", Method: http.MethodPost, Path: ReplatformingPlanRoute, Body: iacFailurePlanBody,
+		Message: replatformingPlanValidationFailedMessage,
+		Handler: func(error) failure.Mounter {
+			return &Handler{Management: failingManagementStore{rows: []ManagementFindingRow{finding, finding}}}
+		},
+	}
+	if err := failure.Check(iacFailureSuite(route), route, failure.Cases()[0]); err != nil {
+		t.Error(err)
+	}
 }
 
 // TestIaCResourcesMismatchMarksSpanError pins the inventory/graph exactness
 // failure: it keeps its fixed 500 body and now records the fault on the span.
 func TestIaCResourcesMismatchMarksSpanError(t *testing.T) {
-	handler := &Handler{
-		Graph: &stubIaCResourceGraph{},
-		Inventory: failingInventoryStore{candidates: []InventoryCandidate{
-			{ID: "content-entity:e_missing", Name: "aws_s3_bucket.missing", GenerationID: "generation-active"},
-		}},
+	route := failure.Route{
+		Name: "inventory mismatch", Path: "/api/v0/iac/resources?q=missing&limit=10",
+		Message: iacResourcesMismatchMessage,
+		Handler: func(error) failure.Mounter {
+			return &Handler{
+				Graph: &stubIaCResourceGraph{},
+				Inventory: failingInventoryStore{candidates: []InventoryCandidate{
+					{ID: "content-entity:e_missing", Name: "aws_s3_bucket.missing", GenerationID: "generation-active"},
+				}},
+			}
+		},
 	}
-	rec, ended := serveIACTraced(t, handler, http.MethodGet, "/api/v0/iac/resources?q=missing&limit=10", "", false)
-	if rec.Code != http.StatusInternalServerError || iacFailureMessage(rec.Body.Bytes()) != iacResourcesMismatchMessage {
-		t.Fatalf("status = %d, body = %s; want 500 with %q", rec.Code, rec.Body.String(), iacResourcesMismatchMessage)
+	if err := failure.Check(iacFailureSuite(route), route, failure.Cases()[0]); err != nil {
+		t.Error(err)
 	}
-	assertIACFailureSpan(t, iacResourcesMismatchMessage, false, ended)
 }
 
 // TestReplatformingSelectorsFailureKeepsContractEnvelope pins wire parity for
 // the selector inventory 500: the envelope keeps internal_error, the
 // capability, and both profiles. It passed before #7674 and must keep passing.
 func TestReplatformingSelectorsFailureKeepsContractEnvelope(t *testing.T) {
-	handler := &Handler{Management: failingManagementStore{selectorErr: iacFailureCases()[0].err}}
-	rec, _ := serveIACTraced(t, handler, http.MethodGet, "/api/v0/replatforming/selectors", "", false)
+	handler := &Handler{Management: failingManagementStore{selectorErr: failure.Cases()[0].Err}}
+	route := failure.Route{Name: "selectors", Path: "/api/v0/replatforming/selectors"}
+	rec, _ := failure.Serve(iacFailureSuite(route), route, handler, false)
 	var envelope querycontract.ResponseEnvelope
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil || envelope.Error == nil {
 		t.Fatalf("body = %s (decode err %v), want an error envelope", rec.Body.String(), err)

@@ -110,6 +110,10 @@ type Route struct {
 	Message string
 	// Handler builds the handler whose read under test fails with err.
 	Handler func(err error) Mounter
+	// PlainDetail requires every case but ReaderFence to answer the fixed
+	// message as a plain {"detail": ...} body. Without it either body shape
+	// passes, as Message reads both.
+	PlainDetail bool
 	// Scope, when set, decorates the request context, for example with a
 	// scoped auth grant.
 	Scope func(context.Context) context.Context

@@ -109,6 +109,7 @@ func TestCheckPassesConvertedRoute(t *testing.T) {
 	original := probeTracer
 	for _, ownSpan := range []bool{true, false} {
 		suite := probeSuite(ownSpan, false, correct)
+		suite.Routes[0].PlainDetail = true
 		if got := violations(t, suite); len(got) != 0 {
 			t.Errorf("ownSpan=%v: violated %v, want nothing", ownSpan, got)
 		}
@@ -146,7 +147,9 @@ func TestEveryAssertionHasOneWrongSample(t *testing.T) {
 // shows up as an extra violation. Not parallel: it swaps probeTracer.
 func TestCheckCatchesEachWrongSampleOnItsAssertionOnly(t *testing.T) {
 	for _, sample := range wrongSamples {
-		violated := violations(t, probeSuite(true, sample.sibling, sample.respond))
+		suite := probeSuite(true, sample.sibling, sample.respond)
+		suite.Routes[0].PlainDetail = true
+		violated := violations(t, suite)
 		if !violated[sample.assertion] {
 			t.Errorf("sample for %q violated %v; want it caught by %q", sample.assertion, violated, sample.assertion)
 		}
