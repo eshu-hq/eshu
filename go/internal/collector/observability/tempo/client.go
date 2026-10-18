@@ -217,9 +217,9 @@ func (c HTTPClient) do(
 
 // tempoOperationForEndpoint maps a Tempo API endpoint to its bounded failure
 // operation token (#8258). Tag-value paths carry the configured tag name, so
-// the token is matched by exact endpoint or by prefix and never derived from
-// the raw path: an unknown endpoint keeps a blank token and claim handling
-// falls back to its stage operation.
+// the token is matched by exact endpoint or by prefix and /values suffix and
+// never derived from the raw path: an unknown endpoint keeps a blank token
+// and claim handling falls back to its stage operation.
 func tempoOperationForEndpoint(endpoint string) string {
 	switch endpoint {
 	case echoEndpoint:
@@ -227,7 +227,7 @@ func tempoOperationForEndpoint(endpoint string) string {
 	case tagsEndpoint:
 		return "list_tags"
 	default:
-		if strings.HasPrefix(endpoint, tagValuesPrefix) {
+		if strings.HasPrefix(endpoint, tagValuesPrefix) && strings.HasSuffix(endpoint, "/values") {
 			return "list_tag_values"
 		}
 		return ""

@@ -3,7 +3,35 @@
 
 package jira
 
-import "strings"
+import (
+	"errors"
+	"net/http"
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
+)
+
+// jiraStatusErrorWithOperation maps the endpoint to its token before
+// delegating, so the archived-issue sentinel carries the token into
+// classification (#8258 P2: a bare ErrArchivedIssue otherwise records the
+// stage fallback). Non-archived errors pass through untouched for the shared
+// stamping path.
+func jiraStatusErrorWithOperation(response *http.Response, operation string) error {
+	err := jiraStatusError(response)
+	if err == nil || operation == "" {
+		return err
+	}
+	if errors.Is(err, ErrArchivedIssue) {
+		return sdk.HTTPError{
+			Provider:   "jira",
+			StatusCode: response.StatusCode,
+			Message:    "issue is archived",
+			Operation:  operation,
+			Cause:      err,
+		}
+	}
+	return err
+}
 
 // jiraOperationForEndpoint maps a Jira REST endpoint to its bounded failure
 // operation token (#8258). Per-issue paths carry the issue key, so the token

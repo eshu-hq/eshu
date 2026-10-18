@@ -47,3 +47,17 @@ func TestCollectTagsFailureCarriesEndpointToken(t *testing.T) {
 		t.Fatalf("FailureStatusCode() = %d, want %d", got, want)
 	}
 }
+
+// TestTempoOperationForEndpointRequiresValuesSuffix proves the #8399 P2: a
+// future sub-path under the tag-values prefix must not silently inherit the
+// list_tag_values token. Only the exact /values shape carries it.
+func TestTempoOperationForEndpointRequiresValuesSuffix(t *testing.T) {
+	t.Parallel()
+
+	if got := tempoOperationForEndpoint(tagValuesPrefix + "http.method" + "/values"); got != "list_tag_values" {
+		t.Fatalf("tempoOperationForEndpoint(values path) = %q, want %q", got, "list_tag_values")
+	}
+	if got := tempoOperationForEndpoint(tagValuesPrefix + "http.method" + "/other"); got != "" {
+		t.Fatalf("tempoOperationForEndpoint(non-values sub-path) = %q, want blank", got)
+	}
+}
