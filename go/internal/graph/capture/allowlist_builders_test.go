@@ -26,10 +26,12 @@ const backendDivergenceAllowlistPath = "../../../../specs/backend-divergence-all
 // allowlistEntryCount is the entry count after the #7417 refresh (10
 // refreshed Neo4j-shaped story/CALLS/traversal entries plus 17 newly
 // named entity-context and degree-read entries), plus the #7212 entry for
-// the unlabeled entity-context fallback that only NornicDB still sends.
+// the unlabeled entity-context fallback that only NornicDB still sends,
+// plus the two #8240 Repository path-conflict cleanup entries (attributed
+// Neo4j shape, bare NornicDB shape).
 // Update it when entries are deliberately added or removed, alongside the
 // diff that does so.
-const allowlistEntryCount = 64
+const allowlistEntryCount = 66
 
 // loadBackendDivergenceAllowlist parses the real allowlist, so the pins
 // below run against the text the gate excuses.
