@@ -6,5 +6,6 @@
   "lifecycle": "production",
   "tier": "tier_1",
   "service_id": "svc-checkout",
-  "workload_id": "wl-checkout"
+  "workload_id": "wl-checkout",
+  "workload_repository_id": "repository:r_8477a002"
 }

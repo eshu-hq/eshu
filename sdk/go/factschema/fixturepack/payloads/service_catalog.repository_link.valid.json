@@ -3,5 +3,7 @@
   "entity_ref": "component:default/checkout",
   "repository_id": "repo-checkout",
   "normalized_url": "https://github.com/acme/checkout.git",
-  "service_id": "svc-checkout"
+  "service_id": "svc-checkout",
+  "workload_id": "workload:checkout",
+  "workload_repository_id": "repository:r_8477a002"
 }

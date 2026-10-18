@@ -126,6 +126,67 @@ func TestFixturePackPayloadsDecodeThroughSeam(t *testing.T) {
 	}
 }
 
+// TestFixturePackLegacyHandlePayloadsDecode proves the legacy-handle
+// variants (§5385 section 2.4) still decode through the seam with no
+// workload_repository_id, while the primary valid payloads for the same
+// kinds now carry the field. An old collector's handle-only bytes must keep
+// validating against the regenerated schema; keeping the new field optional
+// is what this test pins.
+func TestFixturePackLegacyHandlePayloadsDecode(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		kind string
+		// scopeKey, when non-empty, is the nested object carrying the
+		// workload fields (vulnerability.suppression nests them in scope).
+		scopeKey string
+	}{
+		{kind: "service_catalog.entity"},
+		{kind: "service_catalog.repository_link"},
+		{kind: "vulnerability.suppression", scopeKey: "scope"},
+	} {
+		tc := tc
+		t.Run(tc.kind, func(t *testing.T) {
+			t.Parallel()
+
+			legacy, ok := fixturepack.LegacyHandlePayload(tc.kind)
+			if !ok {
+				t.Fatalf("fixturepack ships no legacy-handle payload for %q", tc.kind)
+			}
+			if err := decodeByKind(t, tc.kind, legacy); err != nil {
+				t.Fatalf("legacy-handle payload for %q failed decode: %v", tc.kind, err)
+			}
+			legacyFields := payloadScope(t, legacy, tc.scopeKey)
+			if _, present := legacyFields["workload_repository_id"]; present {
+				t.Fatalf("legacy-handle payload for %q carries workload_repository_id; it must stay the pre-field bytes", tc.kind)
+			}
+
+			valid, ok := fixturepack.ValidPayload(tc.kind)
+			if !ok {
+				t.Fatalf("fixturepack ships no valid payload for %q", tc.kind)
+			}
+			validFields := payloadScope(t, valid, tc.scopeKey)
+			if _, present := validFields["workload_repository_id"]; !present {
+				t.Fatalf("primary valid payload for %q lacks workload_repository_id; the repo-scoped fixture must be primary", tc.kind)
+			}
+		})
+	}
+}
+
+// payloadScope returns payload itself, or its nested scopeKey object when
+// scopeKey is set.
+func payloadScope(t *testing.T, payload map[string]any, scopeKey string) map[string]any {
+	t.Helper()
+	if scopeKey == "" {
+		return payload
+	}
+	nested, ok := payload[scopeKey].(map[string]any)
+	if !ok {
+		t.Fatalf("payload %q value is not an object", scopeKey)
+	}
+	return nested
+}
+
 // schemaRequiredFieldCount returns the number of required fields the kind's
 // checked-in JSON Schema declares. It reads the same canonical schema/ artifact
 // TestDerivedKeySetsMatchGeneratedSchemas locks to the struct's tags, so "zero

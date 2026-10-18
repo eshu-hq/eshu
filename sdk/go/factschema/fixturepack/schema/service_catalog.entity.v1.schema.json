@@ -47,6 +47,12 @@
         "string",
         "null"
       ]
+    },
+    "workload_repository_id": {
+      "type": [
+        "string",
+        "null"
+      ]
     }
   },
   "required": [

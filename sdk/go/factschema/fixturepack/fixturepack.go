@@ -34,7 +34,11 @@ const (
 	schemaSuffix   = ".v1.schema.json"
 	validSuffix    = ".valid.json"
 	invalidSuffix  = ".invalid.json"
-	schemaMajorTag = "v1"
+	// legacyHandleSuffix marks a supplementary schema-valid payload kept
+	// verbatim from before an additive field existed, proving an old
+	// collector's bytes still validate against the regenerated schema.
+	legacyHandleSuffix = ".legacy-handle.valid.json"
+	schemaMajorTag     = "v1"
 )
 
 // Kinds returns the sorted list of fact-kind wire strings the pack carries a
@@ -93,6 +97,17 @@ func Schemas() map[string]json.RawMessage {
 // result is false when the pack ships no valid payload for the kind.
 func ValidPayload(kind string) (map[string]any, bool) {
 	return readPayload(payloadPath(kind, validSuffix))
+}
+
+// LegacyHandlePayload returns the supplementary schema-valid example payload
+// kept verbatim from before the workload_repository_id field existed, for the
+// kinds that carry one (service_catalog.entity,
+// service_catalog.repository_link, vulnerability.suppression). It proves an
+// old collector's handle-only payload, with no workload_repository_id, still
+// validates against the regenerated schema (#5385 section 2.4). The ok result
+// is false when the pack ships no legacy-handle payload for the kind.
+func LegacyHandlePayload(kind string) (map[string]any, bool) {
+	return readPayload(payloadPath(kind, legacyHandleSuffix))
 }
 
 // InvalidPayload returns the curated schema-invalid example payload for one

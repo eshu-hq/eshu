@@ -1,0 +1,7 @@
+{
+  "provider": "backstage",
+  "entity_ref": "component:default/checkout",
+  "repository_id": "repo-checkout",
+  "normalized_url": "https://github.com/acme/checkout.git",
+  "service_id": "svc-checkout"
+}
