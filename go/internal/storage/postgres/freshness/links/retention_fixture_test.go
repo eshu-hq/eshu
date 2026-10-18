@@ -133,6 +133,7 @@ func (l *ledgerDB) seedChain(t *testing.T, scopeID string, gens []string, supers
 func (l *ledgerDB) seedChainAt(t *testing.T, scopeID string, gens []string, supersededAt []time.Time) {
 	t.Helper()
 	l.seedScope(t, scopeID)
+	prior := ""
 	for i, gen := range gens {
 		activated := fixtureEpoch.Add(time.Duration(i) * time.Hour)
 		if i == len(gens)-1 {
@@ -146,11 +147,8 @@ func (l *ledgerDB) seedChainAt(t *testing.T, scopeID string, gens []string, supe
 			facts = nextFacts()
 		}
 		l.insertFacts(t, scopeID, gen, facts)
-		prior := ""
-		if i > 0 {
-			prior = gens[i-1]
-		}
 		l.journal(t, scopeID, gen, prior)
+		prior = gen
 	}
 }
 

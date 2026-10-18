@@ -153,7 +153,7 @@ func TestWriterLineageConcurrentDialsConverge(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			observed := lineageObservation{timeline: testTimeline, flush: uint64(1000 + i)}
+			observed := lineageObservation{timeline: testTimeline, flush: uint64(1000 + i)} // #nosec G115 -- i ranges 0..63 so flush is 1000..1063, far below MaxUint64
 			errs <- lineage.admit(base, restarted("200"), observed)
 		}()
 	}
@@ -176,7 +176,7 @@ func TestWriterLineageWatermarkIsAMonotonicMax(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			lineage.raiseWatermark(uint64(i * 10))
+			lineage.raiseWatermark(uint64(i * 10)) // #nosec G115 -- i ranges 0..199 so the watermark is 0..1990, far below MaxUint64
 		}()
 	}
 	wg.Wait()

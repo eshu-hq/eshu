@@ -5,6 +5,7 @@ package writer
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -73,7 +74,7 @@ func TestEdgeWriterSQLRelationshipSequentialWritesPreserveWorkerConcurrency(t *t
 				IntentID:     "sql-edge",
 				RepositoryID: "repo-a",
 				Payload: map[string]any{
-					"source_entity_id":   "sql:function:" + string(rune('a'+i)),
+					"source_entity_id":   fmt.Sprintf("sql:function:%c", 'a'+i),
 					"source_entity_type": "SqlFunction",
 					"target_entity_id":   "sql:table",
 					"target_entity_type": "SqlTable",

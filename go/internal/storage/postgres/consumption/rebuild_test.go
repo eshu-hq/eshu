@@ -291,7 +291,7 @@ func collectMetrics(t *testing.T, reader *sdkmetric.ManualReader) map[string]uin
 				}
 			case metricdata.Sum[int64]:
 				for _, point := range data.DataPoints {
-					out[m.Name+"|"+point.Attributes.Encoded(attribute.DefaultEncoder())] += uint64(point.Value)
+					out[m.Name+"|"+point.Attributes.Encoded(attribute.DefaultEncoder())] += uint64(point.Value) // #nosec G115 -- Value is a test-scale Sum count from the in-test metric reader, non-negative and far below MaxUint64
 				}
 			}
 		}

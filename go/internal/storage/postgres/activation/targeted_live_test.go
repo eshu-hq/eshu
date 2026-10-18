@@ -131,7 +131,7 @@ func runRealRefusalHold(t *testing.T, stableRepo bool, holds map[string]int) {
 		t.Fatalf("whole-corpus passes on the consumer's instruments = %d, want 0", got)
 	}
 	for reason, want := range holds {
-		if got := histogramCount(rm, "eshu_dp_deferred_backfill_targeted_duration_seconds", reason); got != uint64(want) {
+		if got := histogramCount(rm, "eshu_dp_deferred_backfill_targeted_duration_seconds", reason); got != uint64(want) { // #nosec G115 -- want is a test-scale hold count (a handful of refusals), far below MaxUint64
 			t.Fatalf("targeted %s refused passes = %d, want %d", reason, got, want)
 		}
 	}
