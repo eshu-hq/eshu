@@ -75,7 +75,7 @@ ON CONFLICT (intent_id) DO NOTHING
 
 // SharedProjectionUnroutableIntentStore persists durable rows for shared
 // projection intents a canonical edge write could not route, implementing
-// reducer.SharedProjectionUnroutableWriter directly.
+// worker.UnroutableWriter directly.
 //
 // Unlike ReducerInputInvalidFactStore, a write failure here is NOT best-effort:
 // the caller completes the intent immediately afterwards, so this row is the
@@ -102,7 +102,7 @@ func (s *SharedProjectionUnroutableIntentStore) EnsureSchema(ctx context.Context
 	return err
 }
 
-// WriteUnroutableIntents implements reducer.SharedProjectionUnroutableWriter,
+// WriteUnroutableIntents implements worker.UnroutableWriter,
 // writing in bounded batches with ON CONFLICT DO NOTHING so a replayed cycle
 // converges on one row per intent rather than duplicating or erroring.
 func (s *SharedProjectionUnroutableIntentStore) WriteUnroutableIntents(

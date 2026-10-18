@@ -107,10 +107,6 @@ type AWSCloudRuntimeDriftFencingTokenIssuer = awscloud.AWSCloudRuntimeDriftFenci
 // writer needs. See [awscloud.AWSCloudRuntimeDriftTx].
 type AWSCloudRuntimeDriftTx = awscloud.AWSCloudRuntimeDriftTx
 
-// AWSCloudRuntimeDriftBeginner opens a transaction for the drift write. See
-// [awscloud.AWSCloudRuntimeDriftBeginner].
-type AWSCloudRuntimeDriftBeginner = awscloud.AWSCloudRuntimeDriftBeginner
-
 // PostgresAWSCloudRuntimeDriftWriter persists admitted AWS runtime drift
 // findings into the shared fact store. See
 // [awscloud.PostgresAWSCloudRuntimeDriftWriter].

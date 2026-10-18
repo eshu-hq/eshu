@@ -637,10 +637,10 @@ Primary groups:
 - Terraform and AWS drift adapters that keep reducer joins bounded by scope,
   generation, ARN allowlists, backend ownership, and active read-model indexes.
   `AWSCloudRuntimeDriftAdmissionBeginner` (#5848) adapts the shared `Beginner`
-  into `reducer.AWSCloudRuntimeDriftBeginner`/`Tx`, wiring
+  into `awscloud.AWSCloudRuntimeDriftBeginner` / `reducer.AWSCloudRuntimeDriftTx`, wiring
   `PostgresAWSCloudRuntimeDriftWriter`'s begin-before-mutate insert-admission
   check, versioned upsert, and generation-authoritative retire into one
-  transaction — mirroring `ServiceMaterializationBeginner`.
+  transaction — mirroring `servicecatalog.ServiceMaterializationBeginner`.
   `PostgresAWSCloudRuntimeDriftReadinessChecker` reports whether a Terraform
   `state_snapshot:*` scope is still mid-ingestion, backing the reducer's bounded
   readiness defer for #5837's cross-scope activation race.
