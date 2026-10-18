@@ -34,12 +34,12 @@ import (
 // Limits: this is a text scan of SQL literals. A table name assembled at
 // runtime (fmt.Sprintf, string concatenation) or a statement built from
 // fragments that never spell "resolved_relationships" next to the verb passes it.
-// Go comments are removed with the Go scanner, so a "//" inside a literal does
-// not hide SQL after it; SQL files strip "--" comments by line, so a "--" inside
-// a SQL string literal would hide the rest of that line. SQL /*...*/ block
-// comments are stripped from both Go and SQL sources, since a hint between
-// the verb and the table sits inside the literal, out of reach of the Go
-// scanner. The write
+// Comments are removed with the package's one-pass SQL stripper
+// (stripSQLComments), which honors "--" to end-of-line versus block
+// comments and skips quoted regions, on top of Go-scanner comment removal
+// for Go files, since a hint between the verb and the table sits inside
+// the literal, out of reach of the Go scanner. A nested block comment
+// between the verb and the table still passes it. The write
 // path has one SQL constant (insertResolvedSQL), so review any new code that
 // builds SQL for this table dynamically. A deliberate change of that rule must
 // change the fingerprint contract first and then this guard.
@@ -61,28 +61,24 @@ import (
 // "public"."resolved_relationships"). Every pattern below builds on it.
 const resolvedTable = `(?:"?\w+"?\s*\.\s*)?"?resolved_relationships"?\b`
 
-var (
-	// Every pattern is bounded by [^;`] so a match stops at the end of its own
-	// statement (";") or its own Go raw-string literal (a backtick) and cannot
-	// run into a neighboring literal that happens to mention the table.
-	resolvedRowMutationPatterns = []*regexp.Regexp{
-		regexp.MustCompile(`(?is)\bUPDATE\s+(?:ONLY\s+)?` + resolvedTable),
-		// Postgres makes FROM optional: DELETE tbl and DELETE ONLY tbl remove
-		// rows exactly like DELETE FROM tbl.
-		regexp.MustCompile(`(?is)\bDELETE\s+(?:FROM\s+)?(?:ONLY\s+)?` + resolvedTable),
-		regexp.MustCompile("(?is)\\bINSERT\\s+INTO\\s+" + resolvedTable + "[^;`]*?\\bDO\\s+UPDATE\\b"),
-		regexp.MustCompile(`(?is)\bMERGE\s+INTO\s+(?:ONLY\s+)?` + resolvedTable),
-		regexp.MustCompile("(?is)\\bTRUNCATE\\b[^;`]*?" + resolvedTable),
-		regexp.MustCompile("(?is)\\bDROP\\s+TABLE\\b[^;`]*?" + resolvedTable),
-		regexp.MustCompile("(?is)\\bCREATE\\s+(?:OR\\s+REPLACE\\s+)?(?:CONSTRAINT\\s+)?TRIGGER\\b[^;`]*?\\bON\\s+" + resolvedTable),
-		regexp.MustCompile("(?is)\\bALTER\\s+TABLE\\s+(?:IF\\s+EXISTS\\s+)?(?:ONLY\\s+)?" + resolvedTable + "[^;`]*?\\b(?:REFERENCES|FOREIGN\\s+KEY)\\b"),
-		regexp.MustCompile("(?is)\\bCREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?" + resolvedTable + "[^;`]*?\\bREFERENCES\\b"),
-		// A rule names its table as ON <event> TO <table>, never ON <table>.
-		regexp.MustCompile("(?is)\\bCREATE\\s+(?:OR\\s+REPLACE\\s+)?RULE\\b[^;`]*?\\bON\\s+(?:SELECT|INSERT|UPDATE|DELETE)\\s+TO\\s+" + resolvedTable),
-	}
-	sqlLineComment  = regexp.MustCompile(`(?m)--[^\n]*`)
-	sqlBlockComment = regexp.MustCompile(`(?s)/\*.*?\*/`)
-)
+// Every pattern is bounded by [^;`] so a match stops at the end of its own
+// statement (";") or its own Go raw-string literal (a backtick) and cannot
+// run into a neighboring literal that happens to mention the table.
+var resolvedRowMutationPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?is)\bUPDATE\s+(?:ONLY\s+)?` + resolvedTable),
+	// Postgres makes FROM optional: DELETE tbl and DELETE ONLY tbl remove
+	// rows exactly like DELETE FROM tbl.
+	regexp.MustCompile(`(?is)\bDELETE\s+(?:FROM\s+)?(?:ONLY\s+)?` + resolvedTable),
+	regexp.MustCompile("(?is)\\bINSERT\\s+INTO\\s+" + resolvedTable + "[^;`]*?\\bDO\\s+UPDATE\\b"),
+	regexp.MustCompile(`(?is)\bMERGE\s+INTO\s+(?:ONLY\s+)?` + resolvedTable),
+	regexp.MustCompile("(?is)\\bTRUNCATE\\b[^;`]*?" + resolvedTable),
+	regexp.MustCompile("(?is)\\bDROP\\s+TABLE\\b[^;`]*?" + resolvedTable),
+	regexp.MustCompile("(?is)\\bCREATE\\s+(?:OR\\s+REPLACE\\s+)?(?:CONSTRAINT\\s+)?TRIGGER\\b[^;`]*?\\bON\\s+" + resolvedTable),
+	regexp.MustCompile("(?is)\\bALTER\\s+TABLE\\s+(?:IF\\s+EXISTS\\s+)?(?:ONLY\\s+)?" + resolvedTable + "[^;`]*?\\b(?:REFERENCES|FOREIGN\\s+KEY)\\b"),
+	regexp.MustCompile("(?is)\\bCREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?" + resolvedTable + "[^;`]*?\\bREFERENCES\\b"),
+	// A rule names its table as ON <event> TO <table>, never ON <table>.
+	regexp.MustCompile("(?is)\\bCREATE\\s+(?:OR\\s+REPLACE\\s+)?RULE\\b[^;`]*?\\bON\\s+(?:SELECT|INSERT|UPDATE|DELETE)\\s+TO\\s+" + resolvedTable),
+}
 
 // stripGoComments blanks every Go comment with the Go scanner, so a "//" inside
 // a string or raw-string literal (a URL, say) does not start a comment and hide
@@ -111,19 +107,15 @@ func stripGoComments(src string) string {
 	return string(b)
 }
 
-// stripScanComments removes SQL block comments first, then Go or SQL
-// comments per file kind, so prose cannot trip or hide a finding. Block
-// comments go first because a "--" inside one (/* -- x */ UPDATE t) would
-// otherwise run the line-comment strip to end-of-line and eat the real
-// statement after it. Block comments are stripped even inside Go literals
-// because a SQL hint (UPDATE /*hint*/ t) sits inside the literal, out of
-// reach of the Go scanner.
+// stripScanComments removes comments so prose cannot trip or hide a
+// finding. Go files first lose Go comments to the Go scanner; the SQL
+// pass then also reaches hints inside literals (UPDATE /*hint*/ t),
+// which the Go scanner cannot see as comments.
 func stripScanComments(name, src string) string {
-	src = sqlBlockComment.ReplaceAllString(src, " ")
 	if strings.HasSuffix(name, ".sql") {
-		return sqlLineComment.ReplaceAllString(src, "")
+		return stripSQLComments(src)
 	}
-	return stripGoComments(src)
+	return stripSQLComments(stripGoComments(src))
 }
 
 // scanResolvedRowMutations reports every place a source set can change or
@@ -282,6 +274,7 @@ func TestResolvedRelationshipsAppendOnlyGuardBitesOnPlantedWriters(t *testing.T)
 		"rule.sql":                "CREATE RULE rr AS ON DELETE TO resolved_relationships DO INSTEAD NOTHING;\n",
 		"rule_replace.sql":        "CREATE OR REPLACE RULE rr AS ON UPDATE TO public.resolved_relationships DO INSTEAD NOTHING;\n",
 		"blockcmt_dashes.sql":     "/* -- x */ UPDATE resolved_relationships SET confidence = 1;\n",
+		"linecmt_opener.sql":      "-- /* note\nUPDATE resolved_relationships SET confidence = 1; -- */\n",
 	} {
 		got := scanResolvedRowMutations(map[string]string{name: planted})
 		if len(got) == 0 {
