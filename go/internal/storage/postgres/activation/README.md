@@ -109,6 +109,8 @@ SELECT state, count(*),
  GROUP BY state;
 ```
 
+Read the age from any row; an empty table yields no rows (the gauges report explicit zeros instead).
+
 ## Rollout order
 
 Migration 160 must exist before any binary that Acks runs

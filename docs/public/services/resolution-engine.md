@@ -480,7 +480,7 @@ Start with:
   `eshu_dp_activation_obligation_maintenance_duration_seconds{outcome}`,
   `eshu_dp_activation_obligation_failures_total{reason}`; see the
   [reducer/storage metric catalog](../reference/telemetry/metrics-reducer-storage.md);
-  while the consumer is disabled these gauges are not emitted — query `activation_obligations` directly (see the activation package README).
+  while the consumer is disabled this telemetry is not emitted — query `activation_obligations` directly (see the activation package README).
 - graph cleanup gauge: `eshu_dp_graph_orphan_nodes`
 - graph-backed gauge snapshot health: `eshu_dp_gauge_snapshot_refreshes_total`,
   `eshu_dp_gauge_snapshot_refresh_duration_seconds`,
