@@ -69,7 +69,7 @@ def _is_drive(body: str, skills: set) -> bool:
     if "eshu-issue-driver" in skills:
         return True
     flat = " ".join(body.lower().split())
-    return bool(re.search(r"\bdrive\b.{0,30}?\b(epics?\b|issues?\s*#|#\d)", flat))
+    return bool(re.search(r"\bdrive\b.{0,30}?\b(epics?\b|issues?\b|#\d)", flat))
 
 
 def route(prompt: str, harness: str, cwd: str = "") -> str:
