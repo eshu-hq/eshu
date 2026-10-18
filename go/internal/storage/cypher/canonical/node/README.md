@@ -17,8 +17,8 @@ Changes to their MATCH, MERGE, or SET clauses affect graph truth and must
 follow the Cypher performance and materialization proof requirements in the
 root agent guidance.
 
-No-Regression: all moved templates retain their original Cypher bytes, and
+No-Regression Evidence: all moved templates retain their original Cypher bytes, and
 the caller dispatch sequence is unchanged.
 
-No-Observability-Change: the package move adds no writer route, statement
+Observability Evidence: the package move adds no writer route, statement
 metadata, metric, span, or log field.
