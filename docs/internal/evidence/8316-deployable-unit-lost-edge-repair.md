@@ -176,3 +176,24 @@ established `recordPhase` convention. The sweep completion line keeps its
 two counters; the retirement report keeps its existing `canonical
 repository retired` line and counters, with observer failures on a WARN
 under the same message family.
+
+## Follow-up: migration 196 convergence guard and partial index
+
+Performance Evidence: baseline per-pass listing seq-scans plus
+DISTINCT-sorts all retained admission history with no supporting index;
+after, scratch EXPLAIN (ANALYZE, BUFFERS) on PostgreSQL 18.6 over 120k
+admission_decisions (15k matching rows across 1,500 anchors x 10
+generations, 105k other-domain noise, VACUUM ANALYZEd) plans one Bitmap
+Index Scan on `deployable_unit_gap_admitted_anchor_idx` (index searches
+1, 93 shared-hit buffers), no Seq Scan, execution 18.9 ms. Committed
+lifecycle proof
+(`TestDeployableUnitGapAdmittedAnchorIndexLifecycleAndSeekLive`)
+asserts apply, reapply, rollback, rebuild, exact rows with and without
+the index, and index-seek planning on the production listing constant.
+The change is safe because the index only narrows the access path: row
+answers are byte-identical with and without it, and the listing runs
+once per maintenance pass.
+
+No-Observability-Change: this follow-up adds no metric, span, or log
+line; the existing `deployable_unit_gap_reconciliation` phase log and
+duration metric from the base change already cover the pass.
