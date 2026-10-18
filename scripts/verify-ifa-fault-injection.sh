@@ -25,7 +25,7 @@
 # The shard mirror derives the current cell count from its hand-authored
 # roster and cross-checks this script's dispatch block. Cell libraries are
 # split by family under scripts/lib/ifa_fault_injection_*_cells.sh; the
-# symbol-runtime library owns cells 37-43 for issues #5995/#6000/#5997.
+# symbol-runtime library owns cells 46-52 for issues #5995/#6000/#5997.
 # The delta cell's full-node collateral comparator is split into
 # scripts/lib/ifa_fault_injection_collateral_nodes.sh:
 #
@@ -60,9 +60,9 @@
 # defect -- root-cause it, never lower workers, retry, or otherwise normalize
 # it away (Serialization-Is-Not-A-Fix). A fault that never fires is an inert
 # script, not a pass, so every cell checks that its own fault actually fired:
-#   - a claimed-row proof for cells 2/3/6/7/8/9/17/20/23/26/29/32/35
-#   - an exact runner-waiter proof for cells 41/42/43
-#   - a once-fired marker for cells 4/12/13/14/15/18/21/24/27/30/33/36/38/39/40
+#   - a claimed-row proof for cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44
+#   - an exact runner-waiter proof for cells 50/51/52
+#   - a once-fired marker for cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/47/48/49
 #   - a sentinel-fired proof for cell 5
 #
 # Usage:
@@ -129,8 +129,8 @@ export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7688}"
 : "${ESHU_POSTGRES_PASSWORD:=change-me}"
 : "${ESHU_NEO4J_PASSWORD:=change-me}"
 # Headroom over this gate's two slowest natural recovery mechanics: the fixed
-# 1-minute reducer lease (cells 2/3/6/7/8/9/17/20/23/26/29/32/35) and the default 30s (+jitter)
-# reducer retry delay (cells 4/12/13/14/15/18/21/24/27/30/33/36/38/39/40's queue-retry lane) -- see go/cmd/reducer/
+# 1-minute reducer lease (cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44) and the default 30s (+jitter)
+# reducer retry delay (cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/47/48/49's queue-retry lane) -- see go/cmd/reducer/
 # main_helpers.go and go/internal/runtime/retry_policy.go.
 : "${GATE_DRAIN_TIMEOUT:=4m}"
 # 120s general CI margin; lock-vs-projector ordering fixed the CI codeowners failure, not this budget.
@@ -186,6 +186,14 @@ kubernetes_namespace_environment_edge_operation_match="MERGE (n)-[env_rel:TARGET
 # match no executed statement and the fault would never fire. It is NOT
 # IAM_INSTANCE_PROFILE_HAS_ROLE, which is statement metadata beside the query.
 iam_instance_profile_role_edge_operation_match="MERGE (profile)-[rel:HAS_ROLE]->(role)"
+# The CAN_ASSUME MERGE anchor cell_failgraphwrite_iam_can_assume (#6228 fault
+# half) targets: go/internal/storage/cypher/iam_can_assume_edge_writer.go:43
+# emits MERGE (principal)-[rel:%s]->(role), filled from a closed
+# single-member vocabulary, so the anchor carries the INTERPOLATED type. A
+# literal %s would match no executed statement and the fault would never
+# fire. It is NOT IAM_CAN_ASSUME, which is statement metadata beside the
+# query.
+iam_can_assume_edge_operation_match="MERGE (principal)-[rel:CAN_ASSUME]->(role)"
 
 # The DOCUMENTS edge MERGE anchor cell_failgraphwrite_documentation targets:
 # go/internal/storage/cypher/canonical_documentation_edges.go's
@@ -390,16 +398,19 @@ ifa_fault_shard_run cell_failgraphwrite_repo_dependency
 ifa_fault_shard_run cell_baseline_submodule_pin
 ifa_fault_shard_run cell_killworker_submodule_pin
 ifa_fault_shard_run cell_failgraphwrite_submodule_pin
-# kubernetes_namespace_environment (#6309) and iam_instance_profile_role
-# (#6309): first direct-materialization families in this gate. Each trio is
-# baseline first (sole writer of that family's digest and retry baseline),
-# same shape as codeowners above.
+# kubernetes_namespace_environment (#6309), iam_instance_profile_role
+# (#6309), and iam_can_assume (#6228 fault half): direct-materialization
+# families in this gate. Each trio is baseline first (sole writer of that
+# family's digest and retry baseline), same shape as codeowners above.
 ifa_fault_shard_run cell_baseline_kubernetes_namespace_environment
 ifa_fault_shard_run cell_killworker_kubernetes_namespace_environment
 ifa_fault_shard_run cell_failgraphwrite_kubernetes_namespace_environment
 ifa_fault_shard_run cell_baseline_iam_instance_profile_role
 ifa_fault_shard_run cell_killworker_iam_instance_profile_role
 ifa_fault_shard_run cell_failgraphwrite_iam_instance_profile_role
+ifa_fault_shard_run cell_baseline_iam_can_assume
+ifa_fault_shard_run cell_killworker_iam_can_assume
+ifa_fault_shard_run cell_failgraphwrite_iam_can_assume
 # inheritance_edges (#5996) and shell_exec (#6001): generic dispatch, baseline
 # first in each trio (sole writer of that family's digest and retry baseline;
 # the atomic-group ordering check enforces it). Both are FAULT_SHARED_DRIVE=0,
@@ -411,8 +422,8 @@ ifa_fault_shard_run cell_baseline_shell_exec
 ifa_fault_shard_run cell_killworker_shell_exec
 ifa_fault_shard_run cell_failgraphwrite_shell_exec
 
-# workload_dependency (#6003, cells 34-36) and the handles_route/runs_in/
-# invokes_cloud_action trio (#5995/#6000/#5997, cells 37-43,
+# workload_dependency (#6003, cells 37-39) and the handles_route/runs_in/
+# invokes_cloud_action trio (#5995/#6000/#5997, cells 46-52,
 # scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh): each baseline
 # must run before its recovery cells in the same atomic shard group. The
 # trio's runner-lease kill cells follow the three graph-write cells.

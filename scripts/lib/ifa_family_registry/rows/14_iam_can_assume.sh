@@ -5,12 +5,10 @@
 # the schema and every array declaration this file assigns into. Read
 # rows/13_iam_instance_profile_role.sh's header first -- it explains what
 # a DIRECT-materialization family is and which blocker kinds are unavailable to
-# one. This row carries NO fault cells yet: the determinism gate drives it
-# through the shared N={1,2,4} cell below, and the fault-injection area stays
-# untouched (cell_kind=custom is rejected by the generic dispatchers, and no
-# custom cell file exists, so the fault gate never dispatches this family).
+# one. This row carries fault cells since the #6228 fault half (custom
+# dispatch) and ifa-fault-injection triggers in specs/ci-gates.v1.yaml.
 
-# Hand-derived, and non-vacuous once the determinism gate drives it:
+# Hand-derived, and non-vacuous now a fault cell exists:
 # IAMCanAssumeMaterializationHandler embeds `FactLoader factload.FactLoader`
 # (go/internal/reducer/iamcan/iam_can_assume_materialization.go:83)
 # and Handle refuses to run without it (:115) before passing it to the
@@ -50,19 +48,19 @@ IFA_FAMILY_EXPECTED_VAR[iam_can_assume]="iam_can_assume_expected_edges"
 # metadata carried beside the query; it is not a relationship type and never
 # appears in the graph.
 IFA_FAMILY_ANCHOR[iam_can_assume]="MERGE (principal)-[rel:CAN_ASSUME]->(role)"
-# custom, prospectively: no fault cell file exists for this family yet, and the
-# generic public dispatchers reject `cell_kind=custom`, so the fault gate
-# cannot dispatch it by accident. Flip only with a proven fault cell, never to
-# generic without the lifecycle the generic header demands.
+# custom, same dispatch shape as rows/12-13: hand-written cells, dispatched by
+# name. The generic table_lock path has never run live and its mandatory
+# precondition assumes a `domain` column fact_records does not have
+# (scripts/lib/ifa_fault_generic_table_lock.sh's header).
 IFA_FAMILY_CELL_KIND[iam_can_assume]="custom"
 
 # Not a shared_intent_lock family, so no retry baseline is required. Declared
 # empty rather than omitted -- see rows/12 for why an absent key is worse.
 IFA_FAMILY_RETRY_BASELINE_VAR[iam_can_assume]=""
 
-# 0: drive_all_cassettes does not produce this family, and no fault cell
-# drives it either; each determinism cell drives it through
-# DRIVE_FN/CASSETTE_VAR instead.
+# 0 on the same footing as rows/12-13: drive_all_cassettes does not produce
+# this family; each fault cell drives it through DRIVE_FN/CASSETTE_VAR
+# instead.
 IFA_FAMILY_FAULT_SHARED_DRIVE[iam_can_assume]="0"
 
 IFA_FAMILY_HANDLER_GO_FILE[iam_can_assume]="go/internal/reducer/iamcan/iam_can_assume_materialization.go"

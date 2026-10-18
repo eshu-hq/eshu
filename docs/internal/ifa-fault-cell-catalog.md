@@ -140,21 +140,24 @@ than there are entries here.
 31. baseline-iam-instance-profile-role (#6309) -- family-scoped fault-free baseline.
 32. kill-worker-after-claim-iam-instance-profile-role (#6309) -- lease reclaim proof.
 33. fail-graph-write-once-then-succeed-iam-instance-profile-role (#6309) -- HAS_ROLE retry proof.
-34. baseline-inheritance (#5996) -- family-scoped fault-free baseline.
-35. kill-worker-after-claim-inheritance (#5996) -- lease reclaim proof.
-36. fail-graph-write-once-then-succeed-inheritance (#5996) -- retry proof.
-37. baseline-shell-exec (#6001) -- family-scoped fault-free baseline.
-38. kill-worker-after-claim-shell-exec (#6001) -- lease reclaim proof.
-39. fail-graph-write-once-then-succeed-shell-exec (#6001) -- retry proof.
-40. baseline-workload-dependency (#6003) -- family-scoped fault-free baseline.
-41. kill-worker-after-claim-workload-dependency (#6003) -- lease reclaim proof.
-42. fail-graph-write-once-then-succeed-workload-dependency (#6003) -- retry proof.
-43. baseline-symbol-runtime (#5995/#6000/#5997) -- ONE baseline shared by
+34. baseline-iam-can-assume (#6228 fault half) -- family-scoped fault-free baseline.
+35. kill-worker-after-claim-iam-can-assume (#6228 fault half) -- lease reclaim proof.
+36. fail-graph-write-once-then-succeed-iam-can-assume (#6228 fault half) -- CAN_ASSUME retry proof.
+37. baseline-inheritance (#5996) -- family-scoped fault-free baseline.
+38. kill-worker-after-claim-inheritance (#5996) -- lease reclaim proof.
+39. fail-graph-write-once-then-succeed-inheritance (#5996) -- retry proof.
+40. baseline-shell-exec (#6001) -- family-scoped fault-free baseline.
+41. kill-worker-after-claim-shell-exec (#6001) -- lease reclaim proof.
+42. fail-graph-write-once-then-succeed-shell-exec (#6001) -- retry proof.
+43. baseline-workload-dependency (#6003) -- family-scoped fault-free baseline.
+44. kill-worker-after-claim-workload-dependency (#6003) -- lease reclaim proof.
+45. fail-graph-write-once-then-succeed-workload-dependency (#6003) -- retry proof.
+46. baseline-symbol-runtime (#5995/#6000/#5997) -- ONE baseline shared by
    handles_route/runs_in/invokes_cloud_action; no kill-worker cell (ifa_fault_injection_symbol_runtime_cells.sh's header explains why).
-44. fail-graph-write-once-then-succeed-handles-route (#5995) -- HANDLES_ROUTE retry proof.
-45. fail-graph-write-once-then-succeed-runs-in (#6000) -- RUNS_IN retry proof.
-46. fail-graph-write-once-then-succeed-invokes-cloud-action (#5997) -- INVOKES_CLOUD_ACTION retry proof.
+47. fail-graph-write-once-then-succeed-handles-route (#5995) -- HANDLES_ROUTE retry proof.
+48. fail-graph-write-once-then-succeed-runs-in (#6000) -- RUNS_IN retry proof.
+49. fail-graph-write-once-then-succeed-invokes-cloud-action (#5997) -- INVOKES_CLOUD_ACTION retry proof.
 
-47. kill-worker-after-runner-lease-wait-handles-route (#6208) -- exact-key reclaim proof.
-48. kill-worker-after-runner-lease-wait-runs-in (#6208) -- exact-key reclaim proof.
-49. kill-worker-after-runner-lease-wait-invokes-cloud-action (#6208) -- exact-key reclaim proof.
+50. kill-worker-after-runner-lease-wait-handles-route (#6208) -- exact-key reclaim proof.
+51. kill-worker-after-runner-lease-wait-runs-in (#6208) -- exact-key reclaim proof.
+52. kill-worker-after-runner-lease-wait-invokes-cloud-action (#6208) -- exact-key reclaim proof.

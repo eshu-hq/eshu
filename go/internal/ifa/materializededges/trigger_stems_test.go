@@ -84,6 +84,10 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 	// gate. The both-gates check below is keyed to coverage rows, and both
 	// families are covered, so it demands the fault-side trigger -- and finds
 	// it, in the per-family cell files and the shared fault seams.
+	//
+	// iam_can_assume joins them with the #6228 fault half: same stem shape,
+	// read off the fault cells file and the cypher writer the triggers name.
+	"iam_can_assume":                   "iam_can_assume",
 	"iam_instance_profile_role":        "iam_instance_profile_role",
 	"kubernetes_namespace_environment": "kubernetes_namespace_environment",
 }
