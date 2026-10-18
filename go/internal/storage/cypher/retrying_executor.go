@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
-	"regexp"
 	"strings"
 	"time"
 
@@ -59,6 +58,7 @@ func (r *RetryingExecutor) Execute(ctx context.Context, stmt Statement) error {
 		func() error { return r.Inner.Execute(ctx, stmt) },
 		func(err error) string { return classifyRetryableGraphWriteError(err, stmt) },
 		nil,
+		[]Statement{stmt},
 	)
 }
 
@@ -90,6 +90,7 @@ func (r *RetryingExecutor) ExecuteGroup(ctx context.Context, stmts []Statement) 
 		groupOperationLabel(stmts),
 		func() error { return ge.ExecuteGroup(ctx, stmts) },
 		func(err error) string { return classifyRetryableGraphWriteGroupError(err, stmts) },
+		stmts,
 		stmts,
 	)
 }
@@ -130,13 +131,15 @@ func (r *RetryingExecutor) ExecuteProbe(ctx context.Context, stmt Statement) (bo
 // performs the work. Both callers share the same exponential-backoff-with-
 // jitter cadence and the same retry-budget exhaustion behavior. The optional
 // timeoutReplayGroup is validated only after the backend (NornicDB or Neo4j)
-// returns its exact rollback-complete transaction timeout.
+// returns its exact rollback-complete transaction timeout. statements are the
+// statements of the attempted write, used only for retry diagnostics.
 func (r *RetryingExecutor) runWithRetry(
 	ctx context.Context,
 	operationLabel string,
 	do func() error,
 	classify func(error) string,
 	timeoutReplayGroup []Statement,
+	statements []Statement,
 ) error {
 	maxRetries := r.MaxRetries
 	if maxRetries <= 0 {
@@ -148,6 +151,7 @@ func (r *RetryingExecutor) runWithRetry(
 	}
 
 	var lastErr error
+	var lastReason string
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		lastErr = do()
 		if lastErr == nil {
@@ -165,6 +169,7 @@ func (r *RetryingExecutor) runWithRetry(
 			return lastErr
 		}
 		retryReason := classify(lastErr)
+		lastReason = retryReason
 		if retryReason == "" {
 			if isMalformedNeo4jConnectivityError(lastErr) {
 				return errMalformedNeo4jConnectivity
@@ -181,6 +186,10 @@ func (r *RetryingExecutor) runWithRetry(
 					telemetry.AttrWritePhase(operationLabel),
 					telemetry.AttrReason(retryReason),
 				))
+		}
+
+		if retryReason == graphWriteRetryReasonParserIntervalRace {
+			logNeo4jParserIntervalRaceRetry(ctx, operationLabel, attempt+1, lastErr, statements)
 		}
 
 		delay := baseDelay * time.Duration(1<<uint(attempt))
@@ -201,6 +210,12 @@ func (r *RetryingExecutor) runWithRetry(
 		}
 	}
 
+	if lastReason == graphWriteRetryReasonParserIntervalRace {
+		// The race clears on replay, so a SyntaxError that survives the whole
+		// budget is treated as a real statement error: surface it as itself,
+		// terminal, with no Retryable or FailureClass (#8190).
+		return fmt.Errorf("neo4j syntax error persisted after %d retries: %w", maxRetries, lastErr)
+	}
 	return &neo4jRetryableError{
 		inner: fmt.Errorf("neo4j transient error after %d retries: %w", maxRetries, lastErr),
 		code:  "TransientError",
@@ -292,6 +307,9 @@ func classifyRetryableGraphWriteError(err error, stmt Statement) string {
 	if isNeo4jConnectivityError(err) {
 		return ""
 	}
+	if reason := classifyNeo4jParserIntervalRace(err, []Statement{stmt}); reason != "" {
+		return reason
+	}
 	if isNornicDBMergeRelationshipSnapshotConflict(err, stmt.Cypher) {
 		return graphWriteRetryReasonWriteConflict
 	}
@@ -312,7 +330,10 @@ func classifyRetryableGraphWriteError(err error, stmt Statement) string {
 // retryable regardless of statement shape because session.ExecuteWrite re-runs
 // the entire transaction body from scratch. TransactionExecutionLimit is the
 // exception: it means session.ExecuteWrite already exhausted that inner retry
-// budget, so repeating it here would multiply the failure window.
+// budget, so repeating it here would multiply the failure window. The Neo4j
+// parser interval race (#8190) is also shape-independent for the same reason:
+// it fails at parse time inside that transaction (see
+// detectNeo4jParserIntervalRace).
 func classifyRetryableGraphWriteGroupError(err error, stmts []Statement) string {
 	var exhausted *neo4jdriver.TransactionExecutionLimit
 	if errors.As(err, &exhausted) {
@@ -326,6 +347,9 @@ func classifyRetryableGraphWriteGroupError(err error, stmts []Statement) string 
 	}
 	if err == nil {
 		return ""
+	}
+	if reason := classifyNeo4jParserIntervalRace(err, stmts); reason != "" {
+		return reason
 	}
 	if !AllStatementsAreReplaySafe(stmts) && !isCanonicalRunsOnReplaySafeGroup(stmts) {
 		return ""
@@ -445,45 +469,4 @@ func isNornicDBCommitTimeUniqueConflictError(err error) bool {
 	}
 
 	return isNornicDBCommitTimeUniqueConflict(err.Error())
-}
-
-var whereClausePattern = regexp.MustCompile(`(?is)\bWHERE\b(.*?)(?:\bDETACH\s+DELETE\b|\bDELETE\b|\bREMOVE\b|\bRETURN\b|\z)`)
-
-// predicateSeparatorPattern splits a WHERE body into terms. OR as well as AND,
-// because an OR term WIDENS the set and would otherwise pass as one term
-// holding a $param. MATCH and WHERE too: whereClausePattern's non-greedy body
-// runs to the first write clause and so SWALLOWS a second `MATCH ... WHERE`,
-// and splitting makes that second predicate its own term.
-var predicateSeparatorPattern = regexp.MustCompile(`(?i)\b(AND|OR|MATCH|WHERE)\b`)
-
-// everyConjunctIsBounded requires every term of every WHERE to name a parameter.
-//
-// A predicate can name a parameter and still read mutable graph state:
-// `WHERE n.repo_id IN $repo_ids AND n.stale` passes the membership and
-// open-ended checks in hasParameterBoundedPredicate. The delete stays inside the
-// key space $repo_ids enumerates -- smaller blast radius than the complement
-// case -- but within it the set still moves: a concurrent writer flipping
-// n.stale between the failed attempt and the replay puts a node in range the
-// first attempt never saw. Same broken premise.
-//
-// A literal comparison is NOT bounding: `n.stale = true` reads the same mutable
-// property as the bare `n.stale`. Only a $param names a value the caller fixed
-// for the statement. Every retract here today is a conjunction of bound terms.
-func everyConjunctIsBounded(cypher string) bool {
-	clauses := whereClausePattern.FindAllStringSubmatch(cypher, -1)
-	if len(clauses) == 0 {
-		// No WHERE to verify: a $param elsewhere says nothing about the set.
-		return false
-	}
-	for _, where := range clauses {
-		for _, term := range predicateSeparatorPattern.Split(where[1], -1) {
-			if strings.TrimSpace(term) == "" {
-				continue
-			}
-			if !strings.Contains(term, "$") {
-				return false
-			}
-		}
-	}
-	return true
 }

@@ -714,7 +714,7 @@ and queue `failure_class` rows expose retry attempts, operation labels,
 bounded retry classes, exhausted retry errors, and dead-letter prevention.
 The counter name is legacy and tracks this package's broader transient graph
 write retry class. Its closed `reason` enum is `connectivity_error`,
-`transient_error`, `write_conflict`, or `commit_unique_conflict`; the exact
+`transient_error`, `write_conflict`, `commit_unique_conflict`, or `neo4j_parser_interval_race` (#8190); the exact
 typed snapshot conflict selects the existing `write_conflict` value. Raw errors,
 repository ids, node ids, and statements stay out of metric labels.
 
@@ -1262,7 +1262,7 @@ adapter seam.
 - `eshu_dp_neo4j_deadlock_retries_total` — legacy counter in
   `RetryingExecutor` labeled by `write_phase` and bounded `reason`; counts
   transient graph-write retries, including deadlocks, lock timeouts, retryable
-  driver connectivity errors, and retryable NornicDB commit conflicts
+  driver connectivity errors, retryable NornicDB commit conflicts, and the Neo4j parser interval race (`reason=neo4j_parser_interval_race`, #8190)
 - `eshu_dp_canonical_atomic_writes_total` / `eshu_dp_canonical_atomic_fallbacks_total`
   — whether `CanonicalNodeWriter` used the group or sequential path
 - `eshu_dp_canonical_phase_duration_seconds` — labeled by phase name
@@ -1290,7 +1290,7 @@ adapter seam.
   unique conflicts usually point at concurrent MERGE contention on shared nodes
   (Repository, Directory, Module), while driver `ConnectivityError` points at
   backend reachability, pool pressure, restart, or network churn. Check worker
-  concurrency before raising `RetryingExecutor.MaxRetries`.
+  concurrency before raising `RetryingExecutor.MaxRetries`. `reason=neo4j_parser_interval_race` is not contention: it is the false ``Variable `U` not defined`` SyntaxError from an ANTLR data race in the pinned Neo4j image on weakly ordered CPUs (antlr/antlr4#4901). It retries regardless of statement shape (parse-time, inside one transaction), and after the budget the original SyntaxError surfaces terminal, so a real undefined one-character variable costs at most `MaxRetries` retries; see `evidence-8190-neo4j-parser-interval-race.md`.
 - `eshu_dp_canonical_atomic_fallbacks_total` > 0 means the executor does not
   implement `GroupExecutor`; write ordering relies on sequential phase execution
   which is slower and non-atomic.
