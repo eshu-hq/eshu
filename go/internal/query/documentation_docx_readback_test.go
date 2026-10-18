@@ -33,15 +33,18 @@ func TestContentReaderDocumentationFactsReadsDOCXSectionFacts(t *testing.T) {
 			}]
 		}
 	}`)
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{{
-		columns: []string{"payload"},
-		rows:    [][]driver.Value{{row}},
-		queryContains: []string{
-			"fact_records.payload @>",
-			"fact_records.payload->>'document_id'",
-			"LOWER(",
+	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+		unresolvedDocRepoScopeResult(),
+		{
+			columns: []string{"payload"},
+			rows:    [][]driver.Value{{row}},
+			queryContains: []string{
+				"fact_records.payload @>",
+				"fact_records.payload->>'document_id'",
+				"LOWER(",
+			},
 		},
-	}})
+	})
 	reader := NewContentReader(db)
 
 	got, err := reader.DocumentationFacts(t.Context(), documentationFactFilter{
