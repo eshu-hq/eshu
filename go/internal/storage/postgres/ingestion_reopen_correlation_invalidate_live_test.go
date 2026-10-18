@@ -199,3 +199,33 @@ func TestListAllDeployableUnitAdmittedAnchorReposConvergesAfterSupersedingDecisi
 		}
 	}
 }
+
+// TestListAllDeployableUnitAdmittedAnchorReposBreaksDecidedAtTiesLive proves
+// the #8407 P2 tiebreaker on the real schema: two decisions for one anchor
+// with an identical decided_at resolve deterministically to the
+// decision_id-DESC row on every pass, so the listing cannot flap between
+// passes. Here the tie winner is the rejection, so the anchor stays
+// excluded.
+func TestListAllDeployableUnitAdmittedAnchorReposBreaksDecidedAtTiesLive(t *testing.T) {
+	dsn := reducerDomainFairnessDSN()
+	if dsn == "" {
+		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the #8407 tiebreaker proof")
+	}
+	ctx := context.Background()
+	db, _ := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	w := seedFingerprintGateWorld(t, ctx, db)
+	stamp := w.at
+	seedGapAdmissionDecisionAt(t, ctx, db, w.a.scopeID, w.a.genID, "adm-tie-admit", "repo-tie", "admitted", `{"Written":true}`, stamp)
+	seedGapAdmissionDecisionAt(t, ctx, db, w.a.scopeID, w.a.genID, "adm-tie-reject", "repo-tie", "rejected", `{"Written":true}`, stamp)
+
+	store := NewRelationshipStore(SQLDB{DB: db})
+	for i := 0; i < 10; i++ {
+		anchors, err := store.ListAllDeployableUnitAdmittedAnchorRepos(ctx)
+		if err != nil {
+			t.Fatalf("pass %d: ListAllDeployableUnitAdmittedAnchorRepos() error = %v", i, err)
+		}
+		if len(anchors) != 0 {
+			t.Fatalf("pass %d: admitted anchors = %#v, want empty (tie must resolve to the rejection)", i, anchors)
+		}
+	}
+}

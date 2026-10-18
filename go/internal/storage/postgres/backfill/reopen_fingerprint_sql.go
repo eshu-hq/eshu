@@ -199,7 +199,9 @@ DELETE FROM deployable_unit_reopen_fingerprints WHERE repo_ids && $1::text[]
 // rejected in a later one keeps both rows. Matching ANY
 // admitted row would replay that legitimately edgeless anchor every pass;
 // keeping only latest-state-admitted rows converges the second pass to a
-// no-op. Rows whose canonical write never landed (Written false) are
+// no-op. The decision_id tiebreaker keeps the choice deterministic when two
+// decisions for one anchor share an identical decided_at (#8407 review P2).
+// Rows whose canonical write never landed (Written false) are
 // excluded: no edge was ever expected for them. Rows predating the Written
 // key are included: every deployable_unit_correlation admission of that era
 // wrote its edge.
@@ -210,7 +212,7 @@ FROM (
     FROM admission_decisions
     WHERE domain = 'deployable_unit_correlation'
       AND anchor_kind = 'repository'
-    ORDER BY anchor_id, decided_at DESC
+    ORDER BY anchor_id, decided_at DESC, decision_id DESC
 ) AS latest
 WHERE state = 'admitted'
   AND COALESCE((canonical_write ->> 'Written') IN ('true'), TRUE)

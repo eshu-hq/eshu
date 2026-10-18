@@ -69,3 +69,19 @@ func TestListAllDeployableUnitAdmittedAnchorReposQueryIsFullAdmittedScan(t *test
 			ListAllDeployableUnitAdmittedAnchorReposQuery)
 	}
 }
+
+// TestListAllDeployableUnitAdmittedAnchorReposQueryBreaksDecidedAtTies pins
+// the #8407 P2 tiebreaker: DISTINCT ON (anchor_id) with ORDER BY anchor_id,
+// decided_at DESC picks an arbitrary row when two decisions for one anchor
+// share an identical decided_at, so the per-pass listing would answer
+// differently across passes. The decision_id tiebreaker makes the latest-wins
+// choice deterministic.
+func TestListAllDeployableUnitAdmittedAnchorReposQueryBreaksDecidedAtTies(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(ListAllDeployableUnitAdmittedAnchorReposQuery,
+		"ORDER BY anchor_id, decided_at DESC, decision_id DESC") {
+		t.Fatalf("admitted anchors query must break decided_at ties deterministically:\n%s",
+			ListAllDeployableUnitAdmittedAnchorReposQuery)
+	}
+}
