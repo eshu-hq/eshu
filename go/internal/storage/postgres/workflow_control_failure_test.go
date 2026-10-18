@@ -108,7 +108,7 @@ func TestWorkflowControlStoreIntegrationFailClaimTerminalRecordsFailureWithoutPa
 		ObservedAt:        now.Add(30 * time.Second),
 		FailureClass:      failureClass,
 		FailureMessage:    failureMessage,
-		FailureOperation:  "collect_failure",
+		FailureOperation:  "search_issues",
 		FailureStatusCode: 400,
 		FailureTerminal:   true,
 	}); err != nil {
@@ -118,7 +118,7 @@ func TestWorkflowControlStoreIntegrationFailClaimTerminalRecordsFailureWithoutPa
 	mustClaimState(t, db, claim.ClaimID, workflow.ClaimStatusFailedTerminal, claim.FencingToken)
 	mustWorkItemState(t, db, item.WorkItemID, workflow.WorkItemStatusFailedTerminal, "", claim.FencingToken)
 	mustWorkflowFailure(t, db, item.WorkItemID, claim.ClaimID, failureClass, failureMessage)
-	mustWorkflowStructuredFailure(t, db, item.WorkItemID, claim.ClaimID, "collect_failure", 400, true)
+	mustWorkflowStructuredFailure(t, db, item.WorkItemID, claim.ClaimID, "search_issues", 400, true)
 }
 
 func mustWorkflowFailure(t *testing.T, db *sql.DB, workItemID string, claimID string, wantClass string, wantMessage string) {
