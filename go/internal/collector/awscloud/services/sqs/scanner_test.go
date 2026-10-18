@@ -5,6 +5,7 @@ package sqs
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -140,13 +141,8 @@ func attributesOf(t *testing.T, envelope facts.Envelope) map[string]any {
 
 func equalStringSlices(got any, want []string) bool {
 	values, ok := got.([]string)
-	if !ok || len(values) != len(want) {
+	if !ok {
 		return false
 	}
-	for i := range values {
-		if values[i] != want[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(values, want)
 }

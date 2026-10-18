@@ -353,6 +353,7 @@ func encodeTestWAV(t *testing.T, durationMillis int) []byte {
 	dataSize := byteRate * durationMillis / 1000
 	var buffer bytes.Buffer
 	writeString(t, &buffer, "RIFF")
+	// #nosec G115 -- bounded: dataSize is 16*durationMillis for literal durations <= 5000 (<= 80000), far below MaxUint32.
 	writeUint32(t, &buffer, uint32(36+dataSize))
 	writeString(t, &buffer, "WAVE")
 	writeString(t, &buffer, "fmt ")
@@ -364,6 +365,7 @@ func encodeTestWAV(t *testing.T, durationMillis int) []byte {
 	writeUint16(t, &buffer, channels*bytesPerSample)
 	writeUint16(t, &buffer, bitsPerSample)
 	writeString(t, &buffer, "data")
+	// #nosec G115 -- bounded: dataSize is 16*durationMillis for literal durations <= 5000 (<= 80000), far below MaxUint32.
 	writeUint32(t, &buffer, uint32(dataSize))
 	buffer.Write(make([]byte, dataSize))
 	return buffer.Bytes()
@@ -378,6 +380,7 @@ func writeString(t *testing.T, buffer *bytes.Buffer, value string) {
 
 func writeUint16(t *testing.T, buffer *bytes.Buffer, value int) {
 	t.Helper()
+	// #nosec G115 -- bounded: callers pass only 1, channels (1), channels*bytesPerSample (2), bitsPerSample (16), far below MaxUint16.
 	if err := binary.Write(buffer, binary.LittleEndian, uint16(value)); err != nil {
 		t.Fatalf("binary.Write(%d) error = %v, want nil", value, err)
 	}

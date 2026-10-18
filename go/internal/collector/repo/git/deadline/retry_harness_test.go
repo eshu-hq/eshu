@@ -152,6 +152,7 @@ func (h *retryHarness) series(t *testing.T, name string) map[string]int64 {
 				}
 			case metricdata.Histogram[float64]:
 				for _, dp := range data.DataPoints {
+					// #nosec G115 -- bounded: dp.Count comes from the in-test metric reader over a handful of harness operations, far below MaxInt64.
 					out[attrKey(dp.Attributes.ToSlice())] += int64(dp.Count)
 				}
 			default:

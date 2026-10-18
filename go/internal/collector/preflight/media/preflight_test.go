@@ -6,6 +6,7 @@ package media
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -148,7 +149,7 @@ func wavBody(seconds uint32, sampleRate uint32) []byte {
 	dataSize := seconds * byteRate
 	body := make([]byte, 44+dataSize)
 	copy(body[0:4], "RIFF")
-	putUint32(body[4:8], uint32(len(body)-8))
+	putUint32(body[4:8], 36+dataSize)
 	copy(body[8:12], "WAVE")
 	copy(body[12:16], "fmt ")
 	putUint32(body[16:20], 16)
@@ -168,15 +169,11 @@ func opaqueContainer() []byte {
 }
 
 func putUint16(dst []byte, value uint16) {
-	dst[0] = byte(value)
-	dst[1] = byte(value >> 8)
+	binary.LittleEndian.PutUint16(dst, value)
 }
 
 func putUint32(dst []byte, value uint32) {
-	dst[0] = byte(value)
-	dst[1] = byte(value >> 8)
-	dst[2] = byte(value >> 16)
-	dst[3] = byte(value >> 24)
+	binary.LittleEndian.PutUint32(dst, value)
 }
 
 func assertWarning(t *testing.T, result Result, class WarningClass) {

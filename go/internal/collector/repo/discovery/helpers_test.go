@@ -6,6 +6,7 @@ package discovery
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -26,23 +27,14 @@ func fws(paths ...string) []FileWithSize {
 // repoSetsEqual compares two RepoFileSet slices by RepoRoot and file paths
 // only (sizes are not compared, since test expectations don't set sizes).
 func repoSetsEqual(got, want []RepoFileSet) bool {
-	if len(got) != len(want) {
-		return false
-	}
-	for i := range got {
-		if got[i].RepoRoot != want[i].RepoRoot {
+	return slices.EqualFunc(got, want, func(a, b RepoFileSet) bool {
+		if a.RepoRoot != b.RepoRoot {
 			return false
 		}
-		if len(got[i].Files) != len(want[i].Files) {
-			return false
-		}
-		for j := range got[i].Files {
-			if got[i].Files[j].Path != want[i].Files[j].Path {
-				return false
-			}
-		}
-	}
-	return true
+		return slices.EqualFunc(a.Files, b.Files, func(x, y FileWithSize) bool {
+			return x.Path == y.Path
+		})
+	})
 }
 
 func repoFileSetsContainSuffix(fileSets []RepoFileSet, suffix string) bool {

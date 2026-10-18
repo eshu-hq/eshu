@@ -6,6 +6,7 @@ package awssdk
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 
 	awssqs "github.com/aws/aws-sdk-go-v2/service/sqs"
@@ -222,15 +223,7 @@ func isTestFIFOOnlyAttribute(name awssqstypes.QueueAttributeName) bool {
 }
 
 func equalStrings(left, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for i := range left {
-		if left[i] != right[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(left, right)
 }
 
 var _ apiClient = (*fakeSQSAPI)(nil)

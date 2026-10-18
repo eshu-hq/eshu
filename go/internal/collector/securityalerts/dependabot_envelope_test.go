@@ -4,6 +4,7 @@
 package securityalerts
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -143,13 +144,8 @@ func TestGitHubDependabotClientRequiresTokenAndAllowlistedRepository(t *testing.
 
 func stringSlicesEqual(got any, want []string) bool {
 	values, ok := got.([]string)
-	if !ok || len(values) != len(want) {
+	if !ok {
 		return false
 	}
-	for i := range values {
-		if values[i] != want[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(values, want)
 }

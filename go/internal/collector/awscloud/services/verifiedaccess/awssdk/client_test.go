@@ -5,6 +5,7 @@ package awssdk
 
 import (
 	"context"
+	"strconv"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -26,7 +27,7 @@ type fakeEC2 struct {
 
 func (f *fakeEC2) token(page, total int) *string {
 	if page+1 < total {
-		next := "page" + string(rune('1'+page))
+		next := "page" + strconv.Itoa(page+1)
 		return aws.String(next)
 	}
 	return nil
