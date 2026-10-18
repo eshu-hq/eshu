@@ -352,6 +352,11 @@ The `graph/anchor_census` check is the authority. It runs in the graph phase on
 the Neo4j leg after the replay and fails the leg when a node with an id is
 unreachable by the anchor, or when the graph holds no id-bearing node.
 
+The `graph/module_identity` check (#8168) runs on the same leg after it. It
+fails when two keyed canonical Module nodes share a `(name, lang)` (the
+issue's duplicate query returns a row) or when a canonical Module
+(`uid IS NULL`) has no `import_key`. The detail names up to 20 duplicate keys.
+
 The `writer-coverage` phase is a heuristic pre-filter. It reads the same capture
 recordings and looks for a statement that writes a node id on a node with no label
 from those two sets. A dynamic `SET n += <map>` on an uncovered label is reported

@@ -59,6 +59,9 @@
 //     required check that no node with an id is unreachable by the labeled
 //     entity-context anchor. It is the authority; writer-coverage is the
 //     pre-filter.
+//   - graph/module_identity, inside the graph phase on the Neo4j leg (#8168):
+//     the required check that the issue's duplicate query returns zero rows
+//     and no canonical Module (uid IS NULL) lacks import_key.
 //
 // The command connects to a Postgres DSN, a graph backend, and a running
 // eshu-api using the same environment variables the services under test use
