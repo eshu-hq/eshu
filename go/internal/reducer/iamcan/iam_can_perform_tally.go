@@ -9,6 +9,7 @@ import (
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
@@ -46,11 +47,15 @@ type iamCanPerformTiming struct {
 	edgeCount               int
 	tally                   iamCanPerformTally
 	skipRetract             bool
-	loadDuration            time.Duration
-	extractDuration         time.Duration
-	retractDuration         time.Duration
-	writeDuration           time.Duration
-	totalDuration           time.Duration
+	// retractReason is the shared retract decision reason (#8167), always one
+	// of reducercontract.RetractReasons; already_committed when the wait
+	// decision skipped the commit.
+	retractReason   string
+	loadDuration    time.Duration
+	extractDuration time.Duration
+	retractDuration time.Duration
+	writeDuration   time.Duration
+	totalDuration   time.Duration
 }
 
 func logIAMCanPerformCompleted(ctx context.Context, timing iamCanPerformTiming) {
@@ -73,7 +78,8 @@ func logIAMCanPerformCompleted(ctx context.Context, timing iamCanPerformTiming) 
 		slog.Int("skipped_not_action_resource", timing.tally.skippedNotActionResource),
 		slog.Int("skipped_self_loop", timing.tally.skippedSelfLoop),
 		slog.Int("skipped_permission_boundary", timing.tally.skippedPermissionBoundary),
-		slog.Bool("skip_retract", timing.skipRetract),
+		slog.Bool(telemetry.LogKeySkipRetract, timing.skipRetract),
+		slog.String(telemetry.LogKeySkipRetractReason, timing.retractReason),
 		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
 		slog.Float64("extract_duration_seconds", timing.extractDuration.Seconds()),
 		slog.Float64("retract_duration_seconds", timing.retractDuration.Seconds()),

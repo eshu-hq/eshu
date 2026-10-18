@@ -237,3 +237,18 @@ const LogKeyFencingToken = "fencing_token"
 // refresh without storing a generation (#7978): one of RefreshSkipReasons. It
 // accompanies LogKeyRefreshSkipped on the skip log line.
 const LogKeyRefreshSkipReason = "refresh_skip_reason"
+
+// LogKeySkipRetract reports whether a reducer materializer skipped its
+// scope-wide retract before rewriting its edges (#8167). It is also the span
+// attribute key the materializer sets for the same decision.
+const LogKeySkipRetract = "skip_retract"
+
+// LogKeySkipRetractReason is the closed reason behind LogKeySkipRetract: one
+// of the reducer contract's RetractReasons (first_generation,
+// prior_generation, retry_attempt, check_unwired, recommit, already_committed).
+// Only the RUNS_IMAGE and CAN_PERFORM handlers record it, and on those it is
+// never empty; other materializers log LogKeySkipRetract without a reason
+// until they migrate to reducercontract.DecideFirstGenerationRetract. It is
+// also the span attribute key, and its bounded set keeps it safe as a label
+// (#8167).
+const LogKeySkipRetractReason = "skip_retract_reason"

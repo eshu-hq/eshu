@@ -175,12 +175,16 @@ func (h KubernetesCorrelationMaterializationHandler) Handle(
 	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainKubernetesCorrelationMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
-	skipRetract, err := h.shouldSkipRetract(ctx, intent)
+	retract, err := reducercontract.DecideFirstGenerationRetract(ctx, h.PriorGenerationCheck, intent)
 	if err != nil {
-		return reducercontract.Result{}, err
+		return reducercontract.Result{}, fmt.Errorf("kubernetes correlation retract decision: %w", err)
 	}
+	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.Bool(telemetry.LogKeySkipRetract, retract.Skip),
+		attribute.String(telemetry.LogKeySkipRetractReason, retract.Reason),
+	)
 	var retractDuration time.Duration
-	if !skipRetract {
+	if !retract.Skip {
 		retractStart := time.Now()
 		if err := h.EdgeWriter.RetractKubernetesCorrelationEdges(
 			ctx,
@@ -214,7 +218,7 @@ func (h KubernetesCorrelationMaterializationHandler) Handle(
 		factCount:       len(envelopes),
 		edgeCount:       len(rows),
 		skipped:         tally.totalSkipped(),
-		skipRetract:     skipRetract,
+		retract:         retract,
 		loadDuration:    loadDuration,
 		extractDuration: extractDuration,
 		retractDuration: retractDuration,
@@ -306,21 +310,6 @@ func (h KubernetesCorrelationMaterializationHandler) workloadNodesReady(intent r
 	return found && ready
 }
 
-// shouldSkipRetract mirrors the AWS relationship and observability coverage
-// domains: skip the prior-edge retract on the very first generation for a scope
-// (no prior edges to remove) and only on the first attempt, so a retried attempt
-// still cleans up a partial prior write.
-func (h KubernetesCorrelationMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
-	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
-		return false, nil
-	}
-	hasPrior, err := h.PriorGenerationCheck(ctx, intent.ScopeID, intent.GenerationID)
-	if err != nil {
-		return false, fmt.Errorf("check prior generation for kubernetes correlation retract: %w", err)
-	}
-	return !hasPrior, nil
-}
-
 // recordEdgeCounter emits the RUNS_IMAGE edge-projection counter dimensioned by
 // resolution_mode (digest — the only edge-eligible exact join), the contract
 // registered for eshu_dp_kubernetes_correlation_edges_total. The skipped tally
@@ -376,7 +365,7 @@ type kubernetesCorrelationMaterializationTiming struct {
 	factCount       int
 	edgeCount       int
 	skipped         int
-	skipRetract     bool
+	retract         reducercontract.RetractDecision
 	loadDuration    time.Duration
 	extractDuration time.Duration
 	retractDuration time.Duration
@@ -396,7 +385,8 @@ func logKubernetesCorrelationMaterializationCompleted(
 		slog.Int("fact_count", timing.factCount),
 		slog.Int("edge_count", timing.edgeCount),
 		slog.Int("skipped_unresolvable_source", timing.skipped),
-		slog.Bool("skip_retract", timing.skipRetract),
+		slog.Bool(telemetry.LogKeySkipRetract, timing.retract.Skip),
+		slog.String(telemetry.LogKeySkipRetractReason, timing.retract.Reason),
 		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
 		slog.Float64("classify_duration_seconds", timing.extractDuration.Seconds()),
 		slog.Float64("retract_duration_seconds", timing.retractDuration.Seconds()),

@@ -18,8 +18,11 @@ import (
 // %w) rather than treat false as supersession (#6686).
 type GenerationFreshnessCheck func(ctx context.Context, scopeID, generationID string) (bool, error)
 
-// PriorGenerationCheck reports whether the scope has any generation before the
-// given generation. Retract paths use it to skip no-op cleanup on first writes
+// PriorGenerationCheck reports whether the scope has a generation strictly
+// older than the given generation in activation order (ingested_at, then
+// generation id). A generation committed after the given one never counts, so
+// the answer does not depend on queue timing (#8167). Retract paths use it,
+// through DecideFirstGenerationRetract, to skip no-op cleanup on first writes
 // while preserving cleanup on refreshes and retries.
 type PriorGenerationCheck func(ctx context.Context, scopeID, generationID string) (bool, error)
 

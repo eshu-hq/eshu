@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -272,6 +273,14 @@ func TestPriorGenerationCheck(t *testing.T) {
 			wantPrior: true,
 		},
 		{
+			name:         "wrapper maps a false row when the fake reports no older generation",
+			scopeID:      "scope-123",
+			generationID: "gen-old",
+			database: &generationFreshnessTestDB{
+				generations: map[string][]string{"scope-123": {"gen-old", "gen-new"}},
+			},
+		},
+		{
 			name:         "false when scope unknown",
 			scopeID:      "scope-unknown",
 			generationID: "gen-abc",
@@ -361,7 +370,7 @@ type freshnessRow struct {
 
 type generationFreshnessTestDB struct {
 	freshness          map[string]freshnessRow // scope_id -> freshness row
-	generations        map[string][]string     // scope_id -> generation_ids
+	generations        map[string][]string     // scope_id -> generation_ids, oldest first
 	currentGenerations map[string]currentGenerationRow
 	queryErr           error
 	queries            []string
@@ -401,12 +410,17 @@ func (database *generationFreshnessTestDB) QueryContext(_ context.Context, query
 	case 2:
 		scopeID := args[0].(string)
 		generationID := args[1].(string)
+		// generations lists the scope's rows oldest first in activation
+		// order. The live proof (generation_prior_check_live_test.go) owns
+		// the SQL semantics. This fake ignores the SQL text and only feeds the
+		// Go wrapper, so no case here proves what the statement does.
 		exists := false
-		for _, candidate := range database.generations[scopeID] {
-			if candidate != generationID {
-				exists = true
-				break
-			}
+		intentIndex := slices.Index(database.generations[scopeID], generationID)
+		switch {
+		case intentIndex > 0:
+			exists = true
+		case intentIndex < 0:
+			exists = len(database.generations[scopeID]) > 0
 		}
 		return &generationFreshnessTestRows{
 			data: [][]any{{exists}},

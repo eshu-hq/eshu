@@ -97,6 +97,10 @@ TABLE = {
             "TestStreamDroppedGenerationHealsLive",
             "TestIdentitylessStreamDropIsMarkedLive",
         ),
+        "go/internal/storage/postgres/generation_prior_check_live_test.go": (
+            "TestPriorGenerationCheckIgnoresNewerGenerationLive",
+            "TestPriorGenerationCheckStrictlyOlderCasesLive",
+        ),
         "go/internal/storage/postgres/generation_retention_chunk_insert_wait_live_test.go": (
             "TestGenerationRetentionChunkConcurrentInsertWaitsLive",
         ),
