@@ -111,8 +111,9 @@ func TestEdgeWriterDeployableUnitProbeAnchorsBothRepos(t *testing.T) {
 	}
 }
 
-// distinctDeployableUnitRows builds n DU rows with pairwise-distinct
-// source and deployment repos so no probe deduplication collapses them.
+// distinctDeployableUnitRows builds n DU rows with a shared source repo and
+// pairwise-distinct deployment repos: source dedup collapses the source side
+// to one probe while each deployment repo adds one probe statement.
 func distinctDeployableUnitRows(n int) []reducer.SharedProjectionIntentRow {
 	rows := make([]reducer.SharedProjectionIntentRow, 0, n)
 	for i := 0; i < n; i++ {
@@ -130,7 +131,8 @@ func distinctDeployableUnitRows(n int) []reducer.SharedProjectionIntentRow {
 			},
 		})
 		// Vary the deployment repo per row; the source repo stays shared
-		// (one MATCH) while each deployment repo adds one MATCH clause.
+		// (one probe after dedup) while each deployment repo adds one
+		// single-pattern probe statement.
 		rows[i].Payload["deployment_repo_id"] = "repo-deploy-" + string(rune('a'+i))
 	}
 	return rows

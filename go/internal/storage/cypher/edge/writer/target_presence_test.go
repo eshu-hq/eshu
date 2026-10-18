@@ -293,3 +293,35 @@ func TestEdgeWriterHandlesRouteProbeAnchorsFunction(t *testing.T) {
 		}
 	}
 }
+
+// TestEdgeWriterHandlesRouteProbeDedupNamespacesEndpointAndFunction pins the
+// #8360 P2: the Endpoint anchor (repo-plus-path key) and the Function anchor
+// (f-prefixed uid key) dedupe in one shared seen-map namespace. A batch with
+// repo_id "f" and path equal to a Function uid in the same batch collapses
+// both anchors into one key and drops a target probe — the unprobed-target
+// silent-write mode the presence guard exists to prevent.
+func TestEdgeWriterHandlesRouteProbeDedupNamespacesEndpointAndFunction(t *testing.T) {
+	t.Parallel()
+
+	rows := []map[string]any{{
+		"function_entity_id": "shared-uid",
+		"repo_id":            "f",
+		"path":               "shared-uid",
+	}}
+	probes, ok := buildTargetPresenceProbeStatements(reducer.DomainHandlesRoute, rows)
+	if !ok {
+		t.Fatal("buildTargetPresenceProbeStatements(handles_route) = false, want both anchors probed")
+	}
+	if len(probes) != 2 {
+		t.Fatalf("probe statements = %d, want 2 (Endpoint and Function anchors share no dedup key)", len(probes))
+	}
+	joined := ""
+	for _, probe := range probes {
+		joined += probe.Cypher + "\n"
+	}
+	for _, want := range []string{":Endpoint {repo_id: $", ":Function {uid: $"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("probe cyphers missing %q:\n%s", want, joined)
+		}
+	}
+}
