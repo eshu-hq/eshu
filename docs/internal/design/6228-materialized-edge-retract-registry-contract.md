@@ -56,7 +56,8 @@ rejects registering an observed-type list for `cloud_resource`.
 ## Proof obligations
 
 - Kind A, per family: a sole-creator census test (a second production creator
-  of the evidence label turns the build red); seeded live tests with a
+  of the evidence label, or a second file MERGEing an edge onto those nodes,
+  turns the build red); seeded live tests with a
   foreign-type edge on the doomed node (documents the cascade) and surviving
   foreign-`evidence_source` / foreign-scope siblings (proves the predicates).
 - Kind C, per family: a RED/GREEN foreign-edge regression (a seeded
@@ -70,14 +71,20 @@ rejects registering an observed-type list for `cloud_resource`.
 ## Sole-creator criterion
 
 A family may use `evidenceNodeDetach` only while exactly one production file
-`MERGE`s its evidence label. `TestEvidenceNodeSoleCreatorsCensus` scans every
-non-test `.go` file under `go/internal/storage` at the AST string-literal
-level (comments can never match) and fails on a missing or an extra creator.
+`MERGE`s its evidence label and exactly that owner file `MERGE`s relationships
+onto those nodes. `TestEvidenceNodeSoleCreatorsCensus` scans every non-test
+`.go` file under `go/internal/storage` at the AST string-literal level
+(comments can never match) with two patterns: a node-creation scan that fails
+on a missing or an extra creator, and an edge-attachment scan that flags any
+relationship `MERGE` in a literal referencing the evidence label. The second
+scan closes the gap a creation-only census leaves: a writer that `MATCH`es an
+existing evidence node and `MERGE`s its own edge onto it never trips the
+creator scan, yet `DETACH DELETE` cascades those foreign edges with the node.
 Test files are excluded: they seed through fakes and DSN-gated backends, never
 through production writers. A writer that moves packages keeps the census
-green (basename comparison); a writer that gains a second creator turns it
-red, and the kind-A registration must then move back to a named alternation or
-revert.
+green (basename comparison); a writer that gains a second creator or a second
+edge-attacher turns it red, and the kind-A registration must then move back to
+a named alternation or revert.
 
 ## Why semantic containment fails the criterion
 

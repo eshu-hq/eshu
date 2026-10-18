@@ -380,7 +380,9 @@ func TestLiveCodeTaintEvidenceRetractScopesToSourceAndScope(t *testing.T) {
 	}
 	if n, err := boltCount(ctx, runner,
 		`MATCH (:Function {uid: $func_uid})-[rel:USES]->(:CodeTaintEvidence {uid: $node_uid}) RETURN count(rel) AS count`,
-		map[string]any{"func_uid": funcUID, "node_uid": ownUID}); err == nil && n != 0 {
+		map[string]any{"func_uid": funcUID, "node_uid": ownUID}); err != nil {
+		t.Fatalf("count foreign edge on detached node: %v", err)
+	} else if n != 0 {
 		t.Errorf("foreign edge on detached node count = %d, want 0 (cascade)", n)
 	}
 }
