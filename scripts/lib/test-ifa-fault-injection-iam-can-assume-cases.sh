@@ -131,7 +131,7 @@ test_ifa_iam_can_assume_overlong_lock_name_is_rejected() (
 	log_dir="$(mktemp -d -t ifa-iam-can-assume-lock.XXXXXX)"
 	trap 'rm -rf "${log_dir}"' EXIT
 
-	# 19-char ifa_iam_assume_lock_ prefix plus a cell this long exceeds
+	# 20-char ifa_iam_assume_lock_ prefix plus a cell this long exceeds
 	# the 63-byte application_name cap.
 	long_cell="killworker_iam_can_assume_xpad00001234567890123"
 	((${#long_cell} > 44)) || fail "test cell name too short to exercise the 63-byte application_name guard"
