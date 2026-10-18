@@ -54,10 +54,21 @@ go test ./internal/backendconformance -run '^TestLiveBackendConformance$' -count
 WORKFLOW = Path(".github/workflows/e2e-tests.yml")
 STATIC_WORKFLOW = Path(".github/workflows/live-backend-tests.yml")
 REGISTRY = Path("specs/ci-gates.d/gates-09.yaml")
-PACKAGE = "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+# The nine proofs span the cypher root and the cloud/resource leaf since the
+# #6694 cloud-writers slice nested the heterogeneous-batch proof. Every enrolled
+# package runs in the single `go test` invocation the runner performs, and the
+# event stream must show exactly one package pass per enrolled package.
+PACKAGES = frozenset({
+    "github.com/eshu-hq/eshu/go/internal/storage/cypher",
+    "github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/resource",
+})
+RUNNER_PACKAGES = frozenset({
+    "./internal/storage/cypher",
+    "./internal/storage/cypher/cloud/resource",
+})
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
 EXPECTED_FILES = frozenset({
-    "go/internal/storage/cypher/cloud_resource_node_writer_heterogeneous_batch_live_test.go",
+    "go/internal/storage/cypher/cloud/resource/node_writer_heterogeneous_batch_live_test.go",
     "go/internal/storage/cypher/retrying_executor_live_test.go",
     "go/internal/storage/cypher/retrying_executor_relationship_snapshot_live_test.go",
     "go/internal/storage/cypher/semantic_entity_full_repo_retract_live_test.go",
@@ -292,7 +303,7 @@ def verify_runner_text(text: str, inventory: dict[str, list[str]]) -> None:
         "    ESHU_SEMANTIC_ENTITY_NORNICDB_LIVE=1 " + continuation,
         '    ESHU_CYPHER_BOLT_DSN="$ESHU_NEO4J_URI" ' + continuation,
         '    ESHU_CYPHER_BOLT_DATABASE="$ESHU_NEO4J_DATABASE" ' + continuation,
-        "        go test ./internal/storage/cypher -run '^(" + selector
+        "        go test " + " ".join(sorted(RUNNER_PACKAGES)) + " -run '^(" + selector
         + ")$' -json -count=1 -v | tee \"${RUNNER_TEMP:-/tmp}/nornic-conformance.jsonl\"",
         '    python3 ../scripts/lib/nornic_conformance_events.py --events '
         '"${RUNNER_TEMP:-/tmp}/nornic-conformance.jsonl"',
@@ -390,11 +401,16 @@ def verify_source_and_runner(root: Path, inventory: dict[str, list[str]]) -> Non
     )
 
 
-def verify_events(path: Path, expected: set[str], output: TextIO) -> bool:
-    """Require one run/pass per test, one package pass, and no skipped proof."""
+def verify_events(
+    path: Path,
+    expected: set[str],
+    packages: frozenset[str],
+    output: TextIO,
+) -> bool:
+    """Require one run/pass per test, one package pass per package, no skip."""
     runs = {name: 0 for name in expected}
     endings: dict[str, list[str]] = {name: [] for name in expected}
-    package_endings: list[str] = []
+    package_endings: dict[str, list[str]] = {}
     errors: list[str] = []
     try:
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
@@ -403,7 +419,10 @@ def verify_events(path: Path, expected: set[str], output: TextIO) -> bool:
             except json.JSONDecodeError:
                 errors.append(f"malformed event line {number}")
                 continue
-            if not isinstance(event, dict) or event.get("Package") != PACKAGE:
+            if (
+                not isinstance(event, dict)
+                or event.get("Package") not in packages
+            ):
                 errors.append(f"wrong package or event shape at line {number}")
                 continue
             action, name = event.get("Action"), event.get("Test")
@@ -411,7 +430,7 @@ def verify_events(path: Path, expected: set[str], output: TextIO) -> bool:
                 errors.append(f"failed or skipped event at line {number}: {name}")
             if name is None:
                 if action in {"pass", "fail", "skip"}:
-                    package_endings.append(action)
+                    package_endings.setdefault(event["Package"], []).append(action)
             elif name in expected:
                 if action == "run":
                     runs[name] += 1
@@ -424,8 +443,11 @@ def verify_events(path: Path, expected: set[str], output: TextIO) -> bool:
     for name in sorted(expected):
         if runs[name] != 1 or endings[name] != ["pass"]:
             errors.append(f"{name}: run={runs[name]} terminal={endings[name]}")
-    if package_endings != ["pass"]:
-        errors.append(f"package terminal={package_endings}")
+    for package in sorted(packages):
+        if package_endings.get(package) != ["pass"]:
+            errors.append(
+                f"package terminal={package_endings.get(package)} for {package}"
+            )
     for error in errors:
         print(error, file=output)
     if not errors:
@@ -445,7 +467,11 @@ def main() -> int:
         if args.events is None:
             return 0
         names = {name for tests in inventory.values() for name in tests}
-        return 0 if verify_events(args.events, names, sys.stderr) else 1
+        return (
+            0
+            if verify_events(args.events, names, PACKAGES, sys.stderr)
+            else 1
+        )
     except (OSError, ValueError, re.error) as error:
         print(error, file=sys.stderr)
         return 1

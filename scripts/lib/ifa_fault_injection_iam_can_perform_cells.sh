@@ -35,7 +35,7 @@
 # under domain "iam_can_perform_materialization", loads its facts via
 # FactLoader -> FROM fact_records, and writes the
 # CAN_PERFORM edges DIRECTLY to the graph through its cypher writer
-# (go/internal/storage/cypher/iam_can_perform_edge_writer.go:47), then
+# (go/internal/storage/cypher/cloud/aws/iam/can_perform_edge_writer.go:49), then
 # acks. There is no shared_projection_intents row and no second-stage runner
 # lease -- the two blocker kinds the registry schema offers that this family
 # cannot use (see rows/15_iam_can_perform.sh).
@@ -295,7 +295,7 @@ cell_killworker_iam_can_perform() {
 # CAN_PERFORM MERGE exactly once, proves the fault decorator's durable
 # marker names that write, and requires the full three-edge set to converge
 # without dead letters. Anchor read off EXECUTED statement text, not source
-# text: go/internal/storage/cypher/iam_can_perform_edge_writer.go:47 bakes
+# text: go/internal/storage/cypher/cloud/aws/iam/can_perform_edge_writer.go:49 bakes
 # the static CAN_PERFORM token directly into the template
 # (CanonicalIAMCanPerformEdgeUpsertCypher carries no %s to fill -- the
 # granted action set lives in rel.actions, never in the relationship type),

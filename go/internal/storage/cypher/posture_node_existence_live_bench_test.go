@@ -15,7 +15,7 @@ import (
 const postureExistenceBenchPrefix = "5652-existence-bench-"
 
 // postureExistenceBenchUIDs returns n candidate uid strings as []any, the
-// same shape filterRowsToExistingCloudResourceUIDs sends as
+// same shape FilterRowsToExistingCloudResourceUIDs sends as
 // $candidate_uids.
 func postureExistenceBenchUIDs(prefix string, n int) []any {
 	uids := make([]any, 0, n)
@@ -73,7 +73,7 @@ func postureExistenceBenchCleanup(tb testing.TB, runner *boltRetractTestRunner, 
 	}
 }
 
-// runPostureExistenceReaderBench times filterRowsToExistingCloudResourceUIDs
+// runPostureExistenceReaderBench times FilterRowsToExistingCloudResourceUIDs
 // -- the exact production read function four posture writers now call once
 // per write, inside the graphowner.LockOnlyGate advisory-lock hold (see
 // cmd/reducer/canonical_graph_writers.go, internal/graphowner/lock_only_gate.go)
@@ -97,9 +97,9 @@ func runPostureExistenceReaderBench(b *testing.B, candidateCount int) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		filtered, err := filterRowsToExistingCloudResourceUIDs(ctx, reader, rows)
+		filtered, err := FilterRowsToExistingCloudResourceUIDs(ctx, reader, rows)
 		if err != nil {
-			b.Fatalf("filterRowsToExistingCloudResourceUIDs: %v", err)
+			b.Fatalf("FilterRowsToExistingCloudResourceUIDs: %v", err)
 		}
 		if len(filtered) != len(rows) {
 			b.Fatalf("filtered = %d rows, want %d (all pre-seeded as existing)", len(filtered), len(rows))
@@ -127,7 +127,7 @@ func BenchmarkPostureExistenceReaderLive_N500ShippedBatchSize(b *testing.B) {
 
 // BenchmarkPostureExistenceReaderLive_N2000Stress measures the read at 4x the
 // shipped batch size as a stress upper bound -- production writers never
-// call filterRowsToExistingCloudResourceUIDs with more than DefaultBatchSize
+// call FilterRowsToExistingCloudResourceUIDs with more than DefaultBatchSize
 // rows in one call (see writeChunk/lockChunkSize), so this case is not a
 // shipped shape; it exists to show how the read's cost scales with N.
 func BenchmarkPostureExistenceReaderLive_N2000Stress(b *testing.B) {
@@ -139,7 +139,7 @@ func BenchmarkPostureExistenceReaderLive_N2000Stress(b *testing.B) {
 // distractor nodes seeded once, outside the timed loop) already resident in
 // the graph -- 10x the total CloudResource population of
 // BenchmarkPostureExistenceReaderLive_N500ShippedBatchSize.
-// filterRowsToExistingCloudResourceUIDs's read
+// FilterRowsToExistingCloudResourceUIDs's read
 // (postureCloudResourceExistingUIDsCypher) is anchored on
 // `MATCH (resource:CloudResource {uid: candidate_uid})`, a property-map match
 // on the indexed/uniquely-constrained CloudResource.uid property
@@ -180,9 +180,9 @@ func BenchmarkPostureExistenceReaderLive_N500LargeStore(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		filtered, err := filterRowsToExistingCloudResourceUIDs(ctx, reader, rows)
+		filtered, err := FilterRowsToExistingCloudResourceUIDs(ctx, reader, rows)
 		if err != nil {
-			b.Fatalf("filterRowsToExistingCloudResourceUIDs: %v", err)
+			b.Fatalf("FilterRowsToExistingCloudResourceUIDs: %v", err)
 		}
 		if len(filtered) != len(rows) {
 			b.Fatalf("filtered = %d rows, want %d (all pre-seeded as existing)", len(filtered), len(rows))
@@ -195,7 +195,7 @@ func BenchmarkPostureExistenceReaderLive_N500LargeStore(b *testing.B) {
 // postureCloudResourceExistingUIDsCypher. Without DISTINCT, a candidate_uid
 // value repeated in $candidate_uids matches the SAME CloudResource node once
 // per UNWIND repetition and so can produce more than one existing_uid row for
-// that uid; filterRowsToExistingCloudResourceUIDs is expected to fold that
+// that uid; FilterRowsToExistingCloudResourceUIDs is expected to fold that
 // into a single Go-side set membership check regardless, so the caller-visible
 // filtered result is unaffected. This drives the real Bolt driver against the
 // real (post-removal) query text, not a mock, so it would catch a regression
@@ -223,9 +223,9 @@ func TestLivePostureExistenceReaderDedupesDuplicateCandidateUIDs(t *testing.T) {
 		{"uid": missingUID, "slot": "third"},
 	}
 
-	filtered, err := filterRowsToExistingCloudResourceUIDs(ctx, reader, rows)
+	filtered, err := FilterRowsToExistingCloudResourceUIDs(ctx, reader, rows)
 	if err != nil {
-		t.Fatalf("filterRowsToExistingCloudResourceUIDs: %v", err)
+		t.Fatalf("FilterRowsToExistingCloudResourceUIDs: %v", err)
 	}
 	if len(filtered) != 2 {
 		t.Fatalf("filtered = %d rows, want 2 (both duplicate rows for the confirmed-existing uid, "+

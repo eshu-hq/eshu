@@ -35,7 +35,7 @@
 # under domain "iam_can_assume_materialization", loads its facts via
 # FactStore.ListFactsByKind -> FROM fact_records, and writes the
 # CAN_ASSUME edges DIRECTLY to the graph through its cypher writer
-# (go/internal/storage/cypher/iam_can_assume_edge_writer.go:43), then
+# (go/internal/storage/cypher/cloud/aws/iam/can_assume_edge_writer.go:45), then
 # acks. There is no shared_projection_intents row and no second-stage runner
 # lease -- the two blocker kinds the registry schema offers that this family
 # cannot use (see rows/14_iam_can_assume.sh).
@@ -297,7 +297,7 @@ cell_killworker_iam_can_assume() {
 # marker names that write, and requires the full two-edge set to converge
 # without dead letters. Anchor read off EXECUTED statement text, not source
 # text: the writer's template reads MERGE (principal)-[rel:%s]->(role)
-# (go/internal/storage/cypher/iam_can_assume_edge_writer.go:43),
+# (go/internal/storage/cypher/cloud/aws/iam/can_assume_edge_writer.go:45),
 # filled from a closed single-member vocabulary screened per row, so the
 # anchor MUST carry the INTERPOLATED type MERGE (principal)-[rel:CAN_ASSUME]->(role).
 # A literal %s matches no executed statement and the fault would never fire,

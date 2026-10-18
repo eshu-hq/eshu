@@ -6,7 +6,6 @@ package cypher
 import (
 	"context"
 	"fmt"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -40,33 +39,6 @@ import (
 // bug is wrong: it is a transient backend-unavailable failure and the durable
 // queue must replay it.
 
-func TestBackendRestartCommitBlockedWritesRemainsQueueRetryable(t *testing.T) {
-	t.Parallel()
-
-	inner := &backendRestartTerminalGroupExecutor{
-		err: newNeo4jError(
-			nornicDBTransactionCommitFailedCode,
-			nornicDBStoreClosingCommitMsg,
-		),
-	}
-	writer := NewCloudResourceNodeWriter(inner, 0)
-	writerErr := writer.WriteCloudResourceNodes(
-		context.Background(),
-		[]map[string]any{{"uid": "restart-commit-recovery-resource"}},
-		"reducer/gcp-resources",
-	)
-	handlerErr := fmt.Errorf("write canonical cloud resource nodes: %w", writerErr)
-
-	require.True(t, reducer.IsRetryable(handlerErr),
-		"a commit refused because the graph store is closing is a backend restart, not a projection bug")
-	var classified interface{ FailureClass() string }
-	require.ErrorAs(t, handlerErr, &classified)
-	require.Equal(t, GraphWriteTimeoutFailureClass, classified.FailureClass())
-	var driverErr *neo4jdriver.Neo4jError
-	require.ErrorAs(t, handlerErr, &driverErr)
-	require.Equal(t, nornicDBTransactionCommitFailedCode, driverErr.Code)
-}
-
 // TestBackendRestartCommitBlockedWritesIsNotReplayedInPlace pins the
 // deliberate half of the fix. Unlike the transaction-START failure, a COMMIT
 // failure has an outcome this process cannot observe, and this file's sibling
@@ -85,7 +57,7 @@ func TestBackendRestartCommitBlockedWritesRemainsQueueRetryable(t *testing.T) {
 func TestBackendRestartCommitBlockedWritesIsNotReplayedInPlace(t *testing.T) {
 	t.Parallel()
 
-	blocked := newNeo4jError(nornicDBTransactionCommitFailedCode, nornicDBStoreClosingCommitMsg)
+	blocked := newNeo4jError("Neo.ClientError.Transaction.TransactionCommitFailed", "Writes are blocked, possibly due to DropAll or Close")
 	require.Empty(t, classifyTransientNeo4jError(blocked))
 
 	inner := &backendRestartTerminalGroupExecutor{err: blocked}
@@ -113,20 +85,20 @@ func TestBackendRestartCommitBlockedWritesClassificationFailsClosedForNearMisses
 		{
 			name: "commit-failed code with an unrelated body",
 			err: newNeo4jError(
-				nornicDBTransactionCommitFailedCode,
+				"Neo.ClientError.Transaction.TransactionCommitFailed",
 				"commit failed: constraint violation: UNIQUE on :CloudResource(uid) already exists",
 			),
 		},
 		{
 			name: "blocked-writes body under an unrelated code",
 			err: newNeo4jError(
-				nornicDBStatementSyntaxErrorCode,
-				nornicDBStoreClosingCommitMsg,
+				"Neo.ClientError.Statement.SyntaxError",
+				"Writes are blocked, possibly due to DropAll or Close",
 			),
 		},
 		{
 			name: "plain error carrying the blocked-writes body",
-			err:  fmt.Errorf("%s", nornicDBStoreClosingCommitMsg),
+			err:  fmt.Errorf("%s", "Writes are blocked, possibly due to DropAll or Close"),
 		},
 	}
 	for _, tt := range tests {
@@ -203,72 +175,6 @@ func TestBackendRestartEngineClosedTransactionStartIsRetryable(t *testing.T) {
 // spelling has had this walk (TestBackendRestartTransactionStartFailureRemains-
 // QueueRetryable, retrying_executor_backend_restart_test.go:130) since #6142 and
 // the second spelling shipped without it.
-func TestBackendRestartEngineClosedTransactionStartRemainsQueueRetryable(t *testing.T) {
-	t.Parallel()
-
-	inner := &backendRestartEngineClosedGroupExecutor{}
-	writer := NewCloudResourceNodeWriter(inner, 0)
-	writerErr := writer.WriteCloudResourceNodes(
-		context.Background(),
-		[]map[string]any{{"uid": "engine-closed-recovery-resource"}},
-		"reducer/gcp-resources",
-	)
-	handlerErr := fmt.Errorf("write canonical cloud resource nodes: %w", writerErr)
-
-	require.True(t, reducer.IsRetryable(handlerErr),
-		"engine-closed begin failure must reach the queue as retryable, not as a projection bug")
-	var classified interface{ FailureClass() string }
-	require.ErrorAs(t, handlerErr, &classified)
-	require.Equal(t, GraphWriteTimeoutFailureClass, classified.FailureClass())
-	var driverErr *neo4jdriver.Neo4jError
-	require.ErrorAs(t, handlerErr, &driverErr)
-	require.Equal(t, "Neo.ClientError.Transaction.TransactionStartFailed", driverErr.Code)
-	require.Equal(t, "failed to start transaction: engine is closed", driverErr.Msg)
-}
-
-// backendRestartEngineClosedGroupExecutor fails its first ExecuteGroup with the
-// engine-closed spelling and succeeds afterwards, mirroring
-// backendRestartGroupExecutor's WAL-spelling shape.
-type backendRestartEngineClosedGroupExecutor struct {
-	calls atomic.Int32
-}
-
-func (e *backendRestartEngineClosedGroupExecutor) Execute(context.Context, Statement) error {
-	return nil
-}
-
-func (e *backendRestartEngineClosedGroupExecutor) ExecuteGroup(context.Context, []Statement) error {
-	if e.calls.Add(1) == 1 {
-		return newNeo4jError(
-			"Neo.ClientError.Transaction.TransactionStartFailed",
-			"failed to start transaction: engine is closed",
-		)
-	}
-	return nil
-}
-
-// Point 2 above -- "store closing, commit refused" -- was also only PARTLY
-// classified, in exactly the way point 3 was. isNornicDBStoreClosingCommitFailure
-// pinned the commit code against ONE body, Badger's ErrBlockedWrites sentence,
-// which the store reports while it is still CLOSING and merely refusing new
-// writes. NornicDB reports the same commit-side teardown a second way once the
-// store is already CLOSED under the open transaction:
-//
-//	write canonical cloud resource nodes: Neo4jError:
-//	Neo.ClientError.Transaction.TransactionCommitFailed
-//	commit failed: materializing mvcc commit state: DB Closed
-//
-// Observed live on 2026-08-23 in eshu-hq/eshu run 32665272053,
-// fault-injection (shard 4/4), the same restart-backend-between-phase-groups
-// cell: it dead-lettered gcp_resource_materialization for
-// gcp:project:acme-demo-gcp-00:seed:4580 as failure_class=projection_bug and
-// blew the gate's 4-minute drain budget at residual=2.
-//
-// This is the CROSS-PRODUCT of the two guards #6142 added: the commit code from
-// isNornicDBStoreClosingCommitFailure with the "DB Closed" body from
-// isNornicDBStoreClosedStatementFailure. Each guard requires its own pairing, so
-// a message that belongs to one and a code that belongs to the other matched
-// neither and fell through to terminal. Refs #6162.
 func TestBackendRestartCommitStoreClosedClassifies(t *testing.T) {
 	t.Parallel()
 
@@ -326,33 +232,6 @@ func TestBackendRestartCommitStoreClosedClassifies(t *testing.T) {
 // twin: it asserts the change's user-visible claim through the real
 // CloudResourceNodeWriter dispatch, which is the value reducer.IsRetryable
 // actually sees. The predicate test above cannot say that on its own.
-func TestBackendRestartCommitStoreClosedRemainsQueueRetryable(t *testing.T) {
-	t.Parallel()
-
-	inner := &backendRestartTerminalGroupExecutor{
-		err: &neo4jdriver.Neo4jError{
-			Code: "Neo.ClientError.Transaction.TransactionCommitFailed",
-			Msg:  "commit failed: materializing mvcc commit state: DB Closed",
-		},
-	}
-	writer := NewCloudResourceNodeWriter(inner, 0)
-	writerErr := writer.WriteCloudResourceNodes(
-		context.Background(),
-		[]map[string]any{{"uid": "store-closed-commit-recovery-resource"}},
-		"reducer/gcp-resources",
-	)
-	handlerErr := fmt.Errorf("write canonical cloud resource nodes: %w", writerErr)
-
-	require.True(t, reducer.IsRetryable(handlerErr),
-		"a commit refused because the graph store is closed must reach the queue as retryable, not as a projection bug")
-	var classified interface{ FailureClass() string }
-	require.ErrorAs(t, handlerErr, &classified)
-	require.Equal(t, GraphWriteTimeoutFailureClass, classified.FailureClass())
-	var driverErr *neo4jdriver.Neo4jError
-	require.ErrorAs(t, handlerErr, &driverErr)
-	require.Equal(t, "Neo.ClientError.Transaction.TransactionCommitFailed", driverErr.Code)
-}
-
 // TestBackendRestartCommitStoreClosedIsNotReplayedInPlace keeps the new body on
 // the same side of the line as its blocked-writes sibling: recovery is DURABLE
 // QUEUE replay only. A commit failure leaves an outcome this process cannot

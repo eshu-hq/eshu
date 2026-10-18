@@ -26,14 +26,14 @@ import (
 	"context"
 	"testing"
 
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/iam"
 )
 
 func TestIAMCanAssumeEdgeWriterRetractNeverGroups(t *testing.T) {
 	t.Parallel()
 
 	executor := &sqlSequentialRecordingExecutor{}
-	writer := sourcecypher.NewIAMCanAssumeEdgeWriter(executor, 0)
+	writer := iam.NewIAMCanAssumeEdgeWriter(executor, 0)
 	if err := writer.RetractIAMCanAssumeEdges(
 		context.Background(), []string{"scope-1"}, "gen-1", "reducer/iam-can-assume",
 	); err != nil {
@@ -51,7 +51,7 @@ func TestIAMEscalationEdgeWriterRetractNeverGroups(t *testing.T) {
 	t.Parallel()
 
 	executor := &sqlSequentialRecordingExecutor{}
-	writer := sourcecypher.NewIAMEscalationEdgeWriter(executor, 0)
+	writer := iam.NewIAMEscalationEdgeWriter(executor, 0)
 	if err := writer.RetractIAMEscalationEdges(
 		context.Background(), []string{"scope-1"}, "gen-1", "reducer/iam-escalation",
 	); err != nil {
@@ -69,7 +69,7 @@ func TestIAMCanPerformEdgeWriterRetractNeverGroups(t *testing.T) {
 	t.Parallel()
 
 	executor := &sqlSequentialRecordingExecutor{}
-	writer := sourcecypher.NewIAMCanPerformEdgeWriter(executor, 0)
+	writer := iam.NewIAMCanPerformEdgeWriter(executor, 0)
 	if err := writer.RetractIAMCanPerformEdges(
 		context.Background(), []string{"scope-1"}, "gen-1", "reducer/iam-can-perform",
 	); err != nil {

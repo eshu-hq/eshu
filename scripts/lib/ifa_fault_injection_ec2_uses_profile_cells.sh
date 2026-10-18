@@ -35,7 +35,7 @@
 # under domain "ec2_uses_profile_materialization", loads its facts via
 # factload.LoadFactsForKinds -> FROM fact_records, and writes the
 # USES_PROFILE edges DIRECTLY to the graph through its cypher writer
-# (go/internal/storage/cypher/ec2_uses_profile_edge_writer.go:45), then
+# (go/internal/storage/cypher/cloud/aws/ec2/uses_profile_edge_writer.go:47), then
 # acks. There is no shared_projection_intents row and no second-stage runner
 # lease -- the two blocker kinds the registry schema offers that this family
 # cannot use (see rows/18_ec2_uses_profile.sh).
@@ -302,7 +302,7 @@ cell_killworker_ec2_uses_profile() {
 # marker names that write, and requires the full three-edge set to converge
 # without dead letters. Anchor read off EXECUTED statement text, not source
 # text: the writer's template reads MERGE (source)-[rel:%s]->(target)
-# (go/internal/storage/cypher/ec2_uses_profile_edge_writer.go:45),
+# (go/internal/storage/cypher/cloud/aws/ec2/uses_profile_edge_writer.go:47),
 # filled per row from a closed single-member vocabulary screened by
 # validateEC2UsesProfileRelationshipType, so the anchor MUST carry the
 # INTERPOLATED type MERGE (source)-[rel:USES_PROFILE]->(target).

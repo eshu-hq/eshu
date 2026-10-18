@@ -38,7 +38,7 @@ IFA_FAMILY_ASSERT_FN[s3_logs_to]="ifa_s3_logs_to_assert"
 IFA_FAMILY_CASSETTE_VAR[s3_logs_to]="s3_logs_to_cassette"
 IFA_FAMILY_EXPECTED_VAR[s3_logs_to]="s3_logs_to_expected_edges"
 
-# go/internal/storage/cypher/s3_logs_to_edge_writer.go:43, which
+# go/internal/storage/cypher/cloud/aws/s3/logs_to_edge_writer.go:45, which
 # reads `MERGE (source)-[rel:%s]->(target)` in source. The anchor is
 # matched against EXECUTED statement text, so it carries the filled form:
 # CanonicalS3LogsToEdgeUpsertCypherFormat's one %s is substituted per

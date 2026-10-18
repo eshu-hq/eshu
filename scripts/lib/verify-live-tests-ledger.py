@@ -27,7 +27,7 @@ from postgres_scheduled_runner import (
 )
 
 
-NORNIC_GUARD_SHA256 = "e0c73949c75c0ef605da9367c05d489717ec23f2a17e5370d031acc14746f438"
+NORNIC_GUARD_SHA256 = "b377aad24ddc0b36e8b7adea2cf8708ce21369c4cf2af756285086ed46c74384"
 
 def verify_nornic_guard_source(path: Path) -> None:
     """Reject executable helper declarations before importing the CLI guard."""

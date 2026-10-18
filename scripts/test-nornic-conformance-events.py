@@ -468,11 +468,15 @@ atexit.register(lambda: print(f"N7_MUTATED_SUBJECT_READS={reads}", file=sys.stde
     def test_go_events_reject_missing_skip_duplicate_and_wrong_package(self) -> None:
         inventory = MODULE.load_inventory()
         names = {name for tests in inventory.values() for name in tests}
-        package = MODULE.PACKAGE
+        root = "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+        leaf = root + "/cloud/resource"
+        leaf_file = "go/internal/storage/cypher/cloud/resource/node_writer_heterogeneous_batch_live_test.go"
+        self.assertEqual(MODULE.PACKAGES, frozenset({root, leaf}))
+        pkg = lambda name: leaf if name in inventory[leaf_file] else root  # noqa: E731
         good = [item for name in sorted(names) for item in (
-            {"Action": "run", "Package": package, "Test": name},
-            {"Action": "pass", "Package": package, "Test": name},
-        )] + [{"Action": "pass", "Package": package}]
+            {"Action": "run", "Package": pkg(name), "Test": name},
+            {"Action": "pass", "Package": pkg(name), "Test": name},
+        )] + [{"Action": "pass", "Package": p} for p in (root, leaf)]
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "events.jsonl"
             for events, passes in (
@@ -480,12 +484,15 @@ atexit.register(lambda: print(f"N7_MUTATED_SUBJECT_READS={reads}", file=sys.stde
                 (good[1:], False),
                 (good[:-2] + [{**good[-2], "Action": "skip"}, good[-1]], False),
                 (good + [good[1]], False),
-                ([{**item, "Package": package + "x"} for item in good], False),
+                ([{**item, "Package": item["Package"] + "x"} for item in good], False),
                 (good[:-1], False),
             ):
                 path.write_text("".join(json.dumps(item) + "\n" for item in events))
                 with self.subTest(events=events):
-                    self.assertEqual(MODULE.verify_events(path, names, io.StringIO()), passes)
+                    self.assertEqual(
+                        MODULE.verify_events(path, names, MODULE.PACKAGES, io.StringIO()),
+                        passes,
+                    )
 
 
 if __name__ == "__main__":

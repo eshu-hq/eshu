@@ -33,7 +33,7 @@ IFA_FAMILY_ASSERT_FN[iam_instance_profile_role]="ifa_iam_instance_profile_role_a
 IFA_FAMILY_CASSETTE_VAR[iam_instance_profile_role]="iam_instance_profile_role_cassette"
 IFA_FAMILY_EXPECTED_VAR[iam_instance_profile_role]="iam_instance_profile_role_expected_edges"
 
-# go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go:22, which
+# go/internal/storage/cypher/cloud/aws/iam/instance_profile_role_edge_writer.go:24, which
 # reads `MERGE (profile)-[rel:%s]->(role)` in source. The anchor is matched
 # against EXECUTED statement text, so it carries the INTERPOLATED type: the %s
 # is filled from iamInstanceProfileRoleRelationshipVocabulary, a closed

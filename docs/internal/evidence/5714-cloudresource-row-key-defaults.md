@@ -84,7 +84,7 @@ Both being viable, Option A was chosen:
   defaulting mechanism (`coalesce` in Cypher, plus builder-level explicit
   keys) that could drift out of sync with each other.
 
-`go/internal/storage/cypher/cloud_resource_node_writer.go`'s
+`go/internal/storage/cypher/cloud/resource/node_writer.go`'s
 `cloudResourceRowKeyDefaults` map is the single authoritative list, kept next
 to `baseCloudResourceUpsertCypher`, with a static lockstep test
 (`TestCloudResourceRowKeyDefaultsCoversEverySetKey`) that fails the build if
@@ -156,7 +156,7 @@ considered:
 
 - **(a) Wire the existing live regression test into the live conformance
   lane.** `TestCloudResourceNodeWriterLiveHeterogeneousBatchNeverPersistsLiteral`
-  (`go/internal/storage/cypher/cloud_resource_node_writer_heterogeneous_batch_live_test.go`)
+  (`go/internal/storage/cypher/cloud/resource/node_writer_heterogeneous_batch_live_test.go`)
   already proves the defect class against a real NornicDB backend, but its
   gate env var (`ESHU_CLOUDRESOURCE_NODE_WRITER_LIVE`) was set nowhere outside
   the test file itself, so it always skipped — including in CI. Nothing was

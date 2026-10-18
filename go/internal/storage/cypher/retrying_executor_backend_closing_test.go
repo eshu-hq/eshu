@@ -5,7 +5,6 @@ package cypher
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -55,30 +54,6 @@ import (
 // error was observed from a write transaction 4,597 statements in) but because
 // the interrupted transaction was measured to roll back whole, survived=0 of
 // 20,000, leaving nothing half-applied for a replay to double up.
-func TestBackendClosedDuringMergeChainRemainsQueueRetryable(t *testing.T) {
-	t.Parallel()
-
-	inner := &backendRestartTerminalGroupExecutor{
-		err: newNeo4jError(
-			nornicDBStatementSyntaxErrorCode,
-			"UNWIND MERGE chain create failed: checking node existence: reading node: "+nornicDBStoreClosedMsg,
-		),
-	}
-	writer := NewCloudResourceNodeWriter(inner, 0)
-	handlerErr := fmt.Errorf("write canonical cloud resource nodes: %w",
-		writer.WriteCloudResourceNodes(
-			context.Background(),
-			[]map[string]any{{"uid": "backend-closed-resource"}},
-			"reducer/gcp-resources",
-		))
-
-	require.True(t, reducer.IsRetryable(handlerErr),
-		"a write that failed because the store reported DB Closed is a backend restart, not a projection bug")
-	var classified interface{ FailureClass() string }
-	require.ErrorAs(t, handlerErr, &classified)
-	require.Equal(t, GraphWriteTimeoutFailureClass, classified.FailureClass())
-}
-
 // TestMergeChainRelationshipCreateMissingStartNodeIsRetryable covers the first
 // endpoint shape and pins that it rides the SAME replay-safety guard the sibling
 // "update failed: not found" conflict already uses. Replay is safe on its own
@@ -91,7 +66,7 @@ func TestMergeChainRelationshipCreateMissingStartNodeIsRetryable(t *testing.T) {
 	t.Parallel()
 
 	err := newNeo4jError(
-		nornicDBStatementSyntaxErrorCode,
+		"Neo.ClientError.Statement.SyntaxError",
 		"UNWIND MERGE chain relationship create failed: start node nornic:565f703f-871f-4a20-8bf9-109df868f90f does not exist",
 	)
 
@@ -118,7 +93,7 @@ func TestMergeChainRelationshipCreateMissingEndNodeRetries(t *testing.T) {
 	t.Parallel()
 
 	err := newNeo4jError(
-		nornicDBStatementSyntaxErrorCode,
+		"Neo.ClientError.Statement.SyntaxError",
 		"UNWIND MERGE chain relationship create failed: end node nornic:0cb9ed9e-3825-4f75-b278-649f7fada124 does not exist",
 	)
 	statement := Statement{
@@ -139,7 +114,7 @@ func TestMergeChainRelationshipCreateMissingEndNodeRetriesSingleStatement(t *tes
 	t.Parallel()
 
 	err := newNeo4jError(
-		nornicDBStatementSyntaxErrorCode,
+		"Neo.ClientError.Statement.SyntaxError",
 		"UNWIND MERGE chain relationship create failed: end node nornic:0cb9ed9e-3825-4f75-b278-649f7fada124 does not exist",
 	)
 	inner := &relationshipSnapshotConflictExecutor{executeFailures: 1, err: err}
@@ -174,7 +149,7 @@ func TestBackendClosingMergeChainClassificationFailsClosedForNearMisses(t *testi
 
 	t.Run("a real syntax error stays terminal", func(t *testing.T) {
 		t.Parallel()
-		err := newNeo4jError(nornicDBStatementSyntaxErrorCode,
+		err := newNeo4jError("Neo.ClientError.Statement.SyntaxError",
 			"Invalid input 'MERG': expected 'MERGE' (line 1, column 1)")
 		require.Empty(t, classifyTransientNeo4jError(err))
 		require.Empty(t, classifyRetryableGraphWriteGroupError(err, []Statement{{
@@ -187,7 +162,7 @@ func TestBackendClosingMergeChainClassificationFailsClosedForNearMisses(t *testi
 	t.Run("DB Closed body under an unrelated code stays terminal", func(t *testing.T) {
 		t.Parallel()
 		err := newNeo4jError("Neo.ClientError.Security.Unauthorized",
-			"UNWIND MERGE chain create failed: checking node existence: reading node: "+nornicDBStoreClosedMsg)
+			"UNWIND MERGE chain create failed: checking node existence: reading node: "+"DB Closed")
 		require.Same(t, err, WrapRetryableNeo4jError(err))
 		require.False(t, reducer.IsRetryable(WrapRetryableNeo4jError(err)))
 	})
@@ -199,7 +174,7 @@ func TestBackendClosingMergeChainClassificationFailsClosedForNearMisses(t *testi
 	// that introduced it, not only from the guard that happened to catch it.
 	t.Run("create failed: not found stays terminal", func(t *testing.T) {
 		t.Parallel()
-		err := newNeo4jError(nornicDBStatementSyntaxErrorCode,
+		err := newNeo4jError("Neo.ClientError.Statement.SyntaxError",
 			"UNWIND MERGE chain relationship create failed: not found")
 		require.Empty(t, classifyRetryableGraphWriteGroupError(err, []Statement{{
 			Cypher: "UNWIND $rows AS row MERGE (source)-[rel:GCP_route_in_network]->(target)",
@@ -211,7 +186,7 @@ func TestBackendClosingMergeChainClassificationFailsClosedForNearMisses(t *testi
 	// therefore stay terminal; two unordered Contains calls would accept it.
 	t.Run("reversed fragments stay terminal", func(t *testing.T) {
 		t.Parallel()
-		err := newNeo4jError(nornicDBStatementSyntaxErrorCode,
+		err := newNeo4jError("Neo.ClientError.Statement.SyntaxError",
 			" does not exist UNWIND MERGE chain relationship create failed: start node ")
 		require.Empty(t, classifyRetryableGraphWriteGroupError(err, []Statement{{
 			Cypher: "UNWIND $rows AS row MERGE (source)-[rel:GCP_route_in_network]->(target)",
@@ -221,7 +196,7 @@ func TestBackendClosingMergeChainClassificationFailsClosedForNearMisses(t *testi
 
 	t.Run("leading text before the exact shape stays terminal", func(t *testing.T) {
 		t.Parallel()
-		err := newNeo4jError(nornicDBStatementSyntaxErrorCode,
+		err := newNeo4jError("Neo.ClientError.Statement.SyntaxError",
 			"wrapper: UNWIND MERGE chain relationship create failed: end node nornic:abc does not exist")
 		require.Empty(t, classifyRetryableGraphWriteGroupError(err, []Statement{{
 			Cypher: "UNWIND $rows AS row MERGE (source)-[rel:GCP_route_in_network]->(target)",
@@ -231,7 +206,7 @@ func TestBackendClosingMergeChainClassificationFailsClosedForNearMisses(t *testi
 
 	t.Run("trailing text after the exact shape stays terminal", func(t *testing.T) {
 		t.Parallel()
-		err := newNeo4jError(nornicDBStatementSyntaxErrorCode,
+		err := newNeo4jError("Neo.ClientError.Statement.SyntaxError",
 			"UNWIND MERGE chain relationship create failed: end node nornic:abc does not exist (cached)")
 		require.Empty(t, classifyRetryableGraphWriteGroupError(err, []Statement{{
 			Cypher: "UNWIND $rows AS row MERGE (source)-[rel:GCP_route_in_network]->(target)",
@@ -241,7 +216,7 @@ func TestBackendClosingMergeChainClassificationFailsClosedForNearMisses(t *testi
 
 	t.Run("empty endpoint identifier stays terminal", func(t *testing.T) {
 		t.Parallel()
-		err := newNeo4jError(nornicDBStatementSyntaxErrorCode,
+		err := newNeo4jError("Neo.ClientError.Statement.SyntaxError",
 			"UNWIND MERGE chain relationship create failed: end node  does not exist")
 		require.Empty(t, classifyRetryableGraphWriteGroupError(err, []Statement{{
 			Cypher: "UNWIND $rows AS row MERGE (source)-[rel:GCP_route_in_network]->(target)",
@@ -267,7 +242,7 @@ func TestBackendClosingMergeChainClassificationFailsClosedForNearMisses(t *testi
 	// than the safety property behind it.
 	t.Run("missing end node in a non-idempotent group stays terminal", func(t *testing.T) {
 		t.Parallel()
-		err := newNeo4jError(nornicDBStatementSyntaxErrorCode,
+		err := newNeo4jError("Neo.ClientError.Statement.SyntaxError",
 			"UNWIND MERGE chain relationship create failed: end node nornic:abc does not exist")
 		require.Empty(t, classifyRetryableGraphWriteGroupError(err, []Statement{{
 			Operation: OperationCanonicalUpsert,
@@ -277,7 +252,7 @@ func TestBackendClosingMergeChainClassificationFailsClosedForNearMisses(t *testi
 
 	t.Run("missing end node in a non-MERGE single statement stays terminal", func(t *testing.T) {
 		t.Parallel()
-		err := newNeo4jError(nornicDBStatementSyntaxErrorCode,
+		err := newNeo4jError("Neo.ClientError.Statement.SyntaxError",
 			"UNWIND MERGE chain relationship create failed: end node nornic:abc does not exist")
 		inner := &relationshipSnapshotConflictExecutor{executeFailures: 10, err: err}
 		executor := &RetryingExecutor{Inner: inner, MaxRetries: 2, BaseDelay: time.Nanosecond}
@@ -291,7 +266,7 @@ func TestBackendClosingMergeChainClassificationFailsClosedForNearMisses(t *testi
 
 	t.Run("missing start node in an idempotent retract group is replayed", func(t *testing.T) {
 		t.Parallel()
-		err := newNeo4jError(nornicDBStatementSyntaxErrorCode,
+		err := newNeo4jError("Neo.ClientError.Statement.SyntaxError",
 			"UNWIND MERGE chain relationship create failed: start node nornic:abc does not exist")
 		require.Equal(t, graphWriteRetryReasonWriteConflict,
 			classifyRetryableGraphWriteGroupError(err, []Statement{{

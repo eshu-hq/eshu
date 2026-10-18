@@ -44,7 +44,7 @@ IFA_FAMILY_ASSERT_FN[iam_can_perform]="ifa_iam_can_perform_assert"
 IFA_FAMILY_CASSETTE_VAR[iam_can_perform]="iam_can_perform_cassette"
 IFA_FAMILY_EXPECTED_VAR[iam_can_perform]="iam_can_perform_expected_edges"
 
-# go/internal/storage/cypher/iam_can_perform_edge_writer.go:47, which
+# go/internal/storage/cypher/cloud/aws/iam/can_perform_edge_writer.go:49, which
 # reads `MERGE (p)-[rel:CAN_PERFORM]->(r)` in source. The anchor is matched
 # against EXECUTED statement text; unlike iam_can_assume there is no %s to
 # fill — CanonicalIAMCanPerformEdgeUpsertCypher bakes the static CAN_PERFORM

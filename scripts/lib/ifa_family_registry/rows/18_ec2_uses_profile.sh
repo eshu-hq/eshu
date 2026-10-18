@@ -44,7 +44,7 @@ IFA_FAMILY_ASSERT_FN[ec2_uses_profile]="ifa_ec2_uses_profile_assert"
 IFA_FAMILY_CASSETTE_VAR[ec2_uses_profile]="ec2_uses_profile_cassette"
 IFA_FAMILY_EXPECTED_VAR[ec2_uses_profile]="ec2_uses_profile_expected_edges"
 
-# go/internal/storage/cypher/ec2_uses_profile_edge_writer.go:45, which
+# go/internal/storage/cypher/cloud/aws/ec2/uses_profile_edge_writer.go:47, which
 # reads `MERGE (source)-[rel:%s]->(target)` in source. The anchor is
 # matched against EXECUTED statement text, so it carries the filled form:
 # CanonicalEC2UsesProfileEdgeUpsertCypherFormat's one %s is substituted per

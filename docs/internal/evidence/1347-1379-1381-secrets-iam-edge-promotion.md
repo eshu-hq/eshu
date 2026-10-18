@@ -87,7 +87,7 @@ in-principle approval binds to one deployment. The flag stays OFF by default and
 is unchanged; these are proof artifacts only.
 
 Benchmark Evidence (§12): `BenchmarkSecretsIAMGraphWriter`
-(`go/internal/storage/cypher/secrets_iam_graph_writer_bench_test.go`) writes all
+(`go/internal/storage/cypher/cloud/aws/iam/secrets_graph_writer_bench_test.go`) writes all
 four `SecretsIAM*` node families and all five resolvable `SECRETS_IAM_*` edge
 families at 5,000 rows each through the no-op group executor, isolating
 statement construction and `UNWIND` batching from graph round trips. Measured on
@@ -120,7 +120,7 @@ missing-vault-hop, missing-secret-path, non-exact states, pod-identity
 IAM-role-unresolved) and duplicate-delivery idempotency. The TRUE live-backend
 conformance is the BACKEND-GATED
 `TestSecretsIAMGraphWriterLiveConformance`
-(`go/internal/storage/cypher/secrets_iam_graph_live_test.go`), which writes all
+(`go/internal/storage/cypher/cloud/aws/iam/secrets_graph_live_test.go`), which writes all
 four node families and five edges, reads them back, and proves scoped retract
 leaves the retained `KubernetesWorkload` and `CloudResource` endpoints intact — it SKIPs cleanly
 unless `ESHU_SECRETS_IAM_GRAPH_LIVE=1` and Bolt env are configured, so the

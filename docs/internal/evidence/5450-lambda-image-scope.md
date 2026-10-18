@@ -7,7 +7,7 @@ Two were real read-path defects; one was not.
 
 Claim: `getRelationships`' `MATCH (n) WHERE n.id = $entity_id` cannot find the
 Lambda `CloudResource` because the AWS materializer keys it by `uid`, not `id`.
-Disproved against source: `go/internal/storage/cypher/cloud_resource_node_writer.go`
+Disproved against source: `go/internal/storage/cypher/cloud/resource/node_writer.go`
 does `MERGE (r:CloudResource {uid: row.uid}) SET r.id = row.uid`, so every
 `CloudResource` (including the Lambda rows written through the same
 `WriteCloudResourceNodes` path) mirrors `uid` into `id`. The `n.id` anchor

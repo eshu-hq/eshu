@@ -132,7 +132,7 @@ AWS API call counters, throttle counters, and pagination spans.
   `aws_resource` identity fact MUST NOT let it collide with a posture-owned
   property name; see `go/internal/reducer/aws_resource_materialization.go`'s
   `cloudResourceNodeRow` exclusion and
-  `go/internal/storage/cypher/ec2_instance_identity_node_writer.go`'s
+  `go/internal/storage/cypher/cloud/aws/ec2/instance_identity_node_writer.go`'s
   disjointness proof before adding one.
 - The AMI (`aws_ec2_ami`) `aws_resource` fact (#5717) is INTENTIONALLY
   identity-only, mirroring the instance fact's minimalism above: Name is the

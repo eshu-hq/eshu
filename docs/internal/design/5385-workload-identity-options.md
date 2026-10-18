@@ -9,7 +9,7 @@ data that query-time authorization cannot repair.
 | Claim | Verified |
 | --- | --- |
 | `workloadID = "workload:<name>"` | `go/internal/reducer/projection.go:279` |
-| `instanceID = "workload-instance:<name>:<env>"` | `go/internal/reducer/projection.go:327` |
+| `instanceID = "workload-instance:<name>:<env>"` | `go/internal/reducer/projection.go` |
 | Identity is the id alone; `repo_id` is a `SET` property | `MERGE (w:Workload {id: row.workload_id})` at `go/internal/reducer/workload_materializer.go:351`, `MERGE (i:WorkloadInstance {id: row.instance_id})` at `:370` |
 | A **second** MERGE site exists | `go/internal/storage/cypher/canonical.go:24,36` — same keys |
 | Retract collects by BOTH `DEFINES` and the `repo_id` property, then `DETACH DELETE`s the union | `go/internal/graph/mutations.go:113-129` |
@@ -68,7 +68,7 @@ logical hub with `DEFINES` edges from each repo.
 - **Does NOT fix cross-attachment on its own (#6027 review).** The USES writer
   anchors on the shared hub and selects instances by environment only:
   `MATCH (workload:Workload {id: row.workload_id})<-[:INSTANCE_OF]-(instance:WorkloadInstance) WHERE instance.environment = row.environment`
-  (`go/internal/storage/cypher/workload_cloud_relationship_writer.go:18-22`).
+  (`go/internal/storage/cypher/cloud/aws/relationship/workload_cloud_writer.go`).
   Two repo-qualified instances sharing an environment under one hub both match,
   so both receive the edge. Option A must re-anchor that writer on the
   repo-qualified instance, or it moves the collision rather than removing it.
@@ -122,7 +122,7 @@ Both MERGE sites always, plus the option-specific ones:
 
 | Option | Sites |
 | --- | --- |
-| **A** | `go/internal/reducer/projection.go:327` (instance id), both MERGE sites (`go/internal/reducer/workload_materializer.go:370`, `go/internal/storage/cypher/canonical.go:36`), **and** the USES writer re-anchor (`go/internal/storage/cypher/workload_cloud_relationship_writer.go:18-22`) |
+| **A** | `go/internal/reducer/projection.go` (instance id), both MERGE sites (`go/internal/reducer/workload_materializer.go`, `go/internal/storage/cypher/canonical.go`), **and** the USES writer re-anchor (`go/internal/storage/cypher/cloud/aws/relationship/workload_cloud_writer.go`) |
 | **B** | `projection.go:279,327`, all four MERGE sites (`workload_materializer.go:351,370`, `canonical.go:24,36`), the USES writer, every cross-repo traversal that relied on landing on one node, plus a migration to delete old hubs |
 | **C** | No identity change; re-key retract (`go/internal/graph/mutations.go:113-129`) off the edges, and add per-tenant provenance to the `DEFINES`/USES edges |
 

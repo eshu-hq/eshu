@@ -20,8 +20,8 @@ CloudResource join index or node uid (`cloudjoin`), quarantine
 (`factdecode`), the scoped fact read (`factload`), or readiness phases
 (`gpphase`). Registration stays in the reducer root
 (`defaults_security_group_endpoint.go`), and the Cypher writers live in
-`internal/storage/cypher/security_group_cidr_node_writer.go` and
-`internal/storage/cypher/security_group_reachability_edge_writer.go`.
+`internal/storage/cypher/cloud/aws/security/group/security_cidr_node_writer.go` and
+`internal/storage/cypher/cloud/aws/security/group/security_reachability_edge_writer.go`.
 
 ## Exported surface
 

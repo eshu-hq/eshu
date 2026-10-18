@@ -656,7 +656,7 @@ repo-local proofs exist, but #2430 must bind activation to one target deployment
 and record flag-on proof before production enablement.
 
 Benchmark Evidence: `BenchmarkSecretsIAMGraphWriter`
-(`secrets_iam_graph_writer_bench_test.go`) measures statement construction and
+(`cloud/aws/iam/secrets_graph_writer_bench_test.go`) measures statement construction and
 `UNWIND` batching for all four node families and five edges at 5,000 rows each
 through the no-op group executor (ADR #1314 §12). On an Apple M4 Pro
 (`darwin/arm64`, `-benchtime=50x -count=3`) it runs ~20.8–38.7 µs/op,
@@ -674,7 +674,7 @@ No-Regression Evidence: `go test ./internal/storage/cypher -run SecretsIAMGraph
 -count=1` proves node/edge Cypher shape, uid-only MERGE identity, scoped retract
 with no endpoint deletion, and batching. The ADR #1314 §11 TRUE live-backend
 conformance is the BACKEND-GATED `TestSecretsIAMGraphWriterLiveConformance`
-(`secrets_iam_graph_live_test.go`): it writes all four node families and five
+(`cloud/aws/iam/secrets_graph_live_test.go`): it writes all four node families and five
 edges, reads them back, and proves scoped retract leaves the retained
 `KubernetesWorkload` and `CloudResource` endpoints intact. It SKIPs cleanly
 unless `ESHU_SECRETS_IAM_GRAPH_LIVE=1` and Bolt env are set, so the default run
@@ -1163,7 +1163,7 @@ backend-specific branch.
   batchSize)`. Same MERGE-anchored `UNWIND` + `SET` shape as
   `RDSPostureNodeWriter` (issue #5652), with the identical never-create
   contract via `PostureExistenceReader`: the EC2 instance CloudResource node
-  is owned by `EC2InstanceNodeWriter` (`ec2_instance_node_writer.go`), never
+  is owned by `EC2InstanceNodeWriter` (`cloud/aws/ec2/instance_node_writer.go`), never
   by this writer. Its SET clause is proven disjoint from
   `EC2InstanceNodeWriter`'s SET clause
   (`TestEC2InstanceIdentityWriterDisjointFromEC2InstancePostureWriter`), so
@@ -1765,7 +1765,7 @@ to attribute a slow or failed retract phase exactly as before.
 untyped string constants, so the concatenation is itself a compile-time
 constant. `teethCloudResourceUpsertExtraSet` is `""` in every normal, CI, and
 production build (build tag `!ifadeterminismteeth`,
-`cloud_resource_node_writer_teeth_off.go`), making
+`cloud/resource/node_writer_teeth_off.go`), making
 `canonicalCloudResourceUpsertCypher` byte-identical to the statement this
 package executed before this change — see
 `TestCanonicalCloudResourceUpsertCypherExcludesTeethClauseByDefault`, which
@@ -1780,7 +1780,7 @@ No-Observability-Change: no metric, span, log, or status field is added or
 changed by the default (`!ifadeterminismteeth`) build.
 
 Only `go build -tags ifadeterminismteeth` (never a normal/CI/production
-build) links `cloud_resource_node_writer_teeth.go`'s two extra SET clauses,
+build) links `cloud/resource/node_writer_teeth.go`'s two extra SET clauses,
 persisting `go/internal/reducer`'s `ifaTeethStampCloudResourceRow` values onto
 the committed node as `r.ifa_teeth_seq` (a process-global monotonic counter,
 reintroduced in issue #4396 slice 6b after slice 5 found it inert on the

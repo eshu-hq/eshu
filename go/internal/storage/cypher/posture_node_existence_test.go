@@ -42,9 +42,9 @@ func (r *echoingPostureExistenceReader) Run(_ context.Context, _ string, params 
 func TestFilterRowsToExistingCloudResourceUIDsRequiresReader(t *testing.T) {
 	t.Parallel()
 
-	_, err := filterRowsToExistingCloudResourceUIDs(context.Background(), nil, []map[string]any{{"uid": "a"}})
+	_, err := FilterRowsToExistingCloudResourceUIDs(context.Background(), nil, []map[string]any{{"uid": "a"}})
 	if err == nil {
-		t.Fatal("filterRowsToExistingCloudResourceUIDs(nil reader) error = nil, want error")
+		t.Fatal("FilterRowsToExistingCloudResourceUIDs(nil reader) error = nil, want error")
 	}
 }
 
@@ -52,9 +52,9 @@ func TestFilterRowsToExistingCloudResourceUIDsEmptyRowsIsNoOp(t *testing.T) {
 	t.Parallel()
 
 	reader := &echoingPostureExistenceReader{}
-	got, err := filterRowsToExistingCloudResourceUIDs(context.Background(), reader, nil)
+	got, err := FilterRowsToExistingCloudResourceUIDs(context.Background(), reader, nil)
 	if err != nil {
-		t.Fatalf("filterRowsToExistingCloudResourceUIDs() error = %v, want nil", err)
+		t.Fatalf("FilterRowsToExistingCloudResourceUIDs() error = %v, want nil", err)
 	}
 	if len(got) != 0 {
 		t.Fatalf("len(got) = %d, want 0", len(got))
@@ -72,9 +72,9 @@ func TestFilterRowsToExistingCloudResourceUIDsDropsUnconfirmedUIDs(t *testing.T)
 		{"uid": "exists-1", "value": "a"},
 		{"uid": "missing-1", "value": "b"},
 	}
-	got, err := filterRowsToExistingCloudResourceUIDs(context.Background(), reader, rows)
+	got, err := FilterRowsToExistingCloudResourceUIDs(context.Background(), reader, rows)
 	if err != nil {
-		t.Fatalf("filterRowsToExistingCloudResourceUIDs() error = %v, want nil", err)
+		t.Fatalf("FilterRowsToExistingCloudResourceUIDs() error = %v, want nil", err)
 	}
 	if len(got) != 1 || got[0]["uid"] != "exists-1" {
 		t.Fatalf("got = %v, want only the confirmed-existing uid row", got)
@@ -90,9 +90,9 @@ func TestFilterRowsToExistingCloudResourceUIDsDropsRowsWithoutUID(t *testing.T) 
 		{"value": "b"},
 		{"uid": "real-uid", "value": "c"},
 	}
-	got, err := filterRowsToExistingCloudResourceUIDs(context.Background(), reader, rows)
+	got, err := FilterRowsToExistingCloudResourceUIDs(context.Background(), reader, rows)
 	if err != nil {
-		t.Fatalf("filterRowsToExistingCloudResourceUIDs() error = %v, want nil", err)
+		t.Fatalf("FilterRowsToExistingCloudResourceUIDs() error = %v, want nil", err)
 	}
 	if len(got) != 1 || got[0]["uid"] != "real-uid" {
 		t.Fatalf("got = %v, want only the row with a non-empty uid", got)
@@ -103,8 +103,8 @@ func TestFilterRowsToExistingCloudResourceUIDsPropagatesReaderError(t *testing.T
 	t.Parallel()
 
 	reader := &echoingPostureExistenceReader{err: context.DeadlineExceeded}
-	_, err := filterRowsToExistingCloudResourceUIDs(context.Background(), reader, []map[string]any{{"uid": "a"}})
+	_, err := FilterRowsToExistingCloudResourceUIDs(context.Background(), reader, []map[string]any{{"uid": "a"}})
 	if err == nil {
-		t.Fatal("filterRowsToExistingCloudResourceUIDs() error = nil, want propagated reader error")
+		t.Fatal("FilterRowsToExistingCloudResourceUIDs() error = nil, want propagated reader error")
 	}
 }

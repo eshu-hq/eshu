@@ -22,7 +22,7 @@
 // ContainerImage two-MATCH-MERGE edge writer proven here).
 //
 // The test drives the REAL production writer constructor and methods
-// (cypher.NewCloudResourceContainerImageEdgeWriter) against liveExecutor,
+// (image.NewCloudResourceContainerImageEdgeWriter) against liveExecutor,
 // which implements GroupExecutor exactly like production's
 // reducerNeo4jExecutor, so a retract that routed through ExecuteGroup would
 // reproduce the under-apply here. The edge type is written and retracted with
@@ -43,6 +43,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/image"
 )
 
 const (
@@ -81,7 +82,7 @@ func TestReducerAWSCloudImageEdgeRetractGraphTruth(t *testing.T) {
 
 	seedCloudImageEdgeNodes(ctx, t, exec)
 
-	writer := cypher.NewCloudResourceContainerImageEdgeWriter(exec, 0)
+	writer := image.NewCloudResourceContainerImageEdgeWriter(exec, 0)
 
 	if err := writer.WriteCloudResourceContainerImageEdges(ctx, []map[string]any{{
 		"source_uid": cloudImageSourceIn, "target_uid": cloudImageTargetIn,

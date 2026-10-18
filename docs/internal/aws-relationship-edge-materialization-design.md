@@ -62,7 +62,7 @@ node substrate the edge join requires.
 PR #2 landed the `DomainAWSRelationshipMaterialization` reducer domain
 (`go/internal/reducer/aws_relationship_materialization.go` + the bounded join in
 `aws_relationship_join.go`), the backend-neutral edge writer
-(`go/internal/storage/cypher/cloud_resource_edge_writer.go`), the projector
+(`go/internal/storage/cypher/cloud/resource/edge_writer.go`), the projector
 intent (`go/internal/projector/cloud/aws/relationship/materialization_intents.go`), and
 the `eshu_dp_aws_relationship_edges_total` counter. It gates on the PR #1
 `GraphProjectionPhaseCanonicalNodesCommitted` phase on the CloudResource
@@ -407,7 +407,7 @@ so a future agent does not silently re-open them.
    `(:CloudResource)-[:AWS_<raw relationship_type>]->(:CloudResource)` edges; it
    does **not** write the `(:WorkloadInstance)-[:USES]->(:CloudResource)` edge
    (deferred to the deployment-mapping owner). The edge writer Cypher
-   (`go/internal/storage/cypher/cloud_resource_edge_writer.go`) anchors both
+   (`go/internal/storage/cypher/cloud/resource/edge_writer.go`) anchors both
    endpoints on `CloudResource`, with no `WorkloadInstance`/`USES` anywhere.
 2. **Resolved — unresolved targets are counted-only in v1.** Unresolved
    forward-looking edges do **not** persist a `pending_aws_relationship` reducer
@@ -512,7 +512,7 @@ sibling ci_cd_run_correlation/container_image_identity/package domains:
   (`go/internal/reducer/awscloud/aws_cloud_image_materialization.go`), two-MATCH-MERGEs
   `(:CloudResource)-[:AWS_lambda_function_uses_image]->(:ContainerImage)`
   through `CloudResourceContainerImageEdgeWriter`
-  (`go/internal/storage/cypher/cloud_resource_container_image_edge_writer.go`).
+  (`go/internal/storage/cypher/cloud/aws/image/container_edge_writer.go`).
   An unscanned image (the OCI registry has not observed that digest) is a
   `MATCH` miss, not a fabricated node — the identical graceful-degradation
   contract §5.3/§6 already establish.
@@ -599,7 +599,7 @@ decoded through the typed `awsv1` attribute seam
 `cloudResourceNodeRow` builds. Making the property REACH the graph requires
 TWO steps, not one: the reducer-side row map must carry the key, AND
 `baseCloudResourceUpsertCypher`'s `SET` clause
-(`go/internal/storage/cypher/cloud_resource_node_writer.go`) must name it —
+(`go/internal/storage/cypher/cloud/resource/node_writer.go`) must name it —
 Cypher only persists a property a `SET r.<key> = row.<key>` fragment names; a
 row map key with no matching `SET` fragment is silently dropped by the
 backend, never an error. `baseCloudResourceUpsertCypher` unconditionally sets

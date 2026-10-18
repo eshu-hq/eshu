@@ -25,7 +25,7 @@ profile/role join, the retract-first edge lifecycle, the readiness check
 against the `CloudResource`-keyspace canonical-nodes-committed phase, and the
 backend-neutral edge write and retract through
 `IAMInstanceProfileRoleEdgeWriter`
-(`go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go`).
+(`go/internal/storage/cypher/cloud/aws/iam/instance_profile_role_edge_writer.go`).
 
 ## Exported surface
 

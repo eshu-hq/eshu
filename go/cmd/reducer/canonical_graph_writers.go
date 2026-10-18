@@ -17,6 +17,16 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/ec2"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/iam"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/image"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/rds"
+	awsrelationship "github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/relationship"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/s3"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/security/group"
+	azurerelationship "github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/azure/relationship"
+	gcprelationship "github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/gcp/relationship"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/resource"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -37,26 +47,26 @@ type canonicalGraphWriters struct {
 	// then the uid-anchored graph delete.
 	cloudResourceRetracter          *graphowner.CloudResourceRetracter
 	ec2InstanceRetracter            *graphowner.EC2InstanceRetracter
-	cloudResourceEdge               *sourcecypher.CloudResourceEdgeWriter
-	cloudResourceContainerImageEdge *sourcecypher.CloudResourceContainerImageEdgeWriter
-	gcpCloudResourceEdge            *sourcecypher.GCPCloudResourceEdgeWriter
-	azureCloudResourceEdge          *sourcecypher.AzureCloudResourceEdgeWriter
-	workloadCloudRelationshipEdge   *sourcecypher.WorkloadCloudRelationshipWriter
+	cloudResourceEdge               *resource.CloudResourceEdgeWriter
+	cloudResourceContainerImageEdge *image.CloudResourceContainerImageEdgeWriter
+	gcpCloudResourceEdge            *gcprelationship.GCPCloudResourceEdgeWriter
+	azureCloudResourceEdge          *azurerelationship.AzureCloudResourceEdgeWriter
+	workloadCloudRelationshipEdge   *awsrelationship.WorkloadCloudRelationshipWriter
 	kubernetesWorkloadNode          *graphowner.KubernetesWorkloadGatedWriter
 	kubernetesNamespaceNode         *sourcecypher.KubernetesNamespaceNodeWriter
-	securityGroupEndpointNode       *sourcecypher.SecurityGroupEndpointNodeWriter
-	securityGroupReachability       *sourcecypher.SecurityGroupReachabilityWriter
+	securityGroupEndpointNode       *group.SecurityGroupEndpointNodeWriter
+	securityGroupReachability       *group.SecurityGroupReachabilityWriter
 	kubernetesCorrelationEdge       *sourcecypher.KubernetesCorrelationEdgeWriter
 	crossplaneSatisfiedByEdge       *sourcecypher.CrossplaneSatisfiedByEdgeWriter
-	iamEscalationEdge               *sourcecypher.IAMEscalationEdgeWriter
-	iamCanPerformEdge               *sourcecypher.IAMCanPerformEdgeWriter
+	iamEscalationEdge               *iam.IAMEscalationEdgeWriter
+	iamCanPerformEdge               *iam.IAMCanPerformEdgeWriter
 	observabilityCoverageEdge       *sourcecypher.ObservabilityCoverageEdgeWriter
 	incidentRoutingEvidence         *sourcecypher.IncidentRoutingEvidenceWriter
 	codeTaintEvidence               *sourcecypher.CodeTaintEvidenceWriter
 	codeInterprocEvidence           *sourcecypher.CodeInterprocEvidenceWriter
-	iamCanAssumeEdge                *sourcecypher.IAMCanAssumeEdgeWriter
-	s3LogsToEdge                    *sourcecypher.S3LogsToEdgeWriter
-	s3ExternalPrincipalGrant        *sourcecypher.S3ExternalPrincipalGrantWriter
+	iamCanAssumeEdge                *iam.IAMCanAssumeEdgeWriter
+	s3LogsToEdge                    *s3.S3LogsToEdgeWriter
+	s3ExternalPrincipalGrant        *s3.S3ExternalPrincipalGrantWriter
 	// rdsPostureNode / ec2InternetExposureNode / ec2BlockDeviceKMSPostureNode /
 	// s3InternetExposureNode are wrapped in the #5062 lock-only gate
 	// (graphowner.LockOnlyGate) so their SET/REMOVE writes to shared
@@ -64,8 +74,8 @@ type canonicalGraphWriters struct {
 	// base-property writes on the SAME uid, under the identical Postgres
 	// advisory-lock key. A nil-ledger gate writes through unchanged.
 	rdsPostureNode               *graphowner.RDSPostureLockedWriter
-	ec2UsesProfileEdge           *sourcecypher.EC2UsesProfileEdgeWriter
-	iamInstanceProfileRoleEdge   *sourcecypher.IAMInstanceProfileRoleEdgeWriter
+	ec2UsesProfileEdge           *ec2.EC2UsesProfileEdgeWriter
+	iamInstanceProfileRoleEdge   *iam.IAMInstanceProfileRoleEdgeWriter
 	ec2InternetExposureNode      *graphowner.EC2InternetExposureLockedWriter
 	ec2BlockDeviceKMSPostureNode *graphowner.EC2BlockDeviceKMSPostureLockedWriter
 	s3InternetExposureNode       *graphowner.S3InternetExposureLockedWriter
@@ -114,41 +124,41 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, reader sourcecypher.Po
 	rawCloudResourceNode, rawEC2InstanceNode := newSearchKeyedCloudNodeWriters(exec, batchSize, searchKey)
 	rawKubernetesWorkloadNode := sourcecypher.NewKubernetesWorkloadNodeWriter(exec, batchSize)
 	kubernetesNamespaceNode := sourcecypher.NewKubernetesNamespaceNodeWriter(exec, batchSize)
-	rawRDSPostureNode := sourcecypher.NewRDSPostureNodeWriter(exec, reader, batchSize)
-	rawEC2InternetExposureNode := sourcecypher.NewEC2InternetExposureNodeWriter(exec, reader, batchSize)
-	rawEC2BlockDeviceKMSPostureNode := sourcecypher.NewEC2BlockDeviceKMSPostureNodeWriter(exec, reader, batchSize)
-	rawS3InternetExposureNode := sourcecypher.NewS3InternetExposureNodeWriter(exec, reader, batchSize)
-	rawEC2InstanceIdentityNode := sourcecypher.NewEC2InstanceIdentityNodeWriter(exec, reader, batchSize)
+	rawRDSPostureNode := rds.NewRDSPostureNodeWriter(exec, reader, batchSize)
+	rawEC2InternetExposureNode := ec2.NewEC2InternetExposureNodeWriter(exec, reader, batchSize)
+	rawEC2BlockDeviceKMSPostureNode := ec2.NewEC2BlockDeviceKMSPostureNodeWriter(exec, reader, batchSize)
+	rawS3InternetExposureNode := s3.NewS3InternetExposureNodeWriter(exec, reader, batchSize)
+	rawEC2InstanceIdentityNode := ec2.NewEC2InstanceIdentityNodeWriter(exec, reader, batchSize)
 	return canonicalGraphWriters{
 		cloudResourceNode:               graphowner.NewCloudResourceGatedWriter(ownerGate, rawCloudResourceNode.WriteCloudResourceNodes),
 		ec2InstanceNode:                 graphowner.NewEC2InstanceGatedWriter(ownerGate, rawEC2InstanceNode.WriteEC2InstanceNodes),
 		cloudResourceRetracter:          graphowner.NewCloudResourceRetracter(ownerGate, rawCloudResourceNode.RetractCloudResourceNodes),
 		ec2InstanceRetracter:            graphowner.NewEC2InstanceRetracter(ownerGate, rawEC2InstanceNode.RetractEC2InstanceNodes),
-		cloudResourceEdge:               sourcecypher.NewCloudResourceEdgeWriter(exec, batchSize),
-		cloudResourceContainerImageEdge: sourcecypher.NewCloudResourceContainerImageEdgeWriter(exec, batchSize),
-		gcpCloudResourceEdge:            sourcecypher.NewGCPCloudResourceEdgeWriter(exec, batchSize),
-		azureCloudResourceEdge:          sourcecypher.NewAzureCloudResourceEdgeWriter(exec, batchSize),
-		workloadCloudRelationshipEdge:   sourcecypher.NewWorkloadCloudRelationshipWriter(exec, batchSize),
+		cloudResourceEdge:               resource.NewCloudResourceEdgeWriter(exec, batchSize),
+		cloudResourceContainerImageEdge: image.NewCloudResourceContainerImageEdgeWriter(exec, batchSize),
+		gcpCloudResourceEdge:            gcprelationship.NewGCPCloudResourceEdgeWriter(exec, batchSize),
+		azureCloudResourceEdge:          azurerelationship.NewAzureCloudResourceEdgeWriter(exec, batchSize),
+		workloadCloudRelationshipEdge:   awsrelationship.NewWorkloadCloudRelationshipWriter(exec, batchSize),
 		kubernetesWorkloadNode:          graphowner.NewKubernetesWorkloadGatedWriter(ownerGate, rawKubernetesWorkloadNode.WriteKubernetesWorkloadNodes),
 		kubernetesNamespaceNode:         kubernetesNamespaceNode,
-		securityGroupEndpointNode:       sourcecypher.NewSecurityGroupEndpointNodeWriter(exec, batchSize),
-		securityGroupReachability:       sourcecypher.NewSecurityGroupReachabilityWriter(exec, batchSize),
+		securityGroupEndpointNode:       group.NewSecurityGroupEndpointNodeWriter(exec, batchSize),
+		securityGroupReachability:       group.NewSecurityGroupReachabilityWriter(exec, batchSize),
 		kubernetesCorrelationEdge:       sourcecypher.NewKubernetesCorrelationEdgeWriter(exec, batchSize),
 		crossplaneSatisfiedByEdge:       sourcecypher.NewCrossplaneSatisfiedByEdgeWriter(exec, batchSize),
-		iamEscalationEdge:               sourcecypher.NewIAMEscalationEdgeWriter(exec, batchSize),
-		iamCanPerformEdge:               sourcecypher.NewIAMCanPerformEdgeWriter(exec, batchSize),
+		iamEscalationEdge:               iam.NewIAMEscalationEdgeWriter(exec, batchSize),
+		iamCanPerformEdge:               iam.NewIAMCanPerformEdgeWriter(exec, batchSize),
 		observabilityCoverageEdge:       sourcecypher.NewObservabilityCoverageEdgeWriter(exec, batchSize),
 		incidentRoutingEvidence:         sourcecypher.NewIncidentRoutingEvidenceWriter(exec, batchSize),
 		codeTaintEvidence:               sourcecypher.NewCodeTaintEvidenceWriter(exec, batchSize),
 		codeInterprocEvidence:           sourcecypher.NewCodeInterprocEvidenceWriter(exec, batchSize),
-		iamCanAssumeEdge:                sourcecypher.NewIAMCanAssumeEdgeWriter(exec, batchSize),
-		s3LogsToEdge:                    sourcecypher.NewS3LogsToEdgeWriter(exec, batchSize),
-		s3ExternalPrincipalGrant:        sourcecypher.NewS3ExternalPrincipalGrantWriter(exec, batchSize),
+		iamCanAssumeEdge:                iam.NewIAMCanAssumeEdgeWriter(exec, batchSize),
+		s3LogsToEdge:                    s3.NewS3LogsToEdgeWriter(exec, batchSize),
+		s3ExternalPrincipalGrant:        s3.NewS3ExternalPrincipalGrantWriter(exec, batchSize),
 		rdsPostureNode: graphowner.NewRDSPostureLockedWriter(
 			lockGate, rawRDSPostureNode.WriteRDSPostureNodes, rawRDSPostureNode.RetractRDSPostureNodes,
 		),
-		ec2UsesProfileEdge:         sourcecypher.NewEC2UsesProfileEdgeWriter(exec, batchSize),
-		iamInstanceProfileRoleEdge: sourcecypher.NewIAMInstanceProfileRoleEdgeWriter(exec, batchSize),
+		ec2UsesProfileEdge:         ec2.NewEC2UsesProfileEdgeWriter(exec, batchSize),
+		iamInstanceProfileRoleEdge: iam.NewIAMInstanceProfileRoleEdgeWriter(exec, batchSize),
 		ec2InternetExposureNode: graphowner.NewEC2InternetExposureLockedWriter(
 			lockGate, rawEC2InternetExposureNode.WriteEC2InternetExposureNodes, rawEC2InternetExposureNode.RetractEC2InternetExposureNodes,
 		),
@@ -238,9 +248,9 @@ func newSearchKeyedCloudNodeWriters(
 	exec sourcecypher.Executor,
 	batchSize int,
 	searchKey search.Dialect,
-) (*sourcecypher.CloudResourceNodeWriter, *sourcecypher.EC2InstanceNodeWriter) {
-	return sourcecypher.NewCloudResourceNodeWriterWithDialect(exec, batchSize, searchKey),
-		sourcecypher.NewEC2InstanceNodeWriterWithDialect(exec, batchSize, searchKey)
+) (*resource.CloudResourceNodeWriter, *ec2.EC2InstanceNodeWriter) {
+	return resource.NewCloudResourceNodeWriterWithDialect(exec, batchSize, searchKey),
+		ec2.NewEC2InstanceNodeWriterWithDialect(exec, batchSize, searchKey)
 }
 
 // loadReducerGraphBackend loads the configured graph backend and the #7245

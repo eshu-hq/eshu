@@ -17,6 +17,7 @@ import (
 
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/resource"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/graph/owner"
 )
@@ -206,7 +207,7 @@ VALUES ($1, $2, $3, 'reducer_cloud_resource_identity', $4, 'aws', $4, $5, $5, $6
 	defer cleanup()
 
 	gate := NewGate(sqldb)
-	rawWriter := cypher.NewCloudResourceNodeWriter(&boltTestExecutor{driver: driver, database: cfg.DatabaseName}, 0)
+	rawWriter := resource.NewCloudResourceNodeWriter(&boltTestExecutor{driver: driver, database: cfg.DatabaseName}, 0)
 	retracter := NewCloudResourceRetracter(gate, rawWriter.RetractCloudResourceNodes)
 
 	// Candidates arrive unsorted on purpose: the gate sorts them.

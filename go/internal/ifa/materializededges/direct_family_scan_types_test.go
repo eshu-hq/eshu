@@ -60,12 +60,14 @@ func parseCypherPackageWithReducerPorts(
 	ports := map[string]struct{}{}
 	for _, tags := range cypherScanBuildTags {
 		// The canonical/node leaf holds a reducer-port implementation
-		// (node.Checker); the flux/inheritance leaves hold none, and their
-		// leaf-local helpers would collide with same-named root helpers in
-		// the merged key space, so only the node leaf is scanned.
+		// (node.Checker), as do the cloud writer leaves; the flux/inheritance
+		// leaves hold none, and their leaf-local helpers would collide with
+		// same-named root helpers in the merged key space, so only the node
+		// and cloud leaves are scanned.
 		patterns := []string{
 			"./internal/storage/cypher",
 			"./internal/storage/cypher/canonical/node",
+			"./internal/storage/cypher/cloud/...",
 			"./internal/storage/cypher/edge/...",
 			"./internal/reducer/...",
 		}
@@ -90,6 +92,7 @@ func parseCypherPackageWithReducerPorts(
 			switch {
 			case strings.HasSuffix(pkg.PkgPath, "/internal/storage/cypher"),
 				strings.HasSuffix(pkg.PkgPath, "/internal/storage/cypher/canonical/node"),
+				strings.Contains(pkg.PkgPath, "/internal/storage/cypher/cloud/"),
 				strings.Contains(pkg.PkgPath, "/internal/storage/cypher/edge/"):
 				cypherPackages = append(cypherPackages, pkg)
 			case strings.Contains(pkg.PkgPath, "/internal/reducer"):

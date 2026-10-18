@@ -32,8 +32,8 @@ run_ifa_determinism_teeth_cases() {
 	local teeth_reducer_on teeth_reducer_off teeth_cypher_on teeth_cypher_off f
 	teeth_reducer_on="${repo_root}/go/internal/reducer/gcp_resource_materialization_teeth.go"
 	teeth_reducer_off="${repo_root}/go/internal/reducer/gcp_resource_materialization_teeth_off.go"
-	teeth_cypher_on="${repo_root}/go/internal/storage/cypher/cloud_resource_node_writer_teeth.go"
-	teeth_cypher_off="${repo_root}/go/internal/storage/cypher/cloud_resource_node_writer_teeth_off.go"
+	teeth_cypher_on="${repo_root}/go/internal/storage/cypher/cloud/resource/node_writer_teeth.go"
+	teeth_cypher_off="${repo_root}/go/internal/storage/cypher/cloud/resource/node_writer_teeth_off.go"
 	for f in "${teeth_reducer_on}" "${teeth_reducer_off}" "${teeth_cypher_on}" "${teeth_cypher_off}"; do
 		[[ -f "${f}" ]] || fail "missing teeth build-tag file: ${f}"
 	done

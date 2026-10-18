@@ -34,7 +34,7 @@
 - **Exact-match graph joins break on case mismatch** — the USES edge uses
   exact string comparison in Cypher. Canonical normalization in the reducer
   and query layer fixes this for consumer-side comparisons, but the graph
-  join (go/internal/storage/cypher/workload_cloud_relationship_writer.go:22,25)
+  join (go/internal/storage/cypher/cloud/aws/relationship/workload_cloud_writer.go)
   remains a documented follow-on.
 
 ## Anti-patterns

@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/s3"
 )
 
 // s3ExternalPrincipalGrantBudgetRelPath is the committed cost budget for the
@@ -19,7 +20,7 @@ import (
 // family s3_external_principal_grant,
 // specs/fact-kind-registry.v1.yaml:295-305). Like the semantic-entity and
 // documentation-edges scenarios, this projection has no committed cassette:
-// cypher.S3ExternalPrincipalGrantWriter operates over flat map[string]any
+// s3.S3ExternalPrincipalGrantWriter operates over flat map[string]any
 // rows, not a CanonicalMaterialization, so the fixture rows live inline in
 // this file and the budget records that explicitly instead of pointing at a
 // cassette path.
@@ -58,7 +59,7 @@ func s3ExternalPrincipalGrantFixtureRows() []map[string]any {
 }
 
 // newInstrumentedS3ExternalPrincipalGrantWriter builds the production
-// cypher.S3ExternalPrincipalGrantWriter (constructed unwrapped at
+// s3.S3ExternalPrincipalGrantWriter (constructed unwrapped at
 // go/cmd/reducer/canonical_graph_writers.go:76 — no owner-ledger/lock-only
 // gate wraps this writer, unlike EC2/RDS/S3-internet-exposure), wired over a
 // groupCountingExecutor wrapped by the production
@@ -71,7 +72,7 @@ func s3ExternalPrincipalGrantFixtureRows() []map[string]any {
 // per statement carrying a "rows" parameter) — the PRIMARY instrument this
 // scenario asserts, not a hand-counted statement slice.
 func newInstrumentedS3ExternalPrincipalGrantWriter(t *testing.T) (
-	writer *cypher.S3ExternalPrincipalGrantWriter,
+	writer *s3.S3ExternalPrincipalGrantWriter,
 	exec *groupCountingExecutor,
 	reader *sdkmetric.ManualReader,
 ) {
@@ -80,7 +81,7 @@ func newInstrumentedS3ExternalPrincipalGrantWriter(t *testing.T) (
 	inst, manualReader := newManualReaderInstruments(t)
 	exec = &groupCountingExecutor{}
 	instrumented := &cypher.InstrumentedExecutor{Inner: exec, Instruments: inst}
-	writer = cypher.NewS3ExternalPrincipalGrantWriter(instrumented, 500)
+	writer = s3.NewS3ExternalPrincipalGrantWriter(instrumented, 500)
 	return writer, exec, manualReader
 }
 
@@ -89,7 +90,7 @@ func newInstrumentedS3ExternalPrincipalGrantWriter(t *testing.T) (
 // reducer projection (the s3_external_principal_grant family in
 // specs/fact-kind-registry.v1.yaml, C-14 issue #4367). It drives the
 // production
-// cypher.S3ExternalPrincipalGrantWriter.WriteS3ExternalPrincipalGrants over
+// s3.S3ExternalPrincipalGrantWriter.WriteS3ExternalPrincipalGrants over
 // two deterministic rows through a real InstrumentedExecutor-backed
 // sdkmetric.ManualReader, then asserts eshu_dp_neo4j_batches_executed_total is
 // within the committed budget.

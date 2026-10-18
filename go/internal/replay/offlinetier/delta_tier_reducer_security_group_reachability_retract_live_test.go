@@ -29,7 +29,7 @@
 // this pinned version; only the dispatch-through-ExecuteGroup path was broken.
 //
 // The test drives the REAL production writer construction and methods
-// (cypher.NewSecurityGroupReachabilityWriter.WriteSecurityGroupRuleNodes /
+// (group.NewSecurityGroupReachabilityWriter.WriteSecurityGroupRuleNodes /
 // WriteSecurityGroupSGRuleEdges / WriteSecurityGroupRuleEndpointEdges /
 // RetractSecurityGroupReachability) against liveExecutor (a GroupExecutor,
 // mirroring production's reducerNeo4jExecutor), with an out-of-scope survivor
@@ -46,6 +46,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/security/group"
 )
 
 const (
@@ -90,7 +91,7 @@ func TestReducerSecurityGroupReachabilityEdgeRetractGraphTruth(t *testing.T) {
 
 	seedSecurityGroupReachabilityNodes(ctx, t, exec)
 
-	writer := cypher.NewSecurityGroupReachabilityWriter(exec, 0)
+	writer := group.NewSecurityGroupReachabilityWriter(exec, 0)
 
 	// Rule nodes are not scope-stamped; write every rule for both scopes in one
 	// call, mirroring the production handler's write-nodes-before-edges order.

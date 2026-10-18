@@ -88,7 +88,7 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 				StoreType:  "IAMGrantPostureStore",
 				Evidence: []routeReadEvidence{
 					{File: "go/internal/query/secrets/grant_posture.go", Marker: "MATCH (:CloudResource)-[rel:GRANTS_ACCESS_TO]->(:ExternalPrincipal)"},
-					{File: "go/internal/storage/cypher/s3_external_principal_grant_writer.go", Marker: "GRANTS_ACCESS_TO"},
+					{File: "go/internal/storage/cypher/cloud/aws/s3/external_principal_grant_writer.go", Marker: "GRANTS_ACCESS_TO"},
 				},
 			},
 		},

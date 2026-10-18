@@ -158,7 +158,7 @@ func (w *IncidentRoutingEvidenceWriter) WriteIncidentRoutingEvidence(
 		if err != nil {
 			return err
 		}
-		cloned := cloneRowWith(row, map[string]any{
+		cloned := CloneRowWith(row, map[string]any{
 			"scope_id":        scopeID,
 			"generation_id":   generationID,
 			"evidence_source": evidenceSource,
@@ -225,7 +225,7 @@ func (w *IncidentRoutingEvidenceWriter) RetractIncidentRoutingEvidence(
 }
 
 func validateIncidentRoutingSlot(row map[string]any) (string, error) {
-	return validateStaticGraphToken(row, "slot", incidentRoutingSlotVocabulary, "incident routing slot")
+	return ValidateStaticGraphToken(row, "slot", incidentRoutingSlotVocabulary, "incident routing slot")
 }
 
 func (w *IncidentRoutingEvidenceWriter) dispatch(ctx context.Context, stmts []Statement) error {

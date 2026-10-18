@@ -40,6 +40,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/ec2"
+	awsrelationship "github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/relationship"
 )
 
 const (
@@ -87,8 +89,8 @@ func TestReducerWorkloadUsesEdgeRetractGraphTruth(t *testing.T) {
 
 	seedWorkloadUsesNodes(ctx, t, exec)
 
-	profileWriter := cypher.NewEC2UsesProfileEdgeWriter(exec, 0)
-	usesWriter := cypher.NewWorkloadCloudRelationshipWriter(exec, 0)
+	profileWriter := ec2.NewEC2UsesProfileEdgeWriter(exec, 0)
+	usesWriter := awsrelationship.NewWorkloadCloudRelationshipWriter(exec, 0)
 
 	if err := profileWriter.WriteEC2UsesProfileEdges(ctx, []map[string]any{
 		{"source_uid": wuEc2In, "target_uid": wuProfileIn, "relationship_type": "USES_PROFILE", "resolution_mode": "arn"},

@@ -22,7 +22,7 @@ it is mechanically identical to constructing any other unwired `cypher.*Writer`
 type in a unit or live test. This is not production activation, and it does
 not change any default. It mirrors the pre-existing ADR #1314 Section 11
 writer-level conformance proof
-(`go/internal/storage/cypher/secrets_iam_graph_live_test.go`,
+(`go/internal/storage/cypher/cloud/aws/iam/secrets_graph_live_test.go`,
 `TestSecretsIAMGraphWriterLiveConformance`, gated on a separate
 `ESHU_SECRETS_IAM_GRAPH_LIVE` env var), which this slice's offlinetier-package
 test complements rather than duplicates: the existing test proves full

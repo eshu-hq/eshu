@@ -12,13 +12,14 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/s3"
 )
 
 // s3InternetExposureBudgetRelPath is the committed cost budget for the
 // s3_internet_exposure_materialization scenario (fact-kind-registry family
 // s3_bucket_posture, specs/fact-kind-registry.v1.yaml:284-294). Like the
 // semantic-entity and documentation-edges scenarios, this projection has no
-// committed cassette: cypher.S3InternetExposureNodeWriter operates over flat
+// committed cassette: s3.S3InternetExposureNodeWriter operates over flat
 // map[string]any rows, not a CanonicalMaterialization, so the fixture rows
 // live inline in this file and the budget records that explicitly instead of
 // pointing at a cassette path.
@@ -48,7 +49,7 @@ func s3InternetExposureFixtureRows() []map[string]any {
 }
 
 // newInstrumentedS3InternetExposureNodeWriter builds the production
-// cypher.S3InternetExposureNodeWriter (the writer
+// s3.S3InternetExposureNodeWriter (the writer
 // graphowner.NewS3InternetExposureLockedWriter wraps at
 // go/cmd/reducer/canonical_graph_writers.go:56/88-90 — the #5062 lock-only
 // gate serializes the SAME inner WriteS3InternetExposureNodes call under a
@@ -64,7 +65,7 @@ func s3InternetExposureFixtureRows() []map[string]any {
 // per statement carrying a "rows" parameter) — the PRIMARY instrument this
 // scenario asserts, not a hand-counted statement slice.
 func newInstrumentedS3InternetExposureNodeWriter(t *testing.T) (
-	writer *cypher.S3InternetExposureNodeWriter,
+	writer *s3.S3InternetExposureNodeWriter,
 	exec *groupCountingExecutor,
 	reader *sdkmetric.ManualReader,
 ) {
@@ -73,7 +74,7 @@ func newInstrumentedS3InternetExposureNodeWriter(t *testing.T) (
 	inst, manualReader := newManualReaderInstruments(t)
 	exec = &groupCountingExecutor{}
 	instrumented := &cypher.InstrumentedExecutor{Inner: exec, Instruments: inst}
-	writer = cypher.NewS3InternetExposureNodeWriter(instrumented, echoAllExistenceReader{}, 500)
+	writer = s3.NewS3InternetExposureNodeWriter(instrumented, echoAllExistenceReader{}, 500)
 	return writer, exec, manualReader
 }
 
@@ -81,7 +82,7 @@ func newInstrumentedS3InternetExposureNodeWriter(t *testing.T) (
 // cost-counting gate for the s3_internet_exposure_materialization reducer
 // projection (the s3_bucket_posture family in
 // specs/fact-kind-registry.v1.yaml, C-14 issue #4367). It drives the
-// production cypher.S3InternetExposureNodeWriter.WriteS3InternetExposureNodes
+// production s3.S3InternetExposureNodeWriter.WriteS3InternetExposureNodes
 // over two deterministic rows through a real InstrumentedExecutor-backed
 // sdkmetric.ManualReader, then asserts eshu_dp_neo4j_batches_executed_total is
 // within the committed budget.

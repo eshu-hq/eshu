@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/iam"
 )
 
 // secretsIAMGraphBudgetRelPath is the committed cost budget for the
@@ -19,7 +20,7 @@ import (
 // specs/fact-kind-registry.v1.yaml:336-339, reducer_domain
 // secrets_iam_trust_chain). Like the semantic-entity and documentation-edges
 // scenarios, this projection has no committed cassette:
-// cypher.SecretsIAMGraphWriter operates over flat map[string]any rows, not a
+// iam.SecretsIAMGraphWriter operates over flat map[string]any rows, not a
 // CanonicalMaterialization, so the fixture rows live inline in this file and
 // the budget records that explicitly instead of pointing at a cassette path.
 var secretsIAMGraphBudgetRelPath = filepath.Join(
@@ -50,16 +51,16 @@ func secretsIAMServiceAccountFixtureRows() []map[string]any {
 }
 
 // newInstrumentedSecretsIAMGraphWriter builds the production
-// cypher.SecretsIAMGraphWriter using the SAME unwrapped constructor
+// iam.SecretsIAMGraphWriter using the SAME unwrapped constructor
 // production wiring calls
 // (go/cmd/reducer/secrets_iam_graph_wiring.go:63
-// secretsIAMGraphProjectionWriter -> sourcecypher.NewSecretsIAMGraphWriter(executor,
+// secretsIAMGraphProjectionWriter -> sourceiam.NewSecretsIAMGraphWriter(executor,
 // batchSize)), wired over a groupCountingExecutor wrapped by the production
 // cypher.InstrumentedExecutor — the same wrapper
 // go/cmd/reducer/observed_service_wiring.go buildObservedReducerService
 // applies to neo4jExecutor before threading it into buildReducerService as
 // neo4jExec, which secrets_iam_graph_wiring.go then receives as its executor
-// parameter. Driving cypher.SecretsIAMGraphWriter directly at the writer
+// parameter. Driving iam.SecretsIAMGraphWriter directly at the writer
 // level, never enabling ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED or
 // touching cmd/reducer's domain registry, is the established precedent for
 // this ADR #1314-governed writer (see
@@ -71,7 +72,7 @@ func secretsIAMServiceAccountFixtureRows() []map[string]any {
 // per statement carrying a "rows" parameter) — the PRIMARY instrument this
 // scenario asserts, not a hand-counted statement slice.
 func newInstrumentedSecretsIAMGraphWriter(t *testing.T) (
-	writer *cypher.SecretsIAMGraphWriter,
+	writer *iam.SecretsIAMGraphWriter,
 	exec *groupCountingExecutor,
 	reader *sdkmetric.ManualReader,
 ) {
@@ -80,14 +81,14 @@ func newInstrumentedSecretsIAMGraphWriter(t *testing.T) (
 	inst, manualReader := newManualReaderInstruments(t)
 	exec = &groupCountingExecutor{}
 	instrumented := &cypher.InstrumentedExecutor{Inner: exec, Instruments: inst}
-	writer = cypher.NewSecretsIAMGraphWriter(instrumented, 500)
+	writer = iam.NewSecretsIAMGraphWriter(instrumented, 500)
 	return writer, exec, manualReader
 }
 
 // TestCostBudget_SecretsIAMTrustChain is the positive cost-counting gate for
 // the secrets_iam_trust_chain reducer projection (the secrets_iam family in
 // specs/fact-kind-registry.v1.yaml, C-14 issue #4367). It drives the
-// production cypher.SecretsIAMGraphWriter.WriteServiceAccountNodes over two
+// production iam.SecretsIAMGraphWriter.WriteServiceAccountNodes over two
 // deterministic rows through a real InstrumentedExecutor-backed
 // sdkmetric.ManualReader, then asserts eshu_dp_neo4j_batches_executed_total is
 // within the committed budget.

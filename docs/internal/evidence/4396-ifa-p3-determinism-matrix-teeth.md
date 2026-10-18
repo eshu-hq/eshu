@@ -23,7 +23,7 @@ ever leaks into the default Cypher constant.
 Only `go build -tags ifadeterminismteeth ./cmd/reducer` links the real stamp
 (`gcp_resource_materialization_teeth.go`), which now writes TWO properties per
 row, persisted by matching build-tag-gated Cypher SET clauses in
-`go/internal/storage/cypher/cloud_resource_node_writer_teeth.go`:
+`go/internal/storage/cypher/cloud/resource/node_writer_teeth.go`:
 
 - `ifa_teeth_seq` — a process-global monotonic sequence number
   (`ifaTeethSequenceCounter`), incremented once per `CloudResource` row this

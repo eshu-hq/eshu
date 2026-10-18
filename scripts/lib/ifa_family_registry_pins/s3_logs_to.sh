@@ -24,7 +24,7 @@ IFA_FAMILY_PIN_WAIT_STAGE="handler"
 # (go/internal/reducer/s3logsto/s3_logs_to_materialization.go:34).
 IFA_FAMILY_PIN_WAIT_KEY="s3_logs_to_materialization"
 
-# go/internal/storage/cypher/s3_logs_to_edge_writer.go:43 reads
+# go/internal/storage/cypher/cloud/aws/s3/logs_to_edge_writer.go:45 reads
 # `MERGE (source)-[rel:%s]->(target)`. The anchor is matched against EXECUTED
 # statement text, so it carries the filled form: the one %s is substituted
 # per row from s3LogsToRelationshipVocabulary, a closed single-member

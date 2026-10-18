@@ -21,7 +21,7 @@ type GraphExistenceLookup struct {
 }
 
 // existingAnchorsCypher mirrors the endpoint MATCH of the USES writer
-// (internal/storage/cypher/workload_cloud_relationship_writer.go), so "ready"
+// (internal/storage/cypher/cloud/aws/relationship/workload_cloud_writer.go), so "ready"
 // means exactly "the writer's MATCH will bind". It is a read-only UNWIND whose
 // RETURN aliases differ from the UNWIND binding, per the NornicDB
 // variable-shadowing pitfall.

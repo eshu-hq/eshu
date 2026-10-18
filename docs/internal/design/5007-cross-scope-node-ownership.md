@@ -60,7 +60,7 @@ scope-derived single-value properties are last-writer-wins by commit order:
   flat `SET` of 22 properties, including `source_fact_id`,
   `stable_fact_key`, `source_system`, `source_record_id`,
   `source_confidence`, `collector_kind`, and `evidence_source`
-  (`go/internal/storage/cypher/cloud_resource_node_writer.go:21-46`; the
+  (`go/internal/storage/cypher/cloud/resource/node_writer.go`; the
   executed statement is the same constant plus the teeth no-op,
   `cloud_resource_node_writer.go:56`).
 - The GCP row builder stamps the writing fact's envelope metadata into those
@@ -171,7 +171,7 @@ classification for the AWS domain rests on "idempotent by CloudResource uid
 and has no scope-wide retract"
 (`reducer_queue_conflict.go:66`); prior-generation retraction is an
 edge-level mechanism filtered by `scope_id` + `evidence_source`
-(`go/internal/storage/cypher/cloud_resource_edge_writer.go:44`, `:68`) over
+(`go/internal/storage/cypher/cloud/resource/edge_writer.go`, `:68`) over
 the projected source ledger
 (`go/internal/reducer/projected_source_ledger.go:11-57`). A shared node
 survives either scope's re-ingestion; only its property values are
@@ -855,7 +855,7 @@ shape returns. B-7/B-12 gates still run as proof (expected no-diff), and
 ### Follow-on work if adopted
 
 1. Write-path enforcement (Stage 1):
-   `go/internal/storage/cypher/cloud_resource_node_writer.go` (+ the teeth
+   `go/internal/storage/cypher/cloud/resource/node_writer.go` (+ the teeth
    pair, whose constant-concat structure must survive,
    `cloud_resource_node_writer.go:48-56`), order-key stamping in
    `go/internal/reducer/{aws,gcp,azure}_resource_materialization.go`;

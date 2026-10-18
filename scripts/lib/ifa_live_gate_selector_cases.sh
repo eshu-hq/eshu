@@ -183,8 +183,8 @@ ifa_live_gate_common_seams=(
 	'go/internal/reducer/**|go/internal/reducer/defaults_additive_domains.go'
 	'go/internal/reducer/**|go/internal/reducer/defaults_additive_domains_cloud_nodes.go'
 	'go/internal/reducer/**|go/internal/reducer/defaults_additive_domains_gcp.go'
-	'go/internal/storage/cypher/cloud_resource_node_writer.go|go/internal/storage/cypher/cloud_resource_node_writer.go'
-	'go/internal/storage/cypher/cloud_resource_node_writer_teeth_off.go|go/internal/storage/cypher/cloud_resource_node_writer_teeth_off.go'
+	'go/internal/storage/cypher/cloud/resource/node_writer.go|go/internal/storage/cypher/cloud/resource/node_writer.go'
+	'go/internal/storage/cypher/cloud/resource/node_writer_teeth_off.go|go/internal/storage/cypher/cloud/resource/node_writer_teeth_off.go'
 	'docker-compose.yaml|docker-compose.yaml'
 	'testdata/cassettes/gcpcloud/supply-chain-demo.json|testdata/cassettes/gcpcloud/supply-chain-demo.json'
 	'testdata/golden/e2e-20repo-snapshot.json|testdata/golden/e2e-20repo-snapshot.json'
@@ -418,9 +418,9 @@ ifa_live_gate_common_seams=(
 	# iam_can_assume and ec2_uses_profile join them with the #6228 fault
 	# halves: same move, same reason.
 	'go/internal/storage/cypher/kubernetes_namespace_node_writer.go|go/internal/storage/cypher/kubernetes_namespace_node_writer.go'
-	'go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go|go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go'
-	'go/internal/storage/cypher/iam_can_assume_edge_writer.go|go/internal/storage/cypher/iam_can_assume_edge_writer.go'
-	'go/internal/storage/cypher/ec2_uses_profile_edge_writer.go|go/internal/storage/cypher/ec2_uses_profile_edge_writer.go'
+	'go/internal/storage/cypher/cloud/aws/iam/instance_profile_role_edge_writer.go|go/internal/storage/cypher/cloud/aws/iam/instance_profile_role_edge_writer.go'
+	'go/internal/storage/cypher/cloud/aws/iam/can_assume_edge_writer.go|go/internal/storage/cypher/cloud/aws/iam/can_assume_edge_writer.go'
+	'go/internal/storage/cypher/cloud/aws/ec2/uses_profile_edge_writer.go|go/internal/storage/cypher/cloud/aws/ec2/uses_profile_edge_writer.go'
 	'testdata/cassettes/kubernetesnamespaceenvironment/**|testdata/cassettes/kubernetesnamespaceenvironment/ifa-kubernetes-namespace-environment-family.json'
 	'testdata/cassettes/iaminstanceprofilerole/**|testdata/cassettes/iaminstanceprofilerole/ifa-iam-instance-profile-role-family.json'
 	'testdata/cassettes/iamcanassume/**|testdata/cassettes/iamcanassume/ifa-iam-can-assume-family.json'
@@ -435,7 +435,7 @@ ifa_live_gate_common_seams=(
 	# iam_can_perform (#6228 fault half): cassette and expected-edge set
 	# moved here from the determinism-only table when the fault cells
 	# landed; writer and cells are new common seams beside the siblings.
-	'go/internal/storage/cypher/iam_can_perform_edge_writer.go|go/internal/storage/cypher/iam_can_perform_edge_writer.go'
+	'go/internal/storage/cypher/cloud/aws/iam/can_perform_edge_writer.go|go/internal/storage/cypher/cloud/aws/iam/can_perform_edge_writer.go'
 	'testdata/cassettes/iamcanperform/**|testdata/cassettes/iamcanperform/ifa-iam-can-perform-family.json'
 	'go/internal/ifa/testdata/iamcanperform/**|go/internal/ifa/testdata/iamcanperform/ifa-iam-can-perform-family-expected-edges.json'
 	'scripts/lib/ifa_fault_injection_iam_can_perform_cells.sh|scripts/lib/ifa_fault_injection_iam_can_perform_cells.sh'

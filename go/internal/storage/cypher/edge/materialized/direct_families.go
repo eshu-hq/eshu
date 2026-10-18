@@ -5,6 +5,7 @@ package materialized
 
 import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/security/group"
 )
 
 // multiTypeDirectMaterializedEdgeFamilies indexes the direct-materialization
@@ -65,14 +66,14 @@ var multiTypeDirectMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	// single-type retract and is not covered here.
 	"security_group_sg_rule": {
 		EdgeTypes: map[string]string{
-			"ALLOWS_INGRESS": "ingress direction edge (SecurityGroupReachabilityWriter in security_group_reachability_edge_writer.go)",
-			"ALLOWS_EGRESS":  "egress direction edge (SecurityGroupReachabilityWriter in security_group_reachability_edge_writer.go)",
+			"ALLOWS_INGRESS": "ingress direction edge (SecurityGroupReachabilityWriter in cloud/aws/security/group/security_reachability_edge_writer.go)",
+			"ALLOWS_EGRESS":  "egress direction edge (SecurityGroupReachabilityWriter in cloud/aws/security/group/security_reachability_edge_writer.go)",
 		},
-		RetractCypher: sourcecypher.RetractSecurityGroupSGRuleEdgesCypher,
+		RetractCypher: group.RetractSecurityGroupSGRuleEdgesCypher,
 		RetractVariants: []string{
-			sourcecypher.RetractSecurityGroupSGRuleEdgesByUIDsCypher,
+			group.RetractSecurityGroupSGRuleEdgesByUIDsCypher,
 		},
-		IdentityCypher: sourcecypher.CanonicalSecurityGroupSGRuleEdgeUpsertCypherFormat,
+		IdentityCypher: group.CanonicalSecurityGroupSGRuleEdgeUpsertCypherFormat,
 	},
 }
 

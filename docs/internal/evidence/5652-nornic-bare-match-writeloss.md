@@ -75,7 +75,7 @@ gained a `PostureExistenceReader` parameter, wired in
 reducer's existing `query.GraphQuery` graph-read port (`graphReader`).
 
 Live proof of the shipped code (not a throwaway harness):
-`go/internal/storage/cypher/posture_node_writers_live_test.go`,
+`go/internal/storage/cypher/cloud/aws/ec2/posture_node_writers_live_test.go`,
 `TestLivePostureNodeWritersPersistAndNeverCreate` (gate:
 `ESHU_CYPHER_BOLT_DSN`). For each of the four writers it seeds one existing
 `CloudResource`, leaves a second uid absent, drives the real production

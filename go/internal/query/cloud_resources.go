@@ -283,7 +283,7 @@ func hydrateCloudResourcePage(
 // some nodes; that placeholder is dropped so the API never surfaces it.
 //
 // Rollout-window mask, not a permanent fixture: issue #5714/#5055 fixed the
-// writer (go/internal/storage/cypher/cloud_resource_node_writer.go) so no
+// writer (go/internal/storage/cypher/cloud/resource/node_writer.go) so no
 // FUTURE write can produce this literal, but a node written before that fix
 // deployed only self-heals on its next materialization (see this repo's
 // docs/internal/evidence/5714-cloudresource-row-key-defaults.md, "Data

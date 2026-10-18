@@ -35,13 +35,13 @@
       ]
     },
     "go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go": {
-      "sha256": "2bc9bdb1a1c92e53671105ef22c1b7cdf5fcf98dd7b0627e225552466cd2d629",
+      "sha256": "612b05156f50d21990d029a548bdc2b79c3ae22fdf51d049099bcdcfd45b4c8a",
       "tests": [
         "TestReducerCloudEdgeRetractGraphTruth"
       ]
     },
     "go/internal/replay/offlinetier/delta_tier_reducer_cloud_image_edge_retract_live_test.go": {
-      "sha256": "153787861f9abca14415de916dfb0053985e3a70327b951e158530cfd4980dd6",
+      "sha256": "63e143798548ca2c399b9718c6090b71c5e4ad8ea9adefb54e2af6190223c7db",
       "tests": [
         "TestReducerAWSCloudImageEdgeRetractGraphTruth"
       ]
@@ -60,7 +60,7 @@
       ]
     },
     "go/internal/replay/offlinetier/delta_tier_reducer_iam_edge_retract_live_test.go": {
-      "sha256": "13113c6b8ae350700498971e673f11ef7d5b7ac749be02115de66522fcfcdc15",
+      "sha256": "4b8740e27178268b2aacde8f763d7eff2c80afc4d31701493da66175798ea99e",
       "tests": [
         "TestReducerIAMEdgeRetractGraphTruth"
       ]
@@ -108,13 +108,13 @@
       ]
     },
     "go/internal/replay/offlinetier/delta_tier_reducer_secrets_iam_edge_retract_live_test.go": {
-      "sha256": "8e3ffbe0d6638330b115b0e16d10f504e21ca32e6fe192c596cb2c228b75bffe",
+      "sha256": "a436ccb7f081302690e800676db726038571de461313a2dc9d2e48dc17c20ee0",
       "tests": [
         "TestReducerSecretsIAMEdgeRetractGraphTruth"
       ]
     },
     "go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go": {
-      "sha256": "a26ddb44aa92076a3bc8bc8e8496825e47c80d1bb985da3353d57ec6958c1419",
+      "sha256": "7bb2f81ef21c37a63cb49b54b3fffeab78b76525f11d680b6242a3d9eefbc202",
       "tests": [
         "TestReducerSecurityGroupReachabilityEdgeRetractGraphTruth"
       ]
@@ -132,7 +132,7 @@
       ]
     },
     "go/internal/replay/offlinetier/delta_tier_reducer_workload_uses_edge_retract_live_test.go": {
-      "sha256": "63f09ae872980ad4727fa2d701630a2f694136b79b63f1b868a88f54e260b801",
+      "sha256": "a15e0a52a5193267225794ffb79e5aed51dc1ee21ffffbaba113fed36ba3178f",
       "tests": [
         "TestReducerWorkloadUsesEdgeRetractGraphTruth"
       ]

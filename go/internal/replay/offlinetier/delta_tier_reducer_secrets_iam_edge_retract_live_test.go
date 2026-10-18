@@ -11,11 +11,11 @@
 // (go/cmd/reducer/secrets_iam_graph_wiring.go:
 // secretsIAMGraphProjectionWriter returns a nil writer, so
 // DomainSecretsIAMGraphProjection never registers, unless the flag is set) --
-// it does not gate the cypher.SecretsIAMGraphWriter type itself, which has no
+// it does not gate the iam.SecretsIAMGraphWriter type itself, which has no
 // awareness of the flag or of cmd/reducer. This test drives
-// cypher.NewSecretsIAMGraphWriter directly (the same writer-level pattern as
+// iam.NewSecretsIAMGraphWriter directly (the same writer-level pattern as
 // the pre-existing ADR #1314 Section 11 conformance proof,
-// go/internal/storage/cypher/secrets_iam_graph_live_test.go), never touches
+// go/internal/storage/cypher/cloud/aws/iam/secrets_graph_live_test.go), never touches
 // cmd/reducer's intent dispatch or domain registry, and asserts no flag or
 // default changes. This is NOT production activation.
 //
@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/iam"
 )
 
 const (
@@ -72,7 +73,7 @@ func TestReducerSecretsIAMEdgeRetractGraphTruth(t *testing.T) {
 
 	seedSecretsIAMEdgeNodes(ctx, t, exec)
 
-	writer := cypher.NewSecretsIAMGraphWriter(exec, 0)
+	writer := iam.NewSecretsIAMGraphWriter(exec, 0)
 
 	// --- Write in-scope and out-of-scope ServiceAccount nodes + edges. ---
 	if err := writer.WriteServiceAccountNodes(ctx, []map[string]any{{

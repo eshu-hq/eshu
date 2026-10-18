@@ -78,10 +78,10 @@ recorded. Cite each against its source.
   (`go/internal/reducer/secretsiam/secrets_iam_graph_projection_fixture_truth_test.go`).
 - **§12 writer benchmark recorded** — `BenchmarkSecretsIAMGraphWriter` proves
   the UNWIND-batched, uid-anchored write shape with no per-edge reads
-  (`go/internal/storage/cypher/secrets_iam_graph_writer_bench_test.go`).
+  (`go/internal/storage/cypher/cloud/aws/iam/secrets_graph_writer_bench_test.go`).
 - **Backend conformance proven on both backends** — NornicDB and Neo4j both
   passed `TestSecretsIAMGraphWriterLiveConformance`
-  (`go/internal/storage/cypher/secrets_iam_graph_live_test.go`) and the shared
+  (`go/internal/storage/cypher/cloud/aws/iam/secrets_graph_live_test.go`) and the shared
   backend conformance script.
 - **Schema readback confirmed** — the four `SecretsIAM*` uid constraints plus
   scope indexes are present after bootstrap (proof snapshot).

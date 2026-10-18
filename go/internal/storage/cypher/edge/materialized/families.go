@@ -9,6 +9,10 @@ import (
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/ec2"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/iam"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/relationship"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/s3"
 )
 
 // Materialized-edge family registry for the Ifá exhaustiveness gates (#5543).
@@ -223,8 +227,8 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	// whether or not the %s has been substituted.
 	"iam_instance_profile_role": {
 		EdgeTypes:      map[string]string{"HAS_ROLE": "IAM instance-profile to role attachment (CanonicalIAMInstanceProfileRoleEdgeUpsertCypherFormat)"},
-		RetractCypher:  sourcecypher.RetractIAMInstanceProfileRoleEdgesCypher,
-		IdentityCypher: sourcecypher.CanonicalIAMInstanceProfileRoleEdgeUpsertCypherFormat,
+		RetractCypher:  iam.RetractIAMInstanceProfileRoleEdgesCypher,
+		IdentityCypher: iam.CanonicalIAMInstanceProfileRoleEdgeUpsertCypherFormat,
 	},
 	// workload_cloud_relationship follows the same single-vocabulary shape:
 	// IdentityCypher holds the %s FORMAT const unformatted, and the token
@@ -240,8 +244,8 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	// one level below the port name.
 	"workload_cloud_relationship": {
 		EdgeTypes:      map[string]string{"USES": "workload-instance to cloud-resource attachment (WorkloadCloudRelationshipUpsertCypherFormat)"},
-		RetractCypher:  sourcecypher.RetractWorkloadCloudRelationshipEdgesCypher,
-		IdentityCypher: sourcecypher.WorkloadCloudRelationshipUpsertCypherFormat,
+		RetractCypher:  relationship.RetractWorkloadCloudRelationshipEdgesCypher,
+		IdentityCypher: relationship.WorkloadCloudRelationshipUpsertCypherFormat,
 	},
 	// iam_can_assume follows the same single-vocabulary shape as the two
 	// entries above it: IdentityCypher holds the %s FORMAT const unformatted,
@@ -256,8 +260,8 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	// trap both entries above document at one level below the port name.
 	"iam_can_assume": {
 		EdgeTypes:      map[string]string{"CAN_ASSUME": "assuming-principal to role trust attachment (CanonicalIAMCanAssumeEdgeUpsertCypherFormat)"},
-		RetractCypher:  sourcecypher.RetractIAMCanAssumeEdgesCypher,
-		IdentityCypher: sourcecypher.CanonicalIAMCanAssumeEdgeUpsertCypherFormat,
+		RetractCypher:  iam.RetractIAMCanAssumeEdgesCypher,
+		IdentityCypher: iam.CanonicalIAMCanAssumeEdgeUpsertCypherFormat,
 	},
 	// iam_can_perform follows the same single-vocabulary shape as the three
 	// entries above it, minus the %s: CanonicalIAMCanPerformEdgeUpsertCypher
@@ -272,8 +276,8 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	// template, never derived from the port or family name.
 	"iam_can_perform": {
 		EdgeTypes:      map[string]string{"CAN_PERFORM": "principal to resource effective-permission attachment (CanonicalIAMCanPerformEdgeUpsertCypher)"},
-		RetractCypher:  sourcecypher.RetractIAMCanPerformEdgesCypher,
-		IdentityCypher: sourcecypher.CanonicalIAMCanPerformEdgeUpsertCypher,
+		RetractCypher:  iam.RetractIAMCanPerformEdgesCypher,
+		IdentityCypher: iam.CanonicalIAMCanPerformEdgeUpsertCypher,
 	},
 	// iam_escalation follows the same static-token shape as iam_can_perform:
 	// CanonicalIAMEscalationEdgeUpsertCypher bakes the static
@@ -289,8 +293,8 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	// port or family name.
 	"iam_escalation": {
 		EdgeTypes:      map[string]string{"CAN_ESCALATE_TO": "principal to target privilege-escalation attachment (CanonicalIAMEscalationEdgeUpsertCypher)"},
-		RetractCypher:  sourcecypher.RetractIAMEscalationEdgesCypher,
-		IdentityCypher: sourcecypher.CanonicalIAMEscalationEdgeUpsertCypher,
+		RetractCypher:  iam.RetractIAMEscalationEdgesCypher,
+		IdentityCypher: iam.CanonicalIAMEscalationEdgeUpsertCypher,
 	},
 	// ec2_uses_profile follows the same single-vocabulary shape as
 	// iam_instance_profile_role: IdentityCypher holds the %s FORMAT const
@@ -307,8 +311,8 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	// below the port name.
 	"ec2_uses_profile": {
 		EdgeTypes:      map[string]string{"USES_PROFILE": "EC2-instance to IAM instance-profile attachment (CanonicalEC2UsesProfileEdgeUpsertCypherFormat)"},
-		RetractCypher:  sourcecypher.RetractEC2UsesProfileEdgesCypher,
-		IdentityCypher: sourcecypher.CanonicalEC2UsesProfileEdgeUpsertCypherFormat,
+		RetractCypher:  ec2.RetractEC2UsesProfileEdgesCypher,
+		IdentityCypher: ec2.CanonicalEC2UsesProfileEdgeUpsertCypherFormat,
 	},
 	// s3_logs_to follows the same single-vocabulary shape as
 	// iam_instance_profile_role: IdentityCypher holds the %s FORMAT const
@@ -324,8 +328,8 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	// name.
 	"s3_logs_to": {
 		EdgeTypes:      map[string]string{"LOGS_TO": "S3-bucket to log-bucket delivery attachment (CanonicalS3LogsToEdgeUpsertCypherFormat)"},
-		RetractCypher:  sourcecypher.RetractS3LogsToEdgesCypher,
-		IdentityCypher: sourcecypher.CanonicalS3LogsToEdgeUpsertCypherFormat,
+		RetractCypher:  s3.RetractS3LogsToEdgesCypher,
+		IdentityCypher: s3.CanonicalS3LogsToEdgeUpsertCypherFormat,
 	},
 	// kubernetes_correlation follows the same single-vocabulary shape as
 	// s3_logs_to with one fewer substitution: IdentityCypher holds the %s
