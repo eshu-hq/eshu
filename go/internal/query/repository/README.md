@@ -10,7 +10,7 @@ served through the same handler, the entity-semantics shaping the story
 reads share with the entity layer, and the deployment/config/workflow
 evidence shaping behind the story responses. The `Handler` struct
 keeps its `Neo4j`, `Content`, `CICDRunCorrelations`,
-`ServiceCatalogCorrelations`, `Freshness`, `Profile`, `Logger`, and
+`ServiceCatalogCorrelations`, `Freshness`, `Selections`, `Profile`, `Logger`, and
 `Instruments` dependencies; `cmd/api` and `cmd/mcp-server` wire it through the root
 `query.RepositoryHandler` alias unchanged. The OpenAPI fragments
 documenting the repository routes live in `openapi/paths/repository/`
@@ -18,6 +18,22 @@ documenting the repository routes live in `openapi/paths/repository/`
 40-file cap does not have once the catalog method files and the semantic
 trio the census missed are counted, so the fragments stay where the spec
 assembly already references them.
+
+## List selection annotation (#8454)
+
+Every `GET /api/v0/repositories` entry carries an always-present `selection`
+block (`selection_annotation.go`): the same `selection.Summarize` the
+freshness read uses, rendered by the same block, from one batched live-rows
+read for the page plus the bounded generation and successor statements only
+when the page needs them. Both the content and graph paths annotate after
+paging, keyed by the `repo_slug` both row shapes already carry; the MCP
+`list_indexed_repositories` tool rides the same route. `Selections` is the
+Postgres batch store in production and nil in tests that do not cover
+annotation (entries read unknown). A failed annotation read fails the list;
+`ResolveRepository` and the catalog workload rows never consult the store,
+so their outcomes stay byte-identical with and without observation rows.
+OpenAPI: the `Repository` component and the freshness `selection` object
+carry the same nine keys.
 
 ## Context workload count
 

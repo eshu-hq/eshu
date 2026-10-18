@@ -108,7 +108,22 @@ const components = `  "components": {
           "group_source": {"type": "string", "enum": ["dependency_cluster", "repository_dependency_flag", "repo_slug_namespace", "remote_url_owner", "missing_evidence"], "description": "Evidence source used for grouping. dependency_cluster is the highest-precedence source and is set when the repository participates in a (:Repository)-[:DEPENDS_ON]->(:Repository) connected component."},
           "group_truth": {"type": "string", "description": "Per-row grouping truth label, e.g. derived or missing_evidence."},
           "group_kind": {"type": "string", "enum": ["cluster", "source", "dependency", "unknown"], "description": "Repository grouping kind. cluster is set when group_source is dependency_cluster."},
-          "group_reason": {"type": "string", "description": "Human-readable reason explaining the group assignment or missing evidence."}
+          "group_reason": {"type": "string", "description": "Human-readable reason explaining the group assignment or missing evidence."},
+          "selection": {
+            "type": "object",
+            "description": "Collector selection aggregate for the repository scope (#7625, #8454): the same block the freshness read renders. Always present; state is unknown when no selector row is live. When reason is not_listed, classification and successor_slug carry the upstream probe verdict.",
+            "properties": {
+              "state": {"type": "string", "enum": ["selected", "not_selected", "pending_confirmation", "excluded_still_ingested", "unknown"]},
+              "reason": {"type": "string", "nullable": true, "enum": ["not_listed", "archived_excluded", "rule_excluded", null]},
+              "state_since": {"type": "string", "format": "date-time", "nullable": true},
+              "last_listed_at": {"type": "string", "format": "date-time", "nullable": true},
+              "evaluated_at": {"type": "string", "format": "date-time", "nullable": true},
+              "live_selector_count": {"type": "integer"},
+              "classification": {"type": "string", "nullable": true, "enum": ["transferred", "renamed", "still_present", "not_found_or_inaccessible", null], "description": "Upstream probe verdict for a Confirmed not_listed scope (#8454); null otherwise."},
+              "successor_slug": {"type": "string", "nullable": true, "description": "Probe full_name for a renamed or transferred verdict (#8454); null otherwise."},
+              "successor_selected": {"type": "boolean", "description": "Whether the successor slug resolves to a selected scope, decided at read time (#8454)."}
+            }
+          }
         }
       },
       "CatalogWorkload": {

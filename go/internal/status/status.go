@@ -162,6 +162,7 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 		GenerationTransitions:          generation.CloneTransitions(raw.GenerationTransitions),
 		ScopeTotals:                    scopeTotals,
 		GenerationTotals:               generationTotals,
+		RepositorySelection:            cloneRepositorySelectionCounts(raw.RepositorySelection),
 		StageSummaries:                 stageSummaries,
 		DomainBacklogs:                 domainBacklogs,
 		DomainBacklogsTruncated:        domainBacklogsTruncated,
@@ -205,6 +206,25 @@ func deriveScopeActivity(scopeTotals map[string]int, generationTotals map[string
 	}
 }
 
+// cloneRepositorySelectionCounts copies the selection aggregate section so
+// later reader mutations cannot alias the report (#8454).
+func cloneRepositorySelectionCounts(counts RepositorySelectionCounts) RepositorySelectionCounts {
+	return RepositorySelectionCounts{
+		States:          cloneCounts(counts.States),
+		Classifications: cloneCounts(counts.Classifications),
+	}
+}
+
+// repositorySelectionText renders the selection aggregate text line. Empty
+// sections render "": the text surface omits them.
+func repositorySelectionText(counts RepositorySelectionCounts) string {
+	if counts.Empty() {
+		return ""
+	}
+	return fmt.Sprintf("Repository selection: %s; classifications: %s",
+		shared.FormatTotals(counts.States), shared.FormatTotals(counts.Classifications))
+}
+
 // RenderText returns a compact admin-panel-style text summary.
 func RenderText(report Report) string {
 	// Project the collector evidence once: the three readbacks below all
@@ -237,6 +257,13 @@ func RenderText(report Report) string {
 		fmt.Sprintf("Scope statuses: %s", shared.FormatTotals(report.ScopeTotals)),
 		fmt.Sprintf("Generation history: %s", generationHistoryText(report.GenerationHistory)),
 		fmt.Sprintf("Generation transitions: %s", generation.TransitionsText(report.GenerationTransitions)),
+	}
+
+	// The selection section renders only when the reader surfaced selection
+	// evidence (#8454); empty sections stay out of the text surface so
+	// existing goldens and narrow terminals are unaffected.
+	if text := repositorySelectionText(report.RepositorySelection); text != "" {
+		lines = append(lines, text)
 	}
 
 	if len(report.Health.Reasons) > 0 {

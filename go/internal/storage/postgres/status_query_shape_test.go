@@ -125,8 +125,9 @@ func TestReadStatusSnapshotEvaluatesActiveWorkOnce(t *testing.T) {
 	if evaluations != 1 {
 		t.Fatalf("active_fact_work_items evaluated in %d statements per snapshot, want 1", evaluations)
 	}
-	// 25 before #6793 added the one infra read model state read.
-	if got, want := len(queryer.queries), 26; got != want {
+	// 25 before #6793 added the one infra read model state read, 26 before
+	// #8454 added the one repository selection counts read.
+	if got, want := len(queryer.queries), 27; got != want {
 		t.Fatalf("status snapshot issued %d queries, want %d", got, want)
 	}
 }

@@ -106,6 +106,16 @@ is incomplete does NOT mean more repositories exist beyond it, so it never
 sets `truncated` / `result_limits.truncated`, only its own
 `partial_reasons` entry. The existing list `truncated` field is preserved.
 
+Every entry carries an always-present `selection` block (#8454): the same
+collector selection aggregate the freshness read renders, from the same
+`selection.Summarize` off one batched live-rows read for the page (plus the
+bounded generation and successor statements only when the page needs them).
+`state` is `unknown` when no selector row is live; when `reason` is
+`not_listed`, `classification` and `successor_slug` carry the upstream probe
+verdict and `successor_selected` says whether the successor resolves to a
+selected scope. A failed annotation read fails the list rather than serving
+entries with evidence silently missing.
+
 No-Regression Evidence: the focused query test covers repository-name and
 canonical-id selectors, proves the stats route does not issue the old optional
 graph aggregation after selector resolution, verifies content-store

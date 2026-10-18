@@ -54,6 +54,17 @@ type Summary struct {
 	// LiveSelectorCount is how many live rows the scope has, one per
 	// selector.
 	LiveSelectorCount int
+	// Classification is the upstream probe verdict (#8454) of the deciding
+	// not_listed row, set by WithUpstream. Empty unless Reason is not_listed
+	// and a probe reported.
+	Classification UpstreamClassification
+	// SuccessorSlug is the probe's full_name for a renamed or transferred
+	// verdict, set by WithUpstream. Empty otherwise.
+	SuccessorSlug string
+	// SuccessorSelected reports whether SuccessorSlug resolves to a selected
+	// scope, decided at read time by WithUpstream's caller. It distinguishes
+	// a rename whose successor the collector selects from a rename away.
+	SuccessorSelected bool
 }
 
 // Summarize aggregates a scope's observations as of now. Let L be the rows

@@ -331,6 +331,10 @@ func (database *proofDomainDB) QueryContext(_ context.Context, query string, arg
 		}
 		sourceSystem, _ := args[3].(string)
 		return database.claimProjectorWork(args[0].(time.Time), args[1].(string), args[2].(time.Time), sourceSystem)
+	case strings.Contains(query, "FROM repository_selection_observations"):
+		// The proof domain seeds no selection observations (#8454): the
+		// counts read serves the zero section, which renders as absent.
+		return newProofRows(nil), nil
 	default:
 		if isWorkflowCoordinatorStatusQuery(query) {
 			return newProofRows(nil), nil

@@ -22,6 +22,20 @@ FROM scope_generations
 GROUP BY status
 ORDER BY status
 `
+	// repositorySelectionCountsQuery aggregates the live repository
+	// selection observations by state and upstream probe verdict (#8454):
+	// one row per (state, classification), unclassified while no probe has
+	// reported. A single sequential pass over a table sized by scope count
+	// times selector, the same shape as the scope and generation counts
+	// above; EXPLAIN at the 802-scope QA shape is a 0.2 ms sequential scan
+	// because the table fits in tens of buffers.
+	repositorySelectionCountsQuery = `
+SELECT state, COALESCE(upstream_classification, 'unclassified') AS classification, COUNT(*) AS count
+FROM repository_selection_observations
+WHERE evaluated_at + make_interval(secs => liveness_window_seconds) >= $1
+GROUP BY 1, 2
+ORDER BY 1, 2
+`
 	producerActivityQuery = `
 SELECT TRUE AS has_active_or_pending_generation,
        GREATEST(

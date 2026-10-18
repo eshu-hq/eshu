@@ -77,13 +77,13 @@ func TestStatusMetricsStatementInventory(t *testing.T) {
 	off := count(metricsSnapshotSelection(), false)
 	on := count(metricsSnapshotSelection(), true)
 
-	if want := (scrapeInventory{total: 24, activeWork: 1, factRecords: 1}); before != want {
+	if want := (scrapeInventory{total: 25, activeWork: 1, factRecords: 1}); before != want {
 		t.Fatalf("before = %+v, want %+v", before, want)
 	}
-	if want := (scrapeInventory{total: 20, activeWork: 1}); off != want {
+	if want := (scrapeInventory{total: 21, activeWork: 1}); off != want {
 		t.Fatalf("reader off = %+v, want %+v", off, want)
 	}
-	if want := (scrapeInventory{total: 21, clock: 1, modelRow: 1}); on != want {
+	if want := (scrapeInventory{total: 22, clock: 1, modelRow: 1}); on != want {
 		t.Fatalf("reader on = %+v, want %+v", on, want)
 	}
 }

@@ -146,6 +146,7 @@ func newMCPQueryRouterWithSemanticEmbeddingWithReadStore(
 			// the B-7 golden-corpus gate's MCP query-truth phase asserts
 			// this tool live against this binary.
 			Freshness:   pgstatus.NewInstrumentedRepositoryFreshnessStore(reader, instruments),
+			Selections:  pgstatus.NewPageSelectionStore(reader),
 			Profile:     queryProfile,
 			Instruments: instruments,
 		},

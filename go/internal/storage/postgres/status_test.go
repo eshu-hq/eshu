@@ -52,6 +52,14 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 				},
 			},
 			{
+				// The repository selection counts read rides the standard
+				// snapshot after the generation transitions (#8454).
+				rows: [][]any{
+					{"not_listed", "transferred", int64(2)},
+					{"selected", "unclassified", int64(5)},
+				},
+			},
+			{
 				// One activeWorkSummaryQuery round trip carries the stage
 				// counts, domain backlog, queue snapshot, conflict blockage,
 				// and latest failure sections (#6794).
@@ -101,6 +109,10 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 	}
 	if got.Queue != wantQueue {
 		t.Fatalf("ReadRawSnapshot().Queue = %#v, want %#v", got.Queue, wantQueue)
+	}
+	if got.RepositorySelection.States["selected"] != 5 || got.RepositorySelection.States["not_listed"] != 2 ||
+		got.RepositorySelection.Classifications["transferred"] != 2 || len(got.RepositorySelection.Classifications) != 1 {
+		t.Fatalf("ReadRawSnapshot().RepositorySelection = %+v, want the counts read surfaced", got.RepositorySelection)
 	}
 	if !got.ProducerActivity.HasActiveOrPendingGeneration {
 		t.Fatal("ReadRawSnapshot().ProducerActivity.HasActiveOrPendingGeneration = false, want true")
@@ -190,10 +202,11 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		t.Fatalf("ReadRawSnapshot().Coordinator = %#v, want nil", got.Coordinator)
 	}
 
-	// 26 round trips: the five active-work reads are one statement (#6794),
-	// and the infra read model state is one more (#6793).
-	if len(queryer.queries) != 26 {
-		t.Fatalf("QueryContext() call count = %d, want 26", len(queryer.queries))
+	// 27 round trips: the five active-work reads are one statement (#6794),
+	// the infra read model state is one more (#6793), and the repository
+	// selection counts read is one more (#8454).
+	if len(queryer.queries) != 27 {
+		t.Fatalf("QueryContext() call count = %d, want 27", len(queryer.queries))
 	}
 	for _, want := range []string{
 		"FROM ingestion_scopes",

@@ -157,6 +157,14 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 	if err = done(err); err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
+	// The selection aggregate is one cheap GROUP BY over the observations
+	// table (#8454); it rides every standard read alongside the scope and
+	// generation counts, never the semantic-only read.
+	q, done = s.read(ctx, statusReadRepositorySelection)
+	repositorySelection, err := readRepositorySelectionCounts(ctx, q, asOf.UTC())
+	if err = done(err); err != nil {
+		return statuspkg.RawSnapshot{}, err
+	}
 	// Stage counts, domain backlog, queue snapshot, conflict blockages, and the
 	// latest queue failure all come from one evaluation of
 	// active_fact_work_items in a single round trip (#6794).
@@ -254,6 +262,7 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 		InfraInventory:                 infraInventory,
 		VulnerabilitySources:           vulnerabilitySources,
 		CollectorFactEvidence:          collectorFactEvidence,
+		RepositorySelection:            repositorySelection,
 		AWSCloudScansTruncated:         awsCloudScansTruncated,
 		AWSCloudScanLimit:              awsCloudScanStatusLimit,
 		TerraformStateLastSerials:      terraformStateEvidence.LastSerials,
