@@ -294,3 +294,39 @@ only while the Go tree still matches it (`git diff` check above).
   deliberately stacked rounds; their production frequency is unmeasured.
 - The 4–6 projector `graph_write_timeout` dead letters were not diagnosed
   (outside this item's metric; flagged for the owning lane).
+
+## Interim default: 30m (arbiter-ruled, feat/7638-obligation-proof-p2)
+
+Status: **IMPLEMENTED interim** (Refs #7638). `DefaultActivationLease` moves
+2m → 30m with no other behavior change: the knob stays user-tunable with soft
+fallback, the consumer stays off by default, and the lease-minus-a-fifth
+deadline rule (`maintenanceContext`: cancel at `leaseUntil - lease/5`) is
+unchanged, so the effective pass deadline moves 96 s → 24 minutes.
+
+Item-2 full-corpus (984-scope) measurement behind the ruling: passes up to
+395 s; at the 2m default, 8 `maintenance_timeout` with 0 completions; at 30m,
+3/3 completions.
+
+Benchmark Evidence: baseline is the 2m default, after is the 30m interim,
+both measured with built binaries on the full 984-scope corpus (remote
+linux/amd64, Postgres 18, Neo4j): at 2m, 8 `maintenance_timeout` with 0
+admitted-pass completions (longest observed pass ~395 s vs the 96 s
+deadline); at 30m, 3/3 admitted passes completed with zero
+`maintenance_timeout`. Input shape: full-corpus workspace, 984 scopes.
+Terminal queue counts: every obligation in the 30m rounds reached terminal
+state. Telemetry: `deferred_backfill_targeted_completed outcome=completed`
+`duration_s` lines plus `maintenance_timeout` counts from the
+resolution-engine log. The change is safe because it is a single default
+constant (2m → 30m): the knob stays user-tunable with soft fallback, the
+consumer stays off by default, and the lease-minus-a-fifth deadline rule is
+unchanged (effective pass deadline 96 s → 24 min). No SQL, lock, claim, or
+IO path changed.
+
+No-Observability-Change: no new spans, metrics, logs, or gauges; the
+consumer's instruments and failure classes (`recordOutcome`, `recordFailure`,
+`recordHeld`) are untouched.
+
+Revisit trigger: lower the default back only when a rewrite (item-5
+predicate-pushdown or equivalent) re-measures the pass p99 far below the
+deadline on the full corpus, with the same admitted-pass metric and corpus
+shape recorded here.
