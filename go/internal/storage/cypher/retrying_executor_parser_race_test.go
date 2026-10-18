@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -59,8 +60,8 @@ func fileStatement(cypher string) Statement {
 func TestParserIntervalRaceMatchesIssue8190Shapes(t *testing.T) {
 	t.Parallel()
 
-	root := canonicalNodeRootFileCreateMissingCypher
-	nested := canonicalNodeFileCreateMissingCypher
+	root := node.RootFileCreateMissingCypher
+	nested := node.FileCreateMissingCypher
 	if root[266] != 'f' || nested[245] != 'f' {
 		t.Fatalf("fixture drift: root[266]=%q nested[245]=%q, want the reported 'f' tokens", root[266], nested[245])
 	}
@@ -101,8 +102,8 @@ func TestParserIntervalRaceMatchesIssue8190Shapes(t *testing.T) {
 func TestParserIntervalRaceGroupMatchesAnyStatement(t *testing.T) {
 	t.Parallel()
 
-	other := fileStatement(canonicalNodeFileFirstGenerationMergeCypher)
-	target := fileStatement(canonicalNodeRootFileCreateMissingCypher)
+	other := fileStatement(node.FileFirstGenerationMergeCypher)
+	target := fileStatement(node.RootFileCreateMissingCypher)
 	err := parserRaceError(target.Cypher, 266, "U")
 	if got := classifyRetryableGraphWriteGroupError(err, []Statement{other, target}); got != "neo4j_parser_interval_race" {
 		t.Fatalf("group reason = %q, want neo4j_parser_interval_race", got)
@@ -114,7 +115,7 @@ func TestParserIntervalRaceGroupMatchesAnyStatement(t *testing.T) {
 func TestParserIntervalRaceStaysNarrow(t *testing.T) {
 	t.Parallel()
 
-	root := canonicalNodeRootFileCreateMissingCypher
+	root := node.RootFileCreateMissingCypher
 	rowOff := strings.Index(root, "row.path") // 'r' of a three-char identifier
 	farCypher := "UNWIND $rows AS row\n" + strings.Repeat(" ", 1100) + "MERGE (f:File {path: row.path})\nSET f.x = 1"
 	farOff := strings.Index(farCypher, "f:File")
@@ -144,7 +145,7 @@ func TestParserIntervalRaceStaysNarrow(t *testing.T) {
 		{
 			"offset matches no statement of the group",
 			parserRaceError(root, 266, "U"),
-			[]Statement{fileStatement(canonicalNodeFileFirstGenerationMergeCypher)},
+			[]Statement{fileStatement(node.FileFirstGenerationMergeCypher)},
 		},
 		{"other error code", &neo4jdriver.Neo4jError{
 			Code: "Neo.ClientError.Statement.SemanticError",
@@ -267,7 +268,7 @@ func retryCounterReasons(t *testing.T, reader metric.Reader) map[string]int64 {
 func TestRetryingExecutorRecoversFromParserIntervalRace(t *testing.T) {
 	t.Parallel()
 
-	stmt := fileStatement(canonicalNodeRootFileCreateMissingCypher)
+	stmt := fileStatement(node.RootFileCreateMissingCypher)
 	inner := &parserRaceGroupExecutor{failFor: 1, err: parserRaceError(stmt.Cypher, 266, "U")}
 	inst, reader := newParserRaceInstruments(t)
 	retrying := &RetryingExecutor{Inner: inner, MaxRetries: 3, BaseDelay: time.Millisecond, Instruments: inst}
@@ -296,7 +297,7 @@ func TestRetryingExecutorRecoversFromParserIntervalRace(t *testing.T) {
 func TestRetryingExecutorParserIntervalRaceIsBounded(t *testing.T) {
 	t.Parallel()
 
-	stmt := fileStatement(canonicalNodeRootFileCreateMissingCypher)
+	stmt := fileStatement(node.RootFileCreateMissingCypher)
 	persistent := &parserRaceGroupExecutor{failFor: 1 << 20, err: parserRaceError(stmt.Cypher, 266, "U")}
 	err := (&RetryingExecutor{Inner: persistent, MaxRetries: 2, BaseDelay: time.Millisecond}).
 		ExecuteGroup(context.Background(), []Statement{stmt})
@@ -328,7 +329,7 @@ func TestRetryingExecutorParserIntervalRaceLogsWarn(t *testing.T) {
 	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn})))
 	t.Cleanup(func() { slog.SetDefault(prev) })
 
-	stmt := fileStatement(canonicalNodeRootFileCreateMissingCypher)
+	stmt := fileStatement(node.RootFileCreateMissingCypher)
 	stmt.Parameters["rows"] = []map[string]any{{"path": "/secret/row/path.go"}}
 	inner := &parserRaceGroupExecutor{failFor: 1, err: parserRaceError(stmt.Cypher, 266, stmt.Cypher[:200])}
 	if err := (&RetryingExecutor{Inner: inner, BaseDelay: time.Millisecond}).

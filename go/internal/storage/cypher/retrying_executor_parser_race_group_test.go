@@ -18,6 +18,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 // realNonFirstGenerationGroup returns the atomic main group CanonicalNodeWriter
@@ -67,8 +68,8 @@ func TestParserIntervalRaceMatchesRealNonFirstGenerationGroup(t *testing.T) {
 		t.Fatal("fixture drift: the non-first-generation group is replay-safe by shape; this test no longer pins the #8190 subject")
 	}
 	cases := map[string]int{
-		canonicalNodeRootFileCreateMissingCypher: 266,
-		canonicalNodeFileCreateMissingCypher:     245,
+		node.RootFileCreateMissingCypher: 266,
+		node.FileCreateMissingCypher:     245,
 	}
 	found := 0
 	for _, stmt := range group {
@@ -106,7 +107,7 @@ func TestParserIntervalRaceIgnoresStatementShape(t *testing.T) {
 	if got := classifyRetryableGraphWriteError(parserRaceError(createStmt.Cypher, createOff, "C"), createStmt); got != graphWriteRetryReasonParserIntervalRace {
 		t.Errorf("single CREATE reason = %q, want %q", got, graphWriteRetryReasonParserIntervalRace)
 	}
-	root := fileStatement(canonicalNodeRootFileCreateMissingCypher)
+	root := fileStatement(node.RootFileCreateMissingCypher)
 	mixed := []Statement{root, createStmt}
 	if got := classifyRetryableGraphWriteGroupError(parserRaceError(root.Cypher, 266, "U"), mixed); got != graphWriteRetryReasonParserIntervalRace {
 		t.Errorf("mixed group reason = %q, want %q", got, graphWriteRetryReasonParserIntervalRace)
@@ -120,7 +121,7 @@ func TestParserIntervalRaceIgnoresStatementShape(t *testing.T) {
 func TestParserIntervalRaceRejectsNonTokenOffsets(t *testing.T) {
 	t.Parallel()
 
-	root := canonicalNodeRootFileCreateMissingCypher
+	root := node.RootFileCreateMissingCypher
 	rowW := strings.Index(root, "row.path") + 2 // 'w' of `row`: previous character is an identifier part
 	equals := strings.Index(root, " = ") + 1    // '=' with a space on each side
 	space := strings.Index(root, "\n    ") + 1  // indent space after a newline, next to another space
@@ -179,7 +180,7 @@ func TestRetryingExecutorParserIntervalRaceExhaustedOnRealGroup(t *testing.T) {
 	t.Parallel()
 
 	group := realNonFirstGenerationGroup(t)
-	inner := &parserRaceGroupExecutor{failFor: 1 << 20, err: parserRaceError(canonicalNodeRootFileCreateMissingCypher, 266, "U")}
+	inner := &parserRaceGroupExecutor{failFor: 1 << 20, err: parserRaceError(node.RootFileCreateMissingCypher, 266, "U")}
 	inst, reader := newParserRaceInstruments(t)
 	err := (&RetryingExecutor{Inner: inner, MaxRetries: 3, BaseDelay: time.Millisecond, Instruments: inst}).
 		ExecuteGroup(context.Background(), group)
@@ -202,7 +203,7 @@ func TestRetryingExecutorParserIntervalRaceLogBoundsName(t *testing.T) {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn})))
 	t.Cleanup(func() { slog.SetDefault(prev) })
 
-	stmt := fileStatement(canonicalNodeRootFileCreateMissingCypher)
+	stmt := fileStatement(node.RootFileCreateMissingCypher)
 	reported := stmt.Cypher[:200]
 	inner := &parserRaceGroupExecutor{failFor: 1, err: parserRaceError(stmt.Cypher, 266, reported)}
 	if err := (&RetryingExecutor{Inner: inner, BaseDelay: time.Millisecond}).
