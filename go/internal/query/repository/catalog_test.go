@@ -286,6 +286,45 @@ func TestListCatalogIncludesIdentityOnlyServicesFromReadModel(t *testing.T) {
 	}
 }
 
+// A colon-bearing identity name mints no repository-scoped id, so the row
+// must be skipped rather than served with an empty "id" (#5385): the catalog
+// is a read surface, but an empty id matches no node and no client can use
+// it.
+func TestListCatalogSkipsIdentityWithUnmintableID(t *testing.T) {
+	t.Parallel()
+
+	handler := &Handler{
+		Content: content.FakePortContentStore{
+			WorkloadIdentities: []repository.CatalogWorkloadIdentityEntry{
+				{
+					Name:     "api:v2",
+					RepoID:   "repository:r_api",
+					RepoName: "api",
+				},
+			},
+		},
+		Neo4j: graph.FakeRepoGraphReader{
+			RunByMatch: map[string][]map[string]any{
+				"MATCH (r:Repository)": {},
+				"MATCH (w:Workload)":   {},
+			},
+		},
+		Profile: querycontract.ProfileLocalAuthoritative,
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/catalog?limit=10", nil)
+	rec := httptest.NewRecorder()
+
+	handler.listCatalog(rec, req)
+
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+
+	assertCatalogCollectionLength(t, body, "services", 0)
+}
+
 // TestCatalogEvidenceEnvironmentCypherIsSingleChain guards the cold-plan fix
 // for issue #1731. The deployment-evidence environment query MUST express its
 // (workload)<-(repo)<-(artifact)->(env) relationship as a single connected

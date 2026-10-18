@@ -119,3 +119,33 @@ func TestGetServiceContextReadModelFallbackDisclosesInfrastructureTruncated(t *t
 		)
 	}
 }
+
+// A colon-bearing workload name mints no repository-scoped id, so the
+// read-model fallback must answer 404 rather than serve an identity_only
+// response with an empty "id" (#5385): the empty id matches no node and no
+// client can use it.
+func TestGetServiceContextReadModelFallbackRejectsUnmintableID(t *testing.T) {
+	t.Parallel()
+
+	content := serviceReadModelInfrastructureOverflowContentStore{
+		FakePortContentStore: content.FakePortContentStore{
+			Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repo-1", Name: "api"}},
+		},
+		workloadNames: []string{"api:v2"},
+	}
+	handler := &Handler{
+		Neo4j:   graph.FakeWorkloadGraphReader{},
+		Content: content,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/services/api:v2/context", nil)
+	req.SetPathValue("service_name", "api:v2")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 (unmintable identity must not serve identity_only)", w.Code)
+	}
+}

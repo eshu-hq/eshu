@@ -298,9 +298,16 @@ func (h *Handler) FetchServiceReadModelWorkloadContext(ctx context.Context, serv
 	// row agrees with the materialized node id for the same pair (the graph
 	// path above emits the node's id property directly). The separate handle
 	// keeps the stable public workload:<name> string existing clients
-	// display (#5385 compatibility doc section 1.4).
+	// display (#5385 compatibility doc section 1.4). A name the constructor
+	// refuses (colon-bearing) mints no id: the fallback answers not-found
+	// like the other no-identity arms above rather than serving an empty id
+	// that matches no node.
+	id := workloadid.NewWorkloadID(repo.ID, workloadName).String()
+	if id == "" {
+		return nil, nil
+	}
 	return map[string]any{
-		"id":                     workloadid.NewWorkloadID(repo.ID, workloadName).String(),
+		"id":                     id,
 		"handle":                 workloadid.FormatWorkloadHandle(workloadName),
 		"name":                   workloadName,
 		"kind":                   "service",

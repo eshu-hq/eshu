@@ -258,8 +258,15 @@ func (h *Handler) listCatalogWorkloadIdentitiesFromContent(
 		if name == "" || strings.TrimSpace(identity.RepoID) == "" {
 			continue
 		}
+		id := workloadid.NewWorkloadID(identity.RepoID, name).String()
+		if id == "" {
+			// A colon-bearing name mints no scoped id; serving the row
+			// with an empty id would hand clients an identifier that
+			// matches no node (#5385).
+			continue
+		}
 		workloads = append(workloads, catalogWorkload{
-			ID:                    workloadid.NewWorkloadID(identity.RepoID, name).String(),
+			ID:                    id,
 			Name:                  name,
 			Kind:                  "service",
 			RepoID:                identity.RepoID,
