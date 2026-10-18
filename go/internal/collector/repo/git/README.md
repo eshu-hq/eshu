@@ -229,11 +229,18 @@ repositories (default 16) and stops at the next repository boundary when an
 accepted trigger is queued. The partial selection returns as a normal batch;
 `NextReconcileStartOffset` resumes past the last visited repository and the
 next walk is limited to the unvisited tail, so one logical sweep fetches each
-repository once. Yields per logical sweep are bounded by
+repository once — including pinned reindexes: a resumed walk skips the pins
+the sweep already fetched (watermark rows persist, so the prefix would
+otherwise re-fetch on every resume), while pins requested after the yield
+stay at the head and keep their queue-jump. Yields per logical sweep are
+bounded by
 `ESHU_WEBHOOK_TRIGGER_SWEEP_MAX_YIELDS` (default 8); then the walk completes
 unstopped, so a trigger stream cannot starve coverage. The probe never
 claims: the webhook selector claims at the next cycle under the existing
-lease. A probe error completes the sweep as before. The claim side records
+lease. A probe error completes the sweep as before and counts
+`eshu_dp_webhook_store_operations_total` with outcome `failed` (provider and
+status `unknown`), so yield-disabled-by-outage alerts instead of hiding
+behind the quiet queue. The claim side records
 `eshu_dp_webhook_trigger_claim_wait_seconds`; each yield records
 `eshu_dp_collector_sweep_yields_total` and the INFO `git repository sweep
 yielded to queued webhook trigger` log with the resume point.

@@ -189,7 +189,7 @@ func syncGitRepositoriesWithLogger(
 			// cleanly when the dir doesn't exist.
 			reconcileRefWorktrees(ctx, config, repoID, nil, logger)
 		}
-		walkTracker.noteVisited(i)
+		walkTracker.noteVisited(i, repoID)
 		visited = i + 1
 	}
 	nextStart, sweepRemaining := finishSweepWalk(ctx, walkTracker, baseline, logger, yielded, visited, len(repositoryIDs), len(selected))
@@ -205,6 +205,7 @@ func syncGitRepositoriesWithLogger(
 		NextReconcileStartOffset:   nextStart,
 		YieldedToWebhook:           yielded,
 		SweepRemainingRepositories: sweepRemaining,
+		SweepVisitedPinnedRepos:    walkTracker.visitedPinned,
 	}, nil
 }
 

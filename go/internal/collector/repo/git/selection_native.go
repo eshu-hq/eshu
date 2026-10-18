@@ -80,6 +80,13 @@ type NativeRepositorySelector struct {
 	// sweepWalkRemaining is the unvisited tail a yielded sweep owes
 	// the next cycle, in rotating-suffix repositories (#8123).
 	sweepWalkRemaining int
+	// sweepVisitedPinned remembers the pinned repositories the
+	// current logical sweep already fetched, so a resumed walk skips
+	// them instead of re-fetching the re-prepended prefix (#8512
+	// P2). Cleared with the rest of the yield state when a walk
+	// completes. Driven sequentially like reconcileWalkOffset, so no
+	// lock.
+	sweepVisitedPinned map[string]struct{}
 }
 
 // SelectRepositories discovers changed repositories for one collector cycle.
@@ -235,6 +242,7 @@ func (s *NativeRepositorySelector) selectRepositories(
 					StampWithoutParse:            config.ReconcileStampIdentityWithoutParse,
 					SweepYield:                   s.sweepYieldPolicy(),
 					SweepWalkLimit:               s.sweepWalkRemaining,
+					SweepVisitedPinned:           s.sweepVisitedPinned,
 				})
 			}
 		}

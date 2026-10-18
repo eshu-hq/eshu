@@ -155,6 +155,10 @@ type gitDeltaBaseline struct {
 	// yielded sweep, counted in rotating-suffix repositories (#8123).
 	// Zero walks the whole list.
 	SweepWalkLimit int
+	// SweepVisitedPinned carries the pinned repositories the current
+	// logical sweep already fetched (#8512 P2). A resumed walk skips
+	// them; pins absent from the set still jump the queue at the head.
+	SweepVisitedPinned map[string]struct{}
 }
 
 // reindexWatermarkFor returns the reindex watermark that applies to scopeID

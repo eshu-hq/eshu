@@ -85,6 +85,10 @@ type GitSyncSelection struct {
 	// repositories the logical sweep still owes after a yield (#8123);
 	// zero on a completed walk.
 	SweepRemainingRepositories int
+	// SweepVisitedPinnedRepos lists the pinned-prefix repositories
+	// this walk fetched (#8512 P2). The selector folds it into the
+	// logical sweep's visited set so a resumed walk skips them.
+	SweepVisitedPinnedRepos []string
 }
 
 // RefWorktreeEntry describes one pinned-ref git worktree checkout created

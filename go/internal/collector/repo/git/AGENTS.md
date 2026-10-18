@@ -201,7 +201,14 @@ claims with 2 of 5 repositories visited (before: the control
 before any claim is possible), and
 `TestSweepYieldReturnsPartialSelectionAndResumeCoversTail` visits each of
 5 repositories exactly once across the yielded+resumed walks, so fetch
-work per logical sweep is unchanged. Fleet arithmetic at the measured
+work per logical sweep is unchanged. With a repository reindex pinned
+(#8512 P2), `TestNativeSelectorSweepYieldResumeSkipsVisitedPinnedRepos`
+fetches each of 5 repositories exactly once across three cycles: resumed
+walks skip visited pins (carried on the selector, thread through
+`SweepVisitedPinned`/`SweepVisitedPinnedRepos` into `limitWalk`) while
+unvisited pins keep the head, and the fetch count reads
+`fullScopeIDs` because a forced pinned visit skips the baseline-SHA
+lookup. Fleet arithmetic at the measured
 ~0.28 s/repository: detection within ~4.5 s plus the in-flight
 repository, then the partial batch's drain (usually empty) and one 1 s
 poll; probe cost is at most 49 `EXISTS` reads per 784-repository sweep on
@@ -225,6 +232,10 @@ histogram (accepted rows, `claimed_at - received_at` at claim time), new
 (`visited_repositories`, `selected_repositories`, `resume_offset`,
 `remaining_repositories`), and the WARN
 `git sweep webhook trigger probe failed; completing sweep` degradation
-log. An operator reads the wait histogram for the #8123 outcome, the
-yield counter and log for where sweeps stopped, and the existing sweep
-logs for the sweep period.
+log. A probe failure also counts `eshu_dp_webhook_store_operations_total`
+with outcome `failed` (provider and status `unknown`, #8512 P2), so
+yield-disabled-by-outage alerts instead of hiding behind the quiet queue;
+`TestSweepYieldProbeErrorIsCounted` pins the stream and its labels. An
+operator reads the wait histogram for the #8123 outcome, the yield
+counter and log for where sweeps stopped, the failed-probe stream for
+silent yield loss, and the existing sweep logs for the sweep period.

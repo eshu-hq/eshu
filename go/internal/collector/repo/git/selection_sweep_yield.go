@@ -8,6 +8,9 @@ import (
 	"log/slog"
 	"time"
 
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 )
 
@@ -45,6 +48,9 @@ type sweepYieldPolicy struct {
 	// CheckEvery is the visited-repository count between probes;
 	// non-positive takes defaultSweepYieldCheckEvery.
 	CheckEvery int
+	// Instruments counts failed probes; nil disables the count and
+	// keeps the log-only degradation.
+	Instruments *telemetry.Instruments
 }
 
 func (p sweepYieldPolicy) checkEvery() int {
@@ -70,9 +76,31 @@ func (p sweepYieldPolicy) shouldYield(ctx context.Context, logger *slog.Logger, 
 			logger.WarnContext(ctx, "git sweep webhook trigger probe failed; completing sweep",
 				slog.Any("error", err))
 		}
+		p.recordSweepYieldProbeError(ctx)
 		return false
 	}
 	return queued
+}
+
+// recordSweepYieldProbeError counts one failed trigger-queue probe (#8512
+// P2): without it a Postgres outage that silently disables yielding looks
+// exactly like a quiet queue except by log grep. It records on the existing
+// WebhookStoreOperations counter — the probe is a trigger-store read — with
+// the listener's own failure values (empty provider and status map to
+// "unknown" there, failed upserts already use outcome "failed"), so the
+// degradation is alertable with no new instrument or label cardinality.
+// A yield-disabled-by-outage stream reads
+// outcome="failed" with provider="unknown". It is a no-op without
+// instruments: metric collection must never fail selection.
+func (p sweepYieldPolicy) recordSweepYieldProbeError(ctx context.Context) {
+	if p.Instruments == nil || p.Instruments.WebhookStoreOperations == nil {
+		return
+	}
+	p.Instruments.WebhookStoreOperations.Add(ctx, 1, metric.WithAttributes(
+		telemetry.AttrProvider("unknown"),
+		telemetry.AttrOutcome("failed"),
+		telemetry.AttrStatus("unknown"),
+	))
 }
 
 // finishSweepWalk ends one sweep walk: a completed walk finishes the
@@ -117,7 +145,7 @@ func (b gitDeltaBaseline) recordSweepYield(ctx context.Context) {
 // (#8123). Withholding the probe is what makes the completing walk
 // unstoppable, so a steady trigger stream cannot starve the sweep.
 func (s *NativeRepositorySelector) sweepYieldPolicy() sweepYieldPolicy {
-	policy := sweepYieldPolicy{CheckEvery: s.SweepYieldCheckEvery}
+	policy := sweepYieldPolicy{CheckEvery: s.SweepYieldCheckEvery, Instruments: s.Instruments}
 	if s.sweepYieldsUsed < s.sweepYieldMaxPerSweep() {
 		policy.Probe = s.SweepYieldProbe
 	}
@@ -160,14 +188,26 @@ func (s WebhookTriggerRepositorySelector) recordClaimWait(ctx context.Context, t
 // noteSweepYieldResult folds one git cycle's outcome into the logical
 // sweep's yield state (#8123): a yielded walk spends one yield and
 // owes its unvisited tail to the next cycle; a completed walk closes
-// the sweep and re-arms the budget. The caller invokes it only after
-// a successful sync, so a failed cycle retries the same segment.
+// the sweep and re-arms the budget. A yielded walk also remembers the
+// pinned repositories it fetched, so the resumed walk can skip them
+// instead of re-fetching the re-prepended prefix (#8512 P2). The caller
+// invokes it only after a successful sync, so a failed cycle retries
+// the same segment with the last good state.
 func (s *NativeRepositorySelector) noteSweepYieldResult(synced GitSyncSelection) {
 	if synced.YieldedToWebhook {
 		s.sweepYieldsUsed++
 		s.sweepWalkRemaining = synced.SweepRemainingRepositories
+		if len(synced.SweepVisitedPinnedRepos) > 0 {
+			if s.sweepVisitedPinned == nil {
+				s.sweepVisitedPinned = make(map[string]struct{}, len(synced.SweepVisitedPinnedRepos))
+			}
+			for _, repoID := range synced.SweepVisitedPinnedRepos {
+				s.sweepVisitedPinned[repoID] = struct{}{}
+			}
+		}
 		return
 	}
 	s.sweepYieldsUsed = 0
 	s.sweepWalkRemaining = 0
+	s.sweepVisitedPinned = nil
 }

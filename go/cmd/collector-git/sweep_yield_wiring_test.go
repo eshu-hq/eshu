@@ -19,7 +19,11 @@ func TestBuildCollectorServiceWiresSweepYield(t *testing.T) {
 	t.Parallel()
 
 	logger := slog.New(slog.DiscardHandler)
-	env := map[string]string{"ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED": "true"}
+	env := map[string]string{
+		"ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED":         "true",
+		"ESHU_WEBHOOK_TRIGGER_SWEEP_MAX_YIELDS":        "3",
+		"ESHU_WEBHOOK_TRIGGER_SWEEP_YIELD_CHECK_REPOS": "9",
+	}
 	service, err := buildCollectorService(postgres.SQLDB{}, func(key string) string { return env[key] }, nil, nil, logger)
 	if err != nil {
 		t.Fatalf("buildCollectorService() error = %v", err)
@@ -32,5 +36,9 @@ func TestBuildCollectorServiceWiresSweepYield(t *testing.T) {
 	}
 	if probe, ok := nativeSelector.SweepYieldProbe.(git.WebhookTriggerStore); !ok || probe != webhookSelector.Store {
 		t.Fatalf("SweepYieldProbe = %T, want the webhook selector's store", nativeSelector.SweepYieldProbe)
+	}
+	if nativeSelector.SweepYieldMaxPerSweep != 3 || nativeSelector.SweepYieldCheckEvery != 9 {
+		t.Fatalf("sweep yield bounds = (max %d, check %d), want (3, 9)",
+			nativeSelector.SweepYieldMaxPerSweep, nativeSelector.SweepYieldCheckEvery)
 	}
 }
