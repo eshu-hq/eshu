@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -494,6 +495,86 @@ func TestReopenSucceededReducerSetClauseCoversClaimColumns(t *testing.T) {
 	} {
 		if !strings.Contains(ReopenSucceededReducerSetClause, want) {
 			t.Fatalf("shared reopen SET clause missing %q:\n%s", want, ReopenSucceededReducerSetClause)
+		}
+	}
+}
+
+// sharedReopenAssignment matches one `column = ` assignment at a line start
+// of the shared reopen SET clause.
+var sharedReopenAssignment = regexp.MustCompile(`^([a-z][a-z0-9_]*) = `)
+
+// sharedReopenColumns derives every LHS assignment target from
+// ReopenSucceededReducerSetClause itself, so a future state column added to
+// the shared clause (#7731) automatically becomes required by its mirrors.
+// WHEN/ELSE/END lines carry no assignment and are skipped; anything else that
+// is not an assignment fails loudly instead of parsing silently.
+func sharedReopenColumns(t *testing.T) []string {
+	t.Helper()
+
+	var columns []string
+	for _, line := range strings.Split(ReopenSucceededReducerSetClause, "\n") {
+		trimmed := strings.TrimLeft(line, " \t")
+		upper := strings.ToUpper(trimmed)
+		if strings.HasPrefix(upper, "WHEN ") || strings.HasPrefix(upper, "ELSE") || strings.HasPrefix(upper, "END") {
+			continue
+		}
+		m := sharedReopenAssignment.FindStringSubmatch(trimmed)
+		if m == nil {
+			t.Fatalf("shared reopen SET clause has unparsable line %q", line)
+		}
+		columns = append(columns, m[1])
+	}
+	if len(columns) == 0 {
+		t.Fatal("shared reopen SET clause yielded no columns")
+	}
+	return columns
+}
+
+// retriggerColumnCase extracts the CASE expression the re-trigger CTE assigns
+// to column: the `column = CASE` occurrence at an identifier boundary
+// (so `status` never matches inside `..._authorized_status`) on a
+// non-comment line, through its closing END. It reports false when no live
+// assignment exists.
+func retriggerColumnCase(column string) (string, bool) {
+	needle := regexp.MustCompile(`\b` + column + ` = CASE`)
+	for _, loc := range needle.FindAllStringIndex(serviceCatalogRuntimeRetriggerCTEs, -1) {
+		lineStart := strings.LastIndex(serviceCatalogRuntimeRetriggerCTEs[:loc[0]], "\n") + 1
+		rest := serviceCatalogRuntimeRetriggerCTEs[loc[0]:]
+		lineEnd := strings.Index(rest, "\n")
+		line := serviceCatalogRuntimeRetriggerCTEs[lineStart:]
+		if lineEnd >= 0 {
+			line = serviceCatalogRuntimeRetriggerCTEs[lineStart : loc[0]+lineEnd]
+		}
+		if strings.HasPrefix(strings.TrimSpace(line), "--") {
+			continue
+		}
+		end := strings.Index(rest, "END")
+		if end < 0 {
+			return "", false
+		}
+		return rest[:end+len("END")], true
+	}
+	return "", false
+}
+
+// TestServiceCatalogRetriggerMirrorsSharedReopenColumns pins the #8169
+// succeeded-row reopen to the shared reopen SET clause (#7731). The
+// re-trigger UPDATE cannot compose ReopenSucceededReducerSetClause directly --
+// its assignments are conditional CASE branches because the same statement
+// also flags claimed/running rows -- so this guard fails hermetically if a
+// shared-clause column silently misses the re-trigger path or loses its
+// succeeded branch.
+func TestServiceCatalogRetriggerMirrorsSharedReopenColumns(t *testing.T) {
+	t.Parallel()
+
+	for _, column := range sharedReopenColumns(t) {
+		block, ok := retriggerColumnCase(column)
+		if !ok {
+			t.Errorf("re-trigger CTE missing succeeded-branch assignment for %q", column)
+			continue
+		}
+		if !strings.Contains(block, "succeeded") {
+			t.Errorf("re-trigger CTE assignment for %q has no succeeded branch:\n%s", column, block)
 		}
 	}
 }
