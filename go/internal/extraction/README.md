@@ -22,7 +22,8 @@ classifications:
 The per-criterion checklist mirrors the "Extraction Criteria" table in
 [collector-extraction-policy.md](../../../docs/public/reference/collector-extraction-policy.md):
 `source_coupling`, `fact_contract`, `scope_generation`, `trust_boundary`,
-`runtime_behavior`, `release_cadence`, and `proof_surface`.
+`runtime_behavior`, `release_cadence`, `proof_surface`, and
+`payload_schemas_typed`.
 
 ## Design
 

@@ -45,7 +45,26 @@ func candidateNotStartedCriteria() []CriterionResult {
 		{Criterion: RuntimeBehavior, State: Unmet, Detail: notStarted},
 		{Criterion: ReleaseCadence, State: Met, Detail: "vendor API churn is independent enough to benefit from a separate release cadence"},
 		{Criterion: ProofSurface, State: Unmet, Detail: notStarted},
+		{Criterion: PayloadSchemasTyped, State: Met, Detail: "every fact kind this family emits has a registered typed payload schema in the fact-kind registry"},
 	}
+}
+
+// candidateNotStartedCriteriaMissingSchemas is the candidateNotStartedCriteria
+// variant for a family with a typed-schema gap: the payload-schema row is
+// unmet so the family stays blocked by schema instead of silently passing.
+// The gap belongs to the family's own migration work, not to this package.
+func candidateNotStartedCriteriaMissingSchemas() []CriterionResult {
+	rows := candidateNotStartedCriteria()
+	for i := range rows {
+		if rows[i].Criterion == PayloadSchemasTyped {
+			rows[i] = CriterionResult{
+				Criterion: PayloadSchemasTyped,
+				State:     Unmet,
+				Detail:    "vulnerability.warning has no registered typed payload schema; the kind is unconsumed with no reducer decode or query reader, owned by #5462",
+			}
+		}
+	}
+	return rows
 }
 
 // catalog is the evidence-based set of collector-family profiles. It mirrors the
@@ -74,7 +93,7 @@ var catalog = []Profile{
 	{Family: scope.CollectorLoki, DisplayName: "Loki observability", Criteria: candidateNotStartedCriteria()},
 	{Family: scope.CollectorTempo, DisplayName: "Tempo observability", Criteria: candidateNotStartedCriteria()},
 	{Family: scope.CollectorPrometheusMimir, DisplayName: "Prometheus / Mimir observability", Criteria: candidateNotStartedCriteria()},
-	{Family: scope.CollectorVulnerabilityIntelligence, DisplayName: "Vulnerability intelligence", Criteria: candidateNotStartedCriteria()},
+	{Family: scope.CollectorVulnerabilityIntelligence, DisplayName: "Vulnerability intelligence", Criteria: candidateNotStartedCriteriaMissingSchemas()},
 }
 
 // Catalog returns the advisory extraction-readiness verdict for every collector

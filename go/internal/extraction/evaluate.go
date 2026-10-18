@@ -13,9 +13,10 @@ import (
 // identity still co-evolve with core admission. They drive the "blocked by
 // schema" explanation.
 var schemaCriteria = map[Criterion]struct{}{
-	SourceCoupling:  {},
-	FactContract:    {},
-	ScopeGeneration: {},
+	SourceCoupling:      {},
+	FactContract:        {},
+	ScopeGeneration:     {},
+	PayloadSchemasTyped: {},
 }
 
 // Validate reports whether the profile covers every canonical criterion exactly
@@ -118,7 +119,7 @@ func blockedRationale(blockers []CriterionResult) string {
 	}
 	reasons := make([]string, 0, 3)
 	if schema {
-		reasons = append(reasons, "blocked by schema: its fact contract or scope/generation identity still co-evolves with core admission")
+		reasons = append(reasons, "blocked by schema: its fact contract, typed payload schemas, or scope/generation identity still co-evolve with core admission")
 	}
 	if runtime {
 		reasons = append(reasons, "blocked by runtime: the hosted path lacks bounded claims, isolation, or operator evidence")

@@ -100,6 +100,17 @@ func TestEvaluateClassifications(t *testing.T) {
 			rationaleHint: "blocked by schema",
 		},
 		{
+			name: "blocked by schema when typed payload schemas are missing",
+			profile: Profile{
+				Family:      scope.CollectorJira,
+				DisplayName: "Jira",
+				Criteria:    withCriterion(metCriteria(), PayloadSchemasTyped, Unmet, "a fact kind has no registered typed payload schema"),
+			},
+			want:          Blocked,
+			wantBlockers:  []Criterion{PayloadSchemasTyped},
+			rationaleHint: "blocked by schema",
+		},
+		{
 			name: "blocked by runtime when hosted behavior is unmet",
 			profile: Profile{
 				Family:      scope.CollectorGrafana,
@@ -176,8 +187,9 @@ func assertBlockers(t *testing.T, got []CriterionResult, want []Criterion) {
 }
 
 func TestEvaluateFailsClosedOnMissingCriterion(t *testing.T) {
-	// A profile that omits proof_surface entirely must not silently pass; the
-	// missing criterion is treated as unmet so the family is blocked.
+	// A profile that omits payload_schemas_typed entirely must not silently
+	// pass; the missing criterion is treated as unmet so the family is
+	// blocked.
 	partial := []CriterionResult{
 		{Criterion: SourceCoupling, State: Met},
 		{Criterion: FactContract, State: Met},
@@ -185,6 +197,7 @@ func TestEvaluateFailsClosedOnMissingCriterion(t *testing.T) {
 		{Criterion: TrustBoundary, State: Met},
 		{Criterion: RuntimeBehavior, State: Met},
 		{Criterion: ReleaseCadence, State: Met},
+		{Criterion: ProofSurface, State: Met},
 	}
 	got := Evaluate(Profile{Family: scope.CollectorJira, DisplayName: "Jira", Criteria: partial})
 	if got.Classification != Blocked {
@@ -194,8 +207,8 @@ func TestEvaluateFailsClosedOnMissingCriterion(t *testing.T) {
 		t.Fatalf("returned %d criteria, want all %d normalized", len(got.Criteria), len(orderedCriteria))
 	}
 	last := got.Criteria[len(got.Criteria)-1]
-	if last.Criterion != ProofSurface || last.State != Unmet {
-		t.Fatalf("missing proof_surface = %+v, want unmet proof_surface", last)
+	if last.Criterion != PayloadSchemasTyped || last.State != Unmet {
+		t.Fatalf("missing payload_schemas_typed = %+v, want unmet payload_schemas_typed", last)
 	}
 }
 
