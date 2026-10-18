@@ -35,11 +35,15 @@ shared worker docs, the Postgres README, and
 No-Regression Evidence: baseline (pre-removal tree) and after (removal head)
 behave identically because a deleted name with no references cannot alter any
 execution path: a repo-wide qualified sweep for `reducer.<Name>` over all
-eight deleted spellings returns zero hits (`rg` exit 1, no matches in code,
-tests, scripts, or docs). No graph query, queue, worker, lease, batch,
-runtime knob, or storage contract changes. Proof on this head:
-`go build ./...` exit 0 and `go vet` clean on the touched packages. No
-backend/version applies: no graph or query surface is touched.
+eight deleted spellings returns zero hits outside this note (`rg` exit 1
+when this file is excluded; the note itself names each spelling once, and no
+code, test, script, or other doc references any of them). No graph query,
+queue, worker, lease, batch, runtime knob, or storage contract changes.
+Proof on this head: `go build` of the touched trees exits 0 and `go vet` is
+clean on the touched packages (a full-module `./...` build/vet additionally
+passes where the toolchain resolves third-party cgo; it is environment-limited
+by `go-sitter-forest/perl` vs system GCC in some worktrees, untouched by this
+diff). No backend/version applies: no graph or query surface is touched.
 
 ## Observability
 
