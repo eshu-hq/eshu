@@ -48,9 +48,19 @@ func (r *apiResponse[T]) apiStatus() (string, string) {
 }
 
 // ProviderAPIError carries a bounded Prometheus-compatible API status failure.
+// Operation names the bounded endpoint token for the call that failed; it is
+// set by the client from the endpoint vocabulary and never carries a URL,
+// query string, or provider ID.
 type ProviderAPIError struct {
 	Status    string
 	ErrorType string
+	Operation string
+}
+
+// FailureOperation returns the bounded endpoint token for the failed call,
+// or "" when the failure carries none.
+func (e ProviderAPIError) FailureOperation() string {
+	return e.Operation
 }
 
 func (e ProviderAPIError) Error() string {
@@ -244,6 +254,7 @@ func (c HTTPClient) doJSON(
 		BaseURL:    c.baseURL,
 		PathPrefix: target.PathPrefix,
 		Endpoint:   endpoint,
+		Operation:  prometheusOperationForEndpoint(endpoint),
 		Query:      query,
 		Out:        out,
 		Client:     c.httpClient,
@@ -282,10 +293,24 @@ func (c HTTPClient) doJSON(
 	if statusReader, ok := out.(apiStatusReader); ok {
 		status, errorType := statusReader.apiStatus()
 		if status != "" && status != "success" {
-			return false, ProviderAPIError{Status: status, ErrorType: errorType}
+			return false, ProviderAPIError{Status: status, ErrorType: errorType, Operation: prometheusOperationForEndpoint(endpoint)}
 		}
 	}
 	return true, nil
+}
+
+// prometheusOperationForEndpoint maps a Prometheus-compatible API endpoint to
+// its bounded failure operation token (#8258). An unknown endpoint keeps a
+// blank token and claim handling falls back to its stage operation.
+func prometheusOperationForEndpoint(endpoint string) string {
+	switch endpoint {
+	case targetsEndpoint:
+		return "list_targets"
+	case rulesEndpoint:
+		return "list_rules"
+	default:
+		return ""
+	}
 }
 
 func (c HTTPClient) handleStatus(resp *http.Response, result *CollectionResult, resourceClass string) (bool, error) {
