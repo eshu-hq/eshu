@@ -142,8 +142,8 @@ func queryMediaTranscriptEnvelopes(t *testing.T) []facts.Envelope {
 
 type queryTranscriptEngineFunc func(context.Context, media.Media) (media.EngineResult, error)
 
-func (f queryTranscriptEngineFunc) Transcribe(ctx context.Context, media media.Media) (media.EngineResult, error) {
-	return f(ctx, media)
+func (f queryTranscriptEngineFunc) Transcribe(ctx context.Context, input media.Media) (media.EngineResult, error) {
+	return f(ctx, input)
 }
 
 func queryEncodeTestWAV(t *testing.T, durationMillis int) []byte {

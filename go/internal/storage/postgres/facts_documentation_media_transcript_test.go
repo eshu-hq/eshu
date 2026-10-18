@@ -120,8 +120,8 @@ func mediaTranscriptDocumentationEnvelopes(t *testing.T) []facts.Envelope {
 
 type transcriptEngineFunc func(context.Context, media.Media) (media.EngineResult, error)
 
-func (f transcriptEngineFunc) Transcribe(ctx context.Context, media media.Media) (media.EngineResult, error) {
-	return f(ctx, media)
+func (f transcriptEngineFunc) Transcribe(ctx context.Context, input media.Media) (media.EngineResult, error) {
+	return f(ctx, input)
 }
 
 func encodeTestWAV(t *testing.T, durationMillis int) []byte {

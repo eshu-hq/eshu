@@ -221,8 +221,8 @@ func mcpDocumentationMediaTranscriptEnvelopes(t *testing.T) []facts.Envelope {
 
 type mcpDocumentationMediaTranscriptEngineFunc func(context.Context, media.Media) (media.EngineResult, error)
 
-func (f mcpDocumentationMediaTranscriptEngineFunc) Transcribe(ctx context.Context, media media.Media) (media.EngineResult, error) {
-	return f(ctx, media)
+func (f mcpDocumentationMediaTranscriptEngineFunc) Transcribe(ctx context.Context, input media.Media) (media.EngineResult, error) {
+	return f(ctx, input)
 }
 
 func mcpDocumentationMediaTranscriptWAV(t *testing.T, durationMillis int) []byte {
