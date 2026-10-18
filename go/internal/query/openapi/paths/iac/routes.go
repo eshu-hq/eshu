@@ -3,7 +3,7 @@
 
 package iac
 
-// Routes is the OpenAPI path fragment documenting the 5 `/api/v0/iac/*`
+// Routes is the OpenAPI path fragment documenting the `/api/v0/iac/*`
 // routes. openapi.Spec concatenates it into the published document; keep it in
 // lockstep with the handlers and docs/public/reference/http-api.md.
 const Routes = `

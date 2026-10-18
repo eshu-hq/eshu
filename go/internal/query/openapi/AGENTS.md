@@ -7,7 +7,7 @@ only; `schema/` and `paths/` are scoped separately by their own AGENTS.md).
 
 This package owns document assembly: `spec.go` (`Spec`, `ServeSpec`,
 `ServeSwaggerUI`, `ServeReDoc`, the embedded viewer HTML), `prefix.go` (the
-document header), and `components.go` plus its six `components_*.go`
+document header), and `components.go` plus its `components_*.go`
 siblings (the shared `components` block). It imports every family package
 under `paths/` and `openapi/schema`; it MUST NOT be imported back by them —
 `openapi/schema` exists specifically to give both sides a place to share a

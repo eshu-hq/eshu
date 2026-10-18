@@ -7,7 +7,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/openapi/schema"
 )
 
-// Routes is the OpenAPI path fragment documenting 9 routes, among them
+// Routes is the OpenAPI path fragment documenting its routes, among them
 // `/api/v0/catalog`, `/api/v0/repositories`,
 // `/api/v0/repositories/by-language`. openapi.Spec concatenates it into the
 // published document; keep it in lockstep with the handlers and

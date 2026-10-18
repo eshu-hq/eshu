@@ -8,7 +8,7 @@ This leaf owns the OpenAPI path fragments for `/api/v0/auth/...`: `Routes`
 (provider discovery and sign-in posture), `Setup`, `Tokens`, `TOTP`,
 `AdminReads`, `AdminMutations`, `AdminProviderConfigs`, and
 `SignInPolicy`, one exported constant per file. `openapi/spec.go`
-concatenates all eight; keep that call site's order in mind when reasoning
+concatenates every one; keep that call site's order in mind when reasoning
 about where in the published document a change here lands.
 
 - This package MUST NOT import `openapi` — the parent imports this

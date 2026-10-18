@@ -7,7 +7,7 @@ Scope: `go/internal/query/openapi/paths/code/dead/` (package `dead`).
 This leaf owns the OpenAPI path fragments for the dead-code routes:
 `Investigation` (single-repository investigation), `Scan` (per-repository
 scan), and `CrossRepo` (cross-repository classification). `openapi/spec.go`
-concatenates all three individually — there is no `Routes` aggregate here,
+concatenates each of them individually — there is no `Routes` aggregate here,
 unlike most `paths/<leaf>` packages, because the parent `code` package's own
 `routes.go` already lists the code family's top-level routes and these three
 are added alongside it, not folded into it.

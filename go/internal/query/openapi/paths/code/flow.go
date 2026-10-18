@@ -3,7 +3,7 @@
 
 package code
 
-// Flow is the OpenAPI path fragment documenting the 4 `/api/v0/code/flow/*`
+// Flow is the OpenAPI path fragment documenting the `/api/v0/code/flow/*`
 // routes. openapi.Spec concatenates it into the published document; keep it in
 // lockstep with the handlers and docs/public/reference/http-api.md.
 const Flow = `

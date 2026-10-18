@@ -13,13 +13,12 @@ Layout:
   embedded Swagger UI / ReDoc HTML shells.
 - `prefix.go` — `specPrefix`: the document header (`info`, `servers`,
   `tags`) that opens the JSON document before the first path fragment.
-- `components.go` plus `components_local_identity.go`,
-  `components_provider_configs.go`, `components_replatforming.go`,
-  `components_responses.go`, `components_sign_in_policy.go`, and
-  `components_workload_session.go` — the shared `components.schemas` and
-  `components.parameters` block, split by subject because one file holding
-  all of it would be unreviewable. `components.go` holds the parameters and
-  the bulk of the schemas and concatenates the other six in place.
+- `components.go` plus the `components_*.go` siblings (one per subject, for
+  example `components_responses.go` and `components_workload_session.go`) —
+  the shared `components.schemas` and `components.parameters` block, split by
+  subject because one file holding all of it would be unreviewable.
+  `components.go` holds the parameters and the bulk of the schemas and
+  concatenates the siblings in place.
 
 The route fragments live one package per family under `paths/` (`paths/auth`,
 `paths/code`, `paths/supply/chain`, and the rest); `spec.go` imports each and

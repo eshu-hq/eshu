@@ -16,9 +16,9 @@ no HTTP wiring.
 - This package may import `openapi/schema` for shared inline schemas. It
   MUST NOT import the parent `openapi` package or the `query` root — both
   import this package, so either direction is a cycle.
-- `routes.go` sits at 493 of the 500-line cap. A new fragment belongs in its
-  own file (following `status`'s `routes.go`/`compare.go` split) rather than
-  growing `routes.go` further.
+- `routes.go` was the file nearest the 500-line cap when this package was
+  created. A new fragment belongs in its own file (following `status`'s
+  `routes.go`/`compare.go` split) rather than growing `routes.go` further.
 - A constant here is inert until `openapi/spec.go` concatenates it into the
   published spec. Adding, renaming, or removing an exported constant here
   without updating `spec.go` in the same change silently changes the

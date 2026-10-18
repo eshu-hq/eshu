@@ -32,7 +32,7 @@ alongside them.
 
 ## Directory size
 
-At 16 files this package is the largest leaf under `paths/` and the
+This package is the largest leaf under `paths/` and the
 closest to the 40-non-test-file-per-directory cap the dirgate gate
 enforces (`go/cmd/dirgate`). Before adding another fragment
 file here, run a file count and, if it is getting close to the cap,

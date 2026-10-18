@@ -8,7 +8,7 @@
 // (Tokens), TOTP enrollment and verification (TOTP), admin-facing identity
 // reads (AdminReads), admin mutations (AdminMutations), provider-config
 // admin CRUD (AdminProviderConfigs), and the tenant sign-in policy
-// (SignInPolicy). openapi/spec.go concatenates all eight in the order
+// (SignInPolicy). openapi/spec.go concatenates every constant in the order
 // listed here.
 //
 // Each file holds exactly one exported string constant. This package

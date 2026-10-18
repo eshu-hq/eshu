@@ -25,11 +25,11 @@ all three together.
 
 ## Files
 
-72 non-test files: 65 `impact*`/`*.go` short names (impact builders,
-ecosystem matchers, reachability, anchoring, writers), 4 suppression-story
-files (`evaluation.go`, `decode.go`, `reasons.go`, `scope.go`), 3
-`go_reachability*` (Go
-module/call reachability classifier), plus 80 test files. No file repeats
+Non-test files fall into these groups: the `impact*` and other short-named
+files (impact builders, ecosystem matchers, reachability, anchoring, writers),
+the suppression-story files (`evaluation.go`, `decode.go`, `reasons.go`,
+`scope.go`), and the `go_reachability*` files (Go module/call reachability
+classifier). Test files sit beside the code they cover. No file repeats
 the directory name.
 
 | File | Covers |
