@@ -440,6 +440,7 @@ TABLE = {
         "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_live_test.go": (
             "TestReducerContentionGateServiceCatalogRetriggerRepairsNoProducerGeneration",
             "TestReducerContentionGateServiceCatalogRetriggerFlagsClaimedRow",
+            "TestReducerContentionGateServiceCatalogRetriggerFlagsFirstRunWithoutDecisions",
         ),
         "go/internal/storage/postgres/relationship_activation_wake_live_test.go": (
             "TestActivationWakesOwnGateConsumersLive",

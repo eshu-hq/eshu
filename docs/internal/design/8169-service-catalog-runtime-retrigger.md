@@ -43,8 +43,8 @@ on top of the #8218 fence:
   (`repo_dependency_projection_acceptance_cycle.go`).
 
 The ruling allowed a precise repository-to-catalog map only after measurement
-showed the global reopen costs too much. It did (see Measurement), so the
-re-trigger is precise.
+showed the global reopen costs too much. The measurement below is that trigger;
+the coordinator approved the switch on it. The precise map needs no migration.
 
 ## Design
 
@@ -75,7 +75,7 @@ not gated on the value-flow emit flag. For each acked
 | Catalog row at its active generation | Match | Action |
 | --- | --- | --- |
 | `succeeded` | its own generation committed a `reducer_service_catalog_correlation` decision with `repository_id = <repo>` | reopen (the `ReopenSucceededReducerSetClause` columns) |
-| `claimed` / `running`, not flagged | its scope has such a decision in any generation, or no decision yet | `cross_scope_replay_required = TRUE` |
+| `claimed` / `running`, not flagged | its scope has such a decision in any generation, or no decision yet (a first run) | `cross_scope_replay_required = TRUE` |
 | `pending` / `retrying` | none | untouched; it re-reads on its next claim |
 
 The decisions' `repository_id` is exactly the repository set the catalog run
@@ -117,30 +117,56 @@ Performance Evidence: disposable Postgres 18 with all 213 migrations;
 reducer domains); 875,000 `shared_projection_intents` (4,973 pending); 3,000
 catalog rows (1,000 at an active generation); 1,000,000 unrelated
 `fact_records` plus 16,500 catalog decisions, one central catalog naming 500
-repositories. Each run used `pgbench -M prepared` (pgx caches statements) with
-BEGIN, the ACK, and ROLLBACK, for 10 s, on a shared host.
+repositories. Each transaction is BEGIN, one workload ACK of a random claimed
+row out of 2,000, and ROLLBACK, so every run starts from the same state:
 
-| Statement | c1 mean | c4 mean | Host load |
-| --- | --- | --- | --- |
-| baseline workload ACK | 0.154 ms | 0.159 ms | ~20 |
-| global re-trigger, 1,000 succeeded catalog rows reopened per ACK | 60.1 ms | 183.1 ms | ~20 |
-| global re-trigger, steady state (catalog rows already pending) | 2.98 ms | not run | ~20 |
-| precise re-trigger, prototype | 0.305 ms | 0.333 ms | ~20 |
-| precise re-trigger, steady state | 0.232 ms | not run | ~20 |
-| RUNS_ON intent lookup, 1 repository | not run | 0.120 ms | ~20 |
-| RUNS_ON intent lookup, 50 repositories | not run | 0.976 ms | ~20 |
+```bash
+pgbench -n [-M prepared] -U eshu -d eshu -f <script>.sql -c <1|4> -T 10
+```
 
-The global reopen serialized concurrent ACKs on the same catalog row locks, at
-25 tps under 4 clients. Its steady state built a hash over every
-`ingestion_scopes` row. Each reopen also re-runs every catalog handler on every
-workload ACK. The precise plan uses index paths only:
-`fact_records_service_catalog_correlations_repository_idx` (bitmap),
-`ingestion_scopes_active_generation_idx`, `fact_work_items_scope_generation_idx`,
-`fact_work_items_stage_domain_status_idx` for in-flight rows, a hashed subplan
-for the in-flight decision match, and the primary key for the lock. The RUNS_ON
-lookup reads `shared_projection_intents_repo_run_idx`; no plan has a sequential
-scan. The shipped statement's measured cost and host load are recorded in the
-PR.
+The host was shared with other gate runs. The load average is the 1-minute
+value `uptime` printed next to each block, at its start or its end.
+
+### The trigger: global reopen
+
+| Statement | Protocol | c1 mean | c4 mean | Host load |
+| --- | --- | --- | --- | --- |
+| baseline workload ACK | simple | 0.312 ms | 0.771 ms | 21.6 |
+| global, 1,000 succeeded catalog rows reopened per ACK | simple | 48.66 ms | 159.24 ms | 21.6 |
+| baseline workload ACK | simple | 0.320 ms | 0.488 ms | 20.7 |
+| global, steady state (catalog rows already pending) | simple | 5.49 ms | 4.93 ms | 20.7 |
+| baseline workload ACK | prepared | 0.154 ms | 0.159 ms | 20.3 |
+| global, 1,000 reopened per ACK | prepared | 60.08 ms | 183.05 ms | 20.3 |
+| global, steady state | prepared | 2.98 ms | not run | 20.3 |
+
+The global reopen serialized concurrent ACKs on the same catalog row locks:
+20.6 tps at c1 and 25.1 tps at c4, against 3,207 and 5,185 tps for the
+baseline. The steady state built a hash over every `ingestion_scopes` row.
+Each reopen also re-runs every catalog handler on every workload ACK.
+
+### The shipped precise statement
+
+| Statement | Protocol | c1 mean | c4 mean | Host load |
+| --- | --- | --- | --- | --- |
+| baseline workload ACK | prepared | 0.150 ms | 0.286 ms | 25.7 |
+| shipped ACK statement (806 of 2,000 bench repositories linked, each reopening 1 row; 20 claimed catalog rows) | prepared | 0.594 ms | 0.902 ms | 25.7 |
+| RUNS_ON intent lookup, 1 repository | prepared | not run | 0.120 ms | 20.0 |
+| RUNS_ON intent lookup, 50 repositories | prepared | not run | 0.976 ms | 20.0 |
+
+The in-flight rule is not global. It flags a claimed or running row only when
+its scope names the repository or has no decision yet, so an unrelated
+in-flight catalog run is not replayed on every workload ACK. The precise plan
+uses index paths only:
+
+- `fact_records_service_catalog_correlations_repository_idx` (bitmap)
+- `ingestion_scopes_active_generation_idx`
+- `fact_work_items_scope_generation_idx`
+- `fact_work_items_stage_domain_status_idx` for in-flight rows
+- a hashed subplan for the in-flight decision match
+- the primary key for the lock
+
+The RUNS_ON lookup reads `shared_projection_intents_repo_run_idx`. No plan has
+a sequential scan.
 
 Observability Evidence: `eshu_dp_service_catalog_runtime_retrigger_total{domain,outcome}`
 (`reopened`, `replay_flagged`, `none`). One info log per ACK that reopened or
@@ -157,6 +183,10 @@ Real-queue tests against Postgres, `TestReducerContentionGate*` prefix:
   `added`.
 - (b) `...RetriggerFlagsClaimedRow`: the flag is set on the claimed row, its
   ACK becomes pending, and the next run commits the runtime rows.
+- First run, no decision facts yet: `...RetriggerFlagsFirstRunWithoutDecisions`
+  asserts zero decision facts, then the claimed row is flagged, replayed, and
+  committed with the runtime rows. With the no-decision branch disabled, only
+  this test fails.
 - (c) `...FenceWaitsOnRunsOnIntent`: a pending RUNS_ON intent defers with
   nothing written. After the runner's replay and completion, the catalog
   commits.

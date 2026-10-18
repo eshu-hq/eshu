@@ -96,3 +96,45 @@ func TestReducerContentionGateServiceCatalogRetriggerFlagsClaimedRow(t *testing.
 		t.Fatalf("checkout generations = %v (G1 %s), want a new active G2 with 2 runtime rows", checkout, g1)
 	}
 }
+
+// TestReducerContentionGateServiceCatalogRetriggerFlagsFirstRunWithoutDecisions
+// covers the case the decision-fact map cannot see: a first catalog run that
+// is claimed but has written no reducer_service_catalog_correlation decision
+// yet when the workload ack lands. Its repository set is unknown, so the ack
+// must flag it conservatively; its ack then returns it to pending and the
+// replay commits the runtime rows.
+func TestReducerContentionGateServiceCatalogRetriggerFlagsFirstRunWithoutDecisions(t *testing.T) {
+	ctx := context.Background()
+	p := newRetriggerProof(t, ctx)
+	catalogQueue := p.queue(p.db, "catalog-worker", reducer.DomainServiceCatalogCorrelation)
+	intent, claimed, err := catalogQueue.Claim(ctx)
+	if err != nil || !claimed {
+		t.Fatalf("catalog Claim() claimed=%v err=%v", claimed, err)
+	}
+	var decisions int
+	if err := p.db.QueryRowContext(ctx,
+		`SELECT count(*) FROM fact_records WHERE fact_kind = 'reducer_service_catalog_correlation'`,
+	).Scan(&decisions); err != nil || decisions != 0 {
+		t.Fatalf("decision facts before the first run = %d (err %v), want 0", decisions, err)
+	}
+
+	p.addProducer(t, ctx, "wm-checkout-8169")
+	p.runProducer(t, ctx, p.db, "workload-worker")
+	if status, flagged := readRetriggerItem(t, ctx, p.db, runtimeFenceCatalogItem); status != "claimed" || !flagged {
+		t.Fatalf("first-run catalog row after the workload ack = %s flagged=%v, want claimed and flagged", status, flagged)
+	}
+	if _, err := p.handler(p.db).Handle(ctx, intent); err != nil {
+		t.Fatalf("catalog Handle() error = %v", err)
+	}
+	if err := catalogQueue.Ack(ctx, intent, reducer.Result{}); err != nil {
+		t.Fatalf("catalog Ack() error = %v", err)
+	}
+	if status, _ := readRetriggerItem(t, ctx, p.db, runtimeFenceCatalogItem); status != "pending" {
+		t.Fatalf("first-run catalog row after its ack = %s, want pending (replay owed)", status)
+	}
+	p.runCatalog(t, ctx, "replayed first run")
+	g := retriggerActiveGeneration(p.serviceGenerations(t, ctx, retriggerCheckoutSvc))
+	if n := p.runtimeSnapshotCount(t, ctx, g); n != 2 {
+		t.Fatalf("checkout active generation runtime rows = %d, want 2", n)
+	}
+}
