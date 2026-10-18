@@ -114,10 +114,11 @@ func TestRequestMiddlewareBodylessResponsesOmitTrailerAnnouncement(t *testing.T)
 	}
 
 	// Known residual, pinned: an explicit body-allowed status with no
-	// following body (the MCP 202 shape) still announces, as before this
-	// change. Holding that send would re-emit a stored status and trip the
-	// #7674 guard, so it stays a tracked follow-up; MCP-identity E2E is
-	// green with it.
+	// following body still announces, as before this change. Holding that
+	// send would re-emit a stored status and trip the repo's
+	// no-direct-status-write guard (see server_status_guard_test.go), so it
+	// stays as-is. No production instance exists: the tree's only such
+	// shape, the MCP 202, serves POST /mcp/message outside this middleware.
 	if raw := rawWireHeaders(t, "GET", srv.URL+"/api/v0/accepted"); !hasHeaderLine(raw, "Trailer:") {
 		t.Fatalf("GET /api/v0/accepted raw headers lost the announcement; residual behavior changed:\n%s", raw)
 	}

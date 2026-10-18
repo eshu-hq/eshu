@@ -106,8 +106,9 @@ func RequestMiddleware(mux *http.ServeMux) http.Handler {
 		recorder := &statusCapturingResponseWriter{ResponseWriter: w, status: http.StatusOK}
 		if r.Method == http.MethodHead {
 			// HEAD responses carry no body, so a trailer can never be
-			// delivered; suppress the announcement and let the value land
-			// as a plain response header below.
+			// delivered; suppress the announcement. The value below lands
+			// as a plain header only when the handler wrote nothing;
+			// otherwise the headers are already on the wire and it drops.
 			recorder.suppressTrailer = true
 		}
 		start := time.Now()
@@ -169,16 +170,18 @@ func recordAPIRequest(r *http.Request, route string, status int, elapsed time.Du
 // body (1xx, 204, 304) and HEAD requests never announce, and a handler that
 // returns without writing never triggers the announcement, letting the
 // post-handler value land as a plain response header instead. Known residual:
-// an explicit body-allowed status with no following body (today only the MCP
-// 202 in internal/mcp/server_sse.go) still announces, as before this change;
-// holding the send for that case would re-emit a stored status and trip the
-// #7674 no-direct-status-write guard, so it stays a tracked follow-up.
+// an explicit body-allowed status with no following body still announces, as
+// before this change; holding the send for that case would re-emit a stored
+// status and trip the repo's no-direct-status-write guard (see
+// server_status_guard_test.go), so it stays as-is. No production instance
+// exists: the only such shape in the tree, the MCP 202 in
+// internal/mcp/server_sse.go, serves POST /mcp/message outside this
+// middleware (only /api/ is wrapped).
 type statusCapturingResponseWriter struct {
 	http.ResponseWriter
 	status          int
 	wroteHeader     bool
 	announced       bool
-	wroteBody       bool
 	suppressTrailer bool
 }
 
@@ -226,7 +229,6 @@ func (w *statusCapturingResponseWriter) Write(b []byte) (int, error) {
 	// Implicit status: headers are still unsent, so announcing here rides
 	// the header block flushed by this first Write.
 	w.announceTrailer()
-	w.wroteBody = true
 	return w.ResponseWriter.Write(b)
 }
 
