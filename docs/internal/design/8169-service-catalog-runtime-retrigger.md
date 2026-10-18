@@ -82,8 +82,11 @@ not gated on the value-flow emit flag. For each acked
 The decisions' `repository_id` is exactly the repository set the catalog run
 fences and reads runtime for (`serviceRepositoryIndex`), and
 `fact_records_service_catalog_correlations_repository_idx` (migration 003)
-indexes it. A first run has no decision yet, so an in-flight scope without one
-is flagged conservatively. That is at most one extra run per catalog scope.
+indexes it. Under the superseded decision-keyed rule, a first run with no
+decision yet was flagged conservatively. Under the shipped hybrid (below),
+the in-flight flag is global; a replay can itself be re-flagged while
+workload ACKs continue, so the bound is at most one extra run per in-flight
+claim, not per catalog scope.
 
 The migration 093 trigger turns a flagged row's successful ACK into pending.
 It clears the flag on retry, and the retrying row re-reads anyway.
@@ -145,7 +148,7 @@ The global reopen serialized concurrent ACKs on the same catalog row locks:
 baseline. The steady state built a hash over every `ingestion_scopes` row.
 Each reopen also re-runs every catalog handler on every workload ACK.
 
-### The shipped precise statement
+### The shipped hybrid statement (precise reopen, global in-flight flag)
 
 | Statement | Protocol | c1 mean | c4 mean | Host load |
 | --- | --- | --- | --- | --- |
@@ -156,7 +159,10 @@ Each reopen also re-runs every catalog handler on every workload ACK.
 
 The table above was measured with the decision-keyed in-flight rule; the
 shipped rule (proof h) drops that join, so the measured statement is a strict
-upper bound. The in-flight branch is global: any workload ACK flags any
+upper bound on the ACK statement's lookup cost at the measured 20-claimed-row
+cardinality. It is not a bound on downstream replay handler work, and it is
+not proven at arbitrary claimed-row counts: cost scales with concurrently
+claimed `service_catalog_correlation` rows, not total catalog scopes. The in-flight branch is global: any workload ACK flags any
 claimed or running catalog row at the active generation, because a run that
 newly names the repository is invisible to committed decisions. It touches at
 most the rows running concurrently with the ACK (normally none), already
@@ -170,6 +176,23 @@ under the fence. The plan uses index paths only:
 - `fact_work_items_scope_generation_idx` (succeeded branch)
 - `fact_work_items_stage_domain_status_idx` for in-flight rows
 - the primary key for the lock
+
+Actual `EXPLAIN` of the shipped in-flight arm (disposable Postgres 18, all
+migrations, empty tables — index choice follows statistics, so production may
+use `fact_work_items_stage_domain_status_idx` instead of the lease index below;
+either way the shape is index scans with no sequential scan, and cost scales
+with concurrently claimed catalog rows, not total scopes):
+
+```text
+Sort  (cost=16.33..16.33 rows=1 width=64)
+  Sort Key: inflight.work_item_id COLLATE "C"
+  ->  Nested Loop  (cost=0.27..16.32 rows=1 width=64)
+        ->  Index Scan using fact_work_items_reducer_live_lease_uniq on fact_work_items inflight
+              Filter: ((NOT cross_scope_replay_required) AND (domain = 'service_catalog_correlation'::text))
+        ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes active
+              Index Cond: (active_generation_id = inflight.generation_id)
+              Filter: (scope_id = inflight.scope_id)
+```
 
 The RUNS_ON lookup reads `shared_projection_intents_repo_run_idx`. No plan has
 a sequential scan.
