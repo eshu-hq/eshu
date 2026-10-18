@@ -6,7 +6,6 @@ package materialized
 import (
 	"regexp"
 	"sort"
-	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -26,25 +25,6 @@ var relTypeAlternation = regexp.MustCompile(`\[(?:\w*):([A-Za-z_][A-Za-z_|]*)\]`
 // by evidence_source and scope, it reaps any edge type sharing the endpoints,
 // including types another family owns.
 var bareRelDelete = regexp.MustCompile(`-\[\s*\w*\s*\]->`)
-
-// retractRelTypes returns the set of relationship types a retract template
-// deletes, read out of the template text itself.
-func retractRelTypes(t *testing.T, family, cypher string) map[string]struct{} {
-	t.Helper()
-	matches := relTypeAlternation.FindAllStringSubmatch(cypher, -1)
-	if len(matches) == 0 {
-		t.Fatalf("family %q: retract template names no relationship type; a retract that reaps nothing leaves every edge of this family stale after reprojection:\n%s", family, cypher)
-	}
-	out := map[string]struct{}{}
-	for _, m := range matches {
-		for _, relType := range strings.Split(m[1], "|") {
-			if relType = strings.TrimSpace(relType); relType != "" {
-				out[relType] = struct{}{}
-			}
-		}
-	}
-	return out
-}
 
 // allHeldRetracts returns every production retract variant the entry holds:
 // the primary RetractCypher plus RetractVariants. The drift guard checks all
@@ -93,48 +73,17 @@ func mergeRelTypeFromWriteCypher(t *testing.T, family, cypher string) string {
 	return matches[0][1]
 }
 
-// matchNodeLabelFromRetract returns the node label a detach retract MATCHes,
-// read out of the held const itself.
-func matchNodeLabelFromRetract(t *testing.T, family, cypher string) string {
-	t.Helper()
-	m := regexp.MustCompile(`MATCH\s*\(\s*\w+\s*:\s*([A-Za-z_][A-Za-z0-9_]*)\b`).FindStringSubmatch(cypher)
-	if m == nil {
-		t.Fatalf("family %q: retract MATCHes no labeled node; a detach retract must anchor its evidence label:\n%s", family, cypher)
-	}
-	return m[1]
-}
-
 // checkRelAlternationRetract pins one held retract variant's named alternation
 // against the family's declared edge types, in both directions. It is the
 // pre-contract semantic, unchanged: several long-registered families scope
 // their retract by a node repo_id rather than an edge scope_id, so predicate
 // shape is not pinned here. Contract families pin theirs separately in
-// checkClosedVocabularyPredicates.
+// checkClosedVocabularyPredicates. Violations come from the
+// relAlternationRetractViolations seam; this wrapper only reports them.
 func checkRelAlternationRetract(t *testing.T, family, variant string, entry materializedEdgeFamily) {
 	t.Helper()
-	retracted := retractRelTypes(t, family, variant)
-
-	var missingFromRegistry, missingFromRetract []string
-	for relType := range retracted {
-		if _, ok := entry.EdgeTypes[relType]; !ok {
-			missingFromRegistry = append(missingFromRegistry, relType)
-		}
-	}
-	for relType := range entry.EdgeTypes {
-		if _, ok := retracted[relType]; !ok {
-			missingFromRetract = append(missingFromRetract, relType)
-		}
-	}
-	sort.Strings(missingFromRegistry)
-	sort.Strings(missingFromRetract)
-
-	if len(missingFromRegistry) > 0 {
-		t.Errorf("retract deletes %v but the registry omits them; the Ifá baseline gate would ignore those edges while calling %s exhaustive",
-			missingFromRegistry, family)
-	}
-	if len(missingFromRetract) > 0 {
-		t.Errorf("registry names %v but the retract does not delete them; those edges would survive every reprojection as stale truth",
-			missingFromRetract)
+	for _, violation := range relAlternationRetractViolations(family, variant, entry.EdgeTypes) {
+		t.Errorf("%s", violation)
 	}
 }
 
@@ -146,20 +95,13 @@ func checkRelAlternationRetract(t *testing.T, family, variant string, entry mate
 // census). It runs only over the multi-type direct table: every entry there
 // is a contract family whose retract is held and exactly-scoped — an
 // edge-scoped alternation or, for kind-A evidenceNodeDetach entries, a
-// node-detach on a sole-creator label.
+// node-detach on a sole-creator label. Violations come from the
+// closedVocabularyPredicateViolations seam, which reads only the variant;
+// this wrapper only reports them.
 func checkClosedVocabularyPredicates(t *testing.T, family, variant string) {
 	t.Helper()
-	if !strings.Contains(variant, "evidence_source") {
-		t.Errorf("retract variant dropped the evidence_source predicate; it would reap edges another writer owns:\n%s", variant)
-	}
-	if !strings.Contains(variant, "scope_id") {
-		t.Errorf("retract variant dropped the scope predicate; it would reap edges another scope owns:\n%s", variant)
-	}
-	if bareRelDelete.MatchString(variant) {
-		t.Errorf("retract variant still carries a bare [rel]; scoped only by evidence_source and scope it reaps any foreign type sharing the endpoints:\n%s", variant)
-	}
-	if strings.Contains(variant, "DETACH DELETE") {
-		t.Errorf("relAlternation retract variant DETACH DELETEs nodes; node deletion belongs to evidenceNodeDetach families with a sole-creator census:\n%s", variant)
+	for _, violation := range closedVocabularyPredicateViolations(variant) {
+		t.Errorf("%s", violation)
 	}
 }
 
@@ -168,20 +110,12 @@ func checkClosedVocabularyPredicates(t *testing.T, family, variant string) {
 // DELETE of that node, and the evidence_source plus scope predicates that
 // keep the delete to this writer's generation. The edge cascade needs no type
 // alternation because the sole-creator census proves no other writer's edges
-// hang off these nodes.
+// hang off these nodes. Violations come from the
+// evidenceNodeDetachRetractViolations seam; this wrapper only reports them.
 func checkEvidenceNodeDetachRetract(t *testing.T, family, variant, evidenceLabel string) {
 	t.Helper()
-	if got := matchNodeLabelFromRetract(t, family, variant); got != evidenceLabel {
-		t.Errorf("retract MATCHes node label %q, want the evidence label %q derived from the held write template; a detach on the wrong label deletes nodes it does not own", got, evidenceLabel)
-	}
-	if !strings.Contains(variant, "DETACH DELETE") {
-		t.Errorf("evidenceNodeDetach retract variant does not DETACH DELETE; without the detach the evidence nodes (and their edges) survive reprojection:\n%s", variant)
-	}
-	if !strings.Contains(variant, "evidence_source") {
-		t.Errorf("retract variant dropped the evidence_source predicate; it would detach evidence nodes another writer owns:\n%s", variant)
-	}
-	if !strings.Contains(variant, "scope_id") {
-		t.Errorf("retract variant dropped the scope predicate; it would detach evidence nodes another scope owns:\n%s", variant)
+	for _, violation := range evidenceNodeDetachRetractViolations(family, variant, evidenceLabel) {
+		t.Errorf("%s", violation)
 	}
 }
 
