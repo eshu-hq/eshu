@@ -352,6 +352,8 @@ func TestBuildReducerServiceMaxInFlightWrapsAllWriters(t *testing.T) {
 				return "2"
 			case "ESHU_NORNICDB_CANONICAL_GROUPED_WRITES":
 				return "false"
+			case activationObligationConsumerEnabledEnv:
+				return "false"
 			default:
 				return ""
 			}
@@ -390,6 +392,8 @@ func TestBuildReducerServiceMaxInFlightWithGroupedWritesEnabled(t *testing.T) {
 				return "2"
 			case "ESHU_NORNICDB_CANONICAL_GROUPED_WRITES":
 				return "true"
+			case activationObligationConsumerEnabledEnv:
+				return "false"
 			default:
 				return ""
 			}

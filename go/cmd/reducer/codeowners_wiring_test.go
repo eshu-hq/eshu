@@ -15,7 +15,7 @@ func TestBuildReducerServiceWiresCodeownersOwnershipEdgeWriter(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeReducerDB{}
-	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(string) string { return "" }, nil, nil, nil, nil)
+	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, obligationConsumerDisabledGetenv(func(string) string { return "" }), nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
 	}

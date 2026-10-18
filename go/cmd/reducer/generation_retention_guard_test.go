@@ -23,12 +23,12 @@ func TestBuildReducerServiceRejectsDisabledGenerationRetentionInProduction(t *te
 		postgres.NewSharedIntentStore(db),
 		stubCypherReader{},
 		stubCypherReader{},
-		func(key string) string {
+		obligationConsumerDisabledGetenv(func(key string) string {
 			if key == generationRetentionEnabledEnv {
 				return "false"
 			}
 			return ""
-		},
+		}),
 		nil,
 		nil,
 		nil,
@@ -66,6 +66,8 @@ func TestBuildReducerServiceAllowsDisabledGenerationRetentionForLocalProfiles(t 
 						return "false"
 					case queryProfileEnv:
 						return string(profile)
+					case activationObligationConsumerEnabledEnv:
+						return "false"
 					default:
 						return ""
 					}
@@ -103,6 +105,8 @@ func TestBuildReducerServiceRejectsDisabledGenerationRetentionWithProductionProf
 				return "false"
 			case queryProfileEnv:
 				return string(query.ProfileProduction)
+			case activationObligationConsumerEnabledEnv:
+				return "false"
 			default:
 				return ""
 			}
@@ -135,6 +139,8 @@ func TestBuildReducerServiceRejectsDisabledGenerationRetentionWithInvalidProfile
 				return "false"
 			case queryProfileEnv:
 				return "definitely-not-a-profile"
+			case activationObligationConsumerEnabledEnv:
+				return "false"
 			default:
 				return ""
 			}

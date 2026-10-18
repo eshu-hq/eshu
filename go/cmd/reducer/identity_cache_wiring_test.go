@@ -51,12 +51,12 @@ func TestBuildReducerServiceWiresIdentityCacheEnvDisable(t *testing.T) {
 		postgres.NewSharedIntentStore(&fakeReducerDB{}),
 		stubCypherReader{},
 		stubCypherReader{},
-		func(key string) string {
+		obligationConsumerDisabledGetenv(func(key string) string {
 			if key == "ESHU_IDENTITY_CACHE_MAX_BYTES" {
 				return "-1"
 			}
 			return ""
-		},
+		}),
 		nil, nil, nil, nil,
 	)
 	if err != nil {

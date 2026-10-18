@@ -29,7 +29,7 @@ func TestBuildReducerServiceWiresDeployableUnitCanonicalQuiescenceFailClosed(t *
 	service, err := buildReducerService(
 		context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{},
 		postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{},
-		func(string) string { return "" }, nil, nil, nil, nil,
+		obligationConsumerDisabledGetenv(func(string) string { return "" }), nil, nil, nil, nil,
 	)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)

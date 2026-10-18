@@ -39,7 +39,7 @@ func TestBuildReducerServiceWiresDeployableUnitBoundExpiryLogger(t *testing.T) {
 	service, err := buildReducerService(
 		context.Background(), database, &absentTargetProbeExecutor{}, stubCypherExecutor{},
 		postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{},
-		func(string) string { return "" }, nil, nil, logger, nil,
+		obligationConsumerDisabledGetenv(func(string) string { return "" }), nil, nil, logger, nil,
 	)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)

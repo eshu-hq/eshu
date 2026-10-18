@@ -23,7 +23,7 @@ func TestBuildReducerServiceWiresCodeValueFlowStaleCleanup(t *testing.T) {
 		postgres.NewSharedIntentStore(db),
 		stubCypherReader{},
 		stubCypherReader{},
-		func(string) string { return "" },
+		obligationConsumerDisabledGetenv(func(string) string { return "" }),
 		nil,
 		nil,
 		nil,

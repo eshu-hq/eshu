@@ -41,7 +41,7 @@ func TestBuildReducerServiceWiresCloudRetractSeams(t *testing.T) {
 	t.Parallel()
 
 	database := &retractWiringDB{}
-	service, err := buildReducerService(context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{}, func(string) string { return "" }, nil, nil, nil, nil)
+	service, err := buildReducerService(context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{}, obligationConsumerDisabledGetenv(func(string) string { return "" }), nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
 	}

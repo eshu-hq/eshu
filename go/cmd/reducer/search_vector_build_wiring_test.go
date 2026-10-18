@@ -23,12 +23,12 @@ func TestBuildReducerServiceWiresSearchVectorBuildRunnerWhenLocalHashConfigured(
 		postgres.NewSharedIntentStore(db),
 		stubCypherReader{},
 		stubCypherReader{},
-		func(key string) string {
+		obligationConsumerDisabledGetenv(func(key string) string {
 			if key == searchembedruntime.EnvLocalEmbedder {
 				return "hash"
 			}
 			return ""
-		},
+		}),
 		nil,
 		nil,
 		nil,
@@ -65,7 +65,7 @@ func TestBuildReducerServiceWiresSearchVectorBuildRunnerWhenProviderProfileConfi
 		postgres.NewSharedIntentStore(db),
 		stubCypherReader{},
 		stubCypherReader{},
-		func(key string) string {
+		obligationConsumerDisabledGetenv(func(key string) string {
 			switch key {
 			case "ESHU_SEMANTIC_PROVIDER_PROFILES_JSON":
 				return raw
@@ -74,7 +74,7 @@ func TestBuildReducerServiceWiresSearchVectorBuildRunnerWhenProviderProfileConfi
 			default:
 				return ""
 			}
-		},
+		}),
 		nil,
 		nil,
 		nil,

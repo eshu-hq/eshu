@@ -37,7 +37,7 @@ func TestBuildReducerServiceKeepsScopeWorkloadsForForeignKeyedIntent(t *testing.
 	service, err := buildReducerService(
 		context.Background(), &scopeKeepWiringDB{}, stubGraphExecutor{}, executor,
 		postgres.NewSharedIntentStore(&scopeKeepWiringDB{}), stubCypherReader{}, graph,
-		func(string) string { return "" }, nil, nil, nil, nil,
+		obligationConsumerDisabledGetenv(func(string) string { return "" }), nil, nil, nil, nil,
 	)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)

@@ -38,6 +38,8 @@ func TestBuildReducerServiceWiresNornicDBProjectorDrainGate(t *testing.T) {
 			return string(runtimecfg.GraphBackendNornicDB)
 		case queryProfileEnv:
 			return string(query.ProfileLocalAuthoritative)
+		case activationObligationConsumerEnabledEnv:
+			return "false"
 		default:
 			return ""
 		}
@@ -73,6 +75,9 @@ func TestBuildReducerServiceLeavesProjectorDrainDisabledByDefault(t *testing.T) 
 		if name == "ESHU_GRAPH_BACKEND" {
 			return string(runtimecfg.GraphBackendNornicDB)
 		}
+		if name == activationObligationConsumerEnabledEnv {
+			return "false"
+		}
 		return ""
 	}, nil, nil, slog.Default(), nil)
 	if err != nil {
@@ -95,6 +100,8 @@ func TestBuildReducerServiceWiresExpectedSourceLocalProjectors(t *testing.T) {
 			return string(query.ProfileLocalAuthoritative)
 		case reducerExpectedSourceLocalProjectorsEnv:
 			return "878"
+		case activationObligationConsumerEnabledEnv:
+			return "false"
 		default:
 			return ""
 		}
@@ -124,6 +131,8 @@ func TestBuildReducerServiceWiresSemanticEntityClaimLimit(t *testing.T) {
 			return string(query.ProfileLocalAuthoritative)
 		case reducerSemanticEntityClaimLimitEnv:
 			return "4"
+		case activationObligationConsumerEnabledEnv:
+			return "false"
 		default:
 			return ""
 		}
