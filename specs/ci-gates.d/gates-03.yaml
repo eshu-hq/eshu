@@ -1,10 +1,10 @@
 version: v1
 gates:
   - id: pre-enqueue-check
-    name: Pre-enqueue check test mirror
+    name: Pre-merge check test mirror
     category: hygiene
     layer: hygiene
-    purpose: "Self-tests the pre-enqueue check, which confirms the reviewed head, merge cleanliness, checks and review threads before a merge."
+    purpose: "Self-tests the pre-merge check, which confirms the reviewed head, merge cleanliness, checks and review threads before a merge."
     tier: pre-pr
     blocking: true
     triggers:
@@ -22,7 +22,7 @@ gates:
       # issue reference or closing keyword, attribution, private identifier)
       # has a seeded RED
       # beside one all-green case
-      # (docs/public/reference/local-testing/pre-enqueue-check.md).
+      # (docs/public/reference/local-testing/pre-merge-check.md).
       command: "bash scripts/dev/test-pre-enqueue-check.sh"
       test_command: ""
     ci:

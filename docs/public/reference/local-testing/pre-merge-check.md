@@ -1,13 +1,14 @@
-# Pre-Enqueue Check
+# Pre-Merge Check
 
 `scripts/dev/pre-enqueue-check.sh` is a read-only check that fails closed.
 The coordinator runs it immediately before asking the arbiter to approve a
 merge. It was written for the merge-queue enqueue step. `main` has had no merge
 queue since 2026-10-16, so the `merge-queue` arm reads an absent queue and
-passes with `queue empty`. The script keeps its name and its queue arm until
-the owner decides to drop or restore them. It re-derives the facts an arbiter
-used to collect by hand, so the arbiter reviews one report instead of
-re-running each query.
+passes with `queue empty`. This page is named for the script's real job,
+verifying a PR before merge, while the script keeps its file name and its
+queue arm until the owner decides to drop or restore them (#8368). It re-derives
+the facts an arbiter used to collect by hand, so the arbiter reviews one report
+instead of re-running each query.
 
 ```bash
 GH_TOKEN="$(gh auth token --user <account>)" \
