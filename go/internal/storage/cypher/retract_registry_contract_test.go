@@ -51,10 +51,17 @@ func TestObservabilityCoverageDerivedTypesRoundTripValidator(t *testing.T) {
 }
 
 // mergeRelTypeFromWriteCypher returns the single relationship type a write
-// template MERGEs, read out of the held const itself — the same derivation
-// the registry guard in edge/materialized uses. The type comes from the
-// template, never from a literal copied into the test: a writer-template type
-// change flows into the caller instead of leaving a stale assertion behind.
+// template MERGEs, read out of the held const itself — the same
+// const-reference approach as the registry guard in edge/materialized
+// (which holds IdentityCypher rather than copied text). The type comes from
+// the template, never from a literal copied into the test: a writer-template
+// type change flows into the caller instead of leaving a stale string behind.
+// Unlike that guard — identityPropertiesFromCypher + identityMergePropertyOpen
+// in edge/materialized/families_test.go, which extracts the relationship-MERGE
+// property map with an uppercase-only, brace-requiring regex that captures no
+// type — this helper derives the relationship type with a regex that requires
+// the `-->` arrow and captures the type. The two share only the held-const
+// discipline, not the extraction itself.
 func mergeRelTypeFromWriteCypher(t *testing.T, family, cypher string) string {
 	t.Helper()
 	matches := regexp.MustCompile(`-\[\s*\w*\s*:\s*([A-Za-z_][A-Za-z0-9_]*)\s*\]->`).FindAllStringSubmatch(cypher, -1)
@@ -172,12 +179,16 @@ func scanEvidenceNodeCreators(t *testing.T, root string) map[string][]string {
 	return out
 }
 
-// evidenceEdgeAttachPattern finds a relationship MERGE anchored at a node
-// pattern, either direction, inside a Cypher string literal. A literal that
-// references a private evidence label and MERGEs a relationship attaches an
-// edge to that label's nodes, whether or not it creates them: it covers the
-// MATCH-existing-then-MERGE-edge writer the node-creator scan cannot see.
-var evidenceEdgeAttachPattern = regexp.MustCompile(`MERGE\s*\([^)]*\)\s*(?:<-)?-\s*\[`)
+// evidenceEdgeAttachPattern finds a relationship MERGE or CREATE anchored at
+// a node pattern, either arrow direction, inside a Cypher string literal. A
+// literal that references a private evidence label and MERGEs or CREATEs a
+// relationship attaches an edge to that label's nodes, whether or not it
+// creates them: it covers the MATCH-existing-then-attach-edge writer the
+// node-creator scan cannot see. Both verbs matter because DETACH DELETE
+// cascades CREATE-attached edges the same way, and both arrow directions
+// matter because a left-arrow attacher (`MERGE (ev)<-[rel:USES]-(f)`) hangs a
+// foreign edge off the node just as a right-arrow one does.
+var evidenceEdgeAttachPattern = regexp.MustCompile(`(?:MERGE|CREATE)\s*\([^)]*\)\s*(?:-\s*\[|<-\s*\[)`)
 
 // evidenceLabelAnchorPattern matches a Cypher label reference (`:Label`) for
 // either private evidence label. The colon keeps prose mentions such as
@@ -188,7 +199,8 @@ var evidenceLabelAnchorPattern = regexp.MustCompile(`:\s*(CodeTaintEvidence|Inci
 // scanEvidenceEdgeAttachers walks root for non-test .go files and returns the
 // files attaching edges to each evidence label, keyed by label with sorted,
 // root-relative slash paths. A file counts when one string literal both
-// references the label as a node pattern and MERGEs a relationship. Test
+// references the label as a node pattern and MERGEs or CREATEs a
+// relationship. Test
 // files are excluded like in scanEvidenceNodeCreators: they seed foreign
 // edges through fakes and DSN-gated backends, never through production
 // writers.
@@ -362,15 +374,17 @@ func TestEvidenceNodeSoleCreatorsCensusSeededPair(t *testing.T) {
 // TestEvidenceEdgeAttachersCensusSeededPair proves the edge-attachment census
 // can fail: a clean tree whose owners MERGE their own edges passes the check,
 // and planting a second writer that MATCHes an existing evidence node and
-// MERGEs its own edge onto it is detected and reported as a violation. If
-// this pair ever stops distinguishing the two, the attacher census above is
-// a comment, not a guard.
+// attaches its own edge is detected and reported as a violation. Each
+// attacher shape the pattern claims — right-arrow MERGE, left-arrow MERGE,
+// and CREATE — gets its own planted tree, so a verb or direction the pattern
+// stops seeing turns exactly one subtest red. If this pair ever stops
+// distinguishing clean from planted, the attacher census above is a comment,
+// not a guard.
 func TestEvidenceEdgeAttachersCensusSeededPair(t *testing.T) {
 	t.Parallel()
 
 	const taintWriterBody = "package seeded\nconst seededWriteCypher = `UNWIND $rows AS row\nMATCH (f:Function {uid: row.function_uid})\nMERGE (ev:CodeTaintEvidence {uid: row.uid})\nMERGE (f)-[rel:HAS_TAINT_EVIDENCE]->(ev)`\n"
 	const routingWriterBody = "package seeded\nconst seededRoutingWriteCypher = `UNWIND $rows AS row\nMERGE (incident:IncidentRoutingEvidence {uid: row.incident_uid})\nMERGE (routing:IncidentRoutingEvidence {uid: row.uid})\nMERGE (incident)-[rel:HAS_INTENDED_ROUTING]->(routing)`\n"
-	const edgeAttacherBody = "package seeded\nconst sneakyEdgeCypher = `MATCH (ev:CodeTaintEvidence {uid: row.uid})\nMERGE (f)-[rel:USES]->(ev)`\n"
 
 	clean := t.TempDir()
 	writeSeededGoFile(t, clean, "code_taint_evidence_writer.go", taintWriterBody)
@@ -379,21 +393,47 @@ func TestEvidenceEdgeAttachersCensusSeededPair(t *testing.T) {
 		t.Fatalf("clean tree reported violations, want none: %v", violations)
 	}
 
-	planted := t.TempDir()
-	writeSeededGoFile(t, planted, "code_taint_evidence_writer.go", taintWriterBody)
-	writeSeededGoFile(t, planted, "incident_routing_evidence_writer.go", routingWriterBody)
-	writeSeededGoFile(t, planted, "edge_attacher.go", edgeAttacherBody)
-	violations := checkEvidenceEdgeAttachers(scanEvidenceEdgeAttachers(t, planted))
-	if len(violations) == 0 {
-		t.Fatal("planted edge-attacher reported no violation; the census cannot detect the MATCH-existing-then-MERGE-edge pattern")
+	planted := []struct {
+		name string
+		file string
+		body string
+	}{
+		{
+			name: "right-arrow MERGE attacher",
+			file: "edge_attacher.go",
+			body: "package seeded\nconst sneakyEdgeCypher = `MATCH (ev:CodeTaintEvidence {uid: row.uid})\nMERGE (f)-[rel:USES]->(ev)`\n",
+		},
+		{
+			name: "left-arrow MERGE attacher",
+			file: "left_arrow_attacher.go",
+			body: "package seeded\nconst sneakyLeftEdgeCypher = `MATCH (ev:CodeTaintEvidence {uid: row.uid})\nMERGE (ev)<-[rel:USES]-(f)`\n",
+		},
+		{
+			name: "CREATE-verb attacher",
+			file: "create_attacher.go",
+			body: "package seeded\nconst sneakyCreateEdgeCypher = `MATCH (ev:CodeTaintEvidence {uid: row.uid})\nCREATE (f)-[rel:USES]->(ev)`\n",
+		},
 	}
-	matched := false
-	for _, v := range violations {
-		if strings.Contains(v, "CodeTaintEvidence") && strings.Contains(v, "edge_attacher.go") {
-			matched = true
-		}
-	}
-	if !matched {
-		t.Fatalf("violation does not name the planted edge-attacher: %v", violations)
+	for _, p := range planted {
+		t.Run(p.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			writeSeededGoFile(t, dir, "code_taint_evidence_writer.go", taintWriterBody)
+			writeSeededGoFile(t, dir, "incident_routing_evidence_writer.go", routingWriterBody)
+			writeSeededGoFile(t, dir, p.file, p.body)
+			violations := checkEvidenceEdgeAttachers(scanEvidenceEdgeAttachers(t, dir))
+			if len(violations) == 0 {
+				t.Fatalf("planted %q reported no violation; the census cannot detect that attacher shape", p.name)
+			}
+			matched := false
+			for _, v := range violations {
+				if strings.Contains(v, "CodeTaintEvidence") && strings.Contains(v, p.file) {
+					matched = true
+				}
+			}
+			if !matched {
+				t.Fatalf("violation does not name the planted %q: %v", p.file, violations)
+			}
+		})
 	}
 }
