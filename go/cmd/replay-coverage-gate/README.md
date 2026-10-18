@@ -39,7 +39,7 @@ logic lives in [`internal/replaycoverage`](../../internal/replaycoverage).
    `specs/authorization-replay-coverage.v1.yaml` and require a concrete query
    test proof row.
 4. Writes a JSON coverage report and the committed, docs-discoverable C-7
-   Markdown dashboard (`docs/public/reference/replay-coverage.md`), and prints
+   Markdown dashboard (`docs/public/reference/generated/replay-coverage.md`), and prints
    per-registry and per-scenario-type satisfied percentages.
 5. Exits non-zero only in `-blocking` mode when a required surface/scenario_type
    pair is uncovered, unresolved, or a manifest entry is stale.

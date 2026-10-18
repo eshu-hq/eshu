@@ -158,7 +158,7 @@ burns them down and a later ticket flips depth to blocking. `BuildReport` emits
 the v3 coverage-report artifact (the v3 bump added the language-parser
 scoreboard), and `RenderDashboard`
 turns it into the committed, docs-discoverable **C-7 dashboard**
-(`docs/public/reference/replay-coverage.md`): the overall %, a per-axis table, the
+(`docs/public/reference/generated/replay-coverage.md`): the overall %, a per-axis table, the
 per-scenario-type C-8 table, the C-11 language-parser scoreboard, the named gap
 list grouped by axis, and the
 covered-surface table with each surface's scenario type, artifact kind, proof

@@ -4,14 +4,14 @@
 
 Every non-exempt required surface maps to a committed scenario and the named proof gate that must pass. Exempt rows carry the audited reason that a proof class does not apply. The inventory check itself is credential-free and Docker-free; backend-required scenarios run in their named proof gates. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 446/446 surfaces satisfied (100.00%)** — mode: blocking.
+**Overall: 457/457 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
 | Axis | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | authorization_catalog | 24 | 24 | 100.00% | 0 | 0 |
-| Capability claims | 146 | 146 | 100.00% | 0 | 0 |
+| Capability claims | 157 | 157 | 100.00% | 0 | 0 |
 | Read surfaces (CLI) | 7 | 7 | 100.00% | 0 | 0 |
 | Read surfaces (API/MCP) | 26 | 26 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
@@ -21,13 +21,13 @@ Every non-exempt required surface maps to a committed scenario and the named pro
 | Retractable edge types (delta) | 64 | 64 | 100.00% | 0 | 1 |
 | Retractable node types (delta) | 100 | 100 | 100.00% | 0 | 1 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **446** | **446** | **100.00%** | **0** | **11** |
+| **Total** | **457** | **457** | **100.00%** | **0** | **11** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 231 | 231 | 100.00% | 0 | 5 |
+| baseline | 242 | 242 | 100.00% | 0 | 5 |
 | cost | 28 | 28 | 100.00% | 0 | 0 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 165 | 165 | 100.00% | 0 | 2 |
@@ -46,7 +46,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 None. Every non-exempt required surface has a replay scenario; exemptions carry audited reasons.
 
-## Covered surfaces (446)
+## Covered surfaces (457)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact / exemption reason |
 | --- | --- | --- | --- | --- |
@@ -77,6 +77,8 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `capability:admission_decisions.list` | baseline | capability_claim | capability-inventory | `admission_decisions.list` |
 | `capability:answer_narration.status` | baseline | capability_claim | capability-inventory | `answer_narration.status` |
 | `capability:ask.natural_language_answer` | baseline | capability_claim | capability-inventory | `ask.natural_language_answer` |
+| `capability:audit.events.list` | baseline | capability_claim | capability-inventory | `audit.events.list` |
+| `capability:audit.summary.read` | baseline | capability_claim | capability-inventory | `audit.summary.read` |
 | `capability:aws_runtime_drift.findings.list` | baseline | capability_claim | capability-inventory | `aws_runtime_drift.findings.list` |
 | `capability:call_graph.call_chain_path` | baseline | correlation | golden-corpus-gate-neo4j | `rc-11` |
 | `capability:call_graph.compare_code_paths` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `compare_code_paths` |
@@ -138,6 +140,15 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `capability:incident.context.read` | baseline | capability_claim | capability-inventory | `incident.context.read` |
 | `capability:kubernetes.correlations.list` | baseline | correlation | golden-corpus-gate-neo4j | `rc-4` |
 | `capability:observability.coverage.correlations.list` | baseline | capability_claim | capability-inventory | `observability.coverage.correlations.list` |
+| `capability:operations.collector_readiness_status` | baseline | capability_claim | capability-inventory | `operations.collector_readiness_status` |
+| `capability:operations.collector_status` | baseline | capability_claim | capability-inventory | `operations.collector_status` |
+| `capability:operations.evidence_bundle_live` | baseline | capability_claim | capability-inventory | `operations.evidence_bundle_live` |
+| `capability:operations.freshness_causality_status` | baseline | capability_claim | capability-inventory | `operations.freshness_causality_status` |
+| `capability:operations.hosted_readiness_status` | baseline | capability_claim | capability-inventory | `operations.hosted_readiness_status` |
+| `capability:operations.index_status` | baseline | capability_claim | capability-inventory | `operations.index_status` |
+| `capability:operations.ingester_status` | baseline | capability_claim | capability-inventory | `operations.ingester_status` |
+| `capability:operations.operator_control_plane_status` | baseline | capability_claim | capability-inventory | `operations.operator_control_plane_status` |
+| `capability:operations.pipeline_status` | baseline | capability_claim | capability-inventory | `operations.pipeline_status` |
 | `capability:operations.status` | baseline | capability_claim | capability-inventory | `operations.status` |
 | `capability:operator.changed_since_poisoned_links.list` | baseline | capability_claim | capability-inventory | `operator.changed_since_poisoned_links.list` |
 | `capability:operator.dead_letters.list` | baseline | capability_claim | capability-inventory | `operator.dead_letters.list` |

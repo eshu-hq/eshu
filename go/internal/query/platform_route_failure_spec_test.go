@@ -34,7 +34,7 @@ var infraSliceSpecRoutes = []infraSpecRoute{
 	{path: "/api/v0/graph/entities", method: "get", capability: "platform_impact.context_overview", graphDeadline: true},
 	{path: "/api/v0/images", method: "get", capability: "platform_impact.container_image_list", graphDeadline: true},
 	{path: "/api/v0/images/tag-history", method: "get", capability: "platform_impact.container_image_tag_history", graphDeadline: true},
-	{path: "/api/v0/status/operator-control-plane", method: "get"},
+	{path: "/api/v0/status/operator-control-plane", method: "get", capability: "operations.operator_control_plane_status"},
 	{path: "/api/v0/evidence/admission-decisions", method: "get", capability: "admission_decisions.list"},
 	{path: "/api/v0/cloud/runtime-drift/findings", method: "post", capability: "cloud_runtime_drift.readback.list"},
 }

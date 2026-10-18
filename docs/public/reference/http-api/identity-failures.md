@@ -23,8 +23,8 @@ route does.
   not change.
 - These routes read and write through the writer store, except the two audit
   reads, which read through the guarded PostgreSQL reader. There a stale or
-  timed-out reader answers the retryable `503` with `Retry-After` and no
-  `capability` field, and a client cancel answers `499` with no error log
+  timed-out reader answers the retryable `503` with `Retry-After` and the
+  `audit.events.list` or `audit.summary.read` capability, and a client cancel answers `499` with no error log
   line; see
   [Admin audit reads](status-evidence-failures.md#admin-audit-reads).
 

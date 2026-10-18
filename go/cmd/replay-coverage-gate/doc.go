@@ -35,7 +35,7 @@
 // that C-2..C-10 have burned the gaps down, so coverage can never regress. When
 // requested, the command writes a machine-readable coverage report (-report-out)
 // and the committed, docs-discoverable C-7 dashboard (-dashboard-out,
-// docs/public/reference/replay-coverage.md);
+// docs/public/reference/generated/replay-coverage.md);
 // TestCommittedDashboardIsCurrent holds the dashboard in lockstep (refresh with
 // -update-dashboard).
 //

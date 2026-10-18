@@ -236,7 +236,7 @@ nav:
       - Code-Graph Sub-Scope Partitioning: reference/code-graph-subscope-partitioning.md
       - Hosted Search Embedder Gate: reference/hosted-search-embedder-gate.md
       - Hybrid Retrieval Production Gate: reference/hybrid-retrieval-production-gate.md
-      - Replay Coverage Dashboard: reference/replay-coverage.md
+      - Replay Coverage Dashboard: reference/generated/replay-coverage.md
       - Code Coverage Report: reference/code-coverage.md
       - Local Testing:
         - Overview: reference/local-testing.md

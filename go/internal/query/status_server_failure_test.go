@@ -15,9 +15,7 @@ import (
 )
 
 // statusFailureRoute is one converted status-route failure site plus the
-// capability its reader-fence envelope must name. An empty capability means
-// the route has no capability-matrix key (#8227), so the envelope must carry
-// no capability field at all.
+// capability-matrix key its reader-fence envelope must name (#8227).
 type statusFailureRoute struct {
 	route      failure.Route
 	capability string
@@ -37,17 +35,50 @@ func statusFailureRoutes() []statusFailureRoute {
 		return &StatusHandler{StatusReader: fakeStatusReader{err: err}, LiveActivity: &fakeLiveActivityReader{}}
 	}
 	return []statusFailureRoute{
-		{route: statusRead("/api/v0/status/pipeline", pipelineStatusReadFailedMessage, readerFails)},
-		{route: statusRead("/api/v0/status/collectors", collectorStatusReadFailedMessage, readerFails)},
-		{route: statusRead("/api/v0/collectors", collectorStatusReadFailedMessage, readerFails)},
-		{route: statusRead("/api/v0/status/ingesters/repository", ingesterStatusReadFailedMessage, readerFails)},
-		{route: statusRead("/api/v0/ingesters/repository", ingesterStatusReadFailedMessage, readerFails)},
-		{route: statusRead("/api/v0/status/index", indexStatusReadFailedMessage, readerFails)},
-		{route: statusRead("/api/v0/index-status", indexStatusReadFailedMessage, readerFails)},
-		{route: statusRead("/api/v0/status/hosted-readiness", hostedReadinessStatusReadFailedMessage, readerFails)},
-		{route: statusRead("/api/v0/status/freshness-causality", freshnessCausalityStatusReadFailedMessage, readerFails)},
-		{route: statusRead("/api/v0/status/collector-readiness", collectorReadinessStatusReadFailedMessage, readerFails)},
-		{route: statusRead("/api/v0/collector-readiness", collectorReadinessStatusReadFailedMessage, readerFails)},
+		{
+			route:      statusRead("/api/v0/status/pipeline", pipelineStatusReadFailedMessage, readerFails),
+			capability: "operations.pipeline_status",
+		},
+		{
+			route:      statusRead("/api/v0/status/collectors", collectorStatusReadFailedMessage, readerFails),
+			capability: "operations.collector_status",
+		},
+		{
+			route:      statusRead("/api/v0/collectors", collectorStatusReadFailedMessage, readerFails),
+			capability: "operations.collector_status",
+		},
+		{
+			route:      statusRead("/api/v0/status/ingesters/repository", ingesterStatusReadFailedMessage, readerFails),
+			capability: "operations.ingester_status",
+		},
+		{
+			route:      statusRead("/api/v0/ingesters/repository", ingesterStatusReadFailedMessage, readerFails),
+			capability: "operations.ingester_status",
+		},
+		{
+			route:      statusRead("/api/v0/status/index", indexStatusReadFailedMessage, readerFails),
+			capability: "operations.index_status",
+		},
+		{
+			route:      statusRead("/api/v0/index-status", indexStatusReadFailedMessage, readerFails),
+			capability: "operations.index_status",
+		},
+		{
+			route:      statusRead("/api/v0/status/hosted-readiness", hostedReadinessStatusReadFailedMessage, readerFails),
+			capability: "operations.hosted_readiness_status",
+		},
+		{
+			route:      statusRead("/api/v0/status/freshness-causality", freshnessCausalityStatusReadFailedMessage, readerFails),
+			capability: "operations.freshness_causality_status",
+		},
+		{
+			route:      statusRead("/api/v0/status/collector-readiness", collectorReadinessStatusReadFailedMessage, readerFails),
+			capability: "operations.collector_readiness_status",
+		},
+		{
+			route:      statusRead("/api/v0/collector-readiness", collectorReadinessStatusReadFailedMessage, readerFails),
+			capability: "operations.collector_readiness_status",
+		},
 		{
 			route:      statusRead("/api/v0/status/semantic-extraction", semanticExtractionStatusReadFailedMessage, readerFails),
 			capability: semanticExtractionStatusCapability,
@@ -142,13 +173,13 @@ func TestScopedIndexStatusAnswersFixedServerFailures(t *testing.T) {
 		if rec.Code != http.StatusInternalServerError || failure.Message(rec.Body.Bytes()) != scopedRepositoryCountFailedMessage {
 			t.Errorf("%s / no row: status = %d, body = %s; want 500 %q", route.Name, rec.Code, rec.Body.String(), scopedRepositoryCountFailedMessage)
 		}
-		assertFenceCapability(t, suite, route, "")
+		assertFenceCapability(t, suite, route, "operations.index_status")
 	}
 }
 
 // assertFenceCapability serves route with a stale-reader error and checks the
-// envelope's capability field: equal to capability when it is set, absent
-// when it is empty (a route with no capability-matrix key, #8227).
+// envelope's capability field: it must equal capability, the route's
+// capability-matrix key (#8227).
 func assertFenceCapability(t *testing.T, suite failure.Suite, route failure.Route, capability string) {
 	t.Helper()
 	rec, _ := failure.Serve(suite, route, route.Handler(fmt.Errorf("%s: %w", failure.Canary, db.ErrReaderStale)), false)
@@ -163,11 +194,7 @@ func assertFenceCapability(t *testing.T, suite failure.Suite, route failure.Rout
 		t.Errorf("%s / fence capability: decode body: %v; body = %s", route.Name, err, rec.Body.String())
 		return
 	}
-	got, present := body.Error["capability"]
-	switch {
-	case capability == "" && present:
-		t.Errorf("%s / fence capability: envelope carries capability %v, want no field (#8227)", route.Name, got)
-	case capability != "" && got != capability:
+	if got := body.Error["capability"]; got != capability {
 		t.Errorf("%s / fence capability: envelope capability = %v, want %q", route.Name, got, capability)
 	}
 }

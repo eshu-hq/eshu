@@ -22,14 +22,17 @@ import (
 // GET /api/v0/auth/admin/audit/events and GET /api/v0/auth/admin/audit/summary.
 // Both read the governance audit store through the guarded PostgreSQL reader,
 // but answered a stale reader with their fixed 500 instead of the retryable
-// 503, and answered a client cancel as a server fault. The routes have no
-// capability-matrix key (#8227), so the fence envelope carries no capability
-// field.
+// 503, and answered a client cancel as a server fault. The fence envelope
+// names each route's capability-matrix key (#8227).
 func TestAdminAuditReadsAnswerFixedServerFailures(t *testing.T) {
 	t.Parallel()
 
 	sharedOperator := func(ctx context.Context) context.Context {
 		return auth.ContextWithAuthContext(ctx, auth.AuthContext{Mode: auth.AuthModeShared, AllScopes: true})
+	}
+	wantCapability := map[string]string{
+		"audit events":  "audit.events.list",
+		"audit summary": "audit.summary.read",
 	}
 	routes := []failure.Route{
 		{
@@ -58,8 +61,8 @@ func TestAdminAuditReadsAnswerFixedServerFailures(t *testing.T) {
 		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 			t.Fatalf("%s: decode fence body: %v; body = %s", route.Name, err, rec.Body.String())
 		}
-		if capability, present := body.Error["capability"]; present {
-			t.Errorf("%s: fence envelope carries capability %v, want no field (#8227)", route.Name, capability)
+		if got := body.Error["capability"]; got != wantCapability[route.Name] {
+			t.Errorf("%s: fence envelope capability = %v, want %q", route.Name, got, wantCapability[route.Name])
 		}
 	}
 }

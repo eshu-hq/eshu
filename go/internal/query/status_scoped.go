@@ -130,10 +130,9 @@ func (h *StatusHandler) getScopedIndexStatus(
 		)
 		if err != nil {
 			// A graph outage answers the retryable 503 and a graph read
-			// deadline the 504, through WriteGraphReadError. The route has
-			// no capability-matrix key (#8227), so the envelope carries no
-			// capability field.
-			if WriteGraphReadError(w, r, err, querycontract.NoCapability) {
+			// deadline the 504, through WriteGraphReadError. The envelope names
+			// the route's capability-matrix key (#8227).
+			if WriteGraphReadError(w, r, err, indexStatusCapability) {
 				return
 			}
 			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, scopedRepositoryCountFailedMessage)

@@ -282,8 +282,8 @@ permission_families:
     scope_levels: [tenant, workspace, repository, source_scope]
     default_roles: [operator, owner]
   - family: audit_export
-    description: Audit, export, admission decision, work-item evidence, denied-decision inspection, and incident/audit report reads.
-    capability_prefixes: [admission_decisions., work_item.]
+    description: Audit, export, admission decision, work-item evidence, denied-decision inspection, governance audit event and summary, and incident/audit report reads.
+    capability_prefixes: [admission_decisions., work_item., audit.]
     action: audit.export.read
     data_classes: [audit_sensitive]
     scope_levels: [tenant, workspace, repository, source_scope]

@@ -8,19 +8,22 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
 // freshnessCausalityStatusReadFailedMessage is the fixed body of a failed
 // status snapshot read on GET /api/v0/status/freshness-causality (#7674). The
-// route has no capability-matrix key (#8227): the status snapshot reads
-// through the guarded PostgreSQL reader, so a stale or timed-out reader
-// answers the retryable 503 under querycontract.NoCapability, whose envelope
-// carries no capability field. The reader error goes on the request span,
-// never into the body.
+// status snapshot reads through the guarded PostgreSQL reader, so a stale or
+// timed-out reader answers the retryable 503 under
+// freshnessCausalityStatusCapability, which the error envelope names (#8227).
+// The reader error goes on the request span, never into the body.
 const freshnessCausalityStatusReadFailedMessage = "freshness causality status read failed"
+
+// freshnessCausalityStatusCapability is the capability-matrix key a
+// reader-fence 503 on GET /api/v0/status/freshness-causality names in
+// error.capability.
+const freshnessCausalityStatusCapability = "operations.freshness_causality_status"
 
 // scopedFreshnessCausalityRoute reports whether the request targets the
 // freshness causality read model. The handler redacts raw scope/generation
@@ -45,7 +48,7 @@ func (h *StatusHandler) getFreshnessCausality(w http.ResponseWriter, r *http.Req
 
 	raw, report, err := loadStatusReportFiltered(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions(), operatorStatusSelection())
 	if err != nil {
-		if WriteGraphReadError(w, r, err, querycontract.NoCapability) {
+		if WriteGraphReadError(w, r, err, freshnessCausalityStatusCapability) {
 			return
 		}
 		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, freshnessCausalityStatusReadFailedMessage)

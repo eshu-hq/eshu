@@ -25,7 +25,7 @@ var updateDashboard = flag.Bool("update-dashboard", false, "regenerate the commi
 
 // committedDashboardPath is the C-7 deliverable: the docs-discoverable Markdown
 // dashboard, relative to the repository root.
-const committedDashboardRelPath = "docs/public/reference/replay-coverage.md"
+const committedDashboardRelPath = "docs/public/reference/generated/replay-coverage.md"
 
 // repoRootFromTest resolves the repository root three levels above this package
 // (replay-coverage-gate -> cmd -> go -> repo root).

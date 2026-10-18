@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
@@ -19,16 +18,26 @@ import (
 // Fixed client-facing messages for status snapshot read failures (#7674).
 // Each route has its own constant, so the body alone says which read failed.
 // A status reader error can quote SQL, relation names, hosts, and connection
-// settings, so it goes on the request span, never into the body. These routes
-// have no capability-matrix key (#8227): the status snapshot reads through the
-// guarded PostgreSQL reader, so each failure site first answers a stale or
-// timed-out reader with the retryable 503 under querycontract.NoCapability,
-// whose envelope carries no capability field.
+// settings, so it goes on the request span, never into the body. The status
+// snapshot reads through the guarded PostgreSQL reader, so each failure site
+// first answers a stale or timed-out reader with the retryable 503 under the
+// route's capability-matrix key (#8227), which the error envelope names.
 const (
 	pipelineStatusReadFailedMessage  = "pipeline status read failed"
 	collectorStatusReadFailedMessage = "collector status read failed"
 	ingesterStatusReadFailedMessage  = "ingester status read failed"
 	indexStatusReadFailedMessage     = "index status read failed"
+)
+
+// Capability-matrix keys for the root status read routes (#8227). Each names
+// the key a reader-fence 503 carries in error.capability, the operator signal
+// for which route a stale or timed-out PostgreSQL reader fenced. The index
+// key covers both the unscoped snapshot read and the scoped graph count.
+const (
+	pipelineStatusCapability  = "operations.pipeline_status"
+	collectorStatusCapability = "operations.collector_status"
+	ingesterStatusCapability  = "operations.ingester_status"
+	indexStatusCapability     = "operations.index_status"
 )
 
 // StatusHandler provides HTTP endpoints for pipeline status queries.
@@ -89,7 +98,7 @@ func (h *StatusHandler) getPipelineStatus(w http.ResponseWriter, r *http.Request
 	opts := status.DefaultOptions()
 	raw, report, err := loadStatusReport(r.Context(), h.StatusReader, time.Now(), opts)
 	if err != nil {
-		if WriteGraphReadError(w, r, err, querycontract.NoCapability) {
+		if WriteGraphReadError(w, r, err, pipelineStatusCapability) {
 			return
 		}
 		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, pipelineStatusReadFailedMessage)
@@ -108,7 +117,7 @@ func (h *StatusHandler) listCollectors(w http.ResponseWriter, r *http.Request) {
 
 	_, report, err := loadStatusReportFiltered(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions(), operatorStatusSelection())
 	if err != nil {
-		if WriteGraphReadError(w, r, err, querycontract.NoCapability) {
+		if WriteGraphReadError(w, r, err, collectorStatusCapability) {
 			return
 		}
 		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, collectorStatusReadFailedMessage)
@@ -198,7 +207,7 @@ func (h *StatusHandler) getIngesterStatus(w http.ResponseWriter, r *http.Request
 		ingesterStatusSelection(),
 	)
 	if err != nil {
-		if WriteGraphReadError(w, r, err, querycontract.NoCapability) {
+		if WriteGraphReadError(w, r, err, ingesterStatusCapability) {
 			return
 		}
 		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, ingesterStatusReadFailedMessage)
@@ -245,7 +254,7 @@ func (h *StatusHandler) getIndexStatus(w http.ResponseWriter, r *http.Request) {
 		selection,
 	)
 	if err != nil {
-		if WriteGraphReadError(w, r, err, querycontract.NoCapability) {
+		if WriteGraphReadError(w, r, err, indexStatusCapability) {
 			return
 		}
 		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, indexStatusReadFailedMessage)

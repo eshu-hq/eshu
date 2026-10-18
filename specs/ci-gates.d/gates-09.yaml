@@ -412,7 +412,7 @@ gates:
   # ifa-static-mirror for why an unowned job never blocked a merge). The job
   # runs scripts/test-verify-replay-coverage-gate.sh, which the
   # replay-coverage-gate row already runs locally as its test_command, so this
-  # row is CI-only. The mirror also reads docs/public/reference/replay-coverage.md
+  # row is CI-only. The mirror also reads docs/public/reference/generated/replay-coverage.md
   # and docs/mkdocs.yml, which the workflow's paths: filter does not list; they
   # are left out of the triggers because a trigger the workflow does not start
   # on would select a check that never arrives (checkOwnerRowTriggers enforces

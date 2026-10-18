@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
@@ -78,12 +77,17 @@ type collectorReadinessEntry struct {
 
 // collectorReadinessStatusReadFailedMessage is the fixed body of a failed
 // status snapshot read on GET /api/v0/status/collector-readiness and GET
-// /api/v0/collector-readiness (#7674). The route has no capability-matrix
-// key (#8227): the status snapshot reads through the guarded PostgreSQL
-// reader, so a stale or timed-out reader answers the retryable 503 under
-// querycontract.NoCapability, whose envelope carries no capability field. The
-// reader error goes on the request span, never into the body.
+// /api/v0/collector-readiness (#7674). The status snapshot reads through the
+// guarded PostgreSQL reader, so a stale or timed-out reader answers the
+// retryable 503 under collectorReadinessStatusCapability, which the error
+// envelope names (#8227). The reader error goes on the request span, never
+// into the body.
 const collectorReadinessStatusReadFailedMessage = "collector readiness status read failed"
+
+// collectorReadinessStatusCapability is the capability-matrix key a
+// reader-fence 503 on GET /api/v0/status/collector-readiness and GET
+// /api/v0/collector-readiness names in error.capability.
+const collectorReadinessStatusCapability = "operations.collector_readiness_status"
 
 // getCollectorReadiness serves the per-collector-family promotion readiness read
 // model over the full collector fleet. It loads the same status report the rest
@@ -131,7 +135,7 @@ func (h *StatusHandler) getCollectorReadiness(w http.ResponseWriter, r *http.Req
 	asOf := time.Now()
 	_, report, err := loadStatusReportFiltered(r.Context(), h.StatusReader, asOf, status.DefaultOptions(), operatorStatusSelection())
 	if err != nil {
-		if WriteGraphReadError(w, r, err, querycontract.NoCapability) {
+		if WriteGraphReadError(w, r, err, collectorReadinessStatusCapability) {
 			return
 		}
 		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, collectorReadinessStatusReadFailedMessage)

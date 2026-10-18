@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
@@ -16,11 +15,16 @@ import (
 // operatorControlPlaneStatusReadFailedMessage is the fixed body of a failed
 // status snapshot read on GET /api/v0/status/operator-control-plane (#7674).
 // The reader error can quote SQL, relation names, and hosts, so it goes on the
-// request span, never into the body. The route has no capability-matrix key
-// (#8227): the snapshot reads through the guarded PostgreSQL reader, so a
-// stale or timed-out reader answers the retryable 503 under
-// querycontract.NoCapability, whose envelope carries no capability field.
+// request span, never into the body. The snapshot reads through the guarded
+// PostgreSQL reader, so a stale or timed-out reader answers the retryable 503
+// under operatorControlPlaneStatusCapability, which the error envelope names
+// (#8227).
 const operatorControlPlaneStatusReadFailedMessage = "operator control plane status read failed"
+
+// operatorControlPlaneStatusCapability is the capability-matrix key a
+// reader-fence 503 on GET /api/v0/status/operator-control-plane names in
+// error.capability.
+const operatorControlPlaneStatusCapability = "operations.operator_control_plane_status"
 
 // scopedOperatorControlPlaneRoute reports whether the request targets the
 // operator read model. The handler redacts raw correlation IDs and
@@ -56,7 +60,7 @@ func (h *StatusHandler) getOperatorControlPlane(w http.ResponseWriter, r *http.R
 	opts.DomainLimit = operatorControlPlaneDomainLimit
 	_, report, err := loadStatusReportFiltered(r.Context(), h.StatusReader, time.Now(), opts, operatorStatusSelection())
 	if err != nil {
-		if WriteGraphReadError(w, r, err, querycontract.NoCapability) {
+		if WriteGraphReadError(w, r, err, operatorControlPlaneStatusCapability) {
 			return
 		}
 		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, operatorControlPlaneStatusReadFailedMessage)

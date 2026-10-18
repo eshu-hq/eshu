@@ -62,7 +62,7 @@ esac
 # local advisory runs write only the JSON report so they cannot dirty the
 # committed dashboard back to advisory mode. Regenerate a stale one with:
 #   cd go && go test ./cmd/replay-coverage-gate/ -update-dashboard
-dashboard_abs="${repo_root}/docs/public/reference/replay-coverage.md"
+dashboard_abs="${repo_root}/docs/public/reference/generated/replay-coverage.md"
 gate_args=(
 	-specs-dir "${repo_root}/specs"
 	-snapshot "${repo_root}/testdata/golden/e2e-20repo-snapshot.json"

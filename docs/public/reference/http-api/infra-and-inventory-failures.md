@@ -46,11 +46,9 @@ graph `503` or `504` verdict on its handler span, as it did before.
 ## Capability field
 
 A graph or reader verdict `503` or `504` names the route's capability-matrix
-key in `error.capability`. `GET /api/v0/status/operator-control-plane` has no
-capability-matrix key yet, so its reader-verdict error envelope carries no
-`capability` field. The status, `Retry-After`, code, and message are the same
-as on a keyed route. #8227 registers its key. The status snapshot read on that
-route runs under the same internal time bound as the status routes in
+key in `error.capability`. `GET /api/v0/status/operator-control-plane` names
+`operations.operator_control_plane_status` (#8227). The status snapshot read on
+that route runs under the same internal time bound as the status routes in
 [Status And Evidence Route Failures](status-evidence-failures.md).
 
 ## Fixed messages

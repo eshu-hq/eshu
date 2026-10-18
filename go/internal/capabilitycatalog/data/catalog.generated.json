@@ -561,10 +561,11 @@
       },
       {
         "family": "audit_export",
-        "description": "Audit, export, admission decision, work-item evidence, denied-decision inspection, and incident/audit report reads.",
+        "description": "Audit, export, admission decision, work-item evidence, denied-decision inspection, governance audit event and summary, and incident/audit report reads.",
         "capability_prefixes": [
           "admission_decisions.",
-          "work_item."
+          "work_item.",
+          "audit."
         ],
         "action": "audit.export.read",
         "data_classes": [
@@ -1108,6 +1109,132 @@
         ],
         "default_roles": [
           "developer",
+          "owner"
+        ],
+        "sensitive_data": true
+      }
+    },
+    {
+      "capability": "audit.events.list",
+      "display_name": "Audit Events List",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
+      "surfaces": [],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "tenant_audit_event_page"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "tenant_audit_event_page"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "tenant_audit_event_page"
+        },
+        "production": {
+          "status": "experimental",
+          "max_truth_level": "exact",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "tenant_audit_event_page"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "audit_export",
+        "action": "audit.export.read",
+        "data_classes": [
+          "audit_sensitive"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace",
+          "repository",
+          "source_scope"
+        ],
+        "default_roles": [
+          "auditor",
+          "security_analyst",
+          "owner"
+        ],
+        "sensitive_data": true
+      }
+    },
+    {
+      "capability": "audit.summary.read",
+      "display_name": "Audit Summary Read",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
+      "surfaces": [],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "tenant_audit_summary"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "tenant_audit_summary"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "tenant_audit_summary"
+        },
+        "production": {
+          "status": "experimental",
+          "max_truth_level": "exact",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "tenant_audit_summary"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "audit_export",
+        "action": "audit.export.read",
+        "data_classes": [
+          "audit_sensitive"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace",
+          "repository",
+          "source_scope"
+        ],
+        "default_roles": [
+          "auditor",
+          "security_analyst",
           "owner"
         ],
         "sensitive_data": true
@@ -5493,6 +5620,572 @@
         "default_roles": [
           "developer",
           "operator",
+          "owner"
+        ],
+        "sensitive_data": false
+      }
+    },
+    {
+      "capability": "operations.collector_readiness_status",
+      "display_name": "Operations Collector Readiness Status",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
+      "surfaces": [],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "bounded_collector_readiness"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "bounded_collector_readiness"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "bounded_collector_readiness"
+        },
+        "production": {
+          "status": "experimental",
+          "max_truth_level": "derived",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "bounded_collector_readiness"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "operations_status",
+        "action": "operations.status.read",
+        "data_classes": [
+          "status_metadata",
+          "catalog_metadata"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace"
+        ],
+        "default_roles": [
+          "tenant_admin",
+          "operator",
+          "auditor",
+          "owner"
+        ],
+        "sensitive_data": false
+      }
+    },
+    {
+      "capability": "operations.collector_status",
+      "display_name": "Operations Collector Status",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
+      "surfaces": [],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "bounded_collector_status"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "bounded_collector_status"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "bounded_collector_status"
+        },
+        "production": {
+          "status": "experimental",
+          "max_truth_level": "derived",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "bounded_collector_status"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "operations_status",
+        "action": "operations.status.read",
+        "data_classes": [
+          "status_metadata",
+          "catalog_metadata"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace"
+        ],
+        "default_roles": [
+          "tenant_admin",
+          "operator",
+          "auditor",
+          "owner"
+        ],
+        "sensitive_data": false
+      }
+    },
+    {
+      "capability": "operations.evidence_bundle_live",
+      "display_name": "Operations Evidence Bundle Live",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
+      "surfaces": [],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "bounded_live_evidence_bundle"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "bounded_live_evidence_bundle"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "bounded_live_evidence_bundle"
+        },
+        "production": {
+          "status": "experimental",
+          "max_truth_level": "derived",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "bounded_live_evidence_bundle"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "operations_status",
+        "action": "operations.status.read",
+        "data_classes": [
+          "status_metadata",
+          "catalog_metadata"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace"
+        ],
+        "default_roles": [
+          "tenant_admin",
+          "operator",
+          "auditor",
+          "owner"
+        ],
+        "sensitive_data": false
+      }
+    },
+    {
+      "capability": "operations.freshness_causality_status",
+      "display_name": "Operations Freshness Causality Status",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
+      "surfaces": [],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "bounded_freshness_causality"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "bounded_freshness_causality"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "bounded_freshness_causality"
+        },
+        "production": {
+          "status": "experimental",
+          "max_truth_level": "derived",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "bounded_freshness_causality"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "operations_status",
+        "action": "operations.status.read",
+        "data_classes": [
+          "status_metadata",
+          "catalog_metadata"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace"
+        ],
+        "default_roles": [
+          "tenant_admin",
+          "operator",
+          "auditor",
+          "owner"
+        ],
+        "sensitive_data": false
+      }
+    },
+    {
+      "capability": "operations.hosted_readiness_status",
+      "display_name": "Operations Hosted Readiness Status",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
+      "surfaces": [],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "bounded_hosted_readiness"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "bounded_hosted_readiness"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "bounded_hosted_readiness"
+        },
+        "production": {
+          "status": "experimental",
+          "max_truth_level": "derived",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "bounded_hosted_readiness"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "operations_status",
+        "action": "operations.status.read",
+        "data_classes": [
+          "status_metadata",
+          "catalog_metadata"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace"
+        ],
+        "default_roles": [
+          "tenant_admin",
+          "operator",
+          "auditor",
+          "owner"
+        ],
+        "sensitive_data": false
+      }
+    },
+    {
+      "capability": "operations.index_status",
+      "display_name": "Operations Index Status",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
+      "surfaces": [],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "bounded_index_status"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "bounded_index_status"
+        },
+        "local_lightweight": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host",
+          "max_scope_size": "none"
+        },
+        "production": {
+          "status": "experimental",
+          "max_truth_level": "exact",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "bounded_index_status"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "operations_status",
+        "action": "operations.status.read",
+        "data_classes": [
+          "status_metadata",
+          "catalog_metadata"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace"
+        ],
+        "default_roles": [
+          "tenant_admin",
+          "operator",
+          "auditor",
+          "owner"
+        ],
+        "sensitive_data": false
+      }
+    },
+    {
+      "capability": "operations.ingester_status",
+      "display_name": "Operations Ingester Status",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
+      "surfaces": [],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "one_ingester_status"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "one_ingester_status"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "one_ingester_status"
+        },
+        "production": {
+          "status": "experimental",
+          "max_truth_level": "exact",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "one_ingester_status"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "operations_status",
+        "action": "operations.status.read",
+        "data_classes": [
+          "status_metadata",
+          "catalog_metadata"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace"
+        ],
+        "default_roles": [
+          "tenant_admin",
+          "operator",
+          "auditor",
+          "owner"
+        ],
+        "sensitive_data": false
+      }
+    },
+    {
+      "capability": "operations.operator_control_plane_status",
+      "display_name": "Operations Operator Control Plane Status",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
+      "surfaces": [],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "bounded_operator_control_plane"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "bounded_operator_control_plane"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "bounded_operator_control_plane"
+        },
+        "production": {
+          "status": "experimental",
+          "max_truth_level": "derived",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "bounded_operator_control_plane"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "operations_status",
+        "action": "operations.status.read",
+        "data_classes": [
+          "status_metadata",
+          "catalog_metadata"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace"
+        ],
+        "default_roles": [
+          "tenant_admin",
+          "operator",
+          "auditor",
+          "owner"
+        ],
+        "sensitive_data": false
+      }
+    },
+    {
+      "capability": "operations.pipeline_status",
+      "display_name": "Operations Pipeline Status",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
+      "surfaces": [],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "bounded_pipeline_status"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "bounded_pipeline_status"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "bounded_pipeline_status"
+        },
+        "production": {
+          "status": "experimental",
+          "max_truth_level": "exact",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "bounded_pipeline_status"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "operations_status",
+        "action": "operations.status.read",
+        "data_classes": [
+          "status_metadata",
+          "catalog_metadata"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace"
+        ],
+        "default_roles": [
+          "tenant_admin",
+          "operator",
+          "auditor",
           "owner"
         ],
         "sensitive_data": false
