@@ -148,9 +148,37 @@ func TestSemanticContainmentWritesStampEdgeEvidenceSource(t *testing.T) {
 		if !strings.Contains(plan.cypher, "rel.evidence_source = row.evidence_source") {
 			t.Errorf("%s upsert does not stamp rel.evidence_source:\n%s", plan.label, plan.cypher)
 		}
+		if !strings.Contains(semanticEntitySingleRowUpsertCypher(plan.label), "rel.evidence_source") {
+			t.Errorf("%s singleton fallback upsert does not stamp rel.evidence_source", plan.label)
+		}
+		if !strings.Contains(semanticEntityBatchedPropertiesUpsertCypher(plan.label), "rel.evidence_source") {
+			t.Errorf("%s batched-properties upsert does not stamp rel.evidence_source", plan.label)
+		}
 	}
 	if !strings.Contains(semanticRustImplBlockOwnershipCypher, "rel.evidence_source") {
 		t.Errorf("Rust ownership upsert does not stamp rel.evidence_source:\n%s", semanticRustImplBlockOwnershipCypher)
+	}
+}
+
+// The NornicDB dispatch is plans-driven while the broad consts,
+// SemanticEntityContainmentTargetLabels(), and the endpoint constraint are
+// alternation-driven: a plan label missing from the alternation would
+// retract label-scoped but leak in broad mode.
+func TestSemanticEntityPlanLabelsMatchSplitAlternation(t *testing.T) {
+	t.Parallel()
+
+	plans := map[string]struct{}{}
+	for _, plan := range semanticEntityPlans() {
+		plans[plan.label] = struct{}{}
+	}
+	parts := strings.Split(semanticEntityLabelAlternation, "|")
+	if len(plans) != len(parts) {
+		t.Fatalf("plan labels (%d) != alternation labels (%d)", len(plans), len(parts))
+	}
+	for _, part := range parts {
+		if _, ok := plans[part]; !ok {
+			t.Errorf("alternation label %q has no plan", part)
+		}
 	}
 }
 

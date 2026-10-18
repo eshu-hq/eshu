@@ -169,8 +169,15 @@ func TestAssertSemanticEntityContainmentIgnoresSiblingCanonicalPopulation(t *tes
 // would fail it as an extra. Without this, the branch could silently be the
 // generic path and the scope a dead letter.
 func TestRunAssertEdgesCommandDispatchesSemanticRepoScope(t *testing.T) {
+	// Load the fixture through the same helper the command uses: this
+	// fail-fasts an invalid fixture (repo/count asserted inside) before
+	// the dispatch runs, and the ghost below must stay foreign to it.
 	expected := semanticScopeTestExpected(t)
-	_ = expected
+	for _, e := range expected {
+		if e.TargetEntityID == "content-entity:foreign" {
+			t.Fatalf("fixture unexpectedly contains the foreign ghost target")
+		}
+	}
 	path := filepath.Join(repoRootDir(t), "go/internal/ifa/testdata/semanticentitycontainment/ifa-semantic-entity-containment-family-expected-edges.json")
 	graph := append(semanticScopeTestGraph(), semanticScopeTestEdge(
 		"repo-foreign:app/other.py", "", []string{"File"}, "content-entity:foreign", "repo-foreign", []string{"Function"},

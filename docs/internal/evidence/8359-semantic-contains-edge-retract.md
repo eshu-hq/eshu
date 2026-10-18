@@ -53,7 +53,7 @@ CONTAINS adjacency (degree 1–2: File containment, plus ImplBlock ownership
 for Rust functions) and, in the reap, one adjacency existence check. The
 write side adds `SET rel.evidence_source` after the existing endpoint-only
 MERGE, the same SET the canonical writer already pays on its CONTAINS
-edges. Statement count grows (broad 1→3, label-scoped 11→33) over the same
+edges. Statement count grows (broad 1→3, label-scoped 11→35) over the same
 anchor population; no new label scan class, index, or transaction shape is
 introduced, and retract statements remain inside the grouped transaction
 (#6176 dispatch tests unchanged and green). This is a correctness change
