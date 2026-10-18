@@ -14,9 +14,11 @@ import (
 // reducer dispatch scan). Both encode the same #6950/#6951 family-spelling
 // migration, and the rule lives otherwise only in comments: without this
 // test a future batch that extends one spelling list but not the other
-// would silently drop consumer evidence while every other test stays
-// green. The alternation is parsed out of the compiled pattern, so the
-// test names no spelling twice.
+// would weaken consumer evidence for those kinds while every other test
+// stays green. A spelling missing from both lists is a residual case this
+// test cannot see; total signal loss there remains caught by
+// TestEveryRegistryKindHasConsumerOrDisclosure. The alternation is parsed
+// out of the compiled pattern, so the test names no spelling twice.
 func TestFactsQualifierSpellingsStayInSync(t *testing.T) {
 	t.Parallel()
 

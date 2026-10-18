@@ -449,6 +449,9 @@ func semanticDocumentationObservationFixture() SemanticDocumentationObservationP
 		EvidenceRefs: []docs.EvidenceRef{
 			// "observed" echoes facts.SourceConfidenceObserved; this package
 			// cannot import the facts root (the root imports this package).
+			// The value is drift-guarded by
+			// TestSourceConfidenceObservedValueGuardsSemanticFixture in the
+			// facts root.
 			{Kind: "documentation_section", ID: "section:deployment", Confidence: "observed"},
 		},
 	}
