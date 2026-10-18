@@ -5,7 +5,9 @@ package git
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -186,19 +188,20 @@ func errorWithoutPath(err error) string {
 
 // PreparseConfigFor builds the pre-parse configuration from the same values
 // the snapshotter parses with, plus the dependency-mode settings the fact
-// builder uses (#7978 follow-up, ruling a9-143). lookPath and stat resolve the
-// SCIP indexer binaries; both default to the os/exec and os versions when nil.
+// builder uses (#7978 follow-up, ruling a9-143). lookPath resolves the SCIP
+// indexer binaries and readFile reads their content for the digest; both
+// default to the os/exec and os versions when nil.
 // TestPreparseConfigForCoversTheSnapshotter pins that every snapshotter field
 // is either folded here or classified as not changing output.
 func PreparseConfigFor(
 	snapshotter NativeRepositorySnapshotter, sync RepoSyncConfig,
-	lookPath func(string) (string, error), stat func(string) (os.FileInfo, error),
+	lookPath func(string) (string, error), readFile func(string) ([]byte, error),
 ) preparse.Config {
 	if lookPath == nil {
 		lookPath = exec.LookPath
 	}
-	if stat == nil {
-		stat = os.Stat
+	if readFile == nil {
+		readFile = os.ReadFile
 	}
 	config := preparse.Config{
 		EmitDataflow:       snapshotter.EmitDataflow,
@@ -221,13 +224,13 @@ func PreparseConfigFor(
 		if !ok {
 			continue
 		}
-		statResult := preparse.BinaryStat{Language: language, Missing: true}
+		binaryResult := preparse.BinaryStat{Language: language, Missing: true}
 		if path, err := lookPath(binary); err == nil {
-			if info, err := stat(path); err == nil {
-				statResult = preparse.BinaryStat{Language: language, Path: path, Size: info.Size(), ModTime: info.ModTime()}
+			if content, err := readFile(path); err == nil {
+				binaryResult = preparse.BinaryStat{Language: language, Digest: fmt.Sprintf("%x", sha256.Sum256(content))}
 			}
 		}
-		config.SCIPBinaries = append(config.SCIPBinaries, statResult)
+		config.SCIPBinaries = append(config.SCIPBinaries, binaryResult)
 	}
 	return config
 }

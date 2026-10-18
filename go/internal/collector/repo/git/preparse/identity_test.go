@@ -6,7 +6,6 @@ package preparse
 import (
 	"strings"
 	"testing"
-	"time"
 )
 
 func baseConfig() Config {
@@ -17,7 +16,7 @@ func baseConfig() Config {
 		SCIPEnabled:        true,
 		SCIPLanguages:      []string{"go", "python"},
 		SCIPBinaries: []BinaryStat{
-			{Language: "go", Path: "/usr/local/bin/scip-go", Size: 100, ModTime: time.Unix(1, 0)},
+			{Language: "go", Digest: "digest-of-scip-go-v1"},
 		},
 		DependencyMode:     false,
 		DependencyName:     "",
@@ -50,9 +49,7 @@ func TestIdentityChangesWithEveryFoldedInput(t *testing.T) {
 		"emit dataflow":           func(c *Config) { c.EmitDataflow = true },
 		"scip enabled":            func(c *Config) { c.SCIPEnabled = false },
 		"scip languages":          func(c *Config) { c.SCIPLanguages = []string{"go"} },
-		"scip binary size":        func(c *Config) { c.SCIPBinaries[0].Size = 101 },
-		"scip binary mtime":       func(c *Config) { c.SCIPBinaries[0].ModTime = time.Unix(2, 0) },
-		"scip binary path":        func(c *Config) { c.SCIPBinaries[0].Path = "/opt/scip-go" },
+		"scip binary digest":      func(c *Config) { c.SCIPBinaries[0].Digest = "digest-of-scip-go-v2" },
 		"scip binary missing":     func(c *Config) { c.SCIPBinaries[0].Missing = true },
 		"dependency mode":         func(c *Config) { c.DependencyMode = true },
 		"dependency package name": func(c *Config) { c.DependencyName = "pkg" },
@@ -72,6 +69,27 @@ func TestIdentityChangesWithEveryFoldedInput(t *testing.T) {
 		if cell.got == base {
 			t.Errorf("%s: identity did not change", cell.name)
 		}
+	}
+}
+
+// TestIdentityIgnoresBinaryRelocation (#8132): a rebuilt image relocates
+// every indexer binary (new path, size, and modification time) without
+// changing its output. The identity folds only the binary's content digest,
+// so equal digests mean equal identities; a changed digest (a new indexer
+// version) changes the identity, and a missing indexer still does.
+func TestIdentityIgnoresBinaryRelocation(t *testing.T) {
+	t.Parallel()
+	a := baseConfig()
+	a.SCIPBinaries = []BinaryStat{{Language: "go", Digest: "digest-of-scip-go-v1"}}
+	b := baseConfig()
+	b.SCIPBinaries = []BinaryStat{{Language: "go", Digest: "digest-of-scip-go-v1"}}
+	if Identity("v", "c", "main", a) != Identity("v", "c", "main", b) {
+		t.Fatal("equal indexer content changed the identity")
+	}
+	changed := baseConfig()
+	changed.SCIPBinaries = []BinaryStat{{Language: "go", Digest: "digest-of-scip-go-v2"}}
+	if Identity("v", "c", "main", a) == Identity("v", "c", "main", changed) {
+		t.Fatal("changed indexer content did not change the identity")
 	}
 }
 

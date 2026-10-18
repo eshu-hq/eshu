@@ -25,3 +25,6 @@
 - A new outcome is a new label value: add it to `Outcomes`, to the metric
   reference, to the sweep reference table, and to the telemetry coverage row.
 - Bump `IdentityPrefix` when the identity's inputs or encoding change.
+- `BinaryStat` carries the indexer's content digest, never filesystem
+  metadata (path, size, mtime): a rebuild that changes no indexer output must
+  keep `Identity` (#8132).

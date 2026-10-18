@@ -9,28 +9,28 @@ import (
 	"hash"
 	"sort"
 	"strings"
-	"time"
 )
 
 // IdentityPrefix starts every pre-parse identity. The version suffix changes
 // when the identity's inputs or encoding change, so an old stored identity can
 // never equal a new one.
-const IdentityPrefix = "preparse:v1:"
+const IdentityPrefix = "preparse:v2:"
 
 // BinaryStat identifies one SCIP indexer binary the snapshot would run. SCIP
-// output depends on the binary, so its resolved path, size, and modification
-// time are folded into the identity; a missing binary is folded too, because
-// SCIP then falls back to the native parser and the output differs.
+// output depends on the binary's content, so the hex SHA-256 of the binary is
+// folded into the identity; a missing binary is folded too, because SCIP then
+// falls back to the native parser and the output differs. The resolved path,
+// size, and modification time are deliberately not folded: a rebuilt image
+// relocates every binary without changing its output, and folding them would
+// re-parse the whole fleet once per release (#8132).
 type BinaryStat struct {
 	// Language is the SCIP language the binary indexes.
 	Language string
-	// Path is the resolved executable path, or empty when Missing.
-	Path string
-	// Size is the file size in bytes.
-	Size int64
-	// ModTime is the file modification time.
-	ModTime time.Time
-	// Missing reports that no binary was found on PATH.
+	// Digest is the hex SHA-256 of the binary's content, or empty when
+	// Missing.
+	Digest string
+	// Missing reports that no binary was found on PATH, or that its content
+	// could not be read.
 	Missing bool
 }
 
@@ -109,8 +109,8 @@ func writeConfig(h hash.Hash, c Config) {
 	binaries := append([]BinaryStat(nil), c.SCIPBinaries...)
 	sort.Slice(binaries, func(i, j int) bool { return binaries[i].Language < binaries[j].Language })
 	for _, binary := range binaries {
-		write(h, "scip_binary", fmt.Sprintf("%s|%s|%d|%d|%t",
-			binary.Language, binary.Path, binary.Size, binary.ModTime.UnixNano(), binary.Missing))
+		write(h, "scip_binary", fmt.Sprintf("%s|%s|%t",
+			binary.Language, strings.ToLower(strings.TrimSpace(binary.Digest)), binary.Missing))
 	}
 	write(h, "dependency_mode", fmt.Sprint(c.DependencyMode))
 	write(h, "dependency_name", strings.TrimSpace(c.DependencyName))

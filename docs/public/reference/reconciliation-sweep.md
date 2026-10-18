@@ -167,7 +167,7 @@ The collector now decides before the parse (ruling a9-143). After the fetch it
 computes a **pre-parse identity**: the content version, the remote head, the
 default branch, and every configuration input that changes emitted facts (the
 discovery ignore and preserve globs, the [value-flow gate](value-flow-emission.md), `SCIP_INDEXER`,
-`SCIP_LANGUAGES` and the stat of each SCIP indexer binary, and the bootstrap
+`SCIP_LANGUAGES` and the content digest of each SCIP indexer binary, and the bootstrap
 dependency settings). Every stored generation and every re-open after a parse
 stamps the identity on the generation. The first sweep after a deploy parses
 and stamps; later sweeps compare. The ingester and collector-git run the skip on
