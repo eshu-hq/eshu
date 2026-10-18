@@ -90,19 +90,22 @@ absorbs this skew.
 
 The obligation gauges (`eshu_dp_activation_obligations{status}`,
 `eshu_dp_activation_obligation_oldest_open_age_seconds`, and the rest of the
-`eshu_dp_activation_obligation_*` family) are emitted by the consumer's
-housekeeping (`Runner.housekeep`), so while
+`eshu_dp_activation_obligation_*` family) are emitted by the consumer
+(`Runner`; the census runs in `housekeep`), so while
 `ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED=false` they are absent: the
 wiring returns no runner and nothing publishes the census. The Ack path still
 writes one `activation_obligations` row per activated generation, so the
 pending pile is visible in SQL. Open states are `pending` and `leased`;
-`completed`, `obsolete`, and `inapplicable` are terminal.
+`completed`, `obsolete`, and `inapplicable` are terminal. This fallback mirrors
+the census query (`statsQuery` in `backlog.go`): per-state counts over all
+states plus one global oldest-open age in seconds.
 
 ```sql
 SELECT state, count(*),
-       max(clock_timestamp() - created_at) AS oldest_open_age
+       COALESCE(EXTRACT(EPOCH FROM clock_timestamp() - min(created_at)
+           FILTER (WHERE state IN ('pending', 'leased'))), 0)
+           AS oldest_open_age_seconds
   FROM activation_obligations
- WHERE state IN ('pending', 'leased')
  GROUP BY state;
 ```
 
