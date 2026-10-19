@@ -148,7 +148,17 @@ ComposeLifecycles in `internal/app` chains multiple Lifecycle values
 - `RecoveryHandler` / `NewRecoveryHandler(handler)` — mounts `/admin/replay`
   (POST), `/admin/refinalize` (POST), and
   `/admin/replay-collector-generations` (POST) on the admin mux; delegates to
-  `recovery.Handler`; replaces the Python write-plane admin surface
+  `recovery.Handler`; replaces the Python write-plane admin surface.
+  Failure answers: a bad request body is 400; a filter rejection keeps its
+  caller-actionable text with 422; a store failure answers the fixed message
+  `replay failed` / `collector generation replay failed` / `refinalize failed`
+  with 500 and never the store error text (SQL, hosts, and constraint names
+  stay server-side on the request span and in the log); a caller that cancels
+  its own request answers the same fixed message with 499, not a server fault;
+  refinalize claim-fence contention answers `blocked/claim_fence_busy` with
+  409, matching `/api/v0/admin/refinalize` (#8394). Like the other admin
+  routes these endpoints have no authentication and must stay on the admin
+  port, never on the public API port.
 
 ### Lifecycle and observability
 
@@ -359,6 +369,26 @@ Prometheus output after the hand-rolled gauges at the same `/metrics` endpoint.
   `AdminCheck` functions to gate the probes on domain-specific invariants
 
 ## Gotchas / invariants
+
+- `/admin/replay`, `/admin/refinalize`, and `/admin/replay-collector-generations`
+  answer a failed store call with a fixed JSON message (`replay failed`,
+  `refinalize failed`, `collector generation replay failed`, 500) and never
+  the store error text; a canceled request answers the same fixed message with
+  499. The error is recorded on the request span and logged server-side
+  through `writeRecoveryFailure`, which mirrors `status.WriteReadFailure` but
+  keeps the routes' JSON error envelope (#8394). A filter rejection keeps its
+  caller-actionable text with 422, and refinalize claim-fence contention keeps
+  its 409 `blocked/claim_fence_busy` verdict, matching `/api/v0/admin/refinalize`.
+
+  No-Regression Evidence: only the domain-error branches of `handleReplay`,
+  `handleReplayCollectorGenerations`, and `handleRefinalize` changed, plus a
+  filter pre-validation that returns the same verdict the domain validation
+  would; the success paths (domain call, response shapes, headers) are
+  untouched, so replay/refinalize latency and the response contracts are
+  unchanged. The error branch adds one `slog` line and span events per failed
+  call. Baseline and after are the same code on the success path;
+  `go test ./internal/runtime ./internal/recovery -count=1` passes including
+  the per-site fixed-message, validation-text, 499, and 409 tests.
 
 - `/metrics` answers a failed status read with the fixed body
   `load runtime metrics failed` (500) and never the reader's error text; a
