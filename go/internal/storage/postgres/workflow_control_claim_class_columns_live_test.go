@@ -151,8 +151,19 @@ func TestWorkflowClaimClassColumnsBackfill(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read migration 204: %v", err)
 	}
+	// Strip the header comment block before splitting: it shares the first
+	// ;-delimited chunk with the ecosystem UPDATE, and the chunk filter
+	// below only executes chunks that start with UPDATE. The statements
+	// themselves still come from the shipped file, never hand-copied.
+	var code []string
+	for _, line := range strings.Split(string(raw), "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "--") {
+			continue
+		}
+		code = append(code, line)
+	}
 	applied := 0
-	for _, stmt := range strings.Split(string(raw), ";") {
+	for _, stmt := range strings.Split(strings.Join(code, "\n"), ";") {
 		trimmed := strings.TrimSpace(stmt)
 		if !strings.HasPrefix(trimmed, "UPDATE") {
 			continue
