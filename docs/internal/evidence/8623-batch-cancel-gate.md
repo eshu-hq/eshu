@@ -1,7 +1,8 @@
 # #8623 batch-claim cancel gate — performance and observability evidence
 
 No-Regression Evidence: post-`ClaimBatch` `ctx.Err()` gate in
-`go/internal/reducer/service_batch.go:134-152`.
+`runBatchConcurrent` (`go/internal/reducer/service_batch.go`, claimer
+loop, between the non-empty-claim continue and the `workCh` handoff).
 
 - Baseline: `TestServiceBatchCanceledBeforeEnqueueHasNoSuccess` flaked 3/3
   CI occurrences (`Fail calls = 1`); local `-race -count=200` green (window
