@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -20,7 +21,7 @@ func TestBuildReducerServiceWiresCodeownersOwnershipEdgeWriter(t *testing.T) {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
 	}
 
-	result, err := service.Executor.Execute(context.Background(), reducer.Intent{
+	result, err := service.Executor.Execute(context.Background(), reducercontract.Intent{
 		IntentID:     "codeowners-wiring",
 		Domain:       reducer.DomainCodeownersOwnership,
 		ScopeID:      "scope-123",

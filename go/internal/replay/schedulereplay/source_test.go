@@ -8,10 +8,11 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/replay/schedulereplay"
 )
 
-func intentIDs(intents []reducer.Intent) []string {
+func intentIDs(intents []reducercontract.Intent) []string {
 	ids := make([]string, len(intents))
 	for i, in := range intents {
 		ids[i] = in.IntentID
@@ -25,7 +26,7 @@ func intentIDs(intents []reducer.Intent) []string {
 func TestScheduledWorkSourceClaimDeterministicOrder(t *testing.T) {
 	t.Parallel()
 
-	schedule := []reducer.Intent{
+	schedule := []reducercontract.Intent{
 		{IntentID: "a"}, {IntentID: "b"}, {IntentID: "a"}, {IntentID: "c"},
 	}
 	src := schedulereplay.NewScheduledWorkSource(schedule)
@@ -62,7 +63,7 @@ func TestScheduledWorkSourceClaimDeterministicOrder(t *testing.T) {
 func TestScheduledWorkSourceClaimBatchHonorsLimitAndOrder(t *testing.T) {
 	t.Parallel()
 
-	schedule := []reducer.Intent{
+	schedule := []reducercontract.Intent{
 		{IntentID: "a"}, {IntentID: "b"}, {IntentID: "c"}, {IntentID: "d"}, {IntentID: "e"},
 	}
 	src := schedulereplay.NewScheduledWorkSource(schedule)

@@ -7,13 +7,14 @@ package main
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const containerImageIdentityPerfHeadVariant = true
 
-func containerImageIdentityPerfPrepareIntent(intent *reducer.Intent) {
+func containerImageIdentityPerfPrepareIntent(intent *reducercontract.Intent) {
 	intent.ClaimEpoch = 1
 }
 

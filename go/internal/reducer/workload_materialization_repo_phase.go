@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/retract"
 )
@@ -124,7 +125,7 @@ func publishRepoDependencyReadinessFenceWithRepair(
 	ctx context.Context,
 	publisher GraphProjectionPhasePublisher,
 	repairQueue GraphProjectionPhaseRepairQueue,
-	intent Intent,
+	intent reducercontract.Intent,
 	observedAt time.Time,
 ) error {
 	if publisher == nil {
@@ -270,7 +271,7 @@ type repositoryEdgeKeepSource struct {
 // A nil InputLoader uses the correlated loader, which supplies scope truth.
 func (h WorkloadMaterializationHandler) loadProjectionInputs(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 ) (WorkloadProjectionInputs, repositoryEdgeKeepSource, error) {
 	var inputLoader WorkloadProjectionInputLoader = CorrelatedWorkloadProjectionInputLoader{
 		FactLoader:     h.FactLoader,
@@ -312,7 +313,7 @@ func (h WorkloadMaterializationHandler) loadProjectionInputs(
 // intent ran last. A keep source without scope truth skips the retract.
 func (h WorkloadMaterializationHandler) retractStaleRepositoryEdges(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	repositoryFacts []facts.Envelope,
 	keep repositoryEdgeKeepSource,
 ) (retract.Result, error) {

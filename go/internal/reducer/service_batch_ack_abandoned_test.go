@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // cancelingTransientAckSink always fails AckBatch with a transient error and
@@ -22,7 +24,7 @@ type cancelingTransientAckSink struct {
 	onAck func()
 }
 
-func (s *cancelingTransientAckSink) AckBatch(ctx context.Context, intents []Intent, results []Result) error {
+func (s *cancelingTransientAckSink) AckBatch(ctx context.Context, intents []reducercontract.Intent, results []Result) error {
 	if s.onAck != nil {
 		s.onAck()
 	}
@@ -33,7 +35,7 @@ func runBatchAckStatuses(
 	ctx context.Context,
 	t *testing.T,
 	sink WorkSink,
-	intents []Intent,
+	intents []reducercontract.Intent,
 ) (map[string]int64, string, error) {
 	t.Helper()
 	instruments, reader := batchTelemetry(t)

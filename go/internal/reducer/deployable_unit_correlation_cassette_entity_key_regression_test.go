@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // deployableUnitCassetteRegressionFile mirrors the small slice of
@@ -133,7 +134,7 @@ func TestDeployableUnitCorrelationCommittedCassetteEntityKeySurvivesFilter(t *te
 		t.Fatalf("ExtractWorkloadCandidates found zero candidates from the committed cassette's repository+file facts")
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "regression:deployable-unit-entity-key",
 		ScopeID:      scope.ScopeID,
 		GenerationID: scope.GenerationID,
@@ -261,7 +262,7 @@ func TestCommittedCassetteWorkloadKeySelectsByRepositoryID(t *testing.T) {
 			}
 
 			selectWith := func(key string) ([]WorkloadCandidate, CandidateSelectionReport) {
-				intent := Intent{
+				intent := reducercontract.Intent{
 					IntentID:     "regression:cassette-workload-key",
 					ScopeID:      scope.ScopeID,
 					GenerationID: scope.GenerationID,

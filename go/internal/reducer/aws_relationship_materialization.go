@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
@@ -106,7 +107,7 @@ type AWSRelationshipMaterializationHandler struct {
 // Handle executes one AWS relationship materialization intent.
 func (h AWSRelationshipMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 ) (Result, error) {
 	totalStart := time.Now()
 	if intent.Domain != DomainAWSRelationshipMaterialization {
@@ -282,7 +283,7 @@ func (h AWSRelationshipMaterializationHandler) Handle(
 // same way DomainAWSResourceMaterialization publishes it (publishIntentGraphPhase
 // -> graphProjectionPhaseStateForIntent), so the lookup matches the published
 // row. A nil lookup keeps the gate open for test wiring.
-func (h AWSRelationshipMaterializationHandler) canonicalNodesReady(intent Intent) bool {
+func (h AWSRelationshipMaterializationHandler) canonicalNodesReady(intent reducercontract.Intent) bool {
 	if h.ReadinessLookup == nil {
 		return true
 	}
@@ -303,7 +304,7 @@ func (h AWSRelationshipMaterializationHandler) canonicalNodesReady(intent Intent
 // retract on the very first generation for a scope (no prior edges to remove)
 // and only on the first attempt, so a retried attempt still cleans up a partial
 // prior write.
-func (h AWSRelationshipMaterializationHandler) shouldSkipRetract(ctx context.Context, intent Intent) (bool, error) {
+func (h AWSRelationshipMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}
@@ -396,7 +397,7 @@ func (awsRelationshipNodesNotReadyError) FailureClass() string {
 // resolution tally so the completion log identifies fact-load, extraction,
 // retract, and graph-write time, plus which target types lost edges.
 type awsRelationshipMaterializationTiming struct {
-	intent             Intent
+	intent             reducercontract.Intent
 	resourceFactCount  int
 	relationshipCount  int
 	edgeCount          int

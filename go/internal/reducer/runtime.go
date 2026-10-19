@@ -69,7 +69,7 @@ type Stats struct {
 type Runtime struct {
 	mu              sync.Mutex
 	registry        Registry
-	intents         []Intent
+	intents         []reducercontract.Intent
 	GenerationCheck GenerationFreshnessCheck // nil disables the guard
 }
 
@@ -83,9 +83,9 @@ func NewRuntime(registry Registry) (*Runtime, error) {
 }
 
 // Enqueue persists one reducer intent in the bounded runtime queue.
-func (r *Runtime) Enqueue(now time.Time, intent Intent) (Intent, error) {
+func (r *Runtime) Enqueue(now time.Time, intent reducercontract.Intent) (reducercontract.Intent, error) {
 	if now.IsZero() {
-		return Intent{}, fmt.Errorf("now must not be zero")
+		return reducercontract.Intent{}, fmt.Errorf("now must not be zero")
 	}
 
 	queued := intent.Clone()
@@ -100,13 +100,13 @@ func (r *Runtime) Enqueue(now time.Time, intent Intent) (Intent, error) {
 	}
 
 	if err := queued.Validate(); err != nil {
-		return Intent{}, err
+		return reducercontract.Intent{}, err
 	}
 	if _, ok := r.registry.Definition(queued.Domain); !ok {
-		return Intent{}, fmt.Errorf("domain %q is not registered", queued.Domain)
+		return reducercontract.Intent{}, fmt.Errorf("domain %q is not registered", queued.Domain)
 	}
 	if queued.Status != IntentStatusPending {
-		return Intent{}, fmt.Errorf("intent must enqueue as pending, got %q", queued.Status)
+		return reducercontract.Intent{}, fmt.Errorf("intent must enqueue as pending, got %q", queued.Status)
 	}
 
 	r.mu.Lock()
@@ -182,7 +182,7 @@ func (r *Runtime) RunOnce(ctx context.Context, now time.Time, max int) (RunRepor
 }
 
 // Execute runs one reducer intent through its registered handler.
-func (r *Runtime) Execute(ctx context.Context, intent Intent) (Result, error) {
+func (r *Runtime) Execute(ctx context.Context, intent reducercontract.Intent) (Result, error) {
 	return r.execute(ctx, intent)
 }
 
@@ -243,13 +243,13 @@ func (r *Runtime) Stats() Stats {
 	return stats
 }
 
-func (r *Runtime) claimBatch(now time.Time, max int) ([]int, []Intent) {
+func (r *Runtime) claimBatch(now time.Time, max int) ([]int, []reducercontract.Intent) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	type candidate struct {
 		index  int
-		intent Intent
+		intent reducercontract.Intent
 	}
 
 	candidates := make([]candidate, 0, len(r.intents))
@@ -286,7 +286,7 @@ func (r *Runtime) claimBatch(now time.Time, max int) ([]int, []Intent) {
 	}
 
 	positions := make([]int, 0, len(candidates))
-	intents := make([]Intent, 0, len(candidates))
+	intents := make([]reducercontract.Intent, 0, len(candidates))
 	for _, candidate := range candidates {
 		positions = append(positions, candidate.index)
 		claimed := r.intents[candidate.index].Clone()
@@ -345,7 +345,7 @@ func (r *Runtime) markFailed(position int, completedAt time.Time, failureClass, 
 	r.intents[position] = intent
 }
 
-func (r *Runtime) execute(ctx context.Context, intent Intent) (Result, error) {
+func (r *Runtime) execute(ctx context.Context, intent reducercontract.Intent) (Result, error) {
 	// Generation guard: skip stale intents before touching Neo4j.
 	if r.GenerationCheck != nil {
 		current, err := r.GenerationCheck(ctx, intent.ScopeID, intent.GenerationID)

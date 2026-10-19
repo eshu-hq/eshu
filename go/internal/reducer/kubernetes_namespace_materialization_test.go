@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // recordingKubernetesNamespaceNodeWriter captures the rows handed to the
@@ -79,7 +80,7 @@ func TestKubernetesNamespaceMaterializationRejectsMismatchedDomain(t *testing.T)
 		NodeWriter: &recordingKubernetesNamespaceNodeWriter{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -99,7 +100,7 @@ func TestKubernetesNamespaceMaterializationRequiresFactLoader(t *testing.T) {
 		NodeWriter: &recordingKubernetesNamespaceNodeWriter{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -119,7 +120,7 @@ func TestKubernetesNamespaceMaterializationRequiresNodeWriter(t *testing.T) {
 		FactLoader: &stubFactLoader{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -407,7 +408,7 @@ func TestKubernetesNamespaceMaterializationHandleWritesNodes(t *testing.T) {
 		NodeWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -449,7 +450,7 @@ func TestKubernetesNamespaceMaterializationHandleNoFactsIsNoOp(t *testing.T) {
 		NodeWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",

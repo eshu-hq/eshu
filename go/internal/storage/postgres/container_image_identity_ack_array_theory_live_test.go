@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestContainerImageIdentityAckAttemptGroupArrayPlanLive(t *testing.T) {
@@ -28,12 +29,12 @@ func TestContainerImageIdentityAckAttemptGroupArrayPlanLive(t *testing.T) {
 	)
 
 	ids := make([]string, batchSize)
-	intents := make([]reducer.Intent, batchSize)
+	intents := make([]reducercontract.Intent, batchSize)
 	for index := range batchSize {
 		scopeID := fmt.Sprintf("repository:5854-ack-array-theory-%02d", index)
 		generationID := fmt.Sprintf("generation:5854-ack-array-theory-%02d", index)
 		ids[index] = fmt.Sprintf("ack-5854-array-%02d", index)
-		intents[index] = reducer.Intent{
+		intents[index] = reducercontract.Intent{
 			IntentID:     ids[index],
 			Domain:       reducer.DomainContainerImageIdentity,
 			AttemptCount: 1,

@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // transientAckSink fails the first failFirst AckBatch calls with err, then
@@ -23,14 +25,14 @@ type transientAckSink struct {
 	ackBatches atomic.Int64
 }
 
-func (s *transientAckSink) AckBatch(ctx context.Context, intents []Intent, results []Result) error {
+func (s *transientAckSink) AckBatch(ctx context.Context, intents []reducercontract.Intent, results []Result) error {
 	if s.ackBatches.Add(1) <= s.failFirst {
 		return fmt.Errorf("batch ack reducer work (%d items): %w", len(intents), s.err)
 	}
 	return s.fakeBatchWorkSink.AckBatch(ctx, intents, results)
 }
 
-func runAckRetryService(t *testing.T, sink WorkSink, intents []Intent) error {
+func runAckRetryService(t *testing.T, sink WorkSink, intents []reducercontract.Intent) error {
 	t.Helper()
 	svc := Service{
 		PollInterval:   10 * time.Millisecond,

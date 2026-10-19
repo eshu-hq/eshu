@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestWorkloadMaterializationPublishesRepoDependencyFenceOnEverySuccessPath(t *testing.T) {
@@ -51,7 +52,7 @@ func TestWorkloadMaterializationPublishesRepoDependencyFenceOnEverySuccessPath(t
 				Materializer:   NewWorkloadMaterializer(&recordingCypherExecutor{}),
 				PhasePublisher: publisher,
 			}
-			intent := Intent{
+			intent := reducercontract.Intent{
 				IntentID:     "workload-fenced",
 				ScopeID:      "scope-payments",
 				GenerationID: "gen-1",

@@ -12,13 +12,14 @@ import (
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/trace/noop"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 func TestServiceRunMainLoopWithTelemetry(t *testing.T) {
 	t.Parallel()
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-1",
 		ScopeID:         "scope-123",
 		GenerationID:    "generation-456",
@@ -32,7 +33,7 @@ func TestServiceRunMainLoopWithTelemetry(t *testing.T) {
 		Status:          IntentStatusPending,
 	}
 
-	source := &stubReducerWorkSource{intents: []Intent{intent}}
+	source := &stubReducerWorkSource{intents: []reducercontract.Intent{intent}}
 	executor := &stubReducerExecutor{
 		result: Result{
 			IntentID: intent.IntentID,

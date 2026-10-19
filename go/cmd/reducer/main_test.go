@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -330,7 +331,7 @@ func TestBuildReducerServiceWiresPostgresWorkloadIdentityWriter(t *testing.T) {
 	// assertions below count only exec calls from processing the intent.
 	database.execs = nil
 
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-1",
 		ScopeID:         "scope-123",
 		GenerationID:    "generation-456",
@@ -374,7 +375,7 @@ func TestBuildReducerServiceWiresPostgresCloudAssetResolutionWriter(t *testing.T
 	// assertions below count only exec calls from processing the intent.
 	database.execs = nil
 
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-2",
 		ScopeID:         "scope-123",
 		GenerationID:    "generation-456",

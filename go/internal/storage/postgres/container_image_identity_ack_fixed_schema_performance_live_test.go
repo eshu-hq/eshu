@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestContainerImageIdentityAckFixedSchemaPerformanceLive(t *testing.T) {
@@ -192,9 +193,9 @@ INSERT INTO container_image_identity_cutovers (
 		singleAfterTrials = append(singleAfterTrials, singleAfter)
 
 		baselineBatchQuery, baselineBatchArgs := legacyContainerImageIdentityAckBatchQuery(now, owner, ids)
-		candidateIntents := make([]reducer.Intent, len(ids))
+		candidateIntents := make([]reducercontract.Intent, len(ids))
 		for index := range ids {
-			candidateIntents[index] = reducer.Intent{
+			candidateIntents[index] = reducercontract.Intent{
 				IntentID:     ids[index],
 				Domain:       reducer.DomainContainerImageIdentity,
 				AttemptCount: attempts[index],
@@ -292,14 +293,14 @@ INSERT INTO container_image_identity_cutovers (
 			func() error {
 				return baselineQueue.Fail(
 					ctx,
-					reducer.Intent{IntentID: unrelatedID, AttemptCount: 1},
+					reducercontract.Intent{IntentID: unrelatedID, AttemptCount: 1},
 					failure,
 				)
 			},
 			func() error {
 				return candidateQueue.Fail(
 					ctx,
-					reducer.Intent{IntentID: unrelatedID, AttemptCount: 1},
+					reducercontract.Intent{IntentID: unrelatedID, AttemptCount: 1},
 					failure,
 				)
 			},

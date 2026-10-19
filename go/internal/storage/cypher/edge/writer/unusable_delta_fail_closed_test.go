@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
@@ -92,7 +93,7 @@ type unusableDeltaCase struct {
 		ctx context.Context,
 		loader reducer.FactLoader,
 		writer *capturingIntentWriter,
-		intent reducer.Intent,
+		intent reducercontract.Intent,
 	) error
 }
 
@@ -107,7 +108,7 @@ func unusableDeltaCases() []unusableDeltaCase {
 				ctx context.Context,
 				loader reducer.FactLoader,
 				writer *capturingIntentWriter,
-				intent reducer.Intent,
+				intent reducercontract.Intent,
 			) error {
 				handler := inheritance.MaterializationHandler{FactLoader: loader, IntentWriter: writer}
 				_, err := handler.Handle(ctx, intent)
@@ -123,7 +124,7 @@ func unusableDeltaCases() []unusableDeltaCase {
 				ctx context.Context,
 				loader reducer.FactLoader,
 				writer *capturingIntentWriter,
-				intent reducer.Intent,
+				intent reducercontract.Intent,
 			) error {
 				handler := reducer.RationaleEdgeMaterializationHandler{FactLoader: loader, IntentWriter: writer}
 				_, err := handler.Handle(ctx, intent)
@@ -139,7 +140,7 @@ func unusableDeltaCases() []unusableDeltaCase {
 				ctx context.Context,
 				loader reducer.FactLoader,
 				writer *capturingIntentWriter,
-				intent reducer.Intent,
+				intent reducercontract.Intent,
 			) error {
 				handler := sqlrelationship.SQLRelationshipMaterializationHandler{FactLoader: loader, IntentWriter: writer}
 				_, err := handler.Handle(ctx, intent)
@@ -155,7 +156,7 @@ func unusableDeltaCases() []unusableDeltaCase {
 				ctx context.Context,
 				loader reducer.FactLoader,
 				writer *capturingIntentWriter,
-				intent reducer.Intent,
+				intent reducercontract.Intent,
 			) error {
 				handler := reducer.ShellExecMaterializationHandler{FactLoader: loader, IntentWriter: writer}
 				_, err := handler.Handle(ctx, intent)
@@ -214,7 +215,7 @@ func TestUnusableDeltaRefreshFailsClosedInsteadOfRetractingRepoWide(t *testing.T
 			ctx := context.Background()
 			capture := &capturingIntentWriter{}
 			loader := staticFactLoader{envelopes: unusableDeltaRepositoryFacts()}
-			intent := reducer.Intent{
+			intent := reducercontract.Intent{
 				IntentID:     "materialize-1",
 				ScopeID:      unusableDeltaScopeID,
 				GenerationID: unusableDeltaGenerationID,

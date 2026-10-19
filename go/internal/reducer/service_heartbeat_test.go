@@ -9,12 +9,14 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestFirstReducerPartitionKeyUsesStableSortedKey(t *testing.T) {
 	t.Parallel()
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		EntityKeys: []string{"repo:zeta", "repo:alpha", "repo:beta"},
 	}
 
@@ -26,7 +28,7 @@ func TestFirstReducerPartitionKeyUsesStableSortedKey(t *testing.T) {
 func TestServiceRunHeartbeatsLongRunningReducerWork(t *testing.T) {
 	t.Parallel()
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-heartbeat",
 		ScopeID:         "scope-123",
 		GenerationID:    "generation-456",
@@ -60,7 +62,7 @@ func TestServiceRunHeartbeatsLongRunningReducerWork(t *testing.T) {
 
 	service := Service{
 		PollInterval:      10 * time.Millisecond,
-		WorkSource:        &stubReducerWorkSource{intents: []Intent{intent}},
+		WorkSource:        &stubReducerWorkSource{intents: []reducercontract.Intent{intent}},
 		Executor:          executor,
 		WorkSink:          sink,
 		Heartbeater:       heartbeater,
@@ -99,7 +101,7 @@ func TestServiceRunHeartbeatsLongRunningReducerWork(t *testing.T) {
 func TestServiceRunPreHeartbeatsImmediatelyOnClaim(t *testing.T) {
 	t.Parallel()
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-pre-heartbeat",
 		ScopeID:      "scope-123",
 		GenerationID: "generation-456",
@@ -133,7 +135,7 @@ func TestServiceRunPreHeartbeatsImmediatelyOnClaim(t *testing.T) {
 
 	service := Service{
 		PollInterval:      10 * time.Millisecond,
-		WorkSource:        &stubReducerWorkSource{intents: []Intent{intent}},
+		WorkSource:        &stubReducerWorkSource{intents: []reducercontract.Intent{intent}},
 		Executor:          executor,
 		WorkSink:          sink,
 		Heartbeater:       heartbeater,
@@ -181,7 +183,7 @@ func TestServiceRunPreHeartbeatsImmediatelyOnClaim(t *testing.T) {
 func TestServiceRunPreHeartbeatFailureDoesNotDeadLetter(t *testing.T) {
 	t.Parallel()
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-pre-heartbeat-failure",
 		ScopeID:      "scope-123",
 		GenerationID: "generation-456",
@@ -200,7 +202,7 @@ func TestServiceRunPreHeartbeatFailureDoesNotDeadLetter(t *testing.T) {
 
 	service := Service{
 		PollInterval:      10 * time.Millisecond,
-		WorkSource:        &stubReducerWorkSource{intents: []Intent{intent}},
+		WorkSource:        &stubReducerWorkSource{intents: []reducercontract.Intent{intent}},
 		Executor:          executor,
 		WorkSink:          sink,
 		Heartbeater:       heartbeater,
@@ -227,7 +229,7 @@ type failingReducerHeartbeater struct {
 	failWith error
 }
 
-func (f *failingReducerHeartbeater) Heartbeat(context.Context, Intent) error {
+func (f *failingReducerHeartbeater) Heartbeat(context.Context, reducercontract.Intent) error {
 	return f.failWith
 }
 
@@ -242,7 +244,7 @@ type neverCalledReducerExecutor struct {
 	count int
 }
 
-func (n *neverCalledReducerExecutor) Execute(ctx context.Context, _ Intent) (Result, error) {
+func (n *neverCalledReducerExecutor) Execute(ctx context.Context, _ reducercontract.Intent) (Result, error) {
 	n.mu.Lock()
 	n.count++
 	n.mu.Unlock()
@@ -264,7 +266,7 @@ type stubReducerHeartbeater struct {
 	afterHeartbeat func(int)
 }
 
-func (s *stubReducerHeartbeater) Heartbeat(context.Context, Intent) error {
+func (s *stubReducerHeartbeater) Heartbeat(context.Context, reducercontract.Intent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.heartbeatCalls++
@@ -285,7 +287,7 @@ type blockingReducerExecutor struct {
 	result  Result
 }
 
-func (b *blockingReducerExecutor) Execute(ctx context.Context, _ Intent) (Result, error) {
+func (b *blockingReducerExecutor) Execute(ctx context.Context, _ reducercontract.Intent) (Result, error) {
 	select {
 	case <-b.release:
 		return b.result, nil

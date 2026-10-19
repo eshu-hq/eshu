@@ -159,7 +159,7 @@ func (e preActivationProofEnv) claimBatchExecuteSettle(t *testing.T, ctx context
 		t.Fatalf("ClaimBatch() error = %v", err)
 	}
 	var (
-		acked   []reducer.Intent
+		acked   []reducercontract.Intent
 		results []reducer.Result
 	)
 	for _, intent := range intents {

@@ -11,11 +11,12 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // ClaimBatch claims up to limit reducer work items in a single Postgres
 // round-trip using FOR UPDATE SKIP LOCKED. Implements reducer.BatchWorkSource.
-func (q ReducerQueue) ClaimBatch(ctx context.Context, limit int) ([]reducer.Intent, error) {
+func (q ReducerQueue) ClaimBatch(ctx context.Context, limit int) ([]reducercontract.Intent, error) {
 	if err := q.validateClaim(); err != nil {
 		return nil, err
 	}
@@ -49,7 +50,7 @@ func (q ReducerQueue) ClaimBatch(ctx context.Context, limit int) ([]reducer.Inte
 	}
 	defer func() { _ = rows.Close() }()
 
-	var intents []reducer.Intent
+	var intents []reducercontract.Intent
 	for rows.Next() {
 		intent, err := scanReducerIntent(rows)
 		if err != nil {
@@ -73,7 +74,7 @@ func (q ReducerQueue) ClaimBatch(ctx context.Context, limit int) ([]reducer.Inte
 // subset. Refresh-producer items (issue #6785) are ACKed per domain with a
 // same-statement completion event covering only the emit-gated ids.
 // Implements reducer.BatchWorkSink.
-func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, results []reducer.Result) error {
+func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducercontract.Intent, results []reducer.Result) error {
 	if err := q.validateClaim(); err != nil {
 		return err
 	}
@@ -235,7 +236,7 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, re
 		// the bare error and the existing all-unknown telemetry.
 		if len(split.superseded) > 0 {
 			return &reducer.BatchAckSupersededError{
-				Superseded:    append([]reducer.Intent(nil), split.superseded...),
+				Superseded:    append([]reducercontract.Intent(nil), split.superseded...),
 				KeptCommitted: keptCommitted,
 			}
 		}
@@ -248,7 +249,7 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, re
 func ackContainerImageIdentityReducerWorkBatchQuery(
 	now time.Time,
 	leaseOwner string,
-	intents []reducer.Intent,
+	intents []reducercontract.Intent,
 ) (string, []any) {
 	type claimKey struct {
 		epoch     int64
@@ -358,7 +359,7 @@ SELECT 1 FROM acknowledged
 func ackCICDRunCorrelationReducerWorkBatchQuery(
 	now time.Time,
 	leaseOwner string,
-	intents []reducer.Intent,
+	intents []reducercontract.Intent,
 ) (string, []any) {
 	ids := make([]string, 0, len(intents))
 	claimedAt := make([]time.Time, 0, len(intents))
@@ -469,7 +470,7 @@ WHERE work_item_id IN (SELECT work_item_id FROM locked_work)
 
 // FailBatch marks multiple claimed reducer work items as failed in a single
 // round-trip. Each intent is failed with its corresponding error.
-func (q ReducerQueue) FailBatch(ctx context.Context, intents []reducer.Intent, causes []error) error {
+func (q ReducerQueue) FailBatch(ctx context.Context, intents []reducercontract.Intent, causes []error) error {
 	if err := q.validateClaim(); err != nil {
 		return err
 	}

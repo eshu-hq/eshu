@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossplane"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane"
@@ -131,7 +132,7 @@ func TestCrossplaneRedriveSuccessfulMaterializationWritesLedgerThenSkipsLive(t *
 		RedriveTargetLedger: ledger,
 		EdgeExistenceReader: &crossplaneRedriveFakeEdgeExistenceReader{confirmAll: true},
 	}
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-satisfy-skip-1",
 		ScopeID:      targetScopeID,
 		GenerationID: targetGenID,
@@ -213,7 +214,7 @@ func TestCrossplaneRedriveUnconfirmedEdgeNotLedgeredAndReenqueuedLive(t *testing
 		RedriveTargetLedger: ledger,
 		EdgeExistenceReader: &crossplaneRedriveFakeEdgeExistenceReader{confirmAll: false},
 	}
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-unconfirmed-1",
 		ScopeID:      targetScopeID,
 		GenerationID: targetGenID,

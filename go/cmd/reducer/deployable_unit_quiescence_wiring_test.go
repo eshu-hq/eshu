@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -35,7 +36,7 @@ func TestBuildReducerServiceWiresDeployableUnitCanonicalQuiescenceFailClosed(t *
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
 	}
 
-	_, execErr := service.Executor.Execute(context.Background(), reducer.Intent{
+	_, execErr := service.Executor.Execute(context.Background(), reducercontract.Intent{
 		IntentID:        "deployable-unit-quiescence-wiring",
 		Domain:          reducer.DomainDeployableUnitCorrelation,
 		ScopeID:         "repository:test-scope",

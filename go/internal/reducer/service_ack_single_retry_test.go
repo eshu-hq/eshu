@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // transientSingleAckSink fails the first failFirst Ack calls with err, then
@@ -31,7 +33,7 @@ type transientSingleAckSink struct {
 	onAck     func()
 }
 
-func (s *transientSingleAckSink) Ack(_ context.Context, intent Intent, _ Result) error {
+func (s *transientSingleAckSink) Ack(_ context.Context, intent reducercontract.Intent, _ Result) error {
 	s.mu.Lock()
 	s.ackCalls++
 	call := s.ackCalls
@@ -49,7 +51,7 @@ func (s *transientSingleAckSink) Ack(_ context.Context, intent Intent, _ Result)
 	return nil
 }
 
-func (s *transientSingleAckSink) Fail(context.Context, Intent, error) error {
+func (s *transientSingleAckSink) Fail(context.Context, reducercontract.Intent, error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.failCalls++
@@ -71,7 +73,7 @@ func runSingleAck(
 	t *testing.T,
 	sink WorkSink,
 	workers int,
-	intents []Intent,
+	intents []reducercontract.Intent,
 ) singleAckRun {
 	t.Helper()
 	return runSingleAckFrom(ctx, t, sink, workers, &stubReducerWorkSource{intents: intents})
@@ -82,9 +84,9 @@ func runSingleAck(
 // way stubReducerWorkSource does.
 type ctxAwareWorkSource struct{ inner *stubReducerWorkSource }
 
-func (s ctxAwareWorkSource) Claim(ctx context.Context) (Intent, bool, error) {
+func (s ctxAwareWorkSource) Claim(ctx context.Context) (reducercontract.Intent, bool, error) {
 	if err := ctx.Err(); err != nil {
-		return Intent{}, false, err
+		return reducercontract.Intent{}, false, err
 	}
 	return s.inner.Claim(ctx)
 }

@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/retract"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -63,7 +64,7 @@ type DeploymentRepoScopeResolver interface {
 type WorkloadProjectionInputLoader interface {
 	LoadWorkloadProjectionInputs(
 		ctx context.Context,
-		intent Intent,
+		intent reducercontract.Intent,
 	) ([]WorkloadCandidate, map[string][]string, error)
 }
 
@@ -90,7 +91,7 @@ type WorkloadProjectionInputs struct {
 // retracts stale repository edges only through a loader with this capability;
 // with any other loader it skips the retract and warns.
 type ScopeWorkloadProjectionInputLoader interface {
-	LoadWorkloadProjectionScopeInputs(ctx context.Context, intent Intent) (WorkloadProjectionInputs, error)
+	LoadWorkloadProjectionScopeInputs(ctx context.Context, intent reducercontract.Intent) (WorkloadProjectionInputs, error)
 }
 
 // InfrastructurePlatformLookup loads platforms provisioned by infrastructure
@@ -167,7 +168,7 @@ type workloadMaterializationTiming struct {
 // Handle executes the workload materialization reduction path.
 func (h WorkloadMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 ) (Result, error) {
 	totalStarted := time.Now()
 	var timing workloadMaterializationTiming

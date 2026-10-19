@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestReducerQueueReopenSucceededResetsSucceededWorkItemToPending(t *testing.T) {
@@ -369,7 +370,7 @@ func TestReducerQueueValidateClaimRequiresPositiveLeaseDuration(t *testing.T) {
 		LeaseOwner: "test-owner",
 	}
 
-	err := queue.Heartbeat(context.Background(), reducer.Intent{IntentID: "work-1"})
+	err := queue.Heartbeat(context.Background(), reducercontract.Intent{IntentID: "work-1"})
 	if err == nil {
 		t.Fatal("Heartbeat() error = nil, want validation error for zero lease duration")
 	}

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // runtimeInstanceGraphStub answers the loader's two scalar queries: the
@@ -257,7 +258,7 @@ func TestServiceCatalogHandlerMaterializesRuntimeFromGraphReads(t *testing.T) {
 		RuntimeInstanceLoader: GraphServiceRuntimeInstanceLoader{Graph: graph},
 	}
 
-	if _, err := handler.Handle(context.Background(), Intent{
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-service-catalog",
 		ScopeID:      "service-catalog-manifest://repo-checkout/catalog-info.yaml",
 		GenerationID: "generation-service-catalog",
@@ -336,7 +337,7 @@ func TestServiceCatalogHandlerEmitsNoRuntimeWhenGraphEmpty(t *testing.T) {
 		RuntimeInstanceLoader: GraphServiceRuntimeInstanceLoader{Graph: graph},
 	}
 
-	if _, err := handler.Handle(context.Background(), Intent{
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent",
 		ScopeID:      "service-catalog-manifest://repo-checkout/catalog-info.yaml",
 		GenerationID: "gen",

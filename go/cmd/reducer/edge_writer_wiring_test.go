@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -41,7 +42,7 @@ func TestBuildReducerServiceWiresCodeownersAndSubmodulePinEdgeWriters(t *testing
 		{domain: reducer.DomainSubmodulePin, nilWriterErrMsg: "submodule pin materialization edge writer is required"},
 	} {
 		t.Run(string(tc.domain), func(t *testing.T) {
-			intent := reducer.Intent{
+			intent := reducercontract.Intent{
 				IntentID:        "intent-" + string(tc.domain),
 				ScopeID:         "scope-123",
 				GenerationID:    "generation-456",

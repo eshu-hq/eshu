@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // #6162: the Ifa expire-lease fault injection cell forces
@@ -37,7 +38,7 @@ func TestSplitReducerAckBatchIntentsKeepsNewestClaimAfterLeaseReclaim(t *testing
 	staleClaim := time.Date(2026, time.September, 21, 15, 11, 48, 0, time.UTC)
 	freshClaim := staleClaim.Add(900 * time.Millisecond)
 
-	split, err := splitReducerAckBatchIntents([]reducer.Intent{
+	split, err := splitReducerAckBatchIntents([]reducercontract.Intent{
 		{
 			IntentID:     intentID,
 			Domain:       reducer.DomainGCPResourceMaterialization,
@@ -74,13 +75,13 @@ func TestSplitReducerAckBatchIntentsDedupesIdenticalClaimWithoutSupersession(t *
 	t.Parallel()
 
 	claimedAt := time.Date(2026, time.September, 21, 15, 11, 48, 0, time.UTC)
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:  "intent-6162-identical",
 		Domain:    reducer.DomainOwnership,
 		ClaimedAt: &claimedAt,
 	}
 
-	split, err := splitReducerAckBatchIntents([]reducer.Intent{intent, intent})
+	split, err := splitReducerAckBatchIntents([]reducercontract.Intent{intent, intent})
 	if err != nil {
 		t.Fatalf("splitReducerAckBatchIntents() error = %v, want nil", err)
 	}
@@ -101,7 +102,7 @@ func TestSplitReducerAckBatchIntentsRejectsDomainConflict(t *testing.T) {
 
 	claimedAt := time.Date(2026, time.September, 21, 15, 11, 48, 0, time.UTC)
 
-	_, err := splitReducerAckBatchIntents([]reducer.Intent{
+	_, err := splitReducerAckBatchIntents([]reducercontract.Intent{
 		{IntentID: "intent-6162-domain-conflict", Domain: reducer.DomainOwnership, ClaimedAt: &claimedAt},
 		{IntentID: "intent-6162-domain-conflict", Domain: reducer.DomainGovernance, ClaimedAt: &claimedAt},
 	})
@@ -136,7 +137,7 @@ func TestReducerQueueAckBatchReportsSupersededClaimAsClaimRejected(t *testing.T)
 
 	err := queue.AckBatch(
 		context.Background(),
-		[]reducer.Intent{
+		[]reducercontract.Intent{
 			{
 				IntentID:     intentID,
 				Domain:       reducer.DomainGCPResourceMaterialization,
@@ -202,7 +203,7 @@ func TestReducerQueueAckBatchPairsTheSurvivingClaimsResult(t *testing.T) {
 
 	err := queue.AckBatch(
 		context.Background(),
-		[]reducer.Intent{
+		[]reducercontract.Intent{
 			{
 				IntentID:     intentID,
 				Domain:       reducer.DomainWorkloadMaterialization,
@@ -279,7 +280,7 @@ func TestReducerQueueAckBatchKeepsSupersededSignalBesideCleanTargetAck(t *testin
 
 	err := queue.AckBatch(
 		context.Background(),
-		[]reducer.Intent{
+		[]reducercontract.Intent{
 			{
 				IntentID:     "intent-6162-mixed-target",
 				Domain:       reducer.DomainContainerImageIdentity,
@@ -325,7 +326,7 @@ func TestReducerQueueAckBatchNamesSupersededClaims(t *testing.T) {
 	const intentID = "intent-8007-ackbatch-names-superseded"
 	staleClaim := time.Date(2026, time.October, 12, 12, 0, 0, 0, time.UTC)
 	freshClaim := staleClaim.Add(900 * time.Millisecond)
-	intents := []reducer.Intent{
+	intents := []reducercontract.Intent{
 		{
 			IntentID:     intentID,
 			Domain:       reducer.DomainGCPResourceMaterialization,

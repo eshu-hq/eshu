@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
@@ -74,7 +75,7 @@ func deployableUnitKeys(candidate WorkloadCandidate) []string {
 	return uniqueSortedStrings(values)
 }
 
-func deployableUnitCorrelationEntityKeys(intent Intent) (map[string]struct{}, error) {
+func deployableUnitCorrelationEntityKeys(intent reducercontract.Intent) (map[string]struct{}, error) {
 	entityKeys := uniqueSortedStrings(intent.EntityKeys)
 	if len(entityKeys) == 0 {
 		return nil, fmt.Errorf(

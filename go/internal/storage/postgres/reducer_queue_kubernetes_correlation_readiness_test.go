@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
 )
 
@@ -165,7 +166,7 @@ func TestReducerQueueFailDefersKubernetesCorrelationReadinessPastAttemptBudget(t
 		Now:           func() time.Time { return now },
 	}
 
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-k8s-edge-1",
 		AttemptCount: 42,
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 )
 
@@ -207,7 +208,7 @@ func TestReducerQueueFailDefersEC2InstanceIdentityReadinessPastAttemptBudget(t *
 		Now:           func() time.Time { return now },
 	}
 
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-ec2-instance-identity-1",
 		AttemptCount: 42,
 	}

@@ -81,7 +81,7 @@ func TestContainerImageIdentityFirstGenerationServiceDispatchLive(t *testing.T) 
 				GenerationCheck: NewGenerationFreshnessCheck(SQLDB{DB: db}),
 			}
 			var pendingHandlerCalls, readyHandlerCalls atomic.Int32
-			spy := reducer.HandlerFunc(func(ctx context.Context, intent reducer.Intent) (reducer.Result, error) {
+			spy := reducer.HandlerFunc(func(ctx context.Context, intent reducercontract.Intent) (reducer.Result, error) {
 				switch intent.ScopeID {
 				case pendingScope:
 					pendingHandlerCalls.Add(1)

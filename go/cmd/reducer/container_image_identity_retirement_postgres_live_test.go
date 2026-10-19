@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -110,7 +111,7 @@ func TestContainerImageIdentityRetirementProductionPathLive(t *testing.T) {
 			return current
 		},
 	}
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-5854-live",
 		ClaimEpoch:   1,
 		Domain:       reducer.DomainContainerImageIdentity,

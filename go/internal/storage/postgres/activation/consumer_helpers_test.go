@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
@@ -109,7 +110,7 @@ func newActivationMatrix(t *testing.T, prefix string, ackTarget bool) activation
 
 // enqueueClaim enqueues one row of domain and claims exactly that row with a
 // queue restricted to the domain.
-func (f activationMatrix) enqueueClaim(t *testing.T, domain reducer.Domain, scope, gen, entity string) reducer.Intent {
+func (f activationMatrix) enqueueClaim(t *testing.T, domain reducer.Domain, scope, gen, entity string) reducercontract.Intent {
 	t.Helper()
 	queue := f.reducerQ
 	queue.ClaimDomains = []reducer.Domain{domain}
@@ -137,7 +138,7 @@ func (f activationMatrix) enqueueClaim(t *testing.T, domain reducer.Domain, scop
 		seen = append(seen, got)
 	}
 	t.Fatalf("row %s/%s/%s/%s not claimed; other claims=%v", domain, scope, gen, entity, seen)
-	return reducer.Intent{}
+	return reducercontract.Intent{}
 }
 
 // notReady leaves one deployment_mapping row retrying with the

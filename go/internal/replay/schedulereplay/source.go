@@ -7,7 +7,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // ScheduledWorkSource is a deterministic, in-memory reducer work source that
@@ -23,7 +23,7 @@ import (
 // can claim from one source.
 type ScheduledWorkSource struct {
 	mu         sync.Mutex
-	schedule   []reducer.Intent
+	schedule   []reducercontract.Intent
 	cursor     int
 	batchCalls int
 }
@@ -32,19 +32,19 @@ type ScheduledWorkSource struct {
 // exact order provided. The schedule is copied, so the caller may reuse its
 // slice. Duplicate intents (same IntentID appearing more than once) are
 // delivered each time they appear, modeling duplicate queue delivery.
-func NewScheduledWorkSource(schedule []reducer.Intent) *ScheduledWorkSource {
-	cp := make([]reducer.Intent, len(schedule))
+func NewScheduledWorkSource(schedule []reducercontract.Intent) *ScheduledWorkSource {
+	cp := make([]reducercontract.Intent, len(schedule))
 	copy(cp, schedule)
 	return &ScheduledWorkSource{schedule: cp}
 }
 
 // Claim returns the next scripted intent, or ok=false once the schedule is
 // exhausted. It never blocks and never errors: the schedule is fixed up front.
-func (s *ScheduledWorkSource) Claim(_ context.Context) (reducer.Intent, bool, error) {
+func (s *ScheduledWorkSource) Claim(_ context.Context) (reducercontract.Intent, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.cursor >= len(s.schedule) {
-		return reducer.Intent{}, false, nil
+		return reducercontract.Intent{}, false, nil
 	}
 	intent := s.schedule[s.cursor]
 	s.cursor++
@@ -54,7 +54,7 @@ func (s *ScheduledWorkSource) Claim(_ context.Context) (reducer.Intent, bool, er
 // ClaimBatch returns up to limit scripted intents in order, or an empty slice
 // once the schedule is exhausted. It records that the batch path was used so a
 // scenario can prove the concurrent BatchWorkSource path actually ran.
-func (s *ScheduledWorkSource) ClaimBatch(_ context.Context, limit int) ([]reducer.Intent, error) {
+func (s *ScheduledWorkSource) ClaimBatch(_ context.Context, limit int) ([]reducercontract.Intent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.batchCalls++
@@ -65,7 +65,7 @@ func (s *ScheduledWorkSource) ClaimBatch(_ context.Context, limit int) ([]reduce
 	if end > len(s.schedule) {
 		end = len(s.schedule)
 	}
-	batch := make([]reducer.Intent, end-s.cursor)
+	batch := make([]reducercontract.Intent, end-s.cursor)
 	copy(batch, s.schedule[s.cursor:end])
 	s.cursor = end
 	return batch, nil

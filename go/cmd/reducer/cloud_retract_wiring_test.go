@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -63,7 +64,7 @@ func TestBuildReducerServiceWiresCloudRetractSeams(t *testing.T) {
 		{domain: reducer.DomainGCPResourceMaterialization, wantErr: "retract dead cloud resource nodes"},
 	} {
 		t.Run(string(tc.domain), func(t *testing.T) {
-			intent := reducer.Intent{
+			intent := reducercontract.Intent{
 				IntentID:        "intent-retract-wiring-" + string(tc.domain),
 				ScopeID:         "scope-123",
 				GenerationID:    "generation-456",

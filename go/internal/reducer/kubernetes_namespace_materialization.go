@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -136,7 +137,7 @@ type KubernetesNamespaceMaterializationHandler struct {
 // Handle executes one live Kubernetes namespace materialization intent.
 func (h KubernetesNamespaceMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 ) (Result, error) {
 	totalStart := time.Now()
 	if intent.Domain != DomainKubernetesNamespaceMaterialization {
@@ -362,7 +363,7 @@ func kubernetesNamespaceNodeRow(env facts.Envelope) (map[string]any, string, boo
 }
 
 type kubernetesNamespaceMaterializationTiming struct {
-	intent          Intent
+	intent          reducercontract.Intent
 	factCount       int
 	nodeCount       int
 	boundCount      int

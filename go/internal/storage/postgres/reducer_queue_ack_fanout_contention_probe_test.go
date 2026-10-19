@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -34,7 +35,7 @@ func TestReducerContentionGateAckFanoutProbe(t *testing.T) {
 	defer cancel()
 	const count = 64
 	now := time.Now().UTC()
-	intents := make([]reducer.Intent, count)
+	intents := make([]reducercontract.Intent, count)
 	for i := range count {
 		scope := fmt.Sprintf("repository:6488-%03d", i)
 		generation := fmt.Sprintf("generation:6488-%03d", i)
@@ -46,7 +47,7 @@ func TestReducerContentionGateAckFanoutProbe(t *testing.T) {
 		// Reverse the lexical identity relative to heap insertion and scope order.
 		id := fmt.Sprintf("ack-fanout-6488-%03d", count-i)
 		insertCrossScopeCompletionBaseConsumer(t, ctx, database, id, scope, generation, reducer.DomainSupplyChainImpact, now)
-		intents[i] = reducer.Intent{IntentID: id, Domain: reducer.DomainSupplyChainImpact, ClaimedAt: &now}
+		intents[i] = reducercontract.Intent{IntentID: id, Domain: reducer.DomainSupplyChainImpact, ClaimedAt: &now}
 	}
 	if _, err := database.ExecContext(ctx, `ANALYZE fact_work_items; ANALYZE ingestion_scopes; ANALYZE scope_generations`); err != nil {
 		t.Fatal(err)

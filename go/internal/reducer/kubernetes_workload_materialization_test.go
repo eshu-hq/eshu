@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // recordingKubernetesWorkloadNodeWriter captures the rows handed to the node
@@ -64,7 +65,7 @@ func TestKubernetesWorkloadMaterializationRejectsMismatchedDomain(t *testing.T) 
 		NodeWriter: &recordingKubernetesWorkloadNodeWriter{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -84,7 +85,7 @@ func TestKubernetesWorkloadMaterializationRequiresFactLoader(t *testing.T) {
 		NodeWriter: &recordingKubernetesWorkloadNodeWriter{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -104,7 +105,7 @@ func TestKubernetesWorkloadMaterializationRequiresNodeWriter(t *testing.T) {
 		FactLoader: &stubFactLoader{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -297,7 +298,7 @@ func TestKubernetesWorkloadMaterializationHandleWritesNodes(t *testing.T) {
 		NodeWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -334,7 +335,7 @@ func TestKubernetesWorkloadMaterializationHandleNoFactsIsNoOp(t *testing.T) {
 		NodeWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -366,7 +367,7 @@ func TestKubernetesWorkloadMaterializationHandlePublishesCanonicalNodesCommitted
 		PhasePublisher: publisher,
 	}
 
-	if _, err := handler.Handle(context.Background(), Intent{
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -412,7 +413,7 @@ func TestKubernetesWorkloadMaterializationHandlePublishesPhaseOnEmptyGeneration(
 		PhasePublisher: publisher,
 	}
 
-	if _, err := handler.Handle(context.Background(), Intent{
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -454,7 +455,7 @@ func TestKubernetesWorkloadMaterializationHandleDoesNotPublishPhaseOnWriteFailur
 		PhasePublisher: publisher,
 	}
 
-	if _, err := handler.Handle(context.Background(), Intent{
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",

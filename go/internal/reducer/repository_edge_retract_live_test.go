@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // Test B of #7285 (ruling B1). With the projector no longer deleting the
@@ -47,7 +48,7 @@ func (l liveRepoFactLoader) ListFacts(context.Context, string, string) ([]facts.
 type liveCandidateLoader struct{ candidates []reducer.WorkloadCandidate }
 
 func (l liveCandidateLoader) LoadWorkloadProjectionInputs(
-	context.Context, reducer.Intent,
+	context.Context, reducercontract.Intent,
 ) ([]reducer.WorkloadCandidate, map[string][]string, error) {
 	return l.candidates, nil, nil
 }
@@ -55,7 +56,7 @@ func (l liveCandidateLoader) LoadWorkloadProjectionInputs(
 // LoadWorkloadProjectionScopeInputs reports its candidates as the whole
 // scope generation: each intent here owns a single-repository scope.
 func (l liveCandidateLoader) LoadWorkloadProjectionScopeInputs(
-	context.Context, reducer.Intent,
+	context.Context, reducercontract.Intent,
 ) (reducer.WorkloadProjectionInputs, error) {
 	return reducer.WorkloadProjectionInputs{Candidates: l.candidates, ScopeCandidates: l.candidates}, nil
 }
@@ -92,7 +93,7 @@ func (l *repoRetryLive) handleWorkloadsErr(
 		RepositoryEdgeReader: l.edgeReader(),
 	}
 	now := time.Now().UTC()
-	result, err := handler.Handle(ctx, reducer.Intent{
+	result, err := handler.Handle(ctx, reducercontract.Intent{
 		IntentID: fmt.Sprintf("intent-%s-%s", repo, gen), ScopeID: "git-repository-scope:" + repoID,
 		GenerationID: gen, SourceSystem: "git", Domain: reducer.DomainWorkloadMaterialization,
 		Cause: "facts projected", EntityKeys: []string{repoID}, EnqueuedAt: now, AvailableAt: now,

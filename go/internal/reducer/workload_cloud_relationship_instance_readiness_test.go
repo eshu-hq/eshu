@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
 )
@@ -65,7 +66,7 @@ func instanceReadinessHandler(
 	}
 }
 
-func instanceReadinessIntent(cycleStartedAt time.Time) Intent {
+func instanceReadinessIntent(cycleStartedAt time.Time) reducercontract.Intent {
 	intent := workloadCloudRelationshipIntent()
 	intent.CycleStartedAt = cycleStartedAt
 	return intent

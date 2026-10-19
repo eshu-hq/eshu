@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 const (
@@ -43,7 +44,7 @@ func TestRationaleDeltaCassetteEmitsRefreshAndConvergesExactThreeToOne(t *testin
 		IntentWriter: writer,
 	}
 	now := time.Date(2026, time.August, 15, 1, 0, 0, 0, time.UTC)
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID: "intent-rationale-delta", ScopeID: "scope-ifa-rationale-family",
 		GenerationID: "gen-2", SourceSystem: "git", Domain: DomainRationaleMaterialization,
 		EnqueuedAt: now, AvailableAt: now, Status: IntentStatusPending,

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // failRejectedByLostClaimSink rejects WorkSink.Fail the way ReducerQueue.Fail
@@ -19,14 +21,14 @@ type failRejectedByLostClaimSink struct {
 	stubReducerWorkSink
 }
 
-func (s *failRejectedByLostClaimSink) Fail(ctx context.Context, intent Intent, err error) error {
+func (s *failRejectedByLostClaimSink) Fail(ctx context.Context, intent reducercontract.Intent, err error) error {
 	_ = s.stubReducerWorkSink.Fail(ctx, intent, err)
 	return fmt.Errorf("reducer work claim rejected: %w", ErrExecutionClaimRejected)
 }
 
 type erroringReducerExecutor struct{ err error }
 
-func (e erroringReducerExecutor) Execute(context.Context, Intent) (Result, error) {
+func (e erroringReducerExecutor) Execute(context.Context, reducercontract.Intent) (Result, error) {
 	return Result{}, e.err
 }
 
@@ -42,7 +44,7 @@ func (e erroringReducerExecutor) Execute(context.Context, Intent) (Result, error
 func TestServiceRunTreatsAFailRejectedByALostClaimAsBenign(t *testing.T) {
 	t.Parallel()
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-stale-fail",
 		ScopeID:      "scope-123",
 		GenerationID: "generation-456",
@@ -58,7 +60,7 @@ func TestServiceRunTreatsAFailRejectedByALostClaimAsBenign(t *testing.T) {
 
 	service := Service{
 		PollInterval: 10 * time.Millisecond,
-		WorkSource:   &stubReducerWorkSource{intents: []Intent{intent}},
+		WorkSource:   &stubReducerWorkSource{intents: []reducercontract.Intent{intent}},
 		Executor:     erroringReducerExecutor{err: errors.New("supply chain impact write superseded")},
 		WorkSink:     sink,
 		Wait:         func(context.Context, time.Duration) error { return context.Canceled },
@@ -79,7 +81,7 @@ func TestServiceRunBatchTreatsAFailRejectedByALostClaimAsBenign(t *testing.T) {
 	t.Parallel()
 
 	intent := failedAckTestIntent("intent-stale-fail", DomainCICDRunCorrelation)
-	source := &fakeBatchWorkSource{intents: []Intent{intent}}
+	source := &fakeBatchWorkSource{intents: []reducercontract.Intent{intent}}
 	sink := &batchFailRejectedByLostClaimSink{}
 
 	svc := Service{
@@ -109,7 +111,7 @@ type batchFailRejectedByLostClaimSink struct {
 	fakeBatchWorkSink
 }
 
-func (s *batchFailRejectedByLostClaimSink) Fail(ctx context.Context, intent Intent, err error) error {
+func (s *batchFailRejectedByLostClaimSink) Fail(ctx context.Context, intent reducercontract.Intent, err error) error {
 	_ = s.fakeBatchWorkSink.Fail(ctx, intent, err)
 	return fmt.Errorf("reducer work claim rejected: %w", ErrExecutionClaimRejected)
 }
@@ -120,7 +122,7 @@ type brokenFailSink struct {
 	stubReducerWorkSink
 }
 
-func (s *brokenFailSink) Fail(ctx context.Context, intent Intent, err error) error {
+func (s *brokenFailSink) Fail(ctx context.Context, intent reducercontract.Intent, err error) error {
 	_ = s.stubReducerWorkSink.Fail(ctx, intent, err)
 	return errors.New("postgres unavailable")
 }
@@ -129,7 +131,7 @@ type batchBrokenFailSink struct {
 	fakeBatchWorkSink
 }
 
-func (s *batchBrokenFailSink) Fail(ctx context.Context, intent Intent, err error) error {
+func (s *batchBrokenFailSink) Fail(ctx context.Context, intent reducercontract.Intent, err error) error {
 	_ = s.fakeBatchWorkSink.Fail(ctx, intent, err)
 	return errors.New("postgres unavailable")
 }
@@ -141,7 +143,7 @@ func (s *batchBrokenFailSink) Fail(ctx context.Context, intent Intent, err error
 func TestServiceRunStillFailsOnABrokenFailSink(t *testing.T) {
 	t.Parallel()
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-broken-fail",
 		ScopeID:      "scope-123",
 		GenerationID: "generation-456",
@@ -155,7 +157,7 @@ func TestServiceRunStillFailsOnABrokenFailSink(t *testing.T) {
 	}
 	service := Service{
 		PollInterval: 10 * time.Millisecond,
-		WorkSource:   &stubReducerWorkSource{intents: []Intent{intent}},
+		WorkSource:   &stubReducerWorkSource{intents: []reducercontract.Intent{intent}},
 		Executor:     erroringReducerExecutor{err: errors.New("handler failed")},
 		WorkSink:     &brokenFailSink{},
 		Wait:         func(context.Context, time.Duration) error { return context.Canceled },
@@ -173,7 +175,7 @@ func TestServiceRunBatchStillFailsOnABrokenFailSink(t *testing.T) {
 
 	svc := Service{
 		PollInterval:   10 * time.Millisecond,
-		WorkSource:     &fakeBatchWorkSource{intents: []Intent{failedAckTestIntent("intent-broken-fail", DomainCICDRunCorrelation)}},
+		WorkSource:     &fakeBatchWorkSource{intents: []reducercontract.Intent{failedAckTestIntent("intent-broken-fail", DomainCICDRunCorrelation)}},
 		Executor:       erroringReducerExecutor{err: errors.New("handler failed")},
 		WorkSink:       &batchBrokenFailSink{},
 		Workers:        4,

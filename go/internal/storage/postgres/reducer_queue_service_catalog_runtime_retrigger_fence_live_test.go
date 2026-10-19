@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 )
 
@@ -89,7 +90,7 @@ func TestReducerContentionGateServiceCatalogConcurrentAcksReopenOnce(t *testing.
 	g1 := retriggerActiveGeneration(p.serviceGenerations(t, ctx, retriggerCheckoutSvc))
 
 	owners := []string{"workload-worker-a", "workload-worker-b"}
-	intents := make([]reducer.Intent, len(owners))
+	intents := make([]reducercontract.Intent, len(owners))
 	queues := make([]ReducerQueue, len(owners))
 	for i, owner := range owners {
 		p.addProducer(t, ctx, "wm-checkout-8169-"+owner)

@@ -13,23 +13,24 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 type staleAckBatchSource struct {
 	mu     sync.Mutex
-	intent *reducer.Intent
+	intent *reducercontract.Intent
 }
 
-func (s *staleAckBatchSource) Claim(ctx context.Context) (reducer.Intent, bool, error) {
+func (s *staleAckBatchSource) Claim(ctx context.Context) (reducercontract.Intent, bool, error) {
 	intents, err := s.ClaimBatch(ctx, 1)
 	if err != nil || len(intents) == 0 {
-		return reducer.Intent{}, false, err
+		return reducercontract.Intent{}, false, err
 	}
 	return intents[0], true, nil
 }
 
-func (s *staleAckBatchSource) ClaimBatch(context.Context, int) ([]reducer.Intent, error) {
+func (s *staleAckBatchSource) ClaimBatch(context.Context, int) ([]reducercontract.Intent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.intent == nil {
@@ -37,7 +38,7 @@ func (s *staleAckBatchSource) ClaimBatch(context.Context, int) ([]reducer.Intent
 	}
 	intent := *s.intent
 	s.intent = nil
-	return []reducer.Intent{intent}, nil
+	return []reducercontract.Intent{intent}, nil
 }
 
 type staleAckBatchSink struct {
@@ -45,13 +46,13 @@ type staleAckBatchSink struct {
 	ackCalls int
 }
 
-func (s *staleAckBatchSink) Ack(context.Context, reducer.Intent, reducer.Result) error {
+func (s *staleAckBatchSink) Ack(context.Context, reducercontract.Intent, reducer.Result) error {
 	return nil
 }
 
 func (s *staleAckBatchSink) AckBatch(
 	context.Context,
-	[]reducer.Intent,
+	[]reducercontract.Intent,
 	[]reducer.Result,
 ) error {
 	s.mu.Lock()
@@ -60,13 +61,13 @@ func (s *staleAckBatchSink) AckBatch(
 	return postgres.ErrReducerClaimRejected
 }
 
-func (s *staleAckBatchSink) Fail(context.Context, reducer.Intent, error) error {
+func (s *staleAckBatchSink) Fail(context.Context, reducercontract.Intent, error) error {
 	return nil
 }
 
 type staleAckExecutor struct{}
 
-func (staleAckExecutor) Execute(_ context.Context, intent reducer.Intent) (reducer.Result, error) {
+func (staleAckExecutor) Execute(_ context.Context, intent reducercontract.Intent) (reducer.Result, error) {
 	return reducer.Result{
 		IntentID: intent.IntentID,
 		Domain:   intent.Domain,
@@ -80,14 +81,14 @@ type staleAckSingleSink struct {
 	failCalls int
 }
 
-func (s *staleAckSingleSink) Ack(context.Context, reducer.Intent, reducer.Result) error {
+func (s *staleAckSingleSink) Ack(context.Context, reducercontract.Intent, reducer.Result) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ackCalls++
 	return postgres.ErrReducerClaimRejected
 }
 
-func (s *staleAckSingleSink) Fail(context.Context, reducer.Intent, error) error {
+func (s *staleAckSingleSink) Fail(context.Context, reducercontract.Intent, error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.failCalls++
@@ -97,7 +98,7 @@ func (s *staleAckSingleSink) Fail(context.Context, reducer.Intent, error) error 
 func TestServiceSingleStaleAckDoesNotStopReducer(t *testing.T) {
 	t.Parallel()
 
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "stale-single-ack",
 		ScopeID:      "scope-stale-single-ack",
 		GenerationID: "generation-stale-single-ack",
@@ -147,7 +148,7 @@ func TestServiceSingleStaleAckDoesNotStopReducer(t *testing.T) {
 func TestServiceBatchStaleAckDoesNotStopReducer(t *testing.T) {
 	t.Parallel()
 
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "stale-batch-ack",
 		ScopeID:      "scope-stale-batch-ack",
 		GenerationID: "generation-stale-batch-ack",

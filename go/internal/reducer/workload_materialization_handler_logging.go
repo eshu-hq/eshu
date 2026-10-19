@@ -7,6 +7,7 @@ import (
 	"context"
 	"log/slog"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
@@ -36,7 +37,7 @@ func workloadMaterializationSubDurations(t workloadMaterializationTiming) map[st
 // passes to a specific phase from logs alone.
 func logWorkloadMaterializationCompleted(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	candidates []WorkloadCandidate,
 	selection CandidateSelectionReport,
 	projection *ProjectionResult,

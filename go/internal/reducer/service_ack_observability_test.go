@@ -16,13 +16,14 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 func TestServiceRunLogsAckFailureWithQueueContext(t *testing.T) {
 	t.Parallel()
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-ack",
 		ScopeID:         "scope-ack",
 		GenerationID:    "generation-ack",
@@ -47,7 +48,7 @@ func TestServiceRunLogsAckFailureWithQueueContext(t *testing.T) {
 
 	service := Service{
 		PollInterval: 10 * time.Millisecond,
-		WorkSource:   &stubReducerWorkSource{intents: []Intent{intent}},
+		WorkSource:   &stubReducerWorkSource{intents: []reducercontract.Intent{intent}},
 		Executor: &stubReducerExecutor{
 			result: Result{
 				IntentID: intent.IntentID,
@@ -107,7 +108,7 @@ func TestServiceRunLogsAckFailureWithQueueContext(t *testing.T) {
 func TestServiceRunRecordsStaleAckWithoutSuccess(t *testing.T) {
 	t.Parallel()
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-stale-ack",
 		ScopeID:      "scope-stale-ack",
 		GenerationID: "generation-stale-ack",
@@ -124,7 +125,7 @@ func TestServiceRunRecordsStaleAckWithoutSuccess(t *testing.T) {
 	sink := &stubReducerWorkSink{ackErr: ErrExecutionClaimRejected}
 	service := Service{
 		PollInterval: time.Millisecond,
-		WorkSource:   &stubReducerWorkSource{intents: []Intent{intent}},
+		WorkSource:   &stubReducerWorkSource{intents: []reducercontract.Intent{intent}},
 		Executor: &stubReducerExecutor{result: Result{
 			IntentID: intent.IntentID,
 			Domain:   intent.Domain,
@@ -193,7 +194,7 @@ func TestServiceRunRecordsStaleAckWithoutSuccess(t *testing.T) {
 func TestServiceRunLogsClassifiedExecutionFailure(t *testing.T) {
 	t.Parallel()
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-waiting-impact",
 		ScopeID:         "scope-security-alert",
 		GenerationID:    "generation-security-alert",
@@ -215,7 +216,7 @@ func TestServiceRunLogsClassifiedExecutionFailure(t *testing.T) {
 	}
 	service := Service{
 		PollInterval: 10 * time.Millisecond,
-		WorkSource:   &stubReducerWorkSource{intents: []Intent{intent}},
+		WorkSource:   &stubReducerWorkSource{intents: []reducercontract.Intent{intent}},
 		Executor:     &stubReducerExecutor{executeErr: wantErr},
 		WorkSink:     &stubReducerWorkSink{},
 		Wait:         func(context.Context, time.Duration) error { return context.Canceled },
@@ -242,7 +243,7 @@ func TestServiceRunRecordsReducerQueueWait(t *testing.T) {
 	t.Parallel()
 
 	availableAt := time.Now().UTC().Add(-2 * time.Minute)
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-wait",
 		ScopeID:         "scope-wait",
 		GenerationID:    "generation-wait",
@@ -267,7 +268,7 @@ func TestServiceRunRecordsReducerQueueWait(t *testing.T) {
 
 	service := Service{
 		PollInterval: 10 * time.Millisecond,
-		WorkSource:   &stubReducerWorkSource{intents: []Intent{intent}},
+		WorkSource:   &stubReducerWorkSource{intents: []reducercontract.Intent{intent}},
 		Executor: &stubReducerExecutor{
 			result: Result{
 				IntentID: intent.IntentID,

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // relationshipTypeEC2InstanceUsesAMI is the one AWS relationship whose SOURCE
@@ -96,7 +97,7 @@ func batchNeedsEC2InstanceNodes(relationshipEnvelopes []facts.Envelope) bool {
 // acceptance unit, because that phase is published under a different entity key
 // than this domain's own. A nil lookup keeps the gate open for test wiring,
 // matching canonicalNodesReady.
-func (h AWSRelationshipMaterializationHandler) ec2InstanceNodesReady(intent Intent) bool {
+func (h AWSRelationshipMaterializationHandler) ec2InstanceNodesReady(intent reducercontract.Intent) bool {
 	if h.ReadinessLookup == nil {
 		return true
 	}

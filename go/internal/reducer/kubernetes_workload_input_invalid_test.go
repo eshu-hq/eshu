@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestKubernetesWorkloadMaterializationQuarantinesMissingObjectID is the
@@ -64,7 +65,7 @@ func TestKubernetesWorkloadMaterializationQuarantinesMissingObjectID(t *testing.
 		NodeWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",

@@ -97,7 +97,7 @@ func readDeployableUnitResolvedInput(
 	ctx context.Context,
 	loader ResolvedRelationshipLoader,
 	completeLookup accepted.RelationshipGenerationsCompleteLookup,
-	intent Intent,
+	intent reducercontract.Intent,
 	candidates []WorkloadCandidate,
 ) (corpusFencedResolvedRead, error) {
 	fingerprinted, ok := loader.(FingerprintedCorpusFencedResolvedRelationshipLoader)
@@ -125,7 +125,7 @@ func readDeployableUnitResolvedInput(
 func deployableUnitCorpusFenceDeferral(
 	ctx context.Context,
 	incompleteScopesLookup accepted.RelationshipGenerationsIncompleteScopesLookup,
-	intent Intent,
+	intent reducercontract.Intent,
 	read corpusFencedResolvedRead,
 ) error {
 	if read.fenceErr != nil {
@@ -190,7 +190,7 @@ const (
 // CreatedAt is a sharedintent.Row struct field, not a Payload key,
 // and is never asserted by an edge-identity comparison.
 func ExtractDeployableUnitCorrelationRows(
-	intent Intent,
+	intent reducercontract.Intent,
 	candidates []WorkloadCandidate,
 	resolved []relationships.ResolvedRelationship,
 	now func() time.Time,
@@ -273,7 +273,7 @@ func AdmittedDeployableUnitRows(rows []sharedintent.Row) []sharedintent.Row {
 }
 
 func deployableUnitCorrelationRows(
-	intent Intent,
+	intent reducercontract.Intent,
 	evaluation engine.Evaluation,
 	now func() time.Time,
 ) []sharedintent.Row {
@@ -302,7 +302,7 @@ func deployableUnitCorrelationRows(
 // leaves a repository alone or rewrites all of its edges (#7306). Widening it
 // to the whole scope while writes stay key-filtered is the #7304 defect.
 func deployableUnitRetractRowsFromFacts(
-	intent Intent,
+	intent reducercontract.Intent,
 	envelopes []facts.Envelope,
 	entityKeys map[string]struct{},
 ) []sharedintent.Row {
@@ -360,7 +360,7 @@ func deployableUnitIntentMatchesRepository(entityKeys map[string]struct{}, repoI
 }
 
 func deployableUnitCorrelationRow(
-	intent Intent,
+	intent reducercontract.Intent,
 	candidate correlationmodel.Candidate,
 	repoID string,
 	deploymentRepoID string,
@@ -401,7 +401,7 @@ func deployableUnitCorrelationRow(
 	}
 }
 
-func deployableUnitAcceptanceUnitID(intent Intent) string {
+func deployableUnitAcceptanceUnitID(intent reducercontract.Intent) string {
 	entityKeys := uniqueSortedStrings(intent.EntityKeys)
 	if len(entityKeys) > 0 {
 		return normalizedEntityKey(entityKeys[0])

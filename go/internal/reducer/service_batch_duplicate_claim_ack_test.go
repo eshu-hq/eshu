@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // opaqueAckBatchSink returns an error that does not wrap
@@ -23,18 +24,18 @@ type opaqueAckBatchSink struct {
 	ackErr   error
 }
 
-func (s *opaqueAckBatchSink) Ack(context.Context, reducer.Intent, reducer.Result) error {
+func (s *opaqueAckBatchSink) Ack(context.Context, reducercontract.Intent, reducer.Result) error {
 	return nil
 }
 
-func (s *opaqueAckBatchSink) AckBatch(context.Context, []reducer.Intent, []reducer.Result) error {
+func (s *opaqueAckBatchSink) AckBatch(context.Context, []reducercontract.Intent, []reducer.Result) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ackCalls++
 	return s.ackErr
 }
 
-func (s *opaqueAckBatchSink) Fail(context.Context, reducer.Intent, error) error {
+func (s *opaqueAckBatchSink) Fail(context.Context, reducercontract.Intent, error) error {
 	return nil
 }
 
@@ -57,7 +58,7 @@ func TestServiceBatchOpaqueAckErrorStopsReducer(t *testing.T) {
 	opaque := errors.New(
 		`batch ack reducer work item "duplicate-claim-ack" has conflicting domains`,
 	)
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "duplicate-claim-ack",
 		ScopeID:      "scope-duplicate-claim-ack",
 		GenerationID: "generation-duplicate-claim-ack",

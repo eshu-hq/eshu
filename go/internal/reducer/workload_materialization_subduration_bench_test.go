@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"testing"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // BenchmarkWorkloadMaterializationSubDurations measures the overhead of
@@ -68,7 +70,7 @@ func BenchmarkRecordReducerResultWithSubDurations(b *testing.B) {
 	svc := Service{
 		Logger: slog.New(slog.NewTextHandler(noopWriter{}, nil)),
 	}
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "bench-intent-1",
 		Domain:       DomainWorkloadMaterialization,
 		ScopeID:      "scope-bench",
@@ -106,7 +108,7 @@ func BenchmarkRecordReducerResultNoSubDurations(b *testing.B) {
 	svc := Service{
 		Logger: slog.New(slog.NewTextHandler(noopWriter{}, nil)),
 	}
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "bench-intent-2",
 		Domain:       DomainDeploymentMapping,
 		ScopeID:      "scope-bench",

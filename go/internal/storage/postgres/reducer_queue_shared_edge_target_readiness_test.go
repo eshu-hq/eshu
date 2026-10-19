@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
@@ -90,7 +91,7 @@ func TestReducerQueueFailDefersSharedEdgeTargetMissPastAttemptBudget(t *testing.
 		MaxAttempts:   3,
 		Now:           func() time.Time { return now },
 	}
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-deployable-unit-correlation-1",
 		Domain:       reducer.DomainDeployableUnitCorrelation,
 		AttemptCount: 3,
@@ -169,7 +170,7 @@ func TestReducerQueueFailDeadLettersUnverifiedDeployableUnitEdgeAtBudget(t *test
 		database: database, LeaseOwner: "reducer-1", LeaseDuration: time.Minute,
 		RetryDelay: 2 * time.Minute, MaxAttempts: 3, Now: func() time.Time { return now },
 	}
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID: "intent-deployable-unit-correlation-1", Domain: reducer.DomainDeployableUnitCorrelation, AttemptCount: 3,
 	}
 	cause := fmt.Errorf("verify deployable unit correlation edges: %w", verifyErr)

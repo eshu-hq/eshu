@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
@@ -352,11 +353,11 @@ func waitForCausalFence(t *testing.T, ctx context.Context, ready func() bool) {
 	}
 }
 
-func ackCausalFence(t *testing.T, ctx context.Context, queue ReducerQueue, intent reducer.Intent, batch bool) {
+func ackCausalFence(t *testing.T, ctx context.Context, queue ReducerQueue, intent reducercontract.Intent, batch bool) {
 	t.Helper()
 	var err error
 	if batch {
-		err = queue.AckBatch(ctx, []reducer.Intent{intent}, nil)
+		err = queue.AckBatch(ctx, []reducercontract.Intent{intent}, nil)
 	} else {
 		err = queue.Ack(ctx, intent, reducer.Result{})
 	}

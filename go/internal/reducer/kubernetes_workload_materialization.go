@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -94,7 +95,7 @@ type KubernetesWorkloadMaterializationHandler struct {
 // Handle executes one live Kubernetes workload materialization intent.
 func (h KubernetesWorkloadMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 ) (Result, error) {
 	totalStart := time.Now()
 	if intent.Domain != DomainKubernetesWorkloadMaterialization {
@@ -351,7 +352,7 @@ func flattenSelectorMap(selector map[string]string) []string {
 // completion log can identify whether live-workload node work is fact loading,
 // extraction, or graph backend time.
 type kubernetesWorkloadMaterializationTiming struct {
-	intent               Intent
+	intent               reducercontract.Intent
 	factCount            int
 	nodeCount            int
 	loadDuration         time.Duration

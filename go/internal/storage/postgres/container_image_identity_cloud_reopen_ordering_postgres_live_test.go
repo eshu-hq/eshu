@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 )
@@ -323,7 +324,7 @@ func enqueueCloudReopenOrderingIntent(
 	ctx context.Context,
 	queue *ReducerQueue,
 	fixture cloudReopenOrderingTestFixture,
-) reducer.Intent {
+) reducercontract.Intent {
 	t.Helper()
 	result, err := queue.Enqueue(ctx, []runtime.ReducerIntent{{
 		ScopeID:      fixture.cloudScopeID,
@@ -346,7 +347,7 @@ func claimCloudReopenOrderingIntent(
 	t *testing.T,
 	ctx context.Context,
 	queue *ReducerQueue,
-) reducer.Intent {
+) reducercontract.Intent {
 	t.Helper()
 	intent, claimed, err := queue.Claim(ctx)
 	if err != nil {
@@ -363,7 +364,7 @@ func handleAndAckCloudReopenOrderingIntent(
 	ctx context.Context,
 	queue *ReducerQueue,
 	handler reducer.ContainerImageIdentityHandler,
-	intent reducer.Intent,
+	intent reducercontract.Intent,
 ) reducer.Result {
 	t.Helper()
 	result, err := handler.Handle(ctx, intent)

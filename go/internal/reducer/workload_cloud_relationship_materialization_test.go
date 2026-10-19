@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 type recordingWorkloadCloudRelationshipWriter struct {
@@ -51,8 +52,8 @@ func (w *recordingWorkloadCloudRelationshipWriter) RetractWorkloadCloudRelations
 	return nil
 }
 
-func workloadCloudRelationshipIntent() Intent {
-	return Intent{
+func workloadCloudRelationshipIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-workload-cloud-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",

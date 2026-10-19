@@ -7,6 +7,7 @@ import (
 	"context"
 	"testing"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 )
@@ -61,7 +62,7 @@ func TestSearchDocumentDomainHandlerReceivesGenerationCheck(t *testing.T) {
 	if !ok {
 		t.Fatal("eshu search document domain not registered")
 	}
-	intent := Intent{IntentID: "i", ScopeID: "scope-1", GenerationID: "gen-1", SourceSystem: "git", Domain: eshusearch.DomainEshuSearchDocument}
+	intent := reducercontract.Intent{IntentID: "i", ScopeID: "scope-1", GenerationID: "gen-1", SourceSystem: "git", Domain: eshusearch.DomainEshuSearchDocument}
 	if _, err := definition.Handler.Handle(context.Background(), intent); err != nil {
 		t.Fatalf("Handle() error = %v", err)
 	}

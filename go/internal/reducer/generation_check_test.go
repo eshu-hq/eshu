@@ -53,7 +53,7 @@ func TestRuntimeExecuteSkipsStaleGeneration(t *testing.T) {
 		return true, nil
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-1",
 		ScopeID:         "scope-123",
 		GenerationID:    "old-gen",
@@ -121,7 +121,7 @@ func TestRuntimeExecuteProceedsForCurrentGeneration(t *testing.T) {
 		return true, nil
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-1",
 		ScopeID:         "scope-123",
 		GenerationID:    "current-gen",
@@ -184,7 +184,7 @@ func TestRuntimeExecuteProceedsWhenGenerationCheckNil(t *testing.T) {
 	}
 	// GenerationCheck is nil (default) — guard disabled.
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-1",
 		ScopeID:         "scope-123",
 		GenerationID:    "any-gen",
@@ -243,7 +243,7 @@ func TestRuntimeExecutePropagatesGenerationCheckError(t *testing.T) {
 		return false, checkErr
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-1",
 		ScopeID:         "scope-123",
 		GenerationID:    "gen-1",
@@ -276,7 +276,7 @@ type stubHandler struct {
 	err         error
 }
 
-func (h *stubHandler) Handle(_ context.Context, _ Intent) (Result, error) {
+func (h *stubHandler) Handle(_ context.Context, _ reducercontract.Intent) (Result, error) {
 	h.handleCalls++
 	return h.result, h.err
 }
@@ -309,7 +309,7 @@ func TestRuntimeExecuteDefersNotYetActiveGeneration(t *testing.T) {
 		}
 	}
 
-	result, err := rt.Execute(context.Background(), Intent{
+	result, err := rt.Execute(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-123",
 		GenerationID: "gen-2",

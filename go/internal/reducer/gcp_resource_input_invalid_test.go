@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestGCPResourceMaterializationQuarantinesMissingFullResourceName is the
@@ -61,7 +62,7 @@ func TestGCPResourceMaterializationQuarantinesMissingFullResourceName(t *testing
 		NodeWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",

@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func azureResourceEnvelope(payload map[string]any) facts.Envelope {
@@ -20,8 +21,8 @@ func azureResourceEnvelope(payload map[string]any) facts.Envelope {
 	}
 }
 
-func azureResourceIntent() Intent {
-	return Intent{
+func azureResourceIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-azure-resources-1",
 		ScopeID:      "scope-azure-1",
 		GenerationID: "gen-azure-1",

@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -256,8 +257,8 @@ func TestGCPMaterializationSignalsReachPrometheusExposition(t *testing.T) {
 	)
 }
 
-func gcpResourceIntent() Intent {
-	return Intent{
+func gcpResourceIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-gcp-resources-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",

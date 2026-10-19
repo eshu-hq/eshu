@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // claimSource is the seam FaultingWorkSource decorates: the reducer claim
@@ -42,20 +43,20 @@ type redeliverer interface {
 	// caller is expected to block on the returned channel before applying its
 	// own copy, so there is a real window where two workers are in-flight on
 	// the same intent (T4).
-	ArmMidHandlerDuplicate(intent reducer.Intent) <-chan struct{}
+	ArmMidHandlerDuplicate(intent reducercontract.Intent) <-chan struct{}
 	// RedeliverOnce enqueues a fire-and-forget duplicate delivery of intent,
 	// with no claimed-signal to wait on. It models the queue-retry lane: a
 	// plain Execute error surfaced WorkSink.Fail in production would leave the
 	// row re-claimable through Postgres; this hermetic tier has no Postgres, so
 	// the fault decorator re-arms the redelivery directly.
-	RedeliverOnce(intent reducer.Intent)
+	RedeliverOnce(intent reducercontract.Intent)
 }
 
 // pendingRedelivery is one intent queued for out-of-band (fault-scripted)
 // redelivery. claimedSignal is non-nil only for a mid-handler duplicate --
 // closing it is the rendezvous signal the parked handler is waiting for.
 type pendingRedelivery struct {
-	intent        reducer.Intent
+	intent        reducercontract.Intent
 	claimedSignal chan struct{}
 }
 
@@ -130,7 +131,7 @@ func NewFaultingWorkSource(inner claimSource, script Script) (*FaultingWorkSourc
 // duplicate), otherwise the next intent from inner. Every successful claim --
 // redelivery or fresh -- increments the global claim ordinal and is checked
 // against the script's kill-worker-after-claim triggers.
-func (s *FaultingWorkSource) Claim(ctx context.Context) (reducer.Intent, bool, error) {
+func (s *FaultingWorkSource) Claim(ctx context.Context) (reducercontract.Intent, bool, error) {
 	if pr, ok := s.popPending(); ok {
 		s.recordClaim(pr.intent)
 		if pr.claimedSignal != nil {
@@ -140,10 +141,10 @@ func (s *FaultingWorkSource) Claim(ctx context.Context) (reducer.Intent, bool, e
 	}
 	intent, ok, err := s.inner.Claim(ctx)
 	if err != nil {
-		return reducer.Intent{}, false, fmt.Errorf("faultreplay: inner work source claim: %w", err)
+		return reducercontract.Intent{}, false, fmt.Errorf("faultreplay: inner work source claim: %w", err)
 	}
 	if !ok {
-		return reducer.Intent{}, false, nil
+		return reducercontract.Intent{}, false, nil
 	}
 	s.recordClaim(intent)
 	return intent, true, nil
@@ -154,11 +155,11 @@ func (s *FaultingWorkSource) Claim(ctx context.Context) (reducer.Intent, bool, e
 // most one pending redelivery is folded into a given batch call so its
 // claimed-signal semantics (one specific duplicate, one specific waiter) stay
 // unambiguous.
-func (s *FaultingWorkSource) ClaimBatch(ctx context.Context, limit int) ([]reducer.Intent, error) {
+func (s *FaultingWorkSource) ClaimBatch(ctx context.Context, limit int) ([]reducercontract.Intent, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
-	var out []reducer.Intent
+	var out []reducercontract.Intent
 	if pr, ok := s.popPending(); ok {
 		s.recordClaim(pr.intent)
 		if pr.claimedSignal != nil {
@@ -232,7 +233,7 @@ func (s *FaultingWorkSource) InjectedRedeliveries() int64 {
 // enqueues a concurrent duplicate of intent and returns the channel that
 // closes once some Claim/ClaimBatch call actually hands that duplicate to a
 // worker.
-func (s *FaultingWorkSource) ArmMidHandlerDuplicate(intent reducer.Intent) <-chan struct{} {
+func (s *FaultingWorkSource) ArmMidHandlerDuplicate(intent reducercontract.Intent) <-chan struct{} {
 	ch := make(chan struct{})
 	s.mu.Lock()
 	s.pending = append(s.pending, pendingRedelivery{intent: intent, claimedSignal: ch})
@@ -243,7 +244,7 @@ func (s *FaultingWorkSource) ArmMidHandlerDuplicate(intent reducer.Intent) <-cha
 
 // RedeliverOnce implements redeliverer for FaultingExecutor: it enqueues a
 // fire-and-forget duplicate of intent with no claimed-signal to wait on.
-func (s *FaultingWorkSource) RedeliverOnce(intent reducer.Intent) {
+func (s *FaultingWorkSource) RedeliverOnce(intent reducercontract.Intent) {
 	s.mu.Lock()
 	s.pending = append(s.pending, pendingRedelivery{intent: intent})
 	s.mu.Unlock()
@@ -269,7 +270,7 @@ func (s *FaultingWorkSource) popPending() (pendingRedelivery, bool) {
 // killed, since Go has no safe mechanism to kill an arbitrary goroutine mid-
 // flight -- the observable effect, a duplicate delivery, is what the fault
 // exercises).
-func (s *FaultingWorkSource) recordClaim(intent reducer.Intent) {
+func (s *FaultingWorkSource) recordClaim(intent reducercontract.Intent) {
 	ordinal := int(s.claimCount.Add(1))
 	s.mu.Lock()
 	_, fire := s.killAfterClaims[ordinal]

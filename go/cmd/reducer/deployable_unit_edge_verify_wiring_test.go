@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -51,7 +52,7 @@ func TestBuildReducerServiceWiresDeployableUnitEdgeVerifier(t *testing.T) {
 	}
 
 	now := time.Now().UTC()
-	_, execErr := service.Executor.Execute(context.Background(), reducer.Intent{
+	_, execErr := service.Executor.Execute(context.Background(), reducercontract.Intent{
 		IntentID:        "deployable-unit-edge-verify-wiring",
 		Domain:          reducer.DomainDeployableUnitCorrelation,
 		ScopeID:         "repository:test-scope",

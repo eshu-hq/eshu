@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/replay/schedulereplay"
 )
 
@@ -97,11 +98,11 @@ func RunFault(ctx context.Context, cfg Config) (Report, error) {
 	}
 
 	registry := make(map[string]schedulereplay.WorkItem, len(cfg.Items))
-	intents := make([]reducer.Intent, 0, len(cfg.Items))
+	intents := make([]reducercontract.Intent, 0, len(cfg.Items))
 	available := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 	for _, item := range cfg.Items {
 		registry[item.IntentID] = item
-		intents = append(intents, reducer.Intent{
+		intents = append(intents, reducercontract.Intent{
 			IntentID:     item.IntentID,
 			ScopeID:      "fault-replay",
 			GenerationID: "fault-gen",
@@ -302,7 +303,7 @@ type canonicalApplyExecutor struct {
 	err error
 }
 
-func (e *canonicalApplyExecutor) Execute(ctx context.Context, intent reducer.Intent) (reducer.Result, error) {
+func (e *canonicalApplyExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducer.Result, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err := ctx.Err(); err != nil {
@@ -361,7 +362,7 @@ type faultingSink struct {
 	terminalFailed []string
 }
 
-func (s *faultingSink) Ack(_ context.Context, intent reducer.Intent, _ reducer.Result) error {
+func (s *faultingSink) Ack(_ context.Context, intent reducercontract.Intent, _ reducer.Result) error {
 	s.ackedCount.Add(1)
 	s.mu.Lock()
 	for i, id := range s.terminalFailed {
@@ -374,7 +375,7 @@ func (s *faultingSink) Ack(_ context.Context, intent reducer.Intent, _ reducer.R
 	return nil
 }
 
-func (s *faultingSink) Fail(_ context.Context, intent reducer.Intent, _ error) error {
+func (s *faultingSink) Fail(_ context.Context, intent reducercontract.Intent, _ error) error {
 	s.failedEventCount.Add(1)
 	s.mu.Lock()
 	// terminalFailed is a SET, not a raw Fail-event log: a redelivered or

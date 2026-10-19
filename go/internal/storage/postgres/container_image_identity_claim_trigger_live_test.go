@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestContainerImageIdentityClaimEpochTriggerCatalogLive(t *testing.T) {
@@ -209,7 +210,7 @@ func TestContainerImageIdentityClaimEpochAdvancesOnceUnderCompetingClaimersLive(
 		ClaimDomain:   reducer.DomainContainerImageIdentity,
 	}
 	type claimResult struct {
-		intent reducer.Intent
+		intent reducercontract.Intent
 		ok     bool
 		err    error
 	}
@@ -228,7 +229,7 @@ func TestContainerImageIdentityClaimEpochAdvancesOnceUnderCompetingClaimersLive(
 	ready.Wait()
 	close(start)
 
-	var claimed []reducer.Intent
+	var claimed []reducercontract.Intent
 	for range 2 {
 		result := <-results
 		if result.err != nil {
@@ -371,7 +372,7 @@ INSERT INTO container_image_identity_cutovers (
 		Now:           func() time.Time { return now },
 		ClaimDomain:   reducer.DomainContainerImageIdentity,
 	}
-	staleAttempt := reducer.Intent{
+	staleAttempt := reducercontract.Intent{
 		IntentID:     workItemID,
 		Domain:       reducer.DomainContainerImageIdentity,
 		AttemptCount: 1,

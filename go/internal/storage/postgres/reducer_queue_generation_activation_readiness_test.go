@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -33,7 +32,7 @@ func TestReducerQueueFailDefersGenerationActivationPastAttemptBudget(t *testing.
 		MaxAttempts:   3,
 		Now:           func() time.Time { return now },
 	}
-	intent := reducer.Intent{IntentID: "intent-6686", ScopeID: "scope-1", GenerationID: "gen-2", AttemptCount: 42}
+	intent := reducercontract.Intent{IntentID: "intent-6686", ScopeID: "scope-1", GenerationID: "gen-2", AttemptCount: 42}
 	cause := fmt.Errorf("generation freshness check: %w", reducercontract.GenerationNotYetActiveError{
 		ScopeID: "scope-1", GenerationID: "gen-2", ActiveGenerationID: "gen-1",
 	})

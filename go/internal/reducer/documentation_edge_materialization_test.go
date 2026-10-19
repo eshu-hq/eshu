@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -26,7 +27,7 @@ func TestDocumentationMaterializationHandlerScopesDeltaRetractToDocuments(t *tes
 		},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-doc-delta",
 		ScopeID:      "scope-docs",
 		GenerationID: "gen-2",
@@ -87,7 +88,7 @@ func TestDocumentationMaterializationHandlerDeletedOnlyDeltaRetractsWithoutWrite
 		},
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-doc-deleted",
 		ScopeID:      "scope-docs",
 		GenerationID: "gen-2",

@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -120,14 +121,14 @@ func (q ReducerQueue) maxAttempts() int {
 	return 3
 }
 
-func claimedAtValue(intent reducer.Intent) time.Time {
+func claimedAtValue(intent reducercontract.Intent) time.Time {
 	if intent.ClaimedAt == nil {
 		return time.Time{}
 	}
 	return intent.ClaimedAt.UTC()
 }
 
-func scanReducerIntent(rows db.Rows) (reducer.Intent, error) {
+func scanReducerIntent(rows db.Rows) (reducercontract.Intent, error) {
 	var intentID string
 	var scopeID string
 	var generationID string
@@ -153,12 +154,12 @@ func scanReducerIntent(rows db.Rows) (reducer.Intent, error) {
 		&claimedAt,
 		&rawPayload,
 	); err != nil {
-		return reducer.Intent{}, err
+		return reducercontract.Intent{}, err
 	}
 
 	payload, err := payloadstore.UnmarshalPayload(rawPayload)
 	if err != nil {
-		return reducer.Intent{}, err
+		return reducercontract.Intent{}, err
 	}
 
 	entityKey, _ := payload["entity_key"].(string)
@@ -172,11 +173,11 @@ func scanReducerIntent(rows db.Rows) (reducer.Intent, error) {
 
 	domainValue, err := reducer.ParseDomain(domain)
 	if err != nil {
-		return reducer.Intent{}, err
+		return reducercontract.Intent{}, err
 	}
 	claimedAt = claimedAt.UTC()
 
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:        intentID,
 		ScopeID:         scopeID,
 		GenerationID:    generationID,
@@ -207,7 +208,7 @@ func scanReducerIntent(rows db.Rows) (reducer.Intent, error) {
 		intent.EntityKeys = []string{factID}
 	}
 	if err := intent.Validate(); err != nil {
-		return reducer.Intent{}, err
+		return reducercontract.Intent{}, err
 	}
 
 	return intent, nil
@@ -234,7 +235,7 @@ func isNonCountingReducerRetryFailureClass(failureClass string) bool {
 
 func (q ReducerQueue) failIntent(
 	ctx context.Context,
-	intent reducer.Intent,
+	intent reducercontract.Intent,
 	cause error,
 ) error {
 	now := q.now()
@@ -364,9 +365,9 @@ func reducerWorkItemID(intent runtime.ReducerIntent) string {
 // family needs, and records how many acks were dropped because a later claim
 // of the same work item is present in the same batch.
 type reducerAckBatchSplit struct {
-	target    []reducer.Intent
-	cicd      []reducer.Intent
-	unrelated []reducer.Intent
+	target    []reducercontract.Intent
+	cicd      []reducercontract.Intent
+	unrelated []reducercontract.Intent
 
 	// supersededClaims counts acks dropped in favour of a newer claim of the
 	// same work item. A dropped ack carries a result that was never applied,
@@ -377,7 +378,7 @@ type reducerAckBatchSplit struct {
 	// item. No UPDATE ever ran for them, so the Service can report each one
 	// as ack_claim_rejected while logging the committed survivors as
 	// succeeded (#8007).
-	superseded []reducer.Intent
+	superseded []reducercontract.Intent
 
 	// keptResultIndexByID maps each retained work item to the position its
 	// surviving intent held in the input batch, so the caller can pair it with
@@ -406,13 +407,13 @@ type reducerAckBatchSplit struct {
 // encodes its domain, so that pairing is an invariant violation and stays an
 // error.
 func splitReducerAckBatchIntents(
-	intents []reducer.Intent,
+	intents []reducercontract.Intent,
 ) (reducerAckBatchSplit, error) {
 	indexByID := make(map[string]int, len(intents))
 	keptResultIndexByID := make(map[string]int, len(intents))
-	kept := make([]reducer.Intent, 0, len(intents))
+	kept := make([]reducercontract.Intent, 0, len(intents))
 	supersededClaims := 0
-	var superseded []reducer.Intent
+	var superseded []reducercontract.Intent
 	for position, intent := range intents {
 		index, ok := indexByID[intent.IntentID]
 		if !ok {
@@ -445,9 +446,9 @@ func splitReducerAckBatchIntents(
 	}
 
 	split := reducerAckBatchSplit{
-		target:              make([]reducer.Intent, 0, len(kept)),
-		cicd:                make([]reducer.Intent, 0, len(kept)),
-		unrelated:           make([]reducer.Intent, 0, len(kept)),
+		target:              make([]reducercontract.Intent, 0, len(kept)),
+		cicd:                make([]reducercontract.Intent, 0, len(kept)),
+		unrelated:           make([]reducercontract.Intent, 0, len(kept)),
 		supersededClaims:    supersededClaims,
 		superseded:          superseded,
 		keptResultIndexByID: keptResultIndexByID,
@@ -470,7 +471,7 @@ func splitReducerAckBatchIntents(
 // for the domains that opt into it; claim timestamp settles the domains whose
 // epoch stays zero, and matches what the ack statements compare against
 // last_attempt_at.
-func newerReducerClaim(candidate, current reducer.Intent) bool {
+func newerReducerClaim(candidate, current reducercontract.Intent) bool {
 	if candidate.ClaimEpoch != current.ClaimEpoch {
 		return candidate.ClaimEpoch > current.ClaimEpoch
 	}

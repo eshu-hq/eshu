@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // gcpRelationshipReadinessQueueDB is a fake reducer-queue backend that returns
@@ -177,7 +178,7 @@ func TestReducerQueueFailDefersGCPRelationshipReadinessPastAttemptBudget(t *test
 		Now:           func() time.Time { return now },
 	}
 
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-gcp-edge-1",
 		AttemptCount: 42,
 	}

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestContainerImageIdentityAckMarkerOrderingLive(t *testing.T) {
@@ -345,7 +346,7 @@ ON CONFLICT (scope_id, generation_id) DO NOTHING
 			t, ctx, db, "capable-bypass", now, true,
 		)
 		claimedAt, claimEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, workItemID)
-		intent := reducer.Intent{
+		intent := reducercontract.Intent{
 			IntentID:     workItemID,
 			Domain:       reducer.DomainContainerImageIdentity,
 			AttemptCount: 1,
@@ -438,7 +439,7 @@ SELECT pg_advisory_xact_lock(
 		}
 		if err := queue.Ack(
 			ctx,
-			reducer.Intent{
+			reducercontract.Intent{
 				IntentID:     capableWorkItemID,
 				Domain:       reducer.DomainContainerImageIdentity,
 				AttemptCount: 1,

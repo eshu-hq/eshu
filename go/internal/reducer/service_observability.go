@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -32,7 +33,7 @@ func reducerQueueWaitSeconds(start time.Time, availableAt time.Time) float64 {
 	return wait.Seconds()
 }
 
-func (s Service) recordReducerResult(ctx context.Context, intent Intent, result Result, duration float64, queueWait float64, status string, workerID int, execErr error) {
+func (s Service) recordReducerResult(ctx context.Context, intent reducercontract.Intent, result Result, duration float64, queueWait float64, status string, workerID int, execErr error) {
 	if status == "failed" && s.isDeferredFailure(execErr) {
 		status = executionStatusDeferred
 	}
@@ -206,7 +207,7 @@ func isTransientAckError(err error) bool {
 func (s Service) ackBatchRetryingTransient(
 	ctx context.Context,
 	sink BatchWorkSink,
-	intents []Intent,
+	intents []reducercontract.Intent,
 	results []Result,
 ) error {
 	return s.retryTransientAck(ctx, len(intents), ackRetryMessages{
@@ -221,7 +222,7 @@ func (s Service) ackBatchRetryingTransient(
 // ackBatchRetryingTransient: it calls WorkSink.Ack under the same classifier,
 // backoff and budget, so Workers <= 1 and the per-item concurrent path do not
 // end the run on a 40P01 or 40001 (#7444).
-func (s Service) ackSingleRetryingTransient(ctx context.Context, intent Intent, result Result) error {
+func (s Service) ackSingleRetryingTransient(ctx context.Context, intent reducercontract.Intent, result Result) error {
 	return s.retryTransientAck(ctx, 1, ackRetryMessages{
 		retry:     "reducer ack hit transient failure; retrying",
 		abandoned: "reducer ack abandoned to lease expiry",
@@ -299,7 +300,7 @@ func ackFailureStatus(err error) string {
 type BatchAckSupersededError struct {
 	// Superseded holds the claims the queue dropped without attempting any
 	// UPDATE. They never committed.
-	Superseded []Intent
+	Superseded []reducercontract.Intent
 	// KeptCommitted reports whether every surviving claim's UPDATE matched
 	// its row. False means some surviving claim was stale too, so the
 	// surviving items that are not superseded stay ack_outcome_unknown
@@ -330,7 +331,7 @@ func (e *BatchAckSupersededError) Unwrap() error {
 // Supersedes reports whether intent is one of the dropped claims. The match
 // is by claim identity, not bare work item id: a flush batch can carry two
 // claims of one work item, and only the older one was dropped.
-func (e *BatchAckSupersededError) Supersedes(intent Intent) bool {
+func (e *BatchAckSupersededError) Supersedes(intent reducercontract.Intent) bool {
 	for _, dropped := range e.Superseded {
 		if dropped.IntentID == intent.IntentID &&
 			dropped.ClaimEpoch == intent.ClaimEpoch &&

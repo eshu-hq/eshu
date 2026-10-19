@@ -17,7 +17,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	storagecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	queuestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
@@ -204,7 +204,7 @@ func TestReducerFailIntentRecordsDeadLetterWithQueueReducer(t *testing.T) {
 		Instruments: inst,
 	}
 
-	if err := queue.Fail(context.Background(), reducer.Intent{IntentID: "intent-1", AttemptCount: 1}, errors.New("bad input")); err != nil {
+	if err := queue.Fail(context.Background(), reducercontract.Intent{IntentID: "intent-1", AttemptCount: 1}, errors.New("bad input")); err != nil {
 		t.Fatalf("Fail() error = %v", err)
 	}
 	stored, _ := db.execs[0].args[1].(string)
@@ -221,7 +221,7 @@ func TestReducerFailIntentRejectedClaimRecordsNoDeadLetter(t *testing.T) {
 		Instruments: inst,
 	}
 
-	err := queue.Fail(context.Background(), reducer.Intent{IntentID: "intent-1", AttemptCount: 1}, errors.New("bad input"))
+	err := queue.Fail(context.Background(), reducercontract.Intent{IntentID: "intent-1", AttemptCount: 1}, errors.New("bad input"))
 	if !errors.Is(err, ErrReducerClaimRejected) {
 		t.Fatalf("Fail() error = %v, want ErrReducerClaimRejected", err)
 	}

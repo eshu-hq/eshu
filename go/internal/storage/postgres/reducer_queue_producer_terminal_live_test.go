@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 )
 
@@ -53,7 +54,7 @@ func (producerTerminalCountingError) Retryable() bool { return true }
 type ownGateConsumer struct {
 	domain reducer.Domain
 	class  string
-	run    func(context.Context, reducer.Intent) error
+	run    func(context.Context, reducercontract.Intent) error
 }
 
 func ownGateConsumers(db *sql.DB) []ownGateConsumer {
@@ -72,7 +73,7 @@ func ownGateConsumers(db *sql.DB) []ownGateConsumer {
 		{
 			domain: reducer.DomainDeployableUnitCorrelation,
 			class:  crossrepo.DeployableUnitCorrelationProducerDeadLetteredFailureClass,
-			run: func(ctx context.Context, intent reducer.Intent) error {
+			run: func(ctx context.Context, intent reducercontract.Intent) error {
 				_, err := duc.Handle(ctx, intent)
 				return err
 			},
@@ -80,7 +81,7 @@ func ownGateConsumers(db *sql.DB) []ownGateConsumer {
 		{
 			domain: reducer.DomainWorkloadMaterialization,
 			class:  crossrepo.WorkloadMaterializationProducerDeadLetteredFailureClass,
-			run: func(ctx context.Context, intent reducer.Intent) error {
+			run: func(ctx context.Context, intent reducercontract.Intent) error {
 				_, err := wm.LoadWorkloadProjectionScopeInputs(ctx, intent)
 				return err
 			},

@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -203,7 +204,7 @@ func TestReducerQueueFailRetriesRetryableErrorWithinAttemptBudget(t *testing.T) 
 		Now:           func() time.Time { return now },
 	}
 
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-1",
 		AttemptCount: 1,
 	}
@@ -253,7 +254,7 @@ func TestReducerQueueFailMarksRetryableErrorTerminalWhenAttemptBudgetExhausted(t
 		Now:           func() time.Time { return now },
 	}
 
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-1",
 		AttemptCount: 2,
 	}
@@ -306,7 +307,7 @@ func TestReducerQueueFailDeadLettersTerminalWithTriageClass(t *testing.T) {
 		Now:           func() time.Time { return now },
 	}
 
-	intent := reducer.Intent{IntentID: "intent-1"}
+	intent := reducercontract.Intent{IntentID: "intent-1"}
 
 	if err := queue.Fail(context.Background(), intent, errors.New("nil deref in materializer")); err != nil {
 		t.Fatalf("Fail() error = %v, want nil", err)
@@ -335,7 +336,7 @@ func TestReducerQueueFailRetriesGraphWriteTimeoutWithinAttemptBudget(t *testing.
 		MaxAttempts:   3,
 		Now:           func() time.Time { return now },
 	}
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-1",
 		AttemptCount: 1,
 	}
@@ -395,7 +396,7 @@ func TestReducerQueueFailRetriesReadinessBacklogKeepsOwnFailureClass(t *testing.
 		MaxAttempts:   3,
 		Now:           func() time.Time { return now },
 	}
-	intent := reducer.Intent{IntentID: "intent-1", AttemptCount: 1}
+	intent := reducercontract.Intent{IntentID: "intent-1", AttemptCount: 1}
 
 	if err := queue.Fail(context.Background(), intent, readinessBacklogTestError{
 		class: reducer.SecretsIAMEndpointNotReadyFailureClass,

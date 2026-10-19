@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
 )
 
@@ -27,7 +28,7 @@ func TestReducerQueueFailDefersSecretsIAMEndpointReadinessPastAttemptBudget(t *t
 		Now:           func() time.Time { return now },
 	}
 
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-1",
 		AttemptCount: 42,
 	}

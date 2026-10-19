@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graphbackpressure"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -59,13 +60,13 @@ func (s *leaseBarrierGraphStub) ExecuteProbe(context.Context, sourcecypher.State
 
 type leaseBarrierReducerStub struct{ graph sourcecypher.Executor }
 
-func (s leaseBarrierReducerStub) Execute(ctx context.Context, _ reducer.Intent) (reducer.Result, error) {
+func (s leaseBarrierReducerStub) Execute(ctx context.Context, _ reducercontract.Intent) (reducer.Result, error) {
 	group := s.graph.(sourcecypher.GroupExecutor)
 	return reducer.Result{}, group.ExecuteGroup(ctx, []sourcecypher.Statement{{Operation: sourcecypher.OperationCanonicalUpsert}})
 }
 
-func leaseBarrierIntent(id string, attempt int, epoch time.Time) reducer.Intent {
-	return reducer.Intent{IntentID: id, Domain: reducer.DomainGCPResourceMaterialization, AttemptCount: attempt, ClaimedAt: &epoch}
+func leaseBarrierIntent(id string, attempt int, epoch time.Time) reducercontract.Intent {
+	return reducercontract.Intent{IntentID: id, Domain: reducer.DomainGCPResourceMaterialization, AttemptCount: attempt, ClaimedAt: &epoch}
 }
 
 func awaitLeaseBarrierHeld(t *testing.T, path string) ifaLeaseExpiryRecord {
@@ -213,7 +214,7 @@ func TestIfaLeaseExpiryBarrierRejectsFailedWriteAndCancellation(t *testing.T) {
 	}
 }
 
-func assertLeaseBarrierTerminal(t *testing.T, path string, intent reducer.Intent, state string) {
+func assertLeaseBarrierTerminal(t *testing.T, path string, intent reducercontract.Intent, state string) {
 	t.Helper()
 	data, err := os.ReadFile(path + ".finished.json")
 	if err != nil {

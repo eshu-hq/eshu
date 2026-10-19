@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -44,7 +45,7 @@ func TestReducerContentionGateAckFanoutTelemetryLive(t *testing.T) {
 	}
 	observed, reader, spans := ackFanoutTelemetryDB(t, SQLDB{DB: database})
 	queue := ReducerQueue{database: observed, LeaseOwner: "telemetry-ack", LeaseDuration: time.Minute, Now: func() time.Time { return now }}
-	if err := queue.AckBatch(ctx, []reducer.Intent{{IntentID: id, Domain: reducer.DomainSupplyChainImpact, ClaimedAt: &now}}, nil); err != nil {
+	if err := queue.AckBatch(ctx, []reducercontract.Intent{{IntentID: id, Domain: reducer.DomainSupplyChainImpact, ClaimedAt: &now}}, nil); err != nil {
 		t.Fatal(err)
 	}
 	assertCrossScopeConsumerState(t, ctx, database, id, "succeeded", false)
@@ -82,7 +83,7 @@ func TestReducerContentionGateAckFanoutTelemetryErrors(t *testing.T) {
 	cause := &pgconn.PgError{Code: "40P01", Message: "controlled telemetry failure"}
 	observed, reader, spans := ackFanoutTelemetryDB(t, &instrumentedTestExecQueryer{execErr: cause, queryErr: cause})
 	queue := ReducerQueue{database: observed, LeaseOwner: "telemetry-ack", LeaseDuration: time.Minute}
-	err := queue.AckBatch(t.Context(), []reducer.Intent{{IntentID: "telemetry-error", Domain: reducer.DomainSupplyChainImpact}}, nil)
+	err := queue.AckBatch(t.Context(), []reducercontract.Intent{{IntentID: "telemetry-error", Domain: reducer.DomainSupplyChainImpact}}, nil)
 	if !errors.Is(err, cause) {
 		t.Fatalf("ACK error=%v", err)
 	}

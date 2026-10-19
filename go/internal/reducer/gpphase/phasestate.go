@@ -87,7 +87,7 @@ func StateForIntent(
 }
 
 // StateForIntentValue builds the readiness publication for one durable
-// reducer.Intent value (issue #6061). It adapts the intent's scope,
+// reducercontract.Intent value (issue #6061). It adapts the intent's scope,
 // generation, and entity keys to an [IntentAnchor] and delegates to
 // [StateForIntent] rather than re-deriving the key, so a caller that already
 // holds the durable [reducercontract.Intent] (the reducer root's

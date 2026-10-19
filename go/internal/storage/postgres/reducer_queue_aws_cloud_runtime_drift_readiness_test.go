@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // awsCloudRuntimeDriftStatePendingTestError stands in for the handler's
@@ -82,7 +83,7 @@ func TestReducerQueueFailDefersAWSCloudRuntimeDriftStatePendingPastAttemptBudget
 		Now:           func() time.Time { return now },
 	}
 
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-aws-drift-state-pending-1",
 		AttemptCount: 42,
 	}
@@ -132,7 +133,7 @@ func TestReducerQueueFailDefersAWSCloudRuntimeDriftWriteSupersededPastAttemptBud
 		Now:           func() time.Time { return now },
 	}
 
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-aws-drift-write-superseded-1",
 		AttemptCount: 42,
 	}

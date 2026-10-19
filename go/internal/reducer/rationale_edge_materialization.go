@@ -44,7 +44,7 @@ type RationaleEdgeMaterializationHandler struct {
 }
 
 // Handle executes the rationale edge materialization path.
-func (h RationaleEdgeMaterializationHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
+func (h RationaleEdgeMaterializationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (Result, error) {
 	if intent.Domain != DomainRationaleMaterialization {
 		return Result{}, fmt.Errorf(
 			"rationale materialization handler does not accept domain %q",

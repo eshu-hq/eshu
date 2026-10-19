@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -40,7 +41,7 @@ func recordOneFailure(t *testing.T, isDeferred func(string) bool, execErr error)
 		Instruments:            instruments,
 		IsDeferredFailureClass: isDeferred,
 	}
-	intent := Intent{IntentID: "intent-1", Domain: DomainDeployableUnitCorrelation, EntityKeys: []string{"repo:a"}}
+	intent := reducercontract.Intent{IntentID: "intent-1", Domain: DomainDeployableUnitCorrelation, EntityKeys: []string{"repo:a"}}
 	service.recordReducerResult(context.Background(), intent, Result{}, 0.1, 0.2, "failed", 1, execErr)
 
 	var line map[string]any
@@ -121,7 +122,7 @@ func TestRecordReducerResultKeepsProducerTerminalFailureAsFailed(t *testing.T) {
 		stubProducerLookup(crossrepo.ProducerState{
 			ScopeActiveGenerationID: "gen-1", WorkItemID: "dm-1", Status: "dead_letter", FailureClass: "retry_exhausted",
 		}, nil),
-		Intent{ScopeID: "scope-1", GenerationID: "gen-1", Domain: DomainDeployableUnitCorrelation}, true, time.Now().UTC())
+		reducercontract.Intent{ScopeID: "scope-1", GenerationID: "gen-1", Domain: DomainDeployableUnitCorrelation}, true, time.Now().UTC())
 	if gate.Err == nil {
 		t.Fatal("EvaluateOwnGate returned no producer-terminal error")
 	}

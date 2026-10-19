@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestGCPResourceMaterializationRetractsDeletedUIDs is the #6887 GCP
@@ -47,7 +48,7 @@ func TestGCPResourceMaterializationRetractsDeletedUIDs(t *testing.T) {
 		NodeRetracter:   retracter,
 		PriorGeneration: func(context.Context, string, string) (string, bool, error) { return "gen-1", true, nil },
 	}
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-gcp-retract",
 		ScopeID:      "scope-gcp-1",
 		GenerationID: "gen-2",

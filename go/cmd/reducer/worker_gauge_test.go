@@ -11,13 +11,14 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 type fakeExecutor struct {
 	onExecute func()
 }
 
-func (f fakeExecutor) Execute(context.Context, reducer.Intent) (reducer.Result, error) {
+func (f fakeExecutor) Execute(context.Context, reducercontract.Intent) (reducer.Result, error) {
 	if f.onExecute != nil {
 		f.onExecute()
 	}
@@ -83,7 +84,7 @@ func TestActiveWorkerExecutorTracksConcurrency(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, _ = exec.Execute(context.Background(), reducer.Intent{})
+			_, _ = exec.Execute(context.Background(), reducercontract.Intent{})
 		}()
 	}
 

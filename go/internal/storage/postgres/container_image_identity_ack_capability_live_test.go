@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 const legacyContainerImageIdentityAckQuery = `
@@ -247,7 +248,7 @@ WHERE work_item_id IN ($2, $3)
 	)
 	// The fence cleared both leases, so the capable owner claims the fenced
 	// rows through the queue (either order) and completes them as a batch.
-	batchIntents := make([]reducer.Intent, 0, 2)
+	batchIntents := make([]reducercontract.Intent, 0, 2)
 	for range 2 {
 		batched, ok, err := capableQueue.Claim(ctx)
 		if err != nil || !ok {

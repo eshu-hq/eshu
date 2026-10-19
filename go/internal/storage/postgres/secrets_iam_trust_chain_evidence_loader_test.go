@@ -13,6 +13,7 @@ import (
 
 	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
@@ -54,7 +55,7 @@ func TestFactStoreLoadSecretsIAMTrustChainEvidenceExpandsActiveAnchors(t *testin
 	}
 	store := NewFactStore(db)
 
-	envelopes, stats, err := store.LoadSecretsIAMTrustChainEvidence(context.Background(), reducer.Intent{
+	envelopes, stats, err := store.LoadSecretsIAMTrustChainEvidence(context.Background(), reducercontract.Intent{
 		ScopeID:      "k8s-scope",
 		GenerationID: "k8s-gen",
 		Domain:       reducer.DomainSecretsIAMTrustChain,
@@ -146,7 +147,7 @@ func TestFactStoreLoadSecretsIAMTrustChainEvidenceExpandsGCPWorkloadIdentityAnch
 	}
 	store := NewFactStore(db)
 
-	envelopes, stats, err := store.LoadSecretsIAMTrustChainEvidence(context.Background(), reducer.Intent{
+	envelopes, stats, err := store.LoadSecretsIAMTrustChainEvidence(context.Background(), reducercontract.Intent{
 		ScopeID:      "k8s-scope",
 		GenerationID: "k8s-gen",
 		Domain:       reducer.DomainSecretsIAMTrustChain,
@@ -201,7 +202,7 @@ func TestFactStoreLoadSecretsIAMTrustChainEvidenceClassifiesMalformedAnchor(t *t
 	}
 	store := NewFactStore(db)
 
-	_, _, err := store.LoadSecretsIAMTrustChainEvidence(context.Background(), reducer.Intent{
+	_, _, err := store.LoadSecretsIAMTrustChainEvidence(context.Background(), reducercontract.Intent{
 		ScopeID:      "aws-scope",
 		GenerationID: "aws-gen",
 		Domain:       reducer.DomainSecretsIAMTrustChain,
@@ -261,7 +262,7 @@ func TestFactStoreLoadSecretsIAMTrustChainEvidenceSkipsMalformedNonAnchor(t *tes
 	}
 	store := NewFactStore(db)
 
-	envelopes, stats, err := store.LoadSecretsIAMTrustChainEvidence(context.Background(), reducer.Intent{
+	envelopes, stats, err := store.LoadSecretsIAMTrustChainEvidence(context.Background(), reducercontract.Intent{
 		ScopeID:      "k8s-scope",
 		GenerationID: "k8s-gen",
 		Domain:       reducer.DomainSecretsIAMTrustChain,
@@ -334,7 +335,7 @@ func TestFactStoreLoadSecretsIAMTrustChainEvidenceMarksTruncatedAtExpansionLimit
 	}
 	store := NewFactStore(db)
 
-	_, stats, err := store.LoadSecretsIAMTrustChainEvidence(context.Background(), reducer.Intent{
+	_, stats, err := store.LoadSecretsIAMTrustChainEvidence(context.Background(), reducercontract.Intent{
 		ScopeID:      "k8s-scope",
 		GenerationID: "k8s-gen",
 		Domain:       reducer.DomainSecretsIAMTrustChain,

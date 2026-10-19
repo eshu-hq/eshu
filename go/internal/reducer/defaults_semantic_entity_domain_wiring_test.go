@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestNewDefaultRuntimeRegistersSemanticEntityMaterializationWhenWriterPresent
@@ -72,7 +73,7 @@ func TestNewDefaultRuntimeRegistersSemanticEntityMaterializationWhenWriterPresen
 		t.Fatalf("NewDefaultRuntime() error = %v, want nil", err)
 	}
 
-	_, err = runtime.Execute(context.Background(), Intent{
+	_, err = runtime.Execute(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-semantic-1",
 		ScopeID:      "scope-1",
 		GenerationID: "generation-1",

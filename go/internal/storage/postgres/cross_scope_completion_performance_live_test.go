@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 const legacyContainerImageIdentityCompletionAckBatchQuery = `
@@ -276,7 +277,7 @@ func legacyCrossScopeCompletionFail(
 	ctx context.Context,
 	db *sql.DB,
 	owner string,
-	intent reducer.Intent,
+	intent reducercontract.Intent,
 	retry bool,
 ) error {
 	if retry {
@@ -303,7 +304,7 @@ WHERE work_item_id = $1 AND stage = 'reducer' AND lease_owner = $2
 	return err
 }
 
-func crossScopeCompletionPerfIDs(intents []reducer.Intent) []string {
+func crossScopeCompletionPerfIDs(intents []reducercontract.Intent) []string {
 	ids := make([]string, len(intents))
 	for index, intent := range intents {
 		ids[index] = intent.IntentID
@@ -311,10 +312,10 @@ func crossScopeCompletionPerfIDs(intents []reducer.Intent) []string {
 	return ids
 }
 
-func crossScopeCompletionPerfIntents(prefix string, domain reducer.Domain, count int) []reducer.Intent {
-	intents := make([]reducer.Intent, count)
+func crossScopeCompletionPerfIntents(prefix string, domain reducer.Domain, count int) []reducercontract.Intent {
+	intents := make([]reducercontract.Intent, count)
 	for index := range count {
-		intents[index] = reducer.Intent{
+		intents[index] = reducercontract.Intent{
 			IntentID: fmt.Sprintf("reducer_5740_perf_%s_%d", prefix, index+1),
 			Domain:   domain,
 		}
@@ -330,7 +331,7 @@ func resetCrossScopeCompletionPerfRows(
 	ctx context.Context,
 	db *sql.DB,
 	owner string,
-	intents []reducer.Intent,
+	intents []reducercontract.Intent,
 ) {
 	t.Helper()
 	claimedAt := time.Now().UTC().Truncate(time.Microsecond)
@@ -355,7 +356,7 @@ func legacyCrossScopeCompletionIdentityAck(
 	ctx context.Context,
 	db *sql.DB,
 	owner string,
-	intents []reducer.Intent,
+	intents []reducercontract.Intent,
 ) error {
 	ids := make([]string, len(intents))
 	for index, intent := range intents {
@@ -373,9 +374,9 @@ func legacyCrossScopeCompletionMixedAck(
 	ctx context.Context,
 	db *sql.DB,
 	owner string,
-	intents []reducer.Intent,
+	intents []reducercontract.Intent,
 ) error {
-	var identity, unrelated []reducer.Intent
+	var identity, unrelated []reducercontract.Intent
 	for _, intent := range intents {
 		if intent.Domain == reducer.DomainContainerImageIdentity {
 			identity = append(identity, intent)
@@ -401,7 +402,7 @@ func runConcurrentCrossScopeCompletionAck(
 	db *sql.DB,
 	queue ReducerQueue,
 	owner string,
-	intents []reducer.Intent,
+	intents []reducercontract.Intent,
 	legacy bool,
 ) error {
 	const clients = 16

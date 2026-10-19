@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -59,7 +60,7 @@ type AzureResourceMaterializationHandler struct {
 }
 
 // Handle executes one Azure resource materialization intent.
-func (h AzureResourceMaterializationHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
+func (h AzureResourceMaterializationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (Result, error) {
 	totalStart := time.Now()
 	if intent.Domain != DomainAzureResourceMaterialization {
 		return Result{}, fmt.Errorf("azure resource materialization handler does not accept domain %q", intent.Domain)
@@ -297,7 +298,7 @@ func azureNormalizedResourceIDForResource(resource azurev1.CloudResource) string
 }
 
 type azureResourceMaterializationTiming struct {
-	intent               Intent
+	intent               reducercontract.Intent
 	factCount            int
 	nodeCount            int
 	loadDuration         time.Duration

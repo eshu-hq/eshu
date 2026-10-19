@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 )
@@ -187,7 +188,7 @@ func TestSecurityAlertReconciliationHandlerDefersPackageTriggeredLockfileEvidenc
 		ExtractManifestConsumptions: correlation.ExtractSecurityAlertManifestConsumptions,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-package-triggered-reconciliation",
 		ScopeID:      packageID,
 		GenerationID: "package-generation-1",
@@ -260,7 +261,7 @@ func TestSecurityAlertReconciliationHandlerDefersProviderTriggeredPendingImpactE
 		ExtractManifestConsumptions: correlation.ExtractSecurityAlertManifestConsumptions,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-provider-triggered-pending-impact",
 		ScopeID:      repoID,
 		GenerationID: "security-alert-generation-1",
@@ -344,7 +345,7 @@ func TestSecurityAlertReconciliationHandlerUsesRepositoryFactsForLockfileScope(t
 		ExtractManifestConsumptions: correlation.ExtractSecurityAlertManifestConsumptions,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-provider-scope-lockfile",
 		ScopeID:      providerRepoID,
 		GenerationID: "security-alert-generation-1",

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -290,7 +291,7 @@ func TestWorkloadMaterializationHandlerPublishesRepoWorkloadPresence(t *testing.
 	}
 
 	now := time.Now().UTC()
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-wm-repo-workload-presence",
 		ScopeID:         "scope-service",
 		GenerationID:    "gen-1",

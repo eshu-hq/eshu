@@ -166,7 +166,7 @@ func TestContainerImageIdentityEpochBarrierDefersPendingLive(t *testing.T) {
 		Now: func() time.Time { return now },
 	}
 
-	claim := func(workItemID, generationID string, attemptCount int) reducer.Intent {
+	claim := func(workItemID, generationID string, attemptCount int) reducercontract.Intent {
 		t.Helper()
 		seedContainerImageIdentityAckWorkItem(
 			t, ctx, db, workItemID, scopeID, generationID,
@@ -178,7 +178,7 @@ UPDATE fact_work_items SET attempt_count = $2 WHERE work_item_id = $1
 			t.Fatalf("seed barrier attempt count %s: %v", workItemID, err)
 		}
 		claimedAt, claimEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, workItemID)
-		return reducer.Intent{
+		return reducercontract.Intent{
 			IntentID:     workItemID,
 			ScopeID:      scopeID,
 			GenerationID: generationID,

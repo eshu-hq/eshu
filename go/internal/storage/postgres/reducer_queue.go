@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -336,9 +337,9 @@ func (q ReducerQueue) enqueueReducerBatch(
 }
 
 // Claim implements reducer.WorkSource over fact_work_items.
-func (q ReducerQueue) Claim(ctx context.Context) (reducer.Intent, bool, error) {
+func (q ReducerQueue) Claim(ctx context.Context) (reducercontract.Intent, bool, error) {
 	if err := q.validateClaim(); err != nil {
-		return reducer.Intent{}, false, err
+		return reducercontract.Intent{}, false, err
 	}
 
 	now := q.now()
@@ -357,37 +358,37 @@ func (q ReducerQueue) Claim(ctx context.Context) (reducer.Intent, bool, error) {
 		if isReducerLiveLeaseConflict(err) {
 			// A concurrent claimer already holds the live lease on this
 			// conflict key; defer rather than double-claim (#4137).
-			return reducer.Intent{}, false, nil
+			return reducercontract.Intent{}, false, nil
 		}
-		return reducer.Intent{}, false, fmt.Errorf("claim reducer work: %w", err)
+		return reducercontract.Intent{}, false, fmt.Errorf("claim reducer work: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
 			if isReducerLiveLeaseConflict(err) {
-				return reducer.Intent{}, false, nil
+				return reducercontract.Intent{}, false, nil
 			}
-			return reducer.Intent{}, false, fmt.Errorf("claim reducer work: %w", err)
+			return reducercontract.Intent{}, false, fmt.Errorf("claim reducer work: %w", err)
 		}
-		return reducer.Intent{}, false, nil
+		return reducercontract.Intent{}, false, nil
 	}
 
 	intent, err := scanReducerIntent(rows)
 	if err != nil {
-		return reducer.Intent{}, false, fmt.Errorf("claim reducer work: %w", err)
+		return reducercontract.Intent{}, false, fmt.Errorf("claim reducer work: %w", err)
 	}
 	if err := rows.Err(); err != nil {
 		if isReducerLiveLeaseConflict(err) {
-			return reducer.Intent{}, false, nil
+			return reducercontract.Intent{}, false, nil
 		}
-		return reducer.Intent{}, false, fmt.Errorf("claim reducer work: %w", err)
+		return reducercontract.Intent{}, false, fmt.Errorf("claim reducer work: %w", err)
 	}
 	return intent, true, nil
 }
 
 // Heartbeat extends the claim on one reducer work item owned by this queue.
-func (q ReducerQueue) Heartbeat(ctx context.Context, intent reducer.Intent) error {
+func (q ReducerQueue) Heartbeat(ctx context.Context, intent reducercontract.Intent) error {
 	if err := q.validateClaim(); err != nil {
 		return err
 	}
@@ -421,7 +422,7 @@ func (q ReducerQueue) Heartbeat(ctx context.Context, intent reducer.Intent) erro
 // statement, a suppressed one still succeeds without an event. Routing both
 // through one statement keeps the epoch bump unconditional, so the
 // rolling-upgrade fallback trigger never double-emits a new-path ACK.
-func (q ReducerQueue) Ack(ctx context.Context, intent reducer.Intent, result reducer.Result) error {
+func (q ReducerQueue) Ack(ctx context.Context, intent reducercontract.Intent, result reducer.Result) error {
 	if err := q.validateClaim(); err != nil {
 		return err
 	}
@@ -473,7 +474,7 @@ func (q ReducerQueue) Ack(ctx context.Context, intent reducer.Intent, result red
 }
 
 // Fail marks one claimed reducer work item as failed.
-func (q ReducerQueue) Fail(ctx context.Context, intent reducer.Intent, cause error) error {
+func (q ReducerQueue) Fail(ctx context.Context, intent reducercontract.Intent, cause error) error {
 	if err := q.validateClaim(); err != nil {
 		return err
 	}

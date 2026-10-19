@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	submodulev1 "github.com/eshu-hq/eshu/sdk/go/factschema/submodule/v1"
@@ -64,9 +65,9 @@ func submodulePinEnvelope(parentRepoID, submodulePath string, resolvedRepoID, pi
 
 func strPtr(s string) *string { return &s }
 
-func submodulePinIntent(scopeID, generationID string) Intent {
+func submodulePinIntent(scopeID, generationID string) reducercontract.Intent {
 	now := time.Date(2026, time.July, 21, 12, 0, 0, 0, time.UTC)
-	return Intent{
+	return reducercontract.Intent{
 		IntentID:     "intent-submodule-" + scopeID + "-" + generationID,
 		ScopeID:      scopeID,
 		GenerationID: generationID,

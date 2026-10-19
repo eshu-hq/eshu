@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -26,22 +27,22 @@ type observingBatchSink struct {
 	failCalls int
 }
 
-func (*observingBatchSink) Ack(context.Context, Intent, Result) error { return nil }
+func (*observingBatchSink) Ack(context.Context, reducercontract.Intent, Result) error { return nil }
 
-func (s *observingBatchSink) AckBatch(_ context.Context, intents []Intent, _ []Result) error {
+func (s *observingBatchSink) AckBatch(_ context.Context, intents []reducercontract.Intent, _ []Result) error {
 	s.ackCalls++
 	s.ackSizes = append(s.ackSizes, len(intents))
 	return s.ackErr
 }
 
-func (s *observingBatchSink) Fail(context.Context, Intent, error) error {
+func (s *observingBatchSink) Fail(context.Context, reducercontract.Intent, error) error {
 	s.failCalls++
 	return nil
 }
 
 type cancelingBatchExecutor struct{ cancel context.CancelFunc }
 
-func (e cancelingBatchExecutor) Execute(_ context.Context, intent Intent) (Result, error) {
+func (e cancelingBatchExecutor) Execute(_ context.Context, intent reducercontract.Intent) (Result, error) {
 	e.cancel()
 	return Result{IntentID: intent.IntentID, Domain: intent.Domain, Status: ResultStatusSucceeded}, nil
 }

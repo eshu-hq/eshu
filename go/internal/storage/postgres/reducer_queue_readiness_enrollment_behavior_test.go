@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 )
 
@@ -57,7 +58,7 @@ func TestReducerQueueFailDefersEveryEnrolledReadinessClassPastAttemptBudget(t *t
 				Now:           func() time.Time { return now },
 			}
 
-			intent := reducer.Intent{IntentID: "intent-" + class, AttemptCount: 42}
+			intent := reducercontract.Intent{IntentID: "intent-" + class, AttemptCount: 42}
 			if err := queue.Fail(context.Background(), intent, readinessMissError{class: class}); err != nil {
 				t.Fatalf("Fail() error = %v, want nil", err)
 			}
@@ -107,7 +108,7 @@ func TestReducerQueueFailDeadLettersAnUnenrolledClassPastAttemptBudget(t *testin
 		Now:           func() time.Time { return now },
 	}
 
-	intent := reducer.Intent{IntentID: "intent-control", AttemptCount: 42}
+	intent := reducercontract.Intent{IntentID: "intent-control", AttemptCount: 42}
 	if err := queue.Fail(context.Background(), intent, readinessMissError{class: unenrolled}); err != nil {
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
@@ -191,7 +192,7 @@ func TestReducerQueueFailDeadLettersProducerTerminalClassesPastAttemptBudget(t *
 				database: db, LeaseOwner: "reducer-1", LeaseDuration: time.Minute,
 				RetryDelay: 2 * time.Minute, MaxAttempts: 3, Now: func() time.Time { return now },
 			}
-			intent := reducer.Intent{IntentID: "intent-" + class, AttemptCount: 3}
+			intent := reducercontract.Intent{IntentID: "intent-" + class, AttemptCount: 3}
 			if err := queue.Fail(context.Background(), intent, readinessMissError{class: class}); err != nil {
 				t.Fatalf("Fail() error = %v, want nil", err)
 			}

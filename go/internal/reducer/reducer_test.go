@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
@@ -16,7 +17,7 @@ import (
 func TestIntentValidateAndScopeGenerationKey(t *testing.T) {
 	t.Parallel()
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-123",
 		GenerationID: "generation-456",
@@ -98,7 +99,7 @@ func TestRuntimeRunOnceIsBoundedAndProcessesRegisteredHandlers(t *testing.T) {
 			CanonicalWrite: true,
 		},
 		TruthContract: testTruthContract("workload_identity"),
-		Handler: HandlerFunc(func(context.Context, Intent) (Result, error) {
+		Handler: HandlerFunc(func(context.Context, reducercontract.Intent) (Result, error) {
 			handled = append(handled, "workload-identity")
 			return Result{
 				Status:          ResultStatusSucceeded,
@@ -115,7 +116,7 @@ func TestRuntimeRunOnceIsBoundedAndProcessesRegisteredHandlers(t *testing.T) {
 		t.Fatalf("NewRuntime() error = %v, want nil", err)
 	}
 
-	first := Intent{
+	first := reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-123",
 		GenerationID: "generation-456",
@@ -232,7 +233,7 @@ func TestRuntimeStatsSummarizeDomainBacklog(t *testing.T) {
 		t.Fatalf("NewRuntime() error = %v, want nil", err)
 	}
 
-	_, err = runtime.Enqueue(time.Date(2026, time.April, 12, 11, 0, 0, 0, time.UTC), Intent{
+	_, err = runtime.Enqueue(time.Date(2026, time.April, 12, 11, 0, 0, 0, time.UTC), reducercontract.Intent{
 		IntentID:     "intent-3",
 		ScopeID:      "scope-abc",
 		GenerationID: "generation-def",

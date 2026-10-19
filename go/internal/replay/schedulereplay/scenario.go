@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // Config parameterizes one schedule-replay run.
@@ -26,7 +27,7 @@ type Config struct {
 	// ApplyCanonical when nil.
 	Apply Applier
 	// Domain is the reducer projection conflict-key domain the scripted intents
-	// carry (reducer.Intent.Domain). It has no effect on the in-memory graph
+	// carry (reducercontract.Intent.Domain). It has no effect on the in-memory graph
 	// model itself, but it identifies which real projection's shared-conflict-key
 	// ordering behavior a scenario is proving (C-14 #4367): a scenario for
 	// projection:incident_repository_correlation or projection:supply_chain_impact
@@ -63,11 +64,11 @@ func RunScheduleReport(ctx context.Context, cfg Config) (snapshot []byte, claimB
 	}
 
 	registry := make(map[string]WorkItem, len(cfg.Items))
-	intents := make([]reducer.Intent, 0, len(cfg.Items))
+	intents := make([]reducercontract.Intent, 0, len(cfg.Items))
 	available := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 	for _, item := range cfg.Items {
 		registry[item.IntentID] = item
-		intents = append(intents, reducer.Intent{
+		intents = append(intents, reducercontract.Intent{
 			IntentID:     item.IntentID,
 			ScopeID:      "replay-schedule",
 			GenerationID: "replay-gen",
@@ -198,7 +199,7 @@ type graphExecutor struct {
 	err error
 }
 
-func (e *graphExecutor) Execute(ctx context.Context, intent reducer.Intent) (reducer.Result, error) {
+func (e *graphExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducer.Result, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	// Record every failure in firstErr: the reducer loop fails-and-continues
@@ -244,17 +245,17 @@ type countingSink struct {
 	failedCount atomic.Int64
 }
 
-func (s *countingSink) Ack(_ context.Context, _ reducer.Intent, _ reducer.Result) error {
+func (s *countingSink) Ack(_ context.Context, _ reducercontract.Intent, _ reducer.Result) error {
 	s.ackedCount.Add(1)
 	return nil
 }
 
-func (s *countingSink) Fail(_ context.Context, _ reducer.Intent, _ error) error {
+func (s *countingSink) Fail(_ context.Context, _ reducercontract.Intent, _ error) error {
 	s.failedCount.Add(1)
 	return nil
 }
 
-func (s *countingSink) AckBatch(_ context.Context, intents []reducer.Intent, _ []reducer.Result) error {
+func (s *countingSink) AckBatch(_ context.Context, intents []reducercontract.Intent, _ []reducer.Result) error {
 	s.ackedCount.Add(int64(len(intents)))
 	return nil
 }

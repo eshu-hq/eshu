@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/multicloudruntimedrift"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
@@ -100,7 +101,7 @@ func TestNewDefaultRuntimeUsesDefaultDomainHandlers(t *testing.T) {
 		t.Fatalf("NewDefaultRuntime() error = %v, want nil", err)
 	}
 
-	workloadResult, err := runtime.Execute(context.Background(), Intent{
+	workloadResult, err := runtime.Execute(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-1",
 		ScopeID:         "scope-123",
 		GenerationID:    "generation-456",
@@ -120,7 +121,7 @@ func TestNewDefaultRuntimeUsesDefaultDomainHandlers(t *testing.T) {
 		t.Fatalf("runtime.Execute(workload).Status = %q, want %q", got, want)
 	}
 
-	cloudAssetResult, err := runtime.Execute(context.Background(), Intent{
+	cloudAssetResult, err := runtime.Execute(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-7",
 		ScopeID:         "scope-123",
 		GenerationID:    "generation-456",
@@ -140,7 +141,7 @@ func TestNewDefaultRuntimeUsesDefaultDomainHandlers(t *testing.T) {
 		t.Fatalf("runtime.Execute(cloud_asset).Status = %q, want %q", got, want)
 	}
 
-	deploymentResult, err := runtime.Execute(context.Background(), Intent{
+	deploymentResult, err := runtime.Execute(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-pm-1",
 		ScopeID:         "scope-123",
 		GenerationID:    "generation-456",
@@ -160,7 +161,7 @@ func TestNewDefaultRuntimeUsesDefaultDomainHandlers(t *testing.T) {
 		t.Fatalf("runtime.Execute(deployment_mapping).Status = %q, want %q", got, want)
 	}
 
-	codeCallResult, err := runtime.Execute(context.Background(), Intent{
+	codeCallResult, err := runtime.Execute(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-code-call-1",
 		ScopeID:         "scope-123",
 		GenerationID:    "generation-456",
@@ -186,7 +187,7 @@ func TestNewDefaultRuntimeUsesDefaultDomainHandlers(t *testing.T) {
 		t.Fatalf("code call writer rows = %d, want 2", len(codeCallWriter.rows))
 	}
 
-	_, err = runtime.Execute(context.Background(), Intent{
+	_, err = runtime.Execute(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-2",
 		ScopeID:         "scope-123",
 		GenerationID:    "generation-456",
@@ -307,7 +308,7 @@ func TestDefaultHandlersWiresCrossRepoResolver(t *testing.T) {
 		t.Fatalf("NewDefaultRuntime() error = %v, want nil", err)
 	}
 
-	result, err := runtime.Execute(context.Background(), Intent{
+	result, err := runtime.Execute(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-cross-repo",
 		ScopeID:         "scope-1",
 		GenerationID:    "gen-1",
@@ -626,7 +627,7 @@ func (stubDriftEvidenceLoader) LoadDriftEvidence(
 func TestNewDefaultRegistryRegistersDeployableUnitCorrelationAdditively(t *testing.T) {
 	t.Parallel()
 
-	handler := HandlerFunc(func(context.Context, Intent) (Result, error) {
+	handler := HandlerFunc(func(context.Context, reducercontract.Intent) (Result, error) {
 		return Result{Status: ResultStatusSucceeded}, nil
 	})
 

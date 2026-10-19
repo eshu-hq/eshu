@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -58,7 +59,7 @@ func TestWorkloadMaterializationHandlerMaterializesFromFacts(t *testing.T) {
 		Materializer: materializer,
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-wm-1",
 		ScopeID:         "scope-payments",
 		GenerationID:    "gen-1",
@@ -128,8 +129,8 @@ func productiveWorkloadGateLoader(now time.Time) *stubFactLoader {
 	}
 }
 
-func productiveWorkloadGateIntent(now time.Time) Intent {
-	return Intent{
+func productiveWorkloadGateIntent(now time.Time) reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:        "intent-wm-gate",
 		ScopeID:         "scope-payments",
 		GenerationID:    "gen-1",
@@ -213,7 +214,7 @@ func TestWorkloadMaterializationHandlerNoCandidatesSucceeds(t *testing.T) {
 		PhasePublisher: &recordingGraphProjectionPhasePublisher{},
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-wm-2",
 		ScopeID:         "scope-docs",
 		GenerationID:    "gen-1",
@@ -264,7 +265,7 @@ func TestWorkloadMaterializationHandlerPublishesPhaseWhenNoCandidates(t *testing
 		PhasePublisher: publisher,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-wm-phase-none",
 		ScopeID:         "scope-docs",
 		GenerationID:    "gen-1",
@@ -339,7 +340,7 @@ func TestWorkloadMaterializationHandlerUsesCorrelatedInputsByDefault(t *testing.
 		Materializer: NewWorkloadMaterializer(&recordingCypherExecutor{}),
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-wm-correlation-default",
 		ScopeID:         "scope-service",
 		GenerationID:    "gen-1",
@@ -423,7 +424,7 @@ func TestWorkloadMaterializationHandlerUsesArgoDeploymentSourceRelationships(t *
 		Materializer:   materializer,
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-wm-deploy-source",
 		ScopeID:         "scope-service-edge-api",
 		GenerationID:    "gen-1",
@@ -552,7 +553,7 @@ func TestWorkloadMaterializationHandlerSeedsRuntimeCandidateFromArgoDeploymentSo
 		t.Fatalf("len(projection.DeploymentSourceRows) = %d, want 1", got)
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-wm-runtime-argo",
 		ScopeID:         "scope-edge-api",
 		GenerationID:    "gen-1",
@@ -661,7 +662,7 @@ func TestWorkloadMaterializationHandlerUsesKustomizeDeploymentSourceReversedDire
 		Materializer:   NewWorkloadMaterializer(executor),
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-kustomize-deploy",
 		ScopeID:      "scope-my-api",
 		GenerationID: "gen-1",
@@ -723,7 +724,7 @@ func TestWorkloadMaterializationHandlerSkipsUtilityOnlyCandidate(t *testing.T) {
 		Materializer: NewWorkloadMaterializer(executor),
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-wm-utility",
 		ScopeID:         "scope-automation",
 		GenerationID:    "gen-1",
@@ -787,7 +788,7 @@ func TestWorkloadMaterializationHandlerUsesPreCorrelatedInputLoader(t *testing.T
 		Materializer: NewWorkloadMaterializer(executor),
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-wm-precorrelated",
 		ScopeID:         "scope-precorrelated",
 		GenerationID:    "gen-1",
@@ -865,7 +866,7 @@ func TestWorkloadMaterializationHandlerWritesProvisionedInfrastructureRuntimePla
 		Materializer:                 NewWorkloadMaterializer(executor),
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-wm-infra-platform",
 		ScopeID:         "scope-service",
 		GenerationID:    "gen-1",
@@ -905,7 +906,7 @@ func TestWorkloadMaterializationHandlerRejectsMissingDomain(t *testing.T) {
 		Materializer: NewWorkloadMaterializer(&recordingCypherExecutor{}),
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-wm-3",
 		ScopeID:         "scope-1",
 		GenerationID:    "gen-1",
@@ -932,7 +933,7 @@ func TestWorkloadMaterializationHandlerRequiresFactLoader(t *testing.T) {
 		Materializer: NewWorkloadMaterializer(&recordingCypherExecutor{}),
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-wm-4",
 		ScopeID:         "scope-1",
 		GenerationID:    "gen-1",
@@ -998,7 +999,7 @@ type stubWorkloadProjectionInputLoader struct {
 
 func (f *stubWorkloadProjectionInputLoader) LoadWorkloadProjectionInputs(
 	_ context.Context,
-	_ Intent,
+	_ reducercontract.Intent,
 ) ([]WorkloadCandidate, map[string][]string, error) {
 	f.calls++
 	if f.err != nil {
@@ -1011,7 +1012,7 @@ func (f *stubWorkloadProjectionInputLoader) LoadWorkloadProjectionInputs(
 // admits exactly its candidates, as an intent without entity keys sees it.
 func (f *stubWorkloadProjectionInputLoader) LoadWorkloadProjectionScopeInputs(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 ) (WorkloadProjectionInputs, error) {
 	candidates, deploymentEnvironments, err := f.LoadWorkloadProjectionInputs(ctx, intent)
 	return WorkloadProjectionInputs{
@@ -1077,7 +1078,7 @@ func TestWorkloadMaterializationHandlerFactLoaderError(t *testing.T) {
 		Materializer: NewWorkloadMaterializer(&recordingCypherExecutor{}),
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-wm-5",
 		ScopeID:         "scope-1",
 		GenerationID:    "gen-1",

@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -69,7 +70,7 @@ func (l *repoRetryLive) handleScopeIntent(ctx context.Context, repo, gen string,
 	}
 	now := time.Now().UTC()
 	repoID := l.repoID(repo)
-	_, err := handler.Handle(ctx, reducer.Intent{
+	_, err := handler.Handle(ctx, reducercontract.Intent{
 		IntentID: fmt.Sprintf("intent-%s-%s-%v", repo, gen, keys), ScopeID: "git-repository-scope:" + repoID,
 		GenerationID: gen, SourceSystem: "git", Domain: reducer.DomainWorkloadMaterialization,
 		Cause: "facts projected", EntityKeys: keys, EnqueuedAt: now, AvailableAt: now,

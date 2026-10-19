@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -193,10 +194,10 @@ type valueFlowRefreshAckGroup struct {
 // statement sequence). Emit membership comes from each item's paired result,
 // fail-open when the entry is missing.
 func splitValueFlowRefreshAckIntents(
-	unrelated []reducer.Intent,
+	unrelated []reducercontract.Intent,
 	resultByID map[string]reducer.Result,
-) ([]reducer.Intent, []valueFlowRefreshAckGroup) {
-	kept := make([]reducer.Intent, 0, len(unrelated))
+) ([]reducercontract.Intent, []valueFlowRefreshAckGroup) {
+	kept := make([]reducercontract.Intent, 0, len(unrelated))
 	byDomain := make(map[reducer.Domain]*valueFlowRefreshAckGroup)
 	for _, intent := range unrelated {
 		if !isValueFlowRefreshProducer(intent.Domain) {

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -25,7 +26,7 @@ func TestRationaleHandlerRejectsMismatchedDomain(t *testing.T) {
 		IntentWriter: &recordingRationaleIntentWriter{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -45,7 +46,7 @@ func TestRationaleHandlerRequiresFactLoader(t *testing.T) {
 		IntentWriter: &recordingRationaleIntentWriter{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -65,7 +66,7 @@ func TestRationaleHandlerRequiresIntentWriter(t *testing.T) {
 		FactLoader: &stubFactLoader{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -90,7 +91,7 @@ func TestRationaleHandlerEmitsIntentsWithDeltaRefresh(t *testing.T) {
 		IntentWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-rationale-delta",
 		ScopeID:      "scope-code",
 		GenerationID: "gen-2",
@@ -156,7 +157,7 @@ func TestRationaleHandlerLogsCompletion(t *testing.T) {
 		IntentWriter: &recordingRationaleIntentWriter{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-rationale-1",
 		ScopeID:      "scope-code",
 		GenerationID: "gen-2",
@@ -210,7 +211,7 @@ func TestRationaleHandlerSkipsWhenNoProjectionContext(t *testing.T) {
 		IntentWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-rationale-1",
 		ScopeID:      "scope-code",
 		GenerationID: "gen-1",

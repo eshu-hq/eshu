@@ -8,6 +8,7 @@ import (
 	"log/slog"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // refreshResultSignals runs the value-flow refresh emit gate over the
@@ -17,7 +18,7 @@ import (
 // refresh is a bounded extra solve, a missed one is silent accuracy loss.
 func (h AWSResourceMaterializationHandler) refreshResultSignals(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	base map[string]float64,
 	writes int,
 	rows []map[string]any,

@@ -9,11 +9,12 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // assertCommittedSupersededClaim checks the dropped claim identity and the
 // surviving ACK outcome, which the caller also verifies in PostgreSQL.
-func assertCommittedSupersededClaim(t *testing.T, err error, stale, latest reducer.Intent) {
+func assertCommittedSupersededClaim(t *testing.T, err error, stale, latest reducercontract.Intent) {
 	t.Helper()
 	if !errors.Is(err, reducer.ErrExecutionClaimRejected) {
 		t.Fatalf("AckBatch error = %v, want canonical claim rejection", err)

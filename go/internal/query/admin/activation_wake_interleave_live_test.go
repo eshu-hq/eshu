@@ -24,6 +24,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
 	"github.com/eshu-hq/eshu/go/internal/query/admin/store"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -152,7 +153,7 @@ func runInterleaveIteration(t *testing.T, ctx context.Context, base *sql.DB, con
 	deadErr := crossrepo.EvaluateOwnGate(ctx, func(string) (bool, error) { return false, nil },
 		func(context.Context, string, string) (crossrepo.ProducerState, error) {
 			return crossrepo.ProducerState{ScopeActiveGenerationID: gen, WorkItemID: dmID, Status: "dead_letter"}, nil
-		}, reducer.Intent{ScopeID: scope, GenerationID: gen, Domain: reducer.DomainDeployableUnitCorrelation}, true, time.Now()).Err
+		}, reducercontract.Intent{ScopeID: scope, GenerationID: gen, Domain: reducer.DomainDeployableUnitCorrelation}, true, time.Now()).Err
 
 	var (
 		out      interleaveOutcome
@@ -251,7 +252,7 @@ func runInterleaveIteration(t *testing.T, ctx context.Context, base *sql.DB, con
 	return out
 }
 
-func interleaveClaim(t *testing.T, ctx context.Context, q postgres.ReducerQueue, want string) reducer.Intent {
+func interleaveClaim(t *testing.T, ctx context.Context, q postgres.ReducerQueue, want string) reducercontract.Intent {
 	t.Helper()
 	intent, ok, err := q.Claim(ctx)
 	if err != nil || !ok || intent.IntentID != want {

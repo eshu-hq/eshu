@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -33,7 +34,7 @@ func producerDeadError(scope, gen string) error {
 				ScopeActiveGenerationID: gen, WorkItemID: "dm-1", Status: "dead_letter", FailureClass: "retry_exhausted",
 			}, nil
 		},
-		reducer.Intent{ScopeID: scope, GenerationID: gen, Domain: reducer.DomainDeployableUnitCorrelation},
+		reducercontract.Intent{ScopeID: scope, GenerationID: gen, Domain: reducer.DomainDeployableUnitCorrelation},
 		true, time.Now()).Err
 }
 
@@ -41,8 +42,8 @@ func producerDeadError(scope, gen string) error {
 // and a deployable-unit consumer claimed on its last attempt.
 type raceFixture struct {
 	scope, gen string
-	dm         reducer.Intent
-	consumer   reducer.Intent
+	dm         reducercontract.Intent
+	consumer   reducercontract.Intent
 }
 
 func seedRaceFixture(t *testing.T, ctx context.Context, db *sql.DB, clock *time.Time) raceFixture {

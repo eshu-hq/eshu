@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -226,9 +227,9 @@ func TestDeployableUnitCorrelationHandleFailsClosedOnCanonicalQuiescenceError(t 
 // dockerfileLoaderIntent builds a workload-materialization intent over the
 // same Dockerfile-candidate fixture the CDU gate tests use: candidates exist
 // pre-admission, so the loader gate exercises the own-generation check.
-func dockerfileLoaderIntent() Intent {
+func dockerfileLoaderIntent() reducercontract.Intent {
 	now := time.Now().UTC()
-	return Intent{
+	return reducercontract.Intent{
 		IntentID:        "intent-loader-1",
 		ScopeID:         "scope-service",
 		GenerationID:    "gen-1",

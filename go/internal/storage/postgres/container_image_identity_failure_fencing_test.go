@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestReducerQueueFailContainerImageIdentityBindsTerminalAttempt(t *testing.T) {
@@ -24,7 +25,7 @@ func TestReducerQueueFailContainerImageIdentityBindsTerminalAttempt(t *testing.T
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
 	}
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "container-image-identity-fail-terminal",
 		Domain:       reducer.DomainContainerImageIdentity,
 		AttemptCount: 7,
@@ -67,7 +68,7 @@ func TestReducerQueueFailContainerImageIdentityBindsRetryAttempt(t *testing.T) {
 		JitterFraction: 0,
 		Now:            func() time.Time { return now },
 	}
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "container-image-identity-fail-retry",
 		Domain:       reducer.DomainContainerImageIdentity,
 		AttemptCount: 1,

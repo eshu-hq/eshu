@@ -8,6 +8,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestWorkloadIdentityHandlerBuildsCanonicalWriteRequest(t *testing.T) {
@@ -23,7 +25,7 @@ func TestWorkloadIdentityHandlerBuildsCanonicalWriteRequest(t *testing.T) {
 	}
 	handler := WorkloadIdentityHandler{Writer: writer}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-123",
 		GenerationID: "generation-456",
@@ -108,7 +110,7 @@ func TestWorkloadIdentityHandlerRejectsMissingEntityKeys(t *testing.T) {
 	writer := &recordingWorkloadIdentityWriter{}
 	handler := WorkloadIdentityHandler{Writer: writer}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-2",
 		ScopeID:         "scope-123",
 		GenerationID:    "generation-456",
@@ -139,7 +141,7 @@ func TestWorkloadIdentityHandlerPublishesServiceCanonicalPhase(t *testing.T) {
 		PhasePublisher: publisher,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-phase",
 		ScopeID:         "scope-123",
 		GenerationID:    "generation-456",
@@ -174,7 +176,7 @@ func TestWorkloadIdentityHandlerRequiresCanonicalWriter(t *testing.T) {
 
 	handler := WorkloadIdentityHandler{}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-5",
 		ScopeID:         "scope-123",
 		GenerationID:    "generation-456",
@@ -215,7 +217,7 @@ func TestNewDefaultRegistryRegistersImplementedDomainsOnly(t *testing.T) {
 		t.Fatal("Definition(workload_identity) ok = false, want true")
 	}
 
-	workloadResult, err := workloadDefinition.Handler.Handle(context.Background(), Intent{
+	workloadResult, err := workloadDefinition.Handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-3",
 		ScopeID:         "scope-123",
 		GenerationID:    "generation-456",

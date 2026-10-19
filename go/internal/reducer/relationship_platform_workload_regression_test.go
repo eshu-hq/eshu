@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestCorrelatedWorkloadProjectionInputLoaderAdmitsServiceEdgeAPIStyleCandidate(t *testing.T) {
@@ -21,7 +22,7 @@ func TestCorrelatedWorkloadProjectionInputLoaderAdmitsServiceEdgeAPIStyleCandida
 		},
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-edge-loader",
 		ScopeID:         "scope-edge",
 		GenerationID:    "gen-edge",
@@ -72,7 +73,7 @@ func TestWorkloadMaterializationHandlerWritesServiceEdgeAPIWorkloadWithoutEnviro
 		t.Fatal("expected recordingCypherExecutor")
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-edge-materialize",
 		ScopeID:         "scope-edge",
 		GenerationID:    "gen-edge",

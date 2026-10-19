@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestWorkloadReplayDuringClaimReturnsAckToPending proves a cross-repo update
@@ -310,7 +311,7 @@ func testWorkloadReplayAfterUncommittedBatchAck(t *testing.T) {
 	t.Cleanup(func() { _ = ackTx.Rollback() })
 	ackQueue := queue
 	ackQueue.database = SQLTx{Tx: ackTx}
-	if err := ackQueue.AckBatch(ctx, []reducer.Intent{claimed}, nil); err != nil {
+	if err := ackQueue.AckBatch(ctx, []reducercontract.Intent{claimed}, nil); err != nil {
 		t.Fatalf("batch ACK before replay: %v", err)
 	}
 	var status string
@@ -371,7 +372,7 @@ func testWorkloadBatchAckAfterUncommittedReplay(t *testing.T) {
 	ackQueue := queue
 	ackQueue.database = ackConn
 	ackDone := make(chan error, 1)
-	go func() { ackDone <- ackQueue.AckBatch(ctx, []reducer.Intent{claimed}, nil) }()
+	go func() { ackDone <- ackQueue.AckBatch(ctx, []reducercontract.Intent{claimed}, nil) }()
 	waitForReducerRowLockWaiter(t, ctx, db, ackPID, replayPID)
 	if err := replayTx.Commit(); err != nil {
 		t.Fatalf("commit replay transaction: %v", err)
@@ -392,7 +393,7 @@ func seedClaimedWorkloadReplay(
 	ctx context.Context,
 	db *sql.DB,
 	suffixLabel string,
-) (ReducerQueue, reducer.Intent, string, string, string) {
+) (ReducerQueue, reducercontract.Intent, string, string, string) {
 	t.Helper()
 	suffix := testSuffix(t) + "-" + suffixLabel
 	scopeID, generationID, _ := refinalizeResetScope(t, ctx, db, suffix)
@@ -430,7 +431,7 @@ func assertUncommittedWorkloadReplayKeepsClaim(
 	t *testing.T,
 	ctx context.Context,
 	tx *sql.Tx,
-	claimed reducer.Intent,
+	claimed reducercontract.Intent,
 	leaseOwner string,
 	wantClaimUntil sql.NullTime,
 ) {

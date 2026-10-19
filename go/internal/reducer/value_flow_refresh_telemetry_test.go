@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -63,7 +64,7 @@ func refreshGateValue(rm metricdata.ResourceMetrics, attrs map[string]string) (i
 func TestRefreshGateEvaluationEmitsCounter(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	intent := Intent{ScopeID: "telemetry-proof", GenerationID: "genesis"}
+	intent := reducercontract.Intent{ScopeID: "telemetry-proof", GenerationID: "genesis"}
 
 	for _, tc := range []struct {
 		name    string
@@ -107,7 +108,7 @@ func TestRefreshGateEvaluationEmitsCounter(t *testing.T) {
 func TestRefreshGateEvaluationToleratesNilInstruments(t *testing.T) {
 	t.Parallel()
 	handler := WorkloadMaterializationHandler{AffectedGraph: &wiringProbeRunner{}}
-	signals := handler.refreshResultSignals(context.Background(), Intent{}, nil, 2, []string{"repo-nil"})
+	signals := handler.refreshResultSignals(context.Background(), reducercontract.Intent{}, nil, 2, []string{"repo-nil"})
 	if signals[affected.RefreshAffectedReposSignal] != 0 {
 		t.Errorf("nil-instruments signal = %v, want 0 on empty graph read", signals[affected.RefreshAffectedReposSignal])
 	}

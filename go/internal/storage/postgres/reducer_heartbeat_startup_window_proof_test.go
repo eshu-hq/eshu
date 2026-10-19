@@ -15,6 +15,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestReducerServiceClosesLeaseExpiryStartupWindowAgainstPostgres proves the
@@ -132,7 +133,7 @@ CREATE TABLE fact_work_items (
 	}
 
 	queue := NewReducerQueue(SQLDB{DB: db}, leaseOwner, 30*time.Second)
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:     workItemID,
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -224,7 +225,7 @@ type blockingProofExecutor struct {
 	release <-chan struct{}
 }
 
-func (b *blockingProofExecutor) Execute(ctx context.Context, intent reducer.Intent) (reducer.Result, error) {
+func (b *blockingProofExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducer.Result, error) {
 	select {
 	case <-b.release:
 		return reducer.Result{IntentID: intent.IntentID, Domain: intent.Domain, Status: reducer.ResultStatusSucceeded}, nil
@@ -234,13 +235,13 @@ func (b *blockingProofExecutor) Execute(ctx context.Context, intent reducer.Inte
 }
 
 type singleIntentSource struct {
-	intent reducer.Intent
+	intent reducercontract.Intent
 	served bool
 }
 
-func (s *singleIntentSource) Claim(context.Context) (reducer.Intent, bool, error) {
+func (s *singleIntentSource) Claim(context.Context) (reducercontract.Intent, bool, error) {
 	if s.served {
-		return reducer.Intent{}, false, nil
+		return reducercontract.Intent{}, false, nil
 	}
 	s.served = true
 	return s.intent, true, nil
@@ -252,7 +253,7 @@ type proofWorkSink struct {
 	leaseOwner string
 }
 
-func (p *proofWorkSink) Ack(ctx context.Context, _ reducer.Intent, _ reducer.Result) error {
+func (p *proofWorkSink) Ack(ctx context.Context, _ reducercontract.Intent, _ reducer.Result) error {
 	_, err := p.db.ExecContext(ctx, `
 		UPDATE fact_work_items
 		SET status = 'succeeded', lease_owner = NULL, claim_until = NULL, updated_at = $1
@@ -261,7 +262,7 @@ func (p *proofWorkSink) Ack(ctx context.Context, _ reducer.Intent, _ reducer.Res
 	return err
 }
 
-func (p *proofWorkSink) Fail(ctx context.Context, _ reducer.Intent, execErr error) error {
+func (p *proofWorkSink) Fail(ctx context.Context, _ reducercontract.Intent, execErr error) error {
 	_, err := p.db.ExecContext(ctx, `
 		UPDATE fact_work_items
 		SET status = 'dead_letter', failure_message = $1, updated_at = $2

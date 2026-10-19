@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -86,7 +87,7 @@ type ifaLeaseExpiryReducerExecutor struct {
 	inner reducer.Executor
 }
 
-func (e ifaLeaseExpiryReducerExecutor) Execute(ctx context.Context, intent reducer.Intent) (reducer.Result, error) {
+func (e ifaLeaseExpiryReducerExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducer.Result, error) {
 	if intent.Domain != reducer.DomainGCPResourceMaterialization || intent.IntentID == "" || intent.ClaimedAt == nil || intent.ClaimedAt.IsZero() || intent.AttemptCount < 1 {
 		return e.inner.Execute(ctx, intent)
 	}

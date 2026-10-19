@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 )
 
@@ -118,7 +119,7 @@ func TestSecurityAlertReconciliationRegistrationCarriesTheManifestConsumptionSea
 		)
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-security-alert-wiring",
 		ScopeID:      repoID,
 		GenerationID: "security-alert-generation-1",

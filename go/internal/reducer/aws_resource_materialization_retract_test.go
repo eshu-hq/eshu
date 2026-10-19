@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 var errRetractTest = errors.New("retract test error")
@@ -66,8 +67,8 @@ func retractTestEnvelopes() (current, prior []facts.Envelope) {
 	return []facts.Envelope{kept}, []facts.Envelope{kept, deleted}
 }
 
-func retractTestIntent() Intent {
-	return Intent{
+func retractTestIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-retract",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-2",

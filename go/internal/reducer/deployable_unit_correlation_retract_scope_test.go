@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
@@ -125,7 +126,7 @@ func runDUScopeIntent(graph *statefulDeployableUnitGraph, deployable bool, keys 
 		PhasePublisher: &recordingGraphProjectionPhasePublisher{},
 		EdgeWriter:     graph,
 	}
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID: fmt.Sprintf("intent-%v", keys), ScopeID: duScopeID, GenerationID: duScopeIntentGen,
 		SourceSystem: "git", Domain: DomainDeployableUnitCorrelation, Cause: "facts committed",
 		EntityKeys: keys,
@@ -264,7 +265,7 @@ func TestDeployableUnitRetractMatcherAgreesWithCandidateFilter(t *testing.T) {
 		"repo:group:artifact", "repo:pkg:",
 	}
 	for _, key := range keys {
-		entityKeys, err := deployableUnitCorrelationEntityKeys(Intent{IntentID: "i", EntityKeys: []string{key}})
+		entityKeys, err := deployableUnitCorrelationEntityKeys(reducercontract.Intent{IntentID: "i", EntityKeys: []string{key}})
 		if err != nil {
 			t.Fatalf("entity keys %q: %v", key, err)
 		}
@@ -307,7 +308,7 @@ func TestDeployableUnitCollectorKeySelectsDisplayNames(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			entityKeys, err := deployableUnitCorrelationEntityKeys(Intent{
+			entityKeys, err := deployableUnitCorrelationEntityKeys(reducercontract.Intent{
 				IntentID: "i", EntityKeys: []string{tc.entityKey},
 			})
 			if err != nil {
@@ -336,7 +337,7 @@ func TestFilterDeployableUnitCandidatesReportsSelectionReason(t *testing.T) {
 		if len(ks) == 0 {
 			return map[string]struct{}{}
 		}
-		set, err := deployableUnitCorrelationEntityKeys(Intent{IntentID: "i", EntityKeys: ks})
+		set, err := deployableUnitCorrelationEntityKeys(reducercontract.Intent{IntentID: "i", EntityKeys: ks})
 		if err != nil {
 			t.Fatalf("entity keys: %v", err)
 		}

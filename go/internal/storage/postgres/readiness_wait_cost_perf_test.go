@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/iamcantargets"
 )
@@ -153,7 +154,7 @@ func TestReadinessWaitCostPerf(t *testing.T) {
 		CrossScopeTargets: iamcantargets.Store{DB: SQLDB{DB: sqlDB}, Facts: factStore},
 	}
 	mode := configureWaitHandler(&handler, sqlDB, func() time.Time { return clock })
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID: "cost-" + run, ScopeID: iamScope, GenerationID: iamGen,
 		Domain:     reducer.DomainIAMCanPerformMaterialization,
 		EntityKeys: []string{"aws_resource_materialization:" + iamScope},

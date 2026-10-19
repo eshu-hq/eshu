@@ -172,8 +172,9 @@ Placement notes:
 ## The spine (stays in root, <=40)
 
 The composition root: `doc.go`, the four compat buckets, `registry.go` +
-`registry_additive_domains.go`, the `defaults*.go` wiring, `intent.go` +
-`intent_value.go`, `domain.go`, `runtime.go`, `dependency.go`,
+`registry_additive_domains.go`, the `defaults*.go` wiring, `intent.go`
+(the Intent alias file deleted with the retirement, #6626 bucket 6),
+`domain.go`, `runtime.go`, `dependency.go`,
 `observability.go`, `cross_scope_completion_runner.go` (until
 `intents/readiness`), and the service loop (`service.go`,
 `service_loop_config.go`, `service_runtime_instance_lookup.go`,
