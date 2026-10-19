@@ -3,6 +3,10 @@
 
 package query
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #7033 disposable PostgreSQL proof of the name-first code-topic entity tail bound: 2,000 TOAST-sized filler rows take early heap, the rare term zephyr keeps all three deep matches uncapped, the capped term quasar holds exactly the 250-row per-term cap with deep name matches winning the bounded pool over early heap-order source rows, and an independent unordered lateral oracle proves the zephyr multiset; the live-postgres-readiness runner requires the administrative DSN and explicit disposable opt-in, and verifies every test PASS event
+//eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
+
 import (
 	"os"
 	"sort"
