@@ -6,6 +6,7 @@ package reducer
 import (
 	"context"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/handle"
 )
 
@@ -16,7 +17,7 @@ import (
 // pass-through rows. A lookup failure fails the intent closed for retry.
 func (h WorkloadCloudRelationshipMaterializationHandler) resolveWorkloadHandles(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	rows []map[string]any,
 	tally *workloadCloudRelationshipTally,
 ) ([]map[string]any, error) {

@@ -7,6 +7,7 @@ import (
 	"context"
 	"testing"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/handle"
 )
@@ -52,7 +53,7 @@ func TestHandleLadderRegistrationCarriesSiblingLookup(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	assertSibling := func(t *testing.T, domain Domain, lookup handle.Lookup) {
+	assertSibling := func(t *testing.T, domain reducercontract.Domain, lookup handle.Lookup) {
 		t.Helper()
 		if lookup == nil {
 			t.Fatalf("%s handler WorkloadLookup is nil: the handle ladder would ship inert on legacy pass-through", domain)
@@ -66,7 +67,7 @@ func TestHandleLadderRegistrationCarriesSiblingLookup(t *testing.T) {
 		}
 	}
 
-	found := map[Domain]bool{}
+	found := map[reducercontract.Domain]bool{}
 	for _, definition := range definitions {
 		switch definition.Domain {
 		case DomainWorkloadCloudRelationshipMaterialization:
@@ -129,7 +130,7 @@ func TestHandleLadderRegistrationCarriesSiblingLookup(t *testing.T) {
 			found[definition.Domain] = true
 		}
 	}
-	for _, domain := range []Domain{
+	for _, domain := range []reducercontract.Domain{
 		DomainWorkloadCloudRelationshipMaterialization,
 		DomainDocumentationMaterialization,
 		DomainServiceCatalogCorrelation,
