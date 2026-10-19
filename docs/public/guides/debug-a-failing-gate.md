@@ -74,7 +74,7 @@ bash scripts/test-verify-ifa-fault-injection.sh
 ```
 
 The hermetic mirror. The live gate
-(`bash scripts/verify-ifa-fault-injection.sh`) drives 69 cells — a
+(`bash scripts/verify-ifa-fault-injection.sh`) drives 72 cells — a
 fault-free baseline, a killed worker, a forced lease expiry, one failed graph
 write, a mid-drain backend restart, a duplicate delivery, a generation-2 delta
 retract, and per-family killed-worker and failed-graph-write cells for
@@ -88,12 +88,12 @@ plus three failed-graph-write and three runner-lease killed-worker recovery
 cells for the handles_route/runs_in/invokes_cloud_action trio — with zero
 durable dead letters throughout.
 
-In CI the 68 cells other than the shared fault-free baseline are
+In CI the 71 cells other than the shared fault-free baseline are
 split across 4 shards that run in
 parallel, and the fault-free baseline is repeated in every shard rather than
 partitioned into one — every recovery cell compares its graph against a
-baseline captured on the same runner, so CI executes 72 cell runs
-for a 69-cell matrix. Locally the command above runs all of them in one
+baseline captured on the same runner, so CI executes 75 cell runs
+for a 72-cell matrix. Locally the command above runs all of them in one
 pass. `--shard k/4` runs one shard, and `--list-cells` prints the partition
 without starting anything.
 
