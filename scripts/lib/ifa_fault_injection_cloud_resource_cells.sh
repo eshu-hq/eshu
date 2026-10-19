@@ -15,8 +15,9 @@
 # drive_all_cassettes / run_drain_gate / assert_no_dead_letters /
 # capture_digest / assert_matches_baseline / teardown_cell helpers from
 # ifa_fault_injection_driver.sh). Drive and assert callbacks come from
-# scripts/lib/ifa_direct_family_live.sh (ifa_cloud_resource_drive /
-# ifa_cloud_resource_assert); the cassette and expected-edge variables come
+# scripts/lib/ifa_direct_family_live_cloud_resource.sh
+# (ifa_cloud_resource_drive / ifa_cloud_resource_assert); the cassette and
+# expected-edge variables come
 # from scripts/lib/ifa_family_fixtures.sh.
 #
 # THREE HANDLERS, ONE TARGETED DOMAIN. cloud_resource is three writers

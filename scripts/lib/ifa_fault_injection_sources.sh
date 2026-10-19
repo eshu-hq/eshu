@@ -83,6 +83,8 @@ source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_symbol_runtime
 # each family's own custom cells.
 # shellcheck source=scripts/lib/ifa_direct_family_live.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live.sh"
+# shellcheck source=scripts/lib/ifa_direct_family_live_cloud_resource.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_cloud_resource.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh

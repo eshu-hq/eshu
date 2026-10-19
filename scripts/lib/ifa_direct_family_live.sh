@@ -7,21 +7,16 @@
 # kubernetes_correlation, and semantic_entity_containment.
 #
 # SOURCED BY scripts/verify-ifa-determinism.sh AND, since #6309, the fault
-# gate through scripts/lib/ifa_fault_injection_sources.sh. The fault cells
-# (scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh
-# and scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh)
-# call the drive/assert callbacks below; the families' registry rows carry
-# cell_kind=custom. iam_can_assume, iam_can_perform,
-# workload_cloud_relationship, iam_escalation, and ec2_uses_profile have no
-# fault cells yet: their rows carry cell_kind=custom prospectively and the
-# fault gate never dispatches them, so the fault-injection area stays
-# untouched by this change. Callers own strict mode and cleanup.
+# gate through scripts/lib/ifa_fault_injection_sources.sh — always paired
+# with scripts/lib/ifa_direct_family_live_cloud_resource.sh (the
+# cloud_resource pair, split out under the 500-line cap). The fault cells
+# call the drive/assert callbacks here; rows carry cell_kind=custom
+# (prospectively where cells do not exist yet). Callers own strict mode
+# and cleanup.
 #
 # ONE FILE FOR TEN FAMILIES, unlike the shared-projection families' one file
-# each. Their drive and assert bodies differ only in a cassette path, a domain
-# name and a log filename, and each is four lines of real work; ten files
-# would be one contract in ten places. The per-family REGISTRY ROWS stay
-# separate, which is where the split that matters already is.
+# each (the eleventh lives in the sibling file above). The per-family
+# REGISTRY ROWS stay separate, which is where the split that matters is.
 #
 # WHY THESE ARE DIRECT, and why that changes nothing here: the reducer writes
 # these families straight to a go/internal/storage/cypher writer rather than
@@ -497,24 +492,7 @@ ifa_semantic_entity_containment_assert() {
 		-expected "${expected_edges}"
 }
 
-# ifa_cloud_resource_drive replays the cloud-resource cassette (three scope
-# generations, one per provider writer, in one drive).
-ifa_cloud_resource_drive() {
-	local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"
-	_ifa_direct_family_drive cloud-resource \
-		"${label}" "${bin_dir}" "${cassette}" "${workers}" "${log_dir}"
-}
-
-# ifa_cloud_resource_assert pins the four-edge exact set through the
-# predicate-scoped scan (#8358): two AWS verbs off one Lambda (duplicate,
-# unresolved, and self-loop controls contribute nothing), one supported GCP
-# relationship (partial/unresolved controls contribute nothing), one Azure
-# managed_by (depends_on is screened out). Types are the writers' prefix
-# consts + verb, NOT the AWS_/GCP_/AZURE_RELATIONSHIP metadata labels.
-ifa_cloud_resource_assert() {
-	local label="$1" bin_dir="$2" expected_edges="$3"
-	printf '\n=== %s: assert cloud_resource materialized edges (four-edge exact set) ===\n' "${label}"
-	"${bin_dir}/eshu-ifa" assert-edges \
-		-domain cloud_resource \
-		-expected "${expected_edges}"
-}
+# The cloud_resource pair (ifa_cloud_resource_drive/ifa_cloud_resource_assert,
+# #8358) lives in scripts/lib/ifa_direct_family_live_cloud_resource.sh, sourced
+# right after this file wherever this file is sourced. It split out once this
+# file crossed the 500-line cap; its shape matches every sibling above.

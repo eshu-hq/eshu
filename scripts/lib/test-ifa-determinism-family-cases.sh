@@ -269,10 +269,11 @@ require_shell_exec_lib "shell-exec assert is exact-set, not a digest" '-expected
 # kubernetes_namespace_environment, iam_instance_profile_role, iam_can_assume,
 # iam_can_perform, workload_cloud_relationship, and iam_escalation (#6228):
 # the DIRECT-materialization families in the shared cell. They share ONE lib
-# file (scripts/lib/ifa_direct_family_live.sh) because their drive and assert
-# bodies differ only in a cassette path and a domain, but each needle below
-# names its OWN domain, so the shared file cannot let one family's wiring pass
-# for another's.
+# file (scripts/lib/ifa_direct_family_live.sh, plus the cloud_resource sibling
+# scripts/lib/ifa_direct_family_live_cloud_resource.sh split out under the
+# 500-line cap) because their drive and assert bodies differ only in a
+# cassette path and a domain, but each needle below names its OWN domain, so
+# the shared file cannot let one family's wiring pass for another's.
 #
 # The exact-set assert carries more weight for these seven than for most. All
 # seven fixtures are built around edges that must NOT exist -- two namespaces
@@ -385,7 +386,7 @@ for family in "${!ifa_det_family_cases_hand_authored[@]}"; do
 	rg --fixed-strings --quiet -- "${domain_needle}" \
 		"${delta_lib}" "${code_call_lib}" "${documentation_lib}" "${rationale_lib}" "${codeowners_lib}" \
 		"${submodule_pin_lib}" "${inheritance_lib}" "${shell_exec_lib}" "${symbol_runtime_lib}" \
-		"${direct_family_lib}" \
+		"${direct_family_lib}" "${direct_family_cloud_lib}" \
 		|| fail "family registry totality: '${family}' is hand-authored in ifa_det_family_cases_hand_authored with expected needle '${domain_needle}' but it does not appear in any of this module's target lib files -- add fixtures + a require_*_lib drive/assert-shape needle for it, a bare map-key acknowledgement is not acceptable"
 done
 # shellcheck source=scripts/lib/ifa_family_registry.sh
