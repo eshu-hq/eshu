@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
 
@@ -267,7 +268,9 @@ func (h *CodeHandler) searchGraphEntitiesWithExact(ctx context.Context, repoID, 
 
 	cypher, params := buildSearchGraphEntitiesQuery(repoID, query, language, limit, exact, access)
 
+	graphStart := time.Now()
 	rows, err := h.Neo4j.Run(ctx, cypher, params)
+	querycontract.ObserveGraph(ctx, time.Since(graphStart))
 	if err != nil {
 		return nil, err
 	}
@@ -292,10 +295,21 @@ func (h *CodeHandler) searchGraphEntitiesWithExact(ctx context.Context, repoID, 
 		results = append(results, result)
 	}
 
-	return h.enrichGraphSearchResultsWithContentMetadata(ctx, results, repoID)
+	// The enrichment is the request's Postgres phase: it fills missing
+	// per-result metadata from the content store, so its time belongs to
+	// the pg stage, disjoint from the graph run above.
+	pgStart := time.Now()
+	enriched, err := h.enrichGraphSearchResultsWithContentMetadata(ctx, results, repoID)
+	querycontract.ObservePG(ctx, time.Since(pgStart))
+	return enriched, err
 }
 
 func (h *CodeHandler) searchEntityContentWithExact(ctx context.Context, repoID, pattern, language string, limit int, exact bool) ([]map[string]any, error) {
+	// The whole body is the request's Postgres phase: every store call
+	// below reads the content store, and the merge is in-handler shaping
+	// of those rows.
+	pgStart := time.Now()
+	defer func() { querycontract.ObservePG(ctx, time.Since(pgStart)) }()
 	var (
 		nameMatches   []EntityContent
 		sourceMatches []EntityContent

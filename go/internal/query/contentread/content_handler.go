@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/search/rank"
@@ -380,6 +381,11 @@ func (h *ContentHandler) searchFilesByScope(ctx context.Context, req contentSear
 }
 
 func (h *ContentHandler) searchEntitiesByScope(ctx context.Context, req contentSearchRequest) ([]querycontract.EntityContent, bool, error) {
+	// The whole body is the request's Postgres phase: every store call
+	// below reads the content store, and the paging trim is in-handler
+	// shaping of those rows.
+	pgStart := time.Now()
+	defer func() { querycontract.ObservePG(ctx, time.Since(pgStart)) }()
 	if querycontract.RepositoryAccessFilterFromContext(ctx).Empty() {
 		return []querycontract.EntityContent{}, false, nil
 	}

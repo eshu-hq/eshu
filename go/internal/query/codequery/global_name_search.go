@@ -5,15 +5,22 @@ package codequery
 
 import (
 	"context"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/search"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // searchGlobalEntityNames runs the global entity-name lookup through
 // the search leaf. The handler names this spelling.
 func (h *CodeHandler) searchGlobalEntityNames(ctx context.Context, name, language string, limit int, exact bool) ([]map[string]any, error) {
-	return search.SearchGlobalEntityNames(ctx, contentStoreOf(h), name, language, limit, exact)
+	// The leaf reads only the content store, so the whole call is the
+	// request's Postgres phase.
+	pgStart := time.Now()
+	results, err := search.SearchGlobalEntityNames(ctx, contentStoreOf(h), name, language, limit, exact)
+	querycontract.ObservePG(ctx, time.Since(pgStart))
+	return results, err
 }
 
 // This file is the narrow surviving remnant of the #6060 lane-A P0 shim

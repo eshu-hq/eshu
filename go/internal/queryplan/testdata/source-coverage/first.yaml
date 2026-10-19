@@ -38,7 +38,7 @@ source_coverage:
   - file: codequery/handler.go
     calls:
       - {symbol: "(*CodeHandler).runComplexityQuery", count: 1, non_hot_reason: "unlabeled complexity-by-id branch is inventoried but cannot be admitted until its production anchor is typed"}
-      - {symbol: "(*CodeHandler).searchGraphEntitiesWithExact", count: 1, source_sha256: f1108f914b92101a3279a63ab2a3bc2b89cf67a75e35c62e260d6218c90316ed, entry_ids: [QP-CODE-SEARCH-REPOSITORY]}
+      - {symbol: "(*CodeHandler).searchGraphEntitiesWithExact", count: 1, source_sha256: 1f6a565ddfbce264676e22526b4f7be5a7517204e1a89b2ae87a7cd202bd0a96, entry_ids: [QP-CODE-SEARCH-REPOSITORY]}
   - file: codequery/callers.go
     calls:
       - {symbol: "(*CodeHandler).handleCallChain", count: 1, non_hot: {class: keyed_support, source_sha256: f1cc9866e631849ae758f77b7d4757537c1e9f6745062ebde286a445eeffb9d8, key_bound: bounded_key_batch, max_keys: 2, max_results: 5}}

@@ -11,8 +11,11 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // TestRequestMiddlewareEmitsServerTimingTrailer proves RequestMiddleware
@@ -135,6 +138,116 @@ func TestRequestMiddlewareBodylessResponsesOmitTrailerAnnouncement(t *testing.T)
 	}
 }
 
+// TestRequestMiddlewareEmitsPerStageServerTiming proves RequestMiddleware
+// exposes per-request pg and graph stages alongside the handler total in the
+// Server-Timing trailer (issue #7733 item 2: total-only timing cannot
+// attribute a slow first-touch search to Postgres versus the graph). The
+// handler records a delayed fake pg phase and a delayed fake graph phase
+// through the request's stage clock; each stage must bracket its own store
+// delay over the real wire.
+func TestRequestMiddlewareEmitsPerStageServerTiming(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v0/code/search", func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		pgStart := time.Now()
+		time.Sleep(100 * time.Millisecond)
+		querycontract.ObservePG(ctx, time.Since(pgStart))
+		graphStart := time.Now()
+		time.Sleep(100 * time.Millisecond)
+		querycontract.ObserveGraph(ctx, time.Since(graphStart))
+		_, _ = w.Write([]byte(`{"results":[]}`))
+	})
+	srv := httptest.NewServer(RequestMiddleware(mux))
+	t.Cleanup(srv.Close)
+
+	stages := serverTimingStagesPOST(t, srv.URL+"/api/v0/code/search")
+	t.Logf("measured stages: total=%.1fms pg=%.1fms graph=%.1fms", stages["total"], stages["pg"], stages["graph"])
+	if stages["pg"] < 50 {
+		t.Fatalf("pg stage = %.1fms, want >= 50ms (100ms injected pg delay)", stages["pg"])
+	}
+	if stages["graph"] < 50 {
+		t.Fatalf("graph stage = %.1fms, want >= 50ms (100ms injected graph delay)", stages["graph"])
+	}
+	if stages["total"] < 100 {
+		t.Fatalf("total stage = %.1fms, want >= 100ms (both phases sequential)", stages["total"])
+	}
+}
+
+// TestRequestMiddlewareOverlappingStagesSum proves the parallel-overlap
+// accounting: pg and graph phases that run concurrently each bracket their
+// own delay, while the total stays wall time and may sit below pg+graph.
+func TestRequestMiddlewareOverlappingStagesSum(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v0/content/entities/search", func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			start := time.Now()
+			time.Sleep(100 * time.Millisecond)
+			querycontract.ObservePG(ctx, time.Since(start))
+		}()
+		go func() {
+			defer wg.Done()
+			start := time.Now()
+			time.Sleep(100 * time.Millisecond)
+			querycontract.ObserveGraph(ctx, time.Since(start))
+		}()
+		wg.Wait()
+		_, _ = w.Write([]byte(`{"results":[]}`))
+	})
+	srv := httptest.NewServer(RequestMiddleware(mux))
+	t.Cleanup(srv.Close)
+
+	stages := serverTimingStagesPOST(t, srv.URL+"/api/v0/content/entities/search")
+	if stages["pg"] < 50 || stages["graph"] < 50 {
+		t.Fatalf("overlapped stages pg=%.1fms graph=%.1fms, want each >= 50ms", stages["pg"], stages["graph"])
+	}
+	if stages["total"] >= stages["pg"]+stages["graph"] {
+		t.Fatalf("total=%.1fms should sit below pg+graph=%.1fms for overlapped phases",
+			stages["total"], stages["pg"]+stages["graph"])
+	}
+}
+
+// serverTimingStagesPOST drives target with a real POST over the wire,
+// consumes the body, and parses every Server-Timing trailer stage into
+// milliseconds by stage name. It fails the test when the trailer is absent
+// or malformed.
+func serverTimingStagesPOST(t *testing.T, target string) map[string]float64 {
+	t.Helper()
+	resp, err := http.Post(target, "application/json", nil) //nolint:gosec,noctx // test-local server, no timeout needed
+	if err != nil {
+		t.Fatalf("POST %s error = %v", target, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if _, err := io.ReadAll(resp.Body); err != nil {
+		t.Fatalf("read body error = %v", err)
+	}
+	raw := resp.Trailer.Get("Server-Timing")
+	if raw == "" {
+		t.Fatalf("POST %s Server-Timing trailer missing", target)
+	}
+	stages := map[string]float64{}
+	for _, part := range strings.Split(raw, ",") {
+		name, value, ok := strings.Cut(strings.TrimSpace(part), ";dur=")
+		if !ok {
+			t.Fatalf("malformed Server-Timing stage %q in %q", part, raw)
+		}
+		ms, err := strconv.ParseFloat(value, 64)
+		if err != nil || ms < 0 {
+			t.Fatalf("malformed Server-Timing stage %q in %q", part, raw)
+		}
+		stages[name] = ms
+	}
+	for _, want := range []string{"total", "pg", "graph"} {
+		if _, ok := stages[want]; !ok {
+			t.Fatalf("Server-Timing trailer %q lacks stage %q", raw, want)
+		}
+	}
+	return stages
+}
+
 // rawWireHeaders issues one raw HTTP/1.1 request over TCP and returns the
 // response header block verbatim, so assertions see what a proxy sees.
 func rawWireHeaders(t *testing.T, method, target string) string {
@@ -183,11 +296,14 @@ func serverTimingTrailer(t *testing.T, target string) float64 {
 	if raw == "" {
 		return -1
 	}
+	// The trailer carries total first, then pg and graph (#7733 item 2), so
+	// the total stage is the leading value up to the first comma.
 	const prefix = "total;dur="
 	if !strings.HasPrefix(raw, prefix) {
 		return -1
 	}
-	ms, err := strconv.ParseFloat(strings.TrimPrefix(raw, prefix), 64)
+	total, _, _ := strings.Cut(strings.TrimPrefix(raw, prefix), ",")
+	ms, err := strconv.ParseFloat(total, 64)
 	if err != nil || ms < 0 {
 		return -1
 	}
