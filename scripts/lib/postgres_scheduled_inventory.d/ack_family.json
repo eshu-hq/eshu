@@ -115,7 +115,9 @@
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
     "tests": [
       "TestCrossScopeCompletionFanoutSchedulesOnlyEligibleConsumerStatesLive",
-      "TestCrossScopeCompletionIdentityThenCICDConvergesLive"
+      "TestCrossScopeCompletionIdentityActivationRaceReopensConsumerLive",
+      "TestCrossScopeCompletionIdentityThenCICDConvergesLive",
+      "TestCrossScopeCompletionSuppressesUnchangedIdentityReplayLive"
     ]
   },
   "go/internal/storage/postgres/cross_scope_completion_snapshot_postgres_live_test.go": {
