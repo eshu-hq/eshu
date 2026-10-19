@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/pagerduty"
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -355,11 +356,11 @@ func parseAppliedPagerDutyState(t *testing.T, at time.Time) appliedPagerDutyFact
 	var out appliedPagerDutyFacts
 	for _, env := range result.Facts {
 		switch {
-		case env.FactKind == facts.IncidentRoutingAppliedPagerDutyResourceFactKind && env.Payload["resource_class"] == "service":
+		case env.FactKind == factsincident.IncidentRoutingAppliedPagerDutyResourceFactKind && env.Payload["resource_class"] == "service":
 			out.service = env
-		case env.FactKind == facts.IncidentRoutingAppliedPagerDutyResourceFactKind && env.Payload["resource_class"] == "team":
+		case env.FactKind == factsincident.IncidentRoutingAppliedPagerDutyResourceFactKind && env.Payload["resource_class"] == "team":
 			out.team = env
-		case env.FactKind == facts.IncidentRoutingCoverageWarningFactKind:
+		case env.FactKind == factsincident.IncidentRoutingCoverageWarningFactKind:
 			out.warning = env
 		}
 	}

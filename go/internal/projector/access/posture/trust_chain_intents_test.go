@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -19,7 +20,7 @@ const (
 )
 
 func postureEnvelope(factID, factKind, sourceSystem, collectorKind string) facts.Envelope {
-	version, _ := facts.SecretsIAMSchemaVersion(factKind)
+	version, _ := factsidentity.SecretsIAMSchemaVersion(factKind)
 	return facts.Envelope{
 		FactID:        factID,
 		ScopeID:       testScopeID,
@@ -48,8 +49,8 @@ func TestBuildSecretsIAMTrustChainReducerIntent(t *testing.T) {
 		// the anchor, not a per-kind priority.
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
 			{FactID: "decoy-1", FactKind: "code_symbol_reference"},
-			postureEnvelope("secrets-iam-trust-policy", facts.AWSIAMTrustPolicyFactKind, "secrets_iam_posture", ""),
-			postureEnvelope("secrets-iam-service-account", facts.KubernetesServiceAccountFactKind, "secrets_iam_posture", ""),
+			postureEnvelope("secrets-iam-trust-policy", factsidentity.AWSIAMTrustPolicyFactKind, "secrets_iam_posture", ""),
+			postureEnvelope("secrets-iam-service-account", factsidentity.KubernetesServiceAccountFactKind, "secrets_iam_posture", ""),
 		})
 		got, ok := BuildSecretsIAMTrustChainReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
@@ -69,7 +70,7 @@ func TestBuildSecretsIAMTrustChainReducerIntent(t *testing.T) {
 
 	t.Run("every registry-recognized posture kind triggers on its own", func(t *testing.T) {
 		t.Parallel()
-		for _, kind := range facts.SecretsIAMFactKinds() {
+		for _, kind := range factsidentity.SecretsIAMFactKinds() {
 			lookup := projectorintent.NewFactLookup([]facts.Envelope{
 				{FactID: "decoy-1", FactKind: "code_symbol_reference"},
 				postureEnvelope("posture-"+kind, kind, "secrets_iam_posture", ""),
@@ -87,7 +88,7 @@ func TestBuildSecretsIAMTrustChainReducerIntent(t *testing.T) {
 	t.Run("falls back to CollectorKind when SourceRef is blank", func(t *testing.T) {
 		t.Parallel()
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			postureEnvelope("secrets-iam-service-account", facts.KubernetesServiceAccountFactKind, "  ", "vault_collector"),
+			postureEnvelope("secrets-iam-service-account", factsidentity.KubernetesServiceAccountFactKind, "  ", "vault_collector"),
 		})
 		got, ok := BuildSecretsIAMTrustChainReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
@@ -103,7 +104,7 @@ func TestBuildSecretsIAMTrustChainReducerIntent(t *testing.T) {
 		// This literal third tier is the one projectorintent.SourceSystem
 		// lacks; it is why the builder keeps its own helper.
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			postureEnvelope("secrets-iam-service-account", facts.KubernetesServiceAccountFactKind, "", "  "),
+			postureEnvelope("secrets-iam-service-account", factsidentity.KubernetesServiceAccountFactKind, "", "  "),
 		})
 		got, ok := BuildSecretsIAMTrustChainReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {

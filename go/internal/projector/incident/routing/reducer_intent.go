@@ -5,6 +5,7 @@ package routing
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -21,7 +22,7 @@ func BuildReducerIntent(
 	generationID string,
 	lookup projectorintent.FactLookup,
 ) (projectorintent.ReducerIntent, bool) {
-	candidateKinds := append([]string{facts.IncidentRecordFactKind}, facts.IncidentRoutingFactKinds()...)
+	candidateKinds := append([]string{factsincident.IncidentRecordFactKind}, factsincident.IncidentRoutingFactKinds()...)
 	envelope, ok := lookup.FirstAcrossKinds(func(facts.Envelope) bool { return true }, candidateKinds...)
 	if !ok {
 		return projectorintent.ReducerIntent{}, false

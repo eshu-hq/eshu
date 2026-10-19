@@ -46,6 +46,6 @@
 //
 // gcp_iam_principal, gcp_iam_trust_policy, and gcp_iam_permission_policy are
 // OUT OF SCOPE for this package: they belong to the secrets_iam fact family
-// (go/internal/facts/secrets_iam.go), a distinct family boundary from the GCP
+// (go/internal/facts/identity/iam.go), a distinct family boundary from the GCP
 // cloud-inventory family this package types.
 package v1

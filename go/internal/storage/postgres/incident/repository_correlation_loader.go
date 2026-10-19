@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 )
@@ -172,4 +172,4 @@ func (a BackendRepositoryResolverAdapter) ResolveBackendRepository(
 // ensure the applied-routing fact kind constant referenced by the query stays in
 // lockstep with the facts package; a compile-time reference prevents silent
 // drift if the kind string is renamed.
-var _ = facts.IncidentRoutingAppliedPagerDutyResourceFactKind
+var _ = factsincident.IncidentRoutingAppliedPagerDutyResourceFactKind

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
 )
 
 func TestNewObservedPagerDutyServiceEnvelopeRedactsNamesAndKeepsObservedLane(t *testing.T) {
@@ -28,10 +29,10 @@ func TestNewObservedPagerDutyServiceEnvelopeRedactsNamesAndKeepsObservedLane(t *
 	if err != nil {
 		t.Fatalf("NewObservedPagerDutyServiceEnvelope() error = %v, want nil", err)
 	}
-	if got, want := env.FactKind, facts.IncidentRoutingObservedPagerDutyServiceFactKind; got != want {
+	if got, want := env.FactKind, factsincident.IncidentRoutingObservedPagerDutyServiceFactKind; got != want {
 		t.Fatalf("FactKind = %q, want %q", got, want)
 	}
-	if got, want := env.SchemaVersion, facts.IncidentRoutingSchemaVersionV1; got != want {
+	if got, want := env.SchemaVersion, factsincident.IncidentRoutingSchemaVersionV1; got != want {
 		t.Fatalf("SchemaVersion = %q, want %q", got, want)
 	}
 	if got, want := env.SourceConfidence, facts.SourceConfidenceReported; got != want {
@@ -74,7 +75,7 @@ func TestNewObservedPagerDutyIntegrationEnvelopeDropsRoutingKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewObservedPagerDutyIntegrationEnvelope() error = %v, want nil", err)
 	}
-	if got, want := env.FactKind, facts.IncidentRoutingObservedPagerDutyIntegrationFactKind; got != want {
+	if got, want := env.FactKind, factsincident.IncidentRoutingObservedPagerDutyIntegrationFactKind; got != want {
 		t.Fatalf("FactKind = %q, want %q", got, want)
 	}
 	if got, want := env.Payload["service_reference"], "SVC1"; got != want {

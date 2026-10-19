@@ -25,9 +25,9 @@
 // IntPtr, StringPtr, BoolPtr, StringValue, StringPtrFromMap, IntPtrFromMap,
 // and JSONShapeMap moved from unexported helpers at the bottom of the facts
 // root's former documentation_encode.go (now docs/encode.go) and from
-// semantic_encode.go's unexported intPtr, and were exported so both the docs
-// package and the facts root's own semantic_encode.go can call them without
-// either owning the other. Behavior is unchanged: a zero int, an empty
+// semantic/encode.go's unexported intPtr, and were exported so both the docs
+// and semantic packages can call them without either owning the other.
+// Behavior is unchanged: a zero int, an empty
 // string, and a false bool all encode as an absent (nil) optional field,
 // never a present zero/empty/false value; StringPtrFromMap, IntPtrFromMap,
 // and StringValue decode a payload map permissively, returning the zero

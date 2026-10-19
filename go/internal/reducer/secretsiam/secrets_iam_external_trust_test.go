@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 )
 
 const externalTrustRoleARN = "arn:aws:iam::111111111111:role/app"
@@ -15,7 +16,7 @@ func trustPolicyEnvelope(factID string, payload map[string]any) facts.Envelope {
 	payload["role_arn"] = externalTrustRoleARN
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.AWSIAMTrustPolicyFactKind,
+		FactKind: factsidentity.AWSIAMTrustPolicyFactKind,
 		Payload:  payload,
 	}
 }

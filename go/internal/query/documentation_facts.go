@@ -15,8 +15,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -374,8 +374,8 @@ func normalizeDocumentationFactKind(raw string) (string, bool) {
 	case documentationFactKindAliasSemanticObservation,
 		documentationFactKindAliasDocumentationObservation,
 		documentationFactKindAliasSemanticDocumentationObservation,
-		facts.SemanticDocumentationObservationFactKind:
-		return facts.SemanticDocumentationObservationFactKind, true
+		semantic.SemanticDocumentationObservationFactKind:
+		return semantic.SemanticDocumentationObservationFactKind, true
 	default:
 		return "", false
 	}
@@ -391,7 +391,7 @@ func documentationCollectedFactKindSQLList() string {
 		"'" + docs.LinkFactKind + "', " +
 		"'" + docs.EntityMentionFactKind + "', " +
 		"'" + docs.ClaimCandidateFactKind + "', " +
-		"'" + facts.SemanticDocumentationObservationFactKind + "'"
+		"'" + semantic.SemanticDocumentationObservationFactKind + "'"
 }
 
 // documentationLiteralCollectedFactKind maps a requested fact kind to the SQL
@@ -411,8 +411,8 @@ func documentationLiteralCollectedFactKind(raw string) (string, bool) {
 		return docs.EntityMentionFactKind, true
 	case docs.ClaimCandidateFactKind:
 		return docs.ClaimCandidateFactKind, true
-	case facts.SemanticDocumentationObservationFactKind:
-		return facts.SemanticDocumentationObservationFactKind, true
+	case semantic.SemanticDocumentationObservationFactKind:
+		return semantic.SemanticDocumentationObservationFactKind, true
 	default:
 		return "", false
 	}

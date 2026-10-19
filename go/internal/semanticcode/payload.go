@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 )
 
 // payload builds one code-hint payload from a span and one provider hint.
@@ -20,13 +21,13 @@ import (
 // would read as churn against the previous generation and a retry inside one
 // generation could leave duplicate rows behind. Content-derived identity makes
 // re-emitting the same hint idempotent regardless of batch ordering.
-func (e *Emitter) payload(span CodeSpanInput, hint HintInput) (facts.SemanticCodeHintPayload, error) {
+func (e *Emitter) payload(span CodeSpanInput, hint HintInput) (semantic.SemanticCodeHintPayload, error) {
 	hintType := strings.TrimSpace(hint.HintType)
 	if hintType == "" {
-		return facts.SemanticCodeHintPayload{}, fmt.Errorf("hint_type must not be blank")
+		return semantic.SemanticCodeHintPayload{}, fmt.Errorf("hint_type must not be blank")
 	}
 	if strings.TrimSpace(hint.Subject.EntityID) == "" {
-		return facts.SemanticCodeHintPayload{}, fmt.Errorf("hint subject entity_id must not be blank")
+		return semantic.SemanticCodeHintPayload{}, fmt.Errorf("hint subject entity_id must not be blank")
 	}
 
 	hintHash := strings.TrimSpace(hint.HintHash)
@@ -51,20 +52,20 @@ func (e *Emitter) payload(span CodeSpanInput, hint HintInput) (facts.SemanticCod
 	// LESS: unsupported (it could not answer) and uncorroborated (the default).
 	corroboration := strings.TrimSpace(hint.CorroborationState)
 	switch corroboration {
-	case "", facts.SemanticCorroborationUncorroborated:
-		corroboration = facts.SemanticCorroborationUncorroborated
-	case facts.SemanticCorroborationUnsupported:
+	case "", semantic.SemanticCorroborationUncorroborated:
+		corroboration = semantic.SemanticCorroborationUncorroborated
+	case semantic.SemanticCorroborationUnsupported:
 		// Kept: it is weaker than uncorroborated, not stronger.
 	default:
-		return facts.SemanticCodeHintPayload{}, fmt.Errorf(
+		return semantic.SemanticCodeHintPayload{}, fmt.Errorf(
 			"corroboration_state %q may not be supplied by a producer: deterministic evidence has not run, "+
 				"so only %q or %q are emittable here",
-			corroboration, facts.SemanticCorroborationUncorroborated, facts.SemanticCorroborationUnsupported)
+			corroboration, semantic.SemanticCorroborationUncorroborated, semantic.SemanticCorroborationUnsupported)
 	}
 
 	objectRefs, err := normalizeObjectRefs(hint.ObjectRefs, span)
 	if err != nil {
-		return facts.SemanticCodeHintPayload{}, err
+		return semantic.SemanticCodeHintPayload{}, err
 	}
 
 	subject := hint.Subject
@@ -72,7 +73,7 @@ func (e *Emitter) payload(span CodeSpanInput, hint HintInput) (facts.SemanticCod
 	// span's does, and shipping provenance a reader cannot open is no better
 	// here than it was there.
 	if err := validateEntityLines("subject", subject.LineStart, subject.LineEnd); err != nil {
-		return facts.SemanticCodeHintPayload{}, err
+		return semantic.SemanticCodeHintPayload{}, err
 	}
 	if strings.TrimSpace(subject.RepositoryID) == "" {
 		subject.RepositoryID = span.RepositoryID
@@ -81,15 +82,15 @@ func (e *Emitter) payload(span CodeSpanInput, hint HintInput) (facts.SemanticCod
 		subject.RelativePath = span.RelativePath
 	}
 
-	return facts.SemanticCodeHintPayload{
+	return semantic.SemanticCodeHintPayload{
 		HintID:           span.SpanID + ":" + hintType + ":" + hintHash,
 		HintType:         hintType,
 		RelationshipKind: strings.TrimSpace(hint.RelationshipKind),
 		HintText:         strings.TrimSpace(hint.HintText),
 		HintHash:         hintHash,
-		Source: facts.SemanticSourceRef{
+		Source: semantic.SemanticSourceRef{
 			SourceID:     semanticSourceID(span),
-			SourceClass:  facts.SemanticSourceClassCode,
+			SourceClass:  semantic.SemanticSourceClassCode,
 			SourceHandle: span.CanonicalURI,
 			RepositoryID: span.RepositoryID,
 			RelativePath: span.RelativePath,
@@ -97,7 +98,7 @@ func (e *Emitter) payload(span CodeSpanInput, hint HintInput) (facts.SemanticCod
 			LineStart:    span.LineStart,
 			LineEnd:      span.LineEnd,
 		},
-		Chunk: facts.SemanticChunkRef{
+		Chunk: semantic.SemanticChunkRef{
 			ChunkID:          semanticChunkID(e.config, span),
 			ChunkHash:        prefixedHash("semantic-code-chunk", map[string]any{"span_id": span.SpanID, "content_hash": span.ContentHash}),
 			SourceHash:       span.ContentHash,
@@ -106,7 +107,7 @@ func (e *Emitter) payload(span CodeSpanInput, hint HintInput) (facts.SemanticCod
 			ExtractorVersion: e.config.ExtractorVersion,
 			ExtractionMode:   e.config.ExtractionMode,
 		},
-		Provider: facts.SemanticProviderRef{
+		Provider: semantic.SemanticProviderRef{
 			ProviderProfileID: e.config.Provider.ProviderProfileID,
 			ProviderKind:      e.config.Provider.ProviderKind,
 			ModelID:           e.config.Provider.ModelID,
@@ -123,7 +124,7 @@ func (e *Emitter) payload(span CodeSpanInput, hint HintInput) (facts.SemanticCod
 		// canonical relationship only when deterministic evidence agrees, and
 		// letting a caller relax that would make the read surface's
 		// non-canonical label a lie.
-		PromotionPolicy: facts.SemanticPromotionRequiresDeterministicEvidence,
+		PromotionPolicy: semantic.SemanticPromotionRequiresDeterministicEvidence,
 		PolicyState:     e.config.PolicyState,
 		RedactionState:  e.config.RedactionState,
 		FreshnessState:  e.config.FreshnessState,
@@ -137,11 +138,11 @@ func (e *Emitter) payload(span CodeSpanInput, hint HintInput) (facts.SemanticCod
 // Dropping it silently would be worse than failing: a relationship hint would
 // ship with a partial target list, or none, and a reader would take that as the
 // provider's actual answer rather than as evidence the batch was malformed.
-func normalizeObjectRefs(refs []facts.SemanticCodeEntityRef, span CodeSpanInput) ([]facts.SemanticCodeEntityRef, error) {
+func normalizeObjectRefs(refs []semantic.SemanticCodeEntityRef, span CodeSpanInput) ([]semantic.SemanticCodeEntityRef, error) {
 	if len(refs) == 0 {
 		return nil, nil
 	}
-	out := make([]facts.SemanticCodeEntityRef, 0, len(refs))
+	out := make([]semantic.SemanticCodeEntityRef, 0, len(refs))
 	for index, ref := range refs {
 		if strings.TrimSpace(ref.EntityID) == "" {
 			return nil, fmt.Errorf("object_refs[%d] has a blank entity_id: a reference that names nothing cannot be emitted", index)

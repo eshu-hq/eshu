@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
@@ -72,7 +73,7 @@ func buildIncidentRoutingEvidenceInputs(
 			continue
 		}
 		switch env.FactKind {
-		case facts.IncidentRecordFactKind:
+		case factsincident.IncidentRecordFactKind:
 			record, err := schemadecode.DecodeIncidentRecord(env)
 			if err != nil {
 				q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)
@@ -87,7 +88,7 @@ func buildIncidentRoutingEvidenceInputs(
 			if incident := incidentRoutingIncidentFromDecoded(env, record); incident.ProviderIncidentID != "" {
 				incidents = append(incidents, incident)
 			}
-		case facts.IncidentRoutingAppliedPagerDutyResourceFactKind:
+		case factsincident.IncidentRoutingAppliedPagerDutyResourceFactKind:
 			resource, err := schemadecode.DecodeIncidentRoutingAppliedPagerDutyResource(env)
 			if err != nil {
 				q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)
@@ -110,7 +111,7 @@ func buildIncidentRoutingEvidenceInputs(
 				continue
 			}
 			applied = append(applied, incidentRoutingAppliedFromDecoded(env, resource))
-		case facts.IncidentRoutingObservedPagerDutyServiceFactKind:
+		case factsincident.IncidentRoutingObservedPagerDutyServiceFactKind:
 			service, err := schemadecode.DecodeIncidentRoutingObservedPagerDutyService(env)
 			if err != nil {
 				q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)
@@ -123,7 +124,7 @@ func buildIncidentRoutingEvidenceInputs(
 				continue
 			}
 			observed = append(observed, incidentRoutingObservedFromDecoded(env, service))
-		case facts.IncidentRoutingCoverageWarningFactKind:
+		case factsincident.IncidentRoutingCoverageWarningFactKind:
 			warning, err := schemadecode.DecodeIncidentRoutingCoverageWarning(env)
 			if err != nil {
 				q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)

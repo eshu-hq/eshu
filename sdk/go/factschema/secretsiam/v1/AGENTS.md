@@ -49,7 +49,7 @@ issue scope says so.
   a conversion shim in the parent package's decode seam
   (`decodeLatestMajor` in `../../decode.go`), not a silent edit here.
 - Every fact-kind wire string here is UNDERSCORE-separated
-  (`go/internal/facts.VaultAuthRoleFactKind` and siblings), matching the
+  (`go/internal/facts/identity.VaultAuthRoleFactKind` and siblings), matching the
   aws/gcp/azure convention, NOT the dotted incident/kubernetes_live
   convention. Never invent a dot this family's wire kinds do not already
   carry.

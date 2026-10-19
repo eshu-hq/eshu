@@ -145,6 +145,9 @@ contract, including its private-data boundary; read its `doc.go` and
 | [`supply/chain/`](supply/chain/README.md) | OCI registry, language package registry, SBOM and attestation, vulnerability intelligence, and vulnerability suppression evidence |
 | [`encode/`](encode/README.md) | Shared payload substrate: `StableID` and the pointer/JSON-shape helpers a family's encoders use |
 | [`contract/`](contract/README.md) | Dependency-neutral fact-family contract model: the `Family`/`Kind`/`Producer`/`Binding` declarations the registry generator discovers statically (issue #6629) |
+| [`identity/`](identity/README.md) | The secrets/IAM posture fact family: IAM principals, trust and permission policy statements, Vault and Kubernetes identity evidence, and coverage warnings |
+| [`incident/`](incident/README.md) | The incident family: incident-context and incident-routing (PagerDuty/alert-route) source evidence |
+| [`semantic/`](semantic/README.md) | Semantic evidence: LLM-assisted documentation observations and code hints |
 
 The `docs/` package is named `docs`, not `documentation`, because `go/build`
 excludes every `.go` file in a package named `documentation`; see
@@ -158,24 +161,52 @@ a thin forwarder, so a caller that spelled a moved name `facts.X` got the
 same type and the same value it did before. Issue #6950 moved every
 caller onto the nested packages and deleted each emptied entry, so no
 compat surface remains — every caller spells moved names `cloud.X`,
-`docs.X`, and so on directly. Nesting the
-`security_alert.go` / `secrets_iam.go` /
-`incident_*.go` groups and the remaining single-file families is issue
-#6951; the cap is already satisfied without them.
+`docs.X`, and so on directly. Issue #6951 nested the `incident_*.go`
+group into `incident/`, the semantic group into `semantic/`, and the
+`secrets_iam.go` group into a flat `identity/` package. Nesting
+`security_alert.go` and the remaining single-file families is still
+open; the cap is already satisfied without them.
 
 ## Dependencies
 
 - `internal/facts/cloud`, `internal/facts/code`, `internal/facts/docs`,
   `internal/facts/supply/chain` — the nested fact families (issue #6776).
-  This package imports them to build `schemaVersionFamilies` and to re-export
-  their pre-move spellings from its `compat_*.go` files, so the dependency
-  runs root → family and never the other way.
+- `internal/facts/identity`, `internal/facts/incident`,
+  `internal/facts/semantic` — the nested fact families (issue #6951).
+  This package imports them to build `schemaVersionFamilies`, so the
+  dependency runs root → family and never the other way.
 - `internal/facts/encode` — `StableID` and the payload pointer/JSON-shape
   helpers shared with the nested families.
 
 Nothing else. `internal/facts` and everything under it depend only on the Go
 standard library, `internal/semanticpolicy`, and the `sdk/go/factschema`
 contracts module.
+
+## No-Regression Evidence: nesting keeps wire truth identical
+
+The #6951 move relocates the incident, semantic, and identity families
+without changing what they compute: kind strings, schema versions, and
+query shapes are byte-identical, and every caller edit outside the moved
+files only changes the import qualifier (`semantic`, `factsincident`,
+`factsidentity`).
+
+- Baseline: origin/main b268a831f. After: this branch at e0f59dc70;
+  commits after that point touch docs and comments only, so the
+  measured code tree is unchanged.
+- Backend: none touched (no graph, SQL, or queue change); the consumer
+  gate and registry validation run in-process.
+- Input shape: the full 182-kind generated registry plus the focused
+  test waves (facts tree, mcp, reducer, query, touched collectors).
+- Row counts: all 182 registry kinds resolve; the consumer gate went
+  RED on the move (3 kinds undetected) and GREEN after the qualifier
+  fix, so the gate still sees every consumer it saw before.
+- The change is safe because no value, branch, or query changed — only
+  file locations and import spellings.
+
+## No-Observability-Change: no new metric, span, or log line
+
+This move adds no runtime path, so there is nothing new to observe.
+The package still emits no metrics, spans, or logs.
 
 ## Telemetry
 

@@ -347,7 +347,7 @@ projector rejects unsupported service-catalog schema versions during projection
 so stale collector payloads cannot silently reach the reducer.
 Secrets/IAM posture facts follow the same reducer-owned boundary. When a
 generation contains any `aws_iam_*`, `k8s_*`, `eks_*`, `vault_*`, or
-`secrets_iam_coverage_warning` fact from `facts.SecretsIAMFactKinds`,
+`secrets_iam_coverage_warning` fact from `factsidentity.SecretsIAMFactKinds`,
 `posture.BuildSecretsIAMTrustChainReducerIntent` emits one `secrets_iam_trust_chain`
 intent for the trigger scope/generation. The projector validates the
 `secrets_iam_posture` source schema version and records the trigger fact only.
@@ -355,7 +355,7 @@ It does not join AWS IAM, Kubernetes ServiceAccount, or Vault policy evidence
 and never derives an access path.
 PagerDuty incident-routing follows the same reducer-owned boundary. When a
 generation contains an `incident.record` fact or a routing source kind from
-`facts.IncidentRoutingFactKinds()`, `routing.BuildReducerIntent` ([architecture](incident/routing/README.md)) emits one
+`factsincident.IncidentRoutingFactKinds()`; `routing.BuildReducerIntent` ([architecture](incident/routing/README.md)) emits one
 `incident_routing_materialization` reducer intent for the scope/generation. The
 projector does not compare declared, applied, or live routing evidence and does
 not infer service truth from PagerDuty payloads. It does not create incident,

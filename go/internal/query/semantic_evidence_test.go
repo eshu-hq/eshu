@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 )
 
 func TestSemanticEvidenceHandlerListsDocumentationObservationsWithTruthMetadata(t *testing.T) {
@@ -22,14 +22,14 @@ func TestSemanticEvidenceHandlerListsDocumentationObservationsWithTruthMetadata(
 		readModel: semanticEvidenceListReadModel{
 			Rows: []map[string]any{{
 				"fact_id":             "fact:semantic-doc-1",
-				"fact_kind":           facts.SemanticDocumentationObservationFactKind,
+				"fact_kind":           semantic.SemanticDocumentationObservationFactKind,
 				"truth_basis":         "semantic_observation",
 				"provider_profile_id": "semantic-docs-default",
 				"prompt_version":      "docs-prompt-v1",
 				"redaction_version":   "strict-redaction-v1",
-				"policy_state":        facts.SemanticPolicyAllowed,
-				"freshness_state":     facts.SemanticFreshnessFresh,
-				"admission_state":     facts.SemanticAdmissionPartial,
+				"policy_state":        semantic.SemanticPolicyAllowed,
+				"freshness_state":     semantic.SemanticFreshnessFresh,
+				"admission_state":     semantic.SemanticAdmissionPartial,
 			}},
 			NextCursor: "1",
 		},
@@ -50,7 +50,7 @@ func TestSemanticEvidenceHandlerListsDocumentationObservationsWithTruthMetadata(
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if got, want := store.filter.FactKind, facts.SemanticDocumentationObservationFactKind; got != want {
+	if got, want := store.filter.FactKind, semantic.SemanticDocumentationObservationFactKind; got != want {
 		t.Fatalf("filter.FactKind = %q, want %q", got, want)
 	}
 	if got, want := store.filter.Repository, "repo:payments"; got != want {
@@ -59,7 +59,7 @@ func TestSemanticEvidenceHandlerListsDocumentationObservationsWithTruthMetadata(
 	if got, want := store.filter.ProviderProfileID, "semantic-docs-default"; got != want {
 		t.Fatalf("filter.ProviderProfileID = %q, want %q", got, want)
 	}
-	if got, want := store.filter.AdmissionState, facts.SemanticAdmissionPartial; got != want {
+	if got, want := store.filter.AdmissionState, semantic.SemanticAdmissionPartial; got != want {
 		t.Fatalf("filter.AdmissionState = %q, want %q", got, want)
 	}
 
@@ -100,7 +100,7 @@ func TestSemanticEvidenceHandlerScopedEmptyGrantReturnsEmptyWithoutRead(t *testi
 		readModel: semanticEvidenceListReadModel{
 			Rows: []map[string]any{{
 				"fact_id":   "fact:semantic-doc-out-of-scope",
-				"fact_kind": facts.SemanticDocumentationObservationFactKind,
+				"fact_kind": semantic.SemanticDocumentationObservationFactKind,
 			}},
 		},
 	}
@@ -147,7 +147,7 @@ func TestSemanticEvidenceHandlerAllScopeScopedAdminKeepsUnboundedSemanticFilter(
 		readModel: semanticEvidenceListReadModel{
 			Rows: []map[string]any{{
 				"fact_id":   "fact:semantic-doc-admin-visible",
-				"fact_kind": facts.SemanticDocumentationObservationFactKind,
+				"fact_kind": semantic.SemanticDocumentationObservationFactKind,
 			}},
 		},
 	}
@@ -181,22 +181,22 @@ func TestBuildSemanticEvidenceSQLFiltersCodeHintsByScopeAndProvider(t *testing.T
 	t.Parallel()
 
 	query, args := buildSemanticEvidenceSQL(semanticEvidenceFilter{
-		FactKind:           facts.SemanticCodeHintFactKind,
+		FactKind:           semantic.SemanticCodeHintFactKind,
 		Repository:         "repo:payments",
 		RelativePath:       "go/payments/handler.go",
 		EntityID:           "entity:payments.Handle",
 		ProviderProfileID:  "semantic-code-default",
-		FreshnessState:     facts.SemanticFreshnessFresh,
-		CorroborationState: facts.SemanticCorroborationUncorroborated,
+		FreshnessState:     semantic.SemanticFreshnessFresh,
+		CorroborationState: semantic.SemanticCorroborationUncorroborated,
 		PromptVersion:      "code-prompt-v1",
 		RedactionVersion:   "strict-redaction-v1",
-		PolicyState:        facts.SemanticPolicyAllowed,
+		PolicyState:        semantic.SemanticPolicyAllowed,
 		Limit:              25,
 		Offset:             50,
 	})
 
 	for _, fragment := range []string{
-		"fact_records.fact_kind = '" + facts.SemanticCodeHintFactKind + "'",
+		"fact_records.fact_kind = '" + semantic.SemanticCodeHintFactKind + "'",
 		"fact_records.is_tombstone = FALSE",
 		"fact_records.payload->'source'->>'repository_id' = $",
 		"fact_records.payload->'source'->>'relative_path' = $",
@@ -215,7 +215,7 @@ func TestBuildSemanticEvidenceSQLFiltersCodeHintsByScopeAndProvider(t *testing.T
 			t.Fatalf("semantic code hint SQL missing fragment %q:\n%s", fragment, query)
 		}
 	}
-	if strings.Contains(query, facts.SemanticDocumentationObservationFactKind) {
+	if strings.Contains(query, semantic.SemanticDocumentationObservationFactKind) {
 		t.Fatalf("semantic code hint SQL included documentation observation kind:\n%s", query)
 	}
 	if got, want := args[len(args)-2], 26; got != want {
@@ -231,7 +231,7 @@ func TestBuildSemanticEvidenceSQLFactIDUsesActualScopeParameter(t *testing.T) {
 
 	factID := "fact:semantic-hint-1"
 	query, args := buildSemanticEvidenceSQL(semanticEvidenceFilter{
-		FactKind: facts.SemanticCodeHintFactKind, FactID: factID,
+		FactKind: semantic.SemanticCodeHintFactKind, FactID: factID,
 	})
 	if !strings.Contains(query, documentationFactActiveScopeJoinSQL) ||
 		strings.Contains(query, documentationActiveScopeClause(1)) ||
@@ -240,7 +240,7 @@ func TestBuildSemanticEvidenceSQLFactIDUsesActualScopeParameter(t *testing.T) {
 	}
 
 	query, args = buildSemanticEvidenceSQL(semanticEvidenceFilter{
-		FactKind: facts.SemanticCodeHintFactKind, FactID: factID, ScopeID: "scope:semantic",
+		FactKind: semantic.SemanticCodeHintFactKind, FactID: factID, ScopeID: "scope:semantic",
 	})
 	if !strings.Contains(query, documentationActiveScopeClause(2)) ||
 		strings.Contains(query, documentationFactActiveScopeJoinSQL) ||
@@ -253,7 +253,7 @@ func TestBuildSemanticEvidenceSQLAppliesScopedRepositoryAuthorizationBeforePagin
 	t.Parallel()
 
 	query, args := buildSemanticEvidenceSQL(semanticEvidenceFilter{
-		FactKind:             facts.SemanticCodeHintFactKind,
+		FactKind:             semantic.SemanticCodeHintFactKind,
 		Repository:           "repo-team-a",
 		ProviderProfileID:    "semantic-code-default",
 		AllowedRepositoryIDs: []string{"repo-team-a", "repo-team-a"},
@@ -294,10 +294,10 @@ func TestDocumentationFactKindListDoesNotIncludeCodeHints(t *testing.T) {
 	t.Parallel()
 
 	sqlList := documentationCollectedFactKindSQLList()
-	if strings.Contains(sqlList, facts.SemanticCodeHintFactKind) {
+	if strings.Contains(sqlList, semantic.SemanticCodeHintFactKind) {
 		t.Fatalf("documentation fact list includes code hints, want opt-in semantic code hint route only: %s", sqlList)
 	}
-	if !strings.Contains(sqlList, facts.SemanticDocumentationObservationFactKind) {
+	if !strings.Contains(sqlList, semantic.SemanticDocumentationObservationFactKind) {
 		t.Fatalf("documentation fact list missing documentation semantic observations: %s", sqlList)
 	}
 }
@@ -307,7 +307,7 @@ func TestSemanticEvidencePublicRowDropsProviderInternals(t *testing.T) {
 
 	row := semanticEvidencePublicRow(map[string]any{
 		"fact_id":   "fact:semantic-doc-1",
-		"fact_kind": facts.SemanticDocumentationObservationFactKind,
+		"fact_kind": semantic.SemanticDocumentationObservationFactKind,
 		"payload": map[string]any{
 			"chunk": map[string]any{
 				"chunk_id":           "chunk:doc",
@@ -384,11 +384,11 @@ func TestSemanticEvidencePublicRowSurfacesBoundedSourceACLState(t *testing.T) {
 		freshness string
 		acl       string
 	}{
-		{facts.SemanticFreshnessFresh, docs.SourceACLStateDenied},
-		{facts.SemanticFreshnessStale, docs.SourceACLStateAllowed},
-		{facts.SemanticFreshnessFresh, docs.SourceACLStatePartial},
-		{facts.SemanticFreshnessFresh, docs.SourceACLStateMissing},
-		{facts.SemanticFreshnessStale, docs.SourceACLStateStale},
+		{semantic.SemanticFreshnessFresh, docs.SourceACLStateDenied},
+		{semantic.SemanticFreshnessStale, docs.SourceACLStateAllowed},
+		{semantic.SemanticFreshnessFresh, docs.SourceACLStatePartial},
+		{semantic.SemanticFreshnessFresh, docs.SourceACLStateMissing},
+		{semantic.SemanticFreshnessStale, docs.SourceACLStateStale},
 	}
 	for _, tc := range cases {
 		tc := tc
@@ -396,10 +396,10 @@ func TestSemanticEvidencePublicRowSurfacesBoundedSourceACLState(t *testing.T) {
 			t.Parallel()
 			row := semanticEvidencePublicRow(map[string]any{
 				"fact_id":   "fact:semantic-doc-1",
-				"fact_kind": facts.SemanticDocumentationObservationFactKind,
+				"fact_kind": semantic.SemanticDocumentationObservationFactKind,
 				"payload": map[string]any{
 					"freshness_state": tc.freshness,
-					"policy_state":    facts.SemanticPolicyAllowed,
+					"policy_state":    semantic.SemanticPolicyAllowed,
 					"acl_summary":     map[string]any{"source_acl_state": tc.acl},
 				},
 			})
@@ -409,8 +409,8 @@ func TestSemanticEvidencePublicRowSurfacesBoundedSourceACLState(t *testing.T) {
 			if got := row["freshness_state"]; got != tc.freshness {
 				t.Fatalf("row[freshness_state] = %#v, want %q (independent axis)", got, tc.freshness)
 			}
-			if got := row["policy_state"]; got != facts.SemanticPolicyAllowed {
-				t.Fatalf("row[policy_state] = %#v, want %q (independent axis)", got, facts.SemanticPolicyAllowed)
+			if got := row["policy_state"]; got != semantic.SemanticPolicyAllowed {
+				t.Fatalf("row[policy_state] = %#v, want %q (independent axis)", got, semantic.SemanticPolicyAllowed)
 			}
 		})
 	}
@@ -424,7 +424,7 @@ func TestSemanticEvidencePublicRowOmitsAbsentSourceACLState(t *testing.T) {
 	t.Parallel()
 
 	for name, payload := range map[string]map[string]any{
-		"no acl_summary": {"freshness_state": facts.SemanticFreshnessFresh},
+		"no acl_summary": {"freshness_state": semantic.SemanticFreshnessFresh},
 		"empty state":    {"acl_summary": map[string]any{"source_acl_state": ""}},
 		"non-bounded":    {"acl_summary": map[string]any{"source_acl_state": "unknown"}},
 	} {
@@ -433,7 +433,7 @@ func TestSemanticEvidencePublicRowOmitsAbsentSourceACLState(t *testing.T) {
 			t.Parallel()
 			row := semanticEvidencePublicRow(map[string]any{
 				"fact_id":   "fact:semantic-doc-1",
-				"fact_kind": facts.SemanticDocumentationObservationFactKind,
+				"fact_kind": semantic.SemanticDocumentationObservationFactKind,
 				"payload":   payload,
 			})
 			if _, present := row["source_acl_state"]; present {

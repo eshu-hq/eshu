@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 )
 
 // NewVaultAuthMountEnvelope builds a vault_auth_mount source fact.
@@ -23,7 +24,7 @@ func NewVaultAuthMountEnvelope(observation VaultAuthMountObservation) (facts.Env
 	if authMethod == "" {
 		return facts.Envelope{}, fmt.Errorf("vault auth mount observation requires auth_method")
 	}
-	stableKey := facts.StableID(facts.VaultAuthMountFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.VaultAuthMountFactKind, map[string]any{
 		"mount_join_key":   mountKey,
 		"vault_cluster_id": observation.Context.VaultClusterID,
 	})
@@ -38,7 +39,7 @@ func NewVaultAuthMountEnvelope(observation VaultAuthMountObservation) (facts.Env
 	payload["max_lease_ttl_seconds"] = observation.MaxLeaseTTLSeconds
 	return newEnvelope(
 		vaultEnvelopeContext(observation.Context),
-		facts.VaultAuthMountFactKind,
+		factsidentity.VaultAuthMountFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, stableKey),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),
@@ -72,7 +73,7 @@ func NewVaultAuthRoleEnvelope(observation VaultAuthRoleObservation) (facts.Envel
 	)
 	selectorWildcard := hasWildcard(observation.BoundServiceAccountNames) ||
 		hasWildcard(observation.BoundServiceAccountNamespaces)
-	stableKey := facts.StableID(facts.VaultAuthRoleFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.VaultAuthRoleFactKind, map[string]any{
 		"role_join_key":    roleKey,
 		"vault_cluster_id": observation.Context.VaultClusterID,
 	})
@@ -95,7 +96,7 @@ func NewVaultAuthRoleEnvelope(observation VaultAuthRoleObservation) (facts.Envel
 	payload["token_ttl_seconds"] = observation.TokenTTLSeconds
 	return newEnvelope(
 		vaultEnvelopeContext(observation.Context),
-		facts.VaultAuthRoleFactKind,
+		factsidentity.VaultAuthRoleFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, stableKey),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),
@@ -112,7 +113,7 @@ func NewVaultACLPolicyEnvelope(observation VaultACLPolicyObservation) (facts.Env
 	if err != nil {
 		return facts.Envelope{}, err
 	}
-	stableKey := facts.StableID(facts.VaultACLPolicyFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.VaultACLPolicyFactKind, map[string]any{
 		"policy_join_key":  policyKey,
 		"vault_cluster_id": observation.Context.VaultClusterID,
 	})
@@ -124,7 +125,7 @@ func NewVaultACLPolicyEnvelope(observation VaultACLPolicyObservation) (facts.Env
 	payload["rule_count"] = len(observation.Rules)
 	return newEnvelope(
 		vaultEnvelopeContext(observation.Context),
-		facts.VaultACLPolicyFactKind,
+		factsidentity.VaultACLPolicyFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, stableKey),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),
@@ -141,7 +142,7 @@ func NewVaultIdentityEntityEnvelope(observation VaultIdentityEntityObservation) 
 	if err != nil {
 		return facts.Envelope{}, err
 	}
-	stableKey := facts.StableID(facts.VaultIdentityEntityFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.VaultIdentityEntityFactKind, map[string]any{
 		"entity_join_key":  entityKey,
 		"vault_cluster_id": observation.Context.VaultClusterID,
 	})
@@ -154,7 +155,7 @@ func NewVaultIdentityEntityEnvelope(observation VaultIdentityEntityObservation) 
 	payload["disabled"] = observation.Disabled
 	return newEnvelope(
 		vaultEnvelopeContext(observation.Context),
-		facts.VaultIdentityEntityFactKind,
+		factsidentity.VaultIdentityEntityFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, stableKey),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),
@@ -179,7 +180,7 @@ func NewVaultIdentityAliasEnvelope(observation VaultIdentityAliasObservation) (f
 	if err != nil {
 		return facts.Envelope{}, err
 	}
-	stableKey := facts.StableID(facts.VaultIdentityAliasFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.VaultIdentityAliasFactKind, map[string]any{
 		"alias_id":         fingerprintVaultValue(observation.Context, "alias_id", aliasID),
 		"vault_cluster_id": observation.Context.VaultClusterID,
 	})
@@ -191,7 +192,7 @@ func NewVaultIdentityAliasEnvelope(observation VaultIdentityAliasObservation) (f
 	payload["mount_accessor_fingerprint"] = fingerprintVaultValue(observation.Context, "mount_accessor", observation.MountAccessor)
 	return newEnvelope(
 		vaultEnvelopeContext(observation.Context),
-		facts.VaultIdentityAliasFactKind,
+		factsidentity.VaultIdentityAliasFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, stableKey),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),
@@ -212,7 +213,7 @@ func NewVaultKVMetadataEnvelope(observation VaultKVMetadataObservation) (facts.E
 	if pathFingerprint == "" {
 		return facts.Envelope{}, fmt.Errorf("vault kv metadata observation requires path")
 	}
-	stableKey := facts.StableID(facts.VaultKVMetadataFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.VaultKVMetadataFactKind, map[string]any{
 		"kv_path_fingerprint": pathFingerprint,
 		"mount_join_key":      mountKey,
 		"vault_cluster_id":    observation.Context.VaultClusterID,
@@ -231,7 +232,7 @@ func NewVaultKVMetadataEnvelope(observation VaultKVMetadataObservation) (facts.E
 	payload["custom_metadata_key_fingerprints"] = fingerprintVaultValues(observation.Context, "custom_metadata_key", observation.CustomMetadataKeys)
 	return newEnvelope(
 		vaultEnvelopeContext(observation.Context),
-		facts.VaultKVMetadataFactKind,
+		factsidentity.VaultKVMetadataFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, stableKey),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),
@@ -253,7 +254,7 @@ func NewVaultSecretEngineMountEnvelope(observation VaultSecretEngineMountObserva
 	if mountType == "" {
 		return facts.Envelope{}, fmt.Errorf("vault secret engine mount observation requires mount_type")
 	}
-	stableKey := facts.StableID(facts.VaultSecretEngineMountFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.VaultSecretEngineMountFactKind, map[string]any{
 		"mount_join_key":   mountKey,
 		"vault_cluster_id": observation.Context.VaultClusterID,
 	})
@@ -269,7 +270,7 @@ func NewVaultSecretEngineMountEnvelope(observation VaultSecretEngineMountObserva
 	payload["max_lease_ttl_seconds"] = observation.MaxLeaseTTLSeconds
 	return newEnvelope(
 		vaultEnvelopeContext(observation.Context),
-		facts.VaultSecretEngineMountFactKind,
+		factsidentity.VaultSecretEngineMountFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, stableKey),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),
@@ -289,7 +290,7 @@ func NewVaultCoverageWarningEnvelope(observation VaultCoverageWarningObservation
 	if warningKind == "" || sourceState == "" || resourceScope == "" {
 		return facts.Envelope{}, fmt.Errorf("vault coverage warning requires warning_kind, source_state, and resource_scope")
 	}
-	stableKey := facts.StableID(facts.SecretsIAMCoverageWarningFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.SecretsIAMCoverageWarningFactKind, map[string]any{
 		"generation":       observation.Context.GenerationID,
 		"resource_scope":   resourceScope,
 		"source_state":     sourceState,
@@ -307,7 +308,7 @@ func NewVaultCoverageWarningEnvelope(observation VaultCoverageWarningObservation
 	payload["attribute_key_fingerprints"] = fingerprintVaultValues(observation.Context, "attribute_key", mapKeys(observation.Attributes))
 	return newEnvelope(
 		vaultEnvelopeContext(observation.Context),
-		facts.SecretsIAMCoverageWarningFactKind,
+		factsidentity.SecretsIAMCoverageWarningFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, stableKey),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),

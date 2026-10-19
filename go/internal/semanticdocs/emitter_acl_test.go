@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 )
 
 // TestEmitterPropagatesBoundedSourceACLStateOntoObservation proves the bounded
@@ -85,13 +85,13 @@ func mustACLEmitter(t *testing.T) *Emitter {
 	return emitter
 }
 
-func emitOneObservationPayload(t *testing.T, emitter *Emitter, section doctruth.SectionInput) facts.SemanticDocumentationObservationPayload {
+func emitOneObservationPayload(t *testing.T, emitter *Emitter, section doctruth.SectionInput) semantic.SemanticDocumentationObservationPayload {
 	t.Helper()
 
 	payload, err := emitter.payload(section, MockObservation{
 		ObservationType: "summary",
 		ObservationText: "Deploy the payment service through the production Helm release.",
-		AdmissionState:  facts.SemanticAdmissionDocumentationFindingCandidate,
+		AdmissionState:  semantic.SemanticAdmissionDocumentationFindingCandidate,
 	}, 0)
 	if err != nil {
 		t.Fatalf("payload() error = %v, want nil", err)

@@ -6,7 +6,7 @@
 2. `go/internal/semanticdocs/doc.go`
 3. `go/internal/semanticdocs/emitter.go`
 4. `go/internal/doctruth/README.md`
-5. `go/internal/facts/semantic.go`
+5. `go/internal/facts/semantic/semantic.go`
 6. `docs/internal/design/1758-documentation-semantic-observations.md`
 
 ## Invariants

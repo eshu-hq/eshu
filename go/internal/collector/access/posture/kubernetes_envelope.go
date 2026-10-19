@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 )
 
 // NewKubernetesServiceAccountEnvelope builds a k8s_service_account source fact.
@@ -21,7 +22,7 @@ func NewKubernetesServiceAccountEnvelope(observation KubernetesServiceAccountObs
 	if err != nil {
 		return facts.Envelope{}, err
 	}
-	stableKey := facts.StableID(facts.KubernetesServiceAccountFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.KubernetesServiceAccountFactKind, map[string]any{
 		"cluster_id":               observation.Context.ClusterID,
 		"service_account_join_key": joinKey,
 		"uid":                      fingerprintKubernetesValue("uid", observation.UID),
@@ -39,7 +40,7 @@ func NewKubernetesServiceAccountEnvelope(observation KubernetesServiceAccountObs
 	payload["resource_version_fingerprint"] = fingerprintKubernetesValue("resource_version", observation.ResourceVersion)
 	return newEnvelope(
 		kubernetesEnvelopeContext(observation.Context),
-		facts.KubernetesServiceAccountFactKind,
+		factsidentity.KubernetesServiceAccountFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, stableKey),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),
@@ -59,7 +60,7 @@ func NewKubernetesServiceAccountTokenPostureEnvelope(
 	if err != nil {
 		return facts.Envelope{}, err
 	}
-	stableKey := facts.StableID(facts.KubernetesServiceAccountTokenPostureFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.KubernetesServiceAccountTokenPostureFactKind, map[string]any{
 		"cluster_id":               observation.Context.ClusterID,
 		"service_account_join_key": joinKey,
 		"uid":                      fingerprintKubernetesValue("uid", observation.ServiceAccountUID),
@@ -74,7 +75,7 @@ func NewKubernetesServiceAccountTokenPostureEnvelope(
 	payload["image_pull_secret_ref_count"] = observation.ImagePullSecretRefCount
 	return newEnvelope(
 		kubernetesEnvelopeContext(observation.Context),
-		facts.KubernetesServiceAccountTokenPostureFactKind,
+		factsidentity.KubernetesServiceAccountTokenPostureFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, stableKey),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),
@@ -93,7 +94,7 @@ func NewKubernetesRBACRoleEnvelope(observation KubernetesRBACRoleObservation) (f
 		return facts.Envelope{}, err
 	}
 	roleKey := rbacRoleJoinKey(observation.Context, role.kind, role.namespace, role.name)
-	stableKey := facts.StableID(facts.KubernetesRBACRoleFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.KubernetesRBACRoleFactKind, map[string]any{
 		"cluster_id": observation.Context.ClusterID,
 		"role_key":   roleKey,
 		"uid":        fingerprintKubernetesValue("uid", observation.UID),
@@ -110,7 +111,7 @@ func NewKubernetesRBACRoleEnvelope(observation KubernetesRBACRoleObservation) (f
 	payload["rule_count"] = len(observation.Rules)
 	return newEnvelope(
 		kubernetesEnvelopeContext(observation.Context),
-		facts.KubernetesRBACRoleFactKind,
+		factsidentity.KubernetesRBACRoleFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, stableKey),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),
@@ -140,7 +141,7 @@ func NewKubernetesRBACBindingEnvelope(observation KubernetesRBACBindingObservati
 		binding.roleRefNamespace,
 		binding.roleRefName,
 	)
-	stableKey := facts.StableID(facts.KubernetesRBACBindingFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.KubernetesRBACBindingFactKind, map[string]any{
 		"binding_kind": binding.kind,
 		"cluster_id":   observation.Context.ClusterID,
 		"name":         fingerprintKubernetesValue("rbac_binding", binding.name),
@@ -162,7 +163,7 @@ func NewKubernetesRBACBindingEnvelope(observation KubernetesRBACBindingObservati
 	payload["subjects"] = rbacSubjectPayloads(observation.Context, observation.Subjects)
 	return newEnvelope(
 		kubernetesEnvelopeContext(observation.Context),
-		facts.KubernetesRBACBindingFactKind,
+		factsidentity.KubernetesRBACBindingFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, stableKey),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),
@@ -187,7 +188,7 @@ func NewKubernetesWorkloadIdentityUseEnvelope(
 	if err != nil {
 		return facts.Envelope{}, err
 	}
-	stableKey := facts.StableID(facts.KubernetesWorkloadIdentityUseFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.KubernetesWorkloadIdentityUseFactKind, map[string]any{
 		"cluster_id":               observation.Context.ClusterID,
 		"service_account_join_key": joinKey,
 		"workload_object_id":       workloadObjectID,
@@ -202,7 +203,7 @@ func NewKubernetesWorkloadIdentityUseEnvelope(
 	payload["projected_service_account_token"] = observation.ProjectedServiceAccountToken
 	return newEnvelope(
 		kubernetesEnvelopeContext(observation.Context),
-		facts.KubernetesWorkloadIdentityUseFactKind,
+		factsidentity.KubernetesWorkloadIdentityUseFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, stableKey),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),
@@ -223,7 +224,7 @@ func NewEKSIRSAAnnotationEnvelope(observation EKSIRSAAnnotationObservation) (fac
 	if err != nil {
 		return facts.Envelope{}, err
 	}
-	stableKey := facts.StableID(facts.EKSIRSAAnnotationFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.EKSIRSAAnnotationFactKind, map[string]any{
 		"cluster_id":               observation.Context.ClusterID,
 		"role_arn":                 roleARN,
 		"service_account_join_key": joinKey,
@@ -240,7 +241,7 @@ func NewEKSIRSAAnnotationEnvelope(observation EKSIRSAAnnotationObservation) (fac
 	)
 	return newEnvelope(
 		kubernetesEnvelopeContext(observation.Context),
-		facts.EKSIRSAAnnotationFactKind,
+		factsidentity.EKSIRSAAnnotationFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, stableKey),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),
@@ -263,7 +264,7 @@ func NewEKSPodIdentityAssociationEnvelope(observation EKSPodIdentityAssociationO
 	if err != nil {
 		return facts.Envelope{}, err
 	}
-	stableKey := facts.StableID(facts.EKSPodIdentityAssociationFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.EKSPodIdentityAssociationFactKind, map[string]any{
 		"association_id":           associationID,
 		"cluster_id":               observation.Context.ClusterID,
 		"role_arn":                 roleARN,
@@ -278,7 +279,7 @@ func NewEKSPodIdentityAssociationEnvelope(observation EKSPodIdentityAssociationO
 	payload["role_arn"] = roleARN
 	return newEnvelope(
 		kubernetesEnvelopeContext(observation.Context),
-		facts.EKSPodIdentityAssociationFactKind,
+		factsidentity.EKSPodIdentityAssociationFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, stableKey),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),
@@ -298,7 +299,7 @@ func NewKubernetesCoverageWarningEnvelope(observation KubernetesCoverageWarningO
 		return facts.Envelope{}, fmt.Errorf("kubernetes coverage warning requires warning_kind and source_state")
 	}
 	resourceScope := strings.TrimSpace(observation.ResourceScope)
-	stableKey := facts.StableID(facts.SecretsIAMCoverageWarningFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.SecretsIAMCoverageWarningFactKind, map[string]any{
 		"cluster_id":     observation.Context.ClusterID,
 		"generation":     observation.Context.GenerationID,
 		"resource_scope": resourceScope,
@@ -314,7 +315,7 @@ func NewKubernetesCoverageWarningEnvelope(observation KubernetesCoverageWarningO
 	payload["attributes"] = cloneAnyMap(observation.Attributes)
 	return newEnvelope(
 		kubernetesEnvelopeContext(observation.Context),
-		facts.SecretsIAMCoverageWarningFactKind,
+		factsidentity.SecretsIAMCoverageWarningFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, stableKey),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 )
 
 func TestNewPermissionPolicyEnvelopeRedactsPolicyBodyAndConditionValues(t *testing.T) {
@@ -32,8 +33,8 @@ func TestNewPermissionPolicyEnvelopeRedactsPolicyBodyAndConditionValues(t *testi
 	if err != nil {
 		t.Fatalf("NewPermissionPolicyEnvelope() error = %v", err)
 	}
-	if env.FactKind != facts.AWSIAMPermissionPolicyFactKind {
-		t.Fatalf("FactKind = %q, want %q", env.FactKind, facts.AWSIAMPermissionPolicyFactKind)
+	if env.FactKind != factsidentity.AWSIAMPermissionPolicyFactKind {
+		t.Fatalf("FactKind = %q, want %q", env.FactKind, factsidentity.AWSIAMPermissionPolicyFactKind)
 	}
 	if env.CollectorKind != CollectorKind {
 		t.Fatalf("CollectorKind = %q, want %q", env.CollectorKind, CollectorKind)
@@ -97,7 +98,7 @@ func TestNewPermissionPolicyEnvelopeStableIdentityIncludesConditionSummary(t *te
 	if err != nil {
 		t.Fatalf("unconditional envelope error: %v", err)
 	}
-	wantUnconditionalKey := facts.StableID(facts.AWSIAMPermissionPolicyFactKind, map[string]any{
+	wantUnconditionalKey := facts.StableID(factsidentity.AWSIAMPermissionPolicyFactKind, map[string]any{
 		"account_id":    ctx.AccountID,
 		"actions":       "iam:passrole",
 		"effect":        "Allow",
@@ -152,7 +153,7 @@ func TestNewTrustPolicyEnvelopeStableIdentityIncludesConditionSummary(t *testing
 	if err != nil {
 		t.Fatalf("unconditional envelope error: %v", err)
 	}
-	wantUnconditionalKey := facts.StableID(facts.AWSIAMTrustPolicyFactKind, map[string]any{
+	wantUnconditionalKey := facts.StableID(factsidentity.AWSIAMTrustPolicyFactKind, map[string]any{
 		"account_id":            ctx.AccountID,
 		"actions":               "sts:assumerole",
 		"assume_principals":     "arn:aws:iam::111122223333:root",
@@ -202,7 +203,7 @@ func TestNewPrincipalBoundaryAndAttachmentEnvelopes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewPrincipalEnvelope() error = %v", err)
 	}
-	assertFact(t, principal, facts.AWSIAMPrincipalFactKind)
+	assertFact(t, principal, factsidentity.AWSIAMPrincipalFactKind)
 
 	boundary, err := NewPermissionBoundaryEnvelope(PermissionBoundaryObservation{
 		Context:           ctx,
@@ -214,7 +215,7 @@ func TestNewPrincipalBoundaryAndAttachmentEnvelopes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewPermissionBoundaryEnvelope() error = %v", err)
 	}
-	assertFact(t, boundary, facts.AWSIAMPermissionBoundaryFactKind)
+	assertFact(t, boundary, factsidentity.AWSIAMPermissionBoundaryFactKind)
 
 	attachment, err := NewPolicyAttachmentEnvelope(PolicyAttachmentObservation{
 		Context:       ctx,
@@ -226,7 +227,7 @@ func TestNewPrincipalBoundaryAndAttachmentEnvelopes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewPolicyAttachmentEnvelope() error = %v", err)
 	}
-	assertFact(t, attachment, facts.AWSIAMPolicyAttachmentFactKind)
+	assertFact(t, attachment, factsidentity.AWSIAMPolicyAttachmentFactKind)
 }
 
 func TestNewAccessAnalyzerAndCoverageWarningEnvelopes(t *testing.T) {
@@ -244,7 +245,7 @@ func TestNewAccessAnalyzerAndCoverageWarningEnvelopes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewAccessAnalyzerFindingEnvelope() error = %v", err)
 	}
-	assertFact(t, finding, facts.AWSIAMAccessAnalyzerFindingFactKind)
+	assertFact(t, finding, factsidentity.AWSIAMAccessAnalyzerFindingFactKind)
 	assertNoForbiddenPayloadKeys(t, finding.Payload)
 
 	warning, err := NewCoverageWarningEnvelope(CoverageWarningObservation{
@@ -257,7 +258,7 @@ func TestNewAccessAnalyzerAndCoverageWarningEnvelopes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewCoverageWarningEnvelope() error = %v", err)
 	}
-	assertFact(t, warning, facts.SecretsIAMCoverageWarningFactKind)
+	assertFact(t, warning, factsidentity.SecretsIAMCoverageWarningFactKind)
 	assertPayloadString(t, warning.Payload, "source_state", SourceStateUnsupported)
 }
 
@@ -278,8 +279,8 @@ func assertFact(t *testing.T, env facts.Envelope, factKind string) {
 	if env.FactKind != factKind {
 		t.Fatalf("FactKind = %q, want %q", env.FactKind, factKind)
 	}
-	if env.SchemaVersion != facts.SecretsIAMSchemaVersionV1 {
-		t.Fatalf("SchemaVersion = %q, want %q", env.SchemaVersion, facts.SecretsIAMSchemaVersionV1)
+	if env.SchemaVersion != factsidentity.SecretsIAMSchemaVersionV1 {
+		t.Fatalf("SchemaVersion = %q, want %q", env.SchemaVersion, factsidentity.SecretsIAMSchemaVersionV1)
 	}
 	if env.CollectorKind != CollectorKind {
 		t.Fatalf("CollectorKind = %q, want %q", env.CollectorKind, CollectorKind)

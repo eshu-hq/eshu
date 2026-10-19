@@ -3,7 +3,7 @@
 # Fact family: incident_routing
 
 - Canonical fact owner: `eshu-hq/eshu`
-- Fact definitions: `go/internal/facts` (declared at go/internal/facts/incident_routing.go:67)
+- Fact definitions: `go/internal/facts/incident` (declared at go/internal/facts/incident/routing.go:67)
 - Reducer domain: `incident_routing_materialization`
 - Read surface: `GET /api/v0/incidents/{incident_id}/context`
 

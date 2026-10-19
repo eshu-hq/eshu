@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
@@ -30,24 +31,24 @@ func iamRoleUIDChainEnvelopes(serviceAccountKey, subjectFingerprint, roleARN, ac
 		principal["region"] = region
 	}
 	return []facts.Envelope{
-		secretsIAMReducerFact("sa", facts.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("sa", factsidentity.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 		}),
-		secretsIAMReducerFact("workload", facts.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("workload", factsidentity.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 			"workload_object_id":       "workload-stable-id",
 			"workload_kind":            "deployments",
 		}),
-		secretsIAMReducerFact("irsa", facts.EKSIRSAAnnotationFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("irsa", factsidentity.EKSIRSAAnnotationFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                         "kubernetes",
 			"service_account_join_key":         serviceAccountKey,
 			"role_arn":                         roleARN,
 			"web_identity_subject_fingerprint": subjectFingerprint,
 		}),
-		secretsIAMReducerFact("principal", facts.AWSIAMPrincipalFactKind, "aws-scope", "aws-gen", principal),
-		secretsIAMReducerFact("trust", facts.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
+		secretsIAMReducerFact("principal", factsidentity.AWSIAMPrincipalFactKind, "aws-scope", "aws-gen", principal),
+		secretsIAMReducerFact("trust", factsidentity.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
 			"provider":                          "aws_iam",
 			"role_arn":                          roleARN,
 			"effect":                            "Allow",
@@ -55,7 +56,7 @@ func iamRoleUIDChainEnvelopes(serviceAccountKey, subjectFingerprint, roleARN, ac
 			"web_identity_subject_fingerprints": []string{subjectFingerprint},
 			"web_identity_subject_wildcard":     false,
 		}),
-		secretsIAMReducerFact("vault-role", facts.VaultAuthRoleFactKind, "vault-scope", "vault-gen", map[string]any{
+		secretsIAMReducerFact("vault-role", factsidentity.VaultAuthRoleFactKind, "vault-scope", "vault-gen", map[string]any{
 			"provider":                        "vault",
 			"auth_method":                     "kubernetes",
 			"role_join_key":                   "sha256:vault-role",
@@ -103,36 +104,36 @@ func TestBuildSecretsIAMTrustChainReadModelsResolvesPodIdentityAssumeMode(t *tes
 	accountID := "123456789012"
 	region := "aws-global"
 	envelopes := []facts.Envelope{
-		secretsIAMReducerFact("sa", facts.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("sa", factsidentity.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 		}),
-		secretsIAMReducerFact("workload", facts.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("workload", factsidentity.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 			"workload_object_id":       "workload-stable-id",
 		}),
-		secretsIAMReducerFact("podidentity", facts.EKSPodIdentityAssociationFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("podidentity", factsidentity.EKSPodIdentityAssociationFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 			"role_arn":                 roleARN,
 			"association_id":           "assoc-1",
 		}),
-		secretsIAMReducerFact("principal", facts.AWSIAMPrincipalFactKind, "aws-scope", "aws-gen", map[string]any{
+		secretsIAMReducerFact("principal", factsidentity.AWSIAMPrincipalFactKind, "aws-scope", "aws-gen", map[string]any{
 			"provider":       "aws_iam",
 			"principal_arn":  roleARN,
 			"principal_type": "aws_iam_role",
 			"account_id":     accountID,
 			"region":         region,
 		}),
-		secretsIAMReducerFact("trust", facts.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
+		secretsIAMReducerFact("trust", factsidentity.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
 			"provider":          "aws_iam",
 			"role_arn":          roleARN,
 			"effect":            "Allow",
 			"actions":           []string{"sts:assumerole"},
 			"assume_principals": []string{"pods.eks.amazonaws.com"},
 		}),
-		secretsIAMReducerFact("vault-role", facts.VaultAuthRoleFactKind, "vault-scope", "vault-gen", map[string]any{
+		secretsIAMReducerFact("vault-role", factsidentity.VaultAuthRoleFactKind, "vault-scope", "vault-gen", map[string]any{
 			"provider":                        "vault",
 			"auth_method":                     "kubernetes",
 			"role_join_key":                   "sha256:vault-role",
@@ -199,8 +200,8 @@ func TestBuildSecretsIAMTrustChainReadModelsQuarantinesPrincipalMissingAccountID
 	if len(quarantined) != 1 {
 		t.Fatalf("len(quarantined) = %d, want 1; the missing-account_id principal must be quarantined once", len(quarantined))
 	}
-	if quarantined[0].FactKind != facts.AWSIAMPrincipalFactKind {
-		t.Fatalf("quarantined factKind = %q, want %q", quarantined[0].FactKind, facts.AWSIAMPrincipalFactKind)
+	if quarantined[0].FactKind != factsidentity.AWSIAMPrincipalFactKind {
+		t.Fatalf("quarantined factKind = %q, want %q", quarantined[0].FactKind, factsidentity.AWSIAMPrincipalFactKind)
 	}
 	if quarantined[0].Field != "account_id" {
 		t.Fatalf("quarantined field = %q, want %q", quarantined[0].Field, "account_id")
@@ -285,7 +286,7 @@ func TestBuildSecretsIAMTrustChainReadModelsLeavesIAMRoleUIDBlankWithEmptyAccoun
 	// Force the principal fact to carry account_id/region as present-but-empty
 	// rather than absent, so decode succeeds and the blank-uid path is exercised.
 	for i := range envelopes {
-		if envelopes[i].FactKind == facts.AWSIAMPrincipalFactKind {
+		if envelopes[i].FactKind == factsidentity.AWSIAMPrincipalFactKind {
 			envelopes[i].Payload["account_id"] = ""
 			envelopes[i].Payload["region"] = ""
 		}
@@ -319,7 +320,7 @@ func TestBuildSecretsIAMTrustChainReadModelsLeavesIAMRoleUIDBlankWithEmptyAccoun
 func TestSecretsIAMPrincipalDecodeFatalStaysFatal(t *testing.T) {
 	t.Parallel()
 
-	principalEnv := facts.Envelope{FactID: "principal-bad", FactKind: facts.AWSIAMPrincipalFactKind}
+	principalEnv := facts.Envelope{FactID: "principal-bad", FactKind: factsidentity.AWSIAMPrincipalFactKind}
 	// A *factdecode.FactDecodeError classified as something OTHER than input_invalid — the
 	// class the secrets branch must treat as fatal, not quarantine.
 	fatalDecode := factdecode.NewFactDecodeError(factschema.FactKindAWSIAMPrincipal, &factschema.DecodeError{

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
@@ -23,7 +24,7 @@ func NewIncidentRecordEnvelope(ctx EnvelopeContext, incident Incident) (facts.En
 	if strings.TrimSpace(incident.ID) == "" {
 		return facts.Envelope{}, fmt.Errorf("pagerduty incident id must not be blank")
 	}
-	stableKey := providerStableKey(facts.IncidentRecordFactKind, ctx.ScopeID, incident.ID)
+	stableKey := providerStableKey(factsincident.IncidentRecordFactKind, ctx.ScopeID, incident.ID)
 	payload := map[string]any{
 		"collector_instance_id": ctx.CollectorInstanceID,
 		"provider":              ProviderPagerDuty,
@@ -66,7 +67,7 @@ func NewIncidentRecordEnvelope(ctx EnvelopeContext, incident Incident) (facts.En
 	}); err != nil {
 		return facts.Envelope{}, err
 	}
-	return envelope(ctx, facts.IncidentRecordFactKind, stableKey, payload, firstNonBlank(incident.HTMLURL, ctx.SourceURI), incident.ID), nil
+	return envelope(ctx, factsincident.IncidentRecordFactKind, stableKey, payload, firstNonBlank(incident.HTMLURL, ctx.SourceURI), incident.ID), nil
 }
 
 // NewLifecycleEventEnvelope converts one PagerDuty log entry into an
@@ -81,7 +82,7 @@ func NewLifecycleEventEnvelope(ctx EnvelopeContext, event LifecycleEvent) (facts
 	if strings.TrimSpace(event.IncidentID) == "" {
 		return facts.Envelope{}, fmt.Errorf("pagerduty lifecycle event incident_id must not be blank")
 	}
-	stableKey := facts.StableID(facts.IncidentLifecycleEventFactKind, map[string]any{
+	stableKey := facts.StableID(factsincident.IncidentLifecycleEventFactKind, map[string]any{
 		"provider":    ProviderPagerDuty,
 		"scope_id":    ctx.ScopeID,
 		"incident_id": strings.TrimSpace(event.IncidentID),
@@ -115,7 +116,7 @@ func NewLifecycleEventEnvelope(ctx EnvelopeContext, event LifecycleEvent) (facts
 	}); err != nil {
 		return facts.Envelope{}, err
 	}
-	return envelope(ctx, facts.IncidentLifecycleEventFactKind, stableKey, payload, firstNonBlank(event.HTMLURL, ctx.SourceURI), event.ID), nil
+	return envelope(ctx, factsincident.IncidentLifecycleEventFactKind, stableKey, payload, firstNonBlank(event.HTMLURL, ctx.SourceURI), event.ID), nil
 }
 
 // NewChangeRecordEnvelope converts one PagerDuty related change event into a
@@ -127,7 +128,7 @@ func NewChangeRecordEnvelope(ctx EnvelopeContext, change ChangeEvent) (facts.Env
 	if strings.TrimSpace(change.ID) == "" {
 		return facts.Envelope{}, fmt.Errorf("pagerduty change event id must not be blank")
 	}
-	stableKey := providerStableKey(facts.ChangeRecordFactKind, ctx.ScopeID, change.ID)
+	stableKey := providerStableKey(factsincident.ChangeRecordFactKind, ctx.ScopeID, change.ID)
 	payload := map[string]any{
 		"collector_instance_id": ctx.CollectorInstanceID,
 		"provider":              ProviderPagerDuty,
@@ -154,7 +155,7 @@ func NewChangeRecordEnvelope(ctx EnvelopeContext, change ChangeEvent) (facts.Env
 	}); err != nil {
 		return facts.Envelope{}, err
 	}
-	return envelope(ctx, facts.ChangeRecordFactKind, stableKey, payload, firstNonBlank(change.HTMLURL, ctx.SourceURI), change.ID), nil
+	return envelope(ctx, factsincident.ChangeRecordFactKind, stableKey, payload, firstNonBlank(change.HTMLURL, ctx.SourceURI), change.ID), nil
 }
 
 func validateEnvelopeContext(ctx EnvelopeContext) error {
@@ -177,7 +178,7 @@ func envelope(ctx EnvelopeContext, kind string, stableKey string, payload map[st
 		GenerationID:     ctx.GenerationID,
 		FactKind:         kind,
 		StableFactKey:    stableKey,
-		SchemaVersion:    facts.IncidentContextSchemaVersionV1,
+		SchemaVersion:    factsincident.IncidentContextSchemaVersionV1,
 		CollectorKind:    string(scope.CollectorPagerDuty),
 		FencingToken:     ctx.FencingToken,
 		SourceConfidence: facts.SourceConfidenceReported,

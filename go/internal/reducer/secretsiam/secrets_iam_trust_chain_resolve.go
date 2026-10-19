@@ -5,6 +5,7 @@ package secretsiam
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
@@ -102,7 +103,7 @@ func secretsIAMExactChains(index secretsIAMIndex) (
 }
 
 func exactIAMRoleTrust(roleEvidence secretsIAMIRSA, trusts []facts.Envelope) (facts.Envelope, bool) {
-	if roleEvidence.env.FactKind == facts.EKSPodIdentityAssociationFactKind {
+	if roleEvidence.env.FactKind == factsidentity.EKSPodIdentityAssociationFactKind {
 		return exactPodIdentityTrust(trusts)
 	}
 	return exactWebIdentityTrust(roleEvidence, trusts)

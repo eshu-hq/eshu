@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package facts
+package identity
 
 import (
 	"slices"
@@ -174,7 +174,7 @@ func SecretsIAMSchemaVersion(factKind string) (string, bool) {
 // the registry, shards, and catalog from it.
 var SecretsIAMFamilyDeclaration = contract.Declare(contract.Family{
 	ID:                     "secrets_iam",
-	FactDir:                "go/internal/facts",
+	FactDir:                "go/internal/facts/identity",
 	OwnerRepository:        "eshu-hq/eshu",
 	LifecycleOwner:         "go/internal/facts",
 	SchemaVersion:          "1.0.0",

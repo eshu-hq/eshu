@@ -11,7 +11,7 @@
 // own only the wire payload shape.
 //
 // Every fact kind's wire string is UNDERSCORE-separated
-// (go/internal/facts.VaultAuthRoleFactKind and siblings), matching the
+// (go/internal/facts/identity.VaultAuthRoleFactKind and siblings), matching the
 // AWS/IAM/GCP/Azure convention rather than the DOTTED incident/kubernetes_live
 // convention. The values in the parent package's decode.go MATCH those wire
 // strings byte-for-byte; TestFactSchemaKindsMatchWireFactKinds (reducer side)

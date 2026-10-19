@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 )
 
 const (
@@ -69,8 +70,8 @@ type HintInput struct {
 	RelationshipKind    string
 	HintText            string
 	HintHash            string
-	Subject             facts.SemanticCodeEntityRef
-	ObjectRefs          []facts.SemanticCodeEntityRef
+	Subject             semantic.SemanticCodeEntityRef
+	ObjectRefs          []semantic.SemanticCodeEntityRef
 	Confidence          string
 	ConfidenceRationale string
 	MissingEvidence     []string
@@ -135,11 +136,11 @@ func (e *Emitter) Emit(ctx context.Context, span CodeSpanInput, hints []HintInpu
 		if err != nil {
 			return nil, err
 		}
-		if err := facts.ValidateSemanticCodeHintPayload(payload); err != nil {
+		if err := semantic.ValidateSemanticCodeHintPayload(payload); err != nil {
 			return nil, fmt.Errorf("semantic code hint payload: %w", err)
 		}
-		stableKey := facts.SemanticCodeHintStableID(payload)
-		payloadMap, err := facts.EncodeSemanticCodeHint(payload)
+		stableKey := semantic.SemanticCodeHintStableID(payload)
+		payloadMap, err := semantic.EncodeSemanticCodeHint(payload)
 		if err != nil {
 			return nil, fmt.Errorf("encode semantic code hint: %w", err)
 		}
@@ -147,9 +148,9 @@ func (e *Emitter) Emit(ctx context.Context, span CodeSpanInput, hints []HintInpu
 			FactID:           stableKey,
 			ScopeID:          span.ScopeID,
 			GenerationID:     span.GenerationID,
-			FactKind:         facts.SemanticCodeHintFactKind,
+			FactKind:         semantic.SemanticCodeHintFactKind,
 			StableFactKey:    stableKey,
-			SchemaVersion:    facts.SemanticFactSchemaVersion,
+			SchemaVersion:    semantic.SemanticFactSchemaVersion,
 			CollectorKind:    CollectorKind,
 			SourceConfidence: facts.SourceConfidenceDerived,
 			ObservedAt:       e.observedAt(span),

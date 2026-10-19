@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 )
 
 func testConfig() Config {
@@ -44,13 +45,13 @@ func testHint() HintInput {
 		HintType:         "relationship",
 		RelationshipKind: "calls",
 		HintText:         "main appears to call the shared logging helper",
-		Subject: facts.SemanticCodeEntityRef{
+		Subject: semantic.SemanticCodeEntityRef{
 			EntityKind: "function",
 			EntityID:   "entity:orders-api:main.go:main",
 			LineStart:  10,
 			LineEnd:    20,
 		},
-		Confidence: facts.SemanticConfidenceMedium,
+		Confidence: semantic.SemanticConfidenceMedium,
 	}
 }
 
@@ -75,11 +76,11 @@ func TestEmitProducesAnAdmissibleCodeHintFact(t *testing.T) {
 	}
 
 	envelope := envelopes[0]
-	if envelope.FactKind != facts.SemanticCodeHintFactKind {
-		t.Errorf("FactKind = %q, want %q", envelope.FactKind, facts.SemanticCodeHintFactKind)
+	if envelope.FactKind != semantic.SemanticCodeHintFactKind {
+		t.Errorf("FactKind = %q, want %q", envelope.FactKind, semantic.SemanticCodeHintFactKind)
 	}
-	if envelope.SchemaVersion != facts.SemanticFactSchemaVersion {
-		t.Errorf("SchemaVersion = %q, want %q", envelope.SchemaVersion, facts.SemanticFactSchemaVersion)
+	if envelope.SchemaVersion != semantic.SemanticFactSchemaVersion {
+		t.Errorf("SchemaVersion = %q, want %q", envelope.SchemaVersion, semantic.SemanticFactSchemaVersion)
 	}
 	if envelope.StableFactKey == "" || envelope.FactID != envelope.StableFactKey {
 		t.Errorf("FactID/StableFactKey = %q/%q, want a non-empty matching pair", envelope.FactID, envelope.StableFactKey)
@@ -105,18 +106,18 @@ func TestEmitStampsTheNonCanonicalPromotionBoundary(t *testing.T) {
 	}
 
 	hint := testHint()
-	hint.Confidence = facts.SemanticConfidenceHigh
+	hint.Confidence = semantic.SemanticConfidenceHigh
 	envelopes, err := emitter.Emit(context.Background(), testSpan(), []HintInput{hint})
 	if err != nil {
 		t.Fatalf("Emit() error = %v", err)
 	}
 
 	payload := envelopes[0].Payload
-	if got := payload["promotion_policy"]; got != facts.SemanticPromotionRequiresDeterministicEvidence {
-		t.Errorf("promotion_policy = %v, want %q even for a high-confidence hint", got, facts.SemanticPromotionRequiresDeterministicEvidence)
+	if got := payload["promotion_policy"]; got != semantic.SemanticPromotionRequiresDeterministicEvidence {
+		t.Errorf("promotion_policy = %v, want %q even for a high-confidence hint", got, semantic.SemanticPromotionRequiresDeterministicEvidence)
 	}
-	if got := payload["corroboration_state"]; got != facts.SemanticCorroborationUncorroborated {
-		t.Errorf("corroboration_state = %v, want %q when nothing has checked the hint", got, facts.SemanticCorroborationUncorroborated)
+	if got := payload["corroboration_state"]; got != semantic.SemanticCorroborationUncorroborated {
+		t.Errorf("corroboration_state = %v, want %q when nothing has checked the hint", got, semantic.SemanticCorroborationUncorroborated)
 	}
 }
 
@@ -223,9 +224,9 @@ func TestEmitDefaultsAreTheConservativeReading(t *testing.T) {
 
 	payload := envelopes[0].Payload
 	for key, want := range map[string]string{
-		"policy_state":    facts.SemanticPolicyAllowed,
-		"redaction_state": facts.SemanticRedactionSkippedNoSensitiveContent,
-		"freshness_state": facts.SemanticFreshnessFresh,
+		"policy_state":    semantic.SemanticPolicyAllowed,
+		"redaction_state": semantic.SemanticRedactionSkippedNoSensitiveContent,
+		"freshness_state": semantic.SemanticFreshnessFresh,
 	} {
 		if got := payload[key]; got != want {
 			t.Errorf("%s = %v, want %v", key, got, want)
@@ -253,9 +254,9 @@ func TestEmitRefusesProviderSuppliedCorroboration(t *testing.T) {
 	}
 
 	for _, state := range []string{
-		facts.SemanticCorroborationCorroborated,
-		facts.SemanticCorroborationAmbiguous,
-		facts.SemanticCorroborationContradicted,
+		semantic.SemanticCorroborationCorroborated,
+		semantic.SemanticCorroborationAmbiguous,
+		semantic.SemanticCorroborationContradicted,
 	} {
 		hint := testHint()
 		hint.CorroborationState = state
@@ -265,7 +266,7 @@ func TestEmitRefusesProviderSuppliedCorroboration(t *testing.T) {
 	}
 
 	// The two a provider may legitimately report both claim less, not more.
-	for _, state := range []string{"", facts.SemanticCorroborationUncorroborated, facts.SemanticCorroborationUnsupported} {
+	for _, state := range []string{"", semantic.SemanticCorroborationUncorroborated, semantic.SemanticCorroborationUnsupported} {
 		hint := testHint()
 		hint.CorroborationState = state
 		if _, err := emitter.Emit(context.Background(), testSpan(), []HintInput{hint}); err != nil {
@@ -282,7 +283,7 @@ func TestNewEmitterRefusesUnsafeRedactionState(t *testing.T) {
 	t.Parallel()
 
 	config := testConfig()
-	config.RedactionState = facts.SemanticRedactionUnsafePayload
+	config.RedactionState = semantic.SemanticRedactionUnsafePayload
 	if _, err := NewEmitter(config); err == nil {
 		t.Fatal("NewEmitter() error = nil for redaction_state unsafe_payload, want a refusal")
 	}
@@ -300,7 +301,7 @@ func TestEmitRejectsMalformedObjectRefs(t *testing.T) {
 		t.Fatalf("NewEmitter() error = %v", err)
 	}
 	hint := testHint()
-	hint.ObjectRefs = []facts.SemanticCodeEntityRef{
+	hint.ObjectRefs = []semantic.SemanticCodeEntityRef{
 		{EntityKind: "function", EntityID: "entity:orders-api:log.go:Info"},
 		{EntityKind: "function", EntityID: "   "},
 	}
@@ -448,7 +449,7 @@ func TestEmitRejectsImpossibleEntityLineRanges(t *testing.T) {
 	}
 
 	reversedRef := testHint()
-	reversedRef.ObjectRefs = []facts.SemanticCodeEntityRef{
+	reversedRef.ObjectRefs = []semantic.SemanticCodeEntityRef{
 		{EntityKind: "function", EntityID: "entity:orders-api:log.go:Info", LineStart: 90, LineEnd: 12},
 	}
 	if _, err := emitter.Emit(context.Background(), testSpan(), []HintInput{reversedRef}); err == nil {

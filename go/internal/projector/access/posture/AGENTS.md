@@ -19,7 +19,7 @@
 - Import `internal/projector/intent`, never the root projector package. Root
   imports this package to dispatch, so the reverse import cycles.
 - `BuildSecretsIAMTrustChainReducerIntent` triggers on any fact kind the
-  `facts.SecretsIAMSchemaVersion` registry recognizes and anchors to the
+  `factsidentity.SecretsIAMSchemaVersion` registry recognizes and anchors to the
   earliest such fact in original input order across every kind, via
   `FirstMatchingKindPredicate`. Do not replace the predicate with an explicit
   kind list (a kind added to the registry later would silently stop

@@ -145,3 +145,17 @@ func TestValidateSourceConfidence(t *testing.T) {
 		}
 	}
 }
+
+// TestSourceConfidenceObservedValueGuardsSemanticFixture pins the
+// SourceConfidenceObserved string value. The semantic documentation
+// observation fixture (semantic/semantic_test.go) hardcodes "observed"
+// because that package cannot import the facts root (the root imports it).
+// If this guard fails, update the Confidence value in
+// semanticDocumentationObservationFixture to match.
+func TestSourceConfidenceObservedValueGuardsSemanticFixture(t *testing.T) {
+	t.Parallel()
+
+	if SourceConfidenceObserved != "observed" {
+		t.Fatalf("SourceConfidenceObserved = %q, want %q; update the hardcoded Confidence in semantic/semantic_test.go semanticDocumentationObservationFixture", SourceConfidenceObserved, "observed")
+	}
+}

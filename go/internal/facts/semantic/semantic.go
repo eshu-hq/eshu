@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package facts
+package semantic
 
 import (
 	"fmt"
 	"slices"
 
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/facts/encode"
 
 	"github.com/eshu-hq/eshu/go/internal/facts/contract"
 )
@@ -398,7 +399,7 @@ type SemanticCodeHintPayload struct {
 
 // SemanticDocumentationObservationStableID returns a stable ID for one observation.
 func SemanticDocumentationObservationStableID(payload SemanticDocumentationObservationPayload) string {
-	return StableID(SemanticDocumentationObservationFactKind, map[string]any{
+	return encode.StableID(SemanticDocumentationObservationFactKind, map[string]any{
 		"observation_id":      payload.ObservationID,
 		"observation_hash":    payload.ObservationHash,
 		"source_id":           payload.Source.SourceID,
@@ -417,7 +418,7 @@ func SemanticDocumentationObservationStableID(payload SemanticDocumentationObser
 
 // SemanticCodeHintStableID returns a stable ID for one non-canonical code hint.
 func SemanticCodeHintStableID(payload SemanticCodeHintPayload) string {
-	return StableID(SemanticCodeHintFactKind, map[string]any{
+	return encode.StableID(SemanticCodeHintFactKind, map[string]any{
 		"hint_id":             payload.HintID,
 		"hint_hash":           payload.HintHash,
 		"repository_id":       payload.Source.RepositoryID,
@@ -441,7 +442,7 @@ func SemanticCodeHintStableID(payload SemanticCodeHintPayload) string {
 // the registry, shards, and catalog from it.
 var SemanticFamilyDeclaration = contract.Declare(contract.Family{
 	ID:                     "semantic",
-	FactDir:                "go/internal/facts",
+	FactDir:                "go/internal/facts/semantic",
 	OwnerRepository:        "eshu-hq/eshu",
 	LifecycleOwner:         "go/internal/facts",
 	SchemaVersion:          "1.0.0",

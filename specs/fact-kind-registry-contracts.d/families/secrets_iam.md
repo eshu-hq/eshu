@@ -3,7 +3,7 @@
 # Fact family: secrets_iam
 
 - Canonical fact owner: `eshu-hq/eshu`
-- Fact definitions: `go/internal/facts` (declared at go/internal/facts/secrets_iam.go:175)
+- Fact definitions: `go/internal/facts/identity` (declared at go/internal/facts/identity/iam.go:175)
 - Reducer domain: `secrets_iam_trust_chain`
 - Read surface: `GET /api/v0/secrets-iam/posture-summary`
 

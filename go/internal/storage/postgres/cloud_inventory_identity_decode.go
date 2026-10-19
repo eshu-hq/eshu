@@ -28,7 +28,7 @@ import (
 // disambiguate, and would add no real coverage since the field is already
 // required and already tracked. This mirrors the established precedent in
 // secrets_iam_trust_chain_anchor_decode.go, which decodes several fact kinds
-// (e.g. facts.AWSIAMPrincipalFactKind, already seamed by
+// (e.g. factsidentity.AWSIAMPrincipalFactKind, already seamed by
 // go/internal/reducer/schemadecode/factschema_decode.go's decodeAWSIAMPrincipal) the same
 // way, through factschema.Decode* directly, in a file intentionally outside
 // the factschema_decode*.go glob.

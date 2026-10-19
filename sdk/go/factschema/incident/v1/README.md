@@ -13,7 +13,7 @@ of these structs, validated.
 
 These are the first fact kinds in the contracts module with **dotted** wire
 strings. The dots are a property of the wire kind the collector already emits
-(`go/internal/facts.IncidentRecordFactKind == "incident.record"`); this package
+(`go/internal/facts/incident.IncidentRecordFactKind == "incident.record"`); this package
 matches them byte-for-byte and never invents or renames the namespace. The
 schema filename is the dotted kind plus `.v1.schema.json`
 (`incident.record.v1.schema.json`); nothing in schemagen, `payloadContracts`, or

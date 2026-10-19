@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 )
 
 // NewKubernetesGCPWorkloadIdentityBindingEnvelope builds the
@@ -43,7 +44,7 @@ func NewKubernetesGCPWorkloadIdentityBindingEnvelope(
 	if subjectFingerprint == "" {
 		return facts.Envelope{}, fmt.Errorf("kubernetes GCP workload identity binding requires subject identity")
 	}
-	stableKey := facts.StableID(facts.KubernetesGCPWorkloadIdentityBindingFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.KubernetesGCPWorkloadIdentityBindingFactKind, map[string]any{
 		"cluster_id":                                observation.Context.ClusterID,
 		"gcp_service_account_email_digest":          emailDigest,
 		"gcp_workload_identity_subject_fingerprint": subjectFingerprint,
@@ -61,7 +62,7 @@ func NewKubernetesGCPWorkloadIdentityBindingEnvelope(
 	payload["annotation_present"] = observation.AnnotationPresent
 	return newEnvelope(
 		kubernetesEnvelopeContext(observation.Context),
-		facts.KubernetesGCPWorkloadIdentityBindingFactKind,
+		factsidentity.KubernetesGCPWorkloadIdentityBindingFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, stableKey),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),

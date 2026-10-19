@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 )
 
 func TestEKSIRSAAnnotationEnvelopeEmitsSubjectFingerprintOnly(t *testing.T) {
@@ -173,7 +173,7 @@ func TestTrustPolicyEnvelopeEmitsSubjectFingerprintsOnly(t *testing.T) {
 	if fingerprints[0] == subject {
 		t.Fatal("trust policy payload leaked raw web identity subject")
 	}
-	if envelope.FactKind != facts.AWSIAMTrustPolicyFactKind {
-		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, facts.AWSIAMTrustPolicyFactKind)
+	if envelope.FactKind != factsidentity.AWSIAMTrustPolicyFactKind {
+		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, factsidentity.AWSIAMTrustPolicyFactKind)
 	}
 }

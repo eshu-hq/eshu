@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
@@ -79,7 +80,7 @@ func (s FactStore) LoadSecretsIAMTrustChainEvidence(
 	if s.database == nil {
 		return nil, reducer.SecretsIAMTrustChainLoadStats{}, fmt.Errorf("fact store database is required")
 	}
-	seed, err := s.ListFactsByKind(ctx, intent.ScopeID, intent.GenerationID, facts.SecretsIAMFactKinds())
+	seed, err := s.ListFactsByKind(ctx, intent.ScopeID, intent.GenerationID, factsidentity.SecretsIAMFactKinds())
 	if err != nil {
 		return nil, reducer.SecretsIAMTrustChainLoadStats{}, err
 	}
@@ -159,7 +160,7 @@ func (s FactStore) listActiveSecretsIAMTrustChainFactsPage(
 	rows, err := s.database.QueryContext(
 		ctx,
 		listActiveSecretsIAMTrustChainFactsQuery,
-		facts.SecretsIAMFactKinds(),
+		factsidentity.SecretsIAMFactKinds(),
 		anchors.serviceAccountJoinKeys.values(),
 		anchors.roleARNs.values(),
 		anchors.webIdentitySubjectFingerprints.values(),

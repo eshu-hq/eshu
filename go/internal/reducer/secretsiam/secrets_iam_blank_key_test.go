@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 )
 
 // TestBuildSecretsIAMTrustChainReadModelsSkipsWhitespaceOnlyServiceAccountJoinKey
@@ -68,10 +69,10 @@ func TestBuildSecretsIAMTrustChainReadModelsSkipsWhitespaceOnlyServiceAccountJoi
 	blankKeyEnvelopes := []facts.Envelope{
 		{
 			FactID:        "blank-key-service-account",
-			FactKind:      facts.KubernetesServiceAccountFactKind,
+			FactKind:      factsidentity.KubernetesServiceAccountFactKind,
 			ScopeID:       "k8s-scope",
 			GenerationID:  "k8s-gen",
-			SchemaVersion: facts.SecretsIAMSchemaVersionV1,
+			SchemaVersion: factsidentity.SecretsIAMSchemaVersionV1,
 			Payload: map[string]any{
 				"provider":                 "kubernetes",
 				"service_account_join_key": "",
@@ -79,10 +80,10 @@ func TestBuildSecretsIAMTrustChainReadModelsSkipsWhitespaceOnlyServiceAccountJoi
 		},
 		{
 			FactID:        "blank-key-workload",
-			FactKind:      facts.KubernetesWorkloadIdentityUseFactKind,
+			FactKind:      factsidentity.KubernetesWorkloadIdentityUseFactKind,
 			ScopeID:       "k8s-scope",
 			GenerationID:  "k8s-gen",
-			SchemaVersion: facts.SecretsIAMSchemaVersionV1,
+			SchemaVersion: factsidentity.SecretsIAMSchemaVersionV1,
 			Payload: map[string]any{
 				"provider":                 "kubernetes",
 				"service_account_join_key": "",
@@ -92,10 +93,10 @@ func TestBuildSecretsIAMTrustChainReadModelsSkipsWhitespaceOnlyServiceAccountJoi
 		},
 		{
 			FactID:        "blank-key-irsa",
-			FactKind:      facts.EKSIRSAAnnotationFactKind,
+			FactKind:      factsidentity.EKSIRSAAnnotationFactKind,
 			ScopeID:       "k8s-scope",
 			GenerationID:  "k8s-gen",
-			SchemaVersion: facts.SecretsIAMSchemaVersionV1,
+			SchemaVersion: factsidentity.SecretsIAMSchemaVersionV1,
 			Payload: map[string]any{
 				"provider":                         "kubernetes",
 				"service_account_join_key":         "",
@@ -103,14 +104,14 @@ func TestBuildSecretsIAMTrustChainReadModelsSkipsWhitespaceOnlyServiceAccountJoi
 				"web_identity_subject_fingerprint": blankSubjectFingerprint,
 			},
 		},
-		secretsIAMReducerFact("blank-key-principal", facts.AWSIAMPrincipalFactKind, "aws-scope", "aws-gen", map[string]any{
+		secretsIAMReducerFact("blank-key-principal", factsidentity.AWSIAMPrincipalFactKind, "aws-scope", "aws-gen", map[string]any{
 			"provider":       "aws_iam",
 			"principal_arn":  blankRoleARN,
 			"principal_type": "aws_iam_role",
 			"account_id":     "123456789012",
 			"region":         "us-east-1",
 		}),
-		secretsIAMReducerFact("blank-key-trust", facts.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
+		secretsIAMReducerFact("blank-key-trust", factsidentity.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
 			"provider":                          "aws_iam",
 			"role_arn":                          blankRoleARN,
 			"effect":                            "Allow",
@@ -120,10 +121,10 @@ func TestBuildSecretsIAMTrustChainReadModelsSkipsWhitespaceOnlyServiceAccountJoi
 		}),
 		{
 			FactID:        "blank-key-vault-role",
-			FactKind:      facts.VaultAuthRoleFactKind,
+			FactKind:      factsidentity.VaultAuthRoleFactKind,
 			ScopeID:       "vault-scope",
 			GenerationID:  "vault-gen",
-			SchemaVersion: facts.SecretsIAMSchemaVersionV1,
+			SchemaVersion: factsidentity.SecretsIAMSchemaVersionV1,
 			Payload: map[string]any{
 				"provider":                        "vault",
 				"auth_method":                     "kubernetes",
@@ -133,7 +134,7 @@ func TestBuildSecretsIAMTrustChainReadModelsSkipsWhitespaceOnlyServiceAccountJoi
 				"token_policy_join_keys":          []string{blankPolicyKey},
 			},
 		},
-		secretsIAMReducerFact("blank-key-vault-policy", facts.VaultACLPolicyFactKind, "vault-scope", "vault-gen", map[string]any{
+		secretsIAMReducerFact("blank-key-vault-policy", factsidentity.VaultACLPolicyFactKind, "vault-scope", "vault-gen", map[string]any{
 			"provider":        "vault",
 			"policy_join_key": blankPolicyKey,
 			"rules": []map[string]any{{
@@ -141,7 +142,7 @@ func TestBuildSecretsIAMTrustChainReadModelsSkipsWhitespaceOnlyServiceAccountJoi
 				"capabilities":     []string{"read"},
 			}},
 		}),
-		secretsIAMReducerFact("blank-key-vault-kv", facts.VaultKVMetadataFactKind, "vault-scope", "vault-gen", map[string]any{
+		secretsIAMReducerFact("blank-key-vault-kv", factsidentity.VaultKVMetadataFactKind, "vault-scope", "vault-gen", map[string]any{
 			"provider":            "vault",
 			"mount_join_key":      blankMountKey,
 			"kv_path_fingerprint": blankKVPathFingerprint,
@@ -150,30 +151,30 @@ func TestBuildSecretsIAMTrustChainReadModelsSkipsWhitespaceOnlyServiceAccountJoi
 	}
 
 	validEnvelopes := []facts.Envelope{
-		secretsIAMReducerFact("sa-valid", facts.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("sa-valid", factsidentity.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 		}),
-		secretsIAMReducerFact("workload-valid", facts.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("workload-valid", factsidentity.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 			"workload_object_id":       "workload-stable-id",
 			"workload_kind":            "deployments",
 		}),
-		secretsIAMReducerFact("irsa", facts.EKSIRSAAnnotationFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("irsa", factsidentity.EKSIRSAAnnotationFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                         "kubernetes",
 			"service_account_join_key":         serviceAccountKey,
 			"role_arn":                         roleARN,
 			"web_identity_subject_fingerprint": subjectFingerprint,
 		}),
-		secretsIAMReducerFact("principal", facts.AWSIAMPrincipalFactKind, "aws-scope", "aws-gen", map[string]any{
+		secretsIAMReducerFact("principal", factsidentity.AWSIAMPrincipalFactKind, "aws-scope", "aws-gen", map[string]any{
 			"provider":       "aws_iam",
 			"principal_arn":  roleARN,
 			"principal_type": "aws_iam_role",
 			"account_id":     "123456789012",
 			"region":         "us-east-1",
 		}),
-		secretsIAMReducerFact("trust", facts.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
+		secretsIAMReducerFact("trust", factsidentity.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
 			"provider":                          "aws_iam",
 			"role_arn":                          roleARN,
 			"effect":                            "Allow",
@@ -181,7 +182,7 @@ func TestBuildSecretsIAMTrustChainReadModelsSkipsWhitespaceOnlyServiceAccountJoi
 			"web_identity_subject_fingerprints": []string{subjectFingerprint},
 			"web_identity_subject_wildcard":     false,
 		}),
-		secretsIAMReducerFact("vault-role", facts.VaultAuthRoleFactKind, "vault-scope", "vault-gen", map[string]any{
+		secretsIAMReducerFact("vault-role", factsidentity.VaultAuthRoleFactKind, "vault-scope", "vault-gen", map[string]any{
 			"provider":                        "vault",
 			"auth_method":                     "kubernetes",
 			"role_join_key":                   "sha256:vault-role",
@@ -189,7 +190,7 @@ func TestBuildSecretsIAMTrustChainReadModelsSkipsWhitespaceOnlyServiceAccountJoi
 			"bound_service_account_join_keys": []string{serviceAccountKey},
 			"token_policy_join_keys":          []string{policyKey},
 		}),
-		secretsIAMReducerFact("vault-policy", facts.VaultACLPolicyFactKind, "vault-scope", "vault-gen", map[string]any{
+		secretsIAMReducerFact("vault-policy", factsidentity.VaultACLPolicyFactKind, "vault-scope", "vault-gen", map[string]any{
 			"provider":        "vault",
 			"policy_join_key": policyKey,
 			"rules": []map[string]any{{
@@ -197,7 +198,7 @@ func TestBuildSecretsIAMTrustChainReadModelsSkipsWhitespaceOnlyServiceAccountJoi
 				"capabilities":     []string{"read"},
 			}},
 		}),
-		secretsIAMReducerFact("vault-kv", facts.VaultKVMetadataFactKind, "vault-scope", "vault-gen", map[string]any{
+		secretsIAMReducerFact("vault-kv", factsidentity.VaultKVMetadataFactKind, "vault-scope", "vault-gen", map[string]any{
 			"provider":            "vault",
 			"mount_join_key":      mountKey,
 			"kv_path_fingerprint": kvPathFingerprint,

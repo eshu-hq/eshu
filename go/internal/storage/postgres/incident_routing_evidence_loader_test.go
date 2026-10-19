@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
 )
 
 func TestFactStoreLoadIncidentRoutingEvidenceBuildsInputsFromFactsAndDeclarations(t *testing.T) {
@@ -24,7 +24,7 @@ func TestFactStoreLoadIncidentRoutingEvidenceBuildsInputsFromFactsAndDeclaration
 					"incident-fact-1",
 					"pagerduty:account:example",
 					"pagerduty:generation-1",
-					facts.IncidentRecordFactKind,
+					factsincident.IncidentRecordFactKind,
 					"pagerduty",
 					observedAt,
 					false,
@@ -44,7 +44,7 @@ func TestFactStoreLoadIncidentRoutingEvidenceBuildsInputsFromFactsAndDeclaration
 					"applied-fact-1",
 					"pagerduty:account:example",
 					"pagerduty:generation-1",
-					facts.IncidentRoutingAppliedPagerDutyResourceFactKind,
+					factsincident.IncidentRoutingAppliedPagerDutyResourceFactKind,
 					"terraform_state",
 					observedAt.Add(time.Second),
 					false,
@@ -69,7 +69,7 @@ func TestFactStoreLoadIncidentRoutingEvidenceBuildsInputsFromFactsAndDeclaration
 					"applied-team-fact-1",
 					"pagerduty:account:example",
 					"pagerduty:generation-1",
-					facts.IncidentRoutingAppliedPagerDutyResourceFactKind,
+					factsincident.IncidentRoutingAppliedPagerDutyResourceFactKind,
 					"terraform_state",
 					observedAt.Add(2*time.Second),
 					false,
@@ -85,7 +85,7 @@ func TestFactStoreLoadIncidentRoutingEvidenceBuildsInputsFromFactsAndDeclaration
 					"observed-fact-1",
 					"pagerduty:account:example",
 					"pagerduty:generation-1",
-					facts.IncidentRoutingObservedPagerDutyServiceFactKind,
+					factsincident.IncidentRoutingObservedPagerDutyServiceFactKind,
 					"pagerduty",
 					observedAt.Add(3*time.Second),
 					false,
@@ -112,7 +112,7 @@ func TestFactStoreLoadIncidentRoutingEvidenceBuildsInputsFromFactsAndDeclaration
 					"warning-fact-1",
 					"pagerduty:account:example",
 					"pagerduty:generation-1",
-					facts.IncidentRoutingCoverageWarningFactKind,
+					factsincident.IncidentRoutingCoverageWarningFactKind,
 					"pagerduty",
 					observedAt.Add(4*time.Second),
 					false,
@@ -163,7 +163,7 @@ func TestFactStoreLoadIncidentRoutingEvidenceBuildsInputsFromFactsAndDeclaration
 	if got, want := len(raw.Facts), 5; got != want {
 		t.Fatalf("len(raw.Facts) = %d, want %d (all fact kinds returned undecoded)", got, want)
 	}
-	if got, want := raw.Facts[0].FactKind, facts.IncidentRecordFactKind; got != want {
+	if got, want := raw.Facts[0].FactKind, factsincident.IncidentRecordFactKind; got != want {
 		t.Fatalf("raw.Facts[0].FactKind = %q, want %q", got, want)
 	}
 	// The declared evidence stays a storage-decoded content_entities read.
@@ -208,7 +208,7 @@ func TestFactStoreLoadIncidentRoutingEvidenceSkipsDeclarationReadWithoutIncident
 					"observed-fact-1",
 					"pagerduty:account:example",
 					"pagerduty:generation-1",
-					facts.IncidentRoutingObservedPagerDutyServiceFactKind,
+					factsincident.IncidentRoutingObservedPagerDutyServiceFactKind,
 					"pagerduty",
 					time.Date(2026, time.June, 1, 11, 0, 0, 0, time.UTC),
 					false,

@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -342,7 +342,7 @@ var documentationTargetIndexedKindsClause = "fact_records.fact_kind IN ('" +
 // from the GIN index predicate, so it is read by its own bounded branch rather
 // than widening the indexed branch's kind list.
 var documentationTargetSemanticKindClause = "fact_records.fact_kind = '" +
-	facts.SemanticDocumentationObservationFactKind + "'"
+	semantic.SemanticDocumentationObservationFactKind + "'"
 
 // documentationTargetFactsBranch renders one bounded, ordered branch of the
 // target-facts statement. Each branch carries its own ORDER BY ... LIMIT so the

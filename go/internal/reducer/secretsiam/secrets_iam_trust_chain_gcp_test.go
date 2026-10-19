@@ -7,12 +7,13 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 )
 
 func gcpPrincipalFact(fingerprint string) facts.Envelope {
 	return facts.Envelope{
 		FactID:   "principal-" + fingerprint,
-		FactKind: facts.GCPIAMPrincipalFactKind,
+		FactKind: factsidentity.GCPIAMPrincipalFactKind,
 		Payload: map[string]any{
 			"principal_fingerprint": fingerprint,
 			"principal_type":        "gcp_service_account",
@@ -24,7 +25,7 @@ func gcpPrincipalFact(fingerprint string) facts.Envelope {
 func gcpPermissionFact(factID, fingerprint, role string, isSecret, broad bool) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.GCPIAMPermissionPolicyFactKind,
+		FactKind: factsidentity.GCPIAMPermissionPolicyFactKind,
 		Payload: map[string]any{
 			"principal_fingerprint":       fingerprint,
 			"role":                        role,
@@ -114,24 +115,24 @@ func TestGCPWorkloadIdentityTrustAdmitsExactWorkloadToSecretAccessPath(t *testin
 	subjectFingerprint := "sha256:gke-subject"
 	secretResource := "//secretmanager.googleapis.com/projects/demo-proj/secrets/db"
 	models, _, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
-		secretsIAMReducerFact("sa", facts.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("sa", factsidentity.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 		}),
-		secretsIAMReducerFact("workload", facts.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("workload", factsidentity.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 			"workload_object_id":       "workload-stable-id",
 			"workload_kind":            "deployments",
 		}),
-		secretsIAMReducerFact("k8s-gcp-binding", facts.KubernetesGCPWorkloadIdentityBindingFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("k8s-gcp-binding", factsidentity.KubernetesGCPWorkloadIdentityBindingFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                                  "kubernetes",
 			"service_account_join_key":                  serviceAccountKey,
 			"gcp_service_account_email_digest":          targetEmailDigest,
 			"gcp_workload_identity_subject_fingerprint": subjectFingerprint,
 		}),
 		gcpPrincipalFact(targetFingerprint),
-		secretsIAMReducerFact("gcp-trust", facts.GCPIAMTrustPolicyFactKind, "gcp-scope", "gcp-gen", map[string]any{
+		secretsIAMReducerFact("gcp-trust", factsidentity.GCPIAMTrustPolicyFactKind, "gcp-scope", "gcp-gen", map[string]any{
 			"provider":                                  "gcp_iam",
 			"target_principal_fingerprint":              targetFingerprint,
 			"target_service_account_email_digest":       targetEmailDigest,
@@ -140,7 +141,7 @@ func TestGCPWorkloadIdentityTrustAdmitsExactWorkloadToSecretAccessPath(t *testin
 			"impersonation_mode":                        "workload_identity",
 			"role":                                      "roles/iam.workloadIdentityUser",
 		}),
-		secretsIAMReducerFact("gcp-perm", facts.GCPIAMPermissionPolicyFactKind, "gcp-scope", "gcp-gen", map[string]any{
+		secretsIAMReducerFact("gcp-perm", factsidentity.GCPIAMPermissionPolicyFactKind, "gcp-scope", "gcp-gen", map[string]any{
 			"provider":                    "gcp_iam",
 			"principal_fingerprint":       targetFingerprint,
 			"role":                        "roles/secretmanager.secretAccessor",
@@ -201,24 +202,24 @@ func TestGCPWorkloadIdentityTrustDoesNotAdmitMetadataOnlySecretRole(t *testing.T
 	targetEmailDigest := "sha256:gcp-service-account-email"
 	subjectFingerprint := "sha256:gke-subject"
 	models, _, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
-		secretsIAMReducerFact("sa", facts.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("sa", factsidentity.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 		}),
-		secretsIAMReducerFact("workload", facts.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("workload", factsidentity.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 			"workload_object_id":       "workload-stable-id",
 			"workload_kind":            "deployments",
 		}),
-		secretsIAMReducerFact("k8s-gcp-binding", facts.KubernetesGCPWorkloadIdentityBindingFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("k8s-gcp-binding", factsidentity.KubernetesGCPWorkloadIdentityBindingFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                                  "kubernetes",
 			"service_account_join_key":                  serviceAccountKey,
 			"gcp_service_account_email_digest":          targetEmailDigest,
 			"gcp_workload_identity_subject_fingerprint": subjectFingerprint,
 		}),
 		gcpPrincipalFact(targetFingerprint),
-		secretsIAMReducerFact("gcp-trust", facts.GCPIAMTrustPolicyFactKind, "gcp-scope", "gcp-gen", map[string]any{
+		secretsIAMReducerFact("gcp-trust", factsidentity.GCPIAMTrustPolicyFactKind, "gcp-scope", "gcp-gen", map[string]any{
 			"provider":                                  "gcp_iam",
 			"target_principal_fingerprint":              targetFingerprint,
 			"target_service_account_email_digest":       targetEmailDigest,
@@ -226,7 +227,7 @@ func TestGCPWorkloadIdentityTrustDoesNotAdmitMetadataOnlySecretRole(t *testing.T
 			"impersonation_mode":                        "workload_identity",
 			"role":                                      "roles/iam.workloadIdentityUser",
 		}),
-		secretsIAMReducerFact("gcp-perm-viewer", facts.GCPIAMPermissionPolicyFactKind, "gcp-scope", "gcp-gen", map[string]any{
+		secretsIAMReducerFact("gcp-perm-viewer", factsidentity.GCPIAMPermissionPolicyFactKind, "gcp-scope", "gcp-gen", map[string]any{
 			"provider":                    "gcp_iam",
 			"principal_fingerprint":       targetFingerprint,
 			"role":                        "roles/secretmanager.viewer",
@@ -252,17 +253,17 @@ func TestGCPWorkloadIdentityBindingMissingTrustDoesNotEmitGenericGap(t *testing.
 
 	serviceAccountKey := "sha256:k8s-service-account"
 	models, _, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
-		secretsIAMReducerFact("sa", facts.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("sa", factsidentity.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 		}),
-		secretsIAMReducerFact("workload", facts.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("workload", factsidentity.KubernetesWorkloadIdentityUseFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
 			"workload_object_id":       "workload-stable-id",
 			"workload_kind":            "deployments",
 		}),
-		secretsIAMReducerFact("k8s-gcp-binding", facts.KubernetesGCPWorkloadIdentityBindingFactKind, "k8s-scope", "k8s-gen", map[string]any{
+		secretsIAMReducerFact("k8s-gcp-binding", factsidentity.KubernetesGCPWorkloadIdentityBindingFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                                  "kubernetes",
 			"service_account_join_key":                  serviceAccountKey,
 			"gcp_service_account_email_digest":          "sha256:gcp-service-account-email",

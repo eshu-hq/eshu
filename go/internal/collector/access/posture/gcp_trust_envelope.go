@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 )
 
 // NewGCPTrustPolicyEnvelope builds a gcp_iam_trust_policy source fact for one
@@ -39,7 +40,7 @@ func NewGCPTrustPolicyEnvelope(observation GCPTrustPolicyObservation) (facts.Env
 		return facts.Envelope{}, fmt.Errorf("gcp trust policy observation requires target_service_account_email_digest")
 	}
 	conditionFingerprint := strings.TrimSpace(observation.ConditionFingerprint)
-	stableKey := facts.StableID(facts.GCPIAMTrustPolicyFactKind, map[string]any{
+	stableKey := facts.StableID(factsidentity.GCPIAMTrustPolicyFactKind, map[string]any{
 		"condition_fingerprint":               conditionFingerprint,
 		"gcp_workload_identity_subject":       strings.TrimSpace(observation.GCPWorkloadIdentitySubjectFingerprint),
 		"impersonation_mode":                  mode,
@@ -68,7 +69,7 @@ func NewGCPTrustPolicyEnvelope(observation GCPTrustPolicyObservation) (facts.Env
 	}
 	return newEnvelope(
 		gcpToEnvelopeContext(observation.Context),
-		facts.GCPIAMTrustPolicyFactKind,
+		factsidentity.GCPIAMTrustPolicyFactKind,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, targetFingerprint+"|"+trustedFingerprint+"|"+role),
 		firstNonBlank(observation.SourceURI, observation.Context.SourceURI),

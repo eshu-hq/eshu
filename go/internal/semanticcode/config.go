@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 )
 
 // normalizeConfig trims every operator-supplied handle and fills the defaults.
@@ -38,16 +38,16 @@ func normalizeConfig(config Config) Config {
 		config.ExtractorVersion = DefaultExtractorVersion
 	}
 	if config.ExtractionMode == "" {
-		config.ExtractionMode = facts.SemanticExtractionModeAssistant
+		config.ExtractionMode = semantic.SemanticExtractionModeAssistant
 	}
 	if config.PolicyState == "" {
-		config.PolicyState = facts.SemanticPolicyAllowed
+		config.PolicyState = semantic.SemanticPolicyAllowed
 	}
 	if config.RedactionState == "" {
-		config.RedactionState = facts.SemanticRedactionSkippedNoSensitiveContent
+		config.RedactionState = semantic.SemanticRedactionSkippedNoSensitiveContent
 	}
 	if config.FreshnessState == "" {
-		config.FreshnessState = facts.SemanticFreshnessFresh
+		config.FreshnessState = semantic.SemanticFreshnessFresh
 	}
 	return config
 }
@@ -69,22 +69,22 @@ func validateConfig(config Config) error {
 	// the read model would serve it. There is no safe way to carry hint text,
 	// confidence rationale, missing-evidence notes or entity references through
 	// a state that says the payload should have been quarantined.
-	if config.RedactionState == facts.SemanticRedactionUnsafePayload {
+	if config.RedactionState == semantic.SemanticRedactionUnsafePayload {
 		return fmt.Errorf(
 			"redaction_state %q cannot emit: it marks content the redaction gate rejected, "+
 				"so the hint must be dropped rather than serialized",
-			facts.SemanticRedactionUnsafePayload)
+			semantic.SemanticRedactionUnsafePayload)
 	}
 
-	probe := facts.SemanticCodeHintPayload{
+	probe := semantic.SemanticCodeHintPayload{
 		HintID:   "config-probe",
 		HintType: "config_probe",
 		HintHash: "sha256:config-probe",
-		Source: facts.SemanticSourceRef{
+		Source: semantic.SemanticSourceRef{
 			SourceID:    "config-probe",
-			SourceClass: facts.SemanticSourceClassCode,
+			SourceClass: semantic.SemanticSourceClassCode,
 		},
-		Chunk: facts.SemanticChunkRef{
+		Chunk: semantic.SemanticChunkRef{
 			ChunkID:          "config-probe",
 			ChunkHash:        "sha256:config-probe",
 			SourceHash:       "sha256:config-probe",
@@ -93,18 +93,18 @@ func validateConfig(config Config) error {
 			ExtractorVersion: config.ExtractorVersion,
 			ExtractionMode:   config.ExtractionMode,
 		},
-		Provider: facts.SemanticProviderRef{
+		Provider: semantic.SemanticProviderRef{
 			ProviderProfileID: config.Provider.ProviderProfileID,
 			ProviderKind:      config.Provider.ProviderKind,
 		},
-		Subject:            facts.SemanticCodeEntityRef{RepositoryID: "config-probe", EntityKind: "function", EntityID: "config-probe"},
-		CorroborationState: facts.SemanticCorroborationUncorroborated,
-		PromotionPolicy:    facts.SemanticPromotionRequiresDeterministicEvidence,
+		Subject:            semantic.SemanticCodeEntityRef{RepositoryID: "config-probe", EntityKind: "function", EntityID: "config-probe"},
+		CorroborationState: semantic.SemanticCorroborationUncorroborated,
+		PromotionPolicy:    semantic.SemanticPromotionRequiresDeterministicEvidence,
 		PolicyState:        config.PolicyState,
 		RedactionState:     config.RedactionState,
 		FreshnessState:     config.FreshnessState,
 	}
-	if err := facts.ValidateSemanticCodeHintPayload(probe); err != nil {
+	if err := semantic.ValidateSemanticCodeHintPayload(probe); err != nil {
 		return fmt.Errorf("semantic code hint emitter config: %w", err)
 	}
 	return nil

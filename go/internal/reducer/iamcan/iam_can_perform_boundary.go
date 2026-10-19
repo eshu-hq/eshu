@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iampolicy"
@@ -42,7 +43,7 @@ func groupIAMCanPerformBoundaryEvidence(
 			continue
 		}
 		switch env.FactKind {
-		case facts.AWSIAMPermissionBoundaryFactKind:
+		case factsidentity.AWSIAMPermissionBoundaryFactKind:
 			// aws_iam_permission_boundary is a secrets/IAM-family kind outside this
 			// issue's scope; it is read raw for its principal/boundary-policy ARNs.
 			principalARN := payloadcore.PayloadString(env.Payload, "principal_arn")

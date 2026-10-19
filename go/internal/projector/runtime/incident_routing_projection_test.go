@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -99,8 +100,8 @@ func incidentRoutingIncidentEnvelope(factID, scopeID, generationID string) facts
 		FactID:           factID,
 		ScopeID:          scopeID,
 		GenerationID:     generationID,
-		FactKind:         facts.IncidentRecordFactKind,
-		SchemaVersion:    facts.IncidentContextSchemaVersionV1,
+		FactKind:         factsincident.IncidentRecordFactKind,
+		SchemaVersion:    factsincident.IncidentContextSchemaVersionV1,
 		CollectorKind:    "pagerduty",
 		SourceConfidence: facts.SourceConfidenceReported,
 		ObservedAt:       time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),
@@ -120,8 +121,8 @@ func incidentRoutingObservedServiceEnvelope(factID, scopeID, generationID string
 		FactID:           factID,
 		ScopeID:          scopeID,
 		GenerationID:     generationID,
-		FactKind:         facts.IncidentRoutingObservedPagerDutyServiceFactKind,
-		SchemaVersion:    facts.IncidentRoutingSchemaVersionV1,
+		FactKind:         factsincident.IncidentRoutingObservedPagerDutyServiceFactKind,
+		SchemaVersion:    factsincident.IncidentRoutingSchemaVersionV1,
 		CollectorKind:    "pagerduty",
 		SourceConfidence: facts.SourceConfidenceReported,
 		ObservedAt:       time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),

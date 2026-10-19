@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
@@ -76,26 +77,26 @@ const (
 func (a *secretsIAMTrustChainAnchors) addEnvelope(env facts.Envelope) error {
 	schemaEnv := postgresFactschemaEnvelope(env)
 	switch env.FactKind {
-	case facts.AWSIAMPrincipalFactKind,
-		facts.AWSIAMTrustPolicyFactKind,
-		facts.AWSIAMPermissionPolicyFactKind,
-		facts.AWSIAMPolicyAttachmentFactKind,
-		facts.AWSIAMPermissionBoundaryFactKind:
+	case factsidentity.AWSIAMPrincipalFactKind,
+		factsidentity.AWSIAMTrustPolicyFactKind,
+		factsidentity.AWSIAMPermissionPolicyFactKind,
+		factsidentity.AWSIAMPolicyAttachmentFactKind,
+		factsidentity.AWSIAMPermissionBoundaryFactKind:
 		return a.addAWSEnvelope(schemaEnv, env.FactKind)
-	case facts.GCPIAMPrincipalFactKind,
-		facts.GCPIAMTrustPolicyFactKind,
-		facts.GCPIAMPermissionPolicyFactKind:
+	case factsidentity.GCPIAMPrincipalFactKind,
+		factsidentity.GCPIAMTrustPolicyFactKind,
+		factsidentity.GCPIAMPermissionPolicyFactKind:
 		return a.addGCPEnvelope(schemaEnv, env.FactKind)
-	case facts.KubernetesServiceAccountFactKind,
-		facts.KubernetesWorkloadIdentityUseFactKind,
-		facts.KubernetesGCPWorkloadIdentityBindingFactKind,
-		facts.KubernetesServiceAccountTokenPostureFactKind,
-		facts.EKSIRSAAnnotationFactKind,
-		facts.EKSPodIdentityAssociationFactKind:
+	case factsidentity.KubernetesServiceAccountFactKind,
+		factsidentity.KubernetesWorkloadIdentityUseFactKind,
+		factsidentity.KubernetesGCPWorkloadIdentityBindingFactKind,
+		factsidentity.KubernetesServiceAccountTokenPostureFactKind,
+		factsidentity.EKSIRSAAnnotationFactKind,
+		factsidentity.EKSPodIdentityAssociationFactKind:
 		return a.addKubernetesEnvelope(schemaEnv, env.FactKind)
-	case facts.VaultAuthRoleFactKind,
-		facts.VaultACLPolicyFactKind,
-		facts.VaultKVMetadataFactKind:
+	case factsidentity.VaultAuthRoleFactKind,
+		factsidentity.VaultACLPolicyFactKind,
+		factsidentity.VaultKVMetadataFactKind:
 		return a.addVaultEnvelope(schemaEnv, env.FactKind)
 	}
 	return nil
@@ -106,32 +107,32 @@ func (a *secretsIAMTrustChainAnchors) addAWSEnvelope(
 	factKind string,
 ) error {
 	switch factKind {
-	case facts.AWSIAMPrincipalFactKind:
+	case factsidentity.AWSIAMPrincipalFactKind:
 		principal, err := factschema.DecodeAWSIAMPrincipal(schemaEnv)
 		if err != nil {
 			return newPostgresFactDecodeError(factschema.FactKindAWSIAMPrincipal, err)
 		}
 		a.roleARNs.add(principal.PrincipalARN)
-	case facts.AWSIAMTrustPolicyFactKind:
+	case factsidentity.AWSIAMTrustPolicyFactKind:
 		policy, err := factschema.DecodeAWSIAMTrustPolicy(schemaEnv)
 		if err != nil {
 			return newPostgresFactDecodeError(factschema.FactKindAWSIAMTrustPolicy, err)
 		}
 		a.roleARNs.add(policy.RoleARN)
 		a.webIdentitySubjectFingerprints.addAll(policy.WebIdentitySubjectFingerprints)
-	case facts.AWSIAMPermissionPolicyFactKind:
+	case factsidentity.AWSIAMPermissionPolicyFactKind:
 		policy, err := factschema.DecodeAWSIAMPermissionPolicy(schemaEnv)
 		if err != nil {
 			return newPostgresFactDecodeError(factschema.FactKindAWSIAMPermissionPolicy, err)
 		}
 		a.roleARNs.add(policy.PrincipalARN)
-	case facts.AWSIAMPolicyAttachmentFactKind:
+	case factsidentity.AWSIAMPolicyAttachmentFactKind:
 		attachment, err := factschema.DecodeAWSIAMPolicyAttachment(schemaEnv)
 		if err != nil {
 			return newPostgresFactDecodeError(factschema.FactKindAWSIAMPolicyAttachment, err)
 		}
 		a.roleARNs.add(attachment.PrincipalARN)
-	case facts.AWSIAMPermissionBoundaryFactKind:
+	case factsidentity.AWSIAMPermissionBoundaryFactKind:
 		boundary, err := factschema.DecodeAWSIAMPermissionBoundary(schemaEnv)
 		if err != nil {
 			return newPostgresFactDecodeError(factschema.FactKindAWSIAMPermissionBoundary, err)
@@ -146,13 +147,13 @@ func (a *secretsIAMTrustChainAnchors) addGCPEnvelope(
 	factKind string,
 ) error {
 	switch factKind {
-	case facts.GCPIAMPrincipalFactKind:
+	case factsidentity.GCPIAMPrincipalFactKind:
 		principal, err := factschema.DecodeGCPIAMPrincipal(schemaEnv)
 		if err != nil {
 			return newPostgresFactDecodeError(factschema.FactKindGCPIAMPrincipal, err)
 		}
 		a.gcpPrincipalFingerprints.add(principal.PrincipalFingerprint)
-	case facts.GCPIAMTrustPolicyFactKind:
+	case factsidentity.GCPIAMTrustPolicyFactKind:
 		policy, err := factschema.DecodeGCPIAMTrustPolicy(schemaEnv)
 		if err != nil {
 			return newPostgresFactDecodeError(factschema.FactKindGCPIAMTrustPolicy, err)
@@ -160,7 +161,7 @@ func (a *secretsIAMTrustChainAnchors) addGCPEnvelope(
 		a.gcpPrincipalFingerprints.add(policy.TargetPrincipalFingerprint)
 		a.gcpServiceAccountEmailDigests.add(policy.TargetServiceAccountEmailDigest)
 		a.webIdentitySubjectFingerprints.add(stringPtrValue(policy.GCPWorkloadIdentitySubjectFingerprint))
-	case facts.GCPIAMPermissionPolicyFactKind:
+	case factsidentity.GCPIAMPermissionPolicyFactKind:
 		policy, err := factschema.DecodeGCPIAMPermissionPolicy(schemaEnv)
 		if err != nil {
 			return newPostgresFactDecodeError(factschema.FactKindGCPIAMPermissionPolicy, err)
@@ -175,19 +176,19 @@ func (a *secretsIAMTrustChainAnchors) addKubernetesEnvelope(
 	factKind string,
 ) error {
 	switch factKind {
-	case facts.KubernetesServiceAccountFactKind:
+	case factsidentity.KubernetesServiceAccountFactKind:
 		account, err := factschema.DecodeKubernetesServiceAccount(schemaEnv)
 		if err != nil {
 			return newPostgresFactDecodeError(factschema.FactKindKubernetesServiceAccount, err)
 		}
 		a.serviceAccountJoinKeys.add(account.ServiceAccountJoinKey)
-	case facts.KubernetesWorkloadIdentityUseFactKind:
+	case factsidentity.KubernetesWorkloadIdentityUseFactKind:
 		use, err := factschema.DecodeKubernetesWorkloadIdentityUse(schemaEnv)
 		if err != nil {
 			return newPostgresFactDecodeError(factschema.FactKindKubernetesWorkloadIdentityUse, err)
 		}
 		a.serviceAccountJoinKeys.add(use.ServiceAccountJoinKey)
-	case facts.KubernetesGCPWorkloadIdentityBindingFactKind:
+	case factsidentity.KubernetesGCPWorkloadIdentityBindingFactKind:
 		binding, err := factschema.DecodeKubernetesGCPWorkloadIdentityBinding(schemaEnv)
 		if err != nil {
 			return newPostgresFactDecodeError(factschema.FactKindKubernetesGCPWorkloadIdentityBinding, err)
@@ -195,13 +196,13 @@ func (a *secretsIAMTrustChainAnchors) addKubernetesEnvelope(
 		a.serviceAccountJoinKeys.add(binding.ServiceAccountJoinKey)
 		a.gcpServiceAccountEmailDigests.add(binding.GCPServiceAccountEmailDigest)
 		a.webIdentitySubjectFingerprints.add(binding.GCPWorkloadIdentitySubjectFingerprint)
-	case facts.KubernetesServiceAccountTokenPostureFactKind:
+	case factsidentity.KubernetesServiceAccountTokenPostureFactKind:
 		posture, err := factschema.DecodeKubernetesServiceAccountTokenPosture(schemaEnv)
 		if err != nil {
 			return newPostgresFactDecodeError(factschema.FactKindKubernetesServiceAccountTokenPosture, err)
 		}
 		a.serviceAccountJoinKeys.add(posture.ServiceAccountJoinKey)
-	case facts.EKSIRSAAnnotationFactKind:
+	case factsidentity.EKSIRSAAnnotationFactKind:
 		annotation, err := factschema.DecodeEKSIRSAAnnotation(schemaEnv)
 		if err != nil {
 			return newPostgresFactDecodeError(factschema.FactKindEKSIRSAAnnotation, err)
@@ -209,7 +210,7 @@ func (a *secretsIAMTrustChainAnchors) addKubernetesEnvelope(
 		a.serviceAccountJoinKeys.add(annotation.ServiceAccountJoinKey)
 		a.roleARNs.add(annotation.RoleARN)
 		a.webIdentitySubjectFingerprints.add(stringPtrValue(annotation.WebIdentitySubjectFingerprint))
-	case facts.EKSPodIdentityAssociationFactKind:
+	case factsidentity.EKSPodIdentityAssociationFactKind:
 		association, err := factschema.DecodeEKSPodIdentityAssociation(schemaEnv)
 		if err != nil {
 			return newPostgresFactDecodeError(factschema.FactKindEKSPodIdentityAssociation, err)
@@ -225,14 +226,14 @@ func (a *secretsIAMTrustChainAnchors) addVaultEnvelope(
 	factKind string,
 ) error {
 	switch factKind {
-	case facts.VaultAuthRoleFactKind:
+	case factsidentity.VaultAuthRoleFactKind:
 		role, err := factschema.DecodeVaultAuthRole(schemaEnv)
 		if err != nil {
 			return newPostgresFactDecodeError(factschema.FactKindVaultAuthRole, err)
 		}
 		a.serviceAccountJoinKeys.addAll(role.BoundServiceAccountJoinKeys)
 		a.vaultPolicyJoinKeys.addAll(role.TokenPolicyJoinKeys)
-	case facts.VaultACLPolicyFactKind:
+	case factsidentity.VaultACLPolicyFactKind:
 		policy, err := factschema.DecodeVaultACLPolicy(schemaEnv)
 		if err != nil {
 			return newPostgresFactDecodeError(factschema.FactKindVaultACLPolicy, err)
@@ -241,7 +242,7 @@ func (a *secretsIAMTrustChainAnchors) addVaultEnvelope(
 		for _, rule := range policy.Rules {
 			a.vaultKVPathFingerprints.add(stringPtrValue(rule.PathFingerprint))
 		}
-	case facts.VaultKVMetadataFactKind:
+	case factsidentity.VaultKVMetadataFactKind:
 		metadata, err := factschema.DecodeVaultKVMetadata(schemaEnv)
 		if err != nil {
 			return newPostgresFactDecodeError(factschema.FactKindVaultKVMetadata, err)

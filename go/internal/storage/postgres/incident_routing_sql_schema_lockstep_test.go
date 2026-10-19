@@ -35,7 +35,7 @@ import (
 // collector-emitted incident source facts, and are not part of the incident
 // contract. It follows the compile-time-lockstep precedent in
 // incident/repository_correlation_loader.go's trailing `var _ =
-// facts.IncidentRoutingAppliedPagerDutyResourceFactKind` reference.
+// factsincident.IncidentRoutingAppliedPagerDutyResourceFactKind` reference.
 func TestIncidentRoutingSQLProjectedFieldsAreSchemaDeclared(t *testing.T) {
 	t.Parallel()
 

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 )
 
 // fakeVaultClient is a metadata-only test double returning canned metadata for
@@ -92,7 +92,7 @@ func TestCollectEmitsAuthMountFact(t *testing.T) {
 	if got, want := len(envelopes), 1; got != want {
 		t.Fatalf("len(envelopes) = %d, want %d", got, want)
 	}
-	if got, want := envelopes[0].FactKind, facts.VaultAuthMountFactKind; got != want {
+	if got, want := envelopes[0].FactKind, factsidentity.VaultAuthMountFactKind; got != want {
 		t.Fatalf("FactKind = %q, want %q", got, want)
 	}
 	if got, want := envelopes[0].ScopeID, "scope-vault-prod"; got != want {
@@ -135,13 +135,13 @@ func TestCollectEmitsAllSevenFactFamilies(t *testing.T) {
 		got[env.FactKind]++
 	}
 	for _, kind := range []string{
-		facts.VaultAuthMountFactKind,
-		facts.VaultAuthRoleFactKind,
-		facts.VaultACLPolicyFactKind,
-		facts.VaultIdentityEntityFactKind,
-		facts.VaultIdentityAliasFactKind,
-		facts.VaultKVMetadataFactKind,
-		facts.VaultSecretEngineMountFactKind,
+		factsidentity.VaultAuthMountFactKind,
+		factsidentity.VaultAuthRoleFactKind,
+		factsidentity.VaultACLPolicyFactKind,
+		factsidentity.VaultIdentityEntityFactKind,
+		factsidentity.VaultIdentityAliasFactKind,
+		factsidentity.VaultKVMetadataFactKind,
+		factsidentity.VaultSecretEngineMountFactKind,
 	} {
 		if got[kind] != 1 {
 			t.Fatalf("fact kind %q emitted %d times, want 1 (got: %v)", kind, got[kind], got)
@@ -320,9 +320,9 @@ func TestCollectIsResilientToOneFamilyFailure(t *testing.T) {
 	var sawAuthMount, sawWarning bool
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.VaultAuthMountFactKind:
+		case factsidentity.VaultAuthMountFactKind:
 			sawAuthMount = true
-		case facts.SecretsIAMCoverageWarningFactKind:
+		case factsidentity.SecretsIAMCoverageWarningFactKind:
 			sawWarning = true
 			if got := payloadStringValue(env.Payload, "resource_scope"); got != vaultFamilyACLPolicies {
 				t.Fatalf("coverage warning resource_scope = %q, want %q", got, vaultFamilyACLPolicies)

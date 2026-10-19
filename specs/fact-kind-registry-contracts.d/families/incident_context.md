@@ -3,7 +3,7 @@
 # Fact family: incident_context
 
 - Canonical fact owner: `eshu-hq/eshu`
-- Fact definitions: `go/internal/facts` (declared at go/internal/facts/incident_context.go:58)
+- Fact definitions: `go/internal/facts/incident` (declared at go/internal/facts/incident/context.go:58)
 - Reducer domain: `incident_repository_correlation`
 - Read surface: `GET /api/v0/incidents/{incident_id}/context`
 

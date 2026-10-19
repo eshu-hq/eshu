@@ -9,4 +9,4 @@ producers:
     - collector-pagerduty
 reducer_bindings:
     - incident/incident_build_routing_evidence_inputs_routing
-declaration: go/internal/facts/incident_routing.go:84
+declaration: go/internal/facts/incident/routing.go:84

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -162,12 +163,12 @@ func livePagerDutyWorkItem(scopeID string) workflow.WorkItem {
 func assertLivePagerDutyFactKinds(t *testing.T, envs []facts.Envelope) {
 	t.Helper()
 	allowed := map[string]struct{}{
-		facts.IncidentRecordFactKind:                              {},
-		facts.IncidentLifecycleEventFactKind:                      {},
-		facts.ChangeRecordFactKind:                                {},
-		facts.IncidentRoutingObservedPagerDutyServiceFactKind:     {},
-		facts.IncidentRoutingObservedPagerDutyIntegrationFactKind: {},
-		facts.IncidentRoutingCoverageWarningFactKind:              {},
+		factsincident.IncidentRecordFactKind:                              {},
+		factsincident.IncidentLifecycleEventFactKind:                      {},
+		factsincident.ChangeRecordFactKind:                                {},
+		factsincident.IncidentRoutingObservedPagerDutyServiceFactKind:     {},
+		factsincident.IncidentRoutingObservedPagerDutyIntegrationFactKind: {},
+		factsincident.IncidentRoutingCoverageWarningFactKind:              {},
 	}
 	for _, env := range envs {
 		if _, ok := allowed[env.FactKind]; !ok {

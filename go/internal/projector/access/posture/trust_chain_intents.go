@@ -7,13 +7,14 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 // BuildSecretsIAMTrustChainReducerIntent emits one reducer intent when any
 // secrets/IAM posture source fact lands in a generation. Any fact whose kind
-// the facts.SecretsIAMSchemaVersion registry recognizes (AWS IAM, GCP IAM,
+// the factsidentity.SecretsIAMSchemaVersion registry recognizes (AWS IAM, GCP IAM,
 // Kubernetes service accounts and RBAC, EKS identity, Vault, coverage
 // warning) is a trigger; the anchor is the earliest such fact in original
 // input order across every recognized kind, so a generation carrying several
@@ -29,7 +30,7 @@ func BuildSecretsIAMTrustChainReducerIntent(
 ) (projectorintent.ReducerIntent, bool) {
 	envelope, ok := lookup.FirstMatchingKindPredicate(
 		func(kind string) bool {
-			_, isSecretsIAMKind := facts.SecretsIAMSchemaVersion(kind)
+			_, isSecretsIAMKind := factsidentity.SecretsIAMSchemaVersion(kind)
 			return isSecretsIAMKind
 		},
 		func(facts.Envelope) bool { return true },

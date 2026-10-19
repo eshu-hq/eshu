@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 )
 
 func TestNewKubernetesServiceAccountEnvelopeRedactsIdentityNames(t *testing.T) {
@@ -27,7 +27,7 @@ func TestNewKubernetesServiceAccountEnvelopeRedactsIdentityNames(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewKubernetesServiceAccountEnvelope() error = %v", err)
 	}
-	assertFact(t, env, facts.KubernetesServiceAccountFactKind)
+	assertFact(t, env, factsidentity.KubernetesServiceAccountFactKind)
 	assertPayloadString(t, env.Payload, "provider", ProviderKubernetes)
 	assertPayloadString(t, env.Payload, "cluster_id", ctx.ClusterID)
 	assertPayloadString(t, env.Payload, "automount_token", BoolStateFalse)
@@ -62,7 +62,7 @@ func TestNewKubernetesRBACBindingEnvelopeDistinguishesBindingScope(t *testing.T)
 	if err != nil {
 		t.Fatalf("NewKubernetesRBACBindingEnvelope(RoleBinding) error = %v", err)
 	}
-	assertFact(t, namespaced, facts.KubernetesRBACBindingFactKind)
+	assertFact(t, namespaced, factsidentity.KubernetesRBACBindingFactKind)
 	assertPayloadString(t, namespaced.Payload, "binding_scope", BindingScopeNamespace)
 	if payloadValueContains(namespaced.Payload, "payments") ||
 		payloadValueContains(namespaced.Payload, "checkout-sa") ||
@@ -86,7 +86,7 @@ func TestNewKubernetesRBACBindingEnvelopeDistinguishesBindingScope(t *testing.T)
 	if err != nil {
 		t.Fatalf("NewKubernetesRBACBindingEnvelope(ClusterRoleBinding) error = %v", err)
 	}
-	assertFact(t, clusterWide, facts.KubernetesRBACBindingFactKind)
+	assertFact(t, clusterWide, factsidentity.KubernetesRBACBindingFactKind)
 	assertPayloadString(t, clusterWide.Payload, "binding_scope", BindingScopeCluster)
 	if payloadValueContains(clusterWide.Payload, "platform-admins") ||
 		payloadValueContains(clusterWide.Payload, "cluster-admin") {
@@ -297,7 +297,7 @@ func TestNewKubernetesWorkloadIdentityAndIRSAEnvelopes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewKubernetesWorkloadIdentityUseEnvelope() error = %v", err)
 	}
-	assertFact(t, usage, facts.KubernetesWorkloadIdentityUseFactKind)
+	assertFact(t, usage, factsidentity.KubernetesWorkloadIdentityUseFactKind)
 	if payloadValueContains(usage.Payload, "payments") || payloadValueContains(usage.Payload, "checkout-sa") {
 		t.Fatalf("workload identity payload leaked raw namespace/service account: %#v", usage.Payload)
 	}
@@ -313,7 +313,7 @@ func TestNewKubernetesWorkloadIdentityAndIRSAEnvelopes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewEKSIRSAAnnotationEnvelope() error = %v", err)
 	}
-	assertFact(t, irsa, facts.EKSIRSAAnnotationFactKind)
+	assertFact(t, irsa, factsidentity.EKSIRSAAnnotationFactKind)
 	assertPayloadString(t, irsa.Payload, "role_arn", "arn:aws:iam::123456789012:role/checkout")
 	if payloadValueContains(irsa.Payload, "payments") || payloadValueContains(irsa.Payload, "checkout-sa") {
 		t.Fatalf("IRSA payload leaked raw namespace/service account: %#v", irsa.Payload)
@@ -338,7 +338,7 @@ func TestNewKubernetesGCPWorkloadIdentityBindingEnvelopeRedactsAnnotationTarget(
 	if err != nil {
 		t.Fatalf("NewKubernetesGCPWorkloadIdentityBindingEnvelope() error = %v", err)
 	}
-	assertFact(t, env, facts.KubernetesGCPWorkloadIdentityBindingFactKind)
+	assertFact(t, env, factsidentity.KubernetesGCPWorkloadIdentityBindingFactKind)
 	if got := env.Payload["gcp_service_account_email_digest"]; got != GCPServiceAccountEmailDigest(targetEmail) {
 		t.Fatalf("gcp_service_account_email_digest = %v", got)
 	}
@@ -391,7 +391,7 @@ func TestNewEKSPodIdentityAssociationEnvelopeRedactsServiceAccount(t *testing.T)
 	if err != nil {
 		t.Fatalf("NewEKSPodIdentityAssociationEnvelope() error = %v", err)
 	}
-	assertFact(t, env, facts.EKSPodIdentityAssociationFactKind)
+	assertFact(t, env, factsidentity.EKSPodIdentityAssociationFactKind)
 	assertPayloadString(t, env.Payload, "role_arn", "arn:aws:iam::123456789012:role/checkout")
 	if payloadValueContains(env.Payload, "payments") || payloadValueContains(env.Payload, "checkout-sa") {
 		t.Fatalf("Pod Identity payload leaked raw namespace/service account: %#v", env.Payload)

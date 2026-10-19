@@ -42,7 +42,7 @@ Maps all seven Vault metadata fact families (`vault_auth_mount`,
 read-only `Client` through the `secretsiam` envelope builders. Collection is
 per-family resilient: a single family's list failure (for example a
 permission-scoped read) emits a redacted `secrets_iam_coverage_warning` fact
-(`facts.SecretsIAMCoverageWarningFactKind`; `source_state=partial`,
+(`factsidentity.SecretsIAMCoverageWarningFactKind`; `source_state=partial`,
 `resource_scope=<family>`) and collection continues, so one denied family never
 loses the whole generation — the partial state is explicit in the facts, both as
 the coverage-warning fact and as a `partial` generation freshness hint, never

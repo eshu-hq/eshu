@@ -9,6 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/facts/code"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -167,7 +168,7 @@ func fanOutParityFixture(scopeValue scope.IngestionScope, generation scope.Scope
 
 		// Earliest incident-routing candidate kind (observed PagerDuty
 		// service): incident_routing_materialization's candidate kinds are
-		// {incident.record} + facts.IncidentRoutingFactKinds(); this must win
+		// {incident.record} + factsincident.IncidentRoutingFactKinds(); this must win
 		// over the incident.record fact placed later.
 		incidentRoutingObservedServiceEnvelope("incident-routing-observed-1", scopeID, generationID),
 
@@ -351,7 +352,7 @@ func fanOutParityFixture(scopeValue scope.IngestionScope, generation scope.Scope
 
 		{
 			FactID: "secrets-iam-principal-1", ScopeID: scopeID, GenerationID: generationID,
-			FactKind: facts.AWSIAMPrincipalFactKind, SchemaVersion: mustSecretsIAMSchemaVersion(facts.AWSIAMPrincipalFactKind),
+			FactKind: factsidentity.AWSIAMPrincipalFactKind, SchemaVersion: mustSecretsIAMSchemaVersion(factsidentity.AWSIAMPrincipalFactKind),
 			CollectorKind: "secrets_iam_posture", SourceRef: facts.Ref{SourceSystem: "secrets_iam_posture"},
 			Payload: map[string]any{
 				"scope_id": scopeID, "generation_id": generationID, "provider": "aws",
@@ -391,7 +392,7 @@ func fanOutParityFixture(scopeValue scope.IngestionScope, generation scope.Scope
 // unregistered kind so a typo in the fixture fails loudly at test-init time
 // instead of silently emitting an unversioned fact.
 func mustSecretsIAMSchemaVersion(kind string) string {
-	version, ok := facts.SecretsIAMSchemaVersion(kind)
+	version, ok := factsidentity.SecretsIAMSchemaVersion(kind)
 	if !ok {
 		panic("fanOutParityFixture: kind not registered in SecretsIAMSchemaVersion: " + kind)
 	}

@@ -17,7 +17,7 @@ package factschema
 const (
 	// The incident family fact-kind strings are DOTTED, unlike the underscore
 	// aws/iam kinds. The dots are part of the wire kind the collector
-	// already emits (go/internal/facts.IncidentRecordFactKind and siblings); the
+	// already emits (go/internal/facts/incident.IncidentRecordFactKind and siblings); the
 	// values here MATCH those wire strings byte-for-byte and never invent or
 	// rename the namespace. TestFactSchemaKindsMatchWireFactKinds (reducer side)
 	// asserts each stays byte-equal to its facts.*FactKind counterpart.

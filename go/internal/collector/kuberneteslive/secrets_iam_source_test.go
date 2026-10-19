@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 )
 
 func TestSourceEmitsSecretsIAMKubernetesRBACFacts(t *testing.T) {
@@ -96,19 +96,19 @@ func TestSourceEmitsSecretsIAMKubernetesRBACFacts(t *testing.T) {
 		t.Fatalf("Next() ok = false, want true")
 	}
 	envs := drain(t, collected.Facts)
-	if got := countKind(envs, facts.KubernetesServiceAccountFactKind); got != 1 {
+	if got := countKind(envs, factsidentity.KubernetesServiceAccountFactKind); got != 1 {
 		t.Fatalf("service account facts = %d, want 1", got)
 	}
-	if got := countKind(envs, facts.KubernetesServiceAccountTokenPostureFactKind); got != 1 {
+	if got := countKind(envs, factsidentity.KubernetesServiceAccountTokenPostureFactKind); got != 1 {
 		t.Fatalf("token posture facts = %d, want 1", got)
 	}
-	if got := countKind(envs, facts.EKSIRSAAnnotationFactKind); got != 1 {
+	if got := countKind(envs, factsidentity.EKSIRSAAnnotationFactKind); got != 1 {
 		t.Fatalf("IRSA annotation facts = %d, want 1", got)
 	}
-	if got := countKind(envs, facts.KubernetesRBACRoleFactKind); got != 2 {
+	if got := countKind(envs, factsidentity.KubernetesRBACRoleFactKind); got != 2 {
 		t.Fatalf("RBAC role facts = %d, want 2", got)
 	}
-	bindings := envelopesOfKind(envs, facts.KubernetesRBACBindingFactKind)
+	bindings := envelopesOfKind(envs, factsidentity.KubernetesRBACBindingFactKind)
 	if len(bindings) != 2 {
 		t.Fatalf("RBAC binding facts = %d, want 2", len(bindings))
 	}
@@ -125,7 +125,7 @@ func TestSourceEmitsSecretsIAMKubernetesRBACFacts(t *testing.T) {
 	if !seenScopes[BindingScopeNamespace] || !seenScopes[BindingScopeCluster] {
 		t.Fatalf("binding scopes = %v, want namespace and cluster", seenScopes)
 	}
-	if got := countKind(envs, facts.KubernetesWorkloadIdentityUseFactKind); got != 1 {
+	if got := countKind(envs, factsidentity.KubernetesWorkloadIdentityUseFactKind); got != 1 {
 		t.Fatalf("workload identity use facts = %d, want 1", got)
 	}
 }
@@ -165,7 +165,7 @@ func TestSourceEmitsGCPWorkloadIdentityBindingOnlyWithConfiguredPool(t *testing.
 		t.Fatalf("Next(withPool) ok = false, want true")
 	}
 	envs := drain(t, collected.Facts)
-	bindings := envelopesOfKind(envs, facts.KubernetesGCPWorkloadIdentityBindingFactKind)
+	bindings := envelopesOfKind(envs, factsidentity.KubernetesGCPWorkloadIdentityBindingFactKind)
 	if len(bindings) != 1 {
 		t.Fatalf("GCP Workload Identity binding facts = %d, want 1: %#v", len(bindings), envs)
 	}
@@ -190,7 +190,7 @@ func TestSourceEmitsGCPWorkloadIdentityBindingOnlyWithConfiguredPool(t *testing.
 		t.Fatalf("Next(withoutPool) ok = false, want true")
 	}
 	envs = drain(t, collected.Facts)
-	if got := countKind(envs, facts.KubernetesGCPWorkloadIdentityBindingFactKind); got != 0 {
+	if got := countKind(envs, factsidentity.KubernetesGCPWorkloadIdentityBindingFactKind); got != 0 {
 		t.Fatalf("GCP Workload Identity binding facts without pool = %d, want 0", got)
 	}
 }
@@ -213,7 +213,7 @@ func TestSourceRBACForbiddenListEmitsCoverageWarning(t *testing.T) {
 		t.Fatalf("FreshnessHint = %q, want partial", collected.Generation.FreshnessHint)
 	}
 	envs := drain(t, collected.Facts)
-	if got := countKind(envs, facts.SecretsIAMCoverageWarningFactKind); got != 1 {
+	if got := countKind(envs, factsidentity.SecretsIAMCoverageWarningFactKind); got != 1 {
 		t.Fatalf("secrets/IAM coverage warnings = %d, want 1", got)
 	}
 }

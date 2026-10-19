@@ -56,7 +56,7 @@ internals.
   it changes this package's polymorphic-vs-fully-typed shape for that kind.
 - **Family boundary**: `gcp_iam_principal`, `gcp_iam_trust_policy`, and
   `gcp_iam_permission_policy` belong to the `secrets_iam` fact family
-  (`go/internal/facts/secrets_iam.go`), NOT this package. Do not add structs
+  (`go/internal/facts/identity/iam.go`), NOT this package. Do not add structs
   for those kinds here; they are a different family's scope.
 - This package defines seven fact kinds (`gcp_cloud_resource`,
   `gcp_cloud_relationship`, `gcp_collection_warning`, `gcp_dns_record`,

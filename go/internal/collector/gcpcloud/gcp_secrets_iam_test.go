@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -66,11 +67,11 @@ func TestGenerationBuildEmitsGCPSecretsIAMFacts(t *testing.T) {
 
 	// One distinct service-account principal across both bindings; group/public
 	// members never become principals.
-	if got := countKind(envelopes, facts.GCPIAMPrincipalFactKind); got != 1 {
+	if got := countKind(envelopes, factsidentity.GCPIAMPrincipalFactKind); got != 1 {
 		t.Fatalf("gcp principal fact count = %d, want 1", got)
 	}
 	// Two permission grants for the service account (secretAccessor + owner).
-	if got := countKind(envelopes, facts.GCPIAMPermissionPolicyFactKind); got != 2 {
+	if got := countKind(envelopes, factsidentity.GCPIAMPermissionPolicyFactKind); got != 2 {
 		t.Fatalf("gcp permission fact count = %d, want 2", got)
 	}
 
@@ -88,7 +89,7 @@ func TestGenerationBuildEmitsGCPSecretsIAMFacts(t *testing.T) {
 	// gcp_iam_policy_observation member fingerprint, so the reducer joins them.
 	var principalFP string
 	for _, env := range envelopes {
-		if env.FactKind == facts.GCPIAMPrincipalFactKind {
+		if env.FactKind == factsidentity.GCPIAMPrincipalFactKind {
 			principalFP = env.Payload["principal_fingerprint"].(string)
 		}
 	}
@@ -102,7 +103,7 @@ func TestGenerationBuildEmitsGCPSecretsIAMFacts(t *testing.T) {
 
 	var secretGrant, ownerGrant facts.Envelope
 	for _, env := range envelopes {
-		if env.FactKind != facts.GCPIAMPermissionPolicyFactKind {
+		if env.FactKind != factsidentity.GCPIAMPermissionPolicyFactKind {
 			continue
 		}
 		if env.Payload["principal_fingerprint"] != wantFP {
@@ -138,7 +139,7 @@ func TestGenerationBuildEmitsGCPTrustPolicyForServiceAccountImpersonation(t *tes
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	trusts := envelopesOfKind(envelopes, facts.GCPIAMTrustPolicyFactKind)
+	trusts := envelopesOfKind(envelopes, factsidentity.GCPIAMTrustPolicyFactKind)
 	if len(trusts) != 1 {
 		t.Fatalf("gcp trust policy fact count = %d, want 1: %#v", len(trusts), envelopes)
 	}
@@ -187,7 +188,7 @@ func TestGenerationBuildGCPTrustPolicyCloudResourceUIDMatchesResourceLocation(t 
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	trusts := envelopesOfKind(envelopes, facts.GCPIAMTrustPolicyFactKind)
+	trusts := envelopesOfKind(envelopes, factsidentity.GCPIAMTrustPolicyFactKind)
 	if len(trusts) != 1 {
 		t.Fatalf("gcp trust policy fact count = %d, want 1: %#v", len(trusts), envelopes)
 	}
@@ -211,10 +212,10 @@ func TestGenerationBuildSkipsGCPSecretsIAMWithoutRedactionKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if got := countKind(envelopes, facts.GCPIAMPrincipalFactKind); got != 0 {
+	if got := countKind(envelopes, factsidentity.GCPIAMPrincipalFactKind); got != 0 {
 		t.Fatalf("gcp principal fact count = %d, want 0 without a redaction key", got)
 	}
-	if got := countKind(envelopes, facts.GCPIAMPermissionPolicyFactKind); got != 0 {
+	if got := countKind(envelopes, factsidentity.GCPIAMPermissionPolicyFactKind); got != 0 {
 		t.Fatalf("gcp permission fact count = %d, want 0 without a redaction key", got)
 	}
 }

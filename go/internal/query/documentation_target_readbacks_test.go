@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -234,13 +234,13 @@ func TestBuildDocumentationTargetFactsSQLIncludesSemanticObservationProvenance(t
 	for _, want := range []string{
 		docs.EntityMentionFactKind,
 		docs.ClaimCandidateFactKind,
-		facts.SemanticDocumentationObservationFactKind,
+		semantic.SemanticDocumentationObservationFactKind,
 	} {
 		if !strings.Contains(query, "'"+want+"'") {
 			t.Fatalf("documentation target facts SQL missing %q:\n%s", want, query)
 		}
 	}
-	if strings.Contains(query, facts.SemanticCodeHintFactKind) {
+	if strings.Contains(query, semantic.SemanticCodeHintFactKind) {
 		t.Fatalf("documentation target facts SQL included code hints, want documentation provenance only:\n%s", query)
 	}
 }
@@ -256,11 +256,11 @@ func TestBuildStoryTargetDocumentationKeepsSemanticObservationProvenanceOnly(t *
 	}, documentationFindingListReadModel{
 		RelatedFacts: []map[string]any{{
 			"fact_id":   "fact:semantic-doc-observation",
-			"fact_kind": facts.SemanticDocumentationObservationFactKind,
+			"fact_kind": semantic.SemanticDocumentationObservationFactKind,
 			"payload": map[string]any{
 				"observation_type": "runbook_step",
-				"admission_state":  facts.SemanticAdmissionPartial,
-				"freshness_state":  facts.SemanticFreshnessFresh,
+				"admission_state":  semantic.SemanticAdmissionPartial,
+				"freshness_state":  semantic.SemanticFreshnessFresh,
 				"provider": map[string]any{
 					"provider_profile_id": "semantic-docs-test",
 				},
@@ -278,7 +278,7 @@ func TestBuildStoryTargetDocumentationKeepsSemanticObservationProvenanceOnly(t *
 			},
 			FindingsReturned: 0,
 			TargetFactCount:  1,
-			TargetFactKinds:  map[string]int{facts.SemanticDocumentationObservationFactKind: 1},
+			TargetFactKinds:  map[string]int{semantic.SemanticDocumentationObservationFactKind: 1},
 		},
 	})
 
@@ -293,7 +293,7 @@ func TestBuildStoryTargetDocumentationKeepsSemanticObservationProvenanceOnly(t *
 	if !ok {
 		t.Fatalf("target_fact_kinds type = %T, want map[string]int", coverage["target_fact_kinds"])
 	}
-	if gotCount := kinds[facts.SemanticDocumentationObservationFactKind]; gotCount != 1 {
+	if gotCount := kinds[semantic.SemanticDocumentationObservationFactKind]; gotCount != 1 {
 		t.Fatalf("semantic observation target_fact_kinds count = %d, want 1", gotCount)
 	}
 	if gotSummary, want := querycontract.StoryTargetDocumentationSummary(got), "External documentation has 1 target-related fact(s) but no admitted finding for this target."; gotSummary != want {

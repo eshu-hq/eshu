@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
@@ -108,7 +109,7 @@ func goldenDocumentationObservationEnvelope(t *testing.T) facts.Envelope {
 	}, []MockObservation{{
 		ObservationType:     "runtime_readiness_summary",
 		ObservationText:     "Runtime readiness requires deployed validation evidence.",
-		Confidence:          facts.SemanticConfidenceMedium,
+		Confidence:          semantic.SemanticConfidenceMedium,
 		ConfidenceRationale: "bounded fixture section states the evidence requirement",
 	}})
 	if err != nil {

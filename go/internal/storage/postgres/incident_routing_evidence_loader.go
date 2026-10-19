@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
 )
 
@@ -48,7 +49,7 @@ func (s FactStore) LoadIncidentRoutingRawEvidence(
 	scopeID string,
 	generationID string,
 ) (incident.IncidentRoutingRawEvidence, error) {
-	factKinds := append([]string{facts.IncidentRecordFactKind}, facts.IncidentRoutingFactKinds()...)
+	factKinds := append([]string{factsincident.IncidentRecordFactKind}, factsincident.IncidentRoutingFactKinds()...)
 	envelopes, err := s.ListFactsByKind(ctx, scopeID, generationID, factKinds)
 	if err != nil {
 		return incident.IncidentRoutingRawEvidence{}, err
@@ -139,7 +140,7 @@ func (s FactStore) loadIncidentRoutingDeclaredEvidence(
 func incidentRoutingServiceNameAllowlistFromEnvelopes(envelopes []facts.Envelope) []string {
 	seen := make(map[string]struct{})
 	for _, envelope := range envelopes {
-		if envelope.IsTombstone || envelope.FactKind != facts.IncidentRecordFactKind {
+		if envelope.IsTombstone || envelope.FactKind != factsincident.IncidentRecordFactKind {
 			continue
 		}
 		service := incidentRoutingPayloadMap(envelope.Payload, "service")

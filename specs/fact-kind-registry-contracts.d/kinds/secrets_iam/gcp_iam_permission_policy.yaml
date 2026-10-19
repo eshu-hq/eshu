@@ -9,4 +9,4 @@ producers:
     - secrets-iam-posture
 reducer_bindings:
     - secretsiam/secretsiam_build_secrets_i_a_m_trust_chain_read_models
-declaration: go/internal/facts/secrets_iam.go:197
+declaration: go/internal/facts/identity/iam.go:197

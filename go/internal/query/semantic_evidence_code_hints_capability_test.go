@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 )
 
 // TestSemanticEvidenceHandlerListsCodeHintsWithTruthMetadata proves the
@@ -18,9 +18,9 @@ import (
 // SemanticEvidenceHandler.listSemanticEvidence
 // (TestSemanticEvidenceHandlerListsDocumentationObservationsWithTruthMetadata)
 // drives it through the documentation-observations route with fact kind
-// facts.SemanticDocumentationObservationFactKind; the code-hints route
+// semantic.SemanticDocumentationObservationFactKind; the code-hints route
 // dispatches the same shared handler with
-// facts.SemanticCodeHintFactKind and the "code_hints" response key, and had
+// semantic.SemanticCodeHintFactKind and the "code_hints" response key, and had
 // no route-level assertion of its own before this test (issue #5681
 // cluster A).
 func TestSemanticEvidenceHandlerListsCodeHintsWithTruthMetadata(t *testing.T) {
@@ -30,14 +30,14 @@ func TestSemanticEvidenceHandlerListsCodeHintsWithTruthMetadata(t *testing.T) {
 		readModel: semanticEvidenceListReadModel{
 			Rows: []map[string]any{{
 				"fact_id":             "fact:semantic-hint-1",
-				"fact_kind":           facts.SemanticCodeHintFactKind,
+				"fact_kind":           semantic.SemanticCodeHintFactKind,
 				"truth_basis":         "semantic_observation",
 				"provider_profile_id": "semantic-hints-default",
 				"hint_type":           "likely_relationship",
 				"target_kind":         "function",
 				"target_id":           "function-1",
-				"freshness_state":     facts.SemanticFreshnessFresh,
-				"policy_state":        facts.SemanticPolicyAllowed,
+				"freshness_state":     semantic.SemanticFreshnessFresh,
+				"policy_state":        semantic.SemanticPolicyAllowed,
 			}},
 		},
 	}
@@ -57,7 +57,7 @@ func TestSemanticEvidenceHandlerListsCodeHintsWithTruthMetadata(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if got, want := store.filter.FactKind, facts.SemanticCodeHintFactKind; got != want {
+	if got, want := store.filter.FactKind, semantic.SemanticCodeHintFactKind; got != want {
 		t.Fatalf("filter.FactKind = %q, want %q", got, want)
 	}
 	if got, want := store.filter.HintType, "likely_relationship"; got != want {
@@ -90,7 +90,7 @@ func TestSemanticEvidenceHandlerListsCodeHintsWithTruthMetadata(t *testing.T) {
 	if !ok {
 		t.Fatalf("code_hints[0] type = %T, want map[string]any", rows[0])
 	}
-	if got, want := row["fact_kind"], facts.SemanticCodeHintFactKind; got != want {
+	if got, want := row["fact_kind"], semantic.SemanticCodeHintFactKind; got != want {
 		t.Fatalf("code_hints[0][fact_kind] = %#v, want %#v", got, want)
 	}
 	if got, want := row["hint_type"], "likely_relationship"; got != want {

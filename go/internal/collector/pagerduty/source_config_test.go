@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
 )
 
 func TestClaimedSourceEmitsObservedPagerDutyConfigFactsWhenEnabled(t *testing.T) {
@@ -69,10 +69,10 @@ func TestClaimedSourceEmitsObservedPagerDutyConfigFactsWhenEnabled(t *testing.T)
 	}
 	envs := drainFacts(collected.Facts)
 	counts := factKindCounts(envs)
-	if got, want := counts[facts.IncidentRoutingObservedPagerDutyServiceFactKind], 1; got != want {
+	if got, want := counts[factsincident.IncidentRoutingObservedPagerDutyServiceFactKind], 1; got != want {
 		t.Fatalf("observed service facts = %d, want %d; counts %#v", got, want, counts)
 	}
-	if got, want := counts[facts.IncidentRoutingObservedPagerDutyIntegrationFactKind], 1; got != want {
+	if got, want := counts[factsincident.IncidentRoutingObservedPagerDutyIntegrationFactKind], 1; got != want {
 		t.Fatalf("observed integration facts = %d, want %d; counts %#v", got, want, counts)
 	}
 	for _, env := range envs {
@@ -119,7 +119,7 @@ func TestClaimedSourceSkipsLiveConfigWhenDisabled(t *testing.T) {
 		t.Fatalf("config calls = %d, want 0 when config validation is disabled", client.configCalls)
 	}
 	counts := factKindCounts(drainFacts(collected.Facts))
-	if got := counts[facts.IncidentRoutingObservedPagerDutyServiceFactKind]; got != 0 {
+	if got := counts[factsincident.IncidentRoutingObservedPagerDutyServiceFactKind]; got != 0 {
 		t.Fatalf("observed service facts = %d, want 0", got)
 	}
 }
@@ -165,11 +165,11 @@ func TestClaimedSourceEmitsCoverageWarningForPartialLiveConfigFailures(t *testin
 	}
 	envs := drainFacts(collected.Facts)
 	counts := factKindCounts(envs)
-	if got, want := counts[facts.IncidentRoutingCoverageWarningFactKind], 1; got != want {
+	if got, want := counts[factsincident.IncidentRoutingCoverageWarningFactKind], 1; got != want {
 		t.Fatalf("coverage warnings = %d, want %d; counts %#v", got, want, counts)
 	}
 	for _, env := range envs {
-		if env.FactKind != facts.IncidentRoutingCoverageWarningFactKind {
+		if env.FactKind != factsincident.IncidentRoutingCoverageWarningFactKind {
 			continue
 		}
 		if got, want := env.Payload["source_class"], ConfigSourceClassObserved; got != want {

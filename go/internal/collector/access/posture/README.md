@@ -27,7 +27,7 @@ See `doc.go` for the godoc contract.
   `NewPermissionPolicyEnvelope`, `NewPolicyAttachmentEnvelope`,
   `NewPermissionBoundaryEnvelope`, `NewInstanceProfileEnvelope`,
   `NewAccessAnalyzerFindingEnvelope`, and `NewCoverageWarningEnvelope` build
-  AWS IAM source facts in the `facts.SecretsIAMSchemaVersionV1` schema.
+  AWS IAM source facts in the `factsidentity.SecretsIAMSchemaVersionV1` schema.
   Permission-policy facts accept inline, attached managed, and
   permissions-boundary policy sources; trust policies use the dedicated trust
   envelope.

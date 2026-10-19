@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 )
 
 type filteringIAMCanPerformFactLoader struct {
@@ -63,7 +64,7 @@ func TestIAMCanPerformHandlerLoadsPermissionBoundaryFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
 	}
-	if !factKindRequested(loader.factKinds, facts.AWSIAMPermissionBoundaryFactKind) {
+	if !factKindRequested(loader.factKinds, factsidentity.AWSIAMPermissionBoundaryFactKind) {
 		t.Fatalf("requested fact kinds = %v, want aws_iam_permission_boundary included", loader.factKinds)
 	}
 	if result.CanonicalWrites != 1 || len(writer.edgeRows) != 1 {

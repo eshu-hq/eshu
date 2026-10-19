@@ -4,7 +4,7 @@
 package secretsiam
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
@@ -59,7 +59,7 @@ func secretsIAMRoleCloudResourceUID(roleARN string, principals []secretsIAMPrinc
 // pod_identity; IRSA annotations are web_identity. It never encodes a role name,
 // ARN, or account value.
 func secretsIAMRoleAssumeMode(roleEvidenceKind string) string {
-	if roleEvidenceKind == facts.EKSPodIdentityAssociationFactKind {
+	if roleEvidenceKind == factsidentity.EKSPodIdentityAssociationFactKind {
 		return secretsIAMAssumeModePodIdentity
 	}
 	return secretsIAMAssumeModeWebIdentity
