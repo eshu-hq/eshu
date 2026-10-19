@@ -45,6 +45,7 @@ const (
 	IAMCanPerformFamilyOduName                  = familyodu.IAMCanPerformFamilyOduName
 	IAMEscalationFamilyOduName                  = familyodu.IAMEscalationFamilyOduName
 	IAMInstanceProfileRoleFamilyOduName         = familyodu.IAMInstanceProfileRoleFamilyOduName
+	IncidentRoutingEvidenceFamilyOduName        = familyodu.IncidentRoutingEvidenceFamilyOduName
 	InheritanceFamilyOduName                    = familyodu.InheritanceFamilyOduName
 	ObservabilityCoverageFamilyOduName          = familyodu.ObservabilityCoverageFamilyOduName
 	KubernetesCorrelationFamilyOduName          = familyodu.KubernetesCorrelationFamilyOduName
@@ -228,6 +229,11 @@ func SemanticEntityContainmentFamilyOdu() CatalogOdu {
 // IAMInstanceProfileRoleFamilyOdu returns the cataloged instance-profile-role family Odù.
 func IAMInstanceProfileRoleFamilyOdu() CatalogOdu {
 	return familyodu.IAMInstanceProfileRoleFamilyOdu()
+}
+
+// IncidentRoutingEvidenceFamilyOdu returns the cataloged incident-routing-evidence family Odù.
+func IncidentRoutingEvidenceFamilyOdu() CatalogOdu {
+	return familyodu.IncidentRoutingEvidenceFamilyOdu()
 }
 
 // InheritanceFamilyOdu returns the cataloged inheritance family Odù.

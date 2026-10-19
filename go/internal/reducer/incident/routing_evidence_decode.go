@@ -38,6 +38,86 @@ type IncidentRoutingRawEvidence struct {
 	Declared []IncidentRoutingDeclaredEvidence
 }
 
+// BuildIncidentRoutingEvidenceInputs is the exported cross-package seam over
+// buildIncidentRoutingEvidenceInputs: identical behavior, one call deep, so
+// offline guards (Ifá #6228) drive the production builder rather than a
+// hand-built IncidentRoutingEvidenceInput. The unexported name stays put:
+// IncidentContextBuildIncidentRoutingEvidenceInputsBinding and
+// IncidentRoutingBuildIncidentRoutingEvidenceInputsBinding (fact_bindings.go)
+// pin it as their Symbol.
+func BuildIncidentRoutingEvidenceInputs(
+	raw IncidentRoutingRawEvidence,
+) ([]IncidentRoutingEvidenceInput, []factdecode.QuarantinedFact, error) {
+	return buildIncidentRoutingEvidenceInputs(raw)
+}
+
+// DecodeIncidentRoutingDeclaredEvidence maps one content_entities
+// PagerDutyDeclaration row — its scanned columns plus its metadata map — into
+// the reducer declared-evidence model. It is the single copy of the
+// metadata-to-Declared field mapping: the Postgres storage loader calls it
+// per scanned row, and offline guards call it over production-parser-derived
+// metadata, so the two can never drift on which metadata key feeds which
+// field.
+//
+// The metadata half is outside the fact-payload contract boundary (Contract
+// System v1 §3.2): content-entity metadata, not a fact payload. A missing key
+// therefore reads as its empty value exactly as the pre-typing loader's raw
+// map reads did, never as an input_invalid quarantine — only the fact-payload
+// half of IncidentRoutingRawEvidence routes through the typed decode seam.
+func DecodeIncidentRoutingDeclaredEvidence(
+	entityID string,
+	repoID string,
+	relativePath string,
+	entityName string,
+	startLine int,
+	metadata map[string]any,
+) IncidentRoutingDeclaredEvidence {
+	return IncidentRoutingDeclaredEvidence{
+		EntityID:              entityID,
+		RepoID:                repoID,
+		RelativePath:          relativePath,
+		EntityName:            entityName,
+		DeclarationKind:       declaredEvidenceString(metadata, "declaration_kind"),
+		SourceClass:           declaredEvidenceString(metadata, "source_class"),
+		Outcome:               declaredEvidenceString(metadata, "outcome"),
+		ServiceName:           declaredEvidenceString(metadata, "service_name"),
+		ServiceNameResolution: declaredEvidenceString(metadata, "service_name_resolution"),
+		EscalationPolicy:      declaredEvidenceString(metadata, "escalation_policy"),
+		Environment:           declaredEvidenceString(metadata, "environment"),
+		Workspace:             declaredEvidenceString(metadata, "workspace"),
+		RedactionState:        declaredEvidenceString(metadata, "redaction_state"),
+		UnsupportedReason:     declaredEvidenceString(metadata, "unsupported_reason"),
+		DuplicateServiceName:  declaredEvidenceBool(metadata, "duplicate_service_name"),
+		StartLine:             startLine,
+	}
+}
+
+// declaredEvidenceString reads one metadata field the way the pre-typing
+// loader did: absent or null reads as "", a string is trimmed, and any other
+// scalar renders in its default form before trimming.
+func declaredEvidenceString(metadata map[string]any, key string) string {
+	value, ok := metadata[key]
+	if !ok || value == nil {
+		return ""
+	}
+	if typed, ok := value.(string); ok {
+		return strings.TrimSpace(typed)
+	}
+	return strings.TrimSpace(payloadcore.AnyToString(value))
+}
+
+// declaredEvidenceBool reads one metadata boolean the way the pre-typing
+// loader did: only a true boolean admits; absent, null, or any non-boolean
+// reads as false.
+func declaredEvidenceBool(metadata map[string]any, key string) bool {
+	value, ok := metadata[key]
+	if !ok || value == nil {
+		return false
+	}
+	typed, ok := value.(bool)
+	return ok && typed
+}
+
 // buildIncidentRoutingEvidenceInputs decodes the raw incident-routing fact
 // envelopes into the typed reducer evidence model, one IncidentRoutingEvidenceInput
 // per successfully decoded incident.record fact, and returns any facts it

@@ -93,14 +93,15 @@ func (s FactStore) loadIncidentRoutingDeclaredEvidence(
 
 	out := make([]incident.IncidentRoutingDeclaredEvidence, 0)
 	for rows.Next() {
-		var item incident.IncidentRoutingDeclaredEvidence
+		var entityID, repoID, relativePath, entityName string
+		var startLine int
 		var metadataBytes []byte
 		if err := rows.Scan(
-			&item.EntityID,
-			&item.RepoID,
-			&item.RelativePath,
-			&item.EntityName,
-			&item.StartLine,
+			&entityID,
+			&repoID,
+			&relativePath,
+			&entityName,
+			&startLine,
 			&metadataBytes,
 		); err != nil {
 			return nil, fmt.Errorf("scan incident routing declared evidence: %w", err)
@@ -109,18 +110,19 @@ func (s FactStore) loadIncidentRoutingDeclaredEvidence(
 		if err := json.Unmarshal(metadataBytes, &metadata); err != nil {
 			return nil, fmt.Errorf("decode incident routing declared evidence metadata: %w", err)
 		}
-		item.DeclarationKind = incidentRoutingPayloadString(metadata, "declaration_kind")
-		item.SourceClass = incidentRoutingPayloadString(metadata, "source_class")
-		item.Outcome = incidentRoutingPayloadString(metadata, "outcome")
-		item.ServiceName = incidentRoutingPayloadString(metadata, "service_name")
-		item.ServiceNameResolution = incidentRoutingPayloadString(metadata, "service_name_resolution")
-		item.EscalationPolicy = incidentRoutingPayloadString(metadata, "escalation_policy")
-		item.Environment = incidentRoutingPayloadString(metadata, "environment")
-		item.Workspace = incidentRoutingPayloadString(metadata, "workspace")
-		item.RedactionState = incidentRoutingPayloadString(metadata, "redaction_state")
-		item.UnsupportedReason = incidentRoutingPayloadString(metadata, "unsupported_reason")
-		item.DuplicateServiceName = incidentRoutingPayloadBool(metadata, "duplicate_service_name")
-		out = append(out, item)
+		// The metadata-to-Declared field mapping lives in exactly one place:
+		// incident.DecodeIncidentRoutingDeclaredEvidence. The loader scans
+		// columns and JSON here (storage concerns) and decodes through that
+		// shared seam, so offline guards prove the same mapping production
+		// reads. The SQL above is untouched.
+		out = append(out, incident.DecodeIncidentRoutingDeclaredEvidence(
+			entityID,
+			repoID,
+			relativePath,
+			entityName,
+			startLine,
+			metadata,
+		))
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate incident routing declared evidence: %w", err)
@@ -167,15 +169,6 @@ func incidentRoutingPayloadString(payload map[string]any, key string) string {
 		return strings.TrimSpace(typed)
 	}
 	return strings.TrimSpace(fmt.Sprint(value))
-}
-
-func incidentRoutingPayloadBool(payload map[string]any, key string) bool {
-	value, ok := payload[key]
-	if !ok || value == nil {
-		return false
-	}
-	typed, ok := value.(bool)
-	return ok && typed
 }
 
 func incidentRoutingPayloadMap(payload map[string]any, key string) map[string]any {

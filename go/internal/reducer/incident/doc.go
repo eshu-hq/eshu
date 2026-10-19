@@ -12,9 +12,13 @@
 // the contract package's DomainIncidentRoutingMaterialization. It loads the
 // RAW incident-context and incident-routing fact envelopes through
 // [IncidentRoutingEvidenceLoader], decodes each through the typed contracts
-// seam (buildIncidentRoutingEvidenceInputs), and projects only full
+// seam (buildIncidentRoutingEvidenceInputs, exported for offline guards as
+// [BuildIncidentRoutingEvidenceInputs]), and projects only full
 // declared/applied/observed exact convergence — or exact live-only no-IaC
-// evidence — into graph rows via [ExtractIncidentRoutingEvidenceRows].
+// evidence — into graph rows via [ExtractIncidentRoutingEvidenceRows]. The
+// declared half stays storage-decoded from content_entities metadata through
+// the shared [DecodeIncidentRoutingDeclaredEvidence] seam, never hand-mapped
+// per call site.
 // Drifted, stale, permission-hidden, ambiguous, unresolved, rejected,
 // derived, and missing evidence stays provenance-only. A fact whose payload
 // is missing a required field is quarantined per-fact as an input_invalid
