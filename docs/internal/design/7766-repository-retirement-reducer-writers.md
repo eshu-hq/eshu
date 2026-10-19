@@ -248,7 +248,7 @@ on the list, status, and freshness surfaces, and unlabelled elsewhere (see
 
 How much replays depends on the replay floor. It is the active generation or,
 with a NULL pointer, the latest generation of any status
-(`scopeReplayFloorCTE`, `ingestion_reopen_correlation.go`), and the bound
+(`scopeReplayFloorCTE`, `storage/postgres/backfill/reopen_sql.go:16`), and the bound
 excludes only `work_generation.status <> 'failed'` (`scopeReplayFloorBound`).
 If the newest generation is the never-projected pending one, which is the
 realistic shape, it has no succeeded rows and nothing reopens. If it is the

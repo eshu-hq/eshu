@@ -42,7 +42,7 @@ what make the order safe.
 | 2d, purge | `running`, `blocked/scope_lock_busy` | `purge` | Below |
 | 2d', lease settle | `running`, `next_attempt_at` in the future | set by the last 2d batch: `census` | Below |
 | 2e, repo-keyed leftovers | `running` | `census` | Below |
-| 2z, residue census | `running`, `failed/graph_residue` | `census` | Below |
+| 2z, residue census | `running`, `failed/postgres_residue`, `failed/graph_residue` | `census` | Below |
 
 2q re-runs on every runner resume while the phase is before `purge`, because a
 resumed runner cannot assume the queue stayed quiet.
@@ -54,7 +54,8 @@ resumed runner cannot assume the queue stayed quiet.
   overwritten, so a re-run of 2c after G6 has cleared `Repository.path` and 2d/2e
   have deleted `content_files` still has it (see
   [Parameter nodes](#parameter-nodes-g5p)). An empty root goes to `failed`,
-  `failure_class=repository_root_unknown`.
+  `failure_class=repository_root_unknown`. A root shared with another
+  Repository skips G5p and is recorded, not failed (same section).
 - **2d, purge (`state=running`):** each batch is one transaction:
   1. `SELECT ... FROM ingestion_scopes WHERE scope_id = ANY FOR NO KEY UPDATE SKIP LOCKED`.
      This is the `retention:<scope_id>` domain, and it conflicts with
@@ -84,7 +85,9 @@ resumed runner cannot assume the queue stayed quiet.
      the [census](7766-repository-retirement-table-census.md#relationship-tables)
      explains why this runs here and not in 2e.
   5. `rows_deleted = rows_deleted + batch` in the same transaction, then commit.
-- **2d', lease settle.** When the last 2d batch commits, set `phase='census'`
+- **2d', lease settle.** The last 2d batch is the one whose post-delete check
+  finds no remaining generation of the scopes, or an empty batch when the
+  previous one removed exactly `BatchGenerationLimit`. When it commits, set `phase='census'`
   and `next_attempt_at = clock_timestamp() + ReducerQueue.LeaseDuration` in the
   same transaction. The runner's claim honours `next_attempt_at` through
   `repository_retirements_runnable_idx`, so 2e and 2z run no earlier than one
@@ -115,15 +118,21 @@ resumed runner cannot assume the queue stayed quiet.
 - **2z, residue census** (before phase 3):
   - Postgres: 0 rows of the scopes in `fact_work_items`,
     `shared_projection_intents`, `shared_projection_unroutable_intents`, and
-    `shared_projection_acceptance`.
+    `shared_projection_acceptance`; 0 intents and unroutable intents with
+    `repository_id = $repo` under any scope; and 0 rows of the three
+    relationship tables with `source_repo_id = $repo`. Other repositories'
+    reducers write the last two (see the writer table in the main design).
   - Graph: the P10 census, anchored by repo id, plus a count of `Parameter`
-    nodes under the G5p predicate, because Parameters carry no `repo_id`. The
+    nodes under the G5p predicate (skipped when the root is shared), because
+    Parameters carry no `repo_id`. The
     runtime census must be index-anchored; P10' proves it (`PROFILE`, db hits at
     most 2x at 10x store). If it cannot be anchored, restrict it to the label
     and edge families in the plan table below.
-  - Dirty: re-run 2c once and re-census.
-  - Still dirty: `state=failed`, `failure_class=graph_residue`, the census in
-    `failure_details`. A re-issue resumes at 2c.
+  - Dirty: re-run once from the owning step, 2b for Postgres residue (it also
+    re-runs 2b', 2c, and the purge) and 2c for graph residue, then re-census.
+  - Still dirty: `state=failed`, `failure_class=postgres_residue` or
+    `graph_residue`, the census in `failure_details`. A re-issue resumes at 2b
+    or 2c to match.
   - A retirement never reaches `complete` with residue that a lease-abiding
     writer could have produced; 2z is the census that proves it.
 
@@ -179,14 +188,16 @@ Failure handling:
 - transient errors (40001, 40P01, 55P03, retryable graph errors) back off
   exponentially, capped at 5 min;
 - non-transient errors (`failure_class` bounded) go to `failed` after 5 attempts;
-- 2z residue goes to `failed/graph_residue` without retrying;
+- 2z residue goes to `failed/postgres_residue` or `failed/graph_residue`
+  without retrying;
 - re-issuing the retire request (new key) resets `failed` → `pending` on the
-  same row.
+  same row, in phase 1's step 7g, and keeps `phase` and the cursor.
 
 ## Graph Retraction
 
-The API holds no graph write credential
-(`graph-rebuild-from-facts.md:71-72`), so the graph steps run in the reducer.
+Graph writes belong to the reducer, and the recovery code holds no graph write
+credential (`graph-rebuild-from-facts.md:71-72`), so the graph steps run in the
+reducer.
 The order is reducer-owned edges, then projector-owned nodes, then the
 Repository node:
 
@@ -197,6 +208,7 @@ Repository node:
 | G3 | `RetractEdges(documentation_edges, buildDocumentationScopeRetractRows(scope_ids))` (`reducer/documentation_edge_delta_scope.go:289`) | `DOCUMENTS` by `section.scope_id` |
 | G4 | `RetractSingleRepoRelationshipEdgesCypher`, `RetractSingleRepoRunsOnEdgesCypher`, `RetractSingleRepoEvidenceArtifactsCypher` (`canonical_relationships.go:355-386`) | Repo-anchored relationship edges and evidence artifacts |
 | G5 | `CanonicalNodeWriter.buildRetractStatements` + `buildEntityRetractStatements` (`storage/cypher/canonical_node_writer_retract.go:17-144`) with `RepoID`, sentinel `GenerationID="retired:<retirement_id>"`, no files, `FirstGeneration=false`, `DeltaProjection=false`, `Drain=true` | Every projector-owned File, Directory, and entity node of the repo, and every relationship on them |
+| G5f | New repo-anchored File retract, `Drain=true`: `MATCH (f:File) WHERE f.repo_id = $repo_id AND f.evidence_source = 'projector/canonical' DETACH DELETE f`. G5's file retract anchors on the Repository node (`storage/cypher/canonical/node/templates.go:11-13`), which the path-conflict cleanup may already have deleted (`:148-153`). No `File.repo_id` index exists; PR 6 adds one. | Files of the retired id that G5 cannot reach. `File.path` is unique (`graph/schema_tables.go:20`), so a file the live owner also projects carries the live id and is not matched. |
 | G5p | New prefix-bound Parameter retract, `Drain=true` (see [Parameter nodes](#parameter-nodes-g5p)) | Every projector-owned Parameter node under the repository root, of any generation |
 | G6 | New statement (below) | Demotes the Repository node |
 
@@ -234,9 +246,19 @@ DETACH DELETE p
 ```
 
 - **`$root_prefix`** is `graph_repo_root + '/'`. The root is read once, at 2c
-  entry, with the precedence `BuildMaterialization` uses: the Repository node's
-  `path`, else the scope's `metadata.repo_path`
-  (`projector/canonical/builder.go:47`, `:68-70`).
+  entry, with the precedence `BuildMaterialization` uses: the repository fact's
+  `path` in the scope's newest generation, else the scope's `metadata.repo_path`
+  (`projector/canonical/builder.go:47`, `:64-71`).
+- **A shared root skips G5p.** Two repository ids can hold one path: the
+  path-conflict cleanup deletes the old Repository node when a repository is
+  re-keyed or moved (`storage/cypher/canonical_node_writer_phases.go:44-112`),
+  and the old scope stays in Postgres. That stale copy is what an operator
+  retires. Parameters share one key across both ids, so the live owner's
+  Parameters sit under the same root. When another Repository's `path` equals
+  the root or is a parent of it, the runner skips G5p and the 2z Parameter
+  count, and records `parameter_retract=skipped_root_shared` with the other
+  repository id in the census. Parameters that only the retired copy wrote stay;
+  no key reaches them, and they are a stated residual.
 - **`$nested_root_prefixes`** is `path + '/'` of every other Repository whose
   `path` starts with `$root_prefix`, read just before each G5p batch through the
   `repository_path` uniqueness index (`graph/schema_tables.go:17`). A checkout
@@ -327,7 +349,8 @@ Reasons:
   work keyed on them; whether that is wanted for a retired id is NOT_CHECKED.
 - If an owner names the id again after the reap, the documented path-less stub
   (`resolver/cross-repo`) re-appears and is counted.
-- Read surfaces resolve a node's state from the tombstone first, so a stub under
-  a retired id still reads `retired`.
+- Read surfaces resolve a node's state from the open tombstone first
+  (`readmitted_at IS NULL`), so a stub under a retired id still reads `retired`,
+  and a re-admitted repository reads `indexed`.
 - On re-admission, the canonical upsert `MERGE` by id re-promotes the node and
   rewrites every owned property, which adopts the existing incoming edges.

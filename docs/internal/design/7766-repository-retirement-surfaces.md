@@ -22,8 +22,11 @@ c88c3806a (see the [corrections](7766-repository-retirement-corrections.md#re-an
 
 The bounded `index_state` is `indexed | stub | retiring | retired`, derived in
 this order:
-1. an open tombstone in a non-`complete` state → `retiring`;
-2. a `complete` tombstone → `retired`;
+1. an open tombstone (`readmitted_at IS NULL`) in a non-`complete` state →
+   `retiring`;
+2. an open `complete` tombstone → `retired`. A re-admitted row has
+   `readmitted_at` set and labels nothing, so a re-indexed repository reads
+   `indexed`;
 3. otherwise `evidence_source = 'projector/canonical'` → `indexed`;
 4. else `stub`.
 
@@ -38,10 +41,10 @@ Retiring and retired rows also carry `retirement` = {`state` (policy enum),
 
 | Surface | Change |
 | --- | --- |
-| GET `/api/v0/repositories` (`query/repository/handler.go:141-233`) | Graph path: add `r.evidence_source` to the page query and look up tombstones for the page ids only (`WHERE repo_id = ANY($page_ids)`, in a new `retirement_state.go`; `//nolint:dirgate` at `query/repository/doc.go:16` waives only the naming rule, so the file needs a `Dirgate-Growth:` trailer, 48 non-test files today). Content path (`content_reader_repository_catalog.go:16-32` reads `ingestion_scopes WHERE scope_kind='repository'`): `UNION ALL` the complete tombstones that have no scope row. Nothing is dropped from the list; every row is labelled. `total` stays the node count. |
+| GET `/api/v0/repositories` (`query/repository/handler.go:141-233`) | Graph path: add `r.evidence_source` to the page query and look up open tombstones for the page ids only (`WHERE repo_id = ANY($page_ids) AND readmitted_at IS NULL`, in a new `retirement_state.go`; the directory has 48 non-test files and no `//nolint:dirgate` marker since e6bce901f, so the file needs a `Dirgate-Growth:` trailer). Content path (`content_reader_repository_catalog.go:16-32` reads `ingestion_scopes WHERE scope_kind='repository'`): `UNION ALL` the complete tombstones that have no scope row. Nothing is dropped from the list; every row is labelled. `total` stays the node count. |
 | MCP `list_indexed_repositories` (`mcp/dispatch_repositories.go:74`, routes to the above) | Picks up the fields; the tool description in `tools_codebase.go:227` names `index_state` (mcp-schema-drift). |
 | `/api/v0/index-status`, MCP `get_index_status` (`query/status.go:276-316`) | `repository_count` keeps its query, including #8395's 5xx through `WriteGraphReadError` when the count fails; the by-state count uses the same mapping. Adds `repository_count_by_state{indexed,stub}` from `MATCH (r:Repository) WITH r.evidence_source = 'projector/canonical' AS idx RETURN idx, count(*)`. Adds a `repository_retirements` block: counts by state, `oldest_pending_age_seconds`, `last_completed_at`. Counts only, no ids. |
-| Freshness (`status/repository_freshness.go:22-27`, computed at `:183-205`) | The verdict is a closed set today (`current`, `building`, `behind`, `unobserved`, `not_selected`, `unknown`), and nothing in it knows a tombstone. Add `retiring` and `retired` to `RepositoryFreshnessVerdict` as rule 0, from a tombstone lookup by `repo_id` that runs before `repositoryFreshnessResolveQuery`: an open non-`complete` row gives `retiring`, a `complete` row gives `retired`. The snapshot gains `Retirement *RepositoryFreshnessRetirement`. |
+| Freshness (`status/repository_freshness.go:22-27`, computed at `:183-205`) | The verdict is a closed set today (`current`, `building`, `behind`, `unobserved`, `not_selected`, `unknown`), and nothing in it knows a tombstone. Add `retiring` and `retired` to `RepositoryFreshnessVerdict` as rule 0, from a tombstone lookup by `repo_id` that runs before `repositoryFreshnessResolveQuery`: an open (`readmitted_at IS NULL`) non-`complete` row gives `retiring`, and an open `complete` row gives `retired`; a re-admitted row gives nothing. The snapshot gains `Retirement *RepositoryFreshnessRetirement`. |
 | Console (`apps/console/src/api/repoCatalog.ts`) | Badge from `index_state`; retired and retiring rows are muted, not hidden. |
 
 ### Deliverable 1: Labelled And Unlabelled

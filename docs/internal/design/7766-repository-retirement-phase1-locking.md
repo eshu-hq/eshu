@@ -80,17 +80,21 @@ to write the response. Each wait is bounded by `min(its own bound, remaining)`:
    fence starts (I0).
 2. Step 3, the advisory wait: `set_config('lock_timeout', <ms>, true)` with
    `<ms> = remaining - fenceReserve`, computed at that moment and not a
-   constant. `fenceReserve` is 35 s (the 30 s fence budget plus 5 s for steps 4
-   to 8). If that is not positive, return 409 `lock_timeout` without taking the
+   constant. `fenceReserve` is 40 s (the 30 s fence budget, 5 s for the step 5
+   scope-row lock, and 5 s for steps 7 and 8). If that is not positive, return 409 `lock_timeout` without taking the
    key. The advisory wait convoys nothing: a commit waiting on it holds no
    `fact_work_items` lock. It may already hold workflow-control rows
    (`HeartbeatClaim` at `ingestion.go:206` writes `workflow_claims`), so
    `ingestion.go:212` does not precede every write, but nothing before it
    touches `fact_work_items` or `ingestion_scopes`. Only this repository's
    commits queue behind the key, which is the intent.
-3. Step 6, the fence: `set_config('lock_timeout','1s',true)` immediately before
+3. Step 5, the scope-row lock: `min(5 s, remaining)`.
+4. Step 6, the fence: `set_config('lock_timeout','1s',true)` immediately before
    it. This is the pattern in `activation/sql.go:63`: a short wait plus a
    deferred retry. The total fence budget is `min(30 s, remaining)`.
+5. Steps 7 and 8, the fenced writes and the assert: `lock_timeout`
+   `min(5 s, remaining)`, set after the grant (see
+   [reuse](#reuse-of-the-7852-fence), item 4).
 
 On `55P03` at step 6: roll back, sleep a jittered 100 to 500 ms, and restart at
 step 1, with every wait recomputed from the remaining deadline. When the
@@ -110,36 +114,42 @@ defect. #7852 fixed it with this shape (`rebuild/reset/claim_fence.go:16-20`,
 
 ### Reuse Of The #7852 Fence
 
-PR 5 extracts the shipped pieces and reuses them unchanged:
-- the acquisition: `lock_timeout` 1 s set just before `LOCK TABLE
-  fact_work_items IN EXCLUSIVE MODE`, and the prior value restored after the
-  grant (`claim_fence.go:16`, `:206`, `:212`, `:220-222`), with
-  `ClaimFenceLockTimeoutError` on a timeout;
-- the 100 to 500 ms jitter (`rebuild/reset/retry.go:71-74`), the 30 s budget constant
-  (`claim_fence.go:20`), and the `blocked/claim_fence_busy` sentinel
-  (`recovery/replay.go:16-18`);
-- the retry wrapper, made generic over its result type, with refinalize kept as
-  a thin wrapper. The pair-bound recheck (`claim_fence.go:223`) moves out of the
-  acquisition.
+PR 5 reuses these #7852 pieces unchanged:
+- the lock statement and its timeout handling: `lock_timeout` 1 s set just
+  before `LOCK TABLE fact_work_items IN EXCLUSIVE MODE`, and the prior value
+  restored after the grant (`claim_fence.go:16`, `:206`, `:212`, `:220-222`).
+  `ClaimFenceLockTimeoutError` wraps any error of that statement
+  (`claim_fence.go:212-214`); the retry loop retries only its `55P03`;
+- the 100 to 500 ms jitter (`rebuild/reset/retry.go:71-74`), the 30 s budget
+  constant (`claim_fence.go:20`), and the `blocked/claim_fence_busy` sentinel
+  (`recovery/replay.go:16-18`).
 
-Phase 1 differs from refinalize in four ways, decided here:
-1. **The fence budget counts fence time only.** Phase 1 counts the time inside
-   fence attempts and their backoff against the 30 s budget. The shipped
-   `FenceAdmissionBudget` starts at the first attempt and counts re-reads and
-   re-drains too (`claim_fence.go:23-129`), which would cap a re-drain at the
-   rest of 30 s. The drain and the advisory wait stay under the 5 min 30 s
-   deadline.
-2. **A live lease at the recheck restarts.** It rolls back and restarts at step
-   1, and the next fence attempt is admitted afresh. The shipped wrapper returns
-   `InflightReducersError` at once (`rebuild/reset/retry.go:62-65`).
-3. **Phase 1 maps its own outcome.** After the budget expires, the shipped
-   wrapper reports any error as `claim_fence_busy` (`rebuild/reset/retry.go:59-61`). Phase 1
-   reports `claim_fence_busy` only when the last failure was the fence's
-   `55P03`, and keeps `projector_lease_live` or `inflight_reducers` when a
-   lease wait used up the deadline.
-4. **Steps 7 and 8 run under step 3's setting.** The acquisition restores the
-   prior `lock_timeout`, which is the advisory-wait value step 3 set. A `55P03`
-   in steps 7 or 8 is not a fence timeout; it returns 409 `lock_timeout`.
+PR 5 makes the retry loop generic. Its parameters are a budget policy, a restart
+classifier, and an outcome mapper. Refinalize is one instance with today's
+behavior: `FenceAdmissionBudget` (`claim_fence.go:23-129`), no restart on a live
+lease (`rebuild/reset/retry.go:62-65`), and every post-expiry error mapped to
+`claim_fence_busy` (`:59-61`). Its #7852 live tests
+(`recovery_refinalize_fence_admission_live_test.go`,
+`recovery_refinalize_lock_convoy_live_test.go`) must pass unchanged. The
+pair-bound recheck (`claim_fence.go:223`) moves out of the acquisition.
+
+Phase 1 is the second instance:
+1. **Budget policy: fence time only.** Phase 1 counts the time inside fence
+   attempts and their backoff against the 30 s budget. `FenceAdmissionBudget`
+   starts at the first attempt and counts re-reads and re-drains too, which
+   would cap a re-drain at the rest of 30 s. The drain and the advisory wait
+   stay under the 5 min 30 s deadline.
+2. **Restart classifier: a live lease at the recheck restarts.** It rolls back
+   and restarts at step 1, and the next fence attempt is admitted afresh.
+3. **Outcome mapper: by cause.** Phase 1 reports `claim_fence_busy` only when
+   the last failure was the fence's `55P03`, and keeps `projector_lease_live` or
+   `inflight_reducers` when a lease wait used up the deadline.
+4. **Steps 5, 7, and 8 get their own bounds.** After the grant, phase 1 sets
+   `lock_timeout` to `min(5 s, remaining)` for steps 7 and 8 rather than keep
+   step 3's multi-minute value: a row wait there holds `EXCLUSIVE` on
+   `fact_work_items`, which pauses claims fleet-wide. Step 5's scope-row lock
+   uses `min(5 s, remaining)` too. A `55P03` in steps 5, 7, or 8 returns 409
+   `lock_timeout`.
 
 ### Request budget
 
@@ -184,7 +194,7 @@ RED proof):
   There is no retry and no dead-letter row; the lease expires.
 - Ack takes the scope row first in a single-table UPDATE
   (`projector_queue_ack.go:74-77`) under a lock_timeout (`:61`). The comment at
-  `:65-71` lists "Fail (scope, work, generation)", which is true at the row
+  `:65-73` lists "Fail (scope, work, generation)", which is true at the row
   level and false at the relation level.
 - Phase 1 holds the scope row (step 5) before it requests `LOCK TABLE ...
   EXCLUSIVE` (step 6). The cycle closes only when `Fail` is already waiting on
@@ -215,7 +225,7 @@ Every transaction that holds a lock conflicting with `EXCLUSIVE` on
 | Backfill (per commit, pool, all-repos) | Key first (`ingestion_backfill_seam.go:286`, `backfill/fanin.go:331`, `backfill/engine.go:340`) | Safe |
 | Fanout, reducer claim (its #8205 lock step locks `fact_work_items` rows only, `reducer_generation_filter_sql.go:196-203`), ack, heartbeat, batch acks, value-flow ack, the #8169 service-catalog re-trigger (`FOR NO KEY UPDATE OF catalog`, scopes read unlocked), activation for claim | Lock `fact_work_items` rows, never block on a scope row (`fanout.go:32-54` reads scopes unlocked; `relationship_schema.go:270-296`) | Safe |
 | Package-manifest backfill | Locks scope rows `FOR NO KEY UPDATE` under a 5 s `lock_timeout`, one transaction per page (`consumption/statements.go:23-25`, taken at `consumption/rebuild.go:200-204`), never references `fact_work_items` | Safe |
-| Vulnerability suppression; generation retention | Locks a non-git scope; `SKIP LOCKED` | Safe |
+| Vulnerability suppression; generation retention | Vulnerability suppression locks a non-git scope. Retention locks git scopes too, with `FOR UPDATE OF scope SKIP LOCKED` (`generation_retention_sql.go:157-164`), so it never waits | Safe |
 
 **The fix is on `Fail`, not on phase 1**, in its own small PR (PR 4a) that
 lands before PR 5. It is a fix to projector code, not retirement code. `Fail`

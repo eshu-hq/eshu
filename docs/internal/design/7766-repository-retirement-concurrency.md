@@ -5,7 +5,7 @@ Companions: [Repository Retirement](7766-repository-retirement.md) (the
 design and the two deliverables), [Reducer Reopen And Replay Writers](7766-repository-retirement-reducer-writers.md),
 [Runner](7766-repository-retirement-runner.md),
 [Proof And Rollout](7766-repository-retirement-proof-and-rollout.md), and the
-[evidence note](../evidence/7766-retirement-prove-first.md).
+[evidence note](../evidence/7766-retirement-prove-first-results.md).
 
 This file holds the intent-delete barrier that replaced the shared-projection
 horizon, the invariants that make the phase 2 order safe, the folded commit
@@ -16,7 +16,7 @@ the #7852 fence, and the lock-order rule are in
 the [arbiter ruling on the prove-first results](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964),
 the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)),
 and the arbiter ruling, round 4 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6085855231)). Measurements are in the
-[evidence note](../evidence/7766-retirement-prove-first.md) and summarized in
+[evidence note](../evidence/7766-retirement-prove-first-results.md) and summarized in
 [Prove-First Results](7766-repository-retirement-proof-and-rollout.md#prove-first-results).
 
 Source check: origin/main f4f14a4096, 2026-10-19, re-anchored from
@@ -80,7 +80,10 @@ shared, code_calls, and repo_dependency).
 
 ### 2b and 2b'
 
-- **2b, intent delete and barrier.** Chunked (10,000 rows)
+- **2b, intent delete and barrier.** First, chunked, the three relationship
+  tables' rows with `source_repo_id = $repo` (`relationship_evidence_facts`,
+  `relationship_candidates`, `resolved_relationships`), so no evidence sourced
+  from the repository is left to resolve. Then, chunked (10,000 rows),
   `DELETE FROM shared_projection_intents WHERE repository_id = $repo` (index
   `shared_projection_intents_repo_run_idx`, `repository_id` leading) and
   `WHERE scope_id = ANY($scopes)` (index `..._acceptance_lookup_idx`,
@@ -132,7 +135,10 @@ at all, so the restriction removes nothing 2b' could have protected.
 ## Invariants
 
 - **I0 (Deliverable 1).** At phase 1 commit, no projector or reducer row of the
-  scopes holds a live lease, and every projector row of the scopes is terminal.
+  scopes holds a live lease, and every projector row of a generation that was
+  non-superseded at step 4 is terminal. Pending or retrying rows of generations
+  that were already superseded are not touched by 7c; the #7130 claim branch
+  supersedes them, and 2a rechecks.
   From commit on, no projector Run writes the repository's graph or content,
   except a Run that outlived its lease, which is outside the lease contract for
   every lease in the system today. The #7130 claim branch, the Heartbeat
@@ -141,7 +147,8 @@ at all, so the restriction removes nothing 2b' could have protected.
   survives phase 1 until the next heartbeat (lease/3 capped at 1 min,
   `cmd/projector/runtime_wiring.go:124-134`) cancels its context, and a Run
   cancelled between its canonical write and its content write leaves a frozen
-  half-Run graph: on Neo4j each node phase is one transaction, and the full
+  half-Run graph: on Neo4j the atomic path writes all node phases in one
+  transaction, then a deferred package-registry edge transaction, and the full
   refresh retract deletes every `projector/canonical` entity node whose
   `generation_id` differs from the new one and every File absent from the new
   path list (`canonical_node_writer.go:197-214`,
@@ -201,8 +208,15 @@ at all, so the restriction removes nothing 2b' could have protected.
   deletes acceptance rows of superseded generations. That is harmless: the
   retention transaction deletes the generation's intents first
   (`generation_retention.go:405-406`), so it creates no orphan.
-- **I4.** An edge written for the retired repository by a pre-barrier cycle is
-  harmless: 2c retracts it, and that cycle's `MarkIntentsCompleted` matches 0
+- **I4.** Other repositories' reducers can still emit `repo_dependency`
+  intents keyed to the retired repository (`RepositoryID` and
+  `AcceptanceUnitID` are the source repository,
+  `reducer/crossrepo/cross_repo_intent_row.go:132-142`), from evidence that a
+  per-commit backfill sourced from it. From phase 1 on, the backfill source
+  filter and the resolver gate refuse new ones (writer table in the main
+  design); 2b deletes the evidence and the intents already written; 2z counts
+  intents by `repository_id`. An edge written for the retired repository by a
+  pre-barrier cycle is harmless: 2c retracts it, and that cycle's `MarkIntentsCompleted` matches 0
   rows for the intents 2b deleted. Since #7853 the call returns that count and
   the worker logs that it marked fewer intents than requested. That WARN is
   expected during 2b and 2b'.
@@ -238,7 +252,9 @@ process 0.
 
 With 2b first and I3, retirement creates no orphans. 2q runs before 2b so no
 reducer handler can emit shared intents for the scopes after 2b's delete: 2q
-ends only when no reducer row of the scopes is claimable or leased. The
+ends only when no reducer row of the scopes is claimable or leased. Handlers of
+other scopes can still emit intents keyed to the repository; I4 names their
+fence. The
 zero-count assertion after 2b is the #7766 guard. A drain for orphans that
 already exist is a separate pre-existing bug (Out Of Scope in the corrections
 file).
@@ -251,18 +267,19 @@ measured +0.46% and -0.09%. The design uses the folded shape:
 
 ```sql
 WITH gate AS (
-  SELECT state FROM repository_retirements
+  SELECT state, retirement_id FROM repository_retirements
   WHERE repo_id = $7 AND readmitted_at IS NULL LIMIT 1)
 INSERT INTO ingestion_scopes (...)
 SELECT ... WHERE NOT EXISTS (SELECT 1 FROM gate WHERE state <> 'complete')
 ON CONFLICT (...) DO UPDATE SET <arm unchanged>
-RETURNING (SELECT state FROM gate)
+RETURNING (SELECT state FROM gate), (SELECT retirement_id FROM gate)
 ```
 
 - **Zero rows returned** is the `repository_retiring` refusal, on the
   finalized-skip path in the design's writer table.
 - **`state = 'complete'`** in the returned value triggers the `readmitted_at`
-  stamp: one extra statement, on the rare re-admission.
+  stamp by the returned `retirement_id`: one extra statement, on the rare
+  re-admission.
 - **Invariant:** the gate and the upsert share one statement snapshot, taken
   under the shared advisory lock. Phase 1 holds that key exclusively until its
   commit, so a marker either committed before the gate reads or phase 1 is still
@@ -290,8 +307,8 @@ prior-generation probe (`projector_queue_claim_pool_sql.go:255-260`) returns fal
 which makes this a first generation.
 
 Interleavings are linearised by the advisory key:
-- a commit that holds the shared lock first lands, and phase 1 then supersedes
-  its generation at step 4;
+- a commit that holds the shared lock first lands, and phase 1 reads its
+  generation at step 4 and supersedes it at 7a;
 - a phase 1 that commits first makes the later commit refuse;
 - a sync that started before retirement but commits after `complete`
   re-admits. That is the ruling's semantics, and the dry-run `will_readmit`

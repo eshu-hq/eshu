@@ -287,7 +287,7 @@ gone; `go/cmd/dirgate` ratchets growth through a `Dirgate-Growth:` trailer.
 classified, and so are the tables migrations 170 and 178 to 206 added (see the
 [census](7766-repository-retirement-table-census.md)).
 
-## Draft Review: N7
+## Draft Review
 
 **N7 (P2, Deliverable 2): Parameter nodes.** Parameter nodes carry no
 `repo_id`, and G5 retracted them through a path list paged from `content_files`.
@@ -297,6 +297,26 @@ one. Fixed with the root-anchored G5p and the `graph_repo_root` column (runner,
 [Parameter Nodes (G5p)](7766-repository-retirement-runner.md#parameter-nodes-g5p)).
 The root anchor was chosen over a snapshot of the paths because it also covers
 Parameters that full refreshes already leaked, and the snapshot does not.
+
+**Re-review at f4f14a4096 (round 1 of this revision).** The earlier six P3s
+were not recorded, so a fresh deep review re-derived the findings. Each is fixed
+in the page named:
+- F1 (P1): G5p could delete a live repository's Parameters when a stale scope
+  shares its root after a re-key. A shared root now skips G5p, and G5f retracts
+  the retired id's Files when its Repository node is gone (runner).
+- F2 (P1): other repositories' per-commit backfill and resolver could keep
+  writing intents keyed to the retiring repository after 2b. Both are fenced
+  from phase 1, 2b deletes the sourced relationship rows first, and 2z counts by
+  `repository_id` and resumes Postgres residue at 2b (main design, concurrency,
+  runner, census).
+- F3 to F8 (P2): the evidence note's name repeated its directory; five
+  citations did not support their claims; the #7852 reuse section contradicted
+  itself; steps 5, 7, and 8 ran under step 3's long `lock_timeout`; a re-admitted
+  repository would read `retired`; I0 overclaimed which projector rows are
+  terminal.
+- Thirteen P3s: wording and evidence details, fixed inline (for example the Ack
+  comment range, the Neo4j transaction shape, the 2d' "last batch" definition,
+  and the gate's returned `retirement_id`).
 
 ## Out Of Scope: Pre-Existing Issues
 

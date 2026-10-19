@@ -9,7 +9,7 @@ and the two deliverables),
 [Table Census](7766-repository-retirement-table-census.md),
 [Surfaces](7766-repository-retirement-surfaces.md), and
 [Corrections And Open Items](7766-repository-retirement-corrections.md). The
-[evidence note](../evidence/7766-retirement-prove-first.md) indexes the results,
+[evidence note](../evidence/7766-retirement-prove-first-results.md) indexes the results,
 and the directory [7766-retirement-prove-first/](../evidence/7766-retirement-prove-first/)
 holds the raw per-run outputs, the fixture SQL, and the shell wrappers. The Go
 drivers are described, not committed.
@@ -91,7 +91,7 @@ Checked in the PR that builds the piece:
 | --- | --- | --- | --- | --- |
 | P3 | Purge batches are bounded | EXPLAIN every purge step (runner, step 2d), including the relationship-table deletes by generation, for a 100-generation batch of the 3,280 scope; run the full purge while projector load runs | Each batch ≤ 5 s and ≤ 100,000 rows; total ≤ 33 batches; active projection slowdown ≤ 10% (ADR 2248 bound) | Lower the batch limit |
 | P4 | Repo-keyed deletes use indexes | EXPLAIN of the 2e deletes by `repo_id` and `scope_id` for the census `2e` rows, including the relationship tables' `source_repo_id` arm (only `resolved_relationships` has that index today) | Index scans on `content_files_repo_path_idx` and `content_entities_repo_idx`; a named index per other table | Add index (new proof) |
-| P5 | Graph retract is repo-bounded | `PROFILE` of each G5 statement with the sentinel generation, of G5p, and of G6 | db hits proportional to repo nodes, not store size (≤ 2x at 10x store); G5p seeks the `Parameter.path` range index by prefix; G6 = `NodeUniqueIndexSeek`, 1 row | Bounded drain per label |
+| P5 | Graph retract is repo-bounded | `PROFILE` of each G5 statement with the sentinel generation, of G5f, of G5p, and of G6 | db hits proportional to repo nodes, not store size (≤ 2x at 10x store); G5p seeks the `Parameter.path` range index by prefix; G6 = `NodeUniqueIndexSeek`, 1 row | Bounded drain per label |
 | P10 | Post-retirement residue | Census: `MATCH (n) WHERE n.repo_id=$id RETURN labels(n), count(*)` and `MATCH (r:Repository {id:$id})-[x]-() RETURN type(x), x.evidence_source, count(*)`, plus a `Parameter` count under the G5p predicate | 0 owned nodes and 0 Parameters; only foreign-owned incoming edges | Extend plan table |
 
 ### Original rows
@@ -111,7 +111,7 @@ P1, P2, and P9 ran on 2026-10-08. **P1 and P9 failed as originally designed,
 and the design was amended per the arbiter ruling on the #7766 prove-first
 results.** P2 passed only after the gate was folded into the scope upsert. The
 tables, the environment, and the method are in the
-[evidence note](../evidence/7766-retirement-prove-first.md), and the raw per-run
+[evidence note](../evidence/7766-retirement-prove-first-results.md), and the raw per-run
 outputs are in its directory. What they show:
 
 - **P1, design form, commit mode.** Cold p99 (the maximum at n=20): R79 22.3 ms,
@@ -165,10 +165,10 @@ Real-Postgres tests run in the `reducer-contention` gate. Graph tests run under
 | `Fail` takes the scope row before any work-table lock | `TestProjectorFailScopeLockPrecedesWorkTableLock` |
 | Retire vs `Fail`, both orders, no 40P01 | `TestRetirementAndProjectorFailDoNotDeadlock` |
 | A live reducer lease rolls phase 1 back and restarts it inside the deadline; past the deadline, 409 `inflight_reducers` and no marker | `TestRetirementAbortsOnLiveReducerLease` |
-| A live projector lease held through step 6 rolls phase 1 back and restarts it; after release, the Run's canonical write, content write, `Enqueue`, and Ack all land before the marker row, and 7c leaves no non-terminal projector row (I0). RED on the previous design: the marker lands while the lease is live | `TestRetirementWaitsForLiveProjectorLeaseThenFences` |
+| A live projector lease held through step 6 rolls phase 1 back and restarts it; after release, the Run's canonical write, content write, `Enqueue`, and Ack all land before the marker row, and 7c leaves no non-terminal projector row of a generation that was non-superseded at step 4 (I0). RED on the previous design: the marker lands while the lease is live | `TestRetirementWaitsForLiveProjectorLeaseThenFences` |
 | A projector lease renewed past the deadline gives 409 `projector_lease_live` and no marker | `TestRetirementRefusesProjectorLeaseThatOutlivesDeadline` |
 | 7d marks and never deletes; the ids persist and an enqueue of a marked id is a no-op | `TestRetirementPhase1MarksReducerRowsNeverDeletes` |
-| Every phase 1 wait fits the single 5 min 30 s deadline, and each wait is `min(bound, remaining)` | `TestRetirementPhase1DeadlineBoundsEveryWait` |
+| Every phase 1 wait fits the single 5 min 30 s deadline, and each wait is `min(bound, remaining)`, including the step 5 scope-row lock and the step 7 and 8 row waits (`min(5 s, remaining)`) | `TestRetirementPhase1DeadlineBoundsEveryWait` |
 | A reducer that needs the repo key finishes while a step 4 re-drain runs | `TestRetirementStep4RedrainDoesNotHoldRepoKey` |
 | The step 6 retry loop under a `ROW EXCLUSIVE` holder (P1'') | `TestRetirementFenceRetriesUnderTableLockConvoy` |
 | The 7d statement folds the prior failure | `TestSupersedeStatementsFoldPriorFailure` (exists; must keep passing) |
@@ -177,6 +177,8 @@ Real-Postgres tests run in the `reducer-contention` gate. Graph tests run under
 | Concurrent re-admitting commits stamp once | `TestReadmissionStampsOnce` |
 | Webhook, backfill, replay, and reindex during retiring | `TestWebhookTriggerFailsRepositoryRetiring`, `TestBackfillSkipsRetiringRepo`, `TestDeadLetterReplayCannotResurrectRetiringWork`, `TestReindexRefusesRetiringRepository` |
 | Dry run counts the four grant tables and sets `will_drop_grants` | `TestRetirementDryRunReportsGrantCounts` |
+| From phase 1 on, a per-commit backfill skips the retiring repository's facts, and the resolver refuses intents whose acceptance unit is retiring | `TestRetirementFencesCrossRepoSources` |
+| A re-admitted repository reads `indexed` on the list, index-status, and freshness surfaces | `TestReadmittedRepositoryReadsIndexed` |
 
 ### Deliverable 2
 
@@ -199,6 +201,8 @@ Real-Postgres tests run in the `reducer-contention` gate. Graph tests run under
 | 2z fails closed: residue after a re-run of 2c gives `failed/graph_residue` and the census in `failure_details` | `TestRetirementResidueCensusFailsClosed` |
 | A 2c re-run after 2d and 2e still retracts a leftover Parameter, and 2z counts it. RED on the `content_files`-paged form | `TestRetirementParameterRetractSurvivesContentPurge` |
 | G5p keeps the Parameters of a checkout nested under the root, and an empty root fails `repository_root_unknown` | `TestRetirementParameterRetractSparesNestedRoot` |
+| A stale scope that shares its root with a re-keyed live repository: G5p is skipped and recorded, and the live repository's Parameters survive. With the retired Repository node absent, G5f removes the retired id's Files | `TestRetirementParameterRetractSparesReKeyedSamePathRepository`, `TestRetirementFileRetractWithoutRepositoryNode` |
+| A repository onboarded between 2c and the last 2d batch that references the retiring one leaves no intent keyed to it at 2z and no edge after `complete`. Postgres residue goes to `failed/postgres_residue` and resumes at 2b | `TestRetirementCrossRepoWritersLeaveNoResidue` |
 | Phase 3 pre-counts the grant tables, drops them, and re-admission does not restore them | `TestRetirementGrantsCountedAndDropped` |
 
 Retry and dead-letter matrix:
@@ -248,7 +252,7 @@ Gates are from `specs/ci-gates.v1.yaml`.
 
 | PR | Content | Gates |
 | --- | --- | --- |
-| 1 | These design files, the evidence note (`docs/internal/evidence/7766-retirement-prove-first.md`), and its raw outputs, SQL, and shell wrappers (`docs/internal/evidence/7766-retirement-prove-first/`) | markdown-file-cap, docs-*, doc-citations, measurement-citations |
+| 1 | These design files, the evidence note (`docs/internal/evidence/7766-retirement-prove-first-results.md`), and its raw outputs, SQL, and shell wrappers (`docs/internal/evidence/7766-retirement-prove-first/`) | markdown-file-cap, docs-*, doc-citations, measurement-citations |
 | 2 | Refactor: move the retention prune steps and SQL to a leaf under `storage/postgres/retention/` (it holds only `statements/` today) with no behavior change, so the runner can call the same step list. `generation_retention.go` is 474 lines against the 500-line cap at `f4f14a4096`. Moving files out of `storage/postgres` needs no dirgate action; growth needs a `Dirgate-Growth:` commit trailer (`go/cmd/dirgate`). Deliverable 2 consumes it; Deliverable 1 does not depend on it. | go-file-cap, go-dir-gate, reducer-contention, package-docs |
 | 3 | Marker migration (`repository_retirements`, number 207 at this check) + leaf `storage/postgres/retirement` (marker store, folded commit gate, commit-path benchmark for P2'); gates in `ingestion.go` (499 lines at `f4f14a4096`, one under the cap: extract the finalized-skip rollback helper first and share it), backfill, recovery skip reasons, reindex refusal; refusal counter. No `claimed_at` change. | migration-immutability, reducer-contention, telemetry-coverage, go-file-cap |
 | 4 | Webhook handoff gate (`collector/repo/git`, edits only; 70 non-test files) | go-dir-gate, telemetry-coverage |
@@ -266,7 +270,7 @@ can follow PR 3.
 
 | PR | Content | Gates |
 | --- | --- | --- |
-| 6 | Graph library: retract plan, G5p, demotion, coverage test, live Neo4j test; Neo4j range index on `Parameter.path` | race-graph-writes, query-plan-regression |
+| 6 | Graph library: retract plan, G5f, G5p, demotion, coverage test, live Neo4j test; Neo4j range indexes on `Parameter.path` and `File.repo_id` | race-graph-writes, query-plan-regression |
 | 6a | `claimed_at` migration and the `claimPartitionLeaseSQL` epoch arm with the P9b benchmark; the lease-domain test | migration-immutability, reducer-contention |
 | 7 | Reducer runner (2a, 2q, 2b, 2b', 2c, 2d, 2d', 2e, 2z, phase 3) in `reducer/retirement` + `cmd/reducer` wiring; the table census test; grants pre-count; 2q and 2z telemetry | reducer-contention, race-graph-writes, telemetry-coverage, env-registry-doc |
 

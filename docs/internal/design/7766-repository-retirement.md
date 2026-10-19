@@ -22,7 +22,7 @@ Companions, one file per concern:
 - [Corrections And Open Items](7766-repository-retirement-corrections.md):
   corrections to the rulings, issues kept out of scope, and NOT_CHECKED.
 - Evidence note:
-  [7766-retirement-prove-first.md](../evidence/7766-retirement-prove-first.md)
+  [7766-retirement-prove-first-results.md](../evidence/7766-retirement-prove-first-results.md)
   indexes the P1, P2, and P9 results. The directory
   [7766-retirement-prove-first/](../evidence/7766-retirement-prove-first/)
   holds the raw per-run outputs, the fixture SQL, and the shell wrappers. The Go
@@ -56,7 +56,7 @@ Source check: origin/main f4f14a4096, 2026-10-19, re-anchored from c88c3806a
 (see the [corrections](7766-repository-retirement-corrections.md#re-anchor-at-f4f14a4096)). Before that: origin/main c88c3806a, 2026-10-09. The design was written against
 `3b03f018e`, which is an ancestor of `c88c3806a`. Of the files main changed
 between the two, the shared-projection worker (`worker/process.go`,
-`selection.go`, `runner.go`) is the only one whose lines this design cites. Those
+`worker/selection.go`, `worker/runner.go`) is the only one whose lines this design cites. Those
 citations were re-read and corrected (the corrections file lists them). The
 telemetry docs that changed are named as destinations, not cited by line. The
 round 4 ruling confirmed the other cited lines unchanged at `c88c3806a`.
@@ -83,8 +83,9 @@ durable tombstone that read surfaces report as `retired`.
 
 **Deliverable 1 is safe for Postgres truth.** After phase 1 commits, every
 generation of the scope is `superseded`, the active pointer is NULL, every
-projector row of the scope is terminal, and every claimable non-succeeded
-reducer row is terminal. No fact, content row, generation, or work row is
+projector row of a generation that was non-superseded at step 4 is terminal
+(rows of earlier-superseded generations are fenced by the #7130 claim branch),
+and every claimable non-succeeded reducer row is terminal. No fact, content row, generation, or work row is
 deleted, so the repository can be rebuilt or retired from facts. Collector
 commits, webhooks, deferred backfill, `recover-generations`, and reindex are
 refused. The #7766 outcome lands: the stale copy stops answering as indexed on
@@ -212,6 +213,8 @@ the bounded refusal each writer returns.
 | `recover-generations` / `refinalize` (`storage/postgres/rebuild/reset/reset.go:75-123`) | New first CASE arm in the skip-reason CASE (`:78-86`): `EXISTS` open row → skip. Named unknown scope with a `complete` row (`refinalize.go:253-258`). A refinalize attempt whose read predates phase 1's commit and whose fence follows it (`storage/postgres/recovery.go:363-371`) still writes for its stale set: projector re-enqueue, which the #7130 claim branch supersedes as it does the zombie heal, and the #7797 delta reindex request (`reset/delta_active.go:101-115`, called at `storage/postgres/recovery.go:382`), which can re-create the `repository_reindex_requests` row 7e deleted. That row is a watermark the git collector reads (`maintenance/repository_reindex.go:116`); the re-parse it forces meets the commit gate, and 2e deletes the row. An attempt that hits `55P03` on the fence rolls back and re-reads (`rebuild/reset/retry.go:24-89`), and the re-read skips the scope. | `skip_reason=repository_retiring` / `repository_retired`, new `recovery.SkipReason*` |
 | Repository reindex (`query/admin/reindex_repository.go:67`) | After `gitDefaultScopeMatch`, look up the open row | 400 problem `"<sel>": repository is retiring (state <s>)`. Phase 1 also deletes the scope's `repository_reindex_requests` row. |
 | Deferred backfill (`storage/postgres/backfill/engine.go:344`, under the same exclusive repo lock at `:340`) | Filter repo ids that have an open row from `loadGenerations`. The engine is package `backfill`, which must not import the parent package (`backfill/AGENTS.md`), so the gate sits behind its `Store` seam or in a leaf. The whole pass and the targeted pass (`storage/postgres/backfill/targeted/write.go:95-98`) both run through it. | skipped; `writer=deferred_backfill` refusal count |
+| Per-commit backfill of another repository (`storage/postgres/ingestion_backfill_seam.go:286-296`; sources from `backfill/scoped_facts.go:38` through `backfill.LatestGenerationCTE`) | Filter repo ids that have an open row out of the source facts and the catalog, in every `LatestGenerationCTE` relationship loader. It takes only the committing repository's key, so phase 1's exclusive key does not stop it. | Source rows skipped; `writer=per_commit_backfill` refusal count |
+| Cross-repo resolver intent write (`reducer/crossrepo/cross_repo_intent_row.go:132-142`, written through `shared_intent_acceptance_writer.go:57`) | Drop rows whose acceptance unit has an open row, checked in the write transaction | Row skipped; `writer=cross_repo_resolver` refusal count |
 
 Backfill must be fenced explicitly. `backfill.LatestGenerationCTE`
 (`backfill/generation_cte.go:41-52`) falls back to the newest generation of any
@@ -278,7 +281,7 @@ here.
    takes the key in exclusive mode and is not a draining reducer, so it is not
    what this restart protects against; it also queues behind phase 1, which is
    the intent.
-5. `SELECT ... FROM ingestion_scopes WHERE partition_key = ANY($1) ORDER BY scope_id FOR NO KEY UPDATE`.
+5. `set_config('lock_timeout', min(5 s, remaining), true)`, then `SELECT ... FROM ingestion_scopes WHERE partition_key = ANY($1) ORDER BY scope_id FOR NO KEY UPDATE`.
    - The scope row is locked first, before any generation or work row (postgres `AGENTS.md`, Ack lock order).
    - NO KEY UPDATE, not UPDATE, keeps FK `KEY SHARE` inserts compatible. A
      concurrent refinalize that holds the table lock and inserts work for this
@@ -304,7 +307,8 @@ here.
    `projector_lease_live` or `inflight_reducers`, and no marker.
    `projector_lease_live` is already a `blocked_reason` value and becomes an
    API response reason too, as `claim_fence_busy` is.
-7. Writes (7f, the shared-lease horizon, was removed; letters are kept so the
+7. Writes, under `lock_timeout` `min(5 s, remaining)` set after the fence's grant
+   (7f, the shared-lease horizon, was removed; letters are kept so the
    proof outputs still map):
    - (a) `UPDATE scope_generations SET status='superseded', superseded_at=$now WHERE scope_id = ANY AND status IN ('pending','active','failed')`;
    - (b) `UPDATE ingestion_scopes SET active_generation_id = NULL`;
@@ -313,7 +317,7 @@ here.
      [reducer writers file](7766-repository-retirement-reducer-writers.md#the-7d-statement).
      Succeeded rows are not touched in phase 1. 7d stays in phase 1: after 7b nulls the active pointer, the reducer claim would otherwise pick these rows up. It never deletes a row, because deleting is what re-opens the enqueue path (`ON CONFLICT (work_item_id) DO NOTHING` is inert for every id that still exists);
    - (e) `DELETE FROM repository_reindex_requests WHERE scope_id = ANY`;
-   - (g) `INSERT INTO repository_retirements ... ON CONFLICT DO NOTHING RETURNING *` on the open-repo index. `DO NOTHING` returns no row on a conflict, so when `RETURNING` is empty the transaction reads the existing open row by `repo_id`. It holds the key and the scope rows, so the read is stable. Either path yields the row, which makes a re-issue idempotent.
+   - (g) `INSERT INTO repository_retirements ... ON CONFLICT DO NOTHING RETURNING *` on the open-repo index. `DO NOTHING` returns no row on a conflict, so when `RETURNING` is empty the transaction reads the existing open row by `repo_id`. It holds the key and the scope rows, so the read is stable. Either path yields the row, which makes a re-issue idempotent. When that existing row is `failed`, a re-issue sets it to `pending` and keeps `phase` and the cursor.
 8. `AssertRetirementFenced` (scope-bound form, counting generations superseded
    plus reducer rows marked; the shape of `refinalize.go:366-383`), then commit.
 
