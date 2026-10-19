@@ -312,17 +312,23 @@ require_direct_family_lib "kubernetes-correlation drive takes the labeled signat
 require_direct_family_lib "cloud-resource assert-edges domain" "-domain cloud_resource"
 require_direct_family_lib "cloud-resource drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_direct_family_lib "workload-cloud-relationship drive seeds the positive anchor endpoints" 'materialize-workload-endpoints'
-require_direct_family_lib "workload-cloud-relationship seed keys the Odùs own positive anchor" '-workload-id workload:orders-api -environment prod'
-# The seed's ids must come from the committed cassette's own positive anchor,
-# not from a stale copy in the drive fn: if the Odù ever renames the anchor,
-# the seed would key nodes the edges never attach to and the live assert
-# would fail with zero edges and no pointer back here. Pin the agreement
-# where the failure names the drift.
+require_direct_family_lib "workload-cloud-relationship seed keys the Odùs own positive anchor" '-workload-id workload:repo-orders:orders-api -environment prod'
+# The seed keys the ladder-resolved scoped identity of the committed
+# cassette's own positive anchor, not a stale copy in the drive fn: after the
+# #5385 flip the writer only ever MATCHes resolved scoped ids, so a seed that
+# drifted back to the bare handle would key nodes the edges never attach to
+# and the live assert would fail with zero edges and no pointer back here.
+# Pin the agreement where the failure names the drift: the cassette still
+# carries the bare anchor the ladder resolves, and the live expected-edge set
+# carries the scoped instance id the writer MATCHes.
 workload_cassette_path="$(cd "$(dirname "${script}")/.." && pwd)/testdata/cassettes/workloadcloudrelationship/ifa-workload-cloud-relationship-family.json"
+workload_live_expected_path="$(cd "$(dirname "${script}")/.." && pwd)/go/internal/ifa/testdata/workloadcloudrelationship/ifa-workload-cloud-relationship-family-expected-edges.json"
 rg --fixed-strings --quiet -- '"workload_id": "workload:orders-api"' "${workload_cassette_path}" \
-	|| fail "workload-cloud-relationship seed keys workload:orders-api but the committed cassette carries no such anchor -- seed and Odù have drifted"
+	|| fail "workload-cloud-relationship seed keys the resolved repo-orders anchor but the committed cassette carries no bare orders-api anchor for the ladder to resolve -- seed and Odù have drifted"
 rg --fixed-strings --quiet -- '"environment": "prod"' "${workload_cassette_path}" \
 	|| fail "workload-cloud-relationship seed keys environment prod but the committed cassette carries no such environment -- seed and Odù have drifted"
+rg --fixed-strings --quiet -- '"source_entity_id": "workload-instance:repo-orders:orders-api:prod"' "${workload_live_expected_path}" \
+	|| fail "workload-cloud-relationship seed keys workload:repo-orders:orders-api but the live expected-edge set carries no such scoped source -- seed and live expectation have drifted"
 
 # handles_route/runs_in/invokes_cloud_action (#5995/#6000/#5997): all three
 # share ONE lib file (scripts/lib/ifa_symbol_runtime_live.sh) and one drive

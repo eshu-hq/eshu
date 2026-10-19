@@ -35,8 +35,12 @@ const workloadCloudRelationshipFamily = "workload_cloud_relationship"
 const workloadCloudRelationshipRelationshipType = "USES"
 
 // workloadCloudRelationshipExpectedEdgesRelPath is the family's hand-derived
-// expected-edge fixture, repoRoot-anchored.
-const workloadCloudRelationshipExpectedEdgesRelPath = "go/internal/ifa/testdata/workloadcloudrelationship/ifa-workload-cloud-relationship-family-expected-edges.json"
+// EXTRACTOR-level expected-edge fixture, repoRoot-anchored. The guard maps
+// the extractor's pre-resolution rows, so this file keeps the handle-derived
+// source form the extractor emits; the live determinism cell asserts the
+// ladder-resolved scoped form instead
+// (ifa-workload-cloud-relationship-family-expected-edges.json, #8516).
+const workloadCloudRelationshipExpectedEdgesRelPath = "go/internal/ifa/testdata/workloadcloudrelationship/ifa-workload-cloud-relationship-family-extractor-expected-edges.json"
 
 // workloadCloudRelationshipExpectedEdgesPath joins repoRoot onto the family's
 // expected-edge fixture.
