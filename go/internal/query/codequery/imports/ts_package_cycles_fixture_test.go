@@ -87,7 +87,7 @@ func TestTSPackageCyclesFixtureTruthAgreement(t *testing.T) {
 		Payload:  map[string]any{"repo_id": repoID, "path": fixtureRoot},
 	}}, fileFacts...)
 
-	mat, quarantined := canonical.BuildMaterialization(
+	mat, quarantined, _ := canonical.BuildMaterialization(
 		scope.IngestionScope{
 			ScopeID:      "scope-cycles",
 			SourceSystem: "test",

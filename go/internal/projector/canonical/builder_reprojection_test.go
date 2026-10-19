@@ -49,7 +49,7 @@ func TestBuildMaterializationMarksReprojectionOfActiveGeneration(t *testing.T) {
 			sc.PreviousGenerationExists = true
 			gen := testGeneration()
 			gen.Status = tc.status
-			result, _ := BuildMaterialization(sc, gen, tc.facts)
+			result, _, _ := BuildMaterialization(sc, gen, tc.facts)
 			if result.ReconciliationProjection != tc.want {
 				t.Fatalf("ReconciliationProjection = %v, want %v", result.ReconciliationProjection, tc.want)
 			}

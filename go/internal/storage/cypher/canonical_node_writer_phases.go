@@ -161,6 +161,28 @@ func (w *CanonicalNodeWriter) buildDirectoryEdgeStatements(mat canonical.Canonic
 
 func (w *CanonicalNodeWriter) buildFileStatements(mat canonical.CanonicalMaterialization) []Statement {
 	if len(mat.Files) == 0 {
+		// Issue #7671: a repository generation writing zero File statements
+		// succeeds without a single File node. Terraform/package-only
+		// generations legitimately land here, so debug-log every empty files
+		// phase for correlation — but warn when the generation carries a
+		// repository identity, which is the silent-success shape: file facts
+		// present upstream, no File rows downstream, no error anywhere. This
+		// adds no Cypher and no statement: statement shape, phase order, and
+		// write cardinality are unchanged.
+		if mat.Repository != nil {
+			slog.Warn("canonical files phase empty for repository generation; no File nodes will be written",
+				"scope_id", mat.ScopeID,
+				"repo_id", mat.RepoID,
+				"generation_id", mat.GenerationID,
+				"directory_count", len(mat.Directories),
+				"entity_count", len(mat.Entities),
+			)
+		} else {
+			slog.Debug("canonical files phase empty; no File nodes will be written",
+				"scope_id", mat.ScopeID,
+				"generation_id", mat.GenerationID,
+			)
+		}
 		return nil
 	}
 

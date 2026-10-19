@@ -57,7 +57,7 @@ func TestBuildCanonicalMaterializationExtractsDeltaProjectionScope(t *testing.T)
 		},
 	}
 
-	result, _ := BuildMaterialization(sc, gen, envelopes)
+	result, _, _ := BuildMaterialization(sc, gen, envelopes)
 
 	if !result.DeltaProjection {
 		t.Fatal("DeltaProjection = false, want true")
@@ -91,7 +91,7 @@ func TestBuildCanonicalMaterializationExtractsReconciliationProjection(t *testin
 		},
 	}
 
-	result, _ := BuildMaterialization(sc, gen, envelopes)
+	result, _, _ := BuildMaterialization(sc, gen, envelopes)
 
 	if !result.ReconciliationProjection {
 		t.Fatal("ReconciliationProjection = false, want true")
@@ -124,7 +124,7 @@ func TestBuildCanonicalMaterializationPreservesDeltaPathWhitespace(t *testing.T)
 		},
 	}
 
-	result, _ := BuildMaterialization(sc, gen, envelopes)
+	result, _, _ := BuildMaterialization(sc, gen, envelopes)
 
 	if !result.DeltaProjection {
 		t.Fatal("DeltaProjection = false, want true")
@@ -198,7 +198,7 @@ func TestBuildMaterializationOverDeltaUnionCarriesFullTree(t *testing.T) {
 	sc := testScope()
 	sc.PreviousGenerationExists = true
 	gen := testGeneration()
-	result, quarantined := BuildMaterialization(sc, gen, union)
+	result, quarantined, _ := BuildMaterialization(sc, gen, union)
 	if len(quarantined) != 0 {
 		t.Fatalf("quarantined = %d facts, want 0", len(quarantined))
 	}

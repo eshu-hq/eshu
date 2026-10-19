@@ -41,7 +41,7 @@ func TestBuildCanonicalMaterializationQuarantinesMissingCodegraphRepositoryID(t 
 		},
 	}
 
-	result, quarantined := canonical.BuildMaterialization(
+	result, quarantined, _ := canonical.BuildMaterialization(
 		testScope(),
 		testGeneration(),
 		[]facts.Envelope{malformed, validRepository},
@@ -97,7 +97,7 @@ func TestBuildCanonicalMaterializationQuarantinesMissingCodegraphFilePath(t *tes
 		},
 	}
 
-	result, quarantined := canonical.BuildMaterialization(
+	result, quarantined, _ := canonical.BuildMaterialization(
 		testScope(),
 		testGeneration(),
 		[]facts.Envelope{validFile, malformed},
@@ -124,7 +124,12 @@ func TestBuildCanonicalMaterializationQuarantinesMissingCodegraphFilePath(t *tes
 	}
 }
 
-func TestBuildCanonicalMaterializationPresentButEmptyCodegraphFilePathIsDroppedNotQuarantined(t *testing.T) {
+// Issue #7671 redefined this contract: a present-but-empty relative_path still
+// decodes, and the row is still dropped (no usable identity), but the fact must
+// quarantine as input_invalid instead of skipping silently — a silent skip is
+// indistinguishable from a fact the collector never emitted, which is how six
+// scopes projected succeeded with zero File nodes and no dead-letter.
+func TestBuildCanonicalMaterializationPresentButEmptyCodegraphFilePathIsQuarantined(t *testing.T) {
 	t.Parallel()
 
 	emptyPathFile := facts.Envelope{
@@ -141,21 +146,26 @@ func TestBuildCanonicalMaterializationPresentButEmptyCodegraphFilePathIsDroppedN
 		},
 	}
 
-	result, quarantined := canonical.BuildMaterialization(
+	result, quarantined, _ := canonical.BuildMaterialization(
 		testScope(),
 		testGeneration(),
 		[]facts.Envelope{emptyPathFile},
 	)
 
-	if len(quarantined) != 0 {
-		t.Fatalf("len(quarantined) = %d, want 0; a present-but-empty relative_path is a valid decode, not a quarantine", len(quarantined))
-	}
 	if len(result.Files) != 0 {
 		t.Fatalf("len(Files) = %d, want 0; a file with an empty relative_path is incomplete and must be dropped", len(result.Files))
 	}
+	if len(quarantined) != 1 {
+		t.Fatalf("len(quarantined) = %d, want 1; the empty-relative_path file fact must dead-letter instead of skipping silently", len(quarantined))
+	}
+	if got := quarantined[0].Field; got != "relative_path" {
+		t.Fatalf("quarantined field = %q, want %q", got, "relative_path")
+	}
 }
 
-func TestBuildCanonicalMaterializationWhitespaceOnlyCodegraphFilePathIsDroppedNotQuarantined(t *testing.T) {
+// Issue #7671 companion to the present-but-empty case above: a whitespace-only
+// relative_path trims to empty and takes the same visible quarantine path.
+func TestBuildCanonicalMaterializationWhitespaceOnlyCodegraphFilePathIsQuarantined(t *testing.T) {
 	t.Parallel()
 
 	whitespacePathFile := facts.Envelope{
@@ -172,17 +182,20 @@ func TestBuildCanonicalMaterializationWhitespaceOnlyCodegraphFilePathIsDroppedNo
 		},
 	}
 
-	result, quarantined := canonical.BuildMaterialization(
+	result, quarantined, _ := canonical.BuildMaterialization(
 		testScope(),
 		testGeneration(),
 		[]facts.Envelope{whitespacePathFile},
 	)
 
-	if len(quarantined) != 0 {
-		t.Fatalf("len(quarantined) = %d, want 0; a whitespace-only relative_path is a valid decode, not a quarantine", len(quarantined))
-	}
 	if len(result.Files) != 0 {
 		t.Fatalf("len(Files) = %d, want 0; a file with a whitespace-only relative_path is incomplete and must be dropped", len(result.Files))
+	}
+	if len(quarantined) != 1 {
+		t.Fatalf("len(quarantined) = %d, want 1; the whitespace-only-relative_path file fact must dead-letter instead of skipping silently", len(quarantined))
+	}
+	if got := quarantined[0].Field; got != "relative_path" {
+		t.Fatalf("quarantined field = %q, want %q", got, "relative_path")
 	}
 }
 
@@ -273,6 +286,54 @@ func TestBuildProjectionAcceptsPersistedVersionlessCodegraphFile(t *testing.T) {
 	}
 }
 
+// TestBuildProjectionFailsLoudOnUnsupportedFileSchemaMajor pins the end-to-end
+// loud failure for issue #7671: file facts with an unsupported schema major
+// (a fatal decode, i.e. version skew rather than one malformed fact) must fail
+// the whole projection instead of projecting a silent zero-File success. Today
+// the per-fact admission gate fires first; the canonical-level regression
+// (TestBuildMaterializationFailsLoudOnFatalFileDecode) pins the
+// BuildMaterialization error this path also propagates behind that gate, so
+// removing or bypassing admission cannot reintroduce the silence.
+func TestBuildProjectionFailsLoudOnUnsupportedFileSchemaMajor(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := testScope()
+	generation := testGeneration()
+	_, err := buildProjection(scopeValue, generation, []facts.Envelope{
+		{
+			FactID:        "repository-1",
+			ScopeID:       scopeValue.ScopeID,
+			GenerationID:  generation.GenerationID,
+			FactKind:      factschema.FactKindCodegraphRepository,
+			SchemaVersion: "1.0.0",
+			Payload: map[string]any{
+				"repo_id":    "repo-abc",
+				"name":       "my-project",
+				"local_path": "/repos/my-project",
+			},
+		},
+		{
+			FactID:        "file-fatal",
+			ScopeID:       scopeValue.ScopeID,
+			GenerationID:  generation.GenerationID,
+			FactKind:      factschema.FactKindCodegraphFile,
+			SchemaVersion: "2.0.0",
+			Payload: map[string]any{
+				"repo_id":          "repo-abc",
+				"relative_path":    "cmd/main.go",
+				"parsed_file_data": map[string]any{},
+				"language":         "go",
+			},
+		},
+	})
+	if err == nil {
+		t.Fatal("buildProjection() error = nil, want loud failure on unsupported file schema major")
+	}
+	if !errors.Is(err, factschema.ErrUnsupportedSchemaMajor) {
+		t.Fatalf("buildProjection() error = %v, want errors.Is ErrUnsupportedSchemaMajor", err)
+	}
+}
+
 func BenchmarkBuildCanonicalMaterializationCodegraphFiles(b *testing.B) {
 	sc := testScope()
 	gen := testGeneration()
@@ -281,7 +342,7 @@ func BenchmarkBuildCanonicalMaterializationCodegraphFiles(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		result, quarantined := canonical.BuildMaterialization(sc, gen, envelopes)
+		result, quarantined, _ := canonical.BuildMaterialization(sc, gen, envelopes)
 		if len(quarantined) != 0 {
 			b.Fatalf("len(quarantined) = %d, want 0", len(quarantined))
 		}
@@ -351,7 +412,7 @@ func TestBuildCanonicalMaterializationProjectsPersistedVersionlessCodegraphFile(
 		},
 	}
 
-	result, quarantined := canonical.BuildMaterialization(
+	result, quarantined, _ := canonical.BuildMaterialization(
 		testScope(),
 		testGeneration(),
 		[]facts.Envelope{versionlessFile},

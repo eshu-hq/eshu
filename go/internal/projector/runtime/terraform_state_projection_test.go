@@ -21,7 +21,7 @@ func TestBuildCanonicalMaterializationExtractsTerraformStateRows(t *testing.T) {
 
 	sc := terraformStateScope()
 	gen := terraformStateGeneration()
-	result, _ := canonical.BuildMaterialization(sc, gen, terraformStateFacts())
+	result, _, _ := canonical.BuildMaterialization(sc, gen, terraformStateFacts())
 
 	if got, want := len(result.TerraformStateResources), 1; got != want {
 		t.Fatalf("len(TerraformStateResources) = %d, want %d", got, want)
@@ -104,7 +104,7 @@ func TestBuildCanonicalMaterializationCarriesTerraformStateResourceAttributes(t 
 		}
 	}
 
-	result, _ := canonical.BuildMaterialization(sc, gen, input)
+	result, _, _ := canonical.BuildMaterialization(sc, gen, input)
 
 	if got, want := len(result.TerraformStateResources), 1; got != want {
 		t.Fatalf("len(TerraformStateResources) = %d, want %d", got, want)
@@ -150,7 +150,7 @@ func TestBuildCanonicalMaterializationJoinsTerraformStateProviderBinding(t *test
 		},
 	})
 
-	result, _ := canonical.BuildMaterialization(sc, gen, input)
+	result, _, _ := canonical.BuildMaterialization(sc, gen, input)
 
 	if got, want := len(result.TerraformStateResources), 1; got != want {
 		t.Fatalf("len(TerraformStateResources) = %d, want %d", got, want)
@@ -178,7 +178,7 @@ func TestBuildCanonicalMaterializationResourceWithoutProviderBindingHasEmptyProv
 
 	sc := terraformStateScope()
 	gen := terraformStateGeneration()
-	result, _ := canonical.BuildMaterialization(sc, gen, terraformStateFacts())
+	result, _, _ := canonical.BuildMaterialization(sc, gen, terraformStateFacts())
 
 	if got, want := len(result.TerraformStateResources), 1; got != want {
 		t.Fatalf("len(TerraformStateResources) = %d, want %d", got, want)
@@ -225,7 +225,7 @@ func TestBuildCanonicalMaterializationAggregatesTerraformStateModuleObservations
 		},
 	})
 
-	result, _ := canonical.BuildMaterialization(sc, gen, input)
+	result, _, _ := canonical.BuildMaterialization(sc, gen, input)
 
 	if got, want := len(result.TerraformStateModules), 1; got != want {
 		t.Fatalf("len(TerraformStateModules) = %d, want %d", got, want)

@@ -20,7 +20,7 @@ func TestBuildCanonicalMaterializationExtractsOCIRegistryRows(t *testing.T) {
 
 	sc := ociRegistryScope()
 	gen := ociRegistryGeneration()
-	result, _ := canonical.BuildMaterialization(sc, gen, ociRegistryFacts())
+	result, _, _ := canonical.BuildMaterialization(sc, gen, ociRegistryFacts())
 
 	if result.OCIRegistryRepository == nil {
 		t.Fatal("OCIRegistryRepository = nil, want repository row")
@@ -100,7 +100,7 @@ func TestBuildCanonicalMaterializationSkipsTagOnlyOCIIdentity(t *testing.T) {
 		},
 	})
 
-	result, _ := canonical.BuildMaterialization(ociRegistryScope(), ociRegistryGeneration(), input)
+	result, _, _ := canonical.BuildMaterialization(ociRegistryScope(), ociRegistryGeneration(), input)
 
 	if got, want := len(result.OCIImageTagObservations), 1; got != want {
 		t.Fatalf("len(OCIImageTagObservations) = %d, want %d", got, want)

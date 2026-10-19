@@ -240,7 +240,7 @@ func buildProjectionClonePathForEquivalenceTest(scopeValue scope.IngestionScope,
 		return left.FactID < right.FactID
 	})
 
-	canonical, quarantined := canonical.BuildMaterialization(scopeValue, generation, inputFacts)
+	canonical, quarantined, _ := canonical.BuildMaterialization(scopeValue, generation, inputFacts)
 
 	return projection{
 		canonical:              canonical,

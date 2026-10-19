@@ -4,6 +4,7 @@
 package canonical
 
 import (
+	"fmt"
 	"path"
 	"sort"
 	"strings"
@@ -27,11 +28,18 @@ import (
 // (RecordQuarantinedFacts). The codegraph repository/file,
 // terraform_state, OCI registry, and package_registry extractors are typed
 // today; future typed families append to the same slice.
+//
+// A FATAL decode failure (an unsupported schema major, which is version skew
+// rather than a malformed individual payload) is returned as an error: the
+// codegraph extractors propagate it instead of skipping the fact, so the build
+// fails loudly instead of projecting a silent zero-File success (issue #7671).
+// Callers must treat a non-nil error as authoritative and discard the returned
+// materialization.
 func BuildMaterialization(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
 	inputFacts []facts.Envelope,
-) (CanonicalMaterialization, []decode.QuarantinedFact) {
+) (CanonicalMaterialization, []decode.QuarantinedFact, error) {
 	mat := CanonicalMaterialization{
 		ScopeID:         scopeValue.ScopeID,
 		GenerationID:    generation.GenerationID,
@@ -41,13 +49,17 @@ func BuildMaterialization(
 	}
 
 	if len(inputFacts) == 0 {
-		return mat, nil
+		return mat, nil, nil
 	}
 
 	// Extract repository.
 	var quarantined []decode.QuarantinedFact
 	var codegraphQuarantined []decode.QuarantinedFact
-	mat.Repository, codegraphQuarantined = extractRepositoryWithQuarantine(inputFacts)
+	var err error
+	mat.Repository, codegraphQuarantined, err = extractRepositoryWithQuarantine(inputFacts)
+	if err != nil {
+		return CanonicalMaterialization{}, quarantined, fmt.Errorf("build codegraph repository materialization: %w", err)
+	}
 	quarantined = append(quarantined, codegraphQuarantined...)
 	if mat.Repository != nil {
 		if mat.Repository.RepoID != "" {
@@ -71,7 +83,10 @@ func BuildMaterialization(
 
 	// Extract files.
 	var parsedFiles []parsedFileRef
-	mat.Files, parsedFiles, codegraphQuarantined = extractFilesWithQuarantine(inputFacts, repoID, repoPath)
+	mat.Files, parsedFiles, codegraphQuarantined, err = extractFilesWithQuarantine(inputFacts, repoID, repoPath)
+	if err != nil {
+		return CanonicalMaterialization{}, quarantined, fmt.Errorf("build codegraph file materialization: %w", err)
+	}
 	quarantined = append(quarantined, codegraphQuarantined...)
 
 	// Build directory chain from file paths.
@@ -106,7 +121,7 @@ func BuildMaterialization(
 	quarantined = append(quarantined, ExtractOCIRegistryRows(&mat, inputFacts)...)
 	quarantined = append(quarantined, ExtractPackageRegistryRows(&mat, inputFacts)...)
 
-	return mat, quarantined
+	return mat, quarantined, nil
 }
 
 // buildDirectoryChain walks file paths to produce a deduped, depth-sorted

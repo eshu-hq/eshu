@@ -20,7 +20,7 @@ import (
 func TestBuildCanonicalMaterializationExtractsPackageRegistryRows(t *testing.T) {
 	t.Parallel()
 
-	result, _ := canonical.BuildMaterialization(
+	result, _, _ := canonical.BuildMaterialization(
 		packageRegistryScope(),
 		packageRegistryGeneration(),
 		packageRegistryFacts(),
@@ -88,7 +88,7 @@ func TestBuildCanonicalMaterializationExtractsPackageRegistryRows(t *testing.T) 
 func TestBuildCanonicalMaterializationExtractsPackageRegistryDependencies(t *testing.T) {
 	t.Parallel()
 
-	result, _ := canonical.BuildMaterialization(
+	result, _, _ := canonical.BuildMaterialization(
 		packageRegistryScope(),
 		packageRegistryGeneration(),
 		append(packageRegistryFacts(), packageRegistryDependencyFact()),
@@ -134,7 +134,7 @@ func TestBuildCanonicalMaterializationSkipsUnstablePackageRegistryDependency(t *
 	dependencyFact := packageRegistryDependencyFact()
 	dependencyFact.StableFactKey = ""
 	dependencyFact.FactID = "ephemeral-package-registry-dependency-1"
-	result, _ := canonical.BuildMaterialization(
+	result, _, _ := canonical.BuildMaterialization(
 		packageRegistryScope(),
 		packageRegistryGeneration(),
 		append(packageRegistryFacts(), dependencyFact),
@@ -148,7 +148,7 @@ func TestBuildCanonicalMaterializationSkipsUnstablePackageRegistryDependency(t *
 func TestBuildCanonicalMaterializationKeepsPackageSourceHintsProvenanceOnly(t *testing.T) {
 	t.Parallel()
 
-	result, _ := canonical.BuildMaterialization(
+	result, _, _ := canonical.BuildMaterialization(
 		packageRegistryScope(),
 		packageRegistryGeneration(),
 		append(packageRegistryFacts(), packageRegistrySourceHintFact()),

@@ -61,7 +61,7 @@ func TestExtractEntitiesCapturesFluxTypedEntities(t *testing.T) {
 		})
 	}
 
-	result, _ := BuildMaterialization(sc, gen, envelopes)
+	result, _, _ := BuildMaterialization(sc, gen, envelopes)
 
 	if len(result.Entities) != len(fluxLabels) {
 		var gotLabels []string

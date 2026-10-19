@@ -96,7 +96,7 @@ func TestCanonicalDirectoryChainStaysInsideTheRepositoryRoot(t *testing.T) {
 		ownershipFileFact("f-escape", "../beta/src/leak.go"),
 	}
 
-	mat, _ := BuildMaterialization(ownershipScope(), ownershipGeneration(), envelopes)
+	mat, _, _ := BuildMaterialization(ownershipScope(), ownershipGeneration(), envelopes)
 
 	const root = "/repos/alpha"
 	for _, d := range mat.Directories {
@@ -149,7 +149,7 @@ func TestCanonicalEscapingRelativePathIsQuarantinedNotSilentlyDropped(t *testing
 		ownershipFileFact("f-escape", "../beta/src/leak.go"),
 	}
 
-	mat, quarantined := BuildMaterialization(ownershipScope(), ownershipGeneration(), envelopes)
+	mat, quarantined, _ := BuildMaterialization(ownershipScope(), ownershipGeneration(), envelopes)
 
 	if len(mat.Files) != 1 {
 		t.Fatalf("len(mat.Files) = %d, want 1: the escaping fact must still be dropped", len(mat.Files))
@@ -211,7 +211,7 @@ func TestCanonicalFileRowsShareTheirDirectoryRowsRepositoryID(t *testing.T) {
 		ownershipFileFact("f-escape", "../beta/src/leak.go"),
 	}
 
-	mat, _ := BuildMaterialization(ownershipScope(), ownershipGeneration(), envelopes)
+	mat, _, _ := BuildMaterialization(ownershipScope(), ownershipGeneration(), envelopes)
 
 	repoIDByDirectoryPath := make(map[string]string, len(mat.Directories))
 	for _, d := range mat.Directories {

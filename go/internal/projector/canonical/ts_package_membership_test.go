@@ -45,7 +45,7 @@ func tsImportEntries() []any {
 func tsSourcePackages(t *testing.T, envelopes []facts.Envelope) map[string]string {
 	t.Helper()
 	full := append([]facts.Envelope{importRepositoryFact()}, envelopes...)
-	result, quarantined := BuildMaterialization(testScope(), testGeneration(), full)
+	result, quarantined, _ := BuildMaterialization(testScope(), testGeneration(), full)
 	if len(quarantined) != 0 {
 		t.Fatalf("quarantined = %d, want 0", len(quarantined))
 	}

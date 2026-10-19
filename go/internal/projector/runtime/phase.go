@@ -6,6 +6,7 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -21,7 +22,7 @@ func (r Runtime) publishCanonicalGraphPhases(ctx context.Context, generationID s
 		return nil
 	}
 
-	rows := canonicalGraphPhaseStates(generationID, inputFacts)
+	rows := canonicalGraphPhaseStates(ctx, r.Logger, generationID, inputFacts)
 	if len(rows) == 0 {
 		return nil
 	}
@@ -37,14 +38,18 @@ func (r Runtime) publishCanonicalGraphPhases(ctx context.Context, generationID s
 	return nil
 }
 
-func canonicalGraphPhaseStates(generationID string, inputFacts []facts.Envelope) []reducer.GraphProjectionPhaseState {
+func canonicalGraphPhaseStates(ctx context.Context, logger *slog.Logger, generationID string, inputFacts []facts.Envelope) []reducer.GraphProjectionPhaseState {
 	seen := make(map[string]struct{})
 	rows := make([]reducer.GraphProjectionPhaseState, 0)
 
+	log := logger
+	if log == nil {
+		log = slog.Default()
+	}
 	for _, fact := range inputFacts {
 		switch decode.NormalizeFactKind(fact.FactKind) {
 		case "repository":
-			rows = appendCanonicalRepositoryGraphPhase(rows, seen, generationID, fact)
+			rows = appendCanonicalRepositoryGraphPhase(ctx, log, rows, seen, generationID, fact)
 		}
 		switch fact.FactKind {
 		case cloud.TerraformStateSnapshotFactKind, cloud.TerraformStateWarningFactKind:
@@ -85,6 +90,8 @@ func canonicalGraphPhaseStates(generationID string, inputFacts []facts.Envelope)
 }
 
 func appendCanonicalRepositoryGraphPhase(
+	ctx context.Context,
+	log *slog.Logger,
 	rows []reducer.GraphProjectionPhaseState,
 	seen map[string]struct{},
 	generationID string,
@@ -92,11 +99,28 @@ func appendCanonicalRepositoryGraphPhase(
 ) []reducer.GraphProjectionPhaseState {
 	repository, err := decode.CodegraphRepository(fact)
 	if err != nil {
+		// Already quarantined and logged upstream during BuildMaterialization;
+		// debug only, so the phase path does not double-report the same fact.
+		log.DebugContext(ctx, "projector canonical phase row dropped: repository fact undecodable",
+			slog.String("fact_id", fact.FactID),
+			slog.String("scope_id", fact.ScopeID),
+			slog.String("generation_id", generationID),
+		)
 		return rows
 	}
 	repoID := repository.RepoID
 	sourceRunID := decode.CodegraphDerefString(repository.SourceRunID)
 	if strings.TrimSpace(fact.ScopeID) == "" || repoID == "" || sourceRunID == "" || strings.TrimSpace(generationID) == "" {
+		// No other path dead-letters a decoded-but-identity-less repository
+		// fact (issue #7671): without this warn a generation can succeed with
+		// file facts but no code_entities_uid phase row and no log line.
+		log.WarnContext(ctx, "projector canonical phase row dropped: repository fact missing identity",
+			slog.String("fact_id", fact.FactID),
+			slog.String("scope_id", fact.ScopeID),
+			slog.String("generation_id", generationID),
+			slog.String("repo_id", repoID),
+			slog.String("source_run_id", sourceRunID),
+		)
 		return rows
 	}
 

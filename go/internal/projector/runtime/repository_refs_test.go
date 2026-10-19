@@ -4,7 +4,10 @@
 package runtime
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -98,7 +101,7 @@ func TestBuildRepositoryRefsSkipsMissingRepositoryID(t *testing.T) {
 func TestCanonicalGraphPhaseSkipsMissingRepositoryID(t *testing.T) {
 	t.Parallel()
 
-	rows := canonicalGraphPhaseStates("generation-456", []facts.Envelope{
+	rows := canonicalGraphPhaseStates(context.Background(), nil, "generation-456", []facts.Envelope{
 		{
 			FactID:       "fact-repository",
 			ScopeID:      "scope-123",
@@ -112,6 +115,37 @@ func TestCanonicalGraphPhaseSkipsMissingRepositoryID(t *testing.T) {
 	})
 	if len(rows) != 0 {
 		t.Fatalf("len(rows) = %d, want 0; repository phase rows must not publish from a repository fact missing repo_id", len(rows))
+	}
+}
+
+func TestCanonicalGraphPhaseWarnRoutedToRuntimeLogger(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	rows := canonicalGraphPhaseStates(context.Background(), logger, "generation-456", []facts.Envelope{
+		{
+			FactID:       "fact-repository",
+			ScopeID:      "",
+			GenerationID: "generation-456",
+			FactKind:     "repository",
+			ObservedAt:   time.Date(2026, time.October, 19, 5, 0, 0, 0, time.UTC),
+			Payload: map[string]any{
+				"repo_id":       "repo-123",
+				"name":          "eshu",
+				"path":          "org/eshu",
+				"source_run_id": "run-123",
+			},
+		},
+	})
+	if len(rows) != 0 {
+		t.Fatalf("len(rows) = %d, want 0; identity-less repository facts must not publish phase rows", len(rows))
+	}
+	if !strings.Contains(logs.String(), `"level":"WARN"`) {
+		t.Fatalf("phase warn logs = %q, want WARN routed through the runtime logger, not package slog", logs.String())
+	}
+	if !strings.Contains(logs.String(), "missing identity") {
+		t.Fatalf("phase warn logs = %q, want the missing-identity signal", logs.String())
 	}
 }
 

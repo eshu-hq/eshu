@@ -12,7 +12,7 @@ import (
 func TestBuildCanonicalMaterializationPromotesFunctionAnalysisMetadata(t *testing.T) {
 	t.Parallel()
 
-	materialization, _ := BuildMaterialization(testScope(), testGeneration(), []facts.Envelope{
+	materialization, _, _ := BuildMaterialization(testScope(), testGeneration(), []facts.Envelope{
 		{
 			FactID:   "repository",
 			FactKind: "repository",
