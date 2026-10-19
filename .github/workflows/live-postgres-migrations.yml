@@ -91,6 +91,8 @@ jobs:
       - name: Install ripgrep for fixture guards
         if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-migrations (postgres18)') }}
         run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Check fail-closed migration runner
         if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-migrations (postgres18)') }}

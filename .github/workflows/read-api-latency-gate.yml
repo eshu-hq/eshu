@@ -144,6 +144,8 @@ jobs:
           cache-dependency-path: go/go.sum
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
       - name: Run scale and concurrent HTTP/MCP proof
@@ -228,6 +230,8 @@ jobs:
       - name: Install ripgrep and jq
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (work budget refresh)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep jq
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Test the work budget refresh script
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (work budget refresh)')) }}
@@ -255,6 +259,8 @@ jobs:
       - name: Install ripgrep and jq
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (backend latency comparator)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep jq
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Test the backend latency comparator script
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (backend latency comparator)')) }}
@@ -293,6 +299,8 @@ jobs:
       - name: Install ripgrep
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'latency-gate (nornicdb)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Pre-warm Go modules
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'latency-gate (nornicdb)')) }}

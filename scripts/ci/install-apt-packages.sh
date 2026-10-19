@@ -12,9 +12,9 @@
 #   ESHU_CI_APT_BIN_DIR                       install destination (default
 #                                             /usr/local/bin), honors
 #                                             ESHU_CI_APT_NO_SUDO
-#   ESHU_CI_APT_RIPGREP_DOWNLOAD_ATTEMPTS      bounded retry count (default 3)
+#   ESHU_CI_APT_RIPGREP_DOWNLOAD_ATTEMPTS      bounded retry count (default 5)
 #   ESHU_CI_APT_RIPGREP_DOWNLOAD_RETRY_DELAY   seconds, doubles each retry
-#                                             (default 2)
+#                                             (default 5)
 #   ESHU_CI_APT_RIPGREP_DOWNLOAD_MAX_TIME      seconds, hard ceiling on the
 #                                             whole transfer, not just
 #                                             connect (default 120)
@@ -28,8 +28,12 @@ if [ "$#" -eq 0 ]; then
 fi
 
 # Verified against ripgrep's own published .sha256 for this release; do not
-# change without re-verifying upstream.
-readonly ESHU_CI_APT_PINNED_RIPGREP_URL="https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-x86_64-unknown-linux-musl.tar.gz"
+# change without re-verifying upstream. Repo/tag/asset are separate so the
+# authenticated gh fallback below downloads the identical asset.
+readonly ESHU_CI_APT_PINNED_RIPGREP_REPO="BurntSushi/ripgrep"
+readonly ESHU_CI_APT_PINNED_RIPGREP_TAG="15.2.0"
+readonly ESHU_CI_APT_PINNED_RIPGREP_ASSET="ripgrep-15.2.0-x86_64-unknown-linux-musl.tar.gz"
+readonly ESHU_CI_APT_PINNED_RIPGREP_URL="https://github.com/${ESHU_CI_APT_PINNED_RIPGREP_REPO}/releases/download/${ESHU_CI_APT_PINNED_RIPGREP_TAG}/${ESHU_CI_APT_PINNED_RIPGREP_ASSET}"
 readonly ESHU_CI_APT_PINNED_RIPGREP_SHA256="33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c"
 
 # RIPGREP_WORK_DIR is set only once install_ripgrep_pinned_binary actually
@@ -97,6 +101,46 @@ sha256_command() {
   fi
 }
 
+# download_ripgrep_via_gh is the authenticated fallback for the anonymous
+# download's 403s (#8617): release downloads from shared runner egress IPs
+# get rate-limited anonymously, while `gh release download` goes through
+# the authenticated API. It applies only to the pinned default URL -- a
+# caller who overrode the URL is fetching their own artifact (a test
+# fixture, another architecture) and gh cannot know it. It needs both gh
+# and a token (GH_TOKEN or GITHUB_TOKEN); without either it is a silent
+# no-op and the caller's loud failure stands. The archive it produces is
+# checksum-verified by the caller exactly like a curl download, so this
+# changes transport, never trust.
+download_ripgrep_via_gh() {
+  local url="$1" dest="$2"
+  if [ "${url}" != "${ESHU_CI_APT_PINNED_RIPGREP_URL}" ]; then
+    return 1
+  fi
+  local token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+  if [ -z "${token}" ] || ! command -v gh >/dev/null 2>&1; then
+    return 1
+  fi
+  echo "install-apt-packages: anonymous download failed; retrying via gh release download (authenticated)" >&2
+  # Bound the fallback like curl's --max-time: the same knob, so a stalled
+  # api.github.com cannot ride to the job timeout on this path either.
+  # timeout(1) is GNU coreutils (present on the runners); where it is
+  # absent (macOS dev machines) the fallback runs unbounded rather than
+  # not at all -- the install path that matters is the runner's.
+  local bound=()
+  if command -v timeout >/dev/null 2>&1; then
+    bound=(timeout "${ESHU_CI_APT_RIPGREP_DOWNLOAD_MAX_TIME:-120}")
+  fi
+  if GH_TOKEN="${token}" ${bound[@]+"${bound[@]}"} gh release download "${ESHU_CI_APT_PINNED_RIPGREP_TAG}" \
+    --repo "${ESHU_CI_APT_PINNED_RIPGREP_REPO}" \
+    --pattern "${ESHU_CI_APT_PINNED_RIPGREP_ASSET}" \
+    --output "${dest}" --clobber && [ -s "${dest}" ]; then
+    echo "install-apt-packages: ripgrep downloaded via gh release download" >&2
+    return 0
+  fi
+  rm -f "${dest}"
+  return 1
+}
+
 # download_ripgrep_archive downloads $1 to $2 with bounded retry and
 # doubling backoff -- the same shape as scripts/ci/go-mod-download-retry.sh.
 # ANY download failure is retried, not only transient ones: `curl -f` exits
@@ -120,8 +164,11 @@ sha256_command() {
 # invocation still carries both.
 download_ripgrep_archive() {
   local url="$1" dest="$2"
-  local attempts="${ESHU_CI_APT_RIPGREP_DOWNLOAD_ATTEMPTS:-3}"
-  local delay="${ESHU_CI_APT_RIPGREP_DOWNLOAD_RETRY_DELAY:-2}"
+  # 5 attempts at 5/10/20/40s spans ~75s: anonymous release downloads share
+  # the runner fleet's egress IPs, and the 403 rate-limit windows observed
+  # in #8617 outlast the old 3 attempts over ~6s.
+  local attempts="${ESHU_CI_APT_RIPGREP_DOWNLOAD_ATTEMPTS:-5}"
+  local delay="${ESHU_CI_APT_RIPGREP_DOWNLOAD_RETRY_DELAY:-5}"
   local max_time="${ESHU_CI_APT_RIPGREP_DOWNLOAD_MAX_TIME:-120}"
 
   if ! [[ "${attempts}" =~ ^[1-9][0-9]*$ ]]; then
@@ -147,6 +194,9 @@ download_ripgrep_archive() {
     fi
     rm -f "${dest}"
     if [ "${attempt}" -eq "${attempts}" ]; then
+      if download_ripgrep_via_gh "${url}" "${dest}"; then
+        return 0
+      fi
       echo "install-apt-packages: ripgrep download failed after ${attempts} attempt(s) from ${url}" >&2
       return 1
     fi

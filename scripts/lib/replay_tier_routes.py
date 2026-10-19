@@ -74,6 +74,8 @@ jobs:
       - name: Install contract dependencies
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Offline replay tier vs real NornicDB')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Pre-warm Go modules
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Offline replay tier vs real NornicDB')) }}
         run: scripts/ci/go-mod-download-retry.sh

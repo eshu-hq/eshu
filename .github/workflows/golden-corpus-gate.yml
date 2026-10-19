@@ -238,6 +238,8 @@ jobs:
       - name: Install ripgrep
         if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror') }}
         run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Validate orchestrator contract
         if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror') }}
         run: bash scripts/test-verify-golden-corpus-gate.sh
@@ -284,6 +286,8 @@ jobs:
       - name: Install ripgrep
         if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'corpus-gate') }}
         run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       # Pre-warm Go modules with retries so a dropped proxy stream fails
       # HERE, named for what it is, instead of surfacing as a B-7 golden
@@ -342,6 +346,8 @@ jobs:
       - name: Install ripgrep
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Pre-warm Go modules
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j')) }}
