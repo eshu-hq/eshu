@@ -9,7 +9,7 @@ terraform {
 # as a local relative path -- but classifyModuleSource's Terraform-Registry-
 # shorthand heuristic (three slash-separated segments, no scheme, no leading
 # ".") classifies that source as an EXTERNAL REGISTRY reference instead
-# (go/internal/storage/postgres/tfstate_drift_evidence_module_prefix.go), so
+# (go/internal/storage/postgres/tfstate/drift_evidence_module_prefix.go), so
 # the module {} block that names this directory is never walked as a
 # resolved local callee -- even though this directory genuinely exists in
 # the repo with a real resource declared in it, exactly the ADR's own
@@ -28,7 +28,7 @@ terraform {
 # atom (value "external_registry") to the added_in_config finding, and the
 # reducer writer downgrades that finding's outcome from "exact" to "derived"
 # -- proving issue #5572 end to end through the live golden-corpus gate, not
-# only in go/internal/storage/postgres/tfstate_drift_evidence_module_confidence_test.go's
+# only in go/internal/storage/postgres/tfstate/drift_evidence_module_confidence_test.go's
 # unit and loader-integration tests.
 #
 # depth_exceeded (issue #5572's OTHER documented cause) deliberately has no

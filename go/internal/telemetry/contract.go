@@ -259,7 +259,7 @@ const (
 	// exists so the drift counter's semantic dimension is anchored to this contract and
 	// future contributors can find every counter that uses it via
 	// grep-by-constant. Referenced from
-	// go/internal/storage/postgres/tfstate_drift_evidence_module_prefix.go.
+	// go/internal/storage/postgres/tfstate/drift_evidence_module_prefix.go.
 	MetricDimensionDriftUnresolvedModuleReason = "reason"
 	// MetricDimensionResourceType labels
 	// eshu_dp_drift_schema_unknown_composite_total with the Terraform resource

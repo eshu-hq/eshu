@@ -126,7 +126,7 @@ func LocatorHash(source StateKey) string {
 // state-snapshot scope groups every observed S3 object version of the same
 // state file under one durable identity, with per-version generations
 // carrying lineage and serial. The drift resolver join compares the two
-// hashes byte-for-byte (go/internal/storage/postgres/tfstate_backend_canonical.go
+// hashes byte-for-byte (go/internal/storage/postgres/tfstate/backend_canonical.go
 // against the scope hash parsed at
 // go/internal/reducer/tfconfigstate/terraform_config_state_drift.go); if the formulas
 // diverge, every drift intent silently rejects with

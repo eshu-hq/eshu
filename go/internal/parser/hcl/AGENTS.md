@@ -71,7 +71,7 @@
 - Removing the multi-element first-wins debug log in `walkBlockAttributes`
   (`terraform_resource_attributes.go:132`) without coordinating with the
   state-side emission at
-  `internal/storage/postgres/tfstate_drift_evidence_state_row.go:90`. Both
+  `internal/storage/postgres/tfstate/drift_evidence_state_row.go:90`. Both
   sites are tied to the frozen `LogKeyDriftMultiElementPrefix` and
   `LogKeyDriftMultiElementSource` keys; the parser side omits
   `multi_element.count` by design (recursion sees duplicates one-at-a-time)

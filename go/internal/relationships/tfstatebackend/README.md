@@ -7,7 +7,7 @@ Implements the prerequisite join for Terraform state/config drift correlation.
 The current operator-facing contract lives in
 `docs/public/reference/relationship-mapping.md`.
 The PostgresTerraformBackendQuery adapter
-(`go/internal/storage/postgres/tfstate_backend_canonical.go`) into
+(`go/internal/storage/postgres/tfstate/backend_canonical.go`) into
 `cmd/reducer/main.go`; the resolver runs against real parser facts in
 production.
 
@@ -90,7 +90,7 @@ injected `TerraformBackendQuery`. The query implementation is the
 caller's responsibility — the resolver does not own a backend adapter.
 
 The production adapter is the PostgresTerraformBackendQuery type in
-`go/internal/storage/postgres/tfstate_backend_canonical.go`. It reads
+`go/internal/storage/postgres/tfstate/backend_canonical.go`. It reads
 sealed `terraform_backends` parser facts and recomputes each row's safe
 locator hash with `terraformstate.ScopeLocatorHash` (the version-agnostic
 hash — using `terraformstate.LocatorHash` here was issue #203's bug) so the

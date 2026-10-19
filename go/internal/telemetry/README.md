@@ -489,7 +489,7 @@ prior-config walk summary emitted by `PostgresDriftEvidenceLoader`.
 `LogKeyDriftMultiElementPrefix`, `LogKeyDriftMultiElementCount`, and
 `LogKeyDriftMultiElementSource` flag the first-wins truncation policy applied
 to multi-element repeated nested blocks — emitted at debug level from both
-`flattenStateAttributes` (`internal/storage/postgres/tfstate_drift_evidence_state_row.go:90`)
+`flattenStateAttributes` (`internal/storage/postgres/tfstate/drift_evidence_state_row.go:90`)
 and `walkBlockAttributes` (`internal/parser/hcl/terraform_resource_attributes.go:132`).
 
 Pipeline phase constants (defined in `logging.go`): `PhaseDiscovery`,

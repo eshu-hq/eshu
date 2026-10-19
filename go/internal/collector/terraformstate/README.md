@@ -65,7 +65,7 @@ leaving this package is a redacted fact, warning, identity, or bounded summary.
   non-candidates because `DiscoveryCandidate` is an exact state object.
 - `EvaluateBackendConfig` is a second, separate consumer of the same
   `terraform_backends` parser facts: the config-vs-state drift resolver's
-  ownership join (`go/internal/storage/postgres/tfstate_backend_canonical.go`,
+  ownership join (`go/internal/storage/postgres/tfstate/backend_canonical.go`,
   `go/internal/relationships/tfstatebackend`). It answers "which repo owns
   this backend", not "should Eshu open this state file" — the discovery
   candidates above answer the latter and keep requiring explicit approval for

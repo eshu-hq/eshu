@@ -35,7 +35,7 @@ import (
 var extractorPins = []extractorPin{
 	{
 		Version:      1,
-		CorpusDigest: "c8b4f29521e1a41f56111fb5d85aa989f797d08fccc6a400a523910820b70e06",
+		CorpusDigest: "c3d30d2fccffe38dd6bf5b41220a77fa9d86bbd52f7136a31c942a736045dfaf",
 		OutputDigest: "7dde1bb7ab14ac9e08ca681ca85bfb70b3ce2eb99017911cc84afed14294ef01",
 		Window:       hydrationWindow{ListLimit: 5000, AllowanceWholeWindow: -1},
 	},

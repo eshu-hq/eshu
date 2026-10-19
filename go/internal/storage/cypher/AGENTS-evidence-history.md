@@ -454,7 +454,7 @@ not just a genuinely contested backend, and this fix now retracts on it every
 cycle instead of only at full reconciliation -- worth stating explicitly
 rather than leaving it implicit (#5623 P1 follow-up review, third finding).
 `PostgresTerraformBackendQuery.ListTerraformBackendsByLocator`
-(`internal/storage/postgres/tfstate_backend_canonical.go`) joins each
+(`internal/storage/postgres/tfstate/backend_canonical.go`) joins each
 candidate `terraform_backends` fact through
 `scope.active_generation_id = fact.generation_id` -- i.e. it only sees a
 repo's CURRENTLY-ACTIVE generation, and every repo re-ingests independently

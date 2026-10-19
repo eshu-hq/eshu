@@ -1,0 +1,229 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package tfstate
+
+// SQL constants consumed by drift_evidence.go's PostgresDriftEvidenceLoader.
+// Hoisted into a sibling file to keep the loader implementation under the
+// AGENTS.md 500-line cap; behavior and call sites are unchanged.
+//
+// Edit each query helper in drift_evidence.go in lockstep with the
+// constant it consumes — the rationale in each constant's comment block is
+// the source of truth for what the helper may assume about the result shape.
+
+// listModuleCallsForCommitQuery returns the terraform_modules arrays emitted
+// by the HCL parser for one (scope_id, generation_id) — i.e. one sealed
+// commit anchor — restricted to git-source file facts that actually contain
+// module call blocks.
+//
+// Mirrors the predicate shape of listConfigResourcesForCommitQuery: the base
+// parser payload (parser.go:106) always emits an empty terraform_modules
+// array for every parsed file, so the jsonb_array_length > 0 filter is
+// load-bearing and prunes the scan to files that actually contain at least
+// one `module "<name>" {}` block. The CASE/jsonb_typeof guard avoids
+// SQLSTATE 22023 ("cannot get array length of a scalar") on rows whose
+// terraform_modules value is jsonb null or any other scalar; see the
+// listConfigResourcesForCommitQuery comment for the planner-ordering
+// rationale.
+//
+// Powers PostgresDriftEvidenceLoader's module-aware join (issue #169 /
+// ADR 2026-05-11-module-aware-drift-joining). The loader decodes each row
+// into a slice of `{name, source, path}` entries and feeds
+// BuildModulePrefixMap (drift_evidence_module_prefix.go).
+const listModuleCallsForCommitQuery = `
+SELECT
+    fact.payload->'parsed_file_data'->'terraform_modules' AS terraform_modules
+FROM fact_records AS fact
+WHERE fact.scope_id = $1
+  AND fact.generation_id = $2
+  AND fact.fact_kind = 'file'
+  AND fact.source_system = 'git'
+  AND CASE
+        WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_modules') = 'array'
+        THEN jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_modules')
+        ELSE 0
+      END > 0
+ORDER BY fact.fact_id ASC
+`
+
+// listConfigResourcesForCommitQuery returns the terraform_resources arrays
+// emitted by the parser for one (scope_id, generation_id) — i.e. one sealed
+// commit anchor — restricted to git-source file facts that actually contain
+// resource blocks.
+//
+// The HCL parser's base payload (parser.go:103) always emits an empty
+// terraform_resources array for every parsed file, so jsonb_typeof alone
+// does NOT prune the scan. The array-length filter is the load-bearing
+// predicate: it restricts the row set to .tf files that actually contain
+// at least one `resource "<type>" "<name>" {}` block. Without it the loader
+// scans every parsed file in the repo snapshot per drift intent.
+//
+// The CASE expression provides both the type guard and the length filter
+// in one predicate. Postgres does NOT guarantee short-circuit evaluation
+// of AND predicates — the planner can evaluate jsonb_array_length before
+// any standalone jsonb_typeof guard, raising "cannot get array length of
+// a scalar" (SQLSTATE 22023) on rows whose terraform_resources value is
+// jsonb null or any other scalar. CASE branches are guaranteed not to
+// evaluate unless their condition matches (PostgreSQL docs), so the CASE
+// alone safely emits 0 for non-array values and the real length for
+// arrays. Adding a separate `jsonb_typeof = 'array'` predicate next to
+// this CASE would be redundant and would re-evaluate the type check per
+// row. Regression test:
+// TestPostgresDriftEvidenceLoaderSurvivesNullTerraformResourcesPath.
+const listConfigResourcesForCommitQuery = `
+SELECT
+    fact.payload->'parsed_file_data'->'terraform_resources' AS terraform_resources
+FROM fact_records AS fact
+WHERE fact.scope_id = $1
+  AND fact.generation_id = $2
+  AND fact.fact_kind = 'file'
+  AND fact.source_system = 'git'
+  AND CASE
+        WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_resources') = 'array'
+        THEN jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_resources')
+        ELSE 0
+      END > 0
+ORDER BY fact.fact_id ASC
+`
+
+// activeStateSnapshotMetadataQuery returns the lineage and serial of the
+// active terraform_state_snapshot fact for one state-snapshot scope, plus the
+// generation_id (used to fetch the matching state-resource rows). The scope
+// must have at most one active snapshot at any time; the LIMIT 1 protects
+// against stray duplicates without hiding a real bug.
+//
+// The ORDER BY is deterministic: newest observed_at first, lexicographic
+// fact_id tie-break. Without it, two snapshot facts sharing the active
+// generation (e.g. a transient duplicate during recovery or an upstream
+// re-emit) could yield different lineage/serial pairs on successive calls,
+// silently shifting which prior generation the loader looks up next. Stable
+// ordering is the only correctness gate the loader has against duplicate
+// rows it cannot reject upstream.
+const activeStateSnapshotMetadataQuery = `
+SELECT
+    fact.payload->>'lineage'                AS lineage,
+    (fact.payload->>'serial')::bigint        AS serial,
+    fact.generation_id                       AS generation_id
+FROM fact_records AS fact
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = fact.scope_id
+ AND scope.active_generation_id = fact.generation_id
+WHERE fact.scope_id = $1
+  AND fact.fact_kind = 'terraform_state_snapshot'
+ORDER BY fact.observed_at DESC, fact.fact_id DESC
+LIMIT 1
+`
+
+// listStateResourcesForGenerationQuery returns the terraform_state_resource
+// rows for one (scope_id, generation_id) pair. Used twice per call when a
+// prior generation exists: once for the active generation and once for
+// serial-1. Returns (address, payload_json) so the loader can decode
+// attributes without joining additional fact records.
+const listStateResourcesForGenerationQuery = `
+SELECT
+    fact.payload->>'address' AS address,
+    fact.payload            AS payload
+FROM fact_records AS fact
+WHERE fact.scope_id = $1
+  AND fact.generation_id = $2
+  AND fact.fact_kind = 'terraform_state_resource'
+ORDER BY fact.payload->>'address' ASC, fact.fact_id ASC
+`
+
+// priorStateSnapshotMetadataQuery returns the prior generation for one
+// state-snapshot scope by matching serial = currentSerial - 1. The lineage
+// is returned in addition to the generation_id so the loader can flag
+// lineage rotations (different lineage than the current snapshot) and
+// suppress removed_from_state per classify.go:73.
+const priorStateSnapshotMetadataQuery = `
+SELECT
+    fact.payload->>'lineage'                AS lineage,
+    (fact.payload->>'serial')::bigint        AS serial,
+    fact.generation_id                       AS generation_id
+FROM fact_records AS fact
+WHERE fact.scope_id = $1
+  AND fact.fact_kind = 'terraform_state_snapshot'
+  AND (fact.payload->>'serial')::bigint = $2
+ORDER BY fact.observed_at DESC, fact.fact_id DESC
+LIMIT 1
+`
+
+// listPriorConfigAddressesQuery returns the terraform_resources arrays from
+// the most recent N prior repo-snapshot generations for one scope, excluding
+// the current generation. Used by the drift loader to detect addresses that
+// were previously declared in config but are absent from the latest
+// generation — the load-bearing signal that activates removed_from_config.
+//
+// The query:
+//   - filters generations with status IN ('active','superseded') so failed
+//     and in-flight generations don't pollute the prior-config set;
+//   - excludes the anchor's current generation (caller passes generation_id
+//     in $2) so a state-only address in the current gen doesn't match itself;
+//   - bounds the walk by $3 generations ordered ingested_at DESC — the most
+//     recent N. Deeper history is intentionally conservative: an address
+//     that exited config more than N generations ago surfaces as
+//     added_in_state rather than removed_from_config;
+//   - reuses the same CASE/jsonb_typeof guard as
+//     listConfigResourcesForCommitQuery against jsonb null /
+//     scalar terraform_resources values (SQLSTATE 22023 regression).
+//
+// Result shape: (generation_id, terraform_resources), one row per file (per
+// generation) with a JSONB array of terraform_resources entries. The loader
+// decodes each row, builds a module-prefix map for that same prior
+// generation, and unions the canonical addresses into a set.
+//
+// The OUTER `ORDER BY pg.ingested_at DESC, pg.generation_id ASC,
+// fact.fact_id ASC` is load-bearing, not cosmetic (issue #5572 follow-up,
+// review-found P2): loadPriorConfigAddresses's Go-side generationOrder is
+// built strictly from the order these rows arrive, and
+// collectPriorConfigAddresses's first-write-wins semantics mean whichever
+// generation's rows arrive FIRST permanently decides an address's
+// module-resolution confidence. `generation_id` is an opaque TEXT PRIMARY
+// KEY (schema/data-plane/postgres/002_scope_generations.sql) with no defined
+// chronological relationship — this codebase's own
+// scope_generations_scope_latest_lookup_idx (scope_id, ingested_at DESC,
+// generation_id DESC) exists specifically because generation_id is NOT
+// trusted as a recency proxy elsewhere, and an earlier version of this
+// query's OUTER SELECT ordered by `pg.generation_id ASC` alone — bounding
+// which generations were INCLUDED via the CTE's own `ORDER BY ingested_at
+// DESC LIMIT`, but never guaranteeing the OUTER result row order matched
+// that recency. Proven wrong empirically against a real Postgres 18
+// instance: three prior generations whose generation_id ASC order
+// (gen-alpha, gen-charlie, gen-omega) differed from their true ingested_at
+// DESC order (gen-charlie, gen-alpha, gen-omega) returned rows in
+// generation_id order, and EXPLAIN (ANALYZE, VERBOSE) showed the CTE fully
+// inlined into a Nested Loop against scope_generations (no separate CTE Scan
+// node) — see
+// docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.md
+// for the full plan output from both the broken and fixed query text.
+// Exposing `ingested_at` from the CTE and ordering the OUTER SELECT by it
+// directly reuses the same scope_generations_scope_latest_lookup_idx index
+// (confirmed via EXPLAIN — identical cost, no new index needed) and makes
+// the guarantee explicit in the query itself rather than implicit in the
+// CTE's now-irrelevant internal ordering.
+const listPriorConfigAddressesQuery = `
+WITH prior_generations AS (
+    SELECT generation_id, ingested_at
+    FROM scope_generations
+    WHERE scope_id = $1
+      AND generation_id <> $2
+      AND status IN ('active', 'superseded')
+    ORDER BY ingested_at DESC
+    LIMIT $3
+)
+SELECT
+    pg.generation_id AS generation_id,
+    fact.payload->'parsed_file_data'->'terraform_resources' AS terraform_resources
+FROM fact_records AS fact
+JOIN prior_generations AS pg
+  ON pg.generation_id = fact.generation_id
+WHERE fact.scope_id = $1
+  AND fact.fact_kind = 'file'
+  AND fact.source_system = 'git'
+  AND CASE
+        WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_resources') = 'array'
+        THEN jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_resources')
+        ELSE 0
+      END > 0
+ORDER BY pg.ingested_at DESC, pg.generation_id ASC, fact.fact_id ASC
+`

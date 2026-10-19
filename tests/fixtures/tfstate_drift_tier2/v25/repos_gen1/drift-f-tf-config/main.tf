@@ -3,11 +3,11 @@
 # gen-2 config drops the resource block while gen-2 state still carries the
 # applied bucket (state does not change between generations — only config
 # does). The loader's listPriorConfigAddressesQuery
-# (go/internal/storage/postgres/tfstate_drift_evidence_sql.go:170) walks prior
+# (go/internal/storage/postgres/tfstate/drift_evidence_sql.go:170) walks prior
 # scope_generations rows for the same repo scope_id, ordered by ingested_at
 # DESC, excluding the current generation_id. When Phase 3.5 fires for the
 # gen-2 generation, hasStateOnlyAddress
-# (go/internal/storage/postgres/tfstate_drift_evidence_helpers.go:20) detects
+# (go/internal/storage/postgres/tfstate/drift_evidence_helpers.go:20) detects
 # the state-only address aws_s3_bucket.legacy, the prior-config walk finds
 # gen-1's superseded generation declaring it, mergeDriftRows sets
 # PreviouslyDeclaredInConfig=true on the state row, and the classifier emits

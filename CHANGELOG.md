@@ -388,7 +388,7 @@ recent shipped work grouped by feature area.
   A `BackendLocal` candidate's locator is an absolute path matching the
   repository checkout root (`BackendConfigContext.RepoLocalPath`, the
   durable `repository` fact's `local_path`), joined in
-  `go/internal/storage/postgres/tfstate_backend_canonical.go` by a
+  `go/internal/storage/postgres/tfstate/backend_canonical.go` by a
   `repo_local_paths` CTE keyed on `(scope_id, generation_id, repo_id)` with
   `DISTINCT ON` + latest-`observed_at`-wins, mirroring
   `listTerraformBackendFactsQuery`'s existing `active_repositories`
@@ -413,7 +413,7 @@ recent shipped work grouped by feature area.
     `TestDefaultEngineParsePathHCLLocalBackendBareBlockOmitsPathAttribute` fail
     before this change (zero candidates / no `state_path` field) and pass after.
     `TestPostgresTerraformBackendQueryRepoLocalPathJoinIsRepoScopedAndLatest`
-    (`go/internal/storage/postgres/tfstate_backend_canonical_repo_local_path_integration_test.go`)
+    (`go/internal/storage/postgres/tfstate/backend_canonical_repo_local_path_integration_test.go`)
     was run against a real, freshly schema-migrated Postgres 16 container
     (isolated, not the shared Compose stack): fails against the pre-fix join
     (0 rows where 1 was expected), passes against the fix. The full
@@ -671,7 +671,7 @@ recent shipped work grouped by feature area.
   The remaining, most likely explanation: `scripts/lib/golden-corpus-local-backend.sh`'s
   `stage_local_backend_cassette` computed the fixture's `local_path` from
   `ingestion_scopes.payload`, but the resolver's actual join
-  (`go/internal/storage/postgres/tfstate_backend_canonical.go`'s
+  (`go/internal/storage/postgres/tfstate/backend_canonical.go`'s
   `repo_local_paths` CTE) reads it from `fact_records WHERE fact_kind =
   'repository'` instead -- a different table. Tracing the write path shows
   both should carry the identical value (same `repositoryidentity.Metadata`
@@ -799,7 +799,7 @@ recent shipped work grouped by feature area.
   `go/internal/correlation/drift/tfconfigstate/doc.go`'s own recorded
   limitation named the risk: a module-nested resource's config-side address
   is computed by resolving `module {}` call chains
-  (`go/internal/storage/postgres/tfstate_drift_evidence_module_prefix.go`),
+  (`go/internal/storage/postgres/tfstate/drift_evidence_module_prefix.go`),
   and two documented failure shapes can silently produce a wrong address --
   `classifyModuleSource`'s Terraform-Registry-shorthand heuristic
   misclassifying a genuinely local module source as external (the
@@ -811,9 +811,9 @@ recent shipped work grouped by feature area.
   trustworthy.
 
   A new `moduleResolutionConfidenceMap`
-  (`go/internal/storage/postgres/tfstate_drift_evidence_module_confidence.go`)
+  (`go/internal/storage/postgres/tfstate/drift_evidence_module_confidence.go`)
   tracks both failure shapes as a directory-keyed low-confidence signal,
-  populated by `buildModulePrefixMap` alongside the real `modulePrefixMap`.
+  populated by `BuildModulePrefixMap` alongside the real `modulePrefixMap`.
   `ResourceRow.ModuleResolutionReason` carries it onto the config-side row;
   `BuildCandidates` attaches a new `terraform_module_resolution_confidence`
   evidence atom when present; the reducer writer's `moduleResolutionOutcome`
@@ -934,12 +934,12 @@ recent shipped work grouped by feature area.
   prior-config walk that powers `removed_from_config`
   (`PostgresDriftEvidenceLoader.loadPriorConfigAddresses`) built its own
   `moduleResolutionConfidenceMap` per prior generation and discarded it
-  (`priorPrefixMap, _, err := l.buildModulePrefixMap(...)`), so a
+  (`priorPrefixMap, _, err := l.BuildModulePrefixMap(...)`), so a
   `removed_from_config` finding promoted from a low-confidence prior-config
   address also stayed `"exact"`.
 
   A new `pairSpuriousModuleMismatches`
-  (`go/internal/storage/postgres/tfstate_drift_evidence_pairing.go`) runs
+  (`go/internal/storage/postgres/tfstate/drift_evidence_pairing.go`) runs
   inside `mergeDriftRows` and mirrors `ModuleResolutionReason` onto the
   paired state-only row, but only when the pairing is unambiguous: exactly
   one low-confidence config-only row and exactly one state-only row share
