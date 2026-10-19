@@ -1,0 +1,14 @@
+go/internal/reducer/evidence-6626-batch6-bucket9-phase.md
+  h_78a442cba0b3e6 82-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "777a7723e9da0a5dfa12ecceb8653f152ef3ab7a",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
