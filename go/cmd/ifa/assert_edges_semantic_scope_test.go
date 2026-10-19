@@ -33,6 +33,10 @@ func semanticScopeTestExpected(t *testing.T) []materializededges.ExpectedEdge {
 }
 
 func semanticScopeTestEdge(fromUID, fromRepo string, fromLabels []string, toUID, toRepo string, toLabels []string) graphdump.Edge {
+	return semanticScopeTestStampedEdge(fromUID, fromRepo, fromLabels, toUID, toRepo, toLabels, "parser/semantic-entities")
+}
+
+func semanticScopeTestStampedEdge(fromUID, fromRepo string, fromLabels []string, toUID, toRepo string, toLabels []string, stamp string) graphdump.Edge {
 	fromProps := map[string]any{"uid": fromUID}
 	if fromRepo != "" {
 		fromProps["repo_id"] = fromRepo
@@ -43,17 +47,60 @@ func semanticScopeTestEdge(fromUID, fromRepo string, fromLabels []string, toUID,
 		FromProps:  fromProps,
 		ToLabels:   toLabels,
 		ToProps:    map[string]any{"uid": toUID, "repo_id": toRepo},
-		Props:      map[string]any{"evidence_source": "parser/semantic-entities"},
+		Props:      map[string]any{"evidence_source": stamp},
 	}
 }
+
+// semanticScopeTestUIDs are the repaired canonical uids the committed
+// expected set declares for its three canonical-owned rows (#8359): the
+// test graph must name the same identities the fixture does, or the exact
+// set reds — a stale literal here fails the green test, never silently.
+const (
+	semanticScopeTestGoFuncUID     = "content-entity:e_900822881959"
+	semanticScopeTestPyFuncUID     = "content-entity:e_11b8bc5a516b"
+	semanticScopeTestAnnotationUID = "content-entity:e_ac72e5e33d8c"
+	semanticScopeTestVarUID        = "content-entity:sec-ex-var"
+)
 
 func semanticScopeTestGraph() []graphdump.Edge {
 	repo := semanticScopeTestRepoID
 	return []graphdump.Edge{
-		semanticScopeTestEdge(repo+":app/fetch.py", "", []string{"File"}, "content-entity:sec-annotation", repo, []string{"Annotation"}),
-		semanticScopeTestEdge(repo+":app/fetch.py", "", []string{"File"}, "content-entity:sec-py-func", repo, []string{"Function"}),
-		semanticScopeTestEdge(repo+":lib/worker.ex", "", []string{"File"}, "content-entity:sec-ex-var", repo, []string{"Variable"}),
-		semanticScopeTestEdge(repo+":pkg/handle.go", "", []string{"File"}, "content-entity:sec-go-func", repo, []string{"Function"}),
+		semanticScopeTestEdge(repo+":app/fetch.py", "", []string{"File"}, semanticScopeTestAnnotationUID, repo, []string{"Annotation"}),
+		semanticScopeTestEdge(repo+":app/fetch.py", "", []string{"File"}, semanticScopeTestPyFuncUID, repo, []string{"Function"}),
+		semanticScopeTestEdge(repo+":lib/worker.ex", "", []string{"File"}, semanticScopeTestVarUID, repo, []string{"Variable"}),
+		semanticScopeTestEdge(repo+":pkg/handle.go", "", []string{"File"}, semanticScopeTestGoFuncUID, repo, []string{"Function"}),
+	}
+}
+
+// semanticScopeTestVariantExpected loads the NornicDB expected-edge variant
+// through the same loader the command uses.
+func semanticScopeTestVariantExpected(t *testing.T) []materializededges.ExpectedEdge {
+	t.Helper()
+	path := filepath.Join(repoRootDir(t), "go/internal/ifa/testdata/semanticentitycontainment/ifa-semantic-entity-containment-family-expected-edges.nornicdb.json")
+	repoID, expected, err := materializededges.LoadSemanticEntityContainmentExpectedEdges(path)
+	if err != nil {
+		t.Fatalf("LoadSemanticEntityContainmentExpectedEdges(variant): %v", err)
+	}
+	if repoID != semanticScopeTestRepoID {
+		t.Fatalf("variant repo_id = %q, want %q", repoID, semanticScopeTestRepoID)
+	}
+	if len(expected) != 4 {
+		t.Fatalf("variant expected count = %d, want exact 4", len(expected))
+	}
+	return expected
+}
+
+// semanticScopeTestVariantGraph is the NornicDB live shape the variant
+// asserts: enrichment on the canonical nodes plus the canonical writer's own
+// edges for the three canonical-owned pairs, and the semantic writer's edge
+// for the semantic-owned Variable.
+func semanticScopeTestVariantGraph() []graphdump.Edge {
+	repo := semanticScopeTestRepoID
+	return []graphdump.Edge{
+		semanticScopeTestStampedEdge(repo+":app/fetch.py", "", []string{"File"}, semanticScopeTestAnnotationUID, repo, []string{"Annotation"}, "projector/canonical"),
+		semanticScopeTestStampedEdge(repo+":app/fetch.py", "", []string{"File"}, semanticScopeTestPyFuncUID, repo, []string{"Function"}, "projector/canonical"),
+		semanticScopeTestEdge(repo+":lib/worker.ex", "", []string{"File"}, semanticScopeTestVarUID, repo, []string{"Variable"}),
+		semanticScopeTestStampedEdge(repo+":pkg/handle.go", "", []string{"File"}, semanticScopeTestGoFuncUID, repo, []string{"Function"}, "projector/canonical"),
 	}
 }
 
@@ -116,7 +163,7 @@ func TestAssertSemanticEntityContainmentForeignRepoTouchingExpectedIsRed(t *test
 	t.Parallel()
 	expected := semanticScopeTestExpected(t)
 	graph := append(semanticScopeTestGraph(), semanticScopeTestEdge(
-		"repo-foreign:app/other.py", "", []string{"File"}, "content-entity:sec-py-func", "repo-foreign", []string{"Function"},
+		"repo-foreign:app/other.py", "", []string{"File"}, semanticScopeTestPyFuncUID, "repo-foreign", []string{"Function"},
 	))
 	err := assertSemanticEntityContainmentEdges(context.Background(), fakeEdgeReader{edges: graph}, semanticScopeTestRepoID, expected)
 	if err == nil {
@@ -160,6 +207,65 @@ func TestAssertSemanticEntityContainmentIgnoresSiblingCanonicalPopulation(t *tes
 	})
 	if err := assertSemanticEntityContainmentEdges(context.Background(), fakeEdgeReader{edges: graph}, semanticScopeTestRepoID, expected); err != nil {
 		t.Fatalf("canonical writer's own CONTAINS population red the cell: %v", err)
+	}
+}
+
+// TestAssertSemanticEntityContainmentVariantAdmitsCanonicalPairs is the
+// NornicDB variant's green path: the three canonical-owned pairs stamped by
+// the canonical writer plus the semantic-owned Variable edge assert exactly.
+func TestAssertSemanticEntityContainmentVariantAdmitsCanonicalPairs(t *testing.T) {
+	t.Parallel()
+	expected := semanticScopeTestVariantExpected(t)
+	if err := assertSemanticEntityContainmentEdges(context.Background(), fakeEdgeReader{edges: semanticScopeTestVariantGraph()}, semanticScopeTestRepoID, expected); err != nil {
+		t.Fatalf("variant population rejected: %v", err)
+	}
+}
+
+// TestAssertSemanticEntityContainmentVariantExcludesPlainCanonicalEdge pins
+// the pair gate: the plain Function's canonical CONTAINS edge shares the
+// repo, the labels, and the stamp with the wanted canonical pairs, but its
+// endpoint pair is not declared — so the scope must exclude it rather than
+// red it as an extra. Without the pair gate the canonical writer's own
+// population for non-family nodes would fail this family's cell.
+func TestAssertSemanticEntityContainmentVariantExcludesPlainCanonicalEdge(t *testing.T) {
+	t.Parallel()
+	expected := semanticScopeTestVariantExpected(t)
+	repo := semanticScopeTestRepoID
+	graph := append(semanticScopeTestVariantGraph(), semanticScopeTestStampedEdge(
+		repo+":app/fetch.py", "", []string{"File"}, "content-entity:e_plainfunction000", repo, []string{"Function"}, "projector/canonical",
+	))
+	if err := assertSemanticEntityContainmentEdges(context.Background(), fakeEdgeReader{edges: graph}, semanticScopeTestRepoID, expected); err != nil {
+		t.Fatalf("plain Function canonical edge red the variant cell: %v", err)
+	}
+}
+
+// TestAssertSemanticEntityContainmentVariantDuplicateCanonicalIsRed keeps
+// the exactness half of the pair gate honest: a second canonical edge on a
+// declared pair is a real duplicate and must be red, not absorbed.
+func TestAssertSemanticEntityContainmentVariantDuplicateCanonicalIsRed(t *testing.T) {
+	t.Parallel()
+	expected := semanticScopeTestVariantExpected(t)
+	graph := append(semanticScopeTestVariantGraph(), semanticScopeTestVariantGraph()[0])
+	err := assertSemanticEntityContainmentEdges(context.Background(), fakeEdgeReader{edges: graph}, semanticScopeTestRepoID, expected)
+	if err == nil {
+		t.Fatal("duplicated canonical edge accepted; duplicate must be red")
+	}
+	if !strings.Contains(err.Error(), "duplicate") {
+		t.Fatalf("error = %q, want the duplicate diagnostic", err.Error())
+	}
+}
+
+// TestAssertSemanticEntityContainmentBaseIgnoresCanonicalPairs pins the
+// file-driven fence: under the base (Neo4j) expected set the same
+// canonical-stamped pairs are dropped at the scope, so the legacy writer's
+// semantic population asserts exactly even where the canonical writer also
+// owns the pair. Without the vocab gate the Neo4j leg would see extras.
+func TestAssertSemanticEntityContainmentBaseIgnoresCanonicalPairs(t *testing.T) {
+	t.Parallel()
+	expected := semanticScopeTestExpected(t)
+	graph := append(semanticScopeTestGraph(), semanticScopeTestVariantGraph()[0])
+	if err := assertSemanticEntityContainmentEdges(context.Background(), fakeEdgeReader{edges: graph}, semanticScopeTestRepoID, expected); err != nil {
+		t.Fatalf("canonical pair red the base cell: %v", err)
 	}
 }
 

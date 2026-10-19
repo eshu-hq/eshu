@@ -172,17 +172,19 @@ s3_logs_to_expected_edges="${repo_root}/go/internal/ifa/testdata/s3logsto/ifa-s3
 kubernetes_correlation_cassette="${repo_root}/testdata/cassettes/kubernetescorrelation/ifa-kubernetes-correlation-family.json"
 kubernetes_correlation_expected_edges="${repo_root}/go/internal/ifa/testdata/kubernetescorrelation/ifa-kubernetes-correlation-family-expected-edges.json"
 # semantic_entity_containment family cassette (#8359, #6228 arbiter verdict
-# (a)): the repo-scoped four-edge CONTAINS family. Per the owner direction
-# on #8474 (P2 thread PRRT_kwDOSU-uHM6tuzC1) the family stays fully waived
-# for the determinism gate (no registry row); the cassette/expected set
-# are held by the
-# corpus/live-backend gates instead. Like every cassette
+# (a)): the repo-scoped four-edge CONTAINS family, driven through the shared
+# N={1,2,4} determinism cell via registry row 22. Like every cassette
 # above, a projection of its compiled Odù -- and
 # TestDirectFamilyCassettesMatchTheirCompiledOdu holds it to that -- carrying
 # the repository fact, the three typed file facts the File endpoints project
-# from, and the six content entities the semantic subset admits four of.
+# from, and the six content entities the semantic subset admits four of. The
+# three canonical-owned content entities carry the exact CanonicalEntityID
+# derivation the projector recomputes (#8359 ruling); the NornicDB
+# expected-edge variant records the canonical writer's stamp on those three
+# pairs (see the assert fn in scripts/lib/ifa_direct_family_live.sh).
 semantic_entity_containment_cassette="${repo_root}/testdata/cassettes/semanticentitycontainment/ifa-semantic-entity-containment-family.json"
 semantic_entity_containment_expected_edges="${repo_root}/go/internal/ifa/testdata/semanticentitycontainment/ifa-semantic-entity-containment-family-expected-edges.json"
+semantic_entity_containment_expected_edges_nornicdb="${repo_root}/go/internal/ifa/testdata/semanticentitycontainment/ifa-semantic-entity-containment-family-expected-edges.nornicdb.json"
 # cloud_resource (#8358) is the predicate-scoped direct family: one cassette
 # carrying THREE scope generations (one per provider writer), each owning
 # its scope like every sibling above.
@@ -246,6 +248,7 @@ ifa_family_fixtures_require() {
 	[[ -f "${kubernetes_correlation_expected_edges}" ]] || { echo "${gate}: kubernetes-correlation expected-edge set not found: ${kubernetes_correlation_expected_edges}" >&2; exit 1; }
 	[[ -f "${semantic_entity_containment_cassette}" ]] || { echo "${gate}: semantic-entity-containment cassette not found: ${semantic_entity_containment_cassette}" >&2; exit 1; }
 	[[ -f "${semantic_entity_containment_expected_edges}" ]] || { echo "${gate}: semantic-entity-containment expected-edge set not found: ${semantic_entity_containment_expected_edges}" >&2; exit 1; }
+	[[ -f "${semantic_entity_containment_expected_edges_nornicdb}" ]] || { echo "${gate}: semantic-entity-containment NornicDB expected-edge set not found: ${semantic_entity_containment_expected_edges_nornicdb}" >&2; exit 1; }
 	[[ -f "${cloud_resource_cassette}" ]] || { echo "${gate}: cloud-resource cassette not found: ${cloud_resource_cassette}" >&2; exit 1; }
 	[[ -f "${cloud_resource_expected_edges}" ]] || { echo "${gate}: cloud-resource expected-edge set not found: ${cloud_resource_expected_edges}" >&2; exit 1; }
 	# The family scope MUST be stamped source_system='oci_registry': replay

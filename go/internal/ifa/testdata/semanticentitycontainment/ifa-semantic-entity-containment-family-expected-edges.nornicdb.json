@@ -1,0 +1,42 @@
+{
+  "odu": "odu:ifa-semantic-entity-containment-family",
+  "note": "NornicDB variant of the semantic_entity_containment expected set (#8359): SAME four (source, target) pairs as the base file. The three canonical-owned rows (Go Function, Python Function, Annotation) assert enrichment landing on the canonical nodes plus the canonical writer's own CONTAINS edges, stamped projector/canonical (EntityUpsertWithContainmentTemplate) - the semantic writer's canonical-node mode MATCHes those nodes and owns no edge there. Only the semantic-owned Elixir Variable edge carries the parser/semantic-entities stamp. The determinism gate (NornicDB-only) asserts this file; the base file stays the Neo4j truth asserted by the broad-mode leg.",
+  "edges": [
+    {
+      "relationship_type": "CONTAINS",
+      "source_entity_id": "repo-ifa-semantic-entity-containment:app/fetch.py",
+      "target_entity_id": "content-entity:e_ac72e5e33d8c",
+      "properties": {
+        "evidence_source": "projector/canonical"
+      },
+      "repo_id": "repo-ifa-semantic-entity-containment"
+    },
+    {
+      "relationship_type": "CONTAINS",
+      "source_entity_id": "repo-ifa-semantic-entity-containment:app/fetch.py",
+      "target_entity_id": "content-entity:e_11b8bc5a516b",
+      "properties": {
+        "evidence_source": "projector/canonical"
+      },
+      "repo_id": "repo-ifa-semantic-entity-containment"
+    },
+    {
+      "relationship_type": "CONTAINS",
+      "source_entity_id": "repo-ifa-semantic-entity-containment:lib/worker.ex",
+      "target_entity_id": "content-entity:sec-ex-var",
+      "properties": {
+        "evidence_source": "parser/semantic-entities"
+      },
+      "repo_id": "repo-ifa-semantic-entity-containment"
+    },
+    {
+      "relationship_type": "CONTAINS",
+      "source_entity_id": "repo-ifa-semantic-entity-containment:pkg/handle.go",
+      "target_entity_id": "content-entity:e_900822881959",
+      "properties": {
+        "evidence_source": "projector/canonical"
+      },
+      "repo_id": "repo-ifa-semantic-entity-containment"
+    }
+  ]
+}

@@ -477,15 +477,15 @@ ifa_semantic_entity_containment_drive() {
 }
 
 # ifa_semantic_entity_containment_assert pins the four-edge exact set, repo-
-# scoped (#8359 verdict (a): fixture repo only, no sibling subtraction, no
-# stamp-fence widening). Called twice per cell like every sibling above.
-# The four edges are the semantic subset ExtractEntityRowsForRepo admits
-# (docstring Go Function, async Python Function, Annotation, Elixir module-
-# attribute Variable); the plain Function and the Class must contribute
-# nothing. CONTAINS is read off the writer templates' MERGE, never off the
-# port or family name.
+# scoped (#8359 verdict (a)), twice per cell. Backend-explicit (#8359
+# ruling): EXPECTED_VAR names the all-semantic base file (Neo4j truth); on
+# NornicDB use the checked-in .nornicdb.json sibling, whose canonical-owned
+# pairs carry the canonical stamp (scope reader follows the loaded file).
 ifa_semantic_entity_containment_assert() {
 	local label="$1" bin_dir="$2" expected_edges="$3"
+	if [[ "${ESHU_GRAPH_BACKEND:-}" == "nornicdb" && -f "${expected_edges%.json}.nornicdb.json" ]]; then
+		expected_edges="${expected_edges%.json}.nornicdb.json"
+	fi
 	printf '\n=== %s: assert semantic_entity_containment materialized edges (four-edge exact set, fixture-repo scoped) ===\n' "${label}"
 	"${bin_dir}/eshu-ifa" assert-edges \
 		-domain semantic_entity_containment \

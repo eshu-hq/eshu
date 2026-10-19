@@ -5,7 +5,7 @@
     {
       "relationship_type": "CONTAINS",
       "source_entity_id": "repo-ifa-semantic-entity-containment:app/fetch.py",
-      "target_entity_id": "content-entity:sec-annotation",
+      "target_entity_id": "content-entity:e_ac72e5e33d8c",
       "properties": {
         "evidence_source": "parser/semantic-entities"
       },
@@ -14,7 +14,7 @@
     {
       "relationship_type": "CONTAINS",
       "source_entity_id": "repo-ifa-semantic-entity-containment:app/fetch.py",
-      "target_entity_id": "content-entity:sec-py-func",
+      "target_entity_id": "content-entity:e_11b8bc5a516b",
       "properties": {
         "evidence_source": "parser/semantic-entities"
       },
@@ -32,7 +32,7 @@
     {
       "relationship_type": "CONTAINS",
       "source_entity_id": "repo-ifa-semantic-entity-containment:pkg/handle.go",
-      "target_entity_id": "content-entity:sec-go-func",
+      "target_entity_id": "content-entity:e_900822881959",
       "properties": {
         "evidence_source": "parser/semantic-entities"
       },

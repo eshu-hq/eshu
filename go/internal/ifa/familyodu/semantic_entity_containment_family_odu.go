@@ -32,6 +32,22 @@ import (
 // edge, so a regression that widened the subset would redden the guard
 // instead of silently matching a bigger expected set.
 //
+// The three canonical-owned rows (Go Function, Python Function, Annotation)
+// carry the exact content.CanonicalEntityID derivation the projector
+// recomputes for name/path/line labels, IGNORING the fact's entity_id
+// (entity_identity.go's canonicalGraphEntityID path). A hand-guessed uid
+// here can never MATCH on NornicDB: the semantic writer's canonical-node
+// mode MATCHes those nodes instead of MERGing them, so a divergent uid
+// no-ops silently with a success status (#8359). The literals below are
+// precomputed, never hand-typed, and independently reproduced by the
+// canonical-uid pin test beside this builder. The Elixir Variable keeps its
+// fixture uid: the writer MERGEs semantic-owned labels, so it lands as-is.
+// On NornicDB the three canonical rows therefore assert enrichment landing
+// on the canonical nodes plus the canonical writer's own CONTAINS edges
+// (stamped projector/canonical), while only the Variable edge carries the
+// semantic parser/semantic-entities stamp; the NornicDB expected-edge
+// variant records exactly that split.
+//
 // Rust ImplBlock->Function ownership edges are deliberately absent: the
 // ownership derivation lives in the cypher writer, and reproducing it in
 // the guard would be a second copy to drift. Writer unit tests cover that
@@ -80,6 +96,23 @@ var semanticEntityContainmentFiles = []struct {
 	{RelativePath: "lib/worker.ex", Language: "elixir"},
 }
 
+// semanticEntityContainmentGoFuncUID, semanticEntityContainmentPyFuncUID,
+// and semanticEntityContainmentAnnotationUID are
+// content.CanonicalEntityID(semanticEntityContainmentFamilyRepoID,
+// <relative path>, <entity type>, <entity name>, <start line>): the canonical
+// graph uids the projector's name/path/line path re-derives for these rows,
+// IGNORING whatever entity_id a content_entity fact supplies. The semantic
+// writer's NornicDB canonical-node mode MATCHes these nodes, so the rows must
+// carry these exact values or the write silently no-ops (#8359). Pinned as
+// literals and independently reproduced by
+// TestSemanticEntityContainmentCanonicalEntityIDLiterals, mirroring
+// TestSymbolRuntimeFamilyCanonicalEntityIDLiterals.
+const (
+	semanticEntityContainmentGoFuncUID     = "content-entity:e_900822881959"
+	semanticEntityContainmentPyFuncUID     = "content-entity:e_11b8bc5a516b"
+	semanticEntityContainmentAnnotationUID = "content-entity:e_ac72e5e33d8c"
+)
+
 // The fixture entities: four edge producers across three admission paths
 // (always-semantic Annotation, Go Function with docstring metadata,
 // Python async Function, Elixir module-attribute Variable) and two
@@ -87,19 +120,19 @@ var semanticEntityContainmentFiles = []struct {
 var semanticEntityContainmentFixtures = []semanticEntityContainmentFixture{
 	{
 		// EDGE: Go function carrying semantic metadata (docstring).
-		EntityID: "content-entity:sec-go-func", EntityType: "Function", EntityName: "Handle",
+		EntityID: semanticEntityContainmentGoFuncUID, EntityType: "Function", EntityName: "Handle",
 		RelativePath: "pkg/handle.go", Language: "go", StartLine: 10, EndLine: 20,
 		Metadata: map[string]any{"docstring": "Handle serves the request."},
 	},
 	{
 		// EDGE: Python async function.
-		EntityID: "content-entity:sec-py-func", EntityType: "Function", EntityName: "fetch",
+		EntityID: semanticEntityContainmentPyFuncUID, EntityType: "Function", EntityName: "fetch",
 		RelativePath: "app/fetch.py", Language: "python", StartLine: 3, EndLine: 9,
 		Metadata: map[string]any{"async": true},
 	},
 	{
 		// EDGE: Annotation is always semantic.
-		EntityID: "content-entity:sec-annotation", EntityType: "Annotation", EntityName: "route",
+		EntityID: semanticEntityContainmentAnnotationUID, EntityType: "Annotation", EntityName: "route",
 		RelativePath: "app/fetch.py", Language: "python", StartLine: 2, EndLine: 2,
 		Metadata: map[string]any{"kind": "applied", "target_kind": "function_definition"},
 	},
