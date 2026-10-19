@@ -60,9 +60,9 @@
 # defect -- root-cause it, never lower workers, retry, or otherwise normalize
 # it away (Serialization-Is-Not-A-Fix). A fault that never fires is an inert
 # script, not a pass, so every cell checks that its own fault actually fired:
-#   - a claimed-row proof for cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44/47/50/53/56
-#   - an exact runner-waiter proof for cells 62/63/64
-#   - a once-fired marker for cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/48/51/54/57/59/60/61
+#   - a claimed-row proof for cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44/47/50/53/56/59
+#   - an exact runner-waiter proof for cells 65/66/67
+#   - a once-fired marker for cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/48/51/54/57/60/62/63/64
 #   - a sentinel-fired proof for cell 5
 #
 # Usage:
@@ -129,8 +129,8 @@ export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7688}"
 : "${ESHU_POSTGRES_PASSWORD:=change-me}"
 : "${ESHU_NEO4J_PASSWORD:=change-me}"
 # Headroom over this gate's two slowest natural recovery mechanics: the fixed
-# 1-minute reducer lease (cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44/47/50/53/56) and the default 30s (+jitter)
-# reducer retry delay (cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/48/51/54/57/59/60/61's queue-retry lane) -- see go/cmd/reducer/
+# 1-minute reducer lease (cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44/47/50/53/56/59) and the default 30s (+jitter)
+# reducer retry delay (cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/48/51/54/57/60/62/63/64's queue-retry lane) -- see go/cmd/reducer/
 # main_helpers.go and go/internal/runtime/retry_policy.go.
 : "${GATE_DRAIN_TIMEOUT:=4m}"
 # 120s general CI margin; lock-vs-projector ordering fixed the CI codeowners failure, not this budget.
@@ -350,8 +350,8 @@ ifa_fault_shard_run cell_baseline_submodule_pin
 ifa_fault_shard_run cell_killworker_submodule_pin
 ifa_fault_shard_run cell_failgraphwrite_submodule_pin
 # kubernetes_namespace_environment (#6309), iam_instance_profile_role
-# (#6309), iam_can_assume, iam_can_perform, ec2_uses_profile, and s3_logs_to
-# (#6228 fault halves): direct-materialization
+# (#6309), iam_can_assume, iam_can_perform, ec2_uses_profile, s3_logs_to,
+# and iam_escalation (#6228 fault halves): direct-materialization
 # families in this gate. Each trio is baseline first (sole writer of that
 # family's digest and retry baseline), same shape as codeowners above.
 ifa_fault_shard_run cell_baseline_kubernetes_namespace_environment
@@ -387,6 +387,11 @@ ifa_fault_shard_run cell_failgraphwrite_s3_logs_to
 ifa_fault_shard_run cell_baseline_cloud_resource
 ifa_fault_shard_run cell_killworker_cloud_resource
 ifa_fault_shard_run cell_failgraphwrite_cloud_resource
+# iam_escalation (#6228 fault half): seventh direct family, baseline first,
+# same trio shape as above.
+ifa_fault_shard_run cell_baseline_iam_escalation
+ifa_fault_shard_run cell_killworker_iam_escalation
+ifa_fault_shard_run cell_failgraphwrite_iam_escalation
 # inheritance_edges (#5996) and shell_exec (#6001): generic dispatch, baseline
 # first in each trio (sole writer of that family's digest and retry baseline;
 # the atomic-group ordering check enforces it). Both are FAULT_SHARED_DRIVE=0,

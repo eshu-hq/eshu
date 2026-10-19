@@ -11,7 +11,7 @@
 # rejects a nil one at :107, and passes it to factload.LoadFactsForKinds at
 # :138. An ACCESS EXCLUSIVE lock on fact_records would therefore block a read
 # this handler really performs -- the blocker_kind a future fault cell would
-# take. No such cell exists yet.
+# take. A fault cell exists since the #6228 fault half.
 #
 # A DIRECT-materialization family, so there is no shared_projection_intents row
 # for shared_intent_lock to take.
@@ -41,8 +41,6 @@ IFA_FAMILY_PIN_ANCHOR="MERGE (p)-[rel:CAN_ESCALATE_TO]->(t)"
 # shared_cell: a plain reducer family needing no maintenance pass, so it is
 # driven in the determinism gate's shared N={1,2,4} cell.
 IFA_FAMILY_PIN_SHARED_CELL=1
-# cell_kind: custom, prospectively -- no fault cell file exists for this
-# family yet, and the generic public dispatchers reject custom rows, so the
-# fault gate cannot dispatch it. A future fault cell flips nothing here; the
-# row already declares the custom dispatch shape.
+# cell_kind: custom -- hand-written cells, dispatched by name since the
+# #6228 fault half; the row already declares the custom dispatch shape.
 IFA_FAMILY_PIN_CELL_KIND="custom"

@@ -90,9 +90,10 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		LiveProven: true,
 	},
 	{
-		Family:    iamEscalationFamily,
-		OduName:   ifa.IAMEscalationFamilyOduName,
-		EdgeTypes: []string{"CAN_ESCALATE_TO"},
+		Family:     iamEscalationFamily,
+		OduName:    ifa.IAMEscalationFamilyOduName,
+		EdgeTypes:  []string{"CAN_ESCALATE_TO"},
+		LiveProven: true,
 	},
 	{
 		Family:     ec2UsesProfileFamily,

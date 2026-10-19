@@ -87,6 +87,12 @@ s3_logs_to_edge_operation_match="MERGE (source)-[rel:LOGS_TO]->(target)"
 # would never fire. It is NOT AWS_RELATIONSHIP, which is statement metadata
 # beside the query.
 cloud_resource_edge_operation_match="MERGE (source)-[rel:AWS_lambda_function_uses_execution_role]->(target)"
+# The CAN_ESCALATE_TO MERGE anchor cell_failgraphwrite_iam_escalation (#6228
+# fault half) targets:
+# go/internal/storage/cypher/cloud/aws/iam/escalation_edge_writer.go:42 bakes
+# the static token into the template (no %s), so the anchor carries the
+# literal. It is NOT IAM_ESCALATION, which appears nowhere in code.
+iam_escalation_edge_operation_match="MERGE (p)-[rel:CAN_ESCALATE_TO]->(t)"
 
 # The DOCUMENTS edge MERGE anchor cell_failgraphwrite_documentation targets:
 # go/internal/storage/cypher/canonical_documentation_edges.go's
