@@ -42,6 +42,14 @@ type CompletionWakeResult struct {
 // input to prove stale. The wake is fingerprint-gated, so re-running it over
 // the same repositories reopens nothing further.
 //
+// First-execution bound (#8608): an item on its first execution records its
+// fingerprint only in its about-to-succeed path, so a pass that appends rows
+// after the item's read but before that record leaves it unflagged and it
+// lands succeeded on stale input. The loss is delay, not truth: the next
+// pass sees the recorded fingerprint mismatch and the succeeded arm reopens
+// it. Only a run that never gets another pass keeps the stale success, the
+// pre-#8294 one-shot bound for non-append input.
+//
 // Ownership: the trigger lives in this package (the resolution flow knows
 // when it appended), the queue write lives in go/internal/storage/postgres
 // (it owns fact_work_items and the reopen fingerprint table; postgres already
