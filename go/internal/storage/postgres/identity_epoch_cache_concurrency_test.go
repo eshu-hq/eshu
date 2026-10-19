@@ -130,7 +130,7 @@ func TestIdentityEpochCacheConcurrentSingleflight(t *testing.T) {
 		secondProbeEntered: make(chan struct{}),
 		overlapTimeout:     overlapTimeout,
 		factRow:            factRow,
-		probeRow:           []any{int64(1), time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ""},
+		probeRow:           []any{int64(1), sql.NullTime{Time: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), Valid: true}, ""},
 	}
 
 	store := newFactStoreWithCache(q, 0)

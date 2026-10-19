@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -120,8 +121,10 @@ ORDER BY fact.observed_at ASC, fact.fact_id ASC
 LIMIT $3
 `
 
-// probeIdentityEpochQuery returns (count, COALESCE(max(observed_at), '-infinity'),
-// active_fingerprint). The count and max are taken over identity facts of each
+// probeIdentityEpochQuery returns (count, max(observed_at), active_fingerprint).
+// The max is NULL on an empty set and scans to the zero time, so the empty-set
+// epoch stays stable and cacheable (#8607). The count and max are taken over
+// identity facts of each
 // scope's ACTIVE generation only, the same set the page query serves, so
 // retention and supersession deletes of old-generation rows do not move the
 // epoch (#7805: the former all-generations count moved every few minutes, which
@@ -152,7 +155,7 @@ LIMIT $3
 const probeIdentityEpochQuery = `
 SELECT
     count(*) AS cnt,
-    COALESCE(max(fact.observed_at), '-infinity'::timestamptz),
+    max(fact.observed_at),
     encode(sha256(convert_to(COALESCE(string_agg(DISTINCT fact.scope_id::text || ':' || fact.generation_id::text, '|' ORDER BY fact.scope_id::text || ':' || fact.generation_id::text), ''), 'UTF8')), 'hex') AS fingerprint
 FROM fact_records AS fact
 WHERE ` + identityFactFilterSQL + `
@@ -220,7 +223,7 @@ func (s *FactStore) probeIdentityEpoch(ctx context.Context) (identityEpoch, erro
 		return identityEpoch{}, fmt.Errorf("probe identity epoch: no rows returned")
 	}
 	var count int64
-	var maxObservedAt time.Time
+	var maxObservedAt sql.NullTime
 	var fingerprint string
 	if err := rows.Scan(&count, &maxObservedAt, &fingerprint); err != nil {
 		return identityEpoch{}, fmt.Errorf("probe identity epoch scan: %w", err)
@@ -229,7 +232,8 @@ func (s *FactStore) probeIdentityEpoch(ctx context.Context) (identityEpoch, erro
 		return identityEpoch{}, fmt.Errorf("probe identity epoch rows: %w", err)
 	}
 
-	return identityEpoch{count: int(count), maxObservedAt: maxObservedAt, activeFingerprint: fingerprint}, nil
+	// A NULL max on an empty set scans to the zero time (stable across probes).
+	return identityEpoch{count: int(count), maxObservedAt: maxObservedAt.Time, activeFingerprint: fingerprint}, nil
 }
 
 func (s *FactStore) listActiveContainerImageIdentityFactsPage(
