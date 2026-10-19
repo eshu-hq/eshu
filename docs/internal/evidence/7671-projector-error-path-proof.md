@@ -12,7 +12,7 @@ error/empty/quarantine branches; happy-path projection code is untouched
   `projector/canonical` 0.010 s, `projector/decode` 0.004 s,
   `projector/runtime` 0.032 s (`go test -count=1`, all ok).
 - After (branch head, same host, same command): `canonical` 0.040 s,
-  `decode` 0.010 s, `runtime` 0.041 s (all ok, includes 2 new tests).
+  `decode` 0.010 s, `runtime` 0.041 s (all ok, includes 8 new tests).
 - Backend: local `go test`, no database or graph backend involved; input
   shape is the focused unit suites above (unit scale, not a corpus replay).
 - Row counts: not applicable (no rows read or written by this change).
