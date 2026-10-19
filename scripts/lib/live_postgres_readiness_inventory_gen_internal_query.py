@@ -7,6 +7,9 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/query": {
+        "go/internal/query/code_topic_entity_name_first_live_test.go": (
+            "TestInvestigateCodeTopicEntityNameFirstPostgresLive",
+        ),
         "go/internal/query/code_topic_fleet_endpoint_live_test.go": (
             "TestCodeTopicFleetCapacityEndpointPostgresLive",
         ),

@@ -7,13 +7,26 @@
 		         m.entity_name, m.entity_type, m.language, m.start_line, m.end_line
 		  FROM terms
 		  CROSS JOIN LATERAL (
-		    SELECT e.repo_id, e.relative_path, e.entity_id, e.entity_name, e.entity_type,
-		           coalesce(e.language, '') AS language, e.start_line, e.end_line
-		    FROM content_entities e
-		    WHERE (e.entity_name ILIKE '%' || terms.term || '%'
-		           OR e.source_cache ILIKE '%' || terms.term || '%')
-		    AND repo_id = $1
-		    LIMIT 1333
+		    WITH name_pool AS MATERIALIZED (
+		      SELECT e.repo_id, e.relative_path, e.entity_id, e.entity_name, e.entity_type,
+		             coalesce(e.language, '') AS language, e.start_line, e.end_line
+		      FROM content_entities e
+		      WHERE e.entity_name ILIKE '%' || terms.term || '%'
+		      AND repo_id = $1
+		      LIMIT 1333
+		    ),
+		    source_pool AS (
+		      SELECT e.repo_id, e.relative_path, e.entity_id, e.entity_name, e.entity_type,
+		             coalesce(e.language, '') AS language, e.start_line, e.end_line
+		      FROM content_entities e
+		      WHERE e.source_cache ILIKE '%' || terms.term || '%'
+		        AND e.entity_name NOT ILIKE '%' || terms.term || '%'
+		      AND repo_id = $1
+		      LIMIT (SELECT 1333 - count(*) FROM name_pool)
+		    )
+		    SELECT * FROM name_pool
+		    UNION ALL
+		    SELECT * FROM source_pool
 		  ) m
 		),
 		entity_matches AS (

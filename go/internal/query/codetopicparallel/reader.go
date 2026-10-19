@@ -114,8 +114,11 @@ func scopedProbe(req codequery.CodeTopicInvestigationRequest) bool {
 	return codequery.CodeTopicIsRepoScoped(req)
 }
 
-// ProbeSQL builds the exact per-term candidate read for one partition.
-// The caller supplies grant and language filters produced by codeTopicFilters.
+// ProbeSQL builds the exact per-term candidate read for one partition. Its
+// entity lateral mirrors query's single-statement split (#7033: name_pool
+// first, count-gated source_pool complement); keep the two byte-identical in
+// logic. The caller supplies grant and language filters produced by
+// codeTopicFilters.
 // A repo-scoped probe hides each trigram-bearing term's file-content bind
 // behind MATERIALIZED term_param (#8370, selected by the same guard as
 // query.codeTopicFileBranch); every other shape keeps the shared upstream
@@ -147,12 +150,24 @@ func ProbeSQL(req codequery.CodeTopicInvestigationRequest, candidateCap int, fil
 		  SELECT terms.term AS matched_term, m.repo_id, m.relative_path, m.entity_id,
 		         m.entity_name, m.entity_type, m.language, m.start_line, m.end_line
 		  FROM terms CROSS JOIN LATERAL (
-		    SELECT e.repo_id, e.relative_path, e.entity_id, e.entity_name, e.entity_type,
-		           coalesce(e.language, '') AS language, e.start_line, e.end_line
-		    FROM content_entities e
-		    WHERE (e.entity_name ILIKE '%%' || terms.term || '%%'
-		           OR e.source_cache ILIKE '%%' || terms.term || '%%')
-		    %[2]s LIMIT %[3]d
+		    WITH name_pool AS MATERIALIZED (
+		      SELECT e.repo_id, e.relative_path, e.entity_id, e.entity_name, e.entity_type,
+		             coalesce(e.language, '') AS language, e.start_line, e.end_line
+		      FROM content_entities e
+		      WHERE e.entity_name ILIKE '%%' || terms.term || '%%'
+		      %[2]s LIMIT %[3]d
+		    ),
+		    source_pool AS (
+		      SELECT e.repo_id, e.relative_path, e.entity_id, e.entity_name, e.entity_type,
+		             coalesce(e.language, '') AS language, e.start_line, e.end_line
+		      FROM content_entities e
+		      WHERE e.source_cache ILIKE '%%' || terms.term || '%%'
+		        AND e.entity_name NOT ILIKE '%%' || terms.term || '%%'
+		      %[2]s LIMIT (SELECT %[3]d - count(*) FROM name_pool)
+		    )
+		    SELECT * FROM name_pool
+		    UNION ALL
+		    SELECT * FROM source_pool
 		  ) m
 		), file_probe AS (%[4]s)
 		SELECT 'entity' AS source_kind, matched_term, repo_id, relative_path,

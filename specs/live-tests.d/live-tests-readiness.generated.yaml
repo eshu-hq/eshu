@@ -39,6 +39,11 @@ tests:
     class: postgres_ci
     reason: "#8261 admin repository skip (SkipRepositoryWorkItems) lock order against the recovery replay, the admin replay and the reducer claim sweep over failed rows of a superseded generation: the held-middle-row race completes in both start orders (main: 6 of 6 40P01), 150 rounds of all four with a 2 ms per-row trigger sleep and random start delays give 0 x 40P01 (main: 98 x 40P01), and the EvalPlanQual case drops a row claimed or replayed before the skip's lock step; isolated schemas; about 100-180 s locally including two 400,000-row seeds; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/query/code_topic_entity_name_first_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7033 disposable PostgreSQL proof of the name-first code-topic entity tail bound: 2,000 TOAST-sized filler rows take early heap, the rare term zephyr keeps all three deep matches uncapped, the capped term quasar holds exactly the 250-row per-term cap with deep name matches winning the bounded pool over early heap-order source rows, and an independent unordered lateral oracle proves the zephyr multiset; the live-postgres-readiness runner requires the administrative DSN and explicit disposable opt-in, and verifies every test PASS event"
+    runner: live-postgres-readiness
   - file: go/internal/query/code_topic_fleet_endpoint_live_test.go
     tag: ~
     class: postgres_ci
