@@ -10,10 +10,13 @@ import (
 
 // TestDefaultEngineParsePathSkipsPlainCallsOfReboundImports pins the #8310
 // repros for the #7601 plain-call keys: an import alias, a using declaration,
-// a block let, or a sloppy-mode eval var rebinds the import name where the
-// open redeclaredImportNames rule does not look, so the plain `Logger()` call
+// a block let, a `\u` escape, or a sloppy-mode eval var rebinds the import
+// name where the open redeclaredImportNames rule does not look, so the plain
+// `Logger()` call
 // must stay unkeyed. Each case starts with the package import; the sloppy eval
-// case is a script (.js), where eval shares the function scope.
+// case is a script (.js), where eval shares the function scope. The member
+// `Logger.create()` call of the same files must stay unkeyed too under its
+// own closed rule, so each row pins both shapes.
 func TestDefaultEngineParsePathSkipsPlainCallsOfReboundImports(t *testing.T) {
 	t.Parallel()
 
@@ -25,6 +28,7 @@ func TestDefaultEngineParsePathSkipsPlainCallsOfReboundImports(t *testing.T) {
 		{"import alias", ".ts", "namespace N {\n  import Logger = Other.Thing;\n  Logger.create();\n  Logger();\n}\n"},
 		{"using declaration", ".ts", "{\n  using Logger = res();\n  Logger.create();\n  Logger();\n}\n"},
 		{"block let", ".ts", "{\n  let Logger = other;\n  Logger.create();\n  Logger();\n}\n"},
+		{"unicode escape", ".ts", "{\n  let \\u004cogger = other;\n  Logger.create();\n  Logger();\n}\n"},
 		{"sloppy eval var", ".js", "function g() {\n  eval(\"var Logger = other\");\n  Logger.create();\n  Logger();\n}\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -37,6 +41,9 @@ func TestDefaultEngineParsePathSkipsPlainCallsOfReboundImports(t *testing.T) {
 			got := parsePackageKeyFixture(t, repoRoot, filePath)
 			if key := callPackageKey(t, got, "Logger", "function_call"); key != "" {
 				t.Errorf("Logger() package_export_symbol = %q, want none: the import name is rebound by %s", key, tc.name)
+			}
+			if key := callPackageKey(t, got, "Logger.create", "function_call"); key != "" {
+				t.Errorf("Logger.create package_export_symbol = %q, want none: the import name is rebound by %s", key, tc.name)
 			}
 		})
 	}
@@ -113,5 +120,38 @@ func TestDefaultEngineParsePathKeepsPlainCallsOnlyUnderTheClosedRule(t *testing.
 				t.Errorf("Logger() package_export_symbol = %q, want %q next to %q", key, want, tc.construct)
 			}
 		})
+	}
+}
+
+// TestDefaultEngineParsePathSkipsNamespaceMemberCallsOfModuleReboundImports
+// pins the #8310 comment repro for the #7601 namespace-member keys: a
+// `module fmt` declaration rebinds the `import * as fmt` name where the open
+// redeclaredImportNames rule does not look. The closed plain rule drops every
+// plain key of that name file-wide, so both the inner call (which reads the
+// local module) and the outer call stay unkeyed; the outer drop is the stated
+// recall cost of closing the rule. See also
+// TestDefaultEngineParsePathDropsPlainCallsFileWideOnRebind, which pins the
+// same module-fmt fixture with a trailing member call.
+func TestDefaultEngineParsePathSkipsNamespaceMemberCallsOfModuleReboundImports(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	writeTestFile(t, filepath.Join(repoRoot, "package.json"), `{"name": "consumer-app", "dependencies": {"@acme/log": "1"}}`)
+	filePath := filepath.Join(repoRoot, "src", "repro.ts")
+	writeTestFile(t, filePath, "import * as fmt from \"@acme/log\";\nnamespace N {\n  module fmt { export function f() {} }\n  fmt.f();\n}\nfmt.f();\n")
+	got := parsePackageKeyFixture(t, repoRoot, filePath)
+	calls, _ := got["function_calls"].([]map[string]any)
+	seen := 0
+	for _, call := range calls {
+		if call["full_name"] != "fmt.f" {
+			continue
+		}
+		seen++
+		if key, _ := call["package_export_symbol"].(string); key != "" {
+			t.Errorf("fmt.f() package_export_symbol = %q, want none: the import name is rebound by module fmt", key)
+		}
+	}
+	if seen != 2 {
+		t.Fatalf("found %d fmt.f() calls, want 2: the repro must cover both the inner and the outer call", seen)
 	}
 }
