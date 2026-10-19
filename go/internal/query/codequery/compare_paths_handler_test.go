@@ -159,3 +159,20 @@ func TestCodeHandlerCompareCodePathsValidation(t *testing.T) {
 		}
 	}
 }
+
+// TestCodeHandlerCompareCodePathsUnseededEndpointsAreNotFound pins the #5167
+// sweep contract: endpoint names that resolve to zero candidates must answer
+// the typed 404, not the BFS 500. Zero candidates resolve to (nil, nil),
+// which is not an error, so the empty ids used to slip past endpoint failure
+// into bfsComparePaths' "requires resolved start and end entity ids" error
+// and the live sweep saw HTTP 500 "code path comparison graph read failed".
+func TestCodeHandlerCompareCodePathsUnseededEndpointsAreNotFound(t *testing.T) {
+	t.Parallel()
+
+	handler := compareHandler(diamondCompareGraph(), GraphBackendNeo4j)
+	code, _ := postComparePaths(t, handler,
+		`{"repo_id":"repo-x","start":"sweepStart","end":"sweepEnd","max_depth":3,"max_paths":3}`)
+	if code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d (typed not_found for unresolvable endpoints)", code, http.StatusNotFound)
+	}
+}

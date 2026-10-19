@@ -197,6 +197,15 @@ func (h *CodeHandler) handleCompareCodePaths(w http.ResponseWriter, r *http.Requ
 		writeCallChainEndpointFailure(w, r, err, CompareCodePathsCapability, comparePathsEndpointFailedMessage)
 		return
 	}
+	// Zero candidates resolve to (nil, nil), not an error, so unresolvable
+	// endpoint names arrive here with empty ids. Answer the typed 404: the
+	// #5167 sweep's missing-subject contract. Letting them reach the BFS
+	// turns them into its "requires resolved start and end entity ids"
+	// error, a 500 "graph read failed" for a question with no subject.
+	if strings.TrimSpace(req.StartEntityID) == "" || strings.TrimSpace(req.EndEntityID) == "" {
+		WriteError(w, http.StatusNotFound, fmt.Sprintf("call chain endpoint not found: %q to %q in repository %q", req.Start, req.End, req.RepoID))
+		return
+	}
 	if !h.applyRepositorySelectorForCapability(w, r, &req.RepoID, CompareCodePathsCapability) {
 		return
 	}
