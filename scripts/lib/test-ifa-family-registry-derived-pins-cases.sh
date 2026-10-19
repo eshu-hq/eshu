@@ -341,6 +341,22 @@ run_ifa_family_registry_fixture_wiring_cases() {
 			|| fail "fixture wiring: '${family}' EXPECTED_VAR '${expected_var}' is assigned but empty in ${fixtures_lib}"
 		[[ -f "${!expected_var}" ]] \
 			|| fail "fixture wiring: '${family}' expected-edge set does not exist on disk: ${!expected_var} (EXPECTED_VAR=${expected_var})"
+
+		# A set SHARED_EXPECTED_VAR (the shared N-cell override) must resolve
+		# exactly like EXPECTED_VAR above: assigned, non-empty, on disk.
+		# Families without the override skip silently -- the dispatcher falls
+		# back to EXPECTED_VAR explicitly, so absence is not a gap.
+		local shared_var
+		if shared_var="$(ifa_family_shared_expected_var "${family}" 2>/dev/null)"; then
+			[[ -n "${shared_var}" ]] \
+				|| fail "fixture wiring: '${family}' declares an empty SHARED_EXPECTED_VAR"
+			[[ -n "${!shared_var+set}" ]] \
+				|| fail "fixture wiring: '${family}' points SHARED_EXPECTED_VAR at '${shared_var}', which ${fixtures_lib} never assigns"
+			[[ -n "${!shared_var}" ]] \
+				|| fail "fixture wiring: '${family}' SHARED_EXPECTED_VAR '${shared_var}' is assigned but empty in ${fixtures_lib}"
+			[[ -f "${!shared_var}" ]] \
+				|| fail "fixture wiring: '${family}' shared expected-edge set does not exist on disk: ${!shared_var} (SHARED_EXPECTED_VAR=${shared_var})"
+		fi
 	done < <(ifa_family_registry_names)
 
 	[[ "${checked}" -ge 5 ]] \

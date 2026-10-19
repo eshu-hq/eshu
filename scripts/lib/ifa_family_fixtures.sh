@@ -251,6 +251,7 @@ ifa_family_fixtures_require() {
 	[[ -f "${s3_logs_to_expected_edges}" ]] || { echo "${gate}: s3-logs-to expected-edge set not found: ${s3_logs_to_expected_edges}" >&2; exit 1; }
 	[[ -f "${authenticates_vault_role_cassette}" ]] || { echo "${gate}: authenticates-vault-role cassette not found: ${authenticates_vault_role_cassette}" >&2; exit 1; }
 	[[ -f "${authenticates_vault_role_expected_edges}" ]] || { echo "${gate}: authenticates-vault-role expected-edge set not found: ${authenticates_vault_role_expected_edges}" >&2; exit 1; }
+	[[ -f "${authenticates_vault_role_live_expected_edges}" ]] || { echo "${gate}: authenticates-vault-role live expected-edge set not found: ${authenticates_vault_role_live_expected_edges}" >&2; exit 1; }
 	[[ -f "${uses_vault_policy_cassette}" ]] || { echo "${gate}: uses-vault-policy cassette not found: ${uses_vault_policy_cassette}" >&2; exit 1; }
 	[[ -f "${uses_vault_policy_expected_edges}" ]] || { echo "${gate}: uses-vault-policy expected-edge set not found: ${uses_vault_policy_expected_edges}" >&2; exit 1; }
 	[[ -f "${kubernetes_correlation_cassette}" ]] || { echo "${gate}: kubernetes-correlation cassette not found: ${kubernetes_correlation_cassette}" >&2; exit 1; }

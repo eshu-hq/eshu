@@ -29,20 +29,23 @@ ifa_authenticates_vault_role_drive() {
 		"${label}" "${bin_dir}" "${cassette}" "${workers}" "${log_dir}"
 }
 
-# ifa_authenticates_vault_role_assert pins the two-edge exact set. Called
-# twice per cell for the reason recorded on the namespace assert in
-# ifa_direct_family_live.sh: post-delta is the only place an
-# identical-across-N generation-2 mutation shows up.
+# ifa_authenticates_vault_role_assert pins the exact set named by its third
+# argument: the two-edge file in per-cell (fault) consumers, the four-edge
+# combined live file in the shared N-cell loop (see
+# IFA_FAMILY_SHARED_EXPECTED_VAR in rows/21). Called twice per cell for the
+# reason recorded on the namespace assert in ifa_direct_family_live.sh:
+# post-delta is the only place an identical-across-N generation-2 mutation
+# shows up.
 #
-# The two edges are the exact-digest resolutions: the IRSA web-identity
-# service account authenticating to its Vault role, and the EKS Pod Identity
-# service account authenticating to its Vault role -- checked in both the
-# pre-delta and post-delta phase of each N cell, so a generation-2 SQL delta
-# that touched an unrelated family's Vault-adjacent rows would still have to
-# preserve this family's set to stay green.
+# The scope-local two edges are the exact-digest resolutions: the IRSA
+# web-identity service account authenticating to its Vault role, and the EKS
+# Pod Identity service account authenticating to its Vault role -- checked in
+# both the pre-delta and post-delta phase of each N cell, so a generation-2
+# SQL delta that touched an unrelated family's Vault-adjacent rows would
+# still have to preserve this family's set to stay green.
 ifa_authenticates_vault_role_assert() {
 	local label="$1" bin_dir="$2" expected_edges="$3"
-	printf '\n=== %s: assert authenticates_vault_role materialized edges (two-edge exact set) ===\n' "${label}"
+	printf '\n=== %s: assert authenticates_vault_role materialized edges (exact set) ===\n' "${label}"
 	"${bin_dir}/eshu-ifa" assert-edges \
 		-domain authenticates_vault_role \
 		-expected "${expected_edges}"
