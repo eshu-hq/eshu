@@ -158,7 +158,7 @@ func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 	}
 	rows, err = h.resolveWorkloadHandles(ctx, intent, rows, &tally)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	// Per-fact isolation: a malformed aws_resource fact (a missing required
 	// identity field) is quarantined as a visible input_invalid dead-letter —

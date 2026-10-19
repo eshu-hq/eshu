@@ -3,8 +3,9 @@
 ## What changed
 
 Bucket 6 of the #6626 alias retirement deleted the reducer-root `Intent` and
-`Domain` aliases, but six use sites still referenced them bare and broke the
-main build at 8a8032768f. This note accompanies the qualifier hotfix:
+`Domain` aliases, and batch 8 (#8566) retired `Result` the same way. Eight use
+sites still referenced them bare and broke the main build. This note
+accompanies the qualifier hotfix:
 
 - `cloud_relationship_resolution.go`: `intent Intent` qualified to
   `intent reducercontract.Intent` (contract import added).
@@ -14,6 +15,10 @@ main build at 8a8032768f. This note accompanies the qualifier hotfix:
 - `regeneration_live_test.go` (build tag `live_nornicdb_answer_truth`, missed
   in the first pass because default-tag vet never compiles it): `reducer.Intent`
   qualified to `reducercontract.Intent` (contract import added).
+- `documentation_edge_materialization.go`: bare `return Result{}, err`
+  qualified to `reducercontract.Result{}` (batch-8 fallout on the rebased base).
+- `workload_cloud_relationship_materialization.go`: same one-line
+  qualification.
 - The `DomainWorkload*` constants are untouched; they still resolve through
   the re-exports in `intent.go`.
 
