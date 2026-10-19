@@ -274,7 +274,7 @@ from `938661036^`. The anchored scan is the shipped
 `listAnchoredActiveCodeCallSymbolDefinitionFactsQuery` with an unpublished
 key, `NULL` cursor, limit 500, and the measured union scope set.
 
-| Statement | Deployed, warm, 3 runs | Pre-change (2026-10-16 replica) |
+| Statement | Deployed, 3 runs (scan 1 cold + 2 warm) | Pre-change (2026-10-16 replica) |
 |---|---|---|
 | npm manifest read | 30.4–31.3 ms | 40.0–40.8 ms |
 | composer manifest read | 33.8–34.8 ms | 43.2–46.8 ms |
@@ -310,8 +310,8 @@ statement texts dumped from the shipped constants. Its own log line reports,
 3 runs each: an unpublished npm key (`package:qa-8243-unpublished-probe#NoSuchExport`)
 `package_producer_scope_count=0` at 34–45 ms per load with 0 facts; a
 published key (`package:boattrader#Qa8243ProbeExport`, first npm manifest in
-the read) 1 producer scope at 103–123 ms per load with 0 facts. The EXPLAIN
-leg cost above (about 5.1 s reads plus scan over the 328-scope manifest set)
+the read) 1 producer scope at 103–123 ms per load with 0 facts. The measured
+leg cost above (about 5.1 s total for reads plus scan over the 328-scope manifest set)
 remains the replica record for a wide key.
 
 ## Residuals
