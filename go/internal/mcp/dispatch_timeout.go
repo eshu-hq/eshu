@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http/httptest"
 	"time"
 )
 
@@ -48,6 +49,40 @@ func dispatchContextError(toolName string, timeout time.Duration, err error, log
 		timeout:  timeout,
 		err:      err,
 	}
+}
+
+// deadlinePartialDispatchResult surfaces a bounded deadline-partial
+// envelope (#7008) when the dispatch deadline fired after the handler already
+// answered with one: the recorder holds a canonical envelope whose data
+// carries deadline_truncated. It reports false for anything else — a missing
+// or unparseable body, a non-envelope payload, or an envelope without the
+// marker — so those keep the data-nil timeout verdict. A parent cancellation
+// (not a deadline) never takes this path: the client is gone, so there is no
+// one to read the partial.
+func deadlinePartialDispatchResult(rec *httptest.ResponseRecorder, toolName string, responseByteBudget int, logger *slog.Logger) (*dispatchResult, bool) {
+	if rec == nil {
+		return nil, false
+	}
+	envelope, ok := parseCanonicalEnvelope(rec.Body.Bytes())
+	if !ok || envelope == nil {
+		return nil, false
+	}
+	data, ok := envelope.Data.(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	marked, _ := data["deadline_truncated"].(bool)
+	if !marked {
+		return nil, false
+	}
+	if logger != nil {
+		logger.Debug("mcp tool dispatch deadline exceeded; surfacing bounded partial", "tool", toolName)
+	}
+	return applyResponseBudget(&dispatchResult{
+		Value:    envelope,
+		Envelope: envelope,
+		IsError:  rec.Code >= 400,
+	}, toolName, responseByteBudget, logger), true
 }
 
 func dispatchErrorStructuredContent(err error) (map[string]any, bool) {

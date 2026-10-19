@@ -51,7 +51,7 @@ func TestAnswerMetadataAttachedToStoryAndInvestigationResponses(t *testing.T) {
 		EntityType:   "Function",
 		StartLine:    10,
 		EndLine:      44,
-	}}, true)
+	}}, true, false)
 	testutil.AssertAnswerMetadata(t, "code topic", codeTopic)
 
 	incident := BuildIncidentContextResponse(IncidentContextSnapshot{

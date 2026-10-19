@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -90,6 +91,15 @@ func dispatchToolWithOptions(
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	if err := dispatchCtx.Err(); err != nil {
+		// #7008: a handler that answered its own deadline with a bounded
+		// partial envelope (deadline_truncated) already wrote the useful
+		// truth into the recorder; surface it instead of the data-nil
+		// timeout error. Anything else keeps the error-only verdict.
+		if errors.Is(err, context.DeadlineExceeded) {
+			if partial, ok := deadlinePartialDispatchResult(rec, toolName, options.responseByteBudget, logger); ok {
+				return partial, nil
+			}
+		}
 		return nil, dispatchContextError(toolName, timeout, err, logger)
 	}
 

@@ -8,8 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"regexp"
-	"slices"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -27,7 +25,13 @@ const (
 
 var (
 	ErrCodeTopicBackendUnavailable = errors.New("code topic investigation backend is unavailable")
-	codeTopicWordPattern           = regexp.MustCompile(`[a-z0-9]+`)
+	// ErrCodeTopicDeadlineTruncated marks a bounded deadline partial (#7008):
+	// the read exceeded its context deadline after gathering scored rows, so
+	// the caller answers those rows with deadline_truncated set instead of
+	// failing the call. It never marks cancellations or backend faults, which
+	// stay fail-closed. Match with errors.Is; the wrapped chain carries the
+	// underlying context error.
+	ErrCodeTopicDeadlineTruncated = errors.New("code topic investigation exceeded its deadline with a bounded partial")
 )
 
 type CodeTopicInvestigationRequest struct {
@@ -117,20 +121,29 @@ func (h *CodeHandler) handleTopicInvestigation(w http.ResponseWriter, r *http.Re
 	req.Limit = req.normalizedLimit()
 	req.Terms = CodeTopicSearchTerms(req.Topic, req.Intent, req.Terms)
 	results, err := h.codeTopicRows(r.Context(), req)
+	// #7008: a deadline carries its bounded partial rows alongside the marker
+	// error, so the handler answers what was gathered with deadline_truncated
+	// set instead of failing the call. Every other error keeps the existing
+	// fail-closed verdicts below.
+	deadlineTruncated := false
 	if err != nil {
-		if writeCodeUnavailable(w, r, err, ErrCodeTopicBackendUnavailable, CodeTopicCapability) ||
-			writeCodeUnavailable(w, r, err, ErrContentSubstringIndexesNotReady, CodeTopicCapability) {
+		if errors.Is(err, ErrCodeTopicDeadlineTruncated) {
+			deadlineTruncated = true
+		} else {
+			if writeCodeUnavailable(w, r, err, ErrCodeTopicBackendUnavailable, CodeTopicCapability) ||
+				writeCodeUnavailable(w, r, err, ErrContentSubstringIndexesNotReady, CodeTopicCapability) {
+				return
+			}
+			writeCodeReadFailure(w, r, err, CodeTopicCapability, codeTopicFailedMessage)
 			return
 		}
-		writeCodeReadFailure(w, r, err, CodeTopicCapability, codeTopicFailedMessage)
-		return
 	}
 
 	truncated := len(results) > req.Limit
 	if truncated {
 		results = results[:req.Limit]
 	}
-	data := CodeTopicResponse(req, results, truncated)
+	data := CodeTopicResponse(req, results, truncated, deadlineTruncated)
 	truth := BuildTruthEnvelope(h.profile(), CodeTopicCapability, TruthBasisContentIndex, "resolved from bounded content-index topic investigation")
 	WriteSuccess(
 		w,
@@ -162,7 +175,14 @@ func (h *CodeHandler) codeTopicRows(ctx context.Context, req CodeTopicInvestigat
 	probeReq.AllowedRepositoryIDs = allowedRepositoryIDs
 	rows, err := investigator.InvestigateCodeTopic(ctx, probeReq)
 	if err != nil {
-		return nil, fmt.Errorf("investigate code topic: %w", err)
+		// #7008: a deadline carries its bounded partial rows alongside the
+		// marker error, so the handler can answer what was gathered. Every
+		// other failure drops the rows: a truncated result is never read as
+		// complete.
+		if !errors.Is(err, ErrCodeTopicDeadlineTruncated) {
+			rows = nil
+		}
+		return rows, fmt.Errorf("investigate code topic: %w", err)
 	}
 	return rows, nil
 }
@@ -185,7 +205,12 @@ func (r CodeTopicInvestigationRequest) normalizedLimit() int {
 	}
 }
 
-func CodeTopicResponse(req CodeTopicInvestigationRequest, rows []CodeTopicEvidenceRow, truncated bool) map[string]any {
+// CodeTopicResponse renders the ranked topic evidence page. deadlineTruncated
+// (#7008) marks a bounded deadline partial: the read exceeded its context
+// deadline after gathering scored rows, so lower-ranked matches may be
+// missing. It is distinct from candidate_pool_truncated, which reports a
+// capped per-term candidate pool on a read that ran to completion.
+func CodeTopicResponse(req CodeTopicInvestigationRequest, rows []CodeTopicEvidenceRow, truncated, deadlineTruncated bool) map[string]any {
 	groups := make([]map[string]any, 0, len(rows))
 	matchedFiles := make([]map[string]any, 0, len(rows))
 	matchedSymbols := make([]map[string]any, 0, len(rows))
@@ -216,6 +241,7 @@ func CodeTopicResponse(req CodeTopicInvestigationRequest, rows []CodeTopicEviden
 		"offset":                   req.Offset,
 		"truncated":                truncated,
 		"candidate_pool_truncated": poolTruncated,
+		"deadline_truncated":       deadlineTruncated,
 		"source_backend":           "postgres_content_store",
 		"coverage": map[string]any{
 			"query_shape":              "content_topic_investigation",
@@ -226,6 +252,7 @@ func CodeTopicResponse(req CodeTopicInvestigationRequest, rows []CodeTopicEviden
 			"offset":                   req.Offset,
 			"truncated":                truncated,
 			"candidate_pool_truncated": poolTruncated,
+			"deadline_truncated":       deadlineTruncated,
 			"empty":                    len(rows) == 0,
 		},
 	}
@@ -376,79 +403,6 @@ func firstCodeTopicTerm(terms []string) string {
 	return terms[0]
 }
 
-func CodeTopicSearchTerms(topic, intent string, explicit []string) []string {
-	terms := make([]string, 0, codeTopicMaxTerms)
-	seen := map[string]struct{}{}
-	add := func(term string) {
-		term = normalizeCodeTopicTerm(term)
-		if term == "" {
-			return
-		}
-		if _, ok := seen[term]; ok {
-			return
-		}
-		seen[term] = struct{}{}
-		terms = append(terms, term)
-	}
-	for _, term := range explicit {
-		add(term)
-	}
-	for _, token := range codeTopicWordPattern.FindAllString(strings.ToLower(topic+" "+intent), -1) {
-		add(token)
-		for _, synonym := range codeTopicSynonyms(token) {
-			add(synonym)
-		}
-		if len(terms) >= codeTopicMaxTerms {
-			break
-		}
-	}
-	if len(terms) > codeTopicMaxTerms {
-		return terms[:codeTopicMaxTerms]
-	}
-	slices.SortStableFunc(terms, func(a, b string) int {
-		return strings.Compare(a, b)
-	})
-	return terms
-}
-
-func normalizeCodeTopicTerm(term string) string {
-	term = strings.ToLower(strings.TrimSpace(term))
-	switch {
-	case term == "":
-		return ""
-	case codeTopicStopWords[term]:
-		return ""
-	case len(term) < 3:
-		return ""
-	default:
-		return term
-	}
-}
-
-func codeTopicSynonyms(token string) []string {
-	switch token {
-	case "authentication", "authenticate", "authenticated", "credentials", "credential":
-		return []string{"auth", "token"}
-	case "github":
-		return []string{"installation", "app"}
-	case "locking", "locked", "locks":
-		return []string{"lock"}
-	case "repositories", "repository":
-		return []string{"repo"}
-	case "synchronization", "synchronise", "synchronize":
-		return []string{"sync"}
-	default:
-		return nil
-	}
-}
-
-var codeTopicStopWords = map[string]bool{
-	"all": true, "and": true, "are": true, "code": true, "for": true,
-	"how": true, "in": true, "into": true, "is": true, "of": true,
-	"or": true, "responsible": true, "show": true, "the": true,
-	"this": true, "to": true, "where": true, "who": true,
-}
-
 // codeTopicAnswerData attaches the answer_packet companion onto a code-topic
 // investigation response. Moved from answer_packet_routes.go for #6060: it
 // takes CodeTopicInvestigationRequest, a code-family type, so hoisting it to
@@ -458,6 +412,11 @@ var codeTopicStopWords = map[string]bool{
 // code family -- the cycle in reverse. It
 // moves here instead, once those callees are in place.
 func codeTopicAnswerData(req CodeTopicInvestigationRequest, data map[string]any, truth *TruthEnvelope) map[string]any {
+	// #7008: a deadline cut truncates the evidence set even when the gathered
+	// rows fit the page, so the packet marks partial through its truncation
+	// signal. data["truncated"] keeps its precise page-trim meaning for the
+	// response contract; the packet's truncated abstracts "evidence cut
+	// short", which a deadline partial satisfies.
 	return answer.WithAnswerPacketCompanion(data, truth, answer.AnswerPacketCompanionInput{
 		PromptFamily: "code.topic",
 		Question:     req.Topic,
@@ -469,7 +428,13 @@ func codeTopicAnswerData(req CodeTopicInvestigationRequest, data map[string]any,
 		// A bounded per-term pool stop (#7008) truncates the answer even
 		// when the returned page fits, so the packet marks partial from
 		// the coverage pool marker as well as the page-trim flag.
+		// A deadline cut (#7008) truncates the evidence set even when the
+		// gathered rows fit the page, so the packet marks partial from
+		// the deadline marker too. data["truncated"] keeps its precise
+		// page-trim meaning for the response contract; the packet's
+		// truncated abstracts "evidence cut short".
 		Truncated: BoolVal(data, "truncated") ||
+			BoolVal(data, "deadline_truncated") ||
 			querycontract.BoolVal(querycontract.MapValue(data, "coverage"), "candidate_pool_truncated"),
 		NoEvidence:           IntVal(data, "count") == 0,
 		EvidenceHandles:      answer.CodeTopicEvidenceHandles(data),

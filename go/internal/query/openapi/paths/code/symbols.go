@@ -361,6 +361,7 @@ const Symbols = `
                     "offset": {"type": "integer"},
                     "truncated": {"type": "boolean"},
                     "candidate_pool_truncated": {"type": "boolean", "description": "True when the bounded per-term candidate pool reached its cap for at least one search term (#7008); the corpus may have additional, lower-ranked matches that never entered scoring."},
+                    "deadline_truncated": {"type": "boolean", "description": "True when the read exceeded its context deadline and the response is a bounded partial of the scored rows gathered so far (#7008); lower-ranked matches may be missing. Distinct from candidate_pool_truncated, which reports a capped pool on a read that ran to completion. Also present as coverage.deadline_truncated."},
                     "source_backend": {"type": "string"},
                     "coverage": {"type": "object", "additionalProperties": true},
                     "answer_metadata": {"type": "object", "description": "Normalized additive answer metadata with schema_version, evidence_handles, missing_evidence, limitations, truncated, coverage, partial_reasons, and recommended_next_calls."}
