@@ -78,8 +78,13 @@ type Handler struct {
 	FactLoader           factload.FactLoader
 	Writer               EntityWriter
 	PriorGenerationCheck reducercontract.PriorGenerationCheck
-	PhasePublisher       gpphase.PhasePublisher
-	RepairQueue          GraphProjectionPhaseRepairQueue
+	// GenerationCheck reports whether the intent's generation is still
+	// active (#8611). Superseded generations exit before the graph write
+	// and before the identity-divergence failure. Nil keeps the legacy
+	// run-to-completion behavior.
+	GenerationCheck reducercontract.GenerationFreshnessCheck
+	PhasePublisher  gpphase.PhasePublisher
+	RepairQueue     GraphProjectionPhaseRepairQueue
 }
 
 // Handle executes the semantic-entity materialization path.
@@ -146,6 +151,12 @@ func (h Handler) Handle(
 	}
 	retractDecisionDuration := time.Since(retractDecisionStart)
 
+	// Freshness fence (#8611): superseded generations exit before the
+	// graph write; fence errors propagate fail-closed.
+	if result, fenced, err := h.fenceSemanticPreWrite(ctx, intent); fenced || err != nil {
+		return result, err
+	}
+
 	graphWriteStart := time.Now()
 	writeResult, err := h.Writer.WriteSemanticEntities(ctx, EntityWrite{
 		RepoIDs:         repoIDs,
@@ -211,8 +222,10 @@ func (h Handler) Handle(
 		totalDuration:           time.Since(totalStart),
 	})
 
+	// Freshness re-check (#8611): unmatched uids on a generation
+	// superseded mid-run exit superseded, never as a derivation bug.
 	if unmatched {
-		return reducercontract.Result{}, newSemanticEntityIdentityDivergentError(writeResult)
+		return h.resolveSemanticUnmatchedOutcome(ctx, intent, writeResult)
 	}
 
 	return reducercontract.Result{
@@ -276,17 +289,6 @@ func logSemanticEntityMaterializationCompleted(
 		slog.Float64("phase_publish_duration_seconds", timing.phasePublishDuration.Seconds()),
 		slog.Float64("total_duration_seconds", timing.totalDuration.Seconds()),
 	)
-}
-
-func (h Handler) shouldSkipSemanticRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
-	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
-		return false, nil
-	}
-	hasPrior, err := h.PriorGenerationCheck(ctx, intent.ScopeID, intent.GenerationID)
-	if err != nil {
-		return false, fmt.Errorf("check prior generation for semantic retract: %w", err)
-	}
-	return !hasPrior, nil
 }
 
 func (h Handler) publishSemanticGraphPhases(

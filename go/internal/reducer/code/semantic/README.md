@@ -44,7 +44,7 @@ domain.
 
 | symbol | file | what it does |
 |---|---|---|
-| `Handler` | `materialization.go` | the reducer handler the runtime registers for `semantic_entity_materialization` |
+| `Handler` | `materialization.go` | the reducer handler the runtime registers for `semantic_entity_materialization`; its `GenerationCheck` field (`generation_gates.go`) fences superseded generations pre-write and pre-failure |
 | `EntityWriter` | `materialization.go` | the canonical graph-write sink the handler writes through |
 | `EntityRow` | `materialization.go` | one canonical semantic-entity row |
 | `EntityWrite` / `EntityWriteResult` | `materialization.go` | the write request/outcome shape the handler and writer exchange |
@@ -61,9 +61,10 @@ Imports point strictly downward. This package reaches `reducer/contract`
 `reducer/payloadcore`, `internal/facts` and `pkg/log`, and it never imports
 the parent `internal/reducer` package. The dependency runs the other way: the
 root's handler catalog (`defaults_domain_catalog.go`) constructs
-`Handler` and wires its `FactLoader`, `Writer`,
-`PriorGenerationCheck` and `PhasePublisher` fields, plus `RepairQueue` when the
-root repair queue is present (`defaults_domain_catalog.go:91-106`).
+`Handler` and wires its `FactLoader`, `Writer`, `PriorGenerationCheck`,
+`GenerationCheck` (production: `postgres.NewGenerationFreshnessCheck`) and
+`PhasePublisher` fields, plus `RepairQueue` when the
+root repair queue is present (`defaults_domain_catalog.go:97-114`).
 
 `GraphProjectionPhaseRepairQueue` and `GraphProjectionPhaseRepair` are
 declared locally in `graph_ports.go` rather than reusing `gpphase`'s
@@ -133,6 +134,17 @@ total, so a miss can be a race rather than a defect. The status summary
 says "admitted N semantic entity rows (M matched)", never "materialized":
 admitted rows are not materialized until their statements land.
 
+When `GenerationCheck` is wired (#8611), `Handle` fences superseded
+generations twice: after the retract decision but before any graph write,
+and again before the identity-divergence failure. Each fence exit emits
+one "semantic entity materialization skipped: generation superseded" Info
+log carrying `scope_id`, `generation_id`, `domain`, and `phase`
+(`pre_write`, no write ran; `post_write`, the write's `CanonicalWrites`
+ride the superseded result). A fence lookup error propagates wrapped and
+fail-closed — a pending generation (`GenerationNotYetActiveError`,
+retryable) is about to activate, not superseded, so it must retry rather
+than skip.
+
 No-Regression Evidence: #6061 relocates this family from
 `internal/reducer/semanticentity` to `internal/reducer/code/semantic`
 without changing its behavior. Every hunk in the moved production files is
@@ -189,6 +201,33 @@ covered by `eshu_dp_reducer_executions_total` and
 `eshu_dp_reducer_run_duration_seconds` under the `reducer.run` span, and the
 new fields ride the existing structured completion log, so no dashboard or
 alert rule needs a new series.
+
+No-Regression Evidence: #8611 adds two in-process freshness probes and two
+early returns to the semantic handler without changing any statement. The
+fence reads generation activation state through the already-wired
+`postgres.NewGenerationFreshnessCheck` (one indexed activation lookup per
+probe, the same statement family the retract path already issues, and only
+when `GenerationCheck` is set; nil keeps the legacy path byte-identical).
+It emits no new Cypher, performs no new graph read, and changes no
+batching, transaction grouping, retry classification, or executor path. Proof: `go test ./internal/reducer/code/semantic/ ./internal/reducer/ -count=1`
+all exit 0, including the seven seeded RED/GREEN fence tests
+(pre-write superseded exits with zero writes, current generation still
+fails projection_bug, post-write superseded exits with CanonicalWrites,
+not-yet-active stays retryable, lookup errors fail closed, retract-only
+skips, nil check keeps legacy) and the catalog wiring pair, with the
+pre-existing handler, delta, and writer suites unchanged.
+
+Observability Evidence: #8611 adds one operator signal and no metric
+instrument. The new "semantic entity materialization skipped: generation
+superseded" Info log (scope_id, generation_id, domain, closed phase
+pre_write/post_write) marks every fence exit; executions stay covered by
+`eshu_dp_reducer_executions_total` and
+`eshu_dp_reducer_run_duration_seconds` under the `reducer.run` span, so no
+dashboard or alert rule needs a new series. The new
+`generation_gates.go` file shares the family's `No-Observability-Change`
+row with `graph_ports.go` in
+`docs/public/observability/telemetry-coverage.md` (one merged row: the
+coverage file is grandfathered at its line cap and must not grow).
 
 ## Gotchas / invariants
 
