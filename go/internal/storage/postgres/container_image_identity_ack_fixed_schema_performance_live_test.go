@@ -206,6 +206,9 @@ INSERT INTO container_image_identity_cutovers (
 			now,
 			owner,
 			candidateIntents,
+			// Emit-all: the baseline emits for every id, so the twin pair
+			// compares identical event shapes (#8284).
+			ids,
 		)
 		batchBefore, batchAfter := measureContainerImageIdentityAckTwinPair(
 			t,

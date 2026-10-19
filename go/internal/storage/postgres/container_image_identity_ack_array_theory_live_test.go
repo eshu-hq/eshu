@@ -64,6 +64,9 @@ func TestContainerImageIdentityAckAttemptGroupArrayPlanLive(t *testing.T) {
 		now,
 		owner,
 		intents,
+		// Emit-all: the baseline emits for every id, so the perf pair
+		// compares identical event shapes (#8284).
+		ids,
 	)
 	before, after := measureContainerImageIdentityAckPerfPair(
 		t,
