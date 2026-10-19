@@ -156,7 +156,10 @@ upsert rewrites it on every commit (`storage/postgres/ingestion_queries.go:74-80
 The Deliverable 1 migration takes the next free number: 207 at this check
 (`f4f14a4096`: `migrations/206_component_quota_windows.sql` is the latest, and
 no open PR adds a migration). Re-check at PR time against main
-and open PRs, because open branches can claim the same number. The table carries every column
+and open PRs, because open branches can claim the same number. On 2026-10-19
+the Deliverable 1 implementation lane on #7766 claimed 207 for
+`repository_retirements`. That migration must carry the columns below,
+including `graph_repo_root` and `failure_details`, which only the runner reads. The table carries every column
 the runner needs, because a merged migration cannot be edited. The
 `shared_projection_partition_leases.claimed_at` column is not here: it belongs
 to Deliverable 2 (PR 6a), since only the barrier reads it.
