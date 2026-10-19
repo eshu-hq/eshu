@@ -1,4 +1,4 @@
-# #8260: package-consumption scope-rebuild observation (QA, read-only)
+# #8260: package-consumption scope-rebuild observation (QA observation)
 
 Refs #7663. Part of #7934.
 
@@ -6,15 +6,54 @@ Operator observation after migration 181, recorded 2026-10-19 from the
 QA cluster (namespace `eshu`). Every database probe was read-only: `SELECT`,
 `EXPLAIN (ANALYZE, BUFFERS)` of `SELECT` pages, and the two sidecar
 deletes inside `BEGIN`/`ROLLBACK`. Reducer state came from
-`/metrics` and pod logs. No dirty-mark, rebuild, or other cluster
-mutation was performed: dirtying the largest scope to force a rebuild
-needs a fresh arbiter-model review recorded on #8260, and no arbiter
-channel was available from this session, so the live-rebuild rows stay
-NOT_CHECKED below.
+`/metrics` and pod logs. The live rebuild was subsequently AUTHORIZED by
+an arbiter model and executed; see section 1b and ledger rows
+`8260-qa-rebuild-*`. The earlier NOT_CHECKED for live-rebuild rows is
+superseded for the current-largest scope (30,916 facts); it stands for
+the historical 1M-row shape, which no longer exists on QA.
 
 Baseline: [7663-backfill-page-lock](7663-backfill-page-lock.md).
 Telemetry: `docs/public/reference/telemetry/package-manifest-backfill.md`.
 Runbook: `docs/public/operate/park-holder-runbook.md`.
+
+## 1b. Live rebuild of the current largest scope (arbiter-authorized)
+
+On 2026-10-19 an arbiter model AUTHORIZED one dirty-mark rebuild of the
+current largest QA scope, superseding this note's earlier NOT_CHECKED.
+The ruling (arbiter-eshu, in-session 2026-10-19; session record
+goal-01a1541c; also quoted in the #8260 comments)
+reads, verbatim in its operative part: AUTHORIZED — trigger one dirty-mark rebuild
+of the current largest QA scope `r_33474efb`, subject to: one trigger
+only (single INSERT, production repair path, no deletions or restarts);
+ingester kept running; blast radius is readiness, not data; lock risk
+bounded by 5 s `lock_timeout` + `FOR NO KEY UPDATE` per page; rollback
+is do-nothing per page. It will not prove the 1M-row production shape.
+Will-not-authorize: deleting the dirty row; a second or wider dirty-mark;
+closing #8260 as production-size proof on this run alone. NOT_CHECKED:
+~1M-row scope behavior; primary-side WAL volume. The 1,014,462-row
+historical scope no longer exists on QA after the Oct-16 recreate; the
+observed scope is the current largest:
+`git-repository-scope:repository:r_33474efb`, 30,922 keys of
+580,433 over 589 scopes.
+
+Trigger: single `INSERT` of the scope into
+`package_manifest_consumption_key_dirty_scopes` at 16:29:12Z
+(`marked_at` 16:29:12.233449Z) on the writer primary. No marker deletion,
+no progress writes, no restarts; ingester kept running per #8260.
+
+Pre-verify: dirty=0, lock waits=0, ungranted=0; all eshu pods on
+`sha-3d7cb9c` (contains #8248 and #8256); no deploy in flight.
+
+Repair progress line (reducer log 16:29:35Z):
+`phase=dirty_repair outcome=cleared pages=62 facts=30916 transactions=63
+max_transaction_ms=280 lock_wait_ms=58 max_lock_wait_ms=1
+duration_ms=8994`.
+
+After: dirty=0, ready=1, scope key count 30,922 (equals before); zero
+`55P03`/`lock_timeout`/`left_dirty`/ERROR in the window; ungranted locks 0.
+63 transactions confirm one-per-500-fact-page behavior (62 pages + start).
+Max transaction 280 ms vs the 5 s `lock_timeout`: no performance issue
+filed. Ledger rows: `8260-qa-rebuild-*`.
 
 ## 1. Migration 181 build on the production-size table
 
@@ -54,7 +93,8 @@ Largest manifest scope on QA at observation time:
 Note: this is ~31k facts, the same order as the #7663 fixture scope
 (31,836), not the ~1,014,462 rows quoted in #8260. That figure came
 from pre-recreate reads; the database was recreated 2026-10-16 and
-the sidecar now holds 580,423 rows over its scopes
+the sidecar then held 580,423 rows over its scopes (pre-rebuild read;
+580,433 at the §1b observation — growth between the two reads)
 (`package_manifest_consumption_keys` 155 MB;
 `package_registry_identity_keys` 2 rows / 8,192 bytes, i.e. the
 largest scope has no registry keys).
@@ -124,15 +164,12 @@ Nothing approaches the 5 s `lock_timeout`: worst measured step is
 | 7 | start deletes (rolled back) | 32.99 ms / 0.07 ms | `BEGIN`/`EXPLAIN ANALYZE`/`ROLLBACK` |
 | 8 | rebuild outcomes | none observed; 869 `ready` passes | `/metrics` + logs |
 | 9 | FK-insert waits | 0 Lock waits; park not held | `pg_stat_activity` + `pg_locks` |
-| 10 | live largest-scope rebuild | NOT_CHECKED | blocked: dirty-mark needs arbiter review on #8260 |
+| 10 | live largest-scope rebuild | done — see §1b | outcome cleared, 63 transactions, max 280 ms |
 
 ## What remains for #8260
 
-Dirty-mark `r_33474efb` (one `dirty_scopes` insert, a cluster
-mutation) after a fresh arbiter-model review is recorded on the
-issue, let the 30 s repair loop rebuild it (~62 pages + start), then
-record `page_duration_seconds` p50/max by outcome,
-`scope_lock_wait_seconds`, the `scope_rebuilds_total` outcome, and
-concurrent FK-insert waits. Expected wall time is seconds at the
-measured per-step costs; nothing in this note suggests a 5 s
-proximity.
+Nothing pending. The arbiter-authorized dirty-mark of `r_33474efb`
+ran and its observation is recorded in §1b — do not repeat the
+cluster mutation. The historical 1,014,462-row scope no longer exists
+after the Oct-16 recreate, so no further rebuild proof is owed by
+this note.
