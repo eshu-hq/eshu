@@ -245,6 +245,7 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.AWSScanDuration, "AWSScanDuration histogram should be registered")
 	assert.NotNil(t, inst.ConfigArtifactDerives, "ConfigArtifactDerives counter should be registered")
 	assert.NotNil(t, inst.ConfigArtifactDeriveDuration, "ConfigArtifactDeriveDuration histogram should be registered")
+	assert.NotNil(t, inst.OperatorRepositoryRetirementsPurged, "OperatorRepositoryRetirementsPurged counter should be registered")
 }
 
 func TestNewInstrumentsNilMeterError(t *testing.T) {
