@@ -15,7 +15,7 @@ import (
 // It forwards to [gpphase.PublishIntentGraphPhase] (issue #6061, moved from
 // this file's own former body) so every existing call site in this package
 // keeps working unchanged, the same way the type aliases in
-// graph_projection_phase.go do.
+// [gpphase] do.
 func publishIntentGraphPhase(
 	ctx context.Context,
 	publisher gpphase.PhasePublisher,
