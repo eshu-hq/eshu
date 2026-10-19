@@ -17,7 +17,7 @@ import (
 
 const (
 	workflowEnqueueBatchSize                = 250
-	workflowColumnsPerWorkItem              = 27
+	workflowColumnsPerWorkItem              = 29
 	DefaultWorkflowClaimLeaseTTL            = 60 * time.Second
 	DefaultWorkflowClaimHeartbeatInterval   = 20 * time.Second
 	DefaultWorkflowExpiredClaimRequeueDelay = 5 * time.Second
@@ -168,6 +168,7 @@ func (s *WorkflowControlStore) ClaimNextEligible(
 		selector.OwnerID,
 		selector.ClaimID,
 		now.UTC().Add(effectiveLeaseTTL),
+		selector.RotationSalt,
 	)
 	if err != nil {
 		return workflow.WorkItem{}, workflow.Claim{}, false, fmt.Errorf("claim workflow work item: %w", err)

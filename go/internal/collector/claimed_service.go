@@ -211,6 +211,8 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 		runSpan.SetAttributes(
 			telemetry.AttrCollectorKind(string(s.CollectorKind)),
 			telemetry.AttrSourceSystem(item.SourceSystem),
+			telemetry.AttrFairnessKey(item.FairnessKey),
+			telemetry.AttrClaimPriority(item.ClaimPriority),
 		)
 	}
 

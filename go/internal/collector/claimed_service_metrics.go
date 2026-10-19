@@ -31,9 +31,16 @@ func (s ClaimedService) recordWorkflowClaimWait(ctx context.Context, item workfl
 	attrs := metric.WithAttributes(
 		telemetry.AttrSourceSystem(item.SourceSystem),
 		telemetry.AttrCollectorKind(string(item.CollectorKind)),
+		telemetry.AttrClaimPriority(item.ClaimPriority),
 	)
 	if s.Instruments.WorkflowClaimWaitDuration != nil {
 		s.Instruments.WorkflowClaimWaitDuration.Record(ctx, wait, attrs)
+	}
+	if s.Instruments.WorkflowFairClaimsTotal != nil {
+		s.Instruments.WorkflowFairClaimsTotal.Add(ctx, 1, metric.WithAttributes(
+			telemetry.AttrCollectorKind(string(item.CollectorKind)),
+			telemetry.AttrClaimPriority(item.ClaimPriority),
+		))
 	}
 	if s.CollectorKind == scope.CollectorTerraformState && s.Instruments.TerraformStateClaimWaitDuration != nil {
 		s.Instruments.TerraformStateClaimWaitDuration.Record(ctx, wait, attrs)

@@ -97,14 +97,24 @@ import (
 // its own 194/195/196/197 while this branch held 194, then 196, then 197;
 // sequence gaps are tolerated); #8454 adds
 // 199_repository_selection_observation_classification.sql; #7840 adds
-// 200_repository_selectors.sql.
-const goldenBootstrapDefinitionsDigest = "a03b4e8c2a420b0ad5b7dea8c12c8337a85652024db9cd0e9668dfe0fef58fae"
+// 200_repository_selectors.sql; #8469 adds
+// 201_workflow_work_items_claim_class_columns.sql (DDL only),
+// 202_workflow_work_items_fair_claim_idx.sql,
+// 203_workflow_work_items_claim_order_idx_drop.sql and
+// 204_workflow_work_items_claim_class_backfill.sql (the split 201's DML
+// half: no file holds a table lock through bulk DML, #7961; the lane's own
+// step-1 200_workflow_work_items_claim_order_idx.sql create is gone under
+// the 101/102 shape, so the lane holds no 200 of its own; main's 200 is
+// #7840's repository_selectors above; gaps are tolerated); #8469 revises
+// unshipped 204 in-lane with the empty-class sink pass (owner P2: blank
+// class segments sink to 4 instead of floating at the 201 default 0).
+const goldenBootstrapDefinitionsDigest = "46ba68873c35bcede5dab98e39a21b2e3475f48a0bba84ee58dea7019cf54e28"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 218
+const goldenBootstrapDefinitionsCount = 222
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

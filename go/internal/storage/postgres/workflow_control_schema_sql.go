@@ -208,4 +208,62 @@ ALTER TABLE workflow_claims
     ADD COLUMN IF NOT EXISTS failure_operation TEXT,
     ADD COLUMN IF NOT EXISTS failure_status_code INTEGER,
     ADD COLUMN IF NOT EXISTS failure_terminal BOOLEAN;
+
+-- #8469 step 2 fair-claim priority and ecosystem columns, mirroring
+-- migrations 201 (columns) and 204 (backfill). Written once at enqueue by
+-- the schedulers and never touched by the claim path. The backfill classes
+-- pre-existing backlog from the old four-segment key exactly as migration
+-- 204 does, so EnsureSchema-upgraded databases agree with
+-- migration-upgraded ones.
+ALTER TABLE workflow_work_items
+    ADD COLUMN IF NOT EXISTS claim_priority INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS claim_ecosystem TEXT NOT NULL DEFAULT '';
+
+UPDATE workflow_work_items
+SET claim_ecosystem = NULLIF(BTRIM(SPLIT_PART(fairness_key, ':', 4)), '')
+WHERE collector_kind = 'package_registry'
+  AND claim_ecosystem = ''
+  AND NULLIF(BTRIM(SPLIT_PART(fairness_key, ':', 4)), '') IS NOT NULL;
+
+UPDATE workflow_work_items
+SET claim_priority = CASE BTRIM(SPLIT_PART(fairness_key, ':', 3))
+    WHEN 'configured_direct' THEN 0
+    WHEN 'owned_package' THEN 1
+    WHEN 'installed_os_package' THEN 2
+    WHEN 'sbom_component' THEN 2
+    WHEN 'broad' THEN 3
+    ELSE 4
+END
+WHERE collector_kind IN ('package_registry', 'vulnerability_intelligence')
+  AND claim_priority = 0
+  AND fairness_key IS NOT NULL
+  AND SPLIT_PART(fairness_key, ':', 3) <> ''
+  AND SPLIT_PART(fairness_key, ':', 4) <> '';
+
+UPDATE workflow_work_items
+SET claim_priority = 4
+WHERE collector_kind IN ('package_registry', 'vulnerability_intelligence')
+  AND claim_priority = 0
+  AND fairness_key IS NOT NULL
+  AND BTRIM(SPLIT_PART(fairness_key, ':', 3)) = ''
+  AND SPLIT_PART(fairness_key, ':', 4) <> '';
+
+-- #8469 step 3 fair-claim rotation index, mirroring migration 202. The
+-- priority-then-rotation claim's loose distinct-pair walk and per-pair head
+-- probe depend on this composite; without it the claim falls back to
+-- per-pair backlog scans and sorts off claimable_idx. Plain CREATE INDEX,
+-- not CONCURRENTLY: EnsureSchema runs once at provisioning time with no
+-- concurrent writers, and CONCURRENTLY cannot run inside a transaction
+-- block. Placed after the 201 columns so the indexed columns exist.
+CREATE INDEX IF NOT EXISTS workflow_work_items_fair_claim_idx
+    ON workflow_work_items (
+        collector_kind,
+        collector_instance_id,
+        status,
+        claim_priority,
+        (COALESCE(fairness_key, '')),
+        (COALESCE(visible_at, created_at)),
+        created_at,
+        work_item_id
+    );
 `

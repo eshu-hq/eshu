@@ -37,6 +37,8 @@ INSERT INTO workflow_work_items (
     source_run_id,
     generation_id,
     fairness_key,
+    claim_priority,
+    claim_ecosystem,
     status,
     attempt_count,
     current_claim_id,
@@ -56,134 +58,10 @@ const enqueueWorkflowWorkItemsSuffix = `
 ON CONFLICT DO NOTHING
 `
 
-// TODO(phase-2-fairness): This selector is intentionally FIFO within one
-// collector family. Multi-family fairness must move into an explicit scheduler
-// before this ORDER BY changes, otherwise family starvation can regress
-// silently under the wrong claim model.
-const claimNextWorkflowWorkItemQuery = `
-WITH candidate AS (
-    SELECT work_item_id
-    FROM workflow_work_items
-    WHERE collector_kind = $1
-      AND collector_instance_id = $2
-      AND status = 'pending'
-      AND source_system <> ''
-      AND acceptance_unit_id <> ''
-      AND source_run_id <> ''
-      AND generation_id <> ''
-      AND (visible_at IS NULL OR visible_at <= $3)
-    ORDER BY COALESCE(visible_at, created_at), created_at, work_item_id
-    LIMIT 1
-    FOR UPDATE SKIP LOCKED
-),
-claimed_item AS (
-    UPDATE workflow_work_items AS item
-    SET status = 'claimed',
-        attempt_count = item.attempt_count + 1,
-        current_claim_id = $5,
-        current_fencing_token = item.current_fencing_token + 1,
-        current_owner_id = $4,
-        lease_expires_at = $6,
-        last_claimed_at = $3,
-        updated_at = $3
-    FROM candidate
-    WHERE item.work_item_id = candidate.work_item_id
-    RETURNING
-        item.work_item_id,
-        item.run_id,
-        item.collector_kind,
-        item.collector_instance_id,
-        item.source_system,
-        item.scope_id,
-        item.tenant_id,
-        item.workspace_id,
-        item.subject_class,
-        item.policy_revision_hash,
-        item.acceptance_unit_id,
-        item.source_run_id,
-        item.generation_id,
-        COALESCE(item.fairness_key, '') AS fairness_key,
-        item.status,
-        item.attempt_count,
-        COALESCE(item.current_claim_id, '') AS current_claim_id,
-        item.current_fencing_token,
-        COALESCE(item.current_owner_id, '') AS current_owner_id,
-        item.lease_expires_at,
-        item.created_at,
-        item.updated_at
-),
-inserted_claim AS (
-    INSERT INTO workflow_claims (
-        claim_id,
-        work_item_id,
-        fencing_token,
-        owner_id,
-        status,
-        claimed_at,
-        heartbeat_at,
-        lease_expires_at,
-        created_at,
-        updated_at
-    )
-    SELECT
-        $5,
-        work_item_id,
-        current_fencing_token,
-        $4,
-        'active',
-        $3,
-        $3,
-        $6,
-        $3,
-        $3
-    FROM claimed_item
-    RETURNING
-        work_item_id,
-        claim_id,
-        fencing_token,
-        owner_id,
-        status,
-        claimed_at,
-        heartbeat_at,
-        lease_expires_at,
-        created_at,
-        updated_at
-)
-SELECT
-    claimed_item.work_item_id,
-    claimed_item.run_id,
-    claimed_item.collector_kind,
-    claimed_item.collector_instance_id,
-    claimed_item.source_system,
-    claimed_item.scope_id,
-    claimed_item.tenant_id,
-    claimed_item.workspace_id,
-    claimed_item.subject_class,
-    claimed_item.policy_revision_hash,
-    claimed_item.acceptance_unit_id,
-    claimed_item.source_run_id,
-    claimed_item.generation_id,
-    claimed_item.fairness_key,
-    claimed_item.status,
-    claimed_item.attempt_count,
-    claimed_item.current_claim_id,
-    claimed_item.current_fencing_token,
-    claimed_item.current_owner_id,
-    claimed_item.lease_expires_at,
-    claimed_item.created_at,
-    claimed_item.updated_at,
-    inserted_claim.claim_id,
-    inserted_claim.fencing_token,
-    inserted_claim.owner_id,
-    inserted_claim.status,
-    inserted_claim.claimed_at,
-    inserted_claim.heartbeat_at,
-    inserted_claim.lease_expires_at,
-    inserted_claim.created_at,
-    inserted_claim.updated_at
-FROM claimed_item
-JOIN inserted_claim ON inserted_claim.work_item_id = claimed_item.work_item_id
-`
+// The fair-claim statement (priority-then-rotation candidate plus the
+// shared claim/complete lifecycle) lives in workflow_control_fair_claim_sql.go
+// beside its mechanism proof. The lifecycle CTEs below serve the heartbeat,
+// completion, and failure mutations.
 
 const heartbeatWorkflowClaimQuery = `
 WITH candidate AS (

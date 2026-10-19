@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math/rand"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -54,13 +55,20 @@ import (
 // claim-pacing design requires for every fairness measurement.
 const claimDepthClaimers = 8
 
+// claimDepthStartStagger is the per-claimer start delay applied after the
+// drain barrier. Tests set it for the production-like desynchronized case
+// and restore zero (the barrier-synchronized worst case) when done.
+var claimDepthStartStagger time.Duration
+
 // claimDepthKeyBacklog seeds Count work items under one fairness key. Items
 // are created at the harness base time plus CreatedOffset, so FIFO claim
-// order across keys is set by the offsets, never by insert timing.
+// order across keys is set by the offsets, never by insert timing. Priority
+// defaults to zero; #8469 sets it to seed mixed priority tiers.
 type claimDepthKeyBacklog struct {
 	FairnessKey   string
 	Count         int
 	CreatedOffset time.Duration
+	Priority      int
 }
 
 // claimDepthRecord is one successful grant observed by the drain.
@@ -93,9 +101,9 @@ type claimDepthResult struct {
 	// claiming but before any claimer released its pinned connection, so
 	// InUse counts exactly the connections the claim loops held.
 	StatsPinned sql.DBStats
-	// EmptyAttempts counts ClaimNextEligible calls that returned no work.
-	// Each claimer stops at its first empty return, so this is at most the
-	// claimer count; #8470 uses it for the work-conserving counter.
+	// EmptyAttempts counts ClaimNextEligible calls that returned no work,
+	// including transient all-heads-locked races a claimer retries through
+	// before it idles; #8470 uses it for the work-conserving counter.
 	EmptyAttempts int64
 	Duration      time.Duration
 }
@@ -160,6 +168,7 @@ func seedClaimDepthBacklog(
 				SourceRunID:         id + "-generation",
 				GenerationID:        id + "-generation",
 				FairnessKey:         key.FairnessKey,
+				ClaimPriority:       key.Priority,
 				Status:              workflow.WorkItemStatusPending,
 				CreatedAt:           created,
 				UpdatedAt:           created,
@@ -211,6 +220,12 @@ func drainClaimDepthBacklog(
 	backendPIDs := make([]int, claimers)
 	var seq atomic.Int64
 	var emptyAttempts atomic.Int64
+	const maxClaimDepthConsecutiveEmpties = 50
+	// claimDepthStartStagger desynchronizes claimer starts for the
+	// production-like timing case: each claimer waits claimer*stagger after
+	// the start barrier. Zero (the default) keeps the barrier-synchronized
+	// worst case every existing drain asserts on.
+	stagger := claimDepthStartStagger
 	var claiming sync.WaitGroup
 	var released sync.WaitGroup
 	startedAt := time.Now()
@@ -240,6 +255,10 @@ func drainClaimDepthBacklog(
 			owner := fmt.Sprintf("claim-depth-owner-%d", claimer)
 			ready <- struct{}{}
 			<-start
+			if stagger > 0 {
+				time.Sleep(time.Duration(claimer) * stagger)
+			}
+			consecutiveEmpties := 0
 			for attempt := 0; ; attempt++ {
 				item, claim, found, err := store.ClaimNextEligible(ctx, workflow.ClaimSelector{
 					CollectorKind:       scope.CollectorGit,
@@ -252,9 +271,25 @@ func drainClaimDepthBacklog(
 					break
 				}
 				if !found {
+					// A transient all-heads-locked race returns empty
+					// while eligible work exists. Production collectors
+					// poll again rather than exit, so the harness
+					// retries a bounded run of consecutive empties
+					// before it idles the claimer. The retry sleeps a
+					// jittered 0-5ms: a fixed sleep re-fires every
+					// collided claimer on the same millisecond and
+					// turns one collision into a synchronized retry
+					// storm. #8470 owns the no-pacing empty-attempt
+					// budget.
 					emptyAttempts.Add(1)
-					break
+					consecutiveEmpties++
+					if consecutiveEmpties >= maxClaimDepthConsecutiveEmpties {
+						break
+					}
+					time.Sleep(time.Duration(rand.Int63n(5)) * time.Millisecond)
+					continue
 				}
+				consecutiveEmpties = 0
 				perClaimer[claimer] = append(perClaimer[claimer], claimDepthRecord{
 					WorkItemID:  item.WorkItemID,
 					FairnessKey: item.FairnessKey,

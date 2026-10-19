@@ -97,7 +97,7 @@ ORDER BY collector_kind, failure_class
 WITH work_counts AS (
     SELECT
         collector_kind,
-        NULLIF(BTRIM(SPLIT_PART(fairness_key, ':', 4)), '') AS ecosystem,
+        NULLIF(BTRIM(claim_ecosystem), '') AS ecosystem,
         COUNT(*) AS planned,
         COUNT(*) FILTER (WHERE status = 'completed') AS completed,
         COUNT(*) FILTER (
@@ -108,7 +108,7 @@ WITH work_counts AS (
         COUNT(*) FILTER (WHERE last_failure_class = 'registry_rate_limited') AS rate_limited
     FROM workflow_work_items
     WHERE collector_kind = 'package_registry'
-      AND NULLIF(BTRIM(SPLIT_PART(fairness_key, ':', 4)), '') IS NOT NULL
+      AND NULLIF(BTRIM(claim_ecosystem), '') IS NOT NULL
     GROUP BY collector_kind, ecosystem
 ),
 warning_counts AS (

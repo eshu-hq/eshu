@@ -73,7 +73,7 @@ func observeClaimGauges(t *testing.T, queueObs telemetry.QueueObserver) map[stri
 	t.Cleanup(cancel)
 	getenv := func(string) string { return "" }
 	refresher, err := registerPostgresBackedGauges(
-		&telemetry.Instruments{}, provider.Meter("test"), queueObs, nil, nil, nil, nil, getenv, nil,
+		&telemetry.Instruments{}, provider.Meter("test"), queueObs, nil, nil, nil, nil, nil, getenv, nil,
 	)
 	if err != nil {
 		t.Fatalf("registerPostgresBackedGauges() error = %v", err)
@@ -153,7 +153,7 @@ func TestProjectorClaimInvariantGaugesReportNothingBeforeFirstRefresh(t *testing
 	getenv := func(string) string { return "" }
 	if _, err := registerPostgresBackedGauges(
 		&telemetry.Instruments{}, provider.Meter("test"),
-		scriptedClaimStore{multipleLeases: 3, missingFence: 5}, nil, nil, nil, nil, getenv, nil,
+		scriptedClaimStore{multipleLeases: 3, missingFence: 5}, nil, nil, nil, nil, nil, getenv, nil,
 	); err != nil {
 		t.Fatalf("registerPostgresBackedGauges() error = %v", err)
 	}

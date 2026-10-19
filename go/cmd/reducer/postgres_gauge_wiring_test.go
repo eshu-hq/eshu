@@ -50,7 +50,7 @@ func TestPostgresQueueGaugesDoNotBlockMetricsCollection(t *testing.T) {
 	t.Cleanup(cancel)
 	getenv := func(string) string { return "" }
 	refresher, err := registerPostgresBackedGauges(
-		instruments, provider.Meter("test"), queue, nil, nil, nil, nil, getenv, nil,
+		instruments, provider.Meter("test"), queue, nil, nil, nil, nil, nil, getenv, nil,
 	)
 	if err != nil {
 		t.Fatalf("registerPostgresBackedGauges() error = %v", err)
@@ -106,6 +106,18 @@ func (scriptedPostgresGauges) WorkflowFamilyQueueDepths(context.Context) (map[st
 	return map[string]map[string]map[string]int64{"fam": {"src": {"pending": 4}}}, nil
 }
 
+func (scriptedPostgresGauges) WorkflowFairnessKeyDepths(context.Context) (map[string]map[string]telemetry.WorkflowFairnessFamilyDepth, error) {
+	return map[string]map[string]telemetry.WorkflowFairnessFamilyDepth{
+		"fam": {"inst": {
+			DistinctKeys: 2,
+			Top: []telemetry.WorkflowFairnessKeyPending{
+				{Key: "fam:inst:big", Pending: 6},
+				{Key: "fam:inst:small", Pending: 1},
+			},
+		}},
+	}, nil
+}
+
 func (scriptedPostgresGauges) ActiveGenerationsByAge(context.Context) (map[string]int64, error) {
 	return map[string]int64{"fresh": 5, "stuck": 1}, nil
 }
@@ -127,7 +139,7 @@ func TestPostgresBackedGaugesServeRefreshedSnapshot(t *testing.T) {
 	scripted := scriptedPostgresGauges{}
 	refresher, err := registerPostgresBackedGauges(
 		&telemetry.Instruments{}, provider.Meter("test"),
-		scripted, scripted, scripted, scripted, scripted, getenv, nil,
+		scripted, scripted, scripted, scripted, scripted, scripted, getenv, nil,
 	)
 	if err != nil {
 		t.Fatalf("registerPostgresBackedGauges() error = %v", err)
@@ -140,6 +152,8 @@ func TestPostgresBackedGaugesServeRefreshedSnapshot(t *testing.T) {
 		"eshu_dp_queue_source_depth":          2,
 		"eshu_dp_shared_acceptance_rows":      7,
 		"eshu_dp_workflow_family_queue_depth": 4,
+		"eshu_dp_workflow_fairness_key_depth": 6 + 1,
+		"eshu_dp_workflow_fairness_key_count": 2,
 		"eshu_dp_active_generations":          5 + 1,
 		"eshu_dp_poison_dead_letter_scopes":   2,
 		"eshu_dp_poison_dead_letter_items":    9,
@@ -155,6 +169,8 @@ func TestPostgresBackedGaugesServeRefreshedSnapshot(t *testing.T) {
 		"eshu_dp_queue_depth":                 {"queue": "q1", "status": "pending"},
 		"eshu_dp_queue_source_depth":          {"queue": "q1", "source_system": "s1", "status": "pending"},
 		"eshu_dp_workflow_family_queue_depth": {"collector_kind": "fam", "source_system": "src", "status": "pending"},
+		"eshu_dp_workflow_fairness_key_depth": {"collector_kind": "fam", "collector_instance_id": "inst", "fairness_key": "fam:inst:big"},
+		"eshu_dp_workflow_fairness_key_count": {"collector_kind": "fam", "collector_instance_id": "inst"},
 		"eshu_dp_active_generations":          {"age_bucket": "stuck"},
 	}
 	deadline := time.Now().Add(5 * time.Second)
@@ -233,7 +249,7 @@ func TestPostgresScalarGaugesReportNothingBeforeFirstRefresh(t *testing.T) {
 	scripted := scriptedPostgresGauges{}
 	if _, err := registerPostgresBackedGauges(
 		&telemetry.Instruments{}, provider.Meter("test"),
-		nil, scripted, nil, nil, scripted, getenv, nil,
+		nil, scripted, nil, nil, nil, scripted, getenv, nil,
 	); err != nil {
 		t.Fatalf("registerPostgresBackedGauges() error = %v", err)
 	}
@@ -276,7 +292,7 @@ func TestTwoGaugeRefreshersShareSnapshotInstruments(t *testing.T) {
 	}
 	postgres, err := registerPostgresBackedGauges(
 		&telemetry.Instruments{}, provider.Meter("test"),
-		scriptedPostgresGauges{}, nil, nil, nil, nil, getenv, nil,
+		scriptedPostgresGauges{}, nil, nil, nil, nil, nil, getenv, nil,
 	)
 	if err != nil {
 		t.Fatalf("registerPostgresBackedGauges() error = %v", err)

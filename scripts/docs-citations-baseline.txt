@@ -268,7 +268,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/collector/claim
 LINE docs/public/observability/telemetry-coverage.md go/internal/collector/claimed_service_backpressure_metrics.go:41
 LINE docs/public/observability/telemetry-coverage.md go/internal/collector/claimed_service_backpressure_metrics.go:60
 LINE docs/public/observability/telemetry-coverage.md go/internal/collector/claimed_service_backpressure_metrics.go:78
-LINE docs/public/observability/telemetry-coverage.md go/internal/collector/claimed_service_run_metrics.go:36
 LINE docs/public/observability/telemetry-coverage.md go/internal/collector/scannerworker/service_telemetry.go:18
 LINE docs/public/observability/telemetry-coverage.md go/internal/collector/service.go:393
 LINE docs/public/observability/telemetry-coverage.md go/internal/collector/service.go:438

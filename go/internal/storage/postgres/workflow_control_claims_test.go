@@ -35,6 +35,8 @@ func TestWorkflowControlStoreClaimNextEligibleReturnsClaimAndWorkItem(t *testing
 				"source-run-1",
 				"gen-1",
 				"family:git",
+				0,
+				"",
 				"claimed",
 				1,
 				"claim-1",
@@ -92,12 +94,15 @@ func TestWorkflowControlStoreClaimNextEligibleReturnsClaimAndWorkItem(t *testing
 	if got, want := len(db.queries), 1; got != want {
 		t.Fatalf("query count = %d, want %d", got, want)
 	}
-	if !strings.Contains(db.queries[0].query, "FOR UPDATE SKIP LOCKED") {
+	if !strings.Contains(db.queries[0].query, "FOR UPDATE OF item SKIP LOCKED") {
 		t.Fatalf("query missing SKIP LOCKED claim issuance: %s", db.queries[0].query)
 	}
 }
 
-func TestWorkflowControlStoreClaimNextEligibleUsesDeterministicFifoWithinFamily(t *testing.T) {
+// TestWorkflowControlStoreClaimNextEligibleOrdersPerKeyHeadsOldestFirst pins
+// that each fairness key offers its oldest eligible row to the rotation draw.
+// Rotation picks the key; age still picks the row within the key.
+func TestWorkflowControlStoreClaimNextEligibleOrdersPerKeyHeadsOldestFirst(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{
@@ -116,6 +121,8 @@ func TestWorkflowControlStoreClaimNextEligibleUsesDeterministicFifoWithinFamily(
 				"repository:scope-1",
 				"source-run-1",
 				"gen-1",
+				"",
+				0,
 				"",
 				"claimed",
 				1,
@@ -159,7 +166,7 @@ func TestWorkflowControlStoreClaimNextEligibleUsesDeterministicFifoWithinFamily(
 
 	query := db.queries[0].query
 	for _, want := range []string{
-		"ORDER BY COALESCE(visible_at, created_at), created_at, work_item_id",
+		"ORDER BY COALESCE(i.visible_at, i.created_at), i.created_at, i.work_item_id",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("claim query missing proof guard %q:\n%s", want, query)
@@ -186,6 +193,8 @@ func TestWorkflowControlStoreClaimNextEligibleUsesDefaultLeaseTTL(t *testing.T) 
 			"repository:scope-1",
 			"source-run-1",
 			"",
+			"",
+			0,
 			"",
 			"claimed",
 			1,

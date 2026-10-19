@@ -733,7 +733,7 @@ concurrency-safe.
 Every collector — git source, discovery, parser, terraform-state, sbom,
 package-registry, documentation/media/ocr, the live cloud and ticketing
 collectors, and so on — runs under the shared claimed-service worker harness
-(`ClaimedService.processClaimed`). Two metrics are recorded once at that single
+(`ClaimedService.processClaimed`). Three metrics are recorded once at that single
 dispatch chokepoint, so one instrumentation point covers all collector families
 without touching individual collector packages:
 
@@ -747,13 +747,14 @@ without touching individual collector packages:
 - `eshu_dp_workflow_claim_facts_emitted_total` — counter of facts committed
   per run, from `CollectedGeneration.FactCount`. Labels: `collector_kind`,
   `source_system`. Recorded on the success path only.
+- `eshu_dp_workflow_fair_claims_total` — counter of granted claims (#8469),
+  labeled `collector_kind` and `claim_priority` (scheduler target-class rank).
 
-Both labels are bounded: `collector_kind` is a fixed `scope.CollectorKind`
-constant and `source_system` is a small fixed set, so cardinality stays bounded
-— no repo, scope, generation, or instance identifiers are ever used as labels.
+All chokepoint labels stay bounded: fixed `collector_kind`/`source_system` sets
+and the 0-4 `claim_priority` rank — no repo, scope, generation, or instance identifiers.
 The matching trace span is `collector.claimed_run`, carrying the same
-`collector_kind`, `source_system`, and `outcome` attributes so a trace
-correlates with the duration histogram.
+attributes plus the raw `fairness_key` and `claim_priority` so a trace
+correlates with the duration histogram ([Fair-Claim Rotation Signals](fair-claim-rotation.md)).
 
 These share the `collector_kind` label with the per-stage
 `eshu_dp_bootstrap_pipeline_phase_seconds` and `eshu_dp_content_entity_emitted_total`
@@ -761,9 +762,8 @@ metrics, so the per-collector and per-stage layers join cleanly: an operator
 can attribute corpus-run wall time to a collector family, then to a pipeline
 phase and a source-file kind, from metrics alone.
 
-Observability Evidence: during the prior full-corpus sign-off the time spent
-per collector could only be reconstructed with strace and DB forensics. With
-these metrics an operator reads the per-collector long pole
+Observability Evidence: formerly the time spent per collector needed strace and
+DB forensics. With these metrics an operator reads the per-collector long pole
 (`eshu_dp_workflow_claim_run_duration_seconds`) and per-collector fact volume
 (`eshu_dp_workflow_claim_facts_emitted_total`) directly from the metrics port,
 and the `collector.claimed_run` span gives the correlated per-claim trace.

@@ -17,7 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-const enqueueWorkflowWorkItemValueFormat = "($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, NULLIF($%d, ''), $%d, $%d, NULLIF($%d, ''), $%d, NULLIF($%d, ''), NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, ''), NULLIF($%d, ''), $%d, $%d)"
+const enqueueWorkflowWorkItemValueFormat = "($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, NULLIF($%d, ''), $%d, $%d, $%d, $%d, NULLIF($%d, ''), $%d, NULLIF($%d, ''), NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, ''), NULLIF($%d, ''), $%d, $%d)"
 
 func (s *WorkflowControlStore) enqueueWorkItemBatch(ctx context.Context, items []workflow.WorkItem) (int, error) {
 	return s.enqueueWorkItemBatchWithExecutor(ctx, s.database, items)
@@ -55,7 +55,7 @@ func (s *WorkflowControlStore) enqueueWorkItemBatchWithExecutor(
 			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8,
 			offset+9, offset+10, offset+11, offset+12, offset+13, offset+14, offset+15,
 			offset+16, offset+17, offset+18, offset+19, offset+20, offset+21, offset+22,
-			offset+23, offset+24, offset+25, offset+26, offset+27,
+			offset+23, offset+24, offset+25, offset+26, offset+27, offset+28, offset+29,
 		)
 		args = append(
 			args,
@@ -73,6 +73,8 @@ func (s *WorkflowControlStore) enqueueWorkItemBatchWithExecutor(
 			item.SourceRunID,
 			item.GenerationID,
 			item.FairnessKey,
+			item.ClaimPriority,
+			item.ClaimEcosystem,
 			string(item.Status),
 			item.AttemptCount,
 			item.CurrentClaimID,
@@ -221,6 +223,7 @@ func scanClaimedWorkflowWorkItem(rows db.Rows) (workflow.WorkItem, workflow.Clai
 	var sourceRunID string
 	var generationID string
 	var fairnessKey string
+	var claimEcosystem string
 	var itemStatus string
 	var claimID string
 	var currentFencing sql.NullInt64
@@ -243,6 +246,8 @@ func scanClaimedWorkflowWorkItem(rows db.Rows) (workflow.WorkItem, workflow.Clai
 		&sourceRunID,
 		&generationID,
 		&fairnessKey,
+		&item.ClaimPriority,
+		&claimEcosystem,
 		&itemStatus,
 		&item.AttemptCount,
 		&claimID,
@@ -273,6 +278,7 @@ func scanClaimedWorkflowWorkItem(rows db.Rows) (workflow.WorkItem, workflow.Clai
 	item.SourceRunID = strings.TrimSpace(sourceRunID)
 	item.GenerationID = strings.TrimSpace(generationID)
 	item.FairnessKey = strings.TrimSpace(fairnessKey)
+	item.ClaimEcosystem = strings.TrimSpace(claimEcosystem)
 	item.CollectorKind = scope.CollectorKind(strings.TrimSpace(collectorKind))
 	item.Status = workflow.WorkItemStatus(strings.TrimSpace(itemStatus))
 	item.CurrentClaimID = strings.TrimSpace(claimID)

@@ -103,7 +103,7 @@ func observeMarkedWriteGauge(t *testing.T, queueObs telemetry.QueueObserver) (fl
 	t.Cleanup(cancel)
 	getenv := func(string) string { return "" }
 	refresher, err := registerPostgresBackedGauges(
-		&telemetry.Instruments{}, provider.Meter("test"), queueObs, nil, nil, nil, nil, getenv, nil,
+		&telemetry.Instruments{}, provider.Meter("test"), queueObs, nil, nil, nil, nil, nil, getenv, nil,
 	)
 	if err != nil {
 		t.Fatalf("registerPostgresBackedGauges() error = %v", err)
@@ -192,7 +192,7 @@ func TestProjectorMarkedWriteAgeGaugeReportsNothingBeforeFirstRefresh(t *testing
 	getenv := func(string) string { return "" }
 	if _, err := registerPostgresBackedGauges(
 		&telemetry.Instruments{}, provider.Meter("test"),
-		scriptedMarkedWriteStore{age: 90.5}, nil, nil, nil, nil, getenv, nil,
+		scriptedMarkedWriteStore{age: 90.5}, nil, nil, nil, nil, nil, getenv, nil,
 	); err != nil {
 		t.Fatalf("registerPostgresBackedGauges() error = %v", err)
 	}
