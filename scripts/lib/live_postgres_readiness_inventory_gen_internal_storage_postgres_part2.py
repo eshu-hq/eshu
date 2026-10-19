@@ -7,6 +7,11 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres": {
+        "go/internal/storage/postgres/workflow_control_claim_pacing_failure_live_test.go": (
+            "TestWorkflowClaimPacingFailsOpenOnLatchQueryFailure",
+            "TestWorkflowClaimPacingStuckHoldsMidBandAndReleasesBelowWatermark",
+            "TestWorkflowClaimPacingStuckEmitsOperatorSignals",
+        ),
         "go/internal/storage/postgres/workflow_control_claim_pacing_live_test.go": (
             "TestWorkflowClaimPacingEngagesOnDomainDepth",
             "TestWorkflowClaimPacingHysteresisRelease",
