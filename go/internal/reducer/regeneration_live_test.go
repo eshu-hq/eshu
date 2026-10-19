@@ -103,23 +103,33 @@ func TestLiveWorkloadRegenerationSurvivesScopedIdentity(t *testing.T) {
 
 	// Cross-scope generations attach their edges to the scoped nodes: USES
 	// from the AWS scope onto the instance, DOCUMENTS from the
-	// documentation scope onto the workload.
+	// documentation scope onto the workload. Two statements, not one: a
+	// MATCH/MERGE chain that reuses an earlier MATCH-bound variable after an
+	// intervening MERGE is rejected on NornicDB (start node not in context)
+	// while Neo4j tolerates it, so each edge seeds in its own statement.
 	if err := live.exec.Execute(ctx, cypher.Statement{
 		Cypher: `MATCH (i:WorkloadInstance {id: $instance_id})
 			MERGE (res:CloudResource {id: $res_id})
 			SET res.repo_id = $repo_id
-			MERGE (i)-[:USES {evidence_source: 'aws'}]->(res)
-			WITH i
-			MATCH (w:Workload {id: $workload_id})
+			MERGE (i)-[:USES {evidence_source: 'aws'}]->(res)`,
+		Parameters: map[string]any{
+			"instance_id": instanceID, "repo_id": repoID,
+			"res_id": "aws:res-" + live.prefix,
+		},
+	}); err != nil {
+		t.Fatalf("seed cross-scope USES edge: %v", err)
+	}
+	if err := live.exec.Execute(ctx, cypher.Statement{
+		Cypher: `MATCH (w:Workload {id: $workload_id})
 			MERGE (doc:Document {id: $doc_id})
 			SET doc.repo_id = $repo_id
 			MERGE (w)-[:DOCUMENTS {evidence_source: 'documentation'}]->(doc)`,
 		Parameters: map[string]any{
-			"instance_id": instanceID, "workload_id": workloadID, "repo_id": repoID,
-			"res_id": "aws:res-" + live.prefix, "doc_id": "doc-" + live.prefix,
+			"workload_id": workloadID, "repo_id": repoID,
+			"doc_id": "doc-" + live.prefix,
 		},
 	}); err != nil {
-		t.Fatalf("seed cross-scope edges: %v", err)
+		t.Fatalf("seed cross-scope DOCUMENTS edge: %v", err)
 	}
 
 	// A stale DEFINES from a renamed workload must go; everything else stays.

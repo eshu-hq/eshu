@@ -29,11 +29,11 @@ var schemaFS embed.FS
 var payloadFS embed.FS
 
 const (
-	schemaDir      = "schema"
-	payloadDir     = "payloads"
-	schemaSuffix   = ".v1.schema.json"
-	validSuffix    = ".valid.json"
-	invalidSuffix  = ".invalid.json"
+	schemaDir     = "schema"
+	payloadDir    = "payloads"
+	schemaSuffix  = ".v1.schema.json"
+	validSuffix   = ".valid.json"
+	invalidSuffix = ".invalid.json"
 	// legacyHandleSuffix marks a supplementary schema-valid payload kept
 	// verbatim from before an additive field existed, proving an old
 	// collector's bytes still validate against the regenerated schema.
