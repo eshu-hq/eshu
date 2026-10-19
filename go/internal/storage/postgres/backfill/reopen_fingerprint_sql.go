@@ -33,12 +33,16 @@ import (
 // scope the item never read gains a matching row. A generation-id fingerprint
 // would miss the append.
 //
-// Exposure that remains, by design (#8283 ruling, option (i)): a
+// Exposure that remained under the #8283 ruling, option (i): a
 // deployment_mapping re-opened in the same transaction appends its rows after
-// this gate ran, so an item whose input changes that way is re-opened by the
-// next pass, not this one. Today's unconditional reopen has the same window
-// whenever the item runs before the deployment_mapping. If no later pass runs,
-// the item keeps its old graph until one does.
+// this gate ran, so an item whose input changes that way was re-opened by the
+// next pass, not this one — and if no later pass ran, it kept its old graph.
+// The completion wake (#8294, ReopenDeployableUnitCorrelationsForRepos in
+// the parent package) closes that append-shaped window in the same
+// resolution pass: it renders this same fingerprint verdict under the same
+// replay floor, reopens succeeded items, and replay-flags in-flight ones.
+// Input moved by anything other than a resolution append keeps the
+// option (i) one-pass bound.
 
 // resolvedInputRepoIDsPlaceholder stands for the text[] repository-set
 // expression in resolvedInputRowsSQL: an ARRAY of bind parameters on the fused

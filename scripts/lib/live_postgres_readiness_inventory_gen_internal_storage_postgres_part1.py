@@ -457,6 +457,17 @@ TABLE = {
             "TestFinalFailAfterTheActivationLockIsWokenLive",
             "TestActivationLockTimeoutFailsRetryablyLive",
         ),
+        "go/internal/storage/postgres/relationship_store_completion_wake_contention_live_test.go": (
+            "TestCompletionWakeLockTimeoutClassifiedLive",
+            "TestCompletionWakeEvalPlanQualDropsReopenedRowLive",
+            "TestCompletionWakeConcurrentWithMaintenanceAndClaimLive",
+            "TestCompletionWakeMetricsLive",
+        ),
+        "go/internal/storage/postgres/relationship_store_completion_wake_live_test.go": (
+            "TestCompletionWakeFloorMissingAndUnchangedLive",
+            "TestCompletionWakeRunningItemReplayBitLive",
+            "TestCompletionWakeRetryConvergesAfterLostWakeLive",
+        ),
         "go/internal/storage/postgres/repository_catalog_projection_live_test.go": (
             "TestLoadRepositoryCatalogProjectionMatchesWholePayloadDecode",
         ),

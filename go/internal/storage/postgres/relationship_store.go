@@ -27,13 +27,19 @@ type RelationshipStore struct {
 	// in-flight consumer row; zero uses defaultActivationWakeLockTimeout.
 	// Tests shorten it.
 	activationLockTimeout time.Duration
+	// completionWakeLockTimeout bounds the #8294 completion wake's wait on
+	// a contended work-item row; zero uses
+	// defaultCompletionWakeLockTimeout. Tests shorten it.
+	completionWakeLockTimeout time.Duration
 	// instruments records eshu_dp_reducer_own_gate_wake_total for the
-	// activation wake (#7597). Nil is a no-op.
+	// activation wake (#7597) and eshu_dp_reducer_completion_wake_total
+	// for the completion wake (#8294). Nil is a no-op.
 	instruments *telemetry.Instruments
 }
 
 // WithInstruments attaches the telemetry instruments the activation wake
-// records on (#7597) and returns the store. Nil keeps it uninstrumented.
+// (#7597) and the completion wake (#8294) record on and returns the store.
+// Nil keeps it uninstrumented.
 func (s *RelationshipStore) WithInstruments(instruments *telemetry.Instruments) *RelationshipStore {
 	s.instruments = instruments
 	return s
@@ -323,10 +329,11 @@ func (s *RelationshipStore) UpsertCandidates(
 // It reports what the ON CONFLICT DO NOTHING insert actually wrote: Inserted
 // counts rows with RowsAffected > 0 (a re-run over stored identities inserts
 // nothing), and RepoIDs holds the distinct non-empty source/target repository
-// IDs of exactly those inserted rows. The completion-driven
-// deployable_unit_correlation wake (#8294) keys off that set: a re-run that
-// appends under an already-active generation reports the appended rows'
-// repos, and a pure re-run reports zero and reopens nothing.
+// IDs of every row in the set, inserted or not. The completion-driven
+// deployable_unit_correlation wake (#8294) runs over that full scope on
+// every pass, so a retry after a lost wake re-runs it even though its
+// upsert inserts nothing; the wake's fingerprint-mismatch predicate decides
+// what reopens.
 func (s *RelationshipStore) UpsertResolved(
 	ctx context.Context,
 	generationID string,
@@ -365,9 +372,6 @@ func (s *RelationshipStore) UpsertResolved(
 		affected, err := execResult.RowsAffected()
 		if err != nil {
 			return crossrepo.ResolvedUpsertResult{}, fmt.Errorf("insert resolved: rows affected: %w", err)
-		}
-		if affected == 0 {
-			continue
 		}
 		result.Inserted += affected
 		for _, repoID := range []string{r.SourceRepoID, r.TargetRepoID} {

@@ -111,9 +111,13 @@ func (c DeferredMaintenanceBarrierConfig) validate() error {
 //
 // A pass runs only after a drain that committed something, so the
 // deployable_unit_correlation changed-evidence gate (#8283) has a one-pass
-// bound: input a deployment_mapping re-opened by this pass appends after the
-// gate read it is picked up by the next pass, and stays stale until a later
-// commit triggers one (see backfill.ListDeployableUnitReopenCandidatesQuery).
+// bound for input moved outside a resolution append: it is picked up by the
+// next pass, and stays stale until a later commit triggers one (see
+// backfill.ListDeployableUnitReopenCandidatesQuery). Input a
+// deployment_mapping re-opened by this pass appends after the gate read it
+// is the exception: the completion wake (#8294) reopens the affected items
+// in that same resolution pass, retry-convergent, without waiting for a
+// later commit to trigger a pass.
 func (s IngestionStore) RunDeferredRelationshipMaintenanceAfterShardDrain(
 	ctx context.Context,
 	config DeferredMaintenanceBarrierConfig,

@@ -12,8 +12,8 @@ import (
 )
 
 // stubCompletionPersister simulates an append under an already-active
-// generation: the rows persist, and the reported inserted set names exactly
-// the rows the ON CONFLICT DO NOTHING insert actually wrote.
+// generation: the rows persist, and the reported result carries the
+// inserted count plus the full resolved repo scope the wake runs over.
 type stubCompletionPersister struct {
 	fakeResolutionPersister
 	upsertResult ResolvedUpsertResult
@@ -32,50 +32,31 @@ func (f *stubCompletionPersister) UpsertResolved(
 	return f.upsertResult, nil
 }
 
-// stubCorrelationWaker models the succeeded deployable_unit_correlation items
-// by their recorded fingerprint repo_ids. A wake flips an item to pending
-// exactly when its stored set overlaps the inserted repos, mirroring the
-// single-UPDATE predicate, so the test seeds a succeeded dependent and
-// asserts it reopens in the same Resolve call.
+// stubCorrelationWaker records wake calls and returns a configured result.
+// It deliberately does not model the wake predicate: which items reopen is
+// the production SQL's contract, proven on live Postgres in the postgres
+// package (#8294 review F4). These tests assert only the handler wiring:
+// when the wake runs, with which repos, and that its failure fails the pass.
 type stubCorrelationWaker struct {
-	storedRepoIDs map[string][]string
-	pending       map[string]bool
-	wakeCalls     [][]string
-	wakeErr       error
+	wakeCalls [][]string
+	result    CompletionWakeResult
+	wakeErr   error
 }
 
 func (w *stubCorrelationWaker) ReopenDeployableUnitCorrelationsForRepos(
 	_ context.Context,
 	repoIDs []string,
-) (int64, error) {
+) (CompletionWakeResult, error) {
 	if w.wakeErr != nil {
-		return 0, w.wakeErr
+		return CompletionWakeResult{}, w.wakeErr
 	}
 	w.wakeCalls = append(w.wakeCalls, append([]string(nil), repoIDs...))
-	inserted := make(map[string]struct{}, len(repoIDs))
-	for _, id := range repoIDs {
-		inserted[id] = struct{}{}
-	}
-	var reopened int64
-	for itemID, stored := range w.storedRepoIDs {
-		if w.pending[itemID] {
-			continue
-		}
-		for _, id := range stored {
-			if _, ok := inserted[id]; ok {
-				w.pending[itemID] = true
-				reopened++
-				break
-			}
-		}
-	}
-	return reopened, nil
+	return w.result, nil
 }
 
-// Seeded RED test for #8294: a deployable_unit_correlation item that
-// succeeded before its dependency's generation appended rows must reopen in
-// the same resolution pass that appended them, not at the next maintenance
-// pass.
+// Regression test for #8294: the resolution pass that appends rows runs the
+// completion wake over the resolved repo scope in that same pass, not at
+// the next maintenance pass.
 func TestCrossRepoResolutionWakesDeployableUnitCorrelationsOnInsertedRows(t *testing.T) {
 	t.Parallel()
 
@@ -96,13 +77,7 @@ func TestCrossRepoResolutionWakesDeployableUnitCorrelationsOnInsertedRows(t *tes
 			RepoIDs:  []string{"infra-repo", "app-repo"},
 		},
 	}
-	waker := &stubCorrelationWaker{
-		storedRepoIDs: map[string][]string{
-			"duc-item-1": {"app-repo", "other-repo"},
-			"duc-item-2": {"unrelated-repo"},
-		},
-		pending: map[string]bool{},
-	}
+	waker := &stubCorrelationWaker{result: CompletionWakeResult{Reopened: 1}}
 	handler := CrossRepoRelationshipHandler{
 		EvidenceLoader:  evidenceLoader,
 		IntentWriter:    &recordingRepoDependencyIntentWriter{},
@@ -116,15 +91,16 @@ func TestCrossRepoResolutionWakesDeployableUnitCorrelationsOnInsertedRows(t *tes
 	if len(waker.wakeCalls) != 1 {
 		t.Fatalf("wake calls = %d, want 1 in the same pass", len(waker.wakeCalls))
 	}
-	if !waker.pending["duc-item-1"] {
-		t.Fatal("overlapping succeeded item was not reopened in the same pass")
-	}
-	if waker.pending["duc-item-2"] {
-		t.Fatal("non-overlapping item must stay succeeded")
+	if got, want := waker.wakeCalls[0], []string{"infra-repo", "app-repo"}; fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("wake repos = %v, want %v", got, want)
 	}
 }
 
-func TestCrossRepoResolutionSkipsWakeWhenNothingInserted(t *testing.T) {
+// A retry whose upsert inserts nothing (the first pass autocommitted the
+// rows, then its wake failed or the process died) must still run the wake
+// over the resolved repos, or the lost wake never converges (#8294 review
+// F3). Only an empty repo scope skips it.
+func TestCrossRepoResolutionWakesOnRetryThatInsertedNothing(t *testing.T) {
 	t.Parallel()
 
 	evidenceLoader := &fakeEvidenceFactLoader{
@@ -139,12 +115,9 @@ func TestCrossRepoResolutionSkipsWakeWhenNothingInserted(t *testing.T) {
 		},
 	}
 	persister := &stubCompletionPersister{
-		upsertResult: ResolvedUpsertResult{Inserted: 0},
+		upsertResult: ResolvedUpsertResult{Inserted: 0, RepoIDs: []string{"infra-repo", "app-repo"}},
 	}
-	waker := &stubCorrelationWaker{
-		storedRepoIDs: map[string][]string{"duc-item-1": {"app-repo"}},
-		pending:       map[string]bool{},
-	}
+	waker := &stubCorrelationWaker{}
 	handler := CrossRepoRelationshipHandler{
 		EvidenceLoader:  evidenceLoader,
 		IntentWriter:    &recordingRepoDependencyIntentWriter{},
@@ -155,11 +128,8 @@ func TestCrossRepoResolutionSkipsWakeWhenNothingInserted(t *testing.T) {
 	if _, err := handler.Resolve(context.Background(), "scope-1", "gen-1"); err != nil {
 		t.Fatalf("Resolve() error = %v", err)
 	}
-	if len(waker.wakeCalls) != 0 {
-		t.Fatalf("wake calls = %d, want 0 when nothing was inserted", len(waker.wakeCalls))
-	}
-	if waker.pending["duc-item-1"] {
-		t.Fatal("item must stay succeeded when no row was appended")
+	if len(waker.wakeCalls) != 1 {
+		t.Fatalf("wake calls = %d, want 1 on a retry that inserted nothing", len(waker.wakeCalls))
 	}
 }
 

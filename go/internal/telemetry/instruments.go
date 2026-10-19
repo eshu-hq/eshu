@@ -2777,6 +2777,11 @@ type Instruments struct {
 	// (activation, fail) and outcome (reopened, noop, error), once per
 	// statement. Registered by registerOwnGateWakeInstruments.
 	ReducerOwnGateWake metric.Int64Counter
+	// ReducerCompletionWake counts #8294 completion-driven
+	// deployable_unit_correlation wake transactions by outcome (reopened,
+	// noop, error), once per transaction. Registered by
+	// registerCompletionWakeInstruments.
+	ReducerCompletionWake metric.Int64Counter
 	// OIDCBearerValidationTotal counts every IdP bearer-token (Authorization:
 	// Bearer <access_token>) validation outcome the internal/oidcbearer
 	// resolver reaches (issue #5162, epic #5161), by bounded outcome value:
@@ -5827,6 +5832,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerOwnGateWakeInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerCompletionWakeInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 

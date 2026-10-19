@@ -326,9 +326,12 @@ func runPipelined(
 
 	// deployable_unit_correlation is reopened through the changed-evidence
 	// gate (#8283): an item whose recorded input fingerprint still matches is
-	// left succeeded, and an item with no fingerprint row always re-opens. Input a
-	// deployment_mapping re-opened above appends after this gate ran is left
-	// to the next maintenance pass; a one-shot run has none.
+	// left succeeded, and an item with no fingerprint row always re-opens.
+	// Input a deployment_mapping re-opened above appends after this gate ran
+	// is covered in-pass by the completion wake (#8294), which re-runs on
+	// every resolution pass including retries; input moved by anything other
+	// than a resolution append still waits for the next maintenance pass,
+	// which a one-shot run may not get.
 	correlationReopenStart := time.Now()
 	if err := cd.committer.ReopenSucceededReducerWorkItems(
 		ctx, tracer, instruments, postgres.CrossScopeCorrelationReopenDomains(),

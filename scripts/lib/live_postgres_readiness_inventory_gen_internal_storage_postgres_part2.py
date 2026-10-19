@@ -7,6 +7,14 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres": {
+        "go/internal/storage/postgres/workflow_control_claim_depth_live_test.go": (
+            "TestWorkflowClaimDepthEightClaimersDrainExactlyOnce",
+            "TestWorkflowClaimDepthFairRotationServesSmallKeysEarly",
+            "TestClaimDepthAnalysisHelpers",
+        ),
+        "go/internal/storage/postgres/workflow_control_claim_order_plan_live_test.go": (
+            "TestWorkflowClaimCandidateUsesFairClaimIndex",
+        ),
         "go/internal/storage/postgres/workflow_control_claim_pacing_failure_live_test.go": (
             "TestWorkflowClaimPacingFailsOpenOnLatchQueryFailure",
             "TestWorkflowClaimPacingStuckHoldsMidBandAndReleasesBelowWatermark",

@@ -300,12 +300,13 @@ func (h *CrossRepoRelationshipHandler) resolve(
 		// Completion-driven wake (#8294): the append lands under an
 		// already-active generation, so a deployable_unit_correlation item
 		// that succeeded earlier in this same pass read the older row set.
-		// Reopen the overlapping succeeded items now rather than at the next
-		// maintenance pass. This runs before the intent commit so a later
-		// step's failure retries with the wake already durable; only a wake
-		// execution failure itself leaves the items to the next pass (the
-		// retry then reports zero inserted rows), which is the pre-change
-		// bound, not a new exposure.
+		// Reopen (or replay-flag) the affected items now rather than at the
+		// next maintenance pass. This runs before the intent commit so a
+		// later step's failure retries with the wake already durable, and
+		// the wake itself is fingerprint-gated and runs on every pass — a
+		// retry that inserts nothing re-runs it, so a wake lost to a crash
+		// or a failed first attempt still converges instead of waiting for
+		// a maintenance pass a one-shot run may never get.
 		if err := h.wakeDeployableUnitCorrelations(ctx, scopeID, generationID, upsertResult); err != nil {
 			return 0, err
 		}

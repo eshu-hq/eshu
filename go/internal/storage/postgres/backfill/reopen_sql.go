@@ -53,6 +53,16 @@ JOIN scope_replay_floor AS floor
   ON floor.scope_id = work.scope_id
 `
 
+// ScopeReplayFloorCTE is scopeReplayFloorCTE exported for the one composer
+// outside this package: the #8294 completion-driven wake in the parent
+// postgres package, whose UPDATE owns its SET clause there but must bound
+// its candidate set by this same single floor text rather than a copy.
+const ScopeReplayFloorCTE = scopeReplayFloorCTE
+
+// ScopeReplayFloorJoins is scopeReplayFloorJoins exported for the same
+// composer (see ScopeReplayFloorCTE).
+const ScopeReplayFloorJoins = scopeReplayFloorJoins
+
 // scopeReplayFloorStage opens the WHERE clause on the reducer stage. It is
 // the single marker the partition-scoped pass inserts its partition conjunct
 // after (targeted.CorrelationReopenStageMarker), so every listing carries it

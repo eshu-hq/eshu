@@ -949,6 +949,16 @@ tests:
     class: postgres_ci
     reason: "#7597 activation-wake races: an activation waits for an in-flight final Fail and wakes it, a final Fail that waited on the activation lock is reopened by its own post-dead-letter wake, and a held consumer row makes the activation fail with a retryable 55P03 that rolls back and the retry wakes; isolated schema per test, about 5 s locally; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/relationship_store_completion_wake_contention_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8294 completion-wake contention on the full bootstrap schema: lock_timeout gives up as classified retryable 55P03 behind a held row and succeeds after release, the locking subquery's EvalPlanQual recheck drops a row a concurrent maintenance reopen moved to pending (sentinel reopened_at preserved), wake/maintenance-reopen/production-claim races over 20 changed items escape no raw deadlock and leave none succeeded, and wake outcomes emit eshu_dp_reducer_completion_wake_total (reopened then noop) plus eshu_dp_correlation_reopened_total; isolated schemas from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; about 12 s on local PostgreSQL 18 on 2026-10-19; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/relationship_store_completion_wake_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8294 completion-driven deployable_unit_correlation wake on the full bootstrap schema through the production RelationshipStore: the scope replay floor leaves below-floor succeeded history succeeded while an at-floor item reopens (EXPLAIN of the production statement locks only the at-floor row), a missing fingerprint row reopens, an unchanged fingerprint stays succeeded on a retry wake, a live re-run of UpsertResolved reports Inserted=0 yet the retry wake still reopens and then converges, and a running item keeps its lease with cross_scope_replay_required set so its ACK returns it to pending; isolated schema per subtest from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; about 15 s for the file on local PostgreSQL 18 on 2026-10-19; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/repository_catalog_projection_live_test.go
     tag: ~
     class: postgres_ci

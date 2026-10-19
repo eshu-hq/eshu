@@ -133,10 +133,12 @@ type DefaultHandlers struct {
 	AssertionLoader     AssertionLoader
 	ResolutionPersister ResolutionPersister
 	// DeployableUnitCorrelationWaker is the #8294 completion-driven wake:
-	// after resolution appends rows it reopens the succeeded
-	// deployable_unit_correlation items whose recorded input overlaps the
-	// appended repos. Nil disables the wake; items then wait for the next
-	// maintenance pass as before.
+	// every resolution pass wakes the deployable_unit_correlation items
+	// whose recorded input no longer holds over the pass's resolved repos
+	// (succeeded items reopen, in-flight ones replay after their ACK),
+	// fingerprint-gated and replay-floored so retries converge. Nil
+	// disables the wake; items then wait for the next maintenance pass as
+	// before.
 	DeployableUnitCorrelationWaker DeployableUnitCorrelationWaker
 	ScopeRepos                     ScopeRepositoryReader
 	ResolvedRelationshipLoader     ResolvedRelationshipLoader

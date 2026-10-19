@@ -284,8 +284,12 @@ type ResolutionPersister = crossrepo.ResolutionPersister
 // Alias for [crossrepo.ResolvedUpsertResult].
 type ResolvedUpsertResult = crossrepo.ResolvedUpsertResult
 
-// DeployableUnitCorrelationWaker reopens succeeded
-// deployable_unit_correlation items whose recorded input could have changed.
+// CompletionWakeResult reports what one completion wake transaction did.
+// Alias for [crossrepo.CompletionWakeResult].
+type CompletionWakeResult = crossrepo.CompletionWakeResult
+
+// DeployableUnitCorrelationWaker reopens the deployable_unit_correlation
+// items whose recorded input no longer holds after a resolution pass.
 // Alias for [crossrepo.DeployableUnitCorrelationWaker].
 type DeployableUnitCorrelationWaker = crossrepo.DeployableUnitCorrelationWaker
 
