@@ -15,6 +15,8 @@ const (
 	webhookTriggerClaimLimitEnv       = "ESHU_WEBHOOK_TRIGGER_CLAIM_LIMIT"
 	webhookTriggerClaimLeaseWindowEnv = "ESHU_WEBHOOK_TRIGGER_CLAIM_LEASE_WINDOW"
 	webhookTriggerMaxClaimAttemptsEnv = "ESHU_WEBHOOK_TRIGGER_MAX_CLAIM_ATTEMPTS"
+	webhookTriggerSweepMaxYieldsEnv   = "ESHU_WEBHOOK_TRIGGER_SWEEP_MAX_YIELDS"
+	webhookTriggerSweepYieldCheckEnv  = "ESHU_WEBHOOK_TRIGGER_SWEEP_YIELD_CHECK_REPOS"
 )
 
 // WebhookTriggerHandoffConfig carries the shared env contract for collector
@@ -29,17 +31,27 @@ type WebhookTriggerHandoffConfig struct {
 	// MaxClaimAttempts overrides the claim-attempt cap (#7661). Zero
 	// keeps the selector default.
 	MaxClaimAttempts int
+	// SweepMaxYields bounds how many times one scheduled sweep may
+	// yield to queued triggers before it runs to completion (#8123).
+	// Zero keeps the selector default.
+	SweepMaxYields int
+	// SweepYieldCheckEvery is the visited-repository count between
+	// queued-trigger probes during a sweep (#8123). Zero keeps the
+	// selector default.
+	SweepYieldCheckEvery int
 }
 
 // LoadWebhookTriggerHandoffConfig parses the shared webhook handoff env values
 // used by collector-git and ingester.
 func LoadWebhookTriggerHandoffConfig(defaultOwner string, getenv func(string) string) WebhookTriggerHandoffConfig {
 	return WebhookTriggerHandoffConfig{
-		Enabled:          parseWebhookTriggerHandoffEnabled(getenv),
-		Owner:            parseWebhookTriggerHandoffOwner(defaultOwner, getenv),
-		ClaimLimit:       parseWebhookTriggerClaimLimit(getenv),
-		ClaimLeaseWindow: parseWebhookTriggerClaimLeaseWindow(getenv),
-		MaxClaimAttempts: parseWebhookTriggerMaxClaimAttempts(getenv),
+		Enabled:              parseWebhookTriggerHandoffEnabled(getenv),
+		Owner:                parseWebhookTriggerHandoffOwner(defaultOwner, getenv),
+		ClaimLimit:           parseWebhookTriggerClaimLimit(getenv),
+		ClaimLeaseWindow:     parseWebhookTriggerClaimLeaseWindow(getenv),
+		MaxClaimAttempts:     parseWebhookTriggerMaxClaimAttempts(getenv),
+		SweepMaxYields:       parsePositiveIntEnv(getenv, webhookTriggerSweepMaxYieldsEnv),
+		SweepYieldCheckEvery: parsePositiveIntEnv(getenv, webhookTriggerSweepYieldCheckEnv),
 	}
 }
 
@@ -87,13 +99,20 @@ func parseWebhookTriggerClaimLeaseWindow(getenv func(string) string) time.Durati
 // Empty, unparseable, or sub-one values return zero so the selector
 // default applies: a cap below 1 would fail every row on its first reap.
 func parseWebhookTriggerMaxClaimAttempts(getenv func(string) string) int {
-	raw := strings.TrimSpace(getenv(webhookTriggerMaxClaimAttemptsEnv))
+	return parsePositiveIntEnv(getenv, webhookTriggerMaxClaimAttemptsEnv)
+}
+
+// parsePositiveIntEnv parses a positive integer setting. Empty,
+// unparseable, or sub-one values return zero so the consumer's
+// default applies.
+func parsePositiveIntEnv(getenv func(string) string, key string) int {
+	raw := strings.TrimSpace(getenv(key))
 	if raw == "" {
 		return 0
 	}
-	attempts, err := strconv.Atoi(raw)
-	if err != nil || attempts <= 0 {
+	value, err := strconv.Atoi(raw)
+	if err != nil || value <= 0 {
 		return 0
 	}
-	return attempts
+	return value
 }

@@ -147,6 +147,8 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.WebhookRequests, "WebhookRequests counter should be registered")
 	assert.NotNil(t, inst.WebhookTriggerDecisions, "WebhookTriggerDecisions counter should be registered")
 	assert.NotNil(t, inst.WebhookStoreOperations, "WebhookStoreOperations counter should be registered")
+	assert.NotNil(t, inst.WebhookTriggerClaimWait, "WebhookTriggerClaimWait histogram should be registered")
+	assert.NotNil(t, inst.CollectorSweepYields, "CollectorSweepYields counter should be registered")
 	assert.NotNil(t, inst.AWSAPICalls, "AWSAPICalls counter should be registered")
 	assert.NotNil(t, inst.AWSThrottles, "AWSThrottles counter should be registered")
 	assert.NotNil(t, inst.AWSAssumeRoleFailed, "AWSAssumeRoleFailed counter should be registered")

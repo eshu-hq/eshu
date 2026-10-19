@@ -90,13 +90,9 @@ The sweep is bounded and scheduled, not a full re-index:
 
 ## Visiting order
 
-The sweep visits repositories in rotating order, so a persistently due head
-cannot starve the tail when more repositories are due than the per-cycle cap
-allows. Requested reindexes stay pinned first; the rest rotate from the cycle
-offset and resume after the last served repository, reproducibly per list and
-offset, within `ceil(due / limit)` cycles. The gauge
-`eshu_dp_collector_reconciliation_due_unvisited` samples the due-but-unvisited
-remainder per bounded `reason`, zeros included.
+The sweep visits repositories in rotating order, so a persistently due head cannot starve the tail when more repositories are due than the per-cycle cap allows. Requested reindexes stay pinned first; the rest rotate from the cycle offset and resume after the last served repository, reproducibly per list and offset, within `ceil(due / limit)` cycles.
+A walk cut short for a queued webhook trigger (#8123) resumes after the last *visited* repository instead and covers only the unvisited tail, so the cap and the valve keep their per-cycle meaning across the partial cycles of one logical sweep.
+The gauge `eshu_dp_collector_reconciliation_due_unvisited` samples the due-but-unvisited remainder per bounded `reason`, zeros included.
 
 Cost is one full re-observation and projection per scope per interval — the same
 cost as a first sync, paid on a documented cadence. For an unchanged repository

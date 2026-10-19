@@ -189,3 +189,53 @@ removed, or renamed. The SCIP snapshot path keeps emitting
 through the same `recordSCIPSnapshotAttempt` call sites with the same
 `telemetry.FailureClassAttr("scip_"+reason)` values, so existing dashboards
 and the telemetry-coverage row for this path stay valid.
+
+Performance Evidence (#8123): a scheduled sweep now yields to a queued
+webhook trigger at a repository boundary (`selection_sweep_yield.go`,
+probe every 16 visited repositories, at most 8 yields per logical sweep,
+both env-tunable). Before, on the QA fleet (issue #8123, 784 repos):
+`claimed_at - received_at` median 155.9 s, p90 311.6 s — one sweep period.
+After, locally: `TestPrioritySelectorClaimsTriggerQueuedMidSweepBeforeSweepEnds`
+claims with 2 of 5 repositories visited (before: the control
+`TestNativeSelectorWithoutYieldProbeWalksEveryRepository` visits all 5
+before any claim is possible), and
+`TestSweepYieldReturnsPartialSelectionAndResumeCoversTail` visits each of
+5 repositories exactly once across the yielded+resumed walks, so fetch
+work per logical sweep is unchanged. With a repository reindex pinned
+(#8512 P2), `TestNativeSelectorSweepYieldResumeSkipsVisitedPinnedRepos`
+fetches each of 5 repositories exactly once across three cycles: resumed
+walks skip visited pins (carried on the selector, thread through
+`SweepVisitedPinned`/`SweepVisitedPinnedRepos` into `limitWalk`) while
+unvisited pins keep the head, and the fetch count reads
+`fullScopeIDs` because a forced pinned visit skips the baseline-SHA
+lookup. Fleet arithmetic at the measured
+~0.28 s/repository: detection within ~4.5 s plus the in-flight
+repository, then the partial batch's drain (usually empty) and one 1 s
+poll; probe cost is at most 49 `EXISTS` reads per 784-repository sweep on
+the existing `(status, received_at)` index. Stated target: p90 wait
+bounded by probe cadence plus partial-batch drain instead of the sweep
+period. Fleet p90 and sweep-period regression are NOT_CHECKED (no fleet
+in this lane; the new histogram is the instrument that proves them).
+Conflict domain: `webhook_refresh_triggers` claims. The probe is
+read-only and claiming stays solely in
+`WebhookTriggerRepositorySelector` under the #7661 lease and fencing
+token, so no double-claim or lost-trigger path is added; selector yield
+state is single-goroutine like `reconcileWalkOffset`.
+`TestNativeSelectorSweepYieldBoundCompletesSweepUnderTriggerStorm`
+proves the sweep still completes under a permanent trigger queue, and
+the existing claim-lease tests pass unchanged.
+
+Observability Evidence (#8123): new `eshu_dp_webhook_trigger_claim_wait_seconds`
+histogram (accepted rows, `claimed_at - received_at` at claim time), new
+`eshu_dp_collector_sweep_yields_total` counter, the INFO
+`git repository sweep yielded to queued webhook trigger` log
+(`visited_repositories`, `selected_repositories`, `resume_offset`,
+`remaining_repositories`), and the WARN
+`git sweep webhook trigger probe failed; completing sweep` degradation
+log. A probe failure also counts `eshu_dp_webhook_store_operations_total`
+with outcome `failed` (provider and status `unknown`, #8512 P2), so
+yield-disabled-by-outage alerts instead of hiding behind the quiet queue;
+`TestSweepYieldProbeErrorIsCounted` pins the stream and its labels. An
+operator reads the wait histogram for the #8123 outcome, the yield
+counter and log for where sweeps stopped, the failed-probe stream for
+silent yield loss, and the existing sweep logs for the sweep period.

@@ -160,6 +160,7 @@ func (s WebhookTriggerRepositorySelector) SelectRepositories(ctx context.Context
 	if len(triggers) == 0 {
 		return SelectionBatch{ObservedAt: observedAt}, nil
 	}
+	s.recordClaimWait(ctx, triggers, observedAt)
 
 	// Terminal-first: a claimed trigger whose decision is not accepted
 	// can never complete the git handoff, so it fails with the

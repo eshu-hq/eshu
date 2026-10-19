@@ -73,9 +73,11 @@ var NonOutputEnvKeys = map[string]string{
 	"ESHU_REPO_RECONCILE_STAMP_IDENTITY_WITHOUT_PARSE": "reconcile scheduling (the opt-in first-sweep stamp; off parses as before)",
 	"ESHU_REPO_SELECTION_LIVENESS_WINDOW":              "selection observation lifetime",
 
-	"ESHU_WEBHOOK_TRIGGER_CLAIM_LEASE_WINDOW": "webhook trigger scheduling",
-	"ESHU_WEBHOOK_TRIGGER_CLAIM_LIMIT":        "webhook trigger scheduling",
-	"ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED":    "webhook trigger scheduling",
-	"ESHU_WEBHOOK_TRIGGER_HANDOFF_OWNER":      "webhook trigger scheduling",
-	"ESHU_WEBHOOK_TRIGGER_MAX_CLAIM_ATTEMPTS": "webhook trigger scheduling",
+	"ESHU_WEBHOOK_TRIGGER_CLAIM_LEASE_WINDOW":      "webhook trigger scheduling",
+	"ESHU_WEBHOOK_TRIGGER_CLAIM_LIMIT":             "webhook trigger scheduling",
+	"ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED":         "webhook trigger scheduling",
+	"ESHU_WEBHOOK_TRIGGER_HANDOFF_OWNER":           "webhook trigger scheduling",
+	"ESHU_WEBHOOK_TRIGGER_MAX_CLAIM_ATTEMPTS":      "webhook trigger scheduling",
+	"ESHU_WEBHOOK_TRIGGER_SWEEP_MAX_YIELDS":        "webhook trigger scheduling (sweep yield bound; changes when a sync runs, never what it emits)",
+	"ESHU_WEBHOOK_TRIGGER_SWEEP_YIELD_CHECK_REPOS": "webhook trigger scheduling (sweep probe cadence; changes when a sync runs, never what it emits)",
 }

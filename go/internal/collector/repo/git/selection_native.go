@@ -60,6 +60,33 @@ type NativeRepositorySelector struct {
 	// selector (#8084); nil means this selector owns a private one.
 	DiscoveryFailures *rest.Failures
 	ownFailures       rest.Failures
+	// SweepYieldProbe lets a git sweep stop at a repository boundary
+	// when an accepted webhook trigger is queued, so the trigger is
+	// claimed at the next cycle instead of after the sweep tail
+	// (#8123). Nil disables yielding. Wire it only where the webhook
+	// selector shares the collector cycle (the priority selector).
+	SweepYieldProbe QueuedTriggerProbe
+	// SweepYieldMaxPerSweep bounds yields within one logical sweep;
+	// the sweep then runs to completion before it may yield again.
+	// Zero takes the default.
+	SweepYieldMaxPerSweep int
+	// SweepYieldCheckEvery is the visited-repository count between
+	// trigger probes. Zero takes the default.
+	SweepYieldCheckEvery int
+	// sweepYieldsUsed counts yields spent in the current logical
+	// sweep; a completed walk resets it. Driven sequentially like
+	// reconcileWalkOffset, so no lock.
+	sweepYieldsUsed int
+	// sweepWalkRemaining is the unvisited tail a yielded sweep owes
+	// the next cycle, in rotating-suffix repositories (#8123).
+	sweepWalkRemaining int
+	// sweepVisitedPinned remembers the pinned repositories the
+	// current logical sweep already fetched, so a resumed walk skips
+	// them instead of re-fetching the re-prepended prefix (#8512
+	// P2). Cleared with the rest of the yield state when a walk
+	// completes. Driven sequentially like reconcileWalkOffset, so no
+	// lock.
+	sweepVisitedPinned map[string]struct{}
 }
 
 // SelectRepositories discovers changed repositories for one collector cycle.
@@ -213,6 +240,9 @@ func (s *NativeRepositorySelector) selectRepositories(
 					Preparse:                     preparseConfig(s.Preparse),
 					ParseMaxSkips:                config.ReconcileParseMaxSkips,
 					StampWithoutParse:            config.ReconcileStampIdentityWithoutParse,
+					SweepYield:                   s.sweepYieldPolicy(),
+					SweepWalkLimit:               s.sweepWalkRemaining,
+					SweepVisitedPinned:           s.sweepVisitedPinned,
 				})
 			}
 		}
@@ -221,6 +251,7 @@ func (s *NativeRepositorySelector) selectRepositories(
 			return SelectionBatch{}, err
 		}
 		s.reconcileWalkOffset = synced.NextReconcileStartOffset
+		s.noteSweepYieldResult(synced)
 		return SelectionBatch{
 			ObservedAt: observedAt,
 			Repositories: applyPreparseIdentities(buildSelectedRepositories(
@@ -462,39 +493,5 @@ func (s NativeRepositorySelector) now() time.Time {
 	return time.Now().UTC()
 }
 
-// applyPreparseIdentities sets each default-branch selection's pre-parse
-// identity from the sync (#7978 follow-up). The sync keys the map by the
-// checkout path it built; a selection carries the absolute path, so both are
-// tried. Pinned-ref selections have their own paths and stay empty.
-func applyPreparseIdentities(repositories []SelectedRepository, byRepoPath map[string]string) []SelectedRepository {
-	if len(byRepoPath) == 0 {
-		return repositories
-	}
-	absolute := make(map[string]string, len(byRepoPath))
-	for repoPath, identity := range byRepoPath {
-		if abs, err := filepath.Abs(repoPath); err == nil {
-			absolute[abs] = identity
-		}
-	}
-	for i := range repositories {
-		if repositories[i].Ref != "" {
-			continue
-		}
-		if identity, ok := byRepoPath[repositories[i].RepoPath]; ok {
-			repositories[i].PreparseIdentity = identity
-		} else if identity, ok := absolute[repositories[i].RepoPath]; ok {
-			repositories[i].PreparseIdentity = identity
-		}
-	}
-	return repositories
-}
-
-// preparseConfig resolves a selector's Preparse source for one cycle; nil
-// means the feature is off.
-func preparseConfig(source func() preparse.Config) *preparse.Config {
-	if source == nil {
-		return nil
-	}
-	config := source()
-	return &config
-}
+// applyPreparseIdentities and preparseConfig live in selection_skip.go
+// with the identity stamp they feed.

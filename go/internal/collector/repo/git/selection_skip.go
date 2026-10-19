@@ -141,3 +141,40 @@ func (b gitDeltaBaseline) snapshotIdentity(ctx context.Context, config RepoSyncC
 	}
 	return preparse.Identity(GenerationContentVersion(), sourceSHA, repositoryDefaultBranch(refs), *b.Preparse)
 }
+
+// applyPreparseIdentities sets each default-branch selection's pre-parse
+// identity from the sync (#7978 follow-up). The sync keys the map by the
+// checkout path it built; a selection carries the absolute path, so both are
+// tried. Pinned-ref selections have their own paths and stay empty.
+func applyPreparseIdentities(repositories []SelectedRepository, byRepoPath map[string]string) []SelectedRepository {
+	if len(byRepoPath) == 0 {
+		return repositories
+	}
+	absolute := make(map[string]string, len(byRepoPath))
+	for repoPath, identity := range byRepoPath {
+		if abs, err := filepath.Abs(repoPath); err == nil {
+			absolute[abs] = identity
+		}
+	}
+	for i := range repositories {
+		if repositories[i].Ref != "" {
+			continue
+		}
+		if identity, ok := byRepoPath[repositories[i].RepoPath]; ok {
+			repositories[i].PreparseIdentity = identity
+		} else if identity, ok := absolute[repositories[i].RepoPath]; ok {
+			repositories[i].PreparseIdentity = identity
+		}
+	}
+	return repositories
+}
+
+// preparseConfig resolves a selector's Preparse source for one cycle; nil
+// means the feature is off.
+func preparseConfig(source func() preparse.Config) *preparse.Config {
+	if source == nil {
+		return nil
+	}
+	config := source()
+	return &config
+}

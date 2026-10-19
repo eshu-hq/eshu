@@ -91,6 +91,20 @@ RETURNING
     claim_fencing_token
 `
 
+// hasQueuedAcceptedWebhookTriggersQuery is the #8123 sweep-yield
+// probe: whether any accepted row is queued. It rides the status
+// prefix of webhook_refresh_triggers_status_received_idx and stops
+// at the first match; the queued set is transient, so the decision
+// filter touches few rows and no dedicated index is warranted.
+const hasQueuedAcceptedWebhookTriggersQuery = `
+SELECT EXISTS (
+    SELECT 1
+    FROM webhook_refresh_triggers
+    WHERE status = 'queued'
+      AND decision = 'accepted'
+)
+`
+
 const claimQueuedWebhookTriggersQuery = `
 WITH claimed AS (
     SELECT trigger_id

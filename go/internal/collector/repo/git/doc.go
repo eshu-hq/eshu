@@ -41,6 +41,13 @@
 // generation's, the ingestion store re-projects that generation instead of
 // storing a duplicate (#7978).
 //
+// Behind the priority selector, a scheduled sweep yields to a queued
+// webhook trigger at a repository boundary (#8123): the native selector
+// probes the durable trigger queue every few repositories, returns the
+// partial selection when one is queued, and resumes the unvisited tail
+// after the trigger's cycle, bounded per logical sweep so a trigger
+// stream cannot starve coverage.
+//
 // Documentation extraction lives in the docs subpackage; see its doc.go for
 // the format list and the metadata-only boundaries (DOCX comments and tracked
 // changes, legacy XLS, PPTX hidden slides and speaker notes). Prose surfaces may

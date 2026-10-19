@@ -220,9 +220,19 @@ func buildIngesterCollectorService(
 		return collector.Service{}, errors.New("ESHU_REPO_SCHEDULED_SYNC_ENABLED=false requires ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED=true")
 	}
 	if handoffConfig.Enabled {
+		triggerStore := webhookstore.NewWebhookTriggerStore(database)
+		// With scheduled sync also on, the native sweep yields to a
+		// queued trigger at a repository boundary (#8123): the same
+		// store answers the read-only probe, and the trigger is
+		// claimed next cycle instead of after the sweep tail.
+		if scheduledSyncConfig.Enabled {
+			nativeSelector.SweepYieldProbe = triggerStore
+			nativeSelector.SweepYieldMaxPerSweep = handoffConfig.SweepMaxYields
+			nativeSelector.SweepYieldCheckEvery = handoffConfig.SweepYieldCheckEvery
+		}
 		webhookSelector := git.WebhookTriggerRepositorySelector{
 			Config:                     config,
-			Store:                      webhookstore.NewWebhookTriggerStore(database),
+			Store:                      triggerStore,
 			DiscoveryFailures:          discoveryFailures,
 			Owner:                      handoffConfig.Owner,
 			ClaimLimit:                 handoffConfig.ClaimLimit,

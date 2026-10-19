@@ -63,7 +63,7 @@ func buildCollectorService(
 	// selectors so a retryable mint failure on the webhook sync path is capped
 	// the same way as a listing failure (#8084).
 	discoveryFailures := &rest.Failures{}
-	selector := git.RepositorySelector(&git.NativeRepositorySelector{
+	nativeSelector := &git.NativeRepositorySelector{
 		DiscoveryFailures: discoveryFailures,
 		Config:            config,
 		Logger:            logger,
@@ -77,14 +77,23 @@ func buildCollectorService(
 			Instruments: instruments,
 			Logger:      logger,
 		},
-	})
+	}
+	selector := git.RepositorySelector(nativeSelector)
 	handoffConfig := git.LoadWebhookTriggerHandoffConfig("collector-git", getenv)
 	if handoffConfig.Enabled {
+		triggerStore := webhookstore.NewWebhookTriggerStore(database)
+		// The scheduled sweep yields to a queued trigger at a
+		// repository boundary (#8123): the same store answers the
+		// read-only probe, and the trigger is claimed next cycle
+		// instead of after the sweep tail.
+		nativeSelector.SweepYieldProbe = triggerStore
+		nativeSelector.SweepYieldMaxPerSweep = handoffConfig.SweepMaxYields
+		nativeSelector.SweepYieldCheckEvery = handoffConfig.SweepYieldCheckEvery
 		selector = git.PriorityRepositorySelector{Selectors: []git.RepositorySelector{
 			git.WebhookTriggerRepositorySelector{
 				DiscoveryFailures: discoveryFailures,
 				Config:            config,
-				Store:             webhookstore.NewWebhookTriggerStore(database),
+				Store:             triggerStore,
 				Owner:             handoffConfig.Owner,
 				ClaimLimit:        handoffConfig.ClaimLimit,
 				ClaimLeaseWindow:  handoffConfig.ClaimLeaseWindow,

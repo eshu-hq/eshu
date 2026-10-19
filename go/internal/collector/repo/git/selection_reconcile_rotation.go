@@ -83,6 +83,22 @@ type reconcileWalkTracker struct {
 	suffixLen int
 	unvisited map[string]int64
 	lastSpent int
+	// lastVisited is the suffix position of the last repository the
+	// walk reached, spent or not: the resume cursor a yielded sweep
+	// reports (#8123).
+	lastVisited int
+	// walkSuffixLen is how many suffix entries this walk covers: the
+	// whole suffix, or the unvisited tail a resumed sweep limits
+	// itself to (#8123).
+	walkSuffixLen int
+	// visitedPinned lists the pinned-prefix repositories this walk
+	// fetched, in visit order, so the selector can carry them into
+	// the logical sweep's visited set (#8512 P2).
+	visitedPinned []string
+	// skipPinned carries the logical sweep's visited pinned set into
+	// this walk: a resumed walk drops those prefix entries instead of
+	// re-fetching them (#8512 P2).
+	skipPinned map[string]struct{}
 }
 
 // trackReconcileWalk returns this cycle's visit order with its tracker: the
@@ -91,11 +107,14 @@ type reconcileWalkTracker struct {
 func trackReconcileWalk(config RepoSyncConfig, ordered []string, baseline gitDeltaBaseline) ([]string, *reconcileWalkTracker) {
 	walk, prefixLen, normStart, suffixLen := reconcileWalkOrder(config, ordered, baseline)
 	return walk, &reconcileWalkTracker{
-		prefixLen: prefixLen,
-		start:     normStart,
-		suffixLen: suffixLen,
-		unvisited: make(map[string]int64),
-		lastSpent: -1,
+		prefixLen:     prefixLen,
+		start:         normStart,
+		suffixLen:     suffixLen,
+		unvisited:     make(map[string]int64),
+		lastSpent:     -1,
+		lastVisited:   -1,
+		walkSuffixLen: suffixLen,
+		skipPinned:    baseline.SweepVisitedPinned,
 	}
 }
 
@@ -116,6 +135,61 @@ func (t *reconcileWalkTracker) noteSpent(walkIdx int) {
 	}
 }
 
+// noteVisited records the walk reaching index i, so a yielded sweep
+// resumes past every repository it already fetched (#8123). A due
+// repository that took no slot inside the visited prefix is reached
+// again after the walk wraps: its fetch already happened, only the
+// forcing defers by at most one rotation, far inside the reconcile
+// interval. A pinned-prefix entry is also remembered by repository ID
+// so a resumed walk can skip it (#8512 P2): pins are re-prepended
+// every cycle while the suffix rotation already resumes past visits.
+func (t *reconcileWalkTracker) noteVisited(walkIdx int, repoID string) {
+	if suffixPos := walkIdx - t.prefixLen; suffixPos >= 0 {
+		t.lastVisited = suffixPos
+		return
+	}
+	t.visitedPinned = append(t.visitedPinned, repoID)
+}
+
+// limitWalk truncates the walk to its pinned prefix plus the first
+// limit suffix entries: the unvisited tail of a yielded sweep (#8123).
+// A non-positive limit keeps the whole walk. The repository list may
+// have changed since the yield, so the limit is a count, not an
+// identity: an added repository waits for the next logical sweep and a
+// removed one just shortens this walk. Both self-heal on the next
+// full sweep.
+//
+// A resumed walk also drops the pinned-prefix entries the logical sweep
+// already fetched (#8512 P2): watermark rows persist across cycles, so
+// the prefix is re-prepended on every resume while the suffix rotation
+// already resumes past visits. Pins absent from the skip set — newly
+// requested after the yield — stay at the head and keep their
+// queue-jump. The prefix length shrinks with the dropped entries so the
+// suffix-relative bookkeeping (noteSpent, noteVisited, finishYielded)
+// stays aligned with the filtered walk.
+func (t *reconcileWalkTracker) limitWalk(walk []string, limit int) []string {
+	if len(t.skipPinned) != 0 && t.prefixLen != 0 {
+		kept := make([]string, 0, len(walk))
+		skipped := 0
+		for i, repoID := range walk {
+			if i < t.prefixLen {
+				if _, ok := t.skipPinned[repoID]; ok {
+					skipped++
+					continue
+				}
+			}
+			kept = append(kept, repoID)
+		}
+		t.prefixLen -= skipped
+		walk = kept
+	}
+	if limit <= 0 || limit >= t.suffixLen {
+		return walk
+	}
+	t.walkSuffixLen = limit
+	return walk[:t.prefixLen+limit]
+}
+
 // finish records the due-unvisited gauge and returns the next cycle's start:
 // after the last served suffix position, or the same start when nothing took
 // a slot so the same window is retried.
@@ -126,6 +200,24 @@ func (t *reconcileWalkTracker) finish(ctx context.Context, baseline gitDeltaBase
 	}
 	baseline.recordReconcileDueUnvisited(ctx, t.unvisited)
 	return nextStart
+}
+
+// finishYielded ends a walk the sweep cut short for a queued webhook
+// trigger (#8123). It records the due-unvisited gauge for the
+// repositories this cycle evaluated (the unvisited tail was not
+// evaluated, so the gauge reflects per-cycle evaluations until the
+// tail-covering completing cycle) and returns the next cycle's
+// start — past the last visited suffix position — plus how many
+// suffix repositories the logical sweep still owes.
+func (t *reconcileWalkTracker) finishYielded(ctx context.Context, baseline gitDeltaBaseline) (nextStart, remaining int) {
+	nextStart = t.start
+	remaining = t.walkSuffixLen
+	if t.suffixLen > 0 && t.lastVisited >= 0 {
+		nextStart = (t.start + t.lastVisited + 1) % t.suffixLen
+		remaining = t.walkSuffixLen - t.lastVisited - 1
+	}
+	baseline.recordReconcileDueUnvisited(ctx, t.unvisited)
+	return nextStart, remaining
 }
 
 // recordReconcileDueUnvisited samples, at the end of each selection cycle, how

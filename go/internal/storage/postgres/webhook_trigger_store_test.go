@@ -208,6 +208,41 @@ func TestWebhookTriggerStoreClaimQueuedTriggersUsesSkipLocked(t *testing.T) {
 	}
 }
 
+// TestWebhookTriggerStoreHasQueuedAcceptedTriggersProbesWithoutClaiming
+// pins the #8123 sweep-yield probe: one read-only EXISTS over queued
+// accepted rows, never a claim (no FOR UPDATE, no status write).
+func TestWebhookTriggerStoreHasQueuedAcceptedTriggersProbesWithoutClaiming(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{rows: [][]any{{true}}}},
+	}
+	store := webhookstore.NewWebhookTriggerStore(db)
+
+	queued, err := store.HasQueuedAcceptedTriggers(context.Background())
+	if err != nil {
+		t.Fatalf("HasQueuedAcceptedTriggers() error = %v, want nil", err)
+	}
+	if !queued {
+		t.Fatal("HasQueuedAcceptedTriggers() = false, want true")
+	}
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
+	}
+	query := db.queries[0].query
+	for _, want := range []string{"SELECT EXISTS", "status = 'queued'", "decision = 'accepted'"} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("probe query missing %q: %s", want, query)
+		}
+	}
+	if strings.Contains(query, "FOR UPDATE") || strings.Contains(query, "UPDATE ") {
+		t.Fatalf("probe query must stay read-only, got: %s", query)
+	}
+	if len(db.execs) != 0 {
+		t.Fatalf("probe executed %d writes, want 0", len(db.execs))
+	}
+}
+
 func TestWebhookTriggerStoreMarkTriggersHandedOffRequiresIDs(t *testing.T) {
 	t.Parallel()
 
