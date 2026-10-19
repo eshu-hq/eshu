@@ -67,23 +67,36 @@
 # succeeds vacuously, and never re-runs -- a green cell that proved nothing.
 # This helper resolves the scope off the trust-chain row's own identity and
 # polls fact_records for the two read-model kinds until at least one exists.
-# Fail-closed throughout: no trust-chain row, a failed query, or budget
-# exhaustion all return non-zero, and a non-numeric count is a failure, never
-# a zero.
+# Fail-closed throughout: no trust-chain row within budget, a failed query,
+# or budget exhaustion all return non-zero, and a non-numeric count is a
+# failure, never a zero.
 ifa_uses_vault_policy_wait_for_read_models() {
 	local cell="$1" budget="$2"
 	if [[ ! "${budget}" =~ ^[1-9][0-9]*$ ]]; then
 		printf '%s: read-model wait: budget must be a positive integer, got %s\n' "${cell}" "${budget}" >&2
 		return 1
 	fi
-	local scope
-	if ! scope="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-		"SELECT scope_id FROM fact_work_items WHERE stage = 'reducer' AND domain = 'secrets_iam_trust_chain' ORDER BY created_at ASC, work_item_id ASC LIMIT 1;" \
-		"${compose_file}")"; then
-		printf '%s: read-model wait: trust-chain identity query failed\n' "${cell}" >&2
-		return 1
-	fi
-	scope="$(printf '%s' "${scope}" | tr -d '[:space:]')"
+	# The projector enqueues the trust-chain row ~0.1-0.3s after the drive
+	# returns (it drains a cassette backlog first), so a single scope read
+	# races it and fails closed while the pipeline would have completed on
+	# its own. Poll the scope resolution within the same budget instead;
+	# the fact poll below gets whatever budget remains, so the whole wait
+	# still costs at most budget seconds.
+	local scope="" i model_count scope_rounds=0
+	for i in $(seq 1 "${budget}"); do
+		if ! scope="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+			"SELECT scope_id FROM fact_work_items WHERE stage = 'reducer' AND domain = 'secrets_iam_trust_chain' ORDER BY created_at ASC, work_item_id ASC LIMIT 1;" \
+			"${compose_file}")"; then
+			printf '%s: read-model wait: trust-chain identity query failed\n' "${cell}" >&2
+			return 1
+		fi
+		scope="$(printf '%s' "${scope}" | tr -d '[:space:]')"
+		if [[ -n "${scope}" ]]; then
+			scope_rounds="${i}"
+			break
+		fi
+		sleep 1
+	done
 	if [[ -z "${scope}" ]]; then
 		printf '%s: read-model wait: no trust-chain row to resolve a scope from\n' "${cell}" >&2
 		return 1
@@ -91,8 +104,8 @@ ifa_uses_vault_policy_wait_for_read_models() {
 	# Values come from our own queue rows, but they ride inside string
 	# literals one level down: double any quote rather than trusting shape.
 	scope="${scope//\'/\'\'}"
-	local i model_count
-	for i in $(seq 1 "${budget}"); do
+	local fact_budget=$((budget - scope_rounds + 1))
+	for i in $(seq 1 "${fact_budget}"); do
 		if ! model_count="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
 			"SELECT count(*) FROM fact_records WHERE scope_id = '${scope}' AND fact_kind IN ('reducer_secrets_iam_identity_trust_chain', 'reducer_secrets_iam_secret_access_path');" \
 			"${compose_file}")"; then
