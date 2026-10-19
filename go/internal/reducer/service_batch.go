@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package reducer //nolint:filelength // 509 lines (base 476): the #8625 mid-handoff and post-receive drop records live inline at their select/branch sites; extracting them would split each drop's ownership proof from its branch, and a file split is out of scope for this telemetry-only change.
 
 import (
 	"context"
@@ -153,11 +153,30 @@ func (s Service) runBatchConcurrent(
 				return
 			}
 
-			for _, intent := range intents {
+			for i, intent := range intents {
 				select {
 				case workCh <- workItem{intent: intent}:
 					idleWorkers--
 				case <-ctx.Done():
+					// Cancel landed mid-handoff: items already sent belong
+					// to their workers, but the current and remaining
+					// unhanded items are still owned here (the unbuffered
+					// workCh rendezvous never completed for them). Never
+					// execute or ack them — the unrenewed leases expire for
+					// reclaim (#4464) — and record the unknown outcome so
+					// the claimed remainder stays observable instead of
+					// vanishing (#8625).
+					claimElapsed := time.Since(claimStart).Seconds()
+					droppedAt := time.Now()
+					for _, dropped := range intents[i:] {
+						s.recordBatchAckOutcome(ctx, batchAckItem{
+							intent:    dropped,
+							queueWait: reducerQueueWaitSeconds(droppedAt, dropped.AvailableAt),
+							duration:  claimElapsed,
+							// -1: never handed to a worker; dropped mid-handoff.
+							workerID: -1,
+						}, ackStatusOutcomeUnknown, ctx.Err())
+					}
 					return
 				}
 			}
@@ -188,6 +207,20 @@ func (s Service) runBatchConcurrent(
 					return
 				}
 				if ctx.Err() != nil {
+					// Shutdown landed after the receive rendezvous completed
+					// but before execution: the claimer no longer owns this
+					// item and no worker work ran on it. Never execute or
+					// ack it — the unrenewed lease expires for reclaim
+					// (#4464) — and record the unknown outcome so the
+					// received-but-unexecuted item stays observable instead
+					// of vanishing (#8625).
+					receivedAt := time.Now()
+					s.recordBatchAckOutcome(ctx, batchAckItem{
+						intent:    wi.intent,
+						queueWait: reducerQueueWaitSeconds(receivedAt, wi.intent.AvailableAt),
+						// Never executed: no handler duration to report.
+						workerID: workerID,
+					}, ackStatusOutcomeUnknown, ctx.Err())
 					return
 				}
 
