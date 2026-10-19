@@ -299,10 +299,19 @@ with scopes that hold manifests, not with the age of generation history.
 
 No `code call symbol definition load` line fired on QA in the sampled window
 (about 9,400 ingester lines per hour with zero `code call` mentions;
-resolution-engine, API, and MCP logs likewise empty), so
+resolution-engine, API, and MCP logs likewise empty), so production
 `package_leg_duration_seconds` per load under the deployed image is still
-unobserved. The EXPLAIN leg cost above (about 5.1 s reads plus scan) is the
-current replica record.
+unobserved. A second lane closed the gap read-only the same day: the real
+loader (`FactStore.LoadActiveCodeCallSymbolDefinitionFacts` built from HEAD;
+loader SQL byte-identical to the deployed image, comment-only drift since)
+against `eshu-postgresql-read` with `default_transaction_read_only=on`,
+statement texts dumped from the shipped constants. Its own log line reports,
+3 runs each: an unpublished npm key (`package:qa-8243-unpublished-probe#NoSuchExport`)
+`package_producer_scope_count=0` at 34–45 ms per load with 0 facts; a
+published key (`package:boattrader#Qa8243ProbeExport`, first npm manifest in
+the read) 1 producer scope at 103–123 ms per load with 0 facts. The EXPLAIN
+leg cost above (about 5.1 s reads plus scan over the 328-scope manifest set)
+remains the replica record for a wide key.
 
 ## Residuals
 
@@ -329,8 +338,7 @@ Not covered by the ruling, recorded for completeness:
 NOT_CHECKED:
 
 - cold-cache replica runs;
-- the loader end to end after deploy (the replica has no route for the Go
-  loader);
-- the package leg seconds in the deployed resolution-engine log (no
-  `code call symbol definition load` line fired on QA in the 2026-10-19
-  window; see Deployed re-measurement).
+- production `package_leg_duration_seconds` log lines (no code-call
+  materialization loads in 24h of resolution-engine logs on 2026-10-19; the
+  per-load numbers above are the real loader measured read-only against the
+  replica).
