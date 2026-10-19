@@ -485,6 +485,12 @@ func provisionLivenessSchema(t *testing.T, db *sql.DB, seedSQL string) {
 	if _, err := db.ExecContext(ctx, MigrationSQL("producer_activation_obligations")); err != nil {
 		t.Fatalf("create producer activation obligation table: %v", err)
 	}
+	// migration 207 (#7766): the scope upsert folds the retirement marker
+	// gate over repository_retirements; apply the shipped DDL, not a copy,
+	// or every upsert on the fixture fails with 42P01.
+	if _, err := db.ExecContext(ctx, MigrationSQL("repository_retirements")); err != nil {
+		t.Fatalf("create retirement tombstone table: %v", err)
+	}
 	if seedSQL != "" {
 		if _, err := db.ExecContext(ctx, seedSQL); err != nil {
 			t.Fatalf("seed proof data: %v", err)
