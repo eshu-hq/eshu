@@ -57,9 +57,9 @@ because the constructor invariant above would otherwise read as covering them:
 
 | Site | What it builds | Why it stays |
 | --- | --- | --- |
-| `internal/query/impact/change_surface_resolvers.go` (`canonicalWorkloadIDCandidate`) | `"workload:" + target` for a bare target | Handle-rung input to the change-surface ladder: the bare name is matched within the caller grant, never as a node id. A scoped id passes through untouched (it already carries the prefix). |
+| `internal/query/impact/change_surface_resolvers.go` (`canonicalWorkloadIDCandidate`, exported as `impact.CanonicalWorkloadIDCandidate` via `seam.go`) | `"workload:" + target` for a bare target | Handle-rung input to the change-surface ladder: the bare name is matched within the caller grant, never as a node id. A scoped id passes through untouched (it already carries the prefix). |
 | `internal/query/entity/workload_context.go` (equality chain) | `selector == "workload:" + normalized` | Handle comparison for the identity-only fallback: the selector is user input (handle or bare name), matched against known workload names. Response `id` values come from the constructor. |
-| `internal/query/repository/catalog.go` (`catalogWorkloadKey` fallback) | `TrimPrefix(workload.ID, "workload:")` when `Name` is empty | Merge-key fallback only, and the key is namespaced by `RepoID` first, so split siblings still split. Graph and identity rows normally carry `Name` and never reach the fallback. |
+| `internal/query/repository/catalog.go` (`catalogWorkloadKey` fallback) | `workload.ID[strings.LastIndex(workload.ID, ":")+1:]` when `Name` is empty | Merge-key fallback only, and the key is namespaced by `RepoID` first, so split siblings still split. The last segment is the bare name under both the legacy and the scoped id shape. Graph and identity rows normally carry `Name` and never reach the fallback. |
 
 The remaining `workload:`-prefixed values that are neither node ids nor handles
 are the `shared_followup` / `reducer_workload_identity` entity keys
