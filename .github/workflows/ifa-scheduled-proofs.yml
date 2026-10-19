@@ -47,7 +47,10 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || 'scheduled' }}
-  cancel-in-progress: false
+  # PR runs cancel when superseded like every other PR workflow; the
+  # scheduled singleton group keeps cancel-in-progress false, so a proof
+  # run on the schedule is never cancelled by a later schedule tick.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
