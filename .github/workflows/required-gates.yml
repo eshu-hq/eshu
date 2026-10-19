@@ -251,7 +251,8 @@ jobs:
           # The code, not just success/failure, is what the publisher below
           # needs (#6075): 0 passed, 10 a selected gate failed, 11 gates still
           # running, 12 aggregation itself broke, 13 every selected gate is
-          # terminal and at least one was cancelled (#6189). Codes start at 10
+          # terminal and at least one was cancelled (#6189), 14 verdict
+          # transferred from a tree-identical previous head (#8617). Codes start at 10
           # so a `go run` build failure (1) or usage error (2) cannot be
           # mistaken for a gate result.
           echo "code=${code}" >> "${GITHUB_OUTPUT}"
