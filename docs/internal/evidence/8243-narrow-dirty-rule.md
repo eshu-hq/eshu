@@ -303,7 +303,8 @@ resolution-engine, API, and MCP logs likewise empty), so production
 `package_leg_duration_seconds` per load under the deployed image is still
 unobserved. A second lane closed the gap read-only the same day: the real
 loader (`FactStore.LoadActiveCodeCallSymbolDefinitionFacts` built from HEAD;
-loader SQL byte-identical to the deployed image, comment-only drift since)
+the loader SQL constants are unchanged since the deployed image — post-image
+drift is Go comments and doc pointers only, per `git diff aefdc43b2 HEAD`)
 against `eshu-postgresql-read` with `default_transaction_read_only=on`,
 statement texts dumped from the shipped constants. Its own log line reports,
 3 runs each: an unpublished npm key (`package:qa-8243-unpublished-probe#NoSuchExport`)
