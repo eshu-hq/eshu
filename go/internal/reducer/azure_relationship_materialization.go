@@ -70,16 +70,16 @@ type AzureRelationshipMaterializationHandler struct {
 }
 
 // Handle executes one Azure relationship materialization intent.
-func (h AzureRelationshipMaterializationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (Result, error) {
+func (h AzureRelationshipMaterializationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	totalStart := time.Now()
 	if intent.Domain != DomainAzureRelationshipMaterialization {
-		return Result{}, fmt.Errorf("azure relationship materialization handler does not accept domain %q", intent.Domain)
+		return reducercontract.Result{}, fmt.Errorf("azure relationship materialization handler does not accept domain %q", intent.Domain)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("azure relationship materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("azure relationship materialization fact loader is required")
 	}
 	if h.EdgeWriter == nil {
-		return Result{}, fmt.Errorf("azure relationship materialization edge writer is required")
+		return reducercontract.Result{}, fmt.Errorf("azure relationship materialization edge writer is required")
 	}
 
 	if h.Tracer != nil {
@@ -95,7 +95,7 @@ func (h AzureRelationshipMaterializationHandler) Handle(ctx context.Context, int
 	}
 
 	if !h.canonicalNodesReady(intent) {
-		return Result{}, azureRelationshipNodesNotReadyError{
+		return reducercontract.Result{}, azureRelationshipNodesNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
 		}
@@ -107,7 +107,7 @@ func (h AzureRelationshipMaterializationHandler) Handle(ctx context.Context, int
 		cloud.AzureCloudRelationshipFactKind,
 	})
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for azure relationship materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for azure relationship materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
@@ -119,7 +119,7 @@ func (h AzureRelationshipMaterializationHandler) Handle(ctx context.Context, int
 		// A non-decode error (transient fact-load or other fatal condition
 		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
 		// the durable queue triages it correctly.
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	// Per-fact isolation: a malformed azure_cloud_resource or
 	// azure_cloud_relationship fact is quarantined as a visible input_invalid
@@ -130,7 +130,7 @@ func (h AzureRelationshipMaterializationHandler) Handle(ctx context.Context, int
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	var retractDuration time.Duration
 	if !skipRetract {
@@ -138,18 +138,18 @@ func (h AzureRelationshipMaterializationHandler) Handle(ctx context.Context, int
 		if h.Ledger != nil {
 			uids, err := h.Ledger.ListSourceUIDsForScopes(ctx, azureRelationshipEvidenceSource, []string{intent.ScopeID})
 			if err != nil {
-				return Result{}, fmt.Errorf("list source uids for azure relationship retract: %w", err)
+				return reducercontract.Result{}, fmt.Errorf("list source uids for azure relationship retract: %w", err)
 			}
 			if err := h.EdgeWriter.RetractCloudResourceEdgesByUIDs(
 				ctx, uids, []string{intent.ScopeID}, azureRelationshipEvidenceSource,
 			); err != nil {
-				return Result{}, fmt.Errorf("retract canonical azure relationship edges by uids: %w", err)
+				return reducercontract.Result{}, fmt.Errorf("retract canonical azure relationship edges by uids: %w", err)
 			}
 			if err := h.Ledger.PruneForScopes(ctx, azureRelationshipEvidenceSource, []string{intent.ScopeID}); err != nil {
-				return Result{}, fmt.Errorf("prune azure relationship projected sources: %w", err)
+				return reducercontract.Result{}, fmt.Errorf("prune azure relationship projected sources: %w", err)
 			}
 		} else if err := h.EdgeWriter.RetractCloudResourceEdges(ctx, []string{intent.ScopeID}, intent.GenerationID, azureRelationshipEvidenceSource); err != nil {
-			return Result{}, fmt.Errorf("retract canonical azure relationship edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("retract canonical azure relationship edges: %w", err)
 		}
 		retractDuration = time.Since(retractStart)
 	}
@@ -162,13 +162,13 @@ func (h AzureRelationshipMaterializationHandler) Handle(ctx context.Context, int
 				if err := h.Ledger.RecordProjectedSources(
 					ctx, azureRelationshipEvidenceSource, intent.ScopeID, intent.GenerationID, uids, time.Now(),
 				); err != nil {
-					return Result{}, fmt.Errorf("record azure relationship projected sources: %w", err)
+					return reducercontract.Result{}, fmt.Errorf("record azure relationship projected sources: %w", err)
 				}
 			}
 		}
 		writeStart := time.Now()
 		if err := h.EdgeWriter.WriteCloudResourceEdges(ctx, rows, intent.ScopeID, intent.GenerationID, azureRelationshipEvidenceSource); err != nil {
-			return Result{}, fmt.Errorf("write canonical azure relationship edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical azure relationship edges: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
 	}
@@ -188,7 +188,7 @@ func (h AzureRelationshipMaterializationHandler) Handle(ctx context.Context, int
 	}
 	logAzureRelationshipMaterializationCompleted(ctx, timing)
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
 		Domain:   DomainAzureRelationshipMaterialization,
 		Status:   ResultStatusSucceeded,

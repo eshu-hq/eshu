@@ -22,9 +22,9 @@ type countingInner struct {
 	calls atomic.Int64
 }
 
-func (c *countingInner) Execute(_ context.Context, intent reducercontract.Intent) (reducer.Result, error) {
+func (c *countingInner) Execute(_ context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	c.calls.Add(1)
-	return reducer.Result{IntentID: intent.IntentID, Status: reducer.ResultStatusSucceeded}, nil
+	return reducercontract.Result{IntentID: intent.IntentID, Status: reducer.ResultStatusSucceeded}, nil
 }
 
 // stubRedeliverer is a test double for the redeliverer interface. armCh, if

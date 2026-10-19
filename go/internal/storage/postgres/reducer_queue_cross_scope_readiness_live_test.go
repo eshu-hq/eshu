@@ -273,7 +273,7 @@ func TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget(t
 	if writer.calls != 1 {
 		t.Fatalf("writer calls = %d, want exactly 1 once the producers activated", writer.calls)
 	}
-	if err := queue.Ack(ctx, intent, reducer.Result{}); err != nil {
+	if err := queue.Ack(ctx, intent, reducercontract.Result{}); err != nil {
 		t.Fatalf("Ack() error = %v", err)
 	}
 	if status, _, attemptCount := readCrossScopeProofWorkItem(t, ctx, db); status != "succeeded" || attemptCount != 1 {
@@ -348,7 +348,7 @@ func TestReducerContentionGateCrossScopeReadinessConvergesAtTheElapsedBound(t *t
 	if writer.calls != 1 {
 		t.Fatalf("writer calls = %d, want 1: the bound is what makes a permanently stuck producer converge", writer.calls)
 	}
-	if err := queue.Ack(ctx, intent, reducer.Result{}); err != nil {
+	if err := queue.Ack(ctx, intent, reducercontract.Result{}); err != nil {
 		t.Fatalf("Ack() error = %v", err)
 	}
 	if status, _, _ := readCrossScopeProofWorkItem(t, ctx, db); status != "succeeded" {

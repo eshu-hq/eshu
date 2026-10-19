@@ -31,7 +31,7 @@ func TestSplitValueFlowRefreshAckIntentsFailsOpenOnMissingResult(t *testing.T) {
 		intent("w-missing-result", reducer.DomainWorkloadMaterialization),
 		intent("w-unrelated", reducer.DomainCICDRunCorrelation),
 	}
-	results := map[string]reducer.Result{
+	results := map[string]reducercontract.Result{
 		"w-paired-emit": {CanonicalWrites: 4, SubSignals: map[string]float64{affected.RefreshAffectedReposSignal: 1}},
 		"w-paired-hold": {CanonicalWrites: 4, SubSignals: map[string]float64{affected.RefreshAffectedReposSignal: 0}},
 	}
@@ -77,7 +77,7 @@ func TestSplitValueFlowRefreshAckIntentsRoutesCodeFunctionSummary(t *testing.T) 
 		intent("s-missing-result", reducer.DomainCodeFunctionSummary),
 		intent("w-unrelated", reducer.DomainCICDRunCorrelation),
 	}
-	results := map[string]reducer.Result{
+	results := map[string]reducercontract.Result{
 		"s-paired-emit": {CanonicalWrites: 2, SubSignals: map[string]float64{affected.RefreshAffectedReposSignal: 1}},
 	}
 

@@ -167,7 +167,7 @@ func (p *retriggerProof) runCatalog(t *testing.T, ctx context.Context, step stri
 	if _, err := p.handler(p.db).Handle(ctx, intent); err != nil {
 		t.Fatalf("%s: catalog Handle() error = %v", step, err)
 	}
-	if err := q.Ack(ctx, intent, reducer.Result{}); err != nil {
+	if err := q.Ack(ctx, intent, reducercontract.Result{}); err != nil {
 		t.Fatalf("%s: catalog Ack() error = %v", step, err)
 	}
 }
@@ -182,7 +182,7 @@ func (p *retriggerProof) runProducer(t *testing.T, ctx context.Context, db *sql.
 		t.Fatalf("producer Claim() claimed=%v err=%v", claimed, err)
 	}
 	p.graph.committed.Store(true)
-	if err := q.Ack(ctx, intent, reducer.Result{}); err != nil {
+	if err := q.Ack(ctx, intent, reducercontract.Result{}); err != nil {
 		t.Fatalf("producer Ack() error = %v", err)
 	}
 }

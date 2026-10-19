@@ -170,17 +170,17 @@ type containerImageIdentityClaimLatchServiceExecutor struct {
 func (e *containerImageIdentityClaimLatchServiceExecutor) Execute(
 	ctx context.Context,
 	intent reducercontract.Intent,
-) (reducer.Result, error) {
+) (reducercontract.Result, error) {
 	select {
 	case e.started <- intent:
 	case <-ctx.Done():
-		return reducer.Result{}, ctx.Err()
+		return reducercontract.Result{}, ctx.Err()
 	}
 	select {
 	case <-e.release:
-		return reducer.Result{}, containerImageIdentityClaimLatchLockBusyError{}
+		return reducercontract.Result{}, containerImageIdentityClaimLatchLockBusyError{}
 	case <-ctx.Done():
-		return reducer.Result{}, ctx.Err()
+		return reducercontract.Result{}, ctx.Err()
 	}
 }
 

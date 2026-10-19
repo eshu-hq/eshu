@@ -16,7 +16,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
@@ -79,7 +78,7 @@ func TestReducerQueueAckAndFailUpdateClaimedWork(t *testing.T) {
 	}
 
 	intent := reducercontract.Intent{IntentID: "intent-1"}
-	if err := queue.Ack(context.Background(), intent, reducer.Result{}); err != nil {
+	if err := queue.Ack(context.Background(), intent, reducercontract.Result{}); err != nil {
 		t.Fatalf("Ack() error = %v, want nil", err)
 	}
 	if err := queue.Fail(context.Background(), intent, errors.New("boom")); err != nil {

@@ -166,7 +166,7 @@ func requireRuntimeFenceCommit(t *testing.T, ctx context.Context, p *runtimeFenc
 	if handleErr != nil {
 		t.Fatalf("Handle() error = %v, want nil: every in-flight producer is past its bound", handleErr)
 	}
-	if err := queue.Ack(ctx, intent, reducer.Result{}); err != nil {
+	if err := queue.Ack(ctx, intent, reducercontract.Result{}); err != nil {
 		t.Fatalf("Ack() after bound_exceeded error = %v", err)
 	}
 	if writes := p.materialization.snapshot(); len(writes) != 1 || len(writes[0].Runtime) != 0 {

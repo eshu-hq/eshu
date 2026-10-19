@@ -98,21 +98,21 @@ type WorkloadCloudRelationshipMaterializationHandler struct {
 func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 	ctx context.Context,
 	intent reducercontract.Intent,
-) (Result, error) {
+) (reducercontract.Result, error) {
 	if intent.Domain != DomainWorkloadCloudRelationshipMaterialization {
-		return Result{}, fmt.Errorf(
+		return reducercontract.Result{}, fmt.Errorf(
 			"workload cloud relationship materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("workload cloud relationship fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("workload cloud relationship fact loader is required")
 	}
 	if h.EdgeWriter == nil {
-		return Result{}, fmt.Errorf("workload cloud relationship edge writer is required")
+		return reducercontract.Result{}, fmt.Errorf("workload cloud relationship edge writer is required")
 	}
 	if !h.endpointsReady(intent) {
-		return Result{}, workloadCloudRelationshipNotReadyError{
+		return reducercontract.Result{}, workloadCloudRelationshipNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
 		}
@@ -123,13 +123,13 @@ func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 	wait := h.instanceWait()
 	existingWait, waitFound, err := wait.Read(ctx, intent)
 	if err != nil {
-		return Result{}, fmt.Errorf("workload cloud relationship: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("workload cloud relationship: %w", err)
 	}
 	if polled, handled, err := wait.Poll(ctx, intent, existingWait, waitFound); handled {
 		if err != nil {
-			return Result{}, fmt.Errorf("workload cloud relationship: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("workload cloud relationship: %w", err)
 		}
-		return h.finishInstanceWait(ctx, intent, wait, polled, false, Result{
+		return h.finishInstanceWait(ctx, intent, wait, polled, false, reducercontract.Result{
 			IntentID: intent.IntentID,
 			Domain:   DomainWorkloadCloudRelationshipMaterialization,
 			Status:   ResultStatusSucceeded,
@@ -146,7 +146,7 @@ func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 		[]string{cloud.AWSResourceFactKind},
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for workload cloud relationship materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for workload cloud relationship materialization: %w", err)
 	}
 
 	rows, tally, quarantined, err := ExtractWorkloadCloudRelationshipRows(envelopes)
@@ -154,7 +154,7 @@ func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 		// A non-decode error (transient fact-load or other fatal condition
 		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
 		// the durable queue triages it correctly.
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	rows, err = h.resolveWorkloadHandles(ctx, intent, rows, &tally)
 	if err != nil {
@@ -167,7 +167,7 @@ func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainWorkloadCloudRelationshipMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	eval, err := wait.Evaluate(ctx, intent, existingWait, waitFound, workloadCloudRelationshipAnchors(rows))
 	if err != nil {
-		return Result{}, fmt.Errorf("workload cloud relationship: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("workload cloud relationship: %w", err)
 	}
 	readyRows := 0
 	if eval.Decision.Commit {
@@ -177,11 +177,11 @@ func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 		// fact load and a resolved anchor can disappear between evaluations.
 		recommit := crossscope.CommittedInGeneration(existingWait, waitFound, intent.GenerationID)
 		if err := h.commitEdges(ctx, intent, rows, recommit); err != nil {
-			return Result{}, err
+			return reducercontract.Result{}, err
 		}
 		readyRows = workloadCloudRelationshipReadyRows(rows, eval)
 	}
-	return h.finishInstanceWait(ctx, intent, wait, eval, eval.Decision.Commit, Result{
+	return h.finishInstanceWait(ctx, intent, wait, eval, eval.Decision.Commit, reducercontract.Result{
 		IntentID: intent.IntentID,
 		Domain:   DomainWorkloadCloudRelationshipMaterialization,
 		Status:   ResultStatusSucceeded,
@@ -286,17 +286,17 @@ func (h WorkloadCloudRelationshipMaterializationHandler) finishInstanceWait(
 	wait workloadinstance.Wait,
 	eval workloadinstance.Evaluation,
 	committed bool,
-	result Result,
-) (Result, error) {
+	result reducercontract.Result,
+) (reducercontract.Result, error) {
 	if err := wait.Finish(ctx, intent, eval); err != nil {
-		return Result{}, fmt.Errorf("workload cloud relationship: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("workload cloud relationship: %w", err)
 	}
 	if eval.Decision.Outcome != "" {
 		h.recordReadinessWait(ctx, eval.Decision.Outcome)
 		wait.LogWait(ctx, intent, eval, committed)
 	}
 	if eval.Decision.Defer {
-		return Result{}, workloadinstance.NotReadyError{ScopeID: intent.ScopeID, GenerationID: intent.GenerationID, Missing: len(eval.Missing)}
+		return reducercontract.Result{}, workloadinstance.NotReadyError{ScopeID: intent.ScopeID, GenerationID: intent.GenerationID, Missing: len(eval.Missing)}
 	}
 	return result, nil
 }

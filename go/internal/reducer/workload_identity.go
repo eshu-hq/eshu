@@ -60,30 +60,30 @@ type workloadIdentityTiming struct {
 func (h WorkloadIdentityHandler) Handle(
 	ctx context.Context,
 	intent reducercontract.Intent,
-) (Result, error) {
+) (reducercontract.Result, error) {
 	totalStarted := time.Now()
 	var timing workloadIdentityTiming
 
 	if intent.Domain != DomainWorkloadIdentity {
-		return Result{}, fmt.Errorf(
+		return reducercontract.Result{}, fmt.Errorf(
 			"workload identity handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.Writer == nil {
-		return Result{}, fmt.Errorf("workload identity writer is required")
+		return reducercontract.Result{}, fmt.Errorf("workload identity writer is required")
 	}
 
 	request, err := workloadIdentityWriteFromIntent(intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 
 	graphWriteStarted := time.Now()
 	writeResult, err := h.Writer.WriteWorkloadIdentity(ctx, request)
 	timing.graphWriteDuration = time.Since(graphWriteStarted)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 
 	phaseStarted := time.Now()
@@ -95,7 +95,7 @@ func (h WorkloadIdentityHandler) Handle(
 		GraphProjectionPhaseCanonicalNodesCommitted,
 		time.Now().UTC(),
 	); err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	timing.phasePublishDuration = time.Since(phaseStarted)
 	timing.totalDuration = time.Since(totalStarted)
@@ -115,7 +115,7 @@ func (h WorkloadIdentityHandler) Handle(
 	// it must reconcile (validated in workloadIdentityWriteFromIntent), so input
 	// is present whenever the request has entity keys.
 	inputReady := len(request.EntityKeys) > 0
-	return Result{
+	return reducercontract.Result{
 		IntentID:        intent.IntentID,
 		Domain:          DomainWorkloadIdentity,
 		Status:          ResultStatusSucceeded,

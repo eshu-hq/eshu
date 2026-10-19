@@ -46,14 +46,14 @@ type staleAckBatchSink struct {
 	ackCalls int
 }
 
-func (s *staleAckBatchSink) Ack(context.Context, reducercontract.Intent, reducer.Result) error {
+func (s *staleAckBatchSink) Ack(context.Context, reducercontract.Intent, reducercontract.Result) error {
 	return nil
 }
 
 func (s *staleAckBatchSink) AckBatch(
 	context.Context,
 	[]reducercontract.Intent,
-	[]reducer.Result,
+	[]reducercontract.Result,
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -67,8 +67,8 @@ func (s *staleAckBatchSink) Fail(context.Context, reducercontract.Intent, error)
 
 type staleAckExecutor struct{}
 
-func (staleAckExecutor) Execute(_ context.Context, intent reducercontract.Intent) (reducer.Result, error) {
-	return reducer.Result{
+func (staleAckExecutor) Execute(_ context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
 		Domain:   intent.Domain,
 		Status:   reducer.ResultStatusSucceeded,
@@ -81,7 +81,7 @@ type staleAckSingleSink struct {
 	failCalls int
 }
 
-func (s *staleAckSingleSink) Ack(context.Context, reducercontract.Intent, reducer.Result) error {
+func (s *staleAckSingleSink) Ack(context.Context, reducercontract.Intent, reducercontract.Result) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ackCalls++

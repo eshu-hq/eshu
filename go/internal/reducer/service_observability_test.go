@@ -42,7 +42,7 @@ func recordOneFailure(t *testing.T, isDeferred func(string) bool, execErr error)
 		IsDeferredFailureClass: isDeferred,
 	}
 	intent := reducercontract.Intent{IntentID: "intent-1", Domain: DomainDeployableUnitCorrelation, EntityKeys: []string{"repo:a"}}
-	service.recordReducerResult(context.Background(), intent, Result{}, 0.1, 0.2, "failed", 1, execErr)
+	service.recordReducerResult(context.Background(), intent, reducercontract.Result{}, 0.1, 0.2, "failed", 1, execErr)
 
 	var line map[string]any
 	if err := json.Unmarshal(bytes.TrimSpace(logs.Bytes()), &line); err != nil {

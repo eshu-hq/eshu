@@ -160,8 +160,8 @@ func TestProofDomainCloudAssetResolutionFlowsCollectorToReducerIntent(t *testing
 				truth.LayerObservedResource,
 			},
 		},
-		Handler: reducer.HandlerFunc(func(context.Context, reducercontract.Intent) (reducer.Result, error) {
-			return reducer.Result{
+		Handler: reducer.HandlerFunc(func(context.Context, reducercontract.Intent) (reducercontract.Result, error) {
+			return reducercontract.Result{
 				Status:          reducer.ResultStatusSucceeded,
 				EvidenceSummary: "cloud asset canonicalized",
 				CanonicalWrites: 1,

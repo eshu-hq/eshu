@@ -25,7 +25,7 @@ type transientAckSink struct {
 	ackBatches atomic.Int64
 }
 
-func (s *transientAckSink) AckBatch(ctx context.Context, intents []reducercontract.Intent, results []Result) error {
+func (s *transientAckSink) AckBatch(ctx context.Context, intents []reducercontract.Intent, results []reducercontract.Result) error {
 	if s.ackBatches.Add(1) <= s.failFirst {
 		return fmt.Errorf("batch ack reducer work (%d items): %w", len(intents), s.err)
 	}

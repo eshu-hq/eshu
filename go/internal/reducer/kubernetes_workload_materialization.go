@@ -96,19 +96,19 @@ type KubernetesWorkloadMaterializationHandler struct {
 func (h KubernetesWorkloadMaterializationHandler) Handle(
 	ctx context.Context,
 	intent reducercontract.Intent,
-) (Result, error) {
+) (reducercontract.Result, error) {
 	totalStart := time.Now()
 	if intent.Domain != DomainKubernetesWorkloadMaterialization {
-		return Result{}, fmt.Errorf(
+		return reducercontract.Result{}, fmt.Errorf(
 			"kubernetes workload materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("kubernetes workload materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("kubernetes workload materialization fact loader is required")
 	}
 	if h.NodeWriter == nil {
-		return Result{}, fmt.Errorf("kubernetes workload materialization node writer is required")
+		return reducercontract.Result{}, fmt.Errorf("kubernetes workload materialization node writer is required")
 	}
 
 	loadStart := time.Now()
@@ -120,7 +120,7 @@ func (h KubernetesWorkloadMaterializationHandler) Handle(
 		[]string{cloud.KubernetesPodTemplateFactKind},
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for kubernetes workload materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for kubernetes workload materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
@@ -130,7 +130,7 @@ func (h KubernetesWorkloadMaterializationHandler) Handle(
 		// A non-decode error (transient fact-load or other fatal condition
 		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
 		// the durable queue triages it correctly.
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	// Per-fact isolation: a malformed kubernetes_live.pod_template fact (a
 	// missing required object_id) is quarantined as a visible input_invalid
@@ -144,7 +144,7 @@ func (h KubernetesWorkloadMaterializationHandler) Handle(
 	if len(rows) > 0 {
 		writeStart := time.Now()
 		if err := h.NodeWriter.WriteKubernetesWorkloadNodes(ctx, rows, kubernetesWorkloadEvidenceSource); err != nil {
-			return Result{}, fmt.Errorf("write canonical kubernetes workload nodes: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical kubernetes workload nodes: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
 
@@ -155,7 +155,7 @@ func (h KubernetesWorkloadMaterializationHandler) Handle(
 			ctx, h.PresenceWriter,
 			GraphProjectionKeyspaceKubernetesWorkloadUID, intent.ScopeID, rows, time.Now().UTC(),
 		); err != nil {
-			return Result{}, fmt.Errorf("record kubernetes workload endpoint presence: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("record kubernetes workload endpoint presence: %w", err)
 		}
 	}
 
@@ -173,7 +173,7 @@ func (h KubernetesWorkloadMaterializationHandler) Handle(
 		GraphProjectionPhaseCanonicalNodesCommitted,
 		time.Now().UTC(),
 	); err != nil {
-		return Result{}, fmt.Errorf("publish canonical kubernetes workload nodes phase: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("publish canonical kubernetes workload nodes phase: %w", err)
 	}
 	phasePublishDuration := time.Since(phasePublishStart)
 
@@ -189,7 +189,7 @@ func (h KubernetesWorkloadMaterializationHandler) Handle(
 		totalDuration:        time.Since(totalStart),
 	})
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
 		Domain:   DomainKubernetesWorkloadMaterialization,
 		Status:   ResultStatusSucceeded,

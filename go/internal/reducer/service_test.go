@@ -33,7 +33,7 @@ func TestServiceRunClaimsExecutesAndAcknowledges(t *testing.T) {
 
 	source := &stubReducerWorkSource{intents: []reducercontract.Intent{intent}}
 	executor := &stubReducerExecutor{
-		result: Result{
+		result: reducercontract.Result{
 			IntentID: intent.IntentID,
 			Domain:   intent.Domain,
 			Status:   ResultStatusSucceeded,
@@ -372,11 +372,11 @@ func (s *stubReducerWorkSource) Claim(context.Context) (reducercontract.Intent, 
 type stubReducerExecutor struct {
 	mu           sync.Mutex
 	executeCalls int
-	result       Result
+	result       reducercontract.Result
 	executeErr   error
 }
 
-func (s *stubReducerExecutor) Execute(context.Context, reducercontract.Intent) (Result, error) {
+func (s *stubReducerExecutor) Execute(context.Context, reducercontract.Intent) (reducercontract.Result, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.executeCalls++
@@ -412,7 +412,7 @@ type stubReducerWorkSink struct {
 	ackErr     error
 }
 
-func (s *stubReducerWorkSink) Ack(context.Context, reducercontract.Intent, Result) error {
+func (s *stubReducerWorkSink) Ack(context.Context, reducercontract.Intent, reducercontract.Result) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ackCalls++

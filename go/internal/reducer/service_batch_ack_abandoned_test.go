@@ -24,7 +24,7 @@ type cancelingTransientAckSink struct {
 	onAck func()
 }
 
-func (s *cancelingTransientAckSink) AckBatch(ctx context.Context, intents []reducercontract.Intent, results []Result) error {
+func (s *cancelingTransientAckSink) AckBatch(ctx context.Context, intents []reducercontract.Intent, results []reducercontract.Result) error {
 	if s.onAck != nil {
 		s.onAck()
 	}

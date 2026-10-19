@@ -27,9 +27,11 @@ type observingBatchSink struct {
 	failCalls int
 }
 
-func (*observingBatchSink) Ack(context.Context, reducercontract.Intent, Result) error { return nil }
+func (*observingBatchSink) Ack(context.Context, reducercontract.Intent, reducercontract.Result) error {
+	return nil
+}
 
-func (s *observingBatchSink) AckBatch(_ context.Context, intents []reducercontract.Intent, _ []Result) error {
+func (s *observingBatchSink) AckBatch(_ context.Context, intents []reducercontract.Intent, _ []reducercontract.Result) error {
 	s.ackCalls++
 	s.ackSizes = append(s.ackSizes, len(intents))
 	return s.ackErr
@@ -42,9 +44,9 @@ func (s *observingBatchSink) Fail(context.Context, reducercontract.Intent, error
 
 type cancelingBatchExecutor struct{ cancel context.CancelFunc }
 
-func (e cancelingBatchExecutor) Execute(_ context.Context, intent reducercontract.Intent) (Result, error) {
+func (e cancelingBatchExecutor) Execute(_ context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	e.cancel()
-	return Result{IntentID: intent.IntentID, Domain: intent.Domain, Status: ResultStatusSucceeded}, nil
+	return reducercontract.Result{IntentID: intent.IntentID, Domain: intent.Domain, Status: ResultStatusSucceeded}, nil
 }
 
 func batchTelemetry(t *testing.T) (*telemetry.Instruments, *metric.ManualReader) {

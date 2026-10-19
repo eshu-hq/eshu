@@ -274,7 +274,7 @@ func TestActivationLockTimeoutFailsRetryablyLive(t *testing.T) {
 	if err := store.ActivateResolutionGenerationForClaim(ctx, f.gen, f.scope, retried.IntentID, *retried.ClaimedAt); err != nil {
 		t.Fatalf("retried activation: %v", err)
 	}
-	if err := dmq.Ack(ctx, retried, reducer.Result{IntentID: retried.IntentID, Domain: retried.Domain, Status: reducer.ResultStatusSucceeded}); err != nil {
+	if err := dmq.Ack(ctx, retried, reducercontract.Result{IntentID: retried.IntentID, Domain: retried.Domain, Status: reducer.ResultStatusSucceeded}); err != nil {
 		t.Fatalf("ack the retried deployment_mapping: %v", err)
 	}
 	if got := readWakeRow(t, ctx, base, "c-2"); got.status != "pending" || !got.reopened.Valid {

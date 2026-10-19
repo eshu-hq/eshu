@@ -24,9 +24,11 @@ type supersededAckBatchSink struct {
 	failCalls int
 }
 
-func (*supersededAckBatchSink) Ack(context.Context, reducercontract.Intent, Result) error { return nil }
+func (*supersededAckBatchSink) Ack(context.Context, reducercontract.Intent, reducercontract.Result) error {
+	return nil
+}
 
-func (s *supersededAckBatchSink) AckBatch(_ context.Context, intents []reducercontract.Intent, _ []Result) error {
+func (s *supersededAckBatchSink) AckBatch(_ context.Context, intents []reducercontract.Intent, _ []reducercontract.Result) error {
 	s.ackCalls++
 	s.ackSizes = append(s.ackSizes, len(intents))
 	return s.err

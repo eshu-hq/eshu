@@ -154,7 +154,7 @@ WHERE work_item_id = 'ack-5854-legacy-v2'
 	if err != nil || !ok || markedSingleClaim.IntentID != "ack-5854-marked-single" {
 		t.Fatalf("claim fenced marked single = %+v ok=%t err=%v", markedSingleClaim, ok, err)
 	}
-	if err := capableQueue.Ack(ctx, markedSingleClaim, reducer.Result{}); err != nil {
+	if err := capableQueue.Ack(ctx, markedSingleClaim, reducercontract.Result{}); err != nil {
 		t.Fatalf("capable single ACK: %v", err)
 	}
 	assertContainerImageIdentityAckWorkItemState(
@@ -191,7 +191,7 @@ WHERE work_item_id = 'ack-5854-legacy-v2'
 	if err != nil || !ok || preCutover.IntentID != "ack-5854-before-marker" {
 		t.Fatalf("claim fenced pre-cutover = %+v ok=%t err=%v", preCutover, ok, err)
 	}
-	if err := capableQueue.Ack(ctx, preCutover, reducer.Result{}); err != nil {
+	if err := capableQueue.Ack(ctx, preCutover, reducercontract.Result{}); err != nil {
 		t.Fatalf("capable pre-cutover ACK: %v", err)
 	}
 	reopened, err := capableQueue.ReopenSucceeded(
@@ -295,7 +295,7 @@ WHERE work_item_id IN ($2, $3)
 	if !ok || claimed.IntentID != "ack-5854-reclaim" {
 		t.Fatalf("reclaimed intent = %+v ok=%t, want ack-5854-reclaim", claimed, ok)
 	}
-	if err := reclaimQueue.Ack(ctx, claimed, reducer.Result{}); err != nil {
+	if err := reclaimQueue.Ack(ctx, claimed, reducercontract.Result{}); err != nil {
 		t.Fatalf("attempt-bound ACK after lease reclaim: %v", err)
 	}
 	assertContainerImageIdentityAckWorkItemState(

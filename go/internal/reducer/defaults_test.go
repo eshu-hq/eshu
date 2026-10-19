@@ -627,8 +627,8 @@ func (stubDriftEvidenceLoader) LoadDriftEvidence(
 func TestNewDefaultRegistryRegistersDeployableUnitCorrelationAdditively(t *testing.T) {
 	t.Parallel()
 
-	handler := HandlerFunc(func(context.Context, reducercontract.Intent) (Result, error) {
-		return Result{Status: ResultStatusSucceeded}, nil
+	handler := HandlerFunc(func(context.Context, reducercontract.Intent) (reducercontract.Result, error) {
+		return reducercontract.Result{Status: ResultStatusSucceeded}, nil
 	})
 
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{

@@ -88,10 +88,10 @@ WHERE work_item_id = $2
 		ClaimEpoch: 2,
 		ClaimedAt:  &producerClaimedAt,
 	}
-	if err := queue.Ack(ctx, identity, reducer.Result{}); err != nil {
+	if err := queue.Ack(ctx, identity, reducercontract.Result{}); err != nil {
 		t.Fatalf("ack identity producer: %v", err)
 	}
-	if err := queue.Ack(ctx, identity, reducer.Result{}); !errors.Is(err, ErrReducerClaimRejected) {
+	if err := queue.Ack(ctx, identity, reducercontract.Result{}); !errors.Is(err, ErrReducerClaimRejected) {
 		t.Fatalf("duplicate identity ACK error = %v, want claim rejected", err)
 	}
 	assertCrossScopeCompletionEventCount(t, ctx, db, reducer.DomainContainerImageIdentity, 1)
@@ -132,7 +132,7 @@ WHERE work_item_id IN ($1, $4)
 		IntentID:  cicdID,
 		Domain:    reducer.DomainCICDRunCorrelation,
 		ClaimedAt: &downstreamClaimedAt,
-	}, reducer.Result{}); err != nil {
+	}, reducercontract.Result{}); err != nil {
 		t.Fatalf("ack CI/CD producer: %v", err)
 	}
 	assertCrossScopeCompletionEventCount(t, ctx, db, reducer.DomainCICDRunCorrelation, 1)
@@ -149,7 +149,7 @@ WHERE work_item_id IN ($1, $4)
 		IntentID:  supplyID,
 		Domain:    reducer.DomainSupplyChainImpact,
 		ClaimedAt: &downstreamClaimedAt,
-	}, reducer.Result{}); err != nil {
+	}, reducercontract.Result{}); err != nil {
 		t.Fatalf("ack in-flight supply consumer: %v", err)
 	}
 	assertCrossScopeConsumerState(t, ctx, db, supplyID, "pending", false)
@@ -169,7 +169,7 @@ WHERE work_item_id = $1
 		IntentID:  supplyID,
 		Domain:    reducer.DomainSupplyChainImpact,
 		ClaimedAt: &replayClaimedAt,
-	}, reducer.Result{}); err != nil {
+	}, reducercontract.Result{}); err != nil {
 		t.Fatalf("ack required supply replay: %v", err)
 	}
 	assertCrossScopeConsumerState(t, ctx, db, supplyID, "succeeded", false)

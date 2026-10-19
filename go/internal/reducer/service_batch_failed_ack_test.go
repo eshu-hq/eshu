@@ -19,8 +19,8 @@ import (
 // so the item is terminalized by WorkSink.Fail and retried later.
 type deferringExecutor struct{}
 
-func (deferringExecutor) Execute(_ context.Context, _ reducercontract.Intent) (Result, error) {
-	return Result{}, errors.New("cross-scope consumer deferred: producer scopes have not activated")
+func (deferringExecutor) Execute(_ context.Context, _ reducercontract.Intent) (reducercontract.Result, error) {
+	return reducercontract.Result{}, errors.New("cross-scope consumer deferred: producer scopes have not activated")
 }
 
 func failedAckTestIntent(id string, domain reducercontract.Domain) reducercontract.Intent {
@@ -145,11 +145,11 @@ type selectivelyFailingExecutor struct {
 	failIntentID string
 }
 
-func (e selectivelyFailingExecutor) Execute(_ context.Context, intent reducercontract.Intent) (Result, error) {
+func (e selectivelyFailingExecutor) Execute(_ context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	if intent.IntentID == e.failIntentID {
-		return Result{}, errors.New("cross-scope consumer deferred: producer scopes have not activated")
+		return reducercontract.Result{}, errors.New("cross-scope consumer deferred: producer scopes have not activated")
 	}
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
 		Domain:   intent.Domain,
 		Status:   ResultStatusSucceeded,

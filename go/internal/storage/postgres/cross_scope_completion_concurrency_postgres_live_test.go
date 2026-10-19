@@ -271,7 +271,7 @@ func TestReducerAckBatchAppendsOneCompletionEventPerProducerDomainLive(t *testin
 		database: SQLDB{DB: db}, LeaseOwner: owner,
 		LeaseDuration: time.Minute, Now: func() time.Time { return now },
 	}
-	if err := queue.AckBatch(ctx, intents, make([]reducer.Result, len(intents))); err != nil {
+	if err := queue.AckBatch(ctx, intents, make([]reducercontract.Result, len(intents))); err != nil {
 		t.Fatalf("batch ACK completion producers: %v", err)
 	}
 	for _, domain := range []reducercontract.Domain{

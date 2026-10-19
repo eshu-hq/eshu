@@ -199,7 +199,7 @@ type graphExecutor struct {
 	err error
 }
 
-func (e *graphExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducer.Result, error) {
+func (e *graphExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	// Record every failure in firstErr: the reducer loop fails-and-continues
@@ -207,14 +207,14 @@ func (e *graphExecutor) Execute(ctx context.Context, intent reducercontract.Inte
 	// would otherwise leave the graph silently incomplete while the run still
 	// looks drained. firstErr is the loud-failure backstop.
 	if err := ctx.Err(); err != nil {
-		return reducer.Result{}, e.recordErrLocked(fmt.Errorf("schedule replay execute canceled: %w", err))
+		return reducercontract.Result{}, e.recordErrLocked(fmt.Errorf("schedule replay execute canceled: %w", err))
 	}
 	item, ok := e.registry[intent.IntentID]
 	if !ok {
-		return reducer.Result{}, e.recordErrLocked(fmt.Errorf("no work item registered for intent %q", intent.IntentID))
+		return reducercontract.Result{}, e.recordErrLocked(fmt.Errorf("no work item registered for intent %q", intent.IntentID))
 	}
 	e.apply(e.graph, item)
-	return reducer.Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
 		Domain:   intent.Domain,
 		Status:   reducer.ResultStatusSucceeded,
@@ -245,7 +245,7 @@ type countingSink struct {
 	failedCount atomic.Int64
 }
 
-func (s *countingSink) Ack(_ context.Context, _ reducercontract.Intent, _ reducer.Result) error {
+func (s *countingSink) Ack(_ context.Context, _ reducercontract.Intent, _ reducercontract.Result) error {
 	s.ackedCount.Add(1)
 	return nil
 }
@@ -255,7 +255,7 @@ func (s *countingSink) Fail(_ context.Context, _ reducercontract.Intent, _ error
 	return nil
 }
 
-func (s *countingSink) AckBatch(_ context.Context, intents []reducercontract.Intent, _ []reducer.Result) error {
+func (s *countingSink) AckBatch(_ context.Context, intents []reducercontract.Intent, _ []reducercontract.Result) error {
 	s.ackedCount.Add(int64(len(intents)))
 	return nil
 }

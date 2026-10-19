@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -84,7 +84,7 @@ func claimAndAck(ctx context.Context, database *sql.DB, queue postgres.ReducerQu
 	if !ok {
 		return errNoWork
 	}
-	if err := queue.Ack(ctx, intent, reducer.Result{}); err != nil {
+	if err := queue.Ack(ctx, intent, reducercontract.Result{}); err != nil {
 		return fmt.Errorf("ack %s: %w", intent.IntentID, err)
 	}
 	if _, err := database.ExecContext(ctx, `UPDATE fact_work_items

@@ -196,7 +196,7 @@ func TestActivationWakesOwnGateConsumersLive(t *testing.T) {
 			}
 			if dm.IntentID != "" {
 				dmq := newOwnGateQueue(db, &clock, reducer.DomainDeploymentMapping)
-				if err := dmq.Ack(ctx, dm, reducer.Result{IntentID: dm.IntentID, Domain: dm.Domain, Status: reducer.ResultStatusSucceeded}); err != nil {
+				if err := dmq.Ack(ctx, dm, reducercontract.Result{IntentID: dm.IntentID, Domain: dm.Domain, Status: reducer.ResultStatusSucceeded}); err != nil {
 					t.Fatalf("ack deployment_mapping: %v", err)
 				}
 			}
@@ -217,7 +217,7 @@ func runWokenWorkload(t *testing.T, ctx context.Context, db *sql.DB, clock *time
 	if err := consumerFor(db, reducer.DomainWorkloadMaterialization).run(ctx, wm); err != nil {
 		t.Fatalf("woken workload materialization after activation: %v", err)
 	}
-	if err := wmq.Ack(ctx, wm, reducer.Result{IntentID: wm.IntentID, Domain: wm.Domain, Status: reducer.ResultStatusSucceeded}); err != nil {
+	if err := wmq.Ack(ctx, wm, reducercontract.Result{IntentID: wm.IntentID, Domain: wm.Domain, Status: reducer.ResultStatusSucceeded}); err != nil {
 		t.Fatalf("ack workload item: %v", err)
 	}
 	if got := readWakeRow(t, ctx, db, f.wmID); got.status != "succeeded" {

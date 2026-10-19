@@ -245,7 +245,7 @@ func TestContainerImageIdentityClaimEpochAdvancesOnceUnderCompetingClaimersLive(
 	if claimed[0].IntentID != workItemID || claimed[0].ClaimEpoch != 2 {
 		t.Fatalf("winning claim = %+v, want %s at epoch 2", claimed[0], workItemID)
 	}
-	if err := queue.Ack(ctx, claimed[0], reducer.Result{}); err != nil {
+	if err := queue.Ack(ctx, claimed[0], reducercontract.Result{}); err != nil {
 		t.Fatalf("ack winning current claim: %v", err)
 	}
 	assertContainerImageIdentityAckClaimFence(
@@ -378,7 +378,7 @@ INSERT INTO container_image_identity_cutovers (
 		AttemptCount: 1,
 		ClaimEpoch:   1,
 	}
-	if err := queue.Ack(ctx, staleAttempt, reducer.Result{}); err != ErrReducerClaimRejected {
+	if err := queue.Ack(ctx, staleAttempt, reducercontract.Result{}); err != ErrReducerClaimRejected {
 		t.Fatalf("stale same-owner ACK = %v, want claim rejection", err)
 	}
 	assertContainerImageIdentityAckClaimFence(

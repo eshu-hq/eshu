@@ -41,12 +41,12 @@ type WorkSource interface {
 
 // Executor executes one claimed reducer intent.
 type Executor interface {
-	Execute(context.Context, reducercontract.Intent) (Result, error)
+	Execute(context.Context, reducercontract.Intent) (reducercontract.Result, error)
 }
 
 // WorkSink acknowledges or fails one claimed reducer intent.
 type WorkSink interface {
-	Ack(context.Context, reducercontract.Intent, Result) error
+	Ack(context.Context, reducercontract.Intent, reducercontract.Result) error
 	Fail(context.Context, reducercontract.Intent, error) error
 }
 
@@ -63,7 +63,7 @@ type BatchWorkSource interface {
 
 // BatchWorkSink acknowledges multiple intents in one round-trip.
 type BatchWorkSink interface {
-	AckBatch(ctx context.Context, intents []reducercontract.Intent, results []Result) error
+	AckBatch(ctx context.Context, intents []reducercontract.Intent, results []reducercontract.Result) error
 }
 
 // Service coordinates reducer polling and one-intent-at-a-time execution.
@@ -430,7 +430,7 @@ func (s Service) executeWithTelemetry(ctx context.Context, intent reducercontrac
 		err := stopHeartbeatOnce()
 		if errors.As(err, &preFailure) {
 			duration := time.Since(start).Seconds()
-			s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "lease_lost_before_start", workerID, err)
+			s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, "lease_lost_before_start", workerID, err)
 			return nil
 		}
 	}
@@ -450,7 +450,7 @@ func (s Service) executeWithTelemetry(ctx context.Context, intent reducercontrac
 			err = errors.Join(err, heartbeatErr)
 		}
 		if errors.Is(err, ErrExecutionClaimRejected) {
-			s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "lease_lost_during_execution", workerID, err)
+			s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, "lease_lost_during_execution", workerID, err)
 			return nil
 		}
 		status = "failed"
@@ -460,10 +460,10 @@ func (s Service) executeWithTelemetry(ctx context.Context, intent reducercontrac
 			// reclaimed. That is a lost claim, the same outcome as a lost
 			// heartbeat: record it once, drop the item and keep draining
 			// instead of stopping the run on an ordinary lease race (#7142).
-			s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "lease_lost_during_execution", workerID, failErr)
+			s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, "lease_lost_during_execution", workerID, failErr)
 			return nil
 		}
-		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, status, workerID, err)
+		s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, status, workerID, err)
 		if failErr != nil {
 			return errors.Join(err, fmt.Errorf("fail reducer work: %w", failErr))
 		}
@@ -475,7 +475,7 @@ func (s Service) executeWithTelemetry(ctx context.Context, intent reducercontrac
 	}
 
 	if heartbeatErr := stopHeartbeatOnce(); heartbeatErr != nil {
-		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "ack_failed", workerID, heartbeatErr)
+		s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, "ack_failed", workerID, heartbeatErr)
 		return fmt.Errorf("heartbeat reducer work: %w", heartbeatErr)
 	}
 

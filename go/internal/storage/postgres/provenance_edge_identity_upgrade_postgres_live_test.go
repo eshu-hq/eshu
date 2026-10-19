@@ -242,7 +242,7 @@ WHERE work_item_id = $1
 		Domain:     reducer.DomainPackageSourceCorrelation,
 		ClaimEpoch: successClaimEpoch,
 		ClaimedAt:  &successClaimedAt,
-	}, reducer.Result{}); err != nil {
+	}, reducercontract.Result{}); err != nil {
 		t.Fatalf("new reducer ACK: %v", err)
 	}
 	assertCrossScopeConsumerState(t, ctx, db, packageID, "succeeded", false)
@@ -333,7 +333,7 @@ WHERE work_item_id = $1
 		Domain:     domain,
 		ClaimEpoch: claimEpoch,
 		ClaimedAt:  &claimedAt,
-	}}, []reducer.Result{{}}); err != nil {
+	}}, []reducercontract.Result{{}}); err != nil {
 		t.Fatalf("new reducer ACK for %s: %v", workItemID, err)
 	}
 	assertCrossScopeConsumerState(t, ctx, db, workItemID, "succeeded", false)

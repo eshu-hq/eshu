@@ -177,8 +177,8 @@ func TestProofDomainWorkloadIdentityFlowsCollectorToReducerIntent(t *testing.T) 
 			CanonicalWrite: true,
 		},
 		TruthContract: testReducerTruthContract("workload_identity"),
-		Handler: reducer.HandlerFunc(func(context.Context, reducercontract.Intent) (reducer.Result, error) {
-			return reducer.Result{
+		Handler: reducer.HandlerFunc(func(context.Context, reducercontract.Intent) (reducercontract.Result, error) {
+			return reducercontract.Result{
 				Status:          reducer.ResultStatusSucceeded,
 				EvidenceSummary: "workload identity canonicalized",
 				CanonicalWrites: 1,

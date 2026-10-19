@@ -179,12 +179,12 @@ func resolveIntentID(t Trigger, items []schedulereplay.WorkItem) (string, error)
 //  3. fail-graph-write-once-then-succeed: on the callOrdinal-th (or
 //     OperationMatch-matching) Execute call, fire exactly once per its lane
 //     (see onceThenSucceedFault), then fall through to inner.
-func (e *FaultingExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducer.Result, error) {
+func (e *FaultingExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	callOrdinal := int(e.callOrdinal.Add(1))
 
 	if fired, terminal := e.terminal[intent.IntentID]; terminal {
 		fired.Store(true)
-		return reducer.Result{}, &terminalFailure{intentID: intent.IntentID}
+		return reducercontract.Result{}, &terminalFailure{intentID: intent.IntentID}
 	}
 
 	if e.midHandlerIntentID != "" && intent.IntentID == e.midHandlerIntentID && e.midHandlerFired.CompareAndSwap(false, true) {
@@ -192,7 +192,7 @@ func (e *FaultingExecutor) Execute(ctx context.Context, intent reducercontract.I
 		select {
 		case <-released:
 		case <-ctx.Done():
-			return reducer.Result{}, fmt.Errorf("faultreplay: %s rendezvous canceled for intent %q: %w",
+			return reducercontract.Result{}, fmt.Errorf("faultreplay: %s rendezvous canceled for intent %q: %w",
 				KindExpireLeaseMidHandler, intent.IntentID, ctx.Err())
 		}
 	}
@@ -201,7 +201,7 @@ func (e *FaultingExecutor) Execute(ctx context.Context, intent reducercontract.I
 		switch f.lane {
 		case LaneQueueRetry:
 			e.redeliverer.RedeliverOnce(intent)
-			return reducer.Result{}, &queueRetryFailure{intentID: intent.IntentID}
+			return reducercontract.Result{}, &queueRetryFailure{intentID: intent.IntentID}
 		case LaneExecutorRetry:
 			// Retried in place: the transient failure is simulated and
 			// absorbed right here, never returned to the caller, so the
@@ -209,13 +209,13 @@ func (e *FaultingExecutor) Execute(ctx context.Context, intent reducercontract.I
 			// this intent -- matching the RetryingExecutor precedent instead
 			// of routing through WorkSink.Fail.
 		default:
-			return reducer.Result{}, fmt.Errorf("faultreplay: unknown target.lane %q", f.lane)
+			return reducercontract.Result{}, fmt.Errorf("faultreplay: unknown target.lane %q", f.lane)
 		}
 	}
 
 	result, err := e.inner.Execute(ctx, intent)
 	if err != nil {
-		return reducer.Result{}, fmt.Errorf("faultreplay: inner executor: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("faultreplay: inner executor: %w", err)
 	}
 	return result, nil
 }

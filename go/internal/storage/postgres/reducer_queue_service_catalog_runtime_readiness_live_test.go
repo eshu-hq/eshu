@@ -247,7 +247,7 @@ func TestReducerContentionGateServiceCatalogRuntimeFenceKeepsItsAttemptBudget(t 
 
 	// The producer commits its graph write, then acks (production order).
 	p.graph.committed.Store(true)
-	if err := producerQueue.Ack(ctx, producerIntent, reducer.Result{}); err != nil {
+	if err := producerQueue.Ack(ctx, producerIntent, reducercontract.Result{}); err != nil {
 		t.Fatalf("producer Ack() error = %v", err)
 	}
 	intent, claimed, err := catalogQueue.Claim(ctx)
@@ -257,7 +257,7 @@ func TestReducerContentionGateServiceCatalogRuntimeFenceKeepsItsAttemptBudget(t 
 	if _, err := handler.Handle(ctx, intent); err != nil {
 		t.Fatalf("post-producer Handle() error = %v, want nil once the producer is terminal", err)
 	}
-	if err := catalogQueue.Ack(ctx, intent, reducer.Result{}); err != nil {
+	if err := catalogQueue.Ack(ctx, intent, reducercontract.Result{}); err != nil {
 		t.Fatalf("catalog Ack() error = %v", err)
 	}
 	writes := p.materialization.snapshot()

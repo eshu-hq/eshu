@@ -20,8 +20,8 @@ func (ifaLeaseOffGraphExecutor) Execute(context.Context, sourcecypher.Statement)
 
 type ifaLeaseOffReducerExecutor struct{}
 
-func (ifaLeaseOffReducerExecutor) Execute(context.Context, reducercontract.Intent) (reducer.Result, error) {
-	return reducer.Result{}, nil
+func (ifaLeaseOffReducerExecutor) Execute(context.Context, reducercontract.Intent) (reducercontract.Result, error) {
+	return reducercontract.Result{}, nil
 }
 
 // TestIfaLeaseExpiryBarrierOffNeverReadsEnv proves the default binary does not

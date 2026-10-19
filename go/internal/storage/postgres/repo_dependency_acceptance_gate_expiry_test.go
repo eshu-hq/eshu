@@ -359,7 +359,7 @@ func ackCausalFence(t *testing.T, ctx context.Context, queue ReducerQueue, inten
 	if batch {
 		err = queue.AckBatch(ctx, []reducercontract.Intent{intent}, nil)
 	} else {
-		err = queue.Ack(ctx, intent, reducer.Result{})
+		err = queue.Ack(ctx, intent, reducercontract.Result{})
 	}
 	if err != nil {
 		t.Fatalf("ack workload pass: %v", err)

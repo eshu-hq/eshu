@@ -160,7 +160,7 @@ func (e preActivationProofEnv) claimBatchExecuteSettle(t *testing.T, ctx context
 	}
 	var (
 		acked   []reducercontract.Intent
-		results []reducer.Result
+		results []reducercontract.Result
 	)
 	for _, intent := range intents {
 		result, execErr := e.runtime.Execute(ctx, intent)

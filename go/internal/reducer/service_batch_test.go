@@ -102,7 +102,7 @@ func TestBatchServiceDoesNotMutateQueueAfterExecutionClaimRejected(t *testing.T)
 	}
 }
 
-func (f *fakeBatchWorkSink) Ack(_ context.Context, intent reducercontract.Intent, _ Result) error {
+func (f *fakeBatchWorkSink) Ack(_ context.Context, intent reducercontract.Intent, _ reducercontract.Result) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.acked++
@@ -118,7 +118,7 @@ func (f *fakeBatchWorkSink) Fail(_ context.Context, intent reducercontract.Inten
 	return nil
 }
 
-func (f *fakeBatchWorkSink) AckBatch(_ context.Context, intents []reducercontract.Intent, _ []Result) error {
+func (f *fakeBatchWorkSink) AckBatch(_ context.Context, intents []reducercontract.Intent, _ []reducercontract.Result) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.acked += len(intents)
@@ -132,9 +132,9 @@ type countingExecutor struct {
 	count atomic.Int64
 }
 
-func (e *countingExecutor) Execute(_ context.Context, intent reducercontract.Intent) (Result, error) {
+func (e *countingExecutor) Execute(_ context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	e.count.Add(1)
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
 		Domain:   intent.Domain,
 		Status:   ResultStatusSucceeded,
@@ -143,14 +143,14 @@ func (e *countingExecutor) Execute(_ context.Context, intent reducercontract.Int
 
 type batchQuarantineExecutor struct{}
 
-func (batchQuarantineExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (Result, error) {
+func (batchQuarantineExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	recordQuarantinedFacts(ctx, nil, intent.Domain, intent.ScopeID, intent.GenerationID, []quarantinedFact{{
 		FactID:         "fact-1",
 		FactKind:       "vulnerability.suppression",
 		Field:          "justification",
 		Classification: "input_invalid",
 	}})
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
 		Domain:   intent.Domain,
 		Status:   ResultStatusSucceeded,
@@ -294,7 +294,7 @@ func TestServiceRunBatchConcurrentHeartbeatsLongRunningReducerWork(t *testing.T)
 	}
 	executor := &blockingReducerExecutor{
 		release: release,
-		result: Result{
+		result: reducercontract.Result{
 			IntentID: intent.IntentID,
 			Domain:   intent.Domain,
 			Status:   ResultStatusSucceeded,
@@ -391,22 +391,22 @@ type blockingManyReducerExecutor struct {
 	started chan string
 }
 
-func (b *blockingManyReducerExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (Result, error) {
+func (b *blockingManyReducerExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	b.count.Add(1)
 	select {
 	case b.started <- intent.IntentID:
 	case <-ctx.Done():
-		return Result{}, ctx.Err()
+		return reducercontract.Result{}, ctx.Err()
 	}
 	select {
 	case <-b.release:
-		return Result{
+		return reducercontract.Result{
 			IntentID: intent.IntentID,
 			Domain:   intent.Domain,
 			Status:   ResultStatusSucceeded,
 		}, nil
 	case <-ctx.Done():
-		return Result{}, ctx.Err()
+		return reducercontract.Result{}, ctx.Err()
 	}
 }
 
@@ -433,7 +433,7 @@ type nonBatchWorkSink struct {
 	acked int
 }
 
-func (f *nonBatchWorkSink) Ack(_ context.Context, _ reducercontract.Intent, _ Result) error {
+func (f *nonBatchWorkSink) Ack(_ context.Context, _ reducercontract.Intent, _ reducercontract.Result) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.acked++

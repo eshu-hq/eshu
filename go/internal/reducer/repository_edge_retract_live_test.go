@@ -65,7 +65,7 @@ func (l liveCandidateLoader) LoadWorkloadProjectionScopeInputs(
 // named workloads as candidates, each exposing /v1/<name>.
 func (l *repoRetryLive) handleWorkloads(
 	ctx context.Context, t *testing.T, repo, gen string, delta bool, names ...string,
-) reducer.Result {
+) reducercontract.Result {
 	t.Helper()
 	result, err := l.handleWorkloadsErr(ctx, repo, gen, delta, names...)
 	if err != nil {
@@ -77,7 +77,7 @@ func (l *repoRetryLive) handleWorkloads(
 // handleWorkloadsErr is handleWorkloads for goroutines.
 func (l *repoRetryLive) handleWorkloadsErr(
 	ctx context.Context, repo, gen string, delta bool, names ...string,
-) (reducer.Result, error) {
+) (reducercontract.Result, error) {
 	repoID := l.repoID(repo)
 	candidates := make([]reducer.WorkloadCandidate, 0, len(names))
 	for _, name := range names {

@@ -24,7 +24,7 @@ type ackFenceRejectingBatchSink struct {
 func (s *ackFenceRejectingBatchSink) Ack(
 	context.Context,
 	reducercontract.Intent,
-	Result,
+	reducercontract.Result,
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -35,7 +35,7 @@ func (s *ackFenceRejectingBatchSink) Ack(
 func (s *ackFenceRejectingBatchSink) AckBatch(
 	_ context.Context,
 	intents []reducercontract.Intent,
-	_ []Result,
+	_ []reducercontract.Result,
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

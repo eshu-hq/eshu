@@ -99,9 +99,9 @@ func TestRuntimeRunOnceIsBoundedAndProcessesRegisteredHandlers(t *testing.T) {
 			CanonicalWrite: true,
 		},
 		TruthContract: testTruthContract("workload_identity"),
-		Handler: HandlerFunc(func(context.Context, reducercontract.Intent) (Result, error) {
+		Handler: HandlerFunc(func(context.Context, reducercontract.Intent) (reducercontract.Result, error) {
 			handled = append(handled, "workload-identity")
-			return Result{
+			return reducercontract.Result{
 				Status:          ResultStatusSucceeded,
 				EvidenceSummary: "canonical identity written",
 				CanonicalWrites: 1,

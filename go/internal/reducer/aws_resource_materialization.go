@@ -111,19 +111,19 @@ type AWSResourceMaterializationHandler struct {
 func (h AWSResourceMaterializationHandler) Handle(
 	ctx context.Context,
 	intent reducercontract.Intent,
-) (Result, error) {
+) (reducercontract.Result, error) {
 	totalStart := time.Now()
 	if intent.Domain != DomainAWSResourceMaterialization {
-		return Result{}, fmt.Errorf(
+		return reducercontract.Result{}, fmt.Errorf(
 			"aws resource materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("aws resource materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("aws resource materialization fact loader is required")
 	}
 	if h.NodeWriter == nil {
-		return Result{}, fmt.Errorf("aws resource materialization node writer is required")
+		return reducercontract.Result{}, fmt.Errorf("aws resource materialization node writer is required")
 	}
 
 	loadStart := time.Now()
@@ -135,7 +135,7 @@ func (h AWSResourceMaterializationHandler) Handle(
 		[]string{cloud.AWSResourceFactKind},
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for aws resource materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for aws resource materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
@@ -145,7 +145,7 @@ func (h AWSResourceMaterializationHandler) Handle(
 		// A non-decode error (transient fact-load or other fatal condition
 		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
 		// the durable queue triages it correctly.
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	// Per-fact isolation: a malformed aws_resource fact (a missing required
 	// identity field) is quarantined as a visible input_invalid dead-letter —
@@ -159,7 +159,7 @@ func (h AWSResourceMaterializationHandler) Handle(
 	if len(rows) > 0 {
 		writeStart := time.Now()
 		if err := h.NodeWriter.WriteCloudResourceNodes(ctx, rows, awsResourceEvidenceSource); err != nil {
-			return Result{}, fmt.Errorf("write canonical cloud resource nodes: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical cloud resource nodes: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
 
@@ -170,7 +170,7 @@ func (h AWSResourceMaterializationHandler) Handle(
 			ctx, h.PresenceWriter,
 			GraphProjectionKeyspaceCloudResourceUID, intent.ScopeID, rows, time.Now().UTC(),
 		); err != nil {
-			return Result{}, fmt.Errorf("record cloud resource endpoint presence: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("record cloud resource endpoint presence: %w", err)
 		}
 	}
 
@@ -199,7 +199,7 @@ func (h AWSResourceMaterializationHandler) Handle(
 		awsResourceEvidenceSource,
 	)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	retractDuration := time.Since(retractStart)
 
@@ -217,7 +217,7 @@ func (h AWSResourceMaterializationHandler) Handle(
 		GraphProjectionPhaseCanonicalNodesCommitted,
 		time.Now().UTC(),
 	); err != nil {
-		return Result{}, fmt.Errorf("publish canonical cloud resource nodes phase: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("publish canonical cloud resource nodes phase: %w", err)
 	}
 	phasePublishDuration := time.Since(phasePublishStart)
 
@@ -234,7 +234,7 @@ func (h AWSResourceMaterializationHandler) Handle(
 		totalDuration:        time.Since(totalStart),
 	})
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
 		Domain:   DomainAWSResourceMaterialization,
 		Status:   ResultStatusSucceeded,

@@ -50,7 +50,7 @@ func TestServiceRunLogsAckFailureWithQueueContext(t *testing.T) {
 		PollInterval: 10 * time.Millisecond,
 		WorkSource:   &stubReducerWorkSource{intents: []reducercontract.Intent{intent}},
 		Executor: &stubReducerExecutor{
-			result: Result{
+			result: reducercontract.Result{
 				IntentID: intent.IntentID,
 				Domain:   intent.Domain,
 				Status:   ResultStatusSucceeded,
@@ -126,7 +126,7 @@ func TestServiceRunRecordsStaleAckWithoutSuccess(t *testing.T) {
 	service := Service{
 		PollInterval: time.Millisecond,
 		WorkSource:   &stubReducerWorkSource{intents: []reducercontract.Intent{intent}},
-		Executor: &stubReducerExecutor{result: Result{
+		Executor: &stubReducerExecutor{result: reducercontract.Result{
 			IntentID: intent.IntentID,
 			Domain:   intent.Domain,
 			Status:   ResultStatusSucceeded,
@@ -270,7 +270,7 @@ func TestServiceRunRecordsReducerQueueWait(t *testing.T) {
 		PollInterval: 10 * time.Millisecond,
 		WorkSource:   &stubReducerWorkSource{intents: []reducercontract.Intent{intent}},
 		Executor: &stubReducerExecutor{
-			result: Result{
+			result: reducercontract.Result{
 				IntentID: intent.IntentID,
 				Domain:   intent.Domain,
 				Status:   ResultStatusSucceeded,

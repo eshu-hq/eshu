@@ -77,7 +77,7 @@ func BenchmarkRecordReducerResultWithSubDurations(b *testing.B) {
 		GenerationID: "gen-bench",
 		EntityKeys:   []string{"bench-key"},
 	}
-	result := Result{
+	result := reducercontract.Result{
 		IntentID:        intent.IntentID,
 		Domain:          DomainWorkloadMaterialization,
 		Status:          ResultStatusSucceeded,
@@ -115,7 +115,7 @@ func BenchmarkRecordReducerResultNoSubDurations(b *testing.B) {
 		GenerationID: "gen-bench",
 		EntityKeys:   []string{"bench-key"},
 	}
-	result := Result{
+	result := reducercontract.Result{
 		IntentID:        intent.IntentID,
 		Domain:          DomainDeploymentMapping,
 		Status:          ResultStatusSucceeded,

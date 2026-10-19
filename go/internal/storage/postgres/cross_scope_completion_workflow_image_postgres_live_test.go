@@ -126,10 +126,10 @@ func TestWorkflowImageCompletionForcedOrderConvergesLive(t *testing.T) {
 		ClaimEpoch: identityEpoch,
 		ClaimedAt:  &identityClaimedAt,
 	}
-	if err := queue.Ack(ctx, identityIntent, reducer.Result{}); err != nil {
+	if err := queue.Ack(ctx, identityIntent, reducercontract.Result{}); err != nil {
 		t.Fatalf("ack workflow-triggered identity producer: %v", err)
 	}
-	if err := queue.Ack(ctx, identityIntent, reducer.Result{}); !errors.Is(err, ErrReducerClaimRejected) {
+	if err := queue.Ack(ctx, identityIntent, reducercontract.Result{}); !errors.Is(err, ErrReducerClaimRejected) {
 		t.Fatalf("duplicate identity completion error = %v, want claim rejected", err)
 	}
 	assertCrossScopeCompletionEventCount(t, ctx, db, reducer.DomainContainerImageIdentity, 1)

@@ -120,7 +120,7 @@ func TestOwnGateWaitsThroughRefinalizeReResolutionLive(t *testing.T) {
 	if err := store.ActivateResolutionGenerationForClaim(ctx, gen, scope, claimedDM.IntentID, *claimedDM.ClaimedAt); err != nil {
 		t.Fatalf("activate re-resolved generation: %v", err)
 	}
-	if err := dmq.Ack(ctx, claimedDM, reducer.Result{IntentID: dmID, Domain: claimedDM.Domain, Status: reducer.ResultStatusSucceeded}); err != nil {
+	if err := dmq.Ack(ctx, claimedDM, reducercontract.Result{IntentID: dmID, Domain: claimedDM.Domain, Status: reducer.ResultStatusSucceeded}); err != nil {
 		t.Fatalf("ack deployment_mapping: %v", err)
 	}
 	if got := readWakeRow(t, ctx, db, ducID); got.status != "pending" || !got.reopened.Valid {

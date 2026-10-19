@@ -42,7 +42,7 @@ func TestReducerAckCoalescesPendingCompletionEventsPerDomainLive(t *testing.T) {
 		if err := queue.Ack(ctx, reducercontract.Intent{
 			IntentID: workItemID, Domain: reducer.DomainContainerImageIdentity,
 			ClaimEpoch: claimEpoch, ClaimedAt: &claimedAt,
-		}, reducer.Result{}); err != nil {
+		}, reducercontract.Result{}); err != nil {
 			t.Fatalf("ACK coalesced producer %d: %v", index, err)
 		}
 	}
@@ -108,7 +108,7 @@ FOR EACH ROW EXECUTE FUNCTION reject_completion_event()
 	err := queue.Ack(ctx, reducercontract.Intent{
 		IntentID: workItemID, Domain: reducer.DomainContainerImageIdentity,
 		ClaimEpoch: claimEpoch, ClaimedAt: &claimedAt,
-	}, reducer.Result{})
+	}, reducercontract.Result{})
 	if err == nil || !strings.Contains(err.Error(), "synthetic completion event rejection") {
 		t.Fatalf("ACK error = %v, want completion-event insert failure", err)
 	}

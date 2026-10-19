@@ -37,18 +37,18 @@ type PlatformInfraMaterializationHandler struct {
 }
 
 // Handle executes the platform infrastructure materialization path.
-func (h PlatformInfraMaterializationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (Result, error) {
+func (h PlatformInfraMaterializationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	if intent.Domain != DomainPlatformInfraMaterialization {
-		return Result{}, fmt.Errorf(
+		return reducercontract.Result{}, fmt.Errorf(
 			"platform infra materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("platform infra materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("platform infra materialization fact loader is required")
 	}
 	if h.InfrastructureMaterializer == nil {
-		return Result{}, fmt.Errorf("platform infra materialization materializer is required")
+		return reducercontract.Result{}, fmt.Errorf("platform infra materialization materializer is required")
 	}
 
 	timing := platformInfraMaterializationTiming{intent: intent}
@@ -63,7 +63,7 @@ func (h PlatformInfraMaterializationHandler) Handle(ctx context.Context, intent 
 		[]string{factKindRepository, factKindFile, factKindParsedFile},
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for platform infra materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for platform infra materialization: %w", err)
 	}
 	timing.loadDuration = time.Since(loadStart)
 	timing.factCount = len(envelopes)
@@ -79,7 +79,7 @@ func (h PlatformInfraMaterializationHandler) Handle(ctx context.Context, intent 
 		result, materializeErr := h.materializeInfrastructurePlatforms(ctx, rows)
 		timing.writeDuration = time.Since(writeStart)
 		if materializeErr != nil {
-			return Result{}, fmt.Errorf("materialize infrastructure platforms: %w", materializeErr)
+			return reducercontract.Result{}, fmt.Errorf("materialize infrastructure platforms: %w", materializeErr)
 		}
 		timing.platformEdgesWritten = result.PlatformEdgesWritten
 	}
@@ -92,7 +92,7 @@ func (h PlatformInfraMaterializationHandler) Handle(ctx context.Context, intent 
 		timing.platformEdgesWritten,
 		timing.factCount,
 	)
-	return Result{
+	return reducercontract.Result{
 		IntentID:        intent.IntentID,
 		Domain:          DomainPlatformInfraMaterialization,
 		Status:          ResultStatusSucceeded,

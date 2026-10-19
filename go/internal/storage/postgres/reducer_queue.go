@@ -422,7 +422,7 @@ func (q ReducerQueue) Heartbeat(ctx context.Context, intent reducercontract.Inte
 // statement, a suppressed one still succeeds without an event. Routing both
 // through one statement keeps the epoch bump unconditional, so the
 // rolling-upgrade fallback trigger never double-emits a new-path ACK.
-func (q ReducerQueue) Ack(ctx context.Context, intent reducercontract.Intent, result reducer.Result) error {
+func (q ReducerQueue) Ack(ctx context.Context, intent reducercontract.Intent, result reducercontract.Result) error {
 	if err := q.validateClaim(); err != nil {
 		return err
 	}
