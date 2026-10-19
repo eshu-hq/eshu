@@ -24,22 +24,25 @@ from live_postgres_readiness_inventory_gen_internal_storage_postgres_status_summ
 from live_postgres_readiness_inventory_gen_internal_storage_postgres_webhook import TABLE as _TABLE_16
 
 
-PACKAGES = {
-    **_TABLE_00,
-    **_TABLE_01,
-    **_TABLE_02,
-    **_TABLE_03,
-    **_TABLE_04,
-    **_TABLE_05,
-    **_TABLE_06,
-    **_TABLE_07,
-    **_TABLE_08,
-    **_TABLE_09,
-    **_TABLE_10,
-    **_TABLE_11,
-    **_TABLE_12,
-    **_TABLE_13,
-    **_TABLE_14,
-    **_TABLE_15,
-    **_TABLE_16,
-}
+PACKAGES = {}
+for _table in (
+    _TABLE_00,
+    _TABLE_01,
+    _TABLE_02,
+    _TABLE_03,
+    _TABLE_04,
+    _TABLE_05,
+    _TABLE_06,
+    _TABLE_07,
+    _TABLE_08,
+    _TABLE_09,
+    _TABLE_10,
+    _TABLE_11,
+    _TABLE_12,
+    _TABLE_13,
+    _TABLE_14,
+    _TABLE_15,
+    _TABLE_16,
+):
+    for _package, _files in _table.items():
+        PACKAGES.setdefault(_package, {}).update(_files)

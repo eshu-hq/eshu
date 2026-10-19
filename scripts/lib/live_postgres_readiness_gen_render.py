@@ -83,7 +83,12 @@ def render_pkg_module(package: str, files: dict) -> str:
 
 
 def render_assembler(modules: list[str]) -> str:
-    """Render the PACKAGES assembler over the per-package tables."""
+    """Render the PACKAGES assembler over the per-package tables.
+
+    Tables deep-merge per package: shards of one package combine instead
+    of overwriting each other under their shared package key, which a
+    shallow {**a, **b} merge would let the last shard win.
+    """
     lines = [
         "#!/usr/bin/env python3",
         '"""Assembled PACKAGES for live-postgres-readiness (generated).',
@@ -95,10 +100,15 @@ def render_assembler(modules: list[str]) -> str:
     ]
     for index, module in enumerate(modules):
         lines.append(f"from {module} import TABLE as _TABLE_{index:02d}")
-    lines += ["", "", "PACKAGES = {"]
+    lines += ["", "", "PACKAGES = {}", "for _table in ("]
     for index in range(len(modules)):
-        lines.append(f"    **_TABLE_{index:02d},")
-    lines += ["}", ""]
+        lines.append(f"    _TABLE_{index:02d},")
+    lines += [
+        "):",
+        "    for _package, _files in _table.items():",
+        "        PACKAGES.setdefault(_package, {}).update(_files)",
+        "",
+    ]
     return "\n".join(lines)
 
 
