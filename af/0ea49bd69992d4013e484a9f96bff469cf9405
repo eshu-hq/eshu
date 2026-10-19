@@ -1,0 +1,166 @@
+docs/internal/evidence/6694-semantic-registry-leaf.md
+  h_78a442cba0b3e6 1-97
+go/.golangci.yml
+  h_78a442cba0b3e6 511
+go/cmd/golden-corpus-gate/graph_bolt.go
+  h_78a442cba0b3e6 241
+go/cmd/golden-corpus-gate/graph_bolt_property_test.go
+  h_78a442cba0b3e6 13
+go/cmd/golden-corpus-gate/property_assertions_package_artifact_hashes_test.go
+  h_78a442cba0b3e6 113,160
+go/cmd/golden-corpus-gate/writer_coverage_test.go
+  h_78a442cba0b3e6 30
+go/cmd/ifa/assert_edges_semantic_scope.go
+  h_78a442cba0b3e6 23
+go/cmd/reducer/neo4j_wiring.go
+  h_78a442cba0b3e6 25,339-340,348
+go/cmd/reducer/neo4j_wiring_semantic_conformance_test.go
+  h_78a442cba0b3e6 13,37
+go/internal/backendconformance/corpus_semantic_module.go
+  h_78a442cba0b3e6 14,21,95,105-106,109-110
+go/internal/content/shape/materialize_tables.go
+  h_78a442cba0b3e6 38
+go/internal/ifa/familyodu/semantic_entity_containment_family_odu.go
+  h_78a442cba0b3e6 17
+go/internal/ifa/materializededges/direct_family_scan_types_test.go
+  h_78a442cba0b3e6 63-64,70-71,78,104-105
+go/internal/ifa/materializededges/semantic_entity_containment.go
+  h_78a442cba0b3e6 12,90
+go/internal/projector/canonical/builder_test.go
+  h_78a442cba0b3e6 1222-1223
+go/internal/projector/canonical/package_registry_artifact.go
+  h_78a442cba0b3e6 58
+go/internal/projector/canonical/unwritten_entity_labels_test.go
+  h_78a442cba0b3e6 127
+go/internal/projector/runtime/package_registry_artifact_test.go
+  h_78a442cba0b3e6 103
+go/internal/replay/costcounting/doc.go
+  h_78a442cba0b3e6 33
+go/internal/replay/costcounting/semantic_entity_cost_test.go
+  h_78a442cba0b3e6 16,21,34,76,88,97,104
+go/internal/replay/offlinetier/delta_tier_reducer_semantic_variable_retract_live_test.go
+  h_78a442cba0b3e6 12,40,93
+go/internal/storage/cypher/AGENTS.md
+  h_78a442cba0b3e6 126
+go/internal/storage/cypher/README.md
+  h_78a442cba0b3e6 14,42,467,1201,1494
+go/internal/storage/cypher/canonical_index_key_live_test.go
+  h_78a442cba0b3e6 38-41,85-95
+go/internal/storage/cypher/canonical_kustomize_edges.go
+  h_78a442cba0b3e6 121,134,140-186
+go/internal/storage/cypher/canonical_node_writer.go
+  h_78a442cba0b3e6 18,34,102,195,384-389,400-403,417-420
+go/internal/storage/cypher/canonical_node_writer_directory_test.go
+  h_78a442cba0b3e6 12,119
+go/internal/storage/cypher/edge/materialized/endpoints.go
+  h_78a442cba0b3e6 8,164-166
+go/internal/storage/cypher/edge/materialized/single_type_families.go
+  h_78a442cba0b3e6 15,292-293,295-297,299
+go/internal/storage/cypher/edge/writer/provenance.go
+  h_78a442cba0b3e6 25
+go/internal/storage/cypher/package/registry/AGENTS.md
+  h_78a442cba0b3e6 1-31
+go/internal/storage/cypher/package/registry/README.md
+  h_78a442cba0b3e6 1-64
+go/internal/storage/cypher/package/registry/artifact_writer.go
+  h_78a442cba0b3e6 4,22-25,87-95,98-109,112,115,117
+go/internal/storage/cypher/package/registry/artifact_writer_test.go
+  h_78a442cba0b3e6 4
+go/internal/storage/cypher/package/registry/canonical_writer.go
+  h_78a442cba0b3e6 4,14-29,31-38,146-154,157-165,168-176,179-186
+go/internal/storage/cypher/package/registry/doc.go
+  h_78a442cba0b3e6 1-16
+go/internal/storage/cypher/package/registry/edge_writer.go
+  h_78a442cba0b3e6 4,18-21,42-55,58-69
+go/internal/storage/cypher/package/registry/event_writer.go
+  h_78a442cba0b3e6 4,10-16,18-21,81-89,92-104,107,110,112
+go/internal/storage/cypher/package/registry/identity_locks.go
+  h_78a442cba0b3e6 4,15,17-21,23,26,31-36,40-42,45-48,50,54,59,69-72,89-92,94-100,102-112,115-117,143-145
+go/internal/storage/cypher/package_registry_adapter.go
+  h_78a442cba0b3e6 1-150
+go/internal/storage/cypher/package_registry_canonical_writer_identity_test.go
+  h_78a442cba0b3e6 17-18,180,230
+go/internal/storage/cypher/package_registry_canonical_writer_test.go
+  h_78a442cba0b3e6 15,133,231,278,297,318,425
+go/internal/storage/cypher/package_registry_concurrency_test.go
+  h_78a442cba0b3e6 17,197,295
+go/internal/storage/cypher/package_registry_event_writer_test.go
+  h_78a442cba0b3e6 13,18,21,65,115
+go/internal/storage/cypher/retrying_executor.go
+  h_78a442cba0b3e6 337-344
+go/internal/storage/cypher/semantic/entity/AGENTS.md
+  h_78a442cba0b3e6 1-26
+go/internal/storage/cypher/semantic/entity/README.md
+  h_78a442cba0b3e6 1-62
+go/internal/storage/cypher/semantic/entity/anchor_label_bound_test.go
+  h_78a442cba0b3e6 4
+go/internal/storage/cypher/semantic/entity/bench_test.go
+  h_78a442cba0b3e6 4,13,20,63
+go/internal/storage/cypher/semantic/entity/bolt_harness_test.go
+  h_78a442cba0b3e6 1-200
+go/internal/storage/cypher/semantic/entity/delta_retract.go
+  h_78a442cba0b3e6 4,9-10,30,36,50,60-61,64-66
+go/internal/storage/cypher/semantic/entity/delta_test.go
+  h_78a442cba0b3e6 4,13,38-39
+go/internal/storage/cypher/semantic/entity/doc.go
+  h_78a442cba0b3e6 1-15
+go/internal/storage/cypher/semantic/entity/edge_retract.go
+  h_78a442cba0b3e6 4,6-10,182,184,201,203,236,238-240,243,245,249,251-253,256,258
+go/internal/storage/cypher/semantic/entity/edge_retract_bolt_test.go
+  h_78a442cba0b3e6 4
+go/internal/storage/cypher/semantic/entity/edge_retract_test.go
+  h_78a442cba0b3e6 4,12,20-21,23,95-96
+go/internal/storage/cypher/semantic/entity/elixir_test.go
+  h_78a442cba0b3e6 4
+go/internal/storage/cypher/semantic/entity/group_split_test.go
+  h_78a442cba0b3e6 4,13,21,27-28,32,107,139,144,149,154,159,164,169,210
+go/internal/storage/cypher/semantic/entity/instrumented_index_key_test.go
+  h_78a442cba0b3e6 1-157
+go/internal/storage/cypher/semantic/entity/metadata.go
+  h_78a442cba0b3e6 4
+go/internal/storage/cypher/semantic/entity/nornicdb_test.go
+  h_78a442cba0b3e6 4,12,57,121,123,127,309-310,315,328-329,331,358,428
+go/internal/storage/cypher/semantic/entity/recording_executor_test.go
+  h_78a442cba0b3e6 1-62
+go/internal/storage/cypher/semantic/entity/retract_dispatch_test.go
+  h_78a442cba0b3e6 4,12,36,41,140,146-147,159
+go/internal/storage/cypher/semantic/entity/retract_test.go
+  h_78a442cba0b3e6 4,11,34-35
+go/internal/storage/cypher/semantic/entity/retryable_group_test.go
+  h_78a442cba0b3e6 4,15,40,43,47,53,57,63,67,72-74,76,86,93,100,106,113-114,129-130,134,136,140,144,148,152,162,166,174,178,182,186,190,207,215,224,234,248,255,261,267,271,279,283,287,293,308,312,317,319,329,375,390
+go/internal/storage/cypher/semantic/entity/rows.go
+  h_78a442cba0b3e6 4,10-11,53,56,59-60,63-67
+go/internal/storage/cypher/semantic/entity/rust_test.go
+  h_78a442cba0b3e6 4
+go/internal/storage/cypher/semantic/entity/statements.go
+  h_78a442cba0b3e6 4
+go/internal/storage/cypher/semantic/entity/tsx_test.go
+  h_78a442cba0b3e6 4
+go/internal/storage/cypher/semantic/entity/typescript_module_test.go
+  h_78a442cba0b3e6 4
+go/internal/storage/cypher/semantic/entity/typescript_test.go
+  h_78a442cba0b3e6 4
+go/internal/storage/cypher/semantic/entity/write_modes_test.go
+  h_78a442cba0b3e6 1-50
+go/internal/storage/cypher/semantic/entity/writer.go
+  h_78a442cba0b3e6 4,11-12,28,60-61,67,77,89,102,112,177,180,206,208,210-211,232,271,310-311,314-316,346-347,350-352,377-378,381-383,408-409,420,429,436,451,460,474,486-487,490-492
+go/internal/storage/cypher/semantic/entity/writer_test.go
+  h_78a442cba0b3e6 4,12,112-113
+go/internal/storage/cypher/semantic_entity_full_repo_retract_live_test.go
+  h_78a442cba0b3e6 16,101
+go/internal/storage/cypher/semantic_entity_live_test.go
+  h_78a442cba0b3e6 18,83
+go/internal/storage/cypher/semantic_entity_variable_nornicdb_live_test.go
+  h_78a442cba0b3e6 16,104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "af0ea49bd69992d4013e484a9f96bff469cf9405",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
