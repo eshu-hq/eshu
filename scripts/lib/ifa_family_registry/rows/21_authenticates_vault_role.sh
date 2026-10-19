@@ -30,11 +30,19 @@
 # claiming its work item, so an ACCESS EXCLUSIVE lock on that table holds it
 # genuinely in flight -- the blocker_kind this row's fault cell takes. Same
 # table and same reasoning as rows/13; see that row for why fact_work_items
-# is the wrong target. The projection claim is NOT readiness-gated (no
-# readiness row names this domain), so the kill cell needs no prereq-scoped
-# reducer -- but it MUST wait for the trust-chain stage's read-model facts
-# to commit before the lock goes on, or the projection claims an empty
-# generation, succeeds vacuously, and never re-runs.
+# is the wrong target. The projection claim is NOT claim-time-readiness-gated
+# (no readiness row names this domain), so the kill cell needs no
+# prereq-scoped reducer -- but it MUST wait for the trust-chain stage's
+# read-model facts to commit before the lock goes on, or the projection
+# claims an empty generation, succeeds vacuously, and never re-runs. The
+# projection intent itself is created by the trust-chain handler when those
+# read models commit (GraphProjectionFollowUpWriter), not by the projector,
+# so the kill cell waits for the row only after the trust-chain stage.
+# Separately, the handler-level endpoint-readiness gate (PresenceLookup,
+# wired whenever the flag is on) defers the projection until the cross-scope
+# endpoints commit: the fixture carries its own pod-template and aws_resource
+# observations for the exact lanes' workloads and IAM roles because no other
+# scope commits them.
 #
 # The flag (ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED) is a live-cell
 # stack env only, never a deployment activation: the wiring file

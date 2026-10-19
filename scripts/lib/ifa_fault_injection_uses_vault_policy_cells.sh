@@ -118,8 +118,9 @@ ifa_uses_vault_policy_wait_for_read_models() {
 # stage to committed read models and then STOPS its reducer: the stage is
 # scoped to secrets_iam_trust_chain so it can never claim the projection
 # row early, and stopping it before the lock frees its workers. The flag is
-# on for this reducer because the projection domain must be registered for
-# its intent to exist -- but this reducer never claims it.
+# on for this reducer so the follow-up writer is wired and the trust-chain
+# handler enqueues the projection intent as its read models commit -- but
+# this reducer never claims that row.
 ifa_uses_vault_policy_run_trust_chain_stage() {
 	local cell="$1"
 	local trust_reducer_pid

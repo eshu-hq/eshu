@@ -549,6 +549,116 @@
           "schema_version": "1.0.0",
           "source_confidence": "observed",
           "stable_fact_key": "secretsiam:vault_auth_role:sha256:uses-vault-role-5"
+        },
+        {
+          "collector_kind": "kubernetes_live",
+          "fact_kind": "kubernetes_live.pod_template",
+          "fencing_token": 1,
+          "payload": {
+            "cluster_id": "eshu-fixture-uses",
+            "containers": [
+              {
+                "image": "ghcr.io/eshu-hq/eshu-fixture-uses-app-a@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "init": false,
+                "name": "uses-app-a-c0"
+              }
+            ],
+            "correlation_anchors": [
+              "wl-uses-a"
+            ],
+            "group_version_resource": "apps/v1/deployments",
+            "image_refs": [
+              "ghcr.io/eshu-hq/eshu-fixture-uses-app-a@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            ],
+            "labels": {
+              "app": "uses-app-a"
+            },
+            "name": "uses-app-a",
+            "namespace": "default",
+            "object_id": "wl-uses-a",
+            "selector": {
+              "app": "uses-app-a"
+            },
+            "service_account": "uses-app-a"
+          },
+          "schema_version": "1.3.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "wl-uses-a"
+        },
+        {
+          "collector_kind": "kubernetes_live",
+          "fact_kind": "kubernetes_live.pod_template",
+          "fencing_token": 1,
+          "payload": {
+            "cluster_id": "eshu-fixture-uses",
+            "containers": [
+              {
+                "image": "ghcr.io/eshu-hq/eshu-fixture-uses-app-b@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "init": false,
+                "name": "uses-app-b-c0"
+              }
+            ],
+            "correlation_anchors": [
+              "wl-uses-b"
+            ],
+            "group_version_resource": "apps/v1/deployments",
+            "image_refs": [
+              "ghcr.io/eshu-hq/eshu-fixture-uses-app-b@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            ],
+            "labels": {
+              "app": "uses-app-b"
+            },
+            "name": "uses-app-b",
+            "namespace": "default",
+            "object_id": "wl-uses-b",
+            "selector": {
+              "app": "uses-app-b"
+            },
+            "service_account": "uses-app-b"
+          },
+          "schema_version": "1.3.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "wl-uses-b"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_resource",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:iam::123456789012:role/uses-app-a",
+            "correlation_anchors": [
+              "arn:aws:iam::123456789012:role/uses-app-a"
+            ],
+            "name": "uses-app-a",
+            "region": "us-east-1",
+            "resource_id": "arn:aws:iam::123456789012:role/uses-app-a",
+            "resource_type": "aws_iam_role",
+            "service_kind": "iam"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_role:arn:aws:iam::123456789012:role/uses-app-a"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_resource",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:iam::123456789012:role/uses-app-b",
+            "correlation_anchors": [
+              "arn:aws:iam::123456789012:role/uses-app-b"
+            ],
+            "name": "uses-app-b",
+            "region": "us-east-1",
+            "resource_id": "arn:aws:iam::123456789012:role/uses-app-b",
+            "resource_type": "aws_iam_role",
+            "service_kind": "iam"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_role:arn:aws:iam::123456789012:role/uses-app-b"
         }
       ],
       "generation_id": "gen-ifa-uses-vault-policy-family-1",

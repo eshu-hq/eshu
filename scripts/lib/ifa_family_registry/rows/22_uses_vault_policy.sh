@@ -48,8 +48,15 @@
 # claiming its work item, so the projection stage MUST wait for the
 # trust-chain stage's read-model facts to commit before it starts, or the
 # projection claims an empty generation, succeeds vacuously, and never
-# re-runs. The projection claim is NOT readiness-gated (no readiness row
-# names this domain), so no cell needs a prereq-scoped reducer.
+# re-runs. The projection claim is NOT claim-time-readiness-gated (no
+# readiness row names this domain), so no cell needs a prereq-scoped
+# reducer. The projection intent itself is created by the trust-chain
+# handler when those read models commit (GraphProjectionFollowUpWriter),
+# not by the projector. Separately, the handler-level endpoint-readiness
+# gate (PresenceLookup, wired whenever the flag is on) defers the
+# projection until the cross-scope endpoints commit: the fixture carries
+# its own pod-template and aws_resource observations for the exact lanes'
+# workloads and IAM roles because no other scope commits them.
 #
 # The flag (ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED) is a live-cell
 # stack env only, never a deployment activation: the wiring file

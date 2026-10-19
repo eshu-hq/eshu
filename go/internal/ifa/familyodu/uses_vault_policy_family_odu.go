@@ -10,6 +10,21 @@ import (
 	secretsiamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/secretsiam/v1"
 )
 
+// appendUsesEndpointObservations appends the endpoint observations the live
+// projection's cross-scope readiness gate requires: pod-template facts for
+// the exact-chain lanes' workloads and aws_resource facts for the
+// exact-chain lanes' IAM roles. See appendAuthEndpointObservations for why
+// the family carries its own observations and why only exact-chain lanes
+// need them.
+func appendUsesEndpointObservations(factsForOdu *[]facts.Envelope, oduName, scopeID, generationID string) {
+	appendVaultWorkloadPodTemplate(factsForOdu, oduName, scopeID, generationID,
+		"eshu-fixture-uses", usesVaultPolicyFamilyWorkloadID("a"), "a", "uses-app-a")
+	appendVaultWorkloadPodTemplate(factsForOdu, oduName, scopeID, generationID,
+		"eshu-fixture-uses", usesVaultPolicyFamilyWorkloadID("b"), "b", "uses-app-b")
+	appendVaultIAMRoleResource(factsForOdu, oduName, scopeID, generationID, usesFamilyRoleARNA, "uses-app-a")
+	appendVaultIAMRoleResource(factsForOdu, oduName, scopeID, generationID, usesFamilyRoleARNB, "uses-app-b")
+}
+
 // The uses_vault_policy family Odù (#6228 slice A, under the #6181
 // direct-materialization umbrella).
 //
@@ -165,7 +180,7 @@ func UsesVaultPolicyFamilyOdu() CatalogOdu {
 	const oduName = UsesVaultPolicyFamilyOduName
 	const scopeID = usesVaultPolicyFamilyScopeID
 	const generationID = usesVaultPolicyFamilyGenerationID
-	factsForOdu := make([]facts.Envelope, 0, 35)
+	factsForOdu := make([]facts.Envelope, 0, 39)
 
 	addServiceAccount := func(joinKey string) {
 		factsForOdu = append(factsForOdu, newSecretsIAMFixtureEnvelope(
@@ -286,8 +301,10 @@ func UsesVaultPolicyFamilyOdu() CatalogOdu {
 	appendUsesVaultPolicyVaultRole(&factsForOdu, oduName, scopeID, generationID,
 		usesFamilyVaultRole5, []string{usesFamilyServiceAccountF}, false, nil)
 
+	appendUsesEndpointObservations(&factsForOdu, oduName, scopeID, generationID)
+
 	return CatalogOdu{
 		Odu:    Odu{Name: UsesVaultPolicyFamilyOduName, Facts: factsForOdu},
-		Detail: "thirty-five facts for the direct-materialization uses_vault_policy family: two exact chains with Vault hops across both identity mechanisms (IRSA web-identity and EKS Pod Identity) whose roles carry three token policies producing three edges, and five deliberate non-producers covering the missing-Vault-hop, ghost-bound-role, wildcard-trust, wildcard-Vault-selector, and Deny branches, so the expected set proves both Vault policy use and restraint",
+		Detail: "thirty-nine facts for the direct-materialization uses_vault_policy family: two exact chains with Vault hops across both identity mechanisms (IRSA web-identity and EKS Pod Identity) whose roles carry three token policies producing three edges, five deliberate non-producers covering the missing-Vault-hop, ghost-bound-role, wildcard-trust, wildcard-Vault-selector, and Deny branches, and four endpoint observations (pod templates for the exact lanes' workloads and aws_resource facts for the exact lanes' IAM roles) so the live projection's endpoint-readiness gate finds the cross-scope endpoints no other scope commits, so the expected set proves both Vault policy use and restraint",
 	}
 }

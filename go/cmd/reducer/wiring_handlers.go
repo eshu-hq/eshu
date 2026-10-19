@@ -231,6 +231,7 @@ func buildReducerSupplyChainSecurityHandlers(
 		SecretsIAMTrustChainWriter: secretsiam.PostgresSecretsIAMTrustChainWriter{
 			DB: database,
 		},
+		SecretsIAMGraphProjectionFollowUp: secretsIAMGraphProjectionFollowUpWriter(database, secretsIAMGraphWriter),
 		SecretsIAMGraphWriter:             secretsIAMGraphWriter,
 		EndpointPresenceWriter:            presence.secretsIAMWriter,
 		EndpointPresenceLookup:            presence.secretsIAMLookup,

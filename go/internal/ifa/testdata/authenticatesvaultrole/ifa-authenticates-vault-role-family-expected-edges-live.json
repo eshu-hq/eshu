@@ -1,0 +1,26 @@
+{
+  "odu": "odu:ifa-authenticates-vault-role-family",
+  "note": "The shared-cell live variant of the authenticates_vault_role expected set. The per-Odù file (ifa-authenticates-vault-role-family-expected-edges.json) names the two edges the authenticates fixture scope produces; a shared determinism cell graph ALSO holds the uses fixture scope, whose two exact chains take the same Vault hop and therefore materialize two more SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE edges (sa-uses-app-a through role uses-app-a to Vault role uses-vault-role-1, and sa-uses-app-b through role uses-app-b to uses-vault-role-2). The projection handler writes every edge set its read models resolve in one run, so the type's exact live set is four edges, not two. Fresh-stack fault cells drive one vault cassette and keep asserting the two-edge file; only the shared-cell determinism assert uses this file.",
+  "edges": [
+    {
+      "relationship_type": "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE",
+      "source_entity_id": "sha256:sa-auth-app-a",
+      "target_entity_id": "sha256:auth-vault-role-1"
+    },
+    {
+      "relationship_type": "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE",
+      "source_entity_id": "sha256:sa-auth-app-b",
+      "target_entity_id": "sha256:auth-vault-role-2"
+    },
+    {
+      "relationship_type": "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE",
+      "source_entity_id": "sha256:sa-uses-app-a",
+      "target_entity_id": "sha256:uses-vault-role-1"
+    },
+    {
+      "relationship_type": "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE",
+      "source_entity_id": "sha256:sa-uses-app-b",
+      "target_entity_id": "sha256:uses-vault-role-2"
+    }
+  ]
+}

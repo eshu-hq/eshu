@@ -4,9 +4,16 @@
 package familyodu
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
+	kuberneteslivev1 "github.com/eshu-hq/eshu/sdk/go/factschema/kuberneteslive/v1"
 	secretsiamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/secretsiam/v1"
 )
 
@@ -281,6 +288,105 @@ func appendAuthenticatesLaneF(factsForOdu *[]facts.Envelope, oduName, scopeID, g
 	appendAuthVaultRole(factsForOdu, oduName, scopeID, generationID, authFamilyVaultRole5, []string{authFamilyServiceAccountF}, false)
 }
 
+// appendVaultEndpointObservations appends the endpoint observations the live
+// projection's cross-scope readiness gate requires: pod-template facts for
+// the exact-chain lanes' workloads (committed as KubernetesWorkload nodes by
+// the workload materialization) and aws_resource facts for the exact-chain
+// lanes' IAM roles (committed as CloudResource nodes by the AWS resource
+// materialization). Both endpoints are fixture-local -- no other scope in
+// any gate corpus commits them -- so the family carries its own
+// observations, the same self-contained posture the iam_can_assume family
+// uses for its bucket resource. Only exact-chain lanes need them: no other
+// lane emits a USES_SERVICE_ACCOUNT or ASSUMES_IAM_ROLE edge, so no other
+// lane's endpoints are ever looked up.
+func appendAuthEndpointObservations(factsForOdu *[]facts.Envelope, oduName, scopeID, generationID string) {
+	appendVaultWorkloadPodTemplate(factsForOdu, oduName, scopeID, generationID,
+		"eshu-fixture-authenticates", authenticatesVaultRoleFamilyWorkloadID("a"), "a", "auth-app-a")
+	appendVaultWorkloadPodTemplate(factsForOdu, oduName, scopeID, generationID,
+		"eshu-fixture-authenticates", authenticatesVaultRoleFamilyWorkloadID("b"), "b", "auth-app-b")
+	appendVaultIAMRoleResource(factsForOdu, oduName, scopeID, generationID, authFamilyRoleARNA, "auth-app-a")
+	appendVaultIAMRoleResource(factsForOdu, oduName, scopeID, generationID, authFamilyRoleARNB, "auth-app-b")
+}
+
+// appendVaultWorkloadPodTemplate appends the pod-template fact for one
+// exact-chain lane's workload, keyed by the same workload object id the
+// lane's identity-use fact carries so the committed node satisfies the
+// readiness lookup uid-exactly. The lane letter seeds the synthetic image
+// digest so the two lanes carry distinct refs; every lane letter in these
+// families is a valid hex digit.
+func appendVaultWorkloadPodTemplate(factsForOdu *[]facts.Envelope, oduName, scopeID, generationID, clusterID, objectID, lane, appName string) {
+	namespace := "default"
+	groupVersionResource := "apps/v1/deployments"
+	serviceAccount := appName
+	containerName := appName + "-c0"
+	imageRef := "ghcr.io/eshu-hq/eshu-fixture-" + appName + "@sha256:" + strings.Repeat(lane, 64)
+	init := false
+	selector := map[string]string{"app": appName}
+	payload, err := factschema.EncodeKubernetesLivePodTemplate(kuberneteslivev1.PodTemplate{
+		ObjectID:             objectID,
+		ClusterID:            &clusterID,
+		Namespace:            &namespace,
+		Name:                 &appName,
+		GroupVersionResource: &groupVersionResource,
+		ServiceAccount:       &serviceAccount,
+		Containers: []kuberneteslivev1.PodTemplateContainer{
+			{
+				Name:  &containerName,
+				Image: &imageRef,
+				Init:  &init,
+			},
+		},
+		ImageRefs:          []string{imageRef},
+		Selector:           selector,
+		Labels:             selector,
+		CorrelationAnchors: []string{objectID},
+	})
+	if err != nil {
+		panic(fmt.Sprintf("familyodu: catalog_seed %s: encode pod_template %q: %v", oduName, objectID, err))
+	}
+	*factsForOdu = append(*factsForOdu, facts.Envelope{
+		ScopeID:          scopeID,
+		GenerationID:     generationID,
+		FactKind:         cloud.KubernetesPodTemplateFactKind,
+		StableFactKey:    objectID,
+		SchemaVersion:    cloud.KubernetesPodTemplateSchemaVersion,
+		CollectorKind:    "kubernetes_live",
+		SourceConfidence: "observed",
+		Payload:          payload,
+	})
+}
+
+// appendVaultIAMRoleResource appends the aws_resource fact for one
+// exact-chain lane's IAM role, with the resource_id the AWS resource
+// projection hashes into the same CloudResource uid the trust chain
+// resolves for the lane's assume edge.
+func appendVaultIAMRoleResource(factsForOdu *[]facts.Envelope, oduName, scopeID, generationID, roleARN, roleName string) {
+	serviceKind := "iam"
+	payload, err := factschema.EncodeAWSResource(awsv1.Resource{
+		AccountID:          "123456789012",
+		ResourceID:         roleARN,
+		Region:             "us-east-1",
+		ResourceType:       awsv1.ResourceTypeIAMRole,
+		ARN:                &roleARN,
+		Name:               &roleName,
+		ServiceKind:        &serviceKind,
+		CorrelationAnchors: []string{roleARN},
+	})
+	if err != nil {
+		panic(fmt.Sprintf("familyodu: catalog_seed %s: encode aws_resource %q: %v", oduName, roleARN, err))
+	}
+	*factsForOdu = append(*factsForOdu, facts.Envelope{
+		ScopeID:          scopeID,
+		GenerationID:     generationID,
+		FactKind:         cloud.AWSResourceFactKind,
+		StableFactKey:    fmt.Sprintf("aws:123456789012:us-east-1:%s:%s", awsv1.ResourceTypeIAMRole, roleARN),
+		SchemaVersion:    cloud.AWSResourceSchemaVersion,
+		CollectorKind:    "aws",
+		SourceConfidence: "observed",
+		Payload:          payload,
+	})
+}
+
 // AuthenticatesVaultRoleFamilyOdu builds the cataloged Odù for the
 // authenticates_vault_role direct-materialization family.
 //
@@ -293,7 +399,7 @@ func AuthenticatesVaultRoleFamilyOdu() CatalogOdu {
 	const oduName = AuthenticatesVaultRoleFamilyOduName
 	const scopeID = authenticatesVaultRoleFamilyScopeID
 	const generationID = authenticatesVaultRoleFamilyGenerationID
-	factsForOdu := make([]facts.Envelope, 0, 35)
+	factsForOdu := make([]facts.Envelope, 0, 39)
 
 	appendAuthenticatesLaneA(&factsForOdu, oduName, scopeID, generationID)
 	appendAuthenticatesLaneB(&factsForOdu, oduName, scopeID, generationID)
@@ -301,9 +407,10 @@ func AuthenticatesVaultRoleFamilyOdu() CatalogOdu {
 	appendAuthenticatesLaneD(&factsForOdu, oduName, scopeID, generationID)
 	appendAuthenticatesLaneE(&factsForOdu, oduName, scopeID, generationID)
 	appendAuthenticatesLaneF(&factsForOdu, oduName, scopeID, generationID)
+	appendAuthEndpointObservations(&factsForOdu, oduName, scopeID, generationID)
 
 	return CatalogOdu{
 		Odu:    Odu{Name: AuthenticatesVaultRoleFamilyOduName, Facts: factsForOdu},
-		Detail: "thirty-five facts for the direct-materialization authenticates_vault_role family: two exact chains with Vault hops across both identity mechanisms (IRSA web-identity and EKS Pod Identity) producing two edges, and five deliberate non-producers covering the missing-Vault-hop, ghost-bound-role, wildcard-trust, wildcard-Vault-selector, and Deny branches, so the expected set proves both Vault authentication and restraint",
+		Detail: "thirty-nine facts for the direct-materialization authenticates_vault_role family: two exact chains with Vault hops across both identity mechanisms (IRSA web-identity and EKS Pod Identity) producing two edges, five deliberate non-producers covering the missing-Vault-hop, ghost-bound-role, wildcard-trust, wildcard-Vault-selector, and Deny branches, and four endpoint observations (pod templates for the exact lanes' workloads and aws_resource facts for the exact lanes' IAM roles) so the live projection's endpoint-readiness gate finds the cross-scope endpoints no other scope commits, so the expected set proves both Vault authentication and restraint",
 	}
 }

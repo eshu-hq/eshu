@@ -174,7 +174,11 @@ type SecretsIAMTrustChainWriter interface {
 type SecretsIAMTrustChainHandler struct {
 	EvidenceLoader SecretsIAMTrustChainEvidenceLoader
 	Writer         SecretsIAMTrustChainWriter
-	Instruments    *telemetry.Instruments
+	// GraphProjectionFollowUp enqueues the graph-projection follow-up intent
+	// once this handler's read-model writes commit. Nil skips the enqueue:
+	// without a registered projection domain the row would sit unclaimed.
+	GraphProjectionFollowUp GraphProjectionFollowUpWriter
+	Instruments             *telemetry.Instruments
 }
 
 // Handle executes one secrets/IAM reducer intent.
@@ -220,6 +224,20 @@ func (h SecretsIAMTrustChainHandler) Handle(ctx context.Context, intent reducerc
 	})
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("write secrets/IAM trust-chain read models: %w", err)
+	}
+	// The graph-projection intent exists only from here: the projection
+	// handler loads the read models this write just committed, and no other
+	// producer enqueues it. Enqueueing before the write would let the
+	// projection claim an empty generation, succeed vacuously, and never
+	// re-run. A failed enqueue fails the intent so the queue retries it;
+	// the row's work_item_id is stable per scope generation, so a retry
+	// collapses onto the same row instead of duplicating handler work.
+	if h.GraphProjectionFollowUp != nil {
+		if err := h.GraphProjectionFollowUp.EnqueueGraphProjectionFollowUp(
+			ctx, intent.ScopeID, intent.GenerationID, intent.SourceSystem,
+		); err != nil {
+			return reducercontract.Result{}, fmt.Errorf("enqueue secrets/IAM graph projection follow-up: %w", err)
+		}
 	}
 	h.emitCounters(ctx, models)
 	return reducercontract.Result{

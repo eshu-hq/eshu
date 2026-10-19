@@ -41,8 +41,17 @@ import (
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/secretsiam"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
+
+// SecretsIAMGraphProjectionFollowUpWriter is the root spelling of
+// [secretsiam.GraphProjectionFollowUpWriter]: it enqueues the graph-projection
+// follow-up intent after trust-chain read models commit (#6228). The reducer
+// command constructs it and DefaultHandlers declares it; delete this alias
+// once those callers name [secretsiam] directly. It was never part of the
+// #6626 tail bucket 1 retirement set.
+type SecretsIAMGraphProjectionFollowUpWriter = secretsiam.GraphProjectionFollowUpWriter
 
 // Stanza: value_flow_compat.go (merged; do not recreate this file).
 // This file is the transitional compatibility surface for the value-flow

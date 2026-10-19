@@ -13,6 +13,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/secretsiam"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/iam"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // secretsIAMGraphProjectionEnabledEnv opts the reducer into live secrets/IAM
@@ -37,6 +39,21 @@ func secretsIAMGraphProjectionEnabled(getenv func(string) string) (bool, error) 
 		return false, fmt.Errorf("parse %s=%q: %w", secretsIAMGraphProjectionEnabledEnv, raw, err)
 	}
 	return enabled, nil
+}
+
+// secretsIAMGraphProjectionFollowUpWriter returns the graph-projection
+// follow-up writer when the live graph writer is present (the same opt-in
+// flag), or nil when it is not. A nil follow-up keeps the trust-chain
+// handler from enqueueing a projection intent no registered domain would
+// claim, which would sit pending and hold the drain open forever.
+func secretsIAMGraphProjectionFollowUpWriter(
+	database db.ExecQueryer,
+	secretsIAMGraphWriter secretsiam.SecretsIAMGraphWriter,
+) reducer.SecretsIAMGraphProjectionFollowUpWriter {
+	if secretsIAMGraphWriter == nil {
+		return nil
+	}
+	return postgres.NewSecretsIAMGraphProjectionFollowUpWriter(database)
 }
 
 // secretsIAMGraphProjectionWriter returns the live graph writer when the

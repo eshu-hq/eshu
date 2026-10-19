@@ -22,8 +22,8 @@ import "testing"
 func TestUsesVaultPolicyFamilyOduStableKeysAreUnique(t *testing.T) {
 	t.Parallel()
 	odu := UsesVaultPolicyFamilyOdu().Odu
-	if len(odu.Facts) != 35 {
-		t.Fatalf("uses_vault_policy Odù carries %d facts, want 35 (two exact lanes plus five non-producing controls)", len(odu.Facts))
+	if len(odu.Facts) != 39 {
+		t.Fatalf("uses_vault_policy Odù carries %d facts, want 39 (two exact lanes plus five non-producing controls plus four endpoint observations)", len(odu.Facts))
 	}
 	seen := make(map[string]string, len(odu.Facts))
 	for _, env := range odu.Facts {

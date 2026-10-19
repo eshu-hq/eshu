@@ -188,8 +188,9 @@ ifa_authenticates_vault_role_wait_for_read_models() {
 # stage to committed read models and then STOPS its reducer: the stage is
 # scoped to secrets_iam_trust_chain so it can never claim the projection
 # row early, and stopping it before the lock frees its workers. The flag is
-# on for this reducer because the projection domain must be registered for
-# its intent to exist -- but this reducer never claims it.
+# on for this reducer so the follow-up writer is wired and the trust-chain
+# handler enqueues the projection intent as its read models commit -- but
+# this reducer never claims that row.
 ifa_authenticates_vault_role_run_trust_chain_stage() {
 	local cell="$1"
 	local trust_reducer_pid
@@ -255,20 +256,23 @@ cell_killworker_authenticates_vault_role() {
 		|| die "kill-worker-after-claim-authenticates-vault-role: eshu-ifa drive (authenticates-vault-role family) failed"
 	local projector_pid reducer_pid_before reducer_pid_after lock_holder_pid claimed_before
 	ifa_det_start_bg "${log_dir}" "projector-killworkerauthenticatesvaultrole" projector_pid "${bin_dir}/eshu-projector"
-	# The projection intent is created by the projector, not ingestion. Wait
-	# for the row to exist (any status) before going further: without it
-	# there is nothing to hold in flight and nothing to kill.
-	ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
-		"${CLAIMED_ROW_WAIT_TIMEOUT}" "secrets_iam_graph_projection" 1 >/dev/null \
-		|| die "kill-worker-after-claim-authenticates-vault-role: secrets_iam_graph_projection was never enqueued by the projector"
 	# Read models BEFORE the lock -- the shape that distinguishes this
 	# family from every single-stage direct family. The projection handler
 	# loads reducer-owned read-model facts; locking first would let it claim
 	# an empty generation, succeed vacuously, and never re-run. The
-	# trust-chain-scoped reducer (flag on, so the projection intent exists)
+	# trust-chain-scoped reducer (flag on, so the follow-up writer is wired)
 	# can never claim the projection row early; it is stopped once the read
 	# models commit.
 	ifa_authenticates_vault_role_run_trust_chain_stage "killworkerauthenticatesvaultrole"
+	# The projection intent is created by the trust-chain handler when its
+	# read-model writes commit -- not by ingestion and not by the projector,
+	# which fans out only the trust-chain intent. Wait for the row to exist
+	# (any status) AFTER the trust-chain stage: waiting before it would time
+	# out on a row that cannot exist yet. Without the row there is nothing
+	# to hold in flight and nothing to kill.
+	ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
+		"${CLAIMED_ROW_WAIT_TIMEOUT}" "secrets_iam_graph_projection" 1 >/dev/null \
+		|| die "kill-worker-after-claim-authenticates-vault-role: secrets_iam_graph_projection was never enqueued by the trust-chain stage"
 	ifa_authenticates_vault_role_start_fact_records_lock "killworkerauthenticatesvaultrole" lock_holder_pid \
 		|| die "kill-worker-after-claim-authenticates-vault-role: could not acquire the deterministic fact_records read blocker"
 	# Scoped to secrets_iam_graph_projection only: with the lock already

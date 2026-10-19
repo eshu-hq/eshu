@@ -171,6 +171,7 @@ s3_logs_to_cassette="${repo_root}/testdata/cassettes/s3logsto/ifa-s3-logs-to-fam
 s3_logs_to_expected_edges="${repo_root}/go/internal/ifa/testdata/s3logsto/ifa-s3-logs-to-family-expected-edges.json"
 authenticates_vault_role_cassette="${repo_root}/testdata/cassettes/authenticatesvaultrole/ifa-authenticates-vault-role-family.json"
 authenticates_vault_role_expected_edges="${repo_root}/go/internal/ifa/testdata/authenticatesvaultrole/ifa-authenticates-vault-role-family-expected-edges.json"
+authenticates_vault_role_live_expected_edges="${repo_root}/go/internal/ifa/testdata/authenticatesvaultrole/ifa-authenticates-vault-role-family-expected-edges-live.json"
 uses_vault_policy_cassette="${repo_root}/testdata/cassettes/usesvaultpolicy/ifa-uses-vault-policy-family.json"
 uses_vault_policy_expected_edges="${repo_root}/go/internal/ifa/testdata/usesvaultpolicy/ifa-uses-vault-policy-family-expected-edges.json"
 kubernetes_correlation_cassette="${repo_root}/testdata/cassettes/kubernetescorrelation/ifa-kubernetes-correlation-family.json"
