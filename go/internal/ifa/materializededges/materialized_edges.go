@@ -248,6 +248,12 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 		return resolveS3LogsToMaterializedEdges(odu, s3LogsToExpectedEdgesPath(r.RepoRoot))
 	case kubernetesCorrelationFamily:
 		return resolveKubernetesCorrelationMaterializedEdges(odu, kubernetesCorrelationExpectedEdgesPath(r.RepoRoot))
+	case codeTaintEvidenceFamily:
+		return resolveCodeTaintEvidenceMaterializedEdges(odu, codeTaintEvidenceExpectedEdgesPath(r.RepoRoot))
+	case observabilityCoverageFamily:
+		return resolveObservabilityCoverageMaterializedEdges(odu, observabilityCoverageExpectedEdgesPath(r.RepoRoot))
+	case codeInterprocEvidenceFamily:
+		return resolveCodeInterprocEvidenceMaterializedEdges(odu, codeInterprocEvidenceExpectedEdgesPath(r.RepoRoot))
 	case semanticEntityContainmentFamily:
 		return resolveSemanticEntityContainmentMaterializedEdges(odu, semanticEntityContainmentExpectedEdgesPath(r.RepoRoot))
 	case cloudResourceFamily:

@@ -458,4 +458,29 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		RetractCypher:  crossplane.RetractSatisfiedByEdgesCypher,
 		IdentityCypher: crossplane.SatisfiedByEdgeUpsertCypher,
 	},
+	// code_interproc_evidence follows the same static-token shape as
+	// iam_can_perform: CodeInterprocEvidenceUpsertCypher bakes the static
+	// TAINT_FLOWS_TO token directly into the MERGE, so TAINT_FLOWS_TO is the
+	// only type this writer can emit. Unlike its endpoint-only siblings the
+	// MERGE keys on evidence_uid besides the two endpoint Function nodes
+	// (the edge is keyed on its evidence uid so a re-projection is
+	// idempotent and distinct flows between the same pair stay separate),
+	// so IdentityProperties declares it and the identity drift guard
+	// extracts the same property map out of the held write template.
+	// codeInterprocEvidenceRelType (string(edgetype.TaintFlowsTo)) is the
+	// const the writer stamps beside the query; the type is read off the
+	// template's MERGE, never derived from the port or family name.
+	"code_interproc_evidence": {
+		EdgeTypes:     map[string]string{"TAINT_FLOWS_TO": "cross-function value-flow finding edge (CodeInterprocEvidenceUpsertCypher)"},
+		RetractCypher: sourcecypher.RetractCodeInterprocEvidenceCypher,
+		RetractVariants: []string{
+			sourcecypher.RetractCodeInterprocEvidenceSourceCypher,
+			sourcecypher.RetractStaleCodeInterprocEvidenceCypher,
+			sourcecypher.RetractCodeInterprocEvidenceByUIDsCypher,
+			sourcecypher.RetractCodeInterprocEvidenceSourceByUIDsCypher,
+			sourcecypher.RetractStaleCodeInterprocEvidenceByUIDsCypher,
+		},
+		IdentityCypher:     sourcecypher.CodeInterprocEvidenceUpsertCypher,
+		IdentityProperties: []string{"evidence_uid"},
+	},
 }

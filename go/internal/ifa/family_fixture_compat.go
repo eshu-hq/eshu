@@ -32,6 +32,8 @@ const (
 	PublishesFamilyOduName                      = familyodu.PublishesFamilyOduName
 	CloudResourceContainerImageFamilyOduName    = familyodu.CloudResourceContainerImageFamilyOduName
 	CrossplaneSatisfiedByFamilyOduName          = familyodu.CrossplaneSatisfiedByFamilyOduName
+	CodeInterprocEvidenceFamilyOduName          = familyodu.CodeInterprocEvidenceFamilyOduName
+	CodeTaintEvidenceFamilyOduName              = familyodu.CodeTaintEvidenceFamilyOduName
 	ContentEntityFactKind                       = familyodu.ContentEntityFactKind
 	ContentFactKind                             = familyodu.ContentFactKind
 	DeployableUnitFamilyOduName                 = familyodu.DeployableUnitFamilyOduName
@@ -44,6 +46,7 @@ const (
 	IAMEscalationFamilyOduName                  = familyodu.IAMEscalationFamilyOduName
 	IAMInstanceProfileRoleFamilyOduName         = familyodu.IAMInstanceProfileRoleFamilyOduName
 	InheritanceFamilyOduName                    = familyodu.InheritanceFamilyOduName
+	ObservabilityCoverageFamilyOduName          = familyodu.ObservabilityCoverageFamilyOduName
 	KubernetesCorrelationFamilyOduName          = familyodu.KubernetesCorrelationFamilyOduName
 	KubernetesNamespaceEnvironmentFamilyOduName = familyodu.KubernetesNamespaceEnvironmentFamilyOduName
 	RationaleFamilyOduName                      = familyodu.RationaleFamilyOduName
@@ -199,6 +202,18 @@ func S3ExternalPrincipalGrantFamilyOdu() CatalogOdu {
 func SecurityGroupReachabilityFamilyOdu() CatalogOdu {
 	return familyodu.SecurityGroupReachabilityFamilyOdu()
 }
+
+// CodeTaintEvidenceFamilyOdu returns the cataloged code-taint-evidence
+// family Odù.
+func CodeTaintEvidenceFamilyOdu() CatalogOdu { return familyodu.CodeTaintEvidenceFamilyOdu() }
+
+// CodeInterprocEvidenceFamilyOdu returns the cataloged
+// code-interproc-evidence family Odù.
+func CodeInterprocEvidenceFamilyOdu() CatalogOdu { return familyodu.CodeInterprocEvidenceFamilyOdu() }
+
+// ObservabilityCoverageFamilyOdu returns the cataloged
+// observability-coverage family Odù.
+func ObservabilityCoverageFamilyOdu() CatalogOdu { return familyodu.ObservabilityCoverageFamilyOdu() }
 
 // KubernetesCorrelationFamilyOdu returns the cataloged Kubernetes
 // correlation family Odù.

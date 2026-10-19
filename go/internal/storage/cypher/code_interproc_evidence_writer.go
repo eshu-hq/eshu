@@ -81,6 +81,32 @@ DELETE rel`
 
 const codeInterprocEvidenceRetractUIDBatchSize = 500
 
+// Registry-contract holders for the #6228 materialized-edge retract registry
+// (docs/internal/design/6228-materialized-edge-retract-registry-contract.md).
+// The registry in go/internal/storage/cypher/edge/materialized must hold the
+// production consts themselves, never a copy of their text, so these aliases
+// export every production write and retract variant this writer owns. Adding a
+// variant here without registering it there must turn the registry drift guard
+// red, not silently narrow what the family reaps.
+const (
+	// CodeInterprocEvidenceUpsertCypher is the production write template.
+	CodeInterprocEvidenceUpsertCypher = codeInterprocEvidenceUpsertCypher
+	// RetractCodeInterprocEvidenceCypher is the production full-scope retract.
+	RetractCodeInterprocEvidenceCypher = retractCodeInterprocEvidenceCypher
+	// RetractCodeInterprocEvidenceSourceCypher is the production
+	// evidence-source retract used by global fixpoint projection.
+	RetractCodeInterprocEvidenceSourceCypher = retractCodeInterprocEvidenceSourceCypher
+	// RetractStaleCodeInterprocEvidenceCypher is the production stale-generation retract.
+	RetractStaleCodeInterprocEvidenceCypher = retractStaleCodeInterprocEvidenceCypher
+	// RetractCodeInterprocEvidenceByUIDsCypher is the ledger-anchored full-scope retract.
+	RetractCodeInterprocEvidenceByUIDsCypher = retractCodeInterprocEvidenceByUIDsCypher
+	// RetractCodeInterprocEvidenceSourceByUIDsCypher is the ledger-anchored
+	// evidence-source retract.
+	RetractCodeInterprocEvidenceSourceByUIDsCypher = retractCodeInterprocEvidenceSourceByUIDsCypher
+	// RetractStaleCodeInterprocEvidenceByUIDsCypher is the ledger-anchored stale-generation retract.
+	RetractStaleCodeInterprocEvidenceByUIDsCypher = retractStaleCodeInterprocEvidenceByUIDsCypher
+)
+
 // CodeInterprocEvidenceWriter materializes reducer-owned cross-function taint
 // evidence as TAINT_FLOWS_TO edges between Function nodes.
 type CodeInterprocEvidenceWriter struct {

@@ -1,0 +1,87 @@
+{
+  "collector": "git",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "repo:eshu-fixture-code-taint-evidence",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "repo:eshu-fixture-code-taint-evidence",
+      "metadata": {
+        "fixture": "ifa-code-taint-evidence-family"
+      },
+      "generation_id": "gen-ifa-code-taint-evidence-family-1",
+      "observed_at": "2026-09-28T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "code_taint_evidence",
+          "stable_fact_key": "git:code_taint_evidence:func:payments:handlePayment:12:18:sql_exec:http_request:orderID",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "function_uid": "func:payments:handlePayment",
+            "relative_path": "src/payments/handler.go",
+            "function_name": "handlePayment",
+            "language": "go",
+            "kind": "sql_injection",
+            "sink_kind": "sql_exec",
+            "source_kind": "http_request",
+            "binding": "orderID",
+            "source_line": 12,
+            "sink_line": 18,
+            "confidence": 0.92
+          }
+        },
+        {
+          "fact_kind": "code_taint_evidence",
+          "stable_fact_key": "git:code_taint_evidence:func:payments:refundPayment:31:40:command_exec:queue_message:payload",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "function_uid": "func:payments:refundPayment",
+            "relative_path": "src/payments/refund.go",
+            "function_name": "refundPayment",
+            "language": "go",
+            "kind": "command_injection",
+            "sink_kind": "command_exec",
+            "source_kind": "queue_message",
+            "binding": "payload",
+            "source_line": 31,
+            "sink_line": 40,
+            "confidence": 0.87
+          }
+        },
+        {
+          "fact_kind": "code_taint_evidence",
+          "stable_fact_key": "git:code_taint_evidence:func:payments:voidPayment:7:9:html_sink:http_request:comment",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": true,
+          "payload": {
+            "function_uid": "func:payments:voidPayment",
+            "relative_path": "src/payments/void.go",
+            "function_name": "voidPayment",
+            "language": "go",
+            "kind": "cross_site_scripting",
+            "sink_kind": "html_sink",
+            "source_kind": "http_request",
+            "binding": "comment",
+            "source_line": 7,
+            "sink_line": 9,
+            "confidence": 0.71
+          }
+        }
+      ]
+    }
+  ]
+}
