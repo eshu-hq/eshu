@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package group
 
 import (
 	"bytes"
@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
@@ -21,21 +22,21 @@ func TestExecuteProfiledStatementGroupLogsStatementMetadata(t *testing.T) {
 
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&logs, nil))
-	stmts := []Statement{{
-		Operation: OperationCanonicalUpsert,
+	stmts := []sourcecypher.Statement{{
+		Operation: sourcecypher.OperationCanonicalUpsert,
 		Cypher:    "UNWIND $rows AS row MERGE (n:Function {uid: row.entity_id})",
 		Parameters: map[string]any{
 			"rows": []map[string]any{
 				{"entity_id": "function-1"},
 				{"entity_id": "function-2"},
 			},
-			StatementMetadataPhaseKey:       CanonicalPhaseEntities,
-			StatementMetadataEntityLabelKey: "Function",
-			StatementMetadataSummaryKey:     "label=Function rows=2",
+			sourcecypher.StatementMetadataPhaseKey:       sourcecypher.CanonicalPhaseEntities,
+			sourcecypher.StatementMetadataEntityLabelKey: "Function",
+			sourcecypher.StatementMetadataSummaryKey:     "label=Function rows=2",
 		},
 	}}
 
-	err := ExecuteProfiledStatementGroup(context.Background(), stmts, func(context.Context, Statement) error {
+	err := ExecuteProfiledStatementGroup(context.Background(), stmts, func(context.Context, sourcecypher.Statement) error {
 		return nil
 	}, true, logger)
 	if err != nil {
@@ -64,12 +65,12 @@ func TestExecuteProfiledStatementGroupStopsOnFirstError(t *testing.T) {
 
 	runErr := errors.New("neo4j statement failed")
 	var calls int
-	stmts := []Statement{
-		{Operation: OperationCanonicalUpsert, Cypher: "RETURN 1"},
-		{Operation: OperationCanonicalUpsert, Cypher: "RETURN 2"},
+	stmts := []sourcecypher.Statement{
+		{Operation: sourcecypher.OperationCanonicalUpsert, Cypher: "RETURN 1"},
+		{Operation: sourcecypher.OperationCanonicalUpsert, Cypher: "RETURN 2"},
 	}
 
-	err := ExecuteProfiledStatementGroup(context.Background(), stmts, func(context.Context, Statement) error {
+	err := ExecuteProfiledStatementGroup(context.Background(), stmts, func(context.Context, sourcecypher.Statement) error {
 		calls++
 		return runErr
 	}, false, nil)
@@ -95,7 +96,7 @@ func TestCanonicalFileStatementProfileUsesClosedTemplateIDs(t *testing.T) {
 		{node.RootFileFirstGenerationMergeCypher, "file.root.first_generation"},
 	}
 	for _, tc := range cases {
-		stmt := Statement{Cypher: tc.cypher, Parameters: map[string]any{
+		stmt := sourcecypher.Statement{Cypher: tc.cypher, Parameters: map[string]any{
 			"rows": []map[string]any{{"path": "/sensitive/source.go"}},
 		}}
 		id, rows, ok := CanonicalFileStatementProfile(stmt)
@@ -103,18 +104,22 @@ func TestCanonicalFileStatementProfileUsesClosedTemplateIDs(t *testing.T) {
 			t.Fatalf("profile = (%q, %d, %t), want (%q, 1, true)", id, rows, ok, tc.want)
 		}
 	}
-	if id, rows, ok := CanonicalFileStatementProfile(Statement{Cypher: "MATCH (f:File) RETURN f"}); ok || id != "" || rows != 0 {
+	if id, rows, ok := CanonicalFileStatementProfile(sourcecypher.Statement{Cypher: "MATCH (f:File) RETURN f"}); ok || id != "" || rows != 0 {
 		t.Fatalf("unknown query classified: (%q, %d, %t)", id, rows, ok)
 	}
 }
 
 // TestCanonicalFileWriterStatementsAllHaveProfiles protects the diagnostic
-// allowlist against new File templates emitted by the production builder.
+// allowlist against new File templates emitted by the production builder:
+// every files-phase statement the writer emits for a file materialization
+// must classify. It runs the public Write path and filters to the files
+// phase (the unexported buildFileStatements helper is no longer reachable
+// across the package split).
 func TestCanonicalFileWriterStatementsAllHaveProfiles(t *testing.T) {
 	t.Parallel()
-	writer := NewCanonicalNodeWriter(&mockExecutor{}, 100, nil)
 	mat := canonical.CanonicalMaterialization{
 		ScopeID: "scope", GenerationID: "generation", RepoID: "repo",
+		Repository: &canonical.RepositoryRow{RepoID: "repo", Name: "repo", Path: "/repo", LocalPath: "/repo"},
 		Files: []canonical.FileRow{
 			{RepoID: "repo", Path: "/repo/root.go", RelativePath: "root.go", Name: "root.go"},
 			{RepoID: "repo", Path: "/repo/dir/nested.go", RelativePath: "dir/nested.go", DirPath: "/repo/dir", Name: "nested.go"},
@@ -130,15 +135,37 @@ func TestCanonicalFileWriterStatementsAllHaveProfiles(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			mat.FirstGeneration = tc.firstGeneration
-			stmts := writer.buildFileStatements(mat)
-			if len(stmts) != tc.wantStatements {
-				t.Fatalf("File statements = %d, want %d", len(stmts), tc.wantStatements)
+			exec := &profileRecordingExecutor{}
+			writer := sourcecypher.NewCanonicalNodeWriter(exec, 100, nil)
+			if err := writer.Write(context.Background(), mat); err != nil {
+				t.Fatalf("Write() error = %v", err)
 			}
-			for _, stmt := range stmts {
+			var fileStmts []sourcecypher.Statement
+			for _, stmt := range exec.statements {
+				phase, _ := stmt.Parameters[sourcecypher.StatementMetadataPhaseKey].(string)
+				if phase == sourcecypher.CanonicalPhaseFiles {
+					fileStmts = append(fileStmts, stmt)
+				}
+			}
+			if len(fileStmts) != tc.wantStatements {
+				t.Fatalf("File statements = %d, want %d", len(fileStmts), tc.wantStatements)
+			}
+			for _, stmt := range fileStmts {
 				if id, rows, ok := CanonicalFileStatementProfile(stmt); !ok || id == "" || rows != 1 {
 					t.Fatalf("File statement lacks diagnostic profile: id=%q rows=%d ok=%t", id, rows, ok)
 				}
 			}
 		})
 	}
+}
+
+// profileRecordingExecutor records every statement the writer executes so
+// profile tests can filter the public Write path down to one phase.
+type profileRecordingExecutor struct {
+	statements []sourcecypher.Statement
+}
+
+func (e *profileRecordingExecutor) Execute(_ context.Context, stmt sourcecypher.Statement) error {
+	e.statements = append(e.statements, stmt)
+	return nil
 }

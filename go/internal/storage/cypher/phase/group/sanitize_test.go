@@ -1,24 +1,26 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package group
 
 import (
 	"reflect"
 	"testing"
+
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 func TestSanitizeStatementParametersStripsDiagnosticKeys(t *testing.T) {
 	params := map[string]any{
-		"repo_id":                   "r1",
-		"generation_id":             "g2",
-		"directory_paths":           []string{"/a", "/b"},
-		StatementMetadataPhaseKey:   "retract",
-		StatementMetadataSummaryKey: "phase=retract",
+		"repo_id":                                "r1",
+		"generation_id":                          "g2",
+		"directory_paths":                        []string{"/a", "/b"},
+		sourcecypher.StatementMetadataPhaseKey:   "retract",
+		sourcecypher.StatementMetadataSummaryKey: "phase=retract",
 	}
 	got := SanitizeStatementParameters(params)
 
-	for _, key := range []string{StatementMetadataPhaseKey, StatementMetadataSummaryKey} {
+	for _, key := range []string{sourcecypher.StatementMetadataPhaseKey, sourcecypher.StatementMetadataSummaryKey} {
 		if _, ok := got[key]; ok {
 			t.Errorf("diagnostic key %q must be stripped, but it survived", key)
 		}
@@ -29,7 +31,7 @@ func TestSanitizeStatementParametersStripsDiagnosticKeys(t *testing.T) {
 		}
 	}
 	// The input map must not be mutated when diagnostics are present.
-	if _, ok := params[StatementMetadataPhaseKey]; !ok {
+	if _, ok := params[sourcecypher.StatementMetadataPhaseKey]; !ok {
 		t.Error("input map was mutated: SanitizeStatementParameters must copy, not edit in place")
 	}
 }
@@ -57,44 +59,44 @@ func TestSanitizeStatementParametersNoDiagnosticsReturnsInput(t *testing.T) {
 }
 
 func TestSanitizeStatementAndStatements(t *testing.T) {
-	stmt := Statement{
-		Operation: OperationCanonicalRetract,
+	stmt := sourcecypher.Statement{
+		Operation: sourcecypher.OperationCanonicalRetract,
 		Cypher:    "MATCH (n) DETACH DELETE n",
 		Parameters: map[string]any{
-			"repo_id":                 "r1",
-			StatementMetadataPhaseKey: "retract",
+			"repo_id":                              "r1",
+			sourcecypher.StatementMetadataPhaseKey: "retract",
 		},
 	}
 	got := SanitizeStatement(stmt)
 	if got.Cypher != stmt.Cypher || got.Operation != stmt.Operation {
 		t.Error("SanitizeStatement must preserve Cypher and Operation")
 	}
-	if _, ok := got.Parameters[StatementMetadataPhaseKey]; ok {
+	if _, ok := got.Parameters[sourcecypher.StatementMetadataPhaseKey]; ok {
 		t.Error("SanitizeStatement must strip diagnostic params")
 	}
 
-	batch := SanitizeStatements([]Statement{stmt, stmt})
+	batch := SanitizeStatements([]sourcecypher.Statement{stmt, stmt})
 	if len(batch) != 2 {
 		t.Fatalf("SanitizeStatements must preserve length, got %d", len(batch))
 	}
 	for i, s := range batch {
-		if _, ok := s.Parameters[StatementMetadataPhaseKey]; ok {
+		if _, ok := s.Parameters[sourcecypher.StatementMetadataPhaseKey]; ok {
 			t.Errorf("SanitizeStatements[%d] left a diagnostic param", i)
 		}
 	}
 }
 
 func TestStatementsAllUseOperation(t *testing.T) {
-	retract := Statement{Operation: OperationCanonicalRetract}
-	upsert := Statement{Operation: OperationCanonicalUpsert}
+	retract := sourcecypher.Statement{Operation: sourcecypher.OperationCanonicalRetract}
+	upsert := sourcecypher.Statement{Operation: sourcecypher.OperationCanonicalUpsert}
 
-	if !StatementsAllUseOperation([]Statement{retract, retract}, OperationCanonicalRetract) {
+	if !StatementsAllUseOperation([]sourcecypher.Statement{retract, retract}, sourcecypher.OperationCanonicalRetract) {
 		t.Error("all-retract slice must report true")
 	}
-	if StatementsAllUseOperation([]Statement{retract, upsert}, OperationCanonicalRetract) {
+	if StatementsAllUseOperation([]sourcecypher.Statement{retract, upsert}, sourcecypher.OperationCanonicalRetract) {
 		t.Error("mixed slice must report false")
 	}
-	if StatementsAllUseOperation(nil, OperationCanonicalRetract) {
+	if StatementsAllUseOperation(nil, sourcecypher.OperationCanonicalRetract) {
 		t.Error("empty slice must report false")
 	}
 }

@@ -31,8 +31,30 @@ func TestBuildDeployableUnitCorrelationIncidentReposProbeShape(t *testing.T) {
 			t.Fatalf("probe Cypher missing %q:\n%s", fragment, stmt.Cypher)
 		}
 	}
-	assertNoForbiddenPatterns(t, "gap probe", stmt.Cypher)
+	assertNoForbiddenRelationshipPatterns(t, "gap probe", stmt.Cypher)
 	if got, ok := stmt.Parameters["repo_ids"].([]string); !ok || !reflect.DeepEqual(got, []string{"repo-a"}) {
 		t.Fatalf("probe repo_ids = %#v, want [repo-a]", stmt.Parameters["repo_ids"])
+	}
+}
+
+// forbiddenRelationshipPatterns are the relationship-existence predicate
+// shapes proven mis-evaluated on both pinned NornicDB backends (#5147). It
+// duplicates forbiddenOrphanSweepPatterns in the sweep/orphan leaf
+// (sweep/orphan/sweep_test.go): test helpers cannot be imported
+// across the package split, so each side carries its own copy. Keep the
+// copies behavior-identical.
+var forbiddenRelationshipPatterns = []string{
+	")--(",
+	"NOT (",
+	"COUNT {",
+	"EXISTS {",
+}
+
+func assertNoForbiddenRelationshipPatterns(t *testing.T, name, cypher string) {
+	t.Helper()
+	for _, forbidden := range forbiddenRelationshipPatterns {
+		if strings.Contains(cypher, forbidden) {
+			t.Fatalf("%s Cypher must not contain forbidden relationship-existence pattern %q:\n%s", name, forbidden, cypher)
+		}
 	}
 }

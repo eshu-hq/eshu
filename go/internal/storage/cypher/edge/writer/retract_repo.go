@@ -9,6 +9,7 @@ import (
 	"time"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	phasegroup "github.com/eshu-hq/eshu/go/internal/storage/cypher/phase/group"
 
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -175,7 +176,7 @@ func (w *EdgeWriter) executeRepoDependencyRetractStatementsSequential(
 ) error {
 	for _, item := range items {
 		start := time.Now()
-		if err := w.executor.Execute(ctx, sourcecypher.SanitizeStatement(item.Stmt)); err != nil {
+		if err := w.executor.Execute(ctx, phasegroup.SanitizeStatement(item.Stmt)); err != nil {
 			return sourcecypher.WrapRetryableNeo4jError(fmt.Errorf("repo dependency retract %s: %w", item.role, err))
 		}
 		w.logSharedEdgeRetractStatement(

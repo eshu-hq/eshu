@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package orphan
 
 import (
 	"fmt"
 	"strings"
+
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // This file holds the three key-anchored orphan-sweep writes (S3 clear, S4
-// mark, S5 sweep). Each takes the exact key list orphan_sweep.go computed
+// mark, S5 sweep). Each takes the exact key list store.go computed
 // from the S1/S2 anti-join and applies via UNWIND $keys AS candidate_key
 // MATCH (n:Label {key: candidate_key}) -- never a relationship-existence
 // predicate or dynamic label. S5 uses plain DELETE except for
@@ -36,14 +38,14 @@ func buildKeyAnchoredOrphanStatement(
 	extraWhere []string,
 	mutation string,
 	parameters map[string]any,
-) (Statement, bool) {
+) (sourcecypher.Statement, bool) {
 	match, ok := orphanLabelMatch(label)
 	if !ok {
-		return Statement{}, false
+		return sourcecypher.Statement{}, false
 	}
 	properties, ok := orphanSweepIdentityProperties(label)
 	if !ok {
-		return Statement{}, false
+		return sourcecypher.Statement{}, false
 	}
 
 	params := map[string]any{}
@@ -65,8 +67,8 @@ func buildKeyAnchoredOrphanStatement(
 	}
 	where = append(where, extraWhere...)
 
-	return Statement{
-		Operation: OperationCanonicalRetract,
+	return sourcecypher.Statement{
+		Operation: sourcecypher.OperationCanonicalRetract,
 		Cypher: fmt.Sprintf(`UNWIND $keys AS candidate_key
 MATCH (n:%s {%s: %s})
 WHERE %s
@@ -78,7 +80,7 @@ WHERE %s
 // BuildClearOrphanMarkerStatement builds the S3 write: clears the orphan
 // marker from every supplied key. Callers must only pass keys already known
 // to be both marked and currently connected (marked ∩ connected).
-func BuildClearOrphanMarkerStatement(label OrphanSweepLabel, keys []orphanSweepKey) (Statement, bool) {
+func BuildClearOrphanMarkerStatement(label OrphanSweepLabel, keys []orphanSweepKey) (sourcecypher.Statement, bool) {
 	return buildKeyAnchoredOrphanStatement(label, keys,
 		[]string{"n.eshu_orphan_observed_at_unix IS NOT NULL"},
 		"REMOVE n.eshu_orphan_observed_at_unix",
@@ -89,7 +91,7 @@ func BuildClearOrphanMarkerStatement(label OrphanSweepLabel, keys []orphanSweepK
 // marker on every supplied key. Callers must only pass keys already known to
 // be both orphaned and currently unmarked (orphans ∩ unmarked), bounded
 // to the policy batch limit.
-func BuildMarkOrphanNodesStatement(label OrphanSweepLabel, keys []orphanSweepKey, observedAtUnix int64) (Statement, bool) {
+func BuildMarkOrphanNodesStatement(label OrphanSweepLabel, keys []orphanSweepKey, observedAtUnix int64) (sourcecypher.Statement, bool) {
 	return buildKeyAnchoredOrphanStatement(label, keys,
 		[]string{"n.eshu_orphan_observed_at_unix IS NULL"},
 		"SET n.eshu_orphan_observed_at_unix = $observed_at_unix",
@@ -112,7 +114,7 @@ func BuildMarkOrphanNodesStatement(label OrphanSweepLabel, keys []orphanSweepKey
 // removed with the artifact, and the idempotent writer MERGEs it back on the
 // next cycle -- the same self-healing window the plain-DELETE labels close
 // by failing instead.
-func BuildSweepOrphanNodesStatement(label OrphanSweepLabel, keys []orphanSweepKey, cutoffUnix int64) (Statement, bool) {
+func BuildSweepOrphanNodesStatement(label OrphanSweepLabel, keys []orphanSweepKey, cutoffUnix int64) (sourcecypher.Statement, bool) {
 	mutation := "DELETE n"
 	if label == OrphanSweepLabelEvidenceArtifact {
 		mutation = "DETACH DELETE n"

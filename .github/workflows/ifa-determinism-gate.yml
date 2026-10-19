@@ -27,7 +27,7 @@ on:
       'go/internal/storage/cypher/edge/materialized/repo_dependency.go', 'go/internal/storage/cypher/canonical_relationships.go', 'go/internal/storage/postgres/migrations/**',
       'go/internal/graphschemacompat/**', 'go/internal/projector/failure/retry.go', 'go/internal/projector/decode/schema_version_admission.go',
       'go/internal/storage/postgres/queue/failure_metadata.go', 'go/internal/storage/postgres/queue/backoff.go', 'go/internal/storage/cypher/writer.go',
-      'go/internal/storage/cypher/phase_group_metadata.go', 'go/internal/storage/cypher/phase_group_sanitize.go', 'go/internal/storage/cypher/statement_chunk.go',
+      'go/internal/storage/cypher/phase_group_metadata.go', 'go/internal/storage/cypher/phase/group/sanitize.go', 'go/internal/storage/cypher/statement_chunk.go',
       'go/internal/storage/cypher/bounded_retract_drain.go', 'go/internal/storage/cypher/reconciliation_drift_metrics.go', 'go/internal/storage/cypher/canonical_node_writer_entities_singleton.go',
       'go/internal/storage/postgres/lock/deferred_maintenance.go', 'go/internal/storage/postgres/relationship_reference_keys.go', 'go/internal/storage/postgres/relationship_store*.go',
       'go/internal/storage/postgres/ingestion_backfill*.go', 'go/internal/storage/postgres/backfill/*.go', 'go/internal/storage/postgres/ingestion_flux_cross_repo_telemetry.go', 'go/internal/relationships/**',

@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/retention"
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/sweep/orphan"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -32,7 +32,7 @@ func TestProductionWiringConsumesCapabilityDefaults(t *testing.T) {
 	assertDefaultWiring(t, []defaultWiringCase{
 		{
 			name:            "graph orphan sweep labels",
-			defaultValue:    orphanSweepLabelStrings(sourcecypher.DefaultOrphanSweepLabels()),
+			defaultValue:    orphanSweepLabelStrings(orphan.DefaultOrphanSweepLabels()),
 			productionValue: graphOrphanSweepCfg.Runner.Policy.Labels,
 		},
 		{
@@ -63,7 +63,7 @@ func assertDefaultWiring(t *testing.T, cases []defaultWiringCase) {
 	}
 }
 
-func orphanSweepLabelStrings(labels []sourcecypher.OrphanSweepLabel) []string {
+func orphanSweepLabelStrings(labels []orphan.OrphanSweepLabel) []string {
 	values := make([]string, 0, len(labels))
 	for _, label := range labels {
 		values = append(values, string(label))

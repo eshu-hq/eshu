@@ -32,7 +32,7 @@ import (
 //     edges with a Repository. Identity is the constants themselves
 //     (whitespace-normalised), not a string allowlist. The one other
 //     Repository delete in the tree is the orphan
-//     sweep (BuildSweepOrphanNodesStatement, orphan_sweep_writes.go): a plain
+//     sweep (BuildSweepOrphanNodesStatement, sweep/orphan/writes.go): a plain
 //     `DELETE n` (not DETACH) of Repository stubs that are disconnected and
 //     not projector-owned (`evidence_source <> 'projector/canonical'`). It
 //     drops no edge and never touches a projected Repository, so contract A

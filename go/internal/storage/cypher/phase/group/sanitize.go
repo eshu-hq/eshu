@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package group
 
-import "strings"
+import (
+	"strings"
+
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+)
 
 // SanitizeStatementParameters returns a copy of params with every diagnostic
 // metadata key (any key prefixed with "_", such as StatementMetadataPhaseKey)
@@ -51,15 +55,15 @@ func SanitizeStatementParameters(params map[string]any) map[string]any {
 // metadata keys via SanitizeStatementParameters. The Cypher and Operation are
 // unchanged. Use it on every statement immediately before handing it to a Bolt
 // driver session.
-func SanitizeStatement(stmt Statement) Statement {
+func SanitizeStatement(stmt sourcecypher.Statement) sourcecypher.Statement {
 	stmt.Parameters = SanitizeStatementParameters(stmt.Parameters)
 	return stmt
 }
 
 // SanitizeStatements returns a new slice in which every statement has been run
 // through SanitizeStatement, preserving order. The input slice is not mutated.
-func SanitizeStatements(stmts []Statement) []Statement {
-	sanitized := make([]Statement, len(stmts))
+func SanitizeStatements(stmts []sourcecypher.Statement) []sourcecypher.Statement {
+	sanitized := make([]sourcecypher.Statement, len(stmts))
 	for i, stmt := range stmts {
 		sanitized[i] = SanitizeStatement(stmt)
 	}
@@ -71,7 +75,7 @@ func SanitizeStatements(stmts []Statement) []Statement {
 // detect an all-retract phase, which must run as sequential auto-commit
 // statements rather than one managed transaction (NornicDB silently drops a
 // grouped multi-statement `DETACH DELETE`).
-func StatementsAllUseOperation(stmts []Statement, operation Operation) bool {
+func StatementsAllUseOperation(stmts []sourcecypher.Statement, operation sourcecypher.Operation) bool {
 	if len(stmts) == 0 {
 		return false
 	}

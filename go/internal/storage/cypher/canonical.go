@@ -251,7 +251,7 @@ DELETE rel`
 // Relationship-Existence Predicate Is Mis-Evaluated"), and it had no
 // production caller -- BuildDeleteOrphanPlatformNodes was referenced only by
 // its own test. Platform orphan cleanup is covered instead by the S1/S2
-// Go-side anti-join in orphan_sweep.go (OrphanSweepLabelPlatform), which
+// Go-side anti-join in sweep/orphan/store.go (OrphanSweepLabelPlatform), which
 // never relies on a relationship-existence predicate. Removed by #5310.
 
 // --- Param structs ---

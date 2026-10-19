@@ -11,6 +11,7 @@ import (
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/sweep/orphan"
 
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -30,7 +31,7 @@ type EdgeWriter struct {
 	// ("Every Relationship-Existence Predicate Is Mis-Evaluated"). Required
 	// for shell-exec retracts (orphan ShellCommand cleanup); nil for a writer
 	// that never routes DomainShellExec retracts.
-	Reader                        sourcecypher.OrphanSweepReader
+	Reader                        orphan.OrphanSweepReader
 	BatchSize                     int
 	CodeCallBatchSize             int
 	CodeCallGroupBatchSize        int

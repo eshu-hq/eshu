@@ -336,7 +336,7 @@ relationship" without binding a concrete relationship variable is wrong:
   evaluates true -- the subquery's count is always reported as 0, so the
   predicate matches every node regardless of actual relationship state.
 
-Eshu's orphan sweep (`go/internal/storage/cypher/orphan_sweep.go`, #5147) was
+Eshu's orphan sweep (`go/internal/storage/cypher/sweep/orphan/store.go`, #5147) was
 built on the first shape and was a silent no-op: the mark and sweep writes
 never matched a true orphan, and the `eshu_dp_graph_orphan_nodes` gauge
 reported a constant 0 regardless of how many disconnected nodes existed. The

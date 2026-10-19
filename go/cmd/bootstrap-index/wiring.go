@@ -25,6 +25,7 @@ import (
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	phasegroup "github.com/eshu-hq/eshu/go/internal/storage/cypher/phase/group"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	linksfreshnessstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
@@ -364,7 +365,7 @@ func (e bootstrapNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []source
 
 	rawCounts, err := session.ExecuteWrite(ctx, func(tx neo4jdriver.ManagedTransaction) (any, error) {
 		counts := make([]sourcecypher.StatementRetractionCounts, 0, len(stmts))
-		err := sourcecypher.ExecuteProfiledStatementGroup(ctx, stmts, func(ctx context.Context, stmt sourcecypher.Statement) error {
+		err := phasegroup.ExecuteProfiledStatementGroup(ctx, stmts, func(ctx context.Context, stmt sourcecypher.Statement) error {
 			result, runErr := tx.Run(ctx, stmt.Cypher, stmt.Parameters)
 			if runErr != nil {
 				return runErr

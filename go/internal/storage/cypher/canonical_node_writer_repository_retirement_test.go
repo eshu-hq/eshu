@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
@@ -96,11 +97,62 @@ type retirementPhaseGroupExecutor struct{ retirementReportingExecutor }
 
 func (e *retirementPhaseGroupExecutor) ExecutePhaseGroup(ctx context.Context, stmts []Statement) error {
 	for _, stmt := range stmts {
-		if err := e.report(ctx, SanitizeStatement(stmt)); err != nil {
+		if err := e.report(ctx, stripRetirementDiagnosticParams(stmt)); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// stripRetirementDiagnosticParams restates the phase/group leaf's
+// SanitizeStatement rule (strip `_`-prefixed diagnostic parameters) for this
+// white-box test: the production Bolt executors strip those keys before
+// reporting write counts, so the phase-group fake does the same. The test
+// cannot import the leaf (the leaf imports this package), so the rule lives
+// here too; keep the two identical.
+func stripRetirementDiagnosticParams(stmt Statement) Statement {
+	sanitized := make(map[string]any, len(stmt.Parameters))
+	for key, value := range stmt.Parameters {
+		if strings.HasPrefix(key, "_") {
+			continue
+		}
+		sanitized[key] = value
+	}
+	stmt.Parameters = sanitized
+	return stmt
+}
+
+// TestStripRetirementDiagnosticParamsMirrorsLeaf pins the white-box fake's
+// stripRetirementDiagnosticParams to the phase/group leaf's
+// SanitizeStatementParameters rule (strip `_`-prefixed diagnostic keys, keep
+// real parameters). The test cannot import the leaf (the leaf imports this
+// package), so a future narrowing or widening of either rule must fail here
+// instead of silently diverging from the production Bolt executors.
+func TestStripRetirementDiagnosticParamsMirrorsLeaf(t *testing.T) {
+	t.Parallel()
+
+	stmt := Statement{Parameters: map[string]any{
+		"repo_id":         "r1",
+		"generation_id":   "g2",
+		"directory_paths": []string{"/a", "/b"},
+		"_phase":          "retract",
+		"_summary":        "phase=retract",
+	}}
+	got := stripRetirementDiagnosticParams(stmt)
+
+	for _, key := range []string{"_phase", "_summary"} {
+		if _, ok := got.Parameters[key]; ok {
+			t.Errorf("diagnostic key %q must be stripped, but it survived", key)
+		}
+	}
+	for _, key := range []string{"repo_id", "generation_id", "directory_paths"} {
+		if _, ok := got.Parameters[key]; !ok {
+			t.Errorf("real Cypher parameter %q must be preserved, but it was dropped", key)
+		}
+	}
+	if got.Cypher != stmt.Cypher || got.Operation != stmt.Operation {
+		t.Error("only Parameters may change; Cypher and Operation must pass through")
+	}
 }
 
 // retirementHarness captures the writer's JSON logs and metrics.

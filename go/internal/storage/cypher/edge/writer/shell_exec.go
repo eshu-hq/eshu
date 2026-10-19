@@ -102,8 +102,9 @@ MATCH (target:ShellCommand {uid: candidate_key})-[r]-(m)
 RETURN DISTINCT target.uid AS key`
 
 // shellCommandConnectedKeysChunkSize bounds how many candidate keys the S2
-// connected-keys read anchors on per round trip. It matches orphan_sweep.go's
-// defaultOrphanSweepConnectedKeysChunkSize because the anchored read scales
+// connected-keys read anchors on per round trip. It matches the sweep/orphan
+// leaf's defaultOrphanSweepConnectedKeysChunkSize (sweep/orphan/store.go)
+// because the anchored read scales
 // super-linearly with key count on the pinned NornicDB backends (#5147).
 const shellCommandConnectedKeysChunkSize = 500
 

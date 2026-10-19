@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package orphan
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // modulePolicy is the single-label sweep policy these tests drive.
@@ -299,7 +301,7 @@ func TestOrphanSweepModuleQueriesCarryBothProperties(t *testing.T) {
 		t.Fatalf("Module S1 $cursor_1 = %#v, want %q", got, want)
 	}
 
-	writes := map[string]Statement{}
+	writes := map[string]sourcecypher.Statement{}
 	s2, ok := BuildConnectedKeysQuery(OrphanSweepLabelModule, keys)
 	if !ok {
 		t.Fatal("BuildConnectedKeysQuery(Module) not ok")

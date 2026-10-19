@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/sweep/orphan"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -112,7 +113,7 @@ func newSharedProjectionEdgeWriter(
 	batchSize int,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
-	reader sourcecypher.OrphanSweepReader,
+	reader orphan.OrphanSweepReader,
 	codeCallBatchSize int,
 	codeCallGroupBatchSize int,
 	inheritanceGroupBatchSize int,

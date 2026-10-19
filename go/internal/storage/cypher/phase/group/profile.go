@@ -1,19 +1,20 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package group
 
 import (
 	"context"
 	"log/slog"
 	"time"
 
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 // StatementRunner executes one Cypher statement inside the caller-owned
 // execution boundary, such as a Neo4j managed transaction.
-type StatementRunner func(context.Context, Statement) error
+type StatementRunner func(context.Context, sourcecypher.Statement) error
 
 // ExecuteProfiledStatementGroup runs statements in order and, when enabled,
 // logs per-statement attempt timing without changing transaction ownership.
@@ -21,7 +22,7 @@ type StatementRunner func(context.Context, Statement) error
 // same statement when the driver retries a transaction callback.
 func ExecuteProfiledStatementGroup(
 	ctx context.Context,
-	stmts []Statement,
+	stmts []sourcecypher.Statement,
 	runner StatementRunner,
 	profile bool,
 	logger *slog.Logger,
@@ -46,7 +47,7 @@ func ExecuteProfiledStatementGroup(
 func logProfiledStatement(
 	ctx context.Context,
 	logger *slog.Logger,
-	stmt Statement,
+	stmt sourcecypher.Statement,
 	index int,
 	total int,
 	duration time.Duration,
@@ -58,16 +59,16 @@ func logProfiledStatement(
 		"duration_s", duration.Seconds(),
 		"operation", string(stmt.Operation),
 	}
-	if phase, ok := stmt.Parameters[StatementMetadataPhaseKey].(string); ok && phase != "" {
+	if phase, ok := stmt.Parameters[sourcecypher.StatementMetadataPhaseKey].(string); ok && phase != "" {
 		attrs = append(attrs, "write_phase", phase)
 	}
-	if label, ok := stmt.Parameters[StatementMetadataEntityLabelKey].(string); ok && label != "" {
+	if label, ok := stmt.Parameters[sourcecypher.StatementMetadataEntityLabelKey].(string); ok && label != "" {
 		attrs = append(attrs, "node_type", label)
 	}
-	if summary, ok := stmt.Parameters[StatementMetadataSummaryKey].(string); ok && summary != "" {
+	if summary, ok := stmt.Parameters[sourcecypher.StatementMetadataSummaryKey].(string); ok && summary != "" {
 		attrs = append(attrs, "statement_summary", summary)
 	}
-	if rowCount, ok := StatementRowsCount(stmt); ok {
+	if rowCount, ok := sourcecypher.StatementRowsCount(stmt); ok {
 		attrs = append(attrs, "row_count", rowCount)
 	}
 	if err != nil {
@@ -81,7 +82,7 @@ func logProfiledStatement(
 // CanonicalFileStatementProfile returns a closed file template ID and row count.
 // Unknown statements are excluded from the opt-in files-phase probe. The query
 // text and row values must never be copied into diagnostic events.
-func CanonicalFileStatementProfile(stmt Statement) (string, int, bool) {
+func CanonicalFileStatementProfile(stmt sourcecypher.Statement) (string, int, bool) {
 	var id string
 	switch stmt.Cypher {
 	case node.FileUpdateExistingCypher:
@@ -99,7 +100,7 @@ func CanonicalFileStatementProfile(stmt Statement) (string, int, bool) {
 	default:
 		return "", 0, false
 	}
-	rows, ok := StatementRowsCount(stmt)
+	rows, ok := sourcecypher.StatementRowsCount(stmt)
 	if !ok {
 		return "", 0, false
 	}

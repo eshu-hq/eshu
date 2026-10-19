@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	phasegroup "github.com/eshu-hq/eshu/go/internal/storage/cypher/phase/group"
 )
 
 func TestFileGroupTimingOptIn(t *testing.T) {
@@ -133,7 +134,7 @@ func testFileProbeStatementFor(t *testing.T, repoID, dirPath, filePath string) s
 		t.Fatal(err)
 	}
 	for _, stmt := range exec.calls {
-		if _, _, ok := sourcecypher.CanonicalFileStatementProfile(stmt); ok {
+		if _, _, ok := phasegroup.CanonicalFileStatementProfile(stmt); ok {
 			return stmt
 		}
 	}
@@ -215,7 +216,7 @@ func benchmarkFileProbeStatement(b *testing.B) sourcecypher.Statement {
 		b.Fatal(err)
 	}
 	for _, stmt := range exec.calls {
-		if _, _, ok := sourcecypher.CanonicalFileStatementProfile(stmt); ok {
+		if _, _, ok := phasegroup.CanonicalFileStatementProfile(stmt); ok {
 			return stmt
 		}
 	}

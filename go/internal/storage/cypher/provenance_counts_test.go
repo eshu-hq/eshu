@@ -283,3 +283,39 @@ type captureParamsReader struct {
 func (c *captureParamsReader) Run(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 	return c.onRun(cypher, params)
 }
+
+// TestParentInt64CountMatchesLeaf pins the parent int64Count twin in
+// provenance_counts.go to the same coercion table as the sweep/orphan leaf
+// copy (sweep/orphan/edgecases_test.go TestInt64CountHandlesAllShapes).
+// The two copies cannot share one definition (leaf imports parent), so this
+// test keeps a future edit to either side from silently diverging.
+func TestParentInt64CountMatchesLeaf(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		value any
+		want  int64
+		ok    bool
+	}{
+		{"int", 5, 5, true},
+		{"int32", int32(6), 6, true},
+		{"int64", int64(7), 7, true},
+		{"float64 whole", float64(8), 8, true},
+		{"float64 fractional", 8.5, 0, false},
+		{"float64 negative", -1.0, 0, false},
+		{"nil", nil, 0, false},
+		{"string", "not-a-number", 0, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := int64Count(tc.value)
+			if ok != tc.ok {
+				t.Fatalf("int64Count(%#v) ok = %v, want %v", tc.value, ok, tc.ok)
+			}
+			if ok && got != tc.want {
+				t.Fatalf("int64Count(%#v) = %d, want %d", tc.value, got, tc.want)
+			}
+		})
+	}
+}

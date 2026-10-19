@@ -40,7 +40,7 @@ func (r *recordingExecutor) Execute(_ context.Context, statement sourcecypher.St
 	return nil
 }
 
-// Run implements sourcecypher.OrphanSweepReader so recordingExecutor can double
+// Run implements orphan.OrphanSweepReader so recordingExecutor can double
 // as the EdgeWriter.Reader in shell-exec orphan-cleanup retract tests. It
 // distinguishes the S1 candidate-keys read (no "keys" parameter) from the S2
 // connected-keys read (a "keys" parameter) the same way the production

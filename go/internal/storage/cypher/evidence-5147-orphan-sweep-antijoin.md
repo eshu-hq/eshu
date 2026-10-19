@@ -192,7 +192,7 @@ populated `File` label, 4,000 connected + 1,000 orphan, both `17688` and
    the S1 candidate set, still no relationship-existence predicate), split
    into `defaultOrphanSweepConnectedKeysChunkSize = 500`-key round trips
    inside `readConnectedKeys`
-   (`go/internal/storage/cypher/orphan_sweep_queries.go`). Measured on the
+   (`go/internal/storage/cypher/sweep/orphan/queries.go`). Measured on the
    real `(*OrphanSweepStore).readConnectedKeys` production method at the
    same 5,000-key/4,000-connected scenario, both backends:
 

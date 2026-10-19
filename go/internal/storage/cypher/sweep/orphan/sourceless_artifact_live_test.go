@@ -3,7 +3,7 @@
 
 //go:build live_nornicdb_answer_truth
 
-package cypher
+package orphan
 
 import (
 	"context"

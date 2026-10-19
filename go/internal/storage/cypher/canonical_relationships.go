@@ -47,7 +47,11 @@ type CanonicalRunsOnParams struct {
 	PlatformID string
 }
 
-const canonicalDeploysFromRepoRelationshipUpsertCypher = `MERGE (source_repo:Repository {id: $repo_id})
+// CanonicalDeploysFromRepoRelationshipUpsertCypher is the single-row
+// DEPLOYS_FROM repository relationship upsert. It stays exported (like its
+// CanonicalRepoDependency and Batch siblings) because the sweep/orphan leaf's
+// target-stamping contract test reads it across the package split.
+const CanonicalDeploysFromRepoRelationshipUpsertCypher = `MERGE (source_repo:Repository {id: $repo_id})
 ON CREATE SET source_repo.evidence_source = $evidence_source,
               source_repo.generation_id = $generation_id
 MERGE (target_repo:Repository {id: $target_repo_id})
@@ -417,7 +421,7 @@ func RepoRelationshipConfidence(value float64) float64 {
 func canonicalTypedRepoRelationshipUpsertCypher(relationshipType string) string {
 	switch relationshipType {
 	case string(edgetype.DeploysFrom):
-		return canonicalDeploysFromRepoRelationshipUpsertCypher
+		return CanonicalDeploysFromRepoRelationshipUpsertCypher
 	case string(edgetype.DiscoversConfigIn):
 		return canonicalDiscoversConfigInRepoRelationshipUpsertCypher
 	case string(edgetype.ProvisionsDependencyFor):

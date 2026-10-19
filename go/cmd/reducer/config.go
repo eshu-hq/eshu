@@ -20,7 +20,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/poison"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/retention"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	sweeporphan "github.com/eshu-hq/eshu/go/internal/storage/cypher/sweep/orphan"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -314,7 +314,7 @@ func loadGraphOrphanSweepConfig(getenv func(string) string) graphOrphanSweepConf
 }
 
 func defaultGraphOrphanSweepLabels() []string {
-	labels := sourcecypher.DefaultOrphanSweepLabels()
+	labels := sweeporphan.DefaultOrphanSweepLabels()
 	values := make([]string, 0, len(labels))
 	for _, label := range labels {
 		values = append(values, string(label))
