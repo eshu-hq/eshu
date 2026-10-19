@@ -7,10 +7,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 const ackReducerWorkQuery = `
@@ -61,6 +65,9 @@ WITH acknowledged AS MATERIALIZED (
            emission_clock.emitted_at, emission_clock.emitted_at
     FROM acknowledged CROSS JOIN emission_clock
     WHERE acknowledged.status = 'succeeded'
+      -- #8284: the caller binds the paired run's support-changed verdict;
+      -- an unchanged replay still ACKs, it just selects no event rows.
+      AND $6
     GROUP BY emission_clock.emitted_at
     ON CONFLICT (producer_domain) WHERE status IN ('pending', 'retrying') DO UPDATE SET
         producer_item_count = cross_scope_completion_events.producer_item_count + EXCLUDED.producer_item_count,
@@ -74,6 +81,147 @@ WITH acknowledged AS MATERIALIZED (
 )
 SELECT 1 FROM acknowledged
 `
+
+// ackContainerImageIdentityReducerWorkBatchQuery ACKs one batch of identity
+// work items and emits a completion event covering only the emit-approved
+// ids (#8284). Items outside emitIDs still transition to succeeded; with an
+// empty emitIDs the INSERT selects no rows, so no event row appears. The
+// emit ids bind last so unit tests can read them off the arg tail without
+// tracking the grouped claim triples.
+func ackContainerImageIdentityReducerWorkBatchQuery(
+	now time.Time,
+	leaseOwner string,
+	intents []reducercontract.Intent,
+	emitIDs []string,
+) (string, []any) {
+	type claimKey struct {
+		epoch     int64
+		claimedAt time.Time
+	}
+	idsByClaim := make(map[claimKey][]string)
+	for _, intent := range intents {
+		key := claimKey{epoch: intent.ClaimEpoch, claimedAt: claimedAtValue(intent)}
+		idsByClaim[key] = append(
+			idsByClaim[key],
+			intent.IntentID,
+		)
+	}
+	keys := make([]claimKey, 0, len(idsByClaim))
+	for key := range idsByClaim {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].epoch != keys[j].epoch {
+			return keys[i].epoch < keys[j].epoch
+		}
+		return keys[i].claimedAt.Before(keys[j].claimedAt)
+	})
+
+	args := []any{now, leaseOwner}
+	predicates := make([]string, 0, len(keys))
+	for _, key := range keys {
+		idsPlaceholder := len(args) + 1
+		args = append(args, idsByClaim[key])
+		epochPlaceholder := len(args) + 1
+		args = append(args, key.epoch)
+		claimedAtPlaceholder := len(args) + 1
+		args = append(args, key.claimedAt)
+		predicates = append(predicates, fmt.Sprintf(
+			"(work_item_id = ANY($%d::text[]) AND container_image_identity_claim_epoch = $%d AND last_attempt_at = $%d)",
+			idsPlaceholder,
+			epochPlaceholder,
+			claimedAtPlaceholder,
+		))
+	}
+	emitPlaceholder := len(args) + 1
+	args = append(args, emitIDs)
+
+	return fmt.Sprintf(`
+WITH locked_work AS MATERIALIZED (
+    SELECT work_item_id
+    FROM fact_work_items
+    WHERE (`+strings.Join(predicates, " OR ")+`)
+      AND stage = 'reducer'
+      AND domain = 'container_image_identity'
+      AND lease_owner = $2
+      AND status IN ('claimed', 'running')
+	  AND claim_until > clock_timestamp()
+    ORDER BY work_item_id COLLATE "C"
+    FOR NO KEY UPDATE
+), acknowledged AS MATERIALIZED (
+UPDATE fact_work_items AS work
+SET status = 'succeeded',
+    provenance_edge_identity_upgrade_required = FALSE,
+    cross_scope_completion_ack_epoch = cross_scope_completion_ack_epoch + 1,
+    container_image_identity_v2_authorized_status = CASE
+        WHEN container_image_identity_v2_required
+            THEN 'succeeded'
+        ELSE ''
+    END,
+    container_image_identity_v3_authorized_status = CASE
+        WHEN container_image_identity_v3_required
+            THEN 'succeeded'
+        ELSE ''
+    END,
+    lease_owner = NULL,
+    claim_until = NULL,
+    visible_at = NULL,
+    updated_at = $1,
+    failure_class = NULL,
+    failure_message = NULL,
+    failure_details = NULL
+WHERE work.work_item_id IN (SELECT work_item_id FROM locked_work)
+  AND (SELECT count(*) FROM locked_work) > 0
+RETURNING work.work_item_id, work.status
+), emission_clock AS MATERIALIZED (
+    SELECT clock_timestamp() AS emitted_at
+), emitted AS (
+INSERT INTO cross_scope_completion_events (
+    producer_domain, producer_item_count, status,
+    visible_at, created_at, updated_at
+)
+SELECT 'container_image_identity', count(*)::BIGINT, 'pending',
+       emission_clock.emitted_at + INTERVAL '250 milliseconds',
+       emission_clock.emitted_at, emission_clock.emitted_at
+FROM acknowledged
+CROSS JOIN emission_clock
+WHERE acknowledged.status = 'succeeded'
+  AND acknowledged.work_item_id = ANY($%d::text[])
+GROUP BY emission_clock.emitted_at
+ON CONFLICT (producer_domain) WHERE status IN ('pending', 'retrying') DO UPDATE SET
+    producer_item_count = cross_scope_completion_events.producer_item_count + EXCLUDED.producer_item_count,
+    visible_at = CASE
+        WHEN cross_scope_completion_events.status = 'retrying'
+            THEN cross_scope_completion_events.visible_at
+        ELSE LEAST(cross_scope_completion_events.created_at + INTERVAL '2 seconds', EXCLUDED.visible_at)
+    END,
+    updated_at = EXCLUDED.updated_at
+RETURNING 1
+)
+SELECT 1 FROM acknowledged
+`, emitPlaceholder), args
+}
+
+// identityCompletionEmitIDs returns the target ack ids whose paired run
+// earned a completion event (#8284). Every target item still ACKs to
+// succeeded; only the returned ids contribute to the event INSERT. A
+// missing paired result fails open: a bounded spurious refresh beats a
+// silent missed one, per the #6884 value-flow precedent — the production
+// call site always pairs results, so a missing entry is a future caller
+// bug that must surface, never starve consumers.
+func identityCompletionEmitIDs(
+	target []reducercontract.Intent,
+	resultByID map[string]reducercontract.Result,
+) []string {
+	emitIDs := make([]string, 0, len(target))
+	for _, intent := range target {
+		result, paired := resultByID[intent.IntentID]
+		if !paired || containerimage.ShouldEmitIdentityCompletion(result) {
+			emitIDs = append(emitIDs, intent.IntentID)
+		}
+	}
+	return emitIDs
+}
 
 const ackCICDRunCorrelationReducerWorkQuery = `
 WITH acknowledged AS MATERIALIZED (

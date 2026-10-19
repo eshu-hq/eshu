@@ -99,9 +99,10 @@ func (s *stubContainerImageIdentityFactLoader) ListActiveContainerImageCIFacts(
 }
 
 type recordingContainerImageIdentityWriter struct {
-	write ContainerImageIdentityWrite
-	calls int
-	err   error
+	write          ContainerImageIdentityWrite
+	calls          int
+	err            error
+	supportChanged bool
 }
 
 func (*recordingContainerImageIdentityWriter) ContainerImageIdentityActivationEpoch(
@@ -123,6 +124,7 @@ func (w *recordingContainerImageIdentityWriter) WriteContainerImageIdentityDecis
 	}
 	return ContainerImageIdentityWriteResult{
 		CanonicalWrites:            len(containerImageIdentityCanonicalDecisions(write.Decisions)),
+		SupportChanged:             w.supportChanged,
 		effectiveDecisions:         write.Decisions,
 		effectiveProjectionPresent: true,
 	}, nil

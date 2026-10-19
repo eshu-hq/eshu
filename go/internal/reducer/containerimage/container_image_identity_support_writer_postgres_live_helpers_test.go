@@ -219,6 +219,27 @@ func (e containerImageIdentityLiveClaimedExecer) ExecContainerImageIdentityClaim
 	return deleted, true, rows.Err()
 }
 
+func (e containerImageIdentityLiveClaimedExecer) ExecContainerImageIdentitySupportPublish(
+	ctx context.Context,
+	query string,
+	args ...any,
+) (ContainerImageIdentitySupportPublishResult, error) {
+	rows, err := e.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return ContainerImageIdentitySupportPublishResult{}, err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		return ContainerImageIdentitySupportPublishResult{}, rows.Err()
+	}
+	var publish ContainerImageIdentitySupportPublishResult
+	if err := rows.Scan(&publish.LegacyRowsDeleted, &publish.SupportChanged); err != nil {
+		return ContainerImageIdentitySupportPublishResult{}, err
+	}
+	publish.ClaimValid = true
+	return publish, rows.Err()
+}
+
 type containerImageIdentityLiveHeldSupportLoader struct {
 	db *sql.DB
 }

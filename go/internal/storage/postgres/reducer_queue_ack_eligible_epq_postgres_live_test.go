@@ -98,7 +98,7 @@ func TestReducerContentionGateAckEligibleEPQLive(t *testing.T) {
 func eligibleEPQAckQuery(now time.Time, owner string, intent reducercontract.Intent) (string, []any) {
 	switch intent.Domain {
 	case reducer.DomainContainerImageIdentity:
-		return ackContainerImageIdentityReducerWorkBatchQuery(now, owner, []reducercontract.Intent{intent})
+		return ackContainerImageIdentityReducerWorkBatchQuery(now, owner, []reducercontract.Intent{intent}, []string{intent.IntentID})
 	case reducer.DomainCICDRunCorrelation:
 		// Repeated input must still ACK the updated tuple and emit one producer
 		// item. Exercise SQL deduplication together with the real heartbeat race.

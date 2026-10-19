@@ -131,6 +131,14 @@ type ContainerImageIdentityWriteResult struct {
 	// CanonicalWrites counts current canonical decisions published by this
 	// execution. Held prior supports carried into a digest-v3 set are excluded.
 	CanonicalWrites int
+	// SupportChanged reports whether this execution's resolved support set
+	// differs from the scope's previous last_set_id (#8284). The publish
+	// compares under the scope-state row lock, so a revert to an older
+	// existing set still counts as changed, and an activation (which resets
+	// active_set_id but preserves last_set_id) does not fake one. The
+	// handler forwards this through SupportChangedSignal so the identity
+	// ACK can suppress the completion event for byte-identical replays.
+	SupportChanged bool
 	// RetirementAttempts counts logical identities this execution attempted to
 	// retire. A legacy writer may publish tombstones; a digest-v3 writer omits
 	// them from its complete set. This is deliberately not an applied-row count.

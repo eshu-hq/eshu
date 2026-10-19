@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -41,7 +42,7 @@ func TestReducerQueueAckBindsContainerImageIdentityClaimEpoch(t *testing.T) {
 		t.Fatalf("Ack() exec count = %d, want %d", got, want)
 	}
 	assertContainerImageIdentityAttemptBoundAckQuery(t, db.execs[0].query)
-	if got, want := len(db.execs[0].args), 5; got != want {
+	if got, want := len(db.execs[0].args), 6; got != want {
 		t.Fatalf("target ACK arg count = %d, want %d", got, want)
 	}
 	if got, want := db.execs[0].args[3], int64(71); got != want {
@@ -49,6 +50,128 @@ func TestReducerQueueAckBindsContainerImageIdentityClaimEpoch(t *testing.T) {
 	}
 	if got, want := db.execs[0].args[4], claimedAt; got != want {
 		t.Fatalf("target ACK claimed_at arg = %#v, want %#v", got, want)
+	}
+	// A zero Result carries no gate signal and fails open (#8284): the
+	// unwired single ACK still emits rather than starving consumers.
+	if got, want := db.execs[0].args[5], true; got != want {
+		t.Fatalf("target ACK emit arg = %#v, want %#v", got, want)
+	}
+}
+
+// TestReducerQueueAckGatesIdentityEmissionOnSupportChanged is the #8284
+// regression: a succeeded identity ACK emits the cross-scope completion
+// event only when its paired result reports a changed support set (or
+// carries no gate signal at all and fails open). An unchanged replay still
+// transitions to succeeded; it just contributes no completion event, so the
+// fanout never reopens downstream consumers for byte-identical truth.
+func TestReducerQueueAckGatesIdentityEmissionOnSupportChanged(t *testing.T) {
+	t.Parallel()
+
+	claimedAt := time.Date(2026, time.October, 19, 12, 0, 0, 0, time.UTC)
+	for _, test := range []struct {
+		name   string
+		result reducercontract.Result
+		want   bool
+	}{
+		{
+			name:   "missing signal fails open",
+			result: reducercontract.Result{},
+			want:   true,
+		},
+		{
+			name:   "changed set emits",
+			result: reducercontract.Result{SubSignals: map[string]float64{containerimage.SupportChangedSignal: 1}},
+			want:   true,
+		},
+		{
+			name:   "unchanged set suppresses",
+			result: reducercontract.Result{CanonicalWrites: 2, SubSignals: map[string]float64{containerimage.SupportChangedSignal: 0}},
+			want:   false,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			db := &fakeExecQueryer{}
+			queue := ReducerQueue{
+				database:      db,
+				LeaseOwner:    "reducer-8284",
+				LeaseDuration: time.Minute,
+			}
+			if err := queue.Ack(
+				context.Background(),
+				reducercontract.Intent{
+					IntentID:     "intent-8284-single",
+					Domain:       reducer.DomainContainerImageIdentity,
+					AttemptCount: 7,
+					ClaimEpoch:   71,
+					ClaimedAt:    &claimedAt,
+				},
+				test.result,
+			); err != nil {
+				t.Fatalf("Ack() error = %v", err)
+			}
+			if got, want := len(db.execs), 1; got != want {
+				t.Fatalf("Ack() exec count = %d, want %d", got, want)
+			}
+			args := db.execs[0].args
+			if got, want := len(args), 6; got != want {
+				t.Fatalf("target ACK arg count = %d, want %d (emit flag appended)", got, want)
+			}
+			if got, want := args[5], test.want; got != want {
+				t.Fatalf("target ACK emit arg = %#v, want %#v", got, want)
+			}
+		})
+	}
+}
+
+// TestReducerQueueAckBatchGatesIdentityEmissionOnSupportChanged is the #8284
+// batch regression: every target item still ACKs to succeeded, but only the
+// emit-approved ids reach the completion-event INSERT. A batch of pure
+// unchanged replays selects no event rows.
+func TestReducerQueueAckBatchGatesIdentityEmissionOnSupportChanged(t *testing.T) {
+	t.Parallel()
+
+	claimedAt := time.Date(2026, time.October, 19, 12, 0, 0, 0, time.UTC)
+	intents := []reducercontract.Intent{
+		{IntentID: "intent-8284-changed", Domain: reducer.DomainContainerImageIdentity, AttemptCount: 3, ClaimEpoch: 31, ClaimedAt: &claimedAt},
+		{IntentID: "intent-8284-unchanged", Domain: reducer.DomainContainerImageIdentity, AttemptCount: 3, ClaimEpoch: 31, ClaimedAt: &claimedAt},
+		{IntentID: "intent-8284-unwired", Domain: reducer.DomainContainerImageIdentity, AttemptCount: 3, ClaimEpoch: 31, ClaimedAt: &claimedAt},
+	}
+	results := []reducercontract.Result{
+		{IntentID: "intent-8284-changed", SubSignals: map[string]float64{containerimage.SupportChangedSignal: 1}},
+		{IntentID: "intent-8284-unchanged", CanonicalWrites: 2, SubSignals: map[string]float64{containerimage.SupportChangedSignal: 0}},
+	}
+	db := &fakeExecQueryer{execResults: []sql.Result{rowsAffectedResult{rowsAffected: 3}}}
+	queue := ReducerQueue{
+		database:      db,
+		LeaseOwner:    "reducer-8284",
+		LeaseDuration: time.Minute,
+	}
+	if err := queue.AckBatch(context.Background(), intents, results); err != nil {
+		t.Fatalf("AckBatch() error = %v", err)
+	}
+	if got, want := len(db.execs), 1; got != want {
+		t.Fatalf("AckBatch() exec count = %d, want %d", got, want)
+	}
+	if !strings.Contains(db.execs[0].query, "acknowledged.work_item_id = ANY(") {
+		t.Fatalf("target batch ACK does not filter emission on emit-approved ids:\n%s", db.execs[0].query)
+	}
+	args := db.execs[0].args
+	emitIDs, ok := args[len(args)-1].([]string)
+	if !ok {
+		t.Fatalf("target batch ACK last arg = %#v, want emit-approved []string", args[len(args)-1])
+	}
+	emit := map[string]bool{}
+	for _, id := range emitIDs {
+		emit[id] = true
+	}
+	for _, id := range []string{"intent-8284-changed", "intent-8284-unwired"} {
+		if !emit[id] {
+			t.Errorf("emitIDs = %v, want %s to emit", emitIDs, id)
+		}
+	}
+	if emit["intent-8284-unchanged"] {
+		t.Errorf("emitIDs = %v, unchanged replay must not emit", emitIDs)
 	}
 }
 
@@ -196,11 +319,13 @@ func TestReducerQueueAckBatchBindsContainerImageIdentityClaimEpochs(t *testing.T
 						db.execs[0].query,
 					)
 				}
-				if got := len(db.execs[0].args); got < 5 || (got-2)%3 != 0 {
-					t.Fatalf("target batch ACK arg count = %d, want grouped claim triples", got)
+				// #8284 appends the emit-approved ids after the grouped claim
+				// triples, so the tail arg is not part of any triple.
+				if got := len(db.execs[0].args); got < 6 || (got-3)%3 != 0 {
+					t.Fatalf("target batch ACK arg count = %d, want grouped claim triples plus emit ids", got)
 				}
 				gotPairs := make(map[string]int64, len(test.intents))
-				for argIndex := 2; argIndex < len(db.execs[0].args); argIndex += 3 {
+				for argIndex := 2; argIndex < len(db.execs[0].args)-1; argIndex += 3 {
 					ids, ok := db.execs[0].args[argIndex].([]string)
 					if !ok {
 						t.Fatalf(

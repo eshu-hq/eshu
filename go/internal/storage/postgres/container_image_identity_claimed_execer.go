@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -30,6 +31,48 @@ func (e ContainerImageIdentityClaimedExecer) ExecContainerImageIdentityClaimed(
 		)
 	}
 	return execContainerImageIdentityClaimed(ctx, e.DB, query, args...)
+}
+
+// ExecContainerImageIdentitySupportPublish runs the digest-v3 support-set
+// publish statement and reports the legacy cleanup count, the claim verdict,
+// and the previous-last_set_id comparison (#8284) from the same statement.
+// The publish RETURNING carries (deleted_count, support_changed); statements
+// through the shared claimed method above keep their single-column shape.
+func (e ContainerImageIdentityClaimedExecer) ExecContainerImageIdentitySupportPublish(
+	ctx context.Context,
+	query string,
+	args ...any,
+) (containerimage.ContainerImageIdentitySupportPublishResult, error) {
+	if e.DB == nil {
+		return containerimage.ContainerImageIdentitySupportPublishResult{}, fmt.Errorf(
+			"container image identity claimed executor database is required",
+		)
+	}
+	rows, err := e.DB.QueryContext(ctx, query, args...)
+	if err != nil {
+		return containerimage.ContainerImageIdentitySupportPublishResult{}, err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return containerimage.ContainerImageIdentitySupportPublishResult{}, err
+		}
+		return containerimage.ContainerImageIdentitySupportPublishResult{}, nil
+	}
+	var publish containerimage.ContainerImageIdentitySupportPublishResult
+	if err := rows.Scan(&publish.LegacyRowsDeleted, &publish.SupportChanged); err != nil {
+		return containerimage.ContainerImageIdentitySupportPublishResult{}, err
+	}
+	if rows.Next() {
+		return containerimage.ContainerImageIdentitySupportPublishResult{}, fmt.Errorf(
+			"container image identity support publish statement returned multiple rows",
+		)
+	}
+	if err := rows.Err(); err != nil {
+		return containerimage.ContainerImageIdentitySupportPublishResult{}, err
+	}
+	publish.ClaimValid = true
+	return publish, nil
 }
 
 func execContainerImageIdentityClaimed(

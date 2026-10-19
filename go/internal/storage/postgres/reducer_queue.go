@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
@@ -441,6 +442,13 @@ func (q ReducerQueue) Ack(ctx context.Context, intent reducercontract.Intent, re
 		args = append(args, intent.ClaimEpoch)
 	}
 	args = append(args, claimedAtValue(intent))
+	if intent.Domain == reducer.DomainContainerImageIdentity {
+		// #8284: the single-ack emission carries the paired run's
+		// support-changed verdict, mirroring the value-flow $6 emit flag
+		// below. An unwired (zero) result fails open so a missing gate
+		// never starves downstream consumers.
+		args = append(args, containerimage.ShouldEmitIdentityCompletion(result))
+	}
 	if isValueFlowRefreshProducer(intent.Domain) {
 		query = ackValueFlowRefreshProducerReducerWorkQuery
 		args = append(args, string(intent.Domain), shouldEmitValueFlowRefresh(result))

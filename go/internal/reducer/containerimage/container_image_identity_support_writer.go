@@ -34,13 +34,40 @@ type ContainerImageIdentityHeldSupportLoader interface {
 	) ([]ContainerImageIdentityPriorSupport, error)
 }
 
+// ContainerImageIdentitySupportPublishResult is the support-set publish
+// verdict: the legacy cleanup count and claim validity the shared claimed
+// statement already returns, plus whether the resolved set differs from the
+// scope's previous last_set_id (#8284).
+type ContainerImageIdentitySupportPublishResult struct {
+	LegacyRowsDeleted int
+	ClaimValid        bool
+	SupportChanged    bool
+}
+
+// ContainerImageIdentitySupportPublishExecer runs the support-set publish
+// statement, which locks the scope-state row and compares the resolved set
+// against the pre-update last_set_id in the same statement. It is narrow on
+// purpose: the legacy and cutover writers keep the shared
+// ContainerImageIdentityClaimedExecer interface (container_image_identity_writer.go),
+// whose single-column scan cannot carry the changed verdict without
+// touching every unrelated caller.
+type ContainerImageIdentitySupportPublishExecer interface {
+	ExecContainerImageIdentitySupportPublish(
+		context.Context,
+		string,
+		...any,
+	) (ContainerImageIdentitySupportPublishResult, error)
+}
+
 // PostgresContainerImageIdentitySupportWriter publishes anchor-free digest-v3
 // truth into immutable typed support sets.
 type PostgresContainerImageIdentitySupportWriter struct {
 	ActivationLookup  ContainerImageIdentityActivationEpochLookup
 	HeldSupportLoader ContainerImageIdentityHeldSupportLoader
-	ClaimedExecer     ContainerImageIdentityClaimedExecer
-	Now               func() time.Time
+	// ClaimedExecer runs the support publish statement and reports the
+	// previous-last_set_id comparison (#8284) alongside the claim verdict.
+	ClaimedExecer ContainerImageIdentitySupportPublishExecer
+	Now           func() time.Time
 }
 
 // ContainerImageIdentityActivationEpoch delegates the handler-time lifecycle
@@ -81,7 +108,7 @@ func (w PostgresContainerImageIdentitySupportWriter) WriteContainerImageIdentity
 		return ContainerImageIdentityWriteResult{}, fmt.Errorf("marshal container image identity supports: %w", err)
 	}
 	now := factwrite.Now(w.Now)
-	legacyRowsDeleted, claimValid, err := w.ClaimedExecer.ExecContainerImageIdentityClaimed(
+	publish, err := w.ClaimedExecer.ExecContainerImageIdentitySupportPublish(
 		ctx,
 		containerImageIdentitySupportPublishQuery,
 		supportSet.SetID,
@@ -105,13 +132,14 @@ func (w PostgresContainerImageIdentitySupportWriter) WriteContainerImageIdentity
 	if err != nil {
 		return ContainerImageIdentityWriteResult{}, fmt.Errorf("publish container image identity support set: %w", err)
 	}
-	if !claimValid {
+	if !publish.ClaimValid {
 		return ContainerImageIdentityWriteResult{}, ErrContainerImageIdentityClaimRejected
 	}
 	result := containerImageIdentityWriteResult(
 		supportSet.CurrentSupportCount,
 		len(write.TombstoneDecisions),
-		legacyRowsDeleted,
+		publish.LegacyRowsDeleted,
+		publish.SupportChanged,
 	)
 	result.effectiveSupports = supportSet.Supports
 	result.effectiveProjectionPresent = true
@@ -298,6 +326,18 @@ written_support_count AS MATERIALIZED (
     FROM existing_support_count
     LEFT JOIN inserted_supports ON TRUE
     GROUP BY existing_support_count.support_count
+),
+prev_support_set AS MATERIALIZED (
+    -- Pre-update last_set_id read under the current_state row lock (#8284):
+    -- plain CTEs share the statement snapshot, so this still sees the
+    -- previous set even though the UPDATE below overwrites it. Comparing the
+    -- resolved set against this (not against active_set_id, which an
+    -- activation resets to NULL) keeps a byte-identical first publish after
+    -- an activation suppressed while a reverted-to-older-set publish counts
+    -- as changed even though its set row already existed.
+    SELECT state.last_set_id
+    FROM container_image_identity_scope_state AS state
+    JOIN current_state ON current_state.scope_id = state.scope_id
 )
 UPDATE container_image_identity_scope_state AS state
 SET active_set_id = resolved_set.set_id,
@@ -317,8 +357,10 @@ FROM resolved_set
 JOIN current_claim ON TRUE
 JOIN written_support_count ON written_support_count.support_count = $5
 JOIN legacy_cleanup ON TRUE
+JOIN prev_support_set ON TRUE
 WHERE state.scope_id = $2
   AND state.active_generation_id = $3
   AND state.activation_epoch = $8
-RETURNING legacy_cleanup.deleted_count
+RETURNING legacy_cleanup.deleted_count,
+    (resolved_set.set_id IS DISTINCT FROM prev_support_set.last_set_id) AS support_changed
 `

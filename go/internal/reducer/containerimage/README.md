@@ -37,6 +37,7 @@ internals except through the root's compatibility aliases.
 | `ParseContainerImageRef` / `ParsedContainerImageRef` / `NormalizeContainerRepositoryKey` / `DigestFromImageRef` | reference parsing, also used by root-staying Kubernetes correlation and AWS running-image resolution |
 | `PostgresContainerImageIdentityWriter` / `PostgresContainerImageIdentitySupportWriter` | the two Postgres writer generations |
 | `ContainerImageIdentityTransaction` / `ContainerImageIdentityBeginner` / `ContainerImageIdentityClaimedExecer` / `ContainerImageIdentityCutoverLookup` / `ContainerImageIdentityLegacyCleanupLookup` / `ContainerImageIdentityActivationEpochLookup` / `ContainerImageIdentityHeldSupportLoader` | the writer's narrow storage ports |
+| `ContainerImageIdentitySupportPublishExecer` / `ContainerImageIdentitySupportPublishResult` | the digest-v3 support publish port, which additionally reports the previous-`last_set_id` comparison (#8284) |
 | `ContainerImageIdentityPriorSupport` | one prior authoritative support row eligible for carry-forward |
 | `ContainerImageExistenceLookup` / `GraphContainerImageExistenceLookup` | the graph existence check the AWS materializer uses before counting an edge |
 | `ContainerImageProvenanceEdgeWriter` / `ContainerImageDerivedFromEdgeWriter` | the BUILT_FROM / DERIVED_FROM graph write ports |
@@ -118,6 +119,43 @@ Postgres operation, runtime setting, metric instrument, metric label, span,
 or log field. The three counters above and the reducer executions that wrap
 them are the same before and after the move; only the file paths the
 telemetry-coverage rows point at changed.
+
+## Unchanged-replay completion suppression (#8284)
+
+Every succeeded identity ACK used to emit a coalesced
+`cross_scope_completion_events` row even when its support set was
+byte-identical, and the fanout reopened succeeded `supply_chain_impact` (and
+`ci_cd_run_correlation`) consumers for each one. Measured over the 5.8h
+window after the 2026-10-19 rollout restart: 14,717 succeeded identity
+executions drove 858 `supply_chain_impact` replays (~74/hr per work item)
+costing 13,665 handler-seconds at a 15.9s mean — the largest handler-wall
+total of any reducer domain — while the other producer
+(`ci_cd_run_correlation`) ran zero times, all 152 scopes held exactly one
+support set each, and the downstream output stayed empty (0 findings, 0
+canonical winners across all 858 replays).
+
+The support publish now compares the resolved set against the pre-update
+`last_set_id` under the scope-state row lock and reports the verdict through
+`SupportChangedSignal`; both identity ACK paths emit only for changed (or
+unwired, fail-open) runs. The comparison deliberately uses `last_set_id`,
+which activation preserves, not `active_set_id`, which activation resets to
+NULL — so a byte-identical first publish after an activation stays
+suppressed while a changed one still reopens consumers. No worker or batch
+shape changed: every item still ACKs to succeeded, only the event INSERT is
+filtered.
+
+No-Regression Evidence: `go test ./internal/reducer/containerimage/
+-count=1` and `go test ./internal/storage/postgres/ -count=1` pass, including
+the gate truth table, the handler signal forwarding proof, the single/batch
+ACK emit-gate proofs, and the writer previous-last_set_id mapping proof. The
+live suppression and activation-race proofs run against disposable Postgres
+via `ESHU_POSTGRES_TEST_DSN`.
+
+No-Observability-Change: no new instrument, label, span, or log field. The
+verdict travels on the existing `Result.SubSignals` path (one new
+`sub_signal_support_changed` key on the handler's existing sub-signal
+logging); the suppressed completions are visible as a lower
+`supply_chain_impact` execution rate against an unchanged identity rate.
 
 ## Gotchas / invariants
 
