@@ -1,0 +1,14 @@
+go/internal/reducer/compat_alias_retirement_bucket3_test.go
+  h_78a442cba0b3e6 18-21,36,38,41-44,46,49-73,81-91,94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "654c75ced3994ea97adcf6ef2b160a080cdbc546",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

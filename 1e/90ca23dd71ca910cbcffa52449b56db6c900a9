@@ -1,0 +1,20 @@
+go/internal/reducer/codedataflow_input_invalid_test.go
+  h_78a442cba0b3e6 11,43,45,73,75,78,112-113,137,139,169-170,190,192,195,217-218,239,241,244,280,282,285,301,303,306,321,323,326,343,345,348,363,365,368,391,393
+go/internal/reducer/compat_alias_retirement_bucket3_test.go
+  h_78a442cba0b3e6 1-69
+go/internal/reducer/compat_decode.go
+  h_78a442cba0b3e6 54-56,318-322
+go/internal/reducer/evidence-6626-batch6-bucket3-decode-testonly.md
+  h_78a442cba0b3e6 1-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1e90ca23dd71ca910cbcffa52449b56db6c900a9",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
