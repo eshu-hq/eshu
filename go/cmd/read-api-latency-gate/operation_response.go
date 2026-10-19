@@ -149,7 +149,9 @@ func validateMCPSearchResponse(payload map[string]any, expect string) error {
 
 func validateRelationshipCatalog(payload map[string]any) error {
 	// This independently specified fixture is deliberately not read from the
-	// production catalog. The latency seed creates nodes, never typed edges.
+	// production catalog. The latency seed creates nodes plus the story
+	// Repository->Repository DEPENDS_ON fan-out (SeedStoryRelatedCount edges,
+	// pinned by VerifyRepositoryGraphCounts); every other verb stays at zero.
 	expected := map[string]string{
 		"CALLS": "code", "IMPORTS": "code", "INHERITS": "code",
 		"REFERENCES": "code", "OVERRIDES": "code", "QUERIES_TABLE": "code",
@@ -160,6 +162,7 @@ func validateRelationshipCatalog(payload map[string]any) error {
 		"RUNS_ON": "runtime", "AWS_lambda_function_uses_image": "runtime", "DEPENDS_ON": "runtime",
 		"INVOKES_CLOUD_ACTION": "security", "READS_CONFIG_FROM": "ops", "TAINT_FLOWS_TO": "ops",
 	}
+	expectedCounts := map[string]float64{"DEPENDS_ON": float64(SeedStoryRelatedCount)}
 	verbs, ok := payload["verbs"].([]any)
 	if !ok || len(verbs) != len(expected) || payload["verb_count"] != float64(len(expected)) {
 		return fmt.Errorf("catalog verbs/count mismatch")
@@ -178,12 +181,12 @@ func validateRelationshipCatalog(payload map[string]any) error {
 		}
 		seen[name] = true
 		count, ok := verb["count"].(float64)
-		if !ok || count != 0 {
-			return fmt.Errorf("catalog verb %q has edges in the zero-edge seed", name)
+		if !ok || count != expectedCounts[name] {
+			return fmt.Errorf("catalog verb %q count = %v, want %v", name, verb["count"], expectedCounts[name])
 		}
 		layers[layer] = true
 	}
-	if payload["total_edges"] != float64(0) || payload["layer_count"] != float64(len(layers)) {
+	if payload["total_edges"] != float64(SeedStoryRelatedCount) || payload["layer_count"] != float64(len(layers)) {
 		return fmt.Errorf("catalog total or layer count mismatch")
 	}
 	return nil
