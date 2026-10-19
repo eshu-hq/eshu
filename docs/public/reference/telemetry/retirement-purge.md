@@ -16,3 +16,30 @@ from `go/internal/storage/postgres/repository_retirements_purge.go`.
 | `eshu_dp_repository_retirements_purged_total` | counter | Completed operator retirements, one per completed tombstone, unlabelled. Emitted after the purge commit, so a crash between commit and emission under-counts rather than double-counts. |
 | `repository retirement purged` | INFO log | One line per purged repository (`repo_id`, `retirement_id`, `scopes_deleted`). |
 | `repository retirement blocked: terminal generations not reached` | WARN log | The `terminal_not_reached` exit: a scope generation went live after the fence, so the purge wrote nothing and the fenced tombstone stays open. Carries `repo_id`, `retirement_id`, `scope_ids`, and `blocking_statuses` read back from the terminal gate (for example `active:1`). Only a new fence can move the blocking generation. |
+
+## Trigger Counter Evidence (#8602)
+
+No-Regression Evidence: baseline `origin/feat-7766-retirement` at `f94ea2be`
+registers only `eshu_dp_repository_retirements_purged_total`; after this PR,
+`go test ./internal/telemetry -count=1` (registration, including
+`TestNewInstrumentsNoError` covering the new counter) and
+`go test ./internal/query/admin/retirement -count=1` (trigger funnel,
+including terminal-outcome counting) both pass. Input shape is the existing
+trigger unit fixtures: no live backend, no Postgres/Neo4j version change, and
+no Cypher, queue, lease, worker, or batching change. Terminal counts are
+unchanged: the purge still emits one
+`eshu_dp_repository_retirements_purged_total` per completed tombstone, and
+the trigger emits one `accepted` plus one terminal outcome per marked
+repository. Safe because the change is additive counter registration plus one
+`Add` per already-computed outcome at the existing emission site
+(`countOutcome` in `go/internal/query/admin/retirement/trigger.go`, a
+nil-instruments no-op); no statement, fence, or purge ordering changed.
+
+Observability Evidence: new counter `eshu_dp_repository_retirements_total`
+with closed `outcome` label (`accepted`, `refused`, `blocked`, `completed`,
+`failed`), emitted from `countOutcome`/`countRefused` in
+`go/internal/query/admin/retirement/trigger.go`. Existing signals unchanged:
+WARN `repository retirement refused at fence`, INFO
+`repository retirement purged`, WARN
+`repository retirement blocked: terminal generations not reached`, and the
+`admin_retirement_action` audit event.
