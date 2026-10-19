@@ -1,0 +1,130 @@
+go/cmd/reducer/main.go
+  h_78a442cba0b3e6 12,374
+go/cmd/reducer/secrets_iam_graph_wiring.go
+  h_78a442cba0b3e6 13,52
+go/cmd/reducer/service_materialization.go
+  h_78a442cba0b3e6 8,39,44,76,90
+go/cmd/reducer/wiring_handlers.go
+  h_78a442cba0b3e6 9-10,215,219,231
+go/internal/collector/repo/git/service_catalog_golden_test.go
+  h_78a442cba0b3e6 15,103,125-126,142,147-148
+go/internal/collector/servicecatalog/backstage_test.go
+  h_78a442cba0b3e6 12,117,120-123,142,164,167-168,351-352,359
+go/internal/collector/servicecatalog/cortex_scorecard_test.go
+  h_78a442cba0b3e6 10,74,76
+go/internal/collector/servicecatalog/cortex_test.go
+  h_78a442cba0b3e6 11,284,287-290,309,331,334-335
+go/internal/collector/servicecatalog/opslevel_test.go
+  h_78a442cba0b3e6 11,118,121-124,143,165,168-169
+go/internal/reducer/code/function/summary/handler.go
+  h_78a442cba0b3e6 108-110
+go/internal/reducer/compat_alias_retirement_tail1_test.go
+  h_78a442cba0b3e6 1-167
+go/internal/reducer/compat_correlation.go
+  h_78a442cba0b3e6 6,13-15,124-125
+go/internal/reducer/compat_decode.go
+  h_78a442cba0b3e6 6,13-15
+go/internal/reducer/compat_projection.go
+  h_78a442cba0b3e6 6,13-15
+go/internal/reducer/defaults.go
+  h_78a442cba0b3e6 19-20,29,307,427,433,439-440,447,456,465,505,515
+go/internal/reducer/defaults_additive_domains.go
+  h_78a442cba0b3e6 6-9,73,90,106
+go/internal/reducer/defaults_additive_domains_cloud_posture.go
+  h_78a442cba0b3e6 113
+go/internal/reducer/defaults_additive_domains_cloud_relationships.go
+  h_78a442cba0b3e6 82
+go/internal/reducer/defaults_additive_domains_correlation.go
+  h_78a442cba0b3e6 10,112
+go/internal/reducer/defaults_additive_domains_incident_code.go
+  h_78a442cba0b3e6 7,56-57
+go/internal/reducer/defaults_additive_domains_refresh_test.go
+  h_78a442cba0b3e6 15,127,218
+go/internal/reducer/defaults_additive_domains_secrets_drift.go
+  h_78a442cba0b3e6 9,22-23,31-32
+go/internal/reducer/defaults_additive_domains_supply_chain.go
+  h_78a442cba0b3e6 9,44
+go/internal/reducer/defaults_cicd_test.go
+  h_78a442cba0b3e6 9-10,83,106,118
+go/internal/reducer/defaults_code_function_summary_test.go
+  h_78a442cba0b3e6 13,21-23,26,33,79
+go/internal/reducer/defaults_handlers.go
+  h_78a442cba0b3e6 9,12-13,217,238,242,253,347,351,356,360,365,369,374
+go/internal/reducer/defaults_iam_can_assume_test.go
+  h_78a442cba0b3e6 9-10,68
+go/internal/reducer/defaults_service_catalog_runtime_fence_test.go
+  h_78a442cba0b3e6 28,41,62,68,75
+go/internal/reducer/defaults_service_incidents.go
+  h_78a442cba0b3e6 6-9,18
+go/internal/reducer/defaults_workload_handle_wiring_test.go
+  h_78a442cba0b3e6 11,113,177
+go/internal/reducer/doc.go
+  h_78a442cba0b3e6 45-55,278,285,288,310
+go/internal/reducer/secrets_iam_graph_projection_wiring_test.go
+  h_78a442cba0b3e6 12,103
+go/internal/reducer/service_catalog_correlation_root_test_doubles_test.go
+  h_78a442cba0b3e6 13,68,74-75,78,86,93,95,207,231,236-237,257,261-262
+go/internal/reducer/service_changed_since_golden_fixture_test.go
+  h_78a442cba0b3e6 6-9,25-26,30,34,37,40-41,46-47,52
+go/internal/reducer/service_runtime_instance_lookup.go
+  h_78a442cba0b3e6 11-12,48,56,78,117,124,133
+go/internal/reducer/service_runtime_instance_lookup_test.go
+  h_78a442cba0b3e6 15,255,258,272,281,289,304,334,337,353,356
+go/internal/replay/costcounting/README.md
+  h_78a442cba0b3e6 34,36
+go/internal/replay/costcounting/sbom_attestation_attachment_cost_test.go
+  h_78a442cba0b3e6 15,36-38,42,55,60,67,75,96,169,175
+go/internal/replay/costcounting/secrets_iam_graph_cost_test.go
+  h_78a442cba0b3e6 97
+go/internal/replay/costcounting/service_catalog_correlation_cost_test.go
+  h_78a442cba0b3e6 14,38-40,47,52,76,81,154,160,166
+go/internal/serviceintel/adapter.go
+  h_78a442cba0b3e6 114
+go/internal/serviceintelhttp/incident_source.go
+  h_78a442cba0b3e6 14,52,140
+go/internal/serviceintelhttp/incident_source_test.go
+  h_78a442cba0b3e6 14,167,173,182
+go/internal/storage/postgres/code_function_source_loader.go
+  h_78a442cba0b3e6 13
+go/internal/storage/postgres/code_function_summary_loader.go
+  h_78a442cba0b3e6 13,29
+go/internal/storage/postgres/gotchas-and-invariants.md
+  h_78a442cba0b3e6 132
+go/internal/storage/postgres/lifecycle-and-workflow-guide.md
+  h_78a442cba0b3e6 452
+go/internal/storage/postgres/reducer_fact_batch_insert_fence_live_test.go
+  h_78a442cba0b3e6 14,252-254,260,264
+go/internal/storage/postgres/reducer_queue_basic_test.go
+  h_78a442cba0b3e6 19,403,410-411
+go/internal/storage/postgres/reducer_queue_readiness_claim_gate_test.go
+  h_78a442cba0b3e6 16-17,202,249-250
+go/internal/storage/postgres/reducer_queue_readiness_sql.go
+  h_78a442cba0b3e6 17-18,26,47,121-123,133
+go/internal/storage/postgres/reducer_queue_secrets_iam_readiness_test.go
+  h_78a442cba0b3e6 13,56,146
+go/internal/storage/postgres/secrets_iam_trust_chain_evidence_loader.go
+  h_78a442cba0b3e6 15,80,82,86,98,104,115,121
+go/internal/storage/postgres/service_documentation_evidence.go
+  h_78a442cba0b3e6 11,74,94,98,118,135,137
+go/internal/storage/postgres/service_documentation_evidence_test.go
+  h_78a442cba0b3e6 12,130
+go/internal/storage/postgres/service_incident_evidence_loader.go
+  h_78a442cba0b3e6 10,242,259,286,305,308,311
+go/internal/storage/postgres/service_incident_evidence_loader_test.go
+  h_78a442cba0b3e6 12,205
+go/internal/storage/postgres/service_materialization_beginner.go
+  h_78a442cba0b3e6 10,26,53
+go/internal/storage/postgres/service_vulnerability_advisory_loader.go
+  h_78a442cba0b3e6 12,61,69,78,137,143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "57f8901b384fed2ecfc66149ab441d3dd80c898d",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
