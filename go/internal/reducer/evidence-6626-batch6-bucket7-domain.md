@@ -23,14 +23,14 @@ spells the canonical `reducercontract.Domain`:
 - Guard test `TestBucket7DomainRetired` in
   `compat_alias_retirement_bucket7_test.go` scans the whole reducer package
   directory for any re-declared alias (bucket 3/4/5/6 pattern).
-- Seven living docs updated (projector, schedulereplay AGENTS + README,
+- Six living docs updated (projector, schedulereplay AGENTS + README,
   cypher + postgres + truth READMEs), all line-neutral.
 - The sibling `sqlrelationship.Domain` alias and its files are a different
   symbol, not `reducer.X`, and stay out of scope.
 - No inventory re-pin: no enrolled replay-tier source carries the retired
   spelling (verified by the golden-corpus mirror passing unmodified).
 
-109 `.go` files (108 repointed + the new guard test), 6 living docs, plus
+110 `.go` files (109 repointed + the new guard test), 6 living docs, plus
 this note. No golden, spec, manifest, or inventory content changed.
 
 Deliberate remainder: `rg "reducer\.Domain"` still hits two historical
