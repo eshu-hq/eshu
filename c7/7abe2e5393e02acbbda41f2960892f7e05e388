@@ -1,0 +1,14 @@
+scripts/lib/replay_tier_inventory.json
+  h_78a442cba0b3e6 123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c77abe2e5393e02acbbda41f2960892f7e05e388",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
