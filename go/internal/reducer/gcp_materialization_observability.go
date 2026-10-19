@@ -9,13 +9,14 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 func recordGCPMaterializationFact(
 	ctx context.Context,
 	instruments *telemetry.Instruments,
-	domain Domain,
+	domain reducercontract.Domain,
 	factKind string,
 	count int,
 ) {
@@ -31,7 +32,7 @@ func recordGCPMaterializationFact(
 func recordGCPMaterializationGraphWrites(
 	ctx context.Context,
 	instruments *telemetry.Instruments,
-	domain Domain,
+	domain reducercontract.Domain,
 	kind string,
 	count int,
 ) {
@@ -47,7 +48,7 @@ func recordGCPMaterializationGraphWrites(
 func recordGCPMaterializationDuration(
 	ctx context.Context,
 	instruments *telemetry.Instruments,
-	domain Domain,
+	domain reducercontract.Domain,
 	phase string,
 	duration time.Duration,
 ) {

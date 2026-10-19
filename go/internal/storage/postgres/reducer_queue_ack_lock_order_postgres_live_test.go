@@ -21,7 +21,7 @@ import (
 func TestReducerContentionGateAckFanoutLockOrderLive(t *testing.T) {
 	for _, variant := range []struct {
 		name   string
-		domain reducer.Domain
+		domain reducercontract.Domain
 		fanout bool
 		stale  bool
 		dirty  bool

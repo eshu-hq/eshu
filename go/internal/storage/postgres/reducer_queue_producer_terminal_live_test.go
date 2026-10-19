@@ -52,7 +52,7 @@ func (producerTerminalCountingError) Retryable() bool { return true }
 
 // ownGateConsumer runs one consumer pass through the production own gate.
 type ownGateConsumer struct {
-	domain reducer.Domain
+	domain reducercontract.Domain
 	class  string
 	run    func(context.Context, reducercontract.Intent) error
 }
@@ -191,7 +191,7 @@ func TestOwnGateProducerRetryingConsumerKeepsDeferringLive(t *testing.T) {
 		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the #7597 own-gate proof")
 	}
 	ctx := context.Background()
-	wantClass := map[reducer.Domain]string{
+	wantClass := map[reducercontract.Domain]string{
 		reducer.DomainDeployableUnitCorrelation: reducer.DeployableUnitCorrelationResolutionNotReadyFailureClass,
 		reducer.DomainWorkloadMaterialization:   reducer.WorkloadMaterializationResolutionNotReadyFailureClass,
 	}
@@ -235,7 +235,7 @@ func TestOwnGateProducerRetryingConsumerKeepsDeferringLive(t *testing.T) {
 
 // ownGateConsumerDomains are the two domains whose own gate reads the
 // deployment_mapping producer.
-var ownGateConsumerDomains = []reducer.Domain{
+var ownGateConsumerDomains = []reducercontract.Domain{
 	reducer.DomainDeployableUnitCorrelation,
 	reducer.DomainWorkloadMaterialization,
 }
@@ -265,7 +265,7 @@ VALUES ($1, $2, 'snapshot', 'x', $3, $3, $4, $3, NULL, '{}'::jsonb)`, genID, sco
 }
 
 // addOwnGateItem inserts one pending reducer work item.
-func addOwnGateItem(t *testing.T, ctx context.Context, db *sql.DB, id, scopeID, genID string, domain reducer.Domain, at time.Time) {
+func addOwnGateItem(t *testing.T, ctx context.Context, db *sql.DB, id, scopeID, genID string, domain reducercontract.Domain, at time.Time) {
 	t.Helper()
 	insertReducerFairnessWorkItem(t, ctx, db, reducerFairnessWorkItem{
 		workItemID: id, scopeID: scopeID, generationID: genID, domain: string(domain),
@@ -274,7 +274,7 @@ func addOwnGateItem(t *testing.T, ctx context.Context, db *sql.DB, id, scopeID, 
 }
 
 // newOwnGateQueue is a real ReducerQueue on db with a test clock.
-func newOwnGateQueue(db *sql.DB, clock *time.Time, domains ...reducer.Domain) ReducerQueue {
+func newOwnGateQueue(db *sql.DB, clock *time.Time, domains ...reducercontract.Domain) ReducerQueue {
 	return ReducerQueue{
 		database: SQLDB{DB: db}, LeaseOwner: "own-gate-7597", LeaseDuration: 5 * time.Minute,
 		RetryDelay: 30 * time.Second, MaxRetryDelay: time.Hour, JitterFraction: 0.1, MaxAttempts: 3,
@@ -283,7 +283,7 @@ func newOwnGateQueue(db *sql.DB, clock *time.Time, domains ...reducer.Domain) Re
 }
 
 // consumerFor rebinds a consumer's run function to db.
-func consumerFor(db *sql.DB, domain reducer.Domain) ownGateConsumer {
+func consumerFor(db *sql.DB, domain reducercontract.Domain) ownGateConsumer {
 	for _, consumer := range ownGateConsumers(db) {
 		if consumer.domain == domain {
 			return consumer

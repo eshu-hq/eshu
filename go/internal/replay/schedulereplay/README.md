@@ -72,7 +72,7 @@ families contend on the same reducer conflict key:
   `vulnerability_suppression_admission` (`vulnerability.suppression`).
 
 `projection_ordering_scenario_test.go` proves both are delivery-order
-independent under their real `reducer.Domain` constant
+independent under their real `reducercontract.Domain` constant
 (`Config.Domain`, wired through `RunScheduleReport`) using two dedicated
 cassettes:
 

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // fanOutParityExpectation pins one reducer-intent builder probe's exact
@@ -31,7 +32,7 @@ type fanOutParityExpectation struct {
 // intentionally alters a probe's emission decision must update this map in
 // the same change, with the new expectation re-derived from the intended
 // behavior (never from "whatever the new code happens to output").
-var fanOutParityExpectations = map[reducer.Domain]fanOutParityExpectation{
+var fanOutParityExpectations = map[reducercontract.Domain]fanOutParityExpectation{
 	reducer.DomainAWSCloudImageMaterialization: {
 		// Trigger is aws_resource fact presence (issue #5450 retraction-safety
 		// fix), the SAME persistent signal DomainAWSResourceMaterialization
@@ -266,7 +267,7 @@ var fanOutParityExpectations = map[reducer.Domain]fanOutParityExpectation{
 // entity key, and fact ID before enqueue, so this is not a queue-order claim.
 // It keeps staged family moves mechanical and catches an accidental switch to
 // map iteration or family repositioning in this assembler.
-var fanOutParityExpectedOrder = []reducer.Domain{
+var fanOutParityExpectedOrder = []reducercontract.Domain{
 	reducer.DomainPackageSourceCorrelation,
 	reducer.DomainAWSCloudRuntimeDrift,
 	reducer.DomainMultiCloudRuntimeDrift,
@@ -338,7 +339,7 @@ func TestAppendScopeGenerationReducerIntentsFanOutParity(t *testing.T) {
 		}
 	}
 
-	byDomain := make(map[reducer.Domain]ReducerIntent, len(intents))
+	byDomain := make(map[reducercontract.Domain]ReducerIntent, len(intents))
 	for _, intent := range intents {
 		if _, dup := byDomain[intent.Domain]; dup {
 			t.Fatalf("domain %s emitted more than one intent; fixture must be scope-keyed 1:1 per domain", intent.Domain)
@@ -393,7 +394,7 @@ func TestAppendScopeGenerationReducerIntentsFanOutParity(t *testing.T) {
 	}
 }
 
-func domainNames(byDomain map[reducer.Domain]ReducerIntent) []string {
+func domainNames(byDomain map[reducercontract.Domain]ReducerIntent) []string {
 	names := make([]string, 0, len(byDomain))
 	for domain := range byDomain {
 		names = append(names, string(domain))

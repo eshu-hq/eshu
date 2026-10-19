@@ -30,7 +30,7 @@
 // from dedicated committed cassettes under testdata/cassettes/replayschedule/
 // through a cassette -> projection work-item seam (there is no offlinetier
 // materializer for these domains), and Config.Domain schedules the intents
-// under the real reducer.Domain constant so the scenario proves the actual
+// under the real reducercontract.Domain constant so the scenario proves the actual
 // projection's shared conflict key, not a placeholder domain.
 //
 // The package requires no Postgres and no graph backend, so the ordering gate

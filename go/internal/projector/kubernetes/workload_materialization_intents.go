@@ -7,6 +7,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // BuildWorkloadMaterializationReducerIntent builds one
@@ -54,7 +55,7 @@ func buildPodTemplateReducerIntent(
 	scopeID string,
 	generationID string,
 	lookup projectorintent.FactLookup,
-	domain reducer.Domain,
+	domain reducercontract.Domain,
 	entityKey string,
 ) (projectorintent.ReducerIntent, bool) {
 	envelope, ok := lookup.FirstOfKind(cloud.KubernetesPodTemplateFactKind)

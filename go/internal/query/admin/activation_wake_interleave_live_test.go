@@ -125,9 +125,9 @@ func seedInterleaveScope(t *testing.T, ctx context.Context, db *sql.DB, scope, g
 	}
 }
 
-func interleaveQueue(conn *sql.DB, domain reducer.Domain) postgres.ReducerQueue {
+func interleaveQueue(conn *sql.DB, domain reducercontract.Domain) postgres.ReducerQueue {
 	q := postgres.NewReducerQueue(postgres.SQLDB{DB: conn}, "interleave-7597", 5*time.Minute)
-	q.ClaimDomains = []reducer.Domain{domain}
+	q.ClaimDomains = []reducercontract.Domain{domain}
 	q.MaxAttempts = 3
 	q.RetryDelay = time.Second
 	return q

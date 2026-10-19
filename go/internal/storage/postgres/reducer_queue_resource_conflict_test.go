@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestReducerConflictDomainKeyClassifiesResourceMaterializationDomains(t *testing.T) {
@@ -16,7 +17,7 @@ func TestReducerConflictDomainKeyClassifiesResourceMaterializationDomains(t *tes
 
 	tests := []struct {
 		name       string
-		domain     reducer.Domain
+		domain     reducercontract.Domain
 		entityKey  string
 		wantStatus reducerResourceConflictStatus
 		wantDomain string
@@ -133,7 +134,7 @@ func TestReducerConflictDomainKeyRejectsRawProviderLocators(t *testing.T) {
 func TestReducerResourceConflictPolicyCoversIssue2754Domains(t *testing.T) {
 	t.Parallel()
 
-	required := []reducer.Domain{
+	required := []reducercontract.Domain{
 		reducer.DomainAWSResourceMaterialization,
 		reducer.DomainGCPResourceMaterialization,
 		reducer.DomainAzureResourceMaterialization,

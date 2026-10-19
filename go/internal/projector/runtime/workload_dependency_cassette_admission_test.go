@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 )
 
@@ -54,7 +55,7 @@ func TestWorkloadDependencyCassetteProductionAdmission(t *testing.T) {
 	// without one strands its workload_materialization items at the drain
 	// (#6184). Orphan-source carries one for the rejected stale-evidence path;
 	// orphan-target has no workload candidates and needs none.
-	wantIntentsByRepo := map[string]map[reducer.Domain]string{
+	wantIntentsByRepo := map[string]map[reducercontract.Domain]string{
 		"repo-ifa-workload-dependency-source": {
 			reducer.DomainDeploymentMapping:       "workload:repo-ifa-workload-dependency-source",
 			reducer.DomainWorkloadMaterialization: "workload:repo-ifa-workload-dependency-source",
@@ -131,7 +132,7 @@ func TestWorkloadDependencyCassetteProductionAdmission(t *testing.T) {
 		if got, want := len(projection.reducerIntents), len(wantIntents); got != want {
 			t.Errorf("repository %q reducer intent count = %d, want exactly %d: %+v", repoID, got, want, projection.reducerIntents)
 		}
-		seenIntents := make(map[reducer.Domain]struct{}, len(projection.reducerIntents))
+		seenIntents := make(map[reducercontract.Domain]struct{}, len(projection.reducerIntents))
 		for _, intent := range projection.reducerIntents {
 			wantKey, ok := wantIntents[intent.Domain]
 			if !ok {

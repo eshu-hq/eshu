@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // Residual real-Postgres concurrency gate for issue #4124 (R-15 of epic #4102).
@@ -85,7 +85,7 @@ func TestReducerContentionGateNoDoubleClaimUnderConcurrency(t *testing.T) {
 			database:      SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, dsn, schemaName)},
 			LeaseOwner:    fmt.Sprintf("contention-worker-%d", i),
 			LeaseDuration: time.Hour, // long lease: anything claimed stays live for the round
-			ClaimDomains:  []reducer.Domain{contentionGateClaimDomain},
+			ClaimDomains:  []reducercontract.Domain{contentionGateClaimDomain},
 		}
 	}
 
@@ -174,7 +174,7 @@ func TestReducerContentionGateFencingTokenStrictlyIncreases(t *testing.T) {
 			database:      SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, dsn, schemaName)},
 			LeaseOwner:    owner,
 			LeaseDuration: lease,
-			ClaimDomains:  []reducer.Domain{contentionGateClaimDomain},
+			ClaimDomains:  []reducercontract.Domain{contentionGateClaimDomain},
 		}
 	}
 
@@ -229,7 +229,7 @@ func TestReducerContentionGateStaleLeaseReapingUnderRealClock(t *testing.T) {
 			database:      SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, dsn, schemaName)},
 			LeaseOwner:    owner,
 			LeaseDuration: lease,
-			ClaimDomains:  []reducer.Domain{contentionGateClaimDomain},
+			ClaimDomains:  []reducercontract.Domain{contentionGateClaimDomain},
 		}
 	}
 	queueA := newQueue("reap-worker-A")
@@ -292,7 +292,7 @@ func TestReducerContentionGateConflictKeyMutualExclusionCommittedHolder(t *testi
 		database:      SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, dsn, schemaName)},
 		LeaseOwner:    "excl-holder",
 		LeaseDuration: time.Hour,
-		ClaimDomains:  []reducer.Domain{contentionGateClaimDomain},
+		ClaimDomains:  []reducercontract.Domain{contentionGateClaimDomain},
 	}
 	if _, ok, err := holder.Claim(ctx); err != nil {
 		t.Fatalf("holder Claim() error = %v", err)
@@ -312,7 +312,7 @@ func TestReducerContentionGateConflictKeyMutualExclusionCommittedHolder(t *testi
 			database:      SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, dsn, schemaName)},
 			LeaseOwner:    fmt.Sprintf("excl-racer-%d", i),
 			LeaseDuration: time.Hour,
-			ClaimDomains:  []reducer.Domain{contentionGateClaimDomain},
+			ClaimDomains:  []reducercontract.Domain{contentionGateClaimDomain},
 		}
 		wg.Add(1)
 		go func(q ReducerQueue) {
@@ -384,7 +384,7 @@ func TestReducerContentionGateConflictKeyMutualExclusionConcurrentPendingSibling
 			database:      SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, dsn, schemaName)},
 			LeaseOwner:    fmt.Sprintf("race-worker-%d", i),
 			LeaseDuration: time.Hour, // long: a claimed sibling stays live for the round
-			ClaimDomains:  []reducer.Domain{contentionGateClaimDomain},
+			ClaimDomains:  []reducercontract.Domain{contentionGateClaimDomain},
 		}
 	}
 

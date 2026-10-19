@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestPlatformGraphConflictKeyPartitionsByDomain proves that the platform_graph
@@ -41,7 +42,7 @@ func TestPlatformGraphConflictKeyPartitionsByDomain(t *testing.T) {
 
 	const testScope = "scope:repo:acme:backend"
 
-	intentFor := func(domain reducer.Domain) runtime.ReducerIntent {
+	intentFor := func(domain reducercontract.Domain) runtime.ReducerIntent {
 		return runtime.ReducerIntent{
 			ScopeID: testScope,
 			Domain:  domain,
@@ -174,7 +175,7 @@ func TestPlatformGraphConflictKeySameDomainSameScopeSerializes(t *testing.T) {
 	t.Parallel()
 
 	const testScope = "scope:repo:acme:backend"
-	domains := []reducer.Domain{
+	domains := []reducercontract.Domain{
 		reducer.DomainWorkloadMaterialization,
 		reducer.DomainDeploymentMapping,
 		reducer.DomainWorkloadIdentity,
@@ -202,7 +203,7 @@ func TestPlatformGraphConflictKeySameDomainSameScopeSerializes(t *testing.T) {
 func TestPlatformGraphConflictKeyDistinctScopesAlwaysDistinct(t *testing.T) {
 	t.Parallel()
 
-	domains := []reducer.Domain{
+	domains := []reducercontract.Domain{
 		reducer.DomainWorkloadMaterialization,
 		reducer.DomainDeploymentMapping,
 		reducer.DomainWorkloadIdentity,
@@ -232,7 +233,7 @@ func TestPlatformGraphConflictKeyDoesNotLeakRawScopeID(t *testing.T) {
 	t.Parallel()
 
 	const sensitiveScope = "scope:repo:acme:backend:secret-infra"
-	domains := []reducer.Domain{
+	domains := []reducercontract.Domain{
 		reducer.DomainWorkloadMaterialization,
 		reducer.DomainDeploymentMapping,
 	}

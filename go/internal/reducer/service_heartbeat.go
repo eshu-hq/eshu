@@ -219,7 +219,7 @@ const HandlerAbandonedAtShutdownFailureClass = "reducer_handler_abandoned_at_shu
 // the shutdown cause so errors.Is(err, context.Canceled) still matches.
 type handlerAbandonedError struct {
 	intentID string
-	domain   Domain
+	domain   reducercontract.Domain
 	elapsed  time.Duration
 	cause    error
 }
@@ -242,7 +242,7 @@ func (e *handlerAbandonedError) Retryable() bool { return true }
 // HandlerTimeoutFor resolves the configured handler bound for one domain:
 // the per-domain override when present, else the default. Zero means no bound
 // is configured. Step (a) of #8211 records the slot without enforcing it.
-func (s Service) HandlerTimeoutFor(domain Domain) time.Duration {
+func (s Service) HandlerTimeoutFor(domain reducercontract.Domain) time.Duration {
 	if s.HandlerTimeoutOverrides != nil {
 		if bound, ok := s.HandlerTimeoutOverrides[domain]; ok {
 			return bound

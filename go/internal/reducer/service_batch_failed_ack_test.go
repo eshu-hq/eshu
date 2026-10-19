@@ -23,7 +23,7 @@ func (deferringExecutor) Execute(_ context.Context, _ reducercontract.Intent) (R
 	return Result{}, errors.New("cross-scope consumer deferred: producer scopes have not activated")
 }
 
-func failedAckTestIntent(id string, domain Domain) reducercontract.Intent {
+func failedAckTestIntent(id string, domain reducercontract.Domain) reducercontract.Intent {
 	return reducercontract.Intent{
 		IntentID:        id,
 		ScopeID:         "ci_cd_run:github_actions:eshu-hq:supply-chain-demo",
@@ -57,7 +57,7 @@ func failedAckTestIntent(id string, domain Domain) reducercontract.Intent {
 func TestServiceRunBatchDoesNotAckIntentsItAlreadyFailed(t *testing.T) {
 	t.Parallel()
 
-	for _, domain := range []Domain{
+	for _, domain := range []reducercontract.Domain{
 		DomainCICDRunCorrelation,
 		DomainContainerImageIdentity,
 		DomainCodeCallMaterialization,

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // Expired-holder reclaim proofs for the #4137 follow-up. The live-lease unique
@@ -44,7 +44,7 @@ func seedReducerExpiredHolderWithOlderPendingSibling(t *testing.T, ctx context.C
 		LeaseOwner:    "holder-worker",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return base.Add(time.Hour) },
-		ClaimDomains:  []reducer.Domain{contentionGateClaimDomain},
+		ClaimDomains:  []reducercontract.Domain{contentionGateClaimDomain},
 	}
 	if intent, ok, err := holderQ.Claim(ctx); err != nil || !ok || intent.IntentID != "holder" {
 		t.Fatalf("seed holder claim: intent=%q ok=%v err=%v", intent.IntentID, ok, err)
@@ -83,7 +83,7 @@ func TestReducerClaimReclaimsExpiredHolderBeforeOlderPendingSibling(t *testing.T
 		LeaseOwner:    "reclaim-worker",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return reducerExpiredHolderReclaimAt },
-		ClaimDomains:  []reducer.Domain{contentionGateClaimDomain},
+		ClaimDomains:  []reducercontract.Domain{contentionGateClaimDomain},
 	}
 	intent, ok, err := reclaimQ.Claim(ctx)
 	if err != nil {
@@ -114,7 +114,7 @@ func TestReducerClaimBatchReclaimsExpiredHolderBeforeOlderPendingSibling(t *test
 		LeaseOwner:    "reclaim-batch-worker",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return reducerExpiredHolderReclaimAt },
-		ClaimDomains:  []reducer.Domain{contentionGateClaimDomain},
+		ClaimDomains:  []reducercontract.Domain{contentionGateClaimDomain},
 	}
 	intents, err := reclaimQ.ClaimBatch(ctx, 8)
 	if err != nil {

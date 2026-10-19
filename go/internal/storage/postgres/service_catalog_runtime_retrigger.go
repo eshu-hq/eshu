@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -249,7 +250,7 @@ func (q ReducerQueue) ackWorkloadMaterializationGroup(
 // which repository scope caused a catalog re-run.
 func (q ReducerQueue) recordServiceCatalogRetrigger(
 	ctx context.Context,
-	producer reducer.Domain,
+	producer reducercontract.Domain,
 	scopeID string,
 	acked int,
 	out serviceCatalogRetrigger,

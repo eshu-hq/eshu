@@ -111,7 +111,7 @@ const idempotencyReplayFencingToken int64 = 7
 // replayers, infrastructure-platform lookups, repair queues) before they emit
 // anything. Their idempotency is already proven by their own dedicated suites,
 // cited below, rather than by this registry-driven unit replay.
-var idempotencyExemptDomains = map[Domain]string{
+var idempotencyExemptDomains = map[reducercontract.Domain]string{
 	// deployment_mapping (PlatformMaterializationHandler) emits only after the
 	// cross-repo resolver + readiness lookups admit work; its reprojection
 	// idempotency is covered by cross_repo_resolution_*_test.go and
@@ -227,7 +227,7 @@ func sharedIntentRows(rows []sharedintent.Row) []idempotencyRow {
 	return out
 }
 
-func replayIntent(domain Domain, scopeID string, keys []string) reducercontract.Intent {
+func replayIntent(domain reducercontract.Domain, scopeID string, keys []string) reducercontract.Intent {
 	now := time.Date(2026, time.June, 28, 12, 0, 0, 0, time.UTC)
 	return reducercontract.Intent{
 		IntentID:        "intent-replay-" + string(domain),

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestReducerQueueClaimCanFilterByMultipleDomains(t *testing.T) {
@@ -27,7 +28,7 @@ func TestReducerQueueClaimCanFilterByMultipleDomains(t *testing.T) {
 		LeaseOwner:    "code-graph-lane",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
-		ClaimDomains: []reducer.Domain{
+		ClaimDomains: []reducercontract.Domain{
 			reducer.DomainSQLRelationshipMaterialization,
 			reducer.DomainInheritanceMaterialization,
 		},
@@ -68,7 +69,7 @@ func TestClaimBatchCanFilterByMultipleDomains(t *testing.T) {
 		LeaseOwner:    "code-graph-lane",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
-		ClaimDomains: []reducer.Domain{
+		ClaimDomains: []reducercontract.Domain{
 			reducer.DomainSQLRelationshipMaterialization,
 			reducer.DomainInheritanceMaterialization,
 		},

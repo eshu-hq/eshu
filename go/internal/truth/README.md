@@ -55,7 +55,7 @@ not per tier — live in
 ```mermaid
 flowchart LR
   A["reducer/registry.go\nContract declaration"] --> B["truth.Contract\ntruth.Layer"]
-  B --> C["reducer.Domain\nadmission gate"]
+  B --> C["reducercontract.Domain\nadmission gate"]
   B --> D["query/status.go\ntruth.layer in response"]
 ```
 

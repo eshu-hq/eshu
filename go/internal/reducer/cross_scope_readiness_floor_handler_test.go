@@ -29,14 +29,14 @@ type fixedCrossScopeReadiness struct {
 	// readyByProducer overrides ready for the named producer domains, so a test
 	// can express the shape the aggregate bool could not: one producer ready
 	// while another is still inside its activation window.
-	readyByProducer map[Domain]bool
+	readyByProducer map[reducercontract.Domain]bool
 	err             error
 	calls           int
 }
 
 func (r *fixedCrossScopeReadiness) CrossScopeProducersReady(
 	_ context.Context,
-	consumer Domain,
+	consumer reducercontract.Domain,
 	_ string,
 	_ string,
 ) (CrossScopeProducerReadinessByDomain, error) {

@@ -287,7 +287,7 @@ func ackCrossScopeCompletionScaleDomain(
 	ctx context.Context,
 	db *sql.DB,
 	queue ReducerQueue,
-	domain reducer.Domain,
+	domain reducercontract.Domain,
 	itemCount int,
 	batchCount int,
 	claimedAt time.Time,
@@ -335,7 +335,7 @@ func claimCrossScopeCompletionScaleDomain(
 	t *testing.T,
 	ctx context.Context,
 	db *sql.DB,
-	domain reducer.Domain,
+	domain reducercontract.Domain,
 	leaseOwner string,
 	claimedAt time.Time,
 ) {
@@ -356,7 +356,7 @@ func assertCrossScopeCompletionEventItems(
 	t *testing.T,
 	ctx context.Context,
 	db *sql.DB,
-	domain reducer.Domain,
+	domain reducercontract.Domain,
 	wantEvents int,
 	wantItems int,
 ) {

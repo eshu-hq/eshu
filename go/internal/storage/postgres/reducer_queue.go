@@ -181,11 +181,11 @@ type ReducerQueue struct {
 
 	// ClaimDomain optionally restricts this queue instance to one reducer domain.
 	// Prefer ClaimDomains for new multi-domain reducer lanes.
-	ClaimDomain reducer.Domain
+	ClaimDomain reducercontract.Domain
 
 	// ClaimDomains optionally restricts this queue instance to a reducer domain
 	// allowlist. Empty keeps the default all-domain reducer behavior.
-	ClaimDomains []reducer.Domain
+	ClaimDomains []reducercontract.Domain
 
 	// RequireProjectorDrainBeforeClaim keeps reducer graph writes from
 	// contending with same-scope source-local projection. It is intended for

@@ -14,6 +14,7 @@ import (
 
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
@@ -50,7 +51,7 @@ func TestActivationObligationConsumerOrderingLive(t *testing.T) {
 			reducerQueue := postgres.NewReducerQueue(postgres.SQLDB{DB: database}, "7584-consumer-reducer", time.Minute)
 			reducerQueue.RetryDelay = time.Minute
 			reducerQueue.Now = activationDatabaseClock(t, ctx, database)
-			reducerQueue.ClaimDomains = []reducer.Domain{reducer.DomainDeploymentMapping}
+			reducerQueue.ClaimDomains = []reducercontract.Domain{reducer.DomainDeploymentMapping}
 			if _, err := reducerQueue.Enqueue(ctx, []projectorruntime.ReducerIntent{{
 				ScopeID: targetWork.Scope.ScopeID, GenerationID: targetWork.Generation.GenerationID,
 				Domain: reducer.DomainDeploymentMapping, SourceSystem: "git",

@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -99,7 +100,7 @@ func TestCrossScopeProducerCollectorKindsForResolvesEveryCatalogConsumer(t *test
 
 	for _, testCase := range []struct {
 		name     string
-		consumer reducer.Domain
+		consumer reducercontract.Domain
 		want     []string
 	}{
 		{
@@ -137,7 +138,7 @@ func TestCrossScopeProducerCollectorKindsForResolvesEveryCatalogConsumer(t *test
 func readinessFor(
 	t *testing.T,
 	readiness reducer.CrossScopeProducerReadinessByDomain,
-	producer reducer.Domain,
+	producer reducercontract.Domain,
 ) bool {
 	t.Helper()
 
@@ -156,7 +157,7 @@ func readinessFor(
 func TestCrossScopeProducerCollectorKindsDeduplicatesAndSorts(t *testing.T) {
 	t.Parallel()
 
-	got := crossScopeProducerCollectorKinds([]reducer.Domain{
+	got := crossScopeProducerCollectorKinds([]reducercontract.Domain{
 		reducer.DomainCICDRunCorrelation,
 		reducer.DomainContainerImageIdentity,
 		reducer.DomainContainerImageIdentity,
@@ -174,7 +175,7 @@ func TestCrossScopeProducerCollectorKindsDeduplicatesAndSorts(t *testing.T) {
 func TestCrossScopeProducerCollectorKindsSkipsUnmappedProducers(t *testing.T) {
 	t.Parallel()
 
-	got := crossScopeProducerCollectorKinds([]reducer.Domain{reducer.Domain("not_a_producer_with_a_scope")})
+	got := crossScopeProducerCollectorKinds([]reducercontract.Domain{reducercontract.Domain("not_a_producer_with_a_scope")})
 	if len(got) != 0 {
 		t.Fatalf("crossScopeProducerCollectorKinds() = %v, want no kinds for an unmapped producer", got)
 	}
@@ -343,7 +344,7 @@ func TestCrossScopeProducersReadyAnswersEveryProducerSeparately(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CrossScopeProducersReady() error = %v", err)
 		}
-		for _, producer := range []reducer.Domain{
+		for _, producer := range []reducercontract.Domain{
 			reducer.DomainContainerImageIdentity,
 			reducer.DomainCICDRunCorrelation,
 		} {

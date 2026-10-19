@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/obligation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
@@ -117,7 +118,7 @@ func (c *quietConsumer) assertSettledQuietGeneration(t *testing.T, ctx context.C
 		}
 	}
 	queue := postgres.NewReducerQueue(postgres.SQLDB{DB: database}, "quiet-reducer", time.Minute)
-	queue.ClaimDomains = []reducer.Domain{reducer.DomainDeploymentMapping}
+	queue.ClaimDomains = []reducercontract.Domain{reducer.DomainDeploymentMapping}
 	queue.Now = activationDatabaseClock(t, ctx, database)
 	intent, ok, err := queue.Claim(ctx)
 	if err != nil || !ok {

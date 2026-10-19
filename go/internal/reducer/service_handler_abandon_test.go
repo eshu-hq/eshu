@@ -534,7 +534,7 @@ func TestHandlerTimeoutForResolvesOverrideThenDefault(t *testing.T) {
 
 	service := Service{
 		HandlerTimeout: 5 * time.Minute,
-		HandlerTimeoutOverrides: map[Domain]time.Duration{
+		HandlerTimeoutOverrides: map[reducercontract.Domain]time.Duration{
 			DomainSemanticEntityMaterialization: time.Minute,
 		},
 	}

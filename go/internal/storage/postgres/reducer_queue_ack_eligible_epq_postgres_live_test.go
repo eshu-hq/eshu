@@ -16,7 +16,7 @@ import (
 // A heartbeat changes the tuple version while keeping the exact ACK eligible.
 // Ordered prelocking must preserve this ACK after its concurrent-row recheck.
 func TestReducerContentionGateAckEligibleEPQLive(t *testing.T) {
-	for _, domain := range []reducer.Domain{reducer.DomainSupplyChainImpact, reducer.DomainContainerImageIdentity, reducer.DomainCICDRunCorrelation} {
+	for _, domain := range []reducercontract.Domain{reducer.DomainSupplyChainImpact, reducer.DomainContainerImageIdentity, reducer.DomainCICDRunCorrelation} {
 		t.Run(string(domain), func(t *testing.T) {
 			db := openReducerAckFanoutProofDB(t)
 			db.SetMaxOpenConns(5)

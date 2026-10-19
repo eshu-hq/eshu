@@ -10,9 +10,6 @@ import reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 // because it may already belong to a newer claimant.
 var ErrExecutionClaimRejected = reducercontract.ErrExecutionClaimRejected
 
-// Domain identifies a canonical shared-truth reducer domain.
-type Domain = reducercontract.Domain
-
 const (
 	// DomainWorkloadIdentity resolves canonical workload identity.
 	DomainWorkloadIdentity = reducercontract.DomainWorkloadIdentity

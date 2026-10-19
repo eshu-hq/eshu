@@ -260,7 +260,7 @@ func insertCrossScopeCompletionBaseConsumer(
 	workItemID string,
 	scopeID string,
 	generationID string,
-	domain reducer.Domain,
+	domain reducercontract.Domain,
 	now time.Time,
 ) {
 	t.Helper()
@@ -279,7 +279,7 @@ func assertCrossScopeCompletionEventCount(
 	t *testing.T,
 	ctx context.Context,
 	db *sql.DB,
-	domain reducer.Domain,
+	domain reducercontract.Domain,
 	want int,
 ) {
 	t.Helper()

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -46,7 +47,7 @@ func TestBuildReducerServiceWiresReducerClaimDomains(t *testing.T) {
 	if !ok {
 		t.Fatalf("work source type = %T, want postgres.ReducerQueue", service.WorkSource)
 	}
-	want := []reducer.Domain{
+	want := []reducercontract.Domain{
 		reducer.DomainSQLRelationshipMaterialization,
 		reducer.DomainInheritanceMaterialization,
 	}
@@ -55,7 +56,7 @@ func TestBuildReducerServiceWiresReducerClaimDomains(t *testing.T) {
 	}
 }
 
-func domainSlicesEqual(left, right []reducer.Domain) bool {
+func domainSlicesEqual(left, right []reducercontract.Domain) bool {
 	if len(left) != len(right) {
 		return false
 	}

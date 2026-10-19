@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 const (
@@ -44,7 +45,7 @@ func TestSecurityGroupReachabilityIntentsFireOnRuleFacts(t *testing.T) {
 	cases := []struct {
 		name    string
 		build   intentBuilder
-		wantDom reducer.Domain
+		wantDom reducercontract.Domain
 	}{
 		{"endpoint", BuildSecurityGroupEndpointMaterializationReducerIntent, reducer.DomainSecurityGroupCidrMaterialization},
 		{"rule_node", BuildSecurityGroupRuleMaterializationReducerIntent, reducer.DomainSecurityGroupRuleMaterialization},

@@ -19,7 +19,7 @@ import (
 // cost the common case anything.
 func reducerAckSplitBenchBatch(size int) []reducercontract.Intent {
 	claimedAt := time.Date(2026, time.September, 21, 15, 11, 48, 0, time.UTC)
-	domains := []reducer.Domain{
+	domains := []reducercontract.Domain{
 		reducer.DomainGCPResourceMaterialization,
 		reducer.DomainContainerImageIdentity,
 		reducer.DomainCICDRunCorrelation,

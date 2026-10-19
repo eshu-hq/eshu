@@ -6,6 +6,8 @@ package reducer
 import (
 	"sort"
 	"testing"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestAllDomainsUnionsKnownAndProjectionDomains locks AllDomains to the union of
@@ -19,7 +21,7 @@ func TestAllDomainsUnionsKnownAndProjectionDomains(t *testing.T) {
 	t.Parallel()
 	got := AllDomains()
 
-	want := map[Domain]struct{}{}
+	want := map[reducercontract.Domain]struct{}{}
 	for d := range knownDomains {
 		want[d] = struct{}{}
 	}
@@ -29,7 +31,7 @@ func TestAllDomainsUnionsKnownAndProjectionDomains(t *testing.T) {
 	if len(got) != len(want) {
 		t.Fatalf("AllDomains() returned %d domains, want %d (knownDomains ∪ allProjectionDomains)", len(got), len(want))
 	}
-	seen := map[Domain]bool{}
+	seen := map[reducercontract.Domain]bool{}
 	for _, d := range got {
 		if _, ok := want[d]; !ok {
 			t.Errorf("AllDomains() returned %q which is in neither registry", d)
@@ -46,11 +48,11 @@ func TestAllDomainsUnionsKnownAndProjectionDomains(t *testing.T) {
 // still be enumerated so the surface inventory tracks them.
 func TestAllDomainsIncludesSharedProjectionDomains(t *testing.T) {
 	t.Parallel()
-	got := map[Domain]bool{}
+	got := map[reducercontract.Domain]bool{}
 	for _, d := range AllDomains() {
 		got[d] = true
 	}
-	for _, d := range []Domain{DomainCodeCalls, DomainHandlesRoute, DomainRunsIn, DomainInvokesCloudAction, DomainRepoDependency} {
+	for _, d := range []reducercontract.Domain{DomainCodeCalls, DomainHandlesRoute, DomainRunsIn, DomainInvokesCloudAction, DomainRepoDependency} {
 		if !got[d] {
 			t.Errorf("AllDomains() is missing shared-projection domain %q", d)
 		}

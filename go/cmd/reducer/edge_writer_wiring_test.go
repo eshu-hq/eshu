@@ -35,7 +35,7 @@ func TestBuildReducerServiceWiresCodeownersAndSubmodulePinEdgeWriters(t *testing
 	}
 
 	for _, tc := range []struct {
-		domain          reducer.Domain
+		domain          reducercontract.Domain
 		nilWriterErrMsg string
 	}{
 		{domain: reducer.DomainCodeownersOwnership, nilWriterErrMsg: "codeowners ownership materialization edge writer is required"},

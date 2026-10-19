@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // BenchmarkReducerPlatformGraphConflictKey measures the cost of the new
@@ -27,7 +28,7 @@ func BenchmarkReducerPlatformGraphConflictKey(b *testing.B) {
 // BenchmarkReducerPlatformGraphConflictKeyAllDomains measures across all 5
 // platform-graph domains to confirm uniform cost.
 func BenchmarkReducerPlatformGraphConflictKeyAllDomains(b *testing.B) {
-	domains := []reducer.Domain{
+	domains := []reducercontract.Domain{
 		reducer.DomainWorkloadMaterialization,
 		reducer.DomainDeploymentMapping,
 		reducer.DomainWorkloadIdentity,

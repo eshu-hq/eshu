@@ -82,7 +82,7 @@ INSERT INTO fact_work_items (
 	queue := ReducerQueue{
 		database: SQLDB{DB: db}, LeaseOwner: owner,
 		LeaseDuration: time.Minute, RetryDelay: time.Second,
-		MaxAttempts: 3, ClaimDomains: []reducer.Domain{reducer.DomainContainerImageIdentity},
+		MaxAttempts: 3, ClaimDomains: []reducercontract.Domain{reducer.DomainContainerImageIdentity},
 		Now: func() time.Time { return now },
 	}
 	work := runtime.ReducerIntent{
@@ -322,7 +322,7 @@ VALUES ($1, $2, $3, 'projector', 'source_local', 'running',
 	queue := ReducerQueue{
 		database: SQLDB{DB: db}, LeaseOwner: "reducer-7916-failed-probe",
 		LeaseDuration: time.Minute, RetryDelay: time.Second, MaxAttempts: 3,
-		ClaimDomains: []reducer.Domain{reducer.DomainContainerImageIdentity}, Now: func() time.Time { return now },
+		ClaimDomains: []reducercontract.Domain{reducer.DomainContainerImageIdentity}, Now: func() time.Time { return now },
 	}
 	work := runtime.ReducerIntent{
 		ScopeID: scopeID, GenerationID: generationID,

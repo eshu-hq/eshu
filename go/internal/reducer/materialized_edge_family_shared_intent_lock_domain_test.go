@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // checkSharedIntentLockRoutedDomainIsUnique fails, naming both families, when
@@ -44,7 +46,7 @@ import (
 // for this test's reflection to compare, for the same reason it is excluded
 // from checkFamilyBlockerLockstep.
 func checkSharedIntentLockRoutedDomainIsUnique(expectations map[string]familyBlockerExpectation, declaredBlockerKinds map[string]string) error {
-	owner := make(map[Domain]string, len(expectations))
+	owner := make(map[reducercontract.Domain]string, len(expectations))
 	families := make([]string, 0, len(expectations))
 	for family := range expectations {
 		families = append(families, family)

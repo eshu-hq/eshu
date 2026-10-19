@@ -22,7 +22,7 @@ import (
 // The summary producer stopped solving the fixpoint inline (#6923) and
 // became this fifth producer instead, so every trigger of the global solve
 // coalesces onto the one fenced #6785 refresh singleton.
-func isValueFlowRefreshProducer(domain reducer.Domain) bool {
+func isValueFlowRefreshProducer(domain reducercontract.Domain) bool {
 	switch domain {
 	case reducer.DomainWorkloadMaterialization,
 		reducer.DomainWorkloadCloudRelationshipMaterialization,
@@ -183,7 +183,7 @@ RETURNING 1
 // valueFlowRefreshAckGroup is one domain's batch slice: every id is ACKed,
 // only emitIDs contribute to the completion event.
 type valueFlowRefreshAckGroup struct {
-	domain     reducer.Domain
+	domain     reducercontract.Domain
 	ids        []string
 	claimedAts []time.Time
 	emitIDs    []string
@@ -198,7 +198,7 @@ func splitValueFlowRefreshAckIntents(
 	resultByID map[string]reducer.Result,
 ) ([]reducercontract.Intent, []valueFlowRefreshAckGroup) {
 	kept := make([]reducercontract.Intent, 0, len(unrelated))
-	byDomain := make(map[reducer.Domain]*valueFlowRefreshAckGroup)
+	byDomain := make(map[reducercontract.Domain]*valueFlowRefreshAckGroup)
 	for _, intent := range unrelated {
 		if !isValueFlowRefreshProducer(intent.Domain) {
 			kept = append(kept, intent)
@@ -220,7 +220,7 @@ func splitValueFlowRefreshAckIntents(
 			group.emitIDs = append(group.emitIDs, intent.IntentID)
 		}
 	}
-	domains := make([]reducer.Domain, 0, len(byDomain))
+	domains := make([]reducercontract.Domain, 0, len(byDomain))
 	for domain := range byDomain {
 		domains = append(domains, domain)
 	}
@@ -252,7 +252,7 @@ func splitValueFlowRefreshAckIntents(
 // label they traverse (directly or through the fenced edge writer that
 // anchors on it), the shared-intent enqueuer, and the fixpoint input
 // producer, so this list cannot drift from those statements.
-var ValueFlowInputsFenceReducerDomains = []reducer.Domain{
+var ValueFlowInputsFenceReducerDomains = []reducercontract.Domain{
 	reducer.DomainCodeFunctionSummary,
 	reducer.DomainCodeCallMaterialization,
 	reducer.DomainWorkloadMaterialization,
@@ -269,7 +269,7 @@ var ValueFlowInputsFenceReducerDomains = []reducer.Domain{
 // fact_work_items alone would pass while one of these is still queued and
 // the solve would again read Functions with no workload. Exported for the
 // same drift guard as ValueFlowInputsFenceReducerDomains.
-var ValueFlowInputsFenceSharedDomains = []reducer.Domain{
+var ValueFlowInputsFenceSharedDomains = []reducercontract.Domain{
 	reducer.DomainRunsIn,
 	reducer.DomainInvokesCloudAction,
 }
@@ -330,7 +330,7 @@ UNION ALL
 // Callers pass only the closed, compile-time domain lists above — never
 // request- or database-derived values — so this is not a SQL-injection
 // surface.
-func sqlDomainInList(domains []reducer.Domain) string {
+func sqlDomainInList(domains []reducercontract.Domain) string {
 	quoted := make([]string, len(domains))
 	for i, d := range domains {
 		quoted[i] = "'" + string(d) + "'"

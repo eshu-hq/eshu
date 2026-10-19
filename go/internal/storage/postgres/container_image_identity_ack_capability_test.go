@@ -55,7 +55,7 @@ func TestReducerQueueAckBindsContainerImageIdentityClaimEpoch(t *testing.T) {
 func TestReducerQueueAckLeavesUnrelatedAndEmptyDomainsOnLegacyQuery(t *testing.T) {
 	t.Parallel()
 
-	for _, domain := range []reducer.Domain{reducer.DomainOwnership, ""} {
+	for _, domain := range []reducercontract.Domain{reducer.DomainOwnership, ""} {
 		db := &fakeExecQueryer{}
 		queue := ReducerQueue{
 			database:      db,

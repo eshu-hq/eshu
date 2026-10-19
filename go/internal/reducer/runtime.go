@@ -44,7 +44,7 @@ type RunReport struct {
 
 // DomainStats summarizes runtime state for one reducer domain.
 type DomainStats struct {
-	Domain    Domain
+	Domain    reducercontract.Domain
 	Summary   string
 	Ownership OwnershipShape
 	Pending   int
@@ -76,7 +76,7 @@ type Runtime struct {
 // NewRuntime constructs a reducer runtime over the supplied registry.
 func NewRuntime(registry Registry) (*Runtime, error) {
 	if registry.defs == nil {
-		registry.defs = make(map[Domain]DomainDefinition)
+		registry.defs = make(map[reducercontract.Domain]DomainDefinition)
 	}
 
 	return &Runtime{registry: registry}, nil

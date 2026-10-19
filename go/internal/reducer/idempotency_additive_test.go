@@ -6,6 +6,7 @@ package reducer
 import (
 	"sort"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 )
 
@@ -21,7 +22,7 @@ import (
 //
 // registrableReducerDomains() enumerates the full production-registrable
 // superset from knownDomains, which is the authoritative source: Registry.Register
-// rejects (via Domain.Validate -> knownDomains membership) any domain not present
+// rejects (via reducercontract.Domain.Validate -> knownDomains membership) any domain not present
 // there, so a future additive domain cannot register without appearing in this
 // guard. This file holds the additive enumeration and exemptions so
 // idempotency_cases_test.go stays under the repo's 500-line cap.
@@ -36,7 +37,7 @@ import (
 //   - data_lineage / ownership / governance: legacy reserved domain identifiers
 //     declared in intent.go; no handler is wired in the default catalog or the
 //     additive helper, so they never register and have nothing to replay.
-var idempotencyReservedNonRegistrableDomains = map[Domain]struct{}{
+var idempotencyReservedNonRegistrableDomains = map[reducercontract.Domain]struct{}{
 	DomainDataLineage: {},
 	DomainOwnership:   {},
 	DomainGovernance:  {},
@@ -52,13 +53,13 @@ var idempotencyReservedNonRegistrableDomains = map[Domain]struct{}{
 // domain MUST be added there to register at all, which automatically pulls it
 // into this set and forces a case or exemption — the guard cannot silently miss
 // it.
-func registrableReducerDomains() []Domain {
-	projection := make(map[Domain]struct{}, len(allProjectionDomains))
+func registrableReducerDomains() []reducercontract.Domain {
+	projection := make(map[reducercontract.Domain]struct{}, len(allProjectionDomains))
 	for _, domain := range allProjectionDomains {
 		projection[domain] = struct{}{}
 	}
 
-	out := make([]Domain, 0, len(knownDomains))
+	out := make([]reducercontract.Domain, 0, len(knownDomains))
 	for domain := range knownDomains {
 		if _, ok := projection[domain]; ok {
 			continue
@@ -74,7 +75,7 @@ func registrableReducerDomains() []Domain {
 
 // idempotencyExemptDomain reports whether a domain is exempted by either the base
 // or the additive exemption set, plus the recorded reason.
-func idempotencyExemptDomain(domain Domain) (string, bool) {
+func idempotencyExemptDomain(domain reducercontract.Domain) (string, bool) {
 	if reason, ok := idempotencyExemptDomains[domain]; ok {
 		return reason, true
 	}
@@ -96,7 +97,7 @@ func idempotencyExemptDomain(domain Domain) (string, bool) {
 // generation checks, cross-source evidence joins) before it emits. That makes a
 // single constructible unit fixture unrepresentative, so each domain's idempotency
 // is proven by its own dedicated suite instead.
-var idempotencyAdditiveExemptDomains = map[Domain]string{
+var idempotencyAdditiveExemptDomains = map[reducercontract.Domain]string{
 	// Terraform/cloud drift + cloud-inventory admission: evidence-loader gated,
 	// proven by their own suites.
 	DomainConfigStateDrift:        "additive, gated on TerraformBackendResolver+DriftEvidenceLoader+DriftLogger; drift-replay idempotency proven by config_state_drift handler suites (terraform_config_state_drift_*_test.go)",

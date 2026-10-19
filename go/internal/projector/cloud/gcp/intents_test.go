@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestBuildMaterializationReducerIntents(t *testing.T) {
@@ -21,7 +22,7 @@ func TestBuildMaterializationReducerIntents(t *testing.T) {
 		name          string
 		fact          facts.Envelope
 		build         func(string, string, projectorintent.FactLookup) (projectorintent.ReducerIntent, bool)
-		wantDomain    reducer.Domain
+		wantDomain    reducercontract.Domain
 		wantReason    string
 		wantSource    string
 		wantEntityKey string

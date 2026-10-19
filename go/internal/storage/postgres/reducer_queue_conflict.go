@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 const (
@@ -54,7 +55,7 @@ const (
 )
 
 type reducerResourceConflictPolicy struct {
-	Domain   reducer.Domain
+	Domain   reducercontract.Domain
 	Status   reducerResourceConflictStatus
 	Evidence string
 }
@@ -114,7 +115,7 @@ var reducerResourceConflictPolicies = []reducerResourceConflictPolicy{
 	blockedResourceConflictPolicy(reducer.DomainSecurityGroupReachabilityMaterialization),
 }
 
-func blockedResourceConflictPolicy(domain reducer.Domain) reducerResourceConflictPolicy {
+func blockedResourceConflictPolicy(domain reducercontract.Domain) reducerResourceConflictPolicy {
 	return reducerResourceConflictPolicy{
 		Domain:   domain,
 		Status:   reducerResourceConflictStatusBlocked,
@@ -236,14 +237,14 @@ func reducerPlatformNodeWriterConflictKey(scopeKey string) string {
 // a domain). It MUST NOT be used for the Platform-node writers
 // (WorkloadMaterialization, DeploymentMapping) — those share one key via
 // reducerPlatformNodeWriterConflictKey.
-func reducerPlatformGraphConflictKey(domain reducer.Domain, scopeKey string) string {
+func reducerPlatformGraphConflictKey(domain reducercontract.Domain, scopeKey string) string {
 	return reducerHashedConflictKey(
 		reducerConflictKeyPrefixPlatformGraph,
 		string(domain)+":"+strings.TrimSpace(scopeKey),
 	)
 }
 
-func reducerResourceConflictPolicyFor(domain reducer.Domain) (reducerResourceConflictPolicy, bool) {
+func reducerResourceConflictPolicyFor(domain reducercontract.Domain) (reducerResourceConflictPolicy, bool) {
 	for _, policy := range reducerResourceConflictPolicies {
 		if policy.Domain == domain {
 			return policy, true

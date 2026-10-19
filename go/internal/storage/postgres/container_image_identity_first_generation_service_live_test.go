@@ -58,7 +58,7 @@ func TestContainerImageIdentityFirstGenerationServiceDispatchLive(t *testing.T) 
 			queue := ReducerQueue{
 				database: SQLDB{DB: db}, LeaseOwner: "reducer-7916-service-" + mode.name,
 				LeaseDuration: time.Minute, RetryDelay: time.Second, MaxAttempts: 2,
-				ClaimDomains: []reducer.Domain{reducer.DomainContainerImageIdentity},
+				ClaimDomains: []reducercontract.Domain{reducer.DomainContainerImageIdentity},
 				Now:          func() time.Time { return now },
 			}
 			for _, row := range []struct{ scopeID, generationID string }{
@@ -241,7 +241,7 @@ func TestContainerImageIdentityFirstGenerationSupersededWhileNullLive(t *testing
 	queue := ReducerQueue{
 		database: SQLDB{DB: db}, LeaseOwner: "reducer-7916-superseded",
 		LeaseDuration: time.Minute, RetryDelay: time.Second, MaxAttempts: 2,
-		ClaimDomains: []reducer.Domain{reducer.DomainContainerImageIdentity},
+		ClaimDomains: []reducercontract.Domain{reducer.DomainContainerImageIdentity},
 		Now:          func() time.Time { return now },
 	}
 	if result, err := queue.Enqueue(ctx, []projectorruntime.ReducerIntent{{

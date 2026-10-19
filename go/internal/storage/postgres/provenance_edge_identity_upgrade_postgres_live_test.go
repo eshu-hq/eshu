@@ -74,7 +74,7 @@ UPDATE ingestion_scopes SET active_generation_id = $2 WHERE scope_id = $1
 	for _, fixture := range []struct {
 		id     string
 		gen    string
-		domain reducer.Domain
+		domain reducercontract.Domain
 	}{
 		{id: pendingID, gen: generation, domain: reducer.DomainPackageSourceCorrelation},
 		{id: retryingID, gen: generation, domain: reducer.DomainPackageSourceCorrelation},
@@ -290,7 +290,7 @@ func proveProvenanceUpgradeOldAckFencedThenNewAckSucceeds(
 	ctx context.Context,
 	db *sql.DB,
 	workItemID string,
-	domain reducer.Domain,
+	domain reducercontract.Domain,
 	now time.Time,
 ) {
 	t.Helper()

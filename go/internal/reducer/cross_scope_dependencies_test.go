@@ -13,6 +13,8 @@ package reducer
 import (
 	"slices"
 	"testing"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestDomainDefinitionValidatesCrossScopeDependencies proves DomainDefinition
@@ -78,7 +80,7 @@ func TestSupplyChainImpactDefinitionCarriesCatalogDependency(t *testing.T) {
 		t.Fatalf("supply_chain_impact must declare exactly one cross-scope dependency, got %d", len(def.CrossScopeDependencies))
 	}
 	producers := def.CrossScopeDependencies[0].ProducerDomains
-	want := []Domain{DomainContainerImageIdentity, DomainCICDRunCorrelation}
+	want := []reducercontract.Domain{DomainContainerImageIdentity, DomainCICDRunCorrelation}
 	if !slices.Equal(producers, want) {
 		t.Fatalf("supply_chain_impact cross-scope producers = %v, want %v", producers, want)
 	}

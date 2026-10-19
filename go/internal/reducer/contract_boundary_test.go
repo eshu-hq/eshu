@@ -20,7 +20,6 @@ func TestReducerContractAliasesPreserveTypeIdentity(t *testing.T) {
 		root     any
 		contract any
 	}{
-		{name: "Domain", root: Domain(""), contract: reducercontract.Domain("")},
 		{name: "IntentStatus", root: IntentStatus(""), contract: reducercontract.IntentStatus("")},
 		{name: "ResultStatus", root: ResultStatus(""), contract: reducercontract.ResultStatus("")},
 		{name: "FailureRecord", root: FailureRecord{}, contract: reducercontract.FailureRecord{}},
@@ -68,7 +67,7 @@ func TestReducerContractAliasesPreserveTypeIdentity(t *testing.T) {
 func TestRegistrableReducerDomainsCharacterization(t *testing.T) {
 	t.Parallel()
 
-	want := []Domain{
+	want := []reducercontract.Domain{
 		DomainAWSCloudImageMaterialization,
 		DomainAWSCloudRuntimeDrift,
 		DomainAWSRelationshipMaterialization,
@@ -143,7 +142,7 @@ func TestRegistrableReducerDomainsCharacterization(t *testing.T) {
 		t.Fatalf("registrableReducerDomains() = %v, want %v", got, want)
 	}
 
-	wantKnown := append([]Domain(nil), want...)
+	wantKnown := append([]reducercontract.Domain(nil), want...)
 	wantKnown = append(wantKnown, DomainDataLineage, DomainOwnership, DomainGovernance)
 	sort.Slice(wantKnown, func(i, j int) bool { return wantKnown[i] < wantKnown[j] })
 	if got := reducercontract.KnownDomains(); !reflect.DeepEqual(got, wantKnown) {
@@ -154,7 +153,7 @@ func TestRegistrableReducerDomainsCharacterization(t *testing.T) {
 func TestDefaultDomainDefinitionOrderCharacterization(t *testing.T) {
 	t.Parallel()
 
-	want := []Domain{
+	want := []reducercontract.Domain{
 		DomainWorkloadIdentity,
 		DomainCloudAssetResolution,
 		DomainDeploymentMapping,
@@ -172,7 +171,7 @@ func TestDefaultDomainDefinitionOrderCharacterization(t *testing.T) {
 	}
 
 	definitions := DefaultDomainDefinitions()
-	got := make([]Domain, 0, len(definitions))
+	got := make([]reducercontract.Domain, 0, len(definitions))
 	for _, definition := range definitions {
 		got = append(got, definition.Domain)
 	}
@@ -184,7 +183,7 @@ func TestDefaultDomainDefinitionOrderCharacterization(t *testing.T) {
 func TestAllDomainsUnionCharacterization(t *testing.T) {
 	t.Parallel()
 
-	want := []Domain{
+	want := []reducercontract.Domain{
 		DomainAWSCloudImageMaterialization,
 		DomainAWSCloudRuntimeDrift,
 		DomainAWSRelationshipMaterialization,

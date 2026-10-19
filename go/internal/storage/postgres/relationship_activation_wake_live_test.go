@@ -79,7 +79,7 @@ func seedWakeFixture(t *testing.T, ctx context.Context, db *sql.DB, at time.Time
 	duc := crossrepo.DeployableUnitCorrelationProducerDeadLetteredFailureClass
 	for _, row := range []struct {
 		id, scope, gen string
-		domain         reducer.Domain
+		domain         reducercontract.Domain
 		status, class  string
 	}{
 		{"dm-1", f.scope, f.gen, reducer.DomainDeploymentMapping, "pending", ""},

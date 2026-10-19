@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 )
 
@@ -39,7 +40,7 @@ func TestOwnGateWaitsThroughRefinalizeReResolutionLive(t *testing.T) {
 	const scope, gen = "git-repository-scope:acme/app", "gen-1"
 	seedOwnGateScope(t, ctx, db, scope, gen, clock.Add(-3*time.Hour))
 	enqueue := NewReducerQueue(SQLDB{DB: db}, "refinalize-7597-seed", time.Minute)
-	intent := func(domain reducer.Domain, entity string) runtime.ReducerIntent {
+	intent := func(domain reducercontract.Domain, entity string) runtime.ReducerIntent {
 		return runtime.ReducerIntent{
 			ScopeID: scope, GenerationID: gen, Domain: domain, EntityKey: entity,
 			Reason: "refinalize #7597 proof", FactID: "fact-" + entity, SourceSystem: "git",

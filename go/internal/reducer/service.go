@@ -202,7 +202,7 @@ type Service struct {
 	// The enforcing deadline is a later step; until then the only release
 	// for a stuck handler is abandonment at shutdown (see executeHandler).
 	HandlerTimeout          time.Duration
-	HandlerTimeoutOverrides map[Domain]time.Duration
+	HandlerTimeoutOverrides map[reducercontract.Domain]time.Duration
 
 	// ackRetryBase is the first backoff between transient ack retries, batch or
 	// single-item; zero uses defaultAckRetryBase. Tests shrink it.

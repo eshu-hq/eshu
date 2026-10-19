@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -32,7 +33,7 @@ type PhaseRequirement struct {
 	// it — the readiness gate stays a pure "not yet published" pending state
 	// instead of guessing, which fails closed (never a false block) rather
 	// than open (never wedging attribution).
-	DeadLetterDomain reducer.Domain
+	DeadLetterDomain reducercontract.Domain
 }
 
 // PhasePublicationKey identifies one published reducer checkpoint.
@@ -44,7 +45,7 @@ type PhasePublicationKey struct {
 // Validate checks that the phase requirement is well formed. DeadLetterDomain
 // is validated only when set: blank is the valid "not bridged yet" sentinel
 // (#4459), but a non-blank value now participates in completeness blocking
-// (ReconcileRunProgress), so it must name a real, known reducer.Domain rather
+// (ReconcileRunProgress), so it must name a real, known reducercontract.Domain rather
 // than an accidental or misspelled string that could never match a live
 // fact_work_items.domain value (Copilot review finding on PR #4518).
 func (r PhaseRequirement) Validate() error {

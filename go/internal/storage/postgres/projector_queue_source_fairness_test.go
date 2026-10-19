@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestProjectorQueueClaimOrdersBySourceFairness(t *testing.T) {
@@ -153,7 +154,7 @@ func TestReducerQueueBatchDoesNotStarveNewerSourceWithinDomain(t *testing.T) {
 		LeaseOwner:    "reducer-source-fairness",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return quietBase.Add(2 * time.Hour) },
-		ClaimDomains:  []reducer.Domain{domain},
+		ClaimDomains:  []reducercontract.Domain{domain},
 	}
 
 	intents, err := queue.ClaimBatch(ctx, batchSize)

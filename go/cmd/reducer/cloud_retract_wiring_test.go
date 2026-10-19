@@ -52,7 +52,7 @@ func TestBuildReducerServiceWiresCloudRetractSeams(t *testing.T) {
 	database.refuseBegin = true
 
 	for _, tc := range []struct {
-		domain  reducer.Domain
+		domain  reducercontract.Domain
 		wantErr string
 	}{
 		{domain: reducer.DomainAWSResourceMaterialization, wantErr: "retract dead cloud resource nodes"},

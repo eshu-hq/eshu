@@ -7,11 +7,12 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestPhaseRequirementValidate guards the #4459 DeadLetterDomain validation
 // (Copilot review finding on PR #4518): a blank DeadLetterDomain is the valid
-// "not bridged yet" sentinel, a known reducer.Domain is valid, but an
+// "not bridged yet" sentinel, a known reducercontract.Domain is valid, but an
 // unknown/misspelled domain string must be rejected — it now participates in
 // completeness blocking (ReconcileRunProgress), so an invalid value would
 // otherwise silently pass through the readiness/completeness pipeline and
@@ -49,7 +50,7 @@ func TestPhaseRequirementValidate(t *testing.T) {
 				Keyspace:         reducer.GraphProjectionKeyspaceServiceUID,
 				PhaseName:        reducer.GraphProjectionPhaseWorkloadMaterialization,
 				Required:         true,
-				DeadLetterDomain: reducer.Domain("not_a_real_reducer_domain"),
+				DeadLetterDomain: reducercontract.Domain("not_a_real_reducer_domain"),
 			},
 			wantErr: true,
 		},

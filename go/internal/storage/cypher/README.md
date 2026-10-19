@@ -531,7 +531,7 @@ existing package-registry phase groups. The existing canonical phase spans,
 duration metrics, statement summaries, row counts, and phase failure logs still
 diagnose stuck, slow, or failed package-registry graph writes.
 
-`EdgeWriter.WriteEdges` maps a `reducer.Domain` to a batched UNWIND Cypher
+`EdgeWriter.WriteEdges` maps a `reducercontract.Domain` to a batched UNWIND Cypher
 template and dispatches rows in batches of `BatchSize` (default
 `DefaultBatchSize` = 500). Domain-specific sub-batch sizes are available for
 `DomainCodeCalls`, `DomainInheritanceEdges`, `DomainSQLRelationships`, and
@@ -1239,7 +1239,7 @@ backend-specific branch.
   for source-local plan building
 - `internal/projector` — `projector.CanonicalMaterialization` and row types
   consumed by `CanonicalNodeWriter`
-- `internal/reducer` — `reducer.Domain` constants — and
+- `internal/reducer` / `internal/reducer/contract` — `reducercontract.Domain` constants — and
   `internal/reducer/sharedintent` — `sharedintent.Row` consumed by `EdgeWriter`
 - `internal/telemetry` — `telemetry.Instruments`, span and attribute helpers
 

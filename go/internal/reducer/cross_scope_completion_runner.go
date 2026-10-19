@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 const (
@@ -24,7 +26,7 @@ const (
 // domain's completion-event backlog.
 type CrossScopeCompletionLease struct {
 	EventID        int64
-	ProducerDomain Domain
+	ProducerDomain reducercontract.Domain
 	LeaseOwner     string
 	ClaimEpoch     int64
 	AttemptCount   int
@@ -32,7 +34,7 @@ type CrossScopeCompletionLease struct {
 
 // CrossScopeCompletionResult reports one atomic producer-to-consumer fanout.
 type CrossScopeCompletionResult struct {
-	ProducerDomain         Domain
+	ProducerDomain         reducercontract.Domain
 	EventsProcessed        int
 	ProducerItemsProcessed int64
 	IntentsEnqueued        int

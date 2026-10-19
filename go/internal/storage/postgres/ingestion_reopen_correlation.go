@@ -42,7 +42,7 @@ import (
 // Keeping the list here rather than at each call site is what makes the
 // golden-corpus gate's eshu-bootstrap-index maintenance passes evidence about
 // the ingester: both runtimes replay the same domains through the same SQL, so
-// only the call site differs. The typed reducer.Domain constants remove the
+// only the call site differs. The typed reducercontract.Domain constants remove the
 // stringly-typed drift the previous hand-written bootstrap slice carried.
 //
 // Per-domain rationale, in list order:
@@ -77,7 +77,7 @@ import (
 //     leaving two contradictory findings for one ARN), and #5848's readiness
 //     defer (aws_cloud_runtime_drift_readiness.go) reduces how often the race is
 //     hit at all. The writer's stable fact key makes the replay idempotent.
-var crossScopeCorrelationReopenDomains = []reducer.Domain{
+var crossScopeCorrelationReopenDomains = []reducercontract.Domain{
 	reducer.DomainDeployableUnitCorrelation,
 	reducer.DomainKubernetesCorrelationMaterialization,
 	reducer.DomainContainerImageIdentity,
