@@ -15,6 +15,9 @@ TABLE = {
         "go/internal/storage/postgres/workflow_control_claim_order_plan_live_test.go": (
             "TestWorkflowClaimCandidateUsesFairClaimIndex",
         ),
+        "go/internal/storage/postgres/workflow_control_claim_pacing_depth_live_test.go": (
+            "TestWorkflowClaimPacingRecordsDepthPendingGauge",
+        ),
         "go/internal/storage/postgres/workflow_control_claim_pacing_failure_live_test.go": (
             "TestWorkflowClaimPacingFailsOpenOnLatchQueryFailure",
             "TestWorkflowClaimPacingStuckHoldsMidBandAndReleasesBelowWatermark",
