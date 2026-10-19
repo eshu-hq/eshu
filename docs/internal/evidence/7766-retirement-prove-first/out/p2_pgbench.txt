@@ -1,0 +1,30 @@
+######## repository_retirements rows=0 (pgbench, unix socket inside the container, prepared protocol, 1 client, 8 s each; 'base' = SELECT :r, the protocol floor)
+-- base
+number of transactions actually processed: 2221776
+latency average = 0.004 ms
+-- miss
+number of transactions actually processed: 1776909
+latency average = 0.005 ms
+-- hit
+number of transactions actually processed: 1793021
+latency average = 0.004 ms
+######## repository_retirements rows=100 (pgbench, unix socket inside the container, prepared protocol, 1 client, 8 s each; 'base' = SELECT :r, the protocol floor)
+-- base
+number of transactions actually processed: 2170017
+latency average = 0.004 ms
+-- miss
+number of transactions actually processed: 953846
+latency average = 0.008 ms
+-- hit
+number of transactions actually processed: 1041478
+latency average = 0.008 ms
+######## repository_retirements rows=10000 (pgbench, unix socket inside the container, prepared protocol, 1 client, 8 s each; 'base' = SELECT :r, the protocol floor)
+-- base
+number of transactions actually processed: 2272380
+latency average = 0.004 ms
+-- miss
+number of transactions actually processed: 1061964
+latency average = 0.008 ms
+-- hit
+number of transactions actually processed: 930721
+latency average = 0.009 ms
