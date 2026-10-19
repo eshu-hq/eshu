@@ -185,14 +185,16 @@ concurrency:
 jobs:
   postgres-scheduled:
     runs-on: ubuntu-latest
-    # Full scheduled live suite (-race, -p=1) needs ~52 min of steady-state
-    # execution: recent hosted twelve-group runs take ~32-35 min end to end,
-    # and the new freshness-links group adds a ~6.6 min scale-fixture load
-    # (349.2s load + 43.5s index for 9,753,608 rows) plus a ~9.2 min proof
-    # run (552.478s for 58 tests). 90 min covers the measured suite with
-    # headroom; revisit with a split/matrix if the suite grows past ~75 min
-    # of measured step time.
-    timeout-minutes: 90
+    # Full scheduled live suite (-race, -p=1): p95 of the whole job is
+    # ~84 min over the ten latest hosted runs on 2026-10-19 (success range
+    # 62-84 min; successes reaching ~84 min leave thin margin under the old
+    # 90 min cap). The ACK step averages
+    # ~20 min (865-1335 s), dominated by a ~713 s one-time -race build of
+    # the postgres test binary; its 44 tests take ~151 s, led by
+    # TestReducerContentionGateAckFanoutLockOrderLive at 24.25 s (#8290).
+    # 105 min covers the measured p95 with ~25% headroom; revisit with a
+    # split/matrix if the suite p95 grows past ~90 min of job time.
+    timeout-minutes: 105
     services:
       postgres:
         image: ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
