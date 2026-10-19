@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# Live-gate drive/assert callbacks for the ten DIRECT-materialization families
-# (#6228; #8359 for the last): kubernetes_namespace_environment,
+# Live-gate drive/assert callbacks for the DIRECT-materialization families below
+# (#6228): kubernetes_namespace_environment,
 # iam_instance_profile_role, iam_can_assume, iam_can_perform,
 # workload_cloud_relationship, iam_escalation, ec2_uses_profile, s3_logs_to,
-# kubernetes_correlation, and semantic_entity_containment.
+# and kubernetes_correlation.
+#
+# semantic_entity_containment (#8359) has no callbacks here: its determinism
+# wiring was reverted to Neo4j-only scope, so no live matrix drives it and
+# its drive/assert pair would be dead code. Its cassette and expected-edge
+# set stay held by scripts/lib/ifa_family_fixtures.sh for the
+# corpus/live-backend gates instead.
 #
 # SOURCED BY scripts/verify-ifa-determinism.sh AND, since #6309, the fault
 # gate through scripts/lib/ifa_fault_injection_sources.sh — always paired
@@ -14,8 +20,8 @@
 # (prospectively where cells do not exist yet). Callers own strict mode
 # and cleanup.
 #
-# ONE FILE FOR TEN FAMILIES, unlike the shared-projection families' one file
-# each (the eleventh lives in the sibling file above). The per-family
+# ONE FILE FOR THE FAMILIES BELOW, unlike the shared-projection families' one
+# file each (cloud_resource lives in the sibling file above). The per-family
 # REGISTRY ROWS stay separate, which is where the split that matters is.
 #
 # WHY THESE ARE DIRECT, and why that changes nothing here: the reducer writes
@@ -27,7 +33,7 @@
 # / iam_can_assume_materialization / iam_can_perform_materialization /
 # workload_cloud_relationship_materialization / iam_escalation_materialization
 # / ec2_uses_profile_materialization / s3_logs_to_materialization /
-# kubernetes_correlation_materialization / semantic_entity_materialization)
+# kubernetes_correlation_materialization)
 # rather than by a shared_followup fact the cassette has to carry.
 
 # ifa_direct_family_drive replays one committed family cassette into a matrix
@@ -465,29 +471,6 @@ ifa_kubernetes_correlation_assert() {
 	printf '\n=== %s: assert kubernetes_correlation materialized edges (two-edge exact set) ===\n' "${label}"
 	"${bin_dir}/eshu-ifa" assert-edges \
 		-domain kubernetes_correlation \
-		-expected "${expected_edges}"
-}
-
-# ifa_semantic_entity_containment_drive replays the semantic cassette.
-ifa_semantic_entity_containment_drive() {
-	local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"
-	_ifa_direct_family_drive semantic-entity-containment \
-		"${label}" "${bin_dir}" "${cassette}" "${workers}" "${log_dir}"
-}
-
-# ifa_semantic_entity_containment_assert pins the four-edge exact set, repo-
-# scoped (#8359 verdict (a): fixture repo only, no sibling subtraction, no
-# stamp-fence widening). Called twice per cell like every sibling above.
-# The four edges are the semantic subset ExtractEntityRowsForRepo admits
-# (docstring Go Function, async Python Function, Annotation, Elixir module-
-# attribute Variable); the plain Function and the Class must contribute
-# nothing. CONTAINS is read off the writer templates' MERGE, never off the
-# port or family name.
-ifa_semantic_entity_containment_assert() {
-	local label="$1" bin_dir="$2" expected_edges="$3"
-	printf '\n=== %s: assert semantic_entity_containment materialized edges (four-edge exact set, fixture-repo scoped) ===\n' "${label}"
-	"${bin_dir}/eshu-ifa" assert-edges \
-		-domain semantic_entity_containment \
 		-expected "${expected_edges}"
 }
 
