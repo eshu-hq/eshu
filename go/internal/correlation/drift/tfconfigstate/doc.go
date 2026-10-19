@@ -78,7 +78,7 @@
 //     The evidence loader
 //     (go/internal/storage/postgres/tfstate/drift_evidence_module_prefix.go)
 //     resolves a module-nested resource's address prefix by walking
-//     `module {}` call chains (buildModulePrefixMap / modulePrefixForPath),
+//     `module {}` call chains (BuildModulePrefixMap / modulePrefixForPath),
 //     and that resolution has two documented failure shapes:
 //     classifyModuleSource's Terraform-Registry-shorthand discriminator
 //     ("namespace/name/provider", three slash-separated segments) is a
