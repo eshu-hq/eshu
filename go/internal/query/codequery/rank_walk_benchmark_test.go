@@ -76,19 +76,20 @@ func benchmarkRankWalkPage(b *testing.B, suffix string, rows []map[string]any) {
 	if err != nil || len(scores) != rank.WindowSize {
 		b.Fatalf("ScoreCodeWindow scored %d rows, err = %v; want %d", len(scores), err, rank.WindowSize)
 	}
-	walkPage := func(scores map[string]float64) {
+	walkPage := func(scores map[string]float64, token string, limit int) rank.Page {
 		windowRows, byID := rank.MapRows(rows, codeRankWalkContentKeys...)
 		page, err := rank.Walk(rank.Window{
 			Tool: rank.ToolFindCode, Lane: rank.LaneContent, Order: rank.OrderHybrid,
 			Ranker: codemodel.CodeRankerIdentity, Scope: []string{"repo-bench", query, "", "false"},
 			Rows: windowRows,
-		}, scores, rank.StartToken, 50)
-		if err != nil || len(page.IDs) != 50 {
+		}, scores, token, limit)
+		if err != nil || len(page.IDs) != limit {
 			b.Fatalf("Walk served %d rows, err = %v", len(page.IDs), err)
 		}
 		if _, err := rank.MapPage(byID, scores, page.IDs); err != nil {
 			b.Fatalf("MapPage error = %v", err)
 		}
+		return page
 	}
 	b.Run("page"+suffix, func(b *testing.B) {
 		b.ReportAllocs()
@@ -97,13 +98,51 @@ func benchmarkRankWalkPage(b *testing.B, suffix string, rows []map[string]any) {
 			if err != nil {
 				b.Fatalf("ScoreCodeWindow error = %v", err)
 			}
-			walkPage(pageScores)
+			walkPage(pageScores, rank.StartToken, 50)
 		}
 	})
 	b.Run("walk_only"+suffix, func(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
-			walkPage(scores)
+			walkPage(scores, rank.StartToken, 50)
 		}
 	})
+}
+
+// BenchmarkFindCodeRankWalkSequence measures one full walk at limit=50 over
+// the 200-row window (#8216): four pages of ScoreCodeWindow + MapRows + Walk
+// + MapPage with cursor chaining, the work handleRankWalk does per request.
+// The ranker is fresh per walk, so page 1 scores cold and pages 2-4 reuse
+// the window score while the window is unchanged.
+func BenchmarkFindCodeRankWalkSequence(b *testing.B) {
+	const query = "payment refund ledger"
+	rows := walkBenchmarkRows(rank.WindowSize, 3000, false)
+	ctx := context.Background()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		ranker := codemodel.NewCodeHybridRanker(true)
+		token := rank.StartToken
+		for page := 0; page < 4; page++ {
+			scores, err := ranker.ScoreCodeWindow(ctx, "repo-bench", query, rows)
+			if err != nil {
+				b.Fatalf("ScoreCodeWindow error = %v", err)
+			}
+			windowRows, byID := rank.MapRows(rows, codeRankWalkContentKeys...)
+			served, err := rank.Walk(rank.Window{
+				Tool: rank.ToolFindCode, Lane: rank.LaneContent, Order: rank.OrderHybrid,
+				Ranker: codemodel.CodeRankerIdentity, Scope: []string{"repo-bench", query, "", "false"},
+				Rows: windowRows,
+			}, scores, token, 50)
+			if err != nil || len(served.IDs) != 50 {
+				b.Fatalf("Walk served %d rows, err = %v", len(served.IDs), err)
+			}
+			if _, err := rank.MapPage(byID, scores, served.IDs); err != nil {
+				b.Fatalf("MapPage error = %v", err)
+			}
+			token = served.NextCursor
+		}
+		if token != "" {
+			b.Fatal("walk did not end after 4 pages of 50")
+		}
+	}
 }
