@@ -11,11 +11,16 @@ import (
 
 const (
 	// ReadChunkSize is the number of paths one Reader.ReadFiles statement
-	// reads (#7126). One statement detoasts its rows on one backend, serially,
-	// so a single statement for a whole repository is slower than the per-file
-	// reads it replaces on a byte-heavy repository; ten paths keep a statement
-	// short and let several run in parallel.
-	ReadChunkSize = 10
+	// reads (#7126, widened to fifty by #7009). One statement detoasts its
+	// rows on one backend, serially, so a single statement for a whole
+	// repository is slower than the per-file reads it replaces on a
+	// byte-heavy repository. Fifty paths keep the common case round-trip
+	// bound: on the #7009 shim (120 repositories, 60 two-KiB consumed files
+	// each) the hydrate wall falls from 6.8 ms to 3.0 ms per repository
+	// (six statements to two), while a 21 MB twenty-file repository reads in
+	// one 58 ms statement against 25 ms in two, so the worst single-repo
+	// statement stays short and several still run in parallel.
+	ReadChunkSize = 50
 	// ReadChunksInFlight bounds the chunk reads of one repository that run at
 	// once, the same bound the per-file reader used for its file reads.
 	ReadChunksInFlight = 8

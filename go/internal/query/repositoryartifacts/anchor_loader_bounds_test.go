@@ -45,8 +45,8 @@ func TestAnchorHydrationReadsWholeCandidateWindow(t *testing.T) {
 	if store.singleCalls != 0 {
 		t.Fatalf("GetFileContent statements = %d, want 0 (anchor hydration reads in chunks)", store.singleCalls)
 	}
-	if got, want := len(store.batchCalls), 6; got != want {
-		t.Fatalf("GetFileContents statements = %d, want %d (60 candidates at 10 paths per chunk)", got, want)
+	if got, want := len(store.batchCalls), 2; got != want {
+		t.Fatalf("GetFileContents statements = %d, want %d (60 candidates at 50 paths per chunk, #7009)", got, want)
 	}
 }
 
@@ -100,7 +100,7 @@ func TestAnchorLoaderListsReadWholeWindowWithSentinel(t *testing.T) {
 
 // BenchmarkAnchorHydrationWholeWindow measures the #7951 follow-up hydration
 // pass over 500 workflow candidates: the deterministic statement count is the
-// proof the pass stays chunked (one GetFileContents per ten paths).
+// proof the pass stays chunked (one GetFileContents per fifty paths, #7009).
 func BenchmarkAnchorHydrationWholeWindow(b *testing.B) {
 	const candidates = 500
 	files := make([]querycontract.FileContent, 0, candidates)

@@ -103,7 +103,7 @@ func TestGetRepositoryStoryDeploymentArtifactsStageReportsReadCounts(t *testing.
 		"blank_check_statements=1", "list_seconds=", "hydrate_seconds=", "parse_seconds=",
 		// One consumed file (infra/main.tf): one chunk statement, never more
 		// than one chunk in flight, the chunk size of the batched reader.
-		"batch_statements=1", "batch_chunk_size=10", "batch_chunks_in_flight_max=1",
+		"batch_statements=1", "batch_chunk_size=50", "batch_chunks_in_flight_max=1",
 	} {
 		if !strings.Contains(line, want) {
 			t.Errorf("stage_completed = %q, want it to contain %q", line, want)

@@ -90,7 +90,7 @@ type hydrationCoverageStore struct {
 }
 
 func (s *hydrationCoverageStore) GetFileContents(_ context.Context, _ string, relativePaths []string) ([]querycontract.FileContent, error) {
-	s.hydrated.Add(int32(len(relativePaths))) // #nosec G115 -- production chunks GetFileContents to anchorHydrationChunkSize=10 paths per statement (repository_artifact_hydration.go), far below MaxInt32
+	s.hydrated.Add(int32(len(relativePaths))) // #nosec G115 -- production chunks GetFileContents to anchorHydrationChunkSize=50 paths per statement (repository_artifact_hydration.go, #7009), far below MaxInt32
 	return nil, nil
 }
 

@@ -146,6 +146,9 @@ GET /api/v0/status/index	1000	#6794 post-fix target
 GET /api/v0/status/ingesters	1000	#6794 post-fix target
 GET /api/v0/status/ingesters/{ingester}	1000	#7881: adopt existing status-family SLO for the parameterized shared status reader
 MCP get_index_status	1000	#7881: adopt existing index-status SLO through the MCP transport
+GET /api/v0/repositories/{repo_id}/story	1000	#7009: adopt status-family SLO for the parameterized story route at the seeded corpus size (anchor plus 32 related repositories); the R1-scale residual stays with #8155
+MCP search_file_content	1000	#7009: adopt index-status MCP SLO for the unscoped file walk at the seeded corpus size (exact page); QA-scale exactness stays with #7730
+MCP search_entity_content	1000	#7009: adopt index-status MCP SLO for the unscoped entity walk at the seeded corpus size (exact page); QA-scale exactness stays with #7730
 GET /api/v0/status/operations	1000	#6794 post-fix target; catalog p95 2000ms is looser
 GET /api/v0/status/operator-control-plane	1000	#6794 post-fix target
 GET /api/v0/status/pipeline	1000	#6794 post-fix target

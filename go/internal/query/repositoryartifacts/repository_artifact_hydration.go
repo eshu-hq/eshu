@@ -25,10 +25,13 @@ const (
 	repositoryArtifactHydrationConcurrency = 8
 	// anchorHydrationChunkSize is the number of paths one GetFileContents
 	// statement of the anchor hydration pass reads. It mirrors the neutral
-	// package's ReadChunkSize: one statement detoasts its rows serially on
-	// one backend, so ten paths keep a statement short while the in-flight
-	// bound below runs several at once.
-	anchorHydrationChunkSize = 10
+	// package's ReadChunkSize, widened to fifty by the same #7009 proof (the
+	// statement shape is identical: PK equality over a path array with
+	// content): one statement detoasts its rows serially on one backend, so
+	// fifty paths keep the common case round-trip bound while the worst
+	// single-repo statement stays short and the in-flight bound below still
+	// runs several at once.
+	anchorHydrationChunkSize = 50
 	// anchorCandidateListLimit is the file-list window of the anchor-only
 	// loaders: the first anchorCandidateListLimit files of the anchor
 	// repository by relative_path. It equals

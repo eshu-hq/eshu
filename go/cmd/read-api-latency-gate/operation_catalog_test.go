@@ -9,6 +9,9 @@ import (
 )
 
 // A declared response fixture, independent of the validator's expected map.
+// DEPENDS_ON/total_edges carry the seeded story fan-out (32 =
+// SeedStoryRelatedCount, written literally because const strings cannot
+// reference it); every other verb is zero.
 const seededCatalogResponse = `{"verbs":[
 {"verb":"CALLS","layer":"code","count":0},
 {"verb":"IMPORTS","layer":"code","count":0},
@@ -27,11 +30,40 @@ const seededCatalogResponse = `{"verbs":[
 {"verb":"USES_WORKFLOW","layer":"infra","count":0},
 {"verb":"RUNS_ON","layer":"runtime","count":0},
 {"verb":"AWS_lambda_function_uses_image","layer":"runtime","count":0},
-{"verb":"DEPENDS_ON","layer":"runtime","count":0},
+{"verb":"DEPENDS_ON","layer":"runtime","count":32},
 {"verb":"INVOKES_CLOUD_ACTION","layer":"security","count":0},
 {"verb":"READS_CONFIG_FROM","layer":"ops","count":0},
 {"verb":"TAINT_FLOWS_TO","layer":"ops","count":0}
-],"verb_count":21,"layer_count":6,"total_edges":0}`
+],"verb_count":21,"layer_count":6,"total_edges":32}`
+
+// TestPilotCatalogAcceptsSeededStoryEdges is the regression test for the
+// #8556 wave failure: the story seed creates SeedStoryRelatedCount
+// Repository->Repository DEPENDS_ON edges (pinned by
+// VerifyRepositoryGraphCounts), so the validator must expect them instead
+// of demanding a zero-edge seed.
+func TestPilotCatalogAcceptsSeededStoryEdges(t *testing.T) {
+	t.Parallel()
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(seededCatalogResponse), &payload); err != nil {
+		t.Fatal(err)
+	}
+	verbs := payload["verbs"].([]any)
+	for _, value := range verbs {
+		verb := value.(map[string]any)
+		if verb["verb"] == "DEPENDS_ON" {
+			verb["count"] = float64(SeedStoryRelatedCount)
+		}
+	}
+	payload["total_edges"] = float64(SeedStoryRelatedCount)
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validatePilotResponse("relationships_catalog", body); err != nil {
+		t.Fatalf("seeded story edges rejected: %v", err)
+	}
+}
 
 func TestPilotCatalogRequiresSeededIdentitiesAndCounts(t *testing.T) {
 	if err := validatePilotResponse("relationships_catalog", []byte(seededCatalogResponse)); err != nil {
@@ -54,6 +86,15 @@ func TestPilotCatalogRequiresSeededIdentitiesAndCounts(t *testing.T) {
 		"nonzero_self_consistent": func(payload map[string]any, verbs []any) {
 			verbs[0].(map[string]any)["count"] = float64(1)
 			payload["total_edges"] = float64(1)
+		},
+		"wrong_depends_on_self_consistent": func(payload map[string]any, verbs []any) {
+			for _, value := range verbs {
+				verb := value.(map[string]any)
+				if verb["verb"] == "DEPENDS_ON" {
+					verb["count"] = float64(SeedStoryRelatedCount + 1)
+				}
+			}
+			payload["total_edges"] = float64(SeedStoryRelatedCount + 1)
 		},
 	}
 	for name, mutate := range mutants {

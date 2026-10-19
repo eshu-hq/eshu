@@ -68,9 +68,9 @@ importing a query package. This package keeps:
   (the #7951 follow-up). Its hydration set comes from
   `contentartifacts.SelectHydrationIndexes` at the whole-window allowance, so
   the selection and order match the config-artifact load's; one
-  `GetFileContents` statement per ten paths replaced the old one-file reads
-  capped at `RepositoryArtifactHydrationLimit` (the 50-candidate floor, kept
-  exported for #6060). The loader fallback lists read
+  `GetFileContents` statement per fifty paths (#7009) replaced the old
+  one-file reads capped at `RepositoryArtifactHydrationLimit` (the
+  50-candidate floor, kept exported for #6060). The loader fallback lists read
   `RepositorySemanticEntityLimit+1` rows, clip to the window, and report the
   clip: `listAnchorCandidateFiles` returns a truncated flag alongside the
   clipped list (#8157), and each anchor-only loader propagates it, so a
@@ -159,9 +159,9 @@ median over 3 runs of ~687 iters, 500 of 500 rows hydrated. Baseline is the
 pre-follow-up pass: at most 50 one-file `GetFileContent` statements covering
 only the first 50 candidates, so any window with more than 50 candidates
 returned an incomplete body. After the change the statement count is
-ceil(candidates/10) and the body is the whole window: 60 candidates cost 6
-statements for 60 rows instead of 50 statements for 50 rows. The 5,000-file
-window bounds the worst case at 500 statements; anchor candidates (compose,
+ceil(candidates/50) (#7009) and the body is the whole window: 60 candidates
+cost 2 statements for 60 rows instead of 50 statements for 50 rows. The
+5,000-file window bounds the worst case at 100 statements; anchor candidates (compose,
 workflow, controller files) are rare per repository, so the usual cost is 0-2
 statements. The in-flight bound stays 8, the bound the per-file reader used,
 and row semantics are unchanged (rows by `RelativePath`, missing row keeps
@@ -175,14 +175,37 @@ The metric and log fields are in
 [Telemetry metrics](../../../../docs/public/reference/telemetry/metrics.md) and
 [Telemetry logs](../../../../docs/public/reference/telemetry/logs.md).
 
+### Hydration chunk width ten to fifty (#7009)
+
+Benchmark Evidence (#7009): the hydrate pass reads one `GetFileContents`
+statement per fifty paths instead of ten. Baseline is the width-10 tree with
+the same candidate budgets; after the change 60 candidates cost 2 statements
+for 60 rows instead of 6, pinned by
+`TestAnchorHydrationReadsWholeCandidateWindow`, and the config-artifact
+fan-out keeps the row and whole digests byte-identical while
+`BatchStatements` moves 28 to 6 and `BatchChunkSize` 10 to 50, pinned by
+`TestConfigArtifactFanOutMatchesSequentialDigests`. Statement shape is proved
+on the in-memory `fakeContentStore` and `meetingStore` fakes (`go test`, no
+live backend); the #7009 shim behind `ReadChunkSize` (120 repositories, 60
+two-KiB consumed files each) drops the hydrate wall from 6.8 ms to 3.0 ms per
+repository while a 21 MB twenty-file repository reads in one 58 ms statement.
+The 5,000-file window bounds the worst case at 100 statements, the 8-in-flight
+bound is unchanged (pinned by
+`TestChunkedReadKeepsAtMostEightChunksInFlight` at 400 paths and peak 8), and
+row semantics are unchanged, so the change is safe.
+
+No-Observability-Change (#7009): no new metric, span, log field, or
+stage-line field. Statement counts move inside the existing
+`BatchStatements`/`BatchChunkSize` stats the stage lines already carry.
+
 ### Anchor fallback truncation flag (#8157)
 
 No-Regression Evidence (#8157): the flag adds one bool to existing returns
 and changes no statement shape. The fallback still reads
 `anchorCandidateListLimit+1` rows in one `ListRepoFiles` call, pinned by
 `TestAnchorLoaderListsReadWholeWindowWithSentinel` on all three loaders, and
-hydration still costs ceil(candidates/10) `GetFileContents` statements with 8
-in flight, pinned at 6 statements for 60 candidates by
+hydration still costs ceil(candidates/50) `GetFileContents` statements with 8
+in flight, pinned at 2 statements for 60 candidates by
 `TestAnchorHydrationReadsWholeCandidateWindow`. Baseline is the pre-#8157
 tree with the same limits and chunking. After the change:
 `go test ./internal/query/repositoryartifacts/ -count=1` is ok,

@@ -154,9 +154,9 @@ func TestConfigArtifactReadStatsCountBatchedBytes(t *testing.T) {
 		t.Fatalf("load error = %v", err)
 	}
 	if stats.HydratedBytes != want {
-		t.Fatalf("HydratedBytes = %d, want %d: the bytes of 23 consumed files read in 3 chunks", stats.HydratedBytes, want)
+		t.Fatalf("HydratedBytes = %d, want %d: the bytes of 23 consumed files read in 1 fifty-path chunk", stats.HydratedBytes, want)
 	}
-	if got, wantStatements := len(store.batchCalls), 3; got != wantStatements || stats.BatchStatements != wantStatements {
+	if got, wantStatements := len(store.batchCalls), 1; got != wantStatements || stats.BatchStatements != wantStatements {
 		t.Fatalf("chunks = %d, stats.BatchStatements = %d, want %d", got, stats.BatchStatements, wantStatements)
 	}
 	if store.singleCalls != 0 {
@@ -189,7 +189,7 @@ func newMeetingStore(files map[string][]querycontract.FileContent) *meetingStore
 		gate:    map[string]chan struct{}{},
 	}
 	for repo, list := range files {
-		s.chunks[repo] = (len(list) + 9) / 10
+		s.chunks[repo] = (len(list) + 49) / 50
 		s.gate[repo] = make(chan struct{})
 	}
 	return s
@@ -235,14 +235,14 @@ func (s *meetingStore) GetFileContents(ctx context.Context, repoID string, paths
 
 // TestConfigArtifactReadStatsKeepTheLargestInFlightAcrossRepositories runs the
 // real loader over two repositories whose reads can only peak at 3 and then
-// at 2. The stage statistic is the maximum over the stage, so it must read 3
-// after the second repository, not the 2 that overwrote it.
+// at 2 fifty-path chunks. The stage statistic is the maximum over the stage,
+// so it must read 3 after the second repository, not the 2 that overwrote it.
 func TestConfigArtifactReadStatsKeepTheLargestInFlightAcrossRepositories(t *testing.T) {
 	t.Parallel()
 
 	store := newMeetingStore(map[string][]querycontract.FileContent{
-		"repo-wide":   terraformFiles(30),
-		"repo-narrow": terraformFiles(12),
+		"repo-wide":   terraformFiles(120),
+		"repo-narrow": terraformFiles(60),
 	})
 	sources := []repositoryArtifactSource{
 		{RepoID: "repo-wide", RepoName: "wide"},
@@ -255,7 +255,7 @@ func TestConfigArtifactReadStatsKeepTheLargestInFlightAcrossRepositories(t *test
 	if stats.BatchChunksInFlightMax != 3 {
 		t.Fatalf("BatchChunksInFlightMax = %d, want 3 (the wide repository's three chunks, kept after the two-chunk one)", stats.BatchChunksInFlightMax)
 	}
-	if stats.BatchStatements != 5 || stats.BatchChunkSize != 10 {
-		t.Fatalf("BatchStatements = %d, BatchChunkSize = %d, want 5 and 10", stats.BatchStatements, stats.BatchChunkSize)
+	if stats.BatchStatements != 5 || stats.BatchChunkSize != 50 {
+		t.Fatalf("BatchStatements = %d, BatchChunkSize = %d, want 5 and 50", stats.BatchStatements, stats.BatchChunkSize)
 	}
 }

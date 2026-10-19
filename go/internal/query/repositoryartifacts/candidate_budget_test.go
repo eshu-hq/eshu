@@ -208,8 +208,8 @@ func windowViolations(t testing.TB, loader configArtifactLoader) []string {
 		if !hasModuleRow(overview, "repo-x", window-1) {
 			violations = append(violations, fmt.Sprintf("%d: no row from candidate %d", n, window))
 		}
-		if want := (window + 9) / 10; stats.BatchStatements != want {
-			violations = append(violations, fmt.Sprintf("%d: chunk statements %d, want ceil(%d/10) = %d", n, stats.BatchStatements, window, want))
+		if want := (window + 49) / 50; stats.BatchStatements != want {
+			violations = append(violations, fmt.Sprintf("%d: chunk statements %d, want ceil(%d/50) = %d", n, stats.BatchStatements, window, want))
 		}
 		if got := store.listLimits["repo-x"]; len(got) != 1 || got[0] != contentartifacts.ListLimit+1 {
 			violations = append(violations, fmt.Sprintf("%d: list limits %v, want one list of %d", n, got, contentartifacts.ListLimit+1))

@@ -195,3 +195,128 @@ func runSeedBatch(ctx context.Context, driver neo4j.DriverWithContext, database,
 	}
 	return nil
 }
+
+// SeedRepositoryGraph creates the story corpus graph: one :Repository node
+// for the anchor and one per related repository, plus one DEPENDS_ON edge
+// from the anchor to each related repository so the story's related-set
+// fan-out has a real edge list to walk. Node properties are the RepoProjection
+// fields the story's repository lookup returns (id, name, path, local_path,
+// remote_url, repo_slug, has_remote); a null-tolerant reader is not assumed,
+// so every property is populated.
+func SeedRepositoryGraph(ctx context.Context, opts SeedGraphOptions) error {
+	auth := neo4j.NoAuth()
+	if opts.Username != "" {
+		auth = neo4j.BasicAuth(opts.Username, opts.Password, "")
+	}
+	driver, err := neo4j.NewDriverWithContext(opts.URI, auth)
+	if err != nil {
+		return fmt.Errorf("open graph driver: %w", err)
+	}
+	defer func() { _ = driver.Close(ctx) }()
+
+	session := driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite, DatabaseName: opts.DatabaseName})
+	defer func() { _ = session.Close(ctx) }()
+
+	nodes := make([]map[string]any, 0, SeedStoryRepositoryCount)
+	nodes = append(nodes, repositoryNodeParams(SeedStoryAnchorID, SeedStoryAnchorName))
+	for i := 0; i < SeedStoryRelatedCount; i++ {
+		id := SeedStoryRelatedID(i)
+		nodes = append(nodes, repositoryNodeParams(id, "Seed Story Related "+id))
+	}
+	result, err := session.Run(ctx, `
+		UNWIND $nodes AS row
+		CREATE (:Repository {
+			id: row.id, name: row.name, path: row.path,
+			local_path: row.local_path, remote_url: row.remote_url,
+			repo_slug: row.repo_slug, has_remote: row.has_remote
+		})`, map[string]any{"nodes": nodes})
+	if err != nil {
+		return fmt.Errorf("seed repository nodes: %w", err)
+	}
+	if _, err := result.Consume(ctx); err != nil {
+		return fmt.Errorf("consume repository nodes: %w", err)
+	}
+
+	edges := make([]map[string]any, 0, SeedStoryRelatedCount)
+	for i := 0; i < SeedStoryRelatedCount; i++ {
+		edges = append(edges, map[string]any{"related_id": SeedStoryRelatedID(i)})
+	}
+	result, err = session.Run(ctx, `
+		UNWIND $edges AS row
+		MATCH (anchor:Repository {id: $anchor}), (related:Repository {id: row.related_id})
+		CREATE (anchor)-[:DEPENDS_ON]->(related)`, map[string]any{"anchor": SeedStoryAnchorID, "edges": edges})
+	if err != nil {
+		return fmt.Errorf("seed repository edges: %w", err)
+	}
+	if _, err := result.Consume(ctx); err != nil {
+		return fmt.Errorf("consume repository edges: %w", err)
+	}
+	return nil
+}
+
+// repositoryNodeParams shapes one :Repository node's properties.
+func repositoryNodeParams(id, name string) map[string]any {
+	return map[string]any{
+		"id":         id,
+		"name":       name,
+		"path":       "/seed/" + id,
+		"local_path": "/seed/" + id,
+		"remote_url": "https://example.com/seed/" + id,
+		"repo_slug":  "seed/" + id,
+		"has_remote": true,
+	}
+}
+
+// VerifyRepositoryGraphCounts reads back the story node and edge counts and
+// fails when either differs, so a graph seed that silently under-creates
+// cannot leave the story pilot reading an empty corpus.
+func VerifyRepositoryGraphCounts(ctx context.Context, opts SeedGraphOptions) error {
+	auth := neo4j.NoAuth()
+	if opts.Username != "" {
+		auth = neo4j.BasicAuth(opts.Username, opts.Password, "")
+	}
+	driver, err := neo4j.NewDriverWithContext(opts.URI, auth)
+	if err != nil {
+		return fmt.Errorf("open graph driver: %w", err)
+	}
+	defer func() { _ = driver.Close(ctx) }()
+
+	session := driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead, DatabaseName: opts.DatabaseName})
+	defer func() { _ = session.Close(ctx) }()
+
+	result, err := session.Run(ctx, `
+		MATCH (r:Repository)
+		WHERE r.id = $anchor OR r.id STARTS WITH $prefix
+		RETURN count(r) AS nodes`, map[string]any{"anchor": SeedStoryAnchorID, "prefix": "seed-story-rel-"})
+	if err != nil {
+		return fmt.Errorf("count repository nodes: %w", err)
+	}
+	var nodes int64
+	if result.Next(ctx) {
+		nodes, _ = result.Record().Values[0].(int64)
+	}
+	if err := result.Err(); err != nil {
+		return fmt.Errorf("count repository nodes: %w", err)
+	}
+	if int(nodes) != SeedStoryRepositoryCount {
+		return fmt.Errorf("repository nodes = %d, want %d", nodes, SeedStoryRepositoryCount)
+	}
+
+	result, err = session.Run(ctx, `
+		MATCH (:Repository {id: $anchor})-[e:DEPENDS_ON]->(:Repository)
+		RETURN count(e) AS edges`, map[string]any{"anchor": SeedStoryAnchorID})
+	if err != nil {
+		return fmt.Errorf("count repository edges: %w", err)
+	}
+	var edges int64
+	if result.Next(ctx) {
+		edges, _ = result.Record().Values[0].(int64)
+	}
+	if err := result.Err(); err != nil {
+		return fmt.Errorf("count repository edges: %w", err)
+	}
+	if int(edges) != SeedStoryRelatedCount {
+		return fmt.Errorf("repository edges = %d, want %d", edges, SeedStoryRelatedCount)
+	}
+	return nil
+}

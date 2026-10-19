@@ -5,36 +5,37 @@
 # counter exceeds its budget. Formulas over the max GREEN value: calls = ceil(max*1.25)+5,
 # blks = ceil(max*3.0), rows = ceil(max*2.0). No named row is below the default row.
 
-default	13	18	14
+default	20	33	18
 
-GET /api/v0/capabilities	13	18	14	GREEN-derived work guard
-GET /api/v0/cloud/inventory	13	145866	14	GREEN-derived work guard
-GET /api/v0/collector-readiness	13	18	14	GREEN-derived work guard
-GET /api/v0/collectors	39	59625	80	GREEN-derived work guard
-GET /api/v0/evidence/bundle	39	59623	80	GREEN-derived work guard
-GET /api/v0/freshness/generations	13	91860	102	GREEN-derived work guard
-GET /api/v0/graph/entities	13	18	14	GREEN-derived work guard
-GET /api/v0/iac/resources	13	74925	104	GREEN-derived work guard
-GET /api/v0/index-status	34	55683	76	GREEN-derived work guard
-GET /api/v0/infra/resources/count	13	74739	80	GREEN-derived work guard
-GET /api/v0/infra/resources/inventory	13	74739	14	GREEN-derived work guard
-GET /api/v0/ingesters	34	55683	76	GREEN-derived work guard
-GET /api/v0/repositories	13	18	14	GREEN-derived work guard
-GET /api/v0/repositories/language-inventory	13	18	14	GREEN-derived work guard
-GET /api/v0/status/collector-readiness	13	18	14	GREEN-derived work guard
-GET /api/v0/status/collectors	39	59619	80	GREEN-derived work guard
-GET /api/v0/status/freshness-causality	39	59619	80	GREEN-derived work guard
-GET /api/v0/status/governance	40	59622	94	GREEN-derived work guard
-GET /api/v0/status/hosted-readiness	39	59619	80	GREEN-derived work guard
-GET /api/v0/status/index	34	55683	76	GREEN-derived work guard
-GET /api/v0/status/ingesters	34	55683	76	GREEN-derived work guard
-GET /api/v0/status/operations	40	74067	282	GREEN-derived work guard
-GET /api/v0/status/operator-control-plane	39	59619	80	GREEN-derived work guard
-GET /api/v0/status/pipeline	39	59619	80	GREEN-derived work guard
-GET /api/v0/status/semantic-extraction	39	59619	80	GREEN-derived work guard
-GET /api/v0/supply-chain/container-images/identities/count	13	18	14	GREEN-derived work guard
-GET /api/v0/supply-chain/impact/findings/count	13	18	14	GREEN-derived work guard
-
-# Added rows from hosted GREEN run 38144865929 at 1f71b47d672946b390c49647e29eef29a61e0fce; Neo4j work sha256 174bbc1bea07df8663db96dcef842427dbca6babc3b31641606eb24bff32f60f; NornicDB work sha256 190b62b4dd1dfc7fa2cc3a2b62ae1b464c032ae6feb33a8a655675f720ce51b1; scoped two-row ratchet; full-table collapse warning unresolved; existing budgets retained byte-for-byte.
-GET /api/v0/status/ingesters/{ingester}	38	19311	82	GREEN-derived work guard
-MCP get_index_status	42	19368	82	GREEN-derived work guard
+GET /api/v0/capabilities	20	33	18	GREEN-derived work guard
+GET /api/v0/cloud/inventory	20	145875	18	GREEN-derived work guard
+GET /api/v0/collector-readiness	20	33	18	GREEN-derived work guard
+GET /api/v0/collectors	44	51321	86	GREEN-derived work guard
+GET /api/v0/evidence/bundle	44	51327	86	GREEN-derived work guard
+GET /api/v0/freshness/generations	20	91851	106	GREEN-derived work guard
+GET /api/v0/graph/entities	20	33	18	GREEN-derived work guard
+GET /api/v0/iac/resources	20	149622	110	GREEN-derived work guard
+GET /api/v0/index-status	42	47442	82	GREEN-derived work guard
+GET /api/v0/infra/resources/count	20	149436	86	GREEN-derived work guard
+GET /api/v0/infra/resources/inventory	20	149436	18	GREEN-derived work guard
+GET /api/v0/ingesters	39	47385	82	GREEN-derived work guard
+GET /api/v0/repositories	20	72	18	GREEN-derived work guard
+GET /api/v0/repositories/language-inventory	20	243	18	GREEN-derived work guard
+GET /api/v0/repositories/{repo_id}/story	389	70782	11084	GREEN-derived work guard
+GET /api/v0/status/collector-readiness	20	33	18	GREEN-derived work guard
+GET /api/v0/status/collectors	44	51327	86	GREEN-derived work guard
+GET /api/v0/status/freshness-causality	44	51327	86	GREEN-derived work guard
+GET /api/v0/status/governance	47	51330	102	GREEN-derived work guard
+GET /api/v0/status/hosted-readiness	44	51327	86	GREEN-derived work guard
+GET /api/v0/status/index	42	47442	82	GREEN-derived work guard
+GET /api/v0/status/ingesters	39	47385	82	GREEN-derived work guard
+GET /api/v0/status/ingesters/{ingester}	39	47385	82	GREEN-derived work guard
+GET /api/v0/status/operations	47	65775	290	GREEN-derived work guard
+GET /api/v0/status/operator-control-plane	44	51327	86	GREEN-derived work guard
+GET /api/v0/status/pipeline	47	51384	86	GREEN-derived work guard
+GET /api/v0/status/semantic-extraction	20	33	18	GREEN-derived work guard
+GET /api/v0/supply-chain/container-images/identities/count	20	33	18	GREEN-derived work guard
+GET /api/v0/supply-chain/impact/findings/count	20	33	18	GREEN-derived work guard
+MCP get_index_status	43	47436	82	GREEN-derived work guard
+MCP search_entity_content	71	311960	117	GREEN-derived work guard
+MCP search_file_content	22	798	40	GREEN-derived work guard
