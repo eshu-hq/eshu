@@ -163,7 +163,8 @@ esac
 # (go/internal/runtime/postgres/reader.go, checkpoint.go, physical.go), and the
 # io-timing probe above normalizes to current_setting($N) = $M with a second
 # current_setting call, so those two shapes are excluded. A user statement that
-# merely mentions current_setting is listed.
+# merely mentions current_setting is listed, unless it has the exact probe
+# shape current_setting('name') = 'value', which stays hidden.
 statement_sql() {
   cat <<SQL
 SELECT s.calls,
