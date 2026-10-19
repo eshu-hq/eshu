@@ -330,10 +330,10 @@ func MaterializedEdgeDomainEdgeTypes(domain string) (map[string]struct{}, error)
 // prefix plus evidence_source plus endpoint labels, matched as same-writer
 // pairings (see materialized.PredicateScopedEdgeFamily).
 //
-// The second return is false for every finite-set family. The caller must
-// try the finite set first and fail closed when neither resolves: silently
-// treating an unknown family as predicate-scoped with an empty predicate
-// would assert zero edges and pass any graph vacuously.
+// The second return is false for every finite-set family. The caller
+// resolves the predicate first and fails closed when neither resolves:
+// silently treating an unknown family as predicate-scoped with an empty
+// predicate would assert zero edges and pass any graph vacuously.
 func MaterializedEdgeDomainPredicate(domain string) (materialized.PredicateScopedEdgeFamily, bool) {
 	return materialized.PredicateScopedMaterializedEdgeFamily(domain)
 }

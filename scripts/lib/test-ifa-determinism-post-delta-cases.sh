@@ -17,8 +17,8 @@
 # so a locator regression reds in exactly one place.
 run_ifa_determinism_post_delta_cases() {
 	local script="$1" delta_call_line="$2" post_delta_dump_line="$3"
-	# The nine DIRECT families (#6228/#6309) take the same single-post-delta-call
-	# shape as the three above. All nine were asserted pre-delta ONLY when they
+	# The ten DIRECT families (#6228/#6309/#8358) take the same single-post-delta-call
+	# shape as the three above. All ten were asserted pre-delta ONLY when they
 	# landed, and the matrix cannot see that gap: it compares one canonicalized
 	# digest per N, so a generation-2 regression that retracts or mutates these
 	# edges identically at N=1, 2 and 4 keeps every digest equal and the gate

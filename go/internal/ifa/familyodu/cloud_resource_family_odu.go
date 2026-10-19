@@ -296,12 +296,12 @@ func cloudResourceFamilyAzureFacts() []facts.Envelope {
 // failure for the same reason IAMInstanceProfileRoleFamilyOdu does: a
 // failure means the payload contract moved under a committed fixture.
 func CloudResourceFamilyOdu() CatalogOdu {
-	factsForOdu := make([]facts.Envelope, 0, 15)
+	factsForOdu := make([]facts.Envelope, 0, 17)
 	factsForOdu = append(factsForOdu, cloudResourceFamilyAWSFacts()...)
 	factsForOdu = append(factsForOdu, cloudResourceFamilyGCPFacts()...)
 	factsForOdu = append(factsForOdu, cloudResourceFamilyAzureFacts()...)
 	return CatalogOdu{
 		Odu:    Odu{Name: CloudResourceFamilyOduName, Facts: factsForOdu},
-		Detail: "fifteen facts across one AWS, one GCP, and one Azure scope generation for the predicate-scoped cloud_resource family: two AWS verbs plus duplicate/unresolved/self-loop controls, one supported GCP relationship plus partial and unresolved controls, and one Azure managed_by plus an unsupported-verb control",
+		Detail: "seventeen facts across one AWS, one GCP, and one Azure scope generation for the predicate-scoped cloud_resource family: two AWS verbs plus duplicate/unresolved/self-loop controls, one supported GCP relationship plus partial and unresolved controls, and one Azure managed_by plus an unsupported-verb control",
 	}
 }
