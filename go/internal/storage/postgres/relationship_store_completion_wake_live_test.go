@@ -272,7 +272,10 @@ func TestCompletionWakeRetryConvergesAfterLostWakeLive(t *testing.T) {
 }
 
 // waitForCompletionWakeLockWaiter polls until some other backend is waiting on a lock, so
-// an interleave test can act while the wake is provably blocked.
+// an interleave test can act while the wake is provably blocked. Scoped to
+// the current database: an unscoped poll can match an unrelated backend's
+// lock wait on the shared server and return before this wake is blocked,
+// passing vacuously without exercising the EvalPlanQual recheck.
 func waitForCompletionWakeLockWaiter(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
@@ -280,7 +283,8 @@ func waitForCompletionWakeLockWaiter(t *testing.T, ctx context.Context, db *sql.
 		var waiting int
 		err := db.QueryRowContext(ctx, `
 SELECT count(*) FROM pg_stat_activity
-WHERE wait_event_type = 'Lock' AND pid <> pg_backend_pid()`).Scan(&waiting)
+WHERE datname = current_database()
+  AND wait_event_type = 'Lock' AND pid <> pg_backend_pid()`).Scan(&waiting)
 		if err != nil {
 			t.Fatalf("poll pg_stat_activity: %v", err)
 		}
