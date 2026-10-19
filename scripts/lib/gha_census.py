@@ -43,7 +43,7 @@ def _minutes(run: Run) -> float | None:
     try:
         created = datetime.fromisoformat(run["createdAt"].replace("Z", "+00:00"))
         updated = datetime.fromisoformat(run["updatedAt"].replace("Z", "+00:00"))
-    except (KeyError, ValueError):
+    except (KeyError, ValueError, AttributeError, TypeError):
         return None
     return (updated - created).total_seconds() / 60.0
 
@@ -59,7 +59,11 @@ def aggregate(runs: Sequence[Run]) -> dict[str, Any]:
         cancelled share of completed runs, the count of completed runs
         over 60 minutes, and per-workflow stats.
     """
-    completed = [r for r in runs if r.get("status") == "completed"]
+    # One malformed row must not abort the census: it is counted in the
+    # totals but excluded from per-workflow stats, and named in the report.
+    malformed = sum(1 for r in runs if not r.get("workflowName"))
+    named = [r for r in runs if r.get("workflowName")]
+    completed = [r for r in named if r.get("status") == "completed"]
     by_conclusion = Counter(r.get("conclusion") or "none" for r in completed)
     workflows: dict[str, dict[str, Any]] = {}
     durations: dict[str, list[float]] = {}
@@ -81,6 +85,7 @@ def aggregate(runs: Sequence[Run]) -> dict[str, Any]:
     cancelled = by_conclusion.get("cancelled", 0)
     return {
         "total": len(runs),
+        "malformed_rows": malformed,
         "completed": len(completed),
         "by_conclusion": dict(by_conclusion),
         "cancelled_share": (cancelled / len(completed)) if completed else 0.0,
@@ -97,6 +102,16 @@ def render_markdown(report: dict[str, Any], start: str, end: str) -> str:
         f"{report['total']} runs, {report['completed']} completed, "
         f"{report['cancelled_share']:.1%} of completed runs cancelled, "
         f"{report['over_60m']} completed runs over 60 minutes.",
+    ]
+    if report.get("truncated_slices"):
+        lines.append(
+            f"WARNING: {report['truncated_slices']} slice(s) hit the query "
+            "cap at maximum subdivision; those windows are undercounted.")
+    if report.get("malformed_rows"):
+        lines.append(
+            f"WARNING: {report['malformed_rows']} row(s) had no workflow "
+            "name and are excluded from per-workflow stats.")
+    lines += [
         "",
         "| Workflow | Runs | Failures | Median min | Max min |",
         "|---|---:|---:|---:|---:|",
@@ -134,23 +149,36 @@ def _gh_run_list(start: datetime, end: datetime) -> list[Run]:
     return json.loads(out.stdout)
 
 
-def _fetch_slice(start: datetime, end: datetime, depth: int = 0) -> list[Run]:
-    """Fetch one bounded slice, subdividing while it comes back capped."""
+def _fetch_slice(start: datetime, end: datetime,
+                 depth: int = 0) -> tuple[list[Run], int]:
+    """Fetch one bounded slice; second value counts still-capped leaves.
+
+    A leaf that is still at the cap at maximum depth is truncated: the
+    census undercounts that window, and the caller must be able to say
+    so instead of publishing a silently short number.
+    """
     rows = _gh_run_list(start, end)
-    if len(rows) < _SLICE_LIMIT or depth >= 3:
-        return rows
+    if len(rows) < _SLICE_LIMIT:
+        return rows, 0
+    if depth >= 3:
+        return rows, 1
     mid = start + (end - start) / 2
-    return _fetch_slice(start, mid, depth + 1) + _fetch_slice(mid, end, depth + 1)
+    left, left_truncated = _fetch_slice(start, mid, depth + 1)
+    right, right_truncated = _fetch_slice(mid, end, depth + 1)
+    return left + right, left_truncated + right_truncated
 
 
-def fetch_window(start: datetime, end: datetime) -> list[Run]:
-    """Fetch every run created in [start, end) in hourly bounded slices."""
+def fetch_window(start: datetime, end: datetime) -> tuple[list[Run], int]:
+    """Fetch every run created in [start, end) plus truncated-slice count."""
     collected: list[Run] = []
+    truncated = 0
     hours = int((end - start).total_seconds() // 3600)
     for i in range(hours):
-        collected += _fetch_slice(
+        rows, cut = _fetch_slice(
             start + timedelta(hours=i), start + timedelta(hours=i + 1))
-    return dedupe(collected)
+        collected += rows
+        truncated += cut
+    return dedupe(collected), truncated
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -161,7 +189,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     end = datetime.now(timezone.utc).replace(microsecond=0)
     start = end - timedelta(hours=args.hours)
-    report = aggregate(fetch_window(start, end))
+    runs, truncated = fetch_window(start, end)
+    report = aggregate(runs)
+    report["truncated_slices"] = truncated
+    if truncated:
+        print(f"gha-census: warning: {truncated} slice(s) still capped at "
+              "maximum subdivision; counts for those windows are a floor",
+              file=sys.stderr)
     report["window"] = {"start": start.isoformat(), "end": end.isoformat()}
     sys.stdout.write(render_markdown(
         report, report["window"]["start"], report["window"]["end"]))

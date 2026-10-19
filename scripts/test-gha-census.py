@@ -65,6 +65,21 @@ class TestGhaCensus(unittest.TestCase):
         self.assertIn("40.0%", text)
 
 
+class TestMalformedRows(unittest.TestCase):
+    def test_missing_name_and_null_timestamp_do_not_abort(self):
+        rows = FIXTURE + [
+            {"databaseId": 99, "status": "completed",
+             "conclusion": "success", "createdAt": "2026-10-19T05:00:00Z",
+             "updatedAt": "2026-10-19T05:01:00Z"},
+            {"databaseId": 100, "workflowName": "W", "status": "completed",
+             "conclusion": "success", "createdAt": None,
+             "updatedAt": "2026-10-19T05:01:00Z"},
+        ]
+        report = aggregate(rows)
+        self.assertEqual(report["total"], 8)
+        self.assertEqual(report["malformed_rows"], 1)
+
+
 class TestFetchWindow(unittest.TestCase):
     """Slice assembly against a capped, newest-first fake endpoint.
 
@@ -96,8 +111,9 @@ class TestFetchWindow(unittest.TestCase):
 
         with mock.patch.object(gha_census, "_SLICE_LIMIT", 2), \
                 mock.patch.object(gha_census, "_gh_run_list", fake):
-            got = fetch_window(base, base + timedelta(hours=3))
+            got, truncated = fetch_window(base, base + timedelta(hours=3))
         self.assertEqual({r["databaseId"] for r in got}, set(range(1, 10)))
+        self.assertEqual(truncated, 0)
 
 
 if __name__ == "__main__":
