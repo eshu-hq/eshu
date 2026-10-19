@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	producerstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/code/producers"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/filters"
 )
 
 // codeCallSymbolDefinitionFactsSelect is the shared head of the definition
@@ -170,7 +171,7 @@ func (s FactStore) LoadActiveCodeCallSymbolDefinitionFacts(
 		return nil, fmt.Errorf("fact store database is required")
 	}
 
-	symbolKeys = cleanFactKinds(symbolKeys)
+	symbolKeys = filters.CleanFactKinds(symbolKeys)
 	if len(symbolKeys) == 0 {
 		return nil, nil
 	}

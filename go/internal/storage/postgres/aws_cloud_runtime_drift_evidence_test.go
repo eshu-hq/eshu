@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fixtures"
 )
 
 type stubAWSRuntimeDriftConfigResolver struct {
@@ -90,7 +91,7 @@ func TestPostgresAWSCloudRuntimeDriftEvidenceLoaderJoinsCloudStateAndConfig(t *t
 			// Config-side terraform_resources rows. Only the managed state
 			// address is declared; unmanaged stays cloud+state without config.
 			{rows: [][]any{{
-				fixtureConfigResourcesArray(fixtureConfigParserRow("aws_s3_bucket", "managed")),
+				fixtures.FixtureConfigResourcesArray(fixtures.FixtureConfigParserRow("aws_s3_bucket", "managed")),
 			}}},
 		},
 	}

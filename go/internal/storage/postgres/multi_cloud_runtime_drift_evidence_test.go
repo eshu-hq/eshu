@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fixtures"
 )
 
 // fixtureMultiCloudStatePayload renders a terraform_state_resource payload whose
@@ -79,7 +80,7 @@ func TestPostgresMultiCloudRuntimeDriftEvidenceLoaderJoinsObservedStateConfigByU
 			// Config-side terraform_resources rows. Only the Azure managed state
 			// address is declared; GCP stays cloud+state without config.
 			{rows: [][]any{{
-				fixtureConfigResourcesArray(fixtureConfigParserRow("azurerm_virtual_machine", "managed")),
+				fixtures.FixtureConfigResourcesArray(fixtures.FixtureConfigParserRow("azurerm_virtual_machine", "managed")),
 			}}},
 		},
 	}

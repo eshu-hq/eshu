@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fixtures"
 )
 
 // Unit and loader-integration tests for the per-address
@@ -201,7 +202,7 @@ func TestLoadDriftEvidenceMarksLowConfidenceForRegistryHeuristicMisclassifiedLoc
 			)}}},
 			// 2. terraform_resources: a real resource physically declared
 			//    under that same directory.
-			{rows: [][]any{{fixtureConfigResourcesArray(
+			{rows: [][]any{{fixtures.FixtureConfigResourcesArray(
 				fixtureConfigParserRowAtPath("aws_instance", "web", "terraform-aws-modules/vpc/aws/main.tf"),
 			)}}},
 			// 3. snapshot serial=0.
@@ -284,7 +285,7 @@ func TestLoadDriftEvidenceMarksLowConfidenceForDepthExceededModuleChain(t *testi
 			{rows: moduleRows},
 			// 2. terraform_resources: a resource declared at the abandoned,
 			//    deepest callee directory.
-			{rows: [][]any{{fixtureConfigResourcesArray(
+			{rows: [][]any{{fixtures.FixtureConfigResourcesArray(
 				fixtureConfigParserRowAtPath("aws_instance", "web", deepestCallee+"/main.tf"),
 			)}}},
 			// 3. snapshot serial=0.

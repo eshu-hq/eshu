@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fixtures"
 )
 
 // TestPairSpuriousModuleMismatchesMirrorsReasonOntoUnambiguousStateOnlyRow is
@@ -282,7 +283,7 @@ func TestLoadDriftEvidencePairsSpuriousMismatchAcrossModuleResolutionFailure(t *
 			// 2. terraform_resources: a real resource physically declared
 			//    under that same directory. The loader emits it at the
 			//    fallback ROOT address "aws_instance.web".
-			{rows: [][]any{{fixtureConfigResourcesArray(
+			{rows: [][]any{{fixtures.FixtureConfigResourcesArray(
 				fixtureConfigParserRowAtPath("aws_instance", "web", "terraform-aws-modules/vpc/aws/main.tf"),
 			)}}},
 			// 3. snapshot serial=0.
