@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
 )
 
 // kubernetesCorrelationReadinessQueueDB is a fake reducer-queue backend that
@@ -142,7 +143,7 @@ func (kubernetesCorrelationNodesNotReadyTestError) Error() string {
 func (kubernetesCorrelationNodesNotReadyTestError) Retryable() bool { return true }
 
 func (kubernetesCorrelationNodesNotReadyTestError) FailureClass() string {
-	return reducer.KubernetesCorrelationNodesNotReadyFailureClass
+	return kubernetescorrelation.KubernetesCorrelationNodesNotReadyFailureClass
 }
 
 // TestReducerQueueFailDefersKubernetesCorrelationReadinessPastAttemptBudget proves
@@ -189,7 +190,7 @@ func TestReducerQueueFailDefersKubernetesCorrelationReadinessPastAttemptBudget(t
 			t.Fatalf("deferred retry query missing %q:\n%s", want, query)
 		}
 	}
-	if got, want := database.execs[0].args[1], reducer.KubernetesCorrelationNodesNotReadyFailureClass; got != want {
+	if got, want := database.execs[0].args[1], kubernetescorrelation.KubernetesCorrelationNodesNotReadyFailureClass; got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
 	// Exponential backoff (#4450): AttemptCount=42 (a non-counting readiness
