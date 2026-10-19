@@ -58,7 +58,8 @@ func snapshotRetentionTimeoutDiagnosis(t *testing.T, sqlDB *sql.DB, phase string
 	active := 0
 	rows, err := sqlDB.QueryContext(snapCtx, `
 SELECT pid, EXTRACT(EPOCH FROM clock_timestamp() - query_start),
-       state, wait_event_type, wait_event, backend_type, left(query, 120)
+       state, wait_event_type, wait_event, backend_type,
+       COALESCE(left(query, 120), '')
 FROM pg_stat_activity
 WHERE datname = current_database() AND pid <> pg_backend_pid()
 ORDER BY query_start LIMIT 20`)
@@ -95,7 +96,9 @@ ORDER BY query_start LIMIT 20`)
 	blocked := 0
 	var blockers []string
 	lockRows, err := sqlDB.QueryContext(snapCtx, `
-SELECT blocked.pid, blocking.pid, left(blocked_act.query, 120), left(blocking_act.query, 120)
+SELECT blocked.pid, blocking.pid,
+       COALESCE(left(blocked_act.query, 120), ''),
+       COALESCE(left(blocking_act.query, 120), '')
 FROM pg_locks AS blocked
 JOIN pg_locks AS blocking ON blocking.locktype = blocked.locktype
   AND blocking.database IS NOT DISTINCT FROM blocked.database
@@ -107,6 +110,7 @@ JOIN pg_locks AS blocking ON blocking.locktype = blocked.locktype
   AND blocking.objid IS NOT DISTINCT FROM blocked.objid
   AND blocking.objsubid IS NOT DISTINCT FROM blocked.objsubid
   AND blocking.pid <> blocked.pid
+  AND blocking.granted
 JOIN pg_stat_activity AS blocked_act ON blocked_act.pid = blocked.pid
 JOIN pg_stat_activity AS blocking_act ON blocking_act.pid = blocking.pid
 WHERE NOT blocked.granted
@@ -239,7 +243,7 @@ func TestRetentionLiveTimeoutDiagnosisNamesBlocker(t *testing.T) {
 
 	summary := snapshotRetentionTimeoutDiagnosis(t, sqlDB, "test-blocker")
 	for _, want := range []string{
-		"blocked=1",
+		"blocked=1 ",
 		"pg_advisory_xact_lock",
 	} {
 		if !strings.Contains(summary, want) {
