@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // ReopenSucceededReducerSetClause is the SET list every succeeded-to-pending
@@ -172,7 +173,7 @@ func (q ReducerQueue) ReplayDomain(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
-	domain reducer.Domain,
+	domain reducercontract.Domain,
 ) (bool, error) {
 	if err := q.validateDB(); err != nil {
 		return false, err
@@ -383,7 +384,7 @@ func (q ReducerQueue) ReplayCrossplaneSatisfiedByMaterialization(
 // that have not yet reached a terminal status.
 func (q ReducerQueue) CountInFlightByDomain(
 	ctx context.Context,
-	domain reducer.Domain,
+	domain reducercontract.Domain,
 ) (int, error) {
 	if err := q.validateDB(); err != nil {
 		return 0, err

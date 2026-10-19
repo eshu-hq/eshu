@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 )
 
@@ -60,14 +61,14 @@ func TestRepoDependencyCassetteProductionAdmission(t *testing.T) {
 			t.Errorf("target scope %q emitted reducer intents: %+v", collected.Scope.ScopeID, projection.reducerIntents)
 		}
 		if isSource {
-			wantIntents := map[reducer.Domain]string{
+			wantIntents := map[reducercontract.Domain]string{
 				reducer.DomainWorkloadMaterialization: "workload:repo-ifa-repo-dependency-source",
 				reducer.DomainDeploymentMapping:       "deployment:repo-ifa-repo-dependency-source",
 			}
 			if got, want := len(projection.reducerIntents), len(wantIntents); got != want {
 				t.Errorf("source reducer intent count = %d, want exactly %d: %+v", got, want, projection.reducerIntents)
 			}
-			gotIntents := make(map[reducer.Domain]string)
+			gotIntents := make(map[reducercontract.Domain]string)
 			for _, intent := range projection.reducerIntents {
 				if _, required := wantIntents[intent.Domain]; !required {
 					t.Errorf("source emitted unexpected reducer domain %s", intent.Domain)

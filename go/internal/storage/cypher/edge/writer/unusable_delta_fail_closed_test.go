@@ -88,7 +88,7 @@ type unusableDeltaCase struct {
 	name                  string
 	retractDomain         string
 	evidenceSource        string
-	materializationDomain reducer.Domain
+	materializationDomain reducercontract.Domain
 	materialize           func(
 		ctx context.Context,
 		loader reducer.FactLoader,

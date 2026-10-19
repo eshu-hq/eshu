@@ -102,7 +102,7 @@ func TestAdditiveDomainsWireRefreshAffectedGraph(t *testing.T) {
 		WorkloadMaterializer:                &WorkloadMaterializer{},
 		RefreshAffectedGraph:                probe,
 	})
-	byDomain := make(map[Domain]DomainDefinition, len(defs))
+	byDomain := make(map[reducercontract.Domain]DomainDefinition, len(defs))
 	for _, def := range defs {
 		byDomain[def.Domain] = def
 	}
@@ -246,8 +246,8 @@ func TestAdditiveDomainsWireRefreshGateTracer(t *testing.T) {
 	}
 }
 
-func unwiredByDomain(defs []DomainDefinition) map[Domain]DomainDefinition {
-	byDomain := make(map[Domain]DomainDefinition, len(defs))
+func unwiredByDomain(defs []DomainDefinition) map[reducercontract.Domain]DomainDefinition {
+	byDomain := make(map[reducercontract.Domain]DomainDefinition, len(defs))
 	for _, def := range defs {
 		byDomain[def.Domain] = def
 	}

@@ -312,7 +312,7 @@ func crossScopeCompletionPerfIDs(intents []reducercontract.Intent) []string {
 	return ids
 }
 
-func crossScopeCompletionPerfIntents(prefix string, domain reducer.Domain, count int) []reducercontract.Intent {
+func crossScopeCompletionPerfIntents(prefix string, domain reducercontract.Domain, count int) []reducercontract.Intent {
 	intents := make([]reducercontract.Intent, count)
 	for index := range count {
 		intents[index] = reducercontract.Intent{

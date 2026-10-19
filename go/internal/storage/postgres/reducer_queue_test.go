@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestReducerWorkItemIDDeterministic(t *testing.T) {
@@ -50,7 +51,7 @@ func TestReducerConflictDomainKeySplitsCodeAndPlatformGraphFamilies(t *testing.T
 
 	tests := []struct {
 		name       string
-		domain     reducer.Domain
+		domain     reducercontract.Domain
 		wantDomain string
 		wantKey    string
 	}{
@@ -469,7 +470,7 @@ func TestReducerQueueClaimRejectsUnknownDomainFilter(t *testing.T) {
 		database:      &fakeExecQueryer{},
 		LeaseOwner:    "bad-lane",
 		LeaseDuration: time.Minute,
-		ClaimDomain:   reducer.Domain("not_a_domain"),
+		ClaimDomain:   reducercontract.Domain("not_a_domain"),
 	}
 
 	_, _, err := queue.Claim(context.Background())

@@ -29,8 +29,8 @@ type DomainDefinition = reducercontract.DomainDefinition
 
 // Registry owns the explicit reducer domain catalog and handlers.
 type Registry struct {
-	ordered []Domain
-	defs    map[Domain]DomainDefinition
+	ordered []reducercontract.Domain
+	defs    map[reducercontract.Domain]DomainDefinition
 }
 
 // Handler executes one reducer intent for a registered domain.
@@ -42,7 +42,7 @@ type HandlerFunc = reducercontract.HandlerFunc
 // NewRegistry constructs an empty reducer registry.
 func NewRegistry() Registry {
 	return Registry{
-		defs: make(map[Domain]DomainDefinition),
+		defs: make(map[reducercontract.Domain]DomainDefinition),
 	}
 }
 
@@ -56,7 +56,7 @@ func (r *Registry) Register(def DomainDefinition) error {
 	}
 
 	if r.defs == nil {
-		r.defs = make(map[Domain]DomainDefinition)
+		r.defs = make(map[reducercontract.Domain]DomainDefinition)
 	}
 	r.defs[def.Domain] = def
 	r.ordered = append(r.ordered, def.Domain)
@@ -65,7 +65,7 @@ func (r *Registry) Register(def DomainDefinition) error {
 }
 
 // Definition returns the registered domain definition.
-func (r Registry) Definition(domain Domain) (DomainDefinition, bool) {
+func (r Registry) Definition(domain reducercontract.Domain) (DomainDefinition, bool) {
 	def, ok := r.defs[domain]
 	return def, ok
 }
@@ -81,8 +81,8 @@ func (r Registry) Definitions() []DomainDefinition {
 }
 
 // SortedDomains returns the registered domains in deterministic order.
-func (r Registry) SortedDomains() []Domain {
-	domains := make([]Domain, 0, len(r.ordered))
+func (r Registry) SortedDomains() []reducercontract.Domain {
+	domains := make([]reducercontract.Domain, 0, len(r.ordered))
 	domains = append(domains, r.ordered...)
 	sort.SliceStable(domains, func(i, j int) bool {
 		return domains[i] < domains[j]

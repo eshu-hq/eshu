@@ -9,7 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // intentForDomain and awsResourceEnvelope are shared dispatcher-level test
@@ -21,7 +21,7 @@ import (
 
 // intentForDomain returns the single reducer intent for domain, or fails the
 // test if none is present.
-func intentForDomain(t *testing.T, intents []ReducerIntent, domain reducer.Domain) ReducerIntent {
+func intentForDomain(t *testing.T, intents []ReducerIntent, domain reducercontract.Domain) ReducerIntent {
 	t.Helper()
 	for _, intent := range intents {
 		if intent.Domain == domain {

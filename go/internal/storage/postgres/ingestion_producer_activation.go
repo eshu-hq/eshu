@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -277,7 +278,7 @@ func (s IngestionStore) SettleClaimedProducerActivation(ctx context.Context, wor
 		return nil, "", err
 	}
 	dependents := []struct {
-		domain reducer.Domain
+		domain reducercontract.Domain
 		query  string
 		args   []any
 	}{

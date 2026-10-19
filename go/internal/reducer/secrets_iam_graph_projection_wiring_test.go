@@ -8,12 +8,13 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
 // secretsIAMWiringDomain reports whether the definition slice registers the
 // given domain.
-func secretsIAMWiringDomain(defs []DomainDefinition, domain Domain) (DomainDefinition, bool) {
+func secretsIAMWiringDomain(defs []DomainDefinition, domain reducercontract.Domain) (DomainDefinition, bool) {
 	for _, d := range defs {
 		if d.Domain == domain {
 			return d, true

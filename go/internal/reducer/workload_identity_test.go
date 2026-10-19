@@ -244,7 +244,7 @@ func TestNewDefaultRegistryRegistersImplementedDomainsOnly(t *testing.T) {
 	// DomainConfigStateDrift is intentionally absent: this test does not
 	// wire TerraformBackendResolver/DriftEvidenceLoader/DriftLogger, so the
 	// additive append in implementedDefaultDomainDefinitions does not add it.
-	if got, want := registry.SortedDomains(), []Domain{
+	if got, want := registry.SortedDomains(), []reducercontract.Domain{
 		DomainCloudAssetResolution,
 		DomainCodeCallMaterialization,
 		DomainCodeownersOwnership,

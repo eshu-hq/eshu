@@ -274,7 +274,7 @@ func TestReducerAckBatchAppendsOneCompletionEventPerProducerDomainLive(t *testin
 	if err := queue.AckBatch(ctx, intents, make([]reducer.Result, len(intents))); err != nil {
 		t.Fatalf("batch ACK completion producers: %v", err)
 	}
-	for _, domain := range []reducer.Domain{
+	for _, domain := range []reducercontract.Domain{
 		reducer.DomainContainerImageIdentity,
 		reducer.DomainCICDRunCorrelation,
 	} {
@@ -298,7 +298,7 @@ func insertCrossScopeCompletionEvent(
 	db interface {
 		QueryRowContext(context.Context, string, ...any) *sql.Row
 	},
-	domain reducer.Domain,
+	domain reducercontract.Domain,
 	status string,
 	leaseOwner string,
 	claimUntil time.Time,
@@ -366,7 +366,7 @@ func insertCrossScopeCompletionRunningProducer(
 	workItemID string,
 	scopeID string,
 	generationID string,
-	domain reducer.Domain,
+	domain reducercontract.Domain,
 	leaseOwner string,
 	now time.Time,
 ) {

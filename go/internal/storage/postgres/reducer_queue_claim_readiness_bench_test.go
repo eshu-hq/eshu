@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestReducerClaimReadinessBenchmarkCasesDefaultToGrowthShape(t *testing.T) {
@@ -100,7 +101,7 @@ type reducerClaimReadinessBenchmarkCase struct {
 	gatedDomainCount int
 }
 
-var reducerClaimReadinessBenchmarkDomains = []reducer.Domain{
+var reducerClaimReadinessBenchmarkDomains = []reducercontract.Domain{
 	reducer.DomainAWSRelationshipMaterialization,
 	reducer.DomainIAMCanAssumeMaterialization,
 	reducer.DomainS3LogsToMaterialization,

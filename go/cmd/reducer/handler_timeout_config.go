@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 const (
@@ -41,7 +42,7 @@ func loadReducerHandlerTimeout(getenv func(string) string) (time.Duration, error
 // "domain=duration,domain=duration" form. An empty value means no overrides.
 // Unknown domains and non-positive durations are errors: a bound that names
 // nothing would silently never apply, which is worse than refusing to start.
-func loadReducerHandlerTimeoutOverrides(getenv func(string) string) (map[reducer.Domain]time.Duration, error) {
+func loadReducerHandlerTimeoutOverrides(getenv func(string) string) (map[reducercontract.Domain]time.Duration, error) {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
@@ -49,7 +50,7 @@ func loadReducerHandlerTimeoutOverrides(getenv func(string) string) (map[reducer
 	if raw == "" {
 		return nil, nil
 	}
-	overrides := make(map[reducer.Domain]time.Duration)
+	overrides := make(map[reducercontract.Domain]time.Duration)
 	for _, part := range strings.Split(raw, ",") {
 		part = strings.TrimSpace(part)
 		if part == "" {

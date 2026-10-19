@@ -18,7 +18,7 @@ import (
 // capture. Before capture EPQ must include the increment; after capture the ACK
 // must leave a new durable event when the captured conflict row is deleted.
 func TestReducerContentionGateProducerAckCaptureHorizonLive(t *testing.T) {
-	for _, domain := range []reducer.Domain{reducer.DomainContainerImageIdentity, reducer.DomainCICDRunCorrelation} {
+	for _, domain := range []reducercontract.Domain{reducer.DomainContainerImageIdentity, reducer.DomainCICDRunCorrelation} {
 		for _, afterCapture := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/after_capture=%t", domain, afterCapture), func(t *testing.T) {
 				db := openReducerAckFanoutProofDB(t)

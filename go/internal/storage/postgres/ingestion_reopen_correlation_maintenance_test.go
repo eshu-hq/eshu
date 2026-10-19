@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
@@ -149,7 +150,7 @@ func TestCrossScopeCorrelationReopenDomainsExcludesCompletionDrivenChain(t *test
 	t.Parallel()
 
 	reopened := CrossScopeCorrelationReopenDomains()
-	for _, domain := range []reducer.Domain{
+	for _, domain := range []reducercontract.Domain{
 		reducer.DomainCICDRunCorrelation,
 		reducer.DomainSupplyChainImpact,
 	} {

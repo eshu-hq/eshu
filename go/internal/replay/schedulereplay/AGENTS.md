@@ -35,7 +35,7 @@
   gate runs in the default `go test` pass.
 - A shared-conflict-key projection scenario (a `reducer_domain` written by >=2
   distinct `projection_hook` values in `specs/fact-kind-registry.v1.yaml`) MUST
-  schedule its intents under that projection's real `reducer.Domain` constant
+  schedule its intents under that projection's real `reducercontract.Domain` constant
   (`Config.Domain`), and its cassette MUST carry facts from at least 2 of the
   domain's owning hooks, each hook owning distinct node labels with at least
   one edge crossing between two different hooks' nodes — proving cross-hook

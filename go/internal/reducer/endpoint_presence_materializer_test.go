@@ -12,7 +12,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
-func presenceIntent(domain Domain) reducercontract.Intent {
+func presenceIntent(domain reducercontract.Domain) reducercontract.Intent {
 	return reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",

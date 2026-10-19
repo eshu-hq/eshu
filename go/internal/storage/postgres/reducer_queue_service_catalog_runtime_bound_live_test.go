@@ -116,7 +116,7 @@ func requireRuntimeFenceRetryAnchor(t *testing.T, ctx context.Context, p *runtim
 		t.Fatalf("retried producer claim_until = %s, want NULL", claimUntil.Time)
 	}
 	states, err := producerreadiness.Store{DB: SQLDB{DB: p.db}}.RuntimeProducerStates(ctx,
-		[]string{runtimeFenceRepoID}, []reducer.Domain{reducer.DomainWorkloadMaterialization})
+		[]string{runtimeFenceRepoID}, []reducercontract.Domain{reducer.DomainWorkloadMaterialization})
 	if err != nil {
 		t.Fatalf("RuntimeProducerStates() error = %v", err)
 	}

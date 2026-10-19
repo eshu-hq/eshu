@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/materialized"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -46,7 +47,7 @@ var cloudSinkChainNodeLabelPattern = regexp.MustCompile(`\(\w*:([A-Z][A-Za-z0-9_
 // producing phase has published, so a Function that is not materialized yet
 // keeps its intents open and the fence refuses on them. runs_in is the
 // canonical cover here (invokes_cloud_action is its sibling).
-var cloudSinkChainNodeLabelOwners = map[string]reducer.Domain{
+var cloudSinkChainNodeLabelOwners = map[string]reducercontract.Domain{
 	"Function":         reducer.DomainRunsIn,
 	"CloudAction":      reducer.DomainCodeCallMaterialization,
 	"Workload":         reducer.DomainWorkloadMaterialization,
@@ -178,7 +179,7 @@ func relationshipFamilyOwner(relType string) (string, bool) {
 // (go/internal/reducer/workload_materializer.go,
 // workload_materialization_handler.go). Both already appear in
 // postgres.ValueFlowInputsFenceReducerDomains.
-var cloudSinkChainRelationshipOwners = map[string]reducer.Domain{
+var cloudSinkChainRelationshipOwners = map[string]reducercontract.Domain{
 	"CAN_PERFORM": reducer.DomainIAMCanPerformMaterialization,
 	"INSTANCE_OF": reducer.DomainWorkloadMaterialization,
 }
@@ -189,7 +190,7 @@ var cloudSinkChainRelationshipOwners = map[string]reducer.Domain{
 // domains (their family name IS the projection_domain value);
 // workload_cloud_relationship is a fact_work_items domain under a shorter
 // family slug.
-var familyToFencedDomain = map[string]reducer.Domain{
+var familyToFencedDomain = map[string]reducercontract.Domain{
 	"runs_in":                     reducer.DomainRunsIn,
 	"invokes_cloud_action":        reducer.DomainInvokesCloudAction,
 	"workload_cloud_relationship": reducer.DomainWorkloadCloudRelationshipMaterialization,
@@ -207,7 +208,7 @@ var familyToFencedDomain = map[string]reducer.Domain{
 func TestValueFlowInputsFenceDomainsCoverCloudSinkChain(t *testing.T) {
 	t.Parallel()
 
-	fenced := make(map[reducer.Domain]struct{})
+	fenced := make(map[reducercontract.Domain]struct{})
 	for _, d := range postgres.ValueFlowInputsFenceReducerDomains {
 		fenced[d] = struct{}{}
 	}

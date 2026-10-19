@@ -68,7 +68,7 @@ func parseIfaFamilyRegistryBlockerKinds(t *testing.T, rowsDir string) map[string
 // shell fault-injection wait helper (ifa_fault_wait_for_claimed) polls on. It
 // exists so TestIfaFamilyRegistryWaitKeyIsKnownDomain in
 // ifa_family_registry_wait_key_coherence_test.go can bind each declared value
-// to a real reducer.Domain constant instead of trusting the registry row and
+// to a real reducercontract.Domain constant instead of trusting the registry row and
 // the wait helper's own hand-typed pin to keep agreeing with each other after
 // a Domain rename. See parseIfaFamilyRegistryTable for the shared parsing
 // contract.

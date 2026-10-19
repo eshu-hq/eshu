@@ -6,13 +6,15 @@ package reducer
 import (
 	"sort"
 	"testing"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestIfaFamilyRegistryWaitKeyIsKnownDomain proves each family's
 // IFA_FAMILY_WAIT_KEY row -- parsed live from
 // scripts/lib/ifa_family_registry/rows/ by parseIfaFamilyRegistryWaitKeys,
-// never a Go-side copy of it -- names a real reducer Domain constant, checked
-// against knownDomains through the same Domain.Validate() production code
+// never a Go-side copy of it -- names a real reducer reducercontract.Domain constant, checked
+// against knownDomains through the same reducercontract.Domain.Validate() production code
 // path ParseDomain uses, never a hand-copied constant list. Each row is
 // otherwise guarded only by a hand-typed pin in the fault-injection wait
 // helper comparing one hand-typed string to another: both sides can rename
@@ -54,8 +56,8 @@ func TestIfaFamilyRegistryWaitKeyIsKnownDomain(t *testing.T) {
 			if stage != "handler" {
 				t.Skipf("family %q declares wait_stage=%q; its wait_key lives in allProjectionDomains, not knownDomains, and is checked by TestIfaFamilyRegistryWaitStageAndKeyCohere", family, stage)
 			}
-			if err := Domain(raw).Validate(); err != nil {
-				t.Fatalf("family %q: IFA_FAMILY_WAIT_KEY=%q is not a real reducer Domain constant (%v) -- scripts/lib/ifa_family_registry.sh's row and the fault-injection wait helper's hand-typed pin could rename together and still agree on a dead string here", family, raw, err)
+			if err := reducercontract.Domain(raw).Validate(); err != nil {
+				t.Fatalf("family %q: IFA_FAMILY_WAIT_KEY=%q is not a real reducer reducercontract.Domain constant (%v) -- scripts/lib/ifa_family_registry.sh's row and the fault-injection wait helper's hand-typed pin could rename together and still agree on a dead string here", family, raw, err)
 			}
 		})
 	}
@@ -69,8 +71,8 @@ func TestIfaFamilyRegistryWaitKeyIsKnownDomain(t *testing.T) {
 // The three rules, and the failure each one prevents:
 //
 //   - wait_stage=handler => wait_key must validate as a fact_work_items claim
-//     Domain. That is what ifa_fault_wait_for_claimed polls; a key that is not
-//     a real Domain waits for a row that can never appear and the cell dies on
+//     reducercontract.Domain. That is what ifa_fault_wait_for_claimed polls; a key that is not
+//     a real reducercontract.Domain waits for a row that can never appear and the cell dies on
 //     a timeout tens of minutes into a live shard.
 //   - wait_stage=runner => wait_key must be a member of allProjectionDomains.
 //     That is what the runner-stage predicate polls; the two keyspaces are
@@ -102,7 +104,7 @@ func TestIfaFamilyRegistryWaitStageAndKeyCohere(t *testing.T) {
 		t.Fatal("parsed zero wait_key or wait_stage rows -- registry format changed or the rows were emptied")
 	}
 
-	projectionDomains := make(map[Domain]struct{}, len(allProjectionDomains))
+	projectionDomains := make(map[reducercontract.Domain]struct{}, len(allProjectionDomains))
 	for _, d := range allProjectionDomains {
 		projectionDomains[d] = struct{}{}
 	}
@@ -117,11 +119,11 @@ func TestIfaFamilyRegistryWaitStageAndKeyCohere(t *testing.T) {
 			}
 			switch stage {
 			case "handler":
-				if err := Domain(raw).Validate(); err != nil {
-					t.Fatalf("family %q: wait_stage=handler but wait_key %q is not a real reducer Domain (%v) -- ifa_fault_wait_for_claimed would poll fact_work_items for a domain that never appears", family, raw, err)
+				if err := reducercontract.Domain(raw).Validate(); err != nil {
+					t.Fatalf("family %q: wait_stage=handler but wait_key %q is not a real reducer reducercontract.Domain (%v) -- ifa_fault_wait_for_claimed would poll fact_work_items for a domain that never appears", family, raw, err)
 				}
 			case "runner":
-				if _, ok := projectionDomains[Domain(raw)]; !ok {
+				if _, ok := projectionDomains[reducercontract.Domain(raw)]; !ok {
 					t.Fatalf("family %q: wait_stage=runner but wait_key %q is not in allProjectionDomains -- the runner predicate polls shared_projection_intents.projection_domain, a disjoint keyspace from fact_work_items.domain", family, raw)
 				}
 			default:

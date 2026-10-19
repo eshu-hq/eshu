@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 )
 
@@ -218,7 +219,7 @@ func TestLoadReducerClaimDomains_ParsesPluralKnownDomains(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadReducerClaimDomains() error = %v, want nil", err)
 	}
-	want := []reducer.Domain{
+	want := []reducercontract.Domain{
 		reducer.DomainSQLRelationshipMaterialization,
 		reducer.DomainInheritanceMaterialization,
 	}
@@ -239,7 +240,7 @@ func TestLoadReducerClaimDomains_KeepsLegacySingleDomain(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadReducerClaimDomains() error = %v, want nil", err)
 	}
-	want := []reducer.Domain{reducer.DomainSQLRelationshipMaterialization}
+	want := []reducercontract.Domain{reducer.DomainSQLRelationshipMaterialization}
 	if !slices.Equal(got, want) {
 		t.Fatalf("loadReducerClaimDomains() = %#v, want %#v", got, want)
 	}

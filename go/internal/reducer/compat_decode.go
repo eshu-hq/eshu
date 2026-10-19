@@ -126,7 +126,7 @@ func inputInvalidSubSignals(count int) map[string]float64 {
 func recordQuarantinedFacts(
 	ctx context.Context,
 	instruments *telemetry.Instruments,
-	domain Domain,
+	domain reducercontract.Domain,
 	scopeID, generationID string,
 	quarantined []quarantinedFact,
 ) int {
@@ -416,7 +416,7 @@ func CrossScopeCompletionEdges() []crossscope.CompletionEdge {
 
 // crossScopeDependenciesForRegistration forwards to
 // [crossscope.DependenciesForRegistration].
-func crossScopeDependenciesForRegistration(domain Domain) []CrossScopeDependency {
+func crossScopeDependenciesForRegistration(domain reducercontract.Domain) []CrossScopeDependency {
 	return crossscope.DependenciesForRegistration(domain)
 }
 

@@ -20,6 +20,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 	"github.com/eshu-hq/eshu/go/internal/reducer/searchvector"
@@ -55,7 +56,7 @@ const reducerHeartbeatInterval = reducerClaimLeaseDuration / 2
 func configureReducerQueue(
 	database db.ExecQueryer,
 	retryCfg runtimecfg.RetryPolicyConfig,
-	claimDomains []reducer.Domain,
+	claimDomains []reducercontract.Domain,
 	projectorDrainGate bool,
 	getenv func(string) string,
 	graphBackend runtimecfg.GraphBackend,
@@ -223,7 +224,7 @@ func main() {
 // reducerDomainStrings renders reducer domains as plain strings for structured
 // log fields. It lives here rather than in main.go to keep that file within the
 // repo file-size budget.
-func reducerDomainStrings(domains []reducer.Domain) []string {
+func reducerDomainStrings(domains []reducercontract.Domain) []string {
 	values := make([]string, 0, len(domains))
 	for _, domain := range domains {
 		values = append(values, string(domain))

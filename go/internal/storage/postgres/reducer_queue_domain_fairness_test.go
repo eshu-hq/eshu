@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -83,7 +84,7 @@ func TestClaimBatchDoesNotStarveNewerDomainsBehindOlderBacklog(t *testing.T) {
 		LeaseOwner:    "fairness-test",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return starvedBase.Add(2 * time.Hour) },
-		ClaimDomains:  []reducer.Domain{busyDomain, starvedDomain},
+		ClaimDomains:  []reducercontract.Domain{busyDomain, starvedDomain},
 	}
 
 	intents, err := queue.ClaimBatch(ctx, batchSize)
@@ -229,7 +230,7 @@ INSERT INTO scope_generations (
 		LeaseOwner:    "fairness-p1-test",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now.Add(time.Hour) },
-		ClaimDomains:  []reducer.Domain{busyDomain, starvedDomain},
+		ClaimDomains:  []reducercontract.Domain{busyDomain, starvedDomain},
 	}
 
 	intents, err := queue.ClaimBatch(ctx, batchSize)

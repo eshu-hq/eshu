@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 type intentBuilder func(string, string, projectorintent.FactLookup) (projectorintent.ReducerIntent, bool)
@@ -25,7 +26,7 @@ func TestBuildSecurityIntentsPreserveContracts(t *testing.T) {
 		name          string
 		fact          facts.Envelope
 		build         intentBuilder
-		wantDomain    reducer.Domain
+		wantDomain    reducercontract.Domain
 		wantEntityKey string
 		wantReason    string
 		wantSource    string

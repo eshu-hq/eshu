@@ -22,7 +22,7 @@ import (
 func TestSplitValueFlowRefreshAckIntentsFailsOpenOnMissingResult(t *testing.T) {
 	t.Parallel()
 	now := time.Now().UTC().Truncate(time.Second)
-	intent := func(id string, domain reducer.Domain) reducercontract.Intent {
+	intent := func(id string, domain reducercontract.Domain) reducercontract.Intent {
 		return reducercontract.Intent{IntentID: id, Domain: domain, ClaimedAt: &now}
 	}
 	intents := []reducercontract.Intent{
@@ -69,7 +69,7 @@ func TestSplitValueFlowRefreshAckIntentsFailsOpenOnMissingResult(t *testing.T) {
 func TestSplitValueFlowRefreshAckIntentsRoutesCodeFunctionSummary(t *testing.T) {
 	t.Parallel()
 	now := time.Now().UTC().Truncate(time.Second)
-	intent := func(id string, domain reducer.Domain) reducercontract.Intent {
+	intent := func(id string, domain reducercontract.Domain) reducercontract.Intent {
 		return reducercontract.Intent{IntentID: id, Domain: domain, ClaimedAt: &now}
 	}
 	intents := []reducercontract.Intent{

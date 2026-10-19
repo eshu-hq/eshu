@@ -19,7 +19,7 @@ import (
 func TestReducerContentionGateAckFanoutAuditFKCompatibilityLive(t *testing.T) {
 	for _, variant := range []struct {
 		name   string
-		domain reducer.Domain
+		domain reducercontract.Domain
 		fanout bool
 	}{
 		{"generic", reducer.DomainSupplyChainImpact, false},

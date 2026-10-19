@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
@@ -150,7 +151,7 @@ func (p *retriggerProof) handler(db *sql.DB) servicecatalog.ServiceCatalogCorrel
 	}
 }
 
-func (p *retriggerProof) queue(db *sql.DB, owner string, domain reducer.Domain) ReducerQueue {
+func (p *retriggerProof) queue(db *sql.DB, owner string, domain reducercontract.Domain) ReducerQueue {
 	return runtimeFenceQueue(db, owner, domain, p.now)
 }
 

@@ -98,7 +98,7 @@ func newActivationMatrix(t *testing.T, prefix string, ackTarget bool) activation
 	}
 	rq := postgres.NewReducerQueue(postgres.SQLDB{DB: database}, "7584-matrix-reducer", time.Minute)
 	rq.Now = activationDatabaseClock(t, ctx, database)
-	rq.ClaimDomains = []reducer.Domain{reducer.DomainDeploymentMapping}
+	rq.ClaimDomains = []reducercontract.Domain{reducer.DomainDeploymentMapping}
 	rq.RetryDelay = time.Minute
 	return activationMatrix{
 		ctx: ctx, db: database, store: store, oblig: activation.NewStore(postgres.SQLDB{DB: database}),
@@ -110,10 +110,10 @@ func newActivationMatrix(t *testing.T, prefix string, ackTarget bool) activation
 
 // enqueueClaim enqueues one row of domain and claims exactly that row with a
 // queue restricted to the domain.
-func (f activationMatrix) enqueueClaim(t *testing.T, domain reducer.Domain, scope, gen, entity string) reducercontract.Intent {
+func (f activationMatrix) enqueueClaim(t *testing.T, domain reducercontract.Domain, scope, gen, entity string) reducercontract.Intent {
 	t.Helper()
 	queue := f.reducerQ
-	queue.ClaimDomains = []reducer.Domain{domain}
+	queue.ClaimDomains = []reducercontract.Domain{domain}
 	if _, err := queue.Enqueue(f.ctx, []projectorruntime.ReducerIntent{{
 		ScopeID: scope, GenerationID: gen, Domain: domain,
 		EntityKey: entity, SourceSystem: "git",
@@ -148,7 +148,7 @@ func (f activationMatrix) notReady(t *testing.T, scope, gen, entity string) stri
 	return f.notReadyDomain(t, reducer.DomainDeploymentMapping, scope, gen, entity)
 }
 
-func (f activationMatrix) notReadyDomain(t *testing.T, domain reducer.Domain, scope, gen, entity string) string {
+func (f activationMatrix) notReadyDomain(t *testing.T, domain reducercontract.Domain, scope, gen, entity string) string {
 	t.Helper()
 	intent := f.enqueueClaim(t, domain, scope, gen, entity)
 	if err := f.reducerQ.Fail(f.ctx, intent,

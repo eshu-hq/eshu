@@ -170,10 +170,10 @@ func (p *runtimeFenceProof) handler(db *sql.DB) servicecatalog.ServiceCatalogCor
 	}
 }
 
-func runtimeFenceQueue(db *sql.DB, owner string, domain reducer.Domain, clock func() time.Time) ReducerQueue {
+func runtimeFenceQueue(db *sql.DB, owner string, domain reducercontract.Domain, clock func() time.Time) ReducerQueue {
 	return ReducerQueue{
 		database: SQLDB{DB: db}, LeaseOwner: owner, LeaseDuration: time.Minute, RetryDelay: time.Second,
-		MaxAttempts: 3, ClaimDomains: []reducer.Domain{domain}, Now: clock,
+		MaxAttempts: 3, ClaimDomains: []reducercontract.Domain{domain}, Now: clock,
 	}
 }
 

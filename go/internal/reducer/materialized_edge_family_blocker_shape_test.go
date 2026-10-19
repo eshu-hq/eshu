@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -77,10 +78,10 @@ func classifyBlockerKind(raw string) (blockerKind, bool) {
 	}
 }
 
-// familyBlockerExpectation names the routed reducer materialization Domain
+// familyBlockerExpectation names the routed reducer materialization reducercontract.Domain
 // (defaults_domain_catalog.go's switch key) whose handler actually performs
 // one materialized-edge family's writes. It is a *name* linkage between a
-// MaterializedEdgeFamilies() family string and a Domain constant, proven per
+// MaterializedEdgeFamilies() family string and a reducercontract.Domain constant, proven per
 // entry below by the ProjectionDomain literal that handler's intent/edge
 // builder tags its rows with. The declared blocker kind is deliberately NOT
 // stored here: it is parsed live from scripts/lib/ifa_family_registry.sh by
@@ -93,7 +94,7 @@ func classifyBlockerKind(raw string) (blockerKind, bool) {
 // in that switch is caught automatically instead of silently going stale in
 // a hand-typed copy.
 type familyBlockerExpectation struct {
-	routedDomain Domain
+	routedDomain reducercontract.Domain
 }
 
 // materializedEdgeFamilyBlockerExpectations covers the 8 of 14
@@ -222,7 +223,7 @@ func (noopSharedProjectionEdgeWriter) WriteEdges(context.Context, string, []shar
 // function -- implementedDefaultDomainDefinitions, the same switch
 // defaults.go uses to build the runtime's actual handler catalog -- with
 // every dependency field the 8 covered families' handlers declare populated
-// by a non-nil stub, and returns the routed Domain -> Handler binding it
+// by a non-nil stub, and returns the routed reducercontract.Domain -> Handler binding it
 // produced.
 //
 // Populating every field matters even though none of the 8 covered switch
@@ -241,7 +242,7 @@ func (noopSharedProjectionEdgeWriter) WriteEdges(context.Context, string, []shar
 // dependency; TestMaterializedEdgeFamilyBlockerLockstepHandlersAreRegistered
 // below is what turns a future nil into a loud, named test failure instead of
 // a subset this test quietly stops covering.
-func materializedEdgeFamilyHandlersByDomain() map[Domain]Handler {
+func materializedEdgeFamilyHandlersByDomain() map[reducercontract.Domain]Handler {
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
 		FactLoader:                    noopFactLoader{},
 		CodeCallIntentWriter:          noopIntentWriter{},
@@ -255,7 +256,7 @@ func materializedEdgeFamilyHandlersByDomain() map[Domain]Handler {
 		PriorGenerationCheck:          func(context.Context, string, string) (bool, error) { return true, nil },
 		Instruments:                   &telemetry.Instruments{},
 	})
-	byDomain := make(map[Domain]Handler, len(definitions))
+	byDomain := make(map[reducercontract.Domain]Handler, len(definitions))
 	for _, def := range definitions {
 		if def.Handler != nil {
 			byDomain[def.Domain] = def.Handler
@@ -289,7 +290,7 @@ func handlerHoldsIntentWriter(handler Handler) bool {
 // other declared kind (ack_barrier, table_lock, none) is accepted regardless
 // of handler shape -- this test's only proven claim is the one direction
 // that is always wrong.
-func checkFamilyBlockerLockstep(family string, routedDomain Domain, declared blockerKind, handler Handler) error {
+func checkFamilyBlockerLockstep(family string, routedDomain reducercontract.Domain, declared blockerKind, handler Handler) error {
 	if handler == nil {
 		return fmt.Errorf("family %q: routed domain %q has no registered handler in implementedDefaultDomainDefinitions(<fully-populated DefaultHandlers>) -- the routed-domain linkage in materializedEdgeFamilyBlockerExpectations is stale", family, routedDomain)
 	}

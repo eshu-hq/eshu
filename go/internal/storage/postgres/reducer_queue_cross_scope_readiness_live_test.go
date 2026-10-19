@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 )
@@ -190,7 +191,7 @@ func TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget(t
 		LeaseDuration: time.Minute,
 		RetryDelay:    time.Second,
 		MaxAttempts:   3,
-		ClaimDomains:  []reducer.Domain{reducer.DomainSupplyChainImpact},
+		ClaimDomains:  []reducercontract.Domain{reducer.DomainSupplyChainImpact},
 		Now:           func() time.Time { return clock },
 	}
 
@@ -328,7 +329,7 @@ func TestReducerContentionGateCrossScopeReadinessConvergesAtTheElapsedBound(t *t
 		database:      SQLDB{DB: db},
 		LeaseOwner:    "cross-scope-readiness-bound-proof",
 		LeaseDuration: time.Minute,
-		ClaimDomains:  []reducer.Domain{reducer.DomainSupplyChainImpact},
+		ClaimDomains:  []reducercontract.Domain{reducer.DomainSupplyChainImpact},
 	}
 
 	intent, claimed, err := queue.Claim(ctx)

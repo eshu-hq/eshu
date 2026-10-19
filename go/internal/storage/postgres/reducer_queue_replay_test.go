@@ -267,7 +267,7 @@ func TestReducerQueueCountInFlightByDomainRejectsUnknownDomain(t *testing.T) {
 
 	queue := ReducerQueue{database: &fakeExecQueryer{}}
 
-	_, err := queue.CountInFlightByDomain(context.Background(), reducer.Domain("not-real"))
+	_, err := queue.CountInFlightByDomain(context.Background(), reducercontract.Domain("not-real"))
 	if err == nil {
 		t.Fatal("CountInFlightByDomain() error = nil, want non-nil")
 	}
@@ -391,7 +391,7 @@ func TestReducerQueueValidateEnqueueRejectsInvalidClaimDomain(t *testing.T) {
 
 	queue := ReducerQueue{
 		database:    &fakeExecQueryer{},
-		ClaimDomain: reducer.Domain("not_a_domain"),
+		ClaimDomain: reducercontract.Domain("not_a_domain"),
 	}
 
 	_, err := queue.Enqueue(context.Background(), []runtime.ReducerIntent{{
@@ -425,7 +425,7 @@ func TestReducerQueueValidateClaimAlsoRejectsInvalidClaimDomain(t *testing.T) {
 		database:      &fakeExecQueryer{},
 		LeaseOwner:    "test-owner",
 		LeaseDuration: time.Minute,
-		ClaimDomain:   reducer.Domain("not_a_domain"),
+		ClaimDomain:   reducercontract.Domain("not_a_domain"),
 	}
 
 	_, _, err := queue.Claim(context.Background())

@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/liveness"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/orphan"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/poison"
@@ -157,7 +158,7 @@ func loadReducerBatchClaimSize(getenv func(string) string, workers int, graphBac
 	return n
 }
 
-func loadReducerClaimDomain(getenv func(string) string) (reducer.Domain, error) {
+func loadReducerClaimDomain(getenv func(string) string) (reducercontract.Domain, error) {
 	domains, err := loadReducerClaimDomains(getenv)
 	if err != nil {
 		return "", err
@@ -171,7 +172,7 @@ func loadReducerClaimDomain(getenv func(string) string) (reducer.Domain, error) 
 	return domains[0], nil
 }
 
-func loadReducerClaimDomains(getenv func(string) string) ([]reducer.Domain, error) {
+func loadReducerClaimDomains(getenv func(string) string) ([]reducercontract.Domain, error) {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
@@ -190,8 +191,8 @@ func loadReducerClaimDomains(getenv func(string) string) ([]reducer.Domain, erro
 	}
 
 	parts := strings.Split(raw, ",")
-	domains := make([]reducer.Domain, 0, len(parts))
-	seen := make(map[reducer.Domain]struct{}, len(parts))
+	domains := make([]reducercontract.Domain, 0, len(parts))
+	seen := make(map[reducercontract.Domain]struct{}, len(parts))
 	for _, part := range parts {
 		value := strings.TrimSpace(part)
 		if value == "" {

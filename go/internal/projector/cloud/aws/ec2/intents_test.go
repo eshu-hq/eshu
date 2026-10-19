@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // postureEnvelope builds an ec2_instance_posture envelope with the given fact
@@ -54,7 +55,7 @@ func TestEC2PostureIntentBuildersPreserveContract(t *testing.T) {
 	tests := []struct {
 		name      string
 		build     func(string, string, projectorintent.FactLookup) (projectorintent.ReducerIntent, bool)
-		domain    reducer.Domain
+		domain    reducercontract.Domain
 		entityKey string
 		reason    string
 	}{

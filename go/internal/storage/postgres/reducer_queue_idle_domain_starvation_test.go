@@ -102,11 +102,11 @@ func TestClaimBatchDoesNotStarveIdleDomainBehindSameSourceBacklog(t *testing.T) 
 		LeaseOwner:    "idle-starvation-test",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return claimAt },
-		ClaimDomains:  []reducer.Domain{busyDomain, starvedDomain},
+		ClaimDomains:  []reducercontract.Domain{busyDomain, starvedDomain},
 	}
 
 	starvedClaimed := make(map[string]bool)
-	var firstDomain reducer.Domain
+	var firstDomain reducercontract.Domain
 	for round := 0; round < maxRounds && len(starvedClaimed) < starvedCount; round++ {
 		intents, err := queue.ClaimBatch(ctx, 1)
 		if err != nil {
@@ -205,7 +205,7 @@ func TestClaimBatchIdleDomainPriorityHoldsUnderConcurrentClaimers(t *testing.T) 
 				LeaseOwner:    fmt.Sprintf("conc-claimer-%d", c),
 				LeaseDuration: time.Minute,
 				Now:           func() time.Time { return claimAt },
-				ClaimDomains:  []reducer.Domain{busyDomain, starvedDomain},
+				ClaimDomains:  []reducercontract.Domain{busyDomain, starvedDomain},
 			}
 			intents, err := q.ClaimBatch(ctx, perClaim)
 			results[c] = claimResult{intents: intents, err: err}

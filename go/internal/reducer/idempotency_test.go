@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"sort"
 	"testing"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // B-6 (#3799) retry/idempotency replay suite.
@@ -36,7 +38,7 @@ import (
 // same input and exposes the rows it wrote for MERGE-identity deduplication.
 type idempotencyReplayCase struct {
 	// domain names the reducer domain this case proves idempotent.
-	domain Domain
+	domain reducercontract.Domain
 	// run executes the handler's emit path once against a fresh recording fake
 	// and returns the projected rows as identity-keyed entries. The same input
 	// (including the same FencingToken on the loaded facts) MUST be used on every
@@ -140,12 +142,12 @@ func TestReducerEmitPathsAreIdempotentUnderReplay(t *testing.T) {
 // registered by appendAdditiveDomainDefinitions (config_state_drift,
 // container_image_identity, the cloud-resource materializers, …) are included
 // too: registrableReducerDomains() derives them from knownDomains, which
-// Registry.Register requires every domain to be in via Domain.Validate(), so an
+// Registry.Register requires every domain to be in via reducercontract.Domain.Validate(), so an
 // additive domain cannot ship without being guarded here.
 func TestReducerIdempotencyCoverageGuard(t *testing.T) {
 	t.Parallel()
 
-	covered := make(map[Domain]struct{})
+	covered := make(map[reducercontract.Domain]struct{})
 	for _, c := range idempotencyReplayCases() {
 		if _, dup := covered[c.domain]; dup {
 			t.Fatalf("duplicate idempotency replay case for domain %q", c.domain)
@@ -182,15 +184,15 @@ func TestReducerIdempotencyCoverageGuard(t *testing.T) {
 // assertIdempotencyExemptionsAreClean verifies both exemption sets cannot rot:
 // every exemption must name a real registrable reducer domain, must not also be
 // covered by a replay case, and must carry a non-empty reason.
-func assertIdempotencyExemptionsAreClean(t *testing.T, covered map[Domain]struct{}, guarded []Domain) {
+func assertIdempotencyExemptionsAreClean(t *testing.T, covered map[reducercontract.Domain]struct{}, guarded []reducercontract.Domain) {
 	t.Helper()
 
-	registrable := make(map[Domain]struct{}, len(guarded))
+	registrable := make(map[reducercontract.Domain]struct{}, len(guarded))
 	for _, domain := range guarded {
 		registrable[domain] = struct{}{}
 	}
 
-	check := func(setName string, set map[Domain]string) {
+	check := func(setName string, set map[reducercontract.Domain]string) {
 		for domain, reason := range set {
 			if _, ok := registrable[domain]; !ok {
 				t.Errorf("%s domain %q is not a registrable reducer domain; remove the stale exemption", setName, domain)

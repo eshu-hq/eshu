@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/replay/schedulereplay"
 )
@@ -27,7 +28,7 @@ import (
 type projectionCase struct {
 	name         string
 	cassettePath string
-	domain       reducer.Domain
+	domain       reducercontract.Domain
 	// hooks is the exact set of projection hooks the domain owns per
 	// specs/fact-kind-registry.v1.yaml. loadProjectionItems asserts the
 	// cassette's work items carry exactly this hook set, so a table entry

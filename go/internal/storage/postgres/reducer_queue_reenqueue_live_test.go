@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestReducerQueueReprojectionReEnqueueAdmitsNothingLive pins the queue
@@ -43,7 +44,7 @@ func TestReducerQueueReprojectionReEnqueueAdmitsNothingLive(t *testing.T) {
 	seedReducerAckReclaimGeneration(t, ctx, db, scopeID, generationID)
 
 	intents := make([]runtime.ReducerIntent, 0, 2)
-	for _, domain := range []reducer.Domain{reducer.DomainWorkloadMaterialization, reducer.DomainDeployableUnitCorrelation} {
+	for _, domain := range []reducercontract.Domain{reducer.DomainWorkloadMaterialization, reducer.DomainDeployableUnitCorrelation} {
 		intents = append(intents, runtime.ReducerIntent{
 			ScopeID:      scopeID,
 			GenerationID: generationID,

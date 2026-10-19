@@ -101,7 +101,7 @@ type fingerprintGateClaim struct {
 // with a lease that is live for an hour from now.
 func claimFingerprintGateItem(
 	t *testing.T, ctx context.Context, db *sql.DB,
-	workItemID, scopeID, genID string, domain reducer.Domain, claimedAt time.Time,
+	workItemID, scopeID, genID string, domain reducercontract.Domain, claimedAt time.Time,
 ) fingerprintGateClaim {
 	t.Helper()
 	if _, err := db.ExecContext(ctx, `

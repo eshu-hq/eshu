@@ -7,6 +7,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // securityGroupReachabilityAcceptanceUnit is the shared entity key all three
@@ -84,7 +85,7 @@ func securityGroupReachabilityIntentForDomain(
 	scopeID string,
 	generationID string,
 	lookup projectorintent.FactLookup,
-	domain reducer.Domain,
+	domain reducercontract.Domain,
 	reason string,
 ) (projectorintent.ReducerIntent, bool) {
 	envelope, ok := lookup.FirstOfKind(cloud.AWSSecurityGroupRuleFactKind)

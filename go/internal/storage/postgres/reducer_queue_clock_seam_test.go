@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/clock"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // Deterministic clock-seam proofs for issue #4121 (R-12 of epic #4102).
@@ -115,7 +115,7 @@ func TestReducerQueueSimulatedClockTriggersLeaseExpiryReclaim(t *testing.T) {
 			LeaseOwner:    owner,
 			LeaseDuration: time.Minute,
 			Now:           sim.Now,
-			ClaimDomains:  []reducer.Domain{conflictProofClaimDomain},
+			ClaimDomains:  []reducercontract.Domain{conflictProofClaimDomain},
 		}
 	}
 	queueA := newQueue("worker-A")

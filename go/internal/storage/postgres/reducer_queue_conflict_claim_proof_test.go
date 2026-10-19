@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // Write-conflict handling proof for issue #3558.
@@ -81,7 +82,7 @@ func TestReducerClaimFencesConcurrentClaimersOnSharedConflictKey(t *testing.T) {
 			LeaseOwner:    fmt.Sprintf("conflict-claimer-%d", i),
 			LeaseDuration: time.Minute,
 			Now:           func() time.Time { return now.Add(2 * time.Hour) },
-			ClaimDomains:  []reducer.Domain{conflictProofClaimDomain},
+			ClaimDomains:  []reducercontract.Domain{conflictProofClaimDomain},
 		}
 	}
 
@@ -182,7 +183,7 @@ func TestReducerClaimAllowsConcurrentClaimersOnDisjointConflictKeys(t *testing.T
 			LeaseOwner:    fmt.Sprintf("disjoint-claimer-%d", i),
 			LeaseDuration: time.Minute,
 			Now:           func() time.Time { return now.Add(2 * time.Hour) },
-			ClaimDomains:  []reducer.Domain{conflictProofClaimDomain},
+			ClaimDomains:  []reducercontract.Domain{conflictProofClaimDomain},
 		}
 		wg.Add(1)
 		go func(q ReducerQueue) {
@@ -251,7 +252,7 @@ func TestReducerClaimFencedSiblingBecomesClaimableAfterAck(t *testing.T) {
 		LeaseOwner:    "converge-claimer",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return claimAt },
-		ClaimDomains:  []reducer.Domain{conflictProofClaimDomain},
+		ClaimDomains:  []reducercontract.Domain{conflictProofClaimDomain},
 	}
 
 	// First claim wins one item; the sibling is fenced because the first lease

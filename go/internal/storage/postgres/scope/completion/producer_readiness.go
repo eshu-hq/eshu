@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -70,7 +71,7 @@ import (
 // identity is published by an aws/ECR scope is still answered early, so #5709 is
 // narrowed on that path, not closed. See
 // docs/internal/evidence/5709-cross-scope-readiness-floor.md.
-var crossScopeProducerCollectorKindByDomain = map[reducer.Domain]scope.CollectorKind{
+var crossScopeProducerCollectorKindByDomain = map[reducercontract.Domain]scope.CollectorKind{
 	reducer.DomainContainerImageIdentity: scope.CollectorOCIRegistry,
 	reducer.DomainCICDRunCorrelation:     scope.CollectorCICDRun,
 }
@@ -163,7 +164,7 @@ type CrossScopeProducerReadinessStore struct {
 // leave the floor silently inert.
 func (s CrossScopeProducerReadinessStore) CrossScopeProducersReady(
 	ctx context.Context,
-	consumer reducer.Domain,
+	consumer reducercontract.Domain,
 	_ string,
 	_ string,
 ) (reducer.CrossScopeProducerReadinessByDomain, error) {
@@ -206,9 +207,9 @@ func (s CrossScopeProducerReadinessStore) CrossScopeProducersReady(
 
 // crossScopeProducerDomainsFor returns the producer domains the consumer
 // declares, deduplicated, derived from the shared completion-edge catalog.
-func crossScopeProducerDomainsFor(consumer reducer.Domain) []reducer.Domain {
-	seen := make(map[reducer.Domain]struct{})
-	producers := make([]reducer.Domain, 0, 2)
+func crossScopeProducerDomainsFor(consumer reducercontract.Domain) []reducercontract.Domain {
+	seen := make(map[reducercontract.Domain]struct{})
+	producers := make([]reducercontract.Domain, 0, 2)
 	for _, edge := range reducer.CrossScopeCompletionEdges() {
 		if edge.Consumer != consumer {
 			continue
@@ -228,7 +229,7 @@ func crossScopeProducerDomainsFor(consumer reducer.Domain) []reducer.Domain {
 // Sorting makes the probe sequence deterministic, which matters because the
 // caller stops at the first non-quiescent kind: without a stable order the
 // number of queries a consumer runs would depend on map iteration.
-func crossScopeProducerCollectorKinds(producers []reducer.Domain) []string {
+func crossScopeProducerCollectorKinds(producers []reducercontract.Domain) []string {
 	kinds := make([]string, 0, len(producers))
 	for _, producer := range producers {
 		kind, ok := crossScopeProducerCollectorKindByDomain[producer]

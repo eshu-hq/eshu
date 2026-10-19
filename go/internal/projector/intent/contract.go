@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // SourceSystem returns the bounded source label used to anchor a reducer
@@ -25,7 +25,7 @@ func SourceSystem(envelope facts.Envelope) string {
 type ReducerIntent struct {
 	ScopeID      string
 	GenerationID string
-	Domain       reducer.Domain
+	Domain       reducercontract.Domain
 	EntityKey    string
 	Reason       string
 	FactID       string

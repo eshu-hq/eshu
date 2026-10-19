@@ -19,7 +19,7 @@ func seedValueFlowRefreshAckWorkItem(
 	ctx context.Context,
 	db *sql.DB,
 	workItemID string,
-	domain reducer.Domain,
+	domain reducercontract.Domain,
 	scopeID string,
 	generationID string,
 	leaseOwner string,
@@ -68,7 +68,7 @@ WHERE producer_domain = $1
 	return events, items
 }
 
-func refreshAckIntent(workItemID string, domain reducer.Domain, claimedAt time.Time) reducercontract.Intent {
+func refreshAckIntent(workItemID string, domain reducercontract.Domain, claimedAt time.Time) reducercontract.Intent {
 	return reducercontract.Intent{IntentID: workItemID, Domain: domain, ClaimedAt: &claimedAt}
 }
 

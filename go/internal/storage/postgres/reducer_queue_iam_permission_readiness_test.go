@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestReducerQueueClaimGatesIAMPermissionMaterializationOnCanonicalCloudResourceReadiness(t *testing.T) {
@@ -22,7 +23,7 @@ func TestReducerQueueClaimGatesIAMPermissionMaterializationOnCanonicalCloudResou
 	now := time.Date(2026, time.June, 6, 10, 15, 0, 0, time.UTC)
 	for _, tc := range []struct {
 		name   string
-		domain reducer.Domain
+		domain reducercontract.Domain
 	}{
 		{name: "iam escalation", domain: reducer.DomainIAMEscalationMaterialization},
 		{name: "iam can perform", domain: reducer.DomainIAMCanPerformMaterialization},
@@ -83,7 +84,7 @@ func TestReducerQueueClaimQueriesIncludeIAMPermissionReadinessDomains(t *testing
 		t.Fatalf("queries = %d, want 1", len(database.queries))
 	}
 	query := database.queries[0].query
-	for _, domain := range []reducer.Domain{
+	for _, domain := range []reducercontract.Domain{
 		reducer.DomainIAMEscalationMaterialization,
 		reducer.DomainIAMCanPerformMaterialization,
 	} {
@@ -115,7 +116,7 @@ func TestReducerQueueClaimBatchQueriesIncludeIAMPermissionReadinessDomains(t *te
 		t.Fatalf("queries = %d, want 1", len(database.queries))
 	}
 	query := database.queries[0].query
-	for _, domain := range []reducer.Domain{
+	for _, domain := range []reducercontract.Domain{
 		reducer.DomainIAMEscalationMaterialization,
 		reducer.DomainIAMCanPerformMaterialization,
 	} {
@@ -130,7 +131,7 @@ func TestReducerQueueClaimBatchQueriesIncludeIAMPermissionReadinessDomains(t *te
 
 type iamPermissionReadinessQueueDB struct {
 	now        time.Time
-	domain     reducer.Domain
+	domain     reducercontract.Domain
 	phaseReady bool
 }
 

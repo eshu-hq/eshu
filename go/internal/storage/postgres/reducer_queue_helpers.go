@@ -55,12 +55,12 @@ func (q ReducerQueue) claimDomainFilters() []string {
 	return values
 }
 
-func (q ReducerQueue) effectiveClaimDomains() []reducer.Domain {
+func (q ReducerQueue) effectiveClaimDomains() []reducercontract.Domain {
 	if len(q.ClaimDomains) > 0 {
 		return q.ClaimDomains
 	}
 	if q.ClaimDomain != "" {
-		return []reducer.Domain{q.ClaimDomain}
+		return []reducercontract.Domain{q.ClaimDomain}
 	}
 	return nil
 }

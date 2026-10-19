@@ -35,7 +35,7 @@ type Config struct {
 	// the coverage manifest entry maps to a genuine domain-scoped proof. Defaults
 	// to reducer.DomainCodeCallMaterialization when empty, preserving the
 	// pre-#4367 behavior for callers that do not set it.
-	Domain reducer.Domain
+	Domain reducercontract.Domain
 }
 
 // RunSchedule drives the recorded work items through the real reducer service

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestReducerQueueBlockagesReportAWSRelationshipReadinessWait(t *testing.T) {
@@ -76,7 +77,7 @@ func TestReducerQueueBlockagesReportIAMPermissionReadinessWait(t *testing.T) {
 	}
 
 	query := queryer.queries[0]
-	for _, domain := range []reducer.Domain{
+	for _, domain := range []reducercontract.Domain{
 		reducer.DomainIAMEscalationMaterialization,
 		reducer.DomainIAMCanPerformMaterialization,
 	} {

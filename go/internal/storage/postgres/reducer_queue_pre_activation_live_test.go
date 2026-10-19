@@ -234,7 +234,7 @@ func newPreActivationProofEnv(t *testing.T, db *sql.DB, calls *int) preActivatio
 		LeaseDuration: time.Minute,
 		RetryDelay:    time.Second,
 		MaxAttempts:   2,
-		ClaimDomains:  []reducer.Domain{reducer.DomainWorkloadMaterialization},
+		ClaimDomains:  []reducercontract.Domain{reducer.DomainWorkloadMaterialization},
 	}
 	env := preActivationProofEnv{queue: queue, runtime: rt, clock: &clock}
 	env.queue.Now = func() time.Time { return *env.clock }

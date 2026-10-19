@@ -11,9 +11,9 @@ import (
 
 var knownDomains = knownDomainSet()
 
-func knownDomainSet() map[Domain]struct{} {
+func knownDomainSet() map[reducercontract.Domain]struct{} {
 	domains := reducercontract.KnownDomains()
-	set := make(map[Domain]struct{}, len(domains))
+	set := make(map[reducercontract.Domain]struct{}, len(domains))
 	for _, domain := range domains {
 		set[domain] = struct{}{}
 	}
@@ -27,15 +27,15 @@ func knownDomainSet() map[Domain]struct{} {
 // its drift gate), so a domain added to either registry automatically appears in
 // the inventory and cannot drain truth without being tracked. Duplicates across
 // the two registries collapse to one entry.
-func AllDomains() []Domain {
-	set := make(map[Domain]struct{}, len(knownDomains)+len(allProjectionDomains))
+func AllDomains() []reducercontract.Domain {
+	set := make(map[reducercontract.Domain]struct{}, len(knownDomains)+len(allProjectionDomains))
 	for domain := range knownDomains {
 		set[domain] = struct{}{}
 	}
 	for _, domain := range allProjectionDomains {
 		set[domain] = struct{}{}
 	}
-	domains := make([]Domain, 0, len(set))
+	domains := make([]reducercontract.Domain, 0, len(set))
 	for domain := range set {
 		domains = append(domains, domain)
 	}
@@ -44,6 +44,6 @@ func AllDomains() []Domain {
 }
 
 // ParseDomain converts one raw string into a known reducer domain.
-func ParseDomain(raw string) (Domain, error) {
+func ParseDomain(raw string) (reducercontract.Domain, error) {
 	return reducercontract.ParseDomain(raw)
 }

@@ -80,7 +80,7 @@ func TestReducerContentionGateSharedEdgeTargetDeferralKeepsItsAttemptBudget(t *t
 		RetryDelay:    time.Second,
 		MaxRetryDelay: 2 * time.Second,
 		MaxAttempts:   3,
-		ClaimDomains:  []reducer.Domain{reducer.DomainDeployableUnitCorrelation},
+		ClaimDomains:  []reducercontract.Domain{reducer.DomainDeployableUnitCorrelation},
 		Now:           func() time.Time { return clock },
 	}
 	claim := func(phase string, cycle int) reducercontract.Intent {
