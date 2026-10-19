@@ -77,7 +77,7 @@ func (q *flightQueryer) QueryContext(ctx context.Context, query string, _ ...any
 		}
 		return &queueFakeRows{rows: [][]any{{
 			epoch,
-			time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+			sql.NullTime{Time: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), Valid: true},
 			"",
 		}}}, nil
 	}
