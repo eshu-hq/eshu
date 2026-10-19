@@ -22,11 +22,13 @@ import (
 // always empty there; this test seeds the pair it needs and asserts the
 // exact production Cypher resolves both directions plus a negative
 // control. It runs on both live backends under the same tag (the CI
-// live-backend job points ESHU_NEO4J_URI at each backend in turn and pins
-// ESHU_NEO4J_DATABASE to that backend's database, "nornic" or "neo4j").
+// live-backend job points ESHU_NEO4J_URI at each backend in turn and exports
+// ESHU_LIVE_GRAPH_BACKEND with the per-backend ESHU_LIVE_GRAPH_DATABASE pin).
 //
 // Seed uses literal property values only (see the pinned NornicDB
-// literal-values note on repoAnswerTruthSeed). Ground truth:
+// literal-values note on repoAnswerTruthSeed). Reads and writes go through
+// the shared repositoryLiveReader, whose seed writes retry transient
+// conflicts (#6784). Ground truth:
 //   - repo A defines workload sib-live-wl-a named sib-live-shared.
 //   - repo B defines workload sib-live-wl-b named sib-live-shared.
 //   - repo A defines workload sib-live-wl-solo named sib-live-solo.
@@ -45,67 +47,14 @@ var siblingLiveSeed = []string{
 
 const siblingLiveCleanup = `MATCH (n) WHERE n.id STARTS WITH 'sib-live-' DETACH DELETE n`
 
-// siblingLiveReader is a file-local live reader that honors the
-// per-backend database pin (several tests default the database to "nornic"
-// when the env is empty, which does not exist on Neo4j). It implements
-// querycontract.GraphQuery so the production handler enrichment path runs
-// against the same seeded backend.
-type siblingLiveReader struct {
-	driver   neo4jdriver.DriverWithContext
-	database string
-}
-
-func (r siblingLiveReader) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-	session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeRead, DatabaseName: r.database})
-	defer func() { _ = session.Close(ctx) }()
-	result, err := session.Run(ctx, cypher, params)
-	if err != nil {
-		return nil, err
-	}
-	records, err := result.Collect(ctx)
-	if err != nil {
-		return nil, err
-	}
-	rows := make([]map[string]any, 0, len(records))
-	for _, record := range records {
-		row := make(map[string]any, len(record.Keys))
-		for i, key := range record.Keys {
-			row[key] = record.Values[i]
-		}
-		rows = append(rows, row)
-	}
-	return rows, nil
-}
-
-func (r siblingLiveReader) RunSingle(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
-	rows, err := r.Run(ctx, cypher, params)
-	if err != nil || len(rows) == 0 {
-		return nil, err
-	}
-	return rows[0], nil
-}
-
-func (r siblingLiveReader) write(ctx context.Context, t *testing.T, cypher string) {
-	t.Helper()
-	session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: r.database})
-	defer func() { _ = session.Close(ctx) }()
-	result, err := session.Run(ctx, cypher, nil)
-	if err != nil {
-		t.Fatalf("write %q: %v", cypher, err)
-	}
-	if _, err := result.Consume(ctx); err != nil {
-		t.Fatalf("consume %q: %v", cypher, err)
-	}
-}
-
 func TestLiveCatalogSameNameSiblings(t *testing.T) {
 	uri := strings.TrimSpace(os.Getenv("ESHU_NEO4J_URI"))
 	if uri == "" {
 		t.Fatal("ESHU_NEO4J_URI is required")
 	}
-	database := strings.TrimSpace(os.Getenv("ESHU_NEO4J_DATABASE"))
-	if database == "" {
-		database = "nornic"
+	backend := strings.TrimSpace(strings.ToLower(os.Getenv("ESHU_LIVE_GRAPH_BACKEND")))
+	if backend == "" {
+		t.Fatal("ESHU_LIVE_GRAPH_BACKEND is required (nornicdb|neo4j)")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -118,7 +67,7 @@ func TestLiveCatalogSameNameSiblings(t *testing.T) {
 		t.Fatalf("verify connectivity: %v", err)
 	}
 
-	reader := siblingLiveReader{driver: driver, database: database}
+	reader := repositoryLiveReader{driver: driver, database: liveGraphDatabaseName(backend)}
 	reader.write(ctx, t, siblingLiveCleanup)
 	for _, stmt := range siblingLiveSeed {
 		reader.write(ctx, t, stmt)
