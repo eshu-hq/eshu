@@ -123,6 +123,17 @@ const components = `  "components": {
               "successor_slug": {"type": "string", "nullable": true, "description": "Probe full_name for a renamed or transferred verdict (#8454); null otherwise."},
               "successor_selected": {"type": "boolean", "description": "Whether the successor slug resolves to a selected scope, decided at read time (#8454)."}
             }
+          },
+          "index_state": {"type": "string", "enum": ["indexed", "stub", "retiring", "retired"], "description": "Bounded retirement label (#7766): retiring marks an open non-complete tombstone, retired a complete one; otherwise indexed marks canonical projector evidence and stub the absence of it. Retiring and retired rows stay in the list, never dropped."},
+          "retirement": {
+            "type": "object",
+            "nullable": true,
+            "description": "Bounded tombstone evidence (#7766) for retiring and retired rows; null otherwise. Counts and lifecycle timestamps stay on the admin readback.",
+            "properties": {
+              "state": {"type": "string", "description": "Tombstone state (pending, running, blocked, repairing_graph, complete, failed)."},
+              "retirement_id": {"type": "string", "description": "Tombstone key."},
+              "retired_at": {"type": "string", "format": "date-time", "nullable": true, "description": "Completion timestamp; null until the tombstone is complete."}
+            }
           }
         }
       },

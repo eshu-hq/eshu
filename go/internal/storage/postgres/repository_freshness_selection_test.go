@@ -15,12 +15,14 @@ import (
 
 var freshnessSelectionNow = time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
 
-// freshnessSelectionQueryer queues the five composite-read responses of a
-// fully built generation, the live selection lookup response, and any later
-// responses (the latest-generation read when rules (a)-(c) hold).
+// freshnessSelectionQueryer queues the tombstone lookup (empty: no
+// retirement), the five composite-read responses of a fully built
+// generation, the live selection lookup response, and any later responses
+// (the latest-generation read when rules (a)-(c) hold).
 func freshnessSelectionQueryer(selectionRows fakeRows, later ...fakeRows) *fakeQueryer {
 	observedAt := freshnessSelectionNow.Add(-time.Hour)
 	return &fakeQueryer{responses: append([]fakeRows{
+		{rows: [][]any{}},
 		{rows: [][]any{{"scope-1", "gen-1"}}},
 		{rows: [][]any{{"gen-1", "active", "push", false, observedAt, "abc123", observedAt, "repository", "acme/orders-api"}}},
 		{rows: [][]any{}},
@@ -61,19 +63,22 @@ func TestReadRepositoryFreshnessSelectionConfirmedNotListed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadRepositoryFreshness() error = %v, want nil", err)
 	}
-	if got := len(queryer.queries); got != 7 {
-		t.Fatalf("queries = %d, want 7 (composite read, selection lookup, latest generation)", got)
+	if got := len(queryer.queries); got != 8 {
+		t.Fatalf("queries = %d, want 8 (tombstone lookup, composite read, selection lookup, latest generation)", got)
 	}
-	if !strings.Contains(queryer.queries[5], "FROM repository_selection_observations") {
-		t.Fatalf("query 6 =\n%s\nwant the live selection lookup", queryer.queries[5])
+	if queryer.queries[0] != retirementFreshnessTombstoneQuery {
+		t.Fatalf("query 1 =\n%s\nwant the tombstone lookup first", queryer.queries[0])
 	}
-	if args := queryer.args[5]; len(args) != 2 || args[0] != "scope-1" || args[1] != freshnessSelectionNow {
+	if !strings.Contains(queryer.queries[6], "FROM repository_selection_observations") {
+		t.Fatalf("query 7 =\n%s\nwant the live selection lookup", queryer.queries[6])
+	}
+	if args := queryer.args[6]; len(args) != 2 || args[0] != "scope-1" || args[1] != freshnessSelectionNow {
 		t.Fatalf("selection query args = %#v, want [scope-1 now]: keyed by the resolved scope_id and the read clock", args)
 	}
-	if queryer.queries[6] != repositoryFreshnessLatestGenerationQuery {
-		t.Fatalf("query 7 =\n%s\nwant repositoryFreshnessLatestGenerationQuery", queryer.queries[6])
+	if queryer.queries[7] != repositoryFreshnessLatestGenerationQuery {
+		t.Fatalf("query 8 =\n%s\nwant repositoryFreshnessLatestGenerationQuery", queryer.queries[7])
 	}
-	if args := queryer.args[6]; len(args) != 1 || args[0] != "scope-1" {
+	if args := queryer.args[7]; len(args) != 1 || args[0] != "scope-1" {
 		t.Fatalf("latest generation args = %#v, want [scope-1]", args)
 	}
 	sel := snapshot.Selection
@@ -117,8 +122,8 @@ func TestReadRepositoryFreshnessSelectionNoLiveRowsIsUnknown(t *testing.T) {
 	if snapshot.Selection != (selection.Summary{State: selection.AggregateUnknown}) {
 		t.Fatalf("Selection = %+v, want unknown with no other fields", snapshot.Selection)
 	}
-	if len(queryer.queries) != 6 {
-		t.Fatalf("queries = %d, want 6: no latest-generation read without live rows", len(queryer.queries))
+	if len(queryer.queries) != 7 {
+		t.Fatalf("queries = %d, want 7: no latest-generation read without live rows", len(queryer.queries))
 	}
 }
 
@@ -132,7 +137,7 @@ func TestReadRepositoryFreshnessSelectionPendingAndSelectedSkipTheGenerationRead
 	if err != nil || snapshot.Selection.State != selection.AggregatePendingConfirmation {
 		t.Fatalf("pending read = %+v, %v; want pending_confirmation", snapshot.Selection, err)
 	}
-	if !snapshot.Selection.LastListedAt.IsZero() || len(pending.queries) != 6 {
+	if !snapshot.Selection.LastListedAt.IsZero() || len(pending.queries) != 7 {
 		t.Fatalf("pending read = %+v after %d queries, want a zero LastListedAt for NULL and no generation read", snapshot.Selection, len(pending.queries))
 	}
 
@@ -142,7 +147,7 @@ func TestReadRepositoryFreshnessSelectionPendingAndSelectedSkipTheGenerationRead
 		selectionRow("sel-b", "rule_excluded", freshnessSelectionNow, since, 4, freshnessSelectionNow),
 	}})
 	snapshot, err = freshnessSelectionStore(mixed).ReadRepositoryFreshness(context.Background(), "repo-1")
-	if err != nil || snapshot.Selection.State != selection.AggregateSelected || snapshot.Selection.LiveSelectorCount != 2 || len(mixed.queries) != 6 {
+	if err != nil || snapshot.Selection.State != selection.AggregateSelected || snapshot.Selection.LiveSelectorCount != 2 || len(mixed.queries) != 7 {
 		t.Fatalf("mixed read = %+v, %v after %d queries; want selected over 2 live selectors and no generation read", snapshot.Selection, err, len(mixed.queries))
 	}
 }
@@ -177,6 +182,7 @@ func TestReadRepositoryFreshnessSelectionSkippedWithoutGeneration(t *testing.T) 
 	t.Parallel()
 
 	queryer := &fakeQueryer{responses: []fakeRows{
+		{rows: [][]any{}},
 		{rows: [][]any{{"scope-1", "gen-1"}}},
 		{rows: [][]any{}},
 	}}
@@ -184,7 +190,7 @@ func TestReadRepositoryFreshnessSelectionSkippedWithoutGeneration(t *testing.T) 
 	if err != nil {
 		t.Fatalf("ReadRepositoryFreshness() error = %v, want nil", err)
 	}
-	if snapshot.Selection != (selection.Summary{}) || len(queryer.queries) != 2 {
-		t.Fatalf("Selection = %+v after %d queries, want zero after 2: an ungenerated scope is already unknown", snapshot.Selection, len(queryer.queries))
+	if snapshot.Selection != (selection.Summary{}) || len(queryer.queries) != 3 {
+		t.Fatalf("Selection = %+v after %d queries, want zero after 3: an ungenerated scope is already unknown", snapshot.Selection, len(queryer.queries))
 	}
 }

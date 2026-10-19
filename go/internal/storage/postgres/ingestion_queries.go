@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -45,7 +46,39 @@ WHERE latest.generation_id IS NOT NULL
 ORDER BY fact.observed_at ASC, fact.fact_id ASC
 `
 
+// scopeGateOutcome is the folded retirement marker gate's answer (#7766).
+// The gate and the scope write share one statement snapshot under the
+// commit's shared advisory lock, so there is no check-then-write window:
+// phase 1 holds that key exclusively until its commit, so a marker either
+// committed before the gate reads or phase 1 is still waiting.
+type scopeGateOutcome int
+
+const (
+	// scopeGateAdmitted commits the scope: no tombstone row is open.
+	scopeGateAdmitted scopeGateOutcome = iota
+	// scopeGateRefusedRetiring fences the commit out: an open
+	// non-complete tombstone row exists. The caller rolls back, drains
+	// the stream, and returns nil on the finalized-skip path.
+	scopeGateRefusedRetiring
+	// scopeGateReadmitted commits the scope as a fresh first generation:
+	// the open tombstone row is complete. The caller stamps
+	// readmitted_at on the returned retirement id.
+	scopeGateReadmitted
+)
+
+// upsertIngestionScopeQuery folds the retirement marker gate into the scope
+// upsert (#7766). The gate CTE reads the repository's open tombstone row
+// through the partial open-repo index (LIMIT 1 over the repo_id-leading
+// partial unique index); the scope write proceeds unless a non-complete
+// row is open; RETURNING reports the gate state so the caller can
+// distinguish admission from re-admission. The ON CONFLICT arm is
+// byte-identical to the pre-gate shape: the gate changes admission, never
+// merge semantics.
 const upsertIngestionScopeQuery = `
+WITH gate AS (
+    SELECT state, retirement_id FROM repository_retirements
+    WHERE repo_id = $7 AND readmitted_at IS NULL LIMIT 1
+)
 INSERT INTO ingestion_scopes (
     scope_id,
     scope_kind,
@@ -59,9 +92,10 @@ INSERT INTO ingestion_scopes (
     status,
     active_generation_id,
     payload
-) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb
 )
+SELECT
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb
+WHERE NOT EXISTS (SELECT 1 FROM gate WHERE state <> 'complete')
 ON CONFLICT (scope_id) DO UPDATE SET
     scope_kind = EXCLUDED.scope_kind,
     source_system = EXCLUDED.source_system,
@@ -83,6 +117,7 @@ ON CONFLICT (scope_id) DO UPDATE SET
         ELSE ingestion_scopes.active_generation_id
     END,
     payload = EXCLUDED.payload
+RETURNING (SELECT state FROM gate), (SELECT retirement_id FROM gate)
 `
 
 const upsertScopeGenerationQuery = `
@@ -139,18 +174,23 @@ const (
 	listSucceededCodeImportRepoEdgeWorkItemsQuery = backfill.ListSucceededCodeImportRepoEdgeWorkItemsQuery
 )
 
+// upsertIngestionScope writes the scope row unless the folded retirement
+// gate refuses it. Zero result rows is the repository_retiring refusal: an
+// open non-complete tombstone fenced the write out. A NULL gate state
+// admits; a complete gate state admits as re-admission and reports the
+// tombstone row the caller must stamp.
 func upsertIngestionScope(
 	ctx context.Context,
 	database db.ExecQueryer,
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-) error {
+) (scopeGateOutcome, string, error) {
 	payloadJSON, err := payloadstore.MarshalPayload(scalars.StringMapToAny(scopeValue.MetadataCopy()))
 	if err != nil {
-		return fmt.Errorf("marshal scope payload: %w", err)
+		return scopeGateRefusedRetiring, "", fmt.Errorf("marshal scope payload: %w", err)
 	}
 
-	_, err = database.ExecContext(
+	rows, err := database.QueryContext(
 		ctx,
 		upsertIngestionScopeQuery,
 		scopeValue.ScopeID,
@@ -167,10 +207,27 @@ func upsertIngestionScope(
 		payloadJSON,
 	)
 	if err != nil {
-		return err
+		return scopeGateRefusedRetiring, "", err
 	}
-
-	return nil
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return scopeGateRefusedRetiring, "", fmt.Errorf("scope gate read: %w", err)
+		}
+		return scopeGateRefusedRetiring, "", nil
+	}
+	var gateState sql.NullString
+	var retirementID sql.NullString
+	if err := rows.Scan(&gateState, &retirementID); err != nil {
+		return scopeGateRefusedRetiring, "", fmt.Errorf("scope gate scan: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return scopeGateRefusedRetiring, "", fmt.Errorf("scope gate rows: %w", err)
+	}
+	if gateState.Valid && gateState.String == RetirementStateComplete {
+		return scopeGateReadmitted, retirementID.String, nil
+	}
+	return scopeGateAdmitted, "", nil
 }
 
 var errGenerationAlreadyFinalized = errors.New("generation already published or terminal")

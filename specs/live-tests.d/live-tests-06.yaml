@@ -155,6 +155,14 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/repository_retirements_fence_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#7766 retirement fence, summary-counts, and freshness-tombstone-first live proof, untagged and gated by the ESHU_POSTGRES_DSN env Skip; ran green on disposable PostgreSQL during the lane (docs/internal/evidence/7766-retirement-foundation.md) — promote to blocking with CI timing evidence"
+  - file: go/internal/storage/postgres/repository_retirements_purge_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#7766 retirement purge and terminal-not-reached live proof, untagged and gated by the ESHU_POSTGRES_DSN env Skip; ran green on disposable PostgreSQL during the lane (docs/internal/evidence/7766-retirement-foundation.md) — promote to blocking with CI timing evidence"
   - file: go/internal/storage/postgres/ingestion_published_generation_recommit_live_test.go
     tag: ~
     class: dedicated_ci

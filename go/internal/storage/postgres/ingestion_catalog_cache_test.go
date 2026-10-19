@@ -112,6 +112,12 @@ func (t *catalogTx) QueryContext(_ context.Context, query string, args ...any) (
 		// never fire, breaking the catalog-reload assertions this file makes.
 		return &queueFakeRows{rows: fakeAcceptedFactIDRows(args)}, nil
 	}
+	if strings.Contains(query, "WITH gate AS") && strings.Contains(query, "INSERT INTO ingestion_scopes") {
+		// Default: no retirement tombstone is open, so the folded marker
+		// gate admits (#7766). An empty answer would refuse every commit
+		// this harness drives.
+		return &queueFakeRows{rows: [][]any{{sql.NullString{}, sql.NullString{}}}}, nil
+	}
 	return &queueFakeRows{}, nil
 }
 

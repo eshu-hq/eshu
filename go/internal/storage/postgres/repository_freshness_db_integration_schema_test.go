@@ -65,6 +65,12 @@ func openRepositoryFreshnessDBIntegrationSchema(t *testing.T, ctx context.Contex
 		// migration 168 (#7777): claim_fencing_token, written by StoreTrigger.
 		MigrationSQL("webhook_refresh_triggers_claim_fencing"),
 		MigrationSQL("repository_selection_observations"),
+		// migration 199 (#8454): upstream classification columns, read by
+		// the live selection observations lookup.
+		MigrationSQL("repository_selection_observation_classification"),
+		// migration 207 (#7766): repository_retirements, read first by
+		// the freshness tombstone lookup on every read.
+		MigrationSQL("repository_retirements"),
 	} {
 		if _, err := db.ExecContext(ctx, stmt); err != nil {
 			t.Fatalf("apply repository freshness schema: %v", err)

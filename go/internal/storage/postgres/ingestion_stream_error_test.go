@@ -77,8 +77,9 @@ func TestIngestionStoreCommitClaimedScopeGenerationRollsBackOnFactStreamError(t 
 	}
 	// The fact_records upsert now runs as a query (INSERT ... RETURNING
 	// fact_id), not a plain exec (issue #4444 review, codex P1), so it no
-	// longer appears in db.tx.execs.
-	if got, want := len(db.tx.execs), 8; got != want {
+	// longer appears in db.tx.execs. The scope upsert likewise runs as a
+	// query since #7766 folded the retirement marker gate into it.
+	if got, want := len(db.tx.execs), 7; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 	for _, exec := range db.tx.execs {

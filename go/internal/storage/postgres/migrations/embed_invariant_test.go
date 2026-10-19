@@ -113,13 +113,15 @@ import (
 // #8471 adds 206_component_quota_windows.sql (renumbered from 205: base took
 // 205 for claim pacing; DDL only, usage rows created lazily by the grant
 // upsert, so no backfill half exists).
-const goldenBootstrapDefinitionsDigest = "fbf6d7fe7663b8cc69a0e8e9deec0c9c07211dfc33d49bbda64713b7d75f7202"
+// #7766 adds 207_repository_retirements.sql (retirement tombstone marker
+// table plus its open-row, runnable, scope, and idempotency indexes).
+const goldenBootstrapDefinitionsDigest = "da988e770c713a7da7ec55d52c602c9e8d0a0218098eb7deecc0fb3fcea8b6f4"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 224
+const goldenBootstrapDefinitionsCount = 225
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

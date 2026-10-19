@@ -2012,6 +2012,13 @@ type Instruments struct {
 	// CanonicalRepositoryRetirements.
 	CanonicalRepositoryRetiredRelationships metric.Int64Counter
 
+	// OperatorRepositoryRetirementsPurged counts the operator-driven
+	// repository retirements the narrowed purge completed and tombstoned
+	// (#7766), one per completed tombstone, unlabelled. The
+	// terminal_not_reached exit is not counted: it surfaces only through
+	// the WARN log carrying the read-back blocking generation statuses.
+	OperatorRepositoryRetirementsPurged metric.Int64Counter
+
 	// RepositorySelectionEvaluations counts git collector repository
 	// selection evaluations (#7625) by collector_kind and a closed outcome
 	// (evaluated, listing_truncated, guard_tripped, store_error).
@@ -5862,6 +5869,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	if err := registerCanonicalRepositoryRetirements(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerOperatorRepositoryRetirement(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerRepositorySelection(meter, inst); err != nil {

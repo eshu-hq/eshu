@@ -26,6 +26,7 @@ func TestReadRepositoryFreshnessFullyBuiltGeneration(t *testing.T) {
 	observedAt := activatedAt.Add(-2 * time.Minute)
 
 	queryer := &fakeQueryer{responses: []fakeRows{
+		{rows: [][]any{}},
 		{rows: [][]any{{"scope-1", "gen-1"}}},
 		{rows: [][]any{{"gen-1", "active", "push", false, activatedAt, "abc123", observedAt, "repository", "acme/orders-api"}}},
 		// A correctly-filtered stage-counts query returns zero rows once every
@@ -105,6 +106,7 @@ func TestReadRepositoryFreshnessDispatchesRealStageCountsQuery(t *testing.T) {
 
 	observedAt := time.Date(2026, 7, 12, 3, 0, 0, 0, time.UTC)
 	queryer := &fakeQueryer{responses: []fakeRows{
+		{rows: [][]any{}},
 		{rows: [][]any{{"scope-1", "gen-1"}}},
 		{rows: [][]any{{"gen-1", "active", "push", false, observedAt, "abc123", observedAt, "repository", "acme/orders-api"}}},
 		{rows: [][]any{}},
@@ -116,11 +118,14 @@ func TestReadRepositoryFreshnessDispatchesRealStageCountsQuery(t *testing.T) {
 	if _, err := store.ReadRepositoryFreshness(context.Background(), "repo-1"); err != nil {
 		t.Fatalf("ReadRepositoryFreshness() error = %v, want nil", err)
 	}
-	if len(queryer.queries) < 3 {
-		t.Fatalf("queryer received %d queries, want at least 3 (resolve, generation, stage counts)", len(queryer.queries))
+	if len(queryer.queries) < 4 {
+		t.Fatalf("queryer received %d queries, want at least 4 (tombstone, resolve, generation, stage counts)", len(queryer.queries))
 	}
-	if queryer.queries[2] != repositoryFreshnessStageCountsQuery {
-		t.Fatalf("stage-counts query dispatched =\n%s\nwant the shipped repositoryFreshnessStageCountsQuery constant", queryer.queries[2])
+	if queryer.queries[0] != retirementFreshnessTombstoneQuery {
+		t.Fatalf("tombstone query dispatched =\n%s\nwant the shipped retirementFreshnessTombstoneQuery constant first", queryer.queries[0])
+	}
+	if queryer.queries[3] != repositoryFreshnessStageCountsQuery {
+		t.Fatalf("stage-counts query dispatched =\n%s\nwant the shipped repositoryFreshnessStageCountsQuery constant", queryer.queries[3])
 	}
 }
 
@@ -132,6 +137,7 @@ func TestReadRepositoryFreshnessOutstandingReducerWork(t *testing.T) {
 
 	observedAt := time.Date(2026, 7, 12, 3, 0, 0, 0, time.UTC)
 	queryer := &fakeQueryer{responses: []fakeRows{
+		{rows: [][]any{}},
 		{rows: [][]any{{"scope-1", "gen-1"}}},
 		{rows: [][]any{{"gen-1", "active", "push", true, nil, "abc123", observedAt, "repository", "acme/orders-api"}}},
 		{rows: [][]any{{"reducer", "pending", int64(2)}}},
@@ -170,6 +176,7 @@ func TestReadRepositoryFreshnessSharedPendingOnly(t *testing.T) {
 
 	observedAt := time.Date(2026, 7, 12, 3, 0, 0, 0, time.UTC)
 	queryer := &fakeQueryer{responses: []fakeRows{
+		{rows: [][]any{}},
 		{rows: [][]any{{"scope-1", "gen-1"}}},
 		{rows: [][]any{{"gen-1", "active", "push", false, observedAt, "abc123", observedAt, "repository", "acme/orders-api"}}},
 		{rows: [][]any{{"reducer", "succeeded", int64(1)}, {"projector", "succeeded", int64(1)}}},
@@ -205,6 +212,7 @@ func TestReadRepositoryFreshnessUnobservedPush(t *testing.T) {
 	observedAt := time.Date(2026, 7, 12, 3, 0, 0, 0, time.UTC)
 	receivedAt := observedAt.Add(30 * time.Second)
 	queryer := &fakeQueryer{responses: []fakeRows{
+		{rows: [][]any{}},
 		{rows: [][]any{{"scope-1", "gen-1"}}},
 		{rows: [][]any{{"gen-1", "active", "push", false, observedAt, "abc123", observedAt, "repository", "acme/orders-api"}}},
 		{rows: [][]any{{"reducer", "succeeded", int64(1)}, {"projector", "succeeded", int64(1)}}},
@@ -237,6 +245,7 @@ func TestReadRepositoryFreshnessWebhookMatchingObservedCommitIsNotUnobserved(t *
 
 	observedAt := time.Date(2026, 7, 12, 3, 0, 0, 0, time.UTC)
 	queryer := &fakeQueryer{responses: []fakeRows{
+		{rows: [][]any{}},
 		{rows: [][]any{{"scope-1", "gen-1"}}},
 		{rows: [][]any{{"gen-1", "active", "push", false, observedAt, "abc123", observedAt, "repository", "acme/orders-api"}}},
 		{rows: [][]any{{"reducer", "succeeded", int64(1)}, {"projector", "succeeded", int64(1)}}},
@@ -269,6 +278,7 @@ func TestReadRepositoryFreshnessUnobservedPushOlderMismatchNotMaskedByNewerMatch
 	newerReceivedAt := observedAt.Add(-1 * time.Minute)
 	olderReceivedAt := observedAt.Add(-2 * time.Minute)
 	queryer := &fakeQueryer{responses: []fakeRows{
+		{rows: [][]any{}},
 		{rows: [][]any{{"scope-1", "gen-1"}}},
 		{rows: [][]any{{"gen-1", "active", "push", false, observedAt, "abc123", observedAt, "repository", "acme/orders-api"}}},
 		{rows: [][]any{{"reducer", "succeeded", int64(1)}, {"projector", "succeeded", int64(1)}}},
@@ -304,7 +314,7 @@ func TestReadRepositoryFreshnessUnobservedPushOlderMismatchNotMaskedByNewerMatch
 func TestReadRepositoryFreshnessUnresolvedRepositoryReturnsNoRowsWithoutError(t *testing.T) {
 	t.Parallel()
 
-	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{}}}}
+	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{}}, {rows: [][]any{}}}}
 	store := NewRepositoryFreshnessStore(queryer)
 
 	snapshot, err := store.ReadRepositoryFreshness(context.Background(), "repo-unknown")
@@ -314,8 +324,8 @@ func TestReadRepositoryFreshnessUnresolvedRepositoryReturnsNoRowsWithoutError(t 
 	if snapshot.Resolved {
 		t.Fatal("Resolved = true, want false for an unresolvable repository")
 	}
-	if len(queryer.queries) != 1 {
-		t.Fatalf("queryer received %d queries, want exactly 1 (short-circuit after resolve)", len(queryer.queries))
+	if len(queryer.queries) != 2 {
+		t.Fatalf("queryer received %d queries, want exactly 2 (tombstone lookup, short-circuit after resolve)", len(queryer.queries))
 	}
 }
 
@@ -327,6 +337,7 @@ func TestReadRepositoryFreshnessResolvedScopeWithNoGenerationRow(t *testing.T) {
 	t.Parallel()
 
 	queryer := &fakeQueryer{responses: []fakeRows{
+		{rows: [][]any{}},
 		{rows: [][]any{{"scope-1", "gen-1"}}},
 		{rows: [][]any{}},
 	}}
@@ -342,8 +353,8 @@ func TestReadRepositoryFreshnessResolvedScopeWithNoGenerationRow(t *testing.T) {
 	if snapshot.HasGeneration {
 		t.Fatal("HasGeneration = true, want false when the generation row is missing")
 	}
-	if len(queryer.queries) != 2 {
-		t.Fatalf("queryer received %d queries, want exactly 2 (short-circuit after generation lookup)", len(queryer.queries))
+	if len(queryer.queries) != 3 {
+		t.Fatalf("queryer received %d queries, want exactly 3 (tombstone, resolve, short-circuit after generation lookup)", len(queryer.queries))
 	}
 }
 
@@ -426,7 +437,7 @@ func TestReadRepositoryFreshnessRecordsDurationAndErrorMetrics(t *testing.T) {
 		t.Fatalf("NewInstruments() error = %v, want nil", err)
 	}
 
-	okQueryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{}}}}
+	okQueryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{}}, {rows: [][]any{}}}}
 	okStore := NewInstrumentedRepositoryFreshnessStore(okQueryer, instruments)
 	if _, err := okStore.ReadRepositoryFreshness(context.Background(), "repo-1"); err != nil {
 		t.Fatalf("ReadRepositoryFreshness() error = %v, want nil", err)

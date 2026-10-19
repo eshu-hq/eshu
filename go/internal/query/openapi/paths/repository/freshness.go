@@ -11,7 +11,7 @@ const Freshness = `
       "get": {
         "tags": ["repositories"],
         "summary": "Get per-repository commit receipt and build-completeness verdict",
-        "description": "Answers two questions for one repository: did eshu pick up its latest commit, and is the evidence for that commit fully built. verdict is one of current, building, behind, unobserved, not_selected, or unknown. verdict=not_selected (#7625) means no live selector that observes this repository's scope selects it, every live observation is confirmed exclusion evidence (the same archived_excluded, rule_excluded, or not_listed state over at least two evaluations spanning five minutes), and no generation of the scope was observed after the newest exclusion started, so no newer commit will arrive; it outranks every verdict except unknown. A selector's observations stay live for its configured liveness window after its newest evaluation. It is evidence only: nothing is hidden or deleted. selection always reports that evidence; when its state is anything other than not_selected (including unknown, when no selector row is live) the verdict is computed exactly as before. verdict=current speaks to BUILD COMPLETENESS for the resolved generation, not necessarily a commit receipt: observed_commit may be an empty string while verdict is still honestly current. An empty observed_commit is legitimate for non-git scopes, for pre-delta-baseline git generations that predate the source_commit_sha column, and for snapshot-trigger git generations (trigger_kind=snapshot: a cassette-replayed or otherwise non-live-git-sync source with no commit to report, as opposed to a push/delta-triggered sync) -- represented explicitly rather than fabricated. The optional expected_commit query parameter is compared as an opaque string (no format validation); when it does not match observed_commit the verdict is behind regardless of whether a generation is actively progressing. shared_enrichment reports cross-repo materialization backlog referencing this repository's generation as a separate axis from stages, so a different repository's shared backlog is never attributed here. Scoped tokens receive the same shape; a repository outside the caller's grant 404s like sibling repository routes.",
+        "description": "Answers two questions for one repository: did eshu pick up its latest commit, and is the evidence for that commit fully built. verdict is one of current, building, behind, unobserved, not_selected, unknown, retiring, or retired. verdict=retiring (#7766) means an open non-complete retirement tombstone covers the repository and verdict=retired means its tombstone is complete; both outrank every other verdict as rule 0 and retirement carries the bounded tombstone evidence. verdict=not_selected (#7625) means no live selector that observes this repository's scope selects it, every live observation is confirmed exclusion evidence (the same archived_excluded, rule_excluded, or not_listed state over at least two evaluations spanning five minutes), and no generation of the scope was observed after the newest exclusion started, so no newer commit will arrive; it outranks every verdict except unknown. A selector's observations stay live for its configured liveness window after its newest evaluation. It is evidence only: nothing is hidden or deleted. selection always reports that evidence; when its state is anything other than not_selected (including unknown, when no selector row is live) the verdict is computed exactly as before. verdict=current speaks to BUILD COMPLETENESS for the resolved generation, not necessarily a commit receipt: observed_commit may be an empty string while verdict is still honestly current. An empty observed_commit is legitimate for non-git scopes, for pre-delta-baseline git generations that predate the source_commit_sha column, and for snapshot-trigger git generations (trigger_kind=snapshot: a cassette-replayed or otherwise non-live-git-sync source with no commit to report, as opposed to a push/delta-triggered sync) -- represented explicitly rather than fabricated. The optional expected_commit query parameter is compared as an opaque string (no format validation); when it does not match observed_commit the verdict is behind regardless of whether a generation is actively progressing. shared_enrichment reports cross-repo materialization backlog referencing this repository's generation as a separate axis from stages, so a different repository's shared backlog is never attributed here. Scoped tokens receive the same shape; a repository outside the caller's grant 404s like sibling repository routes.",
         "operationId": "getRepositoryFreshness",
         "x-scoped-token-support": true,
         "parameters": [
@@ -37,7 +37,7 @@ const Freshness = `
                   "properties": {
                     "repository": {"$ref": "#/components/schemas/RepositoryRef"},
                     "scope_id": {"type": "string"},
-                    "verdict": {"type": "string", "enum": ["current", "building", "behind", "unobserved", "not_selected", "unknown"]},
+                    "verdict": {"type": "string", "enum": ["current", "building", "behind", "unobserved", "not_selected", "unknown", "retiring", "retired"], "description": "retiring marks an open non-complete retirement tombstone and retired a complete one (#7766); both outrank every other verdict as rule 0."},
                     "observed_commit": {"type": "string", "description": "May be empty for non-git scopes, pre-delta-baseline generations, or snapshot-trigger git generations (trigger_kind=snapshot). An empty value with verdict=current means build completeness for this generation, not a commit receipt."},
                     "observed_at": {"type": "string", "nullable": true},
                     "generation": {
@@ -94,6 +94,15 @@ const Freshness = `
                         "target_sha": {"type": "string"},
                         "ref": {"type": "string"},
                         "received_at": {"type": "string", "nullable": true}
+                      }
+                    },
+                    "retirement": {
+                      "type": "object",
+                      "nullable": true,
+                      "description": "Bounded retirement tombstone evidence (#7766): the tombstone state and row for retiring and retired verdicts; null otherwise.",
+                      "properties": {
+                        "state": {"type": "string", "description": "Tombstone state (pending, running, blocked, repairing_graph, complete, failed)."},
+                        "retirement_id": {"type": "string", "description": "Tombstone key."}
                       }
                     },
                     "selection": {

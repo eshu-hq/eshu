@@ -54,6 +54,9 @@ const (
 	EventTypeExtensionActivation EventType = "extension_activation"
 	// EventTypeAdminRecoveryAction covers refinalize, replay, repair, and recovery decisions.
 	EventTypeAdminRecoveryAction EventType = "admin_recovery_action"
+	// EventTypeAdminRetirementAction covers operator-driven repository
+	// retirement decisions, both denied and accepted (#7766).
+	EventTypeAdminRetirementAction EventType = "admin_retirement_action"
 )
 
 // ActorClass names the bounded class of the actor that caused an event.
@@ -334,7 +337,8 @@ func validEventType(value EventType) bool {
 		EventTypeAskSearchRun, EventTypeExport, EventTypeBootstrap,
 		EventTypeBreakGlass, EventTypeAuditRead, EventTypeCollectorActivation,
 		EventTypeSemanticPolicyDecision, EventTypeProviderBudgetDecision,
-		EventTypeExtensionActivation, EventTypeAdminRecoveryAction:
+		EventTypeExtensionActivation, EventTypeAdminRecoveryAction,
+		EventTypeAdminRetirementAction:
 		return true
 	default:
 		return false

@@ -96,13 +96,16 @@ func TestIngestionStoreCommitScopeGenerationPersistsProjectionInput(t *testing.T
 	// fact_id), not a plain exec, so upsertFactBatchReturningAccepted can learn
 	// which fact_ids the fencing_token guard actually accepted (issue #4444
 	// review, codex P1). It no longer appears in commitTx.execs.
-	if got, want := len(commitTx.execs), 8; got != want {
+	//
+	// The scope upsert likewise runs as a query since #7766 folded the
+	// retirement marker gate into it (WITH gate AS ... RETURNING the gate
+	// state): the gate and the write share one statement snapshot.
+	if got, want := len(commitTx.execs), 7; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 	for index, want := range []string{
 		"pg_advisory_xact_lock_shared",
 		"set_config('eshu.package_manifest_consumption_keys_writer'",
-		"INSERT INTO ingestion_scopes",
 		"INSERT INTO scope_generations",
 		"DELETE FROM relationship_reference_candidate_keys",
 		"DELETE FROM package_manifest_consumption_keys",
@@ -113,7 +116,19 @@ func TestIngestionStoreCommitScopeGenerationPersistsProjectionInput(t *testing.T
 			t.Fatalf("exec[%d] query = %q, want substring %q", index, commitTx.execs[index].query, want)
 		}
 	}
-	if got, want := commitTx.execs[7].args[3], "source_local"; got != want {
+	foundGatedScopeUpsert := false
+	for _, query := range commitTx.queries {
+		if strings.Contains(query.query, "INSERT INTO ingestion_scopes") &&
+			strings.Contains(query.query, "WITH gate AS") &&
+			strings.Contains(query.query, "FROM repository_retirements") {
+			foundGatedScopeUpsert = true
+			break
+		}
+	}
+	if !foundGatedScopeUpsert {
+		t.Fatalf("transaction queries = %#v, want the gated scope upsert with the retirement marker CTE", commitTx.queries)
+	}
+	if got, want := commitTx.execs[6].args[3], "source_local"; got != want {
 		t.Fatalf("projector domain arg = %v, want %v", got, want)
 	}
 	foundFactRecordsQuery := false
@@ -192,7 +207,10 @@ func TestIngestionStoreCommitScopeGenerationRollsBackOnProjectorEnqueueFailure(t
 	database := &fakeTransactionalDB{
 		tx: &fakeTx{
 			execErrors: map[int]error{
-				4: errors.New("insert projector work failed"),
+				// The projector enqueue moved from exec 4 to exec 3
+				// when #7766 folded the retirement marker gate into the
+				// scope upsert (Exec to Query).
+				3: errors.New("insert projector work failed"),
 			},
 		},
 	}
@@ -310,8 +328,9 @@ func TestIngestionStoreCommitClaimedScopeGenerationFencesClaimInTransaction(t *t
 	}
 	// The fact_records upsert now runs as a query (INSERT ... RETURNING
 	// fact_id), not a plain exec (issue #4444 review, codex P1), so it no
-	// longer appears in db.tx.execs.
-	if got, want := len(database.tx.execs), 9; got != want {
+	// longer appears in db.tx.execs. The scope upsert likewise runs as a
+	// query since #7766 folded the retirement marker gate into it.
+	if got, want := len(database.tx.execs), 8; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 	if got := database.tx.execs[0].query; !strings.Contains(got, "WITH candidate AS") || !strings.Contains(got, "workflow_claims") || !strings.Contains(got, "status = 'active'") {
@@ -417,6 +436,12 @@ func (f *fakeTx) QueryContext(_ context.Context, query string, args ...any) (db.
 		// to simulate a fenced-out fact_id stage an explicit queryResponses entry
 		// instead.
 		return &queueFakeRows{rows: fakeAcceptedFactIDRows(args)}, nil
+	}
+	if strings.Contains(query, "WITH gate AS") && strings.Contains(query, "INSERT INTO ingestion_scopes") {
+		// Default: no retirement tombstone is open, so the folded marker
+		// gate admits (#7766). Tests that need a refusal or a re-admission
+		// stage an explicit queryResponses entry instead.
+		return &queueFakeRows{rows: [][]any{{sql.NullString{}, sql.NullString{}}}}, nil
 	}
 	if strings.Contains(query, "domain = 'code_import_repo_edge'") {
 		// code_import_repo_edge reopen listing: default to no succeeded items so

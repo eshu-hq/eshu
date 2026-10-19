@@ -75,6 +75,14 @@ var indexStatusWithheldSections = []string{
 	"aws_materialization",
 	"semantic_extraction",
 	"terraform_state",
+	// Retirement surfaces (#7766): the by-state count split is a
+	// deployment-wide graph aggregate and the tombstone block is a
+	// deployment-wide Postgres aggregate. Neither is attributable to a
+	// scoped grant, so a scoped caller is told they were withheld; the
+	// grant-bound repositories list and freshness verdicts still label
+	// that caller's retiring repositories.
+	"repository_count_by_state",
+	"repository_retirements",
 }
 
 // indexStatusScopedRepositoryCountCypher counts only the Repository nodes the
