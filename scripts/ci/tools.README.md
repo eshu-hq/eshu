@@ -44,8 +44,8 @@ and pinned to the matching Go version.
 
 Pinned upstream inputs: Go 1.26.9 Linux amd64 tar SHA-256
 `42d158b4d8f7b61ac0a830567c940a86098fb7aac52e467a5ebec03ef5cc2f8d`;
-ripgrep 14.1.1 musl tar SHA-256
-`4cf9f2741e6c465ffdb7c26f38056a59e2a2544b51f7cc128ef28337eeae4d8e`;
+ripgrep 15.2.0 musl tar SHA-256
+`33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c`;
 yq 4.54.1 Linux amd64 SHA-256
 `8e34fc298390875de416e6a4afcb8cabeceb25d9aa8506c1a2f9353cf702ea5f`.
 The Docker CLI 29.1.3 static tar and Compose 2.40.3 plugin are also
@@ -55,7 +55,7 @@ is extracted from Docker's tar; the image has no daemon or container runtime.
 | Download | Versioned source and license |
 | --- | --- |
 | Go | [go1.26.9 source](https://github.com/golang/go/tree/go1.26.9), [BSD-3-Clause license](https://github.com/golang/go/blob/go1.26.9/LICENSE) |
-| ripgrep | [14.1.1 source](https://github.com/BurntSushi/ripgrep/tree/14.1.1), [MIT license](https://github.com/BurntSushi/ripgrep/blob/14.1.1/LICENSE-MIT) |
+| ripgrep | [15.2.0 source](https://github.com/BurntSushi/ripgrep/tree/15.2.0), [MIT license](https://github.com/BurntSushi/ripgrep/blob/15.2.0/LICENSE-MIT) |
 | yq | [v4.54.1 source](https://github.com/mikefarah/yq/tree/v4.54.1), [MIT license](https://github.com/mikefarah/yq/blob/v4.54.1/LICENSE) |
 | Docker CLI | [v29.1.3 source](https://github.com/docker/cli/tree/v29.1.3), [Apache-2.0 license](https://github.com/docker/cli/blob/v29.1.3/LICENSE) |
 | Docker Compose | [v2.40.3 source](https://github.com/docker/compose/tree/v2.40.3), [Apache-2.0 license](https://github.com/docker/compose/blob/v2.40.3/LICENSE) |
