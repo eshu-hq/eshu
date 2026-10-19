@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 )
 
 // TestDecodeCodeTaintEvidenceQuarantinesMissingFunctionUID is the flagship
@@ -39,9 +40,9 @@ func TestDecodeCodeTaintEvidenceQuarantinesMissingFunctionUID(t *testing.T) {
 		},
 	}
 
-	_, err := decodeCodeTaintEvidence(malformed)
+	_, err := schemadecode.DecodeCodeTaintEvidence(malformed)
 	if err == nil {
-		t.Fatalf("decodeCodeTaintEvidence(missing function_uid) error = nil, want an input_invalid *factDecodeError")
+		t.Fatalf("schemadecode.DecodeCodeTaintEvidence(missing function_uid) error = nil, want an input_invalid *factDecodeError")
 	}
 	q, quarantinable, fatal := partitionDecodeFailures(malformed, err)
 	if !quarantinable {
@@ -69,12 +70,12 @@ func TestDecodeCodeTaintEvidenceQuarantinesMissingFunctionUID(t *testing.T) {
 			"confidence":    0.75,
 		},
 	}
-	evidence, err := decodeCodeTaintEvidence(valid)
+	evidence, err := schemadecode.DecodeCodeTaintEvidence(valid)
 	if err != nil {
-		t.Fatalf("decodeCodeTaintEvidence(valid sibling) error = %v, want nil", err)
+		t.Fatalf("schemadecode.DecodeCodeTaintEvidence(valid sibling) error = %v, want nil", err)
 	}
 	if evidence.FunctionUID != "uid:handle-fn" {
-		t.Fatalf("decodeCodeTaintEvidence FunctionUID = %q, want uid:handle-fn", evidence.FunctionUID)
+		t.Fatalf("schemadecode.DecodeCodeTaintEvidence FunctionUID = %q, want uid:handle-fn", evidence.FunctionUID)
 	}
 	rows, _, err := taint.ExtractEvidenceRowsWithQuarantine([]facts.Envelope{valid})
 	if err != nil {
@@ -108,8 +109,8 @@ func TestDecodeCodeInterprocEvidenceQuarantinesMissingEndpoint(t *testing.T) {
 			"confidence":        0.6,
 		},
 	}
-	if _, err := decodeCodeInterprocEvidence(missingSource); err == nil {
-		t.Fatalf("decodeCodeInterprocEvidence(missing source_function_uid) error = nil, want an input_invalid *factDecodeError")
+	if _, err := schemadecode.DecodeCodeInterprocEvidence(missingSource); err == nil {
+		t.Fatalf("schemadecode.DecodeCodeInterprocEvidence(missing source_function_uid) error = nil, want an input_invalid *factDecodeError")
 	} else {
 		q, quarantinable, fatal := partitionDecodeFailures(missingSource, err)
 		if !quarantinable {
@@ -133,9 +134,9 @@ func TestDecodeCodeInterprocEvidenceQuarantinesMissingEndpoint(t *testing.T) {
 			"confidence":          0.6,
 		},
 	}
-	evidence, err := decodeCodeInterprocEvidence(valid)
+	evidence, err := schemadecode.DecodeCodeInterprocEvidence(valid)
 	if err != nil {
-		t.Fatalf("decodeCodeInterprocEvidence(valid sibling) error = %v, want nil", err)
+		t.Fatalf("schemadecode.DecodeCodeInterprocEvidence(valid sibling) error = %v, want nil", err)
 	}
 	rows, _, extractErr := taint.ExtractInterprocEvidenceRowsWithQuarantine([]facts.Envelope{valid})
 	if extractErr != nil {
@@ -165,8 +166,8 @@ func TestDecodeCodeFunctionSummaryQuarantinesMissingFunctionID(t *testing.T) {
 			"language": "go",
 		},
 	}
-	if _, err := decodeCodeFunctionSummary(malformed); err == nil {
-		t.Fatalf("decodeCodeFunctionSummary(missing function_id) error = nil, want an input_invalid *factDecodeError")
+	if _, err := schemadecode.DecodeCodeFunctionSummary(malformed); err == nil {
+		t.Fatalf("schemadecode.DecodeCodeFunctionSummary(missing function_id) error = nil, want an input_invalid *factDecodeError")
 	} else {
 		q, quarantinable, fatal := partitionDecodeFailures(malformed, err)
 		if !quarantinable {
@@ -186,12 +187,12 @@ func TestDecodeCodeFunctionSummaryQuarantinesMissingFunctionID(t *testing.T) {
 			"language":    "go",
 		},
 	}
-	summary, err := decodeCodeFunctionSummary(valid)
+	summary, err := schemadecode.DecodeCodeFunctionSummary(valid)
 	if err != nil {
-		t.Fatalf("decodeCodeFunctionSummary(valid sibling) error = %v, want nil", err)
+		t.Fatalf("schemadecode.DecodeCodeFunctionSummary(valid sibling) error = %v, want nil", err)
 	}
 	if summary.FunctionID != "repo-summary:pkg:Handle" {
-		t.Fatalf("decodeCodeFunctionSummary FunctionID = %q, want repo-summary:pkg:Handle", summary.FunctionID)
+		t.Fatalf("schemadecode.DecodeCodeFunctionSummary FunctionID = %q, want repo-summary:pkg:Handle", summary.FunctionID)
 	}
 }
 
@@ -213,8 +214,8 @@ func TestDecodeCodeFunctionSourceQuarantinesMissingRequiredFields(t *testing.T) 
 			"repo_id": "repo-source",
 		},
 	}
-	if _, err := decodeCodeFunctionSource(missingKind); err == nil {
-		t.Fatalf("decodeCodeFunctionSource(missing kind) error = nil, want an input_invalid *factDecodeError")
+	if _, err := schemadecode.DecodeCodeFunctionSource(missingKind); err == nil {
+		t.Fatalf("schemadecode.DecodeCodeFunctionSource(missing kind) error = nil, want an input_invalid *factDecodeError")
 	} else {
 		q, quarantinable, _ := partitionDecodeFailures(missingKind, err)
 		if !quarantinable {
@@ -235,12 +236,12 @@ func TestDecodeCodeFunctionSourceQuarantinesMissingRequiredFields(t *testing.T) 
 			"repo_id":     "repo-source",
 		},
 	}
-	source, err := decodeCodeFunctionSource(valid)
+	source, err := schemadecode.DecodeCodeFunctionSource(valid)
 	if err != nil {
-		t.Fatalf("decodeCodeFunctionSource(valid sibling) error = %v, want nil", err)
+		t.Fatalf("schemadecode.DecodeCodeFunctionSource(valid sibling) error = %v, want nil", err)
 	}
 	if source.FunctionID != "repo-source:pkg:Handle" || source.Kind != "http_request" {
-		t.Fatalf("decodeCodeFunctionSource = %+v, want FunctionID=repo-source:pkg:Handle Kind=http_request", source)
+		t.Fatalf("schemadecode.DecodeCodeFunctionSource = %+v, want FunctionID=repo-source:pkg:Handle Kind=http_request", source)
 	}
 }
 
@@ -276,12 +277,12 @@ func TestDecodeCodeDataflowFamilyTreatsPersistedZeroVersionAsLatestMajor(t *test
 				"reason":  "value-flow gate scanned the repository snapshot",
 			},
 		}
-		scanned, err := decodeCodeDataflowScanned(env)
+		scanned, err := schemadecode.DecodeCodeDataflowScanned(env)
 		if err != nil {
-			t.Fatalf("decodeCodeDataflowScanned(SchemaVersion=%q) error = %v, want nil", persistedZeroVersion, err)
+			t.Fatalf("schemadecode.DecodeCodeDataflowScanned(SchemaVersion=%q) error = %v, want nil", persistedZeroVersion, err)
 		}
 		if scanned.RepoID == nil || *scanned.RepoID != "repo-persisted" {
-			t.Fatalf("decodeCodeDataflowScanned RepoID = %v, want repo-persisted", scanned.RepoID)
+			t.Fatalf("schemadecode.DecodeCodeDataflowScanned RepoID = %v, want repo-persisted", scanned.RepoID)
 		}
 	})
 
@@ -297,12 +298,12 @@ func TestDecodeCodeDataflowFamilyTreatsPersistedZeroVersionAsLatestMajor(t *test
 				"function_name": "Handle",
 			},
 		}
-		function, err := decodeCodeDataflowFunction(env)
+		function, err := schemadecode.DecodeCodeDataflowFunction(env)
 		if err != nil {
-			t.Fatalf("decodeCodeDataflowFunction(SchemaVersion=%q) error = %v, want nil", persistedZeroVersion, err)
+			t.Fatalf("schemadecode.DecodeCodeDataflowFunction(SchemaVersion=%q) error = %v, want nil", persistedZeroVersion, err)
 		}
 		if function.RepoID != "repo-persisted" || function.RelativePath != "app.go" || function.FunctionName != "Handle" {
-			t.Fatalf("decodeCodeDataflowFunction = %+v, want identity repo-persisted/app.go/Handle", function)
+			t.Fatalf("schemadecode.DecodeCodeDataflowFunction = %+v, want identity repo-persisted/app.go/Handle", function)
 		}
 	})
 
@@ -317,12 +318,12 @@ func TestDecodeCodeDataflowFamilyTreatsPersistedZeroVersionAsLatestMajor(t *test
 				"repo_id":     "repo-persisted",
 			},
 		}
-		summary, err := decodeCodeFunctionSummary(env)
+		summary, err := schemadecode.DecodeCodeFunctionSummary(env)
 		if err != nil {
-			t.Fatalf("decodeCodeFunctionSummary(SchemaVersion=%q) error = %v, want nil", persistedZeroVersion, err)
+			t.Fatalf("schemadecode.DecodeCodeFunctionSummary(SchemaVersion=%q) error = %v, want nil", persistedZeroVersion, err)
 		}
 		if summary.FunctionID != "repo-persisted:pkg:Handle" {
-			t.Fatalf("decodeCodeFunctionSummary FunctionID = %q, want repo-persisted:pkg:Handle", summary.FunctionID)
+			t.Fatalf("schemadecode.DecodeCodeFunctionSummary FunctionID = %q, want repo-persisted:pkg:Handle", summary.FunctionID)
 		}
 	})
 
@@ -339,12 +340,12 @@ func TestDecodeCodeDataflowFamilyTreatsPersistedZeroVersionAsLatestMajor(t *test
 				"repo_id":     "repo-persisted",
 			},
 		}
-		source, err := decodeCodeFunctionSource(env)
+		source, err := schemadecode.DecodeCodeFunctionSource(env)
 		if err != nil {
-			t.Fatalf("decodeCodeFunctionSource(SchemaVersion=%q) error = %v, want nil", persistedZeroVersion, err)
+			t.Fatalf("schemadecode.DecodeCodeFunctionSource(SchemaVersion=%q) error = %v, want nil", persistedZeroVersion, err)
 		}
 		if source.FunctionID != "repo-persisted:pkg:Handle" || source.Kind != "http_request" {
-			t.Fatalf("decodeCodeFunctionSource = %+v, want identity repo-persisted:pkg:Handle/http_request", source)
+			t.Fatalf("schemadecode.DecodeCodeFunctionSource = %+v, want identity repo-persisted:pkg:Handle/http_request", source)
 		}
 	})
 
@@ -359,12 +360,12 @@ func TestDecodeCodeDataflowFamilyTreatsPersistedZeroVersionAsLatestMajor(t *test
 				"repo_id":      "repo-persisted",
 			},
 		}
-		evidence, err := decodeCodeTaintEvidence(env)
+		evidence, err := schemadecode.DecodeCodeTaintEvidence(env)
 		if err != nil {
-			t.Fatalf("decodeCodeTaintEvidence(SchemaVersion=%q) error = %v, want nil", persistedZeroVersion, err)
+			t.Fatalf("schemadecode.DecodeCodeTaintEvidence(SchemaVersion=%q) error = %v, want nil", persistedZeroVersion, err)
 		}
 		if evidence.FunctionUID != "uid:persisted-fn" {
-			t.Fatalf("decodeCodeTaintEvidence FunctionUID = %q, want uid:persisted-fn", evidence.FunctionUID)
+			t.Fatalf("schemadecode.DecodeCodeTaintEvidence FunctionUID = %q, want uid:persisted-fn", evidence.FunctionUID)
 		}
 		rows, _, extractErr := taint.ExtractEvidenceRowsWithQuarantine([]facts.Envelope{env})
 		if extractErr != nil {
@@ -387,9 +388,9 @@ func TestDecodeCodeDataflowFamilyTreatsPersistedZeroVersionAsLatestMajor(t *test
 				"repo_id":             "repo-persisted",
 			},
 		}
-		evidence, err := decodeCodeInterprocEvidence(env)
+		evidence, err := schemadecode.DecodeCodeInterprocEvidence(env)
 		if err != nil {
-			t.Fatalf("decodeCodeInterprocEvidence(SchemaVersion=%q) error = %v, want nil", persistedZeroVersion, err)
+			t.Fatalf("schemadecode.DecodeCodeInterprocEvidence(SchemaVersion=%q) error = %v, want nil", persistedZeroVersion, err)
 		}
 		rows, _, extractErr := taint.ExtractInterprocEvidenceRowsWithQuarantine([]facts.Envelope{env})
 		if extractErr != nil {

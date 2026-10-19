@@ -51,16 +51,15 @@ import (
 // entry is deleted once its last caller has moved into a family subpackage.
 // The four incident-routing entries were removed when their only callers
 // moved into internal/reducer/incident, which imports schemadecode directly.
+// The four code-function/taint/interproc entries were removed when their last
+// caller (codedataflow_input_invalid_test.go) named schemadecode directly
+// (#6626 batch 6 bucket 3).
 
 var (
 	decodeAWSRelationship            = schemadecode.DecodeAWSRelationship
 	decodeAWSResource                = schemadecode.DecodeAWSResource
 	decodeAzureCloudRelationship     = schemadecode.DecodeAzureCloudRelationship
 	decodeAzureCloudResource         = schemadecode.DecodeAzureCloudResource
-	decodeCodeFunctionSource         = schemadecode.DecodeCodeFunctionSource
-	decodeCodeFunctionSummary        = schemadecode.DecodeCodeFunctionSummary
-	decodeCodeInterprocEvidence      = schemadecode.DecodeCodeInterprocEvidence
-	decodeCodeTaintEvidence          = schemadecode.DecodeCodeTaintEvidence
 	decodeCodegraphFile              = schemadecode.DecodeCodegraphFile
 	decodeDocumentationDocument      = schemadecode.DecodeDocumentationDocument
 	decodeDocumentationEntityMention = schemadecode.DecodeDocumentationEntityMention
@@ -316,19 +315,11 @@ var (
 
 // Stanza: decode_seam_compat3.go (merged; do not recreate this file).
 
-// This file is the transitional compatibility surface for the per-fact-kind
-// decoders that moved to [schemadecode] (issue #6061). Every entry binds the
-// reducer root's original lowercase spelling to the exported name in that
-// package, so the 6 remaining root call sites (in codedataflow_input_invalid_test.go)
-// keep their current spelling; each entry is deleted once its last caller has
-// moved into a family subpackage. The factschemaEnvelope forwarder was removed
-// with the supplychain/core move: its only callers were supply-chain files
-// that now import schemadecode directly (#6061).
-
-var (
-	decodeCodeDataflowFunction = schemadecode.DecodeCodeDataflowFunction
-	decodeCodeDataflowScanned  = schemadecode.DecodeCodeDataflowScanned
-)
+// decodeCodeDataflowFunction and decodeCodeDataflowScanned were retired once
+// their last caller (codedataflow_input_invalid_test.go) named schemadecode
+// directly (#6626 batch 6 bucket 3). The factschemaEnvelope forwarder was
+// removed earlier with the supplychain/core move: its only callers were
+// supply-chain files that now import schemadecode directly (#6061).
 
 // Stanza: code-function-summary family move (#6061; no prior compat file).
 // The durable value-flow function-summary persistence family moved to
