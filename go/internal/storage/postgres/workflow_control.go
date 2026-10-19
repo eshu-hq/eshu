@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -39,6 +40,11 @@ type WorkflowControlStore struct {
 	DefaultClaimLeaseTTL       time.Duration
 	DefaultHeartbeatInterval   time.Duration
 	DefaultExpiredRequeueDelay time.Duration
+	// pacingMu guards pacingDepths: CheckClaimPacing consults run on the
+	// shared store across dispatcher workers, while the latch row stays
+	// authoritative in shared storage.
+	pacingMu     sync.Mutex
+	pacingDepths *claimPacingDepthCache
 	// Instruments records the terminal-dead-letter-block signal during
 	// ReconcileWorkflowRuns (#4459). Nil is a no-op, so binaries without a
 	// wired meter provider are unaffected.

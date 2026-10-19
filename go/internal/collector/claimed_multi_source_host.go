@@ -81,6 +81,12 @@ type MultiSourceCollectorHostConfig struct {
 	Instances []workflow.CollectorInstance
 	Template  ClaimedService
 	Workers   int
+	// ClaimPacing, when set to an enabled config, paces the shared fair
+	// dispatcher's grants on per-domain depth first with global depth as
+	// the ceiling (#8470). The template's control store must serve
+	// CheckClaimPacing (WorkflowControlStore does). Nil (the default)
+	// claims with no pacing consult.
+	ClaimPacing *workflow.ClaimPacingConfig
 }
 
 type hostTargetKey struct {
@@ -148,6 +154,18 @@ func NewMultiSourceCollectorHost(cfg MultiSourceCollectorHostConfig) (*MultiSour
 	dispatcher, err := NewFairClaimDispatcher(cfg.Template.ControlStore, candidates)
 	if err != nil {
 		return nil, fmt.Errorf("build fair claim dispatcher: %w", err)
+	}
+	if cfg.ClaimPacing != nil {
+		if err := cfg.ClaimPacing.Validate(); err != nil {
+			return nil, fmt.Errorf("claim pacing config: %w", err)
+		}
+		if cfg.ClaimPacing.Enabled() {
+			checker, ok := cfg.Template.ControlStore.(ClaimPacingChecker)
+			if !ok {
+				return nil, errors.New("claim pacing requires a control store that serves CheckClaimPacing")
+			}
+			dispatcher.WithClaimPacing(checker, *cfg.ClaimPacing)
+		}
 	}
 
 	workers := cfg.Workers

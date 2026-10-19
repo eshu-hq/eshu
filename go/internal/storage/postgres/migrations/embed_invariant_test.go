@@ -107,14 +107,16 @@ import (
 // the 101/102 shape, so the lane holds no 200 of its own; main's 200 is
 // #7840's repository_selectors above; gaps are tolerated); #8469 revises
 // unshipped 204 in-lane with the empty-class sink pass (owner P2: blank
-// class segments sink to 4 instead of floating at the 201 default 0).
-const goldenBootstrapDefinitionsDigest = "46ba68873c35bcede5dab98e39a21b2e3475f48a0bba84ee58dea7019cf54e28"
+// class segments sink to 4 instead of floating at the 201 default 0);
+// #8470 adds 205_workflow_claim_pacing.sql (claim-pacing latch table, DDL
+// only: latch rows appear through runtime upserts, no backfill).
+const goldenBootstrapDefinitionsDigest = "6a0fd60b91554ff4ccd957c18581a025cf5364f5b37fff2b083acabdca18bd61"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 222
+const goldenBootstrapDefinitionsCount = 223
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

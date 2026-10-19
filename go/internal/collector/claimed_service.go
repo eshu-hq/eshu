@@ -77,10 +77,16 @@ type ClaimedService struct {
 	PollInterval        time.Duration
 	ClaimLeaseTTL       time.Duration
 	HeartbeatInterval   time.Duration
-	MaxAttempts         int
-	Clock               func() time.Time
-	Tracer              trace.Tracer
-	Instruments         *telemetry.Instruments
+	// ClaimPacing, when set to an enabled config, paces grants on
+	// per-domain depth first with global depth as the ceiling (#8470). The
+	// control store must serve CheckClaimPacing (WorkflowControlStore
+	// does); any other store claims unpaced. Nil (the default) claims with
+	// no pacing consult.
+	ClaimPacing *workflow.ClaimPacingConfig
+	MaxAttempts int
+	Clock       func() time.Time
+	Tracer      trace.Tracer
+	Instruments *telemetry.Instruments
 }
 
 // Run claims bounded work, emits facts through the existing commit boundary,
@@ -100,6 +106,17 @@ func (s ClaimedService) Run(ctx context.Context) error {
 		}
 		item, claim, target, found, err := s.claimNext(ctx, claimID)
 		if err != nil {
+			var deferral *workflow.ClaimPacingDeferral
+			if errors.As(err, &deferral) {
+				// A paced grant is flow control, not failure: no claim
+				// was issued, so back off for the longer of the poll
+				// interval and the grant delay on the existing
+				// retry-after path, then claim again.
+				if waitErr := waitForNextPoll(ctx, max(s.PollInterval, deferral.RetryAfterDelay())); waitErr != nil {
+					return nil
+				}
+				continue
+			}
 			return fmt.Errorf("claim next %s work item: %w", s.claimedKindLabel(), err)
 		}
 		if !found {
@@ -171,26 +188,6 @@ func (s ClaimedService) validate() error {
 		return errors.New("claim heartbeat interval must be less than lease TTL")
 	}
 	return nil
-}
-
-func (s ClaimedService) claimNext(
-	ctx context.Context,
-	claimID string,
-) (workflow.WorkItem, workflow.Claim, workflow.ClaimTarget, bool, error) {
-	if s.ClaimDispatcher != nil {
-		return s.ClaimDispatcher.ClaimNext(ctx, s.OwnerID, claimID, s.now(), s.ClaimLeaseTTL)
-	}
-	target := workflow.ClaimTarget{
-		CollectorKind:       s.CollectorKind,
-		CollectorInstanceID: s.CollectorInstanceID,
-	}
-	item, claim, found, err := s.ControlStore.ClaimNextEligible(ctx, workflow.ClaimSelector{
-		CollectorKind:       target.CollectorKind,
-		CollectorInstanceID: target.CollectorInstanceID,
-		OwnerID:             s.OwnerID,
-		ClaimID:             claimID,
-	}, s.now(), s.ClaimLeaseTTL)
-	return item, claim, target, found, err
 }
 
 func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkItem, claim workflow.Claim) error {

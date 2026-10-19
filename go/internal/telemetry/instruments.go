@@ -2657,6 +2657,25 @@ type Instruments struct {
 	// bound, and the only signal separating "fairness is working and there
 	// are simply many keys" from "fairness is broken".
 	WorkflowFairnessKeyCount metric.Int64ObservableGauge
+	// WorkflowClaimPacingEngagedTotal counts claim-pacing latch engagements
+	// by pacing signal (#8470). Transitions matter, and a gauge sampled
+	// between engagements reads as "fine". Owned by the workflow control
+	// store; nil-tolerant.
+	WorkflowClaimPacingEngagedTotal metric.Int64Counter
+	// WorkflowClaimPacingStuckTotal counts pacing verdicts that stayed
+	// engaged past MaxEngagement with depth still above the release
+	// watermark (#8470): a stuck throttle must be loud, not silently
+	// lifted. Owned by the workflow control store; nil-tolerant.
+	WorkflowClaimPacingStuckTotal metric.Int64Counter
+	// WorkflowClaimPacingActive tracks whether the pacing latch is engaged
+	// (+1 on engage, -1 on release) by pacing signal (#8470). The engaged
+	// counter alone cannot answer "is pacing on right now": both are
+	// needed, the counter for how often, this for now. Owned by the
+	// workflow control store; nil-tolerant.
+	WorkflowClaimPacingActive metric.Int64UpDownCounter
+	// WorkflowClaimPacingDelayDuration reports the grant delay a paced claim
+	// carries (#8470). Owned by the workflow control store; nil-tolerant.
+	WorkflowClaimPacingDelayDuration metric.Float64Histogram
 	// EdgesBySourceTool reports bounded graph edge counts by source_tool. The
 	// only metric label is source_tool; values not in the sourcetool.Canonical
 	// set are coerced to "unknown" before the label reaches the metric (#3997).
@@ -5139,6 +5158,40 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register WorkflowFairClaimsTotal counter: %w", err)
 	}
 
+	inst.WorkflowClaimPacingEngagedTotal, err = meter.Int64Counter(
+		"eshu_dp_workflow_claim_pacing_engaged_total",
+		metric.WithDescription("Claim-pacing latch engagements by pacing signal (issue #8470)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkflowClaimPacingEngagedTotal counter: %w", err)
+	}
+
+	inst.WorkflowClaimPacingStuckTotal, err = meter.Int64Counter(
+		"eshu_dp_workflow_claim_pacing_stuck_total",
+		metric.WithDescription("Claim-pacing verdicts stuck engaged past the engagement bound with depth still above release (issue #8470)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkflowClaimPacingStuckTotal counter: %w", err)
+	}
+
+	inst.WorkflowClaimPacingActive, err = meter.Int64UpDownCounter(
+		"eshu_dp_workflow_claim_pacing_active",
+		metric.WithDescription("Whether the claim-pacing latch is engaged, by pacing signal (issue #8470)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkflowClaimPacingActive up-down counter: %w", err)
+	}
+
+	inst.WorkflowClaimPacingDelayDuration, err = meter.Float64Histogram(
+		"eshu_dp_workflow_claim_pacing_delay_seconds",
+		metric.WithDescription("Grant delay carried by a paced claim (issue #8470)"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(workflowClaimWaitBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkflowClaimPacingDelayDuration histogram: %w", err)
+	}
+
 	tfstateClaimWaitBuckets := workflowClaimWaitBuckets
 	inst.TerraformStateClaimWaitDuration, err = meter.Float64Histogram(
 		"eshu_dp_tfstate_claim_wait_seconds",
@@ -7596,6 +7649,14 @@ func AttrTargetKind(v string) attribute.KeyValue {
 // AttrLimitKind returns a limit_kind attribute for scanner-worker metrics.
 func AttrLimitKind(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionLimitKind, v)
+}
+
+// AttrPacingSignal returns a pacing_signal attribute for claim-pacing
+// metric recording (#8470). Callers MUST pass a closed
+// workflow.ClaimPacingSignal value ("domain" or "global"), never raw depth
+// numbers, thresholds, or timestamps.
+func AttrPacingSignal(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionPacingSignal, v)
 }
 
 // AttrDomain returns a domain attribute for metric recording.
