@@ -376,10 +376,10 @@ func TestDefaultEngineParsePathTypeScriptSkipsStaticMembersOfShadowedImports(t *
 
 // TestDefaultEngineParsePathSkipsMemberKeysOfReboundImports pins the #8310
 // repros for the #8280 static member keys (ruling (B)): an import alias, a
-// using declaration, a `\u` escape, or a sloppy-mode eval var can rebind the
-// import name, so `Logger.create()` stays unkeyed. The plain `Logger()` call
-// of the same files stays unkeyed too under the #8310 plain closed rule,
-// pinned by TestDefaultEngineParsePathSkipsPlainCallsOfReboundImports.
+// using declaration, a block let, a `\u` escape, or a sloppy-mode eval var
+// can rebind the import name, so `Logger.create()` stays unkeyed. The plain
+// `Logger()` call of the same files stays unkeyed too under the #8310 plain
+// closed rule, pinned by TestDefaultEngineParsePathSkipsPlainCallsOfReboundImports.
 func TestDefaultEngineParsePathSkipsMemberKeysOfReboundImports(t *testing.T) {
 	t.Parallel()
 
@@ -390,6 +390,7 @@ func TestDefaultEngineParsePathSkipsMemberKeysOfReboundImports(t *testing.T) {
 	}{
 		{"import alias", ".ts", "namespace N {\n  import Logger = Other.Thing;\n  Logger.create();\n  Logger();\n}\n"},
 		{"using declaration", ".ts", "{\n  using Logger = res();\n  Logger.create();\n  Logger();\n}\n"},
+		{"block let", ".ts", "{\n  let Logger = other;\n  Logger.create();\n  Logger();\n}\n"},
 		{"unicode escape", ".ts", "{\n  let \\u004cogger = other;\n  Logger.create();\n  Logger();\n}\n"},
 		{"sloppy eval var", ".js", "function g() {\n  eval(\"var Logger = other\");\n  Logger.create();\n  Logger();\n}\n"},
 	} {
