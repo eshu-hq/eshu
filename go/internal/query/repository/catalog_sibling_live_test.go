@@ -17,11 +17,13 @@ import (
 )
 
 // Live positive proof for the #5385 catalog SAME_NAME sibling read
-// (CatalogWorkloadSiblingCypher). The differential B-7 corpus holds no
-// cross-repo same-name workload pair, so the sibling enrichment read is
-// always empty there; this test seeds the pair it needs and asserts the
-// exact production Cypher resolves both directions plus a negative
-// control. It runs on both live backends under the same tag (the CI
+// (CatalogWorkloadSiblingCypher). The differential B-7 corpus covers the
+// same read through its own seeded pair (#8540: jenkins-ci-pipelines'
+// deployable-config/Dockerfile names the deployable-config unit, pairing
+// SAME_NAME with the deployable-config repo's workload); this test seeds
+// the pair it needs and asserts the exact production Cypher resolves both
+// directions plus a negative control. It runs on both live backends under
+// the same tag (the CI
 // live-backend job points ESHU_NEO4J_URI at each backend in turn and exports
 // ESHU_LIVE_GRAPH_BACKEND with the per-backend ESHU_LIVE_GRAPH_DATABASE pin).
 //
