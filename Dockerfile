@@ -157,7 +157,8 @@ FROM ${ESHU_ALPINE_IMAGE} AS runtime
 
 # c-ares (a transitive libcurl dependency) is pinned to the patched build for
 # CVE-2026-33630. libexpat is likewise pinned for CVE-2026-76956 and
-# CVE-2026-76957. libssl3/libcrypto3 (pulled in transitively by curl) are
+# CVE-2026-76957, then raised to 2.9.0-r0 tracking the Alpine v3.21 served
+# version (#8505). libssl3/libcrypto3 (pulled in transitively by curl) are
 # pinned for CVE-2026-45447 (OpenSSL PKCS7_verify use-after-free, #7315),
 # then raised to 3.3.7-r2 for CVE-2026-75804 and CVE-2026-84782 (#7571).
 #
