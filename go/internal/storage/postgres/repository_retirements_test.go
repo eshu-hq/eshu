@@ -196,7 +196,7 @@ func TestPreviewRetirementCounts(t *testing.T) {
 	t.Parallel()
 
 	fake := &retirementFakeDB{
-		queryRows: [][]any{{int64(3), int64(41), int64(17), int64(9)}},
+		queryRows: [][]any{{int64(3), int64(41), int64(17), int64(9), int64(2), int64(4)}},
 	}
 	preview, err := NewRetirementStore(fake).Preview(
 		context.Background(), "git-repo-scope:test", []string{"git-repo-scope:test@main"},
@@ -205,12 +205,14 @@ func TestPreviewRetirementCounts(t *testing.T) {
 		t.Fatalf("Preview: %v", err)
 	}
 	if preview.Generations != 3 || preview.FactWorkItems != 41 ||
-		preview.ContentFiles != 17 || preview.SharedIntents != 9 {
-		t.Fatalf("preview = %+v, want 3/41/17/9", preview)
+		preview.ContentFiles != 17 || preview.SharedIntents != 9 ||
+		preview.UnroutableIntents != 2 || preview.DeadLetters != 4 {
+		t.Fatalf("preview = %+v, want 3/41/17/9/2/4", preview)
 	}
 	lookup := fake.queryQueries[0]
 	for _, want := range []string{
 		"scope_generations", "fact_work_items", "content_files", "shared_projection_intents",
+		"shared_projection_unroutable_intents", "collector_generation_dead_letters",
 	} {
 		if !strings.Contains(lookup, want) {
 			t.Fatalf("preview missing %q:\n%s", want, lookup)
@@ -263,7 +265,8 @@ func TestRetirementTombstoneRoundTripLive(t *testing.T) {
 		t.Fatalf("Preview: %v", err)
 	}
 	if preview.Generations != 0 || preview.FactWorkItems != 0 ||
-		preview.ContentFiles != 0 || preview.SharedIntents != 0 {
+		preview.ContentFiles != 0 || preview.SharedIntents != 0 ||
+		preview.UnroutableIntents != 0 || preview.DeadLetters != 0 {
 		t.Fatalf("preview on empty scope = %+v, want zeros", preview)
 	}
 }

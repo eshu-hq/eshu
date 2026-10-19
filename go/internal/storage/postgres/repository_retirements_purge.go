@@ -367,16 +367,19 @@ func deletePurgeLeftovers(
 	for _, keyed := range []struct {
 		table string
 		query string
-		arg   any
+		args  []any
 	}{
-		{"repository_reindex_requests", purgeDeleteReindexRequestsQuery, scopeIDs},
-		{"repository_selection_observations", purgeDeleteSelectionObservationsQuery, scopeIDs},
-		{"content_files", purgeDeleteContentFilesQuery, repoID},
-		{"content_entities", purgeDeleteContentEntitiesQuery, repoID},
-		{"content_file_references", purgeDeleteContentReferencesQuery, repoID},
-		{"repository_refs", purgeDeleteRepositoryRefsQuery, repoID},
+		{"repository_reindex_requests", purgeDeleteReindexRequestsQuery, []any{scopeIDs}},
+		{"repository_selection_observations", purgeDeleteSelectionObservationsQuery, []any{scopeIDs}},
+		{"content_files", purgeDeleteContentFilesQuery, []any{repoID}},
+		{"content_entities", purgeDeleteContentEntitiesQuery, []any{repoID}},
+		{"content_file_references", purgeDeleteContentReferencesQuery, []any{repoID}},
+		{"repository_refs", purgeDeleteRepositoryRefsQuery, []any{repoID}},
+		{"shared_projection_intents", purgeDeleteSharedIntentsQuery, []any{repoID, scopeIDs}},
+		{"shared_projection_unroutable_intents", purgeDeleteUnroutableIntentsQuery, []any{repoID, scopeIDs}},
+		{"collector_generation_dead_letters", purgeDeleteDeadLettersQuery, []any{scopeIDs}},
 	} {
-		deleted, err := execCount(ctx, tx, keyed.query, keyed.arg)
+		deleted, err := execCount(ctx, tx, keyed.query, keyed.args...)
 		if err != nil {
 			return ledger, fmt.Errorf("retirement purge delete %s: %w", keyed.table, err)
 		}

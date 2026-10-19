@@ -105,6 +105,11 @@ type RetirementPreview struct {
 	ContentFiles int64
 	// SharedIntents counts shared_projection_intents rows of the repository or scopes.
 	SharedIntents int64
+	// UnroutableIntents counts shared_projection_unroutable_intents rows
+	// of the repository or scopes.
+	UnroutableIntents int64
+	// DeadLetters counts collector_generation_dead_letters rows of the scopes.
+	DeadLetters int64
 }
 
 // RetirementStore owns the repository_retirements tombstone rows. It writes
@@ -226,7 +231,9 @@ func (s RetirementStore) Preview(ctx context.Context, repoID string, scopeIDs []
 		(SELECT count(*) FROM scope_generations WHERE scope_id = ANY($2)),
 		(SELECT count(*) FROM fact_work_items WHERE scope_id = ANY($2)),
 		(SELECT count(*) FROM content_files WHERE repo_id = $1),
-		(SELECT count(*) FROM shared_projection_intents WHERE repository_id = $1 OR scope_id = ANY($2))`
+		(SELECT count(*) FROM shared_projection_intents WHERE repository_id = $1 OR scope_id = ANY($2)),
+		(SELECT count(*) FROM shared_projection_unroutable_intents WHERE repository_id = $1 OR scope_id = ANY($2)),
+		(SELECT count(*) FROM collector_generation_dead_letters WHERE scope_id = ANY($2))`
 	rows, err := s.database.QueryContext(ctx, preview, repoID, scopeIDs)
 	if err != nil {
 		return RetirementPreview{}, fmt.Errorf("retirement preview: %w", err)
@@ -239,7 +246,8 @@ func (s RetirementStore) Preview(ctx context.Context, repoID string, scopeIDs []
 		return RetirementPreview{}, fmt.Errorf("retirement preview: no row returned")
 	}
 	var counts RetirementPreview
-	if err := rows.Scan(&counts.Generations, &counts.FactWorkItems, &counts.ContentFiles, &counts.SharedIntents); err != nil {
+	if err := rows.Scan(&counts.Generations, &counts.FactWorkItems, &counts.ContentFiles, &counts.SharedIntents,
+		&counts.UnroutableIntents, &counts.DeadLetters); err != nil {
 		return RetirementPreview{}, fmt.Errorf("retirement preview scan: %w", err)
 	}
 	return counts, nil

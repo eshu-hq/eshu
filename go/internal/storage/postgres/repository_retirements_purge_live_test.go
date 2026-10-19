@@ -13,6 +13,7 @@ import (
 // seedPurgeLiveScope writes one fenced repository partition: two scopes with
 // superseded and failed generations, a superseded work row per generation,
 // repo-keyed content rows, refs, scope-keyed reindex and observation rows,
+// one shared intent, one unroutable intent, and one dead letter per scope,
 // and one grant row in each of the four scope-FK grant tables. It returns
 // the partition key and scope ids.
 func seedPurgeLiveScope(t *testing.T, ctx context.Context, database *sql.DB, partition string) []string {
@@ -50,6 +51,29 @@ func seedPurgeLiveScope(t *testing.T, ctx context.Context, database *sql.DB, par
 			 state_since, state_cycle_count, evaluated_at, liveness_window_seconds)
 			VALUES ($1, 'sel-1', 'explicit', 'owner', 'selected', NOW(), 1, NOW(), 60)`, scopeID); err != nil {
 			t.Fatalf("seed selection observation %s: %v", scopeID, err)
+		}
+		if _, err := database.ExecContext(ctx, `INSERT INTO shared_projection_intents
+			(intent_id, projection_domain, partition_key, scope_id, repository_id,
+			 source_run_id, generation_id, payload, created_at)
+			VALUES ($1, 'd1', $2, $3, $2, 'run-1', $4, '{}'::jsonb, NOW())`,
+			"purge-live-intent-"+scopeID, partition, scopeID, scopeID+"-gen-old"); err != nil {
+			t.Fatalf("seed shared intent %s: %v", scopeID, err)
+		}
+		if _, err := database.ExecContext(ctx, `INSERT INTO shared_projection_unroutable_intents
+			(intent_id, projection_domain, partition_key, repository_id, scope_id,
+			 generation_id, evidence_source, reason, decided_at)
+			VALUES ($1, 'd1', $2, $2, $3, $4, 'test', 'no-route', NOW())`,
+			"purge-live-unroutable-"+scopeID, partition, scopeID, scopeID+"-gen-old"); err != nil {
+			t.Fatalf("seed unroutable intent %s: %v", scopeID, err)
+		}
+		if _, err := database.ExecContext(ctx, `INSERT INTO collector_generation_dead_letters
+			(generation_id, scope_id, collector_kind, source_system, scope_kind,
+			 partition_key, trigger_kind, failure_class, failure_message, status,
+			 first_dead_lettered_at, last_dead_lettered_at, updated_at)
+			VALUES ($1, $2, 'git_collector', 'git', 'repository', $3, 'push',
+			 'test', 'seeded', 'pending', NOW(), NOW(), NOW())`,
+			scopeID+"-gen-old", scopeID, partition); err != nil {
+			t.Fatalf("seed dead letter %s: %v", scopeID, err)
 		}
 	}
 	if _, err := database.ExecContext(ctx, `INSERT INTO content_files
@@ -181,6 +205,9 @@ func TestRetirementPurgeLive(t *testing.T) {
 		{"repository_refs", `SELECT count(*) FROM repository_refs WHERE repo_id = $1`},
 		{"repository_reindex_requests", `SELECT count(*) FROM repository_reindex_requests WHERE scope_id = ANY($1)`},
 		{"repository_selection_observations", `SELECT count(*) FROM repository_selection_observations WHERE scope_id = ANY($1)`},
+		{"shared_projection_intents", `SELECT count(*) FROM shared_projection_intents WHERE scope_id = ANY($1)`},
+		{"shared_projection_unroutable_intents", `SELECT count(*) FROM shared_projection_unroutable_intents WHERE scope_id = ANY($1)`},
+		{"collector_generation_dead_letters", `SELECT count(*) FROM collector_generation_dead_letters WHERE scope_id = ANY($1)`},
 		{"tenant_scope_grants", `SELECT count(*) FROM tenant_scope_grants WHERE scope_id = ANY($1)`},
 		{"tenant_repository_grants", `SELECT count(*) FROM tenant_repository_grants WHERE scope_id = ANY($1)`},
 		{"identity_role_scope_targets", `SELECT count(*) FROM identity_role_scope_targets WHERE scope_id = ANY($1)`},
@@ -189,6 +216,8 @@ func TestRetirementPurgeLive(t *testing.T) {
 		arg := any(partition)
 		if len(check.query) > 0 && (check.table == "scope_generations" || check.table == "fact_work_items" ||
 			check.table == "repository_reindex_requests" || check.table == "repository_selection_observations" ||
+			check.table == "shared_projection_intents" || check.table == "shared_projection_unroutable_intents" ||
+			check.table == "collector_generation_dead_letters" ||
 			check.table == "tenant_scope_grants" || check.table == "tenant_repository_grants" ||
 			check.table == "identity_role_scope_targets" || check.table == "identity_role_repository_targets") {
 			arg = scopeIDs
@@ -224,7 +253,9 @@ func TestRetirementPurgeLive(t *testing.T) {
 		"ingestion_scopes": 2, "content_files": 1, "content_entities": 1,
 		"content_file_references": 1, "repository_refs": 1,
 		"repository_reindex_requests": 2, "repository_selection_observations": 2,
-		"tenant_scope_grants": 1, "tenant_repository_grants": 1,
+		"shared_projection_intents": 2, "shared_projection_unroutable_intents": 2,
+		"collector_generation_dead_letters": 2,
+		"tenant_scope_grants":               1, "tenant_repository_grants": 1,
 		"identity_role_scope_targets": 1, "identity_role_repository_targets": 1,
 	} {
 		if ledger[table] != want {

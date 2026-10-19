@@ -55,6 +55,22 @@ const (
 	purgeDeleteContentReferencesQuery = `DELETE FROM content_file_references WHERE repo_id = $1`
 	purgeDeleteRepositoryRefsQuery    = `DELETE FROM repository_refs WHERE repo_id = $1`
 
+	// purgeDeleteIntentQueries drop the projection-intent rows, which
+	// carry no foreign key by design (plain TEXT keys, see migration 008
+	// and 098) and survive the scope cascade otherwise. The predicate
+	// matches the preview's SharedIntents count exactly, so the dry run
+	// and the ledger agree.
+	purgeDeleteSharedIntentsQuery = `DELETE FROM shared_projection_intents
+		WHERE repository_id = $1 OR scope_id = ANY($2)`
+	purgeDeleteUnroutableIntentsQuery = `DELETE FROM shared_projection_unroutable_intents
+		WHERE repository_id = $1 OR scope_id = ANY($2)`
+	// purgeDeleteDeadLettersQuery drops the collector dead letters of the
+	// purge scopes. Dead letters key on generation with no foreign key,
+	// so the scope predicate reaches exactly the generations the scope
+	// delete cascades.
+	purgeDeleteDeadLettersQuery = `DELETE FROM collector_generation_dead_letters
+		WHERE scope_id = ANY($1)`
+
 	// purgeScopeGenerationIDsQuery lists every generation of the purge
 	// scopes so the key sidecar prune covers exactly the facts the scope
 	// delete cascades. Facts are generation-scoped and every key writer
