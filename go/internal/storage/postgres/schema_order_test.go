@@ -515,4 +515,9 @@ var orderedBootstrapDefinitionNames = []string{
 	// rewritten candidate cannot serve. Nothing creates that name any
 	// more, so the drop converges once and is a no-op on every replay.
 	"workflow_work_items_claim_order_idx_drop",
+	// Migration 204 (#8469 step 2) carries the claim-class backfill 201's
+	// lock shape forbids (#7961): 201 holds only the DDL, and this file
+	// holds only the two idempotent UPDATEs, so no file holds a table lock
+	// through bulk DML.
+	"workflow_work_items_claim_class_backfill",
 }

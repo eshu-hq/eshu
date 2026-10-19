@@ -1022,7 +1022,7 @@ tests:
   - file: go/internal/storage/postgres/workflow_control_claim_class_columns_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8469 step 2 normalisation proof on real PostgreSQL: three-segment fairness keys with target class in claim_priority and the ecosystem in claim_ecosystem round-trip through enqueue and claim, the registry status surface counts rows by the real column, and migration 201 backfill classifies a legacy four-segment row; enrolled in the live-postgres-readiness runner"
+    reason: "#8469 step 2 normalisation proof on real PostgreSQL: three-segment fairness keys with target class in claim_priority and the ecosystem in claim_ecosystem round-trip through enqueue and claim, the registry status surface counts rows by the real column, and migration 204 backfill classifies a legacy four-segment row; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/workflow_control_claim_depth_live_test.go
     tag: ~

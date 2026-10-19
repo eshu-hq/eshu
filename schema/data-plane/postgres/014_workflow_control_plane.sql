@@ -204,10 +204,11 @@ ALTER TABLE workflow_claims
     ADD COLUMN IF NOT EXISTS failure_terminal BOOLEAN;
 
 -- #8469 step 2 fair-claim priority and ecosystem columns, mirroring
--- migration 201. Written once at enqueue by the schedulers and never
--- touched by the claim path. The backfill classes pre-existing backlog
--- from the old four-segment key exactly as the migration does, so
--- EnsureSchema-upgraded databases agree with migration-upgraded ones.
+-- migrations 201 (columns) and 204 (backfill). Written once at enqueue by
+-- the schedulers and never touched by the claim path. The backfill classes
+-- pre-existing backlog from the old four-segment key exactly as migration
+-- 204 does, so EnsureSchema-upgraded databases agree with
+-- migration-upgraded ones.
 ALTER TABLE workflow_work_items
     ADD COLUMN IF NOT EXISTS claim_priority INTEGER NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS claim_ecosystem TEXT NOT NULL DEFAULT '';

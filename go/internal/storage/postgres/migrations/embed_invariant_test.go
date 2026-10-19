@@ -98,18 +98,21 @@ import (
 // sequence gaps are tolerated); #8454 adds
 // 199_repository_selection_observation_classification.sql; #7840 adds
 // 200_repository_selectors.sql; #8469 adds
-// 201_workflow_work_items_claim_class_columns.sql,
-// 202_workflow_work_items_fair_claim_idx.sql and
-// 203_workflow_work_items_claim_order_idx_drop.sql (numbered 201-203: the
+// 201_workflow_work_items_claim_class_columns.sql (DDL only),
+// 202_workflow_work_items_fair_claim_idx.sql,
+// 203_workflow_work_items_claim_order_idx_drop.sql and
+// 204_workflow_work_items_claim_class_backfill.sql (the split 201's DML
+// half: no file holds a table lock through bulk DML, #7961; the lane's own
 // step-1 200_workflow_work_items_claim_order_idx.sql create is gone under
-// the 101/102 shape, so its number stays a gap; gaps are tolerated).
-const goldenBootstrapDefinitionsDigest = "0df0b593e3df2c3546d6e86f6f2da990742b887509985e5c509e9bef91d01960"
+// the 101/102 shape, so the lane holds no 200 of its own; main's 200 is
+// #7840's repository_selectors above; gaps are tolerated).
+const goldenBootstrapDefinitionsDigest = "eb16c02edae9e6f021aca00315b4a7ee0b4934b75487183de31fa5875290c48f"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 221
+const goldenBootstrapDefinitionsCount = 222
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

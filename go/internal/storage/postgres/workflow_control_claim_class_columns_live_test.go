@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8469 step 2 normalisation proof on real PostgreSQL: three-segment fairness keys with target class in claim_priority and the ecosystem in claim_ecosystem round-trip through enqueue and claim, the registry status surface counts rows by the real column, and migration 201 backfill classifies a legacy four-segment row; enrolled in the live-postgres-readiness runner
+//eshu:readiness:reason #8469 step 2 normalisation proof on real PostgreSQL: three-segment fairness keys with target class in claim_priority and the ecosystem in claim_ecosystem round-trip through enqueue and claim, the registry status surface counts rows by the real column, and migration 204 backfill classifies a legacy four-segment row; enrolled in the live-postgres-readiness runner
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (
@@ -101,7 +101,7 @@ func TestWorkflowClaimClassColumnsRoundTrip(t *testing.T) {
 	}
 }
 
-// TestWorkflowClaimClassColumnsBackfill proves migration 201 keeps
+// TestWorkflowClaimClassColumnsBackfill proves migration 204 keeps
 // pre-normalisation backlog classed: a legacy four-segment row inserted at
 // column defaults is invisible to the ecosystem status surface until the
 // migration's own backfill UPDATEs run, and classified after. The UPDATEs
@@ -147,9 +147,9 @@ func TestWorkflowClaimClassColumnsBackfill(t *testing.T) {
 		}
 	}
 
-	raw, err := os.ReadFile("migrations/201_workflow_work_items_claim_class_columns.sql")
+	raw, err := os.ReadFile("migrations/204_workflow_work_items_claim_class_backfill.sql")
 	if err != nil {
-		t.Fatalf("read migration 201: %v", err)
+		t.Fatalf("read migration 204: %v", err)
 	}
 	applied := 0
 	for _, stmt := range strings.Split(string(raw), ";") {
@@ -158,12 +158,12 @@ func TestWorkflowClaimClassColumnsBackfill(t *testing.T) {
 			continue
 		}
 		if _, err := database.ExecContext(ctx, trimmed); err != nil {
-			t.Fatalf("apply migration 201 backfill: %v", err)
+			t.Fatalf("apply migration 204 backfill: %v", err)
 		}
 		applied++
 	}
 	if applied != 2 {
-		t.Fatalf("applied %d backfill UPDATEs from migration 201, want 2", applied)
+		t.Fatalf("applied %d backfill UPDATEs from migration 204, want 2", applied)
 	}
 
 	granted, _, found, err := store.ClaimNextEligible(ctx, workflow.ClaimSelector{
