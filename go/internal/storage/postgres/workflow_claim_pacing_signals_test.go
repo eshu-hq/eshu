@@ -275,6 +275,44 @@ func TestClaimPacingSignalsStuckEngagement(t *testing.T) {
 	}
 }
 
+func TestClaimPacingSignalsHandoffDomainToGlobal(t *testing.T) {
+	cfg := pacingSignalsTestConfig()
+	store, reader := newPacingSignalsStore(t)
+	const domainKey = "git/test-instance"
+	prior := workflow.ClaimPacingLatch{Engaged: true, Signal: workflow.ClaimPacingSignalDomain}
+
+	// A domain-engaged latch draining to the release watermark while the
+	// global ceiling is hot must hand off: domain active drops, global
+	// engages with no domain label, and the delay rides the global attrs.
+	// A regression dropping either side of the handoff stays loud.
+	decision := decideAndRecord(cfg,
+		workflow.ClaimPacingDepths{Domain: 4, Global: 500},
+		prior, 0, store, domainKey)
+	if !decision.Paced || decision.Signal != workflow.ClaimPacingSignalGlobal {
+		t.Fatalf("DecideClaimPacing() = %+v, want paced on the global signal", decision)
+	}
+
+	active := pacingSignalPoints(t, reader, pacingSignalsActiveMetric)
+	if got, ok := active["domain"]; !ok || got.value != -1 {
+		t.Fatalf("active{domain} = %+v, want -1 for the released domain side", active)
+	}
+	engaged := pacingSignalPoints(t, reader, pacingSignalsEngagedMetric)
+	got, ok := engaged["global"]
+	if !ok || got.value != 1 {
+		t.Fatalf("engaged_total{global} = %+v, want 1", engaged)
+	}
+	if got.domain != "<none>" {
+		t.Fatalf("engaged_total{global} carries domain = %q, want no domain label", got.domain)
+	}
+	if got, ok := active["global"]; !ok || got.value != 1 {
+		t.Fatalf("active{global} = %+v, want +1", active)
+	}
+	delay := pacingSignalPoints(t, reader, pacingSignalsDelayMetric)
+	if got, ok := delay["global"]; !ok || got.count != 1 || got.domain != "<none>" {
+		t.Fatalf("delay_seconds{global} = %+v, want one delay with no domain label", delay)
+	}
+}
+
 func TestClaimPacingSignalsGlobalCeilingCarriesNoDomain(t *testing.T) {
 	cfg := pacingSignalsTestConfig()
 	store, reader := newPacingSignalsStore(t)
