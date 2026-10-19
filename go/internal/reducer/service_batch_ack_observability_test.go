@@ -9,6 +9,7 @@ import (
 	"errors"
 	"log/slog"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -42,11 +43,50 @@ func (s *observingBatchSink) Fail(context.Context, reducercontract.Intent, error
 	return nil
 }
 
-type cancelingBatchExecutor struct{ cancel context.CancelFunc }
+// cancelGatedBatchWorkSource blocks its first ClaimBatch until the run context
+// ends, then hands back the staged intents once: the claim deterministically
+// lands after the cancel signal, so the test proves the no-success-after-cancel
+// contract without racing the scheduler. Cancelling from inside Execute instead
+// races the handler-completion select in executeHandler and can abandon an
+// already-succeeded item into Fail (flake #8623).
+type cancelGatedBatchWorkSource struct {
+	mu       sync.Mutex
+	intents  []reducercontract.Intent
+	entered  chan struct{}
+	signaled bool
+	returned bool
+}
 
-func (e cancelingBatchExecutor) Execute(_ context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
-	e.cancel()
-	return reducercontract.Result{IntentID: intent.IntentID, Domain: intent.Domain, Status: ResultStatusSucceeded}, nil
+func (f *cancelGatedBatchWorkSource) Claim(ctx context.Context) (reducercontract.Intent, bool, error) {
+	<-ctx.Done()
+	return reducercontract.Intent{}, false, nil
+}
+
+func (f *cancelGatedBatchWorkSource) ClaimBatch(ctx context.Context, limit int) ([]reducercontract.Intent, error) {
+	f.mu.Lock()
+	if !f.signaled {
+		f.signaled = true
+		close(f.entered)
+	}
+	f.mu.Unlock()
+
+	<-ctx.Done()
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.returned {
+		return nil, nil
+	}
+	f.returned = true
+	if limit < len(f.intents) {
+		batch := make([]reducercontract.Intent, limit)
+		copy(batch, f.intents[:limit])
+		f.intents = f.intents[limit:]
+		return batch, nil
+	}
+	batch := f.intents
+	f.intents = nil
+	return batch, nil
 }
 
 func batchTelemetry(t *testing.T) (*telemetry.Instruments, *metric.ManualReader) {
@@ -154,10 +194,12 @@ func TestServiceBatchCanceledBeforeEnqueueHasNoSuccess(t *testing.T) {
 	instruments, reader := batchTelemetry(t)
 	sink := &observingBatchSink{}
 	var logs bytes.Buffer
+	source := &cancelGatedBatchWorkSource{intents: makeTestIntents(1), entered: make(chan struct{})}
+	executor := &countingExecutor{}
 	service := Service{
 		PollInterval:   time.Millisecond,
-		WorkSource:     &fakeBatchWorkSource{intents: makeTestIntents(1)},
-		Executor:       cancelingBatchExecutor{cancel: cancel},
+		WorkSource:     source,
+		Executor:       executor,
 		WorkSink:       sink,
 		Workers:        2,
 		BatchClaimSize: 1,
@@ -167,6 +209,15 @@ func TestServiceBatchCanceledBeforeEnqueueHasNoSuccess(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() { done <- service.runMainLoop(ctx) }()
+	// Wait until the claimer is blocked inside ClaimBatch, then fire the
+	// cancel: the claim deterministically lands after shutdown, so the
+	// claimer must gate it instead of racing the workers (#8623).
+	select {
+	case <-source.entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("claimer did not enter ClaimBatch")
+	}
+	cancel()
 	select {
 	case err := <-done:
 		if err != nil {
@@ -177,6 +228,9 @@ func TestServiceBatchCanceledBeforeEnqueueHasNoSuccess(t *testing.T) {
 	}
 	if sink.ackCalls != 0 || sink.failCalls != 0 {
 		t.Fatalf("AckBatch calls = %d, Fail calls = %d, want zero", sink.ackCalls, sink.failCalls)
+	}
+	if got := executor.count.Load(); got != 0 {
+		t.Fatalf("executor calls = %d, want zero: a batch claimed after cancel must never execute", got)
 	}
 	counts, rm := batchMetricStatusCounts(t, reader)
 	if counts["ack_outcome_unknown"] != 1 || len(counts) != 1 {
