@@ -91,6 +91,7 @@ func (s *WorkflowControlStore) CheckClaimPacing(
 	if err != nil {
 		return workflow.ClaimPacingDecision{}, fmt.Errorf("claim pacing depths: %w", err)
 	}
+	s.recordClaimPacingDepths(ctx, domainKey, depths)
 	latch, err := s.claimPacingLatch(ctx, domainKey)
 	if err != nil {
 		return workflow.ClaimPacingDecision{}, fmt.Errorf("claim pacing latch: %w", err)
@@ -184,6 +185,28 @@ func (s *WorkflowControlStore) recordClaimPacing(
 	if inst.WorkflowClaimPacingDelayDuration != nil {
 		inst.WorkflowClaimPacingDelayDuration.Record(ctx, decision.RetryAfter.Seconds(), attrs)
 	}
+}
+
+// recordClaimPacingDepths exposes the depth observation behind one pacing
+// verdict: the claiming family's pending depth with the domain label and
+// the system-wide pending depth without it, following the pacing series
+// convention that the global ceiling carries no domain label. Nil
+// instruments are a no-op, so binaries without a wired meter provider are
+// unaffected.
+func (s *WorkflowControlStore) recordClaimPacingDepths(
+	ctx context.Context,
+	domainKey string,
+	depths workflow.ClaimPacingDepths,
+) {
+	if s.Instruments == nil {
+		return
+	}
+	gauge := s.Instruments.WorkflowClaimPacingDepthPending
+	if gauge == nil {
+		return
+	}
+	gauge.Record(ctx, depths.Domain, metric.WithAttributes(telemetry.AttrDomain(domainKey)))
+	gauge.Record(ctx, depths.Global)
 }
 
 // claimPacingMetricAttrs labels a pacing signal with its closed signal name

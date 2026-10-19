@@ -75,12 +75,14 @@ FAIR_CLAIM_TOTAL='eshu_dp_workflow_fair_claims_total'
 FAIRNESS_KEY_DEPTH='eshu_dp_workflow_fairness_key_depth'
 FAIRNESS_KEY_COUNT='eshu_dp_workflow_fairness_key_count'
 
-# Claim pacing (#8470): latch engagements, whether pacing is on now, stuck
-# engagements, and the grant delay paced claims carry.
+# Claim pacing (#8470, depth #8472): latch engagements, whether pacing is
+# on now, stuck engagements, the grant delay paced claims carry, and the
+# pending depth behind each consult.
 PACING_ENGAGED_TOTAL='eshu_dp_workflow_claim_pacing_engaged_total'
 PACING_ACTIVE='eshu_dp_workflow_claim_pacing_active'
 PACING_STUCK_TOTAL='eshu_dp_workflow_claim_pacing_stuck_total'
 PACING_DELAY='eshu_dp_workflow_claim_pacing_delay_seconds'
+PACING_DEPTH_PENDING='eshu_dp_workflow_claim_pacing_depth_pending'
 
 # Workload materialization's stale repository-edge retract (#7285). Ordinary
 # workload or endpoint removal, kept off COLLECTOR_RECONCILIATION_DRIFT.
@@ -106,4 +108,4 @@ COLLECTOR_RECONCILIATION_DRIFT COLLECTOR_RECONCILIATION_CONVERGENCE \
 COLLECTOR_BACKPRESSURE COLLECTOR_RETRIES COLLECTOR_DEAD_LETTER \
 WORKLOAD_REPOSITORY_EDGE_RETRACTIONS FAIR_CLAIM_TOTAL FAIRNESS_KEY_DEPTH \
 FAIRNESS_KEY_COUNT PACING_ENGAGED_TOTAL PACING_ACTIVE PACING_STUCK_TOTAL \
-PACING_DELAY"
+PACING_DELAY PACING_DEPTH_PENDING"

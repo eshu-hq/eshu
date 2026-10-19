@@ -3,7 +3,7 @@
 Claim issuance paces grants when queue depth grows (#8470): per-domain
 pending depth first, with global pending depth as the ceiling, under one
 hysteresis latch. A paced grant issues no claim; the runner waits out the
-grant delay and claims again. Four signals make the throttle legible at
+grant delay and claims again. Five signals make the throttle legible at
 3 AM.
 
 `pacing_signal` and `domain` are pacing-series labels, not the
@@ -28,6 +28,11 @@ global ceiling carries no `domain` label.
 - `eshu_dp_workflow_claim_pacing_delay_seconds` — histogram of the grant
   delay a paced claim carries, labeled `pacing_signal` and, for the domain
   signal, `domain`.
+- `eshu_dp_workflow_claim_pacing_depth_pending` — gauge of the pending
+  depth behind one pacing consult (#8472): the claiming family's depth with
+  the `domain` label, the system-wide depth without it. Recorded from the
+  same observation that feeds the verdict, so the depth that tripped the
+  latch is visible next to the engagement.
 
 Without these, a paced system is indistinguishable from a slow one:
 throughput drops and every component-side metric looks healthy. A failed
@@ -40,3 +45,8 @@ The active gauge is process-local: after a restart it starts at 0, so a
 release with no matching engagement in this process reads -1 until the next
 transition. Latch truth stays correct in the shared row; only the gauge
 needs one transition to converge.
+
+Per-component quota throttle signals (`quota_exceeded`, floor-rate
+fallback) are not pacing signals: they belong to #8471, merged in #8557
+and documented in [Claim Quota Signals](claim-quotas.md). They share the
+`collector.claimed_run` coverage row with the pacing series above.
