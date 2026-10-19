@@ -5,15 +5,72 @@ package semantic
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	projfailure "github.com/eshu-hq/eshu/go/internal/projector/failure"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
+
+// truncateSemanticUIDsForReport bounds an unmatched-uid list for logs and
+// error messages. Shared by the WARN site and the failure constructor so the
+// two signals always name the same prefix with the same overflow count.
+func truncateSemanticUIDsForReport(uids []string) (shown []string, truncated int) {
+	shown = uids
+	if len(uids) > maxSemanticUnmatchedUIDsLogged {
+		shown = uids[:maxSemanticUnmatchedUIDsLogged]
+		truncated = len(uids) - maxSemanticUnmatchedUIDsLogged
+	}
+	return shown, truncated
+}
+
+// semanticEntityIdentityDivergentError is the non-retryable work-item failure
+// for admitted rows that matched no canonical node identity (#8587). Its
+// explicit Retryable() reports false, so the queue dead-letters the item
+// once instead of retry-looping. That is the poison-pill guard: an
+// identity-divergent uid can never heal on retry — the projector provably
+// never derives it — so any retry is pure waste. FailureClass reports the
+// projection_bug triage class so the telemetry failure_class attribute agrees
+// with the durable dead-letter row (ClassifyFailure defaults plain errors to
+// the same bucket) and the drain keeps refusing the row as manual-review
+// poison. The message names the bounded uid list and the matched count so an
+// operator can see the matched rows already landed and only the named uids
+// need a derivation fix.
+type semanticEntityIdentityDivergentError struct {
+	message string
+}
+
+func (e *semanticEntityIdentityDivergentError) Error() string { return e.message }
+
+func (e *semanticEntityIdentityDivergentError) FailureClass() string {
+	return string(projfailure.TriageClassProjectionBug)
+}
+
+// Retryable reports that an identity-divergent uid is terminal: the
+// projector provably never derives it, so replaying the item unchanged can
+// never succeed and it must dead-letter, not re-enter the queue. Explicit
+// rather than relying on the IsRetryable default, matching FactDecodeError,
+// so the poison-pill reasoning stays visible on the type if retry semantics
+// ever change.
+func (e *semanticEntityIdentityDivergentError) Retryable() bool {
+	return false
+}
+
+func newSemanticEntityIdentityDivergentError(writeResult EntityWriteResult) error {
+	uids := writeResult.UnmatchedEntityIDs
+	shown, truncated := truncateSemanticUIDsForReport(uids)
+	return &semanticEntityIdentityDivergentError{
+		message: fmt.Sprintf(
+			"semantic entity rows matched no canonical node identity: %d unmatched (uids=%v truncated=%d, %d matched already landed)",
+			len(uids), shown, truncated, countSemanticMatchedRows(writeResult.RowsMatchedByLabel),
+		),
+	}
+}
 
 func collectSemanticMetadata(payload map[string]any) map[string]any {
 	metadata := cloneAnyMap(payloadcore.PayloadMap(payload, "entity_metadata"))
@@ -388,24 +445,17 @@ func countSemanticMatchedRows(matchedByLabel map[string]int) int {
 }
 
 // logSemanticEntityUnmatchedUIDs WARNs on admitted rows that matched no
-// canonical node identity (#8359). It is deliberately not an error:
-// projector-to-reducer ordering is not proven total, so a miss can be a race
-// rather than a defect, and failing the work item would turn that race into
-// a poison-pill retry. The WARN plus the completion record's attempted-vs-
-// matched counts keep a systematic divergence (a parser uid that never equals
-// the projector's derivation) from normalizing into a silent drop.
+// canonical node identity (#8359). The WARN stays as the operator-facing
+// signal; Handle additionally fails the work item (#8587) because unmatched
+// uids are deterministic, never races — see semanticEntityIdentityDivergentError.
+
 func logSemanticEntityUnmatchedUIDs(
 	ctx context.Context,
 	intent reducercontract.Intent,
 	writeResult EntityWriteResult,
 ) {
 	uids := writeResult.UnmatchedEntityIDs
-	shown := uids
-	truncated := 0
-	if len(uids) > maxSemanticUnmatchedUIDsLogged {
-		shown = uids[:maxSemanticUnmatchedUIDsLogged]
-		truncated = len(uids) - maxSemanticUnmatchedUIDsLogged
-	}
+	shown, truncated := truncateSemanticUIDsForReport(uids)
 	slog.WarnContext(
 		ctx, "semantic entity rows matched no canonical node",
 		log.ScopeID(intent.ScopeID),

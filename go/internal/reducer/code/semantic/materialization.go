@@ -53,7 +53,7 @@ type EntityWriteResult struct {
 	// exists by construction or by derivation agreement (see cypher's
 	// verifySemanticEntityMatchIdentities, #8359). A MATCH-owned row whose uid
 	// is not the projector's derivation can no-op silently, so the handler
-	// WARNs on the difference without failing the work item.
+	// WARNs on the difference and fails the work item non-retryably (#8587).
 	RowsAttemptedByLabel map[string]int
 	RowsMatchedByLabel   map[string]int
 	// UnmatchedEntityIDs names admitted rows that matched no canonical node
@@ -174,10 +174,22 @@ func (h Handler) Handle(
 		summary = fmt.Sprintf("retracted semantic entities across %d repositories", len(repoIDs))
 	}
 
-	if len(writeResult.UnmatchedEntityIDs) > 0 {
+	// Identity-divergent rows fail the work item (#8587). Unmatched uids
+	// are deterministic, never races: the projector provably never derives
+	// that uid (canonical projection writes synchronously before this
+	// domain's intent is enqueued), so no retry can heal them. The error
+	// type's explicit Retryable() reports false and it reports the
+	// projection_bug triage class, so the queue dead-letters the item
+	// once as manual-review poison instead of retry-looping it. Matched
+	// rows already landed; the counts say how many.
+	unmatched := len(writeResult.UnmatchedEntityIDs) > 0
+	if unmatched {
 		logSemanticEntityUnmatchedUIDs(ctx, intent, writeResult)
 	}
 
+	// The completion record emits on the failure path too: dashboards keyed
+	// on it must not go blind on exactly the poison-pill cases, and the
+	// attempted-vs-matched counts are the operator's proof of what landed.
 	logSemanticEntityMaterializationCompleted(ctx, semanticEntityMaterializationTiming{
 		intent:                  intent,
 		factCount:               len(envelopes),
@@ -187,6 +199,7 @@ func (h Handler) Handle(
 		rowsAttemptedByLabel:    writeResult.RowsAttemptedByLabel,
 		rowsMatchedByLabel:      writeResult.RowsMatchedByLabel,
 		unmatchedUIDCount:       len(writeResult.UnmatchedEntityIDs),
+		failed:                  unmatched,
 		skipRetract:             skipRetract,
 		deltaProjection:         deltaScope.Delta,
 		deltaFileCount:          len(deltaScope.FilePaths),
@@ -197,6 +210,10 @@ func (h Handler) Handle(
 		phasePublishDuration:    phasePublishDuration,
 		totalDuration:           time.Since(totalStart),
 	})
+
+	if unmatched {
+		return reducercontract.Result{}, newSemanticEntityIdentityDivergentError(writeResult)
+	}
 
 	return reducercontract.Result{
 		IntentID:        intent.IntentID,
@@ -218,6 +235,7 @@ type semanticEntityMaterializationTiming struct {
 	rowsAttemptedByLabel    map[string]int
 	rowsMatchedByLabel      map[string]int
 	unmatchedUIDCount       int
+	failed                  bool
 	skipRetract             bool
 	deltaProjection         bool
 	deltaFileCount          int
@@ -247,6 +265,7 @@ func logSemanticEntityMaterializationCompleted(
 		slog.Any("rows_attempted_by_label", timing.rowsAttemptedByLabel),
 		slog.Any("rows_matched_by_label", timing.rowsMatchedByLabel),
 		slog.Int("unmatched_uid_count", timing.unmatchedUIDCount),
+		slog.Bool("failed", timing.failed),
 		slog.Bool("skip_retract", timing.skipRetract),
 		slog.Bool("delta_projection", timing.deltaProjection),
 		slog.Int("delta_file_count", timing.deltaFileCount),

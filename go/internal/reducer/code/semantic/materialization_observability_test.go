@@ -6,6 +6,8 @@ package semantic
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -129,7 +131,7 @@ func TestSemanticEntityMaterializationHandlerWarnsOnUnmatchedUIDs(t *testing.T) 
 		Writer:     writer,
 	}
 
-	result, err := handler.Handle(context.Background(), reducercontract.Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "generation-1",
@@ -139,11 +141,11 @@ func TestSemanticEntityMaterializationHandlerWarnsOnUnmatchedUIDs(t *testing.T) 
 		EnqueuedAt:   time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
 		AvailableAt:  time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
 	})
-	if err != nil {
-		t.Fatalf("Handle() error = %v, want nil", err)
-	}
-	if strings.Contains(result.EvidenceSummary, "materialized 1 semantic entities") {
-		t.Errorf("EvidenceSummary = %q, must not call admitted rows materialized", result.EvidenceSummary)
+	// #8587 supersedes the WARN-only contract: unmatched uids are
+	// deterministic identity divergences, so Handle fails non-retryably. The
+	// WARN stays as the operator-facing signal alongside the failure.
+	if err == nil {
+		t.Fatalf("Handle() error = nil, want non-retryable identity-divergence failure")
 	}
 
 	logText := logs.String()
@@ -153,10 +155,116 @@ func TestSemanticEntityMaterializationHandlerWarnsOnUnmatchedUIDs(t *testing.T) 
 		`"unmatched_uid_count":1`,
 		`"rows_attempted_by_label":{"Function":1}`,
 		`"rows_matched_by_label":{"Function":0}`,
+		// #8587 owner P2: the completion record emits on the failure path
+		// with failed=true so log queries cannot mistake dead-lettered
+		// items for successes.
+		`"msg":"semantic entity materialization completed"`,
+		`"failed":true`,
 	} {
 		if !strings.Contains(logText, want) {
 			t.Fatalf("logs missing %s:\n%s", want, logText)
 		}
+	}
+}
+
+// TestSemanticEntityMaterializationHandlerFailsOnIdentityDivergentUIDs is the
+// seeded RED for #8587: unmatched uids are deterministic, never races (the
+// projector provably never derives that uid, and the writer's verify is pure
+// Go over row identities — no backend race can explain a miss). Handle must
+// fail the work item with a non-retryable error naming the uids (bounded) so
+// the queue dead-letters it once instead of retry-looping a poison pill.
+func TestSemanticEntityMaterializationHandlerFailsOnIdentityDivergentUIDs(t *testing.T) {
+	loader := &fakeSemanticEntityFactLoader{
+		envelopes: []facts.Envelope{
+			{
+				FactKind: "content_entity",
+				SourceRef: facts.Ref{
+					SourceURI: "/repo/src/app.js",
+				},
+				Payload: map[string]any{
+					"repo_id":       "repo-1",
+					"entity_id":     "function-1",
+					"relative_path": "src/app.js",
+					"entity_type":   "Function",
+					"entity_name":   "getTab",
+					"language":      "javascript",
+					"method_kind":   "getter",
+				},
+			},
+		},
+	}
+	writer := &recordingSemanticEntityWriter{
+		result: EntityWriteResult{
+			CanonicalWrites:      1,
+			RowsAttemptedByLabel: map[string]int{"Function": 1},
+			RowsMatchedByLabel:   map[string]int{"Function": 0},
+			UnmatchedEntityIDs:   []string{"content-entity:sec-py-func"},
+		},
+	}
+
+	handler := Handler{
+		FactLoader: loader,
+		Writer:     writer,
+	}
+
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
+		IntentID:     "intent-1",
+		ScopeID:      "scope-1",
+		GenerationID: "generation-1",
+		SourceSystem: "git",
+		Domain:       reducercontract.DomainSemanticEntityMaterialization,
+		Status:       reducercontract.IntentStatusClaimed,
+		EnqueuedAt:   time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
+		AvailableAt:  time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
+	})
+	if err == nil {
+		t.Fatalf("Handle() error = nil, want non-retryable failure naming the unmatched uid")
+	}
+	if !strings.Contains(err.Error(), "content-entity:sec-py-func") {
+		t.Errorf("Handle() error = %q, must name the unmatched uid", err.Error())
+	}
+	if reducercontract.IsRetryable(err) {
+		t.Errorf("Handle() error is retryable; an identity-divergent uid can never heal on retry (poison pill)")
+	}
+	var classified interface{ FailureClass() string }
+	if !errors.As(err, &classified) {
+		t.Fatalf("Handle() error %T carries no FailureClass(); telemetry would log reducer_failure instead of projection_bug", err)
+	}
+	if classified.FailureClass() != "projection_bug" {
+		t.Errorf("Handle() error FailureClass() = %q, want projection_bug (manual-review poison bucket)", classified.FailureClass())
+	}
+}
+
+// TestSemanticEntityIdentityDivergentErrorTruncatesUIDs pins the P3 bound:
+// past maxSemanticUnmatchedUIDsLogged uids the message names the capped
+// prefix and reports the overflow count instead of growing unbounded.
+func TestSemanticEntityIdentityDivergentErrorTruncatesUIDs(t *testing.T) {
+	uids := make([]string, 0, maxSemanticUnmatchedUIDsLogged+2)
+	for i := 0; i < maxSemanticUnmatchedUIDsLogged+2; i++ {
+		uids = append(uids, fmt.Sprintf("uid-%d", i))
+	}
+	err := newSemanticEntityIdentityDivergentError(EntityWriteResult{
+		RowsAttemptedByLabel: map[string]int{"Function": len(uids)},
+		RowsMatchedByLabel:   map[string]int{},
+		UnmatchedEntityIDs:   uids,
+	})
+	if err == nil {
+		t.Fatalf("newSemanticEntityIdentityDivergentError() = nil, want failure")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "uid-0") {
+		t.Errorf("error message = %q, must name the capped uid prefix", msg)
+	}
+	for _, overflow := range []string{
+		fmt.Sprintf("uid-%d", maxSemanticUnmatchedUIDsLogged),
+		fmt.Sprintf("uid-%d", maxSemanticUnmatchedUIDsLogged+1),
+	} {
+		if strings.Contains(msg, overflow+" ") || strings.Contains(msg, overflow+"]") {
+			t.Errorf("error message = %q, must not name overflow %s", msg, overflow)
+		}
+	}
+	if !strings.Contains(msg, "truncated=2") {
+		t.Errorf("error message = %q, must report truncated=2", msg)
 	}
 }
 
