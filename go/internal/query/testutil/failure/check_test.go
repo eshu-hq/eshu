@@ -147,8 +147,17 @@ func TestEveryAssertionHasOneWrongSample(t *testing.T) {
 // shows up as an extra violation. Not parallel: it swaps probeTracer.
 func TestCheckCatchesEachWrongSampleOnItsAssertionOnly(t *testing.T) {
 	for _, sample := range wrongSamples {
-		suite := probeSuite(true, sample.sibling, sample.respond)
+		suite := probeSuite(!sample.spanless, sample.sibling, sample.respond)
 		suite.Routes[0].PlainDetail = true
+		if sample.faultStatus != 0 {
+			suite.Routes[0].FaultStatus = sample.faultStatus
+		}
+		if sample.stage != nil {
+			suite.Routes[0].Stage = sample.stage
+		}
+		if sample.spanName != "" {
+			suite.Routes[0].HandlerSpanName = sample.spanName
+		}
 		violated := violations(t, suite)
 		if !violated[sample.assertion] {
 			t.Errorf("sample for %q violated %v; want it caught by %q", sample.assertion, violated, sample.assertion)

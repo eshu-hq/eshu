@@ -27,6 +27,14 @@
 // the building blocks for a route test that needs one request and its body
 // text, such as a 400 or 404 sentinel check.
 //
+// Routes that legitimately answer differently set a Route option: FaultStatus
+// for faults that answer a status other than 500, NoFence for a write path
+// with no reader fence to map, CancelMessage for a cancel that surfaces at
+// an earlier step, HandlerSpanName for a step whose handler span carries a
+// fixed telemetry name, Stage for a step whose stage-log verdict is part of its
+// contract, and PlainDetail for a family whose fixed message is always a
+// plain detail body.
+//
 // The parent testutil contract applies: helpers live in ordinary non-test
 // files, nothing here is production behavior, and no non-test file under
 // internal/query may import this package (internal/queryplan's production

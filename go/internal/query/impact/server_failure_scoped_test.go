@@ -26,7 +26,7 @@ func TestImpactScopedOwnershipChecksAnswerFixedServerFailures(t *testing.T) {
 	}
 	runImpactFailureRoutes(t, []impactFailureRoute{
 		{
-			name: "scoped resource to code ownership", path: traceRoute,
+			name: "scoped resource to code ownership", path: traceRoute, ownSpan: true,
 			body: `{"start":"cr-a"}`, message: resourceToCodeOwnershipFailedMessage,
 			handler: func(err error) *Handler {
 				return failAfter("(repo:Repository)", &twoTenantGraph{tracePaths: traceFixturePaths()})(err)

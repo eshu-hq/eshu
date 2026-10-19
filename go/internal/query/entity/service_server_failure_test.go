@@ -5,22 +5,14 @@ package entity
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"go.opentelemetry.io/otel/codes"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/failure"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
-	"github.com/eshu-hq/eshu/go/internal/query/tracing"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // Service-route stages a server failure can come from.
@@ -110,77 +102,10 @@ func TestServiceRoutesServerFailureAnswersFixedMessage(t *testing.T) {
 		{"/api/v0/services/api/story", serviceFailCICD, serviceStoryCICDEvidenceFailedMessage},
 		{"/api/v0/services/api/story", serviceFailSupply, serviceStorySupplyChainFailedMessage},
 	}
-	cases := []struct {
-		name       string
-		err        error
-		cancel     bool
-		wantStatus int
-	}{
-		{"backend failure", errors.New("private neo4j: connection reset by 10.0.0.7"), false, http.StatusInternalServerError},
-		{"reader stale", fmt.Errorf("private read store: %w", db.ErrReaderStale), false, http.StatusServiceUnavailable},
-		{"client cancel", fmt.Errorf("private read store: %w", context.Canceled), true, querycontract.StatusClientClosedRequest},
-	}
+	routes := make([]failure.Route, 0, len(sites))
 	for _, site := range sites {
-		for _, tc := range cases {
-			t.Run(site.route+"/"+site.stage+"/"+tc.name, func(t *testing.T) {
-				t.Parallel()
-
-				recorder := tracetest.NewSpanRecorder()
-				provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
-				t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
-				ctx, span := provider.Tracer("service-server-failure-test").Start(context.Background(), "request")
-				ctx, cancel := context.WithCancel(ctx)
-				defer cancel()
-				if tc.cancel {
-					cancel()
-				}
-
-				mux := http.NewServeMux()
-				serviceFailureHandler(site.stage, tc.err).Mount(mux)
-				rec := httptest.NewRecorder()
-				mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, site.route, nil).WithContext(ctx))
-				span.End()
-
-				assertServiceServerFailure(t, rec, recorder.Ended(), site.message, tc.wantStatus, tc.cancel)
-			})
-		}
+		routes = append(routes, entityFailureRoute(site.route+"/"+site.stage, http.MethodGet, site.route, "", site.message,
+			func(err error) *Handler { return serviceFailureHandler(site.stage, err) }))
 	}
-}
-
-func assertServiceServerFailure(t *testing.T, rec *httptest.ResponseRecorder, ended []sdktrace.ReadOnlySpan, message string, wantStatus int, wantCanceled bool) {
-	t.Helper()
-	body := rec.Body.String()
-	if rec.Code != wantStatus {
-		t.Fatalf("status = %d, want %d; body = %s", rec.Code, wantStatus, body)
-	}
-	if strings.Contains(body, "private") {
-		t.Fatalf("body leaked the backend error text: %s", body)
-	}
-	if wantStatus == http.StatusServiceUnavailable {
-		if rec.Header().Get("Retry-After") == "" {
-			t.Fatal("reader fence 503 is missing Retry-After")
-		}
-	} else if !strings.Contains(body, message) {
-		t.Fatalf("body = %s, want the fixed %q", body, message)
-	}
-	if len(ended) != 1 {
-		t.Fatalf("ended spans = %d, want 1", len(ended))
-	}
-	wantError := wantStatus == http.StatusInternalServerError
-	hasException, hasCanceled := false, false
-	for _, event := range ended[0].Events() {
-		hasException = hasException || event.Name == "exception"
-		hasCanceled = hasCanceled || event.Name == tracing.ClientCanceledEvent
-	}
-	status := ended[0].Status()
-	if (status.Code == codes.Error) != wantError || hasException != wantError {
-		t.Fatalf("span status = %v (%q), exception recorded = %v; want error recorded = %v",
-			status.Code, status.Description, hasException, wantError)
-	}
-	if wantError && status.Description != message {
-		t.Fatalf("span status description = %q, want the fixed %q", status.Description, message)
-	}
-	if hasCanceled != wantCanceled {
-		t.Fatalf("%s event recorded = %v, want %v", tracing.ClientCanceledEvent, hasCanceled, wantCanceled)
-	}
+	runEntityFailureRoutes(t, routes)
 }

@@ -114,9 +114,43 @@ type Route struct {
 	// message as a plain {"detail": ...} body. Without it either body shape
 	// passes, as Message reads both.
 	PlainDetail bool
+	// FaultStatus, when non-zero, is the status a Fault and an InnerCancel
+	// answer instead of 500: a route whose faults are operational 503s, such
+	// as a code-evidence read or a configuration-state sentinel, names 503
+	// here. The ReaderFence verdict is unchanged.
+	FaultStatus int
+	// CancelMessage, when non-empty, is the body message a ClientCancel
+	// answers instead of Message: a multi-step route whose cancel surfaces
+	// at an earlier step names that step's message here.
+	CancelMessage string
+	// NoFence marks a write path with no reader fence to map: a stale-reader
+	// error there is an ordinary server fault, so the ReaderFence case is
+	// checked as a Fault.
+	NoFence bool
+	// Stage, when non-nil, checks the handler's stage-log verdict for the
+	// step under test: one stage_failed line for a fault, one
+	// stage_canceled line for a client cancel, and no stage line for a
+	// mapped fence verdict.
+	Stage *StageLog
+	// HandlerSpanName, when non-empty, pins the telemetry name of the
+	// handler span the step opens: a handler that answers under a wrong or
+	// renamed span name fails. Empty means the name is not checked.
+	HandlerSpanName string
 	// Scope, when set, decorates the request context, for example with a
 	// scoped auth grant.
 	Scope func(context.Context) context.Context
+}
+
+// StageLog pins the stage-log verdict a step's handler writes beside its
+// fixed-message answer.
+type StageLog struct {
+	// Operation and Stage are the stage event's operation and stage.
+	Operation string
+	Stage     string
+	// Logs returns the case just served split into its stage_failed and
+	// stage_canceled records. The route's Handler resets its log capture on
+	// every call, so each call sees one case's records.
+	Logs func() (failed, canceled []map[string]any)
 }
 
 // Suite is one package's set of converted routes.
