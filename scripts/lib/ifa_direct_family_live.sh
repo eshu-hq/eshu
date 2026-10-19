@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# Live-gate drive/assert callbacks for the ten DIRECT-materialization families
+# Live-gate drive/assert callbacks for the DIRECT-materialization families below
 # (#6228; #8359 for the last): kubernetes_namespace_environment,
 # iam_instance_profile_role, iam_can_assume, iam_can_perform,
 # workload_cloud_relationship, iam_escalation, ec2_uses_profile, s3_logs_to,
@@ -14,8 +14,9 @@
 # (prospectively where cells do not exist yet). Callers own strict mode
 # and cleanup.
 #
-# ONE FILE FOR TEN FAMILIES, unlike the shared-projection families' one file
-# each (the eleventh lives in the sibling file above). The per-family
+# ONE FILE FOR THE FAMILIES BELOW, unlike the shared-projection families' one
+# file each (cloud_resource lives in the sibling file above; semantic rejoins
+# here per the #8359 arbiter verdict (a)). The per-family
 # REGISTRY ROWS stay separate, which is where the split that matters is.
 #
 # WHY THESE ARE DIRECT, and why that changes nothing here: the reducer writes
@@ -476,15 +477,15 @@ ifa_semantic_entity_containment_drive() {
 }
 
 # ifa_semantic_entity_containment_assert pins the four-edge exact set, repo-
-# scoped (#8359 verdict (a): fixture repo only, no sibling subtraction, no
-# stamp-fence widening). Called twice per cell like every sibling above.
-# The four edges are the semantic subset ExtractEntityRowsForRepo admits
-# (docstring Go Function, async Python Function, Annotation, Elixir module-
-# attribute Variable); the plain Function and the Class must contribute
-# nothing. CONTAINS is read off the writer templates' MERGE, never off the
-# port or family name.
+# scoped (#8359 verdict (a)), twice per cell. Backend-explicit (#8359
+# ruling): EXPECTED_VAR names the all-semantic base file (Neo4j truth); on
+# NornicDB use the checked-in .nornicdb.json sibling, whose canonical-owned
+# pairs carry the canonical stamp (scope reader follows the loaded file).
 ifa_semantic_entity_containment_assert() {
 	local label="$1" bin_dir="$2" expected_edges="$3"
+	if [[ "${ESHU_GRAPH_BACKEND:-}" == "nornicdb" && -f "${expected_edges%.json}.nornicdb.json" ]]; then
+		expected_edges="${expected_edges%.json}.nornicdb.json"
+	fi
 	printf '\n=== %s: assert semantic_entity_containment materialized edges (four-edge exact set, fixture-repo scoped) ===\n' "${label}"
 	"${bin_dir}/eshu-ifa" assert-edges \
 		-domain semantic_entity_containment \

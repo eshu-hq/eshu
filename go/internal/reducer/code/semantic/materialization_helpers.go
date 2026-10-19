@@ -4,11 +4,15 @@
 package semantic
 
 import (
+	"context"
+	"log/slog"
 	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 func collectSemanticMetadata(payload map[string]any) map[string]any {
@@ -365,4 +369,52 @@ func collectSemanticRepoIDs(envelopes []facts.Envelope) []string {
 
 	sort.Strings(repoIDs)
 	return repoIDs
+}
+
+// maxSemanticUnmatchedUIDsLogged bounds the uid list on the unmatched-uid
+// WARN (#8359): the count is always exact, the names are a prefix sample so
+// one pathological generation cannot flood the log.
+const maxSemanticUnmatchedUIDsLogged = 10
+
+// countSemanticMatchedRows totals per-label matched counts for the status
+// summary. A nil map totals zero; writers that cannot verify leave the map
+// empty rather than claiming matches they did not check.
+func countSemanticMatchedRows(matchedByLabel map[string]int) int {
+	total := 0
+	for _, matched := range matchedByLabel {
+		total += matched
+	}
+	return total
+}
+
+// logSemanticEntityUnmatchedUIDs WARNs on admitted rows that matched no
+// canonical node identity (#8359). It is deliberately not an error:
+// projector-to-reducer ordering is not proven total, so a miss can be a race
+// rather than a defect, and failing the work item would turn that race into
+// a poison-pill retry. The WARN plus the completion record's attempted-vs-
+// matched counts keep a systematic divergence (a parser uid that never equals
+// the projector's derivation) from normalizing into a silent drop.
+func logSemanticEntityUnmatchedUIDs(
+	ctx context.Context,
+	intent reducercontract.Intent,
+	writeResult EntityWriteResult,
+) {
+	uids := writeResult.UnmatchedEntityIDs
+	shown := uids
+	truncated := 0
+	if len(uids) > maxSemanticUnmatchedUIDsLogged {
+		shown = uids[:maxSemanticUnmatchedUIDsLogged]
+		truncated = len(uids) - maxSemanticUnmatchedUIDsLogged
+	}
+	slog.WarnContext(
+		ctx, "semantic entity rows matched no canonical node",
+		log.ScopeID(intent.ScopeID),
+		log.GenerationID(intent.GenerationID),
+		log.Domain(string(intent.Domain)),
+		slog.Int("unmatched_uid_count", len(uids)),
+		slog.Any("unmatched_uids", shown),
+		slog.Int("unmatched_uids_truncated", truncated),
+		slog.Any("rows_attempted_by_label", writeResult.RowsAttemptedByLabel),
+		slog.Any("rows_matched_by_label", writeResult.RowsMatchedByLabel),
+	)
 }

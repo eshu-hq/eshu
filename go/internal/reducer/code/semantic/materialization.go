@@ -48,6 +48,19 @@ type EntityWriteResult struct {
 	// Groups counts grouped transactions dispatched; oversized writes split
 	// into sequential row-bounded groups. Per-statement fallback reports 0.
 	Groups int
+	// RowsAttemptedByLabel counts admitted rows per entity type. RowsMatchedByLabel
+	// counts the subset whose upsert statement addresses a node identity that
+	// exists by construction or by derivation agreement (see cypher's
+	// verifySemanticEntityMatchIdentities, #8359). A MATCH-owned row whose uid
+	// is not the projector's derivation can no-op silently, so the handler
+	// WARNs on the difference without failing the work item.
+	RowsAttemptedByLabel map[string]int
+	RowsMatchedByLabel   map[string]int
+	// UnmatchedEntityIDs names admitted rows that matched no canonical node
+	// identity, in admission order. Writers that cannot verify (hermetic
+	// fakes) leave it empty, which the handler reads as "nothing to report",
+	// never as proof every row landed.
+	UnmatchedEntityIDs []string
 }
 
 // EntityWriter persists Annotation, Typedef, TypeAlias,
@@ -151,9 +164,18 @@ func (h Handler) Handle(
 	}
 	phasePublishDuration := time.Since(phasePublishStart)
 
-	summary := fmt.Sprintf("materialized %d semantic entities across %d repositories", len(rows), len(repoIDs))
+	// Admitted rows are not "materialized" until their statements land: a
+	// MATCH-owned row whose uid is not the projector's derivation no-ops
+	// silently (#8359). The summary reports admission and reconciliation,
+	// never a materialization claim the write did not prove.
+	summary := fmt.Sprintf("admitted %d semantic entity rows (%d matched) across %d repositories",
+		len(rows), countSemanticMatchedRows(writeResult.RowsMatchedByLabel), len(repoIDs))
 	if len(rows) == 0 {
 		summary = fmt.Sprintf("retracted semantic entities across %d repositories", len(repoIDs))
+	}
+
+	if len(writeResult.UnmatchedEntityIDs) > 0 {
+		logSemanticEntityUnmatchedUIDs(ctx, intent, writeResult)
 	}
 
 	logSemanticEntityMaterializationCompleted(ctx, semanticEntityMaterializationTiming{
@@ -162,6 +184,9 @@ func (h Handler) Handle(
 		repoCount:               len(repoIDs),
 		rowCount:                len(rows),
 		groupCount:              writeResult.Groups,
+		rowsAttemptedByLabel:    writeResult.RowsAttemptedByLabel,
+		rowsMatchedByLabel:      writeResult.RowsMatchedByLabel,
+		unmatchedUIDCount:       len(writeResult.UnmatchedEntityIDs),
 		skipRetract:             skipRetract,
 		deltaProjection:         deltaScope.Delta,
 		deltaFileCount:          len(deltaScope.FilePaths),
@@ -190,6 +215,9 @@ type semanticEntityMaterializationTiming struct {
 	repoCount               int
 	rowCount                int
 	groupCount              int
+	rowsAttemptedByLabel    map[string]int
+	rowsMatchedByLabel      map[string]int
+	unmatchedUIDCount       int
 	skipRetract             bool
 	deltaProjection         bool
 	deltaFileCount          int
@@ -216,6 +244,9 @@ func logSemanticEntityMaterializationCompleted(
 		slog.Int("repo_count", timing.repoCount),
 		slog.Int("row_count", timing.rowCount),
 		slog.Int("group_count", timing.groupCount),
+		slog.Any("rows_attempted_by_label", timing.rowsAttemptedByLabel),
+		slog.Any("rows_matched_by_label", timing.rowsMatchedByLabel),
+		slog.Int("unmatched_uid_count", timing.unmatchedUIDCount),
 		slog.Bool("skip_retract", timing.skipRetract),
 		slog.Bool("delta_projection", timing.deltaProjection),
 		slog.Int("delta_file_count", timing.deltaFileCount),

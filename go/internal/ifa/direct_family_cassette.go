@@ -16,7 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 )
 
-// Committed-cassette loaders for the seven direct-materialization family Odùs
+// Committed-cassette loaders for the direct-materialization family Odùs
 // (#6228, under the #6181 umbrella).
 //
 // A cassette is a recorded collector output the live gates replay instead of
@@ -26,9 +26,9 @@ import (
 // tests project the cassette back through loadDirectFamilyOdu and require it to
 // equal the compiled Odù exactly.
 //
-// All seven families share one loader rather than carrying a copy each. The
+// All these families share one loader rather than carrying a copy each. The
 // shared-projection families each grew their own decoder because each reads a
-// different fact shape; these seven read the SAME envelope fields and differ
+// different fact shape; these read the SAME envelope fields and differ
 // only in which Odù name the projection carries, so a copy per family would be
 // one place per family for one contract to rot.
 

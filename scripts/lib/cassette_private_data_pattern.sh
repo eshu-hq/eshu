@@ -205,7 +205,13 @@ cassette_private_data_patterns() {
 	# (00:00:5e:00:53:xx) and the all-zero MAC are what a redacted recording
 	# writes, so they pass.
 	_cpd_allow[ipv6]='(?i)^(?:2001:db8:[0-9a-f:]*|::1|00:00:5e:00:53:[0-9a-f]{2}|00:00:00:00:00:00)$'
-	_cpd_allow[account12]="^${doc_account}\$"
+	# The Ifá canonical-entity fixture hash is an exact synthetic value, not
+	# an account: the #8359 cassette repair pins content-entity:e_ IDs from
+	# the projector derivation (Go pin test plus an independent blake2s
+	# replica), and the all-digit go-func hash trips the 12-digit detector
+	# by shape alone. Allowed by exact literal only; digits are bracketed
+	# so this source line is not itself a 12-digit run.
+	_cpd_allow[account12]="^(?:${doc_account}|9008"''"22881959)\$"
 	# The account field may also be exactly `*` (an IAM policy resource such
 	# as arn:aws:iam::*:role/*) or exactly `cloudfront` (the legacy origin
 	# access identity principal arn:aws:iam::cloudfront:user/...): both are
@@ -265,6 +271,7 @@ cassette_private_data_patterns() {
 		'account12 0000''00000001'
 		'account12 5555''55555555'
 		'account12 0000''17213864'
+		'account12 9008''22881959'
 		'arn arn:aw''s:s3:::example-bucket'
 		'arn arn:aw''s:iam::aws:policy/example'
 		'arn arn:aw''s:iam::123456789012:role/example'
@@ -292,15 +299,16 @@ cassette_private_data_patterns() {
 	# public-TLD host, an in-cluster FQDN, a short in-cluster name, a wildcard
 	# host, a Consul name, two raw labels under amazonaws.com and a raw ELB
 	# endpoint; ipv4 carries three: a bare address, one ending
-	# a sentence, and the neighbour of the unspecified address), 35 allowed
-	# samples. Adding an alternative or an allowed form means adding
+	# a sentence, and the neighbour of the unspecified address), 36 allowed
+	# samples (the 36th is the #8359 Ifá fixture hash). Adding an
+	# alternative or an allowed form means adding
 	# its sample and bumping the number, and that is the point.
 	[[ "${#_cpd_detect[@]}" -eq 7 ]] \
 		|| fail "cassette private-data pattern carries ${#_cpd_detect[@]} alternative(s), expected 7 -- an alternative was added or removed without re-checking its controls"
 	[[ "${#planted[@]}" -eq 16 ]] \
 		|| fail "cassette private-data positive control carries ${#planted[@]} sample(s), expected 16 -- a sample was added or removed without re-checking it against the alternatives"
-	[[ "${#allowed[@]}" -eq 35 ]] \
-		|| fail "cassette private-data negative control carries ${#allowed[@]} sample(s), expected 35 -- an allowed form was added or removed without re-checking it against the allow patterns"
+	[[ "${#allowed[@]}" -eq 36 ]] \
+		|| fail "cassette private-data negative control carries ${#allowed[@]} sample(s), expected 36 -- an allowed form was added or removed without re-checking it against the allow patterns"
 
 	local entry alt value token rc
 	local -A planted_per_alt=()

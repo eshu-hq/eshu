@@ -74,11 +74,22 @@ var awsEndpointRe = regexp.MustCompile(`^(?:h[0-9a-f]{10}\.)+(?:(?:` + awsEndpoi
 // membership-checked.
 var awsRegionalEndpointRe = regexp.MustCompile(`^(?:` + awsEndpointWords + `)\.(?:` + awsEndpointRegion + `)\.amazonaws\.com$`)
 
+// fixtureCanonicalEntityHash is the exact Ifá canonical-entity fixture hash
+// the #8359 cassette repair pins (content-entity:e_<hash> from the projector
+// derivation): a synthetic value, not an account. Admitted by exact literal
+// only, mirroring _cpd_allow[account12] in
+// scripts/lib/cassette_private_data_pattern.sh; written split so this source
+// line is not itself a 12-digit run.
+const fixtureCanonicalEntityHash = "9008" + "22881959"
+
 // accountAllowed admits the AWS documentation account, the zero-prefixed
-// forms, repdigits, and the reserved pseudonym form only when this run minted
-// it.
+// forms, repdigits, the exact fixture hash above, and the reserved pseudonym
+// form only when this run minted it.
 func accountAllowed(account string, produced Set) bool {
 	if docAccountRe.MatchString(account) || isRepdigit(account) {
+		return true
+	}
+	if account == fixtureCanonicalEntityHash {
 		return true
 	}
 	return pseudoAccountRe.MatchString(account) && produced.Has(account)

@@ -113,6 +113,32 @@ func TestVerifySeededRedGreen(t *testing.T) {
 	}
 }
 
+// TestVerifyAdmitsExactFixtureCanonicalEntityHash: the #8359 cassette repair
+// pins content-entity:e_<hash> uids from the projector derivation, and the
+// all-digit go-func hash trips the 12-digit detector by shape alone. Verify
+// admits that exact synthetic literal in an unclassified position (GREEN);
+// a one-digit neighbor is still a raw account12 refusal that never prints
+// the value (RED).
+func TestVerifyAdmitsExactFixtureCanonicalEntityHash(t *testing.T) {
+	// Split: this source line is not itself a 12-digit run.
+	hash := "9008" + "22881959"
+	planted := []byte(`{"note":"content-entity:e_` + hash + `"}`)
+	if err := recordpseudo.Verify(planted, recordpseudo.Set{}); err != nil {
+		t.Fatalf("GREEN: exact fixture hash refused: %v", err)
+	}
+	neighbor := []byte(`{"note":"content-entity:e_` + hash[:11] + `0"}`)
+	err := recordpseudo.Verify(neighbor, recordpseudo.Set{})
+	if err == nil {
+		t.Fatal("RED: one-digit neighbor of the fixture hash passed Verify")
+	}
+	if !strings.Contains(err.Error(), "alternative account12") {
+		t.Errorf("RED: refusal does not name the alternative: %v", err)
+	}
+	if strings.Contains(err.Error(), hash[:11]) {
+		t.Errorf("RED: the refusal printed a value: %v", err)
+	}
+}
+
 // TestVerifyReservedAccountNeedsMembership: the 0000xxxxxxxx form passes
 // the gate by shape but Verify admits it only when this run minted it.
 func TestVerifyReservedAccountNeedsMembership(t *testing.T) {

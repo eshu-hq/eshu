@@ -313,10 +313,14 @@ mutate_expect_red "widen hostname allow to everything" "s/^\\([[:space:]]*_cpd_a
 mutate_expect_red "delete the ipv4 planted sample" "/^[[:space:]]*'ipv4 10\\.0''\\.0\\.5'$/d" \
 	"positive control carries 15 sample(s), expected 16"
 # The reserved-account allowed sample pins the doc_account extension: delete
-# it and the hand count of 34 goes red, so the form cannot be dropped from
+# it and the hand count of 35 goes red, so the form cannot be dropped from
 # the allowlist without touching the number.
 mutate_expect_red "delete the reserved-account allowed sample" "/^[[:space:]]*'account12 0000''17213864'$/d" \
-	"negative control carries 34 sample(s), expected 35"
+	"negative control carries 35 sample(s), expected 36"
+# The #8359 Ifá fixture-hash allowed sample pins the exact-literal
+# extension the same way: delete it and the hand count goes red.
+mutate_expect_red "delete the fixture-hash allowed sample" "/^[[:space:]]*'account12 9008''22881959'$/d" \
+	"negative control carries 35 sample(s), expected 36"
 
 # The library must not depend on its caller's pipefail. A probe written as
 # `rg | head` returned head's status in a caller without pipefail, so an

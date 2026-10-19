@@ -290,8 +290,10 @@ require_shell_exec_lib "shell-exec assert is exact-set, not a digest" '-expected
 # deferred AssumeRole, wrong target) that must escalate nothing, and three
 # instance postures (a bare instance with no profile, a terminated instance,
 # an instance naming an unscanned profile) plus one scanned profile with no
-# posture that must attach to nothing -- and a count-only or digest check
-# cannot tell "correct" from "invented an endpoint".
+# posture that must attach to nothing, and two content entities (a plain
+# Python function with no semantic marker, a Class that is not a semantic
+# type) that must contribute no containment edge -- and a count-only or
+# digest check cannot tell "correct" from "invented an endpoint".
 require_direct_family_lib "kubernetes-namespace-environment assert-edges domain" "-domain kubernetes_namespace_environment"
 require_direct_family_lib "kubernetes-namespace-environment drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_direct_family_lib "direct-family assert is exact-set, not a digest" '-expected "${expected_edges}"'
@@ -311,6 +313,8 @@ require_direct_family_lib "kubernetes-correlation assert-edges domain" "-domain 
 require_direct_family_lib "kubernetes-correlation drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_direct_family_lib "cloud-resource assert-edges domain" "-domain cloud_resource"
 require_direct_family_lib "cloud-resource drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
+require_direct_family_lib "semantic-entity-containment assert-edges domain" "-domain semantic_entity_containment"
+require_direct_family_lib "semantic-entity-containment drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_direct_family_lib "workload-cloud-relationship drive seeds the positive anchor endpoints" 'materialize-workload-endpoints'
 require_direct_family_lib "workload-cloud-relationship seed keys the Odùs own positive anchor" '-workload-id workload:repo-orders:orders-api -environment prod'
 # The seed keys the ladder-resolved scoped identity of the committed
@@ -367,6 +371,7 @@ declare -A ifa_det_family_cases_hand_authored=(
 	[s3_logs_to]="-domain s3_logs_to"
 	[kubernetes_correlation]="-domain kubernetes_correlation"
 	[cloud_resource]="-domain cloud_resource"
+	[semantic_entity_containment]="-domain semantic_entity_containment"
 )
 # First, the map value must literally be this family's own `-domain
 # <family>` flag -- never a bare placeholder like `1` and never another
@@ -438,14 +443,15 @@ done
 # re-assertion of any kind, so neither ifa_submodule_pin_drive nor
 # ifa_submodule_pin_assert has a legitimate bare-name call anywhere in the
 # gate; dispatch is entirely through the registry loop for this family.
-# The ten DIRECT families (#6228/#8358) join the drive half of this list only. All
-# ten are dispatched into every N cell through the registry loop, so no
-# drive function has a legitimate bare-name call in the gate -- but each
-# ASSERT function does have exactly one (the post-delta re-assertion pinned
-# below), so the asserts take a count pin instead of a place here.
+# The eleven DIRECT families (#6228/#8358; #8359 for the last) join the drive
+# half of this list only. All eleven are dispatched into every N cell through
+# the registry loop, so no drive function has a legitimate bare-name call in
+# the gate -- but each ASSERT function does have exactly one (the post-delta
+# re-assertion pinned below), so the asserts take a count pin instead of a
+# place here.
 for leftover_fn in ifa_det_drive_sql_baseline ifa_code_call_drive ifa_documentation_drive ifa_rationale_drive \
 	ifa_codeowners_drive ifa_submodule_pin_drive ifa_submodule_pin_assert \
-	ifa_kubernetes_namespace_environment_drive ifa_iam_instance_profile_role_drive ifa_iam_can_assume_drive ifa_iam_can_perform_drive ifa_workload_cloud_relationship_drive ifa_iam_escalation_drive ifa_ec2_uses_profile_drive ifa_s3_logs_to_drive ifa_kubernetes_correlation_drive ifa_cloud_resource_drive \
+	ifa_kubernetes_namespace_environment_drive ifa_iam_instance_profile_role_drive ifa_iam_can_assume_drive ifa_iam_can_perform_drive ifa_workload_cloud_relationship_drive ifa_iam_escalation_drive ifa_ec2_uses_profile_drive ifa_s3_logs_to_drive ifa_kubernetes_correlation_drive ifa_cloud_resource_drive ifa_semantic_entity_containment_drive \
 	ifa_det_assert_sql_baseline ifa_rationale_assert; do
 	if rg --fixed-strings --quiet -- "${leftover_fn} \"" "${script}"; then
 		fail "leftover literal per-family call survives outside the registry loop: ${leftover_fn} (would double-drive/assert that family and change what every N-loop digest covers)"
@@ -469,7 +475,7 @@ codeowners_assert_count="$(rg --count --fixed-strings -- 'ifa_codeowners_assert 
 [[ "${codeowners_assert_count}" -eq 1 ]] \
 	|| fail "expected exactly 1 occurrence of ifa_codeowners_assert (the post-delta re-assertion) outside the registry loop; found ${codeowners_assert_count} -- an extra occurrence would double-assert this family in every N-loop cell"
 
-# The ten DIRECT families post-delta ordering cases live in a sourced
+# The eleven DIRECT families post-delta ordering cases live in a sourced
 # sibling so this module stays below the 500-line cap (the same split the
 # maintenance-backed families took once this file crossed the cap).
 # run_ifa_determinism_post_delta_cases takes the gate script path plus the
