@@ -36,7 +36,11 @@ ifa_cloud_resource_drive() {
 ifa_cloud_resource_assert() {
 	local label="$1" bin_dir="$2" expected_edges="$3"
 	printf '\n=== %s: assert cloud_resource materialized edges (four-edge exact set) ===\n' "${label}"
+	# Scoped to the cassette's three scope ids (#8358): the shared cell
+	# graph also holds ambient GCP edges with the same (prefix, stamp,
+	# endpoints) shape, which the unscoped predicate scan counts as extras.
 	"${bin_dir}/eshu-ifa" assert-edges \
 		-domain cloud_resource \
-		-expected "${expected_edges}"
+		-expected "${expected_edges}" \
+		-scopes "aws:eshu-fixture-cloud-resource-account,gcp:project:eshu-fixture-project,azure:eshu-fixture-tenant:subscription:eshu-fixture-rg"
 }

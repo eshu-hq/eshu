@@ -48,6 +48,7 @@ func scanMaterializedEdges(
 	identity map[string][]string,
 	expectedPropertyKeys map[string][]string,
 	labels map[string]string,
+	scopeIDs map[string]struct{},
 ) (materializedEdgeScan, error) {
 	scan := materializedEdgeScan{counts: make(map[string]int), pairs: make(map[string]*endpointPairCount)}
 	err := reader.StreamEdges(ctx, func(edge graphdump.Edge) error {
@@ -55,6 +56,17 @@ func scanMaterializedEdges(
 			stamp, _ := edge.Props["evidence_source"].(string)
 			if !predicate.Matches(edge.Type, stamp, edge.FromLabels, edge.ToLabels) {
 				return nil
+			}
+			// Cassette scoping (#8358): the shared cell graph holds ambient
+			// edges with the same (prefix, stamp, endpoints) shape, so a
+			// predicate-scoped assert narrows to the cassette's scope_ids.
+			// Empty preserves current behavior; non-predicate families
+			// ignore the set entirely.
+			if len(scopeIDs) > 0 {
+				scope, _ := edge.Props["scope_id"].(string)
+				if _, ok := scopeIDs[scope]; !ok {
+					return nil
+				}
 			}
 		} else if _, ok := edgeTypes[edge.Type]; !ok {
 			return nil
@@ -167,6 +179,24 @@ func (s *materializedEdgeScan) recordEndpointDefect(edge graphdump.Edge, fromUID
 		"%s edge whose %s endpoint carries none of uid, id, a CodeownerTeam endpoint's ref, or an Environment endpoint's name (from=%q to=%q) — an unmaterialized endpoint node",
 		edge.Type, missing, fromUID, toUID,
 	))
+}
+
+// parseScopeSet splits a comma-separated -scopes value into a set, trimming
+// spaces and dropping empties. Empty input yields nil (no filtering).
+func parseScopeSet(raw string) map[string]struct{} {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	out := make(map[string]struct{})
+	for _, part := range strings.Split(raw, ",") {
+		if s := strings.TrimSpace(part); s != "" {
+			out[s] = struct{}{}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func readExpectedProperties(edgeProps map[string]any, keys []string) (map[string]string, []string) {
