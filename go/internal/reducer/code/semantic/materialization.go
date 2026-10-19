@@ -176,6 +176,15 @@ func (h Handler) Handle(
 
 	if len(writeResult.UnmatchedEntityIDs) > 0 {
 		logSemanticEntityUnmatchedUIDs(ctx, intent, writeResult)
+		// Identity-divergent rows fail the work item (#8587). Unmatched uids
+		// are deterministic, never races: the projector provably never
+		// derives that uid (canonical projection writes synchronously before
+		// this domain's intent is enqueued), so no retry can heal them. The
+		// error is deliberately NOT retryable — IsRetryable defaults false
+		// for plain errors — so the queue dead-letters the item once instead
+		// of retry-looping a poison pill. Matched rows already landed; the
+		// counts below say exactly how many.
+		return reducercontract.Result{}, semanticEntityIdentityDivergentError(writeResult)
 	}
 
 	logSemanticEntityMaterializationCompleted(ctx, semanticEntityMaterializationTiming{

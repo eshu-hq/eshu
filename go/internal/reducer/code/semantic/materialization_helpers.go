@@ -5,6 +5,7 @@ package semantic
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sort"
 	"strings"
@@ -14,6 +15,30 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
+
+// semanticEntityIdentityDivergentError builds the non-retryable work-item
+// failure for admitted rows that matched no canonical node identity (#8587).
+// A plain error is deliberately used: reducercontract.IsRetryable defaults to
+// false for errors that do not opt in, so the queue dead-letters the item
+// once (projection_bug/manual-review bucket) instead of retry-looping. That
+// is the poison-pill guard: an identity-divergent uid can never heal on
+// retry — the projector provably never derives it — so any retry is pure
+// waste. The message names the bounded uid list and the matched count so an
+// operator can see the matched rows already landed and only the named uids
+// need a derivation fix.
+func semanticEntityIdentityDivergentError(writeResult EntityWriteResult) error {
+	uids := writeResult.UnmatchedEntityIDs
+	shown := uids
+	truncated := 0
+	if len(uids) > maxSemanticUnmatchedUIDsLogged {
+		shown = uids[:maxSemanticUnmatchedUIDsLogged]
+		truncated = len(uids) - maxSemanticUnmatchedUIDsLogged
+	}
+	return fmt.Errorf(
+		"semantic entity rows matched no canonical node identity: %d unmatched (uids=%v truncated=%d, %d matched already landed)",
+		len(uids), shown, truncated, countSemanticMatchedRows(writeResult.RowsMatchedByLabel),
+	)
+}
 
 func collectSemanticMetadata(payload map[string]any) map[string]any {
 	metadata := cloneAnyMap(payloadcore.PayloadMap(payload, "entity_metadata"))
@@ -388,12 +413,10 @@ func countSemanticMatchedRows(matchedByLabel map[string]int) int {
 }
 
 // logSemanticEntityUnmatchedUIDs WARNs on admitted rows that matched no
-// canonical node identity (#8359). It is deliberately not an error:
-// projector-to-reducer ordering is not proven total, so a miss can be a race
-// rather than a defect, and failing the work item would turn that race into
-// a poison-pill retry. The WARN plus the completion record's attempted-vs-
-// matched counts keep a systematic divergence (a parser uid that never equals
-// the projector's derivation) from normalizing into a silent drop.
+// canonical node identity (#8359). The WARN stays as the operator-facing
+// signal; Handle additionally fails the work item (#8587) because unmatched
+// uids are deterministic, never races — see semanticEntityIdentityDivergentError.
+
 func logSemanticEntityUnmatchedUIDs(
 	ctx context.Context,
 	intent reducercontract.Intent,
