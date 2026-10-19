@@ -263,6 +263,57 @@ Ack, or write path changes. Read Committed gives one snapshot for the whole
 statement. The marker commits before the content write, so a snapshot that
 sees the write also sees the marker.
 
+## Deployed re-measurement (2026-10-19)
+
+Deployed QA image `sha-aefdc43b` contains #8272 (resolution-engine pods up
+14 h). Read-only rerun on `eshu-postgresql-read`. The manifest reads are the
+shipped constants dumped from Go (`PackageManifestsQuery`,
+`ComposerManifestsQuery`, `GoModuleManifestsQuery`); the old-rule variant is
+verified byte-identical (modulo whitespace) to the pre-#8272 predicate taken
+from `938661036^`. The anchored scan is the shipped
+`listAnchoredActiveCodeCallSymbolDefinitionFactsQuery` with an unpublished
+key, `NULL` cursor, limit 500, and the measured union scope set.
+
+| Statement | Deployed, warm, 3 runs | Pre-change (2026-10-16 replica) |
+|---|---|---|
+| npm manifest read | 30.4–31.3 ms | 40.0–40.8 ms |
+| composer manifest read | 33.8–34.8 ms | 43.2–46.8 ms |
+| go.mod manifest read | 19.6–21.3 ms | 27.6–29.2 ms |
+| Dirty scopes (npm / composer / go.mod), new rule | 0 / 0 / 0 | 512 / 739 / 784 |
+| Dirty scopes, old rule on the same data | 0 / 0 / 0 | — |
+| Union producer scopes | 328, all manifest-bearing | 771 (25 post-fix) |
+| Anchored scan over the union set | 14.0 s cold, 5.0 s warm ×2 | 6.11–6.56 s, 0.79–0.87 s post-fix |
+
+The fleet moved under the measurement: 788 repository scopes, 1,691
+`scope_generations` rows, oldest ingested 2026-10-16 20:36Z. The 9,700 stale
+never-activated generations from the issue are gone (oldest-first removal,
+consistent with generation retention; the retaining mechanism was not
+verified in this drive). The one remaining never-activated row is
+`eshu:global:genesis`, a non-repository scope the leg never visits. With no
+stale rows the old rule returns the same empty dirty set on this data, so a
+before/after gap is no longer reproducible on QA; the Proof differential above
+(0 rows outside the shipped reads; shim loader 3.42–3.55 s to 0.16–0.17 s)
+stands as the fix evidence. Today's ~5 s scan covers the 328 manifest-bearing
+scopes (~191,000 file facts), which the leg visits by design: cost now scales
+with scopes that hold manifests, not with the age of generation history.
+
+No `code call symbol definition load` line fired on QA in the sampled window
+(about 9,400 ingester lines per hour with zero `code call` mentions;
+resolution-engine, API, and MCP logs likewise empty), so production
+`package_leg_duration_seconds` per load under the deployed image is still
+unobserved. A second lane closed the gap read-only the same day: the real
+loader (`FactStore.LoadActiveCodeCallSymbolDefinitionFacts` built from HEAD;
+the loader SQL constants are unchanged since the deployed image — post-image
+drift is Go comments and doc pointers only, per `git diff aefdc43b2 HEAD`)
+against `eshu-postgresql-read` with `default_transaction_read_only=on`,
+statement texts dumped from the shipped constants. Its own log line reports,
+3 runs each: an unpublished npm key (`package:qa-8243-unpublished-probe#NoSuchExport`)
+`package_producer_scope_count=0` at 34–45 ms per load with 0 facts; a
+published key (`package:boattrader#Qa8243ProbeExport`, first npm manifest in
+the read) 1 producer scope at 103–123 ms per load with 0 facts. The EXPLAIN
+leg cost above (about 5.1 s reads plus scan over the 328-scope manifest set)
+remains the replica record for a wide key.
+
 ## Residuals
 
 The three below are accepted by the divergence ruling, each inherited from
@@ -288,6 +339,7 @@ Not covered by the ruling, recorded for completeness:
 NOT_CHECKED:
 
 - cold-cache replica runs;
-- the loader end to end after deploy (the replica has no route for the Go
-  loader);
-- the package leg seconds in the deployed resolution-engine log.
+- production `package_leg_duration_seconds` log lines (no code-call
+  materialization loads in 24h of resolution-engine logs on 2026-10-19; the
+  per-load numbers above are the real loader measured read-only against the
+  replica).
