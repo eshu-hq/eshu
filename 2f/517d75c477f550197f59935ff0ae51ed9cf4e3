@@ -1,0 +1,32 @@
+docs/public/reference/tag-taxonomy.md
+  h_78a442cba0b3e6 21
+go/internal/projector/README.md
+  h_78a442cba0b3e6 173-174
+go/internal/reducer/compat_alias_retirement_phase_test.go
+  h_78a442cba0b3e6 1-119
+go/internal/reducer/dsl/README.md
+  h_78a442cba0b3e6 13,38
+go/internal/reducer/evidence-6626-batch6-bucket9-phase.md
+  h_78a442cba0b3e6 1-116
+go/internal/reducer/gpphase/AGENTS.md
+  h_78a442cba0b3e6 60-62,67-68
+go/internal/reducer/tags/README.md
+  h_78a442cba0b3e6 15,36
+go/internal/storage/postgres/README.md
+  h_78a442cba0b3e6 663
+go/internal/storage/postgres/exported-surface-guide.md
+  h_78a442cba0b3e6 161
+go/internal/storage/postgres/lifecycle-and-workflow-guide.md
+  h_78a442cba0b3e6 334
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2f517d75c477f550197f59935ff0ae51ed9cf4e3",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
