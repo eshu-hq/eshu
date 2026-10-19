@@ -67,7 +67,7 @@ several regex scans (a Go template line-control scan, a Terraform
 `templatefile()` scan, and the marker scans described below), costing roughly
 7.5ms on a large PHP/JS file -- about 5% of `ParsePath` wall time across a full
 corpus (issue #4768). Most source files carry no IaC/template signal at all,
-so `shouldSkipContentMetadata` (`go/internal/parser/content_metadata_gate.go`)
+so `shouldSkipContentMetadata` (`go/internal/parser/content/gate.go`)
 gates the call: it skips `inferContentMetadata` and uses the zero-value
 `contentMetadata{}` only when the file's extension, path segments, basename,
 and content contain none of the signals `inferContentMetadata`'s own

@@ -5,8 +5,8 @@ package producerstore
 
 import "testing"
 
-// TestGoModuleName mirrors the parser's go.mod rule (goModulePath in
-// go/internal/parser/go_package_module_import_path.go): after
+// TestGoModuleName mirrors the parser's go.mod rule (golang.GoModulePath in
+// go/internal/parser/golang/module_import_path.go): after
 // shared.NormalizeLineEndings, the first line of exactly two fields whose first
 // is "module" names the module and the second field is taken verbatim. The
 // parity test (TestGoModuleNameMatchesTheImportPathTheParserStamps) drives the

@@ -12,7 +12,7 @@ import (
 )
 
 // GoModuleName returns the module path of a go.mod file the way the Go parser
-// reads it (goModulePath in go/internal/parser/go_package_module_import_path.go):
+// reads it (golang.GoModulePath in go/internal/parser/golang/module_import_path.go):
 // after shared.NormalizeLineEndings, the first line of exactly two fields whose
 // first is "module" names the module, and the second field is taken verbatim.
 // The normalization is the parser's own, which leaves a file that has any '\n'

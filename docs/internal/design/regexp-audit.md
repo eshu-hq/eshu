@@ -292,7 +292,7 @@ The C package already migrated its `cTypedefAliasPattern` from `parser.go` to AS
 | 233 | Dynamic `regexp.MustCompile("[/#]", ...)` | Split SCIP symbols on `/` and `#` separators | **keep** | Same rationale — SCIP symbol string splitting. Could use `strings.FieldsFunc` but the regex split is clear and once-per-symbol. |
 | 273 | `regexp.MustCompile("\(([^)]*)\)", ...)` | Extract parenthesized parameter list from SCIP display names | **keep** | Same rationale. SCIP display-name signature parsing. |
 
-### 33. go/internal/parser/templated_detection.go (9 sites)
+### 33. go/internal/parser/content/infer.go (9 sites)
 
 | Line | Pattern | Purpose | Classification | Rationale |
 |------|---------|---------|----------------|-----------|

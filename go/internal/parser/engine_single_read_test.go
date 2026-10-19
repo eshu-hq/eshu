@@ -17,7 +17,7 @@ import (
 // TestParsePathReadsSourceExactlyOnce is the regression seed for the #4515
 // front-half-throughput dedup: ParsePath used to read one file's bytes twice
 // per call (once inside the language parser via shared.ReadSource, once again
-// in ParsePath for inferContentMetadata). It must read exactly once so
+// in ParsePath for content inference). It must read exactly once so
 // per-file I/O is not doubled across the front-half ingest path.
 //
 // Not t.Parallel(): shared.SetReadSourceHookForTest mutates package-level test
@@ -119,7 +119,7 @@ func Hello%d() string {
 // another in-flight goroutine's primed entry mid-parse, and one goroutine's
 // PrimeSource could overwrite another's bytes outright, letting a single
 // ParsePath call mix the language parser's bytes (one version) with
-// inferContentMetadata's bytes (a different version) -- a torn read within
+// the inferred-content bytes (a different version) -- a torn read within
 // one call.
 //
 // This test drives many concurrent ParsePath calls against one real file

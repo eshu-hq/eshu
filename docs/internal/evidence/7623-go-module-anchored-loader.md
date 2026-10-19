@@ -50,7 +50,7 @@ change.
 
 The parser builds a definition's import path as its nearest go.mod module path
 plus the package directory
-(`go/internal/parser/go_package_module_import_path.go`), and emits the key from
+(`go/internal/parser/golang/module_import_path.go`), and emits the key from
 it (`go/internal/parser/golang/scip_symbols.go`); it emits none without a go.mod.
 So every native definition key is prefixed by the module directive of a go.mod
 in the defining repository, whichever layout it has: nested modules, `/v2`

@@ -138,7 +138,7 @@ func (e *Engine) PreScanGoPackageSemanticRootsWithWorkers(
 	packageImportPaths := make(map[string]string)
 	modulePathsByDir := make(map[string]string)
 	for packageDir := range packageDirs {
-		if importPath, ok := goImportPathForNearestModule(resolvedRepoRoot, packageDir, modulePathsByDir); ok {
+		if importPath, ok := golangparser.GoImportPathForNearestModule(resolvedRepoRoot, packageDir, modulePathsByDir); ok {
 			packageImportPaths[packageDir] = importPath
 		}
 	}

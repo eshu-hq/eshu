@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
+// This benchmark lives in the parent package (not internal/parser/content)
+// because BenchmarkParsePathLargeGatedPHP exercises the ParsePath call site
+// in engine.go, not the content package in isolation.
+
 package parser
 
 import (
@@ -8,10 +12,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	contentparser "github.com/eshu-hq/eshu/go/internal/parser/content"
 )
 
 // BenchmarkInferContentMetadataUnconditional measures the "before" cost of
-// issue #4768: inferContentMetadata's three regex scans (goLineControlRE,
+// issue #4768: Infer's three regex scans (goLineControlRE,
 // tfTemplatefileRE, and inferRootFamily's internal re-scan) running on every
 // file regardless of any IaC/template signal.
 func BenchmarkInferContentMetadataUnconditional(b *testing.B) {
@@ -20,13 +26,13 @@ func BenchmarkInferContentMetadataUnconditional(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		_ = inferContentMetadata(path, content)
+		_ = contentparser.Infer(path, content)
 	}
 }
 
 // BenchmarkContentMetadataGated measures the "after" cost: the gate itself
 // (extension/basename/path-segment/content-marker checks) plus, since the
-// file is gated, using the contentMetadata{} zero value in place of the
+// file is gated, using the Metadata{} zero value in place of the
 // unconditional call. This is the direct before/after pair for the #4768 fix.
 func BenchmarkContentMetadataGated(b *testing.B) {
 	path := filepath.Join("src", "app", "LargeController.php")
@@ -34,9 +40,9 @@ func BenchmarkContentMetadataGated(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		var metadata contentMetadata
-		if !shouldSkipContentMetadata(path, content) {
-			metadata = inferContentMetadata(path, content)
+		var metadata contentparser.Metadata
+		if !contentparser.ShouldSkip(path, content) {
+			metadata = contentparser.Infer(path, content)
 		}
 		_ = metadata
 	}
@@ -72,7 +78,7 @@ func BenchmarkParsePathLargeGatedPHP(b *testing.B) {
 // silently corrupting its persisted artifact_type/iac_relevant. The fixed
 // gate correctly declines to skip this file, so this benchmark measures the
 // real cost the fix restores for this class: gate-check overhead plus the
-// full inferContentMetadata call, not the near-zero skip cost. This is the
+// full Infer call, not the near-zero skip cost. This is the
 // "more files correctly run the real inference now" case the coordinator
 // asked to be re-measured, isolated from the still-correctly-gated PHP case
 // above.
@@ -80,15 +86,15 @@ func BenchmarkContentMetadataGatedRawConfigCorrectlyNotSkipped(b *testing.B) {
 	path := filepath.Join("etc", "nginx", "sites-available", "large.conf")
 	content := generateLargeNginxConfSource(400)
 
-	if shouldSkipContentMetadata(path, content) {
-		b.Fatalf("shouldSkipContentMetadata(%q) = true, want false (a .conf file must never be skipped)", path)
+	if contentparser.ShouldSkip(path, content) {
+		b.Fatalf("ShouldSkip(%q) = true, want false (a .conf file must never be skipped)", path)
 	}
 
 	b.ResetTimer()
 	for b.Loop() {
-		var metadata contentMetadata
-		if !shouldSkipContentMetadata(path, content) {
-			metadata = inferContentMetadata(path, content)
+		var metadata contentparser.Metadata
+		if !contentparser.ShouldSkip(path, content) {
+			metadata = contentparser.Infer(path, content)
 		}
 		_ = metadata
 	}
@@ -97,7 +103,7 @@ func BenchmarkContentMetadataGatedRawConfigCorrectlyNotSkipped(b *testing.B) {
 // generateLargeNginxConfSource produces a large synthetic nginx-shaped ".conf"
 // file: real IaC content (server{}/location/ blocks) that must persist
 // artifact_type=nginx_config, iac_relevant=true, and therefore must never be
-// skipped by shouldSkipContentMetadata.
+// skipped by ShouldSkip.
 func generateLargeNginxConfSource(blockCount int) string {
 	var b strings.Builder
 	b.WriteString("user www-data;\nworker_processes auto;\n\n")
@@ -112,8 +118,8 @@ func generateLargeNginxConfSource(blockCount int) string {
 // IaC/template signal in its path or content (no roles/playbooks/dagster/
 // chart/templates/argocd/iac path segment, no ansible-playbook content
 // marker, and a .php extension outside contentMetadataGatedExtensions), so
-// shouldSkipContentMetadata always skips it. methodCount controls file size;
-// 400 methods produces a file large enough to make inferContentMetadata's
+// ShouldSkip always skips it. methodCount controls file size;
+// 400 methods produces a file large enough to make Infer's
 // regex scans measurable against total parse cost.
 func generateLargeGatedSource(methodCount int) string {
 	var b strings.Builder

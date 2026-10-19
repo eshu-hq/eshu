@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package content
 
 import (
 	"path/filepath"
@@ -9,7 +9,10 @@ import (
 	"strings"
 )
 
-type contentMetadata struct {
+// Metadata is the content-classification result for one file: the detected
+// artifact type, the template dialect in use, and whether the file is
+// infrastructure-as-code relevant.
+type Metadata struct {
 	ArtifactType    string
 	TemplateDialect string
 	IACRelevant     bool
@@ -27,9 +30,11 @@ var (
 	tfTemplatefileRE    = regexp.MustCompile(`\btemplatefile\s*\(`)
 )
 
-func inferContentMetadata(path string, content string) contentMetadata {
+// Infer classifies path by its inferred content: artifact type, template
+// dialect, and IaC relevance. Pure function of path and content.
+func Infer(path string, content string) Metadata {
 	// hasAnyGoExpression/hasAnyJinjaStatement are unconditional inputs to
-	// inferContentMetadata's own logic below (markers.hasGoExpressions/
+	// Infer's own logic below (markers.hasGoExpressions/
 	// hasJinjaStatements and explicitJinja), so they always run exactly
 	// once here regardless of which branch inferRootFamily takes.
 	//
@@ -94,7 +99,7 @@ func inferContentMetadata(path string, content string) contentMetadata {
 		}
 	}
 
-	suffixes := splitSuffixes(path)
+	suffixes := SplitSuffixes(path)
 	lastSuffix := ""
 	if len(suffixes) > 0 {
 		lastSuffix = suffixes[len(suffixes)-1]
@@ -175,7 +180,7 @@ func inferContentMetadata(path string, content string) contentMetadata {
 		bucket = "unknown_templated"
 	}
 
-	return contentMetadata{
+	return Metadata{
 		ArtifactType:    persistedArtifactType(bucket, artifactType),
 		TemplateDialect: templateDialect,
 		IACRelevant:     isIACRelevant(rootFamily, path, artifactType, bucket),
@@ -200,10 +205,10 @@ func countUnprefixedMatches(content string, expression *regexp.Regexp, disallowe
 }
 
 // contentMarkers carries the template/interpolation marker signals that
-// inferContentMetadata computes and passes down to inferRootFamily.
+// Infer computes and passes down to inferRootFamily.
 // inferRootFamily reuses these instead of re-invoking the marker regexes
 // over the same content: each of goExpressionRE/jinjaStatementRE runs
-// exactly once (inferContentMetadata needs both unconditionally for its own
+// exactly once (Infer needs both unconditionally for its own
 // logic below), and the three TF-marker regexes (tfInterpolationRE/
 // tfDirectiveRE/tfTemplatefileRE) run at most once each, lazily, via
 // hasTFMarkers -- computed only if a branch that actually reads it is
@@ -250,7 +255,7 @@ func (l *lazyTFMarkerCheck) has() bool {
 func inferRootFamily(path string, content string, markers contentMarkers) string {
 	parts := pathParts(path)
 	name := strings.ToLower(filepath.Base(path))
-	suffixes := splitSuffixes(path)
+	suffixes := SplitSuffixes(path)
 
 	switch {
 	case anySuffix(suffixes, isHCLSuffix):
@@ -283,7 +288,7 @@ func inferRootFamily(path string, content string, markers contentMarkers) string
 func inferArtifactType(rootFamily string, path string, content string) string {
 	name := strings.ToLower(filepath.Base(path))
 	parts := pathParts(path)
-	suffixes := splitSuffixes(path)
+	suffixes := SplitSuffixes(path)
 	lastSuffix := ""
 	if len(suffixes) > 0 {
 		lastSuffix = suffixes[len(suffixes)-1]
@@ -465,4 +470,21 @@ func isDockerComposeFilename(name string) bool {
 		name == "docker-compose.yaml" ||
 		name == "docker-compose.yml" ||
 		(strings.HasPrefix(name, "docker-compose.") && (strings.HasSuffix(name, ".yaml") || strings.HasSuffix(name, ".yml")))
+}
+
+// SplitSuffixes reports every dot-suffix of path's base name, lower-cased
+// (".tf.json" yields [".tf", ".json"]). Shared with the raw-text language
+// fallback in the parent parser package, which routes on the same suffixes.
+func SplitSuffixes(path string) []string {
+	base := filepath.Base(path)
+	parts := strings.Split(base, ".")
+	if len(parts) <= 1 {
+		return nil
+	}
+
+	suffixes := make([]string, 0, len(parts)-1)
+	for i := 1; i < len(parts); i++ {
+		suffixes = append(suffixes, "."+strings.ToLower(parts[i]))
+	}
+	return suffixes
 }

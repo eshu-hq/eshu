@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package content
 
 import (
 	"path/filepath"
@@ -128,7 +128,7 @@ value = ${var.name}
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := inferContentMetadata(filepath.FromSlash(tt.relativePath), tt.content)
+			got := Infer(filepath.FromSlash(tt.relativePath), tt.content)
 			if got.ArtifactType != tt.wantArtifact {
 				t.Fatalf("ArtifactType = %q, want %q", got.ArtifactType, tt.wantArtifact)
 			}
