@@ -12,6 +12,6 @@ HELPER_PROOFS = {
         "consumer_file": "go/internal/query/supply/chain/impact/suppression_paths_performance_live_test.go",
         "consumer_test": "TestSupplyChainSuppressionPathsPerformanceLive",
         "helper_sha256": "14a4f3983bdc2ba54930442d31b1140934af8cb31cecfdc541936e5122dae3be",
-        "consumer_sha256": "58235f6a06f813185fd010b97058c2b466e111bc88cc2841176c5a007fca26b7",
+        "consumer_sha256": "8f3fe0bcc4c479b5eedb71c41ca2b3d2fbba9460f0029bcfcaf14b224b6ae46c",
     },
 }

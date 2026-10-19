@@ -4,7 +4,7 @@
 package impact
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #7553 reshaped proof: the host-bound absolute wall-clock ceilings (#5856) are replaced with runner-local plan and buffer gates (identical whole-tree node-type set plus shared/temp buffer touches within 1 percent across two EXPLAIN (ANALYZE, BUFFERS) runs per path); wall time is reported, never gated; the deterministic direct/materialized differential, 50,000-winner count, aggregate facets, and explain anchor are kept; temp is gated on run-to-run stability because three of five paths spill at stock 4MB work_mem; bridging its ESHU_SUPPRESSION_PATHS_PROOF_DSN family pair onto ESHU_POSTGRES_TEST_DSN with a disposable-ack fail-closed; local run passed in 34.9s of test time on postgres:18.6-alpine on 2026-10-12; steward linuxdynasty
+//eshu:readiness:reason #7553 reshaped proof: the host-bound absolute wall-clock ceilings (#5856) are replaced with runner-local plan and buffer gates (identical whole-tree node-type set plus shared/temp buffer touches within 1 percent across two EXPLAIN (ANALYZE, BUFFERS) runs per path); wall time is reported, never gated; the deterministic direct/materialized differential, 50,000-winner count, aggregate facets, and explain anchor are kept; temp is gated per path per arbiter verdict C (zero where the two zero-temp paths never spill, run-to-run stability where three of five spill at stock 4MB work_mem); bridging its ESHU_SUPPRESSION_PATHS_PROOF_DSN family pair onto ESHU_POSTGRES_TEST_DSN with a disposable-ack fail-closed; local run passed in 34.9s of test time on postgres:18.6-alpine on 2026-10-12; steward linuxdynasty
 //eshu:readiness:env ESHU_SUPPRESSION_PATHS_PROOF_DISPOSABLE ESHU_SUPPRESSION_PATHS_PROOF_DSN
 //eshu:readiness:helper go/internal/query/supply/chain/impact/suppression_plan_proof_live_test.go
 
@@ -210,11 +210,12 @@ supply_chain_impact_winners_materialization`); err != nil {
 }
 
 // assertSuppressionPlanShape gates one path on runner-local EXPLAIN runs:
-// identical node set, shared touches within 1 percent, and temp touches
-// within 1 percent. Temp is gated on stability, not on zero: three of the
-// five paths spill at stock 4MB work_mem (direct_list temp 2194/3383,
-// aggregate_count 1839/1843, aggregate_priority_facet 1716/1720, measured
-// 2026-10-12 on PostgreSQL 18.6), so Temp == 0 cannot gate this proof.
+// identical node set, shared touches within 1 percent, and temp under the
+// per-path rule: Temp == 0 where the query does not spill at stock 4MB
+// work_mem (materialized_list, explain), run-to-run stability within
+// 1 percent where it does (direct_list temp 2194/3383, aggregate_count
+// 1839/1843, aggregate_priority_facet 1716/1720, measured 2026-10-12 on
+// PostgreSQL 18.6), so Temp == 0 cannot gate those paths (#7553 verdict C).
 // The hit/read split shifts with cache warmth, so the gate uses the total.
 func assertSuppressionPlanShape(t *testing.T, name string, first, second suppressionQueryPlanProof, firstTypes, secondTypes []string) {
 	t.Helper()
@@ -224,8 +225,9 @@ func assertSuppressionPlanShape(t *testing.T, name string, first, second suppres
 	firstShared := first.Plan.SharedHitBlocks + first.Plan.SharedReadBlocks
 	secondShared := second.Plan.SharedHitBlocks + second.Plan.SharedReadBlocks
 	assertSuppressionBlocksWithinPercent(t, name, "shared", firstShared, secondShared)
-	assertSuppressionBlocksWithinPercent(t, name, "temp_read", first.Plan.TempReadBlocks, second.Plan.TempReadBlocks)
-	assertSuppressionBlocksWithinPercent(t, name, "temp_written", first.Plan.TempWrittenBlocks, second.Plan.TempWrittenBlocks)
+	if breach := suppressionTempGateBreach(name, first, second); breach != "" {
+		t.Fatalf("%s temp gate breach: %s", name, breach)
+	}
 	t.Logf("%s nodes=%v shared=%d/%d temp_read=%d/%d temp_written=%d/%d",
 		name, firstTypes, firstShared, secondShared,
 		first.Plan.TempReadBlocks, second.Plan.TempReadBlocks, first.Plan.TempWrittenBlocks, second.Plan.TempWrittenBlocks)
@@ -237,13 +239,51 @@ func assertSuppressionPlanShape(t *testing.T, name string, first, second suppres
 // of blocks, so the floor costs no signal (#7553).
 const suppressionBlockNoiseFloor = 16
 
-func assertSuppressionBlocksWithinPercent(t *testing.T, name, kind string, first, second int64) {
-	t.Helper()
+// suppressionTempGateZero reports whether a plan-gated path must not spill
+// any temp blocks: only the paths that measure 0/0 at stock 4MB work_mem
+// qualify, so a spill there is always a regression (#7553 verdict C).
+func suppressionTempGateZero(name string) bool {
+	return name == "materialized_list" || name == "explain"
+}
+
+// suppressionTempGateBreach checks temp observations against the per-path
+// rule and returns "" on pass: Temp == 0 on both runs for zero-gated paths,
+// within-1-percent run-to-run stability for the spilling paths.
+func suppressionTempGateBreach(name string, first, second suppressionQueryPlanProof) string {
+	if suppressionTempGateZero(name) {
+		if first.Plan.TempReadBlocks != 0 || first.Plan.TempWrittenBlocks != 0 ||
+			second.Plan.TempReadBlocks != 0 || second.Plan.TempWrittenBlocks != 0 {
+			return fmt.Sprintf("temp blocks read=%d/%d written=%d/%d, want 0",
+				first.Plan.TempReadBlocks, second.Plan.TempReadBlocks,
+				first.Plan.TempWrittenBlocks, second.Plan.TempWrittenBlocks)
+		}
+		return ""
+	}
+	if suppressionBlocksDrifted(first.Plan.TempReadBlocks, second.Plan.TempReadBlocks) {
+		return fmt.Sprintf("temp_read drifted: %d vs %d, want within 1 percent",
+			first.Plan.TempReadBlocks, second.Plan.TempReadBlocks)
+	}
+	if suppressionBlocksDrifted(first.Plan.TempWrittenBlocks, second.Plan.TempWrittenBlocks) {
+		return fmt.Sprintf("temp_written drifted: %d vs %d, want within 1 percent",
+			first.Plan.TempWrittenBlocks, second.Plan.TempWrittenBlocks)
+	}
+	return ""
+}
+
+// suppressionBlocksDrifted is the pure predicate behind the 1-percent gate:
+// drift beyond 1 percent at or above the noise floor.
+func suppressionBlocksDrifted(first, second int64) bool {
 	diff := first - second
 	if diff < 0 {
 		diff = -diff
 	}
-	if ceiling := max(first, second); ceiling >= suppressionBlockNoiseFloor && diff*100 > ceiling {
+	ceiling := max(first, second)
+	return ceiling >= suppressionBlockNoiseFloor && diff*100 > ceiling
+}
+
+func assertSuppressionBlocksWithinPercent(t *testing.T, name, kind string, first, second int64) {
+	t.Helper()
+	if suppressionBlocksDrifted(first, second) {
 		t.Fatalf("%s %s drifted: %d vs %d, want within 1 percent", name, kind, first, second)
 	}
 }
