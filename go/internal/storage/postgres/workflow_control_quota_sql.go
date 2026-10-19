@@ -258,6 +258,11 @@ JOIN inserted_claim ON inserted_claim.work_item_id = claimed_item.work_item_id
 // the empty path, so the hot grant path pays nothing, and its answer feeds
 // the quota_exceeded counter only — never admission, so its snapshot timing
 // cannot affect correctness.
+//
+// Idle polls pay a second round trip for this probe, and a lock race that
+// coincides with an at-budget scope ticks the counter without this claim
+// being quota-blocked; see recordQuotaThrottle. Folding the flag into the
+// gated statement would move that cost onto every grant instead.
 const quotaThrottleProbeQuery = `
 SELECT
     EXISTS(

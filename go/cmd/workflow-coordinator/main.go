@@ -128,7 +128,7 @@ func run(parent context.Context) error {
 	// No quota lookup yet: the coordinator loads no component manifests at
 	// startup and owns no operator-override transport, so there is no
 	// manifest source to Resolve here — every claim takes the plain
-	// statement until the manifest/override sourcing follow-up on #8471
+	// statement until the manifest/override sourcing follow-up (#8561)
 	// supplies one. The wiring seam above already carries a non-nil lookup
 	// into the store (see TestNewWorkflowControlStoreWiresQuotaLookup).
 	store := newWorkflowControlStore(postgres.SQLDB{DB: db}, instruments, nil)

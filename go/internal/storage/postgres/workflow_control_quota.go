@@ -194,6 +194,14 @@ func isQuotaStateUnreadable(err error) bool {
 // recordQuotaThrottle probes whether an empty gated claim hid eligible work
 // behind an exhausted budget, and counts it when so. Observability only:
 // the probe never admits or denies a grant.
+//
+// Cost and impurity, by design: the probe is a second round trip on every
+// empty gated claim, including the plain-idle case, so an idle poll costs
+// two statements; folding the flag into the gated statement would tax
+// every grant instead. The tick means "quota blocked some work this poll",
+// not "blocked this claim": rows skipped by SKIP LOCKED are still pending,
+// so under concurrent claimants has_work can be true while this claim lost
+// a lock race, and a simultaneously at-budget scope then fires the counter.
 func (s *WorkflowControlStore) recordQuotaThrottle(
 	ctx context.Context,
 	selector workflow.ClaimSelector,
