@@ -28,6 +28,8 @@ jobs:
       - uses: actions/checkout@v5
       - name: Install tools
         run: scripts/ci/install-apt-packages.sh jq ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Validate coverage report contract
         run: bash scripts/test-generate-code-coverage-report.sh
 

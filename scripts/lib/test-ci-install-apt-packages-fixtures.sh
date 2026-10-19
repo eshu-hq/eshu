@@ -116,6 +116,14 @@ $(cat "${out}")"
 		"gh-fallback: output names the fallback" \
 		"gh-fallback: fallback not named. output:
 $(cat "${out}")"
+	# The stub accepts any argv, so pin what production must ask gh for:
+	# a wrong repo, tag, or asset here would pass every assertion above
+	# while the real fallback downloads nothing (#8617 step 2, F2).
+	assert_output_has_all "${case_dir}/gh-args.log" \
+		"release download 15.2.0" "BurntSushi/ripgrep" "ripgrep-15.2.0-x86_64-unknown-linux-musl.tar.gz" \
+		"gh-fallback: gh was asked for the pinned repo, tag, and asset" \
+		"gh-fallback: gh argv does not name the pinned release. argv:
+$(cat "${case_dir}/gh-args.log" 2>/dev/null)"
 
 	# Same setup, no token: gh must NOT be invoked and the failure stays loud.
 	rm -f "${bin_dir}/rg" "${case_dir}/gh-args.log"

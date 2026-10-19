@@ -70,6 +70,8 @@ jobs:
       - name: Install ripgrep and jq
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify payload-usage-manifest gate')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep jq
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       # Pre-warm Go modules with retries so a dropped proxy stream fails
       # HERE, named for what it is, instead of surfacing as a payload-usage
