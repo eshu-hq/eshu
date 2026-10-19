@@ -9,8 +9,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa/graphdump"
 	"github.com/eshu-hq/eshu/go/internal/ifa/materializededges"
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	materialized "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/materialized"
+	entity "github.com/eshu-hq/eshu/go/internal/storage/cypher/semantic/entity"
 )
 
 // assertSemanticEntityContainmentEdges is the repo-scoped exact-set assertion
@@ -158,7 +158,7 @@ func semanticEdgeIsInScope(
 		}
 	}
 	stamp, _ := edge.Props["evidence_source"].(string)
-	if stamp == sourcecypher.SemanticEntityEvidenceSource {
+	if stamp == entity.SemanticEntityEvidenceSource {
 		return true
 	}
 	if _, ok := admission.stamps[stamp]; !ok {

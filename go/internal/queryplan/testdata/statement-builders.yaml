@@ -465,7 +465,7 @@ builders:
             - {}
             - {}
             - template: 'UNWIND $rows AS row MATCH (impl:ImplBlock {uid: row.impl_block_id}) MATCH (fn:Function {uid: row.function_id}) MERGE (impl)-[rel:CONTAINS]->(fn) SET rel.evidence_source = row.evidence_source'
-          source_sha256: e7f312e166192505a1c5daa9cf01a6d8d1ffb55b1bd305504b56e17a49681cd6
+          source_sha256: 45c44b811b1d9447176c1faca51a35c472e91ba2d07630e5ff6e60fd8ff02fbd
           exempt: dispatcher composing the leaf builders inventoried here; delegated statements execute through those callees
         - symbol: (*SemanticEntityWriter).semanticCanonicalNodeRetractStatements
           count: 1

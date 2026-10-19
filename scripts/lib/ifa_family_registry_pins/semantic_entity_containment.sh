@@ -24,7 +24,7 @@ IFA_FAMILY_PIN_WAIT_STAGE="handler"
 # domain check (go/internal/reducer/code/semantic/materialization.go:76).
 IFA_FAMILY_PIN_WAIT_KEY="semantic_entity_materialization"
 
-# go/internal/storage/cypher/semantic_entity_statements.go's per-label
+# go/internal/storage/cypher/semantic/entity/statements.go's per-label
 # templates share one relationship shape (`MERGE (f)-[rel:CONTAINS]->(n)`,
 # e.g. semanticFunctionUpsertCypher at :217-219). The anchor is matched
 # against EXECUTED statement text, so it carries the filled relationship form

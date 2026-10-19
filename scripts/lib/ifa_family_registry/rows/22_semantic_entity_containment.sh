@@ -53,7 +53,7 @@ IFA_FAMILY_ASSERT_FN[semantic_entity_containment]="ifa_semantic_entity_containme
 IFA_FAMILY_CASSETTE_VAR[semantic_entity_containment]="semantic_entity_containment_cassette"
 IFA_FAMILY_EXPECTED_VAR[semantic_entity_containment]="semantic_entity_containment_expected_edges"
 
-# go/internal/storage/cypher/semantic_entity_statements.go's per-label
+# go/internal/storage/cypher/semantic/entity/statements.go's per-label
 # templates share one relationship shape (`MERGE (f)-[rel:CONTAINS]->(n)`,
 # e.g. semanticFunctionUpsertCypher; the registry's representative is
 # SemanticEntityContainmentUpsertCypher). The anchor is matched against
