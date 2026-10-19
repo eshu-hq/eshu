@@ -69,12 +69,20 @@ CALL (name, lang) {
       ON CREATE SET k = properties(r)
       RETURN count(r) AS on_duplicate
     }
+    // Extras must carry IMPORTS only. Anything else on a duplicate is
+    // outside the audited scope, so count it and fail the run below rather
+    // than let DETACH DELETE drop it silently.
+    CALL (extra) {
+      OPTIONAL MATCH (extra)-[o]-()
+      WHERE type(o) <> 'IMPORTS'
+      RETURN count(o) AS non_imports
+    }
     DETACH DELETE extra
-    RETURN sum(on_duplicate) AS on_duplicates, count(extra) AS deleted
+    RETURN sum(on_duplicate) AS on_duplicates, count(extra) AS deleted, sum(non_imports) AS non_imports
   }
-  RETURN on_duplicates, deleted
+  RETURN on_duplicates, deleted, non_imports
 } IN TRANSACTIONS OF $batch_size ROWS
-RETURN count(*) AS keyed, coalesce(sum(on_duplicates), 0) AS on_duplicates, coalesce(sum(deleted), 0) AS deleted`
+RETURN count(*) AS keyed, coalesce(sum(on_duplicates), 0) AS on_duplicates, coalesce(sum(deleted), 0) AS deleted, coalesce(sum(non_imports), 0) AS non_imports`
 
 // moduleImportKeyRepointCypher moves every IMPORTS edge that targets a
 // uid-bearing (semantic) Module onto the canonical node for the same name and
@@ -126,6 +134,17 @@ func migrateModuleImportKeys(ctx context.Context, runner search.Runner, logger *
 	if err != nil {
 		return fmt.Errorf("module import key collapse: %w", err)
 	}
+	// Duplicates must carry IMPORTS only. A nonzero count means DETACH
+	// DELETE dropped edges the migration never moved, so fail before the
+	// marker with the count instead of continuing onto a damaged graph.
+	// The deleted extras are gone, so a rerun reports zero and resumes.
+	if nonImports := firstRowInt(collapse, "non_imports"); nonImports != 0 {
+		logger.ErrorContext(ctx, "module import key migration found non-IMPORTS relationships on deleted duplicates; schema marker not written",
+			telemetry.EventAttr("bootstrap.graph.module_import_key.incomplete"), "runbook", moduleImportKeyRunbook,
+			"non_imports_rels", nonImports)
+		return fmt.Errorf("module import key migration deleted %d duplicate Modules carrying %d non-IMPORTS relationships outside the audited IMPORTS-only scope; "+
+			"inspect the deleted duplicates before rerunning bootstrap (%s)", firstRowInt(collapse, "deleted"), nonImports, moduleImportKeyRunbook)
+	}
 	repoint, err := runner.Run(ctx, moduleImportKeyRepointCypher, map[string]any{"batch_size": int64(moduleImportKeyEdgeBatch)})
 	if err != nil {
 		return fmt.Errorf("module import key re-point: %w", err)
@@ -145,6 +164,7 @@ func migrateModuleImportKeys(ctx context.Context, runner search.Runner, logger *
 		// it is not a count of edges created.
 		"imports_on_duplicates", firstRowInt(collapse, "on_duplicates"),
 		"deleted_duplicates", firstRowInt(collapse, "deleted"),
+		"non_imports_rels", firstRowInt(collapse, "non_imports"),
 		"repointed_imports", firstRowInt(repoint, "repointed"),
 		"unkeyed_remaining", unkeyed,
 		"adopted_imports_remaining", adopted,

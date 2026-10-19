@@ -119,7 +119,7 @@ func TestRunLogsTheModuleMigrationCounts(t *testing.T) {
 	if !markerWritten(db) {
 		t.Fatal("schema marker not written after a clean migration")
 	}
-	for _, want := range []string{"bootstrap.graph.module_import_key.migrated", `"unkeyed_remaining":0`, `"repointed_imports":0`, `"imports_on_duplicates":0`} {
+	for _, want := range []string{"bootstrap.graph.module_import_key.migrated", `"unkeyed_remaining":0`, `"repointed_imports":0`, `"imports_on_duplicates":0`, `"non_imports_rels":0`} {
 		if !strings.Contains(logs.String(), want) {
 			t.Errorf("logs missing %s", want)
 		}
@@ -128,6 +128,28 @@ func TestRunLogsTheModuleMigrationCounts(t *testing.T) {
 	// created, so it overstated the move (95,000 logged, 5,000 created).
 	if strings.Contains(logs.String(), "moved_imports") {
 		t.Errorf("logs still carry the misleading moved_imports field: %s", logs.String())
+	}
+}
+
+// TestRunRefusesTheMarkerWhenDuplicatesCarryNonImportsEdges proves the
+// migration audits its "duplicates carry IMPORTS only" scope: a collapse
+// that reports non-IMPORTS relationships on deleted duplicates fails the
+// run before the marker, so DETACH DELETE can never silently drop edges the
+// migration did not move.
+func TestRunRefusesTheMarkerWhenDuplicatesCarryNonImportsEdges(t *testing.T) {
+	t.Parallel()
+
+	var events []string
+	var logs bytes.Buffer
+	db, err := runWithGraphRunner(t, "neo4j", &fakeGraphRunner{events: &events, moduleNonImports: 3}, &events, &logs)
+	if err == nil {
+		t.Fatal("run() succeeded with 3 non-IMPORTS relationships on deleted duplicates")
+	}
+	if !strings.Contains(err.Error(), "non-IMPORTS") {
+		t.Fatalf("run() error = %q, want non-IMPORTS audit failure", err.Error())
+	}
+	if markerWritten(db) {
+		t.Fatal("schema marker written after a failed non-IMPORTS audit")
 	}
 }
 
@@ -145,6 +167,10 @@ func TestModuleImportKeyMigrationCypherShape(t *testing.T) {
 		// with no lang ends with lang = '' like the node the writer would mint.
 		"SET keeper.import_key = name + '@' + lang, keeper.lang = lang",
 		"ON CREATE SET k = properties(r)",
+		// Extras must carry IMPORTS only: non-IMPORTS relationships are
+		// counted per extra and fail the migration when nonzero.
+		"type(o) <> 'IMPORTS'",
+		"non_imports",
 		"DETACH DELETE extra",
 		"} IN TRANSACTIONS OF $batch_size ROWS",
 	} {

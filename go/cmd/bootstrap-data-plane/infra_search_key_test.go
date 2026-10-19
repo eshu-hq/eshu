@@ -30,13 +30,16 @@ type fakeGraphRunner struct {
 	moduleErr     error
 	// moduleVerifyEmpty makes the verify step return no row.
 	moduleVerifyEmpty bool
+	// moduleNonImports is what the Module import_key collapse step reports
+	// for non-IMPORTS relationships on deleted duplicates.
+	moduleNonImports int64
 }
 
 func (r *fakeGraphRunner) Run(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 	switch {
 	case cypher == moduleImportKeyCollapseCypher:
 		*r.events = append(*r.events, "module_collapse")
-		return []map[string]any{{"keyed": int64(0), "on_duplicates": int64(0), "deleted": int64(0)}}, r.moduleErr
+		return []map[string]any{{"keyed": int64(0), "on_duplicates": int64(0), "deleted": int64(0), "non_imports": r.moduleNonImports}}, r.moduleErr
 	case cypher == moduleImportKeyRepointCypher:
 		*r.events = append(*r.events, "module_repoint")
 		return []map[string]any{{"repointed": int64(0)}}, nil
