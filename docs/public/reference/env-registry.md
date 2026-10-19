@@ -318,6 +318,8 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | Variable | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `ESHU_COLLECTOR_INSTANCES_JSON` | string | — | JSON array of desired collector instances reconciled by the coordinator. |
+| `ESHU_COMPONENT_QUOTA_MAX_FACTS_PER_GENERATION` | int | — | Uniform operator override for per-component facts-per-generation quota (#8561): declared and validated today, not runtime-enforced; blank keeps the manifests. |
+| `ESHU_COMPONENT_QUOTA_MAX_GENERATIONS_PER_HOUR` | int | — | Uniform operator override for per-component generations-per-hour claim quota (#8561): wins over every admitted manifest declaration; blank keeps the manifests. |
 | `ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON` | string | — | JSON egress policy applied to hosted collectors. |
 | `ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON` | string | — | JSON egress policy applied to hosted extensions. |
 | `ESHU_WORKFLOW_COORDINATOR_AWS_FRESHNESS_CLAIM_LEASE_DURATION` | duration | `5m` | Claim lease duration for AWS freshness trigger handoff (#4576). |

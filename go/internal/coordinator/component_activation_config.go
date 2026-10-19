@@ -14,17 +14,22 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-func componentCollectorInstancesFromEnv(getenv func(string) string, observer component.GrantObserver) ([]workflow.DesiredCollectorInstance, error) {
+func componentCollectorInstancesFromEnv(getenv func(string) string, observer component.GrantObserver) ([]workflow.DesiredCollectorInstance, []component.Manifest, error) {
 	home := strings.TrimSpace(getenv("ESHU_COMPONENT_HOME"))
 	if home == "" {
-		return nil, nil
+		return nil, nil, nil
 	}
 	registry := component.NewRegistry(home).WithGrantObserver(observer)
 	readback, err := registry.Readback(componentPolicyFromEnv(getenv))
 	if err != nil {
-		return nil, fmt.Errorf("read component registry: %w", err)
+		return nil, nil, fmt.Errorf("read component registry: %w", err)
 	}
 	instances := make([]workflow.DesiredCollectorInstance, 0)
+	// manifests carries the admitted manifests alongside the instances in
+	// readback order, so the quota lookup (#8561) is built from the same
+	// single registry pass instead of re-reading grants per component and
+	// risking a revocation landing between two reads.
+	manifests := make([]component.Manifest, 0)
 	for _, entry := range readback {
 		if entry.Error != nil || entry.Verification == nil || !entry.Verification.Allowed {
 			continue
@@ -48,15 +53,16 @@ func componentCollectorInstancesFromEnv(getenv func(string) string, observer com
 		}
 		manifest, err := load(entry.ID, entry.Version)
 		if err != nil {
-			return nil, fmt.Errorf("load component manifest %q: %w", entry.ID, err)
+			return nil, nil, fmt.Errorf("load component manifest %q: %w", entry.ID, err)
 		}
 		componentInstances, err := desiredInstancesForComponent(entry, manifest)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		instances = append(instances, componentInstances...)
+		manifests = append(manifests, manifest)
 	}
-	return instances, nil
+	return instances, manifests, nil
 }
 
 // hasClaimsEnabledActivation reports whether the coordinator would plan at
