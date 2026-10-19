@@ -1,0 +1,14 @@
+specs/live-tests.v1.yaml
+  h_78a442cba0b3e6 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "38cc27cd0f2831d323129106d3d78bfcd3d1937f",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
