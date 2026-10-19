@@ -10,6 +10,7 @@ package query
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -32,8 +33,10 @@ import (
 )
 
 type codeTopicFleetObserver struct {
-	businessQueries atomic.Int64
-	borrows         atomic.Int64
+	businessQueries      atomic.Int64
+	borrows              atomic.Int64
+	memberAttempts       atomic.Int64
+	failedMemberAttempts atomic.Int64
 }
 
 // codeTopicFleetProbeGate holds each real standby probe until all four have
@@ -103,6 +106,69 @@ func (o *codeTopicFleetObserver) Observe(role string, stage runtimepostgres.Stag
 	if role == "reader" && stage == runtimepostgres.StageBusinessQuery && outcome == runtimepostgres.OutcomeOK {
 		o.businessQueries.Add(1)
 	}
+}
+
+// ObserveMemberAttempt records closed per-member attempt outcomes from the
+// fleet borrow path, including the borrow ping Open itself runs after
+// member qualification. Attempts stay zero only when Open fails before
+// that ping (writer identity/ping, member qualification, checkpoint);
+// nonzero attempts on an Open failure pin it to the borrow ping.
+func (o *codeTopicFleetObserver) ObserveMemberAttempt(_ int, outcome runtimepostgres.Outcome) {
+	o.memberAttempts.Add(1)
+	if outcome != runtimepostgres.OutcomeOK {
+		o.failedMemberAttempts.Add(1)
+	}
+}
+
+func (o *codeTopicFleetObserver) memberAttemptSummary() string {
+	return fmt.Sprintf("attempts=%d failed=%d",
+		o.memberAttempts.Load(), o.failedMemberAttempts.Load())
+}
+
+// codeTopicFleetProbeTimeout bounds each standby/primary probe behind a
+// failed Open. Probes run sequentially, so sharing one budget would let a
+// stalled standby consume the primary probe's share (#8579 P2).
+const codeTopicFleetProbeTimeout = 10 * time.Second
+
+// codeTopicFleetStandbySummary best-effort reports the standby recovery
+// flag and replay position behind a failed Open, for the #8486 diagnostic
+// log. Each probe is a bounded single-row read under its own timeout; any
+// probe failure yields closed unknown tokens, and the helper never fails
+// the test. LSNs and recovery flags carry no credentials or user data.
+func codeTopicFleetStandbySummary(ctx context.Context, readerDSN string, primary *sql.DB) string {
+	return codeTopicFleetStandbySummaryWithTimeout(ctx, readerDSN, primary, codeTopicFleetProbeTimeout)
+}
+
+func codeTopicFleetStandbySummaryWithTimeout(ctx context.Context, readerDSN string, primary *sql.DB, probeTimeout time.Duration) string {
+	recovery, replay := "unknown", "unknown"
+	if probe, err := sql.Open("pgx", readerDSN); err == nil {
+		func() {
+			defer probe.Close()
+			probeCtx, cancel := context.WithTimeout(ctx, probeTimeout)
+			defer cancel()
+			var recovering bool
+			if err := probe.QueryRowContext(probeCtx, "SELECT pg_is_in_recovery()").Scan(&recovering); err != nil {
+				return
+			}
+			recovery = strconv.FormatBool(recovering)
+			var lsn sql.NullString
+			if err := probe.QueryRowContext(probeCtx, "SELECT pg_last_wal_replay_lsn()::text").Scan(&lsn); err == nil && lsn.Valid {
+				replay = lsn.String
+			}
+		}()
+	}
+	insert := "unknown"
+	if primary != nil {
+		func() {
+			probeCtx, cancel := context.WithTimeout(ctx, probeTimeout)
+			defer cancel()
+			var lsn sql.NullString
+			if err := primary.QueryRowContext(probeCtx, "SELECT pg_current_wal_insert_lsn()::text").Scan(&lsn); err == nil && lsn.Valid {
+				insert = lsn.String
+			}
+		}()
+	}
+	return "standby-recovery=" + recovery + " replay-lsn=" + replay + " insert-lsn=" + insert
 }
 
 // TestCodeTopicFleetCapacityEndpointPostgresLive proves the actual HTTP handler
@@ -188,8 +254,21 @@ FROM generate_series(1, 251) AS i`)
 		t.Fatalf("load fleet config: %v", err)
 	}
 	observer := new(codeTopicFleetObserver)
+	openStarted := time.Now()
 	access, err := runtimepostgres.Open(ctx, cfg, observer)
 	if err != nil {
+		// #8486: the 2026-10-18 red failed here with the fixed public
+		// "PostgreSQL reader unavailable" string while the driver cause
+		// stayed masked inside Unwrap. Log the redaction-safe
+		// classification, the elapsed time against the qualification
+		// budget, and the standby recovery position before failing so
+		// the next recurrence arrives with its cause attached.
+		t.Logf("open physical reader fleet diagnostic: %s elapsed=%s ping-timeout=%s member-attempts=%s %s",
+			runtimepostgres.OpenFailureSummary(err),
+			time.Since(openStarted).Round(time.Millisecond),
+			cfg.PingTimeout,
+			observer.memberAttemptSummary(),
+			codeTopicFleetStandbySummary(ctx, readerDSN, database))
 		t.Fatalf("open physical reader fleet: %v", err)
 	}
 	t.Cleanup(func() {
