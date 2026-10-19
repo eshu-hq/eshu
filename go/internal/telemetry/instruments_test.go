@@ -165,6 +165,8 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.GCPFreshnessFanOut, "GCPFreshnessFanOut histogram should be registered")
 	assert.NotNil(t, inst.AWSScanStatusStaleFence, "AWSScanStatusStaleFence counter should be registered")
 	assert.NotNil(t, inst.WorkflowClaimAttemptBudgetExhausted, "WorkflowClaimAttemptBudgetExhausted counter should be registered")
+	assert.NotNil(t, inst.WorkflowClaimQuotaExceeded, "WorkflowClaimQuotaExceeded counter should be registered")
+	assert.NotNil(t, inst.WorkflowClaimQuotaUnreadableFallback, "WorkflowClaimQuotaUnreadableFallback counter should be registered")
 	assert.NotNil(t, inst.LockOnlyGateLockedRows, "LockOnlyGateLockedRows counter should be registered")
 
 	// Verify all histogram fields are non-nil

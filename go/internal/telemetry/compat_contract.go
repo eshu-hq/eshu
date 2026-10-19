@@ -156,6 +156,19 @@ const (
 	SpanScannerWorkerFactEmitBatch = contract.SpanScannerWorkerFactEmitBatch
 )
 
+// Claim-quota dimensions, metric names, and quota-kind values (from
+// contract/workflow_claim_quota.go).
+const (
+	MetricDimensionQuotaKind                   = contract.MetricDimensionQuotaKind
+	MetricWorkflowClaimQuotaExceeded           = contract.MetricWorkflowClaimQuotaExceeded
+	MetricWorkflowClaimQuotaUnreadableFallback = contract.MetricWorkflowClaimQuotaUnreadableFallback
+	QuotaKindGenerationsPerHour                = contract.QuotaKindGenerationsPerHour
+	LogKeyQuotaCollectorKind                   = contract.LogKeyQuotaCollectorKind
+	LogKeyQuotaKind                            = contract.LogKeyQuotaKind
+	LogKeyQuotaLimit                           = contract.LogKeyQuotaLimit
+	LogKeyQuotaScope                           = contract.LogKeyQuotaScope
+)
+
 // Hosted-provider security-alert spans (from contract/security_alert.go).
 const (
 	SpanSecurityAlertObserve     = contract.SpanSecurityAlertObserve

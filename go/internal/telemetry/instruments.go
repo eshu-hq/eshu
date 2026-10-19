@@ -283,10 +283,23 @@ type Instruments struct {
 	// distinguish "the pipeline is draining slowly" from "this run can
 	// never converge on its own."
 	WorkflowRunTerminalDeadLetterBlocks metric.Int64Counter
-	SearchIndexMutations                metric.Int64Counter
-	SearchIndexErrors                   metric.Int64Counter
-	CanonicalWrites                     metric.Int64Counter
-	SharedProjectionCycles              metric.Int64Counter
+	// WorkflowClaimQuotaExceeded counts claims that found eligible work but
+	// granted nothing because the per-component generation quota blocked
+	// them (#8471). Labeled by collector_kind and quota_kind (closed
+	// contract.QuotaKind* set) — never by scope_id, which is unbounded
+	// operator data. Lets an operator distinguish "throttled by quota"
+	// from "slow".
+	WorkflowClaimQuotaExceeded metric.Int64Counter
+	// WorkflowClaimQuotaUnreadableFallback counts claims that took the
+	// floor-rate fallback because the quota state was unreadable (#8471).
+	// Labeled by collector_kind only. A nonzero rate means the quota
+	// protection is degraded to the floor budget: healthy collectors keep
+	// moving, but a runaway is no longer precisely bounded.
+	WorkflowClaimQuotaUnreadableFallback metric.Int64Counter
+	SearchIndexMutations                 metric.Int64Counter
+	SearchIndexErrors                    metric.Int64Counter
+	CanonicalWrites                      metric.Int64Counter
+	SharedProjectionCycles               metric.Int64Counter
 	// SharedProjectionIntentsCompleted counts shared-projection intents marked
 	// completed per domain. Labeled by domain only (bounded: the
 	// domain set is the fixed sharedProjectionDomains list). Never keyed by
@@ -2946,6 +2959,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register WorkflowRunTerminalDeadLetterBlocks counter: %w", err)
+	}
+
+	inst.WorkflowClaimQuotaExceeded, err = meter.Int64Counter(
+		"eshu_dp_workflow_claim_quota_exceeded_total",
+		metric.WithDescription("Total claims that found eligible work but granted nothing because the per-component generation quota blocked them, labeled by collector_kind and quota_kind (#8471)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkflowClaimQuotaExceeded counter: %w", err)
+	}
+
+	inst.WorkflowClaimQuotaUnreadableFallback, err = meter.Int64Counter(
+		"eshu_dp_workflow_claim_quota_unreadable_fallback_total",
+		metric.WithDescription("Total claims that took the floor-rate fallback because the quota state was unreadable, labeled by collector_kind (#8471)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkflowClaimQuotaUnreadableFallback counter: %w", err)
 	}
 
 	inst.SearchIndexMutations, err = meter.Int64Counter(
@@ -7884,6 +7913,13 @@ func AttrResult(v string) attribute.KeyValue {
 // AttrReason returns a reason attribute for metric recording.
 func AttrReason(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionReason, v)
+}
+
+// AttrQuotaKind returns a quota_kind attribute for claim-quota metrics.
+// The value must come from the closed contract.QuotaKind* set so the
+// label space stays bounded.
+func AttrQuotaKind(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionQuotaKind, v)
 }
 
 // AttrMCPMethod returns an mcp_method attribute for

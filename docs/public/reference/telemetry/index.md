@@ -748,7 +748,7 @@ without touching individual collector packages:
   per run, from `CollectedGeneration.FactCount`. Labels: `collector_kind`,
   `source_system`. Recorded on the success path only.
 - `eshu_dp_workflow_fair_claims_total` — counter of granted claims (#8469),
-  labeled `collector_kind` and `claim_priority` (scheduler target-class rank; pacing ships its own series: [Claim-Pacing Signals](claim-pacing.md)).
+  labeled `collector_kind` and `claim_priority` (scheduler target-class rank; pacing ships its own series: [Claim-Pacing Signals](claim-pacing.md)); per-component generation quotas add two more claim signals ([Claim Quotas](claim-quotas.md)).
 
 All chokepoint labels stay bounded: fixed `collector_kind`/`source_system` sets
 and the 0-4 `claim_priority` rank — no repo, scope, generation, or instance identifiers (pacing's `domain` family label is scoped separately in [Claim-Pacing Signals](claim-pacing.md)).
