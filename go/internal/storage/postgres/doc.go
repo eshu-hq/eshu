@@ -21,7 +21,13 @@
 // keys, and partial-failure behavior documented on each helper; queue and
 // status writes are retry-safe by design and must stay that way. ReducerQueue
 // lifecycle methods and helper methods are split across sibling files, but
-// share the same lease, retry, and scan contract. Supersession of projector
+// share the same lease, retry, and scan contract. A workload_materialization
+// ACK (single and batch) also re-triggers service_catalog_correlation in the
+// same statement (#8169, service_catalog_runtime_retrigger.go): it reopens the
+// succeeded catalog rows whose committed decisions name the acked repository
+// and sets cross_scope_replay_required on the claimed or running ones, locking
+// them in work_item_id C order after the producer row, and records
+// eshu_dp_service_catalog_runtime_retrigger_total. Supersession of projector
 // rows and their scope generations must remain atomic. Reducer claims
 // supersede unleased stale same-scope rows from generations older than the
 // active generation, and status/drain/observer reads exclude those inactive

@@ -93,8 +93,14 @@
 // set is pinned
 // against every WorkloadInstance and RUNS_ON writer in source by
 // TestRuntimeProducerSetCoversEveryRuntimeWriter. The repo_dependency shared
-// projection's RUNS_ON writer is enumerated there but not fenced: a read
-// while that intent is still pending can miss a platform row (#8169).
+// projection's RUNS_ON writer is fenced through its pending
+// shared_projection_intents rows (RuntimeSharedIntentProducerDomains,
+// RuntimeProducerState.RunsOnIntentsPending), bounded from the intent's
+// created_at (#8169). A generation the fence let commit with an incomplete
+// family (no_producer, bound_exceeded) is repaired by the
+// workload_materialization ACK, which reopens the succeeded catalog rows
+// whose decisions name its repository and flags any claimed or running row
+// (go/internal/storage/postgres, service_catalog_runtime_retrigger.go).
 //
 // Telemetry: the correlation handler increments
 // eshu_dp_service_catalog_correlations_total (labeled by domain and outcome)
@@ -108,7 +114,9 @@
 // pass and logs every deferral and bound overrun with summed producer state
 // counts, up to 10 in-flight repository ids, producer_elapsed against
 // producer_max_wait (negative while the anchor lies in the future),
-// producer_newest_claim_until, and the catalog's elapsed_since_cycle_start.
+// producer_newest_claim_until, the catalog's elapsed_since_cycle_start,
+// runs_on_intents_pending, and producer_kind (workload_materialization,
+// repo_dependency, or both).
 // Facts rejected for a malformed payload feed the shared
 // eshu_dp_reducer_input_invalid_facts_total counter through factdecode
 // instead of a family-specific one. The service-materialization evidence

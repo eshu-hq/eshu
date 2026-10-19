@@ -15,7 +15,11 @@
 // row's cycle start, last claim, scheduled visibility, and lease expiry
 // (claim_until, non-NULL only on claimed and running rows), which the
 // handler's 30-minute elapsed bound is measured from, and the newest
-// in-flight claim_until for the log line. The lookup is one
-// read-only statement, [RuntimeProducerStatesQuery], that reaches
-// fact_work_items only through fact_work_items_scope_generation_idx.
+// in-flight claim_until for the log line. It also counts each repository's
+// pending repo_dependency RUNS_ON intents in shared_projection_intents, the
+// second RUNS_ON writer, with their newest created_at (#8169). The lookup is
+// one read-only statement, [RuntimeProducerAndRunsOnStatesQuery]: the
+// [RuntimeProducerStatesQuery] half reaches fact_work_items only through
+// fact_work_items_scope_generation_idx, and the [RunsOnIntentStatesQuery] half
+// reaches shared_projection_intents through shared_projection_intents_repo_run_idx.
 package producer

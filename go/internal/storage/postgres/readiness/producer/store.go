@@ -73,8 +73,51 @@ WHERE scope.scope_id = ANY($1::text[])
 GROUP BY scope.scope_id
 `
 
-// Store answers servicecatalog.RuntimeProducerReadiness from fact_work_items.
-// It holds no state; every call is one read-only statement.
+// RunsOnIntentStatesQuery counts each repository's pending RUNS_ON intents of
+// the shared-intent producer domains (#8169): shared_projection_intents rows
+// with repository_id in $3, projection_domain in $4, completed_at NULL, and
+// payload relationship_type RUNS_ON, with the newest created_at as the
+// elapsed-bound anchor. repository_id equals the acceptance unit and
+// payload.repo_id for repo_dependency rows (the runner rejects any other row,
+// repo_dependency_projection_acceptance_cycle.go). It reads
+// shared_projection_intents_repo_run_idx (repository_id, source_run_id,
+// projection_domain, ...) and filters completed_at and the relationship type
+// on the heap rows of the requested repositories only. Measured on 875,000
+// intents (4,973 pending): pgbench mean 0.12 ms for one repository and 0.98 ms
+// for fifty, never a sequential scan (see README.md).
+const RunsOnIntentStatesQuery = `
+SELECT intent.repository_id,
+       count(*)               AS pending_count,
+       max(intent.created_at) AS newest_created_at
+FROM shared_projection_intents AS intent
+WHERE intent.repository_id = ANY($3::text[])
+  AND intent.projection_domain = ANY($4::text[])
+  AND intent.completed_at IS NULL
+  AND intent.payload->>'relationship_type' = 'RUNS_ON'
+GROUP BY intent.repository_id
+`
+
+// RuntimeProducerAndRunsOnStatesQuery answers both halves of the fence in ONE
+// statement, so both reads share one READ COMMITTED snapshot. The
+// repo_dependency runner writes RUNS_ON, then reopens the repository's
+// workload_materialization row, then marks the intent completed, each in its
+// own commit; one snapshot therefore sees either the pending intent or the
+// reopened producer row, never neither. Producer rows key on the repository
+// scope id; RUNS_ON rows key on the repository id.
+const RuntimeProducerAndRunsOnStatesQuery = `
+SELECT 'producer' AS kind, producer.scope_id AS state_key,
+       producer.pending_count, producer.retrying_count, producer.claimed_count, producer.running_count,
+       producer.producer_count, producer.newest_in_flight_workable_at, producer.newest_in_flight_claim_until
+FROM (` + RuntimeProducerStatesQuery + `) AS producer
+UNION ALL
+SELECT 'runs_on' AS kind, runs_on.repository_id AS state_key,
+       runs_on.pending_count, 0, 0, 0, 0, runs_on.newest_created_at, NULL::timestamptz
+FROM (` + RunsOnIntentStatesQuery + `) AS runs_on
+`
+
+// Store answers servicecatalog.RuntimeProducerReadiness from fact_work_items
+// and shared_projection_intents. It holds no state; every call is one
+// read-only statement.
 type Store struct {
 	DB db.Queryer
 }
@@ -118,31 +161,56 @@ func (s Store) RuntimeProducerStates(
 	for _, domain := range producerDomains {
 		domains = append(domains, string(domain))
 	}
-	rows, err := s.DB.QueryContext(ctx, RuntimeProducerStatesQuery, scopeIDs, domains)
+	repoKeys := make([]string, 0, len(repoByScope))
+	for _, scopeID := range scopeIDs {
+		repoKeys = append(repoKeys, repoByScope[scopeID])
+	}
+	sharedDomains := make([]string, 0, 1)
+	for _, domain := range servicecatalog.RuntimeSharedIntentProducerDomains() {
+		sharedDomains = append(sharedDomains, string(domain))
+	}
+	rows, err := s.DB.QueryContext(ctx, RuntimeProducerAndRunsOnStatesQuery, scopeIDs, domains, repoKeys, sharedDomains)
 	if err != nil {
 		return nil, fmt.Errorf("query runtime producer states: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	states := make(map[string]servicecatalog.RuntimeProducerState, len(scopeIDs))
 	for rows.Next() {
-		var scopeID string
-		var state servicecatalog.RuntimeProducerState
+		var kind, key string
+		var pending, retrying, claimed, running, total int
 		var workableAt, claimUntil sql.NullTime
-		if err := rows.Scan(&scopeID, &state.Pending, &state.Retrying, &state.Claimed, &state.Running, &state.Total,
+		if err := rows.Scan(&kind, &key, &pending, &retrying, &claimed, &running, &total,
 			&workableAt, &claimUntil); err != nil {
 			return nil, fmt.Errorf("scan runtime producer state: %w", err)
 		}
-		if workableAt.Valid {
-			state.NewestInFlightWorkableAt = workableAt.Time
+		switch kind {
+		case "producer":
+			repoID, ok := repoByScope[key]
+			if !ok {
+				return nil, fmt.Errorf("runtime producer state for unrequested scope %q", key)
+			}
+			state := states[repoID]
+			state.Pending, state.Retrying, state.Claimed, state.Running, state.Total = pending, retrying, claimed, running, total
+			if workableAt.Valid {
+				state.NewestInFlightWorkableAt = workableAt.Time
+			}
+			if claimUntil.Valid {
+				state.NewestInFlightClaimUntil = claimUntil.Time
+			}
+			states[repoID] = state
+		case "runs_on":
+			if _, ok := repoByScope[scope.GitRepositoryScopePrefix+key]; !ok {
+				return nil, fmt.Errorf("runs_on intent state for unrequested repository %q", key)
+			}
+			state := states[key]
+			state.RunsOnIntentsPending = pending
+			if workableAt.Valid {
+				state.NewestRunsOnIntentCreatedAt = workableAt.Time
+			}
+			states[key] = state
+		default:
+			return nil, fmt.Errorf("runtime producer state of unknown kind %q", kind)
 		}
-		if claimUntil.Valid {
-			state.NewestInFlightClaimUntil = claimUntil.Time
-		}
-		repoID, ok := repoByScope[scopeID]
-		if !ok {
-			return nil, fmt.Errorf("runtime producer state for unrequested scope %q", scopeID)
-		}
-		states[repoID] = state
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate runtime producer states: %w", err)

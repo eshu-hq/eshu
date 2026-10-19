@@ -73,6 +73,7 @@ prefix is a historical artifact of the flat root, not a package boundary.
 | `CorpusFencedResolvedRelationshipLoader` | the deployment/dependencies shared, corpus-fenced relationship loader contract (locally redeclared, see below) |
 | `ServiceCatalogCorrelationResolutionNotReadyFailureClass` | the non-counting readiness class of the corpus-fence deferral (#7258) |
 | `RuntimeProducerReadiness` / `RuntimeProducerState` / `RuntimeProducerDomains` | the runtime fence's producer readiness port, its per-repository state, and the enumerated producer domain set (#7816) |
+| `RuntimeSharedIntentProducerDomains` | the shared-intent projection domains whose pending RUNS_ON intents also hold the fence: `repo_dependency` (#8169) |
 | `RuntimeNotReadyFailureClass` | the non-counting readiness class of the runtime fence deferral (#7816) |
 | `RuntimeReadinessReady` / `NoProducer` / `Deferred` / `BoundExceeded` | the closed outcome set of `eshu_dp_service_catalog_runtime_readiness_total` |
 
@@ -130,6 +131,17 @@ the future, during a retry backoff or a live lease), `producer_max_wait`,
 while some producer row holds a lease), and the catalog intent's
 `elapsed_since_cycle_start` (context only; it does not decide). It never logs
 `attempt_count`, which the non-counting class freezes.
+
+Since #8169 the fence also waits on pending `repo_dependency` RUNS_ON intents
+(`RuntimeProducerState.RunsOnIntentsPending`), the second writer of the
+runtime surface. Its bound counts from the newest pending intent's
+`created_at`; a repository with both kinds in flight counts from the later
+anchor. The defer and bound lines add `runs_on_intents_pending` and
+`producer_kind`. A generation committed at `no_producer` or `bound_exceeded`
+is repaired by the `workload_materialization` ACK, which reopens the
+succeeded catalog rows whose decisions name its repository and flags any
+claimed or running row at the active generation; see
+[the design note](../../../../docs/internal/design/8169-service-catalog-runtime-retrigger.md).
 
 The bound is per in-flight repository. Each repository's elapsed time runs
 from its newest in-flight producer row's last-workable time:

@@ -74,6 +74,7 @@ func configureReducerQueue(
 	workQueue.MaxRetryDelay = retryCfg.MaxRetryDelay
 	workQueue.JitterFraction = retryCfg.JitterFraction
 	workQueue.Instruments = instruments
+	workQueue.Logger = logger
 	workQueue.ClaimDomains = claimDomains
 	workQueue.RequireProjectorDrainBeforeClaim = projectorDrainGate
 	workQueue.ExpectedSourceLocalProjectors = loadReducerExpectedSourceLocalProjectors(getenv)

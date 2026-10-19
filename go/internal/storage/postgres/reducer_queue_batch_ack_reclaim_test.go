@@ -191,7 +191,9 @@ func TestReducerQueueAckBatchPairsTheSurvivingClaimsResult(t *testing.T) {
 	staleClaim := time.Date(2026, time.September, 21, 15, 11, 48, 0, time.UTC)
 	freshClaim := staleClaim.Add(900 * time.Millisecond)
 
-	database := &fakeExecQueryer{execResults: []sql.Result{rowsAffectedResult{rowsAffected: 1}}}
+	// workload_materialization takes the #8169 re-trigger statement, a query
+	// returning (acknowledged, reopened, flagged).
+	database := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: [][]any{{int64(1), int64(0), int64(0)}}}}}
 	queue := ReducerQueue{
 		database:      database,
 		LeaseOwner:    "reducer-6162",
@@ -223,12 +225,16 @@ func TestReducerQueueAckBatchPairsTheSurvivingClaimsResult(t *testing.T) {
 	if !errors.Is(err, reducer.ErrExecutionClaimRejected) {
 		t.Fatalf("AckBatch() error = %v, want a claim rejection", err)
 	}
-	if got, want := len(database.execs), 1; got != want {
-		t.Fatalf("AckBatch() exec count = %d, want %d", got, want)
+	if got, want := len(database.queries), 1; got != want {
+		t.Fatalf("AckBatch() query count = %d, want %d", got, want)
+	}
+	if database.queries[0].query != ackWorkloadMaterializationReducerWorkBatchQuery {
+		t.Fatal("AckBatch() did not run the workload re-trigger batch statement")
 	}
 
-	// ackValueFlowRefreshProducerReducerWorkBatchQuery binds the emit ids last.
-	args := database.execs[0].args
+	// The workload batch statement binds the emit ids last, as
+	// ackValueFlowRefreshProducerReducerWorkBatchQuery does.
+	args := database.queries[0].args
 	emitIDs, ok := args[len(args)-1].([]string)
 	if !ok {
 		t.Fatalf("emit id argument type = %T, want []string", args[len(args)-1])
