@@ -3,7 +3,10 @@
 
 package cigates
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 func validateTrustedWorkflowTriggers(check RequiredStatusCheck, raw []byte) []error {
 	triggers, err := workflowTriggerKeys(raw)
@@ -47,6 +50,55 @@ func validateTrustedWorkflowTriggers(check RequiredStatusCheck, raw []byte) []er
 				"required status context %q: trusted publisher must not execute from untrusted %s workflow code",
 				check.Context,
 				forbidden,
+			))
+		}
+	}
+	return errs
+}
+
+// validateCompletedOnlyAggregation pins the cost split between the two
+// workflow_run activity types (#8617). An in_progress event exists so the
+// pending write invalidates a stale success when a blocking workflow starts
+// (or re-runs) on the same head; that write is one API call. Everything after
+// it — checkout, Go build, the await, and the terminal publish — classifies
+// gate outcomes, and on an in_progress event it can only wait for events that
+// have not happened yet, holding a runner for up to the job timeout per
+// source workflow. Those steps must therefore run only for a completed
+// event, which every in-flight source workflow still sends when it finishes
+// or is cancelled, so no verdict depends on an in_progress run aggregating.
+func validateCompletedOnlyAggregation(check RequiredStatusCheck, job requiredWorkflowJob) []error {
+	pending := -1
+	for i, step := range job.Steps {
+		if strings.Contains(step.Run, "state=pending") {
+			pending = i
+			break
+		}
+	}
+	if pending < 0 {
+		// The missing pending write is reported by the publisher-shape
+		// validators; without it there is no split point to judge here.
+		return nil
+	}
+	var errs []error
+	for _, step := range job.Steps[pending+1:] {
+		condition := strings.ReplaceAll(step.If, " ", "")
+		// A disjunction would re-admit in_progress through its other arm
+		// while still containing the required literal, so reject it outright.
+		if strings.Contains(condition, "||") {
+			errs = append(errs, fmt.Errorf(
+				"required status context %q: step %q uses a disjunction (||) after the pending write, which can "+
+					"re-admit an in_progress event past the completed-only condition; use a plain conjunction",
+				check.Context,
+				step.Name,
+			))
+			continue
+		}
+		if !strings.Contains(condition, "github.event.action=='completed'") {
+			errs = append(errs, fmt.Errorf(
+				"required status context %q: step %q runs after the pending write without a completed-only "+
+					"condition, so an in_progress event pays the full aggregation cost; add github.event.action == 'completed' to its if",
+				check.Context,
+				step.Name,
 			))
 		}
 	}

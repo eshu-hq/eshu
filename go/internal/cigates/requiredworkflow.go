@@ -224,6 +224,7 @@ func validateTrustedAggregator(
 ) []error {
 	var errs []error
 	errs = append(errs, validateTrustedWorkflowTriggers(check, raw)...)
+	errs = append(errs, validateCompletedOnlyAggregation(check, job)...)
 	errs = append(errs, validateTrustedWorkflowConcurrency(check, concurrency)...)
 
 	permissions := workflowPermissions

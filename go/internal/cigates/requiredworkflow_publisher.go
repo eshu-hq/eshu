@@ -46,9 +46,11 @@ func validateTerminalPublisher(step requiredWorkflowStep, check RequiredStatusCh
 	if hasExpressionDelimiters {
 		condition = strings.TrimSpace(condition[3 : len(condition)-2])
 	}
-	if !hasExpressionDelimiters || condition != "!cancelled()" {
+	// Completed-only (#8617) and cancellation-safe: an in_progress event
+	// publishes no verdict, and a cancelled run publishes nothing either.
+	if !hasExpressionDelimiters || strings.ReplaceAll(condition, " ", "") != "github.event.action=='completed'&&!cancelled()" {
 		errs = append(errs, fmt.Errorf(
-			"required status context %q: terminal status publisher must use !cancelled() to run after failure without publishing on cancellation",
+			"required status context %q: terminal status publisher must use github.event.action == 'completed' && !cancelled() so it publishes only a completed event's verdict, runs after failure, and never publishes on cancellation",
 			check.Context,
 		))
 	}
