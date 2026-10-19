@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestEdgeWriterRetractEdgesSiblingNonDeltaBatchIgnoresUnmarkedLegacyRows is
@@ -50,7 +51,7 @@ func TestEdgeWriterRetractEdgesSiblingNonDeltaBatchIgnoresUnmarkedLegacyRows(t *
 			writer := NewEdgeWriter(executor, 0)
 			writer.Reader = executor
 
-			rows := []reducer.SharedProjectionIntentRow{
+			rows := []sharedintent.Row{
 				// The repository that actually asked for a whole-repository
 				// retract. Its DELETE must still run.
 				wholeScopeRefreshRetractRow("refresh-full", "repo-full"),

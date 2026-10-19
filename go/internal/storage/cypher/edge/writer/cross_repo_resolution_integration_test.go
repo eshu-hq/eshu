@@ -11,6 +11,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -26,14 +27,14 @@ func (f *fakeCrossRepoEvidenceLoader) ListEvidenceFacts(
 }
 
 type recordingIntentWriter struct {
-	rows [][]reducer.SharedProjectionIntentRow
+	rows [][]sharedintent.Row
 }
 
 func (r *recordingIntentWriter) UpsertIntents(
 	_ context.Context,
-	rows []reducer.SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 ) error {
-	copied := make([]reducer.SharedProjectionIntentRow, len(rows))
+	copied := make([]sharedintent.Row, len(rows))
 	copy(copied, rows)
 	r.rows = append(r.rows, copied)
 	return nil

@@ -13,6 +13,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestCodeCallWholeFenceRefreshNotBlockedByOlderEdgeIntegration is the #3865
@@ -78,7 +79,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)`,
 
 	key := reducer.SharedProjectionAcceptanceKey{ScopeID: scope, AcceptanceUnitID: au, SourceRunID: run}
 
-	wholeRow := reducer.SharedProjectionIntentRow{
+	wholeRow := sharedintent.Row{
 		IntentID: wholeID, ProjectionDomain: reducer.DomainCodeCalls,
 		PartitionKey: "code-calls:v1:whole:" + repo, ScopeID: scope, AcceptanceUnitID: au,
 		RepositoryID: repo, SourceRunID: run, GenerationID: gen,
@@ -92,7 +93,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)`,
 		t.Fatal("whole-refresh is fenced behind its older edge — #3865 deadlock regression")
 	}
 
-	edgeRow := reducer.SharedProjectionIntentRow{
+	edgeRow := sharedintent.Row{
 		IntentID: edgeID, ProjectionDomain: reducer.DomainCodeCalls,
 		PartitionKey: "content-entity:e_a->content-entity:e_b", ScopeID: scope, AcceptanceUnitID: au,
 		RepositoryID: repo, SourceRunID: run, GenerationID: gen,
@@ -166,7 +167,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)`,
 		`{"action":"refresh","intent_type":"repo_refresh","repo_id":"`+repo+`","delta_projection":true,"delta_file_paths":["src/a.go"]}`)
 
 	key := reducer.SharedProjectionAcceptanceKey{ScopeID: scope, AcceptanceUnitID: au, SourceRunID: run}
-	refreshRow := reducer.SharedProjectionIntentRow{
+	refreshRow := sharedintent.Row{
 		IntentID: refreshID, ProjectionDomain: reducer.DomainCodeCalls,
 		PartitionKey: filePart, ScopeID: scope, AcceptanceUnitID: au,
 		RepositoryID: repo, SourceRunID: run, GenerationID: gen,
@@ -186,7 +187,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)`,
 
 	// The non-file edge must still be fenced behind the file repo_refresh so the
 	// retract runs before the edge writes.
-	edgeRow := reducer.SharedProjectionIntentRow{
+	edgeRow := sharedintent.Row{
 		IntentID: edgeID, ProjectionDomain: reducer.DomainCodeCalls,
 		PartitionKey: "content-entity:e_a->content-entity:e_b", ScopeID: scope, AcceptanceUnitID: au,
 		RepositoryID: repo, SourceRunID: run, GenerationID: gen,

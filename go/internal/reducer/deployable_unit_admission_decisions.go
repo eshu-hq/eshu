@@ -15,6 +15,7 @@ import (
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // DeployableUnitEdgeWriteUnverifiedFailureClass classifies a
@@ -41,7 +42,7 @@ var ErrDeployableUnitEdgeVerificationUnavailable = errors.New("deployable unit e
 // both endpoints present, and an unclassed retryable error when a probe could
 // not run. The edge writer implements it.
 type DeployableUnitEdgeVerifier interface {
-	VerifyDeployableUnitEdges(ctx context.Context, rows []SharedProjectionIntentRow, evidenceSource string) error
+	VerifyDeployableUnitEdges(ctx context.Context, rows []sharedintent.Row, evidenceSource string) error
 }
 
 // verifyDeployableUnitEdges proves the admitted edge rows the write just
@@ -56,7 +57,7 @@ type DeployableUnitEdgeVerifier interface {
 // but records no fingerprint, so the next maintenance pass re-opens it.
 func (h DeployableUnitCorrelationHandler) verifyDeployableUnitEdges(
 	ctx context.Context,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 ) (bool, error) {
 	admitted := AdmittedDeployableUnitRows(rows)
 	if len(admitted) == 0 {

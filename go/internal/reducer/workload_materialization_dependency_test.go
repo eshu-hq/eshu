@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 type recordingWorkloadDependencyEdgeWriter struct {
@@ -19,19 +20,19 @@ type recordingWorkloadDependencyEdgeWriter struct {
 type sharedEdgeWriteCall struct {
 	domain         string
 	evidenceSource string
-	rows           []SharedProjectionIntentRow
+	rows           []sharedintent.Row
 }
 
 func (r *recordingWorkloadDependencyEdgeWriter) RetractEdges(
 	_ context.Context,
 	domain string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	evidenceSource string,
 ) error {
 	r.retractCalls = append(r.retractCalls, sharedEdgeWriteCall{
 		domain:         domain,
 		evidenceSource: evidenceSource,
-		rows:           append([]SharedProjectionIntentRow(nil), rows...),
+		rows:           append([]sharedintent.Row(nil), rows...),
 	})
 	return nil
 }
@@ -39,13 +40,13 @@ func (r *recordingWorkloadDependencyEdgeWriter) RetractEdges(
 func (r *recordingWorkloadDependencyEdgeWriter) WriteEdges(
 	_ context.Context,
 	domain string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	evidenceSource string,
 ) (SharedProjectionWriteReport, error) {
 	r.writeCalls = append(r.writeCalls, sharedEdgeWriteCall{
 		domain:         domain,
 		evidenceSource: evidenceSource,
-		rows:           append([]SharedProjectionIntentRow(nil), rows...),
+		rows:           append([]sharedintent.Row(nil), rows...),
 	})
 	return SharedProjectionWriteReport{}, nil
 }

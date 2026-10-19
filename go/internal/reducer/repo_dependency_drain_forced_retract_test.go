@@ -8,6 +8,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // failOnceMarkRepoDependencyIntentStore fails the first MarkIntentsCompleted
@@ -45,8 +47,8 @@ func TestRepoDependencyPureDrainForcesRetract(t *testing.T) {
 	row := coveredRepoDependencyRow("covered-1", "gen-old", now)
 	reader := &coveredRepoDependencyIntentStore{
 		fakeRepoDependencyIntentStore: &fakeRepoDependencyIntentStore{
-			pendingByDomain:         []SharedProjectionIntentRow{row},
-			pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{repoID: {row}},
+			pendingByDomain:         []sharedintent.Row{row},
+			pendingByAcceptanceUnit: map[string][]sharedintent.Row{repoID: {row}},
 			leaseGranted:            true,
 		},
 		covered: map[string]struct{}{"gen-old": {}},
@@ -93,8 +95,8 @@ func TestRepoDependencyPureStaleWithoutDrainSkipsRetract(t *testing.T) {
 	row := coveredRepoDependencyRow("stale-1", "gen-old", now)
 	// Plain fake: no drain port, so nothing is drainable.
 	reader := &fakeRepoDependencyIntentStore{
-		pendingByDomain:         []SharedProjectionIntentRow{row},
-		pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{repoID: {row}},
+		pendingByDomain:         []sharedintent.Row{row},
+		pendingByAcceptanceUnit: map[string][]sharedintent.Row{repoID: {row}},
 		leaseGranted:            true,
 	}
 	writer := &recordingCodeCallProjectionEdgeWriter{}
@@ -133,8 +135,8 @@ func TestRepoDependencyDrainRetryAfterMarkFailureRetracts(t *testing.T) {
 	row := coveredRepoDependencyRow("covered-1", "gen-old", now)
 	inner := &coveredRepoDependencyIntentStore{
 		fakeRepoDependencyIntentStore: &fakeRepoDependencyIntentStore{
-			pendingByDomain:         []SharedProjectionIntentRow{row},
-			pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{repoID: {row}},
+			pendingByDomain:         []sharedintent.Row{row},
+			pendingByAcceptanceUnit: map[string][]sharedintent.Row{repoID: {row}},
 			leaseGranted:            true,
 		},
 		covered: map[string]struct{}{"gen-old": {}},

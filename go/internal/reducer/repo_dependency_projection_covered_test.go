@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // coveredRepoDependencyIntentStore opts the fake into the
@@ -31,7 +33,7 @@ func (f *coveredRepoDependencyIntentStore) CoveredByEmittedFullSuccessorIDs(
 	return covered, nil
 }
 
-func coveredRepoDependencyRow(intentID, genID string, now time.Time) SharedProjectionIntentRow {
+func coveredRepoDependencyRow(intentID, genID string, now time.Time) sharedintent.Row {
 	repoID := "repository:r_repo_a"
 	return repoDependencyIntentRow(
 		intentID, "scope-a", repoID, repoID, "run-1", genID, now,
@@ -58,8 +60,8 @@ func TestRepoDependencyProjectionRunnerDrainsCoveredGenerations(t *testing.T) {
 	row := coveredRepoDependencyRow("covered-1", "gen-old", now)
 	reader := &coveredRepoDependencyIntentStore{
 		fakeRepoDependencyIntentStore: &fakeRepoDependencyIntentStore{
-			pendingByDomain:         []SharedProjectionIntentRow{row},
-			pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{repoID: {row}},
+			pendingByDomain:         []sharedintent.Row{row},
+			pendingByAcceptanceUnit: map[string][]sharedintent.Row{repoID: {row}},
 			leaseGranted:            true,
 		},
 		covered: map[string]struct{}{"gen-old": {}},
@@ -111,8 +113,8 @@ func TestRepoDependencyProjectionRunnerKeepsUncoveredGenerations(t *testing.T) {
 	row := coveredRepoDependencyRow("kept-1", "gen-1", now)
 	reader := &coveredRepoDependencyIntentStore{
 		fakeRepoDependencyIntentStore: &fakeRepoDependencyIntentStore{
-			pendingByDomain:         []SharedProjectionIntentRow{row},
-			pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{repoID: {row}},
+			pendingByDomain:         []sharedintent.Row{row},
+			pendingByAcceptanceUnit: map[string][]sharedintent.Row{repoID: {row}},
 			leaseGranted:            true,
 		},
 		covered: map[string]struct{}{},

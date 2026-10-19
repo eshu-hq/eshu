@@ -14,6 +14,7 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // trueGroupLiveExecutor mirrors the production reducer executor shape for
@@ -60,10 +61,10 @@ func (e *trueGroupLiveExecutor) ExecuteGroup(ctx context.Context, stmts []source
 // buildResolvedEdgeIntentRow emits for ARGOCD_APPLICATION_SOURCE evidence.
 // IDs are unique per test run so the endpoints are always cold: the defect
 // only bites when the artifact MATCH must see nodes nothing committed yet.
-func keeperRepoDependencyRow(tag string, i int) reducer.SharedProjectionIntentRow {
+func keeperRepoDependencyRow(tag string, i int) sharedintent.Row {
 	repo := fmt.Sprintf("keeper/repo-%s-%d", tag, i)
 	target := fmt.Sprintf("keeper/target-%s-%d", tag, i)
-	return reducer.SharedProjectionIntentRow{
+	return sharedintent.Row{
 		IntentID:     fmt.Sprintf("keeper-intent-%s-%d", tag, i),
 		RepositoryID: repo,
 		ScopeID:      "keeper-scope",
@@ -151,7 +152,7 @@ func TestBoltWriteEdgesRepoDependencyArtifactColdEndpointsPersist(t *testing.T) 
 	writer := NewEdgeWriter(&trueGroupLiveExecutor{runner: runner}, 0)
 
 	const n = 12
-	rows := make([]reducer.SharedProjectionIntentRow, 0, n)
+	rows := make([]sharedintent.Row, 0, n)
 	for i := 0; i < n; i++ {
 		rows = append(rows, keeperRepoDependencyRow(tag, i))
 	}

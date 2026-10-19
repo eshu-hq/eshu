@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -55,7 +56,7 @@ func NewSharedIntentAcceptanceWriterWithInstruments(
 // UpsertIntents persists shared intents and acceptance rows together.
 func (w *SharedIntentAcceptanceWriter) UpsertIntents(
 	ctx context.Context,
-	rows []reducer.SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 ) error {
 	if len(rows) == 0 {
 		return nil
@@ -94,7 +95,7 @@ func (w *SharedIntentAcceptanceWriter) UpsertIntents(
 	return nil
 }
 
-func repoDependencyAcceptanceUnitIDs(rows []reducer.SharedProjectionIntentRow) []string {
+func repoDependencyAcceptanceUnitIDs(rows []sharedintent.Row) []string {
 	repoIDs := make([]string, 0, len(rows))
 	for _, row := range rows {
 		if row.ProjectionDomain != reducer.DomainRepoDependency {
@@ -112,7 +113,7 @@ func repoDependencyAcceptanceUnitIDs(rows []reducer.SharedProjectionIntentRow) [
 func upsertSharedIntentArtifacts(
 	ctx context.Context,
 	database db.ExecQueryer,
-	intentRows []reducer.SharedProjectionIntentRow,
+	intentRows []sharedintent.Row,
 	acceptanceRows []SharedProjectionAcceptance,
 	instruments *telemetry.Instruments,
 ) error {
@@ -143,7 +144,7 @@ const sharedAcceptanceStaleUnknownDomain = "unknown"
 func recordSharedAcceptanceStaleWrites(
 	ctx context.Context,
 	instruments *telemetry.Instruments,
-	intentRows []reducer.SharedProjectionIntentRow,
+	intentRows []sharedintent.Row,
 	stale []SharedProjectionAcceptance,
 ) {
 	if len(stale) == 0 {
@@ -197,7 +198,7 @@ func recordSharedAcceptanceStaleWrites(
 }
 
 func buildSharedProjectionAcceptanceRows(
-	rows []reducer.SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 ) ([]SharedProjectionAcceptance, error) {
 	byKey := make(map[reducer.SharedProjectionAcceptanceKey]SharedProjectionAcceptance, len(rows))
 
@@ -270,7 +271,7 @@ func compareSharedProjectionAcceptanceKeys(a, b SharedProjectionAcceptance) int 
 }
 
 func sharedProjectionAcceptanceKey(
-	row reducer.SharedProjectionIntentRow,
+	row sharedintent.Row,
 ) (reducer.SharedProjectionAcceptanceKey, bool) {
 	if key, ok := row.AcceptanceKey(); ok {
 		return key, true

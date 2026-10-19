@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // BuildCodeImportRepoEdgeRefreshIntents returns one retract-only intent per
@@ -35,7 +37,7 @@ import (
 // edge must be removed now (mirrors #3598 package-consumption retract logic).
 func BuildCodeImportRepoEdgeRefreshIntents(
 	input CodeImportRepoDependencyInput,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	// covered tracks consumers that produced at least one distinct-owner upsert.
 	covered := make(map[string]struct{})
 	candidateOrder := make([]string, 0)
@@ -77,7 +79,7 @@ func BuildCodeImportRepoEdgeRefreshIntents(
 	}
 
 	sort.Strings(candidateOrder)
-	rows := make([]SharedProjectionIntentRow, 0, len(candidateOrder))
+	rows := make([]sharedintent.Row, 0, len(candidateOrder))
 	for _, consumerRepoID := range candidateOrder {
 		if _, ok := covered[consumerRepoID]; ok {
 			continue
@@ -98,7 +100,7 @@ func BuildCodeImportRepoEdgeRefreshIntents(
 func buildCodeImportRepoEdgeRefreshIntent(
 	input CodeImportRepoDependencyInput,
 	consumerRepoID string,
-) SharedProjectionIntentRow {
+) sharedintent.Row {
 	payload := map[string]any{
 		"action":          "retract",
 		"repo_id":         consumerRepoID,

@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestBuildRepoDependencyIntentRows_Empty(t *testing.T) {
@@ -301,7 +303,7 @@ func TestBuildWorkloadDependencyIntentRows_MixedUpsertAndRetract(t *testing.T) {
 
 func TestSharedDependencyProjectionMetrics_Empty(t *testing.T) {
 	metrics := SharedDependencyProjectionMetrics(
-		[]SharedProjectionIntentRow{},
+		[]sharedintent.Row{},
 		map[string]ProjectionContext{},
 	)
 
@@ -314,7 +316,7 @@ func TestSharedDependencyProjectionMetrics_SingleGeneration(t *testing.T) {
 		"repo2": {SourceRunID: "run2", GenerationID: "gen1"},
 	}
 
-	intents := []SharedProjectionIntentRow{
+	intents := []sharedintent.Row{
 		{
 			RepositoryID:     "repo1",
 			ProjectionDomain: DomainRepoDependency,
@@ -339,7 +341,7 @@ func TestSharedDependencyProjectionMetrics_MultipleGenerations(t *testing.T) {
 		"repo2": {SourceRunID: "run2", GenerationID: "gen2"},
 	}
 
-	intents := []SharedProjectionIntentRow{
+	intents := []sharedintent.Row{
 		{
 			RepositoryID:     "repo1",
 			ProjectionDomain: DomainRepoDependency,
@@ -364,7 +366,7 @@ func TestSharedDependencyProjectionMetrics_MissingContext(t *testing.T) {
 		// repo2 missing
 	}
 
-	intents := []SharedProjectionIntentRow{
+	intents := []sharedintent.Row{
 		{
 			RepositoryID:     "repo1",
 			ProjectionDomain: DomainRepoDependency,

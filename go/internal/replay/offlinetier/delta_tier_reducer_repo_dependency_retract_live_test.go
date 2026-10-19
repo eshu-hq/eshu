@@ -38,6 +38,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
@@ -84,9 +85,9 @@ func TestReducerRepoDependencyEdgeRetractGraphTruth(t *testing.T) {
 
 	writer := edgewriter.NewEdgeWriter(exec, 0)
 
-	writeRows := make([]reducer.SharedProjectionIntentRow, 0, len(repoDepTypedRelationships)+3)
+	writeRows := make([]sharedintent.Row, 0, len(repoDepTypedRelationships)+3)
 	for _, relType := range repoDepTypedRelationships {
-		writeRows = append(writeRows, reducer.SharedProjectionIntentRow{
+		writeRows = append(writeRows, sharedintent.Row{
 			IntentID: "rel-" + relType, RepositoryID: repoDepInSrc, Payload: map[string]any{
 				"repo_id": repoDepInSrc, "target_repo_id": repoDepInTgt,
 				"relationship_type": relType,
@@ -94,13 +95,13 @@ func TestReducerRepoDependencyEdgeRetractGraphTruth(t *testing.T) {
 		})
 	}
 	writeRows = append(writeRows,
-		reducer.SharedProjectionIntentRow{
+		sharedintent.Row{
 			IntentID: "runs-on", RepositoryID: repoDepInSrc, Payload: map[string]any{
 				"repo_id": repoDepInSrc, "relationship_type": "RUNS_ON",
 				"platform_id": repoDepPlatform,
 			},
 		},
-		reducer.SharedProjectionIntentRow{
+		sharedintent.Row{
 			IntentID: "evidence", RepositoryID: repoDepInSrc, GenerationID: "gen-1", Payload: map[string]any{
 				"repo_id": repoDepInSrc, "target_repo_id": repoDepInTgt,
 				"relationship_type": "DEPENDS_ON", "resolved_id": "resolved-1",
@@ -111,7 +112,7 @@ func TestReducerRepoDependencyEdgeRetractGraphTruth(t *testing.T) {
 				}},
 			},
 		},
-		reducer.SharedProjectionIntentRow{
+		sharedintent.Row{
 			IntentID: "depends-out", RepositoryID: repoDepOutSrc, Payload: map[string]any{
 				"repo_id": repoDepOutSrc, "target_repo_id": repoDepOutTgt,
 			},
@@ -142,7 +143,7 @@ func TestReducerRepoDependencyEdgeRetractGraphTruth(t *testing.T) {
 	assertEdgeCount(ctx, t, exec, envQ, map[string]any{"e": repoDepEnv}, 1, "write: TARGETS_ENVIRONMENT present")
 	assertEdgeCount(ctx, t, exec, relQ("DEPENDS_ON"), outPair, 1, "write: out-of-scope DEPENDS_ON present")
 
-	retractRows := []reducer.SharedProjectionIntentRow{
+	retractRows := []sharedintent.Row{
 		{IntentID: "retract", RepositoryID: repoDepInSrc, Payload: map[string]any{"repo_id": repoDepInSrc}},
 	}
 	if err := writer.RetractEdges(ctx, reducer.DomainRepoDependency, retractRows, repoDepEvidence); err != nil {

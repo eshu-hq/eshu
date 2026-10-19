@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // The three symbol->runtime families (handles_route #5995, runs_in #6000,
@@ -49,9 +50,9 @@ var symbolRuntimeGuardClock = time.Date(2026, 8, 21, 0, 0, 0, 0, time.UTC)
 // production sharedintent.FilterUpsertRows gate
 // (go/internal/reducer/sharedintent/rows.go) a live
 // backend applies before ever reaching a write statement.
-func symbolRuntimeUpsertRows(envelopes []facts.Envelope, domain string) []reducer.SharedProjectionIntentRow {
+func symbolRuntimeUpsertRows(envelopes []facts.Envelope, domain string) []sharedintent.Row {
 	all := reducer.ExtractSymbolRuntimeIntentRows(envelopes, symbolRuntimeGuardGenerationID, symbolRuntimeGuardClock)
-	out := make([]reducer.SharedProjectionIntentRow, 0, len(all))
+	out := make([]sharedintent.Row, 0, len(all))
 	for _, row := range all {
 		if row.ProjectionDomain != domain {
 			continue

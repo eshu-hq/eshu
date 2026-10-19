@@ -51,7 +51,7 @@ func newRationaleStateModelingEdgeWriter(repoPaths ...map[string]string) *ration
 func (w *rationaleStateModelingEdgeWriter) RetractEdges(
 	_ context.Context,
 	_ string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	_ string,
 ) error {
 	deltaPaths, hasDelta := rationaleTestDeltaFilePaths(rows)
@@ -74,7 +74,7 @@ func (w *rationaleStateModelingEdgeWriter) RetractEdges(
 func (w *rationaleStateModelingEdgeWriter) WriteEdges(
 	_ context.Context,
 	_ string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	_ string,
 ) (SharedProjectionWriteReport, error) {
 	for _, row := range rows {
@@ -113,7 +113,7 @@ func rationaleTestEdgeKey(payload map[string]any) string {
 // rationaleTestDeltaFilePaths mirrors collectDeltaFilePaths: a delta retract is
 // active when any row carries delta_projection=true, and the file set is the
 // union of every such row's delta_file_paths.
-func rationaleTestDeltaFilePaths(rows []SharedProjectionIntentRow) (map[string]struct{}, bool) {
+func rationaleTestDeltaFilePaths(rows []sharedintent.Row) (map[string]struct{}, bool) {
 	paths := make(map[string]struct{})
 	hasDelta := false
 	for _, row := range rows {
@@ -132,7 +132,7 @@ func rationaleTestDeltaFilePaths(rows []SharedProjectionIntentRow) (map[string]s
 	return paths, hasDelta
 }
 
-func rationaleTestRepoIDs(rows []SharedProjectionIntentRow) []string {
+func rationaleTestRepoIDs(rows []sharedintent.Row) []string {
 	seen := make(map[string]struct{}, len(rows))
 	var out []string
 	for _, row := range rows {
@@ -258,13 +258,13 @@ func seedPriorRationaleEdges(rows []map[string]any, repoPaths ...map[string]stri
 }
 
 // rationaleDirectWriteRows builds the DIRECT-path write set: one
-// SharedProjectionIntentRow per extracted edge carrying the full payload
+// sharedintent.Row per extracted edge carrying the full payload
 // (including target_path), matching what the legacy direct EdgeWriter.WriteEdges
 // received. It is the reference write set the promoted path must reproduce.
-func rationaleDirectWriteRows(rows []map[string]any) []SharedProjectionIntentRow {
-	intents := make([]SharedProjectionIntentRow, 0, len(rows))
+func rationaleDirectWriteRows(rows []map[string]any) []sharedintent.Row {
+	intents := make([]sharedintent.Row, 0, len(rows))
 	for _, row := range rows {
-		intents = append(intents, SharedProjectionIntentRow{
+		intents = append(intents, sharedintent.Row{
 			ProjectionDomain: DomainRationaleEdges,
 			RepositoryID:     anyToString(row["repo_id"]),
 			Payload:          copyPayload(row),
@@ -393,7 +393,7 @@ func TestRationalePartitionConvergesDelta(t *testing.T) {
 func drainRationaleInto(
 	t *testing.T,
 	edges *rationaleStateModelingEdgeWriter,
-	intents []SharedProjectionIntentRow,
+	intents []sharedintent.Row,
 	partitionCount int,
 	now time.Time,
 ) *rationaleStateModelingEdgeWriter {
@@ -434,7 +434,7 @@ func drainRationaleInto(
 // partition keys and the refresh intent carries the whole-scope key, the keyspace
 // invariant that lets edges spread across partitions while one refresh owns the
 // repo-wide retract.
-func assertRationaleIntentKeyShapes(t *testing.T, intents []SharedProjectionIntentRow) {
+func assertRationaleIntentKeyShapes(t *testing.T, intents []sharedintent.Row) {
 	t.Helper()
 
 	sawRefresh := false

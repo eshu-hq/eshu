@@ -7,6 +7,8 @@ import (
 	"context"
 	"slices"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // RepoDependencyEdge is one canonical repository DEPENDS_ON edge.
@@ -48,7 +50,7 @@ func ReconcileWorkloadDependencyEdges(
 	ctx context.Context,
 	descriptors []RepoDescriptor,
 	lookup WorkloadDependencyGraphLookup,
-) ([]WorkloadDependencyEdgeRow, []SharedProjectionIntentRow, error) {
+) ([]WorkloadDependencyEdgeRow, []sharedintent.Row, error) {
 	if len(descriptors) == 0 || lookup == nil {
 		return nil, nil, nil
 	}
@@ -180,17 +182,17 @@ func ReconcileWorkloadDependencyEdges(
 // rows into shared edge-writer payloads.
 func BuildWorkloadDependencyIntentRowsFromEdges(
 	rows []WorkloadDependencyEdgeRow,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	if len(rows) == 0 {
 		return nil
 	}
 
-	result := make([]SharedProjectionIntentRow, 0, len(rows))
+	result := make([]sharedintent.Row, 0, len(rows))
 	for _, row := range rows {
 		if strings.TrimSpace(row.RepoID) == "" || strings.TrimSpace(row.WorkloadID) == "" || strings.TrimSpace(row.TargetWorkloadID) == "" {
 			continue
 		}
-		result = append(result, SharedProjectionIntentRow{
+		result = append(result, sharedintent.Row{
 			RepositoryID: row.RepoID,
 			Payload: map[string]any{
 				"repo_id":            row.RepoID,
@@ -203,14 +205,14 @@ func BuildWorkloadDependencyIntentRowsFromEdges(
 	return result
 }
 
-func buildWorkloadDependencyRetractRows(repoIDs []string) []SharedProjectionIntentRow {
-	rows := make([]SharedProjectionIntentRow, 0, len(repoIDs))
+func buildWorkloadDependencyRetractRows(repoIDs []string) []sharedintent.Row {
+	rows := make([]sharedintent.Row, 0, len(repoIDs))
 	for _, repoID := range repoIDs {
 		repoID = strings.TrimSpace(repoID)
 		if repoID == "" {
 			continue
 		}
-		rows = append(rows, SharedProjectionIntentRow{
+		rows = append(rows, sharedintent.Row{
 			RepositoryID: repoID,
 			Payload:      map[string]any{"repo_id": repoID},
 		})
@@ -222,7 +224,7 @@ func buildExistingWorkloadDependencyRetractRows(
 	ctx context.Context,
 	lookup WorkloadDependencyGraphLookup,
 	repoIDs []string,
-) ([]SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	existingRows, err := lookup.ListWorkloadDependencyEdges(ctx, repoIDs, EvidenceSourceWorkloads)
 	if err != nil {
 		return nil, err

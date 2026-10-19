@@ -14,6 +14,7 @@ import (
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // The #8283 "verified success" contract (arbiter-8312-det): after the edge
@@ -28,13 +29,13 @@ import (
 // and records the rows it was asked about.
 type stubDeployableUnitEdgeVerifier struct {
 	err   error
-	calls [][]SharedProjectionIntentRow
+	calls [][]sharedintent.Row
 }
 
 func (v *stubDeployableUnitEdgeVerifier) VerifyDeployableUnitEdges(
-	_ context.Context, rows []SharedProjectionIntentRow, _ string,
+	_ context.Context, rows []sharedintent.Row, _ string,
 ) error {
-	v.calls = append(v.calls, append([]SharedProjectionIntentRow(nil), rows...))
+	v.calls = append(v.calls, append([]sharedintent.Row(nil), rows...))
 	return v.err
 }
 

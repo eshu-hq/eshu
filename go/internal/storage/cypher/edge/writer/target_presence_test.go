@@ -12,6 +12,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // targetMissProbeExecutor is a fake Executor that also implements
@@ -40,8 +41,8 @@ func (e *targetMissProbeExecutor) ExecuteProbe(_ context.Context, stmt sourcecyp
 	return e.probeAllPresent, nil
 }
 
-func validHandlesRouteRow() reducer.SharedProjectionIntentRow {
-	return reducer.SharedProjectionIntentRow{
+func validHandlesRouteRow() sharedintent.Row {
+	return sharedintent.Row{
 		IntentID:     "i1",
 		RepositoryID: "repo-a",
 		Payload: map[string]any{
@@ -57,8 +58,8 @@ func validHandlesRouteRow() reducer.SharedProjectionIntentRow {
 	}
 }
 
-func validRunsInRow() reducer.SharedProjectionIntentRow {
-	return reducer.SharedProjectionIntentRow{
+func validRunsInRow() sharedintent.Row {
+	return sharedintent.Row{
 		IntentID:     "i1",
 		RepositoryID: "repo-a",
 		Payload: map[string]any{
@@ -86,7 +87,7 @@ func TestEdgeWriterWriteEdgesHandlesRouteAbsentTargetFailsClosed(t *testing.T) {
 
 	_, err := writer.WriteEdges(
 		context.Background(), reducer.DomainHandlesRoute,
-		[]reducer.SharedProjectionIntentRow{validHandlesRouteRow()},
+		[]sharedintent.Row{validHandlesRouteRow()},
 		"parser/framework-routes",
 	)
 	if err == nil {
@@ -115,7 +116,7 @@ func TestEdgeWriterWriteEdgesRunsInAbsentTargetFailsClosed(t *testing.T) {
 
 	_, err := writer.WriteEdges(
 		context.Background(), reducer.DomainRunsIn,
-		[]reducer.SharedProjectionIntentRow{validRunsInRow()},
+		[]sharedintent.Row{validRunsInRow()},
 		"reducer/runs-in",
 	)
 	if err == nil {
@@ -142,7 +143,7 @@ func TestEdgeWriterWriteEdgesTargetPresentProceeds(t *testing.T) {
 
 	if _, err := writer.WriteEdges(
 		context.Background(), reducer.DomainHandlesRoute,
-		[]reducer.SharedProjectionIntentRow{validHandlesRouteRow()},
+		[]sharedintent.Row{validHandlesRouteRow()},
 		"parser/framework-routes",
 	); err != nil {
 		t.Fatalf("WriteEdges() with all targets present error = %v", err)
@@ -167,7 +168,7 @@ func TestEdgeWriterWriteEdgesProbeErrorFailsClosed(t *testing.T) {
 
 	_, err := writer.WriteEdges(
 		context.Background(), reducer.DomainHandlesRoute,
-		[]reducer.SharedProjectionIntentRow{validHandlesRouteRow()},
+		[]sharedintent.Row{validHandlesRouteRow()},
 		"parser/framework-routes",
 	)
 	if err == nil {
@@ -195,7 +196,7 @@ func TestEdgeWriterWriteEdgesWithoutProbeCapabilityWrites(t *testing.T) {
 
 	if _, err := writer.WriteEdges(
 		context.Background(), reducer.DomainHandlesRoute,
-		[]reducer.SharedProjectionIntentRow{validHandlesRouteRow()},
+		[]sharedintent.Row{validHandlesRouteRow()},
 		"parser/framework-routes",
 	); err != nil {
 		t.Fatalf("WriteEdges() without probe capability error = %v", err)
@@ -216,7 +217,7 @@ func TestEdgeWriterTargetMissProbeMentionsBatchScope(t *testing.T) {
 
 	if _, err := writer.WriteEdges(
 		context.Background(), reducer.DomainHandlesRoute,
-		[]reducer.SharedProjectionIntentRow{validHandlesRouteRow()},
+		[]sharedintent.Row{validHandlesRouteRow()},
 		"parser/framework-routes",
 	); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)

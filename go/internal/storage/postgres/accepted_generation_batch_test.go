@@ -25,7 +25,7 @@ func TestAcceptedGenerationPrefetchSingleQueryPerRound(t *testing.T) {
 
 	const distinct = 500
 	database := newBatchAcceptanceTestDB()
-	var intents []reducer.SharedProjectionIntentRow
+	var intents []sharedintent.Row
 	for i := 0; i < distinct; i++ {
 		scope := fmt.Sprintf("scope-%d", i)
 		unit := fmt.Sprintf("unit-%d", i)
@@ -34,9 +34,9 @@ func TestAcceptedGenerationPrefetchSingleQueryPerRound(t *testing.T) {
 			generationID: fmt.Sprintf("gen-%d", i),
 		}
 		intents = append(intents,
-			reducer.SharedProjectionIntentRow{ScopeID: scope, AcceptanceUnitID: unit, RepositoryID: unit, SourceRunID: "run-1", GenerationID: fmt.Sprintf("gen-%d", i)},
+			sharedintent.Row{ScopeID: scope, AcceptanceUnitID: unit, RepositoryID: unit, SourceRunID: "run-1", GenerationID: fmt.Sprintf("gen-%d", i)},
 			// A duplicate row per key: dedupe must keep it from costing a query.
-			reducer.SharedProjectionIntentRow{ScopeID: scope, AcceptanceUnitID: unit, RepositoryID: unit, SourceRunID: "run-1", GenerationID: fmt.Sprintf("gen-%d", i)},
+			sharedintent.Row{ScopeID: scope, AcceptanceUnitID: unit, RepositoryID: unit, SourceRunID: "run-1", GenerationID: fmt.Sprintf("gen-%d", i)},
 		)
 	}
 
@@ -66,14 +66,14 @@ func TestAcceptedGenerationPrefetchChunksAtOneThousand(t *testing.T) {
 
 	const distinct = 2500
 	database := newBatchAcceptanceTestDB()
-	var intents []reducer.SharedProjectionIntentRow
+	var intents []sharedintent.Row
 	for i := 0; i < distinct; i++ {
 		scope := fmt.Sprintf("scope-%d", i)
 		unit := fmt.Sprintf("unit-%d", i)
 		database.rows[acceptanceKey(scope, unit, "run-1")] = sharedProjectionAcceptanceRow{
 			scopeID: scope, acceptanceUnitID: unit, sourceRunID: "run-1", generationID: "gen",
 		}
-		intents = append(intents, reducer.SharedProjectionIntentRow{
+		intents = append(intents, sharedintent.Row{
 			ScopeID: scope, AcceptanceUnitID: unit, RepositoryID: unit, SourceRunID: "run-1", GenerationID: "gen",
 		})
 	}
@@ -104,7 +104,7 @@ func TestAcceptedGenerationPrefetchNormalizesWhitespace(t *testing.T) {
 	}
 
 	prefetch := NewAcceptedGenerationPrefetch(database)
-	lookup, err := prefetch(context.Background(), []reducer.SharedProjectionIntentRow{{
+	lookup, err := prefetch(context.Background(), []sharedintent.Row{{
 		ScopeID: "  scope-a ", AcceptanceUnitID: " unit-a\t", RepositoryID: "unit-a", SourceRunID: "run-1", GenerationID: "gen-1",
 	}})
 	if err != nil {
@@ -141,7 +141,7 @@ func TestAcceptedGenerationPrefetchMatchesPerKeyLookup(t *testing.T) {
 	database.rows[acceptanceKey("scope-b", "unit-b", "run-2")] = sharedProjectionAcceptanceRow{
 		scopeID: "scope-b", acceptanceUnitID: "unit-b", sourceRunID: "run-2", generationID: "gen-9",
 	}
-	intents := []reducer.SharedProjectionIntentRow{
+	intents := []sharedintent.Row{
 		{ScopeID: "scope-a", AcceptanceUnitID: "unit-a", RepositoryID: "unit-a", SourceRunID: "run-1", GenerationID: "gen-1"},
 		{ScopeID: "scope-a", AcceptanceUnitID: "unit-a", RepositoryID: "unit-a", SourceRunID: "run-1", GenerationID: "gen-1"},
 		{ScopeID: "scope-missing", AcceptanceUnitID: "unit-missing", RepositoryID: "unit-missing", SourceRunID: "run-1", GenerationID: "gen-x"},
@@ -196,7 +196,7 @@ func TestAcceptedGenerationPrefetchErrorFailsSelection(t *testing.T) {
 	t.Parallel()
 
 	prefetch := NewAcceptedGenerationPrefetch(&acceptanceStoreErrorDB{})
-	lookup, err := prefetch(context.Background(), []reducer.SharedProjectionIntentRow{{
+	lookup, err := prefetch(context.Background(), []sharedintent.Row{{
 		ScopeID: "scope-a", AcceptanceUnitID: "unit-a", RepositoryID: "unit-a", SourceRunID: "run-1", GenerationID: "gen-1",
 	}})
 	if err == nil {
@@ -217,7 +217,7 @@ func TestAcceptedGenerationPrefetchRecordsStats(t *testing.T) {
 	database.rows[acceptanceKey("scope-a", "unit-a", "run-1")] = sharedProjectionAcceptanceRow{
 		scopeID: "scope-a", acceptanceUnitID: "unit-a", sourceRunID: "run-1", generationID: "gen-1",
 	}
-	intents := []reducer.SharedProjectionIntentRow{
+	intents := []sharedintent.Row{
 		{ScopeID: "scope-a", AcceptanceUnitID: "unit-a", RepositoryID: "unit-a", SourceRunID: "run-1", GenerationID: "gen-1"},
 		{ScopeID: "scope-missing", AcceptanceUnitID: "unit-missing", RepositoryID: "unit-missing", SourceRunID: "run-1", GenerationID: "gen-x"},
 	}
@@ -244,7 +244,7 @@ func TestAcceptedGenerationPrefetchEmptyIssuesNoQuery(t *testing.T) {
 
 	database := newBatchAcceptanceTestDB()
 	prefetch := NewAcceptedGenerationPrefetch(database)
-	lookup, err := prefetch(context.Background(), []reducer.SharedProjectionIntentRow{
+	lookup, err := prefetch(context.Background(), []sharedintent.Row{
 		{ScopeID: "", AcceptanceUnitID: "", RepositoryID: "", SourceRunID: ""},
 	})
 	if err != nil {

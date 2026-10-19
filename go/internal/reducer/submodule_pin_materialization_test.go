@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	submodulev1 "github.com/eshu-hq/eshu/sdk/go/factschema/submodule/v1"
 )
@@ -18,15 +19,15 @@ import (
 // recordingCodeownersOwnershipEdgeWriter (codeowners_ownership_materialization_test.go).
 type recordingSubmodulePinEdgeWriter struct {
 	retractDomain string
-	retractRows   []SharedProjectionIntentRow
+	retractRows   []sharedintent.Row
 	writeDomain   string
-	writeRows     []SharedProjectionIntentRow
+	writeRows     []sharedintent.Row
 }
 
 func (r *recordingSubmodulePinEdgeWriter) RetractEdges(
 	_ context.Context,
 	domain string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	_ string,
 ) error {
 	r.retractDomain = domain
@@ -37,7 +38,7 @@ func (r *recordingSubmodulePinEdgeWriter) RetractEdges(
 func (r *recordingSubmodulePinEdgeWriter) WriteEdges(
 	_ context.Context,
 	domain string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	_ string,
 ) (SharedProjectionWriteReport, error) {
 	r.writeDomain = domain

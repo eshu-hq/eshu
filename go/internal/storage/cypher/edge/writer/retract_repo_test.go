@@ -14,6 +14,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestEdgeWriterRetractEdgesRepoDependencyDispatch(t *testing.T) {
@@ -22,7 +23,7 @@ func TestEdgeWriterRetractEdgesRepoDependencyDispatch(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
 	}
 
@@ -70,7 +71,7 @@ func TestEdgeWriterRetractEdgesRepoDependencyLogsStatementDurations(t *testing.T
 	writer := NewEdgeWriter(executor, 0)
 	writer.Logger = logger
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
 		{IntentID: "i2", RepositoryID: "repo-b", Payload: map[string]any{"repo_id": "repo-b"}},
 	}
@@ -139,7 +140,7 @@ func TestEdgeWriterRetractEdgesRepoDependencyLogsSequentialStatementRoles(t *tes
 	writer := NewEdgeWriter(executor, 0)
 	writer.Logger = logger
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
 	}
 
@@ -203,7 +204,7 @@ func TestEdgeWriterRetractEdgesRepoDependencySingleRepoUsesBoundDeleteShape(t *t
 	executor := &sqlSequentialRecordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
 	}
 
@@ -246,7 +247,7 @@ func TestEdgeWriterWriteEdgesRejectsCodeImportRunsOn(t *testing.T) {
 
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
-	rows := []reducer.SharedProjectionIntentRow{{
+	rows := []sharedintent.Row{{
 		IntentID:     "i1",
 		RepositoryID: "repo-a",
 		Payload: map[string]any{
@@ -276,7 +277,7 @@ func TestEdgeWriterRetractEdgesCodeImportLogsRunsOnOmission(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 	writer.Logger = logger
-	rows := []reducer.SharedProjectionIntentRow{{
+	rows := []sharedintent.Row{{
 		IntentID:     "i1",
 		RepositoryID: "repo-a",
 		Payload:      map[string]any{"repo_id": "repo-a"},
@@ -315,7 +316,7 @@ func TestEdgeWriterRetractEdgesRepoDependencyDiagnosticStatementTimingBypassesGr
 	writer.Logger = logger
 	writer.RepoDependencyRetractStatementTiming = true
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
 	}
 

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestEdgeWriterWriteEdgesDeployableUnitDispatch(t *testing.T) {
@@ -17,7 +18,7 @@ func TestEdgeWriterWriteEdgesDeployableUnitDispatch(t *testing.T) {
 
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "intent-1",
 			RepositoryID: "repo-edge-api",
@@ -86,7 +87,7 @@ func TestEdgeWriterRetractEdgesDeployableUnitDispatch(t *testing.T) {
 
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{RepositoryID: "repo-edge-api", Payload: map[string]any{"repo_id": "repo-edge-api"}},
 	}
 

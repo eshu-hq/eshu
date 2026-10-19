@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -54,7 +55,7 @@ func newStatefulDeployableUnitGraph(seed ...string) *statefulDeployableUnitGraph
 }
 
 func (g *statefulDeployableUnitGraph) RetractEdges(
-	_ context.Context, domain string, rows []SharedProjectionIntentRow, evidenceSource string,
+	_ context.Context, domain string, rows []sharedintent.Row, evidenceSource string,
 ) error {
 	if domain != DomainDeployableUnitEdges || evidenceSource != deployableUnitCorrelationEvidenceSource {
 		return fmt.Errorf("unexpected retract %s/%s", domain, evidenceSource)
@@ -75,7 +76,7 @@ func (g *statefulDeployableUnitGraph) RetractEdges(
 }
 
 func (g *statefulDeployableUnitGraph) WriteEdges(
-	_ context.Context, domain string, rows []SharedProjectionIntentRow, evidenceSource string,
+	_ context.Context, domain string, rows []sharedintent.Row, evidenceSource string,
 ) (SharedProjectionWriteReport, error) {
 	if domain != DomainDeployableUnitEdges || evidenceSource != deployableUnitCorrelationEvidenceSource {
 		return SharedProjectionWriteReport{}, fmt.Errorf("unexpected write %s/%s", domain, evidenceSource)

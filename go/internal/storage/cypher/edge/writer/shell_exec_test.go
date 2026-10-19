@@ -12,6 +12,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestEdgeWriterWriteEdgesShellExec(t *testing.T) {
@@ -20,7 +21,7 @@ func TestEdgeWriterWriteEdgesShellExec(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-a",
@@ -71,7 +72,7 @@ func TestEdgeWriterRetractEdgesShellExecDeltaUsesFileScope(t *testing.T) {
 	writer := NewEdgeWriter(executor, 0)
 	writer.Reader = executor
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			RepositoryID: "repo-a",
 			Payload: map[string]any{
@@ -125,7 +126,7 @@ func TestEdgeWriterRetractEdgesShellExecCleanupPreservesConnectedCandidate(t *te
 	writer := NewEdgeWriter(executor, 0)
 	writer.Reader = executor
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			RepositoryID: "repo-a",
 			Payload:      wholeScopeRefreshPayload("repo-a"),
@@ -155,7 +156,7 @@ func TestEdgeWriterRetractEdgesShellExecCleanupSkipsWriteWhenAllConnected(t *tes
 	writer := NewEdgeWriter(executor, 0)
 	writer.Reader = executor
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			RepositoryID: "repo-a",
 			Payload:      wholeScopeRefreshPayload("repo-a"),
@@ -181,7 +182,7 @@ func TestEdgeWriterRetractEdgesShellExecCleanupSkipsReadsWhenNoCandidates(t *tes
 	writer := NewEdgeWriter(executor, 0)
 	writer.Reader = executor
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			RepositoryID: "repo-a",
 			Payload:      wholeScopeRefreshPayload("repo-a"),
@@ -208,7 +209,7 @@ func TestEdgeWriterRetractEdgesShellExecRequiresReader(t *testing.T) {
 	writer := NewEdgeWriter(executor, 0)
 	// Reader intentionally left nil.
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			RepositoryID: "repo-a",
 			Payload:      wholeScopeRefreshPayload("repo-a"),
@@ -343,7 +344,7 @@ func TestEdgeWriterRetractEdgesShellExecRunsSequentialOrderedCleanup(t *testing.
 	writer := NewEdgeWriter(executor, 0)
 	writer.Reader = executor
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			RepositoryID: "repo-a",
 			Payload:      wholeScopeRefreshPayload("repo-a"),

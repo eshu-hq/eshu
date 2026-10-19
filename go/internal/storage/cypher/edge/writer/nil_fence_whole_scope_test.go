@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestRetractEdgesNilFenceShapeSkipsWholeScopeDelete pins the one shape where
@@ -51,7 +51,7 @@ func TestRetractEdgesNilFenceShapeSkipsWholeScopeDelete(t *testing.T) {
 
 	// Every row unmarked: no delta_projection, no refresh intent_type. This is
 	// what the nil-fence path hands RetractEdges for a per-edge-only partition.
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "legacy-1",
 			RepositoryID: "repo-legacy",

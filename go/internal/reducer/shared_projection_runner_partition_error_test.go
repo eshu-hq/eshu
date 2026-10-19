@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestSharedProjectionRunnerLogsPartitionProcessingError proves a shared-
@@ -31,7 +33,7 @@ func TestSharedProjectionRunnerLogsPartitionProcessingError(t *testing.T) {
 
 	wantErr := errors.New("ifa fault: fail-graph-write-once-then-succeed (queue-retry) injected one failure for graph-write call #1")
 	reader := &fakeSharedIntentReader{
-		intents: []SharedProjectionIntentRow{
+		intents: []sharedintent.Row{
 			{
 				IntentID:         "intent-sql-1",
 				ProjectionDomain: DomainSQLRelationships,

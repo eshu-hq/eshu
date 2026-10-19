@@ -11,14 +11,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func seedRepoDependencyReplayCoordinates(
 	ctx context.Context,
 	t *testing.T,
 	db *sql.DB,
-	rows []reducer.SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 ) {
 	t.Helper()
 	now := time.Now().UTC()

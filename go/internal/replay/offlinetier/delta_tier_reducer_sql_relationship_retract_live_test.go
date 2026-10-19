@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
@@ -125,7 +126,7 @@ func TestReducerSQLRelationshipRetractGraphTruth(t *testing.T) {
 				assertSQLRetractFixtureCount(ctx, t, exec, fixture, 1, "idempotent duplicate write")
 			}
 
-			rows := []reducer.SharedProjectionIntentRow{{
+			rows := []sharedintent.Row{{
 				IntentID: "sql-retract", RepositoryID: sqlRetractInRepoID, Payload: tc.retractPayload,
 			}}
 			if err := writer.RetractEdges(ctx, reducer.DomainSQLRelationships, rows, sqlRetractEvidence); err != nil {
@@ -177,7 +178,7 @@ func seedSQLRetractNodes(ctx context.Context, t *testing.T, exec liveExecutor, f
 func writeSQLRetractFixtures(ctx context.Context, t *testing.T, writer *edgewriter.EdgeWriter, fixtures []sqlRetractFixture) {
 	t.Helper()
 	for _, fixture := range fixtures {
-		row := reducer.SharedProjectionIntentRow{
+		row := sharedintent.Row{
 			IntentID: fixture.name, RepositoryID: fixture.repoID,
 			Payload: map[string]any{
 				"relationship_type": fixture.relType,
@@ -185,7 +186,7 @@ func writeSQLRetractFixtures(ctx context.Context, t *testing.T, writer *edgewrit
 				"target_entity_id": fixture.targetUID, "target_entity_type": fixture.targetLabel,
 			},
 		}
-		if _, err := writer.WriteEdges(ctx, reducer.DomainSQLRelationships, []reducer.SharedProjectionIntentRow{row}, fixture.evidence); err != nil {
+		if _, err := writer.WriteEdges(ctx, reducer.DomainSQLRelationships, []sharedintent.Row{row}, fixture.evidence); err != nil {
 			t.Fatalf("write %s edge: %v", fixture.name, err)
 		}
 	}

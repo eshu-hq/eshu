@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestBoltRunsOnConcurrentOverlapPreservesCrossRepoTuple holds one writer's
@@ -131,7 +132,7 @@ func startRunsOnCrossRepoWrite(
 		_, err := NewEdgeWriter(executor, 1).WriteEdges(
 			ctx,
 			reducer.DomainRepoDependency,
-			[]reducer.SharedProjectionIntentRow{{
+			[]sharedintent.Row{{
 				IntentID:     "pr6634-runs-on-concurrent-" + fixture.instanceID,
 				RepositoryID: fixture.repoID,
 				Payload: map[string]any{

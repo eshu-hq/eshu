@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // BenchmarkEdgeWriterUnroutableRowLoop isolates the row loop's not-routed
@@ -34,22 +35,22 @@ import (
 func BenchmarkEdgeWriterUnroutableRowLoop(b *testing.B) {
 	const rowCount = 5000
 
-	routable := make([]reducer.SharedProjectionIntentRow, 0, rowCount)
-	unroutable := make([]reducer.SharedProjectionIntentRow, 0, rowCount)
-	control := make([]reducer.SharedProjectionIntentRow, 0, rowCount)
+	routable := make([]sharedintent.Row, 0, rowCount)
+	unroutable := make([]sharedintent.Row, 0, rowCount)
+	control := make([]sharedintent.Row, 0, rowCount)
 	for i := 0; i < rowCount; i++ {
 		id := fmt.Sprintf("i%d", i)
-		routable = append(routable, reducer.SharedProjectionIntentRow{
+		routable = append(routable, sharedintent.Row{
 			IntentID:     id,
 			RepositoryID: "repo-a",
 			Payload:      map[string]any{"repo_id": "repo-a", "target_repo_id": "repo-b"},
 		})
-		unroutable = append(unroutable, reducer.SharedProjectionIntentRow{
+		unroutable = append(unroutable, sharedintent.Row{
 			IntentID:     id,
 			RepositoryID: "repo-a",
 			Payload:      map[string]any{"repo_id": "", "target_repo_id": "repo-b"},
 		})
-		control = append(control, reducer.SharedProjectionIntentRow{
+		control = append(control, sharedintent.Row{
 			IntentID:     id,
 			RepositoryID: "repo-a",
 			Payload:      map[string]any{"repo_id": "repo-a", "intent_type": "repo_refresh"},
@@ -58,7 +59,7 @@ func BenchmarkEdgeWriterUnroutableRowLoop(b *testing.B) {
 
 	cases := []struct {
 		name string
-		rows []reducer.SharedProjectionIntentRow
+		rows []sharedintent.Row
 	}{
 		{"all_routable", routable},
 		{"all_unroutable_edge_rows", unroutable},

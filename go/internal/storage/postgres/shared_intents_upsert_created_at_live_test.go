@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestSharedIntentUpsertCreatedAtLastWriterWinsLive pins the #7323 ruling on the
@@ -42,8 +43,8 @@ func TestSharedIntentUpsertCreatedAtLastWriterWinsLive(t *testing.T) {
 	originalCompletedAt := oldEpoch.Add(time.Minute)
 	laterCompletedAt := newEpoch.Add(time.Minute)
 
-	row := func(intentID string, createdAt time.Time, completedAt *time.Time, marker string) reducer.SharedProjectionIntentRow {
-		return reducer.SharedProjectionIntentRow{
+	row := func(intentID string, createdAt time.Time, completedAt *time.Time, marker string) sharedintent.Row {
+		return sharedintent.Row{
 			IntentID:         intentID,
 			ProjectionDomain: reducer.DomainRepoDependency,
 			PartitionKey:     intentID,
@@ -57,7 +58,7 @@ func TestSharedIntentUpsertCreatedAtLastWriterWinsLive(t *testing.T) {
 			CompletedAt:      completedAt,
 		}
 	}
-	upsert := func(rows ...reducer.SharedProjectionIntentRow) {
+	upsert := func(rows ...sharedintent.Row) {
 		t.Helper()
 		if err := store.UpsertIntents(ctx, rows); err != nil {
 			t.Fatalf("upsert intents: %v", err)

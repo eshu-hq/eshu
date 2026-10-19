@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
@@ -57,9 +58,9 @@ func TestLiveSparseWriterRowsLeaveOptionalPropertiesNull(t *testing.T) {
 	edges := edgewriter.NewEdgeWriter(live, 0)
 	write := func(domain string, payloads ...map[string]any) {
 		t.Helper()
-		rows := make([]reducer.SharedProjectionIntentRow, 0, len(payloads))
+		rows := make([]sharedintent.Row, 0, len(payloads))
 		for index, payload := range payloads {
-			rows = append(rows, reducer.SharedProjectionIntentRow{
+			rows = append(rows, sharedintent.Row{
 				IntentID:     domain + string(rune('a'+index)),
 				RepositoryID: liveSparsePrefix + "repo-a",
 				GenerationID: "gen-1",

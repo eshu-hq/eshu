@@ -389,18 +389,18 @@ func rationaleDeltaEntityFacts() []facts.Envelope {
 // the promoted RationaleEdgeMaterializationHandler emits, so handler tests assert
 // on emitted intents instead of direct edge writes (#2869).
 type recordingRationaleIntentWriter struct {
-	rows []SharedProjectionIntentRow
+	rows []sharedintent.Row
 }
 
-func (w *recordingRationaleIntentWriter) UpsertIntents(_ context.Context, rows []SharedProjectionIntentRow) error {
+func (w *recordingRationaleIntentWriter) UpsertIntents(_ context.Context, rows []sharedintent.Row) error {
 	w.rows = append(w.rows, rows...)
 	return nil
 }
 
 // refreshRows returns the per-repo refresh intents (the rows that own the
 // retract) the writer captured.
-func (w *recordingRationaleIntentWriter) refreshRows() []SharedProjectionIntentRow {
-	var out []SharedProjectionIntentRow
+func (w *recordingRationaleIntentWriter) refreshRows() []sharedintent.Row {
+	var out []sharedintent.Row
 	for _, row := range w.rows {
 		if sharedintent.IsRepoRefreshRow(row) {
 			out = append(out, row)
@@ -410,8 +410,8 @@ func (w *recordingRationaleIntentWriter) refreshRows() []SharedProjectionIntentR
 }
 
 // edgeRows returns the write-only per-edge intents the writer captured.
-func (w *recordingRationaleIntentWriter) edgeRows() []SharedProjectionIntentRow {
-	var out []SharedProjectionIntentRow
+func (w *recordingRationaleIntentWriter) edgeRows() []sharedintent.Row {
+	var out []sharedintent.Row
 	for _, row := range w.rows {
 		if !sharedintent.IsRepoRefreshRow(row) {
 			out = append(out, row)

@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestRefinalizeRebuildResetDeletesOnlySucceededReducerWorkForAffectedGenerations
@@ -82,7 +83,7 @@ func TestRefinalizeRebuildResetReopensSharedIntentsForAffectedGenerationsOnly(t 
 
 	completed := time.Now().UTC()
 	store := NewSharedIntentStore(SQLDB{DB: database})
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:         "refinalize-reset-active-intent-" + suffix,
 			ProjectionDomain: reducer.DomainCodeCalls,

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -71,12 +72,12 @@ func (r *recordingReopenFingerprints) RecordDeployableUnitReopenFingerprint(
 // erroringFingerprintEdgeWriter fails every edge retract and write.
 type erroringFingerprintEdgeWriter struct{}
 
-func (erroringFingerprintEdgeWriter) RetractEdges(context.Context, string, []SharedProjectionIntentRow, string) error {
+func (erroringFingerprintEdgeWriter) RetractEdges(context.Context, string, []sharedintent.Row, string) error {
 	return errors.New("graph retract failed")
 }
 
 func (erroringFingerprintEdgeWriter) WriteEdges(
-	context.Context, string, []SharedProjectionIntentRow, string,
+	context.Context, string, []sharedintent.Row, string,
 ) (SharedProjectionWriteReport, error) {
 	return SharedProjectionWriteReport{}, errors.New("graph write failed")
 }

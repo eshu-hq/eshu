@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -73,7 +74,7 @@ func RepoDependencyReadinessFenceSourceRunID(fence string) string {
 
 func (r *RepoDependencyProjectionRunner) replayWorkloadMaterialization(
 	ctx context.Context,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	freshness *repoDependencyGenerationFreshness,
 ) (int, error) {
 	requestCount := 0
@@ -133,7 +134,7 @@ func errRepoDependencyReplayNotScheduled(request workloadMaterializationReplayRe
 }
 
 func repoDependencyRunsOnFenceRequests(
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 ) ([]workloadMaterializationFenceRequest, error) {
 	type fenceGroup struct {
 		request     workloadMaterializationReplayRequest
@@ -197,7 +198,7 @@ func repoDependencyRunsOnFenceRequests(
 	return requests, nil
 }
 
-func repoDependencyAcceptanceUnitID(row SharedProjectionIntentRow) (string, bool) {
+func repoDependencyAcceptanceUnitID(row sharedintent.Row) (string, bool) {
 	if value := strings.TrimSpace(row.AcceptanceUnitID); value != "" {
 		return value, true
 	}
@@ -210,7 +211,7 @@ func repoDependencyAcceptanceUnitID(row SharedProjectionIntentRow) (string, bool
 	return "", false
 }
 
-func repoDependencyReplayRequests(rows []SharedProjectionIntentRow) []workloadMaterializationReplayRequest {
+func repoDependencyReplayRequests(rows []sharedintent.Row) []workloadMaterializationReplayRequest {
 	seen := make(map[string]struct{}, len(rows))
 	requests := make([]workloadMaterializationReplayRequest, 0, len(rows))
 	for _, row := range rows {
@@ -243,7 +244,7 @@ func repoDependencyReplayRequests(rows []SharedProjectionIntentRow) []workloadMa
 	return requests
 }
 
-func repoDependencyReplayEntityKey(row SharedProjectionIntentRow) string {
+func repoDependencyReplayEntityKey(row sharedintent.Row) string {
 	if strings.EqualFold(
 		strings.TrimSpace(repoDependencyPayloadString(row, "relationship_type")),
 		"PROVISIONS_DEPENDENCY_FOR",
@@ -282,14 +283,14 @@ func repoDependencyReplayRepoKey(repoID string) string {
 	return "repo:" + repoID
 }
 
-func buildRepoDependencyRetractRows(repositoryIDs []string) []SharedProjectionIntentRow {
-	rows := make([]SharedProjectionIntentRow, 0, len(repositoryIDs))
+func buildRepoDependencyRetractRows(repositoryIDs []string) []sharedintent.Row {
+	rows := make([]sharedintent.Row, 0, len(repositoryIDs))
 	for _, repositoryID := range repositoryIDs {
 		repositoryID = strings.TrimSpace(repositoryID)
 		if repositoryID == "" {
 			continue
 		}
-		rows = append(rows, SharedProjectionIntentRow{
+		rows = append(rows, sharedintent.Row{
 			RepositoryID: repositoryID,
 			Payload:      map[string]any{"repo_id": repositoryID},
 		})
@@ -297,8 +298,8 @@ func buildRepoDependencyRetractRows(repositoryIDs []string) []SharedProjectionIn
 	return rows
 }
 
-func groupRepoDependencyUpsertRows(rows []SharedProjectionIntentRow) map[string][]SharedProjectionIntentRow {
-	groups := make(map[string][]SharedProjectionIntentRow)
+func groupRepoDependencyUpsertRows(rows []sharedintent.Row) map[string][]sharedintent.Row {
+	groups := make(map[string][]sharedintent.Row)
 	for _, row := range rows {
 		if !isRepoDependencyUpsertRow(row) {
 			continue
@@ -309,7 +310,7 @@ func groupRepoDependencyUpsertRows(rows []SharedProjectionIntentRow) map[string]
 	return groups
 }
 
-func isRepoDependencyUpsertRow(row SharedProjectionIntentRow) bool {
+func isRepoDependencyUpsertRow(row sharedintent.Row) bool {
 	if row.Payload == nil {
 		return false
 	}
@@ -331,7 +332,7 @@ func isRepoDependencyUpsertRow(row SharedProjectionIntentRow) bool {
 	return strings.TrimSpace(repoDependencyPayloadString(row, "target_repo_id")) != ""
 }
 
-func repoDependencyEvidenceSources(rows []SharedProjectionIntentRow) []string {
+func repoDependencyEvidenceSources(rows []sharedintent.Row) []string {
 	seen := make(map[string]struct{}, len(rows))
 	sources := make([]string, 0, len(rows))
 	for _, row := range rows {
@@ -346,14 +347,14 @@ func repoDependencyEvidenceSources(rows []SharedProjectionIntentRow) []string {
 	return sources
 }
 
-func repoDependencyRowEvidenceSource(row SharedProjectionIntentRow) string {
+func repoDependencyRowEvidenceSource(row sharedintent.Row) string {
 	if source := strings.TrimSpace(repoDependencyPayloadString(row, "evidence_source")); source != "" {
 		return source
 	}
 	return defaultEvidenceSource
 }
 
-func repoDependencyPayloadString(row SharedProjectionIntentRow, key string) string {
+func repoDependencyPayloadString(row sharedintent.Row, key string) string {
 	if row.Payload == nil {
 		return ""
 	}
@@ -368,7 +369,7 @@ func repoDependencyPayloadString(row SharedProjectionIntentRow, key string) stri
 	return strings.TrimSpace(str)
 }
 
-func uniqueGenerationIDs(rows []SharedProjectionIntentRow) []string {
+func uniqueGenerationIDs(rows []sharedintent.Row) []string {
 	seen := make(map[string]struct{}, len(rows))
 	ids := make([]string, 0, len(rows))
 	for _, row := range rows {
@@ -388,8 +389,8 @@ func uniqueGenerationIDs(rows []SharedProjectionIntentRow) []string {
 
 // repoDependencyRunsOnRows returns the active RUNS_ON rows whose graph write
 // requires a committed WorkloadInstance prerequisite.
-func repoDependencyRunsOnRows(rows []SharedProjectionIntentRow) []SharedProjectionIntentRow {
-	runsOn := make([]SharedProjectionIntentRow, 0, len(rows))
+func repoDependencyRunsOnRows(rows []sharedintent.Row) []sharedintent.Row {
+	runsOn := make([]sharedintent.Row, 0, len(rows))
 	for _, row := range rows {
 		if strings.EqualFold(
 			strings.TrimSpace(repoDependencyPayloadString(row, "relationship_type")),
@@ -403,7 +404,7 @@ func repoDependencyRunsOnRows(rows []SharedProjectionIntentRow) []SharedProjecti
 
 func (r *RepoDependencyProjectionRunner) ensureRunsOnWorkloadReadiness(
 	ctx context.Context,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	freshness *repoDependencyGenerationFreshness,
 ) (bool, int, time.Duration, error) {
 	runsOn := repoDependencyRunsOnRows(rows)

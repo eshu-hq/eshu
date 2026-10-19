@@ -9,10 +9,11 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
-func validDeployableUnitRow() reducer.SharedProjectionIntentRow {
-	return reducer.SharedProjectionIntentRow{
+func validDeployableUnitRow() sharedintent.Row {
+	return sharedintent.Row{
 		IntentID:     "i-du-1",
 		RepositoryID: "repo-app",
 		GenerationID: "gen-1",
@@ -44,7 +45,7 @@ func TestEdgeWriterWriteEdgesDeployableUnitAbsentTargetFailsClosed(t *testing.T)
 
 	_, err := writer.WriteEdges(
 		context.Background(), reducer.DomainDeployableUnitEdges,
-		[]reducer.SharedProjectionIntentRow{validDeployableUnitRow()},
+		[]sharedintent.Row{validDeployableUnitRow()},
 		"reducer/deployable-unit-correlation",
 	)
 	if err == nil {
@@ -114,10 +115,10 @@ func TestEdgeWriterDeployableUnitProbeAnchorsBothRepos(t *testing.T) {
 // distinctDeployableUnitRows builds n DU rows with a shared source repo and
 // pairwise-distinct deployment repos: source dedup collapses the source side
 // to one probe while each deployment repo adds one probe statement.
-func distinctDeployableUnitRows(n int) []reducer.SharedProjectionIntentRow {
-	rows := make([]reducer.SharedProjectionIntentRow, 0, n)
+func distinctDeployableUnitRows(n int) []sharedintent.Row {
+	rows := make([]sharedintent.Row, 0, n)
 	for i := 0; i < n; i++ {
-		rows = append(rows, reducer.SharedProjectionIntentRow{
+		rows = append(rows, sharedintent.Row{
 			IntentID:     "i-du-chunk",
 			RepositoryID: "repo-src",
 			GenerationID: "gen-1",

@@ -13,6 +13,7 @@ import (
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -25,7 +26,7 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 	result PartitionProcessResult,
 	cycleStart time.Time,
 	alreadyReportedTorn map[string]struct{},
-) (PartitionProcessResult, []SharedProjectionIntentRow, int, error) {
+) (PartitionProcessResult, []sharedintent.Row, int, error) {
 	loadAllStart := time.Now()
 	rows, err := r.loadAllAcceptanceUnitIntents(ctx, reader, acceptanceUnitID)
 	result.LoadAllDurationSeconds = time.Since(loadAllStart).Seconds()
@@ -201,13 +202,13 @@ func (r *RepoDependencyProjectionRunner) drainUnitAbsentAcceptance(
 	ctx context.Context,
 	now time.Time,
 	reader RepoDependencyProjectionIntentReader,
-	rows []SharedProjectionIntentRow,
-	active []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
+	active []sharedintent.Row,
 	staleIDs []string,
 	alreadyReportedTorn map[string]struct{},
 ) (drainedCount, tornCount int, err error) {
 	acceptanceTelemetry := worker.AcceptanceTelemetry{Instruments: r.Instruments, Logger: r.Logger}
-	unitAbsent := make(map[string]SharedProjectionIntentRow, len(rows))
+	unitAbsent := make(map[string]sharedintent.Row, len(rows))
 	for _, row := range worker.AbsentAcceptanceRows(rows, active, staleIDs) {
 		unitAbsent[row.IntentID] = row
 	}
@@ -223,7 +224,7 @@ func (r *RepoDependencyProjectionRunner) drainUnitAbsentAcceptance(
 
 func validateRepoDependencySourceRepositoryIdentity(
 	acceptanceUnitID string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 ) error {
 	expectedRepoID := strings.TrimSpace(acceptanceUnitID)
 	if expectedRepoID == "" {
@@ -461,7 +462,7 @@ func (r *RepoDependencyProjectionRunner) dropRetiredFenceRequests(
 // replay path, which fails the cycle closed, so it is not reported here.
 func (r *RepoDependencyProjectionRunner) recordInactiveAcceptedGenerationRows(
 	ctx context.Context,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	freshness *repoDependencyGenerationFreshness,
 ) {
 	type scopeGeneration struct{ scopeID, generationID string }

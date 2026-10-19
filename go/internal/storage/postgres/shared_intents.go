@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 const sharedIntentSchemaSQL = `
@@ -224,7 +225,7 @@ func (s *SharedIntentStore) EnsureSchema(ctx context.Context) error {
 }
 
 // ListIntents returns persisted intents for one repository/run pair.
-func (s *SharedIntentStore) ListIntents(ctx context.Context, f SharedIntentFilter) ([]reducer.SharedProjectionIntentRow, error) {
+func (s *SharedIntentStore) ListIntents(ctx context.Context, f SharedIntentFilter) ([]sharedintent.Row, error) {
 	limit := max(f.Limit, 1)
 
 	projDomain := ""
@@ -249,7 +250,7 @@ func (s *SharedIntentStore) ListIntents(ctx context.Context, f SharedIntentFilte
 
 // ListPendingDomainIntents returns uncompleted intents for one projection
 // domain.
-func (s *SharedIntentStore) ListPendingDomainIntents(ctx context.Context, domain string, limit int) ([]reducer.SharedProjectionIntentRow, error) {
+func (s *SharedIntentStore) ListPendingDomainIntents(ctx context.Context, domain string, limit int) ([]sharedintent.Row, error) {
 	l := max(limit, 1)
 
 	sqlRows, err := s.database.QueryContext(ctx, listPendingDomainIntentsSQL, domain, l)
@@ -352,7 +353,7 @@ func (s *SharedIntentStore) ListPendingAcceptanceUnitIntents(
 	key reducer.SharedProjectionAcceptanceKey,
 	domain string,
 	limit int,
-) ([]reducer.SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	l := max(limit, 1)
 
 	sqlRows, err := s.database.QueryContext(
@@ -380,7 +381,7 @@ func (s *SharedIntentStore) ListPendingAcceptanceUnitPartitionIntents(
 	domain string,
 	partitionKey string,
 	limit int,
-) ([]reducer.SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	l := max(limit, 1)
 
 	sqlRows, err := s.database.QueryContext(
@@ -410,7 +411,7 @@ func (s *SharedIntentStore) ListAcceptanceUnitDomainIntents(
 	acceptanceUnitID string,
 	domain string,
 	limit int,
-) ([]reducer.SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	l := max(limit, 1)
 
 	sqlRows, err := s.database.QueryContext(
@@ -428,10 +429,10 @@ func (s *SharedIntentStore) ListAcceptanceUnitDomainIntents(
 	return scanSharedIntentRows(sqlRows)
 }
 
-func scanSharedIntentRows(rows db.Rows) ([]reducer.SharedProjectionIntentRow, error) {
-	var result []reducer.SharedProjectionIntentRow
+func scanSharedIntentRows(rows db.Rows) ([]sharedintent.Row, error) {
+	var result []sharedintent.Row
 	for rows.Next() {
-		var r reducer.SharedProjectionIntentRow
+		var r sharedintent.Row
 		var payloadBytes []byte
 		var completedAt sql.NullTime
 		if err := rows.Scan(
@@ -465,7 +466,7 @@ func scanSharedIntentRows(rows db.Rows) ([]reducer.SharedProjectionIntentRow, er
 
 // sharedIntentScopeID keeps the storage layer compatible while reducer callers
 // migrate to explicit Option B identity fields.
-func sharedIntentScopeID(row reducer.SharedProjectionIntentRow) string {
+func sharedIntentScopeID(row sharedintent.Row) string {
 	if value := strings.TrimSpace(row.ScopeID); value != "" {
 		return value
 	}
@@ -475,7 +476,7 @@ func sharedIntentScopeID(row reducer.SharedProjectionIntentRow) string {
 // sharedIntentAcceptanceUnitID falls back to repository identity so the current
 // Git collector path remains stable while the broader bounded-unit contract
 // lands across the reducer.
-func sharedIntentAcceptanceUnitID(row reducer.SharedProjectionIntentRow) string {
+func sharedIntentAcceptanceUnitID(row sharedintent.Row) string {
 	if value := strings.TrimSpace(row.AcceptanceUnitID); value != "" {
 		return value
 	}

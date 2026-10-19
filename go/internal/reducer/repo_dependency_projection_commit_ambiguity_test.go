@@ -10,6 +10,8 @@ import (
 	"time"
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestRepoDependencyProjectionRunnerReplaysAmbiguousCommittedWriteExactly(t *testing.T) {
@@ -37,14 +39,14 @@ func TestRepoDependencyProjectionRunnerReplaysAmbiguousCommittedWriteExactly(t *
 			t.Parallel()
 
 			active := repoDependencyAmbiguousCommitIntent("active", repoID, newTarget, "run-new", "gen-new", now)
-			rows := []SharedProjectionIntentRow{active}
+			rows := []sharedintent.Row{active}
 			if tc.includeOld {
 				stale := repoDependencyAmbiguousCommitIntent("stale", repoID, oldTarget, "run-old", "gen-old", now.Add(-time.Second))
-				rows = append([]SharedProjectionIntentRow{stale}, rows...)
+				rows = append([]sharedintent.Row{stale}, rows...)
 			}
 			reader := &fakeRepoDependencyIntentStore{
-				pendingByDomain:         append([]SharedProjectionIntentRow(nil), rows...),
-				pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{repoID: append([]SharedProjectionIntentRow(nil), rows...)},
+				pendingByDomain:         append([]sharedintent.Row(nil), rows...),
+				pendingByAcceptanceUnit: map[string][]sharedintent.Row{repoID: append([]sharedintent.Row(nil), rows...)},
 				leaseGranted:            true,
 			}
 			writer := newCommitAmbiguityRepoDependencyWriter(repoID, tc.initialEdge)
@@ -93,7 +95,7 @@ func TestRepoDependencyProjectionRunnerReplaysAmbiguousCommittedWriteExactly(t *
 func repoDependencyAmbiguousCommitIntent(
 	intentID, repoID, targetID, sourceRunID, generationID string,
 	createdAt time.Time,
-) SharedProjectionIntentRow {
+) sharedintent.Row {
 	return repoDependencyIntentRow(
 		intentID, "scope-a", repoID, repoID, sourceRunID, generationID, createdAt,
 		map[string]any{
@@ -126,7 +128,7 @@ func newCommitAmbiguityRepoDependencyWriter(repoID, initialTarget string) *commi
 }
 
 func (w *commitAmbiguityRepoDependencyWriter) RetractEdges(
-	_ context.Context, _ string, rows []SharedProjectionIntentRow, _ string,
+	_ context.Context, _ string, rows []sharedintent.Row, _ string,
 ) error {
 	w.retractAttempts++
 	for _, row := range rows {
@@ -146,7 +148,7 @@ func (w *commitAmbiguityRepoDependencyWriter) RetractEdges(
 }
 
 func (w *commitAmbiguityRepoDependencyWriter) WriteEdges(
-	_ context.Context, _ string, rows []SharedProjectionIntentRow, _ string,
+	_ context.Context, _ string, rows []sharedintent.Row, _ string,
 ) (SharedProjectionWriteReport, error) {
 	w.writeAttempts++
 	for _, row := range rows {

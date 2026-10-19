@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestProcessPartitionOnceHeartbeatsLeaseDuringSlowWrite reproduces #4449:
@@ -33,7 +35,7 @@ func TestProcessPartitionOnceHeartbeatsLeaseDuringSlowWrite(t *testing.T) {
 	t0 := now.Add(-time.Minute)
 
 	reader := &stubSharedIntentReader{
-		pending: []SharedProjectionIntentRow{
+		pending: []sharedintent.Row{
 			{
 				IntentID:         "intent-slow-1",
 				ProjectionDomain: "platform_infra",
@@ -122,7 +124,7 @@ func TestProcessPartitionOnceReleasesLeaseWithLiveContext(t *testing.T) {
 	t0 := now.Add(-time.Minute)
 
 	reader := &stubSharedIntentReader{
-		pending: []SharedProjectionIntentRow{
+		pending: []sharedintent.Row{
 			{
 				IntentID:         "intent-release-1",
 				ProjectionDomain: "platform_infra",
@@ -235,11 +237,11 @@ type slowEdgeWriter struct {
 	writeBlock <-chan struct{}
 }
 
-func (s *slowEdgeWriter) RetractEdges(_ context.Context, _ string, _ []SharedProjectionIntentRow, _ string) error {
+func (s *slowEdgeWriter) RetractEdges(_ context.Context, _ string, _ []sharedintent.Row, _ string) error {
 	return nil
 }
 
-func (s *slowEdgeWriter) WriteEdges(ctx context.Context, _ string, _ []SharedProjectionIntentRow, _ string) (SharedProjectionWriteReport, error) {
+func (s *slowEdgeWriter) WriteEdges(ctx context.Context, _ string, _ []sharedintent.Row, _ string) (SharedProjectionWriteReport, error) {
 	select {
 	case <-s.writeBlock:
 		return SharedProjectionWriteReport{}, nil

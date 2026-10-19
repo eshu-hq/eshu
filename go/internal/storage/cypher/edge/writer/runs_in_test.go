@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestEdgeWriterWriteEdgesRunsInDispatch(t *testing.T) {
@@ -17,7 +18,7 @@ func TestEdgeWriterWriteEdgesRunsInDispatch(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-a",
@@ -81,7 +82,7 @@ func TestEdgeWriterWriteEdgesRunsInRowsMissingMatchFieldsFailTheIntent(t *testin
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "r1", Payload: map[string]any{"function_id": "", "repo_id": "r1"}},
 		{IntentID: "i2", RepositoryID: "r1", Payload: map[string]any{"function_id": "f1", "repo_id": ""}},
 	}
@@ -96,7 +97,7 @@ func TestEdgeWriterRetractEdgesRunsInDispatch(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
 	}
 

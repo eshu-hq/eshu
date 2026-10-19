@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 type RepoDependencyRetractStatement struct {
@@ -83,7 +84,7 @@ func repoDependencySourceSupportsRunsOn(evidenceSource string) bool {
 }
 
 func validateRepoDependencySourceRows(
-	rows []reducer.SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	evidenceSource string,
 ) error {
 	if evidenceSource != codeImportRepoDependencyEvidenceSource {

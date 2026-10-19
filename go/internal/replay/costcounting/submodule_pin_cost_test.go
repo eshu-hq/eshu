@@ -13,13 +13,14 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 // submodulePinBudgetRelPath is the committed cost budget for the
 // submodule_pin scenario. Like codeowners_ownership, this projection has no
 // committed cassette: edgewriter.EdgeWriter.WriteEdges operates over flat
-// reducer.SharedProjectionIntentRow values, not a CanonicalMaterialization,
+// sharedintent.Row values, not a CanonicalMaterialization,
 // so the fixture rows live inline in this file and the budget records that
 // explicitly instead of pointing at a cassette path.
 var submodulePinBudgetRelPath = filepath.Join(
@@ -39,7 +40,7 @@ const submodulePinCostEvidenceSource = "reducer/submodule"
 // fixture's declared path at tests/fixtures/ecosystems/deployable-config/.gitmodules
 // (issue #5420 Phase 5, registered as a git gitlink by
 // scripts/verify-golden-corpus-gate.sh) instead of inventing an unrelated one.
-func submodulePinEdgeFixtureRows() []reducer.SharedProjectionIntentRow {
+func submodulePinEdgeFixtureRows() []sharedintent.Row {
 	rows := []map[string]any{
 		{
 			"parent_repo_id":   "repo-1",
@@ -56,9 +57,9 @@ func submodulePinEdgeFixtureRows() []reducer.SharedProjectionIntentRow {
 			"generation_id":    "gen-1",
 		},
 	}
-	intents := make([]reducer.SharedProjectionIntentRow, 0, len(rows))
+	intents := make([]sharedintent.Row, 0, len(rows))
 	for _, row := range rows {
-		intents = append(intents, reducer.SharedProjectionIntentRow{
+		intents = append(intents, sharedintent.Row{
 			ProjectionDomain: reducer.DomainSubmodulePinEdges,
 			PartitionKey: fmt.Sprintf(
 				"%s->%s", row["parent_repo_id"], row["submodule_path"],
@@ -207,7 +208,7 @@ func TestCostBudget_SubmodulePin_N1_ExceedsBudget(t *testing.T) {
 		if _, err := writer.WriteEdges(
 			context.Background(),
 			reducer.DomainSubmodulePinEdges,
-			[]reducer.SharedProjectionIntentRow{row},
+			[]sharedintent.Row{row},
 			submodulePinCostEvidenceSource,
 		); err != nil {
 			t.Fatalf("N+1 WriteEdges() error = %v", err)

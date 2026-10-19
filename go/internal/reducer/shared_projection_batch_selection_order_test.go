@@ -15,8 +15,8 @@ import (
 // SelectPartitionBatch, and pins that dedup consumes the filter's output.
 //
 // The order is load-bearing and the compiler does not protect it. Both
-// functions take []SharedProjectionIntentRow first and return
-// []SharedProjectionIntentRow first, so swapping them type-checks; the reordered
+// functions take []sharedintent.Row first and return
+// []sharedintent.Row first, so swapping them type-checks; the reordered
 // form compiles and no other test in this repository fails on it. It also has an
 // attractive rationale -- dedup first to shrink the set before the per-key
 // acceptance lookup -- which makes it something a future change may reach for on

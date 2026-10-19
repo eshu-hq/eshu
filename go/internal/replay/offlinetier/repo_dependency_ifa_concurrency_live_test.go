@@ -18,6 +18,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
@@ -123,7 +124,7 @@ func TestRepoDependencyIfaConcurrencyLive(t *testing.T) {
 
 func repoDependencyIfaArtifactIDs(
 	t *testing.T,
-	rows []reducer.SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 ) []string {
 	t.Helper()
 	ids := make([]string, 0, len(rows))
@@ -146,7 +147,7 @@ func repoDependencyIfaArtifactIDs(
 	return ids
 }
 
-func repoDependencyIfaExpectedEdges(rows []reducer.SharedProjectionIntentRow) []string {
+func repoDependencyIfaExpectedEdges(rows []sharedintent.Row) []string {
 	edges := make([]string, 0, len(rows))
 	for _, row := range rows {
 		action := strings.TrimSpace(fmt.Sprint(row.Payload["action"]))
@@ -182,7 +183,7 @@ func mustRepoDependencyIfaOdu(t *testing.T) ifa.Odu {
 	return odu
 }
 
-func repoDependencyIfaRows(t *testing.T, odu ifa.Odu) []reducer.SharedProjectionIntentRow {
+func repoDependencyIfaRows(t *testing.T, odu ifa.Odu) []sharedintent.Row {
 	t.Helper()
 	evidenceBySource := make(map[string][]relationships.EvidenceFact)
 	for _, item := range ifa.DiscoveredEvidence(odu) {
@@ -205,14 +206,14 @@ func repoDependencyIfaRows(t *testing.T, odu ifa.Odu) []reducer.SharedProjection
 	if got, want := len(capture.rows), 8; got != want {
 		t.Fatalf("Odù repo-dependency intents=%d, want %d", got, want)
 	}
-	return append([]reducer.SharedProjectionIntentRow(nil), capture.rows...)
+	return append([]sharedintent.Row(nil), capture.rows...)
 }
 
 func repoDependencyIfaRetractRows(
 	t *testing.T,
 	odu ifa.Odu,
 	source string,
-) []reducer.SharedProjectionIntentRow {
+) []sharedintent.Row {
 	t.Helper()
 	scopeID, generationID := repoDependencyIfaCoordinates(t, odu, source)
 	capture := &repoDependencyIfaIntentCapture{}
@@ -226,7 +227,7 @@ func repoDependencyIfaRetractRows(
 	if got, want := len(capture.rows), 1; got != want {
 		t.Fatalf("retract intents=%d, want %d", got, want)
 	}
-	return append([]reducer.SharedProjectionIntentRow(nil), capture.rows...)
+	return append([]sharedintent.Row(nil), capture.rows...)
 }
 
 func repoDependencyIfaCoordinates(t *testing.T, odu ifa.Odu, source string) (string, string) {
@@ -254,16 +255,16 @@ func sortedRepoDependencyIfaSources(
 
 type repoDependencyIfaStore struct {
 	mu        sync.Mutex
-	rows      map[string]reducer.SharedProjectionIntentRow
+	rows      map[string]sharedintent.Row
 	completed map[string]struct{}
 	accepted  map[reducer.SharedProjectionAcceptanceKey]string
 	leases    map[string]string
 	onDrained func()
 }
 
-func newRepoDependencyIfaStore(rows []reducer.SharedProjectionIntentRow) *repoDependencyIfaStore {
+func newRepoDependencyIfaStore(rows []sharedintent.Row) *repoDependencyIfaStore {
 	store := &repoDependencyIfaStore{
-		rows:      make(map[string]reducer.SharedProjectionIntentRow, len(rows)),
+		rows:      make(map[string]sharedintent.Row, len(rows)),
 		completed: make(map[string]struct{}, len(rows)),
 		accepted:  make(map[reducer.SharedProjectionAcceptanceKey]string, len(rows)),
 		leases:    make(map[string]string),
@@ -273,7 +274,7 @@ func newRepoDependencyIfaStore(rows []reducer.SharedProjectionIntentRow) *repoDe
 	return store
 }
 
-func (s *repoDependencyIfaStore) upsert(rows []reducer.SharedProjectionIntentRow) {
+func (s *repoDependencyIfaStore) upsert(rows []sharedintent.Row) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, row := range rows {
@@ -281,7 +282,7 @@ func (s *repoDependencyIfaStore) upsert(rows []reducer.SharedProjectionIntentRow
 	}
 }
 
-func (s *repoDependencyIfaStore) accept(rows []reducer.SharedProjectionIntentRow) {
+func (s *repoDependencyIfaStore) accept(rows []sharedintent.Row) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, row := range rows {
@@ -305,10 +306,10 @@ func (s *repoDependencyIfaStore) ListPendingDomainIntents(
 	_ context.Context,
 	domain string,
 	limit int,
-) ([]reducer.SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	rows := make([]reducer.SharedProjectionIntentRow, 0, len(s.rows))
+	rows := make([]sharedintent.Row, 0, len(s.rows))
 	for _, row := range s.rows {
 		if row.ProjectionDomain != domain {
 			continue
@@ -326,10 +327,10 @@ func (s *repoDependencyIfaStore) ListAcceptanceUnitDomainIntents(
 	acceptanceUnitID string,
 	domain string,
 	limit int,
-) ([]reducer.SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	rows := make([]reducer.SharedProjectionIntentRow, 0, len(s.rows))
+	rows := make([]sharedintent.Row, 0, len(s.rows))
 	for _, row := range s.rows {
 		if row.ProjectionDomain == domain && row.AcceptanceUnitID == acceptanceUnitID {
 			rows = append(rows, row)
@@ -339,9 +340,9 @@ func (s *repoDependencyIfaStore) ListAcceptanceUnitDomainIntents(
 }
 
 func sortAndLimitRepoDependencyIfaRows(
-	rows []reducer.SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	limit int,
-) []reducer.SharedProjectionIntentRow {
+) []sharedintent.Row {
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].CreatedAt.Equal(rows[j].CreatedAt) {
 			return rows[i].IntentID < rows[j].IntentID

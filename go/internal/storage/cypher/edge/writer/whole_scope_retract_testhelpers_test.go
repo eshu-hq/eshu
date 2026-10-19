@@ -9,6 +9,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // wholeScopeRefreshPayload builds the production payload shape of a whole-scope
@@ -39,8 +40,8 @@ func wholeScopeRefreshPayload(repoID string) map[string]any {
 
 // wholeScopeRefreshRetractRow is wholeScopeRefreshPayload wrapped in the intent
 // row the retract dispatch receives.
-func wholeScopeRefreshRetractRow(intentID, repoID string) reducer.SharedProjectionIntentRow {
-	return reducer.SharedProjectionIntentRow{
+func wholeScopeRefreshRetractRow(intentID, repoID string) sharedintent.Row {
+	return sharedintent.Row{
 		IntentID:     intentID,
 		RepositoryID: repoID,
 		Payload:      wholeScopeRefreshPayload(repoID),

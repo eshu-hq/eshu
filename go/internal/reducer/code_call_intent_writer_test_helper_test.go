@@ -3,7 +3,11 @@
 
 package reducer
 
-import "context"
+import (
+	"context"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
+)
 
 // recordingCodeCallIntentWriter is a local copy of the [materialization]
 // package's own recordingCodeCallIntentWriter test fake, shared by the root
@@ -15,10 +19,10 @@ import "context"
 // python_metaclass_materialization_test.go). Go test files cannot share
 // unexported symbols across a package boundary (issue #6061).
 type recordingCodeCallIntentWriter struct {
-	rows []SharedProjectionIntentRow
+	rows []sharedintent.Row
 }
 
-func (r *recordingCodeCallIntentWriter) UpsertIntents(_ context.Context, rows []SharedProjectionIntentRow) error {
+func (r *recordingCodeCallIntentWriter) UpsertIntents(_ context.Context, rows []sharedintent.Row) error {
 	r.rows = append(r.rows, rows...)
 	return nil
 }

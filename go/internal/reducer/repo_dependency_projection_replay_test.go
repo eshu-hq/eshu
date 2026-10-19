@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -31,7 +32,7 @@ func TestRepoDependencyProjectionRunnerSkipsRetractWhenCompletedContributorsRema
 	completedContributor.CompletedAt = &completedAt
 
 	reader := &fakeRepoDependencyIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{
 			repoDependencyIntentRow(
 				"pending-1", "scope-new", repoID, repoID, "run-new", "gen-new", now,
 				map[string]any{
@@ -42,7 +43,7 @@ func TestRepoDependencyProjectionRunnerSkipsRetractWhenCompletedContributorsRema
 				},
 			),
 		},
-		pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{
+		pendingByAcceptanceUnit: map[string][]sharedintent.Row{
 			repoID: {
 				completedContributor,
 				repoDependencyIntentRow(
@@ -101,7 +102,7 @@ func TestRepoDependencyProjectionRunnerReplaysWorkloadMaterializationForActiveRe
 	now := time.Date(2026, time.April, 19, 13, 0, 0, 0, time.UTC)
 	repoID := "repository:r_repo_a"
 	reader := &fakeRepoDependencyIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{
 			repoDependencyIntentRow(
 				"active-1", "scope-a", repoID, repoID, "run-1", "gen-1", now,
 				map[string]any{
@@ -112,7 +113,7 @@ func TestRepoDependencyProjectionRunnerReplaysWorkloadMaterializationForActiveRe
 				},
 			),
 		},
-		pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{
+		pendingByAcceptanceUnit: map[string][]sharedintent.Row{
 			repoID: {
 				repoDependencyIntentRow(
 					"active-1", "scope-a", repoID, repoID, "run-1", "gen-1", now,
@@ -196,7 +197,7 @@ func TestRepoDependencyProjectionRunnerReplaysWorkloadMaterializationForActiveRe
 func TestRepoDependencyReplayRequestsUseTargetForProvisionedDependencies(t *testing.T) {
 	t.Parallel()
 
-	rows := []SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			ScopeID:      "git-repository-scope:repository:r_service",
 			GenerationID: "gen-service",
@@ -224,7 +225,7 @@ func TestRepoDependencyProjectionRunnerSkipsRetractForFirstProjection(t *testing
 	now := time.Date(2026, time.April, 29, 14, 0, 0, 0, time.UTC)
 	repoID := "repository:r_repo_a"
 	reader := &fakeRepoDependencyIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{
 			repoDependencyIntentRow(
 				"active-1", "scope-a", repoID, repoID, "run-1", "gen-1", now,
 				map[string]any{
@@ -235,7 +236,7 @@ func TestRepoDependencyProjectionRunnerSkipsRetractForFirstProjection(t *testing
 				},
 			),
 		},
-		pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{
+		pendingByAcceptanceUnit: map[string][]sharedintent.Row{
 			repoID: {
 				repoDependencyIntentRow(
 					"active-1", "scope-a", repoID, repoID, "run-1", "gen-1", now,

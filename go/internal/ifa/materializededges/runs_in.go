@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // runsInFamily is the materialized-edge family key this guard asserts
@@ -167,7 +168,7 @@ func runsInWorkloadIDsByRepo(rows []reducer.WorkloadRow) map[string][]string {
 // the synthetic case defends a real capability of the MERGE, not a
 // hypothetical one.
 func runsInRowsToExpectedEdges(
-	rows []reducer.SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	workloadIDs map[string][]string,
 	relationshipType string,
 ) (edges []ExpectedEdge, unresolved []string) {

@@ -11,6 +11,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 const (
@@ -33,7 +34,7 @@ func rationaleRetractEvidenceSources(evidenceSource string) []string {
 func (w *EdgeWriter) RetractEdges(
 	ctx context.Context,
 	domain string,
-	rows []reducer.SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	evidenceSource string,
 ) error {
 	if len(rows) == 0 {
@@ -368,7 +369,7 @@ func buildRetractStatement(
 func (w *EdgeWriter) retractFencedRepoWideDomain(
 	ctx context.Context,
 	domain string,
-	rows []reducer.SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	evidenceSource string,
 ) (bool, error) {
 	if !isWholeScopeNarrowedDomain(domain) {

@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // These helpers back both TestHandleRouteToCallerResolvesJavaSpringHandler
@@ -115,14 +115,14 @@ func jsonRoundTripQueryProofPayload(t *testing.T, payload map[string]any) map[st
 // findQueryProofIntentByFunctionEntityID returns the HANDLES_ROUTE intent
 // whose function_entity_id matches entityID.
 func findQueryProofIntentByFunctionEntityID(
-	intents []reducer.SharedProjectionIntentRow, entityID string,
-) (reducer.SharedProjectionIntentRow, bool) {
+	intents []sharedintent.Row, entityID string,
+) (sharedintent.Row, bool) {
 	for _, intent := range intents {
 		if id, _ := intent.Payload["function_entity_id"].(string); id == entityID {
 			return intent, true
 		}
 	}
-	return reducer.SharedProjectionIntentRow{}, false
+	return sharedintent.Row{}, false
 }
 
 // queryProofRouteEntryHandlers returns every route_entries[].handler string the

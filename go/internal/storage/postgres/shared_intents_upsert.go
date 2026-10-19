@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 const (
@@ -106,7 +107,7 @@ SET projection_domain = EXCLUDED.projection_domain,
 // UpsertIntents inserts or updates shared projection intents using batched
 // multi-row INSERT statements. Each batch inserts up to sharedIntentBatchSize
 // rows in a single query, reducing round trips to the database.
-func (s *SharedIntentStore) UpsertIntents(ctx context.Context, rows []reducer.SharedProjectionIntentRow) error {
+func (s *SharedIntentStore) UpsertIntents(ctx context.Context, rows []sharedintent.Row) error {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -154,13 +155,13 @@ func (s *SharedIntentStore) UpsertIntents(ctx context.Context, rows []reducer.Sh
 	return nil
 }
 
-func deduplicateSharedIntentRows(rows []reducer.SharedProjectionIntentRow) []reducer.SharedProjectionIntentRow {
+func deduplicateSharedIntentRows(rows []sharedintent.Row) []sharedintent.Row {
 	if len(rows) < 2 {
 		return rows
 	}
 
 	seen := make(map[string]struct{}, len(rows))
-	deduplicated := make([]reducer.SharedProjectionIntentRow, 0, len(rows))
+	deduplicated := make([]sharedintent.Row, 0, len(rows))
 	for _, row := range rows {
 		if _, exists := seen[row.IntentID]; exists {
 			continue

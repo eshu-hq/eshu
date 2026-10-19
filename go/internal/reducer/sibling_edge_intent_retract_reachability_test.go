@@ -21,7 +21,7 @@ type wholeScopeRetractReachabilityCase struct {
 	name      string
 	domain    string
 	edgeRow   func(repoID string) map[string]any
-	buildRows func(edges []map[string]any, repoIDs []string, ctxByRepo map[string]ProjectionContext, at time.Time) []SharedProjectionIntentRow
+	buildRows func(edges []map[string]any, repoIDs []string, ctxByRepo map[string]ProjectionContext, at time.Time) []sharedintent.Row
 }
 
 func wholeScopeRetractReachabilityCases() []wholeScopeRetractReachabilityCase {
@@ -36,7 +36,7 @@ func wholeScopeRetractReachabilityCases() []wholeScopeRetractReachabilityCase {
 					"relationship_type": "INHERITS",
 				}
 			},
-			buildRows: func(edges []map[string]any, repoIDs []string, ctxByRepo map[string]ProjectionContext, at time.Time) []SharedProjectionIntentRow {
+			buildRows: func(edges []map[string]any, repoIDs []string, ctxByRepo map[string]ProjectionContext, at time.Time) []sharedintent.Row {
 				return inheritance.BuildSharedIntentRows(edges, inheritance.DeltaScope{}, repoIDs, ctxByRepo, at)
 			},
 		},
@@ -50,7 +50,7 @@ func wholeScopeRetractReachabilityCases() []wholeScopeRetractReachabilityCase {
 					"relationship_type": "QUERIES_TABLE",
 				}
 			},
-			buildRows: func(edges []map[string]any, repoIDs []string, ctxByRepo map[string]ProjectionContext, at time.Time) []SharedProjectionIntentRow {
+			buildRows: func(edges []map[string]any, repoIDs []string, ctxByRepo map[string]ProjectionContext, at time.Time) []sharedintent.Row {
 				return sqlrelationship.BuildSharedIntentRows(edges, sqlrelationship.DeltaScope{}, repoIDs, ctxByRepo, at)
 			},
 		},
@@ -63,7 +63,7 @@ func wholeScopeRetractReachabilityCases() []wholeScopeRetractReachabilityCase {
 					"source_entity_id": "s:" + repoID, "target_entity_id": "shell-command:" + repoID,
 				}
 			},
-			buildRows: func(edges []map[string]any, repoIDs []string, ctxByRepo map[string]ProjectionContext, at time.Time) []SharedProjectionIntentRow {
+			buildRows: func(edges []map[string]any, repoIDs []string, ctxByRepo map[string]ProjectionContext, at time.Time) []sharedintent.Row {
 				return buildShellExecSharedIntentRows(edges, sqlrelationship.DeltaScope{}, repoIDs, ctxByRepo, at)
 			},
 		},

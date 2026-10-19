@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
@@ -72,10 +73,10 @@ func (l staticFactLoader) ListFacts(_ context.Context, _, _ string) ([]facts.Env
 // handler emits. Its single method satisfies all four domains' intent-writer
 // interfaces, which are structurally identical.
 type capturingIntentWriter struct {
-	rows []reducer.SharedProjectionIntentRow
+	rows []sharedintent.Row
 }
 
-func (c *capturingIntentWriter) UpsertIntents(_ context.Context, rows []reducer.SharedProjectionIntentRow) error {
+func (c *capturingIntentWriter) UpsertIntents(_ context.Context, rows []sharedintent.Row) error {
 	c.rows = append(c.rows, rows...)
 	return nil
 }
@@ -166,8 +167,8 @@ func unusableDeltaCases() []unusableDeltaCase {
 
 // refreshIntentRows filters captured intents down to the repo-wide refresh rows
 // that own each domain's retract.
-func refreshIntentRows(rows []reducer.SharedProjectionIntentRow) []reducer.SharedProjectionIntentRow {
-	out := make([]reducer.SharedProjectionIntentRow, 0, 1)
+func refreshIntentRows(rows []sharedintent.Row) []sharedintent.Row {
+	out := make([]sharedintent.Row, 0, 1)
 	for _, row := range rows {
 		if sourcecypher.PayloadString(row.Payload, "intent_type") == reducer.RepoRefreshIntentType {
 			out = append(out, row)

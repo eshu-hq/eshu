@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -148,7 +149,7 @@ func (h CodeImportRepoEdgeHandler) Handle(ctx context.Context, intent Intent) (R
 	}
 	h.logCompleted(ctx, intent, counts, len(upsertIntents))
 
-	intents := make([]SharedProjectionIntentRow, 0, len(upsertIntents)+len(refreshIntents))
+	intents := make([]sharedintent.Row, 0, len(upsertIntents)+len(refreshIntents))
 	intents = append(intents, upsertIntents...)
 	intents = append(intents, refreshIntents...)
 	if len(intents) == 0 {

@@ -22,6 +22,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -180,11 +181,11 @@ func newRepoDependencyLostResponseWriter(inner reducer.SharedProjectionEdgeWrite
 	return &repoDependencyLostResponseWriter{inner: inner, faultAcceptanceUnit: faultAcceptanceUnit}
 }
 
-func (w *repoDependencyLostResponseWriter) RetractEdges(ctx context.Context, domain string, rows []reducer.SharedProjectionIntentRow, evidenceSource string) error {
+func (w *repoDependencyLostResponseWriter) RetractEdges(ctx context.Context, domain string, rows []sharedintent.Row, evidenceSource string) error {
 	return w.inner.RetractEdges(ctx, domain, rows, evidenceSource)
 }
 
-func (w *repoDependencyLostResponseWriter) WriteEdges(ctx context.Context, domain string, rows []reducer.SharedProjectionIntentRow, evidenceSource string) (reducer.SharedProjectionWriteReport, error) {
+func (w *repoDependencyLostResponseWriter) WriteEdges(ctx context.Context, domain string, rows []sharedintent.Row, evidenceSource string) (reducer.SharedProjectionWriteReport, error) {
 	report, err := w.inner.WriteEdges(ctx, domain, rows, evidenceSource)
 	if err != nil {
 		return reducer.SharedProjectionWriteReport{}, err
@@ -226,7 +227,7 @@ func firstRepoDependencyQuarantineDSN() string {
 	return ""
 }
 
-func prepareRepoDependencyQuarantinePhase(ctx context.Context, t *testing.T, database *sql.DB, store *postgres.SharedIntentStore, exec liveExecutor, odu ifa.Odu, artifactIDs []string, rows []reducer.SharedProjectionIntentRow) {
+func prepareRepoDependencyQuarantinePhase(ctx context.Context, t *testing.T, database *sql.DB, store *postgres.SharedIntentStore, exec liveExecutor, odu ifa.Odu, artifactIDs []string, rows []sharedintent.Row) {
 	t.Helper()
 	repoDependencyQuarantineDatabases.Store(store, postgres.SQLDB{DB: database})
 	t.Cleanup(func() { repoDependencyQuarantineDatabases.Delete(store) })
@@ -242,7 +243,7 @@ func prepareRepoDependencyQuarantinePhase(ctx context.Context, t *testing.T, dat
 	}
 }
 
-func repoDependencyIfaAcceptedGeneration(rows []reducer.SharedProjectionIntentRow) reducer.AcceptedGenerationLookup {
+func repoDependencyIfaAcceptedGeneration(rows []sharedintent.Row) reducer.AcceptedGenerationLookup {
 	accepted := make(map[reducer.SharedProjectionAcceptanceKey]string, len(rows))
 	for _, row := range rows {
 		if key, ok := row.AcceptanceKey(); ok {
@@ -447,14 +448,14 @@ func repoDependencyQuarantineShard(acceptanceUnitID string, shardCount int) int 
 
 func repoDependencyQuarantineContainsFaultEdge(
 	snapshot repoDependencyIfaSnapshot,
-	rows []reducer.SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	faultAcceptanceUnit string,
 ) bool {
 	for _, row := range rows {
 		if row.AcceptanceUnitID != faultAcceptanceUnit {
 			continue
 		}
-		want := repoDependencyIfaExpectedEdges([]reducer.SharedProjectionIntentRow{row})
+		want := repoDependencyIfaExpectedEdges([]sharedintent.Row{row})
 		if len(want) == 1 {
 			for _, got := range snapshot.typedEdges {
 				if got == want[0] {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestDocumentationMaterializationHandlerScopesDeltaRetractToDocuments(t *testing.T) {
@@ -330,15 +331,15 @@ func documentationDeltaFacts() []facts.Envelope {
 
 type recordingDocumentationEdgeWriter struct {
 	retractDomain string
-	retractRows   []SharedProjectionIntentRow
+	retractRows   []sharedintent.Row
 	writeDomain   string
-	writeRows     []SharedProjectionIntentRow
+	writeRows     []sharedintent.Row
 }
 
 func (r *recordingDocumentationEdgeWriter) RetractEdges(
 	_ context.Context,
 	domain string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	_ string,
 ) error {
 	r.retractDomain = domain
@@ -349,7 +350,7 @@ func (r *recordingDocumentationEdgeWriter) RetractEdges(
 func (r *recordingDocumentationEdgeWriter) WriteEdges(
 	_ context.Context,
 	domain string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	_ string,
 ) (SharedProjectionWriteReport, error) {
 	r.writeDomain = domain

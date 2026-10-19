@@ -1239,8 +1239,8 @@ backend-specific branch.
   for source-local plan building
 - `internal/projector` — `projector.CanonicalMaterialization` and row types
   consumed by `CanonicalNodeWriter`
-- `internal/reducer` — `reducer.Domain` constants and
-  `reducer.SharedProjectionIntentRow` consumed by `EdgeWriter`
+- `internal/reducer` — `reducer.Domain` constants — and
+  `internal/reducer/sharedintent` — `sharedintent.Row` consumed by `EdgeWriter`
 - `internal/telemetry` — `telemetry.Instruments`, span and attribute helpers
 
 Concrete Neo4j/NornicDB driver adapters live in `cmd/` wiring packages, not in

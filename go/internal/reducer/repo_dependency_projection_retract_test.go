@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestRepoDependencyProjectionRunnerProcessesRetractOnlyIntent(t *testing.T) {
@@ -30,8 +32,8 @@ func TestRepoDependencyProjectionRunnerProcessesRetractOnlyIntent(t *testing.T) 
 		},
 	)
 	reader := &fakeRepoDependencyIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{row},
-		pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{row},
+		pendingByAcceptanceUnit: map[string][]sharedintent.Row{
 			repoID: {row},
 		},
 		leaseGranted: true,
@@ -127,8 +129,8 @@ func TestRepoDependencyProjectionRunnerRetractsThenRewritesSurvivingEvidence(t *
 		},
 	)
 	reader := &fakeRepoDependencyIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{newSurvivor},
-		pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{newSurvivor},
+		pendingByAcceptanceUnit: map[string][]sharedintent.Row{
 			repoID: {oldRemoved, oldSurvivor, newSurvivor},
 		},
 		leaseGranted: true,

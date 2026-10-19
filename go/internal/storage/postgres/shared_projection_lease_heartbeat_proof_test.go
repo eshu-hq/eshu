@@ -15,6 +15,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestProcessPartitionOnceHeartbeatKeepsLeaseAliveAgainstPostgres proves the
@@ -425,11 +426,11 @@ type postgresProofSlowEdgeWriter struct {
 	writeBlock <-chan struct{}
 }
 
-func (s *postgresProofSlowEdgeWriter) RetractEdges(context.Context, string, []reducer.SharedProjectionIntentRow, string) error {
+func (s *postgresProofSlowEdgeWriter) RetractEdges(context.Context, string, []sharedintent.Row, string) error {
 	return nil
 }
 
-func (s *postgresProofSlowEdgeWriter) WriteEdges(ctx context.Context, _ string, _ []reducer.SharedProjectionIntentRow, _ string) (reducer.SharedProjectionWriteReport, error) {
+func (s *postgresProofSlowEdgeWriter) WriteEdges(ctx context.Context, _ string, _ []sharedintent.Row, _ string) (reducer.SharedProjectionWriteReport, error) {
 	select {
 	case <-s.writeBlock:
 		return reducer.SharedProjectionWriteReport{}, nil
@@ -446,11 +447,11 @@ type postgresProofEmptyIntentReader struct{}
 
 type postgresProofNoCodeCallIntentReader struct{}
 
-func (r *postgresProofNoCodeCallIntentReader) ListPendingDomainIntents(context.Context, string, int) ([]reducer.SharedProjectionIntentRow, error) {
+func (r *postgresProofNoCodeCallIntentReader) ListPendingDomainIntents(context.Context, string, int) ([]sharedintent.Row, error) {
 	return nil, nil
 }
 
-func (r *postgresProofNoCodeCallIntentReader) ListPendingAcceptanceUnitIntents(context.Context, reducer.SharedProjectionAcceptanceKey, string, int) ([]reducer.SharedProjectionIntentRow, error) {
+func (r *postgresProofNoCodeCallIntentReader) ListPendingAcceptanceUnitIntents(context.Context, reducer.SharedProjectionAcceptanceKey, string, int) ([]sharedintent.Row, error) {
 	return nil, nil
 }
 
@@ -458,8 +459,8 @@ func (r *postgresProofNoCodeCallIntentReader) MarkIntentsCompleted(context.Conte
 	return 0, nil
 }
 
-func (r *postgresProofEmptyIntentReader) ListPendingDomainIntents(context.Context, string, int) ([]reducer.SharedProjectionIntentRow, error) {
-	return []reducer.SharedProjectionIntentRow{
+func (r *postgresProofEmptyIntentReader) ListPendingDomainIntents(context.Context, string, int) ([]sharedintent.Row, error) {
+	return []sharedintent.Row{
 		{
 			IntentID:         "intent-heartbeat-proof",
 			ProjectionDomain: "platform_infra",

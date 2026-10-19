@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // ExistingRepoDependencyEdge represents one existing DEPENDS_ON edge between repositories.
@@ -28,14 +29,14 @@ type ExistingWorkloadDependencyEdge struct {
 }
 
 // BuildRepoDependencyIntentRows diffs desired repo dependency rows against
-// existing edges and returns authoritative SharedProjectionIntentRow with
+// existing edges and returns authoritative sharedintent.Row with
 // upsert/retract actions in their Payload.
 func BuildRepoDependencyIntentRows(
 	repoDependencyRows []map[string]any,
 	existingRows []ExistingRepoDependencyEdge,
 	contextByRepoID map[string]ProjectionContext,
 	createdAt time.Time,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	// Normalize rows by adding partition_key
 	normalizedRows := make([]map[string]any, 0, len(repoDependencyRows))
 	for _, row := range repoDependencyRows {
@@ -84,14 +85,14 @@ func BuildRepoDependencyIntentRows(
 }
 
 // BuildWorkloadDependencyIntentRows diffs desired workload dependency rows
-// against existing edges and returns authoritative SharedProjectionIntentRow
+// against existing edges and returns authoritative sharedintent.Row
 // with upsert/retract actions in their Payload.
 func BuildWorkloadDependencyIntentRows(
 	workloadDependencyRows []map[string]any,
 	existingRows []ExistingWorkloadDependencyEdge,
 	contextByRepoID map[string]ProjectionContext,
 	createdAt time.Time,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	// Normalize rows by adding partition_key
 	normalizedRows := make([]map[string]any, 0, len(workloadDependencyRows))
 	for _, row := range workloadDependencyRows {
@@ -133,7 +134,7 @@ func BuildWorkloadDependencyIntentRows(
 // SharedDependencyProjectionMetrics returns completion-fencing metadata for
 // authoritative dependency cutover.
 func SharedDependencyProjectionMetrics(
-	intentRows []SharedProjectionIntentRow,
+	intentRows []sharedintent.Row,
 	contextByRepoID map[string]ProjectionContext,
 ) map[string]any {
 	// Collect touched repositories
@@ -197,9 +198,9 @@ func buildDependencyIntents(
 	contextByRepoID map[string]ProjectionContext,
 	desiredPairFields []string,
 	createdAt time.Time,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	if len(contextByRepoID) == 0 {
-		return []SharedProjectionIntentRow{}
+		return []sharedintent.Row{}
 	}
 
 	// Build desired pairs set
@@ -213,7 +214,7 @@ func buildDependencyIntents(
 		desiredPairs[key] = struct{}{}
 	}
 
-	var rows []SharedProjectionIntentRow
+	var rows []sharedintent.Row
 
 	// Create upsert intents for desired rows
 	for _, row := range desiredRows {

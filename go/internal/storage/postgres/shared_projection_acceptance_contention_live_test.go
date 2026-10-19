@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // acceptanceDeadlockTrials and acceptanceDeadlockKeys size the #6679
@@ -43,7 +44,7 @@ func TestSharedIntentAcceptanceWriterReversedBatchesDoNotDeadlockLive(t *testing
 		start := make(chan struct{})
 		errs := make([]error, 2)
 		var wg sync.WaitGroup
-		for i, batch := range [][]reducer.SharedProjectionIntentRow{forward, reversed} {
+		for i, batch := range [][]sharedintent.Row{forward, reversed} {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -79,9 +80,9 @@ WHERE scope_id = $1 AND source_run_id = $2 AND generation_id <> $3`,
 		acceptanceDeadlockTrials, acceptanceDeadlockTrials)
 }
 
-func deadlockTrialIntents(fixture acceptanceMonotonicFixture, runID, generationID string) []reducer.SharedProjectionIntentRow {
+func deadlockTrialIntents(fixture acceptanceMonotonicFixture, runID, generationID string) []sharedintent.Row {
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	intents := make([]reducer.SharedProjectionIntentRow, 0, acceptanceDeadlockKeys)
+	intents := make([]sharedintent.Row, 0, acceptanceDeadlockKeys)
 	for key := 0; key < acceptanceDeadlockKeys; key++ {
 		intent := staleWriteIntent(generationID, now)
 		intent.IntentID = fmt.Sprintf("%s-%s-%03d", runID, generationID, key)
@@ -280,7 +281,7 @@ func TestSharedIntentAcceptanceWriterStaleWriteCounterLive(t *testing.T) {
 	for _, step := range steps {
 		intent := staleWriteIntent(step.generation, step.at)
 		intent.ScopeID = fixture.scopeID
-		if err := writer.UpsertIntents(ctx, []reducer.SharedProjectionIntentRow{intent}); err != nil {
+		if err := writer.UpsertIntents(ctx, []sharedintent.Row{intent}); err != nil {
 			t.Fatalf("%s: UpsertIntents() error = %v", step.name, err)
 		}
 		if got := staleWritesByDomain(t, reader)[reducer.DomainCodeCalls]; got != step.wantStale {

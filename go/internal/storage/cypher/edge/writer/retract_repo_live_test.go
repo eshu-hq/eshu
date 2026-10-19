@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestBoltRepoDependencyCodeImportRetractPreservesOtherSourceRunsOn(t *testing.T) {
@@ -100,7 +101,7 @@ RETURN count(r) AS count`, map[string]any{
 	}, 1, "seeded other-source RUNS_ON")
 
 	writer := NewEdgeWriter(&boltTestExecutor{runner: runner}, 0)
-	rows := []reducer.SharedProjectionIntentRow{{
+	rows := []sharedintent.Row{{
 		IntentID:     "5208-live-retract",
 		RepositoryID: sourceRepoID,
 		Payload:      map[string]any{"repo_id": sourceRepoID},

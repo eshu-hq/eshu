@@ -7,6 +7,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -17,7 +18,7 @@ type recordingDeployableUnitEdgeWriter struct {
 
 type deployableUnitEdgeWriterCall struct {
 	domain         string
-	rows           []SharedProjectionIntentRow
+	rows           []sharedintent.Row
 	evidenceSource string
 }
 
@@ -61,7 +62,7 @@ func (l *maintenanceReopenResolvedRelationshipLoader) GetResolvedRelationshipsFo
 func (w *recordingDeployableUnitEdgeWriter) RetractEdges(
 	_ context.Context,
 	domain string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	evidenceSource string,
 ) error {
 	w.retractCalls = append(w.retractCalls, deployableUnitEdgeWriterCall{
@@ -75,7 +76,7 @@ func (w *recordingDeployableUnitEdgeWriter) RetractEdges(
 func (w *recordingDeployableUnitEdgeWriter) WriteEdges(
 	_ context.Context,
 	domain string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	evidenceSource string,
 ) (SharedProjectionWriteReport, error) {
 	w.writeCalls = append(w.writeCalls, deployableUnitEdgeWriterCall{

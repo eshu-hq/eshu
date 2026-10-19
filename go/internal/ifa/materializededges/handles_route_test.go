@@ -10,12 +10,13 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // handlesRouteTestRow builds a minimal HANDLES_ROUTE upsert row carrying only
 // the payload fields handlesRouteRowsToExpectedEdges reads.
-func handlesRouteTestRow(functionID, repoID, path, httpMethod string) reducer.SharedProjectionIntentRow {
-	return reducer.SharedProjectionIntentRow{
+func handlesRouteTestRow(functionID, repoID, path, httpMethod string) sharedintent.Row {
+	return sharedintent.Row{
 		ProjectionDomain: reducer.DomainHandlesRoute,
 		Payload: map[string]any{
 			"function_entity_id": functionID,
@@ -40,7 +41,7 @@ func handlesRouteTestRow(functionID, repoID, path, httpMethod string) reducer.Sh
 func TestHandlesRouteRowsToExpectedEdgesCollapsesMethodDedupe(t *testing.T) {
 	t.Parallel()
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		handlesRouteTestRow("content-entity:fn", "repo-1", "/widgets", "GET"),
 		handlesRouteTestRow("content-entity:fn", "repo-1", "/widgets", "POST"),
 	}
@@ -66,7 +67,7 @@ func TestHandlesRouteRowsToExpectedEdgesCollapsesMethodDedupe(t *testing.T) {
 func TestHandlesRouteRowsToExpectedEdgesDistinctPathsStayDistinct(t *testing.T) {
 	t.Parallel()
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		handlesRouteTestRow("content-entity:fn", "repo-1", "/widgets", "GET"),
 		handlesRouteTestRow("content-entity:fn", "repo-1", "/gadgets", "GET"),
 	}
@@ -93,7 +94,7 @@ func TestHandlesRouteRowsToExpectedEdgesDistinctPathsStayDistinct(t *testing.T) 
 func TestHandlesRouteRowsToExpectedEdgesAssertsMethodOnlyWhenUnambiguous(t *testing.T) {
 	t.Parallel()
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		handlesRouteTestRow("content-entity:widgets", "repo-1", "/widgets", "GET"),
 		handlesRouteTestRow("content-entity:widgets", "repo-1", "/widgets", "POST"),
 		handlesRouteTestRow("content-entity:healthz", "repo-1", "/healthz", "GET"),
@@ -134,7 +135,7 @@ func TestHandlesRouteRowsToExpectedEdgesAssertsMethodOnlyWhenUnambiguous(t *test
 func TestHandlesRouteRowsToExpectedEdgesReportsUnresolvedEndpoint(t *testing.T) {
 	t.Parallel()
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		handlesRouteTestRow("content-entity:fn", "repo-1", "/widgets", "GET"),
 	}
 	edges, unresolved := handlesRouteRowsToExpectedEdges(rows, map[string]string{}, "HANDLES_ROUTE")

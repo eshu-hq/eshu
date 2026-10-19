@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // Mutation proofs for the two dedup guards the #4594 rebuild reset deliberately
@@ -64,7 +65,7 @@ func TestOrdinarySharedIntentUpsertStillRefusesToClearCompletedAt(t *testing.T) 
 
 	completed := time.Now().UTC()
 	intentID := "refinalize-reset-guard-intent-" + suffix
-	row := reducer.SharedProjectionIntentRow{
+	row := sharedintent.Row{
 		IntentID:         intentID,
 		ProjectionDomain: reducer.DomainCodeCalls,
 		PartitionKey:     "caller->callee",
@@ -79,14 +80,14 @@ func TestOrdinarySharedIntentUpsertStillRefusesToClearCompletedAt(t *testing.T) 
 	}
 
 	store := NewSharedIntentStore(SQLDB{DB: db})
-	if err := store.UpsertIntents(ctx, []reducer.SharedProjectionIntentRow{row}); err != nil {
+	if err := store.UpsertIntents(ctx, []sharedintent.Row{row}); err != nil {
 		t.Fatalf("seed shared intent: %v", err)
 	}
 
 	// A handler re-emitting the same intent always builds it with CompletedAt nil,
 	// which is exactly the shape that would clear the column without the COALESCE.
 	row.CompletedAt = nil
-	if err := store.UpsertIntents(ctx, []reducer.SharedProjectionIntentRow{row}); err != nil {
+	if err := store.UpsertIntents(ctx, []sharedintent.Row{row}); err != nil {
 		t.Fatalf("re-upsert shared intent: %v", err)
 	}
 

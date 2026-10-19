@@ -12,6 +12,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestBuildRationaleRowMapRoutesExplainsEdge(t *testing.T) {
@@ -68,7 +69,7 @@ func TestEdgeWriterRetractEdgesRationaleFullCleansCanonicalAndLegacyEvidenceSour
 
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
-	rows := []reducer.SharedProjectionIntentRow{{
+	rows := []sharedintent.Row{{
 		IntentID:     "i1",
 		RepositoryID: "repo-a",
 		Payload:      wholeScopeRefreshPayload("repo-a"),
@@ -104,7 +105,7 @@ func TestEdgeWriterRetractEdgesRationaleDoesNotBroadenUnknownEvidenceSource(t *t
 
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
-	rows := []reducer.SharedProjectionIntentRow{{
+	rows := []sharedintent.Row{{
 		IntentID:     "i1",
 		RepositoryID: "repo-a",
 		Payload:      wholeScopeRefreshPayload("repo-a"),
@@ -212,7 +213,7 @@ func TestEdgeWriterRetractEdgesRationaleDeltaCleansCanonicalAndLegacySourcesSequ
 	executor := &sqlSequentialRecordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-a",
@@ -272,7 +273,7 @@ func TestEdgeWriterRetractEdgesRationaleDeltaDoesNotBroadenUnknownEvidenceSource
 
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
-	rows := []reducer.SharedProjectionIntentRow{{
+	rows := []sharedintent.Row{{
 		IntentID:     "i1",
 		RepositoryID: "repo-a",
 		Payload: map[string]any{
@@ -308,7 +309,7 @@ func TestEdgeWriterRetractEdgesRationaleRejectsDeltaWithoutFilePaths(t *testing.
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-a",

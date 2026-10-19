@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -231,7 +232,7 @@ func repoDependencyFamilyRunsOnPrerequisites(odu ifa.Odu) (string, string, error
 // "target_repo_id". Reading the wrong key would silently render an empty
 // TargetEntityID, so the dispatch is explicit rather than a single hard-coded
 // key.
-func repoDependencyRowTargetEntityID(row reducer.SharedProjectionIntentRow) string {
+func repoDependencyRowTargetEntityID(row sharedintent.Row) string {
 	if anyToStringValue(row.Payload["relationship_type"]) == string(relationships.RelRunsOn) {
 		return anyToStringValue(row.Payload["platform_id"])
 	}

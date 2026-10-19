@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // rationalePartitionKeyVersion namespaces every rationale_edges partition key so
@@ -80,12 +82,12 @@ func buildRationaleSharedIntentRows(
 	repoIDs []string,
 	contextByRepoID map[string]ProjectionContext,
 	createdAt time.Time,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	if len(repoIDs) == 0 {
 		return nil
 	}
 
-	intents := make([]SharedProjectionIntentRow, 0, len(repoIDs)+len(edgeRows))
+	intents := make([]sharedintent.Row, 0, len(repoIDs)+len(edgeRows))
 	intents = append(intents, buildRationaleRefreshIntents(deltaScope, repoIDs, contextByRepoID, createdAt)...)
 
 	for _, row := range edgeRows {
@@ -133,12 +135,12 @@ func buildRationaleRefreshIntents(
 	repoIDs []string,
 	contextByRepoID map[string]ProjectionContext,
 	createdAt time.Time,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	sorted := append([]string(nil), repoIDs...)
 	sort.Strings(sorted)
 
 	deltaRepositoryIDs := deltaScopeRepositorySet(deltaScope.repositoryIDs)
-	intents := make([]SharedProjectionIntentRow, 0, len(sorted))
+	intents := make([]sharedintent.Row, 0, len(sorted))
 	for _, repoID := range sorted {
 		context, ok := contextByRepoID[repoID]
 		if !ok {

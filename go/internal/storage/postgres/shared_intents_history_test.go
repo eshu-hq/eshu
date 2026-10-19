@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunPartitionDomainIntents(t *testing.T) {
@@ -107,7 +108,7 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFence(t *testing.T) 
 	database := &partitionHistoryTestDB{fenceSelectedExists: true, fenceBlocked: true}
 	store := NewSharedIntentStore(database)
 	ctx := context.Background()
-	row := reducer.SharedProjectionIntentRow{
+	row := sharedintent.Row{
 		IntentID:         "caller-edge",
 		PartitionKey:     reducer.CodeCallProjectionFilePartitionKeyPrefix() + "abc123",
 		RepositoryID:     "repo-a",
@@ -179,7 +180,7 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceDoesNotFenceFil
 
 	database := &partitionHistoryTestDB{fenceSelectedExists: true, fenceBlocked: false}
 	store := NewSharedIntentStore(database)
-	row := reducer.SharedProjectionIntentRow{
+	row := sharedintent.Row{
 		IntentID:     "refresh-edge",
 		PartitionKey: reducer.CodeCallProjectionFilePartitionKeyPrefix() + "abc123",
 		RepositoryID: "repo-a",
@@ -214,7 +215,7 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceUsesWholeRowLoo
 
 	database := &partitionHistoryTestDB{fenceSelectedExists: true, fenceBlocked: true}
 	store := NewSharedIntentStore(database)
-	row := reducer.SharedProjectionIntentRow{
+	row := sharedintent.Row{
 		IntentID:         "whole-edge",
 		PartitionKey:     "v1:whole:repo-a",
 		RepositoryID:     "repo-a",
@@ -261,7 +262,7 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceUsesPayloadRepo
 
 	database := &partitionHistoryTestDB{fenceSelectedExists: true, fenceBlocked: true}
 	store := NewSharedIntentStore(database)
-	row := reducer.SharedProjectionIntentRow{
+	row := sharedintent.Row{
 		IntentID:     "payload-repo-edge",
 		PartitionKey: "v1:whole:repo-a",
 		CreatedAt:    time.Date(2026, time.June, 19, 10, 15, 0, 0, time.UTC),
@@ -295,7 +296,7 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceTreatsMissingSe
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-1",
-	}, reducer.SharedProjectionIntentRow{
+	}, sharedintent.Row{
 		IntentID:     "caller-edge",
 		PartitionKey: reducer.CodeCallProjectionFilePartitionKeyPrefix() + "abc123",
 		RepositoryID: "repo-a",
@@ -396,7 +397,7 @@ func TestSharedIntentStoreCodeCallWholeFenceRanksRefreshFirst(t *testing.T) {
 	_, err := store.CodeCallProjectionRowBlockedByRepoFence(
 		context.Background(),
 		reducer.SharedProjectionAcceptanceKey{ScopeID: "scope-a", AcceptanceUnitID: "repo-a", SourceRunID: "run-1"},
-		reducer.SharedProjectionIntentRow{
+		sharedintent.Row{
 			IntentID:         "whole-1",
 			ProjectionDomain: reducer.DomainCodeCalls,
 			PartitionKey:     "code-calls:v1:whole:repo-a",
@@ -437,7 +438,7 @@ func TestSharedIntentStoreCodeCallFileFenceRanksRefreshFirst(t *testing.T) {
 	_, err := store.CodeCallProjectionRowBlockedByRepoFence(
 		context.Background(),
 		reducer.SharedProjectionAcceptanceKey{ScopeID: "scope-a", AcceptanceUnitID: "repo-a", SourceRunID: "run-1"},
-		reducer.SharedProjectionIntentRow{
+		sharedintent.Row{
 			IntentID:         "file-refresh-1",
 			ProjectionDomain: reducer.DomainCodeCalls,
 			PartitionKey:     "code-calls:v1:files:repo-a:src/a.go",

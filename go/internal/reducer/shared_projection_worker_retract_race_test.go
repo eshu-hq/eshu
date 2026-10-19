@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // stateModelingEdgeWriter models the canonical graph edge STATE for a
@@ -32,14 +33,14 @@ func newStateModelingEdgeWriter() *stateModelingEdgeWriter {
 	return &stateModelingEdgeWriter{edgesByRepo: make(map[string]map[string]struct{})}
 }
 
-func (w *stateModelingEdgeWriter) RetractEdges(_ context.Context, _ string, rows []SharedProjectionIntentRow, _ string) error {
+func (w *stateModelingEdgeWriter) RetractEdges(_ context.Context, _ string, rows []sharedintent.Row, _ string) error {
 	for _, repoID := range stateModelingRepoIDs(rows) {
 		delete(w.edgesByRepo, repoID)
 	}
 	return nil
 }
 
-func (w *stateModelingEdgeWriter) WriteEdges(_ context.Context, _ string, rows []SharedProjectionIntentRow, _ string) (SharedProjectionWriteReport, error) {
+func (w *stateModelingEdgeWriter) WriteEdges(_ context.Context, _ string, rows []sharedintent.Row, _ string) (SharedProjectionWriteReport, error) {
 	for _, row := range rows {
 		repoID := sharedProjectionRowRepoID(row)
 		if repoID == "" {
@@ -59,7 +60,7 @@ func (w *stateModelingEdgeWriter) edgeCount(repoID string) int {
 	return len(w.edgesByRepo[repoID])
 }
 
-func stateModelingRepoIDs(rows []SharedProjectionIntentRow) []string {
+func stateModelingRepoIDs(rows []sharedintent.Row) []string {
 	seen := make(map[string]struct{}, len(rows))
 	var out []string
 	for _, row := range rows {
@@ -84,14 +85,14 @@ func stateModelingRepoIDs(rows []SharedProjectionIntentRow) []string {
 // exact retry preserves that completion because production intent IDs are
 // deterministic and Postgres does not reopen completed rows during upsert.
 type fenceTrackingIntentStore struct {
-	pending   []SharedProjectionIntentRow
-	byID      map[string]SharedProjectionIntentRow
+	pending   []sharedintent.Row
+	byID      map[string]sharedintent.Row
 	completed map[string]struct{} // intent IDs
 	fenceKeys map[string]struct{} // scope|au|run|partition_key|domain
 }
 
-func newFenceTrackingIntentStore(intents []SharedProjectionIntentRow) *fenceTrackingIntentStore {
-	byID := make(map[string]SharedProjectionIntentRow, len(intents))
+func newFenceTrackingIntentStore(intents []sharedintent.Row) *fenceTrackingIntentStore {
+	byID := make(map[string]sharedintent.Row, len(intents))
 	for _, intent := range intents {
 		byID[intent.IntentID] = intent
 	}
@@ -103,8 +104,8 @@ func newFenceTrackingIntentStore(intents []SharedProjectionIntentRow) *fenceTrac
 	}
 }
 
-func (s *fenceTrackingIntentStore) ListPendingDomainIntents(_ context.Context, domain string, limit int) ([]SharedProjectionIntentRow, error) {
-	out := make([]SharedProjectionIntentRow, 0, len(s.pending))
+func (s *fenceTrackingIntentStore) ListPendingDomainIntents(_ context.Context, domain string, limit int) ([]sharedintent.Row, error) {
+	out := make([]sharedintent.Row, 0, len(s.pending))
 	for _, intent := range s.pending {
 		if intent.ProjectionDomain != domain {
 			continue
@@ -172,10 +173,10 @@ func fenceTupleKey(scope, au, run, partitionKey, domain string) string {
 // handlesRouteRepoIntents builds one whole-scope refresh intent plus perEdgeCount
 // per-edge HANDLES_ROUTE intents for one repo, with the per-edge partition keys
 // placed in distinct partitions so the repo's edges genuinely span the ring.
-func handlesRouteRepoIntents(t *testing.T, repoID string, perEdgeCount, partitionCount int, created time.Time) []SharedProjectionIntentRow {
+func handlesRouteRepoIntents(t *testing.T, repoID string, perEdgeCount, partitionCount int, created time.Time) []sharedintent.Row {
 	t.Helper()
 
-	intents := []SharedProjectionIntentRow{
+	intents := []sharedintent.Row{
 		BuildSharedProjectionIntent(SharedProjectionIntentInput{
 			ProjectionDomain: DomainHandlesRoute,
 			PartitionKey:     repoWideRetractRefreshPartitionKey(DomainHandlesRoute, repoID),
@@ -390,7 +391,7 @@ func TestProcessPartitionOnceHandlesRouteUnmarkedRowsDrainWhenFenceWired(t *test
 	const repoID = "repo-d"
 
 	// Pre-#2898 emission: per-edge rows with no marker and no refresh intent.
-	var intents []SharedProjectionIntentRow
+	var intents []sharedintent.Row
 	for p := 0; p < partitionCount; p++ {
 		intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
 			ProjectionDomain: DomainHandlesRoute,

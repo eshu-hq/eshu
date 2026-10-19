@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -186,14 +187,14 @@ const (
 // go/internal/ifa/AGENTS.md forbids wall-clock time inside Ifá derivation, and
 // a caller that left this defaulting to real time.Now would have silently
 // violated that invariant without any comparison failing to catch it, since
-// CreatedAt is a SharedProjectionIntentRow struct field, not a Payload key,
+// CreatedAt is a sharedintent.Row struct field, not a Payload key,
 // and is never asserted by an edge-identity comparison.
 func ExtractDeployableUnitCorrelationRows(
 	intent Intent,
 	candidates []WorkloadCandidate,
 	resolved []relationships.ResolvedRelationship,
 	now func() time.Time,
-) ([]SharedProjectionIntentRow, engine.Evaluation, CandidateSelectionReport, error) {
+) ([]sharedintent.Row, engine.Evaluation, CandidateSelectionReport, error) {
 	entityKeys, err := deployableUnitCorrelationEntityKeys(intent)
 	if err != nil {
 		return nil, engine.Evaluation{}, CandidateSelectionReport{}, err
@@ -213,7 +214,7 @@ func ExtractDeployableUnitCorrelationRows(
 
 func (h DeployableUnitCorrelationHandler) materializeDeployableUnitEdges(
 	ctx context.Context,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 ) (int, error) {
 	if h.EdgeWriter == nil || len(rows) == 0 {
 		return 0, nil
@@ -240,7 +241,7 @@ func (h DeployableUnitCorrelationHandler) materializeDeployableUnitEdges(
 
 func (h DeployableUnitCorrelationHandler) retractDeployableUnitEdges(
 	ctx context.Context,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 ) error {
 	if h.EdgeWriter == nil || len(rows) == 0 {
 		return nil
@@ -257,8 +258,8 @@ func (h DeployableUnitCorrelationHandler) retractDeployableUnitEdges(
 // materialized-edge vacuity guard (#5993) can apply the SAME admission filter
 // materializeDeployableUnitEdges uses, rather than a parallel
 // re-implementation that could silently drift from it.
-func AdmittedDeployableUnitRows(rows []SharedProjectionIntentRow) []SharedProjectionIntentRow {
-	admitted := make([]SharedProjectionIntentRow, 0, len(rows))
+func AdmittedDeployableUnitRows(rows []sharedintent.Row) []sharedintent.Row {
+	admitted := make([]sharedintent.Row, 0, len(rows))
 	for _, row := range rows {
 		if strings.TrimSpace(anyToString(row.Payload["admission_state"])) != string(correlationmodel.CandidateStateAdmitted) {
 			continue
@@ -275,8 +276,8 @@ func deployableUnitCorrelationRows(
 	intent Intent,
 	evaluation engine.Evaluation,
 	now func() time.Time,
-) []SharedProjectionIntentRow {
-	rows := make([]SharedProjectionIntentRow, 0, len(evaluation.Results))
+) []sharedintent.Row {
+	rows := make([]sharedintent.Row, 0, len(evaluation.Results))
 	for _, result := range evaluation.Results {
 		candidate := result.Candidate
 		repoID := deployableUnitEvidenceValue(candidate, "repo_id")
@@ -304,8 +305,8 @@ func deployableUnitRetractRowsFromFacts(
 	intent Intent,
 	envelopes []facts.Envelope,
 	entityKeys map[string]struct{},
-) []SharedProjectionIntentRow {
-	var rows []SharedProjectionIntentRow
+) []sharedintent.Row {
+	var rows []sharedintent.Row
 	for _, envelope := range envelopes {
 		if envelope.FactKind != factKindRepository {
 			continue
@@ -320,7 +321,7 @@ func deployableUnitRetractRowsFromFacts(
 		if !deployableUnitIntentMatchesRepository(entityKeys, repoID) {
 			continue
 		}
-		rows = append(rows, SharedProjectionIntentRow{
+		rows = append(rows, sharedintent.Row{
 			IntentID:         intent.IntentID,
 			ProjectionDomain: DomainDeployableUnitEdges,
 			PartitionKey:     repoID,
@@ -364,10 +365,10 @@ func deployableUnitCorrelationRow(
 	repoID string,
 	deploymentRepoID string,
 	now func() time.Time,
-) SharedProjectionIntentRow {
+) sharedintent.Row {
 	unitKey := deployableUnitEvidenceValue(candidate, "deployable_unit_key")
 	acceptanceUnitID := deployableUnitAcceptanceUnitID(intent)
-	return SharedProjectionIntentRow{
+	return sharedintent.Row{
 		IntentID:         intent.IntentID,
 		ProjectionDomain: DomainDeployableUnitEdges,
 		PartitionKey:     repoID,

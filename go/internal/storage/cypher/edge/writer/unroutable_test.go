@@ -12,14 +12,15 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // unroutableRepoDependencyRow is a repo_dependency intent row buildRowMap
 // cannot route: repo_id is empty, so no MATCH endpoint exists. Before #5984
 // WriteEdges dropped it, wrote nothing, and returned nil — which the shared
 // projection worker read as success and used to complete the intent.
-func unroutableRepoDependencyRow(intentID string) reducer.SharedProjectionIntentRow {
-	return reducer.SharedProjectionIntentRow{
+func unroutableRepoDependencyRow(intentID string) sharedintent.Row {
+	return sharedintent.Row{
 		IntentID:     intentID,
 		RepositoryID: "repo-a",
 		GenerationID: "gen-a",
@@ -30,8 +31,8 @@ func unroutableRepoDependencyRow(intentID string) reducer.SharedProjectionIntent
 	}
 }
 
-func routableRepoDependencyRow(intentID string) reducer.SharedProjectionIntentRow {
-	return reducer.SharedProjectionIntentRow{
+func routableRepoDependencyRow(intentID string) sharedintent.Row {
+	return sharedintent.Row{
 		IntentID:     intentID,
 		RepositoryID: "repo-a",
 		GenerationID: "gen-a",
@@ -61,7 +62,7 @@ func TestEdgeWriterWriteEdgesAllRowsUnroutableReportsEveryLostRow(t *testing.T) 
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		unroutableRepoDependencyRow("i1"),
 		unroutableRepoDependencyRow("i2"),
 	}
@@ -119,7 +120,7 @@ func TestEdgeWriterWriteEdgesPartialDropWarnsWithDroppedCount(t *testing.T) {
 	writer := NewEdgeWriter(executor, 0)
 	writer.Logger = slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		routableRepoDependencyRow("i1"),
 		unroutableRepoDependencyRow("i2"),
 	}
@@ -174,7 +175,7 @@ func TestEdgeWriterWriteEdgesControlRowOnlyBatchStaysSuccessful(t *testing.T) {
 	writer := NewEdgeWriter(executor, 0)
 	writer.Logger = slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "refresh-delta",
 			RepositoryID: "repo-a",
@@ -218,7 +219,7 @@ func TestEdgeWriterWriteEdgesControlRowPlusUnroutableRowReportsOnlyTheLostEdge(t
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "refresh",
 			RepositoryID: "repo-a",
@@ -262,7 +263,7 @@ func TestEdgeWriterWriteEdgesReportsVersionSkewSeparately(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{{
+	rows := []sharedintent.Row{{
 		IntentID:     "i1",
 		RepositoryID: "repo-a",
 		Payload: map[string]any{

@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // The shared intent store backs both the dedicated code-call runner and the
@@ -77,7 +78,7 @@ func (s *SharedIntentStore) ListPendingDomainPartitionIntents(
 	partitionID int,
 	partitionCount int,
 	limit int,
-) ([]reducer.SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	if partitionCount <= 0 {
 		return nil, fmt.Errorf("partitionCount must be positive, got %d", partitionCount)
 	}
@@ -108,7 +109,7 @@ func (s *SharedIntentStore) ListPendingDomainUnhashedIntents(
 	ctx context.Context,
 	domain string,
 	limit int,
-) ([]reducer.SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	l := max(limit, 1)
 
 	sqlRows, err := s.database.QueryContext(ctx, listPendingDomainUnhashedIntentsSQL, domain, l)

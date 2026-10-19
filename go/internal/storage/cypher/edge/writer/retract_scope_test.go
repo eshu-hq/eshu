@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestCollectDeltaAndWholeScopeRefreshRepoIDsStayDisjointAfterDedup guards the
@@ -71,7 +72,7 @@ func TestCollectDeltaAndWholeScopeRefreshRepoIDsStayDisjointAfterDedup(t *testin
 	)
 
 	t0 := time.Date(2026, time.August, 18, 12, 0, 0, 0, time.UTC)
-	candidates := []reducer.SharedProjectionIntentRow{
+	candidates := []sharedintent.Row{
 		{
 			IntentID:         "whole-refresh",
 			RepositoryID:     repoID,

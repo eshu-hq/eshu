@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
 
@@ -83,7 +84,7 @@ type siblingDeltaGateCase struct {
 		repoIDs []string,
 		contexts map[string]ProjectionContext,
 		createdAt time.Time,
-	) (intents []SharedProjectionIntentRow, deltaRepoIDs []string, qualified map[string][]string)
+	) (intents []sharedintent.Row, deltaRepoIDs []string, qualified map[string][]string)
 }
 
 // siblingDeltaGateCases covers all FOUR fenced repo-wide-retract domains.
@@ -98,7 +99,7 @@ func siblingDeltaGateCases() []siblingDeltaGateCase {
 				repoIDs []string,
 				contexts map[string]ProjectionContext,
 				createdAt time.Time,
-			) ([]SharedProjectionIntentRow, []string, map[string][]string) {
+			) ([]sharedintent.Row, []string, map[string][]string) {
 				scope := inheritance.BuildDeltaScope(envelopes)
 				return inheritance.BuildRefreshIntents(scope, repoIDs, contexts, createdAt),
 					scope.RepositoryIDs, scope.FilePathsByRepoID
@@ -111,7 +112,7 @@ func siblingDeltaGateCases() []siblingDeltaGateCase {
 				repoIDs []string,
 				contexts map[string]ProjectionContext,
 				createdAt time.Time,
-			) ([]SharedProjectionIntentRow, []string, map[string][]string) {
+			) ([]sharedintent.Row, []string, map[string][]string) {
 				scope := buildRationaleDeltaScope(envelopes)
 				return buildRationaleRefreshIntents(scope, repoIDs, contexts, createdAt),
 					scope.repositoryIDs, scope.filePathsByRepoID
@@ -124,7 +125,7 @@ func siblingDeltaGateCases() []siblingDeltaGateCase {
 				repoIDs []string,
 				contexts map[string]ProjectionContext,
 				createdAt time.Time,
-			) ([]SharedProjectionIntentRow, []string, map[string][]string) {
+			) ([]sharedintent.Row, []string, map[string][]string) {
 				scope := sqlrelationship.BuildDeltaScope(envelopes)
 				return sqlrelationship.BuildRefreshIntents(scope, repoIDs, contexts, createdAt),
 					scope.RepositoryIDs, scope.FilePathsByRepoID
@@ -137,7 +138,7 @@ func siblingDeltaGateCases() []siblingDeltaGateCase {
 				repoIDs []string,
 				contexts map[string]ProjectionContext,
 				createdAt time.Time,
-			) ([]SharedProjectionIntentRow, []string, map[string][]string) {
+			) ([]sharedintent.Row, []string, map[string][]string) {
 				// Shell exec reuses the SQL-relationship delta scope
 				// (shell_exec_materialization.go), so it inherits the same gate.
 				scope := sqlrelationship.BuildDeltaScope(envelopes)
@@ -148,7 +149,7 @@ func siblingDeltaGateCases() []siblingDeltaGateCase {
 	}
 }
 
-func refreshIntentPayloadForRepo(t *testing.T, intents []SharedProjectionIntentRow, repoID string) map[string]any {
+func refreshIntentPayloadForRepo(t *testing.T, intents []sharedintent.Row, repoID string) map[string]any {
 	t.Helper()
 	for _, intent := range intents {
 		if intent.RepositoryID == repoID {

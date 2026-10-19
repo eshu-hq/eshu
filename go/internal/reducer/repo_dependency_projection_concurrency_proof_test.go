@@ -11,6 +11,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestIfaRepoDependencyProofWorkersOverlapDistinctAcceptanceUnits(t *testing.T) {
@@ -20,7 +22,7 @@ func TestIfaRepoDependencyProofWorkersOverlapDistinctAcceptanceUnits(t *testing.
 	defer cancel()
 
 	now := time.Date(2026, time.July, 13, 12, 0, 0, 0, time.UTC)
-	rows := make([]SharedProjectionIntentRow, 0, 4)
+	rows := make([]sharedintent.Row, 0, 4)
 	for i := range 4 {
 		repoID := fmt.Sprintf("repository:r_source_%d", i)
 		rows = append(rows, repoDependencyIntentRow(
@@ -84,7 +86,7 @@ func TestIfaRepoDependencyProofWorkersKeepWholeAcceptanceUnitTogether(t *testing
 	defer cancel()
 	now := time.Date(2026, time.July, 13, 13, 0, 0, 0, time.UTC)
 	const repoID = "repository:r_source_atomic"
-	rows := make([]SharedProjectionIntentRow, 0, 3)
+	rows := make([]sharedintent.Row, 0, 3)
 	for i := range 3 {
 		rows = append(rows, repoDependencyIntentRow(
 			fmt.Sprintf("atomic-intent-%d", i),
@@ -135,25 +137,25 @@ func TestIfaRepoDependencyProofWorkersKeepWholeAcceptanceUnitTogether(t *testing
 
 type proofRepoDependencyStore struct {
 	mu             sync.Mutex
-	rows           []SharedProjectionIntentRow
+	rows           []sharedintent.Row
 	leases         map[string]string
 	leaseKeys      []string
 	completed      map[string]struct{}
 	onAllCompleted func()
 }
 
-func newProofRepoDependencyStore(rows []SharedProjectionIntentRow) *proofRepoDependencyStore {
+func newProofRepoDependencyStore(rows []sharedintent.Row) *proofRepoDependencyStore {
 	return &proofRepoDependencyStore{
-		rows:      append([]SharedProjectionIntentRow(nil), rows...),
+		rows:      append([]sharedintent.Row(nil), rows...),
 		leases:    make(map[string]string),
 		completed: make(map[string]struct{}),
 	}
 }
 
-func (s *proofRepoDependencyStore) ListPendingDomainIntents(_ context.Context, _ string, limit int) ([]SharedProjectionIntentRow, error) {
+func (s *proofRepoDependencyStore) ListPendingDomainIntents(_ context.Context, _ string, limit int) ([]sharedintent.Row, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	rows := make([]SharedProjectionIntentRow, 0, len(s.rows))
+	rows := make([]sharedintent.Row, 0, len(s.rows))
 	for _, row := range s.rows {
 		if _, ok := s.completed[row.IntentID]; ok {
 			continue
@@ -163,10 +165,10 @@ func (s *proofRepoDependencyStore) ListPendingDomainIntents(_ context.Context, _
 	return truncateRowsForLimit(rows, limit), nil
 }
 
-func (s *proofRepoDependencyStore) ListAcceptanceUnitDomainIntents(_ context.Context, acceptanceUnitID, _ string, limit int) ([]SharedProjectionIntentRow, error) {
+func (s *proofRepoDependencyStore) ListAcceptanceUnitDomainIntents(_ context.Context, acceptanceUnitID, _ string, limit int) ([]sharedintent.Row, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	rows := make([]SharedProjectionIntentRow, 0, len(s.rows))
+	rows := make([]sharedintent.Row, 0, len(s.rows))
 	for _, row := range s.rows {
 		if row.AcceptanceUnitID != acceptanceUnitID {
 			continue
@@ -253,11 +255,11 @@ type overlapRecordingRepoDependencyWriter struct {
 	batches []int
 }
 
-func (w *overlapRecordingRepoDependencyWriter) RetractEdges(context.Context, string, []SharedProjectionIntentRow, string) error {
+func (w *overlapRecordingRepoDependencyWriter) RetractEdges(context.Context, string, []sharedintent.Row, string) error {
 	return nil
 }
 
-func (w *overlapRecordingRepoDependencyWriter) WriteEdges(_ context.Context, _ string, rows []SharedProjectionIntentRow, _ string) (SharedProjectionWriteReport, error) {
+func (w *overlapRecordingRepoDependencyWriter) WriteEdges(_ context.Context, _ string, rows []sharedintent.Row, _ string) (SharedProjectionWriteReport, error) {
 	w.mu.Lock()
 	w.current++
 	w.batches = append(w.batches, len(rows))

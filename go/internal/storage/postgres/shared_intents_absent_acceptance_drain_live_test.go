@@ -14,7 +14,6 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -205,10 +204,10 @@ func seedAbsentAcceptanceFixture(t *testing.T, ctx context.Context, conn *sql.DB
 		}
 	}
 
-	rows := make([]reducer.SharedProjectionIntentRow, 0, fx.Orphans+2)
+	rows := make([]sharedintent.Row, 0, fx.Orphans+2)
 	// Torn-write intent first (oldest): its generation row exists, so the
 	// drain must leave it pending forever.
-	rows = append(rows, reducer.SharedProjectionIntentRow{
+	rows = append(rows, sharedintent.Row{
 		IntentID:         fx.TornID,
 		ProjectionDomain: fx.Domain,
 		PartitionKey:     "7853-p0",
@@ -221,7 +220,7 @@ func seedAbsentAcceptanceFixture(t *testing.T, ctx context.Context, conn *sql.DB
 		CreatedAt:        fx.BaseTime,
 	})
 	for i := 0; i < fx.Orphans; i++ {
-		rows = append(rows, reducer.SharedProjectionIntentRow{
+		rows = append(rows, sharedintent.Row{
 			IntentID:         fmt.Sprintf("intent-7853-orphan-%05d", i),
 			ProjectionDomain: fx.Domain,
 			PartitionKey:     "7853-p0",
@@ -235,7 +234,7 @@ func seedAbsentAcceptanceFixture(t *testing.T, ctx context.Context, conn *sql.DB
 		})
 	}
 	// Healthy intent newest: past the scan cap until the orphans drain.
-	rows = append(rows, reducer.SharedProjectionIntentRow{
+	rows = append(rows, sharedintent.Row{
 		IntentID:         fx.HealthyID,
 		ProjectionDomain: fx.Domain,
 		PartitionKey:     "7853-p0",

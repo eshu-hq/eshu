@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -99,7 +100,7 @@ func (e *deployableUnitEdgeUnverifiedError) FailureClass() string {
 // It implements reducer.DeployableUnitEdgeVerifier.
 func (w *EdgeWriter) VerifyDeployableUnitEdges(
 	ctx context.Context,
-	rows []reducer.SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	evidenceSource string,
 ) error {
 	prober, ok := w.executor.(sourcecypher.ProbeExecutor)

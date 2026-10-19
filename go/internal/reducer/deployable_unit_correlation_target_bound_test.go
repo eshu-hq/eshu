@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -51,7 +52,7 @@ type failingDeployableUnitEdgeWriter struct {
 func (w *failingDeployableUnitEdgeWriter) WriteEdges(
 	ctx context.Context,
 	domain string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	evidenceSource string,
 ) (SharedProjectionWriteReport, error) {
 	_, _ = w.recordingDeployableUnitEdgeWriter.WriteEdges(ctx, domain, rows, evidenceSource)

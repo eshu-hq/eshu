@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // repoDependencyBenchmarkRowsPerType is the row count per canonical edge type
@@ -40,7 +41,7 @@ func BenchmarkEdgeWriterRepoDependencyWrite(b *testing.B) {
 	b.ReportMetric(float64(len(rows)), "input_rows/op")
 }
 
-func benchmarkRepoDependencyRows(rowsPerType int) []reducer.SharedProjectionIntentRow {
+func benchmarkRepoDependencyRows(rowsPerType int) []sharedintent.Row {
 	types := []string{
 		"DEPLOYS_FROM",
 		"DISCOVERS_CONFIG_IN",
@@ -48,10 +49,10 @@ func benchmarkRepoDependencyRows(rowsPerType int) []reducer.SharedProjectionInte
 		"USES_MODULE",
 		"READS_CONFIG_FROM",
 	}
-	rows := make([]reducer.SharedProjectionIntentRow, 0, rowsPerType*len(types))
+	rows := make([]sharedintent.Row, 0, rowsPerType*len(types))
 	for _, relType := range types {
 		for i := 0; i < rowsPerType; i++ {
-			rows = append(rows, reducer.SharedProjectionIntentRow{
+			rows = append(rows, sharedintent.Row{
 				IntentID:     fmt.Sprintf("%s-%d", relType, i),
 				RepositoryID: "repo-a",
 				GenerationID: "gen-1",

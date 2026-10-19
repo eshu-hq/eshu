@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 const (
@@ -18,7 +19,7 @@ const (
 
 type codeCallBenchmarkScenario struct {
 	name           string
-	rows           []reducer.SharedProjectionIntentRow
+	rows           []sharedintent.Row
 	writeRows      int
 	deltaFilePaths int
 	retractStmts   int
@@ -73,10 +74,10 @@ func BenchmarkEdgeWriterCodeCallRetractAndWrite(b *testing.B) {
 	}
 }
 
-func benchmarkCodeCallRows(rowCount int, deltaFileCount int, deletedOnly bool) []reducer.SharedProjectionIntentRow {
-	rows := make([]reducer.SharedProjectionIntentRow, 0, rowCount+1)
+func benchmarkCodeCallRows(rowCount int, deltaFileCount int, deletedOnly bool) []sharedintent.Row {
+	rows := make([]sharedintent.Row, 0, rowCount+1)
 	if deltaFileCount > 0 {
-		rows = append(rows, reducer.SharedProjectionIntentRow{
+		rows = append(rows, sharedintent.Row{
 			IntentID:     "refresh-delta",
 			RepositoryID: "repo-a",
 			Payload: map[string]any{
@@ -87,7 +88,7 @@ func benchmarkCodeCallRows(rowCount int, deltaFileCount int, deletedOnly bool) [
 			},
 		})
 	} else if rowCount == 0 || deletedOnly {
-		rows = append(rows, reducer.SharedProjectionIntentRow{
+		rows = append(rows, sharedintent.Row{
 			IntentID:     "refresh-full",
 			RepositoryID: "repo-a",
 			Payload: map[string]any{
@@ -100,7 +101,7 @@ func benchmarkCodeCallRows(rowCount int, deltaFileCount int, deletedOnly bool) [
 		return rows
 	}
 	for i := 0; i < rowCount; i++ {
-		rows = append(rows, reducer.SharedProjectionIntentRow{
+		rows = append(rows, sharedintent.Row{
 			IntentID:     fmt.Sprintf("call-%d", i),
 			RepositoryID: "repo-a",
 			Payload: map[string]any{

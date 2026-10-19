@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
@@ -43,7 +44,7 @@ func sharedEdgeTargetMissCause(t *testing.T) error {
 	_, err := writer.NewEdgeWriter(executor, 0).WriteEdges(
 		context.Background(),
 		reducer.DomainDeployableUnitEdges,
-		[]reducer.SharedProjectionIntentRow{{
+		[]sharedintent.Row{{
 			IntentID:     "intent-du-edge-1",
 			RepositoryID: "repo-app",
 			GenerationID: "gen-1",
@@ -144,7 +145,7 @@ func TestReducerQueueFailDeadLettersUnverifiedDeployableUnitEdgeAtBudget(t *test
 
 	verifyErr := writer.NewEdgeWriter(nodesPresentEdgeAbsentExecutor{}, 0).VerifyDeployableUnitEdges(
 		context.Background(),
-		[]reducer.SharedProjectionIntentRow{{
+		[]sharedintent.Row{{
 			IntentID:     "intent-du-edge-1",
 			RepositoryID: "repo-app",
 			Payload: map[string]any{

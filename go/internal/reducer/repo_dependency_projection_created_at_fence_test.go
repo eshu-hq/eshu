@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestRepoDependencyProjectionRunnerReplaysFencedWhenCompletedRunsOnCreatedAtMoves
@@ -47,11 +49,11 @@ func TestRepoDependencyProjectionRunnerReplaysFencedWhenCompletedRunsOnCreatedAt
 		},
 	)
 
-	oldFences, err := repoDependencyRunsOnFenceRequests([]SharedProjectionIntentRow{runsOnAtOldEpoch})
+	oldFences, err := repoDependencyRunsOnFenceRequests([]sharedintent.Row{runsOnAtOldEpoch})
 	if err != nil || len(oldFences) != 1 {
 		t.Fatalf("old-epoch fence requests = (%d, %v), want (1, nil)", len(oldFences), err)
 	}
-	newFences, err := repoDependencyRunsOnFenceRequests([]SharedProjectionIntentRow{runsOnAfterUpsert})
+	newFences, err := repoDependencyRunsOnFenceRequests([]sharedintent.Row{runsOnAfterUpsert})
 	if err != nil || len(newFences) != 1 {
 		t.Fatalf("new-epoch fence requests = (%d, %v), want (1, nil)", len(newFences), err)
 	}
@@ -63,8 +65,8 @@ func TestRepoDependencyProjectionRunnerReplaysFencedWhenCompletedRunsOnCreatedAt
 	// Unit selection is pending-only: the completed RUNS_ON row is not pending,
 	// so only the sibling selects the unit; the unit read still returns both.
 	reader := &fakeRepoDependencyIntentStore{
-		pendingByDomain:         []SharedProjectionIntentRow{runsOnAfterUpsert, pendingSibling},
-		pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{repoID: {runsOnAfterUpsert, pendingSibling}},
+		pendingByDomain:         []sharedintent.Row{runsOnAfterUpsert, pendingSibling},
+		pendingByAcceptanceUnit: map[string][]sharedintent.Row{repoID: {runsOnAfterUpsert, pendingSibling}},
 		leaseGranted:            true,
 	}
 	writer := &recordingCodeCallProjectionEdgeWriter{}

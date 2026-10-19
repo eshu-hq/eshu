@@ -9,12 +9,13 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // runsInTestRow builds a minimal RUNS_IN upsert row carrying only the
 // payload fields runsInRowsToExpectedEdges reads.
-func runsInTestRow(functionID, repoID string) reducer.SharedProjectionIntentRow {
-	return reducer.SharedProjectionIntentRow{
+func runsInTestRow(functionID, repoID string) sharedintent.Row {
+	return sharedintent.Row{
 		ProjectionDomain: reducer.DomainRunsIn,
 		Payload: map[string]any{
 			"function_id": functionID,
@@ -48,7 +49,7 @@ func runsInTestRow(functionID, repoID string) reducer.SharedProjectionIntentRow 
 func TestRunsInRowsToExpectedEdgesFansOutOverMultipleWorkloads(t *testing.T) {
 	t.Parallel()
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		runsInTestRow("content-entity:fn", "repo-1"),
 	}
 	workloadIDs := map[string][]string{
@@ -79,7 +80,7 @@ func TestRunsInRowsToExpectedEdgesFansOutOverMultipleWorkloads(t *testing.T) {
 func TestRunsInRowsToExpectedEdgesSingleWorkloadYieldsOneEdge(t *testing.T) {
 	t.Parallel()
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		runsInTestRow("content-entity:fn", "repo-1"),
 	}
 	workloadIDs := map[string][]string{"repo-1": {"workload:api"}}
@@ -99,7 +100,7 @@ func TestRunsInRowsToExpectedEdgesSingleWorkloadYieldsOneEdge(t *testing.T) {
 func TestRunsInRowsToExpectedEdgesReportsUnresolvedRepo(t *testing.T) {
 	t.Parallel()
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		runsInTestRow("content-entity:fn", "repo-1"),
 	}
 	edges, unresolved := runsInRowsToExpectedEdges(rows, map[string][]string{}, "RUNS_IN")

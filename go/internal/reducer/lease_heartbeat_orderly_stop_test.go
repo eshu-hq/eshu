@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestProcessPartitionOnceOrderlyStopDoesNotMisreportInFlightRenewalCancellation
@@ -18,7 +20,7 @@ func TestProcessPartitionOnceOrderlyStopDoesNotMisreportInFlightRenewalCancellat
 	t.Parallel()
 
 	now := time.Date(2026, time.August, 7, 12, 0, 0, 0, time.UTC)
-	reader := &stubSharedIntentReader{pending: []SharedProjectionIntentRow{
+	reader := &stubSharedIntentReader{pending: []sharedintent.Row{
 		{
 			IntentID:         "intent-shared-cancel",
 			ProjectionDomain: "platform_infra",
@@ -134,7 +136,7 @@ type waitForLeaseRenewalWriter struct {
 func (w waitForLeaseRenewalWriter) RetractEdges(
 	context.Context,
 	string,
-	[]SharedProjectionIntentRow,
+	[]sharedintent.Row,
 	string,
 ) error {
 	return nil
@@ -143,7 +145,7 @@ func (w waitForLeaseRenewalWriter) RetractEdges(
 func (w waitForLeaseRenewalWriter) WriteEdges(
 	ctx context.Context,
 	_ string,
-	_ []SharedProjectionIntentRow,
+	_ []sharedintent.Row,
 	_ string,
 ) (SharedProjectionWriteReport, error) {
 	select {

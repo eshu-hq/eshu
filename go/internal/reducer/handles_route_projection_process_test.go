@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestProcessPartitionOnceHandlesRouteDrainsAbsentEndpoint proves the terminal
@@ -22,7 +23,7 @@ func TestProcessPartitionOnceHandlesRouteDrainsAbsentEndpoint(t *testing.T) {
 
 	now := time.Date(2026, time.June, 17, 14, 0, 0, 0, time.UTC)
 	reader := &stubSharedIntentReader{
-		pending: []SharedProjectionIntentRow{
+		pending: []sharedintent.Row{
 			handlesRouteIntentRow("present", "repo-1", "/present"),
 			handlesRouteIntentRow("absent", "repo-1", "/absent"),
 		},
@@ -110,7 +111,7 @@ func TestProcessPartitionOnceHandlesRouteAllTerminalRepoDrainsAndRetracts(t *tes
 
 	now := time.Date(2026, time.June, 17, 14, 0, 0, 0, time.UTC)
 	reader := &stubSharedIntentReader{
-		pending: []SharedProjectionIntentRow{
+		pending: []sharedintent.Row{
 			handlesRouteIntentRow("route-a", "repo-1", "/a"),
 			handlesRouteIntentRow("route-b", "repo-1", "/b"),
 		},
@@ -176,7 +177,7 @@ func TestProcessPartitionOnceHandlesRouteNilPresenceProjectsAll(t *testing.T) {
 
 	now := time.Date(2026, time.June, 17, 14, 0, 0, 0, time.UTC)
 	reader := &stubSharedIntentReader{
-		pending: []SharedProjectionIntentRow{
+		pending: []sharedintent.Row{
 			handlesRouteIntentRow("a", "repo-1", "/a"),
 			handlesRouteIntentRow("b", "repo-1", "/b"),
 		},

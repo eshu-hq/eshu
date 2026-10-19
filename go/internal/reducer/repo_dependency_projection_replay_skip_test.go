@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -132,7 +133,7 @@ func repoDependencyReplaySkipFixture(
 ) (*fakeRepoDependencyIntentStore, *recordingCodeCallProjectionEdgeWriter, time.Time) {
 	now := time.Date(2026, time.October, 7, 12, 0, 0, 0, time.UTC)
 	repoID := "repository:r_fixture01"
-	rows := make([]SharedProjectionIntentRow, 0, len(generations))
+	rows := make([]sharedintent.Row, 0, len(generations))
 	for i, generationID := range generations {
 		rows = append(rows, repoDependencyIntentRow(
 			"intent-"+generationID, "scope-"+generationID, repoID, repoID, "run-"+generationID, generationID,
@@ -147,7 +148,7 @@ func repoDependencyReplaySkipFixture(
 	}
 	reader := &fakeRepoDependencyIntentStore{
 		pendingByDomain:         rows,
-		pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{repoID: rows},
+		pendingByAcceptanceUnit: map[string][]sharedintent.Row{repoID: rows},
 		leaseGranted:            true,
 	}
 	return reader, &recordingCodeCallProjectionEdgeWriter{}, now
@@ -436,18 +437,18 @@ func TestRepoDependencyReplayFreshnessEdgeCases(t *testing.T) {
 		t.Parallel()
 		now := time.Date(2026, time.October, 7, 12, 0, 0, 0, time.UTC)
 		repoID := "repository:r_fixture01"
-		mkRow := func(id, target string) SharedProjectionIntentRow {
+		mkRow := func(id, target string) sharedintent.Row {
 			return repoDependencyIntentRow(id, "scope-a", repoID, repoID, "run-gen-a", "gen-a", now, map[string]any{
 				"repo_id": repoID, "target_repo_id": target,
 				"relationship_type": "PROVISIONS_DEPENDENCY_FOR", "evidence_source": defaultEvidenceSource,
 			})
 		}
-		rows := []SharedProjectionIntentRow{
+		rows := []sharedintent.Row{
 			mkRow("i1", "repository:r_t1"), mkRow("i2", "repository:r_t2"), mkRow("i3", "repository:r_t1"),
 		}
 		reader := &fakeRepoDependencyIntentStore{
 			pendingByDomain:         rows,
-			pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{repoID: rows},
+			pendingByAcceptanceUnit: map[string][]sharedintent.Row{repoID: rows},
 			leaseGranted:            true,
 		}
 		replayer := &recordingWorkloadMaterializationReplayer{}

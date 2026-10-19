@@ -16,6 +16,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // collectRepoIDs returns every distinct repository id in the batch, with NO
@@ -43,7 +44,7 @@ import (
 // whole-scope path any more; they use collectWholeScopeRefreshRepoIDs. The
 // difference between the two groups is where the rows come from, not what the
 // DELETE looks like. See RetractEdges (retract.go) for the split.
-func collectRepoIDs(rows []reducer.SharedProjectionIntentRow) []string {
+func collectRepoIDs(rows []sharedintent.Row) []string {
 	seen := make(map[string]struct{}, len(rows))
 	var result []string
 	for _, row := range rows {
@@ -156,7 +157,7 @@ func collectRepoIDs(rows []reducer.SharedProjectionIntentRow) []string {
 // TestSelectPartitionBatchFiltersBeforeDeduping. See
 // TestCollectDeltaAndWholeScopeRefreshRepoIDsStayDisjointAfterDedup, which
 // asserts both the collapse and the production-shaped acceptance key it needs.
-func collectWholeScopeRefreshRepoIDs(rows []reducer.SharedProjectionIntentRow) []string {
+func collectWholeScopeRefreshRepoIDs(rows []sharedintent.Row) []string {
 	seen := make(map[string]struct{}, len(rows))
 	var result []string
 	for _, row := range rows {
@@ -187,7 +188,7 @@ func collectWholeScopeRefreshRepoIDs(rows []reducer.SharedProjectionIntentRow) [
 // sample_repo_id on every probe outcome, so handing it the whole batch would
 // let a delta_by_file_path log line name a repository whose retract went
 // through the whole-scope call instead.
-func collectDeltaProjectionRepoIDs(rows []reducer.SharedProjectionIntentRow) []string {
+func collectDeltaProjectionRepoIDs(rows []sharedintent.Row) []string {
 	seen := make(map[string]struct{}, len(rows))
 	var result []string
 	for _, row := range rows {
@@ -215,7 +216,7 @@ func collectDeltaProjectionRepoIDs(rows []reducer.SharedProjectionIntentRow) []s
 // section.scope_id, so the retract must bind the row's scope id (preferring the
 // ScopeID field, falling back to the payload scope_id) rather than its
 // repository id. Blank ids are skipped.
-func collectScopeIDs(rows []reducer.SharedProjectionIntentRow) []string {
+func collectScopeIDs(rows []sharedintent.Row) []string {
 	seen := make(map[string]struct{}, len(rows))
 	var result []string
 	for _, row := range rows {
@@ -239,7 +240,7 @@ func collectScopeIDs(rows []reducer.SharedProjectionIntentRow) []string {
 // typed field and falling back to the payload, matching how every collector in
 // this file resolves it. It exists so a fail-closed error can name the
 // repository an operator has to look at.
-func retractRowRepositoryID(row reducer.SharedProjectionIntentRow) string {
+func retractRowRepositoryID(row sharedintent.Row) string {
 	if row.RepositoryID != "" {
 		return row.RepositoryID
 	}
@@ -259,7 +260,7 @@ func retractRowRepositoryID(row reducer.SharedProjectionIntentRow) string {
 // error names the repository so the dead letter is actionable -- the usual cause
 // is a repository fact with no local_path, or a symlinked repos root whose
 // changed paths normalizeSnapshotRelativePaths drops.
-func collectDeltaFilePaths(rows []reducer.SharedProjectionIntentRow) ([]string, bool, error) {
+func collectDeltaFilePaths(rows []sharedintent.Row) ([]string, bool, error) {
 	seen := make(map[string]struct{})
 	hasDeltaScope := false
 	deltaRowCount := 0
@@ -304,7 +305,7 @@ type documentationRetractScope struct {
 	sectionUIDs []string
 }
 
-func collectDocumentationDeltaScope(rows []reducer.SharedProjectionIntentRow) (documentationRetractScope, bool, error) {
+func collectDocumentationDeltaScope(rows []sharedintent.Row) (documentationRetractScope, bool, error) {
 	seenDocuments := make(map[string]struct{})
 	seenSections := make(map[string]struct{})
 	hasDeltaScope := false
@@ -479,7 +480,7 @@ func isWholeScopeNarrowedDomain(domain string) bool {
 // table: a fifth branch either registers its domain or fails on first use.
 func (w *EdgeWriter) narrowedWholeScopeRepoIDs(
 	domain string,
-	rows []reducer.SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	evidenceSource string,
 ) (repoIDs []string, skip bool, err error) {
 	if !isWholeScopeNarrowedDomain(domain) {

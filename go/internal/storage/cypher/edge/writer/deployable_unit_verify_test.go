@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -98,9 +99,9 @@ func verifyClassOf(err error) string {
 	return class
 }
 
-func verifyOne(w *EdgeWriter, rows ...reducer.SharedProjectionIntentRow) error {
+func verifyOne(w *EdgeWriter, rows ...sharedintent.Row) error {
 	if len(rows) == 0 {
-		rows = []reducer.SharedProjectionIntentRow{validDeployableUnitRow()}
+		rows = []sharedintent.Row{validDeployableUnitRow()}
 	}
 	return w.VerifyDeployableUnitEdges(context.Background(), rows, deployableUnitTestEvidenceSource)
 }

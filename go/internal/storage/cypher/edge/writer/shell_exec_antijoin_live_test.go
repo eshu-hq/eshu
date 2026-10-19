@@ -12,6 +12,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // legacyShellCommandCleanupCypher is a verbatim copy of the pre-#5310
@@ -172,7 +173,7 @@ SET rel.evidence_source = $other_evidence_source`,
 	// emitter produces -- returns before any statement is built. The edge DELETE
 	// and the orphan sweep would both be skipped, and the orphan assertion below
 	// would fail against a graph this test never touched.
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{RepositoryID: repoID, Payload: wholeScopeRefreshPayload(repoID)},
 	}
 	if err := writer.RetractEdges(ctx, reducer.DomainShellExec, rows, scopeEvidenceSource); err != nil {

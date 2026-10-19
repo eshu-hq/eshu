@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestEdgeWriterRepoDependencyRowsCarryEveryReferencedKey is the regression
@@ -28,7 +29,7 @@ func TestEdgeWriterRepoDependencyRowsCarryEveryReferencedKey(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			// Package consumption: evidence_type but no source_tool.
 			IntentID:     "package-consumption",
@@ -80,7 +81,7 @@ func TestEdgeWriterRepoDependencyAbsentSourceToolIsNil(t *testing.T) {
 
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
-	rows := []reducer.SharedProjectionIntentRow{{
+	rows := []sharedintent.Row{{
 		IntentID:     "package-consumption",
 		RepositoryID: "repo-a",
 		Payload: map[string]any{

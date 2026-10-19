@@ -7,7 +7,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 const listPendingDomainIntentsAfterSQL = `
@@ -31,7 +31,7 @@ func (s *SharedIntentStore) ListPendingDomainIntentsAfter(
 	afterCreatedAt time.Time,
 	afterIntentID string,
 	limit int,
-) ([]reducer.SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	l := max(limit, 1)
 	sqlRows, err := s.database.QueryContext(
 		ctx,

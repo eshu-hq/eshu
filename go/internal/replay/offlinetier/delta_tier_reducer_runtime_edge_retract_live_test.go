@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
@@ -77,14 +78,14 @@ func TestReducerRuntimeEdgeRetractGraphTruth(t *testing.T) {
 	seedRuntimeEdgeNodes(ctx, t, exec)
 
 	writer := edgewriter.NewEdgeWriter(exec, 0)
-	inRows := func(domain string, rows []reducer.SharedProjectionIntentRow) {
+	inRows := func(domain string, rows []sharedintent.Row) {
 		t.Helper()
 		if _, err := writer.WriteEdges(ctx, domain, rows, rtSource); err != nil {
 			t.Fatalf("WriteEdges(%s): %v", domain, err)
 		}
 	}
 
-	inRows(reducer.DomainHandlesRoute, []reducer.SharedProjectionIntentRow{
+	inRows(reducer.DomainHandlesRoute, []sharedintent.Row{
 		{IntentID: "route-in", RepositoryID: rtInRepo, Payload: map[string]any{
 			"function_entity_id": rtFnRoute, "repo_id": rtInRepo, "path": rtRoutePath,
 		}},
@@ -92,7 +93,7 @@ func TestReducerRuntimeEdgeRetractGraphTruth(t *testing.T) {
 			"function_entity_id": rtFnOutRoute, "repo_id": rtOutRepo, "path": rtRoutePath,
 		}},
 	})
-	inRows(reducer.DomainRunsIn, []reducer.SharedProjectionIntentRow{
+	inRows(reducer.DomainRunsIn, []sharedintent.Row{
 		{IntentID: "runs-in", RepositoryID: rtInRepo, Payload: map[string]any{
 			"function_id": rtFnRun, "repo_id": rtInRepo,
 		}},
@@ -100,7 +101,7 @@ func TestReducerRuntimeEdgeRetractGraphTruth(t *testing.T) {
 			"function_id": rtFnOutRun, "repo_id": rtOutRepo,
 		}},
 	})
-	inRows(reducer.DomainInvokesCloudAction, []reducer.SharedProjectionIntentRow{
+	inRows(reducer.DomainInvokesCloudAction, []sharedintent.Row{
 		{IntentID: "invoke-in", RepositoryID: rtInRepo, Payload: map[string]any{
 			"function_id": rtFnInvoke, "cloud_action": "s3:GetObject", "action_id": rtActionID,
 		}},
@@ -108,7 +109,7 @@ func TestReducerRuntimeEdgeRetractGraphTruth(t *testing.T) {
 			"function_id": rtFnOutInvoke, "cloud_action": "s3:GetObject", "action_id": rtActionID,
 		}},
 	})
-	inRows(reducer.DomainWorkloadDependency, []reducer.SharedProjectionIntentRow{
+	inRows(reducer.DomainWorkloadDependency, []sharedintent.Row{
 		{IntentID: "wldep-in", RepositoryID: rtInRepo, Payload: map[string]any{
 			"workload_id": rtWorkloadA, "target_workload_id": rtWorkloadB,
 		}},
@@ -142,7 +143,7 @@ func TestReducerRuntimeEdgeRetractGraphTruth(t *testing.T) {
 
 	retract := func(domain string) {
 		t.Helper()
-		rows := []reducer.SharedProjectionIntentRow{
+		rows := []sharedintent.Row{
 			{IntentID: "retract-" + domain, RepositoryID: rtInRepo, Payload: map[string]any{"repo_id": rtInRepo}},
 		}
 		if err := writer.RetractEdges(ctx, domain, rows, rtSource); err != nil {

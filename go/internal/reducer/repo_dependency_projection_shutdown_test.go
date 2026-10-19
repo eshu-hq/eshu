@@ -12,6 +12,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // #6747 shape A. The Ifa determinism matrix stops the pre-maintenance reducer
@@ -35,7 +37,7 @@ type cancelingRepoDependencyIntentReader struct {
 
 func (r cancelingRepoDependencyIntentReader) ListPendingDomainIntents(
 	ctx context.Context, _ string, _ int,
-) ([]SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	r.cancel()
 	<-ctx.Done()
 	return nil, ctx.Err()
@@ -43,7 +45,7 @@ func (r cancelingRepoDependencyIntentReader) ListPendingDomainIntents(
 
 func (r cancelingRepoDependencyIntentReader) ListAcceptanceUnitDomainIntents(
 	ctx context.Context, acceptanceUnitID, domain string, limit int,
-) ([]SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	return r.inner.ListAcceptanceUnitDomainIntents(ctx, acceptanceUnitID, domain, limit)
 }
 
@@ -63,14 +65,14 @@ type cancelThenListRepoDependencyIntentReader struct {
 
 func (r cancelThenListRepoDependencyIntentReader) ListPendingDomainIntents(
 	ctx context.Context, domain string, limit int,
-) ([]SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	r.cancel()
 	return r.inner.ListPendingDomainIntents(ctx, domain, limit)
 }
 
 func (r cancelThenListRepoDependencyIntentReader) ListAcceptanceUnitDomainIntents(
 	ctx context.Context, acceptanceUnitID, domain string, limit int,
-) ([]SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	return r.inner.ListAcceptanceUnitDomainIntents(ctx, acceptanceUnitID, domain, limit)
 }
 

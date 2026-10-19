@@ -14,6 +14,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -171,7 +172,7 @@ func TestBoltRunsOnWritersPreserveOneCoherentProvenanceTuple(t *testing.T) {
 			writer := NewEdgeWriter(executor, 1)
 			crossRepoWrite := func() {
 				t.Helper()
-				_, err := writer.WriteEdges(ctx, reducer.DomainRepoDependency, []reducer.SharedProjectionIntentRow{{
+				_, err := writer.WriteEdges(ctx, reducer.DomainRepoDependency, []sharedintent.Row{{
 					IntentID:     "pr6634-runs-on-intent-" + testCase.name,
 					RepositoryID: fixture.repoID,
 					Payload: map[string]any{
@@ -238,7 +239,7 @@ func writeCrossRepoRunsOn(
 	_, err := NewEdgeWriter(executor, 1).WriteEdges(
 		ctx,
 		reducer.DomainRepoDependency,
-		[]reducer.SharedProjectionIntentRow{{
+		[]sharedintent.Row{{
 			IntentID:     "pr6634-legacy-replacement-" + fixture.instanceID,
 			RepositoryID: fixture.repoID,
 			Payload: map[string]any{

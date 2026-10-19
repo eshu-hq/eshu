@@ -9,14 +9,15 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
-func benchDeployableUnitEdgeRows(n int) []reducer.SharedProjectionIntentRow {
-	rows := make([]reducer.SharedProjectionIntentRow, 0, n)
+func benchDeployableUnitEdgeRows(n int) []sharedintent.Row {
+	rows := make([]sharedintent.Row, 0, n)
 	for i := 0; i < n; i++ {
 		repoID := fmt.Sprintf("repo-service-%d", i)
 		unitKey := fmt.Sprintf("service-%d", i)
-		rows = append(rows, reducer.SharedProjectionIntentRow{
+		rows = append(rows, sharedintent.Row{
 			IntentID:     fmt.Sprintf("intent-%d", i),
 			RepositoryID: repoID,
 			GenerationID: "generation-1",

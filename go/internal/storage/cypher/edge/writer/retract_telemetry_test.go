@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -26,7 +27,7 @@ func TestEdgeWriterCodeImportRetractRecordsOnlyExactSourceOmissionTelemetry(t *t
 
 	writer := NewEdgeWriter(&recordingExecutor{}, 0)
 	writer.Instruments = instruments
-	rows := []reducer.SharedProjectionIntentRow{{
+	rows := []sharedintent.Row{{
 		IntentID:     "i1",
 		RepositoryID: "repo-a",
 		Payload:      map[string]any{"repo_id": "repo-a"},

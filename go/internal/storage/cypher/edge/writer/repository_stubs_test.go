@@ -18,6 +18,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -66,8 +67,8 @@ func (e groupStubCountingExecutor) ExecuteGroup(ctx context.Context, stmts []sou
 	return nil
 }
 
-func stubRepoDependencyRow(target string) reducer.SharedProjectionIntentRow {
-	return reducer.SharedProjectionIntentRow{
+func stubRepoDependencyRow(target string) sharedintent.Row {
+	return sharedintent.Row{
 		IntentID:     "intent-" + target,
 		RepositoryID: "repository:source",
 		ScopeID:      "scope-source",
@@ -83,8 +84,8 @@ func stubRepoDependencyRow(target string) reducer.SharedProjectionIntentRow {
 	}
 }
 
-func stubSubmodulePinRow(target string) reducer.SharedProjectionIntentRow {
-	return reducer.SharedProjectionIntentRow{
+func stubSubmodulePinRow(target string) sharedintent.Row {
+	return sharedintent.Row{
 		IntentID:     "intent-pin-" + target,
 		RepositoryID: "repository:parent",
 		Payload: map[string]any{
@@ -150,7 +151,7 @@ func TestWriteEdgesCountsRepositoryStubsPerStatementShape(t *testing.T) {
 	tests := []struct {
 		name          string
 		domain        string
-		rows          []reducer.SharedProjectionIntentRow
+		rows          []sharedintent.Row
 		cypher        string
 		grouped       bool
 		groupAttempts int
@@ -160,37 +161,37 @@ func TestWriteEdgesCountsRepositoryStubsPerStatementShape(t *testing.T) {
 	}{
 		{
 			name: "repo_dependency atomic group", domain: reducer.DomainRepoDependency,
-			rows:   []reducer.SharedProjectionIntentRow{stubRepoDependencyRow("repository:retired")},
+			rows:   []sharedintent.Row{stubRepoDependencyRow("repository:retired")},
 			cypher: sourcecypher.BatchCanonicalRepoDependencyUpsertCypher, grouped: true,
 			created: 1, writerLabel: telemetry.RepositoryStubWriterRepoDependency, want: 1,
 		},
 		{
 			name: "repo_dependency group retried counts the committed attempt once", domain: reducer.DomainRepoDependency,
-			rows:   []reducer.SharedProjectionIntentRow{stubRepoDependencyRow("repository:retired")},
+			rows:   []sharedintent.Row{stubRepoDependencyRow("repository:retired")},
 			cypher: sourcecypher.BatchCanonicalRepoDependencyUpsertCypher, grouped: true, groupAttempts: 3,
 			created: 1, writerLabel: telemetry.RepositoryStubWriterRepoDependency, want: 1,
 		},
 		{
 			name: "repo_dependency sequential", domain: reducer.DomainRepoDependency,
-			rows:    []reducer.SharedProjectionIntentRow{stubRepoDependencyRow("repository:retired")},
+			rows:    []sharedintent.Row{stubRepoDependencyRow("repository:retired")},
 			cypher:  sourcecypher.BatchCanonicalRepoDependencyUpsertCypher,
 			created: 1, writerLabel: telemetry.RepositoryStubWriterRepoDependency, want: 1,
 		},
 		{
 			name: "submodule_pin atomic group", domain: reducer.DomainSubmodulePinEdges,
-			rows:   []reducer.SharedProjectionIntentRow{stubSubmodulePinRow("repository:retired")},
+			rows:   []sharedintent.Row{stubSubmodulePinRow("repository:retired")},
 			cypher: sourcecypher.BatchCanonicalSubmodulePinEdgeCypher, grouped: true,
 			created: 1, writerLabel: telemetry.RepositoryStubWriterSubmodulePin, want: 1,
 		},
 		{
 			name: "submodule_pin sequential", domain: reducer.DomainSubmodulePinEdges,
-			rows:    []reducer.SharedProjectionIntentRow{stubSubmodulePinRow("repository:retired")},
+			rows:    []sharedintent.Row{stubSubmodulePinRow("repository:retired")},
 			cypher:  sourcecypher.BatchCanonicalSubmodulePinEdgeCypher,
 			created: 1, writerLabel: telemetry.RepositoryStubWriterSubmodulePin, want: 1,
 		},
 		{
 			name: "repo_dependency to a live target creates nothing", domain: reducer.DomainRepoDependency,
-			rows:   []reducer.SharedProjectionIntentRow{stubRepoDependencyRow("repository:live")},
+			rows:   []sharedintent.Row{stubRepoDependencyRow("repository:live")},
 			cypher: sourcecypher.BatchCanonicalRepoDependencyUpsertCypher, grouped: true,
 			created: 0, writerLabel: telemetry.RepositoryStubWriterRepoDependency, want: 0,
 		},
@@ -251,7 +252,7 @@ func TestWriteEdgesRepositoryStubsNotCountedWithoutWriteSummary(t *testing.T) {
 	writer := NewEdgeWriter(groupStubCountingExecutor{base}, 0)
 	writer.Instruments = instruments
 	writer.Logger = slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	rows := []reducer.SharedProjectionIntentRow{stubRepoDependencyRow("repository:retired")}
+	rows := []sharedintent.Row{stubRepoDependencyRow("repository:retired")}
 	if _, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "resolver/cross-repo"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
@@ -273,7 +274,7 @@ func TestWriteEdgesRepositoryStubCaptureForwardsToOuterCollector(t *testing.T) {
 	ctx := sourcecypher.WithWriteCountsCollector(context.Background(), outer)
 	base := &stubCountingExecutor{nodesCreated: map[string]int64{sourcecypher.BatchCanonicalRepoDependencyUpsertCypher: 1}}
 	writer := NewEdgeWriter(groupStubCountingExecutor{base}, 0)
-	rows := []reducer.SharedProjectionIntentRow{stubRepoDependencyRow("repository:retired")}
+	rows := []sharedintent.Row{stubRepoDependencyRow("repository:retired")}
 	if _, err := writer.WriteEdges(ctx, reducer.DomainRepoDependency, rows, "resolver/cross-repo"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
@@ -307,7 +308,7 @@ func TestWriteEdgesRepositoryStubMultiRowLogListsUnattributedCandidates(t *testi
 			writer := NewEdgeWriter(groupStubCountingExecutor{base}, 0)
 			writer.Instruments = instruments
 			writer.Logger = slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
-			rows := make([]reducer.SharedProjectionIntentRow, 0, tt.rowCount)
+			rows := make([]sharedintent.Row, 0, tt.rowCount)
 			for i := 0; i < tt.rowCount; i++ {
 				rows = append(rows, stubRepoDependencyRow(fmt.Sprintf("repository:retired-%02d", i)))
 			}

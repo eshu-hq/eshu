@@ -441,7 +441,7 @@ func buildShellExecRefreshIntents(
 	repoIDs []string,
 	contextByRepoID map[string]ProjectionContext,
 	createdAt time.Time,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	return shell.BuildRefreshIntents(deltaScope, repoIDs, contextByRepoID, createdAt)
 }
 
@@ -453,7 +453,7 @@ func buildShellExecSharedIntentRows(
 	repoIDs []string,
 	contextByRepoID map[string]ProjectionContext,
 	createdAt time.Time,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	return shell.BuildSharedIntentRows(edgeRows, deltaScope, repoIDs, contextByRepoID, createdAt)
 }
 

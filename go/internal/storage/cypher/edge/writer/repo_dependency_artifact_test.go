@@ -11,6 +11,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // orderRecordingExecutor implements Executor and GroupExecutor while
@@ -39,7 +40,7 @@ func (e *orderRecordingExecutor) ExecuteGroup(_ context.Context, stmts []sourcec
 	return nil
 }
 
-func artifactRowForOrderTest() reducer.SharedProjectionIntentRow {
+func artifactRowForOrderTest() sharedintent.Row {
 	row := keeperRepoDependencyRow("order", 0)
 	row.IntentID = "order-intent-0"
 	return row
@@ -60,7 +61,7 @@ func TestWriteEdgesRepoDependencyArtifactFollowsMainCommit(t *testing.T) {
 	writer := NewEdgeWriter(executor, 0)
 
 	if _, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency,
-		[]reducer.SharedProjectionIntentRow{artifactRowForOrderTest()}, "resolver/cross-repo"); err != nil {
+		[]sharedintent.Row{artifactRowForOrderTest()}, "resolver/cross-repo"); err != nil {
 		t.Fatalf("WriteEdges errored: %v", err)
 	}
 

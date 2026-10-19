@@ -13,13 +13,14 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // rationaleDeltaRows returns a single delta-flagged rationale refresh row, the
 // shape buildRationaleRefreshIntents emits for a repository whose delta touched
 // a file.
-func rationaleDeltaRows() []reducer.SharedProjectionIntentRow {
-	return []reducer.SharedProjectionIntentRow{
+func rationaleDeltaRows() []sharedintent.Row {
+	return []sharedintent.Row{
 		{
 			IntentID:     "refresh-delta",
 			RepositoryID: "repo-delta",
