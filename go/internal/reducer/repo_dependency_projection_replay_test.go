@@ -10,6 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -26,7 +29,7 @@ func TestRepoDependencyProjectionRunnerSkipsRetractWhenCompletedContributorsRema
 			"repo_id":           repoID,
 			"target_repo_id":    "repository:r_target_old",
 			"relationship_type": "DEPENDS_ON",
-			"evidence_source":   CrossRepoEvidenceSource,
+			"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 		},
 	)
 	completedContributor.CompletedAt = &completedAt
@@ -39,7 +42,7 @@ func TestRepoDependencyProjectionRunnerSkipsRetractWhenCompletedContributorsRema
 					"repo_id":           repoID,
 					"target_repo_id":    "repository:r_target_new",
 					"relationship_type": "DEPLOYS_FROM",
-					"evidence_source":   CrossRepoEvidenceSource,
+					"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 				},
 			),
 		},
@@ -52,7 +55,7 @@ func TestRepoDependencyProjectionRunnerSkipsRetractWhenCompletedContributorsRema
 						"repo_id":           repoID,
 						"target_repo_id":    "repository:r_target_new",
 						"relationship_type": "DEPLOYS_FROM",
-						"evidence_source":   CrossRepoEvidenceSource,
+						"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 					},
 				),
 			},
@@ -65,7 +68,7 @@ func TestRepoDependencyProjectionRunnerSkipsRetractWhenCompletedContributorsRema
 		LeaseManager:       reader,
 		AcceptanceUnitGate: reader,
 		EdgeWriter:         writer,
-		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			switch key.SourceRunID {
 			case "run-old":
 				return "gen-old", true
@@ -109,7 +112,7 @@ func TestRepoDependencyProjectionRunnerReplaysWorkloadMaterializationForActiveRe
 					"repo_id":           repoID,
 					"target_repo_id":    "repository:r_target_1",
 					"relationship_type": "DEPENDS_ON",
-					"evidence_source":   CrossRepoEvidenceSource,
+					"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 				},
 			),
 		},
@@ -121,7 +124,7 @@ func TestRepoDependencyProjectionRunnerReplaysWorkloadMaterializationForActiveRe
 						"repo_id":           repoID,
 						"target_repo_id":    "repository:r_target_1",
 						"relationship_type": "DEPENDS_ON",
-						"evidence_source":   CrossRepoEvidenceSource,
+						"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 					},
 				),
 				repoDependencyIntentRow(
@@ -130,7 +133,7 @@ func TestRepoDependencyProjectionRunnerReplaysWorkloadMaterializationForActiveRe
 						"repo_id":           repoID,
 						"target_repo_id":    "repository:r_target_2",
 						"relationship_type": "DEPLOYS_FROM",
-						"evidence_source":   CrossRepoEvidenceSource,
+						"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 					},
 				),
 				repoDependencyIntentRow(
@@ -139,7 +142,7 @@ func TestRepoDependencyProjectionRunnerReplaysWorkloadMaterializationForActiveRe
 						"repo_id":           repoID,
 						"target_repo_id":    "repository:r_target_3",
 						"relationship_type": "DEPENDS_ON",
-						"evidence_source":   defaultEvidenceSource,
+						"evidence_source":   worker.DefaultEvidenceSource,
 					},
 				),
 			},
@@ -154,7 +157,7 @@ func TestRepoDependencyProjectionRunnerReplaysWorkloadMaterializationForActiveRe
 		AcceptanceUnitGate:              reader,
 		EdgeWriter:                      writer,
 		WorkloadMaterializationReplayer: replayer,
-		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			switch key.SourceRunID {
 			case "run-1", "run-2":
 				return "gen-1", true
@@ -232,7 +235,7 @@ func TestRepoDependencyProjectionRunnerSkipsRetractForFirstProjection(t *testing
 					"repo_id":           repoID,
 					"target_repo_id":    "repository:r_target_1",
 					"relationship_type": "DEPENDS_ON",
-					"evidence_source":   CrossRepoEvidenceSource,
+					"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 				},
 			),
 		},
@@ -244,7 +247,7 @@ func TestRepoDependencyProjectionRunnerSkipsRetractForFirstProjection(t *testing
 						"repo_id":           repoID,
 						"target_repo_id":    "repository:r_target_1",
 						"relationship_type": "DEPENDS_ON",
-						"evidence_source":   CrossRepoEvidenceSource,
+						"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 					},
 				),
 			},
@@ -257,7 +260,7 @@ func TestRepoDependencyProjectionRunnerSkipsRetractForFirstProjection(t *testing
 		LeaseManager:       reader,
 		AcceptanceUnitGate: reader,
 		EdgeWriter:         writer,
-		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			return "gen-1", key.AcceptanceUnitID == repoID
 		},
 		Config: RepoDependencyProjectionRunnerConfig{PollInterval: 10 * time.Millisecond},
@@ -299,7 +302,7 @@ func TestRepoDependencyProjectionRunnerRecordCycleLogsSubstepDurations(t *testin
 		2,
 		1,
 		time.Now().Add(-500*time.Millisecond),
-		PartitionProcessResult{
+		worker.PartitionProcessResult{
 			ProcessedIntents:                  3,
 			StaleIntents:                      1,
 			SelectionDurationSeconds:          0.05,

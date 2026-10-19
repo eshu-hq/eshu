@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
-func unroutableRow(intentID string) reducer.SharedProjectionUnroutableRow {
-	return reducer.SharedProjectionUnroutableRow{
+func unroutableRow(intentID string) sharedintent.UnroutableRow {
+	return sharedintent.UnroutableRow{
 		IntentID:         intentID,
 		ProjectionDomain: "repo_dependency",
 		PartitionKey:     "pk-a",
@@ -22,7 +22,7 @@ func unroutableRow(intentID string) reducer.SharedProjectionUnroutableRow {
 		ScopeID:          "scope-a",
 		GenerationID:     "gen-1",
 		EvidenceSource:   "finalization/workloads",
-		Reason:           reducer.UnroutableReasonMissingRequiredField,
+		Reason:           sharedintent.UnroutableReasonMissingRequiredField,
 		DecidedAt:        time.Date(2026, time.August, 9, 14, 0, 0, 0, time.UTC),
 	}
 }
@@ -39,7 +39,7 @@ func TestWriteUnroutableIntentsUpsertIsIdempotent(t *testing.T) {
 	db := &fakeExecQueryer{}
 	store := NewSharedProjectionUnroutableIntentStore(db)
 
-	if err := store.WriteUnroutableIntents(context.Background(), []reducer.SharedProjectionUnroutableRow{
+	if err := store.WriteUnroutableIntents(context.Background(), []sharedintent.UnroutableRow{
 		unroutableRow("i1"),
 	}); err != nil {
 		t.Fatalf("WriteUnroutableIntents() error = %v", err)
@@ -65,7 +65,7 @@ func TestWriteUnroutableIntentsDoesNotTouchTheFactQuarantineTable(t *testing.T) 
 
 	db := &fakeExecQueryer{}
 	store := NewSharedProjectionUnroutableIntentStore(db)
-	if err := store.WriteUnroutableIntents(context.Background(), []reducer.SharedProjectionUnroutableRow{
+	if err := store.WriteUnroutableIntents(context.Background(), []sharedintent.UnroutableRow{
 		unroutableRow("i1"),
 	}); err != nil {
 		t.Fatalf("WriteUnroutableIntents() error = %v", err)
@@ -80,7 +80,7 @@ func TestWriteUnroutableIntentsDoesNotTouchTheFactQuarantineTable(t *testing.T) 
 func TestWriteUnroutableIntentsBatchesLargeInputs(t *testing.T) {
 	t.Parallel()
 
-	rows := make([]reducer.SharedProjectionUnroutableRow, 0, sharedProjectionUnroutableIntentBatchSize+10)
+	rows := make([]sharedintent.UnroutableRow, 0, sharedProjectionUnroutableIntentBatchSize+10)
 	for i := 0; i < cap(rows); i++ {
 		rows = append(rows, unroutableRow(fmt.Sprintf("intent-%d", i)))
 	}

@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -37,7 +39,7 @@ func TestRepoDependencyShardReaderContinuesPastForeignFullPage(t *testing.T) {
 	sharded := &repoDependencyShardReader{inner: inner, shardID: shardID, shardCount: shardCount}
 	runner := RepoDependencyProjectionRunner{
 		IntentReader: sharded,
-		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			if key.AcceptanceUnitID == targetUnit {
 				return "generation-target", true
 			}
@@ -136,7 +138,7 @@ func repoDependencyShardPagingRow(intentID, unitID string, createdAt time.Time) 
 			"repo_id":           unitID,
 			"target_repo_id":    "repository:shared-target",
 			"relationship_type": "DEPENDS_ON",
-			"evidence_source":   CrossRepoEvidenceSource,
+			"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 		},
 	)
 }

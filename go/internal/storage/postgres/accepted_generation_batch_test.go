@@ -12,7 +12,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -50,7 +49,7 @@ func TestAcceptedGenerationPrefetchSingleQueryPerRound(t *testing.T) {
 		t.Fatalf("prefetch() issued %d queries for %d distinct keys, want 1", database.queryCount, distinct)
 	}
 	for i := 0; i < distinct; i++ {
-		got, found := lookup(reducer.SharedProjectionAcceptanceKey{
+		got, found := lookup(sharedintent.AcceptanceKey{
 			ScopeID: fmt.Sprintf("scope-%d", i), AcceptanceUnitID: fmt.Sprintf("unit-%d", i), SourceRunID: "run-1",
 		})
 		if !found || got != fmt.Sprintf("gen-%d", i) {
@@ -118,7 +117,7 @@ func TestAcceptedGenerationPrefetchNormalizesWhitespace(t *testing.T) {
 			}
 		}
 	}
-	got, found := lookup(reducer.SharedProjectionAcceptanceKey{
+	got, found := lookup(sharedintent.AcceptanceKey{
 		ScopeID: " scope-a", AcceptanceUnitID: "unit-a ", SourceRunID: "\trun-1\n",
 	})
 	if !found || got != "gen-1" {
@@ -156,7 +155,7 @@ func TestAcceptedGenerationPrefetchMatchesPerKeyLookup(t *testing.T) {
 	}
 
 	store := NewSharedProjectionAcceptanceStore(database)
-	probeKeys := []reducer.SharedProjectionAcceptanceKey{
+	probeKeys := []sharedintent.AcceptanceKey{
 		{ScopeID: "scope-a", AcceptanceUnitID: "unit-a", SourceRunID: "run-1"},
 		{ScopeID: "scope-b", AcceptanceUnitID: "unit-b", SourceRunID: "run-1"},
 		{ScopeID: "scope-b", AcceptanceUnitID: "unit-b", SourceRunID: "run-2"},
@@ -253,7 +252,7 @@ func TestAcceptedGenerationPrefetchEmptyIssuesNoQuery(t *testing.T) {
 	if database.queryCount != 0 {
 		t.Fatalf("prefetch() issued %d queries for unkeyed intents, want 0", database.queryCount)
 	}
-	if _, found := lookup(reducer.SharedProjectionAcceptanceKey{ScopeID: "scope-a", AcceptanceUnitID: "unit-a", SourceRunID: "run-1"}); found {
+	if _, found := lookup(sharedintent.AcceptanceKey{ScopeID: "scope-a", AcceptanceUnitID: "unit-a", SourceRunID: "run-1"}); found {
 		t.Fatal("lookup() found a key with no rows, want not-found")
 	}
 }

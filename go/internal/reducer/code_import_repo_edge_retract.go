@@ -107,7 +107,7 @@ func buildCodeImportRepoEdgeRefreshIntent(
 		"evidence_source": codeImportEvidenceSource,
 		"generation_id":   input.GenerationID,
 	}
-	return BuildSharedProjectionIntent(SharedProjectionIntentInput{
+	return sharedintent.Build(sharedintent.Input{
 		ProjectionDomain: DomainRepoDependency,
 		PartitionKey:     fmt.Sprintf("retract:repo:%s|%s", consumerRepoID, codeImportEvidenceSource),
 		ScopeID:          input.ScopeID,

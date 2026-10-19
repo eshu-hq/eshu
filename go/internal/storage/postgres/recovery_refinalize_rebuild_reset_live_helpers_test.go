@@ -303,7 +303,7 @@ func activateRefinalizeResetGeneration(
 // accepted.GateOnActive, exactly as go/cmd/reducer wires
 // the lane. Bypassed source runs (code-import, package-consumption) skip the
 // fence; resolver runs ("repo_dependency[:<scope>]") must clear it.
-func refinalizeResetGatedAcceptedGen(database *sql.DB) reducer.AcceptedGenerationLookup {
+func refinalizeResetGatedAcceptedGen(database *sql.DB) sharedintent.AcceptedGenerationLookup {
 	return accepted.GateOnActive(
 		NewAcceptedGenerationLookup(SQLDB{DB: database}),
 		NewRelationshipGenerationActiveLookup(NewRelationshipStore(SQLDB{DB: database})),
@@ -322,7 +322,7 @@ func refinalizeResetGatedAcceptedGen(database *sql.DB) reducer.AcceptedGeneratio
 func refinalizeResetLaneRunner(
 	database *sql.DB,
 	queue ReducerQueue,
-	writer reducer.SharedProjectionEdgeWriter,
+	writer sharedintent.EdgeWriter,
 	suffix string,
 ) *reducer.RepoDependencyProjectionRunner {
 	const partitionCount = 1_000_000_000

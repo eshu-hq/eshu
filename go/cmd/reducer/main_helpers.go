@@ -12,6 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
@@ -263,7 +265,7 @@ func incidentRepositoryCorrelationWiring(database db.ExecQueryer) (
 // clamps the value to the host CPU count.
 func codeReachabilityProjectionRunnerFor(
 	database db.ExecQueryer,
-	sharedCfg reducer.SharedProjectionRunnerConfig,
+	sharedCfg worker.RunnerConfig,
 	concurrency int,
 	logger *slog.Logger,
 ) *codeintel.CodeReachabilityProjectionRunner {
@@ -345,7 +347,7 @@ func newRepoDependencyProjectionRunner(
 	edgeWriter *edgewriter.EdgeWriter,
 	workQueue postgres.ReducerQueue,
 	relationshipGenerationActive accepted.RelationshipGenerationActiveLookup,
-	acceptedGenerationPrefetch reducer.AcceptedGenerationPrefetch,
+	acceptedGenerationPrefetch sharedintent.AcceptedGenerationPrefetch,
 	workloadReadinessPrefetch gpphase.ReadinessPrefetch,
 	repoDependencyCfg reducer.RepoDependencyProjectionRunnerConfig,
 	tracer trace.Tracer,
@@ -393,7 +395,7 @@ func newRepoDependencyProjectionRunner(
 			relationshipGenerationActive,
 			instruments,
 		),
-		AcceptedGenPrefetch: func(ctx context.Context, intents []sharedintent.Row) (reducer.AcceptedGenerationLookup, error) {
+		AcceptedGenPrefetch: func(ctx context.Context, intents []sharedintent.Row) (sharedintent.AcceptedGenerationLookup, error) {
 			return gatedPrefetch(ctx, intents)
 		},
 		// #6184: cross-repo artifact/edge loss happens on every

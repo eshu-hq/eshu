@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -251,7 +253,7 @@ func validRepoDependencyQuarantineRunner(t *testing.T) RepoDependencyProjectionR
 			"repo_id":           repoID,
 			"target_repo_id":    "repository:quarantine-target",
 			"relationship_type": "DEPENDS_ON",
-			"evidence_source":   CrossRepoEvidenceSource,
+			"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 		},
 	)
 	store := &fakeRepoDependencyIntentStore{
@@ -323,9 +325,9 @@ func (w delayedSuccessRepoDependencyWriter) RetractEdges(
 
 func (w delayedSuccessRepoDependencyWriter) WriteEdges(
 	context.Context, string, []sharedintent.Row, string,
-) (SharedProjectionWriteReport, error) {
+) (sharedintent.WriteReport, error) {
 	time.Sleep(w.delay)
-	return SharedProjectionWriteReport{}, nil
+	return sharedintent.WriteReport{}, nil
 }
 
 // blockUntilContextDoneRepoDependencyWriter makes heartbeat loss, rather than
@@ -343,9 +345,9 @@ func (blockUntilContextDoneRepoDependencyWriter) RetractEdges(
 
 func (blockUntilContextDoneRepoDependencyWriter) WriteEdges(
 	ctx context.Context, _ string, _ []sharedintent.Row, _ string,
-) (SharedProjectionWriteReport, error) {
+) (sharedintent.WriteReport, error) {
 	<-ctx.Done()
-	return SharedProjectionWriteReport{}, nil
+	return sharedintent.WriteReport{}, nil
 }
 
 type blockingRepoDependencyIntentReader struct{}

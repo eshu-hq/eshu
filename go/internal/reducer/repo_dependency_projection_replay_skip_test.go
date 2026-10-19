@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -142,7 +144,7 @@ func repoDependencyReplaySkipFixture(
 				"repo_id":           repoID,
 				"target_repo_id":    "repository:r_target_" + generationID,
 				"relationship_type": "DEPENDS_ON",
-				"evidence_source":   defaultEvidenceSource,
+				"evidence_source":   worker.DefaultEvidenceSource,
 			},
 		))
 	}
@@ -157,7 +159,7 @@ func repoDependencyReplaySkipFixture(
 // acceptByRunSuffix accepts run-<gen> as generation <gen>, which is how a
 // code-import source run keeps pointing at a generation recover-generations
 // retired: the acceptance row is not rewritten.
-func acceptByRunSuffix(key SharedProjectionAcceptanceKey) (string, bool) {
+func acceptByRunSuffix(key sharedintent.AcceptanceKey) (string, bool) {
 	return strings.TrimPrefix(key.SourceRunID, "run-"), true
 }
 
@@ -440,7 +442,7 @@ func TestRepoDependencyReplayFreshnessEdgeCases(t *testing.T) {
 		mkRow := func(id, target string) sharedintent.Row {
 			return repoDependencyIntentRow(id, "scope-a", repoID, repoID, "run-gen-a", "gen-a", now, map[string]any{
 				"repo_id": repoID, "target_repo_id": target,
-				"relationship_type": "PROVISIONS_DEPENDENCY_FOR", "evidence_source": defaultEvidenceSource,
+				"relationship_type": "PROVISIONS_DEPENDENCY_FOR", "evidence_source": worker.DefaultEvidenceSource,
 			})
 		}
 		rows := []sharedintent.Row{

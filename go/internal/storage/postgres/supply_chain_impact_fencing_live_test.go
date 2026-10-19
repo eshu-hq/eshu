@@ -14,12 +14,13 @@ import (
 	"testing"
 	"time"
 
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -79,8 +80,8 @@ func fencingEvidence(repositoryID string) []facts.Envelope {
 	}
 }
 
-func fencingHandler(db *sql.DB, loader *fencingLoader, inst *telemetry.Instruments, logs *bytes.Buffer) reducer.SupplyChainImpactHandler {
-	handler := reducer.SupplyChainImpactHandler{
+func fencingHandler(db *sql.DB, loader *fencingLoader, inst *telemetry.Instruments, logs *bytes.Buffer) supplychaincore.SupplyChainImpactHandler {
+	handler := supplychaincore.SupplyChainImpactHandler{
 		FactLoader:         loader,
 		Writer:             replaceSetWriter(db),
 		FencingTokenIssuer: postgres.PostgresSupplyChainImpactFencingTokenIssuer{DB: postgres.SQLDB{DB: db}},
@@ -113,7 +114,7 @@ func fencingAdmissionToken(t *testing.T, ctx context.Context, db *sql.DB) int64 
 
 func isSuperseded(err error) bool {
 	var classified interface{ FailureClass() string }
-	return errors.As(err, &classified) && classified.FailureClass() == reducer.SupplyChainImpactWriteSupersededFailureClass
+	return errors.As(err, &classified) && classified.FailureClass() == supplychaincore.SupplyChainImpactWriteSupersededFailureClass
 }
 
 func supersededCounter(t *testing.T, reader *sdkmetric.ManualReader) int64 {

@@ -78,16 +78,16 @@ func (g *statefulDeployableUnitGraph) RetractEdges(
 
 func (g *statefulDeployableUnitGraph) WriteEdges(
 	_ context.Context, domain string, rows []sharedintent.Row, evidenceSource string,
-) (SharedProjectionWriteReport, error) {
+) (sharedintent.WriteReport, error) {
 	if domain != DomainDeployableUnitEdges || evidenceSource != deployableUnitCorrelationEvidenceSource {
-		return SharedProjectionWriteReport{}, fmt.Errorf("unexpected write %s/%s", domain, evidenceSource)
+		return sharedintent.WriteReport{}, fmt.Errorf("unexpected write %s/%s", domain, evidenceSource)
 	}
 	g.statements++
 	for _, row := range rows {
 		edge := anyToString(row.Payload["repo_id"]) + "->" + anyToString(row.Payload["deployment_repo_id"])
 		g.edges[edge] = struct{}{}
 	}
-	return SharedProjectionWriteReport{}, nil
+	return sharedintent.WriteReport{}, nil
 }
 
 func (g *statefulDeployableUnitGraph) sortedEdges() []string {

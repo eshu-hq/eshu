@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// Lookup mirrors reducer.AcceptedGenerationLookup
+// Lookup mirrors sharedintent.AcceptedGenerationLookup
 // (reducer/shared_projection_worker.go): it is a type alias over the same
 // underlying shared-projection acceptance lookup signature, so a value of
 // either type is assignable to the other with no conversion. It is declared
@@ -21,7 +21,7 @@ import (
 // subpackage never imports the reducer root (issue #6061).
 type Lookup = func(key sharedintent.AcceptanceKey) (string, bool)
 
-// Prefetch mirrors reducer.AcceptedGenerationPrefetch for the
+// Prefetch mirrors sharedintent.AcceptedGenerationPrefetch for the
 // same reason Lookup does above.
 type Prefetch = func(ctx context.Context, intents []sharedintent.Row) (Lookup, error)
 

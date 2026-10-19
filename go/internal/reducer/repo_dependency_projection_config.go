@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -88,7 +90,7 @@ type RepoDependencyProjectionRunnerConfig struct {
 
 func (c RepoDependencyProjectionRunnerConfig) pollInterval() time.Duration {
 	if c.PollInterval <= 0 {
-		return defaultSharedPollInterval
+		return worker.DefaultPollInterval
 	}
 	return c.PollInterval
 }
@@ -120,7 +122,7 @@ func (c RepoDependencyProjectionRunnerConfig) requiredLeaseSafetyBudget() time.D
 
 func (c RepoDependencyProjectionRunnerConfig) batchLimit() int {
 	if c.BatchLimit <= 0 {
-		return defaultBatchLimit
+		return worker.DefaultBatchLimit
 	}
 	return c.BatchLimit
 }

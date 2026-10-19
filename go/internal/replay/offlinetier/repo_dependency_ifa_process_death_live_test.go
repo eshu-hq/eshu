@@ -184,7 +184,7 @@ func runRepoDependencyProcessDeathHelper(t *testing.T) {
 }
 
 type repoDependencyProcessDeathWriter struct {
-	inner reducer.SharedProjectionEdgeWriter
+	inner sharedintent.EdgeWriter
 }
 
 func (w *repoDependencyProcessDeathWriter) RetractEdges(
@@ -195,7 +195,7 @@ func (w *repoDependencyProcessDeathWriter) RetractEdges(
 
 func (w *repoDependencyProcessDeathWriter) WriteEdges(
 	ctx context.Context, domain string, rows []sharedintent.Row, evidenceSource string,
-) (reducer.SharedProjectionWriteReport, error) {
+) (sharedintent.WriteReport, error) {
 	report, err := w.inner.WriteEdges(ctx, domain, rows, evidenceSource)
 	if err != nil {
 		return report, err

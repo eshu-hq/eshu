@@ -9,7 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -26,14 +27,14 @@ func (supplyChainImpactWriteSupersededTestError) Error() string {
 func (supplyChainImpactWriteSupersededTestError) Retryable() bool { return true }
 
 func (supplyChainImpactWriteSupersededTestError) FailureClass() string {
-	return reducer.SupplyChainImpactWriteSupersededFailureClass
+	return supplychaincore.SupplyChainImpactWriteSupersededFailureClass
 }
 
 // TestReducerQueueFailDefersSupplyChainImpactWriteSupersededPastAttemptBudget
 // proves that even at an attempt count far past MaxAttempts a superseded impact
 // write is deferred, never dead-lettered: dead-lettering would freeze stale
 // truth for a scope that merely lost an ordinary race. Fails red without
-// reducer.SupplyChainImpactWriteSupersededFailureClass registered in
+// supplychaincore.SupplyChainImpactWriteSupersededFailureClass registered in
 // nonCountingReducerRetryFailureClasses.
 func TestReducerQueueFailDefersSupplyChainImpactWriteSupersededPastAttemptBudget(t *testing.T) {
 	t.Parallel()
@@ -62,7 +63,7 @@ func TestReducerQueueFailDefersSupplyChainImpactWriteSupersededPastAttemptBudget
 			t.Fatalf("deferred retry query missing %q:\n%s", want, query)
 		}
 	}
-	if got, want := db.execs[0].args[1], reducer.SupplyChainImpactWriteSupersededFailureClass; got != want {
+	if got, want := db.execs[0].args[1], supplychaincore.SupplyChainImpactWriteSupersededFailureClass; got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
 }

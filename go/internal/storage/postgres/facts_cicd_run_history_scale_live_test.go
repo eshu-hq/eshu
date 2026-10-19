@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
@@ -44,14 +46,14 @@ func (l *timedCICDRunHistoryScaleLoader) ListCICDRunFactsForScopePatch(
 }
 
 type timedCICDRunHistoryScaleWriter struct {
-	writer   reducer.PostgresCICDRunCorrelationWriter
+	writer   cicdrun.PostgresCICDRunCorrelationWriter
 	duration time.Duration
 }
 
 func (w *timedCICDRunHistoryScaleWriter) WriteCICDRunCorrelations(
 	ctx context.Context,
-	write reducer.CICDRunCorrelationWrite,
-) (reducer.CICDRunCorrelationWriteResult, error) {
+	write cicdrun.CICDRunCorrelationWrite,
+) (cicdrun.CICDRunCorrelationWriteResult, error) {
 	started := time.Now()
 	result, err := w.writer.WriteCICDRunCorrelations(ctx, write)
 	w.duration = time.Since(started)
@@ -98,13 +100,13 @@ func TestCICDRunCorrelationArtifactPatchAtRetainedHistoryScale(t *testing.T) {
 	store := &timedCICDRunHistoryScaleLoader{
 		cicdRunHistoryLiveLoader: cicdRunHistoryLiveLoader{FactStore: NewFactStore(SQLDB{DB: db})},
 	}
-	writer := &timedCICDRunHistoryScaleWriter{writer: reducer.PostgresCICDRunCorrelationWriter{
+	writer := &timedCICDRunHistoryScaleWriter{writer: cicdrun.PostgresCICDRunCorrelationWriter{
 		DB: SQLDB{DB: db},
 		Now: func() time.Time {
 			return time.Date(2026, time.August, 4, 14, 0, 0, 0, time.UTC)
 		},
 	}}
-	handler := reducer.CICDRunCorrelationHandler{
+	handler := cicdrun.CICDRunCorrelationHandler{
 		FactLoader: store,
 		Writer:     writer,
 	}

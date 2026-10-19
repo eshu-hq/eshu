@@ -232,7 +232,7 @@ func buildDependencyIntents(
 		}
 		payload["action"] = "upsert"
 
-		intent := BuildSharedProjectionIntent(SharedProjectionIntentInput{
+		intent := sharedintent.Build(sharedintent.Input{
 			ProjectionDomain: projectionDomain,
 			PartitionKey:     partitionKey,
 			ScopeID:          context.ScopeID,
@@ -275,7 +275,7 @@ func buildDependencyIntents(
 
 		partitionKey := fields[len(fields)-1] // last field is always partition_key
 
-		intent := BuildSharedProjectionIntent(SharedProjectionIntentInput{
+		intent := sharedintent.Build(sharedintent.Input{
 			ProjectionDomain: projectionDomain,
 			PartitionKey:     partitionKey,
 			ScopeID:          context.ScopeID,

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -18,12 +20,12 @@ func TestSharedProjectionRunnerBackoffOnEmptyCycles(t *testing.T) {
 	var mu sync.Mutex
 	var waits []time.Duration
 
-	runner := SharedProjectionRunner{
+	runner := worker.Runner{
 		IntentReader: &fakeSharedIntentReader{},
 		LeaseManager: &fakeLeaseManager{granted: false},
 		EdgeWriter:   &fakeEdgeWriter{},
 		AcceptedGen:  acceptedGenerationFixed("", false),
-		Config: SharedProjectionRunnerConfig{
+		Config: worker.RunnerConfig{
 			PartitionCount: 1,
 			PollInterval:   500 * time.Millisecond,
 		},
@@ -92,13 +94,13 @@ func TestSharedProjectionRunnerBacksOffWhileReadinessBlocked(t *testing.T) {
 		},
 	}
 
-	runner := SharedProjectionRunner{
+	runner := worker.Runner{
 		IntentReader:    reader,
 		LeaseManager:    &fakeLeaseManager{granted: true},
 		EdgeWriter:      &fakeEdgeWriter{},
 		AcceptedGen:     acceptedGenerationFixed("gen-1", true),
 		ReadinessLookup: readinessLookupFixed(false, false),
-		Config: SharedProjectionRunnerConfig{
+		Config: worker.RunnerConfig{
 			PartitionCount: 1,
 			PollInterval:   500 * time.Millisecond,
 		},
@@ -150,12 +152,12 @@ func TestSharedProjectionRunnerBackoffResetsOnWork(t *testing.T) {
 	reader := &fakeSharedIntentReader{}
 	leaseManager := &fakeLeaseManager{granted: true}
 
-	runner := SharedProjectionRunner{
+	runner := worker.Runner{
 		IntentReader: reader,
 		LeaseManager: leaseManager,
 		EdgeWriter:   &fakeEdgeWriter{},
 		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
-		Config: SharedProjectionRunnerConfig{
+		Config: worker.RunnerConfig{
 			PartitionCount: 1,
 			PollInterval:   500 * time.Millisecond,
 		},

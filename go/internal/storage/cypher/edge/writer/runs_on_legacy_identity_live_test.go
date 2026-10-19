@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -39,7 +41,7 @@ func TestBoltRunsOnWritersReplaceDuplicateLegacyUnkeyedIdentities(t *testing.T) 
 			write: func(fixture runsOnWriterFixture) error {
 				return writeCrossRepoRunsOn(ctx, executor, fixture)
 			},
-			wantSource: reducer.CrossRepoEvidenceSource,
+			wantSource: crossrepo.CrossRepoEvidenceSource,
 		},
 	}
 

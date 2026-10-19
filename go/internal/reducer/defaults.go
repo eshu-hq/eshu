@@ -6,6 +6,10 @@ package reducer //nolint:filelength // DefaultHandlers is one wiring struct that
 import (
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
+
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
@@ -105,37 +109,37 @@ type DefaultHandlers struct {
 
 	// CodeCallEdgeWriter is retained for compatibility with older reducer tests
 	// and wiring. Code-call materialization no longer uses it directly.
-	CodeCallEdgeWriter SharedProjectionEdgeWriter
+	CodeCallEdgeWriter sharedintent.EdgeWriter
 
 	// SQLRelationshipEdgeWriter is retained for compatibility with older reducer
 	// tests and wiring. SQL relationship materialization no longer uses it directly:
 	// it rides the shared-projection intent path via SQLRelationshipIntentWriter
 	// (#2868).
-	SQLRelationshipEdgeWriter SharedProjectionEdgeWriter
+	SQLRelationshipEdgeWriter sharedintent.EdgeWriter
 
 	// DocumentationEdgeWriter writes canonical DOCUMENTS edges from reducer-owned
 	// exact documentation entity mentions.
-	DocumentationEdgeWriter SharedProjectionEdgeWriter
+	DocumentationEdgeWriter sharedintent.EdgeWriter
 
 	// CodeownersOwnershipEdgeWriter writes canonical DECLARES_CODEOWNER edges from
 	// directly-emitted codeowners.ownership facts (issue #5419 Phase 3).
-	CodeownersOwnershipEdgeWriter SharedProjectionEdgeWriter
+	CodeownersOwnershipEdgeWriter sharedintent.EdgeWriter
 
 	// SubmodulePinEdgeWriter writes canonical PINS_SUBMODULE edges from
 	// directly-emitted submodule.pin facts (issue #5420 Phase 3).
-	SubmodulePinEdgeWriter SharedProjectionEdgeWriter
+	SubmodulePinEdgeWriter sharedintent.EdgeWriter
 
 	// RationaleEdgeWriter is retained for compatibility with older reducer tests
 	// and wiring. Rationale materialization no longer uses it directly: it rides the
 	// shared-projection intent path via RationaleEdgeIntentWriter (#2869).
-	RationaleEdgeWriter SharedProjectionEdgeWriter
+	RationaleEdgeWriter sharedintent.EdgeWriter
 
 	// Cross-repo relationship resolution adapters. All optional; nil disables
 	// cross-repo resolution during deployment_mapping reduction.
-	EvidenceFactLoader  EvidenceFactLoader
-	AssertionLoader     AssertionLoader
-	ResolutionPersister ResolutionPersister
-	// DeployableUnitCorrelationWaker is the #8294 completion-driven wake:
+	EvidenceFactLoader  crossrepo.EvidenceFactLoader
+	AssertionLoader     crossrepo.AssertionLoader
+	ResolutionPersister crossrepo.ResolutionPersister
+	// crossrepo.DeployableUnitCorrelationWaker is the #8294 completion-driven wake:
 	// every resolution pass wakes the deployable_unit_correlation items
 	// whose recorded input no longer holds over the pass's resolved repos
 	// (succeeded items reopen, including missing-fingerprint rows; in-flight
@@ -144,10 +148,10 @@ type DefaultHandlers struct {
 	// pass, see #8608), fingerprint-gated and replay-floored so retries
 	// converge. Nil disables the wake; items then wait for the next
 	// maintenance pass as before.
-	DeployableUnitCorrelationWaker DeployableUnitCorrelationWaker
-	ScopeRepos                     ScopeRepositoryReader
+	DeployableUnitCorrelationWaker crossrepo.DeployableUnitCorrelationWaker
+	ScopeRepos                     crossrepo.ScopeRepositoryReader
 	ResolvedRelationshipLoader     ResolvedRelationshipLoader
-	RepoDependencyIntentWriter     RepoDependencyIntentWriter
+	RepoDependencyIntentWriter     crossrepo.RepoDependencyIntentWriter
 
 	// WorkloadSiblingLookup reads same-named Workload nodes for the #5385
 	// handle ladder (one workload_name index seek per handle, batched per
@@ -158,8 +162,8 @@ type DefaultHandlers struct {
 	// RepoDependencyEdgeWriter writes cross-repo dependency edges resolved
 	// from durable repo-dependency intents. Optional; nil disables the
 	// repo-dependency projection runner.
-	RepoDependencyEdgeWriter     SharedProjectionEdgeWriter
-	WorkloadDependencyEdgeWriter SharedProjectionEdgeWriter
+	RepoDependencyEdgeWriter     sharedintent.EdgeWriter
+	WorkloadDependencyEdgeWriter sharedintent.EdgeWriter
 
 	// GenerationCheck reports whether an intent's generation is still current.
 	// Nil disables the guard and lets all intents execute unconditionally.
@@ -418,9 +422,9 @@ type DefaultHandlers struct {
 	// (Postgres decisions are unaffected).
 	ContainerImageDerivedFromEdgeWriter ContainerImageDerivedFromEdgeWriter
 
-	// CICDRunCorrelationWriter persists provider run, artifact, and
+	// cicdrun.CICDRunCorrelationWriter persists provider run, artifact, and
 	// environment correlation decisions for CI/CD evidence.
-	CICDRunCorrelationWriter CICDRunCorrelationWriter
+	CICDRunCorrelationWriter cicdrun.CICDRunCorrelationWriter
 
 	// ServiceCatalogCorrelationWriter persists service-catalog ownership and
 	// repository correlation decisions.

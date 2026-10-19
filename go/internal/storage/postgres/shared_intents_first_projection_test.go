@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 // TestScopeHasPriorGenerationSQLShape locks the first-projection probe query
@@ -45,7 +45,7 @@ func TestScopeHasPriorGenerationSQLShape(t *testing.T) {
 func TestSharedIntentStoreSatisfiesFirstProjectionLookup(t *testing.T) {
 	t.Parallel()
 
-	var _ reducer.FirstProjectionLookup = (*SharedIntentStore)(nil)
+	var _ worker.FirstProjectionLookup = (*SharedIntentStore)(nil)
 }
 
 // TestScopeHasPriorGenerationAgainstPostgres proves the probe behavior against a

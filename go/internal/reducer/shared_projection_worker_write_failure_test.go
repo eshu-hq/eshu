@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -18,7 +20,7 @@ import (
 // Deliberately not the #5984 unroutable case: that one does not error at all.
 // An unroutable row is rejected from its persisted payload, so no retry can
 // ever succeed, and the final design reports those rows through
-// SharedProjectionWriteReport and completes the intent rather than failing.
+// sharedintent.WriteReport and completes the intent rather than failing.
 // This test guards the neighbouring path — a write that failed for a reason
 // that COULD succeed on retry must not complete the intent.
 var errWriteEdges = errors.New("graph write failed")
@@ -33,9 +35,9 @@ func (f *failingWriteEdgeWriter) WriteEdges(
 	domain string,
 	rows []sharedintent.Row,
 	evidenceSource string,
-) (SharedProjectionWriteReport, error) {
+) (sharedintent.WriteReport, error) {
 	_, _ = f.stubEdgeWriter.WriteEdges(ctx, domain, rows, evidenceSource)
-	return SharedProjectionWriteReport{}, f.err
+	return sharedintent.WriteReport{}, f.err
 }
 
 // TestProcessPartitionOnceDoesNotCompleteIntentsWhenWriteEdgesFails proves the
@@ -73,7 +75,7 @@ func TestProcessPartitionOnceDoesNotCompleteIntentsWhenWriteEdgesFails(t *testin
 	lease := &stubLeaseManager{claimResult: true}
 	edges := &failingWriteEdgeWriter{err: errWriteEdges}
 
-	cfg := PartitionProcessorConfig{
+	cfg := worker.PartitionProcessorConfig{
 		Domain:         "platform_infra",
 		PartitionID:    0,
 		PartitionCount: 1,
@@ -83,17 +85,17 @@ func TestProcessPartitionOnceDoesNotCompleteIntentsWhenWriteEdgesFails(t *testin
 		EvidenceSource: "finalization/workloads",
 	}
 
-	_, err := ProcessPartitionOnce(
+	_, err := worker.ProcessPartitionOnce(
 		context.Background(), now, cfg, lease, reader, edges,
 		acceptedGenerationFixed("gen-1", true),
 		nil, nil, nil, nil, nil, nil,
 		nil,
 	)
 	if err == nil {
-		t.Fatal("ProcessPartitionOnce() error = nil, want the write failure to propagate")
+		t.Fatal("worker.ProcessPartitionOnce() error = nil, want the write failure to propagate")
 	}
 	if !errors.Is(err, errWriteEdges) {
-		t.Fatalf("ProcessPartitionOnce() error = %v, want it to wrap the write failure", err)
+		t.Fatalf("worker.ProcessPartitionOnce() error = %v, want it to wrap the write failure", err)
 	}
 	if len(reader.completedIDs) != 0 {
 		t.Fatalf("completedIDs = %v, want none: a failed write must not complete the intent", reader.completedIDs)

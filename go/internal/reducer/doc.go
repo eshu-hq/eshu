@@ -112,7 +112,7 @@
 // safety cleanup after owned retractions, not a replacement for relationship or
 // source-local canonical cleanup. SearchVectorBuildRunner builds only derived
 // vector rows for active curated search documents and never writes graph truth.
-// SupplyChainImpactHandler also evaluates
+// supplychaincore.SupplyChainImpactHandler also evaluates
 // vulnerability.suppression facts and writes the resulting VEX or operator
 // policy decision onto every impact finding; provider dismissals stay
 // evidence and never auto-hide findings. Its reducer result exposes

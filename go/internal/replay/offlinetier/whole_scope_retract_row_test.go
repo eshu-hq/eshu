@@ -3,7 +3,9 @@
 
 package offlinetier_test
 
-import "github.com/eshu-hq/eshu/go/internal/reducer"
+import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
+)
 
 // wholeScopeRefreshRetractPayload builds the production payload shape of a
 // whole-scope retract row for a FENCED repo-wide-retract domain: inheritance,
@@ -33,7 +35,7 @@ import "github.com/eshu-hq/eshu/go/internal/reducer"
 func wholeScopeRefreshRetractPayload(repoID string) map[string]any {
 	return map[string]any{
 		"repo_id":     repoID,
-		"intent_type": reducer.RepoRefreshIntentType,
+		"intent_type": sharedintent.RepoRefreshIntentType,
 		"action":      "refresh",
 	}
 }

@@ -5,10 +5,11 @@ package reducer
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
-func acceptedGenerationFixed(generationID string, ok bool) AcceptedGenerationLookup {
-	return func(SharedProjectionAcceptanceKey) (string, bool) {
+func acceptedGenerationFixed(generationID string, ok bool) sharedintent.AcceptedGenerationLookup {
+	return func(sharedintent.AcceptanceKey) (string, bool) {
 		return generationID, ok
 	}
 }

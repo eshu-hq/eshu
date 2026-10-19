@@ -9,6 +9,10 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
@@ -49,7 +53,7 @@ func buildReducerService(
 	if err != nil {
 		return reducer.Service{}, err
 	}
-	sharedCfg := reducer.LoadSharedProjectionConfig(getenv)
+	sharedCfg := worker.LoadConfig(getenv)
 	sharedCfg.LeaseOwner = loadSharedProjectionLeaseOwner(getenv)
 	codeCallCfg := loadCodeCallProjectionConfig(getenv)
 	repoDependencyCfg := loadRepoDependencyProjectionConfig(getenv, graphBackend)
@@ -368,7 +372,7 @@ func buildReducerService(
 		PackageProvenanceEdgeWriter:         graphWriters.provenanceEdge,
 		ContainerImageProvenanceEdgeWriter:  graphWriters.provenanceEdge,
 		ContainerImageDerivedFromEdgeWriter: graphWriters.provenanceEdge,
-		CICDRunCorrelationWriter: reducer.PostgresCICDRunCorrelationWriter{
+		CICDRunCorrelationWriter: cicdrun.PostgresCICDRunCorrelationWriter{
 			DB: database,
 		},
 		ServiceCatalogCorrelationWriter: servicecatalog.PostgresServiceCatalogCorrelationWriter{
@@ -431,7 +435,7 @@ func buildReducerService(
 		HandlerTimeout:             handlerTimeout,
 		HandlerTimeoutOverrides:    handlerTimeoutOverrides,
 		SharedProjectionEdgeWriter: edgeWriter,
-		SharedProjectionRunner: &reducer.SharedProjectionRunner{
+		SharedProjectionRunner: &worker.Runner{
 			IntentReader:        intentStore,
 			LeaseManager:        intentStore,
 			EdgeWriter:          edgeWriter,
@@ -459,7 +463,7 @@ func buildReducerService(
 			Instruments:      instruments,
 			Logger:           logger,
 		},
-		SupplyChainImpactWinnersMaintainer: &reducer.SupplyChainImpactWinnersMaintainer{
+		SupplyChainImpactWinnersMaintainer: &supplychaincore.SupplyChainImpactWinnersMaintainer{
 			Rebuilder:    postgres.NewSupplyChainImpactWinnersStore(database),
 			LeaseManager: intentStore,
 			LeaseOwner:   defaultSupplyChainImpactWinnersLeaseOwner(),

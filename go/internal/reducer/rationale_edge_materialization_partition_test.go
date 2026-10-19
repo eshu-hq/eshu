@@ -76,9 +76,9 @@ func (w *rationaleStateModelingEdgeWriter) WriteEdges(
 	_ string,
 	rows []sharedintent.Row,
 	_ string,
-) (SharedProjectionWriteReport, error) {
+) (sharedintent.WriteReport, error) {
 	for _, row := range rows {
-		repoID := sharedProjectionRowRepoID(row)
+		repoID := sharedintent.RowRepoID(row)
 		if repoID == "" {
 			continue
 		}
@@ -93,7 +93,7 @@ func (w *rationaleStateModelingEdgeWriter) WriteEdges(
 		}
 		edges[rationaleTestEdgeKey(row.Payload)] = targetPath
 	}
-	return SharedProjectionWriteReport{}, nil
+	return sharedintent.WriteReport{}, nil
 }
 
 func (w *rationaleStateModelingEdgeWriter) edgeKeys(repoID string) []string {
@@ -136,7 +136,7 @@ func rationaleTestRepoIDs(rows []sharedintent.Row) []string {
 	seen := make(map[string]struct{}, len(rows))
 	var out []string
 	for _, row := range rows {
-		repoID := sharedProjectionRowRepoID(row)
+		repoID := sharedintent.RowRepoID(row)
 		if repoID == "" {
 			continue
 		}
@@ -149,8 +149,8 @@ func rationaleTestRepoIDs(rows []sharedintent.Row) []string {
 	return out
 }
 
-func rationaleFenceConfig(partitionID, partitionCount int) PartitionProcessorConfig {
-	return PartitionProcessorConfig{
+func rationaleFenceConfig(partitionID, partitionCount int) worker.PartitionProcessorConfig {
+	return worker.PartitionProcessorConfig{
 		Domain:         DomainRationaleEdges,
 		PartitionID:    partitionID,
 		PartitionCount: partitionCount,
@@ -407,7 +407,7 @@ func drainRationaleInto(
 	for pass := 0; pass < partitionCount+2; pass++ {
 		progressed := false
 		for p := 0; p < partitionCount; p++ {
-			result, err := ProcessPartitionOnce(
+			result, err := worker.ProcessPartitionOnce(
 				context.Background(), now, rationaleFenceConfig(p, partitionCount),
 				lease, store, edges, acceptedGen, nil, readiness, nil, nil, store, nil,
 				nil,

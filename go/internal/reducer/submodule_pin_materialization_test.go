@@ -15,7 +15,7 @@ import (
 	submodulev1 "github.com/eshu-hq/eshu/sdk/go/factschema/submodule/v1"
 )
 
-// recordingSubmodulePinEdgeWriter is a SharedProjectionEdgeWriter fake that
+// recordingSubmodulePinEdgeWriter is a sharedintent.EdgeWriter fake that
 // records every retract/write call, mirroring
 // recordingCodeownersOwnershipEdgeWriter (codeowners_ownership_materialization_test.go).
 type recordingSubmodulePinEdgeWriter struct {
@@ -41,10 +41,10 @@ func (r *recordingSubmodulePinEdgeWriter) WriteEdges(
 	domain string,
 	rows []sharedintent.Row,
 	_ string,
-) (SharedProjectionWriteReport, error) {
+) (sharedintent.WriteReport, error) {
 	r.writeDomain = domain
 	r.writeRows = append(r.writeRows, rows...)
-	return SharedProjectionWriteReport{}, nil
+	return sharedintent.WriteReport{}, nil
 }
 
 func submodulePinEnvelope(parentRepoID, submodulePath string, resolvedRepoID, pinnedSHA *string) facts.Envelope {

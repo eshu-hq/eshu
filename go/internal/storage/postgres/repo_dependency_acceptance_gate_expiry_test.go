@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -182,7 +184,7 @@ func TestRepoDependencyRunsOnFenceComposesQueuePhaseAndProjectionLive(t *testing
 				PartitionKey: "runs_on:" + repoID + "->platform:kubernetes:test", ScopeID: scopeID,
 				AcceptanceUnitID: repoID, RepositoryID: repoID, SourceRunID: "repo_dependency:" + scopeID,
 				GenerationID: generationID, CreatedAt: now,
-				Payload: map[string]any{"repo_id": repoID, "platform_id": "platform:kubernetes:test", "relationship_type": "RUNS_ON", "evidence_source": reducer.CrossRepoEvidenceSource},
+				Payload: map[string]any{"repo_id": repoID, "platform_id": "platform:kubernetes:test", "relationship_type": "RUNS_ON", "evidence_source": crossrepo.CrossRepoEvidenceSource},
 			}
 			if err := NewSharedIntentAcceptanceWriter(SQLDB{DB: database}).UpsertIntents(ctx, []sharedintent.Row{row}); err != nil {
 				t.Fatalf("seed RUNS_ON intent: %v", err)
@@ -300,7 +302,7 @@ func (w *causalFenceEdgeWriter) retractCount() int {
 	return w.retracts
 }
 
-func causalFenceRunner(database *sql.DB, queue ReducerQueue, writer reducer.SharedProjectionEdgeWriter, suffix string) *reducer.RepoDependencyProjectionRunner {
+func causalFenceRunner(database *sql.DB, queue ReducerQueue, writer sharedintent.EdgeWriter, suffix string) *reducer.RepoDependencyProjectionRunner {
 	store := NewSharedIntentStore(SQLDB{DB: database})
 	const partitionCount = 1_000_000_000
 	partitionID := int(crc32.ChecksumIEEE([]byte(suffix)) % partitionCount)

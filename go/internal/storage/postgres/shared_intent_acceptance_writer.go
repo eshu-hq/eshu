@@ -151,7 +151,7 @@ func recordSharedAcceptanceStaleWrites(
 		return
 	}
 	if instruments != nil {
-		domainByKey := make(map[reducer.SharedProjectionAcceptanceKey]string, len(intentRows))
+		domainByKey := make(map[sharedintent.AcceptanceKey]string, len(intentRows))
 		for _, row := range intentRows {
 			key, ok := sharedProjectionAcceptanceKey(row)
 			if !ok {
@@ -163,7 +163,7 @@ func recordSharedAcceptanceStaleWrites(
 		}
 		countByDomain := make(map[string]int64, 1)
 		for _, row := range stale {
-			domain, ok := domainByKey[reducer.SharedProjectionAcceptanceKey{
+			domain, ok := domainByKey[sharedintent.AcceptanceKey{
 				ScopeID:          row.ScopeID,
 				AcceptanceUnitID: row.AcceptanceUnitID,
 				SourceRunID:      row.SourceRunID,
@@ -200,7 +200,7 @@ func recordSharedAcceptanceStaleWrites(
 func buildSharedProjectionAcceptanceRows(
 	rows []sharedintent.Row,
 ) ([]SharedProjectionAcceptance, error) {
-	byKey := make(map[reducer.SharedProjectionAcceptanceKey]SharedProjectionAcceptance, len(rows))
+	byKey := make(map[sharedintent.AcceptanceKey]SharedProjectionAcceptance, len(rows))
 
 	for _, row := range rows {
 		key, ok := sharedProjectionAcceptanceKey(row)
@@ -272,7 +272,7 @@ func compareSharedProjectionAcceptanceKeys(a, b SharedProjectionAcceptance) int 
 
 func sharedProjectionAcceptanceKey(
 	row sharedintent.Row,
-) (reducer.SharedProjectionAcceptanceKey, bool) {
+) (sharedintent.AcceptanceKey, bool) {
 	if key, ok := row.AcceptanceKey(); ok {
 		return key, true
 	}
@@ -280,10 +280,10 @@ func sharedProjectionAcceptanceKey(
 	scopeID := sharedIntentScopeID(row)
 	acceptanceUnitID := sharedIntentAcceptanceUnitID(row)
 	if strings.TrimSpace(scopeID) == "" || strings.TrimSpace(acceptanceUnitID) == "" {
-		return reducer.SharedProjectionAcceptanceKey{}, false
+		return sharedintent.AcceptanceKey{}, false
 	}
 
-	return reducer.SharedProjectionAcceptanceKey{
+	return sharedintent.AcceptanceKey{
 		ScopeID:          scopeID,
 		AcceptanceUnitID: acceptanceUnitID,
 		SourceRunID:      row.SourceRunID,

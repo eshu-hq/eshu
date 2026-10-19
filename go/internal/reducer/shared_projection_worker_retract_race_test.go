@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -40,9 +42,9 @@ func (w *stateModelingEdgeWriter) RetractEdges(_ context.Context, _ string, rows
 	return nil
 }
 
-func (w *stateModelingEdgeWriter) WriteEdges(_ context.Context, _ string, rows []sharedintent.Row, _ string) (SharedProjectionWriteReport, error) {
+func (w *stateModelingEdgeWriter) WriteEdges(_ context.Context, _ string, rows []sharedintent.Row, _ string) (sharedintent.WriteReport, error) {
 	for _, row := range rows {
-		repoID := sharedProjectionRowRepoID(row)
+		repoID := sharedintent.RowRepoID(row)
 		if repoID == "" {
 			continue
 		}
@@ -53,7 +55,7 @@ func (w *stateModelingEdgeWriter) WriteEdges(_ context.Context, _ string, rows [
 		}
 		edges[row.IntentID] = struct{}{}
 	}
-	return SharedProjectionWriteReport{}, nil
+	return sharedintent.WriteReport{}, nil
 }
 
 func (w *stateModelingEdgeWriter) edgeCount(repoID string) int {
@@ -64,7 +66,7 @@ func stateModelingRepoIDs(rows []sharedintent.Row) []string {
 	seen := make(map[string]struct{}, len(rows))
 	var out []string
 	for _, row := range rows {
-		repoID := sharedProjectionRowRepoID(row)
+		repoID := sharedintent.RowRepoID(row)
 		if repoID == "" {
 			continue
 		}
@@ -135,7 +137,7 @@ func (s *fenceTrackingIntentStore) MarkIntentsCompleted(_ context.Context, inten
 
 func (s *fenceTrackingIntentStore) HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents(
 	_ context.Context,
-	key SharedProjectionAcceptanceKey,
+	key sharedintent.AcceptanceKey,
 	partitionKey string,
 	domain string,
 ) (bool, error) {
@@ -145,7 +147,7 @@ func (s *fenceTrackingIntentStore) HasCompletedAcceptanceUnitSourceRunPartitionD
 
 func (s *fenceTrackingIntentStore) HasCompletedAcceptanceUnitSourceRunGenerationPartitionDomainIntents(
 	_ context.Context,
-	key SharedProjectionAcceptanceKey,
+	key sharedintent.AcceptanceKey,
 	generationID string,
 	partitionKey string,
 	domain string,
@@ -177,9 +179,9 @@ func handlesRouteRepoIntents(t *testing.T, repoID string, perEdgeCount, partitio
 	t.Helper()
 
 	intents := []sharedintent.Row{
-		BuildSharedProjectionIntent(SharedProjectionIntentInput{
+		sharedintent.Build(sharedintent.Input{
 			ProjectionDomain: DomainHandlesRoute,
-			PartitionKey:     repoWideRetractRefreshPartitionKey(DomainHandlesRoute, repoID),
+			PartitionKey:     sharedintent.RepoWideRetractRefreshPartitionKey(DomainHandlesRoute, repoID),
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: repoID,
 			RepositoryID:     repoID,
@@ -187,15 +189,15 @@ func handlesRouteRepoIntents(t *testing.T, repoID string, perEdgeCount, partitio
 			GenerationID:     "gen-1",
 			Payload: map[string]any{
 				"repo_id":     repoID,
-				"intent_type": RepoRefreshIntentType,
-				"action":      repoRefreshAction,
+				"intent_type": sharedintent.RepoRefreshIntentType,
+				"action":      sharedintent.RepoRefreshAction,
 			},
 			CreatedAt: created,
 		}),
 	}
 	for p := 0; p < perEdgeCount; p++ {
 		partitionKey := partitionKeyForTestPartition(t, p%partitionCount, partitionCount, repoID+"-route-"+strconv.Itoa(p))
-		intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
+		intents = append(intents, sharedintent.Build(sharedintent.Input{
 			ProjectionDomain: DomainHandlesRoute,
 			PartitionKey:     partitionKey,
 			ScopeID:          "scope-a",
@@ -203,15 +205,15 @@ func handlesRouteRepoIntents(t *testing.T, repoID string, perEdgeCount, partitio
 			RepositoryID:     repoID,
 			SourceRunID:      "run-1",
 			GenerationID:     "gen-1",
-			Payload:          map[string]any{"repo_id": repoID, "action": "upsert", retractViaRefreshKey: true},
+			Payload:          map[string]any{"repo_id": repoID, "action": "upsert", sharedintent.RetractViaRefreshKey: true},
 			CreatedAt:        created,
 		}))
 	}
 	return intents
 }
 
-func handlesRouteFenceConfig(partitionID, partitionCount int) PartitionProcessorConfig {
-	return PartitionProcessorConfig{
+func handlesRouteFenceConfig(partitionID, partitionCount int) worker.PartitionProcessorConfig {
+	return worker.PartitionProcessorConfig{
 		Domain:         DomainHandlesRoute,
 		PartitionID:    partitionID,
 		PartitionCount: partitionCount,
@@ -249,7 +251,7 @@ func TestProcessPartitionOnceHandlesRouteFenceConverges(t *testing.T) {
 	for pass := 0; pass < partitionCount+2; pass++ {
 		progressed := false
 		for p := 0; p < partitionCount; p++ {
-			result, err := ProcessPartitionOnce(
+			result, err := worker.ProcessPartitionOnce(
 				context.Background(), now, handlesRouteFenceConfig(p, partitionCount),
 				lease, store, edges, acceptedGen, nil, readiness, nil, nil, store, nil,
 				nil,
@@ -286,7 +288,7 @@ func TestProcessPartitionOnceHandlesRouteFenceHoldsWritesBeforeRetract(t *testin
 	const repoID = "repo-b"
 
 	intents := handlesRouteRepoIntents(t, repoID, 3, partitionCount, now.Add(-time.Minute))
-	refreshPartition, err := PartitionForKey(repoWideRetractRefreshPartitionKey(DomainHandlesRoute, repoID), partitionCount)
+	refreshPartition, err := PartitionForKey(sharedintent.RepoWideRetractRefreshPartitionKey(DomainHandlesRoute, repoID), partitionCount)
 	if err != nil {
 		t.Fatalf("PartitionForKey: %v", err)
 	}
@@ -297,8 +299,8 @@ func TestProcessPartitionOnceHandlesRouteFenceHoldsWritesBeforeRetract(t *testin
 	acceptedGen := acceptedGenerationFixed("gen-1", true)
 	readiness := readinessLookupFixed(true, true)
 
-	process := func(p int) PartitionProcessResult {
-		result, procErr := ProcessPartitionOnce(
+	process := func(p int) worker.PartitionProcessResult {
+		result, procErr := worker.ProcessPartitionOnce(
 			context.Background(), now, handlesRouteFenceConfig(p, partitionCount),
 			lease, store, edges, acceptedGen, nil, readiness, nil, nil, store, nil,
 			nil,
@@ -364,7 +366,7 @@ func TestProcessPartitionOnceHandlesRouteNilFencePreservesLegacyBehavior(t *test
 	readiness := readinessLookupFixed(true, true)
 
 	for p := 0; p < partitionCount; p++ {
-		if _, err := ProcessPartitionOnce(
+		if _, err := worker.ProcessPartitionOnce(
 			context.Background(), now, handlesRouteFenceConfig(p, partitionCount),
 			lease, store, edges, acceptedGen, nil, readiness, nil, nil, nil, nil, nil, // nil fence → legacy path
 		); err != nil {
@@ -393,7 +395,7 @@ func TestProcessPartitionOnceHandlesRouteUnmarkedRowsDrainWhenFenceWired(t *test
 	// Pre-#2898 emission: per-edge rows with no marker and no refresh intent.
 	var intents []sharedintent.Row
 	for p := 0; p < partitionCount; p++ {
-		intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
+		intents = append(intents, sharedintent.Build(sharedintent.Input{
 			ProjectionDomain: DomainHandlesRoute,
 			PartitionKey:     partitionKeyForTestPartition(t, p, partitionCount, repoID+"-legacy-"+strconv.Itoa(p)),
 			ScopeID:          "scope-a",
@@ -413,7 +415,7 @@ func TestProcessPartitionOnceHandlesRouteUnmarkedRowsDrainWhenFenceWired(t *test
 
 	totalDeferred := 0
 	for p := 0; p < partitionCount; p++ {
-		result, err := ProcessPartitionOnce(
+		result, err := worker.ProcessPartitionOnce(
 			context.Background(), now, handlesRouteFenceConfig(p, partitionCount),
 			lease, store, edges, acceptedGen, nil, readiness, nil, nil, store, nil,
 			nil,

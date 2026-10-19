@@ -156,14 +156,14 @@ func (g *edgeGraph) RetractEdges(_ context.Context, _ string, rows []sharedinten
 	return nil
 }
 
-func (g *edgeGraph) WriteEdges(_ context.Context, _ string, rows []sharedintent.Row, _ string) (reducer.SharedProjectionWriteReport, error) {
+func (g *edgeGraph) WriteEdges(_ context.Context, _ string, rows []sharedintent.Row, _ string) (sharedintent.WriteReport, error) {
 	g.statements++
 	for _, row := range rows {
 		repoID, _ := row.Payload["repo_id"].(string)
 		deployID, _ := row.Payload["deployment_repo_id"].(string)
 		g.edges[repoID+"->"+deployID] = struct{}{}
 	}
-	return reducer.SharedProjectionWriteReport{}, nil
+	return sharedintent.WriteReport{}, nil
 }
 
 func (g *edgeGraph) sorted() []string {

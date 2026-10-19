@@ -74,9 +74,9 @@ func (w *inheritanceStateModelingEdgeWriter) WriteEdges(
 	_ string,
 	rows []sharedintent.Row,
 	_ string,
-) (SharedProjectionWriteReport, error) {
+) (sharedintent.WriteReport, error) {
 	for _, row := range rows {
-		repoID := sharedProjectionRowRepoID(row)
+		repoID := sharedintent.RowRepoID(row)
 		if repoID == "" {
 			continue
 		}
@@ -87,7 +87,7 @@ func (w *inheritanceStateModelingEdgeWriter) WriteEdges(
 		}
 		edges[inheritanceTestEdgeKey(row.Payload)] = payloadcore.AnyToString(row.Payload["child_path"])
 	}
-	return SharedProjectionWriteReport{}, nil
+	return sharedintent.WriteReport{}, nil
 }
 
 func (w *inheritanceStateModelingEdgeWriter) edgeKeys(repoID string) []string {
@@ -131,7 +131,7 @@ func inheritanceTestRepoIDs(rows []sharedintent.Row) []string {
 	seen := make(map[string]struct{}, len(rows))
 	var out []string
 	for _, row := range rows {
-		repoID := sharedProjectionRowRepoID(row)
+		repoID := sharedintent.RowRepoID(row)
 		if repoID == "" {
 			continue
 		}
@@ -144,8 +144,8 @@ func inheritanceTestRepoIDs(rows []sharedintent.Row) []string {
 	return out
 }
 
-func inheritanceFenceConfig(partitionID, partitionCount int) PartitionProcessorConfig {
-	return PartitionProcessorConfig{
+func inheritanceFenceConfig(partitionID, partitionCount int) worker.PartitionProcessorConfig {
+	return worker.PartitionProcessorConfig{
 		Domain:         reducercontract.DomainInheritanceEdges,
 		PartitionID:    partitionID,
 		PartitionCount: partitionCount,
@@ -363,7 +363,7 @@ func drainInheritanceInto(
 	for pass := 0; pass < partitionCount+2; pass++ {
 		progressed := false
 		for p := 0; p < partitionCount; p++ {
-			result, err := ProcessPartitionOnce(
+			result, err := worker.ProcessPartitionOnce(
 				context.Background(), now, inheritanceFenceConfig(p, partitionCount),
 				lease, store, edges, acceptedGen, nil, readiness, nil, nil, store, nil,
 				nil,

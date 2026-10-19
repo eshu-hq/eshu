@@ -11,6 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -146,7 +149,7 @@ func TestRepoDependencyInactiveAcceptedGenerationRowsAreCountedAndLogged(t *test
 			id, "scope-"+generationID, repoID, repoID, "run-"+generationID, generationID, now,
 			map[string]any{
 				"repo_id": repoID, "target_repo_id": target,
-				"relationship_type": "DEPENDS_ON", "evidence_source": defaultEvidenceSource,
+				"relationship_type": "DEPENDS_ON", "evidence_source": worker.DefaultEvidenceSource,
 			},
 		)
 	}
@@ -219,7 +222,7 @@ func runsOnRetiredGenerationFixture(
 			"repo_id":           repoID,
 			"platform_id":       "platform:kubernetes:none:cluster/prod:none:none",
 			"relationship_type": "RUNS_ON",
-			"evidence_source":   CrossRepoEvidenceSource,
+			"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 		},
 	)
 	reader := &fakeRepoDependencyIntentStore{

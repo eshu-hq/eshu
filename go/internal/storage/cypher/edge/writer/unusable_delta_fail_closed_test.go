@@ -171,7 +171,7 @@ func unusableDeltaCases() []unusableDeltaCase {
 func refreshIntentRows(rows []sharedintent.Row) []sharedintent.Row {
 	out := make([]sharedintent.Row, 0, 1)
 	for _, row := range rows {
-		if sourcecypher.PayloadString(row.Payload, "intent_type") == reducer.RepoRefreshIntentType {
+		if sourcecypher.PayloadString(row.Payload, "intent_type") == sharedintent.RepoRefreshIntentType {
 			out = append(out, row)
 		}
 	}

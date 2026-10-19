@@ -9,8 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+
 	"github.com/eshu-hq/eshu/go/internal/ifa"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
@@ -67,13 +68,13 @@ func TestRepoDependencyConcurrencyOduProducesHostileProductionIntents(t *testing
 		// Duplicate delivery is part of the hostile scenario. The production
 		// resolver must dedupe it before constructing durable intent identities.
 		sourceEvidence = append(sourceEvidence, sourceEvidence...)
-		handler := reducer.CrossRepoRelationshipHandler{
+		handler := crossrepo.CrossRepoRelationshipHandler{
 			EvidenceLoader: oduEvidenceLoader{evidence: sourceEvidence},
 			IntentWriter:   writer,
 		}
 		count, err := handler.Resolve(context.Background(), scopeID, generationID)
 		if err != nil {
-			t.Fatalf("CrossRepoRelationshipHandler.Resolve(%q) error = %v", source, err)
+			t.Fatalf("crossrepo.CrossRepoRelationshipHandler.Resolve(%q) error = %v", source, err)
 		}
 		totalCount += count
 	}

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -76,7 +78,7 @@ func TestCrossRepoResolutionDispatchesTypedRelationshipsIntoNeo4jWrites(t *testi
 
 	intentWriter := &recordingIntentWriter{}
 	executor := &recordingExecutor{}
-	handler := reducer.CrossRepoRelationshipHandler{
+	handler := crossrepo.CrossRepoRelationshipHandler{
 		EvidenceLoader: &fakeCrossRepoEvidenceLoader{facts: evidence},
 		IntentWriter:   intentWriter,
 	}

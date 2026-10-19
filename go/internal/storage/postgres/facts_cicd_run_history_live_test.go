@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -122,9 +124,9 @@ func TestCICDRunCorrelationArtifactPatchAgainstRealPostgres(t *testing.T) {
 			t.Fatalf("tombstone routing history = %#v, want %q", tombstoneRouting, factID)
 		}
 	}
-	handler := reducer.CICDRunCorrelationHandler{
+	handler := cicdrun.CICDRunCorrelationHandler{
 		FactLoader: store,
-		Writer: reducer.PostgresCICDRunCorrelationWriter{
+		Writer: cicdrun.PostgresCICDRunCorrelationWriter{
 			DB: SQLDB{DB: db},
 			Now: func() time.Time {
 				return time.Date(2026, time.August, 4, 12, 10, 0, 0, time.UTC)

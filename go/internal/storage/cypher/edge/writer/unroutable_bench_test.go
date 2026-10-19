@@ -15,7 +15,7 @@ import (
 // BenchmarkEdgeWriterUnroutableRowLoop isolates the row loop's not-routed
 // branch, which the repo-scale benchmarks cannot: in
 // BenchmarkEdgeWriterRepoDependencyWrite every row routes, so the added
-// reducer.CarriesNoEdge call and the drop counters are never reached, and any
+// sharedintent.CarriesNoEdge call and the drop counters are never reached, and any
 // regression in them would hide behind the Cypher-building and batching cost of
 // 5,000 routable rows.
 //

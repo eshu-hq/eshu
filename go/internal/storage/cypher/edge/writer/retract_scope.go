@@ -34,7 +34,7 @@ import (
 // (reducer/code/owners/scope.go), and the workload
 // dependency reconcile rows -- and none of them carries an intent_type,
 // because none of them came from a refresh intent. Requiring
-// reducer.RepoRefreshIntentType here empties the bound repo_ids for all of
+// sharedintent.RepoRefreshIntentType here empties the bound repo_ids for all of
 // them and every one of those retracts silently stops running, leaving stale
 // edges with no error and no dead letter. That is a worse failure than the
 // over-delete it would prevent: a retract that no longer fires is wrong graph
@@ -112,7 +112,7 @@ func collectRepoIDs(rows []sharedintent.Row) []string {
 // #6165 review F1: this function and its sibling collectDeltaProjectionRepoIDs
 // are not provably disjoint from each other's output by anything IN THIS FILE
 // -- neither collector is aware of the other's rows. They are disjoint today
-// only because of an UPSTREAM property: reducer.LatestIntentsByRepoAndPartition
+// only because of an UPSTREAM property: worker.LatestIntentsByRepoAndPartition
 // dedupes intents by (acceptance key, partition key), and every rationale
 // whole-scope refresh -- delta-flagged or not -- is emitted under the same
 // per-repository partition key (rationaleWholeScopePartitionKey, which carries
@@ -120,7 +120,7 @@ func collectRepoIDs(rows []sharedintent.Row) []string {
 // survives a batch.
 //
 // TWO upstream mechanisms carry that, not one, and BOTH must hold.
-// reducer.FilterAuthoritativeIntents runs first and keeps only rows matching the
+// worker.FilterAuthoritativeIntents runs first and keeps only rows matching the
 // accepted generation for their acceptance key, so every row that reaches dedup
 // for a repository already shares one (scope, unit, run) tuple; the shared
 // partition key then collapses that set to a single survivor. The shared
@@ -164,7 +164,7 @@ func collectWholeScopeRefreshRepoIDs(rows []sharedintent.Row) []string {
 		if sourcecypher.PayloadBool(row.Payload, "delta_projection") {
 			continue
 		}
-		if sourcecypher.PayloadString(row.Payload, "intent_type") != reducer.RepoRefreshIntentType {
+		if sourcecypher.PayloadString(row.Payload, "intent_type") != sharedintent.RepoRefreshIntentType {
 			continue
 		}
 		repoID := row.RepositoryID
@@ -414,7 +414,7 @@ func buildDocumentationDeltaRetractStatements(
 // Narrowing a domain without registering it here fails the same way.
 //
 // MISSING a row fails too, which it did not use to. The rows must be exactly the
-// domains reducer.RepoWideRetractDomains() returns, and
+// domains sharedintent.RepoWideRetractDomains() returns, and
 // TestWholeScopeRetractDomainsCoversFencedSet compares the two sets in both
 // directions -- an eighth fenced domain left out of this table would otherwise
 // re-introduce the #6166 over-delete with every test in that file green,

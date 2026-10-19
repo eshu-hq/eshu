@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 )
@@ -123,7 +125,7 @@ func loadRepoDependencyProjectionLeaseOwner(getenv func(string) string) string {
 
 func loadSharedProjectionLeaseOwner(getenv func(string) string) string {
 	return loadProcessUniqueProjectionLeaseOwner(
-		getenv, sharedProjectionLeaseOwnerEnv, reducer.DefaultSharedProjectionLeaseOwnerPrefix,
+		getenv, sharedProjectionLeaseOwnerEnv, worker.DefaultLeaseOwnerPrefix,
 	)
 }
 

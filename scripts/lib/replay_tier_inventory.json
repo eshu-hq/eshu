@@ -126,7 +126,7 @@
       ]
     },
     "go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go": {
-      "sha256": "d73ee2690052eb48f1033dc1c81ef530e165c5d60b84eedce729a59f77b360b2",
+      "sha256": "b7f4d58d1d6da1b8d80ce2a33653ee8c5e3604815b539e8fc4dad23920eb2406",
       "tests": [
         "TestReducerSQLRelationshipRetractGraphTruth"
       ]

@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -25,7 +27,7 @@ func TestRepoDependencyProjectionRunnerDefersRunsOnUntilWorkloadReady(t *testing
 			"repo_id":           repoID,
 			"platform_id":       "platform:kubernetes:none:cluster/prod:none:none",
 			"relationship_type": "RUNS_ON",
-			"evidence_source":   CrossRepoEvidenceSource,
+			"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 		},
 	)
 	sibling := repoDependencyIntentRow(
@@ -34,7 +36,7 @@ func TestRepoDependencyProjectionRunnerDefersRunsOnUntilWorkloadReady(t *testing
 			"repo_id":           repoID,
 			"target_repo_id":    "repo-target",
 			"relationship_type": "DEPENDS_ON",
-			"evidence_source":   CrossRepoEvidenceSource,
+			"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 		},
 	)
 	retractOnly := repoDependencyIntentRow(
@@ -42,7 +44,7 @@ func TestRepoDependencyProjectionRunnerDefersRunsOnUntilWorkloadReady(t *testing
 		map[string]any{
 			"action":          "retract",
 			"repo_id":         repoID,
-			"evidence_source": CrossRepoEvidenceSource,
+			"evidence_source": crossrepo.CrossRepoEvidenceSource,
 		},
 	)
 	reader := &fakeRepoDependencyIntentStore{
@@ -83,7 +85,7 @@ func TestRepoDependencyProjectionRunnerDefersRunsOnUntilWorkloadReady(t *testing
 				return workloadReady && key == wantReadinessKey, key == wantReadinessKey
 			}, nil
 		},
-		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			return "gen-1", key.AcceptanceUnitID == repoID
 		},
 		Config: RepoDependencyProjectionRunnerConfig{PollInterval: 10 * time.Millisecond},
@@ -190,7 +192,7 @@ func TestRepoDependencyProjectionRunnerRejectsUnschedulableRunsOnReplay(t *testi
 			"repo_id":           repoID,
 			"platform_id":       "platform:kubernetes:none:cluster/prod:none:none",
 			"relationship_type": "RUNS_ON",
-			"evidence_source":   CrossRepoEvidenceSource,
+			"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 		},
 	)
 	reader := &fakeRepoDependencyIntentStore{

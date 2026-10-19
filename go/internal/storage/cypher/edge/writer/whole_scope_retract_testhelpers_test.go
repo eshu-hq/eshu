@@ -8,7 +8,6 @@ import (
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -33,7 +32,7 @@ import (
 func wholeScopeRefreshPayload(repoID string) map[string]any {
 	return map[string]any{
 		"repo_id":     repoID,
-		"intent_type": reducer.RepoRefreshIntentType,
+		"intent_type": sharedintent.RepoRefreshIntentType,
 		"action":      "refresh",
 	}
 }

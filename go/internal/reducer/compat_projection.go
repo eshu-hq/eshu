@@ -27,7 +27,6 @@ package reducer
 // that file's header for its stanza list.
 
 import (
-	"context"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -37,8 +36,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/cleanup"
-	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
-	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secretsiam"
@@ -244,119 +241,20 @@ func mapSlice(value any) []map[string]any {
 // kept for the root's python_metaclass_materialization_test.go.
 const pythonMetaclassEvidenceSource = codecall.PythonMetaclassEvidenceSource
 
-// Stanza: shared-projection worker/runner plumbing (H5 root-remnant fold,
-// issue #6061; folds shared_projection_worker.go, shared_projection_runner.go,
-// shared_projection_config.go, shared_projection_partition_candidate.go,
-// shared_projection_batch_selection.go, selection_phase_durations.go, and
-// acceptance_observability.go). SelectPartitionBatch, PartitionBatchResult,
-// and filterRowsByReadiness were dropped, not folded: their only callers were
+// Stanza shared-projection worker/runner plumbing: fully retired (#6626
+// tail bucket 2). SelectPartitionBatch, PartitionBatchResult, and
+// filterRowsByReadiness were dropped, not folded: their only callers were
 // root test/production files, repointed to worker.SelectPartitionBatch/
-// worker.FilterRowsByReadiness directly (D12). Each remaining entry is
-// deleted once its last caller names [worker]/[sharedintent] directly.
+// worker.FilterRowsByReadiness directly (D12). Every remaining entry was
+// deleted once its last caller named [worker]/[sharedintent] directly.
+// The notes below are ledger.
 
 // maxSharedSelectionScanLimit mirrors [worker]'s unexported scan cap (const
-// aliases cannot cross packages to an unexported name).
+// aliases cannot cross packages to an unexported name). It stays: the
+// root's shared_projection_worker_test.go still reads it.
 const maxSharedSelectionScanLimit = 10_000
 
-// SharedProjectionEdgeWriter is the root spelling of [sharedintent.EdgeWriter].
-type SharedProjectionEdgeWriter = sharedintent.EdgeWriter
-
-// PartitionLeaseManager is the root spelling of [sharedintent.PartitionLeaseManager].
-type PartitionLeaseManager = sharedintent.PartitionLeaseManager
-
-// AcceptedGenerationLookup is the root spelling of [sharedintent.AcceptedGenerationLookup].
-type AcceptedGenerationLookup = sharedintent.AcceptedGenerationLookup
-
-// AcceptedGenerationPrefetch is the root spelling of [sharedintent.AcceptedGenerationPrefetch].
-type AcceptedGenerationPrefetch = sharedintent.AcceptedGenerationPrefetch
-
-// PartitionProcessorConfig is the root spelling of [worker.PartitionProcessorConfig].
-type PartitionProcessorConfig = worker.PartitionProcessorConfig
-
-// PartitionProcessResult is the root spelling of [worker.PartitionProcessResult].
-type PartitionProcessResult = worker.PartitionProcessResult
-
-// ProcessPartitionOnce forwards to [worker.ProcessPartitionOnce].
-func ProcessPartitionOnce(
-	ctx context.Context,
-	now time.Time,
-	cfg PartitionProcessorConfig,
-	leaseManager PartitionLeaseManager,
-	reader worker.IntentReader,
-	edgeWriter SharedProjectionEdgeWriter,
-	acceptedGen AcceptedGenerationLookup,
-	prefetch AcceptedGenerationPrefetch,
-	readinessLookup gpphase.ReadinessLookup,
-	readinessPrefetch gpphase.ReadinessPrefetch,
-	endpointPresence gpphase.EndpointPresenceLookup,
-	refreshFence worker.RefreshFenceLookup,
-	firstProjection FirstProjectionLookup,
-	unroutableWriter worker.UnroutableWriter,
-) (result PartitionProcessResult, retErr error) {
-	return worker.ProcessPartitionOnce(ctx, now, cfg, leaseManager, reader, edgeWriter, acceptedGen, prefetch, readinessLookup, readinessPrefetch, endpointPresence, refreshFence, firstProjection, unroutableWriter)
-}
-
-// The default* constants are root spellings of [worker]'s exported defaults.
-const (
-	defaultBatchLimit         = worker.DefaultBatchLimit
-	defaultSharedPollInterval = worker.DefaultPollInterval
-	defaultEvidenceSource     = worker.DefaultEvidenceSource
-)
-
-// DefaultSharedProjectionLeaseOwnerPrefix is the root spelling of
-// [worker.DefaultLeaseOwnerPrefix].
-const DefaultSharedProjectionLeaseOwnerPrefix = worker.DefaultLeaseOwnerPrefix
-
-// sharedProjectionDomains copies [worker.Domains]'s result once at init (no
-// cross-package var/const alias exists in Go).
-var sharedProjectionDomains = worker.Domains()
-
-// SharedProjectionRunnerConfig is the root spelling of [worker.RunnerConfig].
-type SharedProjectionRunnerConfig = worker.RunnerConfig
-
-// SharedProjectionRunner is the root spelling of [worker.Runner].
-type SharedProjectionRunner = worker.Runner
-
-// LoadSharedProjectionConfig forwards to [worker.LoadConfig].
-func LoadSharedProjectionConfig(getenv func(string) string) SharedProjectionRunnerConfig {
-	return worker.LoadConfig(getenv)
-}
-
-// SharedProjectionPartitionCandidateReader is the root spelling of
-// [worker.PartitionCandidateReader].
-type SharedProjectionPartitionCandidateReader = worker.PartitionCandidateReader
-
-// SharedProjectionUnhashedCandidateReader is the root spelling of
-// [worker.UnhashedCandidateReader].
-type SharedProjectionUnhashedCandidateReader = worker.UnhashedCandidateReader
-
-// LatestIntentsByRepoAndPartition forwards to [worker.LatestIntentsByRepoAndPartition].
-func LatestIntentsByRepoAndPartition(intents []sharedintent.Row) ([]sharedintent.Row, []string) {
-	return worker.LatestIntentsByRepoAndPartition(intents)
-}
-
-// FilterAuthoritativeIntents forwards to [worker.FilterAuthoritativeIntents].
-func FilterAuthoritativeIntents(
-	intents []sharedintent.Row,
-	acceptedGen AcceptedGenerationLookup,
-) (active []sharedintent.Row, staleIDs []string) {
-	return worker.FilterAuthoritativeIntents(intents, acceptedGen)
-}
-
-// sharedAcceptanceLookupEvent is the root spelling of [worker.AcceptanceLookupEvent].
-type sharedAcceptanceLookupEvent = worker.AcceptanceLookupEvent
-
-// sharedAcceptanceTelemetry is the root spelling of [worker.AcceptanceTelemetry].
-type sharedAcceptanceTelemetry = worker.AcceptanceTelemetry
-
-// Stanza: repo-wide-retract refresh fence (H5 root-remnant fold, #6061).
-// RepoRefreshIntentType is a storage/cypher wire contract (#5998).
-const (
-	UnroutableReasonMissingRequiredField = sharedintent.UnroutableReasonMissingRequiredField
-	UnroutableReasonNoStatementForType   = sharedintent.UnroutableReasonNoStatementForType
-	RepoRefreshIntentType                = sharedintent.RepoRefreshIntentType
-	repoRefreshAction                    = sharedintent.RepoRefreshAction
-	retractViaRefreshKey                 = sharedintent.RetractViaRefreshKey
-)
-
-func RepoWideRetractDomains() []string { return sharedintent.RepoWideRetractDomains() }
+// Stanza repo-wide-retract refresh fence: fully retired (#6626 tail
+// bucket 2). RepoRefreshIntentType is a storage/cypher wire contract
+// (#5998); every caller now names [sharedintent] directly. The notes below
+// are ledger.

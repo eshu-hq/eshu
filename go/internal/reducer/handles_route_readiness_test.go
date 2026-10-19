@@ -40,13 +40,13 @@ func TestHandlesRouteDomainIsDrainedBySharedProjectionRunner(t *testing.T) {
 	t.Parallel()
 
 	found := false
-	for _, domain := range sharedProjectionDomains {
+	for _, domain := range worker.Domains() {
 		if domain == DomainHandlesRoute {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Fatalf("DomainHandlesRoute must be enumerated in sharedProjectionDomains so it is drained")
+		t.Fatalf("DomainHandlesRoute must be enumerated in worker.Domains() so it is drained")
 	}
 }

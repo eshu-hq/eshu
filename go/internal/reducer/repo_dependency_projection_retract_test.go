@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -27,7 +29,7 @@ func TestRepoDependencyProjectionRunnerProcessesRetractOnlyIntent(t *testing.T) 
 		map[string]any{
 			"repo_id":         repoID,
 			"action":          "retract",
-			"evidence_source": CrossRepoEvidenceSource,
+			"evidence_source": crossrepo.CrossRepoEvidenceSource,
 			"generation_id":   "gen-removed-evidence",
 		},
 	)
@@ -61,7 +63,7 @@ func TestRepoDependencyProjectionRunnerProcessesRetractOnlyIntent(t *testing.T) 
 	if len(writer.retractCalls) != 1 {
 		t.Fatalf("retract calls = %d, want 1", len(writer.retractCalls))
 	}
-	if got, want := writer.retractCalls[0].evidenceSource, CrossRepoEvidenceSource; got != want {
+	if got, want := writer.retractCalls[0].evidenceSource, crossrepo.CrossRepoEvidenceSource; got != want {
 		t.Fatalf("retract evidence source = %q, want %q", got, want)
 	}
 	if got, want := writer.retractCalls[0].rows[0].RepositoryID, repoID; got != want {
@@ -93,7 +95,7 @@ func TestRepoDependencyProjectionRunnerRetractsThenRewritesSurvivingEvidence(t *
 			"repo_id":           repoID,
 			"target_repo_id":    "repository:r_removed",
 			"relationship_type": "DEPLOYS_FROM",
-			"evidence_source":   CrossRepoEvidenceSource,
+			"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 		},
 	)
 	oldRemoved.CompletedAt = &oldCompletedAt
@@ -109,7 +111,7 @@ func TestRepoDependencyProjectionRunnerRetractsThenRewritesSurvivingEvidence(t *
 			"repo_id":           repoID,
 			"target_repo_id":    "repository:r_survivor",
 			"relationship_type": "DISCOVERS_CONFIG_IN",
-			"evidence_source":   CrossRepoEvidenceSource,
+			"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 		},
 	)
 	oldSurvivor.CompletedAt = &oldCompletedAt
@@ -125,7 +127,7 @@ func TestRepoDependencyProjectionRunnerRetractsThenRewritesSurvivingEvidence(t *
 			"repo_id":           repoID,
 			"target_repo_id":    "repository:r_survivor",
 			"relationship_type": "DISCOVERS_CONFIG_IN",
-			"evidence_source":   CrossRepoEvidenceSource,
+			"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 		},
 	)
 	reader := &fakeRepoDependencyIntentStore{

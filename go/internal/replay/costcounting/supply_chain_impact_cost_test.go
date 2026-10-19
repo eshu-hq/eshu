@@ -9,10 +9,11 @@ import (
 	"testing"
 	"time"
 
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -38,9 +39,9 @@ const supplyChainImpactCostIntentID = "intent-supply-chain-impact-cost"
 // transaction with a conflict-domain lock before it and a superseded-finding
 // retraction after it (and #7142 adds a fencing-token admission step), so one pass costs
 // exactly four statements: lock, admission, insert, retraction.
-func supplyChainImpactFixtureFindings() []reducer.SupplyChainImpactFinding {
-	row := func(id string) reducer.SupplyChainImpactFinding {
-		return reducer.SupplyChainImpactFinding{
+func supplyChainImpactFixtureFindings() []supplychaincore.SupplyChainImpactFinding {
+	row := func(id string) supplychaincore.SupplyChainImpactFinding {
+		return supplychaincore.SupplyChainImpactFinding{
 			CVEID:           "CVE-2026-" + id,
 			AdvisoryID:      "GHSA-" + id,
 			PackageID:       "npm:left-pad@" + id,
@@ -48,12 +49,12 @@ func supplyChainImpactFixtureFindings() []reducer.SupplyChainImpactFinding {
 			PackageName:     "left-pad",
 			PURL:            "pkg:npm/left-pad@" + id,
 			ObservedVersion: "1.0." + id,
-			Status:          reducer.SupplyChainImpactAffectedExact,
+			Status:          supplychaincore.SupplyChainImpactAffectedExact,
 			RepositoryID:    "repo:team-api",
 			CanonicalWrites: 1,
 		}
 	}
-	return []reducer.SupplyChainImpactFinding{row("1"), row("2")}
+	return []supplychaincore.SupplyChainImpactFinding{row("1"), row("2")}
 }
 
 // TestCostBudget_SupplyChainImpact is the positive cost-counting gate for the
@@ -77,12 +78,12 @@ func TestCostBudget_SupplyChainImpact(t *testing.T) {
 	budget := loadBudgetFrom(t, supplyChainImpactBudgetRelPath)
 	fake := &postgresExecCountingQueryer{}
 	db, reader := newSupplyChainImpactInstrumentedDB(t, fake)
-	writer := reducer.PostgresSupplyChainImpactWriter{
+	writer := supplychaincore.PostgresSupplyChainImpactWriter{
 		DB:  postgres.SupplyChainImpactBeginner{Beginner: db},
 		Now: func() time.Time { return time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC) },
 	}
 
-	result, err := writer.WriteSupplyChainImpactFindings(context.Background(), reducer.SupplyChainImpactWrite{
+	result, err := writer.WriteSupplyChainImpactFindings(context.Background(), supplychaincore.SupplyChainImpactWrite{
 		IntentID:     supplyChainImpactCostIntentID,
 		ScopeID:      "repo:team-api",
 		GenerationID: "generation-supply-chain-impact-cost",
@@ -156,20 +157,20 @@ func TestCostBudget_SupplyChainImpact_N1_ExceedsBudget(t *testing.T) {
 
 	fake := &postgresExecCountingQueryer{}
 	db, reader := newSupplyChainImpactInstrumentedDB(t, fake)
-	writer := reducer.PostgresSupplyChainImpactWriter{
+	writer := supplychaincore.PostgresSupplyChainImpactWriter{
 		DB:  postgres.SupplyChainImpactBeginner{Beginner: db},
 		Now: func() time.Time { return time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC) },
 	}
 
 	for i, finding := range findings {
-		if _, err := writer.WriteSupplyChainImpactFindings(context.Background(), reducer.SupplyChainImpactWrite{
+		if _, err := writer.WriteSupplyChainImpactFindings(context.Background(), supplychaincore.SupplyChainImpactWrite{
 			IntentID:     supplyChainImpactCostIntentID,
 			ScopeID:      "repo:team-api",
 			GenerationID: "generation-supply-chain-impact-cost",
 			SourceSystem: "github_dependabot",
 			Cause:        "reducer/supply_chain_impact",
 			FencingToken: int64(i + 1),
-			Findings:     []reducer.SupplyChainImpactFinding{finding},
+			Findings:     []supplychaincore.SupplyChainImpactFinding{finding},
 		}); err != nil {
 			t.Fatalf("N+1 WriteSupplyChainImpactFindings() error = %v", err)
 		}

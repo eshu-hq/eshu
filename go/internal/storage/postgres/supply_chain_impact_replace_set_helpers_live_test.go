@@ -9,16 +9,17 @@ import (
 	"testing"
 	"time"
 
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 var replaceSetLiveNow = time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC)
 
 // replaceSetWriter builds the production writer over the live isolated schema.
-func replaceSetWriter(db *sql.DB) reducer.PostgresSupplyChainImpactWriter {
-	return reducer.PostgresSupplyChainImpactWriter{
+func replaceSetWriter(db *sql.DB) supplychaincore.PostgresSupplyChainImpactWriter {
+	return supplychaincore.PostgresSupplyChainImpactWriter{
 		DB:  postgres.SupplyChainImpactBeginner{Beginner: postgres.SQLDB{DB: db}},
 		Now: func() time.Time { return replaceSetLiveNow },
 	}

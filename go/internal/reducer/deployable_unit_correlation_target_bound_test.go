@@ -54,9 +54,9 @@ func (w *failingDeployableUnitEdgeWriter) WriteEdges(
 	domain string,
 	rows []sharedintent.Row,
 	evidenceSource string,
-) (SharedProjectionWriteReport, error) {
+) (sharedintent.WriteReport, error) {
 	_, _ = w.recordingDeployableUnitEdgeWriter.WriteEdges(ctx, domain, rows, evidenceSource)
-	return SharedProjectionWriteReport{}, w.writeErr
+	return sharedintent.WriteReport{}, w.writeErr
 }
 
 // handleDeployableUnitWithWriteErr runs the real handler over one admitted

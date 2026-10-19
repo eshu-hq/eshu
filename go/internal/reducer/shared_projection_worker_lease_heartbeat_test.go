@@ -9,11 +9,13 @@ import (
 	"testing"
 	"time"
 
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestProcessPartitionOnceHeartbeatsLeaseDuringSlowWrite reproduces #4449:
-// ProcessPartitionOnce claims a partition lease once and holds it passively
+// worker.ProcessPartitionOnce claims a partition lease once and holds it passively
 // through selection/retract/edge-write/mark-completed with no renewal. A
 // slow backend or large partition whose processing exceeds the lease TTL can
 // let the lease be reclaimed by another worker while the original holder is
@@ -66,7 +68,7 @@ func TestProcessPartitionOnceHeartbeatsLeaseDuringSlowWrite(t *testing.T) {
 
 	lookup := acceptedGenerationFixed("gen-1", true)
 
-	cfg := PartitionProcessorConfig{
+	cfg := worker.PartitionProcessorConfig{
 		Domain:         "platform_infra",
 		PartitionID:    0,
 		PartitionCount: 1,
@@ -80,17 +82,17 @@ func TestProcessPartitionOnceHeartbeatsLeaseDuringSlowWrite(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		_, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil, nil)
+		_, err := worker.ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil, nil)
 		done <- err
 	}()
 
 	select {
 	case err := <-done:
 		if err != nil {
-			t.Fatalf("ProcessPartitionOnce() error = %v", err)
+			t.Fatalf("worker.ProcessPartitionOnce() error = %v", err)
 		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("ProcessPartitionOnce did not complete: no lease renewal observed while the edge write was blocked, partition lease is not heartbeated")
+		t.Fatal("worker.ProcessPartitionOnce did not complete: no lease renewal observed while the edge write was blocked, partition lease is not heartbeated")
 	}
 
 	if got := lease.renewCalls(); got < 1 {
@@ -103,7 +105,7 @@ func TestProcessPartitionOnceHeartbeatsLeaseDuringSlowWrite(t *testing.T) {
 
 // TestProcessPartitionOnceReleasesLeaseWithLiveContext reproduces a bug
 // introduced by the #4449 heartbeat fix itself (flagged in PR #4524 review):
-// ProcessPartitionOnce reassigns its ctx variable to the heartbeat-derived
+// worker.ProcessPartitionOnce reassigns its ctx variable to the heartbeat-derived
 // leaseCtx, and the deferred ReleasePartitionLease call closes over that
 // same ctx variable. stopHeartbeat() cancels leaseCtx before the deferred
 // release runs, so the release call was handed an already-cancelled
@@ -144,7 +146,7 @@ func TestProcessPartitionOnceReleasesLeaseWithLiveContext(t *testing.T) {
 	edges := &stubEdgeWriter{}
 	lookup := acceptedGenerationFixed("gen-1", true)
 
-	cfg := PartitionProcessorConfig{
+	cfg := worker.PartitionProcessorConfig{
 		Domain:         "platform_infra",
 		PartitionID:    0,
 		PartitionCount: 1,
@@ -153,8 +155,8 @@ func TestProcessPartitionOnceReleasesLeaseWithLiveContext(t *testing.T) {
 		BatchLimit:     100,
 	}
 
-	if _, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil, nil); err != nil {
-		t.Fatalf("ProcessPartitionOnce() error = %v", err)
+	if _, err := worker.ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil, nil); err != nil {
+		t.Fatalf("worker.ProcessPartitionOnce() error = %v", err)
 	}
 
 	if lease.releaseCtxErr != nil {
@@ -241,11 +243,11 @@ func (s *slowEdgeWriter) RetractEdges(_ context.Context, _ string, _ []sharedint
 	return nil
 }
 
-func (s *slowEdgeWriter) WriteEdges(ctx context.Context, _ string, _ []sharedintent.Row, _ string) (SharedProjectionWriteReport, error) {
+func (s *slowEdgeWriter) WriteEdges(ctx context.Context, _ string, _ []sharedintent.Row, _ string) (sharedintent.WriteReport, error) {
 	select {
 	case <-s.writeBlock:
-		return SharedProjectionWriteReport{}, nil
+		return sharedintent.WriteReport{}, nil
 	case <-ctx.Done():
-		return SharedProjectionWriteReport{}, ctx.Err()
+		return sharedintent.WriteReport{}, ctx.Err()
 	}
 }

@@ -19,7 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// EdgeWriter implements reducer.SharedProjectionEdgeWriter by dispatching
+// EdgeWriter implements sharedintent.EdgeWriter by dispatching
 // domain-specific canonical Cypher statements through an Executor.
 // Writes are batched using UNWIND for efficiency.
 type EdgeWriter struct {
@@ -145,19 +145,19 @@ func (w *EdgeWriter) WriteEdges(
 	domain string,
 	rows []sharedintent.Row,
 	evidenceSource string,
-) (reducer.SharedProjectionWriteReport, error) {
+) (sharedintent.WriteReport, error) {
 	if len(rows) == 0 {
-		return reducer.SharedProjectionWriteReport{}, nil
+		return sharedintent.WriteReport{}, nil
 	}
 	if w.executor == nil {
-		return reducer.SharedProjectionWriteReport{}, fmt.Errorf("edge writer executor is required")
+		return sharedintent.WriteReport{}, fmt.Errorf("edge writer executor is required")
 	}
 	if _, err := batchCypherForDomain(domain); err != nil {
-		return reducer.SharedProjectionWriteReport{}, err
+		return sharedintent.WriteReport{}, err
 	}
 	if domain == reducer.DomainRepoDependency {
 		if err := validateRepoDependencySourceRows(rows, evidenceSource); err != nil {
-			return reducer.SharedProjectionWriteReport{}, err
+			return sharedintent.WriteReport{}, err
 		}
 	}
 
@@ -167,21 +167,21 @@ func (w *EdgeWriter) WriteEdges(
 	artifactRouteOrder := make([]string, 0, 2)
 	droppedRows := 0
 	sampleDroppedIntentID := ""
-	var unroutable []reducer.SharedProjectionUnroutableRow
+	var unroutable []sharedintent.UnroutableRow
 	for _, row := range rows {
 		cypher, rowMap, ok := buildRowMap(domain, row, evidenceSource)
 		if !ok {
 			// A control row (a repo refresh whose job is the repo-wide retract)
 			// has no edge to write by design, so it is not a dropped edge. Only
 			// a row that was meant to become an edge counts here.
-			if reducer.CarriesNoEdge(row) {
+			if sharedintent.CarriesNoEdge(row) {
 				continue
 			}
 			droppedRows++
 			if sampleDroppedIntentID == "" {
 				sampleDroppedIntentID = row.IntentID
 			}
-			unroutable = append(unroutable, reducer.SharedProjectionUnroutableRow{
+			unroutable = append(unroutable, sharedintent.UnroutableRow{
 				IntentID:         row.IntentID,
 				ProjectionDomain: domain,
 				PartitionKey:     row.PartitionKey,
@@ -215,7 +215,7 @@ func (w *EdgeWriter) WriteEdges(
 	if droppedRows > 0 {
 		w.reportUnroutableRows(ctx, domain, evidenceSource, len(rows), droppedRows, sampleDroppedIntentID, len(routedRows) == 0)
 	}
-	report := reducer.SharedProjectionWriteReport{UnroutableRows: unroutable}
+	report := sharedintent.WriteReport{UnroutableRows: unroutable}
 	if len(routedRows) == 0 {
 		// Nothing routed. This is NOT an error: buildRowMap decides from the
 		// persisted payload, so a rejected row is rejected identically on

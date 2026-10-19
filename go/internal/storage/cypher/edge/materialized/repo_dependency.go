@@ -30,7 +30,7 @@ import (
 //
 // RUNS_ON HAS TWO LIVE WRITERS and the type alone does not identify this
 // family's edges. The cross-repo resolver reaches it through buildRowMap ->
-// BatchCanonicalRunsOnUpsertCypher stamped reducer.CrossRepoEvidenceSource,
+// BatchCanonicalRunsOnUpsertCypher stamped crossrepo.CrossRepoEvidenceSource,
 // while workload materialization writes the identical shape
 // (workload_materializer.go) stamped reducer.EvidenceSourceWorkloads. Endpoint
 // labels are identical on both, so endpoints.go partitions

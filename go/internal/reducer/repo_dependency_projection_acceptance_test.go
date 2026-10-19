@@ -10,6 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -26,7 +29,7 @@ func TestRepoDependencyProjectionRunnerProcessesSourceRepoOwnedAcceptance(t *tes
 					"repo_id":           repoID,
 					"target_repo_id":    "repository:r_old",
 					"relationship_type": "DEPENDS_ON",
-					"evidence_source":   CrossRepoEvidenceSource,
+					"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 				},
 			),
 			repoDependencyIntentRow(
@@ -35,7 +38,7 @@ func TestRepoDependencyProjectionRunnerProcessesSourceRepoOwnedAcceptance(t *tes
 					"repo_id":           repoID,
 					"target_repo_id":    "repository:r_target_1",
 					"relationship_type": "DEPENDS_ON",
-					"evidence_source":   CrossRepoEvidenceSource,
+					"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 				},
 			),
 			repoDependencyIntentRow(
@@ -44,7 +47,7 @@ func TestRepoDependencyProjectionRunnerProcessesSourceRepoOwnedAcceptance(t *tes
 					"repo_id":           repoID,
 					"target_repo_id":    "repository:r_target_2",
 					"relationship_type": "DEPLOYS_FROM",
-					"evidence_source":   CrossRepoEvidenceSource,
+					"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 				},
 			),
 			repoDependencyIntentRow(
@@ -53,7 +56,7 @@ func TestRepoDependencyProjectionRunnerProcessesSourceRepoOwnedAcceptance(t *tes
 					"repo_id":           "repository:r_repo_b",
 					"target_repo_id":    "repository:r_target_3",
 					"relationship_type": "DEPENDS_ON",
-					"evidence_source":   CrossRepoEvidenceSource,
+					"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 				},
 			),
 		},
@@ -65,7 +68,7 @@ func TestRepoDependencyProjectionRunnerProcessesSourceRepoOwnedAcceptance(t *tes
 						"repo_id":           repoID,
 						"target_repo_id":    "repository:r_old",
 						"relationship_type": "DEPENDS_ON",
-						"evidence_source":   CrossRepoEvidenceSource,
+						"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 					},
 				),
 				repoDependencyIntentRow(
@@ -74,7 +77,7 @@ func TestRepoDependencyProjectionRunnerProcessesSourceRepoOwnedAcceptance(t *tes
 						"repo_id":           repoID,
 						"target_repo_id":    "repository:r_target_1",
 						"relationship_type": "DEPENDS_ON",
-						"evidence_source":   CrossRepoEvidenceSource,
+						"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 					},
 				),
 				repoDependencyIntentRow(
@@ -83,7 +86,7 @@ func TestRepoDependencyProjectionRunnerProcessesSourceRepoOwnedAcceptance(t *tes
 						"repo_id":           repoID,
 						"target_repo_id":    "repository:r_target_2",
 						"relationship_type": "DEPLOYS_FROM",
-						"evidence_source":   CrossRepoEvidenceSource,
+						"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 					},
 				),
 			},
@@ -96,7 +99,7 @@ func TestRepoDependencyProjectionRunnerProcessesSourceRepoOwnedAcceptance(t *tes
 		LeaseManager:       reader,
 		AcceptanceUnitGate: reader,
 		EdgeWriter:         writer,
-		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			switch {
 			case key.ScopeID == "scope-a" && key.AcceptanceUnitID == repoID && key.SourceRunID == "run-1":
 				return "gen-current", true
@@ -124,7 +127,7 @@ func TestRepoDependencyProjectionRunnerProcessesSourceRepoOwnedAcceptance(t *tes
 	if len(writer.retractCalls) != 1 {
 		t.Fatalf("len(retractCalls) = %d, want 1", len(writer.retractCalls))
 	}
-	if got, want := writer.retractCalls[0].evidenceSource, CrossRepoEvidenceSource; got != want {
+	if got, want := writer.retractCalls[0].evidenceSource, crossrepo.CrossRepoEvidenceSource; got != want {
 		t.Fatalf("retract evidenceSource = %q, want %q", got, want)
 	}
 	if len(writer.retractCalls[0].rows) != 1 {
@@ -161,7 +164,7 @@ func TestRepoDependencyProjectionRunnerHeartbeatsLongGraphWrite(t *testing.T) {
 					"repo_id":           repoID,
 					"target_repo_id":    "repository:r_target",
 					"relationship_type": "DEPLOYS_FROM",
-					"evidence_source":   CrossRepoEvidenceSource,
+					"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 				},
 			),
 		},
@@ -173,7 +176,7 @@ func TestRepoDependencyProjectionRunnerHeartbeatsLongGraphWrite(t *testing.T) {
 						"repo_id":           repoID,
 						"target_repo_id":    "repository:r_target",
 						"relationship_type": "DEPLOYS_FROM",
-						"evidence_source":   CrossRepoEvidenceSource,
+						"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 					},
 				),
 			},
@@ -196,13 +199,13 @@ func TestRepoDependencyProjectionRunnerHeartbeatsLongGraphWrite(t *testing.T) {
 	}
 
 	resultCh := make(chan struct {
-		result PartitionProcessResult
+		result worker.PartitionProcessResult
 		err    error
 	}, 1)
 	go func() {
 		result, err := runner.processOnce(context.Background(), now)
 		resultCh <- struct {
-			result PartitionProcessResult
+			result worker.PartitionProcessResult
 			err    error
 		}{result: result, err: err}
 	}()
@@ -242,7 +245,7 @@ func TestRepoDependencyProjectionRunnerRetractsPerEvidenceSourceAndSkipsRetractR
 					"repo_id":           repoID,
 					"target_repo_id":    "repository:r_target_1",
 					"relationship_type": "DEPENDS_ON",
-					"evidence_source":   CrossRepoEvidenceSource,
+					"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 				},
 			),
 		},
@@ -254,7 +257,7 @@ func TestRepoDependencyProjectionRunnerRetractsPerEvidenceSourceAndSkipsRetractR
 						"repo_id":           repoID,
 						"target_repo_id":    "repository:r_target_1",
 						"relationship_type": "DEPENDS_ON",
-						"evidence_source":   CrossRepoEvidenceSource,
+						"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 					},
 				),
 				repoDependencyIntentRow(
@@ -263,7 +266,7 @@ func TestRepoDependencyProjectionRunnerRetractsPerEvidenceSourceAndSkipsRetractR
 						"repo_id":           repoID,
 						"target_repo_id":    "repository:r_target_2",
 						"relationship_type": "DEPENDS_ON",
-						"evidence_source":   defaultEvidenceSource,
+						"evidence_source":   worker.DefaultEvidenceSource,
 						"action":            "retract",
 					},
 				),
@@ -277,7 +280,7 @@ func TestRepoDependencyProjectionRunnerRetractsPerEvidenceSourceAndSkipsRetractR
 		LeaseManager:       reader,
 		AcceptanceUnitGate: reader,
 		EdgeWriter:         writer,
-		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			switch key.SourceRunID {
 			case "run-1":
 				return "gen-1", true
@@ -299,7 +302,7 @@ func TestRepoDependencyProjectionRunnerRetractsPerEvidenceSourceAndSkipsRetractR
 	}
 	gotSources := []string{writer.retractCalls[0].evidenceSource, writer.retractCalls[1].evidenceSource}
 	sort.Strings(gotSources)
-	wantSources := []string{CrossRepoEvidenceSource, defaultEvidenceSource}
+	wantSources := []string{crossrepo.CrossRepoEvidenceSource, worker.DefaultEvidenceSource}
 	sort.Strings(wantSources)
 	if got, want := gotSources, wantSources; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("retract sources = %v, want %v", gotSources, wantSources)
@@ -327,7 +330,7 @@ func TestRepoDependencyProjectionRunnerRehydratesCompletedContributorRows(t *tes
 			"repo_id":           repoID,
 			"target_repo_id":    "repository:r_target_old",
 			"relationship_type": "DEPENDS_ON",
-			"evidence_source":   CrossRepoEvidenceSource,
+			"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 		},
 	)
 	completedContributor.CompletedAt = &completedAt
@@ -340,7 +343,7 @@ func TestRepoDependencyProjectionRunnerRehydratesCompletedContributorRows(t *tes
 					"repo_id":           repoID,
 					"target_repo_id":    "repository:r_target_new",
 					"relationship_type": "DEPLOYS_FROM",
-					"evidence_source":   CrossRepoEvidenceSource,
+					"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 				},
 			),
 		},
@@ -353,7 +356,7 @@ func TestRepoDependencyProjectionRunnerRehydratesCompletedContributorRows(t *tes
 						"repo_id":           repoID,
 						"target_repo_id":    "repository:r_target_new",
 						"relationship_type": "DEPLOYS_FROM",
-						"evidence_source":   CrossRepoEvidenceSource,
+						"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 					},
 				),
 			},
@@ -366,7 +369,7 @@ func TestRepoDependencyProjectionRunnerRehydratesCompletedContributorRows(t *tes
 		LeaseManager:       reader,
 		AcceptanceUnitGate: reader,
 		EdgeWriter:         writer,
-		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			switch key.SourceRunID {
 			case "run-old":
 				return "gen-old", true

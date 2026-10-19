@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/recovery"
@@ -401,7 +403,7 @@ func TestRefinalizeRebuildResetClearsSharedProjectionAcceptanceForAffectedGenera
 
 	scopeRun := "repo_dependency:" + scopeID
 	seedRefinalizeResetAcceptance(t, ctx, database, scopeID, "unit-scope", scopeRun, activeGeneration, now)
-	seedRefinalizeResetAcceptance(t, ctx, database, scopeID, "unit-resolver", reducer.CrossRepoEvidenceSource, activeGeneration, now)
+	seedRefinalizeResetAcceptance(t, ctx, database, scopeID, "unit-resolver", crossrepo.CrossRepoEvidenceSource, activeGeneration, now)
 	seedRefinalizeResetAcceptance(t, ctx, database, scopeID, "unit-retired", scopeRun, retiredGeneration, now)
 	seedRefinalizeResetAcceptance(t, ctx, database, outScopeID, "unit-outside", scopeRun, outActiveGeneration, now)
 
@@ -418,7 +420,7 @@ func TestRefinalizeRebuildResetClearsSharedProjectionAcceptanceForAffectedGenera
 
 	for name, key := range map[string][3]string{
 		"scope-generation source run": {"unit-scope", scopeRun, ""},
-		"resolver source run":         {"unit-resolver", reducer.CrossRepoEvidenceSource, ""},
+		"resolver source run":         {"unit-resolver", crossrepo.CrossRepoEvidenceSource, ""},
 	} {
 		if got, ok := refinalizeResetAcceptedGeneration(t, ctx, database, scopeID, key[0], key[1]); ok {
 			t.Fatalf("%s acceptance still points at %q after refinalize; "+

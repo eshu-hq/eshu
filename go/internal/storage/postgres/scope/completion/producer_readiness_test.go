@@ -9,6 +9,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
 
@@ -137,7 +139,7 @@ func TestCrossScopeProducerCollectorKindsForResolvesEveryCatalogConsumer(t *test
 // outside and only this distinction catches the drop.
 func readinessFor(
 	t *testing.T,
-	readiness reducer.CrossScopeProducerReadinessByDomain,
+	readiness crossscope.ProducerReadinessByDomain,
 	producer reducercontract.Domain,
 ) bool {
 	t.Helper()

@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -82,7 +84,7 @@ func TestProcessPartitionOnceHeartbeatKeepsLeaseAliveAgainstPostgres(t *testing.
 		t.Fatalf("create proof schema tables: %v", err)
 	}
 
-	store := reducer.PartitionLeaseManager(NewSharedIntentStore(SQLDB{DB: db}))
+	store := sharedintent.PartitionLeaseManager(NewSharedIntentStore(SQLDB{DB: db}))
 
 	const domain = "platform_infra"
 	const originalOwner = "worker-original"
@@ -123,9 +125,9 @@ func TestProcessPartitionOnceHeartbeatKeepsLeaseAliveAgainstPostgres(t *testing.
 
 	edges := &postgresProofSlowEdgeWriter{writeBlock: unblockWrite}
 	reader := &postgresProofEmptyIntentReader{}
-	lookup := func(reducer.SharedProjectionAcceptanceKey) (string, bool) { return "gen-1", true }
+	lookup := func(sharedintent.AcceptanceKey) (string, bool) { return "gen-1", true }
 
-	cfg := reducer.PartitionProcessorConfig{
+	cfg := worker.PartitionProcessorConfig{
 		Domain:         domain,
 		PartitionID:    0,
 		PartitionCount: 1,
@@ -140,7 +142,7 @@ func TestProcessPartitionOnceHeartbeatKeepsLeaseAliveAgainstPostgres(t *testing.
 
 	processDone := make(chan error, 1)
 	go func() {
-		_, procErr := reducer.ProcessPartitionOnce(
+		_, procErr := worker.ProcessPartitionOnce(
 			ctx, time.Now().UTC(), cfg, store, reader, edges,
 			lookup, nil, nil, nil, nil, nil, nil,
 			nil,
@@ -228,7 +230,7 @@ func TestProcessPartitionOnceReleasesLeaseRowAfterNormalCycleAgainstPostgres(t *
 		t.Fatalf("create proof schema tables: %v", err)
 	}
 
-	store := reducer.PartitionLeaseManager(NewSharedIntentStore(SQLDB{DB: db}))
+	store := sharedintent.PartitionLeaseManager(NewSharedIntentStore(SQLDB{DB: db}))
 
 	const domain = "platform_infra"
 	const owner = "worker-release-proof"
@@ -236,9 +238,9 @@ func TestProcessPartitionOnceReleasesLeaseRowAfterNormalCycleAgainstPostgres(t *
 
 	edges := &postgresProofSlowEdgeWriter{writeBlock: closedChan()}
 	reader := &postgresProofEmptyIntentReader{}
-	lookup := func(reducer.SharedProjectionAcceptanceKey) (string, bool) { return "gen-1", true }
+	lookup := func(sharedintent.AcceptanceKey) (string, bool) { return "gen-1", true }
 
-	cfg := reducer.PartitionProcessorConfig{
+	cfg := worker.PartitionProcessorConfig{
 		Domain:         domain,
 		PartitionID:    0,
 		PartitionCount: 1,
@@ -249,7 +251,7 @@ func TestProcessPartitionOnceReleasesLeaseRowAfterNormalCycleAgainstPostgres(t *
 
 	seedProofIntent(t, db, ctx)
 
-	if _, err := reducer.ProcessPartitionOnce(
+	if _, err := worker.ProcessPartitionOnce(
 		ctx, time.Now().UTC(), cfg, store, reader, edges,
 		lookup, nil, nil, nil, nil, nil, nil,
 		nil,
@@ -338,7 +340,7 @@ func TestCodeCallProjectionRunnerReleasesIdleLeaseAgainstPostgres(t *testing.T) 
 		IntentReader: &postgresProofNoCodeCallIntentReader{},
 		LeaseManager: store,
 		EdgeWriter:   &postgresProofSlowEdgeWriter{writeBlock: closedChan()},
-		AcceptedGen:  func(reducer.SharedProjectionAcceptanceKey) (string, bool) { return "gen-1", true },
+		AcceptedGen:  func(sharedintent.AcceptanceKey) (string, bool) { return "gen-1", true },
 		Config: reducer.CodeCallProjectionRunnerConfig{
 			LeaseOwner:     "code-call-release-proof",
 			PollInterval:   time.Millisecond,
@@ -430,12 +432,12 @@ func (s *postgresProofSlowEdgeWriter) RetractEdges(context.Context, string, []sh
 	return nil
 }
 
-func (s *postgresProofSlowEdgeWriter) WriteEdges(ctx context.Context, _ string, _ []sharedintent.Row, _ string) (reducer.SharedProjectionWriteReport, error) {
+func (s *postgresProofSlowEdgeWriter) WriteEdges(ctx context.Context, _ string, _ []sharedintent.Row, _ string) (sharedintent.WriteReport, error) {
 	select {
 	case <-s.writeBlock:
-		return reducer.SharedProjectionWriteReport{}, nil
+		return sharedintent.WriteReport{}, nil
 	case <-ctx.Done():
-		return reducer.SharedProjectionWriteReport{}, ctx.Err()
+		return sharedintent.WriteReport{}, ctx.Err()
 	}
 }
 
@@ -451,7 +453,7 @@ func (r *postgresProofNoCodeCallIntentReader) ListPendingDomainIntents(context.C
 	return nil, nil
 }
 
-func (r *postgresProofNoCodeCallIntentReader) ListPendingAcceptanceUnitIntents(context.Context, reducer.SharedProjectionAcceptanceKey, string, int) ([]sharedintent.Row, error) {
+func (r *postgresProofNoCodeCallIntentReader) ListPendingAcceptanceUnitIntents(context.Context, sharedintent.AcceptanceKey, string, int) ([]sharedintent.Row, error) {
 	return nil, nil
 }
 

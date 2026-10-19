@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
+
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -73,9 +75,9 @@ WHERE scope_id = 'scope-ci-unpublished'
 		t.Fatalf("predecessor work status = %q, want superseded production shape", predecessorStatus)
 	}
 	store := cicdRunHistoryLiveLoader{FactStore: NewFactStore(SQLDB{DB: db})}
-	handler := reducer.CICDRunCorrelationHandler{
+	handler := cicdrun.CICDRunCorrelationHandler{
 		FactLoader: store,
-		Writer: reducer.PostgresCICDRunCorrelationWriter{
+		Writer: cicdrun.PostgresCICDRunCorrelationWriter{
 			DB: SQLDB{DB: db},
 			Now: func() time.Time {
 				return time.Date(2026, time.August, 4, 15, 0, 0, 0, time.UTC)

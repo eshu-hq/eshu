@@ -29,7 +29,7 @@ const submodulePinEvidenceSource = "reducer/submodule"
 // new node label or uniqueness constraint is needed.
 type SubmodulePinEdgeMaterializationHandler struct {
 	FactLoader           FactLoader
-	EdgeWriter           SharedProjectionEdgeWriter
+	EdgeWriter           sharedintent.EdgeWriter
 	PriorGenerationCheck PriorGenerationCheck
 	// Instruments records the eshu_dp_reducer_input_invalid_facts_total counter
 	// for a submodule.pin fact quarantined by the typed decode seam. A nil

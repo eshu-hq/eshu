@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func (f *fakeExecQueryer) BeginReadOnlyRepeatableRead(
@@ -104,7 +104,7 @@ func TestActiveContainerImageIdentityLoadersUseOneReadSnapshot(t *testing.T) {
 			load: func(store *FactStore) error {
 				_, _, err := store.ListActiveSupplyChainImpactFacts(
 					context.Background(),
-					reducer.SupplyChainImpactFactFilter{SubjectDigests: []string{"sha256:snapshot"}},
+					supplychaincore.SupplyChainImpactFactFilter{SubjectDigests: []string{"sha256:snapshot"}},
 				)
 				return err
 			},
@@ -220,7 +220,7 @@ func TestSupplyChainIdentityLoaderReturnsNoDataOnCommitFailure(t *testing.T) {
 
 	loaded, truncated, err := NewFactStore(database).ListActiveSupplyChainImpactFacts(
 		context.Background(),
-		reducer.SupplyChainImpactFactFilter{SubjectDigests: []string{"sha256:snapshot"}},
+		supplychaincore.SupplyChainImpactFactFilter{SubjectDigests: []string{"sha256:snapshot"}},
 	)
 	if err == nil || !strings.Contains(err.Error(), "commit boom") {
 		t.Fatalf("loader error = %v, want commit failure", err)

@@ -23,10 +23,10 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 	now time.Time,
 	acceptanceUnitID string,
 	reader RepoDependencyProjectionIntentReader,
-	result PartitionProcessResult,
+	result worker.PartitionProcessResult,
 	cycleStart time.Time,
 	alreadyReportedTorn map[string]struct{},
-) (PartitionProcessResult, []sharedintent.Row, int, error) {
+) (worker.PartitionProcessResult, []sharedintent.Row, int, error) {
 	loadAllStart := time.Now()
 	rows, err := r.loadAllAcceptanceUnitIntents(ctx, reader, acceptanceUnitID)
 	result.LoadAllDurationSeconds = time.Since(loadAllStart).Seconds()
@@ -52,7 +52,7 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 		lookup = resolvedLookup
 	}
 
-	active, staleIDs := FilterAuthoritativeIntents(rows, lookup)
+	active, staleIDs := worker.FilterAuthoritativeIntents(rows, lookup)
 
 	unitAbsentDrained, unitAbsentTorn, err := r.drainUnitAbsentAcceptance(ctx, now, reader, rows, active, staleIDs, alreadyReportedTorn)
 	if err != nil {

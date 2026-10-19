@@ -78,7 +78,7 @@ func (w *EdgeWriter) reportUnroutableRows(
 // about a rollout that is working as intended.
 func unroutableReasonForRow(domain string, row sharedintent.Row) string {
 	if domain != reducer.DomainRepoDependency {
-		return reducer.UnroutableReasonMissingRequiredField
+		return sharedintent.UnroutableReasonMissingRequiredField
 	}
 	// repo_dependency is the only domain today whose rejection can mean "this
 	// writer has no statement for that type" rather than "the payload is
@@ -87,15 +87,15 @@ func unroutableReasonForRow(domain string, row sharedintent.Row) string {
 	// rejects only on empty required fields.
 	relationshipType := sourcecypher.PayloadString(row.Payload, "relationship_type")
 	if relationshipType == "" || relationshipType == string(edgetype.DependsOn) {
-		return reducer.UnroutableReasonMissingRequiredField
+		return sharedintent.UnroutableReasonMissingRequiredField
 	}
 	if sourcecypher.PayloadString(row.Payload, "repo_id") == "" || sourcecypher.PayloadString(row.Payload, "target_repo_id") == "" {
-		return reducer.UnroutableReasonMissingRequiredField
+		return sharedintent.UnroutableReasonMissingRequiredField
 	}
 	if _, ok := sourcecypher.BatchCanonicalTypedRepoRelationshipUpsertCypher(relationshipType); !ok {
-		return reducer.UnroutableReasonNoStatementForType
+		return sharedintent.UnroutableReasonNoStatementForType
 	}
-	return reducer.UnroutableReasonMissingRequiredField
+	return sharedintent.UnroutableReasonMissingRequiredField
 }
 
 // Write-target existence guard (#6184). It shares this file with the

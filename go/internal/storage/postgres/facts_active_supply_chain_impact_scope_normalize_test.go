@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
 
 func TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeSiblings(t *testing.T) {
@@ -61,7 +61,7 @@ func TestListActiveSupplyChainImpactFactsBindsNormalizedSuppressionScopeSiblings
 	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: nil}}}
 	store := NewFactStore(db)
 
-	_, _, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
+	_, _, err := store.ListActiveSupplyChainImpactFacts(context.Background(), supplychaincore.SupplyChainImpactFactFilter{
 		PackageIDs:     []string{"PKG:NPM/Left-Pad"},
 		PURLs:          []string{" pkg:npm/left-pad@1.3.0 "},
 		CVEIDs:         []string{"CVE-2026-1234"},
@@ -124,7 +124,7 @@ func TestListActiveSupplyChainImpactFactsBindsNormalizedSuppressionScopeAdvisory
 	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: nil}}}
 	store := NewFactStore(db)
 
-	_, _, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
+	_, _, err := store.ListActiveSupplyChainImpactFacts(context.Background(), supplychaincore.SupplyChainImpactFactFilter{
 		AdvisoryIDs: []string{" GHSA-Demo-1111-2222 "},
 	})
 	if err != nil {

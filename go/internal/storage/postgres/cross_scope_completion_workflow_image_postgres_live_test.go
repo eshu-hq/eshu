@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
@@ -30,19 +32,19 @@ func (l workflowImageForcedOrderLoader) ListActiveCICDRunCorrelationFacts(
 }
 
 type workflowImageForcedOrderWriter struct {
-	writes []reducer.CICDRunCorrelationWrite
+	writes []cicdrun.CICDRunCorrelationWrite
 }
 
 func (w *workflowImageForcedOrderWriter) WriteCICDRunCorrelations(
 	_ context.Context,
-	write reducer.CICDRunCorrelationWrite,
-) (reducer.CICDRunCorrelationWriteResult, error) {
+	write cicdrun.CICDRunCorrelationWrite,
+) (cicdrun.CICDRunCorrelationWriteResult, error) {
 	w.writes = append(w.writes, write)
 	canonicalWrites := 0
 	for _, decision := range write.Decisions {
 		canonicalWrites += decision.CanonicalWrites
 	}
-	return reducer.CICDRunCorrelationWriteResult{
+	return cicdrun.CICDRunCorrelationWriteResult{
 		CanonicalWrites: canonicalWrites,
 		FactsWritten:    len(write.Decisions),
 	}, nil
@@ -83,7 +85,7 @@ func TestWorkflowImageCompletionForcedOrderConvergesLive(t *testing.T) {
 		}},
 	}
 	writer := &workflowImageForcedOrderWriter{}
-	handler := reducer.CICDRunCorrelationHandler{FactLoader: loader, Writer: writer}
+	handler := cicdrun.CICDRunCorrelationHandler{FactLoader: loader, Writer: writer}
 	intent := reducercontract.Intent{
 		IntentID:     correlationID,
 		ScopeID:      ciScopeID,
@@ -248,8 +250,8 @@ INSERT INTO fact_records (
 
 func forcedOrderDecision(
 	t *testing.T,
-	write reducer.CICDRunCorrelationWrite,
-) reducer.CICDRunCorrelationDecision {
+	write cicdrun.CICDRunCorrelationWrite,
+) cicdrun.CICDRunCorrelationDecision {
 	t.Helper()
 	if len(write.Decisions) != 1 {
 		t.Fatalf("decisions = %#v, want exactly one", write.Decisions)

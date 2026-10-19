@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
@@ -81,7 +83,7 @@ func TestProcessPartitionOnceSQLRefreshFenceRedeliveryConverges(t *testing.T) {
 			accepted := acceptedGenerationFixed(tt.secondGeneration, true)
 
 			refreshPartition, err := PartitionForKey(
-				repoWideRetractRefreshPartitionKey(DomainSQLRelationships, repositoryID),
+				sharedintent.RepoWideRetractRefreshPartitionKey(DomainSQLRelationships, repositoryID),
 				partitionCount,
 			)
 			if err != nil {
@@ -119,9 +121,9 @@ func sqlRefreshFenceDeliveryIntents(
 	generationID string,
 	createdAt time.Time,
 ) []sharedintent.Row {
-	refresh := BuildSharedProjectionIntent(SharedProjectionIntentInput{
+	refresh := sharedintent.Build(sharedintent.Input{
 		ProjectionDomain: DomainSQLRelationships,
-		PartitionKey:     repoWideRetractRefreshPartitionKey(DomainSQLRelationships, repositoryID),
+		PartitionKey:     sharedintent.RepoWideRetractRefreshPartitionKey(DomainSQLRelationships, repositoryID),
 		ScopeID:          "scope-sql",
 		AcceptanceUnitID: repositoryID,
 		RepositoryID:     repositoryID,
@@ -129,15 +131,15 @@ func sqlRefreshFenceDeliveryIntents(
 		GenerationID:     generationID,
 		Payload: map[string]any{
 			"repo_id":     repositoryID,
-			"intent_type": RepoRefreshIntentType,
-			"action":      repoRefreshAction,
+			"intent_type": sharedintent.RepoRefreshIntentType,
+			"action":      sharedintent.RepoRefreshAction,
 		},
 		CreatedAt: createdAt,
 	})
 	rows := []sharedintent.Row{refresh}
 	for _, relationshipType := range sqlRefreshFenceRelationshipTypes {
 		edgeIdentity := "sql-source->sql-target:" + relationshipType
-		row := BuildSharedProjectionIntent(SharedProjectionIntentInput{
+		row := sharedintent.Build(sharedintent.Input{
 			ProjectionDomain: DomainSQLRelationships,
 			PartitionKey: sqlrelationship.FilePartitionKey(
 				repositoryID,
@@ -151,10 +153,10 @@ func sqlRefreshFenceDeliveryIntents(
 			SourceRunID:      sourceRunID,
 			GenerationID:     generationID,
 			Payload: map[string]any{
-				"repo_id":            repositoryID,
-				"relationship_type":  relationshipType,
-				"action":             "upsert",
-				retractViaRefreshKey: true,
+				"repo_id":                         repositoryID,
+				"relationship_type":               relationshipType,
+				"action":                          "upsert",
+				sharedintent.RetractViaRefreshKey: true,
 			},
 			CreatedAt: createdAt,
 		})
@@ -183,7 +185,7 @@ func drainSQLRefreshFencePartitions(
 	store *fenceTrackingIntentStore,
 	edges *sqlRelationshipStateWriter,
 	lease *stubLeaseManager,
-	accepted AcceptedGenerationLookup,
+	accepted sharedintent.AcceptedGenerationLookup,
 	readiness gpphase.ReadinessLookup,
 ) {
 	t.Helper()
@@ -210,14 +212,14 @@ func processSQLRefreshFencePartition(
 	store *fenceTrackingIntentStore,
 	edges *sqlRelationshipStateWriter,
 	lease *stubLeaseManager,
-	accepted AcceptedGenerationLookup,
+	accepted sharedintent.AcceptedGenerationLookup,
 	readiness gpphase.ReadinessLookup,
-) PartitionProcessResult {
+) worker.PartitionProcessResult {
 	t.Helper()
-	result, err := ProcessPartitionOnce(
+	result, err := worker.ProcessPartitionOnce(
 		context.Background(),
 		now,
-		PartitionProcessorConfig{
+		worker.PartitionProcessorConfig{
 			Domain:         DomainSQLRelationships,
 			PartitionID:    partitionID,
 			PartitionCount: partitionCount,
@@ -239,7 +241,7 @@ func processSQLRefreshFencePartition(
 		nil,
 	)
 	if err != nil {
-		t.Fatalf("ProcessPartitionOnce(partition=%d): %v", partitionID, err)
+		t.Fatalf("worker.ProcessPartitionOnce(partition=%d): %v", partitionID, err)
 	}
 	return result
 }
@@ -269,13 +271,13 @@ func (w *sqlRelationshipStateWriter) WriteEdges(
 	_ string,
 	rows []sharedintent.Row,
 	_ string,
-) (SharedProjectionWriteReport, error) {
+) (sharedintent.WriteReport, error) {
 	for _, row := range rows {
 		if relationshipType := payloadStr(row.Payload, "relationship_type"); relationshipType != "" {
 			w.edges[relationshipType] = struct{}{}
 		}
 	}
-	return SharedProjectionWriteReport{}, nil
+	return sharedintent.WriteReport{}, nil
 }
 
 func (w *sqlRelationshipStateWriter) relationshipTypes() []string {

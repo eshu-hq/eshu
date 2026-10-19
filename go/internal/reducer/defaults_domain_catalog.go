@@ -6,6 +6,7 @@ package reducer
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
@@ -31,9 +32,9 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 				PhasePublisher: handlers.GraphProjectionPhasePublisher,
 			}
 		case DomainDeploymentMapping:
-			var crossRepoResolver *CrossRepoRelationshipHandler
+			var crossRepoResolver *crossrepo.CrossRepoRelationshipHandler
 			if handlers.EvidenceFactLoader != nil && handlers.RepoDependencyIntentWriter != nil {
-				crossRepoResolver = &CrossRepoRelationshipHandler{
+				crossRepoResolver = &crossrepo.CrossRepoRelationshipHandler{
 					EvidenceLoader:    handlers.EvidenceFactLoader,
 					Assertions:        handlers.AssertionLoader,
 					Persister:         handlers.ResolutionPersister,
@@ -52,7 +53,7 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 				PhasePublisher:                  handlers.GraphProjectionPhasePublisher,
 			}
 			// CrossRepoResolver is an interface (#6061), so assigning a nil
-			// *CrossRepoRelationshipHandler into it would produce a non-nil
+			// *crossrepo.CrossRepoRelationshipHandler into it would produce a non-nil
 			// interface holding a nil pointer, and the handler's
 			// "CrossRepoResolver != nil" guard would dereference it. Assign only
 			// when the cross-repo dependencies were actually wired.

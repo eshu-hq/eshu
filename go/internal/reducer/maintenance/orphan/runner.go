@@ -28,7 +28,7 @@ const (
 )
 
 // PartitionLeaseManager manages partition leases for the graph orphan sweep.
-// It mirrors reducer.PartitionLeaseManager (shared_projection_worker.go)
+// It mirrors sharedintent.PartitionLeaseManager (shared_projection_worker.go)
 // method-for-method. It is declared locally rather than imported from the
 // reducer root: the root's own PartitionLeaseManager is genuine root-owned
 // logic shared by several families that have not moved out of root yet, so

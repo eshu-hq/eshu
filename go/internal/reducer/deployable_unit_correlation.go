@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
+
 	"github.com/eshu-hq/eshu/go/internal/correlation"
 	"github.com/eshu-hq/eshu/go/internal/correlation/engine"
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
@@ -47,7 +49,7 @@ type DeployableUnitCorrelationHandler struct {
 	FactLoader              FactLoader
 	ResolvedLoader          ResolvedRelationshipLoader
 	PhasePublisher          gpphase.PhasePublisher
-	EdgeWriter              SharedProjectionEdgeWriter
+	EdgeWriter              sharedintent.EdgeWriter
 	AdmissionDecisionWriter admissiondecision.AdmissionDecisionWriter
 	AdmissionDecisionNow    func() time.Time
 	// ResolutionActiveLookup backs the resolution-readiness gate

@@ -35,13 +35,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/owners"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
-	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
-	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -258,42 +256,11 @@ func semanticDeltaPayloadBool(payload map[string]any, key string) bool {
 	return payloadcore.DeltaPayloadBool(payload, key)
 }
 
-// deltaScopeRepositorySet forwards to [sharedintent.DeltaScopeRepositorySet].
-func deltaScopeRepositorySet(repositoryIDs []string) map[string]struct{} {
-	return sharedintent.DeltaScopeRepositorySet(repositoryIDs)
-}
-
-// uniqueRepositoryIDs forwards to [sharedintent.UniqueRepositoryIDs]. Kept
-// for the root's repo_dependency_projection_runner.go, which has not moved
-// out yet (issue #6061); [projection] (code/call/projection) calls
-// sharedintent.UniqueRepositoryIDs directly.
-func uniqueRepositoryIDs(rows []sharedintent.Row) []string {
-	return sharedintent.UniqueRepositoryIDs(rows)
-}
-
-// applyRepoRefreshDeltaScope forwards to
-// [sharedintent.ApplyRepoRefreshDeltaScope], which carries the full rule and
-// why the two obvious alternatives lose edges (#6216).
-func applyRepoRefreshDeltaScope(
-	payload map[string]any,
-	repoID string,
-	deltaRepositoryIDs map[string]struct{},
-	filePathsByRepoID map[string][]string,
-) {
-	sharedintent.ApplyRepoRefreshDeltaScope(payload, repoID, deltaRepositoryIDs, filePathsByRepoID)
-}
-
-// sharedProjectionRowRepoID forwards to [sharedintent.RowRepoID]. Root test
-// files that exercise the shared-projection worker's partition-convergence
-// behavior (inherits_edge_partition_convergence_test.go,
-// rationale_edge_materialization_partition_test.go,
-// shared_projection_worker_retract_race_test.go,
-// sql_relationship_partition_convergence_test.go) read this spelling; the
-// production call site moved to [materialization] with the code-call handler
-// (issue #6061).
-func sharedProjectionRowRepoID(row sharedintent.Row) string {
-	return sharedintent.RowRepoID(row)
-}
+// deltaScopeRepositorySet, uniqueRepositoryIDs, applyRepoRefreshDeltaScope,
+// and sharedProjectionRowRepoID were retired once their last callers named
+// [sharedintent.DeltaScopeRepositorySet], [sharedintent.UniqueRepositoryIDs],
+// [sharedintent.ApplyRepoRefreshDeltaScope], and [sharedintent.RowRepoID]
+// directly (#6626 tail bucket 2).
 
 // Stanza: decode_seam_compat2.go (merged; do not recreate this file).
 
@@ -355,10 +322,11 @@ func loadCodeownersOwnershipMaterializationFacts(
 // Stanza: cross_scope_readiness_compat.go (merged; do not recreate this
 // file). Relocated byte-identical from compat_projection.go (issue #6061
 // code/ subtree move) to keep that bucket under the 500-line cap.
-// This file is the transitional compatibility surface for the cross-scope
-// producer-readiness floor and dependency catalog that moved to [crossscope]
-// (issue #6061). Reducer-root call sites keep their current spelling; each
-// entry is deleted once its last caller has moved into a family subpackage.
+// The cross-scope producer-readiness floor and dependency catalog moved to
+// [crossscope] (issue #6061). The readiness entries were retired once their
+// last callers named [crossscope] directly (#6626 tail bucket 2);
+// CrossScopeDependency (a [reducercontract] alias, not a crossscope entry)
+// stays until its own callers move.
 
 // CrossScopeDependency declares that a consumer reducer domain reads canonical
 // facts a producer domain writes in a DIFFERENT ingestion scope. The consumer's
@@ -367,34 +335,14 @@ func loadCodeownersOwnershipMaterializationFacts(
 // again.
 type CrossScopeDependency = reducercontract.CrossScopeDependency
 
-// CrossScopeCompletionEdges forwards to [crossscope.CompletionEdges].
-func CrossScopeCompletionEdges() []crossscope.CompletionEdge {
-	return crossscope.CompletionEdges()
-}
-
-// crossScopeDependenciesForRegistration forwards to
-// [crossscope.DependenciesForRegistration].
-func crossScopeDependenciesForRegistration(domain reducercontract.Domain) []CrossScopeDependency {
-	return crossscope.DependenciesForRegistration(domain)
-}
-
-// CrossScopeProducerNotReadyFailureClass is the durable failure_class a
-// cross-scope consumer domain self-classifies with when a producer it declares
-// a CrossScopeDependency on has not yet activated its generation for the
-// relevant scope. See [crossscope.ProducerNotReadyFailureClass].
-const CrossScopeProducerNotReadyFailureClass = crossscope.ProducerNotReadyFailureClass
-
-// crossScopeProducerNotReadyError marks a cross-scope producer-readiness miss
-// as retryable. See [crossscope.ProducerNotReadyError].
-type crossScopeProducerNotReadyError = crossscope.ProducerNotReadyError
-
-// CrossScopeProducerReadiness answers whether the producer scopes a consumer
-// depends on have finished publishing. See [crossscope.ProducerReadiness].
-type CrossScopeProducerReadiness = crossscope.ProducerReadiness
-
-// CrossScopeProducerReadinessByDomain answers readiness for each producer
-// domain separately. See [crossscope.ProducerReadinessByDomain].
-type CrossScopeProducerReadinessByDomain = crossscope.ProducerReadinessByDomain
+// CrossScopeCompletionEdges, crossScopeDependenciesForRegistration,
+// CrossScopeProducerNotReadyFailureClass, crossScopeProducerNotReadyError,
+// CrossScopeProducerReadiness, and CrossScopeProducerReadinessByDomain were
+// retired once their last callers named [crossscope.CompletionEdges],
+// [crossscope.DependenciesForRegistration],
+// [crossscope.ProducerNotReadyFailureClass],
+// [crossscope.ProducerNotReadyError], [crossscope.ProducerReadiness], and
+// [crossscope.ProducerReadinessByDomain] directly (#6626 tail bucket 2).
 
 // Stanza: shared-projection domains + intent row (H5 root-remnant fold,
 // issue #6061). HandlesRoute/RunsIn ride the ordering-safe shared-projection

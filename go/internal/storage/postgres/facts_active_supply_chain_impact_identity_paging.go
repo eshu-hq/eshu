@@ -8,12 +8,13 @@ import (
 	"context"
 	"fmt"
 
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 const supplyChainImpactContainerImageIdentityFactKind = "reducer_container_image_identity"
@@ -94,7 +95,7 @@ type supplyChainImpactPagingState struct {
 // skip prefix-related FactIDs encoded in the other stream's ordering domain.
 func (s FactStore) ListActiveSupplyChainImpactFacts(
 	ctx context.Context,
-	filter reducer.SupplyChainImpactFactFilter,
+	filter supplychaincore.SupplyChainImpactFactFilter,
 ) ([]facts.Envelope, bool, error) {
 	if s.database == nil {
 		return nil, false, fmt.Errorf("fact store database is required")
@@ -132,7 +133,7 @@ func (s FactStore) ListActiveSupplyChainImpactFacts(
 func loadActiveSupplyChainImpactFactPagePair(
 	ctx context.Context,
 	queryer db.Queryer,
-	filter reducer.SupplyChainImpactFactFilter,
+	filter supplychaincore.SupplyChainImpactFactFilter,
 	state *supplyChainImpactPagingState,
 ) error {
 	legacyLimit := listFactsByKindPageSize
@@ -335,7 +336,7 @@ func scanTaggedSupplyChainImpactFact(rows db.Rows) (int, int64, facts.Envelope, 
 	return rank, ordinal, envelope, nil
 }
 
-func normalizeSupplyChainImpactFactFilter(filter *reducer.SupplyChainImpactFactFilter) {
+func normalizeSupplyChainImpactFactFilter(filter *supplychaincore.SupplyChainImpactFactFilter) {
 	filter.PackageIDs = cleanStringFilterValues(filter.PackageIDs)
 	filter.PURLs = cleanStringFilterValues(filter.PURLs)
 	filter.CVEIDs = cleanStringFilterValues(filter.CVEIDs)
@@ -348,7 +349,7 @@ func normalizeSupplyChainImpactFactFilter(filter *reducer.SupplyChainImpactFactF
 	filter.ImageRefs = cleanStringFilterValues(filter.ImageRefs)
 }
 
-func supplyChainImpactFactFilterEmpty(filter reducer.SupplyChainImpactFactFilter) bool {
+func supplyChainImpactFactFilterEmpty(filter supplychaincore.SupplyChainImpactFactFilter) bool {
 	return len(filter.PackageIDs) == 0 && len(filter.PURLs) == 0 &&
 		len(filter.CVEIDs) == 0 && len(filter.AdvisoryIDs) == 0 && len(filter.SubjectDigests) == 0 &&
 		len(filter.DocumentIDs) == 0 && len(filter.ProductCriteria) == 0 &&

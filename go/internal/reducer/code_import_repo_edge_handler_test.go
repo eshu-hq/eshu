@@ -90,7 +90,7 @@ func TestCodeImportRepoEdgeHandlerProjectsEdgeForExternalImport(t *testing.T) {
 		t.Fatalf("Handle().Status = %q, want %q", result.Status, ResultStatusSucceeded)
 	}
 	if len(intentWriter.rows) != 1 {
-		t.Fatalf("RepoDependencyIntentWriter calls = %d, want 1", len(intentWriter.rows))
+		t.Fatalf("crossrepo.RepoDependencyIntentWriter calls = %d, want 1", len(intentWriter.rows))
 	}
 	rows := intentWriter.rows[0]
 	if len(rows) != 1 {
@@ -156,7 +156,7 @@ func TestCodeImportRepoEdgeHandlerQuarantinesMalformedOwnershipCorrelation(t *te
 		t.Fatalf("SubSignals[input_invalid_facts] = %v, want 1", got)
 	}
 	if len(intentWriter.rows) != 1 {
-		t.Fatalf("RepoDependencyIntentWriter calls = %d, want 1", len(intentWriter.rows))
+		t.Fatalf("crossrepo.RepoDependencyIntentWriter calls = %d, want 1", len(intentWriter.rows))
 	}
 	rows := intentWriter.rows[0]
 	if len(rows) != 1 {
@@ -196,7 +196,7 @@ func TestCodeImportRepoEdgeHandlerNoOpWithoutWiring(t *testing.T) {
 	handler := CodeImportRepoEdgeHandler{
 		FactLoader:      loader,
 		OwnershipLoader: loader,
-		// RepoDependencyIntentWriter intentionally nil.
+		// crossrepo.RepoDependencyIntentWriter intentionally nil.
 	}
 	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-noop",
@@ -248,7 +248,7 @@ func TestCodeImportRepoEdgeHandlerSkipsUnresolvedImport(t *testing.T) {
 	// but resolves no owner, so the handler emits a retract-only intent to drop
 	// any stale code-import edge from a prior generation.
 	if len(intentWriter.rows) != 1 {
-		t.Fatalf("RepoDependencyIntentWriter calls = %d, want 1 (refresh/retract for unresolved import)", len(intentWriter.rows))
+		t.Fatalf("crossrepo.RepoDependencyIntentWriter calls = %d, want 1 (refresh/retract for unresolved import)", len(intentWriter.rows))
 	}
 	rows := intentWriter.rows[0]
 	if len(rows) != 1 {
@@ -302,7 +302,7 @@ func TestCodeImportRepoEdgeHandlerEmitsRefreshIntentWhenOwnerlessFullSnapshot(t 
 		t.Fatalf("Handle().Status = %q, want %q", result.Status, ResultStatusSucceeded)
 	}
 	if len(intentWriter.rows) != 1 {
-		t.Fatalf("RepoDependencyIntentWriter calls = %d, want 1 (refresh intent)", len(intentWriter.rows))
+		t.Fatalf("crossrepo.RepoDependencyIntentWriter calls = %d, want 1 (refresh intent)", len(intentWriter.rows))
 	}
 	rows := intentWriter.rows[0]
 	if len(rows) != 1 {

@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 )
 
@@ -36,9 +38,9 @@ func TestImplementedDefaultDomainDefinitionsIncludesCICDRunCorrelationWhenAdapte
 	for _, def := range definitions {
 		if def.Domain == DomainCICDRunCorrelation {
 			found = true
-			handler, ok := def.Handler.(CICDRunCorrelationHandler)
+			handler, ok := def.Handler.(cicdrun.CICDRunCorrelationHandler)
 			if !ok {
-				t.Fatalf("ci_cd_run_correlation handler type = %T, want CICDRunCorrelationHandler", def.Handler)
+				t.Fatalf("ci_cd_run_correlation handler type = %T, want cicdrun.CICDRunCorrelationHandler", def.Handler)
 			}
 			if handler.FactLoader != loader {
 				t.Fatal("ci_cd_run_correlation handler FactLoader was not wired")

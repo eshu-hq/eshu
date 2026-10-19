@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
+
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
-
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 // ciCDRunCorrelationBudgetRelPath is the committed cost budget for the
@@ -33,9 +33,9 @@ const ciCDRunCorrelationCostIntentID = "intent-ci-cd-run-correlation-cost"
 // regardless of outcome
 // (go/internal/reducer/cicdrun/ci_cd_run_correlation_writer.go),
 // so both rows are written.
-func ciCDRunCorrelationFixtureDecisions() []reducer.CICDRunCorrelationDecision {
-	row := func(runID string) reducer.CICDRunCorrelationDecision {
-		return reducer.CICDRunCorrelationDecision{
+func ciCDRunCorrelationFixtureDecisions() []cicdrun.CICDRunCorrelationDecision {
+	row := func(runID string) cicdrun.CICDRunCorrelationDecision {
+		return cicdrun.CICDRunCorrelationDecision{
 			Provider:        "github_actions",
 			RunID:           runID,
 			RunAttempt:      "1",
@@ -44,24 +44,24 @@ func ciCDRunCorrelationFixtureDecisions() []reducer.CICDRunCorrelationDecision {
 			Environment:     "production",
 			ArtifactDigest:  "sha256:" + runID,
 			ImageRef:        "registry.example.com/team/api:" + runID,
-			Outcome:         reducer.CICDRunCorrelationExact,
+			Outcome:         cicdrun.CICDRunCorrelationExact,
 			CanonicalWrites: 1,
 			CanonicalTarget: "workload:api-" + runID,
 			CorrelationKind: "exact_run",
 		}
 	}
-	return []reducer.CICDRunCorrelationDecision{row("run-a"), row("run-b")}
+	return []cicdrun.CICDRunCorrelationDecision{row("run-a"), row("run-b")}
 }
 
 // newInstrumentedCICDRunCorrelationWriter builds the PRODUCTION Postgres write
-// dispatch for this domain: reducer.PostgresCICDRunCorrelationWriter over a
+// dispatch for this domain: cicdrun.PostgresCICDRunCorrelationWriter over a
 // postgres.InstrumentedDB (StoreName "reducer") wrapping a countingExecQueryer.
 // WriteCICDRunCorrelations calls reducerBatchInsertFacts — the SAME bounded
 // chunked bulk insert container_image_identity and sbom_attestation_attachment
 // share — so two rows fit in one 1000-row chunk and cost exactly one
 // ExecContext round-trip.
 func newInstrumentedCICDRunCorrelationWriter(t *testing.T) (
-	writer reducer.PostgresCICDRunCorrelationWriter,
+	writer cicdrun.PostgresCICDRunCorrelationWriter,
 	fake *countingExecQueryer,
 	reader *sdkmetric.ManualReader,
 ) {
@@ -69,7 +69,7 @@ func newInstrumentedCICDRunCorrelationWriter(t *testing.T) (
 
 	fake = &countingExecQueryer{}
 	db, manualReader := newInstrumentedReducerDB(t, fake)
-	writer = reducer.PostgresCICDRunCorrelationWriter{
+	writer = cicdrun.PostgresCICDRunCorrelationWriter{
 		DB:  db,
 		Now: func() time.Time { return time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC) },
 	}
@@ -88,7 +88,7 @@ func TestCostBudget_CICDRunCorrelation(t *testing.T) {
 	budget := loadBudgetFrom(t, ciCDRunCorrelationBudgetRelPath)
 	writer, fake, reader := newInstrumentedCICDRunCorrelationWriter(t)
 
-	result, err := writer.WriteCICDRunCorrelations(context.Background(), reducer.CICDRunCorrelationWrite{
+	result, err := writer.WriteCICDRunCorrelations(context.Background(), cicdrun.CICDRunCorrelationWrite{
 		IntentID:     ciCDRunCorrelationCostIntentID,
 		ScopeID:      "repo:team-api",
 		GenerationID: "generation-ci-cd-run-correlation-cost",
@@ -161,13 +161,13 @@ func TestCostBudget_CICDRunCorrelation_N1_ExceedsBudget(t *testing.T) {
 	writer, _, reader := newInstrumentedCICDRunCorrelationWriter(t)
 
 	for _, decision := range decisions {
-		if _, err := writer.WriteCICDRunCorrelations(context.Background(), reducer.CICDRunCorrelationWrite{
+		if _, err := writer.WriteCICDRunCorrelations(context.Background(), cicdrun.CICDRunCorrelationWrite{
 			IntentID:     ciCDRunCorrelationCostIntentID,
 			ScopeID:      "repo:team-api",
 			GenerationID: "generation-ci-cd-run-correlation-cost",
 			SourceSystem: "github_actions",
 			Cause:        "reducer/ci_cd_run_correlation",
-			Decisions:    []reducer.CICDRunCorrelationDecision{decision},
+			Decisions:    []cicdrun.CICDRunCorrelationDecision{decision},
 		}); err != nil {
 			t.Fatalf("N+1 WriteCICDRunCorrelations() error = %v", err)
 		}

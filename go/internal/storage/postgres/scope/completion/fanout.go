@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -154,7 +156,7 @@ func (s *CrossScopeCompletionStore) Fanout(
 	if batchSize <= 0 {
 		return reducer.CrossScopeCompletionResult{}, errors.New("cross-scope completion batch size must be positive")
 	}
-	edges := reducer.CrossScopeCompletionEdges()
+	edges := crossscope.CompletionEdges()
 	producerDomains := make([]string, 0, len(edges))
 	consumerDomains := make([]string, 0, len(edges))
 	for _, edge := range edges {

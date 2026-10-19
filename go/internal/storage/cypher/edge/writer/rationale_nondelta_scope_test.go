@@ -67,7 +67,7 @@ func TestEdgeWriterRetractEdgesRationaleNonDeltaBatchIgnoresUnmarkedLegacyRows(t
 			RepositoryID: "repo-full",
 			Payload: map[string]any{
 				"repo_id":     "repo-full",
-				"intent_type": reducer.RepoRefreshIntentType,
+				"intent_type": sharedintent.RepoRefreshIntentType,
 				"action":      "refresh",
 			},
 		},
@@ -130,7 +130,7 @@ func rationaleNonDeltaBenchBatch(size int) []sharedintent.Row {
 			RepositoryID: repoID,
 			Payload: map[string]any{
 				"repo_id":     repoID,
-				"intent_type": reducer.RepoRefreshIntentType,
+				"intent_type": sharedintent.RepoRefreshIntentType,
 				"action":      "refresh",
 			},
 		})

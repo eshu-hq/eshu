@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
@@ -152,9 +154,9 @@ INSERT INTO scope_generations (
 func runCICDRunSnapshotPatchHandler(t *testing.T, ctx context.Context, db *sql.DB, intentID string) {
 	t.Helper()
 	store := cicdRunHistoryLiveLoader{FactStore: NewFactStore(SQLDB{DB: db})}
-	handler := reducer.CICDRunCorrelationHandler{
+	handler := cicdrun.CICDRunCorrelationHandler{
 		FactLoader: store,
-		Writer: reducer.PostgresCICDRunCorrelationWriter{
+		Writer: cicdrun.PostgresCICDRunCorrelationWriter{
 			DB: SQLDB{DB: db},
 			Now: func() time.Time {
 				return time.Date(2026, time.August, 4, 12, 10, 0, 0, time.UTC)
@@ -216,9 +218,9 @@ INSERT INTO scope_generations (
 	)
 
 	store := cicdRunHistoryLiveLoader{FactStore: NewFactStore(SQLDB{DB: db})}
-	handler := reducer.CICDRunCorrelationHandler{
+	handler := cicdrun.CICDRunCorrelationHandler{
 		FactLoader: store,
-		Writer: reducer.PostgresCICDRunCorrelationWriter{
+		Writer: cicdrun.PostgresCICDRunCorrelationWriter{
 			DB: SQLDB{DB: db},
 			Now: func() time.Time {
 				return time.Date(2026, time.August, 4, 12, 10, 0, 0, time.UTC)

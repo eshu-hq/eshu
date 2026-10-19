@@ -122,7 +122,7 @@ func TestHandleLadderRegistrationCarriesSiblingLookup(t *testing.T) {
 		case DomainSupplyChainImpact:
 			handler, ok := definition.Handler.(supplychaincore.SupplyChainImpactHandler)
 			if !ok {
-				t.Fatalf("handler for %s = %T, want SupplyChainImpactHandler", definition.Domain, definition.Handler)
+				t.Fatalf("handler for %s = %T, want supplychaincore.SupplyChainImpactHandler", definition.Domain, definition.Handler)
 			}
 			if handler.ScopeRepos != handle.ScopeRepos(repos) {
 				t.Fatal("supply-chain handler ScopeRepos is not the reader passed to DefaultHandlers")

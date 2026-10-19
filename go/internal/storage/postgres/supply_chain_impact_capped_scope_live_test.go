@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
@@ -164,14 +165,14 @@ INSERT INTO fact_records (
 }
 
 type capturingImpactWriter struct {
-	inner reducer.PostgresSupplyChainImpactWriter
-	write reducer.SupplyChainImpactWrite
+	inner supplychaincore.PostgresSupplyChainImpactWriter
+	write supplychaincore.SupplyChainImpactWrite
 }
 
 func (c *capturingImpactWriter) WriteSupplyChainImpactFindings(
 	ctx context.Context,
-	write reducer.SupplyChainImpactWrite,
-) (reducer.SupplyChainImpactWriteResult, error) {
+	write supplychaincore.SupplyChainImpactWrite,
+) (supplychaincore.SupplyChainImpactWriteResult, error) {
 	c.write = write
 	return c.inner.WriteSupplyChainImpactFindings(ctx, write)
 }
@@ -221,7 +222,7 @@ func TestSupplyChainImpactCappedScopeConvergesLive(t *testing.T) {
 		facts.ReducerSupplyChainImpactFindingFactKind, 0)
 
 	capture := &capturingImpactWriter{inner: replaceSetWriter(db)}
-	handler := reducer.SupplyChainImpactHandler{
+	handler := supplychaincore.SupplyChainImpactHandler{
 		FencingTokenIssuer: postgres.PostgresSupplyChainImpactFencingTokenIssuer{DB: postgres.SQLDB{DB: db}},
 		FactLoader:         postgres.NewFactStore(postgres.SQLDB{DB: db}),
 		Writer:             capture,

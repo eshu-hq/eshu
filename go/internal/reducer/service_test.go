@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
@@ -150,12 +152,12 @@ func TestServiceRunStartsSharedProjectionRunner(t *testing.T) {
 		WorkSource:   &stubReducerWorkSource{},
 		Executor:     &stubReducerExecutor{},
 		WorkSink:     &stubReducerWorkSink{},
-		SharedProjectionRunner: &SharedProjectionRunner{
+		SharedProjectionRunner: &worker.Runner{
 			IntentReader: &fakeSharedIntentReader{},
 			LeaseManager: leaseManager,
 			EdgeWriter:   &fakeEdgeWriter{},
 			AcceptedGen:  acceptedGenerationFixed("", false),
-			Config: SharedProjectionRunnerConfig{
+			Config: worker.RunnerConfig{
 				PartitionCount: 1,
 				PollInterval:   10 * time.Millisecond,
 			},

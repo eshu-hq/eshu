@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 )
 
 // checkRunnerLeaseHoldLockstep validates the registry contract for the
@@ -20,7 +22,7 @@ func checkRunnerLeaseHoldLockstep(
 		declaredBlockerKinds,
 		waitStages,
 		waitKeys,
-		sharedProjectionDomains,
+		worker.Domains(),
 	)
 }
 
@@ -46,7 +48,7 @@ func checkRunnerLeaseHoldLockstepWithDomains(
 			return fmt.Errorf("family %q declares blocker_kind=%q but wait_key=%q; runner_lease_hold must wait on its own projection domain", family, rawKind, waitKeys[family])
 		}
 		if _, ok := shared[family]; !ok {
-			return fmt.Errorf("family %q declares blocker_kind=%q but is not in sharedProjectionDomains; allProjectionDomains alone does not prove that the shared runner drains this family", family, rawKind)
+			return fmt.Errorf("family %q declares blocker_kind=%q but is not in worker.Domains(); allProjectionDomains alone does not prove that the shared runner drains this family", family, rawKind)
 		}
 	}
 	if checked == 0 {
@@ -97,15 +99,15 @@ func TestRunnerLeaseHoldLockstepRejectsDedicatedProjectionDomain(t *testing.T) {
 
 	// repo_dependency is in allProjectionDomains but is not drained by the
 	// shared projection runner. The blocker must require the narrower,
-	// production sharedProjectionDomains set.
+	// production worker.Domains() set.
 	err := checkRunnerLeaseHoldLockstepWithDomains(
 		map[string]string{DomainRepoDependency: string(blockerRunnerLeaseHold)},
 		map[string]string{DomainRepoDependency: "runner"},
 		map[string]string{DomainRepoDependency: DomainRepoDependency},
 		[]string{DomainCodeCalls},
 	)
-	if err == nil || !strings.Contains(err.Error(), "sharedProjectionDomains") {
-		t.Fatalf("checkRunnerLeaseHoldLockstep(dedicated projection domain) = %v, want sharedProjectionDomains error", err)
+	if err == nil || !strings.Contains(err.Error(), "worker.Domains()") {
+		t.Fatalf("checkRunnerLeaseHoldLockstep(dedicated projection domain) = %v, want worker.Domains() error", err)
 	}
 }
 

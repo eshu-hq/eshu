@@ -110,14 +110,14 @@ var idempotencyAdditiveExemptDomains = map[reducercontract.Domain]string{
 	// writer gated, proven by their own suites.
 	eshusearch.DomainEshuSearchDocument: "additive, gated on EshuSearchDocument source loader+writer; reprojection idempotency proven by eshu_search_document_*_test.go",
 	DomainPackageSourceCorrelation:      "additive, gated on FactLoader+PackageWriter with admission-decision fan-in; idempotency proven by packages/correlation/*_test.go",
-	DomainCodeImportRepoEdge:            "additive, gated on FactLoader+package-ownership loader+RepoDependencyIntentWriter; idempotency proven by code_import_repo_edge_*_test.go",
+	DomainCodeImportRepoEdge:            "additive, gated on FactLoader+package-ownership loader+crossrepo.RepoDependencyIntentWriter; idempotency proven by code_import_repo_edge_*_test.go",
 
 	// Image identity + CI/CD + supply chain: cross-source digest/artifact fan-in,
 	// proven by their own suites.
 	DomainContainerImageIdentity:      "additive, gated on FactLoader+ContainerImageIdentityWriter; cross-source digest correlation with image-reference-keyed facts, idempotency proven by container_image_identity_*_test.go",
-	DomainCICDRunCorrelation:          "additive, gated on FactLoader+CICDRunCorrelationWriter; idempotency proven by cicd run-correlation suites (container_image_identity_cicd_test.go and defaults_cicd_test.go)",
+	DomainCICDRunCorrelation:          "additive, gated on FactLoader+cicdrun.CICDRunCorrelationWriter; idempotency proven by cicd run-correlation suites (container_image_identity_cicd_test.go and defaults_cicd_test.go)",
 	DomainSBOMAttestationAttachment:   "additive, gated on FactLoader+SBOMAttestationAttachmentWriter; digest-subject fan-in, idempotency proven by sbom_attestation_attachment_*_test.go",
-	DomainSupplyChainImpact:           "additive, gated on FactLoader+SupplyChainImpactWriter; multi-signal fan-in, idempotency proven by supply_chain_impact_*_test.go",
+	DomainSupplyChainImpact:           "additive, gated on FactLoader+supplychaincore.SupplyChainImpactWriter; multi-signal fan-in, idempotency proven by supply_chain_impact_*_test.go",
 	DomainSecurityAlertReconciliation: "additive, gated on FactLoader+SecurityAlertReconciliationWriter; idempotency proven by security_alert_reconciliation_*_test.go",
 
 	// Service catalog + observability/kubernetes correlation: multi-loader

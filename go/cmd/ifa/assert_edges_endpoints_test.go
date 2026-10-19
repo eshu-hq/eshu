@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+
 	"github.com/eshu-hq/eshu/go/internal/ifa/graphdump"
 	"github.com/eshu-hq/eshu/go/internal/ifa/materializededges"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -367,7 +369,7 @@ func TestProvenancePartitionsRunsOnBetweenTwoLiveWriters(t *testing.T) {
 		}
 	}
 	graph := fakeEdgeReader{edges: []graphdump.Edge{
-		runsOn("inst-resolver", "plat-a", reducer.CrossRepoEvidenceSource),
+		runsOn("inst-resolver", "plat-a", crossrepo.CrossRepoEvidenceSource),
 		runsOn("inst-workload", "plat-b", reducer.EvidenceSourceWorkloads),
 	}}
 
@@ -404,7 +406,7 @@ func TestProvenancePartitionsRunsOnBetweenTwoLiveWriters(t *testing.T) {
 
 // TestEvidenceSourceConstraintTracksTheWriterConstant stops the partition drifting.
 //
-// The constraint references reducer.CrossRepoEvidenceSource rather than a copied
+// The constraint references crossrepo.CrossRepoEvidenceSource rather than a copied
 // literal precisely so a change to what the writer stamps cannot leave the gate
 // asserting a stale value. This pins that wiring.
 func TestEvidenceSourceConstraintTracksTheWriterConstant(t *testing.T) {
@@ -414,10 +416,10 @@ func TestEvidenceSourceConstraintTracksTheWriterConstant(t *testing.T) {
 	if !ok {
 		t.Fatal("repo_dependency carries no endpoint constraints")
 	}
-	if got := endpoints["RUNS_ON"].EvidenceSource; got != reducer.CrossRepoEvidenceSource {
-		t.Errorf("RUNS_ON evidence_source = %q, want the writer's own constant %q", got, reducer.CrossRepoEvidenceSource)
+	if got := endpoints["RUNS_ON"].EvidenceSource; got != crossrepo.CrossRepoEvidenceSource {
+		t.Errorf("RUNS_ON evidence_source = %q, want the writer's own constant %q", got, crossrepo.CrossRepoEvidenceSource)
 	}
-	if reducer.CrossRepoEvidenceSource == reducer.EvidenceSourceWorkloads {
+	if crossrepo.CrossRepoEvidenceSource == reducer.EvidenceSourceWorkloads {
 		t.Fatal("the two writers stamp the same evidence_source; provenance can no longer partition RUNS_ON")
 	}
 }

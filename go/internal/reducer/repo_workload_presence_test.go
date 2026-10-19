@@ -222,7 +222,7 @@ func TestProcessPartitionOnceRunsInDrainsAbsentWorkload(t *testing.T) {
 		repoWorkloadPresenceKey("repo-1"): {},
 	}}
 
-	cfg := PartitionProcessorConfig{
+	cfg := worker.PartitionProcessorConfig{
 		Domain:         DomainRunsIn,
 		PartitionID:    0,
 		PartitionCount: 1,
@@ -232,14 +232,14 @@ func TestProcessPartitionOnceRunsInDrainsAbsentWorkload(t *testing.T) {
 		EvidenceSource: materialization.RunsInEvidenceSource,
 	}
 
-	result, err := ProcessPartitionOnce(
+	result, err := worker.ProcessPartitionOnce(
 		context.Background(), now, cfg, lease, reader, edges,
 		acceptedGenerationFixed("gen-1", true), nil,
 		readinessLookupFixed(true, true), nil, presence, nil, nil,
 		nil,
 	)
 	if err != nil {
-		t.Fatalf("ProcessPartitionOnce() error = %v", err)
+		t.Fatalf("worker.ProcessPartitionOnce() error = %v", err)
 	}
 	if result.BlockedReadiness != 0 {
 		t.Fatalf("BlockedReadiness = %d, want 0 (absent workload is terminal)", result.BlockedReadiness)

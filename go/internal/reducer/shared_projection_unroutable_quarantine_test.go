@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -16,7 +18,7 @@ import (
 // canonical writer that rejected some rows.
 type reportingEdgeWriter struct {
 	stubEdgeWriter
-	report SharedProjectionWriteReport
+	report sharedintent.WriteReport
 	err    error
 }
 
@@ -25,20 +27,20 @@ func (w *reportingEdgeWriter) WriteEdges(
 	domain string,
 	rows []sharedintent.Row,
 	evidenceSource string,
-) (SharedProjectionWriteReport, error) {
+) (sharedintent.WriteReport, error) {
 	_, _ = w.stubEdgeWriter.WriteEdges(ctx, domain, rows, evidenceSource)
 	return w.report, w.err
 }
 
 // recordingUnroutableWriter captures what the worker persisted.
 type recordingUnroutableWriter struct {
-	batches [][]SharedProjectionUnroutableRow
+	batches [][]sharedintent.UnroutableRow
 	err     error
 }
 
 func (w *recordingUnroutableWriter) WriteUnroutableIntents(
 	_ context.Context,
-	rows []SharedProjectionUnroutableRow,
+	rows []sharedintent.UnroutableRow,
 ) error {
 	w.batches = append(w.batches, rows)
 	return w.err
@@ -80,19 +82,19 @@ func TestProcessPartitionOnceQuarantinesUnroutableRowsBeforeCompleting(t *testin
 	lease := &stubLeaseManager{claimResult: true}
 	quarantine := &recordingUnroutableWriter{}
 	edges := &reportingEdgeWriter{
-		report: SharedProjectionWriteReport{
-			UnroutableRows: []SharedProjectionUnroutableRow{{
+		report: sharedintent.WriteReport{
+			UnroutableRows: []sharedintent.UnroutableRow{{
 				IntentID:         "intent-unroutable",
 				ProjectionDomain: "platform_infra",
 				ScopeID:          "scope-a",
 				GenerationID:     "gen-1",
-				Reason:           UnroutableReasonMissingRequiredField,
+				Reason:           sharedintent.UnroutableReasonMissingRequiredField,
 				DecidedAt:        now,
 			}},
 		},
 	}
 
-	cfg := PartitionProcessorConfig{
+	cfg := worker.PartitionProcessorConfig{
 		Domain:         "platform_infra",
 		PartitionID:    0,
 		PartitionCount: 1,
@@ -102,13 +104,13 @@ func TestProcessPartitionOnceQuarantinesUnroutableRowsBeforeCompleting(t *testin
 		EvidenceSource: "finalization/workloads",
 	}
 
-	_, err := ProcessPartitionOnce(
+	_, err := worker.ProcessPartitionOnce(
 		context.Background(), now, cfg, lease, reader, edges,
 		acceptedGenerationFixed("gen-1", true),
 		nil, nil, nil, nil, nil, nil, quarantine,
 	)
 	if err != nil {
-		t.Fatalf("ProcessPartitionOnce() error = %v, want nil: a mixed batch is not a failure", err)
+		t.Fatalf("worker.ProcessPartitionOnce() error = %v, want nil: a mixed batch is not a failure", err)
 	}
 
 	if len(quarantine.batches) != 1 {
@@ -158,15 +160,15 @@ func TestProcessPartitionOnceFailsTheCycleWhenQuarantineWriteFails(t *testing.T)
 	errQuarantine := errors.New("quarantine store unavailable")
 	quarantine := &recordingUnroutableWriter{err: errQuarantine}
 	edges := &reportingEdgeWriter{
-		report: SharedProjectionWriteReport{
-			UnroutableRows: []SharedProjectionUnroutableRow{{
+		report: sharedintent.WriteReport{
+			UnroutableRows: []sharedintent.UnroutableRow{{
 				IntentID: "intent-unroutable",
-				Reason:   UnroutableReasonMissingRequiredField,
+				Reason:   sharedintent.UnroutableReasonMissingRequiredField,
 			}},
 		},
 	}
 
-	cfg := PartitionProcessorConfig{
+	cfg := worker.PartitionProcessorConfig{
 		Domain:         "platform_infra",
 		PartitionID:    0,
 		PartitionCount: 1,
@@ -176,13 +178,13 @@ func TestProcessPartitionOnceFailsTheCycleWhenQuarantineWriteFails(t *testing.T)
 		EvidenceSource: "finalization/workloads",
 	}
 
-	_, err := ProcessPartitionOnce(
+	_, err := worker.ProcessPartitionOnce(
 		context.Background(), now, cfg, lease, reader, edges,
 		acceptedGenerationFixed("gen-1", true),
 		nil, nil, nil, nil, nil, nil, quarantine,
 	)
 	if !errors.Is(err, errQuarantine) {
-		t.Fatalf("ProcessPartitionOnce() error = %v, want it to wrap the quarantine failure", err)
+		t.Fatalf("worker.ProcessPartitionOnce() error = %v, want it to wrap the quarantine failure", err)
 	}
 	if len(reader.completedIDs) != 0 {
 		t.Fatalf(
@@ -215,7 +217,7 @@ func TestProcessPartitionOnceWithNoUnroutableRowsSkipsTheQuarantineWrite(t *test
 	lease := &stubLeaseManager{claimResult: true}
 	quarantine := &recordingUnroutableWriter{}
 
-	cfg := PartitionProcessorConfig{
+	cfg := worker.PartitionProcessorConfig{
 		Domain:         "platform_infra",
 		PartitionID:    0,
 		PartitionCount: 1,
@@ -225,12 +227,12 @@ func TestProcessPartitionOnceWithNoUnroutableRowsSkipsTheQuarantineWrite(t *test
 		EvidenceSource: "finalization/workloads",
 	}
 
-	if _, err := ProcessPartitionOnce(
+	if _, err := worker.ProcessPartitionOnce(
 		context.Background(), now, cfg, lease, reader, &reportingEdgeWriter{},
 		acceptedGenerationFixed("gen-1", true),
 		nil, nil, nil, nil, nil, nil, quarantine,
 	); err != nil {
-		t.Fatalf("ProcessPartitionOnce() error = %v", err)
+		t.Fatalf("worker.ProcessPartitionOnce() error = %v", err)
 	}
 	if len(quarantine.batches) != 0 {
 		t.Fatalf("quarantine writes = %d, want 0 when nothing was rejected", len(quarantine.batches))

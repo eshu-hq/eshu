@@ -24,7 +24,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunPartitionDomainInte
 	store := NewSharedIntentStore(database)
 	ctx := context.Background()
 
-	got, err := store.HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents(ctx, reducer.SharedProjectionAcceptanceKey{
+	got, err := store.HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents(ctx, sharedintent.AcceptanceKey{
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-new",
@@ -36,7 +36,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunPartitionDomainInte
 		t.Fatal("HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents = false, want true")
 	}
 
-	got, err = store.HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents(ctx, reducer.SharedProjectionAcceptanceKey{
+	got, err = store.HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents(ctx, sharedintent.AcceptanceKey{
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-new",
@@ -68,7 +68,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunRefreshDomainIntent
 	store := NewSharedIntentStore(database)
 	ctx := context.Background()
 
-	got, err := store.HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents(ctx, reducer.SharedProjectionAcceptanceKey{
+	got, err := store.HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents(ctx, sharedintent.AcceptanceKey{
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-new",
@@ -89,7 +89,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunRefreshDomainIntent
 		t.Fatalf("query = %q, want delta_file_paths coverage check", database.query)
 	}
 
-	got, err = store.HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents(ctx, reducer.SharedProjectionAcceptanceKey{
+	got, err = store.HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents(ctx, sharedintent.AcceptanceKey{
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-new",
@@ -119,7 +119,7 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFence(t *testing.T) 
 		},
 	}
 
-	blocked, err := store.CodeCallProjectionRowBlockedByRepoFence(ctx, reducer.SharedProjectionAcceptanceKey{
+	blocked, err := store.CodeCallProjectionRowBlockedByRepoFence(ctx, sharedintent.AcceptanceKey{
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-1",
@@ -191,7 +191,7 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceDoesNotFenceFil
 		},
 	}
 
-	blocked, err := store.CodeCallProjectionRowBlockedByRepoFence(context.Background(), reducer.SharedProjectionAcceptanceKey{
+	blocked, err := store.CodeCallProjectionRowBlockedByRepoFence(context.Background(), sharedintent.AcceptanceKey{
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-1",
@@ -223,7 +223,7 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceUsesWholeRowLoo
 		ProjectionDomain: reducer.DomainCodeCalls,
 	}
 
-	blocked, err := store.CodeCallProjectionRowBlockedByRepoFence(context.Background(), reducer.SharedProjectionAcceptanceKey{
+	blocked, err := store.CodeCallProjectionRowBlockedByRepoFence(context.Background(), sharedintent.AcceptanceKey{
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-1",
@@ -271,7 +271,7 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceUsesPayloadRepo
 		},
 	}
 
-	blocked, err := store.CodeCallProjectionRowBlockedByRepoFence(context.Background(), reducer.SharedProjectionAcceptanceKey{
+	blocked, err := store.CodeCallProjectionRowBlockedByRepoFence(context.Background(), sharedintent.AcceptanceKey{
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-1",
@@ -292,7 +292,7 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceTreatsMissingSe
 
 	database := &partitionHistoryTestDB{fenceSelectedExists: false, fenceBlocked: false}
 	store := NewSharedIntentStore(database)
-	blocked, err := store.CodeCallProjectionRowBlockedByRepoFence(context.Background(), reducer.SharedProjectionAcceptanceKey{
+	blocked, err := store.CodeCallProjectionRowBlockedByRepoFence(context.Background(), sharedintent.AcceptanceKey{
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-1",
@@ -396,7 +396,7 @@ func TestSharedIntentStoreCodeCallWholeFenceRanksRefreshFirst(t *testing.T) {
 
 	_, err := store.CodeCallProjectionRowBlockedByRepoFence(
 		context.Background(),
-		reducer.SharedProjectionAcceptanceKey{ScopeID: "scope-a", AcceptanceUnitID: "repo-a", SourceRunID: "run-1"},
+		sharedintent.AcceptanceKey{ScopeID: "scope-a", AcceptanceUnitID: "repo-a", SourceRunID: "run-1"},
 		sharedintent.Row{
 			IntentID:         "whole-1",
 			ProjectionDomain: reducer.DomainCodeCalls,
@@ -437,7 +437,7 @@ func TestSharedIntentStoreCodeCallFileFenceRanksRefreshFirst(t *testing.T) {
 
 	_, err := store.CodeCallProjectionRowBlockedByRepoFence(
 		context.Background(),
-		reducer.SharedProjectionAcceptanceKey{ScopeID: "scope-a", AcceptanceUnitID: "repo-a", SourceRunID: "run-1"},
+		sharedintent.AcceptanceKey{ScopeID: "scope-a", AcceptanceUnitID: "repo-a", SourceRunID: "run-1"},
 		sharedintent.Row{
 			IntentID:         "file-refresh-1",
 			ProjectionDomain: reducer.DomainCodeCalls,

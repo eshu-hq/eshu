@@ -161,7 +161,7 @@ var materializedEdgeFamilyBlockerLockstepExclusions = map[string]string{
 	DomainHandlesRoute:        "shares CodeCallMaterializationHandler with code_calls: buildSymbolRuntimeIntentRows uses the same handler IntentWriter, so this test's reflection cannot distinguish the family from code_calls. The exclusion is structural, not a coverage waiver: its runner_lease_hold lockstep is checked by TestMaterializedEdgeFamilyRunnerLeaseHoldLockstep, while the anchor-scoped graph-write cell remains family-specific.",
 	DomainRunsIn:              "same shared CodeCallMaterializationHandler reflection limitation as handles_route; its runner_lease_hold lockstep is checked separately, and its anchor-scoped graph-write cell remains family-specific.",
 	DomainInvokesCloudAction:  "same shared CodeCallMaterializationHandler reflection limitation as handles_route; its runner_lease_hold lockstep is checked separately, and its anchor-scoped graph-write cell remains family-specific.",
-	DomainRepoDependency:      "three separate producer handlers (CrossRepoRelationshipHandler in cross_repo_resolution.go, the handler in package_source_correlation_handler.go, and code_import_repo_edge_handler.go) with inconsistently named intent-writer fields (IntentWriter vs RepoDependencyIntentWriter) -- not a single handler this test's one-field-name reflection can address",
+	DomainRepoDependency:      "three separate producer handlers (crossrepo.CrossRepoRelationshipHandler in cross_repo_resolution.go, the handler in package_source_correlation_handler.go, and code_import_repo_edge_handler.go) with inconsistently named intent-writer fields (IntentWriter vs crossrepo.RepoDependencyIntentWriter) -- not a single handler this test's one-field-name reflection can address",
 	DomainWorkloadDependency:  "written by WorkloadMaterializationHandler.WorkloadDependencyEdgeWriter, a handler shared across many unrelated domains (DomainWorkloadMaterialization etc.) -- not 1:1 with this family",
 }
 
@@ -206,7 +206,7 @@ func (noopIntentWriter) UpsertIntents(context.Context, []sharedintent.Row) error
 	return nil
 }
 
-// noopSharedProjectionEdgeWriter satisfies SharedProjectionEdgeWriter, the
+// noopSharedProjectionEdgeWriter satisfies sharedintent.EdgeWriter, the
 // type of DocumentationEdgeWriter, CodeownersOwnershipEdgeWriter, and
 // SubmodulePinEdgeWriter on DefaultHandlers.
 type noopSharedProjectionEdgeWriter struct{}
@@ -215,8 +215,8 @@ func (noopSharedProjectionEdgeWriter) RetractEdges(context.Context, string, []sh
 	return nil
 }
 
-func (noopSharedProjectionEdgeWriter) WriteEdges(context.Context, string, []sharedintent.Row, string) (SharedProjectionWriteReport, error) {
-	return SharedProjectionWriteReport{}, nil
+func (noopSharedProjectionEdgeWriter) WriteEdges(context.Context, string, []sharedintent.Row, string) (sharedintent.WriteReport, error) {
+	return sharedintent.WriteReport{}, nil
 }
 
 // materializedEdgeFamilyHandlersByDomain calls the real production wiring
@@ -267,7 +267,7 @@ func materializedEdgeFamilyHandlersByDomain() map[reducercontract.Domain]Handler
 
 // handlerHoldsIntentWriter reports whether handler's concrete type has a
 // field literally named IntentWriter -- the shared-projection intent path
-// (BuildSharedProjectionIntent plus IntentWriter.UpsertIntents) that
+// (sharedintent.Build plus IntentWriter.UpsertIntents) that
 // blockerSharedIntentLock can genuinely interrupt. A handler without that
 // field writes graph edges directly through an EdgeWriter and never touches
 // shared_projection_intents, so locking that table cannot block it.

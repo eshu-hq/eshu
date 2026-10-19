@@ -216,13 +216,13 @@ type SupplyChainSecurityHandlers struct {
 	// attachment decisions for digest-keyed image evidence.
 	SBOMAttestationAttachmentWriter sbomattest.SBOMAttestationAttachmentWriter
 
-	// SupplyChainImpactWriter persists vulnerability impact findings with
+	// supplychaincore.SupplyChainImpactWriter persists vulnerability impact findings with
 	// explicit package, SBOM, image, and repository evidence paths.
 	SupplyChainImpactWriter supplychaincore.SupplyChainImpactWriter
 
-	// SupplyChainImpactFencingTokenIssuer supplies the database-issued fencing
+	// supplychaincore.SupplyChainImpactFencingTokenIssuer supplies the database-issued fencing
 	// token each impact pass is stamped with (#7142). Required alongside the
-	// writer: a nil issuer makes SupplyChainImpactHandler.Handle hard-error and
+	// writer: a nil issuer makes supplychaincore.SupplyChainImpactHandler.Handle hard-error and
 	// the writer reject a zero token, so the registry must not register
 	// supply_chain_impact with a writer wired but no issuer (no legacy-0
 	// fallback: a defaulted token would make the stale-pass fence inert).
@@ -401,11 +401,11 @@ type CodeEvidenceHandlers struct {
 // readiness wait of the CAN_PERFORM and USES edge handlers. Every member is
 // optional; nil keeps the pre-wiring behavior documented on each field.
 type CrossScopeHandlers struct {
-	// CrossScopeProducerReadiness gates the #5709 cross-scope readiness floor.
+	// crossscope.ProducerReadiness gates the #5709 cross-scope readiness floor.
 	// Optional: nil means "no floor", not "not ready". A deployment that has
 	// not wired it keeps the pre-#5709 behaviour of committing whatever the
 	// cross-scope load resolved, rather than stranding every consumer.
-	CrossScopeProducerReadiness CrossScopeProducerReadiness
+	CrossScopeProducerReadiness crossscope.ProducerReadiness
 
 	// IAMCanPerformCrossScopeTargets resolves exact CAN_PERFORM targets from
 	// sibling AWS scopes of the account (#6785). Nil keeps resolution same-scope.

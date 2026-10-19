@@ -220,7 +220,7 @@ SELECT
 // state for the same accepted unit.
 func (s *SharedIntentStore) HasCompletedAcceptanceUnitDomainIntents(
 	ctx context.Context,
-	key reducer.SharedProjectionAcceptanceKey,
+	key sharedintent.AcceptanceKey,
 	domain string,
 ) (bool, error) {
 	sqlRows, err := s.database.QueryContext(
@@ -251,7 +251,7 @@ func (s *SharedIntentStore) HasCompletedAcceptanceUnitDomainIntents(
 // edges between chunks from the same accepted source run.
 func (s *SharedIntentStore) HasCompletedAcceptanceUnitSourceRunDomainIntents(
 	ctx context.Context,
-	key reducer.SharedProjectionAcceptanceKey,
+	key sharedintent.AcceptanceKey,
 	domain string,
 ) (bool, error) {
 	sqlRows, err := s.database.QueryContext(
@@ -282,7 +282,7 @@ func (s *SharedIntentStore) HasCompletedAcceptanceUnitSourceRunDomainIntents(
 // acceptance unit and domain.
 func (s *SharedIntentStore) HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents(
 	ctx context.Context,
-	key reducer.SharedProjectionAcceptanceKey,
+	key sharedintent.AcceptanceKey,
 	partitionKey string,
 	domain string,
 ) (bool, error) {
@@ -317,7 +317,7 @@ func (s *SharedIntentStore) HasCompletedAcceptanceUnitSourceRunPartitionDomainIn
 // generation's fence (#5554).
 func (s *SharedIntentStore) HasCompletedAcceptanceUnitSourceRunGenerationPartitionDomainIntents(
 	ctx context.Context,
-	key reducer.SharedProjectionAcceptanceKey,
+	key sharedintent.AcceptanceKey,
 	generationID string,
 	partitionKey string,
 	domain string,
@@ -351,7 +351,7 @@ func (s *SharedIntentStore) HasCompletedAcceptanceUnitSourceRunGenerationPartiti
 // completed current-run repo refresh covers every selected file path.
 func (s *SharedIntentStore) HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents(
 	ctx context.Context,
-	key reducer.SharedProjectionAcceptanceKey,
+	key sharedintent.AcceptanceKey,
 	filePaths []string,
 	domain string,
 ) (bool, error) {
@@ -389,7 +389,7 @@ func (s *SharedIntentStore) HasCompletedAcceptanceUnitSourceRunRefreshDomainInte
 // row into the reducer heap just to preserve refresh ordering.
 func (s *SharedIntentStore) CodeCallProjectionRowBlockedByRepoFence(
 	ctx context.Context,
-	key reducer.SharedProjectionAcceptanceKey,
+	key sharedintent.AcceptanceKey,
 	row sharedintent.Row,
 	domain string,
 ) (bool, error) {

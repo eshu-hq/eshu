@@ -22,7 +22,7 @@ func TestLatestIntentsByRepoAndPartitionDeduplicates(t *testing.T) {
 		{IntentID: "only-1", RepositoryID: "repo-b", PartitionKey: "pk-2", CreatedAt: t0},
 	}
 
-	latest, superseded := LatestIntentsByRepoAndPartition(intents)
+	latest, superseded := worker.LatestIntentsByRepoAndPartition(intents)
 	if len(latest) != 2 {
 		t.Fatalf("latest len = %d, want 2", len(latest))
 	}
@@ -56,11 +56,11 @@ func TestLatestIntentsByRepoAndPartitionKeepsRefreshFirst(t *testing.T) {
 			RepositoryID: "repo-a",
 			PartitionKey: "inheritance_edges:refresh:v1:whole:repo-a",
 			CreatedAt:    t0.Add(time.Hour),
-			Payload:      map[string]any{"intent_type": RepoRefreshIntentType, "action": repoRefreshAction},
+			Payload:      map[string]any{"intent_type": sharedintent.RepoRefreshIntentType, "action": sharedintent.RepoRefreshAction},
 		},
 	}
 
-	latest, _ := LatestIntentsByRepoAndPartition(intents)
+	latest, _ := worker.LatestIntentsByRepoAndPartition(intents)
 	if len(latest) != 3 {
 		t.Fatalf("latest len = %d, want 3 (distinct partition keys, none superseded)", len(latest))
 	}
@@ -72,7 +72,7 @@ func TestLatestIntentsByRepoAndPartitionKeepsRefreshFirst(t *testing.T) {
 func TestLatestIntentsByRepoAndPartitionEmpty(t *testing.T) {
 	t.Parallel()
 
-	latest, superseded := LatestIntentsByRepoAndPartition(nil)
+	latest, superseded := worker.LatestIntentsByRepoAndPartition(nil)
 	if latest != nil {
 		t.Errorf("latest = %v, want nil", latest)
 	}
@@ -91,7 +91,7 @@ func TestLatestIntentsByRepoAndPartitionTripleSupersede(t *testing.T) {
 		{IntentID: "v3", RepositoryID: "repo-a", PartitionKey: "pk-1", CreatedAt: t0.Add(2 * time.Second)},
 	}
 
-	latest, superseded := LatestIntentsByRepoAndPartition(intents)
+	latest, superseded := worker.LatestIntentsByRepoAndPartition(intents)
 	if len(latest) != 1 || latest[0].IntentID != "v3" {
 		t.Fatalf("latest = %v, want [v3]", latest)
 	}
@@ -109,8 +109,8 @@ func TestFilterAuthoritativeIntentsMatchesGeneration(t *testing.T) {
 		{IntentID: "active-2", ScopeID: "scope-b", AcceptanceUnitID: "unit-b", RepositoryID: "repo-b", SourceRunID: "run-1", GenerationID: "gen-2"},
 	}
 
-	lookup := func(key SharedProjectionAcceptanceKey) (string, bool) {
-		accepted := map[SharedProjectionAcceptanceKey]string{
+	lookup := func(key sharedintent.AcceptanceKey) (string, bool) {
+		accepted := map[sharedintent.AcceptanceKey]string{
 			{ScopeID: "scope-a", AcceptanceUnitID: "unit-a", SourceRunID: "run-1"}: "gen-1",
 			{ScopeID: "scope-a", AcceptanceUnitID: "unit-a", SourceRunID: "run-2"}: "gen-current",
 			{ScopeID: "scope-b", AcceptanceUnitID: "unit-b", SourceRunID: "run-1"}: "gen-2",
@@ -119,7 +119,7 @@ func TestFilterAuthoritativeIntentsMatchesGeneration(t *testing.T) {
 		return gen, ok
 	}
 
-	active, staleIDs := FilterAuthoritativeIntents(intents, lookup)
+	active, staleIDs := worker.FilterAuthoritativeIntents(intents, lookup)
 	if len(active) != 2 {
 		t.Fatalf("active len = %d, want 2", len(active))
 	}
@@ -141,11 +141,11 @@ func TestFilterAuthoritativeIntentsSkipsUnknownRepos(t *testing.T) {
 		{IntentID: "unknown-1", ScopeID: "scope-x", AcceptanceUnitID: "unit-x", RepositoryID: "repo-x", SourceRunID: "run-1", GenerationID: "gen-1"},
 	}
 
-	lookup := func(SharedProjectionAcceptanceKey) (string, bool) {
+	lookup := func(sharedintent.AcceptanceKey) (string, bool) {
 		return "", false
 	}
 
-	active, staleIDs := FilterAuthoritativeIntents(intents, lookup)
+	active, staleIDs := worker.FilterAuthoritativeIntents(intents, lookup)
 	if len(active) != 0 {
 		t.Errorf("active = %v, want empty", active)
 	}
@@ -176,7 +176,7 @@ func TestFilterAuthoritativeIntentsUsesScopeAndAcceptanceUnit(t *testing.T) {
 		},
 	}
 
-	lookup := func(key SharedProjectionAcceptanceKey) (string, bool) {
+	lookup := func(key sharedintent.AcceptanceKey) (string, bool) {
 		if key.ScopeID == "scope-a" && key.AcceptanceUnitID == "unit-a" && key.SourceRunID == "run-1" {
 			return "gen-a", true
 		}
@@ -186,7 +186,7 @@ func TestFilterAuthoritativeIntentsUsesScopeAndAcceptanceUnit(t *testing.T) {
 		return "", false
 	}
 
-	active, staleIDs := FilterAuthoritativeIntents(intents, lookup)
+	active, staleIDs := worker.FilterAuthoritativeIntents(intents, lookup)
 	if len(active) != 1 || active[0].IntentID != "active" {
 		t.Fatalf("active = %v, want only active", active)
 	}

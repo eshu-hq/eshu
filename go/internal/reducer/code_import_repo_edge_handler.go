@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
@@ -51,7 +53,7 @@ func codeImportOwnershipLoader(loader FactLoader) (activePackageOwnershipFactLoa
 // join used by #3598.
 //
 // The handler emits durable repo-dependency projection intents through the
-// shared RepoDependencyIntentWriter lane; the existing repo-dependency
+// shared crossrepo.RepoDependencyIntentWriter lane; the existing repo-dependency
 // projection runner drains them into canonical DEPENDS_ON edges with an
 // idempotent MERGE keyed on (source_repo, target_repo). When the intent writer
 // or the ownership loader is nil the handler is a no-op, so a deployment without
@@ -59,7 +61,7 @@ func codeImportOwnershipLoader(loader FactLoader) (activePackageOwnershipFactLoa
 type CodeImportRepoEdgeHandler struct {
 	FactLoader                 FactLoader
 	OwnershipLoader            activePackageOwnershipFactLoader
-	RepoDependencyIntentWriter RepoDependencyIntentWriter
+	RepoDependencyIntentWriter crossrepo.RepoDependencyIntentWriter
 	Instruments                *telemetry.Instruments
 	Tracer                     trace.Tracer
 	// Now overrides the wall clock for deterministic intent created_at in tests.

@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
@@ -91,7 +93,7 @@ func TestRunsOnConcurrentWritersCrossRepoTupleWinsLive(t *testing.T) {
 					continue
 				}
 				row := rows[0]
-				if row["evidence_source"] != reducer.CrossRepoEvidenceSource || row["confidence"] != 0.97 || row["source_tool"] != "argocd" {
+				if row["evidence_source"] != crossrepo.CrossRepoEvidenceSource || row["confidence"] != 0.97 || row["source_tool"] != "argocd" {
 					violations = append(violations, fmt.Sprintf("trial %d: RUNS_ON tuple %v, want the cross-repo tuple", index, row))
 				}
 			}
@@ -182,7 +184,7 @@ func raceRunsOnWriters(t *testing.T, runner neo4jSessionRunner, writers cypherRu
 					"relationship_type": "RUNS_ON",
 					"source_tool":       "argocd",
 				},
-			}}, reducer.CrossRepoEvidenceSource)
+			}}, crossrepo.CrossRepoEvidenceSource)
 			return err
 		}
 		trialStarted := time.Now()

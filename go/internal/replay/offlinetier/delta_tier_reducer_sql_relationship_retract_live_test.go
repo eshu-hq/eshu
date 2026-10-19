@@ -93,7 +93,7 @@ func TestReducerSQLRelationshipRetractGraphTruth(t *testing.T) {
 			// paths alongside the same intent_type.
 			retractPayload: map[string]any{
 				"repo_id":          sqlRetractInRepoID,
-				"intent_type":      reducer.RepoRefreshIntentType,
+				"intent_type":      sharedintent.RepoRefreshIntentType,
 				"action":           "refresh",
 				"delta_projection": true,
 				"delta_file_paths": []string{sqlRetractInPath},

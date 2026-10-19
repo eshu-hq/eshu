@@ -197,7 +197,7 @@ func wholeScopeRationaleRefreshRow(intentID, repoID string) sharedintent.Row {
 		RepositoryID: repoID,
 		Payload: map[string]any{
 			"repo_id":     repoID,
-			"intent_type": reducer.RepoRefreshIntentType,
+			"intent_type": sharedintent.RepoRefreshIntentType,
 			"action":      "refresh",
 		},
 	}

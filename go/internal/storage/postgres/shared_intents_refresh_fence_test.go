@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -18,7 +20,7 @@ func TestSharedIntentStoreHasCompletedGenerationRefreshFenceHistory(t *testing.T
 	store := NewSharedIntentStore(db)
 	ready, err := store.HasCompletedAcceptanceUnitSourceRunGenerationPartitionDomainIntents(
 		context.Background(),
-		reducer.SharedProjectionAcceptanceKey{
+		sharedintent.AcceptanceKey{
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: "repo-a",
 			SourceRunID:      "run-reused",

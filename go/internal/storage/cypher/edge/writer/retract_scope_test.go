@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -19,15 +20,15 @@ import (
 // delta-flagged and non-delta whole-scope refresh rows are both emitted under
 // the SAME whole-scope partition key
 // ("rationale_edges:refresh:v1:whole:"+repoID -- mirrors the unexported
-// reducer.repoWideRetractRefreshPartitionKey(reducer.DomainRationaleEdges,
+// sharedintent.RepoWideRetractRefreshPartitionKey(reducer.DomainRationaleEdges,
 // repoID), see rationale_edge_intents.go), which carries no delta/generation
-// component. reducer.LatestIntentsByRepoAndPartition therefore collapses the
+// component. worker.LatestIntentsByRepoAndPartition therefore collapses the
 // two candidate rows to exactly one survivor per repository per batch before
 // RetractEdges ever sees them, so only one of the two rows -- never both --
 // can reach collectDeltaProjectionRepoIDs/collectWholeScopeRefreshRepoIDs.
 //
 // TWO upstream mechanisms are load-bearing here, not one, and the rows below
-// are shaped so both are in play. reducer.FilterAuthoritativeIntents runs FIRST
+// are shaped so both are in play. worker.FilterAuthoritativeIntents runs FIRST
 // (shared_projection_worker.go) and keeps only rows matching the accepted
 // generation for their acceptance key, so every row surviving to dedup for one
 // repository already shares one (scope, unit, run) tuple; the shared partition
@@ -51,7 +52,7 @@ func TestCollectDeltaAndWholeScopeRefreshRepoIDsStayDisjointAfterDedup(t *testin
 	t.Parallel()
 
 	const repoID = "repo-disjoint-6165"
-	// Mirrors reducer.repoWideRetractRefreshPartitionKey(reducer.DomainRationaleEdges, repoID).
+	// Mirrors sharedintent.RepoWideRetractRefreshPartitionKey(reducer.DomainRationaleEdges, repoID).
 	// The helper is unexported, so this cross-package mirror is unavoidable, and
 	// a mirror cannot police itself: if the production key scheme ever started
 	// varying by delta or generation, both rows below would still share this
@@ -83,7 +84,7 @@ func TestCollectDeltaAndWholeScopeRefreshRepoIDsStayDisjointAfterDedup(t *testin
 			CreatedAt:        t0,
 			Payload: map[string]any{
 				"repo_id":     repoID,
-				"intent_type": reducer.RepoRefreshIntentType,
+				"intent_type": sharedintent.RepoRefreshIntentType,
 			},
 		},
 		{
@@ -100,7 +101,7 @@ func TestCollectDeltaAndWholeScopeRefreshRepoIDsStayDisjointAfterDedup(t *testin
 			CreatedAt:        t0.Add(time.Second),
 			Payload: map[string]any{
 				"repo_id":          repoID,
-				"intent_type":      reducer.RepoRefreshIntentType,
+				"intent_type":      sharedintent.RepoRefreshIntentType,
 				"delta_projection": true,
 				"delta_file_paths": []string{"a.go"},
 			},
@@ -120,7 +121,7 @@ func TestCollectDeltaAndWholeScopeRefreshRepoIDsStayDisjointAfterDedup(t *testin
 		}
 	}
 
-	deduped, superseded := reducer.LatestIntentsByRepoAndPartition(candidates)
+	deduped, superseded := worker.LatestIntentsByRepoAndPartition(candidates)
 	if len(deduped) != 1 {
 		t.Fatalf("deduped len = %d, want 1 -- the whole-scope partition key must collapse a repo's delta and non-delta refresh rows to one survivor; got %#v", len(deduped), deduped)
 	}

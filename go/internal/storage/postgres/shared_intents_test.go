@@ -469,7 +469,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitDomainIntents(t *testing.T) 
 		t.Fatalf("UpsertIntents: %v", err)
 	}
 
-	got, err := store.HasCompletedAcceptanceUnitDomainIntents(ctx, reducer.SharedProjectionAcceptanceKey{
+	got, err := store.HasCompletedAcceptanceUnitDomainIntents(ctx, sharedintent.AcceptanceKey{
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-new",
@@ -481,7 +481,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitDomainIntents(t *testing.T) 
 		t.Fatal("HasCompletedAcceptanceUnitDomainIntents = false, want true")
 	}
 
-	got, err = store.HasCompletedAcceptanceUnitDomainIntents(ctx, reducer.SharedProjectionAcceptanceKey{
+	got, err = store.HasCompletedAcceptanceUnitDomainIntents(ctx, sharedintent.AcceptanceKey{
 		ScopeID:          "scope-b",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-new",
@@ -535,7 +535,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunDomainIntents(t *te
 		t.Fatalf("UpsertIntents: %v", err)
 	}
 
-	got, err := store.HasCompletedAcceptanceUnitSourceRunDomainIntents(ctx, reducer.SharedProjectionAcceptanceKey{
+	got, err := store.HasCompletedAcceptanceUnitSourceRunDomainIntents(ctx, sharedintent.AcceptanceKey{
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-new",
@@ -547,7 +547,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunDomainIntents(t *te
 		t.Fatal("HasCompletedAcceptanceUnitSourceRunDomainIntents = false, want true")
 	}
 
-	got, err = store.HasCompletedAcceptanceUnitSourceRunDomainIntents(ctx, reducer.SharedProjectionAcceptanceKey{
+	got, err = store.HasCompletedAcceptanceUnitSourceRunDomainIntents(ctx, sharedintent.AcceptanceKey{
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-missing",

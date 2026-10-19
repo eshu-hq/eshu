@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -55,7 +57,7 @@ func TestRepoDependencyProjectionRunnerReplaysAmbiguousCommittedWriteExactly(t *
 				LeaseManager:       reader,
 				AcceptanceUnitGate: reader,
 				EdgeWriter:         writer,
-				AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+				AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 					if key.AcceptanceUnitID != repoID {
 						return "", false
 					}
@@ -102,7 +104,7 @@ func repoDependencyAmbiguousCommitIntent(
 			"repo_id":           repoID,
 			"target_repo_id":    targetID,
 			"relationship_type": "DEPENDS_ON",
-			"evidence_source":   CrossRepoEvidenceSource,
+			"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 			"resolved_id":       "resolved-new",
 		},
 	)
@@ -149,7 +151,7 @@ func (w *commitAmbiguityRepoDependencyWriter) RetractEdges(
 
 func (w *commitAmbiguityRepoDependencyWriter) WriteEdges(
 	_ context.Context, _ string, rows []sharedintent.Row, _ string,
-) (SharedProjectionWriteReport, error) {
+) (sharedintent.WriteReport, error) {
 	w.writeAttempts++
 	for _, row := range rows {
 		repoID := repoDependencyPayloadString(row, "repo_id")
@@ -159,9 +161,9 @@ func (w *commitAmbiguityRepoDependencyWriter) WriteEdges(
 		w.artifacts[repoID+"|"+resolvedID] = struct{}{}
 	}
 	if w.writeAttempts == 1 {
-		return SharedProjectionWriteReport{}, &neo4jdriver.ConnectivityError{Inner: errors.New("Connection lost during commit: EOF")}
+		return sharedintent.WriteReport{}, &neo4jdriver.ConnectivityError{Inner: errors.New("Connection lost during commit: EOF")}
 	}
-	return SharedProjectionWriteReport{}, nil
+	return sharedintent.WriteReport{}, nil
 }
 
 func (w *commitAmbiguityRepoDependencyWriter) assertExactState(
