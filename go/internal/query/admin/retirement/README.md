@@ -27,12 +27,15 @@ marked. `reason` and `idempotency_key` are mandatory. A scoped token gets
 403; unauthenticated dev mode stays open, mirroring replay and
 recover-generations.
 
-Per repository the trigger emits `accepted` when the tombstone mark commits
-and exactly one terminal outcome after the fence and purge steps:
-`completed`, `blocked` (a designed purge exit that wrote nothing —
+Per marked repository the trigger emits `accepted` when the tombstone
+mark commits and exactly one terminal outcome after the fence and purge
+steps: `completed`, `blocked` (a designed purge exit that wrote nothing —
 `terminal_not_reached` or `scope_lock_busy` — with the fenced tombstone
 left open for a later pass), `refused` (a mark conflict or fence refusal,
-before any purge), or `failed`. The counter is
+before any purge), or `failed`. A repository the call never marked —
+a validation refusal, or the unattempted remainder of an interrupted
+mark loop — stays counter-silent, so accepted plus terminal counts
+reconstruct the funnel. The counter is
 `eshu_dp_repository_retirements_total{outcome}`.
 
 A re-POST with the same idempotency key resumes the open retirement and

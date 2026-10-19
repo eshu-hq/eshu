@@ -2021,10 +2021,12 @@ type Instruments struct {
 
 	// OperatorRepositoryRetirements counts the operator-driven repository
 	// retirement trigger outcomes (#8602) by closed outcome (accepted,
-	// refused, blocked, completed, failed), one event per repository. The
-	// trigger emits accepted when the tombstone mark commits and exactly
-	// one terminal outcome per repository after the fence and purge steps,
-	// so accepted plus terminal counts reconstruct the trigger funnel.
+	// refused, blocked, completed, failed), one event per marked
+	// repository. The trigger emits accepted when the tombstone mark
+	// commits and exactly one terminal outcome per marked repository
+	// after the fence and purge steps, so accepted plus terminal counts
+	// reconstruct the trigger funnel. A repository the call never marked
+	// stays counter-silent.
 	// It is distinct from OperatorRepositoryRetirementsPurged (purge
 	// completions only) and from CanonicalRepositoryRetirements (the #7324
 	// path-conflict retirement, unrelated to this operator path).

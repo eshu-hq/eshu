@@ -22,7 +22,11 @@ import (
 
 // Trigger outcomes. Accepted marks the committed tombstone; exactly one
 // terminal outcome (completed, blocked, refused, failed) follows per
-// repository, so the eshu_dp_repository_retirements_total funnel adds up.
+// marked repository, so the eshu_dp_repository_retirements_total funnel
+// adds up. A repository this call never marked stays counter-silent: a
+// validation refusal counts nothing, and a mid-loop mark failure counts
+// the terminal only for the repositories already marked. The per-repo
+// breakdown of an interrupted mark loop is deferred to #8614.
 const (
 	// TriggerOutcomeAccepted counts a committed tombstone mark.
 	TriggerOutcomeAccepted = "accepted"
@@ -139,14 +143,20 @@ func (t *Trigger) logger() *slog.Logger {
 // lands on the result without an error. Only a malformed request, a
 // wrong-phase tombstone, or a failed step returns an error.
 func (t *Trigger) TriggerRetirement(ctx context.Context, req TriggerRequest) (TriggerResult, error) {
+	// A validation refusal marks nothing, so it counts nothing: every
+	// terminal count pairs with an accepted count from this call.
 	if err := validateTriggerRequest(req); err != nil {
-		t.countRefused(ctx, repoIDsOf(req.Retirements))
 		return TriggerResult{}, err
 	}
 	repoIDs := repoIDsOf(req.Retirements)
 	reasonHash := audit.IdentityHash(req.Reason)
 	keyHash := audit.IdentityHash(req.IdempotencyKey)
 	duplicate := false
+	// marked carries the repositories this call committed a tombstone
+	// for. A mid-loop mark failure counts its terminal only for those:
+	// the never-attempted remainder stays counter-silent until #8614
+	// gives the interrupted mark loop a per-repo breakdown.
+	var marked []string
 	for _, retirement := range req.Retirements {
 		record, err := t.Marker.InsertPending(ctx, pgstorage.RetirementRequest{
 			RetirementID:       retirement.RetirementID,
@@ -160,16 +170,17 @@ func (t *Trigger) TriggerRetirement(ctx context.Context, req TriggerRequest) (Tr
 		})
 		if err != nil {
 			if errors.Is(err, pgstorage.ErrRetirementAlreadyOpen) {
-				t.countRefused(ctx, repoIDs)
+				t.countRefused(ctx, marked)
 				t.audit(ctx, req, retirement, governanceaudit.DecisionDenied, triggerReasonRefused)
 			} else {
-				t.countOutcome(ctx, TriggerOutcomeFailed, repoIDs)
+				t.countOutcome(ctx, TriggerOutcomeFailed, marked)
 			}
 			return TriggerResult{}, err
 		}
 		if record.RetirementID != retirement.RetirementID {
 			duplicate = true
 		}
+		marked = append(marked, retirement.RepoID)
 		t.countOutcome(ctx, TriggerOutcomeAccepted, []string{retirement.RepoID})
 		t.audit(ctx, req, retirement, governanceaudit.DecisionAllowed, triggerReasonAccepted)
 	}
