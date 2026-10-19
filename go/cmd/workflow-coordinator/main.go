@@ -125,7 +125,13 @@ func run(parent context.Context) error {
 	if err != nil {
 		return fmt.Errorf("semantic provider worker metrics: %w", err)
 	}
-	store := newWorkflowControlStore(postgres.SQLDB{DB: db}, instruments)
+	// No quota lookup yet: the coordinator loads no component manifests at
+	// startup and owns no operator-override transport, so there is no
+	// manifest source to Resolve here — every claim takes the plain
+	// statement until the manifest/override sourcing follow-up on #8471
+	// supplies one. The wiring seam above already carries a non-nil lookup
+	// into the store (see TestNewWorkflowControlStoreWiresQuotaLookup).
+	store := newWorkflowControlStore(postgres.SQLDB{DB: db}, instruments, nil)
 	tenantGrantDB := &postgres.InstrumentedDB{
 		Inner:       postgres.SQLDB{DB: db},
 		Tracer:      providers.TracerProvider.Tracer(telemetry.DefaultSignalName),

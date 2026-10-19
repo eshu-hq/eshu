@@ -57,8 +57,10 @@ type WorkflowControlStore struct {
 	// per coordinator-hour when the quota state is unreadable. A
 	// non-positive value selects DefaultQuotaFloorGrantsPerHour.
 	QuotaFloorGrantsPerHour int
-	// quotaFloorMu serializes degraded-mode floor claims within one
-	// coordinator; the quota-gated path never takes it.
+	// quotaFloorMu guards the degraded-mode floor budget map within one
+	// coordinator. It is never held across the claim round-trip — only
+	// across the budget check and consume — and the quota-gated path never
+	// takes it.
 	quotaFloorMu sync.Mutex
 	// quotaFloorUsed counts consumed floor grants per component window,
 	// reset on the coordinator-hour roll. quotaFloorMu guards both.

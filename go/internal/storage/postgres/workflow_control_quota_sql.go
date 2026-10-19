@@ -6,9 +6,12 @@ package postgres
 // Quota-gated claim selector (#8471).
 //
 // This statement is claimNextWorkflowWorkItemQuery (priority-then-rotation
-// fair claim, #8469 step 3) plus the per-component generation quota. It
-// takes one extra parameter, $8, the enforced generations-per-hour limit,
-// and grants only when the same statement reserves budget. The plain
+// fair claim, #8469 step 3) plus the per-(component, scope) generation
+// quota (#8471): $8 is the enforced generations-per-hour limit per scope
+// row, and the statement grants only when it reserves budget in the same
+// row. A component with items in N scopes can therefore grant up to N times
+// the limit per hour; this partitioning keeps an exhausted scope from
+// head-of-line blocking the component's other scopes. The plain
 // statement is untouched and stays the path for quota-less components and
 // for the unreadable-quota floor fallback.
 //

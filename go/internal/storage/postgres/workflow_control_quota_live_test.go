@@ -22,10 +22,14 @@ import (
 // Per-component quota proofs (#8471, epic #8467).
 //
 // The harness drives the shipped WorkflowControlStore.ClaimNextEligible with
-// a quota lookup configured, on real Postgres. Four behaviors are pinned:
+// a quota lookup configured, on real Postgres. Five behaviors are pinned:
 // over-quota throttles on an idle system, racing replicas cannot overshoot
-// the shared reservation, quota state survives coordinator restart, and an
+// the shared reservation, quota state survives coordinator restart, an
 // unreadable quota table falls back to a floor rate with a distinct signal.
+// A fifth behavior — the budget partitions per (component, scope), so an
+// exhausted scope neither blocks nor absorbs another scope's budget — lives
+// in workflow_control_quota_partition_live_test.go (split out before this
+// file approached the file cap).
 //
 // Run with a throwaway Postgres:
 //
@@ -91,6 +95,23 @@ func seedQuotaBacklog(
 	count int,
 ) []string {
 	t.Helper()
+	return seedQuotaBacklogInScope(t, store, ctx, runID, base, count, quotaTestScope)
+}
+
+// seedQuotaBacklogInScope is seedQuotaBacklog for an explicit scope. The
+// fairness key folds the scope in so items in different scopes never share
+// a lottery head: a shared key would collapse cross-scope items onto one
+// head and hide the per-scope partitioning under test.
+func seedQuotaBacklogInScope(
+	t *testing.T,
+	store *WorkflowControlStore,
+	ctx context.Context,
+	runID string,
+	base time.Time,
+	count int,
+	scopeID string,
+) []string {
+	t.Helper()
 	mustCreateRun(t, store, ctx, workflow.Run{
 		RunID:       runID,
 		TriggerKind: workflow.TriggerKindBootstrap,
@@ -109,15 +130,15 @@ func seedQuotaBacklog(
 			CollectorKind:       scope.CollectorGit,
 			CollectorInstanceID: quotaTestInstance,
 			SourceSystem:        string(scope.CollectorGit),
-			ScopeID:             quotaTestScope,
-			AcceptanceUnitID:    quotaTestScope,
+			ScopeID:             scopeID,
+			AcceptanceUnitID:    scopeID,
 			SourceRunID:         id + "-generation",
 			GenerationID:        id + "-generation",
 			// One draw slot per item: the fair-claim lottery serves one
 			// head per fairness key, so a shared key would collapse all
 			// racing replicas onto a single head (SKIP LOCKED skips the
 			// rest) and the race would never reach the reservation.
-			FairnessKey: fmt.Sprintf("quota-key-%04d", i),
+			FairnessKey: fmt.Sprintf("quota-key-%s-%04d", scopeID, i),
 			Status:      workflow.WorkItemStatusPending,
 			CreatedAt:   created,
 			UpdatedAt:   created,
@@ -378,8 +399,8 @@ func TestClaimQuotaStateSurvivesCoordinatorRestart(t *testing.T) {
 
 // TestClaimQuotaUnreadableFallsBackToFloorRate drops the quota state table
 // to simulate a storage fault, then proves claims still flow at the
-// configured floor rate with one fallback signal per degraded call, and
-// throttle (not error) once the floor is exhausted.
+// configured floor rate with one fallback signal per admitted floor call,
+// and throttle quietly (not error, no signal) once the floor is exhausted.
 func TestClaimQuotaUnreadableFallsBackToFloorRate(t *testing.T) {
 	database, _ := openWorkflowControlIntegrationStore(t)
 	store, ctx, reader := quotaTestFixture(t, database, 100, 2)
@@ -411,7 +432,7 @@ func TestClaimQuotaUnreadableFallsBackToFloorRate(t *testing.T) {
 	if _, _, found := quotaClaim(t, store, ctx, "quota-floor-owner", 3); found {
 		t.Fatal("floor-exhausted claim found = true, want false (floor throttles, never errors)")
 	}
-	if got := quotaCounterTotal(t, reader, "eshu_dp_workflow_claim_quota_unreadable_fallback_total"); got != 3 {
-		t.Fatalf("quota_unreadable_fallback_total = %d, want 3 (one signal per degraded call)", got)
+	if got := quotaCounterTotal(t, reader, "eshu_dp_workflow_claim_quota_unreadable_fallback_total"); got != 2 {
+		t.Fatalf("quota_unreadable_fallback_total = %d, want 2 (one signal per admitted floor call; the exhausted third throttles quietly)", got)
 	}
 }

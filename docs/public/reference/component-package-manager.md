@@ -441,7 +441,7 @@ Required manifest fields:
 | `spec.emittedFacts[]` | Fact kind, optional payload schema shape, schema versions, and source-confidence values emitted by the component. |
 | `spec.consumerContracts.reducer.phases` | Reducer phase contracts the emitted fact kinds need. |
 | `spec.telemetry.metricsPrefix` | Component-owned metric prefix, when the component emits metrics. |
-| `spec.quotas` | Optional per-component governance bounds: `maxGenerationsPerHour` and `maxFactsPerGeneration` (each at least 1 when set; absent means unlimited). The manifest declares the author's defaults; the operator override wins per field. Only `maxGenerationsPerHour` is enforced at claim-grant time today (throttled even on an idle system, with `eshu_dp_workflow_claim_quota_exceeded_total` counting blocks); `maxFactsPerGeneration` is declared and validated but not yet runtime-enforced. |
+| `spec.quotas` | Optional per-component governance bounds: `maxGenerationsPerHour` and `maxFactsPerGeneration` (each at least 1 when set; absent means unlimited). The manifest declares the author's defaults; the operator override wins per field. Only `maxGenerationsPerHour` is enforced at claim-grant time today, per (component, scope) per hour — each scope row independently allows up to the limit, so a component with items in N scopes can grant up to N times the limit per hour (throttled even on an idle system, with `eshu_dp_workflow_claim_quota_exceeded_total` counting blocks); `maxFactsPerGeneration` is declared and validated but not yet runtime-enforced. |
 
 Artifacts must be digest-pinned with a SHA256 digest. Mutable tags and short
 or malformed digests are rejected.

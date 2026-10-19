@@ -80,10 +80,19 @@ func (s *WorkflowControlStore) claimNextEligibleWithQuota(
 // claimNextEligibleFloor is the unreadable-quota fallback: the gated
 // statement named component_quota_windows as the failure, so the quota
 // protection is degraded, not gone. Grants flow through the plain claim
-// statement at the floor budget with one fallback signal per call; once the
-// floor is exhausted the claim throttles (found=false) instead of erroring.
-// The floor mutex serializes degraded claims within one coordinator; the
-// gated path never takes it, so healthy-path concurrency is unaffected.
+// statement at the floor budget with one fallback signal per admitted call;
+// once the floor is exhausted the claim throttles (found=false) instead of
+// erroring, quietly: denied calls return before any signal or statement, so
+// a sustained degraded state neither ticks the fallback counter nor
+// WARN-spams per poll. The floor mutex guards only the budget map, never
+// the claim round-trip, so one slow database cannot serialize degraded
+// claims across all components on a single process-wide lock. The budget
+// check and the consume are split across that round-trip (consume-on-grant
+// only), so concurrent admitters can overshoot a coarse floor by the
+// claimant count; that direction is harmless per
+// DefaultQuotaFloorGrantsPerHour, and empty claims consume nothing. The
+// gated path never takes this mutex, so healthy-path concurrency is
+// unaffected.
 func (s *WorkflowControlStore) claimNextEligibleFloor(
 	ctx context.Context,
 	selector workflow.ClaimSelector,
@@ -91,12 +100,13 @@ func (s *WorkflowControlStore) claimNextEligibleFloor(
 	leaseTTL time.Duration,
 ) (workflow.WorkItem, workflow.Claim, bool, error) {
 	kind := string(selector.CollectorKind)
-	s.recordQuotaFallback(ctx, selector)
 	s.quotaFloorMu.Lock()
-	defer s.quotaFloorMu.Unlock()
-	if !s.floorAllowLocked(kind, now) {
+	allowed := s.floorAllowLocked(kind, now)
+	s.quotaFloorMu.Unlock()
+	if !allowed {
 		return workflow.WorkItem{}, workflow.Claim{}, false, nil
 	}
+	s.recordQuotaFallback(ctx, selector)
 	rows, err := s.database.QueryContext(
 		ctx,
 		claimNextWorkflowWorkItemQuery,
@@ -113,7 +123,9 @@ func (s *WorkflowControlStore) claimNextEligibleFloor(
 		return workflow.WorkItem{}, workflow.Claim{}, false, err
 	}
 	if found {
+		s.quotaFloorMu.Lock()
 		s.floorConsumeLocked(kind, now)
+		s.quotaFloorMu.Unlock()
 	}
 	return item, claim, found, nil
 }
@@ -224,8 +236,9 @@ func (s *WorkflowControlStore) recordQuotaThrottle(
 }
 
 // recordQuotaFallback emits the distinct unreadable-quota signal: a counter
-// tick plus a warning log line carrying the scope-free identifiers. The
-// scope is intentionally absent from the counter and present on the log.
+// tick plus a warning log line carrying the collector kind and the floor
+// limit. The scope is absent by design — the floor path never learns it —
+// and LogKeyQuotaScope stays reserved for future use.
 func (s *WorkflowControlStore) recordQuotaFallback(ctx context.Context, selector workflow.ClaimSelector) {
 	if s.Instruments != nil && s.Instruments.WorkflowClaimQuotaUnreadableFallback != nil {
 		s.Instruments.WorkflowClaimQuotaUnreadableFallback.Add(ctx, 1, metric.WithAttributes(

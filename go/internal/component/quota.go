@@ -9,9 +9,12 @@ import "fmt"
 // generation and generations per hour. A nil field is unlimited; a set
 // field must be positive. The manifest carries the component author's
 // defaults; the operator override wins per field (see Resolve). Only the
-// generations-per-hour bound is enforced at claim-grant time today: no
-// per-generation emitted-fact counter exists yet, so the facts bound is
-// declared and validated but not runtime-enforced (follow-up on #8471).
+// generations-per-hour bound is enforced at claim-grant time today, per
+// (component, scope) per hour: each scope row independently allows up to
+// the limit, so a component with items in N scopes can grant up to N times
+// the limit per hour. No per-generation emitted-fact counter exists yet, so
+// the facts bound is declared and validated but not runtime-enforced
+// (follow-up on #8471).
 type Quota struct {
 	MaxFactsPerGeneration *int `yaml:"maxFactsPerGeneration,omitempty" json:"maxFactsPerGeneration,omitempty"`
 	MaxGenerationsPerHour *int `yaml:"maxGenerationsPerHour,omitempty" json:"maxGenerationsPerHour,omitempty"`

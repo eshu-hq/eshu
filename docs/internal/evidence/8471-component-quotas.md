@@ -35,10 +35,15 @@ container on the dev host; Go live-test suites on the same host via
   grant of budget left (unconditional-reserve mutation grants 7 and fails);
   restart preserves the count; floor fallback grants exactly the floor.
   Telemetry: `quota_exceeded_total` ticks once per throttled empty claim;
-  `quota_unreadable_fallback_total` ticks once per degraded call with a
-  WARN line. Safe because the pre-filter is liveness-only (stale reads
+  `quota_unreadable_fallback_total` ticks once per admitted floor call with
+  a WARN line, and an exhausted floor throttles quietly (no tick, no WARN,
+  no statement). Safe because the pre-filter is liveness-only (stale reads
   cannot grant) and the conditional upsert is the atomic gate, proven by
-  the serialization race.
+  the serialization race. The floor budget check and consume are split
+  across the claim round-trip (consume-on-grant only) with the mutex held
+  for map ops alone, so a slow database cannot serialize degraded claims;
+  the bounded concurrent-admitter overshoot of the coarse floor is the
+  owner-sanctioned direction.
 
 ## Observability Evidence:
 
@@ -47,8 +52,12 @@ container on the dev host; Go live-test suites on the same host via
   `eshu_dp_workflow_claim_quota_unreadable_fallback_total`
   (`collector_kind`) are asserted live with an SDK manual reader in
   `TestClaimQuotaOverBudgetThrottlesOnIdleSystem` (1 tick) and
-  `TestClaimQuotaUnreadableFallsBackToFloorRate` (3 ticks); `scope_id`
-  never labels a metric (log line only).
+  `TestClaimQuotaUnreadableFallsBackToFloorRate` (2 ticks: the exhausted
+  third call throttles quietly); `scope_id` never labels a metric and no
+  log line emits it — the registered `quota.scope_id` key is reserved for
+  future use. The per-(component, scope) partitioning is pinned live by
+  `TestClaimQuotaScopesPartitionBudget` (exhausted scope A blocks nothing
+  in scope B; window total reaches twice the limit).
 - Coverage: `scripts/verify-telemetry-coverage.sh` green with the quota
   gate folded into the `collector.claimed_run` coverage row; operator
   reference gains the `claim-quotas.md` sibling page plus nav entry.
