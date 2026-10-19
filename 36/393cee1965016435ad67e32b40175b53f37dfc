@@ -1,0 +1,14 @@
+go/internal/storage/cypher/forbidden_patterns_parity_test.go
+  h_78a442cba0b3e6 1-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "36393cee1965016435ad67e32b40175b53f37dfc",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
