@@ -42,7 +42,6 @@ var methodologyCommittedSchemaDeclaration = methodologyRewriteDeclaration{
 		"go/internal/graph/schema_tables_indexes.go",
 		"go/internal/graph/schema_test.go",
 	},
-	},
 }
 
 // methodologySchemaDeclarationActive reports whether any declared schema
