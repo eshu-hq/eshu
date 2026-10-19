@@ -307,6 +307,7 @@ jobs:
   lint:
     needs: queue-selection
     name: "ESLint flat config (issue #3763)"
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
       - name: Require queue selection to succeed
@@ -335,6 +336,7 @@ jobs:
     needs: queue-selection
     name: "Prettier format check (issue #3763)"
     continue-on-error: true
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
       - name: Require queue selection to succeed

@@ -30,6 +30,7 @@ jobs:
   changes:
     needs: queue-selection
     name: Detect changed gate paths
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     outputs:
       openapi: ${{ steps.filter.outputs.openapi }}
