@@ -119,6 +119,7 @@ var canonicalCapabilityOrder = []string{
 	"operator.decision_evidence.list",
 	"operator.replay_events.list",
 	"operator.repository_catalog.lookup",
+	"operator.delta_union_completeness.check",
 	"freshness.generation_lifecycle",
 	"freshness.changed_since",
 	"freshness.service_changed_since",

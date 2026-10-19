@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/goldengate"
@@ -241,7 +242,10 @@ func deltaUnionGraphCount(value any) int64 {
 // deltaUnionCompleteness serves GET /api/v0/admin/delta-union/completeness:
 // the read-only prod completeness report over explicit ?scope= filters (at
 // least one is required; an empty filter fans out and is rejected with
-// 400). It never repairs. A failed ACTIVE or graph read answers
+// 400). It never repairs. A graph read that fails with a shared graph-read
+// verdict answers it first (#8292): the retryable 503 with Retry-After for
+// an unavailable graph, 504 for an expired graph deadline, each with the
+// fixed verdict text. Any other failed ACTIVE or graph read answers
 // deltaUnionCompletenessFailedMessage through
 // tracing.ServerFailureEnvelope: 500 with the error on the request span, or
 // 499 when the caller canceled (#7674). A filter past the repository cap
@@ -264,6 +268,9 @@ func (h *Handler) deltaUnionCompleteness(w http.ResponseWriter, r *http.Request)
 			})
 			return
 		}
+		if writeDeltaUnionGraphVerdict(w, r, err) {
+			return
+		}
 		message := deltaUnionCompletenessFailedMessage
 		var overCap *deltaUnionCapError
 		if errors.As(err, &overCap) {
@@ -277,4 +284,31 @@ func (h *Handler) deltaUnionCompleteness(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	querycontract.WriteJSON(w, http.StatusOK, report)
+}
+
+// writeDeltaUnionGraphVerdict answers err with the shared graph-read verdict
+// under deltaUnionCompletenessCapability and reports whether it did (#8292).
+// The route's callers read the {"status","detail"} body, so the verdict keeps
+// that shape: status "error" and the verdict's fixed text as detail, never the
+// backend error text. A caller that asks for the Eshu envelope gets the full
+// envelope, which names the capability. The retryable 503 carries Retry-After
+// in both shapes. A false return leaves the response untouched for the
+// route's own 500/499 mapping.
+func writeDeltaUnionGraphVerdict(w http.ResponseWriter, r *http.Request, err error) bool {
+	status, envelope, ok := querycontract.GraphReadErrorEnvelope(err, deltaUnionCompletenessCapability)
+	if !ok {
+		return false
+	}
+	if querycontract.AcceptsEnvelope(r) {
+		querycontract.WriteErrorEnvelope(w, r, status, envelope)
+		return true
+	}
+	if envelope.Retryable() {
+		w.Header().Set("Retry-After", strconv.Itoa(querycontract.BackendUnavailableRetryAfterSeconds))
+	}
+	querycontract.WriteJSON(w, status, map[string]any{
+		"status": "error",
+		"detail": envelope.Message,
+	})
+	return true
 }

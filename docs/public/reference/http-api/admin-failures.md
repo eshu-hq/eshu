@@ -77,14 +77,25 @@ the retryable `503` on a reader verdict and `500` otherwise, never `504`.
 
 ## Delta-union completeness
 
-`GET /api/v0/admin/delta-union/completeness` (#7797) answers a failed ACTIVE
-or graph read with `500` and the fixed detail `delta-union completeness check
-failed`, or `499` when the client canceled, in its own
-`{"status": "error", "detail": ...}` body (#7674). It has no
-capability-matrix key and maps no reader or graph verdict, so those answer
-that `500` too. A filter past the repository cap keeps its `500` with the
-narrow-the-filter text, which names only the counts and the cap. A missing
-scope filter stays `400`, and an unconfigured check stays `503`.
+`GET /api/v0/admin/delta-union/completeness` (#7797) maps the shared
+graph-read verdicts under the capability-matrix key
+`operator.delta_union_completeness.check` (#8292), in its own
+`{"status": "error", "detail": ...}` body (#7674):
+
+- A graph outage answers the retryable `503` with `Retry-After` and the fixed
+  graph-unavailable detail.
+- A graph deadline answers `504` with the fixed deadline detail.
+- A caller that sends `Accept: application/eshu.envelope+json` reads the same
+  verdicts in the shared error envelope, which names the capability.
+- Any other failed ACTIVE or graph read answers `500` with the fixed detail
+  `delta-union completeness check failed`, or `499` when the client canceled.
+  The ACTIVE read runs on the writer pool, so a PostgreSQL reader verdict does
+  not reach this route.
+- A filter past the repository cap keeps its `500` with the narrow-the-filter
+  text, which names only the counts and the cap. A missing scope filter stays
+  `400`, and an unconfigured check stays `503` with no `Retry-After`.
+
+No body carries backend error text.
 
 ## Mutations
 

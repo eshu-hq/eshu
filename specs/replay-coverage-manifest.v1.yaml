@@ -303,6 +303,7 @@ coverage:
   - {surface: capability:operator.decision_evidence.list, scenario: capability_claim, scenario_type: baseline, ref: operator.decision_evidence.list, proof_gate: capability-inventory}
   - {surface: capability:operator.replay_events.list, scenario: capability_claim, scenario_type: baseline, ref: operator.replay_events.list, proof_gate: capability-inventory}
   - {surface: capability:operator.repository_catalog.lookup, scenario: capability_claim, scenario_type: baseline, ref: operator.repository_catalog.lookup, proof_gate: capability-inventory}
+  - {surface: capability:operator.delta_union_completeness.check, scenario: capability_claim, scenario_type: baseline, ref: operator.delta_union_completeness.check, proof_gate: capability-inventory}
   - {surface: capability:package_registry.packages.aggregate, scenario: capability_claim, scenario_type: baseline, ref: package_registry.packages.aggregate, proof_gate: capability-inventory}
   - {surface: capability:package_registry.packages.list, scenario: capability_claim, scenario_type: baseline, ref: package_registry.packages.list, proof_gate: capability-inventory}
   - {surface: capability:package_registry.versions.list, scenario: capability_claim, scenario_type: baseline, ref: package_registry.versions.list, proof_gate: capability-inventory}

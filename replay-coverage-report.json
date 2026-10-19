@@ -2,8 +2,8 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 458,
-    "covered": 447,
+    "total": 459,
+    "covered": 448,
     "uncovered": 0,
     "unresolved": 0,
     "exempt": 11,
@@ -21,8 +21,8 @@
     },
     {
       "registry": "capability_matrix",
-      "total": 157,
-      "covered": 157,
+      "total": 158,
+      "covered": 158,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
@@ -113,8 +113,8 @@
   "scenario_type_summaries": [
     {
       "scenario_type": "baseline",
-      "total": 242,
-      "covered": 237,
+      "total": 243,
+      "covered": 238,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 5,
@@ -1206,6 +1206,16 @@
       "ref": "operator.decisions.list",
       "proof_gate": "capability-inventory",
       "detail": "capability \"operator.decisions.list\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:operator.delta_union_completeness.check",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "operator.delta_union_completeness.check",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"operator.delta_union_completeness.check\" matrix profile proofs present (supported=3 refusal=1)"
     },
     {
       "registry": "capability_matrix",

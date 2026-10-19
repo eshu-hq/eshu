@@ -21,9 +21,11 @@
 // error text (#7674): inspection reads give a stale PostgreSQL reader the
 // shared retryable 503 first, bounded reads then answer their route-timeout
 // 504, and every other failure answers 500 through tracing.WriteServerFailure,
-// or 499 on a client cancel. The delta-union completeness route uses
-// tracing.ServerFailureEnvelope instead, so its body keeps the
-// {"status","detail"} shape. A 499 on a mutation says only that the client
+// or 499 on a client cancel. The delta-union completeness route answers a
+// shared graph-read verdict first (retryable 503, or 504 on a graph deadline,
+// under operator.delta_union_completeness.check, #8292), then uses
+// tracing.ServerFailureEnvelope, and keeps the {"status","detail"} body shape
+// in both. A 499 on a mutation says only that the client
 // left, not that nothing was written. The replay, reopen, and
 // recover-generations idempotency finalize runs detached from the request's
 // cancel, so it never answers 499 and a finalize failure is always a 500.
