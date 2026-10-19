@@ -34,11 +34,12 @@ jobs:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: gh api -X POST repos/example/repo/statuses/${HEAD_SHA} -f state=pending -f context=required-gates-complete
       - name: Await blockers
+        if: ${{ github.event.action == 'completed' }}
         run: |
           go build -o "${RUNNER_TEMP}/ci-gates-bin" ./cmd/ci-gates
           "${RUNNER_TEMP}/ci-gates-bin" await
       - name: Publish terminal
-        if: ${{ !cancelled() }}
+        if: ${{ github.event.action == 'completed' && !cancelled() }}
         env:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
@@ -95,7 +96,7 @@ func TestCheckRequiredStatusWorkflows_TrustedPublisherPasses(t *testing.T) {
 func TestCheckRequiredStatusWorkflows_AcceptsEquivalentCancellationSpacing(t *testing.T) {
 	t.Parallel()
 
-	body := strings.Replace(trustedRequiredWorkflow, `${{ !cancelled() }}`, `${{!cancelled()}}`, 1)
+	body := strings.Replace(trustedRequiredWorkflow, `${{ github.event.action == 'completed' && !cancelled() }}`, `${{github.event.action=='completed' && !cancelled()}}`, 1)
 	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
 	if len(errs) != 0 {
 		t.Fatalf("equivalent cancellation-safe condition returned errors: %v", errs)
@@ -177,7 +178,7 @@ func TestCheckRequiredStatusWorkflows_RejectsFilteredSourceWorkflow(t *testing.T
 func TestCheckRequiredStatusWorkflows_RequiresTerminalFailureAfterSetupFailure(t *testing.T) {
 	t.Parallel()
 
-	body := strings.Replace(trustedRequiredWorkflow, `if: ${{ !cancelled() }}`, `if: ${{ success() }}`, 1)
+	body := strings.Replace(trustedRequiredWorkflow, `if: ${{ github.event.action == 'completed' && !cancelled() }}`, `if: ${{ github.event.action == 'completed' && success() }}`, 1)
 	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
 	if len(errs) == 0 {
 		t.Fatal("terminal failure publisher must run even when setup or aggregation fails")
@@ -196,7 +197,7 @@ func TestCheckRequiredStatusWorkflows_RequiresTerminalFailureAfterSetupFailure(t
 func TestCheckRequiredStatusWorkflows_RejectsTerminalPublisherOnCancellation(t *testing.T) {
 	t.Parallel()
 
-	body := strings.Replace(trustedRequiredWorkflow, `if: ${{ !cancelled() }}`, `if: ${{ always() }}`, 1)
+	body := strings.Replace(trustedRequiredWorkflow, `if: ${{ github.event.action == 'completed' && !cancelled() }}`, `if: ${{ github.event.action == 'completed' && always() }}`, 1)
 	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
 	if len(errs) == 0 {
 		t.Fatal("cancelled aggregate must not publish a terminal status")
@@ -235,7 +236,7 @@ func TestCheckRequiredStatusWorkflows_RejectsMalformedCancellationConditions(t *
 			t.Parallel()
 			body := strings.Replace(
 				trustedRequiredWorkflow,
-				`        if: ${{ !cancelled() }}`,
+				`        if: ${{ github.event.action == 'completed' && !cancelled() }}`,
 				"        if: '"+condition+"'",
 				1,
 			)
@@ -287,6 +288,25 @@ func TestCheckRequiredStatusWorkflows_RequiresInProgressInvalidation(t *testing.
 	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
 	if len(errs) == 0 {
 		t.Fatal("publisher must invalidate stale success when a blocking workflow starts")
+	}
+}
+
+// An in_progress event exists to invalidate a stale success (pending write).
+// It must not also check out, build, and await for up to the job timeout:
+// every step after the pending write runs only for a completed event (#8617).
+func TestCheckRequiredStatusWorkflows_RequiresCompletedOnlyAggregation(t *testing.T) {
+	t.Parallel()
+
+	body := strings.ReplaceAll(trustedRequiredWorkflow, "github.event.action == 'completed' && ", "")
+	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
+	found := false
+	for _, err := range errs {
+		if strings.Contains(err.Error(), "completed") && strings.Contains(err.Error(), "in_progress") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected completed-only aggregation error, got: %v", errs)
 	}
 }
 

@@ -144,14 +144,22 @@ jobs:
             sleep 10
           done
 
+      # Every step from here on is completed-only (#8617). An in_progress
+      # event has one job: the pending write above, which invalidates a
+      # stale success when a source workflow starts or re-runs on this head.
+      # Aggregating on in_progress can only poll for outcomes that do not
+      # exist yet, holding a runner per source workflow; each source still
+      # sends completed when it finishes or is cancelled, and those runs
+      # classify and publish the verdict. The registry validator
+      # (cigates.validateCompletedOnlyAggregation) pins this split.
       - name: Check out trusted default-branch policy
-        if: ${{ steps.pending.outputs.disposition == 'active' }}
+        if: ${{ github.event.action == 'completed' && steps.pending.outputs.disposition == 'active' }}
         uses: actions/checkout@v5
         with:
           ref: ${{ github.event.repository.default_branch }}
 
       - name: Set up Go
-        if: ${{ steps.pending.outputs.disposition == 'active' }}
+        if: ${{ github.event.action == 'completed' && steps.pending.outputs.disposition == 'active' }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
@@ -162,7 +170,7 @@ jobs:
       # diffs a merge group against its fixed base SHA instead.
       - name: Resolve pull request identity
         id: pr
-        if: ${{ github.event.workflow_run.event == 'pull_request' && steps.pending.outputs.disposition == 'active' }}
+        if: ${{ github.event.action == 'completed' && github.event.workflow_run.event == 'pull_request' && steps.pending.outputs.disposition == 'active' }}
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
@@ -186,12 +194,12 @@ jobs:
       # HERE, named for what it is, instead of the trusted publisher's own
       # `go build` failing inside the step below (#6615 follow-up to #6075).
       - name: Pre-warm Go modules
-        if: ${{ steps.pending.outputs.disposition == 'active' }}
+        if: ${{ github.event.action == 'completed' && steps.pending.outputs.disposition == 'active' }}
         run: scripts/ci/go-mod-download-retry.sh
 
       - name: Await every selected blocking gate
         id: aggregate
-        if: ${{ steps.pending.outputs.disposition == 'active' }}
+        if: ${{ github.event.action == 'completed' && steps.pending.outputs.disposition == 'active' }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -250,7 +258,7 @@ jobs:
           exit "${code}"
 
       - name: Publish terminal required status
-        if: ${{ !cancelled() }}
+        if: ${{ github.event.action == 'completed' && !cancelled() }}
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
