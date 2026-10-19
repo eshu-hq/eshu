@@ -96,7 +96,7 @@
 //     narrowed the public v1 contract without a major bump (#5820 P2 review
 //     finding). The writer now escapes both the algorithm and digest instead
 //     (packageRegistryEscapeHashSegment/packageRegistrySplitHashPair in
-//     go/internal/storage/cypher/package_registry_artifact_writer.go), so
+//     go/internal/storage/cypher/package/registry/artifact_writer.go), so
 //     unambiguity is enforced where the encoding actually happens, not by
 //     narrowing what decode accepts.
 //

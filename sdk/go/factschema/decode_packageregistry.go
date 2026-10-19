@@ -92,7 +92,7 @@ func EncodePackageRegistrySourceHint(hint packageregistryv1.SourceHint) (map[str
 // rejected a colon-bearing algorithm name here, reasoning that the graph
 // writer flattens Hashes into a sorted "algorithm:digest" string list
 // (packageRegistryHashPairs in
-// go/internal/storage/cypher/package_registry_artifact_writer.go) and a colon
+// go/internal/storage/cypher/package/registry/artifact_writer.go) and a colon
 // would make that split ambiguous. That silently narrowed the public v1
 // contract without a major version bump or compatibility shim (#5820 P2
 // review finding): the same schema version had always decoded these
