@@ -41,13 +41,16 @@ the full `package#export` key each confirmed.
   `CacheClientFactory.createClient({...})`; producer declares
   `export class CacheClientFactory` with `static createClient`; key
   `@dmm/lib-node-caching#CacheClientFactory.createClient` has 1 publisher
-  deployment-wide. Consumer gen `bc9ac425`, producer gen `0f14f386`. TRUE.
+  deployment-wide. Consumer gen `bc9ac425` (post-sweep generation; the
+  wave-time portal generation has since been superseded),
+  producer gen `0f14f386`. TRUE.
   This is the interim source-verified edge, now materialized.
 - T2 `api-node-boattrader` `server/handlers/app/blocks.ts` `getBlocks` ->
   `lib-node-blocks` `src/index.ts` `getBlock`. Destructured
   `require('@dmm/lib-node-blocks')`; single call
   `getBlock(hostname, code, contentType, locale)`; producer declares
-  `export const getBlock`; key unique (1 publisher). TRUE.
+  `export const getBlock`; key unique (1 publisher). Consumer gen `83a22cd9`,
+  producer gen `bb0e2333`. TRUE.
 - T3 `portal-nextjs-platform`
   `apps/bff-api/src/datasources/boat-direct-datasource.ts` `getBoat` ->
   `lib-node-search` `src/actions/getById.ts` `getById`. Bare named import
@@ -55,17 +58,19 @@ the full `package#export` key each confirmed.
   comments or a `Parameters<typeof getById>` type position; producer declares
   `export const getById`; key `@dmm/lib-node-search#getById` unique
   (same export name under 3 other packages does not collide: the key carries
-  the package). TRUE.
+  the package). Consumer gen `bc9ac425` (post-sweep generation; the wave-time
+  portal generation has since been superseded), producer gen `455bed10`. TRUE.
 - T4 `lib-node-search` `src/builders/filterTermForMake.ts`
   `filterTermForMake` -> `lib-node-make-model` `src/resources/elastic.js`
   `getMake`. Bare named import (declared `^1.9.0`); single call
   `getMake(services.elasticSearchClient, trimmed)`; producer declares
-  `export const getMake`; key unique. TRUE.
+  `export const getMake`; key unique. Consumer gen `455bed10`,
+  producer gen `b63544df`. TRUE.
 - T5 `api-node-boattrader` `server/resources/ads/adHelper.ts`
   `serveRoadBlocks` -> `lib-node-ads` `src/index.ts` `serveRoadblocks`.
   Aliased named import `serveRoadblocks as serveRoadblocksLib` (declared
   `^7.0.4`); single call; producer declares `export const serveRoadblocks`;
-  key unique. TRUE.
+  key unique. Consumer gen `83a22cd9`, producer gen `51486c30`. TRUE.
 
 ## PHP: 5 new, 0 false (all instance-receiver, new shape)
 
@@ -76,29 +81,45 @@ the full `package#export` key each confirmed.
   (`$ses->setUpEmail`, `$ses->setText`, `$ses->send`); producer declares
   top-level `class SesApi` with all three `public function` bodies;
   keys `dmm-cw/lib-php-common#<FQCN>-><method>` unique (1 publisher each).
-  TRUE x3.
+  Consumer gen `e2f60cf0`, producer gen `70158ef5`. TRUE x3.
 - P4 `theme-essential-elite`
   `src/Helper/Engines/EngineSearchHelper.php` `resizeImage` ->
   `lib-php-common` `src/Helper/Utilities/ImageHelper.php`
   `getResizedImtImageUrl`. `$imageHelper = new ImageHelper()` then one
   member call; producer declares top-level `class ImageHelper` with the
-  `public function`; key unique. TRUE.
+  `public function`; key unique. Consumer gen `e2f60cf0`,
+  producer gen `70158ef5`. TRUE.
 - P5 `plugin-cobrokerage` `includes/lib/class-cobrokerage-widget.php`
   `widget` -> `lib-php-common`
   `src/View/ViewModel/Factory/CobrokerageVmFactory.php`
   `newCobrokerageViewModel`. `$vm_factory = new CobrokerageVmFactory()`
   then `$vm_factory->newCobrokerageViewModel(...)`; producer declares the
-  `public function`; key unique. TRUE.
+  `public function`; key unique. Consumer gen `d5ac8115`,
+  producer gen `70158ef5`. TRUE.
 
 Both consumers lock `dmm-cw/lib-php-common` (`theme-essential-elite`
 `composer.lock` pins `2.9.0`; `plugin-cobrokerage` lock references it).
 
 ## PHP `use function`: 0 deployed edges
 
-`content_files` across the 39 reindexed repositories holds zero `use
-function` occurrences (exact and spacing/case variants), so no deployed edge
-of that shape can exist. That subset rests on fixture proof, as recorded
-pre-deploy. No third reindex batch was requested (cap 39/100 holds).
+`content_files` across the 39 reindexed repositories (14,118 rows)
+holds zero `use function` statements. Reproducible predicate, scoped to the
+reindexed repos:
+
+```sql
+SELECT count(*) FROM content_files
+WHERE repo_id IN (SELECT replace(scope_id, 'git-repository-scope:', '')
+                  FROM repository_reindex_requests)
+  AND content_lower ~ 'use[[:space:]]+function'
+  AND language = 'php';
+-- 0 rows. Unscoped regex finds 1 wrap artifact ("pause\nfunction perOpMicros"
+-- in a TS bench spec), disposed by the language filter; a statement-anchored
+-- variant also returns 0.
+```
+
+So no deployed edge of that shape can exist. That subset rests on fixture
+proof, as recorded pre-deploy. No third reindex batch was requested
+(cap 39/100 holds).
 
 ## Docs and capability matrix
 
