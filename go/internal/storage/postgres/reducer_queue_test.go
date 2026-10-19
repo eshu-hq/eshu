@@ -116,6 +116,15 @@ func TestReducerConflictDomainKeySplitsCodeAndPlatformGraphFamilies(t *testing.T
 			wantDomain: reducerConflictDomainScope,
 			wantKey:    "scope-1",
 		},
+		{
+			// The value-flow refresh singleton re-runs the GLOBAL fixpoint
+			// (issue #6880): it must serialize against itself on the one
+			// global key, never partition per repo.
+			name:       "value-flow refresh singleton serializes on the global scope key",
+			domain:     reducer.DomainCodeValueFlowRefresh,
+			wantDomain: reducerConflictDomainScope,
+			wantKey:    "scope-1",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -132,6 +141,56 @@ func TestReducerConflictDomainKeySplitsCodeAndPlatformGraphFamilies(t *testing.T
 				t.Fatalf("conflict key = %q, want %q", gotKey, tt.wantKey)
 			}
 		})
+	}
+}
+
+// TestReducerConflictDomainKeyValueFlowRefreshSingleton is the contention
+// proof for issue #6880: the value-flow refresh singleton re-runs the global
+// fixpoint retract-and-rewrite, so every refresh item must land on the one
+// global conflict key (serializing refresh against itself), while per-repo
+// summary items keep disjoint repo-scoped keys (preserving concurrent drain).
+// A regression that re-partitioned refresh per repo, or collapsed summaries
+// onto the global key, fails here.
+func TestReducerConflictDomainKeyValueFlowRefreshSingleton(t *testing.T) {
+	t.Parallel()
+
+	refreshKey := func(scope string) (string, string) {
+		t.Helper()
+		domain, key := reducerConflictDomainKey(runtime.ReducerIntent{
+			ScopeID: scope,
+			Domain:  reducer.DomainCodeValueFlowRefresh,
+		})
+		return domain, key
+	}
+
+	domain, key := refreshKey("eshu:global")
+	if domain != reducerConflictDomainScope || key != "eshu:global" {
+		t.Fatalf("refresh conflict = (%q, %q), want (%q, %q)",
+			domain, key, reducerConflictDomainScope, "eshu:global")
+	}
+
+	// A second refresh item shares the identical key: the claim fence keeps
+	// two refresh runs from overlapping the global retract-and-rewrite.
+	if domain2, key2 := refreshKey("eshu:global"); domain2 != domain || key2 != key {
+		t.Fatalf("second refresh conflict = (%q, %q), want identical (%q, %q)",
+			domain2, key2, domain, key)
+	}
+
+	// Per-repo summary items never share the global key: they stamp their own
+	// repo scope, so summary drain stays concurrent across repos and never
+	// contends with the singleton at the queue layer. (Graph-write safety
+	// comes from the single-writer shape: summaries write only Postgres
+	// snapshots while the fenced singleton alone runs the fixpoint.)
+	summaryDomain, summaryKey := reducerConflictDomainKey(runtime.ReducerIntent{
+		ScopeID: "repo:abc",
+		Domain:  reducer.DomainCodeFunctionSummary,
+	})
+	if summaryDomain != reducerConflictDomainScope || summaryKey != "repo:abc" {
+		t.Fatalf("summary conflict = (%q, %q), want (%q, %q)",
+			summaryDomain, summaryKey, reducerConflictDomainScope, "repo:abc")
+	}
+	if summaryKey == key {
+		t.Fatalf("summary key %q collides with the refresh singleton key; per-repo drain would fence on the global fixpoint", summaryKey)
 	}
 }
 
