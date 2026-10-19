@@ -34,11 +34,18 @@ var adminFactsCmd = &cobra.Command{
 	Short: "Fact work item administration",
 }
 
+var adminRepositoryCmd = &cobra.Command{
+	Use:   "repository",
+	Short: "Repository retirement administration",
+}
+
 func init() {
 	rootCmd.AddCommand(adminCmd)
 	adminCmd.AddCommand(adminFactsCmd)
+	adminCmd.AddCommand(adminRepositoryCmd)
 
 	adminCmd.AddCommand(newAdminReindexCmd())
+	adminRepositoryCmd.AddCommand(newAdminRepositoryRetireCmd())
 
 	// admin tuning-report
 	tuningCmd := &cobra.Command{
@@ -149,6 +156,36 @@ func newAdminReindexCmd() *cobra.Command {
 	reindexCmd.Flags().Bool("force", true, "Force a full re-parse (false is rejected)")
 	addRemoteFlags(reindexCmd)
 	return reindexCmd
+}
+
+// newAdminRepositoryRetireCmd builds `eshu admin repository retire`.
+func newAdminRepositoryRetireCmd() *cobra.Command {
+	retireCmd := &cobra.Command{
+		Use:   "retire",
+		Short: "Retire repositories: mark, fence, then purge their indexed state",
+		RunE:  runAdminRepositoryRetire,
+	}
+	retireCmd.Flags().StringArray("repository", nil, "Repository selector (repository ID, scope ID, name, slug, or path) to retire; repeatable, 1 to 25")
+	retireCmd.Flags().String("reason", "", "Required: why this retirement is safe")
+	retireCmd.Flags().String("idempotency-key", "", "Idempotency key; one is generated when empty")
+	addRemoteFlags(retireCmd)
+	return retireCmd
+}
+
+func runAdminRepositoryRetire(cmd *cobra.Command, args []string) error {
+	repositories, _ := cmd.Flags().GetStringArray("repository")
+	reason, _ := cmd.Flags().GetString("reason")
+	idempotencyKey, _ := cmd.Flags().GetString("idempotency-key")
+	result, err := admin.Retire(apiClientFromCmd(cmd), admin.RetireInput{
+		Repositories:   repositories,
+		Reason:         reason,
+		IdempotencyKey: idempotencyKey,
+	})
+	if err != nil {
+		return err
+	}
+	printJSON(result)
+	return nil
 }
 
 func runAdminReindex(cmd *cobra.Command, args []string) error {

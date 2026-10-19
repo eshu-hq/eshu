@@ -73,6 +73,7 @@ These commands call the API and honor `--service-url`, `--api-key`, and
 
 - `eshu scan`
 - `eshu admin reindex`
+- `eshu admin repository retire`
 - `eshu admin tuning-report`
 - `eshu admin facts replay`
 - `eshu admin facts dead-letter`

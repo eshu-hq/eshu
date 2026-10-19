@@ -803,6 +803,11 @@
     },
     {
       "category": "api_route",
+      "name": "POST /api/v0/admin/repository-retirements",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "POST /api/v0/admin/skip",
       "readiness": "implemented"
     },
