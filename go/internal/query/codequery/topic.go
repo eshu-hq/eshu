@@ -459,14 +459,18 @@ var codeTopicStopWords = map[string]bool{
 // moves here instead, once those callees are in place.
 func codeTopicAnswerData(req CodeTopicInvestigationRequest, data map[string]any, truth *TruthEnvelope) map[string]any {
 	return answer.WithAnswerPacketCompanion(data, truth, answer.AnswerPacketCompanionInput{
-		PromptFamily:         "code.topic",
-		Question:             req.Topic,
-		PrimaryTool:          "investigate_code_topic",
-		PrimaryRoute:         "/api/v0/code/topics/investigate",
-		Summary:              answer.CodeTopicAnswerSummary(data),
-		ResultRef:            "eshu://api-result/code/topics/investigate",
-		Limitations:          answer.CodeTopicAnswerLimitations(data),
-		Truncated:            BoolVal(data, "truncated"),
+		PromptFamily: "code.topic",
+		Question:     req.Topic,
+		PrimaryTool:  "investigate_code_topic",
+		PrimaryRoute: "/api/v0/code/topics/investigate",
+		Summary:      answer.CodeTopicAnswerSummary(data),
+		ResultRef:    "eshu://api-result/code/topics/investigate",
+		Limitations:  answer.CodeTopicAnswerLimitations(data),
+		// A bounded per-term pool stop (#7008) truncates the answer even
+		// when the returned page fits, so the packet marks partial from
+		// the coverage pool marker as well as the page-trim flag.
+		Truncated: BoolVal(data, "truncated") ||
+			querycontract.BoolVal(querycontract.MapValue(data, "coverage"), "candidate_pool_truncated"),
 		NoEvidence:           IntVal(data, "count") == 0,
 		EvidenceHandles:      answer.CodeTopicEvidenceHandles(data),
 		RecommendedNextCalls: querycontract.MapSliceValue(data, "recommended_next_calls"),

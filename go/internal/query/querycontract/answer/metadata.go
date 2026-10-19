@@ -50,7 +50,12 @@ func AttachAnswerMetadata(data map[string]any) map[string]any {
 // response payload. It does not fetch, infer, or mutate source truth.
 func BuildAnswerMetadata(data map[string]any) AnswerMetadata {
 	coverage := answerMetadataCoverage(data)
-	truncated := querycontract.BoolVal(data, "truncated") || querycontract.BoolVal(coverage, "truncated")
+	// A bounded per-term pool stop (#7008) truncates the answer even when
+	// the returned page fits, so the coverage pool marker counts alongside
+	// the route and coverage page-trim flags. The page-trim fields stay
+	// authoritative for paging; only the companions widen.
+	truncated := querycontract.BoolVal(data, "truncated") || querycontract.BoolVal(coverage, "truncated") ||
+		querycontract.BoolVal(coverage, "candidate_pool_truncated")
 	metadata := AnswerMetadata{
 		SchemaVersion:        answerMetadataSchemaVersion,
 		EvidenceHandles:      answerMetadataEvidenceHandles(data),
