@@ -129,10 +129,10 @@
   separately by `query.AuthMiddlewareWithScopedTokensAndGovernanceAudit`
   wrapping the query mux (the `authedHandler` passed to `mcp.NewServer`). Both
   use the SAME credential chain; do not assume one covers the other's mount, and
-  do not remove either wrap. Note the residual: a headerless request is refused
-  only when a shared `ESHU_API_KEY` is set — a scoped-only/OIDC-only deployment
-  still passes headerless requests through the shared-token dev-bypass until the
-  companion auth-headerless-bypass hardening (under #5161) lands.
+  do not remove either wrap. Since the companion auth-headerless-bypass
+  hardening (#5394), the dev-mode bypass keys off the wiring-time predicate
+  (shared key, scoped-token file, or OIDC resource URI): a scoped-only/OIDC-only
+  deployment starts and refuses headerless requests with a bare 401.
 
 ## What NOT to change without an ADR
 
