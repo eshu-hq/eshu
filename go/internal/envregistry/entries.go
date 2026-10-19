@@ -249,7 +249,7 @@ var coreEntries = []Entry{
 	{Name: "ESHU_COMPONENT_REVOKE_IDS", Type: VarString, Subsystem: "component", Description: "Comma-separated revoke list of component IDs."},
 	{Name: "ESHU_COMPONENT_REVOKE_PUBLISHERS", Type: VarString, Subsystem: "component", Description: "Comma-separated revoke list of component publishers."},
 	{Name: "ESHU_COMPONENT_CORE_VERSION", Type: VarString, Subsystem: "component", Description: "Required core version for component compatibility."},
-	{Name: "ESHU_COMPONENT_QUOTA_MAX_GENERATIONS_PER_HOUR", Type: VarInt, Subsystem: "coordinator", Description: "Uniform operator override for per-component generations-per-hour claim quota (#8561): wins over every admitted manifest declaration; blank keeps the manifests."},
+	{Name: "ESHU_COMPONENT_QUOTA_MAX_GENERATIONS_PER_HOUR", Type: VarInt, Subsystem: "coordinator", Description: "Uniform operator override for per-component generations-per-hour claim quota (#8561): wins over every admitted-manifest declaration of a component planning at least one claims-enabled instance (#8582); blank keeps the manifests."},
 	{Name: "ESHU_COMPONENT_QUOTA_MAX_FACTS_PER_GENERATION", Type: VarInt, Subsystem: "coordinator", Description: "Uniform operator override for per-component facts-per-generation quota (#8561): declared and validated today, not runtime-enforced; blank keeps the manifests."},
 
 	// backend-conformance: contributor test knobs cited on docs/public pages,

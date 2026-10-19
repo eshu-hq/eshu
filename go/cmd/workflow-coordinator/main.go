@@ -125,8 +125,9 @@ func run(parent context.Context) error {
 	if err != nil {
 		return fmt.Errorf("semantic provider worker metrics: %w", err)
 	}
-	// The quota lookup is built from the admitted component manifests with
-	// the operator override applied per field (#8561): coordinator
+	// The quota lookup is built from the admitted manifests of components
+	// planning at least one claims-enabled instance (#8582) with the
+	// operator override applied per field (#8561): coordinator
 	// LoadConfigObserved reads both, so cfg.QuotaLookup is always non-nil
 	// here. With nothing to enforce every kind reports unthrottled and
 	// claims keep the plain statement; manifest or override changes need a

@@ -108,7 +108,8 @@ for the full list. Key env vars:
 - ESHU_COLLECTOR_INSTANCES_JSON — JSON array of collector instance objects
 - ESHU_COMPONENT_QUOTA_MAX_GENERATIONS_PER_HOUR — optional uniform operator
   override for the per-component generations-per-hour claim quota (#8561);
-  wins over every admitted manifest declaration, blank keeps the manifests,
+  wins over every admitted-manifest declaration of a component planning at
+  least one claims-enabled instance (#8582), blank keeps the manifests,
   and a set-but-invalid value fails startup
 - ESHU_COMPONENT_QUOTA_MAX_FACTS_PER_GENERATION — optional uniform operator
   override for the per-component facts-per-generation quota (#8561); declared

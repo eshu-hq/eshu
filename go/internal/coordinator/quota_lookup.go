@@ -24,9 +24,11 @@ const (
 )
 
 // componentQuotaOverrideFromEnv reads the uniform operator quota override:
-// every set field wins over every admitted manifest's declaration per field
-// (component.Quota.Resolve). The override is deployment policy, not a
-// per-manifest patch: it applies to all admitted components equally.
+// every set field wins over every quota-contributing manifest's declaration
+// per field (component.Quota.Resolve). The override is deployment policy,
+// not a per-manifest patch: it applies to all planned components equally.
+// A kind declared only by dormant manifests gets no budget from the
+// override alone (#8582).
 func componentQuotaOverrideFromEnv(getenv func(string) string) (component.Quota, error) {
 	var override component.Quota
 	var err error
@@ -56,8 +58,9 @@ func quotaOverrideField(getenv func(string) string, key string) (*int, error) {
 	return &parsed, nil
 }
 
-// buildComponentQuotaLookup fans admitted component manifests out to the
-// claim-path lookup (#8471, #8561). One manifest may declare many collector
+// buildComponentQuotaLookup fans the admitted manifests of components
+// planning at least one claims-enabled instance out to the claim-path
+// lookup (#8471, #8561, #8582). One manifest may declare many collector
 // kinds while the lookup is keyed by one kind, so every kind a manifest
 // declares registers the manifest's resolved quota: the manifest declares,
 // the uniform operator override wins per field. A kind whose resolved quota
@@ -67,7 +70,7 @@ func quotaOverrideField(getenv func(string) string, key string) (*int, error) {
 // enforce every kind reports unthrottled, exactly the pre-quota behavior.
 //
 // One kind gets one budget: the quota state is keyed by collector kind, so
-// two admitted manifests with different resolved limits for the same kind
+// two planned manifests with different resolved limits for the same kind
 // are contradictory input and fail here with the kind named, instead of
 // silently picking a winner the operator did not choose. Quota-less
 // deployments (no declared quotas, no override) build an empty lookup and
