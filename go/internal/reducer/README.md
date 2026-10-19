@@ -187,7 +187,7 @@ Core interfaces:
 - `WorkSource`, `Executor`, `WorkSink`, `WorkHeartbeater` — `service.go:22–40`
 - `BatchWorkSource`, `BatchWorkSink` — `service.go:43–51`
 - `Handler`, `HandlerFunc` — `registry.go:70–78`
-- `GraphProjectionPhasePublisher` — `graph_projection_phase.go:117`
+- `PhasePublisher` — `gpphase/phasestate.go:25`
 - `GraphProjectionPhaseRepairQueue` (alias of `gpphase.PhaseRepairQueue`) —
   `graph_projection_phase_repair.go`
 - `StateLookup` (`internal/reducer/intents/phase/repair`, no root alias) —

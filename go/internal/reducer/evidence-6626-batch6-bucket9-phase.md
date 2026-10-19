@@ -66,21 +66,29 @@ all disclosed:
 - The sibling Repair family (`GraphProjectionPhaseRepair`,
   `...RepairQueue`, `...RepairerConfig`, `...Repairer`,
   `...RepairsFromStates`, stanza in `compat_correlation.go`, canonical in
-  `gpphase.PhaseRepair*` and `repair.*`) is a different bucket and stays
-  untouched, as do its 29 qualified uses.
+  `gpphase.PhaseRepair*` and `repair.*`) is a different bucket and stays,
+  except one forced parameter repoint at `compat_correlation.go:438`
+  (`states []GraphProjectionPhaseState` → `[]gpphase.PhaseState`) —
+  required because the parameter type itself was a retired alias. Its 29
+  qualified uses stay.
 - No inventory re-pin: no enrolled replay-tier source carries the retired
   spellings (golden-corpus mirror passes unmodified). `git diff` over
-  `gpphase/` is empty — const values untouched.
+  `gpphase/*.go` is empty — const values untouched.
 
 Diff audit: filtering out qualifier swaps leaves only import blocks, the
 deleted alias file, the hand fixes above, the guard, the docs, and this
 note. Any other non-scripted hunk is a review finding.
 
-Deliberate remainders: the Repair family (above); two historical records
-(`docs/internal/design/package-restructure.md`,
-`docs/internal/evidence/deferred-backfill-shared-partition-dupkey.md`)
-quoting retired spellings in prose — ledger, immutable. Every Go source
-and every living doc is clean.
+Deliberate remainders: the Repair family (above); 20 `docs/` records
+still quoting retired spellings in prose (18 `docs/internal`
+design/evidence/architecture-review records plus ledger-style prose in
+`docs/public/observability/telemetry-coverage.md` and
+`docs/public/reference/azure-cloud-collector-contract.md`) — all
+historical, immutable. 9 struct fields in the three touched structs
+carry retired-family names (4 restored by this diff with name kept and
+type repointed; the other 5 already correct: Repair-family names owned
+by another bucket, short names, or pre-existing canonical spellings).
+Every Go source and every living doc is clean.
 
 ## Why no regression
 
