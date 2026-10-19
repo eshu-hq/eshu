@@ -6,7 +6,7 @@ empty materializations warn only on file-bearing generations (branch
 error/empty/quarantine branches; happy-path projection code is untouched
 (verified in repeat full review).
 
-## No-Regression Evidence
+## No-Regression Evidence:
 
 - Baseline (pristine `origin/main` throwaway worktree, same host):
   `projector/canonical` 0.010 s, `projector/decode` 0.004 s,
@@ -20,7 +20,7 @@ error/empty/quarantine branches; happy-path projection code is untouched
   only new allocation (`attrs` slice) executes inside the already-taken
   `IsEmpty` branch. Suite times match within unit-test noise.
 
-## Observability Evidence
+## Observability Evidence:
 
 - New signals (log-only, no new metric or Cypher): `IsEmpty` early-return
   warns with fact/file-fact counts when file facts exist and debugs
