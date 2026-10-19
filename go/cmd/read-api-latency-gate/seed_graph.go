@@ -224,22 +224,22 @@ func SeedRepositoryGraph(ctx context.Context, opts SeedGraphOptions) error {
 		nodes = append(nodes, repositoryNodeParams(id, "Seed Story Related "+id))
 	}
 	if _, err := session.Run(ctx, `
-		UNWIND $nodes AS node
+		UNWIND $nodes AS row
 		CREATE (:Repository {
-			id: node.id, name: node.name, path: node.path,
-			local_path: node.local_path, remote_url: node.remote_url,
-			repo_slug: node.repo_slug, has_remote: node.has_remote
+			id: row.id, name: row.name, path: row.path,
+			local_path: row.local_path, remote_url: row.remote_url,
+			repo_slug: row.repo_slug, has_remote: row.has_remote
 		})`, map[string]any{"nodes": nodes}); err != nil {
 		return fmt.Errorf("seed repository nodes: %w", err)
 	}
 
 	edges := make([]map[string]any, 0, SeedStoryRelatedCount)
 	for i := 0; i < SeedStoryRelatedCount; i++ {
-		edges = append(edges, map[string]any{"related": SeedStoryRelatedID(i)})
+		edges = append(edges, map[string]any{"related_id": SeedStoryRelatedID(i)})
 	}
 	if _, err := session.Run(ctx, `
-		UNWIND $edges AS edge
-		MATCH (anchor:Repository {id: $anchor}), (related:Repository {id: edge.related})
+		UNWIND $edges AS row
+		MATCH (anchor:Repository {id: $anchor}), (related:Repository {id: row.related_id})
 		CREATE (anchor)-[:DEPENDS_ON]->(related)`, map[string]any{"anchor": SeedStoryAnchorID, "edges": edges}); err != nil {
 		return fmt.Errorf("seed repository edges: %w", err)
 	}
