@@ -199,7 +199,7 @@ const (
 	// writer running the predecessor schema creates no CodeownerTeam nodes, so
 	// the new constraint never applies to it.
 	graphSchemaNeo4jPreCodeownersOwnershipFingerprint    = "ad2a8291d1aa3766839c46d708f3641a1ec7c6fc0d2126de1c901f5b1997ebd7"
-	graphSchemaNornicDBPreCodeownersOwnershipFingerprint = "9b67c40d329b0309bb1247cf86c1f0574f9ddf31b8e6ab47de9416e960af0b70"
+	graphSchemaNornicDBPreCodeownersOwnershipFingerprint = "905727bfaac618616fefe55dd70dc3f7ef0ef6f03b0eb464cdf92c31abb47978"
 
 	// graphSchemaNornicDBPreKubernetesWorkloadIDLookupFingerprint is the schema
 	// fingerprint immediately before the NornicDB-only KubernetesWorkload.id

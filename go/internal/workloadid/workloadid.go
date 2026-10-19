@@ -15,7 +15,11 @@ import (
 // identifier used to be built from the workload name alone, so two
 // repositories with a same-named workload produced the same id and collapsed
 // onto one node (#5385); the constructors now emit the repository-scoped key,
-// and nothing outside this package can mint an id on another format.
+// and nothing outside this package can mint a WorkloadID value on another
+// format. That guarantee is type-scoped, not string-scoped: plain-string
+// handle-shaped probes such as impact.CanonicalWorkloadIDCandidate still
+// exist as ladder match inputs (never node ids), documented in the package
+// README alongside the other remaining hand-built strings.
 //
 // Section 4 of docs/internal/design/5385-workload-identity-key.md is a
 // hand-maintained inventory of those places, and it has been wrong three times.

@@ -389,7 +389,11 @@ func mergeCatalogWorkloads(
 func catalogWorkloadKey(workload catalogWorkload) string {
 	name := workload.Name
 	if name == "" {
-		name = strings.TrimPrefix(workload.ID, "workload:")
+		// The id is scoped post-flip (workload:<repo_id>:<name>), so the
+		// bare name is the last segment: stripping one prefix would leave
+		// <repo_id>:<name> and the nameless twin would key differently
+		// from its named twin (#5385 T4 review).
+		name = workload.ID[strings.LastIndex(workload.ID, ":")+1:]
 	}
 	return strings.ToLower(workload.RepoID) + "\x00" + strings.ToLower(name)
 }

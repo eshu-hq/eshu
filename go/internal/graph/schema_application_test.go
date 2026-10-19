@@ -8,6 +8,23 @@ import (
 	"testing"
 )
 
+// assertPredecessorLiteralsDistinct gives the compatibility lists an oracle
+// beyond the constants themselves. Predecessor literals are copy-pasted
+// digests, and a duplicated literal admits the wrong previous release while a
+// symbol-vs-symbol equality stays green (#5385 T4 review): every listed
+// predecessor must differ from the tip and from every other predecessor,
+// because each entry names a different previous schema.
+func assertPredecessorLiteralsDistinct(t *testing.T, tip string, compatible []string) {
+	t.Helper()
+	seen := map[string]string{tip: "current tip"}
+	for _, predecessor := range compatible {
+		if first, dup := seen[predecessor]; dup {
+			t.Fatalf("CompatibleFingerprints holds %q twice (first as %s): predecessor literals must be pairwise distinct", predecessor, first)
+		}
+		seen[predecessor] = "listed predecessor"
+	}
+}
+
 func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 	t.Parallel()
 
@@ -58,6 +75,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			if !slices.Equal(app.CompatibleFingerprints, tt.compatible) {
 				t.Fatalf("CompatibleFingerprints = %#v, want %#v", app.CompatibleFingerprints, tt.compatible)
 			}
+			assertPredecessorLiteralsDistinct(t, tt.fingerprint, tt.compatible)
 		})
 	}
 }
@@ -197,6 +215,7 @@ func TestPreModuleIdentitySchemaApplicationCarriesTheChainItAdmitted(t *testing.
 			if !slices.Equal(app.CompatibleFingerprints, tt.compatible) {
 				t.Fatalf("CompatibleFingerprints = %#v, want %#v", app.CompatibleFingerprints, tt.compatible)
 			}
+			assertPredecessorLiteralsDistinct(t, tt.fingerprint, tt.compatible)
 		})
 	}
 }

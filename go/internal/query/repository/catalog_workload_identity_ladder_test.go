@@ -95,3 +95,26 @@ func TestListCatalogWorkloadIdentitiesSynthesizeScopedIDs(t *testing.T) {
 		t.Fatalf("merged r_a checkout rows = %d, want 1: %#v", alphaCheckouts, merged)
 	}
 }
+
+// A graph row missing Name falls back to its id for the merge key. Post-flip
+// that id is scoped, so the fallback must derive the bare last segment:
+// otherwise the nameless graph twin keys differently from its named identity
+// twin and the same pair stops deduping (#5385 T4 review).
+func TestMergeCatalogWorkloadsDedupesNamelessScopedGraphRow(t *testing.T) {
+	t.Parallel()
+
+	scoped := workloadid.NewWorkloadID("repository:r_a", "checkout").String()
+	graphRows := []catalogWorkload{{
+		ID:     scoped,
+		RepoID: "repository:r_a",
+	}}
+	identityRows := []catalogWorkload{{
+		ID:     scoped,
+		Name:   "checkout",
+		RepoID: "repository:r_a",
+	}}
+	merged, _ := mergeCatalogWorkloads(graphRows, identityRows, 10)
+	if len(merged) != 1 {
+		t.Fatalf("merged rows = %d, want 1 (nameless scoped graph row dedupes with its named twin): %#v", len(merged), merged)
+	}
+}
