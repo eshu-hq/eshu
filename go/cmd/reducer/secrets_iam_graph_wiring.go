@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/secretsiam"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/iam"
 )
@@ -48,7 +49,7 @@ func secretsIAMGraphProjectionWriter(
 	executor sourcecypher.Executor,
 	batchSize int,
 	logger *slog.Logger,
-) (reducer.SecretsIAMGraphWriter, error) {
+) (secretsiam.SecretsIAMGraphWriter, error) {
 	enabled, err := secretsIAMGraphProjectionEnabled(getenv)
 	if err != nil {
 		return nil, err

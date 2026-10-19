@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 )
 
 // GraphServiceRuntimeInstanceLoader loads the materialized runtime instances of a
@@ -43,7 +45,7 @@ type GraphServiceRuntimeInstanceLoader struct {
 func (l GraphServiceRuntimeInstanceLoader) GetRuntimeInstancesForRepos(
 	ctx context.Context,
 	repoIDs []string,
-) (map[string][]ServiceRuntimeInstance, error) {
+) (map[string][]servicecatalog.ServiceRuntimeInstance, error) {
 	if len(repoIDs) == 0 {
 		return nil, nil
 	}
@@ -51,7 +53,7 @@ func (l GraphServiceRuntimeInstanceLoader) GetRuntimeInstancesForRepos(
 		return nil, fmt.Errorf("graph service runtime instance loader requires graph query runner")
 	}
 
-	result := make(map[string][]ServiceRuntimeInstance, len(repoIDs))
+	result := make(map[string][]servicecatalog.ServiceRuntimeInstance, len(repoIDs))
 	for _, repoID := range repoIDs {
 		repoID = strings.TrimSpace(repoID)
 		if repoID == "" {
@@ -73,7 +75,7 @@ func (l GraphServiceRuntimeInstanceLoader) GetRuntimeInstancesForRepos(
 func (l GraphServiceRuntimeInstanceLoader) loadRepoRuntimeInstances(
 	ctx context.Context,
 	repoID string,
-) ([]ServiceRuntimeInstance, error) {
+) ([]servicecatalog.ServiceRuntimeInstance, error) {
 	instanceRows, err := l.Graph.Run(ctx, serviceRuntimeWorkloadInstancesByRepoCypher, map[string]any{
 		"repo_id": repoID,
 	})
@@ -112,14 +114,14 @@ func (l GraphServiceRuntimeInstanceLoader) loadRepoRuntimeInstances(
 		return nil, err
 	}
 
-	instances := make([]ServiceRuntimeInstance, 0, len(instanceIDs))
+	instances := make([]servicecatalog.ServiceRuntimeInstance, 0, len(instanceIDs))
 	for _, instanceID := range instanceIDs {
 		fields := byID[instanceID]
 		platforms := platformsByInstance[instanceID]
 		if len(platforms) == 0 {
 			// No inferred runtime platform: the instance still carries a durable
 			// environment identity, so surface it with empty platform fields.
-			instances = append(instances, ServiceRuntimeInstance{
+			instances = append(instances, servicecatalog.ServiceRuntimeInstance{
 				Environment:  fields.environment,
 				WorkloadRef:  instanceID,
 				WorkloadName: fields.workloadName,
@@ -128,7 +130,7 @@ func (l GraphServiceRuntimeInstanceLoader) loadRepoRuntimeInstances(
 			continue
 		}
 		for _, platform := range platforms {
-			instances = append(instances, ServiceRuntimeInstance{
+			instances = append(instances, servicecatalog.ServiceRuntimeInstance{
 				PlatformKind: platform.kind,
 				Environment:  fields.environment,
 				WorkloadRef:  instanceID,

@@ -3,6 +3,10 @@
 
 package reducer
 
+import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
+)
+
 // appendAdditiveDomainDefinitions registers the source-neutral and graph-write
 // domains that are only wired when their explicit handler dependencies are
 // provided. Each registration is gated on its writer/loader because registering a
@@ -66,7 +70,7 @@ func serviceCatalogDeploymentRelationshipLoader(
 // nothing repairs.
 func serviceCatalogRuntimeInstanceLoader(
 	handlers DefaultHandlers,
-) RepositoryScopedRuntimeInstanceLoader {
+) servicecatalog.RepositoryScopedRuntimeInstanceLoader {
 	if handlers.ServiceMaterializationWriter == nil || handlers.ServiceRuntimeInstanceLoader == nil ||
 		handlers.ServiceRuntimeProducerReadiness == nil {
 		return nil
@@ -83,7 +87,7 @@ func serviceCatalogRuntimeInstanceLoader(
 // lineage.
 func serviceCatalogDocumentationEvidenceLoader(
 	handlers DefaultHandlers,
-) ServiceScopedDocumentationEvidenceLoader {
+) servicecatalog.ServiceScopedDocumentationEvidenceLoader {
 	if handlers.ServiceMaterializationWriter == nil || handlers.ServiceDocumentationEvidenceLoader == nil {
 		return nil
 	}
@@ -99,7 +103,7 @@ func serviceCatalogDocumentationEvidenceLoader(
 // docs lineage.
 func serviceCatalogVulnerabilityEvidenceLoader(
 	handlers DefaultHandlers,
-) ServiceVulnerabilityAdvisoryLoader {
+) servicecatalog.ServiceVulnerabilityAdvisoryLoader {
 	if handlers.ServiceMaterializationWriter == nil || handlers.ServiceVulnerabilityAdvisoryLoader == nil {
 		return nil
 	}

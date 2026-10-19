@@ -16,6 +16,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
+	"github.com/eshu-hq/eshu/go/internal/reducer/iamescalation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iaminstprofile"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/internetexposure"
@@ -24,6 +26,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3grant"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/retract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -301,7 +304,7 @@ type DefaultHandlers struct {
 	// CAN_ASSUME materialization intent before it reaches the graph. The handler
 	// also gates on ReadinessLookup so edges never resolve against uncommitted
 	// nodes.
-	IAMCanAssumeEdgeWriter IAMCanAssumeEdgeWriter
+	IAMCanAssumeEdgeWriter iamcan.IAMCanAssumeEdgeWriter
 
 	// S3LogsToEdgeWriter projects s3_bucket_posture logging_target_bucket fields
 	// into canonical LOGS_TO edges between S3 bucket CloudResource nodes (issue
@@ -421,27 +424,27 @@ type DefaultHandlers struct {
 
 	// ServiceCatalogCorrelationWriter persists service-catalog ownership and
 	// repository correlation decisions.
-	ServiceCatalogCorrelationWriter ServiceCatalogCorrelationWriter
+	ServiceCatalogCorrelationWriter servicecatalog.ServiceCatalogCorrelationWriter
 
 	// ServiceMaterializationWriter, when set, commits the additive per-service
 	// ownership generation lineage (#1943) alongside the correlation facts so the
 	// service-scope changed-since delta has a durable prior snapshot to diff. It
 	// is optional; when nil the existing service-catalog contract is unchanged.
-	ServiceMaterializationWriter ServiceMaterializationWriter
+	ServiceMaterializationWriter servicecatalog.ServiceMaterializationWriter
 
 	// ServiceRuntimeInstanceLoader (with ServiceMaterializationWriter) sources the
 	// runtime evidence family (#1986); nil leaves generations without runtime rows.
 	// It is wired only with ServiceRuntimeProducerReadiness, the #7816 fence on
 	// in-flight workload_materialization work (serviceCatalogRuntimeInstanceLoader).
-	ServiceRuntimeInstanceLoader    RepositoryScopedRuntimeInstanceLoader
-	ServiceRuntimeProducerReadiness ServiceRuntimeProducerReadiness
+	ServiceRuntimeInstanceLoader    servicecatalog.RepositoryScopedRuntimeInstanceLoader
+	ServiceRuntimeProducerReadiness servicecatalog.RuntimeProducerReadiness
 
 	// ServiceDocumentationEvidenceLoader, when set alongside
 	// ServiceMaterializationWriter, supplies the documentation facts that reference
 	// each correlated service so the docs evidence family (#1988) is snapshotted
 	// into each service generation. It is keyed by service id, not repository id.
 	// It is optional; when nil the generation simply carries no docs rows.
-	ServiceDocumentationEvidenceLoader ServiceScopedDocumentationEvidenceLoader
+	ServiceDocumentationEvidenceLoader servicecatalog.ServiceScopedDocumentationEvidenceLoader
 
 	// ServiceIncidentEvidenceLoader, when set alongside
 	// ServiceMaterializationWriter, supplies exact incident-routing evidence that
@@ -450,7 +453,7 @@ type DefaultHandlers struct {
 	// service id after the provider service id is resolved through durable reducer
 	// correlations. It is optional; when nil the generation simply carries no
 	// incident rows.
-	ServiceIncidentEvidenceLoader ServiceScopedIncidentEvidenceLoader
+	ServiceIncidentEvidenceLoader servicecatalog.ServiceScopedIncidentEvidenceLoader
 
 	// ServiceVulnerabilityAdvisoryLoader, when set alongside
 	// ServiceMaterializationWriter, supplies the supply-chain advisory findings on
@@ -459,7 +462,7 @@ type DefaultHandlers struct {
 	// id: a service is attributed an advisory only through a real
 	// reducer_supply_chain_impact_finding on its repository (#2127). It is optional;
 	// when nil the generation simply carries no vulnerabilities rows.
-	ServiceVulnerabilityAdvisoryLoader ServiceVulnerabilityAdvisoryLoader
+	ServiceVulnerabilityAdvisoryLoader servicecatalog.ServiceVulnerabilityAdvisoryLoader
 
 	// ObservabilityCoverageCorrelationWriter persists observability coverage
 	// correlation decisions (covered, gap, ambiguous, stale, rejected) for
@@ -499,7 +502,7 @@ type DefaultHandlers struct {
 	// DomainIAMEscalationMaterialization; missing either one would drop every
 	// escalation intent before it reached the graph. The handler also gates on
 	// ReadinessLookup so edges never resolve against uncommitted IAM nodes.
-	IAMEscalationEdgeWriter IAMEscalationEdgeWriter
+	IAMEscalationEdgeWriter iamescalation.IAMEscalationEdgeWriter
 
 	// IAMCanPerformEdgeWriter projects merged aws_iam_permission facts into
 	// conservative identity-policy-only IAM CAN_PERFORM effective-permission edges
@@ -509,7 +512,7 @@ type DefaultHandlers struct {
 	// DomainIAMCanPerformMaterialization; missing either one would drop every
 	// CAN_PERFORM intent before it reached the graph. The handler also gates on
 	// ReadinessLookup so edges never resolve against uncommitted nodes.
-	IAMCanPerformEdgeWriter IAMCanPerformEdgeWriter
+	IAMCanPerformEdgeWriter iamcan.IAMCanPerformEdgeWriter
 
 	// PackageWriter persists package ownership candidates and
 	// manifest-backed consumption decisions for package-registry evidence.

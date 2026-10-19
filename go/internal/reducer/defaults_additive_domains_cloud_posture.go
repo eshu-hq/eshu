@@ -110,7 +110,7 @@ func appendCloudPostureEdgeAdditiveDomains(definitions []DomainDefinition, handl
 	}
 	if handlers.FactLoader != nil && handlers.IAMCanPerformEdgeWriter != nil {
 		iamCanPerform := iamcan.PerformMaterializationDomainDefinition()
-		iamCanPerform.Handler = IAMCanPerformMaterializationHandler{
+		iamCanPerform.Handler = iamcan.IAMCanPerformMaterializationHandler{
 			FactLoader:           handlers.FactLoader,
 			Writer:               handlers.IAMCanPerformEdgeWriter,
 			ReadinessLookup:      handlers.ReadinessLookup,

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -370,7 +371,7 @@ func buildReducerService(
 		CICDRunCorrelationWriter: reducer.PostgresCICDRunCorrelationWriter{
 			DB: database,
 		},
-		ServiceCatalogCorrelationWriter: reducer.PostgresServiceCatalogCorrelationWriter{
+		ServiceCatalogCorrelationWriter: servicecatalog.PostgresServiceCatalogCorrelationWriter{
 			DB: database,
 		},
 		ServiceMaterializationWriter:       serviceMaterializationWriter,

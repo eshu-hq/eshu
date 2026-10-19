@@ -6,6 +6,8 @@ package reducer
 import (
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 )
 
 func TestImplementedDefaultDomainDefinitionsOmitsCICDRunCorrelationWithoutAdapters(t *testing.T) {
@@ -78,7 +80,7 @@ func TestImplementedDefaultDomainDefinitionsIncludesServiceCatalogCorrelationWhe
 	for _, def := range definitions {
 		if def.Domain == DomainServiceCatalogCorrelation {
 			found = true
-			handler, ok := def.Handler.(ServiceCatalogCorrelationHandler)
+			handler, ok := def.Handler.(servicecatalog.ServiceCatalogCorrelationHandler)
 			if !ok {
 				t.Fatalf("service_catalog_correlation handler type = %T, want ServiceCatalogCorrelationHandler", def.Handler)
 			}
@@ -101,7 +103,7 @@ func TestImplementedDefaultDomainDefinitionsWiresServiceIncidentEvidenceLoader(t
 	loader := &stubFactLoader{}
 	writer := &recordingServiceCatalogCorrelationWriter{}
 	incidentLoader := &fakeServiceScopedIncidentLoader{}
-	materialization := PostgresServiceMaterializationWriter{DB: newFakeServiceMaterializationStore(), Now: time.Now}
+	materialization := servicecatalog.PostgresServiceMaterializationWriter{DB: newFakeServiceMaterializationStore(), Now: time.Now}
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
 		FactLoader:                      loader,
 		ServiceCatalogCorrelationWriter: writer,
@@ -113,7 +115,7 @@ func TestImplementedDefaultDomainDefinitionsWiresServiceIncidentEvidenceLoader(t
 		if def.Domain != DomainServiceCatalogCorrelation {
 			continue
 		}
-		handler, ok := def.Handler.(ServiceCatalogCorrelationHandler)
+		handler, ok := def.Handler.(servicecatalog.ServiceCatalogCorrelationHandler)
 		if !ok {
 			t.Fatalf("service_catalog_correlation handler type = %T, want ServiceCatalogCorrelationHandler", def.Handler)
 		}

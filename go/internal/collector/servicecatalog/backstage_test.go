@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 )
 
 func backstageContext() FixtureContext {
@@ -114,13 +114,13 @@ func TestBackstageManifestReducerRoundTrip(t *testing.T) {
 		activeRepositoryFact("repo-ledger", "https://github.com/eshu-hq/ledger", false),
 	}
 
-	decisions := reducer.BuildServiceCatalogCorrelationDecisions(append(catalog, repos...))
+	decisions := servicecatalog.BuildServiceCatalogCorrelationDecisions(append(catalog, repos...))
 	byEntity := decisionsByEntity(decisions)
 
-	assertOutcome(t, byEntity, "component:default/checkout-api", reducer.ServiceCatalogCorrelationExact)
-	assertOutcome(t, byEntity, "component:default/ledger", reducer.ServiceCatalogCorrelationDerived)
-	assertOutcome(t, byEntity, "component:default/notifications", reducer.ServiceCatalogCorrelationUnresolved)
-	assertOutcome(t, byEntity, "component:default/search", reducer.ServiceCatalogCorrelationRejected)
+	assertOutcome(t, byEntity, "component:default/checkout-api", servicecatalog.ServiceCatalogCorrelationExact)
+	assertOutcome(t, byEntity, "component:default/ledger", servicecatalog.ServiceCatalogCorrelationDerived)
+	assertOutcome(t, byEntity, "component:default/notifications", servicecatalog.ServiceCatalogCorrelationUnresolved)
+	assertOutcome(t, byEntity, "component:default/search", servicecatalog.ServiceCatalogCorrelationRejected)
 
 	// Non-over-admission: provenance-only entities never carry canonical ids.
 	for _, ref := range []string{"component:default/notifications", "component:default/search"} {
@@ -139,7 +139,7 @@ func TestBackstageManifestReducerRoundTrip(t *testing.T) {
 	}
 
 	// Dependency facts are carried but must not change the entity outcome.
-	if byEntity["component:default/checkout-api"].Outcome != reducer.ServiceCatalogCorrelationExact {
+	if byEntity["component:default/checkout-api"].Outcome != servicecatalog.ServiceCatalogCorrelationExact {
 		t.Fatalf("dependency facts must not alter checkout-api outcome")
 	}
 }
@@ -161,11 +161,11 @@ func TestBackstageManifestStaleAndAmbiguous(t *testing.T) {
 		activeRepositoryFact("repo-ledger", "https://github.com/eshu-hq/ledger", true),
 	}
 
-	decisions := reducer.BuildServiceCatalogCorrelationDecisions(append(catalog, repos...))
+	decisions := servicecatalog.BuildServiceCatalogCorrelationDecisions(append(catalog, repos...))
 	byEntity := decisionsByEntity(decisions)
 
-	assertOutcome(t, byEntity, "component:default/checkout-api", reducer.ServiceCatalogCorrelationAmbiguous)
-	assertOutcome(t, byEntity, "component:default/ledger", reducer.ServiceCatalogCorrelationStale)
+	assertOutcome(t, byEntity, "component:default/checkout-api", servicecatalog.ServiceCatalogCorrelationAmbiguous)
+	assertOutcome(t, byEntity, "component:default/ledger", servicecatalog.ServiceCatalogCorrelationStale)
 }
 
 func TestBackstageManifestPartialDocumentsWarnNotDrop(t *testing.T) {
@@ -348,15 +348,15 @@ func findOwnership(t *testing.T, envelopes []facts.Envelope, entityRef string) f
 	return facts.Envelope{}
 }
 
-func decisionsByEntity(decisions []reducer.ServiceCatalogCorrelationDecision) map[string]reducer.ServiceCatalogCorrelationDecision {
-	byEntity := make(map[string]reducer.ServiceCatalogCorrelationDecision, len(decisions))
+func decisionsByEntity(decisions []servicecatalog.ServiceCatalogCorrelationDecision) map[string]servicecatalog.ServiceCatalogCorrelationDecision {
+	byEntity := make(map[string]servicecatalog.ServiceCatalogCorrelationDecision, len(decisions))
 	for _, decision := range decisions {
 		byEntity[decision.EntityRef] = decision
 	}
 	return byEntity
 }
 
-func assertOutcome(t *testing.T, byEntity map[string]reducer.ServiceCatalogCorrelationDecision, entityRef string, want reducer.ServiceCatalogCorrelationOutcome) {
+func assertOutcome(t *testing.T, byEntity map[string]servicecatalog.ServiceCatalogCorrelationDecision, entityRef string, want servicecatalog.ServiceCatalogCorrelationOutcome) {
 	t.Helper()
 	decision, ok := byEntity[entityRef]
 	if !ok {

@@ -6,6 +6,8 @@ package main
 import (
 	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
+	"github.com/eshu-hq/eshu/go/internal/reducer/secretsiam"
 	taintstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/code/taint"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -210,11 +212,11 @@ func buildReducerCrossplaneHandlers(
 func buildReducerSupplyChainSecurityHandlers(
 	database db.ExecQueryer,
 	factStore postgres.FactStore,
-	secretsIAMGraphWriter reducer.SecretsIAMGraphWriter,
+	secretsIAMGraphWriter secretsiam.SecretsIAMGraphWriter,
 	presence endpointPresenceWirings,
 ) reducer.SupplyChainSecurityHandlers {
 	return reducer.SupplyChainSecurityHandlers{
-		SBOMAttestationAttachmentWriter: reducer.PostgresSBOMAttestationAttachmentWriter{
+		SBOMAttestationAttachmentWriter: sbomattest.PostgresSBOMAttestationAttachmentWriter{
 			DB: database,
 		},
 		SupplyChainImpactWriter: supplyChainImpactWriterFor(database),
@@ -226,7 +228,7 @@ func buildReducerSupplyChainSecurityHandlers(
 			DB: database,
 		},
 		SecretsIAMTrustChainEvidenceLoader: factStore,
-		SecretsIAMTrustChainWriter: reducer.PostgresSecretsIAMTrustChainWriter{
+		SecretsIAMTrustChainWriter: secretsiam.PostgresSecretsIAMTrustChainWriter{
 			DB: database,
 		},
 		SecretsIAMGraphWriter:             secretsIAMGraphWriter,

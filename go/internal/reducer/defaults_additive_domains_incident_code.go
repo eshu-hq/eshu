@@ -4,6 +4,7 @@
 package reducer
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/function/summary"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/refresh"
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
@@ -52,8 +53,8 @@ func appendIncidentAndCodeEvidenceAdditiveDomains(definitions []DomainDefinition
 		definitions = append(definitions, codeInterproc)
 	}
 	if handlers.CodeFunctionSummaryLoader != nil && handlers.CodeFunctionSummaryWriter != nil {
-		codeFunctionSummary := codeFunctionSummaryDomainDefinition()
-		codeFunctionSummary.Handler = CodeFunctionSummaryMaterializationHandler{
+		codeFunctionSummary := summary.Definition()
+		codeFunctionSummary.Handler = summary.Handler{
 			Loader:        handlers.CodeFunctionSummaryLoader,
 			Writer:        handlers.CodeFunctionSummaryWriter,
 			SourceLoader:  handlers.CodeFunctionSourceLoader,

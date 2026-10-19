@@ -7,9 +7,8 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 // ServiceMaterializationBeginner adapts a postgres Beginner (for example the
@@ -24,7 +23,7 @@ type ServiceMaterializationBeginner struct {
 // lineage-writer surface.
 func (b ServiceMaterializationBeginner) BeginServiceMaterializationTx(
 	ctx context.Context,
-) (reducer.ServiceMaterializationTx, error) {
+) (servicecatalog.ServiceMaterializationTx, error) {
 	tx, err := b.Beginner.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -51,7 +50,7 @@ func (t serviceMaterializationTx) QueryRowContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) reducer.ServiceMaterializationRow {
+) servicecatalog.ServiceMaterializationRow {
 	rows, err := t.tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return serviceMaterializationRow{err: err}

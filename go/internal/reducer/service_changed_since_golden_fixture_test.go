@@ -3,6 +3,10 @@
 
 package reducer
 
+import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
+)
+
 import "testing"
 
 const (
@@ -18,34 +22,34 @@ func TestGoldenServiceChangedSinceOwnerChangeCreatesDistinctIdempotentGeneration
 
 	baselineWrite := goldenServiceChangedSinceWrite(goldenServiceChangedSinceBaselineOwner)
 	currentWrite := goldenServiceChangedSinceWrite(goldenServiceChangedSinceCurrentOwner)
-	baseline := ServiceMaterializationGenerationID(baselineWrite)
-	current := ServiceMaterializationGenerationID(currentWrite)
+	baseline := servicecatalog.ServiceMaterializationGenerationID(baselineWrite)
+	current := servicecatalog.ServiceMaterializationGenerationID(currentWrite)
 	if baseline == current {
 		t.Fatal("baseline and current generation IDs are equal despite an owner change")
 	}
-	if repeated := ServiceMaterializationGenerationID(goldenServiceChangedSinceWrite(goldenServiceChangedSinceCurrentOwner)); repeated != current {
+	if repeated := servicecatalog.ServiceMaterializationGenerationID(goldenServiceChangedSinceWrite(goldenServiceChangedSinceCurrentOwner)); repeated != current {
 		t.Errorf("identical current write generation = %q, want idempotent %q", repeated, current)
 	}
 
-	if got := ServiceOwnershipEvidenceKey(goldenServiceChangedSinceServiceID, goldenServiceChangedSinceBaselineOwner); got != goldenServiceChangedSinceBaselineOwnerKey {
+	if got := servicecatalog.ServiceOwnershipEvidenceKey(goldenServiceChangedSinceServiceID, goldenServiceChangedSinceBaselineOwner); got != goldenServiceChangedSinceBaselineOwnerKey {
 		t.Errorf("baseline ownership stable key = %q, want %q", got, goldenServiceChangedSinceBaselineOwnerKey)
 	}
-	if got := ServiceOwnershipEvidenceKey(goldenServiceChangedSinceServiceID, goldenServiceChangedSinceCurrentOwner); got != goldenServiceChangedSinceCurrentOwnerKey {
+	if got := servicecatalog.ServiceOwnershipEvidenceKey(goldenServiceChangedSinceServiceID, goldenServiceChangedSinceCurrentOwner); got != goldenServiceChangedSinceCurrentOwnerKey {
 		t.Errorf("current ownership stable key = %q, want %q", got, goldenServiceChangedSinceCurrentOwnerKey)
 	}
-	if baselineHash, currentHash := ServiceEvidencePayloadHash(baselineWrite.Ownership[0].Payload),
-		ServiceEvidencePayloadHash(currentWrite.Ownership[0].Payload); baselineHash == currentHash {
+	if baselineHash, currentHash := servicecatalog.ServiceEvidencePayloadHash(baselineWrite.Ownership[0].Payload),
+		servicecatalog.ServiceEvidencePayloadHash(currentWrite.Ownership[0].Payload); baselineHash == currentHash {
 		t.Errorf("baseline and current payload hashes are equal: %q", baselineHash)
 	}
 }
 
-func goldenServiceChangedSinceWrite(ownerRef string) ServiceMaterializationWrite {
-	return ServiceMaterializationWrite{
+func goldenServiceChangedSinceWrite(ownerRef string) servicecatalog.ServiceMaterializationWrite {
+	return servicecatalog.ServiceMaterializationWrite{
 		ScopeID:     "scope-test",
 		IntentID:    "golden-service-changed-since",
 		ServiceID:   goldenServiceChangedSinceServiceID,
 		TriggerKind: "golden_corpus",
-		Ownership: []ServiceOwnershipEvidence{{
+		Ownership: []servicecatalog.ServiceOwnershipEvidence{{
 			OwnerRef: ownerRef,
 			Payload: map[string]any{
 				"owner_ref":  ownerRef,

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 )
 
 // Real-Postgres proofs for reducerFactBatchInsertQuery's ON CONFLICT semantics
@@ -248,19 +249,19 @@ func TestReducerFactBatchInsertStaysInertForUnfencedWritersLive(t *testing.T) {
 	generationID := "gen-" + suffix
 	seedContainerImageIdentityScopeGeneration(t, ctx, sqlDB, scopeID, generationID)
 
-	writer := reducer.PostgresServiceCatalogCorrelationWriter{DB: sqlDB}
-	newWrite := func(reason string) reducer.ServiceCatalogCorrelationWrite {
-		return reducer.ServiceCatalogCorrelationWrite{
+	writer := servicecatalog.PostgresServiceCatalogCorrelationWriter{DB: sqlDB}
+	newWrite := func(reason string) servicecatalog.ServiceCatalogCorrelationWrite {
+		return servicecatalog.ServiceCatalogCorrelationWrite{
 			IntentID:     "intent-" + suffix,
 			ScopeID:      scopeID,
 			GenerationID: generationID,
 			SourceSystem: "git",
 			Cause:        "unfenced inertness proof",
-			Decisions: []reducer.ServiceCatalogCorrelationDecision{
+			Decisions: []servicecatalog.ServiceCatalogCorrelationDecision{
 				{
 					Provider:  "backstage",
 					EntityRef: "component:default/api",
-					Outcome:   reducer.ServiceCatalogCorrelationExact,
+					Outcome:   servicecatalog.ServiceCatalogCorrelationExact,
 					Reason:    reason,
 				},
 			},

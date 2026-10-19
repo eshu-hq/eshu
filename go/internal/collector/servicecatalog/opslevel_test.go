@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 )
 
 func opslevelContext() FixtureContext {
@@ -115,13 +115,13 @@ func TestOpsLevelManifestReducerRoundTrip(t *testing.T) {
 		activeRepositoryFact("repo-ledger", "https://github.com/eshu-hq/ledger.git", false),
 	}
 
-	decisions := reducer.BuildServiceCatalogCorrelationDecisions(append(catalog, repos...))
+	decisions := servicecatalog.BuildServiceCatalogCorrelationDecisions(append(catalog, repos...))
 	byEntity := decisionsByEntity(decisions)
 
-	assertOutcome(t, byEntity, "component:opslevel/checkout-api", reducer.ServiceCatalogCorrelationExact)
-	assertOutcome(t, byEntity, "component:opslevel/ledger", reducer.ServiceCatalogCorrelationDerived)
-	assertOutcome(t, byEntity, "component:opslevel/notifications", reducer.ServiceCatalogCorrelationUnresolved)
-	assertOutcome(t, byEntity, "component:opslevel/search", reducer.ServiceCatalogCorrelationRejected)
+	assertOutcome(t, byEntity, "component:opslevel/checkout-api", servicecatalog.ServiceCatalogCorrelationExact)
+	assertOutcome(t, byEntity, "component:opslevel/ledger", servicecatalog.ServiceCatalogCorrelationDerived)
+	assertOutcome(t, byEntity, "component:opslevel/notifications", servicecatalog.ServiceCatalogCorrelationUnresolved)
+	assertOutcome(t, byEntity, "component:opslevel/search", servicecatalog.ServiceCatalogCorrelationRejected)
 
 	// Non-over-admission: provenance-only entities never carry canonical ids.
 	for _, ref := range []string{"component:opslevel/notifications", "component:opslevel/search"} {
@@ -140,7 +140,7 @@ func TestOpsLevelManifestReducerRoundTrip(t *testing.T) {
 	}
 
 	// Dependency facts are carried but must not change the entity outcome.
-	if byEntity["component:opslevel/checkout-api"].Outcome != reducer.ServiceCatalogCorrelationExact {
+	if byEntity["component:opslevel/checkout-api"].Outcome != servicecatalog.ServiceCatalogCorrelationExact {
 		t.Fatalf("dependency facts must not alter checkout-api outcome")
 	}
 }
@@ -162,11 +162,11 @@ func TestOpsLevelManifestStaleAndAmbiguous(t *testing.T) {
 		activeRepositoryFact("repo-ledger", "https://github.com/eshu-hq/ledger", true),
 	}
 
-	decisions := reducer.BuildServiceCatalogCorrelationDecisions(append(catalog, repos...))
+	decisions := servicecatalog.BuildServiceCatalogCorrelationDecisions(append(catalog, repos...))
 	byEntity := decisionsByEntity(decisions)
 
-	assertOutcome(t, byEntity, "component:opslevel/checkout-api", reducer.ServiceCatalogCorrelationAmbiguous)
-	assertOutcome(t, byEntity, "component:opslevel/ledger", reducer.ServiceCatalogCorrelationStale)
+	assertOutcome(t, byEntity, "component:opslevel/checkout-api", servicecatalog.ServiceCatalogCorrelationAmbiguous)
+	assertOutcome(t, byEntity, "component:opslevel/ledger", servicecatalog.ServiceCatalogCorrelationStale)
 }
 
 func TestOpsLevelManifestPartialDocumentsWarnNotDrop(t *testing.T) {

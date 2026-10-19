@@ -7,6 +7,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/codedivergence"
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/reducer/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/handle"
 )
@@ -108,7 +109,7 @@ func appendCorrelationCoreAdditiveDomains(definitions []DomainDefinition, handle
 	}
 	if handlers.FactLoader != nil && handlers.ServiceCatalogCorrelationWriter != nil {
 		serviceCatalog := serviceCatalogCorrelationDomainDefinition()
-		serviceCatalog.Handler = ServiceCatalogCorrelationHandler{
+		serviceCatalog.Handler = servicecatalog.ServiceCatalogCorrelationHandler{
 			FactLoader:                   handlers.FactLoader,
 			Writer:                       handlers.ServiceCatalogCorrelationWriter,
 			MaterializationWriter:        handlers.ServiceMaterializationWriter,

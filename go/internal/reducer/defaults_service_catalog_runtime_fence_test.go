@@ -25,7 +25,7 @@ type stubRuntimeInstanceLoader struct{}
 
 func (stubRuntimeInstanceLoader) GetRuntimeInstancesForRepos(
 	context.Context, []string,
-) (map[string][]ServiceRuntimeInstance, error) {
+) (map[string][]servicecatalog.ServiceRuntimeInstance, error) {
 	return nil, nil
 }
 
@@ -38,7 +38,7 @@ func TestServiceCatalogRuntimeLoaderRequiresTheReadinessFence(t *testing.T) {
 
 	base := DefaultHandlers{
 		FactLoader:                      &stubFactLoader{},
-		ServiceCatalogCorrelationWriter: PostgresServiceCatalogCorrelationWriter{},
+		ServiceCatalogCorrelationWriter: servicecatalog.PostgresServiceCatalogCorrelationWriter{},
 		ServiceMaterializationWriter:    noopServiceMaterializationWriter{},
 		ServiceRuntimeInstanceLoader:    stubRuntimeInstanceLoader{},
 	}
@@ -59,18 +59,18 @@ func TestServiceCatalogRuntimeLoaderRequiresTheReadinessFence(t *testing.T) {
 	}
 }
 
-func serviceCatalogHandlerFromDefaults(t *testing.T, handlers DefaultHandlers) ServiceCatalogCorrelationHandler {
+func serviceCatalogHandlerFromDefaults(t *testing.T, handlers DefaultHandlers) servicecatalog.ServiceCatalogCorrelationHandler {
 	t.Helper()
 	for _, def := range implementedDefaultDomainDefinitions(handlers) {
 		if def.Domain != DomainServiceCatalogCorrelation {
 			continue
 		}
-		handler, ok := def.Handler.(ServiceCatalogCorrelationHandler)
+		handler, ok := def.Handler.(servicecatalog.ServiceCatalogCorrelationHandler)
 		if !ok {
 			t.Fatalf("service catalog handler type = %T", def.Handler)
 		}
 		return handler
 	}
 	t.Fatal("service catalog correlation domain not registered")
-	return ServiceCatalogCorrelationHandler{}
+	return servicecatalog.ServiceCatalogCorrelationHandler{}
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
+	funcsummary "github.com/eshu-hq/eshu/go/internal/reducer/code/function/summary"
 )
 
 // The function-summary family's production code and its own handler tests
@@ -17,18 +18,19 @@ import (
 // two wiring tests stay in root because they exercise NewDefaultRegistry and
 // implementedDefaultDomainDefinitions, the composition root that only this
 // package may hold. wiringSummaryLoader and wiringSummaryWriter are trivial
-// local stand-ins satisfying CodeFunctionSummaryLoader/CodeFunctionSummaryWriter
-// (aliases for summary.Loader/summary.Writer): the full-featured test doubles
+// local stand-ins satisfying funcsummary.Loader/funcsummary.Writer
+// (internal/reducer/code/function/summary, imported as funcsummary because
+// summary here is internal/parser/summary): the full-featured test doubles
 // that build real envelopes/snapshots moved with the rest of the family.
 
-// wiringSummaryLoader satisfies CodeFunctionSummaryLoader with no facts.
+// wiringSummaryLoader satisfies funcsummary.Loader with no facts.
 type wiringSummaryLoader struct{}
 
 func (wiringSummaryLoader) LoadCodeFunctionSummaryFacts(context.Context, string, string) ([]facts.Envelope, error) {
 	return nil, nil
 }
 
-// wiringSummaryWriter satisfies CodeFunctionSummaryWriter as a no-op.
+// wiringSummaryWriter satisfies funcsummary.Writer as a no-op.
 type wiringSummaryWriter struct{}
 
 func (wiringSummaryWriter) LoadSnapshot(context.Context) (summary.Snapshot, error) {
@@ -74,7 +76,7 @@ func TestNewDefaultRegistryAcceptsCodeFunctionSummaryWhenWired(t *testing.T) {
 	if !ok {
 		t.Fatal("code_function_summary not registered when wired")
 	}
-	if _, ok := def.Handler.(CodeFunctionSummaryMaterializationHandler); !ok {
+	if _, ok := def.Handler.(funcsummary.Handler); !ok {
 		t.Fatalf("handler type = %T, want CodeFunctionSummaryMaterializationHandler", def.Handler)
 	}
 }

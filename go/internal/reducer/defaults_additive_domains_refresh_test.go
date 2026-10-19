@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -123,7 +124,7 @@ func TestAdditiveDomainsWireRefreshAffectedGraph(t *testing.T) {
 	if uses.AffectedGraph == nil {
 		t.Fatal("USES handler AffectedGraph not wired")
 	}
-	perform, ok := byDomain[DomainIAMCanPerformMaterialization].Handler.(IAMCanPerformMaterializationHandler)
+	perform, ok := byDomain[DomainIAMCanPerformMaterialization].Handler.(iamcan.IAMCanPerformMaterializationHandler)
 	if !ok {
 		t.Fatal("DomainIAMCanPerformMaterialization handler missing or wrong type")
 	}
@@ -214,7 +215,7 @@ func TestAdditiveDomainsWireRefreshGateTracer(t *testing.T) {
 	if uses.Tracer == nil {
 		t.Error("USES handler Tracer not wired")
 	}
-	perform, ok := byDomain[DomainIAMCanPerformMaterialization].Handler.(IAMCanPerformMaterializationHandler)
+	perform, ok := byDomain[DomainIAMCanPerformMaterialization].Handler.(iamcan.IAMCanPerformMaterializationHandler)
 	if !ok {
 		t.Fatal("DomainIAMCanPerformMaterialization handler missing or wrong type")
 	}

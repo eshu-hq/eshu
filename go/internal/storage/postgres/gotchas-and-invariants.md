@@ -129,7 +129,7 @@ operational lessons that future storage changes still need to respect.
   sources the service vulnerabilities evidence family (#1990). It loads active,
   non-tombstone `reducer_supply_chain_impact_finding` facts filtered by
   `payload->>'repository_id'`, paged by the `fact_id` keyset, and maps each
-  finding to a `reducer.ServiceVulnerabilityRecord` grouped by repository id. It
+  finding to a `servicecatalog.ServiceVulnerabilityRecord` grouped by repository id. It
   is served by the partial index
   `fact_records_supply_chain_impact_repository_lookup_idx`
   (`payload->>'repository_id'`, `fact_id ASC`, `generation_id`) under the

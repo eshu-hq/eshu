@@ -12,7 +12,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
 )
 
 // sbomAttestationAttachmentBudgetRelPath is the committed cost budget for the
@@ -33,13 +33,13 @@ const sbomAttestationAttachmentCostIntentID = "intent-sbom-attestation-attachmen
 // attachment status regardless of outcome
 // (go/internal/reducer/sbomattest/sbom_attestation_attachment_writer.go), so both rows
 // are written.
-func sbomAttestationAttachmentFixtureDecisions() []reducer.SBOMAttestationAttachmentDecision {
-	row := func(id string) reducer.SBOMAttestationAttachmentDecision {
-		return reducer.SBOMAttestationAttachmentDecision{
+func sbomAttestationAttachmentFixtureDecisions() []sbomattest.SBOMAttestationAttachmentDecision {
+	row := func(id string) sbomattest.SBOMAttestationAttachmentDecision {
+		return sbomattest.SBOMAttestationAttachmentDecision{
 			DocumentID:         "sbom-doc-" + id,
 			DocumentDigest:     "sha256:" + id,
 			SubjectDigest:      "sha256:subject-" + id,
-			AttachmentStatus:   reducer.SBOMAttachmentAttachedVerified,
+			AttachmentStatus:   sbomattest.SBOMAttachmentAttachedVerified,
 			ParseStatus:        "parsed",
 			VerificationStatus: "verified",
 			VerificationPolicy: "keyless",
@@ -52,19 +52,19 @@ func sbomAttestationAttachmentFixtureDecisions() []reducer.SBOMAttestationAttach
 			SourceLayerKinds:   []string{"observed_resource"},
 		}
 	}
-	return []reducer.SBOMAttestationAttachmentDecision{row("aaaa"), row("bbbb")}
+	return []sbomattest.SBOMAttestationAttachmentDecision{row("aaaa"), row("bbbb")}
 }
 
 // newInstrumentedSBOMAttestationAttachmentWriter builds the PRODUCTION
 // Postgres write dispatch for this domain:
-// reducer.PostgresSBOMAttestationAttachmentWriter over a
+// sbomattest.PostgresSBOMAttestationAttachmentWriter over a
 // postgres.InstrumentedDB (StoreName "reducer") wrapping a
 // countingExecQueryer. WriteSBOMAttestationAttachments calls
 // reducerBatchInsertFacts — the SAME bounded chunked bulk insert
 // container_image_identity and ci_cd_run_correlation share — so two rows fit
 // in one 1000-row chunk and cost exactly one ExecContext round-trip.
 func newInstrumentedSBOMAttestationAttachmentWriter(t *testing.T) (
-	writer reducer.PostgresSBOMAttestationAttachmentWriter,
+	writer sbomattest.PostgresSBOMAttestationAttachmentWriter,
 	fake *countingExecQueryer,
 	reader *sdkmetric.ManualReader,
 ) {
@@ -72,7 +72,7 @@ func newInstrumentedSBOMAttestationAttachmentWriter(t *testing.T) (
 
 	fake = &countingExecQueryer{}
 	db, manualReader := newInstrumentedReducerDB(t, fake)
-	writer = reducer.PostgresSBOMAttestationAttachmentWriter{
+	writer = sbomattest.PostgresSBOMAttestationAttachmentWriter{
 		DB:  db,
 		Now: func() time.Time { return time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC) },
 	}
@@ -93,7 +93,7 @@ func TestCostBudget_SBOMAttestationAttachment(t *testing.T) {
 	budget := loadBudgetFrom(t, sbomAttestationAttachmentBudgetRelPath)
 	writer, fake, reader := newInstrumentedSBOMAttestationAttachmentWriter(t)
 
-	result, err := writer.WriteSBOMAttestationAttachments(context.Background(), reducer.SBOMAttestationAttachmentWrite{
+	result, err := writer.WriteSBOMAttestationAttachments(context.Background(), sbomattest.SBOMAttestationAttachmentWrite{
 		IntentID:     sbomAttestationAttachmentCostIntentID,
 		ScopeID:      "repo:team-api",
 		GenerationID: "generation-sbom-attestation-attachment-cost",
@@ -166,13 +166,13 @@ func TestCostBudget_SBOMAttestationAttachment_N1_ExceedsBudget(t *testing.T) {
 	writer, _, reader := newInstrumentedSBOMAttestationAttachmentWriter(t)
 
 	for _, decision := range decisions {
-		if _, err := writer.WriteSBOMAttestationAttachments(context.Background(), reducer.SBOMAttestationAttachmentWrite{
+		if _, err := writer.WriteSBOMAttestationAttachments(context.Background(), sbomattest.SBOMAttestationAttachmentWrite{
 			IntentID:     sbomAttestationAttachmentCostIntentID,
 			ScopeID:      "repo:team-api",
 			GenerationID: "generation-sbom-attestation-attachment-cost",
 			SourceSystem: "syft",
 			Cause:        "reducer/sbom_attestation_attachment",
-			Decisions:    []reducer.SBOMAttestationAttachmentDecision{decision},
+			Decisions:    []sbomattest.SBOMAttestationAttachmentDecision{decision},
 		}); err != nil {
 			t.Fatalf("N+1 WriteSBOMAttestationAttachments() error = %v", err)
 		}

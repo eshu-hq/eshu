@@ -9,9 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 func TestServiceDocumentationEvidenceLoaderScopesByServiceAndDurableIdentity(t *testing.T) {
@@ -128,7 +127,7 @@ func TestServiceDocumentationEvidenceLoaderEmptyServicesIsNoOp(t *testing.T) {
 	}
 }
 
-var _ reducer.ServiceScopedDocumentationEvidenceLoader = ServiceDocumentationEvidenceLoader{}
+var _ servicecatalog.ServiceScopedDocumentationEvidenceLoader = ServiceDocumentationEvidenceLoader{}
 
 type serviceDocumentationCapturingQueryer struct {
 	query string

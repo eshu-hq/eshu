@@ -14,6 +14,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
+	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
+	"github.com/eshu-hq/eshu/go/internal/reducer/iamescalation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iaminstprofile"
 	"github.com/eshu-hq/eshu/go/internal/reducer/internetexposure"
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
@@ -21,6 +23,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3grant"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
+	"github.com/eshu-hq/eshu/go/internal/reducer/secretsiam"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
 )
@@ -41,7 +44,7 @@ const (
 // both the Go and SQL claim paths derive from so the exempt set cannot drift
 // between them.
 var nonCountingReducerRetryFailureClasses = []string{
-	reducer.SecretsIAMEndpointNotReadyFailureClass,
+	secretsiam.SecretsIAMEndpointNotReadyFailureClass,
 	kubernetescorrelation.KubernetesCorrelationNodesNotReadyFailureClass,
 	reducer.GCPRelationshipNodesNotReadyFailureClass,
 	ec2instance.EC2InstanceIdentityNodesNotReadyFailureClass,
@@ -115,9 +118,9 @@ var nonCountingReducerRetryFailureClasses = []string{
 	reducer.AWSCloudImageNodesNotReadyFailureClass,
 	reducer.AWSRelationshipNodesNotReadyFailureClass,
 	reducer.AzureRelationshipNodesNotReadyFailureClass,
-	reducer.IAMCanAssumeNodesNotReadyFailureClass,
-	reducer.IAMCanPerformNodesNotReadyFailureClass,
-	reducer.IAMEscalationNodesNotReadyFailureClass,
+	iamcan.IAMCanAssumeNodesNotReadyFailureClass,
+	iamcan.IAMCanPerformNodesNotReadyFailureClass,
+	iamescalation.IAMEscalationNodesNotReadyFailureClass,
 	iaminstprofile.IAMInstanceProfileRoleNodesNotReadyFailureClass,
 	reducer.ObservabilityCoverageNodesNotReadyFailureClass,
 	rdsposture.RDSPostureNodesNotReadyFailureClass,
@@ -127,7 +130,7 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// waiting on sibling-scope targets. Both are bounded by elapsed time since
 	// the repair cycle began, not by this budget.
 	workloadinstance.NotReadyFailureClass,
-	reducer.IAMCanPerformTargetNotReadyFailureClass,
+	iamcan.IAMCanPerformTargetNotReadyFailureClass,
 	ec2blockkms.EC2BlockDeviceKMSPostureNodesNotReadyFailureClass,
 	internetexposure.EC2InternetExposureNodesNotReadyFailureClass,
 	ec2usesprofile.EC2UsesProfileNodesNotReadyFailureClass,

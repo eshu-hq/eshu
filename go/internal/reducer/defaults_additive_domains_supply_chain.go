@@ -6,6 +6,7 @@ package reducer
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/handle"
@@ -40,7 +41,7 @@ func appendSupplyChainCorrelationAdditiveDomains(definitions []DomainDefinition,
 	}
 	if handlers.FactLoader != nil && handlers.SBOMAttestationAttachmentWriter != nil {
 		attachments := sbomAttestationAttachmentDomainDefinition()
-		attachments.Handler = SBOMAttestationAttachmentHandler{
+		attachments.Handler = sbomattest.SBOMAttestationAttachmentHandler{
 			FactLoader:  handlers.FactLoader,
 			Writer:      handlers.SBOMAttestationAttachmentWriter,
 			Instruments: handlers.Instruments,

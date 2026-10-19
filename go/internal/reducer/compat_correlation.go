@@ -3,19 +3,20 @@
 
 package reducer
 
-// This file is the reducer root's compatibility surface for the correlation families (servicecatalog, cicdrun, crossrepo, sbomattest, supplychain)
+// This file is the reducer root's compatibility surface for the correlation families (cicdrun, crossrepo, supplychain)
 // (issue #6061). It merges the per-family *_compat.go files listed below
 // with no behavior change: every alias and forwarder is preserved
 // byte-identical under its stanza marker. A family move adds a stanza
 // to the matching bucket file and NEVER creates a new *_compat.go
 // (docs/internal/design/reducer-target-tree.md). Each entry is deleted
 // once its last caller has moved; see the importer-migration child issue.
+// The service_catalog_correlation and sbom_attestation_attachment stanzas
+// below were fully retired once their last callers named [servicecatalog]
+// and [sbomattest] directly (#6626 tail bucket 1).
 //
 // Stanzas merged here:
-//   - service_catalog_correlation_compat.go
 //   - ci_cd_run_correlation_compat.go
 //   - cross_repo_compat.go
-//   - sbom_attestation_attachment_compat.go
 //   - supply_chain_impact + supply_chain_suppression (family move; no prior compat file).
 //   - shared-projection intent row + unroutable-write (H5 root-remnant
 //     fold, issue #6061; folded from shared_projection_unroutable.go)
@@ -26,199 +27,14 @@ package reducer
 import (
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/intents/phase/repair"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
-	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
-	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
-
-// Stanza: service_catalog_correlation_compat.go (merged; do not recreate this file).
-// This file is the transitional compatibility surface for the service-catalog
-// correlation and service-materialization family that moved to
-// [servicecatalog] (issue #6061). It carries only the names that still have a
-// caller: the reducer root's own defaults/handler wiring
-// (defaults.go, defaults_additive_domains.go, defaults_service_incidents.go,
-// defaults_additive_domains_correlation.go, registry_additive_domains.go),
-// cmd/reducer's writer construction, internal/storage/postgres' loaders, and
-// the supplychain/core family plus the still-in-root
-// service_runtime_instance_lookup family's shared outcome/evidence
-// vocabulary. Everything else the family
-// exports is reached as servicecatalog.X, and each entry here is deleted once
-// its last caller has moved.
-
-// ServiceCatalogCorrelationOutcome names the reducer decision for one catalog
-// entity. See [servicecatalog.ServiceCatalogCorrelationOutcome].
-type ServiceCatalogCorrelationOutcome = servicecatalog.ServiceCatalogCorrelationOutcome
-
-const (
-	// ServiceCatalogCorrelationExact means one catalog entity matched one
-	// canonical repository through a stable repository identity.
-	ServiceCatalogCorrelationExact = servicecatalog.ServiceCatalogCorrelationExact
-	// ServiceCatalogCorrelationDerived means one catalog entity matched one
-	// canonical repository through deterministic URL canonicalization.
-	ServiceCatalogCorrelationDerived = servicecatalog.ServiceCatalogCorrelationDerived
-	// ServiceCatalogCorrelationAmbiguous means one catalog entity matched
-	// multiple active repositories.
-	ServiceCatalogCorrelationAmbiguous = servicecatalog.ServiceCatalogCorrelationAmbiguous
-	// ServiceCatalogCorrelationUnresolved means the catalog entity is valid
-	// but no repository matched it.
-	ServiceCatalogCorrelationUnresolved = servicecatalog.ServiceCatalogCorrelationUnresolved
-	// ServiceCatalogCorrelationStale means the catalog entity matched only
-	// tombstoned repository facts.
-	ServiceCatalogCorrelationStale = servicecatalog.ServiceCatalogCorrelationStale
-	// ServiceCatalogCorrelationRejected means the catalog entity cannot
-	// participate in correlation.
-	ServiceCatalogCorrelationRejected = servicecatalog.ServiceCatalogCorrelationRejected
-)
-
-// ServiceCatalogCorrelationDecision records one catalog entity's correlation
-// outcome. See [servicecatalog.ServiceCatalogCorrelationDecision].
-type ServiceCatalogCorrelationDecision = servicecatalog.ServiceCatalogCorrelationDecision
-
-// ServiceCatalogCorrelationWrite is the durable publication input one
-// service-catalog-correlation execution submits. See
-// [servicecatalog.ServiceCatalogCorrelationWrite].
-type ServiceCatalogCorrelationWrite = servicecatalog.ServiceCatalogCorrelationWrite
-
-// ServiceCatalogCorrelationWriteResult summarizes durable catalog-correlation
-// writes. See [servicecatalog.ServiceCatalogCorrelationWriteResult].
-type ServiceCatalogCorrelationWriteResult = servicecatalog.ServiceCatalogCorrelationWriteResult
-
-// ServiceCatalogCorrelationWriter persists service-catalog correlation
-// decisions. See [servicecatalog.ServiceCatalogCorrelationWriter].
-type ServiceCatalogCorrelationWriter = servicecatalog.ServiceCatalogCorrelationWriter
-
-// ServiceCatalogCorrelationHandler correlates catalog declarations against
-// active repository facts. See [servicecatalog.ServiceCatalogCorrelationHandler].
-type ServiceCatalogCorrelationHandler = servicecatalog.ServiceCatalogCorrelationHandler
-
-// PostgresServiceCatalogCorrelationWriter is the Postgres-backed
-// ServiceCatalogCorrelationWriter. See
-// [servicecatalog.PostgresServiceCatalogCorrelationWriter].
-type PostgresServiceCatalogCorrelationWriter = servicecatalog.PostgresServiceCatalogCorrelationWriter
-
-// BuildServiceCatalogCorrelationDecisions forwards to
-// [servicecatalog.BuildServiceCatalogCorrelationDecisions].
-func BuildServiceCatalogCorrelationDecisions(envelopes []facts.Envelope) []ServiceCatalogCorrelationDecision {
-	return servicecatalog.BuildServiceCatalogCorrelationDecisions(envelopes)
-}
-
-// ServiceMaterializationWrite is the additive per-service evidence generation
-// lineage write input. See [servicecatalog.ServiceMaterializationWrite].
-type ServiceMaterializationWrite = servicecatalog.ServiceMaterializationWrite
-
-// ServiceOwnershipEvidence is one owner-ref evidence row before it is
-// resolved into a generation-stable snapshot row. See
-// [servicecatalog.ServiceOwnershipEvidence].
-type ServiceOwnershipEvidence = servicecatalog.ServiceOwnershipEvidence
-
-// Evidence family label constants. See
-// [servicecatalog.ServiceEvidenceFamilyOwnership] and its siblings.
-const (
-	ServiceEvidenceFamilyOwnership = servicecatalog.ServiceEvidenceFamilyOwnership
-	ServiceEvidenceFamilyRuntime   = servicecatalog.ServiceEvidenceFamilyRuntime
-)
-
-// ServiceMaterializationWriter commits the additive per-service evidence
-// generation lineage. See [servicecatalog.ServiceMaterializationWriter].
-type ServiceMaterializationWriter = servicecatalog.ServiceMaterializationWriter
-
-// ServiceMaterializationTx is the narrow transactional surface the lineage
-// writer needs. See [servicecatalog.ServiceMaterializationTx].
-type ServiceMaterializationTx = servicecatalog.ServiceMaterializationTx
-
-// ServiceMaterializationRow is the narrow *sql.Row surface the lineage
-// writer's QueryRowContext needs. See [servicecatalog.ServiceMaterializationRow].
-type ServiceMaterializationRow = servicecatalog.ServiceMaterializationRow
-
-// PostgresServiceMaterializationWriter commits the additive per-service
-// evidence generation lineage against Postgres. See
-// [servicecatalog.PostgresServiceMaterializationWriter].
-type PostgresServiceMaterializationWriter = servicecatalog.PostgresServiceMaterializationWriter
-
-// ServiceMaterializationGenerationID forwards to
-// [servicecatalog.ServiceMaterializationGenerationID].
-// service_changed_since_golden_fixture_test.go asserts distinctness and
-// idempotency directly against this derivation.
-func ServiceMaterializationGenerationID(write ServiceMaterializationWrite) string {
-	return servicecatalog.ServiceMaterializationGenerationID(write)
-}
-
-// ServiceOwnershipEvidenceKey forwards to
-// [servicecatalog.ServiceOwnershipEvidenceKey].
-func ServiceOwnershipEvidenceKey(serviceID, ownerRef string) string {
-	return servicecatalog.ServiceOwnershipEvidenceKey(serviceID, ownerRef)
-}
-
-// ServiceEvidencePayloadHash forwards to
-// [servicecatalog.ServiceEvidencePayloadHash].
-func ServiceEvidencePayloadHash(payload map[string]any) string {
-	return servicecatalog.ServiceEvidencePayloadHash(payload)
-}
-
-// Service materialization generation status values. See
-// [servicecatalog.ServiceMaterializationStatusActive] and its siblings.
-const (
-	ServiceMaterializationStatusPending    = servicecatalog.ServiceMaterializationStatusPending
-	ServiceMaterializationStatusActive     = servicecatalog.ServiceMaterializationStatusActive
-	ServiceMaterializationStatusSuperseded = servicecatalog.ServiceMaterializationStatusSuperseded
-)
-
-// RepositoryScopedRuntimeInstanceLoader supplies materialized runtime
-// instances for a repository. See
-// [servicecatalog.RepositoryScopedRuntimeInstanceLoader].
-type RepositoryScopedRuntimeInstanceLoader = servicecatalog.RepositoryScopedRuntimeInstanceLoader
-
-// ServiceRuntimeProducerReadiness fences the runtime instance read on
-// in-flight workload_materialization work (#7816). See
-// [servicecatalog.RuntimeProducerReadiness].
-type ServiceRuntimeProducerReadiness = servicecatalog.RuntimeProducerReadiness
-
-// ServiceRuntimeInstance is one materialized runtime instance of a service's
-// workload. See [servicecatalog.ServiceRuntimeInstance].
-type ServiceRuntimeInstance = servicecatalog.ServiceRuntimeInstance
-
-// ServiceRuntimeEvidenceKey forwards to
-// [servicecatalog.ServiceRuntimeEvidenceKey].
-func ServiceRuntimeEvidenceKey(serviceID string, instance ServiceRuntimeInstance) string {
-	return servicecatalog.ServiceRuntimeEvidenceKey(serviceID, instance)
-}
-
-// ServiceScopedDocumentationEvidenceLoader supplies documentation evidence
-// for a set of services. See
-// [servicecatalog.ServiceScopedDocumentationEvidenceLoader].
-type ServiceScopedDocumentationEvidenceLoader = servicecatalog.ServiceScopedDocumentationEvidenceLoader
-
-// ServiceScopedIncidentEvidenceLoader supplies incident-routing evidence for
-// a set of services. See
-// [servicecatalog.ServiceScopedIncidentEvidenceLoader].
-type ServiceScopedIncidentEvidenceLoader = servicecatalog.ServiceScopedIncidentEvidenceLoader
-
-// ServiceVulnerabilityAdvisoryLoader supplies supply-chain advisory findings
-// for a set of repositories. See
-// [servicecatalog.ServiceVulnerabilityAdvisoryLoader].
-type ServiceVulnerabilityAdvisoryLoader = servicecatalog.ServiceVulnerabilityAdvisoryLoader
-
-// ServiceDocumentationRecord is one documentation fact referencing a service,
-// as internal/storage/postgres' loader returns it. See
-// [servicecatalog.ServiceDocumentationRecord].
-type ServiceDocumentationRecord = servicecatalog.ServiceDocumentationRecord
-
-// ServiceIncidentRecord is one incident-routing evidence row referencing a
-// service, as internal/storage/postgres' loader returns it. See
-// [servicecatalog.ServiceIncidentRecord].
-type ServiceIncidentRecord = servicecatalog.ServiceIncidentRecord
-
-// ServiceVulnerabilityRecord is one supply-chain advisory finding referencing
-// a service's repository, as internal/storage/postgres' loader returns it.
-// See [servicecatalog.ServiceVulnerabilityRecord].
-type ServiceVulnerabilityRecord = servicecatalog.ServiceVulnerabilityRecord
 
 // Stanza: ci_cd_run_correlation_compat.go (merged; do not recreate this file).
 // This file is the transitional compatibility surface for the CI/CD run
@@ -305,40 +121,8 @@ type RepoDependencyIntentWriter = crossrepo.RepoDependencyIntentWriter
 // persisted evidence facts. Alias for [crossrepo.CrossRepoRelationshipHandler].
 type CrossRepoRelationshipHandler = crossrepo.CrossRepoRelationshipHandler
 
-// Stanza: sbom_attestation_attachment_compat.go (merged; do not recreate this file).
-// This file is the transitional compatibility surface for the sbom_attestation
-// attachment family that moved to [sbomattest] (issue #6061). Reducer-root call
-// sites and the external packages that name these types keep their current
-// spelling; each entry is deleted once its last caller has moved into a family
-// subpackage.
-
-const (
-	// SBOMAttachmentAttachedVerified forwards to
-	// [sbomattest.SBOMAttachmentAttachedVerified].
-	SBOMAttachmentAttachedVerified = sbomattest.SBOMAttachmentAttachedVerified
-)
-
-// SBOMAttestationAttachmentDecision records one reducer attachment decision.
-// See [sbomattest.SBOMAttestationAttachmentDecision].
-type SBOMAttestationAttachmentDecision = sbomattest.SBOMAttestationAttachmentDecision
-
-// SBOMAttestationAttachmentWrite carries decisions for durable publication.
-// See [sbomattest.SBOMAttestationAttachmentWrite].
-type SBOMAttestationAttachmentWrite = sbomattest.SBOMAttestationAttachmentWrite
-
-// SBOMAttestationAttachmentWriter persists reducer-owned attachment facts.
-// See [sbomattest.SBOMAttestationAttachmentWriter].
-type SBOMAttestationAttachmentWriter = sbomattest.SBOMAttestationAttachmentWriter
-
-// SBOMAttestationAttachmentHandler attaches SBOM and attestation documents to
-// image digests only when subject evidence is explicit. See
-// [sbomattest.SBOMAttestationAttachmentHandler].
-type SBOMAttestationAttachmentHandler = sbomattest.SBOMAttestationAttachmentHandler
-
-// PostgresSBOMAttestationAttachmentWriter stores reducer-owned SBOM and
-// attestation attachment decisions in the shared fact store. See
-// [sbomattest.PostgresSBOMAttestationAttachmentWriter].
-type PostgresSBOMAttestationAttachmentWriter = sbomattest.PostgresSBOMAttestationAttachmentWriter
+// Stanza sbom_attestation_attachment_compat.go: fully retired (#6626 tail bucket 1).
+// Every caller names [sbomattest] directly; the notes below are ledger.
 
 // MaxSBOMAttachmentComponentEvidenceRows, ComponentEvidence,
 // ComponentEvidenceLess, and ComponentEvidenceTupleEqual were retired once

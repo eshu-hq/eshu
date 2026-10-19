@@ -10,7 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/code"
 )
 
-// LoadCodeFunctionSourceFacts implements reducer.CodeFunctionSourceLoader by
+// LoadCodeFunctionSourceFacts implements summary.SourceLoader by
 // scanning the raw code_function_source fact envelopes for one scope
 // generation. The reducer handler decodes them through the typed contracts
 // seam (ExtractSources) so a fact missing its

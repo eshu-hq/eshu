@@ -11,8 +11,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/secretsiam"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
 
@@ -77,13 +77,13 @@ LIMIT $11
 func (s FactStore) LoadSecretsIAMTrustChainEvidence(
 	ctx context.Context,
 	intent reducercontract.Intent,
-) ([]facts.Envelope, reducer.SecretsIAMTrustChainLoadStats, error) {
+) ([]facts.Envelope, secretsiam.SecretsIAMTrustChainLoadStats, error) {
 	if s.database == nil {
-		return nil, reducer.SecretsIAMTrustChainLoadStats{}, fmt.Errorf("fact store database is required")
+		return nil, secretsiam.SecretsIAMTrustChainLoadStats{}, fmt.Errorf("fact store database is required")
 	}
 	seed, err := s.ListFactsByKind(ctx, intent.ScopeID, intent.GenerationID, factsidentity.SecretsIAMFactKinds())
 	if err != nil {
-		return nil, reducer.SecretsIAMTrustChainLoadStats{}, err
+		return nil, secretsiam.SecretsIAMTrustChainLoadStats{}, err
 	}
 	envelopes := make([]facts.Envelope, 0, len(seed))
 	seen := map[string]struct{}{}
@@ -95,13 +95,13 @@ func (s FactStore) LoadSecretsIAMTrustChainEvidence(
 	}
 	anchors, err := secretsIAMTrustChainAnchorsFromEnvelopes(envelopes)
 	if err != nil {
-		return nil, reducer.SecretsIAMTrustChainLoadStats{}, err
+		return nil, secretsiam.SecretsIAMTrustChainLoadStats{}, err
 	}
 	truncated := false
 	for pass := 0; pass < secretsIAMTrustChainMaxExpansionPasses && anchors.hasAny(); pass++ {
 		page, err := s.listActiveSecretsIAMTrustChainFacts(ctx, anchors)
 		if err != nil {
-			return nil, reducer.SecretsIAMTrustChainLoadStats{}, err
+			return nil, secretsiam.SecretsIAMTrustChainLoadStats{}, err
 		}
 		before := len(envelopes)
 		for _, envelope := range page {
@@ -112,13 +112,13 @@ func (s FactStore) LoadSecretsIAMTrustChainEvidence(
 		}
 		anchors, err = secretsIAMTrustChainAnchorsFromEnvelopes(envelopes)
 		if err != nil {
-			return nil, reducer.SecretsIAMTrustChainLoadStats{}, err
+			return nil, secretsiam.SecretsIAMTrustChainLoadStats{}, err
 		}
 		if pass == secretsIAMTrustChainMaxExpansionPasses-1 && anchors.hasAny() {
 			truncated = true
 		}
 	}
-	return envelopes, reducer.SecretsIAMTrustChainLoadStats{
+	return envelopes, secretsiam.SecretsIAMTrustChainLoadStats{
 		SeedFactCount:   len(seed),
 		LoadedFactCount: len(envelopes),
 		Truncated:       truncated,

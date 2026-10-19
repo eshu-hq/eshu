@@ -8,9 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 // serviceDocumentationEvidenceQuery loads the active, non-tombstoned documentation
@@ -72,7 +71,7 @@ ORDER BY fact.source_system ASC, fact.source_record_id ASC, fact.fact_id ASC
 
 // ServiceDocumentationEvidenceLoader loads the documentation facts that reference
 // each correlated service so the reducer can materialize the docs evidence family
-// (#1988). It implements reducer.ServiceScopedDocumentationEvidenceLoader. The
+// (#1988). It implements servicecatalog.ServiceScopedDocumentationEvidenceLoader. The
 // load is bounded: one query per service over the active-generation
 // documentation fact set, returning only durable external identity.
 type ServiceDocumentationEvidenceLoader struct {
@@ -92,11 +91,11 @@ func NewServiceDocumentationEvidenceLoader(queryer db.Queryer) ServiceDocumentat
 func (l ServiceDocumentationEvidenceLoader) GetDocumentationEvidenceForServices(
 	ctx context.Context,
 	serviceIDs []string,
-) (map[string][]reducer.ServiceDocumentationRecord, error) {
+) (map[string][]servicecatalog.ServiceDocumentationRecord, error) {
 	if l.queryer == nil {
 		return nil, fmt.Errorf("documentation evidence queryer is required")
 	}
-	out := map[string][]reducer.ServiceDocumentationRecord{}
+	out := map[string][]servicecatalog.ServiceDocumentationRecord{}
 	for _, serviceID := range serviceIDs {
 		serviceID = strings.TrimSpace(serviceID)
 		if serviceID == "" {
@@ -116,7 +115,7 @@ func (l ServiceDocumentationEvidenceLoader) GetDocumentationEvidenceForServices(
 func (l ServiceDocumentationEvidenceLoader) loadForService(
 	ctx context.Context,
 	serviceID string,
-) ([]reducer.ServiceDocumentationRecord, error) {
+) ([]servicecatalog.ServiceDocumentationRecord, error) {
 	candidateRef := documentationServiceRefContains("candidate_refs", "kind", "id", serviceID)
 	evidenceRef := documentationServiceRefContains("evidence_refs", "kind", "id", serviceID)
 	linkedRef := documentationServiceRefContains("linked_entities", "entity_type", "entity_id", serviceID)
@@ -133,9 +132,9 @@ func (l ServiceDocumentationEvidenceLoader) loadForService(
 	}
 	defer func() { _ = rows.Close() }()
 
-	records := make([]reducer.ServiceDocumentationRecord, 0)
+	records := make([]servicecatalog.ServiceDocumentationRecord, 0)
 	for rows.Next() {
-		var record reducer.ServiceDocumentationRecord
+		var record servicecatalog.ServiceDocumentationRecord
 		if scanErr := rows.Scan(
 			&record.SourceSystem,
 			&record.SourceRecordID,

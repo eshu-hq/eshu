@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/handle"
 )
@@ -109,7 +110,7 @@ func TestHandleLadderRegistrationCarriesSiblingLookup(t *testing.T) {
 			}
 			found[definition.Domain] = true
 		case DomainServiceCatalogCorrelation:
-			handler, ok := definition.Handler.(ServiceCatalogCorrelationHandler)
+			handler, ok := definition.Handler.(servicecatalog.ServiceCatalogCorrelationHandler)
 			if !ok {
 				t.Fatalf("handler for %s = %T, want ServiceCatalogCorrelationHandler", definition.Domain, definition.Handler)
 			}
@@ -173,7 +174,7 @@ func TestHandleLadderRegistrationKeepsLegacyPassThroughWithoutLookup(t *testing.
 				t.Fatal("documentation handler WorkloadLookup non-nil without the dep")
 			}
 		case DomainServiceCatalogCorrelation:
-			handler := definition.Handler.(ServiceCatalogCorrelationHandler)
+			handler := definition.Handler.(servicecatalog.ServiceCatalogCorrelationHandler)
 			if handler.WorkloadLookup != nil {
 				t.Fatal("service-catalog handler WorkloadLookup non-nil without the dep")
 			}

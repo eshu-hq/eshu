@@ -6,6 +6,8 @@ package reducer
 import (
 	"context"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 )
 
 // recordingIAMCanAssumeEdgeWriter is a local no-op IAMCanAssumeEdgeWriter. This
@@ -63,7 +65,7 @@ func TestImplementedDefaultDomainDefinitionsIncludesIAMCanAssumeMaterializationW
 			continue
 		}
 		found = true
-		handler, ok := def.Handler.(IAMCanAssumeMaterializationHandler)
+		handler, ok := def.Handler.(iamcan.IAMCanAssumeMaterializationHandler)
 		if !ok {
 			t.Fatalf("iam_can_assume_materialization handler type = %T, want IAMCanAssumeMaterializationHandler", def.Handler)
 		}

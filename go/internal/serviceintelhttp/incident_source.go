@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/serviceintel"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -49,7 +49,7 @@ type catalogServiceIDResolver interface {
 // catalog service id, bounded to rowLimit rows so a report request cannot scan an
 // unbounded incident history. postgres.ServiceIncidentEvidenceLoader implements it.
 type serviceIncidentEvidenceLoader interface {
-	GetIncidentEvidenceForServicesBounded(ctx context.Context, serviceIDs []string, rowLimit int) (map[string][]reducer.ServiceIncidentRecord, error)
+	GetIncidentEvidenceForServicesBounded(ctx context.Context, serviceIDs []string, rowLimit int) (map[string][]servicecatalog.ServiceIncidentRecord, error)
 }
 
 // reportIncidentEvidenceRowLimit caps the incident-routing evidence rows the
@@ -137,7 +137,7 @@ func (s DurableIncidentEvidenceSource) warn(ctx context.Context, msg, event, wor
 // mapIncidentRecords projects durable reducer incident rows onto the composer's
 // minimal IncidentRecord. It returns nil for an empty input so the caller leaves
 // the section unsupported rather than supplying an empty supported section.
-func mapIncidentRecords(rows []reducer.ServiceIncidentRecord) []serviceintel.IncidentRecord {
+func mapIncidentRecords(rows []servicecatalog.ServiceIncidentRecord) []serviceintel.IncidentRecord {
 	if len(rows) == 0 {
 		return nil
 	}

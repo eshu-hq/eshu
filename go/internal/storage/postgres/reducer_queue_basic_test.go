@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/secretsiam"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -399,15 +400,15 @@ func TestReducerQueueFailRetriesReadinessBacklogKeepsOwnFailureClass(t *testing.
 	intent := reducercontract.Intent{IntentID: "intent-1", AttemptCount: 1}
 
 	if err := queue.Fail(context.Background(), intent, readinessBacklogTestError{
-		class: reducer.SecretsIAMEndpointNotReadyFailureClass,
+		class: secretsiam.SecretsIAMEndpointNotReadyFailureClass,
 	}); err != nil {
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
 	if !strings.Contains(db.execs[0].query, "status = 'retrying'") {
 		t.Fatalf("readiness backlog should retry, query:\n%s", db.execs[0].query)
 	}
-	if got := db.execs[0].args[1]; got != reducer.SecretsIAMEndpointNotReadyFailureClass {
-		t.Fatalf("failure class = %v, want %v", got, reducer.SecretsIAMEndpointNotReadyFailureClass)
+	if got := db.execs[0].args[1]; got != secretsiam.SecretsIAMEndpointNotReadyFailureClass {
+		t.Fatalf("failure class = %v, want %v", got, secretsiam.SecretsIAMEndpointNotReadyFailureClass)
 	}
 	if got := db.execs[0].args[1]; got == sourcecypher.GraphWriteTimeoutFailureClass {
 		t.Fatalf("readiness backlog must not be labeled a graph-write class, got %v", got)

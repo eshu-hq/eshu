@@ -79,7 +79,7 @@ func appendCloudRelationshipAdditiveDomains(definitions []DomainDefinition, hand
 	}
 	if handlers.FactLoader != nil && handlers.IAMCanAssumeEdgeWriter != nil {
 		iamCanAssume := iamcan.AssumeMaterializationDomainDefinition()
-		iamCanAssume.Handler = IAMCanAssumeMaterializationHandler{
+		iamCanAssume.Handler = iamcan.IAMCanAssumeMaterializationHandler{
 			FactLoader:           handlers.FactLoader,
 			EdgeWriter:           handlers.IAMCanAssumeEdgeWriter,
 			ReadinessLookup:      handlers.ReadinessLookup,
