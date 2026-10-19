@@ -75,7 +75,8 @@ Runtime profile ceilings are owned by
 [Capability Conformance Spec](capability-conformance-spec.md). High-authority
 capabilities such as transitive call graphs, call-chain paths, dead-code
 cleanup, and cross-repo impact must return `unsupported_capability` when the
-active profile cannot answer correctly.
+active profile cannot answer correctly. Per-request timing travels as a
+`Server-Timing` trailer (see [Request Timing](http-api/request-timing.md)).
 
 ### Bounded graph-read failures
 

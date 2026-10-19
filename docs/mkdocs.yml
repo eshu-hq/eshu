@@ -99,6 +99,7 @@ nav:
     - API & MCP:
       - HTTP API:
         - Overview: reference/http-api.md
+        - Request Timing: reference/http-api/request-timing.md
         - Status And Admin: reference/http-api/status-admin.md
         - Service Changed-Since: reference/http-api/service-changed-since.md
         - Admin Replay Refusals: reference/http-api/admin-replay-refusals.md

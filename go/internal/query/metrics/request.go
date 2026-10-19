@@ -5,6 +5,7 @@ package metrics
 
 import (
 	"bufio"
+	"fmt"
 	"net"
 	"net/http"
 	"strconv"
@@ -74,6 +75,21 @@ func apiRequestMetrics() *apiRequestInstruments {
 // registered routes rather than the unbounded concrete request paths. Requests
 // that match no route are labeled "unmatched".
 //
+// It also exposes the per-request handler total as a Server-Timing trailer
+// ("Server-Timing: total;dur=<ms>") so a slow call can be attributed without
+// guessing (issue #7733). A trailer, not a response header, is deliberate:
+// net/http flushes response headers on the handler's first body Write, so a
+// header set after mux.ServeHTTP returns is silently dropped on the wire,
+// while an announced trailer is delivered for buffered and streaming (SSE)
+// responses alike. The announcement is gated: a Trailer header on a bodyless
+// response is invalid with its Content-Length encoding and crashes
+// Node-based proxies (Vite died with ERR_HTTP_TRAILER_INVALID on a 204 in
+// the SSO E2E gate), so 1xx/204/304, HEAD, and handlers that return without
+// writing never announce — the value lands as a plain header, or nowhere for
+// 204/304. The trailer carries only the total this seam brackets; the
+// middleware cannot split Postgres versus graph time without invasive
+// per-store plumbing, so no finer stage is reported.
+//
 // It wraps the application mux only; the admin surface (probes, /metrics) is
 // served by a separate mux and is intentionally not counted.
 func RequestMiddleware(mux *http.ServeMux) http.Handler {
@@ -88,10 +104,35 @@ func RequestMiddleware(mux *http.ServeMux) http.Handler {
 		}
 
 		recorder := &statusCapturingResponseWriter{ResponseWriter: w, status: http.StatusOK}
+		if r.Method == http.MethodHead {
+			// HEAD responses carry no body, so a trailer can never be
+			// delivered; suppress the announcement. The value below lands
+			// as a plain header only when the handler wrote nothing;
+			// otherwise the headers are already on the wire and it drops.
+			recorder.suppressTrailer = true
+		}
 		start := time.Now()
 		mux.ServeHTTP(recorder, r)
-		recordAPIRequest(r, route, recorder.status, time.Since(start))
+		elapsed := time.Since(start)
+		w.Header().Set("Server-Timing", formatServerTiming(elapsed))
+		recordAPIRequest(r, route, recorder.status, elapsed)
 	})
+}
+
+// serverTimingStageTotal is the only Server-Timing stage RequestMiddleware
+// reports: the handler total in milliseconds. The name set stays fixed at
+// one stage so clients can parse it without negotiation.
+const serverTimingStageTotal = "total"
+
+// formatServerTiming renders the Server-Timing field value for one handler
+// total, e.g. "total;dur=12.3". Durations live only in this field, never in
+// metric labels, so no cardinality grows with request traffic.
+func formatServerTiming(elapsed time.Duration) string {
+	ms := elapsed.Seconds() * 1000
+	if ms < 0 {
+		ms = 0
+	}
+	return fmt.Sprintf("%s;dur=%.1f", serverTimingStageTotal, ms)
 }
 
 // recordAPIRequest records the request duration and, for server errors, a
@@ -121,10 +162,48 @@ func recordAPIRequest(r *http.Request, route string, status int, elapsed time.Du
 // handler that writes a body without calling WriteHeader implies a 200. Unwrap
 // exposes the underlying writer so http.ResponseController can reach optional
 // interfaces (Flusher, Hijacker) on streaming handlers.
+//
+// It also gates the Server-Timing trailer announcement. A Trailer header on a
+// bodyless response is invalid with its Content-Length encoding and crashes
+// Node-based proxies: the Vite dev server died with ERR_HTTP_TRAILER_INVALID
+// on an announced 204, failing the SSO E2E gate. So statuses that forbid a
+// body (1xx, 204, 304) and HEAD requests never announce, and a handler that
+// returns without writing never triggers the announcement, letting the
+// post-handler value land as a plain response header instead. Known residual:
+// an explicit body-allowed status with no following body still announces, as
+// before this change; holding the send for that case would re-emit a stored
+// status and trip the repo's no-direct-status-write guard (see
+// server_status_guard_test.go), so it stays as-is. No production instance
+// exists: the only such shape in the tree, the MCP 202 in
+// internal/mcp/server_sse.go, serves POST /mcp/message outside this
+// middleware (only /api/ is wrapped).
 type statusCapturingResponseWriter struct {
 	http.ResponseWriter
-	status      int
-	wroteHeader bool
+	status          int
+	wroteHeader     bool
+	announced       bool
+	suppressTrailer bool
+}
+
+// trailerBodyAllowed reports whether a response status can carry a body, and
+// hence a trailer. 1xx, 204, and 304 never have bodies regardless of what the
+// handler writes.
+func trailerBodyAllowed(status int) bool {
+	if status >= 100 && status <= 199 {
+		return false
+	}
+	return status != http.StatusNoContent && status != http.StatusNotModified
+}
+
+// announceTrailer adds the Trailer declaration. Callers must invoke it before
+// the first bytes reach the underlying writer: afterwards the header block is
+// on the wire and the declaration would be silently dropped.
+func (w *statusCapturingResponseWriter) announceTrailer() {
+	if w.announced || w.suppressTrailer {
+		return
+	}
+	w.announced = true
+	w.Header().Add("Trailer", "Server-Timing")
 }
 
 func (w *statusCapturingResponseWriter) WriteHeader(status int) {
@@ -132,6 +211,14 @@ func (w *statusCapturingResponseWriter) WriteHeader(status int) {
 		w.status = status
 		w.wroteHeader = true
 	}
+	if !trailerBodyAllowed(status) {
+		// No body can follow, so no announcement ever goes out for this
+		// response. The post-handler timing value is dropped by net/http
+		// along with the already-sent headers.
+		w.ResponseWriter.WriteHeader(status)
+		return
+	}
+	w.announceTrailer()
 	w.ResponseWriter.WriteHeader(status)
 }
 
@@ -139,6 +226,9 @@ func (w *statusCapturingResponseWriter) Write(b []byte) (int, error) {
 	if !w.wroteHeader {
 		w.wroteHeader = true
 	}
+	// Implicit status: headers are still unsent, so announcing here rides
+	// the header block flushed by this first Write.
+	w.announceTrailer()
 	return w.ResponseWriter.Write(b)
 }
 
@@ -153,6 +243,9 @@ func (w *statusCapturingResponseWriter) Unwrap() http.ResponseWriter {
 // the writer to http.Flusher; issue #3381 traced the Ask SSE 500 to this gap.
 // The assertion is a no-op when the underlying writer cannot flush.
 func (w *statusCapturingResponseWriter) Flush() {
+	// A flush implies a stream follows; announce first so the declaration
+	// rides the header block the flush sends.
+	w.announceTrailer()
 	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
 		flusher.Flush()
 	}

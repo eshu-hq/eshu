@@ -22,7 +22,7 @@ Use this route map instead of reading every telemetry page front to back.
 | Which headline panels should I import into Grafana? | The `eshu-operator-overview.json` dashboard under `docs/public/observability/dashboards/` (also linked in the Observability nav, top of this page) |
 | Which collector or ingestion counter changed? | [Ingestion And Collector Metrics](metrics-ingestion-collectors.md) |
 | Which reducer, graph, storage, or correlation metric changed? | [Reducer And Storage Metrics](metrics-reducer-storage.md); identity fact cache: [Identity Fact Cache Metrics](metrics-identity-cache.md) |
-| Where did time go for one request, scope, or graph write? | [Traces](traces.md); deferred backfill pass: [Deferred Backfill Block Timing](deferred-backfill-blocks.md) (`eshu_dp_deferred_backfill_block_duration_seconds{block}`) |
+| Where did time go for one request, scope, or graph write? | [Traces](traces.md); deferred backfill pass: [Deferred Backfill Block Timing](deferred-backfill-blocks.md) (`eshu_dp_deferred_backfill_block_duration_seconds{block}`); per-request handler total: the `Server-Timing: total;dur=<ms>` trailer on every `/api/v0` application response that reaches the handler ([HTTP API Reference](../http-api/request-timing.md)) |
 | What exact error, repo, work item, or retry happened? | [Logs](logs.md) |
 | How do I stitch async service work together? | [Cross-Service Correlation](cross-service-correlation.md) |
 | How do I validate shared-write changes safely? | [Shared-Write Operations](shared-write-operations.md) |
