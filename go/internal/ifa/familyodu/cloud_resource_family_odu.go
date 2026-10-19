@@ -51,11 +51,15 @@ const (
 	// materialized_edges:cloud_resource coverage row names.
 	CloudResourceFamilyOduName = "odu:ifa-cloud-resource-family"
 
-	// cloudResourceFamilyGenerationID is the one generation every scope in
-	// the Odù replays. The reducer handlers load a single scope
-	// generation's facts per intent, so each provider's facts share it
-	// within their own scope.
-	cloudResourceFamilyGenerationID = "gen-ifa-cloud-resource-family-1"
+	// The Odù replays one generation per scope: scope_generations'
+	// PRIMARY KEY admits a single row per generation_id, so three scopes
+	// sharing one id would leave all but one without a delta baseline and
+	// the #7319 preflight fence would refuse their projector items (#8358).
+	// The reducer handlers load a single scope generation's facts per
+	// intent, so each provider's facts share their own scope's id.
+	cloudResourceFamilyAWSGenerationID   = "gen-ifa-cloud-resource-family-aws-1"
+	cloudResourceFamilyGCPGenerationID   = "gen-ifa-cloud-resource-family-gcp-1"
+	cloudResourceFamilyAzureGenerationID = "gen-ifa-cloud-resource-family-azure-1"
 
 	// Per-provider scope ids. Each mirrors the scope shape its collector
 	// stamps: an AWS account scope, a GCP project scope, an Azure
@@ -153,7 +157,7 @@ func cloudResourceFamilyAWSFacts() []facts.Envelope {
 		}
 		out = append(out, facts.Envelope{
 			ScopeID:          cloudResourceFamilyAWSScopeID,
-			GenerationID:     cloudResourceFamilyGenerationID,
+			GenerationID:     cloudResourceFamilyAWSGenerationID,
 			FactKind:         cloud.AWSResourceFactKind,
 			StableFactKey:    fmt.Sprintf("aws:%s:%s:%s:%s", cloudResourceFamilyAWSAccountID, cloudResourceFamilyAWSRegion, resource.ResourceType, resource.ResourceID),
 			SchemaVersion:    cloud.AWSResourceSchemaVersion,
@@ -169,7 +173,7 @@ func cloudResourceFamilyAWSFacts() []facts.Envelope {
 		}
 		out = append(out, facts.Envelope{
 			ScopeID:          cloudResourceFamilyAWSScopeID,
-			GenerationID:     cloudResourceFamilyGenerationID,
+			GenerationID:     cloudResourceFamilyAWSGenerationID,
 			FactKind:         cloud.AWSRelationshipFactKind,
 			StableFactKey:    fmt.Sprintf("aws:%s:%s:relationship:%s:%s->%s:%d", cloudResourceFamilyAWSAccountID, cloudResourceFamilyAWSRegion, relationship.RelationshipType, relationship.SourceResourceID, relationship.TargetResourceID, i),
 			SchemaVersion:    cloud.AWSRelationshipSchemaVersion,
@@ -206,7 +210,7 @@ func cloudResourceFamilyGCPFacts() []facts.Envelope {
 		}
 		out = append(out, facts.Envelope{
 			ScopeID:          cloudResourceFamilyGCPScopeID,
-			GenerationID:     cloudResourceFamilyGenerationID,
+			GenerationID:     cloudResourceFamilyGCPGenerationID,
 			FactKind:         cloud.GCPCloudResourceFactKind,
 			StableFactKey:    fmt.Sprintf("gcp:project:%s:%s:%s", cloudResourceFamilyGCPProjectID, resource.AssetType, resource.FullResourceName),
 			SchemaVersion:    cloud.GCPCloudResourceSchemaVersion,
@@ -222,7 +226,7 @@ func cloudResourceFamilyGCPFacts() []facts.Envelope {
 		}
 		out = append(out, facts.Envelope{
 			ScopeID:          cloudResourceFamilyGCPScopeID,
-			GenerationID:     cloudResourceFamilyGenerationID,
+			GenerationID:     cloudResourceFamilyGCPGenerationID,
 			FactKind:         cloud.GCPCloudRelationshipFactKind,
 			StableFactKey:    fmt.Sprintf("gcp:project:%s:relationship:%s:%s->%s:%d", cloudResourceFamilyGCPProjectID, relationship.RelationshipType, relationship.SourceFullResourceName, relationship.TargetFullResourceName, i),
 			SchemaVersion:    cloud.GCPCloudRelationshipSchemaVersion,
@@ -256,7 +260,7 @@ func cloudResourceFamilyAzureFacts() []facts.Envelope {
 		}
 		out = append(out, facts.Envelope{
 			ScopeID:          cloudResourceFamilyAzureScopeID,
-			GenerationID:     cloudResourceFamilyGenerationID,
+			GenerationID:     cloudResourceFamilyAzureGenerationID,
 			FactKind:         cloud.AzureCloudResourceFactKind,
 			StableFactKey:    fmt.Sprintf("azure:%s:%s:%s", cloudResourceFamilyAzureSubscriptionID, resource.ResourceType, resource.ARMResourceID),
 			SchemaVersion:    cloud.AzureCloudResourceSchemaVersion,
@@ -272,7 +276,7 @@ func cloudResourceFamilyAzureFacts() []facts.Envelope {
 		}
 		out = append(out, facts.Envelope{
 			ScopeID:          cloudResourceFamilyAzureScopeID,
-			GenerationID:     cloudResourceFamilyGenerationID,
+			GenerationID:     cloudResourceFamilyAzureGenerationID,
 			FactKind:         cloud.AzureCloudRelationshipFactKind,
 			StableFactKey:    fmt.Sprintf("azure:%s:relationship:%s:%s->%s:%d", cloudResourceFamilyAzureSubscriptionID, relationship.RelationshipType, relationship.SourceARMResourceID, relationship.TargetARMResourceID, i),
 			SchemaVersion:    cloud.AzureCloudRelationshipSchemaVersion,

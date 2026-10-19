@@ -35,6 +35,11 @@ func TestIFALiveMatrixGenerationIDsAreUniqueAcrossScopes(t *testing.T) {
 		DocumentationFamilyCassettePath,
 		RationaleFamilyCassetteRelPath,
 		RationaleFamilyDeltaCassetteRelPath,
+		// The cloud_resource family cassette carries one scope per provider
+		// (AWS, GCP, Azure) and each scope needs its own generation id:
+		// scope_generations' PRIMARY KEY admits one row per id, so a shared
+		// id leaves all but one scope without a delta baseline (#8358).
+		cloudResourceFamilyCassettePath,
 	}
 
 	// A duplicate entry is the fail-open mode this list is prone to: two entries
