@@ -44,7 +44,7 @@ func TestRepoDependencyShardReaderContinuesPastForeignFullPage(t *testing.T) {
 		Config: RepoDependencyProjectionRunnerConfig{BatchLimit: 100},
 	}
 
-	got, err := runner.selectAcceptanceUnitWork(context.Background())
+	got, _, _, err := runner.selectAcceptanceUnitWork(context.Background(), now)
 	if err != nil {
 		t.Fatalf("selectAcceptanceUnitWork() error = %v", err)
 	}
@@ -178,8 +178,8 @@ func (r *pagedRepoDependencyIntentReader) ListAcceptanceUnitDomainIntents(
 	return nil, nil
 }
 
-func (r *pagedRepoDependencyIntentReader) MarkIntentsCompleted(context.Context, []string, time.Time) error {
-	return nil
+func (r *pagedRepoDependencyIntentReader) MarkIntentsCompleted(context.Context, []string, time.Time) (int64, error) {
+	return 0, nil
 }
 
 type nonPagedRepoDependencyIntentReader struct {
@@ -198,8 +198,8 @@ func (r *nonPagedRepoDependencyIntentReader) ListAcceptanceUnitDomainIntents(
 	return nil, nil
 }
 
-func (r *nonPagedRepoDependencyIntentReader) MarkIntentsCompleted(context.Context, []string, time.Time) error {
-	return nil
+func (r *nonPagedRepoDependencyIntentReader) MarkIntentsCompleted(context.Context, []string, time.Time) (int64, error) {
+	return 0, nil
 }
 
 type nonAdvancingRepoDependencyIntentReader struct {
@@ -229,6 +229,6 @@ func (r *nonAdvancingRepoDependencyIntentReader) ListAcceptanceUnitDomainIntents
 	return nil, nil
 }
 
-func (r *nonAdvancingRepoDependencyIntentReader) MarkIntentsCompleted(context.Context, []string, time.Time) error {
-	return nil
+func (r *nonAdvancingRepoDependencyIntentReader) MarkIntentsCompleted(context.Context, []string, time.Time) (int64, error) {
+	return 0, nil
 }

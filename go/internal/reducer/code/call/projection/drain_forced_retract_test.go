@@ -45,10 +45,10 @@ type failOnceMarkCodeCallIntentStore struct {
 
 func (f *failOnceMarkCodeCallIntentStore) MarkIntentsCompleted(
 	ctx context.Context, intentIDs []string, completedAt time.Time,
-) error {
+) (int64, error) {
 	f.markCalls++
 	if f.markCalls == 1 {
-		return f.markErr
+		return 0, f.markErr
 	}
 	return f.drainHistoryCodeCallIntentStore.MarkIntentsCompleted(ctx, intentIDs, completedAt)
 }

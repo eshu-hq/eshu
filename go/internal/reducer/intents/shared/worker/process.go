@@ -13,12 +13,16 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // IntentReader reads and marks shared projection intents.
 type IntentReader interface {
 	ListPendingDomainIntents(ctx context.Context, domain string, limit int) ([]sharedintent.Row, error)
-	MarkIntentsCompleted(ctx context.Context, intentIDs []string, completedAt time.Time) error
+	// MarkIntentsCompleted marks intents completed and returns the rows
+	// matched, so the caller can log a batch whose rows vanished mid-cycle
+	// instead of reporting silent success (#7853).
+	MarkIntentsCompleted(ctx context.Context, intentIDs []string, completedAt time.Time) (int64, error)
 }
 
 // PartitionProcessorConfig holds configuration for one partition processor
@@ -57,7 +61,16 @@ type PartitionProcessResult struct {
 	// because the intent's superseded generation is covered by a newer
 	// emitted full generation (#7165). Only the code_calls and
 	// repo_dependency lanes set it; the shared runner leaves it zero.
-	CoveredByFullSuccessorIntents     int
+	CoveredByFullSuccessorIntents int
+	// AbsentGenerationGoneIntents counts absent-acceptance intents drained
+	// because their scope generation is gone (#7853). They are marked
+	// completed with the rest of the batch but counted apart from
+	// StaleIntents, which stays acceptance-mismatch and superseded only.
+	AbsentGenerationGoneIntents int
+	// AbsentAcceptanceTornWrites counts absent-acceptance intents left
+	// pending because their scope generation still exists (#7853). They are
+	// never drained; a steady count means a writer is emitting torn intents.
+	AbsentAcceptanceTornWrites        int
 	BlockedReadiness                  int
 	MaxIntentWaitSeconds              float64
 	MaxBlockedIntentWaitSeconds       float64
@@ -202,18 +215,13 @@ func ProcessPartitionOnce(
 		}, fmt.Errorf("select batch: %w", err)
 	}
 
-	if len(batch.LatestRows) == 0 && len(batch.TerminalRows) == 0 && len(batch.StaleIDs) == 0 && len(batch.SupersededIDs) == 0 {
-		return PartitionProcessResult{
-			LeaseAcquired:               true,
-			BlockedReadiness:            batch.BlockedCount,
-			MaxBlockedIntentWaitSeconds: MaxIntentWaitSeconds(now, batch.BlockedRows),
-			LeaseClaimDurationSeconds:   leaseDuration,
-			SelectionDurationSeconds:    selectionDuration,
-			IndexedSelection:            batch.IndexedSelection,
-			UnhashedFallbackRows:        batch.UnhashedFallbackRows,
-			SelectionRounds:             batch.SelectionRounds,
-			PrefetchStats:               batch.PrefetchStats,
-		}, nil
+	// Torn writes warn on both the idle and the working path: they occupy the
+	// selection window every cycle without ever draining.
+	LogAbsentAcceptanceTornWrites(ctx, cfg.Logger, "shared_projection", cfg.Domain, batch.AbsentKeptRows)
+
+	if len(batch.LatestRows) == 0 && len(batch.TerminalRows) == 0 && len(batch.StaleIDs) == 0 && len(batch.SupersededIDs) == 0 &&
+		len(batch.AbsentDrainedIDs) == 0 {
+		return idlePartitionProcessResult(now, batch, leaseDuration, selectionDuration), nil
 	}
 
 	evidenceSource := cfg.EvidenceSource
@@ -247,7 +255,7 @@ func ProcessPartitionOnce(
 	}
 	retractDuration, writeDuration, upsertRows := writeResult.retractDuration, writeResult.writeDuration, writeResult.upsertRows
 
-	processedIDs, markCompletedDuration, err := markSelectedBatchCompleted(ctx, reader, now, batch, completedLatestRows)
+	processedIDs, markCompletedDuration, err := markSelectedBatchCompleted(ctx, cfg, reader, now, batch, completedLatestRows)
 	if err != nil {
 		return PartitionProcessResult{
 			LeaseAcquired:             true,
@@ -266,6 +274,8 @@ func ProcessPartitionOnce(
 		RetractedRows:                len(retractRows),
 		StaleIntents:                 len(batch.StaleIDs),
 		SupersededGenerationIntents:  batch.SupersededGenerationCount,
+		AbsentGenerationGoneIntents:  len(batch.AbsentDrainedIDs),
+		AbsentAcceptanceTornWrites:   len(batch.AbsentKeptRows),
 		BlockedReadiness:             batch.BlockedCount + deferred,
 		RefreshFenceDeferred:         deferred,
 		MaxIntentWaitSeconds:         MaxIntentWaitSeconds(now, batch.LatestRows),
@@ -284,13 +294,45 @@ func ProcessPartitionOnce(
 	}, nil
 }
 
+// idlePartitionProcessResult assembles the result for a cycle that selected
+// no projectable, stale, superseded, or drainable work. Torn-write rows still
+// count: they occupy the selection window every cycle without ever draining,
+// so a steady count is the signal that a writer is emitting torn intents
+// (#7853).
+func idlePartitionProcessResult(
+	now time.Time,
+	batch PartitionBatchResult,
+	leaseDuration, selectionDuration float64,
+) PartitionProcessResult {
+	return PartitionProcessResult{
+		LeaseAcquired:               true,
+		BlockedReadiness:            batch.BlockedCount,
+		MaxBlockedIntentWaitSeconds: MaxIntentWaitSeconds(now, batch.BlockedRows),
+		LeaseClaimDurationSeconds:   leaseDuration,
+		SelectionDurationSeconds:    selectionDuration,
+		IndexedSelection:            batch.IndexedSelection,
+		UnhashedFallbackRows:        batch.UnhashedFallbackRows,
+		SelectionRounds:             batch.SelectionRounds,
+		PrefetchStats:               batch.PrefetchStats,
+		AbsentAcceptanceTornWrites:  len(batch.AbsentKeptRows),
+	}
+}
+
 // markSelectedBatchCompleted assembles the completed intent ids — stale,
-// superseded, projected-latest, and terminal — and marks them completed,
-// returning the ids and the mark duration. Terminal rows drain with no
-// edge (never deferred), so a route-only backlog drains instead of
-// re-enqueuing forever (#2809).
+// superseded, absent-generation-gone, projected-latest, and terminal — and
+// marks them completed in one statement, returning the ids and the mark
+// duration. Terminal rows drain with no edge (never deferred), so a
+// route-only backlog drains instead of re-enqueuing forever (#2809).
+// Absent-generation-gone rows (#7853) ride the same statement: they never
+// projected, so there is nothing to retract or write for them.
+//
+// A short mark (affected < requested) is a WARN, not an error: the missing
+// rows were deleted or completed concurrently, and the completed rows stay
+// completed. Failing the cycle would turn benign concurrent completion into
+// quarantine churn.
 func markSelectedBatchCompleted(
 	ctx context.Context,
+	cfg PartitionProcessorConfig,
 	reader IntentReader,
 	now time.Time,
 	batch PartitionBatchResult,
@@ -298,6 +340,7 @@ func markSelectedBatchCompleted(
 ) (processedIDs []string, markCompletedDuration float64, err error) {
 	processedIDs = append(processedIDs, batch.StaleIDs...)
 	processedIDs = append(processedIDs, batch.SupersededIDs...)
+	processedIDs = append(processedIDs, batch.AbsentDrainedIDs...)
 	for _, row := range completedLatestRows {
 		processedIDs = append(processedIDs, row.IntentID)
 	}
@@ -307,10 +350,22 @@ func markSelectedBatchCompleted(
 
 	if len(processedIDs) > 0 {
 		markStart := time.Now()
-		if err := reader.MarkIntentsCompleted(ctx, processedIDs, now); err != nil {
+		affected, err := reader.MarkIntentsCompleted(ctx, processedIDs, now)
+		if err != nil {
 			return nil, 0, fmt.Errorf("mark completed: %w", err)
 		}
 		markCompletedDuration = time.Since(markStart).Seconds()
+		if affected < int64(len(processedIDs)) && cfg.Logger != nil {
+			cfg.Logger.WarnContext(
+				ctx,
+				"shared projection marked fewer intents completed than requested; rows were deleted or completed concurrently",
+				slog.String("runner", "shared_projection"),
+				log.Domain(cfg.Domain),
+				slog.Int("requested_intents", len(processedIDs)),
+				slog.Int64("completed_intents", affected),
+				telemetry.PhaseAttr(telemetry.PhaseShared),
+			)
+		}
 	}
 	return processedIDs, markCompletedDuration, nil
 }

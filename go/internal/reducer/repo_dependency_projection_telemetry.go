@@ -45,6 +45,8 @@ func (r *RepoDependencyProjectionRunner) recordRepoDependencyCycle(
 			slog.Int("processed_intents", timing.ProcessedIntents),
 			slog.Int("active_intents", timing.ActiveIntents),
 			slog.Int("stale_intents", timing.StaleIntents),
+			slog.Int("absent_generation_gone_intents", timing.AbsentGenerationGoneIntents),
+			slog.Int("absent_acceptance_torn_writes", timing.AbsentAcceptanceTornWrites),
 			slog.Int("acceptance_unit_rows", timing.AcceptanceUnitRows),
 			slog.Int("replay_requests", timing.ReplayRequests),
 			slog.Int("active_generations", len(uniqueGenerationIDs(rows))),

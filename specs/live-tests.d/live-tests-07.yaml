@@ -187,6 +187,10 @@ tests:
     class: dedicated_ci
     reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 0.09s); docs/internal/evidence/7533-contention-live-proof.md"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/shared_intents_absent_acceptance_drain_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "untagged live proof gated by env Skip; measured ~2s on disposable Postgres 18 (10,100 orphans + healthy + torn, #7853) — promote to blocking with coordinator decision"
   - file: go/internal/storage/postgres/shared_intents_refresh_fence_live_test.go
     tag: ~
     class: scheduled

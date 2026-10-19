@@ -58,9 +58,9 @@ func (s *stubPartitionCandidateReader) ListPendingDomainUnhashedIntents(_ contex
 	return append([]sharedintent.Row(nil), rows...), nil
 }
 
-func (s *stubPartitionCandidateReader) MarkIntentsCompleted(_ context.Context, intentIDs []string, _ time.Time) error {
+func (s *stubPartitionCandidateReader) MarkIntentsCompleted(_ context.Context, intentIDs []string, _ time.Time) (int64, error) {
 	s.completedIDs = append(s.completedIDs, intentIDs...)
-	return nil
+	return int64(len(intentIDs)), nil
 }
 
 func TestSelectPartitionBatchUsesIndexedPartitionCandidatesWhenReaderSupportsIt(t *testing.T) {

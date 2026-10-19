@@ -454,8 +454,8 @@ func (r *postgresProofNoCodeCallIntentReader) ListPendingAcceptanceUnitIntents(c
 	return nil, nil
 }
 
-func (r *postgresProofNoCodeCallIntentReader) MarkIntentsCompleted(context.Context, []string, time.Time) error {
-	return nil
+func (r *postgresProofNoCodeCallIntentReader) MarkIntentsCompleted(context.Context, []string, time.Time) (int64, error) {
+	return 0, nil
 }
 
 func (r *postgresProofEmptyIntentReader) ListPendingDomainIntents(context.Context, string, int) ([]reducer.SharedProjectionIntentRow, error) {
@@ -475,6 +475,6 @@ func (r *postgresProofEmptyIntentReader) ListPendingDomainIntents(context.Contex
 	}, nil
 }
 
-func (r *postgresProofEmptyIntentReader) MarkIntentsCompleted(context.Context, []string, time.Time) error {
-	return nil
+func (r *postgresProofEmptyIntentReader) MarkIntentsCompleted(context.Context, []string, time.Time) (int64, error) {
+	return 0, nil
 }

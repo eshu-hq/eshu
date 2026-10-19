@@ -275,10 +275,10 @@ type cancelOnMarkReader struct {
 	cancel context.CancelFunc
 }
 
-func (r *cancelOnMarkReader) MarkIntentsCompleted(ctx context.Context, intentIDs []string, completedAt time.Time) error {
-	err := r.fakeSharedIntentReader.MarkIntentsCompleted(ctx, intentIDs, completedAt)
+func (r *cancelOnMarkReader) MarkIntentsCompleted(ctx context.Context, intentIDs []string, completedAt time.Time) (int64, error) {
+	affected, err := r.fakeSharedIntentReader.MarkIntentsCompleted(ctx, intentIDs, completedAt)
 	r.cancel()
-	return err
+	return affected, err
 }
 
 // TestPrefetchKindLabel_MapsClosedSet pins the sharedintent kind values to

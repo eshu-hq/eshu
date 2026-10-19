@@ -120,7 +120,7 @@ func (s *fenceTrackingIntentStore) ListPendingDomainIntents(_ context.Context, d
 	return out, nil
 }
 
-func (s *fenceTrackingIntentStore) MarkIntentsCompleted(_ context.Context, intentIDs []string, _ time.Time) error {
+func (s *fenceTrackingIntentStore) MarkIntentsCompleted(_ context.Context, intentIDs []string, _ time.Time) (int64, error) {
 	for _, id := range intentIDs {
 		s.completed[id] = struct{}{}
 		intent, ok := s.byID[id]
@@ -129,7 +129,7 @@ func (s *fenceTrackingIntentStore) MarkIntentsCompleted(_ context.Context, inten
 		}
 		s.fenceKeys[fenceTupleKey(intent.ScopeID, intent.AcceptanceUnitID, intent.SourceRunID, intent.PartitionKey, intent.ProjectionDomain)] = struct{}{}
 	}
-	return nil
+	return int64(len(intentIDs)), nil
 }
 
 func (s *fenceTrackingIntentStore) HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents(

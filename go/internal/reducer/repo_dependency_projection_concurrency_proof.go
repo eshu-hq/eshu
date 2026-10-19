@@ -9,6 +9,8 @@ import (
 	"hash/fnv"
 	"sync"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 )
 
 // runRepoDependencyProjection fans source-owned acceptance units across
@@ -170,8 +172,23 @@ func (r *repoDependencyShardReader) MarkIntentsCompleted(
 	ctx context.Context,
 	intentIDs []string,
 	completedAt time.Time,
-) error {
+) (int64, error) {
 	return r.inner.MarkIntentsCompleted(ctx, intentIDs, completedAt)
+}
+
+// AbsentGenerationIDs forwards the #7853 generation-gone probe to the inner
+// reader when it implements the port, so sharded multi-worker runs drain
+// absent-acceptance orphans exactly like the serial run. An inner reader
+// without the port reports nothing gone, and the caller keeps every row
+// pending as a torn write.
+func (r *repoDependencyShardReader) AbsentGenerationIDs(
+	ctx context.Context,
+	generationIDs []string,
+) (map[string]struct{}, error) {
+	if lookup, ok := r.inner.(worker.AbsentGenerationReader); ok {
+		return lookup.AbsentGenerationIDs(ctx, generationIDs)
+	}
+	return nil, nil
 }
 
 func ifaRepoDependencyAcceptanceShard(acceptanceUnitID string, shardCount int) int {

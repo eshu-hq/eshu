@@ -430,9 +430,9 @@ func (s *stubSharedIntentReader) ListPendingDomainIntents(_ context.Context, _ s
 	return append([]SharedProjectionIntentRow(nil), s.pending...), nil
 }
 
-func (s *stubSharedIntentReader) MarkIntentsCompleted(_ context.Context, intentIDs []string, _ time.Time) error {
+func (s *stubSharedIntentReader) MarkIntentsCompleted(_ context.Context, intentIDs []string, _ time.Time) (int64, error) {
 	s.completedIDs = append(s.completedIDs, intentIDs...)
-	return nil
+	return int64(len(intentIDs)), nil
 }
 
 type stubLeaseManager struct {

@@ -295,7 +295,7 @@ func (f *fakeRepoDependencyIntentStore) ListAcceptanceUnitDomainIntents(_ contex
 	return truncateAcceptanceUnitRows(f.pendingByAcceptanceUnit[acceptanceUnitID], limit), nil
 }
 
-func (f *fakeRepoDependencyIntentStore) MarkIntentsCompleted(_ context.Context, intentIDs []string, _ time.Time) error {
+func (f *fakeRepoDependencyIntentStore) MarkIntentsCompleted(_ context.Context, intentIDs []string, _ time.Time) (int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -317,7 +317,7 @@ func (f *fakeRepoDependencyIntentStore) MarkIntentsCompleted(_ context.Context, 
 			}
 		}
 	}
-	return nil
+	return int64(len(intentIDs)), nil
 }
 
 func (f *fakeRepoDependencyIntentStore) ClaimPartitionLease(_ context.Context, _ string, _, _ int, _ string, _ time.Duration) (bool, error) {

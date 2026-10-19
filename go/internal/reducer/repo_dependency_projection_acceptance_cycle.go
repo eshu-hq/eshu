@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package reducer //nolint:filelength // 538 lines (base 477): the #7853 unit-level absent-acceptance drain and mark-count WARN live in processAcceptanceUnit next to the batch they mark; extracting them would split one unit's mark path across files.
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
@@ -22,6 +24,7 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 	reader RepoDependencyProjectionIntentReader,
 	result PartitionProcessResult,
 	cycleStart time.Time,
+	alreadyReportedTorn map[string]struct{},
 ) (PartitionProcessResult, []SharedProjectionIntentRow, int, error) {
 	loadAllStart := time.Now()
 	rows, err := r.loadAllAcceptanceUnitIntents(ctx, reader, acceptanceUnitID)
@@ -49,6 +52,13 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 	}
 
 	active, staleIDs := FilterAuthoritativeIntents(rows, lookup)
+
+	unitAbsentDrained, unitAbsentTorn, err := r.drainUnitAbsentAcceptance(ctx, now, reader, rows, active, staleIDs, alreadyReportedTorn)
+	if err != nil {
+		result.LeaseAcquired = true
+		return result, nil, 0, err
+	}
+
 	// Drain rows covered by a newer emitted full generation (#7165): the
 	// successor re-emits their edges, so replaying them would be a wasted
 	// retract/write cycle. Drained rows join the stale set and are marked
@@ -70,7 +80,11 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 	result.StaleIntents = len(staleIDs)
 	result.ActiveIntents = len(active)
 	result.CoveredByFullSuccessorIntents = len(drainable)
-	if len(active) == 0 && len(staleIDs) == 0 {
+	// The result already carries the selection drain's counts (#7853); the
+	// selected unit's own drain adds to them.
+	result.AbsentGenerationGoneIntents += unitAbsentDrained
+	result.AbsentAcceptanceTornWrites += unitAbsentTorn
+	if len(active) == 0 && len(staleIDs) == 0 && unitAbsentDrained == 0 {
 		result.LeaseAcquired = true
 		return result, active, 0, nil
 	}
@@ -147,14 +161,64 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 	}
 	if len(processedIDs) > 0 {
 		markCompletedStart := time.Now()
-		if err := reader.MarkIntentsCompleted(ctx, processedIDs, now); err != nil {
+		affected, err := reader.MarkIntentsCompleted(ctx, processedIDs, now)
+		if err != nil {
 			return result, active, writtenGroups, fmt.Errorf("mark repo dependency intents completed: %w", err)
 		}
 		result.MarkCompletedDurationSeconds = time.Since(markCompletedStart).Seconds()
+		// A short mark is a WARN, not an error: the missing rows were
+		// deleted or completed concurrently (#7853).
+		if affected < int64(len(processedIDs)) && r.Logger != nil {
+			r.Logger.WarnContext(
+				ctx,
+				"repo dependency projection marked fewer intents completed than requested; rows were deleted or completed concurrently",
+				slog.String("runner", "repo_dependency_projection"),
+				log.Domain(DomainRepoDependency),
+				slog.Int("requested_intents", len(processedIDs)),
+				slog.Int64("completed_intents", affected),
+				telemetry.PhaseAttr(telemetry.PhaseShared),
+			)
+		}
 	}
 	result.ProcessedIntents = len(processedIDs)
 	result.ProcessingDurationSeconds = time.Since(cycleStart).Seconds()
 	return result, active, writtenGroups, nil
+}
+
+// drainUnitAbsentAcceptance drains the selected unit's absent-acceptance rows
+// whose scope generation is gone (#7853): the acceptance row can vanish
+// between selection and this load. It drains the generation-gone subset
+// inline and keeps torn writes pending. The metric is recorded in the drain,
+// exactly once. Torn rows the selection already reported ride
+// alreadyReportedTorn so each row WARNs and counts once per cycle (#8509).
+//
+// Drained unit rows stay OUT of the caller's stale set: they are already
+// marked completed inside the drain, and joining staleIDs would mark them
+// twice and double-count them as processed. They count under the
+// absent-generation-gone reason recorded in the drain. Torn rows stay pending
+// and were WARNed in the drain.
+func (r *RepoDependencyProjectionRunner) drainUnitAbsentAcceptance(
+	ctx context.Context,
+	now time.Time,
+	reader RepoDependencyProjectionIntentReader,
+	rows []SharedProjectionIntentRow,
+	active []SharedProjectionIntentRow,
+	staleIDs []string,
+	alreadyReportedTorn map[string]struct{},
+) (drainedCount, tornCount int, err error) {
+	acceptanceTelemetry := worker.AcceptanceTelemetry{Instruments: r.Instruments, Logger: r.Logger}
+	unitAbsent := make(map[string]SharedProjectionIntentRow, len(rows))
+	for _, row := range worker.AbsentAcceptanceRows(rows, active, staleIDs) {
+		unitAbsent[row.IntentID] = row
+	}
+	unitDrained, unitKeptIDs, err := worker.DrainAbsentAcceptance(
+		ctx, now, acceptanceTelemetry,
+		"repo_dependency_projection", DomainRepoDependency, reader, unitAbsent, alreadyReportedTorn,
+	)
+	if err != nil {
+		return 0, 0, fmt.Errorf("drain absent acceptance rows: %w", err)
+	}
+	return len(unitDrained), len(unitKeptIDs), nil
 }
 
 func validateRepoDependencySourceRepositoryIdentity(
