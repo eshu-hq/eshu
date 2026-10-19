@@ -24,7 +24,7 @@ import (
 // The returned line is stable for log grep: tokens are space-separated
 // key=value pairs, values come from closed sets, and a nil error reports
 // site=none. Call sites may log it unconditionally on the Open failure
-// path; it allocates nothing observable and changes no Open semantics.
+// path; it performs no I/O, takes no locks, and changes no Open semantics.
 func OpenFailureSummary(err error) string {
 	if err == nil {
 		return "open-failure site=none class=neutral unavailable=false wrong-topology=false deadline-exceeded=false canceled=false depth=0"
