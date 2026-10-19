@@ -481,7 +481,7 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 	topicInvestigationOK := testutil.MustMapField(t, topicInvestigationResponses, "200")
 	topicInvestigationContent := testutil.MustMapField(t, testutil.MustMapField(t, topicInvestigationOK, "content"), "application/json")
 	topicInvestigationResponse := testutil.MustMapField(t, testutil.MustMapField(t, topicInvestigationContent, "schema"), "properties")
-	for _, field := range []string{"evidence_groups", "matched_symbols", "call_graph_handles", "recommended_next_calls", "coverage", "truncated", "candidate_pool_truncated"} {
+	for _, field := range []string{"evidence_groups", "matched_symbols", "call_graph_handles", "recommended_next_calls", "coverage", "truncated", "candidate_pool_truncated", "deadline_truncated"} {
 		if _, ok := topicInvestigationResponse[field]; !ok {
 			t.Fatalf("code/topics/investigate response schema missing %s", field)
 		}

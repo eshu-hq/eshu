@@ -51,16 +51,25 @@ func dispatchContextError(toolName string, timeout time.Duration, err error, log
 	}
 }
 
+// partialCapableToolName is the only MCP tool whose handler can answer its
+// own deadline with a bounded partial envelope. Any other tool reusing the
+// deadline_truncated field name must not silently opt into success-on-timeout.
+const partialCapableToolName = "investigate_code_topic"
+
 // deadlinePartialDispatchResult surfaces a bounded deadline-partial
 // envelope (#7008) when the dispatch deadline fired after the handler already
 // answered with one: the recorder holds a canonical envelope whose data
 // carries deadline_truncated. It reports false for anything else — a missing
-// or unparseable body, a non-envelope payload, or an envelope without the
-// marker — so those keep the data-nil timeout verdict. A parent cancellation
+// or unparseable body, a non-envelope payload, an envelope without the
+// marker, or a tool other than the partial-capable one — so those keep the
+// data-nil timeout verdict. A parent cancellation
 // (not a deadline) never takes this path: the client is gone, so there is no
 // one to read the partial.
 func deadlinePartialDispatchResult(rec *httptest.ResponseRecorder, toolName string, responseByteBudget int, logger *slog.Logger) (*dispatchResult, bool) {
 	if rec == nil {
+		return nil, false
+	}
+	if toolName != partialCapableToolName {
 		return nil, false
 	}
 	envelope, ok := parseCanonicalEnvelope(rec.Body.Bytes())

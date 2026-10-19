@@ -6,6 +6,7 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
@@ -103,6 +104,27 @@ func TestContentReaderInvestigateCodeTopicDeadlineReturnsBoundedPartial(t *testi
 	}
 	if got, want := rows[0].SourceKind, "entity"; got != want {
 		t.Fatalf("rows[0].SourceKind = %q, want %q (score-ordered prefix)", got, want)
+	}
+}
+
+// TestContentReaderInvestigateCodeTopicWrappedDeadlineIsMarkedPartial pins
+// the pgx driver shape: pgconn maps a client-side deadline to
+// errTimeout{err: ctx.Err()} (pgconn/errors.go normalizeTimeoutError, Unwrap),
+// so rows.Err() carries a WRAPPED context.DeadlineExceeded, never the bare
+// sentinel. The branch must match through errors.Is, not ==.
+func TestContentReaderInvestigateCodeTopicWrappedDeadlineIsMarkedPartial(t *testing.T) {
+	t.Parallel()
+
+	reader := NewContentReaderWithReadStore(deadlinePartialTopicStore{
+		kinds: []string{"entity", "file"},
+		err:   fmt.Errorf("timeout: %w", context.DeadlineExceeded),
+	})
+	rows, err := reader.InvestigateCodeTopic(context.Background(), deadlinePartialTopicRequest())
+	if !errors.Is(err, codequery.ErrCodeTopicDeadlineTruncated) {
+		t.Fatalf("InvestigateCodeTopic() error = %v, want ErrCodeTopicDeadlineTruncated through the pgx wrap", err)
+	}
+	if got, want := len(rows), 2; got != want {
+		t.Fatalf("len(rows) = %d, want %d scored rows gathered before the deadline", got, want)
 	}
 }
 

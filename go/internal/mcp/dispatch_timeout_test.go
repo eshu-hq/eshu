@@ -10,9 +10,35 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 )
+
+func markedDeadlinePartialRecorder() *httptest.ResponseRecorder {
+	rec := httptest.NewRecorder()
+	rec.WriteHeader(http.StatusOK)
+	_, _ = rec.WriteString(`{"data":{"deadline_truncated":true,"rows":[]},"truth":{"level":"partial"},"error":null}`)
+	return rec
+}
+
+func TestDeadlinePartialDispatchResultHonorsMarkerOnCapableTool(t *testing.T) {
+	t.Parallel()
+
+	result, ok := deadlinePartialDispatchResult(markedDeadlinePartialRecorder(), "investigate_code_topic", 1<<20, nil)
+	if !ok || result == nil {
+		t.Fatalf("deadlinePartialDispatchResult(marked, investigate_code_topic) = (%v, %v), want partial result, true", result, ok)
+	}
+}
+
+func TestDeadlinePartialDispatchResultIgnoresMarkerOnOtherTool(t *testing.T) {
+	t.Parallel()
+
+	result, ok := deadlinePartialDispatchResult(markedDeadlinePartialRecorder(), "list_indexed_repositories", 1<<20, nil)
+	if ok || result != nil {
+		t.Fatalf("deadlinePartialDispatchResult(marked, other tool) = (%v, %v), want (nil, false): only the partial-capable tool may surface a marked envelope", result, ok)
+	}
+}
 
 func TestDispatchToolWithOptionsCancelsHandlerAtDeadline(t *testing.T) {
 	t.Parallel()
