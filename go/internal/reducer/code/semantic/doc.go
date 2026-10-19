@@ -65,5 +65,8 @@
 // delta_file_count, and the per-stage wall-time fields named in that log
 // call. When GenerationCheck is wired, each superseded fence exit emits a
 // "semantic entity materialization skipped: generation superseded" Info log
-// carrying scope_id, generation_id, domain, and phase (pre_write/post_write).
+// carrying scope_id, generation_id, domain, and phase
+// (pre_write/mid_write/post_write). The handler fences pre-write, the
+// writer fences every dispatched group on the stamped write (#8628), and a
+// single post-write probe feeds both the matched and unmatched branches.
 package semantic

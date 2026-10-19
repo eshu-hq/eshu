@@ -331,13 +331,19 @@ func semanticEntityExecutorForGraphBackend(
 	return boundNeo4jWrites(rawExecutor, writeTimeout)
 }
 
+// semanticEntityWriterForGraphBackend builds the backend-tuned semantic
+// writer and arms its per-group generation fence (#8628) with check in both
+// branches: production passes postgres.NewGenerationFreshnessCheck, so a run
+// superseded after the handler's pre-write probe still aborts between groups
+// instead of landing stale rows. A nil check keeps the legacy unfenced path.
 func semanticEntityWriterForGraphBackend(
 	executor sourcecypher.Executor,
 	batchSize int,
 	graphBackend runtimecfg.GraphBackend,
 	getenv func(string) string,
+	check reducer.GenerationFreshnessCheck,
 ) (*entity.SemanticEntityWriter, error) {
-	writer := entity.NewSemanticEntityWriter(executor, batchSize)
+	writer := entity.NewSemanticEntityWriter(executor, batchSize).WithGenerationCheck(check)
 	if graphBackend == runtimecfg.GraphBackendNornicDB {
 		// NornicDB's batch executor is template-sensitive: putting MATCH before
 		// MERGE is indexed but misses the generalized UNWIND/MERGE hot path.
@@ -346,7 +352,8 @@ func semanticEntityWriterForGraphBackend(
 		// labels. That avoids repeated relationship-existence checks as the graph
 		// grows while still preserving Module's semantic-owned uid nodes.
 		writer = entity.NewSemanticEntityWriterWithCanonicalNodeRows(executor, batchSize).
-			WithLabelScopedRetract()
+			WithLabelScopedRetract().
+			WithGenerationCheck(check)
 		labelBatchSizes, err := nornicDBSemanticEntityLabelBatchSizes(getenv, effectiveNeo4jBatchSize(batchSize))
 		if err != nil {
 			return nil, err

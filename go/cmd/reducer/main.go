@@ -184,7 +184,7 @@ func buildReducerService(
 		reducerTransactionTimeout(graphBackend, getenv),
 		nornicDBGroupedWrites,
 	)
-	semanticEntityWriter, err := semanticEntityWriterForGraphBackend(semanticEntityExecutor, neo4jBatchSize(getenv), graphBackend, getenv)
+	semanticEntityWriter, err := semanticEntityWriterForGraphBackend(semanticEntityExecutor, neo4jBatchSize(getenv), graphBackend, getenv, postgres.NewGenerationFreshnessCheck(database))
 	if err != nil {
 		return reducer.Service{}, err
 	}

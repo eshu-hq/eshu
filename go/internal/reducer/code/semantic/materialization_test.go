@@ -1156,6 +1156,9 @@ func (f *fakeSemanticEntityFactLoader) ListFacts(context.Context, string, string
 type recordingSemanticEntityWriter struct {
 	writes []EntityWrite
 	result EntityWriteResult
+	// err, when set, mimics a writer-side failure such as the #8628
+	// mid-write fence abort; the recorded partial result still rides along.
+	err error
 }
 
 func (w *recordingSemanticEntityWriter) WriteSemanticEntities(
@@ -1163,7 +1166,7 @@ func (w *recordingSemanticEntityWriter) WriteSemanticEntities(
 	write EntityWrite,
 ) (EntityWriteResult, error) {
 	w.writes = append(w.writes, write)
-	return w.result, nil
+	return w.result, w.err
 }
 
 type recordingSemanticEntityPhasePublisher struct {

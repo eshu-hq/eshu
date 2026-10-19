@@ -10,12 +10,21 @@ package semantic
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
+
+// ErrGenerationSuperseded is the sentinel a writer-side generation fence
+// aborts with when the owning generation loses freshness mid-write (#8628).
+// The abort carries a partial EntityWriteResult whose CanonicalWrites counts
+// dispatched rows only, so the handler can ack the superseded run with proof
+// of what landed. It unwraps with errors.Is; a fence lookup error (including
+// GenerationNotYetActiveError) never maps to it and propagates wrapped.
+var ErrGenerationSuperseded = errors.New("semantic entity write superseded by a newer generation")
 
 func (h Handler) shouldSkipSemanticRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
@@ -70,18 +79,62 @@ func (h Handler) fenceSemanticPreWrite(
 	return reducercontract.Result{}, false, nil
 }
 
-// resolveSemanticUnmatchedOutcome re-checks freshness before the
-// identity-divergence failure (#8611): unmatched uids on a generation
-// superseded mid-run are nodes the newer generation legitimately removed,
-// not a derivation defect, so the run exits superseded carrying the write's
-// CanonicalWrites. The completion log and the unmatched-uid WARN already
-// emitted before this runs, so the operator keeps proof of what landed. A
-// still-current generation keeps the #8587 poison-pill failure; a fence
-// error propagates fail-closed.
-func (h Handler) resolveSemanticUnmatchedOutcome(
+// semanticEntityWriteRequest stamps one canonical write with the intent's
+// owning generation so the writer-side fence (#8628) can abort a superseded
+// run between groups.
+func semanticEntityWriteRequest(
+	intent reducercontract.Intent,
+	repoIDs []string,
+	rows []EntityRow,
+	skipRetract bool,
+	delta semanticDeltaProjectionScope,
+) EntityWrite {
+	return EntityWrite{
+		RepoIDs:         repoIDs,
+		Rows:            rows,
+		SkipRetract:     skipRetract,
+		DeltaProjection: delta.Delta,
+		DeltaFilePaths:  delta.FilePaths,
+		ScopeID:         intent.ScopeID,
+		GenerationID:    intent.GenerationID,
+	}
+}
+
+// dispatchSemanticEntityWrite runs the graph write and maps a writer-side
+// fence abort (#8628) to the mid-write superseded result: the partial
+// CanonicalWrites rides the result, the mid_write superseded log emits, and
+// the run acks with no phase publish, no poison-pill failure, and no retry.
+// Any other write error propagates wrapped.
+func (h Handler) dispatchSemanticEntityWrite(
+	ctx context.Context,
+	intent reducercontract.Intent,
+	write EntityWrite,
+) (writeResult EntityWriteResult, outcome reducercontract.Result, fenced bool, err error) {
+	writeResult, err = h.Writer.WriteSemanticEntities(ctx, write)
+	if err != nil {
+		if errors.Is(err, ErrGenerationSuperseded) {
+			logSemanticGenerationSuperseded(ctx, intent, semanticFencePhaseMidWrite)
+			return writeResult, semanticSupersededResult(intent, writeResult.CanonicalWrites), true, nil
+		}
+		return EntityWriteResult{}, reducercontract.Result{}, false, fmt.Errorf("write semantic entities: %w", err)
+	}
+	return writeResult, reducercontract.Result{}, false, nil
+}
+
+// resolveSemanticPostWriteOutcome runs the single post-write freshness probe
+// (#8628) after the completion log and feeds both branches: a stale
+// generation exits superseded carrying the write's CanonicalWrites whether
+// or not any uid went unmatched (unmatched uids on a superseded generation
+// are nodes the newer generation legitimately removed, not a derivation
+// defect, #8611); a still-current generation with unmatched uids keeps the
+// #8587 poison-pill failure; a still-current generation with every row
+// matched succeeds. A fence error propagates fail-closed.
+func (h Handler) resolveSemanticPostWriteOutcome(
 	ctx context.Context,
 	intent reducercontract.Intent,
 	writeResult EntityWriteResult,
+	unmatched bool,
+	summary string,
 ) (reducercontract.Result, error) {
 	fresh, err := h.checkSemanticGenerationFreshness(ctx, intent)
 	if err != nil {
@@ -91,7 +144,16 @@ func (h Handler) resolveSemanticUnmatchedOutcome(
 		logSemanticGenerationSuperseded(ctx, intent, semanticFencePhasePostWrite)
 		return semanticSupersededResult(intent, writeResult.CanonicalWrites), nil
 	}
-	return reducercontract.Result{}, newSemanticEntityIdentityDivergentError(writeResult)
+	if unmatched {
+		return reducercontract.Result{}, newSemanticEntityIdentityDivergentError(writeResult)
+	}
+	return reducercontract.Result{
+		IntentID:        intent.IntentID,
+		Domain:          reducercontract.DomainSemanticEntityMaterialization,
+		Status:          reducercontract.ResultStatusSucceeded,
+		EvidenceSummary: summary,
+		CanonicalWrites: writeResult.CanonicalWrites,
+	}, nil
 }
 
 // semanticSupersededResult acks an intent whose generation lost the freshness
@@ -109,12 +171,14 @@ func semanticSupersededResult(intent reducercontract.Intent, canonicalWrites int
 	}
 }
 
-// semanticFencePhasePreWrite and semanticFencePhasePostWrite are the closed
-// label set for the superseded-skip log's phase field: the fence that
-// noticed the supersede ran before any graph write, or after the write on
-// the unmatched-uid re-check.
+// semanticFencePhasePreWrite, semanticFencePhaseMidWrite, and
+// semanticFencePhasePostWrite are the closed label set for the
+// superseded-skip log's phase field: the fence that noticed the supersede
+// ran before any graph write, between writer groups on a fenced abort, or
+// after the write on the single post-write probe.
 const (
 	semanticFencePhasePreWrite  = "pre_write"
+	semanticFencePhaseMidWrite  = "mid_write"
 	semanticFencePhasePostWrite = "post_write"
 )
 

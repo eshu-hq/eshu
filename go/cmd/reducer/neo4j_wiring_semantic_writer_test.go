@@ -27,7 +27,7 @@ func TestSemanticEntityWriterForGraphBackendUsesCanonicalNodeRowsForNornicDB(t *
 	t.Parallel()
 
 	executor := &recordingReducerStatementExecutor{}
-	writer, err := semanticEntityWriterForGraphBackend(executor, 100, runtimecfg.GraphBackendNornicDB, func(string) string { return "" })
+	writer, err := semanticEntityWriterForGraphBackend(executor, 100, runtimecfg.GraphBackendNornicDB, func(string) string { return "" }, nil)
 	if err != nil {
 		t.Fatalf("semanticEntityWriterForGraphBackend() error = %v", err)
 	}
@@ -102,7 +102,7 @@ func TestSemanticEntityWriterForGraphBackendUsesOwnershipScopedRetractForNornicD
 	executor := &recordingReducerStatementExecutor{}
 	writer, err := semanticEntityWriterForGraphBackend(executor, 100, runtimecfg.GraphBackendNornicDB, func(string) string {
 		return ""
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("semanticEntityWriterForGraphBackend() error = %v", err)
 	}
@@ -186,7 +186,7 @@ func TestSemanticEntityWriterForGraphBackendKeepsBroadRetractForNeo4j(t *testing
 	executor := &recordingReducerStatementExecutor{}
 	writer, err := semanticEntityWriterForGraphBackend(executor, 100, runtimecfg.GraphBackendNeo4j, func(string) string {
 		return ""
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("semanticEntityWriterForGraphBackend() error = %v", err)
 	}
@@ -252,7 +252,7 @@ func TestSemanticEntityWriterForGraphBackendAppliesNornicDBLabelBatchCaps(t *tes
 			return "Function=2,Variable=3"
 		}
 		return ""
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("semanticEntityWriterForGraphBackend() error = %v", err)
 	}
@@ -304,7 +304,7 @@ func TestSemanticEntityWriterForGraphBackendAppliesDefaultNornicDBLabelCaps(t *t
 	executor := &recordingReducerStatementExecutor{}
 	writer, err := semanticEntityWriterForGraphBackend(executor, 100, runtimecfg.GraphBackendNornicDB, func(string) string {
 		return ""
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("semanticEntityWriterForGraphBackend() error = %v", err)
 	}
@@ -355,7 +355,7 @@ func TestSemanticEntityWriterForGraphBackendRejectsInvalidNornicDBLabelBatchCaps
 			return "Function=0"
 		}
 		return ""
-	})
+	}, nil)
 	if err == nil {
 		t.Fatal("semanticEntityWriterForGraphBackend() error = nil, want non-nil")
 	}

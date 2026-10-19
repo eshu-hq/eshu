@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -328,6 +329,235 @@ func TestSemanticHandlerRetractOnlySupersededGenerationSkipsWrite(t *testing.T) 
 	}
 	if len(writer.writes) != 0 {
 		t.Errorf("Handle() performed %d graph writes, want 0 for a superseded retract-only run", len(writer.writes))
+	}
+}
+
+// TestSemanticHandlerMatchedPostWriteSupersedeReturnsSuperseded is the
+// #8628 single-probe RED: a generation superseded after its write exits
+// superseded carrying the write's CanonicalWrites even when every admitted
+// row matched, instead of succeeding on stale truth. The phase publish and
+// the completion log already ran, so the newer generation's proof stands.
+func TestSemanticHandlerMatchedPostWriteSupersedeReturnsSuperseded(t *testing.T) {
+	var logs bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	defer slog.SetDefault(previous)
+
+	loader := &fakeSemanticEntityFactLoader{envelopes: semanticFreshnessContentEnvelopes()}
+	writer := &recordingSemanticEntityWriter{
+		result: EntityWriteResult{
+			CanonicalWrites:      2,
+			RowsAttemptedByLabel: map[string]int{"Function": 2},
+			RowsMatchedByLabel:   map[string]int{"Function": 2},
+		},
+	}
+	publisher := &recordingSemanticEntityPhasePublisher{}
+	check := &scriptedSemanticGenerationCheck{current: []bool{true, false}}
+
+	handler := Handler{
+		FactLoader:      loader,
+		Writer:          writer,
+		GenerationCheck: check.check,
+		PhasePublisher:  publisher,
+	}
+
+	result, err := handler.Handle(context.Background(), semanticFreshnessTestIntent())
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil for a post-write superseded generation", err)
+	}
+	if result.Status != reducercontract.ResultStatusSuperseded {
+		t.Errorf("Handle() status = %q, want superseded", result.Status)
+	}
+	if result.CanonicalWrites != 2 {
+		t.Errorf("Handle() CanonicalWrites = %d, want the write result's 2", result.CanonicalWrites)
+	}
+	if len(writer.writes) != 1 {
+		t.Fatalf("Handle() performed %d graph writes, want 1", len(writer.writes))
+	}
+	logText := logs.String()
+	for _, want := range []string{
+		`"msg":"semantic entity materialization completed"`,
+		`"msg":"semantic entity materialization skipped: generation superseded"`,
+		`"phase":"post_write"`,
+	} {
+		if !strings.Contains(logText, want) {
+			t.Errorf("logs missing %s:\n%s", want, logText)
+		}
+	}
+}
+
+// TestSemanticHandlerWriterMidWriteAbortReturnsSuperseded covers the #8628
+// writer fence abort: when the writer reports ErrGenerationSuperseded with a
+// partial result, Handle acks superseded with the partial CanonicalWrites,
+// logs the mid_write phase, and publishes, poisons, and retries nothing.
+func TestSemanticHandlerWriterMidWriteAbortReturnsSuperseded(t *testing.T) {
+	var logs bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	defer slog.SetDefault(previous)
+
+	loader := &fakeSemanticEntityFactLoader{envelopes: semanticFreshnessContentEnvelopes()}
+	writer := &recordingSemanticEntityWriter{
+		result: EntityWriteResult{CanonicalWrites: 2},
+		err:    fmt.Errorf("write semantic entities group 2 of 3: %w", ErrGenerationSuperseded),
+	}
+	publisher := &recordingSemanticEntityPhasePublisher{}
+	check := &scriptedSemanticGenerationCheck{current: []bool{true}}
+
+	handler := Handler{
+		FactLoader:      loader,
+		Writer:          writer,
+		GenerationCheck: check.check,
+		PhasePublisher:  publisher,
+	}
+
+	result, err := handler.Handle(context.Background(), semanticFreshnessTestIntent())
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil for a mid-write superseded run", err)
+	}
+	if result.Status != reducercontract.ResultStatusSuperseded {
+		t.Errorf("Handle() status = %q, want superseded", result.Status)
+	}
+	if result.CanonicalWrites != 2 {
+		t.Errorf("Handle() CanonicalWrites = %d, want the partial 2", result.CanonicalWrites)
+	}
+	if len(publisher.calls) != 0 {
+		t.Errorf("Handle() published %d phase batches, want 0 on a fenced abort", len(publisher.calls))
+	}
+	logText := logs.String()
+	for _, want := range []string{
+		`"msg":"semantic entity materialization skipped: generation superseded"`,
+		`"phase":"mid_write"`,
+	} {
+		if !strings.Contains(logText, want) {
+			t.Errorf("logs missing %s:\n%s", want, logText)
+		}
+	}
+	if strings.Contains(logText, `"msg":"semantic entity materialization completed"`) {
+		t.Errorf("completion log must not emit on a fenced abort:\n%s", logText)
+	}
+}
+
+// TestSemanticHandlerWriterErrorPropagatesWrapped pins the non-fence writer
+// failure path: a backend error is neither superseded nor swallowed, it
+// propagates wrapped for the queue to retry or dead-letter by class.
+func TestSemanticHandlerWriterErrorPropagatesWrapped(t *testing.T) {
+	loader := &fakeSemanticEntityFactLoader{envelopes: semanticFreshnessContentEnvelopes()}
+	backendErr := errors.New("graph backend unavailable")
+	writer := &recordingSemanticEntityWriter{
+		result: EntityWriteResult{CanonicalWrites: 1},
+		err:    backendErr,
+	}
+
+	handler := Handler{
+		FactLoader: loader,
+		Writer:     writer,
+	}
+
+	_, err := handler.Handle(context.Background(), semanticFreshnessTestIntent())
+	if err == nil {
+		t.Fatalf("Handle() error = nil, want the wrapped backend failure")
+	}
+	if !errors.Is(err, backendErr) {
+		t.Errorf("Handle() error = %v, must wrap the backend failure with %%w", err)
+	}
+}
+
+// TestSemanticHandlerStampsWriteWithIntentGeneration pins the #8628 write
+// stamp: every graph write carries the intent's scope and generation so the
+// writer-side fence can attribute its probes to this run.
+func TestSemanticHandlerStampsWriteWithIntentGeneration(t *testing.T) {
+	loader := &fakeSemanticEntityFactLoader{envelopes: semanticFreshnessContentEnvelopes()}
+	writer := &recordingSemanticEntityWriter{
+		result: EntityWriteResult{CanonicalWrites: 1},
+	}
+
+	handler := Handler{
+		FactLoader: loader,
+		Writer:     writer,
+	}
+
+	intent := semanticFreshnessTestIntent()
+	if _, err := handler.Handle(context.Background(), intent); err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if len(writer.writes) != 1 {
+		t.Fatalf("Handle() performed %d graph writes, want 1", len(writer.writes))
+	}
+	if got := writer.writes[0].ScopeID; got != intent.ScopeID {
+		t.Errorf("write ScopeID = %q, want %q", got, intent.ScopeID)
+	}
+	if got := writer.writes[0].GenerationID; got != intent.GenerationID {
+		t.Errorf("write GenerationID = %q, want %q", got, intent.GenerationID)
+	}
+}
+
+// TestSemanticHandlerFreshRerunPublishesAfterMidWriteAbort is the
+// abort-then-converge handler half: a mid-write abort publishes nothing,
+// and the current-generation rerun completes and publishes the newer
+// generation's phases.
+func TestSemanticHandlerFreshRerunPublishesAfterMidWriteAbort(t *testing.T) {
+	envelopes := append(
+		[]facts.Envelope{
+			{
+				ScopeID:      "scope-1",
+				GenerationID: "generation-2",
+				FactKind:     "repository",
+				Payload: map[string]any{
+					"repo_id":       "repo-1",
+					"source_run_id": "run-2",
+				},
+			},
+		},
+		semanticFreshnessContentEnvelopes()...,
+	)
+	intent := semanticFreshnessTestIntent()
+	intent.GenerationID = "generation-2"
+
+	aborted := &recordingSemanticEntityWriter{
+		result: EntityWriteResult{CanonicalWrites: 1},
+		err:    fmt.Errorf("write semantic entities group 2 of 3: %w", ErrGenerationSuperseded),
+	}
+	publisher := &recordingSemanticEntityPhasePublisher{}
+	check := &scriptedSemanticGenerationCheck{current: []bool{true}}
+
+	handler := Handler{
+		FactLoader:      &fakeSemanticEntityFactLoader{envelopes: envelopes},
+		Writer:          aborted,
+		GenerationCheck: check.check,
+		PhasePublisher:  publisher,
+	}
+	result, err := handler.Handle(context.Background(), intent)
+	if err != nil {
+		t.Fatalf("aborted run Handle() error = %v, want nil", err)
+	}
+	if result.Status != reducercontract.ResultStatusSuperseded {
+		t.Errorf("aborted run status = %q, want superseded", result.Status)
+	}
+	if len(publisher.calls) != 0 {
+		t.Fatalf("aborted run published %d phase batches, want 0", len(publisher.calls))
+	}
+
+	converged := &recordingSemanticEntityWriter{
+		result: EntityWriteResult{
+			CanonicalWrites:      1,
+			RowsAttemptedByLabel: map[string]int{"Function": 1},
+			RowsMatchedByLabel:   map[string]int{"Function": 1},
+		},
+	}
+	handler.Writer = converged
+	result, err = handler.Handle(context.Background(), intent)
+	if err != nil {
+		t.Fatalf("rerun Handle() error = %v, want nil", err)
+	}
+	if result.Status != reducercontract.ResultStatusSucceeded {
+		t.Errorf("rerun status = %q, want succeeded", result.Status)
+	}
+	if len(publisher.calls) != 1 {
+		t.Fatalf("rerun published %d phase batches, want 1 for the current generation", len(publisher.calls))
+	}
+	if got := publisher.calls[0][0].Key.GenerationID; got != "generation-2" {
+		t.Errorf("published generation = %q, want generation-2", got)
 	}
 }
 
