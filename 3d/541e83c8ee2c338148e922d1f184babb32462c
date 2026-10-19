@@ -1,0 +1,24 @@
+go/internal/reducer/cloud_relationship_resolution.go
+  h_78a442cba0b3e6 9,20
+go/internal/reducer/defaults_workload_handle_wiring_test.go
+  h_78a442cba0b3e6 10,56,70,133
+go/internal/reducer/documentation_edge_materialization.go
+  h_78a442cba0b3e6 78
+go/internal/reducer/documentation_workload_resolution.go
+  h_78a442cba0b3e6 10,21
+go/internal/reducer/evidence-6626-hotfix-feat5385-bare-aliases.md
+  h_78a442cba0b3e6 1-45
+go/internal/reducer/workload_cloud_relationship_materialization.go
+  h_78a442cba0b3e6 161
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3d541e83c8ee2c338148e922d1f184babb32462c",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
