@@ -5,6 +5,7 @@ package codequery
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -135,5 +136,62 @@ func TestHandleCodeTopicInvestigationFaultStaysErrorOnly(t *testing.T) {
 
 	if got, want := w.Code, http.StatusInternalServerError; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+}
+
+// codeTopicRows is the only unlock for a store-side partial: the deadline
+// marker error carries the gathered rows, while every other failure drops
+// them so a truncated result is never read as complete.
+func TestCodeTopicRowsKeepsPartialOnlyOnDeadline(t *testing.T) {
+	t.Parallel()
+
+	rows := []CodeTopicEvidenceRow{
+		{
+			SourceKind:   "entity",
+			RepoID:       "repo-1",
+			RelativePath: "auth.go",
+			EntityID:     "entity-auth",
+			Score:        1,
+		},
+	}
+	cases := []struct {
+		name         string
+		err          error
+		wantRows     int
+		wantDeadline bool
+	}{
+		{
+			name:         "deadline",
+			err:          fmt.Errorf("investigate code topic: %w", ErrCodeTopicDeadlineTruncated),
+			wantRows:     1,
+			wantDeadline: true,
+		},
+		{
+			name:         "fault",
+			err:          errors.New("connection reset mid result"),
+			wantRows:     0,
+			wantDeadline: false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			store := &topicInvestigationContentStore{rows: rows, err: tc.err}
+			handler := &CodeHandler{Content: store}
+			got, err := handler.codeTopicRows(context.Background(), CodeTopicInvestigationRequest{
+				Topic: "authentication",
+				Limit: 25,
+				Terms: []string{"authentication"},
+			})
+			if err == nil {
+				t.Fatal("codeTopicRows() error = nil, want the store failure")
+			}
+			if gotDeadline := errors.Is(err, ErrCodeTopicDeadlineTruncated); gotDeadline != tc.wantDeadline {
+				t.Fatalf("deadline marker = %v, want %v (error = %v)", gotDeadline, tc.wantDeadline, err)
+			}
+			if len(got) != tc.wantRows {
+				t.Fatalf("len(rows) = %d, want %d", len(got), tc.wantRows)
+			}
+		})
 	}
 }
