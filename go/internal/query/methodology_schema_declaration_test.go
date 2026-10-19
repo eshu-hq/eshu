@@ -33,12 +33,12 @@ import (
 // the declaration goes inert, and the pin behaves as before. Any other PR
 // leaves the zero value alone.
 var methodologyCommittedSchemaDeclaration = methodologyRewriteDeclaration{
-	Issue:  6694,
-	Reason: "Renames symbol mentions in comments to the canonical/node leaf (no DDL, no statement, no index change); the paired Base/Candidate sides in this run both measure candidate schema and no query text changes.",
+	Issue:  8168,
+	Reason: "Keys canonical Module on a constrained import_key (DDL adds the uniqueness constraint; Module MERGE and IMPORTS statements reference it); the base tree cannot build that schema, so the paired Base/Candidate sides in this run both measure candidate schema.",
 	Paths: []string{
 		"go/internal/graph/schema_application.go",
-		"go/internal/graph/schema_retired_constraints.go",
-		"go/internal/graph/schema_tables_indexes.go",
+		"go/internal/graph/schema_predecessors.go",
+		"go/internal/graph/schema_tables.go",
 	},
 }
 
