@@ -153,12 +153,19 @@ func buildBootstrapProjector(
 	if err != nil {
 		return projectorDeps{}, err
 	}
+	// Config-artifact derive (#8155): last step of every content Write; nil skips, refused checks stay live.
+	configArtifactDeriver, err := postgres.NewConfigArtifactWriteDeriver(ctx, instrumentedDB, getenv, logger)
+	if err != nil {
+		return projectorDeps{}, err
+	}
 	runtime := runtime.Runtime{
 		CanonicalWriter: canonicalWriter,
 		ContentWriter: postgres.NewContentWriter(instrumentedDB).
 			WithLogger(logger).
 			WithInstruments(instruments).
-			WithEntityBatchSize(contentConfig.EntityBatchSize),
+			WithEntityBatchSize(contentConfig.EntityBatchSize).
+			WithConfigArtifactDeriver(configArtifactDeriver).
+			WithConfigArtifactTracer(tracer),
 		IntentWriter:                  reducerQueue,
 		PhasePublisher:                postgres.NewGraphProjectionPhaseStateStore(instrumentedDB),
 		RepairQueue:                   postgres.NewGraphProjectionPhaseRepairQueueStore(instrumentedDB),

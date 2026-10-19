@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -445,10 +446,17 @@ func buildIngesterProjectorRuntime(
 	if err != nil {
 		return runtime.Runtime{}, err
 	}
+	// Config-artifact derive (#8155): last step of every content Write; nil skips, refused checks stay live.
+	configArtifactDeriver, err := postgres.NewConfigArtifactWriteDeriver(context.Background(), database, getenv, logger)
+	if err != nil {
+		return runtime.Runtime{}, err
+	}
 	contentWriter := postgres.NewContentWriter(database).
 		WithLogger(logger).
 		WithInstruments(instruments).
-		WithEntityBatchSize(contentConfig.EntityBatchSize)
+		WithEntityBatchSize(contentConfig.EntityBatchSize).
+		WithConfigArtifactDeriver(configArtifactDeriver).
+		WithConfigArtifactTracer(tracer)
 
 	return runtime.Runtime{
 		CanonicalWriter:               canonicalWriter,

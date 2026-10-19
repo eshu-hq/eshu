@@ -67,7 +67,7 @@ func TestBuildIngesterServiceProducesCompositeRunner(t *testing.T) {
 	t.Parallel()
 
 	runner, err := buildIngesterService(
-		postgres.SQLDB{},
+		queryErrorDB{},
 		&noopCanonicalWriter{},
 		func(string) string { return "" },
 		func() (string, error) { return t.TempDir(), nil },
@@ -261,7 +261,7 @@ func TestBuildIngesterProjectorRuntimeWiresPhasePublisherAndRepairQueue(t *testi
 	t.Parallel()
 
 	runtime, err := buildIngesterProjectorRuntime(
-		postgres.SQLDB{},
+		queryErrorDB{},
 		&noopCanonicalWriter{},
 		nil,
 		nil,

@@ -40,8 +40,9 @@ type ConfigArtifactDeriveConfig struct {
 // LoadConfigArtifactDeriveConfig reads ConfigArtifactDeriveTimeoutEnv and
 // ConfigArtifactDeriveEnabledEnv through getenv. A binary calls it once at
 // start, beside LoadWriterConfig, and keeps the result for the process
-// lifetime; the derive never reads the environment per call. Nothing calls it
-// yet: PR3b-2c-2 wires it into the three content-writing binaries.
+// lifetime; the derive never reads the environment per call. The ingester,
+// the projector and bootstrap-index call it from NewConfigArtifactWriteDeriver
+// (#8155 PR3b-2c-2).
 //
 // An unset or blank variable takes its default (10 s, enabled). A timeout of
 // zero, a negative timeout, a value time.ParseDuration rejects (a bare number

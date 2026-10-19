@@ -247,7 +247,10 @@ up.
 Failure semantics:
 
 - The derive recovers a panic and runs under a deadline, default 10 s.
-  **Proposed** variable name: `ESHU_CONFIG_ARTIFACT_DERIVE_TIMEOUT`.
+  **Proposed** variable name: `ESHU_CONFIG_ARTIFACT_DERIVE_TIMEOUT`. A caller
+  can wait up to the deadline plus the 5 s failure-record bound (15 s with
+  the default): the failure-only update runs after the deadline on a detached
+  context with its own bound so a timed-out derive still records.
 - On an error, a panic or a timeout it counts
   `derives_total{outcome=error|panic|timeout}`, increments `failure_count`,
   records `last_error_class` and `last_failure_at`, logs

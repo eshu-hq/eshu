@@ -118,12 +118,12 @@ sessions that do not derive.
    if the version or the extractor version advances. Otherwise the derive is
    superseded. Readers trust the rows only when the stored version equals the
    current version.
-5. A derive error never fails the Write. The derive recovers a panic and runs
+5. A derive error never fails the Write. The derive recovers a panic, runs
    under a deadline (default 10 s, **Proposed** name
-   `ESHU_CONFIG_ARTIFACT_DERIVE_TIMEOUT`). On any failure it counts the
-   outcome, records `failure_count` and `last_error_class` on the state row,
-   logs at ERROR with the repository id, and returns nil. If the content
-   moved, the stored version stays behind, so readers fall back.
+   `ESHU_CONFIG_ARTIFACT_DERIVE_TIMEOUT`), and can hold the caller up to 15 s
+   (deadline plus the 5 s failure-record bound). On failure it counts the
+   outcome, records `failure_count`/`last_error_class`, logs at ERROR, and
+   returns nil; a moved content version sends readers live meanwhile.
 6. The reducer owns repair. Its walker runs the same derive protocol for
    reconcile, backfill and extractor version changes.
 7. A startup check guards two invariants. Each deriving binary and the API
@@ -355,10 +355,10 @@ Bad:
    backfill to operate.
 3. An extractor version bump sends every related repository to the live path
    until the walker catches up.
-4. A repository whose derive always fails or times out adds up to 10 s to each
-   of its content Writes, because every Write derives. The walker skips it
-   after 5 failures until its next Write or an extractor change (protocol
-   companion, section 4). Its reads stay live while its rows are stale.
+4. A repository whose derive always fails or times out adds up to 15 s to each
+   of its content Writes (deadline plus the 5 s failure-record bound), because
+   every Write derives; the walker skips it after 5 failures and its reads
+   stay live while its rows are stale (protocol companion, section 4).
 5. PR-cap-1 raises the live cost: up to 50 x N + E candidates per request
    (the floors plus the budget). The estimate for R1 is about +0.4 CPU-s
    (theory); the scratch shim measured +0.487 CPU-s (appendix section 10).

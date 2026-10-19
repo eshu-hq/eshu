@@ -5,11 +5,14 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"slices"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 type groupCapableIngesterExecutor struct {
@@ -160,4 +163,27 @@ func minimalCanonicalMaterialization() canonical.CanonicalMaterialization {
 			{EntityID: "e1", Label: "Function", EntityName: "main", FilePath: "/repos/my-repo/src/main.go", RelativePath: "src/main.go", StartLine: 1, EndLine: 5, Language: "go", RepoID: "repo-1"},
 		},
 	}
+}
+
+// queryErrorDB answers every database call with an error. Wiring tests use it
+// where they used postgres.SQLDB{}: the projector runtime builder runs the
+// config-artifact startup checks (#8155) over the database, and a nil *sql.DB
+// panics on the first query. Failing every call proves the builders survive
+// failed checks: the derive stays off, the wiring succeeds, and reads stay
+// live.
+type queryErrorDB struct{}
+
+func (queryErrorDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+	return nil, errors.New("queryErrorDB: no database")
+}
+
+func (queryErrorDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+	return nil, errors.New("queryErrorDB: no database")
+}
+
+// Begin completes the artifacts.Database surface so the projector runtime
+// builder accepts the fake. Wiring never opens a transaction; a call fails
+// instead of returning a half transaction.
+func (queryErrorDB) Begin(context.Context) (db.Transaction, error) {
+	return nil, errors.New("queryErrorDB: no database")
 }

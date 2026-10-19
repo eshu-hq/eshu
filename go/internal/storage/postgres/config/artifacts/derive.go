@@ -77,7 +77,8 @@ type Request struct {
 // Result is what one derive did. A derive never returns an error to its
 // caller: a content Write must not fail because its read model failed
 // (protocol section 3). Err is the underlying failure for the caller's log; it
-// is nil for every outcome but OutcomeError, OutcomePanic and OutcomeTimeout.
+// is nil for every outcome but OutcomeError, OutcomePanic, OutcomeTimeout and
+// OutcomeCanceled.
 // The wiring slice counts Outcome by Trigger and observes Duration; this
 // package registers no metric.
 type Result struct {
@@ -193,6 +194,11 @@ func NewDeriver(database Database, config DeriverConfig) (*Deriver, error) {
 // abandoning one would leak it): an extractor that overruns ends as
 // OutcomeTimeout when it returns, without a write. A panic inside one of the
 // neutral package's chunk-read goroutines is outside this recover.
+//
+// A caller can wait up to Timeout plus the 5 s failure-record bound (15 s
+// with the default): the deadline bounds steps 1 to 3, and the failure-only
+// update runs after it on a detached context with its own bound so a
+// timed-out derive still records its failure.
 func (d *Deriver) DeriveRepository(ctx context.Context, req Request) Result {
 	started := time.Now()
 	result := Result{RepoID: req.RepoID, Trigger: req.Trigger, ContentVersion: -1}

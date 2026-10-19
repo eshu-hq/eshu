@@ -8,14 +8,13 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 func TestBuildIngesterServiceRejectsMissingBridgeRepoRoot(t *testing.T) {
 	t.Parallel()
 
 	runner, err := buildIngesterService(
-		postgres.SQLDB{},
+		queryErrorDB{},
 		&noopCanonicalWriter{},
 		func(string) string { return "" },
 		func() (string, error) { return "/tmp/does-not-exist", nil },

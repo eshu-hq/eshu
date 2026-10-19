@@ -130,10 +130,10 @@ Config:
   `ESHU_CONFIG_ARTIFACT_DERIVE_ENABLED` (default `true`) once at process
   start. A zero, negative, or unparsable timeout, or an unparsable flag, is an
   error, so the binary fails at start. The timeout is checked even with the
-  derive off. No binary calls the loader yet: PR3b-2c-2 (#8155) wires it into
-  the ingester, the projector, and bootstrap-index beside `LoadWriterConfig`.
-  The loader lives here, not in the storage `config/artifacts` package, whose
-  contract forbids environment lookups.
+  derive off. The ingester, the projector, and bootstrap-index call the loader
+  from `NewConfigArtifactWriteDeriver` beside `LoadWriterConfig` (PR3b-2c-2,
+  #8155). The loader lives here, not in the storage `config/artifacts`
+  package, whose contract forbids environment lookups.
 
 ## Dependencies
 

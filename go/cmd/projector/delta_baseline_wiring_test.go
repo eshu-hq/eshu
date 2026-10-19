@@ -13,7 +13,7 @@ import (
 // binary builds its Service without the #7319 delta-baseline fence.
 func TestBuildProjectorServiceWiresDeltaBaselineFence(t *testing.T) {
 	t.Parallel()
-	service, err := buildProjectorService(postgres.SQLDB{}, &noopCanonicalWriter{},
+	service, err := buildProjectorService(unreachableSQLDB(t), &noopCanonicalWriter{},
 		func(string) string { return "" }, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("buildProjectorService() = %v", err)
@@ -30,7 +30,7 @@ func TestBuildProjectorServiceWiresDeltaBaselineFence(t *testing.T) {
 // without the #7389 projection write-start marker.
 func TestBuildProjectorServiceWiresWriteMarker(t *testing.T) {
 	t.Parallel()
-	service, err := buildProjectorService(postgres.SQLDB{}, &noopCanonicalWriter{},
+	service, err := buildProjectorService(unreachableSQLDB(t), &noopCanonicalWriter{},
 		func(string) string { return "" }, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("buildProjectorService() = %v", err)

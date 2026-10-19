@@ -5,9 +5,9 @@ package contract
 
 // Span name and metric dimension of the config-artifact derive (#8155, ADR
 // 7126 section 3.5). They live in this sibling file so the frozen root
-// contract.go does not grow. Both are registered now and first used by
-// PR3b-2c-2, which wires the derive into the content Write; nothing emits
-// them before that change.
+// contract.go does not grow. Both are registered, and PR3b-2c-2 wires the
+// derive into the content Write, which emits the span, the counter and the
+// histogram for every Write derive.
 const (
 	// SpanConfigArtifactsDerive wraps one per-repository config-artifact
 	// derive: one span per derive, a child of the caller's span (the content

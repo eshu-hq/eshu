@@ -63,8 +63,8 @@ const (
 )
 
 // Outcome values of eshu_dp_config_artifact_derives_total (#8155). The set is
-// closed. The storage package owns the matching Go constants; canceled gains
-// its constant there in PR3b-2c-2.
+// closed. The storage package owns the matching Go constants, including
+// OutcomeCanceled (PR3b-2c-2); a parity test pins both sets.
 const (
 	// ConfigArtifactDeriveOutcomeOK is a derive that wrote rows and a state
 	// row for its content version.
