@@ -87,6 +87,190 @@ func authenticatesVaultRoleFamilyWorkloadID(lane string) string {
 	return "wl-auth-" + lane
 }
 
+// appendAuthServiceAccount appends the Kubernetes service-account fact.
+func appendAuthServiceAccount(factsForOdu *[]facts.Envelope, oduName, scopeID, generationID, joinKey string) {
+	*factsForOdu = append(*factsForOdu, newSecretsIAMFixtureEnvelope(
+		oduName, factsidentity.KubernetesServiceAccountFactKind,
+		scopeID, generationID, joinKey,
+		mustEncodeSecretsIAMFixturePayload(oduName, secretsiamv1.KubernetesServiceAccount{
+			ServiceAccountJoinKey: joinKey,
+		}),
+	))
+}
+
+// appendAuthWorkloadUse appends the workload identity-use fact for one lane.
+func appendAuthWorkloadUse(factsForOdu *[]facts.Envelope, oduName, scopeID, generationID, joinKey, lane string) {
+	workloadID := authenticatesVaultRoleFamilyWorkloadID(lane)
+	workloadKind := "deployments"
+	*factsForOdu = append(*factsForOdu, newSecretsIAMFixtureEnvelope(
+		oduName, factsidentity.KubernetesWorkloadIdentityUseFactKind,
+		scopeID, generationID, joinKey,
+		mustEncodeSecretsIAMFixturePayload(oduName, secretsiamv1.KubernetesWorkloadIdentityUse{
+			ServiceAccountJoinKey: joinKey,
+			WorkloadObjectID:      &workloadID,
+			WorkloadKind:          &workloadKind,
+		}),
+	))
+}
+
+// appendAuthIRSA appends the EKS IRSA annotation fact.
+func appendAuthIRSA(factsForOdu *[]facts.Envelope, oduName, scopeID, generationID, joinKey, roleARN, subject string) {
+	*factsForOdu = append(*factsForOdu, newSecretsIAMFixtureEnvelope(
+		oduName, factsidentity.EKSIRSAAnnotationFactKind,
+		scopeID, generationID, joinKey,
+		mustEncodeSecretsIAMFixturePayload(oduName, secretsiamv1.EKSIRSAAnnotation{
+			ServiceAccountJoinKey:         joinKey,
+			RoleARN:                       roleARN,
+			WebIdentitySubjectFingerprint: &subject,
+		}),
+	))
+}
+
+// appendAuthPodIdentity appends the EKS Pod Identity association fact.
+func appendAuthPodIdentity(factsForOdu *[]facts.Envelope, oduName, scopeID, generationID, joinKey, roleARN string) {
+	*factsForOdu = append(*factsForOdu, newSecretsIAMFixtureEnvelope(
+		oduName, factsidentity.EKSPodIdentityAssociationFactKind,
+		scopeID, generationID, joinKey,
+		mustEncodeSecretsIAMFixturePayload(oduName, secretsiamv1.EKSPodIdentityAssociation{
+			ServiceAccountJoinKey: joinKey,
+			RoleARN:               roleARN,
+		}),
+	))
+}
+
+// appendAuthPrincipal appends the AWS IAM principal fact.
+func appendAuthPrincipal(factsForOdu *[]facts.Envelope, oduName, scopeID, generationID, roleARN string) {
+	provider := "aws_iam"
+	*factsForOdu = append(*factsForOdu, newSecretsIAMFixtureEnvelope(
+		oduName, factsidentity.AWSIAMPrincipalFactKind,
+		scopeID, generationID, roleARN,
+		mustEncodeSecretsIAMFixturePayload(oduName, iamv1.Principal{
+			AccountID:     "123456789012",
+			Region:        "us-east-1",
+			PrincipalARN:  roleARN,
+			PrincipalType: "aws_iam_role",
+			Provider:      &provider,
+		}),
+	))
+}
+
+// appendAuthWebIdentityTrust appends a raw-map aws_iam_trust_policy fact: the
+// kind has no typed struct yet, so the map mirrors exactly what the
+// reducer's exactWebIdentityTrust reads.
+func appendAuthWebIdentityTrust(factsForOdu *[]facts.Envelope, oduName, scopeID, generationID, roleARN, subject, effect string, wildcard bool) {
+	*factsForOdu = append(*factsForOdu, newSecretsIAMFixtureEnvelope(
+		oduName, factsidentity.AWSIAMTrustPolicyFactKind,
+		scopeID, generationID, roleARN+":"+effect,
+		map[string]any{
+			"provider":                          "aws_iam",
+			"role_arn":                          roleARN,
+			"effect":                            effect,
+			"actions":                           []string{"sts:assumerolewithwebidentity"},
+			"web_identity_subject_fingerprints": []string{subject},
+			"web_identity_subject_wildcard":     wildcard,
+		},
+	))
+}
+
+// appendAuthPodIdentityTrust appends the raw-map Pod Identity trust fact.
+func appendAuthPodIdentityTrust(factsForOdu *[]facts.Envelope, oduName, scopeID, generationID, roleARN string) {
+	*factsForOdu = append(*factsForOdu, newSecretsIAMFixtureEnvelope(
+		oduName, factsidentity.AWSIAMTrustPolicyFactKind,
+		scopeID, generationID, roleARN+":pod-identity",
+		map[string]any{
+			"provider":          "aws_iam",
+			"role_arn":          roleARN,
+			"effect":            "Allow",
+			"actions":           []string{"sts:AssumeRole"},
+			"assume_principals": []string{"pods.eks.amazonaws.com"},
+		},
+	))
+}
+
+// appendAuthVaultRole appends the Vault auth-role fact bound to the given
+// service accounts.
+func appendAuthVaultRole(factsForOdu *[]facts.Envelope, oduName, scopeID, generationID, roleKey string, bound []string, wildcard bool) {
+	mount := authFamilyMount
+	*factsForOdu = append(*factsForOdu, newSecretsIAMFixtureEnvelope(
+		oduName, factsidentity.VaultAuthRoleFactKind,
+		scopeID, generationID, roleKey,
+		mustEncodeSecretsIAMFixturePayload(oduName, secretsiamv1.VaultAuthRole{
+			RoleJoinKey:                         roleKey,
+			MountJoinKey:                        &mount,
+			BoundServiceAccountJoinKeys:         bound,
+			BoundServiceAccountSelectorWildcard: &wildcard,
+		}),
+	))
+}
+
+// appendAuthenticatesLaneA appends lane A, EDGE: IRSA web-identity exact
+// chain with a Vault hop.
+func appendAuthenticatesLaneA(factsForOdu *[]facts.Envelope, oduName, scopeID, generationID string) {
+	appendAuthServiceAccount(factsForOdu, oduName, scopeID, generationID, authFamilyServiceAccountA)
+	appendAuthWorkloadUse(factsForOdu, oduName, scopeID, generationID, authFamilyServiceAccountA, "a")
+	appendAuthIRSA(factsForOdu, oduName, scopeID, generationID, authFamilyServiceAccountA, authFamilyRoleARNA, authFamilySubjectA)
+	appendAuthPrincipal(factsForOdu, oduName, scopeID, generationID, authFamilyRoleARNA)
+	appendAuthWebIdentityTrust(factsForOdu, oduName, scopeID, generationID, authFamilyRoleARNA, authFamilySubjectA, "Allow", false)
+	appendAuthVaultRole(factsForOdu, oduName, scopeID, generationID, authFamilyVaultRole1, []string{authFamilyServiceAccountA}, false)
+}
+
+// appendAuthenticatesLaneB appends lane B, EDGE: EKS Pod Identity exact
+// chain with a Vault hop.
+func appendAuthenticatesLaneB(factsForOdu *[]facts.Envelope, oduName, scopeID, generationID string) {
+	appendAuthServiceAccount(factsForOdu, oduName, scopeID, generationID, authFamilyServiceAccountB)
+	appendAuthWorkloadUse(factsForOdu, oduName, scopeID, generationID, authFamilyServiceAccountB, "b")
+	appendAuthPodIdentity(factsForOdu, oduName, scopeID, generationID, authFamilyServiceAccountB, authFamilyRoleARNB)
+	appendAuthPrincipal(factsForOdu, oduName, scopeID, generationID, authFamilyRoleARNB)
+	appendAuthPodIdentityTrust(factsForOdu, oduName, scopeID, generationID, authFamilyRoleARNB)
+	appendAuthVaultRole(factsForOdu, oduName, scopeID, generationID, authFamilyVaultRole2, []string{authFamilyServiceAccountB}, false)
+}
+
+// appendAuthenticatesLaneC appends lane C, NO EDGE: full surroundings but no
+// Vault role bound to the service account, so the chain cannot take the
+// Vault hop. The ghost-bound role never joins any chain either.
+func appendAuthenticatesLaneC(factsForOdu *[]facts.Envelope, oduName, scopeID, generationID string) {
+	appendAuthServiceAccount(factsForOdu, oduName, scopeID, generationID, authFamilyServiceAccountC)
+	appendAuthWorkloadUse(factsForOdu, oduName, scopeID, generationID, authFamilyServiceAccountC, "c")
+	appendAuthIRSA(factsForOdu, oduName, scopeID, generationID, authFamilyServiceAccountC, authFamilyRoleARNC, authFamilySubjectC)
+	appendAuthPrincipal(factsForOdu, oduName, scopeID, generationID, authFamilyRoleARNC)
+	appendAuthWebIdentityTrust(factsForOdu, oduName, scopeID, generationID, authFamilyRoleARNC, authFamilySubjectC, "Allow", false)
+	appendAuthVaultRole(factsForOdu, oduName, scopeID, generationID, authFamilyVaultRole3, []string{"sha256:sa-auth-ghost"}, false)
+}
+
+// appendAuthenticatesLaneD appends lane D, NO EDGE: wildcard web-identity
+// subject trust never matches exactly, so the role's trust cannot anchor a
+// chain.
+func appendAuthenticatesLaneD(factsForOdu *[]facts.Envelope, oduName, scopeID, generationID string) {
+	appendAuthServiceAccount(factsForOdu, oduName, scopeID, generationID, authFamilyServiceAccountD)
+	appendAuthWorkloadUse(factsForOdu, oduName, scopeID, generationID, authFamilyServiceAccountD, "d")
+	appendAuthIRSA(factsForOdu, oduName, scopeID, generationID, authFamilyServiceAccountD, authFamilyRoleARND, authFamilySubjectD)
+	appendAuthPrincipal(factsForOdu, oduName, scopeID, generationID, authFamilyRoleARND)
+	appendAuthWebIdentityTrust(factsForOdu, oduName, scopeID, generationID, authFamilyRoleARND, authFamilySubjectD, "Allow", true)
+}
+
+// appendAuthenticatesLaneE appends lane E, NO EDGE: a wildcard Vault
+// bound-service-account selector refuses the exact join, so the role
+// contributes no chain.
+func appendAuthenticatesLaneE(factsForOdu *[]facts.Envelope, oduName, scopeID, generationID string) {
+	appendAuthServiceAccount(factsForOdu, oduName, scopeID, generationID, authFamilyServiceAccountE)
+	appendAuthWorkloadUse(factsForOdu, oduName, scopeID, generationID, authFamilyServiceAccountE, "e")
+	appendAuthPodIdentity(factsForOdu, oduName, scopeID, generationID, authFamilyServiceAccountE, authFamilyRoleARNE)
+	appendAuthPrincipal(factsForOdu, oduName, scopeID, generationID, authFamilyRoleARNE)
+	appendAuthPodIdentityTrust(factsForOdu, oduName, scopeID, generationID, authFamilyRoleARNE)
+	appendAuthVaultRole(factsForOdu, oduName, scopeID, generationID, authFamilyVaultRole4, []string{authFamilyServiceAccountE}, true)
+}
+
+// appendAuthenticatesLaneF appends lane F, NO EDGE: a Deny trust statement
+// grants nothing.
+func appendAuthenticatesLaneF(factsForOdu *[]facts.Envelope, oduName, scopeID, generationID string) {
+	appendAuthServiceAccount(factsForOdu, oduName, scopeID, generationID, authFamilyServiceAccountF)
+	appendAuthWorkloadUse(factsForOdu, oduName, scopeID, generationID, authFamilyServiceAccountF, "f")
+	appendAuthIRSA(factsForOdu, oduName, scopeID, generationID, authFamilyServiceAccountF, authFamilyRoleARNF, authFamilySubjectF)
+	appendAuthPrincipal(factsForOdu, oduName, scopeID, generationID, authFamilyRoleARNF)
+	appendAuthWebIdentityTrust(factsForOdu, oduName, scopeID, generationID, authFamilyRoleARNF, authFamilySubjectF, "Deny", false)
+	appendAuthVaultRole(factsForOdu, oduName, scopeID, generationID, authFamilyVaultRole5, []string{authFamilyServiceAccountF}, false)
+}
+
 // AuthenticatesVaultRoleFamilyOdu builds the cataloged Odù for the
 // authenticates_vault_role direct-materialization family.
 //
@@ -101,159 +285,12 @@ func AuthenticatesVaultRoleFamilyOdu() CatalogOdu {
 	const generationID = authenticatesVaultRoleFamilyGenerationID
 	factsForOdu := make([]facts.Envelope, 0, 35)
 
-	addServiceAccount := func(joinKey string) {
-		factsForOdu = append(factsForOdu, newSecretsIAMFixtureEnvelope(
-			oduName, factsidentity.KubernetesServiceAccountFactKind,
-			scopeID, generationID, joinKey,
-			mustEncodeSecretsIAMFixturePayload(oduName, secretsiamv1.KubernetesServiceAccount{
-				ServiceAccountJoinKey: joinKey,
-			}),
-		))
-	}
-	addWorkloadUse := func(joinKey, lane string) {
-		workloadID := authenticatesVaultRoleFamilyWorkloadID(lane)
-		workloadKind := "deployments"
-		factsForOdu = append(factsForOdu, newSecretsIAMFixtureEnvelope(
-			oduName, factsidentity.KubernetesWorkloadIdentityUseFactKind,
-			scopeID, generationID, joinKey,
-			mustEncodeSecretsIAMFixturePayload(oduName, secretsiamv1.KubernetesWorkloadIdentityUse{
-				ServiceAccountJoinKey: joinKey,
-				WorkloadObjectID:      &workloadID,
-				WorkloadKind:          &workloadKind,
-			}),
-		))
-	}
-	addIRSA := func(joinKey, roleARN, subject string) {
-		factsForOdu = append(factsForOdu, newSecretsIAMFixtureEnvelope(
-			oduName, factsidentity.EKSIRSAAnnotationFactKind,
-			scopeID, generationID, joinKey,
-			mustEncodeSecretsIAMFixturePayload(oduName, secretsiamv1.EKSIRSAAnnotation{
-				ServiceAccountJoinKey:         joinKey,
-				RoleARN:                       roleARN,
-				WebIdentitySubjectFingerprint: &subject,
-			}),
-		))
-	}
-	addPodIdentity := func(joinKey, roleARN string) {
-		factsForOdu = append(factsForOdu, newSecretsIAMFixtureEnvelope(
-			oduName, factsidentity.EKSPodIdentityAssociationFactKind,
-			scopeID, generationID, joinKey,
-			mustEncodeSecretsIAMFixturePayload(oduName, secretsiamv1.EKSPodIdentityAssociation{
-				ServiceAccountJoinKey: joinKey,
-				RoleARN:               roleARN,
-			}),
-		))
-	}
-	addPrincipal := func(roleARN string) {
-		provider := "aws_iam"
-		factsForOdu = append(factsForOdu, newSecretsIAMFixtureEnvelope(
-			oduName, factsidentity.AWSIAMPrincipalFactKind,
-			scopeID, generationID, roleARN,
-			mustEncodeSecretsIAMFixturePayload(oduName, iamv1.Principal{
-				AccountID:     "123456789012",
-				Region:        "us-east-1",
-				PrincipalARN:  roleARN,
-				PrincipalType: "aws_iam_role",
-				Provider:      &provider,
-			}),
-		))
-	}
-	// addWebIdentityTrust appends a raw-map aws_iam_trust_policy fact: the
-	// kind has no typed struct yet, so the map mirrors exactly what the
-	// reducer's exactWebIdentityTrust reads.
-	addWebIdentityTrust := func(roleARN, subject, effect string, wildcard bool) {
-		factsForOdu = append(factsForOdu, newSecretsIAMFixtureEnvelope(
-			oduName, factsidentity.AWSIAMTrustPolicyFactKind,
-			scopeID, generationID, roleARN+":"+effect,
-			map[string]any{
-				"provider":                          "aws_iam",
-				"role_arn":                          roleARN,
-				"effect":                            effect,
-				"actions":                           []string{"sts:assumerolewithwebidentity"},
-				"web_identity_subject_fingerprints": []string{subject},
-				"web_identity_subject_wildcard":     wildcard,
-			},
-		))
-	}
-	addPodIdentityTrust := func(roleARN string) {
-		factsForOdu = append(factsForOdu, newSecretsIAMFixtureEnvelope(
-			oduName, factsidentity.AWSIAMTrustPolicyFactKind,
-			scopeID, generationID, roleARN+":pod-identity",
-			map[string]any{
-				"provider":          "aws_iam",
-				"role_arn":          roleARN,
-				"effect":            "Allow",
-				"actions":           []string{"sts:AssumeRole"},
-				"assume_principals": []string{"pods.eks.amazonaws.com"},
-			},
-		))
-	}
-	addVaultRole := func(roleKey string, bound []string, wildcard bool) {
-		mount := authFamilyMount
-		factsForOdu = append(factsForOdu, newSecretsIAMFixtureEnvelope(
-			oduName, factsidentity.VaultAuthRoleFactKind,
-			scopeID, generationID, roleKey,
-			mustEncodeSecretsIAMFixturePayload(oduName, secretsiamv1.VaultAuthRole{
-				RoleJoinKey:                         roleKey,
-				MountJoinKey:                        &mount,
-				BoundServiceAccountJoinKeys:         bound,
-				BoundServiceAccountSelectorWildcard: &wildcard,
-			}),
-		))
-	}
-
-	// Lane A, EDGE: IRSA web-identity exact chain with a Vault hop.
-	addServiceAccount(authFamilyServiceAccountA)
-	addWorkloadUse(authFamilyServiceAccountA, "a")
-	addIRSA(authFamilyServiceAccountA, authFamilyRoleARNA, authFamilySubjectA)
-	addPrincipal(authFamilyRoleARNA)
-	addWebIdentityTrust(authFamilyRoleARNA, authFamilySubjectA, "Allow", false)
-	addVaultRole(authFamilyVaultRole1, []string{authFamilyServiceAccountA}, false)
-
-	// Lane B, EDGE: EKS Pod Identity exact chain with a Vault hop.
-	addServiceAccount(authFamilyServiceAccountB)
-	addWorkloadUse(authFamilyServiceAccountB, "b")
-	addPodIdentity(authFamilyServiceAccountB, authFamilyRoleARNB)
-	addPrincipal(authFamilyRoleARNB)
-	addPodIdentityTrust(authFamilyRoleARNB)
-	addVaultRole(authFamilyVaultRole2, []string{authFamilyServiceAccountB}, false)
-
-	// Lane C, NO EDGE: full surroundings but no Vault role bound to the
-	// service account, so the chain cannot take the Vault hop.
-	addServiceAccount(authFamilyServiceAccountC)
-	addWorkloadUse(authFamilyServiceAccountC, "c")
-	addIRSA(authFamilyServiceAccountC, authFamilyRoleARNC, authFamilySubjectC)
-	addPrincipal(authFamilyRoleARNC)
-	addWebIdentityTrust(authFamilyRoleARNC, authFamilySubjectC, "Allow", false)
-
-	// NO EDGE: a Vault role bound to a service account nobody observed
-	// never joins any chain.
-	addVaultRole(authFamilyVaultRole3, []string{"sha256:sa-auth-ghost"}, false)
-
-	// Lane D, NO EDGE: wildcard web-identity subject trust never matches
-	// exactly, so the role's trust cannot anchor a chain.
-	addServiceAccount(authFamilyServiceAccountD)
-	addWorkloadUse(authFamilyServiceAccountD, "d")
-	addIRSA(authFamilyServiceAccountD, authFamilyRoleARND, authFamilySubjectD)
-	addPrincipal(authFamilyRoleARND)
-	addWebIdentityTrust(authFamilyRoleARND, authFamilySubjectD, "Allow", true)
-
-	// Lane E, NO EDGE: a wildcard Vault bound-service-account selector
-	// refuses the exact join, so the role contributes no chain.
-	addServiceAccount(authFamilyServiceAccountE)
-	addWorkloadUse(authFamilyServiceAccountE, "e")
-	addPodIdentity(authFamilyServiceAccountE, authFamilyRoleARNE)
-	addPrincipal(authFamilyRoleARNE)
-	addPodIdentityTrust(authFamilyRoleARNE)
-	addVaultRole(authFamilyVaultRole4, []string{authFamilyServiceAccountE}, true)
-
-	// Lane F, NO EDGE: a Deny trust statement grants nothing.
-	addServiceAccount(authFamilyServiceAccountF)
-	addWorkloadUse(authFamilyServiceAccountF, "f")
-	addIRSA(authFamilyServiceAccountF, authFamilyRoleARNF, authFamilySubjectF)
-	addPrincipal(authFamilyRoleARNF)
-	addWebIdentityTrust(authFamilyRoleARNF, authFamilySubjectF, "Deny", false)
-	addVaultRole(authFamilyVaultRole5, []string{authFamilyServiceAccountF}, false)
+	appendAuthenticatesLaneA(&factsForOdu, oduName, scopeID, generationID)
+	appendAuthenticatesLaneB(&factsForOdu, oduName, scopeID, generationID)
+	appendAuthenticatesLaneC(&factsForOdu, oduName, scopeID, generationID)
+	appendAuthenticatesLaneD(&factsForOdu, oduName, scopeID, generationID)
+	appendAuthenticatesLaneE(&factsForOdu, oduName, scopeID, generationID)
+	appendAuthenticatesLaneF(&factsForOdu, oduName, scopeID, generationID)
 
 	return CatalogOdu{
 		Odu:    Odu{Name: AuthenticatesVaultRoleFamilyOduName, Facts: factsForOdu},

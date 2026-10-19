@@ -91,14 +91,6 @@ func usesVaultPolicyFamilyWorkloadID(lane string) string {
 	return "wl-uses-" + lane
 }
 
-// UsesVaultPolicyFamilyOdu builds the cataloged Odù for the
-// uses_vault_policy direct-materialization family.
-//
-// Exported because catalog_seed.go registers it at package-init time and
-// materializededges' guard test resolves it by name. It panics on an encode
-// failure for the same reason IAMCanAssumeFamilyOdu does: a failure means
-// the payload contract moved under a committed fixture, and every coverage
-// claim built on it is already void.
 // appendUsesVaultPolicyVaultRole appends the Vault auth-role fact. policies
 // lists the token policy join keys the role's issued tokens carry: the uses
 // edges fan out one per key, so the two exact lanes carry policies
@@ -118,6 +110,14 @@ func appendUsesVaultPolicyVaultRole(factsForOdu *[]facts.Envelope, oduName, scop
 	))
 }
 
+// UsesVaultPolicyFamilyOdu builds the cataloged Odù for the
+// uses_vault_policy direct-materialization family.
+//
+// Exported because catalog_seed.go registers it at package-init time and
+// materializededges' guard test resolves it by name. It panics on an encode
+// failure for the same reason IAMCanAssumeFamilyOdu does: a failure means
+// the payload contract moved under a committed fixture, and every coverage
+// claim built on it is already void.
 func UsesVaultPolicyFamilyOdu() CatalogOdu {
 	const oduName = UsesVaultPolicyFamilyOduName
 	const scopeID = usesVaultPolicyFamilyScopeID
