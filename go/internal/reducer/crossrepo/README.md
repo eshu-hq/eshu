@@ -102,6 +102,34 @@ log field. The four instruments above and the spans and log lines around them
 are the same before and after the move; only the file paths their
 telemetry-coverage rows cite changed.
 
+No-Regression Evidence: #8294 adds at most one UPDATE per cross-repo
+resolution, and zero statements when nothing was appended. Baseline (main):
+the ON CONFLICT DO NOTHING insert reports nothing and no wake statement
+exists, so an in-pass append waits for the next maintenance pass. After: a
+3-row upsert with staged RowsAffected 1,0,1 reports Inserted=2 with
+RepoIDs=[repo-a repo-b repo-e] (the conflicted row contributes neither count
+nor repos); the wake then issues exactly one UPDATE and reports reopened=2;
+empty
+input issues zero statements and reopens zero. The statement reopens only
+status = 'succeeded' deployable_unit_correlation rows whose fingerprint
+repo_ids overlap the inserted repos; it composes the shared reopen SET clause
+(#7731), takes no lock class the claim path can contend with (the claim
+selects pending/retrying/claimed/running FOR UPDATE SKIP LOCKED), and changes
+no worker, batch size, lease, or claim shape. Backend: hermetic
+fakeExecQueryer with staged sql.Result rows (no live Postgres in this lane);
+live-Postgres plan evidence rides the CI live lanes. Focused proof:
+`go test ./internal/reducer/crossrepo/ -count=1` (plus `-race`) and
+`go test ./internal/storage/postgres/ -count=1` exit 0; `go vet` on the touched
+packages exits 0.
+
+Observability Evidence: #8294 registers no new instrument. A wake that runs
+logs one INFO `cross-repo completion wake reopened deployable_unit_correlation
+items` line (scope_id, generation_id, inserted_resolved_rows, reopened_items);
+the UPDATE itself is timed by the existing
+`eshu_dp_postgres_query_duration_seconds` instrumentation. See the
+`projection (cross-repo edges)` row in telemetry-coverage.md, which also
+covers the wake trigger file.
+
 ## Gotchas / invariants
 
 - **Do not import the reducer root from here.** If this package needs a symbol
