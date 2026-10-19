@@ -160,6 +160,13 @@ func classifyCompletionWakeError(err error) error {
 // claim shape changes: this is one extra transaction per resolution pass
 // that resolved rows.
 //
+// First-execution bound (#8608): the unflagged first-execution item lands
+// succeeded on stale input and converges on the next pass, when its recorded
+// fingerprint mismatches and the succeeded arm reopens it. Flagging it
+// instead would force a redundant replay whose diverted ACK resets
+// attempt_count (migration 093 trigger), erasing killed-claim reclaim
+// evidence; only a run with no further pass keeps the stale success.
+//
 // Telemetry: one eshu_dp_reducer_completion_wake_total increment per
 // transaction by outcome, plus the reopened row count on
 // eshu_dp_correlation_reopened_total{domain="deployable_unit_correlation"},
