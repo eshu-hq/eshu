@@ -6,8 +6,6 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -151,11 +149,7 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducercontract.In
 	}
 
 	if len(targetIntents) > 0 {
-		query, args := ackContainerImageIdentityReducerWorkBatchQuery(
-			now,
-			q.LeaseOwner,
-			targetIntents,
-		)
+		query, args := ackContainerImageIdentityReducerWorkBatchQuery(now, q.LeaseOwner, targetIntents, identityCompletionEmitIDs(targetIntents, resultByID))
 		result, err := q.database.ExecContext(ctx, query, args...)
 		if err != nil {
 			return fmt.Errorf(
@@ -244,116 +238,6 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducercontract.In
 	}
 
 	return nil
-}
-
-func ackContainerImageIdentityReducerWorkBatchQuery(
-	now time.Time,
-	leaseOwner string,
-	intents []reducercontract.Intent,
-) (string, []any) {
-	type claimKey struct {
-		epoch     int64
-		claimedAt time.Time
-	}
-	idsByClaim := make(map[claimKey][]string)
-	for _, intent := range intents {
-		key := claimKey{epoch: intent.ClaimEpoch, claimedAt: claimedAtValue(intent)}
-		idsByClaim[key] = append(
-			idsByClaim[key],
-			intent.IntentID,
-		)
-	}
-	keys := make([]claimKey, 0, len(idsByClaim))
-	for key := range idsByClaim {
-		keys = append(keys, key)
-	}
-	sort.Slice(keys, func(i, j int) bool {
-		if keys[i].epoch != keys[j].epoch {
-			return keys[i].epoch < keys[j].epoch
-		}
-		return keys[i].claimedAt.Before(keys[j].claimedAt)
-	})
-
-	args := []any{now, leaseOwner}
-	predicates := make([]string, 0, len(keys))
-	for _, key := range keys {
-		idsPlaceholder := len(args) + 1
-		args = append(args, idsByClaim[key])
-		epochPlaceholder := len(args) + 1
-		args = append(args, key.epoch)
-		claimedAtPlaceholder := len(args) + 1
-		args = append(args, key.claimedAt)
-		predicates = append(predicates, fmt.Sprintf(
-			"(work_item_id = ANY($%d::text[]) AND container_image_identity_claim_epoch = $%d AND last_attempt_at = $%d)",
-			idsPlaceholder,
-			epochPlaceholder,
-			claimedAtPlaceholder,
-		))
-	}
-
-	return `
-WITH locked_work AS MATERIALIZED (
-    SELECT work_item_id
-    FROM fact_work_items
-    WHERE (` + strings.Join(predicates, " OR ") + `)
-      AND stage = 'reducer'
-      AND domain = 'container_image_identity'
-      AND lease_owner = $2
-      AND status IN ('claimed', 'running')
-	  AND claim_until > clock_timestamp()
-    ORDER BY work_item_id COLLATE "C"
-    FOR NO KEY UPDATE
-), acknowledged AS MATERIALIZED (
-UPDATE fact_work_items AS work
-SET status = 'succeeded',
-    provenance_edge_identity_upgrade_required = FALSE,
-    cross_scope_completion_ack_epoch = cross_scope_completion_ack_epoch + 1,
-    container_image_identity_v2_authorized_status = CASE
-        WHEN container_image_identity_v2_required
-            THEN 'succeeded'
-        ELSE ''
-    END,
-    container_image_identity_v3_authorized_status = CASE
-        WHEN container_image_identity_v3_required
-            THEN 'succeeded'
-        ELSE ''
-    END,
-    lease_owner = NULL,
-    claim_until = NULL,
-    visible_at = NULL,
-    updated_at = $1,
-    failure_class = NULL,
-    failure_message = NULL,
-    failure_details = NULL
-WHERE work.work_item_id IN (SELECT work_item_id FROM locked_work)
-  AND (SELECT count(*) FROM locked_work) > 0
-RETURNING work.work_item_id, work.status
-), emission_clock AS MATERIALIZED (
-    SELECT clock_timestamp() AS emitted_at
-), emitted AS (
-INSERT INTO cross_scope_completion_events (
-    producer_domain, producer_item_count, status,
-    visible_at, created_at, updated_at
-)
-SELECT 'container_image_identity', count(*)::BIGINT, 'pending',
-       emission_clock.emitted_at + INTERVAL '250 milliseconds',
-       emission_clock.emitted_at, emission_clock.emitted_at
-FROM acknowledged
-CROSS JOIN emission_clock
-WHERE acknowledged.status = 'succeeded'
-GROUP BY emission_clock.emitted_at
-ON CONFLICT (producer_domain) WHERE status IN ('pending', 'retrying') DO UPDATE SET
-    producer_item_count = cross_scope_completion_events.producer_item_count + EXCLUDED.producer_item_count,
-    visible_at = CASE
-        WHEN cross_scope_completion_events.status = 'retrying'
-            THEN cross_scope_completion_events.visible_at
-        ELSE LEAST(cross_scope_completion_events.created_at + INTERVAL '2 seconds', EXCLUDED.visible_at)
-    END,
-    updated_at = EXCLUDED.updated_at
-RETURNING 1
-)
-SELECT 1 FROM acknowledged
-`, args
 }
 
 func ackCICDRunCorrelationReducerWorkBatchQuery(

@@ -413,6 +413,104 @@ func metricHasAttrs(rm metricdata.ResourceMetrics, metricName string, attrs map[
 	return false
 }
 
+func TestShouldEmitIdentityCompletionGatesOnSupportChangedSignal(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name   string
+		result reducercontract.Result
+		want   bool
+	}{
+		{
+			name:   "absent signal fails open",
+			result: reducercontract.Result{},
+			want:   true,
+		},
+		{
+			name: "changed support set emits",
+			result: reducercontract.Result{
+				SubSignals: map[string]float64{SupportChangedSignal: 1},
+			},
+			want: true,
+		},
+		{
+			name: "unchanged support set suppresses",
+			result: reducercontract.Result{
+				CanonicalWrites: 3,
+				SubSignals:      map[string]float64{SupportChangedSignal: 0},
+			},
+			want: false,
+		},
+		{
+			name: "first empty publish still emits",
+			result: reducercontract.Result{
+				SubSignals: map[string]float64{SupportChangedSignal: 1},
+			},
+			want: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if got := ShouldEmitIdentityCompletion(test.result); got != test.want {
+				t.Fatalf("ShouldEmitIdentityCompletion() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestContainerImageIdentityHandlerForwardsSupportChangedSignal(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name           string
+		supportChanged bool
+		want           float64
+	}{
+		{name: "changed", supportChanged: true, want: 1},
+		{name: "unchanged", supportChanged: false, want: 0},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			reader := sdkmetric.NewManualReader()
+			provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+			inst, err := telemetry.NewInstruments(provider.Meter("test"))
+			if err != nil {
+				t.Fatalf("NewInstruments() error = %v", err)
+			}
+			loader := &stubContainerImageIdentityFactLoader{
+				scopeFacts: []facts.Envelope{
+					gitImageRefFact("git-tag", "registry.example.com/team/api:prod"),
+				},
+				active: []facts.Envelope{
+					ociTagFact("oci-tag", "prod", testContainerDigest, false, ""),
+				},
+			}
+			writer := &recordingContainerImageIdentityWriter{supportChanged: test.supportChanged}
+			handler := ContainerImageIdentityHandler{
+				FactLoader:  loader,
+				Writer:      writer,
+				Instruments: inst,
+			}
+			result, err := handler.Handle(context.Background(), reducercontract.Intent{
+				IntentID:     "intent-image-identity-signal",
+				ScopeID:      "repo:team-api",
+				GenerationID: "generation-git",
+				SourceSystem: "git",
+				Domain:       reducercontract.DomainContainerImageIdentity,
+				Cause:        "container image references observed",
+				AttemptCount: 7,
+				ClaimEpoch:   11,
+			})
+			if err != nil {
+				t.Fatalf("Handle() error = %v, want nil", err)
+			}
+			if got := result.SubSignals[SupportChangedSignal]; got != test.want {
+				t.Fatalf("SubSignals[%q] = %v, want %v", SupportChangedSignal, got, test.want)
+			}
+		})
+	}
+}
+
 func TestContainerImageIdentityCanonicalDecisionFilter(t *testing.T) {
 	t.Parallel()
 

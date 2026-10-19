@@ -15,11 +15,13 @@ func containerImageIdentityWriteResult(
 	canonicalWrites int,
 	retirementAttempts int,
 	legacyRowsDeleted int,
+	supportChanged bool,
 ) ContainerImageIdentityWriteResult {
 	return ContainerImageIdentityWriteResult{
 		CanonicalWrites:    canonicalWrites,
 		RetirementAttempts: retirementAttempts,
 		LegacyRowsDeleted:  legacyRowsDeleted,
+		SupportChanged:     supportChanged,
 		EvidenceSummary: fmt.Sprintf(
 			"wrote container image identity decisions %d attempted retirements %d legacy rows deleted %d",
 			canonicalWrites,
@@ -27,6 +29,46 @@ func containerImageIdentityWriteResult(
 			legacyRowsDeleted,
 		),
 	}
+}
+
+// SupportChangedSignal is the Result.SubSignals key carrying whether this
+// run's support-set publish changed the scope's durable support truth for
+// the identity completion ACK (#8284): the ACK emits a completion event
+// only when this signal is absent (unwired producers fail open, so a
+// missing gate never starves downstream consumers) or positive. Producers
+// report an explicit zero when the republished set is byte-identical to the
+// previous last_set_id so the ACK can tell "unchanged, suppress" from
+// "gate not wired".
+const SupportChangedSignal = "support_changed"
+
+// WithSupportChangedSignal sets SupportChangedSignal on an existing
+// SubSignals map, allocating one when the caller built none. The signal is
+// always explicit (even zero) for the reason above.
+func WithSupportChangedSignal(signals map[string]float64, changed bool) map[string]float64 {
+	if signals == nil {
+		signals = make(map[string]float64, 1)
+	}
+	if changed {
+		signals[SupportChangedSignal] = 1
+	} else {
+		signals[SupportChangedSignal] = 0
+	}
+	return signals
+}
+
+// ShouldEmitIdentityCompletion decides whether an identity ACK emits a
+// cross-scope completion event. Unlike the value-flow refresh gate
+// (affected.ShouldEmitRefresh), CanonicalWrites is deliberately not
+// consulted: the identity handler republishes the scope's complete support
+// set on every run, so a positive write count cannot tell a changed set
+// from a byte-identical replay — only the previous-last_set_id comparison
+// the writer reports through SupportChangedSignal can.
+func ShouldEmitIdentityCompletion(result reducercontract.Result) bool {
+	changed, ok := result.SubSignals[SupportChangedSignal]
+	if !ok {
+		return true
+	}
+	return changed > 0
 }
 
 type containerImageIdentityPublication struct {

@@ -222,6 +222,10 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent reduce
 	for key, value := range factdecode.InputInvalidSubSignals(quarantinedCount) {
 		subSignals[key] = value
 	}
+	// Always explicit, even zero: the identity ACK tells "unchanged support
+	// set, suppress the completion event" (#8284) apart from "producer ran
+	// before this gate existed, fail open".
+	subSignals = WithSupportChangedSignal(subSignals, writeResult.SupportChanged)
 	return reducercontract.Result{
 		IntentID: intent.IntentID,
 		Domain:   reducercontract.DomainContainerImageIdentity,

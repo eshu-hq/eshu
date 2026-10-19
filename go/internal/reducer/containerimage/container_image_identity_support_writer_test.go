@@ -399,24 +399,78 @@ func TestSupportWriterRejectsStalePublication(t *testing.T) {
 	}
 }
 
+func TestSupportWriterReportsPreviousLastSetComparison(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name           string
+		supportChanged bool
+	}{
+		{name: "changed set", supportChanged: true},
+		{name: "unchanged set", supportChanged: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			db := &recordingContainerImageIdentitySupportDB{claimValid: true, supportChanged: test.supportChanged}
+			writer := PostgresContainerImageIdentitySupportWriter{ClaimedExecer: db}
+			result, err := writer.WriteContainerImageIdentityDecisions(context.Background(), ContainerImageIdentityWrite{
+				IntentID:        "intent-8284",
+				ClaimEpoch:      7,
+				ActivationEpoch: 40,
+				ScopeID:         "repository:example",
+				GenerationID:    "generation-a",
+				SourceSystem:    "git",
+				EvidenceAsOf:    time.Unix(1_700_000_000, 0),
+				Decisions: []ContainerImageIdentityDecision{{
+					ImageRef:        "registry.example.com/team/app@sha256:bbbbbbbb",
+					Digest:          "sha256:bbbbbbbb",
+					RepositoryID:    "repository:example",
+					Outcome:         reducercontract.ContainerImageIdentityExactDigest,
+					CanonicalWrites: 1,
+				}},
+			})
+			if err != nil {
+				t.Fatalf("WriteContainerImageIdentityDecisions(): %v", err)
+			}
+			if result.SupportChanged != test.supportChanged {
+				t.Fatalf("SupportChanged = %v, want %v", result.SupportChanged, test.supportChanged)
+			}
+			for _, fragment := range []string{
+				"prev_support_set",
+				"IS DISTINCT FROM prev_support_set.last_set_id",
+				"support_changed",
+			} {
+				if !strings.Contains(db.execQuery, fragment) {
+					t.Errorf("publication SQL missing previous-last_set_id comparison %q", fragment)
+				}
+			}
+		})
+	}
+}
+
 type recordingContainerImageIdentitySupportDB struct {
 	execQuery       string
 	claimValid      bool
 	legacyDeleted   int
+	supportChanged  bool
 	supportJSON     string
 	activationEpoch int64
 }
 
-func (db *recordingContainerImageIdentitySupportDB) ExecContainerImageIdentityClaimed(
+func (db *recordingContainerImageIdentitySupportDB) ExecContainerImageIdentitySupportPublish(
 	_ context.Context,
 	query string,
 	args ...any,
-) (int, bool, error) {
+) (ContainerImageIdentitySupportPublishResult, error) {
 	db.execQuery = query
 	if len(args) == 17 {
 		db.supportJSON, _ = args[16].(string)
 	}
-	return db.legacyDeleted, db.claimValid, nil
+	return ContainerImageIdentitySupportPublishResult{
+		LegacyRowsDeleted: db.legacyDeleted,
+		ClaimValid:        db.claimValid,
+		SupportChanged:    db.supportChanged,
+	}, nil
 }
 
 func (db *recordingContainerImageIdentitySupportDB) ContainerImageIdentityActivationEpoch(

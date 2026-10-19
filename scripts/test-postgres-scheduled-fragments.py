@@ -20,13 +20,13 @@ class InventoryFragmentTest(unittest.TestCase):
     """The index and every listed fragment form one closed source contract."""
 
     def test_committed_index_and_all_six_new_groups(self) -> None:
-        """The reviewed inventory contains all 240 tests in 119 files."""
+        """The reviewed inventory contains all 242 tests in 119 files."""
         index = json.loads(runner.INVENTORY.read_text(encoding="utf-8"))
         self.assertEqual(index["version"], "postgres-scheduled-inventory/v1")
         self.assertEqual(len(index["fragments"]), 13)
         inventory = runner.load_inventory()
         self.assertEqual(len(inventory), 119)
-        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 240)
+        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 242)
         for group, files, tests in (
             ("claim", 13, 36), ("liveness", 7, 18), ("fanout", 3, 3),
             ("search", 5, 8), ("readiness", 4, 6),

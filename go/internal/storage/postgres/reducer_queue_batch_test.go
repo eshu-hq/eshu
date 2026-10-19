@@ -60,6 +60,7 @@ func TestAckBatchClearsProvenanceEdgeIdentityUpgradeFence(t *testing.T) {
 			Domain:     reducer.DomainContainerImageIdentity,
 			ClaimEpoch: 1,
 		}},
+		[]string{"container-upgrade"},
 	)
 	for name, query := range map[string]string{
 		"container image identity":   containerQuery,

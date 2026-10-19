@@ -134,10 +134,14 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 	if err != nil {
 		return ContainerImageIdentityWriteResult{}, err
 	}
+	// The legacy fact-rows writer cannot compare support sets, so it always
+	// announces (#8284): pre-gate emission behavior is preserved exactly on
+	// this path, and only the digest-v3 support publish suppresses.
 	result := containerImageIdentityWriteResult(
 		canonicalWrites,
 		retirementAttempts,
 		legacyRowsDeleted,
+		true,
 	)
 	result.effectiveDecisions = containerImageIdentityCanonicalDecisions(write.Decisions)
 	result.effectiveProjectionPresent = true
