@@ -56,7 +56,7 @@ func modIdentMaterialization() canonical.CanonicalMaterialization {
 
 // TestLiveCanonicalModuleIdentityIsNameAndLanguage proves that the canonical
 // import-graph Module node is identified by (name, language), not by name
-// alone, on the pinned NornicDB backend.
+// alone, on the pinned NornicDB or Neo4j backend.
 //
 // Before this was fixed, phase F MERGEd on `{name}` and phase G matched on
 // `{name}` too, so ONE global node existed per module name across every
@@ -70,7 +70,7 @@ func modIdentMaterialization() canonical.CanonicalMaterialization {
 // and w.buildStructuralEdgeStatements -- not hand-written Cypher, so reverting
 // either statement constant turns it red.
 //
-// Gate: ESHU_CYPHER_BOLT_DSN must point at a NornicDB backend.
+// Gate: ESHU_CYPHER_BOLT_DSN must point at a NornicDB or Neo4j backend.
 func TestLiveCanonicalModuleIdentityIsNameAndLanguage(t *testing.T) {
 	runner := openBoltTestRunner(t)
 	t.Cleanup(func() { runner.close(context.Background()) })
@@ -87,10 +87,15 @@ func TestLiveCanonicalModuleIdentityIsNameAndLanguage(t *testing.T) {
 	cleanup()
 	t.Cleanup(cleanup)
 
-	// The Module MERGE is anchored by the same schema index production uses.
-	if err := boltWriteStatement(ctx, runner,
-		"CREATE INDEX module_name_lookup IF NOT EXISTS FOR (m:Module) ON (m.name)", nil); err != nil {
-		t.Fatalf("create module name index: %v", err)
+	// The Module MERGE is anchored by the same schema constraint production
+	// uses, and the name reads below by the same index.
+	for _, ddl := range []string{
+		"CREATE CONSTRAINT module_import_key IF NOT EXISTS FOR (m:Module) REQUIRE m.import_key IS UNIQUE",
+		"CREATE INDEX module_name_lookup IF NOT EXISTS FOR (m:Module) ON (m.name)",
+	} {
+		if err := boltWriteStatement(ctx, runner, ddl, nil); err != nil {
+			t.Fatalf("apply %q: %v", ddl, err)
+		}
 	}
 	if err := boltWriteStatement(ctx, runner,
 		`CREATE (:File {path: $go_path, language: 'go', lang: 'go', evidence_source: 'projector/canonical'}),
@@ -159,14 +164,15 @@ func TestLiveCanonicalModuleIdentityIsNameAndLanguage(t *testing.T) {
 	}
 }
 
-// TestLiveCanonicalModuleIdentityReadoptsExistingLanguagedNode proves the
-// upgrade path for an already-indexed deployment. A Module node written by the
-// pre-fix writer carries {name, lang} already (the old writer always SET lang,
-// even to the empty string), so the new (name, language) MERGE key MATCHES it
-// rather than orphaning it. Only a node whose stamped language no longer
+// TestLiveCanonicalModuleIdentityReadoptsBackfilledNode proves the upgrade
+// path for an already-indexed deployment. A Module node written by an earlier
+// writer carries {name, lang} but no import_key; the bootstrap-data-plane
+// migration keys it (#8168) before any new writer starts. The new import_key
+// MERGE then MATCHES that node rather than minting a second one beside it, and
+// leaves its properties alone. Only a node whose stamped language no longer
 // matches any importer is left behind, and that node stays visible to the
 // #5327 orphan sweep, which owns exactly this node class.
-func TestLiveCanonicalModuleIdentityReadoptsExistingLanguagedNode(t *testing.T) {
+func TestLiveCanonicalModuleIdentityReadoptsBackfilledNode(t *testing.T) {
 	runner := openBoltTestRunner(t)
 	t.Cleanup(func() { runner.close(context.Background()) })
 	ctx := context.Background()
@@ -182,11 +188,10 @@ func TestLiveCanonicalModuleIdentityReadoptsExistingLanguagedNode(t *testing.T) 
 	cleanup()
 	t.Cleanup(cleanup)
 
-	// Exactly what the pre-fix writer left behind: one global node per name,
-	// stamped with whichever language happened to be projected first.
+	// What an earlier writer left behind once the migration keyed it.
 	if err := boltWriteStatement(ctx, runner,
-		`CREATE (:Module {name: $name, lang: 'go', evidence_source: 'projector/canonical'})`,
-		map[string]any{"name": modIdentModuleName}); err != nil {
+		`CREATE (:Module {name: $name, lang: 'go', import_key: $key, evidence_source: 'projector/canonical'})`,
+		map[string]any{"name": modIdentModuleName, "key": CanonicalModuleImportKey(modIdentModuleName, "go")}); err != nil {
 		t.Fatalf("seed legacy module: %v", err)
 	}
 	if err := boltWriteStatement(ctx, runner,
@@ -204,7 +209,7 @@ func TestLiveCanonicalModuleIdentityReadoptsExistingLanguagedNode(t *testing.T) 
 		}
 	}
 
-	// Two nodes, not three: the legacy Go node was re-adopted, and only the
+	// Two nodes, not three: the keyed Go node was re-adopted, and only the
 	// Python module is new.
 	count, err := boltCount(ctx, runner,
 		`MATCH (m:Module {name: $name}) RETURN count(m) AS count`,
@@ -214,7 +219,7 @@ func TestLiveCanonicalModuleIdentityReadoptsExistingLanguagedNode(t *testing.T) 
 	}
 	if count != 2 {
 		t.Fatalf("Module %q node count after upgrade: got %d, want 2 "+
-			"(the legacy lang=go node re-adopted, plus a new lang=python node)",
+			"(the keyed lang=go node re-adopted, plus a new lang=python node)",
 			modIdentModuleName, count)
 	}
 }

@@ -60,8 +60,9 @@ builds them by running the production `SemanticEntityWriter` for that backend
 through a recording executor, so each lane executes its real statements. The
 reads in `DefaultReadCorpus` then pin one outcome for both lanes: a Module row
 whose File is absent creates no Module; a present File yields one contained,
-uid-bearing Module; and a later canonical import `MERGE (m:Module {name, lang})`
-leaves a uid-NULL node. `go/cmd/reducer` pins the mirrored writer choice to the
+uid-bearing Module; and a later canonical import upsert
+(`MERGE (m:Module {import_key})`, #8168) leaves a uid-NULL node, read back on
+its import_key. `go/cmd/reducer` pins the mirrored writer choice to the
 reducer's own wiring.
 
 When a backend does not give the correct rows today, a read case can carry a
@@ -69,7 +70,9 @@ When a backend does not give the correct rows today, a read case can carry a
 the rows the backend actually returns and must name its tracking issue in
 `Divergence`. `RunReadCorpusFor(backend)` holds that backend to the pin and
 every other backend to `WantRows`, so both lanes stay deterministic. The
-NornicDB semantic Module pins sit under #6968. Both lanes were observed live
+NornicDB absent-file semantic Module pin sits under #6968; the canonical-import
+pin was removed by #8168, because the import_key MERGE no longer binds the
+stray semantic node. Both lanes were observed live
 returning exactly these rows; the reasoning, the commands, and the images are
 in `evidence-notes.md`.
 

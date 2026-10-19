@@ -240,24 +240,6 @@ func (w *CanonicalNodeWriter) buildFileStatementsForRows(rows []map[string]any, 
 	return stmts
 }
 
-// --- Phase F: Modules ---
-
-func (w *CanonicalNodeWriter) buildModuleStatements(mat canonical.CanonicalMaterialization) []Statement {
-	if len(mat.Modules) == 0 {
-		return nil
-	}
-
-	rows := make([]map[string]any, len(mat.Modules))
-	for i, m := range mat.Modules {
-		rows[i] = map[string]any{
-			"name":     m.Name,
-			"language": m.Language,
-		}
-	}
-
-	return BuildBatchedStatements(node.ModuleUpsertCypher, rows, w.batchSize)
-}
-
 // --- Phase G: Structural edges ---
 
 func (w *CanonicalNodeWriter) buildStructuralEdgeStatements(mat canonical.CanonicalMaterialization) []Statement {
@@ -285,34 +267,10 @@ func (w *CanonicalNodeWriter) buildStructuralEdgeStatements(mat canonical.Canoni
 	// earlier this phase. No-op for repos with no Helm charts.
 	stmts = append(stmts, helmTemplateValueEdgeStatements(mat)...)
 
-	// IMPORTS edges
-	if len(mat.Imports) > 0 {
-		rows := make([]map[string]any, len(mat.Imports))
-		for i, imp := range mat.Imports {
-			rows[i] = map[string]any{
-				"file_path": imp.FilePath,
-				// module_name and module_language together resolve the target
-				// Module node; see node.ImportEdgeCypher.
-				"module_name":     imp.ModuleName,
-				"module_language": imp.ModuleLanguage,
-				"imported_name":   imp.ImportedName,
-				"alias":           imp.Alias,
-				"line_number":     imp.LineNumber,
-				"generation_id":   mat.GenerationID,
-				// The importing file's own package: Go import path (#7347),
-				// owning npm package name (#7348), or owning Java package
-				// (#7349).
-				// Always present as an explicit string so the SET overwrites
-				// a stale package after the file moved packages.
-				"source_package": imp.SourcePackage,
-				// The parser's import flags, folded per edge. Always present as
-				// explicit booleans so the SET overwrites a stale true.
-				"type_only": imp.TypeOnly,
-				"deferred":  imp.Deferred,
-				"inferred":  imp.Inferred,
-			}
-		}
-		stmts = append(stmts, BuildBatchedStatements(node.ImportEdgeCypher, rows, w.batchSize)...)
+	// IMPORTS edges, in the shared Module lock order; see
+	// canonicalImportEdgeRows.
+	if rows := canonicalImportEdgeRows(mat); len(rows) > 0 {
+		stmts = append(stmts, BuildBatchedStatements(canonicalNodeImportEdgeCypher, rows, w.batchSize)...)
 	}
 
 	// HAS_PARAMETER edges

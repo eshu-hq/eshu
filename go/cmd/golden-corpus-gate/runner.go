@@ -249,6 +249,8 @@ func runGraph(ctx context.Context, o options, getenv func(string) string, snap S
 		return fmt.Errorf("resolve graph backend for the anchor census: %w", err)
 	}
 	checkAnchorCensus(ctx, counter, backend == runtimecfg.GraphBackendNeo4j, r)
+	// The #8168 Module identity invariant reads the same replayed graph.
+	checkModuleIdentity(ctx, counter, backend == runtimecfg.GraphBackendNeo4j, r)
 	return nil
 }
 

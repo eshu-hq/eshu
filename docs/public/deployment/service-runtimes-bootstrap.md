@@ -263,6 +263,15 @@ accepting that they keep writing until they are replaced:
   bootstrap-index run that overlaps schema bootstrap keeps writing across the
   new marker, the same way the long-lived runtimes do.
 
+The Module `import_key` change (#8168) is such an upgrade on Neo4j, and it
+does not wait for you: its migration fails while an old writer still creates
+(name, lang) Module nodes. The marker stays unset and nothing is lost, but the
+schema Job fails on every retry until those writers stop. Its error and the
+`bootstrap.graph.module_import_key.incomplete` log carry the counts and point
+here. Stop the writers above, then rerun bootstrap. A direct
+`eshu-bootstrap-index` run on a populated graph with no marker refuses to mark
+it until `eshu-bootstrap-data-plane` has migrated the Modules.
+
 The infra read model (#6793) does not rely on this ordering. Migration 109
 fences writers at the database: a content write from a binary that does not
 maintain the read model marks its repository, the infra aggregate routes serve

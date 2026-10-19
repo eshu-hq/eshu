@@ -74,7 +74,7 @@ func TestAdoptionRunsTheInfraSearchKeyGateBeforeTheMarker(t *testing.T) {
 	for range graph.InfraSearchKeyLabels() {
 		want = append(want, "backfill")
 	}
-	want = append(want, "await_index", "index_state")
+	want = append(want, "await_index", "index_state", "module_collapse", "module_repoint", "module_verify")
 	if strings.Join(events, ",") != strings.Join(want, ",") {
 		t.Fatalf("events = %v, want %v before the adoption marker", events, want)
 	}

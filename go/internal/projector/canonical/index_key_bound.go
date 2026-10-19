@@ -16,13 +16,24 @@ import "github.com/eshu-hq/eshu/go/internal/graph"
 // every graph write) covers every other label and indexed property.
 const MaxIndexedKeyBytes = graph.MaxIndexKeyBytes
 
+// ModuleImportKey returns the identity key of the canonical import-graph
+// Module for name and language, name + "@" + language (#8168). The graph
+// writer MERGEs Module on it under the module_import_key uniqueness
+// constraint, and it equals the IMPORTS target_id the relationships catalog
+// publishes. An empty language keeps the separator ("index@"). It is the
+// Module's widest index key, so DropOversizedIndexKeys measures it.
+func ModuleImportKey(name, language string) string {
+	return name + "@" + language
+}
+
 // OversizedIndexKey records one node row DropOversizedIndexKeys removed
 // because its indexed key exceeded MaxIndexedKeyBytes.
 type OversizedIndexKey struct {
 	// Label is the graph node label the row would have written, for example
 	// "Module", "Function", or "Parameter". It is a closed set.
 	Label string
-	// Property is the largest indexed property in the key: "name" or "path".
+	// Property is the largest indexed property in the key: "name", "path", or
+	// "import_key" for Module.
 	Property string
 	// KeyBytes is the UTF-8 byte length of the measured key.
 	KeyBytes int
@@ -40,7 +51,7 @@ type OversizedIndexKey struct {
 // MaxIndexedKeyBytes and returns the reduced materialization plus one record
 // per removed node row.
 //
-// Node rows checked: Module (name), entities (name plus path, the node-key
+// Node rows checked: Module (import_key, which contains the name), entities (name plus path, the node-key
 // constraint shape), and Parameter (name plus path). Edge rows that MATCH an
 // oversized key (IMPORTS, HAS_PARAMETER, class and nested CONTAINS) are dropped
 // with them so they cannot attach to a stale node carrying the same value, but
@@ -53,11 +64,12 @@ func DropOversizedIndexKeys(mat CanonicalMaterialization) (CanonicalMaterializat
 	var dropped []OversizedIndexKey
 
 	mat.Modules = filterRows(mat.Modules, func(m ModuleRow) bool {
-		if len(m.Name) <= MaxIndexedKeyBytes {
+		key := ModuleImportKey(m.Name, m.Language)
+		if len(key) <= MaxIndexedKeyBytes {
 			return true
 		}
 		dropped = append(dropped, OversizedIndexKey{
-			Label: "Module", Property: "name", KeyBytes: len(m.Name), ValuePrefix: graph.IndexValuePrefix(m.Name),
+			Label: "Module", Property: "import_key", KeyBytes: len(key), ValuePrefix: graph.IndexValuePrefix(key),
 		})
 		return false
 	})
@@ -76,7 +88,7 @@ func DropOversizedIndexKeys(mat CanonicalMaterialization) (CanonicalMaterializat
 		return !nameAndPathOversized(p.FunctionName, p.FilePath)
 	})
 	mat.Imports = filterRows(mat.Imports, func(i ImportRow) bool {
-		return len(i.ModuleName) <= MaxIndexedKeyBytes
+		return len(ModuleImportKey(i.ModuleName, i.ModuleLanguage)) <= MaxIndexedKeyBytes
 	})
 	mat.ClassMembers = filterRows(mat.ClassMembers, func(c ClassMemberRow) bool {
 		return !nameAndPathOversized(c.ClassName, c.FilePath) && !nameAndPathOversized(c.FunctionName, c.FilePath)

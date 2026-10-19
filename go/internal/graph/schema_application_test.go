@@ -21,58 +21,21 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			name:        "neo4j",
 			backend:     SchemaBackendNeo4j,
 			fingerprint: graphSchemaNeo4jFingerprint,
-			// Exactly one predecessor: the #6541 directory_repo_id index is a
-			// read-side addition, so a writer on the schema immediately before
-			// it writes the identical graph and stays admitted.
-			//
-			// That predecessor is the #6102 Module (name, lang) identity
-			// cutover tip, and the chain stops there. The cutover changed what
-			// canonical writers MERGE on, so no writer older than it may write
-			// against this schema: an older one resolves an import-edge target
-			// by module name alone and binds whichever language node it finds.
-			// What that schema itself admitted is retained under
-			// graphSchemaNeo4jPreModuleIdentityFingerprint and asserted by
-			// TestPreModuleIdentitySchemaApplicationCarriesTheChainItAdmitted.
-			//
-			// #6793 adds the tf_module/tf_output evidence_source indexes, also
-			// read-side only, so the writer on the schema just before them and
-			// the one before that stay admitted. #7057 adds Neo4j-only uid
-			// indexes on Rationale and DocumentationSection, which change no
-			// write identity, so the #6793 tip stays admitted as well. NornicDB
-			// does not get those indexes, so its fingerprint and list are
-			// unchanged. #7095 drops the Neo4j uniqueness constraints narrower
-			// than the canonical uid identity and adds three path indexes; no
-			// write identity changes, so the #7057 tip stays admitted, and
-			// NornicDB is again unchanged. #7675 swaps the Neo4j full-text
-			// DDL text to the modern form for the same two indexes (same
-			// names, labels, properties); no write identity changes, so the
-			// #7095 tip stays admitted, and NornicDB is again unchanged.
-			// #7245 adds the Neo4j-only infra_search_key_ft FULLTEXT index;
-			// no write identity changes and nothing reads the key in that
-			// release, so the #7675 tip stays admitted, and NornicDB is again
-			// unchanged.
-			compatible: []string{
-				graphSchemaNeo4jPreInfraSearchKeyIndexesFingerprint,
-				graphSchemaNeo4jPreFulltextModernFormFingerprint,
-				graphSchemaNeo4jPreRetiredNarrowConstraintsFingerprint,
-				graphSchemaNeo4jPreUnconstrainedUIDIndexFingerprint,
-				graphSchemaNeo4jPreInfraEvidenceSourceIndexFingerprint,
-				graphSchemaNeo4jPreDirectoryRepoIDIndexFingerprint,
-			},
+			// No predecessor: #8168 moved the canonical Module identity from
+			// (name, lang) to import_key, so every older writer MERGEs a
+			// second node beside each canonical one and must be refused. What
+			// the previous tip admitted (the additive #6541..#7245 chain since
+			// the #6102 cutover) stays recorded under
+			// graphSchemaNeo4jPreModuleImportKeyFingerprint and is asserted by
+			// TestPreModuleImportKeyApplicationsRetainTheirAdditiveChain.
+			compatible: []string{},
 		},
 		{
 			name:        "nornicdb",
 			backend:     SchemaBackendNornicDB,
 			fingerprint: graphSchemaNornicDBFingerprint,
-			// #7097 drops the three single-property uniqueness constraints
-			// narrower than the canonical uid identity on NornicDB and adds
-			// no statement, so no write identity changes and the previous tip
-			// stays admitted.
-			compatible: []string{
-				graphSchemaNornicDBPreRetiredNarrowConstraintsFingerprint,
-				graphSchemaNornicDBPreInfraEvidenceSourceIndexFingerprint,
-				graphSchemaNornicDBPreDirectoryRepoIDIndexFingerprint,
-			},
+			// No predecessor, for the same #8168 import_key cutover.
+			compatible: []string{},
 		},
 	}
 

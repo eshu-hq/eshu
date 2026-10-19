@@ -86,8 +86,11 @@ func TestSemanticModuleAbsentFileReadWantsNoRows(t *testing.T) {
 	if _, ok := imp.Overrides[BackendNeo4j]; ok {
 		t.Fatalf("import case overrides neo4j; only the backend that diverges may be pinned")
 	}
-	if o, ok := imp.Overrides[BackendNornicDB]; !ok || !strings.HasPrefix(o.Divergence, "#6968") {
-		t.Fatalf("import NornicDB override = %#v, want one pinned under #6968", imp.Overrides)
+	// #8168: the canonical MERGE keys on import_key, which the stray semantic
+	// node never carries, so NornicDB creates the uid-NULL node too and the
+	// #6968 override on this read is gone.
+	if len(imp.Overrides) != 0 {
+		t.Fatalf("import case overrides = %#v, want none: both backends create the canonical node", imp.Overrides)
 	}
 }
 

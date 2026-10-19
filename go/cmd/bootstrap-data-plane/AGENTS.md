@@ -34,6 +34,17 @@
   creating `infra_search_key_ft` over a key past the cap fails the index
   (#7245). Adoption runs the same gate (`infraSearchKeyAdoptionGate`) before
   its marker; never let adoption mark a Neo4j schema without it.
+- **Module import_key migration (Neo4j)** — `migrateModuleImportKeys` runs
+  after the graph DDL (which creates `module_import_key`) and the infra search
+  key backfill, before `markGraphSchemaApplied`, and adoption runs it through
+  `neo4jAdoptionGate` (#8168). Keep collapse and keying in one per-group step:
+  keying before collapsing would hit the constraint on a duplicate. Never
+  write the marker while the verify reports an unkeyed canonical Module, and
+  never read a malformed verify answer as zero
+  (`ParseCanonicalModuleImportKeyPending`). Nothing fences the previous
+  release's writers while it runs; do not document a fence. The incomplete
+  error must keep telling the operator to stop them
+  (`TestModuleImportKeyIncompleteErrorNamesTheWriterPrecondition`).
 - **Write session only** — `neo4jSchemaExecutor` always opens a session with
   `AccessModeWrite`; it must not be pointed at a read replica. Enforced at
   `main.go:226`.

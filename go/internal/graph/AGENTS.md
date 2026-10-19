@@ -56,8 +56,12 @@
 - **BatchMergeRelationships row homogeneity** — `SourceLabel`, `TargetLabel`,
   and `RelType` are read from `rows[0]` at `batch.go:208`. Mixed-type rows
   must be split before calling.
-- **Module index not constraint** — `schema.go:57` uses `CREATE INDEX` for
-  `Module` nodes. Do not convert it to a uniqueness constraint.
+- **Module constraint is import_key only** — `schema_tables.go` constrains
+  `Module.import_key` (`module_import_key`, #8168) and keeps
+  `module_name_lookup` as a plain index. Only canonical import-graph nodes
+  carry `import_key`; semantic Module entities share the label, carry
+  `name` and `lang`, and may repeat them. Never add a uniqueness constraint on
+  `name` or `(name, lang)`, and never set `import_key` on a semantic node.
 - **File has two stable identities** — `schema.go:36` keeps `File.path` as the
   canonical merge key, while `schema.go:147` includes `File` so shared
   code-call projection can match file endpoints by repo-scoped `uid`.
@@ -156,10 +160,11 @@
   → fix: validate the entity type string before passing it as a label.
 
 - Symptom: `ConstraintValidationFailed` on `Module` nodes in Neo4j →
-  cause: someone added a uniqueness constraint for `Module` where the index
-  already exists → fix: remove the constraint; `Module` must stay as an
-  index because repos share module names like `consts` or `index`
-  (`schema.go:57`).
+  cause: someone added a uniqueness constraint on `Module.name` or
+  `(name, lang)` → fix: remove it; semantic Module entities share module
+  names like `consts` or `index`. Only `module_import_key` constrains Module.
+  A `module_import_key` violation itself means a writer set `import_key`
+  outside `CanonicalModuleRows` or a semantic node gained one.
 
 - Symptom: `EnsureSchemaWithBackend` logs warnings but returns nil →
   cause: one or more individual DDL statements failed (schema already exists

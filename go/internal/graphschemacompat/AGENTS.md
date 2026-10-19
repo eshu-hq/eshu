@@ -166,11 +166,12 @@ review was right that `CanonicalNodeWriter` never references the label, and
 exits 1 with no output. Both `Environment` writers in the table are unfenced, so
 that cutover has no fenced side at all.
 
-The #6102 Module cutover is unaffected: no unfenced writer keys a Module node on
-name. `MERGE (m:Module {name, lang})` belongs to `CanonicalNodeWriter`, the
-reducer's only Module upsert MERGEs on `uid` (an identity this cutover did not
-move, and one the uid uniqueness constraint records as real DDL), and the orphan
-sweep already keys Module on `(name, lang)`.
+The #6102 and #8168 Module cutovers are unaffected: no unfenced writer keys a
+Module node on name or import_key. `MERGE (m:Module {import_key})` belongs to
+`CanonicalNodeWriter`, the reducer's only Module upsert MERGEs on `uid` (an
+identity these cutovers did not move, and one the uid uniqueness constraint
+records as real DDL), and the orphan sweep keys canonical Module on
+`(name, lang)`, which every keyed node still carries.
 
 A future cutover on a label a reducer writer MERGEs on gets no such protection -
 those pods would be checked at startup only and keep writing through the

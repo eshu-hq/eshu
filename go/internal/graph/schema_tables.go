@@ -33,20 +33,25 @@ var schemaConstraints = []string{
 	"CREATE CONSTRAINT interface_unique IF NOT EXISTS FOR (i:Interface) REQUIRE (i.name, i.path, i.line_number) IS UNIQUE",
 	"CREATE CONSTRAINT macro_unique IF NOT EXISTS FOR (m:Macro) REQUIRE (m.name, m.path, m.line_number) IS UNIQUE",
 	"CREATE CONSTRAINT variable_unique IF NOT EXISTS FOR (v:Variable) REQUIRE (v.name, v.path, v.line_number) IS UNIQUE",
-	// Module uses a regular index instead of a uniqueness constraint because
-	// the canonical import-graph path MERGEs on (name, lang) (globally shared
-	// across repositories) while the semantic entity path MERGEs on uid
-	// (per-repo). A global name uniqueness constraint causes
-	// ConstraintValidationFailed when multiple repos share module names like
-	// "consts" or "index", and a (name, lang) uniqueness constraint would fail
-	// the same way on the semantic nodes, which carry both properties too.
+	// Module carries two identities on one label. The canonical import-graph
+	// path MERGEs on import_key (name + "@" + lang, globally shared across
+	// repositories) while the semantic entity path MERGEs on uid (per-repo).
+	// A name or (name, lang) uniqueness constraint fails on the semantic
+	// nodes, which carry both properties and may share them (repos share
+	// module names like "consts" or "index"). Semantic nodes carry no
+	// import_key, so module_import_key constrains only canonical nodes.
 	//
-	// This single-property index is what keeps the canonical (name, lang)
-	// MERGE on the backend's schema lookup path. NornicDB's findMergeNode
-	// tries an exact composite index, then a unique constraint, then the
-	// smallest single-property index candidate set, and only scans the label
-	// when none matched: the name index serves the anchor and lang is compared
-	// on the candidates.
+	// module_import_key is what makes the concurrent canonical MERGE safe
+	// (#8168): without it two writers MERGEing the same key at once each
+	// create a node, measured at 99 of 100 iterations on the pinned Neo4j.
+	// It is single-property, so NornicDB applies it too (composite IS UNIQUE
+	// forms are dropped for NornicDB), and NornicDB's findMergeNode resolves
+	// the MERGE through it as a unique constraint. A populated Neo4j graph
+	// needs its existing canonical duplicates collapsed and its nodes keyed
+	// before writers start; bootstrap-data-plane runs that migration.
+	"CREATE CONSTRAINT module_import_key IF NOT EXISTS FOR (m:Module) REQUIRE m.import_key IS UNIQUE",
+	// module_name_lookup serves name reads (code import queries, the orphan
+	// sweep's (name, lang) key, conformance reads).
 	//
 	// A composite (name, lang) index is not an option here, and the reason is
 	// not preference. On the pinned backend a two-property CREATE INDEX is

@@ -108,6 +108,63 @@ does not show `ONLINE`.
 NornicDB runs none of this. Recovery:
 the runbook in `go/internal/graph/README.md`.
 
+## Module import_key migration (#8168)
+
+On Neo4j only, after the infra search key backfill and before the marker,
+`migrateModuleImportKeys` keys the canonical import-graph Module nodes an
+earlier release wrote. Those writers MERGEd Module on (name, lang) with no
+uniqueness constraint, so a populated graph can hold duplicate nodes per
+module, none of which carry `import_key`. The graph DDL has already created
+the `module_import_key` constraint (no node carries the property yet, so it
+cannot fail). Then three plain-Cypher statements run, each bounded by
+`ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT` and committing in batches with
+`CALL { } IN TRANSACTIONS`:
+
+1. Collapse and key. One row per `(name, coalesce(lang, ''))` that still has
+   an unkeyed canonical node (`uid IS NULL`). The group keeps one node (an
+   already-keyed node first, else the lowest `elementId`), keys it, moves the
+   other nodes' incoming IMPORTS edges onto it (an edge the keeper already has
+   from that file keeps its own properties), and deletes the others. Keying
+   and collapsing in one per-group step means the constraint never rejects
+   the key, and a node a writer created after an interrupted run is folded in.
+2. Re-point. Every IMPORTS edge on a uid-bearing (semantic) Module, left by the
+   old (name, lang) MERGE adopting it, moves onto the canonical node for that
+   name and language, created if missing. The semantic node and its CONTAINS
+   edges are not touched.
+3. Verify. Any unkeyed canonical node or remaining IMPORTS edge on a semantic
+   Module fails the run and leaves the marker unset.
+
+Every step skips what is already migrated, so a rerun resumes and a clean
+rerun writes nothing. Step 1 also sets the keeper's `lang` to the group's
+language, so a legacy node written with no `lang` ends with `lang = ''`, the
+value the writer gives a new node for that key. Schema adoption runs the same
+migration before its marker (`neo4jAdoptionGate`).
+
+**Precondition: stop the previous release's writers first.** Nothing fences
+them while the migration runs. The Helm schema Job is a pre-upgrade hook, so
+the outgoing ingester, projector, and resolution engine pods keep writing
+(name, lang) Module nodes until an operator scales them down, and an active
+`eshu-bootstrap-index` keeps writing until it finishes. The fingerprint
+refuses an old writer only after the marker is written: at its startup, or at
+the write path's next recheck (`graphschemacompat.DefaultWriteFenceInterval`,
+30 s). While one still runs, the verify step fails on every rerun. That is
+safe: the marker stays unset and nothing is lost. The ERROR log
+`bootstrap.graph.module_import_key.incomplete` and the returned error carry
+both counts, the instruction to stop those writers, and the procedure in
+[Deployment Contract](../../../docs/public/deployment/service-runtimes-bootstrap.md#deployment-contract).
+Stop or scale them to zero, then rerun bootstrap.
+
+A writer on the new fingerprint starts only after the marker is written, so
+it never meets an unkeyed canonical node. `eshu-bootstrap-index` applies the
+schema itself when the marker is missing; on Neo4j it runs the same verify
+statement first and refuses to write the marker over unmigrated Modules,
+naming this binary. Lock scope is one batch. Rollback: `DROP CONSTRAINT
+module_import_key IF EXISTS` plus the previous release; `import_key` stays on
+the nodes and is harmless to it. The collapse is destructive (duplicate
+canonical nodes are deleted after their edges move) and was approved for
+canonical duplicates only. NornicDB is not supported for deployment and gets
+no populated-store migration; a fresh NornicDB graph needs none.
+
 ## Telemetry
 
 Uses the shared telemetry bootstrap and the structured logger scoped to
@@ -129,7 +186,15 @@ probe refuses, `bootstrap.graph.infra_search_key.label_backfilled` per label
 `bootstrap.graph.infra_search_key.backfilled` once, and
 `bootstrap.graph.infra_search_key.index_state` (`state`,
 `population_percent`, and `await_error` when the wait errored), plus `bootstrap.graph.infra_search_key.index_failed`
-(ERROR) for a `FAILED` index.
+(ERROR) for a `FAILED` index. The Module migration emits
+`bootstrap.graph.module_import_key.migrated` (`keyed_groups`,
+`imports_on_duplicates`, `deleted_duplicates`, `repointed_imports`,
+`unkeyed_remaining`, `adopted_imports_remaining`, `duration_seconds`), or
+`bootstrap.graph.module_import_key.incomplete` (ERROR, the same fields plus
+`runbook`) when the verify refuses the marker. `imports_on_duplicates` counts
+the IMPORTS edges found on the deleted duplicates; each was moved to the
+keeper or folded into the keeper's own edge from that file, so it is not a
+count of edges created.
 With adoption-only enabled, an incomplete catalog also returns a bounded
 refusal error; `runtime.startup.failed` records that error at the top level.
 Postgres bootstrap uses this runtime's structured logger for each started and

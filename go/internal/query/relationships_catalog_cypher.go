@@ -331,8 +331,11 @@ func coalesceExpr(variable string, properties []string) string {
 //     because otherwise a target with only a path projects "<nil>@" instead of
 //     falling through the coalesce to t.path.
 //
-// A semantic Module adopted by the canonical MERGE carries a uid and still
-// resolves to it, so that value is unchanged.
+// An IMPORTS target is always a canonical Module (#8168): it carries no uid,
+// so it resolves to name@lang, the same string as its import_key. The
+// canonical writer no longer binds a uid-bearing semantic Module, and the
+// bootstrap migration moved the IMPORTS edges an older writer hung on one, so
+// t.uid no longer decides a Module target_id.
 const importsTargetIdentityExpr = "coalesce(t.id, t.uid, " +
 	"CASE WHEN t.name IS NULL THEN NULL ELSE t.name + '@' + coalesce(t.lang, '') END, " +
 	"t.path)"

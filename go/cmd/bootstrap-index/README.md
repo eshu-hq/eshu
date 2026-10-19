@@ -146,8 +146,8 @@ main -> run
   runtimecfg.ConfigureMemoryLimit -> telemetry.RecordGOMEMLIMIT
   openBootstrapDB (runtimecfg.OpenPostgres)
   applySchema (postgres.ApplyBootstrap — idempotent DDL)
-  ensureBootstrapGraphSchema (verify marker; apply strict graph schema only
-    when a direct bootstrap-index run finds the marker missing)
+  ensureBootstrapGraphSchema (verify marker; if missing: strict DDL, on Neo4j
+    refuse unmigrated #8168 Modules (run bootstrap-data-plane), then mark)
   openBootstrapGraph (openBootstrapCanonicalWriter)
   buildBootstrapCollector (GitSource + IngestionStore)
   buildBootstrapProjector (projector.Runtime + queue deps)

@@ -144,11 +144,11 @@ func TestEnsureBootstrapGraphSchemaAppliesAndMarksMissingMarker(t *testing.T) {
 		database,
 		func(string) string { return "" },
 		nil,
-		func(context.Context, func(string) string) (graph.SchemaBackend, graph.CypherExecutor, func() error, error) {
-			return graph.SchemaBackendNornicDB, executor, func() error {
+		func(context.Context, func(string) string) (bootstrapGraphSchema, error) {
+			return bootstrapGraphSchema{backend: graph.SchemaBackendNornicDB, executor: executor, close: func() error {
 				closed = true
 				return nil
-			}, nil
+			}}, nil
 		},
 	)
 	if err != nil {
@@ -181,9 +181,9 @@ func TestEnsureBootstrapGraphSchemaRejectsIncompatibleMarkerWithoutOpeningGraph(
 		database,
 		func(string) string { return "" },
 		nil,
-		func(context.Context, func(string) string) (graph.SchemaBackend, graph.CypherExecutor, func() error, error) {
+		func(context.Context, func(string) string) (bootstrapGraphSchema, error) {
 			opened = true
-			return "", nil, nil, nil
+			return bootstrapGraphSchema{}, nil
 		},
 	)
 	if err == nil {
@@ -208,8 +208,8 @@ func TestEnsureBootstrapGraphSchemaDoesNotMarkAfterApplyFailure(t *testing.T) {
 		database,
 		func(string) string { return "" },
 		nil,
-		func(context.Context, func(string) string) (graph.SchemaBackend, graph.CypherExecutor, func() error, error) {
-			return graph.SchemaBackendNornicDB, executor, func() error { return nil }, nil
+		func(context.Context, func(string) string) (bootstrapGraphSchema, error) {
+			return bootstrapGraphSchema{backend: graph.SchemaBackendNornicDB, executor: executor, close: func() error { return nil }}, nil
 		},
 	)
 	if err == nil {

@@ -7,9 +7,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
-	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 // The semantic Module cases pin what the production semantic-entity write does
@@ -35,11 +35,14 @@ import (
 //     orphan sweep deliberately skips uid-bearing nodes
 //     (orphanSweepClassPredicate, `n.uid IS NULL`), so nothing but the next
 //     repo retract would remove it.
-//   - It collides with the import graph: the canonical
-//     `MERGE (m:Module {name, lang})` matches any Module with that name and
-//     language, so it binds to the stray semantic node instead of creating
-//     its own uid-NULL node. That is the uid-NULL count divergence #6968
-//     measured (NornicDB 406 vs Neo4j 413 on the orphan sweep).
+//   - It used to collide with the import graph: the canonical MERGE keyed
+//     on (name, lang) matched any Module with that name and language, so it
+//     bound to the stray semantic node instead of creating its own uid-NULL
+//     node. That was the uid-NULL count divergence #6968 measured (NornicDB
+//     406 vs Neo4j 413 on the orphan sweep). Since #8168 the canonical MERGE
+//     keys on import_key, which semantic nodes never carry, so the canonical
+//     node is created on both backends; the stray node itself remains a
+//     NornicDB divergence.
 //
 // The cases capture the statements from the production writer through a
 // recording executor, so they run the exact Cypher each backend receives,
@@ -58,7 +61,9 @@ const (
 )
 
 // semanticModuleDivergence is the tracking issue for the NornicDB outcome the
-// absent-File and canonical-import reads pin until the write path is fixed.
+// absent-File read pins until the write path is fixed. The canonical-import
+// read no longer needs it: since #8168 the import_key MERGE never binds the
+// stray node.
 const semanticModuleDivergence = "#6968 NornicDB merge-first semantic Module write creates the node when its File is absent"
 
 // Fixture values. Each case owns its repo id, so one case's repo retract can
@@ -144,8 +149,8 @@ func SemanticModuleWriteCases(newWriter SemanticEntityWriterFactory) ([]WriteCas
 		return nil, err
 	}
 	canonicalImport := sourcecypher.SanitizeStatements(sourcecypher.BuildBatchedStatements(
-		node.CanonicalNodeModuleUpsertCypher,
-		[]map[string]any{{"name": semanticModuleImportName, "language": semanticModuleLanguage}},
+		sourcecypher.CanonicalNodeModuleUpsertCypher,
+		sourcecypher.CanonicalModuleRows([]canonical.ModuleRow{{Name: semanticModuleImportName, Language: semanticModuleLanguage}}),
 		sourcecypher.DefaultBatchSize,
 	))
 
@@ -238,30 +243,23 @@ RETURN f.path AS file_path, m.uid AS uid, m.lang AS lang, m.evidence_source AS e
 			}},
 		},
 		{
+			// The canonical import Module is read on its own identity, the
+			// import_key the canonical MERGE keys on (#8168). Both backends
+			// create it uid-NULL beside the stray semantic node, and the
+			// canonical write leaves that node's properties alone.
 			Name:       semanticModuleImportReadCaseName,
 			Capability: CapabilityCanonicalWrites,
-			Cypher: `MATCH (m:Module {name: $module_name, lang: $module_lang})
-RETURN m.uid AS uid, m.evidence_source AS evidence_source`,
+			Cypher: `MATCH (m:Module {import_key: $import_key})
+RETURN m.uid AS uid, m.name AS name, m.lang AS lang, m.evidence_source AS evidence_source`,
 			Parameters: map[string]any{
-				"module_name": semanticModuleImportName,
-				"module_lang": semanticModuleLanguage,
+				"import_key": sourcecypher.CanonicalModuleImportKey(semanticModuleImportName, semanticModuleLanguage),
 			},
 			WantRows: []map[string]any{{
 				"uid":             nil,
+				"name":            semanticModuleImportName,
+				"lang":            semanticModuleLanguage,
 				"evidence_source": "projector/canonical",
 			}},
-			// Observed live on NornicDB (see evidence-notes.md): the canonical
-			// MERGE binds to the stray uid-bearing node and its SET
-			// overwrites evidence_source, so no uid-NULL node exists.
-			Overrides: map[BackendID]BackendOverride{
-				BackendNornicDB: {
-					Divergence: semanticModuleDivergence,
-					WantRows: []map[string]any{{
-						"uid":             semanticModuleImportUID,
-						"evidence_source": "projector/canonical",
-					}},
-				},
-			},
 		},
 	}
 }

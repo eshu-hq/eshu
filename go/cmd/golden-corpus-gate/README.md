@@ -75,7 +75,12 @@ pre-filter: the package README names the shapes it reports and its known blind
 spots. An empty capture, or a capture with no id write, fails. The authority is
 the required `graph/anchor_census` check in the graph phase on the Neo4j leg:
 after the replay, no node with an id may be unreachable by the anchor. Off Neo4j
-the check records a non-required skip with its reason.
+the check records a non-required skip with its reason. The required
+`graph/module_identity` check (#8168) runs beside it on the Neo4j leg: the
+issue's duplicate query (`MATCH (m:Module) WHERE m.import_key IS NOT NULL
+WITH m.name AS name, m.lang AS lang, count(m) AS n WHERE n > 1 RETURN name,
+lang, n`) must return zero rows, and no canonical Module (`uid IS NULL`) may
+lack `import_key`. Off Neo4j it records a non-required skip.
 
 The backend-diff phase is opt-in and excluded from `-phase=all`: it needs
 two backends' recording directories, which a normal single-backend B-7 run
@@ -288,6 +293,8 @@ scans an entire response.
   against `anchor.CheckWriters` (#7212).
 - `anchor_census.go` — the `graph/anchor_census` check and the Bolt census
   read behind it (#7212).
+- `module_identity.go` — the `graph/module_identity` check and the Bolt
+  reads behind it (#8168).
 - `runner.go` / `main.go` — flag parsing and phase orchestration.
 
 ## SQL relationship and CODEOWNERS query coverage (#5410)
