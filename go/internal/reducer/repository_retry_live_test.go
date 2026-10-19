@@ -21,6 +21,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
 
 // #7285 live graph truth. A projector retry of a generation whose reducer
@@ -70,8 +71,13 @@ var wantReducerEdgesOnRepo = map[string]int64{
 	"PROVISIONS_PLATFORM": 1, "DECLARES_CODEOWNER": 1, "PUBLISHES": 1, "BUILT_FROM": 1,
 }
 
-func (l *repoRetryLive) workloadID(repo string) string {
-	return "workload:" + l.prefix + "-" + repo
+// workloadID mints the fixture workload's canonical scoped id through the
+// same constructor the production projection path uses (#5385). The
+// materializer writes row ids verbatim, so hand-built rows must carry
+// production-shaped keys; the retired workload:<name> equation addresses no
+// post-flip node.
+func (l *repoRetryLive) workloadID(repoID, name string) string {
+	return workloadid.NewWorkloadID(repoID, name).String()
 }
 
 // materializeRetryWorkloads runs the real WorkloadMaterializer: repo defines
@@ -89,21 +95,21 @@ func (l *repoRetryLive) materializeRetryWorkloadsErr(ctx context.Context) error 
 	repoID, otherID := l.repoID(retryFixtureRepo.name), l.repoID(retryFixtureOther.name)
 	own := &reducer.ProjectionResult{
 		WorkloadRows: []reducer.WorkloadRow{{
-			RepoID: repoID, WorkloadID: l.workloadID("payments"), WorkloadName: "payments",
+			RepoID: repoID, WorkloadID: l.workloadID(repoID, "payments"), WorkloadName: "payments",
 			WorkloadKind: "service", Classification: "service", Confidence: 0.95,
 		}},
 		EndpointRows: []reducer.APIEndpointRow{{
 			EndpointID: "endpoint:" + l.prefix + "-pay", RepoID: repoID,
-			WorkloadID: l.workloadID("payments"), WorkloadName: "payments", Path: "/v1/pay",
+			WorkloadID: l.workloadID(repoID, "payments"), WorkloadName: "payments", Path: "/v1/pay",
 		}},
 	}
 	other := &reducer.ProjectionResult{
 		WorkloadRows: []reducer.WorkloadRow{{
-			RepoID: otherID, WorkloadID: l.workloadID("ledger"), WorkloadName: "ledger",
+			RepoID: otherID, WorkloadID: l.workloadID(otherID, "ledger"), WorkloadName: "ledger",
 			WorkloadKind: "service", Classification: "service", Confidence: 0.95,
 		}},
 		InstanceRows: []reducer.InstanceRow{{
-			WorkloadID: l.workloadID("ledger"), InstanceID: "workload-instance:" + l.prefix + "-ledger:prod",
+			WorkloadID: l.workloadID(otherID, "ledger"), InstanceID: "workload-instance:" + l.prefix + "-ledger:prod",
 			WorkloadName: "ledger", WorkloadKind: "service", Classification: "service",
 			Environment: "prod", RepoID: otherID, Confidence: 0.95,
 		}},
@@ -269,6 +275,12 @@ RETURN count(rel) AS count`, 0},
 // reads the live graph and must answer with the workload's defining
 // repository. Its repo_id comes from the workload's incoming DEFINES edge, so
 // an empty-shell workload answers repo_id "".
+//
+// #5385: the fixture addresses the node by the constructor-minted scoped id
+// (the same inputs the materializer passes to workloadid.NewWorkloadID), and
+// the public handle leg proves the compat rung resolves to that same node.
+// The retired workload:<name> equation is not a valid selector: its stripped
+// remainder matches no node name, so it answers 404.
 func (l *repoRetryLive) assertQueryLayerDefiningRepo(ctx context.Context, t *testing.T, repoID string) {
 	t.Helper()
 	registerContextOverviewCapability.Do(func() {
@@ -280,27 +292,39 @@ func (l *repoRetryLive) assertQueryLayerDefiningRepo(ctx context.Context, t *tes
 		})
 	})
 	handler := &entity.Handler{Neo4j: liveGraphQuery{exec: l.exec}, Profile: querycontract.ProfileLocalAuthoritative}
-	workloadID := l.workloadID("payments")
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/workloads/"+workloadID+"/context", nil).WithContext(ctx)
-	req.Header.Set("Accept", querycontract.EnvelopeMIMEType) // the {data, truth} shape MCP callers get
-	req.SetPathValue("workload_id", workloadID)
-	rec := httptest.NewRecorder()
-	handler.GetWorkloadContext(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("get_workload_context status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	workloadID := l.workloadID(repoID, "payments")
+	if workloadID == "" {
+		t.Fatalf("workloadID(%q, payments) minted no id", repoID)
 	}
-	var body struct {
-		Data struct {
-			ID     string `json:"id"`
-			RepoID string `json:"repo_id"`
-		} `json:"data"`
+	getContext := func(selector string) (string, string) {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/workloads/"+selector+"/context", nil).WithContext(ctx)
+		req.Header.Set("Accept", querycontract.EnvelopeMIMEType) // the {data, truth} shape MCP callers get
+		req.SetPathValue("workload_id", selector)
+		rec := httptest.NewRecorder()
+		handler.GetWorkloadContext(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("get_workload_context(%q) status = %d, want 200; body = %s", selector, rec.Code, rec.Body.String())
+		}
+		var body struct {
+			Data struct {
+				ID     string `json:"id"`
+				RepoID string `json:"repo_id"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+			t.Fatalf("decode get_workload_context(%q) body %s: %v", selector, rec.Body.String(), err)
+		}
+		return body.Data.ID, body.Data.RepoID
 	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
-		t.Fatalf("decode get_workload_context body %s: %v", rec.Body.String(), err)
+	if gotID, gotRepo := getContext(workloadID); gotID != workloadID || gotRepo != repoID {
+		t.Fatalf("get_workload_context = id %q repo_id %q, want %q defined by %q (empty-shell workload)",
+			gotID, gotRepo, workloadID, repoID)
 	}
-	if body.Data.ID != workloadID || body.Data.RepoID != repoID {
-		t.Fatalf("get_workload_context = id %q repo_id %q, want %q defined by %q (empty-shell workload); body = %s",
-			body.Data.ID, body.Data.RepoID, workloadID, repoID, rec.Body.String())
+	handle := workloadid.FormatWorkloadHandle("payments")
+	if gotID, gotRepo := getContext(handle); gotID != workloadID || gotRepo != repoID {
+		t.Fatalf("get_workload_context(%q) = id %q repo_id %q, want the scoped node %q defined by %q",
+			handle, gotID, gotRepo, workloadID, repoID)
 	}
 }
 
