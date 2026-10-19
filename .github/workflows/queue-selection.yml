@@ -1,3 +1,10 @@
+# Merge-queue selection helper. Main has NO merge queue since 2026-10-16
+# (#8288): the live branch ruleset
+# (gh api repos/eshu-hq/eshu/rules/branches/main) lists deletion,
+# non_fast_forward, pull_request, and required_status_checks, and no
+# merge_queue rule. The merge_group arms below are therefore inert and are
+# retained so the queue can be re-enabled without rebuilding selection;
+# any other event passes through with selected=true and no jobs.
 name: Merge Queue Selection
 
 on:
