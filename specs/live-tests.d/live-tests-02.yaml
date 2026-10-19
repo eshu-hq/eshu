@@ -328,6 +328,10 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/repository/catalog_sibling_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "deterministic seeded #5385 positive proof for the catalog SAME_NAME sibling read (empty by construction in the B-7 corpus): seeds a cross-repo same-name workload pair plus a sibling-less control and asserts the exact production Cypher resolves both directions, the negative control stays empty, and the handler enrichment counts 1/0; honors the per-backend ESHU_NEO4J_DATABASE pin so it runs on both backends in the live-backend CI job; local neo4j:2026-community run took 0.2s on a shared host"
   - file: go/internal/query/repository/dependency_edge_growth_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
