@@ -139,6 +139,33 @@ func TestProbeReuse_EmptyCommitParentReuses(t *testing.T) {
 	}
 }
 
+// An empty context list must never read as vacuously green (F1): the
+// probe errors before any gh call instead of returning reuse on a tree
+// match with zero evidence.
+func TestProbeReuse_EmptyContextsFailClosed(t *testing.T) {
+	t.Parallel()
+
+	runner := &mappedGHRunner{}
+	_, err := probeReuse(context.Background(), runner, "eshu-hq/eshu", 42, reuseHeadSHA, nil)
+	if err == nil {
+		t.Fatal("probeReuse with no contexts must error, never reuse")
+	}
+	if len(runner.calls) != 0 {
+		t.Fatalf("probeReuse made %d gh calls before rejecting empty contexts", len(runner.calls))
+	}
+}
+
+// A non-SHA head is rejected before it can reach a REST path (F3).
+func TestProbeReuse_RejectsNonSHAHead(t *testing.T) {
+	t.Parallel()
+
+	runner := &mappedGHRunner{}
+	_, err := probeReuse(context.Background(), runner, "eshu-hq/eshu", 42, "../statuses", []string{"required-gates-complete"})
+	if err == nil {
+		t.Fatal("probeReuse must reject a non-SHA head")
+	}
+}
+
 func TestProbeReuse_GHErrorFailsClosed(t *testing.T) {
 	t.Parallel()
 

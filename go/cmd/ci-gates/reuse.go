@@ -59,6 +59,8 @@ func runReuse(args []string) error {
 
 var repoNamePattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
 
+var commitSHAPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
+
 // probeReuse reports whether headSHA's tree was already proven green by a
 // previous head of the same pull request. Candidates, in order: the head a
 // force-push replaced (GraphQL beforeCommit, only when that push produced
@@ -71,6 +73,15 @@ func probeReuse(ctx context.Context, runner ghRunner, repo string, pr int, headS
 	if !repoNamePattern.MatchString(repo) {
 		return reuseVerdict{}, fmt.Errorf("invalid --repo %q", repo)
 	}
+	if !commitSHAPattern.MatchString(headSHA) {
+		return reuseVerdict{}, fmt.Errorf("invalid --head-sha %q", headSHA)
+	}
+	// Zero required contexts would make the green check vacuous: a hermetic
+	// registry may legitimately declare none, but reuse with no evidence is
+	// exactly the fail-open this probe must never return.
+	if len(contexts) == 0 {
+		return reuseVerdict{}, fmt.Errorf("no required status contexts to reuse against")
+	}
 	head, err := gitCommit(ctx, runner, repo, headSHA)
 	if err != nil {
 		return reuseVerdict{}, err
@@ -81,7 +92,7 @@ func probeReuse(ctx context.Context, runner ghRunner, repo string, pr int, headS
 	}
 	verdict := reuseVerdict{Tree: head.Tree.SHA, Reason: "no previous head with an identical tree and a full green verdict"}
 	for _, candidate := range candidates {
-		if candidate == "" || candidate == headSHA {
+		if candidate == headSHA || !commitSHAPattern.MatchString(candidate) {
 			continue
 		}
 		commit, err := gitCommit(ctx, runner, repo, candidate)
