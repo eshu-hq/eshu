@@ -104,7 +104,7 @@ func singleRepoCatalog() *stubRetirementCatalog {
 	}}
 }
 
-func TestRetireRunsFenceBeforePurge(t *testing.T) {
+func TestRetireRepositoriesRunsFenceBeforePurge(t *testing.T) {
 	var calls []string
 	audit := &testutil.FakeGovernanceAuditAppender{}
 	fencer := &stubRetirementFencer{calls: &calls, result: pgstatus.FenceResult{

@@ -20,7 +20,7 @@ Repeat `--repository` for up to 25 repositories. A key is generated when
 (all-scopes) token:
 
 ```bash
-curl -X POST "$ESHU_SERVICE_URL/api/v0/admin/repositories/retire" \
+curl -X POST http://localhost:8080/api/v0/admin/repositories/retire \
   -H "Authorization: Bearer $ESHU_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"repositories":["acme/api"],"reason":"decommissioned upstream","idempotency_key":"retire-2026-10-19-acme-api"}'
