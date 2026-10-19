@@ -53,7 +53,7 @@ type EntityWriteResult struct {
 	// exists by construction or by derivation agreement (see cypher's
 	// verifySemanticEntityMatchIdentities, #8359). A MATCH-owned row whose uid
 	// is not the projector's derivation can no-op silently, so the handler
-	// WARNs on the difference without failing the work item.
+	// WARNs on the difference and fails the work item non-retryably (#8587).
 	RowsAttemptedByLabel map[string]int
 	RowsMatchedByLabel   map[string]int
 	// UnmatchedEntityIDs names admitted rows that matched no canonical node

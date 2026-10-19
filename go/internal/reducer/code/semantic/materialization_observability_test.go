@@ -155,6 +155,11 @@ func TestSemanticEntityMaterializationHandlerWarnsOnUnmatchedUIDs(t *testing.T) 
 		`"unmatched_uid_count":1`,
 		`"rows_attempted_by_label":{"Function":1}`,
 		`"rows_matched_by_label":{"Function":0}`,
+		// #8587 owner P2: the completion record emits on the failure path
+		// with failed=true so log queries cannot mistake dead-lettered
+		// items for successes.
+		`"msg":"semantic entity materialization completed"`,
+		`"failed":true`,
 	} {
 		if !strings.Contains(logText, want) {
 			t.Fatalf("logs missing %s:\n%s", want, logText)
