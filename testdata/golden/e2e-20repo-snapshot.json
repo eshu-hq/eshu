@@ -351,6 +351,11 @@
         "min": 3,
         "max": 3,
         "note": "exactly three SqlMigration->SqlTable edges from sql_comprehensive's V1 ALTER migration plus V2's direct comma-separated DROP TABLE migration (#5346, #5482)"
+      },
+      "SAME_NAME": {
+        "min": 1,
+        "max": 5,
+        "note": "issue #8540: cross-repo same-name workload pairing from the workload materializer (WorkloadMaterializer.writeSameNameEdges over batchSameNameEdgeUpsertCypher: one directed edge per ordered pair, MERGE-converged across passes). The corpus holds exactly one same-name pair by construction: jenkins-ci-pipelines' deployable-config/Dockerfile names the deployable-config unit, pairing with the deployable-config repo's own workload. The pair name avoids deployable-source, whose legacy workload:deployable-source cloud anchors the #5385 handle ladder fails closed when ambiguous (see #8574). Floor 1 pins the catalog SAME_NAME sibling read's corpus coverage (its statement-coverage exemption leaves statement-builders.yaml in the same issue); ceiling allows future intentional pairs"
       }
     },
     "required_correlations": [
@@ -1958,6 +1963,14 @@
         "relationship": "CAN_PERFORM",
         "from_label": "CloudResource",
         "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-177",
+        "description": "issue #8540: at least one Workload-[:SAME_NAME]->Workload edge; confirms the workload materializer paired the seeded cross-repo same-name workloads (jenkins-ci-pipelines' deployable-config/Dockerfile names the deployable-config unit, pairing with the deployable-config repo's workload; the pair avoids legacy-anchored deployable-source, see #8574). Before the seed the B-7 corpus wrote no SAME_NAME edges, so the catalog sibling read was always empty there (its statement-coverage exemption leaves statement-builders.yaml in the same issue).",
+        "relationship": "SAME_NAME",
+        "from_label": "Workload",
+        "to_label": "Workload",
         "minimum_count": 1
       }
     ],
@@ -3747,7 +3760,7 @@
           "coverage.query_shape": "deployment_config_influence_story"
         },
         "arguments": {
-          "service_name": "deployable-config",
+          "workload_id": "workload:repository:r_217415d9:deployable-config",
           "limit": 10
         }
       },

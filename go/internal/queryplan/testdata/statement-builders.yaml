@@ -511,9 +511,6 @@ read_exemptions:
   - callsite: internal/query/entity/service_workload_resolution.go:(*Handler).serviceWorkloadCandidatesFromQuery
     anchor: "MATCH (w:Workload) WHERE w.id = $service_id"
     reason: "#5385 ladder rung 1 binds workload: handles (recorded workload:api-svc), which structurally match no post-flip node id; the stripped-name rung resolves them (recorded non-empty with the bare name)"
-  - callsite: internal/query/repository/catalog_workload_environments.go:(*Handler).catalogWorkloadEnrichments
-    anchor: "MATCH (w:Workload)-[:SAME_NAME]-(sib:Workload)"
-    reason: B-7 captures write no SAME_NAME edges (13 same-pattern reads across both pairs and backends return zero rows); positively proven by TestLiveCatalogSameNameSiblings in catalog_sibling_live_test.go, scheduled on both live-backend legs
   - callsite: internal/query/infra_relationship_filter.go:(*InfraHandler).getRelationships
     anchor: "MATCH (n) WHERE n.id = $entity_id"
     reason: bound entity id aws:s3 bucket never written in B-7 captures; probe-by-id over an absent entity
