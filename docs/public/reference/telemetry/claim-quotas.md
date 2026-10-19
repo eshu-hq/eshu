@@ -8,10 +8,16 @@ over-quota scope is throttled even on an idle system, and the reservation
 shares the grant transaction so concurrent coordinators cannot overshoot.
 
 The coordinator builds its claim-path lookup at startup from the admitted
-component manifests (#8561): one manifest fans out to every collector kind
+manifests of components planning at least one claims-enabled instance
+(#8561, #8582): one manifest fans out to every collector kind
 it declares, and one kind gets one budget — conflicting declarations for
-the same kind fail startup with the kind named. The uniform operator
-override wins per field over every admitted manifest:
+the same kind fail startup with the kind named. A component with no
+claims-enabled activation contributes no budget and cannot raise a kind
+conflict; its declared budget takes effect at the restart that first plans
+an instance for it. The uniform operator
+override wins per field over every quota-contributing manifest, but the
+override alone creates no budget for a kind declared only by dormant
+manifests:
 `ESHU_COMPONENT_QUOTA_MAX_GENERATIONS_PER_HOUR` (and
 `ESHU_COMPONENT_QUOTA_MAX_FACTS_PER_GENERATION`, declared and validated
 today but not runtime-enforced). Blank keeps the manifests; a set-but-invalid

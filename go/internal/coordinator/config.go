@@ -53,7 +53,8 @@ type Config struct {
 	CollectorInstances      []workflow.DesiredCollectorInstance
 	// QuotaLookup resolves the enforced per-component generation quota for
 	// a collector kind (#8471, #8561). It is built from the admitted
-	// component manifests with the operator override applied per field,
+	// manifests of components planning at least one claims-enabled
+	// instance (#8582) with the operator override applied per field,
 	// and run() passes it straight into the WorkflowControlStore. It is
 	// always non-nil; with nothing to enforce every kind reports
 	// unthrottled and claims keep the plain statement.
@@ -162,7 +163,7 @@ func LoadConfigObserved(getenv func(string) string, observer component.GrantObse
 	if err != nil {
 		return Config{}, fmt.Errorf("parse ESHU_COLLECTOR_INSTANCES_JSON: %w", err)
 	}
-	componentInstances, admittedManifests, err := componentCollectorInstancesFromEnv(getenv, observer)
+	componentInstances, quotaManifests, err := componentCollectorInstancesFromEnv(getenv, observer)
 	if err != nil {
 		return Config{}, err
 	}
@@ -174,7 +175,7 @@ func LoadConfigObserved(getenv func(string) string, observer component.GrantObse
 	if err != nil {
 		return Config{}, err
 	}
-	quotaLookup, err := buildComponentQuotaLookup(admittedManifests, quotaOverride)
+	quotaLookup, err := buildComponentQuotaLookup(quotaManifests, quotaOverride)
 	if err != nil {
 		return Config{}, err
 	}

@@ -308,7 +308,7 @@ func TestBuildComponentQuotaLookupSkipsUnthrottledKinds(t *testing.T) {
 }
 
 // TestBuildComponentQuotaLookupRejectsConflictingKindBudgets proves one
-// kind gets one budget: two admitted manifests declaring different resolved
+// kind gets one budget: two planned manifests declaring different resolved
 // limits for the same kind fail startup with the kind named, instead of
 // silently picking a winner the operator did not choose.
 func TestBuildComponentQuotaLookupRejectsConflictingKindBudgets(t *testing.T) {

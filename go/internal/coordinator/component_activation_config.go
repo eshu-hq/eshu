@@ -25,10 +25,13 @@ func componentCollectorInstancesFromEnv(getenv func(string) string, observer com
 		return nil, nil, fmt.Errorf("read component registry: %w", err)
 	}
 	instances := make([]workflow.DesiredCollectorInstance, 0)
-	// manifests carries the admitted manifests alongside the instances in
-	// readback order, so the quota lookup (#8561) is built from the same
-	// single registry pass instead of re-reading grants per component and
-	// risking a revocation landing between two reads.
+	// manifests carries the quota-contributing manifests alongside the
+	// instances in readback order, so the quota lookup (#8561) is built
+	// from the same single registry pass instead of re-reading grants
+	// per component and risking a revocation landing between two reads.
+	// A component that plans no claims-enabled instance cannot claim
+	// this run, so its manifest contributes no budget and cannot raise
+	// a kind conflict (#8582).
 	manifests := make([]component.Manifest, 0)
 	for _, entry := range readback {
 		if entry.Error != nil || entry.Verification == nil || !entry.Verification.Allowed {
@@ -60,7 +63,9 @@ func componentCollectorInstancesFromEnv(getenv func(string) string, observer com
 			return nil, nil, err
 		}
 		instances = append(instances, componentInstances...)
-		manifests = append(manifests, manifest)
+		if len(componentInstances) > 0 {
+			manifests = append(manifests, manifest)
+		}
 	}
 	return instances, manifests, nil
 }
